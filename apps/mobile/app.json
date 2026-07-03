@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "GRYD",
+    "slug": "klaim",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "gryd",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0B09",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#0A0B09",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "bundleIdentifier": "fr.nexus1993.gryd",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "GRYD utilise ta position pendant tes courses pour capturer les hexagones que tu traverses sur la carte de ta ville. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées."
+      }
+    },
+    "android": {
+      "package": "fr.nexus1993.gryd"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GRYD utilise ta position pendant tes courses pour capturer les hexagones que tu traverses sur la carte de ta ville. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
+          "locationAlwaysAndWhenInUsePermission": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
+          "isIosBackgroundLocationEnabled": true
+        }
+      ],
+      "expo-apple-authentication"
+    ],
+    "experiments": {}
+  }
+}

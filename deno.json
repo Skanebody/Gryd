@@ -1,0 +1,4 @@
+{
+  "//": "Config Deno RACINE — nécessaire pour que `deno test supabase/functions/` et `deno check` fonctionnent depuis la racine (CLAUDE.md) : supabase/functions/_shared/{types,game-rules}.ts sont des copies GÉNÉRÉES (sync-game-rules.mjs) qui importent './game-rules' SANS extension ; Deno ne résout ça qu'avec sloppy-imports, et il ne découvre la config que depuis le CWD.",
+  "unstable": ["sloppy-imports"]
+}

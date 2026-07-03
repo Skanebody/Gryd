@@ -1,0 +1,5 @@
+# Config Supabase minimale — projet local KLAIM.
+# Générée à la main (voir DISCOVERY.md O1 : pas encore de projet Supabase réel).
+project_id = "klaim"
+
+[functions]

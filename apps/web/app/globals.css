@@ -1,0 +1,75 @@
+/*
+ * GRYD — site waitlist. Variables globales.
+ * Tokens ADDENDUM-DESIGN §C, repris du :root de maquette-ui-klaim.html.
+ * Règles : toute couleur hors tokens = bug ; dark-first ; JAMAIS de texte ou
+ * d'icône chartreuse sur fond clair (contraste 1,2:1 — interdit absolu, §C.2).
+ */
+:root {
+  --fond: #070807; /* fond de page (body de la maquette) */
+  --noir: #0a0b09;
+  --carbone: #141613;
+  --carbone2: #1d201b;
+  --blanc: #fafaf7;
+  --gris: #8a8f84;
+  --ligne: rgba(250, 250, 247, 0.1);
+  --ch: #b4ff0d;
+  --ch14: rgba(180, 255, 13, 0.14);
+  --ch40: rgba(180, 255, 13, 0.4);
+  --eau: #0d1112;
+
+  /* Fontes injectées par next/font dans app/layout.tsx */
+  --disp: var(--font-avant-garde, var(--font-josefin)), 'Josefin Sans', sans-serif; /* AMENDEMENT-03 : ITC Avant Garde Md quand licenciée */
+  --txt: var(--font-avant-garde, var(--font-josefin)), 'Josefin Sans', sans-serif; /* Avant Garde Bk (400) */
+  --serif: var(--font-lora), Lora, serif; /* accent éditorial Outcrowd */
+  --mono: var(--font-space-mono), monospace;
+
+  --radius-card: 20px;
+  --radius-pill: 999px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--fond);
+  color: var(--blanc);
+  font-family: var(--txt);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--ch);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--ch40);
+  color: var(--blanc);
+}

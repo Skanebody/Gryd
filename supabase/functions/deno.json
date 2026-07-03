@@ -1,0 +1,4 @@
+{
+  "//": "Config Deno des Edge Functions. sloppy-imports requis : _shared/types.ts (copie générée par scripts/sync-game-rules.mjs, ne pas éditer) importe './game-rules' sans extension. Les specifiers npm sont écrits en toutes lettres (npm:...) dans le code — pas d'import map à maintenir.",
+  "unstable": ["sloppy-imports"]
+}

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-waitlist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace", "@klaim/web"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

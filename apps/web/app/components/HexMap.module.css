@@ -1,0 +1,58 @@
+.map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  background: var(--noir);
+}
+
+/*
+ * Motion (addendum §G) : vague de capture 400 ms ease-out à l'arrivée,
+ * glow respirant. prefers-reduced-motion → tout est statique (les vagues
+ * deviennent des états posés, pas de pulse).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .mine {
+    animation: hexRise 400ms ease-out backwards;
+  }
+
+  .heart {
+    animation:
+      hexRise 400ms ease-out backwards,
+      heartBreath 4s ease-in-out infinite;
+  }
+
+  .glow {
+    animation: glowBreath 5s ease-in-out infinite;
+  }
+}
+
+@keyframes hexRise {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes heartBreath {
+  0%,
+  100% {
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-opacity: 0.45;
+  }
+}
+
+@keyframes glowBreath {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.22;
+  }
+}

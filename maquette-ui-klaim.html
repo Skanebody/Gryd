@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRYD — Référence UI v0.2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;700&family=Lora:ital,wght@0,400;0,500;1,400&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --noir:#0A0B09; --carbone:#141613; --carbone2:#1D201B;
+    --blanc:#FAFAF7; --gris:#8A8F84; --ligne:rgba(250,250,247,.10);
+    --ch:#B4FF0D; --ch14:rgba(180,255,13,.14); --ch40:rgba(180,255,13,.40);
+    --disp:'ITC Avant Garde Gothic Std','Josefin Sans',sans-serif; --txt:'ITC Avant Garde Gothic Std','Josefin Sans',sans-serif; --serif:'Lora',serif; --mono:'Space Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#070807;color:var(--blanc);font-family:var(--txt);padding:36px 20px 64px}
+  .head{max-width:1280px;margin:0 auto 34px}
+  .head .tag{font:400 11px var(--mono);color:var(--ch);letter-spacing:.22em;text-transform:uppercase}
+  .head h1{font:700 clamp(26px,4vw,40px)/1.05 var(--disp);letter-spacing:-.02em;margin:10px 0 8px}
+  .head p{color:var(--gris);font-size:14px;max-width:60ch}
+  .grid{max-width:1280px;margin:0 auto;display:grid;gap:34px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));justify-items:center}
+  .cell .lab{font:400 11px var(--mono);color:var(--gris);letter-spacing:.18em;text-transform:uppercase;margin-bottom:12px;text-align:center}
+
+  /* ---------- Cadre téléphone ---------- */
+  .phone{width:min(390px,92vw);aspect-ratio:390/812;background:var(--noir);border:1px solid var(--ligne);
+    border-radius:44px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  .status{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;font:400 12px var(--mono);color:var(--gris)}
+  .screen{flex:1;position:relative;display:flex;flex-direction:column;min-height:0}
+
+  .chip{display:inline-flex;align-items:center;gap:7px;background:rgba(10,11,9,.82);backdrop-filter:blur(6px);
+    border:1px solid var(--ligne);border-radius:999px;padding:7px 13px;font:400 11px var(--mono);letter-spacing:.06em}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ch)}
+  @media (prefers-reduced-motion:no-preference){
+    .dot.live{animation:blink 1.6s ease-in-out infinite}
+    @keyframes blink{50%{opacity:.25}}
+  }
+
+  /* ---------- Écran 1 : Carte ---------- */
+  .map{position:absolute;inset:0;width:100%;height:100%}
+  .ov-top{position:absolute;top:12px;left:14px;right:14px;display:flex;justify-content:space-between;z-index:3}
+  .ov-stat{position:absolute;left:14px;bottom:118px;z-index:3}
+  .run{position:absolute;bottom:96px;left:50%;transform:translateX(-50%);width:74px;height:74px;border-radius:50%;
+    background:var(--ch);display:flex;align-items:center;justify-content:center;z-index:4;
+    font:700 13px var(--disp);color:#0A0B09;letter-spacing:.08em;border:none;cursor:pointer}
+  @media (prefers-reduced-motion:no-preference){
+    .run::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:1.5px solid var(--ch40);animation:pulse 2s ease-out infinite}
+    @keyframes pulse{0%{transform:scale(.9);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+  }
+  .nav{position:absolute;left:16px;right:16px;bottom:18px;z-index:4;background:rgba(20,22,19,.9);backdrop-filter:blur(8px);
+    border:1px solid var(--ligne);border-radius:999px;height:58px;display:flex;align-items:center;justify-content:space-around;
+    font:500 12px var(--txt)}
+  .nav span{color:var(--gris)} .nav .on{color:var(--blanc);display:flex;align-items:center;gap:7px}
+  .nav .on::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ch)}
+
+  /* ---------- Écran 2 : Course en cours (v0.2 : carte trajet + tout centré) ---------- */
+  .runwrap{flex:1;display:flex;flex-direction:column;padding:10px 20px 24px;min-height:0}
+  .livemap{position:relative;flex:none;height:41%;border-radius:24px;overflow:hidden;border:1px solid var(--ligne);background:var(--noir)}
+  .livemap svg{position:absolute;inset:0;width:100%;height:100%}
+  .livemap .chip{position:absolute;top:10px;left:10px;z-index:2}
+  .runstats{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;padding-top:16px}
+  .heroNum{font:700 clamp(56px,17vw,76px)/1 var(--disp);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .heroNum small{font-size:.38em;color:var(--gris);font-weight:500;letter-spacing:0}
+  .subrow{display:flex;gap:30px;margin-top:10px;color:var(--gris);font:500 14px var(--txt);justify-content:center}
+  .subrow b{color:var(--blanc);font:700 19px var(--disp);font-variant-numeric:tabular-nums}
+  .gain{display:flex;flex-direction:column;align-items:center}
+  .gain .n{font:700 44px/1 var(--disp);color:var(--ch);font-variant-numeric:tabular-nums}
+  .gain .l{color:var(--gris);font-size:13px;margin-top:4px}
+  .hexstrip{display:flex;gap:5px;margin:14px 0 0;justify-content:center}
+  .hx{width:14px;height:16px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:var(--carbone2)}
+  .hx.f{background:var(--ch)} .hx.h{background:var(--ch40)}
+  .stop{position:relative;height:60px;border-radius:999px;border:1px solid var(--ligne);background:var(--carbone);
+    color:var(--blanc);font:600 15px var(--txt);display:flex;align-items:center;justify-content:center;gap:11px;width:100%;cursor:pointer;margin-top:16px}
+  .stop svg{flex:none}
+  .stop .hint{color:var(--gris);font-size:12px;font-weight:400}
+  @media (prefers-reduced-motion:no-preference){
+    .headdot{animation:blink 1.4s ease-in-out infinite}
+  }
+
+  /* ---------- Écran 3 : Résumé (v0.2 : miniature du trajet façon Strava) ---------- */
+  .sumwrap{flex:1;display:flex;flex-direction:column;padding:12px 24px 24px}
+  .routecard{position:relative;height:150px;border-radius:20px;overflow:hidden;border:1px solid var(--ligne);background:var(--carbone);margin-top:12px}
+  .routecard svg{position:absolute;inset:0;width:100%;height:100%}
+  .sum-hero{text-align:center;margin:16px 0 4px}
+  .sum-hero .n{font:700 clamp(60px,19vw,84px)/1 var(--disp);color:var(--ch);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .sum-hero .l{color:var(--gris);font-size:14px;margin-top:4px}
+  .rows{margin:16px 0 4px;border-top:1px solid var(--ligne)}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:12px 2px;border-bottom:1px solid var(--ligne);font-size:14px}
+  .row .k{color:var(--gris)} .row .v{font:700 17px var(--disp);font-variant-numeric:tabular-nums}
+  .meta{display:flex;gap:10px;margin:14px 0 0;justify-content:center}
+  .meta .chip{background:var(--carbone2);backdrop-filter:none}
+  .cta{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+  .btn-p{height:54px;border-radius:999px;background:var(--ch);color:#0A0B09;font:600 15px var(--txt);
+    border:none;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer}
+  .btn-g{height:50px;border-radius:999px;background:transparent;border:1px solid var(--ligne);color:var(--blanc);
+    font:500 14px var(--txt);cursor:pointer}
+  button:focus-visible{outline:2px solid var(--ch);outline-offset:3px}
+
+  /* ---------- Écran 4 : Mon territoire — carte de France ---------- */
+  .frwrap{flex:1;display:flex;flex-direction:column;padding:12px 24px 24px;text-align:center}
+  .frtitle{font:700 20px var(--disp);letter-spacing:-.01em;margin-top:4px}
+  .frsub{color:var(--gris);font-size:12.5px;margin-top:4px}
+  .frmap{position:relative;flex:1;min-height:0;margin:14px 0 6px}
+  .frmap svg{width:100%;height:100%}
+  .frstats{display:flex;gap:10px;justify-content:center;margin-top:8px}
+  .frhero{margin-top:10px}
+  .frhero .n{font:700 52px/1 var(--disp);color:var(--ch);font-variant-numeric:tabular-nums}
+  .frhero .l{color:var(--gris);font-size:13px;margin-top:4px}
+
+  .note{max-width:1280px;margin:44px auto 0;color:var(--gris);font-size:12.5px;border-top:1px solid var(--ligne);padding-top:18px;line-height:1.7}
+  .note b{color:var(--blanc)}
+</style>
+</head>
+<body>
+
+<header class="head">
+  <div class="tag">GRYD · Référence UI v0.3 · Charte noir / blanc / chartreuse #B4FF0D · Nav 5 onglets (AMENDEMENT-02)</div>
+  <h1>Cours. Capture. Défends.</h1>
+  <p>Quatre écrans clés aux tokens exacts de l'addendum design. v0.2 : écran course recentré avec aperçu du trajet en direct, miniature de parcours dans le résumé (façon Strava), et vue « Mon territoire » à l'échelle de la France — l'Hexagone, littéralement.</p>
+</header>
+
+<main class="grid">
+
+  <!-- ================= ÉCRAN 1 · CARTE ================= -->
+  <div class="cell">
+    <div class="lab">01 · Carte (home)</div>
+    <div class="phone">
+      <div class="status"><span>21:47</span><span>▲ 5G ▮</span></div>
+      <div class="screen">
+        <svg class="map" viewBox="0 0 390 768" preserveAspectRatio="xMidYMid slice" aria-label="Carte de territoire">
+          <defs>
+            <pattern id="hatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(250,250,247,.28)" stroke-width="1.1"/>
+            </pattern>
+            <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#B4FF0D" stop-opacity=".55"/>
+              <stop offset="100%" stop-color="#B4FF0D" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="390" height="768" fill="#0A0B09"/>
+          <g stroke="rgba(250,250,247,.07)" stroke-width="2.4" fill="none">
+            <path d="M-10 190 Q140 150 250 210 T410 180"/>
+            <path d="M60 -10 Q90 240 40 430 T90 790"/>
+            <path d="M-10 460 Q180 430 300 490 T420 470"/>
+            <path d="M250 -10 Q230 200 300 380 T260 790"/>
+            <path d="M-10 620 Q150 590 280 640 T410 610"/>
+          </g>
+          <g stroke="rgba(250,250,247,.045)" stroke-width="1.3" fill="none">
+            <path d="M-10 90 H400"/><path d="M-10 320 Q200 300 400 330"/>
+            <path d="M150 -10 V790"/><path d="M340 -10 Q320 400 350 790"/>
+          </g>
+          <ellipse cx="330" cy="120" rx="90" ry="60" fill="rgba(250,250,247,.03)"/>
+          <path d="M-10 700 Q200 660 410 710 L410 790 L-10 790 Z" fill="#0D1112"/>
+          <circle cx="150" cy="430" r="120" fill="url(#glow)" opacity=".35"/>
+          <g id="hexes"></g>
+          <text x="268" y="268" font-family="'Space Mono',monospace" font-size="10" fill="rgba(250,250,247,.55)" letter-spacing="1.5">CREW NORD·XI</text>
+          <text x="96" y="470" font-family="'Space Mono',monospace" font-size="10" fill="#B4FF0D" letter-spacing="1.5">LES FOULÉES 9³</text>
+        </svg>
+        <div class="ov-top">
+          <span class="chip"><span class="dot"></span>SAISON 0 · J12</span>
+          <span class="chip">8ᵉ · PARIS</span>
+        </div>
+        <div class="ov-stat"><span class="chip">2 147 hex tenus</span></div>
+        <button class="run" aria-label="Démarrer une course">GO</button>
+        <nav class="nav" aria-label="Navigation">
+          <span class="on">Carte</span><span>Crew</span><span>Classement</span><span>Boutique</span><span>Profil</span>
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ÉCRAN 2 · COURSE (v0.2) ================= -->
+  <div class="cell">
+    <div class="lab">02 · Course en cours — trajet en direct</div>
+    <div class="phone">
+      <div class="status"><span>21:59</span><span class="chip" style="padding:4px 10px"><span class="dot live"></span>EN DIRECT</span></div>
+      <div class="screen">
+        <div class="runwrap">
+          <!-- Carte du trajet en cours, façon Strava : trace + hexes capturés au fil du parcours -->
+          <div class="livemap" aria-label="Aperçu du trajet en cours">
+            <svg viewBox="0 0 350 300" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <radialGradient id="glow2" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#B4FF0D" stop-opacity=".5"/>
+                  <stop offset="100%" stop-color="#B4FF0D" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <rect width="350" height="300" fill="#0A0B09"/>
+              <!-- rues -->
+              <g stroke="rgba(250,250,247,.07)" stroke-width="2" fill="none">
+                <path d="M-10 80 Q120 60 220 95 T360 75"/>
+                <path d="M-10 170 Q150 150 260 185 T360 170"/>
+                <path d="M-10 250 Q140 235 360 255"/>
+                <path d="M70 -10 Q85 150 60 310"/>
+                <path d="M180 -10 Q170 140 195 310"/>
+                <path d="M290 -10 Q280 160 300 310"/>
+              </g>
+              <!-- hexes capturés le long du trajet -->
+              <g id="livehexes"></g>
+              <!-- trace de course -->
+              <path id="trace" d="M60 248 Q80 210 70 180 Q60 148 105 138 Q160 128 170 165 Q180 200 225 192 Q268 184 262 140 Q257 108 215 100"
+                fill="none" stroke="#B4FF0D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- départ -->
+              <circle cx="60" cy="248" r="5" fill="#0A0B09" stroke="#FAFAF7" stroke-width="2"/>
+              <!-- position actuelle -->
+              <circle cx="215" cy="100" r="14" fill="url(#glow2)"/>
+              <circle class="headdot" cx="215" cy="100" r="6" fill="#B4FF0D" stroke="#0A0B09" stroke-width="2"/>
+            </svg>
+            <span class="chip">4,21 KM · TRAJET</span>
+          </div>
+          <!-- Stats centrées -->
+          <div class="runstats">
+            <div>
+              <div class="heroNum">4,21<small> km</small></div>
+              <div class="subrow"><span><b>5'34"</b> /km</span><span><b>23:47</b> temps</span></div>
+            </div>
+            <div class="gain">
+              <div class="n">+23</div>
+              <div class="l">hexagones capturés · dont 6 volés</div>
+              <div class="hexstrip" aria-hidden="true">
+                <span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx f"></span><span class="hx h"></span><span class="hx"></span><span class="hx"></span><span class="hx"></span><span class="hx"></span>
+              </div>
+            </div>
+            <button class="stop">
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                <circle cx="10" cy="10" r="8.5" fill="none" stroke="rgba(250,250,247,.18)" stroke-width="2"/>
+                <circle cx="10" cy="10" r="8.5" fill="none" stroke="#B4FF0D" stroke-width="2" stroke-dasharray="53.4" stroke-dashoffset="34" stroke-linecap="round" transform="rotate(-90 10 10)"/>
+                <rect x="6.6" y="6.6" width="6.8" height="6.8" rx="1.4" fill="#FAFAF7"/>
+              </svg>
+              Terminer <span class="hint">· maintenir 1 s</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ÉCRAN 3 · RÉSUMÉ (v0.2 : miniature trajet) ================= -->
+  <div class="cell">
+    <div class="lab">03 · Résumé de conquête</div>
+    <div class="phone">
+      <div class="status"><span>22:24</span><span>▲ 5G ▮</span></div>
+      <div class="screen">
+        <div class="sumwrap">
+          <div style="text-align:center"><span class="chip">COURSE VALIDÉE · 7,4 KM</span></div>
+          <!-- Miniature du parcours, façon Strava -->
+          <div class="routecard" aria-label="Parcours de la course">
+            <svg viewBox="0 0 340 150" preserveAspectRatio="xMidYMid slice">
+              <rect width="340" height="150" fill="#141613"/>
+              <g stroke="rgba(250,250,247,.05)" stroke-width="1.5" fill="none">
+                <path d="M-10 40 H350"/><path d="M-10 95 H350"/>
+                <path d="M80 -10 V160"/><path d="M190 -10 V160"/><path d="M280 -10 V160"/>
+              </g>
+              <path d="M55 118 Q60 80 95 72 Q140 62 150 92 Q160 122 205 115 Q252 107 250 70 Q248 44 285 40"
+                fill="none" stroke="rgba(180,255,13,.35)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M55 118 Q60 80 95 72 Q140 62 150 92 Q160 122 205 115 Q252 107 250 70 Q248 44 285 40"
+                fill="none" stroke="#B4FF0D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="55" cy="118" r="4.5" fill="#141613" stroke="#FAFAF7" stroke-width="2"/>
+              <circle cx="285" cy="40" r="4.5" fill="#B4FF0D" stroke="#0A0B09" stroke-width="1.5"/>
+              <text x="16" y="140" font-family="'Space Mono',monospace" font-size="9" fill="rgba(250,250,247,.45)" letter-spacing="1.2">PARIS 11ᵉ · 22:01 → 22:24</text>
+            </svg>
+          </div>
+          <div class="sum-hero">
+            <div class="n" id="count" data-target="47">+0</div>
+            <div class="l">hexagones capturés</div>
+          </div>
+          <div class="rows">
+            <div class="row"><span class="k">Nouveaux territoires</span><span class="v">31</span></div>
+            <div class="row"><span class="k">Volés à Nord·XI</span><span class="v" style="color:var(--ch)">12</span></div>
+            <div class="row"><span class="k">Défendus</span><span class="v">4</span></div>
+            <div class="row"><span class="k">Points de saison</span><span class="v">+610</span></div>
+          </div>
+          <div class="meta">
+            <span class="chip">🔥 Série ×1,2 · 3 sem</span>
+            <span class="chip">+61 Foulées</span>
+          </div>
+          <div class="cta">
+            <button class="btn-p">Partager ma conquête
+              <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true"><path d="M2 7.5h9M8 3.5l4 4-4 4" stroke="#0A0B09" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="btn-g">Voir sur la carte</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ÉCRAN 4 · MON TERRITOIRE (FRANCE) ================= -->
+  <div class="cell">
+    <div class="lab">04 · Mon territoire — l'Hexagone</div>
+    <div class="phone">
+      <div class="status"><span>22:26</span><span>▲ 5G ▮</span></div>
+      <div class="screen">
+        <div class="frwrap">
+          <div class="frtitle">Mon territoire</div>
+          <div class="frsub">Saison 0 · France entière capturable · 2 zones de guerre actives</div>
+          <div class="frmap" aria-label="Carte de France avec mes territoires">
+            <svg viewBox="0 0 320 330" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <radialGradient id="cityglow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#B4FF0D" stop-opacity=".6"/>
+                  <stop offset="100%" stop-color="#B4FF0D" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <!-- France low-poly (l'Hexagone) -->
+              <path d="M173 22 L196 34 L212 60 L247 72 L262 96 L256 128 L266 158 L262 192 L268 214 L252 232 L214 226 L196 242 L172 250 L162 276 L138 282 L108 262 L96 232 L88 198 L60 172 L22 128 L58 112 L86 94 L92 66 L118 70 L134 84 L152 70 L150 44 Z"
+                fill="rgba(250,250,247,.035)" stroke="rgba(250,250,247,.16)" stroke-width="1.4" stroke-linejoin="round"/>
+              <!-- Corse -->
+              <path d="M292 232 L300 246 L296 270 L286 274 L284 250 Z" fill="rgba(250,250,247,.035)" stroke="rgba(250,250,247,.16)" stroke-width="1.2"/>
+              <!-- villes verrouillées (waitlist) -->
+              <g fill="rgba(250,250,247,.28)">
+                <circle cx="102" cy="220" r="3"/><!-- Bordeaux -->
+                <circle cx="222" cy="196" r="3"/><!-- Lyon -->
+                <circle cx="212" cy="238" r="3"/><!-- Marseille -->
+                <circle cx="66" cy="130" r="3"/><!-- Nantes/Rennes -->
+                <circle cx="150" cy="248" r="3"/><!-- Toulouse -->
+                <circle cx="238" cy="66" r="3"/><!-- Strasbourg -->
+              </g>
+              <g font-family="'Space Mono',monospace" font-size="8" fill="rgba(250,250,247,.35)" letter-spacing="1">
+                <text x="112" y="224">BORDEAUX</text>
+                <text x="230" y="200">LYON</text>
+                <text x="222" y="242">MARSEILLE</text>
+              </g>
+              <!-- LILLE : territoire actif -->
+              <circle cx="172" cy="34" r="16" fill="url(#cityglow)"/>
+              <g id="lillehex"></g>
+              <text x="190" y="30" font-family="'Space Mono',monospace" font-size="9" fill="#B4FF0D" letter-spacing="1.2">LILLE · 312</text>
+              <!-- PARIS : territoire actif (mon cluster principal) -->
+              <circle cx="158" cy="96" r="26" fill="url(#cityglow)"/>
+              <g id="parishex"></g>
+              <text x="182" y="92" font-family="'Space Mono',monospace" font-size="9" fill="#B4FF0D" letter-spacing="1.2">PARIS · 1 835</text>
+            </svg>
+          </div>
+          <div class="frhero">
+            <div class="n">2 147</div>
+            <div class="l">hexagones tenus dans toute la France</div>
+          </div>
+          <div class="frstats">
+            <span class="chip">2 zones actives</span>
+            <span class="chip">8ᵉ · Paris</span>
+            <span class="chip">🔥 3 sem</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<p class="note"><b>Règles appliquées :</b> chartreuse réservé à 4 emplois (moi/mon crew, CTA primaire, gains, état live) · adversaires différenciés par motif hachuré + étiquette mono, jamais par teinte (daltonien-safe) · chiffres héros Space Grotesk tabulaires · stop protégé par maintien · trajet en direct et miniature de parcours = trace chartreuse, jamais celle des autres (vie privée §7) · villes fermées en gris (CTA waitlist) · aucun texte chartreuse sur fond clair · `prefers-reduced-motion` respecté.</p>
+
+<script>
+/* Écran 1 : grille hexagonale égocentrée (pointy-top, H3-like) */
+(function(){
+  const g=document.getElementById('hexes'), R=17, W=Math.sqrt(3)*R, H=1.5*R;
+  const mine=new Set(['4,10','5,10','5,11','4,11','3,11','4,12','5,12','3,12','4,13','6,11','6,12']);
+  const foe =new Set(['9,5','10,5','9,6','10,6','11,6','10,7','9,7','11,7','10,4']);
+  function pts(cx,cy){let s='';for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);s+=(cx+R*Math.cos(a)).toFixed(1)+','+(cy+R*Math.sin(a)).toFixed(1)+' ';}return s.trim();}
+  for(let r=2;r<26;r++){for(let c=0;c<14;c++){
+    const cx=c*W+(r%2?W/2:0)+6, cy=r*H+10, k=c+','+r;
+    const p=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    p.setAttribute('points',pts(cx,cy));
+    if(mine.has(k)){p.setAttribute('fill','rgba(180,255,13,.14)');p.setAttribute('stroke','rgba(180,255,13,.55)');p.setAttribute('stroke-width','1.4');}
+    else if(foe.has(k)){p.setAttribute('fill','url(#hatch)');p.setAttribute('stroke','rgba(250,250,247,.22)');p.setAttribute('stroke-width','1');}
+    else{p.setAttribute('fill','none');p.setAttribute('stroke','rgba(250,250,247,.05)');p.setAttribute('stroke-width','1');}
+    g.appendChild(p);
+  }}
+  const heart=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  heart.setAttribute('points',pts(4*W+W/2+6,11*H+10));
+  heart.setAttribute('fill','rgba(180,255,13,.45)');heart.setAttribute('stroke','#B4FF0D');heart.setAttribute('stroke-width','1.6');
+  g.appendChild(heart);
+})();
+
+/* Écran 2 : hexes capturés le long du trajet en direct */
+(function(){
+  const g=document.getElementById('livehexes');
+  const path=document.getElementById('trace');
+  const L=path.getTotalLength(), R=13;
+  function hex(cx,cy,recent){
+    const p=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    let s='';for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);s+=(cx+R*Math.cos(a)).toFixed(1)+','+(cy+R*Math.sin(a)).toFixed(1)+' ';}
+    p.setAttribute('points',s.trim());
+    p.setAttribute('fill', recent?'rgba(180,255,13,.28)':'rgba(180,255,13,.14)');
+    p.setAttribute('stroke', recent?'rgba(180,255,13,.75)':'rgba(180,255,13,.45)');
+    p.setAttribute('stroke-width','1.2');
+    g.appendChild(p);
+  }
+  const n=12;
+  for(let i=0;i<n;i++){
+    const pt=path.getPointAtLength(L*i/(n-1));
+    hex(pt.x,pt.y,i>=n-2);
+  }
+})();
+
+/* Écran 3 : count-up du chiffre héros (respecte reduced-motion) */
+(function(){
+  const el=document.getElementById('count'), t=+el.dataset.target;
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){el.textContent='+'+t;return;}
+  const start=performance.now(), dur=800;
+  (function f(now){const p=Math.min((now-start)/dur,1), e=1-Math.pow(1-p,3);
+    el.textContent='+'+Math.round(t*e); if(p<1)requestAnimationFrame(f);})(start);
+})();
+
+/* Écran 4 : mini-clusters d'hexes sur Paris et Lille */
+(function(){
+  function cluster(id,cx,cy,R,cells){
+    const g=document.getElementById(id), W=Math.sqrt(3)*R, H=1.5*R;
+    function pts(x,y){let s='';for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);s+=(x+R*Math.cos(a)).toFixed(1)+','+(y+R*Math.sin(a)).toFixed(1)+' ';}return s.trim();}
+    cells.forEach(([c,r],idx)=>{
+      const x=cx+c*W+(r%2?W/2:0), y=cy+r*H;
+      const p=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      p.setAttribute('points',pts(x,y));
+      p.setAttribute('fill', idx===0?'rgba(180,255,13,.5)':'rgba(180,255,13,.2)');
+      p.setAttribute('stroke','rgba(180,255,13,.7)');
+      p.setAttribute('stroke-width','1');
+      g.appendChild(p);
+    });
+  }
+  cluster('parishex',158,96,5,[[0,0],[1,0],[-1,0],[0,1],[-1,1],[0,-1],[1,-1],[-1,-1],[1,1]]);
+  cluster('lillehex',172,34,4,[[0,0],[1,0],[-1,0],[0,1]]);
+})();
+</script>
+</body>
+</html>

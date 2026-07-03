@@ -1,0 +1,13 @@
+{
+  "name": "klaim",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "sync:rules": "node scripts/sync-game-rules.mjs",
+    "test:functions": "deno test --allow-read supabase/functions/"
+  }
+}

@@ -1,0 +1,215 @@
+/**
+ * GRYD — onglet Profil (placeholder MVP, GRYD_prompt_pages_ux §10 +
+ * AMENDEMENT-02 §6). Progression PERMANENTE (niveau/XP 1:1 points via
+ * XP_RATE_OF_POINTS, streak, badges factices) + entrée « Mon territoire » :
+ * mini carte de France (écran 04 de la maquette) avec chiffre héros.
+ * La page Performance est accessible d'ICI (pas un onglet — AMENDEMENT-02 §5).
+ */
+import { useEffect } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import {
+  STREAK_MULTIPLIER_CAP,
+  STREAK_MULTIPLIER_STEP,
+  XP_RATE_OF_POINTS,
+  colors,
+  fontSizes,
+  radii,
+  spacing,
+} from '@klaim/shared';
+import { FranceMap } from '../../src/features/territory/FranceMap';
+import { screen } from '../../src/lib/analytics';
+import { signOut } from '../../src/lib/auth';
+import { useSession } from '../../src/lib/session';
+import { GhostButton } from '../../src/ui/GhostButton';
+import { TabScreen } from '../../src/ui/TabScreen';
+import { formatInt, formatMultiplier } from '../../src/ui/format';
+
+/** Données factices crédibles — cohérentes avec le classement (KORO, 8ᵉ, 4 210 pts). */
+const FAKE_PROFILE = {
+  pseudo: 'KORO',
+  crew: 'LES FOULÉES 9³',
+  level: 7,
+  seasonPoints: 4210,
+  streakWeeks: 3,
+  parisHexes: 1835,
+  lilleHexes: 312,
+} as const;
+
+/** XP permanent : 1:1 avec les points territoire (choix D18). */
+const xp = FAKE_PROFILE.seasonPoints * XP_RATE_OF_POINTS;
+const streakMultiplier = Math.min(
+  1 + FAKE_PROFILE.streakWeeks * STREAK_MULTIPLIER_STEP,
+  STREAK_MULTIPLIER_CAP,
+);
+const totalHexes = FAKE_PROFILE.parisHexes + FAKE_PROFILE.lilleHexes;
+
+/** ~20 badges de base au MVP (AMENDEMENT-02 §6) — 4 factices débloqués ici. */
+const FAKE_BADGES = ['Premier claim', 'Pionnier ×10', 'Défenseur', '10 km'] as const;
+
+interface ProfileLink {
+  label: string;
+  detail: string;
+}
+
+/** Entrées à venir — libellés directifs, rien de câblé (placeholder MVP). */
+const LINKS: readonly ProfileLink[] = [
+  { label: 'Performance', detail: 'Records, allure, régularité' },
+  { label: 'Historique de courses', detail: 'Toutes tes conquêtes' },
+  { label: 'Paramètres & confidentialité', detail: 'Zones privées, notifications, compte' },
+];
+
+export default function ProfilScreen() {
+  const { session, configured } = useSession();
+
+  useEffect(() => {
+    screen('profil');
+  }, []);
+
+  return (
+    <TabScreen title={FAKE_PROFILE.pseudo} kicker="PROFIL">
+      <Text style={styles.identity}>
+        Niveau {FAKE_PROFILE.level} · {FAKE_PROFILE.crew}
+      </Text>
+
+      {/* Chips progression permanente — survit au reset de saison */}
+      <View style={styles.chipRow}>
+        <View style={styles.chip}>
+          <View style={styles.chipDot} />
+          <Text style={styles.chipText}>
+            Série {formatMultiplier(streakMultiplier)} · {FAKE_PROFILE.streakWeeks} sem
+          </Text>
+        </View>
+        <View style={styles.chip}>
+          <Text style={styles.chipText}>{formatInt(xp)} XP</Text>
+        </View>
+      </View>
+
+      {/* Mon territoire — l'Hexagone (maquette écran 04) */}
+      <View style={styles.territoryCard}>
+        <Text style={styles.territoryTitle}>Mon territoire</Text>
+        <Text style={styles.territorySubtitle}>
+          Saison 0 · France entière capturable · 2 zones de guerre actives
+        </Text>
+        <FranceMap parisHexes={FAKE_PROFILE.parisHexes} lilleHexes={FAKE_PROFILE.lilleHexes} />
+        <Text style={styles.heroNumber}>{formatInt(totalHexes)}</Text>
+        <Text style={styles.heroLabel}>hexagones tenus dans toute la France</Text>
+      </View>
+
+      <Text style={styles.sectionLabel}>BADGES</Text>
+      <View style={styles.badgeRow}>
+        {FAKE_BADGES.map((badge) => (
+          <View key={badge} style={styles.badge}>
+            <Text style={styles.badgeText}>{badge}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Text style={styles.sectionLabel}>PLUS</Text>
+      {LINKS.map((link) => (
+        <View key={link.label} style={styles.linkRow}>
+          <View style={styles.linkInfo}>
+            <Text style={styles.linkLabel}>{link.label}</Text>
+            <Text style={styles.linkDetail}>{link.detail}</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </View>
+      ))}
+
+      {configured && session ? (
+        <View style={styles.signOutWrap}>
+          {/* Destructif = ghost + libellé explicite (§F, pas de rouge) */}
+          <GhostButton label="Se déconnecter" onPress={() => void signOut()} />
+        </View>
+      ) : null}
+    </TabScreen>
+  );
+}
+
+const styles = StyleSheet.create({
+  identity: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 6, letterSpacing: 0.4 },
+  chipRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: colors.carbone2,
+    borderRadius: radii.pill,
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+  },
+  chipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse, // §C.3 (3) : gain/streak
+  },
+  chipText: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.6,
+    fontVariant: ['tabular-nums'],
+  },
+  territoryCard: {
+    marginTop: 22,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+    alignItems: 'center',
+  },
+  territoryTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  territorySubtitle: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    marginTop: 4,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  heroNumber: {
+    color: colors.chartreuse, // §C.3 (3) : LE chiffre qui domine l'écran (addendum §E)
+    fontSize: fontSizes.hero,
+    fontWeight: '700',
+    letterSpacing: -1.5,
+    marginTop: 10,
+    fontVariant: ['tabular-nums'],
+    // TODO fonts : Space Grotesk 700 (addendum §E) — police système en attendant
+  },
+  heroLabel: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 4 },
+  sectionLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    marginTop: 26,
+    marginBottom: 12,
+  },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  badge: {
+    backgroundColor: colors.carbone2,
+    borderRadius: radii.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  badgeText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '500' },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding,
+    marginBottom: 10,
+  },
+  linkInfo: { flex: 1 },
+  linkLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  linkDetail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3 },
+  chevron: { color: colors.gris, fontSize: fontSizes.lg },
+  signOutWrap: { marginTop: 18 },
+});
