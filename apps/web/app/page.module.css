@@ -63,7 +63,7 @@
 
 .title {
   font-family: var(--disp);
-  font-weight: 700;
+  font-weight: 500; /* Outcrowd : titres en Md, jamais en bold lourd */
   font-size: clamp(44px, 8vw, 88px);
   line-height: 1.02;
   letter-spacing: -0.02em;
@@ -137,7 +137,7 @@
 
 .cardTitle {
   font-family: var(--disp);
-  font-weight: 700;
+  font-weight: 500;
   font-size: 22px;
   letter-spacing: -0.02em;
   margin: 14px 0 8px;
@@ -174,7 +174,7 @@
 
 .waitlistTitle {
   font-family: var(--disp);
-  font-weight: 700;
+  font-weight: 500;
   font-size: clamp(26px, 4vw, 34px);
   letter-spacing: -0.02em;
   margin: 14px 0 10px;
@@ -208,7 +208,7 @@
 
 .footerBrand {
   font-family: var(--disp);
-  font-weight: 700;
+  font-weight: 500;
   font-size: 15px;
   letter-spacing: 0.04em;
   color: var(--blanc);

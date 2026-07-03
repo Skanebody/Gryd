@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { Josefin_Sans, Lora, Space_Mono } from 'next/font/google';
+import { Lora, Poppins, Space_Mono } from 'next/font/google';
 import './globals.css';
 
 /**
@@ -20,12 +20,14 @@ import './globals.css';
  *   });
  *
  * et pointer --font-display/--font-text sur --font-avant-garde dans globals.css.
- * En attendant : Josefin Sans, l'alternative libre la plus proche d'Avant Garde.
+ * En attendant : Poppins — le sosie libre le plus fidèle d'Avant Garde (cercles parfaits,
+ * grande hauteur d'x, « a » à un étage). Comme Outcrowd, les titres restent en graisse
+ * Book/Medium (400/500), jamais en Bold lourd.
  */
-const josefin = Josefin_Sans({
+const poppins = Poppins({
   subsets: ['latin'],
-  weight: ['400', '500', '700'],
-  variable: '--font-josefin',
+  weight: ['300', '400', '500', '600'],
+  variable: '--font-poppins',
   display: 'swap',
 });
 
@@ -54,7 +56,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" className={`${josefin.variable} ${lora.variable} ${spaceMono.variable}`}>
+    <html lang="fr" className={`${poppins.variable} ${lora.variable} ${spaceMono.variable}`}>
       <body>{children}</body>
     </html>
   );

@@ -18,8 +18,8 @@
   --eau: #0d1112;
 
   /* Fontes injectées par next/font dans app/layout.tsx */
-  --disp: var(--font-avant-garde, var(--font-josefin)), 'Josefin Sans', sans-serif; /* AMENDEMENT-03 : ITC Avant Garde Md quand licenciée */
-  --txt: var(--font-avant-garde, var(--font-josefin)), 'Josefin Sans', sans-serif; /* Avant Garde Bk (400) */
+  --disp: var(--font-avant-garde, var(--font-poppins)), Poppins, sans-serif; /* AMENDEMENT-03 : ITC Avant Garde Md quand licenciée */
+  --txt: var(--font-avant-garde, var(--font-poppins)), Poppins, sans-serif; /* Avant Garde Bk (400) */
   --serif: var(--font-lora), Lora, serif; /* accent éditorial Outcrowd */
   --mono: var(--font-space-mono), monospace;
 

@@ -9,4 +9,4 @@ Une fois la licence acquise, déposer :
 - `ITCAvantGardeStd-Demi.woff2` (700)
 
 puis activer le bloc `localFont` documenté dans `app/layout.tsx`.
-En attendant, le site sert **Josefin Sans** (Google), l'alternative libre la plus proche, + **Lora** (exacte, libre).
+En attendant, le site sert **Poppins** (Google), l'alternative libre la plus proche, + **Lora** (exacte, libre).

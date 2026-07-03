@@ -5,19 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GRYD — Référence UI v0.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;700&family=Lora:ital,wght@0,400;0,500;1,400&family=Space+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Lora:ital,wght@0,400;0,500;1,400&family=Space+Mono&display=swap" rel="stylesheet">
 <style>
   :root{
     --noir:#0A0B09; --carbone:#141613; --carbone2:#1D201B;
     --blanc:#FAFAF7; --gris:#8A8F84; --ligne:rgba(250,250,247,.10);
     --ch:#B4FF0D; --ch14:rgba(180,255,13,.14); --ch40:rgba(180,255,13,.40);
-    --disp:'ITC Avant Garde Gothic Std','Josefin Sans',sans-serif; --txt:'ITC Avant Garde Gothic Std','Josefin Sans',sans-serif; --serif:'Lora',serif; --mono:'Space Mono',monospace;
+    --disp:'ITC Avant Garde Gothic Std','Poppins',sans-serif; --txt:'ITC Avant Garde Gothic Std','Poppins',sans-serif; --serif:'Lora',serif; --mono:'Space Mono',monospace;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#070807;color:var(--blanc);font-family:var(--txt);padding:36px 20px 64px}
   .head{max-width:1280px;margin:0 auto 34px}
   .head .tag{font:400 11px var(--mono);color:var(--ch);letter-spacing:.22em;text-transform:uppercase}
-  .head h1{font:700 clamp(26px,4vw,40px)/1.05 var(--disp);letter-spacing:-.02em;margin:10px 0 8px}
+  .head h1{font:500 clamp(26px,4vw,40px)/1.05 var(--disp);letter-spacing:-.02em;margin:10px 0 8px}
   .head p{color:var(--gris);font-size:14px;max-width:60ch}
   .grid{max-width:1280px;margin:0 auto;display:grid;gap:34px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));justify-items:center}
   .cell .lab{font:400 11px var(--mono);color:var(--gris);letter-spacing:.18em;text-transform:uppercase;margin-bottom:12px;text-align:center}
@@ -61,12 +61,12 @@
   .livemap svg{position:absolute;inset:0;width:100%;height:100%}
   .livemap .chip{position:absolute;top:10px;left:10px;z-index:2}
   .runstats{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;padding-top:16px}
-  .heroNum{font:700 clamp(56px,17vw,76px)/1 var(--disp);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .heroNum{font:400 clamp(56px,17vw,76px)/1 var(--disp);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
   .heroNum small{font-size:.38em;color:var(--gris);font-weight:500;letter-spacing:0}
   .subrow{display:flex;gap:30px;margin-top:10px;color:var(--gris);font:500 14px var(--txt);justify-content:center}
-  .subrow b{color:var(--blanc);font:700 19px var(--disp);font-variant-numeric:tabular-nums}
+  .subrow b{color:var(--blanc);font:500 19px var(--disp);font-variant-numeric:tabular-nums}
   .gain{display:flex;flex-direction:column;align-items:center}
-  .gain .n{font:700 44px/1 var(--disp);color:var(--ch);font-variant-numeric:tabular-nums}
+  .gain .n{font:400 44px/1 var(--disp);color:var(--ch);font-variant-numeric:tabular-nums}
   .gain .l{color:var(--gris);font-size:13px;margin-top:4px}
   .hexstrip{display:flex;gap:5px;margin:14px 0 0;justify-content:center}
   .hx{width:14px;height:16px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:var(--carbone2)}
@@ -84,11 +84,11 @@
   .routecard{position:relative;height:150px;border-radius:20px;overflow:hidden;border:1px solid var(--ligne);background:var(--carbone);margin-top:12px}
   .routecard svg{position:absolute;inset:0;width:100%;height:100%}
   .sum-hero{text-align:center;margin:16px 0 4px}
-  .sum-hero .n{font:700 clamp(60px,19vw,84px)/1 var(--disp);color:var(--ch);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .sum-hero .n{font:400 clamp(60px,19vw,84px)/1 var(--disp);color:var(--ch);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
   .sum-hero .l{color:var(--gris);font-size:14px;margin-top:4px}
   .rows{margin:16px 0 4px;border-top:1px solid var(--ligne)}
   .row{display:flex;justify-content:space-between;align-items:center;padding:12px 2px;border-bottom:1px solid var(--ligne);font-size:14px}
-  .row .k{color:var(--gris)} .row .v{font:700 17px var(--disp);font-variant-numeric:tabular-nums}
+  .row .k{color:var(--gris)} .row .v{font:500 17px var(--disp);font-variant-numeric:tabular-nums}
   .meta{display:flex;gap:10px;margin:14px 0 0;justify-content:center}
   .meta .chip{background:var(--carbone2);backdrop-filter:none}
   .cta{margin-top:auto;display:flex;flex-direction:column;gap:10px}
@@ -100,13 +100,13 @@
 
   /* ---------- Écran 4 : Mon territoire — carte de France ---------- */
   .frwrap{flex:1;display:flex;flex-direction:column;padding:12px 24px 24px;text-align:center}
-  .frtitle{font:700 20px var(--disp);letter-spacing:-.01em;margin-top:4px}
+  .frtitle{font:500 20px var(--disp);letter-spacing:-.01em;margin-top:4px}
   .frsub{color:var(--gris);font-size:12.5px;margin-top:4px}
   .frmap{position:relative;flex:1;min-height:0;margin:14px 0 6px}
   .frmap svg{width:100%;height:100%}
   .frstats{display:flex;gap:10px;justify-content:center;margin-top:8px}
   .frhero{margin-top:10px}
-  .frhero .n{font:700 52px/1 var(--disp);color:var(--ch);font-variant-numeric:tabular-nums}
+  .frhero .n{font:400 52px/1 var(--disp);color:var(--ch);font-variant-numeric:tabular-nums}
   .frhero .l{color:var(--gris);font-size:13px;margin-top:4px}
 
   .note{max-width:1280px;margin:44px auto 0;color:var(--gris);font-size:12.5px;border-top:1px solid var(--ligne);padding-top:18px;line-height:1.7}

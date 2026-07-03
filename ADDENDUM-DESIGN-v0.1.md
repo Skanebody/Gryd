@@ -86,12 +86,12 @@ Le chartreuse est réservé à exactement 4 emplois : **(1) moi et mon crew sur 
 
 | Rôle | Fonte | Usage |
 |---|---|---|
-| Display | **ITC Avant Garde Gothic Std Md** 500/700 *(fallback libre : Josefin Sans)* | Titres, gros chiffres (tabulaires), tracking -2 % |
-| Texte | **ITC Avant Garde Gothic Std Bk** 400 *(fallback libre : Josefin Sans)* | UI, paragraphes, labels |
+| Display | **ITC Avant Garde Gothic Std Md** 500/700 *(fallback libre : Poppins)* | Titres, gros chiffres (tabulaires), tracking -2 % |
+| Texte | **ITC Avant Garde Gothic Std Bk** 400 *(fallback libre : Poppins)* | UI, paragraphes, labels |
 | Éditorial | **Lora** 400/500 + italique | Citations, longform, pages légales |
 | Utilitaire | **Space Mono** 400 | Coordonnées, timers, codes crew, étiquettes carte (exception fonctionnelle — Avant Garde n'a pas de chasse fixe) |
 
-⚠️ **Licence** : ITC Avant Garde Gothic Std est commerciale (Monotype ; dispo via Adobe Fonts/MyFonts). Aucun fichier non licencié dans le repo — emplacements `@font-face` préparés (`apps/web/app/fonts/README.md`), Josefin Sans sert d'équivalent libre en attendant. Budget à prévoir avant lancement public.
+⚠️ **Licence** : ITC Avant Garde Gothic Std est commerciale (Monotype ; dispo via Adobe Fonts/MyFonts). Aucun fichier non licencié dans le repo — emplacements `@font-face` préparés (`apps/web/app/fonts/README.md`), Poppins sert d'équivalent libre en attendant. Budget à prévoir avant lancement public.
 
 Échelle (mobile) : 12 / 14 / 16 / 20 / 28 / 40 / **64-88 (stats héros)**. Les chiffres géants sont la signature typographique (héritée des dashboards Outcrowd) : chaque écran de résultat a UN chiffre qui domine.
 

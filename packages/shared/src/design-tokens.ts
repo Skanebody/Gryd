@@ -31,15 +31,15 @@ export const mapTokens = {
 /**
  * AMENDEMENT-03 (typo Outcrowd) : ITC Avant Garde Gothic Std (Md = display/UI, Bk = texte) + Lora
  * (accent éditorial). Avant Garde est commerciale — tant que la licence n'est pas acquise, le
- * fallback libre le plus proche est Josefin Sans. Mono conservé (fonctionnel : timers/codes).
+ * fallback libre le plus proche est Poppins. Mono conservé (fonctionnel : timers/codes).
  */
 export const fonts = {
-  display: 'ITCAvantGardeStd-Md', // titres, gros chiffres — fallback: JosefinSans-Medium
-  text: 'ITCAvantGardeStd-Bk', // UI, paragraphes, labels — fallback: JosefinSans-Regular
+  display: 'ITCAvantGardeStd-Md', // titres, gros chiffres — fallback: Poppins-Medium
+  text: 'ITCAvantGardeStd-Bk', // UI, paragraphes, labels — fallback: Poppins-Regular
   serif: 'Lora', // accent éditorial (citations, longform)
   mono: 'SpaceMono', // timers, codes crew, étiquettes carte (exception fonctionnelle)
-  displayFallback: 'JosefinSans-Medium',
-  textFallback: 'JosefinSans-Regular',
+  displayFallback: 'Poppins-Medium',
+  textFallback: 'Poppins-Regular',
 } as const;
 
 /** Échelle typo mobile (addendum §E). Les stats héros dominent chaque écran de résultat. */
