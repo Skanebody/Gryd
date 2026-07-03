@@ -52,13 +52,20 @@ export const battleMapStyle = {
   routeStroke: withAlpha(colors.chartreuse, 0.85),
   routeDot: colors.chartreuse,
 
-  // Grille neutre
-  neutralStroke: mapTokens.neutralStroke,
+  // Grille neutre — à l'échelle coureur (hex ≈ 30 px) le trait token 5 %
+  // disparaît : légère remontée, même dérivation withAlpha que le reste.
+  neutralStroke: withAlpha(colors.blanc, 0.09),
 
-  // Basemap subtile
+  // Basemap subtile — plan de quartier à l'échelle coureur
   water: colors.eau,
-  waterRim: withAlpha(colors.blanc, 0.05),
+  waterRim: withAlpha(colors.blanc, 0.08),
   parks: mapTokens.parks,
+  parksEdge: withAlpha(colors.blanc, 0.05),
+  /** Trame dense des rues secondaires (traits très fins). */
   roads: mapTokens.roads,
+  /** 2-3 axes principaux, à peine plus présents que la trame. */
+  roadsMajor: withAlpha(colors.blanc, 0.13),
   sectorLabel: colors.gris,
+  /** Barre d'échelle graphique (500 m) — gris discret. */
+  scaleBar: colors.gris,
 } as const;

@@ -1,18 +1,24 @@
 /**
  * GRYD — hexes factices Milestone 1 (DISCOVERY D16), enrichis Battle Map
- * (AMENDEMENT-08 §4, doc §7). Générés à la volée avec h3-js autour de Paris —
- * aucune dépendance réseau, 100 % déterministe (indices d'anneaux, jamais de
- * hasard). Le rendu égocentré AMENDEMENT-01 (« à moi ou pas à moi ») reste la
- * base, augmenté des ÉTATS DE JEU de la Battle Map :
+ * (AMENDEMENT-08 §4, doc §7) à l'ÉCHELLE COUREUR : un coureur capture LE LONG
+ * DES RUES, donc le territoire n'est plus des blobs ronds mais des COULOIRS
+ * d'1-2 hexes de large qui serpentent le long des rues de la basemap
+ * (CORRIDOR_HOSTS de ./basemap). Généré à la volée avec h3-js autour de Paris —
+ * aucune dépendance réseau, 100 % déterministe (tronçons de rues fixes, jamais
+ * de hasard). Le rendu égocentré AMENDEMENT-01 (« moi » au centre) reste la
+ * base : le cluster maison entoure le centre. États de jeu :
  *   neutral   contour discret
- *   mine      chartreuse + glow (mon crew)
- *   protected shield + halo (sous protection)
- *   decay     pointillé + sablier — `urgent` = muted red
- *   contested double contour crew/rival + pulse
- *   foe       rival (orange sombre + motif de crew)
+ *   mine      chartreuse + glow (couloirs de mon crew)
+ *   protected shield + halo (cluster maison, sous protection)
+ *   decay     pointillé + sablier, en queue de couloir — `urgent` = muted red
+ *   contested double contour + pulse, à l'intersection couloir crew ↔ rival
+ *   foe       rival (orange sombre) — couloir qui s'approche du nord-est
  *   objective zone neutre ciblée par le crew (pin + halo)
- *   outpost   avant-poste (marker)
- * + une « route ouverte » (polyline chartreuse) vers l'objectif.
+ *   outpost   avant-poste, mini cluster isolé (marker)
+ * + une « route ouverte » (polyline chartreuse le long d'une rue, entre 2
+ * hexes tenus : le cluster maison et l'avant-poste).
+ * Total tenu = 7 (maison) + 9 + 12 + 9 (couloirs) = 37 hexes — cohérent avec
+ * « 37 hex tenus » des métriques HUD.
  * Remplacé par la lecture temps réel de hex_claims (Supabase) au Milestone 2.
  */
 import {
@@ -33,6 +39,7 @@ import {
   foePatterns,
   type FoePattern,
 } from '@klaim/shared';
+import { CORRIDOR_HOSTS, OBJECTIVE_ANCHOR, ROUTE_OUVERTE } from './basemap';
 
 export type HexState =
   | 'neutral'
@@ -76,7 +83,7 @@ export interface LatLngPoint {
 
 /** Points remarquables de la scène (markers/route des couches 3-4). */
 export interface BattleMapPoints {
-  /** Centre du cluster protégé (icône shield). */
+  /** Centre du cluster maison protégé (icône shield — le « moi » égocentré). */
   protectedCenter: LatLngPoint;
   /** Centre de la zone objectif crew (pin + halo). */
   objectiveCenter: LatLngPoint;
@@ -84,7 +91,7 @@ export interface BattleMapPoints {
   outpost: LatLngPoint;
   /** Hexes en decay urgent (sablier). */
   urgentDecay: LatLngPoint[];
-  /** Route ouverte : centres des cellules du chemin cluster → objectif. */
+  /** Route ouverte : polyline le long d'une rue, entre 2 hexes tenus. */
   route: LatLngPoint[];
 }
 
@@ -93,30 +100,33 @@ export interface BattleMapData {
   points: BattleMapPoints;
 }
 
-/** Rayon du disque de génération (~15 anneaux ≈ 721 hexes res 10 ≈ un quartier). */
-const DISK_RADIUS = 15;
-/** Mon cluster : contigu, ~30 hexes (gridDisk k=3 → 37). */
-const MINE_RADIUS = 3;
-/** Cœur protégé du cluster (shield + halo) : gridDisk k=1 → 7. */
-const PROTECTED_RADIUS = 1;
-/** Clusters adverses : 2 clusters de ~20 hexes (gridDisk k=2 → 19 chacun). */
-const FOE_RADIUS = 2;
-/** Anneau où placer les centres des crews adverses (assez loin pour ne pas chevaucher). */
-const FOE_CENTER_RING = 8;
-/** Hexes de MON cluster qui expirent (bord côté rival) — « Défendre 12 hexes ». */
-const DECAY_COUNT = 12;
-/** Dont urgents (muted red + sablier). */
-const DECAY_URGENT_COUNT = 4;
-/** Hexes contestés : juste hors de mon cluster, côté rival A. */
-const CONTESTED_RING = MINE_RADIUS + 1;
-const CONTESTED_COUNT = 5;
-/** Zone objectif crew : disque k=1 (7 hexes neutres) sur cet anneau. */
-const OBJECTIVE_RING = 6;
-/** Position angulaire de l'objectif sur son anneau (fraction de l'anneau). */
-const OBJECTIVE_RING_FRACTION = 0.72;
-/** Avant-poste isolé. */
-const OUTPOST_RING = 11;
-const OUTPOST_RING_FRACTION = 0.3;
+/**
+ * Rayon du disque de génération : à l'échelle coureur (~4,3 m/px, hex ≈ 30 px),
+ * un viewport 375×812 px couvre ~1,6 × 3,5 km ; le coin d'écran est à
+ * ~17 anneaux res 10 du centre → la grille REMPLIT tout l'écran.
+ */
+const DISK_RADIUS = 17;
+/** Cluster « maison » autour de moi (égocentré AMENDEMENT-01) : k=1 → 7 hexes. */
+const HOME_RADIUS = 1;
+/** Longueurs des couloirs (hexes) — tenu total = 7 + 9 + 12 + 9 = 37. */
+const CORRIDOR_EST_LEN = 9;
+const CORRIDOR_QUAI_LEN = 12;
+const CORRIDOR_SO_LEN = 9;
+/** Élargissement d'un couloir : 1 hex de flanc tous les N hexes (1-2 de large). */
+const CORRIDOR_EST_WIDEN_EVERY = 3;
+const CORRIDOR_QUAI_WIDEN_EVERY = 4;
+const CORRIDOR_SO_WIDEN_EVERY = 4;
+/** Queue du couloir Est qui expire (pointillé), dont urgents (muted red). */
+const DECAY_TAIL_COUNT = 3;
+const DECAY_URGENT_COUNT = 2;
+/** Hexes contestés à l'intersection couloir quai ↔ couloir rival (2-3). */
+const CONTESTED_MAX = 3;
+/** Le rival s'élargit à 2 hexes un hex sur deux (couloir massif qui avance). */
+const RIVAL_WIDEN_EVERY = 2;
+/** Avant-poste : mini cluster isolé au bout de la route ouverte. */
+const OUTPOST_CLUSTER_SIZE = 3;
+/** Zone objectif crew : disque k=1 → 7 hexes neutres. */
+const OBJECTIVE_RADIUS = 1;
 
 function toLatLngPoint(h3: string): LatLngPoint {
   const pair = cellToLatLng(h3);
@@ -141,63 +151,145 @@ function toFeature(
   };
 }
 
-/** Tri déterministe : distance H3 croissante vers `target`, index en départage. */
-function closestTo(target: string, cells: readonly string[]): string[] {
-  return cells
-    .slice()
-    .sort((a, b) => gridDistance(a, target) - gridDistance(b, target) || (a < b ? -1 : 1));
+/** Cellules H3 traversées par une polyligne de rue (chemin continu, dédupliqué). */
+function cellsAlong(line: readonly LatLngPoint[]): string[] {
+  const out: string[] = [];
+  let prev: string | null = null;
+  for (const p of line) {
+    const cell = latLngToCell(p.lat, p.lng, H3_RESOLUTION);
+    if (prev === null) {
+      out.push(cell);
+    } else if (prev !== cell) {
+      for (const step of gridPathCells(prev, cell)) {
+        if (!out.includes(step)) out.push(step);
+      }
+    }
+    prev = cell;
+  }
+  return out;
+}
+
+/**
+ * Couloir de course le long d'une rue : le chemin de cellules de la rue,
+ * élargi d'un hex de flanc tous les `widenEvery`, en excluant `taken`
+ * (cellules déjà tenues) — tronqué à `len` cellules exactement.
+ */
+function corridorAlong(
+  line: readonly LatLngPoint[],
+  len: number,
+  widenEvery: number,
+  taken: ReadonlySet<string>,
+): string[] {
+  const path = cellsAlong(line).filter((c) => !taken.has(c));
+  const out: string[] = [];
+  for (let i = 0; i < path.length && out.length < len; i += 1) {
+    const cell = path[i];
+    if (cell === undefined) break;
+    out.push(cell);
+    if (i > 0 && i % widenEvery === 0 && out.length < len) {
+      const flank = gridRingUnsafe(cell, 1).find(
+        (c) => !taken.has(c) && !out.includes(c) && !path.includes(c),
+      );
+      if (flank) out.push(flank);
+    }
+  }
+  return out;
 }
 
 /** Scène calculée une seule fois (déterministe) — h3-js n'est pas gratuit. */
 let cachedData: BattleMapData | null = null;
 
 /**
- * Jeu de données Battle Map : mon cluster (cœur protégé + bord en decay côté
- * rival), 2 crews adverses (motifs distincts), une bande contestée entre les
- * deux fronts, une zone objectif neutre, un avant-poste et une route ouverte.
+ * Jeu de données Battle Map « échelle coureur » : cluster maison protégé au
+ * centre + 3 couloirs chartreuse le long des rues (est / quai du canal /
+ * diagonale sud-ouest), queue du couloir Est en decay, couloir rival qui
+ * descend du nord-est, hexes contestés à l'intersection, zone objectif
+ * neutre, avant-poste isolé et route ouverte le long du boulevard.
  */
 export function battleMapData(): BattleMapData {
   if (cachedData) return cachedData;
 
   const origin = latLngToCell(CITIES.paris.center.lat, CITIES.paris.center.lng, H3_RESOLUTION);
 
-  const mine = new Set<string>(gridDisk(origin, MINE_RADIUS));
-  const protectedSet = new Set<string>(gridDisk(origin, PROTECTED_RADIUS));
+  // Cluster maison (protégé : shield + halo) autour du « moi » égocentré.
+  const homeCells = gridDisk(origin, HOME_RADIUS);
+  const protectedSet = new Set<string>(homeCells);
+  const taken = new Set<string>(homeCells);
 
-  // Deux centres adverses opposés sur l'anneau FOE_CENTER_RING
-  // (pas de pentagone à res 10 sur Paris → gridRingUnsafe est sûr ici).
-  const foeRing = gridRingUnsafe(origin, FOE_CENTER_RING);
-  const foeCenterA = foeRing[0] ?? origin;
-  const foeCenterB = foeRing[Math.floor(foeRing.length / 2)] ?? origin;
-  const foeA = new Set<string>(gridDisk(foeCenterA, FOE_RADIUS));
-  const foeB = new Set<string>(gridDisk(foeCenterB, FOE_RADIUS));
-
-  // Decay : le bord de MON cluster le plus proche du rival A (12 hexes, 4 urgents).
-  const mineEdge = gridRingUnsafe(origin, MINE_RADIUS);
-  const decayCells = closestTo(foeCenterA, mineEdge).slice(0, DECAY_COUNT);
-  const decaySet = new Set<string>(decayCells);
-  const urgentSet = new Set<string>(decayCells.slice(0, DECAY_URGENT_COUNT));
-
-  // Contesté : juste hors de mon cluster, entre moi et le rival A.
-  const contestedSet = new Set<string>(
-    closestTo(foeCenterA, gridRingUnsafe(origin, CONTESTED_RING)).slice(0, CONTESTED_COUNT),
+  // 3 couloirs de course de mon crew, le long des rues hôtes de la basemap.
+  const corridorEst = corridorAlong(
+    CORRIDOR_HOSTS.est,
+    CORRIDOR_EST_LEN,
+    CORRIDOR_EST_WIDEN_EVERY,
+    taken,
   );
+  for (const c of corridorEst) taken.add(c);
+  const corridorQuai = corridorAlong(
+    CORRIDOR_HOSTS.quai,
+    CORRIDOR_QUAI_LEN,
+    CORRIDOR_QUAI_WIDEN_EVERY,
+    taken,
+  );
+  for (const c of corridorQuai) taken.add(c);
+  const corridorSudOuest = corridorAlong(
+    CORRIDOR_HOSTS.sudOuest,
+    CORRIDOR_SO_LEN,
+    CORRIDOR_SO_WIDEN_EVERY,
+    taken,
+  );
+  for (const c of corridorSudOuest) taken.add(c);
 
-  // Objectif crew : petite zone neutre dans une direction sans rival.
-  const objectiveRing = gridRingUnsafe(origin, OBJECTIVE_RING);
-  const objectiveCenter =
-    objectiveRing[Math.floor(objectiveRing.length * OBJECTIVE_RING_FRACTION)] ?? origin;
-  const objectiveSet = new Set<string>(gridDisk(objectiveCenter, 1));
+  const mineSet = new Set<string>([...corridorEst, ...corridorQuai, ...corridorSudOuest]);
 
-  // Avant-poste isolé, encore une autre direction.
-  const outpostRing = gridRingUnsafe(origin, OUTPOST_RING);
-  const outpostCell = outpostRing[Math.floor(outpostRing.length * OUTPOST_RING_FRACTION)] ?? origin;
+  // Decay : la queue (bout éloigné) du couloir Est expire — dont 2 urgents.
+  const decayCells = corridorEst.slice(-DECAY_TAIL_COUNT);
+  const decaySet = new Set<string>(decayCells);
+  const urgentCells = decayCells.slice(-DECAY_URGENT_COUNT);
+  const urgentSet = new Set<string>(urgentCells);
 
-  // Route ouverte : chemin H3 du cluster vers l'objectif (ligne chartreuse).
-  const routeCells = gridPathCells(origin, objectiveCenter);
+  // Couloir rival : descend la rue NE ; les cellules au contact de mon couloir
+  // quai deviennent CONTESTÉES (2-3, à l'intersection des deux couloirs).
+  const quaiSet = new Set<string>(corridorQuai);
+  const rivalPath = cellsAlong(CORRIDOR_HOSTS.rivalNordEst).filter((c) => !taken.has(c));
+  const contestedSet = new Set<string>();
+  const rivalCells: string[] = [];
+  for (const cell of rivalPath) {
+    const touchesQuai = corridorQuai.some((b) => gridDistance(cell, b) <= 1);
+    if (touchesQuai && contestedSet.size < CONTESTED_MAX && !quaiSet.has(cell)) {
+      contestedSet.add(cell);
+    } else {
+      rivalCells.push(cell);
+    }
+  }
+  const foeSet = new Set<string>(rivalCells);
+  rivalCells.forEach((cell, i) => {
+    if (i % RIVAL_WIDEN_EVERY === 0) {
+      const flank = gridRingUnsafe(cell, 1).find(
+        (c) => !foeSet.has(c) && !taken.has(c) && !contestedSet.has(c),
+      );
+      if (flank) foeSet.add(flank);
+    }
+  });
 
-  const patternA: FoePattern = foePatterns[0]; // 'hatch45'
-  const patternB: FoePattern = foePatterns[2]; // 'dots'
+  // Zone objectif crew : disque neutre ciblé, posé sur l'axe Est côté ouest.
+  const objectiveCenter = latLngToCell(
+    OBJECTIVE_ANCHOR.lat,
+    OBJECTIVE_ANCHOR.lng,
+    H3_RESOLUTION,
+  );
+  const objectiveSet = new Set<string>(gridDisk(objectiveCenter, OBJECTIVE_RADIUS));
+
+  // Avant-poste : mini cluster isolé au bout de la route ouverte (rue au sud).
+  const routeEnd = ROUTE_OUVERTE[ROUTE_OUVERTE.length - 1];
+  const outpostCell = routeEnd
+    ? latLngToCell(routeEnd.lat, routeEnd.lng, H3_RESOLUTION)
+    : origin;
+  const outpostSet = new Set<string>([
+    outpostCell,
+    ...gridRingUnsafe(outpostCell, 1).slice(0, OUTPOST_CLUSTER_SIZE - 1),
+  ]);
+
+  const rivalPattern: FoePattern = foePatterns[0]; // 'hatch45'
 
   const features: HexFeature[] = [];
   for (const h3 of gridDisk(origin, DISK_RADIUS)) {
@@ -207,16 +299,14 @@ export function battleMapData(): BattleMapData {
       features.push(toFeature(h3, 'decay', null, null, urgentSet.has(h3)));
     } else if (protectedSet.has(h3)) {
       features.push(toFeature(h3, 'protected', null, null));
-    } else if (mine.has(h3)) {
+    } else if (mineSet.has(h3)) {
       features.push(toFeature(h3, 'mine', null, null));
     } else if (objectiveSet.has(h3)) {
       features.push(toFeature(h3, 'objective', null, null));
-    } else if (h3 === outpostCell) {
+    } else if (outpostSet.has(h3)) {
       features.push(toFeature(h3, 'outpost', null, null));
-    } else if (foeA.has(h3)) {
-      features.push(toFeature(h3, 'foe', patternA, 'CREW NORD·XI'));
-    } else if (foeB.has(h3)) {
-      features.push(toFeature(h3, 'foe', patternB, 'LES PAVÉS 12'));
+    } else if (foeSet.has(h3)) {
+      features.push(toFeature(h3, 'foe', rivalPattern, 'CREW NORD·XI'));
     } else {
       features.push(toFeature(h3, 'neutral', null, null));
     }
@@ -228,8 +318,8 @@ export function battleMapData(): BattleMapData {
       protectedCenter: toLatLngPoint(origin),
       objectiveCenter: toLatLngPoint(objectiveCenter),
       outpost: toLatLngPoint(outpostCell),
-      urgentDecay: decayCells.slice(0, DECAY_URGENT_COUNT).map(toLatLngPoint),
-      route: routeCells.map(toLatLngPoint),
+      urgentDecay: urgentCells.map(toLatLngPoint),
+      route: ROUTE_OUVERTE.map((p) => ({ lat: p.lat, lng: p.lng })),
     },
   };
   return cachedData;

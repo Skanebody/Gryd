@@ -41,7 +41,12 @@ import { battleMapStyle as ms } from './mapStyle';
  */
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/dark';
 
-const HOME_ZOOM = 13;
+/**
+ * Échelle coureur (AMENDEMENT-08 §4) : hex res 10 (~130 m) ≈ 30 px à l'écran.
+ * À la latitude de Paris, zoom 14.6 ≈ 4,2 m/px — même perception que la
+ * variante web (METERS_PER_PIXEL ≈ 4,3 m/px).
+ */
+const RUNNER_SCALE_ZOOM = 14.6;
 
 const eqState = (state: HexState): FilterExpression =>
   ['==', ['get', 'state'], state] as FilterExpression;
@@ -137,7 +142,7 @@ export function MapScreen() {
         <Camera
           defaultSettings={{
             centerCoordinate: [CITIES.paris.center.lng, CITIES.paris.center.lat],
-            zoomLevel: HOME_ZOOM,
+            zoomLevel: RUNNER_SCALE_ZOOM,
           }}
         />
         <ShapeSource id="hexes" shape={collection}>
