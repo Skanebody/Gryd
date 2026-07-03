@@ -72,8 +72,9 @@ export function computeFinalRanks(scores: readonly SeasonScoreInput[]): RankedSc
 
 // ─── Badges (règlement §15, SPEC §3.6) ───────────────────────────────────────
 
-/** Clés seedées en 0004/0006 (table badges). */
-export const FOUNDER_BADGE_KEY = 'founder';
+/** Clés du catalogue badges.ts (AMENDEMENT-04) + seed 0006 — harmonisées par la migration 0007.
+ * 'saison_0' = badge Fondateur de la Saison 0 (la planche réserve 'fondateur' à « 10 hex capturés »). */
+export const FOUNDER_BADGE_KEY = 'saison_0';
 export const LOCAL_TOP1_BADGE_KEY = 'season_top1_local';
 
 export interface BadgeAward {

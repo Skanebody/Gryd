@@ -338,6 +338,42 @@ export function Simulator() {
                     ))}
                 </ul>
               )}
+
+              {/* Badges débloqués — surface badge : la SEULE exception polychrome
+                  autorisée (AMENDEMENT-04 §1), teintes familyColor du catalogue. */}
+              {result.newBadges.length > 0 && (
+                <div className={styles.badges}>
+                  <p className={ui.kicker}>BADGES DÉBLOQUÉS ({result.newBadges.length})</p>
+                  <ul className={styles.badgeList}>
+                    {result.newBadges.map((b) => (
+                      <li key={b.key} className={styles.badgeItem}>
+                        <svg
+                          viewBox="0 0 24 24"
+                          width={28}
+                          height={28}
+                          aria-hidden="true"
+                          className={styles.badgeHex}
+                        >
+                          <polygon
+                            points="12,2 20.66,7 20.66,17 12,22 3.34,17 3.34,7"
+                            fill={b.familyColor}
+                            fillOpacity={0.16}
+                            stroke={b.familyColor}
+                            strokeWidth={1.5}
+                          />
+                        </svg>
+                        <div>
+                          <p className={styles.badgeName} style={{ color: b.familyColor }}>
+                            {b.name}
+                            {b.secret && <span className={styles.badgeSecret}> · secret</span>}
+                          </p>
+                          <p className={styles.badgeReq}>{b.requirement}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </section>
         )}

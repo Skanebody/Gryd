@@ -81,6 +81,8 @@ export interface IngestRunResponse {
   xpAwarded: number;
   streak: { weeks: number; multiplier: number };
   results: HexClaimResult[];
+  /** Badges débloqués par cette course (keys du catalogue badges.ts, AMENDEMENT-04 §5). */
+  newBadges: string[];
 }
 
 /** Ligne hex_claims exposée publiquement (jamais de trace, jamais de position live). */

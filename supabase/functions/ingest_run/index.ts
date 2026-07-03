@@ -42,9 +42,18 @@ import {
   distributePointsAdjustment,
   streakMultiplier,
 } from '../_shared/engine/scoring.ts';
+import {
+  applyRunToStats,
+  emptyLifetimeStats,
+  evaluateBadges,
+  type BadgeRunInput,
+  type LifetimeStats,
+} from '../_shared/engine/badges.ts';
+import { BADGES_BY_KEY } from '../_shared/badges.ts';
 
 const MS_PER_DAY = 86_400_000;
 const DB_IN_CHUNK = 500; // taille des batches pour les clauses `in(...)`
+const REWARD_PRIORITY = 3; // P3 récompense (GRYD_notifications_logic.md §2)
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -121,6 +130,7 @@ function fallbackResponse(run: {
     xpAwarded: run.xp_awarded ?? 0,
     streak: { weeks: streakWeeks, multiplier: streakMultiplier(streakWeeks) },
     results: [],
+    newBadges: [],
   };
 }
 
@@ -242,6 +252,106 @@ async function loadClaimsToday(userId: string, now: Date): Promise<number> {
   return count ?? 0;
 }
 
+/** Taille du crew actif du coureur (0 = sans crew) — badges Crew/Solitaire (§3). */
+async function loadCrewSize(userId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('crew_members')
+    .select('crew_id')
+    .eq('user_id', userId)
+    .is('left_at', null)
+    .maybeSingle();
+  if (error) throw new Error(`crew_members read: ${error.message}`);
+  if (!data) return 0;
+  const { count, error: countError } = await supabase
+    .from('crew_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('crew_id', data.crew_id)
+    .is('left_at', null);
+  if (countError) throw new Error(`crew_members count: ${countError.message}`);
+  return count ?? 1;
+}
+
+// ─── Badges (AMENDEMENT-04 §5) : user_stats ↔ LifetimeStats + attribution ────
+
+/** LifetimeStats camelCase ↔ colonnes user_stats snake_case (mapping mécanique). */
+const camelToSnake = (key: string): string => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+
+function rowToStats(row: Record<string, unknown> | null): LifetimeStats {
+  const stats = emptyLifetimeStats();
+  if (!row) return stats;
+  const bag = stats as unknown as Record<string, unknown>;
+  for (const key of Object.keys(stats)) {
+    const value = row[camelToSnake(key)];
+    if (value !== undefined && value !== null) bag[key] = value;
+  }
+  return stats;
+}
+
+function statsToRow(userId: string, stats: LifetimeStats): Record<string, unknown> {
+  const row: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() };
+  for (const [key, value] of Object.entries(stats)) row[camelToSnake(key)] = value;
+  return row;
+}
+
+/**
+ * Lit user_stats + user_badges, applique la course (applyRunToStats, pur),
+ * évalue les badges (evaluateBadges, jamais les dormants ni le déjà-gagné),
+ * upsert les stats, insère user_badges + UNE notification 'reward' groupée.
+ * Idempotence : appelé uniquement après un INSERT runs frais ; l'upsert
+ * ignoreDuplicates protège d'une double attribution résiduelle.
+ */
+async function awardBadges(userId: string, run: BadgeRunInput): Promise<string[]> {
+  const { data: statsRow, error: statsError } = await supabase
+    .from('user_stats')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (statsError) throw new Error(`user_stats read: ${statsError.message}`);
+  const { data: earnedRows, error: earnedError } = await supabase
+    .from('user_badges')
+    .select('badge_key')
+    .eq('user_id', userId);
+  if (earnedError) throw new Error(`user_badges read: ${earnedError.message}`);
+
+  const before = rowToStats(statsRow);
+  const after = applyRunToStats(before, run);
+  const newBadges = evaluateBadges(
+    before,
+    after,
+    new Set((earnedRows ?? []).map((r) => r.badge_key as string)),
+  );
+
+  const { error: upsertError } = await supabase
+    .from('user_stats')
+    .upsert(statsToRow(userId, after), { onConflict: 'user_id' });
+  if (upsertError) throw new Error(`user_stats upsert: ${upsertError.message}`);
+
+  if (newBadges.length === 0) return newBadges;
+
+  const { error: badgesError } = await supabase.from('user_badges').upsert(
+    newBadges.map((key) => ({ user_id: userId, badge_key: key })),
+    { onConflict: 'user_id,badge_key', ignoreDuplicates: true },
+  );
+  if (badgesError) throw new Error(`user_badges insert: ${badgesError.message}`);
+
+  // 1 notification groupée, même à plusieurs badges (inbox §4.2.8, type 'reward').
+  const names = newBadges.map((key) => BADGES_BY_KEY.get(key)?.name ?? key);
+  const { error: notifError } = await supabase.from('notifications').insert({
+    user_id: userId,
+    type: 'reward',
+    priority: REWARD_PRIORITY,
+    payload: {
+      title: newBadges.length > 1
+        ? `${newBadges.length} nouveaux badges débloqués`
+        : 'Nouveau badge débloqué',
+      body: names.join(' · '),
+      badges: newBadges,
+    },
+  });
+  if (notifError) throw new Error(`notifications insert: ${notifError.message}`);
+  return newBadges;
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -335,6 +445,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         xpAwarded: 0,
         streak,
         results: [],
+        newBadges: [], // course non valide : aucune stat, aucun badge (§3)
       };
       const inserted = await insertRun({
         ...baseRow,
@@ -431,6 +542,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (rpcError) throw new Error(`claim_hexes rpc: ${rpcError.message}`);
     }
 
+    // ── Badges (AMENDEMENT-04 §5) : stats vie entière + attribution ──────────
+    // N'arrive qu'après un INSERT runs frais — jamais rejoué (le replay renvoie
+    // la célébration persistée, qui contient déjà newBadges).
+    const sorted = [...request.points].sort((a, b) => a.t - b.t);
+    const newBadges = await awardBadges(userId, {
+      status: validation.status,
+      startedAt: request.startedAt,
+      distanceM,
+      durationS,
+      avgPaceSKm,
+      hexes: {
+        claimed: decision.totals.claimed,
+        stolen: decision.totals.stolen,
+        defended: decision.totals.defended,
+        pioneer: decision.totals.pioneer,
+      },
+      startPoint: sorted[0] ?? null,
+      endPoint: sorted[sorted.length - 1] ?? null,
+      crewSize: await loadCrewSize(userId),
+      // Saison 0 en cours : toute course validée aujourd'hui en fait partie (MVP).
+      duringSeasonZero: true,
+      // Badge Explorateur (AMENDEMENT-04) : capture en zone pionnière/sauvage.
+      inPioneerZone: density === 'pioneer' || density === 'wild',
+    });
+
     // ── Célébration persistée (source du replay idempotent) ──────────────────
     const response: IngestRunResponse = {
       runId,
@@ -451,6 +587,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       xpAwarded: score.xp,
       streak,
       results: decision.results,
+      newBadges,
     };
     await persistCelebration(runId, response, score.points);
     return json(response);

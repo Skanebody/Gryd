@@ -6,7 +6,8 @@
  * La page Performance est accessible d'ICI (pas un onglet — AMENDEMENT-02 §5).
  */
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import {
   STREAK_MULTIPLIER_CAP,
   STREAK_MULTIPLIER_STEP,
@@ -16,6 +17,9 @@ import {
   radii,
   spacing,
 } from '@klaim/shared';
+import { BadgeHex } from '../../src/features/badges/BadgeHex';
+import { BADGE_TOTAL, badgeById, badgeColor } from '../../src/features/badges/catalog';
+import { UNLOCKED_IDS, lastUnlockedIds } from '../../src/features/badges/demo';
 import { FranceMap } from '../../src/features/territory/FranceMap';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
@@ -43,8 +47,14 @@ const streakMultiplier = Math.min(
 );
 const totalHexes = FAKE_PROFILE.parisHexes + FAKE_PROFILE.lilleHexes;
 
-/** ~20 badges de base au MVP (AMENDEMENT-02 §6) — 4 factices débloqués ici. */
-const FAKE_BADGES = ['Premier claim', 'Pionnier ×10', 'Défenseur', '10 km'] as const;
+/**
+ * Aperçu badges (AMENDEMENT-04) : les 5 derniers débloqués du set factice
+ * (TODO(O1) user_badges) — hexagones sm, collection complète via /badges.
+ */
+const RECENT_BADGES = lastUnlockedIds(5)
+  .map((id) => badgeById(id))
+  .filter((def): def is NonNullable<typeof def> => def !== undefined);
+const UNLOCKED_COUNT = UNLOCKED_IDS.size;
 
 interface ProfileLink {
   label: string;
@@ -96,13 +106,30 @@ export default function ProfilScreen() {
       </View>
 
       <Text style={styles.sectionLabel}>BADGES</Text>
+      {/* Derniers débloqués — BadgeHex = surface badge (exception polychrome §1) */}
       <View style={styles.badgeRow}>
-        {FAKE_BADGES.map((badge) => (
-          <View key={badge} style={styles.badge}>
-            <Text style={styles.badgeText}>{badge}</Text>
-          </View>
+        {RECENT_BADGES.map((def) => (
+          <BadgeHex
+            key={def.id}
+            family={def.family}
+            familyColor={badgeColor(def)}
+            state="unlocked"
+            size="sm"
+            secret={def.secret}
+          />
         ))}
       </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Voir la collection de badges"
+        onPress={() => router.push('/badges')}
+        style={({ pressed }) => [styles.collectionLink, pressed && styles.collectionLinkPressed]}
+      >
+        <Text style={styles.collectionLinkLabel}>
+          Voir la collection ({UNLOCKED_COUNT}/{BADGE_TOTAL})
+        </Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
 
       <Text style={styles.sectionLabel}>PLUS</Text>
       {LINKS.map((link) => (
@@ -188,14 +215,26 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: 12,
   },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  badge: {
-    backgroundColor: colors.carbone2,
-    borderRadius: radii.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
+  collectionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding,
+    marginTop: 12,
   },
-  badgeText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '500' },
+  collectionLinkPressed: { opacity: 0.7 },
+  collectionLinkLabel: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -11,18 +11,24 @@
  */
 import {
   MOTION_TRUST_FLAGGED_BELOW,
+  applyRunToStats,
   claimableSegments,
   computeScore,
   computeStats,
   decideClaims,
+  emptyLifetimeStats,
+  evaluateBadges,
   filterPoints,
   hexesForSegments,
   stepCoherence,
   validateRun,
+  type BadgeRunInput,
   type HexState,
+  type LifetimeStats,
   type Segment,
 } from '@klaim/engine';
 import { cellToBoundary } from 'h3-js';
+import { BADGES_BY_KEY, type BadgeDef } from '@klaim/shared/badges';
 import { CITIES, type CityId, type ZoneDensity } from '@klaim/shared/game-rules';
 import type {
   HexClaimResult,
@@ -277,6 +283,50 @@ function fabricateWorld(hexes: readonly string[], seed: number, now: Date): Fabr
   };
 }
 
+// ─── Stats vie entière DÉMO (badges, AMENDEMENT-04) ─────────────────────────
+
+/** ISO 8601 avec l'offset local — applyRunToStats lit l'heure locale TEXTUELLEMENT. */
+function toLocalIso(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? '+' : '-';
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` +
+    `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` +
+    `${sign}${p(Math.floor(Math.abs(off) / 60))}:${p(Math.abs(off) % 60)}`;
+}
+
+/**
+ * Profil vie entière DÉMO du coureur simulé : à la veille de plusieurs seuils
+ * du catalogue (499 hexes → Conquérant, 9ᵉ course solo → Solitaire, 6 jours
+ * consécutifs → Semaine Parfaite…) pour qu'une bonne course montre des
+ * déblocages. Ce que ce profil satisfait déjà est considéré comme acquis.
+ */
+function demoLifetimeStats(runStartedAtMs: number): LifetimeStats {
+  const yesterday = toLocalIso(runStartedAtMs - 86_400_000).slice(0, 10);
+  return {
+    ...emptyLifetimeStats(),
+    runsValid: 9,
+    totalDistanceM: 38_500,
+    bestRunDistanceM: 8_400,
+    bestAvgPaceSKm: 305,
+    activeDays: 6,
+    activeDayStreak: 6,
+    bestActiveDayStreak: 6,
+    lastActiveDay: yesterday,
+    runsOnLastActiveDay: 1,
+    maxRunsInOneDay: 2,
+    hexesCaptured: 499,
+    steals: 9,
+    defends: 8,
+    pioneerHexes: 3,
+    maxHexesInRun: 82,
+    soloRuns: 9,
+    seasonZeroRuns: 9,
+    seasonZeroHexes: 499,
+  };
+}
+
 // ─── Exécution du moteur ─────────────────────────────────────────────────────
 
 export interface SimResult {
@@ -304,6 +354,8 @@ export interface SimResult {
     performanceModifier: number;
     frozen: boolean;
   } | null;
+  /** Badges débloqués par cette course (evaluateBadges sur le profil démo). */
+  newBadges: BadgeDef[];
 }
 
 const KIND_BY_OUTCOME: Record<HexOutcome, MapHexKind> = {
@@ -410,6 +462,34 @@ export function simulate(params: SimParams, seed: number): SimResult {
     };
   }
 
+  // ── Badges (LE MOTEUR : applyRunToStats + evaluateBadges, AMENDEMENT-04) ──
+  // Le profil démo tient lieu de user_stats ; ses seuils déjà atteints tiennent
+  // lieu de user_badges (alreadyEarned) — comme le ferait ingest_run en DB.
+  const startMs = points[0]?.t ?? now.getTime();
+  const badgeRun: BadgeRunInput = {
+    status,
+    startedAt: toLocalIso(startMs),
+    distanceM: Math.round(stats.distanceM),
+    durationS: Math.round(stats.durationS),
+    avgPaceSKm: Math.round(stats.avgPaceSKm),
+    hexes: {
+      claimed: decision.totals.claimed,
+      stolen: decision.totals.stolen,
+      defended: decision.totals.defended,
+      pioneer: decision.totals.pioneer,
+    },
+    startPoint: points[0] ?? null,
+    endPoint: points[points.length - 1] ?? null,
+    crewSize: 0, // coureur démo solo
+    duringSeasonZero: true,
+  };
+  const statsBefore = demoLifetimeStats(startMs);
+  const alreadyEarned = new Set(evaluateBadges(emptyLifetimeStats(), statsBefore, new Set()));
+  const statsAfter = applyRunToStats(statsBefore, badgeRun); // no-op si rejetée/gelée
+  const newBadges = evaluateBadges(statsBefore, statsAfter, alreadyEarned)
+    .map((key) => BADGES_BY_KEY.get(key))
+    .filter((b): b is BadgeDef => b !== undefined);
+
   return {
     status,
     ...(validation.status === 'rejected' ? { rejectReason: validation.reason } : {}),
@@ -430,5 +510,6 @@ export function simulate(params: SimParams, seed: number): SimResult {
     outcomeCounts,
     totals: decision.totals,
     score,
+    newBadges,
   };
 }

@@ -10,7 +10,8 @@
     "./validation": "./src/validation.ts",
     "./hexing": "./src/hexing.ts",
     "./claims": "./src/claims.ts",
-    "./scoring": "./src/scoring.ts"
+    "./scoring": "./src/scoring.ts",
+    "./badges": "./src/badges.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

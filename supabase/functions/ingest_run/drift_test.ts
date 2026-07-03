@@ -1,7 +1,7 @@
 /**
  * Tests anti-drift des copies générées par scripts/sync-game-rules.mjs
  * (CLAUDE.md, D12 — ne jamais les éditer à la main) :
- *  1. _shared/{game-rules,types}.ts : identiques BYTE À BYTE aux sources
+ *  1. _shared/{badges,game-rules,types}.ts : identiques BYTE À BYTE aux sources
  *     packages/shared/src/ ;
  *  2. _shared/engine/*.ts : identiques au résultat de la TRANSFORMATION des
  *     sources packages/engine/src/*.ts (imports Deno-ifiés + header généré) —
@@ -9,7 +9,7 @@
  */
 import { assert, assertEquals } from 'jsr:@std/assert@^1';
 
-const FILES = ['game-rules.ts', 'types.ts'] as const;
+const FILES = ['badges.ts', 'game-rules.ts', 'types.ts'] as const;
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
@@ -41,6 +41,7 @@ const engineHeader = (name: string): string =>
 
 const transformEngineLine = (line: string): string =>
   line
+    .replace(/(['"])@klaim\/shared\/badges\1/g, '$1../badges.ts$1')
     .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1../game-rules.ts$1')
     .replace(/(['"])@klaim\/shared\/types\1/g, '$1../types.ts$1')
     .replace(/(['"])h3-js\1/g, '$1npm:h3-js@^4.1$1');
