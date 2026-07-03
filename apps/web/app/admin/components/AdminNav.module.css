@@ -1,0 +1,35 @@
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 26px;
+}
+
+.link {
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--gris);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: color 200ms ease-out, background 200ms ease-out;
+}
+
+.link:hover {
+  color: var(--blanc);
+  background: var(--carbone2);
+}
+
+/* Actif : blanc sur carbone-2 — le chartreuse reste réservé au CTA de la page. */
+.active {
+  color: var(--blanc);
+  background: var(--carbone2);
+  border-color: var(--ligne);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link {
+    transition: none;
+  }
+}

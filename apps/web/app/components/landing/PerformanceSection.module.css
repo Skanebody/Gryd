@@ -1,0 +1,129 @@
+.grid {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 28px;
+  align-items: stretch;
+  margin-top: 40px;
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ringCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 36px;
+}
+
+.ringWrap {
+  position: relative;
+  width: min(240px, 60vw);
+}
+
+.ringSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  transform: rotate(-90deg);
+}
+
+.ringTrack {
+  fill: none;
+  stroke: var(--carbone2);
+  stroke-width: 9;
+}
+
+/* Score Forme : progression personnelle = gain → chartreuse légitime. */
+.ringFill {
+  fill: none;
+  stroke: var(--ch);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 800ms ease-out; /* célébration §G */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ringFill {
+    transition: none;
+  }
+}
+
+.ringCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ringValue {
+  font-family: var(--disp);
+  font-weight: 400; /* chiffre héros 400 */
+  font-size: clamp(44px, 5vw, 60px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.perfCard {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 22px;
+}
+
+.perfValue {
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: clamp(30px, 3.4vw, 40px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.perfMono {
+  font-family: var(--mono); /* allure : chiffres mono (exception fonctionnelle §E) */
+  letter-spacing: 0;
+}
+
+/* Progression = gain → seul chiffre chartreuse de la grille. */
+.perfGain {
+  color: var(--ch);
+}
+
+.perfUnit {
+  font-size: 15px;
+  color: var(--gris);
+  font-family: var(--txt);
+}
+
+.perfLabel {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}

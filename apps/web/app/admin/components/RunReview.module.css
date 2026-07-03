@@ -1,0 +1,97 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.mapCard {
+  min-width: 0;
+}
+
+.mapWrap {
+  margin-top: 12px;
+}
+
+.legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.legendKept {
+  color: var(--ch);
+}
+
+.legendExcluded {
+  color: var(--gris);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 18px;
+  margin-top: 14px;
+}
+
+.facts dt {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.facts dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+}
+
+.reason {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ligne);
+  border-radius: 10px;
+  background: var(--carbone2);
+  font-size: 13px;
+}
+
+.flags {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  color: var(--gris);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.demoNote {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--gris);
+}
+
+.journalCard {
+  grid-column: 1 / -1;
+  overflow-x: auto;
+}
+
+.outcomeHint {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--gris);
+  line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,183 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 150px 24px 90px;
+}
+
+/* Fond : HexMap réutilisée, masquée radialement, très atténuée. */
+.bg {
+  position: absolute;
+  inset: -60px -10% auto;
+  height: 130%;
+  opacity: 0.3;
+  pointer-events: none;
+  mask-image: radial-gradient(60% 55% at 50% 38%, black 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(60% 55% at 50% 38%, black 0%, transparent 78%);
+}
+
+.bg :global(svg) {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.inner {
+  position: relative;
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.copyCol {
+  min-width: 0;
+}
+
+/* Eyebrow « live » — emploi légitime du chartreuse (état en direct). */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ch);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone);
+  padding: 8px 15px;
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ch);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .liveDot {
+    animation: blink 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.title {
+  font-family: var(--disp);
+  font-weight: 500; /* titres en Md, jamais bold lourd (AMENDEMENT-03) */
+  font-size: clamp(46px, 7.6vw, 88px);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 22px 0 18px;
+}
+
+.accent {
+  color: var(--ch);
+}
+
+.sub {
+  color: var(--gris);
+  font-size: 17px;
+  line-height: 1.65;
+  max-width: 48ch;
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 40px;
+  max-width: 560px;
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 250ms ease-out 120ms,
+    transform 250ms ease-out 120ms;
+}
+
+.statsShown {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats {
+    transform: none;
+    transition: opacity 200ms ease-out;
+  }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+}
+
+/* Chiffre héros : graisse 400, tabulaire (signature typographique). */
+.statValue {
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: clamp(22px, 2.6vw, 32px);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.phoneCol {
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 980px) {
+  .hero {
+    padding-top: 120px;
+  }
+
+  .inner {
+    grid-template-columns: 1fr;
+    gap: 52px;
+  }
+
+  .stats {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 108px 18px 64px;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}

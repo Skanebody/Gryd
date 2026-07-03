@@ -1,0 +1,25 @@
+{
+  "name": "@klaim/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./validation": "./src/validation.ts",
+    "./hexing": "./src/hexing.ts",
+    "./claims": "./src/claims.ts",
+    "./scoring": "./src/scoring.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@klaim/shared": "*",
+    "h3-js": "^4.1.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.0"
+  }
+}

@@ -1,0 +1,21 @@
+/* Motion charte §G : 250 ms max, ease-out. Reduced-motion → opacité simple. */
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 250ms ease-out,
+    transform 250ms ease-out;
+  will-change: opacity, transform;
+}
+
+.shown {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transform: none;
+    transition: opacity 200ms ease-out;
+  }
+}

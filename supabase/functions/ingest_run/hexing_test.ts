@@ -5,8 +5,8 @@
 import { assert, assertEquals } from 'jsr:@std/assert@^1';
 import { cellToLatLng, getResolution, latLngToCell } from 'npm:h3-js@^4.1';
 import { H3_RESOLUTION } from '../_shared/game-rules.ts';
-import { hexesForSegments, pointInGeoJson } from './hexing.ts';
-import { haversineM } from './validation.ts';
+import { hexesForSegments, pointInGeoJson } from '../_shared/engine/hexing.ts';
+import { haversineM } from '../_shared/engine/validation.ts';
 import type { RunPoint } from '../_shared/types.ts';
 
 const LAT0 = 48.8566;

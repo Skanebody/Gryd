@@ -7,6 +7,9 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
+    // @klaim/engine garde ses imports relatifs en `.ts` (compat copies Deno générées) :
+    // requis pour typechecker ses sources consommées par /admin (sûr avec noEmit).
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

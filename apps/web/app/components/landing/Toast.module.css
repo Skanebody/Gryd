@@ -1,0 +1,44 @@
+/* Toast §F : slide-up noir, accent chartreuse (dot gain), auto-dismiss. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 480px);
+  padding: 12px 20px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone);
+  color: var(--blanc);
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 16px);
+  transition:
+    opacity 225ms ease-out,
+    transform 225ms ease-out;
+}
+
+.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ch);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    transform: translate(-50%, 0);
+    transition: opacity 200ms ease-out;
+  }
+}

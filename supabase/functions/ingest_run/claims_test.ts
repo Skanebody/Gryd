@@ -13,7 +13,7 @@ import {
   POINTS_STOLEN_HEX,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
-import { decideClaims, type DecideClaimsContext, type HexState } from './claims.ts';
+import { decideClaims, type DecideClaimsContext, type HexState } from '../_shared/engine/claims.ts';
 
 const NOW = new Date('2026-07-03T10:00:00Z');
 const ME = 'user-me';

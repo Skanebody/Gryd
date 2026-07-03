@@ -5,8 +5,9 @@
  * → hexing H3 → lecture état (hexes, privacy, no-capture, densité) →
  * decideClaims (pur) → RPC claim_hexes (application atomique) → runs.celebration.
  *
- * Toute la logique de jeu vit dans les modules purs (validation/hexing/claims/
- * scoring) — ce fichier ne fait QUE de l'orchestration et de l'I/O.
+ * Toute la logique de jeu vit dans les modules purs du moteur @klaim/engine
+ * (validation/hexing/claims/scoring), consommés via les copies générées
+ * _shared/engine/ — ce fichier ne fait QUE de l'orchestration et de l'I/O.
  *
  * IDEMPOTENCE (D14) : le client génère clientRunId avant la course ; si la
  * paire (user_id, client_run_id) existe déjà, on renvoie le payload
@@ -29,10 +30,18 @@ import {
   MOTION_TRUST_FLAGGED_BELOW,
   stepCoherence,
   validateRun,
-} from './validation.ts';
-import { type GeoJsonPolygonal, hexesForSegments, pointInGeoJson } from './hexing.ts';
-import { decideClaims, type HexState } from './claims.ts';
-import { computeScore, distributePointsAdjustment, streakMultiplier } from './scoring.ts';
+} from '../_shared/engine/validation.ts';
+import {
+  type GeoJsonPolygonal,
+  hexesForSegments,
+  pointInGeoJson,
+} from '../_shared/engine/hexing.ts';
+import { decideClaims, type HexState } from '../_shared/engine/claims.ts';
+import {
+  computeScore,
+  distributePointsAdjustment,
+  streakMultiplier,
+} from '../_shared/engine/scoring.ts';
 
 const MS_PER_DAY = 86_400_000;
 const DB_IN_CHUNK = 500; // taille des batches pour les clauses `in(...)`

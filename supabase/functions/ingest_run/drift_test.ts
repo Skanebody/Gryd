@@ -1,10 +1,13 @@
 /**
- * Test anti-drift : les copies supabase/functions/_shared/{game-rules,types}.ts
- * doivent être STRICTEMENT identiques (byte à byte) aux sources
- * packages/shared/src/. Elles sont générées par scripts/sync-game-rules.mjs et
- * ne doivent jamais être éditées à la main (CLAUDE.md).
+ * Tests anti-drift des copies générées par scripts/sync-game-rules.mjs
+ * (CLAUDE.md, D12 — ne jamais les éditer à la main) :
+ *  1. _shared/{game-rules,types}.ts : identiques BYTE À BYTE aux sources
+ *     packages/shared/src/ ;
+ *  2. _shared/engine/*.ts : identiques au résultat de la TRANSFORMATION des
+ *     sources packages/engine/src/*.ts (imports Deno-ifiés + header généré) —
+ *     la transformation est re-appliquée ici et comparée.
  */
-import { assert } from 'jsr:@std/assert@^1';
+import { assert, assertEquals } from 'jsr:@std/assert@^1';
 
 const FILES = ['game-rules.ts', 'types.ts'] as const;
 
@@ -23,6 +26,55 @@ for (const file of FILES) {
     assert(
       bytesEqual(source, copy),
       `supabase/functions/_shared/${file} a dérivé de packages/shared/src/${file} — ` +
+        `lancer node scripts/sync-game-rules.mjs`,
+    );
+  });
+}
+
+// ─── Moteur : _shared/engine/*.ts = transformation de packages/engine/src ────
+// ⚠ MIROIR EXACT de scripts/sync-game-rules.mjs (engineHeader +
+//   transformEngineLine) — toute modification là-bas doit être répliquée ici.
+
+const engineHeader = (name: string): string =>
+  `// GÉNÉRÉ par scripts/sync-game-rules.mjs — ne pas éditer.\n` +
+  `// Source : packages/engine/src/${name}\n\n`;
+
+const transformEngineLine = (line: string): string =>
+  line
+    .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1../game-rules.ts$1')
+    .replace(/(['"])@klaim\/shared\/types\1/g, '$1../types.ts$1')
+    .replace(/(['"])h3-js\1/g, '$1npm:h3-js@^4.1$1');
+
+const engineSrcDir = new URL('../../../packages/engine/src/', import.meta.url);
+const engineCopyDir = new URL('../_shared/engine/', import.meta.url);
+
+const listTs = (dir: URL): string[] =>
+  [...Deno.readDirSync(dir)]
+    .filter((e) => e.isFile && e.name.endsWith('.ts'))
+    .map((e) => e.name)
+    .sort();
+
+const engineFiles = listTs(engineSrcDir);
+
+Deno.test('drift : _shared/engine/ contient exactement les fichiers de packages/engine/src/', () => {
+  assertEquals(
+    listTs(engineCopyDir),
+    engineFiles,
+    'supabase/functions/_shared/engine/ ne reflète pas packages/engine/src/ — ' +
+      'lancer node scripts/sync-game-rules.mjs',
+  );
+});
+
+for (const file of engineFiles) {
+  Deno.test(`drift : _shared/engine/${file} = transformation de packages/engine/src/${file}`, async () => {
+    const source = await Deno.readTextFile(new URL(file, engineSrcDir));
+    const expected = engineHeader(file) +
+      source.split('\n').map(transformEngineLine).join('\n');
+    const copy = await Deno.readTextFile(new URL(file, engineCopyDir));
+    assertEquals(
+      copy,
+      expected,
+      `supabase/functions/_shared/engine/${file} a dérivé de packages/engine/src/${file} — ` +
         `lancer node scripts/sync-game-rules.mjs`,
     );
   });

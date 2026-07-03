@@ -1,0 +1,207 @@
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 32px;
+}
+
+.toggle {
+  display: inline-flex;
+  padding: 4px;
+  gap: 3px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone);
+}
+
+.toggleBtn {
+  border: none;
+  background: transparent;
+  color: var(--gris);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    color 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.toggleActive {
+  background: var(--carbone2);
+  color: var(--blanc);
+}
+
+/* Économie = gain → chartreuse (texte sur fond sombre). */
+.saveNote {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: var(--ch);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+.saveVisible {
+  opacity: 1;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 28px;
+  align-items: stretch;
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.priceCard {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 24px;
+}
+
+/* Highlight Club : contour + halo chartreuse (CTA primaire de la section). */
+.highlight {
+  border-color: var(--ch40);
+  box-shadow: 0 0 40px var(--ch14);
+}
+
+.coming {
+  background: color-mix(in srgb, var(--carbone) 72%, transparent);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.planName {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.badgeClub {
+  color: var(--ch);
+  border-color: var(--ch40);
+}
+
+.price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 20px 0 4px;
+  min-height: 46px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .price {
+    animation: priceIn 225ms ease-out;
+  }
+}
+
+@keyframes priceIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Chiffres héros 400, tabulaires. */
+.priceValue {
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.priceSuffix {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--gris);
+}
+
+.features {
+  list-style: none;
+  margin: 18px 0 26px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.features li {
+  position: relative;
+  padding-left: 20px;
+  color: var(--gris);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.features li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--ligne);
+}
+
+.highlight .features li::before {
+  background: var(--ch40);
+}
+
+.cardCta {
+  width: 100%;
+  height: 50px;
+}
+
+.footnote {
+  margin-top: 26px;
+  font-size: 13.5px;
+  color: var(--gris);
+  font-style: italic;
+  font-family: var(--serif); /* accent éditorial Lora (AMENDEMENT-03) */
+  max-width: 66ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggleBtn,
+  .saveNote,
+  .price {
+    transition: none;
+    animation: none;
+  }
+}

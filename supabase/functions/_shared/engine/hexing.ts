@@ -1,5 +1,8 @@
+// GÉNÉRÉ par scripts/sync-game-rules.mjs — ne pas éditer.
+// Source : packages/engine/src/hexing.ts
+
 /**
- * GRYD — ingest_run/hexing.ts
+ * GRYD — engine/hexing.ts
  * Trace validée → cellules H3 res 10 (SPEC §3.1).
  *
  * Fonctions PURES (h3-js est un calcul déterministe, aucune I/O).
@@ -19,7 +22,7 @@
  * (~1 pt/s-5 s, soit tous les 3-15 m) est bien plus dense que la taille d'hex.
  */
 import { gridPathCells, latLngToCell } from 'npm:h3-js@^4.1';
-import { H3_RESOLUTION, TRACE_BUFFER_M } from '../_shared/game-rules.ts';
+import { H3_RESOLUTION, TRACE_BUFFER_M } from '../game-rules.ts';
 import type { Segment } from './validation.ts';
 
 // Constantes physiques / géométriques — pas des règles de jeu.
@@ -99,10 +102,10 @@ export type GeoJsonPolygonal = GeoPolygon | GeoMultiPolygon;
 function ringContains(ring: Ring, lat: number, lng: number): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    const intersects = (yi > lat) !== (yj > lat) &&
-      lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    const [xi, yi] = ring[i]!;
+    const [xj, yj] = ring[j]!;
+    const intersects = (yi! > lat) !== (yj! > lat) &&
+      lng < ((xj! - xi!) * (lat - yi!)) / (yj! - yi!) + xi!;
     if (intersects) inside = !inside;
   }
   return inside;

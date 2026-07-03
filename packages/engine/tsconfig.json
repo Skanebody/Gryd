@@ -1,0 +1,17 @@
+{
+  "//": "Calqué sur packages/shared/tsconfig.json + allowImportingTsExtensions : les imports relatifs entre modules engine gardent l'extension .ts pour que les copies Deno générées (supabase/functions/_shared/engine/) restent valides sans réécriture.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src"]
+}

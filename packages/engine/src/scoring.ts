@@ -1,5 +1,5 @@
 /**
- * GRYD — ingest_run/scoring.ts
+ * GRYD — engine/scoring.ts
  * Points de course → multiplicateurs → Foulées / XP (SPEC §3.4 + AMENDEMENT-02 §3/§6).
  * Fonctions PURES. Tous les arrondis se font à l'entier INFÉRIEUR (Math.floor).
  */
@@ -11,7 +11,7 @@ import {
   STREAK_MULTIPLIER_CAP,
   STREAK_MULTIPLIER_STEP,
   XP_RATE_OF_POINTS,
-} from '../_shared/game-rules.ts';
+} from '@klaim/shared/game-rules';
 
 /**
  * Multiplicateur de streak hebdomadaire (§3.4) : +STREAK_MULTIPLIER_STEP par
@@ -108,13 +108,13 @@ export function distributePointsAdjustment(
   if (delta > 0) {
     // Bonus : sur le premier hex qui score (ou le premier tout court).
     const i = Math.max(0, adjusted.findIndex((p) => p > 0));
-    adjusted[i] += delta;
+    adjusted[i]! += delta;
     return adjusted;
   }
   // Malus : retiré hex par hex, borné à 0.
   for (let i = 0; i < adjusted.length && delta < 0; i++) {
-    const take = Math.min(adjusted[i], -delta);
-    adjusted[i] -= take;
+    const take = Math.min(adjusted[i]!, -delta);
+    adjusted[i]! -= take;
     delta += take;
   }
   return adjusted;

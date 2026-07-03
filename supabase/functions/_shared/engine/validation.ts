@@ -1,10 +1,13 @@
+// GÉNÉRÉ par scripts/sync-game-rules.mjs — ne pas éditer.
+// Source : packages/engine/src/validation.ts
+
 /**
- * GRYD — ingest_run/validation.ts
+ * GRYD — engine/validation.ts
  * Validité d'une course (SPEC §3.2) + signal de cohérence pas/distance
  * (GRYD Verify MVP, docs/product/GRYD_verify_motion_intelligence_antitriche.md §11).
  *
  * Fonctions PURES : aucune I/O, aucune horloge, aucun accès réseau/DB.
- * Toutes les constantes de jeu viennent de _shared/game-rules.ts (copie générée).
+ * Toutes les constantes de jeu viennent de @klaim/shared/game-rules.
  */
 import {
   POINT_MAX_ACCURACY_M,
@@ -16,8 +19,8 @@ import {
   RUN_MIN_DURATION_S,
   SEGMENT_PACE_MAX_S_KM,
   SEGMENT_PACE_MIN_S_KM,
-} from '../_shared/game-rules.ts';
-import type { RejectReason, RunPoint } from '../_shared/types.ts';
+} from '../game-rules.ts';
+import type { RejectReason, RunPoint } from '../types.ts';
 
 /** Segment continu de points GPS conservés (coupé sur saut > POINT_MAX_JUMP_M). */
 export type Segment = RunPoint[];
@@ -113,9 +116,9 @@ export function computeStats(segments: Segment[]): RunStats {
   let durationS = 0;
   for (const seg of segments) {
     for (let i = 1; i < seg.length; i++) {
-      distanceM += haversineM(seg[i - 1], seg[i]);
+      distanceM += haversineM(seg[i - 1]!, seg[i]!);
     }
-    durationS += (seg[seg.length - 1].t - seg[0].t) / MS_PER_S;
+    durationS += (seg[seg.length - 1]!.t - seg[0]!.t) / MS_PER_S;
   }
   const avgPaceSKm = distanceM > 0 ? durationS / (distanceM / M_PER_KM) : 0;
   return { distanceM, durationS, avgPaceSKm };

@@ -36,6 +36,8 @@
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
+  /* Header pill sticky : les ancres (#concept…) s'arrêtent sous le header. */
+  scroll-padding-top: 96px;
 }
 
 @media (prefers-reduced-motion: reduce) {

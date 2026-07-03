@@ -12,7 +12,7 @@ import {
   haversineM,
   stepCoherence,
   validateRun,
-} from './validation.ts';
+} from '../_shared/engine/validation.ts';
 import type { RunPoint } from '../_shared/types.ts';
 
 // ~1 degré de latitude = ~111 195 m (repère des helpers ci-dessous).

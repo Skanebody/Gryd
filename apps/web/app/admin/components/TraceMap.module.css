@@ -1,0 +1,90 @@
+/* Carte SVG — tokens carte ADDENDUM §D (radar de nuit). */
+
+.map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid var(--ligne);
+}
+
+.bg {
+  fill: var(--noir);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--ligne);
+  border-radius: 14px;
+  color: var(--gris);
+  font-size: 13px;
+}
+
+/* Mon territoire : chartreuse-14 + contour chartreuse-40. */
+.hexMine {
+  fill: var(--ch14);
+  stroke: var(--ch40);
+  stroke-width: 1;
+}
+
+/* Volé : gain fort → chartreuse-40. */
+.hexStolen {
+  fill: var(--ch40);
+  stroke: var(--ch);
+  stroke-width: 1;
+}
+
+/* Bloqué : gris hachuré (motif, jamais de teinte hors tokens). */
+.hexBlocked {
+  fill: url(#gryd-hatch);
+  stroke: rgba(250, 250, 247, 0.22);
+  stroke-width: 1;
+}
+
+/* Gelé (course flaggée) : contour blanc pointillé, remplissage quasi nul. */
+.hexFrozen {
+  fill: rgba(250, 250, 247, 0.04);
+  stroke: rgba(250, 250, 247, 0.35);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+/* Rejeté / simple visualisation : contour seul. */
+.hexOutline {
+  fill: none;
+  stroke: rgba(250, 250, 247, 0.16);
+  stroke-width: 1;
+}
+
+/* Pionnier : contour renforcé. */
+.hexPioneer {
+  stroke: var(--ch);
+  stroke-width: 1.4;
+}
+
+/* Trace claimable : chartreuse (emploi « moi » / « live »). */
+.pathKept {
+  fill: none;
+  stroke: var(--ch);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* Segments exclus : gris pointillé. */
+.pathExcluded {
+  fill: none;
+  stroke: var(--gris);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  stroke-linejoin: round;
+}
+
+/* Trace brute (points filtrés inclus) : filigrane blanc 8 %. */
+.pathRaw {
+  fill: none;
+  stroke: rgba(250, 250, 247, 0.08);
+  stroke-width: 1.4;
+}

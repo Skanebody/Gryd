@@ -1,0 +1,127 @@
+/*
+ * Primitives partagées de la landing (importées par les sections).
+ * Charte : titres 500, texte 400, chiffres héros 400 — jamais 700+.
+ * 1 seul CTA chartreuse par section, secondaires en ghost (bordure --ligne).
+ */
+
+.section {
+  padding: 88px 24px;
+}
+
+@media (max-width: 640px) {
+  .section {
+    padding: 64px 18px;
+  }
+}
+
+.inner {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-bottom: 14px;
+}
+
+.sectionTitle {
+  font-family: var(--disp);
+  font-weight: 500; /* Outcrowd/AMENDEMENT-03 : titres en Md, jamais bold lourd */
+  font-size: clamp(30px, 4.6vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  max-width: 22ch;
+}
+
+.sectionSub {
+  color: var(--gris);
+  font-size: 16px;
+  line-height: 1.65;
+  max-width: 62ch;
+  margin-top: 14px;
+}
+
+/* Bouton primaire §F : pill, fond chartreuse, texte noir 600 — 1 par section max. */
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 54px;
+  padding: 0 26px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--ch);
+  color: var(--noir);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 200ms ease-out;
+}
+
+.btnPrimary:hover {
+  transform: translateY(-2px);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Bouton secondaire §F : ghost, bordure --ligne, texte blanc. */
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 54px;
+  padding: 0 26px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--blanc);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.btnGhost:hover {
+  border-color: var(--ch40);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btnPrimary,
+  .btnGhost {
+    transition: none;
+  }
+
+  .btnPrimary:hover,
+  .btnGhost:hover {
+    transform: none;
+  }
+}
+
+/* Carte §F : carbone, radius 20, bordure ligne 1 px, padding 20. */
+.card {
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 20px;
+}
+
+/* Label utilitaire mono (formulaires, métriques). */
+.monoLabel {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gris);
+}

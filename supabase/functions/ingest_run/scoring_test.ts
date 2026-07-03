@@ -13,7 +13,7 @@ import {
   distributePointsAdjustment,
   performanceModifier,
   streakMultiplier,
-} from './scoring.ts';
+} from '../_shared/engine/scoring.ts';
 
 // ─── Streak (§3.4) ───────────────────────────────────────────────────────────
 

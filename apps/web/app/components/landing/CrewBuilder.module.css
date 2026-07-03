@@ -1,0 +1,219 @@
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: start;
+  margin-top: 40px;
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.formCol,
+.previewCol {
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.input {
+  height: 52px;
+  padding: 0 18px;
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  color: var(--blanc);
+  font-size: 15px;
+}
+
+.input::placeholder {
+  color: var(--gris);
+  opacity: 0.7;
+}
+
+.styleField {
+  border: none;
+  padding: 0;
+  margin: 0 0 24px;
+}
+
+.styleChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.styleChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  color: var(--gris);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 200ms ease-out,
+    border-color 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.styleChipActive {
+  background: var(--carbone2);
+  border-color: var(--ch40);
+  color: var(--blanc);
+}
+
+.styleRadio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.styleChip:has(.styleRadio:focus-visible) {
+  outline: 2px solid var(--ch);
+  outline-offset: 3px;
+}
+
+.copyBtn {
+  width: 100%;
+  max-width: 380px;
+}
+
+/* ── Prévisualisation live ────────────────────────────────────────────────── */
+
+.preview {
+  padding: 26px 24px;
+  transition:
+    border-color 225ms ease-out,
+    box-shadow 225ms ease-out,
+    background-color 225ms ease-out;
+}
+
+.previewHead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Mon crew sur MA carte → chartreuse légitime (doctrine C.3, emploi 1). */
+.emblem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  color: var(--ch);
+  flex: none;
+}
+
+.initials {
+  position: absolute;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--blanc);
+}
+
+.previewIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.previewName {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.previewMeta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--gris);
+}
+
+.previewStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 24px 0 0;
+}
+
+.previewStat {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 5px;
+  border: 1px solid var(--ligne);
+  border-radius: 14px;
+  background: var(--carbone2);
+  padding: 12px 14px;
+}
+
+.previewStat dd {
+  margin: 0;
+  font-family: var(--disp);
+  font-weight: 400; /* chiffres 400 */
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.statMax {
+  font-size: 14px;
+  color: var(--gris);
+}
+
+/*
+ * Variantes de style — différenciées par glow/relief DANS la palette
+ * (jamais de teinte or/argent : écart charte du brouillon corrigé).
+ * carbon = mat · gold = halo blanc · neon = halo chartreuse (mon crew) ·
+ * ghost = contour pointillé translucide.
+ */
+.variantCarbon {
+  background: var(--carbone2);
+}
+
+.variantGold {
+  border-color: color-mix(in srgb, var(--blanc) 26%, transparent);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--blanc) 8%, transparent);
+}
+
+.variantNeon {
+  border-color: var(--ch40);
+  box-shadow: 0 0 36px var(--ch14);
+}
+
+.variantGhost {
+  background: transparent;
+  border-style: dashed;
+}
+
+.variantGhost .emblem {
+  color: var(--gris);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .styleChip,
+  .preview {
+    transition: none;
+  }
+}

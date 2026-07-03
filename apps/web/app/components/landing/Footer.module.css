@@ -1,0 +1,73 @@
+.footer {
+  border-top: 1px solid var(--ligne);
+  margin-top: 20px;
+}
+
+.inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 24px 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px 40px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.brandCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+}
+
+/* Baseline éditoriale en Lora (accent serif Outcrowd). */
+.tagline {
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--gris);
+  font-size: 14px;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+.link {
+  color: var(--gris);
+  font-size: 13.5px;
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--blanc);
+}
+
+.legal {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  color: var(--gris);
+  font-size: 12.5px;
+}
+
+.legalLink {
+  color: var(--gris);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

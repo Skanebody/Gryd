@@ -1,5 +1,5 @@
 /**
- * GRYD — ingest_run/claims.ts
+ * GRYD — engine/claims.ts
  * Décision des claims par hex (SPEC §3.3/§3.4 + AMENDEMENT-02 §2/§3 + §6.4).
  *
  * Fonction PURE : l'état existant et le contexte sont fournis par l'appelant,
@@ -31,8 +31,8 @@ import {
   POINTS_PIONEER_BONUS_BY_DENSITY,
   POINTS_STOLEN_HEX,
   type ZoneDensity,
-} from '../_shared/game-rules.ts';
-import type { HexClaimResult } from '../_shared/types.ts';
+} from '@klaim/shared/game-rules';
+import type { HexClaimResult } from '@klaim/shared/types';
 
 // Conversions d'unités — pas des règles de jeu.
 const MS_PER_HOUR = 3_600_000;

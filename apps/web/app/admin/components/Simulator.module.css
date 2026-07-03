@@ -1,0 +1,257 @@
+.layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 22px;
+  align-items: start;
+}
+
+.controls {
+  position: sticky;
+  top: 20px;
+}
+
+.presets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.presets button {
+  justify-content: flex-start;
+  text-align: left;
+  height: auto;
+  padding: 8px 14px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--gris);
+}
+
+.field b {
+  color: var(--blanc);
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.field input[type='range'] {
+  width: 100%;
+  accent-color: var(--ch);
+}
+
+.launch {
+  width: 100%;
+  margin-top: 22px;
+  height: 44px;
+  font-size: 14px;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.mapWrap {
+  margin-top: 12px;
+}
+
+.placeholder {
+  margin-top: 14px;
+  color: var(--gris);
+  font-size: 13px;
+}
+
+/* ── Légende ── */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--gris);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.swMine {
+  background: var(--ch14);
+  border: 1px solid var(--ch40);
+}
+
+.swStolen {
+  background: var(--ch40);
+  border: 1px solid var(--ch);
+}
+
+.swBlocked {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(250, 250, 247, 0.25) 2px,
+    rgba(250, 250, 247, 0.25) 3px
+  );
+  border: 1px solid rgba(250, 250, 247, 0.22);
+}
+
+.swFrozen {
+  background: rgba(250, 250, 247, 0.04);
+  border: 1px dashed rgba(250, 250, 247, 0.4);
+}
+
+.swOutline {
+  border: 1px solid rgba(250, 250, 247, 0.2);
+}
+
+.swTrace {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ch);
+}
+
+.swExcluded {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--gris);
+}
+
+/* ── Célébration ── */
+
+.celebration {
+  margin-top: 14px;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Chiffre héros — signature typographique (ADDENDUM §E) ; gain → chartreuse. */
+.heroNumber {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 64px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ch);
+  font-variant-numeric: tabular-nums;
+}
+
+.heroLabel {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-top: -4px;
+}
+
+.rejectReason {
+  font-size: 13px;
+  color: var(--blanc);
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: 10px;
+  padding: 10px 12px;
+  max-width: 52ch;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 16px;
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--ligne);
+}
+
+.metrics dt {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.metrics dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+}
+
+.gains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ligne);
+}
+
+.gainLabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.gainValue {
+  margin: 2px 0 0;
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ch);
+  font-variant-numeric: tabular-nums;
+}
+
+.gainValueMuted {
+  margin: 2px 0 0;
+  font-size: 15px;
+  color: var(--blanc);
+}
+
+.outcomes {
+  margin: 18px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--ligne);
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-size: 12px;
+  color: var(--gris);
+}
+
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .controls {
+    position: static;
+  }
+}

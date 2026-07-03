@@ -1,0 +1,340 @@
+/*
+ * GRYD Admin — primitives partagées (tables, chips, cartes, boutons, toast).
+ * Charte §C/§F : sobre, table-first ; flagged/rejected en blanc/gris + libellé,
+ * JAMAIS de rouge ; 1 seul CTA chartreuse par écran.
+ */
+
+.pageTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.pageSub {
+  color: var(--gris);
+  font-size: 13px;
+  margin-top: 6px;
+  max-width: 70ch;
+}
+
+.card {
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 20px;
+}
+
+/* ─── KPI (dashboard) ─────────────────────────────────────────────────────── */
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.kpi {
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+}
+
+.kpiValue {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 40px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le chiffre « à traiter » est un signal de gain/urgence : chartreuse autorisé (§C.3 gains). */
+.kpiValueAccent {
+  color: var(--ch);
+}
+
+.kpiLabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-top: 8px;
+}
+
+/* ─── Tables ──────────────────────────────────────────────────────────────── */
+
+.tableWrap {
+  margin-top: 18px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  background: var(--carbone);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 640px;
+}
+
+.table th {
+  text-align: left;
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ligne);
+  white-space: nowrap;
+}
+
+.thSortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.thSortable:hover {
+  color: var(--blanc);
+}
+
+.table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--ligne);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rowLink {
+  cursor: pointer;
+  transition: background 150ms ease-out;
+}
+
+.rowLink:hover {
+  background: var(--carbone2);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--gris);
+}
+
+/* ─── Chips de statut — libellé + luminance, jamais de teinte hors tokens ── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Validée : gain → chartreuse-14 (emploi §C.3 « gains »). */
+.chipValid {
+  background: var(--ch14);
+  color: var(--ch);
+}
+
+/* Partielle : ghost bordé blanc. */
+.chipPartial {
+  border: 1px solid var(--ligne);
+  color: var(--blanc);
+}
+
+/* Flaggée : blanc plein sur carbone — l'urgence par le mot, pas par le rouge. */
+.chipFlagged {
+  background: var(--blanc);
+  color: var(--noir);
+}
+
+/* Rejetée : gris assumé. */
+.chipRejected {
+  background: var(--carbone2);
+  color: var(--gris);
+  border: 1px solid var(--ligne);
+}
+
+.chipNeutral {
+  background: var(--carbone2);
+  color: var(--gris);
+}
+
+/* ─── Filtres (chips cliquables) ─────────────────────────────────────────── */
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.filterBtn {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--gris);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.filterBtn:hover {
+  color: var(--blanc);
+}
+
+.filterBtnActive {
+  color: var(--noir);
+  background: var(--blanc);
+  border-color: var(--blanc);
+  font-weight: 500;
+}
+
+/* ─── Boutons d'action ────────────────────────────────────────────────────── */
+
+/* Primaire : LE chartreuse de l'écran (1 max). */
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--ch);
+  color: var(--noir);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Secondaire / destructif : ghost blanc, l'intention est dans le libellé (§F). */
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--blanc);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 150ms ease-out;
+}
+
+.btnGhost:hover:not(:disabled) {
+  border-color: var(--ch40);
+}
+
+.btnGhost:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btnSmall {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* ─── Toast (§F : slide-up noir, auto-dismiss) ───────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: var(--noir);
+  border: 1px solid var(--ligne);
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 13px;
+  color: var(--blanc);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: toastIn 220ms ease-out;
+}
+
+.toastAccent {
+  color: var(--ch);
+  font-weight: 600;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+
+  .rowLink,
+  .filterBtn,
+  .btnGhost {
+    transition: none;
+  }
+}
+
+/* ─── Divers ─────────────────────────────────────────────────────────────── */
+
+.sectionTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  margin-top: 32px;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.select {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: 10px;
+  color: var(--blanc);
+  font-size: 13px;
+}

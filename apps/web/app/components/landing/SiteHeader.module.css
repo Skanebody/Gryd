@@ -1,0 +1,230 @@
+.wrap {
+  position: fixed;
+  top: 14px;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.pill {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: min(1060px, 100%);
+  height: 62px;
+  padding: 0 10px 0 20px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--noir) 78%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition:
+    height 225ms ease-out,
+    width 225ms ease-out,
+    background-color 225ms ease-out;
+}
+
+/* Rétrécit au scroll. */
+.scrolled {
+  height: 52px;
+  width: min(920px, 100%);
+  background: color-mix(in srgb, var(--noir) 90%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill {
+    transition: none;
+  }
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  color: var(--blanc);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.navLink {
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  color: var(--gris);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 200ms ease-out;
+}
+
+.navLink:hover {
+  color: var(--blanc);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.nav + .actions {
+  margin-left: 0;
+}
+
+.lang {
+  display: inline-flex;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 2px;
+}
+
+.langBtn {
+  border: none;
+  background: transparent;
+  color: var(--gris);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 5px 9px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.langActive {
+  background: var(--carbone2);
+  color: var(--blanc);
+}
+
+/* CTA header en GHOST : le chartreuse reste réservé au CTA de la section visible. */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  color: var(--blanc);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 200ms ease-out;
+}
+
+.cta:hover {
+  border-color: var(--ch40);
+}
+
+.burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+
+.burgerBar {
+  display: block;
+  height: 1.5px;
+  width: 100%;
+  background: var(--blanc);
+  transition: transform 225ms ease-out, opacity 225ms ease-out;
+}
+
+.barTop {
+  transform: translateY(6.5px) rotate(45deg);
+}
+
+.barMid {
+  opacity: 0;
+}
+
+.barBot {
+  transform: translateY(-6.5px) rotate(-45deg);
+}
+
+.mobileNav {
+  pointer-events: auto;
+  width: min(1060px, 100%);
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--noir) 94%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mobileOpen {
+  display: flex;
+}
+
+.mobileLink {
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--blanc);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.mobileLink:hover {
+  background: var(--carbone);
+}
+
+.mobileFoot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 6px 2px;
+}
+
+@media (max-width: 980px) {
+  .nav {
+    display: none;
+  }
+
+  .burger {
+    display: flex;
+  }
+
+  .actions .lang {
+    display: none; /* le toggle langue vit dans le panneau mobile */
+  }
+
+  .cta {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burgerBar,
+  .navLink,
+  .cta {
+    transition: none;
+  }
+}
