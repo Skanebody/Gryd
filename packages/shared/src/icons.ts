@@ -326,6 +326,26 @@ export const ICONS = {
   },
   /** Niveau — double chevron montant (level up). */
   niveau: { paths: ['M6 17.5l6-6 6 6', 'M6 11l6-6 6 6'] },
+  /** Parc — arbre stylisé (POI running, AMENDEMENT-09). */
+  parc: {
+    paths: [
+      'M12 21v-7',
+      'M12 3a5.5 5.5 0 0 1 5.5 5.5c0 3.1-2.4 5.5-5.5 5.5S6.5 11.6 6.5 8.5A5.5 5.5 0 0 1 12 3z',
+    ],
+  },
+  /** Fontaine — goutte d'eau (POI running, AMENDEMENT-09). */
+  fontaine: {
+    paths: ['M12 3.5c3.6 4.4 5.5 7.2 5.5 9.9a5.5 5.5 0 1 1-11 0c0-2.7 1.9-5.5 5.5-9.9z'],
+  },
+  /** Spot — étoile (spot populaire, POI running AMENDEMENT-09). */
+  spot: {
+    paths: [
+      'M12 3.5l2.5 5.2 5.7.7-4.2 3.9 1.1 5.6L12 16.2l-5.1 2.7 1.1-5.6-4.2-3.9 5.7-.7L12 3.5z',
+    ],
+    fillable: true,
+  },
+  /** Virage — flèche de changement de direction (navigation, AMENDEMENT-09). */
+  virage: { paths: ['M6 20.5V13a4.5 4.5 0 0 1 4.5-4.5H18', 'M14.5 5 18 8.5 14.5 12'] },
   /** Guerre — étendard planté (war ready / offensive de crew). */
   guerre: {
     paths: ['M7 21V3', 'M7 4.5h10.5V12l-3.4-1.7L10.7 12 7 10.3', 'M4.5 21h5'],

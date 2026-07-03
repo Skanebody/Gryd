@@ -1,24 +1,58 @@
 /**
- * GRYD — couche 4 de la Battle Map : le HUD gameplay (AMENDEMENT-08 §4, doc §7).
- * Partagé entre MapScreen natif (MapLibre) et MapScreen.web (SVG) :
- *   haut   BattleMapHUD (SAISON 0 · J-12 / Paris Est · contesté / Crew #8)
- *          + chips de layers (Decay/Routes/Crew/Rivals/Missions, défaut simple)
- *   flottant  mini war feed (3 events qui défilent, slide-in, tag LIVE)
- *   bas    bandeau OBJECTIF CREW (« Défendre 12 hexes · +N pts possibles »)
- *          avec CTA contextuel — posé au-dessus du bouton central.
- * Le bouton COURIR lui-même vit dans le layout (tabs) — pas de doublon ici.
- * Anti-shame : le bandeau parle d'objectifs crew, jamais de retard individuel.
+ * GRYD — couche 4 de la Battle Map : le HUD gameplay façon UBER (AMENDEMENT-09
+ * §2, brief GRYD_map_uber_running_gaming). Partagé entre MapScreen natif
+ * (MapLibre) et MapScreen.web (SVG) :
+ *   haut      UNE pill fine « SAISON 0 · J-12 · PARIS EST · #8 » — tout le
+ *             reste vit dans la sheet (anti-bruit : zéro bandeau empilé)
+ *             + mini war feed (1 SEUL event visible, rotation) + chips layers
+ *             (révélées par le bouton flottant Couches).
+ *   droite    3 boutons flottants MAX : recentrer / couches / stats.
+ *   bas       MapBottomSheet 3 états, posée AU-DESSUS du bouton central
+ *             ContextualRunButton (AMENDEMENT-08 §3 — il reste l'unique CTA
+ *             chartreuse, la sheet ne le duplique pas) :
+ *             COMPACT  objectif crew + pts possibles + CTA texte contextuel
+ *                      (RUN/DEFEND/RAID/CAPTURE → même flux RunModeSheet).
+ *             SEMI     + défi à proximité (1 carte), zone bonus, membres crew
+ *                      dispo (« 2 partagent leur position (opt-in) »).
+ *             OUVERT   + choix de PARCOURS (3 démo — aperçu RouteProgress sur
+ *                      la carte au tap) + run d'ami à rejoindre (1 démo).
+ * Anti-shame : la sheet parle d'objectifs crew, jamais de retard individuel.
+ * Events : screen('map_sheet_open') / screen('map_parcours_select') (génériques
+ * — pas de nom §8 dédié dans events.ts) ; EVENTS.runStart au départ réel.
  */
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, type RunMode } from '@klaim/shared';
+import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
-import { BattleMapHUD, timeAgoLabel, useSlideIn, type RunButtonMode } from '../../ui/game';
+import {
+  FloatingMapButton,
+  MAP_SHEET_COMPACT_HEIGHT,
+  MapBottomSheet,
+  timeAgoLabel,
+  useSlideIn,
+  type MapSheetState,
+  type RunButtonMode,
+} from '../../ui/game';
+import { RunModeSheet } from '../motivation/RunModeSheet';
 import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
-import { OFFENSIVE } from '../warroom/demo';
-import { MAP_HUD, MAP_WAR_FEED, WAR_FEED_CYCLE_MS, type MapWarFeedEventDemo } from './demo';
+import { MISSIONS, OFFENSIVE } from '../warroom/demo';
+import {
+  FRIEND_RUN_DEMO,
+  MAP_BONUS_ZONE,
+  MAP_CHALLENGE,
+  MAP_HUD,
+  MAP_WAR_FEED,
+  MATES_OPT_IN,
+  MATES_SHARING_LABEL,
+  PARCOURS_DEMO,
+  WAR_FEED_CYCLE_MS,
+  parcoursMeta,
+  type MapWarFeedEventDemo,
+} from './demo';
 import type { BattleMapSummary } from './fakeHexes';
 
 export type MapLayerKey = 'decay' | 'routes' | 'crew' | 'rivals' | 'missions';
@@ -41,7 +75,7 @@ const LAYER_LABELS: Record<MapLayerKey, string> = {
   missions: 'Missions',
 };
 
-/** CTA contextuel du bandeau objectif — même vocabulaire que le bouton central. */
+/** CTA contextuel de la sheet — même vocabulaire que le bouton central. */
 const CTA_LABELS: Record<RunButtonMode, string> = {
   RUN: 'Courir',
   DEFEND: 'Défendre',
@@ -51,11 +85,11 @@ const CTA_LABELS: Record<RunButtonMode, string> = {
 };
 
 /**
- * Titre du bandeau objectif — DÉRIVÉ du même runMode que le CTA (cohérence) :
+ * Libellé objectif — DÉRIVÉ du même runMode que le CTA (cohérence) :
  * RAID → prendre la zone de l'offensive (warroom/demo OFFENSIVE), DEFEND →
  * défendre le decay, CAPTURE → la zone neutre ; RUN/SCOUT → libellé existant.
  */
-function bannerTitleFor(mode: RunButtonMode, summary: BattleMapSummary): string {
+function objectiveTitleFor(mode: RunButtonMode, summary: BattleMapSummary): string {
   switch (mode) {
     case 'RAID':
       return `Prendre ${OFFENSIVE.zone}`;
@@ -70,14 +104,26 @@ function bannerTitleFor(mode: RunButtonMode, summary: BattleMapSummary): string 
 
 /** Un event est LIVE s'il date de moins de 10 min (même seuil que WarEventCard). */
 const LIVE_MAX_MINUTES = 10;
-/** Dégagement du bandeau objectif au-dessus du bouton central. */
-const BANNER_ABOVE_RUN_BUTTON = 14;
+/** Dégagement de la sheet au-dessus du bouton central (il reste LE CTA). */
+const SHEET_ABOVE_RUN_BUTTON = 12;
+/** Pile de boutons flottants : dégagement au-dessus de la sheet compacte. */
+const FAB_ABOVE_SHEET = 12;
+
+/** « 4,2 km » — décimale française, pas d'Intl (parité Hermes). */
+function formatKm(km: number): string {
+  return `${km.toFixed(1).replace('.', ',')} km`;
+}
 
 export interface BattleMapOverlaysProps {
   layers: Record<MapLayerKey, boolean>;
   onToggleLayer: (key: MapLayerKey) => void;
   summary: BattleMapSummary;
   runMode: RunButtonMode;
+  /** Retour ego fluide (anim caméra/scène côté écran) — bouton Recentrer. */
+  onRecenter?: () => void;
+  /** Parcours affiché en aperçu sur la carte (RouteProgress, progress 0). */
+  selectedParcoursId?: string | null;
+  onSelectParcours?: (id: string | null) => void;
 }
 
 export function BattleMapOverlays({
@@ -85,25 +131,58 @@ export function BattleMapOverlays({
   onToggleLayer,
   summary,
   runMode,
+  onRecenter,
+  selectedParcoursId = null,
+  onSelectParcours,
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [chipsOpen, setChipsOpen] = useState(false);
+  const [runPickerOpen, setRunPickerOpen] = useState(false);
+  // La sheet n'expose pas de contrôle impératif : le bouton Stats la REMONTE
+  // en semi (remount key + initialState — snap direct, façon reduce motion).
+  const [sheet, setSheet] = useState<{ key: number; initial: MapSheetState }>({
+    key: 0,
+    initial: 'compact',
+  });
+
+  /** Bas de l'écran réservé au bouton central + nav (layout tabs). */
+  const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + RUN_BUTTON_SIZE + SHEET_ABOVE_RUN_BUTTON;
+
+  const openSheetSemi = () => {
+    setSheet((s) => ({ key: s.key + 1, initial: 'semi' }));
+    screen('map_sheet_open', { state: 'semi', via: 'stats_button' });
+  };
+
+  const startRun = (mode: RunMode) => {
+    setRunPickerOpen(false);
+    track(EVENTS.runStart, { mode, context: runMode });
+    router.push(`/course-live?mode=${mode}`);
+  };
+
+  const selectParcours = (id: string) => {
+    haptics.light();
+    const next = selectedParcoursId === id ? null : id;
+    onSelectParcours?.(next);
+    if (next) {
+      screen('map_parcours_select', { id });
+      // Aperçu : la sheet redescend en semi pour laisser voir le tracé.
+      setSheet((s) => ({ key: s.key + 1, initial: 'semi' }));
+    }
+  };
+
+  const mission = MISSIONS[0];
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* ── HUD haut + chips de layers + mini war feed ─────────────────── */}
+      {/* ── Haut : UNE pill fine + chips layers + mini war feed (1 event) ── */}
       <View style={[styles.top, { top: insets.top + 10 }]} pointerEvents="box-none">
-        <BattleMapHUD
-          seasonLabel={MAP_HUD.seasonLabel}
-          daysLeft={MAP_HUD.daysLeft}
-          zoneName={MAP_HUD.zoneName}
-          zoneState={MAP_HUD.zoneState}
-          crewRank={MAP_HUD.crewRank}
-          onLayersPress={() => {
-            haptics.light();
-            setChipsOpen((v) => !v);
-          }}
-        />
+        <View style={styles.pill}>
+          <Text style={styles.pillText} numberOfLines={1}>
+            {MAP_HUD.seasonLabel.toUpperCase()} · J-{Math.max(0, MAP_HUD.daysLeft)} ·{' '}
+            {MAP_HUD.zoneName.toUpperCase()} · <Text style={styles.pillRank}>#{MAP_HUD.crewRank}</Text>
+          </Text>
+        </View>
         {chipsOpen ? (
           <View style={styles.chipsRow}>
             {LAYER_ORDER.map((key) => {
@@ -137,47 +216,185 @@ export function BattleMapOverlays({
         </View>
       </View>
 
-      {/* ── Bandeau OBJECTIF CREW, au-dessus du bouton central ─────────── */}
+      {/* ── Droite : 3 boutons flottants MAX (anti-bruit) ────────────────── */}
       <View
-        style={[
-          styles.bannerWrap,
-          {
-            bottom:
-              insets.bottom + RUN_BUTTON_BOTTOM + RUN_BUTTON_SIZE + BANNER_ABOVE_RUN_BUTTON,
-          },
-        ]}
+        style={[styles.fabColumn, { bottom: sheetBottom + MAP_SHEET_COMPACT_HEIGHT + FAB_ABOVE_SHEET }]}
         pointerEvents="box-none"
       >
-        <View style={styles.banner}>
-          <View style={styles.bannerBody}>
-            <Text style={styles.bannerKicker}>OBJECTIF CREW</Text>
-            <Text style={styles.bannerTitle} numberOfLines={1}>
-              {bannerTitleFor(runMode, summary)}
-            </Text>
-            <Text style={styles.bannerMeta} numberOfLines={1}>
-              {summary.held} hexes tenus · +{summary.possiblePoints} pts possibles
-            </Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${CTA_LABELS[runMode]} — objectif crew`}
-            onPress={() => {
-              haptics.medium();
-              // Démo : le départ réel passe par le bouton central (appui long).
-              if (__DEV__) console.log(`[map] objectif crew CTA — mode ${runMode}`);
-            }}
-            style={({ pressed }) => [styles.bannerCta, pressed && styles.pressed]}
-          >
-            <Icon name="cible" size={14} color={gameColors.crew} />
-            <Text style={styles.bannerCtaLabel}>{CTA_LABELS[runMode]}</Text>
-          </Pressable>
-        </View>
+        <FloatingMapButton
+          icon="gps"
+          accessibilityLabel="Recentrer sur moi"
+          onPress={() => onRecenter?.()}
+        />
+        <FloatingMapButton
+          icon="radar"
+          accessibilityLabel="Couches de la carte"
+          active={chipsOpen}
+          onPress={() => setChipsOpen((v) => !v)}
+        />
+        <FloatingMapButton
+          icon="performance"
+          accessibilityLabel="Stats rapides"
+          onPress={openSheetSemi}
+        />
       </View>
+
+      {/* ── Bas : bottom sheet Uber, au-dessus du bouton central ─────────── */}
+      <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
+        <MapBottomSheet
+          key={sheet.key}
+          initialState={sheet.initial}
+          onStateChange={(state) => {
+            if (state !== 'compact') screen('map_sheet_open', { state });
+          }}
+          compactSlot={
+            <View style={styles.compactRow}>
+              <View style={styles.compactBody}>
+                <Text style={styles.kicker}>OBJECTIF CREW</Text>
+                <Text style={styles.objectiveTitle} numberOfLines={1}>
+                  {objectiveTitleFor(runMode, summary)}
+                </Text>
+                <Text style={styles.objectiveMeta} numberOfLines={1}>
+                  {summary.held} hexes tenus · +{summary.possiblePoints} pts possibles
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${CTA_LABELS[runMode]} — objectif crew`}
+                onPress={() => {
+                  haptics.medium();
+                  setRunPickerOpen(true);
+                }}
+                style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+              >
+                <Icon name="cible" size={14} color={gameColors.crew} />
+                <Text style={styles.ctaLabel}>{CTA_LABELS[runMode]}</Text>
+              </Pressable>
+            </View>
+          }
+          semiSlot={
+            <View style={styles.semiBlock}>
+              {mission ? (
+                <View style={styles.row}>
+                  <View style={styles.rowIcon}>
+                    <Icon name="cible" size={14} color={colors.blanc} />
+                  </View>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {mission.label}
+                    </Text>
+                    <Text style={styles.rowMeta} numberOfLines={1}>
+                      {mission.progress}/{mission.target} · {MAP_CHALLENGE.distanceLabel}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+              <View style={styles.row}>
+                <View style={[styles.rowIcon, styles.rowIconGold]}>
+                  <Icon name="eclats" size={14} color={gameColors.gold} />
+                </View>
+                <View style={styles.rowBody}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>
+                    {MAP_BONUS_ZONE.label}
+                  </Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>
+                    {MAP_BONUS_ZONE.window}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.row}>
+                <View style={styles.rowIcon}>
+                  <Icon name="ami" size={14} color={gameColors.crew} />
+                </View>
+                <View style={styles.rowBody}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>
+                    {MATES_OPT_IN.map((m) => m.name).join(' · ')}
+                  </Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>
+                    {MATES_SHARING_LABEL}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          }
+          openSlot={
+            <View style={styles.openBlock}>
+              <Text style={styles.sectionTitle}>PARCOURS</Text>
+              {PARCOURS_DEMO.map((p) => {
+                const meta = parcoursMeta(p);
+                const selected = selectedParcoursId === p.id;
+                return (
+                  <Pressable
+                    key={p.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`Parcours ${p.name}, ${formatKm(meta.distanceKm)}`}
+                    onPress={() => selectParcours(p.id)}
+                    style={({ pressed }) => [
+                      styles.parcours,
+                      selected && styles.parcoursSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.rowBody}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                      <Text style={styles.rowMeta} numberOfLines={1}>
+                        {formatKm(meta.distanceKm)} · D+ {p.elevGainM} m · {p.difficulty}
+                      </Text>
+                      <Text style={styles.rowMeta} numberOfLines={1}>
+                        {meta.hexes} zones à prendre · +{meta.points} pts
+                      </Text>
+                    </View>
+                    {selected ? (
+                      <Text style={styles.onMapTag}>SUR LA CARTE</Text>
+                    ) : (
+                      <Icon name="chevron" size={14} color={colors.gris} />
+                    )}
+                  </Pressable>
+                );
+              })}
+              <Text style={styles.sectionTitle}>RUNS D'AMIS</Text>
+              <View style={styles.parcours}>
+                <View style={styles.rowBody}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>
+                    {FRIEND_RUN_DEMO.name} · {FRIEND_RUN_DEMO.modeLabel}
+                  </Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>
+                    {FRIEND_RUN_DEMO.startLabel} · {FRIEND_RUN_DEMO.zone} ·{' '}
+                    {FRIEND_RUN_DEMO.distanceKm} km
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Rejoindre le run de ${FRIEND_RUN_DEMO.name}`}
+                  onPress={() => {
+                    haptics.medium();
+                    // Démo : le run groupé réel passera par l'invitation AMENDEMENT-07.
+                    if (__DEV__) console.log('[map] rejoindre run ami (démo)');
+                  }}
+                  style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+                >
+                  <Text style={styles.ctaLabel}>Rejoindre</Text>
+                </Pressable>
+              </View>
+            </View>
+          }
+        />
+      </View>
+
+      {/* Même flux que le bouton central : RunModeSheet → run_start → course. */}
+      <RunModeSheet
+        visible={runPickerOpen}
+        onSelect={startRun}
+        onClose={() => setRunPickerOpen(false)}
+      />
     </View>
   );
 }
 
-/** Mini war feed flottant : un event compact à la fois, slide-in à chaque cycle. */
+/** Mini war feed flottant : UN event compact à la fois, slide-in à chaque cycle. */
 function WarFeedTicker() {
   const [index, setIndex] = useState(0);
   useEffect(() => {
@@ -226,11 +443,30 @@ function WarFeedRow({ event }: { event: MapWarFeedEventDemo }) {
   );
 }
 
+/** Surface profonde translucide commune aux flottants (HUD sur carte). */
+const OVERLAY_SURFACE = 'rgba(16,18,16,0.88)';
+
 const styles = StyleSheet.create({
-  top: { position: 'absolute', left: 14, right: 14, gap: 8 },
+  top: { position: 'absolute', left: 14, right: 14, gap: 8, alignItems: 'center' },
   pressed: { opacity: 0.7 },
 
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: OVERLAY_SURFACE,
+  },
+  pillText: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  pillRank: { color: gameColors.crew },
+
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -253,7 +489,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    backgroundColor: 'rgba(16,18,16,0.88)', // même surface translucide que le HUD
+    backgroundColor: OVERLAY_SURFACE,
   },
   feedIcon: {
     width: 26,
@@ -280,33 +516,31 @@ const styles = StyleSheet.create({
   liveDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: gameColors.crew },
   liveLabel: { color: gameColors.crew, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
 
-  bannerWrap: { position: 'absolute', left: 14, right: 14, alignItems: 'center' },
-  banner: {
+  fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'center' },
+
+  // Le wrapper CLIPPE la sheet (elle glisse vers le bas en compact — sans
+  // overflow hidden elle réapparaîtrait derrière le bouton central/nav).
+  sheetWrap: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' },
+
+  compactRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    alignSelf: 'stretch',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: 'rgba(16,18,16,0.88)',
+    paddingHorizontal: 16,
+    // Hauteur EXACTE du compact visible (96) moins la poignée (18) : le slot
+    // semi ne dépasse jamais dans l'état compact.
+    height: MAP_SHEET_COMPACT_HEIGHT - 18,
+    paddingBottom: 8,
   },
-  bannerBody: { flex: 1, gap: 2 },
-  bannerKicker: {
-    color: gameColors.crew,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  bannerTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  bannerMeta: {
+  compactBody: { flex: 1, gap: 1 },
+  kicker: { color: gameColors.crew, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  objectiveTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  objectiveMeta: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     fontVariant: ['tabular-nums'],
   },
-  bannerCta: {
+  cta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -315,7 +549,60 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    backgroundColor: gameColors.carbon,
+    backgroundColor: colors.carbone,
   },
-  bannerCtaLabel: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '700' },
+  ctaLabel: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '700' },
+
+  semiBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
+    gap: 8,
+    borderTopWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.carbone,
+  },
+  rowIconGold: { borderColor: gameColors.gold },
+  rowBody: { flex: 1, gap: 1 },
+  rowTitle: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  rowMeta: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
+
+  openBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 8,
+    borderTopWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  sectionTitle: {
+    color: colors.gris,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  parcours: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  parcoursSelected: { borderColor: colors.chartreuse40 },
+  onMapTag: { color: gameColors.crew, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
 });

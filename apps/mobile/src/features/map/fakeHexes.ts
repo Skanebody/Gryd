@@ -333,6 +333,39 @@ export function fakeHexesGeoJSON(): HexFeatureCollection {
 /** États qui comptent comme « tenus » par mon crew (mine + cœur protégé + decay). */
 const HELD_STATES: readonly HexState[] = ['mine', 'protected', 'decay'];
 
+/**
+ * Conquête potentielle le long d'une polyline de PARCOURS (AMENDEMENT-09 §2 —
+ * sheet ouverte « zones à conquérir ») : cellules H3 traversées par le tracé
+ * qui ne sont PAS déjà tenues par mon crew. Points dérivés des règles §3
+ * (neutre vs volé) — jamais de nombre magique. Déterministe (mêmes données
+ * démo que la carte). L'avant-poste compte comme tenu (c'est le mien).
+ */
+export interface ParcoursConquest {
+  /** Hexes gagnables sur le tracé (neutres + repris au rival). */
+  hexes: number;
+  /** Points possibles correspondants (règles §3). */
+  points: number;
+}
+
+export function parcoursConquest(line: readonly LatLngPoint[]): ParcoursConquest {
+  const { collection } = battleMapData();
+  const stateByCell = new Map<string, HexState>(
+    collection.features.map((f) => [f.properties.h3, f.properties.state]),
+  );
+  let neutral = 0;
+  let stolen = 0;
+  for (const cell of cellsAlong(line)) {
+    // Hors du disque démo → neutre (la France entière est capturable).
+    const state = stateByCell.get(cell) ?? 'neutral';
+    if (state === 'neutral' || state === 'objective') neutral += 1;
+    else if (state === 'foe' || state === 'contested') stolen += 1;
+  }
+  return {
+    hexes: neutral + stolen,
+    points: neutral * POINTS_NEUTRAL_HEX + stolen * POINTS_STOLEN_HEX,
+  };
+}
+
 /** Compte des hexes tenus (chip/bandeau de l'écran carte). */
 export function countMine(collection: HexFeatureCollection): number {
   return collection.features.reduce(

@@ -82,7 +82,7 @@ const GRID_COLS = 15;
 const GRID_ROWS = 13;
 const GRID_PAD = 10;
 
-/** ViewBox de la mini-carte live (LiveHexMap). */
+/** ViewBox du schéma de zone (générateur de tracé + BeforeAfterZone). */
 export const LIVE_MAP_W = GRID_PAD * 2 + SQRT3 * HEX_R * (GRID_COLS + 0.5);
 export const LIVE_MAP_H = GRID_PAD * 2 + 1.5 * HEX_R * (GRID_ROWS - 1) + 2 * HEX_R;
 
@@ -301,6 +301,24 @@ function eventAt(tick: number): LiveEventKind | null {
     if (tick >= w.from && tick <= w.to) return w.kind;
   }
   return null;
+}
+
+export interface LiveEventLogEntry {
+  kind: LiveEventKind;
+  /** Seconde simulée du début de la fenêtre (journal « états du run »). */
+  atS: number;
+}
+
+/**
+ * Journal des états live déjà rencontrés au tick (sheet OUVERTE, AMENDEMENT-09
+ * §3 : zone privée, segment exclu, run groupé, contesté… vivent dans la sheet,
+ * pas sur la carte).
+ */
+export function liveEventLogAt(tickIndex: number): LiveEventLogEntry[] {
+  return EVENT_WINDOWS.filter((w) => w.from <= tickIndex).map((w) => ({
+    kind: w.kind,
+    atS: (w.from + 1) * SIM_SECONDS_PER_TICK,
+  }));
 }
 
 // ─── Simulation ──────────────────────────────────────────────────────────────

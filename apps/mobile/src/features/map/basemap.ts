@@ -1,16 +1,29 @@
 /**
- * GRYD — basemap urbaine STYLISÉE de la Battle Map (AMENDEMENT-08 §4, doc §7
- * « Basemap urbaine subtile »), à l'ÉCHELLE COUREUR : le viewport (~375 px)
- * couvre ~1,6 km, donc le plan doit ressembler à un plan de quartier tactique
- * (Paris Est) — îlots de 60-150 m, rues secondaires très fines, 2-3 axes
- * principaux, le canal, 1-2 parcs, noms de secteurs discrets. Ce n'est PAS une
- * carte exacte : tout est défini en MÈTRES autour du centre égocentré
+ * GRYD — basemap urbaine STYLISÉE de la Battle Map (AMENDEMENT-09 §0 « carto
+ * sombre premium type Uber-night », complète AMENDEMENT-08 §4), à l'ÉCHELLE
+ * COUREUR : le viewport (~375 px) couvre ~1,6 km, donc le plan lit comme un
+ * VRAI plan de quartier (Paris Est) — des ÎLOTS URBAINS PLEINS (polygones
+ * carbon #101210, liseré subtil) séparés par les rues : LE VIDE ENTRE ÎLOTS
+ * EST LA RUE. Deux hiérarchies de voirie : rues secondaires étroites (le fond
+ * #0A0B0A affleure entre les îlots), axes larges creusés puis repeints
+ * légèrement plus clairs. Le canal est une bande d'eau sombre, 1-2 parcs en
+ * aplat vert très sombre, noms de secteurs discrets. Ce n'est PAS une carte
+ * exacte : tout est défini en MÈTRES autour du centre égocentré
  * (AMENDEMENT-01 : « moi » au centre) puis converti en lat/lng. Purement
  * visuel, aucune règle de jeu ici — mais les COULOIRS de course de fakeHexes
  * suivent les tronçons hôtes exportés plus bas, pour que le territoire
  * serpente le long de vraies rues du plan.
  * (La version native MapLibre a déjà un fond vectoriel : ce module ne sert
  * qu'au rendu SVG web + aux labels de secteurs des deux variantes.)
+ *
+ * ORDRE DE PEINTURE attendu par le consommateur (rendu par recouvrement,
+ * aucun clipping géométrique) :
+ *   1. BLOCKS (aplats d'îlots) ;
+ *   2. axes/rues hors trame CREUSÉS : MAIN_AXES + MINOR_AXES en trait couleur
+ *      fond (STREET_MAJOR_WIDTH_M / STREET_MINOR_WIDTH_M) ;
+ *   3. surface des MAIN_AXES repeinte légèrement plus claire ;
+ *   4. CANAL : berges couleur fond (CANAL_BANK_WIDTH_M) puis eau (CANAL_WIDTH_M) ;
+ *   5. PARKS (aplat vert très sombre) puis SECTOR_LABELS.
  */
 import { CITIES } from '@klaim/shared';
 
@@ -41,6 +54,17 @@ export function offsetMeters(xEast: number, yNorth: number): LatLngPoint {
     lng: BASEMAP_CENTER.lng + xEast / M_PER_DEG_LNG,
   };
 }
+
+// ─── Voirie : largeurs (m) — AMENDEMENT-09 §0, constantes nommées ───────────
+
+/** Rue secondaire étroite : l'écart entre deux îlots de la trame (~4 px). */
+export const STREET_MINOR_WIDTH_M = 18;
+/** Axe large : creusé à travers les îlots puis repeint plus clair (~8 px). */
+export const STREET_MAJOR_WIDTH_M = 34;
+/** Bande d'eau du canal (~9 px). */
+export const CANAL_WIDTH_M = 40;
+/** Berges + quais du canal : creusés couleur fond sous la bande d'eau. */
+export const CANAL_BANK_WIDTH_M = 62;
 
 // ─── Emprise et trame des rues secondaires ──────────────────────────────────
 
@@ -102,6 +126,76 @@ function buildMinorStreets(): readonly (readonly LatLngPoint[])[] {
   blockPositions(vLimit).forEach((v, i) => streets.push(gridStreet(v, uLimit, false, i)));
   return streets;
 }
+
+// ─── Îlots urbains pleins (AMENDEMENT-09 §0 — le vide entre îlots = la rue) ─
+
+/** Jitter déterministe des coins d'îlot (m) — casse la lecture « damier ». */
+const BLOCK_CORNER_JITTER_M = 4;
+/** ~1 îlot sur N fusionne avec son voisin nord (variété du parcellaire). */
+const BLOCK_MERGE_MODULO = 7;
+
+/** Pseudo-aléa déterministe borné [-1, 1] — jamais de Math.random. */
+function det(i: number, j: number, k: number): number {
+  return Math.sin(i * 12.9898 + j * 78.233 + k * 3.7);
+}
+
+/**
+ * Îlots de la trame : chaque cellule entre deux rues secondaires devient un
+ * quadrilatère plein, en retrait de STREET_MINOR_WIDTH_M / 2 de part et
+ * d'autre (l'écart restant EST la rue). Coins légèrement « jittés » et
+ * fusions ponctuelles pour lire comme un parcellaire, pas comme un damier.
+ * Axes, canal et parcs sont ensuite CREUSÉS PAR RECOUVREMENT (ordre de
+ * peinture documenté en tête de module) — aucun clipping géométrique.
+ */
+function buildBlocks(): readonly (readonly LatLngPoint[])[] {
+  const rotSlack = Math.abs(Math.sin(GRID_ROTATION_RAD));
+  const uLimit = PLAN_HALF_WIDTH_M + PLAN_HALF_HEIGHT_M * rotSlack;
+  const vLimit = PLAN_HALF_HEIGHT_M + PLAN_HALF_WIDTH_M * rotSlack;
+  const us = blockPositions(uLimit);
+  const vs = blockPositions(vLimit);
+  const inset = STREET_MINOR_WIDTH_M / 2;
+  const blocks: (readonly LatLngPoint[])[] = [];
+  const absorbed = new Set<string>();
+
+  for (let i = 0; i < us.length - 1; i += 1) {
+    for (let j = 0; j < vs.length - 1; j += 1) {
+      if (absorbed.has(`${i}:${j}`)) continue;
+      const u1 = (us[i] ?? 0) + inset;
+      const u2 = (us[i + 1] ?? 0) - inset;
+      const v1 = (vs[j] ?? 0) + inset;
+      let v2 = (vs[j + 1] ?? 0) - inset;
+      // Fusion déterministe avec le voisin nord (grand îlot type caserne/école).
+      if ((i * 5 + j * 11) % BLOCK_MERGE_MODULO === 0 && j + 2 < vs.length) {
+        v2 = (vs[j + 2] ?? 0) - inset;
+        absorbed.add(`${i}:${j + 1}`);
+      }
+      if (u2 - u1 < STREET_MINOR_WIDTH_M || v2 - v1 < STREET_MINOR_WIDTH_M) continue;
+      const corners: readonly (readonly [number, number])[] = [
+        [u1, v1],
+        [u2, v1],
+        [u2, v2],
+        [u1, v2],
+      ];
+      blocks.push(
+        corners.map(([u, v], k) => {
+          const { x, y } = rotate(
+            u + det(i, j, k) * BLOCK_CORNER_JITTER_M,
+            v + det(j, i, k + 2) * BLOCK_CORNER_JITTER_M,
+          );
+          return offsetMeters(x, y);
+        }),
+      );
+    }
+  }
+  return blocks;
+}
+
+/**
+ * NOUVELLE PRIMITIVE (AMENDEMENT-09 §0) : les îlots urbains pleins — anneaux
+ * fermés à remplir en aplat carbon avec liseré subtil (voir battleMapStyle
+ * `block` / `blockEdge`). ~900 quadrilatères déterministes de 60-150 m.
+ */
+export const BLOCKS: readonly (readonly LatLngPoint[])[] = buildBlocks();
 
 // ─── Axes principaux, canal, quai (hôtes des couloirs de course) ────────────
 
@@ -170,10 +264,21 @@ const RUE_NE: readonly LatLngPoint[] = [
   offsetMeters(340, 690),
 ];
 
-/** Axes principaux dessinés plus épais (2-3, doc §7). */
+/** Axes principaux : creusés larges puis repeints légèrement plus clairs. */
 export const MAIN_AXES: readonly (readonly LatLngPoint[])[] = [AXIS_EST, AXIS_NS, AXIS_DIAG_SO];
 
-/** Rues secondaires : trame procédurale déterministe + quai + rue NE. */
+/**
+ * NOUVELLE PRIMITIVE (AMENDEMENT-09 §0) : rues secondaires HORS TRAME (quai du
+ * canal, rue NE hôte du couloir rival) — à creuser à STREET_MINOR_WIDTH_M en
+ * couleur fond à travers les îlots, sans surface plus claire (hiérarchie 2).
+ */
+export const MINOR_AXES: readonly (readonly LatLngPoint[])[] = [QUAI, RUE_NE];
+
+/**
+ * LEGACY (AMENDEMENT-08) : axes des rues secondaires en polylignes — l'ancien
+ * rendu « réseau de lignes ». Conservé pour compatibilité d'API ; le rendu
+ * AMENDEMENT-09 passe par BLOCKS (le vide entre îlots dessine ces mêmes rues).
+ */
 export const STREETS: readonly (readonly LatLngPoint[])[] = [...buildMinorStreets(), QUAI, RUE_NE];
 
 /**

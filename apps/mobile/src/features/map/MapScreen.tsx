@@ -5,11 +5,14 @@
  * jeu démo (battleMapData) : basemap vectorielle sombre (D17), hex grid,
  * états de jeu (crew/rival/contesté/protégé/decay/objectif/avant-poste),
  * route ouverte, labels de secteurs, et le HUD partagé (BattleMapOverlays).
- * Les markers iconiques (shield/sablier/pin) sont web-only pour l'instant —
- * TODO Milestone 2 : images de symboles MapLibre.
+ * AMENDEMENT-09 §2 : HUD Uber partagé (pill, sheet, boutons flottants) ;
+ * recentrer = retour caméra fluide sur le centre égocentré ; le parcours
+ * sélectionné dans la sheet est tracé en gris (aperçu — RouteProgress et les
+ * markers iconiques shield/sablier/pin/mates/POI restent web-only pour
+ * l'instant — TODO Milestone 2 : images de symboles MapLibre).
  * Le CTA COURIR est rendu par le layout (tabs) — pas de doublon ici.
  */
-import { useMemo, useRef, useState, type ComponentProps } from 'react';
+import { useMemo, useRef, useState, type ComponentProps, type ElementRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   Camera,
@@ -33,6 +36,7 @@ import {
 } from './BattleMapOverlays';
 import { battleMapData, battleMapSummary, type HexState } from './fakeHexes';
 import { battleMapStyle as ms } from './mapStyle';
+import { PARCOURS_DEMO } from './demo';
 
 /**
  * Style vectoriel sombre (D17). Valeur par défaut : OpenFreeMap « dark ».
@@ -86,11 +90,39 @@ interface PointFeatureCollection {
   }[];
 }
 
+/** Durée du recentrage caméra (UI — retour ego fluide type Uber). */
+const RECENTER_MS = 600;
+
 export function MapScreen() {
   const [layers, setLayers] = useState(DEFAULT_MAP_LAYERS);
+  const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
   const { collection, points } = useMemo(() => battleMapData(), []);
   const summary = useMemo(() => battleMapSummary(collection), [collection]);
   const runMode = useMemo(() => deriveRunButtonMode(), []);
+
+  // Recentrer (AMENDEMENT-09 §2) : retour caméra fluide sur le « moi » égocentré.
+  const cameraRef = useRef<ElementRef<typeof Camera>>(null);
+  const recenter = () => {
+    cameraRef.current?.setCamera({
+      centerCoordinate: [CITIES.paris.center.lng, CITIES.paris.center.lat],
+      zoomLevel: RUNNER_SCALE_ZOOM,
+      animationDuration: RECENTER_MS,
+    });
+  };
+
+  // Parcours sélectionné dans la sheet : tracé gris (aperçu avant la course).
+  const parcoursShape = useMemo<LineFeature | null>(() => {
+    const parcours = PARCOURS_DEMO.find((p) => p.id === selectedParcours);
+    if (!parcours) return null;
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: parcours.line.map((p) => [p.lng, p.lat]),
+      },
+      properties: {},
+    };
+  }, [selectedParcours]);
 
   // Route ouverte : polyline chartreuse cluster → objectif (doc §7).
   const routeShape = useMemo<LineFeature>(
@@ -140,6 +172,7 @@ export function MapScreen() {
         compassEnabled={false}
       >
         <Camera
+          ref={cameraRef}
           defaultSettings={{
             centerCoordinate: [CITIES.paris.center.lng, CITIES.paris.center.lat],
             zoomLevel: RUNNER_SCALE_ZOOM,
@@ -270,6 +303,20 @@ export function MapScreen() {
           </ShapeSource>
         ) : null}
 
+        {/* Parcours sélectionné (sheet ouverte) : aperçu gris + liseré sombre */}
+        {parcoursShape ? (
+          <ShapeSource id="parcours" shape={parcoursShape}>
+            <LineLayer
+              id="parcours-casing"
+              style={{ lineColor: colors.noir, lineWidth: 7, lineOpacity: 0.5, lineCap: 'round' }}
+            />
+            <LineLayer
+              id="parcours-line"
+              style={{ lineColor: colors.gris, lineWidth: 4, lineCap: 'round' }}
+            />
+          </ShapeSource>
+        ) : null}
+
         {/* Noms de secteurs discrets */}
         <ShapeSource id="sectors" shape={sectorShape}>
           <SymbolLayer
@@ -285,12 +332,15 @@ export function MapScreen() {
         </ShapeSource>
       </MapView>
 
-      {/* Couche 4 : HUD gameplay partagé (saison/zone/rang, chips, feed, objectif) */}
+      {/* Couche 4 : HUD Uber partagé (pill, feed, boutons flottants, sheet) */}
       <BattleMapOverlays
         layers={layers}
         onToggleLayer={toggleLayer}
         summary={summary}
         runMode={runMode}
+        onRecenter={recenter}
+        selectedParcoursId={selectedParcours}
+        onSelectParcours={setSelectedParcours}
       />
     </View>
   );

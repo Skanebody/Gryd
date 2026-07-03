@@ -7,20 +7,28 @@
  * au centre) — la grille remplit tout l'écran, plus de vide noir. Une barre
  * d'échelle discrète (500 m) ancre la perception en bas à gauche.
  * 4 couches, toutes dessinées à partir du MÊME jeu démo (battleMapData) :
- *   1. basemap urbaine stylisée type plan de quartier : trame de rues dense
- *      très fine, 2-3 axes épais, canal, parcs, noms de secteurs discrets ;
+ *   1. basemap Uber-night (AMENDEMENT-09 §0) : ÎLOTS URBAINS PLEINS (aplats
+ *      carbon, liseré subtil) séparés par les rues — le vide entre îlots EST
+ *      la rue ; axes larges creusés puis repeints légèrement plus clairs,
+ *      canal en bande d'eau sombre, parcs en aplat vert très sombre, noms de
+ *      secteurs discrets ;
  *   2. hex grid (contours neutres) ;
  *   3. ownership/états de jeu : crew (chartreuse+glow), rival (orange sombre),
  *      contesté (double contour + pulse), protégé (shield+halo), decay
  *      (pointillé + sablier, muted red si urgent), objectif (pin+halo),
  *      avant-poste (marker), route ouverte (ligne chartreuse) ;
- *   4. HUD (BattleMapOverlays : bandeau saison/zone/rang, chips layers,
- *      mini war feed, bandeau objectif crew).
+ *   4. couche « situation live » AMENDEMENT-09 §2 : moi (point chartreuse +
+ *      halo), 2 MateMarker opt-in (AMENDEMENT-07 — jamais de position
+ *      publique), ≤ 4 PoiMarker, 1 marker défi + 1 zone bonus pulsante MAX,
+ *      parcours sélectionné en aperçu (RouteProgress, progress 0) ;
+ *   5. HUD Uber (BattleMapOverlays : pill fine, war feed 1 event, 3 boutons
+ *      flottants, MapBottomSheet objectif/défis/parcours).
  * Performance : ~400-600 hexes visibles → le rendu est REGROUPÉ par état (un
  * seul <Path> par état, `d` concaténés) et les hexes hors écran sont exclus ;
  * le pulse (contesté) n'anime QUE le path des hexes contestés.
  * Animations RN Animated core : vague de capture au mount (useReveal), pulse
- * des hexes contestés (usePulse) — reduce motion respecté par les hooks.
+ * des hexes contestés (usePulse), recentrage = settle spring de la scène
+ * (pas de pan en démo web : déjà égocentré) — reduce motion respecté.
  * Le CTA COURIR reste rendu par le layout (tabs) — pas de doublon ici.
  * Track EVENTS.mapLoadMs comme l'original (au montage).
  */
@@ -28,20 +36,34 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
-import { colors } from '@klaim/shared';
+import { colors, gameColors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { Icon } from '../../ui/Icon';
-import { usePulse, useReveal } from '../../ui/game';
+import {
+  MATE_MARKER_SIZE,
+  MateMarker,
+  PoiMarker,
+  RouteProgress,
+  usePulse,
+  useReduceMotion,
+  useReveal,
+  type RoutePoint,
+} from '../../ui/game';
 import { deriveRunButtonMode } from '../nav/runContext';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import {
+  BLOCKS,
   CANAL,
+  CANAL_BANK_WIDTH_M,
+  CANAL_WIDTH_M,
   MAIN_AXES,
+  MINOR_AXES,
   M_PER_DEG_LAT,
   M_PER_DEG_LNG,
   PARKS,
   SECTOR_LABELS,
-  STREETS,
+  STREET_MAJOR_WIDTH_M,
+  STREET_MINOR_WIDTH_M,
   type LatLngPoint,
 } from './basemap';
 import {
@@ -50,7 +72,16 @@ import {
   type MapLayerKey,
 } from './BattleMapOverlays';
 import { battleMapData, battleMapSummary, type HexState } from './fakeHexes';
-import { battleMapStyle as ms } from './mapStyle';
+import { battleMapStyle as ms, withAlpha } from './mapStyle';
+import {
+  MAP_BONUS_ZONE,
+  MAP_CHALLENGE,
+  MATES_OPT_IN,
+  PARCOURS_DEMO,
+  POIS_ON_MAP,
+  type MateOnMapDemo,
+  type PoiOnMapDemo,
+} from './demo';
 
 // ─── Échelle coureur (AMENDEMENT-08 §4 — « la rue où on court ») ────────────
 /** Règle gelée : un hex H3 res 10 fait ~130 m de diamètre. */
@@ -63,9 +94,28 @@ const METERS_PER_PIXEL = HEX_DIAMETER_M / HEX_TARGET_PX;
 const SCALE_BAR_METERS = 500;
 /** Culling : marge hors écran (px) au-delà de laquelle un hex n'est pas rendu. */
 const CULL_MARGIN_PX = HEX_TARGET_PX * 1.5;
+/** Culling des îlots : marge = plus grand îlot (~150 m) converti en px. */
+const BLOCK_CULL_MARGIN_PX = 150 / METERS_PER_PIXEL;
+
+// ─── Voirie Uber-night (AMENDEMENT-09 §0) : largeurs basemap converties en px ─
+const STREET_MINOR_PX = STREET_MINOR_WIDTH_M / METERS_PER_PIXEL;
+const STREET_MAJOR_PX = STREET_MAJOR_WIDTH_M / METERS_PER_PIXEL;
+/** Creusage des axes : légèrement plus large que la surface repeinte. */
+const STREET_MAJOR_CASING_PX = STREET_MAJOR_PX + 2;
+const CANAL_PX = CANAL_WIDTH_M / METERS_PER_PIXEL;
+const CANAL_BANK_PX = CANAL_BANK_WIDTH_M / METERS_PER_PIXEL;
 
 /** Cadence du pulse des hexes contestés (UI). */
 const CONTESTED_PULSE_MS = 1_600;
+/** Pulse LENT de la zone bonus (1 seule couche bruyante à la fois — discret). */
+const BONUS_PULSE_MS = 3_200;
+/** Pulse du halo « moi » (position live, respiration lente). */
+const EGO_PULSE_MS = 2_000;
+/** Point « moi » (dot chartreuse cerclé) + halo. */
+const EGO_DOT_SIZE = 14;
+const EGO_HALO_SIZE = 40;
+/** Le shield du cluster maison s'écarte du point « moi » (pas de collision). */
+const SHIELD_ABOVE_EGO_PX = 26;
 /** Un point de liaison de route tous les N sommets (doc §7 « points de liaison »). */
 const ROUTE_DOT_EVERY = 3;
 /** Taille des markers d'état posés sur la carte. */
@@ -94,7 +144,10 @@ interface Scene {
   hexD: HexPathByState;
   canalD: string;
   parksD: string[];
-  streetsD: string;
+  /** Îlots urbains pleins — UN path concaténé (AMENDEMENT-09 §0). */
+  blocksD: string;
+  /** Rues secondaires hors trame (quai, rue NE) — creusées couleur fond. */
+  minorAxesD: string[];
   axesD: string[];
   labels: { name: string; x: number; y: number }[];
   routeD: string;
@@ -103,6 +156,13 @@ interface Scene {
   objectivePin: XY;
   outpostMarker: XY;
   urgentMarkers: SceneMarker[];
+  // ── Situation live AMENDEMENT-09 §2 (positions écran des couches 4) ──
+  mates: (MateOnMapDemo & XY)[];
+  pois: (PoiOnMapDemo & XY)[];
+  challenge: XY;
+  bonus: XY & { rPx: number };
+  /** Tracés des parcours proposés (px écran) — aperçu RouteProgress au tap. */
+  parcours: Record<string, RoutePoint[]>;
 }
 
 /**
@@ -165,11 +225,31 @@ function buildScene(width: number, height: number): Scene {
     if (state === 'mine' || state === 'protected' || state === 'decay') hexD.heldAll += d;
   }
 
+  // Îlots : culling large (un coin visible suffit), UN path concaténé.
+  const blockVisible = (ring: readonly LatLngPoint[]): boolean =>
+    ring.some((p) => {
+      const { x, y } = pointXY(p);
+      return (
+        x >= -BLOCK_CULL_MARGIN_PX &&
+        x <= width + BLOCK_CULL_MARGIN_PX &&
+        y >= -BLOCK_CULL_MARGIN_PX &&
+        y <= height + BLOCK_CULL_MARGIN_PX
+      );
+    });
+  const blocksD = BLOCKS.filter(blockVisible)
+    .map((ring) => lineD(ring, true))
+    .join(' ');
+
+  // Parcours proposés : chaque tracé projeté en px écran (RouteProgress).
+  const parcours: Record<string, RoutePoint[]> = {};
+  for (const p of PARCOURS_DEMO) parcours[p.id] = p.line.map(pointXY);
+
   return {
     hexD,
     canalD: lineD(CANAL),
     parksD: PARKS.map((ring) => lineD(ring, true)),
-    streetsD: STREETS.map((street) => lineD(street)).join(' '),
+    blocksD,
+    minorAxesD: MINOR_AXES.map((street) => lineD(street)),
     axesD: MAIN_AXES.map((axis) => lineD(axis)),
     labels: SECTOR_LABELS.map((s) => ({ name: s.name, ...toXY(s.lng, s.lat) })),
     routeD: lineD(points.route),
@@ -178,16 +258,37 @@ function buildScene(width: number, height: number): Scene {
     objectivePin: pointXY(points.objectiveCenter),
     outpostMarker: pointXY(points.outpost),
     urgentMarkers: points.urgentDecay.map((p, i) => ({ key: `urgent-${i}`, ...pointXY(p) })),
+    mates: MATES_OPT_IN.map((m) => ({ ...m, ...pointXY(m.position) })),
+    pois: POIS_ON_MAP.map((p) => ({ ...p, ...pointXY(p.position) })),
+    challenge: pointXY(MAP_CHALLENGE.position),
+    bonus: { ...pointXY(MAP_BONUS_ZONE.center), rPx: MAP_BONUS_ZONE.radiusM / METERS_PER_PIXEL },
+    parcours,
   };
 }
 
 export function MapScreen() {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [layers, setLayers] = useState(DEFAULT_MAP_LAYERS);
+  const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
 
   const summary = useMemo(() => battleMapSummary(battleMapData().collection), []);
   const runMode = useMemo(() => deriveRunButtonMode(), []);
+
+  // Recentrer : la carte est déjà égocentrée (pas de pan en démo web) — le
+  // retour ego est un settle spring discret de la scène (reduce motion → rien).
+  const settle = useRef(new Animated.Value(1)).current;
+  const recenter = () => {
+    if (reduce) return;
+    settle.setValue(1.04);
+    Animated.spring(settle, {
+      toValue: 1,
+      friction: 7,
+      tension: 60,
+      useNativeDriver: true,
+    }).start();
+  };
 
   // map_load_ms (§8) — du montage au premier rendu de la carte (parité native).
   const mountedAtRef = useRef<number>(Date.now());
@@ -203,6 +304,9 @@ export function MapScreen() {
   // Pulse des hexes contestés SEULS : le contour rival respire (reduce motion → fixe).
   const pulse = usePulse(layers.rivals, 1.06, CONTESTED_PULSE_MS);
   const pulseOpacity = pulse.interpolate({ inputRange: [1, 1.06], outputRange: [1, 0.25] });
+  // Zone bonus : respiration LENTE (l'unique autre pulse — anti-bruit).
+  const bonusPulse = usePulse(true, 1.05, BONUS_PULSE_MS);
+  const bonusOpacity = bonusPulse.interpolate({ inputRange: [1, 1.05], outputRange: [0.9, 0.35] });
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -220,21 +324,40 @@ export function MapScreen() {
     <View style={styles.root}>
       <View style={styles.map} onLayout={onLayout}>
         {size && scene ? (
-          <>
-            {/* ── Couche 1 : plan de quartier stylisé (rues denses, subtil) ── */}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { transform: [{ scale: settle }] }]}
+            pointerEvents="box-none"
+          >
+            {/* ── Couche 1 : plan de quartier Uber-night (AMENDEMENT-09 §0) ── */}
             <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill}>
-              {/* Trame de rues secondaires : UN path, traits très fins */}
-              <Path d={scene.streetsD} stroke={ms.roads} strokeWidth={1} fill="none" strokeLinecap="round" />
-              {/* Parcs par-dessus la trame (les rues s'y arrêtent visuellement) */}
-              {scene.parksD.map((d, i) => (
-                <Path key={`park-${i}`} d={d} fill={ms.parks} stroke={ms.parksEdge} strokeWidth={1} />
+              {/* Îlots urbains PLEINS : le vide entre eux = la rue secondaire */}
+              <Path
+                d={scene.blocksD}
+                fill={ms.block}
+                stroke={ms.blockEdge}
+                strokeWidth={1}
+                strokeLinejoin="round"
+              />
+              {/* Rues hors trame (quai, rue NE) : creusées couleur fond */}
+              {scene.minorAxesD.map((d, i) => (
+                <Path key={`minor-axis-${i}`} d={d} stroke={ms.streetCasing} strokeWidth={STREET_MINOR_PX} fill="none" strokeLinecap="round" strokeLinejoin="round" />
               ))}
-              {/* Canal : bande d'eau sombre discrète */}
-              <Path d={scene.canalD} stroke={ms.waterRim} strokeWidth={10} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              <Path d={scene.canalD} stroke={ms.water} strokeWidth={7} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              {/* 2-3 axes principaux, plus épais que la trame */}
+              {/* Axes larges : creusés puis surface repeinte plus claire */}
               {scene.axesD.map((d, i) => (
-                <Path key={`axis-${i}`} d={d} stroke={ms.roadsMajor} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+                <Path key={`axis-casing-${i}`} d={d} stroke={ms.streetCasing} strokeWidth={STREET_MAJOR_CASING_PX} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+              {scene.axesD.map((d, i) => (
+                <Path key={`axis-${i}`} d={d} stroke={ms.streetMajor} strokeWidth={STREET_MAJOR_PX} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+              {/* Canal : berges creusées + bande d'eau sombre */}
+              <Path d={scene.canalD} stroke={ms.streetCasing} strokeWidth={CANAL_BANK_PX} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <Path d={scene.canalD} stroke={ms.water} strokeWidth={CANAL_PX} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              {/* Parcs : base opaque puis aplat vert très sombre */}
+              {scene.parksD.map((d, i) => (
+                <Path key={`park-base-${i}`} d={d} fill={ms.parkBase} />
+              ))}
+              {scene.parksD.map((d, i) => (
+                <Path key={`park-${i}`} d={d} fill={ms.parkFill} stroke={ms.parkEdge} strokeWidth={1} />
               ))}
               {scene.labels.map((l) => (
                 <SvgText
@@ -353,9 +476,44 @@ export function MapScreen() {
               </Animated.View>
             ) : null}
 
+            {/* ── Zone bonus (1 MAX) : anneau or pulsé lentement ─────────── */}
+            <Animated.View
+              style={[StyleSheet.absoluteFill, { opacity: bonusOpacity }]}
+              pointerEvents="none"
+            >
+              <Svg width={size.w} height={size.h}>
+                <Circle
+                  cx={scene.bonus.x}
+                  cy={scene.bonus.y}
+                  r={scene.bonus.rPx}
+                  fill={withAlpha(gameColors.gold, 0.12)}
+                  stroke={gameColors.gold}
+                  strokeOpacity={0.75}
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                />
+              </Svg>
+            </Animated.View>
+
+            {/* ── Parcours sélectionné : aperçu type Uber (progress 0) ───── */}
+            {selectedParcours && scene.parcours[selectedParcours] ? (
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <RouteProgress
+                  points={scene.parcours[selectedParcours] ?? []}
+                  progress={0}
+                  width={size.w}
+                  height={size.h}
+                />
+              </View>
+            ) : null}
+
             {/* ── Markers d'état (icônes @klaim/shared) ─────────────────── */}
             {layers.crew ? (
-              <Marker x={scene.shield.x} y={scene.shield.y} icon="bouclier" />
+              <Marker
+                x={scene.shield.x}
+                y={scene.shield.y - SHIELD_ABOVE_EGO_PX}
+                icon="bouclier"
+              />
             ) : null}
             {layers.crew && layers.decay
               ? scene.urgentMarkers.map((m) => (
@@ -366,8 +524,38 @@ export function MapScreen() {
               <>
                 <Marker x={scene.objectivePin.x} y={scene.objectivePin.y} icon="pin" crew />
                 <Marker x={scene.outpostMarker.x} y={scene.outpostMarker.y} icon="avantposte" />
+                {/* Défi à proximité : 1 marker MAX (anti-bruit) */}
+                <Marker x={scene.challenge.x} y={scene.challenge.y} icon="cible" />
               </>
             ) : null}
+
+            {/* ── POI running discrets (≤ 4 — AMENDEMENT-09 §2) ─────────── */}
+            {scene.pois.map((p) => (
+              <View
+                key={p.kind}
+                style={[styles.poiWrap, { left: p.x - 36, top: p.y - 12 }]}
+                pointerEvents="none"
+              >
+                <PoiMarker kind={p.kind} label={p.label} />
+              </View>
+            ))}
+
+            {/* ── Membres crew OPT-IN uniquement (AMENDEMENT-07) ─────────── */}
+            {scene.mates.map((m) => (
+              <View
+                key={m.name}
+                style={[
+                  styles.mateWrap,
+                  { left: m.x - 70, bottom: size.h - m.y - MATE_MARKER_SIZE / 2 },
+                ]}
+                pointerEvents="box-none"
+              >
+                <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />
+              </View>
+            ))}
+
+            {/* ── Moi : point chartreuse + halo respirant (égocentré) ───── */}
+            <EgoMarker x={size.w / 2} y={size.h / 2} />
 
             {/* ── Échelle graphique discrète : ancre la perception (500 m) ── */}
             <View
@@ -380,17 +568,37 @@ export function MapScreen() {
               <View style={[styles.scaleLine, { width: SCALE_BAR_METERS / METERS_PER_PIXEL }]} />
               <Text style={styles.scaleLabel}>{SCALE_BAR_METERS} m</Text>
             </View>
-          </>
+          </Animated.View>
         ) : null}
       </View>
 
-      {/* ── Couche 4 : HUD gameplay ─────────────────────────────────────── */}
+      {/* ── Couche 5 : HUD Uber (pill, feed, boutons flottants, sheet) ──── */}
       <BattleMapOverlays
         layers={layers}
         onToggleLayer={toggleLayer}
         summary={summary}
         runMode={runMode}
+        onRecenter={recenter}
+        selectedParcoursId={selectedParcours}
+        onSelectParcours={setSelectedParcours}
       />
+    </View>
+  );
+}
+
+/** Point « moi » : dot chartreuse cerclé blanc + halo pulsé (reduce motion → fixe). */
+function EgoMarker({ x, y }: XY) {
+  const halo = usePulse(true, 1.3, EGO_PULSE_MS);
+  const haloOpacity = halo.interpolate({ inputRange: [1, 1.3], outputRange: [0.4, 0.05] });
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.ego, { left: x - EGO_HALO_SIZE / 2, top: y - EGO_HALO_SIZE / 2 }]}
+    >
+      <Animated.View
+        style={[styles.egoHalo, { opacity: haloOpacity, transform: [{ scale: halo }] }]}
+      />
+      <View style={styles.egoDot} />
     </View>
   );
 }
@@ -405,7 +613,7 @@ function Marker({
 }: {
   x: number;
   y: number;
-  icon: 'bouclier' | 'sablier' | 'pin' | 'avantposte';
+  icon: 'bouclier' | 'sablier' | 'pin' | 'avantposte' | 'cible';
   crew?: boolean;
   danger?: boolean;
 }) {
@@ -434,6 +642,32 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   map: { flex: 1, backgroundColor: colors.noir, overflow: 'hidden' },
   marker: { position: 'absolute', width: MARKER_SIZE, height: MARKER_SIZE },
+  poiWrap: { position: 'absolute', width: 72, alignItems: 'center' },
+  mateWrap: { position: 'absolute', width: 140, alignItems: 'center' },
+  ego: {
+    position: 'absolute',
+    width: EGO_HALO_SIZE,
+    height: EGO_HALO_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  egoHalo: {
+    position: 'absolute',
+    width: EGO_HALO_SIZE,
+    height: EGO_HALO_SIZE,
+    borderRadius: EGO_HALO_SIZE / 2,
+    backgroundColor: colors.chartreuse14,
+    borderWidth: 1.5,
+    borderColor: colors.chartreuse40,
+  },
+  egoDot: {
+    width: EGO_DOT_SIZE,
+    height: EGO_DOT_SIZE,
+    borderRadius: EGO_DOT_SIZE / 2,
+    backgroundColor: colors.chartreuse,
+    borderWidth: 2,
+    borderColor: colors.blanc,
+  },
   scaleBar: { position: 'absolute', left: 14 },
   scaleLine: {
     height: 4,

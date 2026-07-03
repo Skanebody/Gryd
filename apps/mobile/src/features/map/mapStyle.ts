@@ -56,9 +56,30 @@ export const battleMapStyle = {
   // disparaît : légère remontée, même dérivation withAlpha que le reste.
   neutralStroke: withAlpha(colors.blanc, 0.09),
 
-  // Basemap subtile — plan de quartier à l'échelle coureur
+  // ── Basemap Uber-night (AMENDEMENT-09 §0) — plan de quartier sombre ──
+  /** Fond de carte : la rue est le vide entre les îlots. */
+  ground: colors.noir,
+  /** Aplat des îlots urbains (surface carbon de scène de jeu — token). */
+  block: gameColors.carbon,
+  /** Liseré subtil des îlots (définit visuellement le bord des rues). */
+  blockEdge: withAlpha(colors.blanc, 0.03),
+  /** Creusage des axes/rues hors trame à travers les îlots (couleur fond). */
+  streetCasing: colors.noir,
+  /** Surface des axes larges : légèrement plus claire que les rues (hiérarchie). */
+  streetMajor: withAlpha(colors.blanc, 0.07),
+  /**
+   * Parcs : aplat « vert très sombre » (arbitrage AMENDEMENT-09 §0). Seul vert
+   * de la palette = chartreuse, déclinée à 6 % sur fond noir — décor carto,
+   * illisible comme état de jeu (aucune confusion crew possible).
+   */
+  parkFill: withAlpha(colors.chartreuse, 0.06),
+  parkEdge: withAlpha(colors.chartreuse, 0.1),
+  /** Base opaque sous le parc (efface les îlots par recouvrement). */
+  parkBase: colors.noir,
   water: colors.eau,
   waterRim: withAlpha(colors.blanc, 0.08),
+
+  // LEGACY AMENDEMENT-08 (réseau de lignes) — compat API, plus utilisé en web.
   parks: mapTokens.parks,
   parksEdge: withAlpha(colors.blanc, 0.05),
   /** Trame dense des rues secondaires (traits très fins). */

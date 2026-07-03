@@ -51,3 +51,19 @@ export {
   type StatePillProps,
 } from './states';
 export { usePulse, usePressScale, useCountUp, useSlideIn, useReveal, useReduceMotion } from './anim';
+export {
+  MapBottomSheet,
+  MAP_SHEET_COMPACT_HEIGHT,
+  MAP_SHEET_SEMI_RATIO,
+  MAP_SHEET_OPEN_RATIO,
+  type MapBottomSheetProps,
+  type MapSheetState,
+} from './MapBottomSheet';
+export {
+  FloatingMapButton,
+  FLOATING_MAP_BUTTON_SIZE,
+  type FloatingMapButtonProps,
+} from './FloatingMapButton';
+export { MateMarker, MATE_MARKER_SIZE, type MateMarkerProps } from './MateMarker';
+export { PoiMarker, POI_MARKER_SIZE, type PoiMarkerProps, type PoiKind } from './PoiMarker';
+export { RouteProgress, type RouteProgressProps, type RoutePoint } from './RouteProgress';
