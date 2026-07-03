@@ -17,6 +17,18 @@
   --ch40: rgba(180, 255, 13, 0.4);
   --eau: #0d1112;
 
+  /* Langage visuel de conflit (AMENDEMENT-05 §1) — RÉSERVÉ aux états de jeu :
+     ennemi/attaque/danger · crew rival/rareté · victoire/médaille.
+     Jamais sur les CTA, la nav, ou hors contexte de jeu. */
+  --ennemi: #ff5c33;
+  --ennemi-14: rgba(255, 92, 51, 0.14);
+  --ennemi-40: rgba(255, 92, 51, 0.4);
+  --rival: #8b5cf6;
+  --rival-14: rgba(139, 92, 246, 0.14);
+  --rival-40: rgba(139, 92, 246, 0.4);
+  --or: #e7b84c;
+  --or-14: rgba(231, 184, 76, 0.14);
+
   /* Fontes injectées par next/font dans app/layout.tsx */
   --disp: var(--font-avant-garde, var(--font-poppins)), Poppins, sans-serif; /* AMENDEMENT-03 : ITC Avant Garde Md quand licenciée */
   --txt: var(--font-avant-garde, var(--font-poppins)), Poppins, sans-serif; /* Avant Garde Bk (400) */

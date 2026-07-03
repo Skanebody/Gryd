@@ -1,28 +1,30 @@
 /**
  * GRYD — barre de navigation flottante : pill carbone, 5 onglets
  * Carte · Crew · Classement · Boutique · Profil (AMENDEMENT-02 §5).
- * Rendu maquette écran 01 : libellés texte + point chartreuse pour l'actif
- * (pas d'icônes filaires tant qu'aucun set SVG n'est dessiné — le point
- * chartreuse est l'emploi §C.3 « moi / état actif », doctrine respectée).
+ * Icônes filaires 1,5 px (charte §F, set @klaim/shared — décision fondateur
+ * 03/07/2026) : icône 22 + label 10 dessous ; actif = icône chartreuse
+ * (remplie si fillable, §C.3 « moi / état actif ») + label blanc.
  * La tab bar native est masquée ; cette barre navigue via expo-router.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii } from '@klaim/shared';
+import { colors, radii, type IconName } from '@klaim/shared';
+import { Icon } from '../../ui/Icon';
 import { NAV_BAR_BOTTOM, NAV_BAR_HEIGHT, NAV_BAR_SIDE } from './metrics';
 
 interface TabItem {
   label: string;
   href: string;
+  icon: IconName;
 }
 
 const TABS: readonly TabItem[] = [
-  { label: 'Carte', href: '/' },
-  { label: 'Crew', href: '/crew' },
-  { label: 'Classement', href: '/classement' },
-  { label: 'Boutique', href: '/boutique' },
-  { label: 'Profil', href: '/profil' },
+  { label: 'Carte', href: '/', icon: 'carte' },
+  { label: 'Crew', href: '/crew', icon: 'crew' },
+  { label: 'Classement', href: '/classement', icon: 'classement' },
+  { label: 'Boutique', href: '/boutique', icon: 'boutique' },
+  { label: 'Profil', href: '/profil', icon: 'profil' },
 ];
 
 export function GrydNavBar() {
@@ -49,7 +51,12 @@ export function GrydNavBar() {
             }}
             style={styles.item}
           >
-            {active ? <View style={styles.activeDot} /> : null}
+            <Icon
+              name={tab.icon}
+              size={22}
+              color={active ? colors.chartreuse : colors.gris}
+              active={active}
+            />
             <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
               {tab.label}
             </Text>
@@ -77,18 +84,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   item: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 3,
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
-  activeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse, // §C.3 : état actif « moi »
-  },
-  label: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '500' },
+  label: { color: colors.gris, fontSize: 10, fontWeight: '500', letterSpacing: 0.2 },
   labelActive: { color: colors.blanc },
 });

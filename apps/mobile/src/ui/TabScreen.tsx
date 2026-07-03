@@ -6,18 +6,21 @@
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, spacing } from '@klaim/shared';
+import { colors, fontSizes, spacing, type IconName } from '@klaim/shared';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../features/nav/metrics';
+import { Icon } from './Icon';
 
 interface TabScreenProps {
   title: string;
+  /** Icône filaire d'en-tête (charte §F) — posée à gauche du titre. */
+  icon?: IconName;
   /** Sur-titre mono gris (ex. « SAISON 0 · PARIS »). */
   kicker?: string;
   subtitle?: string;
   children: ReactNode;
 }
 
-export function TabScreen({ title, kicker, subtitle, children }: TabScreenProps) {
+export function TabScreen({ title, icon, kicker, subtitle, children }: TabScreenProps) {
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
@@ -33,7 +36,10 @@ export function TabScreen({ title, kicker, subtitle, children }: TabScreenProps)
       >
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {/* TODO fonts : Space Grotesk 700, tracking -2 % (addendum §E) */}
-        <Text style={styles.title}>{title}</Text>
+        <View style={styles.titleRow}>
+          {icon ? <Icon name={icon} size={24} color={colors.blanc} /> : null}
+          <Text style={styles.title}>{title}</Text>
+        </View>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         {children}
       </ScrollView>
@@ -51,6 +57,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontVariant: ['tabular-nums'],
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: {
     color: colors.blanc,
     fontSize: fontSizes.xl,

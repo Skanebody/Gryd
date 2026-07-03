@@ -16,6 +16,7 @@ import {
   fontSizes,
   radii,
   spacing,
+  type IconName,
 } from '@klaim/shared';
 import { BadgeHex } from '../../src/features/badges/BadgeHex';
 import { BADGE_TOTAL, badgeById, badgeColor } from '../../src/features/badges/catalog';
@@ -25,6 +26,7 @@ import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
 import { GhostButton } from '../../src/ui/GhostButton';
+import { Icon } from '../../src/ui/Icon';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
 
@@ -59,13 +61,18 @@ const UNLOCKED_COUNT = UNLOCKED_IDS.size;
 interface ProfileLink {
   label: string;
   detail: string;
+  icon: IconName;
 }
 
 /** Entrées à venir — libellés directifs, rien de câblé (placeholder MVP). */
 const LINKS: readonly ProfileLink[] = [
-  { label: 'Performance', detail: 'Records, allure, régularité' },
-  { label: 'Historique de courses', detail: 'Toutes tes conquêtes' },
-  { label: 'Paramètres & confidentialité', detail: 'Zones privées, notifications, compte' },
+  { label: 'Performance', detail: 'Records, allure, régularité', icon: 'performance' },
+  { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique' },
+  {
+    label: 'Paramètres & confidentialité',
+    detail: 'Zones privées, notifications, compte',
+    icon: 'reglages',
+  },
 ];
 
 export default function ProfilScreen() {
@@ -84,7 +91,8 @@ export default function ProfilScreen() {
       {/* Chips progression permanente — survit au reset de saison */}
       <View style={styles.chipRow}>
         <View style={styles.chip}>
-          <View style={styles.chipDot} />
+          {/* Flamme filaire chartreuse (charte §F chips : icône 16) — §C.3 (3) gain/streak */}
+          <Icon name="serie" size={16} color={colors.chartreuse} />
           <Text style={styles.chipText}>
             Série {formatMultiplier(streakMultiplier)} · {FAKE_PROFILE.streakWeeks} sem
           </Text>
@@ -105,7 +113,10 @@ export default function ProfilScreen() {
         <Text style={styles.heroLabel}>hexagones tenus dans toute la France</Text>
       </View>
 
-      <Text style={styles.sectionLabel}>BADGES</Text>
+      <View style={styles.sectionRow}>
+        <Icon name="badge" size={14} color={colors.gris} />
+        <Text style={styles.sectionRowLabel}>BADGES</Text>
+      </View>
       {/* Derniers débloqués — BadgeHex = surface badge (exception polychrome §1) */}
       <View style={styles.badgeRow}>
         {RECENT_BADGES.map((def) => (
@@ -128,17 +139,19 @@ export default function ProfilScreen() {
         <Text style={styles.collectionLinkLabel}>
           Voir la collection ({UNLOCKED_COUNT}/{BADGE_TOTAL})
         </Text>
-        <Text style={styles.chevron}>›</Text>
+        <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
 
       <Text style={styles.sectionLabel}>PLUS</Text>
       {LINKS.map((link) => (
         <View key={link.label} style={styles.linkRow}>
+          {/* Icône filaire (charte §F) — réduit la friction de lecture */}
+          <Icon name={link.icon} size={20} color={colors.blanc} />
           <View style={styles.linkInfo}>
             <Text style={styles.linkLabel}>{link.label}</Text>
             <Text style={styles.linkDetail}>{link.detail}</Text>
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <Icon name="chevron" size={16} color={colors.gris} />
         </View>
       ))}
 
@@ -163,12 +176,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingVertical: 7,
     paddingHorizontal: 13,
-  },
-  chipDot: {
-    width: 6,
-    height: 6,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse, // §C.3 (3) : gain/streak
   },
   chipText: {
     color: colors.blanc,
@@ -215,6 +222,14 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: 12,
   },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 26,
+    marginBottom: 12,
+  },
+  sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
   collectionLink: {
     flexDirection: 'row',
@@ -238,6 +253,7 @@ const styles = StyleSheet.create({
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
@@ -249,6 +265,5 @@ const styles = StyleSheet.create({
   linkInfo: { flex: 1 },
   linkLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   linkDetail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3 },
-  chevron: { color: colors.gris, fontSize: fontSizes.lg },
   signOutWrap: { marginTop: 18 },
 });

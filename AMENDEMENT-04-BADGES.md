@@ -24,11 +24,13 @@ La planche introduit une couleur d'accent PAR FAMILLE : **Fondateur violet · Pe
 - Nocturne = départ entre 22h et 5h locale ; Aube = départ entre 5h et 7h.
 - Hex « capturés » (Territoire) = neutres + volés, cumulés vie entière (les défenses comptent à part).
 
-## 4. Badges non attribuables en l'état (flag `dormant` — visibles, jamais décernés)
-- **Légende Crew (50) / Dynastie (100)** : CREW_MAX_MEMBERS = 10 en Saison 0 → attribuables quand le cap sera levé (V2). On ne change PAS la règle de jeu pour un badge.
-- **Météo / Hiver / Chaleur** : nécessitent une source météo (V1).
-- **Événement** : nécessite le système d'events (V1).
-- **Stratège / Bâtisseur Crew / Connecteur / Bâtisseur / Explorateur** : avant-postes et routes = détection basique V0 (OUTPOST_*) — attribuables dès que la détection tourne, dormants d'ici là si non branchés.
+## 4. Tous attribuables (03/07/2026)
+Décision fondateur : le concept « dormant » disparaît — chaque badge du catalogue est réellement décernable (la colonne `badges.dormant` reste en base, plus jamais renseignée — migration 0008).
+- **Météo / Hiver / Chaleur** : météo réelle via **Open-Meteo** dans ingest_run (heure locale du départ ; seuils `WEATHER_*` dans badges.ts, décision pure `weatherFlags` ; timeout 3 s **fail-open** — sans météo, la course n'est jamais impactée).
+- **Bâtisseur / Stratège** : détection **avant-postes V0** branchée (zone pioneer/wild/emerging, ≥ OUTPOST_MIN_HEXES hexes du joueur à ≤ OUTPOST_RADIUS_KM du centroïde de la course, anti-doublon ; décision pure `shouldCreateOutpost`).
+- **Connecteur / Bâtisseur Crew** : **routes V0** branchées (table `routes` — hexes de départ et d'arrivée possédés AVANT la course, distants de ≥ ROUTE_MIN_KM, anti-doublon à ROUTE_ENDPOINT_MATCH_KM ; décision pure `shouldOpenRoute`).
+- **Événement** : table `events` seedée (« Grand Départ — Saison 0 », du 03/07 au 13/07/2026, bornes incluses — `inEventWindow`).
+- **Légende Crew (50) / Dynastie (100)** : restent des **objectifs lointains** (cap crew 10 en S0) SANS étiquette spéciale — décernés automatiquement dès que le cap sera levé.
 
 ## 5. Implémentation
 - Catalogue : `packages/shared/src/badges.ts` (+ export index).

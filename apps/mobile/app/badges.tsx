@@ -11,6 +11,7 @@ import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, motion, radii, spacing } from '@klaim/shared';
+import { Icon } from '../src/ui/Icon';
 import { BadgeHex, type BadgeHexState } from '../src/features/badges/BadgeHex';
 import {
   BADGES,
@@ -30,7 +31,7 @@ function badgeState(def: BadgeDef): BadgeHexState {
   return def.secret ? 'secretLocked' : 'locked';
 }
 
-/** Cellule de grille : hexagone md + nom (ou « ??? ») + étiquette dormant. */
+/** Cellule de grille : hexagone md + nom (ou « ??? » pour les secrets). */
 function BadgeCell({ def, onSelect }: { def: BadgeDef; onSelect: (def: BadgeDef) => void }) {
   const state = badgeState(def);
   const hidden = def.secret && state !== 'unlocked';
@@ -55,11 +56,6 @@ function BadgeCell({ def, onSelect }: { def: BadgeDef; onSelect: (def: BadgeDef)
       >
         {name}
       </Text>
-      {def.dormant ? (
-        <View style={styles.dormantTag}>
-          <Text style={styles.dormantTagText}>À venir</Text>
-        </View>
-      ) : null}
     </Pressable>
   );
 }
@@ -115,7 +111,6 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
 
   let stateLine = 'Verrouillé';
   if (unlocked) stateLine = unlockedAt !== undefined ? `Débloqué le ${unlockedAt}` : 'Débloqué';
-  else if (def.dormant) stateLine = 'À venir — pas encore attribuable en Saison 0';
   else if (hidden) stateLine = 'Badge secret';
 
   return (
@@ -193,7 +188,11 @@ export default function BadgesScreen() {
           hitSlop={12}
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
-          <Text style={styles.backText}>‹ Profil</Text>
+          {/* Chevron filaire inversé (retour) — charte §F */}
+          <View style={styles.backChevron}>
+            <Icon name="chevron" size={14} color={colors.gris} />
+          </View>
+          <Text style={styles.backText}>Profil</Text>
         </Pressable>
 
         <Text style={styles.kicker}>PROFIL · BADGES</Text>
@@ -250,7 +249,8 @@ export default function BadgesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   content: { paddingHorizontal: spacing.cardPadding },
-  back: { alignSelf: 'flex-start', marginBottom: 14 },
+  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 14 },
+  backChevron: { transform: [{ scaleX: -1 }] },
   backPressed: { opacity: 0.6 },
   backText: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 0.4 },
   kicker: {
@@ -298,15 +298,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   cellNameOn: { color: colors.blanc },
-  dormantTag: {
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    borderRadius: radii.pill,
-    paddingVertical: 1,
-    paddingHorizontal: 6,
-  },
-  dormantTagText: { color: colors.gris, fontSize: 9, letterSpacing: 0.5 },
   overlay: { backgroundColor: colors.noir },
   sheet: {
     position: 'absolute',

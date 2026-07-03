@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>GRYD — BADGE SYSTEM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --noir:#0A0B09; --graphite:#101210; --carbone:#141613; --carbone2:#1D201B;
+    --blanc:#FAFAF7; --gris:#8A8F84; --ligne:rgba(250,250,247,.10);
+    --ch:#B4FF0D; --ch40:rgba(180,255,13,.4); --ch14:rgba(180,255,13,.14);
+    --or:#E7B84C; --titane:#9BA3AD; --bleu:#6FB7FF; --guerre:#FF5C33;
+    --disp:'Poppins',sans-serif; --mono:'Space Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--noir);color:var(--blanc);font-family:var(--disp);padding:46px 34px 60px;position:relative;overflow-x:hidden}
+
+  /* fond tactique : grille hexagonale + trace GPS + coins HUD */
+  .bg{position:fixed;inset:0;pointer-events:none;opacity:.55}
+  .hud{position:fixed;width:26px;height:26px;border:1.5px solid rgba(180,255,13,.35);pointer-events:none}
+  .hud.tl{top:14px;left:14px;border-right:0;border-bottom:0}
+  .hud.tr{top:14px;right:14px;border-left:0;border-bottom:0}
+  .hud.bl{bottom:14px;left:14px;border-right:0;border-top:0}
+  .hud.br{bottom:14px;right:14px;border-left:0;border-top:0}
+
+  header{position:relative;text-align:center;margin:0 auto 30px;max-width:1520px}
+  .sur{font:400 11px var(--mono);letter-spacing:.34em;color:var(--ch);text-transform:uppercase}
+  h1{font:600 clamp(30px,4.4vw,54px)/1 var(--disp);letter-spacing:.05em;margin:12px 0 10px}
+  h1 b{color:var(--ch);font-weight:600}
+  .sous{font:400 12px var(--mono);letter-spacing:.22em;color:var(--gris);text-transform:uppercase}
+
+  /* légende des 6 raretés */
+  .tiers{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:24px auto 34px}
+  .tier{display:inline-flex;align-items:center;gap:8px;font:400 10.5px var(--mono);letter-spacing:.14em;
+    padding:7px 12px;border-radius:999px;border:1px solid var(--ligne);background:rgba(20,22,19,.6)}
+  .tier i{width:9px;height:10px;clip-path:polygon(50% 0,100% 27%,100% 73%,50% 100%,0 73%,0 27%)}
+  .t-road i{background:#4a4f46}.t-tempo i{background:var(--ch);opacity:.55}.t-race i{background:var(--ch)}
+  .t-carbon i{background:var(--titane)}.t-elite i{background:var(--bleu)}.t-legend i{background:var(--or)}
+  .t-road{color:#9aa093}.t-tempo{color:var(--ch);opacity:.8}.t-race{color:var(--ch)}
+  .t-carbon{color:var(--titane)}.t-elite{color:var(--bleu)}.t-legend{color:var(--or)}
+
+  .grid{position:relative;display:grid;grid-template-columns:repeat(6,1fr);gap:18px;max-width:1520px;margin:0 auto}
+  @media(max-width:1280px){.grid{grid-template-columns:repeat(4,1fr)}}
+  @media(max-width:860px){.grid{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:620px){.grid{grid-template-columns:repeat(2,1fr)}}
+
+  .card{position:relative;border:1px solid var(--ligne);border-radius:18px;padding:18px 12px 15px;
+    background:linear-gradient(180deg,rgba(20,22,19,.9),rgba(13,15,12,.94));text-align:center;
+    transition:transform .2s ease,border-color .2s ease}
+  .card:hover{transform:translateY(-3px)}
+  .card.legend{border-color:rgba(231,184,76,.35)}
+  .card.elite{border-color:rgba(111,183,255,.28)}
+  .card.race:hover,.card.tempo:hover{border-color:var(--ch40)}
+  .badge{width:104px;height:118px;margin:0 auto 12px;display:block}
+  .nom{font:600 12.5px var(--disp);letter-spacing:.09em}
+  .rar{font:400 9px var(--mono);letter-spacing:.26em;margin:5px 0 6px}
+  .sub{font:400 10.5px var(--disp);color:var(--gris);line-height:1.35;min-height:28px}
+  .road .rar{color:#9aa093}.tempo .rar{color:rgba(180,255,13,.75)}.race .rar{color:var(--ch)}
+  .carbon .rar{color:var(--titane)}.elite .rar{color:var(--bleu)}.legend .rar{color:var(--or)}
+
+  footer{max-width:1520px;margin:36px auto 0;display:flex;justify-content:space-between;gap:16px;
+    border-top:1px solid var(--ligne);padding-top:16px;font:400 10.5px var(--mono);letter-spacing:.08em;color:var(--gris)}
+  footer b{color:var(--ch);font-weight:400}
+</style>
+</head>
+<body>
+<svg class="bg" width="100%" height="100%" aria-hidden="true">
+  <defs>
+    <pattern id="hexbg" width="46" height="40" patternUnits="userSpaceOnUse">
+      <path d="M23 1l19 11v16L23 39 4 28V12z" fill="none" stroke="rgba(250,250,247,.028)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#hexbg)"/>
+  <path d="M-40 620 Q240 520 420 610 T880 520 T1400 600 T1980 480" fill="none" stroke="rgba(180,255,13,.06)" stroke-width="2" stroke-dasharray="1 9" stroke-linecap="round"/>
+  <path d="M-60 260 Q300 340 640 240 T1300 300 T2000 220" fill="none" stroke="rgba(180,255,13,.045)" stroke-width="2" stroke-dasharray="1 9" stroke-linecap="round"/>
+</svg>
+<span class="hud tl"></span><span class="hud tr"></span><span class="hud bl"></span><span class="hud br"></span>
+
+<header>
+  <div class="sur">Système de récompenses · conquête running</div>
+  <h1>GRYD — <b>BADGE SYSTEM</b></h1>
+  <div class="sous">Season 0 · Territory · Crew · Performance · Prestige</div>
+  <div class="tiers">
+    <span class="tier t-road"><i></i>ROAD</span><span class="tier t-tempo"><i></i>TEMPO</span>
+    <span class="tier t-race"><i></i>RACE</span><span class="tier t-carbon"><i></i>CARBON</span>
+    <span class="tier t-elite"><i></i>ELITE</span><span class="tier t-legend"><i></i>LEGEND</span>
+  </div>
+</header>
+
+<main class="grid" id="grid"></main>
+
+<footer>
+  <span><b>24 emblèmes</b> · silhouette bouclier-hexagone tactique · déclinables en assets in-app (SVG natif)</span>
+  <span>guerre = orange contrôlé · tech/verify = bleu électrique · prestige = or — AMENDEMENT-05 §1</span>
+</footer>
+
+<script>
+/* ─── icônes centrales (paths 24×24, trait) ─── */
+const IC = {
+  first_run:[ 'M4 15.5c0-1.1 1-2 2.3-2h3.2l3.6-3.8c.5 2.2 1.7 3.3 4.6 3.9 1.6.3 2.8 1.1 2.8 2.6v1.3H4z','M4 20h16.5','M9.5 13.5l1.6 1.6' ],
+  first_capture:[ 'M12 2.8l7.4 4.3v9.8L12 21.2l-7.4-4.3V7.1z','M10 15.5V8.8l5.2 2.1-3.4 1.5v3.1z' ],
+  founder:[ 'M12 2.6l7.6 4.4v10L12 21.4 4.4 17V7z','M12 7.4l1.3 2.7 3 .4-2.2 2 .6 2.9L12 14l-2.7 1.4.6-2.9-2.2-2 3-.4z' ],
+  verified:[ 'M12 21.5c5-2 8-5.4 8-9.9V6.2L12 3 4 6.2v5.4c0 4.5 3 7.9 8 9.9z','M7.4 12.2h2.1l1.2-2.5 1.6 4.4 1.2-1.9h2.4' ],
+  hex_hunter:[ 'M8.3 3.4l3.4 2v3.9l-3.4 2-3.4-2V5.4z','M16.2 7.4l3.4 2v3.9l-3.4 2-3.4-2V9.4z','M9.8 13.2l3.4 2v3.9l-3.4 2-3.4-2v-3.9z' ],
+  zone_taker:[ 'M4 5.5h4','M11 5.5h4','M18.5 5.5v4','M18.5 12.5v4','M15 19.5h-4','M8 19.5H4.5V16','M4.5 13V9','M15.8 13.6l2.7 1.6v3.1l-2.7 1.6-2.7-1.6v-3.1z' ],
+  city_grab:[ 'M4 19V11h3.4v8','M9.4 19V6.2h3.8V19','M15.4 19v-6.2H19V19','M2.8 19h18.4','M15.9 2.6l2 1.2v2.3l-2 1.2-2-1.2V3.8z' ],
+  territory_lord:[ 'M4 8.6 8 12l4-6.6L16 12l4-3.4-1.6 9.8H5.6z','M5.6 21h12.8' ],
+  first_defense:[ 'M12 2.8l7.4 4.3v9.8L12 21.2l-7.4-4.3V7.1z','M12 9.6a1.9 1.9 0 0 1 1 3.5v3h-2v-3a1.9 1.9 0 0 1 1-3.5z' ],
+  wall:[ 'M3.5 19.5v-6h4v-3.6h4V6.3h9','M3.5 19.5h17','M11.5 13.5h4.2V9.9h4.8','M7.5 19.5v-3h6v3' ],
+  fortress:[ 'M12 2.8l7.4 4.3v9.8L12 21.2l-7.4-4.3V7.1z','M12 6.4l4.4 2.5v5.9L12 17.4l-4.4-2.6V8.9z' ],
+  hold_line:[ 'M3 12.5h18','M7 17.5l4.5-5L7 7.5','M17 17.5l-4.5-5L17 7.5' ],
+  pioneer:[ 'M12 21.4a9.4 9.4 0 1 0 0-18.8 9.4 9.4 0 0 0 0 18.8z','M15.3 8.7 13.2 13l-4.4 2.1 2.1-4.3z' ],
+  route_opened:[ 'M5.5 18.8a1.9 1.9 0 1 0 .01 0','M18.5 5.2a1.9 1.9 0 1 0 .01 0','M6.8 17.4C9.5 15 8.4 11 12 9.5c2.1-.9 3.7-1.3 4.9-2.6' ],
+  frontier:[ 'M7 21.5V3.5','M7 4.8h9.6l-2.2 3.2 2.2 3.2H7','M3.5 21.5h11' ],
+  pathfinder:[ 'M5.2 5.8a1.7 1.7 0 1 0 .01 0','M18.8 7.8a1.7 1.7 0 1 0 .01 0','M8.8 18.2a1.7 1.7 0 1 0 .01 0','M17.2 16.4a1.7 1.7 0 1 0 .01 0','M6.8 6.9l10.4 1.4','M6 7.4l2.4 9.2','M10.4 17.7l5.2-.9','M18.3 9.5l-1 5.3' ],
+  crew_member:[ 'M12 4.2a2.1 2.1 0 1 0 .01 0','M5.2 15.8a2.1 2.1 0 1 0 .01 0','M18.8 15.8a2.1 2.1 0 1 0 .01 0','M10.9 7.2 6.4 14','M13.1 7.2l4.5 6.8','M7.4 17.9h9.2' ],
+  war_room:[ 'M12 21.4a9.4 9.4 0 1 1 9.4-9.4','M12 12V4.4','M12 12l5.4 3.2','M16.6 8.2v.01','M7.6 15.6v.01' ],
+  raid_leader:[ 'M3.5 12h13','M11 5.5 17.5 12 11 18.5','M20 4.5l1.6-1.6','M20 19.5l1.6 1.6' ],
+  united_front:[ 'M12 12.8c2.5-1 4-2.7 4-5V5.6L12 4 8 5.6v2.2c0 2.3 1.5 4 4 5z','M6.5 20.4c2-.8 3.2-2.2 3.2-4v-1.7L6.5 13.4l-3.2 1.3v1.7c0 1.8 1.2 3.2 3.2 4z','M17.5 20.4c2-.8 3.2-2.2 3.2-4v-1.7l-3.2-1.3-3.2 1.3v1.7c0 1.8 1.2 3.2 3.2 4z' ],
+  long_run:[ 'M4 13.5c0-1 .9-1.8 2-1.8h3l3.3-3.4c.5 2 1.6 3 4.2 3.5 1.5.3 2.6 1 2.6 2.4v1.1H4z','M3.5 19h17','M7 19v-1.8','M12 19v-1.8','M17 19v-1.8' ],
+  streak_7:[ 'M12 21c3.7 0 6.2-2.3 6.2-5.7 0-2.5-1.3-4.4-2.9-6.2-.4 1.2-1 2-1.9 2.5.1-2.1-.5-4.8-2.9-7.6-.3 2.9-1.2 4.4-2.5 6-1.2 1.5-2.2 3.2-2.2 5.3 0 3.4 2.5 5.7 6.2 5.7z' ],
+  elite_form:[ 'M12 21.4a9.4 9.4 0 1 0 0-18.8 9.4 9.4 0 0 0 0 18.8z','M12 16.6a4.6 4.6 0 1 0 0-9.2','M12.8 2.6v2','M12.8 19.4v2' ],
+  season_legend:[ 'M12 2.6l7.6 4.4v10L12 21.4 4.4 17V7z','M12 6.6l1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z','M12 1v1.2','M12 21.8V23' ],
+};
+
+/* ─── catalogue (nom, icône, rareté, sous-titre, accent) ─── */
+const B = [
+  ['FIRST RUN','first_run','road','Première course validée'],
+  ['FIRST CAPTURE','first_capture','road','Premier territoire pris'],
+  ['FOUNDER','founder','legend','Saison 0','or'],
+  ['VERIFIED','verified','carbon','GRYD Verify','bleu'],
+  ['HEX HUNTER','hex_hunter','tempo','100 hexes capturés'],
+  ['ZONE TAKER','zone_taker','tempo','Premier secteur contrôlé'],
+  ['CITY GRAB','city_grab','elite','Ville dominée'],
+  ['TERRITORY LORD','territory_lord','legend','Domination avancée','or'],
+  ['FIRST DEFENSE','first_defense','road','Première défense'],
+  ['WALL','wall','tempo','Territoire protégé'],
+  ['FORTRESS','fortress','race','Zone tenue durablement'],
+  ['HOLD THE LINE','hold_line','elite','Défense sous pression','guerre'],
+  ['PIONEER','pioneer','tempo','Nouvelle zone ouverte'],
+  ['ROUTE OPENED','route_opened','race','Deux zones reliées'],
+  ['FRONTIER','frontier','race','Zone rurale conquise'],
+  ['PATHFINDER','pathfinder','carbon','Exploration avancée'],
+  ['CREW MEMBER','crew_member','road','Crew actif'],
+  ['WAR ROOM','war_room','race','Participation offensive','guerre'],
+  ['RAID LEADER','raid_leader','elite','Offensive menée','guerre'],
+  ['UNITED FRONT','united_front','carbon','Victoire collective'],
+  ['LONG RUN','long_run','race','21 km et plus'],
+  ['STREAK 7','streak_7','tempo','7 jours actifs'],
+  ['ELITE FORM','elite_form','elite','Score Forme élevé','bleu'],
+  ['SEASON LEGEND','season_legend','legend','Récompense saisonnière majeure','or'],
+];
+
+const ACCENT = { or:'#E7B84C', bleu:'#6FB7FF', guerre:'#FF5C33' };
+const TIER = {
+  road:   { ring:'#3E4239', ring2:'none',              plate:'p-road',   icon:'#C9CEC4', glow:'none' },
+  tempo:  { ring:'rgba(180,255,13,.45)', ring2:'none', plate:'p-dark',   icon:'#B4FF0D', glow:'none', ticks:true },
+  race:   { ring:'#B4FF0D', ring2:'rgba(180,255,13,.35)', plate:'p-dark', icon:'#B4FF0D', glow:'rgba(180,255,13,.25)', speed:true },
+  carbon: { ring:'#9BA3AD', ring2:'rgba(155,163,173,.35)', plate:'p-carbon', icon:'#C8CFD8', glow:'none' },
+  elite:  { ring:'#DCE6F2', ring2:'rgba(111,183,255,.5)', plate:'p-elite', icon:'#6FB7FF', glow:'rgba(111,183,255,.35)', rays:true },
+  legend: { ring:'#E7B84C', ring2:'rgba(231,184,76,.45)', plate:'p-legend', icon:'#E7B84C', glow:'rgba(231,184,76,.4)', halo:true, arcs:true },
+};
+const RARLABEL = { road:'ROAD', tempo:'TEMPO', race:'RACE', carbon:'CARBON', elite:'ELITE', legend:'LEGEND' };
+
+/* silhouette bouclier-hexagone tactique (viewBox 120×136) */
+const SHAPE = 'M60 8 L104 30 V84 Q104 108 60 128 Q16 108 16 84 V30 Z';
+const SHAPE_IN = 'M60 16 L97 35 V82 Q97 102 60 119 Q23 102 23 82 V35 Z';
+
+const defs = `
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <pattern id="weave" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="7" height="7" fill="#15181a"/><line x1="0" y1="0" x2="0" y2="7" stroke="#1d2124" stroke-width="2.6"/>
+    </pattern>
+    <linearGradient id="g-dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#171a15"/><stop offset="1" stop-color="#0d0f0c"/>
+    </linearGradient>
+    <linearGradient id="g-road" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#191b18"/><stop offset="1" stop-color="#101210"/>
+    </linearGradient>
+    <linearGradient id="g-elite" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2129"/><stop offset="1" stop-color="#0e1114"/>
+    </linearGradient>
+    <linearGradient id="g-legend" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#221c10"/><stop offset="1" stop-color="#12100a"/>
+    </linearGradient>
+  </defs>
+</svg>`;
+const PLATE = { 'p-road':'url(#g-road)', 'p-dark':'url(#g-dark)', 'p-carbon':'url(#weave)', 'p-elite':'url(#g-elite)', 'p-legend':'url(#g-legend)' };
+
+function badgeSVG(iconKey, tierKey, accent){
+  const t = TIER[tierKey];
+  const ic = ACCENT[accent] || t.icon;
+  const glow = t.glow !== 'none' ? `filter="drop-shadow(0 0 7px ${t.glow})"` : '';
+  const paths = IC[iconKey].map(d=>`<path d="${d}" fill="none" stroke="${ic}" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+  return `<svg class="badge" viewBox="0 0 120 136" role="img" aria-label="badge">
+    ${t.halo ? `<ellipse cx="60" cy="68" rx="52" ry="58" fill="${t.glow}" opacity=".18"/>` : ''}
+    <path d="${SHAPE}" fill="${PLATE[t.plate]}" stroke="${t.ring}" stroke-width="2.4" ${glow}/>
+    ${t.ring2 !== 'none' ? `<path d="${SHAPE_IN}" fill="none" stroke="${t.ring2}" stroke-width="1.1"/>` : ''}
+    ${t.ticks ? `<g stroke="rgba(180,255,13,.5)" stroke-width="2"><path d="M60 10v6"/><path d="M60 120v6"/><path d="M20 32l5 3"/><path d="M100 32l-5 3"/></g>` : ''}
+    ${t.speed ? `<g stroke="rgba(180,255,13,.28)" stroke-width="2" stroke-linecap="round"><path d="M28 96l14-14"/><path d="M24 84l10-10"/></g>` : ''}
+    ${t.rays ? `<g stroke="rgba(111,183,255,.4)" stroke-width="1.6" stroke-linecap="round"><path d="M34 22l4 5"/><path d="M86 22l-4 5"/><path d="M60 4v4"/></g>` : ''}
+    ${t.arcs ? `<g stroke="rgba(231,184,76,.55)" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M25 96q-6-14-2-28"/><path d="M95 96q6-14 2-28"/></g>` : ''}
+    <g transform="translate(30,38) scale(2.5)">${paths}</g>
+  </svg>`;
+}
+
+document.body.insertAdjacentHTML('afterbegin', defs);
+document.getElementById('grid').innerHTML = B.map(([nom, ic, tier, sub, acc]) => `
+  <article class="card ${tier}">
+    ${badgeSVG(ic, tier, acc)}
+    <div class="nom">${nom}</div>
+    <div class="rar">◆ ${RARLABEL[tier]}</div>
+    <div class="sub">${sub}</div>
+  </article>`).join('');
+</script>
+</body>
+</html>

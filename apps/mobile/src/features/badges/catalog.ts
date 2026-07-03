@@ -28,8 +28,6 @@ export interface BadgeDef {
   requirement: string;
   /** Masqué en UI (« ? ») tant que non débloqué (AMENDEMENT-04 §2). */
   secret: boolean;
-  /** Visible mais jamais décerné en l'état (AMENDEMENT-04 §4). */
-  dormant: boolean;
 }
 
 /** Fondateur violet · Performance cyan · Territoire vert · Crew orange · Spécial rose. */
@@ -54,8 +52,6 @@ function toUiBadge(b: SharedBadgeDef): BadgeDef {
     family: b.family === 'secret' ? 'special' : b.family,
     requirement: b.requirement,
     secret,
-    // Côté shared, `dormant` est la RAISON (string) — l'UI n'a besoin que du flag.
-    dormant: b.dormant !== undefined,
   };
 }
 

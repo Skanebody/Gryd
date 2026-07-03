@@ -16,6 +16,7 @@ import {
 } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
 import { GhostButton } from '../../src/ui/GhostButton';
+import { Icon } from '../../src/ui/Icon';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt } from '../../src/ui/format';
 
@@ -45,6 +46,7 @@ export default function CrewScreen() {
   return (
     <TabScreen
       title="Crew"
+      icon="crew"
       kicker="SAISON 0 · PARIS"
       subtitle="Le jeu de conquête de territoire pour run clubs."
     >
@@ -56,7 +58,7 @@ export default function CrewScreen() {
           tien ou rejoins-en un en 1 tap.
         </Text>
         <View style={styles.emptyActions}>
-          <GhostButton label="Créer mon crew" onPress={() => todoCrewFlow('create')} />
+          <GhostButton label="Créer mon crew" icon="plus" onPress={() => todoCrewFlow('create')} />
           <GhostButton
             label={`Rejoindre avec un code (${CREW_CODE_LENGTH} caractères)`}
             onPress={() => todoCrewFlow('join')}
@@ -73,7 +75,7 @@ export default function CrewScreen() {
               {crew.members}/{CREW_MAX_MEMBERS} membres · {formatInt(crew.hexes)} hexes
             </Text>
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <Icon name="chevron" size={16} color={colors.gris} />
         </View>
       ))}
     </TabScreen>
@@ -133,5 +135,4 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontVariant: ['tabular-nums'],
   },
-  chevron: { color: colors.gris, fontSize: fontSizes.lg },
 });

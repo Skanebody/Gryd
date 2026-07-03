@@ -8,9 +8,10 @@
  * AUCUN nombre magique badge ici.
  *
  * Métriques NON alimentées par une course (crewsCreated, referralsActivated,
- * outposts/routes/secteurs, dominatedSectors, météo/events) : mises à jour par
- * leurs pipelines respectifs directement dans user_stats — evaluateBadges les
- * ramasse à la course suivante.
+ * sectorsVisited, dominatedSectors) : mises à jour par leurs pipelines
+ * respectifs directement dans user_stats — evaluateBadges les ramasse à la
+ * course suivante. Météo/events et avant-postes/routes sont fournis par
+ * ingest_run via BadgeRunInput (décision fondateur 03/07/2026).
  */
 import {
   BADGES,
@@ -23,13 +24,18 @@ import {
   NEW_YEAR_MONTH_DAY,
   NIGHT_END_MIN,
   NIGHT_START_MIN,
+  ROUTE_MIN_KM,
   SPRINTER_MAX_AVG_PACE_S_KM,
   STRAIGHT_MIN_DISTANCE_M,
   STRAIGHT_MIN_RATIO,
+  WEATHER_HEAT_MIN_C,
+  WEATHER_RAIN_MIN_MM_H,
+  WEATHER_SNOW_MIN_CM_H,
   WOLF_HOUR_END_MIN,
   WOLF_HOUR_START_MIN,
   type BadgeMetric,
 } from '@klaim/shared/badges';
+import { OUTPOST_MIN_HEXES } from '@klaim/shared/game-rules';
 import type { RunStatus } from '@klaim/shared/types';
 import { latLngToCell } from 'h3-js';
 import { haversineM } from './validation.ts';
@@ -130,6 +136,21 @@ export interface BadgeRunInput {
   duringSeasonZero: boolean;
   /** true si la course capture en zone pionnière/sauvage (badge Explorateur). */
   inPioneerZone?: boolean;
+  /**
+   * Flags météo de l'heure LOCALE du départ (weatherFlags sur Open-Meteo,
+   * badges Météo/Hiver/Chaleur). null/absent = météo indisponible (fail-open) :
+   * aucune stat météo, aucun impact sur la course.
+   */
+  weather?: { rain: boolean; snow: boolean; heat: boolean } | null;
+  /** true si le départ tombe dans un événement actif (badge Événement). */
+  duringEvent?: boolean;
+  /** Avant-postes fondés par CETTE course (détection V0 ingest_run, Bâtisseur). */
+  newOutposts?: number;
+  /** Routes ouvertes par CETTE course (détection V0 ingest_run, Connecteur). */
+  newRoutes?: number;
+  /** Dont fondés/ouvertes avec un crew actif (Stratège / Bâtisseur Crew). */
+  newCrewOutposts?: number;
+  newCrewRoutes?: number;
 }
 
 /**
@@ -197,6 +218,18 @@ export function applyRunToStats(stats: LifetimeStats, run: BadgeRunInput): Lifet
   // ── Zone pionnière/sauvage (badge Explorateur, AMENDEMENT-04) ──
   if (run.inPioneerZone === true && captured >= 1) s.pioneerZoneRuns += 1;
 
+  // ── Météo (Open-Meteo via weatherFlags) / événements — badges Spécial ──
+  if (run.weather?.rain === true) s.rainRuns += 1;
+  if (run.weather?.snow === true) s.snowRuns += 1;
+  if (run.weather?.heat === true) s.heatRuns += 1;
+  if (run.duringEvent === true) s.eventRuns += 1;
+
+  // ── Avant-postes / routes fondés par CETTE course (détection V0 ingest_run) ──
+  s.outposts += run.newOutposts ?? 0;
+  s.routes += run.newRoutes ?? 0;
+  s.crewOutposts += run.newCrewOutposts ?? 0;
+  s.crewRoutes += run.newCrewRoutes ?? 0;
+
   // ── Horloge locale : jours actifs, plages horaires, 1ᵉʳ janvier ──
   const clock = localClock(run.startedAt);
   if (clock) {
@@ -252,7 +285,8 @@ export function applyRunToStats(stats: LifetimeStats, run: BadgeRunInput): Lifet
 
 /**
  * Badges NOUVELLEMENT décernés : seuil atteint dans `after`, jamais gagné
- * (alreadyEarned), jamais un dormant (§4). Les badges franchis PENDANT cette
+ * (alreadyEarned). TOUS les badges du catalogue sont décernables (décision
+ * fondateur 03/07/2026 — plus de dormants). Les badges franchis PENDANT cette
  * course (before sous le seuil) sortent en premier ; suivent les rattrapages
  * (seuil déjà atteint mais jamais persisté — auto-réparation).
  */
@@ -264,10 +298,75 @@ export function evaluateBadges(
   const crossed: string[] = [];
   const catchUp: string[] = [];
   for (const def of BADGES) {
-    if (def.dormant !== undefined) continue; // jamais décerné en l'état (§4)
     if (alreadyEarned.has(def.key)) continue; // jamais ré-attribué
     if (after[def.metric] < def.threshold) continue;
     (before[def.metric] < def.threshold ? crossed : catchUp).push(def.key);
   }
   return [...crossed, ...catchUp];
+}
+
+// ─── Décisions PURES des nouvelles mécaniques (consommées par ingest_run) ─────
+
+/** Mesures de l'heure LOCALE du départ (Open-Meteo hourly, unités natives). */
+export interface WeatherHour {
+  /** temperature_2m, °C. */
+  tempC: number;
+  /** precipitation, mm/h. */
+  precipMmH: number;
+  /** snowfall, cm/h. */
+  snowCmH: number;
+}
+
+/**
+ * Décision de seuil météo (badges Météo/Hiver/Chaleur) — seuils INCLUS
+ * (0,5 mm/h pile = pluie ; 30 °C pile = chaleur). PURE : l'I/O Open-Meteo
+ * (fetchWeather, ingest_run) est fail-open et n'est jamais testée en réseau.
+ */
+export function weatherFlags(
+  hour: WeatherHour,
+): { rain: boolean; snow: boolean; heat: boolean } {
+  return {
+    rain: hour.precipMmH >= WEATHER_RAIN_MIN_MM_H,
+    snow: hour.snowCmH >= WEATHER_SNOW_MIN_CM_H,
+    heat: hour.tempC >= WEATHER_HEAT_MIN_C,
+  };
+}
+
+/**
+ * Fondation d'un avant-poste V0 (badges Bâtisseur/Stratège) : appelée par
+ * ingest_run APRÈS la RPC claims, en zone pioneer/wild/emerging uniquement.
+ * `ownedNearby` = hex_claims du user à ≤ OUTPOST_RADIUS_KM du centroïde de la
+ * course ; `existingNearby` = avant-postes existants du user dans ce rayon.
+ */
+export function shouldCreateOutpost(ownedNearby: number, existingNearby: number): boolean {
+  return ownedNearby >= OUTPOST_MIN_HEXES && existingNearby === 0;
+}
+
+/**
+ * Ouverture d'une route V0 (badges Connecteur/Bâtisseur Crew) : hex de départ
+ * ET d'arrivée possédés AVANT la course, distants de ≥ ROUTE_MIN_KM (borne
+ * INCLUSE), et pas déjà une route du user entre ces deux bouts (`existing`,
+ * matché à ROUTE_ENDPOINT_MATCH_KM près par l'appelant).
+ */
+export function shouldOpenRoute(
+  startOwned: boolean,
+  endOwned: boolean,
+  distanceKm: number,
+  existing: boolean,
+): boolean {
+  return startOwned && endOwned && distanceKm >= ROUTE_MIN_KM && !existing;
+}
+
+/**
+ * Fenêtre d'événement (badge Événement) : bornes INCLUSES des deux côtés —
+ * startedAt ∈ [startsAt, endsAt]. MIROIR EXACT de la requête SQL d'ingest_run
+ * (`starts_at <= startedAt AND ends_at >= startedAt`) : ce qui est testé ici
+ * est la sémantique appliquée en base.
+ */
+export function inEventWindow(
+  startedAt: string,
+  event: { startsAt: string; endsAt: string },
+): boolean {
+  const t = Date.parse(startedAt);
+  return Date.parse(event.startsAt) <= t && t <= Date.parse(event.endsAt);
 }

@@ -1,19 +1,21 @@
 /**
  * Tests badges.ts — AMENDEMENT-04 : catalogue (§1/§2), interprétations gelées
- * (§3), dormants (§4), attribution pure (applyRunToStats + evaluateBadges).
+ * (§3), tous attribuables (§4, décision fondateur 03/07/2026), attribution
+ * pure (applyRunToStats + evaluateBadges) et décisions pures des nouvelles
+ * mécaniques (weatherFlags / shouldCreateOutpost / shouldOpenRoute /
+ * inEventWindow) — AUCUN réseau ici, fetchWeather (I/O fail-open) non testé.
  */
 import { assert, assertEquals, assertFalse } from 'jsr:@std/assert@^1';
-import {
-  BADGE_COUNT,
-  BADGE_FAMILY_COLORS,
-  BADGES,
-  BADGES_BY_KEY,
-} from '../_shared/badges.ts';
+import { BADGE_COUNT, BADGE_FAMILY_COLORS, BADGES } from '../_shared/badges.ts';
 import {
   applyRunToStats,
   emptyLifetimeStats,
   evaluateBadges,
+  inEventWindow,
   localClock,
+  shouldCreateOutpost,
+  shouldOpenRoute,
+  weatherFlags,
   type BadgeRunInput,
   type LifetimeStats,
 } from '../_shared/engine/badges.ts';
@@ -72,21 +74,14 @@ Deno.test('catalogue : 10 badges par famille visible, 9 secrets, couleurs de fam
   assertEquals(byFamily.get('secret'), 9);
 });
 
-Deno.test('catalogue : les 10 dormants attendus (§4), avec raison', () => {
-  const dormant = BADGES.filter((b) => b.dormant !== undefined).map((b) => b.key).sort();
-  assertEquals(dormant, [
-    'batisseur',
-    'batisseur_crew',
-    'chaleur',
-    'connecteur',
-    'dynastie',
-    'evenement',
-    'hiver',
-    'legende_crew',
-    'meteo',
-    'stratege',
-  ]);
-  for (const key of dormant) assert((BADGES_BY_KEY.get(key)!.dormant ?? '').length > 0);
+Deno.test('catalogue : plus AUCUN dormant — les 59 badges sont attribuables (§4)', () => {
+  for (const b of BADGES) {
+    assertEquals(
+      (b as unknown as Record<string, unknown>).dormant,
+      undefined,
+      `badge dormant résiduel : ${b.key}`,
+    );
+  }
 });
 
 // ─── Seuils exacts ────────────────────────────────────────────────────────────
@@ -109,29 +104,119 @@ Deno.test('non-répétition : un badge déjà gagné n\'est jamais ré-attribué
   assertFalse(evaluateBadges(before, after, new Set(['premiers_pas'])).includes('premiers_pas'));
 });
 
-Deno.test('dormants : jamais décernés même seuil largement franchi (§4)', () => {
+// ─── Ex-dormants : tous DÉCERNABLES via evaluateBadges (§4, 03/07/2026) ───────
+
+Deno.test('Météo/Hiver/Chaleur/Événement : décernés dès la première course concernée', () => {
   const before = emptyLifetimeStats();
-  const after: LifetimeStats = {
-    ...applyRunToStats(before, mkRun({ crewSize: 100 })),
-    rainRuns: 5,
-    snowRuns: 5,
-    heatRuns: 5,
-    eventRuns: 5,
-    outposts: 10,
-    routes: 10,
-    crewOutposts: 20,
-    crewRoutes: 20,
-    sectorsVisited: 50,
-  };
+  const after = applyRunToStats(
+    before,
+    mkRun({ weather: { rain: true, snow: true, heat: true }, duringEvent: true }),
+  );
+  assertEquals(after.rainRuns, 1);
+  assertEquals(after.snowRuns, 1);
+  assertEquals(after.heatRuns, 1);
+  assertEquals(after.eventRuns, 1);
   const earned = evaluateBadges(before, after, NONE);
-  for (const b of BADGES.filter((b) => b.dormant !== undefined)) {
-    assertFalse(earned.includes(b.key), `dormant décerné : ${b.key}`);
+  for (const key of ['meteo', 'hiver', 'chaleur', 'evenement']) {
+    assert(earned.includes(key), `${key} manquant`);
   }
-  // maxCrewSize 100 franchit bien Commandant (10, non dormant)…
+});
+
+Deno.test('météo indisponible (fail-open) : weather null/absent = aucune stat météo', () => {
+  const withNull = applyRunToStats(emptyLifetimeStats(), mkRun({ weather: null }));
+  const without = applyRunToStats(emptyLifetimeStats(), mkRun());
+  for (const s of [withNull, without]) {
+    assertEquals(s.rainRuns, 0);
+    assertEquals(s.snowRuns, 0);
+    assertEquals(s.heatRuns, 0);
+  }
+  // …et la course reste comptée normalement.
+  assertEquals(withNull.runsValid, 1);
+});
+
+Deno.test('Bâtisseur/Connecteur/Bâtisseur Crew : décernés à la première fondation', () => {
+  const before = emptyLifetimeStats();
+  const after = applyRunToStats(
+    before,
+    mkRun({ crewSize: 3, newOutposts: 1, newRoutes: 1, newCrewOutposts: 1, newCrewRoutes: 1 }),
+  );
+  assertEquals(after.outposts, 1);
+  assertEquals(after.routes, 1);
+  assertEquals(after.crewOutposts, 1);
+  assertEquals(after.crewRoutes, 1);
+  const earned = evaluateBadges(before, after, NONE);
+  assert(earned.includes('batisseur')); // 1 avant-poste
+  assert(earned.includes('connecteur')); // 1 route
+  assert(earned.includes('batisseur_crew')); // 1 route crew
+  assertFalse(earned.includes('stratege')); // 10 avant-postes crew requis
+});
+
+Deno.test('Stratège : décerné au 10ᵉ avant-poste crew', () => {
+  const atNine = { ...emptyLifetimeStats(), crewOutposts: 9 };
+  const after = applyRunToStats(atNine, mkRun({ crewSize: 3, newOutposts: 1, newCrewOutposts: 1 }));
+  assertEquals(after.crewOutposts, 10);
+  assert(evaluateBadges(atNine, after, NONE).includes('stratege'));
+});
+
+Deno.test('avant-poste/route solo : les compteurs crew ne bougent pas', () => {
+  const after = applyRunToStats(emptyLifetimeStats(), mkRun({ newOutposts: 1, newRoutes: 1 }));
+  assertEquals(after.outposts, 1);
+  assertEquals(after.routes, 1);
+  assertEquals(after.crewOutposts, 0);
+  assertEquals(after.crewRoutes, 0);
+});
+
+Deno.test('Légende Crew / Dynastie : plus dormants — décernables au seuil (cap 10 = objectif lointain)', () => {
+  const before = emptyLifetimeStats();
+  const after = applyRunToStats(before, mkRun({ crewSize: 100 }));
+  const earned = evaluateBadges(before, after, NONE);
   assert(earned.includes('commandant'));
-  // …mais jamais Légende Crew / Dynastie (cap crew, §4).
-  assertFalse(earned.includes('legende_crew'));
-  assertFalse(earned.includes('dynastie'));
+  assert(earned.includes('legende_crew'));
+  assert(earned.includes('dynastie'));
+});
+
+// ─── Décisions pures des nouvelles mécaniques ─────────────────────────────────
+
+Deno.test('weatherFlags : seuils PILE inclus (pluie 0,5 mm/h, neige 0,1 cm/h, chaleur 30 °C)', () => {
+  // Bornes exactes : le seuil pile déclenche.
+  assertEquals(
+    weatherFlags({ tempC: 30, precipMmH: 0.5, snowCmH: 0.1 }),
+    { rain: true, snow: true, heat: true },
+  );
+  // Juste sous chaque seuil : rien.
+  assertEquals(
+    weatherFlags({ tempC: 29.9, precipMmH: 0.49, snowCmH: 0.09 }),
+    { rain: false, snow: false, heat: false },
+  );
+  // Pluie franche, temps frais : pluie seule.
+  assertEquals(
+    weatherFlags({ tempC: 12, precipMmH: 2.4, snowCmH: 0 }),
+    { rain: true, snow: false, heat: false },
+  );
+});
+
+Deno.test('shouldCreateOutpost : 100 hexes pile oui, 99 non, avant-poste existant non', () => {
+  assert(shouldCreateOutpost(100, 0)); // OUTPOST_MIN_HEXES pile
+  assertFalse(shouldCreateOutpost(99, 0)); // un hex de moins
+  assertFalse(shouldCreateOutpost(250, 1)); // déjà un avant-poste à ≤ 2 km
+  assert(shouldCreateOutpost(250, 0));
+});
+
+Deno.test('shouldOpenRoute : bornes (2 km INCLUS), bouts possédés, anti-doublon', () => {
+  assert(shouldOpenRoute(true, true, 2, false)); // ROUTE_MIN_KM pile
+  assertFalse(shouldOpenRoute(true, true, 1.99, false)); // trop court
+  assertFalse(shouldOpenRoute(false, true, 5, false)); // départ non possédé
+  assertFalse(shouldOpenRoute(true, false, 5, false)); // arrivée non possédée
+  assertFalse(shouldOpenRoute(true, true, 5, true)); // route déjà ouverte
+});
+
+Deno.test('inEventWindow : bornes INCLUSES des deux côtés (miroir SQL lte/gte)', () => {
+  const event = { startsAt: '2026-07-03T00:00:00+02:00', endsAt: '2026-07-13T23:59:59+02:00' };
+  assert(inEventWindow('2026-07-03T00:00:00+02:00', event)); // borne basse INCLUSE
+  assert(inEventWindow('2026-07-13T23:59:59+02:00', event)); // borne haute INCLUSE
+  assert(inEventWindow('2026-07-08T12:00:00+02:00', event));
+  assertFalse(inEventWindow('2026-07-02T23:59:59+02:00', event)); // 1 s avant
+  assertFalse(inEventWindow('2026-07-14T00:00:00+02:00', event)); // 1 s après
 });
 
 // ─── applyRunToStats : interprétations gelées (§3) ────────────────────────────

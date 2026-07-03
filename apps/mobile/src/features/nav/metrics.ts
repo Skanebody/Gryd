@@ -5,8 +5,8 @@
  * Métriques de LAYOUT uniquement — aucune constante de jeu ici.
  */
 
-/** Barre pill carbone flottante : hauteur 58, posée 18 px au-dessus du safe-area. */
-export const NAV_BAR_HEIGHT = 58;
+/** Barre pill carbone flottante : hauteur 64 (icône 22 + label 10 empilés), 18 px au-dessus du safe-area. */
+export const NAV_BAR_HEIGHT = 64;
 export const NAV_BAR_BOTTOM = 18;
 export const NAV_BAR_SIDE = 16;
 

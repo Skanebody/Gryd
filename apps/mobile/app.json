@@ -26,6 +26,10 @@
     "android": {
       "package": "fr.nexus1993.gryd"
     },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "plugins": [
       "expo-router",
       [

@@ -3,7 +3,9 @@
  *
  * Pipeline : auth JWT → idempotence (user_id, client_run_id) → validation §3.2
  * → hexing H3 → lecture état (hexes, privacy, no-capture, densité) →
- * decideClaims (pur) → RPC claim_hexes (application atomique) → runs.celebration.
+ * decideClaims (pur) → RPC claim_hexes (application atomique) → mécaniques
+ * badges (météo Open-Meteo fail-open, événement, avant-poste/route V0) →
+ * attribution badges → runs.celebration.
  *
  * Toute la logique de jeu vit dans les modules purs du moteur @klaim/engine
  * (validation/hexing/claims/scoring), consommés via les copies générées
@@ -14,8 +16,14 @@
  * `celebration` persisté avec replayed:true, sans AUCUN recalcul.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
-import { cellToLatLng } from 'npm:h3-js@^4.1';
-import { DECAY_DAYS } from '../_shared/game-rules.ts';
+import { cellToLatLng, latLngToCell } from 'npm:h3-js@^4.1';
+import {
+  DECAY_DAYS,
+  H3_RESOLUTION,
+  OUTPOST_RADIUS_KM,
+  type ZoneDensity,
+} from '../_shared/game-rules.ts';
+import { ROUTE_ENDPOINT_MATCH_KM } from '../_shared/badges.ts';
 import type {
   HexClaimResult,
   IngestRunRequest,
@@ -46,14 +54,21 @@ import {
   applyRunToStats,
   emptyLifetimeStats,
   evaluateBadges,
+  localClock,
+  shouldCreateOutpost,
+  shouldOpenRoute,
+  weatherFlags,
   type BadgeRunInput,
   type LifetimeStats,
 } from '../_shared/engine/badges.ts';
 import { BADGES_BY_KEY } from '../_shared/badges.ts';
 
 const MS_PER_DAY = 86_400_000;
+const M_PER_KM = 1_000;
 const DB_IN_CHUNK = 500; // taille des batches pour les clauses `in(...)`
+const DB_PAGE = 1_000; // pagination des lectures larges (plafond PostgREST)
 const REWARD_PRIORITY = 3; // P3 récompense (GRYD_notifications_logic.md §2)
+const WEATHER_TIMEOUT_MS = 3_000; // budget I/O Open-Meteo — technique, pas une règle de jeu
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -252,8 +267,9 @@ async function loadClaimsToday(userId: string, now: Date): Promise<number> {
   return count ?? 0;
 }
 
-/** Taille du crew actif du coureur (0 = sans crew) — badges Crew/Solitaire (§3). */
-async function loadCrewSize(userId: string): Promise<number> {
+/** Crew actif du coureur (id + taille ; size 0 = sans crew) — badges Crew/Solitaire (§3),
+ * rattachement crew des avant-postes/routes. */
+async function loadCrew(userId: string): Promise<{ crewId: string | null; size: number }> {
   const { data, error } = await supabase
     .from('crew_members')
     .select('crew_id')
@@ -261,14 +277,201 @@ async function loadCrewSize(userId: string): Promise<number> {
     .is('left_at', null)
     .maybeSingle();
   if (error) throw new Error(`crew_members read: ${error.message}`);
-  if (!data) return 0;
+  if (!data) return { crewId: null, size: 0 };
   const { count, error: countError } = await supabase
     .from('crew_members')
     .select('user_id', { count: 'exact', head: true })
     .eq('crew_id', data.crew_id)
     .is('left_at', null);
   if (countError) throw new Error(`crew_members count: ${countError.message}`);
-  return count ?? 1;
+  return { crewId: data.crew_id as string, size: count ?? 1 };
+}
+
+/** true si le départ tombe dans un événement actif (badge Événement) — bornes
+ * INCLUSES des deux côtés, MIROIR de inEventWindow (engine/badges.ts). */
+async function loadDuringEvent(startedAt: string): Promise<boolean> {
+  const { count, error } = await supabase
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .lte('starts_at', startedAt)
+    .gte('ends_at', startedAt);
+  if (error) throw new Error(`events read: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
+// ─── Météo réelle (badges Météo/Hiver/Chaleur) — Open-Meteo, fail-open ───────
+
+/**
+ * Flags météo de l'heure LOCALE du départ via Open-Meteo (gratuit, sans clé).
+ * FAIL-OPEN STRICT : timeout WEATHER_TIMEOUT_MS, toute erreur (réseau, format,
+ * heure introuvable) → null, AUCUN impact sur la course. La décision de seuil
+ * est la fonction PURE weatherFlags (engine/badges.ts) — seule partie testée.
+ */
+async function fetchWeather(
+  lat: number,
+  lng: number,
+  startedAt: string,
+): Promise<{ rain: boolean; snow: boolean; heat: boolean } | null> {
+  const clock = localClock(startedAt);
+  if (!clock) return null;
+  const hour = `${clock.date}T${String(Math.floor(clock.minutes / 60)).padStart(2, '0')}:00`;
+  const url = 'https://api.open-meteo.com/v1/forecast' +
+    `?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}` +
+    '&hourly=temperature_2m,precipitation,snowfall&timezone=auto' +
+    `&start_date=${clock.date}&end_date=${clock.date}`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(WEATHER_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    const body = await res.json() as {
+      hourly?: {
+        time?: string[];
+        temperature_2m?: (number | null)[];
+        precipitation?: (number | null)[];
+        snowfall?: (number | null)[];
+      };
+    };
+    const idx = body.hourly?.time?.indexOf(hour) ?? -1;
+    if (idx < 0) return null;
+    const tempC = body.hourly?.temperature_2m?.[idx];
+    const precipMmH = body.hourly?.precipitation?.[idx];
+    const snowCmH = body.hourly?.snowfall?.[idx];
+    if (typeof tempC !== 'number' || typeof precipMmH !== 'number' || typeof snowCmH !== 'number') {
+      return null;
+    }
+    return weatherFlags({ tempC, precipMmH, snowCmH });
+  } catch {
+    return null; // fail-open : la météo ne bloque JAMAIS une course
+  }
+}
+
+// ─── Avant-postes V0 (badges Bâtisseur/Stratège) ─────────────────────────────
+
+/** Centres lat/lng de TOUS les hex_claims du user (paginé : PostgREST plafonne à 1000). */
+async function loadUserHexCenters(userId: string): Promise<{ lat: number; lng: number }[]> {
+  const centers: { lat: number; lng: number }[] = [];
+  for (let from = 0; ; from += DB_PAGE) {
+    const { data, error } = await supabase
+      .from('hex_claims')
+      .select('h3index')
+      .eq('owner_user_id', userId)
+      .range(from, from + DB_PAGE - 1);
+    if (error) throw new Error(`hex_claims owned read: ${error.message}`);
+    for (const row of data ?? []) {
+      const [lat, lng] = cellToLatLng(dbToH3(row.h3index));
+      centers.push({ lat, lng });
+    }
+    if ((data ?? []).length < DB_PAGE) return centers;
+  }
+}
+
+/**
+ * Détection avant-poste V0 (AMENDEMENT-02 §8) — appelée APRÈS la RPC claims
+ * (les hexes de cette course comptent). Zone peu dense uniquement ; fondation
+ * si ≥ OUTPOST_MIN_HEXES hexes du user à ≤ OUTPOST_RADIUS_KM du centroïde de
+ * la course et aucun avant-poste existant du user dans ce rayon
+ * (décision pure shouldCreateOutpost, engine/badges.ts).
+ */
+async function detectOutpost(
+  userId: string,
+  crewId: string | null,
+  density: ZoneDensity,
+  centroid: { lat: number; lng: number },
+): Promise<{ newOutposts: number; newCrewOutposts: number }> {
+  const none = { newOutposts: 0, newCrewOutposts: 0 };
+  if (density !== 'pioneer' && density !== 'wild' && density !== 'emerging') return none;
+
+  const radiusM = OUTPOST_RADIUS_KM * M_PER_KM;
+  const owned = await loadUserHexCenters(userId);
+  const ownedNearby = owned.filter((c) => haversineM(c, centroid) <= radiusM).length;
+
+  const { data: existing, error } = await supabase
+    .from('outposts')
+    .select('center_h3')
+    .eq('user_id', userId);
+  if (error) throw new Error(`outposts read: ${error.message}`);
+  const existingNearby = (existing ?? []).filter((o) => {
+    const [lat, lng] = cellToLatLng(dbToH3(o.center_h3));
+    return haversineM({ lat, lng }, centroid) <= radiusM;
+  }).length;
+
+  if (!shouldCreateOutpost(ownedNearby, existingNearby)) return none;
+
+  const { error: insertError } = await supabase.from('outposts').insert({
+    user_id: userId,
+    crew_id: crewId,
+    center_h3: h3ToDb(latLngToCell(centroid.lat, centroid.lng, H3_RESOLUTION)),
+    hex_count: ownedNearby,
+  });
+  if (insertError) throw new Error(`outposts insert: ${insertError.message}`);
+  return { newOutposts: 1, newCrewOutposts: crewId !== null ? 1 : 0 };
+}
+
+// ─── Routes V0 (badges Connecteur/Bâtisseur Crew) ────────────────────────────
+
+/**
+ * Détection route V0 : les hexes de DÉPART et d'ARRIVÉE de la trace claimable
+ * appartenaient tous deux au user AVANT la course (état `states` lu pour
+ * decideClaims — decay échu = plus possédé), distants de ≥ ROUTE_MIN_KM, et
+ * pas déjà une route du user entre ces deux bouts (à ROUTE_ENDPOINT_MATCH_KM
+ * près, dans un sens ou l'autre). Décision pure shouldOpenRoute (engine).
+ */
+async function detectRoute(
+  userId: string,
+  crewId: string | null,
+  runId: string,
+  states: ReadonlyMap<string, HexState>,
+  startHex: string | undefined,
+  endHex: string | undefined,
+  now: Date,
+): Promise<{ newRoutes: number; newCrewRoutes: number }> {
+  const none = { newRoutes: 0, newCrewRoutes: 0 };
+  if (startHex === undefined || endHex === undefined || startHex === endHex) return none;
+
+  const ownedBefore = (hex: string): boolean => {
+    const state = states.get(hex);
+    if (!state) return false;
+    const decayed = state.decayAt !== null && state.decayAt.getTime() <= now.getTime();
+    return !decayed && state.ownerUserId === userId;
+  };
+  const toPoint = (h3: string): { lat: number; lng: number } => {
+    const [lat, lng] = cellToLatLng(h3);
+    return { lat, lng };
+  };
+
+  const startOwned = ownedBefore(startHex);
+  const endOwned = ownedBefore(endHex);
+  const start = toPoint(startHex);
+  const end = toPoint(endHex);
+  const distanceKm = haversineM(start, end) / M_PER_KM;
+
+  // Lecture anti-doublon seulement si les critères géométriques passent déjà.
+  let existing = false;
+  if (shouldOpenRoute(startOwned, endOwned, distanceKm, false)) {
+    const { data, error } = await supabase
+      .from('routes')
+      .select('from_h3, to_h3')
+      .eq('user_id', userId);
+    if (error) throw new Error(`routes read: ${error.message}`);
+    const matchM = ROUTE_ENDPOINT_MATCH_KM * M_PER_KM;
+    existing = (data ?? []).some((r) => {
+      const from = toPoint(dbToH3(r.from_h3));
+      const to = toPoint(dbToH3(r.to_h3));
+      return (haversineM(from, start) <= matchM && haversineM(to, end) <= matchM) ||
+        (haversineM(from, end) <= matchM && haversineM(to, start) <= matchM);
+    });
+  }
+
+  if (!shouldOpenRoute(startOwned, endOwned, distanceKm, existing)) return none;
+
+  const { error: insertError } = await supabase.from('routes').insert({
+    user_id: userId,
+    crew_id: crewId,
+    from_h3: h3ToDb(startHex),
+    to_h3: h3ToDb(endHex),
+    run_id: runId,
+  });
+  if (insertError) throw new Error(`routes insert: ${insertError.message}`);
+  return { newRoutes: 1, newCrewRoutes: crewId !== null ? 1 : 0 };
 }
 
 // ─── Badges (AMENDEMENT-04 §5) : user_stats ↔ LifetimeStats + attribution ────
@@ -295,7 +498,7 @@ function statsToRow(userId: string, stats: LifetimeStats): Record<string, unknow
 
 /**
  * Lit user_stats + user_badges, applique la course (applyRunToStats, pur),
- * évalue les badges (evaluateBadges, jamais les dormants ni le déjà-gagné),
+ * évalue les badges (evaluateBadges, jamais le déjà-gagné),
  * upsert les stats, insère user_badges + UNE notification 'reward' groupée.
  * Idempotence : appelé uniquement après un INSERT runs frais ; l'upsert
  * ignoreDuplicates protège d'une double attribution résiduelle.
@@ -542,10 +745,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (rpcError) throw new Error(`claim_hexes rpc: ${rpcError.message}`);
     }
 
+    // ── Mécaniques nourrissant les badges (décision fondateur 03/07/2026 :
+    //    tous attribuables) : météo, événement, avant-poste, route. Les
+    //    détections avant-poste/route tournent APRÈS la RPC (les claims de
+    //    cette course comptent) ; la météo est fail-open (null = sans effet).
+    const sorted = [...request.points].sort((a, b) => a.t - b.t);
+    const startPoint = sorted[0] ?? null;
+    const centroid = {
+      lat: sorted.reduce((sum, p) => sum + p.lat, 0) / sorted.length,
+      lng: sorted.reduce((sum, p) => sum + p.lng, 0) / sorted.length,
+    };
+    const crew = await loadCrew(userId);
+    const [weather, duringEvent, outpost, route] = await Promise.all([
+      startPoint !== null
+        ? fetchWeather(startPoint.lat, startPoint.lng, request.startedAt)
+        : Promise.resolve(null),
+      loadDuringEvent(request.startedAt),
+      detectOutpost(userId, crew.crewId, density, centroid),
+      detectRoute(userId, crew.crewId, runId, states, hexes[0], hexes[hexes.length - 1], now),
+    ]);
+
     // ── Badges (AMENDEMENT-04 §5) : stats vie entière + attribution ──────────
     // N'arrive qu'après un INSERT runs frais — jamais rejoué (le replay renvoie
     // la célébration persistée, qui contient déjà newBadges).
-    const sorted = [...request.points].sort((a, b) => a.t - b.t);
     const newBadges = await awardBadges(userId, {
       status: validation.status,
       startedAt: request.startedAt,
@@ -558,13 +780,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         defended: decision.totals.defended,
         pioneer: decision.totals.pioneer,
       },
-      startPoint: sorted[0] ?? null,
+      startPoint,
       endPoint: sorted[sorted.length - 1] ?? null,
-      crewSize: await loadCrewSize(userId),
+      crewSize: crew.size,
       // Saison 0 en cours : toute course validée aujourd'hui en fait partie (MVP).
       duringSeasonZero: true,
       // Badge Explorateur (AMENDEMENT-04) : capture en zone pionnière/sauvage.
       inPioneerZone: density === 'pioneer' || density === 'wild',
+      weather,
+      duringEvent,
+      newOutposts: outpost.newOutposts,
+      newCrewOutposts: outpost.newCrewOutposts,
+      newRoutes: route.newRoutes,
+      newCrewRoutes: route.newCrewRoutes,
     });
 
     // ── Célébration persistée (source du replay idempotent) ──────────────────

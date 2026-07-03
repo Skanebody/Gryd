@@ -7,7 +7,9 @@
  *   contrôlée, AMENDEMENT-04 §1) — jamais dans design-tokens. Seules les
  *   surfaces badge (collection, détail, carte de partage, notification de
  *   déblocage) les utilisent ; partout ailleurs un badge reste monochrome charte.
- * - `dormant` (§4) : badge visible mais JAMAIS décerné en l'état (raison en texte).
+ * - TOUS les badges sont attribuables (décision fondateur 03/07/2026, §4) :
+ *   le concept « dormant » a disparu — les mécaniques manquantes (météo,
+ *   avant-postes/routes V0, événements) sont branchées dans ingest_run.
  * - `secret` (§2) : masqué en « ? » en UI tant que non débloqué.
  * - L'attribution vit dans packages/engine/src/badges.ts (applyRunToStats +
  *   evaluateBadges) ; la copie supabase/functions/_shared/badges.ts est GÉNÉRÉE
@@ -48,11 +50,11 @@ export type BadgeRarity = 'common' | 'rare' | 'epic' | 'legend';
  * Chaque badge est décerné quand `stats[metric] >= threshold`. Toutes les
  * métriques sont des compteurs/maxima croissants (jamais décroissants) : le
  * franchissement d'un seuil est donc définitif.
- * `sectorsVisited`, `outposts`, `routes`, `crewOutposts`, `crewRoutes` (détection
- * V0 non branchée), `crewsCreated`, `referralsActivated`, `dominatedSectors`,
- * `rain/snow/heat/eventRuns` sont alimentées par d'autres pipelines que
- * ingest_run (jobs/endpoints V1) — les badges correspondants restent à 0 (ou
- * sont `dormant`) d'ici là.
+ * `outposts`/`routes`/`crewOutposts`/`crewRoutes` (détection V0), et
+ * `rain/snow/heat/eventRuns` (météo Open-Meteo + table events) sont alimentées
+ * par ingest_run. `sectorsVisited`, `crewsCreated`, `referralsActivated`,
+ * `dominatedSectors` restent alimentées par leurs pipelines respectifs
+ * (jobs/endpoints) directement dans user_stats.
  */
 export type BadgeMetric =
   | 'runsValid' // courses validées (valid + partial, AMENDEMENT-02 §4)
@@ -63,14 +65,14 @@ export type BadgeMetric =
   | 'defends' // hexes défendus
   | 'pioneerHexes' // hexes pionniers (jamais possédés)
   | 'sectorsVisited' // secteurs distincts couru(s) — V1
-  | 'outposts' // avant-postes fondés — détection V0
-  | 'routes' // routes tracées — détection V0
+  | 'outposts' // avant-postes fondés — détection V0 (ingest_run)
+  | 'routes' // routes tracées — détection V0 (ingest_run)
   | 'dominatedSectors' // secteurs dominés ≥ 70 % — job sector_control V1
   | 'crewsJoined' // a rejoint ≥ 1 crew (proxy MVP : course avec crew actif)
   | 'crewsCreated' // crews créés — endpoint crew V1
   | 'crewContributions' // courses valides avec ≥ 1 hex claimé en crew (§3)
-  | 'crewOutposts' // avant-postes crew — détection V0
-  | 'crewRoutes' // routes crew — détection V0
+  | 'crewOutposts' // avant-postes crew — détection V0 (ingest_run)
+  | 'crewRoutes' // routes crew — détection V0 (ingest_run)
   | 'maxCrewSize' // taille max atteinte par son crew
   | 'referralsActivated' // filleuls activés (1re course valide du filleul, §3.7)
   | 'soloRuns' // courses valides sans crew (§3)
@@ -81,10 +83,10 @@ export type BadgeMetric =
   | 'sprintRuns' // courses valides à allure < SPRINTER_MAX_AVG_PACE_S_KM
   | 'nightRuns' // départs 22 h-5 h locale (bornes comprises)
   | 'dawnRuns' // départs 5 h-7 h locale
-  | 'rainRuns' // courses sous la pluie — source météo V1
-  | 'snowRuns' // courses sous la neige — source météo V1
-  | 'heatRuns' // courses par forte chaleur — source météo V1
-  | 'eventRuns' // participations à un événement — système events V1
+  | 'rainRuns' // courses sous la pluie — météo Open-Meteo (ingest_run)
+  | 'snowRuns' // courses sous la neige — météo Open-Meteo (ingest_run)
+  | 'heatRuns' // courses par forte chaleur — météo Open-Meteo (ingest_run)
+  | 'eventRuns' // participations à un événement — table events (ingest_run)
   | 'loopRuns' // secret « La Boucle »
   | 'exactTenRuns' // secret « Dix Pile »
   | 'maxRunsInOneDay' // secret « Triplé » (max de courses valides un même jour)
@@ -105,6 +107,25 @@ export const DAWN_START_MIN = 5 * 60;
 export const DAWN_END_MIN = 7 * 60;
 /** Sprinter MVP : allure moyenne STRICTEMENT < 4:00/km (course valide ⇒ ≥ 1 km, §3.2). */
 export const SPRINTER_MAX_AVG_PACE_S_KM = 4 * 60;
+
+// ─── Mécaniques nouvelles (décision fondateur 03/07/2026 : tous attribuables) ─
+// Météo : source Open-Meteo (ingest_run, fail-open), heure LOCALE du départ.
+// Seuils INCLUS (0,5 mm/h pile = pluie) — décision pure weatherFlags (moteur).
+
+/** Météo (pluie) : précipitation de l'heure de départ ≥ 0,5 mm/h. */
+export const WEATHER_RAIN_MIN_MM_H = 0.5;
+/** Hiver (neige) : chute de neige de l'heure de départ ≥ 0,1 cm/h. */
+export const WEATHER_SNOW_MIN_CM_H = 0.1;
+/** Chaleur : température au départ ≥ 30 °C. */
+export const WEATHER_HEAT_MIN_C = 30;
+/**
+ * Route V0 (Connecteur / Bâtisseur Crew) : distance minimale entre les deux
+ * territoires reliés (hex de départ et hex d'arrivée de la course, tous deux
+ * possédés AVANT la course). Décision pure shouldOpenRoute (moteur).
+ */
+export const ROUTE_MIN_KM = 2;
+/** Anti-doublon route : deux « bouts » à ≤ 1 km d'une route existante = même route. */
+export const ROUTE_ENDPOINT_MATCH_KM = 1;
 
 // ─── Conditions des 9 badges secrets (documentées ici, évaluées par le moteur) ─
 
@@ -159,16 +180,7 @@ export interface BadgeDef {
   sort: number;
   /** Masqué en « ? » en UI tant que non débloqué (§2). */
   secret?: boolean;
-  /** Non attribuable en l'état : raison (§4). Visible, jamais décerné. */
-  dormant?: string;
 }
-
-const DORMANT_OUTPOSTS =
-  'Détection avant-postes/routes/secteurs V0 non branchée — attribuable dès qu\'elle tourne (AMENDEMENT-04 §4).';
-const DORMANT_CREW_CAP =
-  'CREW_MAX_MEMBERS = 10 en Saison 0 — attribuable quand le cap sera levé (V2). On ne change pas la règle pour un badge.';
-const DORMANT_WEATHER = 'Nécessite une source météo (V1).';
-const DORMANT_EVENTS = 'Nécessite le système d\'événements (V1).';
 
 function def(
   family: BadgeFamily,
@@ -178,7 +190,7 @@ function def(
   rarity: BadgeRarity,
   metric: BadgeMetric,
   threshold: number,
-  flags: { secret?: boolean; dormant?: string } = {},
+  flags: { secret?: boolean } = {},
 ): Omit<BadgeDef, 'sort'> {
   return {
     key,
@@ -190,7 +202,6 @@ function def(
     metric,
     threshold,
     ...(flags.secret ? { secret: true } : {}),
-    ...(flags.dormant ? { dormant: flags.dormant } : {}),
   };
 }
 
@@ -202,8 +213,8 @@ export const BADGES: readonly BadgeDef[] = [
   def('fondateur', 'fondateur', 'Fondateur', 'Capture 10 hexagones (cumul vie entière).', 'common', 'hexesCaptured', 10),
   def('fondateur', 'pionnier', 'Pionnier', 'Capture 100 hexagones (cumul vie entière).', 'rare', 'hexesCaptured', 100),
   def('fondateur', 'explorateur', 'Explorateur', 'Capture au moins 1 hex dans une zone pionnière ou sauvage.', 'rare', 'pioneerZoneRuns', 1),
-  def('fondateur', 'batisseur', 'Bâtisseur', 'Fonde ton premier avant-poste.', 'epic', 'outposts', 1, { dormant: DORMANT_OUTPOSTS }),
-  def('fondateur', 'connecteur', 'Connecteur', 'Relie deux territoires par une route.', 'rare', 'routes', 1, { dormant: DORMANT_OUTPOSTS }),
+  def('fondateur', 'batisseur', 'Bâtisseur', 'Fonde ton premier avant-poste.', 'epic', 'outposts', 1),
+  def('fondateur', 'connecteur', 'Connecteur', 'Relie deux territoires par une route.', 'rare', 'routes', 1),
   def('fondateur', 'implante', 'Implanté', '7 jours actifs cumulés (≥ 1 course valide chacun).', 'common', 'activeDays', 7),
   def('fondateur', 'racines', 'Racines', '30 jours actifs cumulés (≥ 1 course valide chacun).', 'rare', 'activeDays', 30),
   def('fondateur', 'legende_locale', 'Légende Locale', '100 jours actifs cumulés (≥ 1 course valide chacun).', 'legend', 'activeDays', 100),
@@ -234,22 +245,22 @@ export const BADGES: readonly BadgeDef[] = [
   def('crew', 'coequipier', 'Coéquipier', '5 contributions crew.', 'common', 'crewContributions', 5),
   def('crew', 'membre_actif', 'Membre Actif', '20 contributions crew.', 'rare', 'crewContributions', 20),
   def('crew', 'pilier', 'Pilier', '50 contributions crew.', 'epic', 'crewContributions', 50),
-  def('crew', 'stratege', 'Stratège', 'Participe à 10 avant-postes crew.', 'epic', 'crewOutposts', 10, { dormant: DORMANT_OUTPOSTS }),
-  def('crew', 'batisseur_crew', 'Bâtisseur Crew', 'Ouvre 1 route pour ton crew.', 'rare', 'crewRoutes', 1, { dormant: DORMANT_OUTPOSTS }),
+  def('crew', 'stratege', 'Stratège', 'Participe à 10 avant-postes crew.', 'epic', 'crewOutposts', 10),
+  def('crew', 'batisseur_crew', 'Bâtisseur Crew', 'Ouvre 1 route pour ton crew.', 'rare', 'crewRoutes', 1),
   def('crew', 'leader', 'Leader', 'Crée un crew.', 'common', 'crewsCreated', 1),
   def('crew', 'commandant', 'Commandant', 'Ton crew atteint 10 membres.', 'rare', 'maxCrewSize', 10),
-  def('crew', 'legende_crew', 'Légende Crew', 'Ton crew atteint 50 membres.', 'legend', 'maxCrewSize', 50, { dormant: DORMANT_CREW_CAP }),
-  def('crew', 'dynastie', 'Dynastie', 'Ton crew atteint 100 membres.', 'legend', 'maxCrewSize', 100, { dormant: DORMANT_CREW_CAP }),
+  def('crew', 'legende_crew', 'Légende Crew', 'Ton crew atteint 50 membres.', 'legend', 'maxCrewSize', 50),
+  def('crew', 'dynastie', 'Dynastie', 'Ton crew atteint 100 membres.', 'legend', 'maxCrewSize', 100),
   // ── Spécial (10) — rose ──
   def('special', 'nocturne', 'Nocturne', 'Course démarrée entre 22 h et 5 h.', 'common', 'nightRuns', 1),
   def('special', 'aube', 'Aube', 'Course démarrée entre 5 h et 7 h.', 'common', 'dawnRuns', 1),
-  def('special', 'meteo', 'Météo', 'Cours sous la pluie.', 'rare', 'rainRuns', 1, { dormant: DORMANT_WEATHER }),
-  def('special', 'hiver', 'Hiver', 'Cours sous la neige.', 'rare', 'snowRuns', 1, { dormant: DORMANT_WEATHER }),
-  def('special', 'chaleur', 'Chaleur', 'Cours par forte chaleur.', 'rare', 'heatRuns', 1, { dormant: DORMANT_WEATHER }),
+  def('special', 'meteo', 'Météo', 'Cours sous la pluie.', 'rare', 'rainRuns', 1),
+  def('special', 'hiver', 'Hiver', 'Cours sous la neige.', 'rare', 'snowRuns', 1),
+  def('special', 'chaleur', 'Chaleur', 'Cours par forte chaleur.', 'rare', 'heatRuns', 1),
   def('special', 'solitaire', 'Solitaire', '10 courses valides sans appartenir à un crew.', 'rare', 'soloRuns', 10),
   def('special', 'social', 'Social', 'Parraine 1 coureur (1re course valide du filleul).', 'common', 'referralsActivated', 1),
   def('special', 'communaute', 'Communauté', 'Parraine 5 coureurs.', 'epic', 'referralsActivated', 5),
-  def('special', 'evenement', 'Événement', 'Participe à un événement GRYD.', 'rare', 'eventRuns', 1, { dormant: DORMANT_EVENTS }),
+  def('special', 'evenement', 'Événement', 'Participe à un événement GRYD.', 'rare', 'eventRuns', 1),
   def('special', 'saison_0', 'Saison 0', 'Capture au moins 1 hex pendant la Saison 0.', 'legend', 'seasonZeroHexes', 1),
   // ── Secrets (9) — or, masqués en « ? » (§2). Conditions calculables depuis
   //    les données d'une course : heure de départ, distance, forme de trace,

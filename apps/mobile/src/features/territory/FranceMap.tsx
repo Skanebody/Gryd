@@ -1,10 +1,12 @@
 /**
- * GRYD — mini carte « Mon territoire » à l'échelle de la France (maquette
- * écran 04 : l'Hexagone, littéralement). France low-poly + Corse, villes
- * verrouillées en gris, clusters chartreuse Paris/Lille avec glow.
+ * GRYD — mini carte « Mon territoire » : la VRAIE France (décision fondateur
+ * 03/07/2026). Contours réels Etalab (FRANCE_OUTLINE, continent + Corse) +
+ * quadrillage H3 res 4 réel (FRANCE_HEX_CELLS, 337 cellules) de @klaim/shared.
+ * 3 états de cellule : à moi (Paris/Lille, chartreuse), adverse (Lyon, blanc
+ * faible), neutre (contour blanc 5 % seulement — pas de fill, sinon bouillie).
  * react-native-svg : seule façon de rendre ce vectoriel statique sans
- * embarquer MapLibre ici (justification 1 ligne, CLAUDE.md).
- * Couleurs : uniquement tokens (@klaim/shared) + opacités numériques.
+ * embarquer MapLibre ici (justification 1 ligne, CLAUDE.md). Universel — pas
+ * de variante .web. Couleurs : uniquement tokens + opacités numériques.
  */
 import { StyleSheet, View } from 'react-native';
 import Svg, {
@@ -17,70 +19,23 @@ import Svg, {
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
-import { colors, mapTokens } from '@klaim/shared';
+import {
+  FRANCE_CITIES,
+  FRANCE_HEX_CELLS,
+  FRANCE_HEX_R,
+  FRANCE_OUTLINE,
+  FRANCE_VIEWBOX,
+  colors,
+  mapTokens,
+} from '@klaim/shared';
 import { formatInt } from '../../ui/format';
 
-const VIEWBOX_W = 320;
-const VIEWBOX_H = 330;
+/** Contours réels → un seul Path (sous-tracés continent, Corse, îles). */
+const OUTLINE_PATH = FRANCE_OUTLINE.map(
+  (poly) => `M${poly.map(([x, y]) => `${x} ${y}`).join('L')}Z`,
+).join('');
 
-/** Tracé low-poly de l'Hexagone (repris tel quel de la maquette écran 04). */
-const FRANCE_PATH =
-  'M173 22 L196 34 L212 60 L247 72 L262 96 L256 128 L266 158 L262 192 L268 214 ' +
-  'L252 232 L214 226 L196 242 L172 250 L162 276 L138 282 L108 262 L96 232 L88 198 ' +
-  'L60 172 L22 128 L58 112 L86 94 L92 66 L118 70 L134 84 L152 70 L150 44 Z';
-const CORSICA_PATH = 'M292 232 L300 246 L296 270 L286 274 L284 250 Z';
-
-interface LockedCity {
-  x: number;
-  y: number;
-  label?: string;
-  labelX?: number;
-  labelY?: number;
-}
-
-/** Villes verrouillées (waitlist marketing — la capture n'y est plus bloquée). */
-const LOCKED_CITIES: readonly LockedCity[] = [
-  { x: 102, y: 220, label: 'BORDEAUX', labelX: 112, labelY: 224 },
-  { x: 222, y: 196, label: 'LYON', labelX: 230, labelY: 200 },
-  { x: 212, y: 238, label: 'MARSEILLE', labelX: 222, labelY: 242 },
-  { x: 66, y: 130 }, // Nantes / Rennes
-  { x: 150, y: 248 }, // Toulouse
-  { x: 238, y: 66 }, // Strasbourg
-];
-
-type Cell = readonly [number, number];
-
-interface CityCluster {
-  cx: number;
-  cy: number;
-  hexR: number;
-  glowR: number;
-  labelX: number;
-  labelY: number;
-  cells: readonly Cell[];
-}
-
-/** Clusters actifs Saison 0 (Paris + Lille seedées `active`, AMENDEMENT-02 §2). */
-const PARIS_CLUSTER: CityCluster = {
-  cx: 158,
-  cy: 96,
-  hexR: 5,
-  glowR: 26,
-  labelX: 182,
-  labelY: 92,
-  cells: [[0, 0], [1, 0], [-1, 0], [0, 1], [-1, 1], [0, -1], [1, -1], [-1, -1], [1, 1]],
-};
-const LILLE_CLUSTER: CityCluster = {
-  cx: 172,
-  cy: 34,
-  hexR: 4,
-  glowR: 16,
-  labelX: 190,
-  labelY: 30,
-  cells: [[0, 0], [1, 0], [-1, 0], [0, 1]],
-};
-
-/** Sommets d'un hexagone pointy-top (même géométrie que la maquette). */
+/** Sommets d'un hexagone pointy-top (même géométrie que BadgeHex). */
 function hexPoints(cx: number, cy: number, r: number): string {
   const pts: string[] = [];
   for (let i = 0; i < 6; i++) {
@@ -90,52 +45,65 @@ function hexPoints(cx: number, cy: number, r: number): string {
   return pts.join(' ');
 }
 
-interface ClusterHex {
+interface CityPoint {
+  x: number;
+  y: number;
+}
+
+/** Les villes projetées viennent des données générées — garde-fou typé strict. */
+function cityOf(name: string): CityPoint {
+  const city = FRANCE_CITIES[name];
+  if (city === undefined) throw new Error(`FranceMap : ville inconnue « ${name} »`);
+  return city;
+}
+
+const PARIS = cityOf('paris');
+const LILLE = cityOf('lille');
+const LYON = cityOf('lyon');
+
+type HexCell = (typeof FRANCE_HEX_CELLS)[number];
+
+/** Les `count` cellules H3 les plus proches d'une ville (hors déjà prises). */
+function nearestCells(city: CityPoint, count: number, taken: ReadonlySet<string>): HexCell[] {
+  return FRANCE_HEX_CELLS.filter((cell) => !taken.has(cell.h))
+    .map((cell) => ({ cell, d2: (cell.x - city.x) ** 2 + (cell.y - city.y) ** 2 }))
+    .sort((a, b) => a.d2 - b.d2)
+    .slice(0, count)
+    .map((entry) => entry.cell);
+}
+
+/** Saison 0 : Paris + Lille seedées `active` (AMENDEMENT-02 §2) — 9 + 4 hexes à moi. */
+const PARIS_CELLS = nearestCells(PARIS, 9, new Set());
+const LILLE_CELLS = nearestCells(LILLE, 4, new Set(PARIS_CELLS.map((c) => c.h)));
+const MINE_IDS = new Set([...PARIS_CELLS, ...LILLE_CELLS].map((c) => c.h));
+/** Cellules adverses vers Lyon (crews rivaux — blanc faible, jamais de teinte). */
+const FOE_CELLS = nearestCells(LYON, 5, MINE_IDS);
+const FOE_IDS = new Set(FOE_CELLS.map((c) => c.h));
+/** Le cœur du cluster Paris (cellule la plus proche) est rendu plus dense. */
+const PARIS_CORE_ID = PARIS_CELLS[0]?.h;
+
+/** Le reste du quadrillage : contour blanc 5 % seulement — un seul Path. */
+const NEUTRAL_PATH = FRANCE_HEX_CELLS.filter((c) => !MINE_IDS.has(c.h) && !FOE_IDS.has(c.h))
+  .map((c) => {
+    const pts = hexPoints(c.x, c.y, FRANCE_HEX_R).split(' ');
+    return `M${pts.join('L')}Z`;
+  })
+  .join('');
+
+interface LockedCity {
   key: string;
-  points: string;
-  /** Le premier hex est le cœur du cluster (rendu plus dense). */
-  core: boolean;
+  label?: string;
 }
 
-function clusterHexes(cluster: CityCluster): ClusterHex[] {
-  const w = Math.sqrt(3) * cluster.hexR;
-  const h = 1.5 * cluster.hexR;
-  return cluster.cells.map(([col, row], idx) => ({
-    key: `${col},${row}`,
-    points: hexPoints(
-      cluster.cx + col * w + (row % 2 !== 0 ? w / 2 : 0),
-      cluster.cy + row * h,
-      cluster.hexR,
-    ),
-    core: idx === 0,
-  }));
-}
-
-function Cluster({ cluster, glowId, label }: { cluster: CityCluster; glowId: string; label: string }) {
-  return (
-    <G>
-      <Circle cx={cluster.cx} cy={cluster.cy} r={cluster.glowR} fill={`url(#${glowId})`} />
-      {clusterHexes(cluster).map((hex) => (
-        <Polygon
-          key={hex.key}
-          points={hex.points}
-          fill={hex.core ? colors.chartreuse40 : colors.chartreuse14}
-          stroke={colors.chartreuse40}
-          strokeWidth={1}
-        />
-      ))}
-      <SvgText
-        x={cluster.labelX}
-        y={cluster.labelY}
-        fontSize={9}
-        letterSpacing={1.2}
-        fill={colors.chartreuse}
-      >
-        {label}
-      </SvgText>
-    </G>
-  );
-}
+/** Villes verrouillées (waitlist marketing — la capture n'y est plus bloquée). */
+const LOCKED_CITIES: readonly LockedCity[] = [
+  { key: 'bordeaux', label: 'BORDEAUX' },
+  { key: 'lyon', label: 'LYON' },
+  { key: 'marseille', label: 'MARSEILLE' },
+  { key: 'nantes' },
+  { key: 'toulouse' },
+  { key: 'strasbourg' },
+];
 
 export interface FranceMapProps {
   parisHexes: number;
@@ -147,54 +115,109 @@ export function FranceMap({ parisHexes, lilleHexes }: FranceMapProps) {
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel="Carte de France avec mes territoires : clusters actifs à Paris et Lille"
+      accessibilityLabel="Carte de France avec mes territoires : clusters actifs à Paris et Lille, crews adverses vers Lyon"
       style={styles.frame}
     >
-      <Svg width="100%" height="100%" viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${FRANCE_VIEWBOX.w} ${FRANCE_VIEWBOX.h}`}>
         <Defs>
           <RadialGradient id="cityGlow" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor={colors.chartreuse} stopOpacity={0.6} />
+            <Stop offset="0%" stopColor={colors.chartreuse} stopOpacity={0.5} />
             <Stop offset="100%" stopColor={colors.chartreuse} stopOpacity={0} />
           </RadialGradient>
         </Defs>
 
-        {/* France low-poly + Corse — blanc très faible, comme les parcs du fond de carte */}
+        {/* Contours réels — blanc 3,5 % / trait blanc 16 % (tokens + opacités) */}
         <Path
-          d={FRANCE_PATH}
-          fill={mapTokens.parks}
-          stroke={colors.grisLigne}
-          strokeWidth={1.4}
+          d={OUTLINE_PATH}
+          fill={colors.blanc}
+          fillOpacity={0.035}
+          stroke={colors.blanc}
+          strokeOpacity={0.16}
+          strokeWidth={1}
           strokeLinejoin="round"
         />
-        <Path d={CORSICA_PATH} fill={mapTokens.parks} stroke={colors.grisLigne} strokeWidth={1.2} />
 
-        {/* Villes verrouillées (gris, jamais de chartreuse hors de mon territoire) */}
+        {/* Quadrillage H3 neutre — contour seul, pas de fill (lisibilité) */}
+        <Path d={NEUTRAL_PATH} fill="none" stroke={mapTokens.neutralStroke} strokeWidth={1} />
+
+        {/* Glows radiaux conservés — mes deux zones de guerre actives */}
+        <Circle cx={PARIS.x} cy={PARIS.y} r={82} fill="url(#cityGlow)" />
+        <Circle cx={LILLE.x} cy={LILLE.y} r={52} fill="url(#cityGlow)" />
+
+        {/* Cellules adverses (§D : blanc faible, différenciées par motif plus tard) */}
         <G>
-          {LOCKED_CITIES.map((city) => (
-            <Circle key={`${city.x},${city.y}`} cx={city.x} cy={city.y} r={3} fill={colors.gris} opacity={0.55} />
-          ))}
-          {LOCKED_CITIES.filter((c) => c.label !== undefined).map((city) => (
-            <SvgText
-              key={city.label}
-              x={city.labelX}
-              y={city.labelY}
-              fontSize={8}
-              letterSpacing={1}
-              fill={colors.gris}
-            >
-              {city.label}
-            </SvgText>
+          {FOE_CELLS.map((cell) => (
+            <Polygon
+              key={cell.h}
+              points={hexPoints(cell.x, cell.y, FRANCE_HEX_R)}
+              fill={mapTokens.foeFill}
+              stroke={mapTokens.foeStroke}
+              strokeWidth={1}
+            />
           ))}
         </G>
 
-        {/* Mes clusters — emploi §C.3 (1) : moi et mon crew sur la carte */}
-        <Cluster cluster={LILLE_CLUSTER} glowId="cityGlow" label={`LILLE · ${formatInt(lilleHexes)}`} />
-        <Cluster cluster={PARIS_CLUSTER} glowId="cityGlow" label={`PARIS · ${formatInt(parisHexes)}`} />
+        {/* Mes cellules — emploi §C.3 (1) : moi et mon crew sur la carte */}
+        <G>
+          {[...PARIS_CELLS, ...LILLE_CELLS].map((cell) => (
+            <Polygon
+              key={cell.h}
+              points={hexPoints(cell.x, cell.y, FRANCE_HEX_R)}
+              fill={cell.h === PARIS_CORE_ID ? colors.chartreuse : mapTokens.mineFill}
+              fillOpacity={cell.h === PARIS_CORE_ID ? 0.45 : 1}
+              stroke={mapTokens.mineStroke}
+              strokeWidth={1}
+            />
+          ))}
+        </G>
+
+        {/* Villes verrouillées (gris, jamais de chartreuse hors de mon territoire) */}
+        <G>
+          {LOCKED_CITIES.map(({ key }) => {
+            const city = cityOf(key);
+            return <Circle key={key} cx={city.x} cy={city.y} r={9} fill={colors.gris} opacity={0.55} />;
+          })}
+          {LOCKED_CITIES.filter((c) => c.label !== undefined).map(({ key, label }) => {
+            const city = cityOf(key);
+            return (
+              <SvgText
+                key={`${key}-label`}
+                x={city.x + 20}
+                y={city.y + 9}
+                fontSize={25}
+                letterSpacing={3}
+                fill={colors.gris}
+              >
+                {label}
+              </SvgText>
+            );
+          })}
+        </G>
+
+        {/* Étiquettes de mes clusters — compteurs branchés sur les props */}
+        <SvgText
+          x={LILLE.x + 48}
+          y={LILLE.y + 10}
+          fontSize={28}
+          letterSpacing={3.5}
+          fill={colors.chartreuse}
+        >
+          {`LILLE · ${formatInt(lilleHexes)}`}
+        </SvgText>
+        <SvgText
+          x={PARIS.x + 60}
+          y={PARIS.y - 44}
+          fontSize={28}
+          letterSpacing={3.5}
+          fill={colors.chartreuse}
+        >
+          {`PARIS · ${formatInt(parisHexes)}`}
+        </SvgText>
       </Svg>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  frame: { width: '100%', aspectRatio: VIEWBOX_W / VIEWBOX_H },
+  frame: { width: '100%', aspectRatio: FRANCE_VIEWBOX.w / FRANCE_VIEWBOX.h },
 });

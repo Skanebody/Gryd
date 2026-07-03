@@ -17,6 +17,7 @@ import {
   spacing,
 } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
+import { Icon } from '../../src/ui/Icon';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt } from '../../src/ui/format';
 
@@ -55,10 +56,14 @@ function Row({ entry }: { entry: LeaderboardEntry }) {
     <View style={[styles.row, entry.me === true && styles.rowMe]}>
       <Text style={[styles.rank, entry.me === true && styles.rankMe]}>{entry.rank}</Text>
       <View style={styles.rowInfo}>
-        <Text style={[styles.pseudo, entry.me === true && styles.pseudoMe]}>
-          {entry.pseudo}
-          {entry.me === true ? '  · toi' : ''}
-        </Text>
+        <View style={styles.pseudoRow}>
+          {/* Couronne remplie pour le rang 1 — blanc, jamais de chartreuse hors « moi » */}
+          {entry.rank === 1 ? <Icon name="couronne" size={14} color={colors.blanc} active /> : null}
+          <Text style={[styles.pseudo, entry.me === true && styles.pseudoMe]}>
+            {entry.pseudo}
+            {entry.me === true ? '  · toi' : ''}
+          </Text>
+        </View>
         <Text style={styles.crew}>{entry.crew}</Text>
       </View>
       <Text style={styles.points}>{formatInt(entry.points)}</Text>
@@ -74,6 +79,7 @@ export default function ClassementScreen() {
   return (
     <TabScreen
       title="Classement"
+      icon="classement"
       kicker={`SAISON 0 · SEMAINE 2/${SEASON_DURATION_WEEKS}`}
       subtitle={`Joueurs · ${CITIES.paris.name}`}
     >
@@ -128,6 +134,7 @@ const styles = StyleSheet.create({
   },
   rankMe: { color: colors.chartreuse },
   rowInfo: { flex: 1 },
+  pseudoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pseudo: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500', letterSpacing: 0.4 },
   pseudoMe: { fontWeight: '700' },
   crew: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2, letterSpacing: 0.4 },

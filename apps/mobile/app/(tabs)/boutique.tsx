@@ -19,9 +19,11 @@ import {
   fontSizes,
   radii,
   spacing,
+  type IconName,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../src/lib/analytics';
 import { GhostButton } from '../../src/ui/GhostButton';
+import { Icon } from '../../src/ui/Icon';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt } from '../../src/ui/format';
 
@@ -29,6 +31,8 @@ interface ShopItem {
   sku: string;
   name: string;
   description: string;
+  /** Icônes filaires (charte §F) — Éclats : pas encore d'icône dédiée (plus tard). */
+  icons?: readonly IconName[];
 }
 
 const CLUB_BENEFITS =
@@ -37,14 +41,16 @@ const CLUB_BENEFITS =
   `${STREAK_FREEZE_CLUB_PER_MONTH} gels de série/mois`;
 
 const CLUB_ITEMS: readonly ShopItem[] = [
-  { sku: SKUS.clubMonthly, name: 'Club — mensuel', description: CLUB_BENEFITS },
-  { sku: SKUS.clubAnnual, name: 'Club — annuel', description: CLUB_BENEFITS },
+  // Bénéfices Club : bouclier inclus + gels de série (flamme) — icônes des items concernés
+  { sku: SKUS.clubMonthly, name: 'Club — mensuel', description: CLUB_BENEFITS, icons: ['bouclier', 'serie'] },
+  { sku: SKUS.clubAnnual, name: 'Club — annuel', description: CLUB_BENEFITS, icons: ['bouclier', 'serie'] },
 ];
 
 const STARTER_ITEM: ShopItem = {
   sku: SKUS.starterPack,
   name: 'Pack Starter',
   description: `${STARTER_PACK_ECLATS} Éclats pour bien démarrer — proposé une seule fois.`,
+  icons: ['boutique'], // étiquette — offre unique
 };
 
 const ECLATS_ITEMS: readonly ShopItem[] = [
@@ -56,6 +62,13 @@ const ECLATS_ITEMS: readonly ShopItem[] = [
 function ShopRow({ item }: { item: ShopItem }) {
   return (
     <View style={styles.itemRow}>
+      {item.icons !== undefined && item.icons.length > 0 ? (
+        <View style={styles.itemIcons}>
+          {item.icons.map((name) => (
+            <Icon key={name} name={name} size={20} color={colors.blanc} />
+          ))}
+        </View>
+      ) : null}
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemDescription}>{item.description}</Text>
@@ -125,6 +138,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.cardPadding,
     marginBottom: 10,
   },
+  itemIcons: { gap: 10, alignItems: 'center' },
   itemInfo: { flex: 1 },
   itemName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', letterSpacing: -0.2 },
   itemDescription: {
