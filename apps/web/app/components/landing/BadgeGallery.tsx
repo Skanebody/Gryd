@@ -20,11 +20,10 @@ import {
   DECAY_DAYS,
   NIGHT_END_MIN,
   NIGHT_START_MIN,
-  SECTOR_CONTROL_THRESHOLDS,
   type BadgeDef,
   type BadgeFamily,
   type BadgeMetric,
-  type BadgeRarity,
+  type BadgeTier,
 } from '@klaim/shared';
 import type { Lang } from './dictionary';
 import { useLang } from './LangProvider';
@@ -37,17 +36,17 @@ const HEX_POINTS = '12,2.5 20.2,7.25 20.2,16.75 12,21.5 3.8,16.75 3.8,7.25';
 /** ~13 badges représentatifs de la planche (toutes familles, toutes raretés). */
 const SHOWCASE_KEYS = [
   'fondateur',
-  'connecteur', // « Route Opened »
-  'legende_locale',
-  'endurance', // « Long Run »
-  'marathonien',
-  'defenseur',
-  'predateur',
-  'legende_territoire', // « Légende »
-  'pilier',
-  'legende_crew',
-  'dynastie',
-  'nocturne',
+  'route_opened_1', // « Route Opened »
+  'hex_hunter_legend',
+  'distance_runner_3', // « Long Run »
+  'distance_runner_5', // marathon
+  'defender_1',
+  'raider_2',
+  'zone_taker_legend',
+  'crew_member_5',
+  'crew_season_legend',
+  'united_front_legend',
+  'gryd_verified_3',
   'saison_0',
 ] as const;
 
@@ -59,11 +58,17 @@ const SHOWCASE: readonly BadgeDef[] = SHOWCASE_KEYS.flatMap((key) => {
 const SECRETS: readonly BadgeDef[] = BADGES.filter((badge) => badge.secret);
 
 const FAMILIES: readonly BadgeFamily[] = [
-  'fondateur',
-  'performance',
+  'onboarding',
+  'distance',
   'territoire',
+  'attaque',
+  'defense',
+  'exploration',
+  'routes',
   'crew',
-  'special',
+  'performance',
+  'saison',
+  'verified',
   'secret',
 ];
 
@@ -84,20 +89,22 @@ const EN_BY_METRIC: Partial<Record<BadgeMetric, (threshold: number) => string>> 
   hexesCaptured: (t) => `Capture ${enN(t)} hexagon${t > 1 ? 's' : ''} (lifetime total).`,
   bestRunDistanceM: (t) => `Run ${enN(t / 1000)} km in a single run.`,
   totalDistanceM: (t) => `Run ${enN(t / 1000)} km in total.`,
-  activeDays: (t) => `${enN(t)} active days (at least 1 valid run each).`,
+  seasonDistanceM: (t) => `Run ${enN(t / 1000)} km this season.`,
   steals: (t) => `Steal ${enN(t)} hexagon${t > 1 ? 's' : ''} from rivals.`,
   defends: (t) => `Defend ${enN(t)} hexagon${t > 1 ? 's' : ''}.`,
+  pioneerHexes: (t) => `Claim ${enN(t)} pioneer hexagon${t > 1 ? 's' : ''}.`,
   crewContributions: (t) => `${enN(t)} crew contributions.`,
-  maxCrewSize: (t) => `Your crew reaches ${enN(t)} members.`,
-  dominatedSectors: () =>
-    `Dominate a sector at ${Math.round(SECTOR_CONTROL_THRESHOLDS.dominated * 100)}% or more.`,
+  verifiedRuns: (t) => `${enN(t)} GRYD Verified runs.`,
+  weeksActive: (t) => `${enN(t)} active weeks.`,
+  routes: (t) => `Open ${enN(t)} route${t > 1 ? 's' : ''}.`,
   seasonZeroHexes: (t) => `Capture at least ${enN(t)} hex${t > 1 ? 'es' : ''} during Season 0.`,
 };
 
 /** Formulations EN non mécaniques (aucun seuil numérique dedans). */
 const EN_MANUAL: Record<string, string> = {
-  connecteur: 'Link two territories with a route.',
-  nocturne: `Start a run between ${enHour(NIGHT_START_MIN)} and ${enHour(NIGHT_END_MIN)}.`,
+  route_opened_1: 'Open your first route.',
+  secret_silent_takeover:
+    `Steal 50+ hexes on a run started between ${enHour(NIGHT_START_MIN)} and ${enHour(NIGHT_END_MIN)}.`,
 };
 
 const enRequirement = (badge: BadgeDef): string =>
@@ -119,7 +126,7 @@ type Strings = {
   sub: (days: string, secrets: string) => string;
   familiesAria: string;
   families: Record<BadgeFamily, string>;
-  rarities: Record<BadgeRarity, string>;
+  rarities: Record<BadgeTier, string>;
   galleryAria: string;
   ladderAria: string;
   ladderCaption: string;
@@ -136,14 +143,20 @@ const STRINGS: Record<Lang, Strings> = {
       `La carte se reprend tous les ${days} jours — la collection, elle, est gravée. Cinq familles, ${secrets} secrets, et une rareté qui se mérite sur le bitume.`,
     familiesAria: 'Familles de badges',
     families: {
-      fondateur: 'Fondateur',
-      performance: 'Performance',
+      onboarding: 'Onboarding',
+      distance: 'Distance',
       territoire: 'Territoire',
+      attaque: 'Attaque',
+      defense: 'Défense',
+      exploration: 'Exploration',
+      routes: 'Routes',
       crew: 'Crew',
-      special: 'Spécial',
+      performance: 'Performance',
+      saison: 'Saison',
+      verified: 'Verified',
       secret: 'Secret',
     },
-    rarities: { common: 'Common', rare: 'Rare', epic: 'Epic', legend: 'Legend' },
+    rarities: { road: 'Road', tempo: 'Tempo', race: 'Race', carbon: 'Carbon', elite: 'Elite', legend: 'Legend' },
     galleryAria: 'Galerie de badges représentatifs',
     ladderAria: 'Échelle des raretés',
     ladderCaption: 'Du common flat au legend doré — la rareté se voit, elle ne s’achète pas.',
@@ -158,14 +171,20 @@ const STRINGS: Record<Lang, Strings> = {
       `The map can be retaken every ${days} days — the collection is engraved for good. Five families, ${secrets} secrets, and a rarity you earn on the asphalt.`,
     familiesAria: 'Badge families',
     families: {
-      fondateur: 'Founder',
-      performance: 'Performance',
+      onboarding: 'Onboarding',
+      distance: 'Distance',
       territoire: 'Territory',
+      attaque: 'Attack',
+      defense: 'Defense',
+      exploration: 'Exploration',
+      routes: 'Routes',
       crew: 'Crew',
-      special: 'Special',
+      performance: 'Performance',
+      saison: 'Season',
+      verified: 'Verified',
       secret: 'Secret',
     },
-    rarities: { common: 'Common', rare: 'Rare', epic: 'Epic', legend: 'Legend' },
+    rarities: { road: 'Road', tempo: 'Tempo', race: 'Race', carbon: 'Carbon', elite: 'Elite', legend: 'Legend' },
     galleryAria: 'Gallery of representative badges',
     ladderAria: 'Rarity ladder',
     ladderCaption: 'From flat common to golden legend — rarity is visible, never for sale.',
@@ -178,6 +197,16 @@ const STRINGS: Record<Lang, Strings> = {
 /** Couleur famille injectée en custom property — surfaces badge uniquement. */
 const badgeTint = (badge: BadgeDef): CSSProperties =>
   ({ '--bc': badge.familyColor }) as CSSProperties;
+
+/** Classe visuelle par TIER (§1.1) : intensité croissante road → legend. */
+const TIER_CLASS: Record<BadgeTier, string> = {
+  road: styles.rarity_common!,
+  tempo: styles.rarity_rare!,
+  race: styles.rarity_rare!,
+  carbon: styles.rarity_epic!,
+  elite: styles.rarity_epic!,
+  legend: styles.rarity_legend!,
+};
 
 export function BadgeGallery() {
   const { lang, formatInt } = useLang();
@@ -213,7 +242,7 @@ export function BadgeGallery() {
             <li key={badge.key} className={styles.cell}>
               <Reveal delayMs={(i % 4) * 70} className={styles.cellReveal}>
                 <article
-                  className={`${styles.badgeCard} ${styles[`rarity_${badge.rarity}`] ?? ''}`}
+                  className={`${styles.badgeCard} ${TIER_CLASS[badge.tier] ?? ''}`}
                   style={badgeTint(badge)}
                 >
                   <span className={styles.hexWrap} aria-hidden="true">
@@ -224,7 +253,7 @@ export function BadgeGallery() {
                   <div>
                     <span className={styles.badgeName}>{badge.name}</span>
                     <span className={styles.badgeFamily}>
-                      {t.families[badge.family]} · {t.rarities[badge.rarity]}
+                      {t.families[badge.family]} · {t.rarities[badge.tier]}
                     </span>
                     <p className={styles.badgeReq}>
                       {lang === 'en' ? enRequirement(badge) : badge.requirement}

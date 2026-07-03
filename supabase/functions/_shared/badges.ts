@@ -1,164 +1,287 @@
 /**
- * GRYD — Catalogue des badges (AMENDEMENT-04, planche « GRYD — TOUS LES BADGES »).
- * SOURCE DE VÉRITÉ UNIQUE du catalogue : 50 badges en 5 familles + 9 secrets = 59.
- * AUCUN nombre magique badge hors de ce fichier (seuils, couleurs, bornes horaires).
+ * GRYD — Catalogue des badges V2 à NIVEAUX (AMENDEMENT-06 §1, remplace le
+ * catalogue 59 d'AMENDEMENT-04). SOURCE DE VÉRITÉ UNIQUE du catalogue.
+ * AUCUN nombre magique badge hors de ce fichier (seuils, couleurs, bornes).
  *
- * - Les couleurs de famille sont des DONNÉES du catalogue (exception polychrome
- *   contrôlée, AMENDEMENT-04 §1) — jamais dans design-tokens. Seules les
- *   surfaces badge (collection, détail, carte de partage, notification de
- *   déblocage) les utilisent ; partout ailleurs un badge reste monochrome charte.
- * - TOUS les badges sont attribuables (décision fondateur 03/07/2026, §4) :
- *   le concept « dormant » a disparu — les mécaniques manquantes (météo,
- *   avant-postes/routes V0, événements) sont branchées dans ingest_run.
- * - `secret` (§2) : masqué en « ? » en UI tant que non débloqué.
- * - L'attribution vit dans packages/engine/src/badges.ts (applyRunToStats +
- *   evaluateBadges) ; la copie supabase/functions/_shared/badges.ts est GÉNÉRÉE
- *   par scripts/sync-game-rules.mjs — ne jamais l'éditer à la main.
- * - La migration supabase/migrations/0007_badges_catalog.sql reseed la table
- *   `badges` depuis ce catalogue (SQL écrit à la main, à générer par script à terme).
+ * Nouveautés V2 :
+ *  - `BadgeTier` (road·tempo·race·carbon·elite·legend) REMPLACE `BadgeRarity`
+ *    PARTOUT (le tier = intensité visuelle du niveau, §1.1). Visuel par tier =
+ *    maquette-badges-gryd.html (road graphite → legend or+halo).
+ *  - 12 familles (§1.2), couleurs EXACTES = DATA du catalogue (exception
+ *    polychrome contrôlée, AMENDEMENT-04 §1) — jamais dans design-tokens.
+ *  - Familles progressives : `leveledFamily(slug,name,family,metric,thresholds)`
+ *    → 6 BadgeDef (slug_1..5 + slug_legend), names en chiffres romains + LEGEND,
+ *    tier par niveau [road,tempo,race,carbon,elite,legend] (§1.3). Le moteur
+ *    décerne TOUS les niveaux franchis d'un coup (jamais ré-attribués).
+ *  - 8 onboarding (reprend les keys/names FR existants quand l'équivalent
+ *    existe : premiers_pas… ; ajoute first_share/first_verified/first_crew).
+ *  - Héritage Saison 0 : keys sans équivalent conservées (`legacy: true`), non
+ *    mises en avant (§1.5).
+ *  - Famille saison : 18 médailles Season/National/Crew Rank — DÉCERNÉES PAR
+ *    season_close (metric seasonRank/nationalRank/crewSeasonRank), pas par course.
+ *  - 12 secrets (9 existants + Comeback / Silent Takeover / No Map Run, §1.2).
+ *
+ * L'attribution vit dans packages/engine/src/badges.ts ; la copie
+ * supabase/functions/_shared/badges.ts est GÉNÉRÉE par sync-game-rules.mjs.
+ * La migration 0009 reseed la table `badges` depuis ce catalogue.
  */
 
-// ─── Familles et couleurs (AMENDEMENT-04 §1) ─────────────────────────────────
+// ─── Tiers (AMENDEMENT-06 §1.1) — remplacent les raretés PARTOUT ──────────────
+
+/**
+ * Tier d'un badge/niveau. Le niveau n d'une famille progressive a le tier
+ * `BADGE_TIERS[n-1]` (§1.3). Mapping ancien→nouveau (migration 0009) :
+ * common→road, rare→tempo, epic→carbon, legend→legend (race/elite = V2 only).
+ */
+export type BadgeTier = 'road' | 'tempo' | 'race' | 'carbon' | 'elite' | 'legend';
+
+/** Ordre des tiers = ordre des 6 niveaux d'une famille progressive (§1.3). */
+export const BADGE_TIERS: readonly BadgeTier[] = [
+  'road',
+  'tempo',
+  'race',
+  'carbon',
+  'elite',
+  'legend',
+];
+
+/** Rang d'intensité d'un tier (0 = road … 5 = legend) — pour « Tier max ». */
+export const BADGE_TIER_RANK: Record<BadgeTier, number> = {
+  road: 0,
+  tempo: 1,
+  race: 2,
+  carbon: 3,
+  elite: 4,
+  legend: 5,
+};
+
+/** Libellé court affiché d'un tier (§1.1). */
+export const BADGE_TIER_LABEL: Record<BadgeTier, string> = {
+  road: 'Road',
+  tempo: 'Tempo',
+  race: 'Race',
+  carbon: 'Carbon',
+  elite: 'Elite',
+  legend: 'Legend',
+};
+
+/**
+ * Recette VISUELLE par tier — DATA du catalogue (exception polychrome §1),
+ * transcrite 1:1 de maquette-badges-gryd.html (objet TIER). Le TIER décide
+ * anneau/glow/halo, la FAMILLE (familyColor) décide la teinte de l'icône :
+ * road contour graphite simple → legend or + halo (§1.6).
+ *
+ * `ring`   : couleur du contour de l'hexagone.
+ * `ring2`  : contour intérieur (null = aucun).
+ * `glow`   : couleur du glow diffus (null = aucun, tiers bas).
+ * `haloOpacity` : opacité de l'ellipse-halo derrière (0 = pas de halo — legend
+ *                 uniquement).
+ * `strokeWidth` : épaisseur du contour (road plus fin, tiers hauts plus épais).
+ * La teinte chartreuse des tiers tempo/race (maquette) est neutralisée : sur la
+ * surface badge, la teinte vient de la FAMILLE (familyColor), pas du tier.
+ */
+export interface BadgeTierStyle {
+  ring: string;
+  ring2: string | null;
+  glow: string | null;
+  haloOpacity: number;
+  strokeWidth: number;
+}
+
+export const BADGE_TIER_STYLE: Record<BadgeTier, BadgeTierStyle> = {
+  // road : graphite, contour simple, sans glow (maquette t-road)
+  road: { ring: '#3E4239', ring2: null, glow: null, haloOpacity: 0, strokeWidth: 1.6 },
+  // tempo : contour renforcé, sans glow encore
+  tempo: { ring: 'rgba(250,250,247,0.30)', ring2: null, glow: null, haloOpacity: 0, strokeWidth: 1.8 },
+  // race : double anneau + amorce de glow
+  race: { ring: 'rgba(250,250,247,0.55)', ring2: 'rgba(250,250,247,0.22)', glow: null, haloOpacity: 0, strokeWidth: 2 },
+  // carbon : titane, double anneau (maquette t-carbon)
+  carbon: { ring: '#9BA3AD', ring2: 'rgba(155,163,173,0.35)', glow: null, haloOpacity: 0, strokeWidth: 2.2 },
+  // elite : bleu électrique, glow (maquette t-elite)
+  elite: { ring: '#DCE6F2', ring2: 'rgba(111,183,255,0.50)', glow: 'rgba(111,183,255,0.35)', haloOpacity: 0, strokeWidth: 2.4 },
+  // legend : or + halo (maquette t-legend)
+  legend: { ring: '#E7B84C', ring2: 'rgba(231,184,76,0.45)', glow: 'rgba(231,184,76,0.40)', haloOpacity: 0.18, strokeWidth: 2.4 },
+};
+
+// ─── Familles et couleurs (AMENDEMENT-06 §1.2) ───────────────────────────────
 
 export type BadgeFamily =
-  | 'fondateur'
-  | 'performance'
+  | 'onboarding'
+  | 'distance'
   | 'territoire'
+  | 'attaque'
+  | 'defense'
+  | 'exploration'
+  | 'routes'
   | 'crew'
-  | 'special'
+  | 'performance'
+  | 'saison'
+  | 'verified'
   | 'secret';
 
 /**
- * Couleur d'accent PAR FAMILLE (planche) : Fondateur violet · Performance cyan ·
- * Territoire vert · Crew orange · Spécial rose · Secrets or.
- * Valeurs alignées sur le catalogue provisoire mobile (features/badges).
+ * Couleur d'accent PAR FAMILLE (§1.2, couleurs EXACTES). DATA du catalogue
+ * (exception polychrome AMENDEMENT-04 §1) : seules les surfaces badge
+ * (collection, détail, carte de partage, notification) les utilisent ;
+ * partout ailleurs un badge reste monochrome charte.
  */
 export const BADGE_FAMILY_COLORS: Record<BadgeFamily, string> = {
-  fondateur: '#8B5CF6', // violet
-  performance: '#22D3EE', // cyan
+  onboarding: '#8B5CF6', // violet
+  distance: '#F472B6', // rose
   territoire: '#4ADE80', // vert
+  attaque: '#FF5C33', // rouge-orangé
+  defense: '#6FB7FF', // bleu
+  exploration: '#2DD4BF', // turquoise
+  routes: '#F59E0B', // ambre
   crew: '#FB923C', // orange
-  special: '#F472B6', // rose
+  performance: '#22D3EE', // cyan
+  saison: '#E7B84C', // or
+  verified: '#9BA3AD', // gris acier
   secret: '#E7B84C', // or
 };
 
-export type BadgeRarity = 'common' | 'rare' | 'epic' | 'legend';
+// ─── GRYD Verified (§1.4) ────────────────────────────────────────────────────
+/**
+ * Seuil de motionTrust au-dessus duquel une course valide compte comme
+ * vérifiée (metric verifiedRuns). Si motionTrust indisponible : compte comme
+ * vérifié SEULEMENT si status valid ET aucun flag (documenté engine/badges.ts).
+ */
+export const VERIFIED_MIN_TRUST = 70;
 
-// ─── Métriques évaluées (stats vie entière, LifetimeStats côté moteur) ───────
+// ─── Métriques évaluées (LifetimeStats côté moteur) ──────────────────────────
 
 /**
  * Chaque badge est décerné quand `stats[metric] >= threshold`. Toutes les
- * métriques sont des compteurs/maxima croissants (jamais décroissants) : le
- * franchissement d'un seuil est donc définitif.
- * `outposts`/`routes`/`crewOutposts`/`crewRoutes` (détection V0), et
- * `rain/snow/heat/eventRuns` (météo Open-Meteo + table events) sont alimentées
- * par ingest_run. `sectorsVisited`, `crewsCreated`, `referralsActivated`,
- * `dominatedSectors` restent alimentées par leurs pipelines respectifs
- * (jobs/endpoints) directement dans user_stats.
+ * métriques sont des compteurs/maxima croissants (franchissement définitif),
+ * SAUF les métriques saison (seasonRank/…) qui sont des MAXIMA de rang inversé
+ * (voir season_close) : on stocke `(N - rang + 1)` pour que « ≥ threshold »
+ * signifie « au moins aussi bien classé ».
+ *
+ * Alimentées par ingest_run DÈS MAINTENANT : distance (course/saison/vie),
+ * hexes, volés, défendus, pionniers, routes, avant-postes, contributions,
+ * weeksActive (dérivée des jours actifs ISO-semaine), verifiedRuns, cleanDays
+ * (via lastRejectedDay — applyRejectedRun), secrets.
+ * Alimentées par les JOBS (sector_control/season_close/offensives V1) :
+ * sectorsControlled, bestSectorControlPct, holdDays, clustersProtected,
+ * offensivesJoined, seasonRank/nationalRank/crewSeasonRank, activeMembersWeek,
+ * paceImprovementSKm, formeScore. RÈGLE : plus JAMAIS « À venir » — un badge
+ * non alimenté est simplement verrouillé à 0 (AMENDEMENT-04 §4).
  */
 export type BadgeMetric =
-  | 'runsValid' // courses validées (valid + partial, AMENDEMENT-02 §4)
-  | 'totalDistanceM' // distance cumulée vie entière (m)
-  | 'activeDays' // jours actifs DISTINCTS cumulés (≥ 1 course valide), §3
-  | 'hexesCaptured' // hexes capturés vie entière = neutres + volés (§3)
-  | 'steals' // hexes volés
-  | 'defends' // hexes défendus
-  | 'pioneerHexes' // hexes pionniers (jamais possédés)
-  | 'sectorsVisited' // secteurs distincts couru(s) — V1
-  | 'outposts' // avant-postes fondés — détection V0 (ingest_run)
-  | 'routes' // routes tracées — détection V0 (ingest_run)
-  | 'dominatedSectors' // secteurs dominés ≥ 70 % — job sector_control V1
-  | 'crewsJoined' // a rejoint ≥ 1 crew (proxy MVP : course avec crew actif)
-  | 'crewsCreated' // crews créés — endpoint crew V1
-  | 'crewContributions' // courses valides avec ≥ 1 hex claimé en crew (§3)
-  | 'crewOutposts' // avant-postes crew — détection V0 (ingest_run)
-  | 'crewRoutes' // routes crew — détection V0 (ingest_run)
-  | 'maxCrewSize' // taille max atteinte par son crew
-  | 'referralsActivated' // filleuls activés (1re course valide du filleul, §3.7)
-  | 'soloRuns' // courses valides sans crew (§3)
-  | 'seasonZeroRuns' // courses valides pendant la Saison 0
-  | 'seasonZeroHexes' // hexes capturés pendant la Saison 0
-  | 'pioneerZoneRuns' // courses valides avec ≥ 1 hex capturé en zone pionnière/sauvage
-  | 'bestRunDistanceM' // meilleure distance en UNE course (m)
-  | 'sprintRuns' // courses valides à allure < SPRINTER_MAX_AVG_PACE_S_KM
-  | 'nightRuns' // départs 22 h-5 h locale (bornes comprises)
-  | 'dawnRuns' // départs 5 h-7 h locale
-  | 'rainRuns' // courses sous la pluie — météo Open-Meteo (ingest_run)
-  | 'snowRuns' // courses sous la neige — météo Open-Meteo (ingest_run)
-  | 'heatRuns' // courses par forte chaleur — météo Open-Meteo (ingest_run)
-  | 'eventRuns' // participations à un événement — table events (ingest_run)
+  // ── Onboarding / simples ──
+  | 'runsValid' // courses validées (valid + partial)
+  | 'firstShares' // premier partage effectué (proxy : run.shared)
+  | 'crewsJoined' // a rejoint ≥ 1 crew
+  // ── Distance ──
+  | 'bestRunDistanceM' // meilleure distance en UNE course (m) — Distance Runner
+  | 'seasonDistanceM' // distance cumulée saison courante (m) — Season Distance
+  | 'totalDistanceM' // distance cumulée vie entière (m) — Lifetime Distance
+  // ── Territoire ──
+  | 'hexesCaptured' // hexes capturés vie entière = neutres + volés — Hex Hunter
+  | 'sectorsControlled' // secteurs contrôlés (job) — Zone Taker
+  | 'bestSectorControlPct' // meilleur % de contrôle d'un secteur actif (job) — City Control
+  // ── Attaque ──
+  | 'steals' // hexes volés — Raider
+  | 'sectorsContested' // secteurs contestés (job) — Sector Breaker
+  | 'offensivesJoined' // offensives rejointes (job offensives V1) — Raid Leader
+  // ── Défense ──
+  | 'defends' // hexes défendus — Defender
+  | 'holdDays' // jours de tenue d'une même zone (job) — Hold The Line
+  | 'clustersProtected' // clusters protégés = boucliers posés (job) — Fortress
+  // ── Exploration / pionnier ──
+  | 'pioneerHexes' // hexes pionniers (jamais possédés) — Pioneer
+  | 'ruralZonesOpened' // zones rurales ouvertes — Frontier Runner
+  // ── Routes / avant-postes ──
+  | 'routes' // routes ouvertes — Route Opened
+  | 'outposts' // avant-postes fondés — Outpost Builder
+  | 'supplyLines' // routes maintenues 7 j (job) — Supply Line
+  // ── Crew ──
+  | 'crewContributions' // contributions crew — Crew Member
+  | 'crewCaptainScore' // progression capitaine (job) — Crew Captain
+  | 'activeMembersWeek' // membres actifs même semaine (job) — United Front
+  // ── Performance ──
+  | 'paceImprovementSKm' // amélioration d'allure /mois, s/km (perf V1) — Pace Progress
+  | 'weeksActive' // semaines ISO actives — Consistency
+  | 'formeScore' // meilleur Score Forme atteint (perf V1) — Score Forme
+  // ── Verified / fair-play ──
+  | 'verifiedRuns' // courses vérifiées — GRYD Verified
+  | 'cleanDays' // jours sans run rejeté (lastRejectedDay) — Clean Runner
+  // ── Saison (décernées par season_close, rang inversé) ──
+  | 'seasonRank' // rang local inversé — Season Rank
+  | 'nationalRank' // rang France inversé — National Rank
+  | 'crewSeasonRank' // rang crew inversé — Crew Season
+  // ── Secrets (héritage AMENDEMENT-04 + 3 nouveaux) ──
+  | 'pioneerZoneRuns' // héritage : capture en zone pionnière/sauvage (Explorateur legacy)
+  | 'seasonZeroHexes' // héritage : hexes S0 (Saison 0 legacy)
+  | 'soloRuns' // héritage : courses solo (Solitaire legacy)
   | 'loopRuns' // secret « La Boucle »
   | 'exactTenRuns' // secret « Dix Pile »
-  | 'maxRunsInOneDay' // secret « Triplé » (max de courses valides un même jour)
+  | 'maxRunsInOneDay' // secret « Triplé »
   | 'wolfHourRuns' // secret « Heure du Loup »
   | 'straightRuns' // secret « Ligne Droite »
-  | 'maxHexesInRun' // secret « Centurion » (max d'hexes capturés en une course)
+  | 'maxHexesInRun' // secret « Centurion »
   | 'newYearRuns' // secret « Première Foulée de l'An »
-  | 'bestActiveDayStreak' // secret « Semaine Parfaite » (jours actifs consécutifs)
-  | 'homeSpotRuns'; // secret « Fidèle au Poste »
+  | 'bestActiveDayStreak' // secret « Semaine Parfaite »
+  | 'homeSpotRuns' // secret « Fidèle au Poste »
+  | 'comebackRuns' // secret « Comeback » : course après ≥ 30 j d'inactivité
+  | 'silentTakeoverRuns' // secret « Silent Takeover » : ≥ 50 volés ET départ nocturne
+  | 'noMapRuns'; // secret « No Map Run » : course valide 100 % pionnière
 
-// ─── Interprétations gelées (AMENDEMENT-04 §3) — bornes horaires LOCALES ─────
+// ─── Interprétations gelées (AMENDEMENT-04 §3, conservées) — bornes LOCALES ──
 
-/** Nocturne : départ entre 22 h et 5 h locale, BORNES COMPRISES (05:00 pile compte). */
+/** Nocturne : départ entre 22 h et 5 h locale, BORNES COMPRISES. */
 export const NIGHT_START_MIN = 22 * 60;
 export const NIGHT_END_MIN = 5 * 60;
-/** Aube : départ entre 5 h (incluse) et 7 h (exclue). 05:00 pile = Nocturne ET Aube. */
+/** Aube : départ entre 5 h (incluse) et 7 h (exclue). */
 export const DAWN_START_MIN = 5 * 60;
 export const DAWN_END_MIN = 7 * 60;
-/** Sprinter MVP : allure moyenne STRICTEMENT < 4:00/km (course valide ⇒ ≥ 1 km, §3.2). */
+/** Sprinter MVP (héritage) : allure moyenne STRICTEMENT < 4:00/km. */
 export const SPRINTER_MAX_AVG_PACE_S_KM = 4 * 60;
 
-// ─── Mécaniques nouvelles (décision fondateur 03/07/2026 : tous attribuables) ─
-// Météo : source Open-Meteo (ingest_run, fail-open), heure LOCALE du départ.
-// Seuils INCLUS (0,5 mm/h pile = pluie) — décision pure weatherFlags (moteur).
-
-/** Météo (pluie) : précipitation de l'heure de départ ≥ 0,5 mm/h. */
+// ─── Mécaniques (météo / routes V0, conservées d'AMENDEMENT-04) ──────────────
 export const WEATHER_RAIN_MIN_MM_H = 0.5;
-/** Hiver (neige) : chute de neige de l'heure de départ ≥ 0,1 cm/h. */
 export const WEATHER_SNOW_MIN_CM_H = 0.1;
-/** Chaleur : température au départ ≥ 30 °C. */
 export const WEATHER_HEAT_MIN_C = 30;
-/**
- * Route V0 (Connecteur / Bâtisseur Crew) : distance minimale entre les deux
- * territoires reliés (hex de départ et hex d'arrivée de la course, tous deux
- * possédés AVANT la course). Décision pure shouldOpenRoute (moteur).
- */
 export const ROUTE_MIN_KM = 2;
-/** Anti-doublon route : deux « bouts » à ≤ 1 km d'une route existante = même route. */
 export const ROUTE_ENDPOINT_MATCH_KM = 1;
 
-// ─── Conditions des 9 badges secrets (documentées ici, évaluées par le moteur) ─
+// ─── Conditions des badges secrets (documentées, évaluées par le moteur) ─────
 
-/** « La Boucle » : arrivée à moins de 100 m du point de départ (course valide ⇒ ≥ 1 km). */
+/** « La Boucle » : arrivée à moins de 100 m du point de départ. */
 export const LOOP_MAX_CLOSE_M = 100;
-/** « Dix Pile » : distance de course à 10,00 km ± 1 % (9 900 m — 10 100 m). */
+/** « Dix Pile » : 10,00 km ± 1 %. */
 export const EXACT_TEN_TARGET_M = 10_000;
 export const EXACT_TEN_TOLERANCE = 0.01;
-/** « Heure du Loup » : départ entre 3 h (incluse) et 4 h (exclue) du matin. */
+/** « Heure du Loup » : départ entre 3 h (incluse) et 4 h (exclue). */
 export const WOLF_HOUR_START_MIN = 3 * 60;
 export const WOLF_HOUR_END_MIN = 4 * 60;
-/**
- * « Ligne Droite » : course ≥ 2 km dont la distance départ→arrivée à vol
- * d'oiseau vaut ≥ 95 % de la distance courue (aller simple quasi rectiligne).
- */
+/** « Ligne Droite » : ≥ 2 km, à vol d'oiseau ≥ 95 % de la distance courue. */
 export const STRAIGHT_MIN_DISTANCE_M = 2_000;
 export const STRAIGHT_MIN_RATIO = 0.95;
 /** « Première Foulée de l'An » : départ un 1ᵉʳ janvier (date locale, 'MM-DD'). */
 export const NEW_YEAR_MONTH_DAY = '01-01';
-/**
- * « Fidèle au Poste » : départs répétés dans la MÊME cellule H3 res 9 (~150-200 m).
- * Le spot est mémorisé en cellule grossière — jamais de lat/lng exact (esprit §7).
- * L'ancre est la cellule du tout premier départ enregistré.
- */
+/** « Fidèle au Poste » : mêmes départs en cellule H3 res 9 (~150-200 m). */
 export const HOME_SPOT_H3_RESOLUTION = 9;
 /** « Triplé » : 3 courses validées le même jour local. */
 export const TRIPLE_RUNS_IN_ONE_DAY = 3;
 /** « Semaine Parfaite » : 7 jours actifs locaux consécutifs. */
 export const PERFECT_WEEK_DAYS = 7;
-/** « Centurion » : 100 hexes capturés (neutres + volés) en une seule course. */
+/** « Centurion » : 100 hexes capturés en une seule course. */
 export const CENTURION_HEXES_IN_RUN = 100;
 /** « Fidèle au Poste » : 10 départs depuis le même spot. */
 export const HOME_SPOT_RUNS = 10;
+/** « Comeback » : reprise après un trou d'au moins 30 jours entre jours actifs. */
+export const COMEBACK_GAP_DAYS = 30;
+/** « Silent Takeover » : au moins 50 hexes VOLÉS dans une course à départ nocturne. */
+export const SILENT_TAKEOVER_MIN_STEALS = 50;
+
+// ─── Déduplication d'activité (AMENDEMENT-06 §4, Activity Hub) ───────────────
+/** Tolérance de l'heure de départ, en MINUTES (± borne INCLUSE). */
+export const DEDUP_START_TOLERANCE_MIN = 3;
+/** Tolérance relative sur la durée (10 %, borne INCLUSE). */
+export const DEDUP_DURATION_TOLERANCE = 0.1;
+/** Tolérance relative sur la distance (10 %, borne INCLUSE). */
+export const DEDUP_DISTANCE_TOLERANCE = 0.1;
 
 // ─── Le catalogue ─────────────────────────────────────────────────────────────
 
@@ -166,20 +289,27 @@ export interface BadgeDef {
   /** Identifiant stable snake_case (clé DB `badges.key`). */
   key: string;
   name: string;
-  /** Condition affichée, formulée joueur (texte FR de la planche, gelé §3). */
+  /** Condition affichée, formulée joueur. */
   requirement: string;
   family: BadgeFamily;
   /** Couleur d'accent de la famille — DATA, exception polychrome §1. */
   familyColor: string;
-  rarity: BadgeRarity;
+  /** Tier visuel (remplace la rareté). */
+  tier: BadgeTier;
   /** Stat vie entière évaluée (LifetimeStats, moteur). */
   metric: BadgeMetric;
   /** Décerné quand `stats[metric] >= threshold`. */
   threshold: number;
-  /** Ordre d'affichage (ordre de la planche). */
+  /** Ordre d'affichage. */
   sort: number;
   /** Masqué en « ? » en UI tant que non débloqué (§2). */
   secret?: boolean;
+  /** Slug de la famille progressive (null pour simples/secrets). */
+  familySlug?: string;
+  /** Niveau 1..5 dans la famille progressive ; 6 = legend. Absent = simple. */
+  level?: number;
+  /** Badge héritage Saison 0 conservé mais non mis en avant (§1.5). */
+  legacy?: boolean;
 }
 
 function def(
@@ -187,10 +317,10 @@ function def(
   key: string,
   name: string,
   requirement: string,
-  rarity: BadgeRarity,
+  tier: BadgeTier,
   metric: BadgeMetric,
   threshold: number,
-  flags: { secret?: boolean } = {},
+  flags: { secret?: boolean; legacy?: boolean } = {},
 ): Omit<BadgeDef, 'sort'> {
   return {
     key,
@@ -198,82 +328,185 @@ function def(
     requirement,
     family,
     familyColor: BADGE_FAMILY_COLORS[family],
-    rarity,
+    tier,
     metric,
     threshold,
     ...(flags.secret ? { secret: true } : {}),
+    ...(flags.legacy ? { legacy: true } : {}),
   };
 }
 
-/** Les 59 badges (ordre de la planche ; sort = index + 1). */
+/** Chiffres romains des niveaux 1..5 (le 6ᵉ niveau est « LEGEND »). */
+const ROMAN = ['I', 'II', 'III', 'IV', 'V'] as const;
+
+/**
+ * Génère une famille progressive : 6 BadgeDef `slug_1..5` + `slug_legend`.
+ * names = « <name> <chiffre romain> » (I..V) puis « <name> LEGEND ».
+ * tier du niveau n = BADGE_TIERS[n-1] (road…legend). `thresholds` = 6 bornes
+ * croissantes [niv1..niv5, legend]. `requirement` construit depuis un modèle.
+ */
+export function leveledFamily(
+  slug: string,
+  name: string,
+  family: BadgeFamily,
+  metric: BadgeMetric,
+  thresholds: readonly [number, number, number, number, number, number],
+  requirementFor: (level: number, threshold: number) => string,
+): Omit<BadgeDef, 'sort'>[] {
+  return thresholds.map((threshold, i) => {
+    const level = i + 1; // 1..6 (6 = legend)
+    const isLegend = level === 6;
+    return {
+      key: isLegend ? `${slug}_legend` : `${slug}_${level}`,
+      name: `${name} ${isLegend ? 'LEGEND' : ROMAN[i]}`,
+      requirement: requirementFor(level, threshold),
+      family,
+      familyColor: BADGE_FAMILY_COLORS[family],
+      tier: BADGE_TIERS[i]!,
+      metric,
+      threshold,
+      familySlug: slug,
+      level,
+    };
+  });
+}
+
+/** Modèle de condition « atteins N <unité> ». */
+const reqCount = (unit: string) => (_level: number, t: number) =>
+  `Atteins ${t.toLocaleString('fr-FR')} ${unit}.`;
+/** Modèle de condition distance (m → km). */
+const reqKm = (scope: string) => (_level: number, t: number) =>
+  `${scope} ${(t / 1000).toLocaleString('fr-FR')} km.`;
+
+/**
+ * Le catalogue V2 (sort = index + 1) — 191 badges (cf. BADGE_COUNT) :
+ * onboarding + familles progressives (I..V + LEGEND, 6 niveaux) + 12 secrets
+ * + héritage Saison 0. Les 12 familles §1.2 sont toutes couvertes.
+ * NB : la famille « saison » (rangs) est décernée par season_close, PAS par
+ * course ; le National Rank et le Crew Season restent hors périmètre MVP
+ * (verrouillés à 0, décernables sans « À venir » — AMENDEMENT-06 §1.4).
+ */
 export const BADGES: readonly BadgeDef[] = [
-  // ── Fondateur (10) — violet ──
-  def('fondateur', 'premiers_pas', 'Premiers Pas', 'Termine ta première course valide.', 'common', 'runsValid', 1),
-  def('fondateur', 'enclenche', 'Enclenché', 'Capture ton premier hexagone.', 'common', 'hexesCaptured', 1),
-  def('fondateur', 'fondateur', 'Fondateur', 'Capture 10 hexagones (cumul vie entière).', 'common', 'hexesCaptured', 10),
-  def('fondateur', 'pionnier', 'Pionnier', 'Capture 100 hexagones (cumul vie entière).', 'rare', 'hexesCaptured', 100),
-  def('fondateur', 'explorateur', 'Explorateur', 'Capture au moins 1 hex dans une zone pionnière ou sauvage.', 'rare', 'pioneerZoneRuns', 1),
-  def('fondateur', 'batisseur', 'Bâtisseur', 'Fonde ton premier avant-poste.', 'epic', 'outposts', 1),
-  def('fondateur', 'connecteur', 'Connecteur', 'Relie deux territoires par une route.', 'rare', 'routes', 1),
-  def('fondateur', 'implante', 'Implanté', '7 jours actifs cumulés (≥ 1 course valide chacun).', 'common', 'activeDays', 7),
-  def('fondateur', 'racines', 'Racines', '30 jours actifs cumulés (≥ 1 course valide chacun).', 'rare', 'activeDays', 30),
-  def('fondateur', 'legende_locale', 'Légende Locale', '100 jours actifs cumulés (≥ 1 course valide chacun).', 'legend', 'activeDays', 100),
-  // ── Performance (10) — cyan ──
-  def('performance', 'sprinter', 'Sprinter', 'Course ≥ 1 km avec une allure moyenne sous 4:00/km.', 'rare', 'sprintRuns', 1),
-  def('performance', 'energie', 'Énergie', 'Termine 5 courses valides.', 'common', 'runsValid', 5),
-  def('performance', 'endurance', 'Endurance', 'Cours 10 km en une seule course.', 'common', 'bestRunDistanceM', 10_000),
-  def('performance', 'perseverant', 'Persévérant', 'Cours 21 km en une seule course.', 'rare', 'bestRunDistanceM', 21_000),
-  def('performance', 'devoue', 'Dévoué', 'Cumule 42 km de course.', 'rare', 'totalDistanceM', 42_000),
-  def('performance', 'iron_runner', 'Iron Runner', 'Cumule 100 km de course.', 'rare', 'totalDistanceM', 100_000),
-  def('performance', 'ultra_runner', 'Ultra Runner', 'Cumule 200 km de course.', 'epic', 'totalDistanceM', 200_000),
-  def('performance', 'marathonien', 'Marathonien', 'Cours 42,195 km en une seule course.', 'epic', 'bestRunDistanceM', 42_195),
-  def('performance', 'inarretable', 'Inarrêtable', 'Cumule 300 km de course.', 'epic', 'totalDistanceM', 300_000),
-  def('performance', 'machine', 'Machine', 'Cumule 500 km de course.', 'legend', 'totalDistanceM', 500_000),
-  // ── Territoire (10) — vert ── (« capturés » = neutres + volés, cumul vie entière, §3)
-  def('territoire', 'conquerant', 'Conquérant', 'Capture 500 hexagones (cumul vie entière).', 'common', 'hexesCaptured', 500),
-  def('territoire', 'dominateur', 'Dominateur', 'Capture 1 000 hexagones (cumul vie entière).', 'rare', 'hexesCaptured', 1_000),
-  def('territoire', 'seigneur', 'Seigneur', 'Capture 5 000 hexagones (cumul vie entière).', 'epic', 'hexesCaptured', 5_000),
-  def('territoire', 'maitre', 'Maître', 'Capture 10 000 hexagones (cumul vie entière).', 'legend', 'hexesCaptured', 10_000),
-  def('territoire', 'rival', 'Rival', 'Vole 1 hexagone à un adversaire.', 'common', 'steals', 1),
-  def('territoire', 'pillard', 'Pillard', 'Vole 10 hexagones à des adversaires.', 'rare', 'steals', 10),
-  def('territoire', 'predateur', 'Prédateur', 'Vole 50 hexagones à des adversaires.', 'epic', 'steals', 50),
-  def('territoire', 'defenseur', 'Défenseur', 'Défends 10 hexagones.', 'common', 'defends', 10),
-  def('territoire', 'forteresse', 'Forteresse', 'Défends 50 hexagones.', 'epic', 'defends', 50),
-  def('territoire', 'legende_territoire', 'Légende', 'Domine un secteur à 70 % ou plus.', 'legend', 'dominatedSectors', 1),
-  // ── Crew (10) — orange ── (« contribution » = course valide avec ≥ 1 hex claimé en crew, §3)
-  def('crew', 'recrue', 'Recrue', 'Rejoins un crew.', 'common', 'crewsJoined', 1),
-  def('crew', 'coequipier', 'Coéquipier', '5 contributions crew.', 'common', 'crewContributions', 5),
-  def('crew', 'membre_actif', 'Membre Actif', '20 contributions crew.', 'rare', 'crewContributions', 20),
-  def('crew', 'pilier', 'Pilier', '50 contributions crew.', 'epic', 'crewContributions', 50),
-  def('crew', 'stratege', 'Stratège', 'Participe à 10 avant-postes crew.', 'epic', 'crewOutposts', 10),
-  def('crew', 'batisseur_crew', 'Bâtisseur Crew', 'Ouvre 1 route pour ton crew.', 'rare', 'crewRoutes', 1),
-  def('crew', 'leader', 'Leader', 'Crée un crew.', 'common', 'crewsCreated', 1),
-  def('crew', 'commandant', 'Commandant', 'Ton crew atteint 10 membres.', 'rare', 'maxCrewSize', 10),
-  def('crew', 'legende_crew', 'Légende Crew', 'Ton crew atteint 50 membres.', 'legend', 'maxCrewSize', 50),
-  def('crew', 'dynastie', 'Dynastie', 'Ton crew atteint 100 membres.', 'legend', 'maxCrewSize', 100),
-  // ── Spécial (10) — rose ──
-  def('special', 'nocturne', 'Nocturne', 'Course démarrée entre 22 h et 5 h.', 'common', 'nightRuns', 1),
-  def('special', 'aube', 'Aube', 'Course démarrée entre 5 h et 7 h.', 'common', 'dawnRuns', 1),
-  def('special', 'meteo', 'Météo', 'Cours sous la pluie.', 'rare', 'rainRuns', 1),
-  def('special', 'hiver', 'Hiver', 'Cours sous la neige.', 'rare', 'snowRuns', 1),
-  def('special', 'chaleur', 'Chaleur', 'Cours par forte chaleur.', 'rare', 'heatRuns', 1),
-  def('special', 'solitaire', 'Solitaire', '10 courses valides sans appartenir à un crew.', 'rare', 'soloRuns', 10),
-  def('special', 'social', 'Social', 'Parraine 1 coureur (1re course valide du filleul).', 'common', 'referralsActivated', 1),
-  def('special', 'communaute', 'Communauté', 'Parraine 5 coureurs.', 'epic', 'referralsActivated', 5),
-  def('special', 'evenement', 'Événement', 'Participe à un événement GRYD.', 'rare', 'eventRuns', 1),
-  def('special', 'saison_0', 'Saison 0', 'Capture au moins 1 hex pendant la Saison 0.', 'legend', 'seasonZeroHexes', 1),
-  // ── Secrets (9) — or, masqués en « ? » (§2). Conditions calculables depuis
-  //    les données d'une course : heure de départ, distance, forme de trace,
-  //    hexes, récurrence. Constantes documentées plus haut. ──
-  def('secret', 'secret_la_boucle', 'La Boucle', 'Termine une course en revenant à moins de 100 m de ton point de départ.', 'rare', 'loopRuns', 1, { secret: true }),
-  def('secret', 'secret_dix_pile', 'Dix Pile', 'Cours très exactement 10,00 km (± 1 %).', 'rare', 'exactTenRuns', 1, { secret: true }),
-  def('secret', 'secret_triple', 'Triplé', 'Valide 3 courses dans la même journée.', 'epic', 'maxRunsInOneDay', TRIPLE_RUNS_IN_ONE_DAY, { secret: true }),
-  def('secret', 'secret_heure_du_loup', 'Heure du Loup', 'Démarre une course entre 3 h et 4 h du matin.', 'epic', 'wolfHourRuns', 1, { secret: true }),
-  def('secret', 'secret_ligne_droite', 'Ligne Droite', 'Course ≥ 2 km quasi rectiligne : arrive à vol d\'oiseau à ≥ 95 % de la distance courue.', 'rare', 'straightRuns', 1, { secret: true }),
-  def('secret', 'secret_centurion', 'Centurion', 'Capture 100 hexagones en une seule course.', 'epic', 'maxHexesInRun', CENTURION_HEXES_IN_RUN, { secret: true }),
-  def('secret', 'secret_premiere_foulee', 'Première Foulée de l\'An', 'Cours un 1ᵉʳ janvier.', 'rare', 'newYearRuns', 1, { secret: true }),
-  def('secret', 'secret_semaine_parfaite', 'Semaine Parfaite', 'Cours 7 jours d\'affilée.', 'epic', 'bestActiveDayStreak', PERFECT_WEEK_DAYS, { secret: true }),
-  def('secret', 'secret_fidele_au_poste', 'Fidèle au Poste', 'Démarre 10 courses depuis le même endroit (~150 m).', 'rare', 'homeSpotRuns', HOME_SPOT_RUNS, { secret: true }),
+  // ── Onboarding (8 simples) — violet. Keys/names FR existants conservés. ──
+  def('onboarding', 'premiers_pas', 'Premiers Pas', 'Termine ta première course valide.', 'road', 'runsValid', 1),
+  def('onboarding', 'enclenche', 'Enclenché', 'Capture ton premier hexagone.', 'road', 'hexesCaptured', 1),
+  def('onboarding', 'first_crew', 'First Crew', 'Rejoins ton premier crew.', 'road', 'crewsJoined', 1),
+  def('onboarding', 'defenseur_premier', 'First Defense', 'Défends ton premier hexagone.', 'road', 'defends', 1),
+  def('onboarding', 'first_share', 'First Share', 'Partage un résultat de course.', 'road', 'firstShares', 1),
+  def('onboarding', 'first_verified', 'First Verified Run', 'Réalise ta première course vérifiée.', 'road', 'verifiedRuns', 1),
+  def('onboarding', 'fondateur', 'Fondateur', 'Rejoins la Saison 0 en tant que fondateur.', 'carbon', 'seasonZeroHexes', 1),
+  def('onboarding', 'saison_0', 'Saison 0', 'Capture au moins 1 hex pendant la Saison 0.', 'race', 'seasonZeroHexes', 1),
+
+  // ── Distance (3 familles × 6) — rose ──
+  ...leveledFamily('distance_runner', 'Distance Runner', 'distance', 'bestRunDistanceM',
+    [3_000, 5_000, 10_000, 21_100, 42_195, 50_000], reqKm('Cours en une seule course')),
+  ...leveledFamily('season_distance', 'Season Distance', 'distance', 'seasonDistanceM',
+    [25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000], reqKm('Cumule cette saison')),
+  ...leveledFamily('lifetime_distance', 'Lifetime Distance', 'distance', 'totalDistanceM',
+    [100_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 10_000_000], reqKm('Cumule au total')),
+
+  // ── Territoire (3 familles × 6) — vert ──
+  ...leveledFamily('hex_hunter', 'Hex Hunter', 'territoire', 'hexesCaptured',
+    [100, 500, 1_000, 5_000, 10_000, 50_000], reqCount('hexes capturés (cumul vie entière)')),
+  ...leveledFamily('zone_taker', 'Zone Taker', 'territoire', 'sectorsControlled',
+    [1, 3, 10, 25, 50, 100], reqCount('secteurs contrôlés')),
+  ...leveledFamily('city_control', 'City Control', 'territoire', 'bestSectorControlPct',
+    [10, 25, 50, 70, 90, 100], (_l, t) =>
+      t >= 100 ? 'Domine un secteur actif 30 jours.' : `Contrôle ${t} % d'un secteur actif.`),
+
+  // ── Attaque (3 familles × 6) — rouge-orangé ──
+  ...leveledFamily('raider', 'Raider', 'attaque', 'steals',
+    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('hexes volés')),
+  ...leveledFamily('sector_breaker', 'Sector Breaker', 'attaque', 'sectorsContested',
+    [1, 3, 10, 25, 50, 100], reqCount('secteurs contestés')),
+  ...leveledFamily('raid_leader', 'Raid Leader', 'attaque', 'offensivesJoined',
+    [1, 5, 10, 25, 50, 100], reqCount('offensives rejointes')),
+
+  // ── Défense (3 familles × 6) — bleu ──
+  ...leveledFamily('defender', 'Defender', 'defense', 'defends',
+    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('hexes défendus')),
+  ...leveledFamily('hold_the_line', 'Hold The Line', 'defense', 'holdDays',
+    [3, 7, 14, 30, 60, 100], reqCount('jours de tenue d\'une zone')),
+  ...leveledFamily('fortress', 'Fortress', 'defense', 'clustersProtected',
+    [1, 3, 10, 25, 50, 100], reqCount('clusters protégés')),
+
+  // ── Exploration (2 familles × 6) — turquoise ──
+  ...leveledFamily('pioneer', 'Pioneer', 'exploration', 'pioneerHexes',
+    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('hexes pionniers')),
+  ...leveledFamily('frontier_runner', 'Frontier Runner', 'exploration', 'ruralZonesOpened',
+    [1, 3, 10, 25, 50, 100], reqCount('zones rurales ouvertes')),
+
+  // ── Routes / avant-postes (3 familles × 6) — ambre ──
+  ...leveledFamily('route_opened', 'Route Opened', 'routes', 'routes',
+    [1, 5, 10, 25, 50, 100], reqCount('routes ouvertes')),
+  ...leveledFamily('outpost_builder', 'Outpost Builder', 'routes', 'outposts',
+    [1, 3, 5, 10, 25, 50], reqCount('avant-postes créés')),
+  ...leveledFamily('supply_line', 'Supply Line', 'routes', 'supplyLines',
+    [1, 3, 10, 25, 50, 100], reqCount('routes maintenues 7 jours')),
+
+  // ── Crew (3 familles × 6) — orange ──
+  ...leveledFamily('crew_member', 'Crew Member', 'crew', 'crewContributions',
+    [1, 5, 25, 100, 500, 1_000], (_l, t) =>
+      t <= 1 ? 'Rejoins un crew.' : `Réalise ${t.toLocaleString('fr-FR')} contributions crew.`),
+  ...leveledFamily('crew_captain', 'Crew Captain', 'crew', 'crewCaptainScore',
+    [1, 3, 5, 10, 25, 50], (_l, t) =>
+      t <= 1 ? 'Crée un crew.' : `Atteins le palier capitaine ${t}.`),
+  ...leveledFamily('united_front', 'United Front', 'crew', 'activeMembersWeek',
+    [2, 5, 10, 25, 50, 100], reqCount('membres actifs la même semaine')),
+
+  // ── Performance (3 familles × 6) — cyan ──
+  ...leveledFamily('pace_progress', 'Pace Progress', 'performance', 'paceImprovementSKm',
+    [1, 10, 20, 30, 45, 60], (_l, t) => `Améliore ton allure de ${t} s/km sur un mois.`),
+  ...leveledFamily('consistency', 'Consistency', 'performance', 'weeksActive',
+    [2, 4, 8, 12, 24, 52], reqCount('semaines actives')),
+  ...leveledFamily('score_forme', 'Score Forme', 'performance', 'formeScore',
+    [60, 70, 80, 85, 90, 95], (_l, t) => `Atteins un Score Forme de ${t}.`),
+
+  // ── Verified / fair-play (2 familles × 6) — gris acier ──
+  ...leveledFamily('gryd_verified', 'GRYD Verified', 'verified', 'verifiedRuns',
+    [10, 50, 100, 250, 500, 1_000], reqCount('courses vérifiées')),
+  ...leveledFamily('clean_runner', 'Clean Runner', 'verified', 'cleanDays',
+    [30, 60, 90, 180, 365, 730], reqCount('jours sans run rejeté')),
+
+  // ── Saison (3 familles × 6 = 18) — or. DÉCERNÉES PAR season_close. ──
+  // Rang inversé : la stat vaut « au moins ce niveau de classement atteint ».
+  ...leveledFamily('season_rank', 'Season Rank', 'saison', 'seasonRank',
+    [1, 2, 3, 4, 5, 6], (_l, t) => [
+      'Termine dans le top 100 local.', 'Termine dans le top 50 local.',
+      'Termine dans le top 10 local.', 'Termine dans le top 3 local.',
+      'Termine #1 local.', 'Remporte la saison locale.',
+    ][t - 1]!),
+  ...leveledFamily('national_rank', 'National Rank', 'saison', 'nationalRank',
+    [1, 2, 3, 4, 5, 6], (_l, t) => [
+      'Termine dans le top 1 000 France.', 'Termine dans le top 500 France.',
+      'Termine dans le top 100 France.', 'Termine dans le top 50 France.',
+      'Termine dans le top 10 France.', 'Termine #1 France.',
+    ][t - 1]!),
+  ...leveledFamily('crew_season', 'Crew Season', 'saison', 'crewSeasonRank',
+    [1, 2, 3, 4, 5, 6], (_l, t) => [
+      'Ton crew termine dans le top 100.', 'Ton crew termine dans le top 50.',
+      'Ton crew termine dans le top 10.', 'Ton crew termine dans le top 3.',
+      'Ton crew termine #1 local.', 'Ton crew termine #1 France.',
+    ][t - 1]!),
+
+  // ── Secrets (12) — or, masqués en « ? » (§2). 9 existants + 3 nouveaux. ──
+  def('secret', 'secret_la_boucle', 'La Boucle', 'Termine une course en revenant à moins de 100 m de ton point de départ.', 'tempo', 'loopRuns', 1, { secret: true }),
+  def('secret', 'secret_dix_pile', 'Dix Pile', 'Cours très exactement 10,00 km (± 1 %).', 'tempo', 'exactTenRuns', 1, { secret: true }),
+  def('secret', 'secret_triple', 'Triplé', 'Valide 3 courses dans la même journée.', 'carbon', 'maxRunsInOneDay', TRIPLE_RUNS_IN_ONE_DAY, { secret: true }),
+  def('secret', 'secret_heure_du_loup', 'Heure du Loup', 'Démarre une course entre 3 h et 4 h du matin.', 'carbon', 'wolfHourRuns', 1, { secret: true }),
+  def('secret', 'secret_ligne_droite', 'Ligne Droite', 'Course ≥ 2 km quasi rectiligne : arrive à vol d\'oiseau à ≥ 95 % de la distance courue.', 'tempo', 'straightRuns', 1, { secret: true }),
+  def('secret', 'secret_centurion', 'Centurion', 'Capture 100 hexagones en une seule course.', 'carbon', 'maxHexesInRun', CENTURION_HEXES_IN_RUN, { secret: true }),
+  def('secret', 'secret_premiere_foulee', 'Première Foulée de l\'An', 'Cours un 1ᵉʳ janvier.', 'tempo', 'newYearRuns', 1, { secret: true }),
+  def('secret', 'secret_semaine_parfaite', 'Semaine Parfaite', 'Cours 7 jours d\'affilée.', 'carbon', 'bestActiveDayStreak', PERFECT_WEEK_DAYS, { secret: true }),
+  def('secret', 'secret_fidele_au_poste', 'Fidèle au Poste', 'Démarre 10 courses depuis le même endroit (~150 m).', 'tempo', 'homeSpotRuns', HOME_SPOT_RUNS, { secret: true }),
+  def('secret', 'secret_comeback', 'Comeback', 'Reviens courir après au moins 30 jours d\'inactivité.', 'race', 'comebackRuns', 1, { secret: true }),
+  def('secret', 'secret_silent_takeover', 'Silent Takeover', 'Vole au moins 50 hexes lors d\'une course démarrée la nuit.', 'elite', 'silentTakeoverRuns', 1, { secret: true }),
+  def('secret', 'secret_no_map_run', 'No Map Run', 'Termine une course valide 100 % en territoire jamais possédé.', 'elite', 'noMapRuns', 1, { secret: true }),
+
+  // ── Héritage Saison 0 (§1.5) — conservés, non mis en avant (legacy). ──
+  def('onboarding', 'explorateur', 'Explorateur', 'Capture au moins 1 hex dans une zone pionnière ou sauvage.', 'tempo', 'pioneerZoneRuns', 1, { legacy: true }),
+  def('onboarding', 'solitaire', 'Solitaire', '10 courses valides sans appartenir à un crew.', 'tempo', 'soloRuns', 10, { legacy: true }),
+  def('onboarding', 'sprinter', 'Sprinter', 'Course ≥ 1 km avec une allure moyenne sous 4:00/km.', 'race', 'runsValid', 1, { legacy: true }),
 ].map((b, i) => ({ ...b, sort: i + 1 }));
 
 /** Accès direct par key (affichage, notifications). */
@@ -281,5 +514,49 @@ export const BADGES_BY_KEY: ReadonlyMap<string, BadgeDef> = new Map(
   BADGES.map((b) => [b.key, b]),
 );
 
-/** Compteur x/59 de l'écran collection. */
+/** Compteur x/N de l'écran collection (recalculé). */
 export const BADGE_COUNT = BADGES.length;
+
+// ─── Helpers de progression (UI Collection V2) ───────────────────────────────
+
+/** Badges d'une famille progressive, triés par niveau (1..6). */
+export function familyLevels(slug: string): BadgeDef[] {
+  return BADGES.filter((b) => b.familySlug === slug).sort(
+    (a, b) => (a.level ?? 0) - (b.level ?? 0),
+  );
+}
+
+/**
+ * Prochain niveau d'un badge progressif (le niveau au-dessus de `key`), ou
+ * null si `key` est déjà le legend ou n'est pas progressif.
+ */
+export function nextLevelOf(key: string): BadgeDef | null {
+  const cur = BADGES_BY_KEY.get(key);
+  if (!cur || !cur.familySlug || cur.level === undefined) return null;
+  return familyLevels(cur.familySlug).find((b) => (b.level ?? 0) === cur.level! + 1) ?? null;
+}
+
+/** Métrique de progression d'un badge (celle qui alimente sa jauge). */
+export function progressMetricOf(key: string): BadgeMetric | null {
+  return BADGES_BY_KEY.get(key)?.metric ?? null;
+}
+
+/**
+ * Progression d'un badge donné pour une valeur de stat courante. Renvoie le
+ * ratio [0..1] vers le seuil du badge, `unlocked` si atteint, et le seuil.
+ * Sert à la section « Proches du déblocage » et aux jauges (§1.6).
+ */
+export interface BadgeProgress {
+  value: number;
+  threshold: number;
+  ratio: number;
+  unlocked: boolean;
+}
+
+export function badgeProgress(key: string, statValue: number): BadgeProgress | null {
+  const b = BADGES_BY_KEY.get(key);
+  if (!b) return null;
+  const value = Math.max(0, statValue);
+  const ratio = b.threshold > 0 ? Math.min(1, value / b.threshold) : value >= b.threshold ? 1 : 0;
+  return { value, threshold: b.threshold, ratio, unlocked: value >= b.threshold };
+}

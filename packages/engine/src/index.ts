@@ -12,3 +12,4 @@ export * from './hexing.ts';
 export * from './claims.ts';
 export * from './scoring.ts';
 export * from './badges.ts';
+export * from './crew.ts';

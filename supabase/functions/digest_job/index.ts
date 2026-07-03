@@ -13,6 +13,7 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { buildDigest, canPush, type Digest, type DigestEvent } from './logic.ts';
+import { activityScore, chestTierFor } from '../_shared/engine/crew.ts';
 
 const MS_PER_DAY = 86_400_000;
 const DIGEST_PRIORITY = 6; // P6 (GRYD_notifications_logic.md §2)
@@ -47,6 +48,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const now = new Date();
     const weekly = isSundayInParis(now);
+    // Maintenance crew hebdo (Supercell §2) : Activity Score + clôture des
+    // coffres de la semaine PASSÉE (tier figé) + signaux discovery.
+    if (weekly) await crewWeeklyMaintenance(now);
     const digests = weekly ? await weeklyDigests(now) : await crewDigests(now);
 
     // ── Livraison : inbox pour tous, push si les garde-fous l'autorisent ─────
@@ -96,6 +100,127 @@ Deno.serve(async (req: Request): Promise<Response> => {
 interface UserDigest {
   userId: string;
   digest: Digest;
+}
+
+// ─── Maintenance crew hebdomadaire (Crews Supercell §2/§45/§39) ──────────────
+
+/** Lundi ISO ('YYYY-MM-DD') de la semaine d'une date. */
+function isoWeekStart(now: Date): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dow = (d.getUTCDay() + 6) % 7; // lundi=0
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Recalcule l'Activity Score (§45) de chaque crew depuis l'activité des 7 j,
+ * clôt les coffres de la semaine PASSÉE en figeant le palier atteint (§39.2),
+ * et rafraîchit les signaux discovery (war/defense active).
+ * Le calcul du score utilise le moteur PUR activityScore ; l'I/O est ici.
+ */
+async function crewWeeklyMaintenance(now: Date): Promise<void> {
+  const since = new Date(now.getTime() - 7 * MS_PER_DAY).toISOString();
+
+  // Membres actifs par crew (adhésions actives).
+  const { data: members, error: membersError } = await supabase
+    .from('crew_members')
+    .select('crew_id, user_id')
+    .is('left_at', null);
+  if (membersError) throw new Error(`crew_members read: ${membersError.message}`);
+  const membersOfCrew = new Map<string, string[]>();
+  const crewOfUser = new Map<string, string>();
+  for (const m of members ?? []) {
+    if (!membersOfCrew.has(m.crew_id)) membersOfCrew.set(m.crew_id, []);
+    membersOfCrew.get(m.crew_id)!.push(m.user_id);
+    crewOfUser.set(m.user_id, m.crew_id);
+  }
+  const userIds = [...crewOfUser.keys()];
+
+  // Runs de la semaine par membre (statut → vérifié/rejeté ; jours actifs).
+  const activeUsers = new Set<string>();
+  const runsByCrew = new Map<string, number>();
+  const verifiedByCrew = new Map<string, number>();
+  const rejectedByCrew = new Map<string, number>();
+  if (userIds.length > 0) {
+    const { data: runRows, error: runsError } = await supabase
+      .from('runs')
+      .select('user_id, status, motion_trust')
+      .in('user_id', userIds)
+      .gte('started_at', since);
+    if (runsError) throw new Error(`runs read: ${runsError.message}`);
+    for (const r of runRows ?? []) {
+      const crewId = crewOfUser.get(r.user_id)!;
+      const valid = r.status === 'valid' || r.status === 'partial';
+      if (valid) {
+        activeUsers.add(r.user_id);
+        runsByCrew.set(crewId, (runsByCrew.get(crewId) ?? 0) + 1);
+        if ((r.motion_trust ?? 0) >= 70) { // VERIFIED_MIN_TRUST — cohérent badges.ts
+          verifiedByCrew.set(crewId, (verifiedByCrew.get(crewId) ?? 0) + 1);
+        }
+      } else {
+        rejectedByCrew.set(crewId, (rejectedByCrew.get(crewId) ?? 0) + 1);
+      }
+    }
+  }
+
+  // Missions de défense complétées / ouvertes cette semaine par crew.
+  const missionsDone = new Map<string, number>();
+  const missionsTotal = new Map<string, number>();
+  const { data: missionRows, error: missionsError } = await supabase
+    .from('defense_missions')
+    .select('crew_id, done')
+    .gte('created_at', since);
+  if (missionsError) throw new Error(`defense_missions read: ${missionsError.message}`);
+  for (const m of missionRows ?? []) {
+    missionsTotal.set(m.crew_id, (missionsTotal.get(m.crew_id) ?? 0) + 1);
+    if (m.done) missionsDone.set(m.crew_id, (missionsDone.get(m.crew_id) ?? 0) + 1);
+  }
+
+  // Score + statut par crew (moteur pur), puis UPDATE crews.
+  for (const [crewId, crewMembers] of membersOfCrew) {
+    const total = crewMembers.length || 1;
+    const active7d = crewMembers.filter((u) => activeUsers.has(u)).length;
+    const runs = runsByCrew.get(crewId) ?? 0;
+    const verified = verifiedByCrew.get(crewId) ?? 0;
+    const rejected = rejectedByCrew.get(crewId) ?? 0;
+    const mTotal = missionsTotal.get(crewId) ?? 0;
+    const mDone = missionsDone.get(crewId) ?? 0;
+    const { score, status } = activityScore({
+      activeMembers7d: active7d / total,
+      verifiedRunsRatio: runs > 0 ? verified / runs : 0,
+      missionsRatio: mTotal > 0 ? mDone / mTotal : 0, // aucune mission = 0 (rien coordonné)
+      coordinationRatio: active7d / total, // proxy MVP : part de membres actifs
+      defenseRatio: mTotal > 0 ? mDone / mTotal : 0, // défense = missions honorées
+      fairPlayRatio: runs + rejected > 0 ? runs / (runs + rejected) : 1,
+    });
+    const { error: updErr } = await supabase
+      .from('crews')
+      .update({ activity_score: score, activity_status: status })
+      .eq('id', crewId);
+    if (updErr) throw new Error(`crews activity update: ${updErr.message}`);
+  }
+
+  // Clôture des coffres de la semaine PASSÉE : fige le palier atteint (§39.2).
+  const lastWeekStart = isoWeekStart(new Date(now.getTime() - 7 * MS_PER_DAY));
+  const { data: chests, error: chestErr } = await supabase
+    .from('crew_chests')
+    .select('crew_id, progress')
+    .eq('week_start', lastWeekStart)
+    .is('closed_at', null);
+  if (chestErr) throw new Error(`crew_chests read: ${chestErr.message}`);
+  for (const chest of chests ?? []) {
+    const tier = chestTierFor(chest.progress as number);
+    const { error: closeErr } = await supabase
+      .from('crew_chests')
+      .update({ tier_reached: tier, closed_at: now.toISOString() })
+      .eq('crew_id', chest.crew_id)
+      .eq('week_start', lastWeekStart);
+    if (closeErr) throw new Error(`crew_chests close: ${closeErr.message}`);
+  }
+
+  // Signaux discovery (war/defense active) — fonction SQL.
+  const { error: sigErr } = await supabase.rpc('refresh_crew_discovery_signals');
+  if (sigErr) throw new Error(`refresh_crew_discovery_signals rpc: ${sigErr.message}`);
 }
 
 // ─── Digest hebdo (dimanche soir) ────────────────────────────────────────────

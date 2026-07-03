@@ -1,12 +1,13 @@
 /**
- * GRYD — écran « Collection de badges » (AMENDEMENT-04 §5), poussé depuis
- * Profil par-dessus les tabs. Compteur héros x/59, une section par famille
- * (bandeau teinté `familyColor` — exception polychrome §1 : les surfaces badge
- * sont la SEULE zone polychrome de l'app), grille d'hexagones, secrets en
- * « ? » en bas. Tap → bottom sheet maison (Animated, fade discret §G, pas de
- * lib). Déblocage factice (demo.ts) — TODO(O1) brancher user_badges.
+ * GRYD — écran « Collection de badges » V2 (AMENDEMENT-06 §1.6), poussé depuis
+ * Profil par-dessus les tabs. Header « x / N débloqués · Tier max : X », filtres
+ * horizontaux (Tous + 12 familles + Secrets), section « Proches du déblocage »
+ * (top 3 par % de progression), grille d'hexagones par famille avec badges à
+ * niveaux, rangée des 6 tiers en bas. Tap → bottom sheet maison (Animated, fade
+ * discret §G) : jauge « 720 / 1 000 » + « Prochain niveau : … » pour les badges
+ * progressifs. Déblocage/stats factices (demo.ts) — TODO(O1) brancher Supabase.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,17 +15,27 @@ import { colors, fontSizes, motion, radii, spacing } from '@klaim/shared';
 import { Icon } from '../src/ui/Icon';
 import { BadgeHex, type BadgeHexState } from '../src/features/badges/BadgeHex';
 import {
-  BADGES,
   BADGE_FAMILIES,
+  BADGE_TIERS,
+  BADGE_TIER_LABEL,
+  BADGE_TIER_STYLE,
   BADGE_TOTAL,
+  COLLECTION_BADGES,
   SECRET_BADGE_COLOR,
   badgeColor,
+  badgeProgress,
   familyBadges,
+  maxTierLabel,
+  nextLevelOf,
   secretBadges,
   type BadgeDef,
+  type BadgeFamilyId,
 } from '../src/features/badges/catalog';
-import { UNLOCKED_DEMO, UNLOCKED_IDS } from '../src/features/badges/demo';
+import { UNLOCKED_DEMO, UNLOCKED_IDS, demoStat } from '../src/features/badges/demo';
 import { screen } from '../src/lib/analytics';
+
+/** Filtre actif : une famille, la section secrets, ou tout. */
+type FilterId = BadgeFamilyId | 'all';
 
 function badgeState(def: BadgeDef): BadgeHexState {
   if (UNLOCKED_IDS.has(def.id)) return 'unlocked';
@@ -46,6 +57,7 @@ function BadgeCell({ def, onSelect }: { def: BadgeDef; onSelect: (def: BadgeDef)
       <BadgeHex
         family={def.family}
         familyColor={badgeColor(def)}
+        tier={def.tier}
         state={state}
         size="md"
         secret={def.secret}
@@ -74,6 +86,51 @@ function FamilyHeader({ name, color, unlocked, total }: {
       <Text style={styles.familyCount}>
         {unlocked}/{total}
       </Text>
+    </View>
+  );
+}
+
+/** Une section famille complète (bandeau + grille). */
+function FamilySection({ id, name, color, defs, onSelect }: {
+  id: string;
+  name: string;
+  color: string;
+  defs: readonly BadgeDef[];
+  onSelect: (def: BadgeDef) => void;
+}) {
+  const unlocked = defs.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+  return (
+    <View key={id} style={styles.section}>
+      <FamilyHeader name={name} color={color} unlocked={unlocked} total={defs.length} />
+      <View style={styles.grid}>
+        {defs.map((def) => (
+          <BadgeCell key={def.id} def={def} onSelect={onSelect} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Jauge horizontale « value / threshold » (surface badge = teinte accent §1). */
+function ProgressGauge({ value, threshold, accent, nextLabel }: {
+  value: number;
+  threshold: number;
+  accent: string;
+  nextLabel: string | null;
+}) {
+  const ratio = threshold > 0 ? Math.min(1, value / threshold) : 0;
+  return (
+    <View style={styles.gaugeWrap}>
+      <View style={styles.gaugeRow}>
+        <Text style={styles.gaugeValue}>
+          {value.toLocaleString('fr-FR')}
+          <Text style={styles.gaugeThreshold}> / {threshold.toLocaleString('fr-FR')}</Text>
+        </Text>
+      </View>
+      <View style={styles.gaugeTrack}>
+        <View style={[styles.gaugeFill, { width: `${ratio * 100}%`, backgroundColor: accent }]} />
+      </View>
+      {nextLabel ? <Text style={styles.gaugeNext}>Prochain niveau : {nextLabel}</Text> : null}
     </View>
   );
 }
@@ -109,9 +166,19 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
   const accent = badgeColor(def);
   const unlockedAt = UNLOCKED_DEMO.get(def.id);
 
+  // Progression : uniquement pour les badges progressifs non secrets non pleins.
+  const prog = def.familySlug ? badgeProgress(def.id, demoStat(def.metric)) : null;
+  const next = nextLevelOf(def.id);
+  const showGauge = prog !== null && !hidden && !prog.unlocked;
+
   let stateLine = 'Verrouillé';
   if (unlocked) stateLine = unlockedAt !== undefined ? `Débloqué le ${unlockedAt}` : 'Débloqué';
   else if (hidden) stateLine = 'Badge secret';
+
+  // Ligne famille · tier (surface badge, teinte accent).
+  const familyName = BADGE_FAMILIES.find((f) => f.id === def.family)?.name
+    ?? (def.secret ? 'Secret' : '');
+  const tierLine = hidden ? null : `${familyName} · ${BADGE_TIER_LABEL[def.tier]}`;
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -144,14 +211,26 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
         <BadgeHex
           family={def.family}
           familyColor={accent}
+          tier={def.tier}
           state={state}
           size="lg"
           secret={def.secret}
         />
         <Text style={styles.sheetName}>{hidden ? '???' : def.name}</Text>
+        {tierLine ? (
+          <Text style={[styles.sheetTier, { color: accent }]}>{tierLine.toUpperCase()}</Text>
+        ) : null}
         <Text style={styles.sheetRequirement}>
           {hidden ? 'Condition secrète — continue à courir pour la découvrir.' : def.requirement}
         </Text>
+        {showGauge && prog ? (
+          <ProgressGauge
+            value={prog.value}
+            threshold={prog.threshold}
+            accent={accent}
+            nextLabel={next ? next.name : null}
+          />
+        ) : null}
         {/* État teinté famille : surface badge = exception polychrome §1 */}
         <Text style={[styles.sheetState, unlocked ? { color: accent } : null]}>{stateLine}</Text>
       </Animated.View>
@@ -159,18 +238,88 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
   );
 }
 
+/** Chip de filtre horizontal (Tous + 12 familles + Secrets). */
+function FilterChip({ label, color, active, onPress }: {
+  label: string;
+  color: string | null;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Filtre ${label}`}
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        active && styles.chipActive,
+        pressed && styles.chipPressed,
+      ]}
+    >
+      {color ? <View style={[styles.chipDot, { backgroundColor: color }]} /> : null}
+      <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Rangée de légende des 6 tiers (bas de collection §1.6). */
+function TierRow() {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.tierRowTitle}>TIERS</Text>
+      <View style={styles.tierRow}>
+        {BADGE_TIERS.map((tier) => {
+          const ts = BADGE_TIER_STYLE[tier];
+          return (
+            <View key={tier} style={styles.tierItem}>
+              <View
+                style={[
+                  styles.tierHex,
+                  { borderColor: ts.ring, borderWidth: ts.strokeWidth },
+                  ts.glow ? { backgroundColor: ts.glow } : null,
+                ]}
+              />
+              <Text style={styles.tierLabel}>{BADGE_TIER_LABEL[tier]}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export default function BadgesScreen() {
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<BadgeDef | null>(null);
+  const [filter, setFilter] = useState<FilterId>('all');
 
   useEffect(() => {
     // Pas d'event §8 dédié aux badges → screen view standard (analytics.ts)
     screen('badges');
   }, []);
 
-  const unlockedTotal = BADGES.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+  const unlockedTotal = COLLECTION_BADGES.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+  const tierMax = maxTierLabel(UNLOCKED_IDS);
   const secrets = secretBadges();
   const secretsUnlocked = secrets.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+
+  // « Proches du déblocage » : top 3 badges verrouillés, non secrets, par ratio.
+  const nearlyUnlocked = useMemo(() => {
+    return COLLECTION_BADGES
+      .filter((b) => !UNLOCKED_IDS.has(b.id) && !b.secret)
+      .map((b) => ({ def: b, prog: badgeProgress(b.id, demoStat(b.metric)) }))
+      .filter((x) => x.prog !== null && x.prog.ratio > 0 && !x.prog.unlocked)
+      .sort((a, b) => (b.prog!.ratio - a.prog!.ratio))
+      .slice(0, 3);
+  }, []);
+
+  // Familles à afficher selon le filtre.
+  const shownFamilies = filter === 'all' || filter === 'secret'
+    ? BADGE_FAMILIES
+    : BADGE_FAMILIES.filter((f) => f.id === filter);
+  const showSecrets = filter === 'all' || filter === 'secret';
+  const showNearly = filter === 'all' && nearlyUnlocked.length > 0;
 
   return (
     <View style={styles.root}>
@@ -203,42 +352,102 @@ export default function BadgesScreen() {
           {unlockedTotal}
           <Text style={styles.heroTotal}> / {BADGE_TOTAL}</Text>
         </Text>
-        <Text style={styles.heroLabel}>badges débloqués</Text>
+        <Text style={styles.heroLabel}>
+          badges débloqués{tierMax ? ` · Tier max : ${tierMax}` : ''}
+        </Text>
 
-        {BADGE_FAMILIES.map((family) => {
+        {/* Filtres horizontaux — Tous + 12 familles + Secrets (§1.6) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filters}
+          contentContainerStyle={styles.filtersContent}
+        >
+          <FilterChip label="Tous" color={null} active={filter === 'all'} onPress={() => setFilter('all')} />
+          {BADGE_FAMILIES.map((f) => (
+            <FilterChip
+              key={f.id}
+              label={f.name}
+              color={f.color}
+              active={filter === f.id}
+              onPress={() => setFilter(f.id)}
+            />
+          ))}
+          <FilterChip
+            label="Secrets"
+            color={SECRET_BADGE_COLOR}
+            active={filter === 'secret'}
+            onPress={() => setFilter('secret')}
+          />
+        </ScrollView>
+
+        {/* Proches du déblocage — top 3 par % (uniquement en vue « Tous ») */}
+        {showNearly ? (
+          <View style={styles.section}>
+            <Text style={styles.nearlyTitle}>Proches du déblocage</Text>
+            {nearlyUnlocked.map(({ def, prog }) => (
+              <Pressable
+                key={def.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Badge ${def.name}, ${prog!.value} sur ${prog!.threshold}`}
+                onPress={() => setSelected(def)}
+                style={({ pressed }) => [styles.nearlyRow, pressed && styles.cellPressed]}
+              >
+                <BadgeHex
+                  family={def.family}
+                  familyColor={badgeColor(def)}
+                  tier={def.tier}
+                  state="locked"
+                  size="sm"
+                />
+                <View style={styles.nearlyBody}>
+                  <Text style={styles.nearlyName}>{def.name}</Text>
+                  <View style={styles.nearlyGaugeTrack}>
+                    <View
+                      style={[
+                        styles.nearlyGaugeFill,
+                        { width: `${prog!.ratio * 100}%`, backgroundColor: badgeColor(def) },
+                      ]}
+                    />
+                  </View>
+                </View>
+                <Text style={styles.nearlyCount}>
+                  {prog!.value.toLocaleString('fr-FR')} / {prog!.threshold.toLocaleString('fr-FR')}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {/* Sections familles filtrées */}
+        {shownFamilies.map((family) => {
           const defs = familyBadges(family.id);
-          const unlocked = defs.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+          if (defs.length === 0) return null;
           return (
-            <View key={family.id} style={styles.section}>
-              <FamilyHeader
-                name={family.name}
-                color={family.color}
-                unlocked={unlocked}
-                total={defs.length}
-              />
-              <View style={styles.grid}>
-                {defs.map((def) => (
-                  <BadgeCell key={def.id} def={def} onSelect={setSelected} />
-                ))}
-              </View>
-            </View>
+            <FamilySection
+              key={family.id}
+              id={family.id}
+              name={family.name}
+              color={family.color}
+              defs={defs}
+              onSelect={setSelected}
+            />
           );
         })}
 
         {/* Secrets — masqués en « ? » jusqu'au déblocage (§2) */}
-        <View style={styles.section}>
-          <FamilyHeader
+        {showSecrets ? (
+          <FamilySection
+            id="secret"
             name="Secrets"
             color={SECRET_BADGE_COLOR}
-            unlocked={secretsUnlocked}
-            total={secrets.length}
+            defs={secrets}
+            onSelect={setSelected}
           />
-          <View style={styles.grid}>
-            {secrets.map((def) => (
-              <BadgeCell key={def.id} def={def} onSelect={setSelected} />
-            ))}
-          </View>
-        </View>
+        ) : null}
+
+        {/* Rangée de légende des 6 tiers */}
+        <TierRow />
       </ScrollView>
 
       {selected ? <BadgeSheet def={selected} onDismiss={() => setSelected(null)} /> : null}
@@ -272,6 +481,57 @@ const styles = StyleSheet.create({
   },
   heroTotal: { color: colors.gris, fontSize: fontSizes.xxl, fontWeight: '400' },
   heroLabel: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 2 },
+
+  // ── Filtres horizontaux ──
+  filters: { marginTop: 20, marginHorizontal: -spacing.cardPadding },
+  filtersContent: { paddingHorizontal: spacing.cardPadding, gap: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  chipActive: { borderColor: colors.blanc, backgroundColor: colors.carbone2 },
+  chipPressed: { opacity: 0.7 },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  chipLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4 },
+  chipLabelActive: { color: colors.blanc },
+
+  // ── Proches du déblocage ──
+  nearlyTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 14,
+  },
+  nearlyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  nearlyBody: { flex: 1, gap: 7 },
+  nearlyName: { color: colors.blanc, fontSize: fontSizes.sm, letterSpacing: 0.2 },
+  nearlyGaugeTrack: {
+    height: 4,
+    borderRadius: radii.pill,
+    backgroundColor: colors.grisLigne,
+    overflow: 'hidden',
+  },
+  nearlyGaugeFill: { height: 4, borderRadius: radii.pill, opacity: 0.85 },
+  nearlyCount: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.4,
+  },
+
   section: { marginTop: 30 },
   bandeau: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   familyName: {
@@ -298,6 +558,29 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   cellNameOn: { color: colors.blanc },
+
+  // ── Rangée des tiers ──
+  tierRowTitle: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    marginBottom: 14,
+  },
+  tierRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  tierItem: { alignItems: 'center', gap: 8 },
+  tierHex: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    transform: [{ rotate: '45deg' }],
+    backgroundColor: colors.carbone,
+  },
+  tierLabel: {
+    color: colors.gris,
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
+
   overlay: { backgroundColor: colors.noir },
   sheet: {
     position: 'absolute',
@@ -328,6 +611,13 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
+  sheetTier: {
+    fontSize: fontSizes.xs,
+    letterSpacing: 1.4,
+    marginTop: 6,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
   sheetRequirement: {
     color: colors.gris,
     fontSize: fontSizes.sm,
@@ -335,6 +625,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+
+  // ── Jauge de progression (badges progressifs) ──
+  gaugeWrap: { alignSelf: 'stretch', marginTop: 16, gap: 8 },
+  gaugeRow: { flexDirection: 'row', justifyContent: 'center' },
+  gaugeValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.2,
+  },
+  gaugeThreshold: { color: colors.gris, fontWeight: '400' },
+  gaugeTrack: {
+    height: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.grisLigne,
+    overflow: 'hidden',
+  },
+  gaugeFill: { height: 6, borderRadius: radii.pill, opacity: 0.9 },
+  gaugeNext: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+
   sheetState: {
     color: colors.gris,
     fontSize: fontSizes.xs,

@@ -88,6 +88,46 @@ export const ICONS = {
   chevron: { paths: ['m9 5 7 7-7 7'] },
   fermer: { paths: ['M5.5 5.5l13 13', 'M18.5 5.5l-13 13'] },
   plus: { paths: ['M12 5v14', 'M5 12h14'] },
+  /** Cible — offensive crew (§38). */
+  cible: {
+    paths: [
+      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+      'M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z',
+      'M12 12.8a.8.8 0 1 0 .01 0',
+    ],
+  },
+  /** Mission — case cochée dans une liste (§7.12). */
+  mission: {
+    paths: [
+      'M6 4.5h12A1.5 1.5 0 0 1 19.5 6v12A1.5 1.5 0 0 1 18 19.5H6A1.5 1.5 0 0 1 4.5 18V6A1.5 1.5 0 0 1 6 4.5z',
+      'M8.5 12l2.2 2.2L15.5 9.5',
+    ],
+  },
+  /** Coffre — Crew Chest hebdo (§39). */
+  coffre: {
+    paths: [
+      'M4 8.5 12 5l8 3.5v8L12 20l-8-3.5v-8z',
+      'M4 8.5 12 12l8-3.5',
+      'M12 12v8',
+      'M10.5 10.4h3',
+    ],
+  },
+  /** Lien — source connectée / import (§13, §16). */
+  lien: {
+    paths: [
+      'M9.5 14.5 14.5 9.5',
+      'M10 6.5l1.2-1.2a3.5 3.5 0 0 1 5 5L15 11.5',
+      'M14 17.5l-1.2 1.2a3.5 3.5 0 0 1-5-5L9 11.5',
+    ],
+  },
+  /** Aide — support / contestation (§7.15). */
+  aide: {
+    paths: [
+      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+      'M9.6 9.4a2.5 2.5 0 0 1 4.9.7c0 1.7-2.5 2.1-2.5 3.9',
+      'M12 17.2v.01',
+    ],
+  },
 } as const satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

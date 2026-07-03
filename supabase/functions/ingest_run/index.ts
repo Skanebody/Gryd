@@ -18,16 +18,18 @@
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { cellToLatLng, latLngToCell } from 'npm:h3-js@^4.1';
 import {
+  CREW_XP_TABLE,
   DECAY_DAYS,
   H3_RESOLUTION,
   OUTPOST_RADIUS_KM,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
-import { ROUTE_ENDPOINT_MATCH_KM } from '../_shared/badges.ts';
+import { ROUTE_ENDPOINT_MATCH_KM, VERIFIED_MIN_TRUST } from '../_shared/badges.ts';
 import type {
   HexClaimResult,
   IngestRunRequest,
   IngestRunResponse,
+  RunPoint,
   RunStatus,
 } from '../_shared/types.ts';
 import {
@@ -51,7 +53,9 @@ import {
   streakMultiplier,
 } from '../_shared/engine/scoring.ts';
 import {
+  applyRejectedRun,
   applyRunToStats,
+  dedupeActivity,
   emptyLifetimeStats,
   evaluateBadges,
   localClock,
@@ -59,9 +63,17 @@ import {
   shouldOpenRoute,
   weatherFlags,
   type BadgeRunInput,
+  type DedupActivity,
   type LifetimeStats,
 } from '../_shared/engine/badges.ts';
 import { BADGES_BY_KEY } from '../_shared/badges.ts';
+import {
+  cappedCrewXp,
+  chestProgressDelta,
+  crewXpForRun,
+  withinOffensiveZone,
+  type CrewChestInput,
+} from '../_shared/engine/crew.ts';
 
 const MS_PER_DAY = 86_400_000;
 const M_PER_KM = 1_000;
@@ -555,6 +567,224 @@ async function awardBadges(userId: string, run: BadgeRunInput): Promise<string[]
   return newBadges;
 }
 
+/**
+ * Course REJETÉE (rejected/flagged) : applyRunToStats l'ignore, mais Clean
+ * Runner a besoin de connaître le jour du rejet (cleanDays repart de 0).
+ * Lit user_stats, applique applyRejectedRun (pur) et upsert. Aucun badge ici.
+ */
+async function awardRejectedRun(userId: string, dateISO: string): Promise<void> {
+  const { data: statsRow, error: statsError } = await supabase
+    .from('user_stats')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (statsError) throw new Error(`user_stats read: ${statsError.message}`);
+  const after = applyRejectedRun(rowToStats(statsRow), dateISO);
+  const { error: upsertError } = await supabase
+    .from('user_stats')
+    .upsert(statsToRow(userId, after), { onConflict: 'user_id' });
+  if (upsertError) throw new Error(`user_stats upsert (rejected): ${upsertError.message}`);
+}
+
+// ─── Déduplication d'activité (AMENDEMENT-06 §4, Activity Hub) ────────────────
+
+/** sha-256 (hex) des points arrondis à ~6 décimales — clé de dédup polyline. */
+async function polylineHash(points: readonly RunPoint[]): Promise<string> {
+  const sorted = [...points].sort((a, b) => a.t - b.t);
+  const canon = sorted
+    .map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`)
+    .join(';');
+  const bytes = new TextEncoder().encode(canon);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * L'activité entrante est-elle un DOUBLON d'une course déjà ingérée par ce user
+ * (AMENDEMENT-06 §4) ? Charge les courses récentes (fenêtre ± jours) et applique
+ * dedupeActivity (pur : hash OU départ±3min & durée±10 % & distance±10 %).
+ * Retourne l'id de la course matchée, ou null.
+ */
+async function findDuplicateRun(
+  userId: string,
+  candidate: DedupActivity,
+): Promise<string | null> {
+  const t = Date.parse(candidate.startedAt);
+  const windowMs = 2 * MS_PER_DAY; // large : le filtre fin est dedupeActivity
+  const { data, error } = await supabase
+    .from('runs')
+    .select('id, started_at, duration_s, distance_m, polyline_hash')
+    .eq('user_id', userId)
+    .gte('started_at', new Date(t - windowMs).toISOString())
+    .lte('started_at', new Date(t + windowMs).toISOString());
+  if (error) throw new Error(`runs dedup read: ${error.message}`);
+  for (const row of data ?? []) {
+    const existing: DedupActivity = {
+      startedAt: row.started_at as string,
+      durationS: row.duration_s as number,
+      distanceM: row.distance_m as number,
+      polylineHash: (row.polyline_hash as string | null) ?? null,
+    };
+    if (dedupeActivity(candidate, existing)) return row.id as string;
+  }
+  return null;
+}
+
+// ─── Crews Supercell (AMENDEMENT-06 §2) : XP crew + coffre + offensive ───────
+
+/** Lundi ISO ('YYYY-MM-DD') de la semaine d'une date (week_start du coffre). */
+function isoWeekStart(now: Date): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dow = (d.getUTCDay() + 6) % 7; // lundi=0 … dimanche=6
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Jour UTC ('YYYY-MM-DD') — clé du cap quotidien crew_xp_daily. */
+const utcDay = (now: Date): string => now.toISOString().slice(0, 10);
+
+interface CrewRunOutcome {
+  hexesCaptured: number; // neutres + volés
+  hexesDefended: number;
+  newCrewRoutes: number;
+  newCrewOutposts: number;
+  verified: boolean;
+  /** true si aucune contribution crew de ce membre cette semaine avant celle-ci. */
+  firstOfWeek: boolean;
+}
+
+/**
+ * Traite la contribution crew d'une course (§34/§39/§38). Retourne l'XP crew
+ * créditée et l'éventuelle montée de niveau, pour IngestRunResponse.
+ *   1. XP crew (crewXpForRun) cappée au reste quotidien du membre (§34.1) ;
+ *   2. crédit atomique via RPC add_crew_xp (recalcul du niveau depuis CREW_XP_TABLE) ;
+ *   3. progression du coffre de la semaine (chestProgressDelta, §39) ;
+ *   4. contribution aux offensives ACTIVES du crew dont la zone couvre des
+ *      hexes claimés (§38).
+ * Sans crew : no-op (retourne {}).
+ */
+async function processCrew(
+  userId: string,
+  crewId: string | null,
+  now: Date,
+  outcome: CrewRunOutcome,
+  claimedCentroids: { lat: number; lng: number }[],
+): Promise<{ crewXp?: number; crewLevelUp?: { from: number; to: number } }> {
+  if (crewId === null) return {};
+
+  const rawXp = crewXpForRun({
+    hexesCaptured: outcome.hexesCaptured,
+    hexesDefended: outcome.hexesDefended,
+    routesOpened: outcome.newCrewRoutes,
+    routesDuplicated: 0, // détection de doublon de route = V1 (routes uniques MVP)
+    outpostsMaintained: outcome.newCrewOutposts,
+    missionsCompleted: 0, // missions crew complétées = V1 (endpoint dédié)
+    offensivesCompleted: 0, // clôture d'offensive = job, pas la course
+    verified: outcome.verified,
+    firstOfWeek: outcome.firstOfWeek,
+  });
+
+  // Cap quotidien : XP crew déjà générée par ce membre aujourd'hui.
+  const day = utcDay(now);
+  const { data: dailyRow, error: dailyReadErr } = await supabase
+    .from('crew_xp_daily')
+    .select('xp')
+    .eq('crew_id', crewId)
+    .eq('user_id', userId)
+    .eq('day', day)
+    .maybeSingle();
+  if (dailyReadErr) throw new Error(`crew_xp_daily read: ${dailyReadErr.message}`);
+  const alreadyToday = (dailyRow?.xp as number | undefined) ?? 0;
+  const xp = cappedCrewXp(rawXp, alreadyToday);
+
+  const result: { crewXp?: number; crewLevelUp?: { from: number; to: number } } = {};
+
+  if (xp > 0) {
+    // Compteur quotidien (upsert : +xp).
+    const { error: dailyErr } = await supabase
+      .from('crew_xp_daily')
+      .upsert({ crew_id: crewId, user_id: userId, day, xp: alreadyToday + xp }, {
+        onConflict: 'crew_id,user_id,day',
+      });
+    if (dailyErr) throw new Error(`crew_xp_daily upsert: ${dailyErr.message}`);
+
+    // Crédit atomique + recalcul du niveau (RPC security definer).
+    const { data: lvl, error: rpcErr } = await supabase.rpc('add_crew_xp', {
+      p_crew_id: crewId,
+      p_xp: xp,
+      p_xp_table: CREW_XP_TABLE,
+    });
+    if (rpcErr) throw new Error(`add_crew_xp rpc: ${rpcErr.message}`);
+    result.crewXp = xp;
+    const row = Array.isArray(lvl) ? lvl[0] : lvl;
+    if (row && row.level_to > row.level_from) {
+      result.crewLevelUp = { from: row.level_from as number, to: row.level_to as number };
+    }
+  }
+
+  // ── Coffre de la semaine (§39) : progression pondérée ────────────────────
+  const chestInput: CrewChestInput = {
+    hexCaptured: outcome.hexesCaptured,
+    hexDefended: outcome.hexesDefended,
+    routeOpened: outcome.newCrewRoutes,
+    verifiedRun: outcome.verified ? 1 : 0,
+  };
+  const delta = chestProgressDelta(chestInput);
+  if (delta > 0) {
+    const weekStart = isoWeekStart(now);
+    const { data: chestRow, error: chestReadErr } = await supabase
+      .from('crew_chests')
+      .select('progress')
+      .eq('crew_id', crewId)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    if (chestReadErr) throw new Error(`crew_chests read: ${chestReadErr.message}`);
+    const progress = ((chestRow?.progress as number | undefined) ?? 0) + delta;
+    const { error: chestErr } = await supabase
+      .from('crew_chests')
+      .upsert({ crew_id: crewId, week_start: weekStart, progress }, {
+        onConflict: 'crew_id,week_start',
+      });
+    if (chestErr) throw new Error(`crew_chests upsert: ${chestErr.message}`);
+  }
+
+  // ── Offensives actives (§38) : hexes claimés dans la zone cible ──────────
+  if (claimedCentroids.length > 0) {
+    const nowIso = now.toISOString();
+    const { data: offs, error: offErr } = await supabase
+      .from('offensives')
+      .select('id, center_h3, radius_km')
+      .eq('crew_id', crewId)
+      .eq('status', 'active')
+      .lte('starts_at', nowIso)
+      .gte('ends_at', nowIso);
+    if (offErr) throw new Error(`offensives read: ${offErr.message}`);
+    for (const off of offs ?? []) {
+      const [clat, clng] = cellToLatLng(dbToH3(off.center_h3));
+      const inZone = claimedCentroids.filter((c) =>
+        withinOffensiveZone(c, { lat: clat, lng: clng }, Number(off.radius_km))
+      ).length;
+      if (inZone === 0) continue;
+      const { data: contribRow, error: cReadErr } = await supabase
+        .from('offensive_contributions')
+        .select('hexes')
+        .eq('offensive_id', off.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (cReadErr) throw new Error(`offensive_contributions read: ${cReadErr.message}`);
+      const hexes = ((contribRow?.hexes as number | undefined) ?? 0) + inZone;
+      const { error: cErr } = await supabase
+        .from('offensive_contributions')
+        .upsert({ offensive_id: off.id, user_id: userId, hexes }, {
+          onConflict: 'offensive_id,user_id',
+        });
+      if (cErr) throw new Error(`offensive_contributions upsert: ${cErr.message}`);
+    }
+  }
+
+  return result;
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -605,7 +835,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const now = new Date();
 
-    // ── Validation §3.2 (pur) ────────────────────────────────────────────────
+    // ── Stats §3.2 (pur) — calculées AVANT la dédup pour que la branche
+    //    métrique de dedupeActivity (durée±10 % & distance±10 %) puisse jouer :
+    //    deux imports de la même activité produisent des polylignes arrondies
+    //    différentes, seul l'appariement durée/distance/départ les rattrape.
     const filtered = filterPoints(request.points);
     const stats = computeStats(filtered.segments);
     const validation = validateOrStatus(filtered, stats, request.stepCount);
@@ -613,6 +846,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const distanceM = Math.round(stats.distanceM);
     const durationS = Math.round(stats.durationS);
     const avgPaceSKm = Math.round(stats.avgPaceSKm);
+
+    // ── polyline_hash + déduplication Activity Hub (§4) ──────────────────────
+    // Le hash sert de clé de dédup forte ET est persisté sur la course. La dédup
+    // « OU triple » du §4 est désormais pleinement câblée : hash identique OU
+    // (départ±3 min & durée±10 % & distance±10 %) via les vraies valeurs ci-dessus.
+    // Un doublon d'une course déjà ingérée → réponse DOUCE 'duplicate'
+    // (idempotente, pas d'erreur), et on trace l'import dans imported_activities.
+    const runHash = request.polylineHash ?? await polylineHash(request.points);
+    const dupOf = await findDuplicateRun(userId, {
+      startedAt: request.startedAt,
+      durationS,
+      distanceM,
+      polylineHash: runHash,
+    });
+    if (dupOf) {
+      await supabase.from('imported_activities').insert({
+        user_id: userId,
+        source: request.source === 'healthkit' ? 'healthkit' : 'gryd_live',
+        external_id: request.clientRunId,
+        started_at: request.startedAt,
+        duration_s: durationS,
+        distance_m: distanceM,
+        polyline_hash: runHash,
+        status: 'duplicate',
+        matched_run_id: dupOf,
+      });
+      return json({ status: 'duplicate', runId: dupOf, replayed: false }, 200);
+    }
     const streak = {
       weeks: profile.streak_weeks,
       multiplier: streakMultiplier(profile.streak_weeks),
@@ -630,6 +891,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       motion_trust: validation.motionTrust,
       trust_score: validation.trustScore,
       step_count: request.stepCount ?? null,
+      polyline_hash: runHash,
     };
 
     // ── Course rejetée ou gelée : insérée, AUCUNE écriture hex ───────────────
@@ -660,6 +922,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (inserted.replayed) return json(inserted.payload);
       response.runId = inserted.runId;
       await persistCelebration(inserted.runId, response, 0);
+      // Clean Runner : un run rejeté remet cleanDays à 0 (applyRunToStats ignore
+      // les rejets ; applyRejectedRun mémorise le jour du rejet). Flagged compte
+      // comme rejet côté fair-play (non vérifié, casse la série propre).
+      await awardRejectedRun(userId, request.startedAt);
       return json(response);
     }
 
@@ -768,6 +1034,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ── Badges (AMENDEMENT-04 §5) : stats vie entière + attribution ──────────
     // N'arrive qu'après un INSERT runs frais — jamais rejoué (le replay renvoie
     // la célébration persistée, qui contient déjà newBadges).
+    // No Map Run (§2) : course valide dont TOUS les hexes claimés sont pionniers.
+    const claimedTotal = decision.totals.claimed + decision.totals.stolen;
+    const allPioneer = claimedTotal > 0 && decision.totals.pioneer === claimedTotal;
+    // Météo/événement/routes crew : encore détectés (tables events/routes/weather
+    // alimentées) mais ne nourrissent plus de badge dans le catalogue V2. On les
+    // référence pour rester cohérent avec les insertions annexes.
+    void weather;
+    void duringEvent;
+    // outpost.newCrewOutposts / route.newCrewRoutes : consommés par processCrew (§2).
+
     const newBadges = await awardBadges(userId, {
       status: validation.status,
       startedAt: request.startedAt,
@@ -785,15 +1061,50 @@ Deno.serve(async (req: Request): Promise<Response> => {
       crewSize: crew.size,
       // Saison 0 en cours : toute course validée aujourd'hui en fait partie (MVP).
       duringSeasonZero: true,
-      // Badge Explorateur (AMENDEMENT-04) : capture en zone pionnière/sauvage.
+      // Héritage Explorateur : capture en zone pionnière/sauvage.
       inPioneerZone: density === 'pioneer' || density === 'wild',
-      weather,
-      duringEvent,
+      // GRYD Verified : motion_trust réel de la validation (seuil VERIFIED_MIN_TRUST).
+      motionTrust: validation.motionTrust,
+      flagged: false, // course 'claimable' = valide/partielle sans flag bloquant
+      // First Share : le client signale un partage explicite (défaut : non).
+      shared: request.shared === true,
+      // No Map Run : 100 % pionnier.
+      allPioneer,
       newOutposts: outpost.newOutposts,
-      newCrewOutposts: outpost.newCrewOutposts,
       newRoutes: route.newRoutes,
-      newCrewRoutes: route.newCrewRoutes,
     });
+
+    // ── Crews Supercell (§2) : XP crew + coffre + offensive ──────────────────
+    // Contribution crew de la course. `firstOfWeek` = 1re contribution de ce
+    // membre cette semaine (crew_xp_daily de la semaine vide) → participation.
+    // `claimedCentroids` = centres des hexes réellement pris (neutres + volés),
+    // pour compter la contribution aux offensives dont la zone les couvre.
+    let crewOutcome: { crewXp?: number; crewLevelUp?: { from: number; to: number } } = {};
+    if (crew.crewId !== null) {
+      const claimedCentroids = decision.results
+        .filter((r) => r.outcome === 'claimed_neutral' || r.outcome === 'stolen')
+        .map((r) => {
+          const [lat, lng] = cellToLatLng(r.h3);
+          return { lat, lng };
+        });
+      const weekStart = isoWeekStart(now);
+      const { data: weekRows, error: weekErr } = await supabase
+        .from('crew_xp_daily')
+        .select('day')
+        .eq('crew_id', crew.crewId)
+        .eq('user_id', userId)
+        .gte('day', weekStart);
+      if (weekErr) throw new Error(`crew_xp_daily week read: ${weekErr.message}`);
+      const firstOfWeek = (weekRows ?? []).length === 0;
+      crewOutcome = await processCrew(userId, crew.crewId, now, {
+        hexesCaptured: decision.totals.claimed + decision.totals.stolen,
+        hexesDefended: decision.totals.defended,
+        newCrewRoutes: route.newCrewRoutes,
+        newCrewOutposts: outpost.newCrewOutposts,
+        verified: (validation.motionTrust ?? 0) >= VERIFIED_MIN_TRUST,
+        firstOfWeek,
+      }, claimedCentroids);
+    }
 
     // ── Célébration persistée (source du replay idempotent) ──────────────────
     const response: IngestRunResponse = {
@@ -816,6 +1127,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       streak,
       results: decision.results,
       newBadges,
+      ...(crewOutcome.crewXp !== undefined ? { crewXp: crewOutcome.crewXp } : {}),
+      ...(crewOutcome.crewLevelUp !== undefined ? { crewLevelUp: crewOutcome.crewLevelUp } : {}),
     };
     await persistCelebration(runId, response, score.points);
     return json(response);

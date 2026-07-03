@@ -21,6 +21,11 @@ import {
 import { BadgeHex } from '../../src/features/badges/BadgeHex';
 import { BADGE_TOTAL, badgeById, badgeColor } from '../../src/features/badges/catalog';
 import { UNLOCKED_IDS, lastUnlockedIds } from '../../src/features/badges/demo';
+import {
+  FRAME_TIER_LABELS,
+  playerLevelForXp,
+  playerTierForLevel,
+} from '../../src/features/crew/rules';
 import { FranceMap } from '../../src/features/territory/FranceMap';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
@@ -34,7 +39,6 @@ import { formatInt, formatMultiplier } from '../../src/ui/format';
 const FAKE_PROFILE = {
   pseudo: 'KORO',
   crew: 'LES FOULÉES 9³',
-  level: 7,
   seasonPoints: 4210,
   streakWeeks: 3,
   parisHexes: 1835,
@@ -43,6 +47,12 @@ const FAKE_PROFILE = {
 
 /** XP permanent : 1:1 avec les points territoire (choix D18). */
 const xp = FAKE_PROFILE.seasonPoints * XP_RATE_OF_POINTS;
+/**
+ * Runner Level (§43.1) DÉRIVÉ de l'XP via la courbe réelle (features/crew/rules)
+ * — remplace le niveau factice codé en dur. Le tier visuel (road…legend) suit.
+ */
+const runnerLevel = playerLevelForXp(xp);
+const runnerTier = playerTierForLevel(runnerLevel);
 const streakMultiplier = Math.min(
   1 + FAKE_PROFILE.streakWeeks * STREAK_MULTIPLIER_STEP,
   STREAK_MULTIPLIER_CAP,
@@ -62,12 +72,32 @@ interface ProfileLink {
   label: string;
   detail: string;
   icon: IconName;
+  /** Route poussée au tap (expo-router). Absent = pas encore câblé (placeholder). */
+  href?: string;
 }
 
-/** Entrées à venir — libellés directifs, rien de câblé (placeholder MVP). */
+/**
+ * Entrées Profil (AMENDEMENT-06 §3/§4/§5). Arsenal (ex-Boutique, sortie de la
+ * nav), Sources connectées et Support course sont câblés ; Performance /
+ * Historique restent des placeholders (TODO O1). Sources est aussi accessible
+ * depuis Performance (§4).
+ */
 const LINKS: readonly ProfileLink[] = [
   { label: 'Performance', detail: 'Records, allure, régularité', icon: 'performance' },
   { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique' },
+  { label: 'Arsenal', detail: 'Skins, objets capés, Club — Gear', icon: 'boutique', href: '/arsenal' },
+  {
+    label: 'Sources connectées',
+    detail: 'GPS, Apple Health, Strava, WHOOP…',
+    icon: 'lien',
+    href: '/sources',
+  },
+  {
+    label: 'Support course',
+    detail: 'Course non comptée, signalement, données',
+    icon: 'aide',
+    href: '/support',
+  },
   {
     label: 'Paramètres & confidentialité',
     detail: 'Zones privées, notifications, compte',
@@ -85,7 +115,7 @@ export default function ProfilScreen() {
   return (
     <TabScreen title={FAKE_PROFILE.pseudo} kicker="PROFIL">
       <Text style={styles.identity}>
-        Niveau {FAKE_PROFILE.level} · {FAKE_PROFILE.crew}
+        Runner niv. {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} · {FAKE_PROFILE.crew}
       </Text>
 
       {/* Chips progression permanente — survit au reset de saison */}
@@ -144,7 +174,18 @@ export default function ProfilScreen() {
 
       <Text style={styles.sectionLabel}>PLUS</Text>
       {LINKS.map((link) => (
-        <View key={link.label} style={styles.linkRow}>
+        <Pressable
+          key={link.label}
+          accessibilityRole="button"
+          accessibilityLabel={link.label}
+          disabled={link.href === undefined}
+          onPress={() => {
+            if (link.href !== undefined) router.push(link.href);
+            // TODO(O1) : Performance / Historique / Paramètres (écrans à venir).
+            else if (__DEV__) console.log(`[profil] ${link.label} — écran à venir (O1)`);
+          }}
+          style={({ pressed }) => [styles.linkRow, pressed && link.href !== undefined && styles.linkRowPressed]}
+        >
           {/* Icône filaire (charte §F) — réduit la friction de lecture */}
           <Icon name={link.icon} size={20} color={colors.blanc} />
           <View style={styles.linkInfo}>
@@ -152,7 +193,7 @@ export default function ProfilScreen() {
             <Text style={styles.linkDetail}>{link.detail}</Text>
           </View>
           <Icon name="chevron" size={16} color={colors.gris} />
-        </View>
+        </Pressable>
       ))}
 
       {configured && session ? (
@@ -262,6 +303,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.cardPadding,
     marginBottom: 10,
   },
+  linkRowPressed: { opacity: 0.7 },
   linkInfo: { flex: 1 },
   linkLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   linkDetail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3 },

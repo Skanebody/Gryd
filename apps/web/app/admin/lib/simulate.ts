@@ -310,10 +310,10 @@ function demoLifetimeStats(runStartedAtMs: number): LifetimeStats {
     totalDistanceM: 38_500,
     bestRunDistanceM: 8_400,
     bestAvgPaceSKm: 305,
-    activeDays: 6,
     activeDayStreak: 6,
     bestActiveDayStreak: 6,
     lastActiveDay: yesterday,
+    firstActiveDay: yesterday,
     runsOnLastActiveDay: 1,
     maxRunsInOneDay: 2,
     hexesCaptured: 499,
@@ -322,7 +322,6 @@ function demoLifetimeStats(runStartedAtMs: number): LifetimeStats {
     pioneerHexes: 3,
     maxHexesInRun: 82,
     soloRuns: 9,
-    seasonZeroRuns: 9,
     seasonZeroHexes: 499,
   };
 }

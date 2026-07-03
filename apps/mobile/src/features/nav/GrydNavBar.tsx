@@ -1,9 +1,10 @@
 /**
  * GRYD — barre de navigation flottante : pill carbone, 5 onglets
- * Carte · Crew · Classement · Boutique · Profil (AMENDEMENT-02 §5).
- * Icônes filaires 1,5 px (charte §F, set @klaim/shared — décision fondateur
- * 03/07/2026) : icône 22 + label 10 dessous ; actif = icône chartreuse
- * (remplie si fillable, §C.3 « moi / état actif ») + label blanc.
+ * Carte · War Room · Crew · Classement · Profil (AMENDEMENT-06 §3, doc v3 §6).
+ * La Boutique est sortie de la nav (→ Arsenal, accès Profil/War Room). War Room
+ * porte l'icône alerte (§3). Icônes filaires 1,5 px (charte §F, set @klaim/shared
+ * — décision fondateur 03/07/2026) : icône 22 + label 10 dessous ; actif = icône
+ * chartreuse (remplie si fillable, §C.3 « moi / état actif ») + label blanc.
  * La tab bar native est masquée ; cette barre navigue via expo-router.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -21,9 +22,9 @@ interface TabItem {
 
 const TABS: readonly TabItem[] = [
   { label: 'Carte', href: '/', icon: 'carte' },
+  { label: 'War Room', href: '/warroom', icon: 'alerte' },
   { label: 'Crew', href: '/crew', icon: 'crew' },
   { label: 'Classement', href: '/classement', icon: 'classement' },
-  { label: 'Boutique', href: '/boutique', icon: 'boutique' },
   { label: 'Profil', href: '/profil', icon: 'profil' },
 ];
 

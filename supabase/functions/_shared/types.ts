@@ -36,6 +36,10 @@ export interface IngestRunRequest {
   points: RunPoint[];
   /** Nombre de pas mesuré sur la période (podomètre/HealthKit) — signal GRYD Verify optionnel. */
   stepCount?: number;
+  /** Le joueur a partagé le résultat de cette course (badge First Share, AMENDEMENT-06 §1). */
+  shared?: boolean;
+  /** sha-256 de la polyline arrondie (dédup Activity Hub §4) — calculé serveur si absent. */
+  polylineHash?: string;
 }
 
 /** Résultat d'un claim par hexagone, décidé serveur. */
@@ -83,6 +87,10 @@ export interface IngestRunResponse {
   results: HexClaimResult[];
   /** Badges débloqués par cette course (keys du catalogue badges.ts, AMENDEMENT-04 §5). */
   newBadges: string[];
+  /** XP crew créditée par cette course (après cap quotidien §34.1). Absent si sans crew. */
+  crewXp?: number;
+  /** Montée de niveau crew déclenchée par cette course (§34.3). Absent si aucune. */
+  crewLevelUp?: { from: number; to: number };
 }
 
 /** Ligne hex_claims exposée publiquement (jamais de trace, jamais de position live). */

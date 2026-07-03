@@ -29,8 +29,12 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)/sign-in" />
-          {/* Collection de badges — poussée par-dessus les tabs depuis Profil */}
+          {/* Écrans poussés par-dessus les tabs (AMENDEMENT-06 §3) */}
           <Stack.Screen name="badges" />
+          <Stack.Screen name="arsenal" />
+          <Stack.Screen name="sources" />
+          <Stack.Screen name="support" />
+          <Stack.Screen name="crew-discovery" />
         </Stack>
       </SessionProvider>
     </SafeAreaProvider>

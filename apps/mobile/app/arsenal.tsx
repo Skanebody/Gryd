@@ -1,9 +1,9 @@
 /**
- * GRYD — onglet Boutique (placeholder MVP, SPEC §5 + AMENDEMENT-02 §8 :
- * MVP = Club + Starter + Éclats ; Pass, boutique quotidienne, artefacts = V1).
- * Catalogue dérivé de SKUS/@klaim/shared — AUCUN paiement câblé (RevenueCat = O4) :
- * prix affichés par le store plus tard, boutons inertes « Bientôt ».
- * Jamais vendu : hexes, points, Foulées, stats (anti pay-to-win).
+ * GRYD — Arsenal (ex-Boutique, AMENDEMENT-06 §3 / doc v3 §7.11 : sort de la nav,
+ * FR « Arsenal », EN « Gear »). Écran POUSSÉ par-dessus les tabs, accessible
+ * depuis Profil ET War Room. Catalogue dérivé de SKUS/@klaim/shared — AUCUN
+ * paiement câblé (RevenueCat = O4) : boutons inertes « Bientôt ». Jamais vendu :
+ * hexes, points, Foulées, stats, victoire (anti pay-to-win §52).
  */
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -21,17 +21,16 @@ import {
   spacing,
   type IconName,
 } from '@klaim/shared';
-import { EVENTS, screen, track } from '../../src/lib/analytics';
-import { GhostButton } from '../../src/ui/GhostButton';
-import { Icon } from '../../src/ui/Icon';
-import { TabScreen } from '../../src/ui/TabScreen';
-import { formatInt } from '../../src/ui/format';
+import { EVENTS, screen, track } from '../src/lib/analytics';
+import { GhostButton } from '../src/ui/GhostButton';
+import { Icon } from '../src/ui/Icon';
+import { StackScreen } from '../src/ui/StackScreen';
+import { formatInt } from '../src/ui/format';
 
 interface ShopItem {
   sku: string;
   name: string;
   description: string;
-  /** Icônes filaires (charte §F) — Éclats : pas encore d'icône dédiée (plus tard). */
   icons?: readonly IconName[];
 }
 
@@ -41,7 +40,6 @@ const CLUB_BENEFITS =
   `${STREAK_FREEZE_CLUB_PER_MONTH} gels de série/mois`;
 
 const CLUB_ITEMS: readonly ShopItem[] = [
-  // Bénéfices Club : bouclier inclus + gels de série (flamme) — icônes des items concernés
   { sku: SKUS.clubMonthly, name: 'Club — mensuel', description: CLUB_BENEFITS, icons: ['bouclier', 'serie'] },
   { sku: SKUS.clubAnnual, name: 'Club — annuel', description: CLUB_BENEFITS, icons: ['bouclier', 'serie'] },
 ];
@@ -50,7 +48,7 @@ const STARTER_ITEM: ShopItem = {
   sku: SKUS.starterPack,
   name: 'Pack Starter',
   description: `${STARTER_PACK_ECLATS} Éclats pour bien démarrer — proposé une seule fois.`,
-  icons: ['boutique'], // étiquette — offre unique
+  icons: ['boutique'],
 };
 
 const ECLATS_ITEMS: readonly ShopItem[] = [
@@ -74,7 +72,6 @@ function ShopRow({ item }: { item: ShopItem }) {
         <Text style={styles.itemDescription}>{item.description}</Text>
         <Text style={styles.itemSku}>{item.sku}</Text>
       </View>
-      {/* Paiement non câblé (O4 RevenueCat) — bouton inerte, jamais un faux achat */}
       <GhostButton label="Bientôt" disabled />
     </View>
   );
@@ -84,17 +81,18 @@ function SectionLabel({ children }: { children: string }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
-export default function BoutiqueScreen() {
+export default function ArsenalScreen() {
   useEffect(() => {
-    screen('boutique');
-    // Ouvrir la boutique = exposition au paywall (§8, props { trigger }).
-    track(EVENTS.paywallView, { trigger: 'boutique_tab' });
+    screen('arsenal');
+    // Ouvrir l'Arsenal = exposition au paywall (§8, props { trigger }).
+    track(EVENTS.paywallView, { trigger: 'arsenal' });
   }, []);
 
   return (
-    <TabScreen
-      title="Boutique"
-      kicker="SAISON 0"
+    <StackScreen
+      title="Arsenal"
+      icon="boutique"
+      kicker="SAISON 0 · GEAR"
       subtitle="Le territoire ne s'achète pas. Le style et le confort, si."
     >
       <SectionLabel>CLUB</SectionLabel>
@@ -111,10 +109,10 @@ export default function BoutiqueScreen() {
       ))}
 
       <Text style={styles.footnote}>
-        Les Éclats n’achètent jamais d’hexes, de points ni de Foulées — un bouclier
+        Aucun objet ne vend des hexes, des kilomètres ou la victoire — un bouclier
         supplémentaire coûte {SHIELD_EXTRA_ECLATS} Éclats, le reste se gagne en courant.
       </Text>
-    </TabScreen>
+    </StackScreen>
   );
 }
 

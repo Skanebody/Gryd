@@ -1,10 +1,11 @@
 /**
- * GRYD — layout (tabs) : 5 onglets Carte · Crew · Classement · Boutique · Profil
- * (AMENDEMENT-02 §5). La tab bar native est masquée : la barre pill carbone
- * flottante (GrydNavBar) et le bouton COURIR 72 px chartreuse (RunButton)
- * sont rendus ICI, en overlay — permanents sur les 5 onglets, dont la carte.
- * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session
- * → (auth)/sign-in ; non configuré (O1) → mode dev, accès direct.
+ * GRYD — layout (tabs) : 5 onglets Carte · War Room · Crew · Classement · Profil
+ * (AMENDEMENT-06 §3, doc v3 §6). La Boutique SORT de la nav (renommée Arsenal,
+ * route /arsenal, accessible depuis Profil et War Room). La tab bar native est
+ * masquée : la barre pill carbone flottante (GrydNavBar) et le bouton COURIR
+ * 72 px chartreuse (RunButton) sont rendus ICI, en overlay — permanents sur les
+ * 5 onglets, dont la carte. Garde d'auth (règle session.tsx) : Supabase
+ * configuré + pas de session → (auth)/sign-in ; non configuré (O1) → mode dev.
  */
 import { Redirect, Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -24,9 +25,9 @@ export default function TabsLayout() {
     <View style={styles.root}>
       <Tabs screenOptions={{ headerShown: false, tabBarStyle: styles.hiddenTabBar }}>
         <Tabs.Screen name="index" options={{ title: 'Carte' }} />
+        <Tabs.Screen name="warroom" options={{ title: 'War Room' }} />
         <Tabs.Screen name="crew" options={{ title: 'Crew' }} />
         <Tabs.Screen name="classement" options={{ title: 'Classement' }} />
-        <Tabs.Screen name="boutique" options={{ title: 'Boutique' }} />
         <Tabs.Screen name="profil" options={{ title: 'Profil' }} />
       </Tabs>
       <GrydNavBar />

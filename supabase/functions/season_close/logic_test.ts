@@ -105,22 +105,36 @@ Deno.test('cascade complète : chaque critère ne joue que si les précédents s
   assertEquals(r.map((x) => x.userId), ['b', 'a']);
 });
 
-// ─── founderBadges (§15) ─────────────────────────────────────────────────────
+// ─── founderBadges (§15, catalogue V2 : famille Season Rank) ─────────────────
 
-Deno.test('badge Fondateur pour tous les participants, titre local pour le n°1', () => {
+Deno.test('Fondateur + médailles Season Rank cumulatives ; legend au vainqueur unique', () => {
   const ranked = computeFinalRanks([
     score('a', { points: 300 }),
     score('b', { points: 100 }),
   ]);
   const awards = founderBadges(ranked);
-  assertEquals(awards, [
-    { userId: 'a', badgeKey: FOUNDER_BADGE_KEY },
-    { userId: 'a', badgeKey: LOCAL_TOP1_BADGE_KEY },
-    { userId: 'b', badgeKey: FOUNDER_BADGE_KEY },
+  // a = n°1 non ex æquo (top100/50/10/3/#1 + legend) + fondateur.
+  assertEquals(awards.filter((x) => x.userId === 'a').map((x) => x.badgeKey), [
+    FOUNDER_BADGE_KEY,
+    'season_rank_1',
+    'season_rank_2',
+    'season_rank_3',
+    'season_rank_4',
+    'season_rank_5',
+    'season_rank_legend',
   ]);
+  // b = rang 2 (top100/50/10/3, PAS #1) + fondateur, pas de legend.
+  assertEquals(awards.filter((x) => x.userId === 'b').map((x) => x.badgeKey), [
+    FOUNDER_BADGE_KEY,
+    'season_rank_1',
+    'season_rank_2',
+    'season_rank_3',
+    'season_rank_4',
+  ]);
+  assertEquals(LOCAL_TOP1_BADGE_KEY, 'season_rank_5'); // compat clé V2
 });
 
-Deno.test('0 point = pas de badge ; n°1 ex æquo = titre partagé', () => {
+Deno.test('0 point = pas de badge ; n°1 ex æquo = titre #1 partagé SANS legend', () => {
   const ranked = computeFinalRanks([
     score('a'),
     score('b'),
@@ -128,10 +142,20 @@ Deno.test('0 point = pas de badge ; n°1 ex æquo = titre partagé', () => {
   ]);
   const awards = founderBadges(ranked);
   assertEquals(awards.filter((x) => x.userId === 'ghost'), []);
+  // a et b sont #1 ex æquo → tous deux season_rank_5, aucun legend.
   assertEquals(
-    awards.filter((x) => x.badgeKey === LOCAL_TOP1_BADGE_KEY).map((x) => x.userId).sort(),
+    awards.filter((x) => x.badgeKey === 'season_rank_5').map((x) => x.userId).sort(),
     ['a', 'b'],
   );
+  assertEquals(awards.filter((x) => x.badgeKey === 'season_rank_legend'), []);
+});
+
+Deno.test('rang > 100 : Fondateur seul, aucune médaille Season Rank', () => {
+  // 101 joueurs à points strictement décroissants → le dernier est rang 101.
+  const scores = Array.from({ length: 101 }, (_, i) => score(`u${i}`, { points: 1000 - i }));
+  const awards = founderBadges(computeFinalRanks(scores));
+  const last = awards.filter((x) => x.userId === 'u100');
+  assertEquals(last.map((x) => x.badgeKey), [FOUNDER_BADGE_KEY]);
 });
 
 // ─── resetPlan (règlement §1) ────────────────────────────────────────────────

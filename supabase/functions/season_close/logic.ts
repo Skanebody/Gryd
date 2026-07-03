@@ -70,12 +70,32 @@ export function computeFinalRanks(scores: readonly SeasonScoreInput[]): RankedSc
   return ranked;
 }
 
-// ─── Badges (règlement §15, SPEC §3.6) ───────────────────────────────────────
+// ─── Badges (règlement §15, SPEC §3.6, catalogue V2 AMENDEMENT-06 §1) ────────
 
-/** Clés du catalogue badges.ts (AMENDEMENT-04) + seed 0006 — harmonisées par la migration 0007.
- * 'saison_0' = badge Fondateur de la Saison 0 (la planche réserve 'fondateur' à « 10 hex capturés »). */
+/** Fondateur Saison 0 : badge onboarding 'saison_0' du catalogue V2 (§1.2). */
 export const FOUNDER_BADGE_KEY = 'saison_0';
-export const LOCAL_TOP1_BADGE_KEY = 'season_top1_local';
+/**
+ * Titre n°1 local. Catalogue V2 : plus de 'season_top1_local' — le #1 local
+ * correspond au niveau 5 de la famille Season Rank ('Termine #1 local.', §1.2).
+ * (Compat : constante conservée, pointe désormais sur la clé V2.)
+ */
+export const LOCAL_TOP1_BADGE_KEY = 'season_rank_5';
+
+/**
+ * Médailles Season Rank (famille saison V2, §1.2, décernées PAR season_close) :
+ * paliers de classement LOCAL par rang final (top 100 / 50 / 10 / 3 / #1 /
+ * winner). key = season_rank_1..5 + season_rank_legend. Cumulatif : le top 3
+ * décroche aussi top 10/50/100 (le moteur d'attribution ignore les doublons).
+ * `winner` (season_rank_legend) = « Remporte la saison locale » : réservé au(x)
+ * n°1 non ex æquo (un seul vrai vainqueur ; sinon titre #1 partagé sans legend).
+ */
+const SEASON_RANK_TIERS: readonly { maxRank: number; key: string }[] = [
+  { maxRank: 100, key: 'season_rank_1' },
+  { maxRank: 50, key: 'season_rank_2' },
+  { maxRank: 10, key: 'season_rank_3' },
+  { maxRank: 3, key: 'season_rank_4' },
+  { maxRank: 1, key: 'season_rank_5' },
+];
 
 export interface BadgeAward {
   userId: string;
@@ -83,16 +103,24 @@ export interface BadgeAward {
 }
 
 /**
- * Badge Fondateur permanent pour TOUS les classés de la Saison 0 (avoir marqué
- * au moins 1 point = avoir participé), + titre local pour le(s) n°1 de la
- * ville (égalité assumée → titre partagé).
+ * Badges de fin de saison LOCALE. Pour tous les participants (points > 0) :
+ *  - Fondateur ('saison_0') ;
+ *  - toutes les médailles Season Rank atteintes par leur rang (cumulatif) ;
+ *  - 'season_rank_legend' pour le vrai vainqueur (rang 1 NON ex æquo).
+ * NB : National Rank / Crew Season (familles saison restantes) relèvent du
+ * classement France et du classement crew — hors périmètre du close local MVP.
  */
 export function founderBadges(ranks: readonly RankedScore[]): BadgeAward[] {
   const awards: BadgeAward[] = [];
   for (const r of ranks) {
-    if (r.points <= 0) continue; // inscrit sans participation : pas fondateur
+    if (r.points <= 0) continue; // inscrit sans participation : rien
     awards.push({ userId: r.userId, badgeKey: FOUNDER_BADGE_KEY });
-    if (r.rank === 1) awards.push({ userId: r.userId, badgeKey: LOCAL_TOP1_BADGE_KEY });
+    for (const tier of SEASON_RANK_TIERS) {
+      if (r.rank <= tier.maxRank) awards.push({ userId: r.userId, badgeKey: tier.key });
+    }
+    // Vainqueur incontesté : legend. Un #1 ex æquo garde le titre #1 (season_rank_5)
+    // mais pas le legend « remporte la saison » (pas de vainqueur unique).
+    if (r.rank === 1 && !r.tied) awards.push({ userId: r.userId, badgeKey: 'season_rank_legend' });
   }
   return awards;
 }

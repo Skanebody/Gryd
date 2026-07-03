@@ -150,3 +150,230 @@ export const CITIES = {
   lille: { id: 'lille', name: 'Métropole de Lille', center: { lat: 50.6292, lng: 3.0573 } },
 } as const;
 export type CityId = keyof typeof CITIES;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CREWS SUPERCELL — MVP (AMENDEMENT-06 §2, doc v3 §33-§53)
+// SOURCE DE VÉRITÉ des constantes crew. Anti pay-to-win strict (§52) :
+// aucun perk ne donne territoire/points/vitesse/protection ; tout est
+// organisation, lisibilité, cosmétique ou récompense capée gagnée à l'activité.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── §34.3 Crew XP Table MVP (Level 1-10, XP CUMULÉE) ────────────────────────
+/** XP cumulée minimale requise pour ATTEINDRE chaque niveau (index 0 = L1).
+ * Barème gelé §34.3 : 0/1k/3k/7,5k/15k/30k/60k/100k/175k/300k. */
+export const CREW_XP_TABLE: readonly number[] = [
+  0, // L1 — Crew créé
+  1_000, // L2 — Crew actif
+  3_000, // L3 — Blason amélioré (Badge Frame I)
+  7_500, // L4 — War Room débloquée
+  15_000, // L5 — 1er perk (Weekly Crew Chest)
+  30_000, // L6 — Avant-postes (Outpost Slot I)
+  60_000, // L7 — Missions avancées (Scout Ping)
+  100_000, // L8 — Coffre amélioré (Share Templates)
+  175_000, // L9 — Badge Frame Carbon
+  300_000, // L10 — Crew Elite Saison (War Banner)
+];
+export const CREW_LEVEL_MAX = CREW_XP_TABLE.length; // 10 en MVP
+
+// ─── §34.1 Sources d'XP crew + barème (par événement, avant caps) ────────────
+/**
+ * Points d'XP crew accordés par événement. Barème MVP documenté (aucune valeur
+ * dans la doc §34.1 — arbitrage gelé ici, cohérent avec l'échelle §34.3 :
+ * atteindre L2 = 1000 XP ≈ 500 hexes capturés OU 20 routes OU 10 avant-postes).
+ * hex capturé=2, hex défendu=1, route ouverte=50, avant-poste=100, mission=30,
+ * offensive terminée=200, course vérifiée=15, participation semaine=25.
+ */
+export const CREW_XP_SOURCES = {
+  hexCaptured: 2,
+  hexDefended: 1,
+  routeOpened: 50,
+  outpostMaintained: 100,
+  missionCompleted: 30,
+  offensiveCompleted: 200,
+  verifiedRun: 15,
+  weeklyParticipation: 25,
+} as const;
+export type CrewXpSource = keyof typeof CREW_XP_SOURCES;
+
+// ─── §34.1 Plafonds anti-farm ────────────────────────────────────────────────
+/** XP crew maximale qu'UN membre peut générer par jour (toutes sources). */
+export const CREW_XP_DAILY_CAP_PER_MEMBER = 500;
+/** XP d'une route dupliquée (même trajet re-parcouru) divisée par ce facteur. */
+export const CREW_XP_ROUTE_DUP_DIVISOR = 2;
+
+// ─── §35.1 Perks par niveau (DATA-driven, jamais pay-to-win §52) ─────────────
+export interface CrewPerk {
+  /** Niveau crew qui débloque le perk. */
+  level: number;
+  key: string;
+  name: string;
+  desc: string;
+}
+export const CREW_PERKS: readonly CrewPerk[] = [
+  { level: 2, key: 'crew_marker', name: 'Crew Marker', desc: 'Marque 1 zone prioritaire par semaine pour guider les membres.' },
+  { level: 3, key: 'badge_frame_1', name: 'Badge Frame I', desc: 'Bordure de blason crew améliorée (purement statutaire).' },
+  { level: 4, key: 'war_room_basic', name: 'War Room Basic', desc: 'Débloque la War Room : assigner zones, objectifs, decay urgent, missions internes.' },
+  { level: 5, key: 'weekly_crew_chest', name: 'Weekly Crew Chest', desc: 'Coffre hebdomadaire crew à récompenses cosmétiques et Foulées capées.' },
+  { level: 6, key: 'outpost_slot_1', name: 'Outpost Slot I', desc: '1 avant-poste crew actif, maintenu par l\'activité réelle (non achetable).' },
+  { level: 7, key: 'scout_ping', name: 'Scout Ping', desc: '1 analyse de zone par semaine : détecte les zones faibles (pas de capture auto).' },
+  { level: 8, key: 'share_templates', name: 'Share Templates', desc: 'Templates sociaux premium crew (acquisition organique, statut).' },
+  { level: 9, key: 'badge_frame_carbon', name: 'Badge Frame Carbon', desc: 'Bordure Carbon visible sur classement et profil crew.' },
+  { level: 10, key: 'war_banner', name: 'War Banner', desc: '1 offensive majeure par saison (récompenses capées, pas d\'achat de victoire).' },
+];
+
+// ─── §36 Rôles crew + permissions ────────────────────────────────────────────
+export type CrewRole =
+  | 'runner' // §36.1 rôle par défaut
+  | 'scout' // §36.2 tactique
+  | 'defender' // §36.3 défense
+  | 'raider' // §36.4 attaque
+  | 'captain' // §36.5 manager terrain
+  | 'co_captain' // §36.6 gestion avancée
+  | 'leader'; // §36.7 fondateur/propriétaire
+export const CREW_ROLES: readonly CrewRole[] = [
+  'runner', 'scout', 'defender', 'raider', 'captain', 'co_captain', 'leader',
+];
+export const CREW_DEFAULT_ROLE: CrewRole = 'runner';
+
+/**
+ * Permissions crew (§36). Chaque action liste les rôles qui peuvent l'exécuter.
+ * MVP : ces règles vivent côté serveur (endpoints rôle-gated V1) ; en attendant,
+ * l'écriture reste service_role only (voir 0010). `launchOffensiveMajor` =
+ * offensive majeure (War Banner L10) ; `launchOffensiveMinor` = petite offensive.
+ */
+export const CREW_PERMISSIONS: Record<string, readonly CrewRole[]> = {
+  launchOffensiveMinor: ['captain', 'co_captain', 'leader'],
+  launchOffensiveMajor: ['co_captain', 'leader'],
+  createMission: ['defender', 'raider', 'captain', 'co_captain', 'leader'],
+  assignMembers: ['captain', 'co_captain', 'leader'],
+  invite: ['co_captain', 'leader'],
+  accept: ['co_captain', 'leader'],
+  kick: ['co_captain', 'leader'],
+  manageRoles: ['co_captain', 'leader'], // co_captain jusqu'à captain ; leader tout
+  changeSettings: ['leader'],
+  changeNameEmblem: ['leader'],
+  transferLeadership: ['leader'],
+  openCloseCrew: ['leader'],
+  activateMajorCrewItem: ['co_captain', 'leader'],
+  scoutPing: ['scout', 'captain', 'co_captain', 'leader'],
+} as const;
+
+// ─── §37.2 Disponibilité de guerre (colonne crew_members) ────────────────────
+export type WarAvailability = 'war' | 'defense' | 'exploration' | 'casual' | 'absent';
+export const WAR_AVAILABILITY: readonly WarAvailability[] = [
+  'war', 'defense', 'exploration', 'casual', 'absent',
+];
+export const WAR_AVAILABILITY_DEFAULT: WarAvailability = 'casual';
+
+// ─── §37.1 Paramètres crew (discovery) ───────────────────────────────────────
+export type CrewJoinPolicy = 'open' | 'request' | 'closed';
+export const CREW_JOIN_POLICIES: readonly CrewJoinPolicy[] = ['open', 'request', 'closed'];
+export type CrewObjective = 'casual' | 'competitif' | 'pionnier';
+export const CREW_OBJECTIVES: readonly CrewObjective[] = ['casual', 'competitif', 'pionnier'];
+
+// ─── §39 Crew Chest hebdomadaire ─────────────────────────────────────────────
+/** Paliers du coffre (§39.2) : fraction de la cible atteinte (bornes basses). */
+export const CREW_CHEST_TIERS = {
+  bronze: 0.25,
+  silver: 0.5,
+  gold: 0.75,
+  carbon: 1.0,
+  elite: 1.5,
+} as const;
+export type CrewChestTier = keyof typeof CREW_CHEST_TIERS;
+/** Ordre croissant des paliers (le plus haut atteint gagne). */
+export const CREW_CHEST_TIER_ORDER: readonly CrewChestTier[] = [
+  'bronze', 'silver', 'gold', 'carbon', 'elite',
+];
+/**
+ * Cible hebdomadaire de points pondérés du coffre (§39.1). Base documentée MVP :
+ * 2000 points pondérés/semaine (≈ un crew actif de 10 membres capturant ~40
+ * hexes/membre — atteint le palier carbon 100 %). Ajustable par saison.
+ */
+export const CREW_CHEST_WEEKLY_TARGET = 2_000;
+/**
+ * Poids de progression du coffre (§39.1) : combien chaque événement de la
+ * semaine ajoute à la jauge. Distinct de l'XP crew (le coffre récompense
+ * l'effort collectif hebdo, l'XP la progression permanente du crew).
+ */
+export const CREW_CHEST_WEIGHTS = {
+  hexCaptured: 1,
+  hexDefended: 1,
+  routeOpened: 25,
+  missionCompleted: 20,
+  verifiedRun: 5,
+  offensiveCompleted: 100,
+} as const;
+export type CrewChestSource = keyof typeof CREW_CHEST_WEIGHTS;
+
+// ─── §45 Crew Activity Score ─────────────────────────────────────────────────
+/** Poids (%) des composantes du score de santé crew (§45) — somme = 100. */
+export const ACTIVITY_SCORE_WEIGHTS = {
+  activeMembers7d: 0.3, // 30 % membres actifs 7 jours
+  verifiedRuns: 0.2, // 20 % runs vérifiés
+  missions: 0.2, // 20 % missions complétées
+  coordination: 0.15, // 15 % chat/coordination (MVP : proxy participation)
+  defense: 0.1, // 10 % défense
+  fairPlay: 0.05, // 5 % fair-play
+} as const;
+/** Statuts de santé crew par seuil de score (bornes basses, score 0-100, §45). */
+export const ACTIVITY_STATUS_THRESHOLDS = {
+  dormant: 0,
+  casual: 20,
+  active: 45,
+  competitive: 70,
+  war_ready: 90,
+} as const;
+export type CrewActivityStatus = keyof typeof ACTIVITY_STATUS_THRESHOLDS;
+
+// ─── §43.1 Player Level 1-50 + tiers visuels ─────────────────────────────────
+/** Nombre de niveaux joueur (MVP : courbe complète 1-50, §43.1). */
+export const PLAYER_LEVEL_MAX = 50;
+/**
+ * Base de la courbe géométrique douce d'XP joueur : XP cumulée pour ATTEINDRE
+ * le niveau L = round(PLAYER_LEVEL_XP_BASE × (ratio^(L-1) − 1) / (ratio − 1)).
+ * Documentée : douce (ratio 1,12) pour que L50 ≈ 380k XP (≈ 380k points
+ * territoire, XP_RATE_OF_POINTS=1) — atteignable sur plusieurs saisons, jamais
+ * acheté (survit au reset, AMENDEMENT-02 §6). La table est matérialisée dans
+ * PLAYER_LEVEL_XP par playerLevelXpTable() (engine) — ici les paramètres seuls.
+ */
+export const PLAYER_LEVEL_XP_BASE = 200;
+export const PLAYER_LEVEL_XP_RATIO = 1.12;
+/** Tiers visuels joueur par tranche de niveau (§43.1, bornes basses). */
+export const PLAYER_TIER_THRESHOLDS = {
+  road: 1,
+  tempo: 10,
+  race: 20,
+  carbon: 30,
+  elite: 40,
+  legend: 50,
+} as const;
+export type PlayerTier = keyof typeof PLAYER_TIER_THRESHOLDS;
+
+// ─── §43.2 Crew Level Badge Frame (tiers visuels par niveau crew) ────────────
+/** Tier du cadre de blason crew par tranche de niveau (§43.2, bornes basses). */
+export const CREW_FRAME_THRESHOLDS = {
+  road: 1,
+  tempo: 5,
+  race: 10,
+  carbon: 15,
+  elite: 20,
+  legend: 30,
+} as const;
+export type CrewFrameTier = keyof typeof CREW_FRAME_THRESHOLDS;
+
+// ─── §38 Offensives / défense ────────────────────────────────────────────────
+/** Durée standard d'une offensive crew simple (§38.2, exemple : 24 h). */
+export const OFFENSIVE_DURATION_H = 24;
+/**
+ * Résultat d'une offensive selon la fraction de l'objectif hexes atteinte
+ * (bornes basses). victory ≥ 100 %, partial ≥ 50 %, sinon fail (§38.3).
+ */
+export const OFFENSIVE_RESULT_THRESHOLDS = {
+  fail: 0,
+  partial: 0.5,
+  victory: 1.0,
+} as const;
+export type OffensiveResult = 'fail' | 'partial' | 'victory';
+/** Durée de vie standard d'une mission de défense crew (§38.3). */
+export const DEFENSE_MISSION_DURATION_H = 48;
