@@ -12,3 +12,4 @@ supabase/.temp/
 supabase/.branches/
 ios/
 android/
+scratchpad-secrets.local
