@@ -15,6 +15,18 @@
  * supplyLines, crewCaptainScore, activeMembersWeek, paceImprovementSKm,
  * formeScore, seasonRank/nationalRank/crewSeasonRank) : mises à jour par leurs
  * pipelines directement dans user_stats — evaluateBadges les ramasse ensuite.
+ *
+ * AMENDEMENT-07 §6 — métriques motivation :
+ *  - run-fed ICI (applyRunToStats) : easyRuns, recoveryRuns, groupRuns,
+ *    smartRuns, personalBests ;
+ *  - endpoint/job-fed (defaut 0, comme les métriques job ci-dessus) :
+ *    invitesSent (endpoint invite V1), referralsActivated (parrainage §3.7),
+ *    reactionsSent (endpoint feed V1), et les hebdomadaires balancedWeeks /
+ *    noPressureWeeks / cleanWeeks (rollup hebdo léger côté ingest_run/job :
+ *    une semaine ISO active, resp. à volume [BALANCED_WEEK_MIN..MAX] runs,
+ *    100 % sans enjeu territoire, sans run rejeté). Documenté MVP : ces
+ *    compteurs restent verrouillés à 0 tant que le rollup n'est pas branché
+ *    (jamais « À venir » — AMENDEMENT-04 §4).
  */
 import {
   BADGES,
@@ -41,7 +53,12 @@ import {
   WOLF_HOUR_START_MIN,
   type BadgeMetric,
 } from '../badges.ts';
-import { OUTPOST_MIN_HEXES } from '../game-rules.ts';
+import {
+  OUTPOST_MIN_HEXES,
+  RECOVERY_MIN_AVG_PACE_S_KM,
+  RUN_AVG_PACE_MAX_S_KM,
+  RUN_AVG_PACE_MIN_S_KM,
+} from '../game-rules.ts';
 import type { RunStatus } from '../types.ts';
 import { latLngToCell } from 'npm:h3-js@^4.1';
 import { haversineM } from './validation.ts';
@@ -108,10 +125,23 @@ export function emptyLifetimeStats(): LifetimeStats {
     crewContributions: 0,
     crewCaptainScore: 0,
     activeMembersWeek: 0,
+    // ── social / motivation (AMENDEMENT-07 §6) ──
+    invitesSent: 0, // endpoint invite V1
+    referralsActivated: 0, // pipeline parrainage §3.7
+    groupRuns: 0,
+    reactionsSent: 0, // endpoint feed V1
     // ── performance ──
     paceImprovementSKm: 0,
     weeksActive: 0,
     formeScore: 0,
+    personalBests: 0,
+    cleanWeeks: 0,
+    // ── healthy (AMENDEMENT-07 §6) ──
+    easyRuns: 0,
+    recoveryRuns: 0,
+    balancedWeeks: 0,
+    noPressureWeeks: 0,
+    smartRuns: 0,
     // ── verified ──
     verifiedRuns: 0,
     cleanDays: 0,
@@ -187,6 +217,18 @@ export interface BadgeRunInput {
   /** Avant-postes / routes ouverts par CETTE course (détection V0 ingest_run). */
   newOutposts?: number;
   newRoutes?: number;
+  /**
+   * Mode facile choisi au départ (client, AMENDEMENT-07 §6) : course SANS
+   * objectif de vitesse. `easyMode: true` → Easy Run ; combiné à une allure
+   * lente (≥ RECOVERY_MIN_AVG_PACE_S_KM) → Recovery Run. MVP : signal client,
+   * jamais déduit du gameplay (la récup se choisit).
+   */
+  easyMode?: boolean;
+  /**
+   * Cette course fait partie d'un run groupé détecté (engine detectGroupRun,
+   * décidé par ingest_run à l'ingestion des 2 courses). → Group Run.
+   */
+  groupRun?: boolean;
 }
 
 /**
@@ -248,6 +290,16 @@ export function applyRunToStats(stats: LifetimeStats, run: BadgeRunInput): Lifet
   s.runsValid += 1;
   s.totalDistanceM += run.distanceM;
   s.seasonDistanceM += run.distanceM;
+  // Personal Best (AMENDEMENT-07 §6) : record perso battu APRÈS un premier run
+  // de référence. On compare aux MEILLEURS d'AVANT mise à jour (distance PLUS
+  // longue, ou allure STRICTEMENT plus rapide). Le tout premier run pose la
+  // référence sans décerner (pas de « record » sans historique).
+  const hadDistanceRef = stats.bestRunDistanceM > 0;
+  const hadPaceRef = stats.bestAvgPaceSKm > 0;
+  const beatsDistance = hadDistanceRef && run.distanceM > stats.bestRunDistanceM;
+  const beatsPace = hadPaceRef && run.avgPaceSKm > 0 && run.avgPaceSKm < stats.bestAvgPaceSKm;
+  if (beatsDistance || beatsPace) s.personalBests += 1;
+
   s.bestRunDistanceM = Math.max(s.bestRunDistanceM, run.distanceM);
   if (run.avgPaceSKm > 0) {
     s.bestAvgPaceSKm = s.bestAvgPaceSKm === 0
@@ -256,7 +308,23 @@ export function applyRunToStats(stats: LifetimeStats, run: BadgeRunInput): Lifet
   }
 
   // ── Vérification (GRYD Verified) ──
-  if (isVerifiedRun(run)) s.verifiedRuns += 1;
+  const verified = isVerifiedRun(run);
+  if (verified) s.verifiedRuns += 1;
+
+  // ── Courses saines (AMENDEMENT-07 §6, healthy) ──
+  // Easy Run : mode facile choisi. Recovery Run : easyMode + allure lente.
+  // Smart Runner : vérifiée, non flaggée, allure dans la plage de course.
+  if (run.easyMode === true) {
+    s.easyRuns += 1;
+    if (run.avgPaceSKm >= RECOVERY_MIN_AVG_PACE_S_KM) s.recoveryRuns += 1;
+  }
+  const paceReasonable = run.avgPaceSKm > 0 &&
+    run.avgPaceSKm >= RUN_AVG_PACE_MIN_S_KM &&
+    run.avgPaceSKm <= RUN_AVG_PACE_MAX_S_KM;
+  if (verified && run.flagged !== true && paceReasonable) s.smartRuns += 1;
+
+  // ── Group Run (AMENDEMENT-07 §3/§6) : détecté par ingest_run à l'ingestion. ──
+  if (run.groupRun === true) s.groupRuns += 1;
 
   // ── Partage (First Share) ──
   if (run.shared === true) s.firstShares += 1;

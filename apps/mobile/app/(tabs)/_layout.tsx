@@ -6,20 +6,33 @@
  * 72 px chartreuse (RunButton) sont rendus ICI, en overlay — permanents sur les
  * 5 onglets, dont la carte. Garde d'auth (règle session.tsx) : Supabase
  * configuré + pas de session → (auth)/sign-in ; non configuré (O1) → mode dev.
+ *
+ * AMENDEMENT-07 §8 : après l'auth, si l'onboarding motivationnel n'a jamais été
+ * vu, on redirige une fois vers /onboarding (natif uniquement — session réelle).
+ * NON BLOQUANT : sur web `configured=false` (aperçu), donc jamais de redirection ;
+ * et l'onboarding lui-même a un « Passer ». On n'agit qu'une fois les prefs lues
+ * (évite un flash pendant la lecture AsyncStorage).
  */
 import { Redirect, Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { colors } from '@klaim/shared';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
 import { RunButton } from '../../src/features/nav/RunButton';
+import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { useSession } from '../../src/lib/session';
 
 export default function TabsLayout() {
   const { session, loading, configured } = useSession();
+  const { prefs, loading: prefsLoading } = useMotivationPrefs();
 
   // Restauration de session en cours : fond noir muet (splash implicite).
   if (loading) return <View style={styles.root} />;
   if (configured && !session) return <Redirect href="/sign-in" />;
+
+  // Onboarding motivationnel une seule fois, sur session réelle (§8).
+  if (configured && session && !prefsLoading && !prefs.onboardingSeen) {
+    return <Redirect href="/onboarding" />;
+  }
 
   return (
     <View style={styles.root}>

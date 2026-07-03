@@ -72,16 +72,17 @@ Deno.test('catalogue V2 : keys uniques snake_case, tiers légaux, cohérence sec
   }
 });
 
-Deno.test('catalogue V2 : 12 familles, 12 secrets, 18 médailles saison, 3 héritage', () => {
+Deno.test('catalogue V2 : 13 familles (+ healthy AMENDEMENT-07), 12 secrets, 18 médailles saison, 3 héritage', () => {
   const fam = new Set(BADGES.map((b) => b.family));
   const expected: BadgeFamily[] = [
     'onboarding', 'distance', 'territoire', 'attaque', 'defense', 'exploration',
-    'routes', 'crew', 'performance', 'saison', 'verified', 'secret',
+    'routes', 'crew', 'performance', 'healthy', 'saison', 'verified', 'secret',
   ];
   for (const f of expected) assert(fam.has(f), `famille manquante : ${f}`);
-  assertEquals(fam.size, 12);
+  assertEquals(fam.size, 13);
   assertEquals(BADGES.filter((b) => b.secret).length, 12);
   assertEquals(BADGES.filter((b) => b.family === 'saison').length, 18);
+  assertEquals(BADGES.filter((b) => b.family === 'healthy').length, 5);
   assertEquals(BADGES.filter((b) => b.legacy).length, 3);
 });
 
@@ -324,4 +325,36 @@ Deno.test('non-répétition : un badge déjà gagné n\'est jamais ré-attribué
 Deno.test('localClock lit l\'heure locale textuellement', () => {
   assertEquals(localClock('2026-07-03T22:14:00+02:00'), { date: '2026-07-03', minutes: 22 * 60 + 14 });
   assertEquals(localClock('nope'), null);
+});
+
+// ─── AMENDEMENT-07 §6 : métriques motivation run-fed ─────────────────────────
+
+Deno.test('Easy Run : easyMode → easyRuns ; allure lente → recoveryRuns', () => {
+  const easy = applyRunToStats(emptyLifetimeStats(), mkRun({ easyMode: true, avgPaceSKm: 400 }));
+  assertEquals(easy.easyRuns, 1);
+  assertEquals(easy.recoveryRuns, 0); // 6:40/km < seuil récup (7:00)
+  const recov = applyRunToStats(emptyLifetimeStats(), mkRun({ easyMode: true, avgPaceSKm: 8 * 60 }));
+  assertEquals(recov.easyRuns, 1);
+  assertEquals(recov.recoveryRuns, 1); // 8:00/km ≥ 7:00 → récup
+});
+
+Deno.test('Group Run : run.groupRun → groupRuns incrémenté', () => {
+  const s = applyRunToStats(emptyLifetimeStats(), mkRun({ groupRun: true }));
+  assertEquals(s.groupRuns, 1);
+});
+
+Deno.test('Personal Best : jamais au 1er run ; battu ensuite (distance ou allure)', () => {
+  const first = applyRunToStats(emptyLifetimeStats(), mkRun({ distanceM: 5_000, avgPaceSKm: 360 }));
+  assertEquals(first.personalBests, 0); // pose la référence, pas de record
+  const longer = applyRunToStats(first, mkRun({ distanceM: 8_000, avgPaceSKm: 360 }));
+  assertEquals(longer.personalBests, 1); // distance battue
+  const faster = applyRunToStats(longer, mkRun({ distanceM: 4_000, avgPaceSKm: 300 }));
+  assertEquals(faster.personalBests, 2); // allure battue
+});
+
+Deno.test('Smart Runner : vérifiée + non flaggée + allure raisonnable', () => {
+  const smart = applyRunToStats(emptyLifetimeStats(), mkRun({ motionTrust: 90, avgPaceSKm: 360 }));
+  assertEquals(smart.smartRuns, 1);
+  const notVerified = applyRunToStats(emptyLifetimeStats(), mkRun({ motionTrust: 10, avgPaceSKm: 360 }));
+  assertEquals(notVerified.smartRuns, 0);
 });

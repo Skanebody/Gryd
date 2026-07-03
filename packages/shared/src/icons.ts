@@ -128,6 +128,108 @@ export const ICONS = {
       'M12 17.2v.01',
     ],
   },
+
+  // ─── AMENDEMENT-07 §8 : social / amis / feed / réactions (ADDITIF) ──────────
+  /** Ami — une personne (distinct de `crew` = plusieurs). */
+  ami: {
+    paths: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M4.5 21c.8-4 3.9-6 7.5-6s6.7 2 7.5 6'],
+  },
+  /** Ajouter un ami — personne + petit plus. */
+  ajoutami: {
+    paths: [
+      'M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+      'M3 21c.7-3.6 3.4-5.5 7-5.5',
+      'M18 14.5v6',
+      'M15 17.5h6',
+    ],
+  },
+  /** Feed — fil d'activité (lignes empilées). */
+  feed: {
+    paths: [
+      'M4 6.5h11',
+      'M4 12h16',
+      'M4 17.5h11',
+      'M19.5 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
+    ],
+  },
+  /** Aujourd'hui — soleil (Focus Solo, §8). */
+  aujourdhui: {
+    paths: [
+      'M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z',
+      'M12 2.5v2.5', 'M12 19v2.5', 'M4.6 4.6l1.8 1.8', 'M17.6 17.6l1.8 1.8',
+      'M2.5 12H5', 'M19 12h2.5', 'M4.6 19.4l1.8-1.8', 'M17.6 6.4l1.8-1.8',
+    ],
+  },
+  /** Mode discret — œil barré (hors leaderboards, §7). */
+  discret: {
+    paths: [
+      'M4 4l16 16',
+      'M9.9 5.2A9.5 9.5 0 0 1 12 5c5 0 9 5.5 9 7 0 .8-1.1 2.5-2.9 3.9',
+      'M6.5 7.6C4.2 9 3 11.3 3 12c0 1.5 4 7 9 7 1.3 0 2.5-.3 3.6-.9',
+      'M9.9 9.9a3 3 0 0 0 4.2 4.2',
+    ],
+  },
+  /** QR — carré de scan (échange d'amis, §8). */
+  qr: {
+    paths: [
+      'M4 4.5h5v5H4z', 'M15 4.5h5v5h-5z', 'M4 15.5h5v5H4z',
+      'M15 15.5v2', 'M17.5 15.5h2.5v2.5', 'M20 20.5h-2.5v-2.5', 'M15 20.5v-1',
+    ],
+  },
+  /** Copier — deux cadres décalés (copier le lien crew, §8). */
+  copier: {
+    paths: [
+      'M9 9.5h9A1.5 1.5 0 0 1 19.5 11v8A1.5 1.5 0 0 1 18 20.5H9A1.5 1.5 0 0 1 7.5 19v-8A1.5 1.5 0 0 1 9 9.5z',
+      'M5 14.5H4.5A1.5 1.5 0 0 1 3 13V4.5A1.5 1.5 0 0 1 4.5 3H13a1.5 1.5 0 0 1 1.5 1.5V5',
+    ],
+  },
+
+  // ── Réactions GRYD custom (icônes, PAS emojis — §8) ──
+  /** Raid — cible frappée (offensive). */
+  reactRaid: {
+    paths: [
+      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+      'M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+      'M12 2v3', 'M12 19v3', 'M2 12h3', 'M19 12h3',
+    ],
+  },
+  /** Défense — bouclier avec coche. */
+  reactDefense: {
+    paths: ['M12 3l8 3v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z', 'M8.5 12l2.5 2.5L15.5 9'],
+  },
+  /** Clean — étincelle nette (course propre / fair-play). */
+  reactClean: {
+    paths: [
+      'M12 3l1.8 6.4L20 11l-6.2 1.6L12 19l-1.8-6.4L4 11l6.2-1.6L12 3z',
+      'M18.5 4.5v3', 'M20 6h-3',
+    ],
+  },
+  /** Fast — chevrons de vitesse. */
+  reactFast: { paths: ['M4 7l6 5-6 5', 'M11 7l6 5-6 5'] },
+  /** Rank up — flèche montante en gradins. */
+  reactRankup: { paths: ['M4 18l5-5 4 3 7-8', 'M17 8h4v4'] },
+  /** Hold — main ouverte / paume (tenir la position). */
+  reactHold: {
+    paths: [
+      'M8 11V5.5a1.5 1.5 0 0 1 3 0V11',
+      'M11 11V4.5a1.5 1.5 0 0 1 3 0V11',
+      'M14 11V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a5 5 0 0 1-3.6-1.5L5 16.5a1.6 1.6 0 0 1 2.4-2L8 15',
+    ],
+  },
+  /** Respect — poing (fist bump). */
+  reactRespect: {
+    paths: [
+      'M6 10.5V8a1.5 1.5 0 0 1 3 0v1.5',
+      'M9 9.5V7a1.5 1.5 0 0 1 3 0v2.5',
+      'M12 9.5V7.5a1.5 1.5 0 0 1 3 0V13',
+      'M15 10.5a1.5 1.5 0 0 1 3 0V15a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5v-3.5a1.5 1.5 0 0 1 3 0V13',
+    ],
+  },
+  /** Legend — couronne à étincelle (rareté max). */
+  reactLegend: {
+    paths: ['M4 17.5V9l4.5 3.5L12 5l3.5 7.5L20 9v8.5H4z', 'M12 5V3'],
+    fillable: true,
+  },
 } as const satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

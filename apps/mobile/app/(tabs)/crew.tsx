@@ -47,6 +47,8 @@ import {
   crewXpForLevel,
 } from '../../src/features/crew/rules';
 import { CREW_ACHIEVEMENTS, MY_CREW } from '../../src/features/crew/demo';
+import { CREW_CHAT, CREW_FEED, FEED_TYPE_ICON } from '../../src/features/crew/feed';
+import { ReactionBar } from '../../src/features/crew/ReactionBar';
 
 /** Toggle démo : passer à false pour prévisualiser l'état « sans crew ». */
 const HAS_CREW = true;
@@ -234,6 +236,40 @@ export default function CrewScreen() {
             <Text style={[styles.achievementText, !a.done && styles.dim]}>{a.label}</Text>
           </View>
         ))}
+      </View>
+
+      {/* Crew Feed (§28) — capture/défense/badge/rank up/coffre + réactions GRYD */}
+      <SectionLabel>FEED DU CREW</SectionLabel>
+      {CREW_FEED.map((ev) => (
+        <View key={ev.id} style={styles.feedCard}>
+          <View style={styles.feedHead}>
+            <Icon name={FEED_TYPE_ICON[ev.type]} size={18} color={colors.blanc} />
+            <Text style={styles.feedText}>{ev.text}</Text>
+          </View>
+          <Text style={styles.feedAgo}>{ev.ago}</Text>
+          <ReactionBar initial={ev.reactions} />
+        </View>
+      ))}
+
+      {/* Chat crew (MVP : liste + réactions, PAS de DM) */}
+      <SectionLabel>CHAT DU CREW</SectionLabel>
+      <View style={styles.chatCard}>
+        {CREW_CHAT.map((m) => (
+          <View key={m.id} style={styles.msg}>
+            <View style={styles.msgHead}>
+              <Text style={[styles.msgAuthor, m.me && styles.msgAuthorMe]}>
+                {m.author}
+                {m.me ? ' · toi' : ''}
+              </Text>
+              <Text style={styles.msgAgo}>{m.ago}</Text>
+            </View>
+            <Text style={styles.msgText}>{m.text}</Text>
+            <ReactionBar initial={m.reactions} />
+          </View>
+        ))}
+        <Text style={styles.chatNote}>
+          MVP : messages de crew et réactions. Pas de messages privés (§28).
+        </Text>
       </View>
 
       {/* Accès Crew Discovery (§46) */}
@@ -424,6 +460,43 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
   discoveryText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  // ── Crew Feed (§28) ──
+  feedCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+    marginBottom: 10,
+  },
+  feedHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  feedText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
+  feedAgo: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 6, marginLeft: 30 },
+  // ── Chat crew ──
+  chatCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+  },
+  msg: {
+    paddingBottom: 14,
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grisLigne,
+  },
+  msgHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  msgAuthor: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.4 },
+  msgAuthorMe: { color: colors.chartreuse },
+  msgAgo: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
+  msgText: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.4,
+    marginTop: 6,
+  },
+  chatNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: fontSizes.xs * 1.5 },
   // ── état vide (sans crew) ──
   emptyCard: {
     marginTop: 22,

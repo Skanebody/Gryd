@@ -5,6 +5,37 @@
 import type { CityId } from './game-rules';
 
 export type RunSource = 'gps' | 'healthkit';
+
+/**
+ * Mode de course choisi au départ (AMENDEMENT-07 §2, social §10). `race_mode`
+ * et `event_run` sont catalogués mais DÉSACTIVÉS (V1) : ingest_run les traite
+ * comme `conquete` en MVP. Défaut `conquete` si absent de la requête.
+ */
+export type RunMode =
+  | 'conquete' // capture normale + règles run groupé
+  | 'social_run' // stats + badges + XP perso, capture désactivée (hexes → stats_only)
+  | 'course_privee' // stats perso uniquement, aucun claim, aucun partage, aucun feed
+  | 'race_mode' // V1 (désactivé)
+  | 'event_run'; // V1 (désactivé)
+
+/** Profil motivationnel (AMENDEMENT-07 §1, motivation §2-§4). Filtrage UI/notifs, pas de gameplay. */
+export type PlayStyle = 'focus_solo' | 'mixte' | 'crew_war';
+
+/** Visibilité du profil (AMENDEMENT-07 §1, motivation §4/§34). */
+export type ProfileVisibility = 'private' | 'friends' | 'crew' | 'public';
+/** Partage d'activité (AMENDEMENT-07 §1). */
+export type ActivitySharing = 'private' | 'friends' | 'crew' | 'stats_only';
+/** Partage de carte/traces (AMENDEMENT-07 §1). Défaut simplified, jamais de position live. */
+export type MapSharing = 'precise' | 'simplified' | 'territory_only' | 'none';
+
+/**
+ * Statut social d'un hex touché par une course (AMENDEMENT-07 §3, social §13).
+ *  - `stats_only` : traversé sans claim (social_run/course_privee, ou anti-collusion) ;
+ *  - `contested`  : revendiqué par ≥ 2 crews dans la fenêtre → résolution pondérée ;
+ *  - `defended`   : re-parcouru par son propriétaire lors d'un run groupé ;
+ *  - `neutralized`: égalité de contribution entre crews → reste neutre/contesté, jamais volé.
+ */
+export type HexSocialStatus = 'contested' | 'defended' | 'neutralized' | 'stats_only';
 /** `partial` (AMENDEMENT-02 §4) : segments douteux exclus, le reste claim. */
 export type RunStatus = 'valid' | 'partial' | 'rejected' | 'flagged';
 
@@ -40,6 +71,27 @@ export interface IngestRunRequest {
   shared?: boolean;
   /** sha-256 de la polyline arrondie (dédup Activity Hub §4) — calculé serveur si absent. */
   polylineHash?: string;
+  /** Mode de course (AMENDEMENT-07 §2) — défaut `conquete` si absent. */
+  runMode?: RunMode;
+  /**
+   * Mode facile choisi au départ (AMENDEMENT-07 §6) : course SANS objectif de
+   * vitesse (badges Easy Run / Recovery Run). Défaut false. Signal client, jamais
+   * déduit du gameplay — la récup se choisit, elle n'est ni imposée ni jugée.
+   */
+  easyMode?: boolean;
+}
+
+/** Avancement d'un challenge renvoyé après une course (AMENDEMENT-07 §5). */
+export interface ChallengeUpdate {
+  challengeId: string;
+  /** Sujet : le joueur (`user`) ou son crew (`crew`). */
+  kind: 'user' | 'crew';
+  name: string;
+  /** Valeur courante sur la métrique de l'objectif. */
+  progress: number;
+  target: number;
+  /** Objectif atteint (juste franchi ou déjà fait). */
+  done: boolean;
 }
 
 /** Résultat d'un claim par hexagone, décidé serveur. */
@@ -91,6 +143,20 @@ export interface IngestRunResponse {
   crewXp?: number;
   /** Montée de niveau crew déclenchée par cette course (§34.3). Absent si aucune. */
   crewLevelUp?: { from: number; to: number };
+  /** Mode de course appliqué (AMENDEMENT-07 §2) — écho du runMode (défaut conquete). */
+  runMode?: RunMode;
+  /**
+   * Hexes passés en `contested` par cette course (AMENDEMENT-07 §3, approx MVP :
+   * 2ᵉ ingest d'un autre crew dans la fenêtre de lock d'un hex fraîchement claimé).
+   * Absent/vide si aucun. Le résumé de course les explicite (social §13).
+   */
+  contestedHexes?: string[];
+  /**
+   * Challenges actifs du joueur et de son crew mis à jour par cette course
+   * (AMENDEMENT-07 §5). Absent/vide si aucun challenge actif concerné. Sert au
+   * feedback sain (« à 1 run de ton objectif », jamais culpabilisant §12).
+   */
+  challengeUpdates?: ChallengeUpdate[];
 }
 
 /** Ligne hex_claims exposée publiquement (jamais de trace, jamais de position live). */

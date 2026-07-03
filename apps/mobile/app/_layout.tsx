@@ -29,12 +29,22 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)/sign-in" />
+          {/* Onboarding motivationnel plein écran (AMENDEMENT-07 §8). */}
+          <Stack.Screen name="onboarding/index" />
           {/* Écrans poussés par-dessus les tabs (AMENDEMENT-06 §3) */}
           <Stack.Screen name="badges" />
           <Stack.Screen name="arsenal" />
           <Stack.Screen name="sources" />
           <Stack.Screen name="support" />
           <Stack.Screen name="crew-discovery" />
+          {/* Social (AMENDEMENT-07 §8) : Amis, fiche crew publique/recrutement. */}
+          <Stack.Screen name="amis" />
+          <Stack.Screen name="crew-public" />
+          {/* Motivation (AMENDEMENT-07 §8) : Aujourd'hui, Challenges, réglages. */}
+          <Stack.Screen name="aujourdhui" />
+          <Stack.Screen name="challenges/index" />
+          <Stack.Screen name="challenges/[id]" />
+          <Stack.Screen name="settings-motivation" />
         </Stack>
       </SessionProvider>
     </SafeAreaProvider>

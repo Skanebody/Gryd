@@ -115,6 +115,7 @@ export type BadgeFamily =
   | 'routes'
   | 'crew'
   | 'performance'
+  | 'healthy'
   | 'saison'
   | 'verified'
   | 'secret';
@@ -135,6 +136,7 @@ export const BADGE_FAMILY_COLORS: Record<BadgeFamily, string> = {
   routes: '#F59E0B', // ambre
   crew: '#FB923C', // orange
   performance: '#22D3EE', // cyan
+  healthy: '#34D399', // émeraude (santé/récup, AMENDEMENT-07 §6) — distinct du vert territoire
   saison: '#E7B84C', // or
   verified: '#9BA3AD', // gris acier
   secret: '#E7B84C', // or
@@ -203,6 +205,19 @@ export type BadgeMetric =
   | 'paceImprovementSKm' // amélioration d'allure /mois, s/km (perf V1) — Pace Progress
   | 'weeksActive' // semaines ISO actives — Consistency
   | 'formeScore' // meilleur Score Forme atteint (perf V1) — Score Forme
+  | 'personalBests' // records perso battus (distance/allure, ingest_run) — Personal Best
+  | 'cleanWeeks' // semaines ISO actives sans run rejeté — Clean Week
+  // ── Social / motivation (AMENDEMENT-07 §6, motivation §19-§20) ──
+  | 'invitesSent' // invitations envoyées (First Invite / Crew Helper, alim. endpoint invite V1)
+  | 'referralsActivated' // recrues activées (parrainage §3.7, colonne user_stats existante) — Recruiter
+  | 'groupRuns' // runs groupés détectés (engine detectGroupRun) — Group Run
+  | 'reactionsSent' // réactions GRYD envoyées sur le feed crew (Encourager, alim. endpoint feed V1)
+  // ── Healthy (AMENDEMENT-07 §6, motivation §19) — nouvelle sous-famille ──
+  | 'easyRuns' // courses SANS objectif de vitesse (client easyMode) — Easy Run
+  | 'recoveryRuns' // courses de récupération (allure lente choisie, easyMode+lent) — Recovery Run
+  | 'balancedWeeks' // semaines actives à volume modéré (ni sur- ni sous-entraînement) — Balanced Week
+  | 'noPressureWeeks' // semaines actives 100 % course_privee/social_run (aucune pression territoire) — No Pressure Week
+  | 'smartRuns' // courses vérifiées ET sans flag ET allure raisonnable — Smart Runner
   // ── Verified / fair-play ──
   | 'verifiedRuns' // courses vérifiées — GRYD Verified
   | 'cleanDays' // jours sans run rejeté (lastRejectedDay) — Clean Runner
@@ -379,9 +394,10 @@ const reqKm = (scope: string) => (_level: number, t: number) =>
   `${scope} ${(t / 1000).toLocaleString('fr-FR')} km.`;
 
 /**
- * Le catalogue V2 (sort = index + 1) — 191 badges (cf. BADGE_COUNT) :
+ * Le catalogue V2 (sort = index + 1) — 203 badges (cf. BADGE_COUNT) :
  * onboarding + familles progressives (I..V + LEGEND, 6 niveaux) + 12 secrets
- * + héritage Saison 0. Les 12 familles §1.2 sont toutes couvertes.
+ * + 12 motivationnels AMENDEMENT-07 §6 (5 crew/social + 2 mastery + 5 healthy)
+ * + héritage Saison 0. Les 13 familles §1.2 (+ healthy) sont toutes couvertes.
  * NB : la famille « saison » (rangs) est décernée par season_close, PAS par
  * course ; le National Rank et le Crew Season restent hors périmètre MVP
  * (verrouillés à 0, décernables sans « À venir » — AMENDEMENT-06 §1.4).
@@ -454,6 +470,14 @@ export const BADGES: readonly BadgeDef[] = [
   ...leveledFamily('united_front', 'United Front', 'crew', 'activeMembersWeek',
     [2, 5, 10, 25, 50, 100], reqCount('membres actifs la même semaine')),
 
+  // ── Crew / social motivationnels (AMENDEMENT-07 §6, simples) — orange ──
+  // Keys NOUVELLES (0012 reseed additif) : ne recoupent aucun badge 0009.
+  def('crew', 'first_invite', 'First Invite', 'Invite ta première recrue ou ami.', 'road', 'invitesSent', 1),
+  def('crew', 'crew_helper', 'Crew Helper', 'Envoie 5 invitations pour renforcer ton crew.', 'tempo', 'invitesSent', 5),
+  def('crew', 'recruiter', 'Recruiter', 'Active 5 recrues via ton parrainage.', 'race', 'referralsActivated', 5),
+  def('crew', 'group_run', 'Group Run', 'Cours en run groupé (départ synchronisé, trace partagée).', 'tempo', 'groupRuns', 1),
+  def('crew', 'encourager', 'Encourager', 'Envoie 10 réactions de soutien sur le feed de ton crew.', 'tempo', 'reactionsSent', 10),
+
   // ── Performance (3 familles × 6) — cyan ──
   ...leveledFamily('pace_progress', 'Pace Progress', 'performance', 'paceImprovementSKm',
     [1, 10, 20, 30, 45, 60], (_l, t) => `Améliore ton allure de ${t} s/km sur un mois.`),
@@ -461,6 +485,19 @@ export const BADGES: readonly BadgeDef[] = [
     [2, 4, 8, 12, 24, 52], reqCount('semaines actives')),
   ...leveledFamily('score_forme', 'Score Forme', 'performance', 'formeScore',
     [60, 70, 80, 85, 90, 95], (_l, t) => `Atteins un Score Forme de ${t}.`),
+
+  // ── Mastery motivationnels (AMENDEMENT-07 §6, simples) — cyan ──
+  // Personal Best / Clean Week : progression perso, jamais vitesse/volume brut.
+  def('performance', 'personal_best', 'Personal Best', 'Bats un record perso (distance ou allure) sur une course.', 'race', 'personalBests', 1),
+  def('performance', 'clean_week', 'Clean Week', 'Passe une semaine ISO active sans aucun run rejeté.', 'tempo', 'cleanWeeks', 1),
+
+  // ── Healthy (AMENDEMENT-07 §6, nouvelle sous-famille, simples) — émeraude ──
+  // Récompensent l'effort sain (récup, régularité douce), PAS le volume/vitesse.
+  def('healthy', 'easy_run', 'Easy Run', 'Réalise une course sans objectif de vitesse (mode facile).', 'road', 'easyRuns', 1),
+  def('healthy', 'recovery_run', 'Recovery Run', 'Réalise une course de récupération à allure tranquille.', 'road', 'recoveryRuns', 1),
+  def('healthy', 'balanced_week', 'Balanced Week', 'Passe une semaine à volume équilibré (ni trop, ni trop peu).', 'tempo', 'balancedWeeks', 1),
+  def('healthy', 'no_pressure_week', 'No Pressure Week', 'Passe une semaine active 100 % sans enjeu de territoire.', 'tempo', 'noPressureWeeks', 1),
+  def('healthy', 'smart_runner', 'Smart Runner', 'Enchaîne 10 courses vérifiées, propres et à allure raisonnable.', 'race', 'smartRuns', 10),
 
   // ── Verified / fair-play (2 familles × 6) — gris acier ──
   ...leveledFamily('gryd_verified', 'GRYD Verified', 'verified', 'verifiedRuns',

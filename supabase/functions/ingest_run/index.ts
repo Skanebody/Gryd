@@ -20,15 +20,20 @@ import { cellToLatLng, latLngToCell } from 'npm:h3-js@^4.1';
 import {
   CREW_XP_TABLE,
   DECAY_DAYS,
+  GROUP_RUN_HEX_SHARE_MIN,
+  GROUP_RUN_START_TOLERANCE_MIN,
   H3_RESOLUTION,
+  HEX_LOCK_HOURS,
   OUTPOST_RADIUS_KM,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
 import { ROUTE_ENDPOINT_MATCH_KM, VERIFIED_MIN_TRUST } from '../_shared/badges.ts';
 import type {
+  ChallengeUpdate,
   HexClaimResult,
   IngestRunRequest,
   IngestRunResponse,
+  RunMode,
   RunPoint,
   RunStatus,
 } from '../_shared/types.ts';
@@ -74,6 +79,12 @@ import {
   withinOffensiveZone,
   type CrewChestInput,
 } from '../_shared/engine/crew.ts';
+import {
+  collusionPenalty,
+  resolveContestedHex,
+  type ContestedCrewPresence,
+} from '../_shared/engine/social.ts';
+import { challengeProgress } from '../_shared/engine/challenge.ts';
 
 const MS_PER_DAY = 86_400_000;
 const M_PER_KM = 1_000;
@@ -108,6 +119,16 @@ const json = (body: unknown, status = 200): Response =>
   });
 
 const ZONE_DENSITIES = new Set(['active', 'emerging', 'pioneer', 'wild']);
+const RUN_MODES = new Set<RunMode>(['conquete', 'social_run', 'course_privee', 'race_mode', 'event_run']);
+
+/**
+ * Mode de course effectif (AMENDEMENT-07 §2). Défaut `conquete`. `race_mode`/
+ * `event_run` sont V1 (désactivés) → repliés sur `conquete` en MVP.
+ */
+function effectiveRunMode(mode: RunMode | undefined): RunMode {
+  if (mode === 'social_run' || mode === 'course_privee') return mode;
+  return 'conquete';
+}
 
 function isIngestRunRequest(body: unknown): body is IngestRunRequest {
   if (typeof body !== 'object' || body === null) return false;
@@ -122,7 +143,8 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
       typeof (p as Record<string, unknown>).lng === 'number' &&
       typeof (p as Record<string, unknown>).t === 'number'
     ) &&
-    (b.stepCount === undefined || typeof b.stepCount === 'number');
+    (b.stepCount === undefined || typeof b.stepCount === 'number') &&
+    (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode)));
 }
 
 interface UserProfile {
@@ -785,6 +807,339 @@ async function processCrew(
   return result;
 }
 
+// ─── AMENDEMENT-07 §2 : run SANS capture (social_run / course_privee) ─────────
+
+interface NoClaimRunArgs {
+  request: IngestRunRequest;
+  runMode: RunMode;
+  userId: string;
+  profile: UserProfile;
+  baseRow: Record<string, unknown>;
+  validation: Extract<ValidationOutcome, { kind: 'claimable' }>;
+  distanceM: number;
+  durationS: number;
+  avgPaceSKm: number;
+  streak: { weeks: number; multiplier: number };
+  now: Date;
+}
+
+/**
+ * Course en mode SANS capture (§2). Insère le run (stats), attribue les badges +
+ * XP perso pour `social_run` (0 hex claimé), aucun badge/partage pour
+ * `course_privee` (stats perso only). Aucune écriture hex, aucune XP crew de
+ * capture, aucune entrée feed. Statut social des hexes = stats_only (implicite,
+ * aucun claim écrit). Réponse : hexes à 0, résumé explicite via runMode.
+ */
+async function handleNoClaimRun(args: NoClaimRunArgs): Promise<IngestRunResponse> {
+  const { request, runMode, userId, profile, baseRow, validation } = args;
+  const isPrivate = runMode === 'course_privee';
+
+  const inserted = await insertRun({
+    ...baseRow,
+    status: validation.status,
+    reject_reason: null,
+    points_awarded: 0, // aucun point territoire hors conquête
+    xp_awarded: 0,
+  }, userId, request.clientRunId, profile.streak_weeks);
+  if (inserted.replayed) return inserted.payload;
+  const runId = inserted.runId;
+
+  const sorted = [...request.points].sort((a, b) => a.t - b.t);
+  const crew = await loadCrew(userId);
+
+  // course_privee : stats perso pures, aucun badge (pas de partage/feed). social_run :
+  // badges + XP PERSO (0 hex, mais distance/régularité/healthy restent attribuables).
+  const newBadges = isPrivate ? [] : await awardBadges(userId, {
+    status: validation.status,
+    startedAt: request.startedAt,
+    distanceM: args.distanceM,
+    durationS: args.durationS,
+    avgPaceSKm: args.avgPaceSKm,
+    hexes: { claimed: 0, stolen: 0, defended: 0, pioneer: 0 },
+    startPoint: sorted[0] ?? null,
+    endPoint: sorted[sorted.length - 1] ?? null,
+    crewSize: crew.size,
+    duringSeasonZero: true,
+    inPioneerZone: false,
+    motionTrust: validation.motionTrust,
+    flagged: false,
+    shared: request.shared === true,
+    allPioneer: false,
+    newOutposts: 0,
+    newRoutes: 0,
+  });
+
+  // AMENDEMENT-07 §2/§5 : un social_run alimente les challenges actifs (stats +
+  // badges + XP perso conservés §2 ; « ingest_run met à jour challenge_progress
+  // des challenges actifs du user/crew » §5). 0 hex claimé (capture désactivée)
+  // → seule la métrique runs/distance avance. course_privee = stats perso pures
+  // (§2), aucun challenge, comme aucun badge/partage/feed.
+  const challengeUpdates = isPrivate ? [] : await processChallenges(
+    userId,
+    crew.crewId,
+    { runs: 1, distanceM: args.distanceM, hexes: 0, defends: 0 },
+    args.now,
+  );
+
+  const response: IngestRunResponse = {
+    runId,
+    status: validation.status,
+    replayed: false,
+    runMode,
+    distanceM: args.distanceM,
+    durationS: args.durationS,
+    avgPaceSKm: args.avgPaceSKm,
+    hexes: { claimed: 0, stolen: 0, defended: 0, pioneer: 0, blocked: 0 },
+    pointsAwarded: 0,
+    fouleesAwarded: 0,
+    xpAwarded: 0,
+    streak: args.streak,
+    results: [], // aucun claim : les hexes traversés restent stats_only
+    newBadges,
+    ...(challengeUpdates.length > 0 ? { challengeUpdates } : {}),
+  };
+  await persistCelebration(runId, response, 0);
+  return response;
+}
+
+// ─── AMENDEMENT-07 §3/§6 : détection Group Run (proxy MVP mono-course) ────────
+
+const MS_PER_HOUR = 3_600_000;
+const MS_PER_MIN = 60_000;
+
+/**
+ * Proxy MVP de détection de run groupé sans ingestion de la 2ᵉ course : parmi
+ * les hexes touchés par CETTE course, on compte ceux fraîchement verrouillés
+ * (lock démarré ≤ GROUP_RUN_START_TOLERANCE_MIN de now) par UN même autre
+ * coureur. Si cette part ≥ GROUP_RUN_HEX_SHARE_MIN des hexes touchés → group run.
+ * PURE (ne lit que `states` déjà chargé). Documenté : approximation assumée du
+ * chevauchement de trace ≥ 70 % (le moteur pur detectGroupRun reste la règle,
+ * réutilisée dès qu'on ingérera les deux courses — V1).
+ */
+function detectGroupRunProxy(
+  hexes: readonly string[],
+  states: ReadonlyMap<string, HexState>,
+  now: Date,
+): boolean {
+  if (hexes.length === 0) return false;
+  const nowMs = now.getTime();
+  const freshBy = new Map<string, number>(); // autre coureur → nb hexes partagés frais
+  for (const h of hexes) {
+    const st = states.get(h);
+    if (!st || !st.ownerUserId || !st.lockedUntil) continue;
+    const lockStartMs = st.lockedUntil.getTime() - HEX_LOCK_HOURS * MS_PER_HOUR;
+    if (Math.abs(nowMs - lockStartMs) / MS_PER_MIN > GROUP_RUN_START_TOLERANCE_MIN) continue;
+    freshBy.set(st.ownerUserId, (freshBy.get(st.ownerUserId) ?? 0) + 1);
+  }
+  let best = 0;
+  for (const n of freshBy.values()) best = Math.max(best, n);
+  return best / hexes.length >= GROUP_RUN_HEX_SHARE_MIN;
+}
+
+// ─── AMENDEMENT-07 §5 : challenges (mise à jour du progrès) ───────────────────
+
+/** Contribution d'UNE course valide par métrique de challenge (CHALLENGE_METRICS). */
+interface ChallengeRunDelta {
+  runs: number;
+  distanceM: number;
+  hexes: number;
+  defends: number;
+}
+
+/**
+ * Met à jour challenge_progress des challenges ACTIFS (starts_at ≤ now ≤ ends_at)
+ * qui concernent le joueur (type solo → sujet user) et son crew (type crew/rivalry
+ * → sujet crew). Incrémente `progress` sur la métrique du primary_goal, pose
+ * `done_at` au 1er franchissement, et ventile `contribution` (multi-critères §9.2).
+ * Le moteur PUR challengeProgress décide ratio/done. Retourne les updates pour la
+ * réponse (feedback sain §12). Idempotence : appelé une seule fois par INSERT frais.
+ */
+async function processChallenges(
+  userId: string,
+  crewId: string | null,
+  delta: ChallengeRunDelta,
+  now: Date,
+): Promise<ChallengeUpdate[]> {
+  const nowIso = now.toISOString();
+  const { data: active, error } = await supabase
+    .from('challenges')
+    .select('id, type, name, primary_goal')
+    .lte('starts_at', nowIso)
+    .gte('ends_at', nowIso);
+  if (error) throw new Error(`challenges read: ${error.message}`);
+  if (!active || active.length === 0) return [];
+
+  const metricValue = (metric: string): number =>
+    metric === 'runs' ? delta.runs
+      : metric === 'distanceM' ? delta.distanceM
+        : metric === 'hexes' ? delta.hexes
+          : metric === 'defends' ? delta.defends
+            : 0;
+
+  const updates: ChallengeUpdate[] = [];
+  for (const ch of active) {
+    const type = ch.type as string;
+    const kind: 'user' | 'crew' = type === 'solo' ? 'user' : 'crew';
+    const subjectId = kind === 'user' ? userId : crewId;
+    if (subjectId === null) continue; // challenge crew mais coureur sans crew → ignore
+
+    const goal = (ch.primary_goal ?? {}) as { metric?: string; target?: number };
+    const inc = metricValue(goal.metric ?? '');
+    if (inc <= 0) continue; // cette course n'apporte rien à ce challenge
+
+    // Lecture du progrès existant (unique par challenge+kind+subject).
+    const { data: prevRow, error: prevErr } = await supabase
+      .from('challenge_progress')
+      .select('progress, contribution, done_at')
+      .eq('challenge_id', ch.id)
+      .eq('kind', kind)
+      .eq('subject_id', subjectId)
+      .maybeSingle();
+    if (prevErr) throw new Error(`challenge_progress read: ${prevErr.message}`);
+
+    const prev = Number(prevRow?.progress ?? 0);
+    const next = prev + inc;
+    const target = Number(goal.target ?? 0);
+    const prog = challengeProgress({ target }, next);
+
+    // Ventilation multi-critères (résumé de fin §9.2) : cumul par métrique.
+    const contribution = { ...(prevRow?.contribution as Record<string, number> ?? {}) };
+    contribution.runs = (contribution.runs ?? 0) + delta.runs;
+    contribution.distanceM = (contribution.distanceM ?? 0) + delta.distanceM;
+    contribution.hexes = (contribution.hexes ?? 0) + delta.hexes;
+    contribution.defends = (contribution.defends ?? 0) + delta.defends;
+
+    const doneAt = (prevRow?.done_at as string | null) ??
+      (prog.done ? nowIso : null);
+
+    const { error: upErr } = await supabase.from('challenge_progress').upsert({
+      challenge_id: ch.id,
+      kind,
+      subject_id: subjectId,
+      progress: next,
+      done_at: doneAt,
+      contribution,
+      updated_at: nowIso,
+    }, { onConflict: 'challenge_id,kind,subject_id' });
+    if (upErr) throw new Error(`challenge_progress upsert: ${upErr.message}`);
+
+    updates.push({
+      challengeId: ch.id as string,
+      kind,
+      name: ch.name as string,
+      progress: next,
+      target,
+      done: prog.done,
+    });
+  }
+  return updates;
+}
+
+// ─── AMENDEMENT-07 §3 : hexes contestés entre crews (approx MVP) ──────────────
+
+/** Crew actif (id) des propriétaires d'un lot d'hexes bloqués_lock. */
+async function loadOwnerCrews(
+  ownerUserIds: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const map = new Map<string, string>();
+  const ids = [...new Set(ownerUserIds)];
+  for (const batch of chunk(ids, DB_IN_CHUNK)) {
+    const { data, error } = await supabase
+      .from('crew_members')
+      .select('user_id, crew_id')
+      .in('user_id', batch)
+      .is('left_at', null);
+    if (error) throw new Error(`crew_members owners read: ${error.message}`);
+    for (const row of data ?? []) map.set(row.user_id as string, row.crew_id as string);
+  }
+  return map;
+}
+
+/**
+ * Bascule en `contested` les hexes bloqués_lock détenus par un AUTRE crew (§3,
+ * approx MVP mono-course). Pour chacun : resolveContestedHex (pur) décide, on
+ * insère contested_group_runs + un crew_feed_events, et on applique l'anti-
+ * collusion (collusionPenalty sur l'historique du hex → stats_only doux si
+ * reprises répétées). Retourne les h3 (string) réellement contestés (réponse).
+ * Sans crew côté coureur → no-op (un solo ne conteste pas au nom d'un crew).
+ */
+async function handleContested(
+  userId: string,
+  crewId: string | null,
+  runId: string,
+  cityId: string | undefined,
+  results: readonly HexClaimResult[],
+  states: ReadonlyMap<string, HexState>,
+  now: Date,
+): Promise<string[]> {
+  if (crewId === null) return [];
+  const blocked = results.filter((r) => r.outcome === 'blocked_lock');
+  if (blocked.length === 0) return [];
+
+  // Propriétaires (users) des hexes bloqués → leurs crews actifs.
+  const ownerIds = blocked
+    .map((r) => states.get(r.h3)?.ownerUserId)
+    .filter((id): id is string => !!id);
+  const ownerCrews = await loadOwnerCrews(ownerIds);
+
+  const contested: string[] = [];
+  for (const r of blocked) {
+    const ownerUserId = states.get(r.h3)?.ownerUserId ?? null;
+    const ownerCrewId = ownerUserId ? ownerCrews.get(ownerUserId) ?? null : null;
+    // Même crew (ou propriétaire sans crew) → pas de contestation entre crews.
+    if (ownerCrewId === null || ownerCrewId === crewId) continue;
+
+    // Résolution pondérée (MVP mono-course : 1 coureur validé par crew, trust=1).
+    const presences: ContestedCrewPresence[] = [
+      { crewId, runners: 1, trust: 1 },
+      { crewId: ownerCrewId, runners: 1, trust: 1 },
+    ];
+    const resolved = resolveContestedHex({ currentOwnerCrewId: ownerCrewId, presences });
+
+    // Anti-collusion (§11) : historique des reprises de CE hex entre crews.
+    const h3db = h3ToDb(r.h3);
+    const { data: hist, error: histErr } = await supabase
+      .from('contested_group_runs')
+      .select('winner_crew_id')
+      .eq('h3index', h3db)
+      .order('created_at', { ascending: true });
+    if (histErr) throw new Error(`contested history read: ${histErr.message}`);
+    const historyCrews = (hist ?? [])
+      .map((h) => h.winner_crew_id as string | null)
+      .filter((c): c is string => !!c);
+    // On projette la reprise courante en fin d'historique pour le compteur.
+    const projected = [...historyCrews, resolved.ownerCrewId ?? ownerCrewId];
+    const penalty = collusionPenalty(projected);
+    const status = penalty === 'stats_only' ? 'stats_only' : resolved.status;
+
+    const { error: insErr } = await supabase.from('contested_group_runs').insert({
+      h3index: h3db,
+      city_id: cityId ?? null,
+      prev_owner_crew_id: ownerCrewId,
+      winner_crew_id: status === 'stats_only' || status === 'neutralized'
+        ? null
+        : resolved.ownerCrewId,
+      challenger_crew_id: crewId,
+      run_id: runId,
+      status,
+    });
+    if (insErr) throw new Error(`contested_group_runs insert: ${insErr.message}`);
+
+    // Feed crew (§50) — message doux, jamais de shame. Deux crews notifiés.
+    const feedBody = penalty === 'stats_only'
+      ? 'Bonus territoire réduit : reprise répétée entre mêmes crews'
+      : 'Hex contesté lors d’un run groupé';
+    const { error: feedErr } = await supabase.from('crew_feed_events').insert([
+      { crew_id: crewId, actor_id: userId, event_type: 'contested', payload: { h3: r.h3, status, body: feedBody } },
+      { crew_id: ownerCrewId, actor_id: userId, event_type: 'contested', payload: { h3: r.h3, status, body: feedBody } },
+    ]);
+    if (feedErr) throw new Error(`crew_feed_events insert: ${feedErr.message}`);
+
+    contested.push(r.h3);
+  }
+  return contested;
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -806,6 +1161,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   if (!isIngestRunRequest(body)) return json({ error: 'invalid_payload' }, 400);
   const request = body;
+  const runMode = effectiveRunMode(request.runMode);
 
   try {
     // Profil (streak, club, ancienneté) — nécessaire même pour le replay/rejet.
@@ -931,6 +1287,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // ── Hexing (pur) ─────────────────────────────────────────────────────────
     const hexes = hexesForSegments(validation.claimable);
+
+    // ── AMENDEMENT-07 §2 : modes SANS capture (social_run / course_privee) ────
+    // Aucun claim territoire (hexes traversés → statut stats_only), aucune écriture
+    // hex, aucune XP crew de capture. social_run garde stats + badges + XP PERSO.
+    // course_privee = stats perso uniquement, aucun partage, aucune entrée feed.
+    if (runMode !== 'conquete') {
+      return json(await handleNoClaimRun({
+        request,
+        runMode,
+        userId,
+        profile,
+        baseRow,
+        validation,
+        distanceM,
+        durationS,
+        avgPaceSKm,
+        streak,
+        now,
+      }));
+    }
 
     // ── Lecture d'état + décision (pur) ──────────────────────────────────────
     const states = await loadHexStates(hexes);
@@ -1072,6 +1448,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       allPioneer,
       newOutposts: outpost.newOutposts,
       newRoutes: route.newRoutes,
+      // Easy/Recovery Run (§6) : mode facile choisi au départ (signal client).
+      easyMode: request.easyMode === true,
+      // Group Run (§3/§6, approx MVP) : une part ≥ HEX_SHARE des hexes touchés
+      // est fraîchement verrouillée (≤ lock) par UN même autre coureur — proxy
+      // de co-présence sans ingestion de la 2ᵉ course. Documenté MVP.
+      groupRun: detectGroupRunProxy(hexes, states, now),
     });
 
     // ── Crews Supercell (§2) : XP crew + coffre + offensive ──────────────────
@@ -1106,11 +1488,41 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }, claimedCentroids);
     }
 
+    // ── AMENDEMENT-07 §3 : hexes contestés (approx MVP mono-course) ───────────
+    // Le 1ᵉʳ coureur a claimé (lock) ; ce 2ᵉ ingest d'un AUTRE crew ≤ lock aurait
+    // été bloqué_lock — on le bascule `contested` via resolveContestedHex (pur),
+    // insère contested_group_runs + crew_feed_events, applique l'anti-collusion.
+    const contestedHexes = await handleContested(
+      userId,
+      crew.crewId,
+      runId,
+      request.cityId,
+      decision.results,
+      states,
+      now,
+    );
+
+    // ── AMENDEMENT-07 §5 : challenges actifs (user + crew) ────────────────────
+    // Une course valide alimente les challenges solo (sujet user) et crew/rivalry
+    // (sujet crew). challengeProgress (pur) décide ratio/done ; feedback sain §12.
+    const challengeUpdates = await processChallenges(
+      userId,
+      crew.crewId,
+      {
+        runs: 1,
+        distanceM,
+        hexes: decision.totals.claimed + decision.totals.stolen,
+        defends: decision.totals.defended,
+      },
+      now,
+    );
+
     // ── Célébration persistée (source du replay idempotent) ──────────────────
     const response: IngestRunResponse = {
       runId,
       status: validation.status,
       replayed: false,
+      runMode,
       distanceM,
       durationS,
       avgPaceSKm,
@@ -1129,6 +1541,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       newBadges,
       ...(crewOutcome.crewXp !== undefined ? { crewXp: crewOutcome.crewXp } : {}),
       ...(crewOutcome.crewLevelUp !== undefined ? { crewLevelUp: crewOutcome.crewLevelUp } : {}),
+      ...(contestedHexes.length > 0 ? { contestedHexes } : {}),
+      ...(challengeUpdates.length > 0 ? { challengeUpdates } : {}),
     };
     await persistCelebration(runId, response, score.points);
     return json(response);

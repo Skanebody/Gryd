@@ -377,3 +377,143 @@ export const OFFENSIVE_RESULT_THRESHOLDS = {
 export type OffensiveResult = 'fail' | 'partial' | 'victory';
 /** Durée de vie standard d'une mission de défense crew (§38.3). */
 export const DEFENSE_MISSION_DURATION_H = 48;
+
+// ─── AMENDEMENT-07 §3 Runs groupés & anti-farm ───────────────────────────────
+/** Écart de départ maximal (min) entre deux courses pour un même Group Run. */
+export const GROUP_RUN_START_TOLERANCE_MIN = 3;
+/** Chevauchement de trace minimal (ratio d'hexes communs) pour un Group Run. */
+export const GROUP_RUN_OVERLAP_MIN = 0.7;
+/**
+ * Part d'hexes partagés minimale (ratio des hexes de CHAQUE course qui sont
+ * communs) pour valider un Group Run. Approx MVP : |A∩B| / min(|A|,|B|).
+ */
+export const GROUP_RUN_HEX_SHARE_MIN = 0.7;
+/**
+ * Barème de contribution crew d'un hex re-parcouru en Group Run par le MÊME
+ * crew (§6) : le 1ᵉʳ capture (part pleine implicite = 1re entrée), les suivants
+ * apportent une contribution DÉCROISSANTE PLAFONNÉE — pas de multiplication du
+ * territoire. Indices au-delà de la table → dernier pas (0.1).
+ */
+export const SAME_CREW_CONTRIB_STEPS = [1, 0.3, 0.2, 0.1] as const;
+/** Handle @ social (AMENDEMENT-07 §4, doc §44) : minuscules/chiffres/_, 3-20. */
+export const HANDLE_REGEX = /^[a-z0-9_]{3,20}$/;
+/**
+ * Anti-collusion (§11, approx MVP) : nombre d'alternances de reprise d'un même
+ * hex entre les DEUX mêmes crews au-delà duquel le bonus vol est retiré (statut
+ * `stats_only`). Une « alternance » = un changement de crew possédant l'hex.
+ */
+export const COLLUSION_MAX_ALTERNATIONS = 3;
+
+// ─── AMENDEMENT-07 §5 Challenges (motivation §15-§16) ────────────────────────
+/** Types de challenge (motivation §15). `event`/`season` catalogués, hors MVP actif. */
+export const CHALLENGE_TYPES = ['solo', 'crew', 'rivalry', 'event', 'season'] as const;
+export type ChallengeType = (typeof CHALLENGE_TYPES)[number];
+/** Difficulté d'un challenge (motivation §16) — étiquette UI, pas de gameplay. */
+export const CHALLENGE_DIFFICULTIES = ['chill', 'standard', 'intense'] as const;
+export type ChallengeDifficulty = (typeof CHALLENGE_DIFFICULTIES)[number];
+/**
+ * Métriques mesurables d'un challenge (goal.metric). Sous-ensemble aligné sur
+ * les stats déjà alimentées (ingest_run/jobs) + les compteurs de challenge.
+ * `runs` = nombre de courses valides ; `defends` = hexes défendus ;
+ * `hexes` = hexes capturés ; `distanceM` = distance cumulée (m).
+ */
+export const CHALLENGE_METRICS = ['runs', 'distanceM', 'hexes', 'defends'] as const;
+export type ChallengeMetric = (typeof CHALLENGE_METRICS)[number];
+/**
+ * Durée standard d'un challenge rivalry (motivation §17.4, exemple 48 h). Les
+ * bornes réelles (starts_at/ends_at) sont en base ; cette constante documente
+ * le défaut MVP du seed.
+ */
+export const RIVALRY_DURATION_H = 48;
+
+/**
+ * Seeds MVP des challenges (motivation §15-§16, seed 0012). DATA du catalogue :
+ * la migration 0012 les insère telles quelles. Aucun nombre magique ailleurs.
+ *  - solo Consistency II : 3 courses/semaine ;
+ *  - solo Distance : 10 km cumulés ;
+ *  - solo Defense : 30 hexes défendus ;
+ *  - crew Defense Week : 300 hexes collectifs, minimum perso 20 (§8.3) ;
+ *  - rivalry Night Pacers vs Canal : 48 h, Paris Est.
+ */
+export const CHALLENGE_SEEDS = {
+  consistency_ii: { type: 'solo', metric: 'runs', target: 3, difficulty: 'standard' },
+  distance_10k: { type: 'solo', metric: 'distanceM', target: 10_000, difficulty: 'standard' },
+  defense_30: { type: 'solo', metric: 'defends', target: 30, difficulty: 'standard' },
+  crew_defense_week: {
+    type: 'crew',
+    metric: 'defends',
+    collectiveTarget: 300,
+    personalMinimum: 20,
+    difficulty: 'intense',
+  },
+  rivalry_night_canal: {
+    type: 'rivalry',
+    metric: 'hexes',
+    durationH: RIVALRY_DURATION_H,
+    difficulty: 'intense',
+  },
+} as const;
+
+// ─── AMENDEMENT-07 §7 Leaderboards gradués (motivation §10) ──────────────────
+/** Niveaux de classement, du plus intime au plus exposé (motivation §10.1). */
+export const LEADERBOARD_LEVELS = [
+  'personnel',
+  'crew',
+  'amis',
+  'local',
+  'ville',
+  'region',
+  'france',
+  'global',
+] as const;
+export type LeaderboardLevel = (typeof LEADERBOARD_LEVELS)[number];
+/**
+ * Niveaux VISIBLES par défaut selon le play_style (motivation §10.2). Un
+ * classement absent de la liste est masqué par défaut (activable en réglages).
+ * `discreet_mode` retire TOUJOURS `global` (et l'exposition large) par-dessus —
+ * cf. leaderboardVisibility (engine/challenge.ts).
+ */
+export const LEADERBOARD_DEFAULT_VISIBILITY: Record<PlayStyleKey, readonly LeaderboardLevel[]> = {
+  focus_solo: ['personnel', 'crew'],
+  mixte: ['personnel', 'crew', 'amis', 'local'],
+  crew_war: ['personnel', 'crew', 'amis', 'local', 'ville', 'region', 'france'],
+} as const;
+/** Play styles (miroir de PlayStyle dans types.ts — évite l'import circulaire). */
+export type PlayStyleKey = 'focus_solo' | 'mixte' | 'crew_war';
+
+// ─── AMENDEMENT-07 §9.2 Coopétition multi-critères (motivation §9.2) ──────────
+/**
+ * Poids des critères du score coopétitif crew (motivation §9.2) : PAS que la
+ * vitesse — régularité / défense / participation / exploration / fiabilité, pour
+ * qu'un coureur lent reste utile. Somme = 1. DATA : engine/challenge.ts les
+ * consomme, aucune valeur en dur ailleurs.
+ */
+export const COOPETITION_WEIGHTS = {
+  regularity: 0.25, // régularité (jours/semaines actifs)
+  defense: 0.25, // hexes défendus
+  participation: 0.2, // présence aux sorties/missions crew
+  exploration: 0.15, // hexes pionniers / zones ouvertes
+  reliability: 0.15, // fiabilité (courses vérifiées, fair-play)
+} as const;
+export type CoopetitionCriterion = keyof typeof COOPETITION_WEIGHTS;
+
+// ─── AMENDEMENT-07 §6 Courses saines (motivation §19, healthy badges) ────────
+/**
+ * Recovery Run : une course « facile » (easyMode) dont l'allure moyenne est
+ * STRICTEMENT plus lente que ce seuil compte comme récupération. Seuil doux
+ * (7:00/km) : la récup se choisit, elle n'est jamais imposée ni jugée.
+ */
+export const RECOVERY_MIN_AVG_PACE_S_KM = 7 * 60;
+/**
+ * Balanced Week : une semaine ISO active est « équilibrée » si le nombre de
+ * courses valides est dans [min ; max] (ni sous- ni sur-entraînement, §18).
+ * Bornes INCLUSES.
+ */
+export const BALANCED_WEEK_MIN_RUNS = 2;
+export const BALANCED_WEEK_MAX_RUNS = 6;
+/**
+ * Smart Runner : une course « smart » est vérifiée (motionTrust ≥
+ * VERIFIED_MIN_TRUST), non flaggée, ET à allure moyenne dans la plage
+ * raisonnable de course (réutilise RUN_AVG_PACE_MIN/MAX_S_KM). Documenté :
+ * pas de nouveau nombre magique, on réutilise les bornes de validité §3.2.
+ */

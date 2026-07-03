@@ -1,0 +1,140 @@
+/*
+ * « Connecte ton matériel » (#connect) — reliquat AMENDEMENT-05 §4.10.
+ * Tokens stricts (aucune couleur hors globals.css). Chartreuse RÉSERVÉE au seul
+ * état « Actif » (gain légitime = source qui alimente déjà la carte) — doctrine
+ * C.3 (< 10 % de surface ch). Aucun CTA local (le CTA global vit dans le header).
+ * reduced-motion : géré par Reveal + transitions coupées ci-dessous.
+ */
+
+/* Règle centrale (anti pay-to-win) : accent éditorial Lora, comme §3.9. */
+.rule {
+  margin-top: 28px;
+  padding-left: 18px;
+  border-left: 1px solid var(--ligne);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--blanc);
+  max-width: 60ch;
+}
+
+.ruleIcon {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--gris);
+}
+
+.grid {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tile {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  transition: border-color 200ms ease-out;
+}
+
+.tile:hover {
+  border-color: var(--ch40);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile {
+    transition: none;
+  }
+}
+
+/* Pastille pictogramme : monochrome, générique (pas un logo de marque). */
+.glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  color: var(--blanc);
+}
+
+.name {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--blanc);
+}
+
+/* État : puce + libellé mono. */
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+/* Actif = la source alimente déjà la carte → seul accent chartreuse (gain). */
+.active {
+  color: var(--ch);
+}
+
+/* Connecté = branché, neutre clair. */
+.connected {
+  color: var(--blanc);
+}
+
+/* Bientôt = à venir, atténué. */
+.soon {
+  color: var(--gris);
+}
+
+.soon .dot {
+  background: none;
+  border: 1px solid var(--gris);
+}
+
+.note {
+  margin-top: 24px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}

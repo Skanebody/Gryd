@@ -7,7 +7,7 @@
  */
 import { assertEquals } from 'jsr:@std/assert@^1';
 import { PUSH_MAX_PER_DAY } from '../_shared/game-rules.ts';
-import { buildDigest, canPush, type PushUser } from './logic.ts';
+import { buildChallengeNudge, buildDigest, canPush, type PushUser } from './logic.ts';
 
 const USER: PushUser = { id: 'user-1' };
 /** Instant UTC correspondant à une heure de Paris (été : UTC+2). */
@@ -104,4 +104,28 @@ Deno.test('doublons fusionnés par type, comptes nuls/négatifs ignorés', () =>
 Deno.test('aucun événement (ou que des zéros) → null, jamais de digest vide', () => {
   assertEquals(buildDigest([], 'weekly'), null);
   assertEquals(buildDigest([{ type: 'hexes_gained', count: 0 }], 'crew'), null);
+});
+
+// ─── buildChallengeNudge (AMENDEMENT-07 §9, motivation §12, anti-shame) ───────
+
+Deno.test('nudge : objectif atteint → félicitation, jamais de pression', () => {
+  const n = buildChallengeNudge({ name: 'Consistency II', kind: 'user', progress: 3, target: 3 });
+  assertEquals(n !== null, true);
+  assertEquals(/atteint|bouclé/i.test(n!.body + n!.title), true);
+});
+
+Deno.test('nudge : à 1 pas → formulation positive « à 1 pas »', () => {
+  const n = buildChallengeNudge({ name: 'Distance', kind: 'user', progress: 9, target: 10 });
+  assertEquals(/1 pas/.test(n!.body), true);
+});
+
+Deno.test('nudge : progression → valorise l\'avancée, jamais le manque', () => {
+  const n = buildChallengeNudge({ name: 'Defense', kind: 'crew', progress: 120, target: 300 });
+  assertEquals(/120\/300/.test(n!.body), true);
+  // Anti-shame : aucun terme culpabilisant.
+  assertEquals(/retard|perdre|dernier|échou|pas assez/i.test(n!.body), false);
+});
+
+Deno.test('nudge : target ≤ 0 → null (jamais de rappel vide)', () => {
+  assertEquals(buildChallengeNudge({ name: 'X', kind: 'user', progress: 0, target: 0 }), null);
 });

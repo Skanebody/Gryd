@@ -73,6 +73,31 @@ function HeaderActions() {
   );
 }
 
+/** Accès rapide aux écrans motivation (AMENDEMENT-07 §8). Trois pastilles. */
+function MotivationLinks() {
+  const items: { label: string; icon: IconName; href: string }[] = [
+    { label: "Aujourd'hui", icon: 'aujourdhui', href: '/aujourdhui' },
+    { label: 'Challenges', icon: 'mission', href: '/challenges' },
+    { label: 'Motivation', icon: 'reglages', href: '/settings-motivation' },
+  ];
+  return (
+    <View style={styles.motivRow}>
+      {items.map((it) => (
+        <Pressable
+          key={it.href}
+          accessibilityRole="button"
+          accessibilityLabel={it.label}
+          onPress={() => router.push(it.href)}
+          style={({ pressed }) => [styles.motivChip, pressed && styles.pressed]}
+        >
+          <Icon name={it.icon} size={18} color={colors.blanc} />
+          <Text style={styles.motivLabel}>{it.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export default function WarRoomScreen() {
   useEffect(() => {
     screen('war_room');
@@ -89,6 +114,9 @@ export default function WarRoomScreen() {
   return (
     <TabScreen title="War Room" icon="alerte" kicker="SAISON 0 · PARIS">
       <HeaderActions />
+
+      {/* Accès motivation (AMENDEMENT-07 §8) : Aujourd'hui, Challenges, réglages. */}
+      <MotivationLinks />
 
       {/* À FAIRE MAINTENANT — la mission la plus urgente (§5) */}
       <Text style={styles.sectionLabel}>À FAIRE MAINTENANT</Text>
@@ -182,6 +210,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.6 },
+  motivRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  motivChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    height: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+    paddingHorizontal: 6,
+  },
+  motivLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,

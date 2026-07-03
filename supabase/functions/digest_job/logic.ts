@@ -144,3 +144,61 @@ export function buildDigest(
     itemCount: parts.length,
   };
 }
+
+// ─── Nudge challenge sain (AMENDEMENT-07 §9, motivation §12) ──────────────────
+
+/** Avancement d'un challenge pour le nudge (sous-ensemble de ChallengeUpdate). */
+export interface ChallengeNudgeInput {
+  name: string;
+  /** Sujet : joueur (`user`) ou crew (`crew`). */
+  kind: 'user' | 'crew';
+  progress: number;
+  target: number;
+}
+
+export interface ChallengeNudge {
+  title: string;
+  body: string;
+}
+
+/**
+ * Construit un rappel de challenge NON CULPABILISANT (motivation §11.1/§12). PURE.
+ * Règles anti-shame :
+ *  - JAMAIS « en retard / tu vas perdre / tu n'as pas couru » ;
+ *  - objectif atteint → félicitation ; proche (reste ≤ 1 unité) → « à 1 de ton
+ *    objectif » ; sinon progression positive (« X/Y, ta régularité progresse »).
+ * Renvoie null si rien d'actionnable (target ≤ 0, ou aucun progrès à saluer sans
+ * pression — on n'envoie jamais un rappel vide/anxiogène).
+ */
+export function buildChallengeNudge(ch: ChallengeNudgeInput): ChallengeNudge | null {
+  const target = ch.target;
+  if (target <= 0) return null;
+  const progress = Math.max(0, ch.progress);
+  const remaining = Math.max(0, target - progress);
+  const who = ch.kind === 'crew' ? 'Votre crew' : 'Tu';
+  const possessive = ch.kind === 'crew' ? 'votre' : 'ton';
+
+  if (remaining === 0) {
+    return {
+      title: `${ch.name} — objectif atteint`,
+      body: ch.kind === 'crew'
+        ? `${who} avez bouclé ${ch.name}. Beau travail collectif.`
+        : `${who} as bouclé ${ch.name}. Beau travail.`,
+    };
+  }
+  if (remaining <= 1) {
+    return {
+      title: `${ch.name}`,
+      body: ch.kind === 'crew'
+        ? `${who} êtes à 1 pas de ${possessive} objectif ${ch.name}.`
+        : `${who} es à 1 pas de ${possessive} objectif ${ch.name}.`,
+    };
+  }
+  // Progression saine : on valorise l'avancée, jamais le manque.
+  return {
+    title: `${ch.name}`,
+    body: ch.kind === 'crew'
+      ? `${who} avancez sur ${ch.name} : ${progress}/${target}. La régularité paie.`
+      : `${who} avances sur ${ch.name} : ${progress}/${target}. Ta régularité progresse.`,
+  };
+}

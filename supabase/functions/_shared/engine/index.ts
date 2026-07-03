@@ -16,3 +16,5 @@ export * from './claims.ts';
 export * from './scoring.ts';
 export * from './badges.ts';
 export * from './crew.ts';
+export * from './social.ts';
+export * from './challenge.ts';

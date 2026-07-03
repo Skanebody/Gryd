@@ -6,8 +6,9 @@
  * DÉRIVÉS de l'XP / activityScore réels (features/crew/rules) — pas saisis en
  * dur. Rejoindre = stub TODO(O1). Aucun nombre magique.
  */
-import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { CREW_MAX_MEMBERS, colors, fontSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { GhostButton } from '../src/ui/GhostButton';
@@ -36,6 +37,34 @@ function signals(crew: DiscoveryCrewDemo): string[] {
   if (crew.pioneer) out.push('Pioneer');
   if (crew.beginnerFriendly) out.push('Beginner Friendly');
   return out;
+}
+
+/** Filtres rapides §27 (enrichissement) — chaque clé teste un champ du crew. */
+type FilterKey = 'all' | 'open' | 'beginner' | 'war' | 'defense' | 'pioneer';
+const FILTERS: readonly { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'Tous' },
+  { key: 'open', label: 'Ouverts' },
+  { key: 'beginner', label: 'Débutant OK' },
+  { key: 'war', label: 'War Active' },
+  { key: 'defense', label: 'Defense Active' },
+  { key: 'pioneer', label: 'Pionniers' },
+];
+
+function matchesFilter(crew: DiscoveryCrewDemo, key: FilterKey): boolean {
+  switch (key) {
+    case 'all':
+      return true;
+    case 'open':
+      return crew.policy === 'open';
+    case 'beginner':
+      return crew.beginnerFriendly;
+    case 'war':
+      return crew.warActive;
+    case 'defense':
+      return crew.defenseActive;
+    case 'pioneer':
+      return crew.pioneer;
+  }
 }
 
 function CrewCard({ crew }: { crew: DiscoveryCrewDemo }) {
@@ -93,15 +122,31 @@ function CrewCard({ crew }: { crew: DiscoveryCrewDemo }) {
             if (__DEV__) console.log(`[crew-discovery] join ${crew.name} (${crew.policy})`);
           }}
         />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Voir la fiche de ${crew.name}`}
+          onPress={() => router.push('/crew-public')}
+          style={({ pressed }) => [styles.detailLink, pressed && styles.dim]}
+        >
+          <Text style={styles.detailText}>Voir la fiche</Text>
+          <Icon name="chevron" size={16} color={colors.gris} />
+        </Pressable>
       </View>
     </View>
   );
 }
 
 export default function CrewDiscoveryScreen() {
+  const [filter, setFilter] = useState<FilterKey>('all');
+
   useEffect(() => {
     screen('crew_discovery');
   }, []);
+
+  const filtered = useMemo(
+    () => DISCOVERY_CREWS.filter((c) => matchesFilter(c, filter)),
+    [filter],
+  );
 
   return (
     <StackScreen
@@ -110,10 +155,29 @@ export default function CrewDiscoveryScreen() {
       kicker="SAISON 0 · PARIS"
       subtitle="Rejoins un crew vivant — les signaux te disent lesquels courent, attaquent et défendent vraiment."
     >
-      <View style={styles.list}>
-        {DISCOVERY_CREWS.map((crew) => (
-          <CrewCard key={crew.name} crew={crew} />
+      {/* Filtres rapides §27 */}
+      <View style={styles.filters}>
+        {FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            accessibilityRole="button"
+            accessibilityLabel={`Filtrer : ${f.label}`}
+            onPress={() => setFilter(f.key)}
+            style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
+          >
+            <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]}>
+              {f.label}
+            </Text>
+          </Pressable>
         ))}
+      </View>
+
+      <View style={styles.list}>
+        {filtered.length > 0 ? (
+          filtered.map((crew) => <CrewCard key={crew.name} crew={crew} />)
+        ) : (
+          <Text style={styles.empty}>Aucun crew ne correspond à ce filtre pour l'instant.</Text>
+        )}
       </View>
       <Text style={styles.footnote}>
         Aucun signal ne montre de position live. Les indicateurs viennent de l'activité agrégée
@@ -171,7 +235,29 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   statLabel: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
-  joinRow: { marginTop: 16 },
+  joinRow: { marginTop: 16, gap: 10 },
+  detailLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+  },
+  detailText: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 0.2 },
+  dim: { opacity: 0.6 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  filterChip: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 8,
+    paddingHorizontal: 13,
+  },
+  filterChipActive: { backgroundColor: colors.carbone2, borderColor: colors.chartreuse40 },
+  filterText: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
+  filterTextActive: { color: colors.blanc, fontWeight: '600' },
+  empty: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center', paddingVertical: 24 },
   footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,

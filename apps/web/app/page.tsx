@@ -2,12 +2,13 @@
  * Home GRYD — landing V2 « war room sportive » (AMENDEMENT-05 §3).
  * Server Component léger : assemble les sections client de app/components/landing/
  * dans l'ordre V2. Metadata SEO : layout.tsx.
- * Ancres : #concept #map #warroom #badges #crews #performance #pricing #waitlist.
+ * Ancres : #concept #map #warroom #badges #crews #performance #connect #pricing #waitlist.
  */
 
 import { BackgroundFx } from './components/landing/BackgroundFx';
 import { BadgeGallery } from './components/landing/BadgeGallery';
 import { GameplayLoop } from './components/landing/Concept';
+import { ConnectGear } from './components/landing/ConnectGear';
 import { CrewBuilder } from './components/landing/CrewBuilder';
 import { FaqSection } from './components/landing/FaqSection';
 import { Footer } from './components/landing/Footer';
@@ -39,6 +40,7 @@ export default function Page() {
             <BadgeGallery />
             <CrewBuilder />
             <PerformanceSection />
+            <ConnectGear />
             <PricingSection />
             <WaitlistSection />
             <FaqSection />

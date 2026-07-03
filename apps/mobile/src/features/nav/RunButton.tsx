@@ -5,16 +5,23 @@
  * permanent sur les 5 onglets — c'est LE CTA chartreuse global, les CTA
  * d'écran restent ghost (§C.3 : 1 seul CTA chartreuse par écran).
  * TODO §G : couper la boucle du halo si reduce-motion (AccessibilityInfo) — V0.2.
+ *
+ * AMENDEMENT-07 §2/§8 : le tap ouvre d'abord le sélecteur de MODE (Conquête /
+ * Social Run / Course privée). Le mode choisi sera passé à IngestRunRequest.runMode
+ * (le serveur décide toujours du territoire). L'écran « course en cours » reste
+ * un TODO Milestone 2 ; on logge run_start avec le mode retenu.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, motion, radii } from '@klaim/shared';
+import { colors, fontSizes, motion, radii, type RunMode } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
+import { RunModeSheet } from '../motivation/RunModeSheet';
 import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE, RUN_HALO_OVERFLOW } from './metrics';
 
 export function RunButton() {
   const insets = useSafeAreaInsets();
+  const [modePickerOpen, setModePickerOpen] = useState(false);
 
   // Halo pulsé 2 s (§F) — Animated simple, driver natif.
   const pulse = useRef(new Animated.Value(0)).current;
@@ -33,10 +40,16 @@ export function RunButton() {
   const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.35] });
   const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] });
 
-  const handlePress = () => {
-    track(EVENTS.runStart);
-    // TODO Milestone 2 : navigation vers l'écran « Course en cours » (§4.2.2).
-    if (__DEV__) console.log('[run] run_start — écran course à venir (Milestone 2)');
+  // Tap COURIR : on demande d'abord le mode (§2). Le GO ne lance rien tant que
+  // le joueur n'a pas choisi (ou fermé la feuille).
+  const handlePress = () => setModePickerOpen(true);
+
+  const startRun = (mode: RunMode) => {
+    setModePickerOpen(false);
+    track(EVENTS.runStart, { mode });
+    // TODO Milestone 2 : navigation vers l'écran « Course en cours » (§4.2.2)
+    // en transmettant `mode` → IngestRunRequest.runMode.
+    if (__DEV__) console.log(`[run] run_start mode=${mode} — écran course à venir (Milestone 2)`);
   };
 
   return (
@@ -56,6 +69,11 @@ export function RunButton() {
       >
         <Text style={styles.label}>GO</Text>
       </Pressable>
+      <RunModeSheet
+        visible={modePickerOpen}
+        onSelect={startRun}
+        onClose={() => setModePickerOpen(false)}
+      />
     </View>
   );
 }
