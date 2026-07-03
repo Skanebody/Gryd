@@ -84,12 +84,39 @@
 }
 
 .perfCard {
+  position: relative; /* ancre les mini-hexes territoire (§3.9) */
   height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 8px;
   padding: 22px;
+}
+
+/* Mini-hexes chartreuse — rappel territoire dans les cards (AMENDEMENT-05 §3.9).
+   Décoratif, opacités faibles : la doctrine C.3 (< 10 % de surface ch) tient. */
+.hexes {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 26px;
+}
+
+.hexes polygon:nth-of-type(1) {
+  fill: var(--ch14);
+  stroke: var(--ch40);
+  stroke-width: 1;
+}
+
+.hexes polygon:nth-of-type(2) {
+  fill: none;
+  stroke: var(--ch40);
+  stroke-width: 1;
+}
+
+.hexes polygon:nth-of-type(3) {
+  fill: var(--ch14);
 }
 
 .perfValue {
@@ -126,4 +153,85 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--gris);
+}
+
+/* ── Performance = arme (AMENDEMENT-05 §3.9) : lien forme → territoire ────── */
+
+.territoryStats {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 980px) {
+  .territoryStats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .territoryStats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tStat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+}
+
+.tValue {
+  font-family: var(--disp);
+  font-weight: 400; /* chiffres 400 */
+  font-size: clamp(26px, 2.6vw, 32px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+/* Bonus conquête = gain → seul chiffre chartreuse du bandeau (doctrine C.3). */
+.tGain {
+  color: var(--ch);
+}
+
+.tUnit {
+  font-size: 14px;
+  color: var(--gris);
+  font-family: var(--txt);
+  font-weight: 400;
+}
+
+.tLabel {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.tNote {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--gris);
+}
+
+/* Accent éditorial (Lora, charte §E) : la promesse « performance = arme ». */
+.territoryMessage {
+  margin-top: 22px;
+  padding-left: 18px;
+  border-left: 1px solid var(--ligne);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--blanc);
+  max-width: 52ch;
 }

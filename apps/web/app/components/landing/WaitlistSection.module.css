@@ -26,6 +26,175 @@
   max-width: 56ch;
 }
 
+/* ── Bandeau porte de saison (AMENDEMENT-05 §3.11) ─────────────────────────── */
+
+.seasonStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0 0 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.seasonName {
+  color: var(--blanc);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone2);
+  padding: 6px 12px;
+}
+
+.seasonFact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--gris);
+}
+
+.seasonDot {
+  color: var(--gris);
+}
+
+/* ── Compteur de places restantes (fictif assumé 173/500) ──────────────────── */
+
+.counterRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 18px 20px;
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+}
+
+@media (max-width: 560px) {
+  .counterRow {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+.spots {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Chiffre héros : Poppins 400, tabulaire — jamais bold (AMENDEMENT-03). */
+.spotsNum {
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: clamp(36px, 5.4vw, 56px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--blanc);
+}
+
+.spotsLabel {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.waveMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.waveHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.waveName {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Progress de remplissage = emploi légitime du chartreuse (gain/progress §C.3). */
+.waveCount {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ch);
+  font-variant-numeric: tabular-nums;
+}
+
+.waveTrack {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  overflow: hidden;
+}
+
+.waveFill {
+  height: 100%;
+  background: var(--ch);
+  border-radius: var(--radius-pill);
+  transition: width 250ms ease-out;
+}
+
+/* ── Chips bénéfices fondateur ──────────────────────────────────────────────── */
+
+.chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 28px;
+  padding: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blanc);
+}
+
+.chipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gris);
+  flex: none;
+}
+
+/* Or = badge Fondateur uniquement (état de jeu, AMENDEMENT-05 §1). */
+.chipDotOr {
+  background: var(--or);
+  box-shadow: 0 0 8px var(--or-14);
+}
+
+/* ── Barres villes (avant inscription) ─────────────────────────────────────── */
+
+.cities {
+  margin-bottom: 28px;
+}
+
+.cityList {
+  margin-top: 12px;
+}
+
+/* ── Formulaire (inchangé) ─────────────────────────────────────────────────── */
+
 .form {
   display: flex;
   flex-direction: column;
@@ -66,4 +235,10 @@
   font-size: 12px;
   color: var(--gris);
   padding-left: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waveFill {
+    transition: none;
+  }
 }

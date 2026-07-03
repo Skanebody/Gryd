@@ -1,3 +1,9 @@
+/*
+ * Battle Map France V2 (AMENDEMENT-05 §3.4) — la carte devient un plateau.
+ * Couleurs de conflit (--ennemi/--rival/--or) : états de jeu UNIQUEMENT (§1).
+ * Motion 200-250 ms ease-out, prefers-reduced-motion respecté partout.
+ */
+
 .grid {
   display: grid;
   grid-template-columns: 0.9fr 1.1fr;
@@ -15,6 +21,14 @@
 .left,
 .right {
   min-width: 0;
+}
+
+.tabsIntro {
+  color: var(--gris);
+  font-size: 14.5px;
+  line-height: 1.65;
+  margin-bottom: 16px;
+  max-width: 52ch;
 }
 
 .tabs {
@@ -42,12 +56,6 @@
   background: var(--carbone2);
   border-color: var(--ch40);
   color: var(--blanc);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tab {
-    transition: none;
-  }
 }
 
 .panel {
@@ -118,6 +126,84 @@
   }
 }
 
+/* ─── Statuts par ville (liste de chips) ──────────────────────────────────── */
+
+.cityListTitle {
+  display: block;
+  margin-top: 24px;
+}
+
+.cityList {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 0;
+}
+
+.cityChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone);
+  cursor: pointer;
+  transition: border-color 200ms ease-out;
+}
+
+.cityChip:hover,
+.cityChip:focus-visible {
+  border-color: var(--ch40);
+}
+
+.chipName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blanc);
+}
+
+.chipStatus {
+  font-size: 12px;
+  color: var(--gris);
+}
+
+/* Badges de statut (mono, petites capsules) — ACTIVE/ÉMERGENTE/PIONNIÈRE/SAUVAGE/CONTESTÉE/DOMINÉE. */
+.badge {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  color: var(--gris);
+  white-space: nowrap;
+}
+
+/* États de jeu (§1) : mon crew / contesté / dominé par un rival. */
+.badgeActive {
+  background: var(--ch14);
+  border-color: var(--ch40);
+  color: var(--ch);
+}
+
+.badgeContested {
+  background: var(--ennemi-14);
+  border-color: var(--ennemi-40);
+  color: var(--ennemi);
+}
+
+.badgeDominated {
+  background: var(--rival-14);
+  border-color: var(--rival-40);
+  color: var(--rival);
+}
+
+/* ─── Plateau ─────────────────────────────────────────────────────────────── */
+
 .mapBox {
   position: relative;
   border: 1px solid var(--ligne);
@@ -126,25 +212,108 @@
   padding: 8px;
 }
 
+/* Repère des dots/tooltip : englobe EXACTEMENT le SVG (viewBox 1000×959,
+   ratio réel de la France projetée) — les % des villes tombent juste. */
+.mapInner {
+  position: relative;
+}
+
 .franceSvg {
   display: block;
   width: 100%;
   height: auto;
 }
 
+/* Vraie silhouette (Etalab/IGN) : blanc 3,5 % / contour blanc 16 %. */
 .france {
-  fill: var(--carbone);
+  fill: color-mix(in srgb, var(--blanc) 3.5%, transparent);
+  stroke: color-mix(in srgb, var(--blanc) 16%, transparent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* Quadrillage H3 neutre : contour blanc 5 % SEUL (path agrégé). */
+.hexNeutral {
+  fill: none;
+  stroke: color-mix(in srgb, var(--blanc) 5%, transparent);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+/* Territoire de MON crew (doctrine C.3 : chartreuse = moi et mon crew). */
+.terrMine {
+  fill: var(--ch14);
+  stroke: var(--ch40);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* Crew rival — violet AMENDEMENT-05 §1 (état de jeu). */
+.terrRival {
+  fill: var(--rival-14);
+  stroke: var(--rival-40);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* Zone contestée — le fill hachuré (pattern SVG ennemi+chartreuse) est inline. */
+.terrContested {
+  stroke: var(--ennemi-40);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* Decay : territoire pâli, contour pointillé (21 j sans re-parcours → neutre). */
+.terrDecay {
+  fill: var(--ch14);
+  stroke: var(--ch40);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 5;
+  stroke-linejoin: round;
+  opacity: 0.35;
+}
+
+/* Protégé : double contour blanc (bouclier, AMENDEMENT-05 §1). */
+.terrProtected {
+  fill: var(--ch14);
+  stroke: var(--blanc);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.terrProtectedInner {
+  fill: none;
+  stroke: var(--blanc);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+  opacity: 0.7;
+}
+
+/* Terre pionnière : contour pointillé discret, pas encore de faction. */
+.pioneerZone {
+  fill: color-mix(in srgb, var(--blanc) 2%, transparent);
   stroke: var(--ligne);
   stroke-width: 1.4;
-  stroke-linejoin: round;
+  stroke-dasharray: 5 7;
+}
+
+/* Avant-postes : points cerclés chartreuse (présence construite). */
+.outpost {
+  fill: none;
+  stroke: var(--ch40);
+  stroke-width: 1.4;
+}
+
+.outpostCore {
+  fill: var(--ch);
 }
 
 /* Routes-glow — tracés « en direct » (chartreuse doctrine C.3). */
 .route {
   fill: none;
   stroke: var(--ch40);
-  stroke-width: 1.6;
-  stroke-dasharray: 4 6;
+  stroke-width: 2.6;
+  stroke-dasharray: 7 11;
   stroke-linecap: round;
 }
 
@@ -156,9 +325,11 @@
 
 @keyframes routeFlow {
   to {
-    stroke-dashoffset: -20;
+    stroke-dashoffset: -36;
   }
 }
+
+/* ─── City dots (pont PhoneContext conservé) ──────────────────────────────── */
 
 .cityDot {
   position: absolute;
@@ -184,7 +355,8 @@
 }
 
 .cityDot:hover .dotCore,
-.cityDot:focus-visible .dotCore {
+.cityDot:focus-visible .dotCore,
+.dotHot .dotCore {
   transform: scale(1.35);
 }
 
@@ -218,9 +390,13 @@
   opacity: 0.4;
 }
 
+/* Chip au hover (tooltip) : nom · statut + badge capsule. */
 .tooltip {
   position: absolute;
   transform: translate(-50%, calc(-100% - 16px));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
   padding: 7px 12px;
   border: 1px solid var(--ligne);
@@ -232,6 +408,125 @@
   letter-spacing: 0.06em;
   pointer-events: none;
   z-index: 2;
+}
+
+.tooltipBadge {
+  font-size: 9px;
+}
+
+/* ─── Légende complète ────────────────────────────────────────────────────── */
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 14px;
+  padding: 0;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.sw {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Mini-icônes de renfort (décision fondateur : icône + texte court). */
+.legendIcon {
+  flex-shrink: 0;
+}
+
+.tintMine {
+  color: var(--ch);
+}
+
+.tintRival {
+  color: var(--rival);
+}
+
+.tintEnemy {
+  color: var(--ennemi);
+}
+
+.tintWhite {
+  color: var(--blanc);
+}
+
+.tintNeutral {
+  color: var(--gris);
+}
+
+.swMine {
+  background: var(--ch14);
+  border: 1px solid var(--ch40);
+}
+
+.swRival {
+  background: var(--rival-14);
+  border: 1px solid var(--rival-40);
+}
+
+.swNeutral {
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+}
+
+/* Hachures ennemi + chartreuse (état contesté §1). */
+.swContested {
+  border: 1px solid var(--ennemi-40);
+  background-color: var(--ennemi-14);
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--ennemi-40) 0 2px,
+    transparent 2px 5px,
+    var(--ch40) 5px 7px,
+    transparent 7px 10px
+  );
+}
+
+/* Double contour blanc (protégé). */
+.swProtected {
+  background: var(--ch14);
+  border: 1px solid var(--blanc);
+  box-shadow:
+    inset 0 0 0 2px var(--noir),
+    inset 0 0 0 3px var(--blanc);
+}
+
+/* Decay : pâli. */
+.swDecay {
+  background: var(--ch14);
+  border: 1px dashed var(--ligne);
+  opacity: 0.45;
+}
+
+/* ─── Compteur France entière ─────────────────────────────────────────────── */
+
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.counterValue {
+  font-family: var(--disp);
+  font-weight: 400; /* chiffres héros 400 (AMENDEMENT-03) */
+  font-size: 34px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .hint {
@@ -249,8 +544,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .tab,
   .panel,
-  .dotCore {
+  .dotCore,
+  .cityChip {
     animation: none;
     transition: none;
   }

@@ -1,8 +1,13 @@
 /**
  * Dictionnaire FR/EN de la landing (copy du brouillon fondateur, STRUCTURE.md).
  * FR par défaut. Les CONSTANTES DE JEU ne vivent pas ici : elles viennent de
- * @klaim/shared et sont composées dans les sections (aucun chiffre de jeu en dur).
+ * @klaim/shared et sont composées dans les sections (aucun chiffre de jeu en
+ * dur — le seuil de zone active ci-dessous est interpolé, cohérent avec la FAQ).
+ * Les clés V1 orphelines (concept.*, map.title, reward.*…) ont été purgées :
+ * les sections V2 portent leurs strings en local.
  */
+
+import { WAR_MODE_MIN_ACTIVE_RUNNERS } from '@klaim/shared';
 
 export type Lang = 'fr' | 'en';
 
@@ -13,6 +18,7 @@ const fr = {
     aria: 'Navigation principale',
     concept: 'Concept',
     map: 'Carte',
+    warroom: 'War room',
     crews: 'Crews',
     performance: 'Performance',
     access: 'Accès',
@@ -23,11 +29,9 @@ const fr = {
     logoAria: 'GRYD — retour en haut de page',
   },
   hero: {
-    eyebrow: 'Première carte officielle : France',
     line1: 'Cours.',
     line2: 'Capture.',
     line3: 'Défends.',
-    copy: 'GRYD transforme chaque course en conquête territoriale. La France devient une carte vivante : ton run capture des zones, ton crew les défend, ta saison écrit l’histoire.',
     ctaPrimary: 'Réserver mon accès',
     ctaSecondary: 'Simuler une course',
     statKm: 'km² capturables',
@@ -36,38 +40,13 @@ const fr = {
   },
   phone: {
     live: 'LIVE',
-    zoneLabel: 'Zone active',
     defaultZoneName: 'Paris Est',
-    controlled: 'contrôlé',
     runValidated: 'Course validée',
     hexesUnit: 'HEXES',
-    barsAria: 'Répartition des hexes capturés',
-    frameAria: 'Aperçu de l’app GRYD : carte de territoire et résultat de course',
-  },
-  concept: {
-    kicker: 'Le concept',
-    title: 'Un jeu de territoire construit sur l’effort réel.',
-    sub: 'La carte officielle ouvre avec la France entière. Les zones denses deviennent des champs de bataille. Les zones rurales deviennent des terres pionnières.',
-    features: [
-      {
-        title: 'Capture réelle',
-        body: 'Une course capture uniquement les hexes traversés. Pas de territoire gratuit, pas de magie.',
-      },
-      {
-        title: 'Zones adaptatives',
-        body: 'Ville dense : PvP. Campagne : exploration, routes, avant-postes et badges pionniers.',
-      },
-      {
-        title: 'GRYD Verify',
-        body: 'GPS, mouvement, cadence et score de confiance vérifient que l’activité ressemble bien à une course.',
-      },
-    ],
   },
   map: {
-    kicker: 'La carte',
-    title: 'La France entière est capturable.',
+    kicker: 'Carte officielle',
     sub: 'La densité locale définit le niveau de guerre. Quatre types de zones, une seule règle : ce que tu cours est à toi.',
-    mapAria: 'Carte de France stylisée avec les villes de la Saison 0',
     tablistAria: 'Types de zones',
     hint: 'Survole une ville — le téléphone du haut suit.',
   },
@@ -76,7 +55,8 @@ const fr = {
       name: 'Zone active',
       desc: 'PvP complet, offensives, classements locaux, secteurs contestés et rivalités crew.',
       metrics: [
-        { value: '25+', label: 'coureurs actifs' },
+        // Seuil réel du mode Guerre (@klaim/shared) — cohérent avec la FAQ.
+        { value: `${WAR_MODE_MIN_ACTIVE_RUNNERS}+`, label: 'coureurs actifs' },
         { value: '5+', label: 'crews rivaux' },
         { value: 'PvP', label: 'mode' },
       ],
@@ -110,22 +90,8 @@ const fr = {
     },
   },
   reward: {
-    kicker: 'Le moment reward',
-    title: 'Chaque fin de course doit se ressentir.',
-    sub: 'Compteurs animés, badges, jauges, médailles et cartes de partage. Le résultat devient un moment de victoire.',
     verified: 'GRYD Verified',
-    stolen: 'hexes volés',
-    defended: 'hexes défendus',
-    points: 'points',
-    gaugeLevel: 'Niveau',
-    gaugePass: 'Pass',
-    gaugeForm: 'Score Forme',
     replay: 'Relancer l’animation',
-    badges: [
-      { name: 'LONG RUN', sub: '21 km et plus' },
-      { name: 'ROUTE OPENED', sub: 'liaison inédite' },
-      { name: 'FOUNDER', sub: 'Saison 0 · legend' },
-    ],
   },
   crews: {
     kicker: 'Les crews',
@@ -242,6 +208,7 @@ const en: Dict = {
     aria: 'Main navigation',
     concept: 'Concept',
     map: 'Map',
+    warroom: 'War room',
     crews: 'Crews',
     performance: 'Performance',
     access: 'Access',
@@ -252,11 +219,9 @@ const en: Dict = {
     logoAria: 'GRYD — back to top',
   },
   hero: {
-    eyebrow: 'First official map: France',
     line1: 'Run.',
     line2: 'Capture.',
     line3: 'Defend.',
-    copy: 'GRYD turns every run into territorial conquest. France becomes a living map: your run captures zones, your crew defends them, your season writes history.',
     ctaPrimary: 'Reserve my access',
     ctaSecondary: 'Simulate a run',
     statKm: 'km² up for capture',
@@ -265,38 +230,13 @@ const en: Dict = {
   },
   phone: {
     live: 'LIVE',
-    zoneLabel: 'Active zone',
     defaultZoneName: 'East Paris',
-    controlled: 'controlled',
     runValidated: 'Run validated',
     hexesUnit: 'HEXES',
-    barsAria: 'Breakdown of captured hexes',
-    frameAria: 'GRYD app preview: territory map and run result',
-  },
-  concept: {
-    kicker: 'The concept',
-    title: 'A territory game built on real effort.',
-    sub: 'The official map opens with the whole of France. Dense zones become battlefields. Rural zones become pioneer land.',
-    features: [
-      {
-        title: 'Real capture',
-        body: 'A run captures only the hexes you actually cross. No free territory, no magic.',
-      },
-      {
-        title: 'Adaptive zones',
-        body: 'Dense city: PvP. Countryside: exploration, routes, outposts and pioneer badges.',
-      },
-      {
-        title: 'GRYD Verify',
-        body: 'GPS, motion, cadence and a trust score verify the activity really looks like a run.',
-      },
-    ],
   },
   map: {
-    kicker: 'The map',
-    title: 'All of France is up for capture.',
+    kicker: 'Official map',
     sub: 'Local density sets the level of war. Four zone types, one rule: what you run is yours.',
-    mapAria: 'Stylized map of France with Season 0 cities',
     tablistAria: 'Zone types',
     hint: 'Hover a city — the phone above follows.',
   },
@@ -305,7 +245,8 @@ const en: Dict = {
       name: 'Active zone',
       desc: 'Full PvP, offensives, local leaderboards, contested sectors and crew rivalries.',
       metrics: [
-        { value: '25+', label: 'active runners' },
+        // Real War-mode threshold (@klaim/shared) — consistent with the FAQ.
+        { value: `${WAR_MODE_MIN_ACTIVE_RUNNERS}+`, label: 'active runners' },
         { value: '5+', label: 'rival crews' },
         { value: 'PvP', label: 'mode' },
       ],
@@ -339,22 +280,8 @@ const en: Dict = {
     },
   },
   reward: {
-    kicker: 'The reward moment',
-    title: 'Every finish line has to be felt.',
-    sub: 'Animated counters, badges, gauges, medals and share cards. The result becomes a moment of victory.',
     verified: 'GRYD Verified',
-    stolen: 'stolen hexes',
-    defended: 'defended hexes',
-    points: 'points',
-    gaugeLevel: 'Level',
-    gaugePass: 'Pass',
-    gaugeForm: 'Form Score',
     replay: 'Replay the animation',
-    badges: [
-      { name: 'LONG RUN', sub: '21 km and beyond' },
-      { name: 'ROUTE OPENED', sub: 'brand-new link' },
-      { name: 'FOUNDER', sub: 'Season 0 · legend' },
-    ],
   },
   crews: {
     kicker: 'Crews',

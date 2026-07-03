@@ -1,3 +1,11 @@
+/*
+ * Carte de victoire (AMENDEMENT-05 §3.6).
+ * --or : stamp + badge débloqué (victoire/médaille, §1) — jamais sur les CTA.
+ * Chartreuse : gains uniquement (chiffre héros, jauge, rank-up, bonus).
+ * Motion 200-250 ms ease-out (800 ms pour la jauge = célébration §G),
+ * prefers-reduced-motion : opacité seule / pas de transition.
+ */
+
 .grid {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
@@ -13,6 +21,7 @@
 }
 
 .resultCard {
+  position: relative;
   padding: 28px 26px;
   opacity: 0;
   transform: translateY(22px);
@@ -56,6 +65,53 @@
   padding: 5px 11px;
 }
 
+/* Stamp « ZONE CAPTURÉE » : --or = victoire (AMENDEMENT-05 §1), effet tampon. */
+.stamp {
+  position: absolute;
+  top: 96px;
+  right: 24px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--or);
+  border: 1.5px solid var(--or);
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--or-14);
+  opacity: 0;
+  transform: rotate(-8deg) scale(1.25);
+  transition:
+    opacity 250ms ease-out,
+    transform 250ms ease-out;
+  pointer-events: none;
+}
+
+.stampShown {
+  opacity: 1;
+  transform: rotate(-8deg) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp {
+    transform: rotate(-8deg);
+    transition: opacity 200ms ease-out;
+  }
+
+  .stampShown {
+    transform: rotate(-8deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .stamp {
+    top: 88px;
+    right: 14px;
+    font-size: 9.5px;
+    padding: 6px 9px;
+  }
+}
+
 /* Chiffre héros : 400, tabulaire, chartreuse = gain (signature typographique). */
 .heroNumber {
   font-family: var(--disp);
@@ -79,77 +135,174 @@
   color: var(--gris);
 }
 
-.breakdown {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+/* ─── Séquence de victoire ──────────────────────────────────────────────── */
+
+.sequence {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  margin-top: 22px;
 }
 
-.breakItem {
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 5px;
+.seqItem {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 14px;
+  align-items: center;
   border: 1px solid var(--ligne);
   border-radius: 14px;
   background: var(--carbone2);
-  padding: 12px 14px;
+  padding: 13px 16px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 250ms ease-out,
+    transform 250ms ease-out;
 }
 
-.breakItem dd {
-  margin: 0;
-  font-family: var(--disp);
-  font-weight: 400;
-  font-size: 24px;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
+.seqShown {
+  opacity: 1;
+  transform: none;
 }
 
-@media (max-width: 640px) {
-  .breakdown {
-    grid-template-columns: 1fr;
+@media (prefers-reduced-motion: reduce) {
+  .seqItem {
+    transform: none;
+    transition: opacity 200ms ease-out;
   }
 }
 
-.gauges {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 24px;
+@media (max-width: 640px) {
+  .seqItem {
+    grid-template-columns: 58px 1fr;
+    gap: 12px;
+  }
 }
 
-.gaugeHead {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 7px;
-}
-
-.gaugePct {
+.aside {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
   font-family: var(--mono);
-  font-size: 12px;
-  color: var(--ch); /* progression = gain */
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
+  color: var(--blanc);
 }
 
-.track {
+/* Gains (pct de zone, bonus perf) → chartreuse. */
+.asideGain {
+  color: var(--ch);
+}
+
+.seqText {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--blanc);
+}
+
+.seqSub {
+  margin: 5px 0 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+/* Jauge de bascule : franchit le seuil (tick) en 800 ms — célébration §G. */
+.zoneTrack {
+  position: relative;
   height: 6px;
+  margin-top: 9px;
   border-radius: var(--radius-pill);
-  background: var(--carbone2);
+  background: var(--carbone);
   border: 1px solid var(--ligne);
   overflow: hidden;
 }
 
-.fill {
+.zoneFill {
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--ch);
-  transition: width 800ms ease-out; /* jauge = célébration §G */
+  transition: width 800ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fill {
+  .zoneFill {
     transition: none;
+  }
+}
+
+.zoneTick {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: color-mix(in srgb, var(--blanc) 45%, transparent);
+}
+
+/* Rank-up : flèche chartreuse (gain crew) + nouveau rang qui pop. */
+.rankArrow {
+  color: var(--ch);
+}
+
+.rankNew {
+  display: inline-block;
+  transform: scale(0.6);
+  opacity: 0;
+  transition:
+    transform 250ms ease-out 80ms,
+    opacity 250ms ease-out 80ms;
+}
+
+.seqShown .rankNew {
+  transform: none;
+  opacity: 1;
+}
+
+/* Badge hexagonal débloqué : POP + halo --or (victoire/médaille, §1). */
+.badgePop {
+  width: 46px;
+  height: 46px;
+  min-height: 0;
+  justify-self: center;
+  border: 1px solid var(--or);
+  border-radius: 12px;
+  background: var(--carbone);
+  color: var(--or);
+  transform: scale(0.5);
+  opacity: 0;
+  transition:
+    transform 250ms ease-out,
+    opacity 200ms ease-out,
+    box-shadow 250ms ease-out;
+}
+
+.seqShown .badgePop {
+  transform: none;
+  opacity: 1;
+  box-shadow: 0 0 34px var(--or-14);
+}
+
+/* Médaille de secteur : même pop --or que le badge, en capsule ronde. */
+.medalPop {
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rankNew,
+  .badgePop {
+    transform: none;
+    transition: opacity 200ms ease-out;
+  }
+
+  .seqShown .badgePop {
+    box-shadow: 0 0 34px var(--or-14);
   }
 }
 
@@ -158,69 +311,114 @@
   height: 48px;
 }
 
-.badges {
+/* ─── Aperçu story 9:16 (statique) ──────────────────────────────────────── */
+
+.shareCol {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 14px;
 }
 
-.badge {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  column-gap: 14px;
-  align-items: center;
-  padding: 20px 22px;
+.storyCard {
+  aspect-ratio: 9 / 16;
+  width: min(240px, 100%);
+  background: var(--noir);
   border: 1px solid var(--ligne);
   border-radius: var(--radius-card);
-  background: var(--carbone);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.badgeHex {
-  grid-row: 1 / span 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  border: 1px solid var(--ligne);
-  background: var(--carbone2);
-  color: var(--blanc);
+.storyTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.badgeName {
+.storyBrand {
   font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.2em;
+  font-size: 11px;
+  letter-spacing: 0.3em;
   color: var(--blanc);
 }
 
-.badgeSub {
-  font-size: 12.5px;
+.storySeason {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
   color: var(--gris);
 }
 
-/*
- * Hiérarchie des badges par INTENSITÉ de glow + libellé (jamais par teinte —
- * pas de gold/silver/bronze, écart charte du brouillon corrigé) :
- * soft = halo blanc léger · flat = carbone brut · legend = halo chartreuse.
- */
-.badgeSoft {
-  box-shadow: 0 0 24px color-mix(in srgb, var(--blanc) 7%, transparent);
-  border-color: color-mix(in srgb, var(--blanc) 18%, transparent);
+.storyMap {
+  width: 100%;
+  height: auto;
 }
 
-.badgeFlat {
-  background: var(--carbone2);
+/* Cluster chartreuse glowing (charte §H : la story est une pub). */
+.storyHexOwn {
+  fill: var(--ch14);
+  stroke: var(--ch40);
+  stroke-width: 1;
 }
 
-.badgeLegend {
-  border-color: var(--ch40);
-  box-shadow: 0 0 34px var(--ch14);
+.storyHexDim {
+  fill: none;
+  stroke: color-mix(in srgb, var(--blanc) 12%, transparent);
+  stroke-width: 1;
 }
 
-.badgeLegend .badgeHex {
+.storyRoute {
+  fill: none;
+  stroke: var(--ch);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 4;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+/* Chiffre héros miniature : 400, chartreuse. */
+.storyNumber {
+  margin: 0;
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: -0.03em;
   color: var(--ch);
-  border-color: var(--ch40);
+  font-variant-numeric: tabular-nums;
+}
+
+.storyUnit {
+  margin: 4px 0 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.26em;
+  color: var(--gris);
+}
+
+.storyFooter {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--ligne);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  color: var(--blanc);
+}
+
+.shareBtn {
+  height: 48px;
+}
+
+.shareHint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--gris);
+  max-width: 32ch;
 }

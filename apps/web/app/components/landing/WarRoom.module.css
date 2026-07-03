@@ -1,0 +1,358 @@
+/*
+ * Salle de guerre (AMENDEMENT-05 §3.5) — HUD tactique nocturne.
+ * Couleurs de conflit (--ennemi/--rival/--or) réservées aux états de jeu.
+ * Motion 200-250 ms ease-out, prefers-reduced-motion respecté partout.
+ */
+
+/* ─── Layout de la section (WarRoom + feed, puis leaderboard) ─── */
+
+.layout {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+  margin-top: 40px;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mainCol,
+.sideCol {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mainCol > *,
+.sideCol > * {
+  flex: 1;
+}
+
+/* ─── Carte d'offensive ─── */
+
+.warCard {
+  background: var(--noir);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.warHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.offensiveLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ch);
+  box-shadow: 0 0 0 3px var(--ch14);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .liveDot {
+    animation: warPulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes warPulse {
+  50% {
+    box-shadow: 0 0 0 6px var(--ch14);
+  }
+}
+
+.liveChip {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ch);
+  border: 1px solid var(--ch40);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+}
+
+.zoneName {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: clamp(22px, 3vw, 30px);
+  letter-spacing: -0.02em;
+  margin-top: 14px;
+}
+
+.warGrid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 22px;
+  align-items: start;
+  margin-top: 20px;
+}
+
+@media (max-width: 640px) {
+  .warGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Colonne infos ─── */
+
+.warInfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.countdownBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.countdown {
+  font-family: var(--mono);
+  font-weight: 400; /* chiffres héros 400 */
+  font-size: clamp(32px, 4.4vw, 44px);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--blanc);
+}
+
+.progressBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progressHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progressValue {
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ch);
+}
+
+.gauge {
+  height: 10px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone2);
+  overflow: hidden;
+}
+
+/* Jauge chartreuse — se remplit au reveal (largeur pilotée par le composant). */
+.gaugeFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--ch);
+  transition: width 250ms ease-out;
+}
+
+.progressSub {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gris);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone2);
+  padding: 7px 13px;
+}
+
+/* Icône de renfort (pin/crew/badge) — même gris que le label mono. */
+.chipIcon {
+  flex-shrink: 0;
+  color: var(--gris);
+}
+
+.chip dt {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.chip dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--blanc);
+}
+
+/* ─── Mini-carte du secteur ─── */
+
+.warMap {
+  min-width: 0;
+  border: 1px solid var(--ligne);
+  border-radius: 14px;
+  background: var(--fond);
+  padding: 12px;
+}
+
+.sectorSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hex {
+  stroke-width: 1;
+  stroke-linejoin: round;
+  transition: fill-opacity 200ms ease-out;
+}
+
+.hexCrew {
+  fill: var(--ch14);
+  stroke: var(--ch40);
+}
+
+.hexEnemy {
+  fill: var(--ennemi-14);
+  stroke: var(--ennemi-40);
+}
+
+.hexNeutral {
+  fill: transparent;
+  stroke: var(--ligne);
+}
+
+.hexContested {
+  fill: url(#wr-contested);
+  stroke: var(--ennemi-40);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hexContested {
+    animation: contestedPulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes contestedPulse {
+  50% {
+    fill-opacity: 0.55;
+  }
+}
+
+/* Hachures du motif contesté : ennemi + chartreuse. */
+.patEnemy {
+  fill: var(--ennemi-40);
+}
+
+.patCrew {
+  fill: var(--ch40);
+}
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 12px;
+  padding: 0;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--gris);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--ligne);
+}
+
+.swCrew {
+  background: var(--ch14);
+  border-color: var(--ch40);
+}
+
+.swEnemy {
+  background: var(--ennemi-14);
+  border-color: var(--ennemi-40);
+}
+
+.swContested {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--ennemi-40) 0 3px,
+    var(--ch40) 3px 6px
+  );
+  border-color: var(--ennemi-40);
+}
+
+.swNeutral {
+  background: transparent;
+}
+
+/* ─── Bandeau règles réelles (@klaim/shared) ─── */
+
+.rulesStrip {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ligne);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot,
+  .hexContested {
+    animation: none;
+  }
+
+  .gaugeFill,
+  .hex {
+    transition: none;
+  }
+}

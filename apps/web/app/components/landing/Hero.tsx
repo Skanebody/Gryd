@@ -1,15 +1,19 @@
 'use client';
 
 /**
- * Hero : eyebrow live, H1 3 lignes (« Capture. » en chartreuse — emploi « gain »),
- * copy, CTA primaire (#waitlist) + « Simuler une course » (ghost, déclenche la
- * simulation du mockup), 3 stat-cards à compteurs animés, fond HexMap (réutilisé)
- * masqué radialement, et mockup téléphone.
- * Chiffres : @klaim/shared (SEASON_DURATION_WEEKS, CREW_MAX_MEMBERS) + lib/landing.
+ * Hero V2 « war room » (AMENDEMENT-05 §3.1) : kicker fort « LA FRANCE EST
+ * OUVERTE. » + H1 « Cours. Capture. Défends. » + sous-titre crew/quartier/
+ * saison (§2), compte à rebours Saison 0, 2 CTA (« Réserver mon accès »
+ * chartreuse → #waitlist, « Créer mon crew » ghost → #crews), 3 stat-cards à
+ * compteurs (chiffres réels @klaim/shared), téléphone HUD RAID LIVE entouré
+ * de notifications flottantes, mini-leaderboard 3 crews (démo fictive assumée,
+ * rival en --rival, mon crew en chartreuse) et relance « Simuler une course ».
+ * Nouvelles strings V2 locales (STRINGS fr/en) — consolidation dictionary.ts
+ * par l'intégrateur.
  */
 
 import { CREW_MAX_MEMBERS, SEASON_DURATION_WEEKS } from '@klaim/shared';
-import { FRANCE_CAPTURABLE_KM2 } from '../../../lib/landing';
+import { DEMO_LEADERBOARD, FRANCE_CAPTURABLE_KM2 } from '../../../lib/landing';
 import { HexMap } from '../HexMap';
 import { useLang } from './LangProvider';
 import { usePhone } from './PhoneContext';
@@ -17,8 +21,38 @@ import { useCountUp } from './useCountUp';
 import { useReveal } from './useReveal';
 import { Reveal } from './Reveal';
 import { PhoneMockup } from './PhoneMockup';
+import { SeasonCountdown } from './SeasonCountdown';
+import { HeroAlerts } from './HeroAlerts';
 import ui from './ui.module.css';
 import styles from './Hero.module.css';
+
+// Mini-leaderboard de démonstration : DEMO_LEADERBOARD (lib/landing, source
+// unique AMENDEMENT-05 §4) — `mine` = Night Pacers (cohérent avec l'alerte
+// « passe #3 » et le Crew War Room §3.8), `rival` = Canal Crew (violet --rival,
+// un seul récit de rivalité §1, aligné BOARD_TABS/WAR_DEMO).
+
+const STRINGS = {
+  fr: {
+    kicker: 'La France est ouverte.',
+    sub: 'Rejoins ton crew, prends ton quartier, et termine la saison au sommet de la carte.',
+    ctaCrew: 'Créer mon crew',
+    boardTitle: 'Classement crews · Saison 0',
+    boardPtsUnit: 'pts',
+    tagMine: 'Ton crew',
+    tagRival: 'Rival',
+    boardAria: 'Classement de démonstration des crews de la Saison 0',
+  },
+  en: {
+    kicker: 'France is open.',
+    sub: 'Join your crew, take your neighbourhood, and finish the season on top of the map.',
+    ctaCrew: 'Create my crew',
+    boardTitle: 'Crew leaderboard · Season 0',
+    boardPtsUnit: 'pts',
+    tagMine: 'Your crew',
+    tagRival: 'Rival',
+    boardAria: 'Season 0 demo crew leaderboard',
+  },
+} as const;
 
 function HeroStat({
   target,
@@ -41,7 +75,8 @@ function HeroStat({
 }
 
 export function Hero() {
-  const { copy } = useLang();
+  const { lang, copy, formatInt } = useLang();
+  const S = STRINGS[lang];
   const { requestSim } = usePhone();
   const stats = useReveal<HTMLDivElement>();
 
@@ -54,14 +89,9 @@ export function Hero() {
       <div className={styles.inner}>
         <div className={styles.copyCol}>
           <Reveal>
-            <p className={styles.eyebrow}>
-              <span className={styles.liveDot} aria-hidden="true" />
-              {copy.hero.eyebrow}
-            </p>
-          </Reveal>
-
-          <Reveal delayMs={60}>
             <h1 className={styles.title}>
+              {/* Kicker fort V2 — le vrai statement, au-dessus du triptyque. */}
+              <span className={styles.kicker}>{S.kicker}</span>
               {copy.hero.line1}
               <br />
               <span className={styles.accent}>{copy.hero.line2}</span>
@@ -70,18 +100,23 @@ export function Hero() {
             </h1>
           </Reveal>
 
-          <Reveal delayMs={120}>
-            <p className={styles.sub}>{copy.hero.copy}</p>
+          <Reveal delayMs={80}>
+            <p className={styles.sub}>{S.sub}</p>
           </Reveal>
 
-          <Reveal delayMs={180}>
+          <Reveal delayMs={140}>
+            <SeasonCountdown />
+          </Reveal>
+
+          <Reveal delayMs={200}>
             <div className={styles.ctas}>
+              {/* 1 seul CTA chartreuse par section : celui-ci. */}
               <a href="#waitlist" className={ui.btnPrimary}>
                 {copy.hero.ctaPrimary}
               </a>
-              <button type="button" className={ui.btnGhost} onClick={requestSim}>
-                {copy.hero.ctaSecondary}
-              </button>
+              <a href="#crews" className={ui.btnGhost}>
+                {S.ctaCrew}
+              </a>
             </div>
           </Reveal>
 
@@ -93,7 +128,42 @@ export function Hero() {
         </div>
 
         <Reveal delayMs={150} className={styles.phoneCol}>
-          <PhoneMockup />
+          <div className={styles.phoneStage}>
+            <PhoneMockup />
+            <HeroAlerts />
+          </div>
+
+          <div className={styles.simRow}>
+            {/* Rejoue la séquence RAID LIVE du téléphone (PhoneContext.simTick). */}
+            <button type="button" className={styles.simBtn} onClick={requestSim}>
+              {copy.hero.ctaSecondary}
+            </button>
+          </div>
+
+          <div className={styles.board} aria-label={S.boardAria}>
+            <p className={styles.boardTitle}>{S.boardTitle}</p>
+            <ol className={styles.boardList}>
+              {DEMO_LEADERBOARD.map((row) => (
+                <li
+                  key={row.name}
+                  className={`${styles.boardRow} ${
+                    row.kind === 'mine' ? styles.rowMine : row.kind === 'rival' ? styles.rowRival : ''
+                  }`}
+                >
+                  <span className={styles.boardRank}>#{row.rank}</span>
+                  <span className={styles.boardName}>{row.name}</span>
+                  {row.kind !== 'neutral' ? (
+                    <span className={`${styles.tag} ${row.kind === 'mine' ? styles.tagMine : styles.tagRival}`}>
+                      {row.kind === 'mine' ? S.tagMine : S.tagRival}
+                    </span>
+                  ) : null}
+                  <span className={styles.boardPts}>
+                    {formatInt(row.points)} <small className={styles.boardUnit}>{S.boardPtsUnit}</small>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
         </Reveal>
       </div>
     </section>

@@ -1,0 +1,190 @@
+/*
+ * Classement crews — onglets pattern zone-tabs + lignes de classement.
+ * Rang 1 = --or (victoire) · rival = --rival · « toi » = chartreuse (surligné).
+ * Couleurs de conflit réservées aux états de jeu (AMENDEMENT-05 §1).
+ */
+
+.wrap {
+  margin-top: 28px;
+}
+
+.heading {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tab {
+  padding: 10px 16px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--gris);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 200ms ease-out,
+    border-color 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.tabActive {
+  background: var(--carbone2);
+  border-color: var(--ch40);
+  color: var(--blanc);
+}
+
+.panel {
+  margin-top: 18px;
+  padding: 14px 16px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel {
+    animation: boardIn 250ms ease-out;
+  }
+}
+
+@keyframes boardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+.rank {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--gris);
+}
+
+.name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--blanc);
+  min-width: 0;
+}
+
+.meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--gris);
+  white-space: nowrap;
+}
+
+.points {
+  font-family: var(--disp);
+  font-weight: 400; /* chiffres 400 */
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  color: var(--blanc);
+  white-space: nowrap;
+}
+
+.unit {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--gris);
+}
+
+/* Rang 1 — victoire : --or (état de jeu). */
+.rowGold .rank,
+.rowGold .name,
+.rowGold .points {
+  color: var(--or);
+}
+
+/* Crew rival — --rival (état de jeu). */
+.rowRival .name,
+.rowRival .rank {
+  color: var(--rival);
+}
+
+/* « Toi » — ancré, surligné chartreuse. */
+.rowYou {
+  border-color: var(--ch40);
+  background: var(--ch14);
+}
+
+.rowYou .rank,
+.rowYou .points {
+  color: var(--ch);
+}
+
+.youChip {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ch);
+  border: 1px solid var(--ch40);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+}
+
+.demoNote {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gris);
+}
+
+@media (max-width: 640px) {
+  .meta {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: 30px 1fr auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+
+  .panel {
+    animation: none;
+  }
+}

@@ -1,0 +1,116 @@
+/*
+ * Notifications flottantes du hero (AMENDEMENT-05 §3.1).
+ * Couleurs de conflit RÉSERVÉES aux états de jeu : --ennemi = attaque subie,
+ * chartreuse = gain. Le reste vit en blanc/gris. Motion 240 ms ease-out,
+ * statiques sous prefers-reduced-motion.
+ */
+
+.layer {
+  position: absolute;
+  inset: -20px -40px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.alert {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 13px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--carbone) 78%, transparent);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--blanc);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 240ms ease-out,
+    transform 240ms ease-out;
+}
+
+.shown {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Attaque subie — emploi exclusif de --ennemi (AMENDEMENT-05 §1). */
+.ennemi {
+  color: var(--ennemi);
+  border-color: var(--ennemi-40);
+}
+
+/* Gain — emploi chartreuse légitime (doctrine C.3). */
+.gain {
+  color: var(--ch);
+}
+
+.pos0 {
+  top: 4%;
+  left: -7%;
+}
+
+.pos1 {
+  top: 17%;
+  right: -9%;
+}
+
+.pos2 {
+  top: 46%;
+  left: -12%;
+}
+
+.pos3 {
+  top: 64%;
+  right: -6%;
+}
+
+.pos4 {
+  bottom: 3%;
+  left: -3%;
+}
+
+@media (max-width: 640px) {
+  .layer {
+    inset: -12px 0;
+  }
+
+  .alert {
+    font-size: 9.5px;
+    padding: 6px 10px;
+  }
+
+  /* Mobile : on garde 3 notifications, le reste encombrerait l'écran. */
+  .pos2,
+  .pos3 {
+    display: none;
+  }
+
+  .pos0 {
+    top: -2%;
+    left: 0;
+  }
+
+  .pos1 {
+    top: 12%;
+    right: 0;
+  }
+
+  .pos4 {
+    bottom: -2%;
+    left: 4%;
+  }
+}

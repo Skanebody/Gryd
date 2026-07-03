@@ -1,3 +1,10 @@
+/*
+ * Téléphone HUD « RAID LIVE » (AMENDEMENT-05 §3.2).
+ * Couleurs de conflit réservées aux états de jeu : --ennemi (zone ennemie,
+ * alerte raid), chartreuse (mon crew, gains, live), --or (badge gagné).
+ * Motion 200-250 ms ease-out, tout est statique sous prefers-reduced-motion.
+ */
+
 .scene {
   perspective: 1200px;
 }
@@ -110,16 +117,16 @@
   border: 1px solid var(--ligne);
 }
 
-/* Flash de capture : scale + fondu (charte §G, 400 ms ease-out). */
+/* Bascule ennemi → chartreuse : scale + fondu (charte §G, 400 ms ease-out). */
 @media (prefers-reduced-motion: no-preference) {
-  .hexFlash {
-    animation: hexFlash 400ms ease-out backwards;
+  .hexFlip {
+    animation: hexFlip 400ms ease-out backwards;
     transform-box: fill-box;
     transform-origin: center;
   }
 }
 
-@keyframes hexFlash {
+@keyframes hexFlip {
   0% {
     opacity: 0;
     transform: scale(0.6);
@@ -175,114 +182,243 @@
   }
 }
 
-.zoneCard {
+/* Alerte raid « zone contestée » — --ennemi exclusif (AMENDEMENT-05 §1). */
+.contested {
   position: absolute;
   top: 10px;
-  left: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 14px;
-  border: 1px solid var(--ligne);
-  border-radius: 14px;
+  right: 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ennemi);
+  border: 1px solid var(--ennemi-40);
+  border-radius: var(--radius-pill);
+  padding: 4px 9px;
   background: color-mix(in srgb, var(--noir) 84%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
-.zoneLabel {
+/* « En danger » : pulse ennemi discret. */
+@media (prefers-reduced-motion: no-preference) {
+  .contested {
+    animation: contestedPulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes contestedPulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ── Badge gagné (--or : victoire/médaille, AMENDEMENT-05 §1) ────────────── */
+
+.badge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: 1px solid var(--or);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--noir) 88%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .badge {
+    animation: badgePop 250ms ease-out backwards;
+  }
+}
+
+@keyframes badgePop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.badgeHex {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+
+.badgeTexts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.badgeName {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--or);
+  white-space: nowrap;
+}
+
+.badgeLabel {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.18em;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--gris);
 }
 
-.zoneName {
-  font-family: var(--disp);
-  font-weight: 500;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-  color: var(--blanc);
-}
+/* ── Panneau HUD RAID LIVE ───────────────────────────────────────────────── */
 
-/* % contrôlé = gain → chartreuse légitime. */
-.zonePct {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--ch);
-  font-variant-numeric: tabular-nums;
-}
-
-.resultPanel {
+.raidPanel {
   display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 14px;
+  flex-direction: column;
+  gap: 10px;
   margin: 0 10px 12px;
-  padding: 14px 16px;
+  padding: 13px 15px;
   border: 1px solid var(--ligne);
   border-radius: 18px;
   background: var(--carbone2);
 }
 
-.resultText {
+.raidHead {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.resultLabel {
+/* Raid en cours = alerte : --ennemi exclusif états de jeu. */
+.raidChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--gris);
+  color: var(--ennemi);
 }
 
-/* Chiffre héros : graisse 400, chartreuse = gain. */
-.resultValue {
+.raidDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ennemi);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .raidDot {
+    animation: liveBlink 1.2s ease-in-out infinite;
+  }
+}
+
+.raidZone {
   font-family: var(--disp);
-  font-weight: 400;
-  font-size: 34px;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--ch);
-  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  color: var(--blanc);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Barre de factions : chartreuse (mon crew) / --ennemi (rival) / neutre. */
+.factionBar {
   display: flex;
-  align-items: baseline;
-  gap: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--carbone);
 }
 
-.resultUnit {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: var(--gris);
-}
-
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  height: 44px;
-  flex: none;
-}
-
-.bar {
-  width: 9px;
-  border-radius: 3px 3px 0 0;
-  background: var(--ch40);
-  transition: height 800ms ease-out;
-}
-
-.bar:first-child {
+.segCrew {
   background: var(--ch);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bar {
-    transition: none;
-  }
+.segRival {
+  background: var(--ennemi);
+}
+
+.segNeutral {
+  background: var(--ligne);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.legendItem strong {
+  color: var(--blanc);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.legendDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.dotCrew {
+  background: var(--ch);
+}
+
+.dotRival {
+  background: var(--ennemi);
+}
+
+.dotNeutral {
+  background: var(--ligne);
+}
+
+.raidStats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  border-top: 1px solid var(--ligne);
+  padding-top: 10px;
+}
+
+/* Hexes pris = gain → chartreuse légitime (doctrine C.3). */
+.statTaken {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ch);
+  font-variant-numeric: tabular-nums;
+}
+
+.statItem {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
 }

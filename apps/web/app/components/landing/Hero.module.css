@@ -1,7 +1,13 @@
+/*
+ * Hero V2 « war room » (AMENDEMENT-05 §3.1).
+ * Kicker fort blanc, chartreuse limité : « Capture. » (gain), CTA primaire,
+ * accents du leaderboard (mon crew) ; --rival réservé au crew rival.
+ */
+
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 150px 24px 90px;
+  padding: 140px 24px 90px;
 }
 
 /* Fond : HexMap réutilisée, masquée radialement, très atténuée. */
@@ -37,48 +43,25 @@
   min-width: 0;
 }
 
-/* Eyebrow « live » — emploi légitime du chartreuse (état en direct). */
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.2em;
+/* Kicker fort V2 : « LA FRANCE EST OUVERTE. » — blanc, display 500. */
+.kicker {
+  display: block;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: clamp(15px, 2vw, 21px);
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: var(--ch);
-  border: 1px solid var(--ligne);
-  border-radius: var(--radius-pill);
-  background: var(--carbone);
-  padding: 8px 15px;
-}
-
-.liveDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ch);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .liveDot {
-    animation: blink 1.6s ease-in-out infinite;
-  }
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.25;
-  }
+  color: var(--blanc);
+  margin-bottom: 16px;
 }
 
 .title {
   font-family: var(--disp);
   font-weight: 500; /* titres en Md, jamais bold lourd (AMENDEMENT-03) */
-  font-size: clamp(46px, 7.6vw, 88px);
+  font-size: clamp(42px, 6.6vw, 76px);
   line-height: 1.02;
   letter-spacing: -0.02em;
-  margin: 22px 0 18px;
+  margin: 0 0 18px;
 }
 
 .accent {
@@ -96,14 +79,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 26px;
 }
 
 .stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin-top: 40px;
+  margin-top: 36px;
   max-width: 560px;
   opacity: 0;
   transform: translateY(18px);
@@ -154,7 +137,156 @@
 .phoneCol {
   min-width: 0;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Scène du téléphone : ancre des notifications flottantes (HeroAlerts). */
+.phoneStage {
+  position: relative;
+  display: flex;
   justify-content: center;
+}
+
+.simRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* Relance de la simulation : tertiaire discret (ghost, jamais chartreuse). */
+.simBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 18px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--blanc);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.simBtn:hover {
+  border-color: var(--ch40);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simBtn {
+    transition: none;
+  }
+
+  .simBtn:hover {
+    transform: none;
+  }
+}
+
+/* ── Mini-leaderboard 3 crews (démo assumée) ─────────────────────────────── */
+
+.board {
+  width: min(320px, 82vw);
+  margin-top: 16px;
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 14px 16px;
+}
+
+.boardTitle {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-bottom: 10px;
+}
+
+.boardList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.boardRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.boardRank {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--gris);
+  width: 20px;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.boardName {
+  font-weight: 500;
+  color: var(--blanc);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Crew rival : violet --rival (état de jeu, AMENDEMENT-05 §1). */
+.rowRival .boardName {
+  color: var(--rival);
+}
+
+/* Mon crew : chartreuse (doctrine C.3 — moi et mon crew). */
+.rowMine .boardName {
+  color: var(--ch);
+}
+
+.tag {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  border: 1px solid var(--ligne);
+}
+
+.tagMine {
+  color: var(--ch);
+  border-color: var(--ch40);
+  background: var(--ch14);
+}
+
+.tagRival {
+  color: var(--rival);
+  border-color: var(--rival-40);
+  background: var(--rival-14);
+}
+
+.boardPts {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--blanc);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.boardUnit {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--gris);
 }
 
 @media (max-width: 980px) {

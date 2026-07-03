@@ -1,0 +1,106 @@
+/*
+ * Compte à rebours Saison 0 (AMENDEMENT-05 §3.1) — strip carbone du hero.
+ * Chartreuse limité au chip « Saison 0 » (état en direct, doctrine C.3).
+ */
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin-top: 26px;
+  padding: 14px 18px;
+  max-width: 560px;
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ch);
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  padding: 6px 11px;
+}
+
+.chipDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ch);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chipDot {
+    animation: countdownBlink 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes countdownBlink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.timer {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* Chiffre héros : graisse 400, tabulaire (AMENDEMENT-03). */
+.days {
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--blanc);
+}
+
+.clock {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--blanc);
+  font-variant-numeric: tabular-nums;
+}
+
+.sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--ligne);
+}
+
+.meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.meta strong {
+  color: var(--blanc);
+  font-weight: 500;
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .strip {
+    padding: 12px 14px;
+    gap: 8px 14px;
+  }
+
+  .sep {
+    display: none;
+  }
+}

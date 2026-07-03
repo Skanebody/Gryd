@@ -1,0 +1,289 @@
+/*
+ * Galerie Badges & Medals (AMENDEMENT-05 §3.7).
+ * --bc = couleur de FAMILLE injectée depuis le catalogue @klaim/shared
+ * (exception polychrome AMENDEMENT-04 : surfaces badge uniquement).
+ * Raretés : common flat → rare blanc → epic --rival → legend --or + halo.
+ * Motion 200-250 ms ease-out, prefers-reduced-motion respecté.
+ */
+
+.familyLegend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 22px 0 0;
+  padding: 0;
+}
+
+.familyItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+/* Point de couleur famille — data du catalogue, surface badge (légende). */
+.familyDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+/* ─── Grille des ~12 badges ─────────────────────────────────────────────── */
+
+.grid {
+  list-style: none;
+  padding: 0;
+  margin: 36px 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1020px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cell {
+  display: flex;
+}
+
+.cellReveal {
+  width: 100%;
+}
+
+.badgeCard {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  transition:
+    transform 200ms ease-out,
+    border-color 200ms ease-out;
+}
+
+.badgeCard:hover {
+  transform: translateY(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badgeCard {
+    transition: none;
+  }
+
+  .badgeCard:hover {
+    transform: none;
+  }
+}
+
+.hexWrap {
+  display: inline-flex;
+}
+
+/* Hexagone teinté famille — la seule surface polychrome autorisée. */
+.hexShape {
+  fill: color-mix(in srgb, var(--bc) 14%, transparent);
+  stroke: var(--bc);
+  stroke-width: 1.5;
+}
+
+.badgeName {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--blanc);
+}
+
+.badgeFamily {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.badgeReq {
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--gris);
+}
+
+/*
+ * Paliers de rareté sur la carte (AMENDEMENT-05 §1) :
+ * common = flat · rare = liseré blanc · epic = --rival (rareté épique) ·
+ * legend = --or + halo. Jamais hors surfaces badge.
+ */
+.rarity_common {
+  background: var(--carbone2);
+}
+
+.rarity_rare {
+  border-color: color-mix(in srgb, var(--blanc) 22%, transparent);
+}
+
+.rarity_epic {
+  border-color: var(--rival-40);
+  box-shadow: 0 0 24px var(--rival-14);
+}
+
+.rarity_legend {
+  border-color: var(--or);
+  box-shadow: 0 0 30px var(--or-14);
+}
+
+/* ─── Rangée des raretés Road → Legend ──────────────────────────────────── */
+
+.ladder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 18px 28px;
+  margin-top: 44px;
+}
+
+.tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.tierShape {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.tier_road .tierShape {
+  stroke: var(--gris);
+  opacity: 0.65;
+}
+
+.tier_tempo .tierShape {
+  stroke: color-mix(in srgb, var(--blanc) 55%, transparent);
+}
+
+.tier_race .tierShape {
+  stroke: var(--blanc);
+  fill: color-mix(in srgb, var(--blanc) 6%, transparent);
+}
+
+.tier_carbon .tierShape {
+  stroke: color-mix(in srgb, var(--blanc) 30%, transparent);
+  fill: var(--carbone2);
+}
+
+/* Épique → --rival (raretés épiques, AMENDEMENT-05 §1). */
+.tier_elite .tierShape {
+  stroke: var(--rival);
+  fill: var(--rival-14);
+}
+
+/* Legend → --or + halo. */
+.tier_legend .tierShape {
+  stroke: var(--or);
+  fill: var(--or-14);
+}
+
+.tier_legend svg {
+  filter: drop-shadow(0 0 10px var(--or-14));
+}
+
+.tierLabel {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.tier_legend .tierLabel {
+  color: var(--or);
+}
+
+.ladderCaption {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: var(--gris);
+}
+
+/* ─── Compteur + secrets en « ? » ───────────────────────────────────────── */
+
+.footerRow {
+  margin-top: 36px;
+  padding-top: 22px;
+  border-top: 1px solid var(--ligne);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.counter {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--blanc);
+}
+
+.secretRow {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.secretHex {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+}
+
+/* Secret masqué : contour pointillé teinté or (famille secrète du catalogue). */
+.secretShape {
+  fill: color-mix(in srgb, var(--bc) 8%, transparent);
+  stroke: color-mix(in srgb, var(--bc) 45%, transparent);
+  stroke-width: 1.2;
+  stroke-dasharray: 2.5 2;
+}
+
+.secretMark {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--bc);
+}

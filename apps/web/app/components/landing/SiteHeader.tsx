@@ -7,17 +7,23 @@
  */
 
 import { useEffect, useState } from 'react';
+import type { IconName } from '@klaim/shared';
 import { useLang } from './LangProvider';
 import type { Lang } from './dictionary';
+import { Icon } from '../ui/Icon';
 import styles from './SiteHeader.module.css';
 
+/* Icônes de renfort (décision fondateur 03/07/2026 : icône + texte court) :
+   Concept = hexagone (carte) · Carte = pin · War room = alerte · Crews = crew ·
+   Performance = éclair · Accès = boutique. Le CTA Waitlist reste texte seul. */
 const LINKS = [
-  { href: '#concept', key: 'concept' },
-  { href: '#map', key: 'map' },
-  { href: '#crews', key: 'crews' },
-  { href: '#performance', key: 'performance' },
-  { href: '#waitlist', key: 'access' },
-] as const;
+  { href: '#concept', key: 'concept', icon: 'carte' },
+  { href: '#map', key: 'map', icon: 'pin' },
+  { href: '#warroom', key: 'warroom', icon: 'alerte' },
+  { href: '#crews', key: 'crews', icon: 'crew' },
+  { href: '#performance', key: 'performance', icon: 'performance' },
+  { href: '#waitlist', key: 'access', icon: 'boutique' },
+] as const satisfies readonly { href: string; key: string; icon: IconName }[];
 
 function HexLogo() {
   return (
@@ -67,6 +73,7 @@ export function SiteHeader() {
         <nav className={styles.nav} aria-label={copy.nav.aria}>
           {LINKS.map((link) => (
             <a key={link.href} className={styles.navLink} href={link.href}>
+              <Icon name={link.icon} size={16} className={styles.navIcon} />
               {copy.nav[link.key]}
             </a>
           ))}
@@ -105,6 +112,7 @@ export function SiteHeader() {
             href={link.href}
             onClick={() => setMenuOpen(false)}
           >
+            <Icon name={link.icon} size={16} className={styles.navIcon} />
             {copy.nav[link.key]}
           </a>
         ))}

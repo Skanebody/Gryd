@@ -63,6 +63,9 @@
 }
 
 .navLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 8px 12px;
   border-radius: var(--radius-pill);
   color: var(--gris);
@@ -72,8 +75,14 @@
   transition: color 200ms ease-out;
 }
 
-.navLink:hover {
-  color: var(--blanc);
+/* Icône + texte : les deux passent gris → chartreuse ensemble (currentColor). */
+.navLink:hover,
+.navLink:focus-visible {
+  color: var(--ch);
+}
+
+.navIcon {
+  flex-shrink: 0;
 }
 
 .actions {
@@ -185,6 +194,9 @@
 }
 
 .mobileLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
   color: var(--blanc);
@@ -193,8 +205,18 @@
   text-decoration: none;
 }
 
+.mobileLink .navIcon {
+  color: var(--gris);
+  transition: color 200ms ease-out;
+}
+
 .mobileLink:hover {
   background: var(--carbone);
+}
+
+.mobileLink:hover .navIcon,
+.mobileLink:focus-visible .navIcon {
+  color: var(--ch);
 }
 
 .mobileFoot {
@@ -224,6 +246,7 @@
 @media (prefers-reduced-motion: reduce) {
   .burgerBar,
   .navLink,
+  .mobileLink .navIcon,
   .cta {
     transition: none;
   }

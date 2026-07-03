@@ -211,9 +211,197 @@
   color: var(--gris);
 }
 
+/* ── Crew war room (AMENDEMENT-05 §3.8) ──────────────────────────────────── */
+
+.warKicker {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.warRank {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.rankBadge {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--blanc);
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rankSector {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gris);
+  overflow-wrap: anywhere;
+}
+
+/* Offensive en cours = état « en direct » → dot chartreuse pulsée (C.3, emploi 4). */
+.liveDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--ch);
+  vertical-align: middle;
+  animation: warPulse 2s ease-out infinite;
+}
+
+@keyframes warPulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--ch40);
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* % du secteur contrôlé — remplissage type territoire (fill au reveal, §G). */
+.controlBar {
+  margin-top: 14px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  overflow: hidden;
+}
+
+.controlFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--ch);
+  transition: width 800ms ease-out; /* célébration §G, comme l'anneau Score Forme */
+}
+
+/* ── Mini-classement de rivalité (or = leader · violet = rival · ch = moi) ── */
+
+.rivalry {
+  margin-top: 16px;
+}
+
+.rivalryHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rivalryNote {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.rivalryList {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rivalryRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  background: var(--carbone2);
+  border: 1px solid var(--ligne);
+  border-radius: 14px;
+  transition: border-color 200ms ease-out;
+}
+
+.rowRank {
+  font-family: var(--mono);
+  font-size: 12px;
+  width: 16px;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.rowName {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.rowPts {
+  font-family: var(--disp);
+  font-weight: 400; /* chiffres 400 */
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* AMENDEMENT-05 §1 — couleurs de conflit RÉSERVÉES aux états de jeu :
+   or = leader/victoire · violet = crew rival · chartreuse = MON crew. */
+.rowGold .rowRank,
+.rowGold .rowPts {
+  color: var(--or);
+}
+
+.rowRival .rowRank,
+.rowRival .rowPts {
+  color: var(--rival);
+}
+
+.rowMine {
+  border-color: var(--ch40);
+}
+
+.rowMine .rowRank,
+.rowMine .rowPts {
+  color: var(--ch);
+}
+
+.youTag {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--ch14);
+  color: var(--ch);
+  flex: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .styleChip,
-  .preview {
+  .preview,
+  .rivalryRow {
+    transition: none;
+  }
+
+  .liveDot {
+    animation: none;
+  }
+
+  .controlFill {
     transition: none;
   }
 }

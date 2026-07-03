@@ -1,0 +1,179 @@
+/*
+ * Live Territory Feed — défilement vertical doux en boucle (liste dupliquée,
+ * translateY -50 %), pause au hover/focus, statique en reduced-motion.
+ * Factions : crew --ch · rival --rival · ennemi --ennemi · neutre blanc.
+ */
+
+.feedCard {
+  background: var(--noir);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.feedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.feedTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ch);
+  box-shadow: 0 0 0 3px var(--ch14);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .liveDot {
+    animation: feedPulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes feedPulse {
+  50% {
+    box-shadow: 0 0 0 6px var(--ch14);
+  }
+}
+
+.liveChip {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ch);
+  border: 1px solid var(--ch40);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+}
+
+.viewport {
+  position: relative;
+  flex: 1;
+  min-height: 280px;
+  max-height: 420px;
+  overflow: hidden;
+  /* Fondus haut/bas pour l'effet ticker. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .track {
+    animation: feedScroll 32s linear infinite;
+  }
+
+  /* Pause au hover et au focus clavier. */
+  .viewport:hover .track,
+  .viewport:focus-within .track {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes feedScroll {
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--ligne);
+}
+
+.event {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--blanc);
+}
+
+/* Icône de renfort par type (carte/bouclier/alerte) — gris, sauf entrée alerte
+   où elle hérite du --ennemi du texte (currentColor). */
+.eventIcon {
+  flex-shrink: 0;
+  color: var(--gris);
+}
+
+/* Attaque subie — alerte (couleur de jeu, jamais hors contexte). */
+.eventAlert {
+  color: var(--ennemi);
+}
+
+.eventAlert .eventIcon {
+  color: inherit;
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+
+.ago {
+  color: var(--gris);
+}
+
+.fCrew {
+  color: var(--ch);
+}
+
+.fRival {
+  color: var(--rival);
+}
+
+.fEnemy {
+  color: var(--ennemi);
+}
+
+.fNeutral {
+  color: var(--blanc);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
+
+  .track {
+    animation: none;
+  }
+
+  /* Liste statique : pas de boucle, pas de copie, hauteur naturelle. */
+  .loopCopy {
+    display: none;
+  }
+
+  .viewport {
+    max-height: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

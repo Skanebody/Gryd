@@ -1,17 +1,22 @@
 'use client';
 
 /**
- * Section Crews (#crews) : crew builder live — nom → initiales de l'emblème,
- * ville → type de zone (Paris/Lille = active, AMENDEMENT-02 §2), style → variante
- * visuelle (différenciée par glow/motif, jamais par teinte hors palette), et
- * « Copier le lien d'invitation » (navigator.clipboard + toast).
- * Chiffres : CREW_MAX_MEMBERS et CREW_CODE_LENGTH de @klaim/shared.
+ * Section Crews (#crews) : le builder live (nom → initiales, ville → type de zone,
+ * style → variante visuelle) est conservé, mais l'aperçu devient un CREW WAR ROOM
+ * (AMENDEMENT-05 §3.8) : rang secteur, membres actifs aujourd'hui, offensive en
+ * cours, % du secteur contrôlé — plus un mini-classement de rivalité 3 crews
+ * (or = leader · violet = rival · chartreuse = MON crew, §1 : réservé aux états
+ * de jeu). Chiffres de jeu réels : CREW_MAX_MEMBERS et CREW_CODE_LENGTH
+ * (@klaim/shared) ; valeurs de guerre fictives assumées, déterministes (WAR_DEMO).
  */
 
 import { useMemo, useState } from 'react';
 import { CITIES, CREW_CODE_LENGTH, CREW_MAX_MEMBERS, type ZoneDensity } from '@klaim/shared';
+import { WAR_DEMO } from '../../../lib/landing';
 import { useLang } from './LangProvider';
 import { useToast } from './Toast';
+import { useCountUp } from './useCountUp';
+import { useReveal } from './useReveal';
 import { Reveal } from './Reveal';
 import ui from './ui.module.css';
 import styles from './CrewBuilder.module.css';
@@ -25,6 +30,33 @@ const STYLE_CLASS: Record<CrewStyle, string> = {
   neon: 'variantNeon',
   ghost: 'variantGhost',
 };
+
+/** Strings locales §3.8 (AMENDEMENT-05 §4 : nouvelles strings hors dictionary.ts). */
+const STRINGS = {
+  fr: {
+    warKicker: 'Crew war room',
+    activeLabel: 'membres actifs aujourd’hui',
+    offensiveLabel: 'offensive en cours',
+    controlLabel: 'du secteur contrôlé',
+    rivalryTitle: 'Rivalité du secteur',
+    rivalryNote: 'Démo · Saison 0',
+    pts: 'pts',
+    youTag: 'Toi',
+  },
+  en: {
+    warKicker: 'Crew war room',
+    activeLabel: 'active members today',
+    offensiveLabel: 'offensive underway',
+    controlLabel: 'of sector controlled',
+    rivalryTitle: 'Sector rivalry',
+    rivalryNote: 'Demo · Season 0',
+    pts: 'pts',
+    youTag: 'You',
+  },
+};
+
+// État de guerre de démonstration : WAR_DEMO (lib/landing — fictif assumé,
+// DÉTERMINISTE, dérivé du trio DEMO_LEADERBOARD : rival = Canal Crew §1).
 
 const ACTIVE_CITIES = Object.values(CITIES).map((city) => city.name.toLowerCase());
 const EMERGING_HINTS = ['lyon', 'bordeaux', 'marseille', 'toulouse', 'nantes', 'rennes', 'rouen', 'nice'];
@@ -62,7 +94,8 @@ function inviteCode(name: string): string {
 }
 
 export function CrewBuilder() {
-  const { copy } = useLang();
+  const { copy, lang, formatInt } = useLang();
+  const t = STRINGS[lang];
   const { showToast } = useToast();
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
@@ -72,6 +105,11 @@ export function CrewBuilder() {
   const displayName = name.trim() || copy.crews.previewFallbackName;
   const displayCity = city.trim() || copy.crews.previewFallbackCity;
   const initials = initialsOf(name, 'GR');
+  /** Secteur du war room, dérivé de la ville saisie (fallback : ville seedée Saison 0). */
+  const sector = `${city.trim() || CITIES.paris.name} Est`;
+
+  const warStats = useReveal<HTMLDivElement>();
+  const control = useCountUp(WAR_DEMO.sectorControlPct, warStats.shown);
 
   const copyInvite = async () => {
     const slug = (name.trim() || 'mon-crew')
@@ -161,11 +199,14 @@ export function CrewBuilder() {
           </Reveal>
 
           <Reveal delayMs={100} className={styles.previewCol}>
+            {/* Aperçu live = war room du crew (nom/ville restent dynamiques). */}
             <div
               className={`${ui.card} ${styles.preview} ${styles[STYLE_CLASS[style]] ?? ''}`}
               role="img"
               aria-label={copy.crews.previewAria}
             >
+              <span className={`${ui.monoLabel} ${styles.warKicker}`}>{t.warKicker}</span>
+
               <div className={styles.previewHead}>
                 <span className={styles.emblem} aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="52" height="52">
@@ -186,22 +227,78 @@ export function CrewBuilder() {
                 </div>
               </div>
 
-              <dl className={styles.previewStats}>
-                <div className={styles.previewStat}>
-                  <dt className={ui.monoLabel}>{copy.crews.statHexes}</dt>
-                  <dd>0</dd>
+              <div className={styles.warRank}>
+                <span className={styles.rankBadge}>#{WAR_DEMO.sectorRank}</span>
+                <span className={styles.rankSector}>{sector}</span>
+              </div>
+
+              <div ref={warStats.ref}>
+                <dl className={styles.previewStats}>
+                  <div className={styles.previewStat}>
+                    <dt className={ui.monoLabel}>{t.activeLabel}</dt>
+                    <dd>
+                      {formatInt(WAR_DEMO.activeToday)}
+                      <span className={styles.statMax}>/{CREW_MAX_MEMBERS}</span>
+                    </dd>
+                  </div>
+                  <div className={styles.previewStat}>
+                    <dt className={ui.monoLabel}>{t.offensiveLabel}</dt>
+                    <dd>
+                      {formatInt(WAR_DEMO.offensives)}
+                      {/* État « en direct » → chartreuse légitime (doctrine C.3, emploi 4). */}
+                      <span className={styles.liveDot} aria-hidden="true" />
+                    </dd>
+                  </div>
+                  <div className={styles.previewStat}>
+                    <dt className={ui.monoLabel}>{t.controlLabel}</dt>
+                    <dd>
+                      {formatInt(control)}
+                      <span className={styles.statMax}> %</span>
+                    </dd>
+                  </div>
+                </dl>
+                <div className={styles.controlBar} aria-hidden="true">
+                  <div
+                    className={styles.controlFill}
+                    style={{ width: warStats.shown ? `${WAR_DEMO.sectorControlPct}%` : '0%' }}
+                  />
                 </div>
-                <div className={styles.previewStat}>
-                  <dt className={ui.monoLabel}>{copy.crews.statPoints}</dt>
-                  <dd>0</dd>
-                </div>
-                <div className={styles.previewStat}>
-                  <dt className={ui.monoLabel}>{copy.crews.statMembers}</dt>
-                  <dd>
-                    0<span className={styles.statMax}>/{CREW_MAX_MEMBERS}</span>
-                  </dd>
-                </div>
-              </dl>
+              </div>
+            </div>
+
+            {/* Mini-classement de rivalité — le rang 3 suit le nom saisi. */}
+            <div className={`${ui.card} ${styles.rivalry}`}>
+              <div className={styles.rivalryHead}>
+                <span className={ui.monoLabel}>{t.rivalryTitle}</span>
+                <span className={styles.rivalryNote}>{t.rivalryNote}</span>
+              </div>
+              <ol className={styles.rivalryList}>
+                {/* AMENDEMENT-05 §1 : or = leader/victoire · violet = crew rival · chartreuse = MON crew. */}
+                <li className={`${styles.rivalryRow} ${styles.rowGold}`}>
+                  <span className={styles.rowRank}>1</span>
+                  <span className={styles.rowName}>{WAR_DEMO.rivals[0].name}</span>
+                  <span className={styles.rowPts}>
+                    {formatInt(WAR_DEMO.rivals[0].points)} {t.pts}
+                  </span>
+                </li>
+                <li className={`${styles.rivalryRow} ${styles.rowRival}`}>
+                  <span className={styles.rowRank}>2</span>
+                  <span className={styles.rowName}>{WAR_DEMO.rivals[1].name}</span>
+                  <span className={styles.rowPts}>
+                    {formatInt(WAR_DEMO.rivals[1].points)} {t.pts}
+                  </span>
+                </li>
+                <li className={`${styles.rivalryRow} ${styles.rowMine}`}>
+                  <span className={styles.rowRank}>{WAR_DEMO.sectorRank}</span>
+                  <span className={styles.rowName}>
+                    {displayName}
+                    <span className={styles.youTag}>{t.youTag}</span>
+                  </span>
+                  <span className={styles.rowPts}>
+                    {formatInt(WAR_DEMO.myPoints)} {t.pts}
+                  </span>
+                </li>
+              </ol>
             </div>
           </Reveal>
         </div>
