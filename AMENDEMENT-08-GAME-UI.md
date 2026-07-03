@@ -11,6 +11,7 @@ Animations : **RN `Animated` core uniquement** (pas de reanimated) — pulse, pr
 
 ## 2. Palette fonctionnelle (doc §5) — design-tokens mobile
 Réutilise les couleurs de conflit AMENDEMENT-05 : chartreuse `#B4FF0D` = ton crew/action ; `#FF5C33` = rival/attaque ; `#8B5CF6` = contesté/rare/événement ; `#E7B84C` = victoire/or ; **ajouts** : blue steel `#6FB7FF` = Verify/info ; muted red `#D64545` = danger/decay urgent ; carbon `#101210` = surfaces profondes. Règle inchangée : la couleur sert à lire l'ÉTAT DE JEU, jamais décorative, jamais CTA/nav.
+Exception officielle C.3 : l'état actif de la nav (icône) est chartreuse — décision fondateur AMENDEMENT-06, seule exception nav autorisée.
 
 ## 3. Navigation (doc §6)
 Onglets : **Carte · War Room · Crew · League · Profil** (route `classement` conservée, label affiché « League »). Bouton central **contextuel** : RUN (libre) / DEFEND (zone menacée) / RAID (offensive active) / CAPTURE (zone neutre proche) — état dérivé des données démo ; conserve le RunModeSheet AMENDEMENT-07 (Conquête/Social Run/Course privée) puis navigue vers Course Live.

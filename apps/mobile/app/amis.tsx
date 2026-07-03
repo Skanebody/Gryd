@@ -1,100 +1,97 @@
 /**
- * GRYD — Page Amis (AMENDEMENT-07 §8, doc social Partie C). Écran POUSSÉ depuis
- * Profil. Onglets : Mes amis · Demandes · Suggestions · QR · Recherche @handle.
- * Actions Ajouter / Accepter / Refuser / Bloquer / Inviter au crew (icônes
- * @klaim/shared, toasts de confirmation). La recherche valide le handle via
- * HANDLE_REGEX (source shared). Chaque ami rend un AvatarHex à tier JOUEUR
- * DÉRIVÉ de son XP (playerLevelForXp/playerTierForLevel) — aucun tier codé en
- * dur. Données démo (features/social/demo). Zéro position live.
+ * GRYD — Page Amis mise en scène de jeu (AMENDEMENT-08 §8, doc §19 ; conserve
+ * AMENDEMENT-07 §8). Écran POUSSÉ depuis Profil. Onglets : Amis · Demandes ·
+ * Suggestions · QR · Recherche @handle. Chaque ami est une FriendCard du design
+ * system (avatar hex à tier DÉRIVÉ de son XP, @handle, ville · crew, dispo +
+ * runs semaine) avec les actions POSITIVES en avant (Inviter sortie / Inviter
+ * crew) — « Bloquer » est RELÉGUÉ dans le menu « … » (anti-shame : plus jamais
+ * en bouton visible). La recherche valide le handle via HANDLE_REGEX (source
+ * shared). Données démo (features/social/demo). Zéro position live.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { HANDLE_REGEX, colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { HANDLE_REGEX, colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { GhostButton } from '../src/ui/GhostButton';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
-import { AvatarHex } from '../src/features/social/AvatarHex';
+import { FriendCard } from '../src/ui/game';
+import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
 import { FRIENDS, MY_SOCIAL_PROFILE, type FriendDemo } from '../src/features/social/demo';
 import { ToastHost, useToast, type ToastController } from '../src/features/social/Toast';
-import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
 
 type TabKey = 'friends' | 'requests' | 'suggestions' | 'qr' | 'search';
 
 const TABS: readonly { key: TabKey; label: string }[] = [
-  { key: 'friends', label: 'Mes amis' },
+  { key: 'friends', label: 'Amis' },
   { key: 'requests', label: 'Demandes' },
   { key: 'suggestions', label: 'Suggestions' },
   { key: 'qr', label: 'QR' },
   { key: 'search', label: 'Recherche' },
 ];
 
-/** Carte d'un ami/candidat/suggestion : avatar + identité + actions contextuelles. */
-function FriendCard({
+/** Tier joueur DÉRIVÉ de l'XP (aucun tier codé en dur). */
+function tierOf(friend: FriendDemo) {
+  return playerTierForLevel(playerLevelForXp(friend.xp));
+}
+
+/** FriendCard du design system pré-câblée depuis la demo sociale. */
+function DemoFriendCard({
   friend,
-  actions,
+  toast,
+  onMore,
+  withInvites = false,
 }: {
   friend: FriendDemo;
-  actions: React.ReactNode;
+  toast: ToastController;
+  onMore?: () => void;
+  withInvites?: boolean;
 }) {
-  const tier = playerTierForLevel(playerLevelForXp(friend.xp));
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHead}>
-        <AvatarHex handle={friend.handle} tier={tier} crewTag={friend.crewTag} size={52} />
-        <View style={styles.cardInfo}>
-          <Text style={styles.name}>@{friend.handle}</Text>
-          <Text style={styles.meta}>
-            {friend.city}
-            {friend.crewTag ? ` · ${friend.crewTag}` : ''}
-          </Text>
-          {friend.reason ? <Text style={styles.reason}>{friend.reason}</Text> : null}
-        </View>
-      </View>
-      <View style={styles.actions}>{actions}</View>
-    </View>
+    <FriendCard
+      handle={`@${friend.handle}`}
+      city={friend.city}
+      crewName={friend.crewTag}
+      availability={friend.availability ?? friend.reason}
+      runsThisWeek={friend.runsThisWeek}
+      tier={tierOf(friend)}
+      onInviteRun={
+        withInvites ? () => toast.show(`Sortie proposée à @${friend.handle}`) : undefined
+      }
+      onInviteCrew={
+        withInvites && friend.inMyCrew !== true
+          ? () => toast.show(`Invitation crew envoyée à @${friend.handle}`)
+          : undefined
+      }
+      onMore={onMore}
+    />
   );
 }
 
-/** Ligne d'actions compacte (boutons ghost côte à côte). */
-function ActionRow({ children }: { children: React.ReactNode }) {
-  return <View style={styles.actionRow}>{children}</View>;
-}
-
-function FriendsList({ toast }: { toast: ToastController }) {
+function FriendsList({ toast, onMore }: {
+  toast: ToastController;
+  onMore: (friend: FriendDemo) => void;
+}) {
   const friends = FRIENDS.filter((f) => f.state === 'accepted');
   return (
     <View style={styles.list}>
       {friends.map((f) => (
-        <FriendCard
+        <DemoFriendCard
           key={f.handle}
           friend={f}
-          actions={
-            <ActionRow>
-              {!f.inMyCrew ? (
-                <View style={styles.actionCell}>
-                  <GhostButton
-                    label="Inviter au crew"
-                    icon="crew"
-                    onPress={() => toast.show(`Invitation envoyée à @${f.handle}`)}
-                  />
-                </View>
-              ) : null}
-              <View style={styles.actionCell}>
-                <GhostButton
-                  label="Bloquer"
-                  onPress={() => toast.show(`@${f.handle} bloqué`)}
-                />
-              </View>
-            </ActionRow>
-          }
+          toast={toast}
+          withInvites
+          onMore={() => onMore(f)}
         />
       ))}
     </View>
   );
 }
 
-function RequestsList({ toast }: { toast: ToastController }) {
+function RequestsList({ toast, onMore }: {
+  toast: ToastController;
+  onMore: (friend: FriendDemo) => void;
+}) {
   const requests = FRIENDS.filter((f) => f.state === 'incoming');
   if (requests.length === 0) {
     return <Text style={styles.empty}>Aucune demande en attente.</Text>;
@@ -102,49 +99,46 @@ function RequestsList({ toast }: { toast: ToastController }) {
   return (
     <View style={styles.list}>
       {requests.map((f) => (
-        <FriendCard
-          key={f.handle}
-          friend={f}
-          actions={
-            <ActionRow>
-              <View style={styles.actionCell}>
-                <GhostButton
-                  label="Accepter"
-                  icon="badge"
-                  onPress={() => toast.show(`@${f.handle} ajouté`)}
-                />
-              </View>
-              <View style={styles.actionCell}>
-                <GhostButton label="Refuser" onPress={() => toast.show('Demande refusée')} />
-              </View>
-            </ActionRow>
-          }
-        />
+        <View key={f.handle} style={styles.requestBlock}>
+          <DemoFriendCard friend={f} toast={toast} onMore={() => onMore(f)} />
+          <View style={styles.actionRow}>
+            <View style={styles.actionCell}>
+              <GhostButton
+                label="Accepter"
+                icon="ajoutami"
+                onPress={() => toast.show(`@${f.handle} ajouté`)}
+              />
+            </View>
+            <View style={styles.actionCell}>
+              <GhostButton label="Refuser" onPress={() => toast.show('Demande refusée')} />
+            </View>
+          </View>
+        </View>
       ))}
     </View>
   );
 }
 
-function SuggestionsList({ toast }: { toast: ToastController }) {
+function SuggestionsList({ toast, onMore }: {
+  toast: ToastController;
+  onMore: (friend: FriendDemo) => void;
+}) {
   const suggestions = FRIENDS.filter((f) => f.state === 'suggested');
   return (
     <View style={styles.list}>
       {suggestions.map((f) => (
-        <FriendCard
-          key={f.handle}
-          friend={f}
-          actions={
-            <ActionRow>
-              <View style={styles.actionCell}>
-                <GhostButton
-                  label="Ajouter"
-                  icon="ajoutami"
-                  onPress={() => toast.show(`Demande envoyée à @${f.handle}`)}
-                />
-              </View>
-            </ActionRow>
-          }
-        />
+        <View key={f.handle} style={styles.requestBlock}>
+          <DemoFriendCard friend={f} toast={toast} onMore={() => onMore(f)} />
+          <View style={styles.actionRow}>
+            <View style={styles.actionCell}>
+              <GhostButton
+                label="Ajouter"
+                icon="ajoutami"
+                onPress={() => toast.show(`Demande envoyée à @${f.handle}`)}
+              />
+            </View>
+          </View>
+        </View>
       ))}
     </View>
   );
@@ -169,7 +163,10 @@ function QrPanel({ toast }: { toast: ToastController }) {
   );
 }
 
-function SearchPanel({ toast }: { toast: ToastController }) {
+function SearchPanel({ toast, onMore }: {
+  toast: ToastController;
+  onMore: (friend: FriendDemo) => void;
+}) {
   const [query, setQuery] = useState('');
   const normalized = query.trim().toLowerCase().replace(/^@/, '');
   const valid = HANDLE_REGEX.test(normalized);
@@ -200,15 +197,17 @@ function SearchPanel({ toast }: { toast: ToastController }) {
 
       {valid && matches.length === 0 ? (
         <View style={styles.list}>
-          <View style={styles.card}>
-            <Text style={styles.name}>@{normalized}</Text>
-            <Text style={styles.meta}>Aucun coureur trouvé avec ce handle.</Text>
-            <View style={styles.actions}>
-              <GhostButton
-                label="Envoyer une demande"
-                icon="ajoutami"
-                onPress={() => toast.show(`Demande envoyée à @${normalized}`)}
-              />
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyHandle}>@{normalized}</Text>
+            <Text style={styles.emptyMeta}>Aucun coureur trouvé avec ce handle.</Text>
+            <View style={styles.actionRow}>
+              <View style={styles.actionCell}>
+                <GhostButton
+                  label="Envoyer une demande"
+                  icon="ajoutami"
+                  onPress={() => toast.show(`Demande envoyée à @${normalized}`)}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -216,23 +215,85 @@ function SearchPanel({ toast }: { toast: ToastController }) {
 
       <View style={styles.list}>
         {matches.map((f) => (
-          <FriendCard
-            key={f.handle}
-            friend={f}
-            actions={
-              <ActionRow>
+          <View key={f.handle} style={styles.requestBlock}>
+            <DemoFriendCard friend={f} toast={toast} onMore={() => onMore(f)} />
+            {f.state !== 'accepted' ? (
+              <View style={styles.actionRow}>
                 <View style={styles.actionCell}>
                   <GhostButton
-                    label={f.state === 'accepted' ? 'Déjà ami' : 'Ajouter'}
-                    icon={f.state === 'accepted' ? 'badge' : 'ajoutami'}
-                    disabled={f.state === 'accepted'}
+                    label="Ajouter"
+                    icon="ajoutami"
                     onPress={() => toast.show(`Demande envoyée à @${f.handle}`)}
                   />
                 </View>
-              </ActionRow>
-            }
-          />
+              </View>
+            ) : null}
+          </View>
         ))}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Menu « … » d'un ami — c'est ICI (et seulement ici) que vit « Bloquer »
+ * (doc §19 : plus jamais en bouton visible). Overlay maison, options courtes.
+ */
+function MoreMenu({ friend, toast, onDismiss }: {
+  friend: FriendDemo;
+  toast: ToastController;
+  onDismiss: () => void;
+}) {
+  const options: { label: string; danger?: boolean; onPress: () => void }[] = [
+    {
+      label: 'Voir le profil',
+      onPress: () => toast.show(`Profil de @${friend.handle} — écran à venir (O1)`),
+    },
+    {
+      label: 'Retirer de mes amis',
+      onPress: () => toast.show(`@${friend.handle} retiré de tes amis`),
+    },
+    {
+      label: `Bloquer @${friend.handle}`,
+      danger: true,
+      onPress: () => toast.show(`@${friend.handle} bloqué`),
+    },
+  ];
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Fermer le menu"
+        style={[StyleSheet.absoluteFill, styles.menuOverlay]}
+        onPress={onDismiss}
+      />
+      <View style={styles.menuSheet}>
+        <View style={styles.menuHandleBar} />
+        <Text style={styles.menuTitle}>@{friend.handle}</Text>
+        {options.map((opt) => (
+          <Pressable
+            key={opt.label}
+            accessibilityRole="button"
+            accessibilityLabel={opt.label}
+            onPress={() => {
+              opt.onPress();
+              onDismiss();
+            }}
+            style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+          >
+            <Text style={[styles.menuItemLabel, opt.danger === true && styles.menuItemDanger]}>
+              {opt.label}
+            </Text>
+          </Pressable>
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Annuler"
+          onPress={onDismiss}
+          style={({ pressed }) => [styles.menuCancel, pressed && styles.menuItemPressed]}
+        >
+          <Text style={styles.menuCancelLabel}>Annuler</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -240,7 +301,13 @@ function SearchPanel({ toast }: { toast: ToastController }) {
 
 export default function AmisScreen() {
   const [tab, setTab] = useState<TabKey>('friends');
+  const [menuFor, setMenuFor] = useState<FriendDemo | null>(null);
   const toast = useToast();
+
+  useEffect(() => {
+    // Screen view standard au montage (même motif que sources.tsx/support.tsx).
+    screen('amis');
+  }, []);
 
   const friendsCount = FRIENDS.filter((f) => f.state === 'accepted').length;
   const requestsCount = FRIENDS.filter((f) => f.state === 'incoming').length;
@@ -273,16 +340,19 @@ export default function AmisScreen() {
           ))}
         </View>
 
-        {tab === 'friends' ? <FriendsList toast={toast} /> : null}
-        {tab === 'requests' ? <RequestsList toast={toast} /> : null}
-        {tab === 'suggestions' ? <SuggestionsList toast={toast} /> : null}
+        {tab === 'friends' ? <FriendsList toast={toast} onMore={setMenuFor} /> : null}
+        {tab === 'requests' ? <RequestsList toast={toast} onMore={setMenuFor} /> : null}
+        {tab === 'suggestions' ? <SuggestionsList toast={toast} onMore={setMenuFor} /> : null}
         {tab === 'qr' ? <QrPanel toast={toast} /> : null}
-        {tab === 'search' ? <SearchPanel toast={toast} /> : null}
+        {tab === 'search' ? <SearchPanel toast={toast} onMore={setMenuFor} /> : null}
 
         <Text style={styles.footnote}>
           Aucune position live n'est partagée. Ton profil suit tes réglages de visibilité.
         </Text>
       </StackScreen>
+      {menuFor ? (
+        <MoreMenu friend={menuFor} toast={toast} onDismiss={() => setMenuFor(null)} />
+      ) : null}
       <ToastHost state={toast} />
     </>
   );
@@ -298,26 +368,26 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
-  tabActive: { backgroundColor: colors.carbone2, borderColor: colors.chartreuse40 },
+  // Actif = bordure blanche (motif classement/badges) — chartreuse réservée
+  // à moi/crew, CTA primaire, gains, live.
+  tabActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
   tabText: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
   tabTextActive: { color: colors.blanc, fontWeight: '600' },
   list: { marginTop: 14, gap: 12 },
-  card: {
+  requestBlock: { gap: 8 },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  actionCell: { flex: 1 },
+  empty: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 24, textAlign: 'center' },
+  emptyCard: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
+    gap: 4,
   },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  cardInfo: { flex: 1 },
-  name: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0.3 },
-  meta: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3, letterSpacing: 0.3 },
-  reason: { color: colors.chartreuse, fontSize: fontSizes.xs, marginTop: 4, letterSpacing: 0.2 },
-  actions: { marginTop: 14 },
-  actionRow: { flexDirection: 'row', gap: 10 },
-  actionCell: { flex: 1 },
-  empty: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 24, textAlign: 'center' },
+  emptyHandle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0.3 },
+  emptyMeta: { color: colors.gris, fontSize: fontSizes.xs, marginBottom: 10 },
   qrWrap: { marginTop: 16, alignItems: 'center', gap: 16 },
   qrCard: {
     backgroundColor: colors.carbone,
@@ -362,4 +432,48 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.xs * 1.6,
     marginTop: 22,
   },
+
+  // ── Menu « … » (Bloquer relégué ici — doc §19) ──
+  menuOverlay: { backgroundColor: colors.noir, opacity: 0.75 },
+  menuSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.carbone,
+    borderTopLeftRadius: radii.card,
+    borderTopRightRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingTop: 12,
+    paddingBottom: 28,
+    paddingHorizontal: spacing.cardPadding,
+    alignItems: 'stretch',
+  },
+  menuHandleBar: {
+    width: 36,
+    height: 4,
+    borderRadius: radii.pill,
+    backgroundColor: colors.grisLigne,
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  menuTitle: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.6,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  menuItem: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grisLigne,
+  },
+  menuItemPressed: { opacity: 0.7 },
+  menuItemLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  // Muted red danger : action grave, pas de mise en avant (relégué + sobre)
+  menuItemDanger: { color: gameColors.danger },
+  menuCancel: { paddingVertical: 14, alignItems: 'center' },
+  menuCancelLabel: { color: colors.gris, fontSize: fontSizes.sm },
 });

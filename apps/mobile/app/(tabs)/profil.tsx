@@ -1,21 +1,21 @@
 /**
- * GRYD — onglet Profil RENFORCÉ (AMENDEMENT-07 §8, doc social Partie C ;
- * conserve AMENDEMENT-02 §6 + AMENDEMENT-06). En-tête social : avatar hexagonal
- * à cadre par tier JOUEUR (AvatarHex) + mini-blason crew, @handle, ville, rang
- * de saison, niveau, titre. Puis chips progression permanente (série/XP), Score
- * Forme, contribution au coffre de crew (formulation anti-shame), badges rares,
- * « Mon territoire », collection de badges, accès Amis, et les entrées PLUS.
- * Boutons Ajouter / Inviter au crew / Partager le profil (icônes @klaim/shared).
- * Données démo (features/social/demo + features/badges/demo). Le niveau/tier/
- * rang sont DÉRIVÉS des règles réelles — aucun nombre magique local. Zéro
- * position live.
+ * GRYD — onglet Profil → PLAYER CARD (AMENDEMENT-08 §8, doc §18 ; conserve
+ * AMENDEMENT-07 §8 + AMENDEMENT-02 §6). En-tête de jeu : PlayerAvatarFrame XL
+ * (frame par tier JOUEUR, contour « moi »), KORO @koro, titre « Tenace du
+ * 19ᵉ », Runner niv./tier, mini CrewCrest + crew, rang saison. Bloc PROGRESSION
+ * (Level N → N+1 avec jauge XP DÉRIVÉE de la courbe réelle, Score Forme, série,
+ * contribution crew — formulations POSITIVES). BADGES RARES EN GRAND
+ * (BadgeCards horizontales) + lien Collection, « Mon territoire », Partager le
+ * profil (ShareCard 4:5 révélée inline). Données démo — le niveau/tier/rang
+ * sont DÉRIVÉS des règles réelles, aucun nombre magique local. Zéro position
+ * live.
  */
-import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
-  BADGE_TIER_LABEL,
   BADGE_TIER_RANK,
+  PLAYER_LEVEL_MAX,
   STREAK_MULTIPLIER_CAP,
   STREAK_MULTIPLIER_STEP,
   XP_RATE_OF_POINTS,
@@ -25,15 +25,21 @@ import {
   spacing,
   type IconName,
 } from '@klaim/shared';
-import { BadgeHex } from '../../src/features/badges/BadgeHex';
-import { BADGE_TOTAL, badgeById, badgeColor } from '../../src/features/badges/catalog';
+import {
+  BADGE_FAMILIES,
+  badgeById,
+  badgeColor,
+  badgeRewardLabel,
+  BADGE_TOTAL,
+} from '../../src/features/badges/catalog';
 import { UNLOCKED_IDS } from '../../src/features/badges/demo';
+import { MY_CREW } from '../../src/features/crew/demo';
 import {
   FRAME_TIER_LABELS,
   playerLevelForXp,
+  playerLevelXpTable,
   playerTierForLevel,
 } from '../../src/features/crew/rules';
-import { AvatarHex } from '../../src/features/social/AvatarHex';
 import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { FranceMap } from '../../src/features/territory/FranceMap';
@@ -42,8 +48,10 @@ import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
+import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
+import { BadgeCard, CrewCrest, PlayerAvatarFrame, ShareCard } from '../../src/ui/game';
 
 /** Territoire factice (cohérent avec l'ancien profil). */
 const PARIS_HEXES = 1835;
@@ -55,6 +63,11 @@ const xp = MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS;
 /** Niveau/tier DÉRIVÉS de la courbe réelle (features/crew/rules). */
 const runnerLevel = playerLevelForXp(xp);
 const runnerTier = playerTierForLevel(runnerLevel);
+/** Bornes XP du niveau courant → jauge « Level N → N+1 » (courbe §43.1). */
+const XP_TABLE = playerLevelXpTable();
+const levelFloor = XP_TABLE[runnerLevel - 1] ?? 0;
+const levelCeil = runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
+const levelRatio = levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
 const streakMultiplier = Math.min(
   1 + STREAK_WEEKS * STREAK_MULTIPLIER_STEP,
   STREAK_MULTIPLIER_CAP,
@@ -72,6 +85,11 @@ const RARE_BADGES = [...UNLOCKED_IDS]
   .slice(0, 4);
 
 const UNLOCKED_COUNT = UNLOCKED_IDS.size;
+
+/** Libellé FR de famille pour les BadgeCards (les secrets restent « Secret »). */
+function familyLabelOf(familyId: string): string {
+  return BADGE_FAMILIES.find((f) => f.id === familyId)?.name ?? 'Secret';
+}
 
 interface ProfileLink {
   label: string;
@@ -107,6 +125,7 @@ const LINKS: readonly ProfileLink[] = [
 export default function ProfilScreen() {
   const { session, configured } = useSession();
   const toast = useToast();
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     screen('profil');
@@ -114,26 +133,27 @@ export default function ProfilScreen() {
 
   return (
     <>
-      <TabScreen title={MY_SOCIAL_PROFILE.displayName} kicker="PROFIL">
-        {/* En-tête social : avatar hexagonal + identité (§8) */}
+      <TabScreen title={MY_SOCIAL_PROFILE.displayName} kicker="PLAYER CARD">
+        {/* ── Player Card : avatar hex XL + identité de jeu (doc §18) ── */}
         <View style={styles.headerCard}>
-          <AvatarHex
-            handle={MY_SOCIAL_PROFILE.handle}
+          <PlayerAvatarFrame
+            name={MY_SOCIAL_PROFILE.displayName}
             tier={runnerTier}
-            crewTag={MY_SOCIAL_PROFILE.crewTag}
-            size={92}
+            size="xl"
+            isMe
           />
           <View style={styles.headerInfo}>
             <Text style={styles.handle}>@{MY_SOCIAL_PROFILE.handle}</Text>
             <Text style={styles.title}>{MY_SOCIAL_PROFILE.title}</Text>
-            <View style={styles.metaRow}>
-              <Icon name="pin" size={13} color={colors.gris} />
-              <Text style={styles.metaText}>{MY_SOCIAL_PROFILE.city}</Text>
-            </View>
             <Text style={styles.identity}>
-              Runner niv. {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} ·{' '}
-              {MY_SOCIAL_PROFILE.crewName}
+              Runner niv. {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]}
             </Text>
+            <View style={styles.crewRow}>
+              <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
+              <Text style={styles.crewName} numberOfLines={1}>
+                {MY_SOCIAL_PROFILE.crewName}
+              </Text>
+            </View>
             <Text style={styles.rank}>
               Rang saison #{MY_SOCIAL_PROFILE.seasonRank} · {MY_SOCIAL_PROFILE.seasonScope}
             </Text>
@@ -159,59 +179,98 @@ export default function ProfilScreen() {
         </View>
         <View style={styles.shareRow}>
           <GhostButton
-            label="Partager mon profil"
+            label={shareOpen ? 'Masquer la share card' : 'Partager mon profil'}
             icon="partage"
-            onPress={() => toast.show('Profil copié — @' + MY_SOCIAL_PROFILE.handle)}
+            onPress={() => {
+              setShareOpen((v) => !v);
+              if (!shareOpen) toast.show('Share card prête — capture-la pour la partager');
+            }}
           />
         </View>
 
-        {/* Chips progression permanente — survit au reset de saison */}
-        <View style={styles.chipRow}>
-          <View style={styles.chip}>
-            <Icon name="serie" size={16} color={colors.chartreuse} />
-            <Text style={styles.chipText}>
-              Série {formatMultiplier(streakMultiplier)} · {STREAK_WEEKS} sem
+        {/* Share card 4:5 (doc §18/§24) — révélée inline, exportable */}
+        {shareOpen ? (
+          <View style={styles.shareCardWrap}>
+            <ShareCard
+              stat={`#${MY_SOCIAL_PROFILE.seasonRank}`}
+              statLabel={`Rang saison · ${MY_SOCIAL_PROFILE.seasonScope}`}
+              title={`${MY_SOCIAL_PROFILE.displayName} · ${MY_SOCIAL_PROFILE.crewName}`}
+              subtitle={`Runner niv. ${runnerLevel} · ${MY_SOCIAL_PROFILE.title}`}
+            >
+              <PlayerAvatarFrame
+                name={MY_SOCIAL_PROFILE.displayName}
+                tier={runnerTier}
+                size="l"
+                isMe
+              />
+            </ShareCard>
+          </View>
+        ) : null}
+
+        {/* ── PROGRESSION (doc §18) : Level N → N+1, jauge XP réelle ── */}
+        <View style={styles.sectionRow}>
+          <Icon name="niveau" size={14} color={colors.gris} />
+          <Text style={styles.sectionRowLabel}>PROGRESSION</Text>
+        </View>
+        <View style={styles.progressCard}>
+          <View style={styles.levelRow}>
+            <Text style={styles.levelLabel}>
+              Level {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
+              {Math.min(runnerLevel + 1, PLAYER_LEVEL_MAX)}
+            </Text>
+            <Text style={styles.levelXp}>
+              {formatInt(xp)} / {formatInt(levelCeil)} XP
             </Text>
           </View>
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>{formatInt(xp)} XP</Text>
+          <ProgressBar value={levelRatio} height={8} />
+          <View style={styles.progressStatsRow}>
+            <View style={styles.progressStat}>
+              <Text style={styles.progressStatValue}>{MY_SOCIAL_PROFILE.formeScore}</Text>
+              <Text style={styles.progressStatLabel}>Score Forme</Text>
+            </View>
+            <View style={styles.progressStat}>
+              <Text style={styles.progressStatValue}>
+                {formatMultiplier(streakMultiplier)}
+              </Text>
+              <Text style={styles.progressStatLabel}>Série · {STREAK_WEEKS} sem</Text>
+            </View>
+            <View style={styles.progressStat}>
+              <Text style={styles.progressStatValue}>
+                {MY_SOCIAL_PROFILE.crewChestContribPct} %
+              </Text>
+              <Text style={styles.progressStatLabel}>du coffre crew</Text>
+            </View>
           </View>
         </View>
 
-        {/* Score Forme + contribution crew (motivation, formulation POSITIVE §11) */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Icon name="serie" size={16} color={colors.chartreuse} />
-            <Text style={styles.statValue}>{MY_SOCIAL_PROFILE.formeScore}</Text>
-            <Text style={styles.statLabel}>Score Forme</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Icon name="coffre" size={16} color={colors.blanc} />
-            <Text style={styles.statValue}>{MY_SOCIAL_PROFILE.crewChestContribPct} %</Text>
-            <Text style={styles.statLabel}>de ton coffre de crew</Text>
-          </View>
-        </View>
-
-        {/* Badges rares (§8) — les plus hauts tiers débloqués */}
+        {/* ── BADGES RARES EN GRAND (doc §18) : BadgeCards scrollables ── */}
         <View style={styles.sectionRow}>
           <Icon name="badge" size={14} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>BADGES RARES</Text>
         </View>
-        <View style={styles.badgeRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.rareScroll}
+          contentContainerStyle={styles.rareScrollContent}
+        >
           {RARE_BADGES.map((def) => (
-            <View key={def.id} style={styles.rareBadge}>
-              <BadgeHex
+            <View key={def.id} style={styles.rareCard}>
+              <BadgeCard
+                name={def.name}
                 family={def.family}
+                familyLabel={familyLabelOf(def.family)}
                 familyColor={badgeColor(def)}
-                state="unlocked"
                 tier={def.tier}
-                size="sm"
+                state="unlocked"
+                requirement={def.requirement}
+                reward={badgeRewardLabel(def)}
                 secret={def.secret}
+                onPress={() => router.push('/badges')}
               />
-              <Text style={styles.rareTier}>{BADGE_TIER_LABEL[def.tier]}</Text>
             </View>
           ))}
-        </View>
+        </ScrollView>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voir la collection de badges"
@@ -293,54 +352,55 @@ const styles = StyleSheet.create({
     marginTop: 2,
     letterSpacing: 0.3,
   },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
-  metaText: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
   identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 6, letterSpacing: 0.3 },
+  crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  crewName: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
   rank: {
     color: colors.blanc,
     fontSize: fontSizes.xs,
-    marginTop: 4,
+    marginTop: 6,
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.3,
   },
   actionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   actionCell: { flex: 1 },
   shareRow: { marginTop: 10 },
-  chipRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: colors.carbone2,
-    borderRadius: radii.pill,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-  },
-  chipText: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    letterSpacing: 0.6,
-    fontVariant: ['tabular-nums'],
-  },
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  statCard: {
-    flex: 1,
+  shareCardWrap: { marginTop: 14 },
+
+  // ── PROGRESSION ──
+  progressCard: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    gap: 4,
+    padding: spacing.cardPadding,
+    gap: 10,
   },
-  statValue: {
+  levelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  levelLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  levelArrow: { color: colors.chartreuse },
+  levelXp: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.3,
+  },
+  progressStatsRow: { flexDirection: 'row', marginTop: 4 },
+  progressStat: { flex: 1, gap: 2 },
+  progressStatValue: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
     fontWeight: '700',
-    marginTop: 4,
     fontVariant: ['tabular-nums'],
   },
-  statLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
+  progressStatLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
+
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -349,9 +409,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
-  rareBadge: { alignItems: 'center', gap: 4 },
-  rareTier: { color: colors.gris, fontSize: 10, letterSpacing: 0.4 },
+
+  // ── Badges rares en grand ──
+  rareScroll: { marginHorizontal: -spacing.cardPadding },
+  rareScrollContent: { paddingHorizontal: spacing.cardPadding, gap: 12 },
+  rareCard: { width: 230 },
   collectionLink: {
     flexDirection: 'row',
     alignItems: 'center',

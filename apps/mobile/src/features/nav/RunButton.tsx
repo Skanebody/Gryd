@@ -1,55 +1,60 @@
 /**
- * GRYD — bouton COURIR global (addendum §F) : disque 72 px chartreuse flottant
- * bas-centre AU-DESSUS de la nav (AMENDEMENT-02 §5), halo pulsé 2 s
- * (motion.runButtonPulseMs), driver natif. Rendu au niveau du layout (tabs) :
- * permanent sur les 5 onglets — c'est LE CTA chartreuse global, les CTA
- * d'écran restent ghost (§C.3 : 1 seul CTA chartreuse par écran).
- * TODO §G : couper la boucle du halo si reduce-motion (AccessibilityInfo) — V0.2.
+ * GRYD — bouton central de jeu (AMENDEMENT-08 §3, doc §8) : le `ContextualRunButton`
+ * du design system remplace le disque « GO » générique. Son MODE (RUN / DEFEND /
+ * RAID / CAPTURE / SCOUT) est DÉRIVÉ des données démo (runContext) — l'anneau
+ * d'état lit le contexte de jeu, le disque reste LE CTA chartreuse global
+ * (§C.3 : 1 seul CTA chartreuse par écran). Rendu au niveau du layout (tabs),
+ * permanent sur les 5 onglets.
  *
- * AMENDEMENT-07 §2/§8 : le tap ouvre d'abord le sélecteur de MODE (Conquête /
- * Social Run / Course privée). Le mode choisi sera passé à IngestRunRequest.runMode
- * (le serveur décide toujours du territoire). L'écran « course en cours » reste
- * un TODO Milestone 2 ; on logge run_start avec le mode retenu.
+ * Flux conservé (AMENDEMENT-07 §2/§8) : APPUI LONG 500 ms → RunModeSheet
+ * (Conquête / Social Run / Course privée) → run_start(mode) → Course Live
+ * (`/course-live?mode=<mode>` — le serveur décide toujours du territoire).
+ * Un tap court affiche l'aide « Maintiens pour lancer » (anti-faux départ).
  */
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, motion, radii, type RunMode } from '@klaim/shared';
+import { colors, fontSizes, radii, type RunMode } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
+import { ContextualRunButton } from '../../ui/game';
 import { RunModeSheet } from '../motivation/RunModeSheet';
-import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE, RUN_HALO_OVERFLOW } from './metrics';
+import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from './metrics';
+import { deriveRunButtonMode } from './runContext';
+
+/** Durée d'affichage de l'aide au tap court (UI). */
+const HINT_MS = 1_600;
 
 export function RunButton() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Halo pulsé 2 s (§F) — Animated simple, driver natif.
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(pulse, {
-        toValue: 1,
-        duration: motion.runButtonPulseMs,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-  const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.35] });
-  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] });
+  // Mode contextuel dérivé des données démo (offensive → RAID, decay urgent →
+  // DEFEND, zone neutre proche → CAPTURE, sinon RUN) — stable sur la session.
+  const contextMode = useMemo(() => deriveRunButtonMode(), []);
 
-  // Tap COURIR : on demande d'abord le mode (§2). Le GO ne lance rien tant que
-  // le joueur n'a pas choisi (ou fermé la feuille).
-  const handlePress = () => setModePickerOpen(true);
+  useEffect(
+    () => () => {
+      if (hintTimer.current) clearTimeout(hintTimer.current);
+    },
+    [],
+  );
+
+  // Tap court : rappel du geste (l'appui long est le déclencheur anti-faux départ).
+  const showHint = () => {
+    setHintVisible(true);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setHintVisible(false), HINT_MS);
+  };
 
   const startRun = (mode: RunMode) => {
     setModePickerOpen(false);
-    track(EVENTS.runStart, { mode });
-    // TODO Milestone 2 : navigation vers l'écran « Course en cours » (§4.2.2)
-    // en transmettant `mode` → IngestRunRequest.runMode.
-    if (__DEV__) console.log(`[run] run_start mode=${mode} — écran course à venir (Milestone 2)`);
+    track(EVENTS.runStart, { mode, context: contextMode });
+    // Course Live (AMENDEMENT-08 §5) — le mode sera passé à IngestRunRequest.runMode.
+    router.push(`/course-live?mode=${mode}`);
   };
 
   return (
@@ -57,18 +62,19 @@ export function RunButton() {
       style={[styles.wrap, { bottom: insets.bottom + RUN_BUTTON_BOTTOM }]}
       pointerEvents="box-none"
     >
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.halo, { opacity: haloOpacity, transform: [{ scale: haloScale }] }]}
+      {hintVisible ? (
+        <View style={styles.hintWrap} pointerEvents="none">
+          <View style={styles.hint}>
+            <Text style={styles.hintLabel}>Maintiens pour lancer</Text>
+          </View>
+        </View>
+      ) : null}
+      <ContextualRunButton
+        mode={contextMode}
+        size={RUN_BUTTON_SIZE}
+        onStart={() => setModePickerOpen(true)}
+        onPress={showHint}
       />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Démarrer une course"
-        onPress={handlePress}
-        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-      >
-        <Text style={styles.label}>GO</Text>
-      </Pressable>
       <RunModeSheet
         visible={modePickerOpen}
         onSelect={startRun}
@@ -85,30 +91,20 @@ const styles = StyleSheet.create({
     width: RUN_BUTTON_SIZE,
     height: RUN_BUTTON_SIZE,
   },
-  halo: {
+  hintWrap: {
     position: 'absolute',
-    top: -RUN_HALO_OVERFLOW,
-    left: -RUN_HALO_OVERFLOW,
-    right: -RUN_HALO_OVERFLOW,
-    bottom: -RUN_HALO_OVERFLOW,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.chartreuse40,
-  },
-  button: {
-    width: RUN_BUTTON_SIZE,
-    height: RUN_BUTTON_SIZE,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse, // emploi §C.3 (2) : action primaire
+    bottom: RUN_BUTTON_SIZE + 16,
+    left: -80,
+    right: -80,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  buttonPressed: { opacity: 0.85 },
-  label: {
-    color: colors.noir, // noir sur chartreuse ≈ 17:1 (§C.2) — jamais l'inverse clair
-    fontSize: fontSizes.sm,
-    fontWeight: '700',
-    letterSpacing: 1,
-    // TODO fonts : Space Grotesk 700 (addendum §E) — police système en attendant
+  hint: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
   },
+  hintLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
 });

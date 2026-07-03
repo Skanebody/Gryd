@@ -1,27 +1,38 @@
 /**
- * GRYD — écran Carte (home, SPEC §4.2.1) — rendu égocentré AMENDEMENT-01.
- * MapLibre + couche GeoJSON d'hexes H3 res 10 factices (D16/D17).
- * Chartreuse réservé à ses 4 emplois (§C.3) : mon territoire, les gains,
- * l'état live. Le CTA COURIR est rendu par le layout (tabs) — permanent
- * au-dessus de la nav 5 onglets (AMENDEMENT-02 §5), pas de doublon ici.
+ * GRYD — BATTLE MAP, variante NATIVE (MapLibre) — AMENDEMENT-08 §4, doc §7.
+ * La cible visuelle prioritaire est MapScreen.web.tsx (aperçu Expo Web) ;
+ * cette version reste compilable et porte les mêmes couches à partir du MÊME
+ * jeu démo (battleMapData) : basemap vectorielle sombre (D17), hex grid,
+ * états de jeu (crew/rival/contesté/protégé/decay/objectif/avant-poste),
+ * route ouverte, labels de secteurs, et le HUD partagé (BattleMapOverlays).
+ * Les markers iconiques (shield/sablier/pin) sont web-only pour l'instant —
+ * TODO Milestone 2 : images de symboles MapLibre.
+ * Le CTA COURIR est rendu par le layout (tabs) — pas de doublon ici.
  */
-import { useMemo, useRef, type ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMemo, useRef, useState, type ComponentProps } from 'react';
+import { StyleSheet, View } from 'react-native';
 import {
   Camera,
   FillLayer,
   LineLayer,
   MapView,
   ShapeSource,
+  SymbolLayer,
 } from '@maplibre/maplibre-react-native';
 
 // v10.4 ne réexporte pas FilterExpression : on le dérive de la prop du composant.
 type FilterExpression = NonNullable<ComponentProps<typeof FillLayer>['filter']>;
-import { CITIES, colors, fontSizes, mapTokens, radii } from '@klaim/shared';
+import { CITIES, colors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
-import { NAV_BAR_BOTTOM, NAV_BAR_HEIGHT } from '../nav/metrics';
-import { countMine, fakeHexesGeoJSON } from './fakeHexes';
+import { deriveRunButtonMode } from '../nav/runContext';
+import { SECTOR_LABELS } from './basemap';
+import {
+  BattleMapOverlays,
+  DEFAULT_MAP_LAYERS,
+  type MapLayerKey,
+} from './BattleMapOverlays';
+import { battleMapData, battleMapSummary, type HexState } from './fakeHexes';
+import { battleMapStyle as ms } from './mapStyle';
 
 /**
  * Style vectoriel sombre (D17). Valeur par défaut : OpenFreeMap « dark ».
@@ -32,17 +43,75 @@ const STYLE_URL = 'https://tiles.openfreemap.org/styles/dark';
 
 const HOME_ZOOM = 13;
 
-/** Chip « hex tenus » posée au-dessus de la nav flottante (maquette : bottom 118). */
-const STAT_CHIP_ABOVE_NAV = 42;
+const eqState = (state: HexState): FilterExpression =>
+  ['==', ['get', 'state'], state] as FilterExpression;
 
-const FILTER_MINE: FilterExpression = ['==', ['get', 'state'], 'mine'];
-const FILTER_FOE: FilterExpression = ['==', ['get', 'state'], 'foe'];
-const FILTER_NEUTRAL: FilterExpression = ['==', ['get', 'state'], 'neutral'];
+const FILTER_NEUTRAL = eqState('neutral');
+const FILTER_FOE = eqState('foe');
+const FILTER_CONTESTED = eqState('contested');
+const FILTER_PROTECTED = eqState('protected');
+const FILTER_DECAY = eqState('decay');
+const FILTER_OBJECTIVE = eqState('objective');
+const FILTER_OUTPOST = eqState('outpost');
+/** Hexes tenus par mon crew : mine + protected + decay. */
+const FILTER_HELD = [
+  'any',
+  ['==', ['get', 'state'], 'mine'],
+  ['==', ['get', 'state'], 'protected'],
+  ['==', ['get', 'state'], 'decay'],
+] as unknown as FilterExpression;
+const FILTER_DECAY_URGENT = [
+  'all',
+  ['==', ['get', 'state'], 'decay'],
+  ['==', ['get', 'urgent'], true],
+] as unknown as FilterExpression;
+
+/** GeoJSON minimal typé localement (pas de dépendance @types/geojson). */
+interface LineFeature {
+  type: 'Feature';
+  geometry: { type: 'LineString'; coordinates: number[][] };
+  properties: Record<string, never>;
+}
+interface PointFeatureCollection {
+  type: 'FeatureCollection';
+  features: {
+    type: 'Feature';
+    geometry: { type: 'Point'; coordinates: number[] };
+    properties: { name: string };
+  }[];
+}
 
 export function MapScreen() {
-  const insets = useSafeAreaInsets();
-  const hexes = useMemo(() => fakeHexesGeoJSON(), []);
-  const mineCount = useMemo(() => countMine(hexes), [hexes]);
+  const [layers, setLayers] = useState(DEFAULT_MAP_LAYERS);
+  const { collection, points } = useMemo(() => battleMapData(), []);
+  const summary = useMemo(() => battleMapSummary(collection), [collection]);
+  const runMode = useMemo(() => deriveRunButtonMode(), []);
+
+  // Route ouverte : polyline chartreuse cluster → objectif (doc §7).
+  const routeShape = useMemo<LineFeature>(
+    () => ({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: points.route.map((p) => [p.lng, p.lat]),
+      },
+      properties: {},
+    }),
+    [points],
+  );
+
+  // Noms de secteurs discrets (doc §7 « basemap urbaine subtile »).
+  const sectorShape = useMemo<PointFeatureCollection>(
+    () => ({
+      type: 'FeatureCollection',
+      features: SECTOR_LABELS.map((s) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+        properties: { name: s.name },
+      })),
+    }),
+    [],
+  );
 
   // map_load_ms (§8 santé produit) — du montage au onDidFinishLoadingMap.
   const mountedAtRef = useRef<number>(Date.now());
@@ -52,6 +121,9 @@ export function MapScreen() {
     loadTrackedRef.current = true;
     track(EVENTS.mapLoadMs, { ms: Date.now() - mountedAtRef.current });
   };
+
+  const toggleLayer = (key: MapLayerKey) =>
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
     <View style={styles.root}>
@@ -68,61 +140,153 @@ export function MapScreen() {
             zoomLevel: HOME_ZOOM,
           }}
         />
-        <ShapeSource id="hexes" shape={hexes}>
-          {/* Neutre : contour blanc 5 % seul (§D) */}
+        <ShapeSource id="hexes" shape={collection}>
+          {/* Grille neutre : contour discret seul (§D) */}
           <LineLayer
             id="hex-neutral-stroke"
             filter={FILTER_NEUTRAL}
-            style={{ lineColor: mapTokens.neutralStroke, lineWidth: 1 }}
+            style={{ lineColor: ms.neutralStroke, lineWidth: 1 }}
           />
-          {/* Adverses : blanc 6 % + contour 22 % — TODO motifs par crew
-              (fillPattern nécessite des images enregistrées ; prop `pattern`
-              déjà portée par le GeoJSON) */}
-          <FillLayer
-            id="hex-foe-fill"
-            filter={FILTER_FOE}
-            style={{ fillColor: mapTokens.foeFill }}
-          />
-          <LineLayer
-            id="hex-foe-stroke"
-            filter={FILTER_FOE}
-            style={{ lineColor: mapTokens.foeStroke, lineWidth: 1 }}
-          />
-          {/* Moi / mon crew : chartreuse 14 % + contour 40 % (§D) */}
-          <FillLayer
-            id="hex-mine-fill"
-            filter={FILTER_MINE}
-            style={{ fillColor: mapTokens.mineFill }}
-          />
-          <LineLayer
-            id="hex-mine-stroke"
-            filter={FILTER_MINE}
-            style={{ lineColor: mapTokens.mineStroke, lineWidth: 1.4 }}
+
+          {/* Rival : orange sombre — TODO motifs par crew (fillPattern nécessite
+              des images enregistrées ; prop `pattern` déjà portée par le GeoJSON) */}
+          {layers.rivals ? (
+            <>
+              <FillLayer
+                id="hex-foe-fill"
+                filter={FILTER_FOE}
+                style={{ fillColor: ms.rivalFill }}
+              />
+              <LineLayer
+                id="hex-foe-stroke"
+                filter={FILTER_FOE}
+                style={{ lineColor: ms.rivalStroke, lineWidth: 1 }}
+              />
+              {/* Contesté : double contour crew/rival */}
+              <FillLayer
+                id="hex-contested-fill"
+                filter={FILTER_CONTESTED}
+                style={{ fillColor: ms.contestedFill }}
+              />
+              <LineLayer
+                id="hex-contested-inner"
+                filter={FILTER_CONTESTED}
+                style={{ lineColor: ms.contestedInnerStroke, lineWidth: 1.4 }}
+              />
+              <LineLayer
+                id="hex-contested-outer"
+                filter={FILTER_CONTESTED}
+                style={{ lineColor: ms.contestedOuterStroke, lineWidth: 2.5, lineOffset: -2 }}
+              />
+            </>
+          ) : null}
+
+          {/* Mon crew : chartreuse + glow léger */}
+          {layers.crew ? (
+            <>
+              <LineLayer
+                id="hex-held-glow"
+                filter={FILTER_HELD}
+                style={{ lineColor: ms.heldGlow, lineWidth: 5 }}
+              />
+              <FillLayer
+                id="hex-held-fill"
+                filter={FILTER_HELD}
+                style={{ fillColor: ms.heldFill }}
+              />
+              <LineLayer
+                id="hex-held-stroke"
+                filter={FILTER_HELD}
+                style={{ lineColor: ms.heldStroke, lineWidth: 1.4 }}
+              />
+              {/* Protégé : halo verify autour du cœur */}
+              <LineLayer
+                id="hex-protected-halo"
+                filter={FILTER_PROTECTED}
+                style={{ lineColor: ms.protectedHalo, lineWidth: 2.5 }}
+              />
+            </>
+          ) : null}
+
+          {/* Decay : contour pointillé, muted red si urgent */}
+          {layers.crew && layers.decay ? (
+            <>
+              <LineLayer
+                id="hex-decay-stroke"
+                filter={FILTER_DECAY}
+                style={{ lineColor: ms.decayStroke, lineWidth: 1.6, lineDasharray: [2, 2] }}
+              />
+              <LineLayer
+                id="hex-decay-urgent"
+                filter={FILTER_DECAY_URGENT}
+                style={{
+                  lineColor: ms.decayUrgentStroke,
+                  lineWidth: 1.6,
+                  lineDasharray: [2, 2],
+                }}
+              />
+            </>
+          ) : null}
+
+          {/* Objectif crew (halo chartreuse) + avant-poste */}
+          {layers.missions ? (
+            <>
+              <FillLayer
+                id="hex-objective-fill"
+                filter={FILTER_OBJECTIVE}
+                style={{ fillColor: ms.objectiveHalo }}
+              />
+              <LineLayer
+                id="hex-objective-stroke"
+                filter={FILTER_OBJECTIVE}
+                style={{ lineColor: ms.objectiveStroke, lineWidth: 1.2 }}
+              />
+              <FillLayer
+                id="hex-outpost-fill"
+                filter={FILTER_OUTPOST}
+                style={{ fillColor: ms.outpostFill }}
+              />
+              <LineLayer
+                id="hex-outpost-stroke"
+                filter={FILTER_OUTPOST}
+                style={{ lineColor: ms.outpostStroke, lineWidth: 1.4 }}
+              />
+            </>
+          ) : null}
+        </ShapeSource>
+
+        {/* Route ouverte : ligne GPS chartreuse (doc §7) */}
+        {layers.routes ? (
+          <ShapeSource id="route" shape={routeShape}>
+            <LineLayer
+              id="route-line"
+              style={{ lineColor: ms.routeStroke, lineWidth: 2, lineCap: 'round' }}
+            />
+          </ShapeSource>
+        ) : null}
+
+        {/* Noms de secteurs discrets */}
+        <ShapeSource id="sectors" shape={sectorShape}>
+          <SymbolLayer
+            id="sector-labels"
+            style={{
+              textField: ['get', 'name'],
+              textSize: 11,
+              textColor: colors.gris,
+              textOpacity: 0.6,
+              textLetterSpacing: 0.2,
+            }}
           />
         </ShapeSource>
       </MapView>
 
-      {/* Chips overlay (saison, rang) — données factices Milestone 1 */}
-      <View style={[styles.topRow, { top: insets.top + 12 }]} pointerEvents="none">
-        <View style={styles.chip}>
-          <View style={styles.chipDot} />
-          <Text style={styles.chipText}>SAISON 0 · J12</Text>
-        </View>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>8ᵉ · {CITIES.paris.name.toUpperCase()}</Text>
-        </View>
-      </View>
-      <View
-        style={[
-          styles.statChipWrap,
-          { bottom: insets.bottom + NAV_BAR_BOTTOM + NAV_BAR_HEIGHT + STAT_CHIP_ABOVE_NAV },
-        ]}
-        pointerEvents="none"
-      >
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{mineCount} hex tenus</Text>
-        </View>
-      </View>
+      {/* Couche 4 : HUD gameplay partagé (saison/zone/rang, chips, feed, objectif) */}
+      <BattleMapOverlays
+        layers={layers}
+        onToggleLayer={toggleLayer}
+        summary={summary}
+        runMode={runMode}
+      />
     </View>
   );
 }
@@ -130,37 +294,6 @@ export function MapScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   map: { flex: 1 },
-  topRow: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statChipWrap: { position: 'absolute', left: 14 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: colors.carbone,
-    borderColor: colors.grisLigne,
-    borderWidth: 1,
-    borderRadius: radii.pill,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-  },
-  chipDot: {
-    width: 6,
-    height: 6,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse, // emploi §C.3 (4) : état « en direct »
-  },
-  chipText: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    letterSpacing: 0.7,
-    fontVariant: ['tabular-nums'],
-  },
 });
 
 export default MapScreen;

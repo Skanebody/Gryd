@@ -24,11 +24,15 @@ import Svg, {
 import { colors } from '@klaim/shared';
 import { BADGE_TIER_STYLE, type BadgeFamilyId, type BadgeTier } from './catalog';
 
-export type BadgeHexSize = 'sm' | 'md' | 'lg';
+export type BadgeHexSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type BadgeHexState = 'unlocked' | 'locked' | 'secretLocked';
 
-/** Tailles gelées : sm 40 (aperçu profil) · md 64 (grille) · lg 96 (détail). */
-const SIZES: Record<BadgeHexSize, number> = { sm: 40, md: 64, lg: 96 };
+/**
+ * Tailles gelées : xs 28 (inline/chips) · sm 40 (aperçu profil) · md 64
+ * (grille) · lg 96 (détail/cartes) · xl 128 (reveal plein écran). Variantes
+ * additives AMENDEMENT-08 — les usages sm/md/lg existants sont inchangés.
+ */
+const SIZES: Record<BadgeHexSize, number> = { xs: 28, sm: 40, md: 64, lg: 96, xl: 128 };
 
 const VIEWBOX = 100;
 const CENTER = VIEWBOX / 2;

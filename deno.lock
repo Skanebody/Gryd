@@ -153,6 +153,7 @@
             "npm:expo-auth-session@~6.0.3",
             "npm:expo-constants@~17.0.8",
             "npm:expo-crypto@~14.0.2",
+            "npm:expo-haptics@~14.0.1",
             "npm:expo-linking@~7.0.5",
             "npm:expo-location@~18.0.10",
             "npm:expo-router@4.0",

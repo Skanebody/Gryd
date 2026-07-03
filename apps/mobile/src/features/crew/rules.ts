@@ -24,11 +24,15 @@ import {
   PLAYER_LEVEL_XP_BASE,
   PLAYER_LEVEL_XP_RATIO,
   PLAYER_TIER_THRESHOLDS,
+  type BadgeTier,
   type CrewActivityStatus,
   type CrewChestTier,
   type CrewFrameTier,
+  type CrewRole,
+  type IconName,
   type PlayerTier,
 } from '@klaim/shared';
+import type { CrewRole as MemberCardRole } from '../../ui/game';
 
 /** Niveau crew (1..CREW_LEVEL_MAX) atteint pour une XP cumulée (§34.3). */
 export function crewLevelForXp(xp: number): number {
@@ -94,15 +98,32 @@ export function playerTierForLevel(level: number): PlayerTier {
   return tier;
 }
 
+/** État d'affichage du coffre hebdo (ChestCard) — dérivation UNIQUE partagée. */
+export interface CrewChestState {
+  /** Réclamable dès qu'UN palier est atteint (§39.2) — pas seulement à 100 %. */
+  state: 'claimable' | 'inprogress';
+  /** Plus haut palier atteint, null si aucun. */
+  tier: CrewChestTier | null;
+}
+
+/**
+ * Dérive l'état du coffre hebdo pour une progression `pct` (0..1+ de la cible).
+ * Source unique War Room / Crew HQ : le coffre est réclamable dès le premier
+ * palier atteint (§39.2), avec le palier correspondant.
+ */
+export function chestStateFor(pct: number): CrewChestState {
+  let tier: CrewChestTier | null = null;
+  for (const t of CREW_CHEST_TIER_ORDER) {
+    if (pct >= CREW_CHEST_TIERS[t]) tier = t;
+    else break;
+  }
+  return { state: tier !== null ? 'claimable' : 'inprogress', tier };
+}
+
 /** Plus haut palier de coffre atteint pour `progress` points pondérés (§39.2). */
 export function chestTierFor(progress: number): CrewChestTier | null {
   const pct = CREW_CHEST_WEEKLY_TARGET > 0 ? progress / CREW_CHEST_WEEKLY_TARGET : 0;
-  let reached: CrewChestTier | null = null;
-  for (const tier of CREW_CHEST_TIER_ORDER) {
-    if (pct >= CREW_CHEST_TIERS[tier]) reached = tier;
-    else break;
-  }
-  return reached;
+  return chestStateFor(pct).tier;
 }
 
 /** Statut de santé crew pour un score 0-100 (§45). */
@@ -135,13 +156,13 @@ export const WAR_AVAILABILITY_LABELS: Record<string, string> = {
   absent: 'Absent',
 };
 
-/** Nom FR de statut d'activité crew (§45). */
+/** Nom FR de statut d'activité crew (§45) — vocabulaire de jeu AMENDEMENT-08 §11. */
 export const ACTIVITY_STATUS_LABELS: Record<CrewActivityStatus, string> = {
   dormant: 'Dormant',
   casual: 'Casual',
   active: 'Active',
   competitive: 'Competitive',
-  war_ready: 'War Ready',
+  war_ready: 'Prêt guerre',
 };
 
 /** Nom FR de palier de coffre (§39.2). */
@@ -161,4 +182,40 @@ export const FRAME_TIER_LABELS: Record<string, string> = {
   carbon: 'Carbon',
   elite: 'Elite',
   legend: 'Legend',
+};
+
+/** Libellé de ligue affiché au header HQ (« Carbon League », doc §11). */
+export function leagueLabelFor(tier: BadgeTier): string {
+  return `${FRAME_TIER_LABELS[tier] ?? tier} League`;
+}
+
+/**
+ * Rôle shared (§36, `co_captain`) → rôle du composant MemberCard (`cocaptain`).
+ * Seule divergence de nommage entre le barème et le design system jeu.
+ */
+export function memberCardRole(role: CrewRole): MemberCardRole {
+  return role === 'co_captain' ? 'cocaptain' : role;
+}
+
+/**
+ * Habillage visuel des perks crew (§35.1) : icône filaire + rareté par clé.
+ * Pure présentation (les niveaux/effets restent dans CREW_PERKS shared) —
+ * rareté croissante avec le niveau requis, même logique que BadgeHex (§8.3).
+ */
+export const PERK_VISUALS: Record<string, { icon: IconName; rarity: BadgeTier }> = {
+  crew_marker: { icon: 'pin', rarity: 'road' },
+  badge_frame_1: { icon: 'crest', rarity: 'tempo' },
+  war_room_basic: { icon: 'guerre', rarity: 'race' },
+  weekly_crew_chest: { icon: 'coffre', rarity: 'race' },
+  outpost_slot_1: { icon: 'avantposte', rarity: 'carbon' },
+  scout_ping: { icon: 'scout', rarity: 'carbon' },
+  share_templates: { icon: 'partage', rarity: 'elite' },
+  badge_frame_carbon: { icon: 'crest', rarity: 'elite' },
+  war_banner: { icon: 'guerre', rarity: 'legend' },
+};
+
+/** Habillage par défaut d'un perk sans entrée dédiée (robustesse démo). */
+export const PERK_VISUAL_FALLBACK: { icon: IconName; rarity: BadgeTier } = {
+  icon: 'badge',
+  rarity: 'road',
 };

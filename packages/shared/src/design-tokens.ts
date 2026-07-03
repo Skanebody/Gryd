@@ -58,6 +58,30 @@ export const motion = {
   toastDismissMs: 2_500,
 } as const;
 
+/**
+ * AMENDEMENT-08 §2 — palette FONCTIONNELLE de jeu (Game UI « scènes de jeu »).
+ * Chaque couleur lit un ÉTAT DE JEU, jamais une décoration, jamais un CTA/nav
+ * générique (le CTA primaire reste la chartreuse, ton crew/action).
+ * Réutilise les couleurs de conflit AMENDEMENT-05 + 3 ajouts (verify/danger/carbon).
+ */
+export const gameColors = {
+  /** Ton crew / action / gain — la chartreuse unique de la charte. */
+  crew: colors.chartreuse,
+  /** Rival / attaque subie ou menée. */
+  rival: '#FF5C33',
+  /** Contesté / rare / événement. */
+  contested: '#8B5CF6',
+  /** Victoire / or / récompense de saison. */
+  gold: '#E7B84C',
+  /** GRYD Verify / info de confiance. */
+  verify: '#6FB7FF',
+  /** Danger / decay urgent (rouge éteint, jamais criard). */
+  danger: '#D64545',
+  /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre). */
+  carbon: '#101210',
+} as const;
+export type GameColorName = keyof typeof gameColors;
+
 /** 8 motifs de différenciation des crews adverses (addendum §D). */
 export const foePatterns = [
   'hatch45', 'hatch-45', 'dots', 'crosshatch', 'vlines', 'hlines', 'dashes', 'rings',

@@ -1,77 +1,136 @@
 /**
- * GRYD — catalogue des sources connectées (AMENDEMENT-06 §4, doc v3 §16).
- * Liste EXACTE + états + textes par source repris du doc §16. UI réelle, mais
- * connexions non câblées (TODO(O2) OAuth/HealthKit/Health Connect). Aucune
- * valeur de jeu ici — c'est de la donnée d'affichage. L'ordre suit la priorité
- * §12 (P0 GPS/Apple/Health Connect, puis P1 Strava/Garmin/WHOOP).
+ * GRYD — catalogue du GRYD VERIFY HUB (AMENDEMENT-08 §10, doc §21 ; remplace
+ * la liste « settings » AMENDEMENT-06 §4). Les 10 sources doc §21 avec statut,
+ * trust level, rôle des données et éligibilité capture vs stats only — le
+ * format attendu par `SourceTrustCard`. UI réelle, connexions non câblées
+ * (TODO(O2) OAuth/HealthKit/Health Connect) : les statuts sont des données de
+ * DÉMO locales, aucune valeur de jeu ici.
  */
+import type { IconName } from '@klaim/shared';
+import type { SourceStatus, SourceTrust } from '../../ui/game';
 
-/** État d'une source (§16). Pilote le libellé et l'action du bouton. */
-export type SourceState =
-  | 'active' // GRYD Live GPS — Actif (source native, toujours là)
-  | 'connected' // déjà connecté (Apple Health)
-  | 'connect' // connectable maintenant (Health Connect, Strava, WHOOP)
-  | 'soon'; // pas encore dispo (Garmin — Bientôt)
-
-export interface SourceDef {
+export interface VerifySourceDef {
   key: string;
   name: string;
-  state: SourceState;
-  /** Libellé d'état affiché (droite du nom), repris du doc §16. */
-  stateLabel: string;
-  /** Texte descriptif par source (§16). */
-  desc: string;
-  /** Peut capturer du territoire (après vérification) — sinon performance seule. */
-  canCapture: boolean;
+  /** Icône filaire de la source (gps pour le Live GPS, lien sinon). */
+  icon: IconName;
+  /** Statut de connexion DÉMO (`SourceTrustCard`). */
+  status: SourceStatus;
+  /** Niveau de confiance GRYD Verify (élevé = montre/GPS natif, moyen = import). */
+  trust: SourceTrust;
+  /** Rôle des données (« courses, pas, cadence »). */
+  role: string;
+  /** Éligibilité : capture après vérification, ou stats uniquement. */
+  capture: 'verified' | 'statsonly';
+  /** CTA (« Connecter » / « Gérer ») — absent pour la source native toujours là. */
+  actionLabel?: string;
 }
 
-export const SOURCES: readonly SourceDef[] = [
+/**
+ * Ordre doc §21 : natif d'abord, puis santé OS, puis plateformes, puis montres.
+ * Trust élevé = signal GPS/capteur direct ; moyen = import de plateforme ou
+ * données bien-être. Seules les sources « verified » peuvent capturer — et
+ * uniquement après passage par GRYD Verify.
+ */
+export const VERIFY_SOURCES: readonly VerifySourceDef[] = [
   {
     key: 'gryd_live',
     name: 'GRYD Live GPS',
-    state: 'active',
-    stateLabel: 'Actif',
-    desc: 'La source native GRYD. Trace GPS + Motion vérifiées en direct — capture éligible.',
-    canCapture: true,
+    icon: 'gps',
+    status: 'connected',
+    trust: 'high',
+    role: 'trace GPS + Motion en direct',
+    capture: 'verified',
+    // Source native : toujours active, pas de bouton connecter/déconnecter.
   },
   {
     key: 'apple_health',
     name: 'Apple Health',
-    state: 'connected',
-    stateLabel: 'Connecté',
-    desc: 'Importe tes courses, pas, cadence et données Apple Watch.',
-    canCapture: true,
+    icon: 'lien',
+    status: 'connected',
+    trust: 'high',
+    role: 'courses, pas, cadence',
+    capture: 'verified',
+    actionLabel: 'Gérer',
   },
   {
     key: 'health_connect',
     name: 'Health Connect',
-    state: 'connect',
-    stateLabel: 'Non connecté',
-    desc: 'Importe tes activités Android (Health Connect) et les apps compatibles.',
-    canCapture: true,
+    icon: 'lien',
+    status: 'disconnected',
+    trust: 'high',
+    role: 'activités Android compatibles',
+    capture: 'verified',
+    actionLabel: 'Connecter',
   },
   {
     key: 'strava',
     name: 'Strava',
-    state: 'connect',
-    stateLabel: 'Connecter',
-    desc: 'Importe tes courses Strava. Elles doivent passer GRYD Verify pour capturer.',
-    canCapture: true,
+    icon: 'route',
+    status: 'disconnected',
+    trust: 'medium',
+    role: 'courses importées',
+    capture: 'verified',
+    actionLabel: 'Connecter',
   },
   {
     key: 'garmin',
     name: 'Garmin',
-    state: 'soon',
-    stateLabel: 'Bientôt',
-    desc: 'Importe tes activités Garmin. Les courses éligibles peuvent capturer après vérification.',
-    canCapture: true,
+    icon: 'radar',
+    status: 'disconnected',
+    trust: 'high',
+    role: 'courses montre, FC, cadence',
+    capture: 'verified',
+    actionLabel: 'Connecter',
   },
   {
     key: 'whoop',
     name: 'WHOOP',
-    state: 'connect',
-    stateLabel: 'Connecter pour Score Forme',
-    desc: 'Ajoute récupération, strain et sommeil à ton Score Forme. Ne capture pas de territoire.',
-    canCapture: false,
+    icon: 'performance',
+    status: 'disconnected',
+    trust: 'medium',
+    role: 'récupération, strain, sommeil',
+    capture: 'statsonly',
+    actionLabel: 'Connecter',
+  },
+  {
+    key: 'fitbit',
+    name: 'Fitbit',
+    icon: 'performance',
+    status: 'disconnected',
+    trust: 'medium',
+    role: 'pas, sommeil, FC',
+    capture: 'statsonly',
+    actionLabel: 'Connecter',
+  },
+  {
+    key: 'polar',
+    name: 'Polar',
+    icon: 'radar',
+    status: 'disconnected',
+    trust: 'high',
+    role: 'courses montre, FC',
+    capture: 'verified',
+    actionLabel: 'Connecter',
+  },
+  {
+    key: 'coros',
+    name: 'Coros',
+    icon: 'radar',
+    status: 'disconnected',
+    trust: 'high',
+    role: 'courses montre, allure',
+    capture: 'verified',
+    actionLabel: 'Connecter',
+  },
+  {
+    key: 'suunto',
+    name: 'Suunto',
+    icon: 'radar',
+    status: 'disconnected',
+    trust: 'high',
+    role: 'courses montre, altitude',
+    capture: 'verified',
+    actionLabel: 'Connecter',
   },
 ];

@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { SessionProvider } from '../src/lib/session';
+import { ErrorBoundary } from '../src/ui/ErrorBoundary';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -20,7 +21,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SessionProvider>
         <StatusBar style="light" />
-        <Stack
+        {/* Boundary global brandé (AMENDEMENT-08 §0) : plus jamais d'écran d'erreur brut. */}
+        <ErrorBoundary>
+          <Stack
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: colors.noir },
@@ -45,7 +48,8 @@ export default function RootLayout() {
           <Stack.Screen name="challenges/index" />
           <Stack.Screen name="challenges/[id]" />
           <Stack.Screen name="settings-motivation" />
-        </Stack>
+          </Stack>
+        </ErrorBoundary>
       </SessionProvider>
     </SafeAreaProvider>
   );

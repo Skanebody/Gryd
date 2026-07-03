@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, radii } from '@klaim/shared';
+import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 import {
   CREW_REACTIONS,
@@ -30,6 +31,7 @@ export function ReactionBar({ initial }: ReactionBarProps) {
   );
 
   const react = (key: CrewReactionKey) => {
+    haptics.light(); // réaction = haptic léger (doc §13, grammaire §25)
     setCounts((c) => ({ ...c, [key]: (c[key] ?? 0) + 1 }));
     setOpen(false);
   };

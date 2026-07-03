@@ -230,6 +230,107 @@ export const ICONS = {
     paths: ['M4 17.5V9l4.5 3.5L12 5l3.5 7.5L20 9v8.5H4z', 'M12 5V3'],
     fillable: true,
   },
+
+  // ─── AMENDEMENT-08 : Game UI « scènes de jeu » (ADDITIF, doc §26) ───────────
+  // NB : le podium existe déjà (`classement`), le coffre (`coffre`), le
+  // bouclier (`bouclier`), la couronne (`couronne`), la cible (`cible`).
+  /** Crest — blason hexagonal de crew (écusson + pointe). */
+  crest: {
+    paths: ['M12 2.5l8 4.6v9.3L12 21.5l-8-5.1V7.1l8-4.6z', 'M8.5 9.5 12 11.8l3.5-2.3', 'M12 11.8v5'],
+    fillable: true,
+  },
+  /** Médaille — ruban + disque coché (récompense de ligue). */
+  medaille: {
+    paths: [
+      'M8 3l2.6 5.3', 'M16 3l-2.6 5.3',
+      'M12 18.5a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
+      'M10 13.5l1.5 1.5 2.5-3',
+    ],
+  },
+  /** Raid — flèches croisées (offensive). */
+  raid: { paths: ['M5 19 19 5', 'M14.5 5H19v4.5', 'M5 5l14 14', 'M19 14.5V19h-4.5'] },
+  /** Scout — boussole, aiguille pointée. */
+  scout: {
+    paths: [
+      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+      'M15.5 8.5l-2 5-5 2 2-5 5-2z',
+    ],
+  },
+  /** Radar — balayage + écho (détection de zone). */
+  radar: {
+    paths: [
+      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+      'M12 16.5a4.5 4.5 0 1 1 4.5-4.5',
+      'M12 12l5.5-5.5',
+      'M12 12v.01',
+    ],
+  },
+  /** Sablier — decay / temps restant. */
+  sablier: {
+    paths: [
+      'M7 3h10', 'M7 21h10',
+      'M8.5 3v2.3c0 2.6 3.5 3.9 3.5 6.7 0 2.8-3.5 4.1-3.5 6.7V21',
+      'M15.5 3v2.3c0 2.6-3.5 3.9-3.5 6.7 0 2.8 3.5 4.1 3.5 6.7V21',
+    ],
+  },
+  /** GPS — croix de visée + point fixe (signal de position). */
+  gps: {
+    paths: [
+      'M12 18.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z',
+      'M12 2.5V5', 'M12 19v2.5', 'M2.5 12H5', 'M19 12h2.5',
+      'M12 12v.01',
+    ],
+  },
+  /** Route — tracé en S vers une flèche (route ouverte). */
+  route: {
+    paths: ['M4 19.5h9a3.5 3.5 0 0 0 0-7h-2a3.5 3.5 0 0 1 0-7h8', 'M16 2.5 19 5.5 16 8.5'],
+  },
+  /** Avant-poste — fanion planté. */
+  avantposte: {
+    paths: ['M7 21V3.5', 'M7 4.5h9.5L14 8l2.5 3.5H7', 'M4 21h6'],
+  },
+  /** Éclats — gemme facettée (monnaie premium capée). */
+  eclats: {
+    paths: ['M7.5 4h9L20 9l-8 11L4 9l3.5-5z', 'M4 9h16', 'M9.5 4 8.5 9l3.5 11', 'M14.5 4l1 5L12 20'],
+  },
+  /** Foulées — chaussure de course (monnaie d'effort). */
+  foulees: {
+    paths: [
+      'M3 17.5h18',
+      'M3 17.5v-1.8c0-1 .6-1.9 1.6-2.2L9 12.2l2-4.2c1.5 2 3.1 3.1 5.6 3.7 2.4.6 4.4 1.9 4.4 3.8v2',
+      'M10.7 12.6l1.6-1.1', 'M12.7 14.2l1.6-1.1',
+    ],
+  },
+  /** Pass — ticket perforé (Pass Saison). */
+  pass: {
+    paths: [
+      'M4.5 7h15A1.5 1.5 0 0 1 21 8.5v7a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 15.5v-7A1.5 1.5 0 0 1 4.5 7z',
+      'M15.5 7v1.8', 'M15.5 11v2', 'M15.5 15.2V17',
+    ],
+  },
+  /** Skin — palette (style, jamais l'avantage). */
+  skin: {
+    paths: [
+      'M12 21a9 9 0 1 1 9-9c0 1.9-1.3 3-3 3h-2.2a2 2 0 0 0-1.6 3.2c.9 1.2.3 2.8-2.2 2.8z',
+      'M8 10.5v.01', 'M12 7.5v.01', 'M16 10.5v.01',
+    ],
+  },
+  /** Cadeau — boîte à ruban (récompense offerte). */
+  cadeau: {
+    paths: [
+      'M5 11.5h14V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8.5z',
+      'M4 8h16v3.5H4z', 'M12 8v13',
+      'M12 8C8.5 8 7 6.8 7 5.5S8.2 3 9.5 3 12 5.3 12 8z',
+      'M12 8c3.5 0 5-1.2 5-2.5S15.8 3 14.5 3 12 5.3 12 8z',
+    ],
+  },
+  /** Niveau — double chevron montant (level up). */
+  niveau: { paths: ['M6 17.5l6-6 6 6', 'M6 11l6-6 6 6'] },
+  /** Guerre — étendard planté (war ready / offensive de crew). */
+  guerre: {
+    paths: ['M7 21V3', 'M7 4.5h10.5V12l-3.4-1.7L10.7 12 7 10.3', 'M4.5 21h5'],
+    fillable: true,
+  },
 } as const satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

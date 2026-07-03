@@ -24,6 +24,13 @@ export interface FriendDemo {
   reason?: string;
   /** Ami déjà dans MON crew → on masque le bouton « Inviter au crew ». */
   inMyCrew?: boolean;
+  /**
+   * Dispo courte de jeu (« Dispo défense », « Dispo guerre » — AMENDEMENT-08
+   * §8, doc §19). Jamais de formulation négative (anti-shame).
+   */
+  availability?: string;
+  /** Runs cette semaine (absent = non partagé — privacy/mode discret). */
+  runsThisWeek?: number;
 }
 
 /** Profil renforcé de l'utilisateur (§8) — cohérent avec profil.tsx / crew demo. */
@@ -55,12 +62,12 @@ export const MY_SOCIAL_PROFILE = {
  * plusieurs tiers d'avatar.
  */
 export const FRIENDS: readonly FriendDemo[] = [
-  { handle: 'lena_run', displayName: 'LENA_RUN', city: 'Paris', xp: 3800, crewTag: '9³', state: 'accepted', inMyCrew: true },
-  { handle: 'molokai', displayName: 'MOLOKAÏ', city: 'Paris', xp: 5200, crewTag: '9³', state: 'accepted', inMyCrew: true },
-  { handle: 'pacer20e', displayName: 'PACER·20E', city: 'Paris', xp: 2100, crewTag: '9³', state: 'accepted', inMyCrew: true },
-  { handle: 'nadia.k', displayName: 'NADIA.K', city: 'Lille', xp: 6400, crewTag: 'N11', state: 'accepted' },
-  { handle: 'yanis_ep', displayName: 'YANIS_EP', city: 'Paris', xp: 900, state: 'accepted' },
-  { handle: 'sofia.trail', displayName: 'SOFIA.TRAIL', city: 'Dieppe', xp: 11_800, crewTag: 'PDC', state: 'accepted' },
+  { handle: 'lena_run', displayName: 'LENA_RUN', city: 'Paris', xp: 3800, crewTag: '9³', state: 'accepted', inMyCrew: true, availability: 'Dispo défense', runsThisWeek: 3 },
+  { handle: 'molokai', displayName: 'MOLOKAÏ', city: 'Paris', xp: 5200, crewTag: '9³', state: 'accepted', inMyCrew: true, availability: 'Dispo guerre', runsThisWeek: 5 },
+  { handle: 'pacer20e', displayName: 'PACER·20E', city: 'Paris', xp: 2100, crewTag: '9³', state: 'accepted', inMyCrew: true, availability: 'Dispo défense', runsThisWeek: 2 },
+  { handle: 'nadia.k', displayName: 'NADIA.K', city: 'Lille', xp: 6400, crewTag: 'N11', state: 'accepted', availability: 'Exploration', runsThisWeek: 4 },
+  { handle: 'yanis_ep', displayName: 'YANIS_EP', city: 'Paris', xp: 900, state: 'accepted', runsThisWeek: 1 },
+  { handle: 'sofia.trail', displayName: 'SOFIA.TRAIL', city: 'Dieppe', xp: 11_800, crewTag: 'PDC', state: 'accepted', availability: 'Dispo guerre', runsThisWeek: 6 },
 
   { handle: 'theo_canal', displayName: 'THEO_CANAL', city: 'Paris', xp: 4700, crewTag: 'CAN', state: 'incoming', reason: '2 amis en commun' },
   { handle: 'maya.pdc', displayName: 'MAYA.PDC', city: 'Rouen', xp: 1500, state: 'incoming', reason: 'Scanné ton QR' },

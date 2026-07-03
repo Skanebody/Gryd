@@ -1,43 +1,87 @@
 /**
- * GRYD — écran Carte, variante WEB (aperçu navigateur, Xcode indisponible).
- * Metro résout `.web.tsx` avant `.tsx` sur la cible web : MapLibre (natif-only)
- * n'est JAMAIS importé ici. Même UI que la version native (chips saison/rang,
- * fond noir, chip « hex tenus »), mais la carte est dessinée en react-native-svg
- * à partir du MÊME jeu factice (fakeHexesGeoJSON) — rendu égocentré 3 états :
- *   mine    = chartreuse 14 % + contour 40 %
- *   foe     = blanc 6 % + contour 22 %
- *   neutral = contour blanc 5 % seul
+ * GRYD — BATTLE MAP, variante WEB (aperçu navigateur — cible visuelle
+ * prioritaire AMENDEMENT-08 §4, doc §7). Metro résout `.web.tsx` avant `.tsx`
+ * sur la cible web : MapLibre (natif-only) n'est JAMAIS importé ici.
+ * 4 couches, toutes dessinées à partir du MÊME jeu démo (battleMapData) :
+ *   1. basemap urbaine stylisée SUBTILE (Seine/canal, parcs, axes, noms de
+ *      secteurs discrets) — SVG, pas une carte Google ;
+ *   2. hex grid (contours neutres) ;
+ *   3. ownership/états de jeu : crew (chartreuse+glow), rival (orange sombre),
+ *      contesté (double contour + pulse), protégé (shield+halo), decay
+ *      (pointillé + sablier, muted red si urgent), objectif (pin+halo),
+ *      avant-poste (marker), route ouverte (ligne chartreuse) ;
+ *   4. HUD (BattleMapOverlays : bandeau saison/zone/rang, chips layers,
+ *      mini war feed, bandeau objectif crew).
+ * Animations RN Animated core : vague de capture au mount (useReveal), pulse
+ * des hexes contestés (usePulse) — reduce motion respecté par les hooks.
  * Le CTA COURIR reste rendu par le layout (tabs) — pas de doublon ici.
  * Track EVENTS.mapLoadMs comme l'original (au montage).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
-import { CITIES, colors, fontSizes, mapTokens, radii } from '@klaim/shared';
+import { Animated, LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import { CITIES, colors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
-import { NAV_BAR_BOTTOM, NAV_BAR_HEIGHT } from '../nav/metrics';
-import { countMine, fakeHexesGeoJSON, type HexState } from './fakeHexes';
-
-/** Chip « hex tenus » posée au-dessus de la nav flottante (maquette : bottom 118). */
-const STAT_CHIP_ABOVE_NAV = 42;
+import { Icon } from '../../ui/Icon';
+import { usePulse, useReveal } from '../../ui/game';
+import { deriveRunButtonMode } from '../nav/runContext';
+import { AXES, CANAL, PARKS, SECTOR_LABELS, SEINE, type LatLngPoint } from './basemap';
+import {
+  BattleMapOverlays,
+  DEFAULT_MAP_LAYERS,
+  type MapLayerKey,
+} from './BattleMapOverlays';
+import { battleMapData, battleMapSummary, type HexState } from './fakeHexes';
+import { battleMapStyle as ms } from './mapStyle';
 
 /** Facteur d'échelle : approxime le zoom natif (HOME_ZOOM = 13) — marge autour du cluster. */
 const FIT_PADDING = 0.08;
+/** Cadence du pulse des hexes contestés (UI). */
+const CONTESTED_PULSE_MS = 1_600;
+/** Un point de liaison de route tous les N sommets (doc §7 « points de liaison »). */
+const ROUTE_DOT_EVERY = 3;
+/** Taille des markers d'état posés sur la carte. */
+const MARKER_SIZE = 18;
 
-interface ProjectedHex {
+interface XY {
+  x: number;
+  y: number;
+}
+
+interface SceneHex {
   key: string;
   state: HexState;
+  urgent: boolean;
   d: string;
 }
 
+interface SceneMarker extends XY {
+  key: string;
+}
+
+interface Scene {
+  hexes: SceneHex[];
+  seineD: string;
+  canalD: string;
+  parksD: string[];
+  axesD: string[];
+  labels: { name: string; x: number; y: number }[];
+  routeD: string;
+  routeDots: XY[];
+  shield: XY;
+  objectivePin: XY;
+  outpostMarker: XY;
+  urgentMarkers: SceneMarker[];
+}
+
 /**
- * Projette les hexes (lng/lat) en un chemin SVG dans un repère width×height.
+ * Projette hexes + basemap + points (lng/lat) dans un repère width×height.
  * Projection équirectangulaire locale (corrigée en longitude par cos(lat)) —
- * suffisante à l'échelle d'un quartier pour un aperçu fidèle à l'écran 01.
+ * suffisante à l'échelle d'un quartier. Les bornes viennent des hexes seuls
+ * (stables) ; la basemap déborde et se fait rogner par le Svg.
  */
-function projectHexes(width: number, height: number): { hexes: ProjectedHex[] } {
-  const collection = fakeHexesGeoJSON();
+function buildScene(width: number, height: number): Scene {
+  const { collection, points } = battleMapData();
   const lat0 = CITIES.paris.center.lat;
   const cosLat = Math.cos((lat0 * Math.PI) / 180);
 
@@ -46,14 +90,11 @@ function projectHexes(width: number, height: number): { hexes: ProjectedHex[] } 
   let minY = Infinity;
   let maxY = -Infinity;
 
-  // 1er passage : bornes en coordonnées planes (x = lng·cosLat, y = -lat).
   for (const f of collection.features) {
     const ring = f.geometry.coordinates[0] ?? [];
     for (const pt of ring) {
-      const lng = pt[0] ?? 0;
-      const lat = pt[1] ?? 0;
-      const x = lng * cosLat;
-      const y = -lat;
+      const x = (pt[0] ?? 0) * cosLat;
+      const y = -(pt[1] ?? 0);
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
@@ -71,38 +112,55 @@ function projectHexes(width: number, height: number): { hexes: ProjectedHex[] } 
   const offsetX = (width - spanX * scale) / 2;
   const offsetY = (height - spanY * scale) / 2;
 
-  const toXY = (lng: number, lat: number): [number, number] => {
-    const px = (lng * cosLat - minX) * scale + offsetX;
-    const py = (-lat - minY) * scale + offsetY;
-    return [px, py];
+  const toXY = (lng: number, lat: number): XY => ({
+    x: (lng * cosLat - minX) * scale + offsetX,
+    y: (-lat - minY) * scale + offsetY,
+  });
+  const pointXY = (p: LatLngPoint): XY => toXY(p.lng, p.lat);
+  const lineD = (pts: readonly LatLngPoint[], close = false): string => {
+    const d = pts
+      .map((p, i) => {
+        const { x, y } = pointXY(p);
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
+      })
+      .join(' ');
+    return close ? `${d} Z` : d;
   };
 
-  const hexes: ProjectedHex[] = collection.features.map((f) => {
+  const hexes: SceneHex[] = collection.features.map((f) => {
     const ring = f.geometry.coordinates[0] ?? [];
     const d =
       ring
         .map((pt, i) => {
-          const [px, py] = toXY(pt[0] ?? 0, pt[1] ?? 0);
-          return `${i === 0 ? 'M' : 'L'}${px.toFixed(2)} ${py.toFixed(2)}`;
+          const { x, y } = toXY(pt[0] ?? 0, pt[1] ?? 0);
+          return `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
         })
         .join(' ') + ' Z';
-    return { key: f.properties.h3, state: f.properties.state, d };
+    return { key: f.properties.h3, state: f.properties.state, urgent: f.properties.urgent, d };
   });
 
-  return { hexes };
+  return {
+    hexes,
+    seineD: lineD(SEINE),
+    canalD: lineD(CANAL),
+    parksD: PARKS.map((ring) => lineD(ring, true)),
+    axesD: AXES.map((axis) => lineD(axis)),
+    labels: SECTOR_LABELS.map((s) => ({ name: s.name, ...toXY(s.lng, s.lat) })),
+    routeD: lineD(points.route),
+    routeDots: points.route.filter((_, i) => i % ROUTE_DOT_EVERY === 0).map(pointXY),
+    shield: pointXY(points.protectedCenter),
+    objectivePin: pointXY(points.objectiveCenter),
+    outpostMarker: pointXY(points.outpost),
+    urgentMarkers: points.urgentDecay.map((p, i) => ({ key: `urgent-${i}`, ...pointXY(p) })),
+  };
 }
 
-/** Styles de tracé par état (mêmes tokens que les LineLayer/FillLayer natifs). */
-const HEX_STYLE: Record<HexState, { fill: string; stroke: string; strokeWidth: number }> = {
-  mine: { fill: mapTokens.mineFill, stroke: mapTokens.mineStroke, strokeWidth: 1.4 },
-  foe: { fill: mapTokens.foeFill, stroke: mapTokens.foeStroke, strokeWidth: 1 },
-  neutral: { fill: 'transparent', stroke: mapTokens.neutralStroke, strokeWidth: 1 },
-};
-
 export function MapScreen() {
-  const insets = useSafeAreaInsets();
-  const mineCount = useMemo(() => countMine(fakeHexesGeoJSON()), []);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [layers, setLayers] = useState(DEFAULT_MAP_LAYERS);
+
+  const summary = useMemo(() => battleMapSummary(battleMapData().collection), []);
+  const runMode = useMemo(() => deriveRunButtonMode(), []);
 
   // map_load_ms (§8) — du montage au premier rendu de la carte (parité native).
   const mountedAtRef = useRef<number>(Date.now());
@@ -113,6 +171,12 @@ export function MapScreen() {
     track(EVENTS.mapLoadMs, { ms: Date.now() - mountedAtRef.current });
   }, []);
 
+  // Vague de capture légère au mount (reduce motion → fade court via le hook).
+  const reveal = useReveal(true);
+  // Pulse des hexes contestés : le contour rival respire (reduce motion → fixe).
+  const pulse = usePulse(layers.rivals, 1.06, CONTESTED_PULSE_MS);
+  const pulseOpacity = pulse.interpolate({ inputRange: [1, 1.06], outputRange: [1, 0.25] });
+
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setSize((prev) =>
@@ -120,100 +184,241 @@ export function MapScreen() {
     );
   };
 
-  const projected = useMemo(
-    () => (size ? projectHexes(size.w, size.h) : null),
-    [size],
+  const scene = useMemo(() => (size ? buildScene(size.w, size.h) : null), [size]);
+
+  const toggleLayer = (key: MapLayerKey) =>
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const held = scene?.hexes.filter(
+    (h) => h.state === 'mine' || h.state === 'protected' || h.state === 'decay',
   );
+  const contested = scene?.hexes.filter((h) => h.state === 'contested');
 
   return (
     <View style={styles.root}>
       <View style={styles.map} onLayout={onLayout}>
-        {size && projected ? (
-          <Svg width={size.w} height={size.h}>
-            {/* neutral d'abord (contour discret), puis foe, puis mine au-dessus */}
-            {projected.hexes
-              .slice()
-              .sort((a, b) => order(a.state) - order(b.state))
-              .map((h) => {
-                const s = HEX_STYLE[h.state];
-                return (
-                  <Path
-                    key={h.key}
-                    d={h.d}
-                    fill={s.fill}
-                    stroke={s.stroke}
-                    strokeWidth={s.strokeWidth}
-                  />
-                );
-              })}
-          </Svg>
+        {size && scene ? (
+          <>
+            {/* ── Couche 1 : basemap urbaine stylisée subtile ─────────── */}
+            <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill}>
+              <Path d={scene.seineD} stroke={ms.waterRim} strokeWidth={24} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <Path d={scene.seineD} stroke={ms.water} strokeWidth={20} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <Path d={scene.canalD} stroke={ms.waterRim} strokeWidth={8} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <Path d={scene.canalD} stroke={ms.water} strokeWidth={5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              {scene.parksD.map((d, i) => (
+                <Path key={`park-${i}`} d={d} fill={ms.parks} stroke="none" />
+              ))}
+              {scene.axesD.map((d, i) => (
+                <Path key={`axis-${i}`} d={d} stroke={ms.roads} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+              ))}
+              {scene.labels.map((l) => (
+                <SvgText
+                  key={l.name}
+                  x={l.x}
+                  y={l.y}
+                  fill={ms.sectorLabel}
+                  opacity={0.55}
+                  fontSize={10}
+                  fontWeight="600"
+                  letterSpacing={2}
+                  textAnchor="middle"
+                >
+                  {l.name}
+                </SvgText>
+              ))}
+            </Svg>
+
+            {/* ── Couche 2 : hex grid neutre ───────────────────────────── */}
+            <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill}>
+              {scene.hexes
+                .filter((h) => h.state === 'neutral')
+                .map((h) => (
+                  <Path key={h.key} d={h.d} fill="transparent" stroke={ms.neutralStroke} strokeWidth={1} />
+                ))}
+            </Svg>
+
+            {/* ── Couche 3 : ownership/états — vague de capture au mount ─ */}
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                { opacity: reveal.opacity, transform: [{ scale: reveal.scale }] },
+              ]}
+              pointerEvents="none"
+            >
+              <Svg width={size.w} height={size.h}>
+                {/* Rival (orange sombre) + contesté (double contour) */}
+                {layers.rivals
+                  ? scene.hexes
+                      .filter((h) => h.state === 'foe')
+                      .map((h) => (
+                        <Path key={h.key} d={h.d} fill={ms.rivalFill} stroke={ms.rivalStroke} strokeWidth={1} />
+                      ))
+                  : null}
+                {layers.rivals && contested
+                  ? contested.map((h) => (
+                      <Path
+                        key={h.key}
+                        d={h.d}
+                        fill={ms.contestedFill}
+                        stroke={ms.contestedInnerStroke}
+                        strokeWidth={1.4}
+                      />
+                    ))
+                  : null}
+
+                {/* Mon crew : glow léger sous le trait chartreuse */}
+                {layers.crew && held
+                  ? held.map((h) => (
+                      <Path key={`glow-${h.key}`} d={h.d} fill="none" stroke={ms.heldGlow} strokeWidth={5} />
+                    ))
+                  : null}
+                {layers.crew && held
+                  ? held.map((h) => (
+                      <Path
+                        key={h.key}
+                        d={h.d}
+                        fill={layers.decay && h.state === 'decay' && h.urgent ? ms.decayUrgentFill : ms.heldFill}
+                        stroke={ms.heldStroke}
+                        strokeWidth={1.4}
+                      />
+                    ))
+                  : null}
+                {/* Protégé : halo verify autour du cœur */}
+                {layers.crew
+                  ? scene.hexes
+                      .filter((h) => h.state === 'protected')
+                      .map((h) => (
+                        <Path key={`halo-${h.key}`} d={h.d} fill="none" stroke={ms.protectedHalo} strokeWidth={2.5} />
+                      ))
+                  : null}
+                {/* Decay : contour pointillé (muted red si urgent) */}
+                {layers.crew && layers.decay
+                  ? scene.hexes
+                      .filter((h) => h.state === 'decay')
+                      .map((h) => (
+                        <Path
+                          key={`decay-${h.key}`}
+                          d={h.d}
+                          fill="none"
+                          stroke={h.urgent ? ms.decayUrgentStroke : ms.decayStroke}
+                          strokeWidth={1.6}
+                          strokeDasharray="3 3"
+                        />
+                      ))
+                  : null}
+
+                {/* Objectif crew : halo chartreuse sur zone neutre */}
+                {layers.missions
+                  ? scene.hexes
+                      .filter((h) => h.state === 'objective')
+                      .map((h) => (
+                        <Path key={h.key} d={h.d} fill={ms.objectiveHalo} stroke={ms.objectiveStroke} strokeWidth={1.2} />
+                      ))
+                  : null}
+                {/* Avant-poste */}
+                {layers.missions
+                  ? scene.hexes
+                      .filter((h) => h.state === 'outpost')
+                      .map((h) => (
+                        <Path key={h.key} d={h.d} fill={ms.outpostFill} stroke={ms.outpostStroke} strokeWidth={1.4} />
+                      ))
+                  : null}
+
+                {/* Route ouverte : ligne GPS chartreuse + points de liaison */}
+                {layers.routes ? (
+                  <>
+                    <Path d={scene.routeD} fill="none" stroke={ms.routeStroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    {scene.routeDots.map((p, i) => (
+                      <Circle key={`route-dot-${i}`} cx={p.x} cy={p.y} r={2.5} fill={ms.routeDot} />
+                    ))}
+                  </>
+                ) : null}
+              </Svg>
+            </Animated.View>
+
+            {/* ── Pulse des hexes contestés (contour rival qui respire) ── */}
+            {layers.rivals && contested && contested.length > 0 ? (
+              <Animated.View
+                style={[StyleSheet.absoluteFill, { opacity: pulseOpacity }]}
+                pointerEvents="none"
+              >
+                <Svg width={size.w} height={size.h}>
+                  {contested.map((h) => (
+                    <Path key={h.key} d={h.d} fill="none" stroke={ms.contestedOuterStroke} strokeWidth={2.5} />
+                  ))}
+                </Svg>
+              </Animated.View>
+            ) : null}
+
+            {/* ── Markers d'état (icônes @klaim/shared) ─────────────────── */}
+            {layers.crew ? (
+              <Marker x={scene.shield.x} y={scene.shield.y} icon="bouclier" />
+            ) : null}
+            {layers.crew && layers.decay
+              ? scene.urgentMarkers.map((m) => (
+                  <Marker key={m.key} x={m.x} y={m.y} icon="sablier" danger />
+                ))
+              : null}
+            {layers.missions ? (
+              <>
+                <Marker x={scene.objectivePin.x} y={scene.objectivePin.y} icon="pin" crew />
+                <Marker x={scene.outpostMarker.x} y={scene.outpostMarker.y} icon="avantposte" />
+              </>
+            ) : null}
+          </>
         ) : null}
       </View>
 
-      {/* Chips overlay (saison, rang) — données factices Milestone 1 */}
-      <View style={[styles.topRow, { top: insets.top + 12 }]} pointerEvents="none">
-        <View style={styles.chip}>
-          <View style={styles.chipDot} />
-          <Text style={styles.chipText}>SAISON 0 · J12</Text>
-        </View>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>8ᵉ · {CITIES.paris.name.toUpperCase()}</Text>
-        </View>
-      </View>
-      <View
-        style={[
-          styles.statChipWrap,
-          { bottom: insets.bottom + NAV_BAR_BOTTOM + NAV_BAR_HEIGHT + STAT_CHIP_ABOVE_NAV },
-        ]}
-        pointerEvents="none"
-      >
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{mineCount} hex tenus</Text>
-        </View>
-      </View>
+      {/* ── Couche 4 : HUD gameplay ─────────────────────────────────────── */}
+      <BattleMapOverlays
+        layers={layers}
+        onToggleLayer={toggleLayer}
+        summary={summary}
+        runMode={runMode}
+      />
     </View>
   );
 }
 
-/** Ordre de peinture : neutral (0) < foe (1) < mine (2). */
-function order(state: HexState): number {
-  return state === 'neutral' ? 0 : state === 'foe' ? 1 : 2;
+/** Icône d'état posée sur la carte (shield/sablier/pin/avant-poste). */
+function Marker({
+  x,
+  y,
+  icon,
+  crew = false,
+  danger = false,
+}: {
+  x: number;
+  y: number;
+  icon: 'bouclier' | 'sablier' | 'pin' | 'avantposte';
+  crew?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.marker, { left: x - MARKER_SIZE / 2, top: y - MARKER_SIZE / 2 }]}
+    >
+      <Icon
+        name={icon}
+        size={MARKER_SIZE}
+        color={crew ? markerColors.crew : danger ? markerColors.danger : markerColors.neutral}
+      />
+    </View>
+  );
 }
+
+/** Teintes des markers — tokens uniquement (états de jeu). */
+const markerColors = {
+  crew: colors.chartreuse,
+  danger: ms.decayUrgentStroke,
+  neutral: colors.blanc,
+} as const;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
-  map: { flex: 1, backgroundColor: colors.noir },
-  topRow: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statChipWrap: { position: 'absolute', left: 14 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: colors.carbone,
-    borderColor: colors.grisLigne,
-    borderWidth: 1,
-    borderRadius: radii.pill,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-  },
-  chipDot: {
-    width: 6,
-    height: 6,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse, // emploi §C.3 (4) : état « en direct »
-  },
-  chipText: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    letterSpacing: 0.7,
-    fontVariant: ['tabular-nums'],
-  },
+  map: { flex: 1, backgroundColor: colors.noir, overflow: 'hidden' },
+  marker: { position: 'absolute', width: MARKER_SIZE, height: MARKER_SIZE },
 });
 
 export default MapScreen;

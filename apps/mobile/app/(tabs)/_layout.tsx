@@ -1,11 +1,13 @@
 /**
- * GRYD — layout (tabs) : 5 onglets Carte · War Room · Crew · Classement · Profil
- * (AMENDEMENT-06 §3, doc v3 §6). La Boutique SORT de la nav (renommée Arsenal,
+ * GRYD — layout (tabs) : 5 onglets de JEU Carte · War Room · Crew · League ·
+ * Profil (AMENDEMENT-08 §3, doc §6 — la route `classement` garde son nom, seul
+ * le label devient « League »). La Boutique SORT de la nav (renommée Arsenal,
  * route /arsenal, accessible depuis Profil et War Room). La tab bar native est
- * masquée : la barre pill carbone flottante (GrydNavBar) et le bouton COURIR
- * 72 px chartreuse (RunButton) sont rendus ICI, en overlay — permanents sur les
- * 5 onglets, dont la carte. Garde d'auth (règle session.tsx) : Supabase
- * configuré + pas de session → (auth)/sign-in ; non configuré (O1) → mode dev.
+ * masquée : la barre pill carbone flottante (GrydNavBar) et le bouton central
+ * CONTEXTUEL de jeu (RunButton → ContextualRunButton, RUN/DEFEND/RAID/CAPTURE)
+ * sont rendus ICI, en overlay — permanents sur les 5 onglets, dont la carte.
+ * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session →
+ * (auth)/sign-in ; non configuré (O1) → mode dev.
  *
  * AMENDEMENT-07 §8 : après l'auth, si l'onboarding motivationnel n'a jamais été
  * vu, on redirige une fois vers /onboarding (natif uniquement — session réelle).
@@ -40,7 +42,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="index" options={{ title: 'Carte' }} />
         <Tabs.Screen name="warroom" options={{ title: 'War Room' }} />
         <Tabs.Screen name="crew" options={{ title: 'Crew' }} />
-        <Tabs.Screen name="classement" options={{ title: 'Classement' }} />
+        <Tabs.Screen name="classement" options={{ title: 'League' }} />
         <Tabs.Screen name="profil" options={{ title: 'Profil' }} />
       </Tabs>
       <GrydNavBar />

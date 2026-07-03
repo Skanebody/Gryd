@@ -169,5 +169,18 @@ export function maxTierLabel(unlockedIds: ReadonlySet<string>): string | null {
   return BADGE_TIER_LABEL[tier];
 }
 
+/**
+ * Récompense affichable au déblocage (doc §23 : « Récompense : titre “Hex
+ * Hunter” »). DÉRIVÉE du catalogue — les badges rares (tier ≥ race) et les
+ * secrets accordent leur nom en TITRE de profil ; les autres n'affichent rien.
+ * Aucune donnée inventée : lecture pure du tier.
+ */
+export function badgeRewardLabel(def: BadgeDef): string | undefined {
+  if (def.secret || BADGE_TIER_RANK[def.tier] >= BADGE_TIER_RANK.race) {
+    return `Titre « ${def.name} »`;
+  }
+  return undefined;
+}
+
 /** Progression d'un badge pour une valeur de stat (jauge + « proches »). */
 export { badgeProgress };

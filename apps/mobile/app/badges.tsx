@@ -1,17 +1,17 @@
 /**
- * GRYD — écran « Collection de badges » V2 (AMENDEMENT-06 §1.6), poussé depuis
- * Profil par-dessus les tabs. Header « x / N débloqués · Tier max : X », filtres
- * horizontaux (Tous + 12 familles + Secrets), section « Proches du déblocage »
- * (top 3 par % de progression), grille d'hexagones par famille avec badges à
- * niveaux, rangée des 6 tiers en bas. Tap → bottom sheet maison (Animated, fade
- * discret §G) : jauge « 720 / 1 000 » + « Prochain niveau : … » pour les badges
- * progressifs. Déblocage/stats factices (demo.ts) — TODO(O1) brancher Supabase.
+ * GRYD — écran « Collection de badges » V2 → GRAND format (AMENDEMENT-08 §8,
+ * doc §23 ; conserve AMENDEMENT-06 §1.6). Header compte RÉEL « x / N débloqués
+ * · Tier max : X », filtres familles + Secrets, « Proches du déblocage » — puis
+ * les items passent en BadgeCard GRANDES (2 colonnes, désirables) : les ~200
+ * badges du catalogue réel restent TOUS visibles. Tap → bottom sheet maison :
+ * condition + jauge de progression + RÉCOMPENSE (titre à afficher, dérivé du
+ * catalogue). Déblocage/stats factices (demo.ts) — TODO(O1) brancher Supabase.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, motion, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, motion, radii, spacing } from '@klaim/shared';
 import { Icon } from '../src/ui/Icon';
 import { BadgeHex, type BadgeHexState } from '../src/features/badges/BadgeHex';
 import {
@@ -24,6 +24,7 @@ import {
   SECRET_BADGE_COLOR,
   badgeColor,
   badgeProgress,
+  badgeRewardLabel,
   familyBadges,
   maxTierLabel,
   nextLevelOf,
@@ -33,6 +34,7 @@ import {
 } from '../src/features/badges/catalog';
 import { UNLOCKED_DEMO, UNLOCKED_IDS, demoStat } from '../src/features/badges/demo';
 import { screen } from '../src/lib/analytics';
+import { BadgeCard, useReduceMotion } from '../src/ui/game';
 
 /** Filtre actif : une famille, la section secrets, ou tout. */
 type FilterId = BadgeFamilyId | 'all';
@@ -42,33 +44,32 @@ function badgeState(def: BadgeDef): BadgeHexState {
   return def.secret ? 'secretLocked' : 'locked';
 }
 
-/** Cellule de grille : hexagone md + nom (ou « ??? » pour les secrets). */
-function BadgeCell({ def, onSelect }: { def: BadgeDef; onSelect: (def: BadgeDef) => void }) {
+/**
+ * Cellule de grille : BadgeCard GRAND format (AMENDEMENT-08 §8 — désirable),
+ * demi-largeur (2 colonnes). Jauge pour les badges progressifs, récompense
+ * dérivée du catalogue, secrets masqués gérés par la carte (state secretLocked).
+ */
+function BadgeCardCell({ def, onSelect }: { def: BadgeDef; onSelect: (def: BadgeDef) => void }) {
   const state = badgeState(def);
-  const hidden = def.secret && state !== 'unlocked';
-  const name = hidden ? '???' : def.name;
+  const prog = def.familySlug && !def.secret
+    ? badgeProgress(def.id, demoStat(def.metric))
+    : null;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Badge ${name}`}
-      onPress={() => onSelect(def)}
-      style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}
-    >
-      <BadgeHex
+    <View style={styles.gridCell}>
+      <BadgeCard
+        name={def.name}
         family={def.family}
+        familyLabel={BADGE_FAMILIES.find((f) => f.id === def.family)?.name ?? 'Secret'}
         familyColor={badgeColor(def)}
         tier={def.tier}
         state={state}
-        size="md"
+        requirement={def.requirement}
+        progress={prog ? { value: prog.value, threshold: prog.threshold } : undefined}
+        reward={badgeRewardLabel(def)}
         secret={def.secret}
+        onPress={() => onSelect(def)}
       />
-      <Text
-        style={[styles.cellName, state === 'unlocked' ? styles.cellNameOn : null]}
-        numberOfLines={2}
-      >
-        {name}
-      </Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -104,7 +105,7 @@ function FamilySection({ id, name, color, defs, onSelect }: {
       <FamilyHeader name={name} color={color} unlocked={unlocked} total={defs.length} />
       <View style={styles.grid}>
         {defs.map((def) => (
-          <BadgeCell key={def.id} def={def} onSelect={onSelect} />
+          <BadgeCardCell key={def.id} def={def} onSelect={onSelect} />
         ))}
       </View>
     </View>
@@ -135,30 +136,38 @@ function ProgressGauge({ value, threshold, accent, nextLabel }: {
   );
 }
 
-/** Bottom sheet maison : fond assombri + panneau qui glisse (fade discret §G). */
+/** Fade court remplaçant la translation quand reduce motion est actif (comme anim.ts). */
+const SHEET_REDUCED_FADE_MS = 120;
+
+/**
+ * Bottom sheet maison : fond assombri + panneau qui glisse (fade discret §G).
+ * Reduce motion (useReduceMotion, même règle que useSlideIn/useReveal) :
+ * fondu court SANS translation — le mouvement disparaît, jamais la lisibilité.
+ */
 function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }) {
   const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(progress, {
       toValue: 1,
-      duration: motion.transitionMs,
+      duration: reduce ? SHEET_REDUCED_FADE_MS : motion.transitionMs,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-  }, [progress]);
+  }, [progress, reduce]);
 
   const close = useCallback(() => {
     Animated.timing(progress, {
       toValue: 0,
-      duration: motion.transitionMs,
+      duration: reduce ? SHEET_REDUCED_FADE_MS : motion.transitionMs,
       easing: Easing.in(Easing.quad),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) onDismiss();
     });
-  }, [onDismiss, progress]);
+  }, [onDismiss, progress, reduce]);
 
   const state = badgeState(def);
   const unlocked = state === 'unlocked';
@@ -170,6 +179,8 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
   const prog = def.familySlug ? badgeProgress(def.id, demoStat(def.metric)) : null;
   const next = nextLevelOf(def.id);
   const showGauge = prog !== null && !hidden && !prog.unlocked;
+  // Récompense (titre à afficher) — dérivée du catalogue, jamais inventée.
+  const reward = badgeRewardLabel(def);
 
   let stateLine = 'Verrouillé';
   if (unlocked) stateLine = unlockedAt !== undefined ? `Débloqué le ${unlockedAt}` : 'Débloqué';
@@ -201,9 +212,17 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
           {
             paddingBottom: insets.bottom + 24,
             opacity: progress,
-            transform: [
-              { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) },
-            ],
+            // Reduce motion → fondu seul, aucune translation.
+            transform: reduce
+              ? []
+              : [
+                  {
+                    translateY: progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [60, 0],
+                    }),
+                  },
+                ],
           },
         ]}
       >
@@ -223,6 +242,10 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
         <Text style={styles.sheetRequirement}>
           {hidden ? 'Condition secrète — continue à courir pour la découvrir.' : def.requirement}
         </Text>
+        {/* Récompense au déblocage (doc §23) : le titre à afficher, dérivé du tier */}
+        {!hidden && reward ? (
+          <Text style={styles.sheetReward}>Récompense : {reward}</Text>
+        ) : null}
         {showGauge && prog ? (
           <ProgressGauge
             value={prog.value}
@@ -547,17 +570,15 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.6,
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, rowGap: 16 },
-  cell: { width: 72, alignItems: 'center' },
-  cellPressed: { opacity: 0.7 },
-  cellName: {
-    color: colors.gris,
-    fontSize: 10,
-    lineHeight: 13,
-    textAlign: 'center',
-    marginTop: 6,
+  // Grille 2 colonnes de BadgeCards grand format (AMENDEMENT-08 §8)
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
   },
-  cellNameOn: { color: colors.blanc },
+  gridCell: { width: '48.5%' },
+  cellPressed: { opacity: 0.7 },
 
   // ── Rangée des tiers ──
   tierRowTitle: {
@@ -624,6 +645,15 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.sm * 1.5,
     textAlign: 'center',
     marginTop: 8,
+  },
+  // Or victoire : la récompense est un GAIN (état de jeu, pas décor)
+  sheetReward: {
+    color: gameColors.gold,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 8,
+    letterSpacing: 0.3,
   },
 
   // ── Jauge de progression (badges progressifs) ──

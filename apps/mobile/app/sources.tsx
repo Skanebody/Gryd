@@ -1,66 +1,50 @@
 /**
- * GRYD — Sources connectées (AMENDEMENT-06 §4, doc v3 §13/§16). Écran POUSSÉ
- * depuis Profil→Paramètres ET Performance. Liste §16 exacte avec états (GRYD
- * Live GPS Actif · Apple Health Connecté · Health Connect Non connecté · Strava
- * Connecter · Garmin Bientôt · WHOOP Connecter pour Score Forme), textes par
- * source, et la règle « Toutes les sources enrichissent la performance. Seules
- * les activités vérifiées capturent. ». Connexions = stub TODO(O2). Aucune
- * valeur de jeu — c'est de la donnée d'affichage (features/sources/catalog).
+ * GRYD — GRYD VERIFY HUB (AMENDEMENT-08 §10, doc §21 ; remplace la page
+ * « Sources connectées » trop settings). Écran POUSSÉ depuis Profil→Paramètres
+ * ET Performance. « Connecte tes sources. GRYD vérifie l'effort réel. Seules
+ * les courses vérifiées capturent. » Chaque source = `SourceTrustCard`
+ * (statut, trust, rôle, capture éligible vs stats only). Connexions DÉMO
+ * locales (toggle en mémoire) — branchements réels TODO(O2). Aucune valeur de
+ * jeu ici, c'est de la donnée d'affichage (features/sources/catalog).
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
-import { GhostButton } from '../src/ui/GhostButton';
+import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
-import { SOURCES, type SourceDef } from '../src/features/sources/catalog';
+import { SourceTrustCard } from '../src/ui/game';
+import { VERIFY_SOURCES, type VerifySourceDef } from '../src/features/sources/catalog';
 
-/** Action stub par état (§16) — TODO(O2) branchements réels. */
-function onManage(source: SourceDef) {
-  // TODO(O2) : OAuth Strava/WHOOP, HealthKit, Health Connect (Activity Hub §13).
-  if (__DEV__) console.log(`[sources] manage ${source.key} (${source.state}) — TODO(O2)`);
-}
-
-function SourceRow({ source }: { source: SourceDef }) {
-  const isActive = source.state === 'active' || source.state === 'connected';
+/** Rendu d'une source avec son statut DÉMO courant + action connecter/gérer. */
+function SourceRow({
+  source,
+  connected,
+  onToggle,
+}: {
+  source: VerifySourceDef;
+  connected: boolean;
+  onToggle: () => void;
+}) {
+  const status = connected ? 'connected' : source.status;
   return (
-    <View style={styles.row}>
-      <View style={styles.rowHead}>
-        <Icon name="lien" size={20} color={isActive ? colors.chartreuse : colors.blanc} />
-        <View style={styles.rowInfo}>
-          <Text style={styles.name}>{source.name}</Text>
-          <Text style={[styles.state, isActive && styles.stateOn]}>{source.stateLabel}</Text>
-        </View>
-      </View>
-      <Text style={styles.desc}>{source.desc}</Text>
-      <View style={styles.rowFooter}>
-        {/* Chip de rôle : capture éligible vs performance seule (§15) */}
-        <View style={styles.roleChip}>
-          <Icon
-            name={source.canCapture ? 'bouclier' : 'performance'}
-            size={13}
-            color={colors.gris}
-          />
-          <Text style={styles.roleChipText}>
-            {source.canCapture ? 'Capture après vérif.' : 'Performance seule'}
-          </Text>
-        </View>
-        {source.state === 'active' ? null : (
-          <GhostButton
-            label={
-              source.state === 'connected'
-                ? 'Gérer'
-                : source.state === 'soon'
-                  ? 'Bientôt'
-                  : 'Connecter'
-            }
-            disabled={source.state === 'soon'}
-            onPress={() => onManage(source)}
-          />
-        )}
-      </View>
-    </View>
+    <SourceTrustCard
+      name={source.name}
+      icon={source.icon}
+      status={status}
+      trust={source.trust}
+      role={source.role}
+      capture={source.capture}
+      actionLabel={
+        source.actionLabel === undefined
+          ? undefined
+          : status === 'connected'
+            ? 'Gérer'
+            : 'Connecter'
+      }
+      onAction={source.actionLabel === undefined ? undefined : onToggle}
+    />
   );
 }
 
@@ -69,55 +53,109 @@ export default function SourcesScreen() {
     screen('sources');
   }, []);
 
+  /** Connexions DÉMO : surcouche locale par-dessus le statut du catalogue. */
+  const [demoConnected, setDemoConnected] = useState<Record<string, boolean>>({});
+
+  const isConnected = (s: VerifySourceDef) =>
+    demoConnected[s.key] ?? s.status === 'connected';
+
+  const toggle = (s: VerifySourceDef) => {
+    // TODO(O2) : OAuth Strava/WHOOP…, HealthKit, Health Connect (Activity Hub §13).
+    if (isConnected(s)) {
+      if (__DEV__) console.log(`[verify-hub] manage ${s.key} — TODO(O2)`);
+      return; // « Gérer » : rien à câbler en démo.
+    }
+    haptics.light();
+    setDemoConnected((prev) => ({ ...prev, [s.key]: true }));
+  };
+
+  const captureSources = VERIFY_SOURCES.filter((s) => s.capture === 'verified');
+  const statsSources = VERIFY_SOURCES.filter((s) => s.capture === 'statsonly');
+
   return (
-    <StackScreen
-      title="Sources connectées"
-      icon="lien"
-      kicker="ACTIVITY HUB"
-      subtitle="Toutes les sources enrichissent la performance. Seules les activités vérifiées capturent du territoire."
-    >
+    <StackScreen title="GRYD Verify Hub" icon="radar" kicker="GRYD VERIFY HUB">
+      {/* Message hub (doc §21) — le bleu verify est l'état de confiance, pas une déco. */}
+      <View style={styles.hero}>
+        <View style={styles.heroIcon}>
+          <Icon name="radar" size={22} color={gameColors.verify} />
+        </View>
+        <View style={styles.heroTextWrap}>
+          <Text style={styles.heroLine}>Connecte tes sources.</Text>
+          <Text style={styles.heroLine}>GRYD vérifie l'effort réel.</Text>
+          <Text style={styles.heroStrong}>Seules les courses vérifiées capturent.</Text>
+        </View>
+      </View>
+
+      <Text style={styles.sectionLabel}>CAPTURE ÉLIGIBLE</Text>
       <View style={styles.list}>
-        {SOURCES.map((source) => (
-          <SourceRow key={source.key} source={source} />
+        {captureSources.map((source) => (
+          <SourceRow
+            key={source.key}
+            source={source}
+            connected={isConnected(source)}
+            onToggle={() => toggle(source)}
+          />
         ))}
       </View>
+
+      <Text style={styles.sectionLabel}>STATS ONLY</Text>
+      <View style={styles.list}>
+        {statsSources.map((source) => (
+          <SourceRow
+            key={source.key}
+            source={source}
+            connected={isConnected(source)}
+            onToggle={() => toggle(source)}
+          />
+        ))}
+      </View>
+
       <Text style={styles.footnote}>
-        GRYD lit tes activités, vérifie leur fiabilité, déduplique les doublons, puis décide si
-        elles peuvent capturer (§13). Fitbit, Polar, Coros et Suunto arrivent plus tard.
+        GRYD Verify lit tes activités, vérifie leur fiabilité, déduplique les doublons, puis
+        décide si elles peuvent capturer. Toutes les sources enrichissent ta performance —
+        seul l'effort vérifié prend du territoire.
       </Text>
     </StackScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { marginTop: 16, gap: 12 },
-  row: {
-    backgroundColor: colors.carbone,
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
+    marginTop: 8,
   },
-  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  rowInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  name: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', letterSpacing: 0.2 },
-  state: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3, marginLeft: 10 },
-  stateOn: { color: colors.chartreuse },
-  desc: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.5,
-    marginTop: 10,
-  },
-  rowFooter: {
-    flexDirection: 'row',
+  heroIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: gameColors.verify,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 14,
+    justifyContent: 'center',
   },
-  roleChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  roleChipText: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
+  heroTextWrap: { flex: 1, gap: 2 },
+  heroLine: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
+  heroStrong: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    lineHeight: fontSizes.sm * 1.4,
+  },
+  sectionLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  list: { gap: 12 },
   footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,

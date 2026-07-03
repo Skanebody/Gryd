@@ -1,9 +1,11 @@
 /**
- * GRYD — Support course (AMENDEMENT-06 §5, doc v3 §7.15). Écran POUSSÉ depuis
- * Profil. Cas : « Ma course n'a pas compté » (explication segments/statuts),
- * signaler triche / zone dangereuse, données (export / suppression → TODO
- * backend). Page obligatoire mais secondaire. Rien de câblé : liens stub
- * TODO(O2/backend). Aucune valeur de jeu — c'est de la donnée d'affichage.
+ * GRYD — Support (AMENDEMENT-08 §10, doc §22 ; hérite AMENDEMENT-06 §5).
+ * Écran POUSSÉ depuis Profil. VOLONTAIREMENT SOBRE : le support crée la
+ * confiance — cards courtes iconées, ton calme, explications transparentes,
+ * pas de vocabulaire gaming. L'habillage (espacements, typo, cards carbone)
+ * reste celui du design system. Les 6 cas doc §22 : Course non comptée,
+ * Segment exclu, Signaler triche, Zone dangereuse, Exporter mes données,
+ * Supprimer mes données. Rien de câblé : stubs TODO(O2/backend).
  */
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -19,56 +21,62 @@ interface SupportTopic {
   body: string;
 }
 
-/** Explication « ma course n'a pas compté » — statuts §15 / segments exclus. */
-const RUN_STATUS_TOPICS: readonly SupportTopic[] = [
+/** « Ma course » — statuts de vérification et segments exclus, expliqués calmement. */
+const RUN_TOPICS: readonly SupportTopic[] = [
   {
     key: 'not_counted',
     icon: 'aide',
-    title: "Ma course n'a pas compté",
+    title: 'Course non comptée',
     body:
-      'Une course peut être « capture éligible », « stats only », « partielle », « rejetée » ou ' +
-      '« doublon ». Seules les courses vérifiées capturent du territoire ; les autres enrichissent ' +
-      'quand même ta performance.',
+      'Une course peut être vérifiée, partielle, stats only, doublon ou rejetée. Seules les ' +
+      'courses vérifiées capturent du territoire — les autres comptent quand même pour ta ' +
+      'performance. On t\'explique le statut de chaque course, et tu peux le contester.',
   },
   {
-    key: 'segments',
+    key: 'segment_excluded',
     icon: 'pin',
-    title: 'Un segment a été exclu',
+    title: 'Segment exclu',
     body:
-      'Les portions en zone privée, sans signal GPS fiable ou avec un déplacement invraisemblable ' +
-      'sont exclues du calcul. Le reste de la course reste valide.',
+      'Les portions en zone privée, sans signal GPS fiable ou au déplacement invraisemblable ' +
+      'sont retirées du calcul. Le reste de la course reste valide, rien d\'autre n\'est perdu.',
   },
 ];
 
-/** Signalements (§7.15). */
+/** Signalements — traités par une personne, réponse sous quelques jours. */
 const REPORT_TOPICS: readonly SupportTopic[] = [
   {
-    key: 'cheat',
+    key: 'report_cheat',
     icon: 'alerte',
     title: 'Signaler une triche',
-    body: 'Un joueur capture des zones de façon impossible ? Signale-le, GRYD Verify enquête.',
+    body:
+      'Des captures impossibles, une allure de véhicule ? Signale le profil : GRYD Verify ' +
+      'examine les traces. Le signalement reste confidentiel.',
   },
   {
-    key: 'danger',
+    key: 'report_danger',
     icon: 'bouclier',
     title: 'Signaler une zone dangereuse',
-    body: 'Une zone met les coureurs en danger ? Signale-la pour qu\'on la retire des objectifs.',
+    body:
+      'Travaux, trafic, zone mal éclairée ? Signale-la : elle sera retirée des objectifs ' +
+      'proposés. La sécurité passe avant le jeu.',
   },
 ];
 
-/** Données personnelles (RGPD) — export / suppression, TODO backend. */
+/** Données personnelles (RGPD) — export et suppression, sans friction. */
 const DATA_TOPICS: readonly SupportTopic[] = [
   {
-    key: 'export',
+    key: 'data_export',
     icon: 'partage',
     title: 'Exporter mes données',
-    body: 'Reçois une copie de tes courses, hexes et badges.',
+    body: 'Reçois une copie complète de tes courses, hexes, badges et réglages.',
   },
   {
-    key: 'delete',
+    key: 'data_delete',
     icon: 'fermer',
     title: 'Supprimer mes données',
-    body: 'Demande la suppression définitive de ton compte et de tes données.',
+    body:
+      'Demande la suppression définitive de ton compte et de toutes tes données. ' +
+      'C\'est irréversible, et c\'est ton droit.',
   },
 ];
 
@@ -83,7 +91,9 @@ function TopicCard({ topic }: { topic: SupportTopic }) {
       }}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <Icon name={topic.icon} size={20} color={colors.blanc} />
+      <View style={styles.iconWrap}>
+        <Icon name={topic.icon} size={18} color={colors.blanc} />
+      </View>
       <View style={styles.info}>
         <Text style={styles.title}>{topic.title}</Text>
         <Text style={styles.body}>{topic.body}</Text>
@@ -111,16 +121,19 @@ export default function SupportScreen() {
 
   return (
     <StackScreen
-      title="Support course"
+      title="Support"
       icon="aide"
       kicker="AIDE"
-      subtitle="Comprendre pourquoi une course compte — ou pas — et faire valoir tes droits."
+      subtitle="Comprendre pourquoi une course compte — ou pas — et faire valoir tes droits. Une personne lit chaque demande."
     >
       <View style={styles.list}>
-        <Section label="MA COURSE" topics={RUN_STATUS_TOPICS} />
+        <Section label="MA COURSE" topics={RUN_TOPICS} />
         <Section label="SIGNALER" topics={REPORT_TOPICS} />
         <Section label="MES DONNÉES" topics={DATA_TOPICS} />
       </View>
+      <Text style={styles.footnote}>
+        Les décisions de vérification sont expliquées, jamais automatiques sans recours.
+      </Text>
     </StackScreen>
   );
 }
@@ -147,6 +160,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   pressed: { opacity: 0.7 },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   info: { flex: 1 },
   title: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   body: {
@@ -154,5 +176,11 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
     marginTop: 4,
+  },
+  footnote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.6,
+    marginTop: 18,
   },
 });

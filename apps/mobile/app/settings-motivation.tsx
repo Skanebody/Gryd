@@ -7,7 +7,7 @@
  * pas saisis à la main. Anti-shame : le mode discret est présenté comme un droit,
  * pas un aveu de faiblesse. Aucun nombre magique.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
   LEADERBOARD_LEVELS,
@@ -19,6 +19,7 @@ import {
   type ProfileVisibility,
 } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
+import { getHapticsEnabled, setHapticsEnabled } from '../src/lib/haptics';
 import { StackScreen } from '../src/ui/StackScreen';
 import {
   OptionCard,
@@ -61,9 +62,21 @@ const NOTIF_ORDER: NotifChannel[] = ['solo', 'crew', 'competition', 'off'];
 
 export default function SettingsMotivationScreen() {
   const { prefs, update } = useMotivationPrefs();
+  // Retours haptiques : réglage global (src/lib/haptics), défaut activé.
+  const [hapticsOn, setHapticsOn] = useState(true);
 
   useEffect(() => {
     screen('motivation_settings');
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void getHapticsEnabled().then((value) => {
+      if (alive) setHapticsOn(value);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Classements visibles = dérivés (§10.2/§10.3), pas un réglage libre.
@@ -145,6 +158,18 @@ export default function SettingsMotivationScreen() {
           onChange={(v) => void update({ mapSharing: v })}
         />
         <Text style={styles.note}>Ta position en direct n'est jamais partagée.</Text>
+      </Section>
+
+      <Section label="RETOURS HAPTIQUES">
+        <SwitchRow
+          title="Retours haptiques"
+          subtitle="Vibrations légères sur les captures, badges et victoires."
+          value={hapticsOn}
+          onValueChange={(v) => {
+            setHapticsOn(v);
+            setHapticsEnabled(v);
+          }}
+        />
       </Section>
 
       <Section label="MODE DISCRET">

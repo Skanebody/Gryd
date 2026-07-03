@@ -1,10 +1,14 @@
 /**
- * GRYD — barre de navigation flottante : pill carbone, 5 onglets
- * Carte · War Room · Crew · Classement · Profil (AMENDEMENT-06 §3, doc v3 §6).
+ * GRYD — barre de navigation flottante : pill carbone, 5 onglets de JEU
+ * Carte · War Room · Crew · League · Profil (AMENDEMENT-08 §3, doc §6 — la
+ * route `classement` est conservée, seul le label devient « League »).
  * La Boutique est sortie de la nav (→ Arsenal, accès Profil/War Room). War Room
- * porte l'icône alerte (§3). Icônes filaires 1,5 px (charte §F, set @klaim/shared
+ * porte l'icône guerre. Icônes filaires 1,5 px (charte §F, set @klaim/shared
  * — décision fondateur 03/07/2026) : icône 22 + label 10 dessous ; actif = icône
  * chartreuse (remplie si fillable, §C.3 « moi / état actif ») + label blanc.
+ * ARBITRAGE FONDATEUR (AMENDEMENT-06) : l'icône active de la nav RESTE
+ * chartreuse — exception officielle C.3 consignée à l'AMENDEMENT-08 §2, seule
+ * exception nav autorisée. Ne pas « corriger » vers le blanc.
  * La tab bar native est masquée ; cette barre navigue via expo-router.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -22,9 +26,9 @@ interface TabItem {
 
 const TABS: readonly TabItem[] = [
   { label: 'Carte', href: '/', icon: 'carte' },
-  { label: 'War Room', href: '/warroom', icon: 'alerte' },
+  { label: 'War Room', href: '/warroom', icon: 'guerre' },
   { label: 'Crew', href: '/crew', icon: 'crew' },
-  { label: 'Classement', href: '/classement', icon: 'classement' },
+  { label: 'League', href: '/classement', icon: 'classement' },
   { label: 'Profil', href: '/profil', icon: 'profil' },
 ];
 
