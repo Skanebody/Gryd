@@ -1,5 +1,7 @@
 /*
- * Galerie Badges & Medals (AMENDEMENT-05 §3.7).
+ * Galerie Badges & Medals (AMENDEMENT-05 §3.7, DA maquette-badges-gryd.html).
+ * L'emblème est le BOUCLIER-HEXAGONE tactique (BadgeShield, géométrie et
+ * recettes tier depuis @klaim/shared) — cartes centrées façon planche.
  * --bc = couleur de FAMILLE injectée depuis le catalogue @klaim/shared
  * (exception polychrome AMENDEMENT-04 : surfaces badge uniquement).
  * Raretés : common flat → rare blanc → epic --rival → legend --or + halo.
@@ -70,15 +72,18 @@
   width: 100%;
 }
 
+/* Carte façon planche : emblème GRAND centré, nom, tier, condition courte. */
 .badgeCard {
   height: 100%;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 12px;
-  background: var(--carbone);
+  background: linear-gradient(180deg, var(--carbone), var(--noir));
   border: 1px solid var(--ligne);
   border-radius: var(--radius-card);
-  padding: 18px;
+  padding: 20px 14px 16px;
   transition:
     transform 200ms ease-out,
     border-color 200ms ease-out;
@@ -98,15 +103,10 @@
   }
 }
 
+/* Emblème bouclier-hexagone (BadgeShield) — la seule surface polychrome. */
 .hexWrap {
   display: inline-flex;
-}
-
-/* Hexagone teinté famille — la seule surface polychrome autorisée. */
-.hexShape {
-  fill: color-mix(in srgb, var(--bc) 14%, transparent);
-  stroke: var(--bc);
-  stroke-width: 1.5;
+  justify-content: center;
 }
 
 .badgeName {
@@ -140,8 +140,10 @@
  * common = flat · rare = liseré blanc · epic = --rival (rareté épique) ·
  * legend = --or + halo. Jamais hors surfaces badge.
  */
+/* Planche : toutes les cartes partagent le même plateau — le tier se lit sur
+   l'emblème (anneau/glow/halo) et la bordure des tiers hauts. */
 .rarity_common {
-  background: var(--carbone2);
+  border-color: var(--ligne);
 }
 
 .rarity_rare {
@@ -175,45 +177,7 @@
   gap: 8px;
 }
 
-.tierShape {
-  fill: none;
-  stroke-width: 1.5;
-}
-
-.tier_road .tierShape {
-  stroke: var(--gris);
-  opacity: 0.65;
-}
-
-.tier_tempo .tierShape {
-  stroke: color-mix(in srgb, var(--blanc) 55%, transparent);
-}
-
-.tier_race .tierShape {
-  stroke: var(--blanc);
-  fill: color-mix(in srgb, var(--blanc) 6%, transparent);
-}
-
-.tier_carbon .tierShape {
-  stroke: color-mix(in srgb, var(--blanc) 30%, transparent);
-  fill: var(--carbone2);
-}
-
-/* Épique → --rival (raretés épiques, AMENDEMENT-05 §1). */
-.tier_elite .tierShape {
-  stroke: var(--rival);
-  fill: var(--rival-14);
-}
-
-/* Legend → --or + halo. */
-.tier_legend .tierShape {
-  stroke: var(--or);
-  fill: var(--or-14);
-}
-
-.tier_legend svg {
-  filter: drop-shadow(0 0 10px var(--or-14));
-}
+/* Les 6 boucliers de l'échelle portent leur propre recette tier (BadgeShield). */
 
 .tierLabel {
   font-family: var(--mono);
@@ -264,26 +228,11 @@
   padding: 0;
 }
 
+/* Secret masqué : bouclier pointillé or + « ? » (rendu par BadgeShield). */
 .secretHex {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 34px;
-  height: 34px;
-}
-
-/* Secret masqué : contour pointillé teinté or (famille secrète du catalogue). */
-.secretShape {
-  fill: color-mix(in srgb, var(--bc) 8%, transparent);
-  stroke: color-mix(in srgb, var(--bc) 45%, transparent);
-  stroke-width: 1.2;
-  stroke-dasharray: 2.5 2;
-}
-
-.secretMark {
-  position: absolute;
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--bc);
+  height: 39px;
 }

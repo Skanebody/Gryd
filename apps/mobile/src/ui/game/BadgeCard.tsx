@@ -1,13 +1,16 @@
 /**
  * GRYD — BadgeCard : le badge en GRAND format carte, désirable (AMENDEMENT-08
- * §1, doc §23). Réutilise la géométrie hex de features/badges/BadgeHex
- * (importée, jamais dupliquée) : famille = teinte du pictogramme, tier =
- * anneau/glow/halo. Ajoute nom, famille · tier, jauge de progression,
- * condition et récompense. Secret verrouillé = « ? » (géré par BadgeHex).
+ * §1, doc §23), calé sur les cartes de maquette-badges-gryd.html : emblème
+ * bouclier-hexagone GRAND (BadgeHex, géométrie planche — importée, jamais
+ * dupliquée), nom, pill « ◆ TIER », condition courte. Famille = teinte du
+ * pictogramme, tier = anneau/glow/halo. L'icône EXACTE de la planche est
+ * résolue depuis le `name` (badgeKeyByName → slug catalogue → badge-icons).
+ * Secret verrouillé = « ? » (géré par BadgeHex).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   BADGE_TIER_LABEL,
+  badgeKeyByName,
   colors,
   fontSizes,
   gameColors,
@@ -67,15 +70,27 @@ export function BadgeCard({
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View style={styles.hexWrap}>
-        <BadgeHex family={family} familyColor={familyColor} state={state} tier={tier} size="lg" secret={secret} />
+        <BadgeHex
+          family={family}
+          familyColor={familyColor}
+          state={state}
+          tier={tier}
+          size="lg"
+          secret={secret}
+          slug={badgeKeyByName(name)}
+        />
       </View>
 
       <Text style={[styles.name, !unlocked && styles.nameLocked]} numberOfLines={1}>
         {hidden ? 'Badge secret' : name}
       </Text>
-      <Text style={styles.meta} numberOfLines={1}>
-        {familyLabel} · {BADGE_TIER_LABEL[tier]}
-      </Text>
+      {/* Pill tier façon planche (« ◆ TIER ») — ◆ teinté famille (exception §1) */}
+      <View style={styles.tierPill}>
+        <Text style={[styles.tierDiamond, unlocked && { color: familyColor }]}>◆</Text>
+        <Text style={styles.tierLabel} numberOfLines={1}>
+          {familyLabel} · {BADGE_TIER_LABEL[tier].toUpperCase()}
+        </Text>
+      </View>
 
       {progress && !hidden ? (
         <View style={styles.progressBlock}>
@@ -115,14 +130,35 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   pressed: { opacity: 0.85 },
-  hexWrap: { marginBottom: 8 },
-  name: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', textAlign: 'center' },
+  // L'emblème respire (cartes planche : badge grand, marges généreuses).
+  hexWrap: { marginTop: 4, marginBottom: 10 },
+  // Nom compact façon planche (12.5px, espacé) — évite la troncature en grille.
+  name: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.8,
+  },
   nameLocked: { color: colors.gris },
-  meta: {
+  tierPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginTop: 2,
+  },
+  // Ligne tier planche (.rar : 9px mono espacé) — dérivée du token xs.
+  tierDiamond: { color: colors.gris, fontSize: fontSizes.xs - 3 },
+  tierLabel: {
     color: colors.gris,
-    fontSize: fontSizes.xs,
+    fontSize: fontSizes.xs - 2,
     fontWeight: '600',
-    letterSpacing: 0.4,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   progressBlock: { alignSelf: 'stretch', gap: 4, marginTop: 8 },

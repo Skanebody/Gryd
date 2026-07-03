@@ -2,24 +2,30 @@
 
 /**
  * Badges & Medals (AMENDEMENT-05 §3.7) — galerie depuis le VRAI catalogue
- * @klaim/shared (BADGES / BADGE_FAMILY_COLORS / BADGE_COUNT). Exception
- * polychrome AMENDEMENT-04 §1 : les couleurs de famille ne teintent QUE les
- * surfaces badge (hexagones, points de légende) — le reste de la section
- * reste charte. Rangée de raretés marketing « Road · Tempo · Race · Carbon ·
- * Elite · Legend » : common flat → legend or + halo (--rival réservé au
- * palier épique, --or au legend, AMENDEMENT-05 §1). Secrets masqués en « ? » ;
- * compteur « 59 badges · 9 secrets » CALCULÉ depuis le catalogue.
+ * @klaim/shared (BADGES / BADGE_FAMILY_COLORS / BADGE_COUNT). DA planche
+ * maquette-badges-gryd.html : chaque emblème = silhouette BOUCLIER-HEXAGONE
+ * tactique (BADGE_SHIELD, géométrie partagée badge-icons — jamais dupliquée),
+ * anneau/glow/halo par TIER (BADGE_TIER_STYLE + BADGE_TIER_DECOR), icône
+ * centrale de la planche teintée FAMILLE (badgeIconFor). Exception polychrome
+ * AMENDEMENT-04 §1 : les couleurs de famille ne teintent QUE les surfaces
+ * badge — le reste de la section reste charte. Rangée de raretés marketing
+ * « Road · Tempo · Race · Carbon · Elite · Legend » (même emblème aux 6
+ * tiers) ; secrets masqués en « ? » ; compteur CALCULÉ depuis le catalogue.
  */
 
-import type { CSSProperties } from 'react';
+import { useId, type CSSProperties } from 'react';
 import {
   BADGES,
   BADGES_BY_KEY,
   BADGE_COUNT,
   BADGE_FAMILY_COLORS,
+  BADGE_SHIELD,
+  BADGE_TIER_DECOR,
+  BADGE_TIER_STYLE,
   DECAY_DAYS,
   NIGHT_END_MIN,
   NIGHT_START_MIN,
+  badgeIconFor,
   type BadgeDef,
   type BadgeFamily,
   type BadgeMetric,
@@ -31,7 +37,155 @@ import { Reveal } from './Reveal';
 import ui from './ui.module.css';
 import styles from './BadgeGallery.module.css';
 
-const HEX_POINTS = '12,2.5 20.2,7.25 20.2,16.75 12,21.5 3.8,16.75 3.8,7.25';
+/* ─── Emblème bouclier-hexagone (DA planche, SVG inline web) ────────────────
+   Mêmes recettes DATA que le mobile (BadgeHex) : géométrie + icônes du shared,
+   tier → anneau/glow/halo/décors, famille → teinte de l'icône. */
+
+interface BadgeShieldProps {
+  tier: BadgeTier;
+  /** Couleur d'accent (DATA famille — accepte une var CSS charte). */
+  familyColor: string;
+  /** Key catalogue → icône exacte de la planche (fallback famille). */
+  slug?: string;
+  family?: BadgeFamily;
+  /** Largeur px (hauteur = ratio 120:136 de la planche). */
+  size?: number;
+  /** Secret masqué : contour pointillé + « ? ». */
+  hidden?: boolean;
+}
+
+function BadgeShield({ tier, familyColor, slug, family, size = 104, hidden = false }: BadgeShieldProps) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const ts = BADGE_TIER_STYLE[tier];
+  const decor = BADGE_TIER_DECOR[tier];
+  const icon = badgeIconFor(slug, family);
+  const plateId = `bshield-plate-${uid}`;
+  const weaveId = `bshield-weave-${uid}`;
+  const height = Math.round((size * BADGE_SHIELD.viewBoxHeight) / BADGE_SHIELD.viewBoxWidth);
+  const decorColor = ts.ring2 ?? ts.ring;
+
+  return (
+    <svg
+      viewBox={`0 0 ${BADGE_SHIELD.viewBoxWidth} ${BADGE_SHIELD.viewBoxHeight}`}
+      width={size}
+      height={height}
+      role="img"
+      aria-hidden="true"
+    >
+      <defs>
+        {/* Plateau : dégradé sombre charte (g-dark planche). */}
+        <linearGradient id={plateId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: 'var(--carbone)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--noir)' }} />
+        </linearGradient>
+        {/* Tissage carbone (pattern weave planche), très subtil. */}
+        {decor.weave ? (
+          <pattern id={weaveId} width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <rect width="7" height="7" style={{ fill: 'var(--carbone2)' }} />
+            <line
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="7"
+              style={{ stroke: 'color-mix(in srgb, var(--blanc) 6%, transparent)' }}
+              strokeWidth="2.6"
+            />
+          </pattern>
+        ) : null}
+      </defs>
+
+      {/* Halo legend derrière le bouclier. */}
+      {!hidden && ts.haloOpacity > 0 && ts.glow ? (
+        <ellipse
+          cx={BADGE_SHIELD.halo.cx}
+          cy={BADGE_SHIELD.halo.cy}
+          rx={BADGE_SHIELD.halo.rx}
+          ry={BADGE_SHIELD.halo.ry}
+          fill={ts.glow}
+          opacity={ts.haloOpacity}
+        />
+      ) : null}
+
+      {/* Plateau + contour (glow drop-shadow planche pour les tiers hauts). */}
+      <path
+        d={BADGE_SHIELD.outline}
+        fill={decor.weave ? `url(#${weaveId})` : `url(#${plateId})`}
+        stroke={hidden ? familyColor : ts.ring}
+        strokeWidth={hidden ? 1.4 : ts.strokeWidth}
+        strokeOpacity={hidden ? 0.5 : 1}
+        strokeDasharray={hidden ? '7 6' : undefined}
+        strokeLinejoin="round"
+        style={!hidden && ts.glow ? { filter: `drop-shadow(0 0 7px ${ts.glow})` } : undefined}
+      />
+      {!hidden ? <path d={BADGE_SHIELD.outline} style={{ fill: familyColor }} fillOpacity={0.08} /> : null}
+
+      {/* Anneau intérieur des tiers hauts. */}
+      {!hidden && ts.ring2 ? (
+        <path d={BADGE_SHIELD.inner} fill="none" stroke={ts.ring2} strokeWidth={1.1} strokeLinejoin="round" />
+      ) : null}
+
+      {/* Décors par tier (planche) : ticks · vitesse · rayons · arcs. */}
+      {!hidden && decor.ticks ? (
+        <g stroke={ts.ring} strokeOpacity={0.85} strokeWidth={2} strokeLinecap="round" fill="none">
+          {BADGE_SHIELD.ticks.map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </g>
+      ) : null}
+      {!hidden && decor.speed ? (
+        <g stroke={ts.ring} strokeOpacity={0.5} strokeWidth={2} strokeLinecap="round" fill="none">
+          {BADGE_SHIELD.speed.map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </g>
+      ) : null}
+      {!hidden && decor.rays ? (
+        <g stroke={decorColor} strokeWidth={1.6} strokeLinecap="round" fill="none">
+          {BADGE_SHIELD.rays.map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </g>
+      ) : null}
+      {!hidden && decor.arcs ? (
+        <g stroke={decorColor} strokeWidth={1.6} strokeLinecap="round" fill="none">
+          {BADGE_SHIELD.arcs.map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </g>
+      ) : null}
+
+      {/* Centre : « ? » (secret masqué) ou icône planche teintée famille. */}
+      {hidden ? (
+        <text
+          x={BADGE_SHIELD.viewBoxWidth / 2}
+          y={BADGE_SHIELD.halo.cy + 13}
+          textAnchor="middle"
+          fontSize={38}
+          style={{ fill: familyColor, fontFamily: 'var(--mono)' }}
+          fillOpacity={0.85}
+        >
+          ?
+        </text>
+      ) : (
+        <g
+          transform={`translate(${BADGE_SHIELD.icon.x},${BADGE_SHIELD.icon.y}) scale(${BADGE_SHIELD.icon.scale})`}
+        >
+          {icon.map((d) => (
+            <path
+              key={d}
+              d={d}
+              fill="none"
+              style={{ stroke: familyColor }}
+              strokeWidth={BADGE_SHIELD.iconStrokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+        </g>
+      )}
+    </svg>
+  );
+}
 
 /** ~13 badges représentatifs de la planche (toutes familles, toutes raretés). */
 const SHOWCASE_KEYS = [
@@ -248,14 +402,18 @@ export function BadgeGallery() {
                   style={badgeTint(badge)}
                 >
                   <span className={styles.hexWrap} aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="46" height="46">
-                      <polygon points={HEX_POINTS} className={styles.hexShape} />
-                    </svg>
+                    <BadgeShield
+                      tier={badge.tier}
+                      familyColor={badge.familyColor}
+                      slug={badge.key}
+                      family={badge.family}
+                      size={96}
+                    />
                   </span>
                   <div>
                     <span className={styles.badgeName}>{badge.name}</span>
                     <span className={styles.badgeFamily}>
-                      {t.families[badge.family]} · {t.rarities[badge.tier]}
+                      ◆ {t.families[badge.family]} · {t.rarities[badge.tier]}
                     </span>
                     <p className={styles.badgeReq}>
                       {lang === 'en' ? enRequirement(badge) : badge.requirement}
@@ -270,11 +428,10 @@ export function BadgeGallery() {
         {/* Rangée des raretés : common flat → legend or + halo (§3.7). */}
         <Reveal delayMs={80}>
           <div className={styles.ladder} role="list" aria-label={t.ladderAria}>
+            {/* Même emblème aux 6 tiers : l'anneau/glow/halo raconte la rareté. */}
             {LADDER.map((tier) => (
               <div key={tier.id} role="listitem" className={`${styles.tier} ${styles[`tier_${tier.id}`] ?? ''}`}>
-                <svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true">
-                  <polygon points={HEX_POINTS} className={styles.tierShape} />
-                </svg>
+                <BadgeShield tier={tier.id} familyColor="var(--blanc)" size={56} />
                 <span className={styles.tierLabel}>{tier.label}</span>
               </div>
             ))}
@@ -297,12 +454,7 @@ export function BadgeGallery() {
                   title={t.secretTitle}
                   aria-label={t.secretTitle}
                 >
-                  <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true">
-                    <polygon points={HEX_POINTS} className={styles.secretShape} />
-                  </svg>
-                  <span className={styles.secretMark} aria-hidden="true">
-                    ?
-                  </span>
+                  <BadgeShield tier={badge.tier} familyColor={badge.familyColor} size={34} hidden />
                 </li>
               ))}
             </ul>
