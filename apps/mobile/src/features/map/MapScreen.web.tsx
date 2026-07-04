@@ -1,34 +1,34 @@
 /**
  * GRYD — BATTLE MAP, variante WEB (aperçu navigateur — cible visuelle
- * prioritaire AMENDEMENT-08 §4, doc §7). Metro résout `.web.tsx` avant `.tsx`
- * sur la cible web : MapLibre (natif-only) n'est JAMAIS importé ici.
- * ÉCHELLE COUREUR : projection à échelle FIXE (~4,3 m/px → hex res 10 ≈ 30 px,
- * viewport 375 px ≈ 1,6 km), égocentrée AMENDEMENT-01 (le cluster maison reste
- * au centre) — la grille remplit tout l'écran, plus de vide noir. Une barre
- * d'échelle discrète (500 m) ancre la perception en bas à gauche.
- * 4 couches, toutes dessinées à partir du MÊME jeu démo (battleMapData) :
- *   1. basemap Uber-night (AMENDEMENT-09 §0) : ÎLOTS URBAINS PLEINS (aplats
- *      carbon, liseré subtil) séparés par les rues — le vide entre îlots EST
- *      la rue ; axes larges creusés puis repeints légèrement plus clairs,
- *      canal en bande d'eau sombre, parcs en aplat vert très sombre, noms de
- *      secteurs discrets ;
- *   2. hex grid (contours neutres) ;
- *   3. ownership/états de jeu : crew (chartreuse+glow), rival (orange sombre),
- *      contesté (double contour + pulse), protégé (shield+halo), decay
- *      (pointillé + sablier, muted red si urgent), objectif (pin+halo),
- *      avant-poste (marker), route ouverte (ligne chartreuse) ;
- *   4. couche « situation live » AMENDEMENT-09 §2 : moi (point chartreuse +
+ * prioritaire). AMENDEMENT-11 §2-3 : PLUS AUCUN HEXAGONE VISIBLE — H3 reste le
+ * moteur invisible (fakeHexes), le rendu affiche des TERRITOIRES ORGANIQUES
+ * (pipeline territory.ts : fusion → simplification → lissage Chaikin).
+ * Metro résout `.web.tsx` avant `.tsx` sur la cible web : MapLibre (natif-only)
+ * n'est JAMAIS importé ici. ÉCHELLE COUREUR : projection à échelle FIXE
+ * (~4,3 m/px), égocentrée AMENDEMENT-01 (le secteur maison reste au centre).
+ * Couches, toutes dessinées à partir du MÊME jeu démo :
+ *   1. basemap Uber-night (AMENDEMENT-09 §0) : ÎLOTS URBAINS PLEINS — le fond
+ *      NEUTRE de la carte, c'est EUX (aucune cellule grise) ;
+ *   2. TERRITOIRES ORGANIQUES + FRONTIÈRES par état : crew (aplat sombre teinté
+ *      + contour fin semi-lumineux + glow), rival (contour orange marqué),
+ *      contesté (DOUBLE contour chartreuse+orange, pulse lent sur le path
+ *      contesté seulement), protégé (halo + UNE icône shield par secteur),
+ *      decay (frontière pointillée + UN sablier au secteur, muted red si
+ *      urgent), objectif (pin + zone chaude douce), avant-poste (petit blob
+ *      organique), route ouverte (ligne épaisse) ;
+ *   3. couche « situation live » AMENDEMENT-09 §2 : moi (point chartreuse +
  *      halo), 2 MateMarker opt-in (AMENDEMENT-07 — jamais de position
  *      publique), ≤ 4 PoiMarker, 1 marker défi + 1 zone bonus pulsante MAX,
  *      parcours sélectionné en aperçu (RouteProgress, progress 0) ;
- *   5. HUD Uber (BattleMapOverlays : pill fine, war feed 1 event, 3 boutons
- *      flottants, MapBottomSheet objectif/défis/parcours).
- * Performance : ~400-600 hexes visibles → le rendu est REGROUPÉ par état (un
- * seul <Path> par état, `d` concaténés) et les hexes hors écran sont exclus ;
- * le pulse (contesté) n'anime QUE le path des hexes contestés.
+ *   4. HUD (BattleMapOverlays : pill % de contrôle, war feed 1 event, chips des
+ *      5 MODES de carte, MapBottomSheet objectif/défis/parcours).
+ * 5 MODES (AMENDEMENT-11 §3, un seul actif) : Territoire / Route / Défense /
+ * Raid / Exploration — MODE_EMPHASIS atténue les familles de couches hors
+ * décision, transition douce (fondu court, reduce motion → bascule sèche).
+ * Anti-patchwork : max 3-4 aplats simultanés (crew, rival, contesté, objectif).
  * Animations RN Animated core : vague de capture au mount (useReveal), pulse
- * des hexes contestés (usePulse), recentrage = settle spring de la scène
- * (pas de pan en démo web : déjà égocentré) — reduce motion respecté.
+ * de la frontière contestée (usePulse), recentrage = settle spring de la scène
+ * — reduce motion respecté.
  * Le CTA COURIR reste rendu par le layout (tabs) — pas de doublon ici.
  * Track EVENTS.mapLoadMs comme l'original (au montage).
  */
@@ -66,13 +66,17 @@ import {
   STREET_MINOR_WIDTH_M,
   type LatLngPoint,
 } from './basemap';
+import { BattleMapOverlays } from './BattleMapOverlays';
+import { battleMapData, battleMapSummary } from './fakeHexes';
+import { battleMapStyle as ms, territoryStyle as terr, withAlpha } from './mapStyle';
 import {
-  BattleMapOverlays,
-  DEFAULT_MAP_LAYERS,
-  type MapLayerKey,
-} from './BattleMapOverlays';
-import { battleMapData, battleMapSummary, type HexState } from './fakeHexes';
-import { battleMapStyle as ms, withAlpha } from './mapStyle';
+  DEFAULT_MAP_MODE,
+  MODE_EMPHASIS,
+  battleTerritories,
+  territoryPath,
+  type MapMode,
+  type TerritoryState,
+} from './territory';
 import {
   MAP_BONUS_ZONE,
   MAP_CHALLENGE,
@@ -84,16 +88,13 @@ import {
 } from './demo';
 
 // ─── Échelle coureur (AMENDEMENT-08 §4 — « la rue où on court ») ────────────
-/** Règle gelée : un hex H3 res 10 fait ~130 m de diamètre. */
-const HEX_DIAMETER_M = 130;
-/** Cible visuelle : un hex ≈ 30 px à l'écran (28-32 px). */
-const HEX_TARGET_PX = 30;
-/** ≈ 4,33 m/px → un viewport de 375 px couvre ≈ 1,6 km. */
-const METERS_PER_PIXEL = HEX_DIAMETER_M / HEX_TARGET_PX;
+/** Échelle gelée depuis AMENDEMENT-08 : ~130 m (une zone H3 res 10, moteur
+ * invisible) rendus sur ~30 px → ≈ 4,33 m/px, viewport 375 px ≈ 1,6 km. */
+const ZONE_DIAMETER_M = 130;
+const ZONE_TARGET_PX = 30;
+const METERS_PER_PIXEL = ZONE_DIAMETER_M / ZONE_TARGET_PX;
 /** Barre d'échelle graphique discrète (bas gauche) : 500 m ≈ 115 px. */
 const SCALE_BAR_METERS = 500;
-/** Culling : marge hors écran (px) au-delà de laquelle un hex n'est pas rendu. */
-const CULL_MARGIN_PX = HEX_TARGET_PX * 1.5;
 /** Culling des îlots : marge = plus grand îlot (~150 m) converti en px. */
 const BLOCK_CULL_MARGIN_PX = 150 / METERS_PER_PIXEL;
 
@@ -105,8 +106,29 @@ const STREET_MAJOR_CASING_PX = STREET_MAJOR_PX + 2;
 const CANAL_PX = CANAL_WIDTH_M / METERS_PER_PIXEL;
 const CANAL_BANK_PX = CANAL_BANK_WIDTH_M / METERS_PER_PIXEL;
 
-/** Cadence du pulse des hexes contestés (UI). */
-const CONTESTED_PULSE_MS = 1_600;
+/** Cadence du pulse LENT de la frontière contestée (UI). */
+const CONTESTED_PULSE_MS = 2_400;
+/** Fondu court entre deux modes de carte (transition douce). */
+const MODE_FADE_MS = 260;
+const MODE_FADE_DIP = 0.35;
+// ── Frontières organiques (traitements d'état — AMENDEMENT-11 §2) ──
+/** Frontière normale : contour fin semi-lumineux. */
+const BORDER_WIDTH = 1.8;
+/** Frontière rivale : contour orange MARQUÉ. */
+const RIVAL_BORDER_WIDTH = 2.6;
+/** Double contour contesté : chartreuse dedans, orange pulsé dehors. */
+const CONTESTED_INNER_WIDTH = 1.8;
+const CONTESTED_OUTER_WIDTH = 3;
+/** Glow sous la frontière crew + halo du secteur protégé. */
+const CREW_GLOW_WIDTH = 7;
+const PROTECTED_HALO_WIDTH = 5;
+/** Frontière decay : pointillé organique. */
+const DECAY_DASH = '6 5';
+const DECAY_WIDTH = 1.8;
+/** Zone chaude douce de l'objectif : lueur large sans bord dur. */
+const OBJECTIVE_SOFT_WIDTH = 12;
+/** Route ouverte ÉPAISSE (route-first, lisible au soleil). */
+const ROUTE_WIDTH = 4;
 /** Pulse LENT de la zone bonus (1 seule couche bruyante à la fois — discret). */
 const BONUS_PULSE_MS = 3_200;
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -128,20 +150,11 @@ interface XY {
   y: number;
 }
 
-interface SceneMarker extends XY {
-  key: string;
-}
-
-/** `d` SVG concaténés par état de jeu — UN path par état (perf RN-web). */
-type HexPathByState = Record<HexState, string> & {
-  /** Decay urgents seuls (fill/contour muted red distincts). */
-  decayUrgent: string;
-  /** Tous les hexes tenus (glow commun mine+protected+decay). */
-  heldAll: string;
-};
-
 interface Scene {
-  hexD: HexPathByState;
+  /** Chemins SVG des TERRITOIRES ORGANIQUES par état ('' si absent). */
+  terri: Record<TerritoryState, string>;
+  /** UN sablier PAR SECTEUR en decay (ancre du territoire urgent, sinon decay). */
+  decaySablier: XY | null;
   canalD: string;
   parksD: string[];
   /** Îlots urbains pleins — UN path concaténé (AMENDEMENT-09 §0). */
@@ -155,7 +168,6 @@ interface Scene {
   shield: XY;
   objectivePin: XY;
   outpostMarker: XY;
-  urgentMarkers: SceneMarker[];
   // ── Situation live AMENDEMENT-09 §2 (positions écran des couches 4) ──
   mates: (MateOnMapDemo & XY)[];
   pois: (PoiOnMapDemo & XY)[];
@@ -166,13 +178,13 @@ interface Scene {
 }
 
 /**
- * Projette hexes + basemap + points (lng/lat) dans un repère width×height à
- * ÉCHELLE FIXE (METERS_PER_PIXEL), centré sur le cluster maison (égocentré
- * AMENDEMENT-01). Les hexes hors écran (+ marge) sont exclus du rendu, et les
- * `d` sont concaténés par état — un seul <Path> par état de jeu.
+ * Projette territoires organiques + basemap + points (lng/lat) dans un repère
+ * width×height à ÉCHELLE FIXE (METERS_PER_PIXEL), centré sur le secteur maison
+ * (égocentré AMENDEMENT-01). Les territoires sortent du pipeline territory.ts
+ * (fusion → simplification → lissage) — UN path par état, AUCUN hexagone.
  */
 function buildScene(width: number, height: number): Scene {
-  const { collection, points } = battleMapData();
+  const { points } = battleMapData();
   const centre = points.protectedCenter;
 
   const toXY = (lng: number, lat: number): XY => ({
@@ -180,11 +192,6 @@ function buildScene(width: number, height: number): Scene {
     y: height / 2 - ((lat - centre.lat) * M_PER_DEG_LAT) / METERS_PER_PIXEL,
   });
   const pointXY = (p: LatLngPoint): XY => toXY(p.lng, p.lat);
-  const inViewport = ({ x, y }: XY): boolean =>
-    x >= -CULL_MARGIN_PX &&
-    x <= width + CULL_MARGIN_PX &&
-    y >= -CULL_MARGIN_PX &&
-    y <= height + CULL_MARGIN_PX;
   const lineD = (pts: readonly LatLngPoint[], close = false): string => {
     const d = pts
       .map((p, i) => {
@@ -195,34 +202,23 @@ function buildScene(width: number, height: number): Scene {
     return close ? `${d} Z` : d;
   };
 
-  const hexD: HexPathByState = {
-    neutral: '',
-    mine: '',
-    foe: '',
-    contested: '',
+  // Territoires organiques : un chemin SVG lissé par état (jamais de neutre).
+  const terri: Record<TerritoryState, string> = {
+    crew: '',
     protected: '',
     decay: '',
+    decayUrgent: '',
+    rival: '',
+    contested: '',
     objective: '',
     outpost: '',
-    decayUrgent: '',
-    heldAll: '',
   };
-  for (const f of collection.features) {
-    const ring = f.geometry.coordinates[0] ?? [];
-    const first = ring[0];
-    if (!first) continue;
-    if (!inViewport(toXY(first[0] ?? 0, first[1] ?? 0))) continue; // culling
-    const d =
-      ring
-        .map((pt, i) => {
-          const { x, y } = toXY(pt[0] ?? 0, pt[1] ?? 0);
-          return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-        })
-        .join(' ') + ' Z';
-    const { state, urgent } = f.properties;
-    if (state === 'decay' && urgent) hexD.decayUrgent += d;
-    else hexD[state] += d;
-    if (state === 'mine' || state === 'protected' || state === 'decay') hexD.heldAll += d;
+  let decaySablier: XY | null = null;
+  for (const territory of battleTerritories()) {
+    terri[territory.state] = territoryPath(territory, toXY);
+    if (territory.state === 'decayUrgent' || (territory.state === 'decay' && !decaySablier)) {
+      decaySablier = pointXY(territory.labelAnchor);
+    }
   }
 
   // Îlots : culling large (un coin visible suffit), UN path concaténé.
@@ -245,7 +241,8 @@ function buildScene(width: number, height: number): Scene {
   for (const p of PARCOURS_DEMO) parcours[p.id] = p.line.map(pointXY);
 
   return {
-    hexD,
+    terri,
+    decaySablier,
     canalD: lineD(CANAL),
     parksD: PARKS.map((ring) => lineD(ring, true)),
     blocksD,
@@ -257,7 +254,6 @@ function buildScene(width: number, height: number): Scene {
     shield: pointXY(points.protectedCenter),
     objectivePin: pointXY(points.objectiveCenter),
     outpostMarker: pointXY(points.outpost),
-    urgentMarkers: points.urgentDecay.map((p, i) => ({ key: `urgent-${i}`, ...pointXY(p) })),
     mates: MATES_OPT_IN.map((m) => ({ ...m, ...pointXY(m.position) })),
     pois: POIS_ON_MAP.map((p) => ({ ...p, ...pointXY(p.position) })),
     challenge: pointXY(MAP_CHALLENGE.position),
@@ -268,13 +264,29 @@ function buildScene(width: number, height: number): Scene {
 
 export function MapScreen() {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
-  const [layers, setLayers] = useState(DEFAULT_MAP_LAYERS);
+  const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
   const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
 
   const summary = useMemo(() => battleMapSummary(battleMapData().collection), []);
   const runMode = useMemo(() => deriveRunButtonMode(), []);
+  /** Emphase des familles de couches selon le mode actif (AMENDEMENT-11 §3). */
+  const emph = MODE_EMPHASIS[mode];
+
+  // Changement de mode : fondu court de la couche territoires (transition
+  // douce) — reduce motion → bascule sèche.
+  const modeFade = useRef(new Animated.Value(1)).current;
+  const selectMode = (next: MapMode) => {
+    setMode(next);
+    if (reduce) return;
+    modeFade.setValue(MODE_FADE_DIP);
+    Animated.timing(modeFade, {
+      toValue: 1,
+      duration: MODE_FADE_MS,
+      useNativeDriver: true,
+    }).start();
+  };
 
   // Recentrer : la carte est déjà égocentrée (pas de pan en démo web) — le
   // retour ego est un settle spring discret de la scène (reduce motion → rien).
@@ -301,8 +313,8 @@ export function MapScreen() {
 
   // Vague de capture légère au mount (reduce motion → fade court via le hook).
   const reveal = useReveal(true);
-  // Pulse des hexes contestés SEULS : le contour rival respire (reduce motion → fixe).
-  const pulse = usePulse(layers.rivals, 1.06, CONTESTED_PULSE_MS);
+  // Pulse LENT de la frontière contestée SEULE (reduce motion → fixe).
+  const pulse = usePulse(true, 1.06, CONTESTED_PULSE_MS);
   const pulseOpacity = pulse.interpolate({ inputRange: [1, 1.06], outputRange: [1, 0.25] });
   // Zone bonus : respiration LENTE (l'unique autre pulse — anti-bruit).
   const bonusPulse = usePulse(true, 1.05, BONUS_PULSE_MS);
@@ -316,9 +328,6 @@ export function MapScreen() {
   };
 
   const scene = useMemo(() => (size ? buildScene(size.w, size.h) : null), [size]);
-
-  const toggleLayer = (key: MapLayerKey) =>
-    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
     <View style={styles.root}>
@@ -376,102 +385,162 @@ export function MapScreen() {
               ))}
             </Svg>
 
-            {/* ── Couche 2 : hex grid neutre (UN path concaténé) ─────────── */}
-            <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill}>
-              <Path d={scene.hexD.neutral} fill="transparent" stroke={ms.neutralStroke} strokeWidth={1} />
-            </Svg>
-
-            {/* ── Couche 3 : ownership/états — vague de capture au mount ─ */}
+            {/* ── Couche 2 : TERRITOIRES ORGANIQUES + FRONTIÈRES par état ──
+                 (AMENDEMENT-11 §2 — vague de capture au mount + fondu de mode.
+                 Le fond neutre = les îlots basemap : AUCUNE cellule grise.) */}
             <Animated.View
               style={[
                 StyleSheet.absoluteFill,
-                { opacity: reveal.opacity, transform: [{ scale: reveal.scale }] },
+                {
+                  opacity: Animated.multiply(reveal.opacity, modeFade),
+                  transform: [{ scale: reveal.scale }],
+                },
               ]}
               pointerEvents="none"
             >
               <Svg width={size.w} height={size.h}>
-                {/* Rival (orange sombre) + contesté (double contour) */}
-                {layers.rivals ? (
-                  <Path d={scene.hexD.foe} fill={ms.rivalFill} stroke={ms.rivalStroke} strokeWidth={1} />
-                ) : null}
-                {layers.rivals && scene.hexD.contested ? (
-                  <Path
-                    d={scene.hexD.contested}
-                    fill={ms.contestedFill}
-                    stroke={ms.contestedInnerStroke}
-                    strokeWidth={1.4}
+                {/* Rival : aplat sombre teinté + FRONTIÈRE orange marquée */}
+                <Path
+                  d={scene.terri.rival}
+                  fill={terr.rivalFill}
+                  fillRule="evenodd"
+                  stroke={terr.rivalStroke}
+                  strokeWidth={RIVAL_BORDER_WIDTH}
+                  strokeLinejoin="round"
+                  opacity={emph.rival}
+                />
+
+                {/* Objectif : zone chaude DOUCE (lueur large, pas de bord dur) */}
+                <Path
+                  d={scene.terri.objective}
+                  fill="none"
+                  stroke={terr.objectiveSoft}
+                  strokeWidth={OBJECTIVE_SOFT_WIDTH}
+                  strokeLinejoin="round"
+                  opacity={emph.objective}
+                />
+                <Path
+                  d={scene.terri.objective}
+                  fill={terr.objectiveFill}
+                  fillRule="evenodd"
+                  opacity={emph.objective}
+                />
+
+                {/* Mon crew : glow + aplat + frontière fine semi-lumineuse */}
+                <Path
+                  d={scene.terri.crew}
+                  fill="none"
+                  stroke={terr.crewGlow}
+                  strokeWidth={CREW_GLOW_WIDTH}
+                  strokeLinejoin="round"
+                  opacity={emph.crew}
+                />
+                <Path
+                  d={scene.terri.crew}
+                  fill={terr.crewFill}
+                  fillRule="evenodd"
+                  stroke={terr.crewStroke}
+                  strokeWidth={BORDER_WIDTH}
+                  strokeLinejoin="round"
+                  opacity={emph.crew}
+                />
+
+                {/* Avant-poste : petit blob organique tenu */}
+                <Path
+                  d={scene.terri.outpost}
+                  fill={terr.outpostFill}
+                  fillRule="evenodd"
+                  stroke={terr.outpostStroke}
+                  strokeWidth={BORDER_WIDTH}
+                  strokeLinejoin="round"
+                  opacity={emph.crew}
+                />
+
+                {/* Zone à défendre (decay) : frontière pointillée, muted red si urgent */}
+                <Path
+                  d={scene.terri.decayUrgent}
+                  fill={terr.decayUrgentFill}
+                  fillRule="evenodd"
+                  opacity={emph.defense}
+                />
+                <Path
+                  d={scene.terri.decay}
+                  fill="none"
+                  stroke={terr.decayStroke}
+                  strokeWidth={DECAY_WIDTH}
+                  strokeDasharray={DECAY_DASH}
+                  strokeLinejoin="round"
+                  opacity={emph.defense}
+                />
+                <Path
+                  d={scene.terri.decayUrgent}
+                  fill="none"
+                  stroke={terr.decayUrgentStroke}
+                  strokeWidth={DECAY_WIDTH}
+                  strokeDasharray={DECAY_DASH}
+                  strokeLinejoin="round"
+                  opacity={emph.defense}
+                />
+
+                {/* Secteur protégé : halo verify (l'icône shield est UNIQUE, posée plus bas) */}
+                <Path
+                  d={scene.terri.protected}
+                  fill="none"
+                  stroke={terr.protectedHalo}
+                  strokeWidth={PROTECTED_HALO_WIDTH}
+                  strokeLinejoin="round"
+                  opacity={emph.defense}
+                />
+
+                {/* Contesté : aplat + contour intérieur chartreuse (l'orange pulse à part) */}
+                <Path
+                  d={scene.terri.contested}
+                  fill={terr.contestedFill}
+                  fillRule="evenodd"
+                  stroke={terr.contestedInnerStroke}
+                  strokeWidth={CONTESTED_INNER_WIDTH}
+                  strokeLinejoin="round"
+                  opacity={emph.contested}
+                />
+
+                {/* Route ouverte : ligne ÉPAISSE le long d'une rue + points de liaison */}
+                <Path
+                  d={scene.routeD}
+                  fill="none"
+                  stroke={terr.routeStroke}
+                  strokeWidth={ROUTE_WIDTH}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={emph.route}
+                />
+                {scene.routeDots.map((p, i) => (
+                  <Circle
+                    key={`route-dot-${i}`}
+                    cx={p.x}
+                    cy={p.y}
+                    r={2.5}
+                    fill={terr.routeDot}
+                    opacity={emph.route}
                   />
-                ) : null}
-
-                {/* Mon crew : glow léger sous le trait chartreuse (couloirs + maison) */}
-                {layers.crew ? (
-                  <>
-                    <Path d={scene.hexD.heldAll} fill="none" stroke={ms.heldGlow} strokeWidth={5} />
-                    <Path
-                      d={scene.hexD.mine + scene.hexD.protected + scene.hexD.decay}
-                      fill={ms.heldFill}
-                      stroke={ms.heldStroke}
-                      strokeWidth={1.4}
-                    />
-                    <Path
-                      d={scene.hexD.decayUrgent}
-                      fill={layers.decay ? ms.decayUrgentFill : ms.heldFill}
-                      stroke={ms.heldStroke}
-                      strokeWidth={1.4}
-                    />
-                    {/* Protégé : halo verify autour du cluster maison */}
-                    <Path d={scene.hexD.protected} fill="none" stroke={ms.protectedHalo} strokeWidth={2.5} />
-                  </>
-                ) : null}
-                {/* Decay : contour pointillé en queue de couloir (muted red si urgent) */}
-                {layers.crew && layers.decay ? (
-                  <>
-                    <Path
-                      d={scene.hexD.decay}
-                      fill="none"
-                      stroke={ms.decayStroke}
-                      strokeWidth={1.6}
-                      strokeDasharray="3 3"
-                    />
-                    <Path
-                      d={scene.hexD.decayUrgent}
-                      fill="none"
-                      stroke={ms.decayUrgentStroke}
-                      strokeWidth={1.6}
-                      strokeDasharray="3 3"
-                    />
-                  </>
-                ) : null}
-
-                {/* Objectif crew : halo chartreuse sur zone neutre */}
-                {layers.missions ? (
-                  <Path d={scene.hexD.objective} fill={ms.objectiveHalo} stroke={ms.objectiveStroke} strokeWidth={1.2} />
-                ) : null}
-                {/* Avant-poste : mini cluster isolé */}
-                {layers.missions ? (
-                  <Path d={scene.hexD.outpost} fill={ms.outpostFill} stroke={ms.outpostStroke} strokeWidth={1.4} />
-                ) : null}
-
-                {/* Route ouverte : ligne chartreuse LE LONG D'UNE RUE + points de liaison */}
-                {layers.routes ? (
-                  <>
-                    <Path d={scene.routeD} fill="none" stroke={ms.routeStroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    {scene.routeDots.map((p, i) => (
-                      <Circle key={`route-dot-${i}`} cx={p.x} cy={p.y} r={2.5} fill={ms.routeDot} />
-                    ))}
-                  </>
-                ) : null}
+                ))}
               </Svg>
             </Animated.View>
 
-            {/* ── Pulse : UNIQUEMENT le path des hexes contestés ────────── */}
-            {layers.rivals && scene.hexD.contested ? (
+            {/* ── Pulse lent : UNIQUEMENT la frontière contestée (2e contour) ── */}
+            {scene.terri.contested ? (
               <Animated.View
                 style={[StyleSheet.absoluteFill, { opacity: pulseOpacity }]}
                 pointerEvents="none"
               >
                 <Svg width={size.w} height={size.h}>
-                  <Path d={scene.hexD.contested} fill="none" stroke={ms.contestedOuterStroke} strokeWidth={2.5} />
+                  <Path
+                    d={scene.terri.contested}
+                    fill="none"
+                    stroke={terr.contestedOuterStroke}
+                    strokeWidth={CONTESTED_OUTER_WIDTH}
+                    strokeLinejoin="round"
+                    opacity={emph.contested}
+                  />
                 </Svg>
               </Animated.View>
             ) : null}
@@ -507,27 +576,27 @@ export function MapScreen() {
               </View>
             ) : null}
 
-            {/* ── Markers d'état (icônes @klaim/shared) ─────────────────── */}
-            {layers.crew ? (
+            {/* ── Markers d'état : UNE icône par SECTEUR (jamais par cellule) ── */}
+            <View style={{ opacity: emph.defense }} pointerEvents="none">
+              {/* Protection : 1 shield sur le secteur maison */}
               <Marker
                 x={scene.shield.x}
                 y={scene.shield.y - SHIELD_ABOVE_EGO_PX}
                 icon="bouclier"
               />
-            ) : null}
-            {layers.crew && layers.decay
-              ? scene.urgentMarkers.map((m) => (
-                  <Marker key={m.key} x={m.x} y={m.y} icon="sablier" danger />
-                ))
-              : null}
-            {layers.missions ? (
-              <>
-                <Marker x={scene.objectivePin.x} y={scene.objectivePin.y} icon="pin" crew />
-                <Marker x={scene.outpostMarker.x} y={scene.outpostMarker.y} icon="avantposte" />
-                {/* Défi à proximité : 1 marker MAX (anti-bruit) */}
-                <Marker x={scene.challenge.x} y={scene.challenge.y} icon="cible" />
-              </>
-            ) : null}
+              {/* Zone à défendre : 1 sablier sur le secteur en decay */}
+              {scene.decaySablier ? (
+                <Marker x={scene.decaySablier.x} y={scene.decaySablier.y} icon="sablier" danger />
+              ) : null}
+            </View>
+            <View style={{ opacity: emph.objective }} pointerEvents="none">
+              <Marker x={scene.objectivePin.x} y={scene.objectivePin.y} icon="pin" crew />
+              {/* Défi à proximité : 1 marker MAX (anti-bruit) */}
+              <Marker x={scene.challenge.x} y={scene.challenge.y} icon="cible" />
+            </View>
+            <View style={{ opacity: emph.crew }} pointerEvents="none">
+              <Marker x={scene.outpostMarker.x} y={scene.outpostMarker.y} icon="avantposte" />
+            </View>
 
             {/* ── POI running discrets (≤ 4 — AMENDEMENT-09 §2) ─────────── */}
             {scene.pois.map((p) => (
@@ -572,10 +641,10 @@ export function MapScreen() {
         ) : null}
       </View>
 
-      {/* ── Couche 5 : HUD Uber (pill, feed, boutons flottants, sheet) ──── */}
+      {/* ── Couche 4 : HUD (pill % contrôle, feed, modes, sheet) ────────── */}
       <BattleMapOverlays
-        layers={layers}
-        onToggleLayer={toggleLayer}
+        mode={mode}
+        onSelectMode={selectMode}
         summary={summary}
         runMode={runMode}
         onRecenter={recenter}

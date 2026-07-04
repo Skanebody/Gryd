@@ -1,13 +1,15 @@
 /**
  * GRYD — couche 4 de la Battle Map : le HUD gameplay façon UBER (AMENDEMENT-09
- * §2, brief GRYD_map_uber_running_gaming). Partagé entre MapScreen natif
- * (MapLibre) et MapScreen.web (SVG) :
- *   haut      UNE pill fine « SAISON 0 · J-12 · PARIS EST · #8 » — tout le
- *             reste vit dans la sheet (anti-bruit : zéro bandeau empilé)
- *             + mini war feed (1 SEUL event visible, rotation) + chips layers
- *             (révélées par le bouton flottant Couches).
- *   droite    3 boutons flottants MAX : recentrer / couches / stats.
- *   bas       MapBottomSheet 3 états, posée AU-DESSUS du bouton central
+ * §2), vocabulaire TERRITOIRES ORGANIQUES (AMENDEMENT-11 §3-4 : plus aucun
+ * « hex » visible — zones/secteurs/rues, % de contrôle). Partagé entre
+ * MapScreen natif (MapLibre) et MapScreen.web (SVG) :
+ *   haut      UNE pill fine « PARIS EST · ZONE CONTESTÉE » + parts de contrôle
+ *             « Ton crew 42 % · Canal Crew 38 % · Neutre 20 % » (les % ont
+ *             remplacé les comptes d'hex) + mini war feed (1 SEUL event).
+ *   droite    2 boutons flottants : recentrer / stats.
+ *   bas       chips des 5 MODES de carte (Territoire / Route / Défense / Raid /
+ *             Exploration — un seul actif, remplacent les chips layers), puis
+ *             MapBottomSheet 3 états, posée AU-DESSUS du bouton central
  *             ContextualRunButton (AMENDEMENT-08 §3 — il reste l'unique CTA
  *             chartreuse, la sheet ne le duplique pas) :
  *             COMPACT  objectif crew + pts possibles + CTA texte contextuel
@@ -21,7 +23,7 @@
  * — pas de nom §8 dédié dans events.ts) ; EVENTS.runStart au départ réel.
  */
 import { useEffect, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, radii, type RunMode } from '@klaim/shared';
@@ -41,9 +43,11 @@ import { RunModeSheet } from '../motivation/RunModeSheet';
 import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
 import { MISSIONS, OFFENSIVE } from '../warroom/demo';
 import {
+  DEFENSE_SECTOR,
   FRIEND_RUN_DEMO,
   MAP_BONUS_ZONE,
   MAP_CHALLENGE,
+  MAP_CONTROL_HUD,
   MAP_HUD,
   MAP_WAR_FEED,
   MATES_OPT_IN,
@@ -54,26 +58,7 @@ import {
   type MapWarFeedEventDemo,
 } from './demo';
 import type { BattleMapSummary } from './fakeHexes';
-
-export type MapLayerKey = 'decay' | 'routes' | 'crew' | 'rivals' | 'missions';
-
-/** Défaut SIMPLE (doc §7) : territoire + rival + objectif — decay/routes au tap. */
-export const DEFAULT_MAP_LAYERS: Record<MapLayerKey, boolean> = {
-  decay: false,
-  routes: false,
-  crew: true,
-  rivals: true,
-  missions: true,
-};
-
-const LAYER_ORDER: readonly MapLayerKey[] = ['decay', 'routes', 'crew', 'rivals', 'missions'];
-const LAYER_LABELS: Record<MapLayerKey, string> = {
-  decay: 'Decay',
-  routes: 'Routes',
-  crew: 'Crew',
-  rivals: 'Rivals',
-  missions: 'Missions',
-};
+import { MAP_MODE_LABELS, MAP_MODE_ORDER, type MapMode } from './territory';
 
 /** CTA contextuel de la sheet — même vocabulaire que le bouton central. */
 const CTA_LABELS: Record<RunButtonMode, string> = {
@@ -85,11 +70,12 @@ const CTA_LABELS: Record<RunButtonMode, string> = {
 };
 
 /**
- * Libellé objectif — DÉRIVÉ du même runMode que le CTA (cohérence) :
- * RAID → prendre la zone de l'offensive (warroom/demo OFFENSIVE), DEFEND →
- * défendre le decay, CAPTURE → la zone neutre ; RUN/SCOUT → libellé existant.
+ * Libellé objectif — DÉRIVÉ du même runMode que le CTA (cohérence), vocabulaire
+ * AMENDEMENT-11 §4 (zones/secteurs, jamais « hex ») : RAID → prendre la zone de
+ * l'offensive (warroom/demo OFFENSIVE), CAPTURE → la zone neutre ; DEFEND/RUN/
+ * SCOUT → « Défendre République » (secteur démo).
  */
-function objectiveTitleFor(mode: RunButtonMode, summary: BattleMapSummary): string {
+function objectiveTitleFor(mode: RunButtonMode): string {
   switch (mode) {
     case 'RAID':
       return `Prendre ${OFFENSIVE.zone}`;
@@ -98,8 +84,16 @@ function objectiveTitleFor(mode: RunButtonMode, summary: BattleMapSummary): stri
     case 'DEFEND':
     case 'RUN':
     case 'SCOUT':
-      return `Défendre ${summary.decay} hexes`;
+      return `Défendre ${DEFENSE_SECTOR}`;
   }
+}
+
+/** Sous-ligne objectif : « N zones à sauver · +pts » ou « N zones tenues · +pts ». */
+function objectiveMetaFor(mode: RunButtonMode, summary: BattleMapSummary): string {
+  if (mode === 'DEFEND' || mode === 'RUN' || mode === 'SCOUT') {
+    return `${summary.decay} zones à sauver · +${summary.possiblePoints} pts`;
+  }
+  return `${summary.held} zones tenues · +${summary.possiblePoints} pts possibles`;
 }
 
 /** Un event est LIVE s'il date de moins de 10 min (même seuil que WarEventCard). */
@@ -108,6 +102,8 @@ const LIVE_MAX_MINUTES = 10;
 const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Pile de boutons flottants : dégagement au-dessus de la sheet compacte. */
 const FAB_ABOVE_SHEET = 12;
+/** Rangée des chips de mode (chip ~30 px + marge) — réserve au-dessus de la sheet. */
+const MODE_CHIPS_HEIGHT = 40;
 
 /** « 4,2 km » — décimale française, pas d'Intl (parité Hermes). */
 function formatKm(km: number): string {
@@ -115,8 +111,9 @@ function formatKm(km: number): string {
 }
 
 export interface BattleMapOverlaysProps {
-  layers: Record<MapLayerKey, boolean>;
-  onToggleLayer: (key: MapLayerKey) => void;
+  /** Mode de carte actif (AMENDEMENT-11 §3 — un seul à la fois). */
+  mode: MapMode;
+  onSelectMode: (mode: MapMode) => void;
   summary: BattleMapSummary;
   runMode: RunButtonMode;
   /** Retour ego fluide (anim caméra/scène côté écran) — bouton Recentrer. */
@@ -127,8 +124,8 @@ export interface BattleMapOverlaysProps {
 }
 
 export function BattleMapOverlays({
-  layers,
-  onToggleLayer,
+  mode,
+  onSelectMode,
   summary,
   runMode,
   onRecenter,
@@ -137,7 +134,6 @@ export function BattleMapOverlays({
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [chipsOpen, setChipsOpen] = useState(false);
   const [runPickerOpen, setRunPickerOpen] = useState(false);
   // La sheet n'expose pas de contrôle impératif : le bouton Stats la REMONTE
   // en semi (remount key + initialState — snap direct, façon reduce motion).
@@ -175,50 +171,34 @@ export function BattleMapOverlays({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* ── Haut : UNE pill fine + chips layers + mini war feed (1 event) ── */}
+      {/* ── Haut : UNE pill (secteur + % de contrôle) + mini war feed ────── */}
       <View style={[styles.top, { top: insets.top + 10 }]} pointerEvents="box-none">
         <View style={styles.pill}>
           <Text style={styles.pillText} numberOfLines={1}>
-            {MAP_HUD.seasonLabel.toUpperCase()} · J-{Math.max(0, MAP_HUD.daysLeft)} ·{' '}
-            {MAP_HUD.zoneName.toUpperCase()} · <Text style={styles.pillRank}>#{MAP_HUD.crewRank}</Text>
+            {MAP_HUD.zoneName.toUpperCase()} · {MAP_CONTROL_HUD.stateLabel} ·{' '}
+            <Text style={styles.pillRank}>#{MAP_HUD.crewRank}</Text>
+          </Text>
+          <Text style={styles.pillShares} numberOfLines={1}>
+            <Text style={styles.pillSharesCrew}>Ton crew {MAP_CONTROL_HUD.crewPct} %</Text>
+            {' · '}
+            {MAP_CONTROL_HUD.rivalName} {MAP_CONTROL_HUD.rivalPct} % · Neutre{' '}
+            {MAP_CONTROL_HUD.neutralPct} %
           </Text>
         </View>
-        {chipsOpen ? (
-          <View style={styles.chipsRow}>
-            {LAYER_ORDER.map((key) => {
-              const active = layers[key];
-              return (
-                <Pressable
-                  key={key}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={`Layer ${LAYER_LABELS[key]}`}
-                  onPress={() => {
-                    haptics.light();
-                    onToggleLayer(key);
-                  }}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    active && styles.chipActive,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
-                    {LAYER_LABELS[key]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
         <View style={styles.feedWrap} pointerEvents="none">
           <WarFeedTicker />
         </View>
       </View>
 
-      {/* ── Droite : 3 boutons flottants MAX (anti-bruit) ────────────────── */}
+      {/* ── Droite : 2 boutons flottants (anti-bruit) ────────────────────── */}
       <View
-        style={[styles.fabColumn, { bottom: sheetBottom + MAP_SHEET_COMPACT_HEIGHT + FAB_ABOVE_SHEET }]}
+        style={[
+          styles.fabColumn,
+          {
+            bottom:
+              sheetBottom + MAP_SHEET_COMPACT_HEIGHT + MODE_CHIPS_HEIGHT + FAB_ABOVE_SHEET,
+          },
+        ]}
         pointerEvents="box-none"
       >
         <FloatingMapButton
@@ -227,16 +207,49 @@ export function BattleMapOverlays({
           onPress={() => onRecenter?.()}
         />
         <FloatingMapButton
-          icon="radar"
-          accessibilityLabel="Couches de la carte"
-          active={chipsOpen}
-          onPress={() => setChipsOpen((v) => !v)}
-        />
-        <FloatingMapButton
           icon="performance"
           accessibilityLabel="Stats rapides"
           onPress={openSheetSemi}
         />
+      </View>
+
+      {/* ── Modes de carte (AMENDEMENT-11 §3) : 5 chips, UN SEUL actif ───── */}
+      <View
+        style={[styles.modesWrap, { bottom: sheetBottom + MAP_SHEET_COMPACT_HEIGHT + 8 }]}
+        pointerEvents="box-none"
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.modesRow}
+        >
+          {MAP_MODE_ORDER.map((key) => {
+            const active = mode === key;
+            return (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Mode ${MAP_MODE_LABELS[key]}`}
+                onPress={() => {
+                  if (active) return;
+                  haptics.light();
+                  onSelectMode(key);
+                  screen('map_mode_select', { mode: key });
+                }}
+                style={({ pressed }) => [
+                  styles.chip,
+                  active && styles.chipActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
+                  {MAP_MODE_LABELS[key]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* ── Bas : bottom sheet Uber, au-dessus du bouton central ─────────── */}
@@ -252,10 +265,10 @@ export function BattleMapOverlays({
               <View style={styles.compactBody}>
                 <Text style={styles.kicker}>OBJECTIF CREW</Text>
                 <Text style={styles.objectiveTitle} numberOfLines={1}>
-                  {objectiveTitleFor(runMode, summary)}
+                  {objectiveTitleFor(runMode)}
                 </Text>
                 <Text style={styles.objectiveMeta} numberOfLines={1}>
-                  {summary.held} hexes tenus · +{summary.possiblePoints} pts possibles
+                  {objectiveMetaFor(runMode, summary)}
                 </Text>
               </View>
               <Pressable
@@ -463,10 +476,27 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: '700',
     letterSpacing: 0.8,
+    textAlign: 'center',
   },
   pillRank: { color: gameColors.crew },
+  // Parts de contrôle (AMENDEMENT-11 §3 — remplacent les comptes d'hex).
+  pillShares: {
+    color: colors.gris,
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
+  pillSharesCrew: { color: gameColors.crew },
 
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  modesWrap: { position: 'absolute', left: 0, right: 0, height: MODE_CHIPS_HEIGHT },
+  modesRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,

@@ -17,6 +17,47 @@ export function withAlpha(tokenHex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+/**
+ * TERRITOIRES ORGANIQUES (AMENDEMENT-11 §2, doc §7-§8) : aplats sombres teintés
+ * par état (opacité faible — la ville reste lisible dessous) + traitements de
+ * FRONTIÈRE par état. Consommé par MapScreen.web (SVG) et MapScreen (MapLibre).
+ */
+export const territoryStyle = {
+  // Ton crew : aplat chartreuse discret + frontière fine semi-lumineuse + glow.
+  crewFill: mapTokens.mineFill,
+  crewStroke: withAlpha(colors.chartreuse, 0.55),
+  crewGlow: withAlpha(colors.chartreuse, 0.14),
+
+  // Rival : frontière orange MARQUÉE (l'état se lit à la frontière).
+  rivalFill: withAlpha(gameColors.rival, 0.13),
+  rivalStroke: withAlpha(gameColors.rival, 0.8),
+
+  // Contesté : double contour chartreuse + orange (l'orange pulse lentement).
+  contestedFill: withAlpha(gameColors.contested, 0.13),
+  contestedInnerStroke: withAlpha(colors.chartreuse, 0.7),
+  contestedOuterStroke: withAlpha(gameColors.rival, 0.8),
+
+  // Protégé : halo verify autour du secteur (1 icône shield par secteur).
+  protectedHalo: withAlpha(gameColors.verify, 0.4),
+
+  // Zone à défendre (decay) : frontière pointillée — muted red si urgent.
+  decayStroke: withAlpha(colors.blanc, 0.45),
+  decayUrgentStroke: withAlpha(gameColors.danger, 0.85),
+  decayUrgentFill: withAlpha(gameColors.danger, 0.08),
+
+  // Objectif : zone chaude DOUCE (aplat très léger + lueur large, pas de bord dur).
+  objectiveFill: withAlpha(colors.chartreuse, 0.09),
+  objectiveSoft: withAlpha(colors.chartreuse, 0.07),
+
+  // Avant-poste : petit blob organique tenu par mon crew.
+  outpostFill: withAlpha(colors.chartreuse, 0.1),
+  outpostStroke: withAlpha(colors.chartreuse, 0.45),
+
+  // Route ouverte : ligne ÉPAISSE (route-first, lisible au soleil).
+  routeStroke: withAlpha(colors.chartreuse, 0.9),
+  routeDot: colors.chartreuse,
+} as const;
+
 export const battleMapStyle = {
   // Mon crew (chartreuse + glow léger)
   heldFill: mapTokens.mineFill,

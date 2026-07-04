@@ -33,6 +33,23 @@ export const MAP_HUD: {
   crewRank: 8,
 };
 
+/**
+ * Parts de CONTRÔLE du secteur (AMENDEMENT-11 §3 — les % remplacent les comptes
+ * d'hex du HUD) : `PARIS EST · Zone contestée — Ton crew 42 % · Canal Crew 38 %
+ * · Neutre 20 %`. Étiquettes démo comme le reste de MAP_HUD — TODO(O1) dérivées
+ * des parts réelles de hex_claims par secteur au Milestone 2.
+ */
+export const MAP_CONTROL_HUD = {
+  stateLabel: 'Zone contestée',
+  crewPct: 42,
+  rivalName: 'Canal Crew',
+  rivalPct: 38,
+  neutralPct: 20,
+} as const;
+
+/** Secteur défendu par l'objectif crew (vocabulaire zones/rues — étiquette démo). */
+export const DEFENSE_SECTOR = 'République';
+
 export interface MapWarFeedEventDemo {
   icon: IconName;
   message: string;
@@ -47,7 +64,7 @@ export interface MapWarFeedEventDemo {
 export const MAP_WAR_FEED: readonly MapWarFeedEventDemo[] = [
   {
     icon: 'bouclier',
-    message: 'LÉNA a défendu 8 hexes',
+    message: 'LÉNA a défendu 8 zones',
     zone: 'République',
     points: 8 * POINTS_DEFENDED_HEX,
     minutesAgo: 4,
@@ -55,7 +72,7 @@ export const MAP_WAR_FEED: readonly MapWarFeedEventDemo[] = [
   },
   {
     icon: 'raid',
-    message: 'CANAL CREW a repris 14 hexes',
+    message: 'CANAL CREW a repris 14 zones',
     zone: 'Canal',
     points: 14 * POINTS_STOLEN_HEX,
     minutesAgo: 12,

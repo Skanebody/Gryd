@@ -1,16 +1,20 @@
 /**
- * GRYD — BATTLE MAP, variante NATIVE (MapLibre) — AMENDEMENT-08 §4, doc §7.
- * La cible visuelle prioritaire est MapScreen.web.tsx (aperçu Expo Web) ;
- * cette version reste compilable et porte les mêmes couches à partir du MÊME
- * jeu démo (battleMapData) : basemap vectorielle sombre (D17), hex grid,
- * états de jeu (crew/rival/contesté/protégé/decay/objectif/avant-poste),
- * route ouverte, labels de secteurs, et le HUD partagé (BattleMapOverlays).
- * AMENDEMENT-09 §2 : HUD Uber partagé (pill, sheet, boutons flottants) ;
- * recentrer = retour caméra fluide sur le centre égocentré ; le parcours
- * sélectionné dans la sheet est tracé en gris (aperçu — RouteProgress et les
- * markers iconiques shield/sablier/pin/mates/POI restent web-only pour
- * l'instant — TODO Milestone 2 : images de symboles MapLibre).
- * Le CTA COURIR est rendu par le layout (tabs) — pas de doublon ici.
+ * GRYD — BATTLE MAP, variante NATIVE (MapLibre) — AMENDEMENT-11 §2-3 : PLUS
+ * AUCUN HEXAGONE VISIBLE. La cible visuelle prioritaire est MapScreen.web.tsx
+ * (aperçu Expo Web) ; cette version reste compilable et porte les MÊMES
+ * territoires organiques : une source GeoJSON UNIQUE de multi-polygones
+ * fusionnés/lissés (territory.ts → territoriesToGeoJSON — h3-js
+ * cellsToMultiPolygon + simplification + Chaikin), avec les traitements de
+ * FRONTIÈRE par état (fill + line layers filtrés par `state`) :
+ * crew (aplat + contour fin semi-lumineux + glow), rival (contour orange
+ * marqué), contesté (double contour chartreuse+orange), protégé (halo),
+ * decay (pointillé, muted red si urgent), objectif (zone chaude douce),
+ * avant-poste (petit blob). Aucune couche neutre : le fond = la basemap.
+ * 5 MODES de carte (AMENDEMENT-11 §3) : MODE_EMPHASIS module l'opacité des
+ * familles de couches. HUD partagé (BattleMapOverlays — pill % de contrôle,
+ * chips de modes, sheet). Les markers iconiques shield/sablier/pin/mates/POI
+ * restent web-only pour l'instant — TODO Milestone 2 : images de symboles
+ * MapLibre. Le CTA COURIR est rendu par le layout (tabs) — pas de doublon ici.
  */
 import { useMemo, useRef, useState, type ComponentProps, type ElementRef } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -29,13 +33,17 @@ import { CITIES, colors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { deriveRunButtonMode } from '../nav/runContext';
 import { SECTOR_LABELS } from './basemap';
+import { BattleMapOverlays } from './BattleMapOverlays';
+import { battleMapData, battleMapSummary } from './fakeHexes';
+import { territoryStyle as terr } from './mapStyle';
 import {
-  BattleMapOverlays,
-  DEFAULT_MAP_LAYERS,
-  type MapLayerKey,
-} from './BattleMapOverlays';
-import { battleMapData, battleMapSummary, type HexState } from './fakeHexes';
-import { battleMapStyle as ms } from './mapStyle';
+  DEFAULT_MAP_MODE,
+  MODE_EMPHASIS,
+  battleTerritories,
+  territoriesToGeoJSON,
+  type MapMode,
+  type TerritoryState,
+} from './territory';
 import { PARCOURS_DEMO } from './demo';
 
 /**
@@ -46,34 +54,35 @@ import { PARCOURS_DEMO } from './demo';
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/dark';
 
 /**
- * Échelle coureur (AMENDEMENT-08 §4) : hex res 10 (~130 m) ≈ 30 px à l'écran.
+ * Échelle coureur (AMENDEMENT-08 §4) : ~130 m (zone) ≈ 30 px à l'écran.
  * À la latitude de Paris, zoom 14.6 ≈ 4,2 m/px — même perception que la
  * variante web (METERS_PER_PIXEL ≈ 4,3 m/px).
  */
 const RUNNER_SCALE_ZOOM = 14.6;
 
-const eqState = (state: HexState): FilterExpression =>
+/** Traitements de frontière (mêmes valeurs que la variante web). */
+const BORDER_WIDTH = 1.8;
+const RIVAL_BORDER_WIDTH = 2.6;
+const CONTESTED_INNER_WIDTH = 1.8;
+const CONTESTED_OUTER_WIDTH = 3;
+const CREW_GLOW_WIDTH = 7;
+const PROTECTED_HALO_WIDTH = 5;
+const DECAY_WIDTH = 1.8;
+const DECAY_DASH: [number, number] = [3, 2.5];
+const OBJECTIVE_SOFT_WIDTH = 12;
+const ROUTE_WIDTH = 4;
+
+const eqState = (state: TerritoryState): FilterExpression =>
   ['==', ['get', 'state'], state] as FilterExpression;
 
-const FILTER_NEUTRAL = eqState('neutral');
-const FILTER_FOE = eqState('foe');
+const FILTER_CREW = eqState('crew');
+const FILTER_RIVAL = eqState('rival');
 const FILTER_CONTESTED = eqState('contested');
 const FILTER_PROTECTED = eqState('protected');
 const FILTER_DECAY = eqState('decay');
+const FILTER_DECAY_URGENT = eqState('decayUrgent');
 const FILTER_OBJECTIVE = eqState('objective');
 const FILTER_OUTPOST = eqState('outpost');
-/** Hexes tenus par mon crew : mine + protected + decay. */
-const FILTER_HELD = [
-  'any',
-  ['==', ['get', 'state'], 'mine'],
-  ['==', ['get', 'state'], 'protected'],
-  ['==', ['get', 'state'], 'decay'],
-] as unknown as FilterExpression;
-const FILTER_DECAY_URGENT = [
-  'all',
-  ['==', ['get', 'state'], 'decay'],
-  ['==', ['get', 'urgent'], true],
-] as unknown as FilterExpression;
 
 /** GeoJSON minimal typé localement (pas de dépendance @types/geojson). */
 interface LineFeature {
@@ -94,11 +103,16 @@ interface PointFeatureCollection {
 const RECENTER_MS = 600;
 
 export function MapScreen() {
-  const [layers, setLayers] = useState(DEFAULT_MAP_LAYERS);
-  const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
+  const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
   const { collection, points } = useMemo(() => battleMapData(), []);
   const summary = useMemo(() => battleMapSummary(collection), [collection]);
   const runMode = useMemo(() => deriveRunButtonMode(), []);
+  const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
+
+  /** Territoires organiques fusionnés (AUCUN hexagone) — source unique. */
+  const territoryShape = useMemo(() => territoriesToGeoJSON(battleTerritories()), []);
+  /** Emphase des familles de couches selon le mode (AMENDEMENT-11 §3). */
+  const emph = MODE_EMPHASIS[mode];
 
   // Recentrer (AMENDEMENT-09 §2) : retour caméra fluide sur le « moi » égocentré.
   const cameraRef = useRef<ElementRef<typeof Camera>>(null);
@@ -124,7 +138,7 @@ export function MapScreen() {
     };
   }, [selectedParcours]);
 
-  // Route ouverte : polyline chartreuse cluster → objectif (doc §7).
+  // Route ouverte : polyline chartreuse épaisse entre deux secteurs tenus.
   const routeShape = useMemo<LineFeature>(
     () => ({
       type: 'Feature',
@@ -137,7 +151,7 @@ export function MapScreen() {
     [points],
   );
 
-  // Noms de secteurs discrets (doc §7 « basemap urbaine subtile »).
+  // Noms de secteurs discrets (labels de quartiers — couche 7 du doc §5).
   const sectorShape = useMemo<PointFeatureCollection>(
     () => ({
       type: 'FeatureCollection',
@@ -159,9 +173,6 @@ export function MapScreen() {
     track(EVENTS.mapLoadMs, { ms: Date.now() - mountedAtRef.current });
   };
 
-  const toggleLayer = (key: MapLayerKey) =>
-    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
-
   return (
     <View style={styles.root}>
       <MapView
@@ -178,130 +189,159 @@ export function MapScreen() {
             zoomLevel: RUNNER_SCALE_ZOOM,
           }}
         />
-        <ShapeSource id="hexes" shape={collection}>
-          {/* Grille neutre : contour discret seul (§D) */}
+        {/* TERRITOIRES ORGANIQUES : multi-polygones fusionnés/lissés, un
+            traitement de FRONTIÈRE par état — aucune couche neutre. */}
+        <ShapeSource id="territories" shape={territoryShape}>
+          {/* Rival : aplat teinté + frontière orange marquée */}
+          <FillLayer
+            id="terr-rival-fill"
+            filter={FILTER_RIVAL}
+            style={{ fillColor: terr.rivalFill, fillOpacity: emph.rival }}
+          />
           <LineLayer
-            id="hex-neutral-stroke"
-            filter={FILTER_NEUTRAL}
-            style={{ lineColor: ms.neutralStroke, lineWidth: 1 }}
+            id="terr-rival-border"
+            filter={FILTER_RIVAL}
+            style={{
+              lineColor: terr.rivalStroke,
+              lineWidth: RIVAL_BORDER_WIDTH,
+              lineOpacity: emph.rival,
+            }}
           />
 
-          {/* Rival : orange sombre — TODO motifs par crew (fillPattern nécessite
-              des images enregistrées ; prop `pattern` déjà portée par le GeoJSON) */}
-          {layers.rivals ? (
-            <>
-              <FillLayer
-                id="hex-foe-fill"
-                filter={FILTER_FOE}
-                style={{ fillColor: ms.rivalFill }}
-              />
-              <LineLayer
-                id="hex-foe-stroke"
-                filter={FILTER_FOE}
-                style={{ lineColor: ms.rivalStroke, lineWidth: 1 }}
-              />
-              {/* Contesté : double contour crew/rival */}
-              <FillLayer
-                id="hex-contested-fill"
-                filter={FILTER_CONTESTED}
-                style={{ fillColor: ms.contestedFill }}
-              />
-              <LineLayer
-                id="hex-contested-inner"
-                filter={FILTER_CONTESTED}
-                style={{ lineColor: ms.contestedInnerStroke, lineWidth: 1.4 }}
-              />
-              <LineLayer
-                id="hex-contested-outer"
-                filter={FILTER_CONTESTED}
-                style={{ lineColor: ms.contestedOuterStroke, lineWidth: 2.5, lineOffset: -2 }}
-              />
-            </>
-          ) : null}
+          {/* Objectif : zone chaude douce (lueur large sans bord dur) */}
+          <LineLayer
+            id="terr-objective-soft"
+            filter={FILTER_OBJECTIVE}
+            style={{
+              lineColor: terr.objectiveSoft,
+              lineWidth: OBJECTIVE_SOFT_WIDTH,
+              lineOpacity: emph.objective,
+            }}
+          />
+          <FillLayer
+            id="terr-objective-fill"
+            filter={FILTER_OBJECTIVE}
+            style={{ fillColor: terr.objectiveFill, fillOpacity: emph.objective }}
+          />
 
-          {/* Mon crew : chartreuse + glow léger */}
-          {layers.crew ? (
-            <>
-              <LineLayer
-                id="hex-held-glow"
-                filter={FILTER_HELD}
-                style={{ lineColor: ms.heldGlow, lineWidth: 5 }}
-              />
-              <FillLayer
-                id="hex-held-fill"
-                filter={FILTER_HELD}
-                style={{ fillColor: ms.heldFill }}
-              />
-              <LineLayer
-                id="hex-held-stroke"
-                filter={FILTER_HELD}
-                style={{ lineColor: ms.heldStroke, lineWidth: 1.4 }}
-              />
-              {/* Protégé : halo verify autour du cœur */}
-              <LineLayer
-                id="hex-protected-halo"
-                filter={FILTER_PROTECTED}
-                style={{ lineColor: ms.protectedHalo, lineWidth: 2.5 }}
-              />
-            </>
-          ) : null}
+          {/* Mon crew : glow + aplat + frontière fine semi-lumineuse */}
+          <LineLayer
+            id="terr-crew-glow"
+            filter={FILTER_CREW}
+            style={{
+              lineColor: terr.crewGlow,
+              lineWidth: CREW_GLOW_WIDTH,
+              lineOpacity: emph.crew,
+            }}
+          />
+          <FillLayer
+            id="terr-crew-fill"
+            filter={FILTER_CREW}
+            style={{ fillColor: terr.crewFill, fillOpacity: emph.crew }}
+          />
+          <LineLayer
+            id="terr-crew-border"
+            filter={FILTER_CREW}
+            style={{
+              lineColor: terr.crewStroke,
+              lineWidth: BORDER_WIDTH,
+              lineOpacity: emph.crew,
+            }}
+          />
 
-          {/* Decay : contour pointillé, muted red si urgent */}
-          {layers.crew && layers.decay ? (
-            <>
-              <LineLayer
-                id="hex-decay-stroke"
-                filter={FILTER_DECAY}
-                style={{ lineColor: ms.decayStroke, lineWidth: 1.6, lineDasharray: [2, 2] }}
-              />
-              <LineLayer
-                id="hex-decay-urgent"
-                filter={FILTER_DECAY_URGENT}
-                style={{
-                  lineColor: ms.decayUrgentStroke,
-                  lineWidth: 1.6,
-                  lineDasharray: [2, 2],
-                }}
-              />
-            </>
-          ) : null}
+          {/* Avant-poste : petit blob organique tenu */}
+          <FillLayer
+            id="terr-outpost-fill"
+            filter={FILTER_OUTPOST}
+            style={{ fillColor: terr.outpostFill, fillOpacity: emph.crew }}
+          />
+          <LineLayer
+            id="terr-outpost-border"
+            filter={FILTER_OUTPOST}
+            style={{
+              lineColor: terr.outpostStroke,
+              lineWidth: BORDER_WIDTH,
+              lineOpacity: emph.crew,
+            }}
+          />
 
-          {/* Objectif crew (halo chartreuse) + avant-poste */}
-          {layers.missions ? (
-            <>
-              <FillLayer
-                id="hex-objective-fill"
-                filter={FILTER_OBJECTIVE}
-                style={{ fillColor: ms.objectiveHalo }}
-              />
-              <LineLayer
-                id="hex-objective-stroke"
-                filter={FILTER_OBJECTIVE}
-                style={{ lineColor: ms.objectiveStroke, lineWidth: 1.2 }}
-              />
-              <FillLayer
-                id="hex-outpost-fill"
-                filter={FILTER_OUTPOST}
-                style={{ fillColor: ms.outpostFill }}
-              />
-              <LineLayer
-                id="hex-outpost-stroke"
-                filter={FILTER_OUTPOST}
-                style={{ lineColor: ms.outpostStroke, lineWidth: 1.4 }}
-              />
-            </>
-          ) : null}
+          {/* Zone à défendre : frontière pointillée (muted red si urgent) */}
+          <FillLayer
+            id="terr-decay-urgent-fill"
+            filter={FILTER_DECAY_URGENT}
+            style={{ fillColor: terr.decayUrgentFill, fillOpacity: emph.defense }}
+          />
+          <LineLayer
+            id="terr-decay-border"
+            filter={FILTER_DECAY}
+            style={{
+              lineColor: terr.decayStroke,
+              lineWidth: DECAY_WIDTH,
+              lineDasharray: DECAY_DASH,
+              lineOpacity: emph.defense,
+            }}
+          />
+          <LineLayer
+            id="terr-decay-urgent-border"
+            filter={FILTER_DECAY_URGENT}
+            style={{
+              lineColor: terr.decayUrgentStroke,
+              lineWidth: DECAY_WIDTH,
+              lineDasharray: DECAY_DASH,
+              lineOpacity: emph.defense,
+            }}
+          />
+
+          {/* Secteur protégé : halo verify */}
+          <LineLayer
+            id="terr-protected-halo"
+            filter={FILTER_PROTECTED}
+            style={{
+              lineColor: terr.protectedHalo,
+              lineWidth: PROTECTED_HALO_WIDTH,
+              lineOpacity: emph.defense,
+            }}
+          />
+
+          {/* Contesté : DOUBLE contour chartreuse + orange */}
+          <FillLayer
+            id="terr-contested-fill"
+            filter={FILTER_CONTESTED}
+            style={{ fillColor: terr.contestedFill, fillOpacity: emph.contested }}
+          />
+          <LineLayer
+            id="terr-contested-inner"
+            filter={FILTER_CONTESTED}
+            style={{
+              lineColor: terr.contestedInnerStroke,
+              lineWidth: CONTESTED_INNER_WIDTH,
+              lineOpacity: emph.contested,
+            }}
+          />
+          <LineLayer
+            id="terr-contested-outer"
+            filter={FILTER_CONTESTED}
+            style={{
+              lineColor: terr.contestedOuterStroke,
+              lineWidth: CONTESTED_OUTER_WIDTH,
+              lineOffset: -2,
+              lineOpacity: emph.contested,
+            }}
+          />
         </ShapeSource>
 
-        {/* Route ouverte : ligne GPS chartreuse (doc §7) */}
-        {layers.routes ? (
-          <ShapeSource id="route" shape={routeShape}>
-            <LineLayer
-              id="route-line"
-              style={{ lineColor: ms.routeStroke, lineWidth: 2, lineCap: 'round' }}
-            />
-          </ShapeSource>
-        ) : null}
+        {/* Route ouverte : ligne chartreuse ÉPAISSE (route-first) */}
+        <ShapeSource id="route" shape={routeShape}>
+          <LineLayer
+            id="route-line"
+            style={{
+              lineColor: terr.routeStroke,
+              lineWidth: ROUTE_WIDTH,
+              lineCap: 'round',
+              lineOpacity: emph.route,
+            }}
+          />
+        </ShapeSource>
 
         {/* Parcours sélectionné (sheet ouverte) : aperçu gris + liseré sombre */}
         {parcoursShape ? (
@@ -332,10 +372,10 @@ export function MapScreen() {
         </ShapeSource>
       </MapView>
 
-      {/* Couche 4 : HUD Uber partagé (pill, feed, boutons flottants, sheet) */}
+      {/* HUD partagé : pill % de contrôle, feed, chips de modes, sheet */}
       <BattleMapOverlays
-        layers={layers}
-        onToggleLayer={toggleLayer}
+        mode={mode}
+        onSelectMode={setMode}
         summary={summary}
         runMode={runMode}
         onRecenter={recenter}

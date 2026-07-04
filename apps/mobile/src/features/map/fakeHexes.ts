@@ -1,5 +1,8 @@
 /**
- * GRYD — hexes factices Milestone 1 (DISCOVERY D16), enrichis Battle Map
+ * GRYD — cellules H3 factices Milestone 1 (DISCOVERY D16) : le MOTEUR INVISIBLE
+ * de la Battle Map. AMENDEMENT-11 : ces cellules ne sont PLUS JAMAIS rendues
+ * telles quelles — territory.ts les fusionne/lisse en TERRITOIRES ORGANIQUES
+ * (le mot « hex » ne sort jamais de la couche technique). Enrichies Battle Map
  * (AMENDEMENT-08 §4, doc §7) à l'ÉCHELLE COUREUR : un coureur capture LE LONG
  * DES RUES, donc le territoire n'est plus des blobs ronds mais des COULOIRS
  * d'1-2 hexes de large qui serpentent le long des rues de la basemap
