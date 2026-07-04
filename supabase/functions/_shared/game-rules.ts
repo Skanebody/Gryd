@@ -550,3 +550,63 @@ export const LOOP_MIN_PERIMETER_M = 1_000;
  */
 export const LOOP_HINT_DISTANCE_M = 600;
 export const LOOP_PREVIEW_DISTANCE_M = 300;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-15 §1 — Moteur GPS pur (pipeline IDENTIQUE client/serveur).
+// Le client pré-filtre pour l'affichage, le serveur reste SEUL juge du claim.
+// Les bornes de VITESSE course ne sont PAS dupliquées ici : le moteur GPS
+// réutilise les règles §3.2 existantes (POINT_MAX_SPEED_KMH pour la vitesse
+// implicite max, POINT_MAX_JUMP_M pour la téléportation, POINT_MAX_ACCURACY_M
+// comme seuil « signal faible » de la jauge).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Précision horizontale maximale d'un fix GPS accepté par cleanTrace (m).
+ * Au-delà : point rejeté (outlier accuracy). Plus tolérant que le filtre de
+ * claim §3.2 (POINT_MAX_ACCURACY_M = 25) : le moteur GPS garde des points
+ * « affichables » 25-35 m pour la continuité visuelle ; le serveur reste seul
+ * juge des points qui claiment.
+ */
+export const GPS_ACCURACY_MAX_M = 35;
+/** Précision (m) considérée « excellente » : jauge GPS pleine, composante accuracy du trust = 1. */
+export const GPS_ACCURACY_GOOD_M = 10;
+/** Vitesse (m/s) en dessous de laquelle le coureur est considéré à l'arrêt (~0,7 m/s < marche lente). */
+export const GPS_PAUSE_SPEED_MS = 0.7;
+/** Durée (s) sous GPS_PAUSE_SPEED_MS avant de basculer en segment pause (UI « En pause », distance non comptée). */
+export const GPS_PAUSE_AFTER_S = 10;
+/** Cadence d'échantillonnage cible du suivi GPS (ms) — resserrée en virage côté client. */
+export const GPS_SAMPLE_INTERVAL_MS = 2_000;
+/** Sans fix frais depuis N s : signal « weak » (jauge orange, on continue d'enregistrer). */
+export const GPS_SIGNAL_WEAK_AFTER_S = 5;
+/** Sans fix frais depuis N s : signal « lost » (tunnel) — la distance ne compte JAMAIS un trou de signal. */
+export const GPS_SIGNAL_LOST_AFTER_S = 15;
+/** Plafond de points GPS envoyés à ingest_run (décimation Douglas-Peucker avant envoi). */
+export const GPS_MAX_PAYLOAD_POINTS = 2_000;
+/** Tolérance (m) du Douglas-Peucker « léger » de decimateForPayload — sous le bruit GPS, ne déforme pas la trace. */
+export const GPS_DECIMATE_EPSILON_M = 2;
+/**
+ * Rayon (m) de la dérive GPS en immobilité (« jitter parking ») : à l'arrêt,
+ * les fixes qui restent dans ce rayon de l'ancre du cluster stationnaire sont
+ * rejetés (aucun faux mètre accumulé au feu rouge).
+ */
+export const GPS_JITTER_RADIUS_M = 8;
+/** Taille (points, impaire) de la fenêtre de médiane glissante de smoothTrace. */
+export const GPS_MEDIAN_WINDOW = 5;
+/**
+ * Re-verrouillage GPS : après N rejets CONSÉCUTIFS de téléportation/vitesse
+ * contre la même ancre, le point suivant est accepté comme nouvelle ancre
+ * (discontinuité marquée, distance non comptée à travers) — sinon un relock
+ * permanent (démarrage à froid) tuerait toute la suite de la trace.
+ */
+export const GPS_REANCHOR_AFTER_REJECTS = 5;
+/**
+ * Pondération des composantes du GPS Trust 0-100 (somme = 1) :
+ * accuracy moyenne des points gardés, temps de signal perdu, ratio d'outliers.
+ */
+export const GPS_TRUST_WEIGHTS = {
+  accuracy: 0.5,
+  signal: 0.25,
+  outliers: 0.25,
+} as const;
+/** Ratio d'outliers (points rejetés / points reçus, hors jitter d'arrêt) qui met la composante outliers à 0. */
+export const GPS_TRUST_OUTLIER_BAD_RATIO = 0.3;

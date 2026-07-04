@@ -67,6 +67,14 @@ export interface IngestRunRequest {
   points: RunPoint[];
   /** Nombre de pas mesuré sur la période (podomètre/HealthKit) — signal GRYD Verify optionnel. */
   stepCount?: number;
+  /**
+   * GPS Trust client 0-100 (AMENDEMENT-15 §1) : score du moteur gps.ts calculé
+   * sur la trace BRUTE (accuracy moyenne, pertes de signal, ratio d'outliers —
+   * compteurs perdus après décimation, le serveur ne peut pas le recalculer).
+   * Signal INDICATIF : le serveur le borne par min() avec son propre calcul et
+   * reste SEUL juge du claim (§3.2).
+   */
+  gpsTrust?: number;
   /** Le joueur a partagé le résultat de cette course (badge First Share, AMENDEMENT-06 §1). */
   shared?: boolean;
   /** sha-256 de la polyline arrondie (dédup Activity Hub §4) — calculé serveur si absent. */

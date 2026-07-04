@@ -18,6 +18,11 @@
  * (motion.holdToStopMs, stop protégé §G) → /course-result (inchangé).
  * Le client n'attribue jamais une zone : tout est « estimé », le serveur
  * (ingest_run) reste seul décideur.
+ *
+ * AMENDEMENT-15 §2 — sélecteur réel/simulation : sur NATIF avec permission,
+ * useRealRun branche le vrai tracker GPS (RealCourseLive) ; sur web ou sans
+ * permission, la simulation démo ci-dessous reste INCHANGÉE (une phrase de
+ * mode dégradé s'empile en haut si le GPS a été refusé — jamais bloquant).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -74,7 +79,10 @@ import {
   liveEventLogAt,
   resultStats,
   runModeFromParam,
+  type LiveRunMode,
 } from '../src/features/run/simulation';
+import { useRealRun } from '../src/features/run/gps/useRealRun';
+import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
 
 /** Marge entre la sheet compacte et l'UI flottante (boutons, échelle). */
 const ABOVE_SHEET_GAP = 12;
@@ -114,10 +122,32 @@ function useZoneJump(active: boolean): Animated.Value {
 }
 
 export default function CourseLiveScreen() {
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ mode?: string; route?: string }>();
   const mode = runModeFromParam(params.mode);
-  const routeInfo = useMemo(() => routeInfoFromParam(params.route), [params.route]);
+  // GPS réel (AMENDEMENT-15 §2) : natif + permission → vrai tracker ; web ou
+  // refus → simulation démo INCHANGÉE (variante useRealRun.web.ts = stub).
+  const gate = useRealRun(mode);
+  if (gate.kind === 'starting') {
+    // Permission en cours de résolution (natif, quelques instants) : fond noir
+    // plein sous la boîte de dialogue système — jamais de démo fantôme derrière.
+    return <View style={styles.root} />;
+  }
+  if (gate.kind === 'real') return <RealCourseLive run={gate.run} />;
+  return <DemoCourseLive mode={mode} routeParam={params.route} notice={gate.notice} />;
+}
+
+/** Simulation démo (flux historique, INCHANGÉ hors pill de mode dégradé). */
+function DemoCourseLive({
+  mode,
+  routeParam,
+  notice,
+}: {
+  mode: LiveRunMode;
+  routeParam: string | string[] | undefined;
+  notice: string | null;
+}) {
+  const insets = useSafeAreaInsets();
+  const routeInfo = useMemo(() => routeInfoFromParam(routeParam), [routeParam]);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   const nav = useMemo(() => buildLiveNav(sim), [sim]);
   /** Boucle démo (AMENDEMENT-12 §C) — null hors conquête (aucune capture). */
@@ -541,6 +571,15 @@ export default function CourseLiveScreen() {
             <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={13} color={colors.gris} />
             <Text style={styles.statsOnlyText}>
               {RUN_MODE_LABEL[mode]} — stats uniquement, aucune capture
+            </Text>
+          </View>
+        ) : null}
+        {/* Mode dégradé GPS (AMENDEMENT-15 §2) : UNE phrase, jamais bloquant. */}
+        {notice !== null ? (
+          <View style={styles.statsOnlyPill}>
+            <Icon name="gps" size={13} color={colors.gris} />
+            <Text style={styles.statsOnlyText} numberOfLines={2}>
+              {notice}
             </Text>
           </View>
         ) : null}

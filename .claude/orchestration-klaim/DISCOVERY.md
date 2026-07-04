@@ -32,3 +32,13 @@ Session autonome : les décisions sont extraites de la spec (gelée pour la Sais
 - O3. Clés RevenueCat + PostHog : placeholders `.env`, wrappers no-op si absentes.
 - O4. GeoJSON précis des zones Paris/Lille : seed provisoire (bounding polygons grossiers) à remplacer avant bêta.
 - O5. Nom « KLAIM » : clearance INPI/EUIPO non faite — aucun usage public.
+
+## Points ouverts AMENDEMENT-15 (objets connectés — ajout 05/07/2026)
+- O7. **App API Strava** (fondateur — 2 min sur strava.com/settings/api) : le CLIENT ID (public) va dans `apps/mobile/.env` (`EXPO_PUBLIC_STRAVA_CLIENT_ID`), le CLIENT SECRET est un secret Supabase (`npx supabase secrets set STRAVA_CLIENT_ID=… STRAVA_CLIENT_SECRET=…`). L'edge function `strava_import` est DÉPLOYÉE et inerte sans clés (503 `configuration_required`) ; le Verify Hub affiche « Configuration requise ». Callback OAuth à déclarer chez Strava : domaine du redirect `makeRedirectUri({ scheme: 'gryd' })`.
+- O8. **Dev build EAS/Xcode** (fondateur) : requis pour tester le GPS réel sur appareil ET pour Apple Health (entitlement HealthKit) / Health Connect (permissions androidx.health) — adaptateurs stubs honnêtes « Dev build requis — O8 » en attendant, chemins d'intégration documentés dans `apps/mobile/src/features/sources/adapters/appleHealth.ts` et `healthConnect.ts`.
+- O-points partenaires montres (statut « Bientôt » dans le Verify Hub — leurs activités arrivent DÉJÀ indirectement via Strava/Apple Health, messagé tel quel) :
+  - O9a. **Garmin** : Garmin Connect Developer Program (demande d'accès, validation quelques jours à semaines).
+  - O9b. **WHOOP** : WHOOP API (developer.whoop.com, OAuth — pas de trace GPS → stats_only par design §15).
+  - O9c. **Polar** : Polar AccessLink API (compte admin.polaraccesslink.com).
+  - O9d. **Coros** : COROS Open Platform (demande partenaire par email, délais variables).
+  - O9e. **Suunto** : Suunto Apps / partenariat apizone (demande d'accès).

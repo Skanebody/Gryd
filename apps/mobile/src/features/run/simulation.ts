@@ -30,11 +30,19 @@ export const SIM_TICK_MS = 620;
 export const SIM_SECONDS_PER_TICK = 28;
 /** Nombre de ticks du scénario. */
 const TICK_COUNT = 96;
+/**
+ * Dernier index de tick (paramètre `t` de course-result). Exporté pour la fin
+ * de course RÉELLE (AMENDEMENT-15 §2) : tant que le résultat réel n'est pas
+ * branché (phase suivante), la célébration démo est rejouée à l'échelle de la
+ * distance réellement courue.
+ */
+export const SIM_LAST_TICK = TICK_COUNT - 1;
 
 // ─── Scénario démo (données démo, cohérentes avec le doc §10) ────────────────
 
-/** Distance totale simulée (m) — allure ≈ 5'28/km sur 44 min. */
-const DEMO_TOTAL_DISTANCE_M = 8_200;
+/** Distance totale simulée (m) — allure ≈ 5'28/km sur 44 min. Exportée pour
+ * la mise à l'échelle de la célébration après une course RÉELLE (AMENDEMENT-15). */
+export const DEMO_TOTAL_DISTANCE_M = 8_200;
 /** Hexes estimés en fin de course — l'exemple gelé du doc §10 (« +214 HEXES »). */
 const DEMO_HEXES_TARGET = 214;
 /** Multiplicateur perf démo — borné par les règles réelles (§3). */

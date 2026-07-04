@@ -147,6 +147,7 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
       typeof (p as Record<string, unknown>).t === 'number'
     ) &&
     (b.stepCount === undefined || typeof b.stepCount === 'number') &&
+    (b.gpsTrust === undefined || (typeof b.gpsTrust === 'number' && Number.isFinite(b.gpsTrust))) &&
     (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode)));
 }
 
@@ -1200,7 +1201,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     //    différentes, seul l'appariement durée/distance/départ les rattrape.
     const filtered = filterPoints(request.points);
     const stats = computeStats(filtered.segments);
-    const validation = validateOrStatus(filtered, stats, request.stepCount);
+    const validation = validateOrStatus(filtered, stats, request.stepCount, request.gpsTrust);
 
     const distanceM = Math.round(stats.distanceM);
     const durationS = Math.round(stats.durationS);
@@ -1604,10 +1605,21 @@ function validateOrStatus(
   filtered: ReturnType<typeof filterPoints>,
   stats: ReturnType<typeof computeStats>,
   stepCount: number | undefined,
+  clientGpsTrust: number | undefined,
 ): ValidationOutcome {
-  const gpsTrust = filtered.totalPoints > 0
+  // Ratio de points §3.2 gardés sur le payload reçu — seul calcul possible ici :
+  // la trace arrive DÉCIMÉE, les compteurs de rejets bruts n'existent que côté
+  // client (moteur gps.ts).
+  const serverGpsTrust = filtered.totalPoints > 0
     ? Math.floor((100 * filtered.keptPoints) / filtered.totalPoints)
     : 0;
+  // AMENDEMENT-15 §1 : le client envoie son GPS Trust (accuracy moyenne, pertes
+  // de signal, ratio d'outliers sur la trace brute). Signal INDICATIF borné par
+  // min() — il ne peut qu'ABAISSER la confiance, jamais la gonfler ; la décision
+  // de claim reste 100 % serveur (§3.2).
+  const gpsTrust = clientGpsTrust === undefined
+    ? serverGpsTrust
+    : Math.min(serverGpsTrust, Math.max(0, Math.min(100, Math.round(clientGpsTrust))));
   const motionTrust = stepCoherence(stats.distanceM, stepCount);
   // Trust MVP : le signal le plus faible domine (doc anti-triche §8, simplifié).
   const trustScore = Math.min(gpsTrust, motionTrust);

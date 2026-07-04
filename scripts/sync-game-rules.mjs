@@ -48,3 +48,34 @@ for (const f of readdirSync(engineSrc).filter((n) => n.endsWith('.ts')).sort()) 
   writeFileSync(join(engineDest, f), out);
   console.log(`sync: engine/${f} → supabase/functions/_shared/engine/`);
 }
+
+// ─── Moteur GPS mobile (AMENDEMENT-15 §2) : gps.ts + validation.ts → Expo ────
+// Metro/tsconfig Expo ne résolvent ni les subpath exports `@klaim/shared/*`
+// ni les imports Deno `./x.ts` de packages/engine — comme pour _shared/, on
+// GÉNÈRE une copie (imports réécrits pour Metro) au lieu de mirrorer à la main.
+// SEULEMENT les fichiers requis par le tracking (gps + haversineM), pour ne
+// pas tirer h3-js/le moteur de claim dans le bundle mobile.
+// ⚠ MIROIR EXACT dans supabase/functions/ingest_run/mobile_gps_drift_test.ts
+//   (mobileHeader + transformMobileLine + MOBILE_ENGINE_FILES).
+
+const MOBILE_ENGINE_FILES = ['gps.ts', 'validation.ts'];
+
+const mobileHeader = (name) =>
+  `// GÉNÉRÉ par scripts/sync-game-rules.mjs — ne pas éditer.\n` +
+  `// Source : packages/engine/src/${name} (drift testé côté Deno).\n\n`;
+
+const transformMobileLine = (line) =>
+  line
+    .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1@klaim/shared$1')
+    .replace(/(['"])@klaim\/shared\/types\1/g, '$1@klaim/shared$1')
+    .replace(/(['"])\.\/validation\.ts\1/g, '$1./validation$1');
+
+const mobileDest = join(root, 'apps', 'mobile', 'src', 'features', 'run', 'gps', 'engine');
+mkdirSync(mobileDest, { recursive: true });
+
+for (const f of MOBILE_ENGINE_FILES) {
+  const source = readFileSync(join(engineSrc, f), 'utf8');
+  const out = mobileHeader(f) + source.split('\n').map(transformMobileLine).join('\n');
+  writeFileSync(join(mobileDest, f), out);
+  console.log(`sync: engine/${f} → apps/mobile/src/features/run/gps/engine/`);
+}

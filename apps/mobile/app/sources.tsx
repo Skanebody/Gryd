@@ -1,11 +1,13 @@
 /**
- * GRYD — GRYD VERIFY HUB (AMENDEMENT-10 §6, copy trust par source). Écran
- * POUSSÉ depuis Profil→Paramètres ET Performance. Régime usage réel : sobre,
- * confiance. « Seules les courses vérifiées capturent. Les autres enrichissent
- * tes stats. » Chaque source = trust + chemin de vérification (« Capture
- * directe », « Import + vérif », « Vérification requise »), montres « Bientôt »
- * non connectables. Connexions DÉMO locales (toggle en mémoire) — branchements
- * réels TODO(O2). Aucune valeur de jeu ici (features/sources/catalog).
+ * GRYD — GRYD VERIFY HUB (AMENDEMENT-10 §6 copy, AMENDEMENT-15 §3 statuts
+ * RÉELS). Écran poussé depuis Profil→Paramètres ET Performance. « Seules les
+ * courses vérifiées capturent. Les autres enrichissent tes stats. » Chaque
+ * source affiche l'état HONNÊTE de son adaptateur (features/sources/adapters) :
+ * Actif (GRYD Live, natif) · Connecté · Connecter (faisable maintenant) ·
+ * Configuration requise (clés O7) · Dev build requis (O8) · Bientôt (programmes
+ * partenaires — leurs courses arrivent déjà via Strava/Apple Health). Le CTA
+ * Connecter n'est actif QUE quand la connexion est réellement faisable.
+ * Aucune valeur de jeu ici : la décision capture/stats est 100 % serveur.
  */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -19,78 +21,103 @@ import {
   VERIFY_SOURCES,
   type VerifySourceDef,
 } from '../src/features/sources/catalog';
+import { SOURCE_ADAPTERS } from '../src/features/sources/adapters/registry';
+import type { SourceAdapterSnapshot } from '../src/features/sources/adapters/types';
 
-/** Ligne source vérifiable : nom, « Trust élevé · Capture directe », statut. */
+/** Libellés FR courts des états non connectables (chips neutres). */
+const STATUS_CHIP_LABELS: Record<string, string> = {
+  needs_keys: 'Configuration requise',
+  needs_dev_build: 'Dev build requis',
+  coming_soon: 'Bientôt',
+};
+
+/** Ligne source : nom, « Trust élevé · Capture directe », statut RÉEL. */
 function SourceRow({
   source,
-  connected,
+  snapshot,
+  busy,
   onConnect,
+  onDisconnect,
 }: {
   source: VerifySourceDef;
-  connected: boolean;
+  snapshot: SourceAdapterSnapshot | undefined;
+  busy: boolean;
   onConnect: () => void;
+  onDisconnect: () => void;
 }) {
+  const isNative = source.availability === 'native';
+  const status = isNative ? 'native' : snapshot?.status;
+  const active = isNative || status === 'connected';
   const trustHigh = source.trust === 'high';
+
   return (
-    <View style={styles.card}>
-      <View
-        style={[styles.iconWrap, connected && { borderColor: gameColors.verify }]}
-      >
+    <View style={[styles.card, status === 'coming_soon' && styles.cardSoon]}>
+      <View style={[styles.iconWrap, active && { borderColor: gameColors.verify }]}>
         <Icon
           name={source.icon}
           size={20}
-          color={connected ? gameColors.verify : colors.gris}
+          color={active ? gameColors.verify : colors.gris}
         />
       </View>
       <View style={styles.body}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text
+          style={[styles.name, status === 'coming_soon' && styles.nameSoon]}
+          numberOfLines={1}
+        >
           {source.name}
         </Text>
         <Text style={styles.trustLine} numberOfLines={2}>
-          <Text style={{ color: trustHigh ? gameColors.verify : colors.blanc }}>
-            {source.trust ? TRUST_LABELS[source.trust] : ''}
-          </Text>
-          {source.path ? ` · ${source.path}` : ''}
+          {source.trust ? (
+            <Text style={{ color: trustHigh ? gameColors.verify : colors.blanc }}>
+              {TRUST_LABELS[source.trust]}
+            </Text>
+          ) : null}
+          {source.trust && source.path ? ` · ${source.path}` : source.path ?? ''}
         </Text>
-      </View>
-      {source.availability === 'native' || connected ? (
-        <View style={styles.statusChip}>
-          <Text style={styles.statusChipText}>
-            {source.availability === 'native' ? 'Actif' : 'Connecté'}
+        {/* Détail honnête (O7/O8/partenaires) — une phrase courte, jamais de blâme. */}
+        {snapshot?.detail ? (
+          <Text style={styles.detailLine} numberOfLines={2}>
+            {snapshot.detail}
           </Text>
+        ) : null}
+      </View>
+
+      {status === 'native' ? (
+        <View style={styles.statusChip}>
+          <Text style={styles.statusChipText}>Actif</Text>
         </View>
-      ) : (
+      ) : status === 'connected' ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Déconnecter ${source.name}`}
+          onPress={onDisconnect}
+          style={({ pressed }) => [styles.statusChip, pressed && styles.pressed]}
+        >
+          <Text style={styles.statusChipText}>Connecté</Text>
+        </Pressable>
+      ) : status === 'disconnected' ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Connecter ${source.name}`}
+          disabled={busy}
           onPress={onConnect}
-          style={({ pressed }) => [styles.connectBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.connectBtn,
+            (pressed || busy) && styles.pressed,
+          ]}
         >
-          <Text style={styles.connectLabel}>Connecter</Text>
+          <Text style={styles.connectLabel}>{busy ? 'Connexion…' : 'Connecter'}</Text>
         </Pressable>
+      ) : status ? (
+        <View style={styles.soonChip}>
+          <Text style={styles.soonChipText}>{STATUS_CHIP_LABELS[status] ?? status}</Text>
+        </View>
+      ) : (
+        // Statuts en cours de lecture (AsyncStorage) — placeholder neutre.
+        <View style={styles.soonChip}>
+          <Text style={styles.soonChipText}>…</Text>
+        </View>
       )}
-    </View>
-  );
-}
-
-/** Ligne « Bientôt » : montre non connectable pour l'instant — atténuée. */
-function SoonRow({ source }: { source: VerifySourceDef }) {
-  return (
-    <View style={[styles.card, styles.cardSoon]}>
-      <View style={styles.iconWrap}>
-        <Icon name={source.icon} size={20} color={colors.gris} />
-      </View>
-      <View style={styles.body}>
-        <Text style={[styles.name, styles.nameSoon]} numberOfLines={1}>
-          {source.name}
-        </Text>
-        <Text style={styles.trustLine} numberOfLines={1}>
-          Non connectable
-        </Text>
-      </View>
-      <View style={styles.soonChip}>
-        <Text style={styles.soonChipText}>Bientôt</Text>
-      </View>
     </View>
   );
 }
@@ -100,15 +127,45 @@ export default function SourcesScreen() {
     screen('sources');
   }, []);
 
-  /** Connexions DÉMO : surcouche locale par-dessus le statut du catalogue. */
-  const [demoConnected, setDemoConnected] = useState<Record<string, boolean>>({});
+  /** États RÉELS par source, lus des adaptateurs (AMENDEMENT-15 §3). */
+  const [snapshots, setSnapshots] = useState<Record<string, SourceAdapterSnapshot>>({});
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  const isConnected = (s: VerifySourceDef) => demoConnected[s.key] ?? s.connected === true;
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const entries = await Promise.all(
+        Object.values(SOURCE_ADAPTERS).map(async (adapter) => {
+          const snap = await adapter.status();
+          return [adapter.id, snap] as const;
+        }),
+      );
+      if (mounted) setSnapshots(Object.fromEntries(entries));
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  const connect = (s: VerifySourceDef) => {
-    // TODO(O2) : OAuth Strava, HealthKit, Health Connect (Activity Hub §13).
+  const connect = async (key: string) => {
+    const adapter = SOURCE_ADAPTERS[key];
+    if (!adapter || busyKey) return;
     haptics.light();
-    setDemoConnected((prev) => ({ ...prev, [s.key]: true }));
+    setBusyKey(key);
+    try {
+      const snap = await adapter.connect();
+      setSnapshots((prev) => ({ ...prev, [key]: snap }));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const disconnect = async (key: string) => {
+    const adapter = SOURCE_ADAPTERS[key];
+    if (!adapter) return;
+    haptics.light();
+    const snap = await adapter.disconnect();
+    setSnapshots((prev) => ({ ...prev, [key]: snap }));
   };
 
   const verifySources = VERIFY_SOURCES.filter((s) => s.availability !== 'soon');
@@ -133,8 +190,10 @@ export default function SourcesScreen() {
           <SourceRow
             key={source.key}
             source={source}
-            connected={isConnected(source)}
-            onConnect={() => connect(source)}
+            snapshot={snapshots[source.key]}
+            busy={busyKey === source.key}
+            onConnect={() => connect(source.key)}
+            onDisconnect={() => disconnect(source.key)}
           />
         ))}
       </View>
@@ -142,7 +201,14 @@ export default function SourcesScreen() {
       <Text style={styles.sectionLabel}>BIENTÔT</Text>
       <View style={styles.list}>
         {soonSources.map((source) => (
-          <SoonRow key={source.key} source={source} />
+          <SourceRow
+            key={source.key}
+            source={source}
+            snapshot={snapshots[source.key]}
+            busy={false}
+            onConnect={() => {}}
+            onDisconnect={() => {}}
+          />
         ))}
       </View>
 
@@ -217,6 +283,11 @@ const styles = StyleSheet.create({
   name: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   nameSoon: { color: colors.gris },
   trustLine: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  detailLine: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.4,
+  },
   statusChip: {
     borderRadius: radii.pill,
     borderWidth: 1,

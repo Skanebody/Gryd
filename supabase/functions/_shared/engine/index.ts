@@ -11,6 +11,7 @@
  * drift testé) — ne jamais les éditer à la main.
  */
 export * from './validation.ts';
+export * from './gps.ts';
 export * from './hexing.ts';
 export * from './claims.ts';
 export * from './scoring.ts';

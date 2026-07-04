@@ -1,4 +1,5 @@
 {
+  "_note_gps_amendement15": "GPS réel (AMENDEMENT-15 §2) : permissions FINE/BACKGROUND_LOCATION + foregroundService Android, UIBackgroundModes location iOS. Test sur appareil = point ouvert O8 (dev build EAS/Xcode) — le GPS réel ne tourne PAS dans Expo Go web.",
   "expo": {
     "name": "GRYD",
     "slug": "klaim",
@@ -20,11 +21,19 @@
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "GRYD utilise ta position pendant tes courses pour capturer les hexagones que tu traverses sur la carte de ta ville. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
+        "UIBackgroundModes": ["location"]
       }
     },
     "android": {
-      "package": "fr.nexus1993.gryd"
+      "package": "fr.nexus1993.gryd",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -37,7 +46,9 @@
         {
           "locationWhenInUsePermission": "GRYD utilise ta position pendant tes courses pour capturer les hexagones que tu traverses sur la carte de ta ville. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
           "locationAlwaysAndWhenInUsePermission": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
-          "isIosBackgroundLocationEnabled": true
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-apple-authentication"

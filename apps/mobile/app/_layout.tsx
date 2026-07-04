@@ -11,6 +11,10 @@ import { colors } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { SessionProvider } from '../src/lib/session';
 import { ErrorBoundary } from '../src/ui/ErrorBoundary';
+// AMENDEMENT-15 §2 : la tâche GPS background doit être définie AU CHARGEMENT
+// du bundle (relance headless après kill). Variante .web.ts vide — le preview
+// web ne voit aucun module natif.
+import '../src/features/run/gps/registerBackgroundTask';
 
 export default function RootLayout() {
   useEffect(() => {

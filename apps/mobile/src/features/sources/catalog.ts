@@ -3,9 +3,10 @@
  * source ; remplace la liste AMENDEMENT-08 §10). Chaque source = un niveau de
  * confiance + un chemin de vérification visible : « GRYD Live GPS — Trust
  * élevé · Capture directe », « Strava — Trust moyen · Vérification requise »,
- * montres « Bientôt » (non connectables). UI réelle, connexions non câblées
- * (TODO(O2) OAuth/HealthKit/Health Connect) : les statuts sont des données de
- * DÉMO locales, aucune valeur de jeu ici.
+ * montres « Bientôt » (non connectables). Ici : identité/copy UNIQUEMENT —
+ * les STATUTS réels (Connecté / Configuration requise / Dev build requis /
+ * Bientôt) viennent des adaptateurs (adapters/registry, AMENDEMENT-15 §3).
+ * Aucune valeur de jeu ici.
  */
 import type { IconName } from '@klaim/shared';
 
@@ -31,8 +32,6 @@ export interface VerifySourceDef {
   trust?: SourceTrustLevel;
   /** Chemin de vérification visible (« Capture directe », « Import + vérif »). */
   path?: string;
-  /** Connectée par défaut dans la démo. */
-  connected?: boolean;
 }
 
 /**
@@ -48,7 +47,6 @@ export const VERIFY_SOURCES: readonly VerifySourceDef[] = [
     availability: 'native',
     trust: 'high',
     path: 'Capture directe',
-    connected: true,
   },
   {
     key: 'apple_health',
@@ -57,7 +55,6 @@ export const VERIFY_SOURCES: readonly VerifySourceDef[] = [
     availability: 'connectable',
     trust: 'high',
     path: 'Import + vérif',
-    connected: true,
   },
   {
     key: 'health_connect',
