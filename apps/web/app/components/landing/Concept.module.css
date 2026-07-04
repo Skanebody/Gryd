@@ -1,5 +1,6 @@
 /*
- * Gameplay Loop (AMENDEMENT-05 §3.3) — 5 étapes + mini-map hexagonale partagée.
+ * Gameplay Loop (AMENDEMENT-05 §3.3, AMENDEMENT-11) — 5 étapes + mini-map
+ * ORGANIQUE partagée (territoires lissés + frontières, aucune grille).
  * Couleurs : tokens globals.css uniquement ; --ennemi réservé aux états de jeu
  * (secteur adverse, alerte decay), --rival au crew rival du classement (§1).
  * Motion : 200-250 ms ease-out, tout est coupé sous prefers-reduced-motion.
@@ -109,46 +110,67 @@
   transition: transform 250ms ease-out;
 }
 
-.hex {
-  fill: transparent;
-  stroke: color-mix(in srgb, var(--blanc) 7%, transparent); /* neutre : contour blanc 5-8 % (§D) */
-  stroke-width: 1;
-  transition:
-    fill 250ms ease-out,
-    stroke 250ms ease-out,
-    opacity 250ms ease-out;
+/* Fond ville : rues abstraites neutres (contour blanc 5-8 % — §D). */
+.streets path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--blanc) 7%, transparent);
+  stroke-width: 1.4;
 }
 
-/* À moi / mon crew. */
-.hexMine {
+/* Territoires organiques (AMENDEMENT-11) : tous rendus, crossfade 250 ms. */
+.blob {
+  opacity: 0;
+  stroke-linejoin: round;
+  transition: opacity 250ms ease-out;
+  pointer-events: none;
+}
+
+.blobOn {
+  opacity: 1;
+}
+
+/* À moi / mon crew : aplat chartreuse + frontière lissée. */
+.blobMine {
   fill: var(--ch14);
   stroke: var(--ch40);
+  stroke-width: 2;
 }
 
-/* Decay : la zone non défendue pâlit (contour pointillé, opacité réduite). */
-.hexFade {
+/* Decay : le territoire non défendu pâlit (frontière pointillée). */
+.blobFade {
   fill: var(--ch14);
   stroke: color-mix(in srgb, var(--blanc) 22%, transparent);
-  stroke-dasharray: 4 4;
+  stroke-width: 1.6;
+  stroke-dasharray: 5 5;
+}
+
+.blobFade.blobOn {
   opacity: 0.38;
 }
 
 /* Secteur adverse — usage exclusif états de jeu (AMENDEMENT-05 §1). */
-.hexEnemy {
+.blobEnemy {
   fill: var(--ennemi-14);
   stroke: var(--ennemi-40);
+  stroke-width: 2;
 }
 
-/* Hex ennemi repris : bascule chartreuse, contour plein. */
-.hexTaken {
+/* Secteur repris : la frontière recule, bascule chartreuse pleine. */
+.blobTaken {
   fill: var(--ch14);
   stroke: var(--ch);
+  stroke-width: 2;
 }
 
-/* « En danger » : pulse ennemi (§1) sur la frontière attaquée. */
-.hexDanger {
-  fill: var(--ennemi-14);
+/* Frontière attaquée « en danger » : arc --ennemi pulsé (§1). */
+.frontDanger {
+  fill: none;
   stroke: var(--ennemi);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.frontDanger.blobOn {
   animation: dangerPulse 1.6s ease-out infinite alternate;
 }
 
@@ -185,7 +207,7 @@
   }
 }
 
-/* Étape 2 : la trace s'estompe derrière les hexes capturés. */
+/* Étape 2 : la trace s'estompe derrière le territoire capturé. */
 .routeGhost {
   opacity: 0.45;
 }
@@ -213,6 +235,11 @@
   to {
     opacity: 0.55;
   }
+}
+
+/* Coureur masqué : coupe aussi le pulse (sinon l'animation gagne sur le 0). */
+.runner.routeHidden {
+  animation: none;
 }
 
 /* Chip d'état (mono, coin haut-gauche). */
@@ -372,7 +399,7 @@
   .step,
   .stepNum,
   .zoomGroup,
-  .hex,
+  .blob,
   .route,
   .routeDot,
   .runner,
@@ -380,7 +407,7 @@
     transition: none;
   }
 
-  .hexDanger,
+  .frontDanger.blobOn,
   .runner,
   .board {
     animation: none;

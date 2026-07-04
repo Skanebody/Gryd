@@ -1,21 +1,25 @@
 /**
- * GRYD — Course Live « navigation type Uber » (AMENDEMENT-09 §3) : données de
- * scène. Le MONDE est le même plan de quartier que la Battle Map (primitives
- * de src/features/map/basemap importées SANS modification), projeté une fois
- * pour toutes en PIXELS-MONDE à l'échelle coureur (hex H3 res 10 ≈ 130 m ≈
- * 30 px — même règle gelée que MapScreen). L'itinéraire démo SUIT les rues du
- * plan (boulevard NS → rue de l'Est → quai du canal → retour), avec :
+ * GRYD — Course Live « navigation type Uber » (AMENDEMENT-09 §3, revu
+ * AMENDEMENT-11 : ZÉRO hexagone visible) : données de scène. Le MONDE est le
+ * même plan de quartier que la Battle Map (primitives de
+ * src/features/map/basemap importées SANS modification), projeté une fois
+ * pour toutes en PIXELS-MONDE à l'échelle coureur (cellule H3 res 10 ≈ 130 m
+ * ≈ 30 px — même règle gelée que MapScreen). L'itinéraire démo SUIT les rues
+ * du plan (boulevard NS → rue de l'Est → quai du canal → retour), avec :
  *   - un tracé PLANIFIÉ (court) et un tracé RÉEL (le coureur rate le virage
  *     du quai) → « Déviation — itinéraire recalculé », la route restante se
  *     redessine au tick de déviation (démo scriptée, pas de vrai routing) ;
  *   - des checkpoints nommés (virage + distance), une destination ;
- *   - les cellules hex du monde allumées au passage (« la route conquiert ») ;
- *   - un SCRIPT de feedback (toasts + haptics) : clusters de capture « +N »,
+ *   - les ZONES traversées (cellules H3 — moteur invisible) accumulées dans
+ *     l'ordre : LiveNavMap les fusionne en territoire ORGANIQUE via
+ *     territory.ts (« la trainée-zone grossit », jamais une grille) ;
+ *   - un SCRIPT de feedback (toasts + haptics) : « Secteur pris · +N zones »,
  *     record segment (1×), déviation (1×), checkpoints, arrivée.
- * Purement présentation : AUCUNE règle de jeu ici — hexes/points « estimés »
+ * Purement présentation : AUCUNE règle de jeu ici — zones/points « estimés »
  * viennent de la simulation, le serveur (ingest_run) reste seul décideur.
  */
-import { colors, gameColors, type IconName } from '@klaim/shared';
+import { cellToLatLng, latLngToCell } from 'h3-js';
+import { H3_RESOLUTION, colors, gameColors, type IconName } from '@klaim/shared';
 import type { RoutePoint } from '../../ui/game';
 import {
   BASEMAP_CENTER,
@@ -71,78 +75,27 @@ function metersToWorld(xEast: number, yNorth: number): RoutePoint {
   };
 }
 
-// ─── Grille hex du monde (échelle coureur, pointe en haut) ───────────────────
+// ─── Zones H3 traversées (moteur INVISIBLE — AMENDEMENT-11) ──────────────────
+// Plus aucune grille : les cellules H3 servent uniquement d'unités de capture
+// que territory.ts fusionne en zone organique côté rendu.
 
-/** Rayon (circonscrit) d'une cellule hex du monde, px. */
-export const NAV_HEX_RADIUS_PX = HEX_TARGET_PX / 2;
-const SQRT3 = Math.sqrt(3);
-const CELL_W = SQRT3 * NAV_HEX_RADIUS_PX;
-const CELL_H = 1.5 * NAV_HEX_RADIUS_PX;
-const GRID_COLS = Math.ceil(NAV_WORLD_W / CELL_W);
-const GRID_ROWS = Math.ceil(NAV_WORLD_H / CELL_H);
-
-export interface NavCell {
-  id: string;
-  cx: number;
-  cy: number;
-}
-
-function cellCenter(col: number, row: number): { cx: number; cy: number } {
-  const offset = row % 2 === 1 ? 0.5 : 0;
+/** Pixels-monde → lat/lng (inverse de geoToWorld — pour latLngToCell). */
+function worldToGeo(x: number, y: number): LatLngPoint {
   return {
-    cx: CELL_W * (col + offset) + CELL_W / 2,
-    cy: NAV_HEX_RADIUS_PX + CELL_H * row,
+    lat: BASEMAP_CENTER.lat + (WORLD_HALF_HEIGHT_M - y * NAV_METERS_PER_PIXEL) / M_PER_DEG_LAT,
+    lng: BASEMAP_CENTER.lng + (x * NAV_METERS_PER_PIXEL - WORLD_HALF_WIDTH_M) / M_PER_DEG_LNG,
   };
 }
 
-/** Sous-chaîne `d` SVG d'un hexagone pointe en haut centré (cx, cy). */
-export function hexPathAt(cx: number, cy: number, r: number): string {
-  let d = '';
-  for (let i = 0; i < 6; i += 1) {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    d += `${i === 0 ? 'M' : 'L'}${(cx + r * Math.cos(a)).toFixed(1)} ${(cy + r * Math.sin(a)).toFixed(1)}`;
-  }
-  return `${d} Z`;
+/** Projection lng/lat → pixels-monde (le `ProjectPoint` de territory.ts). */
+export function navProject(lng: number, lat: number): { x: number; y: number } {
+  return geoToWorld({ lat, lng });
 }
 
-/** Cellule du monde la plus proche d'un point (recherche locale 3×3). */
-function cellAt(x: number, y: number): NavCell {
-  const rowGuess = Math.round((y - NAV_HEX_RADIUS_PX) / CELL_H);
-  let best: NavCell = { id: 'c0r0', ...cellCenter(0, 0) };
-  let bestD = Number.POSITIVE_INFINITY;
-  for (
-    let row = Math.max(0, rowGuess - 1);
-    row <= Math.min(GRID_ROWS - 1, rowGuess + 1);
-    row += 1
-  ) {
-    const offset = row % 2 === 1 ? 0.5 : 0;
-    const colGuess = Math.round(x / CELL_W - offset - 0.5);
-    for (
-      let col = Math.max(0, colGuess - 1);
-      col <= Math.min(GRID_COLS - 1, colGuess + 1);
-      col += 1
-    ) {
-      const { cx, cy } = cellCenter(col, row);
-      const d = (cx - x) ** 2 + (cy - y) ** 2;
-      if (d < bestD) {
-        bestD = d;
-        best = { id: `c${col}r${row}`, cx, cy };
-      }
-    }
-  }
-  return best;
-}
-
-/** Grille neutre du monde entier — UN `d` concaténé (texture Battle Map). */
-function buildGridD(): string {
-  let d = '';
-  for (let row = 0; row < GRID_ROWS; row += 1) {
-    for (let col = 0; col < GRID_COLS; col += 1) {
-      const { cx, cy } = cellCenter(col, row);
-      d += hexPathAt(cx, cy, NAV_HEX_RADIUS_PX - 0.8);
-    }
-  }
-  return d;
+/** Centre pixels-monde d'une zone H3 (anneau de pulse au front de capture). */
+export function cellCenterWorld(cell: string): RoutePoint {
+  const [lat, lng] = cellToLatLng(cell);
+  return geoToWorld({ lat, lng });
 }
 
 // ─── Basemap projetée en pixels-monde (mêmes primitives que la Battle Map) ──
@@ -157,8 +110,6 @@ export interface NavWorld {
   canalD: string;
   parksD: readonly string[];
   labels: readonly { name: string; x: number; y: number }[];
-  /** Grille hex neutre du monde (texture, sous les états de jeu). */
-  gridD: string;
   /** Largeurs de voirie converties en px (constantes basemap). */
   minorPx: number;
   majorPx: number;
@@ -202,7 +153,6 @@ function buildNavWorld(): NavWorld {
     canalD: lineD(CANAL),
     parksD: PARKS.map((ring) => lineD(ring, true)),
     labels: SECTOR_LABELS.map((s) => ({ name: s.name, ...geoToWorld(s) })),
-    gridD: buildGridD(),
     minorPx: STREET_MINOR_WIDTH_M / NAV_METERS_PER_PIXEL,
     majorPx: STREET_MAJOR_WIDTH_M / NAV_METERS_PER_PIXEL,
     majorCasingPx: STREET_MAJOR_WIDTH_M / NAV_METERS_PER_PIXEL + 2,
@@ -312,8 +262,8 @@ export interface NavToast {
 
 /** Écart minimal entre deux toasts (ticks) — anti-bruit. */
 const TOAST_MIN_GAP_TICKS = 4;
-/** Cluster de capture : toast « +N » dès N hexes estimés gagnés. */
-const CAPTURE_CLUSTER_MIN_HEX = 45;
+/** Cluster de capture : toast « Secteur pris · +N zones » dès N zones estimées. */
+const CAPTURE_CLUSTER_MIN_ZONES = 45;
 /** Tick visé pour le record segment (résolu s'il y a collision). */
 const RECORD_SEGMENT_TICK = 72;
 
@@ -327,7 +277,7 @@ export interface NavTick {
   headingDeg: number;
   /** Distance parcourue le long du tracé RÉEL (px-monde). */
   lenPx: number;
-  /** Nombre de cellules allumées jusqu'à ce tick (préfixe de `litCells`). */
+  /** Nombre de zones capturées jusqu'à ce tick (préfixe de `litCells`). */
   litCount: number;
 }
 
@@ -351,8 +301,11 @@ export interface LiveNav {
   /** Premier tick où le coureur dépasse la fourche → la route se redessine. */
   deviationTick: number;
   destination: RoutePoint;
-  /** Cellules allumées, dans l'ordre d'allumage (préfixées par litCount). */
-  litCells: readonly NavCell[];
+  /**
+   * Zones H3 capturées, dans l'ordre de capture (préfixées par litCount).
+   * LiveNavMap les fusionne en territoire organique via cellsToTerritory.
+   */
+  litCells: readonly string[];
   ticks: readonly NavTick[];
   checkpointsPlanned: readonly NavCheckpoint[];
   checkpointsActual: readonly NavCheckpoint[];
@@ -383,18 +336,19 @@ export function buildLiveNav(sim: RunSimulation): LiveNav {
   const lastIndex = sim.ticks.length - 1;
   const totalDistanceM = Math.max(1, sim.ticks[lastIndex]?.distanceM ?? 1);
 
-  // Positions + cellules allumées au passage (capture active uniquement).
+  // Positions + zones H3 capturées au passage (capture active uniquement).
   const ticks: NavTick[] = [];
-  const litCells: NavCell[] = [];
+  const litCells: string[] = [];
   const litSeen = new Set<string>();
   for (let i = 0; i <= lastIndex; i += 1) {
     const simTick = sim.ticks[i];
     const lenPx = ((simTick?.distanceM ?? 0) / totalDistanceM) * actualTotal;
     const pos = pointAt(actualPoints, actualCum, lenPx);
     if (simTick?.capturing) {
-      const cell = cellAt(pos.x, pos.y);
-      if (!litSeen.has(cell.id)) {
-        litSeen.add(cell.id);
+      const g = worldToGeo(pos.x, pos.y);
+      const cell = latLngToCell(g.lat, g.lng, H3_RESOLUTION);
+      if (!litSeen.has(cell)) {
+        litSeen.add(cell);
         litCells.push(cell);
       }
     }
@@ -490,10 +444,10 @@ export function buildLiveNav(sim: RunSimulation): LiveNav {
       const simTick = sim.ticks[i];
       if (!simTick?.capturing) continue;
       const gained = simTick.hexes - hexBase;
-      if (gained >= CAPTURE_CLUSTER_MIN_HEX && canPlace(i)) {
+      if (gained >= CAPTURE_CLUSTER_MIN_ZONES && canPlace(i)) {
         toasts.set(i, {
           kind: 'capture',
-          text: `Zone capturée +${gained}`,
+          text: `Secteur pris · +${gained} zones`,
           icon: 'carte',
           tint: colors.chartreuse,
           haptic: 'light',
@@ -577,4 +531,41 @@ export function splitsAt(
     }
   }
   return out;
+}
+
+// ─── Routes démo (param `?route=` — AMENDEMENT-10 §2, vocabulaire zones) ─────
+
+export interface LiveRouteInfo {
+  id: string;
+  /** Nom affiché en tête de course. */
+  name: string;
+  /** Résumé court (distance · gain) — vocabulaire territoire, jamais « hex ». */
+  summary: string;
+}
+
+/**
+ * Miroir MINIMAL des 3 routes démo du Route Planner (AMENDEMENT-10 §2).
+ * « Import défensif » : src/features/route/demo.ts n'existe pas encore (écran
+ * livré par un autre chantier) et Metro ne sait pas résoudre un require
+ * conditionnel de fichier absent — on garde donc ici le nom/résumé affichés
+ * en tête. TODO(route-planner) : consommer src/features/route/demo.ts.
+ */
+const LIVE_ROUTES: readonly LiveRouteInfo[] = [
+  { id: 'route-a', name: 'Route A — Rapide', summary: '3,4 km · +52 zones' },
+  { id: 'route-b', name: 'Route B — Optimisée', summary: '5,1 km · +94 zones' },
+  { id: 'route-c', name: 'Route C — Défense', summary: '4,8 km · 12 zones à sauver' },
+];
+
+/**
+ * Résout le paramètre de route (`route-b`, `b`, `route_b`…). Id inconnu →
+ * tête générique (jamais de crash) ; paramètre absent → null (pas d'en-tête).
+ */
+export function routeInfoFromParam(
+  param: string | string[] | undefined,
+): LiveRouteInfo | null {
+  const raw = Array.isArray(param) ? param[0] : param;
+  if (!raw) return null;
+  const norm = raw.toLowerCase().replace(/_/g, '-');
+  const found = LIVE_ROUTES.find((r) => r.id === norm || r.id === `route-${norm}`);
+  return found ?? { id: norm, name: 'Itinéraire recommandé', summary: '' };
 }

@@ -91,7 +91,7 @@ export const LEAGUE_BOARDS: readonly LeagueBoard[] = [
     id: 'ville',
     label: 'Ville',
     kind: 'city',
-    valueLabel: 'hexes',
+    valueLabel: 'zones',
     rows: [
       { rank: 1, name: 'Paris', sub: 'Île-de-France', value: 48_210, me: true },
       { rank: 2, name: 'Lille', sub: 'Hauts-de-France', value: 22_480 },
@@ -124,7 +124,7 @@ export const LEAGUE_BOARDS: readonly LeagueBoard[] = [
     id: 'pionniers',
     label: 'Pionniers',
     kind: 'player',
-    valueLabel: 'hexes pionniers',
+    valueLabel: 'zones pionnières',
     rows: [
       { rank: 1, name: 'SOFIA.TRAIL', sub: 'Dieppe', value: 1840 },
       { rank: 2, name: 'NADIA.K', sub: 'Lille', value: 1120 },

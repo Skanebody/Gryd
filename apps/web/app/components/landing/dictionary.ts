@@ -42,7 +42,7 @@ const fr = {
     live: 'LIVE',
     defaultZoneName: 'Paris Est',
     runValidated: 'Course validée',
-    hexesUnit: 'HEXES',
+    hexesUnit: 'ZONES',
   },
   map: {
     kicker: 'Carte officielle',
@@ -81,7 +81,7 @@ const fr = {
     },
     wild: {
       name: 'Zone sauvage',
-      desc: 'Longues sorties, hexes pionniers, liaisons rurales et badges exploration.',
+      desc: 'Longues sorties, zones pionnières, liaisons rurales et badges exploration.',
       metrics: [
         { value: 'Solo', label: 'mode' },
         { value: 'Trail', label: 'terrain' },
@@ -104,7 +104,7 @@ const fr = {
     styleLabel: 'Style de l’emblème',
     previewFallbackName: 'Ton crew',
     previewFallbackCity: 'France',
-    statHexes: 'hexes',
+    statHexes: 'zones',
     statPoints: 'points',
     statMembers: 'membres',
     copyInvite: 'Copier le lien d’invitation',
@@ -159,7 +159,7 @@ const fr = {
     passBadge: 'Saison 1 · à venir',
     passFeatures: ['Double piste de récompenses', 'Achat rétroactif de la piste', 'Arrive avec la Saison 1'],
     cta: 'Rejoindre la waitlist',
-    footnote: 'Les Éclats n’achètent jamais d’hexes, de points ou de stats. Le seul moyen de prendre une rue, c’est de la courir.',
+    footnote: 'Les Éclats n’achètent jamais de zones, de points ou de stats. Le seul moyen de prendre une rue, c’est de la courir.',
     toggleAria: 'Période de facturation',
   },
   waitlist: {
@@ -187,7 +187,7 @@ const fr = {
     items: [
       {
         q: 'La France entière est vraiment capturable ?',
-        a: 'Oui. Dès l’ouverture, chaque hex de France métropolitaine peut être capturé par une course réelle. La densité locale définit le niveau de guerre : Paris et Lille ouvrent en zone active (PvP complet), le reste du pays en zones émergentes, pionnières ou sauvages — exploration, routes et avant-postes.',
+        a: 'Oui. Dès l’ouverture, chaque rue de France métropolitaine peut être capturée par une course réelle. La densité locale définit le niveau de guerre : Paris et Lille ouvrent en zone active (PvP complet), le reste du pays en zones émergentes, pionnières ou sauvages — exploration, routes et avant-postes.',
       },
       {
         q: 'Et si quelqu’un triche en voiture ou à vélo ?',
@@ -195,7 +195,7 @@ const fr = {
       },
       {
         q: 'C’est pay-to-win ?',
-        a: 'Non. Aucun achat ne donne d’hexes, de points ou de stats. Le Club et les Éclats achètent du style, du confort et du statut — jamais du territoire. Le seul moyen de prendre une rue, c’est de la courir.',
+        a: 'Non. Aucun achat ne donne de zones, de points ou de stats. Le Club et les Éclats achètent du style, du confort et du statut — jamais du territoire. Le seul moyen de prendre une rue, c’est de la courir.',
       },
       {
         q: 'Et en dehors de la France ?',
@@ -243,7 +243,7 @@ const en: Dict = {
     live: 'LIVE',
     defaultZoneName: 'East Paris',
     runValidated: 'Run validated',
-    hexesUnit: 'HEXES',
+    hexesUnit: 'ZONES',
   },
   map: {
     kicker: 'Official map',
@@ -282,7 +282,7 @@ const en: Dict = {
     },
     wild: {
       name: 'Wild zone',
-      desc: 'Long runs, pioneer hexes, rural links and exploration badges.',
+      desc: 'Long runs, pioneer zones, rural links and exploration badges.',
       metrics: [
         { value: 'Solo', label: 'mode' },
         { value: 'Trail', label: 'terrain' },
@@ -305,7 +305,7 @@ const en: Dict = {
     styleLabel: 'Emblem style',
     previewFallbackName: 'Your crew',
     previewFallbackCity: 'France',
-    statHexes: 'hexes',
+    statHexes: 'zones',
     statPoints: 'points',
     statMembers: 'members',
     copyInvite: 'Copy invite link',
@@ -360,7 +360,7 @@ const en: Dict = {
     passBadge: 'Season 1 · coming',
     passFeatures: ['Dual reward track', 'Retroactive track purchase', 'Ships with Season 1'],
     cta: 'Join the waitlist',
-    footnote: 'Éclats never buy hexes, points or stats. The only way to take a street is to run it.',
+    footnote: 'Éclats never buy zones, points or stats. The only way to take a street is to run it.',
     toggleAria: 'Billing period',
   },
   waitlist: {
@@ -388,7 +388,7 @@ const en: Dict = {
     items: [
       {
         q: 'Is all of France really up for capture?',
-        a: 'Yes. From day one, every hex of metropolitan France can be captured by a real run. Local density sets the level of war: Paris and Lille open as active zones (full PvP), the rest of the country as emerging, pioneer or wild zones — exploration, routes and outposts.',
+        a: 'Yes. From day one, every street of metropolitan France can be captured by a real run. Local density sets the level of war: Paris and Lille open as active zones (full PvP), the rest of the country as emerging, pioneer or wild zones — exploration, routes and outposts.',
       },
       {
         q: 'What if someone cheats by car or bike?',
@@ -396,7 +396,7 @@ const en: Dict = {
       },
       {
         q: 'Is it pay-to-win?',
-        a: 'No. No purchase grants hexes, points or stats. The Club and Éclats buy style, comfort and status — never territory. The only way to take a street is to run it.',
+        a: 'No. No purchase grants zones, points or stats. The Club and Éclats buy style, comfort and status — never territory. The only way to take a street is to run it.',
       },
       {
         q: 'What about outside France?',

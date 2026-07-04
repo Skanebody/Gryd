@@ -313,7 +313,7 @@ export default function LeagueScreen() {
           </View>
           {ABOVE_ROW ? (
             <Text style={styles.toiHint}>
-              ≈ {GAP_HEXES} hexes neutres peuvent suffire — le prochain run peut le faire.
+              ≈ {GAP_HEXES} zones neutres peuvent suffire — le prochain run peut le faire.
             </Text>
           ) : null}
         </View>

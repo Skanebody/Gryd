@@ -41,8 +41,25 @@ export interface CrewDemo {
   localRank: number;
   /** Offensive de crew prête à être lancée (War Room). */
   offensiveReady: boolean;
-  /** Objectif crew de la semaine (« Défendre 120 hexes »). */
-  objective: { action: string; targetHexes: number; currentHexes: number };
+  /**
+   * Défense urgente du bento Base (AMENDEMENT-10 §6) — vocabulaire
+   * AMENDEMENT-11 : des RUES à sauver, jamais de cellules visibles.
+   */
+  urgentDefense: { sector: string; streets: number; hoursLeft: number };
+  /** Places ouvertes au recrutement (politique du crew, ≤ places libres). */
+  recruitSpots: number;
+  /**
+   * Bloc TERRITOIRE CREW (AMENDEMENT-11 §4) : contrôle du secteur, zones
+   * tenues, frontières contestées, routes ouvertes. controlPct cohérent avec
+   * le HUD de la Battle Map (MAP_CONTROL_HUD : 42 %). TODO(O1) parts réelles.
+   */
+  territory: {
+    sector: string;
+    controlPct: number;
+    zonesHeld: number;
+    contestedBorders: number;
+    openRoutes: number;
+  };
   members: readonly CrewMemberDemo[];
 }
 
@@ -64,11 +81,20 @@ export const MY_CREW: CrewDemo = {
   chestProgress: 1_320,
   localRank: 8,
   offensiveReady: true,
-  objective: { action: 'Défendre', targetHexes: 120, currentHexes: 78 },
+  urgentDefense: { sector: 'République', streets: 12, hoursLeft: 48 },
+  // 3 places libres (7/10) mais le crew n'en ouvre que 2 au recrutement.
+  recruitSpots: 2,
+  territory: {
+    sector: 'Paris Est',
+    controlPct: 42,
+    zonesHeld: 2_147,
+    contestedBorders: 3,
+    openRoutes: 6,
+  },
   members: [
     {
       pseudo: 'KORO', role: 'leader', availability: 'war', weekHexes: 214, tier: 'carbon',
-      lastAction: '12 hexes capturés · Villette', chestPoints: 320, me: true,
+      lastAction: '12 zones capturées · Villette', chestPoints: 320, me: true,
     },
     {
       pseudo: 'LENA_RUN', role: 'co_captain', availability: 'war', weekHexes: 188, tier: 'race',
@@ -76,7 +102,7 @@ export const MY_CREW: CrewDemo = {
     },
     {
       pseudo: 'MOLOKAÏ', role: 'raider', availability: 'war', weekHexes: 176, tier: 'race',
-      lastAction: '14 hexes repris · Buttes-Chaumont', chestPoints: 240,
+      lastAction: '14 zones reprises · Buttes-Chaumont', chestPoints: 240,
     },
     {
       pseudo: 'JOG.PARMENTIER', role: 'defender', availability: 'defense', weekHexes: 142, tier: 'tempo',

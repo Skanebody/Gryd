@@ -8,32 +8,47 @@
 }
 
 /*
- * Motion (addendum §G) : vague de capture 400 ms ease-out à l'arrivée,
- * glow respirant. prefers-reduced-motion → tout est statique (les vagues
- * deviennent des états posés, pas de pulse).
+ * Motion (addendum §G, AMENDEMENT-11) : le territoire apparaît en 400 ms
+ * ease-out (capture posée), la route se dessine, le cœur et le glow
+ * respirent. prefers-reduced-motion → tout est statique (états posés).
  */
 @media (prefers-reduced-motion: no-preference) {
   .mine {
-    animation: hexRise 400ms ease-out backwards;
+    animation: territoryRise 400ms ease-out backwards;
   }
 
   .heart {
     animation:
-      hexRise 400ms ease-out backwards,
+      territoryRise 400ms ease-out 200ms backwards,
       heartBreath 4s ease-in-out infinite;
   }
 
   .glow {
     animation: glowBreath 5s ease-in-out infinite;
   }
+
+  .routeLine {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: routeDraw 1.4s ease-out 500ms forwards;
+  }
 }
 
-@keyframes hexRise {
+@keyframes territoryRise {
   from {
     opacity: 0;
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes routeDraw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
 

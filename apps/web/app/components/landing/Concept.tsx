@@ -1,10 +1,12 @@
 'use client';
 
 /**
- * Section Gameplay Loop (#concept) — AMENDEMENT-05 §3.3 (remplace Concept).
+ * Section Gameplay Loop (#concept) — AMENDEMENT-05 §3.3 + AMENDEMENT-11.
  * 5 étapes « Cours → Capture → Défends → Attaque → Domine » qui pilotent UNE
- * mini-map hexagonale SVG partagée : trace seule → hexes chartreuse → decay →
- * reprise sur l'ennemi (--ennemi, état de jeu §1) → zoom-out + classement.
+ * mini-map ORGANIQUE partagée (plus aucune grille hexagonale visible) :
+ * trace seule → territoire chartreuse → decay → secteur repris sur l'ennemi
+ * (--ennemi, état de jeu §1) → zoom-out + classement. Les états sont des
+ * territoires lissés + frontières en crossfade (opacité CSS 250 ms).
  * Interaction : hover desktop / tap mobile / auto-advance doux (coupé sous
  * prefers-reduced-motion, en pause au survol, stoppé après un clic).
  * Chiffres de JEU réels : HEX_LOCK_HOURS, DECAY_DAYS, SEASON_DURATION_WEEKS
@@ -22,59 +24,68 @@ import ui from './ui.module.css';
 import styles from './Concept.module.css';
 
 /* ---------------------------------------------------------------------------
- * Géométrie de la mini-map — grille hexagonale pointy-top, 100 % déterministe
- * (calculée au chargement du module : aucun Math.random, SSR stable).
+ * Géométrie de la mini-map — territoires ORGANIQUES lissés (AMENDEMENT-11) :
+ * des blobs statiques déterministes (aucun Math.random, SSR stable) qui se
+ * crossfadent selon l'étape. Aucune cellule : la frontière bouge, pas la
+ * grille. Rues abstraites en fond pour la lecture « ville ».
  * ------------------------------------------------------------------------- */
 
-const HEX_R = 20;
-const COL_W = Math.sqrt(3) * HEX_R; // ≈ 34,64
-const ROW_H = 1.5 * HEX_R; // 30
-const GRID_COLS = 11;
-const GRID_ROWS = 10;
 const VIEW_W = 400;
 const VIEW_H = 310;
 
-type Hex = { id: string; cx: number; cy: number; points: string };
+/** Trace de course (étapes 1-2) — courbe lissée dans le corridor capturé. */
+const ROUTE_D = 'M 89 138 C 105 126, 118 108, 141 108 C 167 108, 190 138, 210 168';
+const ROUTE_START = { cx: 89, cy: 138 };
+const ROUTE_END = { cx: 210, cy: 168 };
 
-function hexPoints(cx: number, cy: number, r: number): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    const angle = ((60 * i - 30) * Math.PI) / 180;
-    pts.push(`${(cx + r * Math.cos(angle)).toFixed(1)},${(cy + r * Math.sin(angle)).toFixed(1)}`);
-  }
-  return pts.join(' ');
-}
+/** Mon territoire (étapes 2-4) : corridor organique capturé par la course. */
+const MINE_RUN_D =
+  'M 76 136 C 82 114, 110 94, 138 95 C 166 96, 188 120, 206 142 ' +
+  'C 222 160, 226 178, 211 185 C 195 192, 166 178, 142 168 C 116 158, 92 162, 80 150 C 76 145, 74 141, 76 136 Z';
 
-const GRID: Hex[] = [];
-for (let row = 0; row < GRID_ROWS; row++) {
-  for (let col = 0; col < GRID_COLS; col++) {
-    const cx = 20 + col * COL_W + (row % 2 === 1 ? COL_W / 2 : 0);
-    const cy = 18 + row * ROW_H;
-    GRID.push({ id: `${row}-${col}`, cx, cy, points: hexPoints(cx, cy, HEX_R - 1.5) });
-  }
-}
-const HEX_BY_ID = new Map(GRID.map((hex) => [hex.id, hex]));
+/** Étape 3 (decay) : moitié ouest non défendue qui pâlit… */
+const DECAY_WEST_D =
+  'M 78 134 C 84 114, 108 96, 134 97 C 150 98, 160 108, 166 120 ' +
+  'C 158 140, 142 154, 122 158 C 104 161, 86 154, 79 146 C 76 141, 76 138, 78 134 Z';
 
-/** Hexes traversés par la course (étapes 1-2) — la trace passe par leurs centres. */
-const ROUTE_IDS = ['4-2', '4-3', '3-3', '3-4', '4-5', '5-5'];
-const ROUTE_SET = new Set(ROUTE_IDS);
-/** Sous-ensemble non défendu qui pâlit à l'étape 3 (decay @klaim/shared). */
-const DECAY_SET = new Set(['4-2', '4-3', '3-3']);
-/** Secteur adverse (étape 4) : hexes --ennemi + 2 hexes repris en chartreuse. */
-const ENEMY_SET = new Set(['1-6', '2-5', '2-6', '2-7', '3-7']);
-const TAKEN_SET = new Set(['3-6', '4-6']);
-/** Hex ennemi « en danger » (pulse §1) : frontière de la reprise. */
-const DANGER_ID = '2-6';
-/** Étape 5 (zoom-out) : clusters élargis — mon crew vs deux fronts ennemis. */
-const MINE_S5 = new Set([...ROUTE_IDS, ...TAKEN_SET, '3-5', '4-4', '5-4', '5-6']);
-const ENEMY_S5 = new Set(['0-7', '1-6', '1-7', '2-7', '2-8', '3-8', '7-2', '7-3', '8-2', '8-3']);
+/** …et moitié est toujours défendue. */
+const MINE_EAST_D =
+  'M 166 120 C 178 128, 192 140, 204 152 C 216 164, 220 176, 208 182 ' +
+  'C 194 189, 172 178, 152 166 C 142 160, 136 152, 139 141 C 146 131, 156 124, 166 120 Z';
 
-const ROUTE_POINTS = ROUTE_IDS.map((id) => HEX_BY_ID.get(id)).filter((hex): hex is Hex => Boolean(hex));
-const ROUTE_D = ROUTE_POINTS.map(
-  (hex, i) => `${i === 0 ? 'M' : 'L'}${hex.cx.toFixed(1)} ${hex.cy.toFixed(1)}`,
-).join(' ');
-const ROUTE_START = ROUTE_POINTS[0];
-const ROUTE_END = ROUTE_POINTS[ROUTE_POINTS.length - 1];
+/** Secteur adverse (étape 4) : blob --ennemi au nord-est. */
+const ENEMY_D =
+  'M 196 74 C 204 50, 232 36, 258 40 C 285 44, 301 66, 297 92 ' +
+  'C 293 115, 270 128, 245 123 C 221 118, 199 104, 195 88 C 194 82, 194 78, 196 74 Z';
+
+/** Zone reprise sur l'ennemi (étape 4) : la frontière recule, bascule chartreuse. */
+const TAKEN_D =
+  'M 216 124 C 222 108, 240 100, 253 109 C 264 116, 266 133, 255 141 ' +
+  'C 244 149, 226 147, 219 136 C 216 132, 215 128, 216 124 Z';
+
+/** Frontière attaquée (étape 4) : arc « en danger » le long du secteur adverse. */
+const DANGER_FRONT_D = 'M 212 120 C 222 106, 238 97, 256 99';
+
+/** Étape 5 (zoom-out) : mon territoire élargi + deux fronts ennemis. */
+const MINE_BIG_D =
+  'M 70 130 C 80 98, 122 82, 162 87 C 202 92, 240 104, 258 128 ' +
+  'C 274 150, 268 178, 238 190 C 208 202, 158 200, 119 188 C 87 178, 62 158, 70 130 Z';
+const ENEMY_NE_D =
+  'M 232 52 C 246 32, 278 26, 301 39 C 321 51, 325 74, 311 90 ' +
+  'C 296 105, 268 105, 250 92 C 234 81, 224 66, 232 52 Z';
+const ENEMY_SW_D =
+  'M 84 222 C 94 205, 120 199, 140 207 C 158 215, 165 236, 152 252 ' +
+  'C 139 267, 113 268, 98 256 C 84 245, 78 233, 84 222 Z';
+
+/** Rues abstraites du fond (contours neutres — lecture ville, pas de grille). */
+const STREETS = [
+  'M -10 62 Q 200 48 410 70',
+  'M -10 170 Q 200 158 410 178',
+  'M -10 258 Q 200 246 410 262',
+  'M 96 -10 Q 84 160 104 320',
+  'M 236 -10 Q 226 150 246 320',
+  'M 330 -10 Q 322 160 336 320',
+] as const;
 
 /** Zoom serré sur le théâtre de la course (étapes 1-4) ; plein cadre à l'étape 5. */
 const ZOOM_SCALE = 1.5;
@@ -84,36 +95,25 @@ const ZOOM_IN = `translate(${(ZOOM_FOCUS.x * (1 - ZOOM_SCALE)).toFixed(1)}px, ${
 ).toFixed(1)}px) scale(${ZOOM_SCALE})`;
 const ZOOM_OUT = 'translate(0px, 0px) scale(1)';
 
-type HexState = 'neutral' | 'mine' | 'fade' | 'enemy' | 'taken' | 'danger';
+/** Territoires visibles par étape (crossfade CSS — la frontière bouge). */
+type BlobId =
+  | 'mineRun'
+  | 'decayWest'
+  | 'mineEast'
+  | 'enemy'
+  | 'taken'
+  | 'dangerFront'
+  | 'mineBig'
+  | 'enemyNE'
+  | 'enemySW';
 
-function hexStateAt(step: number, id: string): HexState {
-  switch (step) {
-    case 1:
-      return ROUTE_SET.has(id) ? 'mine' : 'neutral';
-    case 2:
-      if (DECAY_SET.has(id)) return 'fade';
-      return ROUTE_SET.has(id) ? 'mine' : 'neutral';
-    case 3:
-      if (TAKEN_SET.has(id)) return 'taken';
-      if (id === DANGER_ID) return 'danger';
-      if (ENEMY_SET.has(id)) return 'enemy';
-      return ROUTE_SET.has(id) ? 'mine' : 'neutral';
-    case 4:
-      if (MINE_S5.has(id)) return 'mine';
-      return ENEMY_S5.has(id) ? 'enemy' : 'neutral';
-    default:
-      return 'neutral';
-  }
-}
-
-const STATE_CLASS: Record<HexState, string> = {
-  neutral: '',
-  mine: 'hexMine',
-  fade: 'hexFade',
-  enemy: 'hexEnemy',
-  taken: 'hexTaken',
-  danger: 'hexDanger',
-};
+const STEP_BLOBS: readonly (readonly BlobId[])[] = [
+  [],
+  ['mineRun'],
+  ['mineEast', 'decayWest'],
+  ['mineRun', 'taken', 'enemy', 'dangerFront'],
+  ['mineBig', 'enemyNE', 'enemySW'],
+];
 
 /* ---------------------------------------------------------------------------
  * i18n locale au composant (AMENDEMENT-05 §4) — FR/EN complets, chiffres de
@@ -149,11 +149,11 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
       { name: 'Cours', body: 'Trace ta route. Chaque mètre valide peut capturer.' },
       {
         name: 'Capture',
-        body: `Les hexes traversés passent à ton crew — verrouillés ${HEX_LOCK_HOURS} h après capture.`,
+        body: `Les zones traversées passent à ton crew — verrouillées ${HEX_LOCK_HOURS} h après capture.`,
       },
       {
         name: 'Défends',
-        body: `Les zones non défendues s'effacent avec le temps : ${DECAY_DAYS} jours sans passage et l'hex redevient neutre.`,
+        body: `Les zones non défendues s'effacent avec le temps : ${DECAY_DAYS} jours sans passage et la zone redevient neutre.`,
       },
       { name: 'Attaque', body: 'Reprends les secteurs adverses et fais tomber leur contrôle.' },
       {
@@ -163,9 +163,9 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
     ],
     chips: [
       'Run live · route en cours',
-      '+6 hexes capturés',
+      '+6 zones capturées',
       `Decay · ${DECAY_DAYS} jours sans défense`,
-      '+2 hexes repris',
+      '+2 zones reprises',
       `Saison · ${SEASON_DURATION_WEEKS} semaines`,
     ],
     boardTitle: 'Classement · France',
@@ -186,11 +186,11 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
       { name: 'Run', body: 'Trace your route. Every valid metre can capture.' },
       {
         name: 'Capture',
-        body: `The hexes you cross flip to your crew — locked for ${HEX_LOCK_HOURS} h after capture.`,
+        body: `The zones you cross flip to your crew — locked for ${HEX_LOCK_HOURS} h after capture.`,
       },
       {
         name: 'Defend',
-        body: `Undefended zones fade over time: ${DECAY_DAYS} days without a run and the hex turns neutral.`,
+        body: `Undefended zones fade over time: ${DECAY_DAYS} days without a run and the zone turns neutral.`,
       },
       { name: 'Attack', body: 'Take back enemy sectors and break their control.' },
       {
@@ -200,9 +200,9 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
     ],
     chips: [
       'Run live · tracing route',
-      '+6 hexes captured',
+      '+6 zones captured',
       `Decay · ${DECAY_DAYS} days undefended`,
-      '+2 hexes retaken',
+      '+2 zones retaken',
       `Season · ${SEASON_DURATION_WEEKS} weeks`,
     ],
     boardTitle: 'Rankings · France',
@@ -310,17 +310,35 @@ export function GameplayLoop() {
                 className={styles.zoomGroup}
                 style={{ transform: step === 4 ? ZOOM_OUT : ZOOM_IN }}
               >
-                {GRID.map((hex) => {
-                  const state = hexStateAt(step, hex.id);
-                  const extra = STATE_CLASS[state];
-                  return (
-                    <polygon
-                      key={hex.id}
-                      points={hex.points}
-                      className={`${styles.hex} ${extra ? styles[extra] : ''}`}
-                    />
-                  );
-                })}
+                {/* Fond ville : rues abstraites neutres (jamais de grille). */}
+                <g className={styles.streets}>
+                  {STREETS.map((d) => (
+                    <path key={d} d={d} />
+                  ))}
+                </g>
+
+                {/* Territoires organiques — tous rendus, crossfade par étape. */}
+                {(
+                  [
+                    ['mineRun', MINE_RUN_D, styles.blobMine],
+                    ['decayWest', DECAY_WEST_D, styles.blobFade],
+                    ['mineEast', MINE_EAST_D, styles.blobMine],
+                    ['enemy', ENEMY_D, styles.blobEnemy],
+                    ['taken', TAKEN_D, styles.blobTaken],
+                    ['dangerFront', DANGER_FRONT_D, styles.frontDanger],
+                    ['mineBig', MINE_BIG_D, styles.blobMine],
+                    ['enemyNE', ENEMY_NE_D, styles.blobEnemy],
+                    ['enemySW', ENEMY_SW_D, styles.blobEnemy],
+                  ] as const
+                ).map(([id, d, cls]) => (
+                  <path
+                    key={id}
+                    d={d}
+                    className={`${styles.blob} ${cls} ${
+                      STEP_BLOBS[step]?.includes(id) ? styles.blobOn : ''
+                    }`}
+                  />
+                ))}
 
                 {/* Trace de course : dessinée à l'étape 1, estompée à l'étape 2. */}
                 <path

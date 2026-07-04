@@ -52,7 +52,7 @@ export default function SignInScreen() {
         {/* TODO fonts : Space Grotesk 700, tracking -2 % (addendum §E) — système en attendant */}
         <Text style={styles.title}>Cours.{'\n'}Capture.{'\n'}Défends.</Text>
         <Text style={styles.subtitle}>
-          Chaque course revendique des hexagones sur la carte réelle de ta ville. Ton crew tient
+          Chaque course capture des zones sur la carte réelle de ta ville. Ton crew tient
           le quartier — ou le perd.
         </Text>
       </View>

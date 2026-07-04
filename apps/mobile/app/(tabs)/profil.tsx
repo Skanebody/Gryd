@@ -291,7 +291,7 @@ export default function ProfilScreen() {
           </Text>
           <FranceMap parisHexes={PARIS_HEXES} lilleHexes={LILLE_HEXES} />
           <Text style={styles.heroNumber}>{formatInt(totalHexes)}</Text>
-          <Text style={styles.heroLabel}>hexagones tenus dans toute la France</Text>
+          <Text style={styles.heroLabel}>zones tenues dans toute la France</Text>
         </View>
 
         <Text style={styles.sectionLabel}>PLUS</Text>

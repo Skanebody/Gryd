@@ -405,13 +405,13 @@ const reqKm = (scope: string) => (_level: number, t: number) =>
 export const BADGES: readonly BadgeDef[] = [
   // ── Onboarding (8 simples) — violet. Keys/names FR existants conservés. ──
   def('onboarding', 'premiers_pas', 'Premiers Pas', 'Termine ta première course valide.', 'road', 'runsValid', 1),
-  def('onboarding', 'enclenche', 'Enclenché', 'Capture ton premier hexagone.', 'road', 'hexesCaptured', 1),
+  def('onboarding', 'enclenche', 'Enclenché', 'Capture ta première zone.', 'road', 'hexesCaptured', 1),
   def('onboarding', 'first_crew', 'First Crew', 'Rejoins ton premier crew.', 'road', 'crewsJoined', 1),
-  def('onboarding', 'defenseur_premier', 'First Defense', 'Défends ton premier hexagone.', 'road', 'defends', 1),
+  def('onboarding', 'defenseur_premier', 'First Defense', 'Défends ta première zone.', 'road', 'defends', 1),
   def('onboarding', 'first_share', 'First Share', 'Partage un résultat de course.', 'road', 'firstShares', 1),
   def('onboarding', 'first_verified', 'First Verified Run', 'Réalise ta première course vérifiée.', 'road', 'verifiedRuns', 1),
   def('onboarding', 'fondateur', 'Fondateur', 'Rejoins la Saison 0 en tant que fondateur.', 'carbon', 'seasonZeroHexes', 1),
-  def('onboarding', 'saison_0', 'Saison 0', 'Capture au moins 1 hex pendant la Saison 0.', 'race', 'seasonZeroHexes', 1),
+  def('onboarding', 'saison_0', 'Saison 0', 'Capture au moins 1 zone pendant la Saison 0.', 'race', 'seasonZeroHexes', 1),
 
   // ── Distance (3 familles × 6) — rose ──
   ...leveledFamily('distance_runner', 'Distance Runner', 'distance', 'bestRunDistanceM',
@@ -422,8 +422,8 @@ export const BADGES: readonly BadgeDef[] = [
     [100_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 10_000_000], reqKm('Cumule au total')),
 
   // ── Territoire (3 familles × 6) — vert ──
-  ...leveledFamily('hex_hunter', 'Hex Hunter', 'territoire', 'hexesCaptured',
-    [100, 500, 1_000, 5_000, 10_000, 50_000], reqCount('hexes capturés (cumul vie entière)')),
+  ...leveledFamily('hex_hunter', 'Zone Hunter', 'territoire', 'hexesCaptured',
+    [100, 500, 1_000, 5_000, 10_000, 50_000], reqCount('zones capturées (cumul vie entière)')),
   ...leveledFamily('zone_taker', 'Zone Taker', 'territoire', 'sectorsControlled',
     [1, 3, 10, 25, 50, 100], reqCount('secteurs contrôlés')),
   ...leveledFamily('city_control', 'City Control', 'territoire', 'bestSectorControlPct',
@@ -432,7 +432,7 @@ export const BADGES: readonly BadgeDef[] = [
 
   // ── Attaque (3 familles × 6) — rouge-orangé ──
   ...leveledFamily('raider', 'Raider', 'attaque', 'steals',
-    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('hexes volés')),
+    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('zones volées')),
   ...leveledFamily('sector_breaker', 'Sector Breaker', 'attaque', 'sectorsContested',
     [1, 3, 10, 25, 50, 100], reqCount('secteurs contestés')),
   ...leveledFamily('raid_leader', 'Raid Leader', 'attaque', 'offensivesJoined',
@@ -440,15 +440,15 @@ export const BADGES: readonly BadgeDef[] = [
 
   // ── Défense (3 familles × 6) — bleu ──
   ...leveledFamily('defender', 'Defender', 'defense', 'defends',
-    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('hexes défendus')),
+    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('zones défendues')),
   ...leveledFamily('hold_the_line', 'Hold The Line', 'defense', 'holdDays',
     [3, 7, 14, 30, 60, 100], reqCount('jours de tenue d\'une zone')),
   ...leveledFamily('fortress', 'Fortress', 'defense', 'clustersProtected',
-    [1, 3, 10, 25, 50, 100], reqCount('clusters protégés')),
+    [1, 3, 10, 25, 50, 100], reqCount('secteurs protégés')),
 
   // ── Exploration (2 familles × 6) — turquoise ──
   ...leveledFamily('pioneer', 'Pioneer', 'exploration', 'pioneerHexes',
-    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('hexes pionniers')),
+    [10, 100, 500, 1_000, 5_000, 10_000], reqCount('zones pionnières')),
   ...leveledFamily('frontier_runner', 'Frontier Runner', 'exploration', 'ruralZonesOpened',
     [1, 3, 10, 25, 50, 100], reqCount('zones rurales ouvertes')),
 
@@ -532,16 +532,16 @@ export const BADGES: readonly BadgeDef[] = [
   def('secret', 'secret_triple', 'Triplé', 'Valide 3 courses dans la même journée.', 'carbon', 'maxRunsInOneDay', TRIPLE_RUNS_IN_ONE_DAY, { secret: true }),
   def('secret', 'secret_heure_du_loup', 'Heure du Loup', 'Démarre une course entre 3 h et 4 h du matin.', 'carbon', 'wolfHourRuns', 1, { secret: true }),
   def('secret', 'secret_ligne_droite', 'Ligne Droite', 'Course ≥ 2 km quasi rectiligne : arrive à vol d\'oiseau à ≥ 95 % de la distance courue.', 'tempo', 'straightRuns', 1, { secret: true }),
-  def('secret', 'secret_centurion', 'Centurion', 'Capture 100 hexagones en une seule course.', 'carbon', 'maxHexesInRun', CENTURION_HEXES_IN_RUN, { secret: true }),
+  def('secret', 'secret_centurion', 'Centurion', 'Capture 100 zones en une seule course.', 'carbon', 'maxHexesInRun', CENTURION_HEXES_IN_RUN, { secret: true }),
   def('secret', 'secret_premiere_foulee', 'Première Foulée de l\'An', 'Cours un 1ᵉʳ janvier.', 'tempo', 'newYearRuns', 1, { secret: true }),
   def('secret', 'secret_semaine_parfaite', 'Semaine Parfaite', 'Cours 7 jours d\'affilée.', 'carbon', 'bestActiveDayStreak', PERFECT_WEEK_DAYS, { secret: true }),
   def('secret', 'secret_fidele_au_poste', 'Fidèle au Poste', 'Démarre 10 courses depuis le même endroit (~150 m).', 'tempo', 'homeSpotRuns', HOME_SPOT_RUNS, { secret: true }),
   def('secret', 'secret_comeback', 'Comeback', 'Reviens courir après au moins 30 jours d\'inactivité.', 'race', 'comebackRuns', 1, { secret: true }),
-  def('secret', 'secret_silent_takeover', 'Silent Takeover', 'Vole au moins 50 hexes lors d\'une course démarrée la nuit.', 'elite', 'silentTakeoverRuns', 1, { secret: true }),
+  def('secret', 'secret_silent_takeover', 'Silent Takeover', 'Vole au moins 50 zones lors d\'une course démarrée la nuit.', 'elite', 'silentTakeoverRuns', 1, { secret: true }),
   def('secret', 'secret_no_map_run', 'No Map Run', 'Termine une course valide 100 % en territoire jamais possédé.', 'elite', 'noMapRuns', 1, { secret: true }),
 
   // ── Héritage Saison 0 (§1.5) — conservés, non mis en avant (legacy). ──
-  def('onboarding', 'explorateur', 'Explorateur', 'Capture au moins 1 hex dans une zone pionnière ou sauvage.', 'tempo', 'pioneerZoneRuns', 1, { legacy: true }),
+  def('onboarding', 'explorateur', 'Explorateur', 'Capture au moins 1 zone en territoire pionnier ou sauvage.', 'tempo', 'pioneerZoneRuns', 1, { legacy: true }),
   def('onboarding', 'solitaire', 'Solitaire', '10 courses valides sans appartenir à un crew.', 'tempo', 'soloRuns', 10, { legacy: true }),
   def('onboarding', 'sprinter', 'Sprinter', 'Course ≥ 1 km avec une allure moyenne sous 4:00/km.', 'race', 'runsValid', 1, { legacy: true }),
 ].map((b, i) => ({ ...b, sort: i + 1 }));

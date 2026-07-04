@@ -1,14 +1,19 @@
 /**
- * GRYD — carte de navigation de la Course Live (AMENDEMENT-09 §3, « pendant
- * l'effort ») : le MÊME plan de quartier Uber-night que la Battle Map (monde
- * pixels de liveNav, primitives basemap), rendu UNE fois dans un conteneur
- * animé que la CAMÉRA translate (Animated core, native driver) — le coureur
- * reste centré, le monde glisse sous lui : sensation de mouvement permanent.
+ * GRYD — carte de navigation de la Course Live (AMENDEMENT-09 §3, revu
+ * AMENDEMENT-11 : ZÉRO hexagone visible) : le MÊME plan de quartier Uber-night
+ * que la Battle Map (monde pixels de liveNav, primitives basemap), rendu UNE
+ * fois dans un conteneur animé que la CAMÉRA translate (Animated core, native
+ * driver) — le coureur reste centré, le monde glisse sous lui.
  *   - itinéraire RouteProgress (gris en avance, parcouru peint chartreuse,
  *     flèche au prochain virage) — remonté à la déviation (la route restante
  *     se redessine en se repeignant, démo scriptée) ;
- *   - hexes du monde allumés au passage (« la route conquiert »), dernier hex
- *     souligné (violet si fenêtre contestée) + anneau pulsé ;
+ *   - TERRITOIRE ORGANIQUE qui s'étend derrière le coureur : les zones H3
+ *     traversées (moteur invisible) fusionnent via territory.ts en UNE
+ *     trainée-zone chartreuse lissée qui grossit — jamais des hexagones qui
+ *     s'allument ; frontière contestée = double contour chartreuse+orange ;
+ *     anneau pulsé au front de capture (violet si fenêtre contestée) ;
+ *   - SOBRE (AMENDEMENT-11 §3) : pas tout le territoire, pas les rivaux —
+ *     la route, le coureur, sa zone qui grandit, la destination ;
  *   - avatar coureur : disque chartreuse orienté selon le déplacement, halo
  *     animé ; destination marquée fort (pin + halo pulsé) ;
  *   - glisser = caméra libre (le suivi se coupe), `recenter()` (ref) ramène
@@ -38,13 +43,14 @@ import Svg, { Path, Text as SvgText } from 'react-native-svg';
 import { colors, gameColors } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { RouteProgress, usePulse, useReduceMotion } from '../../ui/game';
-import { battleMapStyle as ms } from '../map/mapStyle';
+import { battleMapStyle as ms, territoryStyle } from '../map/mapStyle';
+import { cellsToTerritory, territoryPath } from '../map/territory';
 import { SIM_TICK_MS, type RunSimulation } from './simulation';
 import {
-  NAV_HEX_RADIUS_PX,
   NAV_WORLD_H,
   NAV_WORLD_W,
-  hexPathAt,
+  cellCenterWorld,
+  navProject,
   type LiveNav,
 } from './liveNav';
 
@@ -60,10 +66,16 @@ const PAN_START_THRESHOLD_PX = 10;
 const RECENTER_MS = 380;
 /** Halo de la destination. */
 const DEST_HALO_SIZE = 40;
-/** Anneau de pulse du dernier hex capturé / checkpoint atteint. */
-const PULSE_RING_SIZE = NAV_HEX_RADIUS_PX * 2;
+/** Anneau de pulse du front de capture / checkpoint atteint (≈ 1 zone). */
+const PULSE_RING_SIZE = 30;
 /** Le pulse checkpoint reste visible N ticks après le franchissement. */
 const CHECKPOINT_PULSE_TICKS = 4;
+/** Frontière du territoire crew (parité MapScreen — AMENDEMENT-11). */
+const TERRITORY_BORDER_WIDTH = 1.8;
+/** Lueur douce sous la frontière crew. */
+const TERRITORY_GLOW_WIDTH = 7;
+/** Contour EXTÉRIEUR orange de la frontière contestée (double contour). */
+const CONTESTED_OUTER_WIDTH = 3;
 
 interface XY {
   x: number;
@@ -80,9 +92,9 @@ export interface LiveNavMapProps {
   sim: RunSimulation;
   /** Tick courant de la simulation. */
   tickIndex: number;
-  /** true = conquête (hexes peints) ; false = stats only (pas de capture). */
+  /** true = conquête (territoire qui s'étend) ; false = stats only. */
   capturing: boolean;
-  /** Fenêtre « zone contestée » active → dernier hex souligné violet. */
+  /** Fenêtre « zone contestée » active → frontière double contour + pulse violet. */
   contested?: boolean;
   /** Notifié quand le suivi caméra change (geste = off, recenter = on). */
   onFollowChange?: (following: boolean) => void;
@@ -282,24 +294,22 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
             {l.name}
           </SvgText>
         ))}
-        {/* Grille hex neutre (texture territoire, sous les états de jeu) */}
-        <Path d={world.gridD} fill="none" stroke={ms.neutralStroke} strokeWidth={1} />
       </Svg>
     ),
     [world],
   );
 
-  // ── Hexes conquis au passage (préfixe litCells, UN path) ──────────────────
+  // ── Territoire ORGANIQUE qui s'étend derrière le coureur (AMENDEMENT-11) ──
+  // Les zones H3 traversées (préfixe litCells) fusionnent en UNE trainée-zone
+  // lissée : la zone grossit, aucune cellule visible.
   const litCount = tick?.litCount ?? 0;
   const lastCell = litCount > 0 ? nav.litCells[litCount - 1] : undefined;
-  const litD = useMemo(() => {
-    let d = '';
-    for (let k = 0; k < litCount; k += 1) {
-      const c = nav.litCells[k];
-      if (c) d += hexPathAt(c.cx, c.cy, NAV_HEX_RADIUS_PX - 0.8);
-    }
-    return d;
+  const territoryD = useMemo(() => {
+    const territory = cellsToTerritory(nav.litCells.slice(0, litCount), 'crew');
+    return territory ? territoryPath(territory, navProject) : '';
   }, [litCount, nav.litCells]);
+  /** Front de capture (centre de la dernière zone prise) — anneau pulsé. */
+  const frontXY = useMemo(() => (lastCell ? cellCenterWorld(lastCell) : null), [lastCell]);
 
   // ── Itinéraire affiché : plan court, puis tracé recalculé (déviation) ─────
   const deviated = i >= nav.deviationTick;
@@ -329,18 +339,34 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
         >
           {baseWorld}
 
-          {/* Hexes conquis (la route conquiert) + dernier hex souligné */}
-          {litD ? (
+          {/* Territoire organique : la trainée-zone chartreuse grossit derrière
+              le coureur — frontière lisse, double contour si contesté. */}
+          {territoryD ? (
             <Svg width={world.w} height={world.h} style={StyleSheet.absoluteFill} pointerEvents="none">
-              <Path d={litD} fill={ms.heldFill} stroke={ms.heldStroke} strokeWidth={1.2} />
-              {lastCell ? (
+              <Path
+                d={territoryD}
+                fill="none"
+                stroke={territoryStyle.crewGlow}
+                strokeWidth={TERRITORY_GLOW_WIDTH}
+                strokeLinejoin="round"
+              />
+              {contested ? (
                 <Path
-                  d={hexPathAt(lastCell.cx, lastCell.cy, NAV_HEX_RADIUS_PX - 0.8)}
+                  d={territoryD}
                   fill="none"
-                  stroke={contested ? gameColors.contested : ms.heldStroke}
-                  strokeWidth={1.8}
+                  stroke={territoryStyle.contestedOuterStroke}
+                  strokeWidth={CONTESTED_OUTER_WIDTH}
+                  strokeLinejoin="round"
                 />
               ) : null}
+              <Path
+                d={territoryD}
+                fill={territoryStyle.crewFill}
+                fillRule="evenodd"
+                stroke={contested ? territoryStyle.contestedInnerStroke : territoryStyle.crewStroke}
+                strokeWidth={TERRITORY_BORDER_WIDTH}
+                strokeLinejoin="round"
+              />
             </Svg>
           ) : null}
 
@@ -384,15 +410,15 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
             />
           ) : null}
 
-          {/* Dernier hex capturé : anneau pulsé (violet si contesté) */}
-          {capturing && lastCell ? (
+          {/* Front de capture : anneau pulsé (violet si contesté) */}
+          {capturing && frontXY ? (
             <Animated.View
               pointerEvents="none"
               style={[
                 styles.pulseRing,
                 {
-                  left: lastCell.cx - PULSE_RING_SIZE / 2,
-                  top: lastCell.cy - PULSE_RING_SIZE / 2,
+                  left: frontXY.x - PULSE_RING_SIZE / 2,
+                  top: frontXY.y - PULSE_RING_SIZE / 2,
                   borderColor: contested ? gameColors.contested : colors.chartreuse40,
                   transform: [{ scale: capturePulse }],
                 },

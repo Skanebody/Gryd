@@ -50,15 +50,15 @@ const STRINGS = {
     items: [
       {
         q: 'Comment je prends un quartier ?',
-        a: `Tu cours dedans, littéralement. Chaque hex traversé par ta trace GPS bascule dans ton camp à la fin de la course. Un hex fraîchement capturé est verrouillé ${HEX_LOCK_HOURS} h — involable, le temps de savourer. Ensuite, entretiens-le : un hex que personne ne re-court pendant ${DECAY_DAYS} jours redevient neutre.`,
+        a: `Tu cours dedans, littéralement. Chaque zone traversée par ta trace GPS bascule dans ton camp à la fin de la course. Une zone fraîchement capturée est verrouillée ${HEX_LOCK_HOURS} h — involable, le temps de savourer. Ensuite, entretiens-la : une zone que personne ne re-court pendant ${DECAY_DAYS} jours redevient neutre.`,
       },
       {
         q: 'Comment mon crew gagne une saison ?',
-        a: `Une saison dure ${SEASON_DURATION_WEEKS} semaines. Chaque course d’un membre ajoute des points et des hexes au total du crew ; le classement de fin de saison sacre les vainqueurs par ville et par secteur. Puis la carte est remise à zéro (${INTERSEASON_DAYS} jours d’intersaison) — les badges, les titres et l’XP restent à vie.`,
+        a: `Une saison dure ${SEASON_DURATION_WEEKS} semaines. Chaque course d’un membre ajoute des points et des zones au total du crew ; le classement de fin de saison sacre les vainqueurs par ville et par secteur. Puis la carte est remise à zéro (${INTERSEASON_DAYS} jours d’intersaison) — les badges, les titres et l’XP restent à vie.`,
       },
       {
         q: 'Que se passe-t-il si on me vole une zone ?',
-        a: `Tu reçois une notification et un raccourci revanche : re-cours la zone pour la reprendre — un hex volé rapporte d’ailleurs ${POINTS_STOLEN_HEX} points contre ${POINTS_NEUTRAL_HEX} pour un neutre. Tes captures fraîches restent involables ${HEX_LOCK_HOURS} h, et tu peux poser un bouclier de ${SHIELD_DURATION_HOURS} h sur un cluster — maximum ${SHIELD_MAX_ACTIVE_PER_WEEK} par semaine, pour que défendre reste un choix tactique.`,
+        a: `Tu reçois une notification et un raccourci revanche : re-cours la zone pour la reprendre — une zone volée rapporte d’ailleurs ${POINTS_STOLEN_HEX} points contre ${POINTS_NEUTRAL_HEX} pour une neutre. Tes captures fraîches restent involables ${HEX_LOCK_HOURS} h, et tu peux poser un bouclier de ${SHIELD_DURATION_HOURS} h sur un secteur — maximum ${SHIELD_MAX_ACTIVE_PER_WEEK} par semaine, pour que défendre reste un choix tactique.`,
       },
       {
         q: 'Comment une ville passe en mode Guerre ?',
@@ -66,7 +66,7 @@ const STRINGS = {
       },
       {
         q: 'Je peux jouer en campagne ?',
-        a: `Oui — et c’est même un avantage. Un hex jamais possédé rapporte un bonus pionnier, jusqu’à +${POINTS_PIONEER_BONUS_BY_DENSITY.pioneer} points en zone pionnière ou sauvage. À partir de ${OUTPOST_MIN_HEXES} hexes dans un rayon de ${OUTPOST_RADIUS_KM} km, tu fondes un avant-poste visible sur la carte de France. L’exploration écrit la carte autant que la guerre.`,
+        a: `Oui — et c’est même un avantage. Une zone jamais possédée rapporte un bonus pionnier, jusqu’à +${POINTS_PIONEER_BONUS_BY_DENSITY.pioneer} points en zone pionnière ou sauvage. À partir de ${OUTPOST_MIN_HEXES} zones dans un rayon de ${OUTPOST_RADIUS_KM} km, tu fondes un avant-poste visible sur la carte de France. L’exploration écrit la carte autant que la guerre.`,
       },
       {
         q: 'Comment fonctionne GRYD Verify ?',
@@ -78,15 +78,15 @@ const STRINGS = {
     items: [
       {
         q: 'How do I take a district?',
-        a: `You run through it, literally. Every hex your GPS trace crosses flips to your side when the run ends. A freshly captured hex is locked for ${HEX_LOCK_HOURS} h — unstealable while you savour it. Then keep it alive: a hex nobody re-runs for ${DECAY_DAYS} days turns neutral again.`,
+        a: `You run through it, literally. Every zone your GPS trace crosses flips to your side when the run ends. A freshly captured zone is locked for ${HEX_LOCK_HOURS} h — unstealable while you savour it. Then keep it alive: a zone nobody re-runs for ${DECAY_DAYS} days turns neutral again.`,
       },
       {
         q: 'How does my crew win a season?',
-        a: `A season lasts ${SEASON_DURATION_WEEKS} weeks. Every member’s run adds points and hexes to the crew total; the end-of-season ranking crowns the winners per city and per sector. Then the map resets (${INTERSEASON_DAYS} days of off-season) — badges, titles and XP are yours for life.`,
+        a: `A season lasts ${SEASON_DURATION_WEEKS} weeks. Every member’s run adds points and zones to the crew total; the end-of-season ranking crowns the winners per city and per sector. Then the map resets (${INTERSEASON_DAYS} days of off-season) — badges, titles and XP are yours for life.`,
       },
       {
         q: 'What happens if someone steals my zone?',
-        a: `You get a notification and a revenge shortcut: re-run the zone to take it back — a stolen hex is worth ${POINTS_STOLEN_HEX} points versus ${POINTS_NEUTRAL_HEX} for a neutral one. Your fresh captures stay unstealable for ${HEX_LOCK_HOURS} h, and you can drop a ${SHIELD_DURATION_HOURS} h shield on a cluster — capped at ${SHIELD_MAX_ACTIVE_PER_WEEK} per week, so defending stays a tactical choice.`,
+        a: `You get a notification and a revenge shortcut: re-run the zone to take it back — a stolen zone is worth ${POINTS_STOLEN_HEX} points versus ${POINTS_NEUTRAL_HEX} for a neutral one. Your fresh captures stay unstealable for ${HEX_LOCK_HOURS} h, and you can drop a ${SHIELD_DURATION_HOURS} h shield on a sector — capped at ${SHIELD_MAX_ACTIVE_PER_WEEK} per week, so defending stays a tactical choice.`,
       },
       {
         q: 'How does a city switch to War mode?',
@@ -94,7 +94,7 @@ const STRINGS = {
       },
       {
         q: 'Can I play in the countryside?',
-        a: `Yes — it’s even an advantage. A never-owned hex grants a pioneer bonus, up to +${POINTS_PIONEER_BONUS_BY_DENSITY.pioneer} points in pioneer or wild zones. From ${OUTPOST_MIN_HEXES} hexes within a ${OUTPOST_RADIUS_KM} km radius you found an outpost, visible on the map of France. Exploration writes the map as much as war does.`,
+        a: `Yes — it’s even an advantage. A never-owned zone grants a pioneer bonus, up to +${POINTS_PIONEER_BONUS_BY_DENSITY.pioneer} points in pioneer or wild zones. From ${OUTPOST_MIN_HEXES} zones within a ${OUTPOST_RADIUS_KM} km radius you found an outpost, visible on the map of France. Exploration writes the map as much as war does.`,
       },
       {
         q: 'How does GRYD Verify work?',

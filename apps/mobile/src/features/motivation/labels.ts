@@ -64,7 +64,7 @@ export const RUN_MODE_LABELS: Record<
 > = {
   conquete: {
     title: 'Conquête',
-    subtitle: 'Capture et défends des hexagones. Le mode complet.',
+    subtitle: 'Capture et défends des zones. Le mode complet.',
     icon: 'carte',
   },
   social_run: {

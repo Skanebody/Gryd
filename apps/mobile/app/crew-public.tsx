@@ -3,7 +3,7 @@
  * POUSSÉ depuis Crew Discovery (« Voir la base », param ?crew=TAG — fallback
  * garanti, jamais d'écran cassé §0). Scène de jeu cohérente avec la
  * CrewDiscoveryCard : grand blason CrewCrest + frame de ligue, Niv · ligue,
- * tags de style de jeu, stats (membres/runs/zone tenue), rôles recherchés
+ * tags de style de jeu, stats (membres/runs/zones tenues), rôles recherchés
  * iconés, candidature (CTA chartreuse fort) + Partager / Copier lien (toast).
  * Niveau/tier/statut DÉRIVÉS des règles réelles (features/crew/rules) — pas de
  * nombre magique. Données démo (features/crew/publicDemo). Zéro position live.
@@ -129,7 +129,7 @@ export default function CrewPublicScreen() {
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{formatInt(crew.heldHexes)}</Text>
-            <Text style={styles.statLabel}>zone tenue</Text>
+            <Text style={styles.statLabel}>zones tenues</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{crew.language}</Text>

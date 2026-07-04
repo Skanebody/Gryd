@@ -117,16 +117,28 @@
   border: 1px solid var(--ligne);
 }
 
-/* Bascule ennemi → chartreuse : scale + fondu (charte §G, 400 ms ease-out). */
+/* Corridor capturé : le ruban progresse en douceur le long de la route. */
+.corridor {
+  transition: stroke-dashoffset 220ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .corridor {
+    transition: none;
+  }
+}
+
+/* Frontière ennemie qui recule : la zone reprise bascule en chartreuse
+   (scale + fondu — charte §G, 400 ms ease-out). */
 @media (prefers-reduced-motion: no-preference) {
-  .hexFlip {
-    animation: hexFlip 400ms ease-out backwards;
+  .zoneFlip {
+    animation: zoneFlip 400ms ease-out backwards;
     transform-box: fill-box;
     transform-origin: center;
   }
 }
 
-@keyframes hexFlip {
+@keyframes zoneFlip {
   0% {
     opacity: 0;
     transform: scale(0.6);
@@ -406,7 +418,7 @@
   padding-top: 10px;
 }
 
-/* Hexes pris = gain → chartreuse légitime (doctrine C.3). */
+/* Zones prises = gain → chartreuse légitime (doctrine C.3). */
 .statTaken {
   font-family: var(--mono);
   font-size: 11px;

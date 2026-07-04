@@ -58,7 +58,7 @@ const STRINGS = {
   fr: {
     kicker: 'La victoire',
     title: 'Quand ta course se termine, la carte a changé.',
-    sub: 'Pas un rapport de stats : une carte de victoire. Les hexes tombent, la zone bascule, ton crew monte, le badge claque.',
+    sub: 'Pas un rapport de stats : une carte de victoire. Les zones tombent, le secteur bascule, ton crew monte, le badge claque.',
     stamp: 'ZONE CAPTURÉE',
     zoneLine: (pct: string) => `Paris Est bascule à ${pct} %`,
     zoneAria: 'Contrôle de Paris Est',
@@ -75,14 +75,14 @@ const STRINGS = {
     shareHint: 'Aperçu 9:16 — chaque story sort aux couleurs exactes de la carte.',
     shareToast: 'La carte de story arrive avec l’app — Saison 0.',
     previewAria:
-      'Aperçu statique de la carte de partage 9:16 : fond noir, cluster chartreuse, chiffre héros',
+      'Aperçu statique de la carte de partage 9:16 : fond noir, secteur chartreuse, chiffre héros',
     previewZone: 'PARIS EST',
     previewSeason: 'SAISON 0',
   },
   en: {
     kicker: 'The victory',
     title: 'When your run ends, the map has changed.',
-    sub: 'Not a stats report: a victory card. Hexes drop, the zone flips, your crew climbs, the badge lands.',
+    sub: 'Not a stats report: a victory card. Zones drop, the sector flips, your crew climbs, the badge lands.',
     stamp: 'ZONE CAPTURED',
     zoneLine: (pct: string) => `Paris Est flips to ${pct}%`,
     zoneAria: 'Paris Est control',

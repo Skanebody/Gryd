@@ -18,14 +18,14 @@ import styles from './HeroAlerts.module.css';
 const STRINGS = {
   fr: {
     attack: '⚠ Paris Est attaqué',
-    captured: (n: string) => `+${n} hexes capturés`,
+    captured: (n: string) => `+${n} zones capturées`,
     rankUp: 'Night Pacers passe #3',
     zone: (pct: string) => `Zone République : ${pct} % contrôlée`,
     season: (days: string) => `Saison 0 : ${days} jours restants`,
   },
   en: {
     attack: '⚠ East Paris under attack',
-    captured: (n: string) => `+${n} hexes captured`,
+    captured: (n: string) => `+${n} zones captured`,
     rankUp: 'Night Pacers climbs to #3',
     zone: (pct: string) => `République zone: ${pct}% controlled`,
     season: (days: string) => `Season 0: ${days} days left`,

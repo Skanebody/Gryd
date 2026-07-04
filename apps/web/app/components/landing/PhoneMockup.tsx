@@ -1,15 +1,17 @@
 'use client';
 
 /**
- * Téléphone HUD « RAID LIVE » du hero (AMENDEMENT-05 §3.2) : carte 3 factions
- * (mon crew chartreuse, ennemi --ennemi, neutre), trace de course active dont
- * les hexes ennemis BASCULENT en chartreuse, alerte raid, panneau
- * « RAID LIVE · Paris Est · 62 % GRYD Crew · 31 % Rival · 7 % Neutre ·
- * +18 hexes pris · 4 membres actifs · 22 min restantes » et badge (--or) qui
- * pop en fin de séquence. La séquence se joue une fois à l'apparition du
- * téléphone, et « Simuler une course » (Hero → PhoneContext.simTick) la rejoue.
- * SSR stable (aucun aléa au rendu) ; prefers-reduced-motion : capture posée
- * d'un bloc, badge statique. Strings V2 locales fr/en.
+ * Téléphone HUD « RAID LIVE » du hero (AMENDEMENT-05 §3.2 + AMENDEMENT-11) :
+ * Battle Map ORGANIQUE 3 factions (mon territoire chartreuse, territoire
+ * ennemi --ennemi, ville neutre — aucune grille), trace de course active dont
+ * le corridor capturé PROGRESSE le long de la route et mord le territoire
+ * ennemi (la frontière recule), alerte raid, panneau « RAID LIVE · Paris Est ·
+ * 62 % GRYD Crew · 31 % Rival · 7 % Neutre · +18 zones prises · 4 membres
+ * actifs · 22 min restantes » et badge (--or) qui pop en fin de séquence. La
+ * séquence se joue une fois à l'apparition du téléphone, et « Simuler une
+ * course » (Hero → PhoneContext.simTick) la rejoue. SSR stable (aucun aléa au
+ * rendu) ; prefers-reduced-motion : capture posée d'un bloc, badge statique.
+ * Strings V2 locales fr/en.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,72 +25,59 @@ import styles from './PhoneMockup.module.css';
 
 /* ── Géométrie déterministe (module scope → SSR-safe) ─────────────────────── */
 
-const R = 14;
-const W = Math.sqrt(3) * R;
-const H = 1.5 * R;
-const COLS = 9;
-const ROWS = 10;
 const VIEW_W = 240;
 const VIEW_H = 222;
 
-function hexCenter(c: number, r: number): { cx: number; cy: number } {
-  return { cx: c * W + (r % 2 ? W / 2 : 0) + 12, cy: r * H + 12 };
-}
-
-function hexPoints(cx: number, cy: number): string {
-  let s = '';
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    s += `${(cx + R * Math.cos(a)).toFixed(1)},${(cy + R * Math.sin(a)).toFixed(1)} `;
-  }
-  return s.trim();
-}
-
-/** Mon territoire de base (chartreuse-14, bas-gauche). */
-const MINE = new Set(['0,8', '1,7', '1,8', '1,9', '2,7', '2,8', '2,9']);
-/** Zone ENNEMIE (--ennemi, haut-droite) — 3 factions AMENDEMENT-05 §3.2. */
-const FOE = new Set([
-  '5,0', '6,0', '7,0', '8,0',
-  '5,1', '6,1', '7,1', '8,1',
-  '6,2', '7,2', '8,2',
-  '7,3', '8,3',
-  '8,4',
-]);
 /**
- * Trace de course active : part de mon territoire, traverse le neutre et
- * pénètre la zone ennemie — les 5 derniers hexes sont ennemis et basculent
- * ennemi → chartreuse pendant la séquence.
+ * Battle Map organique (AMENDEMENT-11) : mon territoire en bas-gauche,
+ * territoire ennemi en haut-droite, ville neutre entre les deux (rues
+ * abstraites). Aucune cellule visible — les frontières sont lissées.
+ */
+const MINE_TERRITORY_D =
+  'M 2 168 C 14 148, 44 142, 66 152 C 86 161, 96 184, 87 203 ' +
+  'C 78 220, 52 228, 30 221 C 10 214, -6 196, 2 168 Z';
+
+const FOE_TERRITORY_D =
+  'M 126 30 C 140 8, 172 -2, 204 4 C 234 10, 248 34, 243 62 ' +
+  'C 238 89, 213 107, 185 102 C 157 97, 131 76, 126 52 Z';
+
+/** Rues abstraites du fond neutre (lecture ville, jamais de grille). */
+const STREETS = [
+  'M -10 60 Q 120 48 250 66',
+  'M -10 128 Q 120 116 250 134',
+  'M -10 190 Q 120 180 250 196',
+  'M 62 -10 Q 52 110 70 232',
+  'M 148 -10 Q 140 110 156 232',
+] as const;
+
+/**
+ * Étapes de la séquence de capture le long de la route : le corridor
+ * capturé progresse (ruban chartreuse), puis la frontière ennemie recule
+ * (« bite » reprise en fin de course).
  */
 const SEQUENCE = [
-  '2,7', '3,7', '3,6', '4,5', '4,4', '5,3', '5,2', '6,2', '6,1', '7,1', '7,2', '8,2',
+  '72.6,159', '96.9,159', '84.7,138', '121.1,117', '109,96', '145.3,75',
+  '133.2,54', '157.5,54', '169.6,33', '193.8,33', '181.7,54', '206,54',
 ] as const;
 
 const SIM_STEP_MS = 150;
 const BADGE_HIDE_MS = 3_000;
 
 const SEQ_CENTERS = SEQUENCE.map((key) => {
-  const [c = 0, r = 0] = key.split(',').map(Number);
-  return hexCenter(c, r);
+  const [cx = 0, cy = 0] = key.split(',').map(Number);
+  return { cx, cy };
 });
 const RUN_PATH_D = SEQ_CENTERS.map(
   (p, i) => `${i === 0 ? 'M' : 'L'} ${p.cx.toFixed(1)} ${p.cy.toFixed(1)}`,
 ).join(' ');
 const PIN = SEQ_CENTERS[SEQ_CENTERS.length - 1] ?? { cx: 0, cy: 0 };
 
-type Hex = { key: string; points: string; kind: 'mine' | 'foe' | 'neutral' };
-
-const HEXES: Hex[] = [];
-for (let r = 0; r < ROWS; r++) {
-  for (let c = 0; c < COLS; c++) {
-    const key = `${c},${r}`;
-    const { cx, cy } = hexCenter(c, r);
-    HEXES.push({
-      key,
-      points: hexPoints(cx, cy),
-      kind: MINE.has(key) ? 'mine' : FOE.has(key) ? 'foe' : 'neutral',
-    });
-  }
-}
+/** Zone reprise sur l'ennemi en fin de séquence (la frontière recule). */
+const TAKEN_BITE_D =
+  'M 164 30 C 172 16, 194 12, 208 22 C 220 31, 222 50, 210 60 ' +
+  'C 197 70, 175 66, 167 52 C 163 45, 162 37, 164 30 Z';
+/** La « bite » apparaît quand la course a pénétré le territoire ennemi. */
+const BITE_AT = SEQUENCE.length - 3;
 
 // Chiffres de showcase du raid : RAID (lib/landing, fictifs assumés,
 // DÉTERMINISTES — AMENDEMENT-05 §3.2/§4, centralisés).
@@ -102,7 +91,7 @@ const STRINGS = {
        en --ennemi (zone ennemie/attaque) — « Rival » (violet) serait faux. */
     rival: 'Ennemi',
     neutral: 'Neutre',
-    hexesTaken: (n: string) => `+${n} hexes pris`,
+    hexesTaken: (n: string) => `+${n} zones prises`,
     members: (n: string) => `${n} membres actifs`,
     minutes: (n: string) => `${n} min restantes`,
     badgeName: 'Route Opened',
@@ -119,7 +108,7 @@ const STRINGS = {
        --ennemi (enemy zone/attack) — "Rival" (purple) would contradict it. */
     rival: 'Enemy',
     neutral: 'Neutral',
-    hexesTaken: (n: string) => `+${n} hexes taken`,
+    hexesTaken: (n: string) => `+${n} zones taken`,
     members: (n: string) => `${n} members active`,
     minutes: (n: string) => `${n} min left`,
     badgeName: 'Route Opened',
@@ -197,9 +186,10 @@ export function PhoneMockup() {
 
   useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
 
-  const captured = new Set<string>(SEQUENCE.slice(0, capturedCount));
-  // « +18 hexes pris » suit la bascule des hexes (0 → 18 pendant la séquence).
-  const taken = Math.round((RAID.hexesTaken * capturedCount) / SEQUENCE.length);
+  // Progression du corridor capturé le long de la route (0 → 1).
+  const progress = capturedCount / SEQUENCE.length;
+  // « +18 zones prises » suit la progression du corridor (0 → 18).
+  const taken = Math.round(RAID.hexesTaken * progress);
   const zoneName = zone?.name ?? copy.phone.defaultZoneName;
 
   return (
@@ -220,42 +210,56 @@ export function PhoneMockup() {
             <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className={styles.map} aria-hidden="true">
               <rect width={VIEW_W} height={VIEW_H} fill={colors.noir} />
 
-              {HEXES.map((hex) => {
-                const isCaptured = captured.has(hex.key);
-                if (hex.kind === 'mine' || isCaptured) {
-                  return (
-                    <polygon
-                      key={hex.key}
-                      className={isCaptured && hex.kind !== 'mine' ? styles.hexFlip : undefined}
-                      points={hex.points}
-                      fill={mapTokens.mineFill}
-                      stroke={mapTokens.mineStroke}
-                      strokeWidth="1.2"
-                    />
-                  );
-                }
-                if (hex.kind === 'foe') {
-                  // Zone ennemie : --ennemi (état de jeu exclusif, AMENDEMENT-05 §1).
-                  return (
-                    <polygon
-                      key={hex.key}
-                      points={hex.points}
-                      fill="var(--ennemi-14)"
-                      stroke="var(--ennemi-40)"
-                      strokeWidth="1"
-                    />
-                  );
-                }
-                return (
-                  <polygon
-                    key={hex.key}
-                    points={hex.points}
-                    fill="none"
-                    stroke={mapTokens.neutralStroke}
-                    strokeWidth="0.9"
-                  />
-                );
-              })}
+              {/* Ville neutre : rues abstraites (aucune grille — AMENDEMENT-11). */}
+              <g stroke={mapTokens.roads} strokeWidth="1.6" fill="none">
+                {STREETS.map((d) => (
+                  <path key={d} d={d} />
+                ))}
+              </g>
+
+              {/* Territoire ennemi : --ennemi (état de jeu exclusif, AMENDEMENT-05 §1). */}
+              <path
+                d={FOE_TERRITORY_D}
+                fill="var(--ennemi-14)"
+                stroke="var(--ennemi-40)"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+
+              {/* Mon territoire de base (chartreuse-14, frontière lissée). */}
+              <path
+                d={MINE_TERRITORY_D}
+                fill={mapTokens.mineFill}
+                stroke={mapTokens.mineStroke}
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+
+              {/* Corridor capturé : ruban organique qui progresse avec la course. */}
+              <path
+                className={styles.corridor}
+                d={RUN_PATH_D}
+                pathLength={100}
+                fill="none"
+                stroke={mapTokens.mineFill}
+                strokeWidth="15"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={100}
+                strokeDashoffset={100 - progress * 100}
+              />
+
+              {/* Frontière ennemie qui recule : zone reprise en fin de course. */}
+              {capturedCount >= BITE_AT ? (
+                <path
+                  className={styles.zoneFlip}
+                  d={TAKEN_BITE_D}
+                  fill={mapTokens.mineFill}
+                  stroke={mapTokens.mineStroke}
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+              ) : null}
 
               {/* Trace de course : fantôme permanent + tracé animé pendant la sim. */}
               <path

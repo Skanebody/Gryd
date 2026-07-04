@@ -83,10 +83,10 @@ const SHIELD_EXTRA_PER_WEEK = SHIELD_MAX_ACTIVE_PER_WEEK - SHIELD_CLUB_INCLUDED_
 /** Exemple canonique doc §20 : Shield — Rare — 48 h — 1/semaine — 90 Éclats. */
 const SHIELD_ITEM: ArsenalDemoItem = {
   key: 'shield',
-  name: 'Bouclier de cluster',
+  name: 'Bouclier de secteur',
   icon: 'bouclier',
   rarity: 'race',
-  usage: `Protège un cluster ${SHIELD_DURATION_HOURS} h`,
+  usage: `Protège un secteur ${SHIELD_DURATION_HOURS} h`,
   limit: `${SHIELD_EXTRA_PER_WEEK} / semaine`,
   price: { amount: SHIELD_EXTRA_ECLATS, currency: 'eclats' },
 };
@@ -158,7 +158,7 @@ const SECTIONS: readonly ArsenalSection[] = [
         name: 'Grille Circuit',
         icon: 'skin',
         rarity: 'tempo',
-        usage: 'Motif circuit gravé sur tes hexes tenus',
+        usage: 'Motif circuit gravé sur tes zones tenues',
         price: { amount: SKIN_EARNABLE_1_FOULEES, currency: 'foulees' },
       },
       {
@@ -420,7 +420,7 @@ export default function ArsenalScreen() {
       ))}
 
       <Text style={styles.footnote}>
-        Aucun objet ne vend des hexes, des kilomètres, une victoire ou un rang de ligue —
+        Aucun objet ne vend des zones, des kilomètres, une victoire ou un rang de ligue —
         tout ça se gagne en courant. Les Éclats s'achètent en pack, les Foulées se courent.
       </Text>
     </StackScreen>

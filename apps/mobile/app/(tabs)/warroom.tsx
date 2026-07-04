@@ -243,7 +243,7 @@ export default function WarRoomScreen() {
         <WarRoomObjectiveCard
           kicker="Offensive crew"
           zone={OFFENSIVE.zone}
-          objective={`Objectif : +${formatInt(OFFENSIVE.objectiveHexes)} hexes — ${formatInt(OFFENSIVE.hexesTaken)} pris`}
+          objective={`Objectif : +${formatInt(OFFENSIVE.objectiveHexes)} zones — ${formatInt(OFFENSIVE.hexesTaken)} prises`}
           progress={offensivePct}
           timeLeft={offensiveTimeLeft}
           participants={{ current: OFFENSIVE.activeMembers, max: OFFENSIVE.totalMembers }}
@@ -259,15 +259,28 @@ export default function WarRoomScreen() {
         />
         <View style={styles.contribRow}>
           <Text style={styles.contribLabel}>Ta contribution</Text>
-          <Text style={styles.contribValue}>+{formatInt(OFFENSIVE.myHexes)} hexes</Text>
+          <Text style={styles.contribValue}>+{formatInt(OFFENSIVE.myHexes)} zones</Text>
         </View>
+        {/* AMENDEMENT-10 §2 : l'offensive pointe vers le Route Planner (raid). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Voir la route de l'offensive dans le Route Planner"
+          onPress={() => {
+            haptics.light();
+            router.push('/route-planner?type=raid');
+          }}
+          style={({ pressed }) => [styles.assignBtn, pressed && styles.pressed]}
+        >
+          <Icon name="route" size={16} color={colors.chartreuse} />
+          <Text style={styles.assignLabel}>Voir la route</Text>
+        </Pressable>
 
         {/* DÉFENSE — urgence decay (doc §15 : 34 hexes / 48 h, zone Canal) */}
         <SectionHeader icon="bouclier" label="DÉFENSE" />
         <WarRoomObjectiveCard
           kicker="Défense urgente"
           zone={DEFENSE_MISSION.zone}
-          objective={`${DEFENSE_MISSION.hexes} hexes expirent dans ${DEFENSE_MISSION.expiresInH} h — une course sur la zone les remet à l'abri.`}
+          objective={`${DEFENSE_MISSION.hexes} zones expirent dans ${DEFENSE_MISSION.expiresInH} h — une course sur la zone les remet à l'abri.`}
           state="decay"
           icon="sablier"
           joinLabel="Défendre"
@@ -294,6 +307,19 @@ export default function WarRoomScreen() {
           <Text style={styles.assignLabel}>
             {assignee ? `Assigner ${assignee.pseudo}` : 'Assigner un membre'}
           </Text>
+        </Pressable>
+        {/* AMENDEMENT-10 §2 : la défense pointe vers le Route Planner (défense). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Voir la route de défense dans le Route Planner"
+          onPress={() => {
+            haptics.light();
+            router.push('/route-planner?type=defense');
+          }}
+          style={({ pressed }) => [styles.assignBtn, pressed && styles.pressed]}
+        >
+          <Icon name="route" size={16} color={colors.chartreuse} />
+          <Text style={styles.assignLabel}>Voir la route</Text>
         </Pressable>
 
         {/* ROUTES — 2 ouvertes, 1 à défendre (doc §7 « route ouverte ») */}

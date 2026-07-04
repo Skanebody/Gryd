@@ -72,10 +72,10 @@ const STRINGS = {
     scoutName: 'Scout',
     scoutEffect:
       'Éclaireur de secteur : repère les territoires proches du decay ({days} j) avant qu’ils tombent.',
-    scoutCap: 'Info uniquement · zéro hex, zéro point',
+    scoutCap: 'Info uniquement · zéro zone, zéro point',
     shieldName: 'Bouclier de quartier',
     shieldEffect:
-      'Coque carbone sur ton cluster : jusqu’à {hexes} hexes involables pendant {hours} h.',
+      'Coque carbone sur ton secteur : jusqu’à {hexes} zones involables pendant {hours} h.',
     shieldCap: 'Cap {max} / semaine · {club} inclus Club · {eclats} Éclats l’extra',
     bannerName: 'Bannière crew',
     bannerEffect: 'Ton emblème hissé sur les secteurs de ton crew, visible par toute la ville.',
@@ -84,7 +84,7 @@ const STRINGS = {
     skinEffect: 'Ton territoire rendu Neon ou Carbon sur la carte. Ta signature, pas ta force.',
     skinCap: 'Cosmétique · {min}–{max} Éclats',
     neverTitle: 'Jamais à vendre',
-    neverItems: ['Des hexes', 'Des points', 'Des kilomètres', 'La victoire'],
+    neverItems: ['Des zones', 'Des points', 'Des kilomètres', 'La victoire'],
     neverNote:
       'Tout ce qui compte au classement se gagne en courant. L’Arsenal habille, protège, informe — il ne conquiert jamais à ta place.',
     offersLabel: 'Les offres',
@@ -108,9 +108,9 @@ const STRINGS = {
     radarCap: 'Included with GRYD Club · read-only, captures nothing',
     scoutName: 'Scout',
     scoutEffect: 'Sector scout: flags territories close to decay ({days} d) before they fall.',
-    scoutCap: 'Intel only · zero hexes, zero points',
+    scoutCap: 'Intel only · zero zones, zero points',
     shieldName: 'District Shield',
-    shieldEffect: 'Carbon shell over your cluster: up to {hexes} hexes unstealable for {hours} h.',
+    shieldEffect: 'Carbon shell over your sector: up to {hexes} zones unstealable for {hours} h.',
     shieldCap: 'Cap {max} / week · {club} with Club · {eclats} Éclats extra',
     bannerName: 'Crew Banner',
     bannerEffect: 'Your emblem raised over your crew’s sectors, visible to the whole city.',
@@ -119,7 +119,7 @@ const STRINGS = {
     skinEffect: 'Your territory rendered Neon or Carbon on the map. Your signature, not your strength.',
     skinCap: 'Cosmetic · {min}–{max} Éclats',
     neverTitle: 'Never for sale',
-    neverItems: ['Hexes', 'Points', 'Kilometres', 'The win'],
+    neverItems: ['Zones', 'Points', 'Kilometres', 'The win'],
     neverNote:
       'Everything that counts on the leaderboard is earned by running. The Arsenal dresses, protects and informs — it never conquers for you.',
     offersLabel: 'The bundles',

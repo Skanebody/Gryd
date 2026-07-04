@@ -68,7 +68,7 @@ const DATA_TOPICS: readonly SupportTopic[] = [
     key: 'data_export',
     icon: 'partage',
     title: 'Exporter mes données',
-    body: 'Reçois une copie complète de tes courses, hexes, badges et réglages.',
+    body: 'Reçois une copie complète de tes courses, zones, badges et réglages.',
   },
   {
     key: 'data_delete',

@@ -6,7 +6,15 @@
  * seeds @klaim/shared (CHALLENGE_SEEDS) — aucun nombre magique ici ; seuls les
  * « où en est le joueur » (progress) sont des valeurs de démo, bornées ≤ cible.
  */
-import { CHALLENGE_SEEDS, type ChallengeDifficulty, type ChallengeType } from '@klaim/shared';
+import {
+  CHALLENGE_SEEDS,
+  CREW_CHEST_WEEKLY_TARGET,
+  type ChallengeDifficulty,
+  type ChallengeType,
+} from '@klaim/shared';
+import { MY_CREW } from '../crew/demo';
+import { MAP_HUD } from '../map/demo';
+import { MY_SOCIAL_PROFILE } from '../social/demo';
 
 // ─── Page Aujourd'hui (Focus Solo, §17.1) ───────────────────────────────────
 
@@ -26,12 +34,55 @@ export interface TodayState {
 
 /** État démo « Aujourd'hui » — la cible hebdo reprend le seed Consistency II. */
 export const TODAY: TodayState = {
-  formScore: 72,
+  // Score Forme unique dans toute la démo (profil social + badges demo = 78).
+  formScore: MY_SOCIAL_PROFILE.formeScore,
   formLabel: 'En forme',
   todayGoal: 'Une sortie tranquille de 20 min suffit à tenir ta série.',
   weekRuns: 2,
   weekTarget: CHALLENGE_SEEDS.consistency_ii.target, // 3 (seed, pas de magie)
   nextAction: 'Sortie récup 20 min',
+};
+
+// ─── Today porte d'entrée (AMENDEMENT-10 §4 + AMENDEMENT-11 vocabulaire) ────
+
+/**
+ * Route recommandée du jour — étiquette démo alignée sur la « Route C Défense »
+ * d'AMENDEMENT-10 §2 (`Route défense République — 4,8 km · +86 zones`).
+ * TODO(O1) : brancher la vraie reco du Route Planner (génération = V1).
+ */
+export interface TodayRouteReco {
+  /** Nom social de la route (AMENDEMENT-11 §6 — routes = objets sociaux). */
+  name: string;
+  /** KPI géant de l'écran Today (AMENDEMENT-10 §1). */
+  distanceKm: number;
+  durationMin: number;
+  /** Zones capturables sur l'itinéraire (vocabulaire AMENDEMENT-11 §4). */
+  zones: number;
+  kind: 'Boucle' | 'Aller simple';
+}
+
+export interface TodayHero {
+  /** Prénom de jeu affiché (« BONJOUR KORO ») — profil social démo. */
+  greetingName: string;
+  /** La situation du quartier en UNE phrase (« Paris Est est contesté. »). */
+  situation: string;
+  route: TodayRouteReco;
+  /** Coffre crew (%) — DÉRIVÉ du coffre démo /cible hebdo §39.1 (66 %). */
+  crewChestPct: number;
+}
+
+/** Porte d'entrée quotidienne — 1 objectif, 2-3 indicateurs, 1 CTA. */
+export const TODAY_HERO: TodayHero = {
+  greetingName: MY_SOCIAL_PROFILE.displayName,
+  situation: `${MAP_HUD.zoneName} est contesté.`,
+  route: {
+    name: 'Route défense République',
+    distanceKm: 4.8,
+    durationMin: 28,
+    zones: 86,
+    kind: 'Boucle',
+  },
+  crewChestPct: Math.round((MY_CREW.chestProgress / CREW_CHEST_WEEKLY_TARGET) * 100),
 };
 
 // ─── Challenges (§17.3-17.6) ─────────────────────────────────────────────────
@@ -51,7 +102,7 @@ export interface ChallengeCard {
   metric: string;
   current: number;
   target: number;
-  /** Unité affichée après les nombres (ex. « courses », « km », « hexes »). */
+  /** Unité affichée après les nombres (ex. « courses », « km », « zones »). */
   unit: string;
   /** Crew : minimum perso souple (§8.3), 0 si non applicable. */
   personalMinimum?: number;
@@ -100,24 +151,24 @@ export const CHALLENGES: ChallengeCard[] = [
     id: 'defense_30',
     type: CHALLENGE_SEEDS.defense_30.type,
     name: 'Defense',
-    blurb: '30 hexagones défendus. Tenir le quartier compte autant que conquérir.',
+    blurb: '30 zones défendues. Tenir le quartier compte autant que conquérir.',
     difficulty: CHALLENGE_SEEDS.defense_30.difficulty,
     metric: CHALLENGE_SEEDS.defense_30.metric,
     current: 18,
     target: CHALLENGE_SEEDS.defense_30.target,
-    unit: 'hexes',
+    unit: 'zones',
     reward: 'Badge Defender',
   },
   {
     id: 'crew_defense_week',
     type: CHALLENGE_SEEDS.crew_defense_week.type,
     name: 'Defense Week',
-    blurb: 'Objectif collectif du crew. Chaque hexe défendu compte pour le coffre.',
+    blurb: 'Objectif collectif du crew. Chaque zone défendue compte pour le coffre.',
     difficulty: CHALLENGE_SEEDS.crew_defense_week.difficulty,
     metric: CHALLENGE_SEEDS.crew_defense_week.metric,
     current: 214,
     target: CHALLENGE_SEEDS.crew_defense_week.collectiveTarget, // 300
-    unit: 'hexes',
+    unit: 'zones',
     personalMinimum: CHALLENGE_SEEDS.crew_defense_week.personalMinimum, // 20
     myContrib: 23,
     reward: 'Coffre crew · palier Or',
@@ -131,7 +182,7 @@ export const CHALLENGES: ChallengeCard[] = [
     metric: CHALLENGE_SEEDS.rivalry_night_canal.metric,
     current: 128,
     target: 0, // rivalry : pas de cible fixe, on compare les deux camps
-    unit: 'hexes',
+    unit: 'zones',
     partnerName: 'Canal Runners',
     rivalMine: 128,
     rivalOther: 121,

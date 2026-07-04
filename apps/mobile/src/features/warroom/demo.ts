@@ -76,9 +76,9 @@ export interface MissionDemo {
   target: number;
 }
 export const MISSIONS: readonly MissionDemo[] = [
-  { key: 'daily_capture_10', kind: 'quotidienne', label: 'Capture 10 hexes aujourd\'hui', progress: 6, target: 10 },
+  { key: 'daily_capture_10', kind: 'quotidienne', label: 'Capture 10 zones aujourd\'hui', progress: 6, target: 10 },
   { key: 'weekly_verified_4', kind: 'hebdomadaire', label: '4 courses vérifiées cette semaine', progress: 2, target: 4 },
-  { key: 'crew_defend_50', kind: 'crew', label: 'Le crew défend 50 hexes', progress: 38, target: 50 },
+  { key: 'crew_defend_50', kind: 'crew', label: 'Le crew défend 50 zones', progress: 38, target: 50 },
 ];
 
 /**
@@ -133,7 +133,7 @@ export const SCOUT_REPORTS: readonly ScoutReportDemo[] = [
     key: 'scout_villette_dense',
     kind: 'neutral_dense',
     zone: 'Villette',
-    message: 'Secteur neutre dense — 120 hexes libres à moins de 2 km de la base',
+    message: 'Secteur neutre dense — 120 zones libres à moins de 2 km de la base',
     scout: 'PACER·20E',
     minutesAgo: 180,
     icon: 'scout',
@@ -164,7 +164,7 @@ export const WAR_HISTORY: readonly WarHistoryEventDemo[] = [
   {
     key: 'hist_raid_molokai',
     icon: 'raid',
-    message: 'MOLOKAÏ a repris 14 hexes à VOLT·19',
+    message: 'MOLOKAÏ a repris 14 zones à VOLT·19',
     zone: 'Buttes-Chaumont',
     points: 176,
     minutesAgo: 8,

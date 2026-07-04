@@ -82,7 +82,7 @@ const GRID_COLS = 15;
 const GRID_ROWS = 13;
 const GRID_PAD = 10;
 
-/** ViewBox du schéma de zone (générateur de tracé + BeforeAfterZone). */
+/** ViewBox du schéma de zone (générateur de tracé). */
 export const LIVE_MAP_W = GRID_PAD * 2 + SQRT3 * HEX_R * (GRID_COLS + 0.5);
 export const LIVE_MAP_H = GRID_PAD * 2 + 1.5 * HEX_R * (GRID_ROWS - 1) + 2 * HEX_R;
 
@@ -92,16 +92,6 @@ export interface HexCell {
   row: number;
   cx: number;
   cy: number;
-}
-
-/** Points SVG d'un hexagone pointe en haut, centré (cx, cy). */
-export function hexPolygonPoints(cx: number, cy: number, r: number): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
-  }
-  return pts.join(' ');
 }
 
 function cellCenter(col: number, row: number): { cx: number; cy: number } {
@@ -253,7 +243,7 @@ export const LIVE_EVENT_META: Record<LiveEventKind, LiveEventMeta> = {
   },
   conteste: {
     label: 'Zone contestée',
-    detail: 'Un crew rival tient ces hexes. Le serveur tranchera.',
+    detail: 'Un crew rival tient ce secteur. Le serveur tranchera.',
     tint: gameColors.contested,
     state: 'contested',
     icon: 'guerre',

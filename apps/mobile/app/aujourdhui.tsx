@@ -1,16 +1,16 @@
 /**
- * GRYD — Page « Aujourd'hui » (AMENDEMENT-07 §8, motivation §17.1). Vue Focus Solo :
- * Score Forme, objectif du jour, progression de la semaine, prochaine action et
- * CTA Courir. Écran POUSSÉ (accessible depuis Profil/Carte selon play_style —
- * lien ajouté côté Profil par l'autre agent / entrée depuis la nav). Le disque
- * COURIR global n'est PAS rendu ici (il vit sur les tabs) : le CTA chartreuse de
- * cet écran est donc l'unique accent (§C.3). Anti-shame (§11) partout : jamais de
- * rang négatif, toujours du chemin fait ou une invitation douce.
+ * GRYD — Page « Aujourd'hui » refondue : PORTE D'ENTRÉE quotidienne
+ * (AMENDEMENT-10 §4, AMENDEMENT-11 vocabulaire zones/territoires). Règle
+ * stricte « un écran = une décision » : 1 objectif (la ROUTE RECOMMANDÉE,
+ * KPI géant), 2-3 indicateurs (bandeau semaine : runs · Score Forme · coffre
+ * crew), 1 CTA (START RUN → Route Planner), pas de feed. Le prochain badge
+ * proche (1 carte compacte) reste une invitation douce, jamais une injonction.
+ * Régime usage réel : fond plein, pas de glass, contraste max.
  *
- * Data démo déterministe (features/motivation/demo). Aucun nombre magique : la
- * cible hebdo vient du seed Consistency (@klaim/shared).
+ * Data démo déterministe (features/motivation/demo TODAY + TODAY_HERO,
+ * badge dérivé du catalogue + stats démo). Anti-shame (§11) conservé.
  */
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, radii, spacing } from '@klaim/shared';
@@ -18,23 +18,20 @@ import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { ProgressBar } from '../src/ui/ProgressBar';
 import { StackScreen } from '../src/ui/StackScreen';
-import { TODAY } from '../src/features/motivation/demo';
+import { BadgeCard } from '../src/ui/game';
+import {
+  COLLECTION_BADGES,
+  BADGE_FAMILIES,
+  badgeColor,
+  badgeProgress,
+  badgeRewardLabel,
+} from '../src/features/badges/catalog';
+import { UNLOCKED_IDS, demoStat } from '../src/features/badges/demo';
+import { TODAY, TODAY_HERO } from '../src/features/motivation/demo';
 
-/** Carte Score Forme — indice santé 0..100, jamais présenté comme un classement. */
-function FormScoreCard() {
-  return (
-    <View style={styles.formCard}>
-      <View style={styles.formHead}>
-        <Text style={styles.cardKicker}>SCORE FORME</Text>
-        <Text style={styles.formLabel}>{TODAY.formLabel}</Text>
-      </View>
-      <Text style={styles.formScore}>{TODAY.formScore}</Text>
-      <ProgressBar value={TODAY.formScore / 100} height={10} />
-      <Text style={styles.formHint}>
-        Un indicateur perso de ta charge — pas un classement. Il monte avec la régularité, pas la vitesse.
-      </Text>
-    </View>
-  );
+/** « 4,8 » — le KPI géant est la distance, la virgule est FR. */
+function kmLabel(km: number): string {
+  return km.toFixed(1).replace('.', ',');
 }
 
 export default function AujourdhuiScreen() {
@@ -42,50 +39,113 @@ export default function AujourdhuiScreen() {
     screen('today');
   }, []);
 
-  const weekPct = TODAY.weekTarget > 0 ? TODAY.weekRuns / TODAY.weekTarget : 1;
-  const remainingRuns = Math.max(0, TODAY.weekTarget - TODAY.weekRuns);
+  const { route } = TODAY_HERO;
+
+  // Prochain badge proche : top 1 verrouillé non secret par ratio (même calcul
+  // que la section « Proches du déblocage » de la Collection — cohérence).
+  const nextBadge = useMemo(() => {
+    return COLLECTION_BADGES
+      .filter((b) => !UNLOCKED_IDS.has(b.id) && !b.secret)
+      .map((b) => ({ def: b, prog: badgeProgress(b.id, demoStat(b.metric)) }))
+      .filter((x) => x.prog !== null && x.prog.ratio > 0 && !x.prog.unlocked)
+      .sort((a, b) => b.prog!.ratio - a.prog!.ratio)[0];
+  }, []);
+
+  const goPlanner = () => router.push('/route-planner');
 
   return (
-    <StackScreen title="Aujourd'hui" icon="aujourdhui" kicker="FOCUS SOLO">
-      <FormScoreCard />
+    <StackScreen title="Aujourd'hui" icon="aujourdhui" kicker="TA JOURNÉE GRYD">
+      {/* Bonjour + situation en UNE phrase — le contexte avant la décision. */}
+      <Text style={styles.greeting}>BONJOUR {TODAY_HERO.greetingName}</Text>
+      <Text style={styles.situation}>{TODAY_HERO.situation}</Text>
 
-      {/* Objectif du jour — invitation douce, jamais une injonction. */}
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <Icon name="cible" size={18} color={colors.chartreuse} />
-          <Text style={styles.cardKicker}>OBJECTIF DU JOUR</Text>
+      {/* L'OBJECTIF : carte héros ROUTE RECOMMANDÉE (tap → Route Planner). */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Route recommandée : ${route.name}, ${kmLabel(route.distanceKm)} kilomètres`}
+        onPress={goPlanner}
+        style={({ pressed }) => [styles.hero, pressed && styles.pressed]}
+      >
+        <View style={styles.heroHead}>
+          <Icon name="route" size={18} color={colors.chartreuse} />
+          <Text style={styles.heroKicker}>ROUTE RECOMMANDÉE</Text>
+          <Icon name="chevron" size={16} color={colors.gris} />
         </View>
-        <Text style={styles.goalText}>{TODAY.todayGoal}</Text>
+
+        {/* KPI GÉANT (AMENDEMENT-10 §1) : la distance domine l'écran. */}
+        <View style={styles.kpiRow}>
+          <Text style={styles.kpi}>{kmLabel(route.distanceKm)}</Text>
+          <Text style={styles.kpiUnit}>km</Text>
+        </View>
+
+        <View style={styles.metaRow}>
+          <Text style={styles.metaStrong}>+{route.zones} zones</Text>
+          <Text style={styles.metaDot}>·</Text>
+          <Text style={styles.meta}>{route.durationMin} min</Text>
+          <Text style={styles.metaDot}>·</Text>
+          <Text style={styles.meta}>{route.kind}</Text>
+        </View>
+        <Text style={styles.heroName}>{route.name}</Text>
+      </Pressable>
+
+      {/* LE CTA unique — accent chartreuse de l'écran. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Démarrer : ouvrir le Route Planner"
+        onPress={goPlanner}
+        style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+      >
+        <Text style={styles.ctaLabel}>START RUN</Text>
+      </Pressable>
+
+      {/* Bandeau semaine : 3 indicateurs, pas un feed. */}
+      <View style={styles.weekBand}>
+        <View style={styles.weekCell}>
+          <Text style={styles.weekValue}>
+            {TODAY.weekRuns}
+            <Text style={styles.weekTarget}>/{TODAY.weekTarget}</Text>
+          </Text>
+          <Text style={styles.weekLabel}>RUNS</Text>
+        </View>
+        <View style={styles.weekSep} />
+        <View style={styles.weekCell}>
+          <Text style={styles.weekValue}>{TODAY.formScore}</Text>
+          <Text style={styles.weekLabel}>SCORE FORME</Text>
+        </View>
+        <View style={styles.weekSep} />
+        <View style={styles.weekCell}>
+          <Text style={styles.weekValue}>{TODAY_HERO.crewChestPct} %</Text>
+          <Text style={styles.weekLabel}>COFFRE CREW</Text>
+        </View>
       </View>
+      <ProgressBar value={TODAY.weekTarget > 0 ? TODAY.weekRuns / TODAY.weekTarget : 1} height={6} />
 
-      {/* Progression de la semaine — chemin parcouru + reste, sans rang. */}
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <Icon name="serie" size={18} color={colors.blanc} />
-          <Text style={styles.cardKicker}>TA SEMAINE</Text>
+      {/* Prochain badge proche — 1 seule carte, invitation douce. */}
+      {nextBadge ? (
+        <View style={styles.badgeBlock}>
+          <Text style={styles.blockKicker}>PROCHAIN BADGE</Text>
+          <BadgeCard
+            name={nextBadge.def.name}
+            family={nextBadge.def.family}
+            familyLabel={
+              BADGE_FAMILIES.find((f) => f.id === nextBadge.def.family)?.name ?? 'Secret'
+            }
+            familyColor={badgeColor(nextBadge.def)}
+            tier={nextBadge.def.tier}
+            state="locked"
+            requirement={nextBadge.def.requirement}
+            progress={
+              nextBadge.prog
+                ? { value: nextBadge.prog.value, threshold: nextBadge.prog.threshold }
+                : undefined
+            }
+            reward={badgeRewardLabel(nextBadge.def)}
+            onPress={() => router.push('/badges')}
+          />
         </View>
-        <View style={styles.weekNums}>
-          <Text style={styles.weekBig}>{TODAY.weekRuns}</Text>
-          <Text style={styles.weekTarget}>/ {TODAY.weekTarget} courses</Text>
-        </View>
-        <ProgressBar value={weekPct} />
-        <Text style={styles.weekHint}>
-          {remainingRuns === 0
-            ? 'Objectif de la semaine atteint. Chaque sortie en plus est du bonus.'
-            : `Plus que ${remainingRuns} course${remainingRuns > 1 ? 's' : ''} pour boucler ta semaine.`}
-        </Text>
-      </View>
+      ) : null}
 
-      {/* Prochaine action suggérée. */}
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <Icon name="performance" size={18} color={colors.blanc} />
-          <Text style={styles.cardKicker}>PROCHAINE ACTION</Text>
-        </View>
-        <Text style={styles.nextAction}>{TODAY.nextAction}</Text>
-      </View>
-
-      {/* Lien vers les challenges solo (ghost — l'accent est réservé au CTA Courir). */}
+      {/* Accès existants (ghost — l'accent reste au CTA). */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Voir mes challenges"
@@ -96,93 +156,121 @@ export default function AujourdhuiScreen() {
         <Text style={styles.linkLabel}>Mes challenges</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
-
-      {/* CTA Courir — unique accent chartreuse de l'écran (§C.3). */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Démarrer une course"
-        onPress={() => router.replace('/')}
-        style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+        accessibilityLabel="Ouvrir la War Room"
+        onPress={() => router.push('/warroom')}
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
       >
-        <Text style={styles.ctaLabel}>Courir</Text>
+        <Icon name="guerre" size={20} color={colors.blanc} />
+        <Text style={styles.linkLabel}>War Room</Text>
+        <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
     </StackScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  formCard: {
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: spacing.cardPadding,
+  greeting: {
+    color: colors.blanc,
+    fontSize: fontSizes.xl,
+    fontWeight: '700',
+    letterSpacing: -0.5,
     marginTop: 6,
   },
-  formHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  formLabel: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '600' },
-  formScore: {
-    color: colors.blanc,
-    fontSize: fontSizes.xxl,
-    fontWeight: '700',
-    letterSpacing: -1,
-    marginTop: 4,
-    marginBottom: 10,
-    fontVariant: ['tabular-nums'],
-  },
-  formHint: {
+  situation: {
     color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.5,
-    marginTop: 10,
+    fontSize: fontSizes.md,
+    lineHeight: fontSizes.md * 1.4,
+    marginTop: 4,
   },
 
-  card: {
+  hero: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
-    marginTop: 12,
+    marginTop: 16,
   },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  cardKicker: {
+  heroHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroKicker: {
+    flex: 1,
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
     fontVariant: ['tabular-nums'],
   },
-  goalText: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: fontSizes.md * 1.4 },
-  weekNums: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 10 },
-  weekBig: {
+  kpiRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 },
+  kpi: {
     color: colors.blanc,
-    fontSize: fontSizes.xl,
+    fontSize: fontSizes.hero,
     fontWeight: '700',
+    letterSpacing: -2,
     fontVariant: ['tabular-nums'],
   },
-  weekTarget: { color: colors.gris, fontSize: fontSizes.sm },
-  weekHint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: fontSizes.xs * 1.5, marginTop: 10 },
-  nextAction: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
-
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  linkLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
+  kpiUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  metaStrong: { color: colors.chartreuse, fontSize: fontSizes.md, fontWeight: '700' },
+  metaDot: { color: colors.gris, fontSize: fontSizes.md },
+  meta: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
+  heroName: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 10 },
 
   cta: {
-    height: 54,
+    height: 56,
     borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 12,
   },
-  ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.3 },
+  ctaLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+
+  weekBand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 14,
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  weekCell: { flex: 1, alignItems: 'center', gap: 2 },
+  weekSep: { width: 1, height: 28, backgroundColor: colors.grisLigne },
+  weekValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  weekTarget: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
+  weekLabel: { color: colors.gris, fontSize: fontSizes.xs - 2, letterSpacing: 1.5 },
+
+  badgeBlock: { marginTop: 18 },
+  blockKicker: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    marginBottom: 10,
+    fontVariant: ['tabular-nums'],
+  },
+
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  linkLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
   pressed: { opacity: 0.85 },
 });

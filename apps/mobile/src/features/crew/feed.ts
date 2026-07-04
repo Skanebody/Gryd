@@ -127,7 +127,7 @@ export type DefenseRsvp = (typeof DEFENSE_RSVP_OPTIONS)[number];
 export const CHAT_TIMELINE: readonly ChatTimelineItem[] = [
   {
     kind: 'event', id: 'w1', type: 'reprise',
-    message: 'MOLOKAÏ a repris 14 hexes', zone: 'Buttes-Chaumont', points: 176, minutesAgo: 8,
+    message: 'MOLOKAÏ a repris 14 zones', zone: 'Buttes-Chaumont', points: 176, minutesAgo: 8,
     reactions: { raid: 5, fast: 2, respect: 1 },
   },
   {

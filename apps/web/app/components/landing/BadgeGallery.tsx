@@ -240,25 +240,25 @@ const enHour = (minutes: number): string => {
 };
 
 const EN_BY_METRIC: Partial<Record<BadgeMetric, (threshold: number) => string>> = {
-  hexesCaptured: (t) => `Capture ${enN(t)} hexagon${t > 1 ? 's' : ''} (lifetime total).`,
+  hexesCaptured: (t) => `Capture ${enN(t)} zone${t > 1 ? 's' : ''} (lifetime total).`,
   bestRunDistanceM: (t) => `Run ${enN(t / 1000)} km in a single run.`,
   totalDistanceM: (t) => `Run ${enN(t / 1000)} km in total.`,
   seasonDistanceM: (t) => `Run ${enN(t / 1000)} km this season.`,
-  steals: (t) => `Steal ${enN(t)} hexagon${t > 1 ? 's' : ''} from rivals.`,
-  defends: (t) => `Defend ${enN(t)} hexagon${t > 1 ? 's' : ''}.`,
-  pioneerHexes: (t) => `Claim ${enN(t)} pioneer hexagon${t > 1 ? 's' : ''}.`,
+  steals: (t) => `Steal ${enN(t)} zone${t > 1 ? 's' : ''} from rivals.`,
+  defends: (t) => `Defend ${enN(t)} zone${t > 1 ? 's' : ''}.`,
+  pioneerHexes: (t) => `Claim ${enN(t)} pioneer zone${t > 1 ? 's' : ''}.`,
   crewContributions: (t) => `${enN(t)} crew contributions.`,
   verifiedRuns: (t) => `${enN(t)} GRYD Verified runs.`,
   weeksActive: (t) => `${enN(t)} active weeks.`,
   routes: (t) => `Open ${enN(t)} route${t > 1 ? 's' : ''}.`,
-  seasonZeroHexes: (t) => `Capture at least ${enN(t)} hex${t > 1 ? 'es' : ''} during Season 0.`,
+  seasonZeroHexes: (t) => `Capture at least ${enN(t)} zone${t > 1 ? 's' : ''} during Season 0.`,
 };
 
 /** Formulations EN non mécaniques (aucun seuil numérique dedans). */
 const EN_MANUAL: Record<string, string> = {
   route_opened_1: 'Open your first route.',
   secret_silent_takeover:
-    `Steal 50+ hexes on a run started between ${enHour(NIGHT_START_MIN)} and ${enHour(NIGHT_END_MIN)}.`,
+    `Steal 50+ zones on a run started between ${enHour(NIGHT_START_MIN)} and ${enHour(NIGHT_END_MIN)}.`,
 };
 
 const enRequirement = (badge: BadgeDef): string =>

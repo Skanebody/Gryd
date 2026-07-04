@@ -1,10 +1,14 @@
 /**
- * GRYD — RÉSULTAT DE COURSE (AMENDEMENT-08 §5, doc §10) : LE moment dopamine.
- * Séquence animée en étapes (reveal + haptic par étape, doc §25) : 1 COURSE
- * VALIDÉE + GRYD VERIFIED → 2 +hexes (compteur) → 3 zone modifiée (avant/
- * après) → 4 contribution crew (rang gagné) → 5 bonus performance → 6 BADGE
- * DÉBLOQUÉ (reveal plein écran, glow par tier) → 7 share card. « Passer »
- * saute à la fin ; reduce motion = fondus simples (useReveal/useCountUp).
+ * GRYD — RÉSULTAT DE COURSE (AMENDEMENT-08 §5 reformulé AMENDEMENT-11 §5) :
+ * LE moment dopamine, SANS hexagone visible. Séquence animée en étapes
+ * (reveal + haptic par étape, doc §25) : 1 COURSE VALIDÉE + GRYD VERIFIED →
+ * 2 +214 ZONES CAPTURÉES (KPI géant) → 3 SECTEUR MODIFIÉ / Frontière
+ * repoussée (avant/après ORGANIQUE : la frontière chartreuse avance sur
+ * l'orange — territory.ts, jamais de cellules) → 4 contribution crew (KPI
+ * géant + rang gagné conservé) → 5 bonus performance → 6 BADGE DÉBLOQUÉ
+ * (reveal plein écran, glow par tier) → 7 share card virale (mini carte
+ * organique + route brillante + gros chiffre). « Passer » saute à la fin ;
+ * reduce motion = fondus simples (useReveal/useCountUp).
  * Hors conquête, la séquence s'adapte (AMENDEMENT-07) : social_run = stats +
  * partage sans capture ; course_privee = stats seules, aucun partage.
  * Les stats sont REJOUÉES depuis la simulation déterministe (params mode + t).
@@ -36,7 +40,16 @@ import {
   badgeColor,
   type BadgeDef,
 } from '../src/features/badges/catalog';
-import { BeforeAfterZone } from '../src/features/run/BeforeAfterZone';
+import Svg, { Path, Polyline } from 'react-native-svg';
+import { cellToLatLng, gridDisk, latLngToCell } from 'h3-js';
+import {
+  cellsToTerritory,
+  territoryPath,
+  type ProjectPoint,
+  type Territory,
+} from '../src/features/map/territory';
+import { territoryStyle } from '../src/features/map/mapStyle';
+import { M_PER_DEG_LAT, M_PER_DEG_LNG } from '../src/features/map/basemap';
 import { ResultReveal } from '../src/features/run/ResultReveal';
 import {
   buildRunSimulation,
@@ -59,13 +72,211 @@ const STEP_REDUCED_MS = 650;
  */
 const DEMO_UNLOCKED_BADGE_ID = 'route_opened_3';
 
-type StepId = 'validated' | 'hexes' | 'zone' | 'crew' | 'perf' | 'badge' | 'share' | 'stats';
+type StepId = 'validated' | 'zones' | 'sector' | 'crew' | 'perf' | 'badge' | 'share' | 'stats';
 
 const STEPS_BY_MODE: Record<LiveRunMode, readonly StepId[]> = {
-  conquete: ['validated', 'hexes', 'zone', 'crew', 'perf', 'badge', 'share'],
+  conquete: ['validated', 'zones', 'sector', 'crew', 'perf', 'badge', 'share'],
   social_run: ['validated', 'stats', 'share'],
   course_privee: ['validated', 'stats'],
 };
+
+// ─── Mini-cartes ORGANIQUES du secteur (AMENDEMENT-11 §5) ────────────────────
+// Cellules H3 DÉMO côté RENDU uniquement (le serveur reste seul décideur du
+// territoire) : un disque res 10 sur Paris Est, trié ouest→est ; le % de
+// contrôle coupe le disque en deux territoires organiques (cellsToTerritory) —
+// la frontière chartreuse AVANCE sur l'orange entre AVANT et APRÈS. Jamais de
+// cellules dessinées : uniquement des aplats lissés et leurs frontières.
+
+/** Centre du secteur démo (Paris Est) — donnée de mise en scène, pas de jeu. */
+const SECTOR_CENTER = { lat: 48.8672, lng: 2.3819 } as const;
+const SECTOR_RES = 10;
+const SECTOR_RING = 3;
+/** ViewBox carrée des mini-cartes. */
+const SECTOR_VB = 100;
+const SECTOR_PAD = 6;
+/** Frontières : mêmes proportions que la Battle Map (crew fin, rival marqué). */
+const SECTOR_BORDER_W = 1.4;
+const SECTOR_RIVAL_BORDER_W = 2;
+const SECTOR_ROUTE_W = 2.6;
+
+interface SectorSide {
+  crewPath: string;
+  rivalPath: string;
+}
+
+interface SectorGeometry {
+  before: SectorSide;
+  after: SectorSide;
+  /** Polyline (points SVG) de la course qui a repoussé la frontière. */
+  routePoints: string;
+}
+
+/** Longitude du centre d'une cellule (h3 renvoie [lat, lng]). */
+function cellLng(cell: string): number {
+  return cellToLatLng(cell)[1] ?? 0;
+}
+
+function cellLat(cell: string): number {
+  return cellToLatLng(cell)[0] ?? 0;
+}
+
+/** Deux territoires organiques (crew | rival) pour un % de contrôle donné. */
+function buildSectorGeometry(pctBefore: number, pctAfter: number): SectorGeometry {
+  const disk = gridDisk(
+    latLngToCell(SECTOR_CENTER.lat, SECTOR_CENTER.lng, SECTOR_RES),
+    SECTOR_RING,
+  );
+  // Ouest → est : la frontière du crew avance vers l'est.
+  const sorted = [...disk].sort((a, b) => cellLng(a) - cellLng(b));
+  const count = (pct: number) =>
+    Math.min(sorted.length - 1, Math.max(1, Math.round((sorted.length * pct) / 100)));
+  const nBefore = count(pctBefore);
+  // L'avance reste LISIBLE même pour un petit gain (au moins 2 zones de bande).
+  const nAfter = Math.min(sorted.length - 1, Math.max(count(pctAfter), nBefore + 2));
+
+  const territories = [
+    cellsToTerritory(sorted.slice(0, nBefore), 'crew'),
+    cellsToTerritory(sorted.slice(nBefore), 'rival'),
+    cellsToTerritory(sorted.slice(0, nAfter), 'crew'),
+    cellsToTerritory(sorted.slice(nAfter), 'rival'),
+  ];
+
+  // Projection commune (mètres, aspect conservé) sur la viewBox carrée.
+  let minLng = Number.POSITIVE_INFINITY;
+  let maxLng = Number.NEGATIVE_INFINITY;
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+  for (const t of territories) {
+    if (!t) continue;
+    for (const poly of t.polygons) {
+      for (const ring of poly) {
+        for (const [lng, lat] of ring) {
+          if (lng < minLng) minLng = lng;
+          if (lng > maxLng) maxLng = lng;
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+        }
+      }
+    }
+  }
+  const spanX = Math.max(1, (maxLng - minLng) * M_PER_DEG_LNG);
+  const spanY = Math.max(1, (maxLat - minLat) * M_PER_DEG_LAT);
+  const k = (SECTOR_VB - SECTOR_PAD * 2) / Math.max(spanX, spanY);
+  const ox = (SECTOR_VB - spanX * k) / 2;
+  const oy = (SECTOR_VB - spanY * k) / 2;
+  const project: ProjectPoint = (lng, lat) => ({
+    x: ox + (lng - minLng) * M_PER_DEG_LNG * k,
+    y: oy + (maxLat - lat) * M_PER_DEG_LAT * k,
+  });
+
+  const path = (t: Territory | null) => (t ? territoryPath(t, project) : '');
+
+  // Route brillante : la course longe la bande gagnée (nord → sud).
+  const routePoints = sorted
+    .slice(Math.max(0, nBefore - 1), nAfter)
+    .sort((a, b) => cellLat(b) - cellLat(a))
+    .map((cell) => {
+      const { x, y } = project(cellLng(cell), cellLat(cell));
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return {
+    before: { crewPath: path(territories[0] ?? null), rivalPath: path(territories[1] ?? null) },
+    after: { crewPath: path(territories[2] ?? null), rivalPath: path(territories[3] ?? null) },
+    routePoints,
+  };
+}
+
+/** Rendu SVG d'un côté (aplat rival dessous, crew dessus, route optionnelle). */
+function SectorMiniMap({ side, route }: { side: SectorSide; route?: string }) {
+  return (
+    <Svg width="100%" height="100%" viewBox={`0 0 ${SECTOR_VB} ${SECTOR_VB}`}>
+      {side.rivalPath ? (
+        <Path
+          d={side.rivalPath}
+          fill={territoryStyle.rivalFill}
+          stroke={territoryStyle.rivalStroke}
+          strokeWidth={SECTOR_RIVAL_BORDER_W}
+          fillRule="evenodd"
+        />
+      ) : null}
+      {side.crewPath ? (
+        <>
+          {/* Sous-couche opaque : la chartreuse RECOUVRE l'orange à la
+              frontière (la zone de recouvrement ne devient jamais boueuse). */}
+          <Path d={side.crewPath} fill={colors.noir} fillRule="evenodd" />
+          <Path
+            d={side.crewPath}
+            fill={territoryStyle.crewFill}
+            stroke={territoryStyle.crewStroke}
+            strokeWidth={SECTOR_BORDER_W}
+            fillRule="evenodd"
+          />
+        </>
+      ) : null}
+      {route ? (
+        <>
+          <Polyline
+            points={route}
+            fill="none"
+            stroke={territoryStyle.routeStroke}
+            strokeWidth={SECTOR_ROUTE_W}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Polyline
+            points={route}
+            fill="none"
+            stroke={colors.blanc}
+            strokeWidth={0.9}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={0.8}
+          />
+        </>
+      ) : null}
+    </Svg>
+  );
+}
+
+/** Avant/après ORGANIQUE du secteur — la frontière bouge, pas des cellules. */
+function SectorBeforeAfter({
+  zoneName,
+  pctBefore,
+  pctAfter,
+  geometry,
+}: {
+  zoneName: string;
+  pctBefore: number;
+  pctAfter: number;
+  geometry: SectorGeometry;
+}) {
+  return (
+    <View style={styles.sectorCard}>
+      <Text style={styles.sectorTitle} numberOfLines={1}>
+        {zoneName.toUpperCase()} · FRONTIÈRE REPOUSSÉE
+      </Text>
+      <View style={styles.sectorRow}>
+        <View style={styles.sectorSide}>
+          <View style={styles.sectorMap}>
+            <SectorMiniMap side={geometry.before} />
+          </View>
+          <Text style={styles.sectorSideLabel}>AVANT</Text>
+          <Text style={styles.sectorPct}>{pctBefore} %</Text>
+        </View>
+        <Icon name="chevron" size={20} color={colors.gris} />
+        <View style={styles.sectorSide}>
+          <View style={styles.sectorMap}>
+            <SectorMiniMap side={geometry.after} route={geometry.routePoints} />
+          </View>
+          <Text style={styles.sectorSideLabel}>APRÈS</Text>
+          <Text style={[styles.sectorPct, styles.sectorPctAfter]}>{pctAfter} %</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 function tickParam(param: string | string[] | undefined, fallback: number): number {
   const raw = Array.isArray(param) ? param[0] : param;
@@ -89,6 +300,15 @@ export default function CourseResultScreen() {
 
   const badge = mode === 'conquete' ? badgeById(DEMO_UNLOCKED_BADGE_ID) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
+
+  // Mini-cartes organiques (avant/après + share card) — conquête uniquement.
+  const sectorGeo = useMemo(
+    () =>
+      mode === 'conquete'
+        ? buildSectorGeometry(stats.zonePctBefore, stats.zonePctAfter)
+        : null,
+    [mode, stats.zonePctBefore, stats.zonePctAfter],
+  );
 
   useEffect(() => {
     screen('course_result', { mode });
@@ -162,13 +382,13 @@ export default function CourseResultScreen() {
           </View>
         </ResultReveal>
 
-        {/* 2 — +HEXES (compteur qui monte). */}
+        {/* 2 — +214 ZONES CAPTURÉES (KPI géant, compteur qui monte). */}
         {conquest ? (
-          <ResultReveal visible={reached('hexes')} style={styles.block}>
-            <View style={styles.hexBlock}>
-              <HexCountUp value={stats.hexes} />
-              <Text style={styles.hexLabel}>HEXES CAPTURÉS</Text>
-              <Text style={styles.hexSub}>
+          <ResultReveal visible={reached('zones')} style={styles.block}>
+            <View style={styles.zonesBlock}>
+              <ZoneCountUp value={stats.hexes} />
+              <Text style={styles.zonesLabel}>ZONES CAPTURÉES</Text>
+              <Text style={styles.zonesSub}>
                 ≈ {formatInt(stats.basePoints)} pts estimés — confirmés par le serveur.
               </Text>
             </View>
@@ -196,14 +416,15 @@ export default function CourseResultScreen() {
           </ResultReveal>
         ) : null}
 
-        {/* 3 — Zone modifiée (avant / après). */}
-        {conquest ? (
-          <ResultReveal visible={reached('zone')} style={styles.block}>
-            <Text style={styles.stepKicker}>ZONE MODIFIÉE</Text>
-            <BeforeAfterZone
+        {/* 3 — SECTEUR MODIFIÉ : avant/après ORGANIQUE (la frontière bouge). */}
+        {conquest && sectorGeo ? (
+          <ResultReveal visible={reached('sector')} style={styles.block}>
+            <Text style={styles.stepKicker}>SECTEUR MODIFIÉ</Text>
+            <SectorBeforeAfter
               zoneName={stats.zoneName}
               pctBefore={stats.zonePctBefore}
               pctAfter={stats.zonePctAfter}
+              geometry={sectorGeo}
             />
           </ResultReveal>
         ) : null}
@@ -214,6 +435,15 @@ export default function CourseResultScreen() {
         {conquest ? (
           <ResultReveal visible={reached('crew')} style={styles.block}>
             <Text style={styles.stepKicker}>CONTRIBUTION CREW</Text>
+            {/* KPI géant : « Paris Est +5 % » (AMENDEMENT-11 §5). */}
+            <View style={styles.crewKpiBlock}>
+              <Text style={styles.crewKpi}>
+                +{stats.zonePctAfter - stats.zonePctBefore} %
+              </Text>
+              <Text style={styles.crewKpiLabel} numberOfLines={1}>
+                {stats.zoneName.toUpperCase()} · {stats.crewName}
+              </Text>
+            </View>
             <View style={styles.crewLine}>
               <CrewCrest seed={stats.crewName} name={stats.crewName} size="s" />
               <Text style={styles.crewText}>
@@ -221,7 +451,7 @@ export default function CourseResultScreen() {
                 <Text style={styles.crewPct}>{stats.zonePctAfter} %</Text>
                 {stats.rankGained
                   ? ` — ${stats.crewName} gagne 1 rang.`
-                  : ` — chaque hex compte pour ${stats.crewName}.`}
+                  : ` — chaque zone compte pour ${stats.crewName}.`}
               </Text>
             </View>
             {stats.rankGained ? (
@@ -275,15 +505,23 @@ export default function CourseResultScreen() {
             <Text style={styles.stepKicker}>PARTAGE</Text>
             <ShareCard
               stat={conquest ? `+${formatInt(stats.hexes)}` : `${formatKm(stats.distanceM)} km`}
-              statLabel={conquest ? 'HEXES CAPTURÉS' : 'SOCIAL RUN'}
+              statLabel={conquest ? 'ZONES CAPTURÉES' : 'SOCIAL RUN'}
               title={`${stats.playerName} · ${stats.crewName}`}
               subtitle={
                 conquest
-                  ? `${stats.zoneName} passe à ${stats.zonePctAfter} %`
+                  ? `${stats.zoneName} passe à ${stats.zonePctAfter} % · frontière repoussée`
                   : `${formatClock(stats.durationS)} · ${formatPace(stats.paceSPerKm)}/km`
               }
             >
-              <CrewCrest seed={stats.crewName} name={stats.crewName} size="m" />
+              {conquest && sectorGeo ? (
+                /* Mini carte virale : zone chartreuse, frontière orange
+                   repoussée, route brillante (AMENDEMENT-11 §5). */
+                <View style={styles.shareMap}>
+                  <SectorMiniMap side={sectorGeo.after} route={sectorGeo.routePoints} />
+                </View>
+              ) : (
+                <CrewCrest seed={stats.crewName} name={stats.crewName} size="m" />
+              )}
             </ShareCard>
           </ResultReveal>
         ) : null}
@@ -323,9 +561,9 @@ export default function CourseResultScreen() {
 }
 
 /** Compteur « +214 » qui monte (useCountUp — saut direct si reduce motion). */
-function HexCountUp({ value }: { value: number }) {
+function ZoneCountUp({ value }: { value: number }) {
   const display = useCountUp(value);
-  return <Text style={styles.hexHero}>+{formatInt(display)}</Text>;
+  return <Text style={styles.zonesHero}>+{formatInt(display)}</Text>;
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {
@@ -432,21 +670,79 @@ const styles = StyleSheet.create({
   },
   validatedSub: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
 
-  hexBlock: { alignItems: 'center', gap: 4, paddingVertical: 6 },
-  hexHero: {
+  zonesBlock: { alignItems: 'center', gap: 4, paddingVertical: 6 },
+  zonesHero: {
     color: colors.chartreuse,
     fontSize: fontSizes.hero,
     fontWeight: '800',
     letterSpacing: -1,
     fontVariant: ['tabular-nums'],
   },
-  hexLabel: {
+  zonesLabel: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
     fontWeight: '700',
     letterSpacing: 2,
   },
-  hexSub: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
+  zonesSub: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
+
+  // ── Secteur modifié : avant/après organique (AMENDEMENT-11 §5) ──
+  sectorCard: {
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+    alignItems: 'center',
+    gap: 12,
+  },
+  sectorTitle: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  sectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    alignSelf: 'stretch',
+  },
+  sectorSide: { flex: 1, alignItems: 'center', gap: 4 },
+  sectorMap: { width: '84%', aspectRatio: 1 },
+  sectorSideLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+  },
+  sectorPct: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  sectorPctAfter: { color: colors.chartreuse },
+
+  // ── Contribution crew : KPI géant ──
+  crewKpiBlock: { alignItems: 'center', gap: 2, paddingVertical: 4 },
+  crewKpi: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xxl,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  crewKpiLabel: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+
+  // ── Share card : mini carte organique ──
+  shareMap: { width: 128, aspectRatio: 1 },
 
   statsCard: {
     backgroundColor: colors.carbone,

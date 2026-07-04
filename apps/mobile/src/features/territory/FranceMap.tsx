@@ -115,7 +115,7 @@ export function FranceMap({ parisHexes, lilleHexes }: FranceMapProps) {
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel="Carte de France avec mes territoires : clusters actifs à Paris et Lille, crews adverses vers Lyon"
+      accessibilityLabel="Carte de France avec mes territoires : secteurs actifs à Paris et Lille, crews adverses vers Lyon"
       style={styles.frame}
     >
       <Svg width="100%" height="100%" viewBox={`0 0 ${FRANCE_VIEWBOX.w} ${FRANCE_VIEWBOX.h}`}>

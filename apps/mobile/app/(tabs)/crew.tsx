@@ -3,7 +3,9 @@
  * Fini le scroll infini SaaS : header de base (GRAND blason animé + frame de
  * ligue + niveau/XP + Prêt guerre + rank local + membres actifs + coffre hebdo
  * + offensive) puis ONGLETS INTERNES Base / Membres / Coffre / Perks / Chat.
- * Base = 4 cartes courtes + CTA ; Membres = MemberCard + sheet d'actions démo ;
+ * Base = bento 6 cartes (AMENDEMENT-10 §6) + bloc TERRITOIRE CREW
+ * (AMENDEMENT-11 §4 — zones/secteurs/rues, jamais de « hex » visible) + CTA ;
+ * Membres = MemberCard + sheet d'actions démo ;
  * Coffre = ChestCard claimable + paliers + contributions ; Perks = cartes
  * reward + « PROCHAIN PERK — XP restants » ; Chat = War Log fusionné
  * (WarEventCard + réactions GRYD + LIVE) et messages actionnables (RSVP
@@ -123,12 +125,13 @@ function EmptyState() {
   );
 }
 
-/** Carte courte de l'onglet Base (« Coffre crew — 66 % »). */
+/** Carte bento de l'onglet Base (« Coffre crew — 66 % », AMENDEMENT-10 §6). */
 function BaseCard({
   icon,
   tint = colors.blanc,
   label,
   value,
+  sub,
   progress,
   onPress,
 }: {
@@ -136,6 +139,8 @@ function BaseCard({
   tint?: string;
   label: string;
   value: string;
+  /** Ligne de détail courte sous la valeur (« Secteur République »). */
+  sub?: string;
   /** Jauge optionnelle sous la valeur (objectif crew). */
   progress?: number;
   onPress: () => void;
@@ -154,7 +159,58 @@ function BaseCard({
       <Text style={[styles.baseCardValue, { color: tint }]} numberOfLines={1}>
         {value}
       </Text>
+      {sub ? (
+        <Text style={styles.baseCardSub} numberOfLines={1}>
+          {sub}
+        </Text>
+      ) : null}
       {progress !== undefined ? <ProgressBar value={progress} height={4} /> : null}
+    </Pressable>
+  );
+}
+
+/**
+ * Bloc TERRITOIRE CREW (AMENDEMENT-11 §4) : « Paris Est : 42 % · Zones tenues
+ * 2 147 · Frontières contestées 3 · Routes ouvertes 6 ». Tap → Battle Map.
+ * Le violet contesté est un état de jeu (charte) — pas une déco.
+ */
+function TerritoryBlock() {
+  const t = MY_CREW.territory;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Territoire crew : ${t.sector} ${t.controlPct} % — ouvrir la carte`}
+      onPress={() => router.navigate('/')}
+      style={({ pressed }) => [styles.territoryCard, pressed && styles.dim]}
+    >
+      <View style={styles.territoryHead}>
+        <Icon name="pin" size={16} color={gameColors.crew} />
+        <Text style={styles.territoryKicker}>TERRITOIRE CREW</Text>
+        <Icon name="chevron" size={14} color={colors.gris} />
+      </View>
+      <View style={styles.territoryMain}>
+        <Text style={styles.territorySector} numberOfLines={1}>
+          {t.sector}
+        </Text>
+        <Text style={styles.territoryPct}>{t.controlPct} %</Text>
+      </View>
+      <ProgressBar value={t.controlPct / 100} height={6} />
+      <View style={styles.territoryStats}>
+        <View style={styles.territoryCell}>
+          <Text style={styles.territoryValue}>{formatInt(t.zonesHeld)}</Text>
+          <Text style={styles.territoryLabel}>Zones tenues</Text>
+        </View>
+        <View style={styles.territoryCell}>
+          <Text style={[styles.territoryValue, { color: gameColors.contested }]}>
+            {t.contestedBorders}
+          </Text>
+          <Text style={styles.territoryLabel}>Frontières contestées</Text>
+        </View>
+        <View style={styles.territoryCell}>
+          <Text style={styles.territoryValue}>{t.openRoutes}</Text>
+          <Text style={styles.territoryLabel}>Routes ouvertes</Text>
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -209,7 +265,6 @@ export default function CrewScreen() {
   const maxChestPoints = Math.max(1, contributors[0]?.chestPoints ?? 1);
 
   const activeMembers = MY_CREW.members.length;
-  const objectivePct = MY_CREW.objective.currentHexes / MY_CREW.objective.targetHexes;
 
   if (!HAS_CREW) return <EmptyState />;
 
@@ -333,16 +388,52 @@ export default function CrewScreen() {
         </Pressable>
       ) : null}
 
-      {/* ══ BASE : 4 cartes courtes + CTA (doc §11) ══ */}
+      {/* ══ BASE : bento 6 cartes (AMENDEMENT-10 §6) + TERRITOIRE CREW ══ */}
       {tab === 'base' ? (
         <>
           <View style={styles.baseGrid}>
+            {/* Défense urgente — muted red DISCRET (urgence réelle, pas d'alarme) */}
+            <BaseCard
+              icon="bouclier"
+              tint={gameColors.danger}
+              label="Défense urgente"
+              value={`${MY_CREW.urgentDefense.streets} rues · ${MY_CREW.urgentDefense.hoursLeft} h`}
+              sub={`Secteur ${MY_CREW.urgentDefense.sector}`}
+              onPress={() => router.navigate('/warroom')}
+            />
+            <BaseCard
+              icon="guerre"
+              tint={MY_CREW.offensiveReady ? gameColors.crew : colors.blanc}
+              label="Offensive"
+              value={MY_CREW.offensiveReady ? 'Prête' : 'En préparation'}
+              sub="Lancer depuis la War Room"
+              onPress={() => router.navigate('/warroom')}
+            />
             <BaseCard
               icon="coffre"
               tint={chestClaimable ? gameColors.crew : gameColors.gold}
               label="Coffre crew"
               value={`${Math.round(chestPct * 100)} %`}
+              progress={chestPct}
               onPress={() => setTab('coffre')}
+            />
+            <BaseCard
+              icon="ajoutami"
+              label="Recrutement"
+              value={`${MY_CREW.recruitSpots} places`}
+              sub="Crews autour de toi"
+              onPress={() => router.push('/crew-discovery')}
+            />
+            <BaseCard
+              icon={nextPerk ? (PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).icon : 'badge'}
+              label="Prochain perk"
+              value={nextPerk ? nextPerk.name : 'Tout débloqué'}
+              sub={
+                nextPerk
+                  ? `Niveau ${nextPerk.level} · ${formatInt(nextPerkXpRemaining)} XP restants`
+                  : undefined
+              }
+              onPress={() => setTab('perks')}
             />
             <BaseCard
               icon="crew"
@@ -350,20 +441,10 @@ export default function CrewScreen() {
               value={`${activeMembers} / ${CREW_MAX_MEMBERS}`}
               onPress={() => setTab('membres')}
             />
-            <BaseCard
-              icon="classement"
-              label={`Rank ${MY_CREW.city}`}
-              value={`#${MY_CREW.localRank}`}
-              onPress={() => router.navigate('/classement')}
-            />
-            <BaseCard
-              icon="bouclier"
-              label="Objectif"
-              value={`${MY_CREW.objective.action} ${MY_CREW.objective.targetHexes} hexes`}
-              progress={objectivePct}
-              onPress={() => router.navigate('/warroom')}
-            />
           </View>
+
+          <TerritoryBlock />
+
           <View style={styles.baseActions}>
             <GhostButton
               label="Voir War Room"
@@ -375,7 +456,6 @@ export default function CrewScreen() {
               icon="ajoutami"
               onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
             />
-            <GhostButton label="Ouvrir le coffre" icon="coffre" onPress={() => setTab('coffre')} />
           </View>
         </>
       ) : null}
@@ -850,7 +930,66 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     fontVariant: ['tabular-nums'],
   },
+  baseCardSub: { color: colors.gris, fontSize: 11, letterSpacing: 0.2 },
   baseActions: { marginTop: 18, gap: 10 },
+  // ── TERRITOIRE CREW (AMENDEMENT-11 §4) ──
+  territoryCard: {
+    marginTop: 14,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+    gap: 10,
+  },
+  territoryHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  territoryKicker: {
+    flex: 1,
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  territoryMain: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  territorySector: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  territoryPct: {
+    color: gameColors.crew,
+    fontSize: fontSizes.xl,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  territoryStats: {
+    flexDirection: 'row',
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+  },
+  territoryCell: { flex: 1, alignItems: 'center', gap: 3 },
+  territoryValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  territoryLabel: {
+    color: colors.gris,
+    fontSize: 10,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
   // ── Membres ──
   memberItem: { marginBottom: 8 },
   // ── Coffre ──

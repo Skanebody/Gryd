@@ -51,7 +51,7 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: 'GRYD — Cours. Capture. Défends.',
   description:
-    'Chaque course capture du territoire réel. Conquiers ton quartier hexagone par hexagone — Paris et Lille, Saison 0. Ton quartier ouvre à 500 inscrits.',
+    'Chaque course capture du territoire réel. Conquiers ton quartier rue après rue — Paris et Lille, Saison 0. Ton quartier ouvre à 500 inscrits.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

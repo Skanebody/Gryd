@@ -1,50 +1,97 @@
 /**
- * GRYD — GRYD VERIFY HUB (AMENDEMENT-08 §10, doc §21 ; remplace la page
- * « Sources connectées » trop settings). Écran POUSSÉ depuis Profil→Paramètres
- * ET Performance. « Connecte tes sources. GRYD vérifie l'effort réel. Seules
- * les courses vérifiées capturent. » Chaque source = `SourceTrustCard`
- * (statut, trust, rôle, capture éligible vs stats only). Connexions DÉMO
- * locales (toggle en mémoire) — branchements réels TODO(O2). Aucune valeur de
- * jeu ici, c'est de la donnée d'affichage (features/sources/catalog).
+ * GRYD — GRYD VERIFY HUB (AMENDEMENT-10 §6, copy trust par source). Écran
+ * POUSSÉ depuis Profil→Paramètres ET Performance. Régime usage réel : sobre,
+ * confiance. « Seules les courses vérifiées capturent. Les autres enrichissent
+ * tes stats. » Chaque source = trust + chemin de vérification (« Capture
+ * directe », « Import + vérif », « Vérification requise »), montres « Bientôt »
+ * non connectables. Connexions DÉMO locales (toggle en mémoire) — branchements
+ * réels TODO(O2). Aucune valeur de jeu ici (features/sources/catalog).
  */
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
-import { SourceTrustCard } from '../src/ui/game';
-import { VERIFY_SOURCES, type VerifySourceDef } from '../src/features/sources/catalog';
+import {
+  TRUST_LABELS,
+  VERIFY_SOURCES,
+  type VerifySourceDef,
+} from '../src/features/sources/catalog';
 
-/** Rendu d'une source avec son statut DÉMO courant + action connecter/gérer. */
+/** Ligne source vérifiable : nom, « Trust élevé · Capture directe », statut. */
 function SourceRow({
   source,
   connected,
-  onToggle,
+  onConnect,
 }: {
   source: VerifySourceDef;
   connected: boolean;
-  onToggle: () => void;
+  onConnect: () => void;
 }) {
-  const status = connected ? 'connected' : source.status;
+  const trustHigh = source.trust === 'high';
   return (
-    <SourceTrustCard
-      name={source.name}
-      icon={source.icon}
-      status={status}
-      trust={source.trust}
-      role={source.role}
-      capture={source.capture}
-      actionLabel={
-        source.actionLabel === undefined
-          ? undefined
-          : status === 'connected'
-            ? 'Gérer'
-            : 'Connecter'
-      }
-      onAction={source.actionLabel === undefined ? undefined : onToggle}
-    />
+    <View style={styles.card}>
+      <View
+        style={[styles.iconWrap, connected && { borderColor: gameColors.verify }]}
+      >
+        <Icon
+          name={source.icon}
+          size={20}
+          color={connected ? gameColors.verify : colors.gris}
+        />
+      </View>
+      <View style={styles.body}>
+        <Text style={styles.name} numberOfLines={1}>
+          {source.name}
+        </Text>
+        <Text style={styles.trustLine} numberOfLines={2}>
+          <Text style={{ color: trustHigh ? gameColors.verify : colors.blanc }}>
+            {source.trust ? TRUST_LABELS[source.trust] : ''}
+          </Text>
+          {source.path ? ` · ${source.path}` : ''}
+        </Text>
+      </View>
+      {source.availability === 'native' || connected ? (
+        <View style={styles.statusChip}>
+          <Text style={styles.statusChipText}>
+            {source.availability === 'native' ? 'Actif' : 'Connecté'}
+          </Text>
+        </View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Connecter ${source.name}`}
+          onPress={onConnect}
+          style={({ pressed }) => [styles.connectBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.connectLabel}>Connecter</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/** Ligne « Bientôt » : montre non connectable pour l'instant — atténuée. */
+function SoonRow({ source }: { source: VerifySourceDef }) {
+  return (
+    <View style={[styles.card, styles.cardSoon]}>
+      <View style={styles.iconWrap}>
+        <Icon name={source.icon} size={20} color={colors.gris} />
+      </View>
+      <View style={styles.body}>
+        <Text style={[styles.name, styles.nameSoon]} numberOfLines={1}>
+          {source.name}
+        </Text>
+        <Text style={styles.trustLine} numberOfLines={1}>
+          Non connectable
+        </Text>
+      </View>
+      <View style={styles.soonChip}>
+        <Text style={styles.soonChipText}>Bientôt</Text>
+      </View>
+    </View>
   );
 }
 
@@ -56,64 +103,52 @@ export default function SourcesScreen() {
   /** Connexions DÉMO : surcouche locale par-dessus le statut du catalogue. */
   const [demoConnected, setDemoConnected] = useState<Record<string, boolean>>({});
 
-  const isConnected = (s: VerifySourceDef) =>
-    demoConnected[s.key] ?? s.status === 'connected';
+  const isConnected = (s: VerifySourceDef) => demoConnected[s.key] ?? s.connected === true;
 
-  const toggle = (s: VerifySourceDef) => {
-    // TODO(O2) : OAuth Strava/WHOOP…, HealthKit, Health Connect (Activity Hub §13).
-    if (isConnected(s)) {
-      if (__DEV__) console.log(`[verify-hub] manage ${s.key} — TODO(O2)`);
-      return; // « Gérer » : rien à câbler en démo.
-    }
+  const connect = (s: VerifySourceDef) => {
+    // TODO(O2) : OAuth Strava, HealthKit, Health Connect (Activity Hub §13).
     haptics.light();
     setDemoConnected((prev) => ({ ...prev, [s.key]: true }));
   };
 
-  const captureSources = VERIFY_SOURCES.filter((s) => s.capture === 'verified');
-  const statsSources = VERIFY_SOURCES.filter((s) => s.capture === 'statsonly');
+  const verifySources = VERIFY_SOURCES.filter((s) => s.availability !== 'soon');
+  const soonSources = VERIFY_SOURCES.filter((s) => s.availability === 'soon');
 
   return (
     <StackScreen title="GRYD Verify Hub" icon="radar" kicker="GRYD VERIFY HUB">
-      {/* Message hub (doc §21) — le bleu verify est l'état de confiance, pas une déco. */}
+      {/* Entête (AMENDEMENT-10 §6) — le bleu verify = état de confiance. */}
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
           <Icon name="radar" size={22} color={gameColors.verify} />
         </View>
         <View style={styles.heroTextWrap}>
-          <Text style={styles.heroLine}>Connecte tes sources.</Text>
-          <Text style={styles.heroLine}>GRYD vérifie l'effort réel.</Text>
           <Text style={styles.heroStrong}>Seules les courses vérifiées capturent.</Text>
+          <Text style={styles.heroLine}>Les autres enrichissent tes stats.</Text>
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>CAPTURE ÉLIGIBLE</Text>
+      <Text style={styles.sectionLabel}>SOURCES VÉRIFIÉES</Text>
       <View style={styles.list}>
-        {captureSources.map((source) => (
+        {verifySources.map((source) => (
           <SourceRow
             key={source.key}
             source={source}
             connected={isConnected(source)}
-            onToggle={() => toggle(source)}
+            onConnect={() => connect(source)}
           />
         ))}
       </View>
 
-      <Text style={styles.sectionLabel}>STATS ONLY</Text>
+      <Text style={styles.sectionLabel}>BIENTÔT</Text>
       <View style={styles.list}>
-        {statsSources.map((source) => (
-          <SourceRow
-            key={source.key}
-            source={source}
-            connected={isConnected(source)}
-            onToggle={() => toggle(source)}
-          />
+        {soonSources.map((source) => (
+          <SoonRow key={source.key} source={source} />
         ))}
       </View>
 
       <Text style={styles.footnote}>
-        GRYD Verify lit tes activités, vérifie leur fiabilité, déduplique les doublons, puis
-        décide si elles peuvent capturer. Toutes les sources enrichissent ta performance —
-        seul l'effort vérifié prend du territoire.
+        GRYD Verify lit tes activités, vérifie l'effort réel, déduplique les doublons, puis
+        décide si elles peuvent capturer du territoire.
       </Text>
     </StackScreen>
   );
@@ -141,13 +176,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroTextWrap: { flex: 1, gap: 2 },
-  heroLine: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
   heroStrong: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
     fontWeight: '700',
     lineHeight: fontSizes.sm * 1.4,
   },
+  heroLine: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -155,7 +190,58 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 12,
   },
-  list: { gap: 12 },
+  list: { gap: 10 },
+  // ── Ligne source ──
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: 14,
+  },
+  cardSoon: { opacity: 0.66 },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: gameColors.carbon,
+  },
+  body: { flex: 1, gap: 3 },
+  name: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  nameSoon: { color: colors.gris },
+  trustLine: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  statusChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: gameColors.verify,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  statusChipText: { color: gameColors.verify, fontSize: fontSizes.xs, fontWeight: '700' },
+  connectBtn: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  connectLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  soonChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  soonChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  pressed: { opacity: 0.75 },
   footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,

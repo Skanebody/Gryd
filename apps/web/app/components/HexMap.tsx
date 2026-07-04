@@ -1,65 +1,44 @@
 'use client';
 
 /**
- * Grille hexagonale égocentrée animée (hero du site waitlist — addendum §H).
- * Reprend le rendu de maquette-ui-klaim.html : mon cluster en chartreuse-14/40
- * + glow, crew adverse hachuré (jamais de teinte), neutre en contour blanc 5 %.
- * Déterministe (module scope) → SSR-safe. Animations en CSS uniquement,
+ * Carte de territoire ORGANIQUE égocentrée animée (hero du site waitlist).
+ * AMENDEMENT-11 : plus aucune grille hexagonale visible — des territoires
+ * colorés lissés + frontières + route recommandée (« Pas une grille. Une
+ * ville à prendre. »). Mon territoire en aplat chartreuse-14 + frontière
+ * chartreuse-40 et cœur glowing ; crew adverse en blob hachuré (motif, jamais
+ * de teinte pleine — AMENDEMENT-01) à frontière rivale orange (--ennemi).
+ * Déterministe (paths statiques) → SSR-safe. Animations en CSS uniquement,
  * désactivées sous prefers-reduced-motion (voir HexMap.module.css).
+ * Le nom `HexMap` est conservé (identifiant technique, aucun texte visible).
  */
 
 import { colors, mapTokens } from '@klaim/shared';
 import styles from './HexMap.module.css';
 
-const R = 17;
-const W = Math.sqrt(3) * R;
-const H = 1.5 * R;
-const COLS = 16;
-const ROWS = 16;
 const VIEW_W = 480;
 const VIEW_H = 420;
 
-/** Mon cluster (chartreuse) — clefs "col,row". */
-const MINE = new Set([
-  '4,6', '5,6', '5,7', '4,7', '3,7', '4,8', '5,8', '3,8', '4,9', '6,7', '6,8',
-]);
-/** Cœur de cluster (hex glowing). */
-const HEART = { c: 4, r: 7 };
-/** Crew adverse (motif hachuré 45°, jamais par teinte — AMENDEMENT-01). */
-const FOE = new Set(['10,3', '11,3', '10,4', '11,4', '12,4', '11,5', '10,5', '12,5', '11,2']);
+/** Cœur de mon territoire (glow + noyau organique). */
+const HEART = { cx: 140, cy: 193 };
 
-function hexCenter(c: number, r: number): { cx: number; cy: number } {
-  return { cx: c * W + (r % 2 ? W / 2 : 0) + 8, cy: r * H + 14 };
-}
+/** Mon territoire : blob organique lissé, frontière irrégulière (lobes). */
+const MINE_D =
+  'M 92 172 C 100 150, 128 140, 152 146 C 170 150, 186 142, 202 154 ' +
+  'C 218 166, 212 186, 222 202 C 232 220, 220 244, 198 250 C 180 255, 162 246, 144 256 ' +
+  'C 124 266, 98 258, 88 240 C 79 224, 92 214, 84 198 C 79 186, 87 180, 92 172 Z';
 
-function hexPoints(cx: number, cy: number): string {
-  let s = '';
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    s += `${(cx + R * Math.cos(a)).toFixed(1)},${(cy + R * Math.sin(a)).toFixed(1)} `;
-  }
-  return s.trim();
-}
+/** Noyau du territoire (cœur glowing, remplace l'ancien hex cœur). */
+const HEART_D =
+  'M 122 188 C 126 176, 146 170, 158 178 C 170 186, 170 202, 158 210 ' +
+  'C 148 217, 130 215, 122 205 C 118 199, 119 193, 122 188 Z';
 
-type HexKind = 'mine' | 'foe' | 'neutral';
-type Hex = { key: string; points: string; kind: HexKind; delayMs: number };
+/** Crew adverse : blob hachuré (motif par crew), frontière rivale marquée. */
+const FOE_D =
+  'M 302 72 C 316 50, 354 42, 378 57 C 400 71, 405 101, 391 123 ' +
+  'C 378 144, 346 153, 322 142 C 298 131, 287 106, 294 87 C 296 81, 298 77, 302 72 Z';
 
-const heart = hexCenter(HEART.c, HEART.r);
-
-const HEXES: Hex[] = [];
-for (let r = 0; r < ROWS; r++) {
-  for (let c = 0; c < COLS; c++) {
-    const { cx, cy } = hexCenter(c, r);
-    const key = `${c},${r}`;
-    const kind: HexKind = MINE.has(key) ? 'mine' : FOE.has(key) ? 'foe' : 'neutral';
-    // Vague de capture : délai proportionnel à la distance au cœur (addendum §G).
-    const delayMs = kind === 'mine' ? Math.round(Math.hypot(cx - heart.cx, cy - heart.cy) * 5) : 0;
-    HEXES.push({ key, points: hexPoints(cx, cy), kind, delayMs });
-  }
-}
-
-const HEART_POINTS = hexPoints(heart.cx, heart.cy);
-const HEART_DELAY_MS = Math.round(Math.hypot(W, H) * 5) + 200;
+/** Route recommandée : du cœur de mon territoire vers la frontière adverse. */
+const ROUTE_D = 'M 146 196 C 200 182, 238 152, 282 118';
 
 export function HexMap() {
   return (
@@ -67,7 +46,7 @@ export function HexMap() {
       className={styles.map}
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
       role="img"
-      aria-label="Carte de territoire : mon cluster d’hexagones en chartreuse face à un crew adverse hachuré"
+      aria-label="Carte de territoire : mon secteur en chartreuse face à un crew adverse hachuré"
     >
       <defs>
         <pattern
@@ -105,63 +84,56 @@ export function HexMap() {
       <ellipse cx="400" cy="66" rx="82" ry="46" fill={mapTokens.parks} />
       <path d="M-10 378 Q240 348 490 384 L490 430 L-10 430 Z" fill={mapTokens.water} />
 
-      {/* Glow du cœur de cluster */}
+      {/* Glow du cœur de territoire */}
       <circle
         className={styles.glow}
-        cx={heart.cx}
-        cy={heart.cy}
+        cx={HEART.cx}
+        cy={HEART.cy}
         r="115"
         fill="url(#klaim-glow)"
         opacity="0.35"
       />
 
-      {/* Grille */}
-      <g>
-        {HEXES.map((h) => {
-          if (h.kind === 'mine') {
-            return (
-              <polygon
-                key={h.key}
-                className={styles.mine}
-                style={{ animationDelay: `${h.delayMs}ms` }}
-                points={h.points}
-                fill={mapTokens.mineFill}
-                stroke={mapTokens.mineStroke}
-                strokeWidth="1.4"
-              />
-            );
-          }
-          if (h.kind === 'foe') {
-            return (
-              <polygon
-                key={h.key}
-                points={h.points}
-                fill="url(#klaim-hatch)"
-                stroke={mapTokens.foeStroke}
-                strokeWidth="1"
-              />
-            );
-          }
-          return (
-            <polygon
-              key={h.key}
-              points={h.points}
-              fill="none"
-              stroke={mapTokens.neutralStroke}
-              strokeWidth="1"
-            />
-          );
-        })}
-      </g>
+      {/* Territoire adverse : aplat hachuré + frontière rivale (--ennemi-40) */}
+      <path
+        d={FOE_D}
+        fill="url(#klaim-hatch)"
+        stroke="var(--ennemi-40)"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
 
-      {/* Hex cœur glowing */}
-      <polygon
+      {/* Mon territoire : aplat chartreuse + frontière lissée */}
+      <path
+        className={styles.mine}
+        d={MINE_D}
+        fill={mapTokens.mineFill}
+        stroke={mapTokens.mineStroke}
+        strokeWidth="2.4"
+        strokeLinejoin="round"
+      />
+
+      {/* Route recommandée : ma frontière → la frontière adverse (route-first) */}
+      <path
+        className={styles.routeLine}
+        d={ROUTE_D}
+        pathLength={1}
+        fill="none"
+        stroke={colors.chartreuse}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        opacity="0.85"
+      />
+      <circle cx="282" cy="118" r="4" fill={colors.chartreuse} stroke={colors.noir} strokeWidth="1.4" />
+
+      {/* Cœur du territoire, glowing */}
+      <path
         className={styles.heart}
-        style={{ animationDelay: `${HEART_DELAY_MS}ms` }}
-        points={HEART_POINTS}
+        d={HEART_D}
         fill={colors.chartreuse40}
         stroke={colors.chartreuse}
         strokeWidth="1.6"
+        strokeLinejoin="round"
       />
 
       {/* Étiquettes crews en mono (différenciation motif + label, jamais teinte) */}

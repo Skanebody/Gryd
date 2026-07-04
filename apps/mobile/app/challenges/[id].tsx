@@ -88,12 +88,12 @@ export default function ChallengeDetailScreen() {
         <View style={styles.card}>
           <Text style={styles.cardKicker}>TA CONTRIBUTION</Text>
           <Text style={styles.contrib}>
-            Tu as déjà défendu <Text style={styles.contribNum}>{c.myContrib}</Text> hexes pour le crew.
+            Tu as déjà défendu <Text style={styles.contribNum}>{c.myContrib}</Text> zones pour le crew.
           </Text>
           {c.personalMinimum ? (
             <Text style={styles.hint}>
               Le minimum d'équipe est de {c.personalMinimum} — c'est un repère, pas un jugement. Chaque
-              hexe aide le coffre.
+              zone aide le coffre.
             </Text>
           ) : null}
         </View>

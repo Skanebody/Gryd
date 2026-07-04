@@ -37,7 +37,7 @@ const STRINGS = {
     verifiedLabel: 'données fiables',
     verifiedNote: 'GRYD Verified',
     recordsLabel: 'records cette saison',
-    hexesLabel: 'hexes cette semaine',
+    hexesLabel: 'zones cette semaine',
     message: 'Plus tu progresses comme coureur, plus tes runs deviennent dangereux sur la carte.',
   },
   en: {
@@ -47,7 +47,7 @@ const STRINGS = {
     verifiedLabel: 'verified data',
     verifiedNote: 'GRYD Verified',
     recordsLabel: 'records this season',
-    hexesLabel: 'hexes this week',
+    hexesLabel: 'zones this week',
     message: 'The stronger you get as a runner, the more dangerous your runs become on the map.',
   },
 };

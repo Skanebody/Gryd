@@ -1,20 +1,25 @@
 /**
- * GRYD — COURSE LIVE (AMENDEMENT-09 §3) : navigation type UBER pendant
- * l'effort. La carte plein écran est le cœur de l'écran (LiveNavMap : même
- * basemap quartier que la Battle Map, caméra qui suit le coureur, itinéraire
- * gris peint en chartreuse au fil de la course, hexes conquis au passage,
- * déviation scriptée, destination + checkpoints). AUCUN chiffre sur la carte
- * (anti-bruit) : distance/temps/allure/hexes vivent dans la MapBottomSheet
- * (compact 4 chiffres → semi objectif/checkpoint/récompense/jauges → ouvert
- * splits + états). 3 boutons flottants max : pause/reprendre, recentrer,
- * partager live (démo — jamais de position publique, AMENDEMENT-07). Feedback
- * temps réel scripté : toasts + haptics (zone capturée +N, record segment,
- * déviation, checkpoint, arrivée). Mode via `?mode=` (conquete | social_run |
- * course_privee) — hors conquête : bandeau « Stats uniquement ». Terminer =
- * appui MAINTENU (motion.holdToStopMs, stop protégé §G) → /course-result
- * (inchangé). Le client n'attribue jamais un hex : tout est « estimé ».
+ * GRYD — COURSE LIVE (AMENDEMENT-10 §3 + AMENDEMENT-11) : DEUX modes, Nike
+ * d'abord, ZÉRO hexagone visible.
+ *   - MODE STATS (défaut) : écran minimal type Nike — fond noir PLEIN, zéro
+ *     glass, zéro décor. Distance GÉANTE (fontSizes.heroMax), « +N ZONES »
+ *     chartreuse, allure, temps, pill GRYD VERIFIED. Contrôles bas gros,
+ *     une main : [Pause] [Carte] [Terminer (appui maintenu)].
+ *   - MODE CARTE : la navigation type Uber (LiveNavMap) MAIS territoire
+ *     ORGANIQUE : la route à suivre + la zone chartreuse qui S'ÉTEND derrière
+ *     le coureur (zones H3 invisibles fusionnées via territory.ts — une
+ *     trainée-zone qui grossit, jamais une grille), virage suivant,
+ *     destination. Chiffres dans la MapBottomSheet (anti-bruit).
+ * La pill ARRIVÉE X MIN · Y % / EN PAUSE reste TOUJOURS visible : un événement
+ * (zone privée, GPS faible, contesté…) s'EMPILE dessous — il enrichit la
+ * lecture, il ne remplace jamais l'ETA ni l'état pause. Toasts vocabulaire
+ * territoire (« Secteur pris · +N zones ») dans les DEUX modes. `?route=<id>`
+ * → nom de la route démo en tête. Terminer = appui MAINTENU
+ * (motion.holdToStopMs, stop protégé §G) → /course-result (inchangé).
+ * Le client n'attribue jamais une zone : tout est « estimé », le serveur
+ * (ingest_run) reste seul décideur.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +55,7 @@ import {
   etaSecondsAt,
   nextCheckpointAt,
   progressPctAt,
+  routeInfoFromParam,
   splitsAt,
   type NavToast,
 } from '../src/features/run/liveNav';
@@ -72,17 +78,24 @@ import {
 const ABOVE_SHEET_GAP = 12;
 /** Diamètre du bouton Terminer (appui maintenu) dans la sheet compacte. */
 const STOP_BUTTON_SIZE = 48;
+/** Diamètre des GROS contrôles une-main du mode Stats (Nike). */
+const BIG_CONTROL_SIZE = 68;
 /** Distance au checkpoint arrondie à 10 m (lecture nav, pas de fausse précision). */
 const CHECKPOINT_ROUND_M = 10;
 
+/** Les deux modes d'affichage du live (AMENDEMENT-10 §3 — Nike d'abord). */
+type LiveView = 'stats' | 'carte';
+
 export default function CourseLiveScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; route?: string }>();
   const mode = runModeFromParam(params.mode);
+  const routeInfo = useMemo(() => routeInfoFromParam(params.route), [params.route]);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   const nav = useMemo(() => buildLiveNav(sim), [sim]);
   const lastIndex = sim.ticks.length - 1;
 
+  const [view, setView] = useState<LiveView>('stats');
   const [tickIndex, setTickIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [following, setFollowing] = useState(true);
@@ -111,6 +124,8 @@ export default function CourseLiveScreen() {
   const etaS = etaSecondsAt(sim, tickIndex);
   const pct = progressPctAt(sim, tickIndex);
   const checkpoint = nextCheckpointAt(nav, tickIndex);
+  /** GRYD Verify : confiance instantanée ≥ seuil réel (jamais décoratif). */
+  const verified = Math.min(tick.gpsTrust, tick.motionTrust) >= VERIFIED_MIN_TRUST;
 
   // ── Feedback temps réel scripté : toast + haptic (anti-bruit : 1 à la fois) ─
   const [toast, setToast] = useState<{ key: number; toast: NavToast } | null>(null);
@@ -160,36 +175,265 @@ export default function CourseLiveScreen() {
     setPaused((p) => !p);
   };
 
-  const shareLive = () => {
-    // Démo : AUCUNE position publique (AMENDEMENT-07) — lien fictif copié.
-    track(EVENTS.shareCompleted, { channel: 'live_demo' });
-    showToast({
-      kind: 'checkpoint',
-      text: 'Lien de partage copié',
-      icon: 'lien',
-      tint: colors.blanc,
-      haptic: 'light',
-    });
+  const switchView = (next: LiveView) => {
+    haptics.light();
+    setView(next);
+    screen('live_view_mode', { view: next });
   };
 
   const donePulse = usePulse(simDone, 1.06, 1_600);
   const floatingBottom = insets.bottom + MAP_SHEET_COMPACT_HEIGHT + ABOVE_SHEET_GAP;
+  /** Hauteur de la pile de pills du haut (le toast se place dessous). */
+  const topStackOffset =
+    56 +
+    (routeInfo ? 30 : 0) +
+    (tick.event !== null ? 38 : 0) +
+    (!conquest ? 28 : 0);
 
   return (
     <View style={styles.root}>
-      {/* ── LA CARTE = l'écran (caméra qui suit, itinéraire, hexes conquis) ── */}
-      <LiveNavMap
-        ref={mapRef}
-        nav={nav}
-        sim={sim}
-        tickIndex={tickIndex}
-        capturing={conquest}
-        contested={tick.event === 'conteste'}
-        onFollowChange={setFollowing}
-      />
+      {view === 'carte' ? (
+        <>
+          {/* ── LA CARTE = l'écran (caméra qui suit, route, territoire qui s'étend) ── */}
+          <LiveNavMap
+            ref={mapRef}
+            nav={nav}
+            sim={sim}
+            tickIndex={tickIndex}
+            capturing={conquest}
+            contested={tick.event === 'conteste'}
+            onFollowChange={setFollowing}
+          />
 
-      {/* ── Pill d'état unique en haut (lecture 1 s — jamais d'empilement) ── */}
+          {/* ── 3 boutons flottants max : pause · recentrer · stats ── */}
+          <View style={[styles.floatColumn, { bottom: floatingBottom }]}>
+            <PausePlayButton paused={paused} onPress={togglePause} />
+            <FloatingMapButton
+              icon="gps"
+              accessibilityLabel={following ? 'Carte centrée sur toi' : 'Recentrer la carte sur toi'}
+              active={following}
+              onPress={() => mapRef.current?.recenter()}
+            />
+            <FloatingMapButton
+              icon="performance"
+              accessibilityLabel="Revenir aux stats"
+              onPress={() => switchView('stats')}
+            />
+          </View>
+
+          {/* ── Échelle graphique discrète (parité échelle coureur) ── */}
+          <View style={[styles.scaleBar, { bottom: floatingBottom }]} pointerEvents="none">
+            <View style={[styles.scaleLine, { width: NAV_SCALE_BAR_METERS / NAV_METERS_PER_PIXEL }]} />
+            <Text style={styles.scaleLabel}>{NAV_SCALE_BAR_METERS} m</Text>
+          </View>
+
+          {/* ── Bottom sheet : TOUS les chiffres vivent ici ─────────────────── */}
+          <MapBottomSheet
+            compactSlot={
+              <View style={styles.compactRow}>
+                <Stat label="DISTANCE" value={formatKm(tick.distanceM)} unit="km" mono />
+                <Stat label="TEMPS" value={formatClock(elapsedS)} mono />
+                <Stat label="ALLURE" value={formatPace(paceSPerKm)} mono />
+                <Stat
+                  label="ZONES"
+                  value={conquest ? formatInt(tick.hexes) : '—'}
+                  accent={conquest}
+                />
+                <Animated.View style={{ transform: [{ scale: donePulse }] }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Terminer la course (maintenir)"
+                    onLongPress={finish}
+                    delayLongPress={motion.holdToStopMs}
+                    onPress={onStopShortPress}
+                    style={({ pressed }) => [
+                      styles.stopButton,
+                      simDone && styles.stopButtonDone,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={[styles.stopSquare, simDone && styles.stopSquareDone]} />
+                  </Pressable>
+                </Animated.View>
+              </View>
+            }
+            semiSlot={
+              <View style={styles.semiSlot}>
+                {/* Prochain checkpoint : virage + distance (« à 200 m ») */}
+                <View style={styles.rowCard}>
+                  <Icon name="virage" size={18} color={colors.blanc} />
+                  <View style={styles.rowTextWrap}>
+                    <Text style={styles.rowKicker}>PROCHAIN CHECKPOINT</Text>
+                    <Text style={styles.rowValue} numberOfLines={1}>
+                      {checkpoint.label}
+                    </Text>
+                  </View>
+                  <Text style={styles.rowRight}>
+                    à {formatInt(Math.max(CHECKPOINT_ROUND_M, Math.round(checkpoint.distanceM / CHECKPOINT_ROUND_M) * CHECKPOINT_ROUND_M))} m
+                  </Text>
+                </View>
+
+                {/* Récompense potentielle (points estimés — le serveur décide) */}
+                <View style={styles.rowCard}>
+                  <Icon name="coffre" size={18} color={conquest ? gameColors.gold : colors.gris} />
+                  <View style={styles.rowTextWrap}>
+                    <Text style={styles.rowKicker}>RÉCOMPENSE POTENTIELLE</Text>
+                    <Text style={styles.rowValue} numberOfLines={1}>
+                      {conquest ? `+${formatInt(tick.points)} pts estimés` : 'Aucune (stats uniquement)'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Objectif crew (conquête) */}
+                {conquest ? (
+                  <View style={styles.objectiveCard}>
+                    <View style={styles.objectiveHead}>
+                      <Icon name="cible" size={16} color={gameColors.crew} />
+                      <Text style={styles.rowKicker}>OBJECTIF CREW</Text>
+                      <Text style={styles.objectivePct}>{zonePct} %</Text>
+                    </View>
+                    <Text style={styles.objectiveText}>{sim.crew.objective}</Text>
+                    <ProgressBar value={zonePct / 100} height={5} />
+                  </View>
+                ) : null}
+
+                {/* GRYD Verify : jauges de confiance */}
+                <View style={styles.trustRow}>
+                  <TrustGauge icon="gps" label="GPS TRUST" value={tick.gpsTrust} />
+                  <TrustGauge icon="radar" label="MOTION TRUST" value={tick.motionTrust} />
+                </View>
+              </View>
+            }
+            openSlot={
+              <View style={styles.openSlot}>
+                <Text style={styles.sectionKicker}>SPLITS</Text>
+                <View style={styles.splitsGrid}>
+                  {splitsAt(sim, tickIndex).map((s) => (
+                    <View key={s.km} style={styles.splitCell}>
+                      <Text style={styles.splitKm}>KM {s.km}</Text>
+                      <Text style={styles.splitPace}>{formatPace(s.paceS)}</Text>
+                    </View>
+                  ))}
+                  {tick.distanceM < 1000 ? (
+                    <Text style={styles.splitEmpty}>Premier kilomètre en cours…</Text>
+                  ) : null}
+                </View>
+
+                <Text style={styles.sectionKicker}>ÉTATS DU RUN</Text>
+                <View style={styles.eventLog}>
+                  {liveEventLogAt(tickIndex).map((e) => (
+                    <View key={e.kind} style={styles.eventRow}>
+                      <StatePill state={LIVE_EVENT_META[e.kind].state} label={LIVE_EVENT_META[e.kind].label} />
+                      <Text style={styles.eventTime}>{formatClock(e.atS)}</Text>
+                    </View>
+                  ))}
+                  {liveEventLogAt(tickIndex).length === 0 ? (
+                    <Text style={styles.splitEmpty}>Aucun événement pour l'instant.</Text>
+                  ) : null}
+                </View>
+              </View>
+            }
+          />
+        </>
+      ) : (
+        /* ── MODE STATS (défaut) : Nike épuré, fond noir plein, zéro décor ── */
+        <View style={[styles.statsBody, { paddingTop: insets.top + topStackOffset + 26 }]}>
+          <View style={styles.statsCenter}>
+            <Text style={styles.heroKicker}>DISTANCE</Text>
+            <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>
+              {formatKm(tick.distanceM)}
+              <Text style={styles.heroUnit}> KM</Text>
+            </Text>
+
+            {conquest ? (
+              <Text style={styles.zonesValue} numberOfLines={1}>
+                +{formatInt(tick.hexes)} ZONES
+              </Text>
+            ) : null}
+
+            <View style={styles.secondaryRow}>
+              <View style={styles.secondaryStat}>
+                <Text style={styles.secondaryValue}>{formatPace(paceSPerKm)}</Text>
+                <Text style={styles.secondaryLabel}>ALLURE /KM</Text>
+              </View>
+              <View style={styles.secondaryDivider} />
+              <View style={styles.secondaryStat}>
+                <Text style={styles.secondaryValue}>{formatClock(elapsedS)}</Text>
+                <Text style={styles.secondaryLabel}>TEMPS</Text>
+              </View>
+            </View>
+
+            {verified ? (
+              <View style={styles.verifiedPill}>
+                <Icon name="bouclier" size={13} color={gameColors.verify} />
+                <Text style={styles.verifiedText}>GRYD VERIFIED</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* ── Contrôles bas GROS, une main : [Pause] [Carte] [Terminer] ── */}
+          <View style={[styles.statsControls, { paddingBottom: insets.bottom + 18 }]}>
+            <BigControl
+              label={paused ? 'REPRENDRE' : 'PAUSE'}
+              accessibilityLabel={paused ? 'Reprendre la course' : 'Mettre la course en pause'}
+              active={paused}
+              onPress={togglePause}
+            >
+              <PausePlayGlyph paused={paused} size={24} />
+            </BigControl>
+            <BigControl
+              label="CARTE"
+              accessibilityLabel="Afficher la carte de navigation"
+              onPress={() => switchView('carte')}
+            >
+              <Icon name="carte" size={24} color={colors.blanc} />
+            </BigControl>
+            <View style={styles.bigControlWrap}>
+              <Animated.View style={{ transform: [{ scale: donePulse }] }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Terminer la course (maintenir)"
+                  onLongPress={finish}
+                  delayLongPress={motion.holdToStopMs}
+                  onPress={onStopShortPress}
+                  style={({ pressed }) => [
+                    styles.bigDisc,
+                    styles.bigStopDisc,
+                    simDone && styles.stopButtonDone,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={[styles.bigStopSquare, simDone && styles.stopSquareDone]} />
+                </Pressable>
+              </Animated.View>
+              <Text style={styles.bigLabel}>TERMINER</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ── Pile du haut (2 modes) : route → ETA/pause (TOUJOURS visible) →
+           événement (s'empile, ne remplace JAMAIS) → stats only ── */}
       <View style={[styles.topArea, { top: insets.top + 10 }]} pointerEvents="none">
+        {routeInfo ? (
+          <View style={styles.routePill}>
+            <Icon name="route" size={13} color={colors.gris} />
+            <Text style={styles.routePillText} numberOfLines={1}>
+              {routeInfo.name.toUpperCase()}
+              {routeInfo.summary ? `  ·  ${routeInfo.summary}` : ''}
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.topPill}>
+          <View style={[styles.liveDot, paused && styles.liveDotPaused]} />
+          <Text style={styles.topPillText}>
+            {paused
+              ? 'EN PAUSE'
+              : simDone
+                ? 'DESTINATION ATTEINTE'
+                : `ARRIVÉE ${Math.max(1, Math.ceil(etaS / 60))} MIN · ${pct} %`}
+          </Text>
+        </View>
         {tick.event !== null ? (
           <View style={styles.eventPillWrap}>
             <StatePill
@@ -197,18 +441,7 @@ export default function CourseLiveScreen() {
               label={LIVE_EVENT_META[tick.event].label}
             />
           </View>
-        ) : (
-          <View style={styles.topPill}>
-            <View style={[styles.liveDot, paused && styles.liveDotPaused]} />
-            <Text style={styles.topPillText}>
-              {paused
-                ? 'EN PAUSE'
-                : simDone
-                  ? 'DESTINATION ATTEINTE'
-                  : `ARRIVÉE ${Math.max(1, Math.ceil(etaS / 60))} MIN · ${pct} %`}
-            </Text>
-          </View>
-        )}
+        ) : null}
         {!conquest ? (
           <View style={styles.statsOnlyPill}>
             <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={13} color={colors.gris} />
@@ -221,145 +454,15 @@ export default function CourseLiveScreen() {
 
       {/* ── Toast de feedback scripté (1 seul, remplacé par le suivant) ── */}
       {toast ? (
-        <View style={[styles.toastArea, { top: insets.top + (conquest ? 52 : 86) }]} pointerEvents="none">
+        <View style={[styles.toastArea, { top: insets.top + topStackOffset }]} pointerEvents="none">
           <FeedbackToast key={toast.key} toast={toast.toast} />
         </View>
       ) : null}
-
-      {/* ── 3 boutons flottants max (anti-bruit) : pause · recentrer · partager ── */}
-      <View style={[styles.floatColumn, { bottom: floatingBottom }]}>
-        <PausePlayButton paused={paused} onPress={togglePause} />
-        <FloatingMapButton
-          icon="gps"
-          accessibilityLabel={following ? 'Carte centrée sur toi' : 'Recentrer la carte sur toi'}
-          active={following}
-          onPress={() => mapRef.current?.recenter()}
-        />
-        <FloatingMapButton
-          icon="partage"
-          accessibilityLabel="Partager la course en direct (démo)"
-          onPress={shareLive}
-        />
-      </View>
-
-      {/* ── Échelle graphique discrète (parité échelle coureur) ── */}
-      <View style={[styles.scaleBar, { bottom: floatingBottom }]} pointerEvents="none">
-        <View style={[styles.scaleLine, { width: NAV_SCALE_BAR_METERS / NAV_METERS_PER_PIXEL }]} />
-        <Text style={styles.scaleLabel}>{NAV_SCALE_BAR_METERS} m</Text>
-      </View>
-
-      {/* ── Bottom sheet : TOUS les chiffres vivent ici ─────────────────── */}
-      <MapBottomSheet
-        compactSlot={
-          <View style={styles.compactRow}>
-            <Stat label="DISTANCE" value={formatKm(tick.distanceM)} unit="km" mono />
-            <Stat label="TEMPS" value={formatClock(elapsedS)} mono />
-            <Stat label="ALLURE" value={formatPace(paceSPerKm)} mono />
-            <Stat
-              label="HEXES"
-              value={conquest ? formatInt(tick.hexes) : '—'}
-              accent={conquest}
-            />
-            <Animated.View style={{ transform: [{ scale: donePulse }] }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Terminer la course (maintenir)"
-                onLongPress={finish}
-                delayLongPress={motion.holdToStopMs}
-                onPress={onStopShortPress}
-                style={({ pressed }) => [
-                  styles.stopButton,
-                  simDone && styles.stopButtonDone,
-                  pressed && styles.stopPressed,
-                ]}
-              >
-                <View style={[styles.stopSquare, simDone && styles.stopSquareDone]} />
-              </Pressable>
-            </Animated.View>
-          </View>
-        }
-        semiSlot={
-          <View style={styles.semiSlot}>
-            {/* Prochain checkpoint : virage + distance (« à 200 m ») */}
-            <View style={styles.rowCard}>
-              <Icon name="virage" size={18} color={colors.blanc} />
-              <View style={styles.rowTextWrap}>
-                <Text style={styles.rowKicker}>PROCHAIN CHECKPOINT</Text>
-                <Text style={styles.rowValue} numberOfLines={1}>
-                  {checkpoint.label}
-                </Text>
-              </View>
-              <Text style={styles.rowRight}>
-                à {formatInt(Math.max(CHECKPOINT_ROUND_M, Math.round(checkpoint.distanceM / CHECKPOINT_ROUND_M) * CHECKPOINT_ROUND_M))} m
-              </Text>
-            </View>
-
-            {/* Récompense potentielle (points estimés — le serveur décide) */}
-            <View style={styles.rowCard}>
-              <Icon name="coffre" size={18} color={conquest ? gameColors.gold : colors.gris} />
-              <View style={styles.rowTextWrap}>
-                <Text style={styles.rowKicker}>RÉCOMPENSE POTENTIELLE</Text>
-                <Text style={styles.rowValue} numberOfLines={1}>
-                  {conquest ? `+${formatInt(tick.points)} pts estimés` : 'Aucune (stats uniquement)'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Objectif crew (conquête) */}
-            {conquest ? (
-              <View style={styles.objectiveCard}>
-                <View style={styles.objectiveHead}>
-                  <Icon name="cible" size={16} color={gameColors.crew} />
-                  <Text style={styles.rowKicker}>OBJECTIF CREW</Text>
-                  <Text style={styles.objectivePct}>{zonePct} %</Text>
-                </View>
-                <Text style={styles.objectiveText}>{sim.crew.objective}</Text>
-                <ProgressBar value={zonePct / 100} height={5} />
-              </View>
-            ) : null}
-
-            {/* GRYD Verify : jauges de confiance */}
-            <View style={styles.trustRow}>
-              <TrustGauge icon="gps" label="GPS TRUST" value={tick.gpsTrust} />
-              <TrustGauge icon="radar" label="MOTION TRUST" value={tick.motionTrust} />
-            </View>
-          </View>
-        }
-        openSlot={
-          <View style={styles.openSlot}>
-            <Text style={styles.sectionKicker}>SPLITS</Text>
-            <View style={styles.splitsGrid}>
-              {splitsAt(sim, tickIndex).map((s) => (
-                <View key={s.km} style={styles.splitCell}>
-                  <Text style={styles.splitKm}>KM {s.km}</Text>
-                  <Text style={styles.splitPace}>{formatPace(s.paceS)}</Text>
-                </View>
-              ))}
-              {tick.distanceM < 1000 ? (
-                <Text style={styles.splitEmpty}>Premier kilomètre en cours…</Text>
-              ) : null}
-            </View>
-
-            <Text style={styles.sectionKicker}>ÉTATS DU RUN</Text>
-            <View style={styles.eventLog}>
-              {liveEventLogAt(tickIndex).map((e) => (
-                <View key={e.kind} style={styles.eventRow}>
-                  <StatePill state={LIVE_EVENT_META[e.kind].state} label={LIVE_EVENT_META[e.kind].label} />
-                  <Text style={styles.eventTime}>{formatClock(e.atS)}</Text>
-                </View>
-              ))}
-              {liveEventLogAt(tickIndex).length === 0 ? (
-                <Text style={styles.splitEmpty}>Aucun événement pour l'instant.</Text>
-              ) : null}
-            </View>
-          </View>
-        }
-      />
     </View>
   );
 }
 
-/** Compteur net de la sheet compacte (distance/temps/allure/hexes). */
+/** Compteur net de la sheet compacte (distance/temps/allure/zones). */
 function Stat({
   label,
   value,
@@ -418,9 +521,62 @@ function FeedbackToast({ toast }: { toast: NavToast }) {
   );
 }
 
+/** Glyphe pause/lecture local (icônes shared sans pictogramme lecteur). */
+function PausePlayGlyph({ paused, size }: { paused: boolean; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20">
+      {paused ? (
+        <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={colors.chartreuse} />
+      ) : (
+        <>
+          <Path d="M7 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M13 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
+        </>
+      )}
+    </Svg>
+  );
+}
+
+/** GROS contrôle une-main du mode Stats (disque 68 px + label court). */
+function BigControl({
+  label,
+  accessibilityLabel,
+  active = false,
+  onPress,
+  children,
+}: {
+  label: string;
+  accessibilityLabel: string;
+  active?: boolean;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <View style={styles.bigControlWrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ selected: active }}
+        onPress={() => {
+          haptics.light();
+          onPress();
+        }}
+        style={({ pressed }) => [
+          styles.bigDisc,
+          active && styles.bigDiscActive,
+          pressed && styles.pressed,
+        ]}
+      >
+        {children}
+      </Pressable>
+      <Text style={styles.bigLabel}>{label}</Text>
+    </View>
+  );
+}
+
 /**
  * Pause/reprendre — même gabarit que FloatingMapButton (44 px, carbone),
- * glyphe pause/lecture local (icônes shared sans pictogramme lecteur).
+ * glyphe pause/lecture local (mode Carte).
  */
 function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => void }) {
   return (
@@ -435,19 +591,10 @@ function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => 
       style={({ pressed }) => [
         styles.pauseDisc,
         paused && styles.pauseDiscActive,
-        pressed && styles.stopPressed,
+        pressed && styles.pressed,
       ]}
     >
-      <Svg width={20} height={20} viewBox="0 0 20 20">
-        {paused ? (
-          <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={colors.chartreuse} />
-        ) : (
-          <>
-            <Path d="M7 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
-            <Path d="M13 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
-          </>
-        )}
-      </Svg>
+      <PausePlayGlyph paused={paused} size={20} />
     </Pressable>
   );
 }
@@ -461,6 +608,24 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     gap: 6,
+  },
+  routePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    maxWidth: 340,
+  },
+  routePillText: {
+    color: colors.gris,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   topPill: {
     flexDirection: 'row',
@@ -517,6 +682,114 @@ const styles = StyleSheet.create({
   },
   toastText: { fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0.3 },
 
+  // ── MODE STATS (Nike) : fond noir plein, KPI géants, contrôles gros ──
+  statsBody: { flex: 1, backgroundColor: colors.noir },
+  statsCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.cardPadding,
+    gap: 4,
+  },
+  heroKicker: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 2.4,
+  },
+  heroValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.heroMax,
+    fontWeight: '900',
+    letterSpacing: -2,
+    fontVariant: ['tabular-nums'],
+  },
+  heroUnit: {
+    color: colors.gris,
+    fontSize: fontSizes.xl,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  zonesValue: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xxl,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 22,
+    marginTop: 18,
+  },
+  secondaryStat: { alignItems: 'center', gap: 2 },
+  secondaryValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.xl,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  secondaryLabel: {
+    color: colors.gris,
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+  },
+  secondaryDivider: { width: 1, height: 30, backgroundColor: colors.grisLigne },
+  verifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: gameColors.verify,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginTop: 16,
+  },
+  verifiedText: {
+    color: gameColors.verify,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+  },
+
+  statsControls: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 26,
+  },
+  bigControlWrap: { alignItems: 'center', gap: 7 },
+  bigDisc: {
+    width: BIG_CONTROL_SIZE,
+    height: BIG_CONTROL_SIZE,
+    borderRadius: BIG_CONTROL_SIZE / 2,
+    backgroundColor: colors.carbone,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bigDiscActive: {
+    backgroundColor: colors.chartreuse14,
+    borderColor: colors.chartreuse40,
+  },
+  bigStopDisc: {
+    backgroundColor: colors.carbone2,
+    borderWidth: 1.5,
+    borderColor: 'rgba(250,250,247,0.35)',
+  },
+  bigStopSquare: { width: 18, height: 18, borderRadius: 3.5, backgroundColor: colors.blanc },
+  bigLabel: {
+    color: colors.gris,
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+
   floatColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'center' },
   pauseDisc: {
     width: 44,
@@ -569,7 +842,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stopButtonDone: { borderColor: colors.chartreuse40 },
-  stopPressed: { opacity: 0.7 },
+  pressed: { opacity: 0.7 },
   stopSquare: { width: 13, height: 13, borderRadius: 2.5, backgroundColor: colors.blanc },
   stopSquareDone: { backgroundColor: colors.chartreuse },
 

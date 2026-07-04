@@ -150,7 +150,7 @@ const STRINGS = {
     narration:
       'Paris devient une bataille. Dieppe devient un avant-poste. Offranville devient une terre pionnière. Chaque village peut écrire sa carte.',
     boardAria:
-      'Plateau de jeu : vraie carte de France quadrillée en hexagones, avec territoires de crews, zone contestée, routes, avant-postes et zone pionnière',
+      'Plateau de jeu : vraie carte de France découpée en zones, avec territoires de crews, zone contestée, routes, avant-postes et zone pionnière',
     legendTitle: 'Légende',
     legend: {
       mine: 'À moi',
@@ -185,7 +185,7 @@ const STRINGS = {
     narration:
       'Paris becomes a battle. Dieppe becomes an outpost. Offranville becomes pioneer land. Every village can write its own map.',
     boardAria:
-      'Game board: real map of France gridded with hexagons, with crew territories, contested zone, routes, outposts and pioneer land',
+      'Game board: real map of France divided into zones, with crew territories, contested zone, routes, outposts and pioneer land',
     legendTitle: 'Legend',
     legend: {
       mine: 'Mine',
