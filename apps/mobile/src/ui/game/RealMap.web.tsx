@@ -1,45 +1,51 @@
 /**
- * GRYD — RealMap, variante WEB (AMENDEMENT-13 §1) : VRAIES tuiles vectorielles
- * de Paris/France sous les couches de jeu. `maplibre-gl` (la seule nouvelle
- * dépendance autorisée) est monté dans un conteneur react-native-web ; le CSS
- * MapLibre est importé globalement (Metro web, SDK 52). Style de dev sans clé
- * (dark-matter CARTO) surchargé aux tokens GRYD après chargement (eau plus
- * sombre, parcs discrets, labels gris atténués) — la prod passera à Protomaps
- * (point ouvert O6) en ne changeant QUE le styleURL.
+ * GRYD — RealMap, variante WEB (AMENDEMENT-13 §1/§4bis) : VRAIES tuiles
+ * vectorielles MONDE ENTIER sous les couches de jeu — aucun maxBounds, aucun
+ * verrou de zoom : pan/zoom libres du niveau rue au niveau planète (§4bis).
+ * `maplibre-gl` (la seule nouvelle dépendance autorisée) est monté dans un
+ * conteneur react-native-web ; le CSS MapLibre est importé globalement (Metro
+ * web, SDK 52). Style de dev sans clé (dark-matter CARTO) surchargé aux tokens
+ * GRYD après chargement — la prod passera à Protomaps (O6) en ne changeant QUE
+ * le styleURL.
  *
  * API COMMUNE avec ./RealMap.tsx (natif — fork de plateforme, interfaces
  * dupliquées à l'identique) :
- *   props  { camera, geojsonLayers, markers?, onPress?, attributionCompact }
- *   ref    { flyTo(camera) } — recentrage fluide (coupé si reduce motion)
+ *   props  { camera?, bounds?, geojsonLayers, pointLayers?, markers?, onPress?,
+ *            onZoomChange?, onMapReady?, attributionCompact }
+ *   ref    { flyTo(camera), fitBounds(bounds) } — coupés si reduce motion
  * Les couches de jeu restent les polygones ORGANIQUES de territory.ts
- * (AMENDEMENT-11 : zéro hexagone visible) : chaque entrée `geojsonLayers`
- * devient une source GeoJSON + fill/line layers ; `pulse` anime l'opacité du
- * contour (contesté) via requestAnimationFrame, coupé si
+ * (AMENDEMENT-11 : zéro hexagone visible). `pointLayers` = marqueurs-points
+ * villes bornés par zoom via minzoom/maxzoom MapLibre (§4bis : la lisibilité
+ * au dézoom suit le zoom RÉEL, jamais un état React). Les `markers` sont des
+ * maplibregl.Marker NATIFS (contenu RN rendu par portal dans l'élément du
+ * marker) : ils suivent la caméra sans re-render React par frame
+ * (AMENDEMENT-13 §5 — perf). `pulse` anime l'opacité du contour (contesté) via
+ * requestAnimationFrame (setPaintProperty — aucun re-render), coupé si
  * prefers-reduced-motion. Attribution © OpenStreetMap © CARTO discrète
- * (obligation légale). Tuiles indisponibles / offline → fond noir + message
- * « Carte indisponible — tes zones restent à toi », jamais d'écran blanc —
- * et l'état SE RELÈVE toujours (AMENDEMENT-13 §5) : seules les erreurs
- * réseau/tuiles le déclenchent, le pulse est suspendu tant qu'il est affiché
- * (sinon `idle` ne retombe jamais), la relève écoute `idle` + succès tuile
- * (`sourcedata`) et un re-test périodique force un rendu tant que ça dure.
+ * (obligation légale). Tuiles indisponibles / offline / CONTEXTE WEBGL PERDU →
+ * fond noir + message « Carte indisponible — tes zones restent à toi », jamais
+ * d'écran blanc — et l'état SE RELÈVE toujours : `webglcontextrestored` et le
+ * retour de visibilité de l'onglet tentent map.resize() + rendu, la relève
+ * écoute `idle` + succès tuile et un re-test périodique force un rendu.
  */
 // CSS global MapLibre — import Metro web (supporté SDK 52).
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
   Map as MapLibreMap,
+  Marker as MapLibreMarker,
   type GeoJSONSource,
   type MapMouseEvent,
   type MapSourceDataEvent,
 } from 'maplibre-gl';
 import {
   forwardRef,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fonts, fontSizes, mapTokens, motion } from '@klaim/shared';
 
@@ -55,6 +61,16 @@ export interface RealMapCamera {
   zoom: number;
 }
 
+/** Cadrage sur un ensemble de possessions (fitBounds — §4bis). */
+export interface RealMapBounds {
+  /** Coin sud-ouest [lng, lat]. */
+  sw: [number, number];
+  /** Coin nord-est [lng, lat]. */
+  ne: [number, number];
+  /** Marge intérieure du cadrage (px). */
+  paddingPx: number;
+}
+
 /** Une couche de jeu : source GeoJSON + aplat (fill*) et/ou frontière (line*). */
 export interface RealMapGeoJSONLayer {
   /** Identifiant stable de la source (les layers dérivés sont `${id}-fill/-line`). */
@@ -64,10 +80,42 @@ export interface RealMapGeoJSONLayer {
   fillOpacity?: number;
   lineColor?: string;
   lineWidth?: number;
-  /** Pointillé (traitement decay AMENDEMENT-11). */
+  /** Pointillé (traitement decay AMENDEMENT-11/§4ter). */
   lineDash?: readonly number[];
+  /**
+   * Décalage latéral du trait (px, line-offset MapLibre) — double trait du
+   * tracé contesté (§4ter : chartreuse/orange de part et d'autre du tracé).
+   */
+  lineOffset?: number;
   /** Pulse lent du contour (contesté) — coupé si reduce motion. */
   pulse?: boolean;
+}
+
+/**
+ * Calque de MARQUEURS-POINTS borné par zoom (AMENDEMENT-13 §4bis — lisibilité
+ * au dézoom) : cercle à taille minimale + label, rendus en LAYERS MapLibre
+ * (circle + symbol) avec minzoom/maxzoom — le seuil suit le zoom RÉEL de la
+ * caméra, jamais un état de vue React. Features attendues : des Points avec
+ * properties { label: string; color: string } (couleurs = tokens en amont).
+ */
+export interface RealMapPointLayer {
+  /** Identifiant stable de la source (layers dérivés `${id}-dot/-label`). */
+  id: string;
+  data: GeoJSON.FeatureCollection;
+  /** Peint seulement SOUS ce zoom (maxzoom MapLibre). */
+  maxZoom?: number;
+  /** Peint seulement AU-DESSUS de ce zoom (minzoom MapLibre). */
+  minZoom?: number;
+  /** Rayon du point (px) — taille minimale lisible au niveau monde. */
+  circleRadius: number;
+  circleStrokeColor: string;
+  circleStrokeWidth: number;
+  /** Taille du label (px), posé sous le point. */
+  textSize: number;
+  /** Décalage vertical du label sous le point (em). */
+  textOffsetEm: number;
+  textHaloColor: string;
+  textLetterSpacing?: number;
 }
 
 /** Marker RN positionné au point géo (shield, sablier, pin, mates, POI…). */
@@ -86,17 +134,35 @@ export interface RealMapPressEvent {
 export interface RealMapRef {
   /** Recentrage fluide (flyTo) — saut direct si reduce motion. */
   flyTo(camera: Partial<RealMapCamera> & { lng: number; lat: number }): void;
+  /** Cadre un ensemble de possessions (fitBounds) — saut direct si reduce motion. */
+  fitBounds(bounds: RealMapBounds): void;
 }
 
 export interface RealMapProps {
-  /** Caméra contrôlée : appliquée au montage puis à chaque changement (easeTo). */
-  camera: RealMapCamera;
+  /**
+   * Caméra contrôlée : appliquée au montage puis à chaque changement (easeTo).
+   * Fournir `camera` OU `bounds` — sans l'un ni l'autre, ouverture monde.
+   */
+  camera?: RealMapCamera;
+  /**
+   * Cadrage d'OUVERTURE en fitBounds (§4bis — « Mon territoire » s'ouvre sur
+   * l'ensemble des possessions). Prioritaire sur `camera`.
+   */
+  bounds?: RealMapBounds;
   /** Couches de jeu, peintes dans l'ordre du tableau (la dernière au-dessus). */
   geojsonLayers: readonly RealMapGeoJSONLayer[];
+  /** Calques de points bornés par zoom (§4bis), peints AU-DESSUS des couches. */
+  pointLayers?: readonly RealMapPointLayer[];
   markers?: readonly RealMapMarker[];
   onPress?: (event: RealMapPressEvent) => void;
-  /** Zoom courant, notifié à chaque mouvement de caméra (seuil marqueurs §4bis). */
+  /** Zoom courant, notifié à chaque mouvement de caméra (seuils UI §4bis). */
   onZoomChange?: (zoom: number) => void;
+  /**
+   * WEB UNIQUEMENT : reçoit l'instance maplibre-gl dès sa création — permet de
+   * scoper échelle/outils à CETTE carte (plusieurs cartes montées en même
+   * temps : aperçu Profil + onglet Carte). Jamais appelé par le fork natif.
+   */
+  onMapReady?: (map: MapLibreMap) => void;
   /** Attribution compacte © OpenStreetMap © CARTO (défaut true — obligatoire). */
   attributionCompact?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -114,6 +180,14 @@ const PULSE_MIN_OPACITY_RATIO = 0.35;
 /** Labels des tuiles atténués (sobriété AMENDEMENT-13 §5). */
 const TILE_LABEL_OPACITY = 0.55;
 const TILE_ICON_OPACITY = 0.35;
+/** Caméra de secours si ni `camera` ni `bounds` : monde entier (§4bis). */
+const WORLD_FALLBACK_CAMERA: RealMapCamera = { lng: 0, lat: 20, zoom: 1 };
+/**
+ * Polices des labels de points : piles de glyphes présentes dans le style
+ * CARTO dark-matter (la prod Protomaps devra fournir les mêmes stacks — O6).
+ */
+const POINT_LABEL_FONTS = ['Montserrat Medium', 'Open Sans Bold', 'Noto Sans Regular'];
+const POINT_LABEL_HALO_WIDTH = 1.2;
 /**
  * L'état offline ne se relève (`idle`/succès tuile) que si aucune erreur
  * tuile n'est survenue récemment (les tuiles en échec produisent aussi un
@@ -212,28 +286,99 @@ function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer): void {
       id: lineId,
       type: 'line',
       source: spec.id,
+      // §4ter : coins nets à jointure arrondie légère, extrémités arrondies.
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': spec.lineColor,
         'line-width': spec.lineWidth ?? 1,
         ...(spec.lineDash ? { 'line-dasharray': [...spec.lineDash] } : {}),
+        ...(spec.lineOffset !== undefined ? { 'line-offset': spec.lineOffset } : {}),
       },
     });
   } else if (spec.lineColor !== undefined) {
     map.setPaintProperty(lineId, 'line-color', spec.lineColor);
     map.setPaintProperty(lineId, 'line-width', spec.lineWidth ?? 1);
     if (spec.lineDash) map.setPaintProperty(lineId, 'line-dasharray', [...spec.lineDash]);
+    if (spec.lineOffset !== undefined) {
+      map.setPaintProperty(lineId, 'line-offset', spec.lineOffset);
+    }
+  }
+}
+
+/**
+ * Ajoute (ou met à jour) un calque de marqueurs-points (§4bis) : circle +
+ * symbol MapLibre bornés par minzoom/maxzoom — la visibilité suit le zoom
+ * réel, pas un état React. Couleur lue par feature (propriété `color`).
+ */
+function upsertPointLayer(map: MapLibreMap, spec: RealMapPointLayer): void {
+  const existing = map.getSource(spec.id) as GeoJSONSource | undefined;
+  if (existing) {
+    existing.setData(spec.data);
+  } else {
+    map.addSource(spec.id, { type: 'geojson', data: spec.data });
+  }
+  const zoomRange = {
+    ...(spec.minZoom !== undefined ? { minzoom: spec.minZoom } : {}),
+    ...(spec.maxZoom !== undefined ? { maxzoom: spec.maxZoom } : {}),
+  };
+  const dotId = `${spec.id}-dot`;
+  if (!map.getLayer(dotId)) {
+    map.addLayer({
+      id: dotId,
+      type: 'circle',
+      source: spec.id,
+      ...zoomRange,
+      paint: {
+        'circle-color': ['get', 'color'],
+        'circle-radius': spec.circleRadius,
+        'circle-stroke-color': spec.circleStrokeColor,
+        'circle-stroke-width': spec.circleStrokeWidth,
+      },
+    });
+  }
+  const labelId = `${spec.id}-label`;
+  if (!map.getLayer(labelId)) {
+    map.addLayer({
+      id: labelId,
+      type: 'symbol',
+      source: spec.id,
+      ...zoomRange,
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-font': POINT_LABEL_FONTS,
+        'text-size': spec.textSize,
+        'text-anchor': 'top',
+        'text-offset': [0, spec.textOffsetEm],
+        'text-letter-spacing': spec.textLetterSpacing ?? 0,
+        'text-allow-overlap': true,
+      },
+      paint: {
+        'text-color': ['get', 'color'],
+        'text-halo-color': spec.textHaloColor,
+        'text-halo-width': POINT_LABEL_HALO_WIDTH,
+      },
+    });
   }
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────────
 
+/** Un marker natif maplibre-gl + son élément hôte du portal RN. */
+interface MarkerEntry {
+  marker: MapLibreMarker;
+  el: HTMLDivElement;
+}
+
 export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   {
     camera,
+    bounds,
     geojsonLayers,
+    pointLayers,
     markers,
     onPress,
     onZoomChange,
+    onMapReady,
     attributionCompact = true,
     style,
     testID,
@@ -244,10 +389,16 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   const mapRef = useRef<MapLibreMap | null>(null);
   const layersRef = useRef<readonly RealMapGeoJSONLayer[]>(geojsonLayers);
   layersRef.current = geojsonLayers;
+  const pointLayersRef = useRef<readonly RealMapPointLayer[] | undefined>(pointLayers);
+  pointLayersRef.current = pointLayers;
   const onPressRef = useRef<RealMapProps['onPress']>(onPress);
   onPressRef.current = onPress;
   const onZoomChangeRef = useRef<RealMapProps['onZoomChange']>(onZoomChange);
   onZoomChangeRef.current = onZoomChange;
+  const onMapReadyRef = useRef<RealMapProps['onMapReady']>(onMapReady);
+  onMapReadyRef.current = onMapReady;
+  /** Cadrage d'ouverture : figé au premier rendu (la caméra vit ensuite). */
+  const openBoundsRef = useRef<RealMapBounds | undefined>(bounds);
   const [styleReady, setStyleReady] = useState(false);
   const [offline, setOffline] = useState(false);
   /** Miroir de `offline` lisible par les handlers MapLibre (posés une fois). */
@@ -256,18 +407,38 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   const lastErrorAtRef = useRef(0);
   /** Timer du re-test périodique tant que l'état offline est affiché. */
   const offlineRecheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Compteur bumpé à chaque mouvement de caméra → reprojection des markers. */
-  const [, setMoveTick] = useState(0);
+  /**
+   * Markers natifs maplibre-gl par id (AMENDEMENT-13 §5 — perf) : ils suivent
+   * la caméra SANS re-render React ; le contenu RN est rendu par portal dans
+   * l'élément du marker. `markersVersion` re-rend les portals quand le SET de
+   * markers change (jamais pendant un mouvement de caméra).
+   */
+  const markerEntriesRef = useRef<Map<string, MarkerEntry>>(new Map());
+  const [, setMarkersVersion] = useState(0);
+
+  /** Ids des sources de JEU locales (jamais offline pour leurs erreurs). */
+  const gameSourceIds = () => [
+    ...layersRef.current.map((l) => l.id),
+    ...(pointLayersRef.current ?? []).map((l) => l.id),
+  ];
 
   // Création de la carte (une seule fois — le conteneur RNW est un div).
+  // §4bis : AUCUN maxBounds, AUCUN minZoom restrictif — monde librement
+  // navigable ; le cadrage initial (camera OU bounds) n'est qu'une ouverture.
   useEffect(() => {
     const node = containerRef.current as unknown as HTMLElement | null;
     if (!node) return undefined;
+    const openBounds = openBoundsRef.current;
+    const openCamera = camera ?? WORLD_FALLBACK_CAMERA;
     const map = new MapLibreMap({
       container: node,
       style: DARK_MAP_STYLE_URL,
-      center: [camera.lng, camera.lat],
-      zoom: camera.zoom,
+      ...(openBounds
+        ? {
+            bounds: [openBounds.sw, openBounds.ne] as [[number, number], [number, number]],
+            fitBoundsOptions: { padding: openBounds.paddingPx },
+          }
+        : { center: [openCamera.lng, openCamera.lat] as [number, number], zoom: openCamera.zoom }),
       attributionControl: false, // remplacée par la mention compacte GRYD
       dragRotate: false,
       pitchWithRotate: false,
@@ -275,6 +446,8 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     mapRef.current = map;
     // Poignée de debug non énumérée par React (vérifs preview/dev uniquement).
     (node as unknown as { __grydMap?: MapLibreMap }).__grydMap = map;
+    // L'instance est exposée au parent (échelle scopée à CETTE carte — §5/§6).
+    onMapReadyRef.current?.(map);
 
     const setOfflineState = (value: boolean) => {
       offlineRef.current = value;
@@ -302,28 +475,52 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     map.on('load', () => {
       applyGrydStyleOverrides(map);
       for (const spec of layersRef.current) upsertLayer(map, spec);
+      for (const spec of pointLayersRef.current ?? []) upsertPointLayer(map, spec);
       setStyleReady(true);
       onZoomChangeRef.current?.(map.getZoom());
     });
     // Tuiles/style indisponibles → état offline (fond noir + message).
     // Erreurs de sources de jeu locales / non-réseau : jamais offline.
     map.on('error', (event) => {
-      if (!isTilesAvailabilityError(event, layersRef.current.map((l) => l.id))) return;
+      if (!isTilesAvailabilityError(event, gameSourceIds())) return;
       lastErrorAtRef.current = Date.now();
       setOfflineState(true);
       scheduleOfflineRecheck();
     });
+    // CONTEXTE WEBGL PERDU (§7) : même fallback offline (fond noir + message,
+    // jamais d'écran blanc). `webglcontextrestored` retaille et force un rendu
+    // → la relève standard (`idle` après période calme) fait le reste.
+    map.on('webglcontextlost', () => {
+      lastErrorAtRef.current = Date.now();
+      setOfflineState(true);
+      scheduleOfflineRecheck();
+    });
+    map.on('webglcontextrestored', () => {
+      map.resize();
+      map.triggerRepaint();
+    });
+    // Retour sur l'écran/onglet pendant l'état offline : tentative de
+    // restauration (resize + rendu) — certains navigateurs ne rendent le
+    // contexte qu'à la re-visibilité.
+    const onVisibilityChange = () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+      if (!offlineRef.current || mapRef.current !== map) return;
+      map.resize();
+      map.triggerRepaint();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     // Relève : `idle` (le pulse est suspendu tant qu'offline — il retombe
     // donc toujours) + succès tuile réel (`sourcedata` avec tile, hors
     // sources de jeu locales) — signal qui survit à toute animation.
     map.on('idle', clearOfflineIfQuiet);
     map.on('sourcedata', (event: MapSourceDataEvent) => {
       if (!event.tile) return;
-      if (layersRef.current.some((l) => l.id === event.sourceId)) return;
+      if (gameSourceIds().includes(event.sourceId)) return;
       clearOfflineIfQuiet();
     });
+    // Le zoom courant est notifié au parent (seuils UI) — AUCUN setState
+    // interne par frame : les markers natifs suivent la caméra tout seuls (§5).
     map.on('move', () => {
-      setMoveTick((t) => t + 1);
       onZoomChangeRef.current?.(map.getZoom());
     });
     map.on('click', (e: MapMouseEvent) => {
@@ -335,6 +532,8 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         clearTimeout(offlineRecheckRef.current);
         offlineRecheckRef.current = null;
       }
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      markerEntriesRef.current.clear(); // map.remove() retire leur DOM
       mapRef.current = null;
       map.remove();
     };
@@ -342,32 +541,74 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Caméra contrôlée : ease fluide (saut direct si reduce motion).
+  // Caméra contrôlée : ease fluide (saut direct si reduce motion). Ignorée si
+  // la carte s'est ouverte en fitBounds (§4bis — la caméra vit librement).
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !camera || openBoundsRef.current) return;
     const target = { center: [camera.lng, camera.lat] as [number, number], zoom: camera.zoom };
     if (prefersReducedMotion()) map.jumpTo(target);
     else map.easeTo({ ...target, duration: motion.transitionMs });
-  }, [camera.lng, camera.lat, camera.zoom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera?.lng, camera?.lat, camera?.zoom]);
 
-  // Couches de jeu : upsert mémoïsé par identité du tableau. Si le style
-  // n'est pas (encore/plus) chargé — remontage, fast refresh — on laisse le
-  // handler `load` poser `layersRef.current` : jamais de throw en rendu.
+  // Couches de jeu + points : upsert mémoïsé par identité des tableaux. Si le
+  // style n'est pas (encore/plus) chargé — remontage, fast refresh — on laisse
+  // le handler `load` poser les refs : jamais de throw en rendu.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleReady || !map.isStyleLoaded()) return;
     try {
       for (const spec of geojsonLayers) upsertLayer(map, spec);
+      for (const spec of pointLayers ?? []) upsertPointLayer(map, spec);
     } catch {
       // Style en cours de rechargement — le prochain `load` réappliquera tout.
     }
-  }, [geojsonLayers, styleReady]);
+  }, [geojsonLayers, pointLayers, styleReady]);
 
-  // Pulse du/des calques contestés : line-opacity animée en rAF, coupée si
-  // reduce motion (le contour reste alors plein — jamais invisible) et
-  // SUSPENDUE tant que l'état offline est affiché (l'overlay cache le contour
-  // et la carte doit pouvoir retomber `idle` pour relever l'état).
+  // Markers NATIFS maplibre-gl (§5 perf) : synchronisés sur le tableau de
+  // props (création/déplacement/retrait), ré-appendus dans l'ordre (le dernier
+  // au-dessus). Ils suivent la caméra sans aucun re-render React.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const entries = markerEntriesRef.current;
+    const nextIds = new Set((markers ?? []).map((m) => m.id));
+    let changed = false;
+    for (const [id, entry] of entries) {
+      if (!nextIds.has(id)) {
+        entry.marker.remove();
+        entries.delete(id);
+        changed = true;
+      }
+    }
+    for (const m of markers ?? []) {
+      const existing = entries.get(m.id);
+      if (existing) {
+        existing.marker.setLngLat([m.lng, m.lat]);
+      } else {
+        const el = document.createElement('div');
+        const marker = new MapLibreMarker({ element: el, anchor: 'center' })
+          .setLngLat([m.lng, m.lat])
+          .addTo(map);
+        entries.set(m.id, { marker, el });
+        changed = true;
+      }
+    }
+    // Ordre de peinture : ré-appende chaque élément dans l'ordre du tableau
+    // (le DOM empile les suivants au-dessus — « moi » reste dernier/au-dessus).
+    for (const m of markers ?? []) {
+      const el = entries.get(m.id)?.el;
+      el?.parentElement?.appendChild(el);
+    }
+    if (changed) setMarkersVersion((v) => v + 1);
+  }, [markers]);
+
+  // Pulse du/des calques contestés : line-opacity animée en rAF via
+  // setPaintProperty (AUCUN re-render React), coupée si reduce motion (le
+  // contour reste alors plein — jamais invisible) et SUSPENDUE tant que l'état
+  // offline est affiché (l'overlay cache le contour et la carte doit pouvoir
+  // retomber `idle` pour relever l'état).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleReady || offline) return undefined;
@@ -408,35 +649,34 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         if (prefersReducedMotion()) map.jumpTo(stop);
         else map.flyTo(stop);
       },
+      fitBounds(target) {
+        const map = mapRef.current;
+        if (!map) return;
+        map.fitBounds([target.sw, target.ne], {
+          padding: target.paddingPx,
+          ...(prefersReducedMotion() ? { duration: 0 } : {}),
+        });
+      },
     }),
     [],
   );
-
-  /** Projette un marker en px conteneur (null tant que la carte n'existe pas). */
-  const projectMarker = useCallback((lng: number, lat: number) => {
-    const map = mapRef.current;
-    if (!map) return null;
-    const p = map.project([lng, lat]);
-    return { x: p.x, y: p.y };
-  }, []);
 
   return (
     <View style={[styles.root, style]} testID={testID}>
       {/* Conteneur DOM de maplibre-gl (div via RNW). */}
       <View ref={containerRef} style={styles.mapHost} />
 
-      {/* Markers RN projetés (ancre = le point ; enfant centré dessus). */}
-      {markers?.map((marker) => {
-        const xy = projectMarker(marker.lng, marker.lat);
-        if (!xy) return null;
-        return (
-          <View
-            key={marker.id}
-            pointerEvents="box-none"
-            style={[styles.markerAnchor, { left: xy.x, top: xy.y }]}
-          >
-            {marker.children}
-          </View>
+      {/* Contenu RN des markers natifs, rendu par PORTAL dans l'élément de
+          chaque maplibregl.Marker (le marker suit la caméra sans React). */}
+      {markers?.map((m) => {
+        const entry = markerEntriesRef.current.get(m.id);
+        if (!entry) return null;
+        return createPortal(
+          <View pointerEvents="box-none" style={styles.markerContent}>
+            {m.children}
+          </View>,
+          entry.el,
+          m.id,
         );
       })}
 
@@ -469,10 +709,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.noir,
   },
-  markerAnchor: {
-    position: 'absolute',
-    width: 0,
-    height: 0,
+  /** Contenu centré sur le point géo (l'élément du Marker est ancré center). */
+  markerContent: {
     alignItems: 'center',
     justifyContent: 'center',
   },

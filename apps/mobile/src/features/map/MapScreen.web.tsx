@@ -1,20 +1,26 @@
 /**
  * GRYD — BATTLE MAP, variante WEB (aperçu navigateur — cible visuelle
- * prioritaire). AMENDEMENT-13 §2 : l'onglet Carte est posé sur de VRAIES
- * tuiles vectorielles de Paris (RealMap — maplibre-gl, style sombre type
- * Uber-night surchargé aux tokens) : les rues RÉELLES (canal Saint-Martin,
- * bd Voltaire, Faubourg-du-Temple…) sont reconnaissables SOUS les couches de
- * jeu. AMENDEMENT-11 intact : ZÉRO hexagone visible — les couches sont les
- * polygones ORGANIQUES de territory.ts servis en sources GeoJSON par
- * battleGameLayers (mapStyle) : aplats faibles + frontières par état (contesté
- * double contour dont l'orange PULSE, decay pointillé + sablier/secteur,
- * protégé halo + UN shield/secteur, objectif zone chaude + pin, avant-poste,
- * or de la zone bonus), route ouverte, aperçu du parcours sélectionné converti
- * en source ligne GeoJSON réelle. La situation live (AMENDEMENT-09 §2) passe
- * en MARKERS RealMap : moi (point chartreuse + halo respirant, position
- * FICTIVE République — jamais de vraie géoloc), 2 MateMarker opt-in, ≤ 4 POI,
- * 1 défi. Les labels secteurs custom ont disparu : les tuiles réelles portent
- * les noms de quartiers (République, Belleville…).
+ * prioritaire). AMENDEMENT-13 §2/§4bis/§4ter : l'onglet Carte est posé sur de
+ * VRAIES tuiles vectorielles MONDE ENTIER (RealMap — maplibre-gl, style
+ * sombre type Uber-night surchargé aux tokens), librement navigable du niveau
+ * rue au niveau planète : les rues RÉELLES (canal Saint-Martin, bd Voltaire,
+ * Faubourg-du-Temple…) sont reconnaissables SOUS les couches de jeu. ZÉRO
+ * hexagone visible — les couches sont les TRACÉS DE COURSE d'allTerritories
+ * (§4ter : la frontière EST le tracé — boucles nettes + rubans le long des
+ * vraies rues, TOUTES les possessions y compris Lille/Lyon — une seule
+ * source pour les deux cartes) servis par battleGameLayers (mapStyle) :
+ * remplissages faibles + traits par état (contesté DOUBLE trait décalé dont
+ * l'orange PULSE, decay pointillé + sablier/secteur, protégé halo + UN
+ * shield/secteur, objectif zone chaude + pin, avant-poste, or de la zone
+ * bonus), route ouverte, aperçu du parcours sélectionné en source ligne
+ * GeoJSON réelle. Au DÉZOOM (§4bis), sous TERRITORY_DOT_MAX_ZOOM, chaque
+ * possession devient un marqueur-point + label ville (layers MapLibre bornés
+ * par zoom — territoryDotLayers) et les icônes de secteur s'effacent. La
+ * situation live (AMENDEMENT-09 §2) passe en MARKERS RealMap (natifs
+ * maplibre-gl côté web — §5 perf) : moi (point chartreuse + halo respirant,
+ * position FICTIVE République — jamais de vraie géoloc), 2 MateMarker
+ * opt-in, ≤ 4 POI, 1 défi. Les labels secteurs custom ont disparu : les
+ * tuiles réelles portent les noms de quartiers (République, Belleville…).
  * 5 CALQUES de lecture (AMENDEMENT-11 §3) : MODE_EMPHASIS module l'opacité
  * des couches GeoJSON (fills + alpha des frontières) — MapLibre fond les
  * transitions de peinture, bascule douce sans code d'animation dédié.
@@ -43,20 +49,17 @@ import {
 } from '../../ui/game';
 import { deriveRunButtonMode } from '../nav/runContext';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
-import { FRANCE_CITIES_DEMO } from '../territory/franceTerritories';
-import { CityMarkerBadge } from '../territory/TerritoryFranceMap';
+import {
+  TERRITORY_DOT_MAX_ZOOM,
+  decaySablierAnchor,
+  territoryDotLayers,
+} from './allTerritories';
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
-import { CITY_MARKERS_MAX_ZOOM, battleGameLayers, battleMapStyle as ms } from './mapStyle';
+import { battleGameLayers, battleMapStyle as ms } from './mapStyle';
 import { EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
-import {
-  DEFAULT_MAP_MODE,
-  MODE_EMPHASIS,
-  battleTerritories,
-  type MapMode,
-  type ModeEmphasis,
-} from './territory';
+import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -165,27 +168,6 @@ function buildMarkers(
   ];
 }
 
-/**
- * Markers de la navigation MONDE libre (AMENDEMENT-13 §4bis) : sous
- * CITY_MARKERS_MAX_ZOOM les blobs organiques sont sub-pixel — chaque
- * territoire pris (Paris + Lille crew, rival Lyon) est représenté par un
- * marqueur-point coloré + label ville, comme sur « Mon territoire ». Les
- * icônes de secteur (échelle coureur) seraient un amas illisible à ce niveau :
- * seuls les points villes restent.
- */
-function buildWorldMarkers(): RealMapMarker[] {
-  return FRANCE_CITIES_DEMO.map((city) => ({
-    id: `city-${city.id}`,
-    lng: city.center.lng,
-    lat: city.center.lat,
-    children: (
-      <View pointerEvents="none">
-        <CityMarkerBadge city={city} />
-      </View>
-    ),
-  }));
-}
-
 export function MapScreen() {
   const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
   const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
@@ -206,27 +188,27 @@ export function MapScreen() {
     [emph, selectedParcours],
   );
 
-  /** UN sablier PAR SECTEUR en decay (ancre du territoire urgent, sinon decay). */
-  const decayAnchor = useMemo(() => {
-    let anchor: LatLngPoint | null = null;
-    for (const t of battleTerritories()) {
-      if (t.state === 'decayUrgent' || (t.state === 'decay' && !anchor)) {
-        anchor = t.labelAnchor;
-      }
-    }
-    return anchor;
-  }, []);
+  /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
+  const decayAnchor = useMemo(() => decaySablierAnchor(), []);
 
-  /** Vue monde/pays (§4bis) : sous le zoom seuil, markers = points villes. */
+  /**
+   * Vue monde/pays (§4bis) : sous le zoom seuil (le VRAI zoom caméra), les
+   * icônes de secteur (échelle coureur) seraient un amas illisible → on les
+   * retire ; les possessions restent lisibles via les marqueurs-points villes,
+   * rendus en LAYERS MapLibre bornés par zoom (territoryDotLayers).
+   */
   const [worldView, setWorldView] = useState(false);
   const onZoomChange = useCallback((zoom: number) => {
-    setWorldView(zoom < CITY_MARKERS_MAX_ZOOM);
+    setWorldView(zoom < TERRITORY_DOT_MAX_ZOOM);
   }, []);
 
   const markers = useMemo(
-    () => (worldView ? buildWorldMarkers() : buildMarkers(points, decayAnchor, emph)),
+    () => (worldView ? [] : buildMarkers(points, decayAnchor, emph)),
     [points, decayAnchor, emph, worldView],
   );
+
+  /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
+  const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
 
   // map_load_ms (§8) — du montage au premier rendu de la carte (parité native).
   const mountedAtRef = useRef<number>(Date.now());
@@ -242,13 +224,15 @@ export function MapScreen() {
 
   return (
     <View style={styles.root}>
-      {/* ── Vraies tuiles de Paris + couches de jeu + markers (RealMap) ── */}
+      {/* ── Vraies tuiles MONDE + couches de jeu + markers (RealMap) ── */}
       <RealMap
         ref={mapRef}
         camera={EGO_CAMERA}
         geojsonLayers={layers}
+        pointLayers={territoryDotLayers()}
         markers={markers}
         onZoomChange={onZoomChange}
+        onMapReady={setGlMap}
         attributionCompact={false}
         style={StyleSheet.absoluteFill}
         testID="battle-map-reelle"
@@ -256,6 +240,7 @@ export function MapScreen() {
 
       {/* ── Échelle MapLibre stylée tokens + attribution (au-dessus de la nav) ── */}
       <ScaleAttribution
+        map={glMap}
         bottom={insets.bottom + RUN_BUTTON_BOTTOM + SCALE_ABOVE_RUN_BOTTOM}
       />
 
@@ -314,60 +299,45 @@ function StateIcon({
  * Échelle graphique PILOTÉE PAR MAPLIBRE (remplace la barre 500 m fixe) :
  * même principe que le ScaleControl (distance réelle d'un segment écran au
  * centre de la vue, palier « rond » ≤ SCALE_MAX_PX), rendue en tokens GRYD.
- * L'instance carte est récupérée par la poignée `__grydMap` posée par
- * RealMap.web sur son conteneur (un seul RealMap sur cet écran). Attribution
- * © OpenStreetMap © CARTO accolée — le bas de la carte est couvert par la
- * sheet/nav, la mention doit rester VISIBLE (obligation légale).
+ * L'instance carte arrive par la prop `map` (onMapReady de RealMap.web) —
+ * l'échelle est SCOPÉE à SA carte, jamais de sélecteur DOM global (§6 :
+ * plusieurs cartes peuvent être montées en même temps, aperçu Profil +
+ * onglet Carte). Attribution © OpenStreetMap © CARTO accolée — le bas de la
+ * carte est couvert par la sheet/nav, la mention doit rester VISIBLE
+ * (obligation légale).
  */
-function ScaleAttribution({ bottom }: { bottom: number }) {
+function ScaleAttribution({ map, bottom }: { map: MapLibreMap | null; bottom: number }) {
   const [scale, setScale] = useState<{ width: number; label: string } | null>(null);
 
   useEffect(() => {
-    let raf = 0;
-    let attachedMap: MapLibreMap | null = null;
-    let onMove: (() => void) | null = null;
-
-    const attach = () => {
-      const node = document.querySelector('.maplibregl-map') as
-        | (Element & { __grydMap?: MapLibreMap })
-        | null;
-      const map = node?.__grydMap;
-      if (!map) {
-        raf = requestAnimationFrame(attach);
-        return;
+    if (!map) return undefined;
+    const onMove = () => {
+      const midY = map.getContainer().clientHeight / 2;
+      const a = map.unproject([0, midY]);
+      const b = map.unproject([SCALE_PROBE_PX, midY]);
+      const latRad = (((a.lat + b.lat) / 2) * Math.PI) / 180;
+      const meters = Math.hypot(
+        (b.lng - a.lng) * REAL_M_PER_DEG_LAT * Math.cos(latRad),
+        (b.lat - a.lat) * REAL_M_PER_DEG_LAT,
+      );
+      if (!(meters > 0)) return;
+      const mPerPx = meters / SCALE_PROBE_PX;
+      let step: number = SCALE_STEPS_M[0] ?? 100;
+      for (const candidate of SCALE_STEPS_M) {
+        if (candidate / mPerPx <= SCALE_MAX_PX) step = candidate;
       }
-      attachedMap = map;
-      onMove = () => {
-        const midY = map.getContainer().clientHeight / 2;
-        const a = map.unproject([0, midY]);
-        const b = map.unproject([SCALE_PROBE_PX, midY]);
-        const latRad = (((a.lat + b.lat) / 2) * Math.PI) / 180;
-        const meters = Math.hypot(
-          (b.lng - a.lng) * REAL_M_PER_DEG_LAT * Math.cos(latRad),
-          (b.lat - a.lat) * REAL_M_PER_DEG_LAT,
-        );
-        if (!(meters > 0)) return;
-        const mPerPx = meters / SCALE_PROBE_PX;
-        let step: number = SCALE_STEPS_M[0] ?? 100;
-        for (const candidate of SCALE_STEPS_M) {
-          if (candidate / mPerPx <= SCALE_MAX_PX) step = candidate;
-        }
-        const width = step / mPerPx;
-        const label = step >= 1_000 ? `${step / 1_000} km` : `${step} m`;
-        setScale((prev) =>
-          prev && prev.label === label && Math.abs(prev.width - width) < 1 ? prev : { width, label },
-        );
-      };
-      map.on('move', onMove);
-      onMove();
+      const width = step / mPerPx;
+      const label = step >= 1_000 ? `${step / 1_000} km` : `${step} m`;
+      setScale((prev) =>
+        prev && prev.label === label && Math.abs(prev.width - width) < 1 ? prev : { width, label },
+      );
     };
-    attach();
-
+    map.on('move', onMove);
+    onMove();
     return () => {
-      cancelAnimationFrame(raf);
-      if (attachedMap && onMove) attachedMap.off('move', onMove);
+      map.off('move', onMove);
     };
-  }, []);
+  }, [map]);
 
   return (
     <View pointerEvents="none" style={[styles.scaleWrap, { bottom }]}>

@@ -9,17 +9,11 @@
  */
 import { colors, gameColors, mapTokens } from '@klaim/shared';
 import type { RealMapGeoJSONLayer } from '../../ui/game';
-import { franceClusters } from '../territory/franceTerritories';
+import { territoryGeoByState } from './allTerritories';
 import { MAP_BONUS_ZONE, PARCOURS_DEMO } from './demo';
 import { battleMapData } from './fakeHexes';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
-import {
-  battleTerritories,
-  territoriesToGeoJSON,
-  type ModeEmphasis,
-  type Territory,
-  type TerritoryState,
-} from './territory';
+import { type ModeEmphasis, type TerritoryState } from './territory';
 
 /** Décline un token `#RRGGBB` en rgba — n'accepte QUE des tokens hex 6 digits. */
 export function withAlpha(tokenHex: string, alpha: number): string {
@@ -167,21 +161,23 @@ export const battleMapStyle = {
   scaleBar: colors.gris,
 } as const;
 
-// ─── Couches RealMap de la Battle Map (AMENDEMENT-13 §2) ────────────────────
-// Builder PARTAGÉ MapScreen.web (maplibre-gl) / MapScreen natif : les vraies
-// tuiles portent le décor, ce module ne produit QUE les couches de JEU — les
-// polygones ORGANIQUES de territory.ts (AMENDEMENT-11 : zéro hexagone visible)
-// avec leurs traitements de frontière, la route ouverte, la zone bonus et
-// l'aperçu du parcours sélectionné. UI pure — aucune règle de jeu.
+// ─── Couches RealMap des cartes (AMENDEMENT-13 §2/§4bis/§4ter) ──────────────
+// Builder PARTAGÉ MapScreen.web (maplibre-gl) / MapScreen natif / « Mon
+// territoire » : les vraies tuiles portent le décor, ce module ne produit QUE
+// les couches de JEU — les TRACÉS de course d'allTerritories (§4ter : la
+// frontière EST le tracé, plus de formes lissées) avec leurs traitements,
+// la route ouverte, la zone bonus et l'aperçu du parcours sélectionné.
+// UI pure — aucune règle de jeu.
 
-/** Traitements de frontière (mêmes valeurs que l'ex-rendu SVG — px écran). */
-const BORDER_WIDTH = 1.8;
+/** Traitements de frontière (§4ter : trait continu 2-2,5 px — px écran). */
+const BORDER_WIDTH = 2.2;
 const RIVAL_BORDER_WIDTH = 2.6;
-const CONTESTED_INNER_WIDTH = 1.8;
-const CONTESTED_OUTER_WIDTH = 3;
+const CONTESTED_TRAIT_WIDTH = 2.2;
+/** Écart latéral du DOUBLE trait contesté (line-offset ± — §4ter). */
+const CONTESTED_TRAIT_OFFSET_PX = 2.5;
 const CREW_GLOW_WIDTH = 7;
 const PROTECTED_HALO_WIDTH = 5;
-const DECAY_WIDTH = 1.8;
+const DECAY_WIDTH = 2.2;
 /** Pointillés MapLibre : multiples de la largeur du trait (≈ « 6 5 » px SVG). */
 const DECAY_DASH: readonly number[] = [3, 2.5];
 const OBJECTIVE_SOFT_WIDTH = 12;
@@ -192,6 +188,16 @@ const PARCOURS_CASING_WIDTH = 7;
 const PARCOURS_WIDTH = 4;
 /** Segments de l'anneau de la zone bonus (cercle géodésique approché). */
 const BONUS_CIRCLE_STEPS = 48;
+
+/** Emphase pleine (« Mon territoire » — pas de modes de calques là-bas). */
+export const FULL_EMPHASIS: ModeEmphasis = {
+  crew: 1,
+  rival: 1,
+  contested: 1,
+  defense: 1,
+  objective: 1,
+  route: 1,
+};
 
 type RealMapData = RealMapGeoJSONLayer['data'];
 
@@ -237,65 +243,132 @@ function circleCollection(center: LatLngPoint, radiusM: number): RealMapData {
   };
 }
 
-/**
- * Sous ce zoom, les blobs organiques deviennent illisibles/sub-pixel : chaque
- * territoire pris est représenté par un MARQUEUR-POINT coloré + label ville
- * (AMENDEMENT-13 §4bis — chartreuse possession / orange rival), comme sur
- * « Mon territoire ». Les aplats organiques reprennent au zoom ville.
- */
-export const CITY_MARKERS_MAX_ZOOM = 10;
-
-/**
- * GeoJSON par état de territoire — calculé une fois (démo déterministe).
- * §4bis : UNE SEULE source pour les DEUX cartes — la Battle Map rend AUSSI
- * les possessions hors Paris (cluster Lille crew + rival Lyon, mêmes
- * traitements), aucun filtrage par viewport (volumes MVP négligeables).
- */
-let territoryGeoCache: ReadonlyMap<TerritoryState, RealMapData> | null = null;
-function territoryGeoByState(): ReadonlyMap<TerritoryState, RealMapData> {
-  if (territoryGeoCache) return territoryGeoCache;
-  const clusters = franceClusters();
-  const all: readonly Territory[] = [
-    ...battleTerritories(),
-    clusters.lille,
-    clusters.lyonRival,
-  ];
-  const grouped = new Map<TerritoryState, Territory[]>();
-  for (const territory of all) {
-    const bucket = grouped.get(territory.state);
-    if (bucket) bucket.push(territory);
-    else grouped.set(territory.state, [territory]);
-  }
-  const byState = new Map<TerritoryState, RealMapData>();
-  for (const [state, territories] of grouped) {
-    byState.set(state, territoriesToGeoJSON(territories) as RealMapData);
-  }
-  territoryGeoCache = byState;
-  return byState;
-}
-
 let routeCollectionCache: RealMapData | null = null;
 let bonusCollectionCache: RealMapData | null = null;
 const parcoursCollectionCache = new Map<string, RealMapData>();
 
 /**
- * Les couches de jeu de la Battle Map RÉELLE, dans l'ORDRE DE PEINTURE
- * (AMENDEMENT-11 §2, identique à l'ex-rendu SVG) : rival → objectif (lueur
- * douce + aplat) → crew (glow + aplat + frontière) → avant-poste → decay
- * (pointillé, muted red si urgent) → protégé (halo) → contesté (double
- * contour, l'orange EXTÉRIEUR pulse) → zone bonus (anneau or pulsé) → route
- * ouverte → aperçu du parcours sélectionné (source ligne GeoJSON réelle).
- * L'emphase du MODE actif module fills (fillOpacity) et frontières
- * (scaleAlpha) ; MapLibre fond les transitions de peinture (bascule douce).
+ * Couches des TERRITOIRES par état, dans l'ORDRE DE PEINTURE — builder PARTAGÉ
+ * des deux cartes (§4bis : une seule source, allTerritories ; « Mon
+ * territoire » l'appelle avec FULL_EMPHASIS) : rival → objectif (lueur douce +
+ * aplat) → crew (glow + aplat + trait 2,2 px) → avant-poste → decay (ruban
+ * pointillé, muted red si urgent) → protégé (halo doux le long du trait) →
+ * contesté (§4ter : DOUBLE trait chartreuse/orange décalé sur la portion de
+ * tracé partagée — l'orange pulse, plus aucun blob). L'emphase du MODE actif
+ * module fills (fillOpacity) et frontières (scaleAlpha) ; MapLibre fond les
+ * transitions de peinture (bascule douce).
+ */
+export function territoryStateLayers(emph: ModeEmphasis): RealMapGeoJSONLayer[] {
+  const geo = territoryGeoByState();
+  const stateData = (state: TerritoryState): RealMapData =>
+    geo.get(state) ?? EMPTY_COLLECTION;
+  const terr = territoryStyle;
+  return [
+    // Rival : ruban sombre teinté + frontière orange MARQUÉE.
+    {
+      id: 'terr-rival',
+      data: stateData('rival'),
+      fillColor: terr.rivalFill,
+      fillOpacity: emph.rival,
+      lineColor: scaleAlpha(terr.rivalStroke, emph.rival),
+      lineWidth: RIVAL_BORDER_WIDTH,
+    },
+    // Objectif : zone chaude DOUCE (lueur large sans bord dur) + aplat léger.
+    {
+      id: 'terr-objective-soft',
+      data: stateData('objective'),
+      lineColor: scaleAlpha(terr.objectiveSoft, emph.objective),
+      lineWidth: OBJECTIVE_SOFT_WIDTH,
+    },
+    {
+      id: 'terr-objective',
+      data: stateData('objective'),
+      fillColor: terr.objectiveFill,
+      fillOpacity: emph.objective,
+    },
+    // Mon crew : glow + remplissage faible + trait continu (le tracé du run).
+    {
+      id: 'terr-crew-glow',
+      data: stateData('crew'),
+      lineColor: scaleAlpha(terr.crewGlow, emph.crew),
+      lineWidth: CREW_GLOW_WIDTH,
+    },
+    {
+      id: 'terr-crew',
+      data: stateData('crew'),
+      fillColor: terr.crewFill,
+      fillOpacity: emph.crew,
+      lineColor: scaleAlpha(terr.crewStroke, emph.crew),
+      lineWidth: BORDER_WIDTH,
+    },
+    // Avant-poste : petite boucle nette tenue (place de la Bastille).
+    {
+      id: 'terr-outpost',
+      data: stateData('outpost'),
+      fillColor: terr.outpostFill,
+      fillOpacity: emph.crew,
+      lineColor: scaleAlpha(terr.outpostStroke, emph.crew),
+      lineWidth: BORDER_WIDTH,
+    },
+    // Zone à défendre (decay) : ruban à frontière pointillée — muted red si urgent.
+    {
+      id: 'terr-decay-urgent-fill',
+      data: stateData('decayUrgent'),
+      fillColor: terr.decayUrgentFill,
+      fillOpacity: emph.defense,
+    },
+    {
+      id: 'terr-decay',
+      data: stateData('decay'),
+      lineColor: scaleAlpha(terr.decayStroke, emph.defense),
+      lineWidth: DECAY_WIDTH,
+      lineDash: DECAY_DASH,
+    },
+    {
+      id: 'terr-decay-urgent',
+      data: stateData('decayUrgent'),
+      lineColor: scaleAlpha(terr.decayUrgentStroke, emph.defense),
+      lineWidth: DECAY_WIDTH,
+      lineDash: DECAY_DASH,
+    },
+    // Secteur protégé : halo verify le long du trait (le shield est un marker,
+    // UNE icône par secteur).
+    {
+      id: 'terr-protected',
+      data: stateData('protected'),
+      lineColor: scaleAlpha(terr.protectedHalo, emph.defense),
+      lineWidth: PROTECTED_HALO_WIDTH,
+    },
+    // Contesté (§4ter) : la PORTION de tracé partagée en DOUBLE trait décalé —
+    // chartreuse d'un côté, orange PULSÉ de l'autre. Plus aucun blob.
+    {
+      id: 'terr-contested',
+      data: stateData('contested'),
+      lineColor: scaleAlpha(terr.contestedInnerStroke, emph.contested),
+      lineWidth: CONTESTED_TRAIT_WIDTH,
+      lineOffset: -CONTESTED_TRAIT_OFFSET_PX,
+    },
+    {
+      id: 'terr-contested-outer',
+      data: stateData('contested'),
+      lineColor: scaleAlpha(terr.contestedOuterStroke, emph.contested),
+      lineWidth: CONTESTED_TRAIT_WIDTH,
+      lineOffset: CONTESTED_TRAIT_OFFSET_PX,
+      pulse: true,
+    },
+  ];
+}
+
+/**
+ * Les couches de jeu de la BATTLE MAP, dans l'ordre de peinture : les
+ * territoires partagés (territoryStateLayers) puis la zone bonus (anneau or
+ * pulsé), la route ouverte et l'aperçu du parcours sélectionné (source ligne
+ * GeoJSON réelle).
  */
 export function battleGameLayers(
   emph: ModeEmphasis,
   selectedParcoursId: string | null,
 ): RealMapGeoJSONLayer[] {
-  const geo = territoryGeoByState();
-  const stateData = (state: TerritoryState): RealMapData =>
-    geo.get(state) ?? EMPTY_COLLECTION;
-
   if (!routeCollectionCache) {
     routeCollectionCache = lineCollection(battleMapData().points.route);
   }
@@ -318,96 +391,7 @@ export function battleGameLayers(
 
   const terr = territoryStyle;
   return [
-    // Rival : aplat sombre teinté + frontière orange MARQUÉE.
-    {
-      id: 'terr-rival',
-      data: stateData('rival'),
-      fillColor: terr.rivalFill,
-      fillOpacity: emph.rival,
-      lineColor: scaleAlpha(terr.rivalStroke, emph.rival),
-      lineWidth: RIVAL_BORDER_WIDTH,
-    },
-    // Objectif : zone chaude DOUCE (lueur large sans bord dur) + aplat léger.
-    {
-      id: 'terr-objective-soft',
-      data: stateData('objective'),
-      lineColor: scaleAlpha(terr.objectiveSoft, emph.objective),
-      lineWidth: OBJECTIVE_SOFT_WIDTH,
-    },
-    {
-      id: 'terr-objective',
-      data: stateData('objective'),
-      fillColor: terr.objectiveFill,
-      fillOpacity: emph.objective,
-    },
-    // Mon crew : glow + aplat + frontière fine semi-lumineuse.
-    {
-      id: 'terr-crew-glow',
-      data: stateData('crew'),
-      lineColor: scaleAlpha(terr.crewGlow, emph.crew),
-      lineWidth: CREW_GLOW_WIDTH,
-    },
-    {
-      id: 'terr-crew',
-      data: stateData('crew'),
-      fillColor: terr.crewFill,
-      fillOpacity: emph.crew,
-      lineColor: scaleAlpha(terr.crewStroke, emph.crew),
-      lineWidth: BORDER_WIDTH,
-    },
-    // Avant-poste : petit blob organique tenu.
-    {
-      id: 'terr-outpost',
-      data: stateData('outpost'),
-      fillColor: terr.outpostFill,
-      fillOpacity: emph.crew,
-      lineColor: scaleAlpha(terr.outpostStroke, emph.crew),
-      lineWidth: BORDER_WIDTH,
-    },
-    // Zone à défendre (decay) : frontière pointillée — muted red si urgent.
-    {
-      id: 'terr-decay-urgent-fill',
-      data: stateData('decayUrgent'),
-      fillColor: terr.decayUrgentFill,
-      fillOpacity: emph.defense,
-    },
-    {
-      id: 'terr-decay',
-      data: stateData('decay'),
-      lineColor: scaleAlpha(terr.decayStroke, emph.defense),
-      lineWidth: DECAY_WIDTH,
-      lineDash: DECAY_DASH,
-    },
-    {
-      id: 'terr-decay-urgent',
-      data: stateData('decayUrgent'),
-      lineColor: scaleAlpha(terr.decayUrgentStroke, emph.defense),
-      lineWidth: DECAY_WIDTH,
-      lineDash: DECAY_DASH,
-    },
-    // Secteur protégé : halo verify (l'icône shield est un marker, UNE par secteur).
-    {
-      id: 'terr-protected',
-      data: stateData('protected'),
-      lineColor: scaleAlpha(terr.protectedHalo, emph.defense),
-      lineWidth: PROTECTED_HALO_WIDTH,
-    },
-    // Contesté : aplat + contour intérieur chartreuse, contour EXTÉRIEUR orange pulsé.
-    {
-      id: 'terr-contested',
-      data: stateData('contested'),
-      fillColor: terr.contestedFill,
-      fillOpacity: emph.contested,
-      lineColor: scaleAlpha(terr.contestedInnerStroke, emph.contested),
-      lineWidth: CONTESTED_INNER_WIDTH,
-    },
-    {
-      id: 'terr-contested-outer',
-      data: stateData('contested'),
-      lineColor: scaleAlpha(terr.contestedOuterStroke, emph.contested),
-      lineWidth: CONTESTED_OUTER_WIDTH,
-      pulse: true,
-    },
+    ...territoryStateLayers(emph),
     // Zone bonus (1 MAX) : anneau or pointillé, respiration lente.
     {
       id: 'bonus-zone',

@@ -1,19 +1,23 @@
 /**
- * GRYD — BATTLE MAP, variante NATIVE. AMENDEMENT-13 §2/§4 : PARITÉ avec
- * MapScreen.web — mêmes vraies tuiles sombres (RealMap natif =
- * @maplibre/maplibre-react-native, même styleURL dark), mêmes SOURCES de jeu
- * (battleGameLayers — les polygones ORGANIQUES de territory.ts, AMENDEMENT-11 :
- * zéro hexagone visible ; contesté double contour dont l'orange pulse, decay
- * pointillé, protégé halo, objectif zone chaude, avant-poste, zone bonus or,
- * route ouverte, parcours sélectionné en source ligne GeoJSON), mêmes MARKERS
- * (MarkerView via RealMap : shield/sablier/pin/défi/avant-poste par SECTEUR,
- * POI ≤ 4, mates opt-in, « moi » République — position FICTIVE, jamais de
- * vraie géoloc). Caméra égocentrée à l'échelle coureur (EGO_CAMERA, zoom 14.6),
- * navigation MONDE libre (aucun maxBounds). Les labels secteurs custom ont
- * disparu : les tuiles réelles portent les noms de quartiers. Recentrer =
- * flyTo ego. Offline : RealMap natif affiche « Carte indisponible — tes zones
- * restent à toi ». La cible visuelle prioritaire reste la variante web ;
- * vérification device au Milestone 2 (pulse natif = timer JS).
+ * GRYD — BATTLE MAP, variante NATIVE. AMENDEMENT-13 §2/§4/§4bis/§4ter :
+ * PARITÉ avec MapScreen.web — mêmes vraies tuiles sombres MONDE ENTIER
+ * (RealMap natif = @maplibre/maplibre-react-native, même styleURL dark),
+ * mêmes SOURCES de jeu (battleGameLayers — les TRACÉS DE COURSE
+ * d'allTerritories, §4ter : la frontière EST le tracé, zéro hexagone visible ;
+ * contesté DOUBLE trait décalé dont l'orange pulse, decay pointillé, protégé
+ * halo, objectif zone chaude, avant-poste, zone bonus or, route ouverte,
+ * parcours sélectionné en source ligne GeoJSON — TOUTES les possessions dont
+ * Lille/Lyon, une seule source pour les deux cartes), mêmes marqueurs-points
+ * villes au dézoom (territoryDotLayers — layers bornés par zoom, §4bis),
+ * mêmes MARKERS (MarkerView via RealMap : shield/sablier/pin/défi/avant-poste
+ * par SECTEUR, POI ≤ 4, mates opt-in, « moi » République — position FICTIVE,
+ * jamais de vraie géoloc). Caméra égocentrée à l'échelle coureur (EGO_CAMERA,
+ * zoom 14.6), navigation MONDE libre (aucun maxBounds, aucun minZoom). Les
+ * labels secteurs custom ont disparu : les tuiles réelles portent les noms de
+ * quartiers. Recentrer = flyTo ego. Offline : RealMap natif affiche « Carte
+ * indisponible — tes zones restent à toi ». La cible visuelle prioritaire
+ * reste la variante web ; vérification device au Milestone 2 (pulse natif =
+ * transitions de style, §5).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
@@ -31,20 +35,17 @@ import {
 } from '../../ui/game';
 import { deriveRunButtonMode } from '../nav/runContext';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
-import { FRANCE_CITIES_DEMO } from '../territory/franceTerritories';
-import { CityMarkerBadge } from '../territory/TerritoryFranceMap';
+import {
+  TERRITORY_DOT_MAX_ZOOM,
+  decaySablierAnchor,
+  territoryDotLayers,
+} from './allTerritories';
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
-import { CITY_MARKERS_MAX_ZOOM, battleGameLayers } from './mapStyle';
+import { battleGameLayers } from './mapStyle';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
-import {
-  DEFAULT_MAP_MODE,
-  MODE_EMPHASIS,
-  battleTerritories,
-  type MapMode,
-  type ModeEmphasis,
-} from './territory';
+import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
 
 // ─── Constantes de rendu (UI uniquement — mêmes valeurs que la variante web) ─
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -143,24 +144,6 @@ function buildMarkers(
   ];
 }
 
-/**
- * Markers de la navigation MONDE libre (AMENDEMENT-13 §4bis, parité web) :
- * sous CITY_MARKERS_MAX_ZOOM chaque territoire pris (Paris + Lille crew,
- * rival Lyon) est représenté par un marqueur-point coloré + label ville.
- */
-function buildWorldMarkers(): RealMapMarker[] {
-  return FRANCE_CITIES_DEMO.map((city) => ({
-    id: `city-${city.id}`,
-    lng: city.center.lng,
-    lat: city.center.lat,
-    children: (
-      <View pointerEvents="none">
-        <CityMarkerBadge city={city} />
-      </View>
-    ),
-  }));
-}
-
 export function MapScreen() {
   const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
   const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
@@ -181,25 +164,22 @@ export function MapScreen() {
     [emph, selectedParcours],
   );
 
-  /** UN sablier PAR SECTEUR en decay (ancre du territoire urgent, sinon decay). */
-  const decayAnchor = useMemo(() => {
-    let anchor: LatLngPoint | null = null;
-    for (const t of battleTerritories()) {
-      if (t.state === 'decayUrgent' || (t.state === 'decay' && !anchor)) {
-        anchor = t.labelAnchor;
-      }
-    }
-    return anchor;
-  }, []);
+  /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
+  const decayAnchor = useMemo(() => decaySablierAnchor(), []);
 
-  /** Vue monde/pays (§4bis) : sous le zoom seuil, markers = points villes. */
+  /**
+   * Vue monde/pays (§4bis) : sous le zoom seuil (le VRAI zoom caméra), les
+   * icônes de secteur (échelle coureur) seraient un amas illisible → on les
+   * retire ; les possessions restent lisibles via les marqueurs-points villes,
+   * rendus en LAYERS MapLibre bornés par zoom (territoryDotLayers).
+   */
   const [worldView, setWorldView] = useState(false);
   const onZoomChange = useCallback((zoom: number) => {
-    setWorldView(zoom < CITY_MARKERS_MAX_ZOOM);
+    setWorldView(zoom < TERRITORY_DOT_MAX_ZOOM);
   }, []);
 
   const markers = useMemo(
-    () => (worldView ? buildWorldMarkers() : buildMarkers(points, decayAnchor, emph)),
+    () => (worldView ? [] : buildMarkers(points, decayAnchor, emph)),
     [points, decayAnchor, emph, worldView],
   );
 
@@ -217,11 +197,12 @@ export function MapScreen() {
 
   return (
     <View style={styles.root}>
-      {/* ── Vraies tuiles de Paris + couches de jeu + markers (RealMap) ── */}
+      {/* ── Vraies tuiles MONDE + couches de jeu + markers (RealMap) ── */}
       <RealMap
         ref={mapRef}
         camera={EGO_CAMERA}
         geojsonLayers={layers}
+        pointLayers={territoryDotLayers()}
         markers={markers}
         onZoomChange={onZoomChange}
         attributionCompact={false}

@@ -1,200 +1,47 @@
 /**
- * GRYD — « Mon territoire » sur VRAIE carte de France (AMENDEMENT-13 §3).
- * RealMap (vraies tuiles sombres, monde librement navigable §4bis) + les
- * territoires RÉELS en blobs ORGANIQUES (AMENDEMENT-11 — zéro hexagone) :
- * Paris = la scène démo République (tous les états : contesté double contour
- * pulse, decay pointillé, protégé halo, objectif, avant-poste), Lille = 2e
- * cluster chartreuse, Lyon = crew adverse (orange). Au niveau France les blobs
- * sont sub-pixel → chaque territoire est représenté par un MARQUEUR-POINT
- * coloré + label ville (§4bis), tappable : flyTo animé vers la ville (Paris à
- * l'échelle coureur — on retrouve la Battle Map démo ; Lille/Lyon vue blob) ;
- * bouton retour France + chips « Mes territoires » pour la navigation rapide.
- * `preview` = apercu statique du Profil (aucune interaction, pas d'overlays).
- * Offline géré par RealMap (fond noir + message — jamais d'écran blanc).
- * Couleurs : tokens uniquement (territoryStyle). Reduce motion : géré par
- * RealMap (flyTo → saut sec, pulse coupé).
+ * GRYD — « Mon territoire » sur VRAIE carte (AMENDEMENT-13 §3/§4bis/§4ter).
+ * RealMap (vraies tuiles sombres, MONDE librement navigable — aucun verrou) +
+ * les possessions en TRACÉS DE COURSE nets (§4ter : la frontière EST le tracé
+ * — boucles République/Lille, rubans quai de Valmy/Faubourg-du-Temple/berges
+ * du Rhône), servies par la MÊME source et le MÊME builder que la Battle Map
+ * (allTerritories + territoryStateLayers — §4bis : une seule source pour les
+ * deux cartes). L'écran s'OUVRE en fitBounds de l'ENSEMBLE des possessions
+ * (possessionsBounds — pas un cadrage France codé en dur). Sous
+ * TERRITORY_DOT_MAX_ZOOM chaque territoire est un MARQUEUR-POINT + label
+ * ville, rendu en LAYERS MapLibre bornés par zoom (territoryDotLayers — le
+ * seuil suit le zoom RÉEL : dézoom manuel → les points réapparaissent).
+ * Navigation : tap sur un point (vue dézoomée) → flyTo la ville (Paris à
+ * l'échelle coureur — on retrouve la Battle Map démo) ; chips « Mes
+ * territoires » (Paris · Lille · Rival Lyon) → flyTo ; bouton retour →
+ * fitBounds des possessions. `preview` = aperçu statique du Profil (aucune
+ * interaction, pas d'overlays — carte NON-interactive, §7). Offline/WebGL
+ * perdu : gérés par RealMap (fond noir + message — jamais d'écran blanc).
+ * Couleurs : tokens uniquement. Reduce motion : géré par RealMap (flyTo →
+ * saut sec, pulse coupé).
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
+import { RealMap, type RealMapPressEvent, type RealMapRef } from '../../ui/game';
 import {
-  RealMap,
-  type RealMapGeoJSONLayer,
-  type RealMapMarker,
-  type RealMapPressEvent,
-  type RealMapRef,
-} from '../../ui/game';
-import { territoryStyle as terr } from '../map/mapStyle';
-import {
-  battleTerritories,
-  territoriesToGeoJSON,
-  type Territory,
-  type TerritoryState,
-} from '../map/territory';
-import {
-  FRANCE_CITIES_DEMO,
-  FRANCE_VIEW_CAMERA,
-  franceClusters,
-  type FranceCity,
-  type FranceCityId,
-} from './franceTerritories';
+  TERRITORY_DOT_MAX_ZOOM,
+  possessionsBounds,
+  territoryDotLayers,
+} from '../map/allTerritories';
+import { FULL_EMPHASIS, territoryStateLayers } from '../map/mapStyle';
+import { FRANCE_CITIES_DEMO, type FranceCity, type FranceCityId } from './franceTerritories';
 
-// ─── Constantes de rendu (UI uniquement — mêmes traitements que la Battle Map) ─
-/** Frontière normale : contour fin semi-lumineux. */
-const BORDER_WIDTH = 1.8;
-/** Frontière rivale : contour orange MARQUÉ. */
-const RIVAL_BORDER_WIDTH = 2.6;
-/** Double contour contesté : chartreuse dedans, orange pulsé dehors. */
-const CONTESTED_INNER_WIDTH = 1.8;
-const CONTESTED_OUTER_WIDTH = 3;
-/** Glow crew + halo protégé + lueur objectif (mêmes valeurs que MapScreen). */
-const CREW_GLOW_WIDTH = 7;
-const PROTECTED_HALO_WIDTH = 5;
-const OBJECTIVE_SOFT_WIDTH = 12;
-/** Frontière decay : pointillé organique. */
-const DECAY_DASH = [6, 5] as const;
-const DECAY_WIDTH = 1.8;
-/** Marqueur-point ville (§4bis) : taille minimale lisible au niveau France. */
-const CITY_DOT_SIZE = 12;
-/** Largeur fixe du marker ville (label centré sur le point, jamais replié). */
-const CITY_MARKER_WIDTH = 120;
-/**
- * Caméra de l'APERÇU Profil (hauteur ~190 px) : légèrement dézoomée et
- * recentrée entre Lille et Lyon pour que les 3 marqueurs-points tiennent dans
- * le cadre mini (la vue plein écran garde FRANCE_VIEW_CAMERA).
- */
-const PREVIEW_CAMERA = { lng: 3.2, lat: 47.85, zoom: 3.8 } as const;
-/** Rayon (en degrés ~ lat/lng) du hit-test « tap sur un territoire » France. */
+// ─── Constantes de rendu (UI uniquement) ────────────────────────────────────
+/** Marge intérieure du fitBounds plein écran (l'ensemble des possessions). */
+const OVERVIEW_FIT_PADDING_PX = 56;
+/** Marge du fitBounds de l'APERÇU Profil (cadre mini ~190 px de haut). */
+const PREVIEW_FIT_PADDING_PX = 28;
+/** Rayon (en degrés ~ lat/lng) du hit-test « tap sur un territoire » dézoomé. */
 const CITY_TAP_RADIUS_DEG = 1.1;
 
-/** Vue courante : la France entière, ou une ville zoomée. */
+/** Vue courante (chips/bouton retour) : l'ensemble des possessions ou une ville. */
 type FranceView = 'france' | FranceCityId;
-
-/**
- * Marqueur-point ville (§4bis) : point coloré à taille minimale (chartreuse
- * possession / orange rival) + label ville. PARTAGÉ avec la Battle Map (même
- * représentation des possessions sous le zoom seuil, CITY_MARKERS_MAX_ZOOM).
- */
-export function CityMarkerBadge({ city }: { city: FranceCity }) {
-  return (
-    <View style={styles.cityMarker}>
-      <View style={[styles.cityDot, city.rival ? styles.cityDotRival : styles.cityDotCrew]} />
-      <Text style={[styles.cityLabel, city.rival && styles.cityLabelRival]} numberOfLines={1}>
-        {city.rival ? `${city.label.toUpperCase()} · RIVAL` : city.label.toUpperCase()}
-      </Text>
-    </View>
-  );
-}
-
-/** Une couche RealMap par territoire+traitement (frontière AMENDEMENT-11). */
-function layersOfTerritory(idPrefix: string, t: Territory): RealMapGeoJSONLayer[] {
-  const data = territoriesToGeoJSON([t]) as unknown as GeoJSON.FeatureCollection;
-  const byState: Record<TerritoryState, RealMapGeoJSONLayer[]> = {
-    crew: [
-      { id: `${idPrefix}-glow`, data, lineColor: terr.crewGlow, lineWidth: CREW_GLOW_WIDTH },
-      {
-        id: idPrefix,
-        data,
-        fillColor: terr.crewFill,
-        lineColor: terr.crewStroke,
-        lineWidth: BORDER_WIDTH,
-      },
-    ],
-    rival: [
-      {
-        id: idPrefix,
-        data,
-        fillColor: terr.rivalFill,
-        lineColor: terr.rivalStroke,
-        lineWidth: RIVAL_BORDER_WIDTH,
-      },
-    ],
-    contested: [
-      {
-        id: idPrefix,
-        data,
-        fillColor: terr.contestedFill,
-        lineColor: terr.contestedInnerStroke,
-        lineWidth: CONTESTED_INNER_WIDTH,
-      },
-      {
-        id: `${idPrefix}-out`,
-        data,
-        lineColor: terr.contestedOuterStroke,
-        lineWidth: CONTESTED_OUTER_WIDTH,
-        pulse: true,
-      },
-    ],
-    protected: [
-      { id: idPrefix, data, lineColor: terr.protectedHalo, lineWidth: PROTECTED_HALO_WIDTH },
-    ],
-    decay: [
-      {
-        id: idPrefix,
-        data,
-        lineColor: terr.decayStroke,
-        lineWidth: DECAY_WIDTH,
-        lineDash: DECAY_DASH,
-      },
-    ],
-    decayUrgent: [
-      {
-        id: idPrefix,
-        data,
-        fillColor: terr.decayUrgentFill,
-        lineColor: terr.decayUrgentStroke,
-        lineWidth: DECAY_WIDTH,
-        lineDash: DECAY_DASH,
-      },
-    ],
-    objective: [
-      { id: `${idPrefix}-soft`, data, lineColor: terr.objectiveSoft, lineWidth: OBJECTIVE_SOFT_WIDTH },
-      { id: idPrefix, data, fillColor: terr.objectiveFill },
-    ],
-    outpost: [
-      {
-        id: idPrefix,
-        data,
-        fillColor: terr.outpostFill,
-        lineColor: terr.outpostStroke,
-        lineWidth: BORDER_WIDTH,
-      },
-    ],
-  };
-  return byState[t.state];
-}
-
-/**
- * TOUTES les couches de la vue France (une seule source pour les deux cartes,
- * §4bis — pas de filtrage par viewport, volumes MVP négligeables) : Lyon rival
- * + Lille crew + la scène Paris complète, dans l'ordre de peinture Battle Map
- * (rival → objectif → crew → avant-poste → decay → protégé → contesté).
- */
-function buildFranceLayers(): RealMapGeoJSONLayer[] {
-  const clusters = franceClusters();
-  const paris = new Map<TerritoryState, Territory>();
-  for (const t of battleTerritories()) paris.set(t.state, t);
-  const order: readonly TerritoryState[] = [
-    'rival',
-    'objective',
-    'crew',
-    'outpost',
-    'decay',
-    'decayUrgent',
-    'protected',
-    'contested',
-  ];
-  const layers: RealMapGeoJSONLayer[] = [
-    ...layersOfTerritory('fr-lyon', clusters.lyonRival),
-    ...layersOfTerritory('fr-lille', clusters.lille),
-  ];
-  for (const state of order) {
-    const t = paris.get(state);
-    if (t) layers.push(...layersOfTerritory(`fr-paris-${state}`, t));
-  }
-  return layers;
-}
 
 export interface TerritoryFranceMapProps {
   /** Aperçu statique (bloc Profil) : aucune interaction, pas d'overlays. */
@@ -206,24 +53,38 @@ export interface TerritoryFranceMapProps {
 export function TerritoryFranceMap({ preview = false, style, testID }: TerritoryFranceMapProps) {
   const mapRef = useRef<RealMapRef>(null);
   const [view, setView] = useState<FranceView>('france');
+  /**
+   * Le tap-vers-ville n'est actif que sous le zoom seuil (là où les points
+   * villes sont visibles) — piloté par le zoom RÉEL de la caméra (§4bis),
+   * pas par l'état de vue : après un flyTo puis un dézoom manuel, ça remarche.
+   */
+  const [dotsVisible, setDotsVisible] = useState(true);
+  const onZoomChange = useCallback((zoom: number) => {
+    setDotsVisible(zoom < TERRITORY_DOT_MAX_ZOOM);
+  }, []);
 
-  /** Couches mémoïsées (perf AMENDEMENT-13 §5 — jamais de re-render par frame). */
-  const layers = useMemo(buildFranceLayers, []);
+  /** Couches TRACÉ-BASED partagées avec la Battle Map (§4bis/§4ter). */
+  const layers = useMemo(() => territoryStateLayers(FULL_EMPHASIS), []);
+  /** Cadrage d'ouverture : fitBounds de TOUTES les possessions (§4bis). */
+  const bounds = useMemo(
+    () => possessionsBounds(preview ? PREVIEW_FIT_PADDING_PX : OVERVIEW_FIT_PADDING_PX),
+    [preview],
+  );
 
   const goCity = useCallback((city: FranceCity) => {
     setView(city.id);
     mapRef.current?.flyTo({ lng: city.center.lng, lat: city.center.lat, zoom: city.zoom });
   }, []);
 
-  const backToFrance = useCallback(() => {
+  const backToOverview = useCallback(() => {
     setView('france');
-    mapRef.current?.flyTo({ ...FRANCE_VIEW_CAMERA });
+    mapRef.current?.fitBounds(possessionsBounds(OVERVIEW_FIT_PADDING_PX));
   }, []);
 
-  /** Tap sur un territoire (vue France) : flyTo la ville la plus proche. */
+  /** Tap sur un point ville (vue dézoomée) : flyTo la ville la plus proche. */
   const onMapPress = useCallback(
     (e: RealMapPressEvent) => {
-      if (view !== 'france') return;
+      if (!dotsVisible) return;
       let best: FranceCity | null = null;
       let bestDist = CITY_TAP_RADIUS_DEG;
       for (const city of FRANCE_CITIES_DEMO) {
@@ -235,63 +96,38 @@ export function TerritoryFranceMap({ preview = false, style, testID }: Territory
       }
       if (best) goCity(best);
     },
-    [view, goCity],
+    [dotsVisible, goCity],
   );
-
-  /** Marqueurs-points ville (§4bis) — visibles seulement au niveau France. */
-  const markers = useMemo((): readonly RealMapMarker[] => {
-    if (view !== 'france') return [];
-    return FRANCE_CITIES_DEMO.map((city) => {
-      return {
-        id: `city-${city.id}`,
-        lng: city.center.lng,
-        lat: city.center.lat,
-        children: preview ? (
-          // Aperçu Profil : jamais de bouton dans le bouton (le card est Pressable).
-          <CityMarkerBadge city={city} />
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Voir ${city.label}`}
-            onPress={() => goCity(city)}
-            hitSlop={10}
-            style={({ pressed }) => (pressed ? styles.pressed : null)}
-          >
-            <CityMarkerBadge city={city} />
-          </Pressable>
-        ),
-      };
-    });
-  }, [view, preview, goCity]);
 
   return (
     <View style={[styles.root, style]} pointerEvents={preview ? 'none' : 'auto'} testID={testID}>
       <RealMap
         ref={mapRef}
-        camera={preview ? PREVIEW_CAMERA : FRANCE_VIEW_CAMERA}
+        bounds={bounds}
         geojsonLayers={layers}
-        markers={markers}
+        pointLayers={territoryDotLayers()}
         onPress={preview ? undefined : onMapPress}
+        onZoomChange={preview ? undefined : onZoomChange}
         style={styles.map}
       />
 
-      {/* ── Retour France (vue ville) — jamais en aperçu ── */}
+      {/* ── Retour à l'ensemble des possessions (vue ville) — jamais en aperçu ── */}
       {!preview && view !== 'france' ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Revenir à la vue France"
-          onPress={backToFrance}
+          accessibilityLabel="Revenir à la vue de toutes mes possessions"
+          onPress={backToOverview}
           hitSlop={8}
           style={({ pressed }) => [styles.backFrance, pressed && styles.pressed]}
         >
           <View style={styles.backChevron}>
             <Icon name="chevron" size={13} color={colors.blanc} />
           </View>
-          <Text style={styles.backFranceText}>France</Text>
+          <Text style={styles.backFranceText}>Mes territoires</Text>
         </Pressable>
       ) : null}
 
-      {/* ── Chips « Mes territoires » (§4bis — navigation rapide) ── */}
+      {/* ── Chips « Mes territoires » (§4bis — navigation rapide, flyTo) ── */}
       {!preview ? (
         <View style={styles.chipsRow} pointerEvents="box-none">
           {FRANCE_CITIES_DEMO.map((city) => {
@@ -309,7 +145,7 @@ export function TerritoryFranceMap({ preview = false, style, testID }: Territory
                 ]}
               >
                 <View
-                  style={[styles.chipDot, city.rival ? styles.cityDotRival : styles.cityDotCrew]}
+                  style={[styles.chipDot, city.rival ? styles.chipDotRival : styles.chipDotCrew]}
                 />
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {city.rival ? `Rival ${city.label}` : city.label}
@@ -328,26 +164,7 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   pressed: { opacity: 0.7 },
 
-  // ── Marqueur-point ville (niveau France) ──
-  cityMarker: { width: CITY_MARKER_WIDTH, alignItems: 'center', gap: 4 },
-  cityDot: {
-    width: CITY_DOT_SIZE,
-    height: CITY_DOT_SIZE,
-    borderRadius: CITY_DOT_SIZE / 2,
-    borderWidth: 2,
-    borderColor: colors.noir,
-  },
-  cityDotCrew: { backgroundColor: colors.chartreuse },
-  cityDotRival: { backgroundColor: gameColors.rival },
-  cityLabel: {
-    color: colors.chartreuse,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  cityLabelRival: { color: gameColors.rival },
-
-  // ── Bouton retour France (vue ville) ──
+  // ── Bouton retour (vue ville → fitBounds des possessions) ──
   backFrance: {
     position: 'absolute',
     top: 12,
@@ -388,6 +205,8 @@ const styles = StyleSheet.create({
   },
   chipActive: { borderColor: colors.chartreuse40 },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
+  chipDotCrew: { backgroundColor: colors.chartreuse },
+  chipDotRival: { backgroundColor: gameColors.rival },
   chipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   chipTextActive: { color: colors.blanc },
 });

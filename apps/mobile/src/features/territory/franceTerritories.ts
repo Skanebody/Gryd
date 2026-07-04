@@ -1,19 +1,18 @@
 /**
  * GRYD — données démo « Mon territoire » France réelle (AMENDEMENT-13 §3).
- * Saison 0 : Paris (la scène République — réutilisée telle quelle via
- * territory.ts) + 2e cluster chartreuse à LILLE + crew adverse vers LYON.
- * Les clusters Lille/Lyon sont de VRAIES cellules H3 res 10 posées le long de
- * vrais axes (rue Nationale/Vieux-Lille ; berges du Rhône) puis fusionnées et
- * lissées par le MÊME pipeline organique que Paris (AMENDEMENT-11 : zéro
- * hexagone visible). 100 % déterministe — aucune règle de jeu ici, pur ancrage
- * démo. Remplacé par la lecture hex_claims (Supabase) au Milestone 2.
+ * Saison 0 : Paris (la scène République) + 2e possession chartreuse à LILLE +
+ * crew adverse vers LYON. AMENDEMENT-13 §4ter : à l'AFFICHAGE les possessions
+ * sont des TRACÉS de course nets (boucle LILLE_BOUCLE, couloir
+ * LYON_BERGES_RHONE — consommés par allTerritories) ; les clusters H3 res 10
+ * générés ici restent la VÉRITÉ « zones » (KPI/zoneCount — les cellules sont
+ * le moteur invisible, jamais rendues). 100 % déterministe — aucune règle de
+ * jeu ici, pur ancrage démo. Remplacé par hex_claims (Supabase) au Milestone 2.
  */
 import { gridDisk, gridPathCells, latLngToCell } from 'h3-js';
 import { H3_RESOLUTION } from '@klaim/shared';
 import { battleMapData, battleMapSummary } from '../map/fakeHexes';
 import {
   EGO_REPUBLIQUE,
-  FRANCE_CAMERA,
   LYON_RIVAL,
   RUNNER_SCALE_ZOOM,
   type LatLngPoint,
@@ -53,9 +52,6 @@ export const FRANCE_CITIES_DEMO: readonly FranceCity[] = [
   { id: 'lyon', label: 'Lyon', rival: true, center: LYON_RIVAL, zoom: CITY_BLOB_ZOOM },
 ] as const;
 
-/** Caméra d'ouverture de la vue France (réutilise l'ancre réelle partagée). */
-export const FRANCE_VIEW_CAMERA = FRANCE_CAMERA;
-
 // ─── Axes réels des clusters démo (waypoints lat/lng, précision ~20-30 m) ───
 
 /** Lille : rue Nationale (Grand-Place → Champ de Mars) puis Vieux-Lille. */
@@ -71,12 +67,47 @@ const LILLE_VIEUX_LILLE: readonly LatLngPoint[] = [
   { lat: 50.6407, lng: 3.062 }, // Vieux-Lille, vers la cathédrale de la Treille
 ];
 
-/** Lyon rival : berges du Rhône (pont de la Guillotière → quai de Serbie). */
-const LYON_BERGES_RHONE: readonly LatLngPoint[] = [
-  { lat: 45.7562, lng: 4.841 }, // pont de la Guillotière
-  { lat: 45.761, lng: 4.8425 }, // quai Victor-Augagneur
-  { lat: 45.764, lng: 4.8419 },
-  { lat: 45.7655, lng: 4.8415 }, // quai de Serbie
+/**
+ * Lyon rival : berges du Rhône, rive gauche (pont de la Guillotière → quai de
+ * Serbie). GÉOMÉTRIE RÉELLE DES QUAIS (§4ter « pas de vol d'oiseau ») : ways
+ * OSM « Quai Victor Augagneur » + « Quai Général Sarrail » via Overpass
+ * (2026-07-05), assemblés (jonction au pont Lafayette), tronqués, RDP 5 m.
+ */
+export const LYON_BERGES_RHONE: readonly LatLngPoint[] = [
+  { lat: 45.7564, lng: 4.84046 }, // pont de la Guillotière
+  { lat: 45.75676, lng: 4.84067 },
+  { lat: 45.75718, lng: 4.84075 }, // quai Victor-Augagneur, le long du fleuve
+  { lat: 45.76378, lng: 4.84144 }, // pont Lafayette
+  { lat: 45.76586, lng: 4.84152 }, // quai Général-Sarrail, vers quai de Serbie
+];
+
+/**
+ * BOUCLE LILLE (AMENDEMENT-13 §4ter : la frontière EST le tracé du run,
+ * ~3,1 km) : Grand-Place → rue Nationale/bd de la Liberté → esplanade du
+ * Champ de Mars (Façade de l'Esplanade) → rue de Jemmapes → avenue du
+ * Peuple-Belge → place Louise-de-Bettignies → rue de la Monnaie → rue
+ * Esquermoise → Grand-Place. ROUTÉE SUR LES VRAIES RUES : OSRM public foot +
+ * ways OSM (rue de la Monnaie) via Overpass, 2026-07-05, RDP 5 m, figée
+ * (aucune dépendance réseau au runtime). Anneau OUVERT.
+ */
+export const LILLE_BOUCLE: readonly LatLngPoint[] = [
+  { lat: 50.6369, lng: 3.06376 }, // Grand-Place
+  { lat: 50.63726, lng: 3.06335 },
+  { lat: 50.63727, lng: 3.0631 }, // rue Nationale
+  { lat: 50.63457, lng: 3.05678 }, // bd de la Liberté
+  { lat: 50.6374, lng: 3.05164 }, // square Daubenton (Champ de Mars)
+  { lat: 50.63902, lng: 3.05342 }, // square du Ramponneau
+  { lat: 50.63949, lng: 3.05364 },
+  { lat: 50.63984, lng: 3.05368 }, // Façade de l'Esplanade (bord de Deûle)
+  { lat: 50.64264, lng: 3.05351 },
+  { lat: 50.64331, lng: 3.05319 }, // rue de Jemmapes
+  { lat: 50.64542, lng: 3.06042 }, // rue Maracci
+  { lat: 50.64456, lng: 3.06108 }, // avenue du Peuple-Belge
+  { lat: 50.64154, lng: 3.064 },
+  { lat: 50.64097, lng: 3.06499 }, // place Louise-de-Bettignies
+  { lat: 50.64062, lng: 3.06413 }, // rue de la Monnaie (Vieux-Lille)
+  { lat: 50.6386, lng: 3.06305 }, // rue Esquermoise
+  { lat: 50.6376, lng: 3.0633 },
 ];
 
 // ─── Génération H3 → territoires organiques (même pipeline que Paris) ───────
