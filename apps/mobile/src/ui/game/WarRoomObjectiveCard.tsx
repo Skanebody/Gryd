@@ -75,7 +75,7 @@ export function WarRoomObjectiveCard({
       {progress !== undefined ? (
         <View style={styles.progressBlock}>
           <ProgressBar value={progress} height={7} fill={expired ? colors.gris : gameColors.crew} />
-          <Text style={styles.progressLabel}>
+          <Text style={styles.progressLabel} numberOfLines={1}>
             {Math.round(Math.min(1, Math.max(0, progress)) * 100)} %
           </Text>
         </View>
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   zone: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700' },
   objective: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 19 },
   progressBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  progressLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', width: 40, textAlign: 'right' },
+  progressLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', width: 44, flexShrink: 0, textAlign: 'right' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   meta: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },

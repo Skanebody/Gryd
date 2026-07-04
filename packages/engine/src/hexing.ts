@@ -18,12 +18,25 @@
  * long des interpolations — acceptable au MVP : l'échantillonnage GPS en course
  * (~1 pt/s-5 s, soit tous les 3-15 m) est bien plus dense que la taille d'hex.
  */
-import { gridPathCells, latLngToCell } from 'h3-js';
-import { H3_RESOLUTION, TRACE_BUFFER_M } from '@klaim/shared/game-rules';
-import type { Segment } from './validation.ts';
+import {
+  cellToLatLng,
+  getHexagonAreaAvg,
+  gridPathCells,
+  latLngToCell,
+  polygonToCells,
+  UNITS,
+} from 'h3-js';
+import {
+  H3_RESOLUTION,
+  LOOP_CLOSE_TOLERANCE_M,
+  LOOP_MIN_PERIMETER_M,
+  TRACE_BUFFER_M,
+} from '@klaim/shared/game-rules';
+import { haversineM, type Segment } from './validation.ts';
 
 // Constantes physiques / géométriques — pas des règles de jeu.
 const EARTH_RADIUS_M = 6_371_000;
+const RAD_PER_DEG = Math.PI / 180;
 const BUFFER_SAMPLE_BEARINGS = 6; // 6 caps à 60° — épouse la géométrie hexagonale
 
 /** Point situé à `distM` mètres de `p` au cap `bearingRad` (sphère). */
@@ -48,8 +61,9 @@ function destination(
 /**
  * Cellules H3 res 10 traversées par les segments claimables, dédupliquées,
  * en représentation string H3 (la conversion BIGINT est un détail DB).
- * Jamais de remplissage d'intérieur de boucle (AMENDEMENT-02 §2) : seuls les
- * hexes traversés (+ tolérance GPS) sont retournés.
+ * Retourne le COULOIR seul : les hexes traversés (+ tolérance GPS). Le
+ * remplissage d'intérieur de boucle fermée (AMENDEMENT-12 §B, delta sur
+ * AMENDEMENT-02 §2) est une étape SÉPARÉE : detectClosedLoop + enclosedCells.
  */
 export function hexesForSegments(segments: Segment[]): string[] {
   const cells = new Set<string>();
@@ -80,6 +94,124 @@ export function hexesForSegments(segments: Segment[]): string[] {
     }
   }
   return [...cells];
+}
+
+// ─── AMENDEMENT-12 §B — « La boucle fait la zone » ───────────────────────────
+
+/** Point minimal lat/lng (un RunPoint est structurellement compatible). */
+export interface LatLngPoint {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Aire (m²) du polygone formé par la trace refermée sur elle-même : shoelace
+ * sur une projection équirectangulaire centrée (coordonnées relatives au 1er
+ * point pour la stabilité numérique). Précision largement suffisante à
+ * l'échelle d'une course ; ne sert qu'à écarter les polygones DÉGÉNÉRÉS
+ * (aller-retour → aire ~0), jamais à compter des zones (ça, c'est h3).
+ */
+function traceAreaM2(points: readonly LatLngPoint[]): number {
+  const first = points[0];
+  if (first === undefined) return 0;
+  let latSum = 0;
+  for (const p of points) latSum += p.lat;
+  const cosLat0 = Math.cos((latSum / points.length) * RAD_PER_DEG);
+  const x = (p: LatLngPoint): number => (p.lng - first.lng) * RAD_PER_DEG * cosLat0 * EARTH_RADIUS_M;
+  const y = (p: LatLngPoint): number => (p.lat - first.lat) * RAD_PER_DEG * EARTH_RADIUS_M;
+  let doubled = 0;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]!;
+    const b = points[(i + 1) % points.length]!;
+    doubled += x(a) * y(b) - x(b) * y(a);
+  }
+  return Math.abs(doubled) / 2;
+}
+
+/**
+ * Trace candidate au polygone de boucle (AMENDEMENT-12 §B). PURE. La boucle
+ * n'est détectable que sur une trace claimable CONTIGUË : exactement UN
+ * segment claimable — aucun segment exclu du claim (§3.2 : allure hors
+ * bornes, véhicule) ni coupure GPS entre le départ et la fermeture. Sinon,
+ * aplatir les segments restants relierait leurs extrémités en ligne droite :
+ * l'aire parcourue en segment exclu (voiture…) resterait ENFERMÉE dans le
+ * polygone et serait capturée en intérieur, alors que le périmètre n'a pas
+ * été couru en entier. Retourne le segment unique, ou null si la trace n'est
+ * pas contiguë → couloir seul (« trait »), jamais d'intérieur.
+ */
+export function loopTracePoints<P extends LatLngPoint>(
+  segments: readonly (readonly P[])[],
+): readonly P[] | null {
+  return segments.length === 1 ? segments[0]! : null;
+}
+
+/**
+ * Boucle fermée (AMENDEMENT-12 §B) ? PURE. Trois conditions, dans l'ordre :
+ *  1. la trace revient à ≤ LOOP_CLOSE_TOLERANCE_M (haversine) de son départ
+ *     (MVP : fermeture par tolérance départ/arrivée uniquement, figure-8 = V1) ;
+ *  2. distance totale de la trace ≥ LOOP_MIN_PERIMETER_M (anti micro-boucle) ;
+ *  3. le polygone n'est pas dégénéré : son aire doit pouvoir contenir au moins
+ *     UNE zone res 10 (aire moyenne getHexagonAreaAvg, dérivée de la grille h3 —
+ *     pas une constante de jeu). Un aller-retour (aire ~0) n'est PAS une
+ *     boucle : il reste pleinement récompensé en couloir (« trait »).
+ */
+export function detectClosedLoop(points: readonly LatLngPoint[]): boolean {
+  if (points.length < 3) return false; // un polygone exige ≥ 3 sommets
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  if (haversineM(first, last) > LOOP_CLOSE_TOLERANCE_M) return false;
+  let totalM = 0;
+  for (let i = 1; i < points.length; i++) totalM += haversineM(points[i - 1]!, points[i]!);
+  if (totalM < LOOP_MIN_PERIMETER_M) return false;
+  return traceAreaM2(points) >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2);
+}
+
+/**
+ * Cellules INTÉRIEURES d'une boucle fermée (AMENDEMENT-12 §B) : polygonToCells
+ * (h3, containment centre) sur le polygone de la trace en `res`, MOINS les
+ * cellules du couloir déjà capturées (`corridorCells`) — aucun doublon. Les
+ * cellules retournées sont triées par DISTANCE CROISSANTE au tracé : en cas de
+ * dépassement du plafond quotidien couloir + intérieur, l'appelant tronque la
+ * FIN de la liste (les plus proches du tracé sont servies d'abord).
+ *
+ * Trace bruitée : une légère auto-intersection est tolérée par h3 ; si
+ * polygonToCells jette (polygone dégénéré, coordonnées invalides…), FALLBACK
+ * couloir seul (retour []) — jamais de crash, la course reste récompensée en
+ * « trait ». Chaque cellule retournée reste UNE CANDIDATE : c'est decideClaims
+ * qui la passe par les règles (lock, bouclier, protection, vol, plafond).
+ */
+export function enclosedCells(
+  points: readonly LatLngPoint[],
+  corridorCells: readonly string[],
+  res: number = H3_RESOLUTION,
+): string[] {
+  if (points.length < 3) return []; // pas de polygone → couloir seul
+  let polygonCells: string[];
+  try {
+    polygonCells = polygonToCells(points.map((p) => [p.lat, p.lng]), res);
+  } catch {
+    return []; // polygone dégénéré → fallback couloir seul, jamais de crash
+  }
+  const corridor = new Set(corridorCells);
+  const interior = polygonCells.filter((cell) => !corridor.has(cell));
+  if (interior.length <= 1) return interior;
+
+  // Tri par distance au tracé (centre de cellule → point de trace le plus
+  // proche). O(intérieur × points), assumé MVP : l'auto-limite isopérimétrique
+  // borne l'intérieur (~130 zones pour 5 km de boucle).
+  const distanceToTrace = (cell: string): number => {
+    const [lat, lng] = cellToLatLng(cell);
+    let best = Infinity;
+    for (const p of points) {
+      const d = haversineM({ lat, lng }, p);
+      if (d < best) best = d;
+    }
+    return best;
+  };
+  return interior
+    .map((cell) => ({ cell, d: distanceToTrace(cell) }))
+    .sort((a, b) => a.d - b.d)
+    .map((entry) => entry.cell);
 }
 
 // ─── Géométrie GeoJSON (zones no-capture) ────────────────────────────────────

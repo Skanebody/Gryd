@@ -20,7 +20,7 @@
  * (ingest_run) reste seul décideur.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -45,9 +45,11 @@ import {
   MapBottomSheet,
   StatePill,
   usePulse,
+  useReduceMotion,
   useSlideIn,
 } from '../src/ui/game';
 import { LiveNavMap, type LiveNavMapHandle } from '../src/features/run/LiveNavMap';
+import { buildRunLoop, loopStatusAt } from '../src/features/run/loop';
 import {
   NAV_METERS_PER_PIXEL,
   NAV_SCALE_BAR_METERS,
@@ -86,6 +88,31 @@ const CHECKPOINT_ROUND_M = 10;
 /** Les deux modes d'affichage du live (AMENDEMENT-10 §3 — Nike d'abord). */
 type LiveView = 'stats' | 'carte';
 
+/**
+ * Saut « +N zones » à la fermeture de boucle (AMENDEMENT-12 §C) : one-shot,
+ * scale up puis retour en ressort. Reduce motion → aucun mouvement.
+ */
+function useZoneJump(active: boolean): Animated.Value {
+  const reduce = useReduceMotion();
+  const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!active || reduce) {
+      scale.setValue(1);
+      return;
+    }
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 1.28,
+        duration: motion.transitionMs,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
+    ]).start();
+  }, [active, reduce, scale]);
+  return scale;
+}
+
 export default function CourseLiveScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ mode?: string; route?: string }>();
@@ -93,6 +120,8 @@ export default function CourseLiveScreen() {
   const routeInfo = useMemo(() => routeInfoFromParam(params.route), [params.route]);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   const nav = useMemo(() => buildLiveNav(sim), [sim]);
+  /** Boucle démo (AMENDEMENT-12 §C) — null hors conquête (aucune capture). */
+  const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
   const lastIndex = sim.ticks.length - 1;
 
   const [view, setView] = useState<LiveView>('stats');
@@ -127,6 +156,18 @@ export default function CourseLiveScreen() {
   /** GRYD Verify : confiance instantanée ≥ seuil réel (jamais décoratif). */
   const verified = Math.min(tick.gpsTrust, tick.motionTrust) >= VERIFIED_MIN_TRUST;
 
+  // ── Boucle (AMENDEMENT-12 §C) : phase au tick + compteur qui saute ────────
+  const loopStatus = loopStatusAt(loop, sim, tickIndex);
+  const loopClosed = loopStatus.phase === 'closed';
+  const enclosedZones = loopClosed && loop ? loop.enclosedZones : 0;
+  /** Zones estimées AFFICHÉES : couloir + intérieur dès la fermeture. */
+  const zonesTotal = conquest ? tick.hexes + enclosedZones : 0;
+  const zoneJump = useZoneJump(loopClosed);
+  /** « départ à ~N m » — même arrondi 10 m que la lecture nav. */
+  const loopDistLabel = formatInt(
+    Math.max(CHECKPOINT_ROUND_M, Math.round(loopStatus.distM / CHECKPOINT_ROUND_M) * CHECKPOINT_ROUND_M),
+  );
+
   // ── Feedback temps réel scripté : toast + haptic (anti-bruit : 1 à la fois) ─
   const [toast, setToast] = useState<{ key: number; toast: NavToast } | null>(null);
   const toastKeyRef = useRef(0);
@@ -137,9 +178,25 @@ export default function CourseLiveScreen() {
   useEffect(() => {
     const scripted = nav.toasts.get(tickIndex);
     if (!scripted) return;
+    // La fermeture de boucle EST l'arrivée de la démo : son burst prime,
+    // « Destination atteinte » ne le recouvre jamais (anti-bruit).
+    if (loopClosed && (scripted.kind === 'arrivee' || tickIndex === loop?.closeTick)) return;
     haptics[scripted.haptic]();
     showToast(scripted);
-  }, [tickIndex, nav.toasts]);
+  }, [tickIndex, nav.toasts, loopClosed, loop]);
+  // Burst « BOUCLE FERMÉE » : toast + haptic FORT, une seule fois (§C).
+  useEffect(() => {
+    if (!loopClosed || enclosedZones === 0) return;
+    haptics.heavy();
+    showToast({
+      kind: 'boucle',
+      text: 'BOUCLE FERMÉE — la zone est à toi',
+      icon: 'carte',
+      tint: colors.chartreuse,
+      haptic: 'heavy',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- transition unique
+  }, [loopClosed]);
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), motion.toastDismissMs);
@@ -183,11 +240,15 @@ export default function CourseLiveScreen() {
 
   const donePulse = usePulse(simDone, 1.06, 1_600);
   const floatingBottom = insets.bottom + MAP_SHEET_COMPACT_HEIGHT + ABOVE_SHEET_GAP;
+  /** Pill boucle du mode Carte (aperçu « Ferme ta boucle » / état fermé). */
+  const loopPillVisible =
+    view === 'carte' && conquest && (loopStatus.phase === 'approach' || loopClosed);
   /** Hauteur de la pile de pills du haut (le toast se place dessous). */
   const topStackOffset =
     56 +
     (routeInfo ? 30 : 0) +
     (tick.event !== null ? 38 : 0) +
+    (loopPillVisible ? 30 : 0) +
     (!conquest ? 28 : 0);
 
   return (
@@ -202,6 +263,8 @@ export default function CourseLiveScreen() {
             tickIndex={tickIndex}
             capturing={conquest}
             contested={tick.event === 'conteste'}
+            loop={loop}
+            loopPhase={loopStatus.phase}
             onFollowChange={setFollowing}
           />
 
@@ -234,11 +297,14 @@ export default function CourseLiveScreen() {
                 <Stat label="DISTANCE" value={formatKm(tick.distanceM)} unit="km" mono />
                 <Stat label="TEMPS" value={formatClock(elapsedS)} mono />
                 <Stat label="ALLURE" value={formatPace(paceSPerKm)} mono />
-                <Stat
-                  label="ZONES"
-                  value={conquest ? formatInt(tick.hexes) : '—'}
-                  accent={conquest}
-                />
+                {/* Le compteur SAUTE de +N à la fermeture de boucle (§12 C). */}
+                <Animated.View style={[styles.zoneStatWrap, { transform: [{ scale: zoneJump }] }]}>
+                  <Stat
+                    label="ZONES"
+                    value={conquest ? formatInt(zonesTotal) : '—'}
+                    accent={conquest}
+                  />
+                </Animated.View>
                 <Animated.View style={{ transform: [{ scale: donePulse }] }}>
                   <Pressable
                     accessibilityRole="button"
@@ -346,8 +412,25 @@ export default function CourseLiveScreen() {
             </Text>
 
             {conquest ? (
-              <Text style={styles.zonesValue} numberOfLines={1}>
-                +{formatInt(tick.hexes)} ZONES
+              <Animated.Text
+                style={[styles.zonesValue, { transform: [{ scale: zoneJump }] }]}
+                numberOfLines={1}
+              >
+                +{formatInt(zonesTotal)} ZONES
+              </Animated.Text>
+            ) : null}
+
+            {/* Boucle en texte (mode Stats, §12 C : même info sans carte). */}
+            {conquest && loopStatus.phase !== 'none' ? (
+              <Text
+                style={[styles.loopLine, loopStatus.phase !== 'open' && styles.loopLineAccent]}
+                numberOfLines={1}
+              >
+                {loopClosed
+                  ? `BOUCLE FERMÉE · +${formatInt(enclosedZones)} ZONES`
+                  : loopStatus.phase === 'approach'
+                    ? `FERME TA BOUCLE · DÉPART À ~${loopDistLabel} M`
+                    : `BOUCLE OUVERTE · DÉPART À ~${loopDistLabel} M`}
               </Text>
             ) : null}
 
@@ -440,6 +523,17 @@ export default function CourseLiveScreen() {
               state={LIVE_EVENT_META[tick.event].state}
               label={LIVE_EVENT_META[tick.event].label}
             />
+          </View>
+        ) : null}
+        {/* Boucle (mode Carte) : « Ferme ta boucle » à l'approche, état fermé ensuite. */}
+        {loopPillVisible ? (
+          <View style={styles.loopPill}>
+            <Icon name="route" size={13} color={colors.chartreuse} />
+            <Text style={styles.loopPillText} numberOfLines={1}>
+              {loopClosed
+                ? `BOUCLE FERMÉE · +${formatInt(enclosedZones)} ZONES`
+                : `FERME TA BOUCLE · À ~${loopDistLabel} M`}
+            </Text>
           </View>
         ) : null}
         {!conquest ? (
@@ -652,6 +746,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chartreuse,
   },
   liveDotPaused: { backgroundColor: colors.gris },
+  // ── Boucle (AMENDEMENT-12 §C) : pill carte + ligne texte du mode Stats ──
+  loopPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    maxWidth: 340,
+  },
+  loopPillText: {
+    color: colors.chartreuse,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 1,
+    fontVariant: ['tabular-nums'],
+  },
+  loopLine: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    fontVariant: ['tabular-nums'],
+    marginTop: 6,
+  },
+  loopLineAccent: { color: colors.chartreuse },
+  /** Le Stat ZONES garde sa part de rangée quand il saute (scale). */
+  zoneStatWrap: { flex: 1 },
   /** Neutralise l'alignSelf flex-start du StatePill (pill centrée en haut). */
   eventPillWrap: { flexDirection: 'row', justifyContent: 'center' },
   statsOnlyPill: {

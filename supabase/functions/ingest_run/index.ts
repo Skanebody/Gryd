@@ -47,8 +47,11 @@ import {
   validateRun,
 } from '../_shared/engine/validation.ts';
 import {
+  detectClosedLoop,
+  enclosedCells,
   type GeoJsonPolygonal,
   hexesForSegments,
+  loopTracePoints,
   pointInGeoJson,
 } from '../_shared/engine/hexing.ts';
 import { decideClaims, type HexState } from '../_shared/engine/claims.ts';
@@ -1308,19 +1311,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }));
     }
 
+    // ── AMENDEMENT-12 §B : la boucle fait la zone (pur) ──────────────────────
+    // INTÉGRITÉ : le polygone n'est construit que sur une trace claimable
+    // CONTIGUË (loopTracePoints : exactement UN segment claimable). Un run
+    // `partial` dont des segments sont exclus (voiture, allure hors bornes,
+    // saut GPS) ne peut PAS fermer de boucle : aplatir les segments restants
+    // relierait leurs extrémités en ligne droite et l'aire parcourue en
+    // véhicule resterait enfermée puis capturée. Le couloir des segments
+    // claimables reste pleinement récompensé (« trait »). Boucle fermée
+    // (tolérance départ/arrivée + périmètre min) → cellules intérieures MOINS
+    // le couloir, triées par distance croissante au tracé. Le couloir passe
+    // AVANT l'intérieur dans decideClaims : au plafond MAX_CLAIMS_PER_DAY
+    // (total couloir + intérieur), c'est l'intérieur le plus loin du tracé qui
+    // est tronqué (blocked_daily_cap). Chaque cellule intérieure passe par les
+    // MÊMES règles, une par une.
+    const loopTrace = loopTracePoints(validation.claimable);
+    const loopClosed = loopTrace !== null && detectClosedLoop(loopTrace);
+    const interiorCells = loopClosed ? enclosedCells(loopTrace, hexes) : [];
+    const allHexes = interiorCells.length > 0 ? [...hexes, ...interiorCells] : hexes;
+
     // ── Lecture d'état + décision (pur) ──────────────────────────────────────
-    const states = await loadHexStates(hexes);
+    const states = await loadHexStates(allHexes);
     const [ownersCreatedAt, privacyHexes, noCaptureHexes, density, claimsToday] = await Promise
       .all([
         loadOwnersCreatedAt(states, userId),
-        loadPrivacyHexes(userId, hexes),
-        loadNoCaptureHexes(hexes),
+        loadPrivacyHexes(userId, allHexes),
+        loadNoCaptureHexes(allHexes),
         loadDensity(request.cityId),
         loadClaimsToday(userId, now),
       ]);
 
     const decision = decideClaims({
-      hexes,
+      hexes: allHexes,
       states,
       context: {
         userId,
@@ -1517,6 +1539,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       now,
     );
 
+    // ── AMENDEMENT-12 §B : zones intérieures réellement GAGNÉES par la boucle
+    //    (claimed_neutral + stolen, déjà comptées dans totals/results) — le
+    //    « dont N en boucle fermée » du post-run. Les intérieures bloquées
+    //    (lock, bouclier, plafond…) ne comptent pas.
+    const interiorSet = new Set(interiorCells);
+    const enclosedZones = interiorSet.size === 0 ? 0 : decision.results.filter((r) =>
+      interiorSet.has(r.h3) && (r.outcome === 'claimed_neutral' || r.outcome === 'stolen')
+    ).length;
+
     // ── Célébration persistée (source du replay idempotent) ──────────────────
     const response: IngestRunResponse = {
       runId,
@@ -1526,6 +1557,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       distanceM,
       durationS,
       avgPaceSKm,
+      loopClosed,
+      enclosedZones,
       hexes: {
         claimed: decision.totals.claimed,
         stolen: decision.totals.stolen,

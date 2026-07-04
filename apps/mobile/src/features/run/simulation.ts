@@ -481,13 +481,28 @@ export function crewZonePctAt(sim: RunSimulation, tickIndex: number): number {
 
 // ─── Résultat (course-result) ────────────────────────────────────────────────
 
+/**
+ * Résumé boucle (AMENDEMENT-12) calculé par features/run/loop.ts (la géométrie
+ * vit dans liveNav — simulation.ts reste sans géo). Miroir d'IngestRunResponse :
+ * enclosedZones DÉJÀ comptées dans hexes/points, jamais un total séparé.
+ */
+export interface RunLoopSummary {
+  loopClosed: boolean;
+  enclosedZones: number;
+}
+
 export interface RunResultStats {
   mode: LiveRunMode;
   distanceM: number;
   durationS: number;
   /** Allure moyenne (s/km). */
   paceSPerKm: number;
+  /** Zones estimées TOTALES (couloir + intérieur si boucle fermée). */
   hexes: number;
+  /** Boucle fermée au sens moteur (§12 B) — false hors conquête. */
+  loopClosed: boolean;
+  /** Zones intérieures estimées, DÉJÀ incluses dans hexes (« dont N »). */
+  enclosedZones: number;
   basePoints: number;
   /** Bonus performance appliqué (%) — borné par les règles §3. */
   bonusPct: number;
@@ -507,12 +522,23 @@ export interface RunResultStats {
   playerName: string;
 }
 
-/** Stats de fin au tick où le joueur a terminé (déterministe, rejouable). */
-export function resultStats(sim: RunSimulation, tickIndex: number): RunResultStats {
+/**
+ * Stats de fin au tick où le joueur a terminé (déterministe, rejouable).
+ * `loop` (optionnel — features/run/loop.ts) : boucle fermée → les zones
+ * intérieures s'ajoutent au couloir AVANT points/bonus, barèmes inchangés.
+ */
+export function resultStats(
+  sim: RunSimulation,
+  tickIndex: number,
+  loop?: RunLoopSummary,
+): RunResultStats {
   const last = clamp(Math.round(tickIndex), 0, sim.ticks.length - 1);
   const t = sim.ticks[last]!;
   const durationS = (last + 1) * SIM_SECONDS_PER_TICK;
   const km = Math.max(0.001, t.distanceM / 1000);
+  const loopClosed = sim.mode === 'conquete' && loop?.loopClosed === true;
+  const enclosedZones = loopClosed ? Math.max(0, loop?.enclosedZones ?? 0) : 0;
+  const totalHexes = t.hexes + enclosedZones;
 
   let gpsSum = 0;
   let motionSum = 0;
@@ -524,7 +550,8 @@ export function resultStats(sim: RunSimulation, tickIndex: number): RunResultSta
   const motionTrust = Math.round(motionSum / (last + 1));
 
   const multiplier = clamp(DEMO_PERF_MULTIPLIER, PERFORMANCE_BONUS_FLOOR, PERFORMANCE_BONUS_CAP);
-  const basePoints = t.points;
+  /** Couloir + intérieur au MÊME barème (§12 B : barèmes serveur inchangés). */
+  const basePoints = totalHexes * POINTS_NEUTRAL_HEX;
 
   // Rang gagné SEULEMENT si la course capture assez de la cible du scénario
   // (démo écourtée → contribution de zone seule, pas de RankUpCard).
@@ -536,7 +563,9 @@ export function resultStats(sim: RunSimulation, tickIndex: number): RunResultSta
     distanceM: t.distanceM,
     durationS,
     paceSPerKm: durationS / km,
-    hexes: t.hexes,
+    hexes: totalHexes,
+    loopClosed,
+    enclosedZones,
     basePoints,
     bonusPct: Math.round((multiplier - 1) * 100),
     totalPoints: Math.round(basePoints * multiplier),

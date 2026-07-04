@@ -157,6 +157,21 @@ export interface IngestRunResponse {
    * feedback sain (« à 1 run de ton objectif », jamais culpabilisant §12).
    */
   challengeUpdates?: ChallengeUpdate[];
+  /**
+   * AMENDEMENT-12 §B « la boucle fait la zone » : true si la trace claimable
+   * est revenue à ≤ LOOP_CLOSE_TOLERANCE_M de son départ avec une distance
+   * totale ≥ LOOP_MIN_PERIMETER_M (décidé serveur, detectClosedLoop). Toujours
+   * présent en mode conquête ; absent hors conquête (social_run/course_privee :
+   * jamais de claims, boucle ou pas) et sur les courses rejetées/gelées.
+   */
+  loopClosed?: boolean;
+  /**
+   * Zones INTÉRIEURES gagnées grâce à la boucle fermée (claimed_neutral +
+   * stolen, DÉJÀ comptées dans `hexes`/`results` — pas un total séparé).
+   * Alimente le « dont N en boucle fermée » du post-run et le burst Live Run
+   * (AMENDEMENT-12 §C). 0 si boucle ouverte ou intérieur entièrement bloqué.
+   */
+  enclosedZones?: number;
 }
 
 /** Ligne hex_claims exposée publiquement (jamais de trace, jamais de position live). */

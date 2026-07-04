@@ -1,28 +1,27 @@
 /**
  * GRYD — ContextualRunButton : le bouton central de jeu (AMENDEMENT-08 §1 & §3,
- * doc §8). Disque chartreuse 64-72 px (l'UNIQUE CTA chartreuse global), label
- * contextuel dérivé des données démo : RUN / DEFEND / RAID / CAPTURE / SCOUT.
- * L'anneau extérieur lit l'ÉTAT de jeu (rival si défense, contesté si raid,
- * verify si scout). Pulse léger (reduce motion → statique), APPUI LONG 500 ms
- * pour déclencher `onStart` (anti-faux départ), haptic au lancement.
+ * AMENDEMENT-12 §A). Disque chartreuse 64-72 px (l'UNIQUE CTA chartreuse
+ * global), 2 SEULS objectifs joueur : CONQUÉRIR (défaut — absorbe capture,
+ * raid, exploration) / DÉFENDRE (decay urgent ou mission défense active).
+ * L'anneau extérieur lit l'ÉTAT de jeu (chartreuse = moi/action, orange rival
+ * si défense). Pulse léger (reduce motion → statique), APPUI LONG 500 ms pour
+ * déclencher `onStart` (anti-faux départ), haptic au lancement.
  */
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, gameColors } from '@klaim/shared';
 import { haptics } from '../../lib/haptics';
 import { usePressScale, usePulse } from './anim';
 
-export type RunButtonMode = 'RUN' | 'DEFEND' | 'RAID' | 'CAPTURE' | 'SCOUT';
+/** AMENDEMENT-12 §A : 2 objectifs, plus jamais RUN/RAID/CAPTURE/SCOUT. */
+export type RunButtonMode = 'CONQUERIR' | 'DEFENDRE';
 
 /** Appui long requis pour lancer (doc §8 — évite le départ accidentel). */
 export const RUN_BUTTON_LONG_PRESS_MS = 500;
 
-/** Mode → anneau d'état + sous-libellé court (vocabulaire de jeu §27). */
-const MODE_META: Record<RunButtonMode, { ring: string; hint: string }> = {
-  RUN: { ring: gameColors.crew, hint: 'Run libre' },
-  DEFEND: { ring: gameColors.rival, hint: 'Zone menacée' },
-  RAID: { ring: gameColors.contested, hint: 'Offensive active' },
-  CAPTURE: { ring: gameColors.crew, hint: 'Zone neutre proche' },
-  SCOUT: { ring: gameColors.verify, hint: 'Mission exploration' },
+/** Objectif → libellé accentué + anneau d'état + sous-libellé court. */
+const MODE_META: Record<RunButtonMode, { label: string; ring: string; hint: string }> = {
+  CONQUERIR: { label: 'CONQUÉRIR', ring: gameColors.crew, hint: 'Prends du territoire' },
+  DEFENDRE: { label: 'DÉFENDRE', ring: gameColors.rival, hint: 'Zone menacée' },
 };
 
 export interface ContextualRunButtonProps {
@@ -69,7 +68,7 @@ export function ContextualRunButton({
         <Animated.View style={{ transform: [{ scale }] }}>
           <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${mode} — ${meta.hint}. Maintiens pour lancer.`}
+          accessibilityLabel={`${meta.label} — ${meta.hint}. Maintiens pour lancer.`}
           accessibilityState={{ disabled }}
           disabled={disabled}
           delayLongPress={RUN_BUTTON_LONG_PRESS_MS}
@@ -89,8 +88,13 @@ export function ContextualRunButton({
             disabled && styles.disabled,
           ]}
         >
-          <Text style={styles.label} numberOfLines={1}>
-            {mode}
+          <Text
+            style={styles.label}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {meta.label}
           </Text>
           </Pressable>
         </Animated.View>
@@ -119,6 +123,14 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.5 },
   // Libellé NOIR sur chartreuse (jamais l'inverse — charte contraste).
-  label: { color: colors.noir, fontSize: 14, fontWeight: '800', letterSpacing: 1 },
+  // 10 px serré : « CONQUÉRIR » (9 lettres) tient dans le disque 64-72 px
+  // (adjustsFontSizeToFit ne réduit pas sur web — la taille de base suffit).
+  label: {
+    color: colors.noir,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    paddingHorizontal: 2,
+  },
   hint: { marginTop: 10, fontSize: 11, fontWeight: '600' },
 });

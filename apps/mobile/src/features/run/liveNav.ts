@@ -79,8 +79,8 @@ function metersToWorld(xEast: number, yNorth: number): RoutePoint {
 // Plus aucune grille : les cellules H3 servent uniquement d'unités de capture
 // que territory.ts fusionne en zone organique côté rendu.
 
-/** Pixels-monde → lat/lng (inverse de geoToWorld — pour latLngToCell). */
-function worldToGeo(x: number, y: number): LatLngPoint {
+/** Pixels-monde → lat/lng (inverse de geoToWorld — latLngToCell, boucle §12). */
+export function worldToGeo(x: number, y: number): LatLngPoint {
   return {
     lat: BASEMAP_CENTER.lat + (WORLD_HALF_HEIGHT_M - y * NAV_METERS_PER_PIXEL) / M_PER_DEG_LAT,
     lng: BASEMAP_CENTER.lng + (x * NAV_METERS_PER_PIXEL - WORLD_HALF_WIDTH_M) / M_PER_DEG_LNG,
@@ -249,7 +249,7 @@ function pointAt(points: readonly RoutePoint[], cum: readonly number[], len: num
 
 // ─── Script de feedback (toasts + haptics) ───────────────────────────────────
 
-export type NavToastKind = 'capture' | 'record' | 'deviation' | 'checkpoint' | 'arrivee';
+export type NavToastKind = 'capture' | 'record' | 'deviation' | 'checkpoint' | 'arrivee' | 'boucle';
 
 export interface NavToast {
   kind: NavToastKind;
@@ -257,7 +257,8 @@ export interface NavToast {
   icon: IconName;
   /** Teinte fonctionnelle (tokens) — chartreuse gain, or record, blanc info. */
   tint: string;
-  haptic: 'light' | 'medium' | 'success';
+  /** Grammaire doc §25 — heavy réservé au burst « BOUCLE FERMÉE » (§12 C). */
+  haptic: 'light' | 'medium' | 'success' | 'heavy';
 }
 
 /** Écart minimal entre deux toasts (ticks) — anti-bruit. */

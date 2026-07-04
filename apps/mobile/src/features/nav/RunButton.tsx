@@ -1,7 +1,7 @@
 /**
- * GRYD — bouton central de jeu (AMENDEMENT-08 §3, doc §8) : le `ContextualRunButton`
- * du design system remplace le disque « GO » générique. Son MODE (RUN / DEFEND /
- * RAID / CAPTURE / SCOUT) est DÉRIVÉ des données démo (runContext) — l'anneau
+ * GRYD — bouton central de jeu (AMENDEMENT-08 §3, AMENDEMENT-12 §A) : le
+ * `ContextualRunButton` du design system remplace le disque « GO » générique.
+ * Son OBJECTIF (CONQUÉRIR / DÉFENDRE) est DÉRIVÉ des données démo (runContext) — l'anneau
  * d'état lit le contexte de jeu, le disque reste LE CTA chartreuse global
  * (§C.3 : 1 seul CTA chartreuse par écran). Rendu au niveau du layout (tabs),
  * permanent sur les 5 onglets.
@@ -32,8 +32,8 @@ export function RunButton() {
   const [hintVisible, setHintVisible] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Mode contextuel dérivé des données démo (offensive → RAID, decay urgent →
-  // DEFEND, zone neutre proche → CAPTURE, sinon RUN) — stable sur la session.
+  // Objectif contextuel dérivé des données démo (decay urgent ou mission
+  // défense active → DÉFENDRE, sinon CONQUÉRIR) — stable sur la session.
   const contextMode = useMemo(() => deriveRunButtonMode(), []);
 
   useEffect(

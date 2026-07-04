@@ -1,16 +1,20 @@
 /**
  * GRYD — ROUTE PLANNER `/route-planner` (AMENDEMENT-10 §2 priorité 1,
- * AMENDEMENT-11 §3/§6). GRYD dit « COURS ICI pour prendre ce territoire » :
- * un écran = UNE décision — démarrer cette route. Régime USAGE RÉEL : fond
- * plein, contraste max, zéro glass, textes courts, CTA évident.
- *   • Header KPI géant : ROUTE DÉFENSE · RÉPUBLIQUE — 4,8 KM · 28 min ·
+ * AMENDEMENT-11 §3/§6, AMENDEMENT-12 §A). GRYD dit « COURS ICI pour prendre
+ * ce territoire » : un écran = UNE décision — démarrer cette route. Régime
+ * USAGE RÉEL : fond plein, contraste max, zéro glass, textes courts, CTA
+ * évident. Le joueur ne voit que 2 OBJECTIFS :
+ *   • 2 onglets CONQUÉRIR (routes rapide/optimisée/exploration) / DÉFENDRE
+ *     (routes défense) — les 8 types AMENDEMENT-10 sont des sous-types
+ *     internes, plus jamais exposés comme objectifs ;
+ *   • Header KPI géant : DÉFENDRE · RÉPUBLIQUE — 4,8 KM · 28 min ·
  *     +86 zones · 12 rues à défendre · Boucle · retour départ ;
  *   • carte route-first (RoutePlannerMap : la route ÉCRASE tout, zéro
  *     hexagone — moteur H3 invisible via territory.ts) ;
- *   • 3 propositions démo (Route A Rapide / B Optimisée / C Défense) —
+ *   • propositions démo de l'onglet (A Rapide / B Optimisée · C Défense) —
  *     tap = la route s'affiche + résumé mis à jour ;
- *   • options en chips (3/5/10/libre · boucle/aller · priorité · sécurité ·
- *     dénivelé) + catalogue des types de routes ;
+ *   • options en chips (3/5/10/libre · boucle/aller · priorité alignée sous
+ *     l'objectif actif · sécurité · dénivelé) ;
  *   • bloc objectif (Défendre République — 12 rues à sauver · 48 h) ;
  *   • route = objet social (AMENDEMENT-11 §6) : Partager au crew (démo :
  *     toast + entrée feed locale) ;
@@ -42,10 +46,9 @@ import {
   ROUTES_DEMO,
   ROUTE_CONSTRAINTS,
   ROUTE_DISTANCE_OPTIONS,
+  ROUTE_ID_BY_OBJECTIVE,
   ROUTE_ID_BY_PRIORITY,
-  ROUTE_ID_BY_TYPE,
   ROUTE_OBJECTIVE,
-  ROUTE_TYPE_SOON_TOAST,
   distanceOptionFor,
   routeDurationMin,
   routeIdForType,
@@ -54,15 +57,16 @@ import {
   type RouteDistanceOption,
 } from '../src/features/route/demo';
 import {
+  OBJECTIVE_BY_ROUTE_TYPE,
+  PRIORITIES_BY_OBJECTIVE,
+  ROUTE_OBJECTIVE_LABELS,
+  ROUTE_OBJECTIVE_ORDER,
   ROUTE_PRIORITY_LABELS,
-  ROUTE_PRIORITY_ORDER,
   ROUTE_SHAPE_LABELS,
-  ROUTE_TYPE_LABELS,
-  ROUTE_TYPE_ORDER,
   type PlannedRouteDemo,
+  type RouteObjective,
   type RoutePriority,
   type RouteShape,
-  type RouteTypeKey,
 } from '../src/features/route/types';
 
 /** Hauteur de la carte : la route domine l'écran, les cards restent visibles. */
@@ -73,15 +77,26 @@ function formatKm(km: number): string {
   return km.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
+/**
+ * « +86 zones dont 52 en boucle » (AMENDEMENT-12 §C) : les routes en boucle
+ * affichent l'aire estimée de la fermeture — données démo, décidé serveur.
+ */
+function zonesLabel(route: PlannedRouteDemo): string {
+  const base = `+${route.zones} zones`;
+  return route.shape === 'boucle' && route.loopZones !== undefined
+    ? `${base} dont ${route.loopZones} en boucle`
+    : base;
+}
+
 /** Résumé une ligne sous le KPI (vocabulaire zones/rues — jamais « hex »). */
 function routeSummary(route: PlannedRouteDemo): string {
   const dur = `${routeDurationMin(route)} min`;
   const shape =
     route.shape === 'boucle' ? 'Boucle · retour départ' : 'Aller simple';
   if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
-    return `${dur} · +${route.zones} zones · ${route.streetsToSave} rues à défendre · ${shape}`;
+    return `${dur} · ${zonesLabel(route)} · ${route.streetsToSave} rues à défendre · ${shape}`;
   }
-  return `${dur} · +${route.zones} zones · +${formatInt(route.points)} pts · ${shape}`;
+  return `${dur} · ${zonesLabel(route)} · +${formatInt(route.points)} pts · ${shape}`;
 }
 
 /** Ligne de stats d'une card de proposition (courte — cards de 1/3 d'écran). */
@@ -92,9 +107,14 @@ function cardStats(route: PlannedRouteDemo): string {
   return `${formatKm(route.distanceKm)} km · +${route.zones} zones`;
 }
 
-/** Étiquette type COURTE des cards (1er mot — « CAPTURE », « RAID », « DÉFENSE »). */
+/** Objectif d'une route (AMENDEMENT-12 §A — dérivé du sous-type interne). */
+function routeObjective(route: PlannedRouteDemo): RouteObjective {
+  return OBJECTIVE_BY_ROUTE_TYPE[route.typeKey];
+}
+
+/** Étiquette COURTE des cards : l'OBJECTIF (« CONQUÉRIR » / « DÉFENDRE »). */
 function cardTypeLabel(route: PlannedRouteDemo): string {
-  return (ROUTE_TYPE_LABELS[route.typeKey].split(' ')[0] ?? '').toUpperCase();
+  return ROUTE_OBJECTIVE_LABELS[routeObjective(route)].toUpperCase();
 }
 
 /** Chip générique (options/catalogue) — sélection chartreuse, régime usage réel. */
@@ -163,6 +183,8 @@ export default function RoutePlannerScreen() {
   const effectiveDistance = distance ?? distanceOptionFor(route);
   const effectiveShape = shape ?? route.shape;
   const priority: RoutePriority = PRIORITY_BY_ROUTE_ID[route.id] ?? 'capture';
+  // Objectif actif (AMENDEMENT-12 §A) : DÉRIVÉ de la route sélectionnée.
+  const objective = routeObjective(route);
 
   const selectRoute = (id: string) => {
     if (id === routeId) return;
@@ -177,14 +199,11 @@ export default function RoutePlannerScreen() {
     selectRoute(ROUTE_ID_BY_PRIORITY[p]);
   };
 
-  const selectType = (t: RouteTypeKey) => {
-    const target = ROUTE_ID_BY_TYPE[t];
-    if (target) {
-      selectRoute(target);
-      return;
-    }
-    haptics.light();
-    toast.show(ROUTE_TYPE_SOON_TOAST[t] ?? 'Bientôt disponible');
+  // Onglet objectif : présélectionne la route du verbe (Conquérir → A, Défendre → C).
+  const selectObjective = (o: RouteObjective) => {
+    if (o === objective) return;
+    selectRoute(ROUTE_ID_BY_OBJECTIVE[o]);
+    screen('route_planner_objective_select', { objective: o });
   };
 
   const toggleConstraint = (key: string) => {
@@ -207,9 +226,10 @@ export default function RoutePlannerScreen() {
     router.push(`/course-live?mode=conquete&route=${route.id}`);
   };
 
-  const typeLabel = ROUTE_TYPE_LABELS[route.typeKey];
   /** Points possibles de l'objectif = ceux de la route de défense (règles §3). */
   const objectiveRoute = ROUTES_DEMO.find((r) => r.id === ROUTE_OBJECTIVE.routeId);
+  /** Routes de l'onglet actif (Conquérir : A/B — Défendre : C). */
+  const tabRoutes = ROUTES_DEMO.filter((r) => routeObjective(r) === objective);
 
   return (
     <View style={styles.root}>
@@ -228,7 +248,7 @@ export default function RoutePlannerScreen() {
             </View>
           </Pressable>
           <Text style={styles.kicker} numberOfLines={1}>
-            ROUTE {typeLabel.toUpperCase()} · {route.zone.toUpperCase()}
+            {ROUTE_OBJECTIVE_LABELS[objective].toUpperCase()} · {route.zone.toUpperCase()}
           </Text>
           <View style={styles.back} />
         </View>
@@ -252,9 +272,42 @@ export default function RoutePlannerScreen() {
         contentContainerStyle={styles.panelContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 3 propositions : tap = la route s'affiche + résumé maj ── */}
+        {/* ── 2 onglets objectif (AMENDEMENT-12 §A) : la seule question de
+            l'écran — Conquérir ou Défendre ── */}
+        <View style={styles.objectiveTabs} accessibilityRole="tablist">
+          {ROUTE_OBJECTIVE_ORDER.map((o) => {
+            const active = o === objective;
+            return (
+              <Pressable
+                key={o}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Objectif ${ROUTE_OBJECTIVE_LABELS[o]}`}
+                onPress={() => selectObjective(o)}
+                style={({ pressed }) => [
+                  styles.objectiveTab,
+                  active && styles.objectiveTabActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Icon
+                  name={o === 'defendre' ? 'bouclier' : 'cible'}
+                  size={15}
+                  color={active ? colors.chartreuse : colors.gris}
+                />
+                <Text
+                  style={[styles.objectiveTabLabel, active && styles.objectiveTabLabelActive]}
+                >
+                  {ROUTE_OBJECTIVE_LABELS[o]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* ── Propositions de l'onglet : tap = la route s'affiche + résumé maj ── */}
         <View style={styles.cardsRow}>
-          {ROUTES_DEMO.map((r) => {
+          {tabRoutes.map((r) => {
             const selected = r.id === route.id;
             return (
               <Pressable
@@ -351,8 +404,11 @@ export default function RoutePlannerScreen() {
             />
           ))}
         </View>
+        {/* Priorités ALIGNÉES sous l'objectif actif (AMENDEMENT-12 §A) :
+            capture/performance/exploration sous Conquérir, défense sous
+            Défendre — plus de catalogue de types (sous-types internes). */}
         <View style={styles.chipsRow}>
-          {ROUTE_PRIORITY_ORDER.map((p) => (
+          {PRIORITIES_BY_OBJECTIVE[objective].map((p) => (
             <Chip
               key={p}
               label={ROUTE_PRIORITY_LABELS[p]}
@@ -362,23 +418,6 @@ export default function RoutePlannerScreen() {
             />
           ))}
         </View>
-
-        {/* ── Catalogue des types de routes (AMENDEMENT-10 §2) ── */}
-        <SectionLabel icon="route" label="TYPES DE ROUTES" />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.catalogRow}
-        >
-          {ROUTE_TYPE_ORDER.map((t) => (
-            <Chip
-              key={t}
-              label={ROUTE_TYPE_LABELS[t]}
-              selected={route.typeKey === t}
-              onPress={() => selectType(t)}
-            />
-          ))}
-        </ScrollView>
 
         {/* ── Route sociale : partage crew (démo — toast + entrée feed) ── */}
         <SectionLabel icon="crew" label="CREW" />
@@ -459,6 +498,28 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 16,
   },
+  // Onglets objectif (AMENDEMENT-12 §A) — 2 réponses à « que puis-je faire ? ».
+  objectiveTabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  objectiveTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  objectiveTabActive: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
+  objectiveTabLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  objectiveTabLabelActive: { color: colors.chartreuse },
   cardsRow: { flexDirection: 'row', gap: 8 },
   card: {
     flex: 1,
@@ -496,7 +557,6 @@ const styles = StyleSheet.create({
   },
   sectionLabel: { color: colors.gris, fontSize: 10, letterSpacing: 2, fontWeight: '700' },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  catalogRow: { flexDirection: 'row', gap: 8, paddingRight: spacing.cardPadding },
   chip: {
     height: 34,
     paddingHorizontal: 13,

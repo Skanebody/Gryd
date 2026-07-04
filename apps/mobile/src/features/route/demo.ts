@@ -19,8 +19,10 @@ import {
 import { offsetMeters } from '../map/basemap';
 import { battleMapData, type HexState } from '../map/fakeHexes';
 import {
-  ROUTE_TYPE_LABELS,
+  OBJECTIVE_BY_ROUTE_TYPE,
+  ROUTE_OBJECTIVE_NOUNS,
   type PlannedRouteDemo,
+  type RouteObjective,
   type RoutePriority,
   type RouteTypeKey,
 } from './types';
@@ -42,6 +44,9 @@ export function routeDurationMin(route: PlannedRouteDemo): number {
  * Tracés en BOUCLE (départ = retour = « moi » égocentré, à côté du boulevard
  * NS). Chaque sommet suit un axe/rue de basemap.ts : axe Est (République→Est),
  * boulevard NS, quai du canal, rue NE (couloir rival), diagonale sud-ouest.
+ * `loopZones` (AMENDEMENT-12 §C) = part de `zones` estimée en intérieur de
+ * boucle (« +86 zones dont 52 en boucle » — la Route C reprend le 86/52 de
+ * l'onboarding écran 2). Étiquettes démo, le remplissage réel est serveur.
  */
 export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
   {
@@ -52,6 +57,7 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
     zone: 'Bastille',
     distanceKm: 3.4,
     zones: 52,
+    loopZones: 28,
     points: 52 * POINTS_NEUTRAL_HEX,
     shape: 'boucle',
     difficulty: 'Facile',
@@ -75,6 +81,7 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
     zone: 'Canal',
     distanceKm: 5.1,
     zones: 94,
+    loopZones: 57,
     points: 94 * POINTS_NEUTRAL_HEX,
     shape: 'boucle',
     difficulty: 'Exigeant',
@@ -103,6 +110,7 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
     zone: 'République',
     distanceKm: 4.8,
     zones: 86,
+    loopZones: 52,
     points: 86 * POINTS_DEFENDED_HEX,
     shape: 'boucle',
     difficulty: 'Modéré',
@@ -142,6 +150,15 @@ export function routeIdForType(type: string | undefined): string {
       return DEFAULT_ROUTE_ID;
   }
 }
+
+/**
+ * Onglet objectif (AMENDEMENT-12 §A) → proposition présélectionnée : Conquérir
+ * ouvre la Route A (rapide), Défendre la Route C (défense République).
+ */
+export const ROUTE_ID_BY_OBJECTIVE: Record<RouteObjective, string> = {
+  conquerir: 'route_a_rapide',
+  defendre: 'route_c_defense',
+};
 
 /** La priorité (chips) sélectionne une proposition — et réciproquement. */
 export const ROUTE_ID_BY_PRIORITY: Record<RoutePriority, string> = {
@@ -211,9 +228,13 @@ export const ROUTE_OBJECTIVE = {
 
 // ─── Route = objet social (AMENDEMENT-11 §6 — MVP léger) ────────────────────
 
-/** Nom social complet d'une route (« Route défense République »). */
+/**
+ * Nom social complet d'une route — sur les 2 verbes (AMENDEMENT-12 §A) :
+ * « Route conquête Canal » / « Route défense République ».
+ */
 export function routeSocialName(route: PlannedRouteDemo): string {
-  return `Route ${ROUTE_TYPE_LABELS[route.typeKey].toLowerCase()} ${route.zone}`;
+  const noun = ROUTE_OBJECTIVE_NOUNS[OBJECTIVE_BY_ROUTE_TYPE[route.typeKey]];
+  return `Route ${noun} ${route.zone}`;
 }
 
 /** Entrée de feed crew après partage (démo : affichée localement + toast). */

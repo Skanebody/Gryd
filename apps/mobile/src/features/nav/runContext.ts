@@ -1,16 +1,16 @@
 /**
- * GRYD — dérivation du MODE du bouton central contextuel (AMENDEMENT-08 §3,
- * doc §8). L'état est DÉRIVÉ des données démo déterministes, jamais saisi :
- *   RAID    offensive crew active (warroom/demo OFFENSIVE)
- *   DEFEND  hexes en decay urgent sur la Battle Map
- *   CAPTURE zone neutre objectif proche
- *   RUN     sinon (run libre)
- * (SCOUT = mission exploration, branché quand les missions scout existeront.)
- * Le serveur décide toujours du territoire — ce mode n'est qu'une lecture UI.
+ * GRYD — dérivation de l'OBJECTIF du bouton central contextuel (AMENDEMENT-12
+ * §A — 2 objectifs joueur, plus jamais RUN/RAID/CAPTURE/SCOUT). L'état est
+ * DÉRIVÉ des données démo déterministes, jamais saisi :
+ *   DEFENDRE   zones en decay urgent sur la Battle Map OU mission défense
+ *              active (warroom/demo DEFENSE_MISSION)
+ *   CONQUERIR  sinon (défaut — absorbe capture, raid et exploration)
+ * Le serveur décide toujours du territoire — cet objectif n'est qu'une
+ * lecture UI ; les barèmes serveur restent inchangés.
  */
 import type { RunButtonMode } from '../../ui/game';
 import { battleMapData, battleMapSummary, type BattleMapSummary } from '../map/fakeHexes';
-import { OFFENSIVE } from '../warroom/demo';
+import { DEFENSE_MISSION } from '../warroom/demo';
 
 export interface BattleContext {
   mode: RunButtonMode;
@@ -23,15 +23,9 @@ let cached: BattleContext | null = null;
 export function battleContext(): BattleContext {
   if (cached) return cached;
   const summary = battleMapSummary(battleMapData().collection);
-  const offensiveActive =
-    OFFENSIVE.remainingS > 0 && OFFENSIVE.hexesTaken < OFFENSIVE.objectiveHexes;
-  const mode: RunButtonMode = offensiveActive
-    ? 'RAID'
-    : summary.decayUrgent > 0
-      ? 'DEFEND'
-      : summary.objectiveHexes > 0
-        ? 'CAPTURE'
-        : 'RUN';
+  const defenseMissionActive = DEFENSE_MISSION.expiresInH > 0;
+  const mode: RunButtonMode =
+    summary.decayUrgent > 0 || defenseMissionActive ? 'DEFENDRE' : 'CONQUERIR';
   cached = { mode, summary };
   return cached;
 }

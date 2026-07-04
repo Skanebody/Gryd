@@ -41,7 +41,8 @@ export const DEFENSE_MISSION: DefenseMissionDemo = {
 };
 
 /**
- * Offensive crew en cours (§38.2, exemple doc §15 : République). Objectif
+ * Offensive crew en cours (§38.2, exemple doc §15 : République) — affichée
+ * « Conquête collective » à l'écran (AMENDEMENT-12 §A). Objectif
  * 800 hexes, 496 pris → 62 %. remainingS = point de départ du compte à rebours
  * animé (04:21:08). 6/10 participants. myHexes = contribution perso.
  */
@@ -75,8 +76,9 @@ export interface MissionDemo {
   progress: number;
   target: number;
 }
+// AMENDEMENT-12 §A : libellés missions/notifications sur les 2 verbes joueur.
 export const MISSIONS: readonly MissionDemo[] = [
-  { key: 'daily_capture_10', kind: 'quotidienne', label: 'Capture 10 zones aujourd\'hui', progress: 6, target: 10 },
+  { key: 'daily_capture_10', kind: 'quotidienne', label: 'Conquiers 10 zones aujourd\'hui', progress: 6, target: 10 },
   { key: 'weekly_verified_4', kind: 'hebdomadaire', label: '4 courses vérifiées cette semaine', progress: 2, target: 4 },
   { key: 'crew_defend_50', kind: 'crew', label: 'Le crew défend 50 zones', progress: 38, target: 50 },
 ];
@@ -104,8 +106,8 @@ export const WAR_ROUTES: readonly WarRouteDemo[] = [
 /**
  * Scout reports (perk Scout Ping §34, AMENDEMENT-08 §10) : renseignement
  * agrégé par zone — jamais de position live d'un joueur (§37.3). La teinte
- * lit l'état de jeu : rival affaibli = opportunité de raid (rival), secteur
- * neutre dense = info de capture (verify).
+ * lit l'état de jeu : rival affaibli = opportunité de conquête (rival),
+ * secteur neutre dense = info de conquête (verify).
  */
 export interface ScoutReportDemo {
   key: string;

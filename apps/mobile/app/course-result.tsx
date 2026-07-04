@@ -51,6 +51,8 @@ import {
 import { territoryStyle } from '../src/features/map/mapStyle';
 import { M_PER_DEG_LAT, M_PER_DEG_LNG } from '../src/features/map/basemap';
 import { ResultReveal } from '../src/features/run/ResultReveal';
+import { buildLiveNav } from '../src/features/run/liveNav';
+import { buildRunLoop, loopSummaryAt, type RunLoop } from '../src/features/run/loop';
 import {
   buildRunSimulation,
   formatClock,
@@ -188,6 +190,138 @@ function buildSectorGeometry(pctBefore: number, pctAfter: number): SectorGeometr
   };
 }
 
+// ─── Mini-cartes AVANT/APRÈS de la boucle (AMENDEMENT-12 §C — post-run) ─────
+// Le remplissage RÉEL de la course : couloir organique seul (AVANT) → couloir
+// + intérieur fusionnés (APRÈS), avec la trace de la boucle par-dessus. Rendu
+// uniquement — les zones affichées sont les estimations dérivées du moteur.
+
+/** Padding de la viewBox des mini-cartes boucle. */
+const LOOP_VB_PAD = 6;
+/** Grand côté de la viewBox — le petit suit l'aspect réel de la course. */
+const LOOP_VB_MAX = 100;
+/** Largeur de la trace de course sur la mini-carte. */
+const LOOP_ROUTE_W = 2.2;
+
+interface LoopGeometry {
+  vbW: number;
+  vbH: number;
+  /** Couloir organique seul (AVANT). */
+  beforePath: string;
+  /** Couloir + intérieur fusionnés (APRÈS — le remplissage). */
+  afterPath: string;
+  /** Polyline de la trace (la boucle elle-même). */
+  routePoints: string;
+}
+
+/** Projette couloir/boucle dans une viewBox à l'aspect de la course. */
+function buildLoopGeometry(loop: RunLoop, corridorCells: readonly string[]): LoopGeometry | null {
+  const before = cellsToTerritory(corridorCells, 'crew');
+  const after = cellsToTerritory([...corridorCells, ...loop.interiorCells], 'crew');
+  if (!before || !after) return null;
+
+  let minLng = Number.POSITIVE_INFINITY;
+  let maxLng = Number.NEGATIVE_INFINITY;
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+  for (const poly of after.polygons) {
+    for (const ring of poly) {
+      for (const [lng, lat] of ring) {
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+    }
+  }
+  const spanX = Math.max(1, (maxLng - minLng) * M_PER_DEG_LNG);
+  const spanY = Math.max(1, (maxLat - minLat) * M_PER_DEG_LAT);
+  const k = (LOOP_VB_MAX - LOOP_VB_PAD * 2) / Math.max(spanX, spanY);
+  const vbW = spanX * k + LOOP_VB_PAD * 2;
+  const vbH = spanY * k + LOOP_VB_PAD * 2;
+  const project: ProjectPoint = (lng, lat) => ({
+    x: LOOP_VB_PAD + (lng - minLng) * M_PER_DEG_LNG * k,
+    y: LOOP_VB_PAD + (maxLat - lat) * M_PER_DEG_LAT * k,
+  });
+
+  const routePoints = loop.traceGeo
+    .map((p) => {
+      const { x, y } = project(p.lng, p.lat);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return {
+    vbW,
+    vbH,
+    beforePath: territoryPath(before, project),
+    afterPath: territoryPath(after, project),
+    routePoints,
+  };
+}
+
+/** Un côté AVANT/APRÈS de la boucle (zone crew organique + trace). */
+function LoopMiniMap({ d, route, vbW, vbH }: { d: string; route?: string; vbW: number; vbH: number }) {
+  return (
+    <Svg width="100%" height="100%" viewBox={`0 0 ${vbW.toFixed(0)} ${vbH.toFixed(0)}`}>
+      <Path d={d} fill={colors.noir} fillRule="evenodd" />
+      <Path
+        d={d}
+        fill={territoryStyle.crewFill}
+        stroke={territoryStyle.crewStroke}
+        strokeWidth={SECTOR_BORDER_W}
+        fillRule="evenodd"
+      />
+      {route ? (
+        <Polyline
+          points={route}
+          fill="none"
+          stroke={territoryStyle.routeStroke}
+          strokeWidth={LOOP_ROUTE_W}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
+    </Svg>
+  );
+}
+
+/** AVANT/APRÈS organique du remplissage (« Ferme la boucle, tu prends la zone »). */
+function LoopBeforeAfter({
+  geometry,
+  corridorZones,
+  totalZones,
+}: {
+  geometry: LoopGeometry;
+  corridorZones: number;
+  totalZones: number;
+}) {
+  const aspect = geometry.vbW / geometry.vbH;
+  return (
+    <View style={styles.sectorCard}>
+      <Text style={styles.sectorTitle} numberOfLines={1}>
+        LA BOUCLE FAIT LA ZONE
+      </Text>
+      <View style={styles.sectorRow}>
+        <View style={styles.sectorSide}>
+          <View style={[styles.loopMap, { aspectRatio: aspect }]}>
+            <LoopMiniMap d={geometry.beforePath} route={geometry.routePoints} vbW={geometry.vbW} vbH={geometry.vbH} />
+          </View>
+          <Text style={styles.sectorSideLabel}>LE TRAIT</Text>
+          <Text style={styles.sectorPct}>+{formatInt(corridorZones)}</Text>
+        </View>
+        <Icon name="chevron" size={20} color={colors.gris} />
+        <View style={styles.sectorSide}>
+          <View style={[styles.loopMap, { aspectRatio: aspect }]}>
+            <LoopMiniMap d={geometry.afterPath} route={geometry.routePoints} vbW={geometry.vbW} vbH={geometry.vbH} />
+          </View>
+          <Text style={styles.sectorSideLabel}>LA BOUCLE</Text>
+          <Text style={[styles.sectorPct, styles.sectorPctAfter]}>+{formatInt(totalZones)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 /** Rendu SVG d'un côté (aplat rival dessous, crew dessus, route optionnelle). */
 function SectorMiniMap({ side, route }: { side: SectorSide; route?: string }) {
   return (
@@ -290,7 +424,14 @@ export default function CourseResultScreen() {
   const mode = runModeFromParam(params.mode);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   const tickIndex = tickParam(params.t, sim.ticks.length - 1);
-  const stats = useMemo(() => resultStats(sim, tickIndex), [sim, tickIndex]);
+  // Boucle (AMENDEMENT-12) : rejouée depuis la même démo déterministe — les
+  // zones intérieures entrent dans les totaux AVANT points/bonus.
+  const nav = useMemo(() => buildLiveNav(sim), [sim]);
+  const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
+  const stats = useMemo(
+    () => resultStats(sim, tickIndex, loopSummaryAt(loop, tickIndex)),
+    [sim, tickIndex, loop],
+  );
   const reduce = useReduceMotion();
 
   const steps = STEPS_BY_MODE[mode];
@@ -309,6 +450,12 @@ export default function CourseResultScreen() {
         : null,
     [mode, stats.zonePctBefore, stats.zonePctAfter],
   );
+  // AVANT/APRÈS du remplissage de boucle — seulement si la boucle est fermée.
+  const loopGeo = useMemo(() => {
+    if (!stats.loopClosed || !loop) return null;
+    const corridor = nav.ticks[Math.min(tickIndex, nav.ticks.length - 1)]?.litCount ?? 0;
+    return buildLoopGeometry(loop, nav.litCells.slice(0, corridor));
+  }, [stats.loopClosed, loop, nav, tickIndex]);
 
   useEffect(() => {
     screen('course_result', { mode });
@@ -388,10 +535,24 @@ export default function CourseResultScreen() {
             <View style={styles.zonesBlock}>
               <ZoneCountUp value={stats.hexes} />
               <Text style={styles.zonesLabel}>ZONES CAPTURÉES</Text>
+              {/* « dont N en boucle fermée » (AMENDEMENT-12 §C). */}
+              {stats.loopClosed ? (
+                <Text style={styles.zonesLoop}>
+                  dont {formatInt(stats.enclosedZones)} en boucle fermée
+                </Text>
+              ) : null}
               <Text style={styles.zonesSub}>
                 ≈ {formatInt(stats.basePoints)} pts estimés — confirmés par le serveur.
               </Text>
             </View>
+            {/* Le remplissage : trait (couloir) → boucle (zone entière). */}
+            {loopGeo ? (
+              <LoopBeforeAfter
+                geometry={loopGeo}
+                corridorZones={stats.hexes - stats.enclosedZones}
+                totalZones={stats.hexes}
+              />
+            ) : null}
           </ResultReveal>
         ) : null}
 
@@ -685,6 +846,16 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   zonesSub: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
+  /** « dont N en boucle fermée » — le geste signature, en chartreuse. */
+  zonesLoop: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  /** Mini-carte boucle : hauteur bornée, largeur à l'aspect réel de la course. */
+  loopMap: { maxHeight: 150, maxWidth: '84%', height: 150 },
 
   // ── Secteur modifié : avant/après organique (AMENDEMENT-11 §5) ──
   sectorCard: {

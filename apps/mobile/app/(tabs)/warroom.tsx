@@ -1,8 +1,10 @@
 /**
- * GRYD — onglet War Room, scène stratégique (AMENDEMENT-08 §10, doc §15).
- * « L'écran le plus jeu » : À faire / Offensives / Défense / Routes / Scout
- * Reports / Coffre / Historique. Compose le design system jeu (ui/game) :
- * WarRoomObjectiveCard (offensive + défense urgente), WarEventCard (scout
+ * GRYD — onglet War Room, scène stratégique (AMENDEMENT-08 §10, doc §15,
+ * AMENDEMENT-12 §A — sections sur les 2 verbes joueur).
+ * « L'écran le plus jeu » : À faire / Conquérir (conquête collective) /
+ * Défendre / Routes / Scout Reports / Coffre / Historique. Compose le design
+ * system jeu (ui/game) :
+ * WarRoomObjectiveCard (conquête collective + défense urgente), WarEventCard (scout
  * reports + war log), ChestCard (coffre hebdo). GARDE les entrées AMENDEMENT-07
  * (Aujourd'hui / Challenges / Motivation) + Inbox / Arsenal. Compte à rebours
  * animé (tick 1 s). Données démo DÉTERMINISTES (features/warroom/demo) —
@@ -238,10 +240,13 @@ export default function WarRoomScreen() {
           );
         })}
 
-        {/* OFFENSIVES — WarRoomObjectiveCard (doc §15 : République, +800 hexes) */}
-        <SectionHeader icon="raid" label={`OFFENSIVES · ${OFFENSIVE_DURATION_H} H`} />
+        {/* CONQUÉRIR — conquête collective du crew (AMENDEMENT-12 §A : l'offensive
+            crew devient « Conquête collective », barèmes serveur inchangés).
+            Kicker court « Conquête crew » : la card le met en capitales sur une
+            seule ligne (375 px) — le nom complet vit dans le toast de rejointe. */}
+        <SectionHeader icon="raid" label={`CONQUÉRIR · ${OFFENSIVE_DURATION_H} H`} />
         <WarRoomObjectiveCard
-          kicker="Offensive crew"
+          kicker="Conquête crew"
           zone={OFFENSIVE.zone}
           objective={`Objectif : +${formatInt(OFFENSIVE.objectiveHexes)} zones — ${formatInt(OFFENSIVE.hexesTaken)} prises`}
           progress={offensivePct}
@@ -253,7 +258,7 @@ export default function WarRoomScreen() {
           joinLabel="Rejoindre"
           onJoin={() => {
             haptics.medium();
-            toast.show(`Offensive rejointe — cap sur ${OFFENSIVE.zone}`);
+            toast.show(`Conquête collective rejointe — cap sur ${OFFENSIVE.zone}`);
           }}
           onOpenMap={openMap}
         />
@@ -261,10 +266,11 @@ export default function WarRoomScreen() {
           <Text style={styles.contribLabel}>Ta contribution</Text>
           <Text style={styles.contribValue}>+{formatInt(OFFENSIVE.myHexes)} zones</Text>
         </View>
-        {/* AMENDEMENT-10 §2 : l'offensive pointe vers le Route Planner (raid). */}
+        {/* AMENDEMENT-10 §2 : la conquête collective pointe vers le Route Planner
+            (`?type=raid` = sous-type interne conservé — lien inchangé). */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Voir la route de l'offensive dans le Route Planner"
+          accessibilityLabel="Voir la route de la conquête collective dans le Route Planner"
           onPress={() => {
             haptics.light();
             router.push('/route-planner?type=raid');
@@ -275,8 +281,8 @@ export default function WarRoomScreen() {
           <Text style={styles.assignLabel}>Voir la route</Text>
         </Pressable>
 
-        {/* DÉFENSE — urgence decay (doc §15 : 34 hexes / 48 h, zone Canal) */}
-        <SectionHeader icon="bouclier" label="DÉFENSE" />
+        {/* DÉFENDRE — urgence decay (doc §15 : 34 zones / 48 h, zone Canal) */}
+        <SectionHeader icon="bouclier" label="DÉFENDRE" />
         <WarRoomObjectiveCard
           kicker="Défense urgente"
           zone={DEFENSE_MISSION.zone}

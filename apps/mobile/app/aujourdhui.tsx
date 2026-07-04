@@ -41,6 +41,12 @@ export default function AujourdhuiScreen() {
 
   const { route } = TODAY_HERO;
 
+  // AMENDEMENT-12 §A : la route recommandée est étiquetée sur les 2 verbes
+  // joueur — DÉFENDRE si c'est une route défense (démo), sinon CONQUÉRIR.
+  const objectiveTag = route.name.toLowerCase().includes('défense')
+    ? 'DÉFENDRE'
+    : 'CONQUÉRIR';
+
   // Prochain badge proche : top 1 verrouillé non secret par ratio (même calcul
   // que la section « Proches du déblocage » de la Collection — cohérence).
   const nextBadge = useMemo(() => {
@@ -62,13 +68,15 @@ export default function AujourdhuiScreen() {
       {/* L'OBJECTIF : carte héros ROUTE RECOMMANDÉE (tap → Route Planner). */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Route recommandée : ${route.name}, ${kmLabel(route.distanceKm)} kilomètres`}
+        accessibilityLabel={`Route recommandée — objectif ${objectiveTag} : ${route.name}, ${kmLabel(route.distanceKm)} kilomètres`}
         onPress={goPlanner}
         style={({ pressed }) => [styles.hero, pressed && styles.pressed]}
       >
         <View style={styles.heroHead}>
           <Icon name="route" size={18} color={colors.chartreuse} />
-          <Text style={styles.heroKicker}>ROUTE RECOMMANDÉE</Text>
+          <Text style={styles.heroKicker}>
+            ROUTE RECOMMANDÉE · <Text style={styles.heroObjective}>{objectiveTag}</Text>
+          </Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </View>
 
@@ -201,6 +209,8 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontVariant: ['tabular-nums'],
   },
+  // Étiquette objectif (AMENDEMENT-12 §A) — blanc sur carbone (contraste ok).
+  heroObjective: { color: colors.blanc, fontWeight: '700' },
   kpiRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 },
   kpi: {
     color: colors.blanc,

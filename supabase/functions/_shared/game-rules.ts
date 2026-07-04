@@ -517,3 +517,36 @@ export const BALANCED_WEEK_MAX_RUNS = 6;
  * raisonnable de course (réutilise RUN_AVG_PACE_MIN/MAX_S_KM). Documenté :
  * pas de nouveau nombre magique, on réutilise les bornes de validité §3.2.
  */
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-12 §B — « La boucle fait la zone » (delta §3.1, 04/07/2026)
+// Trait (défaut, inchangé) : une course capture le couloir de cellules res 10
+// traversées. Boucle fermée : l'INTÉRIEUR du polygone de la trace est capturé,
+// chaque cellule intérieure passant UNE PAR UNE par les règles existantes
+// (lock 24 h, bouclier, protection nouveau joueur, vol/barème, contested
+// AMENDEMENT-07, plafond MAX_CLAIMS_PER_DAY couloir + intérieur).
+// « Trace un trait, tu prends la rue. Ferme la boucle, tu prends la zone. »
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Tolérance de fermeture : la trace est une boucle si son arrivée revient à
+ * ≤ 100 m de son départ (MVP : fermeture par tolérance départ/arrivée
+ * UNIQUEMENT — figure-8 / multi-boucles par auto-intersection = V1).
+ */
+export const LOOP_CLOSE_TOLERANCE_M = 100;
+/**
+ * Périmètre minimal d'une boucle : en deçà, couloir seulement (pas de
+ * micro-boucle farmée sur place). Au-delà, l'AUTO-LIMITE ISOPÉRIMÉTRIQUE est
+ * le garde-fou physique : l'aire enfermable est bornée par P²/4π, soit pour
+ * 5 km de boucle ≈ 1,9 km² ≈ 130 zones res 10 (10 km ≈ 530) — et le plafond
+ * quotidien MAX_CLAIMS_PER_DAY (appliqué au total couloir + intérieur,
+ * intérieur tronqué par distance croissante au tracé) reste la borne dure.
+ */
+export const LOOP_MIN_PERIMETER_M = 1_000;
+/**
+ * Mise en scène de la boucle (AMENDEMENT-12 §C — PRÉSENTATION, pas des règles
+ * serveur) : « Boucle ouverte » (pointillé position → départ) sous 600 m,
+ * aperçu de la zone fantôme + « Ferme ta boucle » sous 300 m (chiffre spécifié
+ * par l'amendement, d'où sa place ici et pas dans un fichier UI).
+ */
+export const LOOP_HINT_DISTANCE_M = 600;
+export const LOOP_PREVIEW_DISTANCE_M = 300;

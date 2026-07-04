@@ -7,13 +7,15 @@
  *             « Ton crew 42 % · Canal Crew 38 % · Neutre 20 % » (les % ont
  *             remplacé les comptes d'hex) + mini war feed (1 SEUL event).
  *   droite    2 boutons flottants : recentrer / stats.
- *   bas       chips des 5 MODES de carte (Territoire / Route / Défense / Raid /
- *             Exploration — un seul actif, remplacent les chips layers), puis
+ *   bas       chips des 5 MODES de carte (Territoire / Route / Défense / Rival /
+ *             Exploration — un seul actif ; AMENDEMENT-12 §A : ce sont des
+ *             CALQUES de lecture, pas des objectifs — « Raid » est renommé
+ *             « Rival », calque de lecture du territoire rival), puis
  *             MapBottomSheet 3 états, posée AU-DESSUS du bouton central
  *             ContextualRunButton (AMENDEMENT-08 §3 — il reste l'unique CTA
  *             chartreuse, la sheet ne le duplique pas) :
  *             COMPACT  objectif crew + pts possibles + CTA texte contextuel
- *                      (RUN/DEFEND/RAID/CAPTURE → même flux RunModeSheet).
+ *                      (CONQUÉRIR/DÉFENDRE → même flux RunModeSheet).
  *             SEMI     + défi à proximité (1 carte), zone bonus, membres crew
  *                      dispo (« 2 partagent leur position (opt-in) »).
  *             OUVERT   + choix de PARCOURS (3 démo — aperçu RouteProgress sur
@@ -41,9 +43,8 @@ import {
 } from '../../ui/game';
 import { RunModeSheet } from '../motivation/RunModeSheet';
 import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
-import { MISSIONS, OFFENSIVE } from '../warroom/demo';
+import { DEFENSE_MISSION, MISSIONS, OFFENSIVE } from '../warroom/demo';
 import {
-  DEFENSE_SECTOR,
   FRIEND_RUN_DEMO,
   MAP_BONUS_ZONE,
   MAP_CHALLENGE,
@@ -60,41 +61,45 @@ import {
 import type { BattleMapSummary } from './fakeHexes';
 import { MAP_MODE_LABELS, MAP_MODE_ORDER, type MapMode } from './territory';
 
-/** CTA contextuel de la sheet — même vocabulaire que le bouton central. */
+/** CTA contextuel de la sheet — les 2 verbes du bouton central (AMENDEMENT-12 §A). */
 const CTA_LABELS: Record<RunButtonMode, string> = {
-  RUN: 'Courir',
-  DEFEND: 'Défendre',
-  RAID: 'Rejoindre',
-  CAPTURE: 'Capturer',
-  SCOUT: 'Scouter',
+  CONQUERIR: 'Conquérir',
+  DEFENDRE: 'Défendre',
 };
 
 /**
  * Libellé objectif — DÉRIVÉ du même runMode que le CTA (cohérence), vocabulaire
- * AMENDEMENT-11 §4 (zones/secteurs, jamais « hex ») : RAID → prendre la zone de
- * l'offensive (warroom/demo OFFENSIVE), CAPTURE → la zone neutre ; DEFEND/RUN/
- * SCOUT → « Défendre République » (secteur démo).
+ * AMENDEMENT-11 §4 (zones/secteurs, jamais « hex ») + AMENDEMENT-12 §A (2
+ * verbes) : CONQUÉRIR → la zone de la conquête collective (warroom/demo
+ * OFFENSIVE), DÉFENDRE → la zone de la mission défense (« Défendre le Canal »).
  */
 function objectiveTitleFor(mode: RunButtonMode): string {
   switch (mode) {
-    case 'RAID':
-      return `Prendre ${OFFENSIVE.zone}`;
-    case 'CAPTURE':
-      return 'Capturer la zone neutre';
-    case 'DEFEND':
-    case 'RUN':
-    case 'SCOUT':
-      return `Défendre ${DEFENSE_SECTOR}`;
+    case 'CONQUERIR':
+      return `Conquérir ${OFFENSIVE.zone}`;
+    case 'DEFENDRE':
+      return `Défendre le ${DEFENSE_MISSION.zone}`;
   }
 }
 
 /** Sous-ligne objectif : « N zones à sauver · +pts » ou « N zones tenues · +pts ». */
 function objectiveMetaFor(mode: RunButtonMode, summary: BattleMapSummary): string {
-  if (mode === 'DEFEND' || mode === 'RUN' || mode === 'SCOUT') {
+  if (mode === 'DEFENDRE') {
     return `${summary.decay} zones à sauver · +${summary.possiblePoints} pts`;
   }
   return `${summary.held} zones tenues · +${summary.possiblePoints} pts possibles`;
 }
+
+/**
+ * Libellés AFFICHÉS des modes de carte : les 5 calques AMENDEMENT-11 restent,
+ * seul « Raid » devient « Rival » à l'écran (AMENDEMENT-12 §A — calque de
+ * lecture du territoire rival ; la clé interne `raid` de territory.ts ne
+ * change pas, ce n'est pas un objectif joueur).
+ */
+const MODE_CHIP_LABELS: Record<MapMode, string> = {
+  ...MAP_MODE_LABELS,
+  raid: 'Rival',
+};
 
 /** Un event est LIVE s'il date de moins de 10 min (même seuil que WarEventCard). */
 const LIVE_MAX_MINUTES = 10;
@@ -230,7 +235,7 @@ export function BattleMapOverlays({
                 key={key}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                accessibilityLabel={`Mode ${MAP_MODE_LABELS[key]}`}
+                accessibilityLabel={`Mode ${MODE_CHIP_LABELS[key]}`}
                 onPress={() => {
                   if (active) return;
                   haptics.light();
@@ -244,7 +249,7 @@ export function BattleMapOverlays({
                 ]}
               >
                 <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
-                  {MAP_MODE_LABELS[key]}
+                  {MODE_CHIP_LABELS[key]}
                 </Text>
               </Pressable>
             );

@@ -39,12 +39,13 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import Svg, { Path, Text as SvgText } from 'react-native-svg';
-import { colors, gameColors } from '@klaim/shared';
+import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
+import { colors, gameColors, motion } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { RouteProgress, usePulse, useReduceMotion } from '../../ui/game';
 import { battleMapStyle as ms, territoryStyle } from '../map/mapStyle';
 import { cellsToTerritory, territoryPath } from '../map/territory';
+import type { LoopPhase, RunLoop } from './loop';
 import { SIM_TICK_MS, type RunSimulation } from './simulation';
 import {
   NAV_WORLD_H,
@@ -76,6 +77,12 @@ const TERRITORY_BORDER_WIDTH = 1.8;
 const TERRITORY_GLOW_WIDTH = 7;
 /** Contour EXTÉRIEUR orange de la frontière contestée (double contour). */
 const CONTESTED_OUTER_WIDTH = 3;
+/** Pointillé « boucle ouverte » position → départ (AMENDEMENT-12 §C). */
+const LOOP_DASH = '7 7';
+/** Rayon du marqueur départ (anneau chartreuse) tant que la boucle est ouverte. */
+const LOOP_START_R = 5;
+/** Contour de la zone fantôme (aperçu < 300 m) — pointillé plus serré. */
+const LOOP_GHOST_DASH = '5 5';
 
 interface XY {
   x: number;
@@ -96,6 +103,10 @@ export interface LiveNavMapProps {
   capturing: boolean;
   /** Fenêtre « zone contestée » active → frontière double contour + pulse violet. */
   contested?: boolean;
+  /** État boucle démo (AMENDEMENT-12 §C) — null hors conquête. */
+  loop?: RunLoop | null;
+  /** Phase d'affichage de la boucle au tick courant. */
+  loopPhase?: LoopPhase;
   /** Notifié quand le suivi caméra change (geste = off, recenter = on). */
   onFollowChange?: (following: boolean) => void;
 }
@@ -109,7 +120,7 @@ function normalizeDeg(deg: number): number {
 }
 
 export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function LiveNavMap(
-  { nav, sim, tickIndex, capturing, contested = false, onFollowChange },
+  { nav, sim, tickIndex, capturing, contested = false, loop = null, loopPhase = 'none', onFollowChange },
   ref,
 ) {
   const reduce = useReduceMotion();
@@ -304,10 +315,46 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
   // lissée : la zone grossit, aucune cellule visible.
   const litCount = tick?.litCount ?? 0;
   const lastCell = litCount > 0 ? nav.litCells[litCount - 1] : undefined;
+  const loopClosed = loopPhase === 'closed';
   const territoryD = useMemo(() => {
-    const territory = cellsToTerritory(nav.litCells.slice(0, litCount), 'crew');
+    // Boucle fermée (AMENDEMENT-12 §C) : couloir + intérieur fusionnés en UNE
+    // zone organique — le remplissage, pas une grille.
+    const cells = loopClosed && loop
+      ? [...nav.litCells.slice(0, litCount), ...loop.interiorCells]
+      : nav.litCells.slice(0, litCount);
+    const territory = cellsToTerritory(cells, 'crew');
     return territory ? territoryPath(territory, navProject) : '';
-  }, [litCount, nav.litCells]);
+  }, [litCount, nav.litCells, loopClosed, loop]);
+  /** Zone fantôme / burst : l'INTÉRIEUR seul, lissé (aperçu puis remplissage). */
+  const interiorD = useMemo(() => {
+    if (!loop || loop.interiorCells.length === 0) return '';
+    const territory = cellsToTerritory(loop.interiorCells, 'crew');
+    return territory ? territoryPath(territory, navProject) : '';
+  }, [loop]);
+  // Burst de fermeture : l'intérieur s'allume fort puis se fond dans la zone
+  // (Animated core, reduce motion → aucun flash, la zone fusionnée suffit).
+  const fillBurst = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!loopClosed) {
+      fillBurst.setValue(0);
+      return;
+    }
+    if (reduce) return;
+    Animated.sequence([
+      Animated.timing(fillBurst, {
+        toValue: 1,
+        duration: motion.transitionMs,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fillBurst, {
+        toValue: 0,
+        duration: motion.celebrationCountMs,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [loopClosed, reduce, fillBurst]);
   /** Front de capture (centre de la dernière zone prise) — anneau pulsé. */
   const frontXY = useMemo(() => (lastCell ? cellCenterWorld(lastCell) : null), [lastCell]);
 
@@ -366,6 +413,53 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
                 stroke={contested ? territoryStyle.contestedInnerStroke : territoryStyle.crewStroke}
                 strokeWidth={TERRITORY_BORDER_WIDTH}
                 strokeLinejoin="round"
+              />
+            </Svg>
+          ) : null}
+
+          {/* Boucle (AMENDEMENT-12 §C) : aperçu fantôme de l'intérieur (< 300 m)
+              puis burst de remplissage à la fermeture — jamais de cellules. */}
+          {interiorD && loopPhase === 'approach' ? (
+            <Svg width={world.w} height={world.h} style={StyleSheet.absoluteFill} pointerEvents="none">
+              <Path
+                d={interiorD}
+                fill={territoryStyle.objectiveSoft}
+                fillRule="evenodd"
+                stroke={colors.chartreuse40}
+                strokeWidth={TERRITORY_BORDER_WIDTH}
+                strokeDasharray={LOOP_GHOST_DASH}
+                strokeLinejoin="round"
+              />
+            </Svg>
+          ) : null}
+          {interiorD && loopClosed ? (
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: fillBurst }]} pointerEvents="none">
+              <Svg width={world.w} height={world.h}>
+                <Path d={interiorD} fill={territoryStyle.crewFill} fillRule="evenodd" />
+              </Svg>
+            </Animated.View>
+          ) : null}
+
+          {/* Boucle ouverte : pointillé discret position → départ + marqueur. */}
+          {loop && !loopClosed && (loopPhase === 'open' || loopPhase === 'approach') && tick ? (
+            <Svg width={world.w} height={world.h} style={StyleSheet.absoluteFill} pointerEvents="none">
+              <Line
+                x1={tick.x}
+                y1={tick.y}
+                x2={loop.startXY.x}
+                y2={loop.startXY.y}
+                stroke={colors.chartreuse40}
+                strokeWidth={2}
+                strokeDasharray={LOOP_DASH}
+                strokeLinecap="round"
+              />
+              <Circle
+                cx={loop.startXY.x}
+                cy={loop.startXY.y}
+                r={LOOP_START_R}
+                fill={colors.noir}
+                stroke={colors.chartreuse}
+                strokeWidth={2}
               />
             </Svg>
           ) : null}

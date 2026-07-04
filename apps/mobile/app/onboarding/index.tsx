@@ -32,7 +32,7 @@ import {
 import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
-import { CrewCrest, useCountUp, useReduceMotion } from '../../src/ui/game';
+import { CrewCrest, useReduceMotion } from '../../src/ui/game';
 import { territoryStyle, withAlpha } from '../../src/features/map/mapStyle';
 import { OptionCard } from '../../src/features/motivation/ui';
 import {
@@ -210,17 +210,28 @@ function ConceptCityVisual() {
 }
 
 // ─── Écran concept 2 — « Chaque run capture du territoire. » ────────────────
+// AMENDEMENT-12 §C : LE geste signature. La trace chartreuse se dessine (le
+// trait → la rue), REVIENT à son départ, la boucle se ferme et l'intérieur se
+// remplit organiquement (la zone) — compteur qui saute à la fermeture.
 
 const RUN_W = 320;
 const RUN_H = 230;
-/** Itinéraire chartreuse qui SE DESSINE (boucle le long des rues). */
+/** Itinéraire chartreuse qui SE DESSINE — une BOUCLE : il revient au départ. */
 const RUN_ROUTE =
-  'M70,180 C60,140 76,104 110,88 C144,72 196,64 232,84 C262,100 268,140 244,162 C216,186 150,192 110,186';
+  'M70,180 C60,140 76,104 110,88 C144,72 196,64 232,84 C262,100 268,140 244,162 C216,186 150,192 110,186 C94,183 76,184 70,180';
 /** Longueur ≥ réelle du tracé (dasharray/dashoffset — marge pour le lissé). */
-const RUN_ROUTE_LEN = 560;
-/** Zone qui S'ÉTEND derrière la route (blob organique crew). */
+const RUN_ROUTE_LEN = 610;
+/** L'INTÉRIEUR de la boucle (blob organique) — se remplit à la fermeture. */
 const RUN_ZONE_BLOB =
   'M84,150 C66,110 92,76 136,64 C182,52 234,62 254,92 C272,120 262,156 224,172 C180,190 108,188 84,150 Z';
+
+/** Part du temps où la boucle SE FERME (la trace touche son départ). */
+const RUN_CLOSE_AT = 0.68;
+/** Mise en scène AMENDEMENT-12 (« ≈ +86 zones dont 52 en boucle ») : le
+ * couloir du trait vaut 34 rues, la fermeture ajoute 52 zones intérieures —
+ * total = TODAY_HERO.route.zones (86). Données démo, pas des règles. */
+const RUN_LOOP_ZONES = 52;
+const RUN_CORRIDOR_ZONES = TODAY_HERO.route.zones - RUN_LOOP_ZONES;
 
 const RUN_STREETS: readonly string[] = [
   'M0,52 C90,44 230,60 320,48',
@@ -231,24 +242,43 @@ const RUN_STREETS: readonly string[] = [
 ];
 
 function ConceptRunVisual() {
-  const p = useTimedProgress(motion.celebrationCountMs * 2);
-  const zones = useCountUp(TODAY_HERO.route.zones, motion.celebrationCountMs * 2);
-  const zoneOp = ramp(p, 0.25, 0.9);
+  const p = useTimedProgress(motion.celebrationCountMs * 3);
+  const drawP = ramp(p, 0, RUN_CLOSE_AT);
+  const closed = p >= RUN_CLOSE_AT + 0.04;
+  /** Aperçu fantôme de la zone juste avant la fermeture (pointillé). */
+  const ghostOp = Math.max(0, ramp(p, 0.5, 0.64) - ramp(p, RUN_CLOSE_AT + 0.04, RUN_CLOSE_AT + 0.08));
+  /** Remplissage organique de l'intérieur à la fermeture. */
+  const fillOp = ramp(p, RUN_CLOSE_AT + 0.04, 0.88);
+  /** Compteur : le trait cumule les rues, la fermeture fait SAUTER + zones. */
+  const zones =
+    Math.round(RUN_CORRIDOR_ZONES * ramp(p, 0.06, RUN_CLOSE_AT)) +
+    Math.round(RUN_LOOP_ZONES * ramp(p, RUN_CLOSE_AT + 0.04, 0.8));
   return (
     <View style={styles.visualCard}>
       <Svg width="100%" height={RUN_H} viewBox={`0 0 ${RUN_W} ${RUN_H}`}>
         {RUN_STREETS.map((d) => (
           <Path key={d} d={d} stroke={withAlpha(colors.blanc, 0.08)} strokeWidth={2} fill="none" />
         ))}
-        {/* La zone s'étend DERRIÈRE la route qui se dessine. */}
+        {/* Aperçu fantôme : ce que la boucle va prendre (translucide, pointillé). */}
+        {ghostOp > 0 ? (
+          <Path
+            d={RUN_ZONE_BLOB}
+            fill={territoryStyle.objectiveSoft}
+            stroke={colors.chartreuse40}
+            strokeWidth={1.6}
+            strokeDasharray="5 5"
+            opacity={ghostOp}
+          />
+        ) : null}
+        {/* BOUCLE FERMÉE : l'intérieur se remplit organiquement. */}
         <Path
           d={RUN_ZONE_BLOB}
           fill={territoryStyle.crewFill}
           stroke={territoryStyle.crewStroke}
           strokeWidth={1.8}
-          opacity={zoneOp}
+          opacity={fillOp}
         />
-        {/* Route épaisse chartreuse — elle se dessine (dashoffset piloté). */}
+        {/* Route épaisse chartreuse — le trait se dessine puis SE FERME. */}
         <Path
           d={RUN_ROUTE}
           stroke={territoryStyle.routeStroke}
@@ -256,17 +286,22 @@ function ConceptRunVisual() {
           strokeLinecap="round"
           fill="none"
           strokeDasharray={`${RUN_ROUTE_LEN}`}
-          strokeDashoffset={RUN_ROUTE_LEN * (1 - p)}
+          strokeDashoffset={RUN_ROUTE_LEN * (1 - drawP)}
         />
-        {/* Départ (toujours visible) et coureur en fin de tracé. */}
+        {/* Départ (toujours visible) ; le coureur REVIENT dessus à la fermeture. */}
         <Circle cx={70} cy={180} r={5} fill={colors.noir} stroke={territoryStyle.routeDot} strokeWidth={2.5} />
-        {p >= 1 ? <Circle cx={110} cy={186} r={6} fill={territoryStyle.routeDot} /> : null}
+        {closed ? <Circle cx={70} cy={180} r={6.5} fill={territoryStyle.routeDot} /> : null}
       </Svg>
-      {/* Compteur de zones capturées — le gain, en chartreuse. */}
+      {/* Compteur de zones capturées — saute à la fermeture de la boucle. */}
       <View style={styles.zoneCounter}>
         <Text style={styles.zoneCounterValue}>+{zones}</Text>
-        <Text style={styles.zoneCounterLabel}>zones capturées</Text>
+        <Text style={styles.zoneCounterLabel}>
+          {closed ? `dont ${RUN_LOOP_ZONES} en boucle` : 'zones capturées'}
+        </Text>
       </View>
+      {closed ? (
+        <Text style={styles.frontierLabel}>Boucle fermée — la zone est à toi</Text>
+      ) : null}
     </View>
   );
 }
@@ -442,7 +477,7 @@ export default function OnboardingScreen() {
       {step === 'concept_run' ? (
         <ConceptSlide
           title="Chaque run capture du territoire."
-          tagline="Ton itinéraire dessine ta conquête : les rues traversées deviennent tes zones."
+          tagline="Trace un trait, tu prends la rue. Ferme la boucle, tu prends la zone."
         >
           <ConceptRunVisual />
         </ConceptSlide>
