@@ -3,9 +3,11 @@
  * (AMENDEMENT-10 §4, AMENDEMENT-11 vocabulaire zones/territoires). Règle
  * stricte « un écran = une décision » : 1 objectif (la ROUTE RECOMMANDÉE,
  * KPI géant), 2-3 indicateurs (bandeau semaine : runs · Score Forme · coffre
- * crew), 1 CTA (START RUN → Route Planner), pas de feed. Le prochain badge
- * proche (1 carte compacte) reste une invitation douce, jamais une injonction.
- * Régime usage réel : fond plein, pas de glass, contraste max.
+ * crew), 1 CTA « GO » (AMENDEMENT-14 §2 : départ IMMÉDIAT sur le plan auto —
+ * la card route reste tappable vers le Route Planner, outil optionnel), pas de
+ * feed. Le prochain badge proche (1 carte compacte) reste une invitation
+ * douce, jamais une injonction. Régime usage réel : fond plein, pas de glass,
+ * contraste max.
  *
  * Data démo déterministe (features/motivation/demo TODAY + TODAY_HERO,
  * badge dérivé du catalogue + stats démo). Anti-shame (§11) conservé.
@@ -14,7 +16,9 @@ import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, radii, spacing } from '@klaim/shared';
-import { screen } from '../src/lib/analytics';
+import { EVENTS, screen, track } from '../src/lib/analytics';
+import { haptics } from '../src/lib/haptics';
+import { battleContext, goHref } from '../src/features/nav/runContext';
 import { Icon } from '../src/ui/Icon';
 import { ProgressBar } from '../src/ui/ProgressBar';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -59,6 +63,14 @@ export default function AujourdhuiScreen() {
 
   const goPlanner = () => router.push('/route-planner');
 
+  /** GO (AMENDEMENT-14 §2) : départ immédiat sur le plan auto — zéro question. */
+  const goNow = () => {
+    const { mode: context, plan } = battleContext();
+    haptics.medium();
+    track(EVENTS.runStart, { mode: 'conquete', context, route: plan.routeId });
+    router.push(goHref(plan));
+  };
+
   return (
     <StackScreen title="Aujourd'hui" icon="aujourdhui" kicker="TA JOURNÉE GRYD">
       {/* Bonjour + situation en UNE phrase — le contexte avant la décision. */}
@@ -96,14 +108,14 @@ export default function AujourdhuiScreen() {
         <Text style={styles.heroName}>{route.name}</Text>
       </Pressable>
 
-      {/* LE CTA unique — accent chartreuse de l'écran. */}
+      {/* LE CTA unique — GO, départ immédiat (accent chartreuse de l'écran). */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Démarrer : ouvrir le Route Planner"
-        onPress={goPlanner}
+        accessibilityLabel="GO — départ immédiat sur le plan du jour"
+        onPress={goNow}
         style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
       >
-        <Text style={styles.ctaLabel}>START RUN</Text>
+        <Text style={styles.ctaLabel}>GO</Text>
       </Pressable>
 
       {/* Bandeau semaine : 3 indicateurs, pas un feed. */}

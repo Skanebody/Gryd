@@ -4,7 +4,9 @@
  * le label devient « League »). La Boutique SORT de la nav (renommée Arsenal,
  * route /arsenal, accessible depuis Profil et War Room). La tab bar native est
  * masquée : la barre pill carbone flottante (GrydNavBar) et le bouton central
- * CONTEXTUEL de jeu (RunButton → ContextualRunButton, CONQUÉRIR/DÉFENDRE — A-12 §A)
+ * GO (RunButton → ContextualRunButton, AMENDEMENT-14 §2 : tap = départ
+ * immédiat sur le plan auto, appui long = choix avancés — le libellé ne montre
+ * plus jamais CONQUÉRIR/DÉFENDRE, la lecture A-12 §A teinte seulement la sheet)
  * sont rendus ICI, en overlay — permanents sur les 5 onglets, dont la carte.
  * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session →
  * (auth)/sign-in ; non configuré (O1) → mode dev.

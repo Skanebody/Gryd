@@ -445,15 +445,15 @@ export default function RoutePlannerScreen() {
         })}
       </ScrollView>
 
-      {/* ── CTA évident : DÉMARRER (décision unique de l'écran) ── */}
+      {/* ── CTA évident : GO (AMENDEMENT-14 §2 — démarre la route sélectionnée) ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Démarrer la route ${route.letter} — ${formatKm(route.distanceKm)} kilomètres`}
+          accessibilityLabel={`GO — démarrer la route ${route.letter}, ${formatKm(route.distanceKm)} kilomètres`}
           onPress={startRun}
           style={({ pressed }) => [styles.startBtn, pressed && styles.startPressed]}
         >
-          <Text style={styles.startLabel}>DÉMARRER</Text>
+          <Text style={styles.startLabel}>GO</Text>
         </Pressable>
       </View>
 

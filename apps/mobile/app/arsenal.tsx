@@ -49,12 +49,16 @@ import {
   type ArsenalCurrency,
   type GameVisualState,
 } from '../src/ui/game';
+import { ArsenalIcon } from '../src/ui/game/ArsenalItemCard';
 
 // ─── Catalogue DÉMO ──────────────────────────────────────────────────────────
 
 interface ArsenalDemoItem {
   key: string;
   name: string;
+  /** Slug d'icône personnalisée (registre arsenal-icons, AMENDEMENT-14 §5). */
+  slug: string;
+  /** Icône filaire de secours — reveal loot (RewardCard) uniquement. */
   icon: IconName;
   rarity: BadgeTier;
   usage: string;
@@ -84,6 +88,7 @@ const SHIELD_EXTRA_PER_WEEK = SHIELD_MAX_ACTIVE_PER_WEEK - SHIELD_CLUB_INCLUDED_
 const SHIELD_ITEM: ArsenalDemoItem = {
   key: 'shield',
   name: 'Bouclier de secteur',
+  slug: 'shield',
   icon: 'bouclier',
   rarity: 'race',
   usage: `Protège un secteur ${SHIELD_DURATION_HOURS} h`,
@@ -100,6 +105,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'skin-aurora',
         name: 'Skin territoire — Aurora',
+        slug: 'skin_aurora',
         icon: 'skin',
         rarity: 'elite',
         usage: 'Halo boréal sur tes zones tenues',
@@ -115,6 +121,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'pass-s0',
         name: 'Pass Saison 0',
+        slug: 'pass_saison',
         icon: 'pass',
         rarity: 'elite',
         usage: 'Frames, skins et templates share à débloquer palier par palier',
@@ -131,6 +138,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'streak-freeze',
         name: 'Gel de série',
+        slug: 'streak_gel',
         icon: 'serie',
         rarity: 'tempo',
         usage: 'Fige ta série une semaine sans courir',
@@ -140,6 +148,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'pace-report',
         name: "Rapport d'allure avancé",
+        slug: 'pace_report',
         icon: 'performance',
         rarity: 'race',
         usage: 'Splits détaillés et régularité, course par course',
@@ -156,6 +165,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'skin-circuit',
         name: 'Grille Circuit',
+        slug: 'skin_circuit',
         icon: 'skin',
         rarity: 'tempo',
         usage: 'Motif circuit gravé sur tes zones tenues',
@@ -164,6 +174,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'skin-pulse',
         name: 'Pulse lent',
+        slug: 'skin_pulse',
         icon: 'skin',
         rarity: 'carbon',
         usage: 'Battement discret sur tes zones tenues',
@@ -172,6 +183,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'skin-carbone',
         name: 'Carbone brossé',
+        slug: 'skin_carbon_grid',
         icon: 'skin',
         rarity: 'carbon',
         usage: 'Finition carbone mat sur ton territoire',
@@ -186,6 +198,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'trace-comete',
         name: 'Trace Comète',
+        slug: 'skin_trace',
         icon: 'route',
         rarity: 'race',
         usage: 'Traînée lumineuse derrière ta course',
@@ -194,6 +207,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'trace-pointilles',
         name: 'Trace Pointillés',
+        slug: 'skin_ghost',
         icon: 'route',
         rarity: 'road',
         usage: 'Pointillés fins — gagnée en courant',
@@ -208,6 +222,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'crew-rename',
         name: 'Renommer le crew',
+        slug: 'crew_gear',
         icon: 'crest',
         rarity: 'road',
         usage: 'Nouveau nom de crew — validé par le capitaine',
@@ -216,6 +231,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'crew-frame-gold',
         name: 'Frame de blason — Or de saison',
+        slug: 'frame_gold',
         icon: 'couronne',
         rarity: 'legend',
         usage: "Réservée au Top 10 de ligue. Ne s'achète pas.",
@@ -224,6 +240,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: 'crew-share-template',
         name: 'Template Share crew',
+        slug: 'share_template',
         icon: 'partage',
         rarity: 'tempo',
         usage: 'Habillage crew pour tes cartes de partage — offert Saison 0',
@@ -239,6 +256,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: SKUS.starterPack,
         name: 'Pack Starter',
+        slug: 'pack',
         icon: 'cadeau',
         rarity: 'tempo',
         usage: `${STARTER_PACK_ECLATS} Éclats — proposé une seule fois`,
@@ -248,6 +266,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: SKUS.eclatsS,
         name: "Poignée d'Éclats",
+        slug: 'eclats',
         icon: 'eclats',
         rarity: 'road',
         usage: `+${formatInt(ECLATS_PACKS[SKUS.eclatsS])} Éclats`,
@@ -256,6 +275,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: SKUS.eclatsM,
         name: "Sacoche d'Éclats",
+        slug: 'eclats_pouch',
         icon: 'eclats',
         rarity: 'tempo',
         usage: `+${formatInt(ECLATS_PACKS[SKUS.eclatsM])} Éclats`,
@@ -264,6 +284,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: SKUS.eclatsL,
         name: "Coffre d'Éclats",
+        slug: 'eclats_chest',
         icon: 'coffre',
         rarity: 'race',
         usage: `+${formatInt(ECLATS_PACKS[SKUS.eclatsL])} Éclats`,
@@ -272,6 +293,7 @@ const SECTIONS: readonly ArsenalSection[] = [
       {
         key: SKUS.clubMonthly,
         name: 'Club GRYD',
+        slug: 'club',
         icon: 'couronne',
         rarity: 'carbon',
         usage:
@@ -351,13 +373,13 @@ export default function ArsenalScreen() {
       {/* Soldes (doc §20) — compteurs animés, le Club reste inactif en démo. */}
       <View style={styles.wallet}>
         <View style={styles.walletCell}>
-          <Icon name="eclats" size={16} color={colors.blanc} />
+          <ArsenalIcon slug="eclats" size={16} color={colors.blanc} />
           <Text style={styles.walletValue}>{formatInt(eclatsDisplay)}</Text>
           <Text style={styles.walletLabel}>Éclats</Text>
         </View>
         <View style={styles.walletDivider} />
         <View style={styles.walletCell}>
-          <Icon name="foulees" size={16} color={colors.blanc} />
+          <ArsenalIcon slug="foulees" size={16} color={colors.blanc} />
           <Text style={styles.walletValue}>{formatInt(fouleesDisplay)}</Text>
           <Text style={styles.walletLabel}>Foulées</Text>
         </View>
@@ -403,7 +425,7 @@ export default function ArsenalScreen() {
                 <ArsenalItemCard
                   key={item.key}
                   name={item.name}
-                  icon={item.icon}
+                  slug={item.slug}
                   rarity={item.rarity}
                   usage={item.usage}
                   limit={item.limit}

@@ -9,9 +9,13 @@
  * styles partagés avec la carte via territoryStyle) — jamais d'hexagones.
  *
  * NON BLOQUANT : « Passer » à tout moment garde les défauts §1 et marque
- * l'onboarding vu. Reduce motion : les animations deviennent des états finaux
- * (fade court ou rien), la lisibilité n'en dépend jamais. Les choix pilotent le
- * FILTRAGE UI/notifs (§1), jamais le gameplay.
+ * l'onboarding vu. AMENDEMENT-14 §4 : SKIPPABLE EN ENTIER — « Commencer à
+ * courir » visible dès l'écran 1 (défauts sains : style Mixte, visibilité
+ * crew = DEFAULT_PREFS), le flux complet reste intact pour ceux qui le
+ * suivent ; la phrase-règle (§1) est posée sous le visuel boucle (écran 2).
+ * Reduce motion : les animations deviennent des états finaux (fade court ou
+ * rien), la lisibilité n'en dépend jamais. Les choix pilotent le FILTRAGE
+ * UI/notifs (§1), jamais le gameplay.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -34,6 +38,7 @@ import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
 import { CrewCrest, useReduceMotion } from '../../src/ui/game';
 import { territoryStyle, withAlpha } from '../../src/features/map/mapStyle';
+import { RULE_PHRASE } from '../../src/features/nav/runContext';
 import { OptionCard } from '../../src/features/motivation/ui';
 import {
   MAP_SHARING_LABELS,
@@ -454,6 +459,16 @@ export default function OnboardingScreen() {
   };
   const back = () => setStepIndex(Math.max(0, stepIndex - 1));
 
+  /**
+   * AMENDEMENT-14 §4 : « Commencer à courir » dès l'écran 1 — sortie totale
+   * avec les défauts sains (DEFAULT_PREFS : style Mixte, visibilité crew),
+   * retour carte où le GO attend. Le flux complet reste disponible.
+   */
+  const startRunning = () => {
+    haptics.medium();
+    void finish(false);
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.head}>
@@ -475,10 +490,9 @@ export default function OnboardingScreen() {
       ) : null}
 
       {step === 'concept_run' ? (
-        <ConceptSlide
-          title="Chaque run capture du territoire."
-          tagline="Trace un trait, tu prends la rue. Ferme la boucle, tu prends la zone."
-        >
+        /* La phrase-règle (AMENDEMENT-14 §1) sous le visuel boucle : l'objectif
+           est un RÉSULTAT, pas une question — GO s'occupe du reste. */
+        <ConceptSlide title="Chaque run capture du territoire." tagline={RULE_PHRASE}>
           <ConceptRunVisual />
         </ConceptSlide>
       ) : null}
@@ -580,30 +594,41 @@ export default function OnboardingScreen() {
       ) : null}
 
       {step !== 'crew' ? (
-        <View style={styles.footer}>
-          {stepIndex > 0 ? (
+        <>
+          <View style={styles.footer}>
+            {stepIndex > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retour"
+                onPress={back}
+                style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
+              >
+                <View style={styles.mirror}>
+                  <Icon name="chevron" size={18} color={colors.blanc} />
+                </View>
+                <Text style={styles.ghostLabel}>Retour</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.ghostSpacer} />
+            )}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Retour"
-              onPress={back}
-              style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
+              onPress={next}
+              style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
             >
-              <View style={styles.mirror}>
-                <Icon name="chevron" size={18} color={colors.blanc} />
-              </View>
-              <Text style={styles.ghostLabel}>Retour</Text>
+              <Text style={styles.ctaLabel}>Continuer</Text>
             </Pressable>
-          ) : (
-            <View style={styles.ghostSpacer} />
-          )}
+          </View>
+          {/* Skip TOTAL dès l'écran 1 (A-14 §4) — défauts sains, GO t'attend. */}
           <Pressable
             accessibilityRole="button"
-            onPress={next}
-            style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+            accessibilityLabel="Commencer à courir maintenant — garder les réglages par défaut"
+            onPress={startRunning}
+            style={({ pressed }) => [styles.startNow, pressed && styles.pressed]}
           >
-            <Text style={styles.ctaLabel}>Continuer</Text>
+            <Text style={styles.startNowLabel}>Commencer à courir</Text>
           </Pressable>
-        </View>
+        </>
       ) : null}
     </View>
   );
@@ -735,5 +760,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '600', letterSpacing: 0.3 },
+  // « Commencer à courir » (A-14 §4) — sortie totale, discrète sous le footer.
+  startNow: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
+  startNowLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   pressed: { opacity: 0.85 },
 });

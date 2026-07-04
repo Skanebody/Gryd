@@ -1,14 +1,23 @@
 /**
  * GRYD — ArsenalItemCard : objet d'Arsenal (AMENDEMENT-08 §1 & §9, doc §20).
- * Icône encadrée par la rareté (tier), nom, usage, limite, prix (Éclats /
- * Foulées), statut. ZÉRO pay-to-win : cette carte n'affiche que style/confort/
- * objets capés — l'invariant est porté par les écrans (bannière doc §20).
+ * L'icône personnalisée de l'objet (AMENDEMENT-14 §5, registre arsenal-icons)
+ * EST le visuel : dessin distinctif par objet, encadré ET teinté par la rareté
+ * (tier — BADGE_TIER_STYLE, tiers hauts colorés carbon/elite/legend), nom,
+ * usage, limite, prix (Éclats / Foulées), statut. ZÉRO pay-to-win : cette
+ * carte n'affiche que style/confort/objets capés — l'invariant est porté par
+ * les écrans (bannière doc §20).
  * `statsonly` = préview sans achat ; `owned` = déjà dans l'arsenal.
+ * Compat : `icon` (IconName filaire) reste accepté en secours quand aucun
+ * `slug` n'est fourni — les usages existants ne cassent pas.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import {
+  ARSENAL_ICON_VIEWBOX,
   BADGE_TIER_LABEL,
+  BADGE_TIER_RANK,
   BADGE_TIER_STYLE,
+  arsenalIconFor,
   colors,
   fontSizes,
   gameColors,
@@ -20,18 +29,68 @@ import { haptics } from '../../lib/haptics';
 import { Icon } from '../Icon';
 import { StatePill, type GameVisualState } from './states';
 
+// ─── Icône d'objet d'Arsenal (registre arsenal-icons, AMENDEMENT-14 §5) ─────
+
+export interface ArsenalIconProps {
+  /** Slug du registre (ou alias/SKU — résolution arsenalIconFor). */
+  slug: string;
+  /** Côté en px (défaut 24 = boîte native des tracés). */
+  size?: number;
+  /** Couleur du trait — token ou teinte de tier (jamais en dur). */
+  color: string;
+}
+
+/** Icône filaire d'un objet d'Arsenal — même recette de trait qu'Icon (§F). */
+export function ArsenalIcon({ slug, size = 24, color }: ArsenalIconProps) {
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${ARSENAL_ICON_VIEWBOX} ${ARSENAL_ICON_VIEWBOX}`}>
+      {arsenalIconFor(slug).map((d) => (
+        <Path
+          key={d}
+          d={d}
+          stroke={color}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      ))}
+    </Svg>
+  );
+}
+
+/**
+ * Teinte de l'icône par rareté : tiers bas = blanc (le tier se lit au cadre),
+ * tiers hauts = teinte du tier (titane carbon / glace elite / or legend) —
+ * couleurs DATA de BADGE_TIER_STYLE, jamais en dur.
+ */
+function tierTint(rarity: BadgeTier): string {
+  return BADGE_TIER_RANK[rarity] >= BADGE_TIER_RANK.carbon
+    ? BADGE_TIER_STYLE[rarity].ring
+    : colors.blanc;
+}
+
 export type ArsenalCurrency = 'eclats' | 'foulees';
 
-/** Monnaie → icône filaire + libellé. */
-const CURRENCY_META: Record<ArsenalCurrency, { icon: IconName; label: string }> = {
-  eclats: { icon: 'eclats', label: 'Éclats' },
-  foulees: { icon: 'foulees', label: 'Foulées' },
+/**
+ * Monnaie → libellé. L'icône vient du registre arsenal-icons (gemme facettée /
+ * double empreinte — AMENDEMENT-14 §5), le slug = la clé de monnaie.
+ */
+const CURRENCY_LABEL: Record<ArsenalCurrency, string> = {
+  eclats: 'Éclats',
+  foulees: 'Foulées',
 };
 
 export interface ArsenalItemCardProps {
   name: string;
-  icon: IconName;
-  /** Rareté visuelle (tier road → legend, cadre de l'icône). */
+  /**
+   * Slug d'icône personnalisée (registre arsenal-icons — AMENDEMENT-14 §5).
+   * Prioritaire sur `icon` ; absent, on résout quand même par le nom.
+   */
+  slug?: string;
+  /** Icône filaire de secours (compat usages existants sans slug). */
+  icon?: IconName;
+  /** Rareté visuelle (tier road → legend, cadre + teinte de l'icône). */
   rarity: BadgeTier;
   /** Usage en une ligne (« Protège un cluster 48 h »). */
   usage: string;
@@ -51,6 +110,7 @@ export interface ArsenalItemCardProps {
 
 export function ArsenalItemCard({
   name,
+  slug,
   icon,
   rarity,
   usage,
@@ -64,13 +124,17 @@ export function ArsenalItemCard({
   const ts = BADGE_TIER_STYLE[rarity];
   const locked = state === 'locked' || state === 'expired';
   const canObtain = !owned && !locked && onObtain !== undefined;
-  const currency = price ? CURRENCY_META[price.currency] : null;
+  const iconColor = locked ? colors.gris : tierTint(rarity);
 
   return (
     <View style={styles.card}>
       <View style={styles.row}>
         <View style={[styles.iconWrap, { borderColor: locked ? colors.grisLigne : ts.ring }]}>
-          <Icon name={icon} size={24} color={locked ? colors.gris : colors.blanc} />
+          {slug !== undefined || icon === undefined ? (
+            <ArsenalIcon slug={slug ?? name} size={36} color={iconColor} />
+          ) : (
+            <Icon name={icon} size={36} color={iconColor} />
+          )}
         </View>
         <View style={styles.body}>
           <Text style={[styles.name, locked && styles.nameDim]} numberOfLines={1}>
@@ -88,11 +152,11 @@ export function ArsenalItemCard({
       </View>
 
       <View style={styles.footer}>
-        {price && currency && !owned ? (
+        {price && !owned ? (
           <View style={styles.price}>
-            <Icon name={currency.icon} size={15} color={colors.blanc} />
+            <ArsenalIcon slug={price.currency} size={15} color={colors.blanc} />
             <Text style={styles.priceValue}>
-              {price.amount.toLocaleString('fr-FR')} {currency.label}
+              {price.amount.toLocaleString('fr-FR')} {CURRENCY_LABEL[price.currency]}
             </Text>
           </View>
         ) : (
@@ -140,9 +204,9 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 60,
+    height: 60,
+    borderRadius: 16,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,60 +1,55 @@
 /**
- * GRYD — bouton central de jeu (AMENDEMENT-08 §3, AMENDEMENT-12 §A) : le
- * `ContextualRunButton` du design system remplace le disque « GO » générique.
- * Son OBJECTIF (CONQUÉRIR / DÉFENDRE) est DÉRIVÉ des données démo (runContext) — l'anneau
- * d'état lit le contexte de jeu, le disque reste LE CTA chartreuse global
- * (§C.3 : 1 seul CTA chartreuse par écran). Rendu au niveau du layout (tabs),
+ * GRYD — bouton central GO (AMENDEMENT-14 §2, remplace le flux AMENDEMENT-08
+ * §3) : zéro question avant de courir. Le disque affiche TOUJOURS « GO »
+ * (l'unique CTA chartreuse global, §C.3), rendu au niveau du layout (tabs),
  * permanent sur les 5 onglets.
  *
- * Flux conservé (AMENDEMENT-07 §2/§8) : APPUI LONG 500 ms → RunModeSheet
- * (Conquête / Social Run / Course privée) → run_start(mode) → Course Live
- * (`/course-live?mode=<mode>` — le serveur décide toujours du territoire).
- * Un tap court affiche l'aide « Maintiens pour lancer » (anti-faux départ).
+ *   TAP        départ IMMÉDIAT : run_start(conquete) → Course Live sur
+ *              l'itinéraire du plan auto (runContext — aucun écran
+ *              intermédiaire, le serveur décide toujours du territoire).
+ *   APPUI LONG choix avancés (power users) : RunModeSheet (Conquête / Social
+ *              Run / Course privée) + « Changer d'itinéraire » → Route Planner.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii, type RunMode } from '@klaim/shared';
+import { type RunMode } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
+import { haptics } from '../../lib/haptics';
 import { ContextualRunButton } from '../../ui/game';
 import { RunModeSheet } from '../motivation/RunModeSheet';
 import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from './metrics';
-import { deriveRunButtonMode } from './runContext';
-
-/** Durée d'affichage de l'aide au tap court (UI). */
-const HINT_MS = 1_600;
+import { battleContext, goHref } from './runContext';
 
 export function RunButton() {
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [modePickerOpen, setModePickerOpen] = useState(false);
-  const [hintVisible, setHintVisible] = useState(false);
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Objectif contextuel dérivé des données démo (decay urgent ou mission
-  // défense active → DÉFENDRE, sinon CONQUÉRIR) — stable sur la session.
-  const contextMode = useMemo(() => deriveRunButtonMode(), []);
+  // Plan auto dérivé des données démo (defense/conquete) — stable sur la session.
+  const { mode: contextMode, plan } = useMemo(() => battleContext(), []);
 
-  useEffect(
-    () => () => {
-      if (hintTimer.current) clearTimeout(hintTimer.current);
-    },
-    [],
-  );
-
-  // Tap court : rappel du geste (l'appui long est le déclencheur anti-faux départ).
-  const showHint = () => {
-    setHintVisible(true);
-    if (hintTimer.current) clearTimeout(hintTimer.current);
-    hintTimer.current = setTimeout(() => setHintVisible(false), HINT_MS);
+  /** TAP = départ immédiat sur le plan auto (AMENDEMENT-14 §2). */
+  const goNow = () => {
+    track(EVENTS.runStart, { mode: 'conquete', context: contextMode, route: plan.routeId });
+    router.push(goHref(plan));
   };
 
+  /** Choix avancés (appui long) : mode explicite, itinéraire du plan conservé. */
   const startRun = (mode: RunMode) => {
+    haptics.medium();
     setModePickerOpen(false);
     track(EVENTS.runStart, { mode, context: contextMode });
-    // Course Live (AMENDEMENT-08 §5) — le mode sera passé à IngestRunRequest.runMode.
-    router.push(`/course-live?mode=${mode}`);
+    router.push(
+      mode === 'conquete' ? goHref(plan) : `/course-live?mode=${mode}`,
+    );
+  };
+
+  const changeRoute = () => {
+    setModePickerOpen(false);
+    router.push('/route-planner');
   };
 
   return (
@@ -62,22 +57,18 @@ export function RunButton() {
       style={[styles.wrap, { bottom: insets.bottom + RUN_BUTTON_BOTTOM }]}
       pointerEvents="box-none"
     >
-      {hintVisible ? (
-        <View style={styles.hintWrap} pointerEvents="none">
-          <View style={styles.hint}>
-            <Text style={styles.hintLabel}>Maintiens pour lancer</Text>
-          </View>
-        </View>
-      ) : null}
       <ContextualRunButton
-        mode={contextMode}
         size={RUN_BUTTON_SIZE}
-        onStart={() => setModePickerOpen(true)}
-        onPress={showHint}
+        onGo={goNow}
+        onLongPress={() => setModePickerOpen(true)}
+        // La phrase du plan auto accompagne le GO partout SAUF sur la carte,
+        // où la sheet compacte la porte déjà (pas de doublon).
+        hint={pathname === '/' ? undefined : plan.phrase}
       />
       <RunModeSheet
         visible={modePickerOpen}
         onSelect={startRun}
+        onChangeRoute={changeRoute}
         onClose={() => setModePickerOpen(false)}
       />
     </View>
@@ -91,20 +82,4 @@ const styles = StyleSheet.create({
     width: RUN_BUTTON_SIZE,
     height: RUN_BUTTON_SIZE,
   },
-  hintWrap: {
-    position: 'absolute',
-    bottom: RUN_BUTTON_SIZE + 16,
-    left: -80,
-    right: -80,
-    alignItems: 'center',
-  },
-  hint: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-  },
-  hintLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
 });

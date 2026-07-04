@@ -21,7 +21,6 @@ import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
-import { GhostButton } from '../src/ui/GhostButton';
 import { formatInt } from '../src/ui/format';
 import {
   BadgeCard,
@@ -687,7 +686,8 @@ export default function CourseResultScreen() {
           </ResultReveal>
         ) : null}
 
-        {/* Actions finales. */}
+        {/* Actions finales (AMENDEMENT-14 §4) : UN CTA principal — Partager la
+            conquête ; « Voir la carte » = secondaire discret (dismiss = carte). */}
         <ResultReveal visible={step >= lastStep} haptic="none" style={styles.actions}>
           {!isPrivate ? (
             <Pressable
@@ -701,7 +701,15 @@ export default function CourseResultScreen() {
               </Text>
             </Pressable>
           ) : null}
-          <GhostButton label="Voir la carte" icon="carte" onPress={goMap} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Voir la carte"
+            onPress={goMap}
+            hitSlop={8}
+            style={({ pressed }) => [styles.mapLink, pressed && styles.pressed]}
+          >
+            <Text style={styles.mapLinkLabel}>Voir la carte</Text>
+          </Pressable>
         </ResultReveal>
       </ScrollView>
 
@@ -976,6 +984,9 @@ const styles = StyleSheet.create({
   },
   // Libellé NOIR sur chartreuse (charte — jamais de chartreuse sur fond clair).
   shareLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
+  // « Voir la carte » — secondaire DISCRET (A-14 §4 : un seul CTA principal).
+  mapLink: { alignItems: 'center', paddingVertical: 12 },
+  mapLinkLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
 
   overlay: {
     ...StyleSheet.absoluteFillObject,

@@ -1,8 +1,10 @@
 /**
- * GRYD — sélecteur de MODE au départ de course (AMENDEMENT-07 §2/§8, social §10).
- * Feuille modale présentée AVANT de lancer la course : Conquête / Social Run /
- * Course privée, avec une explication courte de l'effet (§8). Le mode choisi est
- * remonté à l'appelant (RunButton), qui le passera dans IngestRunRequest.runMode
+ * GRYD — CHOIX AVANCÉS de course (AMENDEMENT-14 §2 : la sheet ne s'affiche
+ * PLUS au tap simple — GO part immédiatement ; elle s'ouvre à l'APPUI LONG,
+ * pour les power users). Contenu AMENDEMENT-07 §2/§8 conservé : Conquête /
+ * Social Run / Course privée, + entrée « Changer d'itinéraire » (→ Route
+ * Planner, outil OPTIONNEL) et la phrase-règle en aide (AMENDEMENT-14 §1).
+ * Le mode choisi est remonté à l'appelant (RunButton) → IngestRunRequest.runMode
  * (le serveur décide toujours du territoire). Défaut `conquete`.
  *
  * Anti-shame / clarté : aucun mode n'est « le bon » ; Social Run et Course privée
@@ -12,6 +14,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, radii, spacing, type RunMode } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
+import { RULE_PHRASE } from '../nav/runContext';
 import { RUN_MODE_LABELS } from './labels';
 
 /** Modes proposés au départ (MVP actif — race_mode/event_run = V1, exclus). */
@@ -24,11 +27,14 @@ const RUN_MODE_ORDER: Extract<RunMode, 'conquete' | 'social_run' | 'course_prive
 export function RunModeSheet({
   visible,
   onSelect,
+  onChangeRoute,
   onClose,
 }: {
   visible: boolean;
   /** Mode choisi → l'appelant lance la course avec ce runMode. */
   onSelect: (mode: RunMode) => void;
+  /** « Changer d'itinéraire » → Route Planner (outil optionnel, A-14 §3). */
+  onChangeRoute?: () => void;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -73,6 +79,24 @@ export function RunModeSheet({
               </Pressable>
             );
           })}
+
+          {onChangeRoute ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Changer d'itinéraire — ouvrir le Route Planner"
+              onPress={onChangeRoute}
+              style={({ pressed }) => [styles.routeRow, pressed && styles.rowPressed]}
+            >
+              <Icon name="route" size={16} color={colors.blanc} />
+              <Text style={styles.routeLabel}>Changer d'itinéraire</Text>
+              <View style={styles.chevron}>
+                <Icon name="chevron" size={16} color={colors.gris} />
+              </View>
+            </Pressable>
+          ) : null}
+
+          {/* Aide (AMENDEMENT-14 §1) : la règle en une phrase — GO fait le reste. */}
+          <Text style={styles.help}>{RULE_PHRASE}</Text>
         </Pressable>
       </Pressable>
     </Modal>
@@ -130,4 +154,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chevron: { opacity: 0.8 },
+  // « Changer d'itinéraire » — entrée discrète (le Route Planner est optionnel).
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  routeLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500' },
+  help: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 10,
+  },
 });

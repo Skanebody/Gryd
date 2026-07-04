@@ -70,7 +70,9 @@ export {
   type RealMapProps,
   type RealMapRef,
   type RealMapCamera,
+  type RealMapBounds,
   type RealMapGeoJSONLayer,
+  type RealMapPointLayer,
   type RealMapMarker,
   type RealMapPressEvent,
 } from './RealMap';

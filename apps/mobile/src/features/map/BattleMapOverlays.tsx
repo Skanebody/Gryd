@@ -14,8 +14,11 @@
  *             MapBottomSheet 3 états, posée AU-DESSUS du bouton central
  *             ContextualRunButton (AMENDEMENT-08 §3 — il reste l'unique CTA
  *             chartreuse, la sheet ne le duplique pas) :
- *             COMPACT  objectif crew + pts possibles + CTA texte contextuel
- *                      (CONQUÉRIR/DÉFENDRE → même flux RunModeSheet).
+ *             COMPACT  AMENDEMENT-14 §2-3 : LA phrase du plan auto (kicker
+ *                      teinté par la LECTURE — défense = bleu verify,
+ *                      conquête = chartreuse ; PAS un choix) + bouton GO
+ *                      (départ immédiat, même flux que le bouton central) +
+ *                      « Changer d'itinéraire » en lien discret.
  *             SEMI     + défi à proximité (1 carte), zone bonus, membres crew
  *                      dispo (« 2 partagent leur position (opt-in) »).
  *             OUVERT   + choix de PARCOURS (3 démo — aperçu RouteProgress sur
@@ -28,7 +31,7 @@ import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii, type RunMode } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
@@ -41,9 +44,9 @@ import {
   type MapSheetState,
   type RunButtonMode,
 } from '../../ui/game';
-import { RunModeSheet } from '../motivation/RunModeSheet';
 import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
-import { DEFENSE_MISSION, MISSIONS, OFFENSIVE } from '../warroom/demo';
+import { deriveAutoPlan, goHref } from '../nav/runContext';
+import { MISSIONS } from '../warroom/demo';
 import {
   FRIEND_RUN_DEMO,
   MAP_BONUS_ZONE,
@@ -61,34 +64,14 @@ import {
 import type { BattleMapSummary } from './fakeHexes';
 import { MAP_MODE_LABELS, MAP_MODE_ORDER, type MapMode } from './territory';
 
-/** CTA contextuel de la sheet — les 2 verbes du bouton central (AMENDEMENT-12 §A). */
-const CTA_LABELS: Record<RunButtonMode, string> = {
-  CONQUERIR: 'Conquérir',
-  DEFENDRE: 'Défendre',
-};
-
 /**
- * Libellé objectif — DÉRIVÉ du même runMode que le CTA (cohérence), vocabulaire
- * AMENDEMENT-11 §4 (zones/secteurs, jamais « hex ») + AMENDEMENT-12 §A (2
- * verbes) : CONQUÉRIR → la zone de la conquête collective (warroom/demo
- * OFFENSIVE), DÉFENDRE → la zone de la mission défense (« Défendre le Canal »).
+ * Kicker du plan auto (AMENDEMENT-14 §3) — la LECTURE teinte, elle ne demande
+ * rien : défense = bleu verify sur blanc, conquête = chartreuse.
  */
-function objectiveTitleFor(mode: RunButtonMode): string {
-  switch (mode) {
-    case 'CONQUERIR':
-      return `Conquérir ${OFFENSIVE.zone}`;
-    case 'DEFENDRE':
-      return `Défendre le ${DEFENSE_MISSION.zone}`;
-  }
-}
-
-/** Sous-ligne objectif : « N zones à sauver · +pts » ou « N zones tenues · +pts ». */
-function objectiveMetaFor(mode: RunButtonMode, summary: BattleMapSummary): string {
-  if (mode === 'DEFENDRE') {
-    return `${summary.decay} zones à sauver · +${summary.possiblePoints} pts`;
-  }
-  return `${summary.held} zones tenues · +${summary.possiblePoints} pts possibles`;
-}
+const PLAN_KICKER: Record<RunButtonMode, { label: string; tint: string }> = {
+  CONQUERIR: { label: 'PLAN CONQUÊTE', tint: gameColors.crew },
+  DEFENDRE: { label: 'PLAN DÉFENSE', tint: gameColors.verify },
+};
 
 /**
  * Libellés AFFICHÉS des modes de carte : les 5 calques AMENDEMENT-11 restent,
@@ -131,7 +114,6 @@ export interface BattleMapOverlaysProps {
 export function BattleMapOverlays({
   mode,
   onSelectMode,
-  summary,
   runMode,
   onRecenter,
   selectedParcoursId = null,
@@ -139,7 +121,6 @@ export function BattleMapOverlays({
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [runPickerOpen, setRunPickerOpen] = useState(false);
   // La sheet n'expose pas de contrôle impératif : le bouton Stats la REMONTE
   // en semi (remount key + initialState — snap direct, façon reduce motion).
   const [sheet, setSheet] = useState<{ key: number; initial: MapSheetState }>({
@@ -155,10 +136,15 @@ export function BattleMapOverlays({
     screen('map_sheet_open', { state: 'semi', via: 'stats_button' });
   };
 
-  const startRun = (mode: RunMode) => {
-    setRunPickerOpen(false);
-    track(EVENTS.runStart, { mode, context: runMode });
-    router.push(`/course-live?mode=${mode}`);
+  /** Plan auto (AMENDEMENT-14 §3) : LA phrase au-dessus du GO — même départ. */
+  const plan = deriveAutoPlan();
+  const kicker = PLAN_KICKER[runMode];
+
+  /** GO = départ immédiat sur le plan auto (aucun écran intermédiaire). */
+  const goNow = () => {
+    haptics.medium();
+    track(EVENTS.runStart, { mode: 'conquete', context: runMode, route: plan.routeId });
+    router.push(goHref(plan));
   };
 
   const selectParcours = (id: string) => {
@@ -268,25 +254,30 @@ export function BattleMapOverlays({
           compactSlot={
             <View style={styles.compactRow}>
               <View style={styles.compactBody}>
-                <Text style={styles.kicker}>OBJECTIF CREW</Text>
+                <Text style={[styles.kicker, { color: kicker.tint }]}>{kicker.label}</Text>
                 <Text style={styles.objectiveTitle} numberOfLines={1}>
-                  {objectiveTitleFor(runMode)}
+                  {plan.phrase}
                 </Text>
-                <Text style={styles.objectiveMeta} numberOfLines={1}>
-                  {objectiveMetaFor(runMode, summary)}
-                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Changer d'itinéraire — ouvrir le Route Planner"
+                  hitSlop={8}
+                  onPress={() => router.push('/route-planner')}
+                  style={({ pressed }) => pressed && styles.pressed}
+                >
+                  <Text style={styles.routeLink} numberOfLines={1}>
+                    Changer d'itinéraire
+                  </Text>
+                </Pressable>
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${CTA_LABELS[runMode]} — objectif crew`}
-                onPress={() => {
-                  haptics.medium();
-                  setRunPickerOpen(true);
-                }}
+                accessibilityLabel={`GO — départ immédiat : ${plan.phrase}`}
+                onPress={goNow}
                 style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
               >
                 <Icon name="cible" size={14} color={gameColors.crew} />
-                <Text style={styles.ctaLabel}>{CTA_LABELS[runMode]}</Text>
+                <Text style={styles.ctaLabel}>GO</Text>
               </Pressable>
             </View>
           }
@@ -401,13 +392,6 @@ export function BattleMapOverlays({
           }
         />
       </View>
-
-      {/* Même flux que le bouton central : RunModeSheet → run_start → course. */}
-      <RunModeSheet
-        visible={runPickerOpen}
-        onSelect={startRun}
-        onClose={() => setRunPickerOpen(false)}
-      />
     </View>
   );
 }
@@ -568,12 +552,15 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   compactBody: { flex: 1, gap: 1 },
-  kicker: { color: gameColors.crew, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  objectiveTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  objectiveMeta: {
+  // Teinte inline par la LECTURE (défense = verify, conquête = chartreuse).
+  kicker: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  // La phrase du plan auto doit tenir ENTIÈRE à côté du GO (sm, pas md).
+  objectiveTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  // « Changer d'itinéraire » — lien discret (le planner est OPTIONNEL, A-14 §3).
+  routeLink: {
     color: colors.gris,
     fontSize: fontSizes.xs,
-    fontVariant: ['tabular-nums'],
+    textDecorationLine: 'underline',
   },
   cta: {
     flexDirection: 'row',

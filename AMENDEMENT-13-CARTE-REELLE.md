@@ -30,5 +30,13 @@
 - **Navigation rapide** : chips « Mes territoires » (Paris · Lille · Rival Lyon en démo) → flyTo ; bouton recentrer inchangé.
 - Les lieux démo (République/canal/Lille/Lyon) restent des DONNÉES Saison 0, pas une limite du produit. La règle de CAPTURE (France entière, AMENDEMENT-02) est inchangée — la carte est mondiale, la zone capturable reste une règle produit distincte (extension monde = décision séparée).
 
+## 4ter. Frontières = tracés du coureur (décision fondateur 04/07/2026)
+« Fais des traits pour délimiter les zones en fonction du trajet du coureur, retire les formes bizarres. » — REMPLACE le lissage Chaikin des cellules (AMENDEMENT-11 §2, qui produisait des contours ondulés « pétales ») :
+- **Zone (boucle fermée)** : le polygone affiché EST le tracé de course (segments de rues, coins nets, `lineJoin` arrondi léger) — trait continu 2-2,5 px couleur d'état + remplissage faible à l'intérieur. La frontière raconte le run qui l'a prise.
+- **Couloir (course sans boucle)** : ruban net le long du tracé (épaisseur ~2 zones ≈ 60 m à l'échelle, bords parallèles, extrémités arrondies) — pas de lobes.
+- **Contesté** : la portion de tracé partagée entre deux crews en double trait chartreuse+orange (plus de blob violet rond) ; **decay** : segment de frontière en pointillé ; **protégé** : halo doux le long du trait + shield.
+- Les cellules H3 restent la vérité serveur (capture/score) — le tracé est la REPRÉSENTATION ; l'écart cellules/tracé est invisible à l'échelle coureur.
+- Vaut pour toutes les surfaces : Battle Map, territoire (Lille/Lyon = polygones nets aussi), before/after post-run, share cards.
+
 ## 5. Contraintes
 Réseau requis pour les tuiles : prévoir fond noir + grille de chargement discrète et états offline propres (« Carte indisponible — tes zones restent à toi », stats inchangées). Perf : sources GeoJSON mémoïsées, pas de re-render par frame. Privacy inchangée (l'ego démo = position fictive République ; jamais de vraie géoloc publiée). Charte stricte sur TOUTES les couches de jeu ; les tuiles gardent leur sobriété (labels gris discrets). Typecheck + tests + builds verts. Vocabulaire zones/secteurs (AMENDEMENT-11).
