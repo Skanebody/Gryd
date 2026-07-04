@@ -5,8 +5,10 @@
  * running, défi + zone bonus, PARCOURS proposés, run d'ami à rejoindre.
  * Aucun réseau : TODO(O1) brancher seasons / crew_rankings / war log réels.
  * Les points dérivent des règles §3 (pas de nombre magique) ; les noms/zones
- * sont des étiquettes démo. Les positions sont ancrées sur la basemap
- * (offsetMeters depuis le centre égocentré) — 100 % déterministe.
+ * sont des étiquettes démo. AMENDEMENT-13 : les positions sont ancrées sur le
+ * VRAI Paris (realAnchors — offsetFromEgo depuis la place de la République,
+ * lieux réels : square Villemin, canal Saint-Martin, Bastille) — 100 %
+ * déterministe, jamais de vraie géoloc.
  */
 import {
   POINTS_DEFENDED_HEX,
@@ -15,8 +17,19 @@ import {
   type IconName,
 } from '@klaim/shared';
 import type { GameVisualState, PoiKind } from '../../ui/game';
-import { M_PER_DEG_LAT, M_PER_DEG_LNG, offsetMeters, type LatLngPoint } from './basemap';
 import { parcoursConquest, type ParcoursConquest } from './fakeHexes';
+import {
+  AVENUE_DE_LA_REPUBLIQUE,
+  BD_RICHARD_LENOIR,
+  BOULEVARD_VOLTAIRE,
+  EGO_REPUBLIQUE,
+  QUAI_VALMY,
+  REAL_M_PER_DEG_LAT,
+  REAL_M_PER_DEG_LNG,
+  SQUARE_VILLEMIN,
+  offsetFromEgo,
+  type LatLngPoint,
+} from './realAnchors';
 
 /** Bandeau HUD haut : SAISON 0 · J-12 / Paris Est · Zone contestée / Crew #8. */
 export const MAP_HUD: {
@@ -104,8 +117,8 @@ export interface MateOnMapDemo {
 }
 
 export const MATES_OPT_IN: readonly MateOnMapDemo[] = [
-  { name: 'LENA_RUN', distanceKm: 1.0, position: offsetMeters(560, 860) },
-  { name: 'JOG.PARMENTIER', distanceKm: 0.6, position: offsetMeters(-460, -360) },
+  { name: 'LENA_RUN', distanceKm: 1.0, position: offsetFromEgo(560, 860) },
+  { name: 'JOG.PARMENTIER', distanceKm: 0.6, position: offsetFromEgo(-460, -360) },
 ];
 
 /** Légende sheet (semi) — rappel explicite du consentement. */
@@ -119,23 +132,26 @@ export interface PoiOnMapDemo {
 }
 
 export const POIS_ON_MAP: readonly PoiOnMapDemo[] = [
-  { kind: 'parc', label: 'Villemin', position: offsetMeters(-520, 870) },
-  { kind: 'fontaine', position: offsetMeters(210, -420) },
-  { kind: 'spot', label: 'Spot canal', position: offsetMeters(460, 240) },
-  { kind: 'depart', label: 'Départ conseillé', position: offsetMeters(-160, 200) },
+  // Le VRAI square Villemin (10e) — cohérent avec la zone objectif.
+  { kind: 'parc', label: 'Villemin', position: SQUARE_VILLEMIN },
+  { kind: 'fontaine', position: offsetFromEgo(210, -420) },
+  // Berge du canal Saint-Martin, passerelle Alibert / Hôtel du Nord.
+  { kind: 'spot', label: 'Spot canal', position: { lat: 48.8736, lng: 2.3668 } },
+  { kind: 'depart', label: 'Départ conseillé', position: offsetFromEgo(-160, 200) },
 ];
 
 // ─── Défi à proximité (1 marker MAX) + zone bonus (1 MAX — anti-bruit) ─────
 /** Le défi pointe la mission quotidienne War Room (warroom/demo MISSIONS[0]). */
 export const MAP_CHALLENGE = {
   missionKey: 'daily_capture_10',
-  position: offsetMeters(520, 620),
+  position: offsetFromEgo(520, 620),
   /** Distance démo depuis moi (cohérente avec la position ~0,8 km). */
   distanceLabel: 'à 800 m',
 } as const;
 
 export const MAP_BONUS_ZONE = {
-  center: offsetMeters(-330, 1_050),
+  /** Nord du square Villemin, vers la gare de l'Est (lieu réel). */
+  center: offsetFromEgo(-330, 1_050),
   radiusM: 170,
   label: 'Zone bonus',
   /** Fenêtre d'activation (étiquette démo, pas une règle). */
@@ -146,7 +162,7 @@ export const MAP_BONUS_ZONE = {
 export interface ParcoursDemo {
   id: string;
   name: string;
-  /** Tracé le long des axes de la basemap (aperçu RouteProgress, progress 0). */
+  /** Tracé le long des VRAIS axes (realAnchors — aperçu RouteProgress). */
   line: readonly LatLngPoint[];
   /** Dénivelé positif (étiquette démo — Paris Est est plat). */
   elevGainM: number;
@@ -159,16 +175,17 @@ export const PARCOURS_DEMO: readonly ParcoursDemo[] = [
     name: 'Boucle du Canal',
     elevGainM: 24,
     difficulty: 'Modéré',
+    // République → quai de Valmy (rive ouest) jusqu'à l'écluse des Récollets,
+    // traversée, retour par le quai de Jemmapes (rive est).
     line: [
-      offsetMeters(-100, 0),
-      offsetMeters(0, 55),
-      offsetMeters(250, 90),
-      offsetMeters(270, 300),
-      offsetMeters(300, 800),
-      offsetMeters(330, 1_300),
-      offsetMeters(60, 1_330),
-      offsetMeters(-60, 600),
-      offsetMeters(-100, 0),
+      EGO_REPUBLIQUE,
+      ...QUAI_VALMY.slice(0, 6),
+      { lat: 48.8764, lng: 2.3672 }, // traversée (passerelle des Récollets)
+      { lat: 48.8748, lng: 2.3668 }, // quai de Jemmapes — Hôpital Saint-Louis
+      { lat: 48.8724, lng: 2.3671 },
+      { lat: 48.8702, lng: 2.3672 },
+      { lat: 48.8687, lng: 2.3672 },
+      EGO_REPUBLIQUE,
     ],
   },
   {
@@ -176,14 +193,16 @@ export const PARCOURS_DEMO: readonly ParcoursDemo[] = [
     name: 'Diagonale Bastille',
     elevGainM: 12,
     difficulty: 'Facile',
+    // République → Bastille par le bd Richard-Lenoir (canal couvert),
+    // retour par le bd Beaumarchais / Filles-du-Calvaire / bd du Temple.
     line: [
-      offsetMeters(40, -20),
-      offsetMeters(-260, -280),
-      offsetMeters(-520, -560),
-      offsetMeters(-740, -900),
-      offsetMeters(-450, -960),
-      offsetMeters(-140, -700),
-      offsetMeters(-100, 0),
+      EGO_REPUBLIQUE,
+      ...BD_RICHARD_LENOIR,
+      { lat: 48.8557, lng: 2.3679 }, // bd Beaumarchais
+      { lat: 48.8592, lng: 2.3665 },
+      { lat: 48.8621, lng: 2.3655 }, // Saint-Sébastien–Froissart
+      { lat: 48.865, lng: 2.3644 }, // bd du Temple
+      EGO_REPUBLIQUE,
     ],
   },
   {
@@ -191,17 +210,14 @@ export const PARCOURS_DEMO: readonly ParcoursDemo[] = [
     name: 'Traversée Est',
     elevGainM: 46,
     difficulty: 'Exigeant',
+    // République → Père-Lachaise par l'avenue de la République, bascule vers
+    // la place Léon-Blum, retour par le boulevard Voltaire.
     line: [
-      offsetMeters(0, 55),
-      offsetMeters(250, 90),
-      offsetMeters(520, 150),
-      offsetMeters(820, 235),
-      offsetMeters(1_100, 320),
-      offsetMeters(1_150, -160),
-      offsetMeters(900, -420),
-      offsetMeters(560, -660),
-      offsetMeters(250, -520),
-      offsetMeters(40, -20),
+      EGO_REPUBLIQUE,
+      ...AVENUE_DE_LA_REPUBLIQUE,
+      { lat: 48.8605, lng: 2.3838 }, // descente vers Voltaire (rue de la Roquette)
+      ...[...BOULEVARD_VOLTAIRE].reverse(),
+      EGO_REPUBLIQUE,
     ],
   },
 ];
@@ -222,8 +238,8 @@ export function parcoursMeta(parcours: ParcoursDemo): ParcoursMeta {
     const b = parcours.line[i];
     if (!a || !b) continue;
     meters += Math.hypot(
-      (b.lng - a.lng) * M_PER_DEG_LNG,
-      (b.lat - a.lat) * M_PER_DEG_LAT,
+      (b.lng - a.lng) * REAL_M_PER_DEG_LNG,
+      (b.lat - a.lat) * REAL_M_PER_DEG_LAT,
     );
   }
   const meta: ParcoursMeta = {

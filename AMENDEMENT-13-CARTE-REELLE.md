@@ -22,5 +22,13 @@
 ## 4. Natif
 `MapScreen.tsx` : même styleURL sombre + mêmes sources GeoJSON fusionnées (déjà en place depuis AMENDEMENT-11) → parité visuelle web/natif de fait.
 
+## 4bis. Monde entier, navigation libre (décision fondateur 04/07/2026)
+« Pour les deux cartes, mets entièrement les cartes du monde comme ça on peut voir tous les endroits pris et naviguer sur toute la carte. »
+- **Les deux cartes sont MONDIALES et librement navigables** : aucun `maxBounds`, aucun verrou de zoom-out (minZoom tuiles), pan/zoom libre sur toute la planète. Le cadrage n'est qu'une CAMÉRA D'OUVERTURE : Battle Map = égocentrée échelle coureur ; Mon territoire = `fitBounds` sur l'ensemble des possessions (pas un cadrage France figé).
+- **Tous les territoires pris rendent sur les DEUX cartes** (une seule source : l'export GeoJSON complet — démo : Paris + Lille + rival Lyon), pas de filtrage par viewport côté données (volumes MVP négligeables ; clustering = optimisation V1).
+- **Lisibilité au dézoom** : en dessous d'un zoom seuil, chaque territoire est représenté par un **marqueur-point coloré à taille minimale** (chartreuse possession / orange rival) + label ville, pour rester visible au niveau monde/pays ; les aplats organiques reprennent au zoom ville.
+- **Navigation rapide** : chips « Mes territoires » (Paris · Lille · Rival Lyon en démo) → flyTo ; bouton recentrer inchangé.
+- Les lieux démo (République/canal/Lille/Lyon) restent des DONNÉES Saison 0, pas une limite du produit. La règle de CAPTURE (France entière, AMENDEMENT-02) est inchangée — la carte est mondiale, la zone capturable reste une règle produit distincte (extension monde = décision séparée).
+
 ## 5. Contraintes
 Réseau requis pour les tuiles : prévoir fond noir + grille de chargement discrète et états offline propres (« Carte indisponible — tes zones restent à toi », stats inchangées). Perf : sources GeoJSON mémoïsées, pas de re-render par frame. Privacy inchangée (l'ego démo = position fictive République ; jamais de vraie géoloc publiée). Charte stricte sur TOUTES les couches de jeu ; les tuiles gardent leur sobriété (labels gris discrets). Typecheck + tests + builds verts. Vocabulaire zones/secteurs (AMENDEMENT-11).

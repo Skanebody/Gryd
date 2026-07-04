@@ -64,6 +64,16 @@ export {
   FLOATING_MAP_BUTTON_SIZE,
   type FloatingMapButtonProps,
 } from './FloatingMapButton';
+export {
+  RealMap,
+  DARK_MAP_STYLE_URL,
+  type RealMapProps,
+  type RealMapRef,
+  type RealMapCamera,
+  type RealMapGeoJSONLayer,
+  type RealMapMarker,
+  type RealMapPressEvent,
+} from './RealMap';
 export { MateMarker, MATE_MARKER_SIZE, type MateMarkerProps } from './MateMarker';
 export { PoiMarker, POI_MARKER_SIZE, type PoiMarkerProps, type PoiKind } from './PoiMarker';
 export { RouteProgress, type RouteProgressProps, type RoutePoint } from './RouteProgress';

@@ -5,21 +5,24 @@
  * (le mot « hex » ne sort jamais de la couche technique). Enrichies Battle Map
  * (AMENDEMENT-08 §4, doc §7) à l'ÉCHELLE COUREUR : un coureur capture LE LONG
  * DES RUES, donc le territoire n'est plus des blobs ronds mais des COULOIRS
- * d'1-2 hexes de large qui serpentent le long des rues de la basemap
- * (CORRIDOR_HOSTS de ./basemap). Généré à la volée avec h3-js autour de Paris —
- * aucune dépendance réseau, 100 % déterministe (tronçons de rues fixes, jamais
- * de hasard). Le rendu égocentré AMENDEMENT-01 (« moi » au centre) reste la
- * base : le cluster maison entoure le centre. États de jeu :
+ * d'1-2 hexes de large qui serpentent le long des rues. AMENDEMENT-13 : la
+ * scène est ANCRÉE SUR LE VRAI PARIS (./realAnchors) — l'ego démo est place
+ * de la République et les couloirs suivent de VRAIS axes (avenue de la
+ * République, quai de Valmy/canal Saint-Martin, boulevard Voltaire ; rival
+ * qui descend de Belleville par le Faubourg-du-Temple). Généré à la volée
+ * avec h3-js — aucune dépendance réseau, 100 % déterministe (waypoints réels
+ * fixes, jamais de hasard). Le rendu égocentré AMENDEMENT-01 (« moi » au
+ * centre) reste la base : le cluster maison entoure le centre. États de jeu :
  *   neutral   contour discret
  *   mine      chartreuse + glow (couloirs de mon crew)
  *   protected shield + halo (cluster maison, sous protection)
  *   decay     pointillé + sablier, en queue de couloir — `urgent` = muted red
- *   contested double contour + pulse, à l'intersection couloir crew ↔ rival
- *   foe       rival (orange sombre) — couloir qui s'approche du nord-est
- *   objective zone neutre ciblée par le crew (pin + halo)
- *   outpost   avant-poste, mini cluster isolé (marker)
- * + une « route ouverte » (polyline chartreuse le long d'une rue, entre 2
- * hexes tenus : le cluster maison et l'avant-poste).
+ *   contested double contour + pulse, à l'intersection couloir quai ↔ rival
+ *   foe       rival (orange sombre) — couloir qui descend de Belleville
+ *   objective zone neutre ciblée par le crew (pin + halo, secteur Villemin)
+ *   outpost   avant-poste, mini cluster isolé vers Bastille (marker)
+ * + une « route ouverte » (polyline chartreuse le long du bd Richard-Lenoir,
+ * entre 2 hexes tenus : le cluster maison et l'avant-poste).
  * Total tenu = 7 (maison) + 9 + 12 + 9 (couloirs) = 37 hexes — cohérent avec
  * « 37 hex tenus » des métriques HUD.
  * Remplacé par la lecture temps réel de hex_claims (Supabase) au Milestone 2.
@@ -34,7 +37,6 @@ import {
   latLngToCell,
 } from 'h3-js';
 import {
-  CITIES,
   H3_RESOLUTION,
   POINTS_DEFENDED_HEX,
   POINTS_NEUTRAL_HEX,
@@ -42,7 +44,12 @@ import {
   foePatterns,
   type FoePattern,
 } from '@klaim/shared';
-import { CORRIDOR_HOSTS, OBJECTIVE_ANCHOR, ROUTE_OUVERTE } from './basemap';
+import {
+  EGO_REPUBLIQUE,
+  OBJECTIVE_VILLEMIN,
+  REAL_CORRIDOR_HOSTS,
+  ROUTE_OUVERTE_REELLE,
+} from './realAnchors';
 
 export type HexState =
   | 'neutral'
@@ -203,39 +210,43 @@ function corridorAlong(
 let cachedData: BattleMapData | null = null;
 
 /**
- * Jeu de données Battle Map « échelle coureur » : cluster maison protégé au
- * centre + 3 couloirs chartreuse le long des rues (est / quai du canal /
- * diagonale sud-ouest), queue du couloir Est en decay, couloir rival qui
- * descend du nord-est, hexes contestés à l'intersection, zone objectif
- * neutre, avant-poste isolé et route ouverte le long du boulevard.
+ * Jeu de données Battle Map « échelle coureur », ancré sur le VRAI Paris :
+ * cluster maison protégé place de la République + 3 couloirs chartreuse le
+ * long des vrais axes (avenue de la République / quai de Valmy / boulevard
+ * Voltaire), queue du couloir Est en decay, couloir rival qui descend de
+ * Belleville par le Faubourg-du-Temple, hexes contestés au croisement du
+ * canal, zone objectif neutre au square Villemin, avant-poste isolé vers
+ * Bastille et route ouverte le long du bd Richard-Lenoir.
  */
 export function battleMapData(): BattleMapData {
   if (cachedData) return cachedData;
 
-  const origin = latLngToCell(CITIES.paris.center.lat, CITIES.paris.center.lng, H3_RESOLUTION);
+  // AMENDEMENT-13 : le « moi » démo est la VRAIE place de la République.
+  const origin = latLngToCell(EGO_REPUBLIQUE.lat, EGO_REPUBLIQUE.lng, H3_RESOLUTION);
 
   // Cluster maison (protégé : shield + halo) autour du « moi » égocentré.
   const homeCells = gridDisk(origin, HOME_RADIUS);
   const protectedSet = new Set<string>(homeCells);
   const taken = new Set<string>(homeCells);
 
-  // 3 couloirs de course de mon crew, le long des rues hôtes de la basemap.
+  // 3 couloirs de course de mon crew, le long des VRAIS axes (realAnchors) :
+  // avenue de la République (est), quai de Valmy (canal) et bd Voltaire.
   const corridorEst = corridorAlong(
-    CORRIDOR_HOSTS.est,
+    REAL_CORRIDOR_HOSTS.est,
     CORRIDOR_EST_LEN,
     CORRIDOR_EST_WIDEN_EVERY,
     taken,
   );
   for (const c of corridorEst) taken.add(c);
   const corridorQuai = corridorAlong(
-    CORRIDOR_HOSTS.quai,
+    REAL_CORRIDOR_HOSTS.quai,
     CORRIDOR_QUAI_LEN,
     CORRIDOR_QUAI_WIDEN_EVERY,
     taken,
   );
   for (const c of corridorQuai) taken.add(c);
   const corridorSudOuest = corridorAlong(
-    CORRIDOR_HOSTS.sudOuest,
+    REAL_CORRIDOR_HOSTS.sudOuest,
     CORRIDOR_SO_LEN,
     CORRIDOR_SO_WIDEN_EVERY,
     taken,
@@ -250,10 +261,11 @@ export function battleMapData(): BattleMapData {
   const urgentCells = decayCells.slice(-DECAY_URGENT_COUNT);
   const urgentSet = new Set<string>(urgentCells);
 
-  // Couloir rival : descend la rue NE ; les cellules au contact de mon couloir
-  // quai deviennent CONTESTÉES (2-3, à l'intersection des deux couloirs).
+  // Couloir rival : descend de Belleville par le Faubourg-du-Temple ; les
+  // cellules au contact de mon couloir quai (croisement du canal) deviennent
+  // CONTESTÉES (2-3, à l'intersection des deux couloirs).
   const quaiSet = new Set<string>(corridorQuai);
-  const rivalPath = cellsAlong(CORRIDOR_HOSTS.rivalNordEst).filter((c) => !taken.has(c));
+  const rivalPath = cellsAlong(REAL_CORRIDOR_HOSTS.rivalNordEst).filter((c) => !taken.has(c));
   const contestedSet = new Set<string>();
   const rivalCells: string[] = [];
   for (const cell of rivalPath) {
@@ -274,16 +286,17 @@ export function battleMapData(): BattleMapData {
     }
   });
 
-  // Zone objectif crew : disque neutre ciblé, posé sur l'axe Est côté ouest.
+  // Zone objectif crew : disque neutre ciblé — secteur du square Villemin.
   const objectiveCenter = latLngToCell(
-    OBJECTIVE_ANCHOR.lat,
-    OBJECTIVE_ANCHOR.lng,
+    OBJECTIVE_VILLEMIN.lat,
+    OBJECTIVE_VILLEMIN.lng,
     H3_RESOLUTION,
   );
   const objectiveSet = new Set<string>(gridDisk(objectiveCenter, OBJECTIVE_RADIUS));
 
-  // Avant-poste : mini cluster isolé au bout de la route ouverte (rue au sud).
-  const routeEnd = ROUTE_OUVERTE[ROUTE_OUVERTE.length - 1];
+  // Avant-poste : mini cluster isolé au bout de la route ouverte, vers
+  // Bastille (bd Richard-Lenoir).
+  const routeEnd = ROUTE_OUVERTE_REELLE[ROUTE_OUVERTE_REELLE.length - 1];
   const outpostCell = routeEnd
     ? latLngToCell(routeEnd.lat, routeEnd.lng, H3_RESOLUTION)
     : origin;
@@ -322,7 +335,7 @@ export function battleMapData(): BattleMapData {
       objectiveCenter: toLatLngPoint(objectiveCenter),
       outpost: toLatLngPoint(outpostCell),
       urgentDecay: urgentCells.map(toLatLngPoint),
-      route: ROUTE_OUVERTE.map((p) => ({ lat: p.lat, lng: p.lng })),
+      route: ROUTE_OUVERTE_REELLE.map((p) => ({ lat: p.lat, lng: p.lng })),
     },
   };
   return cachedData;

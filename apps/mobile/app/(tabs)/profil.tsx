@@ -42,7 +42,8 @@ import {
 } from '../../src/features/crew/rules';
 import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
-import { FranceMap } from '../../src/features/territory/FranceMap';
+import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
+import { franceKpi } from '../../src/features/territory/franceTerritories';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -53,9 +54,6 @@ import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
 import { BadgeCard, CrewCrest, PlayerAvatarFrame, ShareCard } from '../../src/ui/game';
 
-/** Territoire factice (cohérent avec l'ancien profil). */
-const PARIS_HEXES = 1835;
-const LILLE_HEXES = 312;
 const STREAK_WEEKS = 3;
 
 /** XP permanent : 1:1 avec les points territoire (choix D18), source shared. */
@@ -72,7 +70,11 @@ const streakMultiplier = Math.min(
   1 + STREAK_WEEKS * STREAK_MULTIPLIER_STEP,
   STREAK_MULTIPLIER_CAP,
 );
-const totalHexes = PARIS_HEXES + LILLE_HEXES;
+/**
+ * Territoire : KPI DÉRIVÉ des mêmes données démo que la vraie carte de France
+ * (AMENDEMENT-13 §3 — digital twin, jamais codé en dur).
+ */
+const TERRITORY_KPI = franceKpi();
 
 /**
  * Badges RARES = les 4 débloqués de plus haut tier (BADGE_TIER_RANK), du plus
@@ -283,16 +285,28 @@ export default function ProfilScreen() {
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
 
-        {/* Mon territoire — l'Hexagone (maquette écran 04) */}
-        <View style={styles.territoryCard}>
+        {/* Mon territoire — aperçu tappable de la VRAIE France (AMENDEMENT-13 §3) */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ouvrir mon territoire sur la carte de France"
+          onPress={() => router.push('/territoire')}
+          style={({ pressed }) => [styles.territoryCard, pressed && styles.dim]}
+        >
           <Text style={styles.territoryTitle}>Mon territoire</Text>
           <Text style={styles.territorySubtitle}>
             Saison 0 · France entière capturable · 2 zones de guerre actives
           </Text>
-          <FranceMap parisHexes={PARIS_HEXES} lilleHexes={LILLE_HEXES} />
-          <Text style={styles.heroNumber}>{formatInt(totalHexes)}</Text>
-          <Text style={styles.heroLabel}>zones tenues dans toute la France</Text>
-        </View>
+          {/* Mini vraie carte statique (caméra France) — le tap ouvre l'écran plein */}
+          <View style={styles.territoryPreview}>
+            <TerritoryFranceMap preview />
+          </View>
+          <Text style={styles.heroNumber}>{formatInt(TERRITORY_KPI.totalZones)}</Text>
+          <Text style={styles.heroLabel}>zones tenues · {TERRITORY_KPI.citiesLabel}</Text>
+          <View style={styles.territoryOpenRow}>
+            <Text style={styles.territoryOpenLabel}>Explorer la carte</Text>
+            <Icon name="chevron" size={14} color={colors.gris} />
+          </View>
+        </Pressable>
 
         <Text style={styles.sectionLabel}>PLUS</Text>
         {LINKS.map((link) => (
@@ -454,6 +468,23 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
   },
+  /** Aperçu vraie carte (mini RealMap statique) — hauteur fixe, coins card. */
+  territoryPreview: {
+    alignSelf: 'stretch',
+    height: 190,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    overflow: 'hidden',
+    backgroundColor: colors.noir,
+  },
+  territoryOpenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 10,
+  },
+  territoryOpenLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
   heroNumber: {
     color: colors.chartreuse,
     fontSize: fontSizes.hero,
