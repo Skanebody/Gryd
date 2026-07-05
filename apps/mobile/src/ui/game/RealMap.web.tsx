@@ -48,7 +48,12 @@ import {
 import { createPortal } from 'react-dom';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fonts, fontSizes, mapTokens, motion } from '@klaim/shared';
-import { MAP_BASEMAP_STYLES, type BasemapKey } from '../../features/map/mapStyle';
+import {
+  MAP_3D,
+  MAP_BASEMAP_STYLES,
+  buildings3dStyle,
+  type BasemapKey,
+} from '../../features/map/mapStyle';
 
 // ─── API commune (dupliquée à l'identique dans RealMap.tsx — fork RN) ───────
 
@@ -430,6 +435,120 @@ function applyGrydStyleOverrides(map: MapLibreMap, silent = false): void {
 }
 
 /**
+ * AMENDEMENT-27 — VRAI 3D : id du layer `fill-extrusion` des bâtiments de la
+ * ville (empreintes CARTO extrudées). Séparé des zones de JEU (le territoire),
+ * qui montent via leur propre `${id}-extrude` (AMENDEMENT-24).
+ */
+const CITY_BUILDINGS_LAYER_ID = 'gryd-3d-buildings';
+
+/**
+ * AMENDEMENT-27 — VRAI 3D (mode 3D SEULEMENT) : branche le RELIEF du terrain
+ * (DEM Terrarium) + extrude les BÂTIMENTS de la ville (source CARTO, source-layer
+ * `building`). Charte : bâtiments SOMBRES/désaturés (fond) — insérés SOUS les
+ * couches de JEU (`beforeId` = 1re couche de jeu si déjà présente ; sinon
+ * appendus AVANT l'upsert des couches de jeu par l'appelant → le JEU passe
+ * DEVANT). Hauteur = `render_height` (repli doux si absente/0), base =
+ * `render_min_height`, `hide_3d` exclu. Défensif (le style hébergé peut changer).
+ */
+function apply3dTerrainAndBuildings(map: MapLibreMap, beforeId?: string): void {
+  // ── Relief : source raster-dem Terrarium (keyless) + setTerrain. ──
+  try {
+    if (!map.getSource(MAP_3D.demSourceId)) {
+      map.addSource(MAP_3D.demSourceId, {
+        type: 'raster-dem',
+        tiles: [...MAP_3D.demTiles],
+        encoding: MAP_3D.demEncoding,
+        tileSize: MAP_3D.demTileSize,
+        // Terrarium ne fournit le DEM que jusqu'à z15 : on borne le maxzoom à sa
+        // vraie résolution — MapLibre sur-zoome ces tuiles au niveau rue (évite
+        // de fetcher des tuiles z16+ inexistantes). Au-delà de z15, MapLibre logge
+        // un warning BÉNIN « cannot calculate elevation… » (résolution DEM
+        // dépassée) — sans erreur ni impact rendu ; en prod un DEM propre (O6)
+        // repoussera cette borne.
+        maxzoom: MAP_3D.demMaxZoom,
+      });
+    }
+    map.setTerrain({ source: MAP_3D.demSourceId, exaggeration: MAP_3D.demExaggeration });
+    // Atmosphère discrète à fort pitch (zéro halo sur les zones — c'est le ciel).
+    if (typeof map.setSky === 'function') {
+      map.setSky({
+        'sky-color': colors.noir,
+        'horizon-color': colors.carbone,
+        'fog-color': colors.noir,
+        'sky-horizon-blend': 0.5,
+        'horizon-fog-blend': 0.5,
+        'fog-ground-blend': 0.5,
+        'atmosphere-blend': 0.4,
+      });
+    }
+  } catch {
+    // DEM indisponible (offline/blip) : le relief est un CONFORT — on n'échoue
+    // jamais le rendu, la carte reste utilisable (zones/trace intactes).
+  }
+  // ── Bâtiments 3D : fill-extrusion sur la source vectorielle CARTO. ──
+  try {
+    if (!map.getSource(MAP_3D.vectorSourceId)) return; // pas de fond vectoriel → rien
+    const insertBefore = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
+    if (!map.getLayer(CITY_BUILDINGS_LAYER_ID)) {
+      map.addLayer(
+        {
+          id: CITY_BUILDINGS_LAYER_ID,
+          type: 'fill-extrusion',
+          source: MAP_3D.vectorSourceId,
+          'source-layer': MAP_3D.buildingSourceLayer,
+          // Le flag OpenMapTiles `hide_3d` marque les empreintes à ne pas lever.
+          filter: ['!=', ['get', 'hide_3d'], true],
+          // Les empreintes de bâtiments n'existent qu'au niveau rue.
+          minzoom: 14,
+          paint: {
+            'fill-extrusion-color': buildings3dStyle.fillColor,
+            // Hauteur RÉELLE de la tuile ; repli doux si absente ou 0 (toujours 3D).
+            'fill-extrusion-height': [
+              'case',
+              ['>', ['coalesce', ['get', 'render_height'], 0], 0],
+              ['get', 'render_height'],
+              buildings3dStyle.defaultHeightM,
+            ],
+            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+            'fill-extrusion-opacity': buildings3dStyle.fillOpacity,
+          },
+        },
+        insertBefore,
+      );
+    }
+  } catch {
+    // Source-layer/champ absent d'un futur style : on laisse la carte telle quelle.
+  }
+}
+
+/**
+ * AMENDEMENT-27 — retour en 2D : retire le relief (setTerrain(null)) et
+ * l'extrusion des bâtiments — la 2D reste STRICTEMENT plate (aucun résidu). Le
+ * `sky` est retiré aussi (pas d'atmosphère sur une carte plate). La source DEM
+ * peut rester en cache (inerte sans terrain) — on la laisse pour éviter des
+ * re-fetch au prochain passage 3D. Défensif.
+ */
+function remove3dTerrainAndBuildings(map: MapLibreMap): void {
+  try {
+    if (map.getTerrain()) map.setTerrain(null);
+  } catch {
+    /* déjà absent */
+  }
+  try {
+    // maplibre-gl v5 : `setSky` n'accepte pas `undefined` (type) — un objet
+    // vide réinitialise le ciel aux défauts (aucune atmosphère custom en 2D).
+    if (typeof map.setSky === 'function') map.setSky({});
+  } catch {
+    /* pas de sky */
+  }
+  try {
+    if (map.getLayer(CITY_BUILDINGS_LAYER_ID)) map.removeLayer(CITY_BUILDINGS_LAYER_ID);
+  } catch {
+    /* déjà retiré */
+  }
+}
+
+/**
  * AMENDEMENT-24 — CARTE 3D : une couche extrudée (spec.extrude) en mode 3D
  * (extrudeZones) est peinte en `fill-extrusion` (volume) ; sinon elle retombe
  * sur l'aplat plat (`fill`) de sa `fillColor` — non-régression. On calcule ici
@@ -605,6 +724,14 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   const pitch = pitchProp ?? (mode3d ? MODE_3D_DEFAULT_PITCH : 0);
   const extrudeZones = extrudeZonesProp ?? mode3d;
   /**
+   * AMENDEMENT-27 — VRAI 3D (relief + bâtiments) : actif dès que la caméra est
+   * inclinée — `mode3d` (pitch de convenance ~52°) OU un `pitch` explicite > 0
+   * (partage/historique ~55°). Pitch 0 (2D) ⇒ jamais de terrain ni d'extrusion
+   * bâtiment : la 2D reste STRICTEMENT plate (non-régression). Découplé de
+   * `extrudeZones` (qui ne concerne que le VOLUME des zones de jeu).
+   */
+  const is3d = pitch > 0;
+  /**
    * Carte silencieuse (AMENDEMENT-20 §1) : demandée explicitement OU carte de
    * Course Live (LiveNavMap → testID stable). Figé au montage (le handler `load`
    * le lit une fois : les labels de quartiers restent masqués durant tout le run).
@@ -633,6 +760,14 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
    */
   const extrudeZonesRef = useRef(extrudeZones);
   extrudeZonesRef.current = extrudeZones;
+  /**
+   * AMENDEMENT-27 — VRAI 3D lisible par le handler `load` (posé une fois) : au
+   * premier rendu 3D (partage/historique montés directement pitchés), le relief
+   * et les bâtiments sont branchés dès le chargement du style, SOUS les couches
+   * de jeu.
+   */
+  const is3dRef = useRef(is3d);
+  is3dRef.current = is3d;
   /** Cadrage d'ouverture : figé au premier rendu (la caméra vit ensuite). */
   const openBoundsRef = useRef<RealMapBounds | undefined>(bounds);
   const [styleReady, setStyleReady] = useState(false);
@@ -719,6 +854,11 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
       // n'éteignent le décor (eau/parcs/labels) que pour le fond sombre. En
       // Course Live (silentRef), les labels de quartiers sont EN PLUS masqués (§1).
       if (basemapRef.current !== 'color') applyGrydStyleOverrides(map, silentRef.current);
+      // AMENDEMENT-27 — VRAI 3D : si la carte s'ouvre déjà pitchée (partage/
+      // historique, ou mode3d), branche le relief + les bâtiments AVANT les
+      // couches de jeu → celles-ci (upsert juste après, sans beforeId) sont
+      // appendues au-dessus et passent DEVANT les bâtiments (charte).
+      if (is3dRef.current) apply3dTerrainAndBuildings(map);
       for (const spec of layersRef.current) upsertLayer(map, spec, extrudeZonesRef.current);
       for (const spec of pointLayersRef.current ?? []) upsertPointLayer(map, spec);
       setStyleReady(true);
@@ -809,6 +949,36 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
       map.easeTo({ pitch, bearing, duration: motion.transitionMs });
     }
   }, [pitch, bearing]);
+
+  // AMENDEMENT-27 — VRAI 3D (relief terrain DEM + bâtiments extrudés) : suit le
+  // basculement 2D↔3D EN PLACE (toggle AMENDEMENT-26, sans remount). En 3D :
+  // branche le terrain Terrarium + l'extrusion des bâtiments CARTO, insérée
+  // SOUS la 1re couche de jeu (les zones/trace GRYD passent DEVANT — charte). En
+  // 2D : retire tout (la carte redevient STRICTEMENT plate — non-régression).
+  // Le `load` initial couvre l'ouverture déjà pitchée ; cet effet couvre la
+  // bascule live et les remontages (styleReady rejoué).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady || !map.isStyleLoaded()) return;
+    if (is3d) {
+      // beforeId = 1re couche de JEU présente (ordre de peinture) → les
+      // bâtiments s'insèrent dessous. Les derived ids sont `${id}-fill/-line`.
+      let beforeId: string | undefined;
+      for (const spec of geojsonLayers) {
+        for (const suffix of ['-extrude', '-fill', '-line'] as const) {
+          const candidate = `${spec.id}${suffix}`;
+          if (map.getLayer(candidate)) {
+            beforeId = candidate;
+            break;
+          }
+        }
+        if (beforeId) break;
+      }
+      apply3dTerrainAndBuildings(map, beforeId);
+    } else {
+      remove3dTerrainAndBuildings(map);
+    }
+  }, [is3d, styleReady, geojsonLayers]);
 
   // Couches de jeu + points : upsert mémoïsé par identité des tableaux. Si le
   // style n'est pas (encore/plus) chargé — remontage, fast refresh — on laisse

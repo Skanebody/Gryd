@@ -29,8 +29,10 @@ import {
   MarkerView,
   ShapeSource,
   SymbolLayer,
+  VectorSource,
   type CameraRef,
   type CircleLayerStyle,
+  type Expression,
   type FillExtrusionLayerStyle,
   type FillLayerStyle,
   type LineLayerStyle,
@@ -48,7 +50,12 @@ import {
 } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fonts, fontSizes, motion } from '@klaim/shared';
-import { MAP_BASEMAP_STYLES, type BasemapKey } from '../../features/map/mapStyle';
+import {
+  MAP_3D,
+  MAP_BASEMAP_STYLES,
+  buildings3dStyle,
+  type BasemapKey,
+} from '../../features/map/mapStyle';
 import { useReduceMotion } from './anim';
 
 // ─── API commune (dupliquée à l'identique dans RealMap.web.tsx — fork RN) ───
@@ -269,6 +276,28 @@ const POINT_COLOR_EXPR = ['get', 'color'] as const;
 const POINT_LABEL_EXPR = ['get', 'label'] as const;
 
 /**
+ * AMENDEMENT-27 — VRAI 3D : bâtiments de la ville extrudés (fork natif). Id du
+ * FillExtrusionLayer + expressions data-driven partagées (indépendantes des
+ * props → hors render). Hauteur = `render_height` RÉELLE (repli doux si absente
+ * ou 0), base = `render_min_height`, `hide_3d` exclu. Charte : couleur SOMBRE
+ * désaturée (fond) — inséré SOUS les couches de jeu (les zones/trace GRYD
+ * passent DEVANT). Le relief DEM n'est pas disponible côté natif (binding v10).
+ */
+const CITY_BUILDINGS_LAYER_ID = 'gryd-3d-buildings';
+/** Ne pas lever les empreintes marquées `hide_3d` (schéma OpenMapTiles CARTO). */
+const CITY_BUILDINGS_FILTER: Expression = ['!=', ['get', 'hide_3d'], true];
+/** Hauteur : `render_height` si > 0, sinon repli doux (toujours du volume). */
+const CITY_BUILDINGS_HEIGHT_EXPR: Expression = [
+  'case',
+  ['>', ['coalesce', ['get', 'render_height'], 0], 0],
+  ['get', 'render_height'],
+  buildings3dStyle.defaultHeightM,
+];
+const CITY_BUILDINGS_BASE_EXPR: Expression = ['coalesce', ['get', 'render_min_height'], 0];
+/** Zoom mini d'apparition des empreintes (niveau rue). */
+const CITY_BUILDINGS_MIN_ZOOM = 14;
+
+/**
  * Contour PULSÉ (contesté §4ter) isolé dans sa propre feuille : le toggle
  * d'opacité ne re-rend QUE ce composant, et le fondu min↔1 est fait par la
  * transition de style MapLibre (GPU). Reduce motion → contour plein fixe.
@@ -345,6 +374,16 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   // deux : 2D actuelle (pitch 0, aplats plats) — comportement historique intact.
   const pitch = pitchProp ?? (mode3d ? MODE_3D_DEFAULT_PITCH : 0);
   const extrudeZones = extrudeZonesProp ?? mode3d;
+  /**
+   * AMENDEMENT-27 — VRAI 3D (bâtiments extrudés) : actif dès que la caméra est
+   * inclinée (`mode3d` OU `pitch` explicite > 0, partage/historique). Pitch 0
+   * (2D) ⇒ jamais d'extrusion bâtiment : la 2D reste STRICTEMENT plate.
+   * NOTE relief : le binding natif @maplibre/maplibre-react-native v10 n'expose
+   * PAS encore de `Terrain`/`RasterDemSource` (aucune API DEM côté natif) — le
+   * relief du terrain (Terrarium) est branché côté WEB et reste un point ouvert
+   * natif (upgrade du binding, cf. O6). Les BÂTIMENTS 3D, eux, sont rendus ici.
+   */
+  const is3d = pitch > 0;
   const cameraRef = useRef<CameraRef>(null);
   const reduceMotion = useReduceMotion();
   const [offline, setOffline] = useState(false);
@@ -496,6 +535,35 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
             animationDuration={reduceMotion ? 0 : motion.transitionMs}
           />
         )}
+
+        {/* AMENDEMENT-27 — VRAI 3D : BÂTIMENTS de la ville extrudés (mode 3D
+            SEULEMENT). Source vectorielle CARTO DÉDIÉE (id propre, keyless
+            tilejson) + FillExtrusion sur la source-layer `building` — hauteur
+            RÉELLE (render_height), couleur SOMBRE désaturée (fond). Placé AVANT
+            les couches de jeu → celles-ci, montées après, passent DEVANT (les
+            zones/trace GRYD restent dominantes — charte). En 2D : non monté →
+            aucune extrusion, carte STRICTEMENT plate (non-régression). Le relief
+            DEM n'est pas exposé par le binding natif v10 (branché côté web). */}
+        {is3d ? (
+          <VectorSource
+            id={MAP_3D.nativeVectorSourceId}
+            url={MAP_3D.vectorTileJsonUrl}
+            maxZoomLevel={14}
+          >
+            <FillExtrusionLayer
+              id={CITY_BUILDINGS_LAYER_ID}
+              sourceLayerID={MAP_3D.buildingSourceLayer}
+              minZoomLevel={CITY_BUILDINGS_MIN_ZOOM}
+              filter={CITY_BUILDINGS_FILTER}
+              style={{
+                fillExtrusionColor: buildings3dStyle.fillColor,
+                fillExtrusionHeight: CITY_BUILDINGS_HEIGHT_EXPR,
+                fillExtrusionBase: CITY_BUILDINGS_BASE_EXPR,
+                fillExtrusionOpacity: buildings3dStyle.fillOpacity,
+              }}
+            />
+          </VectorSource>
+        ) : null}
 
         {geojsonLayers.map((spec, index) => {
           const memo = layerStyles[index];

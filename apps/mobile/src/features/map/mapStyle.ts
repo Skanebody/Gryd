@@ -34,6 +34,63 @@ export const MAP_BASEMAP_STYLES = {
 /** Clé de fond de carte : 'dark' (défaut) | 'color'. */
 export type BasemapKey = keyof typeof MAP_BASEMAP_STYLES;
 
+/**
+ * AMENDEMENT-27 — VRAI 3D (relief + bâtiments), constantes de source/rendu.
+ * UI pure — aucune règle de jeu ; keyless (dev, comme CARTO). En prod, un
+ * provider de tuiles/DEM propre = point ouvert O6. N'est CONSOMMÉ qu'en mode 3D
+ * par les DEUX forks RealMap ; la 2D ne touche jamais à ces valeurs.
+ *
+ * Inspection live (05/07/2026, preview mobile-web, Paris z16.5) : la source
+ * vectorielle CARTO utilisée (id `carto`, `tiles.basemaps.cartocdn.com`,
+ * schéma OpenMapTiles) EXPOSE une source-layer `building` avec `render_height`
+ * (0–96 m à Paris), `render_min_height` et un flag `hide_3d` → extrusion RÉELLE
+ * sans fallback ni source alternative. Le DEM (relief) vient d'AWS Terrarium.
+ */
+export const MAP_3D = {
+  /** Id de la source vectorielle CARTO (identique dark-matter & Voyager). */
+  vectorSourceId: 'carto',
+  /** Source-layer OpenMapTiles des empreintes de bâtiments (avec hauteurs). */
+  buildingSourceLayer: 'building',
+  /**
+   * TileJSON de la source vectorielle CARTO (keyless — HTTP 200 vérifié). Le
+   * fork WEB réutilise la source `carto` DÉJÀ dans le style (setStyle la remonte)
+   * ; le fork NATIF, lui, monte sa PROPRE `VectorSource` pointant cette URL (id
+   * dédié `dem/buildings`) car il ne peut pas référencer la source interne du
+   * style par nom. Même schéma OpenMapTiles → mêmes champs `render_height`.
+   */
+  vectorTileJsonUrl: 'https://tiles.basemaps.cartocdn.com/vector/carto.streets/v1/tiles.json',
+  /** Id de la source vectorielle DÉDIÉE au fork natif (évite le clash avec `carto`). */
+  nativeVectorSourceId: 'gryd-3d-vector',
+  /**
+   * Relief du terrain (DEM) — AWS Terrarium, PUBLIC & SANS CLÉ (tile z12
+   * vérifiée : HTTP 200, ~100 Ko). Encodage terrarium, tuiles 256 px.
+   */
+  demSourceId: 'gryd-dem-terrarium',
+  demTiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'] as const,
+  demEncoding: 'terrarium' as const,
+  demTileSize: 256,
+  /** Résolution native max du DEM Terrarium (z15) — sur-zoomée au niveau rue. */
+  demMaxZoom: 15,
+  /** Exagération du relief : modérée (Paris ≈ plat, réel dès qu'il y a du dénivelé). */
+  demExaggeration: 1.3,
+} as const;
+
+/**
+ * AMENDEMENT-27 — Rendu des bâtiments 3D (charte : SOMBRES/désaturés, ils
+ * restent en FOND ; la chartreuse — trace + zones de jeu — reste dominante et
+ * passe DEVANT). Couleur dérivée du token `gameColors.carbon` (gris carbone de
+ * scène de jeu) — aucune teinte hors tokens. Hauteur = `render_height` (défaut
+ * doux si absente/0), base = `render_min_height`, `hide_3d` exclu.
+ */
+export const buildings3dStyle = {
+  /** Aplat des façades — carbone désaturé (fond), token only. */
+  fillColor: gameColors.carbon,
+  /** Translucide : les rues/labels restent devinables sous le volume. */
+  fillOpacity: 0.85,
+  /** Hauteur de repli quand la tuile n'a pas de hauteur exploitable (≈ 2 niveaux). */
+  defaultHeightM: 6,
+} as const;
+
 /** Décline un token `#RRGGBB` en rgba — n'accepte QUE des tokens hex 6 digits. */
 export function withAlpha(tokenHex: string, alpha: number): string {
   const r = parseInt(tokenHex.slice(1, 3), 16);
