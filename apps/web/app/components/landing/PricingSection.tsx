@@ -17,7 +17,7 @@ import { useState, type ComponentType, type SVGProps } from 'react';
 import type { IconName } from '@klaim/shared';
 import {
   CLUB_FOULEES_MULTIPLIER,
-  DECAY_DAYS,
+  ZONE_DECAY_DAYS,
   SHIELD_CLUB_INCLUDED_PER_WEEK,
   SHIELD_DURATION_HOURS,
   SHIELD_EXTRA_ECLATS,
@@ -178,7 +178,7 @@ export function PricingSection() {
       rarity: 'race',
       Icon: ScoutIcon,
       name: s.scoutName,
-      effect: fill(s.scoutEffect, { days: n(DECAY_DAYS) }),
+      effect: fill(s.scoutEffect, { days: n(ZONE_DECAY_DAYS) }),
       cap: s.scoutCap,
     },
     {

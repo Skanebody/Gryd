@@ -14,6 +14,8 @@ export * from './validation.ts';
 export * from './gps.ts';
 export * from './hexing.ts';
 export * from './boundary.ts';
+export * from './coverage.ts';
+export * from './zone.ts';
 export * from './claims.ts';
 export * from './scoring.ts';
 export * from './badges.ts';

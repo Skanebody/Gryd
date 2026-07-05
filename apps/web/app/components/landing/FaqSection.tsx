@@ -11,7 +11,7 @@
 
 import { useState } from 'react';
 import {
-  DECAY_DAYS,
+  ZONE_DECAY_DAYS,
   HEX_LOCK_HOURS,
   INTERSEASON_DAYS,
   OUTPOST_MIN_HEXES,
@@ -50,7 +50,7 @@ const STRINGS = {
     items: [
       {
         q: 'Comment je prends un quartier ?',
-        a: `Tu cours dedans, littéralement. Chaque zone traversée par ta trace GPS bascule dans ton camp à la fin de la course. Une zone fraîchement capturée est verrouillée ${HEX_LOCK_HOURS} h — involable, le temps de savourer. Ensuite, entretiens-la : une zone que personne ne re-court pendant ${DECAY_DAYS} jours redevient neutre.`,
+        a: `Tu cours dedans, littéralement. Chaque zone traversée par ta trace GPS bascule dans ton camp à la fin de la course. Une zone fraîchement capturée est verrouillée ${HEX_LOCK_HOURS} h — involable, le temps de savourer. Ensuite, entretiens-la : une zone que personne ne re-court pendant ${ZONE_DECAY_DAYS} jours redevient neutre.`,
       },
       {
         q: 'Comment mon crew gagne une saison ?',
@@ -78,7 +78,7 @@ const STRINGS = {
     items: [
       {
         q: 'How do I take a district?',
-        a: `You run through it, literally. Every zone your GPS trace crosses flips to your side when the run ends. A freshly captured zone is locked for ${HEX_LOCK_HOURS} h — unstealable while you savour it. Then keep it alive: a zone nobody re-runs for ${DECAY_DAYS} days turns neutral again.`,
+        a: `You run through it, literally. Every zone your GPS trace crosses flips to your side when the run ends. A freshly captured zone is locked for ${HEX_LOCK_HOURS} h — unstealable while you savour it. Then keep it alive: a zone nobody re-runs for ${ZONE_DECAY_DAYS} days turns neutral again.`,
       },
       {
         q: 'How does my crew win a season?',

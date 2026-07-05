@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { CREW_MAX_MEMBERS, DECAY_DAYS, HEX_LOCK_HOURS, SEASON_DURATION_WEEKS } from '@klaim/shared';
+import { CREW_MAX_MEMBERS, ZONE_DECAY_DAYS, HEX_LOCK_HOURS, SEASON_DURATION_WEEKS } from '@klaim/shared';
 import { useLang } from './LangProvider';
 import type { Lang } from './dictionary';
 import { Icon } from '../ui/Icon';
@@ -43,7 +43,7 @@ const STRINGS = {
     legendEnemy: 'Ennemi',
     legendContested: 'Contesté',
     legendNeutral: 'Neutre',
-    rules: `Lock ${HEX_LOCK_HOURS} h · Decay ${DECAY_DAYS} j · Saison ${SEASON_DURATION_WEEKS} semaines`,
+    rules: `Lock ${HEX_LOCK_HOURS} h · Decay ${ZONE_DECAY_DAYS} j · Saison ${SEASON_DURATION_WEEKS} semaines`,
     progressAria: 'Progression de l’offensive',
     timerAria: 'Temps restant de l’offensive',
   },
@@ -66,7 +66,7 @@ const STRINGS = {
     legendEnemy: 'Enemy',
     legendContested: 'Contested',
     legendNeutral: 'Neutral',
-    rules: `${HEX_LOCK_HOURS} h lock · ${DECAY_DAYS}-day decay · ${SEASON_DURATION_WEEKS}-week season`,
+    rules: `${HEX_LOCK_HOURS} h lock · ${ZONE_DECAY_DAYS}-day decay · ${SEASON_DURATION_WEEKS}-week season`,
     progressAria: 'Offensive progress',
     timerAria: 'Offensive time remaining',
   },

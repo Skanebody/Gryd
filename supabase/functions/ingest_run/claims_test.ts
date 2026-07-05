@@ -1,19 +1,26 @@
 /**
- * Tests claims.ts — SPEC §3.3/§3.4, AMENDEMENT-02 §2/§3, §6.4.
- * Purs : états et contexte construits en mémoire, aucun réseau.
+ * Tests claims.ts — SPEC §3.3/§3.4, AMENDEMENT-02 §2/§3, §6.4, formule §23
+ * MULTIPLICATIVE (AMENDEMENT-23 §D). Purs : états et contexte en mémoire.
+ *   points_zone = POINTS_BASE_PER_ZONE × action × contexte (+ pionnier additif).
  */
 import { assert, assertEquals } from 'jsr:@std/assert@^1';
 import {
-  DECAY_DAYS,
+  ACTION_COEFF,
+  CONTEXT_COEFF,
+  type ContextCoeffKey,
   HEX_LOCK_HOURS,
   MAX_CLAIMS_PER_DAY,
-  POINTS_DEFENDED_HEX,
-  POINTS_NEUTRAL_HEX,
+  POINTS_BASE_PER_ZONE,
   POINTS_PIONEER_BONUS_BY_DENSITY,
-  POINTS_STOLEN_HEX,
+  ZONE_DECAY_DAYS,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
-import { decideClaims, type DecideClaimsContext, type HexState } from '../_shared/engine/claims.ts';
+import {
+  decideClaims,
+  type DecideClaimsContext,
+  deriveContextByHex,
+  type HexState,
+} from '../_shared/engine/claims.ts';
 
 const NOW = new Date('2026-07-03T10:00:00Z');
 const ME = 'user-me';
@@ -26,6 +33,13 @@ const MS_D = 86_400_000;
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * MS_H);
 const hoursAhead = (h: number) => new Date(NOW.getTime() + h * MS_H);
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * MS_D);
+
+// Valeurs de base attendues de la formule §23 (floor(10 × coeff)).
+const CONQUEST = POINTS_BASE_PER_ZONE; // 10 × 1,0 = 10
+const STEAL = Math.floor(POINTS_BASE_PER_ZONE * ACTION_COEFF.steal); // 13
+const DEFENSE = Math.floor(POINTS_BASE_PER_ZONE * ACTION_COEFF.defense); // 12
+const CLEAN_LOOP = Math.floor(POINTS_BASE_PER_ZONE * ACTION_COEFF.clean_loop); // 11
+const ROUTE = Math.floor(POINTS_BASE_PER_ZONE * ACTION_COEFF.route); // 5
 
 function ctx(over: Partial<DecideClaimsContext> = {}): DecideClaimsContext {
   return {
@@ -57,13 +71,13 @@ function one(hexes: string[], states: Map<string, HexState>, context: DecideClai
   return decideClaims({ hexes, states, context });
 }
 
-// ─── Neutre + pionnier par densité (AMENDEMENT-02 §3) ────────────────────────
+// ─── Neutre + pionnier par densité (formule §23 : conquête ×1 + pionnier) ─────
 
-Deno.test('hex jamais possédé → claimed_neutral + bonus pionnier par densité', () => {
+Deno.test('hex jamais possédé → claimed_neutral (conquête ×1) + bonus pionnier par densité', () => {
   const cases: Array<[ZoneDensity, number]> = [
-    ['active', POINTS_NEUTRAL_HEX + POINTS_PIONEER_BONUS_BY_DENSITY.active], // 10 + 5
-    ['emerging', POINTS_NEUTRAL_HEX + POINTS_PIONEER_BONUS_BY_DENSITY.emerging], // 10 + 8
-    ['pioneer', POINTS_NEUTRAL_HEX + POINTS_PIONEER_BONUS_BY_DENSITY.pioneer], // 10 + 10
+    ['active', CONQUEST + POINTS_PIONEER_BONUS_BY_DENSITY.active], // 10 + 5
+    ['emerging', CONQUEST + POINTS_PIONEER_BONUS_BY_DENSITY.emerging], // 10 + 8
+    ['pioneer', CONQUEST + POINTS_PIONEER_BONUS_BY_DENSITY.pioneer], // 10 + 10
   ];
   assertEquals(POINTS_PIONEER_BONUS_BY_DENSITY.active, 5);
   assertEquals(POINTS_PIONEER_BONUS_BY_DENSITY.emerging, 8);
@@ -85,15 +99,15 @@ Deno.test('densité par hex (Map) + hex inconnu → défaut wild', () => {
     new Map(),
     ctx({ zoneDensity: new Map([[HEX, 'active' as ZoneDensity]]) }),
   );
-  assertEquals(r.results[0].points, POINTS_NEUTRAL_HEX + POINTS_PIONEER_BONUS_BY_DENSITY.active);
-  assertEquals(r.results[1].points, POINTS_NEUTRAL_HEX + POINTS_PIONEER_BONUS_BY_DENSITY.wild);
+  assertEquals(r.results[0].points, CONQUEST + POINTS_PIONEER_BONUS_BY_DENSITY.active);
+  assertEquals(r.results[1].points, CONQUEST + POINTS_PIONEER_BONUS_BY_DENSITY.wild);
 });
 
-Deno.test('hex neutre déjà possédé (decayé) → +10 sans bonus pionnier', () => {
+Deno.test('hex neutre déjà possédé (decayé) → conquête ×1 (10) sans bonus pionnier', () => {
   const states = new Map([[HEX, foeHex({ ownerUserId: null })]]);
   const r = one([HEX], states, ctx());
   assertEquals(r.results, [
-    { h3: HEX, outcome: 'claimed_neutral', points: POINTS_NEUTRAL_HEX, pioneer: false },
+    { h3: HEX, outcome: 'claimed_neutral', points: CONQUEST, pioneer: false },
   ]);
 });
 
@@ -101,16 +115,180 @@ Deno.test('hex adverse au decay échu → neutre (pas un vol)', () => {
   const states = new Map([[HEX, foeHex({ decayAt: hoursAgo(1) })]]);
   const r = one([HEX], states, ctx());
   assertEquals(r.results[0].outcome, 'claimed_neutral');
-  assertEquals(r.results[0].points, POINTS_NEUTRAL_HEX);
+  assertEquals(r.results[0].points, CONQUEST);
   assertEquals(r.results[0].pioneer, false);
 });
 
-// ─── Vol et protections (§3.3) ───────────────────────────────────────────────
+// ─── Formule §23 : action clean_loop (intérieur boucle) + route (couloir) ─────
 
-Deno.test('hex adverse sans protection → stolen +15', () => {
+Deno.test('cellule intérieure de boucle → action clean_loop ×1,1 (11)', () => {
+  // Hex neutre déjà possédé, marqué intérieur → 10 × 1,1 = 11, pas de pionnier.
+  const states = new Map([[HEX, foeHex({ ownerUserId: null })]]);
+  const r = one([HEX], states, ctx({ interiorHexes: new Set([HEX]) }));
+  assertEquals(r.results[0].outcome, 'claimed_neutral');
+  assertEquals(r.results[0].points, CLEAN_LOOP);
+  assertEquals(ACTION_COEFF.clean_loop, 1.1);
+});
+
+Deno.test('cellule intérieure pionnière → clean_loop ×1,1 + pionnier additif', () => {
+  const r = one([HEX], new Map(), ctx({ interiorHexes: new Set([HEX]) }));
+  assertEquals(r.results[0].points, CLEAN_LOOP + POINTS_PIONEER_BONUS_BY_DENSITY.active); // 11 + 5
+  assertEquals(r.results[0].pioneer, true);
+});
+
+Deno.test('corridorAction=route → couloir neutre à ×0,5 (5), sans toucher l’intérieur', () => {
+  const states = new Map([[HEX, foeHex({ ownerUserId: null })]]);
+  // Couloir route (déjà possédé, pas pionnier) → 10 × 0,5 = 5.
+  const r = one([HEX], states, ctx({ corridorAction: 'route' }));
+  assertEquals(r.results[0].points, ROUTE);
+  // Défaut sans corridorAction : conquête ×1 = 10.
+  const rDefault = one([HEX], states, ctx());
+  assertEquals(rDefault.results[0].points, CONQUEST);
+});
+
+// ─── Formule §23 : coefficient de contexte (contested/crew_mission/zone_bonus) ─
+
+Deno.test('contexte contestée → conquête ×1,2 (12) ; le plus fort contexte s’applique', () => {
+  const contexts = new Map<string, readonly ContextCoeffKey[]>([[HEX, ['contested']]]);
+  const states = new Map([[HEX, foeHex({ ownerUserId: null })]]);
+  const r = one([HEX], states, ctx({ contextByHex: contexts }));
+  assertEquals(r.results[0].points, Math.floor(POINTS_BASE_PER_ZONE * CONTEXT_COEFF.contested)); // 12
+});
+
+Deno.test('contexte sur un vol : reprise contestée = floor(10 × 1,3 × 1,2) = 15', () => {
+  const contexts = new Map<string, readonly ContextCoeffKey[]>([[HEX, ['contested', 'crew_mission']]]);
+  const r = one([HEX], new Map([[HEX, foeHex()]]), ctx({ contextByHex: contexts }));
+  assertEquals(r.results[0].outcome, 'stolen');
+  // max(1,2 ; 1,1) = 1,2 ; floor(10 × 1,3 × 1,2) = floor(15,6) = 15.
+  assertEquals(r.results[0].points, 15);
+});
+
+// ─── deriveContextByHex : coeff_contexte §23 décidé serveur (AMENDEMENT-23 §D) ─
+// Régression du finding « coeff_contexte inerte » : le contexte doit sortir du
+// wiring, pas rester à 1,0. On teste la DÉCISION pure (rival/mission), puis son
+// EFFET réel sur les points via decideClaims — bout en bout.
+
+const MY_CREW = 'crew-mine';
+const RIVAL_CREW = 'crew-rival';
+
+Deno.test('deriveContextByHex : hex tenu par un crew RIVAL → contested (rival gagne le contexte)', () => {
+  const states = new Map([[HEX, foeHex()]]); // FOE, non-decayé
+  const out = deriveContextByHex({
+    hexes: [HEX],
+    states,
+    userId: ME,
+    crewId: MY_CREW,
+    ownerCrewByUser: new Map([[FOE, RIVAL_CREW]]),
+    now: NOW,
+  });
+  assertEquals(out.get(HEX), ['contested']);
+  // Effet réel sur les points : vol contesté = floor(10 × 1,3 × 1,2) = 15 (≠ 13).
+  const r = one([HEX], states, ctx({ contextByHex: out }));
+  assertEquals(r.results[0].outcome, 'stolen');
+  assertEquals(r.results[0].points, 15);
+  assert(r.results[0].points > STEAL, 'le contexte doit MAJORER, jamais laisser 13');
+});
+
+Deno.test('deriveContextByHex : propriétaire SOLO adverse (sans crew) → contested aussi', () => {
+  const states = new Map([[HEX, foeHex()]]);
+  const out = deriveContextByHex({
+    hexes: [HEX],
+    states,
+    userId: ME,
+    crewId: MY_CREW,
+    ownerCrewByUser: new Map(), // FOE n'a pas de crew
+    now: NOW,
+  });
+  assertEquals(out.get(HEX), ['contested']);
+});
+
+Deno.test('deriveContextByHex : hex de mon PROPRE crew → PAS contested (on ne se dispute pas)', () => {
+  const states = new Map([[HEX, foeHex()]]); // possédé par un coéquipier (FOE)
+  const out = deriveContextByHex({
+    hexes: [HEX],
+    states,
+    userId: ME,
+    crewId: MY_CREW,
+    ownerCrewByUser: new Map([[FOE, MY_CREW]]), // même crew que moi
+    now: NOW,
+  });
+  assertEquals(out.size, 0);
+});
+
+Deno.test('deriveContextByHex : hex à MOI ou neutre/decayé → aucun contexte', () => {
+  const mine = foeHex({ ownerUserId: ME });
+  const neutral = foeHex({ ownerUserId: null });
+  const decayed = foeHex({ decayAt: hoursAgo(1) }); // decay échu → neutre
+  const states = new Map([
+    [HEX, mine],
+    [HEX2, neutral],
+    ['8a1fb46622c7fff', decayed],
+  ]);
+  const out = deriveContextByHex({
+    hexes: [HEX, HEX2, '8a1fb46622c7fff'],
+    states,
+    userId: ME,
+    crewId: MY_CREW,
+    ownerCrewByUser: new Map([[FOE, RIVAL_CREW]]),
+    now: NOW,
+  });
+  assertEquals(out.size, 0);
+});
+
+Deno.test('deriveContextByHex : hex dans une offensive crew active → crew_mission (×1,1)', () => {
+  const out = deriveContextByHex({
+    hexes: [HEX],
+    states: new Map(), // hex neutre jamais possédé
+    userId: ME,
+    crewId: MY_CREW,
+    ownerCrewByUser: new Map(),
+    crewMissionHexes: new Set([HEX]),
+    now: NOW,
+  });
+  assertEquals(out.get(HEX), ['crew_mission']);
+  // Effet réel : conquête neutre en mission = floor(10 × 1,0 × 1,1) = 11 (≠ 10).
+  const r = one([HEX], new Map([[HEX, foeHex({ ownerUserId: null })]]), ctx({ contextByHex: out }));
+  assertEquals(r.results[0].outcome, 'claimed_neutral');
+  assertEquals(r.results[0].points, Math.floor(POINTS_BASE_PER_ZONE * CONTEXT_COEFF.crew_mission));
+});
+
+Deno.test('deriveContextByHex : rival EN mission → contested + crew_mission ; le plus fort (1,2) gagne', () => {
+  const states = new Map([[HEX, foeHex()]]);
+  const out = deriveContextByHex({
+    hexes: [HEX],
+    states,
+    userId: ME,
+    crewId: MY_CREW,
+    ownerCrewByUser: new Map([[FOE, RIVAL_CREW]]),
+    crewMissionHexes: new Set([HEX]),
+    now: NOW,
+  });
+  const keys = out.get(HEX) ?? [];
+  assertEquals(keys.includes('contested'), true);
+  assertEquals(keys.includes('crew_mission'), true);
+  // contextCoeff = max(1,2 ; 1,1) = 1,2 (jamais de cumul) → vol = floor(10 × 1,3 × 1,2) = 15.
+  const r = one([HEX], states, ctx({ contextByHex: out }));
+  assertEquals(r.results[0].points, 15);
+});
+
+Deno.test('deriveContextByHex : sans crew ET aucun rival → map vide (coeff_contexte = 1,0)', () => {
+  const out = deriveContextByHex({
+    hexes: [HEX, HEX2],
+    states: new Map(), // tout neutre
+    userId: ME,
+    crewId: null,
+    ownerCrewByUser: new Map(),
+    now: NOW,
+  });
+  assertEquals(out.size, 0);
+});
+
+// ─── Vol et protections (§3.3) — vol = ×1,3 (13) ─────────────────────────────
+
+Deno.test('hex adverse sans protection → stolen ×1,3 (13)', () => {
   const r = one([HEX], new Map([[HEX, foeHex()]]), ctx());
-  assertEquals(r.results, [{ h3: HEX, outcome: 'stolen', points: POINTS_STOLEN_HEX, pioneer: false }]);
-  assertEquals(POINTS_STOLEN_HEX, 15);
+  assertEquals(r.results, [{ h3: HEX, outcome: 'stolen', points: STEAL, pioneer: false }]);
+  assertEquals(STEAL, 13);
   assertEquals(r.totals.stolen, 1);
 });
 
@@ -149,15 +327,15 @@ Deno.test('propriétaire à exactement 14 j → volable', () => {
   assertEquals(r.results[0].outcome, 'stolen');
 });
 
-// ─── Défense (§3.4) ──────────────────────────────────────────────────────────
+// ─── Défense (§3.4) — défense = ×1,2 (12) ────────────────────────────────────
 
-Deno.test('mon hex, dernière défense > 24 h → defended +3', () => {
+Deno.test('mon hex, dernière défense > 24 h → defended ×1,2 (12)', () => {
   const states = new Map([[HEX, foeHex({ ownerUserId: ME, lastDefendedAt: hoursAgo(30) })]]);
   const r = one([HEX], states, ctx());
   assertEquals(r.results, [
-    { h3: HEX, outcome: 'defended', points: POINTS_DEFENDED_HEX, pioneer: false },
+    { h3: HEX, outcome: 'defended', points: DEFENSE, pioneer: false },
   ]);
-  assertEquals(POINTS_DEFENDED_HEX, 3);
+  assertEquals(DEFENSE, 12);
   assertEquals(r.totals.defended, 1);
 });
 
@@ -167,7 +345,6 @@ Deno.test('mon hex, défendu il y a < 24 h → already_owned_cooldown, 0 pt', ()
   assertEquals(r.results, [
     { h3: HEX, outcome: 'already_owned_cooldown', points: 0, pioneer: false },
   ]);
-  // L'hex est quand même re-parcouru : compté en défense, decay repoussé côté RPC.
   assertEquals(r.totals.defended, 1);
   assertEquals(r.totals.points, 0);
 });
@@ -203,12 +380,13 @@ Deno.test('plafond déjà atteint → tout est bloqué', () => {
   assertEquals(r.results.map((x) => x.outcome), ['blocked_daily_cap', 'blocked_daily_cap']);
 });
 
-// ─── Sorties globales ────────────────────────────────────────────────────────
+// ─── Sorties globales — decay 14 j (ZONE_DECAY_DAYS) ─────────────────────────
 
-Deno.test('lockedUntil = now + HEX_LOCK_HOURS, decayAt = now + DECAY_DAYS', () => {
+Deno.test('lockedUntil = now + HEX_LOCK_HOURS, decayAt = now + ZONE_DECAY_DAYS (14 j)', () => {
   const r = one([HEX], new Map(), ctx());
   assertEquals(r.lockedUntil.getTime(), NOW.getTime() + HEX_LOCK_HOURS * MS_H);
-  assertEquals(r.decayAt.getTime(), NOW.getTime() + DECAY_DAYS * MS_D);
+  assertEquals(r.decayAt.getTime(), NOW.getTime() + ZONE_DECAY_DAYS * MS_D);
+  assertEquals(ZONE_DECAY_DAYS, 14);
   assertEquals(r.decayExempt, false);
 });
 
@@ -222,13 +400,13 @@ Deno.test('hexes dupliqués en entrée → décidés une seule fois', () => {
   assertEquals(r.results.length, 1);
 });
 
-Deno.test('totaux cohérents sur une course mixte', () => {
+Deno.test('totaux cohérents sur une course mixte (formule §23)', () => {
   const states = new Map<string, HexState>([
-    ['a', foeHex()], // stolen
-    ['b', foeHex({ ownerUserId: ME, lastDefendedAt: hoursAgo(48) })], // defended
+    ['a', foeHex()], // stolen ×1,3 = 13
+    ['b', foeHex({ ownerUserId: ME, lastDefendedAt: hoursAgo(48) })], // defended ×1,2 = 12
     ['c', foeHex({ lockedUntil: hoursAhead(3) })], // blocked_lock
   ]);
-  const r = one(['a', 'b', 'c', 'd'], states, ctx()); // d = pionnier neutre
+  const r = one(['a', 'b', 'c', 'd'], states, ctx()); // d = pionnier neutre (10 + 5)
   assertEquals(r.totals.stolen, 1);
   assertEquals(r.totals.defended, 1);
   assertEquals(r.totals.blocked, 1);
@@ -236,8 +414,7 @@ Deno.test('totaux cohérents sur une course mixte', () => {
   assertEquals(r.totals.pioneer, 1);
   assertEquals(
     r.totals.points,
-    POINTS_STOLEN_HEX + POINTS_DEFENDED_HEX + POINTS_NEUTRAL_HEX +
-      POINTS_PIONEER_BONUS_BY_DENSITY.active,
+    STEAL + DEFENSE + CONQUEST + POINTS_PIONEER_BONUS_BY_DENSITY.active, // 13 + 12 + 10 + 5 = 40
   );
   assert(r.results.every((x) => x.points >= 0));
 });

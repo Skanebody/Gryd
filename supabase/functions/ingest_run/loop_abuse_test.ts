@@ -15,6 +15,7 @@ import {
   H3_RESOLUTION,
   LOOP_CLOSE_TOLERANCE_M,
   LOOP_MAX_AREA_BY_DISTANCE_KM2,
+  LOOP_MAX_AREA_CAP_KM2,
   LOOP_MIN_COMPACTNESS,
   LOOP_MIN_WIDTH_M,
 } from '../_shared/game-rules.ts';
@@ -145,11 +146,17 @@ Deno.test('loopMaxAreaM2 : paliers exacts, interpolation linéaire, extrapolatio
   // Interpolation linéaire : 4 km → 0,525 km² ; 7,5 km → 1,3 km².
   assertAlmostEquals(loopMaxAreaM2(4_000), ((a0 + a1) / 2) * KM2, 1e-6);
   assertAlmostEquals(loopMaxAreaM2(7_500), ((a1 + a2) / 2) * KM2, 1e-6);
-  // Extrapolation BORNÉE au ratio du palier le plus proche :
-  // 2 km → 2 × (0,25/3) ; 12 km → 12 × 0,18 ; 20 km → 20 × 0,18.
+  // Extrapolation BORNÉE au ratio du palier le plus proche, PUIS capée dur à
+  // LOOP_MAX_AREA_CAP_KM2 (3 km², AMENDEMENT-23 §D / doc §9) :
+  // 2 km → 2 × (0,25/3) ; 12 km → 12 × 0,18 = 2,16 km² (< cap) ;
+  // 20 km → 20 × 0,18 = 3,6 km² MAIS capé à 3,0 km².
   assertAlmostEquals(loopMaxAreaM2(2_000), 2 * (a0 / d0) * KM2, 1e-6);
   assertAlmostEquals(loopMaxAreaM2(12_000), 12 * (a2 / d2) * KM2, 1e-6);
-  assertAlmostEquals(loopMaxAreaM2(20_000), 20 * (a2 / d2) * KM2, 1e-6);
+  assertAlmostEquals(loopMaxAreaM2(20_000), LOOP_MAX_AREA_CAP_KM2 * KM2, 1e-6); // capé
+  // Cap dur : au-delà de ~16,7 km, l'aire max reste 3 km² (jamais plus).
+  assertEquals(loopMaxAreaM2(25_000), LOOP_MAX_AREA_CAP_KM2 * KM2);
+  assertEquals(loopMaxAreaM2(100_000), LOOP_MAX_AREA_CAP_KM2 * KM2);
+  assertEquals(LOOP_MAX_AREA_CAP_KM2, 3);
   assertEquals(loopMaxAreaM2(0), 0);
   // Monotone croissante (jamais plus généreux en courant moins).
   let prev = 0;
@@ -237,8 +244,11 @@ Deno.test('narrow par LARGEUR seule : rectangle 600×50 (compacité correcte)', 
   );
 });
 
-Deno.test('narrow par COMPACITÉ seule : serpent 2 000×70 (largeur correcte)', () => {
-  const trace = polyline([[0, 0], [0, 2_000], [70, 2_000], [70, 0], [0, 0]]);
+Deno.test('narrow par COMPACITÉ seule : serpent 2 500×90 (largeur correcte)', () => {
+  // Largeur durcie 60 → 80 m (AMENDEMENT-23 §D) : on garde une largeur ≥ 80
+  // (rectangle 2 500 × 90 → 2A/P ≈ 87 m) MAIS très allongé → compacité
+  // 4πA/P² ≈ 0,105 < 0,12 : c'est bien la COMPACITÉ qui refuse, pas la largeur.
+  const trace = polyline([[0, 0], [0, 2_500], [90, 2_500], [90, 0], [0, 0]]);
   const loop = detectLoop(trace);
   assert(loop !== null);
   const verdict = loopShapeVerdict(loop);

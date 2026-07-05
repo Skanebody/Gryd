@@ -23,15 +23,17 @@ import {
   BONUS_RETURN_ABSENCE_MAX_DAYS,
   BONUS_RETURN_ABSENCE_MIN_DAYS,
   CITIES,
+  type ContextCoeffKey,
   CREW_XP_TABLE,
-  DECAY_DAYS,
   GROUP_RUN_HEX_SHARE_MIN,
   GROUP_RUN_START_TOLERANCE_MIN,
   H3_RESOLUTION,
   HEX_LOCK_HOURS,
+  LOOP_MIN_GPS_TRUST,
   OUTPOST_RADIUS_KM,
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
+  VERIFY_PARTIAL_MIN,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
 import { ROUTE_ENDPOINT_MATCH_KM, VERIFIED_MIN_TRUST } from '../_shared/badges.ts';
@@ -72,12 +74,15 @@ import {
   detectOpenBoundary,
   type OpenBoundary,
 } from '../_shared/engine/boundary.ts';
-import { decideClaims, type HexState } from '../_shared/engine/claims.ts';
+import { decideClaims, deriveContextByHex, type HexState } from '../_shared/engine/claims.ts';
 import {
   computeScore,
   distributePointsAdjustment,
   streakMultiplier,
+  verifyFactor,
 } from '../_shared/engine/scoring.ts';
+import { defenseHoursForCoverage, frontierCoverage } from '../_shared/engine/coverage.ts';
+import { extendDecay } from '../_shared/engine/zone.ts';
 import {
   applyRejectedRun,
   applyRunToStats,
@@ -226,7 +231,9 @@ async function loadHexStates(
   for (const batch of chunk(hexes.map(h3ToDb), DB_IN_CHUNK)) {
     const { data, error } = await supabase
       .from('hex_claims')
-      .select('h3index, owner_user_id, claimed_at, locked_until, shielded_until, decay_at')
+      .select(
+        'h3index, owner_user_id, claimed_at, locked_until, shielded_until, decay_at, last_defended_at',
+      )
       .in('h3index', batch);
     if (error) throw new Error(`hex_claims read: ${error.message}`);
     for (const row of data ?? []) {
@@ -236,11 +243,12 @@ async function loadHexStates(
         lockedUntil: row.locked_until ? new Date(row.locked_until) : null,
         shieldedUntil: row.shielded_until ? new Date(row.shielded_until) : null,
         decayAt,
-        // Approximation MVP : decay_at est repoussé à chaque défense/claim à
-        // now + DECAY_DAYS → dernière défense ≈ decay_at − DECAY_DAYS.
-        // (decay_at null = territoire protégé nouveau joueur → cooldown depuis claimed_at.)
-        lastDefendedAt: decayAt
-          ? new Date(decayAt.getTime() - DECAY_DAYS * MS_PER_DAY)
+        // AMENDEMENT-23 §D : last_defended_at est désormais une VRAIE colonne
+        // (posée par claim_hexes à chaque capture/défense) — plus de reverse-calc
+        // decay_at − DECAY_DAYS (fausse depuis la défense graduée). Fallback
+        // claimed_at pour les lignes pré-0017 non backfillées (défensif).
+        lastDefendedAt: row.last_defended_at
+          ? new Date(row.last_defended_at)
           : new Date(row.claimed_at),
         everOwned: true,
       });
@@ -1157,6 +1165,98 @@ async function loadOwnerCrews(
   return map;
 }
 
+// ─── AMENDEMENT-23 §D / doc §23 : coefficient de CONTEXTE par hex ──────────────
+
+/**
+ * Construit le `contextByHex` de la formule §23 (coeff_contexte, décidé SERVEUR
+ * AVANT le scoring — résout l'ordonnancement : le contexte majore le run QUI le
+ * rencontre, pas un post-traitement). Deux contextes RÉELS câblés au MVP ; le
+ * 3ᵉ (`zone_bonus`) reste un point d'extension non actif (comme `route` côté
+ * action), faute de source de données de hotspots de carte (voir NB plus bas) :
+ *
+ *  - `contested` ×1,2 (doc §18) : l'hex est, AVANT ce run, détenu (non-decayé)
+ *    par un crew RIVAL (owner ≠ moi, crew ≠ le mien). C'est une cellule
+ *    réellement disputée que ce run vole/conteste. Approximation MVP assumée du
+ *    seuil de secteur §18 (>15 % rival/24 h ; 2 crews ≥30 %) : le calcul de
+ *    contestation au niveau SECTEUR n'existe pas encore (AMENDEMENT-23 §A), on
+ *    travaille à la maille cellule à partir de l'état pré-run déjà chargé —
+ *    honnête et non pay-to-win (le rival gagne le contexte par sa présence, pas
+ *    par un achat). N'inclut PAS les cellules bloquées par le lock d'un run
+ *    concurrent (celles-là passent par handleContested → statut de zone, pas un
+ *    coeff de points sur CE run qui ne les prend pas).
+ *  - `crew_mission` ×1,1 (doc §23) : l'hex tombe dans la zone d'une OFFENSIVE
+ *    crew ACTIVE du coureur (même géométrie que la contribution d'offensive,
+ *    withinOffensiveZone). La zone compte pour une mission crew en cours.
+ *
+ * `zone_bonus` ×1,15 : NON câblé — aucun registre de hotspots de carte au MVP.
+ * Dès qu'une table de hotspots existera, l'ajouter ici (gagné par le LIEU, PAS
+ * acheté : anti pay-to-win intact, cf. game-rules CONTEXT_COEFF). Sans crew et
+ * hors zone rivale, la map est vide → coeff_contexte = 1,0 (comportement neutre).
+ */
+async function loadContextByHex(
+  userId: string,
+  crewId: string | null,
+  hexes: readonly string[],
+  states: ReadonlyMap<string, HexState>,
+  now: Date,
+): Promise<ReadonlyMap<string, ContextCoeffKey[]>> {
+  if (hexes.length === 0) return new Map();
+
+  // ── I/O 1 : crews actifs des propriétaires RIVAUX (owner ≠ moi, non-decayé) ─
+  // pour départager `contested` (rival) d'un simple re-parcours du même crew.
+  const nowMs = now.getTime();
+  const rivalOwnerIds = new Set<string>();
+  for (const hex of hexes) {
+    const st = states.get(hex);
+    if (!st || !st.ownerUserId || st.ownerUserId === userId) continue;
+    const decayed = st.decayAt !== null && st.decayAt.getTime() <= nowMs;
+    if (!decayed) rivalOwnerIds.add(st.ownerUserId);
+  }
+  const ownerCrewByUser = rivalOwnerIds.size > 0
+    ? await loadOwnerCrews([...rivalOwnerIds])
+    : new Map<string, string>();
+
+  // ── I/O 2 : cellules couvertes par une offensive crew ACTIVE du coureur ────
+  // Géométrie (withinOffensiveZone) résolue ICI (accès lat/lng H3) ; la RÈGLE
+  // de contexte est ensuite décidée par la fonction PURE deriveContextByHex.
+  let crewMissionHexes: Set<string> | undefined;
+  if (crewId !== null) {
+    const nowIso = now.toISOString();
+    const { data: offs, error } = await supabase
+      .from('offensives')
+      .select('center_h3, radius_km')
+      .eq('crew_id', crewId)
+      .eq('status', 'active')
+      .lte('starts_at', nowIso)
+      .gte('ends_at', nowIso);
+    if (error) throw new Error(`offensives context read: ${error.message}`);
+    const zones = (offs ?? []).map((o) => {
+      const [lat, lng] = cellToLatLng(dbToH3(o.center_h3));
+      return { lat, lng, radiusKm: Number(o.radius_km) };
+    });
+    if (zones.length > 0) {
+      crewMissionHexes = new Set<string>();
+      for (const hex of hexes) {
+        const [lat, lng] = cellToLatLng(hex);
+        if (zones.some((z) => withinOffensiveZone({ lat, lng }, z, z.radiusKm))) {
+          crewMissionHexes.add(hex);
+        }
+      }
+    }
+  }
+
+  // ── Décision PURE (testée dans claims_test.ts) ─────────────────────────────
+  return deriveContextByHex({
+    hexes,
+    states,
+    userId,
+    crewId,
+    ownerCrewByUser,
+    ...(crewMissionHexes !== undefined ? { crewMissionHexes } : {}),
+    now,
+  });
+}
+
 /**
  * Bascule en `contested` les hexes bloqués_lock détenus par un AUTRE crew (§3,
  * approx MVP mono-course). Pour chacun : resolveContestedHex (pur) décide, on
@@ -1354,6 +1454,10 @@ async function completeBoundaries(
       loadNoCaptureHexes(capped),
       loadClaimsToday(ctx.userId, ctx.now),
     ]);
+    // coeff_contexte §23 de l'intérieur d'une boucle CREW fermée : une zone crew
+    // qui referme dans une offensive active (`crew_mission`) ou sur du rival
+    // (`contested`) est majorée comme un run normal. Même règle SERVEUR.
+    const contextByHex = await loadContextByHex(ctx.userId, ctx.crewId, capped, states, ctx.now);
     const decision = decideClaims({
       hexes: capped,
       states,
@@ -1366,6 +1470,7 @@ async function completeBoundaries(
         noCaptureHexes,
         zoneDensity: ctx.density,
         claimsToday,
+        ...(contextByHex.size > 0 ? { contextByHex } : {}),
       },
     });
     const actionable = decision.results.filter((r) =>
@@ -1967,10 +2072,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let loopRejectedReason: LoopRejectedReason | undefined;
     let capReached = false;
     let interiorCells: string[] = [];
+    // AMENDEMENT-23 §D : GATE GPS TRUST — une boucle au GPS douteux
+    // (gpsTrust < LOOP_MIN_GPS_TRUST = 80, doc §5) ne capture PAS son intérieur
+    // plein (course + couloir restent valides, comme pour 'narrow'). On réutilise
+    // le motif loopRejectedReason='narrow' (copy « Zone non capturée : forme trop
+    // étroite. » couvre aussi le refus intérieur ; la cause fine est loggée dans
+    // celebration). Empêche de créer une zone pleine sur une trace peu fiable.
+    const loopGpsOk = validation.gpsTrust >= LOOP_MIN_GPS_TRUST;
     if (loop !== null) {
       const shape = loopShapeVerdict(loop);
       if (!shape.ok) {
-        loopRejectedReason = shape.reason; // course valide, intérieur refusé
+        loopRejectedReason = shape.reason; // course valide, intérieur refusé (forme)
+      } else if (!loopGpsOk) {
+        loopRejectedReason = 'narrow'; // course valide, intérieur refusé (GPS < 80)
       } else {
         interiorCells = enclosedCells(loop.polygon, hexes);
         const cellCap = loopInteriorCellCap(distanceM);
@@ -1980,18 +2094,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       }
     }
+    const interiorSet = new Set(interiorCells);
     const allHexes = interiorCells.length > 0 ? [...hexes, ...interiorCells] : hexes;
 
     // ── Lecture d'état + décision (pur) ──────────────────────────────────────
+    // `crew` est chargé ICI (et non plus après la RPC) : le coeff_contexte de la
+    // formule §23 (crew_mission/contested) dépend du crew du coureur ET doit être
+    // décidé AVANT le scoring. Réutilisé tel quel par tout le reste du handler.
     const states = await loadHexStates(allHexes);
-    const [ownersCreatedAt, privacyHexes, noCaptureHexes, density, claimsToday] = await Promise
-      .all([
+    const [crew, ownersCreatedAt, privacyHexes, noCaptureHexes, density, claimsToday] =
+      await Promise.all([
+        loadCrew(userId),
         loadOwnersCreatedAt(states, userId),
         loadPrivacyHexes(userId, allHexes),
         loadNoCaptureHexes(allHexes),
         loadDensity(request.cityId),
         loadClaimsToday(userId, now),
       ]);
+
+    // AMENDEMENT-23 §D / doc §23 : coeff_contexte par hex (contested/crew_mission),
+    // décidé SERVEUR depuis l'état pré-run + les offensives crew actives. Sans ce
+    // câblage, coeff_contexte valait toujours 1,0 et la moitié « contexte » de la
+    // formule §23 restait inerte (finding). Non pay-to-win : le contexte se gagne
+    // par la situation (rival présent / mission crew), jamais par un achat.
+    const contextByHex = await loadContextByHex(userId, crew.crewId, allHexes, states, now);
 
     const decision = decideClaims({
       hexes: allHexes,
@@ -2005,14 +2131,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
         noCaptureHexes,
         zoneDensity: density,
         claimsToday,
+        // AMENDEMENT-23 §D : les cellules INTÉRIEURES d'une boucle bien formée
+        // prennent l'action `clean_loop` (×1,1) — « la boucle propre » du doc §23.
+        // Le couloir garde `conquest` (×1,0), le vol/défense leur action propre.
+        ...(interiorSet.size > 0 ? { interiorHexes: interiorSet } : {}),
+        // coeff_contexte §23 (×1,2 contested / ×1,1 crew_mission) — le plus fort
+        // contexte s'applique par hex (zoneBasePoints), jamais de cumul.
+        ...(contextByHex.size > 0 ? { contextByHex } : {}),
       },
     });
 
-    // ── Scoring (pur) ────────────────────────────────────────────────────────
+    // ── Scoring (pur) : formule §23 (base) × VERIFY × streak × perf ───────────
+    // AMENDEMENT-23 §D : verify_factor (doc §23) = paliers 80/60 sur le trustScore
+    // (min gpsTrust/motionTrust). ≥80 → ×1,0 (plein) ; ≥60 → ×0,5 (capture
+    // partielle) ; <60 → ×0 (stats only). Ici on est en branche `claimable`
+    // (motionTrust ≥ seuil flag) : le facteur ré-applique le palier fin sur le
+    // score. Puis streak (régularité, cap ×1,5) et performance (0,9-1,15),
+    // multiplicateurs EXTERNES orthogonaux (jamais pay-to-win).
+    const runVerifyFactor = verifyFactor(validation.trustScore);
     const score = computeScore({
       basePoints: decision.totals.points,
       streakWeeks: profile.streak_weeks,
       isClub: profile.is_club,
+      verifyFactor: runVerifyFactor,
       performance: {
         dataReliability: validation.gpsTrust / 100,
         isRegular: profile.streak_weeks >= 1,
@@ -2030,6 +2171,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (inserted.replayed) return json(inserted.payload);
     const runId = inserted.runId;
 
+    // ── DÉFENSE GRADUÉE (AMENDEMENT-23 §D, doc §16/§17) ──────────────────────
+    // La défense d'une zone déjà à soi ÉTEND sa stabilité de +24/48/72 h selon la
+    // COUVERTURE de la frontière défendue par le tracé (frontier coverage %) :
+    //  - couvrir/fermer (coverage ≥ 0,80 OU boucle fermée sur la zone) → +72 h ;
+    //  - longer          (0,40 ≤ coverage < 0,80)                       → +48 h ;
+    //  - traverser       (coverage < 0,40)                               → +24 h.
+    // La frontière défendue = le CONTOUR des cellules re-parcourues du joueur
+    // (centres des hexes `defended`, ordonnés le long du tracé) ; le tracé = la
+    // trace claimable. Une boucle fermée = défense maximale (doc §16 niveau 3).
+    // On REPOUSSE l'échéance de decay EXISTANTE de ce nombre d'heures (la
+    // stabilité s'étend, elle ne se reset pas — engine/zone.extendDecay), plafonné
+    // à ZONE_DECAY_DAYS. Les CAPTURES (neutral/steal) gardent now + 14 j.
+    const defendedResults = decision.results.filter((r) => r.outcome === 'defended');
+    let defenseHours = 0;
+    if (defendedResults.length > 0) {
+      const defendedFrontier = defendedResults.map((r) => {
+        const [lat, lng] = cellToLatLng(r.h3);
+        return { lat, lng };
+      });
+      const traceLine = validation.claimable.flat().map((p) => ({ lat: p.lat, lng: p.lng }));
+      const coverage = frontierCoverage(defendedFrontier, traceLine);
+      defenseHours = defenseHoursForCoverage(coverage, loopClosed);
+    }
+    // decay_at de DÉFENSE (par hex défendu) : extension depuis l'échéance actuelle.
+    const defenseDecayIso = (h3: string): string | null => {
+      if (decision.decayExempt) return null; // nouveau joueur : jamais de decay
+      const current = states.get(h3)?.decayAt ?? null;
+      return extendDecay(now, current, defenseHours).toISOString();
+    };
+
     // ── Application atomique via la RPC claim_hexes ──────────────────────────
     const actionable = decision.results.filter((r) =>
       r.outcome === 'claimed_neutral' || r.outcome === 'stolen' ||
@@ -2037,21 +2208,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     if (actionable.length > 0) {
       // La RPC crédite season_scores/Foulées depuis la somme des points par hex :
-      // on y répartit le total FINAL (streak × performance, floored).
+      // on y répartit le total FINAL (verify × streak × performance, floored).
       const finalPerHex = distributePointsAdjustment(
         actionable.map((r) => r.points),
         score.points,
       );
-      const rpcClaims = actionable.map((r, i) => ({
-        h3index: h3ToDb(r.h3),
-        outcome: rpcOutcome(r),
-        points: finalPerHex[i],
-        locked_until: r.outcome === 'claimed_neutral' || r.outcome === 'stolen'
-          ? decision.lockedUntil.toISOString()
-          : null,
-        // Nouveau joueur : territoire exempt de decay (§3.3) → decay_at null.
-        decay_at: decision.decayExempt ? null : decision.decayAt.toISOString(),
-      }));
+      const rpcClaims = actionable.map((r, i) => {
+        const isCapture = r.outcome === 'claimed_neutral' || r.outcome === 'stolen';
+        return {
+          h3index: h3ToDb(r.h3),
+          outcome: rpcOutcome(r),
+          points: finalPerHex[i],
+          locked_until: isCapture ? decision.lockedUntil.toISOString() : null,
+          // Capture : now + 14 j (ou null si nouveau joueur, §3.3). Défense :
+          // échéance ÉTENDUE de +24/48/72 h (défense graduée). already_owned_
+          // cooldown : traité comme défense (decay repoussé, cf. rpcOutcome).
+          decay_at: isCapture
+            ? (decision.decayExempt ? null : decision.decayAt.toISOString())
+            : defenseDecayIso(r.h3),
+        };
+      });
       const { error: rpcError } = await supabase.rpc('claim_hexes', {
         p_run_id: runId,
         p_user_id: userId,
@@ -2071,7 +2247,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       lat: sorted.reduce((sum, p) => sum + p.lat, 0) / sorted.length,
       lng: sorted.reduce((sum, p) => sum + p.lng, 0) / sorted.length,
     };
-    const crew = await loadCrew(userId);
+    // `crew` déjà chargé plus haut (pour le coeff_contexte §23) — réutilisé ici.
     const [weather, duringEvent, outpost, route] = await Promise.all([
       startPoint !== null
         ? fetchWeather(startPoint.lat, startPoint.lng, request.startedAt)
@@ -2284,8 +2460,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ── AMENDEMENT-12 §B : zones intérieures réellement GAGNÉES par la boucle
     //    (claimed_neutral + stolen, déjà comptées dans totals/results) — le
     //    « dont N en boucle fermée » du post-run. Les intérieures bloquées
-    //    (lock, bouclier, plafond…) ne comptent pas.
-    const interiorSet = new Set(interiorCells);
+    //    (lock, bouclier, plafond…) ne comptent pas. `interiorSet` est hoisté
+    //    plus haut (bloc boucle, réutilisé par decideClaims interiorHexes).
     const enclosedZones = interiorSet.size === 0 ? 0 : decision.results.filter((r) =>
       interiorSet.has(r.h3) && (r.outcome === 'claimed_neutral' || r.outcome === 'stolen')
     ).length;
@@ -2385,6 +2561,15 @@ function validateOrStatus(
   }
   // Cohérence pas/distance insuffisante → claims gelés, course conservée en stats.
   if (motionTrust < MOTION_TRUST_FLAGGED_BELOW) {
+    return { kind: 'flagged', gpsTrust, motionTrust, trustScore };
+  }
+  // AMENDEMENT-23 §D / doc §23 : palier VERIFY « stats only » — trustScore
+  // (min gpsTrust/motionTrust) < VERIFY_PARTIAL_MIN (60) → verify_factor = 0 :
+  // la course compte SPORTIVEMENT (stats/streak) mais ne capture RIEN. On la
+  // classe `flagged` (même traitement : claims gelés, aucune écriture hex) —
+  // au-dessus de 60, la capture est partielle (×0,5) ou pleine (×1,0), gérée
+  // par verifyFactor dans computeScore. Un seul point de décision « capture ? ».
+  if (trustScore < VERIFY_PARTIAL_MIN) {
     return { kind: 'flagged', gpsTrust, motionTrust, trustScore };
   }
   const claimable = claimableSegments(filtered.segments);

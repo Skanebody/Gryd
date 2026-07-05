@@ -9,13 +9,13 @@
  * territoires lissés + frontières en crossfade (opacité CSS 250 ms).
  * Interaction : hover desktop / tap mobile / auto-advance doux (coupé sous
  * prefers-reduced-motion, en pause au survol, stoppé après un clic).
- * Chiffres de JEU réels : HEX_LOCK_HOURS, DECAY_DAYS, SEASON_DURATION_WEEKS
+ * Chiffres de JEU réels : HEX_LOCK_HOURS, ZONE_DECAY_DAYS, SEASON_DURATION_WEEKS
  * (@klaim/shared). Leaderboard de démo fictif assumé, déterministe (SSR stable).
  * Export principal : GameplayLoop — alias `Concept` conservé pour page.tsx.
  */
 
 import { useEffect, useState, type PointerEvent } from 'react';
-import { DECAY_DAYS, HEX_LOCK_HOURS, SEASON_DURATION_WEEKS } from '@klaim/shared';
+import { ZONE_DECAY_DAYS, HEX_LOCK_HOURS, SEASON_DURATION_WEEKS } from '@klaim/shared';
 import { DEMO_LEADERBOARD } from '../../../lib/landing';
 import { useLang } from './LangProvider';
 import { Reveal } from './Reveal';
@@ -153,7 +153,7 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
       },
       {
         name: 'Défends',
-        body: `Les zones non défendues s'effacent avec le temps : ${DECAY_DAYS} jours sans passage et la zone redevient neutre.`,
+        body: `Les zones non défendues s'effacent avec le temps : ${ZONE_DECAY_DAYS} jours sans passage et la zone redevient neutre.`,
       },
       { name: 'Attaque', body: 'Reprends les secteurs adverses et fais tomber leur contrôle.' },
       {
@@ -164,7 +164,7 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
     chips: [
       'Run live · route en cours',
       '+6 zones capturées',
-      `Decay · ${DECAY_DAYS} jours sans défense`,
+      `Decay · ${ZONE_DECAY_DAYS} jours sans défense`,
       '+2 zones reprises',
       `Saison · ${SEASON_DURATION_WEEKS} semaines`,
     ],
@@ -190,7 +190,7 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
       },
       {
         name: 'Defend',
-        body: `Undefended zones fade over time: ${DECAY_DAYS} days without a run and the zone turns neutral.`,
+        body: `Undefended zones fade over time: ${ZONE_DECAY_DAYS} days without a run and the zone turns neutral.`,
       },
       { name: 'Attack', body: 'Take back enemy sectors and break their control.' },
       {
@@ -201,7 +201,7 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
     chips: [
       'Run live · tracing route',
       '+6 zones captured',
-      `Decay · ${DECAY_DAYS} days undefended`,
+      `Decay · ${ZONE_DECAY_DAYS} days undefended`,
       '+2 zones retaken',
       `Season · ${SEASON_DURATION_WEEKS} weeks`,
     ],

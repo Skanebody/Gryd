@@ -22,7 +22,7 @@ import {
   BADGE_SHIELD,
   BADGE_TIER_DECOR,
   BADGE_TIER_STYLE,
-  DECAY_DAYS,
+  ZONE_DECAY_DAYS,
   NIGHT_END_MIN,
   NIGHT_START_MIN,
   badgeIconFor,
@@ -376,7 +376,7 @@ export function BadgeGallery() {
           <h2 id="badges-title" className={ui.sectionTitle}>
             {t.title}
           </h2>
-          <p className={ui.sectionSub}>{t.sub(formatInt(DECAY_DAYS), formatInt(SECRETS.length))}</p>
+          <p className={ui.sectionSub}>{t.sub(formatInt(ZONE_DECAY_DAYS), formatInt(SECRETS.length))}</p>
 
           {/* Légende des familles — couleurs = DATA du catalogue (exception §1). */}
           <ul className={styles.familyLegend} aria-label={t.familiesAria}>

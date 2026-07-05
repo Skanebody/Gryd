@@ -22,6 +22,7 @@ import {
   hexesForSegments,
   stepCoherence,
   validateRun,
+  verifyFactor,
   type BadgeRunInput,
   type HexState,
   type LifetimeStats,
@@ -29,7 +30,7 @@ import {
 } from '@klaim/engine';
 import { cellToBoundary } from 'h3-js';
 import { BADGES_BY_KEY, type BadgeDef } from '@klaim/shared/badges';
-import { CITIES, type CityId, type ZoneDensity } from '@klaim/shared/game-rules';
+import { CITIES, type CityId, VERIFY_PARTIAL_MIN, type ZoneDensity } from '@klaim/shared/game-rules';
 import type {
   HexClaimResult,
   HexOutcome,
@@ -386,9 +387,12 @@ export function simulate(params: SimParams, seed: number): SimResult {
   const motionTrust = stepCoherence(stats.distanceM, stepCount);
   const gpsTrust = Math.round((filtered.keptPoints / Math.max(1, filtered.totalPoints)) * 100);
 
+  const trustScore = Math.min(gpsTrust, motionTrust);
+  // AMENDEMENT-23 §D : verify « stats only » (trustScore < 60) → claims gelés,
+  // même traitement que flagged (aligné sur validateOrStatus d'ingest_run).
   const status: RunStatus = validation.status === 'rejected'
     ? 'rejected'
-    : motionTrust < MOTION_TRUST_FLAGGED_BELOW
+    : (motionTrust < MOTION_TRUST_FLAGGED_BELOW || trustScore < VERIFY_PARTIAL_MIN)
       ? 'flagged'
       : claimable.status;
 
@@ -446,6 +450,9 @@ export function simulate(params: SimParams, seed: number): SimResult {
     const s = computeScore({
       basePoints: decision.totals.points,
       streakWeeks: 3,
+      // Formule §23 : verify_factor (paliers 80/60) appliqué AVANT streak/perf.
+      // En branche non gelée, trustScore ≥ 60 → facteur 0,5 (partiel) ou 1,0.
+      verifyFactor: verifyFactor(trustScore),
       performance: { dataReliability: gpsTrust / 100, isRegular: true },
       isClub: false,
     });

@@ -30,6 +30,7 @@ import {
   H3_RESOLUTION,
   LOOP_CLOSE_TOLERANCE_M,
   LOOP_MAX_AREA_BY_DISTANCE_KM2,
+  LOOP_MAX_AREA_CAP_KM2,
   LOOP_MIN_COMPACTNESS,
   LOOP_MIN_PERIMETER_M,
   LOOP_MIN_WIDTH_M,
@@ -392,22 +393,25 @@ const M_PER_KM = 1_000;
  * (AMENDEMENT-16 §2, doc §6 « boucle trop grande ») : interpolation LINÉAIRE
  * de LOOP_MAX_AREA_BY_DISTANCE_KM2 (3→0,25 ; 5→0,8 ; 10→1,8 km²), extrapolée
  * BORNÉE au ratio du palier le plus proche hors bornes (< 3 km : × 0,25/3 par
- * km ; > 10 km : × 1,8/10 par km). PURE, monotone croissante.
+ * km ; > 10 km : × 1,8/10 par km), puis CAPÉE DUR à LOOP_MAX_AREA_CAP_KM2
+ * (3 km², AMENDEMENT-23 §D / doc §9 « capée à 3 km² ») : un run de 25 km ne
+ * capture jamais plus de 3 km² d'intérieur. PURE, monotone croissante.
  */
 export function loopMaxAreaM2(distanceM: number): number {
   const table = LOOP_MAX_AREA_BY_DISTANCE_KM2;
+  const capM2 = LOOP_MAX_AREA_CAP_KM2 * M2_PER_KM2;
   const dKm = Math.max(0, distanceM) / M_PER_KM;
   const [firstKm, firstKm2] = table[0]!;
-  if (dKm <= firstKm) return dKm * (firstKm2 / firstKm) * M2_PER_KM2;
+  if (dKm <= firstKm) return Math.min(dKm * (firstKm2 / firstKm) * M2_PER_KM2, capM2);
   const [lastKm, lastKm2] = table[table.length - 1]!;
-  if (dKm >= lastKm) return dKm * (lastKm2 / lastKm) * M2_PER_KM2;
+  if (dKm >= lastKm) return Math.min(dKm * (lastKm2 / lastKm) * M2_PER_KM2, capM2);
   for (let i = 1; i < table.length; i++) {
     const [d1, a1] = table[i]!;
     if (dKm > d1) continue;
     const [d0, a0] = table[i - 1]!;
-    return (a0 + ((a1 - a0) * (dKm - d0)) / (d1 - d0)) * M2_PER_KM2;
+    return Math.min((a0 + ((a1 - a0) * (dKm - d0)) / (d1 - d0)) * M2_PER_KM2, capM2);
   }
-  return lastKm2 * M2_PER_KM2; // inatteignable (dKm < lastKm couvert ci-dessus)
+  return Math.min(lastKm2 * M2_PER_KM2, capM2); // inatteignable (dKm < lastKm couvert ci-dessus)
 }
 
 /**

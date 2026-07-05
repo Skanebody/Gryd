@@ -26,18 +26,136 @@ export const SEGMENT_PACE_MAX_S_KM = 12 * 60;
 // ─── §3.3 Propriété, vol, protection ─────────────────────────────────────────
 export const HEX_LOCK_HOURS = 24; // hex fraîchement capturé involable
 export const NEW_PLAYER_PROTECTION_DAYS = 14; // territoire involable + sans decay
-export const DECAY_DAYS = 21; // hex non re-parcouru → neutre
+/**
+ * Durée de vie (jours) d'une zone non re-parcourue avant decay → neutre
+ * (AMENDEMENT-23 §D + doc §24/§25 : REMPLACE l'ancien decay binaire 21 j).
+ * C'est l'échéance de decay POSÉE À LA CAPTURE (now + ZONE_DECAY_DAYS). Une
+ * DÉFENSE ultérieure ne « reset » plus à 14 j : elle REPOUSSE l'échéance de
+ * DEFENSE_HOURS_* selon la couverture de frontière (défense graduée ci-dessous)
+ * — la stabilité s'ÉTEND, elle ne se remet pas à zéro. TUNABLE (doc « MVP »).
+ */
+export const ZONE_DECAY_DAYS = 14;
 export const DECAY_WARNING_DAYS_BEFORE = 3; // notif « ton quartier s'efface »
+/**
+ * Statuts de zone dérivés (doc §24) — cycle de vie d'une zone à partir de son
+ * échéance de decay et de son activité. NOMMÉS pour l'UI/l'explicabilité ; le
+ * moteur les DÉRIVE (zoneStatus, engine/zone.ts) sans colonne dédiée quand
+ * calculables au read.
+ *  - `stable`     : capturée/défendue récemment, 0-7 j depuis la dernière défense ;
+ *  - `fragile`    : 8-14 j sans défense (échéance approche) ;
+ *  - `a_defendre` : dans les DERNIÈRES 48 h avant l'échéance de decay ;
+ *  - `contestee`  : rival actif / contrôle partagé (signal externe) ;
+ *  - `protegee`   : bouclier actif OU défense forte récente (stable_until futur loin) ;
+ *  - `en_decay`   : échéance de decay dépassée (perd sa propriété).
+ * Fenêtres de decay (doc §25, bornes en jours/heures depuis la dernière défense).
+ */
+export const ZONE_STABLE_MAX_DAYS = 7; // stable : 0-7 j
+export const ZONE_FRAGILE_MAX_DAYS = 14; // fragile : 8-14 j (= ZONE_DECAY_DAYS)
+export const ZONE_DEFEND_WINDOW_HOURS = 48; // « à défendre » : dernières 48 h avant decay
+/**
+ * Défense GRADUÉE (doc §16/§17, AMENDEMENT-23 §D) : la stabilité gagnée dépend
+ * de la COUVERTURE de la frontière ciblée par le tracé (frontier coverage %,
+ * engine/coverage.ts). 3 niveaux → heures de stabilité AJOUTÉES à l'échéance de
+ * decay (repousse le decay de N h à partir de now). Valeurs = BORNE HAUTE des
+ * plages doc (traverser 12-24 h → 24 ; longer 24-48 h → 48 ; couvrir 48-72 h →
+ * 72) — TUNABLE. Une zone « couverte/fermée » tient donc 72 h de plus par
+ * défense, une simple traversée 24 h.
+ */
+export const DEFENSE_HOURS_TRAVERSE = 24; // coverage < DEFENSE_COVER_LONGE_MIN
+export const DEFENSE_HOURS_LONGE = 48; // DEFENSE_COVER_LONGE_MIN ≤ coverage < DEFENSE_COVER_FULL_MIN
+export const DEFENSE_HOURS_COVER = 72; // coverage ≥ DEFENSE_COVER_FULL_MIN OU boucle fermée sur la zone
+/**
+ * Seuils de COUVERTURE de frontière (fraction 0-1) départageant les 3 niveaux
+ * de défense (doc §16/§17). < 0,40 = traverser ; [0,40 ; 0,80[ = longer ;
+ * ≥ 0,80 = couvrir/fermer. TUNABLE.
+ */
+export const DEFENSE_COVER_LONGE_MIN = 0.4;
+export const DEFENSE_COVER_FULL_MIN = 0.8;
+/**
+ * Buffer (m) autour du tracé pour calculer la portion de frontière couverte
+ * (doc §17 : « buffer autour du tracé = 30 m »). PURE (engine/coverage.ts) :
+ * couverture = longueur de la frontière ciblée dont un point tombe à ≤ ce
+ * buffer d'un segment du tracé, ÷ longueur totale de la frontière. TUNABLE.
+ */
+export const FRONTIER_COVERAGE_BUFFER_M = 30;
 export const SHIELD_MAX_CLUSTER_HEXES = 300;
 export const SHIELD_DURATION_HOURS = 48;
 export const SHIELD_MAX_ACTIVE_PER_WEEK = 2; // cap absolu par joueur
 export const SHIELD_CLUB_INCLUDED_PER_WEEK = 1;
 
 // ─── §3.4 Points, streaks, monnaies ──────────────────────────────────────────
+// AMENDEMENT-23 §D + doc §23 : la FORMULE DE POINTS est désormais
+// MULTIPLICATIVE — points = zones × coeff_action × coeff_contexte ×
+// verify_factor (voir POINTS_BASE_PER_ZONE / ACTION_COEFF / CONTEXT_COEFF /
+// VERIFY_* ci-dessous). Les 3 forfaits historiques (+10/+15/+3) NE sont plus le
+// barème ; ils restent exposés comme RÉFÉRENCE de dérivation :
+// POINTS_BASE_PER_ZONE=10 = l'ancien neutre ; steal 1,3 ≈ 15/10 ; l'ancien
+// défendu +3 devient 10 × 1,2 (défense) × 0,5 (verify partiel) ≈ 6 ou plus —
+// gros delta de balance SIGNALÉ (balanceNotes). Le pionnier par densité reste
+// un ADDITIF de première capture (voir POINTS_PIONEER_BONUS_BY_DENSITY).
 export const POINTS_NEUTRAL_HEX = 10;
 export const POINTS_STOLEN_HEX = 15;
-export const POINTS_DEFENDED_HEX = 3; // re-parcourir son hex
+export const POINTS_DEFENDED_HEX = 3; // re-parcourir son hex (LEGACY — cf. formule §23)
 export const DEFEND_COOLDOWN_HOURS = 24; // max 1 défense/24 h/hex
+
+// ─── §23 Formule de points MULTIPLICATIVE (AMENDEMENT-23 §D, doc §23) ─────────
+/**
+ * Points de base d'UNE zone (micro-cellule res 10) capturée, avant tout
+ * coefficient (doc §23 « POINTS_BASE_PER_ZONE=10 »). = l'ancien neutre forfait
+ * (POINTS_NEUTRAL_HEX) — la conquête neutre reste 10 × 1,0 × … = 10.
+ */
+export const POINTS_BASE_PER_ZONE = 10;
+/**
+ * Coefficient d'ACTION par type de gain (doc §23). Une zone est gagnée par UNE
+ * action : conquête neutre ×1, reprise rival ×1,3, défense ×1,2, boucle propre
+ * ×1,1 (intérieur d'une boucle fermée bien formée), route ×0,5 (couloir d'un
+ * run qui n'ouvre qu'une ligne, pas de zone). Le moteur (engine/scoring.ts)
+ * choisit le coeff par hex selon l'outcome + le contexte boucle. TUNABLE.
+ *  - `route` MVP : réservé au couloir d'une course SANS boucle (arbitrage
+ *    fondateur — appliqué seulement si actionContext.route, sinon la conquête
+ *    corridor reste ×1,0 pour ne pas casser la balance des runs simples).
+ */
+export const ACTION_COEFF = {
+  conquest: 1.0,
+  steal: 1.3,
+  defense: 1.2,
+  clean_loop: 1.1,
+  route: 0.5,
+} as const;
+export type ActionCoeffKey = keyof typeof ACTION_COEFF;
+/**
+ * Coefficient de CONTEXTE (doc §23) — MAJORE les points selon la situation, PAS
+ * un achat. `zone_bonus` = HOTSPOT de carte (gagné par le LIEU, hotspot §26),
+ * jamais un bonus acheté (anti pay-to-win : les bonus payants ne touchent
+ * jamais les points, cf. BONUS_REWARD_PCT/Crew Boost → coffre/XP seulement).
+ * Le coeff contexte effectif d'un hex = le PLUS FORT contexte applicable (un
+ * seul multiplicateur de contexte, jamais de cumul). 1,0 si aucun. TUNABLE.
+ *  - `contested` ×1,2 : la zone est disputée (rival actif/partagé) ;
+ *  - `crew_mission` ×1,1 : la zone compte pour une mission/offensive crew active ;
+ *  - `zone_bonus` ×1,15 : la zone est un hotspot de carte (gagné, pas acheté).
+ */
+export const CONTEXT_COEFF = {
+  contested: 1.2,
+  crew_mission: 1.1,
+  zone_bonus: 1.15,
+} as const;
+export type ContextCoeffKey = keyof typeof CONTEXT_COEFF;
+/**
+ * PALIERS de VERIFY (doc §23) — facteur multiplicatif final selon le score de
+ * confiance de la course (trust = min(gpsTrust, motionTrust) 0-100) :
+ *  - ≥ VERIFY_FULL_MIN (80) → VERIFY_FACTOR_FULL (1,0) : capture pleine ;
+ *  - ≥ VERIFY_PARTIAL_MIN (60) → VERIFY_FACTOR_PARTIAL (0,5) : capture PARTIELLE
+ *    (la course capture, mais chaque zone vaut moitié) ;
+ *  - < 60 → 0 : STATS ONLY, aucune capture (le run compte sportivement).
+ * verifyFactor(trust) (engine/scoring.ts) applique ces paliers. Remplace le
+ * seuil unique 70. TUNABLE.
+ */
+export const VERIFY_FULL_MIN = 80;
+export const VERIFY_PARTIAL_MIN = 60;
+export const VERIFY_FACTOR_FULL = 1.0;
+export const VERIFY_FACTOR_PARTIAL = 0.5;
+export const VERIFY_FACTOR_NONE = 0; // < VERIFY_PARTIAL_MIN → stats only
+
 /** Bonus pionnier (hex jamais possédé) — variable par densité de zone (AMENDEMENT-02 §3). */
 export const POINTS_PIONEER_BONUS_BY_DENSITY = {
   active: 5,
@@ -686,6 +804,22 @@ export const LOOP_MAX_AREA_BY_DISTANCE_KM2 = [
   [10, 1.8],
 ] as const;
 /**
+ * Cap DUR d'aire capturable d'une boucle (km²), en PLUS de la table par
+ * distance (doc §9 « surface_max = distance × 0,18 capée à 3 km² »,
+ * AMENDEMENT-23 §D). loopMaxAreaM2 borne le résultat de l'extrapolation par
+ * distance à ce plafond : même un run de 25 km ne capture jamais plus de
+ * 3 km² d'intérieur. TUNABLE.
+ */
+export const LOOP_MAX_AREA_CAP_KM2 = 3.0;
+/**
+ * GPS trust MINIMAL (0-100) pour qu'une boucle capture son INTÉRIEUR plein
+ * (doc §5 « GPS trust : minimum 80 / 100 », AMENDEMENT-23 §D). En deçà, la
+ * boucle reste une COURSE VALIDE et son couloir est pris, mais son intérieur
+ * n'est PAS attribué (gate anti-abus : une boucle au GPS douteux ne crée pas de
+ * zone pleine). Aligné sur VERIFY_FULL_MIN (80). TUNABLE.
+ */
+export const LOOP_MIN_GPS_TRUST = 80;
+/**
  * Compacité minimale d'une boucle : 4πA/P² (1 = cercle, 0 = trait). Choix
  * documenté 0,12 dans la plage produit 0,10-0,15 (doc §6 « Boucle trop
  * fine ») : un carré vaut π/4 ≈ 0,785, un rectangle 4:1 ≈ 0,5, un rectangle
@@ -695,12 +829,13 @@ export const LOOP_MAX_AREA_BY_DISTANCE_KM2 = [
 export const LOOP_MIN_COMPACTNESS = 0.12;
 /**
  * Largeur moyenne minimale (m) d'une boucle, ESTIMÉE 2A/P (doc §6 : pas de
- * calcul exotique) : ~60 m ≈ 2 zones res 10 de large. En deçà (aller-retour
+ * calcul exotique) : durcie 60 → 80 m (AMENDEMENT-23 §D, doc §5 « largeur
+ * moyenne minimum : 80 m ») ≈ ~3 zones res 10 de large. En deçà (aller-retour
  * sur deux rues parallèles très proches) : course valide, intérieur REFUSÉ —
  * loopRejectedReason='narrow', copy gelée : « Zone non capturée : forme trop
  * étroite. »
  */
-export const LOOP_MIN_WIDTH_M = 60;
+export const LOOP_MIN_WIDTH_M = 80;
 /**
  * Mise en scène de la boucle (AMENDEMENT-12 §C — PRÉSENTATION, pas des règles
  * serveur) : « Boucle ouverte » (pointillé position → départ) sous 600 m,
