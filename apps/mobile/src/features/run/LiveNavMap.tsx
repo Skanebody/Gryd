@@ -78,9 +78,15 @@ const TERRITORY_BORDER_WIDTH = 2.2;
 const TRACE_LINE_WIDTH = 3.2;
 /** Écart latéral du DOUBLE trait contesté (line-offset — parité mapStyle). */
 const CONTESTED_OFFSET_PX = 2.5;
-/** Itinéraire type Uber (parité RouteProgress : gris/chartreuse, liseré noir). */
-const ROUTE_WIDTH = 4;
-const ROUTE_CASING_EXTRA = 3;
+/**
+ * Itinéraire type Uber (parité RouteProgress : gris/chartreuse, liseré noir).
+ * AMENDEMENT-20 §1 (carte silencieuse) : la route PARCOURUE (chartreuse) reste
+ * dominante (4,5 px) ; la route À VENIR (grise) est plus fine (3 px) et atténuée,
+ * pour laisser le tracé vert primer sur tout le reste.
+ */
+const ROUTE_DONE_WIDTH = 4.5;
+const ROUTE_AHEAD_WIDTH = 3;
+const ROUTE_CASING_EXTRA = 2.5;
 /** Virage signalé à partir de ce changement de cap (degrés). */
 const TURN_MIN_DEG = 25;
 /** Pastille de la flèche de virage. */
@@ -477,24 +483,27 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
         lineWidth: 2,
         lineDash: LOOP_OPEN_DASH,
       },
-      // Itinéraire type Uber : liseré sombre, gris en avance, parcouru chartreuse.
+      // AMENDEMENT-20 §1 — CARTE SILENCIEUSE pendant le run : la route verte
+      // (parcourue, chartreuse) DOMINE ; la route à venir (grise) et son liseré
+      // sont ATTÉNUÉS (plus fins, plus discrets) pour ne pas concurrencer le
+      // tracé. Hiérarchie : position · route · fermeture · progression · reste éteint.
       {
         id: 'live-route-casing',
         data: routeData,
-        lineColor: withAlpha(colors.noir, 0.5),
-        lineWidth: ROUTE_WIDTH + ROUTE_CASING_EXTRA,
+        lineColor: withAlpha(colors.noir, 0.35),
+        lineWidth: ROUTE_AHEAD_WIDTH + ROUTE_CASING_EXTRA,
       },
       {
         id: 'live-route-ahead',
         data: routeData,
-        lineColor: colors.gris,
-        lineWidth: ROUTE_WIDTH,
+        lineColor: withAlpha(colors.gris, 0.55),
+        lineWidth: ROUTE_AHEAD_WIDTH,
       },
       {
         id: 'live-route-done',
         data: routeDoneData,
         lineColor: colors.chartreuse,
-        lineWidth: ROUTE_WIDTH,
+        lineWidth: ROUTE_DONE_WIDTH,
       },
     ],
     [corridorData, contested, loopFillData, ghostData, loopOpenData, routeData, routeDoneData],

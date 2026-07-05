@@ -62,13 +62,11 @@ import {
   etaSecondsAt,
   nextCheckpointAt,
   progressPctAt,
-  routeInfoFromParam,
   splitsAt,
   type NavToast,
 } from '../src/features/run/liveNav';
 import {
   LIVE_EVENT_META,
-  RUN_MODE_LABEL,
   SIM_SECONDS_PER_TICK,
   SIM_TICK_MS,
   buildRunSimulation,
@@ -84,11 +82,12 @@ import {
 import { useRealRun } from '../src/features/run/gps/useRealRun';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
 import {
-  completeBannerLabel,
-  conquestBannerLabel,
-  defenseBannerLabel,
+  completeMissionLabel,
+  conquestMissionLabel,
+  defenseMissionLabel,
   defenseCoveragePct,
   defenseZoneForRoute,
+  freeRunMissionLabel,
   intentionFromParam,
   isCompleteParam,
   partialBoundaryById,
@@ -109,7 +108,6 @@ import {
 } from '../src/features/run/indications';
 import {
   liveMatesAt,
-  primaryMateLine,
   rivalSectorAt,
   rivalSectorLine,
   shouldShowMates,
@@ -127,6 +125,13 @@ const BIG_CONTROL_SIZE = 68;
 const CHECKPOINT_ROUND_M = 10;
 /** Durée de la mini-anim N3 (§C.3) : ~2 s, ne masque jamais la route longtemps. */
 const N3_DURATION_MS = 2_000;
+/**
+ * AMENDEMENT-20 §1 — les événements live sont des TOASTS TEMPORAIRES (2 s, jamais
+ * permanents). Fenêtre courte façon Strava : le toast passe, la carte reste
+ * silencieuse. (Le token partagé motion.toastDismissMs = 2,5 s sert d'autres
+ * écrans ; ici on impose la discipline 2 s du live.)
+ */
+const LIVE_TOAST_MS = 2_000;
 
 /** Les deux modes d'affichage du live (AMENDEMENT-10 §3 — Nike d'abord). */
 type LiveView = 'stats' | 'carte';
@@ -222,7 +227,6 @@ function DemoCourseLive({
   notice: string | null;
 }) {
   const insets = useSafeAreaInsets();
-  const routeInfo = useMemo(() => routeInfoFromParam(routeParam), [routeParam]);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   // §4ter : la simulation SUIT l'itinéraire ROUTÉ du parcours choisi (`route=`).
   const nav = useMemo(() => buildLiveNav(sim, routeParam), [sim, routeParam]);
@@ -300,20 +304,42 @@ function DemoCourseLive({
       : Math.round(completeBoundary.missingM * (1 - completeProgress))
     : 0;
 
-  const intentionBanner = (() => {
+  // ── AMENDEMENT-20 §1 — BANDEAU MISSION unique (fusion ETA + intention) ──────
+  // « Strava partage une conquête. » UN SEUL bandeau en haut : la mission courte
+  // (DÉFENSE · République · 80 % / BOUCLE · 72 % · 320 m / RUN LIBRE · 4,2 km ·
+  // 5’38/km) + l'ETA à droite (« 9 min »). Plus de pile de 4 pills. 100 % client.
+  // Priorité (l'intention guide, le tracé décide) : terminer une frontière crew →
+  // DÉFENSE (intention explicite) → BOUCLE (mode conquête) → RUN LIBRE. L'intention
+  // « défendre » prime sur le mode conquête par défaut (parité bandeau A-16 §1).
+  const missionLabel = (() => {
     if (completeBoundary) {
-      return completeBannerLabel(completeBoundary.zone, completeRemainingM, completeCoveredPct);
-    }
-    if (intention === 'conquest') {
-      return conquestBannerLabel(loopStatus.phase, loopStatus.distM, tick.distanceM);
+      return completeMissionLabel(completeBoundary.zone, completeRemainingM);
     }
     if (intention === 'defense') {
       const zone = defenseZoneForRoute(routeParam);
       const covered = defenseCoveragePct(Math.min(tickIndex, lastIndex) + 1, lastIndex + 1);
-      return defenseBannerLabel(zone, covered);
+      return defenseMissionLabel(zone, covered);
     }
-    return null;
+    if (conquest) {
+      return conquestMissionLabel(loopStatus.phase, loopStatus.distM, tick.distanceM);
+    }
+    // Run libre : la mission = les chiffres de la course (Strava discipline).
+    return freeRunMissionLabel(formatKm(tick.distanceM), formatPace(paceSPerKm));
   })();
+  /** Icône du bandeau mission selon l'objectif (chartreuse, jamais criard). */
+  const missionIcon: IconName = completeBoundary
+    ? 'route'
+    : intention === 'defense'
+      ? 'bouclier'
+      : conquest
+        ? 'cible'
+        : 'performance';
+  /** ETA courte à droite du bandeau : « 9 min » / « PAUSE » / « Arrivée ». */
+  const etaLabel = paused
+    ? 'PAUSE'
+    : simDone
+      ? 'Arrivée'
+      : `${Math.max(1, Math.ceil(etaS / 60))} min`;
 
   // ── Feedback temps réel scripté : toast + haptic (anti-bruit : 1 à la fois) ─
   const [toast, setToast] = useState<{ key: number; toast: NavToast } | null>(null);
@@ -335,7 +361,7 @@ function DemoCourseLive({
   // forte courte) — voir la section « INDICATIONS GUIDÉES » plus bas (§C.3).
   useEffect(() => {
     if (!toast) return;
-    const id = setTimeout(() => setToast(null), motion.toastDismissMs);
+    const id = setTimeout(() => setToast(null), LIVE_TOAST_MS);
     return () => clearTimeout(id);
   }, [toast]);
 
@@ -444,15 +470,33 @@ function DemoCourseLive({
   // opt-in) et on ne montre QUE les personnes utiles. Rival : jamais localisé
   // précisément — activité par SECTEUR, retardée.
   const matesOn = shouldShowMates({ mode, completing: completeBoundary !== null, mission });
+  // AMENDEMENT-20 §1 — les alliés vivent UNIQUEMENT sur la carte (points +
+  // prénom) : plus de pill allié dans le haut (max 1 mission + 1 toast).
   const mates: LiveMate[] = useMemo(
     () => (matesOn ? liveMatesAt(nav, tickIndex) : []),
     [matesOn, nav, tickIndex],
   );
-  const mateLine = matesOn ? primaryMateLine(mates) : null;
   const rival: RivalSector | null = useMemo(
     () => rivalSectorAt(nav, tickIndex, { mode, completing: completeBoundary !== null, intention }),
     [nav, tickIndex, mode, completeBoundary, intention],
   );
+  // AMENDEMENT-20 §1 — RIVAL épuré : plus de bandeau permanent. Le halo orange
+  // vit sur la CARTE (LiveNavMap, prop `rival`) ; ici on émet UN toast court
+  // « Canal actif » (2 s) à sa première détection. One-shot (anti-bruit).
+  const rivalToastFiredRef = useRef(false);
+  useEffect(() => {
+    if (!rival || rivalToastFiredRef.current) return;
+    rivalToastFiredRef.current = true;
+    haptics.medium();
+    showToast({
+      kind: 'checkpoint',
+      text: rivalSectorLine(rival),
+      icon: rival.icon,
+      tint: rival.tint,
+      haptic: 'medium',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- déclenché à la 1re détection
+  }, [rival]);
 
   // ── AMENDEMENT-18 §C.4 — QUICK PINGS (pas de clavier en courant) ───────────
   const [pingsOpen, setPingsOpen] = useState(false);
@@ -539,29 +583,25 @@ function DemoCourseLive({
 
   const donePulse = usePulse(simDone, 1.06, 1_600);
   const floatingBottom = insets.bottom + MAP_SHEET_COMPACT_HEIGHT + ABOVE_SHEET_GAP;
-  /** Pill boucle du mode Carte (aperçu « Ferme ta boucle » / état fermé) —
-      masquée en mode « terminer » : le bandeau « Terminer {zone} » porte déjà
-      la même info (anti-double-message). */
-  const loopPillVisible =
-    view === 'carte' &&
-    conquest &&
-    !completeBoundary &&
-    (loopStatus.phase === 'approach' || loopClosed);
+  // AMENDEMENT-20 §1 — « SEGMENT EXCLU » rétrogradé : info technique → micro-chip
+  // discret (petite icône + libellé bref « GPS faible »), JAMAIS un bandeau plein.
+  // Le détail va au RÉSULTAT (autre agent). On ne montre que les événements
+  // techniques utiles au coureur (GPS/segment), jamais un StatePill empilé.
+  const techNotice = (() => {
+    // Mode dégradé GPS (AMENDEMENT-15 §2 : permission refusée…) : prioritaire,
+    // reste discret — jamais bloquant. Une phrase brève.
+    if (notice !== null) return notice;
+    if (tick.event === 'gps_faible') return 'GPS faible';
+    if (tick.event === 'segment_exclu') return 'GPS faible';
+    if (tick.event === 'zone_privee') return 'Zone privée';
+    return null;
+  })();
   /**
-   * Hauteur de la pile de pills du haut (le toast se place STRICTEMENT dessous —
-   * fondateur : « les notifications se grimpent les unes sur les autres »).
-   * DOIT compter CHAQUE pill qui peut apparaître, dans l'ordre de rendu, sinon le
-   * toast retombe sur une pill (ex. allié / rival, oubliés jusqu'ici).
+   * AMENDEMENT-20 §1 — pile du haut réduite au MAXIMUM : 1 bandeau mission
+   * (toujours) + 1 micro-chip technique optionnel. Le toast se place dessous.
+   * Fini la pile de 4+ pills (route/intention/événement/boucle/allié/rival).
    */
-  const topStackOffset =
-    56 +
-    (routeInfo ? 30 : 0) +
-    (intentionBanner ? 30 : 0) +
-    (tick.event !== null ? 38 : 0) +
-    (loopPillVisible ? 30 : 0) +
-    (mateLine ? 30 : 0) +
-    (rival ? 30 : 0) +
-    (!conquest ? 28 : 0);
+  const topStackOffset = 48 + (techNotice ? 28 : 0);
 
   return (
     <View style={styles.root}>
@@ -854,96 +894,30 @@ function DemoCourseLive({
         </View>
       )}
 
-      {/* ── Pile du haut (2 modes) : route → ETA/pause (TOUJOURS visible) →
-           événement (s'empile, ne remplace JAMAIS) → stats only ── */}
+      {/* ── AMENDEMENT-20 §1 — UN SEUL BANDEAU MISSION (fusion ETA + intention).
+           « Strava partage une conquête. » Mission courte à gauche + ETA à
+           droite. Sous lui, au plus 1 micro-chip technique (GPS/segment). Fini la
+           pile de 4+ pills : route, boucle, allié, rival, stats-only ont quitté
+           le haut (la carte + les toasts portent le reste). MAX 2 éléments avec
+           le toast. ── */}
       <View style={[styles.topArea, { top: insets.top + 10 }]} pointerEvents="none">
-        {routeInfo ? (
-          <View style={styles.routePill}>
-            <Icon name="route" size={13} color={colors.gris} />
-            <Text style={styles.routePillText} numberOfLines={1}>
-              {routeInfo.name.toUpperCase()}
-              {routeInfo.summary ? `  ·  ${routeInfo.summary}` : ''}
-            </Text>
-          </View>
-        ) : null}
-        <View style={styles.topPill}>
+        <View style={styles.missionBanner}>
           <View style={[styles.liveDot, paused && styles.liveDotPaused]} />
-          <Text style={styles.topPillText}>
-            {paused
-              ? 'EN PAUSE'
-              : simDone
-                ? 'DESTINATION ATTEINTE'
-                : `ARRIVÉE ${Math.max(1, Math.ceil(etaS / 60))} MIN · ${pct} %`}
+          <Icon name={missionIcon} size={13} color={colors.chartreuse} />
+          <Text style={styles.missionText} numberOfLines={1}>
+            {missionLabel}
+          </Text>
+          <Text style={styles.missionEta} numberOfLines={1}>
+            {etaLabel}
           </Text>
         </View>
-        {/* Bandeau d'intention (AMENDEMENT-16 §1) : Conquérir → fermeture de
-             boucle ; Défendre → frontière couverte. S'empile sous l'ETA, ne la
-             remplace jamais. Rien sans intention (run libre). */}
-        {intentionBanner ? (
-          <View style={styles.intentionPill}>
-            <Icon
-              name={completeBoundary ? 'route' : intention === 'defense' ? 'bouclier' : 'cible'}
-              size={13}
-              color={colors.chartreuse}
-            />
-            <Text style={styles.intentionPillText} numberOfLines={1}>
-              {intentionBanner}
-            </Text>
-          </View>
-        ) : null}
-        {tick.event !== null ? (
-          <View style={styles.eventPillWrap}>
-            <StatePill
-              state={LIVE_EVENT_META[tick.event].state}
-              label={LIVE_EVENT_META[tick.event].label}
-            />
-          </View>
-        ) : null}
-        {/* Boucle (mode Carte) : « Ferme ta boucle » à l'approche, état fermé ensuite. */}
-        {loopPillVisible ? (
-          <View style={styles.loopPill}>
-            <Icon name="route" size={13} color={colors.chartreuse} />
-            <Text style={styles.loopPillText} numberOfLines={1}>
-              {loopClosed
-                ? `BOUCLE FERMÉE · +${formatInt(enclosedZones)} ZONES`
-                : `FERME TA BOUCLE · À ~${loopDistLabel} M`}
-            </Text>
-          </View>
-        ) : null}
-        {/* Allié live UTILE (§C.4) : opt-in, mission SEULEMENT — filtré en amont.
-             Un seul allié mis en avant (anti-bruit) ; la carte porte les points. */}
-        {mateLine ? (
-          <View style={styles.matePill}>
-            <View style={styles.mateDotSmall} />
-            <Text style={styles.matePillText} numberOfLines={1}>
-              {mateLine}
-            </Text>
-          </View>
-        ) : null}
-        {/* Rival PAR SECTEUR (§C.4) : activité détectée, RETARDÉE — jamais une
-             position exacte. Halo orange sur la carte, texte au passé ici. */}
-        {rival ? (
-          <View style={styles.rivalPill}>
-            <Icon name="cible" size={12} color={gameColors.rival} />
-            <Text style={styles.rivalPillText} numberOfLines={1}>
-              {rivalSectorLine(rival)}
-            </Text>
-          </View>
-        ) : null}
-        {!conquest ? (
-          <View style={styles.statsOnlyPill}>
-            <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={13} color={colors.gris} />
-            <Text style={styles.statsOnlyText}>
-              {RUN_MODE_LABEL[mode]} — stats uniquement, aucune capture
-            </Text>
-          </View>
-        ) : null}
-        {/* Mode dégradé GPS (AMENDEMENT-15 §2) : UNE phrase, jamais bloquant. */}
-        {notice !== null ? (
-          <View style={styles.statsOnlyPill}>
-            <Icon name="gps" size={13} color={colors.gris} />
-            <Text style={styles.statsOnlyText} numberOfLines={2}>
-              {notice}
+        {/* SEGMENT EXCLU / GPS rétrogradé (§1) : micro-chip discret « GPS faible »,
+             jamais un bandeau plein. Le détail technique va au résultat. */}
+        {techNotice ? (
+          <View style={styles.techChip}>
+            <Icon name="gps" size={11} color={colors.gris} />
+            <Text style={styles.techChipText} numberOfLines={1}>
+              {techNotice}
             </Text>
           </View>
         ) : null}
@@ -1335,41 +1309,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  routePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    maxWidth: 340,
-  },
-  routePillText: {
-    color: colors.gris,
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  topPill: {
+  // ── AMENDEMENT-20 §1 — BANDEAU MISSION unique (fusion ETA + intention) ──────
+  // Un seul bandeau : dot live + icône + mission courte (13-14 px) + ETA à droite.
+  // Fond carbone discret, filet chartreuse léger (la mission guide, ne crie pas).
+  missionBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: gameColors.carbon,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
+    borderColor: colors.chartreuse40,
     paddingHorizontal: 14,
     paddingVertical: 7,
+    maxWidth: 360,
   },
-  topPillText: {
+  missionText: {
     color: colors.blanc,
-    fontSize: fontSizes.xs,
+    fontSize: 13.5,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 0.3,
     fontVariant: ['tabular-nums'],
+    flexShrink: 1,
+  },
+  missionEta: {
+    color: colors.chartreuse,
+    fontSize: 13.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+    fontVariant: ['tabular-nums'],
+    marginLeft: 4,
+  },
+  // Micro-chip technique (§1) : « GPS faible » discret, jamais un bandeau plein.
+  techChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    opacity: 0.9,
+  },
+  techChipText: {
+    color: colors.gris,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   liveDot: {
     width: 7,
@@ -1378,26 +1366,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chartreuse,
   },
   liveDotPaused: { backgroundColor: colors.gris },
-  // ── Boucle (AMENDEMENT-12 §C) : pill carte + ligne texte du mode Stats ──
-  loopPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    maxWidth: 340,
-  },
-  loopPillText: {
-    color: colors.chartreuse,
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 1,
-    fontVariant: ['tabular-nums'],
-  },
+  // ── Boucle (AMENDEMENT-12 §C) : ligne texte du mode Stats (les pills du haut
+  //    ont été fusionnées dans le bandeau mission — AMENDEMENT-20 §1). ──
   loopLine: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -1407,88 +1377,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   loopLineAccent: { color: colors.chartreuse },
-  // ── Bandeau d'intention (AMENDEMENT-16 §1) : filet chartreuse discret, même
-  //    gabarit que la pill boucle (l'intention guide, ne crie pas). ──
-  intentionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    maxWidth: 340,
-  },
-  intentionPillText: {
-    color: colors.blanc,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    fontVariant: ['tabular-nums'],
-  },
   /** Le Stat ZONES garde sa part de rangée quand il saute (scale). */
   zoneStatWrap: { flex: 1 },
-  /** Neutralise l'alignSelf flex-start du StatePill (pill centrée en haut). */
-  eventPillWrap: { flexDirection: 'row', justifyContent: 'center' },
-  statsOnlyPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  statsOnlyText: { color: colors.gris, fontSize: 11 },
-  // ── Allié live (§C.4) : pill chartreuse discret, un seul mis en avant ──
-  matePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    maxWidth: 344,
-  },
-  mateDotSmall: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.chartreuse,
-  },
-  matePillText: {
-    color: colors.blanc,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-    fontVariant: ['tabular-nums'],
-  },
-  // ── Rival PAR SECTEUR (§C.4) : pill orange, texte au passé (retardé) ──
-  rivalPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(255,92,51,0.45)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    maxWidth: 344,
-  },
-  rivalPillText: {
-    color: gameColors.rival,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
 
   // ── Guidage bas Stats (§C.2/§C.3) : card objectif + N2 action ──
   guidedStack: {

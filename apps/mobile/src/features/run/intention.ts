@@ -166,6 +166,58 @@ export function completeBannerLabel(
   return `Terminer ${zone} · ${m} m restants`;
 }
 
+// ─── AMENDEMENT-20 §1 — BANDEAU MISSION épuré (fusion ETA + intention) ────────
+// « Strava partage une conquête. » Un SEUL bandeau en haut, textes RADICALEMENT
+// courts : « DÉFENSE · République · 80 % », « BOUCLE · 72 % · 320 m », « RUN
+// LIBRE · 4,2 km · 5’38/km ». Plus jamais « Défense République · Frontière
+// couverte : 80 % ». Ces libellés sont 100 % CLIENT (pur affichage, le tracé
+// décide). Le sous-libellé ETA (« 9 min ») vit à côté, porté par course-live.
+
+/**
+ * Bandeau mission DÉFENSE (court) : « DÉFENSE · République · 80 % ».
+ * Le % est la frontière couverte (métrique démo), lu d'un coup d'œil.
+ */
+export function defenseMissionLabel(zone: string, coveredPct: number): string {
+  return `DÉFENSE · ${zone} · ${coveredPct} %`;
+}
+
+/**
+ * Bandeau mission CONQUÊTE (court) : « BOUCLE · 72 % · 320 m » (fermeture % +
+ * distance pour fermer). Avant le seuil de périmètre : « BOUCLE · trace 2-5 km ».
+ * Fermée : « BOUCLE FERMÉE · zone prise ».
+ */
+export function conquestMissionLabel(
+  phase: LoopPhase,
+  distToStartM: number,
+  distanceM: number,
+): string {
+  if (phase === 'closed') return 'BOUCLE FERMÉE · zone prise';
+  if (distanceM < LOOP_MIN_PERIMETER_M) return 'BOUCLE · trace 2-5 km';
+  const pct = Math.min(99, Math.round((distanceM / (distanceM + distToStartM)) * 100));
+  const remaining = Math.max(
+    BANNER_ROUND_M,
+    Math.round(distToStartM / BANNER_ROUND_M) * BANNER_ROUND_M,
+  );
+  return `BOUCLE · ${pct} % · ${remaining} m`;
+}
+
+/**
+ * Bandeau mission TERMINER (court) : « TERMINER · République · 320 m ».
+ * `remainingM` = mètres restants pour refermer la frontière crew.
+ */
+export function completeMissionLabel(zone: string, remainingM: number): string {
+  const m = Math.max(0, Math.round(remainingM / BANNER_ROUND_M) * BANNER_ROUND_M);
+  return `TERMINER · ${zone} · ${m} m`;
+}
+
+/**
+ * Bandeau mission RUN LIBRE (court) : « RUN LIBRE · 4,2 km · 5’38/km ».
+ * `kmLabel` et `paceLabel` sont formatés en amont (formatKm / formatPace).
+ */
+export function freeRunMissionLabel(kmLabel: string, paceLabel: string): string {
+  return `RUN LIBRE · ${kmLabel} km · ${paceLabel}/km`;
+}
+
 // ─── Zones à défendre (démo doc §3.3 — la vraie liste est serveur, V1) ──────
 
 export interface DefenseTargetDemo {

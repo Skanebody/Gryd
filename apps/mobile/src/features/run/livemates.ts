@@ -171,7 +171,12 @@ export function rivalSectorAt(
   };
 }
 
-/** Ligne rival du bas : « Activité Canal détectée · pression élevée ». */
+/**
+ * AMENDEMENT-20 §1 — RIVAL épuré : plus de bandeau permanent « Activité Canal
+ * détectée · pression élevée ». Le rival vit désormais comme HALO orange sur la
+ * carte (LiveNavMap) + un TOAST court « Canal actif » (2 s). Cette ligne
+ * raccourcie sert le toast — jamais un bandeau plein.
+ */
 export function rivalSectorLine(rival: RivalSector): string {
-  return `Activité ${rival.sector} détectée · ${rival.pressure}`;
+  return `${rival.sector} actif`;
 }

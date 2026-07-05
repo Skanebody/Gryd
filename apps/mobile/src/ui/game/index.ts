@@ -41,7 +41,13 @@ export {
   type CrewPlayTag,
 } from './CrewDiscoveryCard';
 export { RankUpCard, type RankUpCardProps } from './RankUpCard';
-export { ShareCard, type ShareCardProps } from './ShareCard';
+export {
+  ShareCard,
+  SHARE_CARD_ASPECT,
+  type ShareCardProps,
+  type ShareCardRatio,
+  type ShareStat,
+} from './ShareCard';
 export {
   SourceTrustCard,
   type SourceTrustCardProps,

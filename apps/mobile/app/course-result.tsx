@@ -500,10 +500,16 @@ function ConquestResultScreen({
   );
   const reduce = useReduceMotion();
 
-  const steps = STEPS_BY_MODE[mode];
-  const lastStep = steps.length - 1;
-  const badgeIdx = steps.indexOf('badge');
-  const [step, setStep] = useState(0);
+  const conquest = mode === 'conquete';
+  const isPrivate = mode === 'course_privee';
+
+  // AMENDEMENT-20 §2 — Résultat en 3 temps. L'écran 1 est ULTRA simple
+  // (titre + KPI géant + 1 ligne émotionnelle + [Partager]). Tous les détails
+  // techniques (Impact, GRYD Verified, analyse boucle) se déplient AU TAP, pas
+  // sur le premier écran. Plus de séquence dopamine qui étale tout : on garde
+  // le reveal de l'écran 1, l'état final = 1 résultat clair + détails repliés.
+  const [showDetails, setShowDetails] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   const badge = mode === 'conquete' ? badgeById(DEMO_UNLOCKED_BADGE_ID) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
@@ -528,33 +534,23 @@ function ConquestResultScreen({
     track(EVENTS.celebrationViewed, { mode });
   }, [mode]);
 
-  // Avance automatique — PAUSE sur le badge plein écran (le joueur savoure).
+  // Reveal de l'écran 1 : un seul temps (émotionnel d'abord). Le KPI apparaît,
+  // haptic success — puis c'est stable. Reduce motion = quasi instantané.
   useEffect(() => {
-    if (step >= lastStep) return;
-    if (badgeIdx >= 0 && step === badgeIdx) return;
-    const id = setTimeout(
-      () => setStep((s) => Math.min(s + 1, lastStep)),
-      reduce ? STEP_REDUCED_MS : STEP_MS,
-    );
+    const id = setTimeout(() => setRevealed(true), reduce ? STEP_REDUCED_MS : STEP_MS);
     return () => clearTimeout(id);
-  }, [step, lastStep, badgeIdx, reduce]);
+  }, [reduce]);
 
-  const reached = (id: StepId) => {
-    const i = steps.indexOf(id);
-    return i >= 0 && step >= i;
-  };
-  const skip = () => {
-    haptics.light();
-    setStep(lastStep);
-  };
   const goMap = () => router.replace('/(tabs)');
   const share = () => {
-    haptics.light();
+    haptics.medium();
     track(EVENTS.shareCardGenerated);
+    router.push({ pathname: '/partage', params: { mode, intention: params.intention ?? '' } });
   };
-
-  const conquest = mode === 'conquete';
-  const isPrivate = mode === 'course_privee';
+  const toggleDetails = () => {
+    haptics.light();
+    setShowDetails((v) => !v);
+  };
 
   // Synthèse multi-résultats (doc §2/§3.1) — conquête seulement (les modes
   // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
@@ -563,258 +559,61 @@ function ConquestResultScreen({
   const summaryLines = conquest
     ? resultSummaryLines(intention, stats.zoneName, stats.zonePctAfter - stats.zonePctBefore)
     : [];
+  // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
+  // « République défendue · Paris Est +5 % ».
+  const heroLine = conquest
+    ? `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`
+    : isPrivate
+      ? 'Course privée · visible par toi seul'
+      : `Social Run · ${formatKm(stats.distanceM)} km`;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
-      {/* Barre : kicker + Passer (visible tant que la séquence n'est pas finie). */}
+      {/* Barre : kicker seul (plus de « Passer » — l'écran 1 est déjà l'état final). */}
       <View style={styles.bar}>
         <Text style={styles.barKicker}>RÉSULTAT DE COURSE</Text>
-        {step < lastStep ? (
-          <Pressable accessibilityRole="button" onPress={skip} hitSlop={10} style={styles.skip}>
-            <Text style={styles.skipLabel}>Passer</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.skip} />
-        )}
+        <View style={styles.skip} />
       </View>
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1 — Course validée + GRYD VERIFIED. */}
-        <ResultReveal visible={reached('validated')} haptic="success" style={styles.block}>
-          <View style={styles.validated}>
-            <Text style={styles.validatedTitle}>
-              {isPrivate ? 'COURSE ENREGISTRÉE' : 'COURSE VALIDÉE'}
+        {/* ─── ÉCRAN 1 — émotionnel d'abord, lisible en 2 s (AMENDEMENT-20 §2) ───
+             Titre + KPI GÉANT + 1 ligne + CTA. RIEN d'autre : la validation
+             GPS/Motion, l'impact détaillé et l'analyse boucle sont AU TAP. */}
+        <ResultReveal visible haptic="success" style={styles.hero}>
+          <Text style={styles.heroTitle}>
+            {isPrivate ? 'COURSE ENREGISTRÉE' : 'COURSE VALIDÉE'}
+          </Text>
+
+          {/* KPI géant — le chiffre qui se comprend en 2 s. */}
+          {conquest ? (
+            <View style={styles.heroKpi}>
+              <ZoneCountUp value={stats.hexes} run={revealed} />
+              <Text style={styles.heroKpiLabel}>ZONES</Text>
+            </View>
+          ) : (
+            <View style={styles.heroKpi}>
+              <Text style={styles.zonesHero}>{formatKm(stats.distanceM)}</Text>
+              <Text style={styles.heroKpiLabel}>KM</Text>
+            </View>
+          )}
+
+          {/* 1 ligne émotionnelle, courte, jamais tronquée. */}
+          <Text style={styles.heroLine} numberOfLines={1}>
+            {heroLine}
+          </Text>
+          {/* Fin hors-ligne (AMENDEMENT-15 §2) : discret, anti-shame, jamais bloquant. */}
+          {params.queued === '1' ? (
+            <Text style={styles.heroQueued} numberOfLines={1}>
+              Envoi dès que possible.
             </Text>
-            {isPrivate ? (
-              <StatePill state="statsonly" label="Course privée" />
-            ) : stats.verified ? (
-              <StatePill state="verified" label="GRYD VERIFIED" />
-            ) : (
-              <StatePill state="statsonly" label="Stats enregistrées" />
-            )}
-            <Text style={styles.validatedSub}>
-              {isPrivate
-                ? 'Visible par toi seul. Aucune capture, aucun partage.'
-                : `Effort vérifié — GPS ${stats.gpsTrust} · Motion ${stats.motionTrust}.`}
-            </Text>
-            {/* Fin hors-ligne (AMENDEMENT-15 §2) : discret, anti-shame, jamais bloquant. */}
-            {params.queued === '1' ? (
-              <Text style={styles.validatedSub}>
-                Course enregistrée — envoi dès que possible.
-              </Text>
-            ) : null}
-          </View>
+          ) : null}
         </ResultReveal>
 
-        {/* 1bis — SYNTHÈSE multi-résultats (AMENDEMENT-16 §1, doc §2/§3.1) :
-             « l'intention guide, le tracé décide » — la course produit plusieurs
-             effets (conquis · défendus · route ouverte · zone crew), quelle que
-             soit l'intention. La copy §28 rappelle l'esprit du mode choisi. */}
-        {conquest ? (
-          <ResultReveal visible={reached('validated')} haptic="none" style={styles.block}>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryHead}>
-                <Text style={styles.summaryKicker}>{summary.kicker}</Text>
-                <Text style={styles.summaryCopy} numberOfLines={2}>
-                  {summary.copy}
-                </Text>
-              </View>
-              <View style={styles.summaryLines}>
-                {summaryLines.map((line) => (
-                  <SummaryLine key={line.icon} line={line} />
-                ))}
-              </View>
-            </View>
-          </ResultReveal>
-        ) : null}
-
-        {/* 2 — +214 ZONES CAPTURÉES (KPI géant, compteur qui monte). */}
-        {conquest ? (
-          <ResultReveal visible={reached('zones')} style={styles.block}>
-            <View style={styles.zonesBlock}>
-              <ZoneCountUp value={stats.hexes} />
-              <Text style={styles.zonesLabel}>ZONES CAPTURÉES</Text>
-              {/* « dont N en boucle fermée » (AMENDEMENT-12 §C). */}
-              {stats.loopClosed ? (
-                <Text style={styles.zonesLoop}>
-                  dont {formatInt(stats.enclosedZones)} en boucle fermée
-                </Text>
-              ) : null}
-              <Text style={styles.zonesSub}>
-                ≈ {formatInt(stats.basePoints)} pts estimés — confirmés par le serveur.
-              </Text>
-            </View>
-            {/* Le remplissage : trait (couloir) → boucle (zone entière). */}
-            {loopGeo ? (
-              <LoopBeforeAfter
-                geometry={loopGeo}
-                corridorZones={stats.hexes - stats.enclosedZones}
-                totalZones={stats.hexes}
-              />
-            ) : null}
-          </ResultReveal>
-        ) : null}
-
-        {/* Stats (social / privé) — la distance domine. */}
-        {!conquest ? (
-          <ResultReveal visible={reached('stats')} style={styles.block}>
-            <View style={styles.statsCard}>
-              <Text style={styles.statsHero}>
-                {formatKm(stats.distanceM)}
-                <Text style={styles.statsHeroUnit}> km</Text>
-              </Text>
-              <View style={styles.statsRow}>
-                <MiniStat label="TEMPS" value={formatClock(stats.durationS)} />
-                <MiniStat label="ALLURE" value={`${formatPace(stats.paceSPerKm)}/km`} />
-              </View>
-              <Text style={styles.statsNote}>
-                {isPrivate
-                  ? 'Course privée — rien n\'apparaît sur la carte ni dans le feed.'
-                  : 'Social Run — stats et badges comptent, aucune capture.'}
-              </Text>
-            </View>
-          </ResultReveal>
-        ) : null}
-
-        {/* 3 — SECTEUR MODIFIÉ : avant/après ORGANIQUE (la frontière bouge). */}
-        {conquest && sectorGeo ? (
-          <ResultReveal visible={reached('sector')} style={styles.block}>
-            <Text style={styles.stepKicker}>SECTEUR MODIFIÉ</Text>
-            <SectorBeforeAfter
-              zoneName={stats.zoneName}
-              pctBefore={stats.zonePctBefore}
-              pctAfter={stats.zonePctAfter}
-              geometry={sectorGeo}
-            />
-          </ResultReveal>
-        ) : null}
-
-        {/* 4 — Contribution crew : la zone monte ; rang gagné SEULEMENT si la
-            course couvre assez du scénario (stats.rankGained — démo écourtée
-            = contribution de zone seule, sans RankUpCard). */}
-        {conquest ? (
-          <ResultReveal visible={reached('crew')} style={styles.block}>
-            <Text style={styles.stepKicker}>CONTRIBUTION CREW</Text>
-            {/* KPI géant : « Paris Est +5 % » (AMENDEMENT-11 §5). */}
-            <View style={styles.crewKpiBlock}>
-              <Text style={styles.crewKpi}>
-                +{stats.zonePctAfter - stats.zonePctBefore} %
-              </Text>
-              <Text style={styles.crewKpiLabel} numberOfLines={1}>
-                {stats.zoneName.toUpperCase()} · {stats.crewName}
-              </Text>
-            </View>
-            <View style={styles.crewLine}>
-              <CrewCrest seed={stats.crewName} name={stats.crewName} size="s" />
-              <Text style={styles.crewText}>
-                {stats.zoneName} passe à{' '}
-                <Text style={styles.crewPct}>{stats.zonePctAfter} %</Text>
-                {stats.rankGained
-                  ? ` — ${stats.crewName} gagne 1 rang.`
-                  : ` — chaque zone compte pour ${stats.crewName}.`}
-              </Text>
-            </View>
-            {stats.rankGained ? (
-              <RankUpCard
-                fromRank={stats.crewRankBefore}
-                toRank={stats.crewRankAfter}
-                leagueLabel="PARIS LEAGUE · CREWS"
-                points={stats.totalPoints}
-                celebrate={false}
-              />
-            ) : null}
-          </ResultReveal>
-        ) : null}
-
-        {/* 5 — Bonus performance (borné par les règles §3). */}
-        {conquest ? (
-          <ResultReveal visible={reached('perf')} style={styles.block}>
-            <View style={styles.perfCard}>
-              <Icon name="performance" size={22} color={gameColors.crew} />
-              <View style={styles.perfTextWrap}>
-                <Text style={styles.perfTitle}>+{stats.bonusPct} % bonus performance</Text>
-                <Text style={styles.perfSub}>
-                  {formatInt(stats.basePoints)} → {formatInt(stats.totalPoints)} pts — ton allure
-                  progresse.
-                </Text>
-              </View>
-            </View>
-          </ResultReveal>
-        ) : null}
-
-        {/* 5bis — BONUS APPLIQUÉ (AMENDEMENT-19 §4) : GRYD a révélé le bon moment,
-            la course a répondu → une ligne SOBRE « Bonus appliqué · +25 % coffre
-            crew ». UN seul bonus principal, libellé court non tronqué, JAMAIS de
-            points/territoire/rang. S'intègre à la séquence sans la casser. */}
-        {conquest && bonusApplied ? (
-          <ResultReveal visible={reached('bonus')} style={styles.block}>
-            <Text style={styles.stepKicker}>BONUS APPLIQUÉ</Text>
-            <View style={styles.bonusCard}>
-              <View style={styles.bonusIcon}>
-                <Icon name="cadeau" size={20} color={gameColors.crew} />
-              </View>
-              <View style={styles.bonusTextWrap}>
-                <Text style={styles.bonusName} numberOfLines={1}>
-                  {bonusApplied.name}
-                </Text>
-                <Text style={styles.bonusEffect} numberOfLines={1}>
-                  Bonus appliqué · {bonusApplied.effect}
-                </Text>
-              </View>
-            </View>
-          </ResultReveal>
-        ) : null}
-
-        {/* 6 — Badge (version inline une fois le plein écran passé). */}
-        {conquest && badge && badgeFamily && badgeIdx >= 0 && step > badgeIdx ? (
-          <ResultReveal visible haptic="none" style={styles.block}>
-            <Text style={styles.stepKicker}>BADGE DÉBLOQUÉ</Text>
-            <BadgeCard
-              name={badge.name}
-              family={badge.family}
-              familyLabel={badgeFamily.name}
-              familyColor={badgeColor(badge)}
-              tier={badge.tier}
-              state="unlocked"
-              requirement={badge.requirement}
-              reward="Frame de profil Routes"
-            />
-          </ResultReveal>
-        ) : null}
-
-        {/* 7 — Share card + actions. */}
-        {!isPrivate ? (
-          <ResultReveal visible={reached('share')} style={styles.block}>
-            <Text style={styles.stepKicker}>PARTAGE</Text>
-            <ShareCard
-              stat={conquest ? `+${formatInt(stats.hexes)}` : `${formatKm(stats.distanceM)} km`}
-              statLabel={conquest ? 'ZONES CAPTURÉES' : 'SOCIAL RUN'}
-              title={`${stats.playerName} · ${stats.crewName}`}
-              subtitle={
-                conquest
-                  ? `${stats.zoneName} passe à ${stats.zonePctAfter} % · frontière repoussée`
-                  : `${formatClock(stats.durationS)} · ${formatPace(stats.paceSPerKm)}/km`
-              }
-            >
-              {conquest && sectorGeo ? (
-                /* Mini carte virale : zone chartreuse, frontière orange
-                   repoussée, route brillante (AMENDEMENT-11 §5). */
-                <View style={styles.shareMap}>
-                  <SectorMiniMap side={sectorGeo.after} route={sectorGeo.routePoints} />
-                </View>
-              ) : (
-                <CrewCrest seed={stats.crewName} name={stats.crewName} size="m" />
-              )}
-            </ShareCard>
-          </ResultReveal>
-        ) : null}
-
-        {/* Actions finales (AMENDEMENT-14 §4) : UN CTA principal — Partager la
-            conquête ; « Voir la carte » = secondaire discret (dismiss = carte). */}
-        <ResultReveal visible={step >= lastStep} haptic="none" style={styles.actions}>
+        {/* CTA — [Partager] IMMÉDIAT (façon Strava) + [Voir détails] secondaire. */}
+        <ResultReveal visible={revealed} haptic="none" style={styles.actions}>
           {!isPrivate ? (
             <Pressable
               accessibilityRole="button"
@@ -822,11 +621,20 @@ function ConquestResultScreen({
               style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
             >
               <Icon name="partage" size={18} color={colors.noir} />
-              <Text style={styles.shareLabel}>
-                {conquest ? 'Partager la conquête' : 'Partager la sortie'}
-              </Text>
+              <Text style={styles.shareLabel}>Partager</Text>
             </Pressable>
           ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={showDetails ? 'Masquer les détails' : 'Voir les détails'}
+            onPress={toggleDetails}
+            style={({ pressed }) => [styles.detailsToggle, pressed && styles.pressed]}
+          >
+            <Text style={styles.detailsToggleLabel}>
+              {showDetails ? 'Masquer les détails' : 'Voir détails'}
+            </Text>
+            <Icon name="chevron" size={16} color={colors.gris} />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Voir la carte"
@@ -837,27 +645,175 @@ function ConquestResultScreen({
             <Text style={styles.mapLinkLabel}>Voir la carte</Text>
           </Pressable>
         </ResultReveal>
-      </ScrollView>
 
-      {/* 6 — BADGE DÉBLOQUÉ plein écran (pause : Continuer pour la suite). */}
-      {conquest && badge && badgeFamily && badgeIdx >= 0 && step === badgeIdx ? (
-        <BadgeOverlay
-          badge={badge}
-          familyLabel={badgeFamily.name}
-          familyColor={badgeColor(badge)}
-          onContinue={() => {
-            haptics.light();
-            setStep(badgeIdx + 1);
-          }}
-        />
-      ) : null}
+        {/* ─── VOIR DÉTAILS — 3ᵉ temps (technique, au tap) ─────────────────────
+             Impact · GRYD Verified · Analyse « La boucle fait la zone ». Replié
+             par défaut : l'écran 1 reste lisible en 2 s. */}
+        {showDetails ? (
+          <View style={styles.detailsWrap}>
+            {/* IMPACT — synthèse multi-résultats + total. */}
+            {conquest ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>IMPACT</Text>
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryLines}>
+                    {summaryLines.map((line) => (
+                      <SummaryLine key={line.icon} line={line} />
+                    ))}
+                  </View>
+                  <View style={styles.impactTotalRow}>
+                    <Text style={styles.impactTotalLabel}>TOTAL</Text>
+                    <Text style={styles.impactTotalValue}>
+                      +{formatInt(stats.hexes)}
+                      {stats.loopClosed ? (
+                        <Text style={styles.impactTotalSub}>
+                          {'  '}dont {formatInt(stats.enclosedZones)} en boucle
+                        </Text>
+                      ) : null}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Stats (social / privé) — la distance domine. */}
+            {!conquest ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>DÉTAILS</Text>
+                <View style={styles.statsCard}>
+                  <View style={styles.statsRow}>
+                    <MiniStat label="TEMPS" value={formatClock(stats.durationS)} />
+                    <MiniStat label="ALLURE" value={`${formatPace(stats.paceSPerKm)}/km`} />
+                  </View>
+                  <Text style={styles.statsNote}>
+                    {isPrivate
+                      ? 'Course privée — rien n\'apparaît sur la carte ni dans le feed.'
+                      : 'Social Run — stats et badges comptent, aucune capture.'}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* GRYD VERIFIED — la confiance de l'effort (technique). */}
+            {!isPrivate ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>GRYD VERIFIED</Text>
+                <View style={styles.verifiedCard}>
+                  {stats.verified ? (
+                    <StatePill state="verified" label="GRYD VERIFIED" />
+                  ) : (
+                    <StatePill state="statsonly" label="Stats enregistrées" />
+                  )}
+                  <View style={styles.verifiedTrust}>
+                    <MiniStat label="GPS" value={String(stats.gpsTrust)} />
+                    <MiniStat label="MOTION" value={String(stats.motionTrust)} />
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {/* ANALYSE « La boucle fait la zone » — pédagogie + anim avant/après
+                EXISTANTE, déplacée ICI (pas sur l'écran 1). */}
+            {conquest && loopGeo ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>ANALYSE</Text>
+                <LoopBeforeAfter
+                  geometry={loopGeo}
+                  corridorZones={stats.hexes - stats.enclosedZones}
+                  totalZones={stats.hexes}
+                />
+                <Text style={styles.analyseSub}>
+                  Boucle fermée : +{formatInt(stats.enclosedZones)} zones gagnées.
+                </Text>
+              </View>
+            ) : null}
+
+            {/* SECTEUR — frontière repoussée (avant/après §4ter). */}
+            {conquest && sectorGeo ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>FRONTIÈRE</Text>
+                <SectorBeforeAfter
+                  zoneName={stats.zoneName}
+                  pctBefore={stats.zonePctBefore}
+                  pctAfter={stats.zonePctAfter}
+                  geometry={sectorGeo}
+                />
+              </View>
+            ) : null}
+
+            {/* CONTRIBUTION CREW — la zone monte. */}
+            {conquest ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>CONTRIBUTION CREW</Text>
+                <View style={styles.crewLine}>
+                  <CrewCrest seed={stats.crewName} name={stats.crewName} size="s" />
+                  <Text style={styles.crewText}>
+                    {stats.zoneName} passe à{' '}
+                    <Text style={styles.crewPct}>{stats.zonePctAfter} %</Text>
+                    {stats.rankGained
+                      ? ` — ${stats.crewName} gagne 1 rang.`
+                      : ` — chaque zone compte pour ${stats.crewName}.`}
+                  </Text>
+                </View>
+                {stats.rankGained ? (
+                  <RankUpCard
+                    fromRank={stats.crewRankBefore}
+                    toRank={stats.crewRankAfter}
+                    leagueLabel="PARIS LEAGUE · CREWS"
+                    points={stats.totalPoints}
+                    celebrate={false}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* BONUS APPLIQUÉ (AMENDEMENT-19 §4) — ligne sobre. */}
+            {conquest && bonusApplied ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>BONUS APPLIQUÉ</Text>
+                <View style={styles.bonusCard}>
+                  <View style={styles.bonusIcon}>
+                    <Icon name="cadeau" size={20} color={gameColors.crew} />
+                  </View>
+                  <View style={styles.bonusTextWrap}>
+                    <Text style={styles.bonusName} numberOfLines={1}>
+                      {bonusApplied.name}
+                    </Text>
+                    <Text style={styles.bonusEffect} numberOfLines={1}>
+                      Bonus appliqué · {bonusApplied.effect}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {/* BADGE DÉBLOQUÉ — inline (le reveal plein écran n'encombre plus l'écran 1). */}
+            {conquest && badge && badgeFamily ? (
+              <View style={styles.block}>
+                <Text style={styles.stepKicker}>BADGE DÉBLOQUÉ</Text>
+                <BadgeCard
+                  name={badge.name}
+                  family={badge.family}
+                  familyLabel={badgeFamily.name}
+                  familyColor={badgeColor(badge)}
+                  tier={badge.tier}
+                  state="unlocked"
+                  requirement={badge.requirement}
+                  reward="Frame de profil Routes"
+                />
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
 
-/** Compteur « +214 » qui monte (useCountUp — saut direct si reduce motion). */
-function ZoneCountUp({ value }: { value: number }) {
-  const display = useCountUp(value);
+/** Compteur « +214 » qui monte (useCountUp — saut direct si reduce motion).
+    `run` déclenche la montée quand l'écran 1 est révélé (émotionnel d'abord). */
+function ZoneCountUp({ value, run = true }: { value: number; run?: boolean }) {
+  const display = useCountUp(run ? value : 0);
   return <Text style={styles.zonesHero}>+{formatInt(display)}</Text>;
 }
 
@@ -1081,8 +1037,9 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
   }, []);
 
   const share = () => {
-    haptics.light();
+    haptics.medium();
     track(EVENTS.shareCardGenerated);
+    router.push({ pathname: '/partage', params: { mode: 'conquete', intention: 'complete' } });
   };
   const goMap = () => router.replace('/(tabs)');
 
@@ -1203,6 +1160,79 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.cardPadding, gap: 18, paddingTop: 8 },
   block: { gap: 10 },
   pressed: { opacity: 0.75 },
+
+  // ── ÉCRAN 1 — émotionnel d'abord (AMENDEMENT-20 §2) ──
+  hero: { alignItems: 'center', gap: 12, paddingTop: 24, paddingBottom: 8 },
+  heroTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  heroKpi: { alignItems: 'center', gap: 2 },
+  heroKpiLabel: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '800',
+    letterSpacing: 4,
+  },
+  heroLine: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  heroQueued: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
+
+  // « Voir détails » — secondaire discret, sous le CTA principal.
+  detailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+  },
+  detailsToggleLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
+  detailsWrap: { gap: 18, marginTop: 4 },
+
+  // ── Détails : Impact total ──
+  impactTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+    paddingTop: 12,
+  },
+  impactTotalLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  impactTotalValue: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  impactTotalSub: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+
+  // ── Détails : GRYD Verified ──
+  verifiedCard: {
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  verifiedTrust: { flexDirection: 'row', gap: 24, alignSelf: 'stretch' },
+
+  // Analyse boucle — sous-titre pédagogique court.
+  analyseSub: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
 
   stepKicker: {
     color: colors.gris,

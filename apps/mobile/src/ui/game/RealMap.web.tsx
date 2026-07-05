@@ -181,6 +181,14 @@ export interface RealMapProps {
    * `load` réajoute les couches de jeu sur le nouveau style).
    */
   basemap?: BasemapKey;
+  /**
+   * AMENDEMENT-20 §1 — CARTE SILENCIEUSE pendant le run : masque les labels de
+   * quartiers/lieux/plans d'eau/POI (le tracé vert prime) et amincit les rues
+   * secondaires. Activé aussi implicitement pour la carte de Course Live
+   * (testID `course-live-carte-reelle`). Sans effet sur le fond COULEUR (Voyager)
+   * et sur la Battle Map (labels conservés). N'affecte JAMAIS les couches de jeu.
+   */
+  silent?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -196,6 +204,28 @@ const PULSE_MIN_OPACITY_RATIO = 0.35;
 /** Labels des tuiles atténués (sobriété AMENDEMENT-13 §5). */
 const TILE_LABEL_OPACITY = 0.55;
 const TILE_ICON_OPACITY = 0.35;
+/**
+ * AMENDEMENT-20 §1 — CARTE SILENCIEUSE pendant le run. Les labels de QUARTIERS /
+ * lieux / plans d'eau / POI sont MASQUÉS (le tracé vert doit primer sur tout) :
+ * on éteint les calques `symbol` dont la `source-layer` de tuile vectorielle
+ * appartient à ce set. `place` = quartiers/arrondissements/villes (RÉPUBLIQUE,
+ * 3E ARRONDISSEMENT, GRANGE AUX BELLES), `water_name`/`waterway` = bassins/canaux
+ * (Bassin de la Villette, Écluse du Temple), `poi`/`housenumber`/`mountain_peak`
+ * = points d'intérêt et numéros. Les NOMS DE RUES (`transportation_name`) restent
+ * (repère utile au coureur), mais les rues secondaires (lignes) sont amincies.
+ */
+const SILENT_HIDDEN_SYMBOL_SOURCE_LAYERS: readonly string[] = [
+  'place',
+  'water_name',
+  'waterway',
+  'poi',
+  'housenumber',
+  'mountain_peak',
+];
+/** Facteur d'amincissement des rues secondaires en mode silencieux (§1). */
+const SILENT_MINOR_ROAD_WIDTH_FACTOR = 0.6;
+/** TestID de la carte de Course Live (LiveNavMap) → mode silencieux implicite. */
+const LIVE_RUN_TEST_ID = 'course-live-carte-reelle';
 /** Caméra de secours si ni `camera` ni `bounds` : monde entier (§4bis). */
 const WORLD_FALLBACK_CAMERA: RealMapCamera = { lng: 0, lat: 20, zoom: 1 };
 /**
@@ -246,12 +276,81 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * Surcharge du style dark-matter aux tokens GRYD (AMENDEMENT-13 §1) : eau plus
- * sombre, parcs quasi éteints, labels gris discrets. Défensif : les ids de
- * calques varient selon le style hébergé → filtres par sous-chaîne + try/catch
- * (un style différent ne doit JAMAIS faire tomber la carte).
+ * Un calque de tuile vectorielle (JEU exclu) : les couches de JEU sont ajoutées
+ * par upsertLayer/upsertPointLayer et n'ont PAS de `source-layer` (source GeoJSON
+ * locale). On ne silence donc jamais un tracé/territoire GRYD.
  */
-function applyGrydStyleOverrides(map: MapLibreMap): void {
+function tileSourceLayer(layer: { 'source-layer'?: string }): string | undefined {
+  return layer['source-layer'];
+}
+
+/**
+ * Amincit une `line-width` MapLibre par un facteur, que ce soit un nombre plat
+ * OU une fonction à paliers `{ base?, stops: [[zoom, w], …] }` (cas des styles
+ * vectoriels comme CARTO où la largeur dépend du zoom). Renvoie undefined si la
+ * forme n'est pas reconnue (on ne touche alors pas au calque).
+ */
+function scaledLineWidth(width: unknown, factor: number): number | Record<string, unknown> | undefined {
+  if (typeof width === 'number') return width * factor;
+  if (
+    width &&
+    typeof width === 'object' &&
+    Array.isArray((width as { stops?: unknown }).stops)
+  ) {
+    const fn = width as { base?: number; stops: [number, number][] };
+    return {
+      ...fn,
+      stops: fn.stops.map(([zoom, w]) => [zoom, w * factor] as [number, number]),
+    };
+  }
+  return undefined;
+}
+
+/**
+ * AMENDEMENT-20 §1 — CARTE SILENCIEUSE : masque les labels de quartiers/lieux/
+ * plans d'eau/POI (source-layer ∈ SILENT_HIDDEN_SYMBOL_SOURCE_LAYERS) et amincit
+ * les rues secondaires (lignes `transportation` minor/service). N'agit QUE sur
+ * les calques de TUILE (avec `source-layer`) : les calques de jeu (GeoJSON local,
+ * sans source-layer) sont laissés intacts. Défensif (try/catch par calque).
+ */
+function applySilentRunOverrides(map: MapLibreMap): void {
+  const layers = map.getStyle()?.layers ?? [];
+  for (const layer of layers) {
+    try {
+      const sourceLayer = tileSourceLayer(layer as { 'source-layer'?: string });
+      if (sourceLayer === undefined) continue; // calque de JEU → jamais touché
+      if (layer.type === 'symbol') {
+        if (SILENT_HIDDEN_SYMBOL_SOURCE_LAYERS.includes(sourceLayer)) {
+          // Quartiers/lieux/bassins/POI : totalement masqués pendant le run.
+          map.setLayoutProperty(layer.id, 'visibility', 'none');
+        }
+      } else if (layer.type === 'line' && sourceLayer === 'transportation') {
+        // Rues secondaires (minor/service/path) : amincies pour laisser primer
+        // le tracé. La largeur peut être un nombre OU une fonction à paliers.
+        const id = layer.id.toLowerCase();
+        if (id.includes('minor') || id.includes('service') || id.includes('path')) {
+          const current = map.getPaintProperty(layer.id, 'line-width');
+          const thinned = scaledLineWidth(current, SILENT_MINOR_ROAD_WIDTH_FACTOR);
+          if (thinned !== undefined) {
+            map.setPaintProperty(layer.id, 'line-width', thinned);
+          }
+        }
+      }
+    } catch {
+      // Calque sans cette propriété — on n'interrompt jamais le rendu.
+    }
+  }
+}
+
+/**
+ * Surcharge du style dark-matter aux tokens GRYD (AMENDEMENT-13 §1) : eau plus
+ * sombre, parcs quasi éteints, labels gris discrets. En mode `silent`
+ * (AMENDEMENT-20 §1, Course Live) les labels de quartiers/lieux sont ensuite
+ * MASQUÉS via applySilentRunOverrides. Défensif : les ids de calques varient
+ * selon le style hébergé → filtres par sous-chaîne + try/catch (un style
+ * différent ne doit JAMAIS faire tomber la carte).
+ */
+function applyGrydStyleOverrides(map: MapLibreMap, silent = false): void {
   const layers = map.getStyle()?.layers ?? [];
   for (const layer of layers) {
     try {
@@ -274,6 +373,8 @@ function applyGrydStyleOverrides(map: MapLibreMap): void {
       // Calque sans cette propriété — on n'interrompt jamais le rendu.
     }
   }
+  // Carte silencieuse en run : masque quartiers/lieux, amincit rues secondaires.
+  if (silent) applySilentRunOverrides(map);
 }
 
 /** Ajoute (ou remplace) la source + les layers d'une couche de jeu. */
@@ -397,11 +498,19 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     onMapReady,
     attributionCompact = true,
     basemap,
+    silent = false,
     style,
     testID,
   }: RealMapProps,
   ref,
 ) {
+  /**
+   * Carte silencieuse (AMENDEMENT-20 §1) : demandée explicitement OU carte de
+   * Course Live (LiveNavMap → testID stable). Figé au montage (le handler `load`
+   * le lit une fois : les labels de quartiers restent masqués durant tout le run).
+   */
+  const silentRef = useRef(silent || testID === LIVE_RUN_TEST_ID);
+  silentRef.current = silent || testID === LIVE_RUN_TEST_ID;
   const containerRef = useRef<View>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const layersRef = useRef<readonly RealMapGeoJSONLayer[]>(geojsonLayers);
@@ -496,8 +605,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
 
     map.on('load', () => {
       // Le fond COULEUR (Voyager) est laissé TEL QUEL : les overrides GRYD
-      // n'éteignent le décor (eau/parcs/labels) que pour le fond sombre.
-      if (basemapRef.current !== 'color') applyGrydStyleOverrides(map);
+      // n'éteignent le décor (eau/parcs/labels) que pour le fond sombre. En
+      // Course Live (silentRef), les labels de quartiers sont EN PLUS masqués (§1).
+      if (basemapRef.current !== 'color') applyGrydStyleOverrides(map, silentRef.current);
       for (const spec of layersRef.current) upsertLayer(map, spec);
       for (const spec of pointLayersRef.current ?? []) upsertPointLayer(map, spec);
       setStyleReady(true);
