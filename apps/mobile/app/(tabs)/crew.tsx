@@ -55,6 +55,7 @@ import {
   CHEST_TIER_LABELS,
   PERK_VISUALS,
   PERK_VISUAL_FALLBACK,
+  RECRUITMENT_STATUS_LABELS,
   activityStatusForScore,
   chestStateFor,
   crewLevelForXp,
@@ -62,6 +63,8 @@ import {
   crewXpForLevel,
   leagueLabelFor,
   memberCardRole,
+  roleCan,
+  rookieTrialDaysLeft,
 } from '../../src/features/crew/rules';
 import { CHEST_REWARDS, MY_CREW, type CrewMemberDemo } from '../../src/features/crew/demo';
 import {
@@ -266,6 +269,9 @@ export default function CrewScreen() {
 
   const activeMembers = MY_CREW.members.length;
 
+  // Mon rôle démo (KORO = founder) → gating visuel des actions (matrice §8).
+  const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
+
   if (!HAS_CREW) return <EmptyState />;
 
   const notify = (message: string) => {
@@ -421,7 +427,7 @@ export default function CrewScreen() {
               icon="ajoutami"
               label="Recrutement"
               value={`${MY_CREW.recruitSpots} places`}
-              sub="Crews autour de toi"
+              sub={RECRUITMENT_STATUS_LABELS[MY_CREW.recruitment]}
               onPress={() => router.push('/crew-discovery')}
             />
             <BaseCard
@@ -765,28 +771,40 @@ export default function CrewScreen() {
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetName}>{memberSheet.pseudo}</Text>
               <Text style={styles.sheetRole}>
-                {CREW_ROLE_META[memberCardRole(memberSheet.role)].label} ·{' '}
-                {formatInt(memberSheet.weekHexes)} pts cette semaine
+                {CREW_ROLE_META[memberCardRole(memberSheet.role)].label}
+                {/* Rookie : jours d'essai restants (§8.7, ROOKIE_TRIAL_DAYS). */}
+                {memberSheet.role === 'rookie'
+                  ? ` · essai — ${rookieTrialDaysLeft(memberSheet.joinedDaysAgo ?? 0)} j restants`
+                  : ''}{' '}
+                · {formatInt(memberSheet.weekHexes)} pts cette semaine
               </Text>
+              {/* Actions filtrées par MON rôle (matrice §8) — gating visuel,
+                  le serveur reste seul juge. Promouvoir : jamais sur le founder. */}
               {(
                 [
-                  { label: 'Assigner mission', icon: 'mission' },
-                  { label: 'Inviter sortie', icon: 'ami' },
-                  { label: 'Promouvoir', icon: 'couronne' },
-                  { label: 'Voir profil', icon: 'profil' },
+                  { label: 'Assigner mission', icon: 'mission', can: roleCan(myRole, 'assignObjectives') },
+                  { label: 'Inviter sortie', icon: 'ami', can: roleCan(myRole, 'createOuting') },
+                  {
+                    label: 'Promouvoir',
+                    icon: 'couronne',
+                    can: roleCan(myRole, 'promote') && memberSheet.role !== 'founder',
+                  },
+                  { label: 'Voir profil', icon: 'profil', can: true },
                 ] as const
-              ).map((a) => (
-                <Pressable
-                  key={a.label}
-                  accessibilityRole="button"
-                  onPress={() => memberAction(a.label, memberSheet)}
-                  style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
-                >
-                  <Icon name={a.icon} size={18} color={colors.blanc} />
-                  <Text style={styles.sheetActionLabel}>{a.label}</Text>
-                  <Icon name="chevron" size={15} color={colors.gris} />
-                </Pressable>
-              ))}
+              )
+                .filter((a) => a.can)
+                .map((a) => (
+                  <Pressable
+                    key={a.label}
+                    accessibilityRole="button"
+                    onPress={() => memberAction(a.label, memberSheet)}
+                    style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+                  >
+                    <Icon name={a.icon} size={18} color={colors.blanc} />
+                    <Text style={styles.sheetActionLabel}>{a.label}</Text>
+                    <Icon name="chevron" size={15} color={colors.gris} />
+                  </Pressable>
+                ))}
             </View>
           ) : null}
         </View>

@@ -39,7 +39,12 @@ import {
   WarRoomObjectiveCard,
   type WarEventReaction,
 } from '../../src/ui/game';
-import { chestStateFor, CHEST_TIER_LABELS } from '../../src/features/crew/rules';
+import {
+  chestStateFor,
+  CHEST_TIER_LABELS,
+  CREW_ROLE_LABELS,
+  roleCan,
+} from '../../src/features/crew/rules';
 import { MY_CREW } from '../../src/features/crew/demo';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import {
@@ -193,11 +198,22 @@ export default function WarRoomScreen() {
   const chest = chestStateFor(chestPct);
   const nextTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
 
-  // Membre à assigner sur la défense (démo : premier rôle correspondant).
+  // Membre à assigner sur la défense (démo : première DISPO correspondante —
+  // AMENDEMENT-16 §3, plus de rôle defender, on lit la war_availability §37.2).
   const assignee = useMemo(
-    () => MY_CREW.members.find((m) => m.role === DEFENSE_MISSION.assignedRole && !m.me),
+    () =>
+      MY_CREW.members.find(
+        (m) => m.availability === DEFENSE_MISSION.assignedAvailability && !m.me,
+      ),
     [],
   );
+
+  // Gating visuel par MON rôle démo (matrice §8, AMENDEMENT-16 §3) : qui peut
+  // lancer une offensive (Co-Capitaine+) / assigner une défense (Capitaine+).
+  // Le serveur reste SEUL juge — l'UI ne fait que refléter la matrice.
+  const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
+  const canLaunch = roleCan(myRole, 'launchOffensive');
+  const canAssign = roleCan(myRole, 'assignDefense');
 
   const openMap = () => router.push('/(tabs)');
 
@@ -212,6 +228,21 @@ export default function WarRoomScreen() {
 
         {/* Accès motivation (AMENDEMENT-07 §8) : Aujourd'hui, Challenges, réglages. */}
         <MotivationLinks />
+
+        {/* Mon rôle + permissions (matrice §8, AMENDEMENT-16 §3) — gating visuel :
+            qui peut lancer une offensive / assigner une défense. */}
+        <View style={styles.roleBanner}>
+          <Icon name="couronne" size={14} color={colors.blanc} />
+          <Text style={styles.roleBannerText} numberOfLines={1}>
+            Ton rôle : {CREW_ROLE_LABELS[myRole]}
+          </Text>
+          <Text style={[styles.rolePerm, canLaunch ? styles.rolePermOk : styles.rolePermNo]}>
+            {canLaunch ? 'Peut lancer' : 'Lancer : Co-Capitaine+'}
+          </Text>
+          <Text style={[styles.rolePerm, canAssign ? styles.rolePermOk : styles.rolePermNo]}>
+            {canAssign ? 'Peut assigner' : 'Assigner : Capitaine+'}
+          </Text>
+        </View>
 
         {/* À FAIRE — missions quotidienne / hebdo / crew (§7.12) */}
         <SectionHeader icon="mission" label="À FAIRE" />
@@ -296,9 +327,12 @@ export default function WarRoomScreen() {
           }}
           onOpenMap={openMap}
         />
+        {/* Assigner : gated par la matrice §8 (Capitaine+) — désactivé sinon. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Assigner un membre à la défense"
+          accessibilityState={{ disabled: !canAssign }}
+          disabled={!canAssign}
           onPress={() => {
             haptics.light();
             toast.show(
@@ -307,11 +341,15 @@ export default function WarRoomScreen() {
                 : 'Défense proposée au crew',
             );
           }}
-          style={({ pressed }) => [styles.assignBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.assignBtn, (pressed || !canAssign) && styles.pressed]}
         >
           <Icon name="ajoutami" size={16} color={colors.blanc} />
           <Text style={styles.assignLabel}>
-            {assignee ? `Assigner ${assignee.pseudo}` : 'Assigner un membre'}
+            {canAssign
+              ? assignee
+                ? `Assigner ${assignee.pseudo}`
+                : 'Assigner un membre'
+              : 'Assignation réservée Capitaine+'}
           </Text>
         </Pressable>
         {/* AMENDEMENT-10 §2 : la défense pointe vers le Route Planner (défense). */}
@@ -440,6 +478,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   motivLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  // Bandeau rôle/permissions (§8) — chartreuse = droit accordé (état de jeu).
+  roleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  roleBannerText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
+  rolePerm: { fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
+  rolePermOk: { color: gameColors.crew },
+  rolePermNo: { color: colors.gris },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',

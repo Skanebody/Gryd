@@ -103,16 +103,32 @@ export const PRIVACY_ZONE_H3_RESOLUTION = 8; // centre stocké grossier, jamais 
 export const RAW_POLYLINE_RETENTION_DAYS = 90;
 export const MIN_AGE_YEARS = 16;
 
-// ─── §5.1 Monétisation (SKUs RevenueCat) ─────────────────────────────────────
+// ─── §5.1 Monétisation (SKUs RevenueCat) — étendus AMENDEMENT-16 §4 ─────────
 export const SKUS = {
   clubMonthly: 'club_monthly',
   clubAnnual: 'club_annual',
   starterPack: 'starter_pack',
+  founderPack: 'founder_pack', // AMENDEMENT-16 (doc §19.2)
   eclatsS: 'eclats_s',
   eclatsM: 'eclats_m',
   eclatsL: 'eclats_l',
+  eclatsXl: 'eclats_xl', // AMENDEMENT-16 (doc §19.3 : 1 500)
+  eclatsXxl: 'eclats_xxl', // AMENDEMENT-16 (doc §19.3 : 3 200)
+  crewBoost24: 'crew_boost_24', // AMENDEMENT-16 (doc §21.1)
+  crewBoost72: 'crew_boost_72', // AMENDEMENT-16 (doc §13.1)
+  crewBoostWeekend: 'crew_boost_weekend', // AMENDEMENT-16 (doc §21.2)
+  crewBoostSeason: 'crew_boost_season', // AMENDEMENT-16 (doc §13.1)
+  cosmeticChest: 'cosmetic_chest_crew', // AMENDEMENT-16 (doc §21.3)
+  recruitTemplate: 'recruit_template_crew', // AMENDEMENT-16 (doc §21.4)
+  bannerCrew: 'banner_crew', // AMENDEMENT-16 (doc §21.5)
 } as const;
-export const ECLATS_PACKS = { eclats_s: 100, eclats_m: 320, eclats_l: 720 } as const;
+export const ECLATS_PACKS = {
+  eclats_s: 100,
+  eclats_m: 320,
+  eclats_l: 720,
+  eclats_xl: 1_500, // AMENDEMENT-16 (doc §19.3)
+  eclats_xxl: 3_200, // AMENDEMENT-16 (doc §19.3)
+} as const;
 export const STARTER_PACK_ECLATS = 120;
 /** §5.2 : aucune offre avant J5 ET la première capture. */
 export const OFFER_MIN_ACCOUNT_AGE_DAYS = 5;
@@ -221,42 +237,88 @@ export const CREW_PERKS: readonly CrewPerk[] = [
   { level: 10, key: 'war_banner', name: 'War Banner', desc: '1 offensive majeure par saison (récompenses capées, pas d\'achat de victoire).' },
 ];
 
-// ─── §36 Rôles crew + permissions ────────────────────────────────────────────
+// ─── §36 Rôles crew + permissions (RÉALIGNÉS AMENDEMENT-16 §3, doc crews §8) ─
+/**
+ * Rôles façon clan (doc §8.1-§8.7). `defender`/`raider` ne sont PLUS des rôles
+ * (AMENDEMENT-16 §3) : le style de jeu vit dans les TAGS de crew (CREW_TAGS §10)
+ * et la war_availability §37.2. Migration 0013 : leader→founder,
+ * defender/raider→runner. Ordre du tableau = rang hiérarchique CROISSANT
+ * (rookie < runner < … < founder) — consommé par engine/crew.ts (crewRoleRank).
+ */
 export type CrewRole =
-  | 'runner' // §36.1 rôle par défaut
-  | 'scout' // §36.2 tactique
-  | 'defender' // §36.3 défense
-  | 'raider' // §36.4 attaque
-  | 'captain' // §36.5 manager terrain
-  | 'co_captain' // §36.6 gestion avancée
-  | 'leader'; // §36.7 fondateur/propriétaire
+  | 'rookie' // §8.7 période d'essai (ROOKIE_TRIAL_DAYS)
+  | 'runner' // §8.6 rôle standard (défaut après essai)
+  | 'scout' // §8.5 exploration
+  | 'strategist' // §8.4 tactique
+  | 'captain' // §8.3 manager terrain
+  | 'co_captain' // §8.2 gestion avancée
+  | 'founder'; // §8.1 propriétaire
 export const CREW_ROLES: readonly CrewRole[] = [
-  'runner', 'scout', 'defender', 'raider', 'captain', 'co_captain', 'leader',
+  'rookie', 'runner', 'scout', 'strategist', 'captain', 'co_captain', 'founder',
 ];
 export const CREW_DEFAULT_ROLE: CrewRole = 'runner';
+/** Rôle attribué à l'ENTRÉE dans un crew : période d'essai (§8.7). */
+export const CREW_ENTRY_ROLE: CrewRole = 'rookie';
 
 /**
- * Permissions crew (§36). Chaque action liste les rôles qui peuvent l'exécuter.
- * MVP : ces règles vivent côté serveur (endpoints rôle-gated V1) ; en attendant,
- * l'écriture reste service_role only (voir 0010). `launchOffensiveMajor` =
- * offensive majeure (War Banner L10) ; `launchOffensiveMinor` = petite offensive.
+ * Matrice de permissions COMPLÈTE (doc §8, serveur = source de vérité).
+ * Chaque action liste les rôles qui peuvent l'exécuter. MVP : l'écriture DB
+ * reste service_role only (0010/0011) ; les Edge Functions rôle-gated (V1)
+ * et l'UI (gating visuel) consomment la même matrice. Limites NON exprimables
+ * en liste plate (périmètre kick/promotion du co_captain, départ du founder) :
+ * CO_CAPTAIN_KICKABLE_ROLES / CO_CAPTAIN_PROMOTE_MAX_ROLE / canLeaveCrew.
  */
-export const CREW_PERMISSIONS: Record<string, readonly CrewRole[]> = {
-  launchOffensiveMinor: ['captain', 'co_captain', 'leader'],
-  launchOffensiveMajor: ['co_captain', 'leader'],
-  createMission: ['defender', 'raider', 'captain', 'co_captain', 'leader'],
-  assignMembers: ['captain', 'co_captain', 'leader'],
-  invite: ['co_captain', 'leader'],
-  accept: ['co_captain', 'leader'],
-  kick: ['co_captain', 'leader'],
-  manageRoles: ['co_captain', 'leader'], // co_captain jusqu'à captain ; leader tout
-  changeSettings: ['leader'],
-  changeNameEmblem: ['leader'],
-  transferLeadership: ['leader'],
-  openCloseCrew: ['leader'],
-  activateMajorCrewItem: ['co_captain', 'leader'],
-  scoutPing: ['scout', 'captain', 'co_captain', 'leader'],
-} as const;
+export const CREW_PERMISSIONS = {
+  // §8.1 Founder seul (propriétaire).
+  changeNameEmblem: ['founder'],
+  manageRecruitment: ['founder'], // statut §9 + tags §10
+  changeSettings: ['founder'],
+  managePerks: ['founder'],
+  transferFoundership: ['founder'],
+  archiveCrew: ['founder'],
+  // §8.1-§8.2 Direction (co_captain = co-leader, sans suppression/founder).
+  launchOffensive: ['co_captain', 'founder'],
+  invite: ['co_captain', 'founder'],
+  acceptApplications: ['co_captain', 'founder'],
+  kick: ['co_captain', 'founder'], // périmètre co_captain : CO_CAPTAIN_KICKABLE_ROLES
+  promote: ['co_captain', 'founder'], // co_captain jusqu'à CO_CAPTAIN_PROMOTE_MAX_ROLE
+  assignObjectives: ['co_captain', 'founder'],
+  pinMessage: ['co_captain', 'founder'],
+  manageWarRoom: ['co_captain', 'founder'],
+  activateMajorCrewItem: ['co_captain', 'founder'],
+  // §8.3 Captain (terrain).
+  createOuting: ['captain', 'co_captain', 'founder'],
+  assignDefense: ['captain', 'co_captain', 'founder'],
+  pingZone: ['captain', 'co_captain', 'founder'],
+  massPing: ['captain', 'co_captain', 'founder'], // jamais rookie (§8.7)
+  proposeOffensive: ['captain', 'co_captain', 'founder'],
+  acceptRookies: ['captain', 'co_captain', 'founder'], // si le crew l'autorise
+  manageWeeklyMissions: ['captain', 'co_captain', 'founder'],
+  // §8.4 Strategist (tactique).
+  createRecommendedRoute: ['strategist', 'captain', 'co_captain', 'founder'],
+  useScoutPing: ['strategist', 'co_captain', 'founder'], // perk L7 si débloqué
+  proposeTargets: ['strategist', 'captain', 'co_captain', 'founder'],
+  proposePlans: ['strategist', 'captain', 'co_captain', 'founder'],
+  // §8.5 Scout (exploration).
+  openRoutes: ['scout', 'strategist', 'captain', 'co_captain', 'founder'],
+  createScoutReport: ['scout', 'strategist', 'captain', 'co_captain', 'founder'],
+  markWeakZones: ['scout', 'strategist', 'captain', 'co_captain', 'founder'],
+  proposeOutpost: ['scout', 'captain', 'co_captain', 'founder'],
+  // §8.6 Runner standard — le rookie est EXCLU là où l'essai le restreint (§8.7).
+  readWarRoomStats: ['runner', 'scout', 'strategist', 'captain', 'co_captain', 'founder'],
+  useCrewItems: ['runner', 'scout', 'strategist', 'captain', 'co_captain', 'founder'],
+  inviteViaLink: ['runner', 'scout', 'strategist', 'captain', 'co_captain', 'founder'], // si autorisé
+  // Ouvert à tous, rookie inclus (sa contribution COMPTE, §8.7).
+  chat: ['rookie', 'runner', 'scout', 'strategist', 'captain', 'co_captain', 'founder'],
+  react: ['rookie', 'runner', 'scout', 'strategist', 'captain', 'co_captain', 'founder'],
+  joinOuting: ['rookie', 'runner', 'scout', 'strategist', 'captain', 'co_captain', 'founder'],
+} as const satisfies Record<string, readonly CrewRole[]>;
+export type CrewPermissionAction = keyof typeof CREW_PERMISSIONS;
+
+/** §8.2 : rôles qu'un co_captain peut exclure (jamais founder ni un autre co_captain). */
+export const CO_CAPTAIN_KICKABLE_ROLES: readonly CrewRole[] = ['rookie', 'runner', 'scout'];
+/** §8.2 : rôle MAXIMAL qu'un co_captain peut attribuer en promotion. */
+export const CO_CAPTAIN_PROMOTE_MAX_ROLE: CrewRole = 'strategist';
 
 // ─── §37.2 Disponibilité de guerre (colonne crew_members) ────────────────────
 export type WarAvailability = 'war' | 'defense' | 'exploration' | 'casual' | 'absent';
@@ -266,10 +328,60 @@ export const WAR_AVAILABILITY: readonly WarAvailability[] = [
 export const WAR_AVAILABILITY_DEFAULT: WarAvailability = 'casual';
 
 // ─── §37.1 Paramètres crew (discovery) ───────────────────────────────────────
+/** `crews.statut` historique (0010) — le recrutement AMENDEMENT-16 §3 vit dans
+ * `crews.recruitment_status` (CREW_RECRUITMENT_STATUSES ci-dessous, 0011+0013). */
 export type CrewJoinPolicy = 'open' | 'request' | 'closed';
 export const CREW_JOIN_POLICIES: readonly CrewJoinPolicy[] = ['open', 'request', 'closed'];
 export type CrewObjective = 'casual' | 'competitif' | 'pionnier';
 export const CREW_OBJECTIVES: readonly CrewObjective[] = ['casual', 'competitif', 'pionnier'];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-16 §3 — Crews façon clan : rookie, recrutement, tags (doc §8-§10)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Durée de la période d'essai rookie, en jours (§8.7). */
+export const ROOKIE_TRIAL_DAYS = 7;
+/**
+ * Restrictions DATA-driven de l'essai rookie (§8.7) : le serveur les applique
+ * (Edge Functions rôle-gated V1), l'UI les affiche. Les interdictions sont déjà
+ * encodées dans CREW_PERMISSIONS (rookie absent de useCrewItems/massPing/
+ * readWarRoomStats) — ce bloc documente l'INTENTION et porte le seul droit
+ * positif : la contribution du rookie compte (coffre §39, XP crew §34).
+ */
+export const ROOKIE_RESTRICTIONS = {
+  crewItems: false, // pas d'utilisation des objets crew
+  massPing: false, // pas de ping massif
+  warRoomFull: false, // War Room limitée (résumé, pas de stats complètes)
+  contributionCounted: true, // contribution comptée malgré l'essai
+} as const;
+
+/** Statuts de recrutement (§9) — `crews.recruitment_status` (0013). */
+export type CrewRecruitmentStatus = 'open' | 'on_request' | 'invite_only' | 'closed';
+export const CREW_RECRUITMENT_STATUSES: readonly CrewRecruitmentStatus[] = [
+  'open', 'on_request', 'invite_only', 'closed',
+];
+/** Défaut recommandé (§9 : « Sur demande, mode recommandé par défaut »). */
+export const CREW_RECRUITMENT_DEFAULT: CrewRecruitmentStatus = 'on_request';
+
+/**
+ * Les 9 tags de style de crew (§10) : discovery, matching, recommandations,
+ * recrutement, identité sociale. Clés stockées en DB (`crews.tags`, 0013),
+ * libellés FR affichés tels quels. `defense`/`raid` REMPLACENT les anciens
+ * rôles defender/raider (AMENDEMENT-16 §3) — style de crew, pas hiérarchie.
+ */
+export const CREW_TAGS = {
+  casual: 'Casual',
+  competitif: 'Compétitif',
+  defense: 'Défense',
+  raid: 'Raid',
+  exploration: 'Exploration',
+  performance: 'Performance',
+  run_club: 'Run Club réel',
+  debutants_ok: 'Débutants acceptés',
+  pionnier: 'Pionnier',
+} as const;
+export type CrewTag = keyof typeof CREW_TAGS;
+export const CREW_TAG_KEYS = Object.keys(CREW_TAGS) as readonly CrewTag[];
 
 // ─── §39 Crew Chest hebdomadaire ─────────────────────────────────────────────
 /** Paliers du coffre (§39.2) : fraction de la cible atteinte (bornes basses). */
@@ -529,19 +641,66 @@ export const BALANCED_WEEK_MAX_RUNS = 6;
 // ═══════════════════════════════════════════════════════════════════════════
 /**
  * Tolérance de fermeture : la trace est une boucle si son arrivée revient à
- * ≤ 100 m de son départ (MVP : fermeture par tolérance départ/arrivée
- * UNIQUEMENT — figure-8 / multi-boucles par auto-intersection = V1).
+ * ≤ 80 m de son départ (durci 100 → 80 m par AMENDEMENT-16 §2, critères MVP
+ * doc §5 « fermeture : < 80 m »). 2ᵉ mode de fermeture MVP (AMENDEMENT-16 §2,
+ * doc §4.2) : AUTO-INTERSECTION — le tracé se recroise → la partie fermée fait
+ * la boucle, un 8 = LA PLUS GRANDE boucle (detectLoop, engine/hexing.ts).
  */
-export const LOOP_CLOSE_TOLERANCE_M = 100;
+export const LOOP_CLOSE_TOLERANCE_M = 80;
 /**
  * Périmètre minimal d'une boucle : en deçà, couloir seulement (pas de
- * micro-boucle farmée sur place). Au-delà, l'AUTO-LIMITE ISOPÉRIMÉTRIQUE est
- * le garde-fou physique : l'aire enfermable est bornée par P²/4π, soit pour
- * 5 km de boucle ≈ 1,9 km² ≈ 130 zones res 10 (10 km ≈ 530) — et le plafond
+ * micro-boucle farmée sur place — filtre AUSSI les micro-croisements du bruit
+ * GPS en mode auto-intersection). L'auto-limite isopérimétrique (aire ≤ P²/4π)
+ * reste vraie physiquement, mais le plafond EXPLICITE est désormais
+ * LOOP_MAX_AREA_BY_DISTANCE_KM2 (AMENDEMENT-16 §2, ci-dessous) — et le plafond
  * quotidien MAX_CLAIMS_PER_DAY (appliqué au total couloir + intérieur,
  * intérieur tronqué par distance croissante au tracé) reste la borne dure.
  */
 export const LOOP_MIN_PERIMETER_M = 1_000;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-16 §2 — Durcissement boucle→zone (delta AMENDEMENT-12, doc §4-§6,
+// 05/07/2026). « Le territoire se gagne avec les jambes » : une boucle reste
+// une COURSE VALIDE même quand son intérieur est plafonné ou refusé — seuls
+// les messages doux changent (capReached / loopRejectedReason, types.ts).
+// Zones interdites GÉOGRAPHIQUES (eau, autoroutes, voies ferrées, zones
+// militaires, écoles, hôpitaux, zones dangereuses signalées — doc §5 étape 5)
+// = V1 EXPLICITE : nécessite une source géo serveur ; le mécanisme
+// no_capture_zones + privacy zones EXISTANT s'applique déjà cellule par
+// cellule (decideClaims) et servira de support au seed géo V1.
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Aire capturable MAXIMALE d'une boucle selon la distance courue (doc §6
+ * « Boucle trop grande ») : paires [distance courue (km), aire max (km²)].
+ * 3 km → 0,25 km² ; 5 km → 0,8 km² ; 10 km → 1,8 km². INTERPOLATION LINÉAIRE
+ * entre paliers ; EXTRAPOLATION BORNÉE au ratio du palier le plus proche
+ * (< 3 km : × 0,25/3 par km ; > 10 km : × 1,8/10 par km — jamais plus
+ * généreux que le dernier ratio). Au-delà du plafond : intérieur TRONQUÉ par
+ * distance croissante au tracé (mécanisme enclosedCells existant) + réponse
+ * capReached=true — copy gelée : « Boucle validée. Capture plafonnée : seuls
+ * les secteurs proches du tracé sont capturés. »
+ */
+export const LOOP_MAX_AREA_BY_DISTANCE_KM2 = [
+  [3, 0.25],
+  [5, 0.8],
+  [10, 1.8],
+] as const;
+/**
+ * Compacité minimale d'une boucle : 4πA/P² (1 = cercle, 0 = trait). Choix
+ * documenté 0,12 dans la plage produit 0,10-0,15 (doc §6 « Boucle trop
+ * fine ») : un carré vaut π/4 ≈ 0,785, un rectangle 4:1 ≈ 0,5, un rectangle
+ * ~28:1 ≈ 0,12 — on ne rejette que les formes plus étirées, jamais un tour
+ * de quartier honnête.
+ */
+export const LOOP_MIN_COMPACTNESS = 0.12;
+/**
+ * Largeur moyenne minimale (m) d'une boucle, ESTIMÉE 2A/P (doc §6 : pas de
+ * calcul exotique) : ~60 m ≈ 2 zones res 10 de large. En deçà (aller-retour
+ * sur deux rues parallèles très proches) : course valide, intérieur REFUSÉ —
+ * loopRejectedReason='narrow', copy gelée : « Zone non capturée : forme trop
+ * étroite. »
+ */
+export const LOOP_MIN_WIDTH_M = 60;
 /**
  * Mise en scène de la boucle (AMENDEMENT-12 §C — PRÉSENTATION, pas des règles
  * serveur) : « Boucle ouverte » (pointillé position → départ) sous 600 m,
@@ -610,3 +769,95 @@ export const GPS_TRUST_WEIGHTS = {
 } as const;
 /** Ratio d'outliers (points rejetés / points reçus, hors jitter d'arrêt) qui met la composante outliers à 0. */
 export const GPS_TRUST_OUTLIER_BAD_RATIO = 0.3;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-16 §4 — Monétisation & contribution (doc §12-§26).
+// ANTI PAY-TO-WIN ABSOLU : jamais vendu = territoire, km, zones, victoire,
+// points leaderboard, attaque/défense illimitées. Vendable = statut,
+// esthétique, personnalisation, confort, organisation, contribution GROUPÉE
+// CAPÉE. Un effet de boost ne touche QUE la progression du coffre crew —
+// JAMAIS points/XP/leaderboard.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Prix EUR de référence des SKUs store (doc §19-§23). DATA : RevenueCat est la
+ * source des prix réels côté store (O3) ; ici la référence catalogue (seed
+ * migration 0014, affichage Arsenal). Aucun prix EUR en dur ailleurs.
+ */
+export const SKU_PRICES_EUR = {
+  club_monthly: 4.99,
+  club_annual: 34.99,
+  starter_pack: 2.99,
+  founder_pack: 9.99,
+  eclats_s: 0.99,
+  eclats_m: 2.99,
+  eclats_l: 5.99,
+  eclats_xl: 11.99,
+  eclats_xxl: 24.99,
+  crew_boost_24: 1.99,
+  crew_boost_72: 4.99,
+  crew_boost_weekend: 6.99,
+  crew_boost_season: 14.99,
+  cosmetic_chest_crew: 2.99,
+  recruit_template_crew: 0.99,
+  banner_crew: 3.99,
+  gryd_pass: 7.99, // §23 — catalogué INACTIF (status draft, pas de SKU actif)
+} as const;
+
+/** Éclats crédités par le Founder Pack (doc §19.2). */
+export const FOUNDER_PACK_ECLATS = 300;
+
+/** Prix Éclats des objets fonctionnels capés (doc §20) + bannière crew (§21.5). */
+export const STREAK_GEL_ECLATS = 60;
+export const SCOUT_PING_ECLATS = 120;
+export const BANNER_CREW_ECLATS = 350;
+
+/**
+ * Crew Boost (doc §13.1/§21) : contribution volontaire, effet UNIQUEMENT sur la
+ * progression du coffre crew (multiplier), plafonné, non cumulable.
+ *  - durationH null = jusqu'à la fin de la saison active (boost saison) ;
+ *  - weekend : fenêtre 72 h à l'activation (approx MVP du « vendredi →
+ *    dimanche » — l'ancrage calendaire exact est V1).
+ */
+export const CREW_BOOSTS = {
+  crew_boost_24: { type: 'boost_24h', durationH: 24 },
+  crew_boost_72: { type: 'boost_72h', durationH: 72 },
+  crew_boost_weekend: { type: 'boost_weekend', durationH: 72 },
+  crew_boost_season: { type: 'boost_season', durationH: null },
+} as const;
+export type CrewBoostSku = keyof typeof CREW_BOOSTS;
+export type CrewBoostType = (typeof CREW_BOOSTS)[CrewBoostSku]['type'];
+
+/** +25 % de progression coffre, borne DURE (jamais de cumul au-delà). */
+export const CREW_BOOST_CHEST_MULTIPLIER = 1.25;
+/** 1 seul boost actif à la fois par crew (doc §13.1 « Limites anti-abus »). */
+export const CREW_BOOST_MAX_ACTIVE = 1;
+/** Blackout : aucun effet de boost dans les N dernières heures d'une saison. */
+export const BOOST_BLACKOUT_END_OF_SEASON_H = 48;
+/** Gifting : l'offrande anonyme est TOUJOURS possible (doc §14, jamais de classement des payeurs). */
+export const GIFT_ANONYMOUS_ALLOWED = true;
+
+/**
+ * Items crédités à l'inventaire par les SKUs pack/gift (item_key du catalogue
+ * 0014). rc_webhook les upsert via les RPC grant_user_items /
+ * grant_crew_item ; le seed 0014 DOIT contenir chacune de ces clés.
+ */
+export const SKU_GRANTED_ITEM_KEYS = {
+  starter_pack: [
+    'skin_trace_neon_ivory',
+    'frame_road',
+    'template_first_zone',
+    'streak_gel',
+  ],
+  founder_pack: [
+    'founder_badge',
+    'frame_founder',
+    'skin_territory_founder_glow',
+    'skin_trace_founder_line',
+    'title_founder_runner',
+    'template_founder',
+  ],
+  cosmetic_chest_crew: ['crew_cosmetic_chest'],
+  recruit_template_crew: ['crew_recruit_template'],
+  banner_crew: ['crew_banner_impact'],
+} as const;

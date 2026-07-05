@@ -2,6 +2,8 @@
  * Tests AMENDEMENT-12 §B — « La boucle fait la zone » (engine/hexing.ts).
  * Purs : detectClosedLoop + enclosedCells, h3-js déterministe, aucune I/O.
  * « Trace un trait, tu prends la rue. Ferme la boucle, tu prends la zone. »
+ * Tolérance durcie 100 → 80 m par AMENDEMENT-16 §2 ; l'auto-intersection et
+ * l'anti-abus (plafond d'aire, forme étroite) sont testés dans loop_abuse_test.ts.
  */
 import { assert, assertEquals } from 'jsr:@std/assert@^1';
 import { cellToLatLng, getResolution } from 'npm:h3-js@^4.1';
@@ -90,11 +92,17 @@ Deno.test('boucle trop courte → pas de boucle (LOOP_MIN_PERIMETER_M)', () => {
   assertEquals(detectClosedLoop(squareLoop(130, 10)), false);
 });
 
-Deno.test('départ/arrivée à ~90 m → boucle fermée ; à ~150 m → ouverte', () => {
-  const closed = squareLoop(300, 20, 90);
+Deno.test('départ/arrivée à ~70 m → boucle fermée ; à ~90 m → ouverte (80 m, AMENDEMENT-16)', () => {
+  const closed = squareLoop(300, 20, 70);
   const gapM = haversineM(closed[0]!, closed[closed.length - 1]!);
-  assert(gapM > 80 && gapM <= LOOP_CLOSE_TOLERANCE_M, `écart attendu ~90 m, obtenu ${gapM}`);
-  assert(detectClosedLoop(closed), 'fermeture par tolérance : ≤ 100 m doit fermer');
+  assert(gapM > 60 && gapM <= LOOP_CLOSE_TOLERANCE_M, `écart attendu ~70 m, obtenu ${gapM}`);
+  assert(detectClosedLoop(closed), 'fermeture par tolérance : ≤ 80 m doit fermer');
+
+  // 90 m fermait sous AMENDEMENT-12 (100 m) — durci à 80 m : boucle ouverte.
+  const open90 = squareLoop(300, 20, 90);
+  const gap90 = haversineM(open90[0]!, open90[open90.length - 1]!);
+  assert(gap90 > LOOP_CLOSE_TOLERANCE_M, `écart attendu > 80 m, obtenu ${gap90}`);
+  assertEquals(detectClosedLoop(open90), false);
 
   const open = squareLoop(300, 20, 150); // 150 m > tolérance → boucle ouverte
   assertEquals(detectClosedLoop(open), false);

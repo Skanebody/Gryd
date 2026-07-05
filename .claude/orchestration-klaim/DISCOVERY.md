@@ -46,3 +46,6 @@ Session autonome : les décisions sont extraites de la spec (gelée pour la Sais
   - O9c. **Polar** : Polar AccessLink API (compte admin.polaraccesslink.com).
   - O9d. **Coros** : COROS Open Platform (demande partenaire par email, délais variables).
   - O9e. **Suunto** : Suunto Apps / partenariat apizone (demande d'accès).
+
+## AMENDEMENT-16 §2 — zones interdites géographiques (ajout 05/07/2026)
+- **V1 explicite** : exclusion GÉOGRAPHIQUE des zones interdites (eau, autoroutes, voies ferrées, zones militaires, écoles, hôpitaux, zones dangereuses signalées — doc gameplay §5 étape 5) : nécessite une source géo serveur (seed OSM/IGN dans `no_capture_zones`). Le mécanisme EXISTANT s'applique déjà cellule par cellule (`no_capture_zones` GeoJSON + privacy zones → `blocked_no_capture_zone`/`blocked_privacy` dans decideClaims) et servira de support au seed V1 — rien à changer au moteur.

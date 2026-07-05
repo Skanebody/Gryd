@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import {
   CREW_MAX_MEMBERS,
+  CREW_TAGS,
   colors,
   fontSizes,
   gameColors,
@@ -36,6 +37,7 @@ import {
   FRAME_TIER_LABELS,
 } from '../src/features/crew/rules';
 import {
+  canApplyTo,
   playTagsFor,
   publicCrewForTag,
   RECRUITMENT_LABELS,
@@ -51,13 +53,16 @@ const TAG_META: Record<CrewPlayTagKey, { label: string; tint: string }> = {
 };
 
 /**
- * Métadonnées de rôle (icône + libellé). CREW_ROLE_META (ui/game) est indexé
- * par les clés MemberCard ('cocaptain') — les rôles shared ('co_captain')
- * passent par le fallback libellé (features/crew/rules) + icône bouclier.
+ * Métadonnées de rôle (icône + libellé). CREW_ROLE_META (ui/game) est désormais
+ * indexé par les clés SHARED (§8, AMENDEMENT-16 §3) — lookup direct, fallback
+ * conservé par robustesse (jamais d'écran cassé §0).
  */
 function roleMeta(role: string): { label: string; icon: IconName } {
   const meta = (CREW_ROLE_META as Partial<Record<string, { label: string; icon: IconName }>>)[role];
-  return meta ?? { label: CREW_ROLE_LABELS[role] ?? role, icon: 'bouclier' };
+  return meta ?? {
+    label: (CREW_ROLE_LABELS as Partial<Record<string, string>>)[role] ?? role,
+    icon: 'bouclier',
+  };
 }
 
 export default function CrewPublicScreen() {
@@ -75,9 +80,18 @@ export default function CrewPublicScreen() {
   const leagueLabel = `${FRAME_TIER_LABELS[tier] ?? tier} League`;
   const status = activityStatusForScore(crew.activityScore);
   const tags = playTagsFor(crew);
+  // Recrutement §9 (0013) : open = rejoint direct ; on_request = candidature ;
+  // invite_only/closed = pas de demande entrante depuis l'app.
   const openRecruitment = crew.recruitment === 'open';
-  const canRequest = crew.recruitment !== 'closed';
+  const canRequest = canApplyTo(crew.recruitment);
   const placesLeft = Math.max(0, CREW_MAX_MEMBERS - crew.members);
+  const ctaLabel = openRecruitment
+    ? 'Rejoindre'
+    : crew.recruitment === 'on_request'
+      ? 'Demander à rejoindre'
+      : crew.recruitment === 'invite_only'
+        ? 'Sur invitation uniquement'
+        : 'Recrutement fermé';
 
   return (
     <>
@@ -109,6 +123,17 @@ export default function CrewPublicScreen() {
                   </View>
                 );
               })}
+            </View>
+          ) : null}
+          {/* Tags de STYLE du crew (§10, crews.tags 0013) — identité, chips
+              neutres (la couleur reste réservée aux états de jeu ci-dessus). */}
+          {crew.tags.length > 0 ? (
+            <View style={styles.tags}>
+              {crew.tags.map((t) => (
+                <View key={t} style={styles.styleTag}>
+                  <Text style={styles.styleTagLabel}>{CREW_TAGS[t]}</Text>
+                </View>
+              ))}
             </View>
           ) : null}
         </View>
@@ -185,9 +210,7 @@ export default function CrewPublicScreen() {
               (pressed || !canRequest || placesLeft === 0) && styles.dim,
             ]}
           >
-            <Text style={styles.primaryLabel}>
-              {openRecruitment ? 'Rejoindre' : 'Demander à rejoindre'}
-            </Text>
+            <Text style={styles.primaryLabel}>{ctaLabel}</Text>
           </Pressable>
           <View style={styles.actionsRow}>
             <View style={styles.actionCell}>
@@ -256,6 +279,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   tagLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+  // Tags de style §10 : chips neutres (blanc/gris), jamais chartreuse (identité, pas état).
+  styleTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone2,
+  },
+  styleTagLabel: { color: colors.blanc, fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
   bio: {
     color: colors.gris,
     fontSize: fontSizes.sm,

@@ -19,20 +19,23 @@ import {
   CREW_CHEST_WEEKLY_TARGET,
   CREW_FRAME_THRESHOLDS,
   CREW_LEVEL_MAX,
+  CREW_PERMISSIONS,
   CREW_XP_TABLE,
   PLAYER_LEVEL_MAX,
   PLAYER_LEVEL_XP_BASE,
   PLAYER_LEVEL_XP_RATIO,
   PLAYER_TIER_THRESHOLDS,
+  ROOKIE_TRIAL_DAYS,
   type BadgeTier,
   type CrewActivityStatus,
   type CrewChestTier,
   type CrewFrameTier,
+  type CrewPermissionAction,
+  type CrewRecruitmentStatus,
   type CrewRole,
   type IconName,
   type PlayerTier,
 } from '@klaim/shared';
-import type { CrewRole as MemberCardRole } from '../../ui/game';
 
 /** Niveau crew (1..CREW_LEVEL_MAX) atteint pour une XP cumulée (§34.3). */
 export function crewLevelForXp(xp: number): number {
@@ -136,16 +139,41 @@ export function activityStatusForScore(score: number): CrewActivityStatus {
 
 // ─── Libellés FR d'affichage (données, pas de logique) ────────────────────────
 
-/** Nom FR de rôle crew (§36). */
-export const CREW_ROLE_LABELS: Record<string, string> = {
+/**
+ * Nom FR de rôle crew (§8, AMENDEMENT-16 §3). Le rookie affiche sa période
+ * d'essai (ROOKIE_TRIAL_DAYS — jamais de « 7 » en dur).
+ */
+export const CREW_ROLE_LABELS: Record<CrewRole, string> = {
+  founder: 'Fondateur',
+  co_captain: 'Co-Capitaine',
+  captain: 'Capitaine',
+  strategist: 'Stratège',
+  scout: 'Éclaireur',
   runner: 'Runner',
-  scout: 'Scout',
-  defender: 'Defender',
-  raider: 'Raider',
-  captain: 'Captain',
-  co_captain: 'Co-Captain',
-  leader: 'Leader',
+  rookie: `Rookie · essai ${ROOKIE_TRIAL_DAYS} j`,
 };
+
+/** Statut de recrutement (§9, crews.recruitment_status 0013) — libellés FR. */
+export const RECRUITMENT_STATUS_LABELS: Record<CrewRecruitmentStatus, string> = {
+  open: 'Ouvert à tous',
+  on_request: 'Sur demande',
+  invite_only: 'Sur invitation',
+  closed: 'Fermé',
+};
+
+/**
+ * Gating visuel par rôle (matrice §8) — MIROIR de engine/crew.ts
+ * hasCrewPermission (même lecture de CREW_PERMISSIONS, le serveur reste seul
+ * juge). Utilisé par Crew HQ / War Room pour désactiver les actions.
+ */
+export function roleCan(role: CrewRole, action: CrewPermissionAction): boolean {
+  return (CREW_PERMISSIONS[action] as readonly CrewRole[]).includes(role);
+}
+
+/** Jours d'essai restants d'un rookie entré il y a `joinedDaysAgo` jours (§8.7). */
+export function rookieTrialDaysLeft(joinedDaysAgo: number): number {
+  return Math.max(0, ROOKIE_TRIAL_DAYS - Math.max(0, joinedDaysAgo));
+}
 
 /** Nom FR de disponibilité de guerre (§37.2). */
 export const WAR_AVAILABILITY_LABELS: Record<string, string> = {
@@ -190,11 +218,12 @@ export function leagueLabelFor(tier: BadgeTier): string {
 }
 
 /**
- * Rôle shared (§36, `co_captain`) → rôle du composant MemberCard (`cocaptain`).
- * Seule divergence de nommage entre le barème et le design system jeu.
+ * COMPAT : MemberCard consomme désormais directement les clés shared
+ * (AMENDEMENT-16 §3 — plus de divergence `cocaptain`). Identité conservée pour
+ * les appels existants.
  */
-export function memberCardRole(role: CrewRole): MemberCardRole {
-  return role === 'co_captain' ? 'cocaptain' : role;
+export function memberCardRole(role: CrewRole): CrewRole {
+  return role;
 }
 
 /**

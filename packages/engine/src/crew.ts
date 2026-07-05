@@ -13,25 +13,34 @@
 import {
   ACTIVITY_SCORE_WEIGHTS,
   ACTIVITY_STATUS_THRESHOLDS,
+  BOOST_BLACKOUT_END_OF_SEASON_H,
+  CREW_BOOST_CHEST_MULTIPLIER,
   CREW_CHEST_TIER_ORDER,
   CREW_CHEST_TIERS,
   CREW_CHEST_WEEKLY_TARGET,
   CREW_CHEST_WEIGHTS,
   CREW_FRAME_THRESHOLDS,
   CREW_LEVEL_MAX,
+  CREW_PERMISSIONS,
+  CREW_ROLES,
   CREW_XP_DAILY_CAP_PER_MEMBER,
   CREW_XP_ROUTE_DUP_DIVISOR,
   CREW_XP_SOURCES,
   CREW_XP_TABLE,
+  CO_CAPTAIN_KICKABLE_ROLES,
+  CO_CAPTAIN_PROMOTE_MAX_ROLE,
   OFFENSIVE_RESULT_THRESHOLDS,
   PLAYER_LEVEL_MAX,
   PLAYER_LEVEL_XP_BASE,
   PLAYER_LEVEL_XP_RATIO,
   PLAYER_TIER_THRESHOLDS,
+  ROOKIE_TRIAL_DAYS,
   type CrewActivityStatus,
   type CrewChestSource,
   type CrewChestTier,
   type CrewFrameTier,
+  type CrewPermissionAction,
+  type CrewRole,
   type OffensiveResult,
   type PlayerTier,
 } from '@klaim/shared/game-rules';
@@ -252,6 +261,72 @@ export function offensiveResult(hexesInZone: number, objectiveHexes: number): Of
  * PURE (haversine local — évite d'importer validation pour garder crew.ts
  * autonome). Utilisé par ingest_run pour compter la contribution d'une course.
  */
+// ─── AMENDEMENT-16 §4 Crew Boost (doc §13.1/§21) — coffre UNIQUEMENT ─────────
+// Un boost n'affecte JAMAIS points/XP/leaderboard : seul le delta de
+// progression du COFFRE crew est multiplié, borné, non cumulable, éteint
+// pendant le blackout de fin de saison.
+
+const MS_PER_HOUR = 3_600_000;
+
+/** Fenêtre d'un crew boost (miroir crew_boosts, timestamps epoch ms). */
+export interface CrewBoostWindow {
+  startsAtMs: number;
+  endsAtMs: number;
+  /** Multiplicateur stocké — borné par CREW_BOOST_CHEST_MULTIPLIER à l'usage. */
+  multiplier: number;
+  status: 'active' | 'expired' | 'cancelled';
+}
+
+/**
+ * Un boost est-il actif à l'instant `nowMs` ? PURE. Statut `active` ET fenêtre
+ * [startsAt, endsAt) ouverte — un boost enchaîné (starts_at futur, doc « 1
+ * boost actif à la fois ») n'a AUCUN effet avant l'ouverture de sa fenêtre.
+ */
+export function crewBoostActive(boost: CrewBoostWindow, nowMs: number): boolean {
+  return boost.status === 'active' && nowMs >= boost.startsAtMs && nowMs < boost.endsAtMs;
+}
+
+/**
+ * Multiplicateur de progression du coffre à l'instant `nowMs`. PURE.
+ *  - Blackout (doc §13.1) : dans les BOOST_BLACKOUT_END_OF_SEASON_H dernières
+ *    heures avant `seasonEndMs` → 1 (aucun effet), boost actif ou pas.
+ *  - Pas de cumul : plusieurs boosts actifs → max des multiplicateurs, JAMAIS
+ *    la somme/le produit (CREW_BOOST_MAX_ACTIVE = 1 est garanti côté serveur,
+ *    ceci est la ceinture-bretelles moteur).
+ *  - Borne dure : résultat dans [1, CREW_BOOST_CHEST_MULTIPLIER].
+ */
+export function boostChestMultiplier(
+  boosts: readonly CrewBoostWindow[],
+  nowMs: number,
+  seasonEndMs: number | null,
+): number {
+  if (seasonEndMs !== null) {
+    const blackoutStartMs = seasonEndMs - BOOST_BLACKOUT_END_OF_SEASON_H * MS_PER_HOUR;
+    if (nowMs >= blackoutStartMs) return 1;
+  }
+  let max = 1;
+  for (const boost of boosts) {
+    if (crewBoostActive(boost, nowMs) && boost.multiplier > max) max = boost.multiplier;
+  }
+  return Math.min(max, CREW_BOOST_CHEST_MULTIPLIER);
+}
+
+/**
+ * Progression de coffre boostée pour un delta de base (chestProgressDelta).
+ * PURE. floor(delta × multiplicateur) — arrondi bas, jamais < delta de base
+ * hors blackout, jamais > delta × CREW_BOOST_CHEST_MULTIPLIER. Delta négatif
+ * → 0 (le coffre ne recule jamais). S'applique au COFFRE uniquement.
+ */
+export function boostedChestProgress(
+  baseDelta: number,
+  boosts: readonly CrewBoostWindow[],
+  nowMs: number,
+  seasonEndMs: number | null,
+): number {
+  const safeDelta = Math.max(0, baseDelta);
+  return Math.floor(safeDelta * boostChestMultiplier(boosts, nowMs, seasonEndMs));
+}
+
 export function withinOffensiveZone(
   point: { lat: number; lng: number },
   center: { lat: number; lng: number },
@@ -266,4 +341,58 @@ export function withinOffensiveZone(
     Math.cos(toRad(center.lat)) * Math.cos(toRad(point.lat)) * Math.sin(dLng / 2) ** 2;
   const distKm = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
   return distKm <= radiusKm;
+}
+
+// ─── AMENDEMENT-16 §3 — Permissions rôle façon clan (doc §8) ─────────────────
+// Le serveur reste SEUL juge (Edge Functions rôle-gated V1) ; l'UI consomme les
+// mêmes fonctions pour le gating visuel. Tout vient de CREW_PERMISSIONS — les
+// fonctions ci-dessous n'ajoutent que les limites non exprimables en liste
+// plate (périmètre du co_captain, départ du founder, essai rookie).
+
+/** Un rôle peut-il exécuter une action de la matrice §8 ? PURE. */
+export function hasCrewPermission(role: CrewRole, action: CrewPermissionAction): boolean {
+  return (CREW_PERMISSIONS[action] as readonly CrewRole[]).includes(role);
+}
+
+/** Rang hiérarchique d'un rôle (index CREW_ROLES : rookie=0 … founder=6). PURE. */
+export function crewRoleRank(role: CrewRole): number {
+  return CREW_ROLES.indexOf(role);
+}
+
+/**
+ * `actor` peut-il exclure `target` (§8.1/§8.2) ? PURE. Founder : tout le monde
+ * sauf lui-même ; co_captain : uniquement CO_CAPTAIN_KICKABLE_ROLES (jamais le
+ * founder ni un autre co_captain) ; les autres rôles n'excluent personne.
+ */
+export function canKickMember(actor: CrewRole, target: CrewRole): boolean {
+  if (!hasCrewPermission(actor, 'kick')) return false;
+  if (actor === 'founder') return target !== 'founder';
+  return CO_CAPTAIN_KICKABLE_ROLES.includes(target);
+}
+
+/**
+ * `actor` peut-il promouvoir/rétrograder un membre VERS `newRole` (§8.1/§8.2) ?
+ * PURE. `founder` ne s'attribue jamais par promotion (transfert dédié
+ * `transferFoundership`) ; co_captain promeut jusqu'à CO_CAPTAIN_PROMOTE_MAX_ROLE.
+ */
+export function canPromoteTo(actor: CrewRole, newRole: CrewRole): boolean {
+  if (!hasCrewPermission(actor, 'promote')) return false;
+  if (newRole === 'founder') return false;
+  if (actor === 'founder') return true;
+  return crewRoleRank(newRole) <= crewRoleRank(CO_CAPTAIN_PROMOTE_MAX_ROLE);
+}
+
+/** §8.1 : le Founder ne quitte pas le crew sans transférer son rôle. PURE. */
+export function canLeaveCrew(role: CrewRole): boolean {
+  return role !== 'founder';
+}
+
+/** Fin de l'essai rookie (§8.7) : role_since + ROOKIE_TRIAL_DAYS, en epoch ms. PURE. */
+export function rookieTrialEndsAt(roleSinceMs: number): number {
+  return roleSinceMs + ROOKIE_TRIAL_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/** L'essai rookie est-il terminé à `nowMs` (l'appelant fournit l'horloge) ? PURE. */
+export function isRookieTrialOver(roleSinceMs: number, nowMs: number): boolean {
+  return nowMs >= rookieTrialEndsAt(roleSinceMs);
 }

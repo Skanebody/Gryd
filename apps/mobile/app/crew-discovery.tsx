@@ -12,18 +12,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { CREW_MAX_MEMBERS, colors, fontSizes, radii } from '@klaim/shared';
+import { CREW_MAX_MEMBERS, CREW_TAGS, colors, fontSizes, radii } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { StackScreen } from '../src/ui/StackScreen';
 import { CrewDiscoveryCard } from '../src/ui/game';
 import {
   CREW_ROLE_LABELS,
+  RECRUITMENT_STATUS_LABELS,
   crewFrameTierForLevel,
   crewLevelForXp,
   FRAME_TIER_LABELS,
 } from '../src/features/crew/rules';
-import { playTagsFor, PUBLIC_CREWS, type PublicCrewDemo } from '../src/features/crew/publicDemo';
+import {
+  canApplyTo,
+  playTagsFor,
+  PUBLIC_CREWS,
+  type PublicCrewDemo,
+} from '../src/features/crew/publicDemo';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 
 /** Filtres rapides §27 — chaque clé teste un signal d'activité du crew. */
@@ -42,7 +48,7 @@ function matchesFilter(crew: PublicCrewDemo, key: FilterKey): boolean {
     case 'all':
       return true;
     case 'open':
-      return crew.policy === 'open';
+      return crew.recruitment === 'open';
     case 'beginner':
       return crew.beginnerFriendly;
     case 'war':
@@ -98,31 +104,48 @@ export default function CrewDiscoveryScreen() {
               const level = crewLevelForXp(crew.xp);
               const tier = crewFrameTierForLevel(level);
               return (
-                <CrewDiscoveryCard
-                  key={crew.tag}
-                  name={crew.name}
-                  seed={`${crew.tag}·${crew.name}`}
-                  level={level}
-                  city={crew.city}
-                  leagueTier={tier}
-                  leagueLabel={`${FRAME_TIER_LABELS[tier] ?? tier} League`}
-                  tags={playTagsFor(crew)}
-                  members={{ current: crew.members, max: CREW_MAX_MEMBERS }}
-                  runsPerWeek={crew.weeklyRuns}
-                  seeking={crew.rolesWanted.map((r) => CREW_ROLE_LABELS[r] ?? r)}
-                  onJoin={() => {
-                    // TODO(O1) : crew_joined / demande d'adhésion (§8, policy open/request).
-                    haptics.medium();
-                    toast.show(
-                      crew.policy === 'open'
-                        ? `Bienvenue chez ${crew.name}`
-                        : `Demande envoyée à ${crew.name}`,
-                    );
-                  }}
-                  onViewBase={() =>
-                    router.push({ pathname: '/crew-public', params: { crew: crew.tag } })
-                  }
-                />
+                <View key={crew.tag}>
+                  <CrewDiscoveryCard
+                    name={crew.name}
+                    seed={`${crew.tag}·${crew.name}`}
+                    level={level}
+                    city={crew.city}
+                    leagueTier={tier}
+                    leagueLabel={`${FRAME_TIER_LABELS[tier] ?? tier} League`}
+                    tags={playTagsFor(crew)}
+                    members={{ current: crew.members, max: CREW_MAX_MEMBERS }}
+                    runsPerWeek={crew.weeklyRuns}
+                    seeking={crew.rolesWanted.map((r) => CREW_ROLE_LABELS[r] ?? r)}
+                    onJoin={() => {
+                      // TODO(O1) : crew_joined / demande d'adhésion (§9, 4 statuts 0013).
+                      haptics.medium();
+                      toast.show(
+                        crew.recruitment === 'open'
+                          ? `Bienvenue chez ${crew.name}`
+                          : canApplyTo(crew.recruitment)
+                            ? `Demande envoyée à ${crew.name}`
+                            : `${crew.name} recrute sur invitation uniquement`,
+                      );
+                    }}
+                    onViewBase={() =>
+                      router.push({ pathname: '/crew-public', params: { crew: crew.tag } })
+                    }
+                  />
+                  {/* Statut de recrutement (§9) + tags de style (§10, crews.tags 0013) —
+                      chips neutres sous la card (couleur réservée aux états de jeu). */}
+                  <View style={styles.metaRow}>
+                    <View style={[styles.metaChip, styles.metaChipRecruit]}>
+                      <Text style={styles.metaChipRecruitText}>
+                        {RECRUITMENT_STATUS_LABELS[crew.recruitment]}
+                      </Text>
+                    </View>
+                    {crew.tags.map((t) => (
+                      <View key={t} style={styles.metaChip}>
+                        <Text style={styles.metaChipText}>{CREW_TAGS[t]}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
               );
             })
           ) : (
@@ -141,6 +164,19 @@ export default function CrewDiscoveryScreen() {
 
 const styles = StyleSheet.create({
   list: { marginTop: 16, gap: 12 },
+  // Chips recrutement/tags sous chaque card — neutres (identité, pas état de jeu).
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  metaChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  metaChipText: { color: colors.gris, fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
+  metaChipRecruit: { borderColor: colors.blanc },
+  metaChipRecruitText: { color: colors.blanc, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
   filterChip: {
     backgroundColor: colors.carbone,

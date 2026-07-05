@@ -5,10 +5,10 @@
  *     glass, zéro décor. Distance GÉANTE (fontSizes.heroMax), « +N ZONES »
  *     chartreuse, allure, temps, pill GRYD VERIFIED. Contrôles bas gros,
  *     une main : [Pause] [Carte] [Terminer (appui maintenu)].
- *   - MODE CARTE : la navigation type Uber (LiveNavMap) MAIS territoire
- *     ORGANIQUE : la route à suivre + la zone chartreuse qui S'ÉTEND derrière
- *     le coureur (zones H3 invisibles fusionnées via territory.ts — une
- *     trainée-zone qui grossit, jamais une grille), virage suivant,
+ *   - MODE CARTE : la navigation type Uber (LiveNavMap) sur les VRAIES tuiles
+ *     (RealMap — AMENDEMENT-16 §0) : la route à suivre + le ruban chartreuse
+ *     NET qui S'ÉTEND derrière le coureur le long des vraies rues (zones H3
+ *     invisibles — jamais une grille, zéro halo), virage suivant,
  *     destination. Chiffres dans la MapBottomSheet (anti-bruit).
  * La pill ARRIVÉE X MIN · Y % / EN PAUSE reste TOUJOURS visible : un événement
  * (zone privée, GPS faible, contesté…) s'EMPILE dessous — il enrichit la
@@ -56,7 +56,7 @@ import {
 import { LiveNavMap, type LiveNavMapHandle } from '../src/features/run/LiveNavMap';
 import { buildRunLoop, loopStatusAt } from '../src/features/run/loop';
 import {
-  NAV_METERS_PER_PIXEL,
+  NAV_MAP_METERS_PER_PIXEL,
   NAV_SCALE_BAR_METERS,
   buildLiveNav,
   etaSecondsAt,
@@ -322,10 +322,13 @@ function DemoCourseLive({
             />
           </View>
 
-          {/* ── Échelle graphique discrète (parité échelle coureur) ── */}
+          {/* ── Échelle graphique discrète (parité échelle coureur) +
+               attribution tuiles réelles (AMENDEMENT-16 §0 — obligation
+               légale, relogée au-dessus de la sheet comme sur la Battle Map) ── */}
           <View style={[styles.scaleBar, { bottom: floatingBottom }]} pointerEvents="none">
-            <View style={[styles.scaleLine, { width: NAV_SCALE_BAR_METERS / NAV_METERS_PER_PIXEL }]} />
+            <View style={[styles.scaleLine, { width: NAV_SCALE_BAR_METERS / NAV_MAP_METERS_PER_PIXEL }]} />
             <Text style={styles.scaleLabel}>{NAV_SCALE_BAR_METERS} m</Text>
+            <Text style={styles.attribution}>© OpenStreetMap © CARTO</Text>
           </View>
 
           {/* ── Bottom sheet : TOUS les chiffres vivent ici ─────────────────── */}
@@ -988,6 +991,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   scaleLabel: { color: colors.gris, fontSize: 9, marginTop: 3, fontVariant: ['tabular-nums'] },
+  attribution: { color: colors.gris, opacity: 0.7, fontSize: 9, marginTop: 2 },
 
   // ── Sheet compacte : 4 chiffres nets + Terminer (appui maintenu) ──
   compactRow: {

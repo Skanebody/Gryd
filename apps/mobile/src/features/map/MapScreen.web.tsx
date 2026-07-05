@@ -9,9 +9,10 @@
  * (§4ter : la frontière EST le tracé — boucles nettes + rubans le long des
  * vraies rues, TOUTES les possessions y compris Lille/Lyon — une seule
  * source pour les deux cartes) servis par battleGameLayers (mapStyle) :
- * remplissages faibles + traits par état (contesté DOUBLE trait décalé dont
- * l'orange PULSE, decay pointillé + sablier/secteur, protégé halo + UN
- * shield/secteur, objectif zone chaude + pin, avant-poste, or de la zone
+ * remplissages faibles + traits NETS par état (AMENDEMENT-16 §0 : zéro
+ * halo/glow — contesté DOUBLE trait décalé dont l'orange PULSE, decay
+ * pointillé + sablier/secteur, protégé trait verify + UN shield/secteur,
+ * objectif aplat + pin, avant-poste, or de la zone
  * bonus), route ouverte, aperçu du parcours sélectionné en source ligne
  * GeoJSON réelle. Au DÉZOOM (§4bis), sous TERRITORY_DOT_MAX_ZOOM, chaque
  * possession devient un marqueur-point + label ville (layers MapLibre bornés

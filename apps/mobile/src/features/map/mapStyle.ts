@@ -44,10 +44,10 @@ export function scaleAlpha(color: string, factor: number): string {
  * FRONTIÈRE par état. Consommé par MapScreen.web (SVG) et MapScreen (MapLibre).
  */
 export const territoryStyle = {
-  // Ton crew : aplat chartreuse discret + frontière fine semi-lumineuse + glow.
+  // Ton crew : aplat chartreuse discret + frontière fine semi-lumineuse.
+  // AMENDEMENT-16 §0 : ZÉRO halo/glow — un trait net + un remplissage faible.
   crewFill: mapTokens.mineFill,
   crewStroke: withAlpha(colors.chartreuse, 0.55),
-  crewGlow: withAlpha(colors.chartreuse, 0.14),
 
   // Rival : frontière orange MARQUÉE (l'état se lit à la frontière).
   rivalFill: withAlpha(gameColors.rival, 0.13),
@@ -58,8 +58,9 @@ export const territoryStyle = {
   contestedInnerStroke: withAlpha(colors.chartreuse, 0.7),
   contestedOuterStroke: withAlpha(gameColors.rival, 0.8),
 
-  // Protégé : halo verify autour du secteur (1 icône shield par secteur).
-  protectedHalo: withAlpha(gameColors.verify, 0.4),
+  // Protégé : trait verify NET le long du tracé (1 icône shield par secteur —
+  // AMENDEMENT-16 §0 : plus de halo, la teinte verify du trait dit l'état).
+  protectedStroke: withAlpha(gameColors.verify, 0.4),
 
   // Zone à défendre (decay) : frontière pointillée — muted red si urgent.
   decayStroke: withAlpha(colors.blanc, 0.45),
@@ -88,10 +89,9 @@ export const territoryStyle = {
 } as const;
 
 export const battleMapStyle = {
-  // Mon crew (chartreuse + glow léger)
+  // Mon crew (chartreuse — trait net, AMENDEMENT-16 §0 : zéro glow)
   heldFill: mapTokens.mineFill,
   heldStroke: mapTokens.mineStroke,
-  heldGlow: withAlpha(colors.chartreuse, 0.14),
 
   // Rival (orange sombre — état de jeu, pas décor)
   rivalFill: withAlpha(gameColors.rival, 0.1),
@@ -102,16 +102,12 @@ export const battleMapStyle = {
   contestedInnerStroke: mapTokens.mineStroke,
   contestedOuterStroke: withAlpha(gameColors.rival, 0.7),
 
-  // Protégé (halo verify translucide autour du cœur)
-  protectedHalo: withAlpha(gameColors.verify, 0.35),
-
   // Decay (pointillé ; muted red si urgent)
   decayStroke: withAlpha(colors.blanc, 0.35),
   decayUrgentStroke: withAlpha(gameColors.danger, 0.8),
   decayUrgentFill: withAlpha(gameColors.danger, 0.07),
 
-  // Objectif crew (halo chartreuse sur zone neutre)
-  objectiveHalo: withAlpha(colors.chartreuse, 0.12),
+  // Objectif crew (trait chartreuse sur zone neutre)
   objectiveStroke: mapTokens.mineStroke,
 
   // Avant-poste (marker hexagonal discret)
@@ -169,18 +165,17 @@ export const battleMapStyle = {
 // la route ouverte, la zone bonus et l'aperçu du parcours sélectionné.
 // UI pure — aucune règle de jeu.
 
-/** Traitements de frontière (§4ter : trait continu 2-2,5 px — px écran). */
+/** Traitements de frontière (§4ter : trait continu 2-2,5 px — px écran).
+    AMENDEMENT-16 §0 : une frontière = CE trait + un remplissage faible,
+    RIEN d'autre — plus aucune couche de lueur/glow sous les traits. */
 const BORDER_WIDTH = 2.2;
 const RIVAL_BORDER_WIDTH = 2.6;
 const CONTESTED_TRAIT_WIDTH = 2.2;
 /** Écart latéral du DOUBLE trait contesté (line-offset ± — §4ter). */
 const CONTESTED_TRAIT_OFFSET_PX = 2.5;
-const CREW_GLOW_WIDTH = 7;
-const PROTECTED_HALO_WIDTH = 5;
 const DECAY_WIDTH = 2.2;
 /** Pointillés MapLibre : multiples de la largeur du trait (≈ « 6 5 » px SVG). */
 const DECAY_DASH: readonly number[] = [3, 2.5];
-const OBJECTIVE_SOFT_WIDTH = 12;
 const ROUTE_WIDTH = 4;
 const BONUS_RING_WIDTH = 2;
 const BONUS_DASH: readonly number[] = [3, 2];
@@ -250,9 +245,10 @@ const parcoursCollectionCache = new Map<string, RealMapData>();
 /**
  * Couches des TERRITOIRES par état, dans l'ORDRE DE PEINTURE — builder PARTAGÉ
  * des deux cartes (§4bis : une seule source, allTerritories ; « Mon
- * territoire » l'appelle avec FULL_EMPHASIS) : rival → objectif (lueur douce +
- * aplat) → crew (glow + aplat + trait 2,2 px) → avant-poste → decay (ruban
- * pointillé, muted red si urgent) → protégé (halo doux le long du trait) →
+ * territoire » l'appelle avec FULL_EMPHASIS) : rival → objectif (aplat léger)
+ * → crew (aplat + trait net 2,2 px — AMENDEMENT-16 §0 : zéro glow) →
+ * avant-poste → decay (ruban pointillé, muted red si urgent) → protégé (trait
+ * verify net) →
  * contesté (§4ter : DOUBLE trait chartreuse/orange décalé sur la portion de
  * tracé partagée — l'orange pulse, plus aucun blob). L'emphase du MODE actif
  * module fills (fillOpacity) et frontières (scaleAlpha) ; MapLibre fond les
@@ -273,26 +269,16 @@ export function territoryStateLayers(emph: ModeEmphasis): RealMapGeoJSONLayer[] 
       lineColor: scaleAlpha(terr.rivalStroke, emph.rival),
       lineWidth: RIVAL_BORDER_WIDTH,
     },
-    // Objectif : zone chaude DOUCE (lueur large sans bord dur) + aplat léger.
-    {
-      id: 'terr-objective-soft',
-      data: stateData('objective'),
-      lineColor: scaleAlpha(terr.objectiveSoft, emph.objective),
-      lineWidth: OBJECTIVE_SOFT_WIDTH,
-    },
+    // Objectif : aplat léger SEUL (AMENDEMENT-16 §0 — plus de lueur large,
+    // le pin marker suffit à désigner la zone).
     {
       id: 'terr-objective',
       data: stateData('objective'),
       fillColor: terr.objectiveFill,
       fillOpacity: emph.objective,
     },
-    // Mon crew : glow + remplissage faible + trait continu (le tracé du run).
-    {
-      id: 'terr-crew-glow',
-      data: stateData('crew'),
-      lineColor: scaleAlpha(terr.crewGlow, emph.crew),
-      lineWidth: CREW_GLOW_WIDTH,
-    },
+    // Mon crew : remplissage faible + trait continu NET (le tracé du run) —
+    // AMENDEMENT-16 §0 : la couche de glow sous le trait a disparu.
     {
       id: 'terr-crew',
       data: stateData('crew'),
@@ -331,13 +317,13 @@ export function territoryStateLayers(emph: ModeEmphasis): RealMapGeoJSONLayer[] 
       lineWidth: DECAY_WIDTH,
       lineDash: DECAY_DASH,
     },
-    // Secteur protégé : halo verify le long du trait (le shield est un marker,
-    // UNE icône par secteur).
+    // Secteur protégé : trait verify NET le long du tracé (le shield est un
+    // marker, UNE icône par secteur — AMENDEMENT-16 §0 : plus de halo).
     {
       id: 'terr-protected',
       data: stateData('protected'),
-      lineColor: scaleAlpha(terr.protectedHalo, emph.defense),
-      lineWidth: PROTECTED_HALO_WIDTH,
+      lineColor: scaleAlpha(terr.protectedStroke, emph.defense),
+      lineWidth: BORDER_WIDTH,
     },
     // Contesté (§4ter) : la PORTION de tracé partagée en DOUBLE trait décalé —
     // chartreuse d'un côté, orange PULSÉ de l'autre. Plus aucun blob.

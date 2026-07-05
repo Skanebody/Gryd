@@ -1,46 +1,37 @@
 /**
  * GRYD — Course Live « navigation type Uber » (AMENDEMENT-09 §3, revu
- * AMENDEMENT-11 : ZÉRO hexagone visible) : données de scène. Le MONDE est le
- * même plan de quartier que la Battle Map (primitives de
- * src/features/map/basemap importées SANS modification), projeté une fois
- * pour toutes en PIXELS-MONDE à l'échelle coureur (cellule H3 res 10 ≈ 130 m
- * ≈ 30 px — même règle gelée que MapScreen). L'itinéraire démo SUIT les rues
- * du plan (boulevard NS → rue de l'Est → quai du canal → retour), avec :
- *   - un tracé PLANIFIÉ (court) et un tracé RÉEL (le coureur rate le virage
- *     du quai) → « Déviation — itinéraire recalculé », la route restante se
- *     redessine au tick de déviation (démo scriptée, pas de vrai routing) ;
- *   - des checkpoints nommés (virage + distance), une destination ;
- *   - les ZONES traversées (cellules H3 — moteur invisible) accumulées dans
- *     l'ordre : LiveNavMap les fusionne en territoire ORGANIQUE via
- *     territory.ts (« la trainée-zone grossit », jamais une grille) ;
+ * AMENDEMENT-11 : ZÉRO hexagone visible ; AMENDEMENT-16 §0 : VRAIE CARTE) :
+ * données de scène 100 % GÉO RÉEL. La basemap procédurale a disparu — la
+ * Course Live est posée sur les vraies tuiles (RealMap, comme la Battle Map),
+ * ce module ne produit plus que la GÉOMÉTRIE DE JEU :
+ *   - l'itinéraire suit les polylignes ROUTÉES rue par rue du Route Planner
+ *     (route/demo.ts — OSRM foot figé à l'authoring, « pas de vol d'oiseau ») ;
+ *   - sans `route=<id>`, le SCÉNARIO PAR DÉFAUT emprunte la géométrie routée
+ *     de la Route B (canal Saint-Martin) : le PLAN s'arrête au bas du
+ *     Faubourg-du-Temple, le coureur part en pointe de raid vers Belleville →
+ *     « Déviation — itinéraire recalculé », la route restante se redessine
+ *     (démo scriptée, pas de vrai routing) ;
+ *   - des checkpoints nommés (vrais lieux du canal), une destination ;
+ *   - les ZONES traversées (cellules H3 réelles — moteur invisible) accumulées
+ *     dans l'ordre : LiveNavMap rend ruban/boucle NETS via allTerritories ;
  *   - un SCRIPT de feedback (toasts + haptics) : « Secteur pris · +N zones »,
  *     record segment (1×), déviation (1×), checkpoints, arrivée.
- * AMENDEMENT-13 §4ter : si `route=<id>` pointe une proposition du Route
- * Planner, la simulation SUIT sa polyligne ROUTÉE rue par rue (demo.ts —
- * recentrée sur le monde de nav : les formes réelles des rues sont
- * conservées, la basemap procédurale reste le décor de cette passe).
- * Purement présentation : AUCUNE règle de jeu ici — zones/points « estimés »
- * viennent de la simulation, le serveur (ingest_run) reste seul décideur.
+ * Le « monde pixels » ne survit qu'en INTERNE (échelle coureur gelée ~4,33
+ * m/px, ancrée place de la République) : loop.ts et les ticks continuent de
+ * raisonner en px, worldToGeo rend des lat/lng RÉELS (projetables tels quels
+ * sur les tuiles). Purement présentation : AUCUNE règle de jeu ici — zones et
+ * points « estimés » viennent de la simulation, le serveur (ingest_run) reste
+ * seul décideur.
  */
-import { cellToLatLng, latLngToCell } from 'h3-js';
+import { latLngToCell } from 'h3-js';
 import { H3_RESOLUTION, colors, gameColors, type IconName } from '@klaim/shared';
 import type { RoutePoint } from '../../ui/game';
 import {
-  BASEMAP_CENTER,
-  BLOCKS,
-  CANAL,
-  CANAL_BANK_WIDTH_M,
-  CANAL_WIDTH_M,
-  MAIN_AXES,
-  MINOR_AXES,
-  M_PER_DEG_LAT,
-  M_PER_DEG_LNG,
-  PARKS,
-  SECTOR_LABELS,
-  STREET_MAJOR_WIDTH_M,
-  STREET_MINOR_WIDTH_M,
+  EGO_REPUBLIQUE,
+  REAL_M_PER_DEG_LAT,
+  RUNNER_SCALE_ZOOM,
   type LatLngPoint,
-} from '../map/basemap';
+} from '../map/realAnchors';
 import { ROUTES_DEMO } from '../route/demo';
 import type { PlannedRouteDemo } from '../route/types';
 import { SIM_SECONDS_PER_TICK, type RunSimulation } from './simulation';
@@ -56,179 +47,95 @@ export const NAV_METERS_PER_PIXEL = HEX_DIAMETER_M / HEX_TARGET_PX;
 /** Barre d'échelle graphique (bas gauche) — parité Battle Map. */
 export const NAV_SCALE_BAR_METERS = 500;
 
-// ─── Monde en pixels (emprise du plan de quartier autour du centre égocentré) ─
+// ─── Ancrage GÉO RÉEL du monde interne (AMENDEMENT-16 §0) ────────────────────
+// Les ticks vivent en pixels (loop.ts, distances) mais l'ancre du monde est le
+// DÉPART RÉEL des parcours démo (place de la République, angle sud-est) : le
+// roundtrip geoToWorld/worldToGeo restitue les lat/lng réels au micromètre —
+// les tracés se projettent tels quels sur les vraies tuiles.
+
+/** Ancre géo du monde de nav = départ commun des parcours routés (République). */
+const NAV_GEO_ANCHOR: LatLngPoint = ROUTES_DEMO[0]?.line[0] ?? EGO_REPUBLIQUE;
+/** Mètres par degré de longitude à l'ancre (cos φ). */
+const NAV_M_PER_DEG_LNG =
+  REAL_M_PER_DEG_LAT * Math.cos((NAV_GEO_ANCHOR.lat * Math.PI) / 180);
+
+/** Circonférence terrestre (m) — géodésie, pas une règle de jeu. */
+const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
+/** Monde MapLibre = 512 px × 2^zoom (tuiles vectorielles 512). */
+const MAP_WORLD_TILE_PX = 512;
+/**
+ * Mètres par pixel ÉCRAN de la VRAIE carte à l'échelle coureur (zoom
+ * RUNNER_SCALE_ZOOM, latitude de l'ancre) — sert au décalage caméra et à la
+ * barre d'échelle de la Course Live (AMENDEMENT-16 §0 : la carte est réelle,
+ * l'ex-échelle du monde px interne ne décrit plus l'écran).
+ */
+export const NAV_MAP_METERS_PER_PIXEL =
+  (EARTH_CIRCUMFERENCE_M * Math.cos((NAV_GEO_ANCHOR.lat * Math.PI) / 180)) /
+  (MAP_WORLD_TILE_PX * 2 ** RUNNER_SCALE_ZOOM);
 
 /**
- * Demi-emprise du monde (m). Élargie pour contenir les 3 parcours ROUTÉS du
- * planner recentrés sur l'ego (§4ter — la Route C pousse à ~1,65 km à l'est,
- * la Route B à ~1,9 km au nord) ; au-delà de la couverture d'îlots de la
- * basemap, le fond noir affleure (états offline/chargement, A-13 §5).
+ * Demi-emprise du monde interne (m) — contient les 3 parcours routés
+ * (Père-Lachaise ~1,65 km à l'est, pointe nord du canal ~1,4 km).
  */
 const WORLD_HALF_WIDTH_M = 1_750;
 const WORLD_HALF_HEIGHT_M = 2_250;
-/** Taille du monde en px (le conteneur animé que la caméra translate). */
-export const NAV_WORLD_W = Math.round((2 * WORLD_HALF_WIDTH_M) / NAV_METERS_PER_PIXEL);
-export const NAV_WORLD_H = Math.round((2 * WORLD_HALF_HEIGHT_M) / NAV_METERS_PER_PIXEL);
 
-/** lat/lng (basemap) → pixels-monde (origine coin haut-gauche, y vers le bas). */
+/** lat/lng RÉELS → pixels-monde interne (origine haut-gauche, y vers le bas). */
 function geoToWorld(p: LatLngPoint): RoutePoint {
   return {
-    x: ((p.lng - BASEMAP_CENTER.lng) * M_PER_DEG_LNG + WORLD_HALF_WIDTH_M) / NAV_METERS_PER_PIXEL,
-    y: (WORLD_HALF_HEIGHT_M - (p.lat - BASEMAP_CENTER.lat) * M_PER_DEG_LAT) / NAV_METERS_PER_PIXEL,
+    x:
+      ((p.lng - NAV_GEO_ANCHOR.lng) * NAV_M_PER_DEG_LNG + WORLD_HALF_WIDTH_M) /
+      NAV_METERS_PER_PIXEL,
+    y:
+      (WORLD_HALF_HEIGHT_M - (p.lat - NAV_GEO_ANCHOR.lat) * REAL_M_PER_DEG_LAT) /
+      NAV_METERS_PER_PIXEL,
   };
 }
 
-/** (x m est, y m nord) depuis le centre égocentré → pixels-monde. */
-function metersToWorld(xEast: number, yNorth: number): RoutePoint {
-  return {
-    x: (xEast + WORLD_HALF_WIDTH_M) / NAV_METERS_PER_PIXEL,
-    y: (WORLD_HALF_HEIGHT_M - yNorth) / NAV_METERS_PER_PIXEL,
-  };
-}
-
-// ─── Zones H3 traversées (moteur INVISIBLE — AMENDEMENT-11) ──────────────────
-// Plus aucune grille : les cellules H3 servent uniquement d'unités de capture
-// que territory.ts fusionne en zone organique côté rendu.
-
-/** Pixels-monde → lat/lng (inverse de geoToWorld — latLngToCell, boucle §12). */
+/** Pixels-monde interne → lat/lng RÉELS (inverse exact de geoToWorld). */
 export function worldToGeo(x: number, y: number): LatLngPoint {
   return {
-    lat: BASEMAP_CENTER.lat + (WORLD_HALF_HEIGHT_M - y * NAV_METERS_PER_PIXEL) / M_PER_DEG_LAT,
-    lng: BASEMAP_CENTER.lng + (x * NAV_METERS_PER_PIXEL - WORLD_HALF_WIDTH_M) / M_PER_DEG_LNG,
+    lat:
+      NAV_GEO_ANCHOR.lat +
+      (WORLD_HALF_HEIGHT_M - y * NAV_METERS_PER_PIXEL) / REAL_M_PER_DEG_LAT,
+    lng:
+      NAV_GEO_ANCHOR.lng +
+      (x * NAV_METERS_PER_PIXEL - WORLD_HALF_WIDTH_M) / NAV_M_PER_DEG_LNG,
   };
 }
 
-/** Projection lng/lat → pixels-monde (anneaux §4ter d'allTerritories → SVG). */
-export function navProject(lng: number, lat: number): { x: number; y: number } {
-  return geoToWorld({ lat, lng });
-}
+// ─── Scénario PAR DÉFAUT (sans `route=`) : géométrie ROUTÉE de la Route B ───
+// La démo de déviation reste, mais sur de VRAIES rues : le plan descend le
+// quai et rentre par le bas du Faubourg-du-Temple ; le coureur, lui, part en
+// pointe de raid jusqu'à Belleville (les sommets 29→38 de la Route B) — la
+// fourche est un vrai coin de rue, chaque segment une vraie rue.
 
-/** Centre pixels-monde d'une zone H3 (anneau de pulse au front de capture). */
-export function cellCenterWorld(cell: string): RoutePoint {
-  const [lat, lng] = cellToLatLng(cell);
-  return geoToWorld({ lat, lng });
-}
+/** Hôte du scénario par défaut : la Route B (canal), polyligne OSRM figée. */
+const DEFAULT_HOST_ROUTE_ID = 'route_b_optimisee';
+/** Sommet de la FOURCHE (croisement quai × Faubourg-du-Temple, départ raid). */
+const DEFAULT_FORK_INDEX = 29;
+/** Premier sommet du retour direct (le plan saute la pointe de raid). */
+const DEFAULT_REJOIN_INDEX = 38;
 
-// ─── Basemap projetée en pixels-monde (mêmes primitives que la Battle Map) ──
-
-export interface NavWorld {
-  w: number;
-  h: number;
-  /** Îlots urbains pleins — UN path concaténé (ordre de peinture basemap). */
-  blocksD: string;
-  minorAxesD: readonly string[];
-  axesD: readonly string[];
-  canalD: string;
-  parksD: readonly string[];
-  labels: readonly { name: string; x: number; y: number }[];
-  /** Largeurs de voirie converties en px (constantes basemap). */
-  minorPx: number;
-  majorPx: number;
-  majorCasingPx: number;
-  canalPx: number;
-  canalBankPx: number;
-}
-
-function lineD(pts: readonly LatLngPoint[], close = false): string {
-  const d = pts
-    .map((p, i) => {
-      const { x, y } = geoToWorld(p);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(' ');
-  return close ? `${d} Z` : d;
-}
-
-/** Marge de culling des îlots hors monde (px) — plus grand îlot ~150 m. */
-const BLOCK_CULL_MARGIN_PX = 150 / NAV_METERS_PER_PIXEL;
-
-function buildNavWorld(): NavWorld {
-  const inWorld = (ring: readonly LatLngPoint[]): boolean =>
-    ring.some((p) => {
-      const { x, y } = geoToWorld(p);
-      return (
-        x >= -BLOCK_CULL_MARGIN_PX &&
-        x <= NAV_WORLD_W + BLOCK_CULL_MARGIN_PX &&
-        y >= -BLOCK_CULL_MARGIN_PX &&
-        y <= NAV_WORLD_H + BLOCK_CULL_MARGIN_PX
-      );
-    });
-  return {
-    w: NAV_WORLD_W,
-    h: NAV_WORLD_H,
-    blocksD: BLOCKS.filter(inWorld)
-      .map((ring) => lineD(ring, true))
-      .join(' '),
-    minorAxesD: MINOR_AXES.map((street) => lineD(street)),
-    axesD: MAIN_AXES.map((axis) => lineD(axis)),
-    canalD: lineD(CANAL),
-    parksD: PARKS.map((ring) => lineD(ring, true)),
-    labels: SECTOR_LABELS.map((s) => ({ name: s.name, ...geoToWorld(s) })),
-    minorPx: STREET_MINOR_WIDTH_M / NAV_METERS_PER_PIXEL,
-    majorPx: STREET_MAJOR_WIDTH_M / NAV_METERS_PER_PIXEL,
-    majorCasingPx: STREET_MAJOR_WIDTH_M / NAV_METERS_PER_PIXEL + 2,
-    canalPx: CANAL_WIDTH_M / NAV_METERS_PER_PIXEL,
-    canalBankPx: CANAL_BANK_WIDTH_M / NAV_METERS_PER_PIXEL,
-  };
-}
-
-/** Monde partagé, construit une fois (déterministe — données basemap). */
-export const NAV_WORLD: NavWorld = buildNavWorld();
-
-// ─── Itinéraire démo (mètres autour du centre — suit les rues du plan) ──────
-
-/**
- * Préfixe COMMUN planifié/réel : départ maison → nord sur le boulevard →
- * rue de l'Est vers le quai → quai du canal vers le sud, jusqu'à la fourche.
- */
-const ROUTE_PREFIX_M: readonly (readonly [number, number])[] = [
-  [-100, -60],
-  [-96, 180],
-  [-88, 460],
-  [-78, 720],
-  [-70, 860], // C1 : à droite sur la rue de l'Est
-  [40, 872],
-  [160, 880],
-  [262, 888], // C2 : au sud sur le quai du canal
-  [266, 640],
-  [258, 320],
-  [252, 20],
-  [255, -92], // fourche : le plan tournait ici (le coureur file tout droit)
-];
-
-/** Fin PLANIFIÉE (courte) : à l'ouest à la fourche, puis retour maison. */
-const ROUTE_PLANNED_TAIL_M: readonly (readonly [number, number])[] = [
-  [90, -108],
-  [-60, -122],
-  [-102, -116],
-  [-100, -60],
-];
-
-/** Fin RÉELLE (recalculée) : le quai continue au sud, boucle plus large. */
-const ROUTE_ACTUAL_TAIL_M: readonly (readonly [number, number])[] = [
-  [260, -320],
-  [268, -620],
-  [272, -880], // C3 : à droite, rue du Bassin
-  [120, -895],
-  [-30, -908],
-  [-108, -902], // C4 : au nord sur le boulevard
-  [-116, -620],
-  [-110, -320],
-  [-100, -60], // arrivée = maison (boucle)
+const DEFAULT_ACTUAL_GEO: readonly LatLngPoint[] =
+  ROUTES_DEMO.find((r) => r.id === DEFAULT_HOST_ROUTE_ID)?.line ?? [];
+const DEFAULT_PLANNED_GEO: readonly LatLngPoint[] = [
+  ...DEFAULT_ACTUAL_GEO.slice(0, DEFAULT_FORK_INDEX),
+  ...DEFAULT_ACTUAL_GEO.slice(DEFAULT_REJOIN_INDEX),
 ];
 
 /** Checkpoints nommés : index de sommet dans la polyline correspondante. */
 const CHECKPOINTS_PLANNED: readonly { index: number; label: string }[] = [
-  { index: 4, label: "Rue de l'Est" },
-  { index: 7, label: 'Quai du canal' },
-  { index: 11, label: 'Rue de Charonne' },
-  { index: 14, label: 'Boulevard maison' },
+  { index: 6, label: 'Passerelle Alibert' },
+  { index: 11, label: 'Écluse des Récollets' },
+  { index: 15, label: 'Rue Louis-Blanc' },
+  { index: 30, label: 'Faubourg-du-Temple' },
 ];
 const CHECKPOINTS_ACTUAL: readonly { index: number; label: string }[] = [
-  { index: 4, label: "Rue de l'Est" },
-  { index: 7, label: 'Quai du canal' },
-  { index: 14, label: 'Rue du Bassin' },
-  { index: 17, label: 'Boulevard maison' },
+  { index: 6, label: 'Passerelle Alibert' },
+  { index: 11, label: 'Écluse des Récollets' },
+  { index: 15, label: 'Rue Louis-Blanc' },
+  { index: 32, label: 'Carrefour Belleville' },
 ];
 
 // ─── Itinéraire ROUTÉ sélectionné (AMENDEMENT-13 §4ter — `route=<id>`) ──────
@@ -252,23 +159,6 @@ function plannedRouteFromParam(
       const letter = r.letter.toLowerCase();
       return norm === id || norm === `route-${letter}` || norm === letter;
     }) ?? null
-  );
-}
-
-/**
- * Polyligne ROUTÉE recentrée sur le monde de nav : les parcours du planner
- * sont ancrés sur le VRAI Paris (République, realAnchors) alors que le monde
- * procédural est centré BASEMAP_CENTER — on conserve les OFFSETS MÈTRES réels
- * du tracé (chaque segment reste une rue réelle, « pas de vol d'oiseau ») en
- * posant le DÉPART sur le centre égocentré « moi ». Le décor procédural reste
- * celui de cette passe (A-13 §2 — bascule tuiles réelles = étape suivante).
- */
-function routedWorldPoints(route: PlannedRouteDemo): RoutePoint[] {
-  const origin = route.line[0];
-  if (!origin) return [];
-  const mPerDegLng = M_PER_DEG_LAT * Math.cos((origin.lat * Math.PI) / 180);
-  return route.line.map((p) =>
-    metersToWorld((p.lng - origin.lng) * mPerDegLng, (p.lat - origin.lat) * M_PER_DEG_LAT),
   );
 }
 
@@ -344,7 +234,6 @@ export interface NavCheckpoint {
 }
 
 export interface LiveNav {
-  world: NavWorld;
   /** Itinéraire affiché avant la déviation (plan court). */
   plannedPoints: readonly RoutePoint[];
   plannedTotal: number;
@@ -356,7 +245,7 @@ export interface LiveNav {
   destination: RoutePoint;
   /**
    * Zones H3 capturées, dans l'ordre de capture (préfixées par litCount).
-   * LiveNavMap les fusionne en territoire organique via cellsToTerritory.
+   * LiveNavMap rend le ruban/la boucle NETS depuis la trace (§4ter).
    */
   litCells: readonly string[];
   ticks: readonly NavTick[];
@@ -379,19 +268,16 @@ export function buildLiveNav(
   routeParam?: string | string[],
 ): LiveNav {
   const routed = plannedRouteFromParam(routeParam);
-  const routedPoints = routed ? routedWorldPoints(routed) : null;
-  const plannedPoints: RoutePoint[] =
-    routedPoints ??
-    [...ROUTE_PREFIX_M, ...ROUTE_PLANNED_TAIL_M].map(([x, y]) => metersToWorld(x, y));
-  const actualPoints: RoutePoint[] =
-    routedPoints ??
-    [...ROUTE_PREFIX_M, ...ROUTE_ACTUAL_TAIL_M].map(([x, y]) => metersToWorld(x, y));
+  const plannedGeo = routed ? routed.line : DEFAULT_PLANNED_GEO;
+  const actualGeo = routed ? routed.line : DEFAULT_ACTUAL_GEO;
+  const plannedPoints: RoutePoint[] = plannedGeo.map(geoToWorld);
+  const actualPoints: RoutePoint[] = actualGeo.map(geoToWorld);
   const plannedCum = cumulativeLengths(plannedPoints);
   const actualCum = cumulativeLengths(actualPoints);
   const plannedTotal = plannedCum[plannedCum.length - 1] ?? 0;
   const actualTotal = actualCum[actualCum.length - 1] ?? 0;
   /** Longueur du préfixe commun (la fourche) — jamais atteinte si routé. */
-  const forkLen = routedPoints ? Infinity : actualCum[ROUTE_PREFIX_M.length - 1] ?? 0;
+  const forkLen = routed ? Infinity : actualCum[DEFAULT_FORK_INDEX] ?? 0;
 
   const lastIndex = sim.ticks.length - 1;
   const totalDistanceM = Math.max(1, sim.ticks[lastIndex]?.distanceM ?? 1);
@@ -428,7 +314,7 @@ export function buildLiveNav(
 
   // Routé (§4ter) : plan = réel, la déviation n'arrive JAMAIS (tick hors plage).
   const deviationIdx = ticks.findIndex((t) => t.lenPx > forkLen);
-  const deviationTick = routedPoints
+  const deviationTick = routed
     ? lastIndex + 1
     : deviationIdx === -1
       ? lastIndex
@@ -447,13 +333,13 @@ export function buildLiveNav(
   };
   // Les checkpoints nommés appartiennent au SCÉNARIO par défaut (sommets de
   // ses polylignes) — un parcours routé n'en scripte pas (« Arrivée » reste).
-  const checkpointsPlanned = routedPoints
+  const checkpointsPlanned = routed
     ? []
     : CHECKPOINTS_PLANNED.map((c) => ({
         ...checkpointOf(plannedPoints, plannedCum, c.index, c.label),
         tick: -1,
       }));
-  const checkpointsActual = routedPoints
+  const checkpointsActual = routed
     ? []
     : CHECKPOINTS_ACTUAL.map((c) =>
         checkpointOf(actualPoints, actualCum, c.index, c.label),
@@ -484,7 +370,7 @@ export function buildLiveNav(
     tint: colors.chartreuse,
     haptic: 'medium',
   });
-  if (!routedPoints) {
+  if (!routed) {
     // Le scénario de déviation n'existe que sur le parcours par défaut.
     place(deviationTick, {
       kind: 'deviation',
@@ -532,7 +418,6 @@ export function buildLiveNav(
   }
 
   return {
-    world: NAV_WORLD,
     plannedPoints,
     plannedTotal,
     actualPoints,

@@ -1,331 +1,165 @@
 /**
- * GRYD — carte du ROUTE PLANNER (AMENDEMENT-10 §2, AMENDEMENT-11 §3 — régime
- * USAGE RÉEL : contraste max, zéro glass, zéro décor ; AMENDEMENT-13 §4ter :
- * plus AUCUN blob — les territoires d'arrière-plan sont les TRACÉS DE COURSE
- * nets d'allTerritories, la bande capturable est le RUBAN net du tracé).
+ * GRYD — carte du ROUTE PLANNER (AMENDEMENT-10 §2, AMENDEMENT-11 §3 ;
+ * AMENDEMENT-16 §0 : VRAIES TUILES + ZÉRO HALO). La carte est un RealMap
+ * (maplibre — même carte réelle que la Battle Map et la Course Live), la
+ * basemap procédurale a disparu : les vraies rues portent le décor.
  * HIÉRARCHIE ABSOLUE (doc territoires §9/§10) — « la route écrase tout » :
  *   1. ROUTE ÉPAISSE chartreuse (liseré sombre, flèches de direction,
- *      départ/arrivée) — polyligne ROUTÉE rue par rue (demo.ts) ;
- *   2. position actuelle (point « moi ») ;
- *   3. rues / chemins / parcs (basemap quartier Uber-night) ;
- *   4. zones capturables LÉGÈREMENT LUMINEUSES — ruban net (~2 zones de
- *      large) le long du tracé (AUCUN hexagone, moteur H3 invisible) ;
- *   5. territoires en TRANSPARENCE (opacités MODE_EMPHASIS.route) — mêmes
- *      géométries tracé-based que la Battle Map (une seule source) ;
- *   6. frontières secondaires (traits fins, jamais dominants ; contesté =
- *      double trait chartreuse+orange décalé).
- * Rendu SVG pur (react-native-svg — web ET natif), échelle ajustée pour cadrer
- * la proposition entière (plancher = échelle coureur gelée ~4,33 m/px).
- * Statique et déterministe : aucune animation (lecture 1 seconde, plein
- * soleil) — le changement de route re-projette simplement la scène.
+ *      départ/arrivée) — polyligne ROUTÉE rue par rue (demo.ts) en source
+ *      GeoJSON réelle ;
+ *   2. position actuelle (point « moi » — halo type Uber, seul halo conservé) ;
+ *   3. vraies tuiles (rues/parcs/eau réels) ;
+ *   4. zones capturables : RUBAN NET (~2 zones de large) le long du tracé
+ *      (allTerritories.ribbonRing — remplissage faible + trait fin, AUCUNE
+ *      lueur, AUCUN hexagone) ;
+ *   5. territoires en TRANSPARENCE (territoryStateLayers × MODE_EMPHASIS.route
+ *      — MÊME builder que la Battle Map, une seule source, traits nets §4ter).
+ * Le changement de route RECADRE la caméra (fitBounds de la polyligne — le
+ * tap A/B/C recentre). Statique par ailleurs : lecture 1 seconde, plein
+ * soleil. Offline : fallback RealMap (fond noir + message), jamais d'écran
+ * blanc. UI pure — aucune règle de jeu.
  */
-import { useMemo, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
-import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
+import { useEffect, useMemo, useRef } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { colors } from '@klaim/shared';
 import {
-  BLOCKS,
-  CANAL,
-  CANAL_BANK_WIDTH_M,
-  CANAL_WIDTH_M,
-  MAIN_AXES,
-  MINOR_AXES,
-  M_PER_DEG_LAT,
-  M_PER_DEG_LNG,
-  PARKS,
-  SECTOR_LABELS,
-  STREET_MAJOR_WIDTH_M,
-  STREET_MINOR_WIDTH_M,
-  type LatLngPoint,
-} from '../map/basemap';
+  RealMap,
+  type RealMapBounds,
+  type RealMapGeoJSONLayer,
+  type RealMapMarker,
+  type RealMapRef,
+} from '../../ui/game';
+import { CORRIDOR_HALF_WIDTH_M, ribbonRing } from '../map/allTerritories';
 import {
-  CORRIDOR_HALF_WIDTH_M,
-  ribbonRing,
-  territoryGeoByState,
-} from '../map/allTerritories';
-import { battleMapStyle as ms, territoryStyle as terr } from '../map/mapStyle';
-import { EGO_REPUBLIQUE } from '../map/realAnchors';
-import { MODE_EMPHASIS, type TerritoryState } from '../map/territory';
+  scaleAlpha,
+  territoryStateLayers,
+  territoryStyle as terr,
+  withAlpha,
+} from '../map/mapStyle';
+import {
+  EGO_REPUBLIQUE,
+  REAL_M_PER_DEG_LAT,
+  type LatLngPoint,
+} from '../map/realAnchors';
+import { MODE_EMPHASIS } from '../map/territory';
 import type { PlannedRouteDemo } from './types';
 
-// ─── Échelle (AMENDEMENT-08 §4 gelée : ~130 m ≈ 30 px → ~4,33 m/px) ─────────
-const ZONE_DIAMETER_M = 130;
-const ZONE_TARGET_PX = 30;
-const BASE_METERS_PER_PIXEL = ZONE_DIAMETER_M / ZONE_TARGET_PX;
+// ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
+
 /** Marge de cadrage autour du tracé (px) — la route ne colle jamais au bord. */
 const FIT_PADDING_PX = 34;
-/** Culling des îlots : marge = plus grand îlot (~150 m). */
-const BLOCK_CULL_MARGIN_M = 150;
 
-// ─── Hiérarchie 1 : la route (plus épaisse que la Battle Map — route-first) ──
+// Hiérarchie 1 : la route (plus épaisse que la Battle Map — route-first).
 const ROUTE_WIDTH = 6;
 const ROUTE_CASING_EXTRA = 3;
-/** Une flèche de direction tous les N px du tracé. */
-const ARROW_SPACING_PX = 84;
+/** Une flèche de direction tous les N mètres du tracé. */
+const ARROW_SPACING_M = 360;
 /** Première flèche décalée du départ (le marker départ occupe la place). */
-const ARROW_FIRST_OFFSET_PX = 46;
+const ARROW_FIRST_OFFSET_M = 200;
 /** Marker départ/arrivée. */
-const START_DOT_R = 6;
-const END_DOT_R = 4.5;
+const START_DOT_SIZE = 12;
+const END_DOT_SIZE = 9;
+/** Boucle si départ et arrivée à moins de N mètres. */
+const LOOP_CLOSE_EPSILON_M = 26;
 
-// ─── Hiérarchie 2 : position actuelle ───────────────────────────────────────
-const EGO_DOT_R = 5;
-const EGO_HALO_R = 11;
+// Hiérarchie 2 : position actuelle (« moi »).
+const EGO_DOT_SIZE = 10;
+const EGO_HALO_SIZE = 22;
 
-// ─── Hiérarchies 4-6 : zones capturables + territoires en transparence ──────
-/** Lueur douce de la bande capturable (LÉGÈREMENT lumineuse, pas de bord dur). */
-const CAPTURABLE_SOFT_WIDTH = 6;
-/** Frontières SECONDAIRES : plus fines que sur la Battle Map (route-first). */
-const SECONDARY_BORDER_WIDTH = 1.2;
-const SECONDARY_RIVAL_WIDTH = 1.6;
-const SECONDARY_DECAY_DASH = '5 5';
+// Hiérarchie 4 : ruban net des zones capturables (§4ter — zéro lueur).
+const CAPTURABLE_BORDER_WIDTH = 1.2;
 
-// ─── Voirie (mêmes conversions que la Battle Map, à l'échelle de la scène) ──
+type PlannerCollection = RealMapGeoJSONLayer['data'];
 
-interface XY {
-  x: number;
-  y: number;
+/** Anneau [lng, lat] fermé → FeatureCollection Polygon (vide si dégénéré). */
+function polygonCollection(ring: readonly [number, number][]): PlannerCollection {
+  const first = ring[0];
+  if (!first || ring.length < 3) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [[...ring.map((p) => [...p]), [...first]]] },
+        properties: {},
+      },
+    ],
+  };
 }
 
-interface PlannerScene {
-  /** Mètres par pixel de la scène (cadrage de la route). */
-  mpp: number;
-  blocksD: string;
-  minorAxesD: string[];
-  axesCasingPx: number;
-  axesPx: number;
-  axesD: string[];
-  canalD: string;
-  canalPx: number;
-  canalBankPx: number;
-  parksD: string[];
-  labels: { name: string; x: number; y: number }[];
-  /** Territoires TRACÉ-BASED par état (§4ter — '' si absent/hors champ). */
-  terri: Record<TerritoryState, string>;
-  /** Portion de tracé contestée : double trait décalé (paires de polylignes). */
-  contestedD: { inner: string; outer: string }[];
-  /** Ruban NET des zones capturables le long du tracé (§4ter). */
-  capturableD: string;
-  routeD: string;
-  arrows: { x: number; y: number; deg: number }[];
-  start: XY;
-  end: XY;
-  loop: boolean;
-  ego: XY;
+/** Polyline lat/lng → FeatureCollection LineString. */
+function lineCollection(points: readonly LatLngPoint[]): PlannerCollection {
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: points.map((p) => [p.lng, p.lat]) },
+        properties: {},
+      },
+    ],
+  };
 }
 
-/** Marge de culling des territoires hors scène (px) — évite les paths France. */
-const TERRITORY_CULL_MARGIN_PX = 400;
-/** Écart latéral du DOUBLE trait contesté (§4ter — px, parité mapStyle). */
-const CONTESTED_OFFSET_PX = 2;
-
-/** Anneau [lng, lat] → path SVG fermé (projection écran fournie). */
-function ringToPath(
-  ring: readonly (readonly number[])[],
-  toXY: (lng: number, lat: number) => XY,
-): string {
-  let d = '';
-  ring.forEach((pt, i) => {
-    const { x, y } = toXY(pt[0] ?? 0, pt[1] ?? 0);
-    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-  });
-  return `${d} Z`;
-}
-
-/** Au moins un point de l'anneau tombe près de la scène ? (culling France). */
-function ringNearScene(
-  ring: readonly (readonly number[])[],
-  toXY: (lng: number, lat: number) => XY,
-  width: number,
-  height: number,
-): boolean {
-  return ring.some((pt) => {
-    const { x, y } = toXY(pt[0] ?? 0, pt[1] ?? 0);
-    return (
-      x >= -TERRITORY_CULL_MARGIN_PX &&
-      x <= width + TERRITORY_CULL_MARGIN_PX &&
-      y >= -TERRITORY_CULL_MARGIN_PX &&
-      y <= height + TERRITORY_CULL_MARGIN_PX
-    );
-  });
-}
-
-/** Polyligne écran décalée perpendiculairement de `offset` px (double trait). */
-function offsetPolyline(points: readonly XY[], offset: number): string {
-  if (points.length < 2) return '';
-  let d = '';
-  for (let i = 0; i < points.length; i += 1) {
-    const prev = points[Math.max(0, i - 1)];
-    const next = points[Math.min(points.length - 1, i + 1)];
-    const p = points[i];
-    if (!prev || !next || !p) continue;
-    const dx = next.x - prev.x;
-    const dy = next.y - prev.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const x = p.x + (-dy / len) * offset;
-    const y = p.y + (dx / len) * offset;
-    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-  }
-  return d;
-}
-
-/** Longueurs cumulées d'une polyline écran. */
-function cumulative(points: readonly XY[]): number[] {
-  const cum: number[] = [0];
-  for (let i = 1; i < points.length; i += 1) {
-    const a = points[i - 1];
-    const b = points[i];
-    cum.push((cum[i - 1] ?? 0) + (a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0));
-  }
-  return cum;
-}
-
-/** Point + cap (degrés) à `len` px du départ le long de la polyline. */
-function pointHeadingAt(
-  points: readonly XY[],
-  cum: number[],
-  len: number,
-): { x: number; y: number; deg: number } | null {
-  for (let i = 1; i < points.length; i += 1) {
-    const end = cum[i] ?? 0;
-    if (end < len) continue;
-    const start = cum[i - 1] ?? 0;
-    const a = points[i - 1];
-    const b = points[i];
-    if (!a || !b) return null;
-    const t = end === start ? 0 : (len - start) / (end - start);
-    return {
-      x: a.x + (b.x - a.x) * t,
-      y: a.y + (b.y - a.y) * t,
-      deg: (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI,
-    };
-  }
-  return null;
-}
-
-/** Projette basemap + territoires + route dans un canevas width×height. */
-function buildScene(route: PlannedRouteDemo, width: number, height: number): PlannerScene {
-  // Cadrage : bbox du tracé, échelle plancher = échelle coureur gelée.
+/** Bounds de cadrage de la proposition (fitBounds — le tap A/B/C recentre). */
+function routeBounds(line: readonly LatLngPoint[]): RealMapBounds {
   let minLat = Infinity;
   let maxLat = -Infinity;
   let minLng = Infinity;
   let maxLng = -Infinity;
-  for (const p of route.line) {
+  for (const p of line) {
     minLat = Math.min(minLat, p.lat);
     maxLat = Math.max(maxLat, p.lat);
     minLng = Math.min(minLng, p.lng);
     maxLng = Math.max(maxLng, p.lng);
   }
-  const centre: LatLngPoint = { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 };
-  const spanXm = (maxLng - minLng) * M_PER_DEG_LNG;
-  const spanYm = (maxLat - minLat) * M_PER_DEG_LAT;
-  const fitW = Math.max(1, width - FIT_PADDING_PX * 2);
-  const fitH = Math.max(1, height - FIT_PADDING_PX * 2);
-  const mpp = Math.max(BASE_METERS_PER_PIXEL, spanXm / fitW, spanYm / fitH);
+  return { sw: [minLng, minLat], ne: [maxLng, maxLat], paddingPx: FIT_PADDING_PX };
+}
 
-  const toXY = (lng: number, lat: number): XY => ({
-    x: width / 2 + ((lng - centre.lng) * M_PER_DEG_LNG) / mpp,
-    y: height / 2 - ((lat - centre.lat) * M_PER_DEG_LAT) / mpp,
-  });
-  const pointXY = (p: LatLngPoint): XY => toXY(p.lng, p.lat);
-  const lineD = (pts: readonly LatLngPoint[], close = false): string => {
-    const d = pts
-      .map((p, i) => {
-        const { x, y } = pointXY(p);
-        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-      })
-      .join(' ');
-    return close ? `${d} Z` : d;
-  };
+/** Distance locale (m) entre deux points (équirectangulaire — échelle quartier). */
+function localDistanceM(a: LatLngPoint, b: LatLngPoint): number {
+  const mPerDegLng = REAL_M_PER_DEG_LAT * Math.cos((a.lat * Math.PI) / 180);
+  return Math.hypot((b.lng - a.lng) * mPerDegLng, (b.lat - a.lat) * REAL_M_PER_DEG_LAT);
+}
 
-  // Hiérarchie 3 : îlots (culling large) + voirie + canal + parcs.
-  const cullPx = BLOCK_CULL_MARGIN_M / mpp;
-  const blockVisible = (ring: readonly LatLngPoint[]): boolean =>
-    ring.some((p) => {
-      const { x, y } = pointXY(p);
-      return x >= -cullPx && x <= width + cullPx && y >= -cullPx && y <= height + cullPx;
-    });
-  const blocksD = BLOCKS.filter(blockVisible)
-    .map((ring) => lineD(ring, true))
-    .join(' ');
-
-  // Hiérarchie 5 : territoires TRACÉ-BASED en transparence (§4ter — mêmes
-  // géométries nettes que la Battle Map, une seule source : allTerritories).
-  const terri: Record<TerritoryState, string> = {
-    crew: '',
-    protected: '',
-    decay: '',
-    decayUrgent: '',
-    rival: '',
-    contested: '',
-    objective: '',
-    outpost: '',
-  };
-  const contestedD: { inner: string; outer: string }[] = [];
-  for (const [state, geo] of territoryGeoByState()) {
-    let d = '';
-    for (const feature of geo.features) {
-      const { geometry } = feature;
-      if (geometry.type === 'Polygon') {
-        for (const ring of geometry.coordinates) {
-          if (!ringNearScene(ring, toXY, width, height)) continue;
-          d += `${ringToPath(ring, toXY)} `;
-        }
-      } else if (geometry.type === 'LineString') {
-        // Contesté : la PORTION de tracé partagée → double trait décalé.
-        if (!ringNearScene(geometry.coordinates, toXY, width, height)) continue;
-        const pts = geometry.coordinates.map((pt) => toXY(pt[0] ?? 0, pt[1] ?? 0));
-        contestedD.push({
-          inner: offsetPolyline(pts, -CONTESTED_OFFSET_PX),
-          outer: offsetPolyline(pts, CONTESTED_OFFSET_PX),
-        });
-      }
+/**
+ * Flèches de direction le long du tracé : une tous les ARROW_SPACING_M, cap
+ * du segment courant (angle ÉCRAN : x = est, y = sud — la carte est nord-haut).
+ */
+function directionArrows(
+  line: readonly LatLngPoint[],
+): { lat: number; lng: number; deg: number }[] {
+  const out: { lat: number; lng: number; deg: number }[] = [];
+  let total = 0;
+  const cum: number[] = [0];
+  for (let i = 1; i < line.length; i += 1) {
+    const a = line[i - 1];
+    const b = line[i];
+    total += a && b ? localDistanceM(a, b) : 0;
+    cum.push(total);
+  }
+  for (let len = ARROW_FIRST_OFFSET_M; len < total - ARROW_FIRST_OFFSET_M; len += ARROW_SPACING_M) {
+    for (let i = 1; i < line.length; i += 1) {
+      const end = cum[i] ?? 0;
+      if (end < len) continue;
+      const start = cum[i - 1] ?? 0;
+      const a = line[i - 1];
+      const b = line[i];
+      if (!a || !b) break;
+      const t = end === start ? 0 : (len - start) / (end - start);
+      const mPerDegLng = REAL_M_PER_DEG_LAT * Math.cos((a.lat * Math.PI) / 180);
+      const dx = (b.lng - a.lng) * mPerDegLng;
+      const dy = -(b.lat - a.lat) * REAL_M_PER_DEG_LAT;
+      out.push({
+        lat: a.lat + (b.lat - a.lat) * t,
+        lng: a.lng + (b.lng - a.lng) * t,
+        deg: (Math.atan2(dy, dx) * 180) / Math.PI,
+      });
+      break;
     }
-    terri[state] = d.trim();
   }
-
-  // Hiérarchie 4 : RUBAN net des zones capturables le long du tracé (§4ter —
-  // ~2 zones ≈ 60 m de large, bords parallèles, extrémités arrondies).
-  const capturableD = ringToPath(ribbonRing(route.line, CORRIDOR_HALF_WIDTH_M), toXY);
-
-  // Hiérarchie 1 : la route + flèches de direction + départ/arrivée.
-  const routePts = route.line.map(pointXY);
-  const cum = cumulative(routePts);
-  const total = cum[cum.length - 1] ?? 0;
-  const arrows: { x: number; y: number; deg: number }[] = [];
-  for (let len = ARROW_FIRST_OFFSET_PX; len < total - ARROW_FIRST_OFFSET_PX; len += ARROW_SPACING_PX) {
-    const a = pointHeadingAt(routePts, cum, len);
-    if (a) arrows.push(a);
-  }
-  const first = routePts[0] ?? { x: width / 2, y: height / 2 };
-  const last = routePts[routePts.length - 1] ?? first;
-  const loop = Math.hypot(last.x - first.x, last.y - first.y) < START_DOT_R;
-
-  return {
-    mpp,
-    blocksD,
-    minorAxesD: MINOR_AXES.map((street) => lineD(street)),
-    axesCasingPx: STREET_MAJOR_WIDTH_M / mpp + 2,
-    axesPx: STREET_MAJOR_WIDTH_M / mpp,
-    axesD: MAIN_AXES.map((axis) => lineD(axis)),
-    canalD: lineD(CANAL),
-    canalPx: CANAL_WIDTH_M / mpp,
-    canalBankPx: CANAL_BANK_WIDTH_M / mpp,
-    parksD: PARKS.map((ring) => lineD(ring, true)),
-    labels: SECTOR_LABELS.map((s) => ({ name: s.name, ...toXY(s.lng, s.lat) })),
-    terri,
-    contestedD,
-    capturableD,
-    routeD: routePts
-      .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-      .join(' '),
-    arrows,
-    start: first,
-    end: last,
-    loop,
-    // « Moi » = l'ego démo RÉEL (République — les routes en partent, §4ter).
-    ego: toXY(EGO_REPUBLIQUE.lng, EGO_REPUBLIQUE.lat),
-  };
+  return out;
 }
 
 export interface RoutePlannerMapProps {
@@ -333,239 +167,195 @@ export interface RoutePlannerMapProps {
 }
 
 export function RoutePlannerMap({ route }: RoutePlannerMapProps) {
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
-  const onLayout = (e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    setSize((prev) =>
-      prev && prev.w === width && prev.h === height ? prev : { w: width, h: height },
-    );
-  };
-
-  const scene = useMemo(
-    () => (size ? buildScene(route, size.w, size.h) : null),
-    [route, size],
-  );
+  const mapRef = useRef<RealMapRef>(null);
   /** Opacités du mode ROUTE : l'itinéraire domine, le reste en transparence. */
   const emph = MODE_EMPHASIS.route;
-  const minorPx = scene ? STREET_MINOR_WIDTH_M / scene.mpp : 0;
+
+  /** Cadrage d'ouverture figé au montage (RealMap), puis fitBounds au tap. */
+  const openBoundsRef = useRef<RealMapBounds>(routeBounds(route.line));
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    // Tap A/B/C : la caméra RECADRE la nouvelle proposition (fitBounds).
+    mapRef.current?.fitBounds(routeBounds(route.line));
+  }, [route.id, route.line]);
+
+  // ── Couches : territoires transparents → ruban capturable → LA ROUTE ──────
+  const layers = useMemo<RealMapGeoJSONLayer[]>(() => {
+    const routeData = lineCollection(route.line);
+    return [
+      // 5. Territoires en transparence — MÊME builder §4ter que la Battle Map
+      //    (traits nets, contesté double trait, decay pointillé — zéro glow).
+      ...territoryStateLayers(emph),
+      // 4. Zones capturables : RUBAN NET le long du tracé (fill faible +
+      //    trait fin — AMENDEMENT-16 §0 : plus aucune lueur).
+      {
+        id: 'planner-capturable',
+        data: polygonCollection(ribbonRing(route.line, CORRIDOR_HALF_WIDTH_M)),
+        fillColor: terr.objectiveFill,
+        fillOpacity: emph.objective,
+        lineColor: scaleAlpha(colors.chartreuse40, emph.objective),
+        lineWidth: CAPTURABLE_BORDER_WIDTH,
+      },
+      // 1. LA ROUTE : liseré sombre + trait épais chartreuse (route-first).
+      {
+        id: 'planner-route-casing',
+        data: routeData,
+        lineColor: withAlpha(colors.noir, 0.6),
+        lineWidth: ROUTE_WIDTH + ROUTE_CASING_EXTRA,
+      },
+      {
+        id: 'planner-route',
+        data: routeData,
+        lineColor: terr.routeStroke,
+        lineWidth: ROUTE_WIDTH,
+      },
+    ];
+  }, [route.line, emph]);
+
+  // ── Markers : flèches de direction, départ/arrivée, « moi » ───────────────
+  const markers = useMemo<RealMapMarker[]>(() => {
+    const out: RealMapMarker[] = [];
+    directionArrows(route.line).forEach((a, k) => {
+      out.push({
+        id: `planner-arrow-${k}`,
+        lng: a.lng,
+        lat: a.lat,
+        children: <DirectionChevron deg={a.deg} />,
+      });
+    });
+    const first = route.line[0];
+    const last = route.line[route.line.length - 1];
+    const loop = first && last ? localDistanceM(first, last) < LOOP_CLOSE_EPSILON_M : false;
+    if (last && !loop) {
+      out.push({
+        id: 'planner-end',
+        lng: last.lng,
+        lat: last.lat,
+        children: <View style={styles.endDot} />,
+      });
+    }
+    if (first) {
+      out.push({
+        id: 'planner-start',
+        lng: first.lng,
+        lat: first.lat,
+        children: <StartMarker label={loop ? 'DÉPART · RETOUR' : 'DÉPART'} />,
+      });
+    }
+    // 2. Position actuelle : « moi » = l'ego démo RÉEL (République).
+    out.push({
+      id: 'planner-ego',
+      lng: EGO_REPUBLIQUE.lng,
+      lat: EGO_REPUBLIQUE.lat,
+      children: <EgoDot />,
+    });
+    return out;
+  }, [route.line]);
 
   return (
-    <View style={styles.map} onLayout={onLayout}>
-      {size && scene ? (
-        <Svg width={size.w} height={size.h}>
-          {/* ── 3. Plan de quartier : îlots pleins, rues, canal, parcs ── */}
-          <Path
-            d={scene.blocksD}
-            fill={ms.block}
-            stroke={ms.blockEdge}
-            strokeWidth={1}
-            strokeLinejoin="round"
-          />
-          {scene.minorAxesD.map((d, i) => (
-            <Path key={`minor-${i}`} d={d} stroke={ms.streetCasing} strokeWidth={minorPx} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          ))}
-          {scene.axesD.map((d, i) => (
-            <Path key={`axis-casing-${i}`} d={d} stroke={ms.streetCasing} strokeWidth={scene.axesCasingPx} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          ))}
-          {scene.axesD.map((d, i) => (
-            <Path key={`axis-${i}`} d={d} stroke={ms.streetMajor} strokeWidth={scene.axesPx} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          ))}
-          <Path d={scene.canalD} stroke={ms.streetCasing} strokeWidth={scene.canalBankPx} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          <Path d={scene.canalD} stroke={ms.water} strokeWidth={scene.canalPx} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          {scene.parksD.map((d, i) => (
-            <Path key={`park-base-${i}`} d={d} fill={ms.parkBase} />
-          ))}
-          {scene.parksD.map((d, i) => (
-            <Path key={`park-${i}`} d={d} fill={ms.parkFill} stroke={ms.parkEdge} strokeWidth={1} />
-          ))}
-          {scene.labels.map((l) => (
-            <SvgText
-              key={l.name}
-              x={l.x}
-              y={l.y}
-              fill={ms.sectorLabel}
-              opacity={0.5}
-              fontSize={10}
-              fontWeight="600"
-              letterSpacing={2}
-              textAnchor="middle"
-            >
-              {l.name}
-            </SvgText>
-          ))}
+    <View style={styles.map}>
+      <RealMap
+        ref={mapRef}
+        bounds={openBoundsRef.current}
+        geojsonLayers={layers}
+        markers={markers}
+        style={StyleSheet.absoluteFill}
+        testID="route-planner-carte-reelle"
+      />
+    </View>
+  );
+}
 
-          {/* ── 5-6. Territoires en TRANSPARENCE + frontières secondaires ── */}
-          <Path
-            d={scene.terri.rival}
-            fill={terr.rivalFill}
-            fillRule="evenodd"
-            stroke={terr.rivalStroke}
-            strokeWidth={SECONDARY_RIVAL_WIDTH}
-            strokeLinejoin="round"
-            opacity={emph.rival}
-          />
-          <Path
-            d={scene.terri.crew}
-            fill={terr.crewFill}
-            fillRule="evenodd"
-            stroke={terr.crewStroke}
-            strokeWidth={SECONDARY_BORDER_WIDTH}
-            strokeLinejoin="round"
-            opacity={emph.crew}
-          />
-          <Path
-            d={scene.terri.outpost}
-            fill={terr.outpostFill}
-            fillRule="evenodd"
-            stroke={terr.outpostStroke}
-            strokeWidth={SECONDARY_BORDER_WIDTH}
-            strokeLinejoin="round"
-            opacity={emph.crew}
-          />
-          <Path
-            d={scene.terri.decay}
-            fill="none"
-            stroke={terr.decayStroke}
-            strokeWidth={SECONDARY_BORDER_WIDTH}
-            strokeDasharray={SECONDARY_DECAY_DASH}
-            strokeLinejoin="round"
-            opacity={emph.defense}
-          />
-          <Path
-            d={scene.terri.decayUrgent}
-            fill={terr.decayUrgentFill}
-            fillRule="evenodd"
-            stroke={terr.decayUrgentStroke}
-            strokeWidth={SECONDARY_BORDER_WIDTH}
-            strokeDasharray={SECONDARY_DECAY_DASH}
-            strokeLinejoin="round"
-            opacity={emph.defense}
-          />
-          {/* Contesté (§4ter) : portion de tracé partagée en DOUBLE trait
-              chartreuse+orange décalé, statique et atténué (pas de pulse ici). */}
-          {scene.contestedD.map((pair, i) => (
-            <G key={`contested-${i}`} opacity={emph.contested}>
-              <Path
-                d={pair.inner}
-                fill="none"
-                stroke={terr.contestedInnerStroke}
-                strokeWidth={SECONDARY_BORDER_WIDTH}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <Path
-                d={pair.outer}
-                fill="none"
-                stroke={terr.contestedOuterStroke}
-                strokeWidth={SECONDARY_BORDER_WIDTH}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </G>
-          ))}
+// ─── Markers (contenu RN) ────────────────────────────────────────────────────
 
-          {/* ── 4. Zones capturables : RUBAN NET légèrement lumineux le long
-              du tracé (§4ter — fill nonzero : l'A/R de raid ne se troue pas) ── */}
-          {scene.capturableD ? (
-            <>
-              <Path
-                d={scene.capturableD}
-                fill="none"
-                stroke={terr.objectiveSoft}
-                strokeWidth={CAPTURABLE_SOFT_WIDTH}
-                strokeLinejoin="round"
-                opacity={emph.objective}
-              />
-              <Path d={scene.capturableD} fill={terr.objectiveFill} opacity={emph.objective} />
-            </>
-          ) : null}
+/** Chevron sombre SUR le trait chartreuse : sens de course. */
+function DirectionChevron({ deg }: { deg: number }) {
+  return (
+    <View pointerEvents="none" style={{ transform: [{ rotate: `${deg}deg` }] }}>
+      <Svg width={10} height={10} viewBox="-5 -5 10 10">
+        <Path
+          d="M-2.6 -3.2 L2.6 0 L-2.6 3.2"
+          stroke={colors.noir}
+          strokeWidth={2}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </View>
+  );
+}
 
-          {/* ── 1. LA ROUTE : liseré sombre + trait épais + flèches ── */}
-          <Path
-            d={scene.routeD}
-            stroke={colors.noir}
-            opacity={0.6}
-            strokeWidth={ROUTE_WIDTH + ROUTE_CASING_EXTRA}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <Path
-            d={scene.routeD}
-            stroke={terr.routeStroke}
-            strokeWidth={ROUTE_WIDTH}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {scene.arrows.map((a, i) => (
-            <G
-              key={`arrow-${i}`}
-              transform={`translate(${a.x.toFixed(1)} ${a.y.toFixed(1)}) rotate(${a.deg.toFixed(1)})`}
-            >
-              {/* Chevron sombre SUR le trait chartreuse : sens de course. */}
-              <Path
-                d="M-2.6 -3.2 L2.6 0 L-2.6 3.2"
-                stroke={colors.noir}
-                strokeWidth={2}
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </G>
-          ))}
+/** Départ (= retour si boucle) : pastille chartreuse cerclée + label. */
+function StartMarker({ label }: { label: string }) {
+  return (
+    <View pointerEvents="none" style={styles.startWrap}>
+      <View style={styles.startDot} />
+      <Text style={styles.startLabel}>{label}</Text>
+    </View>
+  );
+}
 
-          {/* Arrivée (aller simple uniquement — sinon le départ dit tout). */}
-          {!scene.loop ? (
-            <Circle
-              cx={scene.end.x}
-              cy={scene.end.y}
-              r={END_DOT_R}
-              fill={colors.blanc}
-              stroke={colors.noir}
-              strokeWidth={1.5}
-            />
-          ) : null}
-
-          {/* Départ (= retour si boucle) : pastille chartreuse cerclée. */}
-          <Circle
-            cx={scene.start.x}
-            cy={scene.start.y}
-            r={START_DOT_R}
-            fill={colors.chartreuse}
-            stroke={colors.blanc}
-            strokeWidth={2}
-          />
-          <SvgText
-            x={scene.start.x}
-            y={scene.start.y + START_DOT_R + 12}
-            fill={colors.blanc}
-            fontSize={9}
-            fontWeight="700"
-            letterSpacing={1.2}
-            textAnchor="middle"
-          >
-            {scene.loop ? 'DÉPART · RETOUR' : 'DÉPART'}
-          </SvgText>
-
-          {/* ── 2. Position actuelle : point « moi » (statique, sans bruit) ── */}
-          <Circle cx={scene.ego.x} cy={scene.ego.y} r={EGO_HALO_R} fill={colors.chartreuse14} />
-          <Circle
-            cx={scene.ego.x}
-            cy={scene.ego.y}
-            r={EGO_DOT_R}
-            fill={colors.chartreuse}
-            stroke={colors.blanc}
-            strokeWidth={1.5}
-          />
-        </Svg>
-      ) : null}
+/** Point « moi » : dot chartreuse cerclé + halo doux (type Uber — conservé). */
+function EgoDot() {
+  return (
+    <View pointerEvents="none" style={styles.egoWrap}>
+      <View style={styles.egoHalo} />
+      <View style={styles.egoDot} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   map: { flex: 1, backgroundColor: colors.noir, overflow: 'hidden' },
+
+  startWrap: { alignItems: 'center', gap: 4 },
+  startDot: {
+    width: START_DOT_SIZE,
+    height: START_DOT_SIZE,
+    borderRadius: START_DOT_SIZE / 2,
+    backgroundColor: colors.chartreuse,
+    borderWidth: 2,
+    borderColor: colors.blanc,
+  },
+  startLabel: {
+    color: colors.blanc,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  endDot: {
+    width: END_DOT_SIZE,
+    height: END_DOT_SIZE,
+    borderRadius: END_DOT_SIZE / 2,
+    backgroundColor: colors.blanc,
+    borderWidth: 1.5,
+    borderColor: colors.noir,
+  },
+
+  egoWrap: {
+    width: EGO_HALO_SIZE,
+    height: EGO_HALO_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  egoHalo: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: EGO_HALO_SIZE / 2,
+    backgroundColor: colors.chartreuse14,
+  },
+  egoDot: {
+    width: EGO_DOT_SIZE,
+    height: EGO_DOT_SIZE,
+    borderRadius: EGO_DOT_SIZE / 2,
+    backgroundColor: colors.chartreuse,
+    borderWidth: 1.5,
+    borderColor: colors.blanc,
+  },
 });
 
 export default RoutePlannerMap;

@@ -15,9 +15,24 @@
  *     (NON_RENEWING_PURCHASE, ou INITIAL_PURCHASE par tolérance) — jamais sur
  *     RENEWAL (un renewal ne re-crédite rien).
  *   - Starter pack : one-time → skin + STARTER_PACK_ECLATS Éclats + 1 bouclier.
+ *   - AMENDEMENT-16 §4 : Founder Pack (Éclats + items), crew boosts
+ *     (crew_boost_24/72/weekend/season → crew_boosts), gifts crew
+ *     (cosmetic_chest_crew / recruit_template_crew / banner_crew →
+ *     crew_inventory). Les items crédités viennent de SKU_GRANTED_ITEM_KEYS ;
+ *     AUCUN SKU ne touche territoire/points/leaderboard (anti pay-to-win §12).
  *   - Tout le reste (event inconnu, SKU inconnu, payload incomplet) → ignore.
  */
-import { ECLATS_PACKS, SKUS, STARTER_PACK_ECLATS } from '../_shared/game-rules.ts';
+import {
+  CREW_BOOST_CHEST_MULTIPLIER,
+  CREW_BOOSTS,
+  ECLATS_PACKS,
+  FOUNDER_PACK_ECLATS,
+  SKU_GRANTED_ITEM_KEYS,
+  SKUS,
+  STARTER_PACK_ECLATS,
+  type CrewBoostSku,
+  type CrewBoostType,
+} from '../_shared/game-rules.ts';
 
 /** Sous-ensemble utile du payload `event` RevenueCat (v1/v2). */
 export interface RevenueCatEvent {
@@ -37,11 +52,35 @@ export type WebhookDecision =
     price: number | null;
   }
   | {
-    kind: 'credit_eclats' | 'starter_pack';
+    kind: 'credit_eclats' | 'starter_pack' | 'founder_pack';
     rcEventId: string;
     userId: string;
     sku: string;
     eclats: number;
+    /** Items crédités à l'inventaire (item_key du catalogue 0014, packs). */
+    itemKeys: readonly string[];
+    price: number | null;
+  }
+  | {
+    /** Contribution groupée capée (AMENDEMENT-16 §4) — crew de l'acheteur. */
+    kind: 'crew_boost';
+    rcEventId: string;
+    userId: string;
+    sku: string;
+    boostType: CrewBoostType;
+    /** null = jusqu'à la fin de la saison active (boost saison). */
+    durationH: number | null;
+    /** Multiplicateur de COFFRE uniquement (jamais points/XP/leaderboard). */
+    multiplier: number;
+    price: number | null;
+  }
+  | {
+    /** Gift crew : coffre cosmétique / template recrutement / bannière (§14/§21). */
+    kind: 'crew_item';
+    rcEventId: string;
+    userId: string;
+    sku: string;
+    itemKey: string;
     price: number | null;
   }
   | { kind: 'ignore'; reason: string };
@@ -80,7 +119,7 @@ export function mapRevenueCatEvent(event: RevenueCatEvent): WebhookDecision {
     return { kind: 'ignore', reason: `club_event_no_effect:${type}` };
   }
 
-  // ── One-time : Éclats / Starter Pack ──────────────────────────────────────
+  // ── One-time : Éclats / Packs ─────────────────────────────────────────────
   if (sku === SKUS.starterPack) {
     if (!ONE_TIME_EVENTS.has(type)) {
       return { kind: 'ignore', reason: `one_time_event_expected:${type}` };
@@ -91,6 +130,22 @@ export function mapRevenueCatEvent(event: RevenueCatEvent): WebhookDecision {
       userId,
       sku,
       eclats: STARTER_PACK_ECLATS,
+      itemKeys: SKU_GRANTED_ITEM_KEYS.starter_pack,
+      price,
+    };
+  }
+
+  if (sku === SKUS.founderPack) {
+    if (!ONE_TIME_EVENTS.has(type)) {
+      return { kind: 'ignore', reason: `one_time_event_expected:${type}` };
+    }
+    return {
+      kind: 'founder_pack',
+      rcEventId: id,
+      userId,
+      sku,
+      eclats: FOUNDER_PACK_ECLATS,
+      itemKeys: SKU_GRANTED_ITEM_KEYS.founder_pack,
       price,
     };
   }
@@ -106,6 +161,45 @@ export function mapRevenueCatEvent(event: RevenueCatEvent): WebhookDecision {
       userId,
       sku,
       eclats: ECLATS_PACKS[sku as keyof typeof ECLATS_PACKS],
+      itemKeys: [],
+      price,
+    };
+  }
+
+  // ── Crew Boosts (AMENDEMENT-16 §4, doc §13.1/§21) — coffre UNIQUEMENT ─────
+  if (sku && sku in CREW_BOOSTS) {
+    if (!ONE_TIME_EVENTS.has(type)) {
+      return { kind: 'ignore', reason: `one_time_event_expected:${type}` };
+    }
+    const boost = CREW_BOOSTS[sku as CrewBoostSku];
+    return {
+      kind: 'crew_boost',
+      rcEventId: id,
+      userId,
+      sku,
+      boostType: boost.type,
+      durationH: boost.durationH,
+      multiplier: CREW_BOOST_CHEST_MULTIPLIER,
+      price,
+    };
+  }
+
+  // ── Gifts crew (doc §14/§21.3-§21.5) — item unique vers crew_inventory ────
+  const CREW_GIFT_ITEM_KEYS: Readonly<Record<string, string>> = {
+    [SKUS.cosmeticChest]: SKU_GRANTED_ITEM_KEYS.cosmetic_chest_crew[0],
+    [SKUS.recruitTemplate]: SKU_GRANTED_ITEM_KEYS.recruit_template_crew[0],
+    [SKUS.bannerCrew]: SKU_GRANTED_ITEM_KEYS.banner_crew[0],
+  };
+  if (sku && sku in CREW_GIFT_ITEM_KEYS) {
+    if (!ONE_TIME_EVENTS.has(type)) {
+      return { kind: 'ignore', reason: `one_time_event_expected:${type}` };
+    }
+    return {
+      kind: 'crew_item',
+      rcEventId: id,
+      userId,
+      sku,
+      itemKey: CREW_GIFT_ITEM_KEYS[sku]!,
       price,
     };
   }

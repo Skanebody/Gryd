@@ -8,17 +8,20 @@
  * (features/crew/rules) côté écran — pas de nombre magique. TODO(O1) brancher
  * crews / crew_applications. Zéro position live (§37.3).
  */
-import type { CrewRole } from '@klaim/shared';
+import type { CrewRecruitmentStatus, CrewRole } from '@klaim/shared';
+import { RECRUITMENT_STATUS_LABELS } from './rules';
 import { DISCOVERY_CREWS, type DiscoveryCrewDemo } from './demo';
 
-/** Statut de recrutement (crews.recruitment_status, 0011) — étiquette UI. */
-export type RecruitmentStatus = 'open' | 'request' | 'closed';
+/** Statut de recrutement (crews.recruitment_status, 0013) — clés SHARED (§9). */
+export type RecruitmentStatus = CrewRecruitmentStatus;
 
-export const RECRUITMENT_LABELS: Record<RecruitmentStatus, string> = {
-  open: 'Ouvert à tous',
-  request: 'Sur demande',
-  closed: 'Fermé',
-};
+/** Ré-export compat : les libellés FR vivent dans rules.ts (source unique). */
+export const RECRUITMENT_LABELS = RECRUITMENT_STATUS_LABELS;
+
+/** Peut-on candidater/rejoindre depuis l'app (§9) ? invite_only/closed = non. */
+export function canApplyTo(status: RecruitmentStatus): boolean {
+  return status === 'open' || status === 'on_request';
+}
 
 /** Tags de style de jeu affichés en chips d'état (mêmes clés que ui/game). */
 export type CrewPlayTagKey = 'war' | 'defense' | 'competitive';
@@ -37,11 +40,11 @@ export function playTagsFor(
   return tags;
 }
 
-/** Volet PUBLIC d'un crew (ce que voit un joueur hors du crew). */
+/** Volet PUBLIC d'un crew (ce que voit un joueur hors du crew). Le statut de
+ * recrutement et les tags vivent sur DiscoveryCrewDemo (source unique 0013). */
 export interface PublicCrewProfileDemo {
-  recruitment: RecruitmentStatus;
   bio: string;
-  /** Rôles activement recherchés (« Recherche : Defender / Raider », §16). */
+  /** Rôles activement recherchés (« Recherche : Stratège / Éclaireur », §16). */
   rolesWanted: readonly CrewRole[];
   /** Territoire tenu (agrégé zone/crew — jamais de tracé individuel). */
   heldHexes: number;
@@ -55,28 +58,24 @@ export interface PublicCrewDemo extends DiscoveryCrewDemo, PublicCrewProfileDemo
 /** Profils publics par tag de crew — mêmes crews que DISCOVERY_CREWS. */
 const PROFILES: Record<string, PublicCrewProfileDemo> = {
   N11: {
-    recruitment: 'request',
     bio: 'On tient le nord-est parisien. Défense sérieuse, ambiance saine, zéro pression sur l\'allure — on veut des coureurs réguliers, pas des machines.',
-    rolesWanted: ['defender', 'raider'],
+    rolesWanted: ['strategist', 'captain'],
     heldHexes: 612,
     inviteLink: 'gryd.run/c/nord11',
   },
   PV: {
-    recruitment: 'open',
     bio: 'Le 12ᵉ pavé par pavé. Sorties défense le mardi, run tranquille le dimanche. Débutants bienvenus, on t\'apprend le jeu de zone.',
-    rolesWanted: ['defender', 'runner'],
+    rolesWanted: ['runner', 'scout'],
     heldHexes: 238,
     inviteLink: 'gryd.run/c/paves12',
   },
   BPM: {
-    recruitment: 'open',
     bio: 'Crew de quartier autour de Bastille. On court au feeling, on capture ce qui passe. Zéro compétition forcée.',
     rolesWanted: ['runner'],
     heldHexes: 121,
     inviteLink: 'gryd.run/c/bpmbastille',
   },
   PDC: {
-    recruitment: 'open',
     bio: 'Pionniers du pays de Caux : tout est à ouvrir ici. Chaque course dessine la carte — rejoins les premiers.',
     rolesWanted: ['scout', 'runner'],
     heldHexes: 74,
@@ -86,7 +85,6 @@ const PROFILES: Record<string, PublicCrewProfileDemo> = {
 
 /** Volet public de secours si un crew n'a pas de profil (guard §0 — jamais d'écran cassé). */
 const FALLBACK_PROFILE: PublicCrewProfileDemo = {
-  recruitment: 'request',
   bio: 'Ce crew court dans son secteur. Demande à rejoindre pour en savoir plus.',
   rolesWanted: [],
   heldHexes: 0,

@@ -6,28 +6,31 @@
  * couleur reste réservée aux états de jeu).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii, type BadgeTier, type IconName } from '@klaim/shared';
+import {
+  ROOKIE_TRIAL_DAYS,
+  colors,
+  fontSizes,
+  gameColors,
+  radii,
+  type BadgeTier,
+  type CrewRole,
+  type IconName,
+} from '@klaim/shared';
 import { Icon } from '../Icon';
 import { PlayerAvatarFrame } from './PlayerAvatarFrame';
 
-export type CrewRole =
-  | 'runner'
-  | 'scout'
-  | 'defender'
-  | 'raider'
-  | 'captain'
-  | 'cocaptain'
-  | 'leader';
+/** Rôles = clés SHARED (§8, AMENDEMENT-16 §3) — plus de divergence de nommage. */
+export type { CrewRole };
 
 /** Rôle → libellé FR + icône filaire (doc §12 — chaque rôle a son icône). */
 export const CREW_ROLE_META: Record<CrewRole, { label: string; icon: IconName }> = {
+  founder: { label: 'Fondateur', icon: 'crest' },
+  co_captain: { label: 'Co-Capitaine', icon: 'couronne' },
+  captain: { label: 'Capitaine', icon: 'medaille' },
+  strategist: { label: 'Stratège', icon: 'cible' },
+  scout: { label: 'Éclaireur', icon: 'scout' },
   runner: { label: 'Runner', icon: 'foulees' },
-  scout: { label: 'Scout', icon: 'scout' },
-  defender: { label: 'Defender', icon: 'bouclier' },
-  raider: { label: 'Raider', icon: 'raid' },
-  captain: { label: 'Captain', icon: 'couronne' },
-  cocaptain: { label: 'Co-Captain', icon: 'couronne' },
-  leader: { label: 'Leader', icon: 'crest' },
+  rookie: { label: 'Rookie', icon: 'sablier' },
 };
 
 export interface MemberAction {
@@ -89,6 +92,12 @@ export function MemberCard({
               {warReady ? ' · ' : ''}
             </Text>
             {warReady ? <Text style={styles.warReady}>Dispo guerre</Text> : null}
+            {/* Badge rookie : période d'essai (§8.7) — durée depuis shared. */}
+            {role === 'rookie' ? (
+              <View style={styles.rookiePill}>
+                <Text style={styles.rookiePillText}>ESSAI {ROOKIE_TRIAL_DAYS} J</Text>
+              </View>
+            ) : null}
           </View>
           {lastAction ? (
             <Text style={styles.lastAction} numberOfLines={1}>
@@ -141,6 +150,15 @@ const styles = StyleSheet.create({
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   role: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   warReady: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600' },
+  // Badge rookie : pill discret gris — statut d'essai, pas un état de jeu.
+  rookiePill: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  rookiePillText: { color: colors.gris, fontSize: 9, fontWeight: '700', letterSpacing: 0.6 },
   lastAction: { color: colors.gris, fontSize: fontSizes.xs },
   points: { alignItems: 'flex-end' },
   pointsValue: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700' },

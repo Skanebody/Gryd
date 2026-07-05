@@ -11,23 +11,34 @@ import {
   ACTIVITY_STATUS_THRESHOLDS,
   CREW_CHEST_WEEKLY_TARGET,
   CREW_LEVEL_MAX,
+  CREW_PERMISSIONS,
+  CREW_ROLES,
   CREW_XP_DAILY_CAP_PER_MEMBER,
   CREW_XP_SOURCES,
   CREW_XP_TABLE,
   PLAYER_LEVEL_MAX,
+  ROOKIE_RESTRICTIONS,
+  ROOKIE_TRIAL_DAYS,
 } from '../_shared/game-rules.ts';
 import {
   activityScore,
   activityStatusForScore,
+  canKickMember,
+  canLeaveCrew,
+  canPromoteTo,
   cappedCrewXp,
   chestProgressDelta,
   chestTierFor,
   crewFrameTierForLevel,
   crewLevelForXp,
+  crewRoleRank,
   crewXpForRun,
+  hasCrewPermission,
+  isRookieTrialOver,
   offensiveResult,
   playerLevelForXp,
   playerLevelXpTable,
+  rookieTrialEndsAt,
   tierForLevel,
   withinOffensiveZone,
   type ActivityScoreInput,
@@ -248,4 +259,98 @@ Deno.test('withinOffensiveZone : dans / hors rayon', () => {
   assert(withinOffensiveZone({ lat: 48.8666, lng: 2.3522 }, center, 2));
   // Lille (~200 km) hors d'un rayon de 5 km.
   assert(!withinOffensiveZone({ lat: 50.6292, lng: 3.0573 }, center, 5));
+});
+
+// ─── AMENDEMENT-16 §3 — Permissions rôle façon clan (doc §8) ─────────────────
+
+Deno.test('hasCrewPermission : founder peut tout, périmètres §8 respectés', () => {
+  for (const action of Object.keys(CREW_PERMISSIONS) as (keyof typeof CREW_PERMISSIONS)[]) {
+    assert(hasCrewPermission('founder', action), `founder doit pouvoir ${action}`);
+  }
+  // Founder seul : nom/blason, recrutement, transfert, archivage.
+  for (const action of ['changeNameEmblem', 'manageRecruitment', 'transferFoundership', 'archiveCrew'] as const) {
+    assert(!hasCrewPermission('co_captain', action), `co_captain ne doit pas ${action}`);
+  }
+  // Direction : lancer une offensive = co_captain+ (captain PROPOSE seulement).
+  assert(hasCrewPermission('co_captain', 'launchOffensive'));
+  assert(!hasCrewPermission('captain', 'launchOffensive'));
+  assert(hasCrewPermission('captain', 'proposeOffensive'));
+  // Terrain captain : sorties, défense, ping, missions de la semaine.
+  assert(hasCrewPermission('captain', 'assignDefense'));
+  assert(!hasCrewPermission('strategist', 'assignDefense'));
+  // Tactique strategist : routes recommandées, scout ping, plans.
+  assert(hasCrewPermission('strategist', 'createRecommendedRoute'));
+  assert(hasCrewPermission('strategist', 'useScoutPing'));
+  assert(!hasCrewPermission('scout', 'useScoutPing'));
+  // Exploration scout : routes, reports, avant-postes.
+  assert(hasCrewPermission('scout', 'createScoutReport'));
+  assert(hasCrewPermission('scout', 'proposeOutpost'));
+  assert(!hasCrewPermission('runner', 'createScoutReport'));
+});
+
+Deno.test('hasCrewPermission : restrictions rookie §8.7 (essai 7 j)', () => {
+  // Pas d'objets crew, pas de ping massif, War Room limitée.
+  assert(!hasCrewPermission('rookie', 'useCrewItems'));
+  assert(!hasCrewPermission('rookie', 'massPing'));
+  assert(!hasCrewPermission('rookie', 'readWarRoomStats'));
+  assert(!hasCrewPermission('rookie', 'inviteViaLink'));
+  // Mais il participe : chat, réactions, sorties (contribution comptée).
+  assert(hasCrewPermission('rookie', 'chat'));
+  assert(hasCrewPermission('rookie', 'react'));
+  assert(hasCrewPermission('rookie', 'joinOuting'));
+  assert(ROOKIE_RESTRICTIONS.contributionCounted);
+  // Le runner standard, lui, a tout ça.
+  assert(hasCrewPermission('runner', 'useCrewItems'));
+  assert(hasCrewPermission('runner', 'readWarRoomStats'));
+});
+
+Deno.test('canKickMember : founder tout sauf founder ; co_captain périmètre §8.2', () => {
+  assert(canKickMember('founder', 'co_captain'));
+  assert(canKickMember('founder', 'rookie'));
+  assert(!canKickMember('founder', 'founder'));
+  // co_captain : Rookie/Runner/Scout uniquement — jamais founder ni co_captain.
+  assert(canKickMember('co_captain', 'rookie'));
+  assert(canKickMember('co_captain', 'runner'));
+  assert(canKickMember('co_captain', 'scout'));
+  assert(!canKickMember('co_captain', 'strategist'));
+  assert(!canKickMember('co_captain', 'captain'));
+  assert(!canKickMember('co_captain', 'co_captain'));
+  assert(!canKickMember('co_captain', 'founder'));
+  // Les autres rôles n'excluent personne.
+  assert(!canKickMember('captain', 'rookie'));
+  assert(!canKickMember('runner', 'rookie'));
+});
+
+Deno.test('canPromoteTo : founder tout sauf founder ; co_captain jusqu à strategist', () => {
+  assert(canPromoteTo('founder', 'co_captain'));
+  assert(canPromoteTo('founder', 'runner'));
+  assert(!canPromoteTo('founder', 'founder')); // transfert dédié
+  assert(canPromoteTo('co_captain', 'strategist'));
+  assert(canPromoteTo('co_captain', 'runner'));
+  assert(!canPromoteTo('co_captain', 'captain'));
+  assert(!canPromoteTo('co_captain', 'co_captain'));
+  assert(!canPromoteTo('co_captain', 'founder'));
+  assert(!canPromoteTo('captain', 'runner')); // pas la permission promote
+});
+
+Deno.test('crewRoleRank : ordre hiérarchique CREW_ROLES (rookie < … < founder)', () => {
+  const ranks = CREW_ROLES.map((r) => crewRoleRank(r));
+  for (let i = 1; i < ranks.length; i++) assert(ranks[i]! > ranks[i - 1]!);
+  assertEquals(crewRoleRank('rookie'), 0);
+  assertEquals(crewRoleRank('founder'), CREW_ROLES.length - 1);
+});
+
+Deno.test('canLeaveCrew : le founder ne quitte pas sans transfert (§8.1)', () => {
+  assert(!canLeaveCrew('founder'));
+  assert(canLeaveCrew('co_captain'));
+  assert(canLeaveCrew('rookie'));
+});
+
+Deno.test('rookieTrialEndsAt / isRookieTrialOver : bornes exactes ROOKIE_TRIAL_DAYS', () => {
+  const start = Date.UTC(2026, 6, 1); // horloge fournie par l'appelant (PURE)
+  const end = rookieTrialEndsAt(start);
+  assertEquals(end - start, ROOKIE_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+  assert(!isRookieTrialOver(start, end - 1));
+  assert(isRookieTrialOver(start, end)); // borne incluse : essai fini pile à J+7
+  assert(isRookieTrialOver(start, end + 1));
 });

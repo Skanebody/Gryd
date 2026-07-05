@@ -6,7 +6,14 @@
  * Les niveaux/tiers/paliers sont DÉRIVÉS des règles réelles (features/crew/rules)
  * — jamais saisis en dur — pour rester cohérents avec CREW_XP_TABLE §34.3.
  */
-import type { BadgeTier, CrewRole, IconName, WarAvailability } from '@klaim/shared';
+import type {
+  BadgeTier,
+  CrewRecruitmentStatus,
+  CrewRole,
+  CrewTag,
+  IconName,
+  WarAvailability,
+} from '@klaim/shared';
 
 export interface CrewMemberDemo {
   pseudo: string;
@@ -20,6 +27,8 @@ export interface CrewMemberDemo {
   lastAction: string;
   /** Points pondérés versés au coffre hebdo cette semaine (§39.1). */
   chestPoints: number;
+  /** Ancienneté en jours (rookie : jours d'essai restants dérivés §8.7). */
+  joinedDaysAgo?: number;
   me?: boolean;
 }
 
@@ -48,6 +57,10 @@ export interface CrewDemo {
   urgentDefense: { sector: string; streets: number; hoursLeft: number };
   /** Places ouvertes au recrutement (politique du crew, ≤ places libres). */
   recruitSpots: number;
+  /** Statut de recrutement (§9, crews.recruitment_status 0013). */
+  recruitment: CrewRecruitmentStatus;
+  /** Tags de style du crew (§10, crews.tags 0013) — identité, pas hiérarchie. */
+  tags: readonly CrewTag[];
   /**
    * Bloc TERRITOIRE CREW (AMENDEMENT-11 §4) : contrôle du secteur, zones
    * tenues, frontières contestées, routes ouvertes. controlPct cohérent avec
@@ -84,6 +97,9 @@ export const MY_CREW: CrewDemo = {
   urgentDefense: { sector: 'République', streets: 12, hoursLeft: 48 },
   // 3 places libres (7/10) mais le crew n'en ouvre que 2 au recrutement.
   recruitSpots: 2,
+  // Recrutement « Sur demande » (défaut recommandé §9) + tags de style §10.
+  recruitment: 'on_request',
+  tags: ['competitif', 'defense', 'run_club'],
   territory: {
     sector: 'Paris Est',
     controlPct: 42,
@@ -91,9 +107,12 @@ export const MY_CREW: CrewDemo = {
     contestedBorders: 3,
     openRoutes: 6,
   },
+  // Rôles clan §8 (AMENDEMENT-16 §3) : les 7 rôles sont représentés — l'ancien
+  // raider est devenu captain terrain, l'ancien defender strategist (le style
+  // attaque/défense vit dans les tags du crew + la war_availability).
   members: [
     {
-      pseudo: 'KORO', role: 'leader', availability: 'war', weekHexes: 214, tier: 'carbon',
+      pseudo: 'KORO', role: 'founder', availability: 'war', weekHexes: 214, tier: 'carbon',
       lastAction: '12 zones capturées · Villette', chestPoints: 320, me: true,
     },
     {
@@ -101,12 +120,12 @@ export const MY_CREW: CrewDemo = {
       lastAction: 'Offensive préparée · Canal', chestPoints: 260,
     },
     {
-      pseudo: 'MOLOKAÏ', role: 'raider', availability: 'war', weekHexes: 176, tier: 'race',
+      pseudo: 'MOLOKAÏ', role: 'captain', availability: 'war', weekHexes: 176, tier: 'race',
       lastAction: '14 zones reprises · Buttes-Chaumont', chestPoints: 240,
     },
     {
-      pseudo: 'JOG.PARMENTIER', role: 'defender', availability: 'defense', weekHexes: 142, tier: 'tempo',
-      lastAction: 'Ligne canal tenue 3 jours', chestPoints: 200,
+      pseudo: 'JOG.PARMENTIER', role: 'strategist', availability: 'defense', weekHexes: 142, tier: 'tempo',
+      lastAction: 'Plan de défense Canal tracé', chestPoints: 200,
     },
     {
       pseudo: 'PACER·20E', role: 'scout', availability: 'exploration', weekHexes: 96, tier: 'tempo',
@@ -117,8 +136,9 @@ export const MY_CREW: CrewDemo = {
       lastAction: 'Course validée · 6 km', chestPoints: 100,
     },
     {
-      pseudo: 'NOX.11', role: 'runner', availability: 'absent', weekHexes: 0, tier: 'road',
-      lastAction: 'Dernière course il y a 9 j', chestPoints: 40,
+      // Rookie en période d'essai (§8.7) : contribution COMPTÉE, droits limités.
+      pseudo: 'NOX.11', role: 'rookie', availability: 'casual', weekHexes: 14, tier: 'road',
+      lastAction: 'A rejoint le crew · 1ʳᵉ course validée', chestPoints: 40, joinedDaysAgo: 2,
     },
   ],
 };
@@ -161,7 +181,10 @@ export interface DiscoveryCrewDemo {
   activityScore: number;
   members: number;
   openSpots: number;
-  policy: 'open' | 'request';
+  /** Statut de recrutement (§9, crews.recruitment_status 0013). */
+  recruitment: CrewRecruitmentStatus;
+  /** Tags de style du crew (§10, crews.tags 0013) — chips discovery/matching. */
+  tags: readonly CrewTag[];
   language: string;
   objective: 'casual' | 'competitif' | 'pionnier';
   /** Signaux rapides §46 (booléens) — rendus en chips. */
@@ -172,26 +195,35 @@ export interface DiscoveryCrewDemo {
   weeklyRuns: number;
 }
 
-/** Crews découvrables — mêmes noms que la carte/classement factices (§46). */
+/** Crews découvrables — mêmes noms que la carte/classement factices (§46).
+ * Les 4 statuts de recrutement §9 sont représentés (invite_only/open/on_request). */
 export const DISCOVERY_CREWS: readonly DiscoveryCrewDemo[] = [
   {
     name: 'CREW NORD·XI', tag: 'N11', city: 'Paris', xp: 96_000, activityScore: 92,
-    members: 9, openSpots: 1, policy: 'request', language: 'FR', objective: 'competitif',
+    members: 9, openSpots: 1, recruitment: 'invite_only',
+    tags: ['competitif', 'defense', 'raid', 'performance'],
+    language: 'FR', objective: 'competitif',
     warActive: true, defenseActive: true, beginnerFriendly: false, pioneer: false, weeklyRuns: 84,
   },
   {
     name: 'LES PAVÉS 12', tag: 'PV', city: 'Paris', xp: 28_000, activityScore: 61,
-    members: 6, openSpots: 4, policy: 'open', language: 'FR', objective: 'casual',
+    members: 6, openSpots: 4, recruitment: 'open',
+    tags: ['casual', 'defense', 'debutants_ok'],
+    language: 'FR', objective: 'casual',
     warActive: false, defenseActive: true, beginnerFriendly: true, pioneer: false, weeklyRuns: 41,
   },
   {
     name: 'BPM BASTILLE', tag: 'BPM', city: 'Paris', xp: 12_500, activityScore: 48,
-    members: 4, openSpots: 6, policy: 'open', language: 'FR', objective: 'casual',
+    members: 4, openSpots: 6, recruitment: 'on_request',
+    tags: ['casual', 'debutants_ok'],
+    language: 'FR', objective: 'casual',
     warActive: false, defenseActive: false, beginnerFriendly: true, pioneer: false, weeklyRuns: 22,
   },
   {
     name: 'PAYS DE CAUX RC', tag: 'PDC', city: 'Dieppe', xp: 6_200, activityScore: 55,
-    members: 5, openSpots: 5, policy: 'open', language: 'FR', objective: 'pionnier',
+    members: 5, openSpots: 5, recruitment: 'open',
+    tags: ['exploration', 'pionnier', 'run_club', 'debutants_ok'],
+    language: 'FR', objective: 'pionnier',
     warActive: false, defenseActive: false, beginnerFriendly: true, pioneer: true, weeklyRuns: 18,
   },
 ];

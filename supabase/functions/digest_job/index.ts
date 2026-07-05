@@ -48,6 +48,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const now = new Date();
     const weekly = isSundayInParis(now);
+    // Clôture QUOTIDIENNE des crew boosts expirés (AMENDEMENT-16 §4) : la
+    // fenêtre temporelle fait déjà foi côté moteur (crewBoostActive), ce
+    // statut fige l'historique et allège les lectures.
+    const boostsExpired = await expireCrewBoosts(now);
     // Maintenance crew hebdo (Supercell §2) : Activity Score + clôture des
     // coffres de la semaine PASSÉE (tier figé) + signaux discovery.
     if (weekly) await crewWeeklyMaintenance(now);
@@ -90,6 +94,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       mode: weekly ? 'weekly' : 'crew',
       digests: digests.length,
       pushed,
+      boostsExpired,
     });
   } catch (err) {
     console.error('digest_job:', err);
@@ -100,6 +105,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
 interface UserDigest {
   userId: string;
   digest: Digest;
+}
+
+// ─── Clôture des crew boosts expirés (AMENDEMENT-16 §4, doc §13.1) ────────────
+
+/**
+ * Passe en 'expired' tout boost 'active' dont la fenêtre est terminée
+ * (ends_at ≤ now). Idempotent — un boost déjà clos n'est jamais retouché,
+ * l'effet réel étant de toute façon borné par la fenêtre côté moteur
+ * (crewBoostActive/boostChestMultiplier). Retourne le nombre de clôtures.
+ */
+async function expireCrewBoosts(now: Date): Promise<number> {
+  const { data, error } = await supabase
+    .from('crew_boosts')
+    .update({ status: 'expired' })
+    .eq('status', 'active')
+    .lte('ends_at', now.toISOString())
+    .select('id');
+  if (error) throw new Error(`crew_boosts expire: ${error.message}`);
+  return (data ?? []).length;
 }
 
 // ─── Maintenance crew hebdomadaire (Crews Supercell §2/§45/§39) ──────────────

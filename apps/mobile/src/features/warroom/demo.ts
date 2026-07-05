@@ -9,7 +9,7 @@
  * saisis en dur. Valeurs figées = données démo, pas des constantes de jeu.
  * Zéro position live : tout est agrégé au niveau zone/crew (§37.3).
  */
-import type { GameColorName, IconName } from '@klaim/shared';
+import type { GameColorName, IconName, WarAvailability } from '@klaim/shared';
 
 /** Bandeau de scène (saison / jours restants / rang crew local) — doc §7 HUD. */
 export interface WarStatusDemo {
@@ -25,19 +25,22 @@ export const WAR_STATUS: WarStatusDemo = {
   crewRank: 8,
 };
 
-/** Mission de défense urgente (§38.3, exemple doc §15 : Canal, 34 hexes/48 h). */
+/** Mission de défense urgente (§38.3, exemple doc §15 : Canal, 34 hexes/48 h).
+ * AMENDEMENT-16 §3 : plus de rôle « defender » — on assigne par DISPONIBILITÉ
+ * de guerre (§37.2), le style défense vit dans les tags/war_availability. */
 export interface DefenseMissionDemo {
   zone: string;
   hexes: number;
   /** Heures avant expiration (decay). */
   expiresInH: number;
-  assignedRole: string;
+  /** Disponibilité recherchée pour l'assignation (war_availability §37.2). */
+  assignedAvailability: WarAvailability;
 }
 export const DEFENSE_MISSION: DefenseMissionDemo = {
   zone: 'Canal',
   hexes: 34,
   expiresInH: 48,
-  assignedRole: 'defender',
+  assignedAvailability: 'defense',
 };
 
 /**

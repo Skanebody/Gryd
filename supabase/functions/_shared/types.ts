@@ -166,11 +166,14 @@ export interface IngestRunResponse {
    */
   challengeUpdates?: ChallengeUpdate[];
   /**
-   * AMENDEMENT-12 §B « la boucle fait la zone » : true si la trace claimable
-   * est revenue à ≤ LOOP_CLOSE_TOLERANCE_M de son départ avec une distance
-   * totale ≥ LOOP_MIN_PERIMETER_M (décidé serveur, detectClosedLoop). Toujours
-   * présent en mode conquête ; absent hors conquête (social_run/course_privee :
-   * jamais de claims, boucle ou pas) et sur les courses rejetées/gelées.
+   * AMENDEMENT-12 §B « la boucle fait la zone », durci AMENDEMENT-16 §2 : true
+   * si la trace claimable a fermé une boucle par l'UN des 2 modes MVP (décidé
+   * serveur, detectLoop) — retour à ≤ LOOP_CLOSE_TOLERANCE_M (80 m) du départ,
+   * OU AUTO-INTERSECTION (le tracé se recroise → la partie fermée fait la
+   * boucle, un 8 = la plus grande boucle). Toujours présent en mode conquête ;
+   * absent hors conquête (social_run/course_privee : jamais de claims, boucle
+   * ou pas) et sur les courses rejetées/gelées. Reste true quand l'intérieur
+   * est plafonné (capReached) ou refusé (loopRejectedReason).
    */
   loopClosed?: boolean;
   /**
@@ -180,7 +183,112 @@ export interface IngestRunResponse {
    * (AMENDEMENT-12 §C). 0 si boucle ouverte ou intérieur entièrement bloqué.
    */
   enclosedZones?: number;
+  /**
+   * AMENDEMENT-16 §2 anti-abus « boucle trop grande » : présent (true) quand
+   * l'intérieur de la boucle a été TRONQUÉ au plafond d'aire par distance
+   * courue (LOOP_MAX_AREA_BY_DISTANCE_KM2, interpolation linéaire) — seules
+   * les cellules les plus PROCHES du tracé sont conservées (tri enclosedCells).
+   * Copy UI gelée : « Boucle validée. Capture plafonnée : seuls les secteurs
+   * proches du tracé sont capturés. » Absent si pas de troncature.
+   */
+  capReached?: boolean;
+  /**
+   * AMENDEMENT-16 §2 anti-abus « boucle trop fine » : présent quand la boucle
+   * est fermée mais son intérieur est REFUSÉ (course et couloir restent
+   * pleinement valides). 'narrow' = compacité 4πA/P² < LOOP_MIN_COMPACTNESS
+   * OU largeur estimée 2A/P < LOOP_MIN_WIDTH_M. Copy UI gelée : « Zone non
+   * capturée : forme trop étroite. » Absent si l'intérieur est accepté.
+   */
+  loopRejectedReason?: 'narrow';
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-16 §4 — Inventaire, items, achats, crew boosts (doc §17-§26).
+// Le catalogue vit en DB (items, seed 0014) ; les prix EUR/Éclats de référence
+// dans game-rules (SKU_PRICES_EUR, *_ECLATS). Aucun effet gameplay vendable.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Type d'un item du catalogue (items.type, seed 0014). */
+export type ItemType =
+  | 'pack' // Starter/Founder Pack (§19)
+  | 'eclats' // packs de monnaie premium (§19.3)
+  | 'skin_territory' // skin de territoire sur la carte (§16.3)
+  | 'skin_trace' // skin de trace (§16.3)
+  | 'frame_profile' // frame de profil joueur (§16.1)
+  | 'template_share' // template de share card (§16.1)
+  | 'banner_crew' // bannière Crew HQ (§21.5)
+  | 'emblem_crew' // blason crew premium (§16.2)
+  | 'shield' // bouclier secteur 48 h (§20.1, capé)
+  | 'streak_gel' // protection de série perso (§20.2, capé)
+  | 'scout_ping' // analyse de zone (§20.3, capé)
+  | 'crew_boost' // contribution groupée capée (§21.1-§21.2)
+  | 'cosmetic_chest' // coffre cosmétique crew (§21.3)
+  | 'recruit_template' // template recrutement crew (§21.4)
+  | 'season_pass' // GRYD Pass §23 — seedé INACTIF (draft)
+  | 'badge' // badge cosmétique pack-only (Founder)
+  | 'title'; // titre de profil (§16.1)
+
+/** Rareté d'un item — MIROIR des tiers visuels existants (badges/niveaux). */
+export type ItemRarity = 'road' | 'tempo' | 'race' | 'carbon' | 'elite' | 'legend';
+
+/** Portée d'un item (items.target_scope, doc §26). */
+export type ItemTargetScope = 'user' | 'crew' | 'zone' | 'route' | 'share' | 'profile';
+
+/** Statut catalogue : `draft` = catalogué mais NON vendu (GRYD Pass §23). */
+export type ItemStatus = 'active' | 'draft';
+
+/** Ligne du catalogue items (0014) telle qu'exposée au client (lecture seule). */
+export interface CatalogItem {
+  id: string;
+  itemKey: string;
+  name: string;
+  type: ItemType;
+  rarity: ItemRarity;
+  /** Prix en Éclats (null = pas vendu en Éclats : pack-only ou SKU EUR). */
+  priceShards: number | null;
+  /** Prix EUR de référence (null = pas vendu en EUR). */
+  priceEur: number | null;
+  isConsumable: boolean;
+  /** Limite anti-abus affichée (règle §17.6), null si aucune. */
+  usageLimit: string | null;
+  targetScope: ItemTargetScope;
+  animationKey: string;
+  description: string;
+  status: ItemStatus;
+}
+
+/** Ligne user_inventory / crew_inventory (0014) côté client. */
+export interface InventoryEntry {
+  itemId: string;
+  itemKey: string;
+  quantity: number;
+  equipped: boolean;
+  acquiredAt: string;
+}
+
+/**
+ * Crew Boost actif/planifié (crew_boosts, 0014). Effet UNIQUEMENT sur la
+ * progression du coffre crew (multiplier ≤ CREW_BOOST_CHEST_MULTIPLIER) —
+ * jamais points/XP/leaderboard. `activatedByUserId` null = offrande anonyme
+ * (GIFT_ANONYMOUS_ALLOWED, doc §14).
+ */
+export type CrewBoostStatus = 'active' | 'expired' | 'cancelled';
+export interface CrewBoostRow {
+  id: string;
+  crewId: string;
+  /** CrewBoostType de game-rules (boost_24h | boost_72h | boost_weekend | boost_season). */
+  boostType: string;
+  activatedByUserId: string | null;
+  startsAt: string;
+  endsAt: string;
+  multiplier: number;
+  status: CrewBoostStatus;
+}
+
+/** Plateforme d'un achat (purchases.platform, doc §26). */
+export type PurchasePlatform = 'app_store' | 'play_store' | 'promo' | 'unknown';
+/** Statut d'un achat (purchases.status) : applied = crédité, skipped = anomalie loggée (ex. boost crew sans crew actif). */
+export type PurchaseStatus = 'applied' | 'skipped';
 
 /** Ligne hex_claims exposée publiquement (jamais de trace, jamais de position live). */
 export interface PublicHexClaim {
