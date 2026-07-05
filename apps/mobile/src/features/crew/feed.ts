@@ -137,6 +137,184 @@ export type ChatTimelineItem = WarLogEntryDemo | CrewMessageDemo;
 export const DEFENSE_RSVP_OPTIONS = ['Je participe', 'Peut-être', 'Indispo'] as const;
 export type DefenseRsvp = (typeof DEFENSE_RSVP_OPTIONS)[number];
 
+// ─── AMENDEMENT-18 A.2 : CHAT ACTIONNABLE ─────────────────────────────────────
+// « Ton crew ne parle pas seulement. Il agit. » Le chat = centre d'ACTION, pas
+// un WhatsApp. 3 sections : À FAIRE (cartes d'action), MESSAGES (fil humain),
+// LOG (War Log compressé). Filtres : Tout/Demandes/Missions/Dons/Résultats.
+
+/** Filtres en chips (A.2) — pilotent l'affichage des 3 sections. */
+export type ChatFilter = 'tout' | 'demandes' | 'missions' | 'dons' | 'resultats';
+export const CHAT_FILTERS: readonly { key: ChatFilter; label: string }[] = [
+  { key: 'tout', label: 'Tout' },
+  { key: 'demandes', label: 'Demandes' },
+  { key: 'missions', label: 'Missions' },
+  { key: 'dons', label: 'Dons' },
+  { key: 'resultats', label: 'Résultats' },
+];
+
+/**
+ * Type d'une carte d'action « À FAIRE » — pilote l'icône, la teinte et le CTA.
+ * `finish` = terminer une frontière ouverte (boucle crew) ; `defense` = défense
+ * urgente d'un secteur sous pression ; `outing` = sortie crew à rejoindre ;
+ * `request` = demande d'un membre (route/scout/aide) façon donation Clash.
+ */
+export type ActionCardKind = 'finish' | 'defense' | 'outing' | 'request';
+
+/**
+ * Destination du CTA d'une carte d'action. `live` route vers /course-live avec
+ * une intention (complete/defense) ; `planner` vers /route-planner ; `toast` =
+ * feedback démo (RSVP sortie, demande relayée). Le client NE décide jamais d'un
+ * claim — il ne fait que router vers l'écran de course (décision serveur §3).
+ */
+export type ActionCardCta = 'live' | 'planner' | 'toast';
+
+export interface ActionCardDemo {
+  id: string;
+  kind: ActionCardKind;
+  /** Filtres qui font apparaître cette carte (A.2 : Demandes/Missions…). */
+  filters: readonly ChatFilter[];
+  /** Titre court non tronqué (« Terminer une frontière »). */
+  title: string;
+  /** Zone concernée (« République ») — jamais de coordonnée. */
+  zone: string;
+  /** 1-2 infos compactes (« 620 m », « expire 23 h », « ouvert par KORO »). */
+  infos: readonly string[];
+  /** Libellé du CTA — COURT, jamais coupé (« TERMINER », « DÉFENDRE »…). */
+  cta: string;
+  ctaKind: ActionCardCta;
+  /** Intention passée à /course-live quand ctaKind = 'live'. */
+  intention?: 'complete' | 'defense';
+  /** Id de frontière partielle (course-live) quand intention = 'complete'. */
+  boundary?: string;
+}
+
+/**
+ * Cartes d'action « À FAIRE » démo (A.2), tirées du contexte existant : la
+ * frontière République ouverte par KORO (feed bopen_republique), la pression
+ * Canal (offensive w2), la sortie défense Canal (message m1). Anti-scroll :
+ * l'écran n'en montre que 2, le reste sous « Voir tout ».
+ */
+export const ACTION_CARDS_DEMO: readonly ActionCardDemo[] = [
+  {
+    id: 'act_finish_republique',
+    kind: 'finish',
+    filters: ['demandes', 'missions'],
+    title: 'Terminer une frontière',
+    zone: 'République',
+    infos: ['620 m', 'expire 23 h', 'Ouvert par KORO'],
+    cta: 'TERMINER',
+    ctaKind: 'live',
+    intention: 'complete',
+    boundary: 'republique',
+  },
+  {
+    id: 'act_defense_canal',
+    kind: 'defense',
+    filters: ['demandes', 'missions'],
+    title: 'Défense urgente',
+    zone: 'Canal',
+    infos: ['48 h', '34 zones'],
+    cta: 'DÉFENDRE',
+    ctaKind: 'live',
+    intention: 'defense',
+  },
+  {
+    id: 'act_outing_republique',
+    kind: 'outing',
+    filters: ['missions'],
+    title: 'Sortie crew',
+    zone: 'République',
+    infos: ['19:00', '4 participants'],
+    cta: 'REJOINDRE',
+    ctaKind: 'toast',
+  },
+  {
+    id: 'act_request_route',
+    kind: 'request',
+    filters: ['demandes'],
+    title: 'Route demandée',
+    zone: 'Villette',
+    infos: ['LENA_RUN', '4,2 km'],
+    cta: 'DONNER UNE ROUTE',
+    ctaKind: 'planner',
+  },
+];
+
+/**
+ * Type d'un DON dans le fil (A.3/A.4). Chaque don porte des réactions « Merci /
+ * Respect / Bien joué » (reactions.ts, persistées). `boost` = Crew Boost 24 h
+ * offert (cohérent gifting AMENDEMENT-16) ; `chest` = coffre cosmétique offert ;
+ * `route`/`segment`/`defense` = dons GRATUITS (route donnée, boucle d'un autre
+ * terminée, défense prise). ZÉRO montant, ZÉRO classement des payeurs.
+ */
+export type GiftKind = 'boost' | 'chest' | 'route' | 'segment' | 'defense';
+
+/** Destination du CTA « Voir » d'un don (coffre, carte, arsenal). */
+export type GiftCta = 'chest' | 'map' | 'arsenal';
+
+export interface GiftCardDemo {
+  id: string;
+  kind: GiftKind;
+  /** Kicker court en capitales (« BOOST OFFERT », « ROUTE DONNÉE »). */
+  kicker: string;
+  /** Nom du donateur, ou null si offrande ANONYME (don anonyme possible A.4). */
+  by: string | null;
+  /** Phrase du don (« a offert un Crew Boost 24 h »). */
+  message: string;
+  /** Effet en clair (« le coffre se remplit +25 % plus vite »). */
+  effect: string;
+  /** Libellé du CTA « Voir » — court (« Voir coffre »). */
+  cta: string;
+  ctaKind: GiftCta;
+  minutesAgo: number;
+  /** Compteurs de départ Merci/Respect/Bien joué (démo, fusionnés reactions.ts). */
+  seed: { merci?: number; respect?: number; bienjoue?: number };
+}
+
+/**
+ * Dons du fil démo (A.4). La carte BOOST OFFERT de Benjamin est l'exemple
+ * canonique de l'amendement. Un don anonyme est aussi présent (coffre) pour
+ * montrer « ce membre » sans nom. Rendus dans MESSAGES (secondaire) + filtre Dons.
+ */
+export const GIFT_CARDS_DEMO: readonly GiftCardDemo[] = [
+  {
+    id: 'gift_boost_benjamin',
+    kind: 'boost',
+    kicker: 'BOOST OFFERT',
+    by: 'Benjamin',
+    message: 'a offert un Crew Boost 24 h',
+    effect: 'le coffre se remplit +25 % plus vite',
+    cta: 'Voir coffre',
+    ctaKind: 'chest',
+    minutesAgo: 12,
+    seed: { merci: 11, respect: 4 },
+  },
+  {
+    id: 'gift_segment_lena',
+    kind: 'segment',
+    kicker: 'SEGMENT TERMINÉ',
+    by: 'LENA_RUN',
+    message: 'a terminé la boucle de KORO · République',
+    effect: 'la zone est prise par le crew',
+    cta: 'Voir la carte',
+    ctaKind: 'map',
+    minutesAgo: 20,
+    seed: { merci: 6, respect: 5, bienjoue: 3 },
+  },
+  {
+    id: 'gift_chest_anon',
+    kind: 'chest',
+    kicker: 'COFFRE OFFERT',
+    by: null,
+    message: 'a offert un coffre cosmétique au crew',
+    effect: 'skins à réclamer par tout le crew',
+    cta: 'Voir l’Arsenal',
+    ctaKind: 'arsenal',
+    minutesAgo: 55,
+    seed: { merci: 8, respect: 2 },
+  },
+];
+
 /**
  * Timeline crew démo — du plus récent au plus ancien, tous les types §13
  * représentés + 3 messages actionnables §14. LIVE = < 10 min (WarEventCard).

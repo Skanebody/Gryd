@@ -90,13 +90,27 @@ import {
   type CrewBoostState,
 } from '../../src/features/arsenal';
 import {
+  ACTION_CARDS_DEMO,
+  CHAT_FILTERS,
   CHAT_TIMELINE,
   DEFENSE_RSVP_OPTIONS,
+  GIFT_CARDS_DEMO,
   WAR_LOG_META,
   warLogTint,
+  type ActionCardDemo,
+  type ChatFilter,
   type DefenseRsvp,
+  type GiftCardDemo,
 } from '../../src/features/crew/feed';
 import { ReactionBar } from '../../src/features/crew/ReactionBar';
+import {
+  GIFT_REACTIONS,
+  resolveGiftReactions,
+  seedGiftReactions,
+  thanksLine,
+  toggleGiftReaction,
+  useGiftReactions,
+} from '../../src/features/crew/reactions';
 import { useCrewChat, type ChatThreadMessage } from '../../src/features/crew/chatStore';
 import { useCrewProfile } from '../../src/features/crew/crewEdit';
 
@@ -355,19 +369,179 @@ function ChatBubble({
   );
 }
 
+/** Icône + teinte d'une carte d'action « À FAIRE » (état de jeu, pas déco). */
+const ACTION_META: Record<
+  ActionCardDemo['kind'],
+  { icon: IconName; tint: string }
+> = {
+  finish: { icon: 'avantposte', tint: gameColors.crew },
+  defense: { icon: 'bouclier', tint: gameColors.contested },
+  outing: { icon: 'crew', tint: gameColors.crew },
+  request: { icon: 'route', tint: gameColors.gold },
+};
+
+/**
+ * Carte d'action « À FAIRE » (A.2) : type + zone + 1-2 infos + 1 CTA plein.
+ * Le CTA route vers l'écran de course/planner (le client ne claim jamais) ou
+ * relaie une action démo (sortie, demande). Libellé de CTA JAMAIS tronqué.
+ */
+function ActionCard({
+  card,
+  onCta,
+}: {
+  card: ActionCardDemo;
+  onCta: (card: ActionCardDemo) => void;
+}) {
+  const meta = ACTION_META[card.kind];
+  return (
+    <View style={styles.actionCard}>
+      <View style={styles.actionTop}>
+        <View style={[styles.actionIcon, { borderColor: meta.tint }]}>
+          <Icon name={meta.icon} size={18} color={meta.tint} />
+        </View>
+        <View style={styles.actionBody}>
+          <Text style={styles.actionTitle} numberOfLines={1}>
+            {card.title}
+          </Text>
+          <Text style={styles.actionZone} numberOfLines={1}>
+            {card.zone} · {card.infos.join(' · ')}
+          </Text>
+        </View>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${card.cta} · ${card.zone}`}
+        onPress={() => onCta(card)}
+        style={({ pressed }) => [styles.actionCta, pressed && styles.dim]}
+      >
+        <Text style={styles.actionCtaLabel}>{card.cta}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * Carte de DON (A.4) : kicker + qui + effet + [Voir] + réactions Merci/Respect/
+ * Bien joué (persistées, reactions.ts). Statut social COSMÉTIQUE — la ligne
+ * « 12 membres ont remercié Benjamin. » apparaît dès le 1ᵉʳ Merci. Don anonyme
+ * → « ce membre » (jamais de nom forcé). ZÉRO pay-to-win.
+ */
+function GiftCard({ gift, onCta }: { gift: GiftCardDemo; onCta: (gift: GiftCardDemo) => void }) {
+  // Seed idempotent des compteurs de départ (avant tout tap).
+  seedGiftReactions(gift.id, gift.seed);
+  const state = resolveGiftReactions(gift.id);
+  const thanks = thanksLine(gift.id, gift.by);
+  const who = gift.by ?? 'Un membre';
+  return (
+    <View style={styles.giftCard}>
+      <View style={styles.giftHead}>
+        <View style={styles.giftIcon}>
+          <Icon name="cadeau" size={16} color={gameColors.gold} />
+        </View>
+        <Text style={styles.giftKicker} numberOfLines={1}>
+          {gift.kicker}
+        </Text>
+      </View>
+      <Text style={styles.giftMessage} numberOfLines={2}>
+        <Text style={styles.giftBy}>{who} </Text>
+        {gift.message}
+      </Text>
+      <Text style={styles.giftEffect} numberOfLines={2}>
+        {gift.effect}
+      </Text>
+
+      {/* Réactions Merci / Respect / Bien joué — cosmétique, persisté. */}
+      <View style={styles.giftReactRow}>
+        {GIFT_REACTIONS.map((r) => {
+          const count = state.counts[r.key] ?? 0;
+          const mine = state.mine[r.key] === true;
+          return (
+            <Pressable
+              key={r.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: mine }}
+              accessibilityLabel={`${r.label} · ${gift.kicker}`}
+              onPress={() => {
+                haptics.light();
+                toggleGiftReaction(gift.id, r.key);
+              }}
+              style={[styles.giftReact, mine && styles.giftReactMine]}
+            >
+              <Text style={[styles.giftReactLabel, mine && styles.giftReactLabelMine]}>
+                {r.label}
+              </Text>
+              {count > 0 ? (
+                <Text style={[styles.giftReactCount, mine && styles.giftReactLabelMine]}>
+                  {count}
+                </Text>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {thanks ? <Text style={styles.giftThanks}>{thanks}</Text> : null}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={gift.cta}
+        onPress={() => onCta(gift)}
+        style={({ pressed }) => [styles.giftCtaBtn, pressed && styles.dim]}
+      >
+        <Icon name="chevron" size={14} color={colors.blanc} />
+        <Text style={styles.giftCtaLabel}>{gift.cta}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** En-tête d'une section du chat actionnable + « Voir tout » optionnel (anti-scroll). */
+function SectionHead({
+  label,
+  count,
+  showAll,
+  onToggle,
+}: {
+  label: string;
+  count: number;
+  showAll: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <View style={styles.chatSectionHead}>
+      <Text style={styles.chatSectionLabel}>{label}</Text>
+      {count > 2 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showAll }}
+          onPress={onToggle}
+          style={({ pressed }) => [styles.seeAllBtn, pressed && styles.dim]}
+        >
+          <Text style={styles.seeAllLabel}>{showAll ? 'Réduire' : `Voir tout (${count})`}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export default function CrewScreen() {
   useEffect(() => {
     screen('crew_hq');
   }, []);
 
   const [tab, setTab] = useState<HqTab>('base');
-  /** Sous-onglet interne de l'onglet Chat : War Log (événements) vs Chat (messages). */
-  const [chatTab, setChatTab] = useState<'chat' | 'warlog'>('chat');
   /** Profil crew effectif (reflète l'édition founder persistée au retour). */
   const crewProfile = useCrewProfile();
   /** Base horaire figée au montage (ordre stable des messages démo). */
   const chatNowBase = useMemo(() => Date.now(), []);
   const chat = useCrewChat(chatNowBase);
+  /** Abonne l'écran au store des réactions de don (re-render à chaque Merci). */
+  useGiftReactions();
+  /** Filtre actif du chat actionnable (Tout / Demandes / Missions / Dons / Résultats). */
+  const [chatFilter, setChatFilter] = useState<ChatFilter>('tout');
+  /** Anti-scroll : « Voir tout » par section (À faire / Log) — 2 visibles sinon. */
+  const [showAllActions, setShowAllActions] = useState(false);
+  const [showAllLog, setShowAllLog] = useState(false);
   /** Champ de saisie du chat (barre persistante en bas de l'onglet Chat). */
   const [draft, setDraft] = useState('');
   /** Feedback court des actions démo (invite, sheet membre). */
@@ -467,6 +641,61 @@ export default function CrewScreen() {
     setDraft('');
   };
 
+  // CTA d'une carte d'action « À FAIRE » : route vers l'écran de course
+  // (intention client only, le serveur reste seul juge du claim §3) ou feedback
+  // démo (sortie/demande relayée au crew).
+  const onActionCta = (card: ActionCardDemo) => {
+    haptics.medium();
+    if (card.ctaKind === 'live') {
+      const q =
+        card.intention === 'complete'
+          ? `intention=complete&boundary=${card.boundary ?? ''}`
+          : 'intention=defense';
+      router.push(`/course-live?${q}`);
+      return;
+    }
+    if (card.ctaKind === 'planner') {
+      router.push('/route-planner');
+      return;
+    }
+    notify(`${card.cta} · ${card.zone} — envoyé au crew (démo)`);
+  };
+
+  // CTA « Voir » d'un don : coffre (onglet), carte, ou Arsenal.
+  const onGiftCta = (gift: GiftCardDemo) => {
+    haptics.light();
+    if (gift.ctaKind === 'chest') {
+      setTab('coffre');
+      return;
+    }
+    if (gift.ctaKind === 'map') {
+      router.navigate('/');
+      return;
+    }
+    router.push('/arsenal');
+  };
+
+  // ── Sections du chat actionnable filtrées (A.2) ──
+  // À FAIRE : cartes d'action visibles selon le filtre (Dons masque À faire).
+  const visibleActions = useMemo(
+    () =>
+      chatFilter === 'dons' || chatFilter === 'resultats'
+        ? []
+        : ACTION_CARDS_DEMO.filter(
+            (c) => chatFilter === 'tout' || c.filters.includes(chatFilter),
+          ),
+    [chatFilter],
+  );
+  // DONS : cartes de don (boost/cadeau/segment…) — masquées sous Résultats/Missions.
+  const visibleGifts = useMemo(
+    () => (chatFilter === 'resultats' || chatFilter === 'missions' ? [] : GIFT_CARDS_DEMO),
+    [chatFilter],
+  );
+  // MESSAGES : fil humain — masqué quand on filtre sur Dons/Résultats (secondaire).
+  const showMessages = chatFilter === 'tout' || chatFilter === 'demandes';
+  // LOG : masqué sous Demandes/Dons (le Log = Résultats).
+  const showLog = chatFilter === 'tout' || chatFilter === 'resultats' || chatFilter === 'missions';
+
   const memberAction = (label: string, member: CrewMemberDemo) => {
     setMemberSheet(null);
     if (label === 'Voir profil' && member.me) {
@@ -538,7 +767,7 @@ export default function CrewScreen() {
             {canEditCrew ? (
               <View style={styles.headerCtaCell}>
                 <InlineRunCTA
-                  label="Modifier le crew"
+                  label="Modifier"
                   variant="secondary"
                   size="md"
                   leading={<Icon name="reglages" size={16} color={colors.blanc} />}
@@ -932,44 +1161,60 @@ export default function CrewScreen() {
         </>
       ) : null}
 
-      {/* ══ CHAT : 2 sous-onglets CLAIRS — CHAT (messages) vs WAR LOG (événements).
-          Fini le fil fusionné « mal organisé » : le chat ressemble à un chat
-          (fil + barre de saisie), le War Log liste les événements + réactions. ══ */}
+      {/* ══ CHAT ACTIONNABLE (AMENDEMENT-18 A.2) : le chat n'est PAS un WhatsApp,
+          c'est le CENTRE D'ACTION du crew. 3 sections — À FAIRE (ouverte, en
+          haut), MESSAGES (fil humain, secondaire), LOG (War Log compressé) —
+          + filtres Tout/Demandes/Missions/Dons/Résultats. Anti-scroll : 2 cartes
+          visibles par section + « Voir tout ». ══ */}
       {tab === 'chat' ? (
         <>
-          {/* Sélecteur de sous-onglet interne (segmented, doc §13/§14). */}
-          <View accessibilityRole="tablist" style={styles.chatSwitch}>
-            {(
-              [
-                { key: 'chat', label: 'Chat' },
-                { key: 'warlog', label: 'War Log' },
-              ] as const
-            ).map((s) => {
-              const active = chatTab === s.key;
+          {/* Filtres en chips (A.2) — pilotent l'affichage des sections. */}
+          <View accessibilityRole="tablist" style={styles.filterRow}>
+            {CHAT_FILTERS.map((f) => {
+              const active = chatFilter === f.key;
               return (
                 <Pressable
-                  key={s.key}
+                  key={f.key}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: active }}
-                  onPress={() => setChatTab(s.key)}
-                  style={[styles.chatSwitchBtn, active && styles.chatSwitchBtnActive]}
+                  onPress={() => {
+                    haptics.light();
+                    setChatFilter(f.key);
+                  }}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
                 >
-                  <Icon
-                    name={s.key === 'chat' ? 'feed' : 'guerre'}
-                    size={14}
-                    color={active ? colors.blanc : colors.gris}
-                  />
-                  <Text style={[styles.chatSwitchLabel, active && styles.chatSwitchLabelActive]}>
-                    {s.label}
+                  <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
+                    {f.label}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
 
-          {/* ── SOUS-ONGLET CHAT : un VRAI fil + barre de saisie persistante ── */}
-          {chatTab === 'chat' ? (
-            <>
+          {/* ── SECTION 1 · À FAIRE (prioritaire, ouverte) : cartes d'action ── */}
+          {visibleActions.length > 0 ? (
+            <View style={styles.chatSection}>
+              <SectionHead
+                label="À FAIRE"
+                count={visibleActions.length}
+                showAll={showAllActions}
+                onToggle={() => {
+                  haptics.light();
+                  setShowAllActions((v) => !v);
+                }}
+              />
+              <View style={styles.actionList}>
+                {(showAllActions ? visibleActions : visibleActions.slice(0, 2)).map((card) => (
+                  <ActionCard key={card.id} card={card} onCta={onActionCta} />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* ── SECTION 2 · MESSAGES (fil humain, secondaire) + composer ── */}
+          {showMessages ? (
+            <View style={styles.chatSection}>
+              <Text style={styles.chatSectionLabel}>MESSAGES</Text>
               <View style={styles.thread}>
                 {chat.messages.map((m) => (
                   <ChatBubble key={m.id} msg={m} rsvp={rsvp} setRsvp={setRsvp} />
@@ -1002,15 +1247,34 @@ export default function CrewScreen() {
                   <Icon name="partage" size={18} color={canSend ? colors.noir : colors.gris} />
                 </Pressable>
               </View>
-              <Text style={styles.chatNote}>
-                Messages du crew — pas de messages privés (MVP). Ton message reste ici (démo).
-              </Text>
-            </>
-          ) : (
-            /* ── SOUS-ONGLET WAR LOG : événements + réactions GRYD (séparés) ── */
-            <>
-              <SectionLabel>WAR LOG · ÉVÉNEMENTS DU CREW</SectionLabel>
-              {warLogEvents.map((item) =>
+            </View>
+          ) : null}
+
+          {/* ── SECTION · DONS : boost/segment/coffre offerts + Merci/Respect ── */}
+          {visibleGifts.length > 0 ? (
+            <View style={styles.chatSection}>
+              <Text style={styles.chatSectionLabel}>DONS</Text>
+              <View style={styles.actionList}>
+                {visibleGifts.map((gift) => (
+                  <GiftCard key={gift.id} gift={gift} onCta={onGiftCta} />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* ── SECTION 3 · LOG (War Log compressé) : 2 visibles + Voir tout ── */}
+          {showLog ? (
+            <View style={styles.chatSection}>
+              <SectionHead
+                label="LOG"
+                count={warLogEvents.length}
+                showAll={showAllLog}
+                onToggle={() => {
+                  haptics.light();
+                  setShowAllLog((v) => !v);
+                }}
+              />
+              {(showAllLog ? warLogEvents : warLogEvents.slice(0, 2)).map((item) =>
                 item.kind === 'event' ? (
                   <View key={item.id} style={styles.feedItem}>
                     <WarEventCard
@@ -1027,11 +1291,12 @@ export default function CrewScreen() {
                   </View>
                 ) : null,
               )}
-              <Text style={styles.chatNote}>
-                Le War Log liste les événements du crew. Les messages sont dans l’onglet Chat.
-              </Text>
-            </>
-          )}
+            </View>
+          ) : null}
+
+          <Text style={styles.chatNote}>
+            Ton crew ne parle pas seulement. Il agit. Messages du crew — pas de MP (MVP, démo).
+          </Text>
         </>
       ) : null}
 
@@ -1463,32 +1728,155 @@ const styles = StyleSheet.create({
   },
   // ── Perks ──
   perkList: { gap: 8 },
-  // ── Chat : sous-onglets internes (Chat / War Log) ──
-  chatSwitch: {
+  // ── Chat actionnable (A.2) : filtres en chips ──
+  filterRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginTop: 18,
-    marginBottom: 4,
-    backgroundColor: colors.carbone,
+  },
+  filterChip: {
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    padding: 4,
-    gap: 4,
+    backgroundColor: colors.carbone,
+    paddingVertical: 7,
+    paddingHorizontal: 13,
   },
-  chatSwitchBtn: {
+  filterChipActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
+  filterLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700' },
+  filterLabelActive: { color: colors.blanc },
+  // ── Chat actionnable : sections À FAIRE / MESSAGES / DONS / LOG ──
+  chatSection: { marginTop: 22 },
+  chatSectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  chatSectionLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  seeAllBtn: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+  },
+  seeAllLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  // ── Carte d'action « À FAIRE » : type + zone + infos + 1 CTA plein ──
+  actionList: { gap: 10 },
+  actionCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: 14,
+    gap: 12,
+  },
+  actionTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.carbone2,
+  },
+  actionBody: { flex: 1, gap: 3 },
+  actionTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  actionZone: { color: colors.gris, fontSize: fontSizes.xs },
+  // CTA plein chartreuse — libellé NOIR (contraste charte), jamais tronqué.
+  actionCta: {
+    backgroundColor: gameColors.crew,
+    borderRadius: radii.pill,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCtaLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  // ── Carte de DON (A.4) : kicker + effet + réactions Merci/Respect/Bien joué ──
+  giftCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: gameColors.gold,
+    padding: 14,
+    gap: 8,
+  },
+  giftHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  giftIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: gameColors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.carbone2,
+  },
+  giftKicker: {
     flex: 1,
+    color: gameColors.gold,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  giftMessage: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
+  giftBy: { fontWeight: '800' },
+  giftEffect: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: fontSizes.xs * 1.5 },
+  giftReactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  giftReact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone2,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  giftReactMine: { borderColor: gameColors.crew },
+  giftReactLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  giftReactLabelMine: { color: gameColors.crew },
+  giftReactCount: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  giftThanks: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600', marginTop: 2 },
+  giftCtaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
+    gap: 8,
+    marginTop: 4,
     borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 10,
   },
-  chatSwitchBtnActive: { backgroundColor: colors.carbone2 },
-  chatSwitchLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
-  chatSwitchLabelActive: { color: colors.blanc },
+  giftCtaLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   // ── Chat : fil de discussion (bulles) ──
-  thread: { marginTop: 14, gap: 12 },
+  thread: { marginTop: 4, gap: 12 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 32 },
   bubbleRowMe: { alignItems: 'flex-end', paddingLeft: 40 },
   avatar: {
