@@ -39,6 +39,130 @@ export function intentionFromParam(
   return null;
 }
 
+// ─── AMENDEMENT-17 §CH2 — Frontière crew : ouverture + complétion (démo UX) ──
+// « Ouvre une frontière. Ton crew peut la fermer. » Côté UX pur : le résultat
+// d'une course VALIDE non bouclée mais fermable montre l'état FRONTIÈRE OUVERTE
+// (il manque N m) ; la course d'un membre qui referme la boucle montre BOUCLE
+// CREW FERMÉE + contributions. En prod, ces données viennent d'ingest_run
+// (IngestRunResponse.openBoundary / boundaryCompleted) ; ici on MIROIRE cette
+// forme en démo déterministe (le serveur reste seul décideur). Jamais de
+// polyline, de score de géométrie, de cellule ni de % de géométrie exposé :
+// on affiche « Il manque 620 m. Expire dans 23 h. »
+
+/**
+ * Mode « terminer » du live (chantier 2) : un membre reprend une frontière
+ * ouverte par son crew pour la refermer. 100 % CLIENT (comme conquest/defense) —
+ * `boundary=<id>` accompagne le param pour rejouer la bonne frontière démo.
+ */
+export type CompleteIntention = 'complete';
+
+/** Vrai si le live tourne en mode « terminer une frontière » (param intention). */
+export function isCompleteParam(param: string | string[] | undefined): boolean {
+  const value = Array.isArray(param) ? param[0] : param;
+  return value === 'complete';
+}
+
+/**
+ * Frontière partielle démo (miroir UX de PartialBoundary / openBoundary — la
+ * géométrie serveur n'est jamais exposée). `missingM` = mètres restants affichés
+ * tels quels (« Il manque 620 m ») ; `ttlHoursLeft` alimente « Expire dans 23 h »
+ * (le vrai `expiresAt` vient du serveur). `openerName` = l'ouvreur (« Ouvert par
+ * KORO »). `contributions` = répartition au prorata démo pour l'écran complétion.
+ */
+export interface PartialBoundaryDemo {
+  id: string;
+  zone: string;
+  tracedKm: number;
+  missingM: number;
+  ttlHoursLeft: number;
+  openerName: string;
+  routeId: string;
+  /** Répartition au prorata (somme des share = 1) — miroir contributionSplit. */
+  contributions: readonly { name: string; share: number }[];
+  /** Points crew de la zone capturée à la fermeture (démo). */
+  crewPoints: number;
+}
+
+/**
+ * Frontières partielles démo (doc §CH2 : « Il manque 620 m pour prendre
+ * République »). Une seule cible principale (République, 620 m) + une secondaire.
+ * La vraie liste est serveur (partial_boundaries du crew, RLS lecture crew).
+ */
+export const PARTIAL_BOUNDARIES_DEMO: readonly PartialBoundaryDemo[] = [
+  {
+    id: 'republique',
+    zone: 'République',
+    tracedKm: 2.4,
+    missingM: 620,
+    ttlHoursLeft: 23,
+    openerName: 'KORO',
+    routeId: 'route_c_defense',
+    // Ouvreur ~79 % / finisher ~21 % (prorata longueur validée — miroir moteur).
+    contributions: [
+      { name: 'Benjamin', share: 0.79 },
+      { name: 'Lena', share: 0.21 },
+    ],
+    crewPoints: 420,
+  },
+  {
+    id: 'canal',
+    zone: 'Canal',
+    tracedKm: 3.1,
+    missingM: 480,
+    ttlHoursLeft: 17,
+    openerName: 'KORO',
+    routeId: 'route_b_optimisee',
+    contributions: [
+      { name: 'Benjamin', share: 0.72 },
+      { name: 'Lena', share: 0.28 },
+    ],
+    crewPoints: 360,
+  },
+];
+
+/** Frontière démo par id (`boundary=<id>`) — défaut : la première (République). */
+export function partialBoundaryById(
+  param: string | string[] | undefined,
+): PartialBoundaryDemo {
+  const raw = (Array.isArray(param) ? param[0] : param)?.toLowerCase();
+  const hit = PARTIAL_BOUNDARIES_DEMO.find((b) => b.id === raw);
+  return hit ?? PARTIAL_BOUNDARIES_DEMO[0]!;
+}
+
+/** « 2,4 km » — virgule FR, distance tracée (copy « Tu as tracé 2,4 km »). */
+export function tracedKmLabel(boundary: PartialBoundaryDemo): string {
+  return `${boundary.tracedKm.toFixed(1).replace('.', ',')} km`;
+}
+
+/** « Expire dans 23 h » — TTL restant lisible (jamais l'ISO brut). */
+export function boundaryExpiryLabel(boundary: PartialBoundaryDemo): string {
+  return `Expire dans ${boundary.ttlHoursLeft} h`;
+}
+
+/**
+ * Part affichée « 79 % » d'une contribution (arrondi entier — jamais un % de
+ * géométrie trop précis, juste la répartition lisible du prorata).
+ */
+export function contributionPct(share: number): number {
+  return Math.round(Math.max(0, Math.min(1, share)) * 100);
+}
+
+/**
+ * Bandeau live du mode « terminer » (chantier 2, doc §CH2) :
+ * « Terminer République · 420 m restants · Frontière couverte : 68 % ».
+ * `remainingM` = ce qu'il reste à couvrir (démo : missing × (1 − progress)) ;
+ * `coveredPct` = frontière couverte (métrique démo, pas une polyline technique).
+ * Aucune de ces valeurs ne part au serveur — pur affichage.
+ */
+export function completeBannerLabel(
+  zone: string,
+  remainingM: number,
+  coveredPct: number,
+): string {
+  const m = Math.max(0, Math.round(remainingM / BANNER_ROUND_M) * BANNER_ROUND_M);
+  return `Terminer ${zone} · ${m} m restants · Frontière couverte : ${coveredPct} %`;
+}
+
 // ─── Zones à défendre (démo doc §3.3 — la vraie liste est serveur, V1) ──────
 
 export interface DefenseTargetDemo {

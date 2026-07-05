@@ -72,26 +72,60 @@ export const OFFENSIVE: OffensiveDemo = {
 };
 
 /**
- * Frontières ouvertes « À TERMINER » (AMENDEMENT-17 §1.3, boucle crew §chantier 2).
- * Placeholder compact pour le dashboard : un run non fermé laisse une frontière
- * qu'un membre du crew peut clôturer. Le détail (segments, contributions) arrive
- * au chantier 2 — ici on n'expose QU'un résumé humain (zone · mètres restants ·
- * fenêtre · ouvreur). Jamais de polyline / score de géométrie / cellule (§UX-17).
+ * Frontières ouvertes « À TERMINER » (AMENDEMENT-17 §CH2, boucle crew collaborative).
+ * Un run non fermé mais FERMABLE laisse une `partial_boundary` `open` (0015) que
+ * n'importe quel membre du MÊME crew peut clôturer dans le TTL 24 h. La card
+ * n'expose QU'un résumé humain (zone · mètres restants · fenêtre · ouvreur) et
+ * mène à Course Live en mode « terminer » (`?intention=complete&boundary=<id>`).
+ * Jamais de polyline / score de géométrie / cellule / % précis (§UX-17) : on ne
+ * montre QUE « Il manque 620 m. Expire dans 23 h. Terminer la boucle. »
+ * TODO(O1) brancher partial_boundaries (0015, filtrée crew + status open + TTL).
  */
 export interface OpenBoundaryDemo {
   key: string;
+  /**
+   * Identifiant de la frontière partielle (partial_boundaries.id côté serveur) —
+   * passé en param à Course Live (`?boundary=<id>`) pour lancer le mode terminer.
+   */
+  boundaryId: string;
   /** Zone en jeu (« République »). */
   zone: string;
   /** Mètres restants pour fermer la boucle (humain, arrondi). */
   missingM: number;
-  /** Heures avant expiration de la frontière partielle (TTL 24 h). */
-  expiresInH: number;
+  /**
+   * Minutes restantes avant expiration de la frontière partielle (TTL 24 h) —
+   * point de départ du décompte animé « expire dans 23 h 14 » (jamais de
+   * seconde exposée, jamais de % de géométrie). Source unique du temps affiché.
+   */
+  expiresInMin: number;
   /** Pseudo du membre qui a ouvert la frontière. */
   opener: string;
 }
 export const OPEN_BOUNDARIES: readonly OpenBoundaryDemo[] = [
-  { key: 'boundary_republique', zone: 'République', missingM: 620, expiresInH: 23, opener: 'KORO' },
-  { key: 'boundary_jaures', zone: 'Jaurès', missingM: 340, expiresInH: 11, opener: 'LENA·11' },
+  {
+    key: 'boundary_republique',
+    boundaryId: 'pb_republique_koro',
+    zone: 'République',
+    missingM: 620,
+    expiresInMin: 23 * 60 + 14,
+    opener: 'KORO',
+  },
+  {
+    key: 'boundary_jaures',
+    boundaryId: 'pb_jaures_lena',
+    zone: 'Jaurès',
+    missingM: 340,
+    expiresInMin: 11 * 60 + 2,
+    opener: 'LENA·11',
+  },
+  {
+    key: 'boundary_belleville',
+    boundaryId: 'pb_belleville_pacer',
+    zone: 'Belleville',
+    missingM: 480,
+    expiresInMin: 5 * 60 + 41,
+    opener: 'PACER·20E',
+  },
 ];
 
 /** Mission « À faire » de la War Room (§7.12, types quotidienne/hebdo/crew). */

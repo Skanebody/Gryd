@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./validation": "./src/validation.ts",
     "./hexing": "./src/hexing.ts",
+    "./boundary": "./src/boundary.ts",
     "./claims": "./src/claims.ts",
     "./scoring": "./src/scoring.ts",
     "./badges": "./src/badges.ts"

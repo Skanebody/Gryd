@@ -60,7 +60,15 @@ export type WarLogType =
   | 'avantposte'
   // AMENDEMENT-16 §14 : contribution/gifting — message SOBRE, jamais de montant
   // ni de classement de payeurs. Offrande anonyme rendue « Un membre a offert… ».
-  | 'contribution';
+  | 'contribution'
+  // AMENDEMENT-17 §CH2 : cycle de la boucle crew collaborative. `boundaryOpen` =
+  // un membre a ouvert une frontière (« Il manque 620 m pour capturer
+  // République. ») → appel à finir la boucle ; `boundaryCompleted` = un membre
+  // du crew a couru le segment manquant, la zone est prise (crew_feed_events
+  // event_type 'boundary_completed', migration 0015). Jamais de polyline ni de
+  // géométrie : la phrase suffit (§UX-17).
+  | 'boundaryOpen'
+  | 'boundaryCompleted';
 
 /**
  * Icône + teinte fonctionnelle par type d'événement. La couleur lit l'ÉTAT DE
@@ -80,6 +88,10 @@ export const WAR_LOG_META: Record<WarLogType, { icon: IconName; tint: GameColorN
   avantposte: { icon: 'avantposte', tint: 'crew' },
   // Cadeau = geste positif de contribution (or), pas une action de jeu.
   contribution: { icon: 'cadeau', tint: 'gold' },
+  // AMENDEMENT-17 §CH2 : frontière ouverte = appel au crew (chartreuse, action
+  // en attente) ; frontière fermée = zone capturée par le crew (raid crew).
+  boundaryOpen: { icon: 'avantposte', tint: 'crew' },
+  boundaryCompleted: { icon: 'raid', tint: 'crew' },
 };
 
 /** Résout la teinte d'une entrée (surcharge éventuelle, ex. attaque rivale). */
@@ -130,10 +142,28 @@ export type DefenseRsvp = (typeof DEFENSE_RSVP_OPTIONS)[number];
  * représentés + 3 messages actionnables §14. LIVE = < 10 min (WarEventCard).
  */
 export const CHAT_TIMELINE: readonly ChatTimelineItem[] = [
+  // AMENDEMENT-17 §CH2 — les 2 temps de la boucle crew collaborative.
+  // 2/2 (le plus récent) : Lena a couru le segment manquant, la frontière est
+  // refermée → zone crew. Copy UX : « … Republique est capturé par le crew. »
+  // (jamais de %, jamais de géométrie ; contributions vivent dans le résultat run).
+  {
+    kind: 'event', id: 'bcomplete_republique', type: 'boundaryCompleted',
+    message: 'Lena a terminé la boucle. République est capturé par le crew.',
+    zone: 'République', points: 420, minutesAgo: 3,
+    reactions: { raid: 6, respect: 4, legend: 1 },
+  },
   {
     kind: 'event', id: 'w1', type: 'reprise',
     message: 'MOLOKAÏ a repris 14 zones', zone: 'Buttes-Chaumont', points: 176, minutesAgo: 8,
     reactions: { raid: 5, fast: 2, respect: 1 },
+  },
+  // 1/2 : KORO a ouvert la frontière (run fermable non fermé) → appel au crew.
+  // Copy UX : « … Il manque 620 m pour capturer République. »
+  {
+    kind: 'event', id: 'bopen_republique', type: 'boundaryOpen',
+    message: 'KORO a ouvert une frontière. Il manque 620 m pour capturer République.',
+    zone: 'République', minutesAgo: 26,
+    reactions: { defense: 2, hold: 1 },
   },
   {
     kind: 'message', id: 'm1', author: 'LENA_RUN', minutesAgo: 22, action: 'rsvp',

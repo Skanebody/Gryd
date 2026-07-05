@@ -200,6 +200,106 @@ export interface IngestRunResponse {
    * capturée : forme trop étroite. » Absent si l'intérieur est accepté.
    */
   loopRejectedReason?: 'narrow';
+  /**
+   * AMENDEMENT-17 §CH2 — Frontière partielle OUVERTE par cette course : run
+   * VALIDE, long, NON bouclé mais FERMABLE → une `partial_boundary` `open` du
+   * crew a été créée (gardée PARTIAL_BOUNDARY_TTL_H, complétable par un membre).
+   * Présent uniquement en mode conquête, quand une frontière a réellement été
+   * ouverte (pas de doublon d'une frontière équivalente déjà ouverte). Le crew
+   * peut la fermer. Copy UX gelée : « Frontière ouverte · Il manque {missingM} m
+   * pour fermer la zone. » — jamais de polyline ni de géométrie exposée.
+   */
+  openBoundary?: {
+    /** Nom lisible de la frontière (secteur/zone déclaré, ex. « République »). */
+    name: string;
+    /** Mètres restants pour fermer la boucle (segment manquant). Affiché tel quel. */
+    missingM: number;
+    /** Expiration ISO 8601 (now + PARTIAL_BOUNDARY_TTL_H). UI : « expire dans 23 h ». */
+    expiresAt: string;
+  };
+  /**
+   * AMENDEMENT-17 §CH2 — Cette course a REFERMÉ une frontière partielle ouverte
+   * par un membre du MÊME crew : la boucle est fermée, l'intérieur capturé au
+   * nom du CREW (moteur AMENDEMENT-12), les contributions réparties au prorata
+   * de la longueur validée. Copy UX gelée du résultat : « Boucle crew fermée ·
+   * {name} capturée · {pseudo} 79 % · {pseudo} 21 % · Crew +{crewPoints} pts. »
+   * Absent si aucune frontière n'a été complétée par cette course.
+   */
+  boundaryCompleted?: {
+    /** Nom de la frontière fermée (secteur/zone). */
+    name: string;
+    /** Répartition au prorata de la longueur validée (somme des share = 1). */
+    contributions: { user: string; share: number }[];
+    /** Points crew attribués par la fermeture (zone crew). */
+    crewPoints: number;
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-17 §CH2 — Frontières partielles crew (migration 0015).
+// « Ouvre une frontière. Ton crew peut la fermer. » Le client ne voit JAMAIS
+// les segments/polylines (lecture serveur only pour la géométrie) — ces types
+// décrivent les lignes DB telles que manipulées côté Edge Functions.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Statut d'une frontière partielle (partial_boundaries.status) :
+ *  - `open`      : ouverte, complétable par un membre du crew (dans le TTL) ;
+ *  - `completed` : refermée par un membre → zone crew + contributions ;
+ *  - `expired`   : TTL écoulé sans complétion → segments en exploration, pas de zone ;
+ *  - `contested` : un rival a chevauché la frontière (V1 — pas de complétion MVP).
+ */
+export type PartialBoundaryStatus = 'open' | 'completed' | 'expired' | 'contested';
+
+/**
+ * Un « bout ouvert » d'une frontière : l'une des deux extrémités du segment
+ * manquant, que le finisher doit rejoindre à ≤ PARTIAL_JOIN_TOLERANCE_M.
+ * Géométrie SERVEUR only — jamais rendue au client.
+ */
+export interface BoundaryEnd {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Segment validé d'une frontière (partial_boundaries.segments[] jsonb) : une
+ * contribution d'un membre (l'ouvreur au départ, un finisher ensuite), avec sa
+ * longueur validée (m) et son auteur. Sert au prorata (contributionSplit).
+ */
+export interface BoundarySegment {
+  userId: string;
+  /** Longueur validée (m) de la contribution de ce membre à la frontière. */
+  validatedLengthM: number;
+}
+
+/** Ligne partial_boundaries (0015) telle que manipulée côté serveur. */
+export interface PartialBoundary {
+  id: string;
+  crewId: string;
+  openerUserId: string;
+  cityId: CityId | null;
+  name: string;
+  /** Contributions validées (ouvreur + finisher(s)). Géométrie serveur only. */
+  segments: BoundarySegment[];
+  totalLengthM: number;
+  missingM: number;
+  /** Les deux bouts ouverts du segment manquant [départ, arrivée]. */
+  missingSegment: [BoundaryEnd, BoundaryEnd];
+  /** Aire estimée de la zone si la boucle est fermée (km²) — indicatif. */
+  zoneEstimateKm2: number;
+  status: PartialBoundaryStatus;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** Ligne boundary_contributions (0015) : part d'un membre dans une frontière fermée. */
+export interface BoundaryContribution {
+  id: string;
+  boundaryId: string;
+  userId: string;
+  validatedLengthM: number;
+  /** Part au prorata de la longueur validée (0-1, somme = 1 sur la frontière). */
+  share: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

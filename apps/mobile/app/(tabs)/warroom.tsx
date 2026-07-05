@@ -54,6 +54,7 @@ import {
   WAR_HISTORY,
   WAR_ROUTES,
   WAR_STATUS,
+  type OpenBoundaryDemo,
   type WarHistoryEventDemo,
 } from '../../src/features/warroom/demo';
 
@@ -79,6 +80,34 @@ function useCountdown(initialS: number): string {
     return () => clearInterval(id);
   }, []);
   return formatCountdown(left);
+}
+
+/**
+ * Fenêtre d'expiration lisible d'une frontière (AMENDEMENT-17 §CH2) : « 23 h 14 »
+ * (heures + minutes, JAMAIS de seconde — le TTL 24 h se lit à la minute, pas au
+ * tic). Sous l'heure → « 14 min ». Plancher « Expire » quand échu.
+ */
+function formatBoundaryWindow(totalMin: number): string {
+  const clamped = Math.max(0, totalMin);
+  if (clamped <= 0) return 'Expire';
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  if (h <= 0) return `${m} min`;
+  return `${h} h ${m.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Décompte d'une frontière à la MINUTE : tick chaque 60 s (60 000 ms = unité de
+ * temps, pas une constante de jeu), plancher à 0. Le TTL des frontières se vit
+ * en heures — inutile (et anxiogène) de faire clignoter les secondes.
+ */
+function useBoundaryCountdown(initialMin: number): string {
+  const [left, setLeft] = useState(initialMin);
+  useEffect(() => {
+    const id = setInterval(() => setLeft((m) => (m > 0 ? m - 1 : 0)), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return formatBoundaryWindow(left);
 }
 
 const MISSION_ICON: Record<string, IconName> = {
@@ -216,6 +245,69 @@ function PriorityCard({
           onPress={onCta}
           onLongPress={onLongPressCta}
         />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Card compacte d'une frontière ouverte « À TERMINER » (AMENDEMENT-17 §CH2).
+ * « Ouvre une frontière. Ton crew peut la fermer. » On n'affiche QUE l'humain :
+ * zone · mètres restants · fenêtre (h mm, décompte live) · ouvreur, puis 2 CTA
+ * — [Voir la route] (aperçu route-planner) et [Terminer] (Course Live mode
+ * terminer, `?intention=complete&boundary=<id>`). Jamais de polyline, de score
+ * de géométrie, de cellule ni de % (§UX-17) : « Il manque 620 m. Expire dans
+ * 23 h 14. Terminer la boucle. »
+ */
+function BoundaryCard({
+  boundary,
+  onSeeRoute,
+  onComplete,
+}: {
+  boundary: OpenBoundaryDemo;
+  onSeeRoute: () => void;
+  onComplete: () => void;
+}) {
+  const window = useBoundaryCountdown(boundary.expiresInMin);
+  return (
+    <View style={styles.boundaryCard}>
+      <View style={styles.boundaryHead}>
+        <View style={styles.boundaryIcon}>
+          <Icon name="avantposte" size={18} color={gameColors.crew} />
+        </View>
+        <View style={styles.boundaryInfo}>
+          <Text style={styles.boundaryTitle} numberOfLines={1}>
+            {boundary.zone}
+          </Text>
+          <Text style={styles.boundaryMeta} numberOfLines={1}>
+            Ouvert par {boundary.opener} · expire dans {window}
+          </Text>
+        </View>
+        <Text style={styles.boundaryMetric} numberOfLines={1}>
+          {formatInt(boundary.missingM)} m
+        </Text>
+      </View>
+      <Text style={styles.boundaryPhrase} numberOfLines={1}>
+        Il manque {formatInt(boundary.missingM)} m pour fermer la boucle.
+      </Text>
+      <View style={styles.boundaryActions}>
+        <View style={styles.boundaryActionFill}>
+          <InlineRunCTA
+            label="Voir la route"
+            variant="secondary"
+            size="md"
+            leading={<Icon name="route" size={16} color={colors.blanc} />}
+            onPress={onSeeRoute}
+          />
+        </View>
+        <View style={styles.boundaryActionFill}>
+          <InlineRunCTA
+            label="Terminer"
+            size="md"
+            leading={<Icon name="cible" size={16} color={colors.noir} />}
+            onPress={onComplete}
+          />
+        </View>
       </View>
     </View>
   );
@@ -372,32 +464,52 @@ export default function WarRoomScreen() {
           }}
         />
 
-        {/* À TERMINER — frontières ouvertes (résumé ; détail = chantier 2). */}
-        <PriorityCard
-          tone="neutral"
-          icon="avantposte"
-          kicker="À TERMINER · FRONTIÈRES"
-          title={
-            firstBoundary
-              ? `${firstBoundary.zone} · ${OPEN_BOUNDARIES.length} ouvertes`
-              : 'Aucune frontière ouverte'
-          }
-          metric={`${OPEN_BOUNDARIES.length}`}
-          phrase={
-            firstBoundary
-              ? `Il manque ${firstBoundary.missingM} m pour fermer ${firstBoundary.zone}. Ouvert par ${firstBoundary.opener} · expire dans ${firstBoundary.expiresInH} h.`
-              : 'Boucle un run pour ouvrir une frontière que ton crew pourra fermer.'
-          }
-          cta="Voir"
-          onCta={() => {
-            haptics.light();
-            toast.show(
-              firstBoundary
-                ? `${OPEN_BOUNDARIES.length} frontières ouvertes — détail à venir`
-                : 'Aucune frontière ouverte',
-            );
-          }}
-        />
+        {/* À TERMINER — frontières ouvertes du crew (AMENDEMENT-17 §CH2, boucle
+            crew collaborative). « Ouvre une frontière. Ton crew peut la fermer. »
+            Max 2 cards visibles (§1.3), « Voir tout » au-delà. Chaque card mène à
+            Course Live mode terminer (?intention=complete&boundary=<id>) ou à
+            l'aperçu route (route-planner). État vide = invitation à ouvrir. */}
+        <View style={styles.boundarySectionHead}>
+          <Icon name="avantposte" size={15} color={gameColors.crew} />
+          <Text style={styles.boundarySectionLabel}>À TERMINER · FRONTIÈRES</Text>
+          {OPEN_BOUNDARIES.length > 0 ? (
+            <Text style={styles.boundarySectionCount}>{OPEN_BOUNDARIES.length}</Text>
+          ) : null}
+        </View>
+        {firstBoundary ? (
+          <>
+            {OPEN_BOUNDARIES.slice(0, 2).map((boundary) => (
+              <BoundaryCard
+                key={boundary.key}
+                boundary={boundary}
+                onSeeRoute={() => {
+                  haptics.light();
+                  router.push('/route-planner');
+                }}
+                onComplete={() => {
+                  haptics.medium();
+                  toast.show(`Cap sur ${boundary.zone} — termine la boucle du crew`);
+                  router.push(
+                    `/course-live?intention=complete&boundary=${boundary.boundaryId}`,
+                  );
+                }}
+              />
+            ))}
+            {OPEN_BOUNDARIES.length > 2 ? (
+              <SeeAll
+                label={`Voir les ${OPEN_BOUNDARIES.length} frontières`}
+                onPress={() => router.navigate('/crew')}
+              />
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.boundaryEmpty}>
+            <Text style={styles.boundaryEmptyText}>
+              Boucle un run fermable pour ouvrir une frontière que ton crew pourra
+              fermer.
+            </Text>
+          </View>
+        )}
 
         {/* COFFRE — jauge hebdo compacte (paliers §39.2 depuis shared). */}
         <PriorityCard
@@ -645,6 +757,79 @@ const styles = StyleSheet.create({
   cardPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
   cardGauge: { marginTop: 10 },
   cardCta: { marginTop: 12 },
+
+  // --- À TERMINER : en-tête de section + cards frontière (AMENDEMENT-17 §CH2) ---
+  boundarySectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 22,
+    paddingVertical: 4,
+  },
+  boundarySectionLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    fontWeight: '600',
+  },
+  boundarySectionCount: {
+    color: gameColors.crew,
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    minWidth: 18,
+    textAlign: 'center',
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  boundaryCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: 14,
+    marginTop: 12,
+  },
+  boundaryHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  boundaryIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: gameColors.crew,
+    backgroundColor: gameColors.carbon,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boundaryInfo: { flex: 1 },
+  boundaryTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  boundaryMeta: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
+  boundaryMetric: {
+    color: gameColors.crew,
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  boundaryPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
+  boundaryActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  boundaryActionFill: { flex: 1 },
+  boundaryEmpty: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: 14,
+    marginTop: 12,
+  },
+  boundaryEmptyText: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18 },
 
   // --- Sections repliables ---
   sectionToggle: {

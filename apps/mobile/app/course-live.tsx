@@ -84,11 +84,15 @@ import {
 import { useRealRun } from '../src/features/run/gps/useRealRun';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
 import {
+  completeBannerLabel,
   conquestBannerLabel,
   defenseBannerLabel,
   defenseCoveragePct,
   defenseZoneForRoute,
   intentionFromParam,
+  isCompleteParam,
+  partialBoundaryById,
+  type PartialBoundaryDemo,
   type RunIntention,
 } from '../src/features/run/intention';
 
@@ -130,8 +134,20 @@ function useZoneJump(active: boolean): Animated.Value {
 }
 
 export default function CourseLiveScreen() {
-  const params = useLocalSearchParams<{ mode?: string; route?: string; intention?: string }>();
-  const mode = runModeFromParam(params.mode);
+  const params = useLocalSearchParams<{
+    mode?: string;
+    route?: string;
+    intention?: string;
+    /** AMENDEMENT-17 §CH2 — id de la frontière crew à terminer (mode complete). */
+    boundary?: string;
+  }>();
+  // AMENDEMENT-17 §CH2 — mode « terminer » : un membre reprend une frontière
+  // ouverte par son crew pour la refermer. C'est une course de conquête (le
+  // finisher couvre le segment manquant → boucle fermée) ; l'intention client
+  // `complete` ne teinte QUE le bandeau (le serveur reste seul décideur).
+  const completing = isCompleteParam(params.intention);
+  const mode = completing ? 'conquete' : runModeFromParam(params.mode);
+  const completeBoundary = completing ? partialBoundaryById(params.boundary) : null;
   // Intention (AMENDEMENT-16 §1) : Conquérir/Défendre teintent les bandeaux
   // live — 100 % CLIENT, jamais lue par le serveur (le tracé décide).
   const intention = intentionFromParam(params.intention);
@@ -149,6 +165,7 @@ export default function CourseLiveScreen() {
       mode={mode}
       routeParam={params.route}
       intention={intention}
+      completeBoundary={completeBoundary}
       notice={gate.notice}
     />
   );
@@ -159,12 +176,15 @@ function DemoCourseLive({
   mode,
   routeParam,
   intention,
+  completeBoundary,
   notice,
 }: {
   mode: LiveRunMode;
   routeParam: string | string[] | undefined;
   /** Intention live (client only) — teinte le bandeau, jamais le résultat. */
   intention: RunIntention | null;
+  /** AMENDEMENT-17 §CH2 — frontière crew à terminer (mode « terminer »), sinon null. */
+  completeBoundary: PartialBoundaryDemo | null;
   notice: string | null;
 }) {
   const insets = useSafeAreaInsets();
@@ -225,7 +245,24 @@ function DemoCourseLive({
   //    (seuils/états loop EXISTANTS) ; Défendre → % de frontière couverte (démo :
   //    cellules propres traversées ≈ progression du parcours). Aucune de ces
   //    métriques ne part au serveur — pur affichage. Rien sans intention (run libre).
+  // Mode « terminer » (chantier 2) : « Terminer République · 420 m restants ·
+  // Frontière couverte : 68 % ». Progression démo = avancée du run (le finisher
+  // couvre le segment manquant) ; à la fermeture de boucle, la frontière est
+  // couverte. Métriques d'affichage — rien ne part au serveur.
+  const completeProgress = (Math.min(tickIndex, lastIndex) + 1) / (lastIndex + 1);
+  const completeCoveredPct = loopClosed
+    ? 100
+    : defenseCoveragePct(Math.min(tickIndex, lastIndex) + 1, lastIndex + 1);
+  const completeRemainingM = completeBoundary
+    ? loopClosed
+      ? 0
+      : Math.round(completeBoundary.missingM * (1 - completeProgress))
+    : 0;
+
   const intentionBanner = (() => {
+    if (completeBoundary) {
+      return completeBannerLabel(completeBoundary.zone, completeRemainingM, completeCoveredPct);
+    }
     if (intention === 'conquest') {
       return conquestBannerLabel(loopStatus.phase, loopStatus.distM, tick.distanceM);
     }
@@ -285,6 +322,17 @@ function DemoCourseLive({
     // Le résultat rejoue la MÊME course : le parcours routé suit (§4ter).
     // L'intention accompagne le résultat pour teinter la SYNTHÈSE multi-résultats
     // (Conquête/Défense/Run libre, doc §2) — jamais l'attribution serveur.
+    // AMENDEMENT-17 §CH2 — mode « terminer » : la fermeture referme la frontière
+    // crew → résultat BOUCLE CREW FERMÉE (contributions du moteur). Le serveur
+    // reste seul décideur (canComplete / contributionSplit) ; ici on rejoue
+    // l'écran de complétion démo.
+    if (completeBoundary) {
+      router.replace({
+        pathname: '/course-result',
+        params: { boundary: completeBoundary.id, boundary_state: 'completed' },
+      });
+      return;
+    }
     const routeId = Array.isArray(routeParam) ? routeParam[0] : routeParam;
     router.replace({
       pathname: '/course-result',
@@ -321,9 +369,14 @@ function DemoCourseLive({
 
   const donePulse = usePulse(simDone, 1.06, 1_600);
   const floatingBottom = insets.bottom + MAP_SHEET_COMPACT_HEIGHT + ABOVE_SHEET_GAP;
-  /** Pill boucle du mode Carte (aperçu « Ferme ta boucle » / état fermé). */
+  /** Pill boucle du mode Carte (aperçu « Ferme ta boucle » / état fermé) —
+      masquée en mode « terminer » : le bandeau « Terminer {zone} » porte déjà
+      la même info (anti-double-message). */
   const loopPillVisible =
-    view === 'carte' && conquest && (loopStatus.phase === 'approach' || loopClosed);
+    view === 'carte' &&
+    conquest &&
+    !completeBoundary &&
+    (loopStatus.phase === 'approach' || loopClosed);
   /** Hauteur de la pile de pills du haut (le toast se place dessous). */
   const topStackOffset =
     56 +
@@ -608,7 +661,7 @@ function DemoCourseLive({
         {intentionBanner ? (
           <View style={styles.intentionPill}>
             <Icon
-              name={intention === 'defense' ? 'bouclier' : 'cible'}
+              name={completeBoundary ? 'route' : intention === 'defense' ? 'bouclier' : 'cible'}
               size={13}
               color={colors.chartreuse}
             />

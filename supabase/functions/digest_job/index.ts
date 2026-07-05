@@ -52,6 +52,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // fenêtre temporelle fait déjà foi côté moteur (crewBoostActive), ce
     // statut fige l'historique et allège les lectures.
     const boostsExpired = await expireCrewBoosts(now);
+    // Clôture des frontières partielles expirées (AMENDEMENT-17 §CH2) : une
+    // frontière `open` non fermée dans son TTL passe `expired` — ses segments
+    // comptent en exploration/contribution (déjà crédités à l'ouverture via la
+    // course de l'ouvreur), JAMAIS en zone (aucun claim intérieur sans fermeture).
+    const boundariesExpired = await expirePartialBoundaries(now);
     // Maintenance crew hebdo (Supercell §2) : Activity Score + clôture des
     // coffres de la semaine PASSÉE (tier figé) + signaux discovery.
     if (weekly) await crewWeeklyMaintenance(now);
@@ -95,6 +100,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       digests: digests.length,
       pushed,
       boostsExpired,
+      boundariesExpired,
     });
   } catch (err) {
     console.error('digest_job:', err);
@@ -123,6 +129,27 @@ async function expireCrewBoosts(now: Date): Promise<number> {
     .lte('ends_at', now.toISOString())
     .select('id');
   if (error) throw new Error(`crew_boosts expire: ${error.message}`);
+  return (data ?? []).length;
+}
+
+// ─── Clôture des frontières partielles expirées (AMENDEMENT-17 §CH2) ──────────
+
+/**
+ * Passe en 'expired' toute frontière partielle 'open' dont le TTL est écoulé
+ * (expires_at ≤ now). Idempotent — une frontière déjà close (completed/expired/
+ * contested) n'est jamais retouchée. Aucune zone n'est attribuée : les segments
+ * de l'ouvreur ont déjà été crédités (exploration/contribution) par sa course ;
+ * faute de fermeture, l'intérieur reste NON capturé. Retourne le nombre de
+ * clôtures. Le nettoyage réel des lignes = rétention/anonymisation V1.
+ */
+async function expirePartialBoundaries(now: Date): Promise<number> {
+  const { data, error } = await supabase
+    .from('partial_boundaries')
+    .update({ status: 'expired' })
+    .eq('status', 'open')
+    .lte('expires_at', now.toISOString())
+    .select('id');
+  if (error) throw new Error(`partial_boundaries expire: ${error.message}`);
   return (data ?? []).length;
 }
 

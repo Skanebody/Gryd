@@ -18,6 +18,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { cellToLatLng, latLngToCell } from 'npm:h3-js@^4.1';
 import {
+  CITIES,
   CREW_XP_TABLE,
   DECAY_DAYS,
   GROUP_RUN_HEX_SHARE_MIN,
@@ -25,10 +26,14 @@ import {
   H3_RESOLUTION,
   HEX_LOCK_HOURS,
   OUTPOST_RADIUS_KM,
+  PARTIAL_BOUNDARY_TTL_H,
+  PARTIAL_JOIN_TOLERANCE_M,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
 import { ROUTE_ENDPOINT_MATCH_KM, VERIFIED_MIN_TRUST } from '../_shared/badges.ts';
 import type {
+  BoundaryEnd,
+  BoundarySegment,
   ChallengeUpdate,
   HexClaimResult,
   IngestRunRequest,
@@ -57,6 +62,12 @@ import {
   loopTracePoints,
   pointInGeoJson,
 } from '../_shared/engine/hexing.ts';
+import {
+  canComplete,
+  contributionSplit,
+  detectOpenBoundary,
+  type OpenBoundary,
+} from '../_shared/engine/boundary.ts';
 import { decideClaims, type HexState } from '../_shared/engine/claims.ts';
 import {
   computeScore,
@@ -1200,6 +1211,278 @@ async function handleContested(
   return contested;
 }
 
+// ─── AMENDEMENT-17 §CH2 : frontières partielles crew (ouverture + complétion) ─
+
+const MS_PER_HOUR_BOUNDARY = 3_600_000;
+
+/** Ligne partial_boundaries `open` chargée pour tenter une complétion. */
+interface OpenBoundaryRow {
+  id: string;
+  name: string;
+  segments: BoundarySegment[];
+  opener_ring: BoundaryEnd[];
+  total_length_m: number;
+  missing_m: number;
+  missing_segment: [BoundaryEnd, BoundaryEnd];
+  opener_user_id: string;
+}
+
+/** Contexte de décision de claims réutilisé pour l'intérieur d'une frontière fermée. */
+interface BoundaryClaimContext {
+  userId: string;
+  userCreatedAt: Date;
+  now: Date;
+  cityId: string | undefined;
+  density: ZoneDensity;
+  crewId: string;
+}
+
+/**
+ * Tente de FERMER une frontière partielle OUVERTE du crew du coureur avec la
+ * trace claimable de CETTE course (AMENDEMENT-17 §CH2). ANTI-ABUS appliqué :
+ *  - MÊME CREW only : on ne charge QUE les frontières `open` du crew du coureur
+ *    → un rival ne voit jamais la frontière d'un autre crew, il ne peut donc pas
+ *    la compléter (rival overlap → reste `open`/`contested` en V1, pas de
+ *    complétion au MVP) ;
+ *  - GRYD VERIFIED : le run du finisher doit être vérifié (motionTrust ≥
+ *    VERIFIED_MIN_TRUST) — un segment douteux ne referme pas une boucle ;
+ *  - TTL : seules les `open` non expirées (expires_at > now) sont chargées ;
+ *  - CONTRIBUTION du finisher : canComplete (pur) exige connexion ≤ tolérance
+ *    aux deux bouts + segment ≥ FINISHER_MIN_SEGMENT_M OU part ≥ FINISHER_MIN_SHARE.
+ * À la 1ʳᵉ frontière complétable : ferme la boucle (intérieur via enclosedCells
+ * sur l'anneau ouvreur + trace finisher, moteur AMENDEMENT-12), décide les
+ * claims SERVEUR (decideClaims → claim_hexes, zone attribuée au CREW via le
+ * cache crew de claim_hexes), insère boundary_contributions (ouvreur + finisher
+ * au prorata, contributionSplit), passe la frontière `completed`. Retourne le
+ * payload `boundaryCompleted` + les hexes intérieurs pris (pour la contribution
+ * crew de l'appelant), ou null si aucune complétion.
+ */
+async function completeBoundaries(
+  ctx: BoundaryClaimContext,
+  finisherTrace: readonly { lat: number; lng: number }[],
+  finisherVerified: boolean,
+  runId: string,
+): Promise<
+  | {
+    payload: NonNullable<IngestRunResponse['boundaryCompleted']>;
+    interiorClaimed: { lat: number; lng: number }[];
+  }
+  | null
+> {
+  // GRYD Verified obligatoire : un finisher non vérifié ne referme jamais.
+  if (!finisherVerified) return null;
+  if (finisherTrace.length < 2) return null;
+
+  const nowIso = ctx.now.toISOString();
+  const { data: rows, error } = await supabase
+    .from('partial_boundaries')
+    .select('id, name, segments, opener_ring, total_length_m, missing_m, missing_segment, opener_user_id')
+    .eq('crew_id', ctx.crewId)
+    .eq('status', 'open')
+    .gt('expires_at', nowIso)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`partial_boundaries read: ${error.message}`);
+  if (!rows || rows.length === 0) return null;
+
+  for (const row of rows as OpenBoundaryRow[]) {
+    const verdict = canComplete(
+      {
+        openEnds: row.missing_segment,
+        missingM: Number(row.missing_m),
+        totalLengthM: Number(row.total_length_m),
+      },
+      finisherTrace,
+      true, // même crew (structurellement garanti par le filtre crew_id ci-dessus)
+    );
+    if (!verdict.completes) continue;
+
+    // ── Boucle fermée : intérieur = anneau ouvreur + trace finisher (pont
+    //    end→start). enclosedCells (moteur AMENDEMENT-12) sur le polygone
+    //    complet, MOINS le couloir du finisher déjà pris par cette course. ──
+    const openerRing = (row.opener_ring ?? []).map((p) => ({ lat: p.lat, lng: p.lng }));
+    if (openerRing.length < 2) continue; // anneau ouvreur manquant → on ne devine pas
+    const fullRing = [...openerRing, ...finisherTrace.map((p) => ({ lat: p.lat, lng: p.lng }))];
+    const finisherCorridor = hexesForSegments([finisherTrace as RunPoint[]]);
+    const interiorCells = enclosedCells(fullRing, finisherCorridor);
+    if (interiorCells.length === 0) {
+      // Boucle fermée mais intérieur vide (rare) : on ferme quand même la
+      // frontière et on répartit — la zone crew est la fermeture elle-même.
+    }
+
+    // Plafond d'aire par distance courue par le FINISHER (réutilise la règle
+    // boucle) : seules les cellules proches du tracé sont conservées au plafond.
+    let capped = interiorCells;
+    const cap = loopInteriorCellCap(verdict.finisherLengthM + Number(row.total_length_m));
+    if (capped.length > cap) capped = capped.slice(0, cap);
+
+    // ── Décision SERVEUR des claims intérieurs (jamais le client) ───────────
+    const states = await loadHexStates(capped);
+    const [ownersCreatedAt, privacyHexes, noCaptureHexes, claimsToday] = await Promise.all([
+      loadOwnersCreatedAt(states, ctx.userId),
+      loadPrivacyHexes(ctx.userId, capped),
+      loadNoCaptureHexes(capped),
+      loadClaimsToday(ctx.userId, ctx.now),
+    ]);
+    const decision = decideClaims({
+      hexes: capped,
+      states,
+      context: {
+        userId: ctx.userId,
+        userCreatedAt: ctx.userCreatedAt,
+        now: ctx.now,
+        ownersCreatedAt,
+        privacyHexes,
+        noCaptureHexes,
+        zoneDensity: ctx.density,
+        claimsToday,
+      },
+    });
+    const actionable = decision.results.filter((r) =>
+      r.outcome === 'claimed_neutral' || r.outcome === 'stolen'
+    );
+    if (actionable.length > 0) {
+      const rpcClaims = actionable.map((r) => ({
+        h3index: h3ToDb(r.h3),
+        outcome: rpcOutcome(r),
+        points: r.points,
+        locked_until: decision.lockedUntil.toISOString(),
+        decay_at: decision.decayExempt ? null : decision.decayAt.toISOString(),
+      }));
+      const { error: rpcError } = await supabase.rpc('claim_hexes', {
+        p_run_id: runId,
+        p_user_id: ctx.userId,
+        p_city_id: ctx.cityId ?? null,
+        p_claims: rpcClaims,
+      });
+      if (rpcError) throw new Error(`claim_hexes boundary rpc: ${rpcError.message}`);
+    }
+    const interiorClaimed = actionable.map((r) => {
+      const [lat, lng] = cellToLatLng(r.h3);
+      return { lat, lng };
+    });
+
+    // ── Contributions : ouvreur (segments existants) + finisher, au prorata ──
+    const mergedSegments: BoundarySegment[] = [
+      ...row.segments,
+      { userId: ctx.userId, validatedLengthM: Math.round(verdict.finisherLengthM) },
+    ];
+    const split = contributionSplit(mergedSegments);
+    const crewPoints = decision.totals.points;
+
+    // Persistance : frontière `completed` + lignes boundary_contributions.
+    const { error: updErr } = await supabase
+      .from('partial_boundaries')
+      .update({ status: 'completed', segments: mergedSegments })
+      .eq('id', row.id)
+      .eq('status', 'open'); // garde anti-course concurrente (double fermeture)
+    if (updErr) throw new Error(`partial_boundaries complete: ${updErr.message}`);
+
+    const lengthByUser = new Map<string, number>();
+    for (const seg of mergedSegments) {
+      lengthByUser.set(seg.userId, (lengthByUser.get(seg.userId) ?? 0) + seg.validatedLengthM);
+    }
+    const { error: contribErr } = await supabase.from('boundary_contributions').upsert(
+      split.map((s) => ({
+        boundary_id: row.id,
+        user_id: s.userId,
+        validated_length_m: Math.round(lengthByUser.get(s.userId) ?? 0),
+        share: Number(s.share.toFixed(5)),
+      })),
+      { onConflict: 'boundary_id,user_id' },
+    );
+    if (contribErr) throw new Error(`boundary_contributions insert: ${contribErr.message}`);
+
+    // Feed crew (§50) : célébration collective, jamais technique.
+    const { error: feedErr } = await supabase.from('crew_feed_events').insert({
+      crew_id: ctx.crewId,
+      actor_id: ctx.userId,
+      event_type: 'boundary_completed',
+      payload: {
+        name: row.name,
+        contributions: split.map((s) => ({ user: s.userId, share: s.share })),
+        crewPoints,
+      },
+    });
+    if (feedErr) throw new Error(`crew_feed_events boundary insert: ${feedErr.message}`);
+
+    return {
+      payload: {
+        name: row.name,
+        contributions: split.map((s) => ({ user: s.userId, share: s.share })),
+        crewPoints,
+      },
+      interiorClaimed,
+    };
+  }
+  return null;
+}
+
+/**
+ * OUVRE une frontière partielle si CETTE course est un run VALIDE, long, NON
+ * bouclé mais FERMABLE (AMENDEMENT-17 §CH2). ANTI-ABUS : réservé au crew (sans
+ * crew → pas de frontière crew), run GRYD Verified only. Pas de doublon : si une
+ * frontière `open` équivalente du crew existe déjà (même ouvreur, bouts ouverts
+ * ≤ tolérance), on n'en recrée pas. `name` = ville déclarée (secteur) ou défaut.
+ * Retourne le payload `openBoundary`, ou null (rien ouvert).
+ */
+async function openBoundary(
+  ctx: BoundaryClaimContext,
+  boundary: OpenBoundary,
+  openerRing: readonly { lat: number; lng: number }[],
+  boundaryName: string,
+): Promise<NonNullable<IngestRunResponse['openBoundary']> | null> {
+  const nowIso = ctx.now.toISOString();
+  // Anti-doublon : frontière `open` du même ouvreur dont un bout ouvert coïncide
+  // (≤ PARTIAL_JOIN_TOLERANCE_M) avec l'un des nouveaux bouts.
+  const { data: existing, error: exErr } = await supabase
+    .from('partial_boundaries')
+    .select('missing_segment')
+    .eq('crew_id', ctx.crewId)
+    .eq('opener_user_id', ctx.userId)
+    .eq('status', 'open')
+    .gt('expires_at', nowIso);
+  if (exErr) throw new Error(`partial_boundaries dup read: ${exErr.message}`);
+  const [newA, newB] = boundary.openEnds;
+  const isDuplicate = (existing ?? []).some((r) => {
+    const seg = r.missing_segment as [BoundaryEnd, BoundaryEnd] | null;
+    if (!seg) return false;
+    const [a, b] = seg;
+    const close = (p: BoundaryEnd, q: BoundaryEnd) => haversineM(p, q) <= PARTIAL_JOIN_TOLERANCE_M;
+    return (close(a, newA) && close(b, newB)) || (close(a, newB) && close(b, newA));
+  });
+  if (isDuplicate) return null;
+
+  const expiresAt = new Date(ctx.now.getTime() + PARTIAL_BOUNDARY_TTL_H * MS_PER_HOUR_BOUNDARY);
+  const segments: BoundarySegment[] = [
+    { userId: ctx.userId, validatedLengthM: Math.round(boundary.tracedLengthM) },
+  ];
+  const { error: insErr } = await supabase.from('partial_boundaries').insert({
+    crew_id: ctx.crewId,
+    opener_user_id: ctx.userId,
+    city_id: ctx.cityId ?? null,
+    name: boundaryName,
+    segments,
+    // Anneau ouvreur complet (serveur only) : requis pour recalculer l'intérieur
+    // à la fermeture. On stocke les points arrondis (~6 décimales suffisent).
+    opener_ring: openerRing.map((p) => ({
+      lat: Number(p.lat.toFixed(6)),
+      lng: Number(p.lng.toFixed(6)),
+    })),
+    total_length_m: Math.round(boundary.tracedLengthM),
+    missing_m: Math.round(boundary.missingM),
+    missing_segment: boundary.missingSegment,
+    zone_estimate_km2: Number(boundary.zoneEstimateKm2.toFixed(4)),
+    expires_at: expiresAt.toISOString(),
+  });
+  if (insErr) throw new Error(`partial_boundaries insert: ${insErr.message}`);
+
+  return {
+    name: boundaryName,
+    missingM: Math.round(boundary.missingM),
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -1607,6 +1890,56 @@ Deno.serve(async (req: Request): Promise<Response> => {
       now,
     );
 
+    // ── AMENDEMENT-17 §CH2 : frontières partielles crew ──────────────────────
+    // « Ouvre une frontière. Ton crew peut la fermer. » Deux temps, dans cet
+    // ordre (une même course peut fermer une frontière OU en ouvrir une, jamais
+    // les deux au même endroit) :
+    //  (b) COMPLÉTION d'abord : si le coureur a un crew et sa trace claimable
+    //      referme une frontière `open` du MÊME crew (canComplete pur : même
+    //      crew structurel + connexion ≤ tolérance aux 2 bouts + contribution
+    //      finisher suffisante) → zone crew (intérieur via enclosedCells,
+    //      claims SERVEUR) + contributions au prorata. Run GRYD Verified only ;
+    //      rival → jamais de complétion (il ne voit pas la frontière).
+    //  (a) OUVERTURE ensuite : sinon, si la trace est VALIDE, longue, NON
+    //      bouclée mais FERMABLE (detectOpenBoundary), on crée une frontière
+    //      `open` du crew (TTL PARTIAL_BOUNDARY_TTL_H) — sauf doublon.
+    // Sans crew : aucune frontière crew (mécanique collaborative). Boucle
+    // déjà fermée (loopClosed) : la zone est prise seul, rien à ouvrir.
+    let boundaryCompleted: IngestRunResponse['boundaryCompleted'];
+    let openBoundaryPayload: IngestRunResponse['openBoundary'];
+    if (crew.crewId !== null && loopTrace !== null) {
+      const boundaryCtx: BoundaryClaimContext = {
+        userId,
+        userCreatedAt: new Date(profile.created_at),
+        now,
+        cityId: request.cityId,
+        density,
+        crewId: crew.crewId,
+      };
+      const finisherVerified = (validation.motionTrust ?? 0) >= VERIFIED_MIN_TRUST;
+
+      const completion = await completeBoundaries(
+        boundaryCtx,
+        loopTrace,
+        finisherVerified,
+        runId,
+      );
+      if (completion) {
+        boundaryCompleted = completion.payload;
+      } else if (!loopClosed && finisherVerified) {
+        // Pas de complétion + pas une boucle fermée : peut-on OUVRIR ?
+        const open = detectOpenBoundary(loopTrace);
+        if (open) {
+          // Nom de la frontière : ville déclarée (secteur) ou défaut sobre.
+          // MVP : le vrai secteur (« République ») viendra d'un géocodage V1 ;
+          // ici on rattache à la ville déclarée pour un libellé lisible.
+          const boundaryName = request.cityId ? CITIES[request.cityId].name : 'Secteur';
+          openBoundaryPayload = await openBoundary(boundaryCtx, open, loopTrace, boundaryName) ??
+            undefined;
+        }
+      }
+    }
+
     // ── AMENDEMENT-07 §5 : challenges actifs (user + crew) ────────────────────
     // Une course valide alimente les challenges solo (sujet user) et crew/rivalry
     // (sujet crew). challengeProgress (pur) décide ratio/done ; feedback sain §12.
@@ -1665,6 +1998,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ...(crewOutcome.crewLevelUp !== undefined ? { crewLevelUp: crewOutcome.crewLevelUp } : {}),
       ...(contestedHexes.length > 0 ? { contestedHexes } : {}),
       ...(challengeUpdates.length > 0 ? { challengeUpdates } : {}),
+      // AMENDEMENT-17 §CH2 : frontière crew fermée / ouverte par cette course.
+      // Copy UX gelée (types.ts) : « Boucle crew fermée · {name} capturée · … »
+      // et « Frontière ouverte · Il manque {missingM} m … » — jamais de polyline.
+      ...(boundaryCompleted !== undefined ? { boundaryCompleted } : {}),
+      ...(openBoundaryPayload !== undefined ? { openBoundary: openBoundaryPayload } : {}),
     };
     await persistCelebration(runId, response, score.points);
     return json(response);

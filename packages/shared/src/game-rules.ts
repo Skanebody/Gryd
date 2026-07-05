@@ -861,3 +861,46 @@ export const SKU_GRANTED_ITEM_KEYS = {
   recruit_template_crew: ['crew_recruit_template'],
   banner_crew: ['crew_banner_impact'],
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-17 §CHANTIER 2 — Boucle crew collaborative (05/07/2026).
+// Mécanique fondateur : « Ouvre une frontière. Ton crew peut la fermer. »
+// Un run VALIDE, long, NON bouclé mais FERMABLE (les deux extrémités pourraient
+// se rejoindre par un segment court) crée une FRONTIÈRE PARTIELLE gardée 24 h ;
+// un membre du MÊME crew qui court le segment manquant referme la boucle →
+// ZONE CREW, contributions réparties au prorata de la longueur validée.
+// Réutilise TOUTES les règles boucle/surface d'AMENDEMENT-12/§16 (LOOP_*,
+// loopShapeVerdict, loopMaxAreaM2…) — la frontière n'est qu'une boucle dont il
+// manque un morceau. ANTI-ABUS (strict, moteur pur testé) : même crew
+// uniquement (rival qui chevauche → contested, jamais de complétion au MVP) ;
+// TTL 24 h (expiré → segments = exploration/contribution, pas de zone) ; tous
+// segments GRYD Verified (un segment douteux → boucle incomplète, pas de
+// complétion) ; contribution min du finisher ; jamais de complétion par achat.
+// UX : « Il manque 620 m pour prendre République. » — jamais de polylines
+// multiples, de scores de géométrie, de cellules ni de % trop précis.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Durée de vie (heures) d'une frontière partielle OUVERTE (chantier 2). Passé
+ * ce délai sans complétion, digest_job la passe `expired` : ses segments
+ * comptent en exploration/contribution, jamais en zone (aucun claim).
+ */
+export const PARTIAL_BOUNDARY_TTL_H = 24;
+/**
+ * Tolérance (m) de JONCTION du finisher (chantier 2) : le run qui referme la
+ * boucle doit rejoindre le segment manquant à ≤ cette distance À CHACUNE de ses
+ * deux extrémités (les deux « bouts ouverts » de la frontière). Alignée sur la
+ * fermeture boucle durcie LOOP_CLOSE_TOLERANCE_M (80 m, AMENDEMENT-16 §2) :
+ * fermer une frontière crew = fermer une boucle, même exigence géométrique.
+ */
+export const PARTIAL_JOIN_TOLERANCE_M = 80;
+/**
+ * Contribution MINIMALE du finisher pour valider une complétion (chantier 2),
+ * en OU : le run du finisher couvre un segment ≥ FINISHER_MIN_SEGMENT_M (400 m,
+ * ordre de grandeur d'une vraie portion de frontière — pas un pas de porte),
+ * OU sa part ≥ FINISHER_MIN_SHARE (15 %) de la longueur totale de la frontière.
+ * En deçà des DEUX : pas de complétion (canComplete.reason='finisher_too_short')
+ * — anti-abus « je ferme la zone d'un autre en courant 20 m ».
+ */
+export const FINISHER_MIN_SEGMENT_M = 400;
+export const FINISHER_MIN_SHARE = 0.15;
