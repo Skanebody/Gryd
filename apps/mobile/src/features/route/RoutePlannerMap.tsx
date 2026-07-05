@@ -1,15 +1,19 @@
 /**
  * GRYD — carte du ROUTE PLANNER (AMENDEMENT-10 §2, AMENDEMENT-11 §3 — régime
- * USAGE RÉEL : contraste max, zéro glass, zéro décor). HIÉRARCHIE ABSOLUE
- * (doc territoires §9/§10) — « la route écrase tout le reste » :
+ * USAGE RÉEL : contraste max, zéro glass, zéro décor ; AMENDEMENT-13 §4ter :
+ * plus AUCUN blob — les territoires d'arrière-plan sont les TRACÉS DE COURSE
+ * nets d'allTerritories, la bande capturable est le RUBAN net du tracé).
+ * HIÉRARCHIE ABSOLUE (doc territoires §9/§10) — « la route écrase tout » :
  *   1. ROUTE ÉPAISSE chartreuse (liseré sombre, flèches de direction,
- *      départ/arrivée) ;
+ *      départ/arrivée) — polyligne ROUTÉE rue par rue (demo.ts) ;
  *   2. position actuelle (point « moi ») ;
  *   3. rues / chemins / parcs (basemap quartier Uber-night) ;
- *   4. zones capturables LÉGÈREMENT LUMINEUSES — bande organique lissée par
- *      territory.ts le long du tracé (AUCUN hexagone, moteur H3 invisible) ;
- *   5. territoires colorés en TRANSPARENCE (opacités MODE_EMPHASIS.route) ;
- *   6. frontières secondaires (traits fins, jamais dominants).
+ *   4. zones capturables LÉGÈREMENT LUMINEUSES — ruban net (~2 zones de
+ *      large) le long du tracé (AUCUN hexagone, moteur H3 invisible) ;
+ *   5. territoires en TRANSPARENCE (opacités MODE_EMPHASIS.route) — mêmes
+ *      géométries tracé-based que la Battle Map (une seule source) ;
+ *   6. frontières secondaires (traits fins, jamais dominants ; contesté =
+ *      double trait chartreuse+orange décalé).
  * Rendu SVG pur (react-native-svg — web ET natif), échelle ajustée pour cadrer
  * la proposition entière (plancher = échelle coureur gelée ~4,33 m/px).
  * Statique et déterministe : aucune animation (lecture 1 seconde, plein
@@ -24,7 +28,6 @@ import {
   CANAL,
   CANAL_BANK_WIDTH_M,
   CANAL_WIDTH_M,
-  BASEMAP_CENTER,
   MAIN_AXES,
   MINOR_AXES,
   M_PER_DEG_LAT,
@@ -35,15 +38,14 @@ import {
   STREET_MINOR_WIDTH_M,
   type LatLngPoint,
 } from '../map/basemap';
-import { battleMapStyle as ms, territoryStyle as terr } from '../map/mapStyle';
 import {
-  MODE_EMPHASIS,
-  battleTerritories,
-  cellsToTerritory,
-  territoryPath,
-  type TerritoryState,
-} from '../map/territory';
-import { capturableCellsFor } from './demo';
+  CORRIDOR_HALF_WIDTH_M,
+  ribbonRing,
+  territoryGeoByState,
+} from '../map/allTerritories';
+import { battleMapStyle as ms, territoryStyle as terr } from '../map/mapStyle';
+import { EGO_REPUBLIQUE } from '../map/realAnchors';
+import { MODE_EMPHASIS, type TerritoryState } from '../map/territory';
 import type { PlannedRouteDemo } from './types';
 
 // ─── Échelle (AMENDEMENT-08 §4 gelée : ~130 m ≈ 30 px → ~4,33 m/px) ─────────
@@ -98,9 +100,11 @@ interface PlannerScene {
   canalBankPx: number;
   parksD: string[];
   labels: { name: string; x: number; y: number }[];
-  /** Territoires organiques par état (transparence — '' si absent). */
+  /** Territoires TRACÉ-BASED par état (§4ter — '' si absent/hors champ). */
   terri: Record<TerritoryState, string>;
-  /** Bande organique des zones capturables le long du tracé. */
+  /** Portion de tracé contestée : double trait décalé (paires de polylignes). */
+  contestedD: { inner: string; outer: string }[];
+  /** Ruban NET des zones capturables le long du tracé (§4ter). */
   capturableD: string;
   routeD: string;
   arrows: { x: number; y: number; deg: number }[];
@@ -108,6 +112,61 @@ interface PlannerScene {
   end: XY;
   loop: boolean;
   ego: XY;
+}
+
+/** Marge de culling des territoires hors scène (px) — évite les paths France. */
+const TERRITORY_CULL_MARGIN_PX = 400;
+/** Écart latéral du DOUBLE trait contesté (§4ter — px, parité mapStyle). */
+const CONTESTED_OFFSET_PX = 2;
+
+/** Anneau [lng, lat] → path SVG fermé (projection écran fournie). */
+function ringToPath(
+  ring: readonly (readonly number[])[],
+  toXY: (lng: number, lat: number) => XY,
+): string {
+  let d = '';
+  ring.forEach((pt, i) => {
+    const { x, y } = toXY(pt[0] ?? 0, pt[1] ?? 0);
+    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  });
+  return `${d} Z`;
+}
+
+/** Au moins un point de l'anneau tombe près de la scène ? (culling France). */
+function ringNearScene(
+  ring: readonly (readonly number[])[],
+  toXY: (lng: number, lat: number) => XY,
+  width: number,
+  height: number,
+): boolean {
+  return ring.some((pt) => {
+    const { x, y } = toXY(pt[0] ?? 0, pt[1] ?? 0);
+    return (
+      x >= -TERRITORY_CULL_MARGIN_PX &&
+      x <= width + TERRITORY_CULL_MARGIN_PX &&
+      y >= -TERRITORY_CULL_MARGIN_PX &&
+      y <= height + TERRITORY_CULL_MARGIN_PX
+    );
+  });
+}
+
+/** Polyligne écran décalée perpendiculairement de `offset` px (double trait). */
+function offsetPolyline(points: readonly XY[], offset: number): string {
+  if (points.length < 2) return '';
+  let d = '';
+  for (let i = 0; i < points.length; i += 1) {
+    const prev = points[Math.max(0, i - 1)];
+    const next = points[Math.min(points.length - 1, i + 1)];
+    const p = points[i];
+    if (!prev || !next || !p) continue;
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const x = p.x + (-dy / len) * offset;
+    const y = p.y + (dx / len) * offset;
+    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }
+  return d;
 }
 
 /** Longueurs cumulées d'une polyline écran. */
@@ -190,7 +249,8 @@ function buildScene(route: PlannedRouteDemo, width: number, height: number): Pla
     .map((ring) => lineD(ring, true))
     .join(' ');
 
-  // Hiérarchie 5 : territoires organiques en transparence (jamais d'hexagone).
+  // Hiérarchie 5 : territoires TRACÉ-BASED en transparence (§4ter — mêmes
+  // géométries nettes que la Battle Map, une seule source : allTerritories).
   const terri: Record<TerritoryState, string> = {
     crew: '',
     protected: '',
@@ -201,13 +261,32 @@ function buildScene(route: PlannedRouteDemo, width: number, height: number): Pla
     objective: '',
     outpost: '',
   };
-  for (const territory of battleTerritories()) {
-    terri[territory.state] = territoryPath(territory, toXY);
+  const contestedD: { inner: string; outer: string }[] = [];
+  for (const [state, geo] of territoryGeoByState()) {
+    let d = '';
+    for (const feature of geo.features) {
+      const { geometry } = feature;
+      if (geometry.type === 'Polygon') {
+        for (const ring of geometry.coordinates) {
+          if (!ringNearScene(ring, toXY, width, height)) continue;
+          d += `${ringToPath(ring, toXY)} `;
+        }
+      } else if (geometry.type === 'LineString') {
+        // Contesté : la PORTION de tracé partagée → double trait décalé.
+        if (!ringNearScene(geometry.coordinates, toXY, width, height)) continue;
+        const pts = geometry.coordinates.map((pt) => toXY(pt[0] ?? 0, pt[1] ?? 0));
+        contestedD.push({
+          inner: offsetPolyline(pts, -CONTESTED_OFFSET_PX),
+          outer: offsetPolyline(pts, CONTESTED_OFFSET_PX),
+        });
+      }
+    }
+    terri[state] = d.trim();
   }
 
-  // Hiérarchie 4 : bande organique des zones capturables du tracé.
-  const capturable = cellsToTerritory(capturableCellsFor(route), 'objective');
-  const capturableD = capturable ? territoryPath(capturable, toXY) : '';
+  // Hiérarchie 4 : RUBAN net des zones capturables le long du tracé (§4ter —
+  // ~2 zones ≈ 60 m de large, bords parallèles, extrémités arrondies).
+  const capturableD = ringToPath(ribbonRing(route.line, CORRIDOR_HALF_WIDTH_M), toXY);
 
   // Hiérarchie 1 : la route + flèches de direction + départ/arrivée.
   const routePts = route.line.map(pointXY);
@@ -235,6 +314,7 @@ function buildScene(route: PlannedRouteDemo, width: number, height: number): Pla
     parksD: PARKS.map((ring) => lineD(ring, true)),
     labels: SECTOR_LABELS.map((s) => ({ name: s.name, ...toXY(s.lng, s.lat) })),
     terri,
+    contestedD,
     capturableD,
     routeD: routePts
       .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
@@ -243,7 +323,8 @@ function buildScene(route: PlannedRouteDemo, width: number, height: number): Pla
     start: first,
     end: last,
     loop,
-    ego: toXY(BASEMAP_CENTER.lng, BASEMAP_CENTER.lat),
+    // « Moi » = l'ego démo RÉEL (République — les routes en partent, §4ter).
+    ego: toXY(EGO_REPUBLIQUE.lng, EGO_REPUBLIQUE.lat),
   };
 }
 
@@ -360,26 +441,31 @@ export function RoutePlannerMap({ route }: RoutePlannerMapProps) {
             strokeLinejoin="round"
             opacity={emph.defense}
           />
-          {/* Contesté : double contour statique atténué (pas de pulse ici). */}
-          <Path
-            d={scene.terri.contested}
-            fill={terr.contestedFill}
-            fillRule="evenodd"
-            stroke={terr.contestedInnerStroke}
-            strokeWidth={SECONDARY_BORDER_WIDTH}
-            strokeLinejoin="round"
-            opacity={emph.contested}
-          />
-          <Path
-            d={scene.terri.contested}
-            fill="none"
-            stroke={terr.contestedOuterStroke}
-            strokeWidth={SECONDARY_BORDER_WIDTH + 1}
-            strokeLinejoin="round"
-            opacity={emph.contested * 0.6}
-          />
+          {/* Contesté (§4ter) : portion de tracé partagée en DOUBLE trait
+              chartreuse+orange décalé, statique et atténué (pas de pulse ici). */}
+          {scene.contestedD.map((pair, i) => (
+            <G key={`contested-${i}`} opacity={emph.contested}>
+              <Path
+                d={pair.inner}
+                fill="none"
+                stroke={terr.contestedInnerStroke}
+                strokeWidth={SECONDARY_BORDER_WIDTH}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Path
+                d={pair.outer}
+                fill="none"
+                stroke={terr.contestedOuterStroke}
+                strokeWidth={SECONDARY_BORDER_WIDTH}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </G>
+          ))}
 
-          {/* ── 4. Zones capturables : bande organique légèrement lumineuse ── */}
+          {/* ── 4. Zones capturables : RUBAN NET légèrement lumineux le long
+              du tracé (§4ter — fill nonzero : l'A/R de raid ne se troue pas) ── */}
           {scene.capturableD ? (
             <>
               <Path
@@ -390,12 +476,7 @@ export function RoutePlannerMap({ route }: RoutePlannerMapProps) {
                 strokeLinejoin="round"
                 opacity={emph.objective}
               />
-              <Path
-                d={scene.capturableD}
-                fill={terr.objectiveFill}
-                fillRule="evenodd"
-                opacity={emph.objective}
-              />
+              <Path d={scene.capturableD} fill={terr.objectiveFill} opacity={emph.objective} />
             </>
           ) : null}
 

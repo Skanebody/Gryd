@@ -1,23 +1,18 @@
 /**
  * GRYD — données démo DÉTERMINISTES du Route Planner (AMENDEMENT-10 §2,
- * AMENDEMENT-11 §3/§6). 3 propositions de routes tracées LE LONG DES RUES de
- * la basemap (axes est / boulevard NS / quai du canal / rue NE — offsetMeters
- * depuis le centre égocentré, jamais de hasard) + options de génération +
- * bloc objectif défense + partage crew. La vraie génération d'itinéraires est
- * V1 : ici tout est scripté. Les POINTS possibles sont DÉRIVÉS des règles §3
- * (@klaim/shared — aucun nombre magique) ; distances/zones/rues sont des
- * étiquettes démo comme dans warroom/demo.ts. Les zones capturables AFFICHÉES
- * sur la carte sortent du moteur invisible (cellules H3 le long du tracé,
- * jamais rendues en grille : territory.ts les lisse en bande organique).
+ * AMENDEMENT-11 §3/§6, AMENDEMENT-13 §4ter). 3 propositions de routes ROUTÉES
+ * SUR LE RÉSEAU VIAIRE RÉEL (« pas de vol d'oiseau ») : polylignes OSRM foot
+ * figées à l'authoring depuis l'ego démo place de la République (realAnchors),
+ * même technique que realAnchors.ts — aucune dépendance réseau au runtime.
+ * S'y ajoutent options de génération + bloc objectif défense + partage crew.
+ * La vraie génération d'itinéraires est V1 : ici tout est scripté. Les POINTS
+ * possibles sont DÉRIVÉS des règles §3 (@klaim/shared — aucun nombre magique) ;
+ * distances/zones/rues sont des étiquettes démo comme dans warroom/demo.ts
+ * (les distances collent aux polylignes réelles, écart < 10 %). La bande
+ * capturable AFFICHÉE le long du tracé est le RUBAN NET d'allTerritories
+ * (§4ter) — plus aucun lissage de cellules côté rendu.
  */
-import { gridPathCells, latLngToCell } from 'h3-js';
-import {
-  H3_RESOLUTION,
-  POINTS_DEFENDED_HEX,
-  POINTS_NEUTRAL_HEX,
-} from '@klaim/shared';
-import { offsetMeters } from '../map/basemap';
-import { battleMapData, type HexState } from '../map/fakeHexes';
+import { POINTS_DEFENDED_HEX, POINTS_NEUTRAL_HEX } from '@klaim/shared';
 import {
   OBJECTIVE_BY_ROUTE_TYPE,
   ROUTE_OBJECTIVE_NOUNS,
@@ -41,9 +36,14 @@ export function routeDurationMin(route: PlannedRouteDemo): number {
 
 // ─── Les 3 propositions (AMENDEMENT-10 §2 — Route A / B / C) ────────────────
 /**
- * Tracés en BOUCLE (départ = retour = « moi » égocentré, à côté du boulevard
- * NS). Chaque sommet suit un axe/rue de basemap.ts : axe Est (République→Est),
- * boulevard NS, quai du canal, rue NE (couloir rival), diagonale sud-ouest.
+ * Tracés en BOUCLE (départ = retour = « moi », place de la République — ego
+ * démo realAnchors), ROUTÉS RUE PAR RUE (§4ter « pas de vol d'oiseau ») :
+ * OSRM public profil foot (routing.openstreetmap.de/routed-foot, 2026-07-05),
+ * géométries figées, RDP 7 m, micro-allers-retours de trottoir (< 50 m)
+ * retirés à la main — chaque segment droit EST une rue droite, chaque sommet
+ * un coin de rue. Zéro réseau au runtime. Les `distanceKm` affichées sont
+ * COHÉRENTES avec ces polylignes (mesure du tracé figé — la Route C passe de
+ * 4,8 à 4,4 km, seul libellé au-delà des ~10 % d'écart).
  * `loopZones` (AMENDEMENT-12 §C) = part de `zones` estimée en intérieur de
  * boucle (« +86 zones dont 52 en boucle » — la Route C reprend le 86/52 de
  * l'onboarding écran 2). Étiquettes démo, le remplissage réel est serveur.
@@ -61,16 +61,25 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
     points: 52 * POINTS_NEUTRAL_HEX,
     shape: 'boucle',
     difficulty: 'Facile',
-    // Axe Est vers l'est, redescente par la trame Bastille, retour diagonale.
+    // République → bd Richard-Lenoir (le canal couvert) → marché Bastille →
+    // remontée bd Beaumarchais / Filles-du-Calvaire / bd du Temple (3,4 km).
     line: [
-      offsetMeters(-100, 0),
-      offsetMeters(0, 55),
-      offsetMeters(250, 90),
-      offsetMeters(520, 150),
-      offsetMeters(490, -160),
-      offsetMeters(250, -520),
-      offsetMeters(40, -20),
-      offsetMeters(-100, 0),
+      { lat: 48.86703, lng: 2.36415 }, // place de la République, angle sud-est
+      { lat: 48.86524, lng: 2.36744 }, // rue Rampon → bd Richard-Lenoir
+      { lat: 48.863, lng: 2.37117 },
+      { lat: 48.86245, lng: 2.37187 }, // croisement rue Oberkampf
+      { lat: 48.86146, lng: 2.37215 }, // le boulevard s'infléchit plein sud
+      { lat: 48.86063, lng: 2.37209 }, // métro Richard-Lenoir
+      { lat: 48.8549, lng: 2.36951 }, // marché Bastille (demi-tour Bréguet-Sabin)
+      { lat: 48.8586, lng: 2.36838 }, // rue du Pasteur-Wagner → bd Beaumarchais
+      { lat: 48.85861, lng: 2.36761 },
+      { lat: 48.8592, lng: 2.36748 }, // bd Beaumarchais (Saint-Sébastien)
+      { lat: 48.86306, lng: 2.36656 }, // bd des Filles-du-Calvaire
+      { lat: 48.86523, lng: 2.36525 }, // bd du Temple
+      { lat: 48.8654, lng: 2.36548 },
+      { lat: 48.86635, lng: 2.36492 }, // place Pasdeloup
+      { lat: 48.86654, lng: 2.36512 },
+      { lat: 48.86703, lng: 2.36415 }, // retour place de la République
     ],
   },
   {
@@ -85,21 +94,52 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
     points: 94 * POINTS_NEUTRAL_HEX,
     shape: 'boucle',
     difficulty: 'Exigeant',
-    // Boulevard NS vers le nord, traversée en haut, descente rue NE (couloir
-    // rival — le raid passe par la frontière contestée), retour par le quai.
+    // République → quai de Valmy (canal Saint-Martin) → rue Louis-Blanc →
+    // quai de Jemmapes → pointe de raid A/R Faubourg-du-Temple jusqu'à
+    // Belleville (la frontière rivale) → retour République (5,1 km).
     line: [
-      offsetMeters(-100, 0),
-      offsetMeters(-60, 600),
-      offsetMeters(-75, 1_250),
-      offsetMeters(60, 1_330),
-      offsetMeters(330, 1_300),
-      offsetMeters(520, 1_000),
-      offsetMeters(400, 800),
-      offsetMeters(340, 690),
-      offsetMeters(270, 300),
-      offsetMeters(250, 90),
-      offsetMeters(0, 55),
-      offsetMeters(-100, 0),
+      { lat: 48.86703, lng: 2.36415 }, // place de la République, angle sud-est
+      { lat: 48.86722, lng: 2.36383 },
+      { lat: 48.86751, lng: 2.36424 }, // rue Beaurepaire → quai de Valmy
+      { lat: 48.86774, lng: 2.36436 },
+      { lat: 48.86844, lng: 2.36319 }, // square Frédérick-Lemaître
+      { lat: 48.86873, lng: 2.36302 },
+      { lat: 48.87005, lng: 2.36358 }, // passerelle Alibert / Hôtel du Nord
+      { lat: 48.87019, lng: 2.36384 },
+      { lat: 48.87172, lng: 2.36453 }, // rue Bichat
+      { lat: 48.87176, lng: 2.36469 },
+      { lat: 48.87389, lng: 2.36301 }, // jardin Villemin
+      { lat: 48.87459, lng: 2.36293 }, // écluse des Récollets
+      { lat: 48.87498, lng: 2.36312 },
+      { lat: 48.87753, lng: 2.36534 }, // le canal vire nord-est
+      { lat: 48.87773, lng: 2.36531 },
+      { lat: 48.8796, lng: 2.36709 }, // rue Louis-Blanc (pointe nord, traversée)
+      { lat: 48.87772, lng: 2.36551 }, // quai de Jemmapes (rive est)
+      { lat: 48.87755, lng: 2.36576 },
+      { lat: 48.87755, lng: 2.36607 },
+      { lat: 48.8773, lng: 2.366 },
+      { lat: 48.87701, lng: 2.36643 },
+      { lat: 48.87663, lng: 2.36737 }, // écluse des Récollets, rive est
+      { lat: 48.87593, lng: 2.36835 }, // hôpital Saint-Louis
+      { lat: 48.87287, lng: 2.36383 }, // le quai file droit le long du canal
+      { lat: 48.87086, lng: 2.36538 }, // passerelle de la Grange-aux-Belles
+      { lat: 48.87067, lng: 2.36534 },
+      { lat: 48.86859, lng: 2.36702 }, // croisement rue du Faubourg-du-Temple
+      { lat: 48.86872, lng: 2.36693 },
+      { lat: 48.86879, lng: 2.36707 },
+      { lat: 48.86883, lng: 2.36746 }, // départ du raid : Faubourg-du-Temple
+      { lat: 48.87004, lng: 2.37087 },
+      { lat: 48.8708, lng: 2.37348 }, // rue Saint-Maur
+      { lat: 48.8721, lng: 2.37678 }, // carrefour Belleville (pointe du raid)
+      { lat: 48.87201, lng: 2.37668 }, // demi-tour — retour par le Faubourg
+      { lat: 48.8708, lng: 2.37348 },
+      { lat: 48.87004, lng: 2.37087 },
+      { lat: 48.86883, lng: 2.36746 },
+      { lat: 48.86879, lng: 2.36707 },
+      { lat: 48.86865, lng: 2.36697 },
+      { lat: 48.8678, lng: 2.36447 }, // rue du Faubourg-du-Temple, bas
+      { lat: 48.86722, lng: 2.36383 },
+      { lat: 48.86703, lng: 2.36415 }, // retour place de la République
     ],
   },
   {
@@ -108,7 +148,7 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
     name: 'Défense',
     typeKey: 'defense',
     zone: 'République',
-    distanceKm: 4.8,
+    distanceKm: 4.4,
     zones: 86,
     loopZones: 52,
     points: 86 * POINTS_DEFENDED_HEX,
@@ -116,16 +156,42 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
     difficulty: 'Modéré',
     streetsToSave: 12,
     expiresInH: 48,
-    // Boulevard NS vers République, square Villemin, redescente par la trame.
+    // Périmètre défensif du secteur République : av. de la République →
+    // Père-Lachaise (bd de Ménilmontant) → rue de la Roquette / Léon-Blum →
+    // retour bd Voltaire (4,4 km).
     line: [
-      offsetMeters(-100, 0),
-      offsetMeters(-60, 600),
-      offsetMeters(-75, 1_250),
-      offsetMeters(-350, 1_250),
-      offsetMeters(-520, 870),
-      offsetMeters(-460, 300),
-      offsetMeters(-160, 200),
-      offsetMeters(-100, 0),
+      { lat: 48.86703, lng: 2.36415 }, // place de la République, angle sud-est
+      { lat: 48.86668, lng: 2.36476 }, // départ avenue de la République
+      { lat: 48.86688, lng: 2.36514 },
+      { lat: 48.86674, lng: 2.36538 },
+      { lat: 48.86689, lng: 2.36564 },
+      { lat: 48.86671, lng: 2.36662 }, // croisement bd Jules-Ferry (canal couvert)
+      { lat: 48.86685, lng: 2.36678 },
+      { lat: 48.86637, lng: 2.36959 }, // métro Parmentier
+      { lat: 48.86304, lng: 2.38687 }, // Père-Lachaise (bd de Ménilmontant)
+      { lat: 48.86277, lng: 2.38676 },
+      { lat: 48.86241, lng: 2.3855 }, // rue de la Folie-Regnault
+      { lat: 48.86233, lng: 2.38555 },
+      { lat: 48.86225, lng: 2.3853 },
+      { lat: 48.86128, lng: 2.38583 },
+      { lat: 48.86105, lng: 2.3852 },
+      { lat: 48.86091, lng: 2.38511 },
+      { lat: 48.86039, lng: 2.38543 },
+      { lat: 48.86015, lng: 2.38487 }, // rue de la Roquette, vers Voltaire
+      { lat: 48.85924, lng: 2.38408 },
+      { lat: 48.8588, lng: 2.38435 },
+      { lat: 48.8586, lng: 2.38372 },
+      { lat: 48.85795, lng: 2.38113 }, // bd Voltaire, place Léon-Blum
+      { lat: 48.85793, lng: 2.38066 },
+      { lat: 48.85807, lng: 2.38044 },
+      { lat: 48.858, lng: 2.37998 },
+      { lat: 48.86089, lng: 2.3752 }, // bd Voltaire, Saint-Ambroise
+      { lat: 48.86081, lng: 2.37493 },
+      { lat: 48.8625, lng: 2.37202 }, // croisement rue Oberkampf
+      { lat: 48.86242, lng: 2.37179 },
+      { lat: 48.863, lng: 2.37117 },
+      { lat: 48.86591, lng: 2.36628 }, // bd Voltaire, dernière ligne droite
+      { lat: 48.86703, lng: 2.36415 }, // retour place de la République
     ],
   },
 ];
@@ -242,48 +308,5 @@ export function routeShareFeedEntry(route: PlannedRouteDemo): string {
   return `${routeSocialName(route)} partagée au crew`;
 }
 
-// ─── Zones capturables le long du tracé (moteur H3 invisible) ───────────────
-
-/** États déjà tenus par mon crew : rien à capturer/défendre en les traversant. */
-const HELD_STATES: readonly HexState[] = ['mine', 'protected', 'outpost'];
-
-const capturableCache = new Map<string, readonly string[]>();
-
-/**
- * Cellules H3 traversées par le tracé qui ne sont PAS déjà tenues (neutres,
- * rivales, contestées, en decay à re-défendre) — la « bande » de zones
- * capturables du Route Planner. JAMAIS rendues en grille : l'écran les passe
- * à cellsToTerritory() qui les fusionne/lisse en zone organique lumineuse.
- * Déterministe (mêmes données démo que la Battle Map).
- */
-export function capturableCellsFor(route: PlannedRouteDemo): readonly string[] {
-  const cached = capturableCache.get(route.id);
-  if (cached) return cached;
-
-  const { collection } = battleMapData();
-  const stateByCell = new Map<string, HexState>(
-    collection.features.map((f) => [f.properties.h3, f.properties.state]),
-  );
-
-  const path: string[] = [];
-  let prev: string | null = null;
-  for (const p of route.line) {
-    const cell = latLngToCell(p.lat, p.lng, H3_RESOLUTION);
-    if (prev === null) {
-      path.push(cell);
-    } else if (prev !== cell) {
-      for (const step of gridPathCells(prev, cell)) {
-        if (!path.includes(step)) path.push(step);
-      }
-    }
-    prev = cell;
-  }
-
-  const capturable = path.filter((cell) => {
-    const state = stateByCell.get(cell);
-    // Hors du disque démo → neutre (la France entière est capturable).
-    return state === undefined || !HELD_STATES.includes(state);
-  });
-  capturableCache.set(route.id, capturable);
-  return capturable;
-}
+// (§4ter — l'ex-« bande de cellules capturables » a disparu avec les blobs :
+// la carte du planner rend un RUBAN NET le long du tracé via allTerritories.)

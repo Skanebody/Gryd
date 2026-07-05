@@ -1,26 +1,19 @@
 /**
- * GRYD — TERRITOIRES ORGANIQUES (AMENDEMENT-11 §2-3, doc §6/§25).
- * « Pas une grille. Une ville à prendre. » : les hexagones H3 restent le moteur
- * INVISIBLE (fakeHexes → hex_claims au Milestone 2) ; ce module est le pipeline
- * de RENDU qui transforme les cellules par état en zones organiques lissées :
- *   cellules H3 par état → groupement owner/état → fusion des adjacentes
- *   (h3.cellsToMultiPolygon) → simplification légère des contours → lissage
- *   Chaikin (1-2 itérations) → multi-polygones lisses + ancre de label.
- * Les états deviennent des traitements de FRONTIÈRE (doc §8) appliqués par les
- * consommateurs (MapScreen.web SVG / MapScreen natif MapLibre / Route Planner) :
- *   crew       aplat teinté + contour fin semi-lumineux (chartreuse)
- *   rival      contour orange marqué
- *   contested  DOUBLE contour chartreuse+orange, pulse lent
- *   protected  halo verify + UNE icône shield par secteur (labelAnchor)
- *   decay      pointillé + sablier au secteur (muted red si urgent)
- *   objective  zone chaude douce + pin
- *   outpost    petit blob organique
- * AUCUNE cellule neutre n'est produite : le fond neutre = les îlots basemap.
- * Aucune règle de jeu ici — pur rendu, 100 % déterministe (données démo).
+ * GRYD — modes de carte + fusion H3 « comptes » (AMENDEMENT-11, réduit par
+ * AMENDEMENT-13 §4ter). Les frontières AFFICHÉES sont désormais les TRACÉS DE
+ * COURSE nets d'allTerritories (« la frontière EST le tracé du coureur ») :
+ * tout le pipeline de RENDU Chaikin (territoryPath, battleTerritories,
+ * territoriesToGeoJSON) est MORT et a été retiré. Restent ici :
+ *   - les MODES de carte et leurs emphases (MODE_EMPHASIS — AMENDEMENT-11 §3) ;
+ *   - `cellsToTerritory`, conservé UNIQUEMENT pour les clusters France démo
+ *     (franceTerritories.franceClusters → zoneCount des KPI « digital twin ») —
+ *     ses polygones ne sont plus jamais DESSINÉS (le lissage Chaikin interne
+ *     ne produit plus un seul pixel ; les cellules H3 restent le moteur
+ *     invisible des comptes).
+ * Aucune règle de jeu ici — pur module de présentation, 100 % déterministe.
  */
 import { cellsToMultiPolygon } from 'h3-js';
 import { M_PER_DEG_LAT, M_PER_DEG_LNG, type LatLngPoint } from './basemap';
-import { battleMapData, type HexState } from './fakeHexes';
 
 // ─── Constantes du pipeline (rendu UI — pas des règles de jeu) ──────────────
 /** Itérations de lissage Chaikin (doc §6 : 1-2 — 2 = frontières bien rondes). */
@@ -36,7 +29,7 @@ export const SIMPLIFY_TOLERANCE_M = 24;
 /** En dessous de 4 sommets un anneau n'est plus une surface : jamais simplifié plus bas. */
 const MIN_RING_VERTICES = 4;
 
-// ─── Types exportés (consommés par Route Planner / activation en course) ────
+// ─── Types exportés (états de territoire — consommés par toutes les cartes) ─
 
 /** États de TERRITOIRE rendus (le neutre n'existe pas : c'est la basemap). */
 export type TerritoryState =
@@ -67,9 +60,6 @@ export interface Territory {
   /** Nombre de ZONES (cellules H3 sous-jacentes) — vocabulaire visible. */
   zoneCount: number;
 }
-
-/** Projection lng/lat → px écran (fournie par l'écran consommateur). */
-export type ProjectPoint = (lng: number, lat: number) => { x: number; y: number };
 
 // ─── Modes de carte (AMENDEMENT-11 §3 — remplacent les chips layers) ────────
 
@@ -207,10 +197,10 @@ function ringCentroid(ring: TerritoryRing): LatLngPoint {
 }
 
 /**
- * PIPELINE COMPLET pour un groupe de cellules (doc §25) : fusion des adjacentes
- * → simplification → lissage Chaikin → Territory. Retourne null si le groupe
- * est vide. Utilisable tel quel par le Route Planner (zones capturables d'un
- * itinéraire) et par la course live (zones qui s'activent au passage).
+ * Fusion d'un groupe de cellules en Territory (null si vide). §4ter : SES
+ * POLYGONES NE SONT PLUS JAMAIS DESSINÉS — seul consommateur restant :
+ * franceTerritories.franceClusters (zoneCount des KPI). Supprimer ce dernier
+ * usage emportera tout le pipeline Chaikin ci-dessus avec lui.
  */
 export function cellsToTerritory(
   cells: readonly string[],
@@ -242,118 +232,6 @@ export function cellsToTerritory(
   };
 }
 
-// ─── Territoires de la Battle Map (démo déterministe) ───────────────────────
-
-/**
- * Regroupement owner/état des cellules démo (fakeHexes — H3 invisible) :
- *   crew        = mine + protected + decay (UN territoire fusionné : l'aplat
- *                 et la frontière normale couvrent tout ce que je tiens)
- *   protected   = sous-territoire protégé (halo + shield par-dessus l'aplat crew)
- *   decay       = sous-territoire à défendre (frontière pointillée par-dessus)
- *   decayUrgent = portion urgente (pointillé muted red)
- *   rival / contested / objective / outpost = leurs cellules propres.
- * Les cellules NEUTRES ne produisent AUCUN territoire.
- */
-export function battleTerritories(): readonly Territory[] {
-  if (cachedTerritories) return cachedTerritories;
-  const { collection } = battleMapData();
-
-  const byState = new Map<HexState, string[]>();
-  const urgent: string[] = [];
-  for (const f of collection.features) {
-    const { state, h3, urgent: isUrgent } = f.properties;
-    if (state === 'neutral') continue;
-    const list = byState.get(state);
-    if (list) list.push(h3);
-    else byState.set(state, [h3]);
-    if (state === 'decay' && isUrgent) urgent.push(h3);
-  }
-
-  const crewCells = [
-    ...(byState.get('mine') ?? []),
-    ...(byState.get('protected') ?? []),
-    ...(byState.get('decay') ?? []),
-  ];
-
-  const territories: (Territory | null)[] = [
-    cellsToTerritory(crewCells, 'crew'),
-    cellsToTerritory(byState.get('protected') ?? [], 'protected'),
-    cellsToTerritory(byState.get('decay') ?? [], 'decay'),
-    cellsToTerritory(urgent, 'decayUrgent'),
-    cellsToTerritory(byState.get('foe') ?? [], 'rival'),
-    cellsToTerritory(byState.get('contested') ?? [], 'contested'),
-    cellsToTerritory(byState.get('objective') ?? [], 'objective'),
-    cellsToTerritory(byState.get('outpost') ?? [], 'outpost'),
-  ];
-  cachedTerritories = territories.filter((t): t is Territory => t !== null);
-  return cachedTerritories;
-}
-
-let cachedTerritories: readonly Territory[] | null = null;
-
-// ─── Sorties de rendu ───────────────────────────────────────────────────────
-
-/**
- * Chemin SVG (fill-rule evenodd : les trous restent des trous) d'un territoire
- * projeté en px écran — pour le rendu SVG web.
- */
-export function territoryPath(territory: Territory, project: ProjectPoint): string {
-  let d = '';
-  for (const poly of territory.polygons) {
-    for (const ring of poly) {
-      ring.forEach((pt, i) => {
-        const { x, y } = project(pt[0], pt[1]);
-        d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-      });
-      d += ' Z ';
-    }
-  }
-  return d.trim();
-}
-
-/** GeoJSON minimal typé localement (pas de dépendance @types/geojson). */
-export interface TerritoryFeature {
-  type: 'Feature';
-  geometry: {
-    type: 'MultiPolygon';
-    /** polygones → anneaux FERMÉS (GeoJSON) → positions [lng, lat]. */
-    coordinates: number[][][][];
-  };
-  properties: {
-    state: TerritoryState;
-    /** Vocabulaire visible : nombre de zones du territoire. */
-    zones: number;
-  };
-}
-
-export interface TerritoryFeatureCollection {
-  type: 'FeatureCollection';
-  features: TerritoryFeature[];
-}
-
-/**
- * Multi-polygones fusionnés au format GeoJSON — source unique pour le rendu
- * natif MapLibre (FillLayer/LineLayer filtrés par `state`).
- */
-export function territoriesToGeoJSON(
-  territories: readonly Territory[],
-): TerritoryFeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: territories.map((t) => ({
-      type: 'Feature',
-      geometry: {
-        type: 'MultiPolygon',
-        coordinates: t.polygons.map((poly) =>
-          poly.map((ring) => {
-            const closed = ring.map((p) => [p[0], p[1]]);
-            const first = ring[0];
-            if (first) closed.push([first[0], first[1]]);
-            return closed;
-          }),
-        ),
-      },
-      properties: { state: t.state, zones: t.zoneCount },
-    })),
-  };
-}
+// (§4ter — battleTerritories / territoryPath / territoriesToGeoJSON, le rendu
+// Chaikin de la Battle Map, sont MORTS et retirés : toutes les surfaces
+// consomment les tracés nets d'allTerritories. Voir l'en-tête du module.)

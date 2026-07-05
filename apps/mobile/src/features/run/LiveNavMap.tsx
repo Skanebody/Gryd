@@ -7,11 +7,14 @@
  *   - itinéraire RouteProgress (gris en avance, parcouru peint chartreuse,
  *     flèche au prochain virage) — remonté à la déviation (la route restante
  *     se redessine en se repeignant, démo scriptée) ;
- *   - TERRITOIRE ORGANIQUE qui s'étend derrière le coureur : les zones H3
- *     traversées (moteur invisible) fusionnent via territory.ts en UNE
- *     trainée-zone chartreuse lissée qui grossit — jamais des hexagones qui
- *     s'allument ; frontière contestée = double contour chartreuse+orange ;
- *     anneau pulsé au front de capture (violet si fenêtre contestée) ;
+ *   - TERRITOIRE EN TRAITS NETS (AMENDEMENT-13 §4ter) qui s'étend derrière le
+ *     coureur : RUBAN net le long de la trace parcourue (~2 zones de large,
+ *     bords parallèles — allTerritories.ribbonRing, plus aucun blob lissé) ;
+ *     boucle fermée = le polygone DU TRACÉ se remplit ; aperçu « zone
+ *     fantôme » = polygone NET du tracé prévu en pointillé ; frontière
+ *     contestée = double contour chartreuse+orange ; anneau pulsé au front de
+ *     capture (violet si fenêtre contestée) — les cellules H3 restent le
+ *     moteur invisible (litCells = comptes), jamais rendues ;
  *   - SOBRE (AMENDEMENT-11 §3) : pas tout le territoire, pas les rivaux —
  *     la route, le coureur, sa zone qui grandit, la destination ;
  *   - avatar coureur : disque chartreuse orienté selon le déplacement, halo
@@ -44,7 +47,12 @@ import { colors, gameColors, motion } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { RouteProgress, usePulse, useReduceMotion } from '../../ui/game';
 import { battleMapStyle as ms, territoryStyle } from '../map/mapStyle';
-import { cellsToTerritory, territoryPath } from '../map/territory';
+import {
+  CORRIDOR_HALF_WIDTH_M,
+  loopRing,
+  ribbonRing,
+} from '../map/allTerritories';
+import type { LatLngPoint } from '../map/realAnchors';
 import type { LoopPhase, RunLoop } from './loop';
 import { SIM_TICK_MS, type RunSimulation } from './simulation';
 import {
@@ -52,6 +60,7 @@ import {
   NAV_WORLD_W,
   cellCenterWorld,
   navProject,
+  worldToGeo,
   type LiveNav,
 } from './liveNav';
 
@@ -87,6 +96,19 @@ const LOOP_GHOST_DASH = '5 5';
 interface XY {
   x: number;
   y: number;
+}
+
+/** Points quasi confondus absorbés dans la trace géo (~2 m — anti-bruit ruban). */
+const TRACE_DEDUP_DEG = 2e-5;
+
+/** Anneau [lng, lat] (allTerritories) → path SVG fermé en pixels-monde. */
+function ringToWorldPath(ring: readonly [number, number][]): string {
+  let d = '';
+  ring.forEach(([lng, lat], k) => {
+    const { x, y } = navProject(lng, lat);
+    d += `${k === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  });
+  return d ? `${d} Z` : '';
 }
 
 export interface LiveNavMapHandle {
@@ -310,27 +332,48 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
     [world],
   );
 
-  // ── Territoire ORGANIQUE qui s'étend derrière le coureur (AMENDEMENT-11) ──
-  // Les zones H3 traversées (préfixe litCells) fusionnent en UNE trainée-zone
-  // lissée : la zone grossit, aucune cellule visible.
+  // ── Territoire en TRAITS NETS derrière le coureur (AMENDEMENT-13 §4ter) ──
+  // La trace GÉO des ticks capturants (miroir loop.ts) porte tout le rendu :
+  // ruban net le long du parcouru, polygone DU TRACÉ à la fermeture — les
+  // cellules H3 (litCells) restent le moteur invisible des COMPTES.
   const litCount = tick?.litCount ?? 0;
   const lastCell = litCount > 0 ? nav.litCells[litCount - 1] : undefined;
   const loopClosed = loopPhase === 'closed';
-  const territoryD = useMemo(() => {
-    // Boucle fermée (AMENDEMENT-12 §C) : couloir + intérieur fusionnés en UNE
-    // zone organique — le remplissage, pas une grille.
-    const cells = loopClosed && loop
-      ? [...nav.litCells.slice(0, litCount), ...loop.interiorCells]
-      : nav.litCells.slice(0, litCount);
-    const territory = cellsToTerritory(cells, 'crew');
-    return territory ? territoryPath(territory, navProject) : '';
-  }, [litCount, nav.litCells, loopClosed, loop]);
-  /** Zone fantôme / burst : l'INTÉRIEUR seul, lissé (aperçu puis remplissage). */
-  const interiorD = useMemo(() => {
-    if (!loop || loop.interiorCells.length === 0) return '';
-    const territory = cellsToTerritory(loop.interiorCells, 'crew');
-    return territory ? territoryPath(territory, navProject) : '';
-  }, [loop]);
+  const traceGeo = useMemo(() => {
+    const pts: LatLngPoint[] = [];
+    for (let k = 0; k <= i; k += 1) {
+      if (!sim.ticks[k]?.capturing) continue;
+      const t = nav.ticks[k];
+      if (!t) continue;
+      const g = worldToGeo(t.x, t.y);
+      const prev = pts[pts.length - 1];
+      if (
+        prev &&
+        Math.abs(prev.lat - g.lat) < TRACE_DEDUP_DEG &&
+        Math.abs(prev.lng - g.lng) < TRACE_DEDUP_DEG
+      ) {
+        continue;
+      }
+      pts.push(g);
+    }
+    return pts;
+  }, [i, nav.ticks, sim.ticks]);
+  /** Ruban net (~2 zones ≈ 60 m) le long de la trace parcourue. */
+  const corridorD = useMemo(() => {
+    if (traceGeo.length < 2) return '';
+    return ringToWorldPath(ribbonRing(traceGeo, CORRIDOR_HALF_WIDTH_M));
+  }, [traceGeo]);
+  /** Boucle fermée : le polygone affiché EST le tracé (remplissage §4ter). */
+  const loopFillD = useMemo(() => {
+    if (!loopClosed || !loop || loop.traceGeo.length < 3) return '';
+    return ringToWorldPath(loopRing(loop.traceGeo));
+  }, [loopClosed, loop]);
+  /** Zone fantôme (aperçu < 300 m) : polygone NET du tracé prévu — la trace
+      refermée sur le départ, en pointillé (plus aucun blob de cellules). */
+  const ghostD = useMemo(() => {
+    if (loopPhase !== 'approach' || traceGeo.length < 3) return '';
+    return ringToWorldPath(loopRing(traceGeo));
+  }, [loopPhase, traceGeo]);
   // Burst de fermeture : l'intérieur s'allume fort puis se fond dans la zone
   // (Animated core, reduce motion → aucun flash, la zone fusionnée suffit).
   const fillBurst = useRef(new Animated.Value(0)).current;
@@ -386,45 +429,58 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
         >
           {baseWorld}
 
-          {/* Territoire organique : la trainée-zone chartreuse grossit derrière
-              le coureur — frontière lisse, double contour si contesté. */}
-          {territoryD ? (
+          {/* Territoire §4ter : ruban NET le long de la trace parcourue (fill
+              nonzero — la boucle refermée ne se troue pas), boucle fermée =
+              polygone DU TRACÉ rempli ; double contour si contesté. */}
+          {corridorD || loopFillD ? (
             <Svg width={world.w} height={world.h} style={StyleSheet.absoluteFill} pointerEvents="none">
-              <Path
-                d={territoryD}
-                fill="none"
-                stroke={territoryStyle.crewGlow}
-                strokeWidth={TERRITORY_GLOW_WIDTH}
-                strokeLinejoin="round"
-              />
-              {contested ? (
+              {loopFillD ? (
                 <Path
-                  d={territoryD}
-                  fill="none"
-                  stroke={territoryStyle.contestedOuterStroke}
-                  strokeWidth={CONTESTED_OUTER_WIDTH}
+                  d={loopFillD}
+                  fill={territoryStyle.crewFill}
+                  stroke={territoryStyle.crewStroke}
+                  strokeWidth={TERRITORY_BORDER_WIDTH}
                   strokeLinejoin="round"
                 />
               ) : null}
-              <Path
-                d={territoryD}
-                fill={territoryStyle.crewFill}
-                fillRule="evenodd"
-                stroke={contested ? territoryStyle.contestedInnerStroke : territoryStyle.crewStroke}
-                strokeWidth={TERRITORY_BORDER_WIDTH}
-                strokeLinejoin="round"
-              />
+              {corridorD ? (
+                <>
+                  <Path
+                    d={corridorD}
+                    fill="none"
+                    stroke={territoryStyle.crewGlow}
+                    strokeWidth={TERRITORY_GLOW_WIDTH}
+                    strokeLinejoin="round"
+                  />
+                  {contested ? (
+                    <Path
+                      d={corridorD}
+                      fill="none"
+                      stroke={territoryStyle.contestedOuterStroke}
+                      strokeWidth={CONTESTED_OUTER_WIDTH}
+                      strokeLinejoin="round"
+                    />
+                  ) : null}
+                  <Path
+                    d={corridorD}
+                    fill={territoryStyle.crewFill}
+                    stroke={contested ? territoryStyle.contestedInnerStroke : territoryStyle.crewStroke}
+                    strokeWidth={TERRITORY_BORDER_WIDTH}
+                    strokeLinejoin="round"
+                  />
+                </>
+              ) : null}
             </Svg>
           ) : null}
 
-          {/* Boucle (AMENDEMENT-12 §C) : aperçu fantôme de l'intérieur (< 300 m)
-              puis burst de remplissage à la fermeture — jamais de cellules. */}
-          {interiorD && loopPhase === 'approach' ? (
+          {/* Boucle (AMENDEMENT-12 §C, §4ter) : aperçu fantôme = polygone NET
+              du tracé prévu (< 300 m), puis burst de remplissage du polygone
+              de boucle à la fermeture — jamais de cellules, jamais de blob. */}
+          {ghostD ? (
             <Svg width={world.w} height={world.h} style={StyleSheet.absoluteFill} pointerEvents="none">
               <Path
-                d={interiorD}
+                d={ghostD}
                 fill={territoryStyle.objectiveSoft}
-                fillRule="evenodd"
                 stroke={colors.chartreuse40}
                 strokeWidth={TERRITORY_BORDER_WIDTH}
                 strokeDasharray={LOOP_GHOST_DASH}
@@ -432,10 +488,10 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
               />
             </Svg>
           ) : null}
-          {interiorD && loopClosed ? (
+          {loopFillD ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: fillBurst }]} pointerEvents="none">
               <Svg width={world.w} height={world.h}>
-                <Path d={interiorD} fill={territoryStyle.crewFill} fillRule="evenodd" />
+                <Path d={loopFillD} fill={territoryStyle.crewFill} />
               </Svg>
             </Animated.View>
           ) : null}

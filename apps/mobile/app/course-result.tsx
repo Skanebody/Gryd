@@ -3,11 +3,12 @@
  * LE moment dopamine, SANS hexagone visible. Séquence animée en étapes
  * (reveal + haptic par étape, doc §25) : 1 COURSE VALIDÉE + GRYD VERIFIED →
  * 2 +214 ZONES CAPTURÉES (KPI géant) → 3 SECTEUR MODIFIÉ / Frontière
- * repoussée (avant/après ORGANIQUE : la frontière chartreuse avance sur
- * l'orange — territory.ts, jamais de cellules) → 4 contribution crew (KPI
- * géant + rang gagné conservé) → 5 bonus performance → 6 BADGE DÉBLOQUÉ
- * (reveal plein écran, glow par tier) → 7 share card virale (mini carte
- * organique + route brillante + gros chiffre). « Passer » saute à la fin ;
+ * repoussée (avant/après en TRAITS NETS, AMENDEMENT-13 §4ter : la frontière
+ * rivale puis TA BOUCLE ROUTÉE qui l'a repoussée — géométries allTerritories,
+ * jamais de cellules ni de blob) → 4 contribution crew (KPI géant + rang
+ * gagné conservé) → 5 bonus performance → 6 BADGE DÉBLOQUÉ (reveal plein
+ * écran, glow par tier) → 7 share card virale (mini carte aux frontières
+ * nettes + route brillante + gros chiffre). « Passer » saute à la fin ;
  * reduce motion = fondus simples (useReveal/useCountUp).
  * Hors conquête, la séquence s'adapte (AMENDEMENT-07) : social_run = stats +
  * partage sans capture ; course_privee = stats seules, aucun partage.
@@ -85,23 +86,20 @@ const STEPS_BY_MODE: Record<LiveRunMode, readonly StepId[]> = {
   course_privee: ['validated', 'stats'],
 };
 
-// ─── Mini-cartes ORGANIQUES du secteur (AMENDEMENT-11 §5) ────────────────────
-// Cellules H3 DÉMO côté RENDU uniquement (le serveur reste seul décideur du
-// territoire) : un disque res 10 sur Paris Est, trié ouest→est ; le % de
-// contrôle coupe le disque en deux territoires organiques (cellsToTerritory) —
-// la frontière chartreuse AVANCE sur l'orange entre AVANT et APRÈS. Jamais de
-// cellules dessinées : uniquement des aplats lissés et leurs frontières.
+// ─── Mini-cartes du secteur en TRAITS NETS (AMENDEMENT-13 §4ter) ─────────────
+// « La frontière EST le tracé du coureur » : plus aucun disque H3 lissé —
+// AVANT montre la frontière RIVALE (ruban net rue du Faubourg-du-Temple),
+// APRÈS y ajoute TA BOUCLE ROUTÉE (grande boucle République, trait continu +
+// remplissage faible) qui a repoussé cette frontière. Géométries d'authoring
+// d'allTerritories/realAnchors (une seule source pour toutes les surfaces).
+// Pur rendu — les % affichés viennent des stats, le serveur reste décideur.
 
-/** Centre du secteur démo (Paris Est) — donnée de mise en scène, pas de jeu. */
-const SECTOR_CENTER = { lat: 48.8672, lng: 2.3819 } as const;
-const SECTOR_RES = 10;
-const SECTOR_RING = 3;
 /** ViewBox carrée des mini-cartes. */
 const SECTOR_VB = 100;
-const SECTOR_PAD = 6;
-/** Frontières : mêmes proportions que la Battle Map (crew fin, rival marqué). */
-const SECTOR_BORDER_W = 1.4;
-const SECTOR_RIVAL_BORDER_W = 2;
+const SECTOR_PAD = 8;
+/** Frontières §4ter (trait continu 2-2,5 px — proportions Battle Map). */
+const SECTOR_BORDER_W = 2;
+const SECTOR_RIVAL_BORDER_W = 2.4;
 const SECTOR_ROUTE_W = 2.6;
 
 interface SectorSide {
@@ -116,86 +114,82 @@ interface SectorGeometry {
   routePoints: string;
 }
 
-/** Longitude du centre d'une cellule (h3 renvoie [lat, lng]). */
-function cellLng(cell: string): number {
-  return cellToLatLng(cell)[1] ?? 0;
-}
+/** Projection écran locale (lng/lat → px de viewBox). */
+type Project = (lng: number, lat: number) => { x: number; y: number };
 
-function cellLat(cell: string): number {
-  return cellToLatLng(cell)[0] ?? 0;
-}
-
-/** Deux territoires organiques (crew | rival) pour un % de contrôle donné. */
-function buildSectorGeometry(pctBefore: number, pctAfter: number): SectorGeometry {
-  const disk = gridDisk(
-    latLngToCell(SECTOR_CENTER.lat, SECTOR_CENTER.lng, SECTOR_RES),
-    SECTOR_RING,
-  );
-  // Ouest → est : la frontière du crew avance vers l'est.
-  const sorted = [...disk].sort((a, b) => cellLng(a) - cellLng(b));
-  const count = (pct: number) =>
-    Math.min(sorted.length - 1, Math.max(1, Math.round((sorted.length * pct) / 100)));
-  const nBefore = count(pctBefore);
-  // L'avance reste LISIBLE même pour un petit gain (au moins 2 zones de bande).
-  const nAfter = Math.min(sorted.length - 1, Math.max(count(pctAfter), nBefore + 2));
-
-  const territories = [
-    cellsToTerritory(sorted.slice(0, nBefore), 'crew'),
-    cellsToTerritory(sorted.slice(nBefore), 'rival'),
-    cellsToTerritory(sorted.slice(0, nAfter), 'crew'),
-    cellsToTerritory(sorted.slice(nAfter), 'rival'),
-  ];
-
-  // Projection commune (mètres, aspect conservé) sur la viewBox carrée.
+/** Projection à aspect conservé d'une bbox géo vers une viewBox paddée. */
+function fitProjection(
+  rings: readonly (readonly [number, number][])[],
+  vbMax: number,
+  pad: number,
+): { project: Project; vbW: number; vbH: number } {
   let minLng = Number.POSITIVE_INFINITY;
   let maxLng = Number.NEGATIVE_INFINITY;
   let minLat = Number.POSITIVE_INFINITY;
   let maxLat = Number.NEGATIVE_INFINITY;
-  for (const t of territories) {
-    if (!t) continue;
-    for (const poly of t.polygons) {
-      for (const ring of poly) {
-        for (const [lng, lat] of ring) {
-          if (lng < minLng) minLng = lng;
-          if (lng > maxLng) maxLng = lng;
-          if (lat < minLat) minLat = lat;
-          if (lat > maxLat) maxLat = lat;
-        }
-      }
+  for (const ring of rings) {
+    for (const [lng, lat] of ring) {
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
     }
   }
-  const spanX = Math.max(1, (maxLng - minLng) * M_PER_DEG_LNG);
-  const spanY = Math.max(1, (maxLat - minLat) * M_PER_DEG_LAT);
-  const k = (SECTOR_VB - SECTOR_PAD * 2) / Math.max(spanX, spanY);
-  const ox = (SECTOR_VB - spanX * k) / 2;
-  const oy = (SECTOR_VB - spanY * k) / 2;
-  const project: ProjectPoint = (lng, lat) => ({
-    x: ox + (lng - minLng) * M_PER_DEG_LNG * k,
-    y: oy + (maxLat - lat) * M_PER_DEG_LAT * k,
-  });
-
-  const path = (t: Territory | null) => (t ? territoryPath(t, project) : '');
-
-  // Route brillante : la course longe la bande gagnée (nord → sud).
-  const routePoints = sorted
-    .slice(Math.max(0, nBefore - 1), nAfter)
-    .sort((a, b) => cellLat(b) - cellLat(a))
-    .map((cell) => {
-      const { x, y } = project(cellLng(cell), cellLat(cell));
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-
+  const spanX = Math.max(1, (maxLng - minLng) * REAL_M_PER_DEG_LNG);
+  const spanY = Math.max(1, (maxLat - minLat) * REAL_M_PER_DEG_LAT);
+  const k = (vbMax - pad * 2) / Math.max(spanX, spanY);
   return {
-    before: { crewPath: path(territories[0] ?? null), rivalPath: path(territories[1] ?? null) },
-    after: { crewPath: path(territories[2] ?? null), rivalPath: path(territories[3] ?? null) },
-    routePoints,
+    vbW: spanX * k + pad * 2,
+    vbH: spanY * k + pad * 2,
+    project: (lng, lat) => ({
+      x: pad + (lng - minLng) * REAL_M_PER_DEG_LNG * k,
+      y: pad + (maxLat - lat) * REAL_M_PER_DEG_LAT * k,
+    }),
   };
 }
 
-// ─── Mini-cartes AVANT/APRÈS de la boucle (AMENDEMENT-12 §C — post-run) ─────
-// Le remplissage RÉEL de la course : couloir organique seul (AVANT) → couloir
-// + intérieur fusionnés (APRÈS), avec la trace de la boucle par-dessus. Rendu
+/** Anneau [lng, lat] → path SVG fermé. */
+function ringPath(ring: readonly [number, number][], project: Project): string {
+  let d = '';
+  ring.forEach(([lng, lat], i) => {
+    const { x, y } = project(lng, lat);
+    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  });
+  return `${d} Z`;
+}
+
+/** Tracé lat/lng → points de Polyline SVG. */
+function tracePoints(trace: readonly LatLngPoint[], project: Project): string {
+  return trace
+    .map((p) => {
+      const { x, y } = project(p.lng, p.lat);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+}
+
+/** AVANT (frontière rivale) / APRÈS (ta boucle routée) — traits nets §4ter. */
+function buildSectorGeometry(): SectorGeometry {
+  const rivalRing = ribbonRing(RUE_FAUBOURG_DU_TEMPLE, CORRIDOR_HALF_WIDTH_M);
+  const crewRing = loopRing(BOUCLE_REPUBLIQUE);
+  // Projection COMMUNE aux deux côtés (la frontière ne « saute » pas).
+  const { project } = fitProjection([rivalRing, crewRing], SECTOR_VB, SECTOR_PAD);
+  const rivalPath = ringPath(rivalRing, project);
+  return {
+    before: { crewPath: '', rivalPath },
+    after: { crewPath: ringPath(crewRing, project), rivalPath },
+    // La route brillante EST le tracé de la boucle (refermée sur le départ).
+    routePoints: tracePoints(
+      [...BOUCLE_REPUBLIQUE, BOUCLE_REPUBLIQUE[0] ?? { lat: 0, lng: 0 }],
+      project,
+    ),
+  };
+}
+
+// ─── Mini-cartes AVANT/APRÈS de la boucle (AMENDEMENT-12 §C, §4ter) ─────────
+// Le remplissage RÉEL de la course, en TRAITS NETS : ruban net le long de la
+// trace parcourue (AVANT — le trait/couloir) → polygone de la boucle rempli
+// (APRÈS — le tracé EST la frontière), avec la trace par-dessus. Rendu
 // uniquement — les zones affichées sont les estimations dérivées du moteur.
 
 /** Padding de la viewBox des mini-cartes boucle. */
@@ -208,71 +202,43 @@ const LOOP_ROUTE_W = 2.2;
 interface LoopGeometry {
   vbW: number;
   vbH: number;
-  /** Couloir organique seul (AVANT). */
+  /** Ruban NET le long de la trace (AVANT — le couloir §4ter). */
   beforePath: string;
-  /** Couloir + intérieur fusionnés (APRÈS — le remplissage). */
+  /** Polygone de la boucle — le tracé refermé (APRÈS — le remplissage). */
   afterPath: string;
   /** Polyline de la trace (la boucle elle-même). */
   routePoints: string;
 }
 
-/** Projette couloir/boucle dans une viewBox à l'aspect de la course. */
-function buildLoopGeometry(loop: RunLoop, corridorCells: readonly string[]): LoopGeometry | null {
-  const before = cellsToTerritory(corridorCells, 'crew');
-  const after = cellsToTerritory([...corridorCells, ...loop.interiorCells], 'crew');
-  if (!before || !after) return null;
-
-  let minLng = Number.POSITIVE_INFINITY;
-  let maxLng = Number.NEGATIVE_INFINITY;
-  let minLat = Number.POSITIVE_INFINITY;
-  let maxLat = Number.NEGATIVE_INFINITY;
-  for (const poly of after.polygons) {
-    for (const ring of poly) {
-      for (const [lng, lat] of ring) {
-        if (lng < minLng) minLng = lng;
-        if (lng > maxLng) maxLng = lng;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-      }
-    }
-  }
-  const spanX = Math.max(1, (maxLng - minLng) * M_PER_DEG_LNG);
-  const spanY = Math.max(1, (maxLat - minLat) * M_PER_DEG_LAT);
-  const k = (LOOP_VB_MAX - LOOP_VB_PAD * 2) / Math.max(spanX, spanY);
-  const vbW = spanX * k + LOOP_VB_PAD * 2;
-  const vbH = spanY * k + LOOP_VB_PAD * 2;
-  const project: ProjectPoint = (lng, lat) => ({
-    x: LOOP_VB_PAD + (lng - minLng) * M_PER_DEG_LNG * k,
-    y: LOOP_VB_PAD + (maxLat - lat) * M_PER_DEG_LAT * k,
-  });
-
-  const routePoints = loop.traceGeo
-    .map((p) => {
-      const { x, y } = project(p.lng, p.lat);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-
+/** Projette couloir/boucle §4ter dans une viewBox à l'aspect de la course. */
+function buildLoopGeometry(loop: RunLoop): LoopGeometry | null {
+  if (loop.traceGeo.length < 3) return null;
+  const corridorRing = ribbonRing(loop.traceGeo, CORRIDOR_HALF_WIDTH_M);
+  const loopPolyRing = loopRing(loop.traceGeo);
+  if (corridorRing.length === 0) return null;
+  // Cadrage sur le RUBAN (léger débord du trait — l'après tient dedans).
+  const { project, vbW, vbH } = fitProjection([corridorRing], LOOP_VB_MAX, LOOP_VB_PAD);
   return {
     vbW,
     vbH,
-    beforePath: territoryPath(before, project),
-    afterPath: territoryPath(after, project),
-    routePoints,
+    beforePath: ringPath(corridorRing, project),
+    afterPath: ringPath(loopPolyRing, project),
+    routePoints: tracePoints(loop.traceGeo, project),
   };
 }
 
-/** Un côté AVANT/APRÈS de la boucle (zone crew organique + trace). */
+/** Un côté AVANT/APRÈS de la boucle (trait net §4ter + trace — fill nonzero :
+    le ruban d'une course refermée se recouvre au départ sans se trouer). */
 function LoopMiniMap({ d, route, vbW, vbH }: { d: string; route?: string; vbW: number; vbH: number }) {
   return (
     <Svg width="100%" height="100%" viewBox={`0 0 ${vbW.toFixed(0)} ${vbH.toFixed(0)}`}>
-      <Path d={d} fill={colors.noir} fillRule="evenodd" />
+      <Path d={d} fill={colors.noir} />
       <Path
         d={d}
         fill={territoryStyle.crewFill}
         stroke={territoryStyle.crewStroke}
         strokeWidth={SECTOR_BORDER_W}
-        fillRule="evenodd"
+        strokeLinejoin="round"
       />
       {route ? (
         <Polyline
@@ -325,7 +291,8 @@ function LoopBeforeAfter({
   );
 }
 
-/** Rendu SVG d'un côté (aplat rival dessous, crew dessus, route optionnelle). */
+/** Rendu SVG d'un côté (§4ter : ruban frontière rivale dessous, boucle crew
+    nette dessus — traits continus, remplissages faibles, route optionnelle). */
 function SectorMiniMap({ side, route }: { side: SectorSide; route?: string }) {
   return (
     <Svg width="100%" height="100%" viewBox={`0 0 ${SECTOR_VB} ${SECTOR_VB}`}>
@@ -335,20 +302,20 @@ function SectorMiniMap({ side, route }: { side: SectorSide; route?: string }) {
           fill={territoryStyle.rivalFill}
           stroke={territoryStyle.rivalStroke}
           strokeWidth={SECTOR_RIVAL_BORDER_W}
-          fillRule="evenodd"
+          strokeLinejoin="round"
         />
       ) : null}
       {side.crewPath ? (
         <>
           {/* Sous-couche opaque : la chartreuse RECOUVRE l'orange à la
               frontière (la zone de recouvrement ne devient jamais boueuse). */}
-          <Path d={side.crewPath} fill={colors.noir} fillRule="evenodd" />
+          <Path d={side.crewPath} fill={colors.noir} />
           <Path
             d={side.crewPath}
             fill={territoryStyle.crewFill}
             stroke={territoryStyle.crewStroke}
             strokeWidth={SECTOR_BORDER_W}
-            fillRule="evenodd"
+            strokeLinejoin="round"
           />
         </>
       ) : null}
@@ -377,7 +344,7 @@ function SectorMiniMap({ side, route }: { side: SectorSide; route?: string }) {
   );
 }
 
-/** Avant/après ORGANIQUE du secteur — la frontière bouge, pas des cellules. */
+/** Avant/après §4ter du secteur — la frontière EST le tracé, pas des cellules. */
 function SectorBeforeAfter({
   zoneName,
   pctBefore,
@@ -423,13 +390,19 @@ function tickParam(param: string | string[] | undefined, fallback: number): numb
 
 export default function CourseResultScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ mode?: string; t?: string; queued?: string }>();
+  const params = useLocalSearchParams<{
+    mode?: string;
+    t?: string;
+    queued?: string;
+    route?: string;
+  }>();
   const mode = runModeFromParam(params.mode);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   const tickIndex = tickParam(params.t, sim.ticks.length - 1);
-  // Boucle (AMENDEMENT-12) : rejouée depuis la même démo déterministe — les
+  // Boucle (AMENDEMENT-12) : rejouée depuis la même démo déterministe — même
+  // itinéraire routé que la course si `route=<id>` (AMENDEMENT-13 §4ter) ; les
   // zones intérieures entrent dans les totaux AVANT points/bonus.
-  const nav = useMemo(() => buildLiveNav(sim), [sim]);
+  const nav = useMemo(() => buildLiveNav(sim, params.route), [sim, params.route]);
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
   const stats = useMemo(
     () => resultStats(sim, tickIndex, loopSummaryAt(loop, tickIndex)),
@@ -445,20 +418,16 @@ export default function CourseResultScreen() {
   const badge = mode === 'conquete' ? badgeById(DEMO_UNLOCKED_BADGE_ID) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
 
-  // Mini-cartes organiques (avant/après + share card) — conquête uniquement.
+  // Mini-cartes en traits nets §4ter (avant/après + share card) — conquête.
   const sectorGeo = useMemo(
-    () =>
-      mode === 'conquete'
-        ? buildSectorGeometry(stats.zonePctBefore, stats.zonePctAfter)
-        : null,
-    [mode, stats.zonePctBefore, stats.zonePctAfter],
+    () => (mode === 'conquete' ? buildSectorGeometry() : null),
+    [mode],
   );
   // AVANT/APRÈS du remplissage de boucle — seulement si la boucle est fermée.
-  const loopGeo = useMemo(() => {
-    if (!stats.loopClosed || !loop) return null;
-    const corridor = nav.ticks[Math.min(tickIndex, nav.ticks.length - 1)]?.litCount ?? 0;
-    return buildLoopGeometry(loop, nav.litCells.slice(0, corridor));
-  }, [stats.loopClosed, loop, nav, tickIndex]);
+  const loopGeo = useMemo(
+    () => (stats.loopClosed && loop ? buildLoopGeometry(loop) : null),
+    [stats.loopClosed, loop],
+  );
 
   useEffect(() => {
     screen('course_result', { mode });

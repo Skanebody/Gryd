@@ -15,6 +15,10 @@
  *     territory.ts (« la trainée-zone grossit », jamais une grille) ;
  *   - un SCRIPT de feedback (toasts + haptics) : « Secteur pris · +N zones »,
  *     record segment (1×), déviation (1×), checkpoints, arrivée.
+ * AMENDEMENT-13 §4ter : si `route=<id>` pointe une proposition du Route
+ * Planner, la simulation SUIT sa polyligne ROUTÉE rue par rue (demo.ts —
+ * recentrée sur le monde de nav : les formes réelles des rues sont
+ * conservées, la basemap procédurale reste le décor de cette passe).
  * Purement présentation : AUCUNE règle de jeu ici — zones/points « estimés »
  * viennent de la simulation, le serveur (ingest_run) reste seul décideur.
  */
@@ -37,6 +41,8 @@ import {
   STREET_MINOR_WIDTH_M,
   type LatLngPoint,
 } from '../map/basemap';
+import { ROUTES_DEMO } from '../route/demo';
+import type { PlannedRouteDemo } from '../route/types';
 import { SIM_SECONDS_PER_TICK, type RunSimulation } from './simulation';
 
 // ─── Échelle coureur (même règle gelée que la Battle Map — NE PAS régresser) ─
@@ -52,8 +58,13 @@ export const NAV_SCALE_BAR_METERS = 500;
 
 // ─── Monde en pixels (emprise du plan de quartier autour du centre égocentré) ─
 
-/** Demi-emprise du monde (m) — dans la couverture d'îlots de la basemap. */
-const WORLD_HALF_WIDTH_M = 1_200;
+/**
+ * Demi-emprise du monde (m). Élargie pour contenir les 3 parcours ROUTÉS du
+ * planner recentrés sur l'ego (§4ter — la Route C pousse à ~1,65 km à l'est,
+ * la Route B à ~1,9 km au nord) ; au-delà de la couverture d'îlots de la
+ * basemap, le fond noir affleure (états offline/chargement, A-13 §5).
+ */
+const WORLD_HALF_WIDTH_M = 1_750;
 const WORLD_HALF_HEIGHT_M = 2_250;
 /** Taille du monde en px (le conteneur animé que la caméra translate). */
 export const NAV_WORLD_W = Math.round((2 * WORLD_HALF_WIDTH_M) / NAV_METERS_PER_PIXEL);
@@ -87,7 +98,7 @@ export function worldToGeo(x: number, y: number): LatLngPoint {
   };
 }
 
-/** Projection lng/lat → pixels-monde (le `ProjectPoint` de territory.ts). */
+/** Projection lng/lat → pixels-monde (anneaux §4ter d'allTerritories → SVG). */
 export function navProject(lng: number, lat: number): { x: number; y: number } {
   return geoToWorld({ lat, lng });
 }
@@ -220,6 +231,47 @@ const CHECKPOINTS_ACTUAL: readonly { index: number; label: string }[] = [
   { index: 17, label: 'Boulevard maison' },
 ];
 
+// ─── Itinéraire ROUTÉ sélectionné (AMENDEMENT-13 §4ter — `route=<id>`) ──────
+
+/** Normalise un param `route` (`route_b_optimisee`, `route-b`, `b`…). */
+function normalizedRouteParam(param: string | string[] | undefined): string | null {
+  const raw = Array.isArray(param) ? param[0] : param;
+  if (!raw) return null;
+  return raw.toLowerCase().replace(/_/g, '-');
+}
+
+/** Proposition ROUTÉE du planner correspondant au param — null sinon. */
+function plannedRouteFromParam(
+  param: string | string[] | undefined,
+): PlannedRouteDemo | null {
+  const norm = normalizedRouteParam(param);
+  if (!norm) return null;
+  return (
+    ROUTES_DEMO.find((r) => {
+      const id = r.id.replace(/_/g, '-');
+      const letter = r.letter.toLowerCase();
+      return norm === id || norm === `route-${letter}` || norm === letter;
+    }) ?? null
+  );
+}
+
+/**
+ * Polyligne ROUTÉE recentrée sur le monde de nav : les parcours du planner
+ * sont ancrés sur le VRAI Paris (République, realAnchors) alors que le monde
+ * procédural est centré BASEMAP_CENTER — on conserve les OFFSETS MÈTRES réels
+ * du tracé (chaque segment reste une rue réelle, « pas de vol d'oiseau ») en
+ * posant le DÉPART sur le centre égocentré « moi ». Le décor procédural reste
+ * celui de cette passe (A-13 §2 — bascule tuiles réelles = étape suivante).
+ */
+function routedWorldPoints(route: PlannedRouteDemo): RoutePoint[] {
+  const origin = route.line[0];
+  if (!origin) return [];
+  const mPerDegLng = M_PER_DEG_LAT * Math.cos((origin.lat * Math.PI) / 180);
+  return route.line.map((p) =>
+    metersToWorld((p.lng - origin.lng) * mPerDegLng, (p.lat - origin.lat) * M_PER_DEG_LAT),
+  );
+}
+
 // ─── Géométrie de polyline (longueurs cumulées, point à distance donnée) ────
 
 function cumulativeLengths(points: readonly RoutePoint[]): number[] {
@@ -318,21 +370,28 @@ export interface LiveNav {
  * Construit la scène de navigation depuis la simulation (déterministe : même
  * mode → même course → même scène). La position du coureur suit le tracé RÉEL
  * proportionnellement à la distance simulée (cumuls normalisés → l'arrivée
- * tombe exactement sur la destination au dernier tick).
+ * tombe exactement sur la destination au dernier tick). Si `routeParam`
+ * désigne une proposition du planner, la course SUIT sa polyligne ROUTÉE
+ * (§4ter) — pas de scénario de déviation dans ce cas (plan = réel).
  */
-export function buildLiveNav(sim: RunSimulation): LiveNav {
-  const plannedPoints: RoutePoint[] = [...ROUTE_PREFIX_M, ...ROUTE_PLANNED_TAIL_M].map(([x, y]) =>
-    metersToWorld(x, y),
-  );
-  const actualPoints: RoutePoint[] = [...ROUTE_PREFIX_M, ...ROUTE_ACTUAL_TAIL_M].map(([x, y]) =>
-    metersToWorld(x, y),
-  );
+export function buildLiveNav(
+  sim: RunSimulation,
+  routeParam?: string | string[],
+): LiveNav {
+  const routed = plannedRouteFromParam(routeParam);
+  const routedPoints = routed ? routedWorldPoints(routed) : null;
+  const plannedPoints: RoutePoint[] =
+    routedPoints ??
+    [...ROUTE_PREFIX_M, ...ROUTE_PLANNED_TAIL_M].map(([x, y]) => metersToWorld(x, y));
+  const actualPoints: RoutePoint[] =
+    routedPoints ??
+    [...ROUTE_PREFIX_M, ...ROUTE_ACTUAL_TAIL_M].map(([x, y]) => metersToWorld(x, y));
   const plannedCum = cumulativeLengths(plannedPoints);
   const actualCum = cumulativeLengths(actualPoints);
   const plannedTotal = plannedCum[plannedCum.length - 1] ?? 0;
   const actualTotal = actualCum[actualCum.length - 1] ?? 0;
-  /** Longueur du préfixe commun (la fourche). */
-  const forkLen = actualCum[ROUTE_PREFIX_M.length - 1] ?? 0;
+  /** Longueur du préfixe commun (la fourche) — jamais atteinte si routé. */
+  const forkLen = routedPoints ? Infinity : actualCum[ROUTE_PREFIX_M.length - 1] ?? 0;
 
   const lastIndex = sim.ticks.length - 1;
   const totalDistanceM = Math.max(1, sim.ticks[lastIndex]?.distanceM ?? 1);
@@ -367,8 +426,13 @@ export function buildLiveNav(sim: RunSimulation): LiveNav {
     }
   }
 
+  // Routé (§4ter) : plan = réel, la déviation n'arrive JAMAIS (tick hors plage).
   const deviationIdx = ticks.findIndex((t) => t.lenPx > forkLen);
-  const deviationTick = deviationIdx === -1 ? lastIndex : deviationIdx;
+  const deviationTick = routedPoints
+    ? lastIndex + 1
+    : deviationIdx === -1
+      ? lastIndex
+      : deviationIdx;
 
   const checkpointOf = (
     points: readonly RoutePoint[],
@@ -381,13 +445,19 @@ export function buildLiveNav(sim: RunSimulation): LiveNav {
     const tick = ticks.findIndex((t) => t.lenPx >= cumPx);
     return { label, x: p.x, y: p.y, cumPx, tick };
   };
-  const checkpointsPlanned = CHECKPOINTS_PLANNED.map((c) => ({
-    ...checkpointOf(plannedPoints, plannedCum, c.index, c.label),
-    tick: -1,
-  }));
-  const checkpointsActual = CHECKPOINTS_ACTUAL.map((c) =>
-    checkpointOf(actualPoints, actualCum, c.index, c.label),
-  );
+  // Les checkpoints nommés appartiennent au SCÉNARIO par défaut (sommets de
+  // ses polylignes) — un parcours routé n'en scripte pas (« Arrivée » reste).
+  const checkpointsPlanned = routedPoints
+    ? []
+    : CHECKPOINTS_PLANNED.map((c) => ({
+        ...checkpointOf(plannedPoints, plannedCum, c.index, c.label),
+        tick: -1,
+      }));
+  const checkpointsActual = routedPoints
+    ? []
+    : CHECKPOINTS_ACTUAL.map((c) =>
+        checkpointOf(actualPoints, actualCum, c.index, c.label),
+      );
 
   // ── Script de feedback : placement anti-collision (≥ TOAST_MIN_GAP_TICKS) ─
   const toasts = new Map<number, NavToast>();
@@ -414,13 +484,16 @@ export function buildLiveNav(sim: RunSimulation): LiveNav {
     tint: colors.chartreuse,
     haptic: 'medium',
   });
-  place(deviationTick, {
-    kind: 'deviation',
-    text: 'Déviation — itinéraire recalculé',
-    icon: 'route',
-    tint: colors.blanc,
-    haptic: 'light',
-  });
+  if (!routedPoints) {
+    // Le scénario de déviation n'existe que sur le parcours par défaut.
+    place(deviationTick, {
+      kind: 'deviation',
+      text: 'Déviation — itinéraire recalculé',
+      icon: 'route',
+      tint: colors.blanc,
+      haptic: 'light',
+    });
+  }
   for (const cp of checkpointsActual) {
     if (cp.tick >= 0 && cp.tick < lastIndex) {
       place(cp.tick, {
@@ -544,29 +617,36 @@ export interface LiveRouteInfo {
   summary: string;
 }
 
-/**
- * Miroir MINIMAL des 3 routes démo du Route Planner (AMENDEMENT-10 §2).
- * « Import défensif » : src/features/route/demo.ts n'existe pas encore (écran
- * livré par un autre chantier) et Metro ne sait pas résoudre un require
- * conditionnel de fichier absent — on garde donc ici le nom/résumé affichés
- * en tête. TODO(route-planner) : consommer src/features/route/demo.ts.
- */
-const LIVE_ROUTES: readonly LiveRouteInfo[] = [
-  { id: 'route-a', name: 'Route A — Rapide', summary: '3,4 km · +52 zones' },
-  { id: 'route-b', name: 'Route B — Optimisée', summary: '5,1 km · +94 zones' },
-  { id: 'route-c', name: 'Route C — Défense', summary: '4,8 km · 12 zones à sauver' },
-];
+/** Libellé km court (virgule française) — étiquette démo, pas une règle. */
+function kmLabel(km: number): string {
+  return `${km.toFixed(1).replace('.', ',')} km`;
+}
 
 /**
- * Résout le paramètre de route (`route-b`, `b`, `route_b`…). Id inconnu →
- * tête générique (jamais de crash) ; paramètre absent → null (pas d'en-tête).
+ * En-tête DÉRIVÉ de la proposition du planner (route/demo.ts — l'ex-miroir
+ * local est mort : nom, distance routée et zones sortent de la même source
+ * que la carte du planner, plus aucun résumé codé en dur ici).
+ */
+function liveRouteInfo(route: PlannedRouteDemo): LiveRouteInfo {
+  return {
+    id: route.id.replace(/_/g, '-'),
+    name: `Route ${route.letter} — ${route.name}`,
+    summary:
+      route.streetsToSave !== undefined
+        ? `${kmLabel(route.distanceKm)} · ${route.streetsToSave} rues à sauver`
+        : `${kmLabel(route.distanceKm)} · +${route.zones} zones`,
+  };
+}
+
+/**
+ * Résout le paramètre de route (`route_b_optimisee`, `route-b`, `b`…). Id
+ * inconnu → tête générique (jamais de crash) ; absent → null (pas d'en-tête).
  */
 export function routeInfoFromParam(
   param: string | string[] | undefined,
 ): LiveRouteInfo | null {
-  const raw = Array.isArray(param) ? param[0] : param;
-  if (!raw) return null;
-  const norm = raw.toLowerCase().replace(/_/g, '-');
-  const found = LIVE_ROUTES.find((r) => r.id === norm || r.id === `route-${norm}`);
-  return found ?? { id: norm, name: 'Itinéraire recommandé', summary: '' };
+  const norm = normalizedRouteParam(param);
+  if (!norm) return null;
+  const route = plannedRouteFromParam(param);
+  return route ? liveRouteInfo(route) : { id: norm, name: 'Itinéraire recommandé', summary: '' };
 }

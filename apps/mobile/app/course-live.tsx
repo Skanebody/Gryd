@@ -149,7 +149,8 @@ function DemoCourseLive({
   const insets = useSafeAreaInsets();
   const routeInfo = useMemo(() => routeInfoFromParam(routeParam), [routeParam]);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
-  const nav = useMemo(() => buildLiveNav(sim), [sim]);
+  // §4ter : la simulation SUIT l'itinéraire ROUTÉ du parcours choisi (`route=`).
+  const nav = useMemo(() => buildLiveNav(sim, routeParam), [sim, routeParam]);
   /** Boucle démo (AMENDEMENT-12 §C) — null hors conquête (aucune capture). */
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
   const lastIndex = sim.ticks.length - 1;
@@ -243,7 +244,14 @@ function DemoCourseLive({
       duration: stats.durationS,
       source: 'gps',
     });
-    router.replace({ pathname: '/course-result', params: { mode, t: String(tickIndex) } });
+    // Le résultat rejoue la MÊME course : le parcours routé suit (§4ter).
+    const routeId = Array.isArray(routeParam) ? routeParam[0] : routeParam;
+    router.replace({
+      pathname: '/course-result',
+      params: routeId
+        ? { mode, t: String(tickIndex), route: routeId }
+        : { mode, t: String(tickIndex) },
+    });
   };
 
   const onStopShortPress = () => {
