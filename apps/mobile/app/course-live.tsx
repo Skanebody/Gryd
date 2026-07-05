@@ -514,6 +514,23 @@ function DemoCourseLive({
     setPaused((p) => !p);
   };
 
+  /**
+   * QUITTER (retour fondateur : « pas de bouton pour sortir »). Le ✕ en haut à
+   * gauche met en PAUSE et demande confirmation — quitter ABANDONNE la course
+   * (rien enregistré), distinct de « Terminer » (maintenir → enregistre le
+   * résultat). Anti-sortie accidentelle : une confirmation, jamais direct.
+   */
+  const [quitOpen, setQuitOpen] = useState(false);
+  const askQuit = () => {
+    haptics.light();
+    setPaused(true);
+    setQuitOpen(true);
+  };
+  const confirmQuit = () => {
+    track(EVENTS.runCancelAttempt);
+    router.replace('/');
+  };
+
   const switchView = (next: LiveView) => {
     haptics.light();
     setView(next);
@@ -548,6 +565,17 @@ function DemoCourseLive({
 
   return (
     <View style={styles.root}>
+      {/* ✕ QUITTER (haut gauche) : sortir la course sans l'enregistrer — distinct
+          de « Terminer » (maintenir). Toujours visible dans les 2 vues. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Quitter la course"
+        onPress={askQuit}
+        hitSlop={10}
+        style={({ pressed }) => [styles.quitButton, { top: insets.top + 10 }, pressed && styles.pressed]}
+      >
+        <Icon name="fermer" size={20} color={colors.blanc} />
+      </Pressable>
       {view === 'carte' ? (
         <>
           {/* ── LA CARTE = l'écran (caméra qui suit, route, territoire qui s'étend) ── */}
@@ -942,6 +970,37 @@ function DemoCourseLive({
           onClose={() => setPingsOpen(false)}
         />
       ) : null}
+      {/* Confirmation de sortie (✕) — abandonner ≠ Terminer. */}
+      {quitOpen ? (
+        <View style={styles.quitOverlay}>
+          <View style={styles.quitCard}>
+            <Text style={styles.quitTitle}>Quitter la course ?</Text>
+            <Text style={styles.quitBody}>Elle ne sera pas enregistrée.</Text>
+            <View style={styles.quitActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Reprendre la course"
+                onPress={() => {
+                  haptics.light();
+                  setQuitOpen(false);
+                  setPaused(false);
+                }}
+                style={({ pressed }) => [styles.quitResume, pressed && styles.pressed]}
+              >
+                <Text style={styles.quitResumeText}>Reprendre</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Quitter sans enregistrer"
+                onPress={confirmQuit}
+                style={({ pressed }) => [styles.quitConfirm, pressed && styles.pressed]}
+              >
+                <Text style={styles.quitConfirmText}>Quitter</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1214,6 +1273,60 @@ function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
+
+  // ✕ Quitter (haut gauche) + overlay de confirmation (abandonner la course).
+  quitButton: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: gameColors.carbon,
+    borderWidth: 1,
+    borderColor: 'rgba(250,250,247,0.14)',
+  },
+  quitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
+    backgroundColor: 'rgba(5,5,5,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  quitCard: {
+    width: '100%',
+    backgroundColor: gameColors.carbon,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(250,250,247,0.12)',
+    padding: 20,
+    gap: 6,
+  },
+  quitTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800' },
+  quitBody: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
+  quitActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  quitResume: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(250,250,247,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quitResumeText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800' },
+  quitConfirm: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.pill,
+    backgroundColor: gameColors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quitConfirmText: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
 
   topArea: {
     position: 'absolute',
