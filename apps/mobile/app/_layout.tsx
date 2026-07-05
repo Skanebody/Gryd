@@ -46,6 +46,8 @@ export default function RootLayout() {
           <Stack.Screen name="badges" />
           <Stack.Screen name="arsenal" />
           <Stack.Screen name="sources" />
+          {/* Performance (AMENDEMENT-17 chantier 3) : running + impact GRYD. */}
+          <Stack.Screen name="performance" />
           <Stack.Screen name="support" />
           <Stack.Screen name="crew-discovery" />
           {/* Social (AMENDEMENT-07 §8) : Amis, fiche crew publique/recrutement. */}
@@ -56,6 +58,9 @@ export default function RootLayout() {
           <Stack.Screen name="challenges/index" />
           <Stack.Screen name="challenges/[id]" />
           <Stack.Screen name="settings-motivation" />
+          {/* Historique (AMENDEMENT-17 §CH3) : liste + détail d'une course. */}
+          <Stack.Screen name="historique" />
+          <Stack.Screen name="course/[id]" />
           </Stack>
         </ErrorBoundary>
       </SessionProvider>

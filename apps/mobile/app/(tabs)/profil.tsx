@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   BADGE_TIER_RANK,
@@ -102,8 +103,8 @@ interface ProfileLink {
  */
 const LINKS: readonly ProfileLink[] = [
   { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
-  { label: 'Performance', detail: 'Records, allure, régularité', icon: 'performance' },
-  { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique' },
+  { label: 'Performance', detail: 'Score Forme, records, impact GRYD', icon: 'performance', href: '/performance' },
+  { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique', href: '/historique' },
   { label: 'Arsenal', detail: 'Skins, objets capés, Club — Gear', icon: 'boutique', href: '/arsenal' },
   {
     label: 'Sources connectées',
@@ -121,12 +122,14 @@ const LINKS: readonly ProfileLink[] = [
     label: 'Paramètres & confidentialité',
     detail: 'Zones privées, notifications, compte',
     icon: 'reglages',
+    href: '/parametres',
   },
 ];
 
 export default function ProfilScreen() {
   const { session, configured } = useSession();
   const toast = useToast();
+  const insets = useSafeAreaInsets();
   const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
@@ -135,6 +138,20 @@ export default function ProfilScreen() {
 
   return (
     <>
+      {/* Accès Paramètres — icône réglages en haut à droite, hors du flux compact */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Ouvrir les paramètres"
+        hitSlop={12}
+        onPress={() => router.push('/parametres')}
+        style={({ pressed }) => [
+          styles.settingsBtn,
+          { top: insets.top + 14 },
+          pressed && styles.dim,
+        ]}
+      >
+        <Icon name="reglages" size={22} color={colors.blanc} />
+      </Pressable>
       <TabScreen title={MY_SOCIAL_PROFILE.displayName} kicker="PLAYER CARD">
         {/* ── Player Card compacte : identité + 2 chiffres clés + rang ── */}
         <View style={styles.headerCard}>
@@ -356,6 +373,18 @@ export default function ProfilScreen() {
 
 const styles = StyleSheet.create({
   dim: { opacity: 0.7 },
+
+  // ── Bouton Paramètres (overlay coin haut-droit, au-dessus du scroll) ──
+  settingsBtn: {
+    position: 'absolute',
+    right: spacing.cardPadding - 6,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // ── Player Card compacte ──
   headerCard: {
