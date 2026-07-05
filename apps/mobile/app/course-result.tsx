@@ -84,6 +84,11 @@ import {
   runModeFromParam,
   type LiveRunMode,
 } from '../src/features/run/simulation';
+// AMENDEMENT-23 §B.4 — explicabilité post-run : schéma « la boucle fait la zone »
+// (réutilisé, DÉMO surchargée par les vrais totaux du run) + verify en libellé
+// dérivé des constantes gelées (jamais de nombre magique).
+import { BoucleFaitLaZone } from '../src/features/explain/schemas';
+import { verifyTiersLabel } from '../src/features/explain/labels';
 
 /** Cadence de la séquence (présentation) — raccourcie si reduce motion. */
 const STEP_MS = 1_500;
@@ -109,6 +114,21 @@ const DEMO_BONUS_APPLIED: IngestRunResponse['bonusApplied'] = {
   name: 'Bonus Finisher',
   effect: '+25 % coffre crew',
 };
+
+/**
+ * AMENDEMENT-23 §B.4 — décomposition du calcul de CE run (démo). Les 3 nombres
+ * de zones (trace seule / boucle / gain) sont DÉRIVÉS des vrais totaux du run
+ * (stats.hexes / stats.enclosedZones) ; ceux-ci sont des SCÉNARIOS démo comme
+ * le reste des fichiers demo.ts — en prod = IngestRunResponse. `zonesDefended` /
+ * `routesOpened` / `segmentsExcluded` ne sont pas simulés côté moteur d'affichage :
+ * scénario démo « une conquête propre, une frontière défendue, aucun segment jeté ».
+ * TODO(O1) : remplacer par la réponse d'ingest_run (breakdown du serveur, seul juge).
+ */
+const DEMO_CALC_BREAKDOWN = {
+  zonesDefended: 12,
+  routesOpened: 1,
+  segmentsExcluded: 0,
+} as const;
 
 type StepId =
   | 'validated'
@@ -510,6 +530,9 @@ function ConquestResultScreen({
   // le reveal de l'écran 1, l'état final = 1 résultat clair + détails repliés.
   const [showDetails, setShowDetails] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  // AMENDEMENT-23 §B.4 — sous-accordéon « Comment est calculé ce résultat ? »
+  // (dans « Voir détails », replié par défaut — détail au tap, zéro flou).
+  const [showCalc, setShowCalc] = useState(false);
 
   const badge = mode === 'conquete' ? badgeById(DEMO_UNLOCKED_BADGE_ID) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
@@ -551,6 +574,18 @@ function ConquestResultScreen({
     haptics.light();
     setShowDetails((v) => !v);
   };
+  const toggleCalc = () => {
+    haptics.light();
+    setShowCalc((v) => !v);
+  };
+
+  // AMENDEMENT-23 §B.4 — décomposition zones de CE run : le trait capture le
+  // passage, la boucle ajoute l'intérieur (mêmes totaux que l'IMPACT). Les
+  // valeurs viennent des stats du run (démo) — le schéma les affiche.
+  const traceZones = Math.max(0, stats.hexes - stats.enclosedZones);
+  const loopGain = stats.enclosedZones;
+  const totalZones = stats.hexes;
+  const verifyTiers = verifyTiersLabel();
 
   // Synthèse multi-résultats (doc §2/§3.1) — conquête seulement (les modes
   // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
@@ -728,6 +763,100 @@ function ConquestResultScreen({
               </View>
             ) : null}
 
+            {/* COMMENT EST CALCULÉ CE RÉSULTAT ? — explicabilité post-run
+                (AMENDEMENT-23 §B.4). Un accordéon replié : au tap, le schéma
+                « la boucle fait la zone » (trace / boucle / gain) + la
+                décomposition (défense · routes · segments exclus · GPS · Motion
+                · verify). Décrit le moteur réel ; seuils verify dérivés des
+                constantes gelées (jamais de littéral). */}
+            {conquest ? (
+              <View style={styles.block}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showCalc
+                      ? 'Masquer le calcul du résultat'
+                      : 'Comment est calculé ce résultat ?'
+                  }
+                  onPress={toggleCalc}
+                  style={({ pressed }) => [styles.calcHeader, pressed && styles.pressed]}
+                >
+                  <Icon name="boucle_fermee" size={16} color={colors.chartreuse} />
+                  <Text style={styles.calcHeaderLabel}>
+                    Comment est calculé ce résultat ?
+                  </Text>
+                  <Icon name="chevron" size={16} color={colors.gris} />
+                </Pressable>
+
+                {showCalc ? (
+                  <View style={styles.calcBody}>
+                    {/* Schéma réutilisé — surchargé par les vrais totaux du run. */}
+                    <View style={styles.calcSchema}>
+                      <BoucleFaitLaZone
+                        traceZones={traceZones}
+                        loopZones={totalZones}
+                        loopGain={loopGain}
+                      />
+                    </View>
+
+                    {/* Décomposition en 3 lignes (trace / boucle / gain). */}
+                    <View style={styles.calcZonesRows}>
+                      <CalcZoneRow label="Trace seule" value={`+${formatInt(traceZones)}`} />
+                      <CalcZoneRow
+                        label="Boucle fermée"
+                        value={`+${formatInt(totalZones)}`}
+                        accent
+                      />
+                      <CalcZoneRow label="Gain de boucle" value={`+${formatInt(loopGain)}`} />
+                    </View>
+
+                    {/* Grille technique : le reste du calcul, valeurs brutes. */}
+                    <View style={styles.calcGrid}>
+                      <View style={styles.calcCell}>
+                        <MiniStat
+                          label="DÉFENDUES"
+                          value={`+${formatInt(DEMO_CALC_BREAKDOWN.zonesDefended)}`}
+                        />
+                      </View>
+                      <View style={styles.calcCell}>
+                        <MiniStat
+                          label="ROUTES"
+                          value={formatInt(DEMO_CALC_BREAKDOWN.routesOpened)}
+                        />
+                      </View>
+                      <View style={styles.calcCell}>
+                        <MiniStat
+                          label="EXCLUS"
+                          value={formatInt(DEMO_CALC_BREAKDOWN.segmentsExcluded)}
+                        />
+                      </View>
+                      <View style={styles.calcCell}>
+                        <MiniStat label="GPS" value={String(stats.gpsTrust)} />
+                      </View>
+                      <View style={styles.calcCell}>
+                        <MiniStat label="MOTION" value={String(stats.motionTrust)} />
+                      </View>
+                      <View style={styles.calcCell}>
+                        <MiniStat
+                          label="VERIFY"
+                          value={
+                            stats.verified ? `≥ ${verifyTiers.full}` : `< ${verifyTiers.partial}`
+                          }
+                        />
+                      </View>
+                    </View>
+
+                    {/* Statut verify — la conclusion, en une ligne. */}
+                    <Text style={styles.calcVerifyNote} numberOfLines={2}>
+                      {stats.verified
+                        ? 'GPS et mouvement fiables : capture pleine.'
+                        : 'GPS ou mouvement insuffisants : stats enregistrées, pas de capture.'}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* SECTEUR — frontière repoussée (avant/après §4ter). */}
             {conquest && sectorGeo ? (
               <View style={styles.block}>
@@ -825,6 +954,26 @@ function SummaryLine({ line }: { line: ResultSummaryLine }) {
       <Text style={[styles.summaryLineText, line.accent && styles.summaryLineAccent]} numberOfLines={1}>
         {line.text}
       </Text>
+    </View>
+  );
+}
+
+/** Une ligne « libellé … valeur » de la décomposition zones post-run (§B.4). */
+function CalcZoneRow({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <View style={styles.calcZoneRow}>
+      <Text style={styles.calcZoneLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={[styles.calcZoneValue, accent && styles.calcZoneValueAccent]}>{value}</Text>
     </View>
   );
 }
@@ -1233,6 +1382,54 @@ const styles = StyleSheet.create({
 
   // Analyse boucle — sous-titre pédagogique court.
   analyseSub: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
+
+  // ── Explicabilité post-run « Comment est calculé ce résultat ? » (§B.4) ──
+  // Accordéon replié : en-tête tappable + corps (schéma + décomposition). Pas
+  // de card-dans-card : le corps est séparé par l'espace, contour d'état only.
+  calcHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    backgroundColor: gameColors.carbon,
+  },
+  calcHeaderLabel: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+  },
+  calcBody: { gap: 16, paddingTop: 4 },
+  calcSchema: { alignItems: 'center' },
+  calcZonesRows: { gap: 8 },
+  calcZoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calcZoneLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
+  calcZoneValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  calcZoneValueAccent: { color: colors.chartreuse },
+  calcGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+    paddingTop: 16,
+  },
+  // 3 par ligne (33 %) — MiniStat garde son flex:1 dans sa cellule.
+  calcCell: { width: '33%', flexDirection: 'row' },
+  calcVerifyNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
 
   stepKicker: {
     color: colors.gris,

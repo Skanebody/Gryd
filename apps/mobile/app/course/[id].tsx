@@ -9,8 +9,16 @@
  * « Vitesse incohérente → refusé »). CTA : Partager · Voir sur la carte ·
  * Signaler. Aucune valeur de jeu calculée ici (miroir des runs/claims serveur).
  * Analytics : screen('course_detail'), recordShared au partage.
+ *
+ * DÉTAIL DU CALCUL (AMENDEMENT-23 §B.5, explicabilité) : au tap, une scène
+ * dépliable décompose la course en chiffres DÉJÀ décidés serveur (zones par
+ * trace, zones par boucle + gain, zones défendues, segments exclus, GRYD Verify)
+ * et révèle le schéma pédagogique pertinent (socle explain). Elle PROLONGE le
+ * bloc « La boucle fait la zone » (RunLoopMap) sans le dupliquer : la carte
+ * avant/après montre le geste, cette scène montre le calcul + les seuils réels
+ * (verify 80/60 via labels dérivés de game-rules, aucun nombre magique).
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
@@ -31,6 +39,8 @@ import {
   type RunHistoryEntry,
   type SegmentState,
 } from '../../src/features/history/demo';
+import { BoucleFaitLaZone, VerifySchema } from '../../src/features/explain/schemas';
+import { verifyTiersSentence } from '../../src/features/explain/labels';
 import {
   BOUCLE_BASTILLE,
   BOUCLE_REPUBLIQUE,
@@ -59,6 +69,189 @@ function headerPill(entry: RunHistoryEntry): { state: GameVisualState; label: st
   if (entry.verify === 'verified') return { state: 'verified', label: VERIFY_LABELS.verified };
   if (entry.verify === 'partial') return { state: 'contested', label: VERIFY_LABELS.partial };
   return { state: 'statsonly', label: VERIFY_LABELS.statsonly };
+}
+
+// ─── Détail du calcul (explicabilité §B.5) ───────────────────────────────────
+
+/** Une ligne de la décomposition : libellé + valeur + accent gain optionnel. */
+interface CalcRow {
+  icon: import('@klaim/shared').IconName;
+  label: string;
+  value: string;
+  gain?: boolean;
+}
+
+/**
+ * Décompose une course en chiffres DÉJÀ décidés serveur (miroir demo). Zéro
+ * calcul de jeu : on lit `loopMap` (trace/boucle), on COMPTE les segments
+ * `weak_gps` (exclus) et on mappe le statut Verify. Rien n'est fabriqué : une
+ * ligne n'apparaît que si sa donnée existe sur l'entrée.
+ */
+function calcRows(entry: RunHistoryEntry): readonly CalcRow[] {
+  const rows: CalcRow[] = [];
+  if (entry.loopMap) {
+    const gain = entry.loopMap.afterZones - entry.loopMap.beforeZones;
+    rows.push({ icon: 'route', label: 'Zones par la trace', value: `+${entry.loopMap.beforeZones}` });
+    rows.push({
+      icon: 'boucle_fermee',
+      label: 'Zones par la boucle',
+      value: `+${entry.loopMap.afterZones}`,
+      gain: true,
+    });
+    if (gain > 0) {
+      rows.push({
+        icon: 'conquete',
+        label: 'Gain de la fermeture',
+        value: `+${gain}`,
+        gain: true,
+      });
+    }
+  }
+  const excluded = entry.segments.filter((s) => s.state === 'weak_gps');
+  rows.push({
+    icon: 'segment_exclu',
+    label: 'Segments exclus',
+    value: excluded.length === 0 ? 'aucun' : String(excluded.length),
+  });
+  return rows;
+}
+
+/**
+ * Ligne « zones défendues » honnête (déjà décidée serveur) : la phrase d'impact
+ * portée par l'entrée (bouclier + gain), affichée en pleine largeur car le texte
+ * est descriptif — jamais forcé dans une colonne de valeur. `null` si la course
+ * n'a rien défendu.
+ */
+function defendedLabel(entry: RunHistoryEntry): string | null {
+  const line = entry.impactLines.find((l) => l.icon === 'bouclier' && l.gain);
+  return line ? line.label : null;
+}
+
+/** Libellé + état de la ligne « GRYD Verify » du détail. */
+function verifyLine(entry: RunHistoryEntry): { label: string; tint: string } {
+  if (entry.refusal === 'speed_incoherent') return { label: 'Refusé', tint: gameColors.danger };
+  if (entry.verify === 'verified') return { label: VERIFY_LABELS.verified, tint: gameColors.verify };
+  if (entry.verify === 'partial') return { label: VERIFY_LABELS.partial, tint: gameColors.verify };
+  return { label: VERIFY_LABELS.statsonly, tint: colors.gris };
+}
+
+/**
+ * « Détail du calcul » — scène dépliable au tap. Résumé fermé (une phrase),
+ * détail ouvert : rangées de décomposition + schéma pédagogique du socle
+ * (boucle → BoucleFaitLaZone ; sinon Verify) + phrase des seuils Verify réels.
+ * Un seul lien vers la page complète. Contours d'état, pas de card-dans-card.
+ */
+function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
+  const [open, setOpen] = useState(false);
+  const rows = calcRows(entry);
+  const verify = verifyLine(entry);
+  const defended = defendedLabel(entry);
+  const hasLoop = Boolean(entry.loopMap);
+
+  const toggle = () => {
+    haptics.light();
+    setOpen((v) => !v);
+    if (!open) screen('calc_detail', { run: entry.id });
+  };
+  const openCalcPage = () => {
+    haptics.light();
+    router.push('/calcul-zones');
+  };
+
+  return (
+    <View style={styles.calcBlock}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel="Détail du calcul de cette course"
+        onPress={toggle}
+        style={({ pressed }) => [styles.calcHead, pressed && styles.pressed]}
+      >
+        <Icon name="badge" size={18} color={colors.blanc} />
+        <View style={styles.calcHeadText}>
+          <Text style={styles.calcTitle}>Détail du calcul</Text>
+          <Text style={styles.calcSub} numberOfLines={1}>
+            {open ? 'Comment cette course a compté' : 'Voir comment cette course a compté'}
+          </Text>
+        </View>
+        <View style={open ? styles.chevronOpen : undefined}>
+          <Icon name="chevron" size={16} color={colors.gris} />
+        </View>
+      </Pressable>
+
+      {open ? (
+        <View style={styles.calcBody}>
+          {/* Décomposition en chiffres (déjà décidés serveur) */}
+          <View style={styles.calcRows}>
+            {rows.map((row) => (
+              <View key={row.label} style={styles.calcRow}>
+                <Icon
+                  name={row.icon}
+                  size={16}
+                  color={row.gain ? gameColors.crew : colors.gris}
+                />
+                <Text style={styles.calcRowLabel} numberOfLines={2}>
+                  {row.label}
+                </Text>
+                <Text
+                  style={[styles.calcRowValue, row.gain && styles.calcRowValueGain]}
+                  numberOfLines={1}
+                >
+                  {row.value}
+                </Text>
+              </View>
+            ))}
+            {/* GRYD Verify : score de la course */}
+            <View style={styles.calcRow}>
+              <Icon name="badge" size={16} color={verify.tint} />
+              <Text style={styles.calcRowLabel} numberOfLines={2}>
+                GRYD Verify
+              </Text>
+              <Text style={[styles.calcRowValue, { color: verify.tint }]} numberOfLines={1}>
+                {verify.label}
+              </Text>
+            </View>
+          </View>
+
+          {/* Zones défendues (texte descriptif, pleine largeur) */}
+          {defended ? (
+            <View style={styles.calcDefended}>
+              <Icon name="bouclier" size={16} color={gameColors.crew} />
+              <Text style={styles.calcDefendedText}>{defended}</Text>
+            </View>
+          ) : null}
+
+          {/* Schéma pédagogique (socle) — la boucle si fermée, sinon Verify */}
+          <View style={styles.calcSchema}>
+            {hasLoop && entry.loopMap ? (
+              <BoucleFaitLaZone
+                size={264}
+                traceZones={entry.loopMap.beforeZones}
+                loopZones={entry.loopMap.afterZones}
+                loopGain={entry.loopMap.afterZones - entry.loopMap.beforeZones}
+                accessibilityLabel="La trace seule capture le passage ; la boucle ajoute l’intérieur."
+              />
+            ) : (
+              <VerifySchema size={264} />
+            )}
+          </View>
+
+          {/* Seuils Verify RÉELS (labels dérivés de game-rules, pas de littéral) */}
+          <Text style={styles.calcNote}>{verifyTiersSentence()}</Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ouvrir la page Comment GRYD calcule tes zones"
+            onPress={openCalcPage}
+            style={({ pressed }) => [styles.calcLink, pressed && styles.pressed]}
+          >
+            <Text style={styles.calcLinkText}>Comment GRYD calcule tes zones</Text>
+            <Icon name="chevron" size={14} color={colors.chartreuse} />
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export default function CourseDetailScreen() {
@@ -158,6 +351,11 @@ export default function CourseDetailScreen() {
           />
         </View>
       ) : null}
+
+      {/* Détail du calcul (au tap) — prolonge « La boucle fait la zone » */}
+      <View style={styles.block}>
+        <CalcDetail entry={entry} />
+      </View>
 
       {/* Impact territorial : lignes variées */}
       <Text style={styles.sectionLabel}>IMPACT SUR LE TERRAIN</Text>
@@ -265,6 +463,78 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.sm * 1.5,
   },
   block: { marginTop: 16 },
+  // ── Détail du calcul (scène dépliable) ──
+  calcBlock: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    overflow: 'hidden',
+  },
+  calcHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  calcHeadText: { flex: 1, gap: 2 },
+  calcTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  calcSub: { color: colors.gris, fontSize: fontSizes.xs },
+  chevronOpen: { transform: [{ rotate: '90deg' }] },
+  calcBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+    paddingTop: 16,
+  },
+  calcRows: { gap: 12 },
+  calcRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  calcRowLabel: {
+    flex: 1,
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.35,
+  },
+  calcRowValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  calcRowValueGain: { color: gameColors.crew },
+  calcDefended: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+  },
+  calcDefendedText: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    lineHeight: fontSizes.sm * 1.35,
+  },
+  calcSchema: { alignItems: 'center', paddingVertical: 4 },
+  calcNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    textAlign: 'center',
+  },
+  calcLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 4,
+  },
+  calcLinkText: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '600' },
   // ── Sections ──
   sectionLabel: {
     color: colors.gris,

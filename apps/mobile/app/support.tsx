@@ -9,6 +9,7 @@
  */
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
@@ -20,6 +21,46 @@ interface SupportTopic {
   title: string;
   body: string;
 }
+
+/** Une entrée de NAVIGATION vers une page d'explicabilité (route interne). */
+interface NavTopic {
+  key: string;
+  icon: IconName;
+  title: string;
+  body: string;
+  href: string;
+}
+
+/**
+ * « Comprendre les calculs » — accès aux 2 pages d'explicabilité (AMENDEMENT-23
+ * §B). Ces entrées NAVIGUENT (contrairement aux cas support stubés backend).
+ * « Pourquoi ma course n'a pas compté ? » ouvre l'explication des règles.
+ */
+const EXPLAIN_TOPICS: readonly NavTopic[] = [
+  {
+    key: 'why_not_counted',
+    icon: 'info',
+    title: 'Pourquoi ma course n’a pas compté ?',
+    body:
+      'Boucle non fermée, GPS trop faible, zone trop étroite ou interdite… GRYD calcule chaque ' +
+      'zone selon des règles claires. Voir comment une course devient une zone — ou pas.',
+    href: '/calcul-zones',
+  },
+  {
+    key: 'calc_zones',
+    icon: 'boucle_fermee',
+    title: 'Comment GRYD calcule tes zones',
+    body: 'Les 6 règles en images : ligne, boucle, défense, crew, bonus et GRYD Verify.',
+    href: '/calcul-zones',
+  },
+  {
+    key: 'faq_rules',
+    icon: 'aide',
+    title: 'Calculs & règles du jeu',
+    body: 'La FAQ complète, détails au tap : zones, défense, crew, Verify, points et bonus.',
+    href: '/faq',
+  },
+];
 
 /** « Ma course » — statuts de vérification et segments exclus, expliqués calmement. */
 const RUN_TOPICS: readonly SupportTopic[] = [
@@ -103,6 +144,27 @@ function TopicCard({ topic }: { topic: SupportTopic }) {
   );
 }
 
+/** Carte NAVIGABLE vers une page d'explicabilité (router.push). */
+function NavCard({ topic }: { topic: NavTopic }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={topic.title}
+      onPress={() => router.push(topic.href)}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
+      <View style={styles.iconWrap}>
+        <Icon name={topic.icon} size={18} color={colors.blanc} />
+      </View>
+      <View style={styles.info}>
+        <Text style={styles.title}>{topic.title}</Text>
+        <Text style={styles.body}>{topic.body}</Text>
+      </View>
+      <Icon name="chevron" size={16} color={colors.gris} />
+    </Pressable>
+  );
+}
+
 function Section({ label, topics }: { label: string; topics: readonly SupportTopic[] }) {
   return (
     <>
@@ -127,6 +189,10 @@ export default function SupportScreen() {
       subtitle="Comprendre pourquoi une course compte — ou pas — et faire valoir tes droits. Une personne lit chaque demande."
     >
       <View style={styles.list}>
+        <Text style={styles.sectionLabel}>COMPRENDRE LES CALCULS</Text>
+        {EXPLAIN_TOPICS.map((t) => (
+          <NavCard key={t.key} topic={t} />
+        ))}
         <Section label="MA COURSE" topics={RUN_TOPICS} />
         <Section label="SIGNALER" topics={REPORT_TOPICS} />
         <Section label="MES DONNÉES" topics={DATA_TOPICS} />

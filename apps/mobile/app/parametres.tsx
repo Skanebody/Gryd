@@ -15,6 +15,26 @@ import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
 
+/**
+ * Lignes d'explicabilité (AMENDEMENT-23 §B), ajoutées côté écran plutôt que
+ * dans le catalogue partagé : elles pointent vers les 2 nouvelles routes
+ * (calcul-zones, faq). Icônes propriétaires, détails au tap.
+ */
+const EXPLAIN_ROWS: readonly SettingsRow[] = [
+  {
+    href: '/calcul-zones',
+    label: 'Comment GRYD calcule tes zones',
+    detail: 'Ligne, boucle, défense, crew, bonus, Verify',
+    icon: 'info',
+  },
+  {
+    href: '/faq',
+    label: 'Calculs & règles du jeu',
+    detail: 'La FAQ complète, détails au tap',
+    icon: 'aide',
+  },
+];
+
 function Row({ row }: { row: SettingsRow }) {
   const go = () => {
     if (row.section !== undefined) router.push(`/parametres/${row.section}`);
@@ -58,6 +78,14 @@ export default function ParametresScreen() {
           ))}
         </View>
       ))}
+      {/* Explicabilité (AMENDEMENT-23 §B) : accès direct aux règles depuis les
+          Paramètres, en plus de l'Aide. Détails au tap dans la page dédiée. */}
+      <View>
+        <Text style={styles.groupLabel}>EXPLICABILITÉ</Text>
+        {EXPLAIN_ROWS.map((row) => (
+          <Row key={row.label} row={row} />
+        ))}
+      </View>
     </StackScreen>
   );
 }

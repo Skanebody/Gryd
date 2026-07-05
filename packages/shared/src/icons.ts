@@ -367,6 +367,59 @@ export const ICONS = {
       'M3.5 16 12 21l8.5-5',
     ],
   },
+
+  // ─── AMENDEMENT-23 §30 : explicabilité — icônes manquantes (ADDITIF) ─────────
+  // Complètent le trou d'audit §A : conquête/boucles/segment exclu/trophée.
+  // Le reste (défense→`bouclier`, route→`route`, scout→`scout`, rival→`cible`,
+  // crew→`crew`/`crest`, coffre→`coffre`, bonus→`performance` (éclair), verify→
+  // `badge` (hex coché), decay→`sablier`, protected→`bouclier`) est déjà là.
+  /**
+   * Boucle ouverte — cercle interrompu (le tracé n'a pas rejoint son départ).
+   * Le trou en haut = segment manquant : ligne ouverte → route, pas de zone.
+   */
+  boucle_ouverte: {
+    paths: [
+      'M14.5 4.2A9 9 0 1 1 9 4.5',
+      'M9.5 4.3 14 3l1 4.4',
+    ],
+  },
+  /**
+   * Boucle fermée — cercle plein rejoint (la boucle a créé une zone).
+   * Anneau + point de fermeture (départ = arrivée) au sommet.
+   */
+  boucle_fermee: {
+    paths: [
+      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+      'M12 5.2a1.2 1.2 0 1 0 .01 0',
+    ],
+    fillable: true,
+  },
+  /**
+   * Segment exclu — portion de tracé barrée (GPS/motion trop faible → ne
+   * capture pas). Trait pointillé implicite (deux tirets) coupé d'une croix.
+   */
+  segment_exclu: {
+    paths: [
+      'M3 17 7 13', 'M10.5 9.5 14 6',
+      'M15 15l6 6', 'M21 15l-6 6',
+    ],
+  },
+  /** Conquête — drapeau planté (zone prise, doc §30). */
+  conquete: {
+    paths: [
+      'M6 21V4', 'M6 4.5h11.5L15 8.5l2.5 4H6', 'M4 21h5',
+    ],
+    fillable: true,
+  },
+  /** Trophée — coupe de ligue (doc §30 « League = trophée »). */
+  trophee: {
+    paths: [
+      'M7 4.5h10V9a5 5 0 0 1-10 0V4.5z',
+      'M7 6H4.5v1.5A3 3 0 0 0 7 10.4', 'M17 6h2.5v1.5A3 3 0 0 1 17 10.4',
+      'M12 14v3', 'M8.5 20.5h7', 'M9.5 20.5 10.5 17h3l1 3.5',
+    ],
+    fillable: true,
+  },
 } as const satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;
