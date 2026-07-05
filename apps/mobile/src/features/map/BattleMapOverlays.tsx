@@ -49,7 +49,10 @@ import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
 import { deriveAutoPlan, intentionHref, mapDirective } from '../nav/runContext';
 import { MISSIONS } from '../warroom/demo';
 import {
+  BONUS_ICON,
   FRIEND_RUN_DEMO,
+  MAP_BONUS_CONTEXT,
+  MAP_BONUS_NEAR,
   MAP_BONUS_ZONE,
   MAP_CHALLENGE,
   MAP_CONTROL_HUD,
@@ -61,7 +64,9 @@ import {
   PARCOURS_DEMO,
   WAR_FEED_CYCLE_MS,
   parcoursMeta,
+  selectMapBonus,
   type MapWarFeedEventDemo,
+  type SelectedBonusDemo,
 } from './demo';
 import type { BattleMapSummary } from './fakeHexes';
 import {
@@ -193,6 +198,23 @@ export function BattleMapOverlays({
 
   const mission = MISSIONS[0];
 
+  /**
+   * BONUS CIBLÉ de la Carte (AMENDEMENT-19 §4) : UN SEUL bonus, le plus pertinent
+   * PROCHE (selectMapBonus(context, 'map') — priorité défense/boucle). Si aucun
+   * n'est pertinent → rien affiché (pas de placeholder). Le tap suit le CTA de la
+   * fiche : défense → départ défense ; sinon → Route Planner (fermer/ouvrir).
+   */
+  const mapBonus = selectMapBonus(MAP_BONUS_CONTEXT, 'map');
+  const onBonusAct = (bonus: SelectedBonusDemo) => {
+    haptics.medium();
+    screen('map_bonus_act', { bonusId: bonus.def.id });
+    if (bonus.def.id === 'defense_critical') {
+      router.push(intentionHref('defense', plan.routeId));
+    } else {
+      router.push('/route-planner');
+    }
+  };
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* ── Haut : UNE pill (tap = détail % contrôle) + phrase + alerte rival ── */}
@@ -234,6 +256,11 @@ export function BattleMapOverlays({
             <WarFeedTicker />
           </View>
         )}
+
+        {/* ── BONUS CIBLÉ (AMENDEMENT-19 §4) : UNE bande discrète, 1 SEUL bonus ── */}
+        {mapBonus ? (
+          <MapBonusBand bonus={mapBonus} onPress={() => onBonusAct(mapBonus)} />
+        ) : null}
       </View>
 
       {/* ── Situation stratégique (Info) : « Défense recommandée » + % ────── */}
@@ -504,6 +531,48 @@ function RivalAlertCard({ onDefend }: { onDefend: () => void }) {
 }
 
 /**
+ * BONUS CIBLÉ de la Carte (AMENDEMENT-19 §4) : UNE bande DISCRÈTE, un seul bonus
+ * (le plus pertinent PROCHE) — « BONUS ACTIF · Terminer République · 620 m ».
+ * Petite pastille chartreuse (gain, jamais menace) + libellé court non tronqué
+ * (CTA de la fiche + zone + distance) ; tap = agir (CTA de la fiche). Ne
+ * chevauche ni le HUD, ni la sheet, ni le bouton Info (posée dans la pile HUD
+ * du haut). Slide-in à l'apparition. Rien à afficher → le parent ne la monte pas.
+ */
+function MapBonusBand({
+  bonus,
+  onPress,
+}: {
+  bonus: SelectedBonusDemo;
+  onPress: () => void;
+}) {
+  const { opacity, translateY } = useSlideIn(8);
+  const def = bonus.def;
+  // CTA de la fiche en Capitale initiale (« TERMINER » → « Terminer »).
+  const cta = def.cta.charAt(0) + def.cta.slice(1).toLowerCase();
+  const label = `${cta} ${MAP_BONUS_NEAR.zone} · ${MAP_BONUS_NEAR.distanceM} m`;
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }], alignSelf: 'stretch' }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Bonus actif — ${cta} ${MAP_BONUS_NEAR.zone}, à ${MAP_BONUS_NEAR.distanceM} mètres`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.bonusBand, pressed && styles.pressed]}
+      >
+        <View style={styles.bonusBandIcon}>
+          <Icon name={BONUS_ICON[def.id]} size={13} color={gameColors.crew} />
+        </View>
+        <Text style={styles.bonusBandKicker}>BONUS ACTIF</Text>
+        <Text style={styles.bonusBandSep}>·</Text>
+        <Text style={styles.bonusBandLabel} numberOfLines={1}>
+          {label}
+        </Text>
+        <Icon name="chevron" size={13} color={gameColors.crew} />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+/**
  * Carte SITUATION (bouton Info, AMENDEMENT-17 option A fondateur) : révèle à la
  * demande « la situation » — secteur + parts de contrôle + « Défense
  * recommandée ». N'affiche PAS les contrôles de carte (Couches/Fond/Recentrer),
@@ -704,6 +773,44 @@ const styles = StyleSheet.create({
   rivalMeta: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
   // Le CTA [Défendre] garde une largeur bornée (l'InlineRunCTA est plein-largeur).
   rivalCtaSlot: { width: 132 },
+
+  // ── Bonus ciblé : bande discrète (AMENDEMENT-19 §4) ──
+  bonusBand: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingLeft: 8,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    backgroundColor: OVERLAY_SURFACE,
+  },
+  bonusBandIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    backgroundColor: gameColors.carbon,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bonusBandKicker: {
+    color: gameColors.crew,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  bonusBandSep: { color: colors.gris, fontSize: 10 },
+  bonusBandLabel: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+  },
 
   // ── Sélecteur de calque « Couches » ──
   layerMenu: {

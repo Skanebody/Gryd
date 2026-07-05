@@ -14,8 +14,19 @@
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { buildDigest, canPush, type Digest, type DigestEvent } from './logic.ts';
 import { activityScore, chestTierFor } from '../_shared/engine/crew.ts';
+import {
+  BONUS_CREW_CHEST_MAX_RATIO,
+  BONUS_CREW_CHEST_MIN_RATIO,
+  BONUS_DEFENSE_DECAY_MAX_H,
+  BONUS_DURATION_H,
+  CREW_CHEST_WEEKLY_TARGET,
+  FINISHER_BONUS_MISSING_MAX_M,
+} from '../_shared/game-rules.ts';
+import { bonusById } from '../_shared/bonuses.ts';
+import type { BonusId } from '../_shared/types.ts';
 
 const MS_PER_DAY = 86_400_000;
+const MS_PER_HOUR = 3_600_000;
 const DIGEST_PRIORITY = 6; // P6 (GRYD_notifications_logic.md §2)
 const PARIS_TZ = 'Europe/Paris';
 
@@ -57,6 +68,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // comptent en exploration/contribution (déjà crédités à l'ouverture via la
     // course de l'ouvreur), JAMAIS en zone (aucun claim intérieur sans fermeture).
     const boundariesExpired = await expirePartialBoundaries(now);
+    // AMENDEMENT-19 §7 : cycle de vie des bonus ciblés. D'abord EXPIRER les
+    // fenêtres échues (active → expired), puis en CRÉER de nouvelles, CIBLÉES et
+    // pondérées (jamais partout) : Finisher sur une frontière crew ouverte et
+    // proche, Défense Critique sur une zone crew qui s'efface bientôt, Coffre
+    // Crew sur un coffre dans sa dernière ligne droite. « Le bon moment pour agir. »
+    const bonusesExpired = await expireActiveBonuses(now);
+    const bonusesCreated = await createTargetedBonuses(now);
     // Maintenance crew hebdo (Supercell §2) : Activity Score + clôture des
     // coffres de la semaine PASSÉE (tier figé) + signaux discovery.
     if (weekly) await crewWeeklyMaintenance(now);
@@ -101,6 +119,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       pushed,
       boostsExpired,
       boundariesExpired,
+      bonusesExpired,
+      bonusesCreated,
     });
   } catch (err) {
     console.error('digest_job:', err);
@@ -151,6 +171,144 @@ async function expirePartialBoundaries(now: Date): Promise<number> {
     .select('id');
   if (error) throw new Error(`partial_boundaries expire: ${error.message}`);
   return (data ?? []).length;
+}
+
+// ─── Bonus ciblés : cycle de vie (AMENDEMENT-19 §7) ──────────────────────────
+
+/**
+ * Passe en 'expired' toute fenêtre de bonus 'active' échue (expires_at ≤ now).
+ * Idempotent — une fenêtre déjà close (claimed/expired) n'est jamais retouchée.
+ * Aucune récompense n'est due à l'expiration (le bonus non « répondu » disparaît
+ * simplement — pas de culpabilisation). Retourne le nombre de clôtures.
+ */
+async function expireActiveBonuses(now: Date): Promise<number> {
+  const { data, error } = await supabase
+    .from('active_bonuses')
+    .update({ status: 'expired' })
+    .eq('status', 'active')
+    .lte('expires_at', now.toISOString())
+    .select('id');
+  if (error) throw new Error(`active_bonuses expire: ${error.message}`);
+  return (data ?? []).length;
+}
+
+/**
+ * Insère une fenêtre `active_bonuses` si AUCUNE fenêtre `active` du même bonus
+ * n'existe déjà pour ce sujet (anti-doublon/anti-spam). PURE côté décision (la
+ * durée vient de la fiche). Retourne 1 si créée, 0 sinon. La récompense reste
+ * décidée par ingest_run quand un run RÉPOND ; ici on ne fait qu'OUVRIR la
+ * fenêtre au bon moment.
+ */
+async function insertBonusIfAbsent(
+  scope: 'crew' | 'player',
+  subjectId: string,
+  bonusId: BonusId,
+  now: Date,
+): Promise<number> {
+  const nowIso = now.toISOString();
+  const { data: existing, error: exErr } = await supabase
+    .from('active_bonuses')
+    .select('id')
+    .eq('subject_id', subjectId)
+    .eq('bonus_id', bonusId)
+    .eq('status', 'active')
+    .gt('expires_at', nowIso)
+    .limit(1);
+  if (exErr) throw new Error(`active_bonuses dup read: ${exErr.message}`);
+  if ((existing ?? []).length > 0) return 0; // déjà une fenêtre ouverte : pas de doublon
+
+  const durationH = (BONUS_DURATION_H as Record<string, number>)[bonusId] ??
+    bonusById(bonusId).durationH;
+  const expiresAt = new Date(now.getTime() + durationH * MS_PER_HOUR);
+  const { error: insErr } = await supabase.from('active_bonuses').insert({
+    scope,
+    subject_id: subjectId,
+    bonus_id: bonusId,
+    type: bonusById(bonusId).type,
+    starts_at: nowIso,
+    expires_at: expiresAt.toISOString(),
+  });
+  if (insErr) throw new Error(`active_bonuses insert: ${insErr.message}`);
+  return 1;
+}
+
+/**
+ * CRÉE des fenêtres de bonus CIBLÉES et PONDÉRÉES (démo MVP, AMENDEMENT-19 §7) —
+ * jamais partout, seulement là où le contexte fait un « bon moment » :
+ *  1. FINISHER (crew) : une frontière `open` du crew dont le segment manquant
+ *     est ≤ FINISHER_BONUS_MISSING_MAX_M (« presque fermée ») → fenêtre Finisher
+ *     pour ce crew. Se branche sur les partial_boundaries (AMENDEMENT-17).
+ *  2. DÉFENSE CRITIQUE (crew) : une zone crew dont le decay tombe dans les
+ *     prochaines BONUS_DEFENSE_DECAY_MAX_H → fenêtre Défense pour ce crew.
+ *  3. COFFRE CREW (crew) : un coffre de la semaine dont la progression est dans
+ *     [80 %, 95 %] de la cible → fenêtre Coffre Crew pour ce crew.
+ * Anti-doublon via insertBonusIfAbsent. Retourne le nombre de fenêtres créées.
+ */
+async function createTargetedBonuses(now: Date): Promise<number> {
+  const nowIso = now.toISOString();
+  let created = 0;
+
+  // 1. Finisher : frontières crew ouvertes et PROCHES (segment manquant court).
+  const { data: boundaries, error: bErr } = await supabase
+    .from('partial_boundaries')
+    .select('crew_id, missing_m')
+    .eq('status', 'open')
+    .gt('expires_at', nowIso)
+    .lte('missing_m', FINISHER_BONUS_MISSING_MAX_M);
+  if (bErr) throw new Error(`partial_boundaries bonus read: ${bErr.message}`);
+  const finisherCrews = new Set<string>();
+  for (const b of boundaries ?? []) finisherCrews.add(b.crew_id as string);
+  for (const crewId of finisherCrews) {
+    created += await insertBonusIfAbsent('crew', crewId, 'finisher', now);
+  }
+
+  // 2. Défense Critique : zones dont le decay est imminent (< 12 h). hex_claims
+  //    ne stocke pas de crew ; on remonte le crew ACTIF du propriétaire via
+  //    crew_members (owner_user_id → crew_id). Une zone menacée d'un membre de
+  //    crew ouvre la fenêtre Défense pour son crew.
+  const decayHorizon = new Date(now.getTime() + BONUS_DEFENSE_DECAY_MAX_H * MS_PER_HOUR).toISOString();
+  const { data: decaying, error: dErr } = await supabase
+    .from('hex_claims')
+    .select('owner_user_id')
+    .not('owner_user_id', 'is', null)
+    .not('decay_at', 'is', null)
+    .gt('decay_at', nowIso)
+    .lte('decay_at', decayHorizon);
+  if (dErr) throw new Error(`hex_claims decay read: ${dErr.message}`);
+  const decayingOwners = new Set<string>();
+  for (const h of decaying ?? []) decayingOwners.add(h.owner_user_id as string);
+  if (decayingOwners.size > 0) {
+    const { data: owners, error: oErr } = await supabase
+      .from('crew_members')
+      .select('crew_id')
+      .in('user_id', [...decayingOwners])
+      .is('left_at', null);
+    if (oErr) throw new Error(`crew_members decay read: ${oErr.message}`);
+    const defenseCrews = new Set<string>();
+    for (const m of owners ?? []) defenseCrews.add(m.crew_id as string);
+    for (const crewId of defenseCrews) {
+      created += await insertBonusIfAbsent('crew', crewId, 'defense_critical', now);
+    }
+  }
+
+  // 3. Coffre Crew : coffre de LA SEMAINE dont la progression ∈ [80 %, 95 %] de
+  //    la cible hebdo (dernière ligne droite). closed_at is null = semaine en cours.
+  const weekStart = isoWeekStart(now);
+  const minProgress = Math.floor(BONUS_CREW_CHEST_MIN_RATIO * CREW_CHEST_WEEKLY_TARGET);
+  const maxProgress = Math.ceil(BONUS_CREW_CHEST_MAX_RATIO * CREW_CHEST_WEEKLY_TARGET);
+  const { data: chests, error: cErr } = await supabase
+    .from('crew_chests')
+    .select('crew_id, progress')
+    .eq('week_start', weekStart)
+    .is('closed_at', null)
+    .gte('progress', minProgress)
+    .lte('progress', maxProgress);
+  if (cErr) throw new Error(`crew_chests bonus read: ${cErr.message}`);
+  for (const chest of chests ?? []) {
+    created += await insertBonusIfAbsent('crew', chest.crew_id as string, 'crew_chest', now);
+  }
+
+  return created;
 }
 
 // ─── Maintenance crew hebdomadaire (Crews Supercell §2/§45/§39) ──────────────

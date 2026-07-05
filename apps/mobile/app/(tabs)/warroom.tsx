@@ -57,6 +57,13 @@ import {
   type OpenBoundaryDemo,
   type WarHistoryEventDemo,
 } from '../../src/features/warroom/demo';
+import {
+  BONUS_ICON,
+  MAP_BONUS_CONTEXT,
+  bonusEffectLabelDemo,
+  selectMapBonus,
+  type SelectedBonusDemo,
+} from '../../src/features/map/demo';
 
 /** Décompte h:mm:ss depuis un total de secondes (mono, tabular-nums). */
 function formatCountdown(totalS: number): string {
@@ -314,6 +321,50 @@ function BoundaryCard({
 }
 
 /**
+ * CARD « Bonus crew actif » (AMENDEMENT-19 §4) : la War Room montre UN SEUL bonus
+ * CREW, le plus pertinent (selectBonus(context, 'war_room') — défense > finisher
+ * > coffre). « GRYD révèle le bon moment » : petite card chartreuse (gain, jamais
+ * menace) = famille + effet COURT non tronqué (« Coffre +25 % pendant 24 h ») +
+ * CTA de la fiche. Reward JAMAIS territoire/points/rang. Aucun bonus → rien
+ * affiché (le parent ne monte pas la card).
+ */
+function CrewBonusCard({
+  bonus,
+  onAct,
+}: {
+  bonus: SelectedBonusDemo;
+  onAct: () => void;
+}) {
+  const def = bonus.def;
+  // « +25 % coffre crew » → phrase courte « Coffre +25 % pendant 24 h ».
+  const effect = bonusEffectLabelDemo(def);
+  const during = `pendant ${def.durationH} h`;
+  return (
+    <View style={styles.bonusCard}>
+      <View style={styles.bonusCardHead}>
+        <View style={styles.bonusCardIcon}>
+          <Icon name={BONUS_ICON[def.id]} size={18} color={gameColors.crew} />
+        </View>
+        <View style={styles.bonusCardText}>
+          <Text style={styles.bonusCardKicker} numberOfLines={1}>
+            BONUS CREW ACTIF
+          </Text>
+          <Text style={styles.bonusCardTitle} numberOfLines={1}>
+            {def.name}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.bonusCardPhrase} numberOfLines={2}>
+        {effect} {during}. {def.copy.body}
+      </Text>
+      <View style={styles.bonusCardCta}>
+        <InlineRunCTA label={def.cta} size="md" onPress={onAct} />
+      </View>
+    </View>
+  );
+}
+
+/**
  * Événement d'historique avec réactions GRYD togglables localement (démo :
  * l'état vit dans le composant, déterministe au montage depuis demo.ts).
  */
@@ -408,6 +459,39 @@ export default function WarRoomScreen() {
   const canAssign = roleCan(myRole, 'assignDefense');
 
   const openMap = () => router.push('/(tabs)');
+
+  /**
+   * BONUS CREW de la War Room (AMENDEMENT-19 §4) : UN SEUL bonus, le plus
+   * pertinent CREW (selectBonus(context, 'war_room') — défense > finisher >
+   * coffre). Rien de pertinent → aucune card (pas de placeholder). Tap = agir
+   * selon le CTA de la fiche (défense → route défense ; finisher → terminer une
+   * frontière ; coffre → remplir). Toast anti-abus : la récompense reste
+   * tranchée serveur, ici on route vers l'action.
+   */
+  const crewBonus = selectMapBonus(MAP_BONUS_CONTEXT, 'war_room');
+  const actCrewBonus = (bonus: SelectedBonusDemo) => {
+    haptics.medium();
+    screen('war_bonus_act', { bonusId: bonus.def.id });
+    switch (bonus.def.id) {
+      case 'defense_critical':
+        toast.show(`Défense lancée — zone ${DEFENSE_MISSION.zone}`);
+        router.push('/route-planner?type=defense');
+        break;
+      case 'finisher': {
+        const b = OPEN_BOUNDARIES[0];
+        if (b) {
+          toast.show(`Cap sur ${b.zone} — termine la boucle du crew`);
+          router.push(`/course-live?intention=complete&boundary=${b.boundaryId}`);
+        } else {
+          router.push('/route-planner');
+        }
+        break;
+      }
+      default:
+        toast.show('Cap sur le coffre — cours pour le remplir');
+        openMap();
+    }
+  };
 
   return (
     <>
@@ -533,6 +617,14 @@ export default function WarRoomScreen() {
             openMap();
           }}
         />
+
+        {/* BONUS CREW ACTIF (AMENDEMENT-19 §4) : 1 SEUL bonus crew, le plus
+            pertinent. « GRYD révèle le bon moment. » Rien de pertinent → rien
+            d'affiché (pas de placeholder). Reward coffre/XP/protection/badge —
+            jamais territoire/points/rang (tranché serveur). */}
+        {crewBonus ? (
+          <CrewBonusCard bonus={crewBonus} onAct={() => actCrewBonus(crewBonus)} />
+        ) : null}
 
         {/* DEMANDER AU CREW (AMENDEMENT-18 A.3) : entrée vers le Crew Chat
             actionnable où l'on émet une requête (Défense/Terminer/Route/Scout/
@@ -855,6 +947,32 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   boundaryEmptyText: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18 },
+
+  // --- Bonus crew actif (AMENDEMENT-19 §4) : 1 seul bonus, chartreuse = gain ---
+  bonusCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    padding: 14,
+    marginTop: 12,
+  },
+  bonusCardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bonusCardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: gameColors.crew,
+    backgroundColor: gameColors.carbon,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bonusCardText: { flex: 1 },
+  bonusCardKicker: { color: gameColors.crew, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  bonusCardTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', marginTop: 2 },
+  bonusCardPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
+  bonusCardCta: { marginTop: 12 },
 
   // --- Demander au crew (A.3) : entrée vers le Crew Chat ---
   askRow: {

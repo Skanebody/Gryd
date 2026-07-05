@@ -9,7 +9,21 @@
  * TODO(O1) brancher crew_feed_events (0011). Zéro position live : aucune
  * entrée ne porte de coordonnée — secteurs/quartiers agrégés uniquement.
  */
-import { gameColors, type GameColorName, type IconName } from '@klaim/shared';
+import {
+  BONUS_CREW_CHEST_MAX_RATIO,
+  BONUS_CREW_CHEST_MIN_RATIO,
+  BONUS_DEFENSE_DECAY_MAX_H,
+  BONUS_DEFINITIONS,
+  BONUS_PRIORITY,
+  BONUS_RETURN_ABSENCE_MAX_DAYS,
+  BONUS_RETURN_ABSENCE_MIN_DAYS,
+  FINISHER_BONUS_MISSING_MAX_M,
+  gameColors,
+  type BonusDefinition,
+  type BonusId,
+  type GameColorName,
+  type IconName,
+} from '@klaim/shared';
 
 // ─── Réactions GRYD custom (§8) : icônes, jamais emojis ───────────────────────
 export type CrewReactionKey =
@@ -456,3 +470,207 @@ export const CHAT_TIMELINE: readonly ChatTimelineItem[] = [
     reactions: { respect: 6 },
   },
 ];
+
+// ─── AMENDEMENT-19 §4/§7 — CARTE BONUS dans le Crew Chat (bonus social actif) ──
+// « GRYD ne te donne pas des bonus au hasard. Il révèle les bons moments pour
+// agir. » Quand un bonus VISIBLE sur l'écran crew_chat est PERTINENT (sa fenêtre
+// game-rules est ouverte), le chat montre UNE carte d'action bonus en tête de
+// À FAIRE — cohérente avec les cartes d'action existantes (ActionCard), 1 seul
+// bonus principal (doc §4). Le SERVEUR reste seul juge de la récompense : cette
+// carte ne fait qu'INVITER (router vers la course / carte), jamais claim.
+//
+// ⚠ Miroir logique de engine/bonus.ts (selectBonus + isRelevant + bonusEffect
+// Label) restreint à l'écran crew_chat : le tsconfig Expo ne résout pas les
+// subpath imports Deno de @klaim/engine, donc on ré-implémente ICI la même
+// sélection PURE à partir de la DATA (BONUS_DEFINITIONS) et des fenêtres game-
+// rules — mêmes seuils, mêmes priorités. AUCUN nombre magique : tout vient de
+// @klaim/shared. Toute évolution des règles se fait dans game-rules/bonuses.
+
+/**
+ * Contexte de pertinence du Crew Chat (sous-ensemble des signaux moteur utiles
+ * aux bonus visibles sur crew_chat : finisher/défense/coffre/retour). Fourni par
+ * l'écran (démo déterministe ; O1 : viendra des active_bonuses réels).
+ */
+export interface CrewChatBonusContext {
+  /** Le joueur a un crew (sinon aucun bonus crew ne s'affiche). */
+  hasCrew: boolean;
+  /** Mètres manquants de la frontière crew ouverte la plus proche (Finisher). */
+  nearestOpenBoundaryMissingM?: number;
+  /** Zone concernée par le bonus (« République ») — jamais de coordonnée. */
+  zone?: string;
+  /** Heures avant decay de la zone crew la plus menacée (Défense Critique). */
+  soonestZoneDecayH?: number;
+  /** Progression du coffre crew hebdo, part 0-1 du prochain palier (Coffre Crew). */
+  chestRatio?: number;
+  /** Jours depuis la dernière course du joueur (Retour, anti-shame). */
+  daysSinceLastRun?: number;
+}
+
+/** Priorité d'un bonus (BONUS_PRIORITY, 0 si non priorisé — ne devrait pas arriver). */
+function bonusPriorityOf(id: BonusId): number {
+  return (BONUS_PRIORITY as Record<string, number>)[id] ?? 0;
+}
+
+/**
+ * Le bonus `id` est-il PERTINENT sur le Crew Chat dans ce contexte ? PURE.
+ * Miroir de engine/isRelevant restreint aux fenêtres game-rules. Un bonus crew
+ * exige un crew ; chaque bonus n'apparaît que si son signal est dans sa fenêtre.
+ */
+function crewChatBonusRelevant(id: BonusId, ctx: CrewChatBonusContext): boolean {
+  switch (id) {
+    case 'finisher': {
+      if (!ctx.hasCrew) return false;
+      const m = ctx.nearestOpenBoundaryMissingM;
+      return m !== undefined && m > 0 && m <= FINISHER_BONUS_MISSING_MAX_M;
+    }
+    case 'defense_critical': {
+      if (!ctx.hasCrew) return false;
+      const h = ctx.soonestZoneDecayH;
+      return h !== undefined && h >= 0 && h <= BONUS_DEFENSE_DECAY_MAX_H;
+    }
+    case 'crew_chest': {
+      if (!ctx.hasCrew) return false;
+      const r = ctx.chestRatio;
+      return r !== undefined && r >= BONUS_CREW_CHEST_MIN_RATIO && r <= BONUS_CREW_CHEST_MAX_RATIO;
+    }
+    case 'return': {
+      const d = ctx.daysSinceLastRun;
+      return d !== undefined &&
+        d >= BONUS_RETURN_ABSENCE_MIN_DAYS &&
+        d <= BONUS_RETURN_ABSENCE_MAX_DAYS;
+    }
+    default:
+      // exploration/clean_loop ne sont pas visibles sur crew_chat (def.visibility).
+      return false;
+  }
+}
+
+/**
+ * LE bonus le plus pertinent pour le Crew Chat (doc §4 : un seul bonus principal
+ * par écran). PURE. Miroir de engine/selectBonus(context, 'crew_chat') : filtre
+ * par visibilité crew_chat (def.visibility) puis pertinence de contexte, choisit
+ * la PRIORITÉ la plus forte (BONUS_PRIORITY), départage déterministe par id.
+ * Renvoie null si rien n'est pertinent (le chat n'affiche alors aucune carte
+ * bonus). Jamais de tirage aléatoire — « ciblé, pas random nu ».
+ */
+export function selectCrewChatBonus(ctx: CrewChatBonusContext): BonusDefinition | null {
+  let best: BonusDefinition | null = null;
+  let bestPriority = -1;
+  const ids = Object.keys(BONUS_DEFINITIONS) as BonusId[];
+  for (const id of ids) {
+    const def = BONUS_DEFINITIONS[id];
+    if (!def.visibility.includes('crew_chat')) continue;
+    if (!crewChatBonusRelevant(id, ctx)) continue;
+    const priority = bonusPriorityOf(id);
+    if (
+      best === null ||
+      priority > bestPriority ||
+      (priority === bestPriority && id < best.id)
+    ) {
+      best = def;
+      bestPriority = priority;
+    }
+  }
+  return best;
+}
+
+/**
+ * Libellé COURT et NON TRONQUÉ de l'effet PROMIS d'un bonus (doc §4). PURE.
+ * Miroir de engine/bonusEffectLabel : coffre > XP > protection > badge >
+ * cosmétique. Jamais « points » ni « territoire ». Utilisé sous le titre de la
+ * carte bonus du Crew Chat comme sur le post-run.
+ */
+export function bonusEffectLabel(bonus: BonusDefinition): string {
+  const r = bonus.reward;
+  const pct = (p: number) => `${Math.round(p * 100)} %`;
+  if (r.chestPct !== undefined) return `+${pct(r.chestPct)} coffre crew`;
+  if (r.xpPct !== undefined) return `+${pct(r.xpPct)} XP`;
+  if (r.protectionH !== undefined) return `+${r.protectionH} h de protection`;
+  if (r.badgeProgress !== undefined) return 'Progrès badge';
+  if (r.cosmetic !== undefined) return 'Cosmétique débloqué';
+  return bonus.name;
+}
+
+/**
+ * Icône + teinte fonctionnelle d'une carte BONUS crew_chat, par famille de bonus
+ * (état de jeu, pas déco §5) : social/finisher = chartreuse (action crew) ;
+ * défense = violet contesté ; crew/coffre = or (récompense). Fallback chartreuse.
+ */
+export const BONUS_CARD_META: Record<BonusId, { icon: IconName; tint: string }> = {
+  finisher: { icon: 'avantposte', tint: gameColors.crew },
+  defense_critical: { icon: 'bouclier', tint: gameColors.contested },
+  crew_chest: { icon: 'coffre', tint: gameColors.gold },
+  return: { icon: 'cadeau', tint: gameColors.gold },
+  exploration: { icon: 'route', tint: gameColors.crew },
+  clean_loop: { icon: 'route', tint: gameColors.crew },
+};
+
+/**
+ * Carte d'action BONUS affichée dans À FAIRE (Crew Chat) — cohérente avec
+ * ActionCardDemo mais dérivée d'un bonus ciblé. `bonus` porte la fiche (nom,
+ * cta, effet) ; `zone` + `detail` composent la ligne d'infos (« Il manque 620 m
+ * pour capturer République »). ZÉRO territoire/point : le CTA ne fait qu'inviter.
+ */
+export interface BonusActionCard {
+  id: string;
+  bonus: BonusDefinition;
+  /** Titre court en capitales (« BONUS FINISHER »). */
+  title: string;
+  /** Effet promis, libellé court non tronqué (« +25 % coffre crew »). */
+  effect: string;
+  /** Zone concernée (« République ») — jamais de coordonnée. */
+  zone?: string;
+  /** Détail contextuel court (« Il manque 620 m pour capturer »). */
+  detail: string;
+  /** Icône + teinte (BONUS_CARD_META). */
+  icon: IconName;
+  tint: string;
+}
+
+/** Détail contextuel court d'un bonus crew_chat (« Il manque 620 m … »). PURE. */
+function crewChatBonusDetail(bonus: BonusDefinition, ctx: CrewChatBonusContext): string {
+  const zone = ctx.zone;
+  switch (bonus.id) {
+    case 'finisher': {
+      const m = ctx.nearestOpenBoundaryMissingM;
+      return m !== undefined
+        ? `Il manque ${m} m pour capturer ${zone ?? 'la zone'}`
+        : bonus.copy.body;
+    }
+    case 'defense_critical': {
+      const h = ctx.soonestZoneDecayH;
+      return h !== undefined
+        ? `${zone ?? 'Une zone'} s’efface dans ${h} h — défends-la`
+        : bonus.copy.body;
+    }
+    case 'crew_chest': {
+      const r = ctx.chestRatio;
+      return r !== undefined
+        ? `Coffre à ${Math.round(r * 100)} % — chaque sortie compte`
+        : bonus.copy.body;
+    }
+    default:
+      return bonus.copy.body;
+  }
+}
+
+/**
+ * Construit la carte BONUS d'À FAIRE à partir du contexte crew_chat — ou null
+ * (aucun bonus pertinent). C'est le point d'entrée UNIQUE de l'écran : un seul
+ * bonus principal, libellé court, cohérent avec les cartes d'action. PURE.
+ */
+export function buildCrewChatBonusCard(ctx: CrewChatBonusContext): BonusActionCard | null {
+  const bonus = selectCrewChatBonus(ctx);
+  if (!bonus) return null;
+  const meta = BONUS_CARD_META[bonus.id];
+  return {
+    id: `bonus_${bonus.id}`,
+    bonus,
+    title: `BONUS ${bonus.name.replace(/^Bonus\s+/i, '').toUpperCase()}`,
+    effect: bonusEffectLabel(bonus),
+    zone: ctx.zone,
+    detail: crewChatBonusDetail(bonus, ctx),
+    icon: meta.icon,
+    tint: meta.tint,
+  };
+}

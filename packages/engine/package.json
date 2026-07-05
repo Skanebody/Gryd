@@ -12,7 +12,8 @@
     "./boundary": "./src/boundary.ts",
     "./claims": "./src/claims.ts",
     "./scoring": "./src/scoring.ts",
-    "./badges": "./src/badges.ts"
+    "./badges": "./src/badges.ts",
+    "./bonus": "./src/bonus.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

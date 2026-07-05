@@ -11,7 +11,8 @@
     "./design-tokens": "./src/design-tokens.ts",
     "./events": "./src/events.ts",
     "./types": "./src/types.ts",
-    "./badges": "./src/badges.ts"
+    "./badges": "./src/badges.ts",
+    "./bonuses": "./src/bonuses.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

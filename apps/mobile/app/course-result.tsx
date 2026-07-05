@@ -18,7 +18,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import {
+  colors,
+  fontSizes,
+  gameColors,
+  radii,
+  spacing,
+  type IngestRunResponse,
+} from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -89,10 +96,33 @@ const STEP_REDUCED_MS = 650;
  */
 const DEMO_UNLOCKED_BADGE_ID = 'route_opened_3';
 
-type StepId = 'validated' | 'zones' | 'sector' | 'crew' | 'perf' | 'badge' | 'share' | 'stats';
+/**
+ * AMENDEMENT-19 §4/§7 — bonus ciblé APPLIQUÉ par cette course (démo). En prod,
+ * cet objet vient d'IngestRunResponse.bonusApplied (le serveur reste seul juge :
+ * active_bonus éligible, cap +35 %, un seul multiplicateur). `effect` est un
+ * libellé COURT prêt à afficher — jamais points/territoire/rang. Ici la course
+ * de conquête ferme la frontière crew République → Bonus Finisher, +25 % coffre.
+ * TODO(O1) : remplacer par la vraie réponse d'ingest_run.
+ */
+const DEMO_BONUS_APPLIED: IngestRunResponse['bonusApplied'] = {
+  bonusId: 'finisher',
+  name: 'Bonus Finisher',
+  effect: '+25 % coffre crew',
+};
+
+type StepId =
+  | 'validated'
+  | 'zones'
+  | 'sector'
+  | 'crew'
+  | 'perf'
+  | 'bonus'
+  | 'badge'
+  | 'share'
+  | 'stats';
 
 const STEPS_BY_MODE: Record<LiveRunMode, readonly StepId[]> = {
-  conquete: ['validated', 'zones', 'sector', 'crew', 'perf', 'badge', 'share'],
+  conquete: ['validated', 'zones', 'sector', 'crew', 'perf', 'bonus', 'badge', 'share'],
   social_run: ['validated', 'stats', 'share'],
   course_privee: ['validated', 'stats'],
 };
@@ -478,6 +508,10 @@ function ConquestResultScreen({
   const badge = mode === 'conquete' ? badgeById(DEMO_UNLOCKED_BADGE_ID) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
 
+  // AMENDEMENT-19 §4/§7 — bonus ciblé appliqué (conquête, démo). En prod =
+  // IngestRunResponse.bonusApplied. UN seul bonus principal, libellé court.
+  const bonusApplied = mode === 'conquete' ? DEMO_BONUS_APPLIED : undefined;
+
   // Mini-cartes en traits nets §4ter (avant/après + share card) — conquête.
   const sectorGeo = useMemo(
     () => (mode === 'conquete' ? buildSectorGeometry() : null),
@@ -705,6 +739,29 @@ function ConquestResultScreen({
                 <Text style={styles.perfSub}>
                   {formatInt(stats.basePoints)} → {formatInt(stats.totalPoints)} pts — ton allure
                   progresse.
+                </Text>
+              </View>
+            </View>
+          </ResultReveal>
+        ) : null}
+
+        {/* 5bis — BONUS APPLIQUÉ (AMENDEMENT-19 §4) : GRYD a révélé le bon moment,
+            la course a répondu → une ligne SOBRE « Bonus appliqué · +25 % coffre
+            crew ». UN seul bonus principal, libellé court non tronqué, JAMAIS de
+            points/territoire/rang. S'intègre à la séquence sans la casser. */}
+        {conquest && bonusApplied ? (
+          <ResultReveal visible={reached('bonus')} style={styles.block}>
+            <Text style={styles.stepKicker}>BONUS APPLIQUÉ</Text>
+            <View style={styles.bonusCard}>
+              <View style={styles.bonusIcon}>
+                <Icon name="cadeau" size={20} color={gameColors.crew} />
+              </View>
+              <View style={styles.bonusTextWrap}>
+                <Text style={styles.bonusName} numberOfLines={1}>
+                  {bonusApplied.name}
+                </Text>
+                <Text style={styles.bonusEffect} numberOfLines={1}>
+                  Bonus appliqué · {bonusApplied.effect}
                 </Text>
               </View>
             </View>
@@ -1318,6 +1375,31 @@ const styles = StyleSheet.create({
   perfTextWrap: { flex: 1, gap: 2 },
   perfTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   perfSub: { color: colors.gris, fontSize: fontSizes.xs },
+
+  // ── Bonus appliqué (AMENDEMENT-19 §4) : ligne sobre, liseré chartreuse ──
+  bonusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    padding: 14,
+  },
+  bonusIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.chartreuse40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.carbone,
+  },
+  bonusTextWrap: { flex: 1, gap: 2 },
+  bonusName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  bonusEffect: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '800' },
 
   actions: { gap: 10, marginTop: 4 },
   shareButton: {

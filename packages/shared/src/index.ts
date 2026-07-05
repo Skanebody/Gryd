@@ -3,6 +3,7 @@ export * from './design-tokens';
 export * from './events';
 export * from './types';
 export * from './badges';
+export * from './bonuses';
 export * from './badge-icons';
 export * from './arsenal-icons';
 export * from './france-geo';

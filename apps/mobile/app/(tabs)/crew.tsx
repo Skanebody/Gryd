@@ -98,8 +98,10 @@ import {
   DEFENSE_RSVP_OPTIONS,
   GIFT_CARDS_DEMO,
   WAR_LOG_META,
+  buildCrewChatBonusCard,
   warLogTint,
   type ActionCardDemo,
+  type BonusActionCard as BonusActionCardData,
   type ChatFilter,
   type DefenseRsvp,
   type GiftCardDemo,
@@ -439,6 +441,54 @@ function ActionCard({
 }
 
 /**
+ * Carte d'action BONUS (AMENDEMENT-19 §4) en tête de À FAIRE : « BONUS FINISHER ·
+ * Il manque 620 m pour capturer République · [TERMINER] ». GRYD révèle le bon
+ * moment pour agir — 1 SEUL bonus principal, libellé court NON tronqué, cohérent
+ * avec ActionCard. Liseré teinté par famille (finisher = chartreuse) pour la
+ * distinguer sans la faire crier. Le CTA route vers la course (le serveur reste
+ * seul juge du claim §3) — jamais de territoire/point offert ici.
+ */
+function BonusActionCard({
+  card,
+  onCta,
+}: {
+  card: BonusActionCardData;
+  onCta: (card: BonusActionCardData) => void;
+}) {
+  return (
+    <View style={[styles.bonusCard, { borderColor: card.tint }]}>
+      <View style={styles.actionTop}>
+        <View style={[styles.actionIcon, { borderColor: card.tint }]}>
+          <Icon name={card.icon} size={18} color={card.tint} />
+        </View>
+        <View style={styles.actionBody}>
+          <Text style={[styles.bonusTitle, { color: card.tint }]} numberOfLines={1}>
+            {card.title}
+          </Text>
+          <Text style={styles.actionZone} numberOfLines={2}>
+            {card.detail}
+          </Text>
+        </View>
+      </View>
+      {/* Effet PROMIS (libellé court non tronqué) — jamais points/territoire. */}
+      <View style={[styles.bonusEffectPill, { borderColor: card.tint }]}>
+        <Text style={[styles.bonusEffect, { color: card.tint }]} numberOfLines={1}>
+          {card.effect}
+        </Text>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${card.bonus.cta} · ${card.title}`}
+        onPress={() => onCta(card)}
+        style={({ pressed }) => [styles.actionCta, pressed && styles.dim]}
+      >
+        <Text style={styles.actionCtaLabel}>{card.bonus.cta}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
  * Carte de DON (A.4) : kicker + qui + effet + [Voir] + réactions Merci/Respect/
  * Bien joué (persistées, reactions.ts). Statut social COSMÉTIQUE — la ligne
  * « 12 membres ont remercié Benjamin. » apparaît dès le 1ᵉʳ Merci. Don anonyme
@@ -727,6 +777,22 @@ export default function CrewScreen() {
     [],
   );
 
+  // AMENDEMENT-19 §4 — LE bonus social/Finisher pertinent pour le Crew Chat
+  // (selectBonus(context, 'crew_chat') mirroré, feed.ts). Contexte DÉMO
+  // DÉTERMINISTE cohérent avec la timeline : KORO a ouvert la frontière
+  // République (bopen_republique), il manque 620 m → fenêtre Finisher ouverte.
+  // O1 : ce contexte viendra des active_bonuses réels (migration 0016). UN seul
+  // bonus principal — la carte n'apparaît QUE si le moteur le juge pertinent.
+  const chatBonusCard = useMemo(
+    () =>
+      buildCrewChatBonusCard({
+        hasCrew: true,
+        nearestOpenBoundaryMissingM: 620,
+        zone: 'République',
+      }),
+    [],
+  );
+
   if (!HAS_CREW) return <EmptyState />;
 
   const notify = (message: string) => {
@@ -771,6 +837,27 @@ export default function CrewScreen() {
       return;
     }
     notify(`${card.cta} · ${card.zone} — envoyé au crew (démo)`);
+  };
+
+  // CTA d'une carte BONUS (AMENDEMENT-19 §4) : GRYD révèle le bon moment, le
+  // JOUEUR agit — on route vers l'écran adéquat selon la famille (finisher →
+  // fermer la frontière ; défense → défendre ; coffre → onglet Coffre). Le
+  // serveur reste seul juge de la récompense (§3) : ici on ne fait qu'inviter.
+  const onBonusCta = (card: BonusActionCardData) => {
+    haptics.medium();
+    switch (card.bonus.id) {
+      case 'finisher':
+        router.push('/course-live?intention=complete&boundary=republique');
+        return;
+      case 'defense_critical':
+        router.push('/course-live?intention=defense');
+        return;
+      case 'crew_chest':
+        setTab('coffre');
+        return;
+      default:
+        notify(`${card.bonus.cta} · ${card.title} (démo)`);
+    }
   };
 
   // CTA « Voir » d'un don : coffre (onglet), carte, ou Arsenal.
@@ -839,6 +926,11 @@ export default function CrewScreen() {
     const all = [...myRequestCards, ...ACTION_CARDS_DEMO];
     return all.filter((c) => chatFilter === 'tout' || c.filters.includes(chatFilter));
   }, [chatFilter, myRequestCards]);
+  // La carte BONUS partage la section À FAIRE : visible sous Tout/Demandes/
+  // Missions (comme une action d'entraide), masquée sous Dons/Résultats.
+  const showBonusCard =
+    chatBonusCard !== null &&
+    (chatFilter === 'tout' || chatFilter === 'demandes' || chatFilter === 'missions');
   // Mes DONS accomplis (route/scout/défense donnés) en tête des dons.
   const myDonationCards = useMemo(
     () => crewRequests.donations.map(donationToGiftCard),
@@ -1389,12 +1481,13 @@ export default function CrewScreen() {
             </Pressable>
           </View>
 
-          {/* ── SECTION 1 · À FAIRE (prioritaire, ouverte) : cartes d'action ── */}
-          {visibleActions.length > 0 ? (
+          {/* ── SECTION 1 · À FAIRE (prioritaire, ouverte) : carte BONUS ciblée
+              (AMENDEMENT-19 §4, en tête) + cartes d'action ── */}
+          {showBonusCard || visibleActions.length > 0 ? (
             <View style={styles.chatSection}>
               <SectionHead
                 label="À FAIRE"
-                count={visibleActions.length}
+                count={visibleActions.length + (showBonusCard ? 1 : 0)}
                 showAll={showAllActions}
                 onToggle={() => {
                   haptics.light();
@@ -1402,6 +1495,10 @@ export default function CrewScreen() {
                 }}
               />
               <View style={styles.actionList}>
+                {/* GRYD révèle le bon moment : 1 SEUL bonus principal, en tête. */}
+                {showBonusCard && chatBonusCard ? (
+                  <BonusActionCard card={chatBonusCard} onCta={onBonusCta} />
+                ) : null}
                 {(showAllActions ? visibleActions : visibleActions.slice(0, 2)).map((card) => (
                   <ActionCard key={card.id} card={card} onCta={onActionCta} />
                 ))}
@@ -2146,6 +2243,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  // ── Carte BONUS (AMENDEMENT-19 §4) : liseré teinté par famille + effet promis
+  //    en pastille. Même gabarit qu'actionCard — 1 seul bonus principal. ──
+  bonusCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+  },
+  bonusTitle: {
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  bonusEffectPill: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  bonusEffect: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
   // ── Carte de DON (A.4) : kicker + effet + réactions Merci/Respect/Bien joué ──
   giftCard: {
     backgroundColor: colors.carbone,

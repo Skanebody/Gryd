@@ -233,6 +233,24 @@ export interface IngestRunResponse {
     /** Points crew attribués par la fermeture (zone crew). */
     crewPoints: number;
   };
+  /**
+   * AMENDEMENT-19 §7 — UN bonus ciblé a été APPLIQUÉ par cette course : un
+   * `active_bonus` du joueur/crew était actif ET éligible (run GRYD Verified,
+   * caps/cooldowns OK), et sa récompense a été créditée (coffre crew / XP /
+   * progrès badge / durée de protection) avec le CAP +35 % (BONUS_MAX_TOTAL_PCT,
+   * UN seul multiplicateur, jamais de cumul). JAMAIS de territoire/points/rang.
+   * Absent si aucun bonus n'était applicable. `effect` = libellé COURT, non
+   * tronqué, prêt à afficher (ex. « +25 % coffre crew », « +10 % XP · Explorateur »).
+   * Le post-run l'affiche comme bonus principal gagné (UX doc §4).
+   */
+  bonusApplied?: {
+    /** id du bonus (BonusId) — pour l'icône/animation côté client. */
+    bonusId: string;
+    /** Nom lisible du bonus (ex. « Bonus Finisher »). */
+    name: string;
+    /** Effet appliqué, libellé court prêt à l'affichage (jamais tronqué). */
+    effect: string;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -300,6 +318,178 @@ export interface BoundaryContribution {
   validatedLengthM: number;
   /** Part au prorata de la longueur validée (0-1, somme = 1 sur la frontière). */
   share: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-19 §2/§6/§7 — Bonus aléatoires CIBLÉS (moteur d'opportunités).
+// Contrats des 6 bonus MVP (DATA = packages/shared/src/bonuses.ts), du moteur
+// pur (packages/engine/src/bonus.ts) et des tables active_bonuses /
+// player_bonus_claims (migration 0016). Un bonus ne touche JAMAIS
+// territoire/points/classement : seulement coffre crew / XP / progrès badge /
+// durée de protection / cosmétique. UN seul multiplicateur, cap +35 %.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Id stable d'un bonus MVP (clé de la fiche DATA + de active_bonuses.bonus_id). */
+export type BonusId =
+  | 'finisher'
+  | 'defense_critical'
+  | 'crew_chest'
+  | 'return'
+  | 'exploration'
+  | 'clean_loop';
+
+/**
+ * FAMILLE de jeu du bonus (doc §2 « 8 familles cataloguées » — 6 actives au
+ * MVP). Sert au tri/priorité et à l'icône. Pas de reward par famille : chaque
+ * fiche porte sa reward.
+ */
+export type BonusType =
+  | 'social' // entraide (Finisher)
+  | 'defense' // défense d'une zone (Défense Critique)
+  | 'crew' // objectif crew (Coffre Crew)
+  | 'streak' // régularité/retour (Retour, anti-shame)
+  | 'exploration' // secteur vierge (Exploration)
+  | 'conquete'; // boucle bien fermée (Boucle Propre)
+
+/**
+ * Rareté d'un bonus (doc §3, « pas de casino ») — MIROIR des tiers existants.
+ * Commun (fréquent), Rare (+25 % coffre…), Épique (événement crew), Légendaire
+ * (cosmétique très rare). Purement descriptif (fréquence/traitement visuel).
+ */
+export type BonusRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+/** Portée d'un bonus : au CREW (partagé) ou au JOUEUR (perso). */
+export type BonusTargetScope = 'crew' | 'player';
+
+/**
+ * Déclencheur d'apparition d'un bonus (doc §2, contexte carte/temps/joueur/
+ * crew). DATA descriptive : le moteur (engine/bonus.ts) implémente la logique
+ * de pertinence ; ces clés documentent QUAND GRYD révèle le bon moment.
+ */
+export type BonusTrigger =
+  | 'crew_boundary_open_near' // frontière crew ouverte, segment manquant court
+  | 'crew_zone_decay_soon' // zone crew qui expire bientôt
+  | 'crew_chest_almost_full' // coffre crew dans la dernière ligne droite
+  | 'player_absent' // joueur absent depuis quelques jours (anti-shame)
+  | 'sector_unexplored_near' // secteur vierge/peu couru à proximité
+  | 'clean_loop_closed'; // boucle bien fermée, compacité + GPS trust élevés
+
+/**
+ * Condition d'ÉLIGIBILITÉ (anti-abus, doc §5) vérifiée AVANT toute récompense.
+ * DATA : le moteur/serveur implémente chaque garde. Un run qui échoue une seule
+ * de ces conditions n'est jamais récompensé.
+ */
+export type BonusEligibility =
+  | 'run_verified' // GRYD Verified (Motion Trust ≥ seuil) — pas de véhicule/GPS douteux
+  | 'same_crew' // le run appartient au crew ciblé (bonus crew)
+  | 'under_player_week_cap' // sous le cap par joueur/semaine
+  | 'under_crew_day_cap' // sous le cap par crew/jour
+  | 'zone_cooldown_elapsed'; // cooldown de la même zone/frontière écoulé
+
+/** Écran où un bonus peut s'afficher (doc §4 : un seul bonus principal/écran). */
+export type BonusVisibility = 'map' | 'war_room' | 'crew_chat' | 'post_run';
+
+/**
+ * Récompense d'un bonus (doc §1/§6). Aucun champ ne touche territoire/points/
+ * classement. Les pourcentages sont des SURCROÎTS (0-1), re-bornés au cap +35 %
+ * par applyBonusReward. Au moins un champ est présent.
+ */
+export interface BonusReward {
+  /** Surcroît de progression du coffre CREW (0-1). Jamais points/rang. */
+  chestPct?: number;
+  /** Surcroît d'XP perso (0-1). Jamais points de classement. */
+  xpPct?: number;
+  /** Progrès de badge offert (points vers le prochain palier). */
+  badgeProgress?: number;
+  /** Durée de protection de zone offerte (heures) — prolonge un bouclier. */
+  protectionH?: number;
+  /** Clé cosmétique offerte (skin/frame/titre) — jamais un avantage de jeu. */
+  cosmetic?: string;
+}
+
+/** Plafonds d'occurrences d'un bonus (DATA, miroir de BONUS_CAPS). null = pas de cap. */
+export interface BonusCap {
+  perPlayerPerWeek?: number | null;
+  perCrewPerDay?: number | null;
+  perCrewPerWeek?: number | null;
+  /** Intervalle minimal (jours) entre deux occurrences pour le MÊME joueur (Retour). */
+  perPlayerPerDays?: number | null;
+}
+
+/** Copy d'un bonus (doc §4) : titre + corps + bouton. Libellés COURTS, non tronqués. */
+export interface BonusCopy {
+  title: string;
+  body: string;
+  button: string;
+}
+
+/**
+ * FICHE d'un bonus MVP (DATA, bonuses.ts). Config-driven : aucune règle en dur
+ * dans le moteur — tout vient d'ici + des caps/cooldowns game-rules. Décrit
+ * l'apparition (trigger), la pertinence (targetScope/type), l'impact (reward,
+ * borné), l'anti-abus (eligibility/cap/cooldownH/antiAbuse) et l'UX
+ * (visibility/cta/copy).
+ */
+export interface BonusDefinition {
+  id: BonusId;
+  name: string;
+  type: BonusType;
+  rarity: BonusRarity;
+  targetScope: BonusTargetScope;
+  /** Déclencheurs d'apparition (au moins un). */
+  trigger: BonusTrigger[];
+  /** Conditions d'éligibilité anti-abus (toutes requises). */
+  eligibility: BonusEligibility[];
+  /** Durée de vie de la fenêtre (heures) — le Finisher suit sa frontière. */
+  durationH: number;
+  reward: BonusReward;
+  cap: BonusCap;
+  /** Cooldown (heures) sur la même zone/frontière (0 = aucun). */
+  cooldownH: number;
+  /** Écrans d'affichage (un seul bonus principal par écran, doc §4). */
+  visibility: BonusVisibility[];
+  /** Verbe d'action court (« TERMINER », « DÉFENDRE »…). */
+  cta: string;
+  copy: BonusCopy;
+  /** Notes anti-abus lisibles (doc §5) — documentaire, appliqué par le serveur. */
+  antiAbuse: string[];
+}
+
+/**
+ * `active_bonuses` (migration 0016) : une fenêtre de bonus OUVERTE et ciblée
+ * (créée par digest_job / à l'ouverture d'une frontière), rattachée à un crew
+ * ou un joueur. Le moteur (selectBonus) lit ces lignes ; ingest_run applique la
+ * récompense au run éligible qui « répond » au bonus. `subjectId` = crew_id ou
+ * user_id selon `scope`. Statut : `active` → `claimed` (récompensé) / `expired`.
+ */
+export type ActiveBonusStatus = 'active' | 'claimed' | 'expired';
+export interface ActiveBonus {
+  id: string;
+  scope: BonusTargetScope;
+  /** crew_id (scope=crew) ou user_id (scope=player) concerné. */
+  subjectId: string;
+  bonusId: BonusId;
+  type: BonusType;
+  startsAt: string;
+  expiresAt: string;
+  status: ActiveBonusStatus;
+  createdAt: string;
+}
+
+/**
+ * `player_bonus_claims` (migration 0016) : trace des récompenses de bonus déjà
+ * accordées à un joueur, pour appliquer les caps (par joueur/semaine, par
+ * joueur/jours, cooldown zone). `week`/`day` = buckets ISO (UTC).
+ */
+export interface PlayerBonusClaim {
+  id: string;
+  bonusId: BonusId;
+  userId: string;
+  /** Semaine ISO 'YYYY-Www' (cap par joueur/semaine). */
+  week: string;
+  /** Jour ISO 'YYYY-MM-DD' (cap par joueur/jour, cooldown). */
+  day: string;
+  claimedAt: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

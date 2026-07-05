@@ -2,7 +2,7 @@
 /**
  * Génère les copies Deno de supabase/functions/_shared/ (les Edge Functions ne
  * peuvent pas importer hors de supabase/functions/ au deploy) :
- *  1. packages/shared/src/{badges,game-rules,types}.ts → _shared/ (copie byte à byte) ;
+ *  1. packages/shared/src/{badges,bonuses,game-rules,types}.ts → _shared/ (copie byte à byte) ;
  *  2. packages/engine/src/*.ts → _shared/engine/ (imports réécrits pour Deno).
  * Un test Deno (ingest_run/drift_test.ts) vérifie l'absence de drift — ne
  * jamais éditer les copies à la main.
@@ -20,6 +20,27 @@ for (const f of ['badges.ts', 'game-rules.ts', 'types.ts']) {
   console.log(`sync: ${f} → supabase/functions/_shared/`);
 }
 
+// ─── DATA bonus (packages/shared/src/bonuses.ts) → _shared (imports .ts-ifiés) ─
+// bonuses.ts a des imports RELATIFS À VALEUR (`./game-rules`, `./types`, sans
+// extension : shared est en moduleResolution=bundler). Le bundler de Supabase
+// (Deno deploy) exige l'extension `.ts` sur ces imports runtime — on les réécrit
+// à la copie (game-rules.ts et types.ts sont eux copiés byte à byte à côté).
+// NB : les imports `import type` seuls seraient effacés, mais bonuses.ts importe
+// des VALEURS (constantes) → réécriture obligatoire, contrairement à types.ts.
+// ⚠ MIROIR EXACT dans supabase/functions/ingest_run/drift_test.ts
+//   (transformSharedDataLine) — toute modification ici doit y être répliquée.
+const transformSharedDataLine = (line) =>
+  line
+    .replace(/(['"])\.\/game-rules\1/g, '$1./game-rules.ts$1')
+    .replace(/(['"])\.\/types\1/g, '$1./types.ts$1');
+
+{
+  const source = readFileSync(join(root, 'packages', 'shared', 'src', 'bonuses.ts'), 'utf8');
+  const out = source.split('\n').map(transformSharedDataLine).join('\n');
+  writeFileSync(join(dest, 'bonuses.ts'), out);
+  console.log('sync: bonuses.ts → supabase/functions/_shared/ (imports .ts-ifiés)');
+}
+
 // ─── Moteur de jeu : packages/engine/src → _shared/engine (imports Deno-ifiés) ─
 // Transformation par regex simple, ligne à ligne. Les imports relatifs entre
 // fichiers engine (`./x.ts`, extension incluse) sont laissés tels quels.
@@ -34,6 +55,7 @@ const engineHeader = (name) =>
 const transformEngineLine = (line) =>
   line
     .replace(/(['"])@klaim\/shared\/badges\1/g, '$1../badges.ts$1')
+    .replace(/(['"])@klaim\/shared\/bonuses\1/g, '$1../bonuses.ts$1')
     .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1../game-rules.ts$1')
     .replace(/(['"])@klaim\/shared\/types\1/g, '$1../types.ts$1')
     .replace(/(['"])h3-js\1/g, '$1npm:h3-js@^4.1$1');

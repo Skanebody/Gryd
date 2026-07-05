@@ -18,6 +18,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { cellToLatLng, latLngToCell } from 'npm:h3-js@^4.1';
 import {
+  BONUS_MIN_MOTION_TRUST,
+  BONUS_PRIORITY,
+  BONUS_RETURN_ABSENCE_MAX_DAYS,
+  BONUS_RETURN_ABSENCE_MIN_DAYS,
   CITIES,
   CREW_XP_TABLE,
   DECAY_DAYS,
@@ -90,6 +94,7 @@ import {
 } from '../_shared/engine/badges.ts';
 import { BADGES_BY_KEY } from '../_shared/badges.ts';
 import {
+  boostChestMultiplier,
   boostedChestProgress,
   cappedCrewXp,
   chestProgressDelta,
@@ -104,6 +109,15 @@ import {
   type ContestedCrewPresence,
 } from '../_shared/engine/social.ts';
 import { challengeProgress } from '../_shared/engine/challenge.ts';
+import {
+  applyBonusReward,
+  type BonusApplyBase,
+  type BonusEligibilityContext,
+  bonusEffectLabel,
+  eligible,
+} from '../_shared/engine/bonus.ts';
+import { bonusById } from '../_shared/bonuses.ts';
+import type { BonusDefinition, BonusId } from '../_shared/types.ts';
 
 const MS_PER_DAY = 86_400_000;
 const M_PER_KM = 1_000;
@@ -741,6 +755,19 @@ interface CrewRunOutcome {
 }
 
 /**
+ * Résultat de processCrew : XP/level-up pour la réponse + base de bonus
+ * (AMENDEMENT-19 §7). `chestDelta` = progression de coffre effectivement
+ * appliquée par ce run (déjà boostée) ; `boostMultiplier` = multiplicateur
+ * Crew Boost actif (1 si aucun) — sert le CAP +35 % (systemPct = mult − 1).
+ */
+interface CrewProcessResult {
+  crewXp?: number;
+  crewLevelUp?: { from: number; to: number };
+  chestDelta?: number;
+  boostMultiplier?: number;
+}
+
+/**
  * Traite la contribution crew d'une course (§34/§39/§38). Retourne l'XP crew
  * créditée et l'éventuelle montée de niveau, pour IngestRunResponse.
  *   1. XP crew (crewXpForRun) cappée au reste quotidien du membre (§34.1) ;
@@ -756,7 +783,7 @@ async function processCrew(
   now: Date,
   outcome: CrewRunOutcome,
   claimedCentroids: { lat: number; lng: number }[],
-): Promise<{ crewXp?: number; crewLevelUp?: { from: number; to: number } }> {
+): Promise<CrewProcessResult> {
   if (crewId === null) return {};
 
   const rawXp = crewXpForRun({
@@ -784,7 +811,7 @@ async function processCrew(
   const alreadyToday = (dailyRow?.xp as number | undefined) ?? 0;
   const xp = cappedCrewXp(rawXp, alreadyToday);
 
-  const result: { crewXp?: number; crewLevelUp?: { from: number; to: number } } = {};
+  const result: CrewProcessResult = {};
 
   if (xp > 0) {
     // Compteur quotidien (upsert : +xp).
@@ -824,6 +851,10 @@ async function processCrew(
   if (baseDelta > 0) {
     const { boosts, seasonEndMs } = await loadCrewBoostContext(crewId);
     const delta = boostedChestProgress(baseDelta, boosts, now.getTime(), seasonEndMs);
+    // AMENDEMENT-19 §7 : le bonus ciblé s'appuiera sur CE delta (déjà boosté) et
+    // sur le multiplicateur système actif — pour appliquer le CAP +35 %.
+    result.chestDelta = delta;
+    result.boostMultiplier = boostChestMultiplier(boosts, now.getTime(), seasonEndMs);
     const weekStart = isoWeekStart(now);
     const { data: chestRow, error: chestReadErr } = await supabase
       .from('crew_chests')
@@ -1483,6 +1514,261 @@ async function openBoundary(
   };
 }
 
+// ─── AMENDEMENT-19 §7 : application serveur d'UN bonus ciblé ──────────────────
+
+/** Ligne active_bonuses `active` chargée pour tenter une récompense. */
+interface ActiveBonusRow {
+  id: string;
+  scope: 'crew' | 'player';
+  bonus_id: BonusId;
+}
+
+/** Contexte serveur de récompense d'un bonus (signaux du run + base capée). */
+interface BonusApplyContext {
+  userId: string;
+  crewId: string | null;
+  now: Date;
+  motionTrust: number;
+  /** Progression de coffre de base de ce run (déjà boostée) — base du delta bonus. */
+  chestBase: number;
+  /** XP perso de base de ce run — base du delta bonus. */
+  xpBase: number;
+  /** % de multiplicateur SYSTÈME déjà actif (Crew Boost coffre) — pour le CAP. */
+  systemPct: number;
+  /** Ids de bonus « répondus » par CE run (trigger satisfait) — filtre serveur. */
+  answered: Set<BonusId>;
+}
+
+/** Bucket semaine ISO 'YYYY-Www' (UTC) — cap joueur/semaine. */
+function isoWeekBucket(now: Date): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const day = (d.getUTCDay() + 6) % 7; // lundi=0
+  d.setUTCDate(d.getUTCDate() - day + 3); // jeudi de la semaine ISO
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const week = 1 +
+    Math.round(((d.getTime() - firstThursday.getTime()) / MS_PER_DAY - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * Applique AU PLUS UN bonus ciblé à ce run (AMENDEMENT-19 §7). SERVEUR seul juge.
+ * « GRYD ne te donne pas des bonus au hasard. » : on ne récompense QUE si une
+ * fenêtre `active_bonuses` est ouverte pour ce crew/joueur ET que le run y
+ * RÉPOND (trigger satisfait, `ctx.answered`). Étapes :
+ *  1. charge les bonus `active` non expirés du joueur (scope player) et de son
+ *     crew (scope crew) ;
+ *  2. ne garde que ceux « répondus » par ce run ;
+ *  3. choisit le PLUS PRIORITAIRE (BONUS_PRIORITY, via bonusById), UN SEUL ;
+ *  4. vérifie l'ÉLIGIBILITÉ (eligible pur : GRYD Verified, même crew, caps
+ *     joueur/semaine + crew/jour + crew/semaine, cooldown zone) avec les
+ *     compteurs RÉELS (player_bonus_claims) ;
+ *  5. applique la récompense CAPÉE +35 % (applyBonusReward, systemPct du Crew
+ *     Boost — UN multiplicateur, jamais de cumul) : +coffre crew (delta ajouté
+ *     au coffre de la semaine), +progrès badge, +durée de protection, cosmétique ;
+ *  6. marque le bonus `claimed`, trace le player_bonus_claim (caps futurs).
+ * Retourne le payload `bonusApplied` (bonusId/name/effect court), ou null.
+ * Idempotence : appelé UNIQUEMENT sur le chemin frais (le replay renvoie la
+ * célébration persistée sans recalcul) → jamais deux récompenses pour un run.
+ */
+async function applyActiveBonus(
+  ctx: BonusApplyContext,
+): Promise<IngestRunResponse['bonusApplied'] | null> {
+  if (ctx.answered.size === 0) return null;
+  const nowIso = ctx.now.toISOString();
+
+  // 1. Fenêtres actives du joueur + de son crew (subjects concernés).
+  const subjectIds = [ctx.userId, ...(ctx.crewId !== null ? [ctx.crewId] : [])];
+  const { data: rows, error } = await supabase
+    .from('active_bonuses')
+    .select('id, scope, bonus_id')
+    .in('subject_id', subjectIds)
+    .eq('status', 'active')
+    .gt('expires_at', nowIso);
+  if (error) throw new Error(`active_bonuses read: ${error.message}`);
+  if (!rows || rows.length === 0) return null;
+
+  // 2. Candidats « répondus » par ce run + cohérence de scope (un bonus crew
+  //    exige un crew ; un bonus player vise bien ce joueur).
+  const candidates = (rows as ActiveBonusRow[]).filter((r) => {
+    if (!ctx.answered.has(r.bonus_id)) return false;
+    if (r.scope === 'crew' && ctx.crewId === null) return false;
+    return true;
+  });
+  if (candidates.length === 0) return null;
+
+  // 3. Le PLUS PRIORITAIRE (un seul bonus principal — doc §4). Départage
+  //    déterministe par bonus_id (jamais de tirage au hasard).
+  candidates.sort((a, b) => {
+    const d = priorityRank(b.bonus_id) - priorityRank(a.bonus_id);
+    return d !== 0 ? d : (a.bonus_id < b.bonus_id ? -1 : 1);
+  });
+  const chosen = candidates[0]!;
+  const def: BonusDefinition = bonusById(chosen.bonus_id);
+
+  // 4. Compteurs réels pour l'anti-abus (caps/cooldown).
+  const week = isoWeekBucket(ctx.now);
+  const day = utcDay(ctx.now);
+  const elig = await buildEligibility(def, ctx, week, day);
+  const verdict = eligible(def, elig);
+  if (!verdict.eligible) return null; // caps/cooldown/verify non satisfaits → rien
+
+  // 5. Récompense CAPÉE +35 % (un multiplicateur, systemPct = Crew Boost).
+  const base: BonusApplyBase = {
+    chestBase: ctx.chestBase,
+    xpBase: ctx.xpBase,
+    systemPct: ctx.systemPct,
+  };
+  const applied = applyBonusReward(def, base);
+
+  // 5a. Coffre crew : +chestDelta sur le coffre de la semaine (jamais points/rang).
+  const chestDelta = Math.round(applied.chestDelta);
+  if (chestDelta > 0 && ctx.crewId !== null) {
+    const weekStart = isoWeekStart(ctx.now);
+    const { data: chestRow, error: chestReadErr } = await supabase
+      .from('crew_chests')
+      .select('progress')
+      .eq('crew_id', ctx.crewId)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    if (chestReadErr) throw new Error(`crew_chests bonus read: ${chestReadErr.message}`);
+    const progress = ((chestRow?.progress as number | undefined) ?? 0) + chestDelta;
+    const { error: chestErr } = await supabase
+      .from('crew_chests')
+      .upsert({ crew_id: ctx.crewId, week_start: weekStart, progress }, {
+        onConflict: 'crew_id,week_start',
+      });
+    if (chestErr) throw new Error(`crew_chests bonus upsert: ${chestErr.message}`);
+  }
+
+  // NB(MVP) : le crédit d'XP perso (applied.xpDelta), le progrès de badge
+  // (applied.badgeProgress) et la durée de protection (applied.protectionH)
+  // sont RENVOYÉS au client via bonusApplied.effect et appliqués par leurs
+  // pipelines dédiés (XP/badges/bouclier) — la source de vérité de la
+  // récompense reste ce bonus. Aucun effet sur territoire/points/classement.
+
+  // 6. Fenêtre `claimed` (une seule récompense par fenêtre) + trace du claim.
+  const { error: updErr } = await supabase
+    .from('active_bonuses')
+    .update({ status: 'claimed' })
+    .eq('id', chosen.id)
+    .eq('status', 'active'); // garde anti-course concurrente
+  if (updErr) throw new Error(`active_bonuses claim: ${updErr.message}`);
+
+  const { error: claimErr } = await supabase.from('player_bonus_claims').insert({
+    bonus_id: def.id,
+    user_id: ctx.userId,
+    week,
+    day,
+    claimed_at: nowIso,
+  });
+  if (claimErr) throw new Error(`player_bonus_claims insert: ${claimErr.message}`);
+
+  return { bonusId: def.id, name: def.name, effect: bonusEffectLabel(def) };
+}
+
+/** Rang de priorité d'un bonus — DÉRIVÉ de BONUS_PRIORITY (game-rules, source
+ * unique) : toute réorganisation de l'ordre y est suivie ici sans drift. */
+function priorityRank(id: BonusId): number {
+  return (BONUS_PRIORITY as Record<string, number>)[id] ?? 0;
+}
+
+/**
+ * Construit le contexte d'éligibilité anti-abus (compteurs réels lus dans
+ * player_bonus_claims) pour `def`. Lit : occurrences de CE bonus par CE joueur
+ * cette semaine / ce jour, occurrences du crew ce jour / cette semaine, jours
+ * depuis le dernier claim du joueur (Retour), heures depuis le dernier claim
+ * (cooldown zone — approx MVP : dernier claim de ce bonus par ce joueur).
+ */
+async function buildEligibility(
+  def: BonusDefinition,
+  ctx: BonusApplyContext,
+  week: string,
+  day: string,
+): Promise<BonusEligibilityContext> {
+  // Claims de CE bonus par CE joueur (semaine courante + historique récent).
+  const { data: mine, error: mineErr } = await supabase
+    .from('player_bonus_claims')
+    .select('week, day, claimed_at')
+    .eq('user_id', ctx.userId)
+    .eq('bonus_id', def.id)
+    .order('claimed_at', { ascending: false })
+    .limit(200);
+  if (mineErr) throw new Error(`player_bonus_claims read: ${mineErr.message}`);
+  const claims = mine ?? [];
+  const playerClaimsThisWeek = claims.filter((c) => c.week === week).length;
+
+  // Cooldown zone / intervalle joueur : depuis le dernier claim de ce joueur.
+  let daysSinceLastPlayerClaim: number | undefined;
+  let hoursSinceLastZoneClaim: number | undefined;
+  const last = claims[0];
+  if (last) {
+    const lastMs = new Date(last.claimed_at as string).getTime();
+    const diffMs = ctx.now.getTime() - lastMs;
+    daysSinceLastPlayerClaim = diffMs / MS_PER_DAY;
+    hoursSinceLastZoneClaim = diffMs / MS_PER_HOUR_BOUNDARY;
+  }
+
+  // Caps CREW (jour/semaine) : claims de CE bonus par les MEMBRES du crew.
+  let crewClaimsToday = 0;
+  let crewClaimsThisWeek = 0;
+  if (ctx.crewId !== null && (def.cap.perCrewPerDay != null || def.cap.perCrewPerWeek != null)) {
+    const { data: members, error: memErr } = await supabase
+      .from('crew_members')
+      .select('user_id')
+      .eq('crew_id', ctx.crewId)
+      .is('left_at', null);
+    if (memErr) throw new Error(`crew_members bonus read: ${memErr.message}`);
+    const memberIds = (members ?? []).map((m) => m.user_id as string);
+    if (memberIds.length > 0) {
+      const { data: crewClaims, error: ccErr } = await supabase
+        .from('player_bonus_claims')
+        .select('week, day')
+        .eq('bonus_id', def.id)
+        .in('user_id', memberIds)
+        .eq('week', week);
+      if (ccErr) throw new Error(`player_bonus_claims crew read: ${ccErr.message}`);
+      crewClaimsThisWeek = (crewClaims ?? []).length;
+      crewClaimsToday = (crewClaims ?? []).filter((c) => c.day === day).length;
+    }
+  }
+
+  const elig: BonusEligibilityContext = {
+    motionTrust: ctx.motionTrust,
+    sameCrew: ctx.crewId !== null,
+    playerClaimsThisWeek,
+    crewClaimsToday,
+    crewClaimsThisWeek,
+  };
+  if (daysSinceLastPlayerClaim !== undefined) elig.daysSinceLastPlayerClaim = daysSinceLastPlayerClaim;
+  if (hoursSinceLastZoneClaim !== undefined) elig.hoursSinceLastZoneClaim = hoursSinceLastZoneClaim;
+  return elig;
+}
+
+/**
+ * Ce joueur REVIENT-il après une absence dans la fenêtre du bonus Retour
+ * (AMENDEMENT-19 §6.4, anti-shame) ? PURE côté logique (l'I/O lit la course
+ * PRÉCÉDENTE). Vrai si l'écart entre CE run et le run valide précédent (hors
+ * celui-ci, `runId`) tombe dans [BONUS_RETURN_ABSENCE_MIN_DAYS,
+ * BONUS_RETURN_ABSENCE_MAX_DAYS]. Aucune course antérieure → non (le Retour
+ * cible un joueur qui revient, pas un tout nouveau). Jamais de menace ni de
+ * culpabilisation : c'est un signal d' APPARITION, la copy reste douce.
+ */
+async function isReturningPlayer(userId: string, runId: string, now: Date): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('runs')
+    .select('started_at')
+    .eq('user_id', userId)
+    .in('status', ['valid', 'partial'])
+    .neq('id', runId)
+    .order('started_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`runs return read: ${error.message}`);
+  const prev = (data ?? [])[0];
+  if (!prev) return false;
+  const days = (now.getTime() - new Date(prev.started_at as string).getTime()) / MS_PER_DAY;
+  return days >= BONUS_RETURN_ABSENCE_MIN_DAYS && days <= BONUS_RETURN_ABSENCE_MAX_DAYS;
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -1849,7 +2135,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // membre cette semaine (crew_xp_daily de la semaine vide) → participation.
     // `claimedCentroids` = centres des hexes réellement pris (neutres + volés),
     // pour compter la contribution aux offensives dont la zone les couvre.
-    let crewOutcome: { crewXp?: number; crewLevelUp?: { from: number; to: number } } = {};
+    let crewOutcome: CrewProcessResult = {};
     if (crew.crewId !== null) {
       const claimedCentroids = decision.results
         .filter((r) => r.outcome === 'claimed_neutral' || r.outcome === 'stolen')
@@ -1940,6 +2226,46 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
+    // ── AMENDEMENT-19 §7 : application serveur d'UN bonus ciblé ───────────────
+    // « GRYD révèle les bons moments pour agir. » On ne récompense que si une
+    // fenêtre active_bonuses est ouverte pour ce crew/joueur ET que CE run y
+    // RÉPOND. `answered` traduit les signaux du run en ids de bonus « répondus » :
+    //  - finisher : ce run a FERMÉ une frontière crew (boundaryCompleted) — la
+    //    fenêtre Finisher qui couvrait cette frontière est honorée ;
+    //  - defense_critical : ce run a défendu des hexes (une zone menacée tenue) ;
+    //  - crew_chest : run crew vérifié qui fait progresser le coffre (chestDelta) ;
+    //  - exploration : ce run a ouvert une route/avant-poste ou un hex pionnier ;
+    //  - clean_loop : boucle fermée, non refusée, run vérifié ;
+    //  - return : ce joueur revient après une absence (fenêtre 5-10 j).
+    // applyActiveBonus tranche ensuite priorité + éligibilité (caps/cooldown) et
+    // applique la récompense CAPÉE +35 % (un multiplicateur, jamais de cumul).
+    const runVerified = (validation.motionTrust ?? 0) >= BONUS_MIN_MOTION_TRUST;
+    let bonusApplied: IngestRunResponse['bonusApplied'];
+    if (runVerified) {
+      const answered = new Set<BonusId>();
+      if (boundaryCompleted !== undefined) answered.add('finisher');
+      if (decision.totals.defended > 0) answered.add('defense_critical');
+      if (crew.crewId !== null && (crewOutcome.chestDelta ?? 0) > 0) answered.add('crew_chest');
+      if (route.newRoutes > 0 || outpost.newOutposts > 0 || decision.totals.pioneer > 0) {
+        answered.add('exploration');
+      }
+      if (loopClosed && loopRejectedReason === undefined) answered.add('clean_loop');
+      if (await isReturningPlayer(userId, runId, now)) answered.add('return');
+
+      // systemPct = (multiplicateur Crew Boost − 1), 0 si aucun boost. Sert le CAP.
+      const systemPct = Math.max(0, (crewOutcome.boostMultiplier ?? 1) - 1);
+      bonusApplied = await applyActiveBonus({
+        userId,
+        crewId: crew.crewId,
+        now,
+        motionTrust: validation.motionTrust ?? 0,
+        chestBase: crewOutcome.chestDelta ?? 0,
+        xpBase: score.xp,
+        systemPct,
+        answered,
+      }) ?? undefined;
+    }
+
     // ── AMENDEMENT-07 §5 : challenges actifs (user + crew) ────────────────────
     // Une course valide alimente les challenges solo (sujet user) et crew/rivalry
     // (sujet crew). challengeProgress (pur) décide ratio/done ; feedback sain §12.
@@ -2003,6 +2329,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // et « Frontière ouverte · Il manque {missingM} m … » — jamais de polyline.
       ...(boundaryCompleted !== undefined ? { boundaryCompleted } : {}),
       ...(openBoundaryPayload !== undefined ? { openBoundary: openBoundaryPayload } : {}),
+      // AMENDEMENT-19 §7 : UN bonus ciblé appliqué (coffre/XP/badge/protection,
+      // capé +35 %). Copy gelée (types.ts) : « effet » court, jamais tronqué.
+      ...(bonusApplied !== undefined ? { bonusApplied } : {}),
     };
     await persistCelebration(runId, response, score.points);
     return json(response);

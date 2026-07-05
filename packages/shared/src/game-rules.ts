@@ -912,3 +912,163 @@ export const PARTIAL_JOIN_TOLERANCE_M = 80;
  */
 export const FINISHER_MIN_SEGMENT_M = 400;
 export const FINISHER_MIN_SHARE = 0.15;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-19 §2/§5/§6 — Bonus aléatoires CIBLÉS (moteur d'opportunités).
+// « GRYD ne te donne pas des bonus au hasard. Il révèle les bons moments pour
+// agir. » Aléatoire dans l'APPARITION, ciblé dans la PERTINENCE, capé dans
+// l'IMPACT, clair dans l'UX, JAMAIS de victoire achetée. Un bonus ne touche
+// QUE coffre crew / XP / progrès badge / durée de protection / cosmétique —
+// jamais territoire/points/classement.
+//
+// Ce bloc = les CAPS et COOLDOWNS (seuls nombres autorisés hors game-rules).
+// Les FICHES des 6 bonus (id/trigger/reward/visibilité/copy…) vivent en DATA
+// dans packages/shared/src/bonuses.ts — qui consomme ces constantes, aucun
+// nombre magique. Le moteur pur packages/engine/src/bonus.ts applique la
+// sélection pondérée et le cap.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * CAP D'IMPACT ABSOLU (doc §5) : un bonus système + un Crew Boost acheté ne se
+ * cumulent JAMAIS multiplicativement. UN SEUL multiplicateur actif à la fois —
+ * le MEILLEUR s'applique — et le total d'un effet de type « multiplicateur »
+ * (coffre/XP/progrès) ne dépasse jamais +35 %. Exemple gelé : coffre système
+ * 25 % + Crew Boost 25 % → 35 % (pas 56 %). Garanti par applyBonusReward
+ * (engine/bonus.ts) qui borne DUREMENT le pourcentage total à cette valeur.
+ * NB : CREW_BOOST_CHEST_MULTIPLIER (1.25 = +25 %) reste sous ce plafond ; un
+ * bonus coffre de +25 % additionné au boost donne min(0.25+0.25, 0.35)=0.35.
+ */
+export const BONUS_MAX_TOTAL_PCT = 0.35;
+
+/**
+ * Seuil de PERTINENCE du bonus Finisher (doc §6.1) : une frontière crew
+ * `open` (AMENDEMENT-17 partial_boundaries) n'est un « bon moment pour agir »
+ * — donc éligible à un active_bonus Finisher — que si son segment manquant est
+ * ≤ ce nombre de mètres (« il ne reste presque rien à courir »). Au-delà, la
+ * frontière existe mais GRYD ne pousse pas de bonus dessus (pas assez proche).
+ * Ordre de grandeur : le double d'une vraie portion de frontière courue.
+ */
+export const FINISHER_BONUS_MISSING_MAX_M = 800;
+
+/**
+ * Récompenses (part 0-1) des bonus MVP — TOUTES ≤ BONUS_MAX_TOTAL_PCT (le cap
+ * les re-borne de toute façon). `chestPct` = surcroît de progression coffre
+ * crew ; `xpPct` = surcroît d'XP perso. Pas de reward « points/territoire ».
+ *  - Rare (doc §3) : +25 % coffre (Finisher, Défense Critique).
+ *  - Commun/crew : +20 % progression coffre (Coffre Crew).
+ *  - Retour/Exploration/Boucle Propre : XP + progrès badge + cosmétique/durée
+ *    (pas de coffre — le boost porte sur la progression perso, jamais le rang).
+ */
+export const BONUS_REWARD_PCT = {
+  finisher_chest: 0.25,
+  defense_chest: 0.25,
+  crew_chest: 0.2,
+  return_xp: 0.1,
+  exploration_xp: 0.1,
+  clean_loop_xp: 0.1,
+} as const;
+
+/**
+ * Progrès de badge offert par un bonus (points de progression vers le prochain
+ * palier, AMENDEMENT-04). Petit, non pay-to-win : accélère un badge déjà en
+ * cours, ne l'achète jamais. Uniforme MVP.
+ */
+export const BONUS_BADGE_PROGRESS = 1;
+
+/**
+ * Durée de PROTECTION (heures) offerte par le bonus Défense Critique (doc §6.2)
+ * — prolonge le bouclier de la zone qui expire, jamais un gain de territoire.
+ */
+export const BONUS_PROTECTION_H = 24;
+
+/**
+ * Fenêtres de vie (heures) des bonus MVP (doc §6) : un active_bonus expire
+ * passé sa `durationH` (digest_job le passe `expired`). Le Finisher hérite du
+ * TTL de la frontière (PARTIAL_BOUNDARY_TTL_H) — il n'a pas de durée propre.
+ */
+export const BONUS_DURATION_H = {
+  finisher: PARTIAL_BOUNDARY_TTL_H, // suit la frontière (24 h)
+  defense_critical: 12,
+  crew_chest: 6,
+  return: 24,
+  exploration: 48,
+  clean_loop: 24,
+} as const;
+
+/**
+ * CAPS anti-abus par bonus (doc §5/§6) : nombre maximal d'occurrences ré-
+ * compensées par joueur/semaine et par crew/jour. `null` = pas de cap sur cet
+ * axe. Ces plafonds sont vérifiés côté serveur (player_bonus_claims) AVANT
+ * d'appliquer une récompense — jamais de spam de bonus.
+ */
+export const BONUS_CAPS = {
+  finisher: { perPlayerPerWeek: 3, perCrewPerDay: 5 },
+  defense_critical: { perPlayerPerWeek: null, perCrewPerDay: 1 },
+  crew_chest: { perPlayerPerWeek: null, perCrewPerWeek: 1 },
+  return: { perPlayerPerWeek: null, perPlayerPerDays: 14 },
+  exploration: { perPlayerPerWeek: 2, perCrewPerDay: null },
+  clean_loop: { perPlayerPerWeek: null, perCrewPerDay: null },
+} as const;
+
+/**
+ * COOLDOWN (heures) minimal entre deux occurrences d'un même bonus sur la MÊME
+ * zone/frontière (doc §5 « cooldown même zone ») : évite de re-déclencher le
+ * même bonus au même endroit. 0 = pas de cooldown de zone.
+ */
+export const BONUS_COOLDOWN_H = {
+  finisher: 24,
+  defense_critical: 24,
+  crew_chest: 0,
+  return: 0,
+  exploration: 24,
+  clean_loop: 0,
+} as const;
+
+/**
+ * PRIORITÉ d'affichage (doc §4) : plus le poids est ÉLEVÉ, plus le bonus est
+ * urgent/important. selectBonus (engine/bonus.ts) choisit le bonus éligible de
+ * plus forte priorité (défense urgente > boucle à terminer > mission crew >
+ * coffre presque ouvert > retour/streak > exploration > cosmétique). C'est le
+ * socle du « ciblé, jamais random nu » : à pertinence égale on ne tire pas au
+ * hasard, on suit cet ordre. Valeurs espacées pour rester lisibles.
+ */
+export const BONUS_PRIORITY = {
+  defense_critical: 70,
+  finisher: 60,
+  crew_chest: 50,
+  return: 40,
+  exploration: 30,
+  clean_loop: 20,
+} as const;
+
+/**
+ * Fenêtre de PERTINENCE du bonus Coffre Crew (doc §6.3) : le coffre hebdo n'est
+ * un « bon moment » que dans la dernière ligne droite — progression comprise
+ * dans [80 %, 95 %] du prochain palier. Exprimé en part 0-1 du palier.
+ */
+export const BONUS_CREW_CHEST_MIN_RATIO = 0.8;
+export const BONUS_CREW_CHEST_MAX_RATIO = 0.95;
+
+/**
+ * Fenêtre d'ABSENCE (jours) du bonus Retour (doc §6.4, anti-shame) : le joueur
+ * n'a pas couru depuis [5, 10] jours → GRYD propose un retour DOUX (« 2 km
+ * suffisent »), jamais « tu vas perdre ta série ». Sous 5 j : pas encore
+ * pertinent ; au-delà de 10 j : le Retour n'est plus le bon levier (V1).
+ */
+export const BONUS_RETURN_ABSENCE_MIN_DAYS = 5;
+export const BONUS_RETURN_ABSENCE_MAX_DAYS = 10;
+
+/**
+ * Fenêtre de DÉCLENCHEMENT du bonus Défense Critique (doc §6.2) : une zone crew
+ * dont le decay tombe dans les prochaines [0, 12] h est « en danger imminent ».
+ */
+export const BONUS_DEFENSE_DECAY_MAX_H = 12;
+
+/**
+ * ANTI-ABUS transverse (doc §5) : un bonus n'est jamais récompensé si le run
+ * n'est pas GRYD Verified (Motion Trust ≥ ce seuil — pas de véhicule/GPS
+ * douteux). Aligné sur VERIFIED_MIN_TRUST (badges.ts) : même exigence que la
+ * fermeture de boucle crew. Dupliqué ici comme constante de règle de bonus
+ * pour rester lisible côté DATA/moteur sans dépendre de badges.ts.
+ */
+export const BONUS_MIN_MOTION_TRUST = 70;

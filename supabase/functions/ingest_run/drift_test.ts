@@ -31,6 +31,29 @@ for (const file of FILES) {
   });
 }
 
+// ─── DATA bonus : _shared/bonuses.ts = transformation de la source ───────────
+// bonuses.ts n'est PAS copié byte à byte : ses imports relatifs À VALEUR sont
+// réécrits avec l'extension .ts (Deno deploy l'exige). MIROIR EXACT de
+// scripts/sync-game-rules.mjs (transformSharedDataLine).
+const transformSharedDataLine = (line: string): string =>
+  line
+    .replace(/(['"])\.\/game-rules\1/g, '$1./game-rules.ts$1')
+    .replace(/(['"])\.\/types\1/g, '$1./types.ts$1');
+
+Deno.test('drift : _shared/bonuses.ts = transformation de packages/shared/src/bonuses.ts', async () => {
+  const source = await Deno.readTextFile(
+    new URL('../../../packages/shared/src/bonuses.ts', import.meta.url),
+  );
+  const expected = source.split('\n').map(transformSharedDataLine).join('\n');
+  const copy = await Deno.readTextFile(new URL('../_shared/bonuses.ts', import.meta.url));
+  assertEquals(
+    copy,
+    expected,
+    'supabase/functions/_shared/bonuses.ts a dérivé de packages/shared/src/bonuses.ts — ' +
+      'lancer node scripts/sync-game-rules.mjs',
+  );
+});
+
 // ─── Moteur : _shared/engine/*.ts = transformation de packages/engine/src ────
 // ⚠ MIROIR EXACT de scripts/sync-game-rules.mjs (engineHeader +
 //   transformEngineLine) — toute modification là-bas doit être répliquée ici.
@@ -42,6 +65,7 @@ const engineHeader = (name: string): string =>
 const transformEngineLine = (line: string): string =>
   line
     .replace(/(['"])@klaim\/shared\/badges\1/g, '$1../badges.ts$1')
+    .replace(/(['"])@klaim\/shared\/bonuses\1/g, '$1../bonuses.ts$1')
     .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1../game-rules.ts$1')
     .replace(/(['"])@klaim\/shared\/types\1/g, '$1../types.ts$1')
     .replace(/(['"])h3-js\1/g, '$1npm:h3-js@^4.1$1');
