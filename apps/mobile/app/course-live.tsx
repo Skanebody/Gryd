@@ -530,13 +530,20 @@ function DemoCourseLive({
     conquest &&
     !completeBoundary &&
     (loopStatus.phase === 'approach' || loopClosed);
-  /** Hauteur de la pile de pills du haut (le toast se place dessous). */
+  /**
+   * Hauteur de la pile de pills du haut (le toast se place STRICTEMENT dessous —
+   * fondateur : « les notifications se grimpent les unes sur les autres »).
+   * DOIT compter CHAQUE pill qui peut apparaître, dans l'ordre de rendu, sinon le
+   * toast retombe sur une pill (ex. allié / rival, oubliés jusqu'ici).
+   */
   const topStackOffset =
     56 +
     (routeInfo ? 30 : 0) +
     (intentionBanner ? 30 : 0) +
     (tick.event !== null ? 38 : 0) +
     (loopPillVisible ? 30 : 0) +
+    (mateLine ? 30 : 0) +
+    (rival ? 30 : 0) +
     (!conquest ? 28 : 0);
 
   return (
