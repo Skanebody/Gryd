@@ -15,6 +15,25 @@ import { battleMapData } from './fakeHexes';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
 import { type ModeEmphasis, type TerritoryState } from './territory';
 
+/**
+ * Fonds de carte disponibles (demande fondateur : « la carte en couleur comme
+ * sur Plan d'iPhone »). Deux styles vectoriels de dev SANS CLÉ, servis par les
+ * DEUX forks RealMap selon la préférence utilisateur (mapPref) :
+ *   dark  — CARTO dark-matter : l'esthétique GRYD dark-first par DÉFAUT (le
+ *           même styleURL qu'historiquement, surchargé aux tokens au chargement).
+ *   color — CARTO Voyager : rues/parcs/eau colorés type Apple Plan / Google Maps
+ *           (fond clair/beige — sur ce fond les traits de jeu chartreuse
+ *           reçoivent un liseré sombre porteur, cf. `colorCasing` plus bas).
+ * La prod passera à Protomaps (O6) en ne changeant QUE ces deux URLs.
+ */
+export const MAP_BASEMAP_STYLES = {
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  color: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+} as const;
+
+/** Clé de fond de carte : 'dark' (défaut) | 'color'. */
+export type BasemapKey = keyof typeof MAP_BASEMAP_STYLES;
+
 /** Décline un token `#RRGGBB` en rgba — n'accepte QUE des tokens hex 6 digits. */
 export function withAlpha(tokenHex: string, alpha: number): string {
   const r = parseInt(tokenHex.slice(1, 3), 16);
@@ -86,7 +105,20 @@ export const territoryStyle = {
   // Aperçu du parcours sélectionné (sheet) : gris clair sur liseré sombre.
   parcoursCasing: withAlpha(colors.noir, 0.5),
   parcoursPreview: colors.gris,
+
+  /**
+   * Liseré SOMBRE porteur des traits de jeu sur le fond COULEUR (Voyager,
+   * clair/beige) — charte : jamais de chartreuse sur fond clair (contraste
+   * 1,2:1). Une line noire semi-opaque ~1 px plus large, peinte SOUS le trait
+   * (comme le casing de route) garantit la lisibilité ; le trait reste le token
+   * de l'état (chartreuse/orange/verify…). Inutile sur le fond sombre (le noir
+   * ambiant fait déjà casing) — ces couches ne sont ajoutées que si color.
+   */
+  colorCasing: withAlpha(colors.noir, 0.55),
 } as const;
+
+/** Sur-largeur du liseré sombre (px de part et d'autre du trait) — fin. */
+const COLOR_CASING_EXTRA_PX = 2;
 
 export const battleMapStyle = {
   // Mon crew (chartreuse — trait net, AMENDEMENT-16 §0 : zéro glow)
@@ -254,12 +286,15 @@ const parcoursCollectionCache = new Map<string, RealMapData>();
  * module fills (fillOpacity) et frontières (scaleAlpha) ; MapLibre fond les
  * transitions de peinture (bascule douce).
  */
-export function territoryStateLayers(emph: ModeEmphasis): RealMapGeoJSONLayer[] {
+export function territoryStateLayers(
+  emph: ModeEmphasis,
+  basemap: BasemapKey = 'dark',
+): RealMapGeoJSONLayer[] {
   const geo = territoryGeoByState();
   const stateData = (state: TerritoryState): RealMapData =>
     geo.get(state) ?? EMPTY_COLLECTION;
   const terr = territoryStyle;
-  return [
+  return withColorCasing(basemap, [
     // Rival : ruban sombre teinté + frontière orange MARQUÉE.
     {
       id: 'terr-rival',
@@ -342,7 +377,39 @@ export function territoryStateLayers(emph: ModeEmphasis): RealMapGeoJSONLayer[] 
       lineOffset: CONTESTED_TRAIT_OFFSET_PX,
       pulse: true,
     },
-  ];
+  ]);
+}
+
+/**
+ * Insère, sur le fond COULEUR uniquement, un LISERÉ SOMBRE sous chaque couche
+ * porteuse d'un trait (line*) : une copie noire semi-opaque ~1 px plus large,
+ * placée JUSTE AVANT la couche d'origine (l'ordre du tableau = ordre de
+ * peinture, le premier au-dessous). Le trait garde son token d'état ; le
+ * casing ne fait que le détacher du beige de Voyager (charte : jamais de
+ * chartreuse sur fond clair). Sur le fond sombre, retour à l'identique (le noir
+ * ambiant fait déjà casing — aucune couche ajoutée). Le pointillé/offset est
+ * repris pour épouser le trait ; jamais de pulse sur le casing.
+ */
+function withColorCasing(
+  basemap: BasemapKey,
+  layers: RealMapGeoJSONLayer[],
+): RealMapGeoJSONLayer[] {
+  if (basemap !== 'color') return layers;
+  const out: RealMapGeoJSONLayer[] = [];
+  for (const spec of layers) {
+    if (spec.lineColor !== undefined) {
+      out.push({
+        id: `${spec.id}-casing`,
+        data: spec.data,
+        lineColor: territoryStyle.colorCasing,
+        lineWidth: (spec.lineWidth ?? 1) + COLOR_CASING_EXTRA_PX,
+        ...(spec.lineDash ? { lineDash: spec.lineDash } : {}),
+        ...(spec.lineOffset !== undefined ? { lineOffset: spec.lineOffset } : {}),
+      });
+    }
+    out.push(spec);
+  }
+  return out;
 }
 
 /**
@@ -354,6 +421,7 @@ export function territoryStateLayers(emph: ModeEmphasis): RealMapGeoJSONLayer[] 
 export function battleGameLayers(
   emph: ModeEmphasis,
   selectedParcoursId: string | null,
+  basemap: BasemapKey = 'dark',
 ): RealMapGeoJSONLayer[] {
   if (!routeCollectionCache) {
     routeCollectionCache = lineCollection(battleMapData().points.route);
@@ -377,27 +445,33 @@ export function battleGameLayers(
 
   const terr = territoryStyle;
   return [
-    ...territoryStateLayers(emph),
-    // Zone bonus (1 MAX) : anneau or pointillé, respiration lente.
-    {
-      id: 'bonus-zone',
-      data: bonusCollectionCache,
-      fillColor: terr.bonusFill,
-      fillOpacity: 1,
-      lineColor: terr.bonusStroke,
-      lineWidth: BONUS_RING_WIDTH,
-      lineDash: BONUS_DASH,
-      pulse: true,
-    },
-    // Route ouverte : ligne ÉPAISSE le long du bd Richard-Lenoir (route-first).
-    {
-      id: 'route-ouverte',
-      data: routeCollectionCache,
-      lineColor: scaleAlpha(terr.routeStroke, emph.route),
-      lineWidth: ROUTE_WIDTH,
-    },
+    ...territoryStateLayers(emph, basemap),
+    // Zone bonus (1 MAX) + route ouverte : traits or/chartreuse — sur le fond
+    // COULEUR ils reçoivent le liseré sombre porteur (withColorCasing), pas le
+    // fill de la zone bonus (un aplat lit très bien sur Voyager).
+    ...withColorCasing(basemap, [
+      // Zone bonus (1 MAX) : anneau or pointillé, respiration lente.
+      {
+        id: 'bonus-zone',
+        data: bonusCollectionCache,
+        fillColor: terr.bonusFill,
+        fillOpacity: 1,
+        lineColor: terr.bonusStroke,
+        lineWidth: BONUS_RING_WIDTH,
+        lineDash: BONUS_DASH,
+        pulse: true,
+      },
+      // Route ouverte : ligne ÉPAISSE le long du bd Richard-Lenoir (route-first).
+      {
+        id: 'route-ouverte',
+        data: routeCollectionCache,
+        lineColor: scaleAlpha(terr.routeStroke, emph.route),
+        lineWidth: ROUTE_WIDTH,
+      },
+    ]),
     // Parcours sélectionné (sheet) : aperçu gris sur liseré sombre — la
     // désélection vide la source (les couches restent, l'ordre est stable).
+    // Il porte DÉJÀ son propre casing sombre (parcoursCasing) : pas de double.
     {
       id: 'parcours-casing',
       data: parcoursData,

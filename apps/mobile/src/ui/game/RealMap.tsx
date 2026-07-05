@@ -46,13 +46,18 @@ import {
 } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fonts, fontSizes, motion } from '@klaim/shared';
+import { MAP_BASEMAP_STYLES, type BasemapKey } from '../../features/map/mapStyle';
 import { useReduceMotion } from './anim';
 
 // ─── API commune (dupliquée à l'identique dans RealMap.web.tsx — fork RN) ───
 
 /** Style vectoriel sombre de dev SANS CLÉ (AMENDEMENT-13 §1 — O6 pour la prod). */
-export const DARK_MAP_STYLE_URL =
-  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
+
+/** Résout le styleURL du fond demandé (défaut sombre). */
+function basemapStyleUrl(basemap: BasemapKey | undefined): string {
+  return MAP_BASEMAP_STYLES[basemap ?? 'dark'];
+}
 
 export interface RealMapCamera {
   lng: number;
@@ -164,6 +169,12 @@ export interface RealMapProps {
   onMapReady?: (map: MapLibreGlMap) => void;
   /** Attribution compacte © OpenStreetMap © CARTO (défaut true — obligatoire). */
   attributionCompact?: boolean;
+  /**
+   * Fond de carte : 'dark' (défaut, dark-matter) | 'color' (Voyager, type Plan).
+   * Le parent remonte la carte via une `key` incluant ce fond (parité web —
+   * un simple changement de mapStyle ne réajouterait pas les couches de jeu).
+   */
+  basemap?: BasemapKey;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -254,6 +265,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     onPress,
     onZoomChange,
     attributionCompact = true,
+    basemap,
     style,
     testID,
   }: RealMapProps,
@@ -348,7 +360,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     <View style={[styles.root, style]} testID={testID}>
       <MapView
         style={styles.map}
-        mapStyle={DARK_MAP_STYLE_URL}
+        mapStyle={basemapStyleUrl(basemap)}
         attributionEnabled={false}
         logoEnabled={false}
         compassEnabled={false}

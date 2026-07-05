@@ -26,6 +26,9 @@ import { colors, gameColors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { Icon } from '../../ui/Icon';
 import {
+  FLOATING_MAP_BUTTON_SIZE,
+  FloatingMapButton,
+  MAP_SHEET_COMPACT_HEIGHT,
   MateMarker,
   PoiMarker,
   RealMap,
@@ -34,7 +37,7 @@ import {
   type RealMapRef,
 } from '../../ui/game';
 import { deriveRunButtonMode } from '../nav/runContext';
-import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
 import {
   TERRITORY_DOT_MAX_ZOOM,
   decaySablierAnchor,
@@ -44,6 +47,7 @@ import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
 import { battleGameLayers } from './mapStyle';
+import { useBasemapStyle } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
 
@@ -61,6 +65,24 @@ const MARKER_SIZE = 18;
 const ATTRIBUTION_ABOVE_RUN_BOTTOM = 6;
 /** Attribution compacte obligatoire (données © OpenStreetMap, tuiles CARTO). */
 const ATTRIBUTION_LABEL = '© OpenStreetMap © CARTO';
+
+// ── Bascule du fond de carte (dark ↔ color) — bouton flottant AU-DESSUS de la
+// pile Recentrer/Stats de BattleMapOverlays (mêmes métriques pour ne pas la
+// recouvrir). Le gap entre flottants est de 10 px (pile verticale à droite).
+const FAB_GAP = 10;
+const HUD_MODE_CHIPS_HEIGHT = 40;
+const HUD_FAB_ABOVE_SHEET = 12;
+const SHEET_ABOVE_RUN_BUTTON = 12;
+/** Bas de la pile de flottants du HUD (identique au calcul de BattleMapOverlays). */
+const HUD_FAB_COLUMN_BOTTOM =
+  RUN_BUTTON_BOTTOM +
+  RUN_BUTTON_SIZE +
+  SHEET_ABOVE_RUN_BUTTON +
+  MAP_SHEET_COMPACT_HEIGHT +
+  HUD_MODE_CHIPS_HEIGHT +
+  HUD_FAB_ABOVE_SHEET;
+/** La bascule s'empile au-dessus des DEUX flottants du HUD (Recentrer + Stats). */
+const BASEMAP_FAB_ABOVE_HUD_FABS = 2 * (FLOATING_MAP_BUTTON_SIZE + FAB_GAP);
 
 /** Teintes des markers — tokens uniquement (états de jeu). */
 const markerColors = {
@@ -158,10 +180,17 @@ export function MapScreen() {
   /** Emphase des familles de couches selon le mode actif (AMENDEMENT-11 §3). */
   const emph = MODE_EMPHASIS[mode];
 
-  /** Couches GeoJSON de jeu (ordre = ordre de peinture) — builder partagé. */
+  /** Fond de carte persisté (défaut sombre) — dark-first, bascule opt-in. */
+  const { basemap, toggle } = useBasemapStyle();
+
+  /**
+   * Couches GeoJSON de jeu (ordre = ordre de peinture) — builder partagé. Sur
+   * le fond COULEUR, battleGameLayers ajoute le liseré sombre porteur sous les
+   * traits chartreuse (lisibilité — charte).
+   */
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours),
-    [emph, selectedParcours],
+    () => battleGameLayers(emph, selectedParcours, basemap),
+    [emph, selectedParcours, basemap],
   );
 
   /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
@@ -197,8 +226,11 @@ export function MapScreen() {
 
   return (
     <View style={styles.root}>
-      {/* ── Vraies tuiles MONDE + couches de jeu + markers (RealMap) ── */}
+      {/* ── Vraies tuiles MONDE + couches de jeu + markers (RealMap) ──
+          `key={basemap}` : parité web — on remonte la carte à chaque bascule
+          (un simple changement de mapStyle ne réajouterait pas les couches). */}
       <RealMap
+        key={basemap}
         ref={mapRef}
         camera={EGO_CAMERA}
         geojsonLayers={layers}
@@ -206,9 +238,31 @@ export function MapScreen() {
         markers={markers}
         onZoomChange={onZoomChange}
         attributionCompact={false}
+        basemap={basemap}
         style={StyleSheet.absoluteFill}
         testID="battle-map-reelle"
       />
+
+      {/* ── Bascule du fond de carte (sombre ↔ couleur type Plan) ──
+          Empilée au-dessus des flottants Recentrer/Stats du HUD. */}
+      <View
+        style={[
+          styles.basemapFab,
+          { bottom: insets.bottom + HUD_FAB_COLUMN_BOTTOM + BASEMAP_FAB_ABOVE_HUD_FABS },
+        ]}
+        pointerEvents="box-none"
+      >
+        <FloatingMapButton
+          icon="calques"
+          accessibilityLabel={
+            basemap === 'color'
+              ? 'Fond de carte couleur (repasser en sombre)'
+              : 'Fond de carte sombre (passer en couleur)'
+          }
+          active={basemap === 'color'}
+          onPress={toggle}
+        />
+      </View>
 
       {/* ── Attribution relogée au-dessus de la nav (obligation légale) ── */}
       <Text
@@ -274,6 +328,7 @@ function StateIcon({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
+  basemapFab: { position: 'absolute', right: 14, alignItems: 'center' },
   ego: {
     width: EGO_HALO_SIZE,
     height: EGO_HALO_SIZE,

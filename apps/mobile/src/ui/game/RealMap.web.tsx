@@ -48,12 +48,21 @@ import {
 import { createPortal } from 'react-dom';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fonts, fontSizes, mapTokens, motion } from '@klaim/shared';
+import { MAP_BASEMAP_STYLES, type BasemapKey } from '../../features/map/mapStyle';
 
 // ─── API commune (dupliquée à l'identique dans RealMap.tsx — fork RN) ───────
 
 /** Style vectoriel sombre de dev SANS CLÉ (AMENDEMENT-13 §1 — O6 pour la prod). */
-export const DARK_MAP_STYLE_URL =
-  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
+
+/**
+ * Résout le styleURL du fond demandé (défaut sombre). Le fond COULEUR (Voyager)
+ * est plutôt clair/beige : les traits de jeu chartreuse reçoivent alors un
+ * liseré sombre porteur (withColorCasing, mapStyle) pour rester lisibles.
+ */
+function basemapStyleUrl(basemap: BasemapKey | undefined): string {
+  return MAP_BASEMAP_STYLES[basemap ?? 'dark'];
+}
 
 export interface RealMapCamera {
   lng: number;
@@ -165,6 +174,13 @@ export interface RealMapProps {
   onMapReady?: (map: MapLibreMap) => void;
   /** Attribution compacte © OpenStreetMap © CARTO (défaut true — obligatoire). */
   attributionCompact?: boolean;
+  /**
+   * Fond de carte : 'dark' (défaut, dark-matter) | 'color' (Voyager, type Plan).
+   * `setStyle()` MapLibre EFFACE les sources/couches custom : le parent remonte
+   * donc la carte via une `key` incluant ce fond (unmount/remount → l'effet
+   * `load` réajoute les couches de jeu sur le nouveau style).
+   */
+  basemap?: BasemapKey;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -380,6 +396,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     onZoomChange,
     onMapReady,
     attributionCompact = true,
+    basemap,
     style,
     testID,
   }: RealMapProps,
@@ -397,6 +414,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   onZoomChangeRef.current = onZoomChange;
   const onMapReadyRef = useRef<RealMapProps['onMapReady']>(onMapReady);
   onMapReadyRef.current = onMapReady;
+  /** Fond au montage (le remount par `key` du parent porte la bascule). */
+  const basemapRef = useRef<BasemapKey | undefined>(basemap);
+  basemapRef.current = basemap;
   /** Cadrage d'ouverture : figé au premier rendu (la caméra vit ensuite). */
   const openBoundsRef = useRef<RealMapBounds | undefined>(bounds);
   const [styleReady, setStyleReady] = useState(false);
@@ -432,7 +452,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     const openCamera = camera ?? WORLD_FALLBACK_CAMERA;
     const map = new MapLibreMap({
       container: node,
-      style: DARK_MAP_STYLE_URL,
+      // Fond choisi au MONTAGE (le parent remonte via `key` à chaque bascule —
+      // pas de setStyle qui effacerait les couches de jeu).
+      style: basemapStyleUrl(basemapRef.current),
       ...(openBounds
         ? {
             bounds: [openBounds.sw, openBounds.ne] as [[number, number], [number, number]],
@@ -473,7 +495,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     };
 
     map.on('load', () => {
-      applyGrydStyleOverrides(map);
+      // Le fond COULEUR (Voyager) est laissé TEL QUEL : les overrides GRYD
+      // n'éteignent le décor (eau/parcs/labels) que pour le fond sombre.
+      if (basemapRef.current !== 'color') applyGrydStyleOverrides(map);
       for (const spec of layersRef.current) upsertLayer(map, spec);
       for (const spec of pointLayersRef.current ?? []) upsertPointLayer(map, spec);
       setStyleReady(true);

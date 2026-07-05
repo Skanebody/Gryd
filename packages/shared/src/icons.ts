@@ -351,6 +351,14 @@ export const ICONS = {
     paths: ['M7 21V3', 'M7 4.5h10.5V12l-3.4-1.7L10.7 12 7 10.3', 'M4.5 21h5'],
     fillable: true,
   },
+  /** Calques — pile de losanges (bascule du fond de carte sombre/couleur). */
+  calques: {
+    paths: [
+      'M12 3 21 8l-9 5-9-5 9-5z',
+      'M3.5 12 12 17l8.5-5',
+      'M3.5 16 12 21l8.5-5',
+    ],
+  },
 } as const satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;
