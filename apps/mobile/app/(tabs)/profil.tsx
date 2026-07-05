@@ -2,14 +2,22 @@
  * GRYD — onglet Profil COMPACT (AMENDEMENT-17 §1.3). Un écran = une identité,
  * pas d'action de course : la Player Card (nom · level · crew · « 55 zones
  * tenues · Paris + Lille » · rang ville) porte deux CTA sobres — [Partager] /
- * [Modifier], JAMAIS un GO, jamais « Ajouter » sur SON propre profil. Puis
- * 3 modules seulement, ordre AMENDEMENT-17 : Territoire (remonté, intégré haut)
- * → Progression → Badges (3 équipés + « Voir collection », pas de carrousel
- * géant). Les listes longues (collection, historique, perf, amis…) descendent
- * en liens vers des pages dédiées. Niveau/tier/rang DÉRIVÉS des règles réelles
- * (features/crew/rules) — aucun nombre magique local. Zéro position live.
+ * [Modifier mon profil], JAMAIS un GO, jamais « Ajouter » sur SON propre
+ * profil. Puis 3 modules seulement, ordre AMENDEMENT-17 : Territoire (remonté,
+ * intégré haut) → Progression → Badges (3 équipés + « Voir collection », pas de
+ * carrousel géant). Les listes longues (collection, historique, perf, amis…)
+ * descendent en liens vers des pages dédiées. Niveau/tier/rang DÉRIVÉS des
+ * règles réelles (features/crew/rules) — aucun nombre magique local. Zéro
+ * position live.
+ *
+ * RETOUR FONDATEUR : « pas trouvé les boutons pour modifier le profil » → la
+ * card porte DEUX affordances d'édition ÉVIDENTES (bouton plein « Modifier mon
+ * profil » + crayon sur l'avatar) vers /profil-edit. L'IDENTITÉ affichée (nom,
+ * titre, ville, avatar, badges) vient du profil ÉDITABLE persisté (useMyProfile)
+ * → toute édition se reflète immédiatement au retour. Le FRAME cosmétique équipé
+ * (useEquippedCosmetics) est rendu autour de l'avatar : équiper a un effet réel.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -41,6 +49,9 @@ import {
   playerTierForLevel,
 } from '../../src/features/crew/rules';
 import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
+import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
+import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
+import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
 import { franceKpi } from '../../src/features/territory/franceTerritories';
@@ -52,7 +63,7 @@ import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
-import { CrewCrest, InlineRunCTA, PlayerAvatarFrame, ShareCard } from '../../src/ui/game';
+import { CrewCrest, InlineRunCTA, ShareCard } from '../../src/ui/game';
 
 const STREAK_WEEKS = 3;
 
@@ -76,16 +87,31 @@ const streakMultiplier = Math.min(
  */
 const TERRITORY_KPI = franceKpi();
 
+type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
+
 /**
- * Badges ÉQUIPÉS mis en avant = les 3 débloqués de plus haut tier
- * (BADGE_TIER_RANK), du plus rare au moins rare. Dérivé des stats démo
- * (UNLOCKED_IDS) — jamais codé en dur. AMENDEMENT-17 : 3, pas un carrousel géant.
+ * Badges affichables = débloqués, non-legacy, triés du plus rare au moins rare
+ * (BADGE_TIER_RANK). Dérivé des stats démo (UNLOCKED_IDS) — jamais codé en dur.
  */
-const RARE_BADGES = [...UNLOCKED_IDS]
+const DISPLAYABLE_BADGES: readonly BadgeDefT[] = [...UNLOCKED_IDS]
   .map((id) => badgeById(id))
-  .filter((def): def is NonNullable<typeof def> => def !== undefined && !def.legacy)
-  .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier])
-  .slice(0, 3);
+  .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
+  .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
+
+/** Défaut « équipés » = les 3 plus rares (AMENDEMENT-17 : 3, pas un carrousel). */
+const DEFAULT_FEATURED_BADGES: readonly BadgeDefT[] = DISPLAYABLE_BADGES.slice(0, 3);
+
+/**
+ * Badges mis en avant EFFECTIFS : le choix manuel du joueur (featuredBadgeIds)
+ * s'il est renseigné et valide, sinon le défaut (3 plus rares). On ne garde que
+ * des badges réellement débloqués → jamais un slot vide/verrouillé sur la card.
+ */
+function resolveFeaturedBadges(chosenIds: readonly string[]): readonly BadgeDefT[] {
+  const chosen = chosenIds
+    .map((id) => DISPLAYABLE_BADGES.find((b) => b.id === id))
+    .filter((def): def is BadgeDefT => def !== undefined);
+  return chosen.length > 0 ? chosen.slice(0, 3) : DEFAULT_FEATURED_BADGES;
+}
 
 const UNLOCKED_COUNT = UNLOCKED_IDS.size;
 
@@ -132,9 +158,31 @@ export default function ProfilScreen() {
   const insets = useSafeAreaInsets();
   const [shareOpen, setShareOpen] = useState(false);
 
+  /** Profil ÉDITABLE persisté — l'édition depuis /profil-edit se reflète ici. */
+  const { profile } = useMyProfile();
+  /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
+  const { equipped } = useEquippedCosmetics();
+
+  /** Titre affiché : un TITRE cosmétique équipé prime sur le titre éditorial. */
+  const equippedTitleItem = equipped.profile ? itemByKey(equipped.profile) : undefined;
+  const displayedTitle =
+    equippedTitleItem && isTitleItem(equippedTitleItem)
+      ? equippedTitleItem.name.replace(/^Titre\s*«\s*/, '').replace(/\s*»$/, '')
+      : profile.title;
+
+  /** Initiales + couleur d'avatar issues du profil éditable. */
+  const initials = effectiveInitials(profile);
+  /** Badges mis en avant : choix du joueur, sinon les 3 plus rares. */
+  const featuredBadges = useMemo(
+    () => resolveFeaturedBadges(profile.featuredBadgeIds),
+    [profile.featuredBadgeIds],
+  );
+
   useEffect(() => {
     screen('profil');
   }, []);
+
+  const openEdit = () => router.push('/profil-edit');
 
   return (
     <>
@@ -152,31 +200,55 @@ export default function ProfilScreen() {
       >
         <Icon name="reglages" size={22} color={colors.blanc} />
       </Pressable>
-      <TabScreen title={MY_SOCIAL_PROFILE.displayName} kicker="PLAYER CARD">
+      <TabScreen title={profile.displayName} kicker="PLAYER CARD">
         {/* ── Player Card compacte : identité + 2 chiffres clés + rang ── */}
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
-            <PlayerAvatarFrame
-              name={MY_SOCIAL_PROFILE.displayName}
-              tier={runnerTier}
-              size="l"
-              isMe
-            />
+            {/* Avatar + crayon d'édition ÉVIDENT posé dessus (affordance 1/2) */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Modifier mon profil"
+              onPress={openEdit}
+              hitSlop={8}
+              style={({ pressed }) => [styles.avatarPress, pressed && styles.dim]}
+            >
+              <PlayerCardAvatar
+                initials={initials}
+                fillColor={profile.avatarColor}
+                tier={runnerTier}
+                equippedFrameKey={equipped.profile}
+                size={72}
+                isMe
+              />
+              <View style={styles.editPencil}>
+                <Icon name="profil" size={13} color={colors.noir} />
+              </View>
+            </Pressable>
             <View style={styles.headerInfo}>
               <Text style={styles.handle} numberOfLines={1}>
-                {MY_SOCIAL_PROFILE.displayName}
+                {profile.displayName}
+              </Text>
+              {/* Titre affiché (cosmétique équipé prioritaire) + level/tier */}
+              <Text style={styles.title} numberOfLines={1}>
+                {displayedTitle}
               </Text>
               <Text style={styles.identity} numberOfLines={1}>
-                Level {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]}
+                Level {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} · {profile.city}
               </Text>
               <View style={styles.crewRow}>
                 <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
                 <Text style={styles.crewName} numberOfLines={1}>
-                  {MY_SOCIAL_PROFILE.crewName}
+                  {profile.crewName}
                 </Text>
               </View>
             </View>
           </View>
+          {/* Bio courte optionnelle (anti-shame : jamais imposée) */}
+          {profile.bio.trim().length > 0 ? (
+            <Text style={styles.bio} numberOfLines={2}>
+              {profile.bio}
+            </Text>
+          ) : null}
           {/* Les 2 infos qui comptent : territoire tenu + rang ville */}
           <View style={styles.headerStats}>
             <Text style={styles.headerHold} numberOfLines={1}>
@@ -184,28 +256,27 @@ export default function ProfilScreen() {
               zones tenues · {TERRITORY_KPI.citiesLabel}
             </Text>
             <Text style={styles.headerRank} numberOfLines={1}>
-              Rang #{MY_SOCIAL_PROFILE.seasonRank} {MY_SOCIAL_PROFILE.seasonScope}
+              Rang #{profile.seasonRank} {profile.seasonScope}
             </Text>
           </View>
-          {/* CTA sobres — JAMAIS un GO, jamais « Ajouter » sur son profil */}
+          {/* CTA sobres — JAMAIS un GO, jamais « Ajouter » sur son profil.
+              « Modifier mon profil » = affordance d'édition ÉVIDENTE 2/2. */}
           <View style={styles.headerActions}>
             <View style={styles.headerActionCell}>
               <InlineRunCTA
                 label="PARTAGER"
                 size="md"
+                variant="secondary"
                 onPress={() => {
                   setShareOpen((v) => !v);
                   if (!shareOpen) toast.show('Share card prête — capture-la pour la partager');
                 }}
               />
             </View>
-            <View style={styles.headerActionCell}>
-              <InlineRunCTA
-                label="MODIFIER"
-                size="md"
-                variant="secondary"
-                onPress={() => router.push('/settings-motivation')}
-              />
+            <View style={styles.headerActionCellWide}>
+              {/* Libellé court : « MODIFIER MON PROFIL » se coupait en « MODIFIER MO… »
+                  sur 375px (règle épuration AMENDEMENT-18 : aucun texte d'action tronqué). */}
+              <InlineRunCTA label="MODIFIER" size="md" onPress={openEdit} />
             </View>
           </View>
         </View>
@@ -214,15 +285,17 @@ export default function ProfilScreen() {
         {shareOpen ? (
           <View style={styles.shareCardWrap}>
             <ShareCard
-              stat={`#${MY_SOCIAL_PROFILE.seasonRank}`}
-              statLabel={`Rang saison · ${MY_SOCIAL_PROFILE.seasonScope}`}
-              title={`${MY_SOCIAL_PROFILE.displayName} · ${MY_SOCIAL_PROFILE.crewName}`}
-              subtitle={`Runner niv. ${runnerLevel} · ${MY_SOCIAL_PROFILE.title}`}
+              stat={`#${profile.seasonRank}`}
+              statLabel={`Rang saison · ${profile.seasonScope}`}
+              title={`${profile.displayName} · ${profile.crewName}`}
+              subtitle={`Runner niv. ${runnerLevel} · ${displayedTitle}`}
             >
-              <PlayerAvatarFrame
-                name={MY_SOCIAL_PROFILE.displayName}
+              <PlayerCardAvatar
+                initials={initials}
+                fillColor={profile.avatarColor}
                 tier={runnerTier}
-                size="l"
+                equippedFrameKey={equipped.profile}
+                size={72}
                 isMe
               />
             </ShareCard>
@@ -299,7 +372,7 @@ export default function ProfilScreen() {
           <Text style={styles.sectionRowLabel}>BADGES ÉQUIPÉS</Text>
         </View>
         <View style={styles.badgeRow}>
-          {RARE_BADGES.map((def) => (
+          {featuredBadges.map((def) => (
             <Pressable
               key={def.id}
               accessibilityRole="button"
@@ -398,8 +471,31 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerInfo: { flex: 1 },
+  // Avatar pressable + pastille crayon chartreuse (édition évidente sur la card)
+  avatarPress: { width: 72, height: 72 },
+  editPencil: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 24,
+    height: 24,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    borderWidth: 2,
+    borderColor: colors.carbone,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   handle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', letterSpacing: 0.3 },
+  title: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    marginTop: 3,
+    letterSpacing: 0.3,
+  },
   identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, letterSpacing: 0.3 },
+  bio: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
   crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   crewName: {
     flex: 1,
@@ -428,6 +524,8 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', gap: 10 },
   headerActionCell: { flex: 1 },
+  // « Modifier mon profil » plus large que « Partager » → affordance dominante
+  headerActionCellWide: { flex: 1.5 },
   shareCardWrap: { marginTop: 14 },
 
   // ── En-têtes de section ──

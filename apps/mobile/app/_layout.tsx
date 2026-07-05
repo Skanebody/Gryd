@@ -50,6 +50,8 @@ export default function RootLayout() {
           <Stack.Screen name="performance" />
           <Stack.Screen name="support" />
           <Stack.Screen name="crew-discovery" />
+          {/* Édition du crew (founder §8.1) : nom/tag/desc/recrutement/tags. */}
+          <Stack.Screen name="crew-edit" />
           {/* Social (AMENDEMENT-07 §8) : Amis, fiche crew publique/recrutement. */}
           <Stack.Screen name="amis" />
           <Stack.Screen name="crew-public" />

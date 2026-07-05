@@ -13,8 +13,23 @@
  * TODO(O1) brancher crews / crew_members / crew_chests / crew_feed_events.
  * Aucun nombre magique : niveaux/paliers DÉRIVÉS de @klaim/shared via rules.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react';
+import {
+  Animated,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -48,7 +63,6 @@ import {
   PerkCard,
   RewardCard,
   WarEventCard,
-  timeAgoLabel,
   usePulse,
 } from '../../src/ui/game';
 import {
@@ -83,6 +97,8 @@ import {
   type DefenseRsvp,
 } from '../../src/features/crew/feed';
 import { ReactionBar } from '../../src/features/crew/ReactionBar';
+import { useCrewChat, type ChatThreadMessage } from '../../src/features/crew/chatStore';
+import { useCrewProfile } from '../../src/features/crew/crewEdit';
 
 /** Toggle démo : passer à false pour prévisualiser l'état « sans crew ». */
 const HAS_CREW = true;
@@ -226,12 +242,134 @@ function TerritoryBlock() {
   );
 }
 
+/** Horodatage court d'un message chat (« à l'instant », « 14:32 », « hier »). */
+function chatTimeLabel(at: number, now: number): string {
+  const diffMin = Math.max(0, Math.round((now - at) / 60_000));
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `${diffMin} min`;
+  const d = new Date(at);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  if (diffMin < 24 * 60) return `${hh}:${mm}`;
+  return `hier ${hh}:${mm}`;
+}
+
+/**
+ * Bulle de chat : les MIENNES alignées à DROITE (chartreuse discret), les autres
+ * à GAUCHE avec avatar (initiale) + pseudo. Messages actionnables démo conservés
+ * (RSVP sortie défense, ping zone → carte) sous la bulle de l'auteur.
+ */
+function ChatBubble({
+  msg,
+  rsvp,
+  setRsvp,
+}: {
+  msg: ChatThreadMessage;
+  rsvp: Record<string, DefenseRsvp>;
+  setRsvp: Dispatch<SetStateAction<Record<string, DefenseRsvp>>>;
+}) {
+  const now = Date.now();
+  if (msg.me) {
+    return (
+      <View style={styles.bubbleRowMe}>
+        <View style={[styles.bubble, styles.bubbleMe]}>
+          <Text style={styles.bubbleTextMe}>{msg.text}</Text>
+          <Text style={styles.bubbleTimeMe}>{chatTimeLabel(msg.at, now)}</Text>
+        </View>
+      </View>
+    );
+  }
+  const initial = msg.author.replace(/[^A-Za-zÀ-ÿ0-9]/g, '').charAt(0).toUpperCase() || '?';
+  return (
+    <View style={styles.bubbleRow}>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{initial}</Text>
+      </View>
+      <View style={styles.bubbleCol}>
+        <View style={styles.bubbleHead}>
+          <Text style={styles.bubbleAuthor} numberOfLines={1}>
+            {msg.author}
+          </Text>
+          <Text style={styles.bubbleTime}>{chatTimeLabel(msg.at, now)}</Text>
+        </View>
+        <View style={[styles.bubble, styles.bubbleOther]}>
+          <Text style={styles.bubbleText}>{msg.text}</Text>
+        </View>
+
+        {/* Sortie défense → RSVP (Je participe / Peut-être / Indispo) */}
+        {msg.action === 'rsvp' ? (
+          <>
+            <View style={styles.rsvpRow}>
+              {DEFENSE_RSVP_OPTIONS.map((opt) => {
+                const selected = rsvp[msg.id] === opt;
+                const engaged = selected && opt === 'Je participe';
+                return (
+                  <Pressable
+                    key={opt}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => {
+                      haptics.light();
+                      setRsvp((r) => ({ ...r, [msg.id]: opt }));
+                    }}
+                    style={[
+                      styles.rsvpChip,
+                      selected && styles.rsvpChipSelected,
+                      engaged && styles.rsvpChipEngaged,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.rsvpLabel,
+                        selected && styles.rsvpLabelSelected,
+                        engaged && styles.rsvpLabelEngaged,
+                      ]}
+                    >
+                      {opt}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {rsvp[msg.id] ? (
+              <Text style={styles.rsvpDone}>Réponse envoyée au crew (démo)</Text>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* Ping zone → Ouvrir la carte */}
+        {msg.action === 'openMap' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.navigate('/')}
+            style={({ pressed }) => [styles.mapBtn, pressed && styles.dim]}
+          >
+            <Icon name="carte" size={14} color={colors.blanc} />
+            <Text style={styles.mapBtnLabel}>Ouvrir la carte</Text>
+          </Pressable>
+        ) : null}
+
+        {msg.reactions ? <ReactionBar initial={msg.reactions} /> : null}
+      </View>
+    </View>
+  );
+}
+
 export default function CrewScreen() {
   useEffect(() => {
     screen('crew_hq');
   }, []);
 
   const [tab, setTab] = useState<HqTab>('base');
+  /** Sous-onglet interne de l'onglet Chat : War Log (événements) vs Chat (messages). */
+  const [chatTab, setChatTab] = useState<'chat' | 'warlog'>('chat');
+  /** Profil crew effectif (reflète l'édition founder persistée au retour). */
+  const crewProfile = useCrewProfile();
+  /** Base horaire figée au montage (ordre stable des messages démo). */
+  const chatNowBase = useMemo(() => Date.now(), []);
+  const chat = useCrewChat(chatNowBase);
+  /** Champ de saisie du chat (barre persistante en bas de l'onglet Chat). */
+  const [draft, setDraft] = useState('');
   /** Feedback court des actions démo (invite, sheet membre). */
   const [notice, setNotice] = useState<string | null>(null);
   const [memberSheet, setMemberSheet] = useState<CrewMemberDemo | null>(null);
@@ -304,12 +442,29 @@ export default function CrewScreen() {
 
   // Mon rôle démo (KORO = founder) → gating visuel des actions (matrice §8).
   const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
+  // Bouton « Modifier le crew » : founder-only (CREW_PERMISSIONS source de vérité).
+  const canEditCrew = roleCan(myRole, 'changeNameEmblem') || roleCan(myRole, 'manageRecruitment');
+
+  // War Log = UNIQUEMENT les événements (les messages vivent dans le sous-onglet
+  // Chat) — on ne mélange plus événements et messages dans une seule liste.
+  const warLogEvents = useMemo(
+    () => CHAT_TIMELINE.filter((i) => i.kind === 'event'),
+    [],
+  );
 
   if (!HAS_CREW) return <EmptyState />;
 
   const notify = (message: string) => {
     haptics.light();
     setNotice(message);
+  };
+
+  const canSend = draft.trim().length > 0;
+  const sendMessage = () => {
+    if (!canSend) return;
+    haptics.light();
+    chat.send(draft);
+    setDraft('');
   };
 
   const memberAction = (label: string, member: CrewMemberDemo) => {
@@ -322,14 +477,14 @@ export default function CrewScreen() {
   };
 
   return (
-    <TabScreen title={MY_CREW.name} icon="crew" kicker={`CREW HQ · ${MY_CREW.city.toUpperCase()}`}>
+    <TabScreen title={crewProfile.name} icon="crew" kicker={`CREW HQ · ${MY_CREW.city.toUpperCase()}`}>
       {/* ── Header base : GRAND blason animé + frame ligue + niveau/XP ── */}
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
           <Animated.View style={{ transform: [{ scale: crestScale }] }}>
             <CrewCrest
               seed={MY_CREW.seed}
-              name={MY_CREW.name}
+              name={crewProfile.name}
               size="xl"
               leagueTier={MY_CREW.league}
             />
@@ -369,13 +524,32 @@ export default function CrewScreen() {
             leading={<Icon name="guerre" size={18} color={colors.noir} />}
             onPress={() => router.navigate('/warroom')}
           />
-          <InlineRunCTA
-            label="Inviter"
-            variant="secondary"
-            size="md"
-            leading={<Icon name="ajoutami" size={16} color={colors.blanc} />}
-            onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
-          />
+          <View style={styles.headerCtaRow}>
+            <View style={styles.headerCtaCell}>
+              <InlineRunCTA
+                label="Inviter"
+                variant="secondary"
+                size="md"
+                leading={<Icon name="ajoutami" size={16} color={colors.blanc} />}
+                onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
+              />
+            </View>
+            {/* « Modifier le crew » ÉVIDENT (founder §8.1) → écran d'édition. */}
+            {canEditCrew ? (
+              <View style={styles.headerCtaCell}>
+                <InlineRunCTA
+                  label="Modifier le crew"
+                  variant="secondary"
+                  size="md"
+                  leading={<Icon name="reglages" size={16} color={colors.blanc} />}
+                  onPress={() => {
+                    haptics.light();
+                    router.push('/crew-edit');
+                  }}
+                />
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -758,96 +932,106 @@ export default function CrewScreen() {
         </>
       ) : null}
 
-      {/* ══ CHAT : War Log + messages actionnables fusionnés (doc §13/§14) ══ */}
+      {/* ══ CHAT : 2 sous-onglets CLAIRS — CHAT (messages) vs WAR LOG (événements).
+          Fini le fil fusionné « mal organisé » : le chat ressemble à un chat
+          (fil + barre de saisie), le War Log liste les événements + réactions. ══ */}
       {tab === 'chat' ? (
         <>
-          <SectionLabel>WAR LOG · CHAT DU CREW</SectionLabel>
-          {CHAT_TIMELINE.map((item) =>
-            item.kind === 'event' ? (
-              <View key={item.id} style={styles.feedItem}>
-                <WarEventCard
-                  icon={WAR_LOG_META[item.type].icon}
-                  message={item.message}
-                  zone={item.zone}
-                  points={item.points}
-                  minutesAgo={item.minutesAgo}
-                  tint={warLogTint(item)}
-                />
-                <View style={styles.feedReactions}>
-                  <ReactionBar initial={item.reactions} />
-                </View>
-              </View>
-            ) : (
-              <View key={item.id} style={[styles.msgCard, item.me && styles.msgCardMe]}>
-                <View style={styles.msgHead}>
-                  <Text style={[styles.msgAuthor, item.me && styles.msgAuthorMe]}>
-                    {item.author}
-                    {item.me ? ' · toi' : ''}
+          {/* Sélecteur de sous-onglet interne (segmented, doc §13/§14). */}
+          <View accessibilityRole="tablist" style={styles.chatSwitch}>
+            {(
+              [
+                { key: 'chat', label: 'Chat' },
+                { key: 'warlog', label: 'War Log' },
+              ] as const
+            ).map((s) => {
+              const active = chatTab === s.key;
+              return (
+                <Pressable
+                  key={s.key}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setChatTab(s.key)}
+                  style={[styles.chatSwitchBtn, active && styles.chatSwitchBtnActive]}
+                >
+                  <Icon
+                    name={s.key === 'chat' ? 'feed' : 'guerre'}
+                    size={14}
+                    color={active ? colors.blanc : colors.gris}
+                  />
+                  <Text style={[styles.chatSwitchLabel, active && styles.chatSwitchLabelActive]}>
+                    {s.label}
                   </Text>
-                  <Text style={styles.msgAgo}>{timeAgoLabel(item.minutesAgo)}</Text>
-                </View>
-                <Text style={styles.msgText}>{item.text}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
-                {/* Sortie défense → RSVP (Je participe / Peut-être / Indispo) */}
-                {item.action === 'rsvp' ? (
-                  <>
-                    <View style={styles.rsvpRow}>
-                      {DEFENSE_RSVP_OPTIONS.map((opt) => {
-                        const selected = rsvp[item.id] === opt;
-                        const engaged = selected && opt === 'Je participe';
-                        return (
-                          <Pressable
-                            key={opt}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected }}
-                            onPress={() => {
-                              haptics.light();
-                              setRsvp((r) => ({ ...r, [item.id]: opt }));
-                            }}
-                            style={[
-                              styles.rsvpChip,
-                              selected && styles.rsvpChipSelected,
-                              engaged && styles.rsvpChipEngaged,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.rsvpLabel,
-                                selected && styles.rsvpLabelSelected,
-                                engaged && styles.rsvpLabelEngaged,
-                              ]}
-                            >
-                              {opt}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    {rsvp[item.id] ? (
-                      <Text style={styles.rsvpDone}>Réponse envoyée au crew (démo)</Text>
-                    ) : null}
-                  </>
-                ) : null}
-
-                {/* Ping zone → Ouvrir la carte */}
-                {item.action === 'openMap' ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => router.navigate('/')}
-                    style={({ pressed }) => [styles.mapBtn, pressed && styles.dim]}
-                  >
-                    <Icon name="carte" size={14} color={colors.blanc} />
-                    <Text style={styles.mapBtnLabel}>Ouvrir la carte</Text>
-                  </Pressable>
-                ) : null}
-
-                <ReactionBar initial={item.reactions} />
+          {/* ── SOUS-ONGLET CHAT : un VRAI fil + barre de saisie persistante ── */}
+          {chatTab === 'chat' ? (
+            <>
+              <View style={styles.thread}>
+                {chat.messages.map((m) => (
+                  <ChatBubble key={m.id} msg={m} rsvp={rsvp} setRsvp={setRsvp} />
+                ))}
               </View>
-            ),
+
+              {/* BARRE DE SAISIE — évidente, en bas du fil : où taper + Envoyer. */}
+              <View style={styles.composer}>
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  placeholder="Écris au crew…"
+                  placeholderTextColor={colors.gris}
+                  style={styles.composerInput}
+                  multiline
+                  maxLength={280}
+                  onSubmitEditing={sendMessage}
+                  blurOnSubmit={false}
+                  returnKeyType="send"
+                  accessibilityLabel="Écris un message au crew"
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Envoyer le message"
+                  accessibilityState={{ disabled: !canSend }}
+                  disabled={!canSend}
+                  onPress={sendMessage}
+                  style={[styles.sendBtn, canSend ? styles.sendBtnActive : styles.sendBtnIdle]}
+                >
+                  <Icon name="partage" size={18} color={canSend ? colors.noir : colors.gris} />
+                </Pressable>
+              </View>
+              <Text style={styles.chatNote}>
+                Messages du crew — pas de messages privés (MVP). Ton message reste ici (démo).
+              </Text>
+            </>
+          ) : (
+            /* ── SOUS-ONGLET WAR LOG : événements + réactions GRYD (séparés) ── */
+            <>
+              <SectionLabel>WAR LOG · ÉVÉNEMENTS DU CREW</SectionLabel>
+              {warLogEvents.map((item) =>
+                item.kind === 'event' ? (
+                  <View key={item.id} style={styles.feedItem}>
+                    <WarEventCard
+                      icon={WAR_LOG_META[item.type].icon}
+                      message={item.message}
+                      zone={item.zone}
+                      points={item.points}
+                      minutesAgo={item.minutesAgo}
+                      tint={warLogTint(item)}
+                    />
+                    <View style={styles.feedReactions}>
+                      <ReactionBar initial={item.reactions} />
+                    </View>
+                  </View>
+                ) : null,
+              )}
+              <Text style={styles.chatNote}>
+                Le War Log liste les événements du crew. Les messages sont dans l’onglet Chat.
+              </Text>
+            </>
           )}
-          <Text style={styles.chatNote}>
-            War Log + chat du crew. Réactions et réponses rapides — pas de messages privés (MVP).
-          </Text>
         </>
       ) : null}
 
@@ -989,6 +1173,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.grisLigne,
     gap: 10,
   },
+  // Ligne d'actions secondaires (Inviter + Modifier le crew côte à côte).
+  headerCtaRow: { flexDirection: 'row', gap: 10 },
+  headerCtaCell: { flex: 1 },
   // ── Segmented control ──
   segments: {
     flexDirection: 'row',
@@ -1276,28 +1463,124 @@ const styles = StyleSheet.create({
   },
   // ── Perks ──
   perkList: { gap: 8 },
-  // ── Chat / War Log ──
-  feedItem: { marginBottom: 12 },
-  feedReactions: { paddingHorizontal: 4 },
-  msgCard: {
+  // ── Chat : sous-onglets internes (Chat / War Log) ──
+  chatSwitch: {
+    flexDirection: 'row',
+    marginTop: 18,
+    marginBottom: 4,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: 4,
+    gap: 4,
+  },
+  chatSwitchBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: radii.pill,
+  },
+  chatSwitchBtnActive: { backgroundColor: colors.carbone2 },
+  chatSwitchLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
+  chatSwitchLabelActive: { color: colors.blanc },
+  // ── Chat : fil de discussion (bulles) ──
+  thread: { marginTop: 14, gap: 12 },
+  bubbleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 32 },
+  bubbleRowMe: { alignItems: 'flex-end', paddingLeft: 40 },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.carbone2,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+  },
+  avatarText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '800' },
+  bubbleCol: { flex: 1, gap: 4 },
+  bubbleHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bubbleAuthor: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    flexShrink: 1,
+  },
+  bubbleTime: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
+  bubble: {
+    borderRadius: radii.card,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+  },
+  bubbleOther: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.carbone,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderTopLeftRadius: 4,
+  },
+  // MOI : chartreuse DISCRET (remplissage 14 %, contour 40 %) — jamais plein.
+  bubbleMe: {
+    alignSelf: 'flex-end',
+    maxWidth: '90%',
+    backgroundColor: colors.chartreuse14,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    borderTopRightRadius: 4,
+  },
+  bubbleText: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
+  // Texte BLANC sur fond chartreuse discret (14 % = fond sombre → contraste OK).
+  bubbleTextMe: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
+  bubbleTimeMe: {
+    color: colors.gris,
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
+  },
+  // ── Chat : barre de saisie persistante ──
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    marginTop: 16,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    padding: 14,
-    marginBottom: 12,
+    padding: 8,
   },
-  msgCardMe: { borderColor: colors.chartreuse40 },
-  msgHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  msgAuthor: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.4 },
-  msgAuthorMe: { color: gameColors.crew },
-  msgAgo: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
-  msgText: {
+  composerInput: {
+    flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.4,
-    marginTop: 6,
+    lineHeight: fontSizes.sm * 1.35,
+    maxHeight: 110,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendBtnActive: { backgroundColor: gameColors.crew },
+  sendBtnIdle: {
+    backgroundColor: colors.carbone2,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  // ── War Log ──
+  feedItem: { marginBottom: 12 },
+  feedReactions: { paddingHorizontal: 4 },
   rsvpRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
   rsvpChip: {
     borderRadius: radii.pill,

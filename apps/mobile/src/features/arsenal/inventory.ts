@@ -11,12 +11,19 @@
  * avantage. Un boost n'ajoute QUE de la progression coffre (cosmétique/orga).
  * Le Crew Wall n'affiche JAMAIS de montant ni de classement de payeurs (§14).
  */
+import { useCallback, useSyncExternalStore } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   CREW_BOOSTS,
   CREW_BOOST_CHEST_MULTIPLIER,
   type CrewBoostSku,
 } from '@klaim/shared';
-import { ARSENAL_CATALOG, itemByKey, type ArsenalScope } from './catalog';
+import {
+  ARSENAL_CATALOG,
+  itemByKey,
+  type ArsenalCatalogItem,
+  type ArsenalScope,
+} from './catalog';
 
 /** Portées équipables (un seul item actif par portée). */
 export type EquipScope = Extract<ArsenalScope, 'zone' | 'route' | 'profile' | 'crew' | 'share'>;
@@ -56,6 +63,162 @@ export const EQUIP_SCOPE_LABEL: Record<EquipScope, string> = {
   crew: 'Visible dans le Crew HQ',
   share: 'Appliqué à tes cartes de partage',
 };
+
+// ─── Équipement PERSISTÉ (source unique lue par la Player Card) ───────────────
+//
+// AMENDEMENT-16 §16 : équiper un cosmétique doit avoir un EFFET TANGIBLE. Tant
+// que `user_inventory` n'est pas branché (O3), on persiste l'équipement démo en
+// local (AsyncStorage, même pattern que src/features/crew/chatStore.ts) pour que
+// la Player Card reflète RÉELLEMENT le frame / titre équipé.
+//
+// STORE EXTERNE PARTAGÉ (useSyncExternalStore, natif React) : l'équipement vit au
+// niveau MODULE, un seul état pour tous les abonnés. equip()/unequip() depuis
+// /profil-edit notifient l'onglet /profil monté → l'anneau de l'avatar change
+// immédiatement au retour, SANS remount (AMENDEMENT-16 §16, retour fondateur).
+
+/** Clé de persistance de l'équipement cosmétique (versionnée). */
+const EQUIP_STORAGE_KEY = 'gryd.arsenal.equipped.v1';
+
+/** Équipement complet par portée (état canonique, un item actif par portée). */
+export type EquipMap = Partial<Record<EquipScope, string>>;
+
+/**
+ * La `section: 'frames'` du catalogue mélange FRAMES (cadre autour de l'avatar)
+ * et TITRES éditoriaux (« Founder Runner ») : même portée `profile`, rendu
+ * différent sur la card. On les distingue par convention de clé (`title_*`).
+ */
+export function isTitleItem(item: ArsenalCatalogItem): boolean {
+  return item.section === 'frames' && item.key.startsWith('title_');
+}
+
+/** True si l'item est un vrai cadre d'avatar (portée profile, hors titres). */
+export function isFrameItem(item: ArsenalCatalogItem): boolean {
+  return item.section === 'frames' && !isTitleItem(item);
+}
+
+/** Fusionne l'équipement stocké avec les défauts (tolérant aux clés absentes). */
+function hydrateEquip(raw: string | null): EquipMap {
+  if (!raw) return { ...INITIAL_EQUIPPED };
+  try {
+    const parsed = JSON.parse(raw) as EquipMap;
+    return { ...INITIAL_EQUIPPED, ...parsed };
+  } catch {
+    return { ...INITIAL_EQUIPPED };
+  }
+}
+
+async function readEquip(): Promise<EquipMap> {
+  try {
+    return hydrateEquip(await AsyncStorage.getItem(EQUIP_STORAGE_KEY));
+  } catch {
+    return { ...INITIAL_EQUIPPED };
+  }
+}
+
+async function writeEquip(map: EquipMap): Promise<void> {
+  try {
+    await AsyncStorage.setItem(EQUIP_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // Best effort : un stockage indisponible (web privé) ne casse rien.
+  }
+}
+
+/** Item équipé pour une portée donnée (undefined si aucun). PURE. */
+export function equippedItemForScope(
+  map: EquipMap,
+  scope: EquipScope,
+): ArsenalCatalogItem | undefined {
+  const key = map[scope];
+  return key ? itemByKey(key) : undefined;
+}
+
+export interface EquipStore {
+  equipped: EquipMap;
+  /** True tant que la lecture initiale n'a pas résolu (défauts affichés). */
+  loading: boolean;
+  /** Équipe l'item (résout sa portée), persiste, notifie tous les abonnés. */
+  equip: (key: string) => Promise<void>;
+  /** Déséquipe la portée (retour au défaut : rien). */
+  unequip: (scope: EquipScope) => Promise<void>;
+}
+
+// ─── Store externe partagé (notifier + snapshot mémoïsé) ──────────────────────
+//
+// Équipement au niveau MODULE : un seul état pour /profil-edit et l'onglet
+// /profil. equip()/unequip() mutent `equippedState` puis emit() → tous les
+// abonnés re-render (l'anneau de l'avatar change immédiatement au retour).
+
+let equippedState: EquipMap = { ...INITIAL_EQUIPPED };
+let equipLoaded = false;
+let equipLoadPromise: Promise<void> | null = null;
+const equipListeners = new Set<() => void>();
+
+/** Snapshot stable : nouvelle ref UNIQUEMENT quand l'équipement change (getSnapshot pur). */
+let equipSnapshot: EquipMap = equippedState;
+
+function emitEquip(): void {
+  equipSnapshot = { ...equippedState };
+  for (const l of equipListeners) l();
+}
+
+/** Lecture lazy et unique de l'équipement persisté (déclenchée au 1ᵉʳ montage). */
+function ensureEquipLoaded(): Promise<void> {
+  if (!equipLoadPromise) {
+    equipLoadPromise = readEquip()
+      .then((m) => {
+        equippedState = m;
+        equipLoaded = true;
+        emitEquip();
+      })
+      .catch(() => {
+        equipLoaded = true;
+      });
+  }
+  return equipLoadPromise;
+}
+
+function subscribeEquip(listener: () => void): () => void {
+  equipListeners.add(listener);
+  void ensureEquipLoaded();
+  return () => {
+    equipListeners.delete(listener);
+  };
+}
+
+function getEquipSnapshot(): EquipMap {
+  return equipSnapshot;
+}
+
+/** Équipe un item (résout sa portée), persiste et notifie tous les abonnés. */
+export async function equipCosmetic(key: string): Promise<void> {
+  const scope = equipScopeOf(key);
+  if (scope === null) return;
+  equippedState = { ...equippedState, [scope]: key };
+  emitEquip();
+  await writeEquip(equippedState);
+}
+
+/** Déséquipe une portée, persiste et notifie tous les abonnés. */
+export async function unequipCosmetic(scope: EquipScope): Promise<void> {
+  const next: EquipMap = { ...equippedState };
+  delete next[scope];
+  equippedState = next;
+  emitEquip();
+  await writeEquip(equippedState);
+}
+
+/**
+ * Hook d'accès à l'équipement cosmétique persisté (store externe partagé). Charge
+ * en asynchrone (défauts affichés immédiatement → jamais de flash), persiste
+ * chaque changement. Tous les écrans partagent le MÊME état : un equip() depuis
+ * /profil-edit re-render l'onglet /profil monté (useSyncExternalStore natif).
+ */
+export function useEquippedCosmetics(): EquipStore {
+  const equipped = useSyncExternalStore(subscribeEquip, getEquipSnapshot, getEquipSnapshot);
+  const equip = useCallback(equipCosmetic, []);
+  const unequip = useCallback(unequipCosmetic, []);
+  return { equipped, loading: !equipLoaded, equip, unequip };
+}
 
 // ─── Crew Boost DÉMO (doc §13.1) ─────────────────────────────────────────────
 

@@ -138,12 +138,12 @@ export function BattleMapOverlays({
   /** Sélecteur de calque « Couches » — fermé par défaut (un seul bouton). */
   const [layersOpen, setLayersOpen] = useState(false);
   /**
-   * Menu « Infos » (AMENDEMENT-17 retour fondateur) : par défaut la carte
-   * n'affiche QU'UN bouton Info (⌀ anti-clutter). Le tap révèle les contrôles
-   * secondaires (Couches, Fond de carte, Recentrer) — plus jamais 4 boutons
-   * concurrents, et le bouton Fond de carte ne peut plus « disparaître ».
+   * Bouton « Info » (AMENDEMENT-17 retour fondateur, option A) : révèle la
+   * SITUATION stratégique à la demande — « Défense recommandée » + % de
+   * contrôle du secteur. Les contrôles de carte (Couches/Fond/Recentrer)
+   * restent, eux, de simples boutons visibles à côté.
    */
-  const [controlsOpen, setControlsOpen] = useState(false);
+  const [situationOpen, setSituationOpen] = useState(false);
 
   /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
   const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
@@ -236,9 +236,16 @@ export function BattleMapOverlays({
         )}
       </View>
 
-      {/* ── Droite : UN bouton Info ; le tap révèle les contrôles carte ─────
-          (AMENDEMENT-17 retour fondateur : anti-clutter — les contrôles
-          secondaires ne s'affichent QUE sur appui de Info). */}
+      {/* ── Situation stratégique (Info) : « Défense recommandée » + % ────── */}
+      {situationOpen ? (
+        <SituationCard
+          directive={directive}
+          bottom={sheetBottom + MAP_SHEET_COMPACT_HEIGHT + FAB_ABOVE_SHEET}
+          onClose={() => setSituationOpen(false)}
+        />
+      ) : null}
+
+      {/* ── Droite : contrôles carte (Couches/Fond/Recentrer) + bouton Info ── */}
       <View
         style={[
           styles.fabColumn,
@@ -246,48 +253,45 @@ export function BattleMapOverlays({
         ]}
         pointerEvents="box-none"
       >
-        {controlsOpen ? (
-          <>
-            {layersOpen ? <LayerSelector active={mode} onSelect={selectMode} /> : null}
-            <FloatingMapButton
-              icon="calques"
-              accessibilityLabel="Couches de la carte"
-              active={layersOpen}
-              onPress={() => {
-                haptics.light();
-                setLayersOpen((v) => !v);
-              }}
-            />
-            {onToggleBasemap ? (
-              <FloatingMapButton
-                icon="carte"
-                accessibilityLabel={
-                  basemap === 'color'
-                    ? 'Fond de carte couleur (repasser en sombre)'
-                    : 'Fond de carte sombre (passer en couleur)'
-                }
-                active={basemap === 'color'}
-                onPress={() => {
-                  haptics.light();
-                  onToggleBasemap();
-                }}
-              />
-            ) : null}
-            <FloatingMapButton
-              icon="gps"
-              accessibilityLabel="Recentrer sur moi"
-              onPress={() => onRecenter?.()}
-            />
-          </>
-        ) : null}
+        {layersOpen ? <LayerSelector active={mode} onSelect={selectMode} /> : null}
         <FloatingMapButton
-          icon="info"
-          accessibilityLabel={controlsOpen ? 'Fermer les réglages carte' : 'Infos et réglages carte'}
-          active={controlsOpen}
+          icon="calques"
+          accessibilityLabel="Couches de la carte"
+          active={layersOpen}
           onPress={() => {
             haptics.light();
-            setControlsOpen((v) => !v);
-            if (controlsOpen) setLayersOpen(false);
+            setLayersOpen((v) => !v);
+          }}
+        />
+        {onToggleBasemap ? (
+          <FloatingMapButton
+            icon="carte"
+            accessibilityLabel={
+              basemap === 'color'
+                ? 'Fond de carte couleur (repasser en sombre)'
+                : 'Fond de carte sombre (passer en couleur)'
+            }
+            active={basemap === 'color'}
+            onPress={() => {
+              haptics.light();
+              onToggleBasemap();
+            }}
+          />
+        ) : null}
+        <FloatingMapButton
+          icon="gps"
+          accessibilityLabel="Recentrer sur moi"
+          onPress={() => onRecenter?.()}
+        />
+        <FloatingMapButton
+          icon="info"
+          accessibilityLabel={
+            situationOpen ? 'Masquer la situation' : 'Voir la situation (défense recommandée)'
+          }
+          active={situationOpen}
+          onPress={() => {
+            haptics.light();
+            setSituationOpen((v) => !v);
           }}
         />
       </View>
@@ -496,6 +500,52 @@ function RivalAlertCard({ onDefend }: { onDefend: () => void }) {
         />
       </View>
     </Animated.View>
+  );
+}
+
+/**
+ * Carte SITUATION (bouton Info, AMENDEMENT-17 option A fondateur) : révèle à la
+ * demande « la situation » — secteur + parts de contrôle + « Défense
+ * recommandée ». N'affiche PAS les contrôles de carte (Couches/Fond/Recentrer),
+ * qui restent des boutons simples à côté. Tap = fermer.
+ */
+function SituationCard({
+  directive,
+  bottom,
+  onClose,
+}: {
+  directive: ReturnType<typeof mapDirective>;
+  bottom: number;
+  onClose: () => void;
+}) {
+  return (
+    <View style={[styles.situationWrap, { bottom }]} pointerEvents="box-none">
+      <Pressable
+        style={styles.situationCard}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Masquer la situation"
+      >
+        <Text style={styles.situationTitle} numberOfLines={1}>
+          {MAP_HUD.zoneName.toUpperCase()} · {MAP_CONTROL_HUD.stateLabel}
+        </Text>
+        <Text style={styles.situationShares} numberOfLines={1}>
+          <Text style={styles.pillSharesCrew}>Ton crew {MAP_CONTROL_HUD.crewPct} %</Text>
+          {`  ·  ${MAP_CONTROL_HUD.rivalName} ${MAP_CONTROL_HUD.rivalPct} %  ·  Neutre ${MAP_CONTROL_HUD.neutralPct} %`}
+        </Text>
+        <Text
+          style={[
+            styles.situationKicker,
+            { color: directive.lecture === 'defense' ? gameColors.verify : gameColors.crew },
+          ]}
+        >
+          {directive.kicker}
+        </Text>
+        <Text style={styles.situationOrder} numberOfLines={2}>
+          {directive.headline} {directive.order}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -718,6 +768,23 @@ const styles = StyleSheet.create({
   liveLabel: { color: gameColors.crew, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
 
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'center' },
+
+  // Carte « situation » (bouton Info) : posée à gauche pour ne pas passer sous
+  // la colonne de FABs de droite.
+  situationWrap: { position: 'absolute', left: 14, right: 80 },
+  situationCard: {
+    backgroundColor: 'rgba(16,18,16,0.94)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(250,250,247,0.10)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 3,
+  },
+  situationTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.4 },
+  situationShares: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  situationKicker: { fontSize: 10, fontWeight: '700', letterSpacing: 1, marginTop: 4 },
+  situationOrder: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
 
   // Le wrapper CLIPPE la sheet (elle glisse vers le bas en compact — sans
   // overflow hidden elle réapparaîtrait derrière la barre de nav).
