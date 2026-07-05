@@ -23,13 +23,17 @@ import {
   CREW_CHEST_TIER_ORDER,
   CREW_CHEST_WEEKLY_TARGET,
   OFFENSIVE_DURATION_H,
+  SKILLS_BY_ID,
   borderState,
   colors,
   elevation,
   fontSizes,
   gameColors,
   radii,
+  skillIconName,
   type IconName,
+  type SkillDef,
+  type SkillFamilyId,
 } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
@@ -70,6 +74,112 @@ import {
   selectMapBonus,
   type SelectedBonusDemo,
 } from '../../src/features/map/demo';
+
+// ============================================================================
+// RECO PAR SKILL (AMENDEMENT-23 §C, doc §29) — « le bon membre pour la mission »
+// ============================================================================
+/**
+ * La War Room RECOMMANDE un membre du crew pour une mission d'après son SKILL
+ * dominant (doc §29 : « KORO recommandé · Finisher II · 620 m restants »). Le
+ * skill ORIENTE seulement — il ne donne JAMAIS de territoire/point/victoire
+ * (anti pay-to-win §C) : c'est un signal de reconnaissance, la décision reste
+ * humaine (et serveur pour tout claim).
+ *
+ * SOURCE UNIQUE : la reco réutilise le catalogue GELÉ `SKILLS` de @klaim/shared
+ * (seuils I/II/III) et les MÊMES compteurs de stats que les badges
+ * (LifetimeStats). La dérivation `deriveMemberSkill` est PURE et ré-implémentée
+ * ICI — Metro ne résout pas les imports Deno `.ts` de `@klaim/engine`, exactement
+ * comme le catalogue badges client et la section Skills du Profil. Aucun nombre
+ * magique local : niveaux, roman et « restants » sortent du catalogue.
+ */
+
+/** Compteurs de skill démo d'UN membre (sous-ensemble de LifetimeStats §C). */
+type MemberSkillStats = Partial<Record<SkillFamilyId, number>>;
+
+/**
+ * Stats de skill DÉMO par membre (déterministes), cohérentes avec leur rôle
+ * clan et leur dernière action (features/crew/demo). Clé = famille, valeur = le
+ * compteur LifetimeStats de cette famille (ex. `defender` = zones défendues).
+ * Toute famille absente = 0 (skill verrouillé, jamais « à venir »). TODO(O1) :
+ * brancher user_stats réels (mêmes compteurs que les badges).
+ */
+const MEMBER_SKILL_STATS: Record<string, MemberSkillStats> = {
+  // KORO — fondateur offensif : gros volume de captures + boucles fermées → il
+  // est le meilleur FINISHER du crew (620 m à fermer sur République, doc §29).
+  KORO: { finisher: 58, conqueror: 720, defender: 24, streak_runner: 6 },
+  // LENA_RUN — co-cap stratège : mène les offensives + défend beaucoup, et
+  // ferme des boucles avec régularité → meilleur Finisher DISPO (KORO = moi) :
+  // 31 boucles fermées = Finisher II (≥ 25, < 100), reco de fermeture doc §29.
+  LENA_RUN: { defender: 96, strategist: 7, finisher: 31, conqueror: 410 },
+  // MOLOKAÏ — capitaine terrain : conquête + défense soutenue.
+  MOLOKAÏ: { conqueror: 540, defender: 61, finisher: 12 },
+  // JOG.PARMENTIER — dispo défense : LE défenseur du crew (Defender III).
+  'JOG.PARMENTIER': { defender: 152, finisher: 8, streak_runner: 12 },
+  // PACER·20E — scout : découvre le terrain, ouvre des routes.
+  'PACER·20E': { scout: 74, route_maker: 11, finisher: 4 },
+  // TOUTDROIT — régulier : Streak Runner, entraide crew.
+  TOUTDROIT: { streak_runner: 14, supporter: 27, finisher: 6 },
+  // NOX.11 — rookie : quasiment tout à 0 (skills verrouillés, normal).
+  'NOX.11': { supporter: 3 },
+};
+
+/** Compteur de skill démo d'un membre pour une famille (0 par défaut). */
+function memberSkillValue(pseudo: string, id: SkillFamilyId): number {
+  return Math.max(0, MEMBER_SKILL_STATS[pseudo]?.[id] ?? 0);
+}
+
+/** État dérivé du skill d'UN membre pour la reco (miroir DerivedSkill engine). */
+interface MemberSkillReco {
+  pseudo: string;
+  def: SkillDef;
+  /** Niveau atteint : 0 = verrouillé … 3 = III. */
+  level: 0 | 1 | 2 | 3;
+  /** Chiffre romain du niveau atteint ('I'|'II'|'III'), vide si verrouillé. */
+  roman: string;
+  /** Progression [0..1] à l'intérieur du niveau courant (départage la reco). */
+  progress: number;
+}
+
+/**
+ * Dérive le skill d'un membre pour une famille (PURE, mêmes règles que
+ * l'engine) : niveau = nombre de seuils GELÉS franchis, progression linéaire
+ * dans le niveau courant. Bornes strictement croissantes garanties par le
+ * catalogue → span > 0.
+ */
+function deriveMemberSkill(pseudo: string, def: SkillDef): MemberSkillReco {
+  const value = memberSkillValue(pseudo, def.id);
+  const thresholds = def.levels.map((l) => l.threshold);
+  let level = 0;
+  for (const t of thresholds) if (value >= t) level += 1;
+  const rank = Math.min(level, 3) as 0 | 1 | 2 | 3;
+  const currentThreshold = rank > 0 ? thresholds[rank - 1]! : 0;
+  const nextThreshold = rank >= 3 ? null : thresholds[rank]!;
+  const roman = rank > 0 ? def.levels[rank - 1]!.roman : '';
+  let progress = 1;
+  if (nextThreshold !== null) {
+    const span = nextThreshold - currentThreshold;
+    progress = span > 0 ? Math.min(1, Math.max(0, (value - currentThreshold) / span)) : 0;
+  }
+  return { pseudo, def, level: rank, roman, progress };
+}
+
+/**
+ * Meilleur membre du crew pour une famille de skill (reco de mission). Tri
+ * identique à `rankSkillsForRecommendation` (engine) : niveau atteint le plus
+ * haut d'abord, puis progression dans le niveau la plus avancée, puis l'ordre
+ * démo du crew (stable). Ignore MOI (on recommande un COÉQUIPIER) et tout
+ * niveau 0 (pas de reco creuse). null si personne n'a le skill.
+ */
+function recommendMemberFor(id: SkillFamilyId): MemberSkillReco | null {
+  const def = SKILLS_BY_ID.get(id);
+  if (!def) return null;
+  const ranked = MY_CREW.members
+    .filter((m) => !m.me)
+    .map((m) => deriveMemberSkill(m.pseudo, def))
+    .filter((r) => r.level > 0)
+    .sort((a, b) => b.level - a.level || b.progress - a.progress);
+  return ranked[0] ?? null;
+}
 
 /** Décompte h:mm:ss depuis un total de secondes (mono, tabular-nums). */
 function formatCountdown(totalS: number): string {
@@ -517,6 +627,67 @@ function SectionHead({
   );
 }
 
+/**
+ * RECO PAR SKILL (doc §29) — UNE ligne SOBRE posée sous la mission (pas de card :
+ * ni cadre, ni pastille d'icône, ni bouton). « <nom> · <Skill> <roman> [· <reste>] ».
+ * Icône filaire de la famille en tête (skillIconName), teinte = celle de la
+ * mission portée. Le skill ORIENTE, il ne donne AUCUN pouvoir territorial :
+ * aucun point/gain n'est affiché. Un tap = agir (assigner/proposer selon les
+ * droits) ; sans handler la ligne est purement informative. Non tronquée.
+ */
+function SkillRecoLine({
+  reco,
+  tint,
+  trailing,
+  onPress,
+}: {
+  reco: MemberSkillReco;
+  tint: string;
+  /** Suffixe optionnel non tronqué, ex. « 620 m restants » (reste de la MISSION). */
+  trailing?: string;
+  onPress?: () => void;
+}) {
+  const label = `${reco.pseudo} · ${reco.def.name} ${reco.roman}`;
+  const content = (
+    <>
+      <View style={styles.recoIcon}>
+        <Icon name={skillIconName(reco.def.id) as IconName} size={15} color={tint} />
+      </View>
+      {/* 2 lignes MAX : l'info (nom · skill · reste) ne doit JAMAIS être coupée
+          (pet peeve « texte tronqué ») — sur écran étroit elle passe à la ligne. */}
+      <Text style={styles.recoLabel} numberOfLines={2}>
+        <Text style={styles.recoPrefix}>Recommandé </Text>
+        {label}
+        {trailing ? <Text style={styles.recoTrailing}> · {trailing}</Text> : null}
+      </Text>
+    </>
+  );
+  if (!onPress) {
+    return (
+      <View
+        accessibilityRole="text"
+        accessibilityLabel={`Recommandé pour cette mission : ${label}${trailing ? ` · ${trailing}` : ''}`}
+        style={styles.recoRow}
+      >
+        {content}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Proposer la mission à ${reco.pseudo} — ${reco.def.name} ${reco.roman}`}
+      onPress={() => {
+        haptics.light();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.recoRow, pressed && styles.pressed]}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
 // ============================================================================
 // Écran
 // ============================================================================
@@ -547,6 +718,14 @@ export default function WarRoomScreen() {
 
   // À TERMINER — frontières ouvertes (résumé ; détail au chantier 2).
   const firstBoundary = OPEN_BOUNDARIES[0];
+
+  // RECO PAR SKILL (doc §29) — le bon COÉQUIPIER pour chaque mission, dérivé du
+  // catalogue GELÉ. Défense urgente → meilleur Defender ; fermeture de frontière
+  // → meilleur Finisher (le « X m restants » est le RESTE DE LA FRONTIÈRE, pas
+  // du skill : « KORO recommandé · Finisher II · 620 m restants »). Anti
+  // pay-to-win : ORIENTE seulement, aucun gain territorial affiché.
+  const defenseReco = useMemo(() => recommendMemberFor('defender'), []);
+  const finisherReco = useMemo(() => recommendMemberFor('finisher'), []);
 
   // Membre à assigner sur la défense (démo : première DISPO correspondante).
   const assignee = useMemo(
@@ -632,6 +811,24 @@ export default function WarRoomScreen() {
           }
         />
 
+        {/* RECO SKILL de la défense urgente (doc §29) : le meilleur Defender du
+            crew, sur UNE ligne sobre sous le HERO. Le skill ORIENTE (aucun gain
+            territorial). Tap = proposer la défense à ce membre si j'en ai le droit
+            (§8) ; sinon informatif. */}
+        {defenseReco ? (
+          <SkillRecoLine
+            reco={defenseReco}
+            tint={gameColors.danger}
+            onPress={
+              canAssign
+                ? () => {
+                    toast.show(`Défense proposée à ${defenseReco.pseudo}`);
+                  }
+                : undefined
+            }
+          />
+        ) : null}
+
         {/* ACTIF — conquête collective (République 496/800). Ligne compacte, action
             légère « Rejoindre » (pas un second gros bouton). Le kicker évite « … » :
             durée + décompte sur la sous-ligne, pas dans le kicker. */}
@@ -676,6 +873,23 @@ export default function WarRoomScreen() {
                 }}
               />
             ))}
+            {/* RECO SKILL de fermeture (doc §29) : le meilleur Finisher du crew
+                pour clôturer la 1re frontière — « KORO recommandé · Finisher II ·
+                620 m restants ». Les mètres = le RESTE de la frontière (missingM),
+                pas le skill. ORIENTE seulement, aucun gain affiché. Tap = proposer
+                de la terminer à ce membre. */}
+            {finisherReco ? (
+              <SkillRecoLine
+                reco={finisherReco}
+                tint={gameColors.crew}
+                trailing={`${formatInt(firstBoundary.missingM)} m restants`}
+                onPress={() => {
+                  toast.show(
+                    `${firstBoundary.zone} proposée à ${finisherReco.pseudo} — à terminer`,
+                  );
+                }}
+              />
+            ) : null}
             {OPEN_BOUNDARIES.length > 2 ? (
               <SeeAll
                 label={`Voir les ${OPEN_BOUNDARIES.length} frontières`}
@@ -1026,6 +1240,24 @@ const styles = StyleSheet.create({
   // Secondaire ultra-léger (Route) : icône + label gris, sans cadre.
   lineGhost: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   lineGhostLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
+
+  // --- Reco par skill (doc §29) : ligne SOBRE sur l'espace, sans cadre ni
+  //     pastille — un cran sous la mission qu'elle sert. Icône filaire + texte. ---
+  recoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+    marginTop: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  // Icône alignée optiquement sur la 1re ligne du libellé (line-height 18).
+  recoIcon: { marginTop: 1 },
+  recoLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600', lineHeight: 18 },
+  // Préfixe discret (rôle de la ligne) ; le nom + skill restent en blanc lisible.
+  recoPrefix: { color: colors.gris, fontWeight: '700' },
+  // Reste de la MISSION (m à fermer) en gris + tabular-nums, non tronqué.
+  recoTrailing: { color: colors.gris, fontVariant: ['tabular-nums'] },
 
   // --- Titre de section léger (sur l'espace) ---
   sectionHead: {

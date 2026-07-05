@@ -420,6 +420,58 @@ export const ICONS = {
     ],
     fillable: true,
   },
+
+  // ─── AMENDEMENT-23 §C : icônes des 8 familles de SKILLS (skills.ts) ──────────
+  // « Réutiliser l'existant au max, créer le strict minimum » : chaque famille
+  // aliase une icône DÉJÀ dessinée (géométrie 1:1, même trait/viewBox) — aucune
+  // nouvelle forme n'est nécessaire, les 8 comportements ont déjà leur symbole.
+  // Ces clés `skill_*` stables laissent les écrans (Profil / War Room) résoudre
+  // un skill par son id sans reconstruire le mapping de réutilisation.
+  //   defender→bouclier · finisher→boucle_fermee · scout→scout(boussole) ·
+  //   route_maker→route · conqueror→conquete(drapeau) · strategist→guerre
+  //   (étendard War Room) · supporter→cadeau (offrande, AUCUN pouvoir
+  //   territorial) · streak_runner→serie (flamme de régularité).
+  /** Skill Defender — bouclier (alias de `bouclier`). */
+  skill_defender: { paths: ['M12 21c5-2 8-5.5 8-10V6l-8-3-8 3v5c0 4.5 3 8 8 10z'] },
+  /** Skill Finisher — boucle fermée (alias de `boucle_fermee`). */
+  skill_finisher: {
+    paths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 5.2a1.2 1.2 0 1 0 .01 0'],
+    fillable: true,
+  },
+  /** Skill Scout — boussole (alias de `scout`). */
+  skill_scout: {
+    paths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M15.5 8.5l-2 5-5 2 2-5 5-2z'],
+  },
+  /** Skill Route Maker — tracé en S (alias de `route`). */
+  skill_route_maker: {
+    paths: ['M4 19.5h9a3.5 3.5 0 0 0 0-7h-2a3.5 3.5 0 0 1 0-7h8', 'M16 2.5 19 5.5 16 8.5'],
+  },
+  /** Skill Conqueror — drapeau planté (alias de `conquete`). */
+  skill_conqueror: {
+    paths: ['M6 21V4', 'M6 4.5h11.5L15 8.5l2.5 4H6', 'M4 21h5'],
+    fillable: true,
+  },
+  /** Skill Strategist — étendard War Room (alias de `guerre`). */
+  skill_strategist: {
+    paths: ['M7 21V3', 'M7 4.5h10.5V12l-3.4-1.7L10.7 12 7 10.3', 'M4.5 21h5'],
+    fillable: true,
+  },
+  /** Skill Supporter — cadeau offert (alias de `cadeau`, AUCUN pouvoir territorial). */
+  skill_supporter: {
+    paths: [
+      'M5 11.5h14V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8.5z',
+      'M4 8h16v3.5H4z', 'M12 8v13',
+      'M12 8C8.5 8 7 6.8 7 5.5S8.2 3 9.5 3 12 5.3 12 8z',
+      'M12 8c3.5 0 5-1.2 5-2.5S15.8 3 14.5 3 12 5.3 12 8z',
+    ],
+  },
+  /** Skill Streak Runner — flamme de régularité (alias de `serie`). */
+  skill_streak_runner: {
+    paths: [
+      'M12 21c3.9 0 6.5-2.4 6.5-6 0-2.6-1.4-4.6-3-6.5-.4 1.3-1.1 2.1-2 2.6C13.6 8.9 13 6 10.5 3c-.3 3-1.3 4.6-2.6 6.2C6.6 10.8 5.5 12.6 5.5 15c0 3.6 2.6 6 6.5 6z',
+    ],
+    fillable: true,
+  },
 } as const satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

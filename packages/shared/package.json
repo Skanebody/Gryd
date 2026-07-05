@@ -12,6 +12,7 @@
     "./events": "./src/events.ts",
     "./types": "./src/types.ts",
     "./badges": "./src/badges.ts",
+    "./skills": "./src/skills.ts",
     "./bonuses": "./src/bonuses.ts"
   },
   "scripts": {

@@ -24,6 +24,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import {
   BADGE_TIER_RANK,
   PLAYER_LEVEL_MAX,
+  SKILLS,
+  SKILL_ROMAN,
   STREAK_MULTIPLIER_CAP,
   STREAK_MULTIPLIER_STEP,
   XP_RATE_OF_POINTS,
@@ -36,6 +38,7 @@ import {
   radii,
   spacing,
   type IconName,
+  type SkillDef,
 } from '@klaim/shared';
 import {
   badgeById,
@@ -43,7 +46,7 @@ import {
   BADGE_TOTAL,
 } from '../../src/features/badges/catalog';
 import { BadgeHex } from '../../src/features/badges/BadgeHex';
-import { UNLOCKED_IDS } from '../../src/features/badges/demo';
+import { UNLOCKED_IDS, demoStat } from '../../src/features/badges/demo';
 import { MY_CREW } from '../../src/features/crew/demo';
 import {
   FRAME_TIER_LABELS,
@@ -159,6 +162,67 @@ function resolveFeaturedBadges(chosenIds: readonly string[]): readonly BadgeDefT
 }
 
 const UNLOCKED_COUNT = UNLOCKED_IDS.size;
+
+// ─── SKILLS (AMENDEMENT-23 §C, doc §28-§29) ──────────────────────────────────
+/**
+ * État dérivé d'UNE famille de skill pour l'affichage Profil (miroir du contrat
+ * `DerivedSkill` de packages/engine/src/skills.ts). La dérivation est PURE et
+ * ré-implémentée ICI car Metro ne résout pas les imports Deno `.ts` de
+ * `@klaim/engine` (même contrainte que le catalogue de badges client) : le
+ * catalogue + les seuils GELÉS viennent de `@klaim/shared` (`SKILLS`), aucun
+ * nombre magique local. Les STATS réutilisent la MÊME source que les badges
+ * (`demoStat`, features/badges/demo) — pas de barème parallèle.
+ */
+interface DerivedSkill {
+  def: SkillDef;
+  /** Valeur courante du compteur (clé LifetimeStats via demoStat). */
+  value: number;
+  /** Niveau atteint : 0 = verrouillé … 3 = III. */
+  level: 0 | 1 | 2 | 3;
+  /** true si le niveau max (III) est atteint. */
+  maxed: boolean;
+  /** Seuil du prochain niveau (null si maxé). */
+  nextThreshold: number | null;
+  /** Progression [0..1] à l'intérieur du niveau courant. */
+  progress: number;
+  /** Reste vers le prochain seuil (0 si maxé). */
+  remaining: number;
+  /** Libellé d'unité de la famille (« zones défendues »…), dérivé du seuil. */
+  unit: string;
+}
+
+/**
+ * Dérive une famille : niveau = nombre de seuils franchis ; progression
+ * linéaire entre le seuil courant et le suivant. PURE, mêmes règles que
+ * l'engine (bornes strictement croissantes garanties par le catalogue).
+ */
+function deriveSkill(def: SkillDef): DerivedSkill {
+  const value = Math.max(0, demoStat(def.metric));
+  const thresholds = def.levels.map((l) => l.threshold);
+  let level = 0;
+  for (const t of thresholds) if (value >= t) level += 1;
+  const rank = Math.min(level, 3) as 0 | 1 | 2 | 3;
+  const maxed = rank >= 3;
+  const currentThreshold = rank > 0 ? thresholds[rank - 1]! : 0;
+  const nextThreshold = maxed ? null : thresholds[rank]!;
+  let progress = 1;
+  let remaining = 0;
+  if (nextThreshold !== null) {
+    const span = nextThreshold - currentThreshold;
+    remaining = Math.max(0, nextThreshold - value);
+    progress = span > 0 ? Math.min(1, Math.max(0, (value - currentThreshold) / span)) : 0;
+  }
+  // Unité = requirement d'un niveau sans son nombre (« 50 zones défendues » →
+  // « zones défendues »). Dérivée du catalogue, jamais codée en dur.
+  const unit = def.levels[0].requirement.replace(/^[\d\s .,]+/, '').trim();
+  return { def, value, level: rank, maxed, nextThreshold, progress, remaining, unit };
+}
+
+/** Les 8 familles dérivées, dans l'ordre canonique du catalogue (doc §28). */
+const DERIVED_SKILLS: readonly DerivedSkill[] = SKILLS.map(deriveSkill);
+
+/** Combien de skills sont au moins niveau I (compteur d'écran, jamais en dur). */
+const SKILLS_UNLOCKED_COUNT = DERIVED_SKILLS.filter((s) => s.level > 0).length;
 
 interface ProfileLink {
   label: string;
@@ -567,6 +631,72 @@ export default function ProfilScreen() {
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
 
+        {/* ── MODULE 4 · SKILLS : spécialisations gagnées par comportement ──
+            (AMENDEMENT-23 §C, doc §28-§29). DISTINCT des badges : rôle /
+            reco mission, pas une récompense de collection. Une LIGNE légère
+            par famille posée sur l'espace (pas de card-dans-card AMENDEMENT-22) :
+            icône + « <name> <roman> · <value> <unité> » + jauge de progression.
+            Verrouillé (niveau 0) → « commence à <seuil I> ». Anti pay-to-win :
+            AUCUN gain de territoire/points affiché (Supporter = entraide only). */}
+        <View style={styles.sectionRow}>
+          <Icon name="niveau" size={14} color={colors.gris} />
+          <Text style={styles.sectionRowLabel}>SKILLS</Text>
+          <Text style={styles.sectionRowCount}>{SKILLS_UNLOCKED_COUNT}/{SKILLS.length}</Text>
+        </View>
+        <View style={styles.skillsBlock}>
+          {DERIVED_SKILLS.map((s) => {
+            const locked = s.level === 0;
+            const roman = s.level > 0 ? SKILL_ROMAN[s.level - 1] : null;
+            // Roman du PROCHAIN niveau (défini seulement si non maxé → index ≤ 2).
+            const nextRoman = (SKILL_ROMAN as readonly string[])[s.level] ?? '';
+            return (
+              <View key={s.def.id} style={styles.skillRow}>
+                <Icon
+                  name={s.def.icon as IconName}
+                  size={22}
+                  color={locked ? colors.gris : colors.chartreuse}
+                />
+                <View style={styles.skillInfo}>
+                  {/* Titre : « Route Maker III · 18 routes ouvertes » (jamais tronqué) */}
+                  <Text style={styles.skillTitle}>
+                    {locked ? (
+                      <Text style={styles.skillLocked}>{s.def.name}</Text>
+                    ) : (
+                      <>
+                        {s.def.name}{' '}
+                        <Text style={styles.skillRoman}>{roman}</Text>
+                      </>
+                    )}
+                    {locked ? null : (
+                      <Text style={styles.skillMeta}>
+                        {'  ·  '}
+                        {formatInt(s.value)} {s.unit}
+                      </Text>
+                    )}
+                  </Text>
+                  {/* Jauge = progression dans le niveau courant (ou pleine si maxé) */}
+                  <View style={styles.skillGauge}>
+                    <ProgressBar
+                      value={s.progress}
+                      height={5}
+                      fill={locked ? colors.gris : colors.chartreuse}
+                    />
+                  </View>
+                  {/* Sous-ligne : reste vers le prochain niveau, palier max, ou
+                      amorçage si verrouillé. Toujours une donnée, non tronquée. */}
+                  <Text style={styles.skillSub}>
+                    {locked
+                      ? `Commence à ${formatInt(s.def.levels[0].threshold)} ${s.unit}`
+                      : s.maxed
+                        ? 'Niveau max atteint'
+                        : `${formatInt(s.remaining)} ${s.unit} avant ${s.def.name} ${nextRoman}`}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
         {/* PLUS — listes longues déportées en pages dédiées */}
         <Text style={styles.sectionLabel}>PLUS</Text>
         {LINKS.map((link) => (
@@ -886,6 +1016,51 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontSize: fontSizes.sm,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // ── MODULE Skills — lignes LÉGÈRES posées sur l'espace (AMENDEMENT-22 : pas de
+  //    card-dans-card ; le skill n'a pas de cadre propre, il est séparé du suivant
+  //    par un filet neutre). Icône à gauche, texte non tronqué, jauge fine. ──
+  sectionRowCount: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.5,
+    marginLeft: 'auto',
+  },
+  skillsBlock: { gap: 2 },
+  skillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: borderState.hairline,
+  },
+  skillInfo: { flex: 1, gap: 6 },
+  // Titre = nom + niveau + valeur sur une seule chaîne (wrap si besoin, jamais « … »).
+  skillTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  skillRoman: { color: colors.chartreuse, fontWeight: '800' },
+  skillMeta: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  skillLocked: { color: colors.gris, fontWeight: '700' },
+  skillGauge: { marginRight: 2 },
+  skillSub: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.2,
     fontVariant: ['tabular-nums'],
   },
 
