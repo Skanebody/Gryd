@@ -836,6 +836,14 @@ export const CREW_BOOST_MAX_ACTIVE = 1;
 export const BOOST_BLACKOUT_END_OF_SEASON_H = 48;
 /** Gifting : l'offrande anonyme est TOUJOURS possible (doc §14, jamais de classement des payeurs). */
 export const GIFT_ANONYMOUS_ALLOWED = true;
+/**
+ * Cadeau premium au crew (Coffre cosmétique / Crew Boost offert, AMENDEMENT-18
+ * A.3) : anti pay-to-win STRICT. Chaque membre ne peut réclamer qu'UNE fois, et
+ * l'offre EXPIRE au bout de 24 h. Jamais de montant, jamais de classement des
+ * payeurs, jamais de territoire ni de point — seulement des cosmétiques.
+ */
+export const CREW_GIFT_CLAIMS_PER_MEMBER = 1;
+export const CREW_GIFT_EXPIRY_H = 24;
 
 /**
  * Items crédités à l'inventaire par les SKUs pack/gift (item_key du catalogue

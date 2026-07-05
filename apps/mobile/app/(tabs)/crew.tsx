@@ -37,6 +37,8 @@ import {
   CREW_CHEST_TIER_ORDER,
   CREW_CHEST_WEEKLY_TARGET,
   CREW_CODE_LENGTH,
+  CREW_GIFT_CLAIMS_PER_MEMBER,
+  CREW_GIFT_EXPIRY_H,
   CREW_LEVEL_MAX,
   CREW_MAX_MEMBERS,
   CREW_PERKS,
@@ -111,8 +113,24 @@ import {
   toggleGiftReaction,
   useGiftReactions,
 } from '../../src/features/crew/reactions';
-import { useCrewChat, type ChatThreadMessage } from '../../src/features/crew/chatStore';
+import { useCrewChat, CHAT_ME, type ChatThreadMessage } from '../../src/features/crew/chatStore';
 import { useCrewProfile } from '../../src/features/crew/crewEdit';
+import {
+  REQUEST_CHOICES,
+  claimGift,
+  createDonation,
+  createRequest,
+  donationToGiftCard,
+  giftClaimable,
+  giftClaimedByMe,
+  giftExpired,
+  giftRewardsLeft,
+  offerGift,
+  requestToActionCard,
+  useCrewRequests,
+  type OfferedGift,
+  type RequestChoiceKey,
+} from '../../src/features/crew/requests';
 
 /** Toggle démo : passer à false pour prévisualiser l'état « sans crew ». */
 const HAS_CREW = true;
@@ -495,6 +513,83 @@ function GiftCard({ gift, onCta }: { gift: GiftCardDemo; onCta: (gift: GiftCardD
   );
 }
 
+/** Fenêtre de réclamation restante d'un cadeau (« 23 h », « 42 min », « Expiré »). */
+function giftWindowLabel(gift: OfferedGift, now: number): string {
+  if (giftExpired(gift, now)) return 'Expiré';
+  const min = Math.max(0, Math.round((gift.expiresAt - now) / 60_000));
+  if (min >= 60) return `${Math.floor(min / 60)} h`;
+  return `${min} min`;
+}
+
+/**
+ * Carte CADEAU CREW (A.3, gifting premium) : « Benjamin a offert un Coffre
+ * cosmétique · 5 récompenses · [Réclamer] ». LIMITES DURES affichées et
+ * appliquées : 1 réclamation/membre (CREW_GIFT_CLAIMS_PER_MEMBER), expiration
+ * CREW_GIFT_EXPIRY_H (24 h), mention « offert » (anonyme → « Un membre »).
+ * JAMAIS de montant ni de classement. Réclamer décrémente les récompenses.
+ */
+function CadeauCrewCard({
+  gift,
+  now,
+  onClaim,
+}: {
+  gift: OfferedGift;
+  now: number;
+  onClaim: (gift: OfferedGift) => void;
+}) {
+  const left = giftRewardsLeft(gift);
+  const mine = giftClaimedByMe(gift);
+  const expired = giftExpired(gift, now);
+  const claimable = giftClaimable(gift, now);
+  const who = gift.by ?? 'Un membre';
+  // État du CTA : réclamable / déjà réclamé / épuisé / expiré.
+  const ctaLabel = mine
+    ? 'Déjà réclamé'
+    : expired
+      ? 'Offre expirée'
+      : left <= 0
+        ? 'Tout réclamé'
+        : 'Réclamer';
+  return (
+    <View style={styles.cadeauCard}>
+      <View style={styles.cadeauHead}>
+        <View style={styles.cadeauIcon}>
+          <Icon name="cadeau" size={16} color={gameColors.gold} />
+        </View>
+        <Text style={styles.cadeauKicker} numberOfLines={1}>
+          CADEAU CREW
+        </Text>
+        <Text style={styles.cadeauWindow} numberOfLines={1}>
+          {giftWindowLabel(gift, now)}
+        </Text>
+      </View>
+      <Text style={styles.cadeauMessage} numberOfLines={2}>
+        <Text style={styles.giftBy}>{who} </Text>a offert un {gift.title}
+      </Text>
+      {/* Récompenses restantes — jamais de montant ni de prix (A.3). */}
+      <Text style={styles.cadeauMeta} numberOfLines={1}>
+        {left} récompense{left > 1 ? 's' : ''} · {CREW_GIFT_CLAIMS_PER_MEMBER}/membre · expire {CREW_GIFT_EXPIRY_H} h
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${ctaLabel} · ${gift.title}`}
+        accessibilityState={{ disabled: !claimable }}
+        disabled={!claimable}
+        onPress={() => onClaim(gift)}
+        style={({ pressed }) => [
+          styles.cadeauCta,
+          claimable ? styles.cadeauCtaActive : styles.cadeauCtaIdle,
+          pressed && claimable && styles.dim,
+        ]}
+      >
+        <Text style={[styles.cadeauCtaLabel, claimable && styles.cadeauCtaLabelActive]}>
+          {ctaLabel}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 /** En-tête d'une section du chat actionnable + « Voir tout » optionnel (anti-scroll). */
 function SectionHead({
   label,
@@ -537,6 +632,12 @@ export default function CrewScreen() {
   const chat = useCrewChat(chatNowBase);
   /** Abonne l'écran au store des réactions de don (re-render à chaque Merci). */
   useGiftReactions();
+  /** Requêtes émises + dons accomplis + cadeaux offerts (persistés, A.3). */
+  const crewRequests = useCrewRequests();
+  /** Feuille « Demander » (choix de requête) — null = fermée. */
+  const [askSheet, setAskSheet] = useState(false);
+  /** Feuille « Offrir au crew » (cadeau premium) — null = fermée. */
+  const [giftSheet, setGiftSheet] = useState(false);
   /** Filtre actif du chat actionnable (Tout / Demandes / Missions / Dons / Résultats). */
   const [chatFilter, setChatFilter] = useState<ChatFilter>('tout');
   /** Anti-scroll : « Voir tout » par section (À faire / Log) — 2 visibles sinon. */
@@ -646,6 +747,13 @@ export default function CrewScreen() {
   // démo (sortie/demande relayée au crew).
   const onActionCta = (card: ActionCardDemo) => {
     haptics.medium();
+    // « quelqu'un aide » (A.3) : aider sur une carte route/scout/défense enregistre
+    // un DON GRATUIT visible en DONS (+ Merci possible). ZÉRO territoire/point : le
+    // routage vers la course reste inchangé (le claim reste décidé serveur §3).
+    if (card.donationKind) {
+      createDonation(card.donationKind);
+      setChatFilter('dons');
+    }
     if (card.ctaKind === 'live') {
       const q =
         card.intention === 'complete'
@@ -656,6 +764,10 @@ export default function CrewScreen() {
     }
     if (card.ctaKind === 'planner') {
       router.push('/route-planner');
+      return;
+    }
+    if (card.donationKind) {
+      notify(`${card.cta} · ${card.zone} — don enregistré, le crew le voit (démo)`);
       return;
     }
     notify(`${card.cta} · ${card.zone} — envoyé au crew (démo)`);
@@ -675,21 +787,76 @@ export default function CrewScreen() {
     router.push('/arsenal');
   };
 
-  // ── Sections du chat actionnable filtrées (A.2) ──
-  // À FAIRE : cartes d'action visibles selon le filtre (Dons masque À faire).
-  const visibleActions = useMemo(
-    () =>
-      chatFilter === 'dons' || chatFilter === 'resultats'
-        ? []
-        : ACTION_CARDS_DEMO.filter(
-            (c) => chatFilter === 'tout' || c.filters.includes(chatFilter),
-          ),
-    [chatFilter],
+  // « Demander » (A.3) : un choix crée une CARTE REQUÊTE persistée en tête de
+  // À FAIRE. `boost` est une PROPOSITION optionnelle, jamais une demande de payer.
+  const onAskChoice = (choice: RequestChoiceKey) => {
+    haptics.medium();
+    setAskSheet(false);
+    createRequest(choice);
+    // On bascule sur le filtre pertinent + on s'assure d'être sur l'onglet Chat.
+    setChatFilter(choice === 'outing' ? 'missions' : 'demandes');
+    setTab('chat');
+    if (choice === 'boost') {
+      notify('Boost proposé au crew — 100 % optionnel, aucune obligation (démo)');
+    } else {
+      notify(`Demande envoyée au crew · ${REQUEST_CHOICES.find((c) => c.key === choice)?.label} (démo)`);
+    }
+  };
+
+  // « Offrir au crew » (A.3, gifting premium) : crée une CARTE CADEAU réclamable
+  // dans DONS. Limites DURES appliquées dans le store (1/membre, 24 h). Anonyme
+  // possible. JAMAIS de montant. Cohérent avec le gifting AMENDEMENT-16.
+  const onOfferGift = (kind: 'boost' | 'chest', anonymous: boolean) => {
+    haptics.medium();
+    setGiftSheet(false);
+    offerGift(
+      kind === 'chest'
+        ? { title: 'Coffre cosmétique', rewardsTotal: 5, anonymous, by: CHAT_ME }
+        : { title: 'Crew Boost 24 h', rewardsTotal: 5, anonymous, by: CHAT_ME },
+    );
+    setChatFilter('dons');
+    setTab('chat');
+    notify('Cadeau offert au crew — à réclamer sous 24 h (démo)');
+  };
+
+  // Réclamer un cadeau (démo) : décrémente les récompenses + toast. Les gardes
+  // (expiré / épuisé / déjà réclamé) sont dans claimGift — on ne toast que le OK.
+  const onClaimGift = (gift: OfferedGift) => {
+    haptics.light();
+    const ok = claimGift(gift.id);
+    if (ok) notify(`Récompense réclamée · ${gift.title} (démo)`);
+  };
+
+  // ── Sections du chat actionnable filtrées (A.2/A.3) ──
+  // Mes REQUÊTES émises (bouton « Demander ») en TÊTE de À FAIRE, avant la démo.
+  const myRequestCards = useMemo(
+    () => crewRequests.requests.map(requestToActionCard),
+    [crewRequests.requests],
   );
-  // DONS : cartes de don (boost/cadeau/segment…) — masquées sous Résultats/Missions.
+  // À FAIRE : mes requêtes + cartes démo, filtrées (Dons/Résultats masquent À faire).
+  const visibleActions = useMemo(() => {
+    if (chatFilter === 'dons' || chatFilter === 'resultats') return [];
+    const all = [...myRequestCards, ...ACTION_CARDS_DEMO];
+    return all.filter((c) => chatFilter === 'tout' || c.filters.includes(chatFilter));
+  }, [chatFilter, myRequestCards]);
+  // Mes DONS accomplis (route/scout/défense donnés) en tête des dons.
+  const myDonationCards = useMemo(
+    () => crewRequests.donations.map(donationToGiftCard),
+    [crewRequests.donations],
+  );
+  // DONS : mes dons + dons démo — masqués sous Résultats/Missions.
   const visibleGifts = useMemo(
-    () => (chatFilter === 'resultats' || chatFilter === 'missions' ? [] : GIFT_CARDS_DEMO),
-    [chatFilter],
+    () =>
+      chatFilter === 'resultats' || chatFilter === 'missions'
+        ? []
+        : [...myDonationCards, ...GIFT_CARDS_DEMO],
+    [chatFilter, myDonationCards],
+  );
+  // CADEAUX CREW premium offerts (réclamables) — dans la section Dons.
+  const visibleCadeaux = useMemo(
+    () =>
+      chatFilter === 'resultats' || chatFilter === 'missions' ? [] : crewRequests.gifts,
+    [chatFilter, crewRequests.gifts],
   );
   // MESSAGES : fil humain — masqué quand on filtre sur Dons/Résultats (secondaire).
   const showMessages = chatFilter === 'tout' || chatFilter === 'demandes';
@@ -1191,6 +1358,37 @@ export default function CrewScreen() {
             })}
           </View>
 
+          {/* ── DEMANDER / OFFRIR (A.3) : en tête du chat actionnable. « Demander »
+              ouvre la feuille de choix (Défense/Terminer/Route/Scout/Sortie/
+              Proposer un boost) → carte requête. « Offrir » propose un cadeau
+              premium (Boost/Coffre) → carte CADEAU CREW réclamable. ── */}
+          <View style={styles.askRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Demander de l'aide au crew"
+              onPress={() => {
+                haptics.light();
+                setAskSheet(true);
+              }}
+              style={({ pressed }) => [styles.askBtn, pressed && styles.dim]}
+            >
+              <Icon name="ajoutami" size={16} color={colors.noir} />
+              <Text style={styles.askBtnLabel}>Demander</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Offrir un cadeau au crew"
+              onPress={() => {
+                haptics.light();
+                setGiftSheet(true);
+              }}
+              style={({ pressed }) => [styles.offerBtn, pressed && styles.dim]}
+            >
+              <Icon name="cadeau" size={16} color={gameColors.gold} />
+              <Text style={styles.offerBtnLabel}>Offrir au crew</Text>
+            </Pressable>
+          </View>
+
           {/* ── SECTION 1 · À FAIRE (prioritaire, ouverte) : cartes d'action ── */}
           {visibleActions.length > 0 ? (
             <View style={styles.chatSection}>
@@ -1250,11 +1448,21 @@ export default function CrewScreen() {
             </View>
           ) : null}
 
-          {/* ── SECTION · DONS : boost/segment/coffre offerts + Merci/Respect ── */}
-          {visibleGifts.length > 0 ? (
+          {/* ── SECTION · DONS : cadeaux premium réclamables + dons gratuits
+              (route/scout/segment/défense) + Merci/Respect/Bien joué ── */}
+          {visibleGifts.length > 0 || visibleCadeaux.length > 0 ? (
             <View style={styles.chatSection}>
               <Text style={styles.chatSectionLabel}>DONS</Text>
               <View style={styles.actionList}>
+                {/* Cadeaux premium offerts (réclamables) EN TÊTE — les plus récents. */}
+                {visibleCadeaux.map((gift) => (
+                  <CadeauCrewCard
+                    key={gift.id}
+                    gift={gift}
+                    now={nowTick}
+                    onClaim={onClaimGift}
+                  />
+                ))}
                 {visibleGifts.map((gift) => (
                   <GiftCard key={gift.id} gift={gift} onCta={onGiftCta} />
                 ))}
@@ -1311,6 +1519,133 @@ export default function CrewScreen() {
         <Text style={styles.discoveryText}>Explorer d'autres crews</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
+
+      {/* ── Feuille « Demander » (A.3) : 6 choix → carte requête ── */}
+      <Modal
+        visible={askSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAskSheet(false)}
+      >
+        <View style={styles.sheetRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            style={styles.sheetBackdrop}
+            onPress={() => setAskSheet(false)}
+          />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetName}>Demander au crew</Text>
+            <Text style={styles.sheetRole}>
+              Quelqu’un aide · le crew progresse · tout le monde le voit.
+            </Text>
+            {REQUEST_CHOICES.map((choice) => (
+              <Pressable
+                key={choice.key}
+                accessibilityRole="button"
+                accessibilityLabel={choice.label}
+                onPress={() => onAskChoice(choice.key)}
+                style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+              >
+                <Icon
+                  name={
+                    choice.key === 'defense'
+                      ? 'bouclier'
+                      : choice.key === 'finish'
+                        ? 'avantposte'
+                        : choice.key === 'route'
+                          ? 'route'
+                          : choice.key === 'scout'
+                            ? 'scout'
+                            : choice.key === 'outing'
+                              ? 'crew'
+                              : 'cadeau'
+                  }
+                  size={18}
+                  color={choice.key === 'boost' ? gameColors.gold : colors.blanc}
+                />
+                <View style={styles.sheetChoiceText}>
+                  <Text style={styles.sheetActionLabel}>{choice.label}</Text>
+                  <Text style={styles.sheetChoiceHint} numberOfLines={1}>
+                    {choice.hint}
+                  </Text>
+                </View>
+                <Icon name="chevron" size={15} color={colors.gris} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Feuille « Offrir au crew » (A.3, gifting premium) : Boost / Coffre ── */}
+      <Modal
+        visible={giftSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGiftSheet(false)}
+      >
+        <View style={styles.sheetRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            style={styles.sheetBackdrop}
+            onPress={() => setGiftSheet(false)}
+          />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetName}>Offrir au crew</Text>
+            <Text style={styles.sheetRole}>
+              Un geste, pas un avantage · 1 réclamation/membre · expire 24 h · jamais de points.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Offrir un Crew Boost 24 h"
+              onPress={() => onOfferGift('boost', false)}
+              style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+            >
+              <Icon name="cadeau" size={18} color={gameColors.gold} />
+              <View style={styles.sheetChoiceText}>
+                <Text style={styles.sheetActionLabel}>Crew Boost 24 h</Text>
+                <Text style={styles.sheetChoiceHint} numberOfLines={1}>
+                  Accélère le coffre · jamais de territoire
+                </Text>
+              </View>
+              <Icon name="chevron" size={15} color={colors.gris} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Offrir un Coffre cosmétique"
+              onPress={() => onOfferGift('chest', false)}
+              style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+            >
+              <Icon name="coffre" size={18} color={gameColors.gold} />
+              <View style={styles.sheetChoiceText}>
+                <Text style={styles.sheetActionLabel}>Coffre cosmétique</Text>
+                <Text style={styles.sheetChoiceHint} numberOfLines={1}>
+                  5 récompenses cosmétiques à réclamer
+                </Text>
+              </View>
+              <Icon name="chevron" size={15} color={colors.gris} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Offrir un Coffre cosmétique anonymement"
+              onPress={() => onOfferGift('chest', true)}
+              style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+            >
+              <Icon name="verrou" size={18} color={colors.blanc} />
+              <View style={styles.sheetChoiceText}>
+                <Text style={styles.sheetActionLabel}>Coffre · offrande anonyme</Text>
+                <Text style={styles.sheetChoiceHint} numberOfLines={1}>
+                  Ton nom n’apparaît pas · aucun classement
+                </Text>
+              </View>
+              <Icon name="chevron" size={15} color={colors.gris} />
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Sheet d'actions membre (doc §12 — démo locale) ── */}
       <Modal
@@ -1875,6 +2210,86 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   giftCtaLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  // ── Demander / Offrir (A.3) — barre en tête du chat actionnable ──
+  askRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  askBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: gameColors.crew,
+    borderRadius: radii.pill,
+    paddingVertical: 12,
+  },
+  // Libellé NOIR sur chartreuse (contraste charte, jamais l'inverse).
+  askBtnLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.3 },
+  offerBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: gameColors.gold,
+    paddingVertical: 12,
+  },
+  offerBtnLabel: { color: gameColors.gold, fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0.2 },
+  // ── Carte CADEAU CREW (A.3, gifting premium réclamable) ──
+  cadeauCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: gameColors.gold,
+    padding: 14,
+    gap: 8,
+  },
+  cadeauHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cadeauIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: gameColors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.carbone2,
+  },
+  cadeauKicker: {
+    flex: 1,
+    color: gameColors.gold,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  cadeauWindow: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  cadeauMessage: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
+  cadeauMeta: { color: colors.gris, fontSize: 11, letterSpacing: 0.2, fontVariant: ['tabular-nums'] },
+  cadeauCta: {
+    borderRadius: radii.pill,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  cadeauCtaActive: { backgroundColor: gameColors.gold },
+  cadeauCtaIdle: {
+    backgroundColor: colors.carbone2,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  cadeauCtaLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.3 },
+  cadeauCtaLabelActive: { color: colors.noir },
+  // ── Feuille de choix (Demander / Offrir) : texte à 2 lignes par option ──
+  sheetChoiceText: { flex: 1 },
+  sheetChoiceHint: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
   // ── Chat : fil de discussion (bulles) ──
   thread: { marginTop: 4, gap: 12 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 32 },

@@ -293,7 +293,7 @@ function BoundaryCard({
       <View style={styles.boundaryActions}>
         <View style={styles.boundaryActionFill}>
           <InlineRunCTA
-            label="Voir la route"
+            label="Route"
             variant="secondary"
             size="md"
             leading={<Icon name="route" size={16} color={colors.blanc} />}
@@ -533,6 +533,31 @@ export default function WarRoomScreen() {
             openMap();
           }}
         />
+
+        {/* DEMANDER AU CREW (AMENDEMENT-18 A.3) : entrée vers le Crew Chat
+            actionnable où l'on émet une requête (Défense/Terminer/Route/Scout/
+            Sortie). « Demander → quelqu'un aide → le crew progresse. » Aucune
+            requête ne donne de territoire ni de point (anti pay-to-win). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Demander de l'aide au crew"
+          onPress={() => {
+            haptics.light();
+            router.navigate('/crew');
+          }}
+          style={({ pressed }) => [styles.askRow, pressed && styles.pressed]}
+        >
+          <View style={styles.askIcon}>
+            <Icon name="ajoutami" size={16} color={gameColors.crew} />
+          </View>
+          <View style={styles.askText}>
+            <Text style={styles.askTitle}>Demander au crew</Text>
+            <Text style={styles.askSub} numberOfLines={1}>
+              Défense · Terminer · Route · Scout · Sortie
+            </Text>
+          </View>
+          <Icon name="chevron" size={16} color={colors.gris} />
+        </Pressable>
 
         {/* ================= SOUS LE FOLD : sections repliées ================= */}
 
@@ -830,6 +855,33 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   boundaryEmptyText: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18 },
+
+  // --- Demander au crew (A.3) : entrée vers le Crew Chat ---
+  askRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  askIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: gameColors.crew,
+    backgroundColor: gameColors.carbon,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askText: { flex: 1 },
+  askTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  askSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
 
   // --- Sections repliables ---
   sectionToggle: {

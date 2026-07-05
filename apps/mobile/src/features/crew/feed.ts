@@ -186,6 +186,15 @@ export interface ActionCardDemo {
   intention?: 'complete' | 'defense';
   /** Id de frontière partielle (course-live) quand intention = 'complete'. */
   boundary?: string;
+  /**
+   * Nature du DON GRATUIT que produit l'aide sur cette carte (A.3 : « quelqu'un
+   * aide »). Quand défini, agir sur le CTA enregistre un `SentDonation` (route/
+   * scout/défense) → carte dans DONS + Merci. Absent = pas un don (frontière à
+   * terminer, sortie, boost proposé). Miroir de `DonationKind` (requests.ts) —
+   * inliné ici pour éviter un cycle d'import (requests.ts importe feed.ts). ZÉRO
+   * territoire, ZÉRO point : le claim reste décidé serveur (§3).
+   */
+  donationKind?: 'route' | 'scout' | 'defense';
 }
 
 /**
@@ -237,6 +246,8 @@ export const ACTION_CARDS_DEMO: readonly ActionCardDemo[] = [
     infos: ['LENA_RUN', '4,2 km'],
     cta: 'DONNER UNE ROUTE',
     ctaKind: 'planner',
+    // Aider = donner une route → enregistre un DON ROUTE (A.3) visible en DONS.
+    donationKind: 'route',
   },
 ];
 
@@ -244,10 +255,11 @@ export const ACTION_CARDS_DEMO: readonly ActionCardDemo[] = [
  * Type d'un DON dans le fil (A.3/A.4). Chaque don porte des réactions « Merci /
  * Respect / Bien joué » (reactions.ts, persistées). `boost` = Crew Boost 24 h
  * offert (cohérent gifting AMENDEMENT-16) ; `chest` = coffre cosmétique offert ;
- * `route`/`segment`/`defense` = dons GRATUITS (route donnée, boucle d'un autre
- * terminée, défense prise). ZÉRO montant, ZÉRO classement des payeurs.
+ * `route`/`segment`/`scout`/`defense` = dons GRATUITS (route donnée, boucle d'un
+ * autre terminée, scout report partagé, défense prise). ZÉRO montant, ZÉRO
+ * classement des payeurs.
  */
-export type GiftKind = 'boost' | 'chest' | 'route' | 'segment' | 'defense';
+export type GiftKind = 'boost' | 'chest' | 'route' | 'segment' | 'scout' | 'defense';
 
 /** Destination du CTA « Voir » d'un don (coffre, carte, arsenal). */
 export type GiftCta = 'chest' | 'map' | 'arsenal';
@@ -300,6 +312,34 @@ export const GIFT_CARDS_DEMO: readonly GiftCardDemo[] = [
     ctaKind: 'map',
     minutesAgo: 20,
     seed: { merci: 6, respect: 5, bienjoue: 3 },
+  },
+  // Don GRATUIT — une route proposée à une requête route (A.3 : « Lena propose :
+  // Canal · 3,4 km · 12 zones · [Utiliser] »). Zéro point, zéro territoire.
+  {
+    id: 'gift_route_lena',
+    kind: 'route',
+    kicker: 'ROUTE DONNÉE',
+    by: 'LENA_RUN',
+    message: 'propose une route · Canal',
+    effect: '3,4 km · 12 zones · prête à courir',
+    cta: 'Utiliser',
+    ctaKind: 'map',
+    minutesAgo: 32,
+    seed: { merci: 4, respect: 2 },
+  },
+  // Don GRATUIT — un scout report partagé (A.3 : « Zone rivale faible · VOLT.19
+  // inactif 3 j · [Voir cible] »). Activité agrégée, jamais de position live.
+  {
+    id: 'gift_scout_pacer',
+    kind: 'scout',
+    kicker: 'SCOUT REPORT',
+    by: 'PACER·20E',
+    message: 'a partagé un scout · Pantin',
+    effect: 'zone rivale faible · VOLT.19 inactif 3 j',
+    cta: 'Voir cible',
+    ctaKind: 'map',
+    minutesAgo: 44,
+    seed: { merci: 5, respect: 3 },
   },
   {
     id: 'gift_chest_anon',
