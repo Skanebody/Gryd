@@ -55,6 +55,12 @@ import {
 } from '../src/features/map/realAnchors';
 import { territoryStyle } from '../src/features/map/mapStyle';
 import { ResultReveal } from '../src/features/run/ResultReveal';
+import {
+  intentionFromParam,
+  resultSummaryLines,
+  summaryHeader,
+  type ResultSummaryLine,
+} from '../src/features/run/intention';
 import { buildLiveNav } from '../src/features/run/liveNav';
 import { buildRunLoop, loopSummaryAt, type RunLoop } from '../src/features/run/loop';
 import {
@@ -395,8 +401,12 @@ export default function CourseResultScreen() {
     t?: string;
     queued?: string;
     route?: string;
+    intention?: string;
   }>();
   const mode = runModeFromParam(params.mode);
+  // Intention (AMENDEMENT-16 §1) : teinte la SYNTHÈSE multi-résultats + la copy
+  // §28 (Conquête/Défense/Run libre) — jamais l'attribution (le serveur décide).
+  const intention = intentionFromParam(params.intention);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   const tickIndex = tickParam(params.t, sim.ticks.length - 1);
   // Boucle (AMENDEMENT-12) : rejouée depuis la même démo déterministe — même
@@ -462,6 +472,14 @@ export default function CourseResultScreen() {
   const conquest = mode === 'conquete';
   const isPrivate = mode === 'course_privee';
 
+  // Synthèse multi-résultats (doc §2/§3.1) — conquête seulement (les modes
+  // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
+  // copy §28 ; le tracé (démo) produit tous les effets listés.
+  const summary = summaryHeader(intention);
+  const summaryLines = conquest
+    ? resultSummaryLines(intention, stats.zoneName, stats.zonePctAfter - stats.zonePctBefore)
+    : [];
+
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
       {/* Barre : kicker + Passer (visible tant que la séquence n'est pas finie). */}
@@ -506,6 +524,28 @@ export default function CourseResultScreen() {
             ) : null}
           </View>
         </ResultReveal>
+
+        {/* 1bis — SYNTHÈSE multi-résultats (AMENDEMENT-16 §1, doc §2/§3.1) :
+             « l'intention guide, le tracé décide » — la course produit plusieurs
+             effets (conquis · défendus · route ouverte · zone crew), quelle que
+             soit l'intention. La copy §28 rappelle l'esprit du mode choisi. */}
+        {conquest ? (
+          <ResultReveal visible={reached('validated')} haptic="none" style={styles.block}>
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryHead}>
+                <Text style={styles.summaryKicker}>{summary.kicker}</Text>
+                <Text style={styles.summaryCopy} numberOfLines={2}>
+                  {summary.copy}
+                </Text>
+              </View>
+              <View style={styles.summaryLines}>
+                {summaryLines.map((line) => (
+                  <SummaryLine key={line.icon} line={line} />
+                ))}
+              </View>
+            </View>
+          </ResultReveal>
+        ) : null}
 
         {/* 2 — +214 ZONES CAPTURÉES (KPI géant, compteur qui monte). */}
         {conquest ? (
@@ -714,6 +754,18 @@ function ZoneCountUp({ value }: { value: number }) {
   return <Text style={styles.zonesHero}>+{formatInt(display)}</Text>;
 }
 
+/** Une ligne de la synthèse multi-résultats (icône + texte, accent chartreuse). */
+function SummaryLine({ line }: { line: ResultSummaryLine }) {
+  return (
+    <View style={styles.summaryLine}>
+      <Icon name={line.icon} size={16} color={line.accent ? colors.chartreuse : colors.gris} />
+      <Text style={[styles.summaryLineText, line.accent && styles.summaryLineAccent]} numberOfLines={1}>
+        {line.text}
+      </Text>
+    </View>
+  );
+}
+
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.miniStat}>
@@ -807,6 +859,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 2,
   },
+
+  // ── Synthèse multi-résultats (AMENDEMENT-16 §1) ──
+  summaryCard: {
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+    gap: 12,
+  },
+  summaryHead: { gap: 4 },
+  summaryKicker: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 2,
+  },
+  summaryCopy: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 18 },
+  summaryLines: { gap: 8 },
+  summaryLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  summaryLineText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  summaryLineAccent: { color: colors.chartreuse, fontWeight: '800' },
 
   validated: { alignItems: 'center', gap: 10, paddingVertical: 8 },
   validatedTitle: {

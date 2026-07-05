@@ -57,7 +57,10 @@ export type WarLogType =
   | 'recrutement'
   | 'niveau'
   | 'route'
-  | 'avantposte';
+  | 'avantposte'
+  // AMENDEMENT-16 §14 : contribution/gifting — message SOBRE, jamais de montant
+  // ni de classement de payeurs. Offrande anonyme rendue « Un membre a offert… ».
+  | 'contribution';
 
 /**
  * Icône + teinte fonctionnelle par type d'événement. La couleur lit l'ÉTAT DE
@@ -75,6 +78,8 @@ export const WAR_LOG_META: Record<WarLogType, { icon: IconName; tint: GameColorN
   niveau: { icon: 'niveau', tint: 'gold' },
   route: { icon: 'route', tint: 'crew' },
   avantposte: { icon: 'avantposte', tint: 'crew' },
+  // Cadeau = geste positif de contribution (or), pas une action de jeu.
+  contribution: { icon: 'cadeau', tint: 'gold' },
 };
 
 /** Résout la teinte d'une entrée (surcharge éventuelle, ex. attaque rivale). */
@@ -140,6 +145,12 @@ export const CHAT_TIMELINE: readonly ChatTimelineItem[] = [
     message: 'Offensive prête · 5 runners engagés', zone: 'Canal Saint-Martin', minutesAgo: 35,
     reactions: { raid: 4, legend: 1 },
   },
+  // Gifting SOBRE (§14) : nom quand non anonyme, jamais de montant.
+  {
+    kind: 'event', id: 'gift1', type: 'contribution',
+    message: 'LENA_RUN a boosté le crew pendant 24 h', minutesAgo: 40,
+    reactions: { respect: 3, hold: 1 },
+  },
   {
     kind: 'message', id: 'm2', author: 'KORO', me: true, minutesAgo: 47,
     text: 'Je prends l’aile est. Ramenez du monde, on tient la zone.',
@@ -169,6 +180,12 @@ export const CHAT_TIMELINE: readonly ChatTimelineItem[] = [
     kind: 'event', id: 'w6', type: 'avantposte',
     message: 'Avant-poste consolidé', zone: 'Parc de la Villette', minutesAgo: 310,
     reactions: { hold: 5, respect: 2 },
+  },
+  // Offrande ANONYME (§14) : « Un membre a offert… », aucun nom, aucun montant.
+  {
+    kind: 'event', id: 'gift2', type: 'contribution',
+    message: 'Un membre a offert un coffre cosmétique au crew', minutesAgo: 360,
+    reactions: { respect: 4 },
   },
   {
     kind: 'event', id: 'w7', type: 'coffre',

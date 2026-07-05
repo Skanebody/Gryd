@@ -71,15 +71,29 @@ function tierTint(rarity: BadgeTier): string {
 }
 
 export type ArsenalCurrency = 'eclats' | 'foulees';
+/** Devise d'un prix affiché : monnaies de jeu OU euros (packs/abonnements §19). */
+export type ArsenalPriceCurrency = ArsenalCurrency | 'eur';
 
 /**
  * Monnaie → libellé. L'icône vient du registre arsenal-icons (gemme facettée /
- * double empreinte — AMENDEMENT-14 §5), le slug = la clé de monnaie.
+ * double empreinte — AMENDEMENT-14 §5), le slug = la clé de monnaie. L'euro n'a
+ * pas d'icône de jeu : rendu « 9,99 € » directement (pack payant réel).
  */
 const CURRENCY_LABEL: Record<ArsenalCurrency, string> = {
   eclats: 'Éclats',
   foulees: 'Foulées',
 };
+
+/** Rendu du prix (« 400 Éclats », « 9,99 € »). L'euro utilise le format FR. */
+function priceText(price: { amount: number; currency: ArsenalPriceCurrency }): string {
+  if (price.currency === 'eur') {
+    return `${price.amount.toLocaleString('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} €`;
+  }
+  return `${price.amount.toLocaleString('fr-FR')} ${CURRENCY_LABEL[price.currency]}`;
+}
 
 export interface ArsenalItemCardProps {
   name: string;
@@ -96,15 +110,21 @@ export interface ArsenalItemCardProps {
   usage: string;
   /** Limite anti-abus (« 1 / semaine ») — objets capés doc §20. */
   limit?: string;
-  /** Prix (absent = gratuit/débloqué par le jeu). */
-  price?: { amount: number; currency: ArsenalCurrency };
+  /** Prix (absent = gratuit/débloqué par le jeu). Devise EUR = pack payant réel. */
+  price?: { amount: number; currency: ArsenalPriceCurrency };
   /** États pertinents : active · locked · expired · statsonly · unlocked. */
   state?: GameVisualState;
   /** Déjà possédé (« Dans ton arsenal », CTA masqué). */
   owned?: boolean;
+  /** Équipé (skin/frame/bannière actif) — pastille « Équipé », CTA masqué. */
+  equipped?: boolean;
+  /** Équipable depuis l'inventaire : affiche « Équiper » (§16, rendu carte V1). */
+  onEquip?: () => void;
   /** CTA principal « Obtenir » (haptic medium — achat, doc §25). */
   onObtain?: () => void;
-  /** CTA secondaire « Voir » (préview). */
+  /** Libellé du CTA principal (défaut « Obtenir » ; « Offrir au crew » en gifting). */
+  obtainLabel?: string;
+  /** CTA secondaire « Voir » (préview / détail). */
   onView?: () => void;
 }
 
@@ -118,13 +138,24 @@ export function ArsenalItemCard({
   price,
   state = 'unlocked',
   owned = false,
+  equipped = false,
+  onEquip,
   onObtain,
+  obtainLabel = 'Obtenir',
   onView,
 }: ArsenalItemCardProps) {
   const ts = BADGE_TIER_STYLE[rarity];
   const locked = state === 'locked' || state === 'expired';
   const canObtain = !owned && !locked && onObtain !== undefined;
+  // Équipable = possédé, équipable (onEquip fourni) et pas déjà équipé.
+  const canEquip = owned && !equipped && onEquip !== undefined;
   const iconColor = locked ? colors.gris : tierTint(rarity);
+  const pillState: GameVisualState = owned ? 'active' : state;
+  const pillLabel = equipped ? 'Équipé' : owned ? 'Possédé' : undefined;
+  // Pastille seulement quand elle porte une info : possédé/équipé ou verrouillé/
+  // expiré. Un item simplement achetable n'affiche PAS « Débloqué » (le prix +
+  // le CTA « Obtenir » suffisent — évite le faux positif de possession).
+  const showPill = owned || locked;
 
   return (
     <View style={styles.card}>
@@ -148,20 +179,22 @@ export function ArsenalItemCard({
             {usage}
           </Text>
         </View>
-        <StatePill state={owned ? 'active' : state} label={owned ? 'Possédé' : undefined} />
+        {showPill ? <StatePill state={pillState} label={pillLabel} /> : null}
       </View>
 
       <View style={styles.footer}>
         {price && !owned ? (
           <View style={styles.price}>
-            <ArsenalIcon slug={price.currency} size={15} color={colors.blanc} />
-            <Text style={styles.priceValue}>
-              {price.amount.toLocaleString('fr-FR')} {CURRENCY_LABEL[price.currency]}
-            </Text>
+            {price.currency !== 'eur' ? (
+              <ArsenalIcon slug={price.currency} size={15} color={colors.blanc} />
+            ) : null}
+            <Text style={styles.priceValue}>{priceText(price)}</Text>
           </View>
         ) : (
           <View style={styles.price}>
-            <Text style={styles.ownedLabel}>{owned ? 'Dans ton arsenal' : ''}</Text>
+            <Text style={styles.ownedLabel}>
+              {equipped ? 'Équipé' : owned ? 'Dans ton arsenal' : ''}
+            </Text>
           </View>
         )}
         <View style={styles.ctas}>
@@ -174,6 +207,18 @@ export function ArsenalItemCard({
               <Text style={styles.ghostLabel}>Voir</Text>
             </Pressable>
           ) : null}
+          {canEquip ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                haptics.light();
+                onEquip?.();
+              }}
+              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+            >
+              <Text style={styles.primaryLabel}>Équiper</Text>
+            </Pressable>
+          ) : null}
           {canObtain ? (
             <Pressable
               accessibilityRole="button"
@@ -183,7 +228,7 @@ export function ArsenalItemCard({
               }}
               style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
             >
-              <Text style={styles.primaryLabel}>Obtenir</Text>
+              <Text style={styles.primaryLabel}>{obtainLabel}</Text>
             </Pressable>
           ) : null}
         </View>

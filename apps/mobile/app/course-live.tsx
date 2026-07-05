@@ -83,6 +83,14 @@ import {
 } from '../src/features/run/simulation';
 import { useRealRun } from '../src/features/run/gps/useRealRun';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
+import {
+  conquestBannerLabel,
+  defenseBannerLabel,
+  defenseCoveragePct,
+  defenseZoneForRoute,
+  intentionFromParam,
+  type RunIntention,
+} from '../src/features/run/intention';
 
 /** Marge entre la sheet compacte et l'UI flottante (boutons, échelle). */
 const ABOVE_SHEET_GAP = 12;
@@ -122,8 +130,11 @@ function useZoneJump(active: boolean): Animated.Value {
 }
 
 export default function CourseLiveScreen() {
-  const params = useLocalSearchParams<{ mode?: string; route?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; route?: string; intention?: string }>();
   const mode = runModeFromParam(params.mode);
+  // Intention (AMENDEMENT-16 §1) : Conquérir/Défendre teintent les bandeaux
+  // live — 100 % CLIENT, jamais lue par le serveur (le tracé décide).
+  const intention = intentionFromParam(params.intention);
   // GPS réel (AMENDEMENT-15 §2) : natif + permission → vrai tracker ; web ou
   // refus → simulation démo INCHANGÉE (variante useRealRun.web.ts = stub).
   const gate = useRealRun(mode);
@@ -133,17 +144,27 @@ export default function CourseLiveScreen() {
     return <View style={styles.root} />;
   }
   if (gate.kind === 'real') return <RealCourseLive run={gate.run} />;
-  return <DemoCourseLive mode={mode} routeParam={params.route} notice={gate.notice} />;
+  return (
+    <DemoCourseLive
+      mode={mode}
+      routeParam={params.route}
+      intention={intention}
+      notice={gate.notice}
+    />
+  );
 }
 
 /** Simulation démo (flux historique, INCHANGÉ hors pill de mode dégradé). */
 function DemoCourseLive({
   mode,
   routeParam,
+  intention,
   notice,
 }: {
   mode: LiveRunMode;
   routeParam: string | string[] | undefined;
+  /** Intention live (client only) — teinte le bandeau, jamais le résultat. */
+  intention: RunIntention | null;
   notice: string | null;
 }) {
   const insets = useSafeAreaInsets();
@@ -199,6 +220,23 @@ function DemoCourseLive({
     Math.max(CHECKPOINT_ROUND_M, Math.round(loopStatus.distM / CHECKPOINT_ROUND_M) * CHECKPOINT_ROUND_M),
   );
 
+  // ── Bandeau d'INTENTION (AMENDEMENT-16 §1) : l'intention guide le live, le
+  //    tracé décide du résultat. Conquérir → progression de fermeture de boucle
+  //    (seuils/états loop EXISTANTS) ; Défendre → % de frontière couverte (démo :
+  //    cellules propres traversées ≈ progression du parcours). Aucune de ces
+  //    métriques ne part au serveur — pur affichage. Rien sans intention (run libre).
+  const intentionBanner = (() => {
+    if (intention === 'conquest') {
+      return conquestBannerLabel(loopStatus.phase, loopStatus.distM, tick.distanceM);
+    }
+    if (intention === 'defense') {
+      const zone = defenseZoneForRoute(routeParam);
+      const covered = defenseCoveragePct(Math.min(tickIndex, lastIndex) + 1, lastIndex + 1);
+      return defenseBannerLabel(zone, covered);
+    }
+    return null;
+  })();
+
   // ── Feedback temps réel scripté : toast + haptic (anti-bruit : 1 à la fois) ─
   const [toast, setToast] = useState<{ key: number; toast: NavToast } | null>(null);
   const toastKeyRef = useRef(0);
@@ -245,12 +283,17 @@ function DemoCourseLive({
       source: 'gps',
     });
     // Le résultat rejoue la MÊME course : le parcours routé suit (§4ter).
+    // L'intention accompagne le résultat pour teinter la SYNTHÈSE multi-résultats
+    // (Conquête/Défense/Run libre, doc §2) — jamais l'attribution serveur.
     const routeId = Array.isArray(routeParam) ? routeParam[0] : routeParam;
     router.replace({
       pathname: '/course-result',
-      params: routeId
-        ? { mode, t: String(tickIndex), route: routeId }
-        : { mode, t: String(tickIndex) },
+      params: {
+        mode,
+        t: String(tickIndex),
+        ...(routeId ? { route: routeId } : {}),
+        ...(intention ? { intention } : {}),
+      },
     });
   };
 
@@ -285,6 +328,7 @@ function DemoCourseLive({
   const topStackOffset =
     56 +
     (routeInfo ? 30 : 0) +
+    (intentionBanner ? 30 : 0) +
     (tick.event !== null ? 38 : 0) +
     (loopPillVisible ? 30 : 0) +
     (!conquest ? 28 : 0);
@@ -558,6 +602,21 @@ function DemoCourseLive({
                 : `ARRIVÉE ${Math.max(1, Math.ceil(etaS / 60))} MIN · ${pct} %`}
           </Text>
         </View>
+        {/* Bandeau d'intention (AMENDEMENT-16 §1) : Conquérir → fermeture de
+             boucle ; Défendre → frontière couverte. S'empile sous l'ETA, ne la
+             remplace jamais. Rien sans intention (run libre). */}
+        {intentionBanner ? (
+          <View style={styles.intentionPill}>
+            <Icon
+              name={intention === 'defense' ? 'bouclier' : 'cible'}
+              size={13}
+              color={colors.chartreuse}
+            />
+            <Text style={styles.intentionPillText} numberOfLines={1}>
+              {intentionBanner}
+            </Text>
+          </View>
+        ) : null}
         {tick.event !== null ? (
           <View style={styles.eventPillWrap}>
             <StatePill
@@ -825,6 +884,27 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   loopLineAccent: { color: colors.chartreuse },
+  // ── Bandeau d'intention (AMENDEMENT-16 §1) : filet chartreuse discret, même
+  //    gabarit que la pill boucle (l'intention guide, ne crie pas). ──
+  intentionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    maxWidth: 340,
+  },
+  intentionPillText: {
+    color: colors.blanc,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    fontVariant: ['tabular-nums'],
+  },
   /** Le Stat ZONES garde sa part de rangée quand il saute (scale). */
   zoneStatWrap: { flex: 1 },
   /** Neutralise l'alignSelf flex-start du StatePill (pill centrée en haut). */

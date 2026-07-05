@@ -17,8 +17,10 @@ export { WarEventCard, type WarEventCardProps, type WarEventReaction } from './W
 export { MemberCard, CREW_ROLE_META, type MemberCardProps, type MemberAction, type CrewRole } from './MemberCard';
 export {
   ArsenalItemCard,
+  ArsenalIcon,
   type ArsenalItemCardProps,
   type ArsenalCurrency,
+  type ArsenalPriceCurrency,
 } from './ArsenalItemCard';
 export {
   ContextualRunButton,

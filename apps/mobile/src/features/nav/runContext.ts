@@ -97,3 +97,15 @@ export function deriveAutoPlan(): AutoRunPlan {
 export function goHref(plan: AutoRunPlan): string {
   return `/course-live?mode=conquete&route=${plan.routeId}`;
 }
+
+/**
+ * Départ avec INTENTION (AMENDEMENT-16 §1) : le param `intention` teinte le live
+ * (bandeaux Conquérir/Défendre) mais reste 100 % CLIENT — il ne part JAMAIS au
+ * serveur pour l'attribution (le tracé réel seul décide). Le runMode reste
+ * `conquete` : capturer/défendre = le moteur de zones, l'intention n'est qu'un
+ * guide d'expérience. `route` optionnel (Défendre pointe une zone précise).
+ */
+export function intentionHref(intention: 'conquest' | 'defense', routeId?: string): string {
+  const base = `/course-live?mode=conquete&intention=${intention}`;
+  return routeId ? `${base}&route=${routeId}` : base;
+}

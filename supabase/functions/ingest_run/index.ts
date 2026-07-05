@@ -79,9 +79,11 @@ import {
 } from '../_shared/engine/badges.ts';
 import { BADGES_BY_KEY } from '../_shared/badges.ts';
 import {
+  boostedChestProgress,
   cappedCrewXp,
   chestProgressDelta,
   crewXpForRun,
+  type CrewBoostWindow,
   withinOffensiveZone,
   type CrewChestInput,
 } from '../_shared/engine/crew.ts';
@@ -672,6 +674,51 @@ function isoWeekStart(now: Date): string {
 /** Jour UTC ('YYYY-MM-DD') — clé du cap quotidien crew_xp_daily. */
 const utcDay = (now: Date): string => now.toISOString().slice(0, 10);
 
+/**
+ * Fenêtres de crew boost ACTIVES du crew (miroir CrewBoostWindow) + fin de la
+ * saison active (epoch ms, null si aucune). Lit crew_boosts (status='active')
+ * et la saison active via crews.city_id (même source que rc_webhook). Le moteur
+ * pur boostChestMultiplier tranche ensuite fenêtre/blackout — ici, QUE l'I/O.
+ * L'effet ne porte QUE sur le coffre (§4, doc §13.1) : jamais points/XP/leaderboard.
+ */
+async function loadCrewBoostContext(
+  crewId: string,
+): Promise<{ boosts: CrewBoostWindow[]; seasonEndMs: number | null }> {
+  const { data: boostRows, error: boostErr } = await supabase
+    .from('crew_boosts')
+    .select('starts_at, ends_at, multiplier, status')
+    .eq('crew_id', crewId)
+    .eq('status', 'active');
+  if (boostErr) throw new Error(`crew_boosts read: ${boostErr.message}`);
+  const boosts: CrewBoostWindow[] = (boostRows ?? []).map((b) => ({
+    startsAtMs: new Date(b.starts_at as string).getTime(),
+    endsAtMs: new Date(b.ends_at as string).getTime(),
+    multiplier: Number(b.multiplier),
+    status: b.status as CrewBoostWindow['status'],
+  }));
+
+  // Fin de saison active du crew (pour le blackout de fin de saison). Absence de
+  // crew/city/saison → null : le blackout ne s'applique pas (fail-open côté effet).
+  let seasonEndMs: number | null = null;
+  const { data: crew, error: crewErr } = await supabase
+    .from('crews')
+    .select('city_id')
+    .eq('id', crewId)
+    .maybeSingle();
+  if (crewErr) throw new Error(`crews read: ${crewErr.message}`);
+  if (crew?.city_id) {
+    const { data: season, error: seasonErr } = await supabase
+      .from('seasons')
+      .select('ends_at')
+      .eq('city_id', crew.city_id)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (seasonErr) throw new Error(`seasons read: ${seasonErr.message}`);
+    if (season?.ends_at) seasonEndMs = new Date(season.ends_at as string).getTime();
+  }
+  return { boosts, seasonEndMs };
+}
+
 interface CrewRunOutcome {
   hexesCaptured: number; // neutres + volés
   hexesDefended: number;
@@ -751,15 +798,21 @@ async function processCrew(
     }
   }
 
-  // ── Coffre de la semaine (§39) : progression pondérée ────────────────────
+  // ── Coffre de la semaine (§39) : progression pondérée, boost §4 appliqué ──
+  // AMENDEMENT-16 §4 (doc §13.1) : un Crew Boost actif multiplie le delta de
+  // progression du COFFRE (+25 %), borné/non-cumulable/éteint en blackout de
+  // fin de saison — jamais points/XP/leaderboard. boostedChestProgress (pur)
+  // tranche fenêtre/blackout ; ici on ne fait QUE lire boosts + fin de saison.
   const chestInput: CrewChestInput = {
     hexCaptured: outcome.hexesCaptured,
     hexDefended: outcome.hexesDefended,
     routeOpened: outcome.newCrewRoutes,
     verifiedRun: outcome.verified ? 1 : 0,
   };
-  const delta = chestProgressDelta(chestInput);
-  if (delta > 0) {
+  const baseDelta = chestProgressDelta(chestInput);
+  if (baseDelta > 0) {
+    const { boosts, seasonEndMs } = await loadCrewBoostContext(crewId);
+    const delta = boostedChestProgress(baseDelta, boosts, now.getTime(), seasonEndMs);
     const weekStart = isoWeekStart(now);
     const { data: chestRow, error: chestReadErr } = await supabase
       .from('crew_chests')

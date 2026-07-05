@@ -117,3 +117,68 @@ export function defenseCoveragePct(litCount: number, totalCells: number): number
 export function defenseBannerLabel(zone: string, coveredPct: number): string {
   return `Défense ${zone} · Frontière couverte : ${coveredPct} %`;
 }
+
+// ─── Synthèse multi-résultats (doc §2 / §3.1 — « l'intention guide, le tracé
+//     décide ») ──────────────────────────────────────────────────────────────
+// Le tracé réel produit PLUSIEURS effets, quelle que soit l'intention : la
+// synthèse liste ce que la course a pris/défendu/repris/ouvert. Étiquettes de
+// SCÉNARIO démo (le vrai bilan vient d'ingest_run côté serveur, jamais du
+// client). L'intention ne teinte que l'ordre/l'accent — pas l'attribution.
+
+/** Une ligne de la synthèse : icône + texte, `accent` = mise en avant chartreuse. */
+export interface ResultSummaryLine {
+  icon: 'cible' | 'bouclier' | 'route' | 'crew';
+  text: string;
+  accent?: boolean;
+}
+
+/** Titre + copy §28 selon l'intention (Conquête / Défense / Run libre). */
+export function summaryHeader(intention: RunIntention | null): {
+  kicker: string;
+  copy: string;
+} {
+  if (intention === 'conquest') return { kicker: 'CONQUÊTE', copy: CONQUEST_COPY };
+  if (intention === 'defense') return { kicker: 'DÉFENSE', copy: DEFENSE_COPY };
+  return { kicker: 'RUN LIBRE', copy: FREE_RUN_COPY };
+}
+
+/**
+ * Synthèse multi-résultats (doc §2/§3.1). `zoneName`/`zonePctDelta` viennent
+ * des stats démo (le serveur reste décideur). Chaque intention met en avant SON
+ * effet, mais tous les effets du tracé sont listés (« pas une prison » §2) :
+ *  - Conquérir : +1 zone conquise (accent) · 2 défendues · 1 route ouverte
+ *  - Défendre  : 2 zones défendues (accent) · 1 petite zone conquise · 1 route
+ *  - Run libre : +1 conquise · 2 défendues · 1 route ouverte (analyse auto)
+ * La ligne zone crew (« Paris Est +3 % ») clôt toujours la synthèse.
+ */
+export function resultSummaryLines(
+  intention: RunIntention | null,
+  zoneName: string,
+  zonePctDelta: number,
+): ResultSummaryLine[] {
+  const conquered: ResultSummaryLine = {
+    icon: 'cible',
+    text: '+1 zone conquise',
+    accent: intention !== 'defense',
+  };
+  const defended: ResultSummaryLine = {
+    icon: 'bouclier',
+    text: '2 zones défendues',
+    accent: intention === 'defense',
+  };
+  const opened: ResultSummaryLine = { icon: 'route', text: '1 route ouverte' };
+  const crewLine: ResultSummaryLine = {
+    icon: 'crew',
+    text: `${zoneName} +${zonePctDelta} %`,
+  };
+  if (intention === 'defense') {
+    // Défendre : la défense prime, la conquête au passage est « petite ».
+    return [
+      defended,
+      { ...conquered, text: '1 petite zone conquise', accent: false },
+      opened,
+      crewLine,
+    ];
+  }
+  return [conquered, defended, opened, crewLine];
+}

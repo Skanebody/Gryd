@@ -68,6 +68,14 @@ import {
 } from '../../src/features/crew/rules';
 import { CHEST_REWARDS, MY_CREW, type CrewMemberDemo } from '../../src/features/crew/demo';
 import {
+  BOOST_CHEST_BONUS_LABEL,
+  INITIAL_CREW_WALL,
+  formatBoostRemaining,
+  startBoost,
+  supporterLabel,
+  type CrewBoostState,
+} from '../../src/features/arsenal';
+import {
   CHAT_TIMELINE,
   DEFENSE_RSVP_OPTIONS,
   WAR_LOG_META,
@@ -230,6 +238,27 @@ export default function CrewScreen() {
   const [chestOpened, setChestOpened] = useState(false);
   const [rsvp, setRsvp] = useState<Record<string, DefenseRsvp>>({});
   const [showTiers, setShowTiers] = useState(false);
+
+  // ── Crew Boost DÉMO actif (AMENDEMENT-16 §13.1) : contribution volontaire,
+  // effet COFFRE uniquement (+25 %), jamais de points. Un membre a offert un
+  // Boost 24 h il y a 3 h (offrande NON anonyme en démo). Le timer descend en
+  // live. O1 : cet état viendra de crew_boosts (0014).
+  const [boost] = useState<CrewBoostState>(() =>
+    startBoost(
+      'crew_boost_24',
+      { anonymous: false, by: 'LENA_RUN' },
+      Date.now() - 3 * 3_600_000,
+    ),
+  );
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const boostActive = boost.endsAt === null || boost.endsAt > nowTick;
+
+  // Crew Wall (§14) : opt-in, Supporters de la saison SANS montant ni classement.
+  const [wallOptIn, setWallOptIn] = useState(false);
 
   const insets = useSafeAreaInsets();
   // Blason vivant : pulse très léger (reduce motion → inerte, géré par le hook).
@@ -420,6 +449,7 @@ export default function CrewScreen() {
               tint={chestClaimable ? gameColors.crew : gameColors.gold}
               label="Coffre crew"
               value={`${Math.round(chestPct * 100)} %`}
+              sub={boostActive ? BOOST_CHEST_BONUS_LABEL : undefined}
               progress={chestPct}
               onPress={() => setTab('coffre')}
             />
@@ -449,7 +479,82 @@ export default function CrewScreen() {
             />
           </View>
 
+          {/* ── Crew Boost actif (§13.1) : badge + timer + effet COFFRE ── */}
+          {boostActive ? (
+            <View style={styles.boostCard}>
+              <View style={styles.boostIcon}>
+                <Icon name="cadeau" size={18} color={gameColors.gold} />
+              </View>
+              <View style={styles.boostBody}>
+                <View style={styles.boostTopRow}>
+                  <Text style={styles.boostTitle}>Boost actif</Text>
+                  <View style={styles.boostBonus}>
+                    <Text style={styles.boostBonusText}>{BOOST_CHEST_BONUS_LABEL}</Text>
+                  </View>
+                </View>
+                <Text style={styles.boostSub}>
+                  {boost.by ? `${boost.by} a boosté le crew` : 'Un membre a boosté le crew'} ·{' '}
+                  <Text style={styles.boostTimer}>{formatBoostRemaining(boost, nowTick)}</Text>
+                </Text>
+                <Text style={styles.boostNote}>
+                  Accélère la progression du coffre. Jamais de points ni de zones.
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
           <TerritoryBlock />
+
+          {/* ── Contribution crew (§28) + Crew Wall opt-in (§14) ── */}
+          <View style={styles.contribCard}>
+            <SectionLabel>CONTRIBUTION</SectionLabel>
+            <Text style={styles.contribLead}>Offre un boost à ton crew.</Text>
+            <Text style={styles.contribBody}>Tous les runs comptent plus fort pour le coffre.</Text>
+            <Text style={styles.contribStrong}>Aucune obligation. La victoire reste sur la route.</Text>
+
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: wallOptIn }}
+              onPress={() => {
+                haptics.light();
+                setWallOptIn((v) => !v);
+              }}
+              style={styles.wallToggle}
+            >
+              <View style={[styles.wallCheckbox, wallOptIn && styles.wallCheckboxOn]}>
+                {wallOptIn ? <View style={styles.wallCheckDot} /> : null}
+              </View>
+              <View style={styles.wallToggleText}>
+                <Text style={styles.wallToggleLabel}>Afficher le Crew Wall</Text>
+                <Text style={styles.wallToggleSub}>
+                  Supporters de la saison — sans montant, offrande anonyme respectée.
+                </Text>
+              </View>
+            </Pressable>
+
+            {wallOptIn ? (
+              <View style={styles.wall}>
+                <Text style={styles.wallTitle}>Supporters de la saison</Text>
+                {INITIAL_CREW_WALL.map((entry) => (
+                  <View key={`${entry.supporter ?? 'anon'}-${entry.contribution}`} style={styles.wallRow}>
+                    <Text style={styles.wallSupporter} numberOfLines={1}>
+                      {supporterLabel(entry)}
+                    </Text>
+                    <Text style={styles.wallContribution} numberOfLines={1}>
+                      {entry.contribution}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={styles.wallFootnote}>Aucun montant. Aucun classement par dépense.</Text>
+              </View>
+            ) : null}
+
+            <GhostButton
+              label="Voir l’Arsenal"
+              icon="boutique"
+              onPress={() => router.push('/arsenal')}
+            />
+          </View>
 
           <View style={styles.baseActions}>
             <GhostButton
@@ -950,6 +1055,96 @@ const styles = StyleSheet.create({
   },
   baseCardSub: { color: colors.gris, fontSize: 11, letterSpacing: 0.2 },
   baseActions: { marginTop: 18, gap: 10 },
+  // ── Crew Boost actif (AMENDEMENT-16 §13.1) ──
+  boostCard: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: gameColors.gold,
+    padding: 14,
+    marginTop: 12,
+  },
+  boostIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: gameColors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.carbone2,
+  },
+  boostBody: { flex: 1, gap: 3 },
+  boostTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  boostTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '800' },
+  boostBonus: {
+    backgroundColor: colors.carbone2,
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  boostBonusText: { color: gameColors.gold, fontSize: fontSizes.xs, fontWeight: '800' },
+  boostSub: { color: colors.gris, fontSize: fontSizes.xs },
+  boostTimer: { color: colors.blanc, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  boostNote: { color: colors.gris, fontSize: 11, lineHeight: 15, marginTop: 1 },
+  // ── Contribution + Crew Wall (§14/§28) ──
+  contribCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: 16,
+    marginTop: 16,
+    gap: 6,
+  },
+  contribLead: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  contribBody: { color: colors.blanc, fontSize: fontSizes.sm },
+  contribStrong: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontStyle: 'italic',
+    marginBottom: 6,
+  },
+  wallToggle: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 6 },
+  wallCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  wallCheckboxOn: { backgroundColor: gameColors.crew, borderColor: gameColors.crew },
+  wallCheckDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.noir },
+  wallToggleText: { flex: 1 },
+  wallToggleLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  wallToggleSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2, lineHeight: 16 },
+  wall: {
+    backgroundColor: colors.carbone2,
+    borderRadius: radii.card,
+    padding: 14,
+    marginTop: 10,
+    gap: 8,
+  },
+  wallTitle: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  wallRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  wallSupporter: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', flexShrink: 1 },
+  wallContribution: { color: colors.gris, fontSize: fontSizes.xs, flexShrink: 1, textAlign: 'right' },
+  wallFootnote: { color: colors.gris, fontSize: 11, marginTop: 2 },
   // ── TERRITOIRE CREW (AMENDEMENT-11 §4) ──
   territoryCard: {
     marginTop: 14,

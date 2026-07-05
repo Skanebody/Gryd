@@ -14,9 +14,11 @@ import {
 import {
   boostChestMultiplier,
   boostedChestProgress,
+  chestProgressDelta,
   crewBoostActive,
   type CrewBoostWindow,
 } from '../_shared/engine/crew.ts';
+import { CREW_CHEST_WEIGHTS } from '../_shared/game-rules.ts';
 
 const HOUR_MS = 3_600_000;
 const NOW = 1_750_000_000_000; // epoch ms arbitraire
@@ -115,4 +117,31 @@ Deno.test('boostedChestProgress : delta négatif → 0 (le coffre ne recule jama
 Deno.test('boostedChestProgress : en blackout, delta de base sans bonus', () => {
   const seasonEnd = NOW + HOUR_MS; // à 1 h de la fin de saison
   assertEquals(boostedChestProgress(100, [boost()], NOW, seasonEnd), 100);
+});
+
+// ─── Chemin appelant ingest_run (processCrew) : la composition exacte ────────
+// MIROIR de la ligne serveur `boostedChestProgress(chestProgressDelta(input),
+// boosts, now, seasonEnd)` — garde-fou contre une régression qui recâblerait le
+// delta BRUT (bug d'origine : le boost payant restait inerte côté serveur).
+
+Deno.test('processCrew (composition) : boost actif → +25 % sur le delta de coffre pondéré', () => {
+  // Un lot de contribution : 10 hexes capturés + course vérifiée.
+  const chestInput = { hexCaptured: 10, verifiedRun: 1 };
+  const base = chestProgressDelta(chestInput);
+  // Sanity : le delta pondéré est bien > 0 (sinon le coffre n'avance jamais).
+  assertEquals(base, 10 * CREW_CHEST_WEIGHTS.hexCaptured + CREW_CHEST_WEIGHTS.verifiedRun);
+  assertEquals(base > 0, true);
+  // Sans boost : le serveur écrit le delta brut.
+  assertEquals(boostedChestProgress(base, [], NOW, null), base);
+  // Avec boost actif : le serveur écrit le delta boosté (floor(base × mult)).
+  const boosted = boostedChestProgress(base, [boost()], NOW, null);
+  assertEquals(boosted, Math.floor(base * CREW_BOOST_CHEST_MULTIPLIER));
+  assertEquals(boosted > base, true, 'le boost payant accélère RÉELLEMENT le coffre');
+});
+
+Deno.test('processCrew (composition) : blackout de fin de saison → coffre au delta brut', () => {
+  const chestInput = { hexCaptured: 10, verifiedRun: 1 };
+  const base = chestProgressDelta(chestInput);
+  const seasonEnd = NOW + HOUR_MS; // dans les 48 dernières heures
+  assertEquals(boostedChestProgress(base, [boost()], NOW, seasonEnd), base);
 });

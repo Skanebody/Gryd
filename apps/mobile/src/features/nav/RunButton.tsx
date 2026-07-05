@@ -19,6 +19,8 @@ import { EVENTS, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { ContextualRunButton } from '../../ui/game';
 import { RunModeSheet } from '../motivation/RunModeSheet';
+import { intentionHref } from './runContext';
+import type { DefenseTargetDemo, RunIntention } from '../run/intention';
 import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from './metrics';
 import { battleContext, goHref } from './runContext';
 
@@ -37,7 +39,7 @@ export function RunButton() {
     router.push(goHref(plan));
   };
 
-  /** Choix avancés (appui long) : mode explicite, itinéraire du plan conservé. */
+  /** Choix avancés (appui long) : mode explicite (Social Run / Course privée). */
   const startRun = (mode: RunMode) => {
     haptics.medium();
     setModePickerOpen(false);
@@ -45,6 +47,25 @@ export function RunButton() {
     router.push(
       mode === 'conquete' ? goHref(plan) : `/course-live?mode=${mode}`,
     );
+  };
+
+  /**
+   * Intention optionnelle (AMENDEMENT-16 §1) : Conquérir/Défendre teintent le
+   * live via `intention=…` — CLIENT SEUL, jamais envoyé au serveur (le tracé
+   * décide). Conquérir « courir librement » → aucune route imposée ; Défendre
+   * porte l'itinéraire de la zone à protéger (doc §3.3).
+   */
+  const startIntention = (intention: RunIntention, routeId?: string) => {
+    haptics.medium();
+    setModePickerOpen(false);
+    track(EVENTS.runStart, { mode: 'conquete', context: contextMode, intention });
+    router.push(intentionHref(intention, routeId));
+  };
+
+  /** « Planifier une boucle » (Conquérir) → Route Planner présélectionné capture. */
+  const planLoop = () => {
+    setModePickerOpen(false);
+    router.push('/route-planner?type=capture');
   };
 
   const changeRoute = () => {
@@ -68,6 +89,11 @@ export function RunButton() {
       <RunModeSheet
         visible={modePickerOpen}
         onSelect={startRun}
+        onIntention={(intention) => startIntention(intention)}
+        onDefenseTarget={(target: DefenseTargetDemo) =>
+          startIntention('defense', target.routeId)
+        }
+        onPlanLoop={planLoop}
         onChangeRoute={changeRoute}
         onClose={() => setModePickerOpen(false)}
       />
