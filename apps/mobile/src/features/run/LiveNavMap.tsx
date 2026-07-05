@@ -50,7 +50,13 @@ import {
   type RealMapRef,
 } from '../../ui/game';
 import type { RoutePoint } from '../../ui/game';
-import { territoryStyle, withAlpha } from '../map/mapStyle';
+import {
+  TRACE_WIDTH_STOPS,
+  runTraceLayers,
+  territoryStyle,
+  traceStyle,
+  withAlpha,
+} from '../map/mapStyle';
 import { loopRing } from '../map/allTerritories';
 import { REAL_M_PER_DEG_LAT, RUNNER_SCALE_ZOOM, type LatLngPoint } from '../map/realAnchors';
 import type { LoopPhase, RunLoop } from './loop';
@@ -74,17 +80,13 @@ const PULSE_RING_SIZE = 30;
 const CHECKPOINT_PULSE_TICKS = 4;
 /** Frontière du territoire (§4ter : trait NET 2,2 px — parité mapStyle). */
 const TERRITORY_BORDER_WIDTH = 2.2;
-/** Largeur de LA trace de course (ligne seule, sans ruban — §0 « juste le tracé »). */
-const TRACE_LINE_WIDTH = 3.2;
-/** Écart latéral du DOUBLE trait contesté (line-offset — parité mapStyle). */
-const CONTESTED_OFFSET_PX = 2.5;
 /**
- * Itinéraire type Uber (parité RouteProgress : gris/chartreuse, liseré noir).
- * AMENDEMENT-20 §1 (carte silencieuse) : la route PARCOURUE (chartreuse) reste
- * dominante (4,5 px) ; la route À VENIR (grise) est plus fine (3 px) et atténuée,
- * pour laisser le tracé vert primer sur tout le reste.
+ * Itinéraire À VENIR (recommandé, pas encore couru) — GRYD_REGLES §B : la trace
+ * COURUE (le héros, runTraceLayers) DOMINE ; la route à venir est plus fine et
+ * atténuée (chartreuse 60 % sur casing sombre discret) pour guider sans jamais
+ * concurrencer le tracé. Repli scalaire (la largeur réelle suit le zoom via
+ * TRACE_WIDTH_STOPS.routeRemaining*).
  */
-const ROUTE_DONE_WIDTH = 4.5;
 const ROUTE_AHEAD_WIDTH = 3;
 const ROUTE_CASING_EXTRA = 2.5;
 /** Virage signalé à partir de ce changement de cap (degrés). */
@@ -92,7 +94,8 @@ const TURN_MIN_DEG = 25;
 /** Pastille de la flèche de virage. */
 const TURN_BADGE_SIZE = 18;
 /** Pointillés MapLibre (multiples de la largeur du trait). */
-const LOOP_OPEN_DASH: readonly number[] = [3.5, 3.5];
+/** Segment MANQUANT (fermeture de boucle) : chartreuse pointillé (§B — appelle à fermer). */
+const LOOP_MISSING_DASH: readonly number[] = [3.5, 3.5];
 const LOOP_GHOST_DASH: readonly number[] = [2.5, 2.5];
 /** Marqueur départ (anneau chartreuse) tant que la boucle est ouverte. */
 const LOOP_START_SIZE = 12;
@@ -161,30 +164,6 @@ function pointAt(points: readonly RoutePoint[], cum: readonly number[], len: num
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
   }
   return points[points.length - 1] ?? first;
-}
-
-/** Sommets parcourus jusqu'à `len` px (+ la tête interpolée). */
-function traveledPoints(
-  points: readonly RoutePoint[],
-  cum: readonly number[],
-  len: number,
-): RoutePoint[] {
-  if (len <= 0 || points.length < 2) return [];
-  const out: RoutePoint[] = [];
-  const first = points[0];
-  if (!first) return [];
-  out.push(first);
-  for (let i = 1; i < points.length; i += 1) {
-    const p = points[i];
-    if (!p) break;
-    if ((cum[i] ?? 0) <= len) {
-      out.push(p);
-    } else {
-      out.push(pointAt(points, cum, len));
-      break;
-    }
-  }
-  return out;
 }
 
 /** Prochain virage APRÈS la tête de progression : position + cap sortant. */
@@ -436,44 +415,37 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
     [routePoints],
   );
   const routeData = useMemo(() => lineCollection(routeGeo), [routeGeo]);
-  const routeDoneData = useMemo(
-    () => lineCollection(traveledPoints(routePoints, routeCum, routeLen).map((p) => worldToGeo(p.x, p.y))),
-    [routePoints, routeCum, routeLen],
-  );
   /** Prochain virage (pastille flèche — parité RouteProgress). */
   const turn = useMemo(() => nextTurn(routePoints, routeCum, routeLen), [routePoints, routeCum, routeLen]);
 
   // ── Couches GeoJSON (ordre de peinture stable — sources vidées, jamais
-  //    retirées). AMENDEMENT-16 §0 : remplissage faible + trait net, RIEN d'autre.
+  //    retirées). GRYD_REGLES §B : LA TRACE EST LE HÉROS. Ordre de peinture =
+  //    du décor secondaire (route à venir) VERS le héros (trace courue) tout en
+  //    haut. La trace courue est rendue EN COUCHES (casing sombre + glow fin +
+  //    core chartreuse massif, largeur par zoom) — pas une simple ligne 3,2 px.
   const layers = useMemo<RealMapGeoJSONLayer[]>(
     () => [
-      // Trace parcourue : UNE ligne chartreuse nette (double trait si contesté).
+      // ── DÉCOR de navigation (SOUS le héros) ──────────────────────────────
+      // Route À VENIR (recommandée, pas encore courue) : §B « chartreuse fine
+      // 60 % » sur casing sombre discret. Plus grise/éteinte que ma trace — elle
+      // guide sans jamais concurrencer le tracé. (La portion DÉJÀ courue n'est
+      // plus repeinte ici : la trace héros ci-dessous EST « où j'ai couru ».)
       {
-        id: 'live-corridor',
-        data: corridorData,
-        lineColor: contested
-          ? territoryStyle.contestedInnerStroke
-          : territoryStyle.crewStroke,
-        lineWidth: TRACE_LINE_WIDTH,
+        id: 'live-route-casing',
+        data: routeData,
+        lineColor: withAlpha(colors.noir, 0.4),
+        lineWidthStops: TRACE_WIDTH_STOPS.routeRemainingCasing,
+        lineWidth: ROUTE_AHEAD_WIDTH + ROUTE_CASING_EXTRA,
       },
       {
-        id: 'live-corridor-contested',
-        data: contested ? corridorData : EMPTY_COLLECTION,
-        lineColor: territoryStyle.contestedOuterStroke,
-        lineWidth: TERRITORY_BORDER_WIDTH,
-        lineOffset: CONTESTED_OFFSET_PX,
-        pulse: true,
+        id: 'live-route-ahead',
+        data: routeData,
+        lineColor: traceStyle.routeRemaining,
+        lineOpacity: traceStyle.routeRemainingOpacity,
+        lineWidthStops: TRACE_WIDTH_STOPS.routeRemainingCore,
+        lineWidth: ROUTE_AHEAD_WIDTH,
       },
-      // Boucle fermée : le polygone DU TRACÉ rempli, trait net.
-      {
-        id: 'live-loop-fill',
-        data: loopFillData,
-        fillColor: territoryStyle.crewFill,
-        fillOpacity: 1,
-        lineColor: territoryStyle.crewStroke,
-        lineWidth: TERRITORY_BORDER_WIDTH,
-      },
-      // Zone fantôme : polygone NET du tracé prévu en pointillé (< 300 m).
+      // Zone fantôme (aperçu < 300 m) : polygone NET du tracé prévu en pointillé.
       {
         id: 'live-ghost',
         data: ghostData,
@@ -483,38 +455,31 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
         lineWidth: TERRITORY_BORDER_WIDTH,
         lineDash: LOOP_GHOST_DASH,
       },
-      // Boucle ouverte : pointillé discret position → départ.
+      // Boucle OUVERTE : segment MANQUANT (fermeture) = chartreuse POINTILLÉ
+      // (§B : appelle à fermer ; le point de fermeture pulse — marker plus bas).
       {
         id: 'live-loop-open',
         data: loopOpenData,
-        lineColor: colors.chartreuse40,
+        lineColor: traceStyle.missing,
+        lineWidthStops: TRACE_WIDTH_STOPS.missingCore,
         lineWidth: 2,
-        lineDash: LOOP_OPEN_DASH,
+        lineDash: LOOP_MISSING_DASH,
       },
-      // AMENDEMENT-20 §1 — CARTE SILENCIEUSE pendant le run : la route verte
-      // (parcourue, chartreuse) DOMINE ; la route à venir (grise) et son liseré
-      // sont ATTÉNUÉS (plus fins, plus discrets) pour ne pas concurrencer le
-      // tracé. Hiérarchie : position · route · fermeture · progression · reste éteint.
+      // Boucle FERMÉE : le polygone DU TRACÉ se remplit (trait net chartreuse).
       {
-        id: 'live-route-casing',
-        data: routeData,
-        lineColor: withAlpha(colors.noir, 0.35),
-        lineWidth: ROUTE_AHEAD_WIDTH + ROUTE_CASING_EXTRA,
+        id: 'live-loop-fill',
+        data: loopFillData,
+        fillColor: territoryStyle.crewFill,
+        fillOpacity: 1,
+        lineColor: territoryStyle.crewStroke,
+        lineWidth: TERRITORY_BORDER_WIDTH,
       },
-      {
-        id: 'live-route-ahead',
-        data: routeData,
-        lineColor: withAlpha(colors.gris, 0.55),
-        lineWidth: ROUTE_AHEAD_WIDTH,
-      },
-      {
-        id: 'live-route-done',
-        data: routeDoneData,
-        lineColor: colors.chartreuse,
-        lineWidth: ROUTE_DONE_WIDTH,
-      },
+      // ── LE HÉROS : trace COURUE (casing sombre + glow fin + core chartreuse
+      //    massif, largeur par zoom). TOUJOURS la ligne la plus visible (§B).
+      //    Contesté → double trait orange décalé PULSÉ (le core reste plein).
+      ...runTraceLayers('live-trace', corridorData, { contested }),
     ],
-    [corridorData, contested, loopFillData, ghostData, loopOpenData, routeData, routeDoneData],
+    [corridorData, contested, loopFillData, ghostData, loopOpenData, routeData],
   );
 
   // ── Markers (le dernier au-dessus : « moi » reste au sommet) ──────────────
@@ -629,15 +594,35 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
 
 // ─── Markers (contenu RN — RealMap les ancre au point géo) ──────────────────
 
-/** Avatar coureur : halo type Uber + disque chartreuse orienté (flèche). */
+/**
+ * Avatar coureur — GRYD_REGLES §B (position actuelle FORTE) : halo GPS (précision)
+ * + CÔNE de direction chartreuse + disque chartreuse à flèche directionnelle +
+ * pulse DISCRET. Tout tourne selon le cap (le coureur « pointe » où il va). Le
+ * cône et le halo sont sous le disque (le disque reste net et lisible). Reduce
+ * motion : le halo ne pulse pas (usePulse respecte le flag), la flèche reste.
+ */
 function RunnerMarker({ headingDeg }: { headingDeg: number }) {
   const halo = usePulse(true, 1.15, 1_800);
   return (
     <View pointerEvents="none" style={styles.avatarWrap}>
+      {/* Halo GPS (précision) — pulse discret. SEUL halo conservé (A-16 §0). */}
       <Animated.View style={[styles.avatarHalo, { transform: [{ scale: halo }] }]} />
+      {/* Cône de direction : un secteur chartreuse dégradé devant le coureur,
+          orienté selon le cap (indique le sens de la course sans flèche géante). */}
+      <View style={[styles.avatarCone, { transform: [{ rotate: `${headingDeg}deg` }] }]}>
+        <Svg width={AVATAR_HALO_SIZE} height={AVATAR_HALO_SIZE} viewBox="0 0 44 44">
+          {/* Pointe vers le HAUT (0° = nord écran) ; le wrap la fait tourner. */}
+          <Path
+            d="M22 22 L11 2 A22 22 0 0 1 33 2 Z"
+            fill={colors.chartreuse}
+            opacity={0.28}
+          />
+        </Svg>
+      </View>
+      {/* Disque chartreuse + flèche directionnelle NOIRE (contraste sur clair). */}
       <View style={[styles.avatarDisc, { transform: [{ rotate: `${headingDeg}deg` }] }]}>
         <Svg width={AVATAR_SIZE} height={AVATAR_SIZE} viewBox="0 0 24 24">
-          <Path d="M12 5 L17 16 L12 13.4 L7 16 Z" fill={colors.noir} />
+          <Path d="M12 4 L17.5 16.5 L12 13.4 L6.5 16.5 Z" fill={colors.noir} />
         </Svg>
       </View>
     </View>
@@ -667,9 +652,20 @@ function PulseRing({ color, speed = 'slow' }: { color: string; speed?: 'slow' | 
   );
 }
 
-/** Marqueur départ de boucle (anneau chartreuse sur fond noir). */
+/**
+ * POINT DE FERMETURE de la boucle (§B) : anneau chartreuse plein + halo PULSÉ
+ * qui « respire » — c'est là qu'il faut revenir pour fermer la zone. Le pulse
+ * respecte reduce motion (usePulse). Aucun chiffre ici (la distance « ~280 m »
+ * vit dans la bottom sheet — règle du fichier).
+ */
 function LoopStartDot() {
-  return <View pointerEvents="none" style={styles.loopStart} />;
+  const pulse = usePulse(true, 1.5, 1_500);
+  return (
+    <View pointerEvents="none" style={styles.loopCloseWrap}>
+      <Animated.View style={[styles.loopClosePulse, { transform: [{ scale: pulse }] }]} />
+      <View style={styles.loopStart} />
+    </View>
+  );
 }
 
 /**
@@ -755,12 +751,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.chartreuse40,
   },
+  /** Cône de direction (§B) : plein cadre, tourné selon le cap — sous le disque. */
+  avatarCone: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarDisc: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
     backgroundColor: colors.chartreuse,
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: colors.noir,
     alignItems: 'center',
     justifyContent: 'center',
@@ -792,6 +794,19 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
 
+  loopCloseWrap: {
+    width: PULSE_RING_SIZE,
+    height: PULSE_RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loopClosePulse: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: PULSE_RING_SIZE / 2,
+    borderWidth: 1.5,
+    borderColor: colors.chartreuse40,
+    backgroundColor: colors.chartreuse14,
+  },
   loopStart: {
     width: LOOP_START_SIZE,
     height: LOOP_START_SIZE,

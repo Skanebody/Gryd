@@ -101,6 +101,19 @@ export interface RealMapGeoJSONLayer {
   fillOpacity?: number;
   lineColor?: string;
   lineWidth?: number;
+  /**
+   * GRYD_REGLES §B — TRACE HÉROS : largeur DYNAMIQUE par zoom (paliers
+   * `[zoom, px]`). Quand présent, `lineWidth` devient une interpolation MapLibre
+   * (`interpolate` linéaire) au lieu d'un scalaire — la trace grossit du niveau
+   * ville au niveau rue comme sur Strava. `lineWidth` reste le repli. Constantes
+   * de STYLE (mapStyle : TRACE_WIDTH_STOPS…), jamais des règles de jeu.
+   */
+  lineWidthStops?: readonly (readonly [number, number])[];
+  /**
+   * Opacité STATIQUE du trait (0-1) — §B : route restante ~60 %, segment exclu
+   * ~35 %. Distinct du `pulse` (qui anime l'opacité). Défaut 1 (plein).
+   */
+  lineOpacity?: number;
   /** Pointillé (traitement decay AMENDEMENT-11/§4ter). */
   lineDash?: readonly number[];
   /**
@@ -306,6 +319,24 @@ const CITY_BUILDINGS_BASE_EXPR: Expression = ['coalesce', ['get', 'render_min_he
 const CITY_BUILDINGS_MIN_ZOOM = 14;
 
 /**
+ * GRYD_REGLES §B — TRACE HÉROS : valeur `lineWidth` d'une couche. Si
+ * `lineWidthStops` est fourni (paliers `[zoom, px]`), renvoie une interpolation
+ * LINÉAIRE par zoom (la trace grossit au zoom, façon Strava) ; sinon le scalaire
+ * `lineWidth` (défaut 1) — non-régression totale. Parité avec le fork web.
+ */
+function lineWidthValue(spec: RealMapGeoJSONLayer): number | Expression {
+  if (spec.lineWidthStops && spec.lineWidthStops.length >= 2) {
+    return [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      ...spec.lineWidthStops.flatMap(([zoom, px]) => [zoom, px]),
+    ] as Expression;
+  }
+  return spec.lineWidth ?? 1;
+}
+
+/**
  * Contour PULSÉ (contesté §4ter) isolé dans sa propre feuille : le toggle
  * d'opacité ne re-rend QUE ce composant, et le fondu min↔1 est fait par la
  * transition de style MapLibre (GPU). Reduce motion → contour plein fixe.
@@ -322,7 +353,8 @@ function PulsingLineLayer({
 }: {
   id: string;
   lineColor: string;
-  lineWidth: number;
+  /** Scalaire OU interpolation par zoom (§B — parité `lineWidthValue`). */
+  lineWidth: number | Expression;
   lineDash?: readonly number[];
   lineOffset?: number;
   sourceID?: string;
@@ -430,10 +462,14 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
             spec.lineColor !== undefined && spec.pulse !== true
               ? ({
                   lineColor: spec.lineColor,
-                  lineWidth: spec.lineWidth ?? 1,
-                  // §4ter : coins à jointure arrondie légère, extrémités rondes.
+                  // §B : largeur par zoom (interpolate) si stops, sinon scalaire.
+                  lineWidth: lineWidthValue(spec),
+                  // §4ter / §B : jointures ET extrémités ARRONDIES — trace fluide,
+                  // sportive, jamais anguleuse.
                   lineCap: 'round',
                   lineJoin: 'round',
+                  // Opacité STATIQUE (route restante 60 %, exclu 35 %).
+                  ...(spec.lineOpacity !== undefined ? { lineOpacity: spec.lineOpacity } : {}),
                   ...(spec.lineDash ? { lineDasharray: [...spec.lineDash] } : {}),
                   ...(spec.lineOffset !== undefined ? { lineOffset: spec.lineOffset } : {}),
                 } satisfies LineLayerStyle)
@@ -589,7 +625,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
                 <PulsingLineLayer
                   id={`${spec.id}-line`}
                   lineColor={spec.lineColor}
-                  lineWidth={spec.lineWidth ?? 1}
+                  lineWidth={lineWidthValue(spec)}
                   lineDash={spec.lineDash}
                   lineOffset={spec.lineOffset}
                 />

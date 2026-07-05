@@ -346,6 +346,228 @@ export const battleMapStyle = {
   scaleBar: colors.gris,
 } as const;
 
+// ─── TRACE HÉROS (GRYD_REGLES §B — rendu façon Strava) ──────────────────────
+// « Pendant le run, la trace DOMINE ; la carte est le décor ; les zones sont
+// secondaires. » La trace est rendue EN COUCHES EMPILÉES (casing sombre sous +
+// core chartreuse + glow fin optionnel), largeur DYNAMIQUE par zoom, jointures
+// et extrémités ARRONDIES. TOUT est constante de STYLE (px de rendu, alphas de
+// tokens) — JAMAIS une règle de jeu (game-rules) : ces épaisseurs ne décident
+// d'aucun claim, elles rendent le tracé lisible et massif.
+//
+// AMENDEMENT-16 §0 (zéro halo) : le `glow` de la trace est un liseré FIN et
+// maîtrisé le long du tracé (chartreuse très diluée, ~+2 px), PAS le halo de
+// jeu banni (blob/blur large sous les frontières de territoire). C'est le même
+// principe qu'un casing, décliné en clair au lieu de sombre — il rend la trace
+// vivante sans redevenir une lueur de zone.
+
+/**
+ * Paliers de largeur `[zoom, px]` de la TRACE (§B — interpolation MapLibre
+ * `line-width`). Le CORE va de ~5 px au niveau ville (z12) à ~14 px au niveau
+ * rue (z18) ; le CASING est le core + un liseré porteur ; le GLOW déborde à
+ * peine le casing. La Course Live vit à l'échelle rue (RUNNER_SCALE_ZOOM ≈ z16-17)
+ * → la trace y est massive. Consommés via `RealMapGeoJSONLayer.lineWidthStops`.
+ */
+export const TRACE_WIDTH_STOPS = {
+  /** Trace COURUE — le héros : chartreuse pleine ÉPAISSE (§B core 9-12). */
+  runCore: [
+    [12, 6],
+    [14, 8],
+    [16, 11],
+    [18, 14],
+  ],
+  /** Casing sombre de la trace courue (core + liseré porteur — §B 14-16). */
+  runCasing: [
+    [12, 10],
+    [14, 12.5],
+    [16, 16],
+    [18, 19],
+  ],
+  /** Glow FIN de la trace courue (déborde à peine le casing — zéro halo A-16 §0). */
+  runGlow: [
+    [12, 13],
+    [14, 16],
+    [16, 20],
+    [18, 24],
+  ],
+  /** Route RESTANTE / recommandée : chartreuse plus FINE (§B core 6-8, 60 %). */
+  routeRemainingCore: [
+    [12, 4],
+    [14, 6],
+    [16, 8],
+    [18, 10],
+  ],
+  routeRemainingCasing: [
+    [12, 7],
+    [14, 9.5],
+    [16, 12],
+    [18, 14.5],
+  ],
+  /** Segment MANQUANT (fermeture) : chartreuse pointillé (même gabarit que restante). */
+  missingCore: [
+    [12, 4],
+    [14, 6],
+    [16, 8],
+    [18, 10],
+  ],
+  /** Segment EXCLU (GPS écarté) : gris pointillé FAIBLE — le plus fin. */
+  excludedCore: [
+    [12, 3],
+    [14, 4],
+    [16, 5.5],
+    [18, 7],
+  ],
+  /** RIVAL : orange PLUS FIN que ma trace (jamais aussi visible — §B, anti-confusion). */
+  rivalCore: [
+    [12, 3],
+    [14, 4.5],
+    [16, 6],
+    [18, 7.5],
+  ],
+  rivalCasing: [
+    [12, 5.5],
+    [14, 7],
+    [16, 9],
+    [18, 11],
+  ],
+} as const satisfies Record<string, readonly (readonly [number, number])[]>;
+
+/**
+ * Motifs de pointillé de la trace (§B) — multiples de la largeur du core (le
+ * dash MapLibre est en unités de largeur de trait). Segment manquant = tirets
+ * francs (chartreuse, appelle à fermer) ; exclu = tirets courts espacés (gris,
+ * discret).
+ */
+export const TRACE_DASH = {
+  missing: [1.6, 1.4] as readonly number[],
+  excluded: [1.2, 1.8] as readonly number[],
+} as const;
+
+/**
+ * Décalage latéral du liseré orange CONTESTÉ sur la trace COURUE (§C). La trace
+ * héros est ÉPAISSE (core ~11 px au niveau rue) : un offset généreux pousse
+ * l'orange sur le FLANC du core (contour extérieur orange / intérieur chartreuse),
+ * là où il se lit — pas noyé au centre. Distinct du décalage fin des frontières
+ * de territoire (CONTESTED_TRAIT_OFFSET_PX = 2,5 px pour un trait de 2,2 px).
+ */
+const TRACE_CONTESTED_OFFSET_PX = 7;
+
+/**
+ * Couleurs de la TRACE HÉROS — TOUTES dérivées des tokens (charte stricte).
+ * `casing` = noir porteur (jamais de chartreuse sur clair → contour sombre
+ * dessous) ; `core` = chartreuse pleine (moi) ; `glow` = chartreuse très diluée
+ * (liseré vivant fin, PAS le halo banni). Rival = orange, TOUJOURS moins présent.
+ */
+export const traceStyle = {
+  /** Contour sombre porteur, sous le core (le casing façon Strava). */
+  casing: withAlpha(colors.noir, 0.85),
+  /** Cœur de MA trace : chartreuse pleine (le héros). */
+  core: colors.chartreuse,
+  /** Glow FIN au-dessus du casing, sous le core : chartreuse très diluée. */
+  glow: withAlpha(colors.chartreuse, 0.22),
+  /** Route restante / recommandée : chartreuse (opacité posée à part, 60 %). */
+  routeRemaining: colors.chartreuse,
+  /** Opacité de la route restante (§B ~60 %). */
+  routeRemainingOpacity: 0.6,
+  /** Segment manquant (fermeture) : chartreuse pointillé (appelle à fermer). */
+  missing: colors.chartreuse,
+  /** Segment exclu : gris, discret (§B ~35 %). */
+  excluded: colors.gris,
+  excludedOpacity: 0.35,
+  /** Rival : orange (core), TOUJOURS plus fin que ma trace. */
+  rivalCore: gameColors.rival,
+  rivalCasing: withAlpha(colors.noir, 0.8),
+} as const;
+
+type TraceLayerList = RealMapGeoJSONLayer[];
+
+/**
+ * §B — Construit la pile de couches d'UNE trace COURUE (le héros) pour une
+ * source de ligne : `casing` (sombre, dessous) → `glow` (chartreuse diluée fine)
+ * → `core` (chartreuse pleine, dessus). Round cap/join via RealMap. La largeur
+ * suit le zoom (TRACE_WIDTH_STOPS). `idBase` préfixe les ids (ordre de peinture
+ * stable). Passer `glow=false` pour une trace sobre (2 couches).
+ *
+ * `contested` remplace le core plein par un core chartreuse + un DOUBLE trait
+ * orange décalé PULSÉ (langage contesté §C) — la trace reste dominante (le core
+ * chartreuse est plein, l'orange n'est qu'un liseré latéral).
+ */
+export function runTraceLayers(
+  idBase: string,
+  data: RealMapData,
+  opts: { glow?: boolean; contested?: boolean } = {},
+): TraceLayerList {
+  const glow = opts.glow ?? true;
+  const out: TraceLayerList = [
+    // 1. Casing sombre porteur — détache la trace du fond ET du satellite/clair.
+    {
+      id: `${idBase}-casing`,
+      data,
+      lineColor: traceStyle.casing,
+      lineWidthStops: TRACE_WIDTH_STOPS.runCasing,
+      lineWidth: 15,
+    },
+  ];
+  // 2. Glow FIN (zéro halo A-16 §0 : liseré chartreuse dilué, +qq px, PAS un blob).
+  if (glow) {
+    out.push({
+      id: `${idBase}-glow`,
+      data,
+      lineColor: traceStyle.glow,
+      lineWidthStops: TRACE_WIDTH_STOPS.runGlow,
+      lineWidth: 20,
+    });
+  }
+  // 3. Core chartreuse plein — LE héros, la ligne la plus visible de l'écran.
+  out.push({
+    id: `${idBase}-core`,
+    data,
+    lineColor: traceStyle.core,
+    lineWidthStops: TRACE_WIDTH_STOPS.runCore,
+    lineWidth: 11,
+  });
+  // Contesté (§C) : liseré orange PULSÉ sur le FLANC extérieur du core (contour
+  // extérieur orange / intérieur chartreuse). Le core chartreuse reste plein et
+  // DOMINANT — l'orange n'est qu'un liseré latéral, jamais aussi présent que ma
+  // trace. Offset généreux (le core est épais) pour que l'orange se lise.
+  if (opts.contested) {
+    out.push({
+      id: `${idBase}-contested`,
+      data,
+      lineColor: withAlpha(gameColors.rival, 0.9),
+      lineWidthStops: TRACE_WIDTH_STOPS.rivalCore,
+      lineWidth: 4,
+      lineOffset: TRACE_CONTESTED_OFFSET_PX,
+      pulse: true,
+    });
+  }
+  return out;
+}
+
+/**
+ * §B — Couches d'un segment RIVAL : orange, TOUJOURS plus fin/discret que ma
+ * trace (casing sombre léger + core orange). Jamais aussi visible que la
+ * mienne (anti-confusion §C : moi = chartreuse dominante, rival = orange en
+ * retrait).
+ */
+export function rivalTraceLayers(idBase: string, data: RealMapData): TraceLayerList {
+  return [
+    {
+      id: `${idBase}-casing`,
+      data,
+      lineColor: traceStyle.rivalCasing,
+      lineWidthStops: TRACE_WIDTH_STOPS.rivalCasing,
+      lineWidth: 9,
+    },
+    {
+      id: `${idBase}-core`,
+      data,
+      lineColor: traceStyle.rivalCore,
+      lineWidthStops: TRACE_WIDTH_STOPS.rivalCore,
+      lineWidth: 6,
+    },
+  ];
+}
+
 // ─── Couches RealMap des cartes (AMENDEMENT-13 §2/§4bis/§4ter) ──────────────
 // Builder PARTAGÉ MapScreen.web (maplibre-gl) / MapScreen natif / « Mon
 // territoire » : les vraies tuiles portent le décor, ce module ne produit QUE

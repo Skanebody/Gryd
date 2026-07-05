@@ -47,11 +47,19 @@ const ZONE_FOOTPRINT_OPACITY = 0.14;
 /** Liseré net de la zone (frontiere = le trace, charte AMENDEMENT-16 §0). */
 const ZONE_STROKE_ALPHA = 0.55;
 const ZONE_STROKE_WIDTH = 2;
-/** Trace du run : chartreuse EPAISSE (le tracé prime sur la carte). */
-const TRACE_WIDTH = 4.5;
-/** Fil blanc DISCRET par-dessus la trace (lisibilite, comme ShareMap). */
-const TRACE_HAIRLINE_WIDTH = 1;
-const TRACE_HAIRLINE_ALPHA = 0.75;
+/**
+ * TRACE du run — GRYD_REGLES §B (partage = rendu DÉDIÉ) : la trace est
+ * l'élément visuel PRINCIPAL → chartreuse TRÈS épaisse en COUCHES (casing sombre
+ * porteur + core chartreuse + glow fin), pas une simple ligne. Largeurs FIXES
+ * (la carte de partage a un cadrage/pitch figé, pas de zoom interactif). Épais
+ * mais maîtrisé : le casing détache la trace du fond dark/3D, le glow la rend
+ * vivante (liseré fin — zéro halo de jeu, A-16 §0).
+ */
+const TRACE_CASING_WIDTH = 11;
+const TRACE_CORE_WIDTH = 6.5;
+const TRACE_GLOW_WIDTH = 15;
+const TRACE_CASING_ALPHA = 0.85;
+const TRACE_GLOW_ALPHA = 0.22;
 /** Zone RIVALE : ruban orange ATTENUE (basse opacite, jamais dominant). */
 const RIVAL_FILL_ALPHA = 0.1;
 const RIVAL_STROKE_ALPHA = 0.4;
@@ -159,18 +167,26 @@ export function carte3dLayers(): readonly RealMapGeoJSONLayer[] {
       lineColor: withAlpha(colors.chartreuse, ZONE_STROKE_ALPHA),
       lineWidth: ZONE_STROKE_WIDTH,
     },
-    // 5. TRACE du run : chartreuse EPAISSE + fil blanc discret (comme ShareMap).
+    // 5. TRACE du run — LE HÉROS du partage (§B) : chartreuse TRÈS épaisse en
+    //    COUCHES (casing sombre porteur → glow fin → core chartreuse), l'élément
+    //    visuel principal de la card.
+    {
+      id: 'c3d-trace-casing',
+      data: lineCollection(traceClosed),
+      lineColor: withAlpha(colors.noir, TRACE_CASING_ALPHA),
+      lineWidth: TRACE_CASING_WIDTH,
+    },
+    {
+      id: 'c3d-trace-glow',
+      data: lineCollection(traceClosed),
+      lineColor: withAlpha(colors.chartreuse, TRACE_GLOW_ALPHA),
+      lineWidth: TRACE_GLOW_WIDTH,
+    },
     {
       id: 'c3d-trace',
       data: lineCollection(traceClosed),
       lineColor: colors.chartreuse,
-      lineWidth: TRACE_WIDTH,
-    },
-    {
-      id: 'c3d-trace-hairline',
-      data: lineCollection(traceClosed),
-      lineColor: withAlpha(colors.blanc, TRACE_HAIRLINE_ALPHA),
-      lineWidth: TRACE_HAIRLINE_WIDTH,
+      lineWidth: TRACE_CORE_WIDTH,
     },
   ];
   return cache;

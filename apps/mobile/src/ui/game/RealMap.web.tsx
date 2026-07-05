@@ -100,6 +100,20 @@ export interface RealMapGeoJSONLayer {
   fillOpacity?: number;
   lineColor?: string;
   lineWidth?: number;
+  /**
+   * GRYD_REGLES §B — TRACE HÉROS : largeur DYNAMIQUE par zoom (paliers
+   * `[zoom, px]`). Quand présent, `line-width` devient une interpolation
+   * MapLibre (`interpolate` linéaire, bornée hors plage) au lieu d'un scalaire —
+   * la trace grossit du niveau ville au niveau rue comme sur Strava. `lineWidth`
+   * n'est alors qu'un repli (styles natifs / fond de sécurité). Constantes de
+   * STYLE (mapStyle : TRACE_WIDTH_STOPS…), jamais des règles de jeu.
+   */
+  lineWidthStops?: readonly (readonly [number, number])[];
+  /**
+   * Opacité STATIQUE du trait (0-1) — §B : route restante ~60 %, segment exclu
+   * ~35 %. Distinct du `pulse` (qui anime l'opacité en rAF). Défaut 1 (plein).
+   */
+  lineOpacity?: number;
   /** Pointillé (traitement decay AMENDEMENT-11/§4ter). */
   lineDash?: readonly number[];
   /**
@@ -286,7 +300,15 @@ const SILENT_HIDDEN_SYMBOL_SOURCE_LAYERS: readonly string[] = [
   'mountain_peak',
 ];
 /** Facteur d'amincissement des rues secondaires en mode silencieux (§1). */
-const SILENT_MINOR_ROAD_WIDTH_FACTOR = 0.6;
+const SILENT_MINOR_ROAD_WIDTH_FACTOR = 0.55;
+/**
+ * GRYD_REGLES §B — CARTE ATTÉNUÉE EN RUN : le fond est le DÉCOR, la trace prime
+ * à 100 %. En plus de l'amincissement des rues secondaires, on ABAISSE
+ * l'opacité de TOUTES les lignes de voirie (le réseau reste devinable mais
+ * recule nettement) — la chartreuse de la trace domine sans concurrence. Aucune
+ * ligne de JEU touchée (elles n'ont pas de `source-layer`).
+ */
+const SILENT_ROAD_OPACITY = 0.5;
 /** TestID de la carte de Course Live (LiveNavMap) → mode silencieux implicite. */
 const LIVE_RUN_TEST_ID = 'course-live-carte-reelle';
 /** Caméra de secours si ni `camera` ni `bounds` : monde entier (§4bis). */
@@ -388,8 +410,11 @@ function applySilentRunOverrides(map: MapLibreMap): void {
           map.setLayoutProperty(layer.id, 'visibility', 'none');
         }
       } else if (layer.type === 'line' && sourceLayer === 'transportation') {
-        // Rues secondaires (minor/service/path) : amincies pour laisser primer
-        // le tracé. La largeur peut être un nombre OU une fonction à paliers.
+        // §B : TOUTE la voirie recule (opacité abaissée) pour que la trace
+        // chartreuse domine — le réseau reste devinable, jamais concurrent.
+        map.setPaintProperty(layer.id, 'line-opacity', SILENT_ROAD_OPACITY);
+        // Rues secondaires (minor/service/path) : EN PLUS amincies. La largeur
+        // peut être un nombre OU une fonction à paliers.
         const id = layer.id.toLowerCase();
         if (id.includes('minor') || id.includes('service') || id.includes('path')) {
           const current = map.getPaintProperty(layer.id, 'line-width');
@@ -569,6 +594,24 @@ function remove3dTerrainAndBuildings(map: MapLibreMap): void {
 }
 
 /**
+ * GRYD_REGLES §B — TRACE HÉROS : valeur `line-width` MapLibre d'une couche.
+ * Si `lineWidthStops` est fourni (paliers `[zoom, px]`), renvoie une
+ * interpolation LINÉAIRE bornée par zoom (la trace grossit au zoom, façon
+ * Strava) ; sinon le scalaire `lineWidth` (défaut 1) — non-régression totale.
+ */
+function lineWidthValue(spec: RealMapGeoJSONLayer): number | unknown[] {
+  if (spec.lineWidthStops && spec.lineWidthStops.length >= 2) {
+    return [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      ...spec.lineWidthStops.flatMap(([zoom, px]) => [zoom, px]),
+    ];
+  }
+  return spec.lineWidth ?? 1;
+}
+
+/**
  * AMENDEMENT-24 — CARTE 3D : une couche extrudée (spec.extrude) en mode 3D
  * (extrudeZones) est peinte en `fill-extrusion` (volume) ; sinon elle retombe
  * sur l'aplat plat (`fill`) de sa `fillColor` — non-régression. On calcule ici
@@ -627,23 +670,34 @@ function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer, extrudeZones =
     map.setPaintProperty(fillId, 'fill-opacity', spec.fillOpacity ?? 1);
   }
   const lineId = `${spec.id}-line`;
+  // §B : largeur par zoom (interpolate) si `lineWidthStops`, sinon scalaire.
+  const lineWidth = lineWidthValue(spec);
   if (spec.lineColor !== undefined && !map.getLayer(lineId)) {
     map.addLayer({
       id: lineId,
       type: 'line',
       source: spec.id,
-      // §4ter : coins nets à jointure arrondie légère, extrémités arrondies.
+      // §4ter / §B : jointures ET extrémités ARRONDIES — trace fluide, sportive,
+      // jamais anguleuse (le tracé est le héros).
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': spec.lineColor,
-        'line-width': spec.lineWidth ?? 1,
+        'line-width': lineWidth as number,
+        // Opacité STATIQUE (route restante 60 %, exclu 35 %) — le pulse, lui,
+        // pilote `line-opacity` en rAF et n'est jamais posé ici en même temps.
+        ...(spec.lineOpacity !== undefined && !spec.pulse
+          ? { 'line-opacity': spec.lineOpacity }
+          : {}),
         ...(spec.lineDash ? { 'line-dasharray': [...spec.lineDash] } : {}),
         ...(spec.lineOffset !== undefined ? { 'line-offset': spec.lineOffset } : {}),
       },
     });
   } else if (spec.lineColor !== undefined) {
     map.setPaintProperty(lineId, 'line-color', spec.lineColor);
-    map.setPaintProperty(lineId, 'line-width', spec.lineWidth ?? 1);
+    map.setPaintProperty(lineId, 'line-width', lineWidth as number);
+    if (spec.lineOpacity !== undefined && !spec.pulse) {
+      map.setPaintProperty(lineId, 'line-opacity', spec.lineOpacity);
+    }
     if (spec.lineDash) map.setPaintProperty(lineId, 'line-dasharray', [...spec.lineDash]);
     if (spec.lineOffset !== undefined) {
       map.setPaintProperty(lineId, 'line-offset', spec.lineOffset);
@@ -958,7 +1012,15 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !camera || openBoundsRef.current) return;
-    const target = { center: [camera.lng, camera.lat] as [number, number], zoom: camera.zoom };
+    // Le suivi caméra PORTE aussi pitch/bearing : sinon un recentrage (fréquent
+    // en live) fige un pitch en cours de transition (bug bascule 3D→2D). En 2D
+    // (pitch 0) chaque déplacement réaffirme donc la carte strictement plate.
+    const target = {
+      center: [camera.lng, camera.lat] as [number, number],
+      zoom: camera.zoom,
+      pitch,
+      bearing,
+    };
     if (prefersReducedMotion()) map.jumpTo(target);
     else map.easeTo({ ...target, duration: motion.transitionMs });
     // eslint-disable-next-line react-hooks/exhaustive-deps
