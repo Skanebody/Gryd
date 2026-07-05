@@ -110,6 +110,9 @@ export interface BattleMapOverlaysProps {
   /** Parcours affiché en aperçu sur la carte (RouteProgress, progress 0). */
   selectedParcoursId?: string | null;
   onSelectParcours?: (id: string | null) => void;
+  /** Fond de carte courant + bascule sombre↔couleur (contrôle dans le menu Info). */
+  basemap?: 'dark' | 'color';
+  onToggleBasemap?: () => void;
 }
 
 export function BattleMapOverlays({
@@ -119,6 +122,8 @@ export function BattleMapOverlays({
   onRecenter,
   selectedParcoursId = null,
   onSelectParcours,
+  basemap = 'dark',
+  onToggleBasemap,
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -132,14 +137,16 @@ export function BattleMapOverlays({
   const [sharesOpen, setSharesOpen] = useState(false);
   /** Sélecteur de calque « Couches » — fermé par défaut (un seul bouton). */
   const [layersOpen, setLayersOpen] = useState(false);
+  /**
+   * Menu « Infos » (AMENDEMENT-17 retour fondateur) : par défaut la carte
+   * n'affiche QU'UN bouton Info (⌀ anti-clutter). Le tap révèle les contrôles
+   * secondaires (Couches, Fond de carte, Recentrer) — plus jamais 4 boutons
+   * concurrents, et le bouton Fond de carte ne peut plus « disparaître ».
+   */
+  const [controlsOpen, setControlsOpen] = useState(false);
 
   /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
   const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
-
-  const openSheetSemi = () => {
-    setSheet((s) => ({ key: s.key + 1, initial: 'semi' }));
-    screen('map_sheet_open', { state: 'semi', via: 'stats_button' });
-  };
 
   const toggleShares = () => {
     haptics.light();
@@ -229,7 +236,9 @@ export function BattleMapOverlays({
         )}
       </View>
 
-      {/* ── Droite : Couches + recentrer + stats (flottants, anti-bruit) ───── */}
+      {/* ── Droite : UN bouton Info ; le tap révèle les contrôles carte ─────
+          (AMENDEMENT-17 retour fondateur : anti-clutter — les contrôles
+          secondaires ne s'affichent QUE sur appui de Info). */}
       <View
         style={[
           styles.fabColumn,
@@ -237,27 +246,49 @@ export function BattleMapOverlays({
         ]}
         pointerEvents="box-none"
       >
-        {layersOpen ? (
-          <LayerSelector active={mode} onSelect={selectMode} />
+        {controlsOpen ? (
+          <>
+            {layersOpen ? <LayerSelector active={mode} onSelect={selectMode} /> : null}
+            <FloatingMapButton
+              icon="calques"
+              accessibilityLabel="Couches de la carte"
+              active={layersOpen}
+              onPress={() => {
+                haptics.light();
+                setLayersOpen((v) => !v);
+              }}
+            />
+            {onToggleBasemap ? (
+              <FloatingMapButton
+                icon="carte"
+                accessibilityLabel={
+                  basemap === 'color'
+                    ? 'Fond de carte couleur (repasser en sombre)'
+                    : 'Fond de carte sombre (passer en couleur)'
+                }
+                active={basemap === 'color'}
+                onPress={() => {
+                  haptics.light();
+                  onToggleBasemap();
+                }}
+              />
+            ) : null}
+            <FloatingMapButton
+              icon="gps"
+              accessibilityLabel="Recentrer sur moi"
+              onPress={() => onRecenter?.()}
+            />
+          </>
         ) : null}
         <FloatingMapButton
-          icon="calques"
-          accessibilityLabel="Couches de la carte"
-          active={layersOpen}
+          icon="info"
+          accessibilityLabel={controlsOpen ? 'Fermer les réglages carte' : 'Infos et réglages carte'}
+          active={controlsOpen}
           onPress={() => {
             haptics.light();
-            setLayersOpen((v) => !v);
+            setControlsOpen((v) => !v);
+            if (controlsOpen) setLayersOpen(false);
           }}
-        />
-        <FloatingMapButton
-          icon="gps"
-          accessibilityLabel="Recentrer sur moi"
-          onPress={() => onRecenter?.()}
-        />
-        <FloatingMapButton
-          icon="performance"
-          accessibilityLabel="Stats rapides"
-          onPress={openSheetSemi}
         />
       </View>
 

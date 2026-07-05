@@ -128,6 +128,14 @@ export const ICONS = {
       'M12 17.2v.01',
     ],
   },
+  /** Info — cercle + « i » (bouton réglages/infos de la carte). */
+  info: {
+    paths: [
+      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+      'M12 7.4v.01',
+      'M12 11v5.4',
+    ],
+  },
 
   // ─── AMENDEMENT-07 §8 : social / amis / feed / réactions (ADDITIF) ──────────
   /** Ami — une personne (distinct de `crew` = plusieurs). */

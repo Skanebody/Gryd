@@ -242,27 +242,6 @@ export function MapScreen() {
         testID="battle-map-reelle"
       />
 
-      {/* ── Bascule du fond de carte (sombre ↔ couleur type Plan) ──
-          Empilée au-dessus des flottants Recentrer/Stats du HUD. */}
-      <View
-        style={[
-          styles.basemapFab,
-          { bottom: insets.bottom + HUD_FAB_COLUMN_BOTTOM + BASEMAP_FAB_ABOVE_HUD_FABS },
-        ]}
-        pointerEvents="box-none"
-      >
-        <FloatingMapButton
-          icon="carte"
-          accessibilityLabel={
-            basemap === 'color'
-              ? 'Fond de carte couleur (repasser en sombre)'
-              : 'Fond de carte sombre (passer en couleur)'
-          }
-          active={basemap === 'color'}
-          onPress={toggle}
-        />
-      </View>
-
       {/* ── Attribution relogée au-dessus de la nav (obligation légale) ── */}
       <Text
         style={[
@@ -274,7 +253,7 @@ export function MapScreen() {
         {ATTRIBUTION_LABEL}
       </Text>
 
-      {/* ── HUD (pill % contrôle, feed, calques, sheet) — inchangé ─────── */}
+      {/* ── HUD (pill % contrôle, feed, menu Info : Couches + Fond + Recentrer) ── */}
       <BattleMapOverlays
         mode={mode}
         onSelectMode={setMode}
@@ -282,6 +261,8 @@ export function MapScreen() {
         onRecenter={recenter}
         selectedParcoursId={selectedParcours}
         onSelectParcours={setSelectedParcours}
+        basemap={basemap}
+        onToggleBasemap={toggle}
       />
     </View>
   );
