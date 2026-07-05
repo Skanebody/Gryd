@@ -232,12 +232,17 @@ export function territoryGeoByState(): ReadonlyMap<TerritoryState, GameCollectio
     RUE_FAUBOURG_DU_TEMPLE.length - CONTESTED_TRACE_WAYPOINTS + 1,
   );
   const contestedTrace = RUE_FAUBOURG_DU_TEMPLE.slice(-CONTESTED_TRACE_WAYPOINTS);
+  // AMENDEMENT-16 §0 (retour fondateur) : « je veux JUSTE le tracé ». Un couloir
+  // de course (run non bouclé) = LE TRACÉ, une simple ligne le long de la rue —
+  // plus de ruban rempli de 60 m qui se lit comme un halo. Seules les BOUCLES
+  // fermées gardent un aplat (l'aire enfermée = la zone). ribbonRing n'est donc
+  // plus utilisé pour l'affichage des couloirs.
   const byState = new Map<TerritoryState, GameCollection>([
     [
       'crew',
       collection([
         polygonFeature('crew', loopRing(BOUCLE_REPUBLIQUE)),
-        polygonFeature('crew', ribbonRing(QUAI_VALMY, CORRIDOR_HALF_WIDTH_M)),
+        lineFeature('crew', QUAI_VALMY),
         polygonFeature('crew', loopRing(LILLE_BOUCLE)),
       ]),
     ],
@@ -247,30 +252,19 @@ export function territoryGeoByState(): ReadonlyMap<TerritoryState, GameCollectio
     ],
     [
       'decay',
-      collection([
-        polygonFeature(
-          'decay',
-          ribbonRing(AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_FROM_WAYPOINT), CORRIDOR_HALF_WIDTH_M),
-        ),
-      ]),
+      collection([lineFeature('decay', AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_FROM_WAYPOINT))]),
     ],
     [
       'decayUrgent',
       collection([
-        polygonFeature(
-          'decayUrgent',
-          ribbonRing(
-            AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_URGENT_FROM_WAYPOINT),
-            CORRIDOR_HALF_WIDTH_M,
-          ),
-        ),
+        lineFeature('decayUrgent', AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_URGENT_FROM_WAYPOINT)),
       ]),
     ],
     [
       'rival',
       collection([
-        polygonFeature('rival', ribbonRing(rivalTraceParis, CORRIDOR_HALF_WIDTH_M)),
-        polygonFeature('rival', ribbonRing(LYON_BERGES_RHONE, CORRIDOR_HALF_WIDTH_M)),
+        lineFeature('rival', rivalTraceParis),
+        lineFeature('rival', LYON_BERGES_RHONE),
       ]),
     ],
     ['contested', collection([lineFeature('contested', contestedTrace)])],

@@ -51,11 +51,7 @@ import {
 } from '../../ui/game';
 import type { RoutePoint } from '../../ui/game';
 import { territoryStyle, withAlpha } from '../map/mapStyle';
-import {
-  CORRIDOR_HALF_WIDTH_M,
-  loopRing,
-  ribbonRing,
-} from '../map/allTerritories';
+import { loopRing } from '../map/allTerritories';
 import { REAL_M_PER_DEG_LAT, RUNNER_SCALE_ZOOM, type LatLngPoint } from '../map/realAnchors';
 import type { LoopPhase, RunLoop } from './loop';
 import { SIM_TICK_MS, type RunSimulation } from './simulation';
@@ -77,6 +73,8 @@ const PULSE_RING_SIZE = 30;
 const CHECKPOINT_PULSE_TICKS = 4;
 /** Frontière du territoire (§4ter : trait NET 2,2 px — parité mapStyle). */
 const TERRITORY_BORDER_WIDTH = 2.2;
+/** Largeur de LA trace de course (ligne seule, sans ruban — §0 « juste le tracé »). */
+const TRACE_LINE_WIDTH = 3.2;
 /** Écart latéral du DOUBLE trait contesté (line-offset — parité mapStyle). */
 const CONTESTED_OFFSET_PX = 2.5;
 /** Itinéraire type Uber (parité RouteProgress : gris/chartreuse, liseré noir). */
@@ -355,12 +353,10 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
     }
     return pts;
   }, [i, nav.ticks, sim.ticks]);
-  /** Ruban net (~2 zones ≈ 60 m) le long de la trace parcourue. */
+  /** AMENDEMENT-16 §0 (retour fondateur) : « juste le tracé » — la trace
+   *  parcourue = UNE ligne le long de la rue, plus de ruban rempli de 60 m. */
   const corridorData = useMemo(
-    () =>
-      traceGeo.length >= 2
-        ? polygonCollection(ribbonRing(traceGeo, CORRIDOR_HALF_WIDTH_M))
-        : EMPTY_COLLECTION,
+    () => (traceGeo.length >= 2 ? lineCollection(traceGeo) : EMPTY_COLLECTION),
     [traceGeo],
   );
   /** Boucle fermée : le polygone affiché EST le tracé (remplissage §4ter). */
@@ -415,16 +411,14 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
   //    retirées). AMENDEMENT-16 §0 : remplissage faible + trait net, RIEN d'autre.
   const layers = useMemo<RealMapGeoJSONLayer[]>(
     () => [
-      // Ruban de capture : fill faible + trait 2,2 px (double trait si contesté).
+      // Trace parcourue : UNE ligne chartreuse nette (double trait si contesté).
       {
         id: 'live-corridor',
         data: corridorData,
-        fillColor: territoryStyle.crewFill,
-        fillOpacity: 1,
         lineColor: contested
           ? territoryStyle.contestedInnerStroke
           : territoryStyle.crewStroke,
-        lineWidth: TERRITORY_BORDER_WIDTH,
+        lineWidth: TRACE_LINE_WIDTH,
       },
       {
         id: 'live-corridor-contested',

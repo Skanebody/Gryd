@@ -30,9 +30,7 @@ import {
   type RealMapMarker,
   type RealMapRef,
 } from '../../ui/game';
-import { CORRIDOR_HALF_WIDTH_M, ribbonRing } from '../map/allTerritories';
 import {
-  scaleAlpha,
   territoryStateLayers,
   territoryStyle as terr,
   withAlpha,
@@ -67,26 +65,7 @@ const LOOP_CLOSE_EPSILON_M = 26;
 const EGO_DOT_SIZE = 10;
 const EGO_HALO_SIZE = 22;
 
-// Hiérarchie 4 : ruban net des zones capturables (§4ter — zéro lueur).
-const CAPTURABLE_BORDER_WIDTH = 1.2;
-
 type PlannerCollection = RealMapGeoJSONLayer['data'];
-
-/** Anneau [lng, lat] fermé → FeatureCollection Polygon (vide si dégénéré). */
-function polygonCollection(ring: readonly [number, number][]): PlannerCollection {
-  const first = ring[0];
-  if (!first || ring.length < 3) return { type: 'FeatureCollection', features: [] };
-  return {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: [[...ring.map((p) => [...p]), [...first]]] },
-        properties: {},
-      },
-    ],
-  };
-}
 
 /** Polyline lat/lng → FeatureCollection LineString. */
 function lineCollection(points: readonly LatLngPoint[]): PlannerCollection {
@@ -190,17 +169,10 @@ export function RoutePlannerMap({ route }: RoutePlannerMapProps) {
       // 5. Territoires en transparence — MÊME builder §4ter que la Battle Map
       //    (traits nets, contesté double trait, decay pointillé — zéro glow).
       ...territoryStateLayers(emph),
-      // 4. Zones capturables : RUBAN NET le long du tracé (fill faible +
-      //    trait fin — AMENDEMENT-16 §0 : plus aucune lueur).
-      {
-        id: 'planner-capturable',
-        data: polygonCollection(ribbonRing(route.line, CORRIDOR_HALF_WIDTH_M)),
-        fillColor: terr.objectiveFill,
-        fillOpacity: emph.objective,
-        lineColor: scaleAlpha(colors.chartreuse40, emph.objective),
-        lineWidth: CAPTURABLE_BORDER_WIDTH,
-      },
       // 1. LA ROUTE : liseré sombre + trait épais chartreuse (route-first).
+      //    AMENDEMENT-16 §0 (retour fondateur) : « juste le tracé » — plus de
+      //    ruban de capture rempli sous la route ; la route dominante EST le
+      //    tracé, elle se suffit.
       {
         id: 'planner-route-casing',
         data: routeData,
