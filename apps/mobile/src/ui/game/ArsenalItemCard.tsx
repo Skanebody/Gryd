@@ -18,9 +18,10 @@ import {
   BADGE_TIER_RANK,
   BADGE_TIER_STYLE,
   arsenalIconFor,
+  borderState,
   colors,
+  elevation,
   fontSizes,
-  gameColors,
   radii,
   type BadgeTier,
   type IconName,
@@ -156,11 +157,31 @@ export function ArsenalItemCard({
   // expiré. Un item simplement achetable n'affiche PAS « Débloqué » (le prix +
   // le CTA « Obtenir » suffisent — évite le faux positif de possession).
   const showPill = owned || locked;
+  // Règle de profondeur (AMENDEMENT-22) : la carte produit est UNE surface N1
+  // qui flotte sur l'espace — SANS contour permanent. Un contour n'apparaît que
+  // comme ÉTAT (N3) : équipé (sélection chartreuse douce) ou rareté haute (la
+  // teinte de tier EST l'information). Les tiers bas restent borderless.
+  const rareRing = BADGE_TIER_RANK[rarity] >= BADGE_TIER_RANK.carbon && !locked;
+  const stateBorder = equipped
+    ? { borderWidth: 1, borderColor: borderState.activeSoft }
+    : rareRing
+      ? { borderWidth: 1, borderColor: ts.ring }
+      : null;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.row}>
-        <View style={[styles.iconWrap, { borderColor: locked ? colors.grisLigne : ts.ring }]}>
+    // La carte est un simple conteneur N1 (pas un bouton) : seule la zone d'info
+    // ouvre le détail, le CTA reste un bouton frère — jamais de bouton dans un
+    // bouton (tap non ambigu + DOM valide sur web).
+    <View style={[styles.card, stateBorder]}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onView}
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      >
+        {/* Disque d'icône = surface N2 relevée, SANS cadre (pas de card-dans-
+            card). La rareté haute teinte l'icône ; les tiers bas la posent en
+            blanc — le cercle porte le visuel, pas une boîte encadrée. */}
+        <View style={styles.iconWrap}>
           {slug !== undefined || icon === undefined ? (
             <ArsenalIcon slug={slug ?? name} size={36} color={iconColor} />
           ) : (
@@ -180,7 +201,7 @@ export function ArsenalItemCard({
           </Text>
         </View>
         {showPill ? <StatePill state={pillState} label={pillLabel} /> : null}
-      </View>
+      </Pressable>
 
       <View style={styles.footer}>
         {price && !owned ? (
@@ -197,65 +218,56 @@ export function ArsenalItemCard({
             </Text>
           </View>
         )}
-        <View style={styles.ctas}>
-          {onView ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={onView}
-              style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
-            >
-              <Text style={styles.ghostLabel}>Voir</Text>
-            </Pressable>
-          ) : null}
-          {canEquip ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                haptics.light();
-                onEquip?.();
-              }}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-            >
-              <Text style={styles.primaryLabel}>Équiper</Text>
-            </Pressable>
-          ) : null}
-          {canObtain ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                haptics.medium();
-                onObtain?.();
-              }}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-            >
-              <Text style={styles.primaryLabel}>{obtainLabel}</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        {/* UN SEUL bouton par carte (le corps ouvre déjà le détail au tap).
+            Équiper l'emporte sur Obtenir ; sinon rien — le tap suffit. */}
+        {canEquip ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              haptics.light();
+              onEquip?.();
+            }}
+            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+          >
+            <Text style={styles.primaryLabel}>Équiper</Text>
+          </Pressable>
+        ) : canObtain ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              haptics.medium();
+              onObtain?.();
+            }}
+            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+          >
+            <Text style={styles.primaryLabel}>{obtainLabel}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // N1 : la carte produit FLOTTE sur l'espace, sans contour (80/20). Le contour
+  // n'est ajouté qu'en état (équipé / rareté haute) via `stateBorder`.
   card: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 14,
     gap: 12,
   },
   pressed: { opacity: 0.85 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  // N2 : disque relevé qui porte l'icône (pas de boîte encadrée = pas de card-
+  // dans-card). Aucun contour permanent.
   iconWrap: {
     width: 60,
     height: 60,
     borderRadius: 16,
-    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
   },
   body: { flex: 1, gap: 2 },
   name: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
@@ -270,24 +282,13 @@ const styles = StyleSheet.create({
   usage: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   price: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  priceValue: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  priceValue: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   ownedLabel: { color: colors.gris, fontSize: fontSizes.xs },
-  ctas: { flexDirection: 'row', gap: 8 },
-  ghost: {
-    height: 38,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ghostLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   primary: {
     height: 38,
     paddingHorizontal: 18,
     borderRadius: radii.pill,
-    backgroundColor: gameColors.crew,
+    backgroundColor: colors.chartreuse,
     alignItems: 'center',
     justifyContent: 'center',
   },

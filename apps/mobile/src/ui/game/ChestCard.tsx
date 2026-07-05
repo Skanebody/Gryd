@@ -4,7 +4,7 @@
  * (pulse chartreuse + CTA Ouvrir). La jauge est la ProgressBar charte.
  */
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import { colors, elevation, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../Icon';
 import { ProgressBar } from '../ProgressBar';
@@ -72,15 +72,15 @@ export function ChestCard({ label, progress, nextMilestone, state, onOpen }: Che
 }
 
 const styles = StyleSheet.create({
+  // Coffre = surface N1 posée sur le fond (sans cadre). « À ouvrir » = état N3 :
+  // le seul contour est le liseré chartreuse de l'état claimable.
   card: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: 12,
   },
-  cardClaimable: { borderColor: gameColors.crew },
+  cardClaimable: { borderWidth: 1, borderColor: gameColors.crew },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconWrap: {
     width: 48,

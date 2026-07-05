@@ -5,7 +5,7 @@
  * Slide-in au montage (feed), haptic léger à la réaction.
  */
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii, type IconName } from '@klaim/shared';
+import { borderState, colors, elevation, fontSizes, gameColors, radii, type IconName } from '@klaim/shared';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../Icon';
 import { useSlideIn } from './anim';
@@ -70,7 +70,7 @@ export function WarEventCard({
         style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       >
         <View style={styles.row}>
-          <View style={[styles.iconWrap, { borderColor: tint }]}>
+          <View style={styles.iconWrap}>
             <Icon name={icon} size={20} color={tint} />
           </View>
           <View style={styles.body}>
@@ -122,24 +122,24 @@ export function WarEventCard({
 }
 
 const styles = StyleSheet.create({
+  // N1 : une surface posée sur l'espace, SANS contour permanent (règle 80/20 —
+  // un event n'est pas un état ; le seul contour rare = le tag LIVE actif).
   card: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 14,
     gap: 10,
   },
   pressed: { opacity: 0.85 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // Pastille d'icône = N2 relevé, sans contour (le contour est réservé aux états).
   iconWrap: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
   },
   body: { flex: 1, gap: 2 },
   message: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', lineHeight: 18 },
@@ -157,6 +157,8 @@ const styles = StyleSheet.create({
   liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: gameColors.crew },
   liveLabel: { color: gameColors.crew, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
   reactions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  // Pill de réaction = N2 relevé, SANS contour au repos ; le contour chartreuse
+  // n'apparaît QUE sur l'état actif (« j'ai réagi » — règle 80/20).
   reaction: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -165,10 +167,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: gameColors.carbon,
+    borderColor: 'transparent',
+    backgroundColor: elevation.raised,
   },
-  reactionMine: { borderColor: gameColors.crew },
+  reactionMine: { borderColor: borderState.active },
   reactionCount: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   reactionCountMine: { color: gameColors.crew },
 });

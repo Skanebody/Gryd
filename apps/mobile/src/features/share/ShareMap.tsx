@@ -13,7 +13,7 @@
  */
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import Svg, { Path, Polyline } from 'react-native-svg';
-import { colors, gameColors } from '@klaim/shared';
+import { colors } from '@klaim/shared';
 import {
   CORRIDOR_HALF_WIDTH_M,
   loopRing,
@@ -163,12 +163,12 @@ export function ShareMap({ mode = 'loop', accent = colors.chartreuse, style }: S
 }
 
 const styles = StyleSheet.create({
+  // AMENDEMENT-22 : PAS de double container. La zone dessinée flotte sur le fond
+  // sombre de la card (elle-même l'unique surface) — ni cadre, ni mini-carré. Le
+  // trace/glow clippe proprement (overflow) sans frontière visible.
   wrap: {
     aspectRatio: 1,
-    borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: gameColors.carbon,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: 'transparent',
   },
 });

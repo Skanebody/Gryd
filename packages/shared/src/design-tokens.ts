@@ -48,6 +48,52 @@ export const fontSizes = { xs: 12, sm: 14, md: 16, lg: 20, xl: 28, xxl: 40, hero
 export const radii = { card: 20, pill: 999 } as const;
 export const spacing = { cardPadding: 20 } as const;
 
+/**
+ * AMENDEMENT-22 — RÈGLE DE PROFONDEUR GRYD (« UI en scènes, pas en boîtes »).
+ * Le fond sombre est de l'ESPACE, pas un remplissage de rectangles. Une page ne
+ * doit JAMAIS empiler plusieurs niveaux de cards imbriquées. Les écrans
+ * consomment cette échelle nommée au lieu de réinventer la profondeur.
+ *
+ * Max 3 niveaux VISIBLES simultanément :
+ *  - N0 `elevation.base`    (colors.noir)     — le FOND. Sert d'espace, jamais de surface.
+ *  - N1 `elevation.surface` (colors.carbone)  — UNE surface par section (card principale ·
+ *                                                bottom sheet · preview). Jamais deux imbriquées.
+ *  - N2 `elevation.raised`  (colors.carbone2) — INTERACTION : bouton · pill · item sélectionné.
+ *  - N3 état RARE            (glow · `borderState` chartreuse) — alerte · sélection · rareté · live.
+ *
+ * Contours (`borderState`) : 80 % des surfaces SANS contour ; les 20 % avec contour sont
+ * RÉSERVÉS aux états (interaction active · statut · alerte · rareté · sélection). Si tout a un
+ * contour, plus rien n'a d'importance — les sections se séparent par l'ESPACE, pas par des boîtes.
+ *
+ * Doctrine d'écran : UN SEUL gros CTA chartreuse ; actions secondaires LÉGÈRES (icône + label,
+ * pas de grosse card) ; groupes de choix = UN segmented control ; détails AU TAP (jamais en
+ * sous-cards permanentes) ; chiffres GRANDS.
+ */
+export const elevation = {
+  /** N0 — Fond global (espace). Ne jamais l'utiliser comme surface d'un bloc. */
+  base: colors.noir,
+  /** N1 — Surface unique d'une section (card principale, bottom sheet, preview). */
+  surface: colors.carbone,
+  /** N2 — Interaction : bouton, pill, item de segmented sélectionné, input. */
+  raised: colors.carbone2,
+} as const;
+export type ElevationLevel = keyof typeof elevation;
+
+/**
+ * Bordures d'ÉTAT (règle 80/20). Un contour signale toujours un état, jamais une simple
+ * séparation de bloc.
+ *  - `hairline`  : filet neutre (blanc 10 %) — séparateur DISCRET, pas un cadre de card.
+ *  - `active`    : sélection / interaction en cours (chartreuse pleine — état N3).
+ *  - `activeSoft`: sélection douce / glow (chartreuse 40 %) — contour de territoire, focus léger.
+ * Jamais de contour chartreuse sur fond clair (contraste 1,2:1 — illisible).
+ */
+export const borderState = {
+  hairline: colors.grisLigne,
+  active: colors.chartreuse,
+  activeSoft: colors.chartreuse40,
+} as const;
+export type BorderStateName = keyof typeof borderState;
+
 /** Motion (addendum §G). */
 export const motion = {
   transitionMs: 225, // 200-250 ms, ease-out

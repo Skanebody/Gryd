@@ -19,6 +19,7 @@ import {
   POINTS_NEUTRAL_HEX,
   SEASON_DURATION_WEEKS,
   colors,
+  elevation,
   fontSizes,
   gameColors,
   radii,
@@ -44,6 +45,7 @@ import {
   LeagueMedal,
   PlayerAvatarFrame,
   RewardCard,
+  Segmented,
   useSlideIn,
 } from '../../src/ui/game';
 
@@ -57,6 +59,18 @@ const PRIMARY_TABS: readonly { id: PrimaryTab; label: string }[] = [
   { id: 'joueurs', label: 'Joueurs' },
   { id: 'crews', label: 'Crews' },
   { id: 'ville', label: 'Ville' },
+];
+
+/** Filtre portée (segmented) — n'apparaît que pour l'onglet Joueurs. */
+const SCOPE_OPTIONS: readonly { id: ScopeFilter; label: string }[] = [
+  { id: 'paris', label: 'Paris' },
+  { id: 'france', label: 'France' },
+];
+
+/** Filtre période (segmented). */
+const PERIOD_OPTIONS: readonly { id: PeriodFilter; label: string }[] = [
+  { id: 'semaine', label: 'Semaine' },
+  { id: 'saison', label: 'Saison' },
 ];
 
 /** Boards indexés — le filtre France sur Joueurs bascule vers le board national. */
@@ -260,7 +274,9 @@ export default function LeagueScreen() {
               ≈ {GAP_HEXES} zones peuvent suffire — le prochain run peut le faire.
             </Text>
 
-            {/* 2 · Rank-up ÉMOTIONNEL juste après le rang (remonté, pas en bas) */}
+            {/* 2 · Rank-up ÉMOTIONNEL juste après le rang. Ligne LÉGÈRE posée sur
+                la surface (plus de card-dans-card §1) : séparée par l'espace, pas
+                par une boîte. Le seul contour de la scène reste celui du bloc. */}
             {IN_TOP10 ? (
               <View style={styles.rankUpRow}>
                 <Icon name="badge" size={16} color={colors.chartreuse} />
@@ -281,74 +297,51 @@ export default function LeagueScreen() {
           </View>
         ) : null}
 
-        {/* ── Exploration : onglets RÉDUITS + filtre secondaire ── */}
-        <View style={styles.primaryTabs}>
-          {PRIMARY_TABS.map((t) => (
-            <Pressable
-              key={t.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Classement ${t.label}`}
-              accessibilityState={{ selected: t.id === tab }}
-              onPress={() => {
-                setTab(t.id);
-                setShowAll(false);
-                screen(`classement_${t.id}`);
-              }}
-              style={({ pressed }) => [
-                styles.primaryTab,
-                t.id === tab && styles.primaryTabActive,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.primaryTabLabel, t.id === tab && styles.primaryTabLabelActive]}>
-                {t.label}
-              </Text>
-            </Pressable>
-          ))}
+        {/* ── Exploration : onglets RÉDUITS + filtre secondaire ──
+            Groupes de choix = UN Segmented chacun (AMENDEMENT-22 §4), pas N
+            rectangles. `tone="surface"` : le seul focus chartreuse fort de la
+            scène est le CTA « Trouver une route » du bloc TOI. */}
+        <View style={styles.tabsWrap}>
+          <Segmented
+            options={PRIMARY_TABS}
+            value={tab}
+            tone="surface"
+            accessibilityLabel="Nature du classement"
+            onChange={(id) => {
+              setTab(id);
+              setShowAll(false);
+              screen(`classement_${id}`);
+            }}
+          />
         </View>
 
-        {/* Filtre secondaire : portée (Paris/France) + période (Semaine/Saison) */}
+        {/* Filtre secondaire : portée (Paris/France) + période (Semaine/Saison).
+            Segmented `scrollable` = largeur de CONTENU (strips légers), posés sur
+            la même rangée séparés par l'espace — aucun label tronqué (pet peeve
+            #1), plus léger que les onglets primaires. Portée réservée à Joueurs. */}
         <View style={styles.filterRow}>
-          {(['paris', 'france'] as const).map((s) => (
-            <Pressable
-              key={s}
-              accessibilityRole="button"
-              accessibilityState={{ selected: s === scope }}
-              disabled={tab !== 'joueurs'}
-              onPress={() => {
-                setScope(s);
+          {tab === 'joueurs' ? (
+            <Segmented
+              options={SCOPE_OPTIONS}
+              value={scope}
+              tone="surface"
+              scrollable
+              accessibilityLabel="Portée du classement"
+              onChange={(id) => {
+                setScope(id);
                 setShowAll(false);
               }}
-              style={({ pressed }) => [
-                styles.filterChip,
-                s === scope && styles.filterChipActive,
-                tab !== 'joueurs' && styles.filterChipDisabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.filterLabel, s === scope && styles.filterLabelActive]}>
-                {s === 'paris' ? 'Paris' : 'France'}
-              </Text>
-            </Pressable>
-          ))}
+            />
+          ) : null}
           <View style={styles.filterSpacer} />
-          {(['semaine', 'saison'] as const).map((p) => (
-            <Pressable
-              key={p}
-              accessibilityRole="button"
-              accessibilityState={{ selected: p === period }}
-              onPress={() => setPeriod(p)}
-              style={({ pressed }) => [
-                styles.filterChip,
-                p === period && styles.filterChipActive,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.filterLabel, p === period && styles.filterLabelActive]}>
-                {p === 'semaine' ? 'Semaine' : 'Saison'}
-              </Text>
-            </Pressable>
-          ))}
+          <Segmented
+            options={PERIOD_OPTIONS}
+            value={period}
+            tone="surface"
+            scrollable
+            accessibilityLabel="Période du classement"
+            onChange={setPeriod}
+          />
         </View>
 
         {/* PODIUM top 3 — remonté à chaque changement de board (key) */}
@@ -367,7 +360,8 @@ export default function LeagueScreen() {
             onPress={() => setShowAll(true)}
             style={({ pressed }) => [styles.seeAll, pressed && styles.pressed]}
           >
-            <Text style={styles.seeAllLabel}>Voir tout ({hiddenCount} de plus)</Text>
+            <Text style={styles.seeAllLabel}>Voir tout</Text>
+            <Text style={styles.seeAllCount}>+{hiddenCount}</Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
         ) : null}
@@ -444,15 +438,16 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
   },
+  // Rank-up : ligne légère posée sur la surface du bloc TOI, séparée par un
+  // filet neutre discret (pas un cadre) — jamais une card-dans-card (§1).
   rankUpRow: {
     flexDirection: 'row',
     gap: 8,
     alignItems: 'flex-start',
-    backgroundColor: colors.noir,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 12,
+    marginTop: 2,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
   },
   rankUpText: {
     flex: 1,
@@ -483,36 +478,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // ── Onglets primaires réduits ──
-  primaryTabs: { flexDirection: 'row', gap: 8, marginTop: 22 },
-  primaryTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-  },
-  primaryTabActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
-  primaryTabLabel: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 0.4 },
-  primaryTabLabelActive: { color: colors.blanc, fontWeight: '700' },
+  // ── Onglets primaires réduits (Segmented unique) ──
+  tabsWrap: { marginTop: 22 },
 
-  // ── Filtre secondaire ──
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  filterSpacer: { flex: 1 },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.noir,
-  },
-  filterChipActive: { borderColor: colors.chartreuse40, backgroundColor: colors.carbone },
-  filterChipDisabled: { opacity: 0.35 },
-  filterLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4 },
-  filterLabelActive: { color: colors.blanc, fontWeight: '600' },
+  // ── Filtre secondaire (deux strips content-width, séparés par l'espace) ──
+  filterRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  filterSpacer: { flex: 1, minWidth: 8 },
 
   // ── Podium en marches ──
   podium: {
@@ -536,17 +507,17 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.4,
   },
+  // Marche du podium : riser DISCRET posé sur l'espace, sans contour ni card
+  // (§8 « podium visuel, sans gros container autour de chaque joueur »). Le seul
+  // relief est un léger dégradé de surface + la médaille qui flotte dessus.
   podiumStep: {
     alignSelf: 'stretch',
     marginTop: 6,
     borderTopLeftRadius: radii.card,
     borderTopRightRadius: radii.card,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     alignItems: 'center',
-    paddingTop: 6,
+    paddingTop: 8,
   },
 
   // ── Lignes 4+ ──
@@ -591,23 +562,26 @@ const styles = StyleSheet.create({
   },
   rowValueLabel: { color: colors.gris, fontSize: 10, letterSpacing: 0.4 },
 
-  // ── « Voir tout » ──
+  // ── « Voir tout » : action LÉGÈRE (§3), pas une card bordée. Texte + compteur
+  // + chevron posés sur l'espace, séparés par un simple filet en haut. ──
   seeAll: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: 8,
-    paddingVertical: 12,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    gap: 8,
+    marginTop: 6,
+    paddingVertical: 14,
   },
   seeAllLabel: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
     fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  seeAllCount: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
 

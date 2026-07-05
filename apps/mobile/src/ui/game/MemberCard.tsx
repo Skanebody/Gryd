@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   ROOKIE_TRIAL_DAYS,
   colors,
+  elevation,
   fontSizes,
   gameColors,
   radii,
@@ -135,11 +136,10 @@ export function MemberCard({
 }
 
 const styles = StyleSheet.create({
+  // Membre = une surface N1 posée sur le fond (sans cadre — règle 80/20).
   card: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 14,
     gap: 12,
   },
@@ -150,11 +150,10 @@ const styles = StyleSheet.create({
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   role: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   warReady: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600' },
-  // Badge rookie : pill discret gris — statut d'essai, pas un état de jeu.
+  // Badge rookie : pill discret relevé (N2) — statut d'essai, pas un état de jeu.
   rookiePill: {
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
@@ -164,6 +163,7 @@ const styles = StyleSheet.create({
   pointsValue: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700' },
   pointsLabel: { color: colors.gris, fontSize: 10, letterSpacing: 0.3 },
   actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  // Actions au tap = pills légères N2 relevées, sans contour (contour = état).
   action: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -171,8 +171,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
   },
   actionLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
 });

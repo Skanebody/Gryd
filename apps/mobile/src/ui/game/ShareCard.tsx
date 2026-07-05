@@ -148,15 +148,24 @@ export function ShareCard({
 }
 
 const styles = StyleSheet.create({
+  // AMENDEMENT-22 : la story EST le container et FLOTTE — contour très discret
+  // (filet à peine visible) + ombre neutre douce (jamais colorée, charte §F). Elle
+  // se pose sur l'espace, elle ne s'enferme pas dans une grosse card.
   card: {
     backgroundColor: gameColors.carbon, // fond carte sombre (§3)
     borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
+    borderColor: 'rgba(250,250,247,0.05)', // filet quasi invisible (≈ moitié du hairline)
     padding: spacing.cardPadding,
     alignItems: 'center',
     justifyContent: 'space-between',
     overflow: 'hidden',
+    // Ombre portée neutre discrète — donne l'effet « posé/flottant ».
+    shadowColor: '#000',
+    shadowOpacity: 0.55,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 12,
   },
   topRow: {
     alignSelf: 'stretch',
@@ -173,11 +182,12 @@ const styles = StyleSheet.create({
   kickerPill: {
     borderWidth: 1,
     borderRadius: radii.pill,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 4,
-    maxWidth: '68%',
+    maxWidth: '76%', // assez large pour « ZONE DÉFENDUE » sur ratio story (jamais tronqué)
+    flexShrink: 1,
   },
-  kickerText: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  kickerText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   title: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.5 },
   center: { alignItems: 'center', gap: 8, flexShrink: 1 },
   // Stat héros : elle domine la carte (échelle typo §E).

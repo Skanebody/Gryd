@@ -22,7 +22,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BADGE_TIER_LABEL,
   CREW_BOOST_MAX_ACTIVE,
+  borderState,
   colors,
+  elevation,
   fontSizes,
   gameColors,
   motion,
@@ -38,6 +40,7 @@ import {
   ArsenalIcon,
   ArsenalItemCard,
   RewardCard,
+  Segmented,
   useCountUp,
   useReveal,
   type ArsenalPriceCurrency,
@@ -228,24 +231,29 @@ export default function ArsenalScreen() {
       {/* Soldes — Éclats & Foulées animés, Club inactif en démo. */}
       <View style={styles.wallet}>
         <View style={styles.walletCell}>
-          <ArsenalIcon slug="eclats" size={16} color={colors.blanc} />
-          <Text style={styles.walletValue}>{formatInt(eclatsDisplay)}</Text>
+          <View style={styles.walletValueRow}>
+            <ArsenalIcon slug="eclats" size={16} color={colors.blanc} />
+            <Text style={styles.walletValue}>{formatInt(eclatsDisplay)}</Text>
+          </View>
           <Text style={styles.walletLabel}>Éclats</Text>
         </View>
         <View style={styles.walletDivider} />
         <View style={styles.walletCell}>
-          <ArsenalIcon slug="foulees" size={16} color={colors.blanc} />
-          <Text style={styles.walletValue}>{formatInt(fouleesDisplay)}</Text>
+          <View style={styles.walletValueRow}>
+            <ArsenalIcon slug="foulees" size={16} color={colors.blanc} />
+            <Text style={styles.walletValue}>{formatInt(fouleesDisplay)}</Text>
+          </View>
           <Text style={styles.walletLabel}>Foulées</Text>
         </View>
         <View style={styles.walletDivider} />
         <View style={styles.walletCell}>
-          <Icon name="couronne" size={16} color={colors.gris} />
+          <Icon name="couronne" size={18} color={colors.gris} />
           <Text style={styles.walletClubOff}>Club : inactif</Text>
         </View>
       </View>
 
-      {/* Bannière permanente anti-pay-to-win (copy §28). */}
+      {/* Bannière permanente anti-pay-to-win (copy §28) — posée sur l'espace,
+          plus de boîte : un filet supérieur discret la sépare du solde. */}
       <View style={styles.banner}>
         <Icon name="verrou" size={18} color={colors.blanc} />
         <View style={styles.bannerTextWrap}>
@@ -395,8 +403,12 @@ function PackCard({
       ]}
     >
       <View style={styles.packHeader}>
-        <View style={[styles.packIcon, isFounder && styles.packIconFounder]}>
-          <ArsenalIcon slug={item.slug} size={30} color={colors.blanc} />
+        <View style={styles.packIcon}>
+          <ArsenalIcon
+            slug={item.slug}
+            size={30}
+            color={isFounder ? gameColors.gold : colors.blanc}
+          />
         </View>
         <View style={styles.packHeaderText}>
           <Text style={styles.packName}>{item.name}</Text>
@@ -510,26 +522,27 @@ function ItemDetail({
         </View>
       ) : null}
 
-      {/* Bascule devise (items double-prix : Éclats OU €). */}
+      {/* Bascule devise (items double-prix : Éclats OU €) = UN segmented (pas
+          deux pills séparées). tone `surface` : le CTA chartreuse est le seul
+          focus fort de la scène. */}
       {dual && !owned ? (
-        <View style={styles.currencyTabs}>
-          {(['eclats', 'eur'] as const).map((c) => (
-            <Pressable
-              key={c}
-              accessibilityRole="button"
-              onPress={() => onCurrency(c)}
-              style={[styles.currencyTab, currency === c && styles.currencyTabActive]}
-            >
-              <Text
-                style={[styles.currencyTabText, currency === c && styles.currencyTabTextActive]}
-              >
-                {c === 'eclats'
-                  ? `${item.priceShards?.toLocaleString('fr-FR')} Éclats`
-                  : `${item.priceEur?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <Segmented
+          accessibilityLabel="Devise de paiement"
+          tone="surface"
+          value={currency}
+          onChange={onCurrency}
+          options={[
+            {
+              id: 'eclats',
+              label: `${item.priceShards?.toLocaleString('fr-FR')} Éclats`,
+            },
+            {
+              id: 'eur',
+              label: `${item.priceEur?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`,
+            },
+          ]}
+          style={styles.currencySegmented}
+        />
       ) : null}
 
       {/* CTA principal */}
@@ -677,39 +690,37 @@ function GiftFlow({
 }
 
 const styles = StyleSheet.create({
+  // N1 : lecture de solde, UNE surface qui flotte (pas de contour — c'est de
+  // l'info, pas un état). Chiffres GRANDS (fontSizes.lg).
   wallet: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: spacing.cardPadding,
     marginTop: 8,
     gap: 12,
   },
-  walletCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  walletCell: { flex: 1, alignItems: 'center', gap: 3 },
+  walletValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   walletValue: {
     color: colors.blanc,
-    fontSize: fontSizes.md,
-    fontWeight: '700',
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
-  walletLabel: { color: colors.gris, fontSize: fontSizes.xs },
+  walletLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
   walletClubOff: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
-  walletDivider: { width: 1, height: 22, backgroundColor: colors.grisLigne },
+  walletDivider: { width: 1, height: 34, backgroundColor: colors.grisLigne },
+  // Bannière doctrine (§28) : plus de boîte — texte posé sur l'ESPACE avec un
+  // filet supérieur discret (séparateur, pas un cadre).
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 12,
-    paddingHorizontal: spacing.cardPadding,
-    marginTop: 10,
+    paddingVertical: 14,
+    marginTop: 4,
   },
   bannerTextWrap: { flex: 1 },
   bannerStrong: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
@@ -738,29 +749,26 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
 
-  // Pack cards riches
+  // Pack cards riches — N1 qui flotte, sans contour. Founder = rareté LEGEND :
+  // un filet or (N3, état de rareté) est la SEULE exception 80/20 autorisée.
   packCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 16,
     gap: 14,
   },
-  packCardFounder: { borderColor: gameColors.gold },
+  packCardFounder: { borderWidth: 1, borderColor: gameColors.gold },
   pressed: { opacity: 0.85 },
   packHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // Disque N2 relevé (pas de boîte encadrée = pas de card-dans-card).
   packIcon: {
     width: 52,
     height: 52,
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
   },
-  packIconFounder: { borderColor: gameColors.gold },
   packHeaderText: { flex: 1 },
   packName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   packRarity: {
@@ -771,17 +779,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     marginTop: 2,
   },
-  packPrice: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  packPrice: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800' },
   packContents: { gap: 7 },
   packLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   packLineText: { color: colors.blanc, fontSize: fontSizes.sm, flex: 1 },
+  // Séparateur = filet HAIRLINE discret (règle : un filet sépare, il n'encadre pas).
   packFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
+    borderTopColor: borderState.hairline,
     paddingTop: 12,
   },
   packFooterNote: { color: colors.gris, fontSize: fontSizes.xs, flex: 1 },
@@ -790,12 +799,15 @@ const styles = StyleSheet.create({
   // Sheets (détail + gifting)
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  // Bottom sheet = plan N1. Filet hairline en bord haut seulement (séparateur
+  // du backdrop, pas un cadre). Fond noir profond pour que les surfaces N2
+  // relevées à l'intérieur ressortent.
   sheet: {
     backgroundColor: colors.noir,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    borderTopWidth: 1,
+    borderTopColor: borderState.hairline,
     paddingHorizontal: spacing.cardPadding,
     paddingTop: 10,
     maxHeight: '88%',
@@ -809,15 +821,15 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   detailPreview: { alignItems: 'center', gap: 8, marginBottom: 14 },
+  // Preview d'objet = disque N2 relevé qui FLOTTE sur la surface du sheet (pas
+  // de cadre encadré : le contour est réservé aux états).
   detailPreviewBox: {
     width: 96,
     height: 96,
     borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
   },
   detailName: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800', textAlign: 'center' },
   detailMeta: {
@@ -828,11 +840,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   detailDesc: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20, marginBottom: 12 },
+  // Chip N2 relevé, sans contour (info légère, pas un état).
   detailChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -840,9 +853,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   detailChipText: { color: colors.gris, fontSize: fontSizes.xs },
+  // VRAIE preview de contenu (contenu du pack) = l'unique nesting autorisé ;
+  // surface N2 relevée, sans contour.
   detailContents: {
     gap: 7,
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
     borderRadius: radii.card,
     padding: 14,
     marginBottom: 12,
@@ -854,23 +869,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   detailOwnedText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', flex: 1 },
-  currencyTabs: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  currencyTab: {
-    flex: 1,
-    height: 40,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  currencyTabActive: { borderColor: gameColors.crew, backgroundColor: gameColors.carbon },
-  currencyTabText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
-  currencyTabTextActive: { color: colors.blanc },
+  currencySegmented: { marginBottom: 14 },
   detailActions: { gap: 10, marginTop: 4 },
   detailPrimary: {
     height: 50,
@@ -882,13 +881,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailPrimaryText: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
-  detailLocked: { backgroundColor: gameColors.carbon, borderWidth: 1, borderColor: colors.grisLigne },
+  // État verrouillé : surface N2 relevée, sans contour (pas d'action = pas de
+  // chartreuse ; le gris dit « indisponible »).
+  detailLocked: { backgroundColor: elevation.raised },
   detailLockedText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
+  // Action secondaire (Offrir) : surface N2 relevée, sans contour — un seul gros
+  // CTA chartreuse (Obtenir/Équiper) domine la scène.
   detailGhost: {
     height: 50,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -907,11 +909,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 16,
   },
+  // Preview de l'offrande = surface N2 relevée, sans contour.
   giftPreview: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
     borderRadius: radii.card,
     padding: 14,
     marginBottom: 14,
@@ -919,11 +922,9 @@ const styles = StyleSheet.create({
   giftPreviewText: { flex: 1 },
   giftEffect: { color: gameColors.crew, fontSize: fontSizes.sm, fontWeight: '800' },
   giftDesc: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 16 },
+  // Copy de contribution = texte posé sur l'espace, plus de boîte encadrée.
   giftContribBox: {
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 14,
+    paddingVertical: 4,
     marginBottom: 14,
     gap: 4,
   },

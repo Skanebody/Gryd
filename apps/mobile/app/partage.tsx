@@ -1,25 +1,35 @@
 /**
- * GRYD — « PARTAGER TA CONQUÊTE » (AMENDEMENT-20 §3). Le moteur de viralité,
- * façon Strava : « Strava partage une activité. GRYD partage une conquête. »
- * Discipline : PREVIEW dominante en haut (grande card), 5 TEMPLATES en chips,
- * toggle FORMAT (Story 9:16 · Carré 1:1), 4 actions immédiates. On comprend et
- * on partage en 2 s. Card partage PLUS propre que le résultat.
+ * GRYD — « PARTAGER TA CONQUÊTE » — IMPLÉMENTATION DE RÉFÉRENCE de la règle de
+ * profondeur (AMENDEMENT-22 §7). Passage d'une UI EN BOÎTES à une UI EN SCÈNES :
  *
- * Chaque template = un ShareCard variant PROPRE (src/features/share/templates).
- * Les actions sont CÂBLÉES (intention) : en web/démo, capture/Share API natives
- * indisponibles → toasts « Image prête à partager » / « Copiée ». En prod
- * mobile : react-native ViewShot + Share, expo-media-library (TODO O1).
- * Replay vidéo = teaser V1.
+ *   ← Résultat
+ *   Partager ta conquête
+ *      [ preview story qui FLOTTE — la story EST le container, ombre très discrète ]
+ *   Format  [ Story 9:16 | Carré 1:1 ]      ← segmented (accent)
+ *   Style   [ Carte | Conquête | Défense ]  ← segmented (surface) + « Plus » léger
+ *   [ Story Instagram ]                     ← UN SEUL gros CTA chartreuse
+ *      ○ Sauver   ○ Copier   ○ Plus         ← actions légères (IconAction), zéro card
+ *   Replay vidéo bientôt                    ← micro-lien discret
+ *
+ * Profondeur : N0 fond (colors.noir) · N1 la preview (unique surface) · N2 segments/actifs ·
+ * N3 rare (glow/chartreuse). Plus de card-dans-card, plus de mini-carré autour de la zone, plus
+ * de 3 grosses cards d'action, plus de replay card. Ce qui ressort : +47 · Zones · République ·
+ * Story Instagram.
+ *
+ * Les 5 templates restent fonctionnels (Carte simple · Conquête · Défense · Boucle · Crew) : le
+ * segmented « Style » montre les 3 principaux et « Plus » déplie les 2 restants (un seul
+ * container, jamais de rectangles séparés). Actions CÂBLÉES (intention) ; en web/démo, capture &
+ * Share natives indisponibles → toasts. En prod : ViewShot + Share + expo-media-library (O1).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, motion, radii } from '@klaim/shared';
+import { colors, elevation, fontSizes, motion, radii } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
-import { ShareCard, type ShareCardRatio } from '../src/ui/game';
+import { IconAction, Segmented, ShareCard, type ShareCardRatio } from '../src/ui/game';
 import {
   SHARE_DEMO,
   SHARE_TEMPLATES,
@@ -27,15 +37,28 @@ import {
   type ShareTemplateId,
 } from '../src/features/share/templates';
 
-/** Formats d'export MVP (Story / Carré). Le feed 4:5 reste dispo côté card. */
+/** Formats d'export MVP (Story / Carré) — options du segmented « Format ». */
 const FORMATS: readonly { id: ShareCardRatio; label: string; icon: 'partage' | 'carte' }[] = [
   { id: 'story', label: 'Story 9:16', icon: 'partage' },
   { id: 'square', label: 'Carré 1:1', icon: 'carte' },
 ];
 
+/** Style = 3 principaux dans le segmented ; « Plus » déplie les 2 restants. */
+const STYLE_MAIN: readonly ShareTemplateId[] = ['simple', 'conquete', 'defense'];
+const STYLE_EXTRA: readonly ShareTemplateId[] = ['boucle', 'crew'];
+
+/** Libellé COURT par style (jamais tronqué). Distinct du `chip` legacy des templates. */
+const STYLE_LABEL: Record<ShareTemplateId, string> = {
+  simple: 'Carte',
+  conquete: 'Conquête',
+  defense: 'Défense',
+  boucle: 'Boucle',
+  crew: 'Crew',
+};
+
 /** Largeur de preview par format (la hauteur suit l'aspect de la card). */
 const PREVIEW_WIDTH: Record<ShareCardRatio, number> = {
-  story: 236,
+  story: 232,
   square: 300,
   feed: 280,
 };
@@ -49,6 +72,10 @@ export default function PartageScreen() {
     isTemplateId(params.template) ? params.template : 'conquete',
   );
   const [ratio, setRatio] = useState<ShareCardRatio>('story');
+  // « Plus » ouvre le choix aux 5 styles (déplié aussi si on arrive sur un extra).
+  const [stylesExpanded, setStylesExpanded] = useState<boolean>(
+    isTemplateId(params.template) ? STYLE_EXTRA.includes(params.template) : false,
+  );
 
   useEffect(() => {
     screen('partage', { template: selected });
@@ -61,16 +88,23 @@ export default function PartageScreen() {
   );
   const cardProps = useMemo(() => template.build(SHARE_DEMO), [template]);
 
-  const pickTemplate = (id: ShareTemplateId) => {
-    if (id === selected) return;
-    haptics.light();
+  // Segments « Style » : 3 principaux, ou les 5 une fois « Plus » déplié.
+  const styleOptions = useMemo(
+    () =>
+      (stylesExpanded ? [...STYLE_MAIN, ...STYLE_EXTRA] : STYLE_MAIN).map((id) => ({
+        id,
+        label: STYLE_LABEL[id],
+      })),
+    [stylesExpanded],
+  );
+
+  const pickStyle = (id: ShareTemplateId) => {
     setSelected(id);
     track(EVENTS.shareCardGenerated);
   };
-  const pickFormat = (id: ShareCardRatio) => {
-    if (id === ratio) return;
+  const expandStyles = () => {
     haptics.light();
-    setRatio(id);
+    setStylesExpanded(true);
   };
 
   // Actions démo : intention câblée, confirmation immédiate par toast (§3).
@@ -91,7 +125,7 @@ export default function PartageScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 32 },
+          { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 28 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -109,67 +143,55 @@ export default function PartageScreen() {
           <Text style={styles.backText}>Résultat</Text>
         </Pressable>
 
-        <Text style={styles.kicker}>PARTAGE</Text>
         <Text style={styles.title}>Partager ta conquête</Text>
 
-        {/* PREVIEW dominante — la grande card en haut. */}
+        {/* PREVIEW qui FLOTTE : la story EST le container (pas de card noire autour). */}
         <View style={styles.previewWrap}>
           <ShareCard {...cardProps} ratio={ratio} width={PREVIEW_WIDTH[ratio]} />
         </View>
 
-        {/* Toggle FORMAT (Story / Carré) — change le ratio de la preview. */}
-        <View style={styles.formatToggle}>
-          {FORMATS.map((f) => {
-            const on = f.id === ratio;
-            return (
-              <Pressable
-                key={f.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                onPress={() => pickFormat(f.id)}
-                style={({ pressed }) => [
-                  styles.formatBtn,
-                  on && styles.formatBtnOn,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Icon name={f.icon} size={15} color={on ? colors.noir : colors.gris} />
-                <Text style={[styles.formatLabel, on && styles.formatLabelOn]}>{f.label}</Text>
-              </Pressable>
-            );
-          })}
+        {/* Format — UN segmented (accent chartreuse). */}
+        <View style={styles.controlRow}>
+          <Text style={[styles.controlLabel, styles.controlLabelSolo]}>Format</Text>
+          <Segmented
+            accessibilityLabel="Format de partage"
+            options={FORMATS}
+            value={ratio}
+            onChange={(id) => setRatio(id)}
+            tone="accent"
+          />
         </View>
 
-        {/* Sélecteur de 5 TEMPLATES (chips). */}
-        <Text style={styles.sectionLabel}>TEMPLATE</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
-          {SHARE_TEMPLATES.map((t) => {
-            const on = t.id === selected;
-            return (
+        {/* Style — UN segmented (surface, car l'accent chartreuse vit déjà au-dessus). */}
+        <View style={styles.controlRow}>
+          <View style={styles.controlHead}>
+            <Text style={styles.controlLabel}>Style</Text>
+            {!stylesExpanded ? (
               <Pressable
-                key={t.id}
                 accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                onPress={() => pickTemplate(t.id)}
-                style={({ pressed }) => [
-                  styles.chip,
-                  on && styles.chipOn,
-                  pressed && styles.pressed,
-                ]}
+                accessibilityLabel="Afficher plus de styles"
+                onPress={expandStyles}
+                hitSlop={10}
+                style={({ pressed }) => [styles.moreLink, pressed && styles.pressed]}
               >
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>{t.chip}</Text>
+                <Text style={styles.moreLinkText}>+2 styles</Text>
               </Pressable>
-            );
-          })}
-        </ScrollView>
+            ) : null}
+          </View>
+          <Segmented
+            accessibilityLabel="Style de la carte"
+            options={styleOptions}
+            value={selected}
+            onChange={pickStyle}
+            tone="surface"
+            scrollable={stylesExpanded}
+          />
+        </View>
 
-        {/* ACTIONS — 1 CTA primaire (suit le format) + 3 secondaires. */}
+        {/* UN SEUL gros CTA chartreuse (suit le format). */}
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={primaryCta.label}
           onPress={() => act('Image prête à partager', primaryCta.channel)}
           style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
         >
@@ -177,35 +199,20 @@ export default function PartageScreen() {
           <Text style={styles.ctaLabel}>{primaryCta.label}</Text>
         </Pressable>
 
+        {/* Actions LÉGÈRES (icône + label), zéro grosse card. */}
         <View style={styles.actionRow}>
-          <ActionButton
-            icon="cadeau"
-            label="Sauvegarder"
-            onPress={() => act('Image enregistrée', 'save')}
-          />
-          <ActionButton
-            icon="copier"
-            label="Copier"
-            onPress={() => act('Copiée', 'copy')}
-          />
-          <ActionButton
+          <IconAction icon="cadeau" label="Sauver" onPress={() => act('Image enregistrée', 'save')} />
+          <IconAction icon="copier" label="Copier" onPress={() => act('Copiée', 'copy')} />
+          <IconAction
             icon="partage"
-            label="Partager"
+            label="Plus"
+            accessibilityLabel="Plus d'options de partage"
             onPress={() => act('Image prête à partager', 'native')}
           />
         </View>
 
-        {/* Replay vidéo = teaser V1 (désactivé, jamais un faux bouton actif). */}
-        <View style={styles.teaser}>
-          <View style={styles.teaserIcon}>
-            <Icon name="guerre" size={16} color={colors.gris} />
-          </View>
-          <View style={styles.teaserText}>
-            <Text style={styles.teaserTitle}>Replay vidéo</Text>
-            <Text style={styles.teaserSub}>La conquête animée — bientôt</Text>
-          </View>
-          <Text style={styles.teaserTag}>V1</Text>
-        </View>
+        {/* Replay vidéo : micro-lien discret (jamais une grosse card « bientôt »). */}
+        <Text style={styles.replayLink}>Replay vidéo animé — bientôt</Text>
       </ScrollView>
 
       <ShareToast opacity={toast.opacity} message={toast.message} />
@@ -214,9 +221,8 @@ export default function PartageScreen() {
 }
 
 /**
- * Toast local (démo) : bandeau carbone flottant, fondu + auto-dismiss
- * (motion.toastDismissMs). Piloté par un compteur pour re-jouer même si le
- * message est identique (taper deux fois « Copiée »). Aucune couleur hors
+ * Toast local (démo) : bandeau flottant, fondu + auto-dismiss (motion.toastDismissMs).
+ * Piloté par un compteur pour re-jouer même si le message est identique. Aucune couleur hors
  * tokens. Volontairement minimal — les confirms de partage ne s'empilent pas.
  */
 function useShareToast() {
@@ -266,29 +272,6 @@ function ShareToast({
   );
 }
 
-/** Bouton d'action secondaire (icône + label court). */
-function ActionButton({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: 'cadeau' | 'copier' | 'partage';
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-    >
-      <Icon name={icon} size={18} color={colors.blanc} />
-      <Text style={styles.actionLabel}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function isTemplateId(v: string | undefined): v is ShareTemplateId {
   return v === 'simple' || v === 'conquete' || v === 'defense' || v === 'boucle' || v === 'crew';
 }
@@ -298,63 +281,34 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20 },
   pressed: { opacity: 0.6 },
 
-  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
+  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 },
   backChevron: { transform: [{ scaleX: -1 }] },
   backText: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 0.4 },
 
-  kicker: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 2 },
   title: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: -0.5,
-    marginTop: 2,
   },
 
-  previewWrap: { alignItems: 'center', marginTop: 20, marginBottom: 18 },
+  // La preview flotte librement dans l'espace (pas de container autour).
+  previewWrap: { alignItems: 'center', marginTop: 22, marginBottom: 26 },
 
-  formatToggle: {
-    flexDirection: 'row',
-    alignSelf: 'center',
-    backgroundColor: colors.carbone,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 4,
-    gap: 4,
-  },
-  formatBtn: {
+  // Un bloc « label + segmented » séparé du suivant par l'ESPACE, pas par une boîte.
+  controlRow: { marginTop: 18 },
+  controlHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  formatBtnOn: { backgroundColor: colors.chartreuse },
-  formatLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
-  formatLabelOn: { color: colors.noir },
-
-  sectionLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    letterSpacing: 2,
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  chipsRow: { gap: 8, paddingRight: 4 },
-  chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  chipOn: { backgroundColor: colors.chartreuse, borderColor: colors.chartreuse },
-  chipText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  chipTextOn: { color: colors.noir },
+  // Le label du bloc Style vit DANS controlHead (déjà espacé) → pas de marge propre.
+  controlLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600', letterSpacing: 0.2 },
+  // Le label Format est un enfant direct de controlRow → il porte son propre espace.
+  controlLabelSolo: { marginBottom: 10 },
+  moreLink: { paddingVertical: 2 },
+  moreLinkText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
 
   cta: {
     flexDirection: 'row',
@@ -364,57 +318,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chartreuse,
     borderRadius: radii.card,
     paddingVertical: 16,
-    marginTop: 28,
+    marginTop: 26,
   },
   ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
 
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  action: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 14,
-  },
-  actionLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.3 },
-
-  teaser: {
+  actionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 24,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 14,
-    opacity: 0.75,
-  },
-  teaserIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: gameColors.carbon,
+    gap: 44,
+    marginTop: 22,
   },
-  teaserText: { flex: 1 },
-  teaserTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  teaserSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
-  teaserTag: {
+
+  replayLink: {
     color: colors.gris,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    borderRadius: radii.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    fontSize: fontSizes.xs,
+    textAlign: 'center',
+    marginTop: 26,
+    letterSpacing: 0.2,
   },
 
   toast: {
@@ -426,7 +346,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,

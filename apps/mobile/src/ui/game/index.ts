@@ -64,6 +64,13 @@ export {
 } from './states';
 export { usePulse, usePressScale, useCountUp, useSlideIn, useReveal, useReduceMotion } from './anim';
 export {
+  Segmented,
+  type SegmentedProps,
+  type SegmentedOption,
+  type SegmentedTone,
+} from './Segmented';
+export { IconAction, type IconActionProps } from './IconAction';
+export {
   MapBottomSheet,
   MAP_SHEET_COMPACT_HEIGHT,
   MAP_SHEET_SEMI_RATIO,

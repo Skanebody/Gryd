@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, radii } from '@klaim/shared';
+import { colors, elevation, fontSizes, radii } from '@klaim/shared';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 import {
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
     paddingVertical: 5,
     paddingHorizontal: 10,
@@ -100,24 +100,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
+  // « + » = toggle léger N2 relevé, sans contour (contour = état seulement).
   addBtn: {
     width: 28,
     height: 28,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Palette dépliée = surface N2 relevée (popover), sans cadre.
   palette: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 10,
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 12,
   },
   paletteItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },

@@ -57,11 +57,15 @@ export const SHARE_DEMO: ShareDemoData = {
   clockLabel: '22:54',
 };
 
-/** Bouclier « défense tenue » — icône charte discrète en glow (§3). */
+/**
+ * Bouclier « défense tenue » — emblème en GLOW (AMENDEMENT-22), pas une boîte
+ * cadrée : disque de halo chartreuse translucide, aucun contour dur. Il flotte
+ * sur la card comme la zone dessinée (jamais de container-dans-container).
+ */
 function ShieldBadge({ accent }: { accent: string }): ReactNode {
   return (
-    <View style={[styles.shield, { borderColor: accent }]}>
-      <Icon name="bouclier" size={40} color={accent} />
+    <View style={styles.shieldGlow}>
+      <Icon name="bouclier" size={48} color={accent} />
     </View>
   );
 }
@@ -157,11 +161,11 @@ export const SHARE_TEMPLATES_BY_ID: Record<ShareTemplateId, ShareTemplate> = {
 
 const styles = StyleSheet.create({
   map: { width: '50%', maxWidth: 170, maxHeight: 150 },
-  shield: {
-    width: 84,
-    height: 84,
-    borderRadius: 20,
-    borderWidth: 1.5,
+  // Halo doux (glow), disque translucide sans contour dur — un emblème, pas une boîte.
+  shieldGlow: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.chartreuse14,

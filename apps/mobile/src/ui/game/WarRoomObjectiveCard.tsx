@@ -5,7 +5,15 @@
  * `decay` = défense urgente (hexes qui expirent, teinte danger).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii, spacing, type IconName } from '@klaim/shared';
+import {
+  colors,
+  elevation,
+  fontSizes,
+  gameColors,
+  radii,
+  spacing,
+  type IconName,
+} from '@klaim/shared';
 import { Icon } from '../Icon';
 import { ProgressBar } from '../ProgressBar';
 import { GAME_STATE_STYLE, StatePill, type GameVisualState } from './states';
@@ -54,7 +62,7 @@ export function WarRoomObjectiveCard({
   return (
     <View style={[styles.card, state === 'decay' && styles.cardDecay]}>
       <View style={styles.head}>
-        <View style={[styles.iconWrap, { borderColor: tint }]}>
+        <View style={styles.iconWrap}>
           <Icon name={icon} size={20} color={tint} />
         </View>
         <View style={styles.headBody}>
@@ -120,11 +128,13 @@ export function WarRoomObjectiveCard({
           {onOpenMap ? (
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Voir sur la carte"
               onPress={onOpenMap}
+              hitSlop={8}
               style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
             >
-              <Icon name="carte" size={14} color={colors.blanc} />
-              <Text style={styles.ghostLabel}>Voir carte</Text>
+              <Icon name="carte" size={16} color={colors.gris} />
+              <Text style={styles.ghostLabel}>Carte</Text>
             </Pressable>
           ) : null}
         </View>
@@ -134,24 +144,24 @@ export function WarRoomObjectiveCard({
 }
 
 const styles = StyleSheet.create({
+  // N1 : surface unique posée sur l'espace, SANS contour au repos (règle 80/20).
+  // Le seul contour est l'état `decay` (défense urgente) — une alerte, pas un cadre.
   card: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: 12,
   },
-  cardDecay: { borderColor: gameColors.danger },
+  cardDecay: { borderWidth: 1, borderColor: gameColors.danger },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // Pastille d'icône = N2 relevé, sans contour (contour réservé aux états).
   iconWrap: {
     width: 42,
     height: 42,
     borderRadius: 12,
-    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
   },
   headBody: { flex: 1, gap: 2 },
   kicker: { fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.8 },
@@ -174,17 +184,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '700' },
+  // Action secondaire LÉGÈRE (icône + label gris), pas une pill bordée — un seul
+  // gros CTA chartreuse par card (le primaire « Rejoindre »).
   ghost: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     height: 44,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    paddingHorizontal: 12,
   },
-  ghostLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  ghostLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
   pressed: { opacity: 0.85 },
 });

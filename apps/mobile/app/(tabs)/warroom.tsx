@@ -1,15 +1,19 @@
 /**
- * GRYD — onglet War Room, dashboard compact (AMENDEMENT-17 §1.3).
+ * GRYD — onglet War Room, dashboard compact (AMENDEMENT-17 §1.3 + AMENDEMENT-22).
  * « Un écran = une action. » Les 3 priorités du crew sont comprises SANS
  * scroller : URGENT (défense critique) · ACTIF (conquête collective) ·
- * À TERMINER (frontières ouvertes, chantier 2) + COFFRE. Une card = 1 titre +
- * 1 chiffre + 1 statut + 1 CTA inline (REJOINDRE/DÉFENDRE/TERMINER) ; le détail
- * (assignation, contribution, route) descend au tap. Sous le fold, tout le reste
- * en sections REPLIÉES par défaut (Objectifs / Routes / Scout / Historique) —
- * max 2 cards visibles, « Voir tout » au-delà. Rien n'est câblé : données démo
- * DÉTERMINISTES (features/warroom/demo) — TODO(O1) brancher offensives /
- * defense_missions / partial_boundaries (0015) / crew_chests. Aucun nombre
- * magique : seuils/paliers depuis @klaim/shared.
+ * À TERMINER (frontières ouvertes) + COFFRE.
+ *
+ * PROFONDEUR (AMENDEMENT-22, « UI en scènes ») : le fond noir est de l'ESPACE.
+ * UNE seule vraie surface (N1) — la card URGENTE, seule à porter un contour
+ * (état d'alerte). Tout le reste vit en LIGNES compactes posées sur l'espace,
+ * sans cadre : icône N2 + titre + CHIFFRE grand + une action LÉGÈRE au bout.
+ * UN SEUL gros CTA chartreuse (« DÉFENDRE ») ; les autres missions s'agissent
+ * d'un tap sur la ligne (action légère à droite, pas de bouton plein). Sous le
+ * fold, sections REPLIÉES (Objectifs / Routes / Scout / Historique), une seule
+ * ouverte à la fois. Rien n'est câblé : données démo DÉTERMINISTES
+ * (features/warroom/demo). Aucun nombre magique : seuils/paliers depuis
+ * @klaim/shared.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -19,7 +23,9 @@ import {
   CREW_CHEST_TIER_ORDER,
   CREW_CHEST_WEEKLY_TARGET,
   OFFENSIVE_DURATION_H,
+  borderState,
   colors,
+  elevation,
   fontSizes,
   gameColors,
   radii,
@@ -124,13 +130,13 @@ const MISSION_ICON: Record<string, IconName> = {
 };
 
 // ============================================================================
-// Primitives compactes
+// Primitives compactes (UI EN SCÈNES — lignes posées sur l'espace)
 // ============================================================================
 
 /**
  * En-tête de section repliable : icône + libellé + chevron animé par rotation.
  * Anti-scroll : tout ce qui n'est pas priorité vit replié, une seule ouverte
- * suffit à explorer.
+ * suffit à explorer. Aucun cadre — la section se pose sur l'espace.
  */
 function SectionToggle({
   icon,
@@ -168,45 +174,34 @@ function SectionToggle({
 }
 
 /**
- * Card de priorité compacte (90-130 px) : 1 kicker + 1 titre + 1 chiffre héros +
- * 1 phrase courte + 1 barre optionnelle + 1 CTA inline. `tone` lit l'état de jeu
- * (danger sobre sauf urgence en tête). Le détail descend au tap sur la card.
+ * HERO urgent — LA seule vraie surface (N1) de l'écran, seule à porter un
+ * contour (état d'alerte, N3). 1 kicker + 1 titre + 1 gros chiffre + 1 phrase +
+ * LE seul gros CTA chartreuse « DÉFENDRE ». Le détail descend au tap sur la card.
  */
-function PriorityCard({
-  tone,
+function UrgentHero({
   icon,
   kicker,
   title,
   metric,
   phrase,
-  progress,
   cta,
   onPress,
   onCta,
   onLongPressCta,
 }: {
-  tone: 'danger' | 'crew' | 'neutral' | 'gold';
   icon: IconName;
   kicker: string;
   title: string;
   metric: string;
   phrase: string;
-  progress?: number;
   cta: string;
   onPress?: () => void;
   onCta: () => void;
   onLongPressCta?: () => void;
 }) {
-  const accent =
-    tone === 'danger'
-      ? gameColors.danger
-      : tone === 'gold'
-        ? gameColors.gold
-        : tone === 'crew'
-          ? gameColors.crew
-          : colors.blanc;
+  const accent = gameColors.danger;
   return (
-    <View style={[styles.card, tone === 'danger' && styles.cardDanger]}>
+    <View style={styles.hero}>
       <Pressable
         accessibilityRole={onPress ? 'button' : undefined}
         accessibilityLabel={onPress ? `${title} — voir le détail` : undefined}
@@ -219,36 +214,31 @@ function PriorityCard({
               }
             : undefined
         }
-        style={({ pressed }) => [styles.cardHead, pressed && onPress && styles.pressed]}
+        style={({ pressed }) => [styles.heroHead, pressed && onPress && styles.pressed]}
       >
-        <View style={[styles.cardIcon, { borderColor: accent }]}>
-          <Icon name={icon} size={18} color={accent} />
+        <View style={styles.heroIcon}>
+          <Icon name={icon} size={20} color={accent} />
         </View>
-        <View style={styles.cardHeadText}>
-          <Text style={[styles.cardKicker, { color: accent }]} numberOfLines={1}>
+        <View style={styles.heroHeadText}>
+          <Text style={[styles.heroKicker, { color: accent }]} numberOfLines={1}>
             {kicker}
           </Text>
-          <Text style={styles.cardTitle} numberOfLines={1}>
+          <Text style={styles.heroTitle} numberOfLines={1}>
             {title}
           </Text>
         </View>
-        <Text style={[styles.cardMetric, { color: accent }]} numberOfLines={1}>
+        <Text style={[styles.heroMetric, { color: accent }]} numberOfLines={1}>
           {metric}
         </Text>
       </Pressable>
-      <Text style={styles.cardPhrase} numberOfLines={2}>
+      <Text style={styles.heroPhrase} numberOfLines={2}>
         {phrase}
       </Text>
-      {progress !== undefined ? (
-        <View style={styles.cardGauge}>
-          <ProgressBar value={progress} height={6} />
-        </View>
-      ) : null}
-      <View style={styles.cardCta}>
+      <View style={styles.heroCta}>
         <InlineRunCTA
           label={cta}
           size="md"
-          variant={tone === 'danger' ? 'primary' : tone === 'neutral' ? 'secondary' : 'primary'}
+          variant="primary"
           onPress={onCta}
           onLongPress={onLongPressCta}
         />
@@ -258,15 +248,90 @@ function PriorityCard({
 }
 
 /**
- * Card compacte d'une frontière ouverte « À TERMINER » (AMENDEMENT-17 §CH2).
- * « Ouvre une frontière. Ton crew peut la fermer. » On n'affiche QUE l'humain :
- * zone · mètres restants · fenêtre (h mm, décompte live) · ouvreur, puis 2 CTA
- * — [Voir la route] (aperçu route-planner) et [Terminer] (Course Live mode
- * terminer, `?intention=complete&boundary=<id>`). Jamais de polyline, de score
- * de géométrie, de cellule ni de % (§UX-17) : « Il manque 620 m. Expire dans
- * 23 h 14. Terminer la boucle. »
+ * Ligne de mission COMPACTE (AMENDEMENT-22) — posée sur l'espace, SANS cadre :
+ * icône N2 + kicker/titre + CHIFFRE grand + barre optionnelle + une action
+ * LÉGÈRE (label + chevron, pas un bouton plein — le seul gros CTA reste le HERO).
+ * Toute la ligne est tappable = agir ; longpress optionnel (assigner/proposer).
  */
-function BoundaryCard({
+function MissionLine({
+  icon,
+  tint,
+  kicker,
+  title,
+  metric,
+  phrase,
+  progress,
+  action,
+  onPress,
+  onLongPress,
+}: {
+  icon: IconName;
+  tint: string;
+  kicker: string;
+  title: string;
+  metric: string;
+  phrase?: string;
+  progress?: number;
+  action: string;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title} — ${action}`}
+      onPress={() => {
+        haptics.light();
+        onPress();
+      }}
+      onLongPress={onLongPress}
+      style={({ pressed }) => [styles.line, pressed && styles.pressed]}
+    >
+      <View style={styles.lineHead}>
+        <View style={styles.lineIcon}>
+          <Icon name={icon} size={18} color={tint} />
+        </View>
+        <View style={styles.lineHeadText}>
+          <Text style={[styles.lineKicker, { color: tint }]} numberOfLines={1}>
+            {kicker}
+          </Text>
+          <Text style={styles.lineTitle} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
+        <Text style={[styles.lineMetric, { color: tint }]} numberOfLines={1}>
+          {metric}
+        </Text>
+      </View>
+      {phrase ? (
+        <Text style={styles.linePhrase} numberOfLines={1}>
+          {phrase}
+        </Text>
+      ) : null}
+      {progress !== undefined ? (
+        <View style={styles.lineGauge}>
+          <ProgressBar value={progress} height={6} />
+        </View>
+      ) : null}
+      <View style={styles.lineAction}>
+        <Text style={[styles.lineActionLabel, { color: tint }]} numberOfLines={1}>
+          {action}
+        </Text>
+        <Icon name="chevron" size={15} color={tint} />
+      </View>
+    </Pressable>
+  );
+}
+
+/**
+ * Ligne compacte d'une frontière ouverte « À TERMINER » (AMENDEMENT-17 §CH2 +
+ * AMENDEMENT-22). « Ouvre une frontière. Ton crew peut la fermer. » On n'affiche
+ * QUE l'humain : zone · mètres restants · fenêtre (h mm, décompte live) · ouvreur.
+ * Posée sur l'espace, sans cadre. Toute la ligne = agir (terminer) ; l'ouverture
+ * de la route reste une action LÉGÈRE au bout (icône + label). Jamais de polyline,
+ * de score de géométrie ni de % (§UX-17).
+ */
+function BoundaryLine({
   boundary,
   onSeeRoute,
   onComplete,
@@ -276,59 +341,72 @@ function BoundaryCard({
   onComplete: () => void;
 }) {
   const window = useBoundaryCountdown(boundary.expiresInMin);
+  // Container NON interactif (règle DOM web : pas de bouton dans un bouton) : les
+  // deux actions vivent en SIBLINGS au bas de la ligne — « Route » (légère) et
+  // « Terminer » (l'action forte de la frontière, label + chevron, pas un bouton
+  // plein : le seul gros CTA de l'écran reste le HERO « DÉFENDRE »).
   return (
-    <View style={styles.boundaryCard}>
-      <View style={styles.boundaryHead}>
-        <View style={styles.boundaryIcon}>
+    <View style={styles.line}>
+      <View style={styles.lineHead}>
+        <View style={styles.lineIcon}>
           <Icon name="avantposte" size={18} color={gameColors.crew} />
         </View>
-        <View style={styles.boundaryInfo}>
-          <Text style={styles.boundaryTitle} numberOfLines={1}>
+        <View style={styles.lineHeadText}>
+          <Text style={styles.lineTitle} numberOfLines={1}>
             {boundary.zone}
           </Text>
-          <Text style={styles.boundaryMeta} numberOfLines={1}>
-            Ouvert par {boundary.opener} · expire dans {window}
+          <Text style={styles.lineSub} numberOfLines={1}>
+            {boundary.opener} · expire {window}
           </Text>
         </View>
-        <Text style={styles.boundaryMetric} numberOfLines={1}>
+        <Text style={[styles.lineMetricSm, { color: gameColors.crew }]} numberOfLines={1}>
           {formatInt(boundary.missingM)} m
         </Text>
       </View>
-      <Text style={styles.boundaryPhrase} numberOfLines={1}>
-        Il manque {formatInt(boundary.missingM)} m pour fermer la boucle.
-      </Text>
-      <View style={styles.boundaryActions}>
-        <View style={styles.boundaryActionFill}>
-          <InlineRunCTA
-            label="Route"
-            variant="secondary"
-            size="md"
-            leading={<Icon name="route" size={16} color={colors.blanc} />}
-            onPress={onSeeRoute}
-          />
-        </View>
-        <View style={styles.boundaryActionFill}>
-          <InlineRunCTA
-            label="Terminer"
-            size="md"
-            leading={<Icon name="cible" size={16} color={colors.noir} />}
-            onPress={onComplete}
-          />
-        </View>
+      <View style={styles.lineAction}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Voir la route de ${boundary.zone}`}
+          onPress={() => {
+            haptics.light();
+            onSeeRoute();
+          }}
+          hitSlop={8}
+          style={({ pressed }) => [styles.lineGhost, pressed && styles.pressed]}
+        >
+          <Icon name="route" size={15} color={colors.gris} />
+          <Text style={styles.lineGhostLabel}>Route</Text>
+        </Pressable>
+        <View style={styles.lineActionSpacer} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${boundary.zone} — terminer la boucle`}
+          onPress={() => {
+            haptics.medium();
+            onComplete();
+          }}
+          hitSlop={8}
+          style={({ pressed }) => [styles.lineActionBtn, pressed && styles.pressed]}
+        >
+          <Text style={[styles.lineActionLabel, { color: gameColors.crew }]} numberOfLines={1}>
+            Terminer
+          </Text>
+          <Icon name="chevron" size={15} color={gameColors.crew} />
+        </Pressable>
       </View>
     </View>
   );
 }
 
 /**
- * CARD « Bonus crew actif » (AMENDEMENT-19 §4) : la War Room montre UN SEUL bonus
- * CREW, le plus pertinent (selectBonus(context, 'war_room') — défense > finisher
- * > coffre). « GRYD révèle le bon moment » : petite card chartreuse (gain, jamais
- * menace) = famille + effet COURT non tronqué (« Coffre +25 % pendant 24 h ») +
- * CTA de la fiche. Reward JAMAIS territoire/points/rang. Aucun bonus → rien
- * affiché (le parent ne monte pas la card).
+ * LIGNE « Bonus crew actif » (AMENDEMENT-19 §4 + AMENDEMENT-22) : la War Room
+ * montre UN SEUL bonus CREW, le plus pertinent. « GRYD révèle le bon moment » :
+ * ligne compacte, glow chartreuse doux (gain, jamais menace) = famille + effet
+ * COURT non tronqué (« Coffre +25 % pendant 24 h »), tap = action de la fiche.
+ * Reward JAMAIS territoire/points/rang. Aucun bonus → rien (le parent ne monte
+ * pas la ligne).
  */
-function CrewBonusCard({
+function CrewBonusLine({
   bonus,
   onAct,
 }: {
@@ -340,27 +418,30 @@ function CrewBonusCard({
   const effect = bonusEffectLabelDemo(def);
   const during = `pendant ${def.durationH} h`;
   return (
-    <View style={styles.bonusCard}>
-      <View style={styles.bonusCardHead}>
-        <View style={styles.bonusCardIcon}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${def.name} — ${def.cta}`}
+      onPress={onAct}
+      style={({ pressed }) => [styles.bonusLine, pressed && styles.pressed]}
+    >
+      <View style={styles.lineHead}>
+        <View style={styles.lineIcon}>
           <Icon name={BONUS_ICON[def.id]} size={18} color={gameColors.crew} />
         </View>
-        <View style={styles.bonusCardText}>
-          <Text style={styles.bonusCardKicker} numberOfLines={1}>
+        <View style={styles.lineHeadText}>
+          <Text style={styles.lineKicker} numberOfLines={1}>
             BONUS CREW ACTIF
           </Text>
-          <Text style={styles.bonusCardTitle} numberOfLines={1}>
+          <Text style={styles.lineTitle} numberOfLines={1}>
             {def.name}
           </Text>
         </View>
+        <Icon name="chevron" size={16} color={gameColors.crew} />
       </View>
-      <Text style={styles.bonusCardPhrase} numberOfLines={2}>
+      <Text style={styles.linePhrase} numberOfLines={2}>
         {effect} {during}. {def.copy.body}
       </Text>
-      <View style={styles.bonusCardCta}>
-        <InlineRunCTA label={def.cta} size="md" onPress={onAct} />
-      </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -395,7 +476,7 @@ function HistoryEvent({ event }: { event: WarHistoryEventDemo }) {
   );
 }
 
-/** Lien discret « Voir tout » quand une section a plus de 2 cards. */
+/** Lien discret « Voir tout » quand une section a plus de 2 lignes. */
 function SeeAll({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable
@@ -410,6 +491,29 @@ function SeeAll({ label, onPress }: { label: string; onPress: () => void }) {
       <Text style={styles.seeAllLabel}>{label}</Text>
       <Icon name="chevron" size={14} color={colors.chartreuse} />
     </Pressable>
+  );
+}
+
+/** Titre de section léger posé sur l'espace (icône + label + compteur), sans cadre. */
+function SectionHead({
+  icon,
+  label,
+  tint = colors.gris,
+  count,
+}: {
+  icon: IconName;
+  label: string;
+  tint?: string;
+  count?: number;
+}) {
+  return (
+    <View style={styles.sectionHead}>
+      <Icon name={icon} size={15} color={tint} />
+      <Text style={styles.sectionLabel}>{label}</Text>
+      {count !== undefined && count > 0 ? (
+        <Text style={styles.sectionCount}>{count}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -463,10 +567,9 @@ export default function WarRoomScreen() {
   /**
    * BONUS CREW de la War Room (AMENDEMENT-19 §4) : UN SEUL bonus, le plus
    * pertinent CREW (selectBonus(context, 'war_room') — défense > finisher >
-   * coffre). Rien de pertinent → aucune card (pas de placeholder). Tap = agir
-   * selon le CTA de la fiche (défense → route défense ; finisher → terminer une
-   * frontière ; coffre → remplir). Toast anti-abus : la récompense reste
-   * tranchée serveur, ici on route vers l'action.
+   * coffre). Rien de pertinent → aucune ligne (pas de placeholder). Tap = agir
+   * selon le CTA de la fiche. Toast anti-abus : la récompense reste tranchée
+   * serveur, ici on route vers l'action.
    */
   const crewBonus = selectMapBonus(MAP_BONUS_CONTEXT, 'war_room');
   const actCrewBonus = (bonus: SelectedBonusDemo) => {
@@ -502,9 +605,8 @@ export default function WarRoomScreen() {
       >
         {/* ================= 3 PRIORITÉS + COFFRE (sans scroll) ================= */}
 
-        {/* URGENT — défense critique. Rouge sobre mais EN TÊTE (vraiment prioritaire). */}
-        <PriorityCard
-          tone="danger"
+        {/* URGENT — défense critique. LA seule vraie surface + LE seul gros CTA. */}
+        <UrgentHero
           icon="sablier"
           kicker="URGENT · DÉFENSE"
           title={DEFENSE_MISSION.zone}
@@ -530,18 +632,19 @@ export default function WarRoomScreen() {
           }
         />
 
-        {/* ACTIF — conquête collective (République 496/800). */}
-        <PriorityCard
-          tone="crew"
+        {/* ACTIF — conquête collective (République 496/800). Ligne compacte, action
+            légère « Rejoindre » (pas un second gros bouton). Le kicker évite « … » :
+            durée + décompte sur la sous-ligne, pas dans le kicker. */}
+        <MissionLine
           icon="raid"
-          kicker={`ACTIF · CONQUÊTE · ${OFFENSIVE_DURATION_H} H · ${offensiveTimeLeft}`}
+          tint={gameColors.crew}
+          kicker="ACTIF · CONQUÊTE"
           title={OFFENSIVE.zone}
           metric={`${formatInt(OFFENSIVE.hexesTaken)}/${formatInt(OFFENSIVE.objectiveHexes)}`}
-          phrase={`${formatInt(offensiveLeft)} zones restantes · ${OFFENSIVE.activeMembers}/${OFFENSIVE.totalMembers} du crew en course. Ta contribution : +${formatInt(OFFENSIVE.myHexes)} zones.`}
+          phrase={`${formatInt(offensiveLeft)} zones · ${OFFENSIVE.activeMembers}/${OFFENSIVE.totalMembers} en course · ${OFFENSIVE_DURATION_H} h · ${offensiveTimeLeft}`}
           progress={offensivePct}
-          cta="REJOINDRE"
-          onPress={() => router.push('/route-planner?type=raid')}
-          onCta={() => {
+          action="Rejoindre"
+          onPress={() => {
             haptics.medium();
             toast.show(`Conquête collective rejointe — cap sur ${OFFENSIVE.zone}`);
             router.push('/route-planner?type=raid');
@@ -550,28 +653,22 @@ export default function WarRoomScreen() {
 
         {/* À TERMINER — frontières ouvertes du crew (AMENDEMENT-17 §CH2, boucle
             crew collaborative). « Ouvre une frontière. Ton crew peut la fermer. »
-            Max 2 cards visibles (§1.3), « Voir tout » au-delà. Chaque card mène à
-            Course Live mode terminer (?intention=complete&boundary=<id>) ou à
-            l'aperçu route (route-planner). État vide = invitation à ouvrir. */}
-        <View style={styles.boundarySectionHead}>
-          <Icon name="avantposte" size={15} color={gameColors.crew} />
-          <Text style={styles.boundarySectionLabel}>À TERMINER · FRONTIÈRES</Text>
-          {OPEN_BOUNDARIES.length > 0 ? (
-            <Text style={styles.boundarySectionCount}>{OPEN_BOUNDARIES.length}</Text>
-          ) : null}
-        </View>
+            Max 2 lignes visibles (§1.3), « Voir tout » au-delà. Chaque ligne mène
+            à Course Live mode terminer, la route reste une action légère. */}
+        <SectionHead
+          icon="avantposte"
+          label="À TERMINER · FRONTIÈRES"
+          tint={gameColors.crew}
+          count={OPEN_BOUNDARIES.length}
+        />
         {firstBoundary ? (
           <>
             {OPEN_BOUNDARIES.slice(0, 2).map((boundary) => (
-              <BoundaryCard
+              <BoundaryLine
                 key={boundary.key}
                 boundary={boundary}
-                onSeeRoute={() => {
-                  haptics.light();
-                  router.push('/route-planner');
-                }}
+                onSeeRoute={() => router.push('/route-planner')}
                 onComplete={() => {
-                  haptics.medium();
                   toast.show(`Cap sur ${boundary.zone} — termine la boucle du crew`);
                   router.push(
                     `/course-live?intention=complete&boundary=${boundary.boundaryId}`,
@@ -587,18 +684,17 @@ export default function WarRoomScreen() {
             ) : null}
           </>
         ) : (
-          <View style={styles.boundaryEmpty}>
-            <Text style={styles.boundaryEmptyText}>
-              Boucle un run fermable pour ouvrir une frontière que ton crew pourra
-              fermer.
-            </Text>
-          </View>
+          <Text style={styles.emptyText}>
+            Boucle un run fermable pour ouvrir une frontière que ton crew pourra
+            fermer.
+          </Text>
         )}
 
-        {/* COFFRE — jauge hebdo compacte (paliers §39.2 depuis shared). */}
-        <PriorityCard
-          tone="gold"
+        {/* COFFRE — jauge hebdo compacte (paliers §39.2 depuis shared). Ligne, pas
+            de gros bouton : le tap route vers la carte. */}
+        <MissionLine
           icon="coffre"
+          tint={gameColors.gold}
           kicker={
             chest.tier ? `COFFRE · ${CHEST_TIER_LABELS[chest.tier].toUpperCase()}` : 'COFFRE CREW'
           }
@@ -610,9 +706,8 @@ export default function WarRoomScreen() {
               : 'Palier max atteint cette semaine. Beau boulot.'
           }
           progress={chestPct}
-          cta="Remplir"
-          onCta={() => {
-            haptics.light();
+          action="Remplir"
+          onPress={() => {
             toast.show('Cap sur le coffre — cours pour le remplir');
             openMap();
           }}
@@ -623,13 +718,14 @@ export default function WarRoomScreen() {
             d'affiché (pas de placeholder). Reward coffre/XP/protection/badge —
             jamais territoire/points/rang (tranché serveur). */}
         {crewBonus ? (
-          <CrewBonusCard bonus={crewBonus} onAct={() => actCrewBonus(crewBonus)} />
+          <CrewBonusLine bonus={crewBonus} onAct={() => actCrewBonus(crewBonus)} />
         ) : null}
 
         {/* DEMANDER AU CREW (AMENDEMENT-18 A.3) : entrée vers le Crew Chat
             actionnable où l'on émet une requête (Défense/Terminer/Route/Scout/
             Sortie). « Demander → quelqu'un aide → le crew progresse. » Aucune
-            requête ne donne de territoire ni de point (anti pay-to-win). */}
+            requête ne donne de territoire ni de point (anti pay-to-win). Ligne
+            légère posée sur l'espace, sans cadre. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Demander de l'aide au crew"
@@ -639,13 +735,13 @@ export default function WarRoomScreen() {
           }}
           style={({ pressed }) => [styles.askRow, pressed && styles.pressed]}
         >
-          <View style={styles.askIcon}>
+          <View style={styles.lineIcon}>
             <Icon name="ajoutami" size={16} color={gameColors.crew} />
           </View>
           <View style={styles.askText}>
             <Text style={styles.askTitle}>Demander au crew</Text>
             <Text style={styles.askSub} numberOfLines={1}>
-              Défense · Terminer · Route · Scout · Sortie
+              Défense · Terminer · Route · Scout
             </Text>
           </View>
           <Icon name="chevron" size={16} color={colors.gris} />
@@ -664,12 +760,13 @@ export default function WarRoomScreen() {
         />
         {open === 'objectifs' ? (
           <View style={styles.sectionBody}>
-            {/* Rôle + permissions (matrice §8) — gating visuel conservé. */}
+            {/* Rôle + permissions (matrice §8) — gating visuel, ligne sans cadre. */}
             <View style={styles.roleBanner}>
               <Icon name="couronne" size={14} color={colors.blanc} />
               <Text style={styles.roleBannerText} numberOfLines={1}>
                 Ton rôle : {CREW_ROLE_LABELS[myRole]}
               </Text>
+              <View style={styles.sectionSpacer} />
               <Text style={[styles.rolePerm, canLaunch ? styles.rolePermOk : styles.rolePermNo]}>
                 {canLaunch ? 'Peut lancer' : 'Lancer : Co-Cap+'}
               </Text>
@@ -678,7 +775,8 @@ export default function WarRoomScreen() {
               </Text>
             </View>
 
-            {/* Accès motivation (AMENDEMENT-07 §8) — entrées CONSERVÉES. */}
+            {/* Accès motivation (AMENDEMENT-07 §8) — actions légères (icône + label),
+                pas trois cards : un segmented visuel sur l'espace. */}
             <View style={styles.motivRow}>
               {(
                 [
@@ -700,12 +798,12 @@ export default function WarRoomScreen() {
               ))}
             </View>
 
-            {/* Missions « À faire » (§7.12) — max 2 visibles, « Voir tout » au-delà. */}
+            {/* Missions « À faire » (§7.12) — lignes sur l'espace, max 2 visibles. */}
             {MISSIONS.slice(0, 2).map((m) => {
               const done = m.progress >= m.target;
               return (
                 <View key={m.key} style={styles.missionRow}>
-                  <View style={[styles.missionIcon, done && styles.missionIconDone]}>
+                  <View style={styles.lineIcon}>
                     <Icon
                       name={MISSION_ICON[m.kind] ?? 'mission'}
                       size={18}
@@ -735,7 +833,7 @@ export default function WarRoomScreen() {
           </View>
         ) : null}
 
-        {/* ROUTES — max 2 visibles, « Voir tout » au-delà. */}
+        {/* ROUTES — lignes sur l'espace, max 2 visibles, « Voir tout » au-delà. */}
         <SectionToggle
           icon="route"
           label="ROUTES"
@@ -755,12 +853,7 @@ export default function WarRoomScreen() {
                   onPress={openMap}
                   style={({ pressed }) => [styles.routeRow, pressed && styles.pressed]}
                 >
-                  <View
-                    style={[
-                      styles.routeIcon,
-                      { borderColor: isOpen ? gameColors.crew : gameColors.danger },
-                    ]}
-                  >
+                  <View style={styles.lineIcon}>
                     <Icon
                       name="route"
                       size={16}
@@ -771,7 +864,7 @@ export default function WarRoomScreen() {
                     <Text style={styles.routeLabel} numberOfLines={1}>
                       {route.label}
                     </Text>
-                    <Text style={styles.routeMeta}>
+                    <Text style={styles.routeMeta} numberOfLines={1}>
                       {route.km.toLocaleString('fr-FR')} km
                       {route.expiresInH !== undefined ? ` · expire dans ${route.expiresInH} h` : ''}
                     </Text>
@@ -843,166 +936,99 @@ export default function WarRoomScreen() {
 const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
 
-  // --- Cards de priorité (90-130 px) ---
-  card: {
-    backgroundColor: colors.carbone,
+  // --- HERO urgent : LA seule surface N1, seul contour (état d'alerte) ---
+  hero: {
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 14,
+    borderColor: gameColors.danger,
+    padding: 16,
     marginTop: 12,
   },
-  cardDanger: { borderColor: 'rgba(214,69,69,0.45)' },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    backgroundColor: gameColors.carbon,
+  heroHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: elevation.raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardHeadText: { flex: 1 },
-  cardKicker: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
-  cardTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', marginTop: 2 },
-  cardMetric: {
-    fontSize: fontSizes.lg,
+  heroHeadText: { flex: 1 },
+  heroKicker: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  heroTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800', marginTop: 2 },
+  heroMetric: {
+    fontSize: fontSizes.xl,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
-  cardPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
-  cardGauge: { marginTop: 10 },
-  cardCta: { marginTop: 12 },
+  heroPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 12 },
+  heroCta: { marginTop: 14 },
 
-  // --- À TERMINER : en-tête de section + cards frontière (AMENDEMENT-17 §CH2) ---
-  boundarySectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 22,
-    paddingVertical: 4,
-  },
-  boundarySectionLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    fontWeight: '600',
-  },
-  boundarySectionCount: {
-    color: gameColors.crew,
-    fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-    minWidth: 18,
-    textAlign: 'center',
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    overflow: 'hidden',
-  },
-  boundaryCard: {
-    backgroundColor: colors.carbone,
+  // --- Lignes de mission compactes (posées sur l'espace, SANS cadre) ---
+  line: {
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 14,
-    marginTop: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginTop: 10,
   },
-  boundaryHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  boundaryIcon: {
+  lineHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // Pastille d'icône = N2 relevé, sans contour (contour réservé aux états).
+  lineIcon: {
     width: 38,
     height: 38,
     borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: gameColors.crew,
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boundaryInfo: { flex: 1 },
-  boundaryTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  boundaryMeta: {
+  lineHeadText: { flex: 1 },
+  lineKicker: { color: colors.gris, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  lineTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', marginTop: 2 },
+  lineSub: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
-  boundaryMetric: {
-    color: gameColors.crew,
+  lineMetric: {
+    fontSize: fontSizes.xl,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  // Chiffre grand mais compact (unité « m » qui suit) : laisse respirer la
+  // sous-ligne (ouvreur + décompte) sans la tronquer (pet peeve #1).
+  lineMetricSm: {
     fontSize: fontSizes.lg,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
-  boundaryPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
-  boundaryActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  boundaryActionFill: { flex: 1 },
-  boundaryEmpty: {
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 14,
-    marginTop: 12,
+  linePhrase: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: 18,
+    marginTop: 10,
+    fontVariant: ['tabular-nums'],
   },
-  boundaryEmptyText: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18 },
-
-  // --- Bonus crew actif (AMENDEMENT-19 §4) : 1 seul bonus, chartreuse = gain ---
-  bonusCard: {
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    padding: 14,
-    marginTop: 12,
-  },
-  bonusCardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bonusCardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: gameColors.crew,
-    backgroundColor: gameColors.carbon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bonusCardText: { flex: 1 },
-  bonusCardKicker: { color: gameColors.crew, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  bonusCardTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', marginTop: 2 },
-  bonusCardPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
-  bonusCardCta: { marginTop: 12 },
-
-  // --- Demander au crew (A.3) : entrée vers le Crew Chat ---
-  askRow: {
+  lineGauge: { marginTop: 10 },
+  // Action LÉGÈRE au bout de la ligne (label + chevron), pas un bouton plein.
+  lineAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'flex-end',
+    gap: 4,
     marginTop: 12,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
   },
-  askIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: gameColors.crew,
-    backgroundColor: gameColors.carbon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  askText: { flex: 1 },
-  askTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  askSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
+  lineActionLabel: { fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0.2 },
+  lineActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  lineActionSpacer: { flex: 1 },
+  // Secondaire ultra-léger (Route) : icône + label gris, sans cadre.
+  lineGhost: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  lineGhostLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
 
-  // --- Sections repliables ---
-  sectionToggle: {
+  // --- Titre de section léger (sur l'espace) ---
+  sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1017,27 +1043,62 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     minWidth: 18,
     textAlign: 'center',
-    backgroundColor: gameColors.carbon,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
     paddingHorizontal: 6,
     paddingVertical: 1,
     overflow: 'hidden',
   },
+
+  // --- État vide (frontières) : texte posé sur l'espace, pas une card ---
+  emptyText: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
+
+  // --- Bonus crew actif : ligne à glow chartreuse doux (gain, état N3) ---
+  bonusLine: {
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: borderState.activeSoft,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginTop: 10,
+  },
+
+  // --- Demander au crew (A.3) : ligne légère sur l'espace ---
+  askRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 10,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  askText: { flex: 1 },
+  askTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  askSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
+
+  // --- Sections repliables ---
+  sectionToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 22,
+    paddingVertical: 4,
+  },
   sectionSpacer: { flex: 1 },
   chevron: { transform: [{ rotate: '0deg' }] },
   chevronOpen: { transform: [{ rotate: '180deg' }] },
-  sectionBody: { marginTop: 12, gap: 10 },
+  sectionBody: { marginTop: 10, gap: 10 },
 
-  // --- Rôle / permissions (§8) ---
+  // --- Rôle / permissions (§8) : ligne sur l'espace, sans cadre ---
   roleBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
     gap: 8,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 10,
     paddingHorizontal: 14,
   },
@@ -1046,7 +1107,7 @@ const styles = StyleSheet.create({
   rolePermOk: { color: gameColors.crew },
   rolePermNo: { color: colors.gris },
 
-  // --- Motivation chips (AMENDEMENT-07) ---
+  // --- Motivation chips (AMENDEMENT-07) : actions légères, remplissent la rangée ---
   motivRow: { flexDirection: 'row', gap: 8 },
   motivChip: {
     flex: 1,
@@ -1056,36 +1117,21 @@ const styles = StyleSheet.create({
     gap: 7,
     height: 44,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.raised,
     paddingHorizontal: 6,
   },
   motivLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
 
-  // --- Missions ---
+  // --- Missions : lignes sur l'espace ---
   missionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  missionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    backgroundColor: gameColors.carbon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  missionIconDone: { borderColor: gameColors.crew },
   missionInfo: { flex: 1 },
   missionLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   missionGauge: { marginTop: 8 },
@@ -1097,26 +1143,15 @@ const styles = StyleSheet.create({
   },
   missionCountDone: { color: gameColors.crew },
 
-  // --- Routes ---
+  // --- Routes : lignes sur l'espace ---
   routeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 12,
     paddingHorizontal: 14,
-  },
-  routeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    backgroundColor: gameColors.carbon,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   routeInfo: { flex: 1 },
   routeLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },

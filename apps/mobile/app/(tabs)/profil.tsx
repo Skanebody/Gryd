@@ -28,7 +28,9 @@ import {
   STREAK_MULTIPLIER_STEP,
   XP_RATE_OF_POINTS,
   badgeKeyByName,
+  borderState,
   colors,
+  elevation,
   fontSizes,
   gameColors,
   radii,
@@ -72,7 +74,7 @@ import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
-import { CrewCrest, InlineRunCTA, ShareCard } from '../../src/ui/game';
+import { CrewCrest, IconAction, ShareCard } from '../../src/ui/game';
 
 const STREAK_WEEKS = 3;
 
@@ -314,25 +316,26 @@ export default function ProfilScreen() {
               Rang #{profile.seasonRank} {profile.seasonScope}
             </Text>
           </View>
-          {/* CTA sobres — JAMAIS un GO, jamais « Ajouter » sur son profil.
-              « Modifier mon profil » = affordance d'édition ÉVIDENTE 2/2. */}
+          {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
+              de gros rectangle. Le seul gros CTA chartreuse de l'écran est l'action
+              CONTEXTUELLE du territoire (Défendre / Conquérir), pas l'édition de profil.
+              JAMAIS un GO, jamais « Ajouter » sur son propre profil. */}
           <View style={styles.headerActions}>
-            <View style={styles.headerActionCell}>
-              <InlineRunCTA
-                label="PARTAGER"
-                size="md"
-                variant="secondary"
-                onPress={() => {
-                  setShareOpen((v) => !v);
-                  if (!shareOpen) toast.show('Share card prête — capture-la pour la partager');
-                }}
-              />
-            </View>
-            <View style={styles.headerActionCellWide}>
-              {/* Libellé court : « MODIFIER MON PROFIL » se coupait en « MODIFIER MO… »
-                  sur 375px (règle épuration AMENDEMENT-18 : aucun texte d'action tronqué). */}
-              <InlineRunCTA label="MODIFIER" size="md" onPress={openEdit} />
-            </View>
+            <IconAction
+              icon="profil"
+              label="Modifier"
+              accessibilityLabel="Modifier mon profil"
+              onPress={openEdit}
+            />
+            <IconAction
+              icon="partage"
+              label="Partager"
+              accessibilityLabel="Partager ma carte de joueur"
+              onPress={() => {
+                setShareOpen((v) => !v);
+                if (!shareOpen) toast.show('Share card prête — capture-la pour la partager');
+              }}
+            />
           </View>
         </View>
 
@@ -456,9 +459,7 @@ export default function ProfilScreen() {
               {territory.badges.slice(0, 3).map((b) => (
                 <View key={b.label} style={styles.territoryBadgeChip}>
                   <Icon name={b.icon} size={11} color={colors.gris} />
-                  <Text style={styles.territoryBadgeText} numberOfLines={1}>
-                    {b.label}
-                  </Text>
+                  <Text style={styles.territoryBadgeText}>{b.label}</Text>
                 </View>
               ))}
             </View>
@@ -618,13 +619,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ── Player Card compacte ──
+  // ── Player Card compacte : la SEULE surface N1 de l'identité (AMENDEMENT-22).
+  //    Pas de contour (80/20 : un cadre de card n'est pas un état) — elle se
+  //    détache du fond par sa surface + l'espace, pas par une bordure. ──
   headerCard: {
     marginTop: 16,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: 14,
   },
@@ -669,7 +670,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
+    borderTopColor: borderState.hairline,
     paddingTop: 12,
   },
   headerHold: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
@@ -681,10 +682,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.3,
   },
-  headerActions: { flexDirection: 'row', gap: 10 },
-  headerActionCell: { flex: 1 },
-  // « Modifier mon profil » plus large que « Partager » → affordance dominante
-  headerActionCellWide: { flex: 1 },
+  // Actions légères (IconAction) — rangée répartie, sans gros rectangle.
+  headerActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: 28 },
   shareCardWrap: { marginTop: 14 },
 
   // ── En-têtes de section ──
@@ -697,12 +696,12 @@ const styles = StyleSheet.create({
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
 
-  // ── MODULE Territoire = résumé stratégique (AMENDEMENT-18 Partie B) ──
+  // ── MODULE Territoire = résumé stratégique (AMENDEMENT-18 Partie B).
+  //    Surface N1 unique, sans contour (80/20) — sa CTA contextuelle porte le
+  //    seul gros accent de l'écran. ──
   territoryCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: 8,
     overflow: 'hidden',
@@ -761,15 +760,14 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.xs * 1.3,
     letterSpacing: 0.2,
   },
-  // Mini-carte (aperçu statique, ~40 %) — hauteur compacte, coins card
+  // Mini-carte (aperçu statique, ~40 %) — VRAIE preview de contenu (la carte EST
+  //  le container) : pas de cadre, elle flotte sur la surface, fond = espace N0.
   territoryMini: {
     flex: 2,
     minHeight: 92,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     overflow: 'hidden',
-    backgroundColor: colors.noir,
+    backgroundColor: elevation.base,
   },
   // Prochaine action : contexte à gauche + CTA plein à droite (jamais tronqué)
   territoryNextRow: {
@@ -777,7 +775,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
+    borderTopColor: borderState.hairline,
     paddingTop: 8,
   },
   territoryNext: {
@@ -793,31 +791,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   territoryCtaLabel: { fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.6 },
-  // Micro-badges territoire (≤ 3) — une seule ligne (jamais de wrap : anti-scroll)
-  territoryBadges: { flexDirection: 'row', gap: 6 },
+  // Micro-badges territoire (≤ 3) — pills posées côte à côte ; si les 3 labels ne
+  //  tiennent pas sur la largeur de la card, elles PASSENT À LA LIGNE (flexWrap) au
+  //  lieu de rétrécir/tronquer. Interdiction absolue de « … » sur un label (pet peeve #1).
+  territoryBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  // Micro-badges = pills N2 relevées, SANS contour (le contour est réservé aux états).
+  //  Pas de flexShrink : chaque pill se dimensionne sur son libellé complet.
   territoryBadgeChip: {
-    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.noir,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 4,
     paddingHorizontal: 8,
   },
-  territoryBadgeText: { flexShrink: 1, color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
+  territoryBadgeText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
 
   // ── Bloc SOLO : crews près de toi (A.5 — jamais de vide en solo) ──
+  // Bloc SOLO = invitation (prompt) → l'un des 20 % avec contour : filet chartreuse
+  //  DOUX (borderState.activeSoft) qui signale un état d'appel, pas un cadre décoratif.
   soloCrewCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: colors.chartreuse40,
+    borderColor: borderState.activeSoft,
     paddingVertical: 14,
     paddingHorizontal: spacing.cardPadding,
     marginTop: 12,
@@ -829,10 +830,8 @@ const styles = StyleSheet.create({
 
   // ── MODULE Progression ──
   progressCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: 10,
   },
@@ -855,17 +854,15 @@ const styles = StyleSheet.create({
   },
   progressStatLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
 
-  // ── MODULE Badges (3 tuiles côte à côte, pas de carrousel géant) ──
+  // ── MODULE Badges — les 3 hexes POSÉS sur l'espace (pas de mini-card par badge :
+  //    card-dans-card interdit). Le badge lui-même EST l'objet, il n'a pas besoin
+  //    d'un cadre. ──
   badgeRow: { flexDirection: 'row', gap: 10 },
   badgeCell: {
     flex: 1,
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 16,
+    paddingVertical: 8,
     paddingHorizontal: 8,
   },
   badgeName: {
@@ -875,16 +872,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.4,
   },
+  // Lien « Voir la collection » = row LÉGÈRE posée sur l'espace (pas une card) :
+  //  un simple filet haut la sépare des hexes, façon liste Strava.
   collectionLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding,
-    marginTop: 12,
+    paddingHorizontal: 4,
+    marginTop: 8,
   },
   collectionLinkLabel: {
     flex: 1,
@@ -902,17 +897,16 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: 12,
   },
+  // PLUS = liste de navigation LÉGÈRE (façon Strava) : rows posées sur l'espace,
+  //  séparées par un filet neutre (borderState.hairline), PAS une card par lien.
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding,
-    marginBottom: 10,
+    paddingVertical: 15,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: borderState.hairline,
   },
   linkInfo: { flex: 1 },
   linkLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },

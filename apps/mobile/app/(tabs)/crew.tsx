@@ -42,7 +42,9 @@ import {
   CREW_LEVEL_MAX,
   CREW_MAX_MEMBERS,
   CREW_PERKS,
+  borderState,
   colors,
+  elevation,
   fontSizes,
   gameColors,
   radii,
@@ -60,10 +62,12 @@ import {
   ChestCard,
   CrewCrest,
   CREW_ROLE_META,
+  IconAction,
   InlineRunCTA,
   MemberCard,
   PerkCard,
   RewardCard,
+  Segmented,
   WarEventCard,
   usePulse,
 } from '../../src/ui/game';
@@ -1005,64 +1009,51 @@ export default function CrewScreen() {
           </View>
         </View>
 
-        {/* CTA principal inline (Voir War Room) + secondaire (Inviter) — §1.3 */}
+        {/* UN SEUL gros CTA chartreuse (Voir War Room). Actions secondaires
+            LÉGÈRES façon Strava (icône + label), jamais de grosse card — §3. */}
         <View style={styles.headerCta}>
           <InlineRunCTA
             label="VOIR WAR ROOM"
             leading={<Icon name="guerre" size={18} color={colors.noir} />}
             onPress={() => router.navigate('/warroom')}
           />
-          <View style={styles.headerCtaRow}>
-            <View style={styles.headerCtaCell}>
-              <InlineRunCTA
-                label="Inviter"
-                variant="secondary"
-                size="md"
-                leading={<Icon name="ajoutami" size={16} color={colors.blanc} />}
-                onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
-              />
-            </View>
-            {/* « Modifier le crew » ÉVIDENT (founder §8.1) → écran d'édition. */}
+          <View style={styles.headerActions}>
+            <IconAction
+              icon="ajoutami"
+              label="Inviter"
+              onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
+            />
+            {/* « Modifier le crew » (founder §8.1) → écran d'édition. */}
             {canEditCrew ? (
-              <View style={styles.headerCtaCell}>
-                <InlineRunCTA
-                  label="Modifier"
-                  variant="secondary"
-                  size="md"
-                  leading={<Icon name="reglages" size={16} color={colors.blanc} />}
-                  onPress={() => {
-                    haptics.light();
-                    router.push('/crew-edit');
-                  }}
-                />
-              </View>
+              <IconAction
+                icon="reglages"
+                label="Modifier"
+                onPress={() => {
+                  haptics.light();
+                  router.push('/crew-edit');
+                }}
+              />
             ) : null}
           </View>
         </View>
       </View>
 
-      {/* ── Onglets internes (segmented control, doc §11) ── */}
-      <View accessibilityRole="tablist" style={styles.segments}>
-        {HQ_TABS.map((t) => {
-          const active = tab === t.key;
-          const chestDot = t.key === 'coffre' && chestClaimable;
-          return (
-            <Pressable
-              key={t.key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              onPress={() => setTab(t.key)}
-              style={[styles.segment, active && styles.segmentActive]}
-            >
-              <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>
-                {t.label}
-              </Text>
-              {/* Point chartreuse = coffre à récupérer (état de jeu, pas déco) */}
-              {chestDot ? <View style={styles.segmentDot} /> : null}
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* ── Onglets internes = UN segmented control (§4). Ton `surface` : un gros
+          CTA chartreuse (Voir War Room) existe déjà dans la scène, donc l'onglet
+          actif se relève en N2 (pas un 2ᵉ focus chartreuse fort). Coffre à
+          récupérer = pastille « • » collée au label (état de jeu, non tronqué). ── */}
+      <Segmented
+        style={styles.hqSegmented}
+        tone="surface"
+        accessibilityLabel="Sections du crew"
+        options={HQ_TABS.map((t) => ({
+          id: t.key,
+          label: t.key === 'coffre' && chestClaimable ? `${t.label} •` : t.label,
+        }))}
+        value={tab}
+        onChange={setTab}
+        scrollable
+      />
 
       {/* Feedback des actions démo */}
       {notice ? (
@@ -1427,28 +1418,17 @@ export default function CrewScreen() {
           visibles par section + « Voir tout ». ══ */}
       {tab === 'chat' ? (
         <>
-          {/* Filtres en chips (A.2) — pilotent l'affichage des sections. */}
-          <View accessibilityRole="tablist" style={styles.filterRow}>
-            {CHAT_FILTERS.map((f) => {
-              const active = chatFilter === f.key;
-              return (
-                <Pressable
-                  key={f.key}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => {
-                    haptics.light();
-                    setChatFilter(f.key);
-                  }}
-                  style={[styles.filterChip, active && styles.filterChipActive]}
-                >
-                  <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
-                    {f.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          {/* Filtres = UN segmented scrollable (§4) — plus de N chips séparées.
+              Ton `surface` : « Demander » (chartreuse) est le focus fort de la scène. */}
+          <Segmented
+            style={styles.chatFilters}
+            tone="surface"
+            accessibilityLabel="Filtrer le chat du crew"
+            options={CHAT_FILTERS.map((f) => ({ id: f.key, label: f.label }))}
+            value={chatFilter}
+            onChange={setChatFilter}
+            scrollable
+          />
 
           {/* ── DEMANDER / OFFRIR (A.3) : en tête du chat actionnable. « Demander »
               ouvre la feuille de choix (Défense/Terminer/Route/Scout/Sortie/
@@ -1815,30 +1795,27 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: 12,
   },
-  // ── Header base ──
+  // ── Header base : LA surface N1 de la section (pose sur le fond, sans cadre). ──
   headerCard: {
     marginTop: 20,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   headerInfo: { flex: 1 },
+  // Statut = pill N2 SANS contour ; « Prêt guerre » = état N3 (filet chartreuse).
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     alignSelf: 'flex-start',
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
-  statusChipWar: { borderColor: colors.chartreuse40 },
+  statusChipWar: { borderWidth: 1, borderColor: borderState.activeSoft },
   statusChipText: {
     color: colors.blanc,
     fontSize: fontSizes.xs,
@@ -1862,56 +1839,32 @@ const styles = StyleSheet.create({
     marginTop: 7,
     fontVariant: ['tabular-nums'],
   },
-  // CTA principal + secondaire, sous le bloc identité (§1.3).
+  // Gros CTA + rangée d'actions légères, séparés du bloc identité par un filet
+  // discret (séparateur, PAS un cadre de card).
   headerCta: {
     marginTop: 16,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
-    gap: 10,
+    borderTopColor: borderState.hairline,
+    gap: 14,
   },
-  // Ligne d'actions secondaires (Inviter + Modifier le crew côte à côte).
-  headerCtaRow: { flexDirection: 'row', gap: 10 },
-  headerCtaCell: { flex: 1 },
-  // ── Segmented control ──
-  segments: {
-    flexDirection: 'row',
-    marginTop: 16,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 4,
-    gap: 2,
-  },
-  segment: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 9,
-    borderRadius: radii.pill,
-  },
-  segmentActive: { backgroundColor: colors.carbone2 },
-  segmentLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
-  segmentLabelActive: { color: colors.blanc },
-  segmentDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: gameColors.crew },
-  // ── Notice (feedback démo) ──
+  // Rangée d'IconAction (Inviter · Modifier) répartie, façon Strava.
+  headerActions: { flexDirection: 'row', justifyContent: 'center', gap: 40 },
+  // ── Segmented HQ (primitive) : posé sur le fond, respire au-dessus de la Base. ──
+  hqSegmented: { marginTop: 16 },
+  // ── Notice (feedback démo) : toast N2 relevé, sans contour permanent. ──
   notice: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginTop: 14,
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 10,
     paddingHorizontal: 14,
   },
   noticeText: { flex: 1, color: colors.blanc, fontSize: fontSizes.xs, lineHeight: 16 },
-  // ── Base : 4 cartes courtes + CTA ──
+  // ── Base : 4 tuiles courtes posées sur le fond (surfaces N1, sans cadre). ──
   baseGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1921,10 +1874,8 @@ const styles = StyleSheet.create({
   baseCard: {
     flexBasis: '47%',
     flexGrow: 1,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 14,
     gap: 6,
   },
@@ -1936,25 +1887,23 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   baseCardSub: { color: colors.gris, fontSize: 11, letterSpacing: 0.2 },
-  // ── Bascule Contribution & boost (secondaire, repliée par défaut §1.3) ──
+  // ── Bascule Contribution & boost (secondaire, repliée) : détail AU TAP (§6).
+  //    Rangée légère séparée par l'ESPACE + un filet, pas une card cadrée. ──
   contribToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginTop: 18,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderTopWidth: 1,
+    borderTopColor: borderState.hairline,
   },
   contribToggleText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  // ── Crew Boost actif (AMENDEMENT-16 §13.1) ──
+  // ── Crew Boost actif (AMENDEMENT-16 §13.1) : surface N1, liseré or = STATUT (N3). ──
   boostCard: {
     flexDirection: 'row',
     gap: 12,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: gameColors.gold,
@@ -1965,17 +1914,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: gameColors.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
   },
   boostBody: { flex: 1, gap: 3 },
   boostTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   boostTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '800' },
   boostBonus: {
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -1984,12 +1931,10 @@ const styles = StyleSheet.create({
   boostSub: { color: colors.gris, fontSize: fontSizes.xs },
   boostTimer: { color: colors.blanc, fontWeight: '700', fontVariant: ['tabular-nums'] },
   boostNote: { color: colors.gris, fontSize: 11, lineHeight: 15, marginTop: 1 },
-  // ── Contribution + Crew Wall (§14/§28) ──
+  // ── Contribution + Crew Wall (§14/§28) : surface N1 unique, sans cadre. ──
   contribCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 16,
     marginTop: 16,
     gap: 6,
@@ -2008,18 +1953,20 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 7,
     borderWidth: 1.5,
-    borderColor: colors.grisLigne,
+    borderColor: borderState.hairline,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
-  wallCheckboxOn: { backgroundColor: gameColors.crew, borderColor: gameColors.crew },
+  // Coché = état N3 (chartreuse plein, puce noire — jamais chartreuse sur clair).
+  wallCheckboxOn: { backgroundColor: borderState.active, borderColor: borderState.active },
   wallCheckDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.noir },
   wallToggleText: { flex: 1 },
   wallToggleLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   wallToggleSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2, lineHeight: 16 },
+  // Wall = vraie liste-preview relevée (N2) dans la surface Contribution (N1).
   wall: {
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
     borderRadius: radii.card,
     padding: 14,
     marginTop: 10,
@@ -2040,13 +1987,11 @@ const styles = StyleSheet.create({
   wallSupporter: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', flexShrink: 1 },
   wallContribution: { color: colors.gris, fontSize: fontSizes.xs, flexShrink: 1, textAlign: 'right' },
   wallFootnote: { color: colors.gris, fontSize: 11, marginTop: 2 },
-  // ── TERRITOIRE CREW (AMENDEMENT-11 §4) ──
+  // ── TERRITOIRE CREW (AMENDEMENT-11 §4) : détail au tap = surface N1 posée. ──
   territoryCard: {
     marginTop: 14,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: 10,
   },
@@ -2083,7 +2028,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
+    borderTopColor: borderState.hairline,
   },
   territoryCell: { flex: 1, alignItems: 'center', gap: 3 },
   territoryValue: {
@@ -2108,25 +2053,21 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   rewardList: { gap: 8 },
+  // Paliers = détail AU TAP (§6) : rangée légère séparée par un filet, pas une card.
   tiersToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 18,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderTopWidth: 1,
+    borderTopColor: borderState.hairline,
   },
   tiersToggleText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   tiersCard: {
     marginTop: 8,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 6,
     paddingHorizontal: 14,
   },
@@ -2160,24 +2101,8 @@ const styles = StyleSheet.create({
   },
   // ── Perks ──
   perkList: { gap: 8 },
-  // ── Chat actionnable (A.2) : filtres en chips ──
-  filterRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 18,
-  },
-  filterChip: {
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-  },
-  filterChipActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
-  filterLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700' },
-  filterLabelActive: { color: colors.blanc },
+  // ── Chat actionnable (A.2) : filtres = Segmented scrollable (§4). ──
+  chatFilters: { marginTop: 18 },
   // ── Chat actionnable : sections À FAIRE / MESSAGES / DONS / LOG ──
   chatSection: { marginTop: 22 },
   chatSectionHead: {
@@ -2193,25 +2118,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
   },
+  // « Voir tout » = action légère : pill N2 relevé, sans contour.
   seeAllBtn: {
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
     paddingVertical: 5,
     paddingHorizontal: 11,
   },
   seeAllLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-  // ── Carte d'action « À FAIRE » : type + zone + infos + 1 CTA plein ──
+  // ── Carte d'action « À FAIRE » : surface N1 (sans cadre) + 1 CTA plein. ──
   actionList: { gap: 10 },
   actionCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 14,
     gap: 12,
   },
   actionTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // Pastille icône relevée (N2) : le liseré teinté = la FAMILLE de jeu (état), pas déco.
   actionIcon: {
     width: 40,
     height: 40,
@@ -2219,7 +2143,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
   },
   actionBody: { flex: 1, gap: 3 },
   actionTitle: {
@@ -2246,7 +2170,7 @@ const styles = StyleSheet.create({
   // ── Carte BONUS (AMENDEMENT-19 §4) : liseré teinté par famille + effet promis
   //    en pastille. Même gabarit qu'actionCard — 1 seul bonus principal. ──
   bonusCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
     padding: 14,
@@ -2266,8 +2190,9 @@ const styles = StyleSheet.create({
   },
   bonusEffect: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
   // ── Carte de DON (A.4) : kicker + effet + réactions Merci/Respect/Bien joué ──
+  // Don = surface N1 ; liseré or = STATUT « cadeau » (état N3), pas déco.
   giftCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: gameColors.gold,
@@ -2283,7 +2208,7 @@ const styles = StyleSheet.create({
     borderColor: gameColors.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
   },
   giftKicker: {
     flex: 1,
@@ -2296,18 +2221,19 @@ const styles = StyleSheet.create({
   giftBy: { fontWeight: '800' },
   giftEffect: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: fontSizes.xs * 1.5 },
   giftReactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  // Réaction = pill N2 sans contour ; sélection (« mine ») = état N3 chartreuse.
   giftReact: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone2,
+    borderColor: 'transparent',
+    backgroundColor: elevation.raised,
     paddingVertical: 7,
     paddingHorizontal: 12,
   },
-  giftReactMine: { borderColor: gameColors.crew },
+  giftReactMine: { borderColor: borderState.active },
   giftReactLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   giftReactLabelMine: { color: gameColors.crew },
   giftReactCount: {
@@ -2317,6 +2243,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   giftThanks: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600', marginTop: 2 },
+  // « Voir » = action légère : pill N2 relevé, sans contour (contour = état).
   giftCtaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2324,8 +2251,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 4,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
     paddingVertical: 10,
   },
   giftCtaLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
@@ -2343,22 +2269,23 @@ const styles = StyleSheet.create({
   },
   // Libellé NOIR sur chartreuse (contraste charte, jamais l'inverse).
   askBtnLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.3 },
+  // « Offrir » = action secondaire à côté du gros CTA « Demander » : pill N2
+  // relevé sans contour (le sens « cadeau » vient de l'icône + label or).
   offerBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: gameColors.gold,
     paddingVertical: 12,
   },
   offerBtnLabel: { color: gameColors.gold, fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0.2 },
   // ── Carte CADEAU CREW (A.3, gifting premium réclamable) ──
+  // Cadeau premium = surface N1 ; liseré or = STATUT « cadeau » (état N3).
   cadeauCard: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: gameColors.gold,
@@ -2374,7 +2301,7 @@ const styles = StyleSheet.create({
     borderColor: gameColors.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.carbone2,
+    backgroundColor: elevation.raised,
   },
   cadeauKicker: {
     flex: 1,
@@ -2400,9 +2327,7 @@ const styles = StyleSheet.create({
   },
   cadeauCtaActive: { backgroundColor: gameColors.gold },
   cadeauCtaIdle: {
-    backgroundColor: colors.carbone2,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
   },
   cadeauCtaLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.3 },
   cadeauCtaLabelActive: { color: colors.noir },
@@ -2417,9 +2342,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.carbone2,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 18,
@@ -2440,11 +2363,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 13,
   },
+  // Bulle = vraie preview de contenu (le message EST le container) : surface N1
+  // sans cadre. Ma bulle (chartreuse discret) reste le seul contraste d'état.
   bubbleOther: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.surface,
     borderTopLeftRadius: 4,
   },
   // MOI : chartreuse DISCRET (remplissage 14 %, contour 40 %) — jamais plein.
@@ -2467,15 +2390,14 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   // ── Chat : barre de saisie persistante ──
+  // Composer = surface N1 du fil (input relevé à l'intérieur), sans cadre.
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 10,
     marginTop: 16,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: 8,
   },
   composerInput: {
@@ -2484,8 +2406,10 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.35,
     maxHeight: 110,
+    backgroundColor: elevation.raised,
+    borderRadius: radii.card,
     paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   sendBtn: {
     width: 44,
@@ -2495,19 +2419,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnActive: { backgroundColor: gameColors.crew },
-  sendBtnIdle: {
-    backgroundColor: colors.carbone2,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-  },
+  sendBtnIdle: { backgroundColor: elevation.raised },
   // ── War Log ──
   feedItem: { marginBottom: 12 },
   feedReactions: { paddingHorizontal: 4 },
   rsvpRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  // Choix RSVP = pills N2 relevés sans contour ; sélection/engagement = état N3.
   rsvpChip: {
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
+    borderColor: 'transparent',
+    backgroundColor: elevation.raised,
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
@@ -2518,6 +2440,7 @@ const styles = StyleSheet.create({
   // Libellé noir sur chartreuse (contraste charte — jamais l'inverse).
   rsvpLabelEngaged: { color: colors.noir },
   rsvpDone: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 8 },
+  // « Ouvrir la carte » = action légère : pill N2 relevé, sans contour.
   mapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2525,8 +2448,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 12,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
     paddingVertical: 10,
   },
   mapBtnLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
@@ -2541,10 +2463,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 14,
     paddingHorizontal: spacing.cardPadding,
     marginTop: 26,
@@ -2556,12 +2476,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(5,5,5,0.72)', // voile noir charte
   },
+  // Bottom sheet = surface N1 qui flotte sur le voile ; pas de cadre.
   sheet: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderTopLeftRadius: radii.card,
     borderTopRightRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingHorizontal: spacing.cardPadding,
     paddingTop: 10,
   },
@@ -2570,7 +2489,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.grisLigne,
+    backgroundColor: borderState.hairline,
     marginBottom: 14,
   },
   sheetName: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', letterSpacing: -0.3 },
@@ -2581,16 +2500,14 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 13,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
+    borderTopColor: borderState.hairline,
   },
   sheetActionLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  // ── état vide (sans crew) ──
+  // ── état vide (sans crew) : surface N1 posée sur le fond, sans cadre. ──
   emptyCard: {
     marginTop: 22,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
   },
   emptyTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', letterSpacing: -0.3 },
