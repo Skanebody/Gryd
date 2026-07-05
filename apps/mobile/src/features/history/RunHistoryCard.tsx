@@ -1,17 +1,22 @@
 /**
- * GRYD — CARD COURSE compacte de l'Historique (AMENDEMENT-17 CHANTIER 3).
- * « Une course = un effort + un impact territorial », résumé sans scroll :
- * 1 ligne titre + zone, 1 ligne effort (km · durée · allure), 1 ligne impact
- * (chips variés), 1 pastille Verify + CTA [Voir détail]. Le détail est au tap
- * (route course/[id]). Anti-shame : un refus s'affiche factuellement, jamais
- * en rouge criard — la pastille `statsonly` reste grise, `rejected` réservé au
- * seul cas vraiment écarté. Card importante ~110-130 px (charte §1.3).
+ * GRYD — CARD COURSE compacte de l'Historique (AMENDEMENT-17 CHANTIER 3,
+ * AMENDEMENT-25 §2). « Une course = un effort + un impact territorial » +
+ * l'APERÇU DU TRACÉ : en-tête = miniature du parcours + icône de type + nom +
+ * zone + date ; 1 ligne effort (km · durée · allure) ; 1 ligne impact (chips
+ * variés) ; 1 pastille Verify + CTA [Voir détail]. Le détail (tracé 2D/3D +
+ * calcul) est au tap (route course/[id]). Anti-shame : un refus s'affiche
+ * factuellement, jamais en rouge criard — la pastille `statsonly` reste grise,
+ * `rejected` réservé au seul cas vraiment écarté. La miniature réutilise
+ * `RunTraceThumb` (même projection nette que le détail) — un aperçu, jamais une
+ * card-dans-card (AMENDEMENT-22 : c'est un visuel posé, sans surface propre).
  */
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { StatePill, type GameVisualState } from '../../ui/game';
+import { RunTraceThumb } from './RunLoopMap';
+import { runTrace } from './demoRuns';
 import {
   fmtDuration,
   fmtKm,
@@ -52,6 +57,7 @@ export const RunHistoryCard = memo(function RunHistoryCard({
 }: RunHistoryCardProps) {
   const kind = KIND_META[entry.kind];
   const pill = verifyPill(entry);
+  const trace = runTrace(entry.id);
 
   return (
     <Pressable
@@ -60,15 +66,22 @@ export const RunHistoryCard = memo(function RunHistoryCard({
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      {/* En-tête : icône de type + nom + zone + horodatage */}
+      {/* En-tête : aperçu du tracé + type + nom + zone + horodatage */}
       <View style={styles.head}>
-        <View style={[styles.iconWrap, { borderColor: kind.tint }]}>
-          <Icon name={kind.icon} size={18} color={kind.tint} />
-        </View>
+        {trace ? (
+          <RunTraceThumb trace={trace} />
+        ) : (
+          <View style={[styles.iconWrap, { borderColor: kind.tint }]}>
+            <Icon name={kind.icon} size={18} color={kind.tint} />
+          </View>
+        )}
         <View style={styles.headText}>
-          <Text style={styles.name} numberOfLines={1}>
-            {entry.name}
-          </Text>
+          <View style={styles.nameRow}>
+            <Icon name={kind.icon} size={14} color={kind.tint} />
+            <Text style={styles.name} numberOfLines={2}>
+              {entry.name}
+            </Text>
+          </View>
           <Text style={styles.area} numberOfLines={1}>
             {entry.area} · {entry.when}
           </Text>
@@ -137,7 +150,8 @@ const styles = StyleSheet.create({
     backgroundColor: gameColors.carbon,
   },
   headText: { flex: 1, gap: 2 },
-  name: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   area: { color: colors.gris, fontSize: fontSizes.xs },
   effortRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
   effortMain: {

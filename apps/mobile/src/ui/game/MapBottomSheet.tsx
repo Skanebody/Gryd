@@ -28,6 +28,15 @@ export type MapSheetState = 'compact' | 'semi' | 'open';
  * le CTA ET le lien SANS troncature (pet peeve #1 : aucun texte/action coupé).
  */
 export const MAP_SHEET_COMPACT_HEIGHT = 208;
+/**
+ * Hauteur visible du panneau INFO (AMENDEMENT-25 §1) : révélé par le FAB Info,
+ * il empile la SITUATION (zone · crew % vs rival % · directive) EN HAUT puis la
+ * MISSION (titre + micro-bonus + gros [Défendre] + « Voir les options »). Plus
+ * haut que le compact mission seul — assez de peek pour tout montrer SANS
+ * troncature. Ne remplace pas MAP_SHEET_COMPACT_HEIGHT (défaut inchangé pour
+ * tout autre usage) : passé via la prop `compactHeight`.
+ */
+export const MAP_SHEET_INFO_COMPACT_HEIGHT = 320;
 /** Part de l'écran couverte en semi (~40 %). */
 export const MAP_SHEET_SEMI_RATIO = 0.4;
 /** Part de l'écran couverte en ouvert (~85 %). */
@@ -48,6 +57,12 @@ const STATE_ORDER: readonly MapSheetState[] = ['compact', 'semi', 'open'];
 export interface MapBottomSheetProps {
   /** État de départ (défaut compact — la carte reste le cœur de l'écran). */
   initialState?: MapSheetState;
+  /**
+   * Hauteur visible de l'état compact (peek). Défaut MAP_SHEET_COMPACT_HEIGHT.
+   * Le panneau Info d'AMENDEMENT-25 passe un peek plus grand (situation +
+   * mission empilées) via MAP_SHEET_INFO_COMPACT_HEIGHT.
+   */
+  compactHeight?: number;
   /** Notifié à chaque snap (l'écran logge ses events PostHog ici). */
   onStateChange?: (state: MapSheetState) => void;
   /** Slot TOUJOURS visible (ligne d'état + CTA) — zone de grab du geste. */
@@ -62,6 +77,7 @@ export interface MapBottomSheetProps {
 
 export function MapBottomSheet({
   initialState = 'compact',
+  compactHeight = MAP_SHEET_COMPACT_HEIGHT,
   onStateChange,
   compactSlot,
   semiSlot,
@@ -73,17 +89,17 @@ export function MapBottomSheet({
   const [containerH, setContainerH] = useState(0);
   const [state, setState] = useState<MapSheetState>(initialState);
 
-  const openH = Math.max(containerH * MAP_SHEET_OPEN_RATIO, MAP_SHEET_COMPACT_HEIGHT);
-  const semiH = Math.max(containerH * MAP_SHEET_SEMI_RATIO, MAP_SHEET_COMPACT_HEIGHT);
+  const openH = Math.max(containerH * MAP_SHEET_OPEN_RATIO, compactHeight);
+  const semiH = Math.max(containerH * MAP_SHEET_SEMI_RATIO, compactHeight);
 
   /** translateY de la sheet (hauteur openH ancrée en bas) pour chaque état. */
   const offsets = useMemo<Record<MapSheetState, number>>(
     () => ({
       open: 0,
       semi: openH - semiH,
-      compact: openH - MAP_SHEET_COMPACT_HEIGHT,
+      compact: openH - compactHeight,
     }),
-    [openH, semiH],
+    [openH, semiH, compactHeight],
   );
 
   const translateY = useRef(new Animated.Value(0)).current;

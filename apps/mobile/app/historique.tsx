@@ -1,13 +1,15 @@
 /**
- * GRYD — HISTORIQUE (AMENDEMENT-17 CHANTIER 3) : « chaque course raconte un
- * effort ET un impact territorial ». Résumé + détail, anti-scroll : au-dessus
- * du fold on voit les FILTRES (Tout/Conquêtes/Défenses/Routes/Stats only), les
- * 3 dernières courses en cards compactes, et « Voir tout » qui déroule le
- * reste. Le détail d'une course est au tap (route course/[id]). Aucune valeur
- * de jeu calculée ici : la liste est le miroir déterministe des runs/claims
- * déjà décidés serveur (features/history/demo). Analytics : screen('historique').
+ * GRYD — HISTORIQUE (AMENDEMENT-17 CHANTIER 3, AMENDEMENT-25 §2) : « l'utilisateur
+ * doit retrouver TOUS ses parcours » avec, par course, un APERÇU DU TRACÉ + ses
+ * stats clés (temps · distance · allure · zones). Filtres en tête
+ * (Tout/Conquêtes/Défenses/Routes/Stats only) puis la LISTE COMPLÈTE des courses
+ * du filtre — PAS de troncature de liste (AMENDEMENT-25 §2 : plus de fold « 3
+ * dernières / Voir tout »). Le détail d'une course (tracé 2D/3D + calcul) est au
+ * tap (route course/[id]). Aucune valeur de jeu calculée ici : la liste est le
+ * miroir déterministe des runs/claims déjà décidés serveur
+ * (features/history/demo). Analytics : screen('historique').
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
@@ -18,7 +20,6 @@ import { RunHistoryCard } from '../src/features/history/RunHistoryCard';
 import {
   countByFilter,
   HISTORY_FILTERS,
-  recentRuns,
   runsByFilter,
   type HistoryFilter,
 } from '../src/features/history/demo';
@@ -68,8 +69,6 @@ function FilterBar({
 
 export default function HistoriqueScreen() {
   const [filter, setFilter] = useState<HistoryFilter>('all');
-  /** Fold : par défaut on ne montre que les 3 dernières (filtre « Tout »). */
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     screen('historique');
@@ -79,9 +78,6 @@ export default function HistoriqueScreen() {
     if (f === filter) return;
     haptics.light();
     setFilter(f);
-    // Changer de filtre = on montre tout ce qui match (le fold ne vaut que
-    // pour la vue « Tout » non dépliée).
-    setExpanded(f !== 'all');
   };
 
   const openRun = (id: string) => {
@@ -89,28 +85,21 @@ export default function HistoriqueScreen() {
     router.push(`/course/${id}`);
   };
 
-  /** Liste affichée : « Tout » non déplié → 3 dernières ; sinon → filtre complet. */
-  const list = useMemo(() => {
-    if (filter === 'all' && !expanded) return recentRuns();
-    return runsByFilter(filter);
-  }, [filter, expanded]);
-
+  // AMENDEMENT-25 §2 : la LISTE COMPLÈTE du filtre — plus de fold « 3 dernières ».
+  const list = runsByFilter(filter);
   const total = countByFilter(filter);
-  const showVoirTout = filter === 'all' && !expanded && total > list.length;
 
   return (
     <StackScreen
       title="Historique"
       icon="historique"
       kicker="TES COURSES"
-      subtitle="Chaque course : ton effort et ce qu’elle a changé sur le terrain."
+      subtitle="Tous tes parcours : le tracé, l’effort et ce qu’il a changé sur le terrain."
     >
       <FilterBar active={filter} onSelect={selectFilter} />
 
       <Text style={styles.sectionLabel}>
-        {filter === 'all' && !expanded
-          ? '3 DERNIÈRES COURSES'
-          : `${total} COURSE${total > 1 ? 'S' : ''}`}
+        {`${total} COURSE${total > 1 ? 'S' : ''}`}
       </Text>
 
       {list.length === 0 ? (
@@ -124,20 +113,6 @@ export default function HistoriqueScreen() {
           ))}
         </View>
       )}
-
-      {showVoirTout ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Voir tout l’historique"
-          onPress={() => {
-            haptics.light();
-            setExpanded(true);
-          }}
-          style={({ pressed }) => [styles.voirTout, pressed && styles.pressed]}
-        >
-          <Text style={styles.voirToutText}>Voir tout ({total})</Text>
-        </Pressable>
-      ) : null}
     </StackScreen>
   );
 }
@@ -173,16 +148,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   list: { gap: 12 },
-  voirTout: {
-    marginTop: 14,
-    height: 48,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  voirToutText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   pressed: { opacity: 0.75 },
   empty: {
     backgroundColor: colors.carbone,

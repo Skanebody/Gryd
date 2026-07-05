@@ -6,6 +6,14 @@
  * lissé, aucun score de géométrie : traits nets uniquement. Rendu pur — les
  * chiffres viennent des stats déjà décidées serveur. Géométries d'authoring
  * réutilisées d'allTerritories/realAnchors (une seule source de surfaces).
+ *
+ * AMENDEMENT-25 §2 — l'Historique doit retrouver TOUS les parcours avec le
+ * dessin du tracé. Ce module exporte donc aussi, sur la MÊME projection nette :
+ *   - `RunTrace2D` : la carte 2D PLEINE du parcours (trace + aire enfermée si
+ *     boucle fermée) — le côté « 2D » du toggle 2D/3D du détail de course ;
+ *   - `RunTraceThumb` : un aperçu compact du tracé pour la card de la liste.
+ * Les deux consomment `demoRuns` (source unique du tracé) — jamais de nombre
+ * magique de jeu, pur rendu.
  */
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Polyline } from 'react-native-svg';
@@ -22,6 +30,7 @@ import {
 } from '../map/realAnchors';
 import { territoryStyle } from '../map/mapStyle';
 import { Icon } from '../../ui/Icon';
+import type { RunTrace } from './demoRuns';
 
 const VB_MAX = 100;
 const VB_PAD = 6;
@@ -165,6 +174,123 @@ export function RunLoopMap({ trace, beforeZones, afterZones }: RunLoopMapProps) 
   );
 }
 
+// ─── Tracé PLEIN (2D) : réutilisé par le détail (toggle 2D/3D) et la card ────
+
+interface TraceGeometry {
+  vbW: number;
+  vbH: number;
+  /** Aire enfermée (boucle fermée) — `null` pour une route/aller-retour ouvert. */
+  loopPath: string | null;
+  /** Ruban net le long du tracé (route ouverte) — `null` pour une boucle. */
+  ribbonPath: string | null;
+  routePoints: string;
+}
+
+/**
+ * Géométrie 2D d'un tracé complet, projeté sur SA PROPRE boîte englobante (le
+ * parcours remplit la vue). Boucle fermée → l'aire enfermée (loopRing) est
+ * remplie faible ; route ouverte → un ruban net le long du tracé (ribbonRing,
+ * §4ter — un « itinéraire », pas un lobe). La trace brillante court par-dessus
+ * dans les deux cas. Traits nets uniquement (aucune cellule, aucun lissage).
+ */
+function buildTraceGeometry(trace: RunTrace): TraceGeometry | null {
+  const { points, closed } = trace;
+  if (points.length < 2) return null;
+  // Projection : sur l'aire enfermée si boucle, sinon sur le ruban (qui borde
+  // déjà le tracé de part et d'autre — cadre lisible et centré).
+  const ribbon = closed ? [] : ribbonRing(points, CORRIDOR_HALF_WIDTH_M);
+  const loop = closed ? loopRing(points) : [];
+  const frameRing = closed ? loop : ribbon;
+  if (frameRing.length === 0) return null;
+  const { project, vbW, vbH } = fitProjection([frameRing], VB_MAX, VB_PAD);
+  return {
+    vbW,
+    vbH,
+    loopPath: closed ? ringPath(loop, project) : null,
+    ribbonPath: closed ? null : ringPath(ribbon, project),
+    routePoints: tracePoints(points, project),
+  };
+}
+
+/** Rendu SVG d'un tracé plein (aire OU ruban + trace) — traits nets. */
+function TraceMap({ geo }: { geo: TraceGeometry }) {
+  return (
+    <Svg width="100%" height="100%" viewBox={`0 0 ${geo.vbW.toFixed(0)} ${geo.vbH.toFixed(0)}`}>
+      {geo.loopPath ? (
+        <>
+          <Path d={geo.loopPath} fill={colors.noir} />
+          <Path
+            d={geo.loopPath}
+            fill={territoryStyle.crewFill}
+            stroke={territoryStyle.crewStroke}
+            strokeWidth={BORDER_W}
+            strokeLinejoin="round"
+          />
+        </>
+      ) : null}
+      {geo.ribbonPath ? (
+        <Path
+          d={geo.ribbonPath}
+          fill={territoryStyle.crewFill}
+          stroke={territoryStyle.crewStroke}
+          strokeWidth={BORDER_W}
+          strokeLinejoin="round"
+        />
+      ) : null}
+      <Polyline
+        points={geo.routePoints}
+        fill="none"
+        stroke={territoryStyle.routeStroke}
+        strokeWidth={ROUTE_W}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+interface RunTrace2DProps {
+  trace: RunTrace;
+}
+
+/**
+ * Carte 2D PLEINE du parcours (côté « 2D » du toggle 2D/3D du détail). Montre
+ * le dessin du tracé sur toute la largeur ; boucle fermée → l'aire capturée est
+ * remplie faible, route ouverte → un ruban net. Rien d'autre (le fond dark est
+ * de l'espace — AMENDEMENT-22, une seule surface). `null` si le tracé est trop
+ * court pour être dessiné.
+ */
+export function RunTrace2D({ trace }: RunTrace2DProps) {
+  const geo = buildTraceGeometry(trace);
+  if (!geo) return null;
+  return (
+    <View style={styles.trace2d} accessibilityRole="image" accessibilityLabel="Tracé du parcours en 2D">
+      <TraceMap geo={geo} />
+    </View>
+  );
+}
+
+interface RunTraceThumbProps {
+  trace: RunTrace;
+}
+
+/**
+ * Aperçu COMPACT du tracé pour la card de la liste (AMENDEMENT-25 §2 : chaque
+ * course montre un aperçu du tracé). Carré, même langage net que RunTrace2D en
+ * plus petit. Décoratif (la card porte déjà son libellé d'accessibilité).
+ */
+export function RunTraceThumb({ trace }: RunTraceThumbProps) {
+  const geo = buildTraceGeometry(trace);
+  if (!geo) {
+    return <View style={styles.thumb} />;
+  }
+  return (
+    <View style={styles.thumb} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <TraceMap geo={geo} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.carbone,
@@ -192,4 +318,21 @@ const styles = StyleSheet.create({
   },
   pct: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', fontVariant: ['tabular-nums'] },
   pctAfter: { color: colors.chartreuse },
+  // Carte 2D pleine du parcours (toggle 2D/3D du détail). Une seule surface :
+  // fond noir clippé au coin arrondi, aucune bordure (l'espace sépare, §22).
+  trace2d: {
+    width: '100%',
+    aspectRatio: 1.6,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: colors.noir,
+  },
+  // Aperçu compact du tracé sur la card de liste (carré, décoratif).
+  thumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.noir,
+  },
 });

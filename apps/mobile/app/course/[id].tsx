@@ -27,8 +27,10 @@ import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { StackScreen } from '../../src/ui/StackScreen';
-import { StatePill, type GameVisualState } from '../../src/ui/game';
-import { RunLoopMap } from '../../src/features/history/RunLoopMap';
+import { Segmented, StatePill, type GameVisualState } from '../../src/ui/game';
+import { RunLoopMap, RunTrace2D } from '../../src/features/history/RunLoopMap';
+import { RunRoute3D } from '../../src/features/history/RunRoute3D';
+import { runTrace } from '../../src/features/history/demoRuns';
 import {
   fmtDuration,
   fmtKm,
@@ -254,6 +256,63 @@ function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
   );
 }
 
+// ─── Parcours : le TRACÉ du run, toggle 2D / 3D (AMENDEMENT-25 §2) ───────────
+
+/** Mode d'affichage du tracé : carte 2D nette OU vue 3D GRYD Conquest. */
+type RouteViewMode = '2d' | '3d';
+
+/**
+ * Segments du toggle 2D/3D (segmented AMENDEMENT-22 — labels courts, jamais
+ * tronqués). Pas d'icône : « 2D »/« 3D » sont déjà sans ambiguïté, et une icône
+ * ferait déborder le label sur un segment étroit (pet peeve : zéro « … »).
+ */
+const ROUTE_VIEW_OPTIONS = [
+  { id: '2d' as const, label: '2D' },
+  { id: '3d' as const, label: '3D' },
+];
+
+/**
+ * Scène « PARCOURS » du détail (AMENDEMENT-25 §2) : le dessin du tracé de la
+ * course avec un toggle 2D / 3D. 2D = `RunTrace2D` (carte nette, aire enfermée
+ * si boucle) ; 3D = `RunRoute3D` (style GRYD 3D Conquest — carte dark pitchée +
+ * trace chartreuse épaisse + zone extrudée si boucle fermée, réutilise RealMap/
+ * ShareMap3D). Une seule surface, un seul segmented (pas de card-dans-card,
+ * AMENDEMENT-22). Le tracé vient de `demoRuns` (source unique). Reduce motion :
+ * porté par RealMap (pitch fixe). `runId` scope l'event d'analytics.
+ */
+function RunRouteScene({ runId }: { runId: string }) {
+  const [mode, setMode] = useState<RouteViewMode>('2d');
+  const trace = runTrace(runId);
+  if (!trace) return null;
+
+  const pick = (next: RouteViewMode) => {
+    if (next === mode) return;
+    setMode(next);
+    screen('course_route_view', { run: runId, view: next });
+  };
+
+  return (
+    <View style={styles.routeScene}>
+      <View style={styles.routeHead}>
+        <Text style={styles.sectionLabelInline}>LE PARCOURS</Text>
+        <Segmented
+          options={ROUTE_VIEW_OPTIONS}
+          value={mode}
+          onChange={pick}
+          tone="surface"
+          accessibilityLabel="Voir le parcours en 2D ou en 3D"
+          style={styles.routeToggle}
+        />
+      </View>
+      {mode === '2d' ? (
+        <RunTrace2D trace={trace} />
+      ) : (
+        <RunRoute3D trace={trace} style={styles.route3d} />
+      )}
+    </View>
+  );
+}
+
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const entry = typeof id === 'string' ? findRun(id) : undefined;
@@ -314,6 +373,9 @@ export default function CourseDetailScreen() {
       <View style={styles.pillRow}>
         <StatePill state={pill.state} label={pill.label} />
       </View>
+
+      {/* PARCOURS : le dessin du tracé, toggle 2D / 3D (AMENDEMENT-25 §2) */}
+      <RunRouteScene runId={entry.id} />
 
       {/* RAISON (si capture refusée / partielle) — factuelle, jamais de blâme */}
       {entry.refusal || entry.refusalDetail ? (
@@ -463,6 +525,20 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.sm * 1.5,
   },
   block: { marginTop: 16 },
+  // ── Parcours (tracé + toggle 2D/3D, AMENDEMENT-25 §2) ──
+  // Scène posée sur le fond : pas de card autour (le tracé EST la surface).
+  routeScene: { marginTop: 18, gap: 10 },
+  routeHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  sectionLabelInline: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
+  // Toggle compact (2 segments courts) — largeur au contenu, aligné à droite.
+  routeToggle: { alignSelf: 'flex-end', minWidth: 132 },
+  // La vue 3D occupe le même cadre 2D (aspect paysage lisible en perspective).
+  route3d: { width: '100%', aspectRatio: 1.6, borderRadius: 16 },
   // ── Détail du calcul (scène dépliable) ──
   calcBlock: {
     backgroundColor: colors.carbone,
