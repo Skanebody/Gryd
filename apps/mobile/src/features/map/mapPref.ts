@@ -9,7 +9,8 @@
  *
  *   • FOND DE CARTE  (`gryd.basemap`, demande fondateur « la carte en couleur
  *     comme sur Plan d'iPhone ») — 'dark' (CARTO dark-matter, DÉFAUT) | 'color'
- *     (CARTO Voyager). Hook : `useBasemapStyle()`.
+ *     (CARTO Voyager) | 'satellite' (photos aériennes Esri, AMENDEMENT-28). Hook :
+ *     `useBasemapStyle()` ; `toggle()` cycle les trois, `toggle(key)` fixe une valeur.
  *   • VUE 3D  (`gryd.map3d`, AMENDEMENT-26 « la 3D proposée sur TOUTES les
  *     cartes ») — bool, DÉFAUT false = 2D (aucune régression lisibilité/perf ;
  *     aucune carte ne bascule en 3D sans action utilisateur). true = GRYD 3D
@@ -19,7 +20,7 @@
  */
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MAP_BASEMAP_STYLES, type BasemapKey } from './mapStyle';
+import { BASEMAP_KEYS, MAP_BASEMAP_STYLES, type BasemapKey } from './mapStyle';
 
 /** Clé de persistance du réglage « Fond de carte ». */
 const BASEMAP_STORAGE_KEY = 'gryd.basemap';
@@ -33,9 +34,9 @@ let loadPromise: Promise<void> | null = null;
 /** Abonnés (hooks montés) notifiés à chaque changement de valeur. */
 const listeners = new Set<(value: BasemapKey) => void>();
 
-/** Une valeur brute stockée est-elle une clé de fond connue ? */
+/** Une valeur brute stockée est-elle une clé de fond connue (dark|color|satellite) ? */
 function isBasemapKey(raw: string | null): raw is BasemapKey {
-  return raw !== null && raw in MAP_BASEMAP_STYLES;
+  return raw !== null && (BASEMAP_KEYS as readonly string[]).includes(raw);
 }
 
 function ensureLoaded(): Promise<void> {
@@ -70,17 +71,27 @@ export function setBasemap(value: BasemapKey): void {
   void AsyncStorage.setItem(BASEMAP_STORAGE_KEY, value).catch(() => {});
 }
 
+/** Fond suivant dans le cycle dark → color → satellite → dark (AMENDEMENT-28). */
+function nextBasemap(value: BasemapKey): BasemapKey {
+  const i = BASEMAP_KEYS.indexOf(value);
+  return BASEMAP_KEYS[(i + 1) % BASEMAP_KEYS.length] ?? DEFAULT_BASEMAP;
+}
+
 /**
- * Hook : fond de carte courant + setter + bascule dark↔color. La valeur
- * persistée est chargée LAZY au montage (le défaut sombre s'affiche d'abord,
- * puis la valeur stockée si différente) — jamais de flash au reload puisque le
- * défaut EST déjà le sombre.
+ * Hook : fond de carte courant + setter + `toggle`. La valeur persistée est
+ * chargée LAZY au montage (le défaut sombre s'affiche d'abord, puis la valeur
+ * stockée si différente) — jamais de flash au reload puisque le défaut EST déjà
+ * le sombre. `toggle()` sans argument cycle les trois fonds (dark → color →
+ * satellite → dark) ; `toggle(key)` fixe une valeur précise (le menu Calques
+ * propose ainsi 3 options explicites — AMENDEMENT-28). `styleUrl` (héritage,
+ * inutilisé hors du hook) retombe sur le sombre pour `satellite` (raster sans
+ * styleURL — les forks RealMap le résolvent eux-mêmes).
  */
 export function useBasemapStyle(): {
   basemap: BasemapKey;
   styleUrl: string;
   setBasemap: (value: BasemapKey) => void;
-  toggle: () => void;
+  toggle: (value?: BasemapKey) => void;
 } {
   const [basemap, setLocal] = useState<BasemapKey>(current);
 
@@ -99,9 +110,9 @@ export function useBasemapStyle(): {
 
   return {
     basemap,
-    styleUrl: MAP_BASEMAP_STYLES[basemap],
+    styleUrl: MAP_BASEMAP_STYLES[basemap as keyof typeof MAP_BASEMAP_STYLES] ?? MAP_BASEMAP_STYLES.dark,
     setBasemap,
-    toggle: () => setBasemap(current === 'dark' ? 'color' : 'dark'),
+    toggle: (value?: BasemapKey) => setBasemap(value ?? nextBasemap(current)),
   };
 }
 

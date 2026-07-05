@@ -51,9 +51,12 @@ import { colors, fonts, fontSizes, mapTokens, motion } from '@klaim/shared';
 import {
   MAP_3D,
   MAP_BASEMAP_STYLES,
+  basemapAttribution,
   buildings3dStyle,
+  satelliteStyleSpec,
   type BasemapKey,
 } from '../../features/map/mapStyle';
+import type { StyleSpecification } from 'maplibre-gl';
 
 // ─── API commune (dupliquée à l'identique dans RealMap.tsx — fork RN) ───────
 
@@ -61,11 +64,14 @@ import {
 export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
 
 /**
- * Résout le styleURL du fond demandé (défaut sombre). Le fond COULEUR (Voyager)
- * est plutôt clair/beige : les traits de jeu chartreuse reçoivent alors un
- * liseré sombre porteur (withColorCasing, mapStyle) pour rester lisibles.
+ * Résout le style du fond demandé (défaut sombre). `dark`/`color` sont des
+ * styleURL vectoriels CARTO ; `satellite` (AMENDEMENT-28) est un StyleSpecification
+ * RASTER construit à la volée (photos Esri, keyless) — MapLibre accepte les deux.
+ * Les fonds CLAIRS (Voyager ET satellite) reçoivent un liseré sombre porteur sous
+ * les traits chartreuse (withColorCasing, mapStyle) pour rester lisibles.
  */
-function basemapStyleUrl(basemap: BasemapKey | undefined): string {
+function basemapStyleUrl(basemap: BasemapKey | undefined): string | StyleSpecification {
+  if (basemap === 'satellite') return satelliteStyleSpec() as unknown as StyleSpecification;
   return MAP_BASEMAP_STYLES[basemap ?? 'dark'];
 }
 
@@ -449,8 +455,19 @@ const CITY_BUILDINGS_LAYER_ID = 'gryd-3d-buildings';
  * appendus AVANT l'upsert des couches de jeu par l'appelant → le JEU passe
  * DEVANT). Hauteur = `render_height` (repli doux si absente/0), base =
  * `render_min_height`, `hide_3d` exclu. Défensif (le style hébergé peut changer).
+ *
+ * AMENDEMENT-28 — sur le fond SATELLITE, `skipBuildings=true` : le RELIEF du
+ * terrain est branché (le satellite se DRAPE dessus, vue Strava/hybride) mais
+ * AUCUNE extrusion vectorielle de bâtiments (les toits sont DÉJÀ dans la photo →
+ * on évite le doublon/clash ; le volume 3D vient du terrain seul). D'ailleurs le
+ * style satellite n'a pas de source vectorielle `carto` → l'extrusion serait de
+ * toute façon un no-op, mais on l'exclut explicitement.
  */
-function apply3dTerrainAndBuildings(map: MapLibreMap, beforeId?: string): void {
+function apply3dTerrainAndBuildings(
+  map: MapLibreMap,
+  beforeId?: string,
+  skipBuildings = false,
+): void {
   // ── Relief : source raster-dem Terrarium (keyless) + setTerrain. ──
   try {
     if (!map.getSource(MAP_3D.demSourceId)) {
@@ -485,6 +502,9 @@ function apply3dTerrainAndBuildings(map: MapLibreMap, beforeId?: string): void {
     // DEM indisponible (offline/blip) : le relief est un CONFORT — on n'échoue
     // jamais le rendu, la carte reste utilisable (zones/trace intactes).
   }
+  // AMENDEMENT-28 — satellite : pas d'extrusion vectorielle (toits déjà dans la
+  // photo). Le relief (ci-dessus) suffit à donner le volume 3D drapé.
+  if (skipBuildings) return;
   // ── Bâtiments 3D : fill-extrusion sur la source vectorielle CARTO. ──
   try {
     if (!map.getSource(MAP_3D.vectorSourceId)) return; // pas de fond vectoriel → rien
@@ -850,15 +870,22 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     };
 
     map.on('load', () => {
-      // Le fond COULEUR (Voyager) est laissé TEL QUEL : les overrides GRYD
-      // n'éteignent le décor (eau/parcs/labels) que pour le fond sombre. En
-      // Course Live (silentRef), les labels de quartiers sont EN PLUS masqués (§1).
-      if (basemapRef.current !== 'color') applyGrydStyleOverrides(map, silentRef.current);
-      // AMENDEMENT-27 — VRAI 3D : si la carte s'ouvre déjà pitchée (partage/
-      // historique, ou mode3d), branche le relief + les bâtiments AVANT les
-      // couches de jeu → celles-ci (upsert juste après, sans beforeId) sont
-      // appendues au-dessus et passent DEVANT les bâtiments (charte).
-      if (is3dRef.current) apply3dTerrainAndBuildings(map);
+      // Les fonds CLAIRS (Voyager ET satellite Esri — AMENDEMENT-28) sont laissés
+      // TELS QUELS : les overrides GRYD n'éteignent le décor (eau/parcs/labels)
+      // que pour le fond sombre vectoriel. Le satellite est un raster (aucun
+      // calque vectoriel à surcharger). En Course Live (silentRef), les labels de
+      // quartiers sont EN PLUS masqués (§1) — sur les styles vectoriels seulement.
+      if (basemapRef.current !== 'color' && basemapRef.current !== 'satellite') {
+        applyGrydStyleOverrides(map, silentRef.current);
+      }
+      // AMENDEMENT-27/28 — VRAI 3D : si la carte s'ouvre déjà pitchée (partage/
+      // historique, ou mode3d), branche le relief + (hors satellite) les bâtiments
+      // AVANT les couches de jeu → celles-ci (upsert juste après, sans beforeId)
+      // sont appendues au-dessus et passent DEVANT (charte). Sur satellite, le
+      // relief seul (le satellite se drape) — pas d'extrusion (toits dans la photo).
+      if (is3dRef.current) {
+        apply3dTerrainAndBuildings(map, undefined, basemapRef.current === 'satellite');
+      }
       for (const spec of layersRef.current) upsertLayer(map, spec, extrudeZonesRef.current);
       for (const spec of pointLayersRef.current ?? []) upsertPointLayer(map, spec);
       setStyleReady(true);
@@ -974,11 +1001,13 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         }
         if (beforeId) break;
       }
-      apply3dTerrainAndBuildings(map, beforeId);
+      // AMENDEMENT-28 — satellite : relief SEUL (le satellite se drape), pas
+      // d'extrusion de bâtiments (toits déjà dans la photo).
+      apply3dTerrainAndBuildings(map, beforeId, basemap === 'satellite');
     } else {
       remove3dTerrainAndBuildings(map);
     }
-  }, [is3d, styleReady, geojsonLayers]);
+  }, [is3d, styleReady, geojsonLayers, basemap]);
 
   // Couches de jeu + points : upsert mémoïsé par identité des tableaux. Si le
   // style n'est pas (encore/plus) chargé — remontage, fast refresh — on laisse
@@ -1108,10 +1137,11 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         );
       })}
 
-      {/* Attribution compacte OBLIGATOIRE (données © OpenStreetMap, tuiles CARTO). */}
+      {/* Attribution compacte OBLIGATOIRE — source du fond actif (CARTO/OSM, ou
+          Esri/Maxar sur satellite — AMENDEMENT-28). */}
       {attributionCompact ? (
         <Text style={styles.attribution} accessibilityRole="text">
-          © OpenStreetMap © CARTO
+          {basemapAttribution(basemap)}
         </Text>
       ) : null}
 

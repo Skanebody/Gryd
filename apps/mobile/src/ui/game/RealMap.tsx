@@ -53,7 +53,9 @@ import { colors, fonts, fontSizes, motion } from '@klaim/shared';
 import {
   MAP_3D,
   MAP_BASEMAP_STYLES,
+  basemapAttribution,
   buildings3dStyle,
+  satelliteStyleSpec,
   type BasemapKey,
 } from '../../features/map/mapStyle';
 import { useReduceMotion } from './anim';
@@ -63,8 +65,14 @@ import { useReduceMotion } from './anim';
 /** Style vectoriel sombre de dev SANS CLÉ (AMENDEMENT-13 §1 — O6 pour la prod). */
 export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
 
-/** Résout le styleURL du fond demandé (défaut sombre). */
+/**
+ * Résout le style du fond demandé (défaut sombre). `dark`/`color` = styleURL
+ * vectoriel CARTO ; `satellite` (AMENDEMENT-28) = le StyleSpecification RASTER
+ * Esri sérialisé en JSON (le binding natif `mapStyle` accepte une URL OU une
+ * chaîne JSON de style) — keyless, une seule source raster + un layer raster.
+ */
 function basemapStyleUrl(basemap: BasemapKey | undefined): string {
+  if (basemap === 'satellite') return JSON.stringify(satelliteStyleSpec());
   return MAP_BASEMAP_STYLES[basemap ?? 'dark'];
 }
 
@@ -543,8 +551,11 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
             les couches de jeu → celles-ci, montées après, passent DEVANT (les
             zones/trace GRYD restent dominantes — charte). En 2D : non monté →
             aucune extrusion, carte STRICTEMENT plate (non-régression). Le relief
-            DEM n'est pas exposé par le binding natif v10 (branché côté web). */}
-        {is3d ? (
+            DEM n'est pas exposé par le binding natif v10 (branché côté web).
+            AMENDEMENT-28 — sur le fond SATELLITE : PAS d'extrusion vectorielle
+            (les toits sont déjà dans la photo → doublon/clash évité ; le style
+            raster n'a d'ailleurs pas la source vectorielle `carto`). */}
+        {is3d && basemap !== 'satellite' ? (
           <VectorSource
             id={MAP_3D.nativeVectorSourceId}
             url={MAP_3D.vectorTileJsonUrl}
@@ -618,10 +629,11 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         ))}
       </MapView>
 
-      {/* Attribution compacte OBLIGATOIRE (données © OpenStreetMap, tuiles CARTO). */}
+      {/* Attribution compacte OBLIGATOIRE — source du fond actif (CARTO/OSM, ou
+          Esri/Maxar sur satellite — AMENDEMENT-28). */}
       {attributionCompact ? (
         <Text style={styles.attribution} accessibilityRole="text">
-          © OpenStreetMap © CARTO
+          {basemapAttribution(basemap)}
         </Text>
       ) : null}
 

@@ -16,23 +16,99 @@ import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './real
 import { type ModeEmphasis, type TerritoryState } from './territory';
 
 /**
- * Fonds de carte disponibles (demande fondateur : « la carte en couleur comme
- * sur Plan d'iPhone »). Deux styles vectoriels de dev SANS CLÉ, servis par les
- * DEUX forks RealMap selon la préférence utilisateur (mapPref) :
+ * Fonds de carte VECTORIELS disponibles (demande fondateur : « la carte en
+ * couleur comme sur Plan d'iPhone »). Deux styles vectoriels de dev SANS CLÉ,
+ * servis par les DEUX forks RealMap selon la préférence utilisateur (mapPref) :
  *   dark  — CARTO dark-matter : l'esthétique GRYD dark-first par DÉFAUT (le
  *           même styleURL qu'historiquement, surchargé aux tokens au chargement).
  *   color — CARTO Voyager : rues/parcs/eau colorés type Apple Plan / Google Maps
  *           (fond clair/beige — sur ce fond les traits de jeu chartreuse
  *           reçoivent un liseré sombre porteur, cf. `colorCasing` plus bas).
  * La prod passera à Protomaps (O6) en ne changeant QUE ces deux URLs.
+ *
+ * Le fond `satellite` (AMENDEMENT-28) n'est PAS ici : ce n'est pas un style
+ * vectoriel mais une source RASTER (photos aériennes Esri) — il est construit à
+ * la volée par `satelliteStyleSpec()` plus bas (StyleSpecification MapLibre).
  */
 export const MAP_BASEMAP_STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
   color: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
 } as const;
 
-/** Clé de fond de carte : 'dark' (défaut) | 'color'. */
-export type BasemapKey = keyof typeof MAP_BASEMAP_STYLES;
+/**
+ * Clé de fond de carte : 'dark' (défaut, dark-matter) | 'color' (Voyager) |
+ * 'satellite' (photos aériennes réelles Esri, AMENDEMENT-28). `satellite`
+ * s'ajoute aux deux clés vectorielles de MAP_BASEMAP_STYLES.
+ */
+export type BasemapKey = keyof typeof MAP_BASEMAP_STYLES | 'satellite';
+
+/** Toutes les clés de fond, dans l'ordre de cycle (dark → color → satellite). */
+export const BASEMAP_KEYS: readonly BasemapKey[] = ['dark', 'color', 'satellite'];
+
+/**
+ * AMENDEMENT-28 — VUE RÉALISTE : fond SATELLITE keyless (vraies photos
+ * aériennes). Source raster PUBLIQUE Esri World Imagery — SANS CLÉ, attribution
+ * requise (comme CARTO/Terrarium sont documentés en source dev ; prod = provider
+ * dédié O6). Tuiles 256 px, ordre {z}/{y}/{x} (schéma ArcGIS). En 3D, ce raster
+ * se DRAPE sur le terrain DEM Terrarium (MAP_3D) — vue Strava/hybride.
+ */
+export const SATELLITE_BASEMAP = {
+  /** Id de la source raster dans le style construit. */
+  sourceId: 'gryd-satellite',
+  /** Id du layer raster (le fond photo, peint tout en bas). */
+  layerId: 'gryd-satellite-layer',
+  /**
+   * Gabarit de tuiles Esri World Imagery (keyless — HTTP 200 vérifié). L'ordre
+   * ArcGIS est {z}/{y}/{x} (y avant x — piège classique de cette source).
+   */
+  tiles: [
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  ] as const,
+  tileSize: 256,
+  /** Esri World Imagery monte jusqu'à ~z19 en couverture urbaine. */
+  maxZoom: 19,
+  /** Attribution LÉGALE obligatoire de la source imagerie. */
+  attribution: 'Esri, Maxar, Earthstar Geographics',
+} as const;
+
+/**
+ * AMENDEMENT-28 — Style MapLibre COMPLET du fond satellite : une unique source
+ * raster Esri + un layer raster plein écran. Le `glyphs` CARTO (keyless) est
+ * fourni pour que d'éventuels labels/symboles GRYD (calques de points) trouvent
+ * leurs polices — le raster n'a pas de labels vectoriels, la ville se lit dans
+ * la photo (labels de rues DISCRETS = affaire de la photo, pas de couche à
+ * éteindre). Retourné en objet (MapLibre accepte URL string OU StyleSpecification)
+ * → aucun fichier de style à héberger, keyless de bout en bout.
+ */
+export function satelliteStyleSpec(): Record<string, unknown> {
+  return {
+    version: 8,
+    // Polices keyless CARTO (mêmes stacks que dark-matter → labels de points OK).
+    glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+    sources: {
+      [SATELLITE_BASEMAP.sourceId]: {
+        type: 'raster',
+        tiles: [...SATELLITE_BASEMAP.tiles],
+        tileSize: SATELLITE_BASEMAP.tileSize,
+        maxzoom: SATELLITE_BASEMAP.maxZoom,
+        attribution: SATELLITE_BASEMAP.attribution,
+      },
+    },
+    layers: [
+      // Fond noir sous le raster (bord du monde / tuiles manquantes → jamais blanc).
+      {
+        id: 'gryd-satellite-bg',
+        type: 'background',
+        paint: { 'background-color': colors.noir },
+      },
+      {
+        id: SATELLITE_BASEMAP.layerId,
+        type: 'raster',
+        source: SATELLITE_BASEMAP.sourceId,
+      },
+    ],
+  };
+}
 
 /**
  * AMENDEMENT-27 — VRAI 3D (relief + bâtiments), constantes de source/rendu.
@@ -90,6 +166,18 @@ export const buildings3dStyle = {
   /** Hauteur de repli quand la tuile n'a pas de hauteur exploitable (≈ 2 niveaux). */
   defaultHeightM: 6,
 } as const;
+
+/**
+ * Attribution LÉGALE à afficher selon le fond actif (obligation des sources) :
+ * données © OpenStreetMap © CARTO pour les fonds vectoriels dark/color, et
+ * l'imagerie Esri (Maxar/Earthstar) pour le fond satellite (AMENDEMENT-28).
+ * Utilisé par la mention compacte des forks RealMap.
+ */
+export function basemapAttribution(basemap: BasemapKey | undefined): string {
+  return basemap === 'satellite'
+    ? `© ${SATELLITE_BASEMAP.attribution}`
+    : '© OpenStreetMap © CARTO';
+}
 
 /** Décline un token `#RRGGBB` en rgba — n'accepte QUE des tokens hex 6 digits. */
 export function withAlpha(tokenHex: string, alpha: number): string {
@@ -169,18 +257,25 @@ export const territoryStyle = {
   parcoursPreview: colors.gris,
 
   /**
-   * Liseré SOMBRE porteur des traits de jeu sur le fond COULEUR (Voyager,
-   * clair/beige) — charte : jamais de chartreuse sur fond clair (contraste
-   * 1,2:1). Une line noire semi-opaque ~1 px plus large, peinte SOUS le trait
-   * (comme le casing de route) garantit la lisibilité ; le trait reste le token
-   * de l'état (chartreuse/orange/verify…). Inutile sur le fond sombre (le noir
-   * ambiant fait déjà casing) — ces couches ne sont ajoutées que si color.
+   * Liseré SOMBRE porteur des traits de jeu sur les fonds CLAIRS/colorés —
+   * charte : jamais de chartreuse sur fond clair (contraste 1,2:1). Une line
+   * noire semi-opaque ~1 px plus large, peinte SOUS le trait (comme le casing de
+   * route) garantit la lisibilité ; le trait reste le token de l'état
+   * (chartreuse/orange/verify…). Inutile sur le fond sombre (le noir ambiant
+   * fait déjà casing) — ces couches ne sont ajoutées que sur `color` OU
+   * `satellite` (AMENDEMENT-28 : le satellite est clair/coloré → même besoin).
+   * Sur satellite (photo bruitée, contrastée), le liseré est un cran PLUS opaque
+   * pour tenir face aux zones claires (toits, sable, béton).
    */
   colorCasing: withAlpha(colors.noir, 0.55),
+  /** Liseré satellite : plus dense (la photo est plus contrastée que Voyager). */
+  satelliteCasing: withAlpha(colors.noir, 0.72),
 } as const;
 
 /** Sur-largeur du liseré sombre (px de part et d'autre du trait) — fin. */
 const COLOR_CASING_EXTRA_PX = 2;
+/** Sur-largeur du liseré sur SATELLITE (AMENDEMENT-28) : un cran plus large (photo contrastée). */
+const SATELLITE_CASING_EXTRA_PX = 3;
 
 export const battleMapStyle = {
   // Mon crew (chartreuse — trait net, AMENDEMENT-16 §0 : zéro glow)
@@ -443,28 +538,34 @@ export function territoryStateLayers(
 }
 
 /**
- * Insère, sur le fond COULEUR uniquement, un LISERÉ SOMBRE sous chaque couche
- * porteuse d'un trait (line*) : une copie noire semi-opaque ~1 px plus large,
- * placée JUSTE AVANT la couche d'origine (l'ordre du tableau = ordre de
- * peinture, le premier au-dessous). Le trait garde son token d'état ; le
- * casing ne fait que le détacher du beige de Voyager (charte : jamais de
- * chartreuse sur fond clair). Sur le fond sombre, retour à l'identique (le noir
- * ambiant fait déjà casing — aucune couche ajoutée). Le pointillé/offset est
- * repris pour épouser le trait ; jamais de pulse sur le casing.
+ * Insère, sur les fonds CLAIRS (`color` Voyager ET `satellite` Esri —
+ * AMENDEMENT-28), un LISERÉ SOMBRE sous chaque couche porteuse d'un trait
+ * (line*) : une copie noire semi-opaque ~1 px plus large, placée JUSTE AVANT la
+ * couche d'origine (l'ordre du tableau = ordre de peinture, le premier
+ * au-dessous). Le trait garde son token d'état ; le casing ne fait que le
+ * détacher du beige de Voyager / de la photo satellite (charte : jamais de
+ * chartreuse illisible sur fond clair). Sur le fond sombre, retour à l'identique
+ * (le noir ambiant fait déjà casing — aucune couche ajoutée). Le satellite étant
+ * plus contrasté que Voyager, son casing est un cran plus dense et plus large.
+ * Le pointillé/offset est repris pour épouser le trait ; jamais de pulse sur le
+ * casing.
  */
 function withColorCasing(
   basemap: BasemapKey,
   layers: RealMapGeoJSONLayer[],
 ): RealMapGeoJSONLayer[] {
-  if (basemap !== 'color') return layers;
+  if (basemap !== 'color' && basemap !== 'satellite') return layers;
+  const satellite = basemap === 'satellite';
+  const casingColor = satellite ? territoryStyle.satelliteCasing : territoryStyle.colorCasing;
+  const extraPx = satellite ? SATELLITE_CASING_EXTRA_PX : COLOR_CASING_EXTRA_PX;
   const out: RealMapGeoJSONLayer[] = [];
   for (const spec of layers) {
     if (spec.lineColor !== undefined) {
       out.push({
         id: `${spec.id}-casing`,
         data: spec.data,
-        lineColor: territoryStyle.colorCasing,
-        lineWidth: (spec.lineWidth ?? 1) + COLOR_CASING_EXTRA_PX,
+        lineColor: casingColor,
+        lineWidth: (spec.lineWidth ?? 1) + extraPx,
         ...(spec.lineDash ? { lineDash: spec.lineDash } : {}),
         ...(spec.lineOffset !== undefined ? { lineOffset: spec.lineOffset } : {}),
       });

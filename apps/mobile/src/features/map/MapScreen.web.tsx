@@ -58,7 +58,12 @@ import {
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
-import { battleGameLayers, battleMapStyle as ms } from './mapStyle';
+import {
+  basemapAttribution,
+  battleGameLayers,
+  battleMapStyle as ms,
+  type BasemapKey,
+} from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
 import { MODE_EMPHASIS, autoMapMode, type MapMode, type ModeEmphasis } from './territory';
@@ -83,8 +88,6 @@ const SCALE_STEPS_M: readonly number[] = [
   50, 100, 200, 300, 500, 1_000, 2_000, 5_000, 10_000, 20_000, 50_000, 100_000, 200_000,
   500_000, 1_000_000, 2_000_000,
 ];
-/** Attribution compacte obligatoire (données © OpenStreetMap, tuiles CARTO). */
-const ATTRIBUTION_LABEL = '© OpenStreetMap © CARTO';
 
 // AMENDEMENT-21 : la Carte est un ÉCRAN MISSION. Les contrôles flottants (fond
 // dark/couleur + calques de lecture) vivent DANS le menu « Calques » du HUD
@@ -271,6 +274,7 @@ export function MapScreen() {
       {/* ── Échelle MapLibre stylée tokens + attribution (au-dessus de la nav) ── */}
       <ScaleAttribution
         map={glMap}
+        basemap={basemap}
         bottom={insets.bottom + RUN_BUTTON_BOTTOM + SCALE_ABOVE_RUN_BOTTOM}
       />
 
@@ -336,11 +340,20 @@ function StateIcon({
  * L'instance carte arrive par la prop `map` (onMapReady de RealMap.web) —
  * l'échelle est SCOPÉE à SA carte, jamais de sélecteur DOM global (§6 :
  * plusieurs cartes peuvent être montées en même temps, aperçu Profil +
- * onglet Carte). Attribution © OpenStreetMap © CARTO accolée — le bas de la
- * carte est couvert par la sheet/nav, la mention doit rester VISIBLE
- * (obligation légale).
+ * onglet Carte). Attribution DÉRIVÉE du fond actif (basemapAttribution) accolée
+ * — © OpenStreetMap © CARTO sur dark/color, © Esri, Maxar, Earthstar
+ * Geographics sur satellite (AMENDEMENT-28). Le bas de la carte est couvert par
+ * la sheet/nav, la mention doit rester VISIBLE (obligation légale).
  */
-function ScaleAttribution({ map, bottom }: { map: MapLibreMap | null; bottom: number }) {
+function ScaleAttribution({
+  map,
+  basemap,
+  bottom,
+}: {
+  map: MapLibreMap | null;
+  basemap: BasemapKey;
+  bottom: number;
+}) {
   const [scale, setScale] = useState<{ width: number; label: string } | null>(null);
 
   useEffect(() => {
@@ -382,7 +395,7 @@ function ScaleAttribution({ map, bottom }: { map: MapLibreMap | null; bottom: nu
         </>
       ) : null}
       <Text style={styles.attribution} accessibilityRole="text">
-        {ATTRIBUTION_LABEL}
+        {basemapAttribution(basemap)}
       </Text>
     </View>
   );

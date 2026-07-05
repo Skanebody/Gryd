@@ -70,6 +70,7 @@ import {
   parcoursMeta,
 } from './demo';
 import type { BattleMapSummary } from './fakeHexes';
+import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import {
   MAP_MODE_ICON,
   MAP_MODE_LABELS,
@@ -85,6 +86,28 @@ import {
 const MODE_CHIP_LABELS: Record<MapMode, string> = {
   ...MAP_MODE_LABELS,
   raid: 'Rival',
+};
+
+/**
+ * FOND de carte (AMENDEMENT-28) — 3 options du menu Calques, libellés COURTS non
+ * tronqués (charte : jamais de chartreuse sur clair ; l'actif se marque en carbon
+ * + crew comme les calques). « Réaliste » = satellite (vraies photos aériennes).
+ */
+const BASEMAP_LABELS: Record<BasemapKey, string> = {
+  dark: 'Sombre',
+  color: 'Couleur',
+  satellite: 'Réaliste',
+};
+/**
+ * Icône par fond : on réutilise le jeu d'icônes EXISTANT (`@klaim/shared` n'a
+ * pas d'icône « satellite » — hors périmètre). `carte` (losange type plan) pour
+ * les fonds plan ; `calques` (pile de losanges) pour le réaliste satellite, qui
+ * se distingue ainsi visuellement sans nouvelle icône. Le libellé fait foi.
+ */
+const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
+  dark: 'carte',
+  color: 'carte',
+  satellite: 'calques',
 };
 
 /** Dégagement du panneau Info au-dessus de la barre de nav. */
@@ -115,9 +138,13 @@ export interface BattleMapOverlaysProps {
   /** Parcours affiché en aperçu sur la carte (RouteProgress, progress 0). */
   selectedParcoursId?: string | null;
   onSelectParcours?: (id: string | null) => void;
-  /** Fond de carte courant + bascule sombre↔couleur (dans le menu Calques). */
-  basemap?: 'dark' | 'color';
-  onToggleBasemap?: () => void;
+  /**
+   * Fond de carte courant + sélection dans le menu Calques (AMENDEMENT-28 : 3
+   * fonds — Sombre / Couleur / Réaliste satellite). `onToggleBasemap(key)` fixe
+   * une valeur précise ; sans argument il cycle (compat. `toggle` de mapPref).
+   */
+  basemap?: BasemapKey;
+  onToggleBasemap?: (next?: BasemapKey) => void;
   /**
    * Vue 2D/3D courante (AMENDEMENT-26) + setter — pilotés par la pref
    * `gryd.map3d` (useMap3d, détenue par MapScreen). Le toggle 2D/3D vit DANS le
@@ -250,11 +277,12 @@ export function BattleMapOverlays({
             active={mode}
             onSelect={selectMode}
             basemap={basemap}
-            onToggleBasemap={
+            onSelectBasemap={
               onToggleBasemap
-                ? () => {
+                ? (key) => {
+                    if (key === basemap) return;
                     haptics.light();
-                    onToggleBasemap();
+                    onToggleBasemap(key);
                   }
                 : undefined
             }
@@ -517,46 +545,62 @@ function RivalPill() {
 
 /**
  * Menu « Calques » (AMENDEMENT-21) : ouvert par le FAB Calques — remplace la
- * rangée de 5 filtres permanente ET absorbe la bascule de fond (plus de FAB
- * Fond dédié). En haut, le fond de carte (Sombre/Couleur) ; en dessous, les
- * calques de lecture (un actif à la fois ; le défaut est AUTO selon le
- * contexte). Fermé par défaut — il ne s'ouvre jamais tout seul.
+ * rangée de 5 filtres permanente ET absorbe le choix de fond (plus de FAB Fond
+ * dédié). En haut, le FOND de carte — 3 options explicites Sombre / Couleur /
+ * Réaliste (satellite, AMENDEMENT-28), un actif à la fois marqué en crew comme
+ * les calques ; en dessous, les calques de lecture. Fermé par défaut — il ne
+ * s'ouvre jamais tout seul. Charte : l'actif se lit en chartreuse sur la surface
+ * SOMBRE du menu (jamais de chartreuse sur clair).
  */
 function LayerMenu({
   active,
   onSelect,
   basemap,
-  onToggleBasemap,
+  onSelectBasemap,
   map3d,
   onSetMap3d,
 }: {
   active: MapMode;
   onSelect: (mode: MapMode) => void;
-  basemap: 'dark' | 'color';
-  onToggleBasemap?: () => void;
+  basemap: BasemapKey;
+  onSelectBasemap?: (key: BasemapKey) => void;
   map3d?: boolean;
   onSetMap3d?: (value: boolean) => void;
 }) {
   return (
     <View style={styles.layerMenu}>
-      {onToggleBasemap ? (
+      {onSelectBasemap ? (
         <>
           <Text style={styles.layerHeading}>FOND</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              basemap === 'color'
-                ? 'Fond de carte couleur (toucher pour repasser en sombre)'
-                : 'Fond de carte sombre (toucher pour passer en couleur)'
-            }
-            onPress={onToggleBasemap}
-            style={({ pressed }) => [styles.layerItem, pressed && styles.pressed]}
-          >
-            <Icon name="carte" size={15} color={colors.blanc} />
-            <Text style={styles.layerLabel} numberOfLines={1}>
-              {basemap === 'color' ? 'Couleur' : 'Sombre'}
-            </Text>
-          </Pressable>
+          {BASEMAP_KEYS.map((key) => {
+            const on = basemap === key;
+            return (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`Fond de carte ${BASEMAP_LABELS[key]}`}
+                onPress={() => onSelectBasemap(key)}
+                style={({ pressed }) => [
+                  styles.layerItem,
+                  on && styles.layerItemActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Icon
+                  name={BASEMAP_ICON[key]}
+                  size={15}
+                  color={on ? gameColors.crew : colors.blanc}
+                />
+                <Text
+                  style={[styles.layerLabel, on && styles.layerLabelActive]}
+                  numberOfLines={1}
+                >
+                  {BASEMAP_LABELS[key]}
+                </Text>
+              </Pressable>
+            );
+          })}
           <View style={styles.layerDivider} />
         </>
       ) : null}

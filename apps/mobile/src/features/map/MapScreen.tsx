@@ -43,7 +43,7 @@ import {
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
-import { battleGameLayers } from './mapStyle';
+import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
 import { MODE_EMPHASIS, autoMapMode, type MapMode, type ModeEmphasis } from './territory';
@@ -60,8 +60,6 @@ const SHIELD_ABOVE_EGO_PX = 26;
 const MARKER_SIZE = 18;
 /** L'attribution flotte au-dessus de la nav (le bas de carte est couvert). */
 const ATTRIBUTION_ABOVE_RUN_BOTTOM = 6;
-/** Attribution compacte obligatoire (données © OpenStreetMap, tuiles CARTO). */
-const ATTRIBUTION_LABEL = '© OpenStreetMap © CARTO';
 
 // AMENDEMENT-21 : la Carte est un ÉCRAN MISSION. Les contrôles flottants (fond
 // dark/couleur + calques de lecture) vivent DANS le menu « Calques » du HUD
@@ -238,7 +236,9 @@ export function MapScreen() {
         testID="battle-map-reelle"
       />
 
-      {/* ── Attribution relogée au-dessus de la nav (obligation légale) ── */}
+      {/* ── Attribution relogée au-dessus de la nav (obligation légale) —
+          dérivée du fond actif : © OpenStreetMap © CARTO sur dark/color, ©
+          Esri, Maxar, Earthstar Geographics sur satellite (AMENDEMENT-28). ── */}
       <Text
         style={[
           styles.attribution,
@@ -246,7 +246,7 @@ export function MapScreen() {
         ]}
         accessibilityRole="text"
       >
-        {ATTRIBUTION_LABEL}
+        {basemapAttribution(basemap)}
       </Text>
 
       {/* ── HUD ÉCRAN MISSION (header 1 ligne, pill rival, card sticky + [Défendre],
