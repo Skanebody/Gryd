@@ -574,7 +574,7 @@ export const GPS_ACCURACY_GOOD_M = 10;
 export const GPS_PAUSE_SPEED_MS = 0.7;
 /** Durée (s) sous GPS_PAUSE_SPEED_MS avant de basculer en segment pause (UI « En pause », distance non comptée). */
 export const GPS_PAUSE_AFTER_S = 10;
-/** Cadence d'échantillonnage cible du suivi GPS (ms) — resserrée en virage côté client. */
+/** Cadence d'échantillonnage FIXE du suivi GPS (ms) — 2 s + distanceInterval 0 + lissage moteur : suffisant au MVP (pas de cadence adaptative). */
 export const GPS_SAMPLE_INTERVAL_MS = 2_000;
 /** Sans fix frais depuis N s : signal « weak » (jauge orange, on continue d'enregistrer). */
 export const GPS_SIGNAL_WEAK_AFTER_S = 5;

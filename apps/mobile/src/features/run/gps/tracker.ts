@@ -16,10 +16,15 @@
  * détectée par detectPauses, distance et chrono actifs exclus, anti-shame
  * (« En pause » informatif, jamais une alerte).
  *
- * Aucune I/O ici (pas de capteur, pas de stockage) : le hook useRealRun pousse
- * les fixes et persiste via runStore. Testable à sec.
+ * I/O quasi nulle : le hook useRealRun pousse les fixes GPS et persiste via
+ * runStore. Seule exception ASSUMÉE (AMENDEMENT-15 §2 « steps si dispo ») : le
+ * podomètre (startPedometer/stopPedometer, expo-sensors) — opt-in explicite du
+ * hook, guardé isAvailableAsync, no-op web/simulateur : le reste du pipeline
+ * demeure testable à sec sans capteur.
  */
 import { latLngToCell } from 'h3-js';
+// expo-sensors : stack Expo — stepCount alimente motionTrust anti-triche §3.2.
+import { Pedometer } from 'expo-sensors';
 import {
   GPS_ACCURACY_MAX_M,
   GPS_SIGNAL_LOST_AFTER_S,
@@ -83,6 +88,8 @@ export interface TrackerInit {
   initialFixes?: readonly RawFix[];
   /** Reprise après kill : pauses manuelles déjà écoulées (ms). */
   userPausedMs?: number;
+  /** Reprise/fusion : pas déjà comptés par le tracker précédent. */
+  initialSteps?: number;
 }
 
 export class RunTracker {
@@ -95,6 +102,11 @@ export class RunTracker {
   private userPaused = false;
   private userPauseStartedTs = 0;
   private userPausedMsTotal: number;
+  /** Pas hérités d'un tracker précédent (reprise/fusion). */
+  private stepBase: number;
+  /** Pas comptés par L'ABONNEMENT courant (cumulés depuis watchStepCount). */
+  private stepsSinceWatch = 0;
+  private stepSub: { remove(): void } | null = null;
 
   constructor(init: TrackerInit) {
     this.runId = init.runId;
@@ -102,6 +114,7 @@ export class RunTracker {
     this.startedAt = init.startedAt;
     this.fixes = [...(init.initialFixes ?? [])];
     this.userPausedMsTotal = init.userPausedMs ?? 0;
+    this.stepBase = init.initialSteps ?? 0;
   }
 
   /** Trace brute (persistance runStore, fusion à la reprise). */
@@ -112,6 +125,36 @@ export class RunTracker {
   /** Cumul des pauses manuelles (ms) — persisté pour la reprise après kill. */
   get userPausedMs(): number {
     return this.userPausedMsTotal;
+  }
+
+  /** Pas cumulés de la course (0 = podomètre indisponible/jamais démarré). */
+  get stepCount(): number {
+    return this.stepBase + this.stepsSinceWatch;
+  }
+
+  /**
+   * Podomètre (AMENDEMENT-15 §2 « steps si dispo via pedometer ») : démarré par
+   * le hook AVEC la course, guardé isAvailableAsync — no-op web/simulateur/
+   * permission refusée. Indisponible → stepCount reste 0 et buildPayload OMET
+   * le champ (comportement serveur inchangé : motionTrust neutre §3.2).
+   */
+  async startPedometer(): Promise<void> {
+    if (this.finished || this.stepSub !== null) return;
+    try {
+      if (!(await Pedometer.isAvailableAsync())) return;
+      this.stepSub = Pedometer.watchStepCount((result) => {
+        // result.steps = cumul depuis CET abonnement (jamais additionné à lui-même).
+        this.stepsSinceWatch = Math.max(0, result.steps);
+      });
+    } catch {
+      // Capteur absent/refusé : signal simplement absent, jamais bloquant.
+    }
+  }
+
+  /** Coupe l'abonnement podomètre (fin de course, unmount) — cumul conservé. */
+  stopPedometer(): void {
+    this.stepSub?.remove();
+    this.stepSub = null;
   }
 
   /**
@@ -147,6 +190,7 @@ export class RunTracker {
   finish(nowTs: number): void {
     if (this.userPaused) this.resumeUser(nowTs);
     this.finished = true;
+    this.stopPedometer();
   }
 
   // ─── Pipeline (recalculé à la demande — O(n), quelques ms à 2 h de course) ─
@@ -242,10 +286,16 @@ export class RunTracker {
    * de rejets n'existent que côté client — signal indicatif, le serveur borne
    * et reste seul juge). Idempotent par clientRunId (UUID local généré AVANT
    * la course).
+   *
+   * ACTÉ (AMENDEMENT-15 §1, vérification 05/07/2026) : le lissage pondéré par
+   * accuracy fait PARTIE du nettoyage pré-envoi (pipeline déterministe, testé
+   * Deno) — le serveur borne le trust à la baisse et rejuge toute la trace
+   * reçue, rien n'est « embelli » à son insu.
    */
   buildPayload(): IngestRunRequest {
     const clean = cleanTrace(this.fixes);
     const smoothed = smoothTrace(clean.points);
+    const steps = this.stepCount;
     return {
       clientRunId: this.runId,
       source: 'gps',
@@ -253,6 +303,8 @@ export class RunTracker {
       points: rawFixesToRunPoints(decimateForPayload(smoothed)),
       runMode: this.mode,
       gpsTrust: gpsTrustScore(clean),
+      // Podomètre indisponible → champ ABSENT (motionTrust neutre côté serveur).
+      ...(steps > 0 ? { stepCount: steps } : {}),
     };
   }
 }

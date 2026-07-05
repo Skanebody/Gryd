@@ -40,15 +40,19 @@ import {
   type BadgeDef,
 } from '../src/features/badges/catalog';
 import Svg, { Path, Polyline } from 'react-native-svg';
-import { cellToLatLng, gridDisk, latLngToCell } from 'h3-js';
 import {
-  cellsToTerritory,
-  territoryPath,
-  type ProjectPoint,
-  type Territory,
-} from '../src/features/map/territory';
+  CORRIDOR_HALF_WIDTH_M,
+  loopRing,
+  ribbonRing,
+} from '../src/features/map/allTerritories';
+import {
+  BOUCLE_REPUBLIQUE,
+  REAL_M_PER_DEG_LAT,
+  REAL_M_PER_DEG_LNG,
+  RUE_FAUBOURG_DU_TEMPLE,
+  type LatLngPoint,
+} from '../src/features/map/realAnchors';
 import { territoryStyle } from '../src/features/map/mapStyle';
-import { M_PER_DEG_LAT, M_PER_DEG_LNG } from '../src/features/map/basemap';
 import { ResultReveal } from '../src/features/run/ResultReveal';
 import { buildLiveNav } from '../src/features/run/liveNav';
 import { buildRunLoop, loopSummaryAt, type RunLoop } from '../src/features/run/loop';
@@ -419,7 +423,7 @@ function tickParam(param: string | string[] | undefined, fallback: number): numb
 
 export default function CourseResultScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ mode?: string; t?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; t?: string; queued?: string }>();
   const mode = runModeFromParam(params.mode);
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   const tickIndex = tickParam(params.t, sim.ticks.length - 1);
@@ -525,6 +529,12 @@ export default function CourseResultScreen() {
                 ? 'Visible par toi seul. Aucune capture, aucun partage.'
                 : `Effort vérifié — GPS ${stats.gpsTrust} · Motion ${stats.motionTrust}.`}
             </Text>
+            {/* Fin hors-ligne (AMENDEMENT-15 §2) : discret, anti-shame, jamais bloquant. */}
+            {params.queued === '1' ? (
+              <Text style={styles.validatedSub}>
+                Course enregistrée — envoi dès que possible.
+              </Text>
+            ) : null}
           </View>
         </ResultReveal>
 

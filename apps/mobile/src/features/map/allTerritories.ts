@@ -66,8 +66,12 @@ const TERRITORY_LABEL_SIZE_PX = 10;
 const TERRITORY_LABEL_OFFSET_EM = 0.8;
 const TERRITORY_LABEL_LETTER_SPACING_EM = 0.1;
 
-/** Demi-largeur du ruban couloir (§4ter : ~2 zones ≈ 60 m au total). */
-const CORRIDOR_HALF_WIDTH_M = 30;
+/**
+ * Demi-largeur du ruban couloir (§4ter : ~2 zones ≈ 60 m au total).
+ * Exporté : Route Planner / Course Live / before-after réutilisent LE MÊME
+ * ruban (§4ter vaut pour toutes les surfaces — jamais recréé ailleurs).
+ */
+export const CORRIDOR_HALF_WIDTH_M = 30;
 /** Segments des extrémités ARRONDIES du ruban (§4ter). */
 const RIBBON_CAP_STEPS = 6;
 /** Limite de miter des coins du ruban (évite les pointes aux angles fermés). */
@@ -115,9 +119,10 @@ function fromLocalMeters(
 /**
  * RUBAN net le long d'un tracé (couloir §4ter) : bords parallèles au tracé à
  * ±halfWidth, coins en miter borné, extrémités en demi-cercles — un polygone
- * propre qui se lit « itinéraire de course », pas un lobe.
+ * propre qui se lit « itinéraire de course », pas un lobe. Exporté : c'est LA
+ * géométrie couloir de toutes les surfaces (Battle Map, planner, live, résultat).
  */
-function ribbonRing(trace: readonly LatLngPoint[], halfWidthM: number): [number, number][] {
+export function ribbonRing(trace: readonly LatLngPoint[], halfWidthM: number): [number, number][] {
   const origin = trace[0];
   if (!origin || trace.length < 2) return [];
   const pts = toLocalMeters(trace);
@@ -183,7 +188,7 @@ function ribbonRing(trace: readonly LatLngPoint[], halfWidthM: number): [number,
 }
 
 /** Boucle fermée : l'anneau du polygone EST le tracé (waypoints tels quels). */
-function loopRing(trace: readonly LatLngPoint[]): [number, number][] {
+export function loopRing(trace: readonly LatLngPoint[]): [number, number][] {
   return trace.map((p) => [p.lng, p.lat]);
 }
 

@@ -14,20 +14,31 @@
  *
  * Reprise après kill : buffer runStore (flush périodique, run_autosave §8) +
  * file background → RestoreRunCard (reprendre / enregistrer), jamais de course
- * perdue en silence.
+ * perdue en silence. Pendant qu'une reprise ATTEND une décision, la course
+ * courante est flushée sous sa clé dédiée (CURRENT) : un 2ᵉ kill ne perd
+ * jamais la nouvelle course.
+ *
+ * Fin de course hors-ligne (AMENDEMENT-15 §2) : l'envoi ingest_run raté met le
+ * payload en file (pendingUpload, idempotent par clientRunId) — renvoyé
+ * silencieusement au prochain lancement et à la prochaine fin de course.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { LocationSubscription } from 'expo-location';
 import * as Crypto from 'expo-crypto';
+import type { IngestRunRequest } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
 import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
+import { queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
 import {
   clearActiveRun,
+  clearCurrentRun,
   drainBackgroundFixes,
   loadActiveRun,
+  loadCurrentRun,
   saveActiveRun,
+  saveCurrentRun,
   type StoredRun,
 } from '../../../lib/runStore';
 import type { LiveRunMode } from '../simulation';
@@ -81,18 +92,47 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
   const [restoreDistanceM, setRestoreDistanceM] = useState<number | null>(null);
   const [permissionRevoked, setPermissionRevoked] = useState(false);
 
-  /** Persiste l'état courant (jamais tant qu'une reprise est en attente). */
+  /**
+   * Persiste l'état courant. Tant qu'une reprise « Course interrompue
+   * retrouvée » attend une décision, la clé ACTIVE appartient à l'ANCIENNE
+   * course : la course courante est flushée sous sa clé dédiée (CURRENT) —
+   * un 2ᵉ kill ne perd JAMAIS la nouvelle course.
+   */
   const flush = useCallback(async () => {
     const t = trackerRef.current;
-    if (t === null || pendingStoredRef.current !== null || finishedRef.current) return;
-    await saveActiveRun({
+    if (t === null || finishedRef.current) return;
+    const run: StoredRun = {
       runId: t.runId,
       mode: t.mode,
       startedAt: t.startedAt,
       fixes: [...t.rawFixes],
       userPausedMs: t.userPausedMs,
-    });
+    };
+    if (pendingStoredRef.current !== null) await saveCurrentRun(run);
+    else await saveActiveRun(run);
   }, []);
+
+  /**
+   * Envoi d'un payload de fin de course (AMENDEMENT-15 §2) :
+   *  - 'sent'   : ingest_run a répondu sans erreur ;
+   *  - 'queued' : hors-ligne/erreur → payload en file (pendingUpload, slot
+   *               unique MVP — DISCOVERY), renvoyé silencieusement plus tard ;
+   *  - 'lost'   : stockage indisponible (l'appelant garde son dernier filet) ;
+   *  - 'none'   : pas de backend/session (flux démo) — aucun envoi attendu.
+   */
+  const uploadOrQueue = useCallback(
+    async (payload: IngestRunRequest): Promise<'sent' | 'queued' | 'lost' | 'none'> => {
+      if (supabase === null || sessionRef.current === null) return 'none';
+      try {
+        const { error } = await supabase.functions.invoke('ingest_run', { body: payload });
+        if (!error) return 'sent';
+      } catch {
+        // Hors-ligne/réseau coupé net → file ci-dessous.
+      }
+      return (await queuePendingUpload(payload)) ? 'queued' : 'lost';
+    },
+    [],
+  );
 
   const stopSensors = useCallback(() => {
     watchRef.current?.remove();
@@ -137,8 +177,25 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
 
       // Course interrompue (kill) : proposée en reprise, la nouvelle course
       // démarre quand même tout de suite (GO-first, choix non bloquant).
-      const stored = await loadActiveRun();
+      let stored = await loadActiveRun();
+      // 2ᵉ kill pendant qu'une reprise attendait : la course la plus récente a
+      // été flushée sous la clé CURRENT (jamais perdue). Elle devient LA course
+      // proposée en reprise ; l'ancienne — déjà proposée une fois — est
+      // clôturée proprement (payload idempotent envoyé ou mis en file, jamais
+      // perdue en silence, jamais re-proposée à l'infini).
+      const orphan = await loadCurrentRun();
       if (!alive) return;
+      if (orphan !== null && orphan.fixes.length > 1) {
+        if (stored !== null && stored.fixes.length > 1 && stored.runId !== orphan.runId) {
+          const closer = new RunTracker({ ...stored, initialFixes: stored.fixes });
+          closer.finish(Date.now());
+          await uploadOrQueue(closer.buildPayload());
+        }
+        stored = orphan;
+        await saveActiveRun(orphan); // l'orpheline prend la clé de reprise
+        await clearCurrentRun();
+        if (!alive) return;
+      }
       if (stored !== null && stored.fixes.length > 1) {
         pendingStoredRef.current = stored;
         const probe = new RunTracker({ ...stored, initialFixes: stored.fixes });
@@ -151,6 +208,9 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
         startedAt: Date.now(),
       });
       trackerRef.current = tracker;
+      // Podomètre (AMENDEMENT-15 §2) : stepCount → motionTrust §3.2 côté
+      // serveur. Guardé isAvailableAsync — no-op web/simulateur/sans capteur.
+      void tracker.startPedometer();
       track(EVENTS.runStart, { source: 'gps', mode });
 
       bgGrantedRef.current = await checkBackgroundGranted();
@@ -168,6 +228,7 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
     return () => {
       alive = false;
       stopSensors();
+      trackerRef.current?.stopPedometer();
       // Pas de clearActiveRun ici : quitter l'écran sans terminer laisse le
       // buffer en place → proposé en reprise au prochain GO (jamais perdu).
     };
@@ -256,21 +317,25 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
     if (stored === null || current === null) return;
     void (async () => {
       const bg = await drainBackgroundFixes();
+      current.stopPedometer();
       trackerRef.current = new RunTracker({
         runId: stored.runId, // idempotence : on reste LA même course côté serveur
         mode: stored.mode,
         startedAt: stored.startedAt,
         initialFixes: [...stored.fixes, ...bg, ...current.rawFixes],
         userPausedMs: stored.userPausedMs,
+        initialSteps: current.stepCount, // cumul conservé à la fusion
       });
+      void trackerRef.current.startPedometer();
       pendingStoredRef.current = null;
       setRestoreDistanceM(null);
+      await clearCurrentRun(); // la sauvegarde CURRENT est fusionnée → obsolète
       setSnapshot(trackerRef.current.snapshot(Date.now()));
       await flush();
     })();
   }, [flush]);
 
-  /** Clôture propre de la course interrompue : payload envoyé si session réelle. */
+  /** Clôture propre de la course interrompue : payload envoyé (ou mis en file) si session réelle. */
   const discardStored = useCallback(() => {
     const stored = pendingStoredRef.current;
     if (stored === null) return;
@@ -278,26 +343,29 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
       const bg = await drainBackgroundFixes();
       const closer = new RunTracker({ ...stored, initialFixes: [...stored.fixes, ...bg] });
       closer.finish(Date.now());
-      if (supabase !== null && sessionRef.current !== null) {
-        try {
-          await supabase.functions.invoke('ingest_run', { body: closer.buildPayload() });
-        } catch {
-          // Hors-ligne : la course clôturée n'écrase jamais la course EN COURS.
-        }
-      }
+      // Hors-ligne : payload en file (idempotent) — la course clôturée
+      // n'écrase jamais la course EN COURS et n'est jamais perdue en silence.
+      await uploadOrQueue(closer.buildPayload());
       await clearActiveRun();
       pendingStoredRef.current = null;
       setRestoreDistanceM(null);
+      await clearCurrentRun(); // la course courante repasse sur la clé ACTIVE
       await flush(); // la course courante reprend la main sur le buffer
     })();
-  }, [flush]);
+  }, [flush, uploadOrQueue]);
 
-  const finish = useCallback(async (): Promise<{ distanceM: number; durationS: number }> => {
+  const finish = useCallback(async (): Promise<{
+    distanceM: number;
+    durationS: number;
+    uploadQueued: boolean;
+  }> => {
     const t = trackerRef.current;
-    if (t === null || finishedRef.current) return { distanceM: 0, durationS: 0 };
+    if (t === null || finishedRef.current) {
+      return { distanceM: 0, durationS: 0, uploadQueued: false };
+    }
     finishedRef.current = true;
     const now = Date.now();
-    t.finish(now);
+    t.finish(now); // stoppe aussi le podomètre
     stopSensors();
     const snap = t.snapshot(now);
     track(EVENTS.runComplete, {
@@ -307,19 +375,29 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
     });
     // Le VRAI payload part vers ingest_run (seul juge) si session réelle —
     // sinon flux démo actuel (aucun envoi). Idempotent par clientRunId.
-    if (supabase !== null && sessionRef.current !== null) {
-      try {
-        await supabase.functions.invoke('ingest_run', { body: t.buildPayload() });
-      } catch {
-        // Hors-ligne/erreur : on n'a jamais bloqué une fin de course (TODO O8 :
-        // file de retry offline en phase suivante — le runId reste idempotent).
-      }
+    // Hors-ligne : le payload est mis en FILE (jamais purgé sans être à
+    // l'abri), renvoyé silencieusement au prochain lancement/fin de course.
+    const upload = await uploadOrQueue(t.buildPayload());
+    if (upload === 'sent') {
+      // Une course précédente attend peut-être encore son envoi : on en profite.
+      void retryPendingUpload();
     }
-    // Une course interrompue encore en attente de choix garde son buffer :
-    // elle sera re-proposée au prochain GO (jamais effacée sans décision).
-    if (pendingStoredRef.current === null) await clearActiveRun();
-    return { distanceM: snap.distanceM, durationS: snap.activeS };
-  }, [stopSensors]);
+    // Purge des clés de CETTE course — sauf si le payload n'est NULLE PART
+    // ailleurs ('lost' : stockage KO, le buffer reste le dernier filet).
+    if (upload !== 'lost') {
+      await clearCurrentRun();
+      // Une course interrompue encore en attente de choix garde son buffer :
+      // elle sera re-proposée au prochain GO (jamais effacée sans décision).
+      if (pendingStoredRef.current === null) await clearActiveRun();
+    }
+    return {
+      distanceM: snap.distanceM,
+      durationS: snap.activeS,
+      // Message discret « Course enregistrée — envoi dès que possible » —
+      // anti-shame, jamais bloquant.
+      uploadQueued: upload === 'queued' || upload === 'lost',
+    };
+  }, [stopSensors, uploadOrQueue]);
 
   if (kind === 'starting') return { kind: 'starting' };
   if (kind === 'simulation') return { kind: 'simulation', notice };

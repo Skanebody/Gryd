@@ -19,7 +19,13 @@ import type { SourceAdapter, SourceAdapterSnapshot } from './types';
 // Ferme proprement la popup OAuth au retour dans l'app (scheme "gryd", app.json).
 WebBrowser.maybeCompleteAuthSession();
 
-/** Clé AsyncStorage de la liaison Strava locale (token appareil uniquement). */
+/**
+ * Clé AsyncStorage de la liaison Strava locale (token appareil uniquement).
+ * TODO O7 (au branchement des clés Strava) : migrer ce stockage vers
+ * expo-secure-store (chiffré OS — Keychain/Keystore), fallback AsyncStorage
+ * sur web. Pas de dépendance ajoutée tant que les clés n'existent pas
+ * (DISCOVERY O7 — pas de lib sans besoin actif).
+ */
 const STORAGE_KEY = 'gryd.sources.strava';
 
 /** Liaison persistée sur l'appareil après une connexion réussie. */
@@ -95,7 +101,13 @@ async function importVia(
     athleteId: res.athleteId,
     lastSync: res.lastSync ?? new Date().toISOString(),
   };
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(link));
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(link));
+  } catch {
+    // Stockage plein/illisible : l'import a RÉUSSI (activités en base), seule
+    // la liaison locale ne survivra pas au redémarrage — jamais d'exception
+    // vers l'UI (garantie AMENDEMENT-15 §3), le statut reste honnête.
+  }
   return { status: 'connected', lastSync: link.lastSync };
 }
 
@@ -125,7 +137,14 @@ export const stravaAdapter: SourceAdapter = {
       extraParams: { approval_prompt: 'auto' },
     });
 
-    const result = await request.promptAsync({ authorizationEndpoint: AUTHORIZE_ENDPOINT });
+    // promptAsync peut REJETER (navigateur indisponible, scheme mal câblé…) :
+    // jamais d'exception vers l'UI (garantie AMENDEMENT-15 §3) → snapshot honnête.
+    const result = await request
+      .promptAsync({ authorizationEndpoint: AUTHORIZE_ENDPOINT })
+      .catch(() => null);
+    if (result === null) {
+      return { ...DISCONNECTED, detail: 'Connexion impossible — réessaie plus tard' };
+    }
     if (result.type === 'cancel' || result.type === 'dismiss') {
       // Refus = jamais bloquant (GO-first) : on reste proprement déconnecté.
       return DISCONNECTED;

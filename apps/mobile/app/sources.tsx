@@ -155,6 +155,17 @@ export default function SourcesScreen() {
     try {
       const snap = await adapter.connect();
       setSnapshots((prev) => ({ ...prev, [key]: snap }));
+    } catch {
+      // Filet UI (garantie AMENDEMENT-15 §3 « jamais d'exception vers l'UI »,
+      // tenue AUSSI ici) : état honnête, CTA re-tentable, jamais de crash.
+      setSnapshots((prev) => ({
+        ...prev,
+        [key]: {
+          status: 'disconnected',
+          lastSync: null,
+          detail: 'Connexion impossible — réessaie plus tard',
+        },
+      }));
     } finally {
       setBusyKey(null);
     }

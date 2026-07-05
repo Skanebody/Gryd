@@ -21,4 +21,17 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+// 3. supabase-js ≥ 2.71 fait un import() OPTIONNEL de '@opentelemetry/api'
+// (télémétrie opt-in, peer optionnel volontairement NON installé — pas de lib
+// sans besoin actif). Metro le résout statiquement et casse le bundle →
+// module vide : le `.catch(() => null)` de supabase-js désactive la
+// télémétrie, comportement identique à « non installé ».
+const baseResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === '@opentelemetry/api') return { type: 'empty' };
+  return baseResolveRequest
+    ? baseResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;

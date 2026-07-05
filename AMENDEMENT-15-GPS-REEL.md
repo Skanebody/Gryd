@@ -10,8 +10,9 @@
 Pipeline de nettoyage IDENTIQUE client/serveur (le client pré-filtre pour l'affichage, le serveur reste seul juge) :
 - **Rejet d'outliers** : point ignoré si vitesse implicite > vitesse max course (réutilise les bornes §3.2), si `accuracy > GPS_ACCURACY_MAX_M`, si saut temporel/spatial incohérent (téléportation), si dérive en immobilité (jitter parking).
 - **Lissage** : médiane glissante courte + moyenne pondérée par accuracy (pas de sur-lissage qui coupe les virages).
+  - **ACTÉ (vérification 05/07/2026)** : le lissage pondéré par accuracy fait partie du nettoyage PRÉ-ENVOI — le payload `ingest_run` part nettoyé + lissé + décimé (pipeline déterministe, testé Deno). Le serveur borne le trust à la baisse (`min()` avec son propre calcul) et rejuge la totalité de la trace reçue : rien n'est « embelli » à son insu, il reste seul juge.
 - **Distance** : haversine cumulée sur points VALIDES uniquement ; **pause auto** : vitesse < seuil pendant N s → segment pause (non compté, UI « En pause »).
-- **Échantillonnage** : cadence cible adaptative (`GPS_SAMPLE_INTERVAL_MS`, resserrée en virage), décimation Douglas-Peucker légère avant envoi (payload borné).
+- **Échantillonnage** : cadence FIXE (`GPS_SAMPLE_INTERVAL_MS` = 2 s + `distanceInterval` 0, le lissage fait le reste — suffisant au MVP, pas de cadence adaptative), décimation Douglas-Peucker légère avant envoi (payload borné).
 - **GPS Trust** : score continu depuis accuracy moyenne/pertes de signal/ratio outliers — affiché en course (jauge existante) et envoyé au serveur.
 - Constantes UNIQUEMENT dans `game-rules.ts` (bloc AMENDEMENT-15 : GPS_ACCURACY_MAX_M=35, GPS_PAUSE_SPEED_MS, GPS_PAUSE_AFTER_S, GPS_SAMPLE_INTERVAL_MS, GPS_MAX_PAYLOAD_POINTS…). Tests Deno : outliers, pause, tunnel (trou de signal), zigzag GPS urbain, distance de référence.
 

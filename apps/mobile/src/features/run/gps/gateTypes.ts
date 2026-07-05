@@ -32,9 +32,11 @@ export interface RealRunApi {
   /**
    * Fin de course : arrêt propre capteurs/tâche, payload IngestRunRequest réel
    * envoyé via Supabase SI session réelle, buffer purgé. Résout les stats
-   * réelles pour la navigation.
+   * réelles pour la navigation. `uploadQueued` : l'envoi a échoué (hors-ligne)
+   * et la course attend en file — message discret « Course enregistrée —
+   * envoi dès que possible » (anti-shame, jamais bloquant).
    */
-  finish: () => Promise<{ distanceM: number; durationS: number }>;
+  finish: () => Promise<{ distanceM: number; durationS: number; uploadQueued: boolean }>;
 }
 
 /** Résultat du sélecteur : vrai GPS, simulation démo, ou démarrage en cours. */

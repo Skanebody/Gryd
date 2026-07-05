@@ -233,7 +233,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       skipped,
     });
   } catch (err) {
+    // Détail loggé CÔTÉ SERVEUR uniquement (Supabase logs) — la réponse client
+    // reste générique : jamais de stack/URL/message interne exposé.
     console.error('strava_import:', err);
-    return json({ error: 'internal_error', message: `${err}` }, 500);
+    return json({ error: 'internal_error' }, 500);
   }
 });
