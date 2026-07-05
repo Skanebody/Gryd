@@ -7,12 +7,21 @@
  * danger = decay urgent, verify = protection/info.
  * Partagé entre MapScreen natif (MapLibre) et MapScreen.web (SVG).
  */
-import { colors, gameColors, mapTokens } from '@klaim/shared';
+import {
+  colors,
+  gameColors,
+  type IconName,
+  mapTokens,
+  roleColor,
+  type SectorStatusKey,
+  SECTOR_STATUS_LEVELS,
+} from '@klaim/shared';
 import type { RealMapGeoJSONLayer } from '../../ui/game';
-import { territoryGeoByState } from './allTerritories';
+import { SECTOR_BADGE_LABELS, territoryGeoByState } from './allTerritories';
 import { MAP_BONUS_ZONE, PARCOURS_DEMO } from './demo';
 import { battleMapData } from './fakeHexes';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
+import { PARIS_DEMO_SECTOR_VIEWS, type SectorView } from './sectorsDemo';
 import { type ModeEmphasis, type TerritoryState } from './territory';
 
 /**
@@ -271,6 +280,389 @@ export const territoryStyle = {
   /** Liseré satellite : plus dense (la photo est plus contrastée que Voyager). */
   satelliteCasing: withAlpha(colors.noir, 0.72),
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STYLE DES 5 NIVEAUX DE SECTEUR (RÈGLES NON NÉGOCIABLES §C)
+// « Contesté = couleur + FORME + animation + icône » — JAMAIS la couleur seule
+// (daltonisme). Ce bloc est la SPEC de style consommée par le rendu (RealMap) :
+// il ne DESSINE rien, il décrit par niveau (issu d'engine/sectors.sectorStatus)
+// la teinte (token via roleColor), la forme de bordure, l'icône (picto GRYD, pas
+// emoji) et si le contour pulse. Le rendu applique + respecte reduce motion
+// (RealMap.useReduceMotion coupe le pulse) et pose le liseré sombre sur fond clair.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * §C — CONTESTÉ : DOUBLE CONTOUR. Le contour EXTÉRIEUR orange (rival) est plus
+ * large et pulse ; le contour INTÉRIEUR chartreuse (mon crew) est plus fin,
+ * plein. Les deux teintes viennent des tokens (roleColor('rival') / ('mine')).
+ * Décalage latéral ± pour que les deux traits se lisent séparément (jamais un
+ * seul trait bicolore). Largeurs en px de trait MapLibre.
+ */
+export const CONTESTED_STYLE = {
+  /** Contour extérieur (rival) — le plus visible, pulsé. */
+  outerColor: roleColor('rival'),
+  outerWidthPx: 3,
+  outerOffsetPx: 2.5,
+  /** Contour intérieur (mon crew) — plus fin, plein. */
+  innerColor: roleColor('mine'),
+  innerWidthPx: 2,
+  innerOffsetPx: -2.5,
+  /** Remplissage violet TRÈS discret (la ville reste lisible). */
+  fill: withAlpha(gameColors.contested, 0.12),
+  /** Le contour extérieur pulse (respecté par reduce motion côté rendu). */
+  outerPulse: true,
+} as const;
+
+/**
+ * §C — HACHURES LÉGÈRES du contesté (2ᵉ canal de forme, en plus du double
+ * contour) : motif diagonal discret pour distinguer le contesté SANS couleur
+ * (daltonisme). Réutilise le vocabulaire de motifs des crews (design-tokens
+ * foePatterns : 'hatch45'). Le rendu génère le pattern ; on n'en fixe que la spec.
+ */
+export const CONTESTED_HATCH = {
+  pattern: 'hatch45' as const,
+  color: withAlpha(gameColors.contested, 0.22),
+  /** Espacement des hachures (px) — léger, ne remplit pas la zone. */
+  spacingPx: 7,
+  widthPx: 1,
+} as const;
+
+/**
+ * Pulse LENT du contesté/attaque (doc §8) — mêmes valeurs que RealMap
+ * (PULSE_PERIOD_MS / PULSE_MIN_OPACITY_RATIO), rappelées ici pour la spec. Le
+ * rendu COUPE ce pulse si reduce motion est actif (contour alors plein, opacité
+ * max) : l'état reste lisible par la FORME + l'icône, jamais par la seule anim.
+ */
+export const SECTOR_PULSE = {
+  periodMs: 2_400,
+  minOpacityRatio: 0.35,
+} as const;
+
+/** Forme de bordure d'un secteur (2ᵉ signal, indépendant de la couleur — §C). */
+export type SectorBorderShape =
+  /** Bordure pleine — mon crew (stable). */
+  | 'solid'
+  /** Cassée-cible — rival (pointillé + picto cible). */
+  | 'brokenTarget'
+  /** Double + hachures — contesté. */
+  | 'doubleHatch'
+  /** Bouclier — protégé. */
+  | 'shield'
+  /** Sablier-pointillé — decay. */
+  | 'hourglassDashed';
+
+/**
+ * Spec de style d'UN niveau de secteur (§C). Le rendu lit ceci par
+ * `status.key` et compose : teinte `strokeColor` (token), `fill`, `shape`
+ * (forme non-colorée), `icon` (picto GRYD du badge — jamais emoji), `pulse`
+ * (animé seulement hors reduce motion), `badgeLabel` (texte COURT, §A9 : jamais
+ * tronqué), `doubleContour` (→ CONTESTED_STYLE). `alertPriority` reflète la
+ * priorité d'affichage §C (plus haut = plus urgent = peint au-dessus).
+ */
+export interface SectorStatusStyleSpec {
+  level: (typeof SECTOR_STATUS_LEVELS)[SectorStatusKey];
+  strokeColor: string;
+  fill: string;
+  shape: SectorBorderShape;
+  icon: IconName | null;
+  pulse: boolean;
+  doubleContour: boolean;
+  /** Étiquette courte du badge (§C wording). Jamais coupée (§A9). */
+  badgeLabel: string | null;
+  /** Priorité de peinture / d'alerte (0 stable → 4 urgence). */
+  alertPriority: number;
+}
+
+/**
+ * §C — les 5 niveaux, chacun couleur + FORME + icône (+ animation pour 3/4).
+ * Chartreuse = mon crew ; le rival colore l'orange ; le contesté ajoute le
+ * violet + double contour ; l'urgence limite le rouge à un liseré + badge. Le
+ * niveau 0 est MUET (aucune alerte, aucun badge — la zone se lit par sa teinte
+ * de rôle seule, gérée par territoryStyle).
+ */
+export const SECTOR_STATUS_SPEC: Record<SectorStatusKey, SectorStatusStyleSpec> = {
+  // 0 — Stable : aucune alerte, aucun badge. Teinte de rôle (mon crew) seule.
+  stable: {
+    level: SECTOR_STATUS_LEVELS.stable,
+    strokeColor: roleColor('mine'),
+    fill: mapTokens.mineFill,
+    shape: 'solid',
+    icon: null,
+    pulse: false,
+    doubleContour: false,
+    badgeLabel: SECTOR_BADGE_LABELS.stable,
+    alertPriority: SECTOR_STATUS_LEVELS.stable,
+  },
+  // 1 — Pression : halo orange LÉGER + « Canal actif ». Pas encore de double contour.
+  pression: {
+    level: SECTOR_STATUS_LEVELS.pression,
+    strokeColor: withAlpha(gameColors.rival, 0.5),
+    fill: withAlpha(gameColors.rival, 0.07),
+    shape: 'solid',
+    icon: 'radar',
+    pulse: false,
+    doubleContour: false,
+    badgeLabel: SECTOR_BADGE_LABELS.pression,
+    alertPriority: SECTOR_STATUS_LEVELS.pression,
+  },
+  // 2 — Contestée : double contour + violet + hachures + « Zone contestée » (pulse lent).
+  contestee: {
+    level: SECTOR_STATUS_LEVELS.contestee,
+    strokeColor: roleColor('contested'),
+    fill: CONTESTED_STYLE.fill,
+    shape: 'doubleHatch',
+    icon: 'cible',
+    pulse: true,
+    doubleContour: true,
+    badgeLabel: SECTOR_BADGE_LABELS.contestee,
+    alertPriority: SECTOR_STATUS_LEVELS.contestee,
+  },
+  // 3 — Attaque active : contour orange FORT + pulse + « Attaque en cours ».
+  attaque: {
+    level: SECTOR_STATUS_LEVELS.attaque,
+    strokeColor: withAlpha(gameColors.rival, 0.9),
+    fill: withAlpha(gameColors.rival, 0.1),
+    shape: 'brokenTarget',
+    icon: 'alerte',
+    pulse: true,
+    doubleContour: true,
+    badgeLabel: SECTOR_BADGE_LABELS.attaque,
+    alertPriority: SECTOR_STATUS_LEVELS.attaque,
+  },
+  // 4 — Urgence : rouge LIMITÉ (liseré + fill faible) + [DÉFENDRE] + « À sauver ».
+  urgence: {
+    level: SECTOR_STATUS_LEVELS.urgence,
+    strokeColor: withAlpha(gameColors.danger, 0.85),
+    fill: withAlpha(gameColors.danger, 0.08),
+    shape: 'brokenTarget',
+    icon: 'alerte',
+    pulse: true,
+    doubleContour: false,
+    badgeLabel: SECTOR_BADGE_LABELS.urgence,
+    alertPriority: SECTOR_STATUS_LEVELS.urgence,
+  },
+} as const;
+
+/**
+ * §C — icônes de FORME par RÔLE (accessibilité daltonisme : la forme + le picto
+ * disent le rôle sans la couleur). Le rendu pose 1 icône PAR SECTEUR (ancre =
+ * centre). `mine`/`ally` n'ont pas de badge d'alerte (pas de picto d'état) ; le
+ * rival porte la cible, le protégé le bouclier, le decay le sablier, le bonus
+ * les foulées (picto GRYD d'énergie — pas d'emoji éclair).
+ */
+export const ROLE_SHAPE_ICON: Record<
+  'mine' | 'ally' | 'rival' | 'contested' | 'protected' | 'decay' | 'bonus',
+  IconName | null
+> = {
+  mine: null,
+  ally: null,
+  rival: 'cible',
+  contested: 'cible',
+  protected: 'bouclier',
+  decay: 'sablier',
+  bonus: 'foulees',
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDU DES SECTEURS AGRÉGÉS (§C) — « on ne colore pas 200 000 users »
+// Ce builder est le PONT entre le socle (engine/sectors miroité dans
+// sectorsDemo → PARIS_DEMO_SECTOR_VIEWS) et la carte : chaque secteur agrégé
+// est peint par son STATUT (0-4), en COULEUR PAR RÔLE (roleColor) + FORME +
+// pulse — jamais une couleur par crew, jamais un runner. Les seuils/niveaux
+// viennent d'engine (aucun nombre magique de JEU ici) ; seules les dimensions
+// de RENDU (rayons/segments en mètres/px) sont des constantes UI. Le rival
+// n'apparaît qu'en ACTIVITÉ APPROXIMATIVE (disque/halo orange centré secteur,
+// jamais un GPS ni un nom exact — §C). `sectorStatusLayersAll` est empilé par
+// battleGameLayers (Battle Map) et par TerritoryFranceMap (« Mon territoire ») ;
+// le badge TEXTE court des niveaux ≥ contesté vit dans
+// allTerritories.sectorStatusBadgeLayer (calque symbol borné par minZoom).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Rayon du disque d'un secteur agrégé (m) — échelle quartier, pas une règle.
+ * Volontairement MODESTE : les secteurs démo du canal sont proches ; un rayon
+ * trop grand les empile en anneaux concentriques illisibles (§A « compris en
+ * 3 s »). Le badge texte porte le sens ; le disque n'est qu'un repère de zone.
+ */
+const SECTOR_DISC_RADIUS_M = 92;
+/** Segments du cercle géodésique d'un secteur (assez lisse à ce rayon). */
+const SECTOR_CIRCLE_STEPS = 40;
+/** Largeur du contour d'un secteur agrégé (px écran). */
+const SECTOR_STROKE_WIDTH = 2.4;
+/** Double contour contesté : demi-écart des deux traits (px) — ext orange / int chartreuse. */
+const SECTOR_CONTOUR_OFFSET_PX = 3;
+// LOD des secteurs : SECTOR_MIN_ZOOM vit dans allTerritories (sibling de
+// TERRITORY_DOT_MAX_ZOOM, la LOD des marqueurs-points) et est importé ici —
+// sous ce zoom les disques sont sub-pixel et les points villes portent seuls la
+// lecture ; au-dessus, secteurs + badges prennent le relais (§C LOD).
+
+/** Rayon de référence pour convertir l'espacement px des hachures en mètres. */
+const SECTOR_DISC_RADIUS_PX_REF = 90;
+
+/** Disque géodésique (secteur agrégé) autour d'un centre — même maths que la zone bonus. */
+function sectorDiscRing(center: LatLngPoint, radiusM: number): number[][] {
+  const ring: number[][] = [];
+  for (let i = 0; i <= SECTOR_CIRCLE_STEPS; i += 1) {
+    const angle = (i / SECTOR_CIRCLE_STEPS) * Math.PI * 2;
+    ring.push([
+      center.lng + (Math.cos(angle) * radiusM) / REAL_M_PER_DEG_LNG,
+      center.lat + (Math.sin(angle) * radiusM) / REAL_M_PER_DEG_LAT,
+    ]);
+  }
+  return ring;
+}
+
+/**
+ * HACHURES diagonales (2ᵉ canal de forme du contesté, §C — daltonisme) : de
+ * vrais segments à 45° couvrant le disque, espacés de CONTESTED_HATCH.spacingPx
+ * (converti en mètres via le rayon), en LineString. Pas de fill-pattern (non
+ * disponible via RealMapGeoJSONLayer) — la géométrie EST la hachure.
+ */
+function sectorHatchLines(center: LatLngPoint, radiusM: number): GeoJSONLineFeature[] {
+  const out: GeoJSONLineFeature[] = [];
+  // Espacement des hachures en mètres : proportionnel au rayon (≈ radius / 4 →
+  // ~8 diagonales sur le diamètre) pour une texture LÉGÈRE constante quel que
+  // soit le zoom — le ratio CONTESTED_HATCH.spacingPx/RADIUS_PX_REF ne fait que
+  // moduler finement cette densité (jamais un remplissage plein, §C daltonisme).
+  const densityRatio = CONTESTED_HATCH.spacingPx / SECTOR_DISC_RADIUS_PX_REF;
+  const step = Math.max(radiusM / 6, radiusM * densityRatio);
+  const mPerDegLng = REAL_M_PER_DEG_LNG;
+  const mPerDegLat = REAL_M_PER_DEG_LAT;
+  // Diagonale u = (1,1)/√2 ; on balaie la perpendiculaire de -r√2 à +r√2.
+  for (let d = -radiusM; d <= radiusM; d += step) {
+    // Corde de la droite {centre + d·n + t·u} ∩ disque, n ⟂ u.
+    const half = Math.sqrt(Math.max(0, radiusM * radiusM - d * d));
+    if (half <= 0) continue;
+    const nx = -Math.SQRT1_2;
+    const ny = Math.SQRT1_2;
+    const ux = Math.SQRT1_2;
+    const uy = Math.SQRT1_2;
+    const ax = d * nx - half * ux;
+    const ay = d * ny - half * uy;
+    const bx = d * nx + half * ux;
+    const by = d * ny + half * uy;
+    out.push({
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [center.lng + ax / mPerDegLng, center.lat + ay / mPerDegLat],
+          [center.lng + bx / mPerDegLng, center.lat + by / mPerDegLat],
+        ],
+      },
+    });
+  }
+  return out;
+}
+
+type GeoJSONPolygonFeature = {
+  type: 'Feature';
+  properties: Record<string, unknown>;
+  geometry: { type: 'Polygon'; coordinates: number[][][] };
+};
+type GeoJSONLineFeature = {
+  type: 'Feature';
+  properties: Record<string, unknown>;
+  geometry: { type: 'LineString'; coordinates: number[][] };
+};
+
+function sectorDiscFeature(center: LatLngPoint, radiusM: number): GeoJSONPolygonFeature {
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'Polygon', coordinates: [sectorDiscRing(center, radiusM)] },
+  };
+}
+function sectorRingFeature(center: LatLngPoint, radiusM: number): GeoJSONLineFeature {
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'LineString', coordinates: sectorDiscRing(center, radiusM) },
+  };
+}
+
+type SectorViewWithPlace = SectorView & { name: string; center: LatLngPoint };
+
+/**
+ * §C — couches de RENDU d'UN secteur agrégé selon son statut (0-4). Ordre de
+ * peinture interne : fill de statut → contour (double si contesté : ext orange
+ * décalé + PULSE, int chartreuse) → hachures (contesté) → halo d'activité rival
+ * approximatif (niveau ≥ pression). Rien au niveau 0 (stable) : la teinte de
+ * rôle du territoire (territoryStyle) suffit, aucune alerte (§C). Toutes les
+ * teintes viennent de SECTOR_STATUS_SPEC / CONTESTED_STYLE (tokens) — zéro
+ * couleur par crew. `emphContested` module l'opacité (mode Raid/Territoire).
+ */
+function sectorStatusLayers(view: SectorViewWithPlace, emphContested: number): RealMapGeoJSONLayer[] {
+  const { level, key } = view.status;
+  if (level <= SECTOR_STATUS_LEVELS.stable) return [];
+  const spec = SECTOR_STATUS_SPEC[key];
+  const id = `sector-${view.id}`;
+  const center = view.center;
+  const layers: RealMapGeoJSONLayer[] = [];
+
+  // 1. Aplat de statut (violet contesté / orange pression-attaque / rouge urgence)
+  //    — très discret, la ville reste lisible dessous (§C).
+  layers.push({
+    id: `${id}-fill`,
+    data: { type: 'FeatureCollection', features: [sectorDiscFeature(center, SECTOR_DISC_RADIUS_M)] },
+    fillColor: spec.fill,
+    fillOpacity: emphContested,
+  });
+
+  if (spec.doubleContour) {
+    // 2a. DOUBLE CONTOUR (§C, niveau ≥ contesté) : contour INTÉRIEUR chartreuse
+    //     (mon crew) décalé vers l'intérieur — trait plein, non pulsé.
+    layers.push({
+      id: `${id}-inner`,
+      data: { type: 'FeatureCollection', features: [sectorRingFeature(center, SECTOR_DISC_RADIUS_M)] },
+      lineColor: CONTESTED_STYLE.innerColor,
+      lineWidth: CONTESTED_STYLE.innerWidthPx,
+      lineOffset: -SECTOR_CONTOUR_OFFSET_PX,
+    });
+    // 2b. Contour EXTÉRIEUR orange (rival) décalé vers l'extérieur + PULSE lent
+    //     (coupé par reduce motion côté RealMap → reste plein, jamais invisible).
+    layers.push({
+      id: `${id}-outer`,
+      data: { type: 'FeatureCollection', features: [sectorRingFeature(center, SECTOR_DISC_RADIUS_M)] },
+      lineColor: CONTESTED_STYLE.outerColor,
+      lineWidth: CONTESTED_STYLE.outerWidthPx,
+      lineOffset: SECTOR_CONTOUR_OFFSET_PX,
+      pulse: spec.pulse,
+    });
+    // 2c. HACHURES légères (2ᵉ canal de forme — daltonisme, §C).
+    layers.push({
+      id: `${id}-hatch`,
+      data: { type: 'FeatureCollection', features: sectorHatchLines(center, SECTOR_DISC_RADIUS_M) },
+      lineColor: CONTESTED_HATCH.color,
+      lineWidth: CONTESTED_HATCH.widthPx,
+    });
+  } else {
+    // 2. Contour SIMPLE (niveau pression / urgence sans double contour) : la
+    //    teinte de statut (orange léger ou rouge limité), pulsé si le spec le dit.
+    layers.push({
+      id: `${id}-ring`,
+      data: { type: 'FeatureCollection', features: [sectorRingFeature(center, SECTOR_DISC_RADIUS_M)] },
+      lineColor: spec.strokeColor,
+      lineWidth: SECTOR_STROKE_WIDTH,
+      pulse: spec.pulse,
+    });
+  }
+
+  return layers;
+}
+
+/**
+ * §C — TOUTES les couches de secteurs agrégés de la démo Paris (ego =
+ * gryd-republique), dans l'ordre de peinture (statut croissant : le plus chaud
+ * PAR-DESSUS — priorité d'affichage §C). C'est ce que la Battle Map empile
+ * au-dessus des territoires. `emphContested` = emphase du mode actif.
+ */
+export function sectorStatusLayersAll(emphContested = 1): RealMapGeoJSONLayer[] {
+  return [...PARIS_DEMO_SECTOR_VIEWS]
+    .sort((a, b) => a.status.level - b.status.level)
+    .flatMap((view) => sectorStatusLayers(view, emphContested));
+}
 
 /** Sur-largeur du liseré sombre (px de part et d'autre du trait) — fin. */
 const COLOR_CASING_EXTRA_PX = 2;
@@ -831,6 +1223,13 @@ export function battleGameLayers(
   const terr = territoryStyle;
   return [
     ...territoryStateLayers(emph, basemap),
+    // §C — SECTEURS AGRÉGÉS par STATUT (0-4) au-DESSUS des territoires : c'est la
+    // lecture « où est-ce chaud ? » (contesté violet + double contour pulsé,
+    // attaque orange, urgence rouge, activité rival approximative). Peints sous
+    // la route/bonus (le trait route-first reste au premier plan) — le badge
+    // texte court est porté à part par sectorStatusPointLayers (calque symbol
+    // borné par zoom). L'emphase `contested` du mode actif module leur opacité.
+    ...sectorStatusLayersAll(emph.contested),
     // Zone bonus (1 MAX) + route ouverte : traits or/chartreuse — sur le fond
     // COULEUR ils reçoivent le liseré sombre porteur (withColorCasing), pas le
     // fill de la zone bonus (un aplat lit très bien sur Voyager).

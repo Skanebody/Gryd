@@ -128,6 +128,71 @@ export const gameColors = {
 } as const;
 export type GameColorName = keyof typeof gameColors;
 
+/**
+ * RÈGLES NON NÉGOCIABLES §C — COULEUR PAR RÔLE (pas par identité de crew). La
+ * carte colore le rôle d'une zone DANS LE CONTEXTE du joueur, jamais l'identité
+ * universelle d'un crew (« on ne colore pas 200 000 utilisateurs »). Jamais plus
+ * de 2 rôles fortement colorés sur une même zone (moi + rival dominant) ; les
+ * autres crews sont agrégés dans le détail au tap.
+ *
+ * ⚠ La couleur ne SUFFIT jamais (daltonisme) : chaque rôle/état porte aussi une
+ * FORME + une icône (bordure pleine = mon crew · cassée-cible = rival ·
+ * double+hachures = contesté · bouclier = protégé · sablier-pointillé = decay ·
+ * éclair = bonus — cf. mapStyle contested/spec). `roleColor` ne rend QUE le
+ * token de teinte ; le rendu ajoute forme + picto.
+ */
+export type SectorRoleColorKey =
+  /** Moi / mon crew — la chartreuse unique de la charte. */
+  | 'mine'
+  /** Alliés (opt-in mission) — chartreuse SECONDAIRE (déclinaison atténuée). */
+  | 'ally'
+  /** Rival principal — orange/rouge. */
+  | 'rival'
+  /** Zone contestée — violet (+ double contour côté rendu). */
+  | 'contested'
+  /** Neutre / inconnu — gris (pas d'accent). */
+  | 'neutral'
+  /** Protégé — bleu/bouclier. */
+  | 'protected'
+  /** Decay — rouge sombre/pointillé. */
+  | 'decay'
+  /** Bonus — gold/éclair. */
+  | 'bonus';
+
+/**
+ * Chartreuse SECONDAIRE des ALLIÉS (§C) : la MÊME teinte que mon crew, mais
+ * atténuée — un allié se lit « de mon bord » sans jamais dominer ma propre
+ * couleur (ma zone reste la plus lisible). Dérivée du token chartreuse (aucune
+ * teinte nouvelle : charte).
+ */
+export const ALLY_CHARTREUSE = colors.chartreuse40;
+
+/**
+ * Token de teinte d'un rôle/état de zone (§C). SOURCE unique pour la carte et
+ * les légendes — garantit qu'aucun écran n'invente une couleur de rôle hors
+ * charte. Retourne toujours un token existant (colors.* / gameColors.*).
+ */
+export function roleColor(role: SectorRoleColorKey): string {
+  switch (role) {
+    case 'mine':
+      return gameColors.crew; // = colors.chartreuse
+    case 'ally':
+      return ALLY_CHARTREUSE;
+    case 'rival':
+      return gameColors.rival;
+    case 'contested':
+      return gameColors.contested;
+    case 'protected':
+      return gameColors.verify;
+    case 'decay':
+      return gameColors.danger;
+    case 'bonus':
+      return gameColors.gold;
+    case 'neutral':
+      return colors.gris;
+  }
+}
+
 /** 8 motifs de différenciation des crews adverses (addendum §D). */
 export const foePatterns = [
   'hatch45', 'hatch-45', 'dots', 'crosshatch', 'vlines', 'hlines', 'dashes', 'rings',

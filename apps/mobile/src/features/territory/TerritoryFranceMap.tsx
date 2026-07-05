@@ -30,7 +30,7 @@ import {
   possessionsBounds,
   territoryDotLayers,
 } from '../map/allTerritories';
-import { FULL_EMPHASIS, territoryStateLayers } from '../map/mapStyle';
+import { FULL_EMPHASIS, sectorStatusLayersAll, territoryStateLayers } from '../map/mapStyle';
 import { FRANCE_CITIES_DEMO, type FranceCity, type FranceCityId } from './franceTerritories';
 
 // ─── Constantes de rendu (UI uniquement) ────────────────────────────────────
@@ -70,8 +70,18 @@ export function TerritoryFranceMap({ preview = false, style, testID }: Territory
     setDotsVisible(zoom < TERRITORY_DOT_MAX_ZOOM);
   }, []);
 
-  /** Couches TRACÉ-BASED partagées avec la Battle Map (§4bis/§4ter). */
-  const layers = useMemo(() => territoryStateLayers(FULL_EMPHASIS), []);
+  /**
+   * Couches TRACÉ-BASED partagées avec la Battle Map (§4bis/§4ter) + les
+   * SECTEURS agrégés par statut (§C) au-dessus : au zoom quartier/rue « Mon
+   * territoire » lit les mêmes zones contestées / attaques / urgences que la
+   * Battle Map (double contour + violet + pulse), avec leurs badges (portés par
+   * territoryDotLayers, bornés en minZoom). Au dézoom, disques sub-pixel +
+   * badges masqués → seuls les marqueurs-points villes/fronts restent (LOD §C).
+   */
+  const layers = useMemo(
+    () => [...territoryStateLayers(FULL_EMPHASIS), ...sectorStatusLayersAll(FULL_EMPHASIS.contested)],
+    [],
+  );
   /** Cadrage d'ouverture : fitBounds de TOUTES les possessions (§4bis). */
   const bounds = useMemo(
     () => possessionsBounds(preview ? PREVIEW_FIT_PADDING_PX : OVERVIEW_FIT_PADDING_PX),

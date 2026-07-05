@@ -274,6 +274,111 @@ export const OUTPOST_RADIUS_KM = 2;
 /** Secteurs auto-générés MVP : agrégat H3 grossier (arbitrage A3 AMENDEMENT-02). */
 export const SECTOR_H3_RESOLUTION = 7;
 
+// ─── Pression & contestation d'un secteur (RÈGLES NON NÉGOCIABLES §C) ────────
+// GRYD ne colore pas 200 000 users : il AGRÈGE en secteurs porteurs d'un
+// `pressure_score` (0-100) et d'un `status` (5 niveaux). Ces seuils sont la
+// SOURCE DE VÉRITÉ consommée par engine/sectors.ts (dérivation démo côté client
+// au MVP ; pré-calcul serveur par secteur en V1 — cf. §C « Backend scalable »).
+// Toutes les bornes ci-dessous sont TUNABLE (équilibrage jeu, pas structurel).
+
+/**
+ * §C — 5 niveaux de contestation pilotés par `pressure_score` (0-100), par
+ * BORNE BASSE incluse. Chaque niveau porte un traitement visuel distinct
+ * (jamais la couleur seule : forme + icône + animation en plus — daltonisme) :
+ *   0 stable   [0-30]   aucune alerte
+ *   1 pression [31-60]  halo orange léger + « Canal actif »
+ *   2 contestee[61-80]  double contour + violet + « Zone contestée »
+ *   4 urgence  [81-100] rouge limité + [DÉFENDRE] + « N zones à sauver »
+ * Le niveau 3 « attaque active » n'est PAS une bande de score : c'est une
+ * SUR-SIGNALISATION posée sur un secteur en pression/contesté quand une attaque
+ * rival est EN COURS (cf. SECTOR_ACTIVE_ATTACK_MAX_H) — d'où l'absence de borne
+ * 3 ici. `sectorStatus` combine bande de score + drapeau d'attaque active.
+ * TUNABLE.
+ */
+export const SECTOR_PRESSURE_BANDS = {
+  stable: 0,
+  pression: 31,
+  contestee: 61,
+  urgence: 81,
+} as const;
+export type SectorPressureBand = keyof typeof SECTOR_PRESSURE_BANDS;
+
+/**
+ * Niveaux de secteur (0-4) — index STABLE consommé par l'UI (LOD, priorité
+ * d'affichage §C). 3 = attaque active (drapeau, pas une bande). Alignés sur les
+ * clés de traitement visuel de §C.
+ */
+export const SECTOR_STATUS_LEVELS = {
+  stable: 0,
+  pression: 1,
+  contestee: 2,
+  attaque: 3,
+  urgence: 4,
+} as const;
+export type SectorStatusKey = keyof typeof SECTOR_STATUS_LEVELS;
+
+/**
+ * §C — RÈGLE « contesté » (déclenche le traitement violet + double contour).
+ * Un secteur est contesté si l'UNE de ces conditions est vraie :
+ *   (a) le rival principal détient ≥ RIVAL_MIN ET mon crew ≤ MINE_MAX ;
+ *   (b) l'ÉCART |mon_crew − rival_principal| < GAP_MAX (coude à coude) ;
+ *   (c) le rival a REPRIS > RECLAIM_ZONES_24H zones sur 24 h (poussée récente).
+ * Bornes en FRACTION de contrôle du secteur (0-1). TUNABLE.
+ */
+export const SECTOR_CONTESTED_RULE = {
+  /** (a) part minimale du rival principal pour disputer. */
+  rivalMinShare: 0.25,
+  /** (a) part maximale de mon crew au-delà de laquelle le secteur est tenu. */
+  mineMaxShare: 0.6,
+  /** (b) écart max mon_crew↔rival en-deçà duquel c'est un coude-à-coude. */
+  closeGapMax: 0.15,
+  /** (c) nb de zones reprises par le rival sur 24 h qui force le statut contesté. */
+  reclaimZones24h: 8,
+} as const;
+
+/**
+ * Fenêtre (heures depuis `last_attack_at`) pendant laquelle un secteur est en
+ * ATTAQUE ACTIVE (niveau 3 — contour orange fort + pulse) dès lors qu'il est
+ * déjà sous pression. Au-delà, l'attaque « refroidit » et le secteur retombe
+ * sur sa bande de score. TUNABLE.
+ */
+export const SECTOR_ACTIVE_ATTACK_MAX_H = 6;
+
+/**
+ * §C — `pressure_score = activité rival récente + zones perdues + proximité de
+ * bascule + decay`. POIDS (points de score) de chaque composante AVANT plafond
+ * à 100. La somme des maxima dépasse 100 à dessein : plusieurs signaux forts se
+ * cumulent puis SATURENT (un secteur violemment attaqué ET en decay = 100, pas
+ * plus). Chaque composante est un sous-score 0-1 (normalisé côté engine) ×
+ * son poids ici. TUNABLE (équilibrage de la lecture de pression).
+ */
+export const SECTOR_PRESSURE_WEIGHTS = {
+  /** Activité rival récente (runs/attaques rival normalisés sur la fenêtre). */
+  rivalActivity: 45,
+  /** Zones perdues récemment (frontières reprises, normalisé). */
+  zonesLost: 30,
+  /** Proximité de BASCULE : plus l'écart mon_crew↔rival est faible, plus c'est chaud. */
+  flipProximity: 30,
+  /** Decay : fraction du secteur dont l'échéance de decay est imminente. */
+  decay: 20,
+} as const;
+export type SectorPressureComponent = keyof typeof SECTOR_PRESSURE_WEIGHTS;
+
+/**
+ * Normalisation de l'activité rival : nb de runs/attaques rival récents qui
+ * SATURENT la composante `rivalActivity` (au-delà, sous-score = 1). Évite qu'un
+ * pic ponctuel n'écrase l'échelle. TUNABLE.
+ */
+export const SECTOR_RIVAL_ACTIVITY_SATURATION = 20;
+/**
+ * Normalisation des zones perdues : nb de zones reprises sur la fenêtre qui
+ * SATURE la composante `zonesLost`. Aligné sur l'ordre de grandeur de
+ * SECTOR_CONTESTED_RULE.reclaimZones24h. TUNABLE.
+ */
+export const SECTOR_ZONES_LOST_SATURATION = 16;
+/** Score de pression borné à [0, 100] — plafond structurel (pas TUNABLE). */
+export const SECTOR_PRESSURE_MAX = 100;
+
 // ─── XP joueur (permanent, jamais acheté, survit au reset — AMENDEMENT-02 §6) ─
 /** Choix D18 : XP = points territoire bruts de la course (1:1), boosts cosmétiques V1. */
 export const XP_RATE_OF_POINTS = 1;

@@ -16,6 +16,7 @@ export * from './hexing.ts';
 export * from './boundary.ts';
 export * from './coverage.ts';
 export * from './zone.ts';
+export * from './sectors.ts';
 export * from './claims.ts';
 export * from './scoring.ts';
 export * from './badges.ts';

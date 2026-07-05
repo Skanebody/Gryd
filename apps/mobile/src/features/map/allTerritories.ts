@@ -27,13 +27,20 @@
  * filtrage par viewport (volumes MVP négligeables). UI pure — aucune règle de
  * jeu (la CAPTURE reste France entière, AMENDEMENT-02).
  */
-import { colors, gameColors } from '@klaim/shared';
+import {
+  colors,
+  gameColors,
+  roleColor,
+  type SectorStatusKey,
+  SECTOR_STATUS_LEVELS,
+} from '@klaim/shared';
 import type { RealMapBounds, RealMapPointLayer } from '../../ui/game';
 import {
   FRANCE_CITIES_DEMO,
   LILLE_BOUCLE,
   LYON_BERGES_RHONE,
 } from '../territory/franceTerritories';
+import { PARIS_DEMO_SECTOR_VIEWS } from './sectorsDemo';
 import {
   AVENUE_DE_LA_REPUBLIQUE,
   BOUCLE_BASTILLE,
@@ -330,8 +337,96 @@ export function territoryDotLayers(): readonly RealMapPointLayer[] {
       textHaloColor: colors.noir,
       textLetterSpacing: TERRITORY_LABEL_LETTER_SPACING_EM,
     },
+    // §C — BADGE de statut par SECTEUR (relais des marqueurs-points villes au
+    // zoom quartier/rue) : le libellé COURT de SECTOR_STATUS_SPEC (« Zone
+    // contestée » / « Attaque en cours » / « À sauver » — jamais tronqué §A9)
+    // sur un point de la teinte de statut. Borné en minZoom (SECTOR_MIN_ZOOM) →
+    // n'apparaît QUE là où les disques de secteur sont lisibles (les villes ont
+    // pris le relais en dessous). Même calque `pointLayers` que les villes, donc
+    // servi aux DEUX cartes sans toucher MapScreen.
+    sectorStatusBadgeLayer(),
   ];
   return dotLayersCache;
+}
+
+/**
+ * §C — Zoom SEUIL d'apparition des SECTEURS agrégés (disques de statut) + de
+ * leurs badges texte. Sous ce zoom (pays/monde) un disque de ~130 m est
+ * sub-pixel et un badge serait un amas → les MARQUEURS-POINTS villes
+ * (territory-dots, borné en maxZoom TERRITORY_DOT_MAX_ZOOM) portent seuls la
+ * lecture ; au-dessus, les secteurs et badges prennent le relais. Défini ICI
+ * (sibling de TERRITORY_DOT_MAX_ZOOM, la LOD des points) et RÉUTILISÉ par
+ * mapStyle pour les disques — dépendance à sens unique mapStyle → allTerritories
+ * (aucun cycle). Constante de RENDU (LOD), pas une règle de jeu.
+ */
+export const SECTOR_MIN_ZOOM = 11;
+
+/**
+ * §C — Libellés COURTS des badges de statut (jamais tronqués, §A9). Source
+ * UNIQUE de ce wording, réutilisée par mapStyle (SECTOR_STATUS_SPEC.badgeLabel)
+ * — pas de duplication. `null` = pas de badge (stable muet ; pression = simple
+ * halo orange sur la carte, sans bandeau permanent — §C).
+ */
+export const SECTOR_BADGE_LABELS: Record<SectorStatusKey, string | null> = {
+  stable: null,
+  pression: 'Canal actif',
+  contestee: 'Zone contestée',
+  attaque: 'Attaque en cours',
+  urgence: 'À sauver',
+} as const;
+
+/** Point du badge de statut (rayon) — petit, le libellé porte l'info. */
+const SECTOR_BADGE_DOT_RADIUS_PX = 3;
+const SECTOR_BADGE_DOT_STROKE_PX = 1.5;
+const SECTOR_BADGE_LABEL_SIZE_PX = 11;
+const SECTOR_BADGE_LABEL_OFFSET_EM = 1;
+const SECTOR_BADGE_LABEL_LETTER_SPACING_EM = 0.02;
+
+/**
+ * §C — Calque des BADGES de statut de secteur (niveau ≥ contesté). La PRESSION
+ * (niveau 1) reste un simple halo orange sur la carte (pas de bandeau
+ * permanent, §C) : seuls les secteurs contesté / attaque / urgence portent une
+ * étiquette courte. Couleur du point = teinte de statut (roleColor : contesté →
+ * violet ; attaque → rival orange ; urgence → decay), jamais une couleur par
+ * crew. Borné en minZoom pour relayer les marqueurs-points villes au zoom
+ * quartier. Un seul point + libellé par secteur (1 badge / secteur — §C).
+ */
+export function sectorStatusBadgeLayer(): RealMapPointLayer {
+  const data: GameCollection = {
+    type: 'FeatureCollection',
+    features: PARIS_DEMO_SECTOR_VIEWS.filter(
+      (v) => v.status.level >= SECTOR_STATUS_LEVELS.contestee,
+    ).map((v) => {
+      // Teinte de statut par rôle : contesté = violet ; attaque = rival ;
+      // urgence = decay. La couleur ne fait que DOUBLER la forme + le libellé.
+      const roleKey =
+        v.status.level >= SECTOR_STATUS_LEVELS.urgence
+          ? 'decay'
+          : v.status.level >= SECTOR_STATUS_LEVELS.attaque
+            ? 'rival'
+            : 'contested';
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
+        properties: {
+          label: SECTOR_BADGE_LABELS[v.status.key] ?? '',
+          color: roleColor(roleKey),
+        },
+      };
+    }),
+  };
+  return {
+    id: 'sector-status-badges',
+    data,
+    minZoom: SECTOR_MIN_ZOOM,
+    circleRadius: SECTOR_BADGE_DOT_RADIUS_PX,
+    circleStrokeColor: colors.noir,
+    circleStrokeWidth: SECTOR_BADGE_DOT_STROKE_PX,
+    textSize: SECTOR_BADGE_LABEL_SIZE_PX,
+    textOffsetEm: SECTOR_BADGE_LABEL_OFFSET_EM,
+    textHaloColor: colors.noir,
+    textLetterSpacing: SECTOR_BADGE_LABEL_LETTER_SPACING_EM,
+  };
 }
 
 // ─── Bounds de l'ensemble des possessions (caméra d'ouverture, §4bis) ───────
