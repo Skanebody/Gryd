@@ -160,7 +160,10 @@ export function completeBannerLabel(
   coveredPct: number,
 ): string {
   const m = Math.max(0, Math.round(remainingM / BANNER_ROUND_M) * BANNER_ROUND_M);
-  return `Terminer ${zone} · ${m} m restants · Frontière couverte : ${coveredPct} %`;
+  // Bandeau 2 segments (tient sur 1 ligne à 375px) : le % de couverture est déjà
+  // porté par la barre de progression + la card live (anti-troncature Partie D).
+  void coveredPct;
+  return `Terminer ${zone} · ${m} m restants`;
 }
 
 // ─── Zones à défendre (démo doc §3.3 — la vraie liste est serveur, V1) ──────

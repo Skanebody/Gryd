@@ -36,7 +36,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Animated, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Animated, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { cellToLatLng } from 'h3-js';
 import { colors, gameColors } from '@klaim/shared';
@@ -56,6 +56,7 @@ import { REAL_M_PER_DEG_LAT, RUNNER_SCALE_ZOOM, type LatLngPoint } from '../map/
 import type { LoopPhase, RunLoop } from './loop';
 import { SIM_TICK_MS, type RunSimulation } from './simulation';
 import { NAV_MAP_METERS_PER_PIXEL, worldToGeo, type LiveNav } from './liveNav';
+import type { LiveMate, RivalSector } from './livemates';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
 
@@ -228,6 +229,16 @@ export interface LiveNavMapProps {
   loop?: RunLoop | null;
   /** Phase d'affichage de la boucle au tick courant. */
   loopPhase?: LoopPhase;
+  /**
+   * AMENDEMENT-18 §C.4 — alliés live OPT-IN (mission crew rejointe SEULEMENT).
+   * Points chartreuse + prénom, personnes UTILES uniquement. Vide hors mission.
+   */
+  mates?: readonly LiveMate[];
+  /**
+   * AMENDEMENT-18 §C.4 — activité rivale PAR SECTEUR (jamais exacte, retardée) :
+   * halo orange approximatif. Aucune position/trace rivale précise. null = rien.
+   */
+  rival?: RivalSector | null;
   /** Notifié quand le suivi caméra change (geste = off, recenter = on). */
   onFollowChange?: (following: boolean) => void;
 }
@@ -239,7 +250,18 @@ interface DisplayPos {
 }
 
 export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function LiveNavMap(
-  { nav, sim, tickIndex, capturing, contested = false, loop = null, loopPhase = 'none', onFollowChange },
+  {
+    nav,
+    sim,
+    tickIndex,
+    capturing,
+    contested = false,
+    loop = null,
+    loopPhase = 'none',
+    mates = [],
+    rival = null,
+    onFollowChange,
+  },
   ref,
 ) {
   const reduce = useReduceMotion();
@@ -492,8 +514,21 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
     return { lat: lat ?? 0, lng: lng ?? 0 };
   }, [lastCell]);
 
+  /** Rayon écran (px) du halo rival, dérivé de son rayon APPROXIMATIF en mètres. */
+  const rivalHaloPx = rival ? (2 * rival.radiusM) / NAV_MAP_METERS_PER_PIXEL : 0;
+
   const markers = useMemo<RealMapMarker[]>(() => {
     const out: RealMapMarker[] = [];
+    // Rival PAR SECTEUR (§C.4) : halo orange approximatif, posé EN PREMIER (sous
+    // tout le reste). Jamais une position exacte, jamais une trace — un flou.
+    if (rival) {
+      out.push({
+        id: 'live-rival-sector',
+        lng: rival.geo.lng,
+        lat: rival.geo.lat,
+        children: <RivalSectorHalo sizePx={rivalHaloPx} tint={rival.tint} />,
+      });
+    }
     if (turn && !(i >= lastIndex)) {
       const g = worldToGeo(turn.x, turn.y);
       out.push({
@@ -536,6 +571,17 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
         ),
       });
     }
+    // Alliés live OPT-IN (§C.4) : points chartreuse + prénom, personnes UTILES
+    // uniquement (segments couverts, qui ferme la boucle). Sous l'ego, au-dessus
+    // du reste. Position DÉMO, jamais dérivée d'une vraie personne.
+    for (const m of mates) {
+      out.push({
+        id: `live-mate-${m.id}`,
+        lng: m.geo.lng,
+        lat: m.geo.lat,
+        children: <MateMarker name={m.name} />,
+      });
+    }
     // Avatar coureur — TOUJOURS au-dessus. Position DÉMO locale, jamais
     // publiée (AMENDEMENT-07).
     out.push({
@@ -545,7 +591,7 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
       children: <RunnerMarker headingDeg={pos.headingDeg} />,
     });
     return out;
-  }, [turn, i, lastIndex, destGeo, loopOpen, loopStartGeo, reachedCp, capturing, frontGeo, contested, pos]);
+  }, [turn, i, lastIndex, destGeo, loopOpen, loopStartGeo, reachedCp, capturing, frontGeo, contested, pos, mates, rival, rivalHaloPx]);
 
   return (
     <View style={styles.root} onLayout={onLayout}>
@@ -606,6 +652,53 @@ function PulseRing({ color, speed = 'slow' }: { color: string; speed?: 'slow' | 
 /** Marqueur départ de boucle (anneau chartreuse sur fond noir). */
 function LoopStartDot() {
   return <View pointerEvents="none" style={styles.loopStart} />;
+}
+
+/**
+ * Allié live (§C.4) : point chartreuse + prénom sur pastille sombre. OPT-IN,
+ * mission crew rejointe uniquement — filtré en amont (course-live.tsx).
+ */
+function MateMarker({ name }: { name: string }) {
+  return (
+    <View pointerEvents="none" style={styles.mateWrap}>
+      <View style={styles.mateDot} />
+      <View style={styles.mateNamePill}>
+        <Text style={styles.mateNameText} numberOfLines={1}>
+          {name}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Halo rival PAR SECTEUR (§C.4) : disque orange flou pulsé, APPROXIMATIF. Jamais
+ * une position exacte ni une trace — c'est un secteur, retardé (démo). Le pulse
+ * lit la « pression ». Reduce motion → halo fixe.
+ */
+function RivalSectorHalo({ sizePx, tint }: { sizePx: number; tint: string }) {
+  const pulse = usePulse(true, 1.12, 2_600);
+  const size = Math.max(60, sizePx);
+  return (
+    <View pointerEvents="none" style={[styles.rivalWrap, { width: size, height: size }]}>
+      <Animated.View
+        style={[
+          styles.rivalHalo,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderColor: withAlpha(tint, 0.5),
+            backgroundColor: withAlpha(tint, 0.1),
+            transform: [{ scale: pulse }],
+          },
+        ]}
+      />
+      <View style={[styles.rivalCore, { backgroundColor: withAlpha(tint, 0.9) }]}>
+        <Icon name="cible" size={11} color={colors.noir} />
+      </View>
+    </View>
+  );
 }
 
 /** Pastille flèche du prochain virage (parité RouteProgress). */
@@ -697,6 +790,47 @@ const styles = StyleSheet.create({
     backgroundColor: gameColors.carbon,
     borderWidth: 1,
     borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Alliés live opt-in (§C.4) : point chartreuse + prénom sur pastille ──────
+  mateWrap: { alignItems: 'center', gap: 3 },
+  mateDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.chartreuse,
+    borderWidth: 2,
+    borderColor: colors.noir,
+  },
+  mateNamePill: {
+    backgroundColor: gameColors.carbon,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  mateNameText: {
+    color: colors.blanc,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+
+  // ── Rival PAR SECTEUR (§C.4) : halo orange APPROXIMATIF, jamais exact ───────
+  rivalWrap: { alignItems: 'center', justifyContent: 'center' },
+  rivalHalo: {
+    position: 'absolute',
+    borderWidth: 1.5,
+  },
+  rivalCore: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.noir,
     alignItems: 'center',
     justifyContent: 'center',
   },

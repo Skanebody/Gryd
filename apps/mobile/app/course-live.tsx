@@ -95,6 +95,27 @@ import {
   type PartialBoundaryDemo,
   type RunIntention,
 } from '../src/features/run/intention';
+import {
+  INDICATION_HAPTIC,
+  QUICK_PINGS,
+  buildIndicationScript,
+  completeLiveCard,
+  defenseLiveCard,
+  freeRunLiveCard,
+  loopLiveCard,
+  type LiveCard,
+  type LiveIndication,
+  type QuickPing,
+} from '../src/features/run/indications';
+import {
+  liveMatesAt,
+  primaryMateLine,
+  rivalSectorAt,
+  rivalSectorLine,
+  shouldShowMates,
+  type LiveMate,
+  type RivalSector,
+} from '../src/features/run/livemates';
 
 /** Marge entre la sheet compacte et l'UI flottante (boutons, échelle). */
 const ABOVE_SHEET_GAP = 12;
@@ -104,6 +125,8 @@ const STOP_BUTTON_SIZE = 48;
 const BIG_CONTROL_SIZE = 68;
 /** Distance au checkpoint arrondie à 10 m (lecture nav, pas de fausse précision). */
 const CHECKPOINT_ROUND_M = 10;
+/** Durée de la mini-anim N3 (§C.3) : ~2 s, ne masque jamais la route longtemps. */
+const N3_DURATION_MS = 2_000;
 
 /** Les deux modes d'affichage du live (AMENDEMENT-10 §3 — Nike d'abord). */
 type LiveView = 'stats' | 'carte';
@@ -140,6 +163,8 @@ export default function CourseLiveScreen() {
     intention?: string;
     /** AMENDEMENT-17 §CH2 — id de la frontière crew à terminer (mode complete). */
     boundary?: string;
+    /** AMENDEMENT-18 §C.4 — course lancée comme mission crew rejointe (alliés opt-in). */
+    mission?: string;
   }>();
   // AMENDEMENT-17 §CH2 — mode « terminer » : un membre reprend une frontière
   // ouverte par son crew pour la refermer. C'est une course de conquête (le
@@ -153,6 +178,11 @@ export default function CourseLiveScreen() {
   const intention = intentionFromParam(params.intention);
   // GPS réel (AMENDEMENT-15 §2) : natif + permission → vrai tracker ; web ou
   // refus → simulation démo INCHANGÉE (variante useRealRun.web.ts = stub).
+  // AMENDEMENT-18 §C.4 — mission crew rejointe : les alliés opt-in ne s'affichent
+  // QUE dans ce cadre. Le mode « terminer » est toujours une mission (on referme
+  // une frontière crew ensemble) ; sinon `?mission=1` le déclare explicitement.
+  const missionParam = Array.isArray(params.mission) ? params.mission[0] : params.mission;
+  const mission = missionParam === '1' || missionParam === 'true';
   const gate = useRealRun(mode);
   if (gate.kind === 'starting') {
     // Permission en cours de résolution (natif, quelques instants) : fond noir
@@ -166,6 +196,7 @@ export default function CourseLiveScreen() {
       routeParam={params.route}
       intention={intention}
       completeBoundary={completeBoundary}
+      mission={mission}
       notice={gate.notice}
     />
   );
@@ -177,6 +208,7 @@ function DemoCourseLive({
   routeParam,
   intention,
   completeBoundary,
+  mission,
   notice,
 }: {
   mode: LiveRunMode;
@@ -185,6 +217,8 @@ function DemoCourseLive({
   intention: RunIntention | null;
   /** AMENDEMENT-17 §CH2 — frontière crew à terminer (mode « terminer »), sinon null. */
   completeBoundary: PartialBoundaryDemo | null;
+  /** AMENDEMENT-18 §C.4 — mission crew rejointe : alliés live opt-in autorisés. */
+  mission: boolean;
   notice: string | null;
 }) {
   const insets = useSafeAreaInsets();
@@ -196,7 +230,14 @@ function DemoCourseLive({
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
   const lastIndex = sim.ticks.length - 1;
 
-  const [view, setView] = useState<LiveView>('stats');
+  // AMENDEMENT-18 §C.2 — défaut par mode : Stats (Nike) en course LIBRE ; Carte
+  // (guidage) en mission / défense / terminer (là où la route et la boucle
+  // priment). La bascule reste évidente (bouton Carte/Stats).
+  const defaultView: LiveView =
+    completeBoundary || intention === 'defense' || (mode === 'conquete' && mission)
+      ? 'carte'
+      : 'stats';
+  const [view, setView] = useState<LiveView>(defaultView);
   const [tickIndex, setTickIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [following, setFollowing] = useState(true);
@@ -290,24 +331,136 @@ function DemoCourseLive({
     haptics[scripted.haptic]();
     showToast(scripted);
   }, [tickIndex, nav.toasts, loopClosed, loop]);
-  // Burst « BOUCLE FERMÉE » : toast + haptic FORT, une seule fois (§C).
-  useEffect(() => {
-    if (!loopClosed || enclosedZones === 0) return;
-    haptics.heavy();
-    showToast({
-      kind: 'boucle',
-      text: 'BOUCLE FERMÉE — la zone est à toi',
-      icon: 'carte',
-      tint: colors.chartreuse,
-      haptic: 'heavy',
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- transition unique
-  }, [loopClosed]);
+  // La fermeture de boucle est désormais un ÉVÉNEMENT N3 (mini-anim + haptique
+  // forte courte) — voir la section « INDICATIONS GUIDÉES » plus bas (§C.3).
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), motion.toastDismissMs);
     return () => clearTimeout(id);
   }, [toast]);
+
+  // ── AMENDEMENT-18 §C.3 — INDICATIONS GUIDÉES à 3 NIVEAUX ──────────────────
+  // La simulation joue un script d'indications dans l'ordre LOGIQUE (boucle
+  // possible → il reste 300 m → presque fermé → BOUCLE FERMÉE → ZONE CONQUISE).
+  // Le niveau décide de la présentation : N1 = toast discret (pipeline existant),
+  // N2 = card basse persistante, N3 = mini-anim 2 s. Jamais de modale bloquante.
+  const indicationScript = useMemo(
+    () => buildIndicationScript({ mode, completing: completeBoundary !== null, intention }),
+    [mode, completeBoundary, intention],
+  );
+  /** N2 courante (card basse « action ») — remplacée par la suivante, effacée à l'arrivée. */
+  const [n2, setN2] = useState<LiveIndication | null>(null);
+  /** N3 événement (mini-anim 2 s) — one-shot, ne masque jamais la route longtemps. */
+  const [n3, setN3] = useState<{ key: number; ind: LiveIndication } | null>(null);
+  const n3KeyRef = useRef(0);
+  const fireN3 = (ind: LiveIndication) => {
+    n3KeyRef.current += 1;
+    setN3({ key: n3KeyRef.current, ind });
+  };
+  useEffect(() => {
+    const ind = indicationScript.get(tickIndex);
+    if (!ind) return;
+    // La fermeture de boucle a son propre burst N3 (ci-dessous) : le script ne
+    // double jamais l'événement de fermeture.
+    if (loopClosed && ind.level === 'n3' && tickIndex >= (loop?.closeTick ?? Infinity)) return;
+    haptics[INDICATION_HAPTIC[ind.level]]();
+    if (ind.level === 'n1') {
+      showToast({ kind: 'checkpoint', text: ind.text, icon: ind.icon, tint: ind.tint, haptic: 'light' });
+    } else if (ind.level === 'n2') {
+      setN2(ind);
+    } else {
+      fireN3(ind);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- déclenché par le tick
+  }, [tickIndex, indicationScript]);
+  // La card N2 « action » s'efface une fois la course terminée (plus d'action).
+  useEffect(() => {
+    if (simDone) setN2(null);
+  }, [simDone]);
+  // Burst N3 « ZONE CONQUISE · +N » à la fermeture de boucle (conquête/terminer) :
+  // remplace le toast texte par la mini-anim événement (haptique forte, courte).
+  useEffect(() => {
+    if (!loopClosed || enclosedZones === 0) return;
+    fireN3({
+      level: 'n3',
+      text: completeBoundary ? 'BOUCLE CREW FERMÉE' : 'ZONE CONQUISE',
+      sub: `+${formatInt(enclosedZones)} zones`,
+      icon: 'carte',
+      tint: colors.chartreuse,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- transition unique
+  }, [loopClosed]);
+  // La mini-anim N3 se retire après ~2 s (ne masque jamais la route longtemps).
+  useEffect(() => {
+    if (!n3) return;
+    const id = setTimeout(() => setN3(null), N3_DURATION_MS);
+    return () => clearTimeout(id);
+  }, [n3]);
+
+  // ── AMENDEMENT-18 §C.2 — CARD LIVE BASSE selon le mode ────────────────────
+  // Résumé PERMANENT de l'objectif (distinct des indications événementielles) :
+  // Boucle en cours / Défense / Terminer / Run libre. Une card = 3 infos max.
+  const liveCard: LiveCard = useMemo(() => {
+    if (completeBoundary) {
+      return completeLiveCard({
+        zone: completeBoundary.zone,
+        remainingM: completeRemainingM,
+        coveredPct: completeCoveredPct,
+      });
+    }
+    if (intention === 'defense') {
+      return defenseLiveCard({
+        zone: defenseZoneForRoute(routeParam),
+        coveredPct: defenseCoveragePct(Math.min(tickIndex, lastIndex) + 1, lastIndex + 1),
+        streetsSaved: Math.min(2, Math.floor((Math.min(tickIndex, lastIndex) + 1) / 40)),
+      });
+    }
+    if (conquest) {
+      return loopLiveCard({
+        closed: loopClosed,
+        pct: pct,
+        distToCloseM: loopStatus.distM,
+        enclosedZones,
+      });
+    }
+    return freeRunLiveCard({ loopPossible: tick.distanceM >= 2000 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dérivé du tick
+  }, [
+    completeBoundary,
+    completeRemainingM,
+    completeCoveredPct,
+    intention,
+    routeParam,
+    conquest,
+    loopClosed,
+    pct,
+    loopStatus.distM,
+    enclosedZones,
+    tickIndex,
+  ]);
+
+  // ── AMENDEMENT-18 §C.4 — ALLIÉS opt-in (mission SEULEMENT) + RIVAL secteur ──
+  // Alliés : uniquement si la course est une mission crew rejointe (consentement
+  // opt-in) et on ne montre QUE les personnes utiles. Rival : jamais localisé
+  // précisément — activité par SECTEUR, retardée.
+  const matesOn = shouldShowMates({ mode, completing: completeBoundary !== null, mission });
+  const mates: LiveMate[] = useMemo(
+    () => (matesOn ? liveMatesAt(nav, tickIndex) : []),
+    [matesOn, nav, tickIndex],
+  );
+  const mateLine = matesOn ? primaryMateLine(mates) : null;
+  const rival: RivalSector | null = useMemo(
+    () => rivalSectorAt(nav, tickIndex, { mode, completing: completeBoundary !== null, intention }),
+    [nav, tickIndex, mode, completeBoundary, intention],
+  );
+
+  // ── AMENDEMENT-18 §C.4 — QUICK PINGS (pas de clavier en courant) ───────────
+  const [pingsOpen, setPingsOpen] = useState(false);
+  const sendPing = (ping: QuickPing) => {
+    haptics.medium();
+    setPingsOpen(false);
+    showToast({ kind: 'checkpoint', text: `Ping · ${ping.sent}`, icon: ping.icon, tint: colors.chartreuse, haptic: 'medium' });
+  };
 
   const finish = () => {
     if (finishedRef.current) return;
@@ -400,10 +553,12 @@ function DemoCourseLive({
             contested={tick.event === 'conteste'}
             loop={loop}
             loopPhase={loopStatus.phase}
+            mates={mates}
+            rival={rival}
             onFollowChange={setFollowing}
           />
 
-          {/* ── 3 boutons flottants max : pause · recentrer · stats ── */}
+          {/* ── Boutons flottants : pause · recentrer · ping · stats ── */}
           <View style={[styles.floatColumn, { bottom: floatingBottom }]}>
             <PausePlayButton paused={paused} onPress={togglePause} />
             <FloatingMapButton
@@ -412,6 +567,16 @@ function DemoCourseLive({
               active={following}
               onPress={() => mapRef.current?.recenter()}
             />
+            {/* PING crew : uniquement en mission crew rejointe (comme les alliés) —
+                pas d'affordance crew hors contexte crew (§C.4). */}
+            {matesOn ? (
+              <FloatingMapButton
+                icon="cloche"
+                accessibilityLabel="Envoyer un ping au crew"
+                active={pingsOpen}
+                onPress={() => setPingsOpen((o) => !o)}
+              />
+            ) : null}
             <FloatingMapButton
               icon="performance"
               accessibilityLabel="Revenir aux stats"
@@ -427,6 +592,14 @@ function DemoCourseLive({
             <Text style={styles.scaleLabel}>{NAV_SCALE_BAR_METERS} m</Text>
             <Text style={styles.attribution}>© OpenStreetMap © CARTO</Text>
           </View>
+
+          {/* ── N2 action (§C.3) au-dessus de la sheet : card courte, jamais
+               bloquante — « Presque fermé · 180 m », « Il reste 300 m ». ── */}
+          {n2 ? (
+            <View style={[styles.n2Floating, { bottom: floatingBottom + 4 }]} pointerEvents="none">
+              <N2ActionCard ind={n2} />
+            </View>
+          ) : null}
 
           {/* ── Bottom sheet : TOUS les chiffres vivent ici ─────────────────── */}
           <MapBottomSheet
@@ -592,7 +765,10 @@ function DemoCourseLive({
             ) : null}
           </View>
 
-          {/* ── Contrôles bas GROS, une main : [Pause] [Carte] [Terminer] ── */}
+          {/* ── Guidage bas (§C.2) : card live objectif + N2 action ── */}
+          <GuidedBottomStack card={liveCard} n2={n2} />
+
+          {/* ── Contrôles bas GROS, une main : [Pause] [Carte] [Ping] [Terminer] ── */}
           <View style={[styles.statsControls, { paddingBottom: insets.bottom + 18 }]}>
             <BigControl
               label={paused ? 'REPRENDRE' : 'PAUSE'}
@@ -609,6 +785,16 @@ function DemoCourseLive({
             >
               <Icon name="carte" size={24} color={colors.blanc} />
             </BigControl>
+            {matesOn ? (
+              <BigControl
+                label="PING"
+                accessibilityLabel="Envoyer un ping au crew"
+                active={pingsOpen}
+                onPress={() => setPingsOpen((o) => !o)}
+              >
+                <Icon name="cloche" size={22} color={colors.blanc} />
+              </BigControl>
+            ) : null}
             <View style={styles.bigControlWrap}>
               <Animated.View style={{ transform: [{ scale: donePulse }] }}>
                 <Pressable
@@ -689,6 +875,26 @@ function DemoCourseLive({
             </Text>
           </View>
         ) : null}
+        {/* Allié live UTILE (§C.4) : opt-in, mission SEULEMENT — filtré en amont.
+             Un seul allié mis en avant (anti-bruit) ; la carte porte les points. */}
+        {mateLine ? (
+          <View style={styles.matePill}>
+            <View style={styles.mateDotSmall} />
+            <Text style={styles.matePillText} numberOfLines={1}>
+              {mateLine}
+            </Text>
+          </View>
+        ) : null}
+        {/* Rival PAR SECTEUR (§C.4) : activité détectée, RETARDÉE — jamais une
+             position exacte. Halo orange sur la carte, texte au passé ici. */}
+        {rival ? (
+          <View style={styles.rivalPill}>
+            <Icon name="cible" size={12} color={gameColors.rival} />
+            <Text style={styles.rivalPillText} numberOfLines={1}>
+              {rivalSectorLine(rival)}
+            </Text>
+          </View>
+        ) : null}
         {!conquest ? (
           <View style={styles.statsOnlyPill}>
             <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={13} color={colors.gris} />
@@ -714,7 +920,151 @@ function DemoCourseLive({
           <FeedbackToast key={toast.key} toast={toast.toast} />
         </View>
       ) : null}
+
+      {/* ── N3 ÉVÉNEMENT (§C.3) : mini-anim 2 s centrée, haptique forte COURTE.
+           « ZONE CONQUISE · +18 », « Canal repoussé », « Zone défendue · +48 h ».
+           Ne masque jamais la route longtemps (auto-dismiss). ── */}
+      {n3 ? <N3Event key={n3.key} ind={n3.ind} /> : null}
+
+      {/* ── QUICK PINGS (§C.4) : menu prédéfini, pas de clavier en courant.
+           Toast + haptic (démo). Fermé par défaut ; bouton [Ping] le bascule. ── */}
+      {pingsOpen ? (
+        <PingsMenu
+          bottom={insets.bottom + 18}
+          onSend={sendPing}
+          onClose={() => setPingsOpen(false)}
+        />
+      ) : null}
     </View>
+  );
+}
+
+/**
+ * Guidage bas (mode Stats) : la CARD LIVE d'objectif (§C.2) surmontée de la N2
+ * action courante (§C.3) quand elle existe. Vit au-dessus des contrôles.
+ */
+function GuidedBottomStack({ card, n2 }: { card: LiveCard; n2: LiveIndication | null }) {
+  return (
+    <View style={styles.guidedStack}>
+      {n2 ? <N2ActionCard ind={n2} /> : null}
+      <LiveCardView card={card} />
+    </View>
+  );
+}
+
+/** Card live d'objectif permanent (§C.2) : kicker + valeur + détail + barre. */
+function LiveCardView({ card }: { card: LiveCard }) {
+  return (
+    <View style={styles.liveCard}>
+      <View style={styles.liveCardHead}>
+        <Icon name={card.icon} size={15} color={colors.chartreuse} />
+        <Text style={styles.liveCardKicker} numberOfLines={1}>
+          {card.kicker}
+        </Text>
+        <Text style={styles.liveCardValue} numberOfLines={1}>
+          {card.value}
+        </Text>
+      </View>
+      {card.detail ? (
+        <Text style={styles.liveCardDetail} numberOfLines={1}>
+          {card.detail}
+        </Text>
+      ) : null}
+      {card.progress !== undefined ? (
+        <ProgressBar value={card.progress} height={5} />
+      ) : null}
+    </View>
+  );
+}
+
+/** N2 action (§C.3) : card COURTE — « Presque fermé · 180 m », « Il reste 300 m ». */
+function N2ActionCard({ ind }: { ind: LiveIndication }) {
+  return (
+    <View style={styles.n2Card}>
+      <Icon name={ind.icon as IconName} size={15} color={ind.tint} />
+      <Text style={[styles.n2Text, { color: ind.tint }]} numberOfLines={1}>
+        {ind.text}
+      </Text>
+    </View>
+  );
+}
+
+/** N3 événement (§C.3) : mini-anim 2 s centrée (scale-in + fondu), haptique forte. */
+function N3Event({ ind }: { ind: LiveIndication }) {
+  const reduce = useReduceMotion();
+  const scale = useRef(new Animated.Value(reduce ? 1 : 0.7)).current;
+  const opacity = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduce) return;
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: motion.transitionMs, useNativeDriver: true }),
+    ]).start();
+  }, [reduce, scale, opacity]);
+  return (
+    <View style={styles.n3Overlay} pointerEvents="none">
+      <Animated.View style={[styles.n3Card, { opacity, transform: [{ scale }] }]}>
+        <View style={styles.n3IconRing}>
+          <Icon name={ind.icon as IconName} size={26} color={colors.chartreuse} />
+        </View>
+        <Text style={styles.n3Title} numberOfLines={1}>
+          {ind.text}
+        </Text>
+        {ind.sub ? (
+          <Text style={styles.n3Sub} numberOfLines={1}>
+            {ind.sub}
+          </Text>
+        ) : null}
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * Quick Pings (§C.4) : menu prédéfini (pas de clavier en courant), gros boutons
+ * une-main. Un tap = envoi (démo : toast + haptic) + fermeture. Backdrop pour
+ * refermer sans envoyer.
+ */
+function PingsMenu({
+  bottom,
+  onSend,
+  onClose,
+}: {
+  bottom: number;
+  onSend: (ping: QuickPing) => void;
+  onClose: () => void;
+}) {
+  const { opacity, translateY } = useSlideIn(14);
+  return (
+    <>
+      <Pressable
+        style={styles.pingsBackdrop}
+        accessibilityLabel="Fermer les pings"
+        onPress={onClose}
+      />
+      <Animated.View
+        style={[styles.pingsSheet, { paddingBottom: bottom, opacity, transform: [{ translateY }] }]}
+      >
+        <View style={styles.pingsHandle} />
+        <Text style={styles.pingsKicker}>PING RAPIDE AU CREW</Text>
+        <View style={styles.pingsGrid}>
+          {QUICK_PINGS.map((ping) => (
+            <Pressable
+              key={ping.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Ping : ${ping.label}`}
+              onPress={() => onSend(ping)}
+              style={({ pressed }) => [styles.pingChip, pressed && styles.pressed]}
+            >
+              <Icon name={ping.icon} size={16} color={colors.chartreuse} />
+              <Text style={styles.pingChipText} numberOfLines={1}>
+                {ping.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Animated.View>
+    </>
   );
 }
 
@@ -974,6 +1324,181 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statsOnlyText: { color: colors.gris, fontSize: 11 },
+  // ── Allié live (§C.4) : pill chartreuse discret, un seul mis en avant ──
+  matePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    maxWidth: 344,
+  },
+  mateDotSmall: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.chartreuse,
+  },
+  matePillText: {
+    color: colors.blanc,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    fontVariant: ['tabular-nums'],
+  },
+  // ── Rival PAR SECTEUR (§C.4) : pill orange, texte au passé (retardé) ──
+  rivalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255,92,51,0.45)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    maxWidth: 344,
+  },
+  rivalPillText: {
+    color: gameColors.rival,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+
+  // ── Guidage bas Stats (§C.2/§C.3) : card objectif + N2 action ──
+  guidedStack: {
+    paddingHorizontal: spacing.cardPadding,
+    gap: 8,
+    marginBottom: 14,
+  },
+  liveCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    gap: 8,
+  },
+  liveCardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  liveCardKicker: {
+    color: colors.gris,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    flex: 1,
+  },
+  liveCardValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  liveCardDetail: { color: colors.gris, fontSize: 12, fontWeight: '600', marginTop: -2 },
+  n2Card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  n2Text: { fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.3 },
+  n2Floating: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+
+  // ── N3 événement (§C.3) : mini-anim centrée, 2 s, ne masque pas la route ──
+  n3Overlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  n3Card: {
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: gameColors.carbon,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: colors.chartreuse40,
+    paddingHorizontal: 30,
+    paddingVertical: 22,
+  },
+  n3IconRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.chartreuse14,
+    borderWidth: 1.5,
+    borderColor: colors.chartreuse40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  n3Title: {
+    color: colors.blanc,
+    fontSize: fontSizes.xl,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  n3Sub: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.md,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // ── Quick pings (§C.4) : feuille basse, gros chips une-main ──
+  pingsBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  pingsSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.carbone,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: spacing.cardPadding,
+    paddingTop: 10,
+    gap: 12,
+  },
+  pingsHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.grisLigne,
+    alignSelf: 'center',
+  },
+  pingsKicker: {
+    color: colors.gris,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+  },
+  pingsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  pingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  pingChipText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800' },
 
   toastArea: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   toast: {
