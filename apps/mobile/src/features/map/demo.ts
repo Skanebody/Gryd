@@ -137,6 +137,72 @@ export const MAP_RIVAL_ALERT: MapRivalAlertDemo = {
   minutesAgo: 12,
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ÉCRAN MISSION (AMENDEMENT-21) — la Carte n'est plus un « dashboard de guerre »
+// mais UNE mission prioritaire. 1 écran = 1 décision : « Est-ce que je pars
+// défendre MAINTENANT ? ». Toutes ces valeurs sont des ÉTIQUETTES DE SCÉNARIO
+// déterministes (comme le reste de demo.ts) — km/points/% sont des labels, PAS
+// des règles de jeu (le serveur tranche territoire et récompenses). TODO(O1) :
+// dérivées des données réelles (defense_missions / hex_claims / bonus) au M2.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Header COMPACT (une ligne) + card sticky + micro-ligne bonus + pill rival.
+ * Copy radicalement court, FR, virgule décimale, RIEN de tronqué :
+ *   header  « République attaquée » / « 3 zones à sauver »
+ *   card    « Défendre République » / « 4,4 km · 3 zones · bonus actif »
+ *   bonus   micro-ligne « bonus actif · +120 pts »
+ *   rival   pill « Canal Crew reprend du terrain » / « 14 zones perdues »
+ * Le SEUL CTA de l'écran est [Défendre] (dans la card) — la pill rival informe,
+ * la card convertit (jamais deux CTA).
+ */
+export const MAP_MISSION = {
+  /** Header, ligne 1 : la menace, en une accroche courte. */
+  headerTitle: `${DEFENSE_SECTOR} attaquée`,
+  /** Header, ligne 2 : l'enjeu chiffré (n zones à sauver). */
+  headerSubtitle: '3 zones à sauver',
+  /** Card, titre : l'action (le verbe + la zone). */
+  cardTitle: `Défendre ${DEFENSE_SECTOR}`,
+  /** Card, méta : distance · zones · bonus (chaîne assemblée non tronquée). */
+  distanceKm: 4.4,
+  zones: 3,
+  /** Micro-ligne bonus DANS la card (plus de gros bandeau horizontal). */
+  bonusMicroLabel: 'bonus actif',
+  /** Gain du bonus, en points (étiquette scénario — le serveur tranche). */
+  bonusPoints: 120,
+  /** Lien discret sous le CTA : ouvre le bottom sheet (les 4 blocs). */
+  optionsLabel: 'Voir les options',
+  /** CTA unique de l'écran (chartreuse). */
+  ctaLabel: 'Défendre',
+} as const;
+
+/**
+ * Pill RIVAL (AMENDEMENT-21 §5) : compacte, INFORMATIVE seulement, SANS CTA.
+ * « Canal Crew reprend du terrain · 14 zones perdues » — une ligne discrète,
+ * jamais un gros bloc rouge alarmiste permanent. Dérivée de MAP_RIVAL_ALERT.
+ */
+export const MAP_RIVAL_PILL = {
+  /** Mixte casse (pas de CAPS agressives) — « Canal Crew reprend du terrain ». */
+  message: `${MAP_CONTROL_HUD.rivalName} reprend du terrain`,
+  /** Enjeu : zones perdues (frontières reprises par le rival). */
+  zonesLost: MAP_RIVAL_ALERT.zonesLost,
+} as const;
+
+/**
+ * Bloc RÉSUMÉ du bottom sheet (ex-SituationCard d'AMENDEMENT-17, fusionnée
+ * ici — plus de 3ᵉ FAB Info) : zone · crew % vs rival % · bonus · temps
+ * restant. Réutilise MAP_CONTROL_HUD (parts de contrôle) — étiquettes démo.
+ */
+export const MAP_MISSION_SUMMARY = {
+  zone: DEFENSE_SECTOR,
+  stateLabel: MAP_CONTROL_HUD.stateLabel,
+  crewPct: MAP_CONTROL_HUD.crewPct,
+  rivalName: MAP_CONTROL_HUD.rivalName,
+  rivalPct: MAP_CONTROL_HUD.rivalPct,
+  /** Temps restant avant que la zone décline (étiquette scénario). */
+  timeLeftLabel: '8 h restantes',
+} as const;
+
 // ─── Membres crew SUR la carte (AMENDEMENT-09 §2) ───────────────────────────
 /**
  * INVARIANT AMENDEMENT-07 : jamais de position live publique. Ces 2 membres

@@ -21,8 +21,13 @@ import { useReduceMotion } from './anim';
 
 export type MapSheetState = 'compact' | 'semi' | 'open';
 
-/** Hauteur visible de l'état compact (une ligne d'état + CTA). */
-export const MAP_SHEET_COMPACT_HEIGHT = 96;
+/**
+ * Hauteur visible de l'état compact. AMENDEMENT-21 : en écran mission, le
+ * compact porte la CARD STICKY complète (titre + méta + micro-bonus + gros
+ * [Défendre] + lien « Voir les options ») — il faut assez de peek pour montrer
+ * le CTA ET le lien SANS troncature (pet peeve #1 : aucun texte/action coupé).
+ */
+export const MAP_SHEET_COMPACT_HEIGHT = 208;
 /** Part de l'écran couverte en semi (~40 %). */
 export const MAP_SHEET_SEMI_RATIO = 0.4;
 /** Part de l'écran couverte en ouvert (~85 %). */

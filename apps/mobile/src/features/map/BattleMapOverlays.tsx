@@ -1,72 +1,74 @@
 /**
- * GRYD — couche 4 de la Battle Map : le HUD gameplay, ALLÉGÉ (AMENDEMENT-17
- * §1.2 : « un écran = une action », route-first, UN seul GO). Vocabulaire
- * TERRITOIRES ORGANIQUES (zones/secteurs/rues/routes). Partagé entre MapScreen
- * natif et .web :
- *   haut      UNE pill `PARIS EST · ZONE CONTESTÉE · #8` + UNE phrase rivale
- *             (« Canal Crew gagne du terrain. 3 zones à défendre. »). Les % de
- *             contrôle (42/38/20) NE sont PLUS affichés en permanence : détail
- *             AU TAP de la pill. Sous la pill, quand une menace est fraîche :
- *             ALERTE RIVAL actionnable (`CANAL CREW attaque République ·
- *             14 zones reprises · il y a 12 min` + CTA [Défendre]).
- *   droite    2 boutons flottants (recentrer / stats) + UN bouton « Couches »
- *             (icône calques) qui ouvre un petit sélecteur de calque. Plus de
- *             RANGÉE de 5 filtres : le calque est AUTO selon le contexte
- *             (MapScreen dérive defense→calque défense, sinon route-first).
- *   bas       MapBottomSheet DIRECTIVE + UN SEUL CTA (RunButton, le flux départ
- *             unique de la phase 1 — plus aucun FAB flottant central) :
- *             COMPACT  la consigne (`DÉFENSE RECOMMANDÉE — République est
- *                      attaqué. Cours 4,4 km pour sauver 3 zones.`) + [DÉFENDRE]
- *                      + « Changer de route » (lien discret).
- *             SEMI     + défi à proximité, zone bonus, membres crew dispo.
- *             OUVERT   + choix de PARCOURS + run d'ami à rejoindre. Les %
- *                      de contrôle DÉTAILLÉS vivent ici (semi), jamais sur la
- *                      carte.
- * Anti-shame : objectifs crew, jamais de retard individuel.
+ * GRYD — la Carte comme ÉCRAN MISSION (AMENDEMENT-21). La Carte n'est plus un
+ * « dashboard de guerre » (header empilé + alerte rival avec CTA + gros bandeau
+ * bonus + colonne de 4 FABs + double card « défense recommandée »). Règle
+ * absolue : 1 écran = 1 décision — « Est-ce que je pars défendre MAINTENANT ? ».
+ * Formule : carte épurée + 1 mission prioritaire + 1 bouton principal + le reste
+ * dans un BOTTOM SHEET. L'utilisateur comprend + appuie [Défendre] en < 3 s.
+ * Vocabulaire TERRITOIRES ORGANIQUES (zones/frontières/rues/routes — JAMAIS
+ * hexagone). Partagé entre MapScreen natif et .web :
+ *
+ *   4 ÉLÉMENTS EN PERMANENCE (rien d'autre) :
+ *   1. HEADER COMPACT — UNE ligne : « République attaquée » + sous-ligne
+ *      « 3 zones à sauver ». Un seul message : va défendre République.
+ *   2. CARTE : 70-75 % de l'écran (silencieuse — pilotée par MapScreen/mapStyle).
+ *   3. CARD STICKY BASSE (compact du sheet) + 1 CTA UNIQUE : « Défendre
+ *      République » + méta « 4,4 km · 3 zones · bonus actif » + micro-ligne
+ *      bonus (« bonus actif · +120 pts ») + gros [Défendre] + lien discret
+ *      [Voir les options].
+ *   4. BOTTOM NAV : inchangée (layout).
+ *
+ *   ALERTE RIVAL : pill compacte INFORMATIVE, SANS CTA (« Canal Crew reprend du
+ *   terrain · 14 zones perdues »). L'alerte informe, la card convertit — le seul
+ *   CTA de l'écran est [Défendre].
+ *
+ *   BOUTONS FLOTTANTS DROITE : 2 MAX — « Recentrer/ma position » + « Calques »
+ *   (le fond dark/couleur et les calques de lecture vivent DANS le menu Calques,
+ *   fermé par défaut ; l'ancien 3ᵉ FAB Info est SUPPRIMÉ — sa situation devient
+ *   le 1er bloc RÉSUMÉ du sheet). Fini l'effet cockpit.
+ *
+ *   BOTTOM SHEET 2 ÉTATS (MapBottomSheet) :
+ *   - FERMÉ  : la card sticky (Défendre République · [Défendre] · Voir options).
+ *   - OUVERT (tap « Voir les options ») : 4 blocs MAX — RÉSUMÉ (ex-SituationCard :
+ *     zone · crew % vs rival % · bonus · temps restant) · PARCOURS (2-3) ·
+ *     ÉQUIPE (2 alliés opt-in + « Courir ensemble ») · DÉTAILS (missions +
+ *     historique, liens vers les pages existantes).
+ *
+ * Anti-shame : objectifs crew, jamais de retard individuel. Anti pay-to-win : le
+ * serveur tranche territoire et récompenses ; les km/pts sont des labels de
+ * scénario (demo.ts). Reduce motion respecté (useSlideIn/useReduceMotion, snap
+ * direct de la sheet). Haptics à chaque intention.
  * Events : screen('map_sheet_open') / screen('map_parcours_select') /
- * screen('map_mode_select') / screen('map_shares_expand') (génériques) ;
- * EVENTS.runStart au départ réel (porté par RunButton).
+ * screen('map_mode_select') (génériques) ; EVENTS.runStart au départ réel
+ * (porté par RunButton).
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii, type IconName } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { screen } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 import {
   FloatingMapButton,
-  InlineRunCTA,
   MAP_SHEET_COMPACT_HEIGHT,
   MapBottomSheet,
-  timeAgoLabel,
   useSlideIn,
   type MapSheetState,
 } from '../../ui/game';
 import { RunButton } from '../nav/RunButton';
-import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
-import { deriveAutoPlan, intentionHref, mapDirective } from '../nav/runContext';
+import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { deriveAutoPlan, intentionHref } from '../nav/runContext';
 import { MISSIONS } from '../warroom/demo';
 import {
-  BONUS_ICON,
   FRIEND_RUN_DEMO,
-  MAP_BONUS_CONTEXT,
-  MAP_BONUS_NEAR,
-  MAP_BONUS_ZONE,
-  MAP_CHALLENGE,
-  MAP_CONTROL_HUD,
-  MAP_HUD,
-  MAP_RIVAL_ALERT,
-  MAP_WAR_FEED,
+  MAP_MISSION,
+  MAP_MISSION_SUMMARY,
+  MAP_RIVAL_PILL,
   MATES_OPT_IN,
-  MATES_SHARING_LABEL,
   PARCOURS_DEMO,
-  WAR_FEED_CYCLE_MS,
   parcoursMeta,
-  selectMapBonus,
-  type MapWarFeedEventDemo,
-  type SelectedBonusDemo,
 } from './demo';
 import type { BattleMapSummary } from './fakeHexes';
 import {
@@ -86,23 +88,20 @@ const MODE_CHIP_LABELS: Record<MapMode, string> = {
   raid: 'Rival',
 };
 
-/** Un event est LIVE s'il date de moins de 10 min (même seuil que WarEventCard). */
-const LIVE_MAX_MINUTES = 10;
 /** Dégagement de la sheet au-dessus de la barre de nav. */
 const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Pile de boutons flottants : dégagement au-dessus de la sheet compacte. */
 const FAB_ABOVE_SHEET = 12;
-/** Un event rival est une ATTAQUE (alerte actionnable) via l'icône raid. */
-const RIVAL_ALERT_ICON: IconName = 'raid';
 
-/**
- * UNE phrase rivale sous la pill (AMENDEMENT-17 §1.2) : « Canal Crew gagne du
- * terrain. 3 zones à défendre. ». Le compte de zones vient du decay réel du
- * secteur (summary) — pas de nombre magique.
- */
-function rivalPhrase(zonesToDefend: number): string {
-  const n = Math.max(1, zonesToDefend);
-  return `${MAP_CONTROL_HUD.rivalName} gagne du terrain. ${n} zone${n > 1 ? 's' : ''} à défendre.`;
+/** « 4,4 km » — décimale française, pas d'Intl (parité Hermes). */
+function formatKm(km: number): string {
+  return `${km.toFixed(1).replace('.', ',')} km`;
+}
+
+/** « 3 zones » / « 1 zone » — accord singulier/pluriel (jamais tronqué). */
+function zonesLabel(n: number): string {
+  const v = Math.max(1, n);
+  return `${v} zone${v > 1 ? 's' : ''}`;
 }
 
 export interface BattleMapOverlaysProps {
@@ -115,7 +114,7 @@ export interface BattleMapOverlaysProps {
   /** Parcours affiché en aperçu sur la carte (RouteProgress, progress 0). */
   selectedParcoursId?: string | null;
   onSelectParcours?: (id: string | null) => void;
-  /** Fond de carte courant + bascule sombre↔couleur (contrôle dans le menu Info). */
+  /** Fond de carte courant + bascule sombre↔couleur (dans le menu Calques). */
   basemap?: 'dark' | 'color';
   onToggleBasemap?: () => void;
 }
@@ -132,33 +131,35 @@ export function BattleMapOverlays({
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // La sheet n'expose pas de contrôle impératif : le bouton Stats la REMONTE
-  // en semi (remount key + initialState — snap direct, façon reduce motion).
+  // La sheet n'expose pas de contrôle impératif : « Voir les options » la
+  // remonte en OUVERT (remount key + initialState — snap direct, façon reduce
+  // motion). FERMÉE = la card sticky ; OUVERTE = les 4 blocs.
   const [sheet, setSheet] = useState<{ key: number; initial: MapSheetState }>({
     key: 0,
     initial: 'compact',
   });
-  /** % de contrôle : cachés par défaut, révélés AU TAP de la pill (détail). */
-  const [sharesOpen, setSharesOpen] = useState(false);
-  /** Sélecteur de calque « Couches » — fermé par défaut (un seul bouton). */
+  /** Menu « Calques » (fond + calques de lecture) — fermé par défaut. */
   const [layersOpen, setLayersOpen] = useState(false);
-  /**
-   * Bouton « Info » (AMENDEMENT-17 retour fondateur, option A) : révèle la
-   * SITUATION stratégique à la demande — « Défense recommandée » + % de
-   * contrôle du secteur. Les contrôles de carte (Couches/Fond/Recentrer)
-   * restent, eux, de simples boutons visibles à côté.
-   */
-  const [situationOpen, setSituationOpen] = useState(false);
+
+  // Chaque entrée sur la Carte repart de la card mission FERMÉE : les onglets
+  // restent montés (expo-router), donc on force la sheet en compact au focus —
+  // règle des 3 s garantie au retour (remount key + initial compact, snap).
+  useFocusEffect(
+    useCallback(() => {
+      setSheet((s) => ({ key: s.key + 1, initial: 'compact' }));
+      setLayersOpen(false);
+    }, []),
+  );
 
   /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
   const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
 
-  const toggleShares = () => {
+  /** Départ défense téinté par intention (client-seul) — le serveur tranche. */
+  const plan = deriveAutoPlan();
+
+  const openOptions = () => {
     haptics.light();
-    setSharesOpen((v) => {
-      if (!v) screen('map_shares_expand', {});
-      return !v;
-    });
+    setSheet((s) => ({ key: s.key + 1, initial: 'open' }));
   };
 
   const selectMode = (key: MapMode) => {
@@ -169,110 +170,41 @@ export function BattleMapOverlays({
     screen('map_mode_select', { mode: key });
   };
 
-  /** Directive de la carte (AMENDEMENT-17 §1.2) — la consigne + le libellé du CTA. */
-  const directive = mapDirective();
-  /** Départ défense téinté par intention (client-seul) — AMENDEMENT-16 §1. */
-  const plan = deriveAutoPlan();
-
-  /**
-   * ALERTE RIVAL actionnable : dès qu'une attaque du secteur existe, elle PREND
-   * la place du war feed (la menace prioritaire, lisible en 1 s + CTA). Le war
-   * feed passif ne réapparaît que sans menace active.
-   */
-  const rivalThreat = MAP_RIVAL_ALERT.zonesLost > 0;
-  const defendRival = () => {
-    haptics.medium();
-    router.push(intentionHref('defense', plan.routeId));
-  };
-
   const selectParcours = (id: string) => {
     haptics.light();
     const next = selectedParcoursId === id ? null : id;
     onSelectParcours?.(next);
-    if (next) {
-      screen('map_parcours_select', { id });
-      // Aperçu : la sheet redescend en semi pour laisser voir le tracé.
-      setSheet((s) => ({ key: s.key + 1, initial: 'semi' }));
-    }
+    if (next) screen('map_parcours_select', { id });
   };
 
   const mission = MISSIONS[0];
 
-  /**
-   * BONUS CIBLÉ de la Carte (AMENDEMENT-19 §4) : UN SEUL bonus, le plus pertinent
-   * PROCHE (selectMapBonus(context, 'map') — priorité défense/boucle). Si aucun
-   * n'est pertinent → rien affiché (pas de placeholder). Le tap suit le CTA de la
-   * fiche : défense → départ défense ; sinon → Route Planner (fermer/ouvrir).
-   */
-  const mapBonus = selectMapBonus(MAP_BONUS_CONTEXT, 'map');
-  const onBonusAct = (bonus: SelectedBonusDemo) => {
-    haptics.medium();
-    screen('map_bonus_act', { bonusId: bonus.def.id });
-    if (bonus.def.id === 'defense_critical') {
-      router.push(intentionHref('defense', plan.routeId));
-    } else {
-      router.push('/route-planner');
-    }
-  };
+  /** Allié opt-in le PLUS proche (bloc ÉQUIPE — libellé court non tronqué). */
+  const nearestMate = MATES_OPT_IN.reduce<(typeof MATES_OPT_IN)[number] | null>(
+    (best, m) => (best === null || m.distanceKm < best.distanceKm ? m : best),
+    null,
+  );
+  const nearestMateName = nearestMate?.name ?? '';
+  const nearestMateKm = nearestMate?.distanceKm ?? 0;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* ── Haut : UNE pill (tap = détail % contrôle) + phrase + alerte rival ── */}
+      {/* ── HEADER COMPACT — UNE ligne (titre + sous-ligne) + pill rival ──── */}
       <View style={[styles.top, { top: insets.top + 10 }]} pointerEvents="box-none">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: sharesOpen }}
-          accessibilityLabel={
-            sharesOpen
-              ? 'Masquer les parts de contrôle du secteur'
-              : `${MAP_HUD.zoneName} — ${MAP_CONTROL_HUD.stateLabel}. Voir les parts de contrôle.`
-          }
-          onPress={toggleShares}
-          style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
-        >
-          <Text style={styles.pillText} numberOfLines={1}>
-            {MAP_HUD.zoneName.toUpperCase()} · {MAP_CONTROL_HUD.stateLabel} ·{' '}
-            <Text style={styles.pillRank}>#{MAP_HUD.crewRank}</Text>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {MAP_MISSION.headerTitle}
           </Text>
-          {sharesOpen ? (
-            <Text style={styles.pillShares} numberOfLines={1}>
-              <Text style={styles.pillSharesCrew}>Ton crew {MAP_CONTROL_HUD.crewPct} %</Text>
-              {' · '}
-              {MAP_CONTROL_HUD.rivalName} {MAP_CONTROL_HUD.rivalPct} % · Neutre{' '}
-              {MAP_CONTROL_HUD.neutralPct} %
-            </Text>
-          ) : (
-            <Text style={styles.pillPhrase} numberOfLines={1}>
-              {rivalPhrase(summary.decay)}
-            </Text>
-          )}
-        </Pressable>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {MAP_MISSION.headerSubtitle}
+          </Text>
+        </View>
 
-        {/* ── Alerte rival actionnable (AMENDEMENT-17 §1.2) ─────────────────── */}
-        {rivalThreat ? (
-          <RivalAlertCard onDefend={defendRival} />
-        ) : (
-          <View style={styles.feedWrap} pointerEvents="none">
-            <WarFeedTicker />
-          </View>
-        )}
-
-        {/* ── BONUS CIBLÉ (AMENDEMENT-19 §4) : UNE bande discrète, 1 SEUL bonus ── */}
-        {mapBonus ? (
-          <MapBonusBand bonus={mapBonus} onPress={() => onBonusAct(mapBonus)} />
-        ) : null}
+        {/* Pill RIVAL : compacte, INFORMATIVE, SANS CTA (l'alerte informe). */}
+        <RivalPill />
       </View>
 
-      {/* ── Situation stratégique (Info) : « Défense recommandée » + % ────── */}
-      {situationOpen ? (
-        <SituationCard
-          directive={directive}
-          bottom={sheetBottom + MAP_SHEET_COMPACT_HEIGHT + FAB_ABOVE_SHEET}
-          onClose={() => setSituationOpen(false)}
-        />
-      ) : null}
-
-      {/* ── Droite : contrôles carte (Couches/Fond/Recentrer) + bouton Info ── */}
+      {/* ── Droite : 2 FABs MAX (Recentrer + Calques) — fini l'effet cockpit ── */}
       <View
         style={[
           styles.fabColumn,
@@ -280,50 +212,38 @@ export function BattleMapOverlays({
         ]}
         pointerEvents="box-none"
       >
-        {layersOpen ? <LayerSelector active={mode} onSelect={selectMode} /> : null}
+        {layersOpen ? (
+          <LayerMenu
+            active={mode}
+            onSelect={selectMode}
+            basemap={basemap}
+            onToggleBasemap={
+              onToggleBasemap
+                ? () => {
+                    haptics.light();
+                    onToggleBasemap();
+                  }
+                : undefined
+            }
+          />
+        ) : null}
         <FloatingMapButton
           icon="calques"
-          accessibilityLabel="Couches de la carte"
+          accessibilityLabel="Calques et fond de carte"
           active={layersOpen}
           onPress={() => {
             haptics.light();
             setLayersOpen((v) => !v);
           }}
         />
-        {onToggleBasemap ? (
-          <FloatingMapButton
-            icon="carte"
-            accessibilityLabel={
-              basemap === 'color'
-                ? 'Fond de carte couleur (repasser en sombre)'
-                : 'Fond de carte sombre (passer en couleur)'
-            }
-            active={basemap === 'color'}
-            onPress={() => {
-              haptics.light();
-              onToggleBasemap();
-            }}
-          />
-        ) : null}
         <FloatingMapButton
           icon="gps"
           accessibilityLabel="Recentrer sur moi"
           onPress={() => onRecenter?.()}
         />
-        <FloatingMapButton
-          icon="info"
-          accessibilityLabel={
-            situationOpen ? 'Masquer la situation' : 'Voir la situation (défense recommandée)'
-          }
-          active={situationOpen}
-          onPress={() => {
-            haptics.light();
-            setSituationOpen((v) => !v);
-          }}
-        />
       </View>
 
-      {/* ── Bas : bottom sheet DIRECTIVE, au-dessus de la barre de nav ─────── */}
+      {/* ── Bas : bottom sheet 2 états — FERMÉ = card sticky, OUVERT = 4 blocs ── */}
       <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
         <MapBottomSheet
           key={sheet.key}
@@ -332,101 +252,20 @@ export function BattleMapOverlays({
             if (state !== 'compact') screen('map_sheet_open', { state });
           }}
           compactSlot={
-            <View style={styles.compactBody}>
-              <Text
-                style={[
-                  styles.kicker,
-                  { color: directive.lecture === 'defense' ? gameColors.verify : gameColors.crew },
-                ]}
-                numberOfLines={1}
-              >
-                {directive.kicker}
-              </Text>
-              <Text style={styles.directiveTitle} numberOfLines={1}>
-                {directive.headline}
-              </Text>
-              <Text style={styles.directiveOrder} numberOfLines={1}>
-                {directive.order}
-              </Text>
-              {/* UN SEUL CTA de départ (RunButton = flux unique phase 1). */}
-              <View style={styles.ctaWrap}>
-                <RunButton label={directive.ctaLabel} />
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Changer de route — ouvrir le Route Planner"
-                hitSlop={8}
-                onPress={() => router.push('/route-planner')}
-                style={({ pressed }) => pressed && styles.pressed}
-              >
-                <Text style={styles.routeLink} numberOfLines={1}>
-                  Changer de route
-                </Text>
-              </Pressable>
-            </View>
-          }
-          semiSlot={
-            <View style={styles.semiBlock}>
-              {/* % de contrôle DÉTAILLÉS : ils vivent ICI (détail), pas sur la carte. */}
-              <View style={styles.row}>
-                <View style={styles.rowIcon}>
-                  <Icon name="crew" size={14} color={gameColors.crew} />
-                </View>
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    Contrôle du secteur
-                  </Text>
-                  <Text style={styles.rowMeta} numberOfLines={1}>
-                    Ton crew {MAP_CONTROL_HUD.crewPct} % · {MAP_CONTROL_HUD.rivalName}{' '}
-                    {MAP_CONTROL_HUD.rivalPct} % · Neutre {MAP_CONTROL_HUD.neutralPct} %
-                  </Text>
-                </View>
-              </View>
-              {mission ? (
-                <View style={styles.row}>
-                  <View style={styles.rowIcon}>
-                    <Icon name="cible" size={14} color={colors.blanc} />
-                  </View>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {mission.label}
-                    </Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
-                      {mission.progress}/{mission.target} · {MAP_CHALLENGE.distanceLabel}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
-              <View style={styles.row}>
-                <View style={[styles.rowIcon, styles.rowIconGold]}>
-                  <Icon name="eclats" size={14} color={gameColors.gold} />
-                </View>
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {MAP_BONUS_ZONE.label}
-                  </Text>
-                  <Text style={styles.rowMeta} numberOfLines={1}>
-                    {MAP_BONUS_ZONE.window}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.row}>
-                <View style={styles.rowIcon}>
-                  <Icon name="ami" size={14} color={gameColors.crew} />
-                </View>
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {MATES_OPT_IN.map((m) => m.name).join(' · ')}
-                  </Text>
-                  <Text style={styles.rowMeta} numberOfLines={1}>
-                    {MATES_SHARING_LABEL}
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <MissionCard
+              onDefend={() => {
+                haptics.medium();
+                router.push(intentionHref('defense', plan.routeId));
+              }}
+              onOptions={openOptions}
+            />
           }
           openSlot={
             <View style={styles.openBlock}>
+              {/* BLOC 1 — RÉSUMÉ (ex-SituationCard AMENDEMENT-17, fusionnée). */}
+              <SummaryBlock />
+
+              {/* BLOC 2 — PARCOURS (2-3 max : km + gain). */}
               <Text style={styles.sectionTitle}>PARCOURS</Text>
               {PARCOURS_DEMO.map((p) => {
                 const meta = parcoursMeta(p);
@@ -439,8 +278,8 @@ export function BattleMapOverlays({
                     accessibilityLabel={`Parcours ${p.name}, ${formatKm(meta.distanceKm)}`}
                     onPress={() => selectParcours(p.id)}
                     style={({ pressed }) => [
-                      styles.parcours,
-                      selected && styles.parcoursSelected,
+                      styles.rowCard,
+                      selected && styles.rowCardSelected,
                       pressed && styles.pressed,
                     ]}
                   >
@@ -449,10 +288,7 @@ export function BattleMapOverlays({
                         {p.name}
                       </Text>
                       <Text style={styles.rowMeta} numberOfLines={1}>
-                        {formatKm(meta.distanceKm)} · D+ {p.elevGainM} m · {p.difficulty}
-                      </Text>
-                      <Text style={styles.rowMeta} numberOfLines={1}>
-                        {meta.hexes} zones à prendre · +{meta.points} pts
+                        {formatKm(meta.distanceKm)} · {zonesLabel(meta.hexes)} · +{meta.points} pts
                       </Text>
                     </View>
                     {selected ? (
@@ -463,30 +299,87 @@ export function BattleMapOverlays({
                   </Pressable>
                 );
               })}
-              <Text style={styles.sectionTitle}>RUNS D'AMIS</Text>
-              <View style={styles.parcours}>
+
+              {/* BLOC 3 — ÉQUIPE (2 alliés opt-in proches + « Courir ensemble »).
+                  Libellé COURT non tronqué : le nombre d'alliés + le plus proche
+                  (les pseudos entiers déborderaient — pet peeve #1). */}
+              <Text style={styles.sectionTitle}>ÉQUIPE</Text>
+              <View style={styles.rowCard}>
+                <View style={styles.rowIcon}>
+                  <Icon name="ami" size={14} color={gameColors.crew} />
+                </View>
                 <View style={styles.rowBody}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
-                    {FRIEND_RUN_DEMO.name} · {FRIEND_RUN_DEMO.modeLabel}
+                    {MATES_OPT_IN.length} alliés proches
                   </Text>
                   <Text style={styles.rowMeta} numberOfLines={1}>
-                    {FRIEND_RUN_DEMO.startLabel} · {FRIEND_RUN_DEMO.zone} ·{' '}
-                    {FRIEND_RUN_DEMO.distanceKm} km
+                    {nearestMateName} · {formatKm(nearestMateKm)}
                   </Text>
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Rejoindre le run de ${FRIEND_RUN_DEMO.name}`}
+                  accessibilityLabel="Courir ensemble avec les alliés proches"
                   onPress={() => {
                     haptics.medium();
                     // Démo : le run groupé réel passera par l'invitation AMENDEMENT-07.
-                    if (__DEV__) console.log('[map] rejoindre run ami (démo)');
+                    if (__DEV__) console.log('[map] courir ensemble (démo)');
                   }}
                   style={({ pressed }) => [styles.joinCta, pressed && styles.pressed]}
                 >
-                  <Text style={styles.joinCtaLabel}>Rejoindre</Text>
+                  <Text style={styles.joinCtaLabel} numberOfLines={1}>
+                    Courir ensemble
+                  </Text>
                 </Pressable>
               </View>
+
+              {/* BLOC 4 — DÉTAILS (missions liées + historique local). */}
+              <Text style={styles.sectionTitle}>DÉTAILS</Text>
+              {mission ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Mission ${mission.label} — ouvrir la War Room`}
+                  onPress={() => {
+                    haptics.light();
+                    router.push('/warroom');
+                  }}
+                  style={({ pressed }) => [styles.rowCard, pressed && styles.pressed]}
+                >
+                  <View style={styles.rowIcon}>
+                    <Icon name="cible" size={14} color={colors.blanc} />
+                  </View>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {mission.label}
+                    </Text>
+                    <Text style={styles.rowMeta} numberOfLines={1}>
+                      {mission.progress}/{mission.target} · mission du jour
+                    </Text>
+                  </View>
+                  <Icon name="chevron" size={14} color={colors.gris} />
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Historique de mes courses"
+                onPress={() => {
+                  haptics.light();
+                  router.push('/historique');
+                }}
+                style={({ pressed }) => [styles.rowCard, pressed && styles.pressed]}
+              >
+                <View style={styles.rowIcon}>
+                  <Icon name="historique" size={14} color={colors.blanc} />
+                </View>
+                <View style={styles.rowBody}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>
+                    Mon historique
+                  </Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>
+                    {FRIEND_RUN_DEMO.name} · {FRIEND_RUN_DEMO.zone} · {FRIEND_RUN_DEMO.distanceKm} km
+                  </Text>
+                </View>
+                <Icon name="chevron" size={14} color={colors.gris} />
+              </Pressable>
             </View>
           }
         />
@@ -495,123 +388,49 @@ export function BattleMapOverlays({
   );
 }
 
-/** « 4,2 km » — décimale française, pas d'Intl (parité Hermes). */
-function formatKm(km: number): string {
-  return `${km.toFixed(1).replace('.', ',')} km`;
-}
-
 /**
- * ALERTE RIVAL actionnable (AMENDEMENT-17 §1.2) : lisible en 1 s + CTA
- * [Défendre]. Slide-in à l'apparition. Orange (rival) = la menace, chartreuse
- * (crew) = l'action de défense.
+ * CARD STICKY (compact du sheet) : la mission prioritaire + le CTA UNIQUE.
+ * Titre « Défendre République » · méta « 4,4 km · 3 zones · bonus actif » ·
+ * micro-ligne bonus (« bonus actif · +120 pts ») · gros [Défendre] (chartreuse)
+ * · lien discret [Voir les options]. RIEN de tronqué.
  */
-function RivalAlertCard({ onDefend }: { onDefend: () => void }) {
-  const { opacity, translateY } = useSlideIn(10);
+function MissionCard({
+  onDefend,
+  onOptions,
+}: {
+  onDefend: () => void;
+  onOptions: () => void;
+}) {
+  // Meta = distance + zones ; le bonus vit dans SA micro-ligne (pas de doublon).
+  const meta = `${formatKm(MAP_MISSION.distanceKm)} · ${zonesLabel(MAP_MISSION.zones)}`;
   return (
-    <Animated.View style={[styles.rivalCard, { opacity, transform: [{ translateY }] }]}>
-      <View style={styles.rivalBody}>
-        <Text style={styles.rivalTitle} numberOfLines={1}>
-          <Icon name={RIVAL_ALERT_ICON} size={12} color={gameColors.rival} />{' '}
-          {MAP_RIVAL_ALERT.rivalName} attaque {MAP_RIVAL_ALERT.zone}
-        </Text>
-        <Text style={styles.rivalMeta} numberOfLines={1}>
-          {MAP_RIVAL_ALERT.zonesLost} zones reprises · {timeAgoLabel(MAP_RIVAL_ALERT.minutesAgo)}
+    <View style={styles.card}>
+      <Text style={styles.cardTitle} numberOfLines={1}>
+        {MAP_MISSION.cardTitle}
+      </Text>
+      <Text style={styles.cardMeta} numberOfLines={1}>
+        {meta}
+      </Text>
+      {/* Micro-ligne bonus (plus de gros bandeau BONUS ACTIF horizontal). */}
+      <View style={styles.bonusMicro}>
+        <Icon name="eclats" size={12} color={gameColors.crew} />
+        <Text style={styles.bonusMicroText} numberOfLines={1}>
+          {MAP_MISSION.bonusMicroLabel} · +{MAP_MISSION.bonusPoints} pts
         </Text>
       </View>
-      <View style={styles.rivalCtaSlot}>
-        <InlineRunCTA
-          label="DÉFENDRE"
-          size="md"
-          onPress={onDefend}
-          accessibilityLabel={`Défendre ${MAP_RIVAL_ALERT.zone} contre ${MAP_RIVAL_ALERT.rivalName}`}
-        />
+      {/* UN SEUL CTA de départ (RunButton = flux unique phase 1). */}
+      <View style={styles.ctaWrap}>
+        <RunButton label={MAP_MISSION.ctaLabel} />
       </View>
-    </Animated.View>
-  );
-}
-
-/**
- * BONUS CIBLÉ de la Carte (AMENDEMENT-19 §4) : UNE bande DISCRÈTE, un seul bonus
- * (le plus pertinent PROCHE) — « BONUS ACTIF · Terminer République · 620 m ».
- * Petite pastille chartreuse (gain, jamais menace) + libellé court non tronqué
- * (CTA de la fiche + zone + distance) ; tap = agir (CTA de la fiche). Ne
- * chevauche ni le HUD, ni la sheet, ni le bouton Info (posée dans la pile HUD
- * du haut). Slide-in à l'apparition. Rien à afficher → le parent ne la monte pas.
- */
-function MapBonusBand({
-  bonus,
-  onPress,
-}: {
-  bonus: SelectedBonusDemo;
-  onPress: () => void;
-}) {
-  const { opacity, translateY } = useSlideIn(8);
-  const def = bonus.def;
-  // CTA de la fiche en Capitale initiale (« TERMINER » → « Terminer »).
-  const cta = def.cta.charAt(0) + def.cta.slice(1).toLowerCase();
-  const label = `${cta} ${MAP_BONUS_NEAR.zone} · ${MAP_BONUS_NEAR.distanceM} m`;
-  return (
-    <Animated.View style={{ opacity, transform: [{ translateY }], alignSelf: 'stretch' }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Bonus actif — ${cta} ${MAP_BONUS_NEAR.zone}, à ${MAP_BONUS_NEAR.distanceM} mètres`}
-        onPress={onPress}
-        style={({ pressed }) => [styles.bonusBand, pressed && styles.pressed]}
+        accessibilityLabel="Voir les options — ouvrir le panneau de mission"
+        hitSlop={8}
+        onPress={onOptions}
+        style={({ pressed }) => pressed && styles.pressed}
       >
-        <View style={styles.bonusBandIcon}>
-          <Icon name={BONUS_ICON[def.id]} size={13} color={gameColors.crew} />
-        </View>
-        <Text style={styles.bonusBandKicker}>BONUS ACTIF</Text>
-        <Text style={styles.bonusBandSep}>·</Text>
-        <Text style={styles.bonusBandLabel} numberOfLines={1}>
-          {label}
-        </Text>
-        <Icon name="chevron" size={13} color={gameColors.crew} />
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-/**
- * Carte SITUATION (bouton Info, AMENDEMENT-17 option A fondateur) : révèle à la
- * demande « la situation » — secteur + parts de contrôle + « Défense
- * recommandée ». N'affiche PAS les contrôles de carte (Couches/Fond/Recentrer),
- * qui restent des boutons simples à côté. Tap = fermer.
- */
-function SituationCard({
-  directive,
-  bottom,
-  onClose,
-}: {
-  directive: ReturnType<typeof mapDirective>;
-  bottom: number;
-  onClose: () => void;
-}) {
-  return (
-    <View style={[styles.situationWrap, { bottom }]} pointerEvents="box-none">
-      <Pressable
-        style={styles.situationCard}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Masquer la situation"
-      >
-        <Text style={styles.situationTitle} numberOfLines={1}>
-          {MAP_HUD.zoneName.toUpperCase()} · {MAP_CONTROL_HUD.stateLabel}
-        </Text>
-        <Text style={styles.situationShares} numberOfLines={1}>
-          <Text style={styles.pillSharesCrew}>Ton crew {MAP_CONTROL_HUD.crewPct} %</Text>
-          {`  ·  ${MAP_CONTROL_HUD.rivalName} ${MAP_CONTROL_HUD.rivalPct} %  ·  Neutre ${MAP_CONTROL_HUD.neutralPct} %`}
-        </Text>
-        <Text
-          style={[
-            styles.situationKicker,
-            { color: directive.lecture === 'defense' ? gameColors.verify : gameColors.crew },
-          ]}
-        >
-          {directive.kicker}
-        </Text>
-        <Text style={styles.situationOrder} numberOfLines={2}>
-          {directive.headline} {directive.order}
+        <Text style={styles.optionsLink} numberOfLines={1}>
+          {MAP_MISSION.optionsLabel}
         </Text>
       </Pressable>
     </View>
@@ -619,19 +438,104 @@ function SituationCard({
 }
 
 /**
- * Sélecteur de calque « Couches » (AMENDEMENT-17 §1.2) : petit menu vertical
- * ouvert par le bouton calques — remplace la rangée de 5 filtres permanente.
- * Un calque actif à la fois ; le défaut est AUTO (MapScreen).
+ * Pill RIVAL (AMENDEMENT-21 §5) : compacte, INFORMATIVE seulement, SANS CTA —
+ * « Canal Crew reprend du terrain · 14 zones perdues ». Petite ligne discrète
+ * (point orange = la menace), jamais un gros bloc rouge alarmiste permanent.
+ * Slide-in doux à l'apparition (reduce motion → fondu). Le seul CTA de l'écran
+ * reste [Défendre] dans la card.
  */
-function LayerSelector({
+function RivalPill() {
+  const { opacity, translateY } = useSlideIn(6);
+  return (
+    <Animated.View style={[styles.rivalPill, { opacity, transform: [{ translateY }] }]}>
+      <View style={styles.rivalDot} />
+      <Text style={styles.rivalText} numberOfLines={1}>
+        {MAP_RIVAL_PILL.message}
+      </Text>
+      <Text style={styles.rivalSep}>·</Text>
+      <Text style={styles.rivalLost} numberOfLines={1}>
+        {zonesLabel(MAP_RIVAL_PILL.zonesLost)} perdues
+      </Text>
+    </Animated.View>
+  );
+}
+
+/**
+ * BLOC RÉSUMÉ du sheet (ex-SituationCard AMENDEMENT-17, fusionnée ici — plus de
+ * 3ᵉ FAB Info) : zone · état · crew % vs rival % · bonus · temps restant. Les %
+ * de contrôle vivent ICI (détail au tap), jamais en permanence sur la carte.
+ */
+function SummaryBlock() {
+  const s = MAP_MISSION_SUMMARY;
+  return (
+    <View style={styles.summary}>
+      <Text style={styles.summaryTitle} numberOfLines={1}>
+        {s.zone} · {s.stateLabel}
+      </Text>
+      <Text style={styles.summaryShares} numberOfLines={1}>
+        <Text style={styles.summaryCrew}>Ton crew {s.crewPct} %</Text>
+        {`  ·  ${s.rivalName} ${s.rivalPct} %`}
+      </Text>
+      <View style={styles.summaryFoot}>
+        <View style={styles.summaryChip}>
+          <Icon name="eclats" size={12} color={gameColors.crew} />
+          <Text style={styles.summaryChipText} numberOfLines={1}>
+            {MAP_MISSION.bonusMicroLabel} · +{MAP_MISSION.bonusPoints} pts
+          </Text>
+        </View>
+        <View style={styles.summaryChip}>
+          <Icon name="sablier" size={12} color={gameColors.danger} />
+          <Text style={styles.summaryChipText} numberOfLines={1}>
+            {s.timeLeftLabel}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Menu « Calques » (AMENDEMENT-21) : ouvert par le FAB Calques — remplace la
+ * rangée de 5 filtres permanente ET absorbe la bascule de fond (plus de 3ᵉ FAB
+ * Fond). En haut, le fond de carte (Sombre/Couleur) ; en dessous, les calques
+ * de lecture (un actif à la fois ; le défaut est AUTO selon le contexte). Fermé
+ * par défaut — il ne s'ouvre jamais tout seul.
+ */
+function LayerMenu({
   active,
   onSelect,
+  basemap,
+  onToggleBasemap,
 }: {
   active: MapMode;
   onSelect: (mode: MapMode) => void;
+  basemap: 'dark' | 'color';
+  onToggleBasemap?: () => void;
 }) {
   return (
     <View style={styles.layerMenu}>
+      {onToggleBasemap ? (
+        <>
+          <Text style={styles.layerHeading}>FOND</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              basemap === 'color'
+                ? 'Fond de carte couleur (toucher pour repasser en sombre)'
+                : 'Fond de carte sombre (toucher pour passer en couleur)'
+            }
+            onPress={onToggleBasemap}
+            style={({ pressed }) => [styles.layerItem, pressed && styles.pressed]}
+          >
+            <Icon name="carte" size={15} color={colors.blanc} />
+            <Text style={styles.layerLabel} numberOfLines={1}>
+              {basemap === 'color' ? 'Couleur' : 'Sombre'}
+            </Text>
+          </Pressable>
+          <View style={styles.layerDivider} />
+        </>
+      ) : null}
+      <Text style={styles.layerHeading}>CALQUES</Text>
       {MAP_MODE_ORDER.map((key) => {
         const on = active === key;
         return (
@@ -662,173 +566,92 @@ function LayerSelector({
   );
 }
 
-/** Mini war feed flottant : UN event compact à la fois, slide-in à chaque cycle. */
-function WarFeedTicker() {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    if (MAP_WAR_FEED.length < 2) return;
-    const id = setInterval(
-      () => setIndex((i) => (i + 1) % MAP_WAR_FEED.length),
-      WAR_FEED_CYCLE_MS,
-    );
-    return () => clearInterval(id);
-  }, []);
-  const event = MAP_WAR_FEED[index];
-  if (!event) return null;
-  // key={index} → remonte la ligne à chaque cycle (rejoue le slide-in).
-  return <WarFeedRow key={index} event={event} />;
-}
-
-function WarFeedRow({ event }: { event: MapWarFeedEventDemo }) {
-  const { opacity, translateY } = useSlideIn(10);
-  const live = event.minutesAgo < LIVE_MAX_MINUTES;
-  const metaParts = [
-    event.zone,
-    event.points !== undefined ? `+${event.points} pts` : undefined,
-    timeAgoLabel(event.minutesAgo),
-  ].filter((p): p is string => p !== undefined);
-
-  return (
-    <Animated.View style={[styles.feedRow, { opacity, transform: [{ translateY }] }]}>
-      <View style={[styles.feedIcon, { borderColor: event.tint }]}>
-        <Icon name={event.icon} size={14} color={event.tint} />
-      </View>
-      <View style={styles.feedBody}>
-        <Text style={styles.feedMessage} numberOfLines={1}>
-          {event.message}
-        </Text>
-        <Text style={styles.feedMeta} numberOfLines={1}>
-          {metaParts.join(' · ')}
-        </Text>
-      </View>
-      {live ? (
-        <View style={styles.liveTag}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveLabel}>LIVE</Text>
-        </View>
-      ) : null}
-    </Animated.View>
-  );
-}
-
 /** Surface profonde translucide commune aux flottants (HUD sur carte). */
-const OVERLAY_SURFACE = 'rgba(16,18,16,0.88)';
+const OVERLAY_SURFACE = 'rgba(16,18,16,0.92)';
 
 const styles = StyleSheet.create({
   top: { position: 'absolute', left: 14, right: 14, gap: 8, alignItems: 'center' },
   pressed: { opacity: 0.7 },
 
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+  // ── HEADER COMPACT : UNE ligne titre + sous-ligne (un seul message) ──
+  header: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: OVERLAY_SURFACE,
+  },
+  headerTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg, // 20 px
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    color: colors.gris,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 1,
+    textAlign: 'center',
+  },
+
+  // ── Pill RIVAL : compacte, INFORMATIVE, SANS CTA ──
+  rivalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: OVERLAY_SURFACE,
     maxWidth: '100%',
   },
-  pillText: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textAlign: 'center',
-  },
-  pillRank: { color: gameColors.crew },
-  // UNE phrase rivale sous la pill (remplace les % permanents — détail au tap).
-  pillPhrase: {
-    color: colors.gris,
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  // Parts de contrôle — révélées AU TAP seulement.
-  pillShares: {
-    color: colors.gris,
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
-  },
-  pillSharesCrew: { color: gameColors.crew },
+  rivalDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: gameColors.rival },
+  rivalText: { color: colors.blanc, fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  rivalSep: { color: colors.gris, fontSize: 12 },
+  rivalLost: { color: colors.gris, fontSize: 12, fontVariant: ['tabular-nums'] },
 
-  // ── Alerte rival actionnable ──
-  rivalCard: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingLeft: 10,
-    paddingRight: 8,
-    paddingVertical: 8,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: gameColors.rival,
-    backgroundColor: OVERLAY_SURFACE,
-  },
-  rivalBody: { flex: 1, gap: 1 },
-  rivalTitle: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
-  rivalMeta: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
-  // Le CTA [Défendre] garde une largeur bornée (l'InlineRunCTA est plein-largeur).
-  rivalCtaSlot: { width: 132 },
+  // ── FAB column : 2 MAX (Recentrer + Calques) ──
+  fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
 
-  // ── Bonus ciblé : bande discrète (AMENDEMENT-19 §4) ──
-  bonusBand: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingLeft: 8,
-    paddingRight: 6,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    backgroundColor: OVERLAY_SURFACE,
-  },
-  bonusBandIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    backgroundColor: gameColors.carbon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bonusBandKicker: {
-    color: gameColors.crew,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  bonusBandSep: { color: colors.gris, fontSize: 10 },
-  bonusBandLabel: {
-    flex: 1,
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-  },
-
-  // ── Sélecteur de calque « Couches » ──
+  // ── Menu Calques (fond + calques de lecture) ──
   layerMenu: {
     alignSelf: 'flex-end',
-    gap: 6,
-    padding: 6,
+    gap: 4,
+    padding: 8,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: OVERLAY_SURFACE,
     marginBottom: 4,
+    minWidth: 168,
+  },
+  layerHeading: {
+    color: colors.gris,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginLeft: 2,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  layerDivider: {
+    height: 1,
+    backgroundColor: colors.grisLigne,
+    marginVertical: 4,
   },
   layerItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'transparent',
@@ -837,91 +660,90 @@ const styles = StyleSheet.create({
   layerLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   layerLabelActive: { color: gameColors.crew },
 
-  feedWrap: { alignSelf: 'flex-start', maxWidth: 300 },
-  feedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: OVERLAY_SURFACE,
-  },
-  feedIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: gameColors.carbon,
-  },
-  feedBody: { flexShrink: 1 },
-  feedMessage: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-  feedMeta: { color: colors.gris, fontSize: 10, marginTop: 1 },
-  liveTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: gameColors.crew,
-  },
-  liveDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: gameColors.crew },
-  liveLabel: { color: gameColors.crew, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-
-  fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'center' },
-
-  // Carte « situation » (bouton Info) : posée à gauche pour ne pas passer sous
-  // la colonne de FABs de droite.
-  situationWrap: { position: 'absolute', left: 14, right: 80 },
-  situationCard: {
-    backgroundColor: 'rgba(16,18,16,0.94)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(250,250,247,0.10)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 3,
-  },
-  situationTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.4 },
-  situationShares: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
-  situationKicker: { fontSize: 10, fontWeight: '700', letterSpacing: 1, marginTop: 4 },
-  situationOrder: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-
-  // Le wrapper CLIPPE la sheet (elle glisse vers le bas en compact — sans
-  // overflow hidden elle réapparaîtrait derrière la barre de nav).
+  // Le wrapper CLIPPE la sheet (elle glisse vers le bas en compact).
   sheetWrap: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' },
 
-  // ── Compact = la DIRECTIVE + UN CTA (RunButton) + lien secondaire ──
-  compactBody: { paddingHorizontal: 16, paddingBottom: 10, gap: 2 },
-  // Teinte inline par la LECTURE (défense = verify, conquête = chartreuse).
-  kicker: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  directiveTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  directiveOrder: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
-  ctaWrap: { marginTop: 6 },
-  // « Changer de route » — lien discret (le planner est OPTIONNEL, A-14 §3).
-  routeLink: {
+  // ── CARD STICKY (compact) : la mission + le CTA unique ──
+  card: { paddingHorizontal: 16, paddingBottom: 12, gap: 2 },
+  cardTitle: { color: colors.blanc, fontSize: 17, fontWeight: '800', letterSpacing: 0.2 },
+  cardMeta: {
     color: colors.gris,
-    fontSize: fontSizes.xs,
+    fontSize: 13,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  // Micro-ligne bonus (remplace le gros bandeau BONUS ACTIF).
+  bonusMicro: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+  bonusMicroText: {
+    color: gameColors.crew,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  ctaWrap: { marginTop: 10 },
+  // « Voir les options » — lien discret (ouvre le sheet, jamais un 2ᵉ CTA fort).
+  optionsLink: {
+    color: colors.gris,
+    fontSize: 13,
     textDecorationLine: 'underline',
     textAlign: 'center',
+    marginTop: 10,
+  },
+
+  // ── Sheet OUVERT : 4 blocs ──
+  openBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  sectionTitle: {
+    color: colors.gris,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
     marginTop: 6,
   },
 
-  semiBlock: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
-    gap: 8,
-    borderTopWidth: 1,
+  // BLOC RÉSUMÉ (ex-SituationCard).
+  summary: {
+    padding: 14,
+    gap: 4,
+    borderRadius: 16,
+    borderWidth: 1,
     borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  summaryTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.2 },
+  summaryShares: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  summaryCrew: { color: gameColors.crew },
+  summaryFoot: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  summaryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: gameColors.carbon,
+  },
+  summaryChipText: { color: colors.blanc, fontSize: 11, fontWeight: '600' },
+
+  // Lignes-cartes (parcours / équipe / détails).
+  rowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  rowCardSelected: { borderColor: colors.chartreuse40 },
   rowIcon: {
     width: 26,
     height: 26,
@@ -930,51 +752,19 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.carbone,
+    backgroundColor: gameColors.carbon,
   },
-  rowIconGold: { borderColor: gameColors.gold },
   rowBody: { flex: 1, gap: 1 },
   rowTitle: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-  rowMeta: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
-
-  openBlock: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-    gap: 8,
-    borderTopWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  sectionTitle: {
-    color: colors.gris,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
-  parcours: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-  },
-  parcoursSelected: { borderColor: colors.chartreuse40 },
+  rowMeta: { color: colors.gris, fontSize: 11, fontVariant: ['tabular-nums'] },
   onMapTag: { color: gameColors.crew, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
   joinCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    backgroundColor: gameColors.carbon,
   },
   joinCtaLabel: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '700' },
 });

@@ -26,9 +26,6 @@ import { colors, gameColors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { Icon } from '../../ui/Icon';
 import {
-  FLOATING_MAP_BUTTON_SIZE,
-  FloatingMapButton,
-  MAP_SHEET_COMPACT_HEIGHT,
   MateMarker,
   PoiMarker,
   RealMap,
@@ -66,21 +63,11 @@ const ATTRIBUTION_ABOVE_RUN_BOTTOM = 6;
 /** Attribution compacte obligatoire (données © OpenStreetMap, tuiles CARTO). */
 const ATTRIBUTION_LABEL = '© OpenStreetMap © CARTO';
 
-// ── Bascule du fond de carte (dark ↔ color) — bouton flottant AU-DESSUS de la
-// pile Recentrer/Stats de BattleMapOverlays (mêmes métriques pour ne pas la
-// recouvrir). Le gap entre flottants est de 10 px (pile verticale à droite).
-const FAB_GAP = 10;
-const HUD_FAB_ABOVE_SHEET = 12;
-const SHEET_ABOVE_RUN_BUTTON = 12;
-/** Bas de la pile de flottants du HUD (identique au calcul de BattleMapOverlays).
- *  AMENDEMENT-17 §1.2 : plus de rangée de chips de mode (MODE_CHIPS_HEIGHT retiré). */
-const HUD_FAB_COLUMN_BOTTOM =
-  RUN_BUTTON_BOTTOM +
-  SHEET_ABOVE_RUN_BUTTON +
-  MAP_SHEET_COMPACT_HEIGHT +
-  HUD_FAB_ABOVE_SHEET;
-/** La bascule s'empile au-dessus des TROIS flottants du HUD (Couches + Recentrer + Stats). */
-const BASEMAP_FAB_ABOVE_HUD_FABS = 3 * (FLOATING_MAP_BUTTON_SIZE + FAB_GAP);
+// AMENDEMENT-21 : la Carte est un ÉCRAN MISSION. Les contrôles flottants (fond
+// dark/couleur + calques de lecture) vivent DANS le menu « Calques » du HUD
+// (BattleMapOverlays) — plus aucun FAB de bascule de fond ici (2 FABs max :
+// Recentrer + Calques). Le fond persisté (useBasemapStyle) est simplement passé
+// au HUD, qui porte le menu (parité stricte avec MapScreen.web).
 
 /** Teintes des markers — tokens uniquement (états de jeu). */
 const markerColors = {
@@ -253,7 +240,8 @@ export function MapScreen() {
         {ATTRIBUTION_LABEL}
       </Text>
 
-      {/* ── HUD (pill % contrôle, feed, menu Info : Couches + Fond + Recentrer) ── */}
+      {/* ── HUD ÉCRAN MISSION (header 1 ligne, pill rival, card sticky + [Défendre],
+          sheet 4 blocs, 2 FABs : Recentrer + Calques) — AMENDEMENT-21 ── */}
       <BattleMapOverlays
         mode={mode}
         onSelectMode={setMode}
@@ -307,7 +295,6 @@ function StateIcon({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
-  basemapFab: { position: 'absolute', right: 14, alignItems: 'center' },
   ego: {
     width: EGO_HALO_SIZE,
     height: EGO_HALO_SIZE,

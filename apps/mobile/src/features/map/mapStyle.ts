@@ -86,21 +86,26 @@ export const territoryStyle = {
   decayUrgentStroke: withAlpha(gameColors.danger, 0.85),
   decayUrgentFill: withAlpha(gameColors.danger, 0.08),
 
-  // Objectif : zone chaude DOUCE (aplat très léger + lueur large, pas de bord dur).
-  objectiveFill: withAlpha(colors.chartreuse, 0.09),
-  objectiveSoft: withAlpha(colors.chartreuse, 0.07),
+  // Objectif : zone chaude DOUCE (aplat très léger). AMENDEMENT-21 (écran
+  // mission) : encore atténué — la carte n'affiche FORT que ma position, la
+  // zone ciblée, la route et le point d'arrivée ; le reste recède (moins de
+  // superpositions vertes).
+  objectiveFill: withAlpha(colors.chartreuse, 0.06),
+  objectiveSoft: withAlpha(colors.chartreuse, 0.05),
 
-  // Avant-poste : petit blob organique tenu par mon crew.
-  outpostFill: withAlpha(colors.chartreuse, 0.1),
-  outpostStroke: withAlpha(colors.chartreuse, 0.45),
+  // Avant-poste : petit blob organique tenu par mon crew (secondaire → discret).
+  outpostFill: withAlpha(colors.chartreuse, 0.07),
+  outpostStroke: withAlpha(colors.chartreuse, 0.32),
 
-  // Route ouverte : ligne ÉPAISSE (route-first, lisible au soleil).
+  // Route ouverte : ligne ÉPAISSE (route-first, lisible au soleil) — c'est le
+  // trait FORT de l'écran mission (le chemin à courir maintenant).
   routeStroke: withAlpha(colors.chartreuse, 0.9),
   routeDot: colors.chartreuse,
 
-  // Zone bonus (1 MAX — anti-bruit) : anneau or pointillé pulsé + voile doux.
-  bonusFill: withAlpha(gameColors.gold, 0.12),
-  bonusStroke: withAlpha(gameColors.gold, 0.75),
+  // Zone bonus (1 MAX — anti-bruit) : anneau or pointillé pulsé, atténué en
+  // écran mission (le bonus vit surtout en micro-ligne dans la card).
+  bonusFill: withAlpha(gameColors.gold, 0.08),
+  bonusStroke: withAlpha(gameColors.gold, 0.55),
 
   // Aperçu du parcours sélectionné (sheet) : gris clair sur liseré sombre.
   parcoursCasing: withAlpha(colors.noir, 0.5),
