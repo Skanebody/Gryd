@@ -47,12 +47,14 @@ import { formatInt } from '../src/ui/format';
 import {
   FloatingMapButton,
   MAP_SHEET_COMPACT_HEIGHT,
+  Map3DToggle,
   MapBottomSheet,
   StatePill,
   usePulse,
   useReduceMotion,
   useSlideIn,
 } from '../src/ui/game';
+import { useMap3d } from '../src/features/map/mapPref';
 import { LiveNavMap, type LiveNavMapHandle } from '../src/features/run/LiveNavMap';
 import { buildRunLoop, loopStatusAt } from '../src/features/run/loop';
 import {
@@ -242,6 +244,9 @@ function DemoCourseLive({
       ? 'carte'
       : 'stats';
   const [view, setView] = useState<LiveView>(defaultView);
+  // AMENDEMENT-26 — VUE 3D partagée (pref `gryd.map3d`) : le run en perspective.
+  // Défaut 2D. Pur confort visuel — zéro impact gameplay (le serveur décide).
+  const { map3d, setMap3d } = useMap3d();
   const [tickIndex, setTickIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [following, setFollowing] = useState(true);
@@ -630,6 +635,7 @@ function DemoCourseLive({
             loopPhase={loopStatus.phase}
             mates={mates}
             rival={rival}
+            mode3d={map3d}
             onFollowChange={setFollowing}
           />
 
@@ -666,6 +672,19 @@ function DemoCourseLive({
             <View style={[styles.scaleLine, { width: NAV_SCALE_BAR_METERS / NAV_MAP_METERS_PER_PIXEL }]} />
             <Text style={styles.scaleLabel}>{NAV_SCALE_BAR_METERS} m</Text>
             <Text style={styles.attribution}>© OpenStreetMap © CARTO</Text>
+          </View>
+
+          {/* ── AMENDEMENT-26 — bascule 2D/3D : contrôle d'apparence DISCRET (pas
+               un FAB permanent — AMENDEMENT-22). Posé en haut à droite, en face du
+               ✕, hors de la colonne de boutons. Mémorisé (pref `gryd.map3d`) et
+               partagé avec les autres cartes. Confort visuel pur. ── */}
+          <View style={[styles.map3dToggle, { top: insets.top + 10 }]}>
+            <Map3DToggle
+              value={map3d}
+              onChange={setMap3d}
+              accessibilityLabel="Vue de la carte du run"
+              testID="course-live-toggle-3d"
+            />
           </View>
 
           {/* ── N2 action (§C.3) au-dessus de la sheet : card courte, jamais
@@ -1634,6 +1653,9 @@ const styles = StyleSheet.create({
   },
 
   floatColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'center' },
+  // AMENDEMENT-26 — toggle 2D/3D discret : ancré en haut à droite (en face du ✕),
+  // au-dessus de la carte, jamais dans la colonne de FABs (anti-cockpit A-22).
+  map3dToggle: { position: 'absolute', right: 14, zIndex: 20, alignItems: 'flex-end' },
   pauseDisc: {
     width: 44,
     height: 44,

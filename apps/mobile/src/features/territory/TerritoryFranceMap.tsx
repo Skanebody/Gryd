@@ -23,7 +23,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
-import { RealMap, type RealMapPressEvent, type RealMapRef } from '../../ui/game';
+import { Map3DToggle, RealMap, type RealMapPressEvent, type RealMapRef } from '../../ui/game';
+import { useMap3d } from '../map/mapPref';
 import {
   TERRITORY_DOT_MAX_ZOOM,
   possessionsBounds,
@@ -53,6 +54,12 @@ export interface TerritoryFranceMapProps {
 export function TerritoryFranceMap({ preview = false, style, testID }: TerritoryFranceMapProps) {
   const mapRef = useRef<RealMapRef>(null);
   const [view, setView] = useState<FranceView>('france');
+  /**
+   * AMENDEMENT-26 — vue 3D (pref `gryd.map3d`, défaut 2D) partagée entre toutes
+   * les cartes. En 3D : carte pitchée + mes possessions en volume extrudé
+   * chartreuse (RealMap `mode3d`). CONFORT visuel pur — zéro impact gameplay.
+   */
+  const { map3d, setMap3d } = useMap3d();
   /**
    * Le tap-vers-ville n'est actif que sous le zoom seuil (là où les points
    * villes sont visibles) — piloté par le zoom RÉEL de la caméra (§4bis),
@@ -106,10 +113,21 @@ export function TerritoryFranceMap({ preview = false, style, testID }: Territory
         bounds={bounds}
         geojsonLayers={layers}
         pointLayers={territoryDotLayers()}
+        mode3d={map3d}
         onPress={preview ? undefined : onMapPress}
         onZoomChange={preview ? undefined : onZoomChange}
         style={styles.map}
       />
+
+      {/* ── Contrôle d'apparence 2D/3D (AMENDEMENT-26/22) — discret, jamais en aperçu ── */}
+      {!preview ? (
+        <Map3DToggle
+          value={map3d}
+          onChange={setMap3d}
+          style={styles.map3dToggle}
+          testID="territoire-map3d-toggle"
+        />
+      ) : null}
 
       {/* ── Retour à l'ensemble des possessions (vue ville) — jamais en aperçu ── */}
       {!preview && view !== 'france' ? (
@@ -181,6 +199,9 @@ const styles = StyleSheet.create({
   },
   backChevron: { transform: [{ scaleX: -1 }] },
   backFranceText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+
+  // ── Contrôle d'apparence 2D/3D (haut droite, ne heurte pas le retour à gauche) ──
+  map3dToggle: { position: 'absolute', top: 12, right: 12 },
 
   // ── Chips navigation rapide ──
   chipsRow: {

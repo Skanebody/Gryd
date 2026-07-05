@@ -222,6 +222,18 @@ export interface RealMapProps {
    * (2D actuelle). N'affecte QUE les couches qui portent elles-mêmes `extrude`.
    */
   extrudeZones?: boolean;
+  /**
+   * AMENDEMENT-26 — VUE 3D, prop de CONVENANCE : `true` = GRYD 3D Conquest
+   * (carte pitchée ~52° + zones capturées extrudées en volume). Elle ne fait que
+   * fournir un DÉFAUT à `pitch` et `extrudeZones` : un `pitch`/`extrudeZones`
+   * passés EXPLICITEMENT priment toujours (le partage/l'historique gardent leur
+   * pitch ~55° et leur extrusion — aucune régression). `false` (défaut) = 2D
+   * actuelle STRICTEMENT inchangée (pitch 0, aplats plats). C'est le SEUL levier
+   * dont les surfaces de carte ont besoin : elles branchent `mode3d={map3d}` sur
+   * la préférence `gryd.map3d` (mapPref) et laissent RealMap gérer le rendu.
+   * Pur affichage — zéro impact gameplay (le serveur décide du claim).
+   */
+  mode3d?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -230,6 +242,13 @@ export interface RealMapProps {
 
 /** Message offline imposé (AMENDEMENT-13 §5). */
 const OFFLINE_MESSAGE = 'Carte indisponible — tes zones restent à toi';
+/**
+ * AMENDEMENT-26 — VUE 3D : pitch de convenance appliqué quand `mode3d` est vrai
+ * SANS `pitch` explicite (dans la fourchette ~50-55° de l'amendement). Le partage
+ * et l'historique passent leur propre pitch (~55°) et ne sont donc pas touchés.
+ * UI pure — aucune règle de jeu.
+ */
+const MODE_3D_DEFAULT_PITCH = 52;
 /** Période du pulse contesté (lent, doc §8). */
 const PULSE_PERIOD_MS = 2_400;
 /** Amplitude du pulse : l'opacité du contour oscille entre min et 1. */
@@ -570,14 +589,21 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     attributionCompact = true,
     basemap,
     silent = false,
-    pitch = 0,
+    pitch: pitchProp,
     bearing = 0,
-    extrudeZones = false,
+    extrudeZones: extrudeZonesProp,
+    mode3d = false,
     style,
     testID,
   }: RealMapProps,
   ref,
 ) {
+  // AMENDEMENT-26 — VUE 3D : `mode3d` n'est qu'un DÉFAUT pour `pitch`/
+  // `extrudeZones`. Un `pitch`/`extrudeZones` EXPLICITE prime toujours (partage/
+  // historique gardent leur ~55° et leur extrusion — non-régression). Absent des
+  // deux : 2D actuelle (pitch 0, aplats plats) — comportement historique intact.
+  const pitch = pitchProp ?? (mode3d ? MODE_3D_DEFAULT_PITCH : 0);
+  const extrudeZones = extrudeZonesProp ?? mode3d;
   /**
    * Carte silencieuse (AMENDEMENT-20 §1) : demandée explicitement OU carte de
    * Course Live (LiveNavMap → testID stable). Figé au montage (le handler `load`

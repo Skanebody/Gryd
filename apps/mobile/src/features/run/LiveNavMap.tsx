@@ -247,6 +247,13 @@ export interface LiveNavMapProps {
   rival?: RivalSector | null;
   /** Notifié quand le suivi caméra change (geste = off, recenter = on). */
   onFollowChange?: (following: boolean) => void;
+  /**
+   * AMENDEMENT-26 — VUE 3D : true = run en perspective (carte pitchée ~52° +
+   * zones extrudées via RealMap.mode3d). CONFORT visuel pur (le serveur décide
+   * toujours). Défaut false = 2D actuelle strictement inchangée. Piloté par la
+   * préférence `gryd.map3d` (useMap3d) depuis course-live.
+   */
+  mode3d?: boolean;
 }
 
 interface DisplayPos {
@@ -267,6 +274,7 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
     mates = [],
     rival = null,
     onFollowChange,
+    mode3d = false,
   },
   ref,
 ) {
@@ -609,6 +617,7 @@ export const LiveNavMap = forwardRef<LiveNavMapHandle, LiveNavMapProps>(function
         camera={frozenCameraRef.current}
         geojsonLayers={layers}
         markers={markers}
+        mode3d={mode3d}
         onMapReady={onMapReady}
         attributionCompact={false}
         style={StyleSheet.absoluteFill}

@@ -95,6 +95,7 @@ export {
   type RealMapMarker,
   type RealMapPressEvent,
 } from './RealMap';
+export { Map3DToggle, type Map3DToggleProps } from './Map3DToggle';
 export { MateMarker, MATE_MARKER_SIZE, type MateMarkerProps } from './MateMarker';
 export { PoiMarker, POI_MARKER_SIZE, type PoiMarkerProps, type PoiKind } from './PoiMarker';
 export { RouteProgress, type RouteProgressProps, type RoutePoint } from './RouteProgress';

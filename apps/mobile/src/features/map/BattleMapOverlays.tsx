@@ -49,6 +49,7 @@ import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 import {
   FloatingMapButton,
+  Map3DToggle,
   MapBottomSheet,
   useSlideIn,
   type MapSheetState,
@@ -117,6 +118,13 @@ export interface BattleMapOverlaysProps {
   /** Fond de carte courant + bascule sombre↔couleur (dans le menu Calques). */
   basemap?: 'dark' | 'color';
   onToggleBasemap?: () => void;
+  /**
+   * Vue 2D/3D courante (AMENDEMENT-26) + setter — pilotés par la pref
+   * `gryd.map3d` (useMap3d, détenue par MapScreen). Le toggle 2D/3D vit DANS le
+   * menu Calques (à côté du fond), PAS un 4ᵉ FAB. Omis : pas de toggle 3D.
+   */
+  map3d?: boolean;
+  onSetMap3d?: (value: boolean) => void;
 }
 
 export function BattleMapOverlays({
@@ -128,6 +136,8 @@ export function BattleMapOverlays({
   onSelectParcours,
   basemap = 'dark',
   onToggleBasemap,
+  map3d,
+  onSetMap3d,
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -248,6 +258,8 @@ export function BattleMapOverlays({
                   }
                 : undefined
             }
+            map3d={map3d}
+            onSetMap3d={onSetMap3d}
           />
         ) : null}
         <FloatingMapButton
@@ -515,11 +527,15 @@ function LayerMenu({
   onSelect,
   basemap,
   onToggleBasemap,
+  map3d,
+  onSetMap3d,
 }: {
   active: MapMode;
   onSelect: (mode: MapMode) => void;
   basemap: 'dark' | 'color';
   onToggleBasemap?: () => void;
+  map3d?: boolean;
+  onSetMap3d?: (value: boolean) => void;
 }) {
   return (
     <View style={styles.layerMenu}>
@@ -541,6 +557,21 @@ function LayerMenu({
               {basemap === 'color' ? 'Couleur' : 'Sombre'}
             </Text>
           </Pressable>
+          <View style={styles.layerDivider} />
+        </>
+      ) : null}
+      {/* VUE 2D/3D (AMENDEMENT-26) : le toggle vit AVEC les contrôles d'apparence
+          de carte (à côté du fond), PAS un 4ᵉ FAB. Contrôlé par la pref
+          gryd.map3d (map3d/onSetMap3d de MapScreen). Défaut 2D. */}
+      {onSetMap3d ? (
+        <>
+          <Text style={styles.layerHeading}>VUE</Text>
+          <Map3DToggle
+            value={map3d}
+            onChange={onSetMap3d}
+            style={styles.layerToggle}
+            testID="battle-map-3d-toggle"
+          />
           <View style={styles.layerDivider} />
         </>
       ) : null}
@@ -666,6 +697,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   layerItemActive: { borderColor: gameColors.crew, backgroundColor: gameColors.carbon },
+  // Toggle 2D/3D dans le menu Calques : pleine largeur du menu (aligné aux items).
+  layerToggle: { alignSelf: 'stretch', marginHorizontal: 2 },
   layerLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   layerLabelActive: { color: gameColors.crew },
 

@@ -44,7 +44,7 @@ import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
 import { battleGameLayers } from './mapStyle';
-import { useBasemapStyle } from './mapPref';
+import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
 import { MODE_EMPHASIS, autoMapMode, type MapMode, type ModeEmphasis } from './territory';
 
@@ -170,6 +170,14 @@ export function MapScreen() {
   const { basemap, toggle } = useBasemapStyle();
 
   /**
+   * Vue 2D/3D persistée (AMENDEMENT-26, défaut false = 2D) — partagée par toutes
+   * les surfaces via gryd.map3d. Passée en `mode3d` à RealMap (pitch/extrusion de
+   * convenance) et au HUD, qui porte le toggle dans le menu Calques (pas un FAB).
+   * Pur confort visuel — zéro impact gameplay (le serveur décide du claim).
+   */
+  const { map3d, setMap3d } = useMap3d();
+
+  /**
    * Couches GeoJSON de jeu (ordre = ordre de peinture) — builder partagé. Sur
    * le fond COULEUR, battleGameLayers ajoute le liseré sombre porteur sous les
    * traits chartreuse (lisibilité — charte).
@@ -225,6 +233,7 @@ export function MapScreen() {
         onZoomChange={onZoomChange}
         attributionCompact={false}
         basemap={basemap}
+        mode3d={map3d}
         style={StyleSheet.absoluteFill}
         testID="battle-map-reelle"
       />
@@ -251,6 +260,8 @@ export function MapScreen() {
         onSelectParcours={setSelectedParcours}
         basemap={basemap}
         onToggleBasemap={toggle}
+        map3d={map3d}
+        onSetMap3d={setMap3d}
       />
     </View>
   );

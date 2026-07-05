@@ -217,6 +217,18 @@ export interface RealMapProps {
    * (2D actuelle). N'affecte QUE les couches qui portent elles-mêmes `extrude`.
    */
   extrudeZones?: boolean;
+  /**
+   * AMENDEMENT-26 — VUE 3D, prop de CONVENANCE (parité d'interface avec le fork
+   * web) : `true` = GRYD 3D Conquest (carte pitchée ~52° + zones capturées
+   * extrudées en volume). Elle ne fait que fournir un DÉFAUT à `pitch` et
+   * `extrudeZones` : un `pitch`/`extrudeZones` passés EXPLICITEMENT priment
+   * toujours (le partage/l'historique gardent leur ~55° et leur extrusion —
+   * aucune régression). `false` (défaut) = 2D actuelle STRICTEMENT inchangée
+   * (pitch 0, aplats plats). C'est le SEUL levier dont les surfaces de carte ont
+   * besoin : elles branchent `mode3d={map3d}` sur la préférence `gryd.map3d`
+   * (mapPref). Pur affichage — zéro impact gameplay (le serveur décide du claim).
+   */
+  mode3d?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -237,6 +249,13 @@ const PULSE_MIN_OPACITY_RATIO = 0.35;
 const PULSE_HALF_PERIOD_MS = PULSE_PERIOD_MS / 2;
 /** Durée du flyTo natif. */
 const FLY_TO_MS = 800;
+/**
+ * AMENDEMENT-26 — VUE 3D : pitch de convenance appliqué quand `mode3d` est vrai
+ * SANS `pitch` explicite (dans la fourchette ~50-55° de l'amendement). Le partage
+ * et l'historique passent leur propre pitch (~55°) et ne sont donc pas touchés.
+ * UI pure — aucune règle de jeu.
+ */
+const MODE_3D_DEFAULT_PITCH = 52;
 /** Caméra de secours si ni `camera` ni `bounds` : monde entier (§4bis). */
 const WORLD_FALLBACK_CAMERA: RealMapCamera = { lng: 0, lat: 20, zoom: 1 };
 /**
@@ -311,14 +330,21 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     // Parité d'interface web (AMENDEMENT-20 §1) — accepté, sans surcharge de
     // calques de tuile côté natif (voir doc de la prop). Non destructuré vers MapView.
     silent: _silent = false,
-    pitch = 0,
+    pitch: pitchProp,
     bearing = 0,
-    extrudeZones = false,
+    extrudeZones: extrudeZonesProp,
+    mode3d = false,
     style,
     testID,
   }: RealMapProps,
   ref,
 ) {
+  // AMENDEMENT-26 — VUE 3D : `mode3d` n'est qu'un DÉFAUT pour `pitch`/
+  // `extrudeZones`. Un `pitch`/`extrudeZones` EXPLICITE prime toujours (partage/
+  // historique gardent leur ~55° et leur extrusion — non-régression). Absent des
+  // deux : 2D actuelle (pitch 0, aplats plats) — comportement historique intact.
+  const pitch = pitchProp ?? (mode3d ? MODE_3D_DEFAULT_PITCH : 0);
+  const extrudeZones = extrudeZonesProp ?? mode3d;
   const cameraRef = useRef<CameraRef>(null);
   const reduceMotion = useReduceMotion();
   const [offline, setOffline] = useState(false);
