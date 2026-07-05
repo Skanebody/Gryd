@@ -1,0 +1,50 @@
+# GRYD — RÈGLES NON NÉGOCIABLES (constitution UI + carte, 05/07/2026)
+
+**Statut : AUTORITÉ. Contraignant pour tout travail futur (humain ou agent).** Objectif absolu : **un écran compris en moins de 3 secondes.** GRYD doit cacher sa complexité — le joueur ne voit que la **prochaine action**. *« Simple comme Strava au premier regard, profond comme Clash dans les systèmes, jamais complexe dans l'écran. »*
+
+## §A — 20 règles de simplification (checklist de revue)
+1. **1 écran = 1 décision** principale · **1 écran = 1 CTA** principal max · **1 card = 1 idée** · **1 card = 3 infos max** (1 titre + 1 chiffre/statut + 1 CTA).
+2. **Ne jamais tout montrer.** Jamais tous les filtres / missions / bonus / calculs / stats / options crew sur le même écran. Afficher SEULEMENT ce qui aide à agir maintenant ; le reste → *Voir détails · Couches · Options · Historique · FAQ*.
+3. **Pas de card dans card.** Une seule couche de container par zone. Sections séparées par l'**espace**, pas par des boîtes. Contours RARES : réservés aux états actifs / alertes / sélection / rareté.
+4. **Un seul gros bouton chartreuse par écran.** CTA **contextuel** : `RUN / DÉFENDRE / CONQUÉRIR / TERMINER / REJOINDRE / PARTAGER / VOIR ROUTE`. Jamais deux CTA qui disent la même chose. Jamais « GO » partout.
+5. **Le gros bouton central n'est PAS permanent.** Il n'apparaît que dans les flows de course (Carte · route sélectionnée · mission défense/conquête · boucle à terminer · Live Run). Ailleurs (Profil / League / Crew / Paramètres / Confidentialité / Historique / Partage) = CTA contextuel dans le contenu (Profil→Partager, League→Trouver une route, Crew→Voir War Room).
+6. **Réduire le scroll.** 80 % de la valeur visible sans scroll. Scroll autorisé seulement pour explorer (historique / collection / membres / FAQ / détails / paramètres), jamais pour décider. Modèle : **résumé compact → détail au tap.**
+7. **La carte = une mission, pas un dashboard.** Elle répond à : où suis-je · quelle zone compte · où courir · qu'est-ce que je gagne/sauve · quel bouton. Jamais plusieurs missions concurrentes / tous les filtres / plusieurs panneaux simultanés.
+8. **Filtres cachés derrière « Couches ».** Jamais Territoire/Route/Défense/Rival/Exploration exposés en permanence. GRYD choisit la couche automatiquement selon le contexte.
+9. **Texte court, JAMAIS coupé par « … ».** Si le texte ne rentre pas, il est trop long → le raccourcir (`République`, `Défense`, `80 % couvert`, `Base → Rép.`).
+10. **Icônes propriétaires > textes longs.** Icône seule OK : couches / centrer / paramètres / historique / profil / league / crew / route / défense / conquête. Icône + texte OBLIGATOIRE : CTA principal / achat / suppression / confidentialité / lancement de course / action sensible.
+11. **Live Run ultra-minimal** : 1 objectif + 1 progression + 1 toast temporaire MAX. Pas de dashboard / long texte / chat complet / filtres / stats avancées. Toasts 3-5 mots, 2 s, jamais bloquants.
+12. **Post-run en 2 niveaux.** Écran 1 = résultat principal (COURSE VALIDÉE + gros chiffre + résultat territorial + [Partager] + [Voir détails]). Niveau 2 (au tap) = calculs / GPS / motion / trace seule / boucle / segments exclus / FAQ.
+13. **Partage façon Strava, mais GRYD** : preview directe (pas de card dans card), Format, Style, 1 CTA Story, actions secondaires légères.
+14. **Ne pas expliquer les calculs sur les écrans principaux.** Résultat simple + chiffre + action ; détails au tap.
+15. **Prioriser l'action, pas la data.** Chaque écran commence par l'action utile (défendre/conquérir/terminer/rejoindre/partager), pas par des stats/pourcentages/historique.
+16. **War Room** répond à « que doit faire mon crew maintenant ? » : sections Urgent / À terminer / Actif / Coffre, **1 card max par section** par défaut, reste dans *Voir tout*.
+17. **Profil = player card**, pas dashboard : avatar/blason · pseudo · niveau · crew · rang · zones tenues · [Partager] ; le reste en cards compactes (Mon territoire / Performance / Historique / Badges).
+18. **League** dit : ton rang · l'écart avec le rang supérieur · quoi faire pour monter · [Trouver une route]. Pas de long classement au-dessus du fold.
+19. **Crew HQ** : blason · nom · niveau · rang · membres actifs · [War Room] · [Chat] · [Inviter]. La **contribution payante est secondaire** — jamais ouvrir la page par la monétisation.
+20. **Règle finale d'épuration** — avant d'ajouter un élément, se demander : aide-t-il à agir MAINTENANT ? peut-il aller dans *Voir détails* ? répète-t-il une info déjà visible ? crée-t-il un 2ᵉ CTA ? ajoute-t-il un rectangle inutile ? force-t-il du scroll ? peut-il devenir une icône ? peut-il se dire en 3 mots ? **Si non à « aide à agir maintenant » → on le retire.**
+
+## §B — La trace GPS est le HÉROS (rendu façon Strava)
+**Pendant le run, la trace DOMINE ; la carte est le décor ; les zones sont secondaires.**
+- **Deux traces** : *trace de CALCUL* (précise, jamais simplifiée — zones/Verify/anti-triche) vs *trace d'AFFICHAGE* (lissée/simplifiée — live/post-run/partage). **Calcul = précision, Affichage = lisibilité.**
+- **Rendu en couches** : `casing` (contour sombre/glow) sous `core` (chartreuse) + `glow` optionnel. `line-cap: round`, `line-join: round` (fluide, sportif — jamais anguleux).
+- **Épaisseurs** (2-3× plus qu'aujourd'hui) : route en préparation core 8-10 / casing 12-14 ; live trace courue core 9-12 / casing 14-16 ; segment restant core 6-8 opacité 60 % ; segment manquant core 6-8 pointillé + point de fermeture pulsant ; segment exclu gris pointillé opacité 35 %.
+- **Largeur dynamique par zoom** (interpolation) : z12 ~5 px → z14 ~8 → z16 ~11 → z18 ~14.
+- **Langage de lignes** : courue = chartreuse pleine épaisse + glow ; route recommandée = chartreuse fine 60 % ; segment manquant = chartreuse pointillé pulsant ; exclu = gris pointillé faible ; rival = orange/rouge PLUS FIN (jamais aussi visible que la tienne) ; alliés = points/segments chartreuse secondaire. **Ta trace est TOUJOURS la ligne la plus visible.**
+- **Position actuelle FORTE** : flèche/triangle directionnel chartreuse + halo GPS (précision) + pulse discret + cône de direction.
+- **Points utiles seulement** : départ · position · fermeture · arrivée · splits · secteur conquis. JAMAIS tous les points GPS bruts.
+- **Atténuer la carte en run** : labels réduits, rues secondaires très fines, territoires 15-25 % d'opacité, fond 40-55 % de contraste, trace 100 %.
+- **Partage = rendu DÉDIÉ** (pas une capture live) : fond dark/3D/satellite, trace chartreuse très épaisse, zone capturée en transparence, stats simples, zéro bruit UI.
+
+## §C — Couleurs par RÔLE (pas par identité) + scalabilité 200k
+**On ne colore pas 200 000 utilisateurs. On agrège l'activité en territoires / fronts / pressions / missions.**
+- **Palette RELATIVE au joueur** (le rôle dans MON contexte, pas l'identité universelle du crew) : **moi/mon crew = chartreuse** · alliés = chartreuse secondaire · **rival principal = orange/rouge** · **contesté = violet + double contour** · neutre = gris · protégé = bleu/bouclier · decay = rouge sombre/pointillé · bonus = gold/éclair · route/info = blanc. **Jamais plus de 2 crews fortement colorés sur une zone** (moi + rival dominant) ; les autres → agrégés dans le détail au tap.
+- **Contesté = couleur + FORME + animation + icône** (jamais la couleur seule) : double contour (extérieur orange / intérieur chartreuse) · hachures légères · pulse lent · badge contesté (picto GRYD, pas emoji). Ne pas dépendre de la couleur seule (daltonisme) : bordure pleine (mon crew) / cassée-cible (rival) / double+hachures (contesté) / bouclier (protégé) / sablier-pointillé (decay) / éclair (bonus).
+- **5 niveaux de contestation** pilotés par `pressure_score` (0-100) : 0 Stable (0-30, aucune alerte) · 1 Pression (31-60, halo orange léger + « Canal actif ») · 2 Contesté (61-80, double contour + violet + « Zone contestée ») · 3 Attaque active (contour orange fort + pulse + « Canal attaque République ») · 4 Urgence (81-100, rouge limité + [DÉFENDRE] + « 3 zones à sauver »). `pressure_score = activité rival récente + zones perdues + proximité de bascule + decay`. Contesté si `rival_principal ≥ 25 % et mon_crew ≤ 60 %`, OU écart < 15 pts, OU rival a repris > X zones / 24 h.
+- **Level of Detail par zoom** : pays → villes actives / gros fronts / zones chaudes (pas de coureurs) ; ville → secteurs / quartiers contestés / crews dominants ; quartier → territoires / frontières / routes / à défendre / bonus ; rue → tracé exact / segment manquant / alliés opt-in / rival approximatif ; live → toi / ta route / ton objectif / alliés utiles / rival approximatif.
+- **JAMAIS 200 000 runners affichés.** Agrégé : « Paris Est · 480 runs · 3 fronts actifs · 12 zones contestées » → zoom « République · 34 runs · Canal en pression · 3 zones à sauver ». **Alliés** = live précis OPT-IN mission-only ; **rivaux** = activité APPROXIMATIVE (halo orange, jamais GPS/nom exact, léger délai) ; **inconnus** = invisibles par défaut.
+- **Priorité d'affichage** (si trop d'infos, GRYD choisit) : 1 run en cours · 2 mission sélectionnée · 3 zone à défendre · 4 boucle à terminer · 5 rival actif · 6 bonus (→ badge, pas bandeau) · 7 alliés utiles · 8 détails contrôle · 9 historique · 10 autres crews.
+- **Backend scalable (V1/O-list)** : PRÉ-CALCUL par secteur (`owner_crew_id`, `owner_percent`, `top_rival_crew_id`, `top_rival_percent`, `neutral_percent`, `status`, `pressure_score`, `last_attack_at`, `active_bonus_id`, `mission_id`, `recommended_action`) → le client reçoit tuiles vectorielles + secteurs agrégés + statuts, PAS toute la base. Le frontend ne fait qu'afficher. (Le pré-calcul temps réel à 200k = chantier infra V1 ; au MVP, dérivation démo côté client des mêmes objets.)
+
+## §D — Application
+Ce document est référencé par `CLAUDE.md` (autorité). Toute revue d'écran passe la checklist §A. §B (trace) et §C (couleurs/scale) se construisent progressivement (démo côté client là où le backend de scale n'existe pas encore ; le pré-calcul secteurs = O-list). Si un écran nécessite une légende complexe pour être compris, il est raté.
