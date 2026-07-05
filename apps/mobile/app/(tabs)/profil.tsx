@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   BADGE_TIER_RANK,
   PLAYER_LEVEL_MAX,
@@ -30,6 +30,7 @@ import {
   badgeKeyByName,
   colors,
   fontSizes,
+  gameColors,
   radii,
   spacing,
   type IconName,
@@ -55,6 +56,14 @@ import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
 import { franceKpi } from '../../src/features/territory/franceTerritories';
+import {
+  TERRITORY_DEMO_FLAGS,
+  TERRITORY_STATUS_META,
+  territorySummary,
+  type StatusTone,
+  type NextActionIntent,
+  type TerritoryDemoFlag,
+} from '../../src/features/territory/territoryStatus';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -86,6 +95,40 @@ const streakMultiplier = Math.min(
  * (AMENDEMENT-13 §3 — digital twin, jamais codé en dur).
  */
 const TERRITORY_KPI = franceKpi();
+
+/**
+ * Résout un flag démo territoire depuis le paramètre de route `?territory=…`
+ * (itération visuelle des états sans rebuild). Défaut = `crew_multi` (cas
+ * nominal Saison 0). Un flag inconnu retombe sur le défaut — jamais de crash.
+ */
+function resolveTerritoryFlag(raw: string | string[] | undefined): TerritoryDemoFlag {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return (TERRITORY_DEMO_FLAGS as readonly string[]).includes(value ?? '')
+    ? (value as TerritoryDemoFlag)
+    : 'crew_multi';
+}
+
+/** Couleur d'accent d'un statut (badge STATUT) — tokens de jeu uniquement. */
+const STATUS_TONE_COLOR: Readonly<Record<StatusTone, string>> = {
+  crew: gameColors.crew,
+  contested: gameColors.contested,
+  rival: gameColors.rival,
+  neutral: colors.gris,
+};
+
+/**
+ * Un CTA d'urgence (défense sous attaque) doit être ROUGE plein pour crier
+ * l'action ; les autres restent chartreuse (l'action forte standard). On passe
+ * par la couleur de fond du bouton, texte toujours foncé (charte contraste).
+ */
+function ctaTone(intent: NextActionIntent, urgent: boolean): { bg: string; fg: string } {
+  if (urgent || intent === 'defend') {
+    return urgent
+      ? { bg: gameColors.rival, fg: colors.noir }
+      : { bg: gameColors.crew, fg: colors.noir };
+  }
+  return { bg: gameColors.crew, fg: colors.noir };
+}
 
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 
@@ -162,6 +205,18 @@ export default function ProfilScreen() {
   const { profile } = useMyProfile();
   /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
   const { equipped } = useEquippedCosmetics();
+
+  /**
+   * Résumé stratégique « Mon territoire » (AMENDEMENT-18 Partie B + A.5). Le
+   * scénario démo se bascule via `?territory=<flag>` pour itérer visuellement
+   * (crew_multi · crew_mono · beginner · under_attack · solo).
+   */
+  const { territory: territoryParam } = useLocalSearchParams<{ territory?: string }>();
+  const territoryFlag = resolveTerritoryFlag(territoryParam);
+  const territory = useMemo(() => territorySummary(territoryFlag), [territoryFlag]);
+  const statusMeta = TERRITORY_STATUS_META[territory.status];
+  const statusColor = STATUS_TONE_COLOR[statusMeta.tone];
+  const cta = ctaTone(territory.next.intent, territory.next.urgent ?? false);
 
   /** Titre affiché : un TITRE cosmétique équipé prime sur le titre éditorial. */
   const equippedTitleItem = equipped.profile ? itemByKey(equipped.profile) : undefined;
@@ -302,33 +357,137 @@ export default function ProfilScreen() {
           </View>
         ) : null}
 
-        {/* ── MODULE 1 · TERRITOIRE (remonté, intégré haut — AMENDEMENT-17) ── */}
+        {/* ── MODULE 1 · TERRITOIRE = RÉSUMÉ STRATÉGIQUE (AMENDEMENT-18 Partie B) ──
+            Ce que je contrôle · ce qui est menacé · ma PROCHAINE action. Card
+            compacte ≤ 260 px, 60 % stats / 40 % mini-carte, CTA CONTEXTUEL. */}
         <View style={styles.sectionRow}>
           <Icon name="pin" size={14} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>MON TERRITOIRE</Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ouvrir mon territoire sur la carte de France"
-          onPress={() => router.push('/territoire')}
-          style={({ pressed }) => [styles.territoryCard, pressed && styles.dim]}
-        >
-          <View style={styles.territoryPreview}>
-            <TerritoryFranceMap preview />
-          </View>
-          <View style={styles.territoryFoot}>
-            <View>
-              <Text style={styles.territoryFootNum}>{formatInt(TERRITORY_KPI.totalZones)}</Text>
-              <Text style={styles.territoryFootLabel}>
-                zones tenues · {TERRITORY_KPI.citiesLabel}
+        {/* Card = View (pas Pressable) : la CTA est un bouton propre à part
+            → évite le <button> dans <button>. Le RÉSUMÉ (statut/stats/carte)
+            est lui-même tappable pour ouvrir /territoire, la CTA fait l'action. */}
+        <View style={styles.territoryCard}>
+          {/* Bannière de crise (SOUS ATTAQUE) — ton rival, au-dessus du reste */}
+          {territory.alert ? (
+            <View style={styles.territoryAlert}>
+              <Icon name="alerte" size={13} color={colors.noir} />
+              <Text style={styles.territoryAlertText} numberOfLines={1}>
+                {territory.alert}
               </Text>
             </View>
-            <View style={styles.territoryOpenRow}>
-              <Text style={styles.territoryOpenLabel}>Explorer la carte</Text>
-              <Icon name="chevron" size={14} color={colors.gris} />
+          ) : null}
+
+          {/* Résumé tappable → détail /territoire */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ouvrir le détail de mon territoire"
+            onPress={() => router.push('/territoire')}
+            style={({ pressed }) => [styles.territoryBody, pressed && styles.dim]}
+          >
+            {/* ── 60 % STATS ── */}
+            <View style={styles.territoryStats}>
+              {/* Ligne statut : badge coloré (Stable / Contesté / Sous attaque…).
+                  Masquée quand la bannière de crise est là : elle porte déjà le
+                  statut → pas de doublon, on gagne la hauteur (≤ 260 px). */}
+              {territory.alert ? null : (
+                <View style={styles.territoryStatusRow}>
+                  <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                  <Text style={[styles.statusLabel, { color: statusColor }]} numberOfLines={1}>
+                    {statusMeta.label}
+                  </Text>
+                </View>
+              )}
+
+              {/* Gros chiffre : zones tenues + unité, puis portée sur toute la
+                  largeur (quartier « Paris Est » ou villes « Paris 42 · Lille 13 »
+                  — jamais tronqué : c'est une donnée, pas un pseudo). */}
+              <View style={styles.territoryHero}>
+                <Text style={styles.territoryHeroNum}>{formatInt(territory.zonesHeld)}</Text>
+                <Text style={styles.territoryHeroUnit} numberOfLines={2}>
+                  {territory.zonesUnit}
+                </Text>
+              </View>
+              <Text style={styles.territoryHeroScope} numberOfLines={1}>
+                {territory.scopeLabel}
+              </Text>
+
+              {/* 3 faits stratégiques : frontières · routes · zone à défendre */}
+              {territory.facts.length > 0 ? (
+                <Text style={styles.territoryFacts} numberOfLines={2}>
+                  {territory.facts.join(' · ')}
+                </Text>
+              ) : null}
             </View>
+
+            {/* ── 40 % MINI-CARTE (aperçu statique, non-interactif) ── */}
+            <View style={styles.territoryMini}>
+              <TerritoryFranceMap preview />
+            </View>
+          </Pressable>
+
+          {/* ── PROCHAINE ACTION + CTA CONTEXTUEL (jamais « Explorer » vague) ── */}
+          <View style={styles.territoryNextRow}>
+            <Text
+              style={styles.territoryNext}
+              numberOfLines={territory.next.allowLongHeadline ? 3 : 2}
+            >
+              {territory.next.headline}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={territory.next.cta}
+              onPress={() => router.push(territory.next.route)}
+              style={({ pressed }) => [
+                styles.territoryCta,
+                { backgroundColor: cta.bg },
+                pressed && styles.dim,
+              ]}
+            >
+              <Text style={[styles.territoryCtaLabel, { color: cta.fg }]} numberOfLines={1}>
+                {territory.next.cta}
+              </Text>
+            </Pressable>
           </View>
-        </Pressable>
+
+          {/* ── Micro-badges territoire (≤ 3, le reste au tap) ── */}
+          {territory.badges.length > 0 ? (
+            <View style={styles.territoryBadges}>
+              {territory.badges.slice(0, 3).map((b) => (
+                <View key={b.label} style={styles.territoryBadgeChip}>
+                  <Icon name={b.icon} size={11} color={colors.gris} />
+                  <Text style={styles.territoryBadgeText} numberOfLines={1}>
+                    {b.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        {/* ── SOLO (A.5) : l'app ne semble jamais vide — crews près de toi ── */}
+        {territory.soloCrewHint ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={territory.soloCrewHint.headline}
+            onPress={() => router.push(territory.soloCrewHint!.route)}
+            style={({ pressed }) => [styles.soloCrewCard, pressed && styles.dim]}
+          >
+            <Icon name="crew" size={18} color={colors.chartreuse} />
+            <View style={styles.soloCrewInfo}>
+              <Text style={styles.soloCrewHeadline} numberOfLines={1}>
+                {territory.soloCrewHint.headline}
+              </Text>
+              <Text style={styles.soloCrewSub} numberOfLines={1}>
+                Cours et défends avec eux
+              </Text>
+            </View>
+            <Text style={styles.soloCrewCta} numberOfLines={1}>
+              {territory.soloCrewHint.cta}
+            </Text>
+            <Icon name="chevron" size={16} color={colors.gris} />
+          </Pressable>
+        ) : null}
 
         {/* ── MODULE 2 · PROGRESSION : Level N → N+1, jauge XP réelle ── */}
         <View style={styles.sectionRow}>
@@ -525,7 +684,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: 10 },
   headerActionCell: { flex: 1 },
   // « Modifier mon profil » plus large que « Partager » → affordance dominante
-  headerActionCellWide: { flex: 1.5 },
+  headerActionCellWide: { flex: 1 },
   shareCardWrap: { marginTop: 14 },
 
   // ── En-têtes de section ──
@@ -538,41 +697,135 @@ const styles = StyleSheet.create({
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
 
-  // ── MODULE Territoire (remonté) ──
+  // ── MODULE Territoire = résumé stratégique (AMENDEMENT-18 Partie B) ──
   territoryCard: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
+    gap: 8,
+    overflow: 'hidden',
   },
-  /** Aperçu vraie carte (mini RealMap statique) — hauteur fixe, coins card. */
-  territoryPreview: {
-    alignSelf: 'stretch',
-    height: 150,
-    borderRadius: 14,
+  // Bannière de crise (SOUS ATTAQUE) — pleine, ton rival, texte foncé (contraste)
+  territoryAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: gameColors.rival,
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+  },
+  territoryAlertText: {
+    flex: 1,
+    color: colors.noir,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  // Corps 60/40 : stats à gauche, mini-carte à droite
+  territoryBody: { flexDirection: 'row', gap: 12 },
+  territoryStats: { flex: 3, justifyContent: 'space-between', gap: 5 },
+  territoryStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusLabel: { fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.8 },
+  // Gros chiffre héros + unité à droite, portée en dessous (pleine largeur)
+  territoryHero: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  territoryHeroNum: {
+    color: colors.chartreuse,
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -1,
+    lineHeight: 34,
+    fontVariant: ['tabular-nums'],
+  },
+  territoryHeroUnit: {
+    flex: 1,
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.3,
+    letterSpacing: 0.2,
+    paddingBottom: 4,
+  },
+  territoryHeroScope: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  territoryFacts: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.3,
+    letterSpacing: 0.2,
+  },
+  // Mini-carte (aperçu statique, ~40 %) — hauteur compacte, coins card
+  territoryMini: {
+    flex: 2,
+    minHeight: 92,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     overflow: 'hidden',
     backgroundColor: colors.noir,
   },
-  territoryFoot: {
+  // Prochaine action : contexte à gauche + CTA plein à droite (jamais tronqué)
+  territoryNextRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+    paddingTop: 8,
+  },
+  territoryNext: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    lineHeight: fontSizes.sm * 1.28,
+  },
+  territoryCta: {
+    borderRadius: radii.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  territoryCtaLabel: { fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.6 },
+  // Micro-badges territoire (≤ 3) — une seule ligne (jamais de wrap : anti-scroll)
+  territoryBadges: { flexDirection: 'row', gap: 6 },
+  territoryBadgeChip: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.noir,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  territoryBadgeText: { flexShrink: 1, color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
+
+  // ── Bloc SOLO : crews près de toi (A.5 — jamais de vide en solo) ──
+  soloCrewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding,
     marginTop: 12,
   },
-  territoryFootNum: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xl,
-    fontWeight: '700',
-    letterSpacing: -0.8,
-    fontVariant: ['tabular-nums'],
-  },
-  territoryFootLabel: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
-  territoryOpenRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingBottom: 2 },
-  territoryOpenLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
+  soloCrewInfo: { flex: 1 },
+  soloCrewHeadline: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  soloCrewSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
+  soloCrewCta: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.4 },
 
   // ── MODULE Progression ──
   progressCard: {
