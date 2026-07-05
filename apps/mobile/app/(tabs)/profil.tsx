@@ -1,17 +1,16 @@
 /**
- * GRYD — onglet Profil → PLAYER CARD (AMENDEMENT-08 §8, doc §18 ; conserve
- * AMENDEMENT-07 §8 + AMENDEMENT-02 §6). En-tête de jeu : PlayerAvatarFrame XL
- * (frame par tier JOUEUR, contour « moi »), KORO @koro, titre « Tenace du
- * 19ᵉ », Runner niv./tier, mini CrewCrest + crew, rang saison. Bloc PROGRESSION
- * (Level N → N+1 avec jauge XP DÉRIVÉE de la courbe réelle, Score Forme, série,
- * contribution crew — formulations POSITIVES). BADGES RARES EN GRAND
- * (BadgeCards horizontales) + lien Collection, « Mon territoire », Partager le
- * profil (ShareCard 4:5 révélée inline). Données démo — le niveau/tier/rang
- * sont DÉRIVÉS des règles réelles, aucun nombre magique local. Zéro position
- * live.
+ * GRYD — onglet Profil COMPACT (AMENDEMENT-17 §1.3). Un écran = une identité,
+ * pas d'action de course : la Player Card (nom · level · crew · « 55 zones
+ * tenues · Paris + Lille » · rang ville) porte deux CTA sobres — [Partager] /
+ * [Modifier], JAMAIS un GO, jamais « Ajouter » sur SON propre profil. Puis
+ * 3 modules seulement, ordre AMENDEMENT-17 : Territoire (remonté, intégré haut)
+ * → Progression → Badges (3 équipés + « Voir collection », pas de carrousel
+ * géant). Les listes longues (collection, historique, perf, amis…) descendent
+ * en liens vers des pages dédiées. Niveau/tier/rang DÉRIVÉS des règles réelles
+ * (features/crew/rules) — aucun nombre magique local. Zéro position live.
  */
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   BADGE_TIER_RANK,
@@ -19,6 +18,7 @@ import {
   STREAK_MULTIPLIER_CAP,
   STREAK_MULTIPLIER_STEP,
   XP_RATE_OF_POINTS,
+  badgeKeyByName,
   colors,
   fontSizes,
   radii,
@@ -26,12 +26,11 @@ import {
   type IconName,
 } from '@klaim/shared';
 import {
-  BADGE_FAMILIES,
   badgeById,
   badgeColor,
-  badgeRewardLabel,
   BADGE_TOTAL,
 } from '../../src/features/badges/catalog';
+import { BadgeHex } from '../../src/features/badges/BadgeHex';
 import { UNLOCKED_IDS } from '../../src/features/badges/demo';
 import { MY_CREW } from '../../src/features/crew/demo';
 import {
@@ -52,7 +51,7 @@ import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
-import { BadgeCard, CrewCrest, PlayerAvatarFrame, ShareCard } from '../../src/ui/game';
+import { CrewCrest, InlineRunCTA, PlayerAvatarFrame, ShareCard } from '../../src/ui/game';
 
 const STREAK_WEEKS = 3;
 
@@ -77,21 +76,17 @@ const streakMultiplier = Math.min(
 const TERRITORY_KPI = franceKpi();
 
 /**
- * Badges RARES = les 4 débloqués de plus haut tier (BADGE_TIER_RANK), du plus
- * rare au moins rare. Dérivé des stats démo (UNLOCKED_IDS) — jamais codé en dur.
+ * Badges ÉQUIPÉS mis en avant = les 3 débloqués de plus haut tier
+ * (BADGE_TIER_RANK), du plus rare au moins rare. Dérivé des stats démo
+ * (UNLOCKED_IDS) — jamais codé en dur. AMENDEMENT-17 : 3, pas un carrousel géant.
  */
 const RARE_BADGES = [...UNLOCKED_IDS]
   .map((id) => badgeById(id))
   .filter((def): def is NonNullable<typeof def> => def !== undefined && !def.legacy)
   .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier])
-  .slice(0, 4);
+  .slice(0, 3);
 
 const UNLOCKED_COUNT = UNLOCKED_IDS.size;
-
-/** Libellé FR de famille pour les BadgeCards (les secrets restent « Secret »). */
-function familyLabelOf(familyId: string): string {
-  return BADGE_FAMILIES.find((f) => f.id === familyId)?.name ?? 'Secret';
-}
 
 interface ProfileLink {
   label: string;
@@ -100,6 +95,11 @@ interface ProfileLink {
   href?: string;
 }
 
+/**
+ * PLUS — toutes les listes longues descendent en liens vers des pages dédiées
+ * (AMENDEMENT-17 : « Listes longues → pages dédiées »). Aucun contenu déroulé
+ * dans le profil lui-même.
+ */
 const LINKS: readonly ProfileLink[] = [
   { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
   { label: 'Performance', detail: 'Records, allure, régularité', icon: 'performance' },
@@ -136,61 +136,64 @@ export default function ProfilScreen() {
   return (
     <>
       <TabScreen title={MY_SOCIAL_PROFILE.displayName} kicker="PLAYER CARD">
-        {/* ── Player Card : avatar hex XL + identité de jeu (doc §18) ── */}
+        {/* ── Player Card compacte : identité + 2 chiffres clés + rang ── */}
         <View style={styles.headerCard}>
-          <PlayerAvatarFrame
-            name={MY_SOCIAL_PROFILE.displayName}
-            tier={runnerTier}
-            size="xl"
-            isMe
-          />
-          <View style={styles.headerInfo}>
-            <Text style={styles.handle}>@{MY_SOCIAL_PROFILE.handle}</Text>
-            <Text style={styles.title}>{MY_SOCIAL_PROFILE.title}</Text>
-            <Text style={styles.identity}>
-              Runner niv. {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]}
-            </Text>
-            <View style={styles.crewRow}>
-              <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
-              <Text style={styles.crewName} numberOfLines={1}>
-                {MY_SOCIAL_PROFILE.crewName}
+          <View style={styles.headerTop}>
+            <PlayerAvatarFrame
+              name={MY_SOCIAL_PROFILE.displayName}
+              tier={runnerTier}
+              size="l"
+              isMe
+            />
+            <View style={styles.headerInfo}>
+              <Text style={styles.handle} numberOfLines={1}>
+                {MY_SOCIAL_PROFILE.displayName}
               </Text>
+              <Text style={styles.identity} numberOfLines={1}>
+                Level {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]}
+              </Text>
+              <View style={styles.crewRow}>
+                <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
+                <Text style={styles.crewName} numberOfLines={1}>
+                  {MY_SOCIAL_PROFILE.crewName}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.rank}>
-              Rang saison #{MY_SOCIAL_PROFILE.seasonRank} · {MY_SOCIAL_PROFILE.seasonScope}
+          </View>
+          {/* Les 2 infos qui comptent : territoire tenu + rang ville */}
+          <View style={styles.headerStats}>
+            <Text style={styles.headerHold} numberOfLines={1}>
+              <Text style={styles.headerHoldNum}>{formatInt(TERRITORY_KPI.totalZones)}</Text>{' '}
+              zones tenues · {TERRITORY_KPI.citiesLabel}
+            </Text>
+            <Text style={styles.headerRank} numberOfLines={1}>
+              Rang #{MY_SOCIAL_PROFILE.seasonRank} {MY_SOCIAL_PROFILE.seasonScope}
             </Text>
           </View>
+          {/* CTA sobres — JAMAIS un GO, jamais « Ajouter » sur son profil */}
+          <View style={styles.headerActions}>
+            <View style={styles.headerActionCell}>
+              <InlineRunCTA
+                label="PARTAGER"
+                size="md"
+                onPress={() => {
+                  setShareOpen((v) => !v);
+                  if (!shareOpen) toast.show('Share card prête — capture-la pour la partager');
+                }}
+              />
+            </View>
+            <View style={styles.headerActionCell}>
+              <InlineRunCTA
+                label="MODIFIER"
+                size="md"
+                variant="secondary"
+                onPress={() => router.push('/settings-motivation')}
+              />
+            </View>
+          </View>
         </View>
 
-        {/* Actions sociales (§8) — ghost + icônes filaires */}
-        <View style={styles.actionsRow}>
-          <View style={styles.actionCell}>
-            <GhostButton
-              label="Ajouter"
-              icon="ajoutami"
-              onPress={() => router.push('/amis')}
-            />
-          </View>
-          <View style={styles.actionCell}>
-            <GhostButton
-              label="Inviter au crew"
-              icon="crew"
-              onPress={() => toast.show('Invitation crew envoyée')}
-            />
-          </View>
-        </View>
-        <View style={styles.shareRow}>
-          <GhostButton
-            label={shareOpen ? 'Masquer la share card' : 'Partager mon profil'}
-            icon="partage"
-            onPress={() => {
-              setShareOpen((v) => !v);
-              if (!shareOpen) toast.show('Share card prête — capture-la pour la partager');
-            }}
-          />
-        </View>
-
-        {/* Share card 4:5 (doc §18/§24) — révélée inline, exportable */}
+        {/* Share card 4:5 (doc §18/§24) — révélée inline au tap sur Partager */}
         {shareOpen ? (
           <View style={styles.shareCardWrap}>
             <ShareCard
@@ -209,7 +212,35 @@ export default function ProfilScreen() {
           </View>
         ) : null}
 
-        {/* ── PROGRESSION (doc §18) : Level N → N+1, jauge XP réelle ── */}
+        {/* ── MODULE 1 · TERRITOIRE (remonté, intégré haut — AMENDEMENT-17) ── */}
+        <View style={styles.sectionRow}>
+          <Icon name="pin" size={14} color={colors.gris} />
+          <Text style={styles.sectionRowLabel}>MON TERRITOIRE</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ouvrir mon territoire sur la carte de France"
+          onPress={() => router.push('/territoire')}
+          style={({ pressed }) => [styles.territoryCard, pressed && styles.dim]}
+        >
+          <View style={styles.territoryPreview}>
+            <TerritoryFranceMap preview />
+          </View>
+          <View style={styles.territoryFoot}>
+            <View>
+              <Text style={styles.territoryFootNum}>{formatInt(TERRITORY_KPI.totalZones)}</Text>
+              <Text style={styles.territoryFootLabel}>
+                zones tenues · {TERRITORY_KPI.citiesLabel}
+              </Text>
+            </View>
+            <View style={styles.territoryOpenRow}>
+              <Text style={styles.territoryOpenLabel}>Explorer la carte</Text>
+              <Icon name="chevron" size={14} color={colors.gris} />
+            </View>
+          </View>
+        </Pressable>
+
+        {/* ── MODULE 2 · PROGRESSION : Level N → N+1, jauge XP réelle ── */}
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={14} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>PROGRESSION</Text>
@@ -245,34 +276,35 @@ export default function ProfilScreen() {
           </View>
         </View>
 
-        {/* ── BADGES RARES EN GRAND (doc §18) : BadgeCards scrollables ── */}
+        {/* ── MODULE 3 · BADGES : 3 équipés + « Voir collection » (pas géant) ── */}
         <View style={styles.sectionRow}>
           <Icon name="badge" size={14} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>BADGES RARES</Text>
+          <Text style={styles.sectionRowLabel}>BADGES ÉQUIPÉS</Text>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.rareScroll}
-          contentContainerStyle={styles.rareScrollContent}
-        >
+        <View style={styles.badgeRow}>
           {RARE_BADGES.map((def) => (
-            <View key={def.id} style={styles.rareCard}>
-              <BadgeCard
-                name={def.name}
+            <Pressable
+              key={def.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Badge ${def.name}`}
+              onPress={() => router.push('/badges')}
+              style={({ pressed }) => [styles.badgeCell, pressed && styles.dim]}
+            >
+              <BadgeHex
                 family={def.family}
-                familyLabel={familyLabelOf(def.family)}
                 familyColor={badgeColor(def)}
-                tier={def.tier}
                 state="unlocked"
-                requirement={def.requirement}
-                reward={badgeRewardLabel(def)}
+                tier={def.tier}
+                size="md"
                 secret={def.secret}
-                onPress={() => router.push('/badges')}
+                slug={badgeKeyByName(def.name)}
               />
-            </View>
+              <Text style={styles.badgeName} numberOfLines={1}>
+                {def.name}
+              </Text>
+            </Pressable>
           ))}
-        </ScrollView>
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voir la collection de badges"
@@ -285,29 +317,7 @@ export default function ProfilScreen() {
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
 
-        {/* Mon territoire — aperçu tappable de la VRAIE France (AMENDEMENT-13 §3) */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ouvrir mon territoire sur la carte de France"
-          onPress={() => router.push('/territoire')}
-          style={({ pressed }) => [styles.territoryCard, pressed && styles.dim]}
-        >
-          <Text style={styles.territoryTitle}>Mon territoire</Text>
-          <Text style={styles.territorySubtitle}>
-            Saison 0 · France entière capturable · 2 zones de guerre actives
-          </Text>
-          {/* Mini vraie carte statique (caméra France) — le tap ouvre l'écran plein */}
-          <View style={styles.territoryPreview}>
-            <TerritoryFranceMap preview />
-          </View>
-          <Text style={styles.heroNumber}>{formatInt(TERRITORY_KPI.totalZones)}</Text>
-          <Text style={styles.heroLabel}>zones tenues · {TERRITORY_KPI.citiesLabel}</Text>
-          <View style={styles.territoryOpenRow}>
-            <Text style={styles.territoryOpenLabel}>Explorer la carte</Text>
-            <Icon name="chevron" size={14} color={colors.gris} />
-          </View>
-        </Pressable>
-
+        {/* PLUS — listes longues déportées en pages dédiées */}
         <Text style={styles.sectionLabel}>PLUS</Text>
         {LINKS.map((link) => (
           <Pressable
@@ -346,27 +356,21 @@ export default function ProfilScreen() {
 
 const styles = StyleSheet.create({
   dim: { opacity: 0.7 },
+
+  // ── Player Card compacte ──
   headerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
     marginTop: 16,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
+    gap: 14,
   },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerInfo: { flex: 1 },
-  handle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', letterSpacing: 0.3 },
-  title: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-    marginTop: 2,
-    letterSpacing: 0.3,
-  },
-  identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 6, letterSpacing: 0.3 },
+  handle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', letterSpacing: 0.3 },
+  identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, letterSpacing: 0.3 },
   crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   crewName: {
     flex: 1,
@@ -375,19 +379,75 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.4,
   },
-  rank: {
+  headerStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+    paddingTop: 12,
+  },
+  headerHold: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
+  headerHoldNum: { color: colors.chartreuse, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  headerRank: {
     color: colors.blanc,
     fontSize: fontSizes.xs,
-    marginTop: 6,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.3,
   },
-  actionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  actionCell: { flex: 1 },
-  shareRow: { marginTop: 10 },
+  headerActions: { flexDirection: 'row', gap: 10 },
+  headerActionCell: { flex: 1 },
   shareCardWrap: { marginTop: 14 },
 
-  // ── PROGRESSION ──
+  // ── En-têtes de section ──
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
+
+  // ── MODULE Territoire (remonté) ──
+  territoryCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+  },
+  /** Aperçu vraie carte (mini RealMap statique) — hauteur fixe, coins card. */
+  territoryPreview: {
+    alignSelf: 'stretch',
+    height: 150,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    overflow: 'hidden',
+    backgroundColor: colors.noir,
+  },
+  territoryFoot: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 12,
+  },
+  territoryFootNum: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xl,
+    fontWeight: '700',
+    letterSpacing: -0.8,
+    fontVariant: ['tabular-nums'],
+  },
+  territoryFootLabel: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
+  territoryOpenRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingBottom: 2 },
+  territoryOpenLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
+
+  // ── MODULE Progression ──
   progressCard: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
@@ -415,19 +475,26 @@ const styles = StyleSheet.create({
   },
   progressStatLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
 
-  sectionRow: {
-    flexDirection: 'row',
+  // ── MODULE Badges (3 tuiles côte à côte, pas de carrousel géant) ──
+  badgeRow: { flexDirection: 'row', gap: 10 },
+  badgeCell: {
+    flex: 1,
     alignItems: 'center',
-    gap: 7,
-    marginTop: 26,
-    marginBottom: 12,
+    gap: 8,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
   },
-  sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
-
-  // ── Badges rares en grand ──
-  rareScroll: { marginHorizontal: -spacing.cardPadding },
-  rareScrollContent: { paddingHorizontal: spacing.cardPadding, gap: 12 },
-  rareCard: { width: 230 },
+  badgeName: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.4,
+  },
   collectionLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -437,7 +504,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     paddingVertical: 14,
     paddingHorizontal: spacing.cardPadding,
-    marginTop: 14,
+    marginTop: 12,
   },
   collectionLinkLabel: {
     flex: 1,
@@ -446,54 +513,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  territoryCard: {
-    marginTop: 22,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: spacing.cardPadding,
-    alignItems: 'center',
-  },
-  territoryTitle: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  territorySubtitle: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    marginTop: 4,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  /** Aperçu vraie carte (mini RealMap statique) — hauteur fixe, coins card. */
-  territoryPreview: {
-    alignSelf: 'stretch',
-    height: 190,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    overflow: 'hidden',
-    backgroundColor: colors.noir,
-  },
-  territoryOpenRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 10,
-  },
-  territoryOpenLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
-  heroNumber: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.hero,
-    fontWeight: '700',
-    letterSpacing: -1.5,
-    marginTop: 10,
-    fontVariant: ['tabular-nums'],
-  },
-  heroLabel: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 4 },
+
+  // ── PLUS ──
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,

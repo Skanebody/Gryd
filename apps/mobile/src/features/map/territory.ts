@@ -13,6 +13,7 @@
  * Aucune règle de jeu ici — pur module de présentation, 100 % déterministe.
  */
 import { cellsToMultiPolygon } from 'h3-js';
+import type { IconName } from '@klaim/shared';
 import { M_PER_DEG_LAT, M_PER_DEG_LNG, type LatLngPoint } from './basemap';
 
 // ─── Constantes du pipeline (rendu UI — pas des règles de jeu) ──────────────
@@ -82,6 +83,30 @@ export const MAP_MODE_LABELS: Record<MapMode, string> = {
 };
 
 export const DEFAULT_MAP_MODE: MapMode = 'territoire';
+
+/**
+ * Icône du calque (sélecteur « Couches » AMENDEMENT-17 §1.2) — la carte n'a
+ * plus de rangée de 5 filtres : UN bouton `calques` ouvre ce petit sélecteur,
+ * et la couche est AUTO-choisie par défaut selon le contexte (autoMapMode).
+ */
+export const MAP_MODE_ICON: Record<MapMode, IconName> = {
+  territoire: 'crew',
+  route: 'route',
+  defense: 'bouclier',
+  raid: 'raid',
+  exploration: 'radar',
+};
+
+/**
+ * Calque AUTO selon la LECTURE du plan (AMENDEMENT-17 §1.2) : une défense
+ * active pose d'emblée le calque `defense` (zones à sauver + route + rival +
+ * timer en évidence, reste atténué) ; sinon `route` (route-first —
+ * l'itinéraire domine). Aucun clic requis ; le joueur peut toujours changer
+ * via « Couches ».
+ */
+export function autoMapMode(lecture: 'conquete' | 'defense'): MapMode {
+  return lecture === 'defense' ? 'defense' : 'route';
+}
 
 /**
  * Emphase par mode : opacité (0-1) de chaque famille de couches. UN SEUL mode

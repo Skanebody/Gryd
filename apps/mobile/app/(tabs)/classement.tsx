@@ -1,15 +1,18 @@
 /**
- * GRYD — onglet League : le classement devient une SCÈNE de jeu (AMENDEMENT-08
- * §7, doc §17). Header saison/semaine + PARIS LEAGUE, PODIUM top 3 en marches
- * (LeagueMedal), ligne TOI STICKY en bas (« #8 KORO · 342 pts du #7 · ≈ 35
- * hexes neutres peuvent suffire » — formulation POSITIVE, l'écart est DÉRIVÉ
- * via POINTS_NEUTRAL_HEX), récompenses Top 10 en RewardCards, 6 onglets démo
- * (Joueurs / Crews / Ville / France / Pionniers / Performance) et RankUpCard
- * animé quand un rang a été GAGNÉ. Anti-shame AMENDEMENT-07 : jamais
- * « dernier/lent » ; mode discret → bandeau explicatif au lieu du rang global.
+ * GRYD — onglet League ACTIONNABLE (AMENDEMENT-17 §1.3). Un écran = une action :
+ * l'essentiel (mon rang + l'écart + le rank-up émotionnel + le CTA) tient AU-
+ * DESSUS du fold, sans scroll. Ordre :
+ *   1. Ma ligne « #8 KORO · 342 pts du #7 · ≈ 35 zones peuvent suffire »
+ *   2. Rank-up émotionnel juste après (« Tu entres dans le Top 10… »)
+ *   3. CTA [Trouver une route] (JAMAIS un GO — la League envoie vers le planner)
+ * Puis, en exploration : onglets RÉDUITS (Joueurs / Crews / Ville) + filtre
+ * secondaire (Paris / France / Semaine / Saison) ; podium ; top 10 COMPACT (2
+ * lignes visibles + « Voir tout »). L'écart en zones neutres est DÉRIVÉ via
+ * POINTS_NEUTRAL_HEX — aucun barème local. Anti-shame : jamais « dernier/lent ».
  */
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CITIES,
@@ -22,20 +25,14 @@ import {
   spacing,
 } from '@klaim/shared';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
-import {
-  RUN_BUTTON_BOTTOM,
-  RUN_BUTTON_SIZE,
-  TAB_CONTENT_BOTTOM_CLEARANCE,
-} from '../../src/features/nav/metrics';
+import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
 import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
 import {
   LEAGUE_BOARDS,
-  LEAGUE_RANK_UP,
   LEAGUE_SEASON_WEEK,
   TOP10_REWARDS,
   type LeagueBoard,
   type LeagueRow,
-  type LeagueTabId,
 } from '../../src/features/social/league';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { screen } from '../../src/lib/analytics';
@@ -43,25 +40,53 @@ import { Icon } from '../../src/ui/Icon';
 import { formatInt } from '../../src/ui/format';
 import {
   CrewCrest,
+  InlineRunCTA,
   LeagueMedal,
   PlayerAvatarFrame,
-  RankUpCard,
   RewardCard,
   useSlideIn,
 } from '../../src/ui/game';
 
-/** Ancre : MA ligne du board Joueurs (rang 8, cf. maquette « 8ᵉ · PARIS »). */
-const JOUEURS_BOARD = LEAGUE_BOARDS.find((b) => b.id === 'joueurs') ?? LEAGUE_BOARDS[0]!;
+/** Onglets RÉDUITS (AMENDEMENT-17) : 3 natures au lieu de 6 onglets coupés. */
+type PrimaryTab = 'joueurs' | 'crews' | 'ville';
+/** Filtre secondaire : portée (Paris/France) + période (Semaine/Saison). */
+type ScopeFilter = 'paris' | 'france';
+type PeriodFilter = 'semaine' | 'saison';
+
+const PRIMARY_TABS: readonly { id: PrimaryTab; label: string }[] = [
+  { id: 'joueurs', label: 'Joueurs' },
+  { id: 'crews', label: 'Crews' },
+  { id: 'ville', label: 'Ville' },
+];
+
+/** Boards indexés — le filtre France sur Joueurs bascule vers le board national. */
+const BOARD = (id: string): LeagueBoard =>
+  LEAGUE_BOARDS.find((b) => b.id === id) ?? LEAGUE_BOARDS[0]!;
+
+/**
+ * Résout le board selon onglet + portée. Joueurs·France → classement national ;
+ * Crews/Ville n'ont qu'un board (la portée est indicative). Sans nombre magique :
+ * on ne fait que router vers les boards démo existants.
+ */
+function resolveBoard(tab: PrimaryTab, scope: ScopeFilter): LeagueBoard {
+  if (tab === 'joueurs') return BOARD(scope === 'france' ? 'france' : 'joueurs');
+  if (tab === 'crews') return BOARD('crews');
+  return BOARD('ville');
+}
+
+/** Ma ligne du board Joueurs·Paris = l'ancre du bloc « TOI » toujours en haut. */
+const JOUEURS_BOARD = BOARD('joueurs');
 const ME_ROW = JOUEURS_BOARD.rows.find((r) => r.me === true);
 const ABOVE_ROW = ME_ROW
   ? JOUEURS_BOARD.rows.find((r) => r.rank === ME_ROW.rank - 1)
   : undefined;
-/** Écart vers le rang supérieur, converti en hexes neutres (directive §17). */
+/** Écart vers le rang supérieur, converti en zones neutres (directive §17). */
 const GAP_POINTS = ME_ROW && ABOVE_ROW ? ABOVE_ROW.value - ME_ROW.value : 0;
 const GAP_HEXES = Math.ceil(GAP_POINTS / POINTS_NEUTRAL_HEX);
+const IN_TOP10 = ME_ROW !== undefined && ME_ROW.rank <= 10;
 
-/** Hauteur réservée à la ligne TOI sticky (au-dessus du disque COURIR). */
-const TOI_BAR_CLEARANCE = 96;
+/** Combien de lignes hors podium montrer avant « Voir tout » (compact §1.3). */
+const COMPACT_ROWS = 2;
 
 /** Visuel de rang : avatar joueur / blason crew / hex ville. */
 function RowVisual({ row, board, big = false }: {
@@ -82,7 +107,6 @@ function RowVisual({ row, board, big = false }: {
   if (board.kind === 'city') {
     return (
       <View style={[styles.cityHex, big && styles.cityHexBig, row.me === true && styles.cityHexMe]}>
-        {/* Contre-rotation : la boîte est un losange, l'icône reste droite */}
         <View style={styles.cityIcon}>
           <Icon name="pin" size={big ? 24 : 16} color={row.me === true ? gameColors.crew : colors.blanc} />
         </View>
@@ -169,19 +193,23 @@ export default function LeagueScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const { prefs } = useMotivationPrefs();
-  const [tabId, setTabId] = useState<LeagueTabId>('joueurs');
+  const [tab, setTab] = useState<PrimaryTab>('joueurs');
+  const [scope, setScope] = useState<ScopeFilter>('paris');
+  const [period, setPeriod] = useState<PeriodFilter>('saison');
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     screen('classement');
   }, []);
 
   const discreet = prefs.discreetMode;
-  const board = LEAGUE_BOARDS.find((b) => b.id === tabId) ?? JOUEURS_BOARD;
+  const board = resolveBoard(tab, scope);
   // Mode discret §10.3 : je n'apparais JAMAIS dans un leaderboard global.
   const rows = discreet ? board.rows.filter((r) => r.me !== true) : board.rows;
   const listRows = rows.filter((r) => r.rank > 3);
-  const showToi = !discreet && ME_ROW !== undefined;
-  const inTop10 = !discreet && ME_ROW !== undefined && ME_ROW.rank <= 10;
+  const visibleRows = showAll ? listRows : listRows.slice(0, COMPACT_ROWS);
+  const hiddenCount = listRows.length - visibleRows.length;
+  const showToi = !discreet && ME_ROW !== undefined && ABOVE_ROW !== undefined;
 
   return (
     <View style={styles.root}>
@@ -190,8 +218,7 @@ export default function LeagueScreen() {
           styles.content,
           {
             paddingTop: insets.top + 18,
-            paddingBottom:
-              insets.bottom + TAB_CONTENT_BOTTOM_CLEARANCE + (showToi ? TOI_BAR_CLEARANCE : 0),
+            paddingBottom: insets.bottom + TAB_CONTENT_BOTTOM_CLEARANCE,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -201,11 +228,11 @@ export default function LeagueScreen() {
           SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS}
         </Text>
         <View style={styles.titleRow}>
-          <Icon name="classement" size={24} color={colors.blanc} />
+          <Icon name="classement" size={22} color={colors.blanc} />
           <Text style={styles.title}>{CITIES.paris.name.toUpperCase()} LEAGUE</Text>
         </View>
 
-        {/* Rang GAGNÉ cette semaine (célébration) — ou bandeau mode discret */}
+        {/* ── BLOC TOI EN HAUT (sans scroll) : rang + écart + rank-up + CTA ── */}
         {discreet ? (
           <View style={styles.discreetBanner}>
             <Icon name="discret" size={18} color={colors.blanc} />
@@ -217,68 +244,139 @@ export default function LeagueScreen() {
               </Text>
             </View>
           </View>
-        ) : (
-          <View style={styles.rankUpWrap}>
-            <RankUpCard
-              fromRank={LEAGUE_RANK_UP.fromRank}
-              toRank={LEAGUE_RANK_UP.toRank}
-              leagueLabel={`${CITIES.paris.name} League`}
-              points={LEAGUE_RANK_UP.points}
-              onShare={() => toast.show('Share card prête — à toi de jouer')}
-            />
-          </View>
-        )}
+        ) : showToi ? (
+          <View style={styles.toiCard}>
+            {/* 1 · Mon rang + écart, formulation POSITIVE */}
+            <View style={styles.toiTop}>
+              <Text style={styles.toiRank}>#{ME_ROW!.rank}</Text>
+              <Text style={styles.toiName} numberOfLines={1}>
+                {MY_SOCIAL_PROFILE.displayName} · toi
+              </Text>
+              <Text style={styles.toiGap}>
+                {formatInt(GAP_POINTS)} pts du #{ABOVE_ROW!.rank}
+              </Text>
+            </View>
+            <Text style={styles.toiHint}>
+              ≈ {GAP_HEXES} zones peuvent suffire — le prochain run peut le faire.
+            </Text>
 
-        {/* Onglets démo — Joueurs / Crews / Ville / France / Pionniers / Performance */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabs}
-          contentContainerStyle={styles.tabsContent}
-        >
-          {LEAGUE_BOARDS.map((b) => (
+            {/* 2 · Rank-up ÉMOTIONNEL juste après le rang (remonté, pas en bas) */}
+            {IN_TOP10 ? (
+              <View style={styles.rankUpRow}>
+                <Icon name="badge" size={16} color={colors.chartreuse} />
+                <Text style={styles.rankUpText}>
+                  Tu entres dans le Top 10. Tiens ton rang jusqu'au reset pour débloquer le{' '}
+                  <Text style={styles.rankUpEmph}>Badge Paris</Text>.
+                </Text>
+              </View>
+            ) : null}
+
+            {/* 3 · CTA contextuel — JAMAIS un GO ; la League mène au planner */}
+            <View style={styles.toiCta}>
+              <InlineRunCTA
+                label="TROUVER UNE ROUTE"
+                onPress={() => router.push('/route-planner')}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        {/* ── Exploration : onglets RÉDUITS + filtre secondaire ── */}
+        <View style={styles.primaryTabs}>
+          {PRIMARY_TABS.map((t) => (
             <Pressable
-              key={b.id}
+              key={t.id}
               accessibilityRole="button"
-              accessibilityLabel={`Classement ${b.label}`}
-              accessibilityState={{ selected: b.id === tabId }}
+              accessibilityLabel={`Classement ${t.label}`}
+              accessibilityState={{ selected: t.id === tab }}
               onPress={() => {
-                setTabId(b.id);
-                screen(`classement_${b.id}`);
+                setTab(t.id);
+                setShowAll(false);
+                screen(`classement_${t.id}`);
               }}
               style={({ pressed }) => [
-                styles.tab,
-                b.id === tabId && styles.tabActive,
+                styles.primaryTab,
+                t.id === tab && styles.primaryTabActive,
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={[styles.tabLabel, b.id === tabId && styles.tabLabelActive]}>
-                {b.label}
+              <Text style={[styles.primaryTabLabel, t.id === tab && styles.primaryTabLabelActive]}>
+                {t.label}
               </Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </View>
 
-        {/* PODIUM top 3 — remonté à chaque changement d'onglet (key) */}
-        <Podium key={board.id} board={board} />
-
-        {/* Rangs 4+ */}
-        <View style={styles.list}>
-          {listRows.map((row) => (
-            <BoardRow key={`${board.id}-${row.rank}`} row={row} board={board} />
+        {/* Filtre secondaire : portée (Paris/France) + période (Semaine/Saison) */}
+        <View style={styles.filterRow}>
+          {(['paris', 'france'] as const).map((s) => (
+            <Pressable
+              key={s}
+              accessibilityRole="button"
+              accessibilityState={{ selected: s === scope }}
+              disabled={tab !== 'joueurs'}
+              onPress={() => {
+                setScope(s);
+                setShowAll(false);
+              }}
+              style={({ pressed }) => [
+                styles.filterChip,
+                s === scope && styles.filterChipActive,
+                tab !== 'joueurs' && styles.filterChipDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.filterLabel, s === scope && styles.filterLabelActive]}>
+                {s === 'paris' ? 'Paris' : 'France'}
+              </Text>
+            </Pressable>
+          ))}
+          <View style={styles.filterSpacer} />
+          {(['semaine', 'saison'] as const).map((p) => (
+            <Pressable
+              key={p}
+              accessibilityRole="button"
+              accessibilityState={{ selected: p === period }}
+              onPress={() => setPeriod(p)}
+              style={({ pressed }) => [
+                styles.filterChip,
+                p === period && styles.filterChipActive,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.filterLabel, p === period && styles.filterLabelActive]}>
+                {p === 'semaine' ? 'Semaine' : 'Saison'}
+              </Text>
+            </Pressable>
           ))}
         </View>
 
-        {/* Récompenses Top 10 (doc §17) */}
+        {/* PODIUM top 3 — remonté à chaque changement de board (key) */}
+        <Podium key={board.id} board={board} />
+
+        {/* Rangs 4+ — COMPACT : 2 visibles + « Voir tout » */}
+        <View style={styles.list}>
+          {visibleRows.map((row) => (
+            <BoardRow key={`${board.id}-${row.rank}`} row={row} board={board} />
+          ))}
+        </View>
+        {hiddenCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Voir tout le classement"
+            onPress={() => setShowAll(true)}
+            style={({ pressed }) => [styles.seeAll, pressed && styles.pressed]}
+          >
+            <Text style={styles.seeAllLabel}>Voir tout ({hiddenCount} de plus)</Text>
+            <Icon name="chevron" size={16} color={colors.gris} />
+          </Pressable>
+        ) : null}
+
+        {/* Récompenses Top 10 (doc §17) — repliées sous le fold */}
         <View style={styles.sectionHead}>
           <Icon name="cadeau" size={14} color={colors.gris} />
           <Text style={styles.sectionLabel}>RÉCOMPENSES TOP 10 · FIN DE SAISON</Text>
         </View>
-        {inTop10 ? (
-          <Text style={styles.top10Hint}>
-            Tu es #{ME_ROW!.rank} — dans le Top 10. Tiens ton rang jusqu'au reset.
-          </Text>
-        ) : null}
         <View style={styles.rewardList}>
           {TOP10_REWARDS.map((r) => (
             <RewardCard
@@ -291,33 +389,6 @@ export default function LeagueScreen() {
           ))}
         </View>
       </ScrollView>
-
-      {/* Ligne TOI sticky — toujours visible, formulation POSITIVE (§17) */}
-      {showToi ? (
-        <View
-          style={[
-            styles.toiBar,
-            { bottom: insets.bottom + RUN_BUTTON_BOTTOM + RUN_BUTTON_SIZE + 14 },
-          ]}
-        >
-          <View style={styles.toiTop}>
-            <Text style={styles.toiRank}>#{ME_ROW!.rank}</Text>
-            <Text style={styles.toiName} numberOfLines={1}>
-              {MY_SOCIAL_PROFILE.displayName} · toi
-            </Text>
-            {ABOVE_ROW ? (
-              <Text style={styles.toiGap}>
-                {formatInt(GAP_POINTS)} pts du #{ABOVE_ROW.rank}
-              </Text>
-            ) : null}
-          </View>
-          {ABOVE_ROW ? (
-            <Text style={styles.toiHint}>
-              ≈ {GAP_HEXES} zones neutres peuvent suffire — le prochain run peut le faire.
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
 
       <ToastHost state={toast} />
     </View>
@@ -338,7 +409,59 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '700', letterSpacing: -0.5 },
 
-  rankUpWrap: { marginTop: 16 },
+  // ── Bloc TOI en haut (l'essentiel sans scroll) ──
+  toiCard: {
+    marginTop: 16,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+    padding: spacing.cardPadding,
+    gap: 10,
+  },
+  toiTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  toiRank: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xl,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  toiName: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  toiGap: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.3,
+  },
+  toiHint: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+  },
+  rankUpRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+    backgroundColor: colors.noir,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: 12,
+  },
+  rankUpText: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.55,
+  },
+  rankUpEmph: { color: colors.chartreuse, fontWeight: '700' },
+  toiCta: { marginTop: 2 },
 
   // ── Bandeau mode discret (AMENDEMENT-07 §10.3) ──
   discreetBanner: {
@@ -360,20 +483,36 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // ── Onglets ──
-  tabs: { marginTop: 18, marginHorizontal: -spacing.cardPadding },
-  tabsContent: { paddingHorizontal: spacing.cardPadding, gap: 8 },
-  tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  // ── Onglets primaires réduits ──
+  primaryTabs: { flexDirection: 'row', gap: 8, marginTop: 22 },
+  primaryTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone,
   },
-  tabActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
-  tabLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4 },
-  tabLabelActive: { color: colors.blanc, fontWeight: '600' },
+  primaryTabActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
+  primaryTabLabel: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 0.4 },
+  primaryTabLabelActive: { color: colors.blanc, fontWeight: '700' },
+
+  // ── Filtre secondaire ──
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  filterSpacer: { flex: 1 },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.noir,
+  },
+  filterChipActive: { borderColor: colors.chartreuse40, backgroundColor: colors.carbone },
+  filterChipDisabled: { opacity: 0.35 },
+  filterLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4 },
+  filterLabelActive: { color: colors.blanc, fontWeight: '600' },
 
   // ── Podium en marches ──
   podium: {
@@ -452,6 +591,26 @@ const styles = StyleSheet.create({
   },
   rowValueLabel: { color: colors.gris, fontSize: 10, letterSpacing: 0.4 },
 
+  // ── « Voir tout » ──
+  seeAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  seeAllLabel: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+
   // ── Visuel ville (hex pin) ──
   cityHex: {
     width: 32,
@@ -477,50 +636,5 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
-  top10Hint: {
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    marginBottom: 10,
-    lineHeight: fontSizes.sm * 1.5,
-  },
   rewardList: { gap: 8 },
-
-  // ── Ligne TOI sticky ──
-  toiBar: {
-    position: 'absolute',
-    left: spacing.cardPadding,
-    right: spacing.cardPadding,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  toiTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  toiRank: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.md,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  toiName: {
-    flex: 1,
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  toiGap: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 0.3,
-  },
-  toiHint: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    marginTop: 5,
-    lineHeight: fontSizes.xs * 1.5,
-  },
 });

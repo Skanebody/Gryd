@@ -3,11 +3,17 @@
  * Profil (AMENDEMENT-08 §3, doc §6 — la route `classement` garde son nom, seul
  * le label devient « League »). La Boutique SORT de la nav (renommée Arsenal,
  * route /arsenal, accessible depuis Profil et War Room). La tab bar native est
- * masquée : la barre pill carbone flottante (GrydNavBar) et le bouton central
- * GO (RunButton → ContextualRunButton, AMENDEMENT-14 §2 : tap = départ
- * immédiat sur le plan auto, appui long = choix avancés — le libellé ne montre
- * plus jamais CONQUÉRIR/DÉFENDRE, la lecture A-12 §A teinte seulement la sheet)
- * sont rendus ICI, en overlay — permanents sur les 5 onglets, dont la carte.
+ * masquée : seule la barre pill carbone flottante (GrydNavBar) est rendue ICI,
+ * en overlay — 5 onglets ÉGAUX, aucun bouton surélevé.
+ *
+ * AMENDEMENT-17 §1.1 : le FAB flottant GO central est SUPPRIMÉ de l'overlay
+ * global — il ne flotte plus JAMAIS au milieu, sur aucun onglet (« pas deux
+ * GO » ; retiré de Profil / League / Crew / War Room). Le lancement de course
+ * est désormais un CTA INLINE contextuel, rendu DANS le contenu de chaque
+ * écran (Carte → RunButton inline dans la bottom sheet ; les autres pages →
+ * leur propre CTA plein-largeur via ContextualRunButton). Le composant
+ * RunButton (features/nav/RunButton) reste exporté pour la Carte, mais n'est
+ * plus monté ici.
  * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session →
  * (auth)/sign-in ; non configuré (O1) → mode dev.
  *
@@ -21,7 +27,6 @@ import { Redirect, Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { colors } from '@klaim/shared';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
-import { RunButton } from '../../src/features/nav/RunButton';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { useSession } from '../../src/lib/session';
 
@@ -48,7 +53,6 @@ export default function TabsLayout() {
         <Tabs.Screen name="profil" options={{ title: 'Profil' }} />
       </Tabs>
       <GrydNavBar />
-      <RunButton />
     </View>
   );
 }

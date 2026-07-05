@@ -71,6 +71,29 @@ export const OFFENSIVE: OffensiveDemo = {
   reward: 'Crew Chest Gold',
 };
 
+/**
+ * Frontières ouvertes « À TERMINER » (AMENDEMENT-17 §1.3, boucle crew §chantier 2).
+ * Placeholder compact pour le dashboard : un run non fermé laisse une frontière
+ * qu'un membre du crew peut clôturer. Le détail (segments, contributions) arrive
+ * au chantier 2 — ici on n'expose QU'un résumé humain (zone · mètres restants ·
+ * fenêtre · ouvreur). Jamais de polyline / score de géométrie / cellule (§UX-17).
+ */
+export interface OpenBoundaryDemo {
+  key: string;
+  /** Zone en jeu (« République »). */
+  zone: string;
+  /** Mètres restants pour fermer la boucle (humain, arrondi). */
+  missingM: number;
+  /** Heures avant expiration de la frontière partielle (TTL 24 h). */
+  expiresInH: number;
+  /** Pseudo du membre qui a ouvert la frontière. */
+  opener: string;
+}
+export const OPEN_BOUNDARIES: readonly OpenBoundaryDemo[] = [
+  { key: 'boundary_republique', zone: 'République', missingM: 620, expiresInH: 23, opener: 'KORO' },
+  { key: 'boundary_jaures', zone: 'Jaurès', missingM: 340, expiresInH: 11, opener: 'LENA·11' },
+];
+
 /** Mission « À faire » de la War Room (§7.12, types quotidienne/hebdo/crew). */
 export interface MissionDemo {
   key: string;

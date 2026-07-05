@@ -71,6 +71,58 @@ function buildPlan(mode: RunButtonMode, summary: BattleMapSummary): AutoRunPlan 
   };
 }
 
+/**
+ * DIRECTIVE de la carte (AMENDEMENT-17 §1.2) : la bottom sheet n'expose qu'UNE
+ * consigne + UN CTA. Dérive du plan auto + de la route résolue :
+ *   défense  `DÉFENSE RECOMMANDÉE` — « République est attaqué. »
+ *            « Cours 4,4 km pour sauver 3 zones. »  ctaLabel `DÉFENDRE`
+ *   conquête `CONQUÊTE` — « République est ouvert. »
+ *            « Cours 5,1 km pour prendre 94 zones. »  ctaLabel `CONQUÉRIR`
+ * Le CTA reste le SEUL point de départ (RunButton dans la sheet). Les % de
+ * contrôle NE vivent PAS ici (détail au tap de la pill) — la directive dit
+ * quoi faire, pas l'état complet du secteur.
+ */
+export interface MapDirective {
+  kicker: string;
+  /** « République est attaqué. » — le sujet de la consigne. */
+  headline: string;
+  /** « Cours 4,4 km pour sauver 3 zones. » — l'ordre chiffré. */
+  order: string;
+  /** Libellé du CTA de départ (DÉFENDRE / CONQUÉRIR). */
+  ctaLabel: string;
+  lecture: RunLecture;
+}
+
+/** « 4,4 km » — décimale française, pas d'Intl (parité Hermes). */
+function formatKm(km: number): string {
+  return `${km.toFixed(1).replace('.', ',')} km`;
+}
+
+export function mapDirective(): MapDirective {
+  const { mode, summary, plan } = battleContext();
+  const route = ROUTES_DEMO.find((r) => r.id === plan.routeId);
+  const km = route ? formatKm(route.distanceKm) : 'quelques km';
+  const zone = route?.zone ?? OFFENSIVE.zone;
+  if (mode === 'DEFENDRE') {
+    const n = Math.max(1, summary.decay);
+    return {
+      kicker: 'DÉFENSE RECOMMANDÉE',
+      headline: `${zone} est attaqué.`,
+      order: `Cours ${km} pour sauver ${n} zone${n > 1 ? 's' : ''}.`,
+      ctaLabel: 'DÉFENDRE',
+      lecture: 'defense',
+    };
+  }
+  const n = route?.zones ?? 0;
+  return {
+    kicker: 'CONQUÊTE OUVERTE',
+    headline: `${zone} est à prendre.`,
+    order: `Cours ${km} pour capturer ${n} zones.`,
+    ctaLabel: 'CONQUÉRIR',
+    lecture: 'conquete',
+  };
+}
+
 let cached: BattleContext | null = null;
 
 /** Contexte de bataille partagé bouton GO / HUD carte (calculé une fois — démo). */

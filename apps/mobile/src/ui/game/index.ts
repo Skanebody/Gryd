@@ -24,8 +24,12 @@ export {
 } from './ArsenalItemCard';
 export {
   ContextualRunButton,
+  InlineRunCTA,
   RUN_BUTTON_LONG_PRESS_MS,
   type ContextualRunButtonProps,
+  type InlineRunCTAProps,
+  type InlineRunCTAVariant,
+  type InlineRunCTASize,
   type RunButtonMode,
 } from './ContextualRunButton';
 export { BattleMapHUD, type BattleMapHUDProps } from './BattleMapHUD';

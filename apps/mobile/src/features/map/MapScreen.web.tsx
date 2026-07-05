@@ -51,8 +51,8 @@ import {
   type RealMapMarker,
   type RealMapRef,
 } from '../../ui/game';
-import { deriveRunButtonMode } from '../nav/runContext';
-import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from '../nav/metrics';
+import { deriveAutoPlan } from '../nav/runContext';
+import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import {
   TERRITORY_DOT_MAX_ZOOM,
   decaySablierAnchor,
@@ -64,7 +64,7 @@ import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHex
 import { battleGameLayers, battleMapStyle as ms } from './mapStyle';
 import { useBasemapStyle } from './mapPref';
 import { EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
-import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
+import { MODE_EMPHASIS, autoMapMode, type MapMode, type ModeEmphasis } from './territory';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -90,23 +90,20 @@ const SCALE_STEPS_M: readonly number[] = [
 const ATTRIBUTION_LABEL = '© OpenStreetMap © CARTO';
 
 // ── Bascule du fond de carte (dark ↔ color) — bouton flottant AU-DESSUS de la
-// pile Recentrer/Stats de BattleMapOverlays (mêmes métriques pour ne pas la
-// recouvrir : ces constantes reprennent MODE_CHIPS_HEIGHT/FAB_ABOVE_SHEET du
-// HUD). Le gap entre flottants est de 10 px (pile verticale à droite).
+// pile Couches/Recentrer/Stats de BattleMapOverlays (mêmes métriques pour ne pas
+// la recouvrir). AMENDEMENT-17 §1.2 : plus de rangée de chips de mode → le HUD
+// n'a plus de MODE_CHIPS_HEIGHT à réserver. Le gap entre flottants est de 10 px.
 const FAB_GAP = 10;
-const HUD_MODE_CHIPS_HEIGHT = 40;
 const HUD_FAB_ABOVE_SHEET = 12;
 const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Bas de la pile de flottants du HUD (identique au calcul de BattleMapOverlays). */
 const HUD_FAB_COLUMN_BOTTOM =
   RUN_BUTTON_BOTTOM +
-  RUN_BUTTON_SIZE +
   SHEET_ABOVE_RUN_BUTTON +
   MAP_SHEET_COMPACT_HEIGHT +
-  HUD_MODE_CHIPS_HEIGHT +
   HUD_FAB_ABOVE_SHEET;
-/** La bascule s'empile au-dessus des DEUX flottants du HUD (Recentrer + Stats). */
-const BASEMAP_FAB_ABOVE_HUD_FABS = 2 * (FLOATING_MAP_BUTTON_SIZE + FAB_GAP);
+/** La bascule s'empile au-dessus des TROIS flottants du HUD (Couches + Recentrer + Stats). */
+const BASEMAP_FAB_ABOVE_HUD_FABS = 3 * (FLOATING_MAP_BUTTON_SIZE + FAB_GAP);
 
 /** Teintes des markers — tokens uniquement (états de jeu). */
 const markerColors = {
@@ -193,7 +190,9 @@ function buildMarkers(
 }
 
 export function MapScreen() {
-  const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
+  // AMENDEMENT-17 §1.2 : calque AUTO au montage selon le plan (défense →
+  // calque défense ; sinon route-first). Plus de rangée de filtres à choisir.
+  const [mode, setMode] = useState<MapMode>(() => autoMapMode(deriveAutoPlan().lecture));
   const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
@@ -202,7 +201,6 @@ export function MapScreen() {
     const data = battleMapData();
     return { points: data.points, summary: battleMapSummary(data.collection) };
   }, []);
-  const runMode = useMemo(() => deriveRunButtonMode(), []);
   /** Emphase des familles de couches selon le mode actif (AMENDEMENT-11 §3). */
   const emph = MODE_EMPHASIS[mode];
 
@@ -281,7 +279,7 @@ export function MapScreen() {
         pointerEvents="box-none"
       >
         <FloatingMapButton
-          icon="calques"
+          icon="carte"
           accessibilityLabel={
             basemap === 'color' ? 'Fond de carte couleur (repasser en sombre)' : 'Fond de carte sombre (passer en couleur)'
           }
@@ -301,7 +299,6 @@ export function MapScreen() {
         mode={mode}
         onSelectMode={setMode}
         summary={summary}
-        runMode={runMode}
         onRecenter={recenter}
         selectedParcoursId={selectedParcours}
         onSelectParcours={setSelectedParcours}

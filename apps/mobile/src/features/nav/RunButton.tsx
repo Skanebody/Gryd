@@ -1,33 +1,54 @@
 /**
- * GRYD — bouton central GO (AMENDEMENT-14 §2, remplace le flux AMENDEMENT-08
- * §3) : zéro question avant de courir. Le disque affiche TOUJOURS « GO »
- * (l'unique CTA chartreuse global, §C.3), rendu au niveau du layout (tabs),
- * permanent sur les 5 onglets.
+ * GRYD — RunButton : CTA de lancement de course RÉUTILISABLE et INLINE.
  *
- *   TAP        départ IMMÉDIAT : run_start(conquete) → Course Live sur
- *              l'itinéraire du plan auto (runContext — aucun écran
- *              intermédiaire, le serveur décide toujours du territoire).
- *   APPUI LONG choix avancés (power users) : RunModeSheet (Conquête / Social
- *              Run / Course privée) + « Changer d'itinéraire » → Route Planner.
+ * AMENDEMENT-17 §1.1 : ce composant ne FLOTTE plus jamais en overlay central
+ * bas (« pas deux GO » ; retiré de l'overlay global du layout). Il n'est plus
+ * monté dans `(tabs)/_layout`. La CARTE l'appelle DANS sa bottom sheet comme le
+ * SEUL point de départ de course ; il n'y a donc qu'un GO à l'écran.
+ *
+ * Il reste utile (non redondant) car il encapsule TOUT le flux de départ :
+ *   - TAP         départ immédiat sur le plan auto (AMENDEMENT-14 §2).
+ *   - APPUI LONG  RunModeSheet : choix avancés + INTENTIONS Conquérir/Défendre
+ *                 (AMENDEMENT-16 §1, client-seul) + « Planifier une boucle » +
+ *                 « Changer d'itinéraire ». Ce flux long-press SURVIT ici et la
+ *                 Carte le rebranche simplement en montant <RunButton />.
+ *
+ * Rendu : bouton plein-largeur chartreuse (InlineRunCTA). Le LIBELLÉ vient du
+ * contexte (défaut « GO » ; la Carte peut passer DÉFENDRE / CONQUÉRIR / … via
+ * `label`) — plus jamais un GO générique imposé par la nav.
  */
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { usePathname, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { type RunMode } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
-import { ContextualRunButton } from '../../ui/game';
+import { InlineRunCTA, type InlineRunCTASize } from '../../ui/game';
 import { RunModeSheet } from '../motivation/RunModeSheet';
-import { intentionHref } from './runContext';
+import { battleContext, goHref, intentionHref } from './runContext';
 import type { DefenseTargetDemo, RunIntention } from '../run/intention';
-import { RUN_BUTTON_BOTTOM, RUN_BUTTON_SIZE } from './metrics';
-import { battleContext, goHref } from './runContext';
 
-export function RunButton() {
+export interface RunButtonProps {
+  /**
+   * Libellé du CTA. Défaut « GO » (départ immédiat sur le plan auto). La Carte
+   * peut passer un libellé contextuel (DÉFENDRE / CONQUÉRIR / TERMINER…) tiré du
+   * plan — le bouton reste le point de départ unique, seul le mot change.
+   */
+  label?: string;
+  size?: InlineRunCTASize;
+  /**
+   * Ouvre directement le sélecteur d'intentions au tap au lieu du départ
+   * immédiat (optionnel — la Carte reste sur le tap = départ par défaut).
+   */
+  tapOpensSheet?: boolean;
+}
+
+/**
+ * CTA de course inline. La Carte le rend dans sa sheet ; il porte tout le flux
+ * (départ immédiat + intentions long-press). Aucun positionnement absolu : il
+ * s'insère dans le layout de l'appelant.
+ */
+export function RunButton({ label = 'GO', size = 'lg', tapOpensSheet = false }: RunButtonProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const insets = useSafeAreaInsets();
   const [modePickerOpen, setModePickerOpen] = useState(false);
 
   // Plan auto dérivé des données démo (defense/conquete) — stable sur la session.
@@ -35,6 +56,10 @@ export function RunButton() {
 
   /** TAP = départ immédiat sur le plan auto (AMENDEMENT-14 §2). */
   const goNow = () => {
+    if (tapOpensSheet) {
+      setModePickerOpen(true);
+      return;
+    }
     track(EVENTS.runStart, { mode: 'conquete', context: contextMode, route: plan.routeId });
     router.push(goHref(plan));
   };
@@ -44,9 +69,7 @@ export function RunButton() {
     haptics.medium();
     setModePickerOpen(false);
     track(EVENTS.runStart, { mode, context: contextMode });
-    router.push(
-      mode === 'conquete' ? goHref(plan) : `/course-live?mode=${mode}`,
-    );
+    router.push(mode === 'conquete' ? goHref(plan) : `/course-live?mode=${mode}`);
   };
 
   /**
@@ -74,38 +97,23 @@ export function RunButton() {
   };
 
   return (
-    <View
-      style={[styles.wrap, { bottom: insets.bottom + RUN_BUTTON_BOTTOM }]}
-      pointerEvents="box-none"
-    >
-      <ContextualRunButton
-        size={RUN_BUTTON_SIZE}
-        onGo={goNow}
+    <>
+      <InlineRunCTA
+        label={label}
+        size={size}
+        onPress={goNow}
         onLongPress={() => setModePickerOpen(true)}
-        // La phrase du plan auto accompagne le GO partout SAUF sur la carte,
-        // où la sheet compacte la porte déjà (pas de doublon).
-        hint={pathname === '/' ? undefined : plan.phrase}
+        accessibilityLabel={`${label} — départ immédiat. Maintiens pour les choix avancés.`}
       />
       <RunModeSheet
         visible={modePickerOpen}
         onSelect={startRun}
         onIntention={(intention) => startIntention(intention)}
-        onDefenseTarget={(target: DefenseTargetDemo) =>
-          startIntention('defense', target.routeId)
-        }
+        onDefenseTarget={(target: DefenseTargetDemo) => startIntention('defense', target.routeId)}
         onPlanLoop={planLoop}
         onChangeRoute={changeRoute}
         onClose={() => setModePickerOpen(false)}
       />
-    </View>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    position: 'absolute',
-    alignSelf: 'center',
-    width: RUN_BUTTON_SIZE,
-    height: RUN_BUTTON_SIZE,
-  },
-});

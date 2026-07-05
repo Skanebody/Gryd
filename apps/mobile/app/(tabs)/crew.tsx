@@ -43,6 +43,7 @@ import {
   ChestCard,
   CrewCrest,
   CREW_ROLE_META,
+  InlineRunCTA,
   MemberCard,
   PerkCard,
   RewardCard,
@@ -55,7 +56,6 @@ import {
   CHEST_TIER_LABELS,
   PERK_VISUALS,
   PERK_VISUAL_FALLBACK,
-  RECRUITMENT_STATUS_LABELS,
   activityStatusForScore,
   chestStateFor,
   crewLevelForXp,
@@ -238,6 +238,10 @@ export default function CrewScreen() {
   const [chestOpened, setChestOpened] = useState(false);
   const [rsvp, setRsvp] = useState<Record<string, DefenseRsvp>>({});
   const [showTiers, setShowTiers] = useState(false);
+  /** Contribution/boost = section SECONDAIRE repliée par défaut (§1.3). */
+  const [showContribution, setShowContribution] = useState(false);
+  /** Détail territoire (secteur / zones / frontières / routes) révélé au tap. */
+  const [showTerritory, setShowTerritory] = useState(false);
 
   // ── Crew Boost DÉMO actif (AMENDEMENT-16 §13.1) : contribution volontaire,
   // effet COFFRE uniquement (+25 %), jamais de points. Un membre a offert un
@@ -331,9 +335,6 @@ export default function CrewScreen() {
             />
           </Animated.View>
           <View style={styles.headerInfo}>
-            <Text style={styles.metaLine} numberOfLines={1}>
-              {MY_CREW.city} · {leagueLabelFor(MY_CREW.league)}
-            </Text>
             <View style={[styles.statusChip, warReady && styles.statusChipWar]}>
               <Icon
                 name="guerre"
@@ -344,43 +345,37 @@ export default function CrewScreen() {
                 {ACTIVITY_STATUS_LABELS[status]}
               </Text>
             </View>
-            <Text style={styles.levelBig}>Niveau {level}</Text>
+            {/* Ligne d'identité forte : niveau · rang ville · membres actifs. */}
+            <Text style={styles.identityLine} numberOfLines={2}>
+              Niveau {level} · #{MY_CREW.localRank} {MY_CREW.city} · {activeMembers}/
+              {CREW_MAX_MEMBERS} actifs
+            </Text>
             <View style={styles.headerGauge}>
               <ProgressBar value={levelProgress} height={7} />
             </View>
-            <Text style={styles.xpLine}>
-              {formatInt(MY_CREW.xp)} XP
+            <Text style={styles.xpLine} numberOfLines={1}>
+              {leagueLabelFor(MY_CREW.league)}
               {nextLevelXp !== null
-                ? ` · ${formatInt(nextLevelXp - MY_CREW.xp)} vers niv. ${level + 1}`
+                ? ` · ${formatInt(nextLevelXp - MY_CREW.xp)} XP vers niv. ${level + 1}`
                 : ' · niveau max'}
             </Text>
           </View>
         </View>
 
-        {/* Bandeau de guerre : rank local · membres actifs · coffre · offensive */}
-        <View style={styles.quickRow}>
-          <View style={styles.quickCell}>
-            <Text style={styles.quickLabel}>Rank local</Text>
-            <Text style={styles.quickValue}>#{MY_CREW.localRank}</Text>
-          </View>
-          <View style={styles.quickCell}>
-            <Text style={styles.quickLabel}>Membres actifs</Text>
-            <Text style={styles.quickValue}>
-              {activeMembers}/{CREW_MAX_MEMBERS}
-            </Text>
-          </View>
-          <View style={styles.quickCell}>
-            <Text style={styles.quickLabel}>Coffre hebdo</Text>
-            <Text style={styles.quickValue}>{Math.round(chestPct * 100)} %</Text>
-          </View>
-          <View style={styles.quickCell}>
-            <Text style={styles.quickLabel}>Offensive</Text>
-            <Text
-              style={[styles.quickValue, MY_CREW.offensiveReady && styles.quickValueReady]}
-            >
-              {MY_CREW.offensiveReady ? 'Prête' : '—'}
-            </Text>
-          </View>
+        {/* CTA principal inline (Voir War Room) + secondaire (Inviter) — §1.3 */}
+        <View style={styles.headerCta}>
+          <InlineRunCTA
+            label="VOIR WAR ROOM"
+            leading={<Icon name="guerre" size={18} color={colors.noir} />}
+            onPress={() => router.navigate('/warroom')}
+          />
+          <InlineRunCTA
+            label="Inviter"
+            variant="secondary"
+            size="md"
+            leading={<Icon name="ajoutami" size={16} color={colors.blanc} />}
+            onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
+          />
         </View>
       </View>
 
@@ -423,151 +418,162 @@ export default function CrewScreen() {
         </Pressable>
       ) : null}
 
-      {/* ══ BASE : bento 6 cartes (AMENDEMENT-10 §6) + TERRITOIRE CREW ══ */}
+      {/* ══ BASE : 4 cards compactes (§1.3) — 1 titre + 1 chiffre + 1 CTA au tap.
+          Territoire / Membres / Coffre / Contribution. Boost & contribution
+          restent SECONDAIRES (repliés, après les stats + War Room). ══ */}
       {tab === 'base' ? (
         <>
           <View style={styles.baseGrid}>
-            {/* Défense urgente — muted red DISCRET (urgence réelle, pas d'alarme) */}
+            {/* Territoire — le cœur du jeu : tap → détail secteur/frontières. */}
             <BaseCard
-              icon="bouclier"
-              tint={gameColors.danger}
-              label="Défense urgente"
-              value={`${MY_CREW.urgentDefense.streets} rues · ${MY_CREW.urgentDefense.hoursLeft} h`}
-              sub={`Secteur ${MY_CREW.urgentDefense.sector}`}
-              onPress={() => router.navigate('/warroom')}
+              icon="pin"
+              tint={gameColors.crew}
+              label="Territoire"
+              value={`${formatInt(MY_CREW.territory.zonesHeld)} zones`}
+              sub={`${MY_CREW.territory.contestedBorders} frontières contestées`}
+              onPress={() => {
+                haptics.light();
+                setShowTerritory((v) => !v);
+              }}
             />
+            {/* Membres — tap → onglet Membres (roster + actions). */}
             <BaseCard
-              icon="guerre"
-              tint={MY_CREW.offensiveReady ? gameColors.crew : colors.blanc}
-              label="Offensive"
-              value={MY_CREW.offensiveReady ? 'Prête' : 'En préparation'}
-              sub="Lancer depuis la War Room"
-              onPress={() => router.navigate('/warroom')}
+              icon="crew"
+              label="Membres"
+              value={`${activeMembers}/${CREW_MAX_MEMBERS} actifs`}
+              sub={`${MY_CREW.recruitSpots} places ouvertes`}
+              onPress={() => setTab('membres')}
             />
+            {/* Coffre — % hebdo + jauge ; tap → onglet Coffre. */}
             <BaseCard
               icon="coffre"
               tint={chestClaimable ? gameColors.crew : gameColors.gold}
-              label="Coffre crew"
+              label="Coffre"
               value={`${Math.round(chestPct * 100)} %`}
-              sub={boostActive ? BOOST_CHEST_BONUS_LABEL : undefined}
+              sub={chestClaimable ? 'À récupérer' : `Palier ${nextChestTier ? CHEST_TIER_LABELS[nextChestTier] : 'max'}`}
               progress={chestPct}
               onPress={() => setTab('coffre')}
             />
+            {/* Contribution — SECONDAIRE : ouvre la section boost repliée plus bas. */}
             <BaseCard
-              icon="ajoutami"
-              label="Recrutement"
-              value={`${MY_CREW.recruitSpots} places`}
-              sub={RECRUITMENT_STATUS_LABELS[MY_CREW.recruitment]}
-              onPress={() => router.push('/crew-discovery')}
-            />
-            <BaseCard
-              icon={nextPerk ? (PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).icon : 'badge'}
-              label="Prochain perk"
-              value={nextPerk ? nextPerk.name : 'Tout débloqué'}
-              sub={
-                nextPerk
-                  ? `Niveau ${nextPerk.level} · ${formatInt(nextPerkXpRemaining)} XP restants`
-                  : undefined
-              }
-              onPress={() => setTab('perks')}
-            />
-            <BaseCard
-              icon="crew"
-              label="Membres actifs"
-              value={`${activeMembers} / ${CREW_MAX_MEMBERS}`}
-              onPress={() => setTab('membres')}
-            />
-          </View>
-
-          {/* ── Crew Boost actif (§13.1) : badge + timer + effet COFFRE ── */}
-          {boostActive ? (
-            <View style={styles.boostCard}>
-              <View style={styles.boostIcon}>
-                <Icon name="cadeau" size={18} color={gameColors.gold} />
-              </View>
-              <View style={styles.boostBody}>
-                <View style={styles.boostTopRow}>
-                  <Text style={styles.boostTitle}>Boost actif</Text>
-                  <View style={styles.boostBonus}>
-                    <Text style={styles.boostBonusText}>{BOOST_CHEST_BONUS_LABEL}</Text>
-                  </View>
-                </View>
-                <Text style={styles.boostSub}>
-                  {boost.by ? `${boost.by} a boosté le crew` : 'Un membre a boosté le crew'} ·{' '}
-                  <Text style={styles.boostTimer}>{formatBoostRemaining(boost, nowTick)}</Text>
-                </Text>
-                <Text style={styles.boostNote}>
-                  Accélère la progression du coffre. Jamais de points ni de zones.
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          <TerritoryBlock />
-
-          {/* ── Contribution crew (§28) + Crew Wall opt-in (§14) ── */}
-          <View style={styles.contribCard}>
-            <SectionLabel>CONTRIBUTION</SectionLabel>
-            <Text style={styles.contribLead}>Offre un boost à ton crew.</Text>
-            <Text style={styles.contribBody}>Tous les runs comptent plus fort pour le coffre.</Text>
-            <Text style={styles.contribStrong}>Aucune obligation. La victoire reste sur la route.</Text>
-
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityState={{ checked: wallOptIn }}
+              icon="cadeau"
+              tint={boostActive ? gameColors.gold : colors.blanc}
+              label="Contribution"
+              value={boostActive ? 'Boost actif' : 'Boost dispo'}
+              sub={boostActive ? formatBoostRemaining(boost, nowTick) : 'Accélère le coffre'}
               onPress={() => {
                 haptics.light();
-                setWallOptIn((v) => !v);
+                setShowContribution(true);
               }}
-              style={styles.wallToggle}
-            >
-              <View style={[styles.wallCheckbox, wallOptIn && styles.wallCheckboxOn]}>
-                {wallOptIn ? <View style={styles.wallCheckDot} /> : null}
-              </View>
-              <View style={styles.wallToggleText}>
-                <Text style={styles.wallToggleLabel}>Afficher le Crew Wall</Text>
-                <Text style={styles.wallToggleSub}>
-                  Supporters de la saison — sans montant, offrande anonyme respectée.
-                </Text>
-              </View>
-            </Pressable>
+            />
+          </View>
 
-            {wallOptIn ? (
-              <View style={styles.wall}>
-                <Text style={styles.wallTitle}>Supporters de la saison</Text>
-                {INITIAL_CREW_WALL.map((entry) => (
-                  <View key={`${entry.supporter ?? 'anon'}-${entry.contribution}`} style={styles.wallRow}>
-                    <Text style={styles.wallSupporter} numberOfLines={1}>
-                      {supporterLabel(entry)}
+          {/* Détail Territoire (AMENDEMENT-11 §4) révélé au tap de la card. */}
+          {showTerritory ? <TerritoryBlock /> : null}
+
+          {/* ── SECONDAIRE : Contribution / Boost / Crew Wall (§28/§14), replié
+              par défaut — jamais en premier (pas de monétisation trop visible). ── */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showContribution }}
+            onPress={() => {
+              haptics.light();
+              setShowContribution((v) => !v);
+            }}
+            style={({ pressed }) => [styles.contribToggle, pressed && styles.dim]}
+          >
+            <Icon name="cadeau" size={16} color={boostActive ? gameColors.gold : colors.gris} />
+            <Text style={styles.contribToggleText}>
+              Contribution &amp; boost {boostActive ? '· actif' : ''}
+            </Text>
+            <Icon name="chevron" size={15} color={colors.gris} />
+          </Pressable>
+
+          {showContribution ? (
+            <>
+              {/* Boost actif (§13.1) : badge + timer + effet COFFRE uniquement. */}
+              {boostActive ? (
+                <View style={styles.boostCard}>
+                  <View style={styles.boostIcon}>
+                    <Icon name="cadeau" size={18} color={gameColors.gold} />
+                  </View>
+                  <View style={styles.boostBody}>
+                    <View style={styles.boostTopRow}>
+                      <Text style={styles.boostTitle}>Boost actif</Text>
+                      <View style={styles.boostBonus}>
+                        <Text style={styles.boostBonusText}>{BOOST_CHEST_BONUS_LABEL}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.boostSub}>
+                      {boost.by ? `${boost.by} a boosté le crew` : 'Un membre a boosté le crew'} ·{' '}
+                      <Text style={styles.boostTimer}>{formatBoostRemaining(boost, nowTick)}</Text>
                     </Text>
-                    <Text style={styles.wallContribution} numberOfLines={1}>
-                      {entry.contribution}
+                    <Text style={styles.boostNote}>
+                      Accélère la progression du coffre. Jamais de points ni de zones.
                     </Text>
                   </View>
-                ))}
-                <Text style={styles.wallFootnote}>Aucun montant. Aucun classement par dépense.</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.contribCard}>
+                <Text style={styles.contribLead}>Offre un boost à ton crew.</Text>
+                <Text style={styles.contribBody}>
+                  Tous les runs comptent plus fort pour le coffre.
+                </Text>
+                <Text style={styles.contribStrong}>
+                  Aucune obligation. La victoire reste sur la route.
+                </Text>
+
+                <Pressable
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: wallOptIn }}
+                  onPress={() => {
+                    haptics.light();
+                    setWallOptIn((v) => !v);
+                  }}
+                  style={styles.wallToggle}
+                >
+                  <View style={[styles.wallCheckbox, wallOptIn && styles.wallCheckboxOn]}>
+                    {wallOptIn ? <View style={styles.wallCheckDot} /> : null}
+                  </View>
+                  <View style={styles.wallToggleText}>
+                    <Text style={styles.wallToggleLabel}>Afficher le Crew Wall</Text>
+                    <Text style={styles.wallToggleSub}>
+                      Supporters de la saison — sans montant, offrande anonyme respectée.
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {wallOptIn ? (
+                  <View style={styles.wall}>
+                    <Text style={styles.wallTitle}>Supporters de la saison</Text>
+                    {INITIAL_CREW_WALL.map((entry) => (
+                      <View
+                        key={`${entry.supporter ?? 'anon'}-${entry.contribution}`}
+                        style={styles.wallRow}
+                      >
+                        <Text style={styles.wallSupporter} numberOfLines={1}>
+                          {supporterLabel(entry)}
+                        </Text>
+                        <Text style={styles.wallContribution} numberOfLines={1}>
+                          {entry.contribution}
+                        </Text>
+                      </View>
+                    ))}
+                    <Text style={styles.wallFootnote}>
+                      Aucun montant. Aucun classement par dépense.
+                    </Text>
+                  </View>
+                ) : null}
+
+                <GhostButton
+                  label="Voir l’Arsenal"
+                  icon="boutique"
+                  onPress={() => router.push('/arsenal')}
+                />
               </View>
-            ) : null}
-
-            <GhostButton
-              label="Voir l’Arsenal"
-              icon="boutique"
-              onPress={() => router.push('/arsenal')}
-            />
-          </View>
-
-          <View style={styles.baseActions}>
-            <GhostButton
-              label="Voir War Room"
-              icon="guerre"
-              onPress={() => router.navigate('/warroom')}
-            />
-            <GhostButton
-              label="Inviter un membre"
-              icon="ajoutami"
-              onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
-            />
-          </View>
+            </>
+          ) : null}
         </>
       ) : null}
 
@@ -939,13 +945,11 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   headerInfo: { flex: 1 },
-  metaLine: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 0.3 },
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     alignSelf: 'flex-start',
-    marginTop: 8,
     backgroundColor: colors.carbone2,
     borderRadius: radii.pill,
     borderWidth: 1,
@@ -961,36 +965,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   statusChipTextWar: { color: gameColors.crew },
-  levelBig: {
+  // Ligne d'identité forte : niveau · rang ville · membres actifs (§1.3).
+  identityLine: {
     color: colors.blanc,
-    fontSize: fontSizes.lg,
+    fontSize: fontSizes.md,
     fontWeight: '700',
-    letterSpacing: -0.4,
+    letterSpacing: -0.2,
+    lineHeight: fontSizes.md * 1.3,
     marginTop: 10,
   },
-  headerGauge: { marginTop: 8 },
+  headerGauge: { marginTop: 10 },
   xpLine: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     marginTop: 7,
     fontVariant: ['tabular-nums'],
   },
-  quickRow: {
-    flexDirection: 'row',
+  // CTA principal + secondaire, sous le bloc identité (§1.3).
+  headerCta: {
     marginTop: 16,
     paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: colors.grisLigne,
+    gap: 10,
   },
-  quickCell: { flex: 1, alignItems: 'center', gap: 3 },
-  quickLabel: { color: colors.gris, fontSize: 10, letterSpacing: 0.3 },
-  quickValue: {
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  quickValueReady: { color: gameColors.crew },
   // ── Segmented control ──
   segments: {
     flexDirection: 'row',
@@ -1054,7 +1052,20 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   baseCardSub: { color: colors.gris, fontSize: 11, letterSpacing: 0.2 },
-  baseActions: { marginTop: 18, gap: 10 },
+  // ── Bascule Contribution & boost (secondaire, repliée par défaut §1.3) ──
+  contribToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 18,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  contribToggleText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   // ── Crew Boost actif (AMENDEMENT-16 §13.1) ──
   boostCard: {
     flexDirection: 'row',

@@ -102,6 +102,30 @@ export const MAP_WAR_FEED: readonly MapWarFeedEventDemo[] = [
 /** Cadence de défilement du feed (UI, pas une règle de jeu). */
 export const WAR_FEED_CYCLE_MS = 5_000;
 
+/**
+ * ALERTE RIVAL ACTIONNABLE (AMENDEMENT-17 §1.2) : une attaque en cours,
+ * lisible en 1 seconde + CTA [Défendre]. Remplace la lecture passive du war
+ * feed quand une menace est fraîche : `CANAL CREW attaque République ·
+ * 14 zones reprises · il y a 12 min`. Dérivée de l'event rival du feed —
+ * étiquettes démo, TODO(O1) branchée sur le war log réel au Milestone 2.
+ */
+export interface MapRivalAlertDemo {
+  rivalName: string;
+  /** Secteur attaqué (vocabulaire zones/secteurs — AMENDEMENT-17 §1.4). */
+  zone: string;
+  /** Zones reprises par le rival (frontières perdues). */
+  zonesLost: number;
+  /** Fraîcheur de la menace (min) — sous LIVE_MAX_MINUTES = attaque LIVE. */
+  minutesAgo: number;
+}
+
+export const MAP_RIVAL_ALERT: MapRivalAlertDemo = {
+  rivalName: MAP_CONTROL_HUD.rivalName.toUpperCase(),
+  zone: DEFENSE_SECTOR,
+  zonesLost: 14,
+  minutesAgo: 12,
+};
+
 // ─── Membres crew SUR la carte (AMENDEMENT-09 §2) ───────────────────────────
 /**
  * INVARIANT AMENDEMENT-07 : jamais de position live publique. Ces 2 membres
