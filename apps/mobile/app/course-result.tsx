@@ -591,8 +591,14 @@ function ConquestResultScreen({
   // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
   // copy §28 ; le tracé (démo) produit tous les effets listés.
   const summary = summaryHeader(intention);
+  // §A r.1/r.20 — l'IMPACT ne répète pas le % de zone : la ligne `crew`
+  // (« {zone} +X % ») est déjà portée par la section CONTRIBUTION CREW plus bas
+  // ET par la heroLine de l'écran 1. On la retire ici pour tenir la card à 3
+  // idées (conquête · défense · route) et supprimer la redondance.
   const summaryLines = conquest
-    ? resultSummaryLines(intention, stats.zoneName, stats.zonePctAfter - stats.zonePctBefore)
+    ? resultSummaryLines(intention, stats.zoneName, stats.zonePctAfter - stats.zonePctBefore).filter(
+        (line) => line.icon !== 'crew',
+      )
     : [];
   // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
   // « République défendue · Paris Est +5 % ».

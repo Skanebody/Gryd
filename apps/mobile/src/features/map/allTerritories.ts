@@ -375,6 +375,18 @@ export const SECTOR_BADGE_LABELS: Record<SectorStatusKey, string | null> = {
   urgence: 'À sauver',
 } as const;
 
+/**
+ * §A (anti-redondance §A20 + §A9 texte-non-masqué) — Secteur du FOYER de l'ego
+ * (« République », DEFENSE_SECTOR) dont le badge de statut est SUPPRIMÉ sur la
+ * Carte : le header permanent dit déjà « République attaquée » / « 3 zones à
+ * sauver ». Un second badge « Zone contestée » posé sur ce même secteur ferait
+ * DOUBLON avec le header ET, l'ego étant centré, tomberait sous le bandeau
+ * (texte partiellement masqué — interdit §A9). Les badges des AUTRES secteurs
+ * (Canal « Attaque en cours », Louis-Blanc « À sauver »…) restent affichés :
+ * eux seuls apportent une info que le header ne porte pas.
+ */
+const EGO_HOME_SECTOR_ID = 'paris-villemin';
+
 /** Point du badge de statut (rayon) — petit, le libellé porte l'info. */
 const SECTOR_BADGE_DOT_RADIUS_PX = 3;
 const SECTOR_BADGE_DOT_STROKE_PX = 1.5;
@@ -395,7 +407,12 @@ export function sectorStatusBadgeLayer(): RealMapPointLayer {
   const data: GameCollection = {
     type: 'FeatureCollection',
     features: PARIS_DEMO_SECTOR_VIEWS.filter(
-      (v) => v.status.level >= SECTOR_STATUS_LEVELS.contestee,
+      (v) =>
+        v.status.level >= SECTOR_STATUS_LEVELS.contestee &&
+        // Le secteur FOYER de l'ego n'a PAS de badge : son statut est déjà porté
+        // par le header (« République attaquée ») — pas de doublon, pas de texte
+        // masqué par le bandeau (§A20 / §A9).
+        v.id !== EGO_HOME_SECTOR_ID,
     ).map((v) => {
       // Teinte de statut par rôle : contesté = violet ; attaque = rival ;
       // urgence = decay. La couleur ne fait que DOUBLER la forme + le libellé.

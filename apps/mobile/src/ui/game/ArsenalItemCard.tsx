@@ -127,6 +127,14 @@ export interface ArsenalItemCardProps {
   obtainLabel?: string;
   /** CTA secondaire « Voir » (préview / détail). */
   onView?: () => void;
+  /**
+   * Poids visuel du CTA (§A r.4/14 : UN SEUL gros bouton chartreuse par écran).
+   * `primary` = chartreuse plein (réservé à l'item mis en avant / featured).
+   * `secondary` = surface relevée + label blanc + filet (tous les autres items
+   *  d'une liste). Défaut `secondary` : une grille d'items ne fait jamais un mur
+   *  de chartreuse ; l'appelant élève explicitement l'item vedette en `primary`.
+   */
+  emphasis?: 'primary' | 'secondary';
 }
 
 export function ArsenalItemCard({
@@ -144,6 +152,7 @@ export function ArsenalItemCard({
   onObtain,
   obtainLabel = 'Obtenir',
   onView,
+  emphasis = 'secondary',
 }: ArsenalItemCardProps) {
   const ts = BADGE_TIER_STYLE[rarity];
   const locked = state === 'locked' || state === 'expired';
@@ -227,9 +236,15 @@ export function ArsenalItemCard({
               haptics.light();
               onEquip?.();
             }}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.primary,
+              emphasis === 'secondary' && styles.ctaSecondary,
+              pressed && styles.pressed,
+            ]}
           >
-            <Text style={styles.primaryLabel}>Équiper</Text>
+            <Text style={emphasis === 'secondary' ? styles.ctaSecondaryLabel : styles.primaryLabel}>
+              Équiper
+            </Text>
           </Pressable>
         ) : canObtain ? (
           <Pressable
@@ -238,9 +253,15 @@ export function ArsenalItemCard({
               haptics.medium();
               onObtain?.();
             }}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.primary,
+              emphasis === 'secondary' && styles.ctaSecondary,
+              pressed && styles.pressed,
+            ]}
           >
-            <Text style={styles.primaryLabel}>{obtainLabel}</Text>
+            <Text style={emphasis === 'secondary' ? styles.ctaSecondaryLabel : styles.primaryLabel}>
+              {obtainLabel}
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -293,4 +314,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryLabel: { color: colors.noir, fontSize: fontSizes.xs, fontWeight: '700' },
+  // CTA secondaire (§A r.4/14) : dans une LISTE d'items, un seul est chartreuse
+  // plein (l'item vedette) ; les autres passent en surface N2 relevée + filet +
+  // label blanc, pour qu'un unique gros bouton chartreuse domine la scène.
+  ctaSecondary: {
+    backgroundColor: elevation.raised,
+    borderWidth: 1,
+    borderColor: borderState.hairline,
+  },
+  ctaSecondaryLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
 });

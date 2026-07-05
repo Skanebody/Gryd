@@ -291,6 +291,7 @@ export default function LeagueScreen() {
             <View style={styles.toiCta}>
               <InlineRunCTA
                 label="TROUVER UNE ROUTE"
+                leading={<Icon name="route" size={18} color={colors.noir} />}
                 onPress={() => router.push('/route-planner')}
               />
             </View>

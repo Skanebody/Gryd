@@ -81,7 +81,6 @@ import {
   crewLevelForXp,
   crewLevelProgress,
   crewXpForLevel,
-  leagueLabelFor,
   memberCardRole,
   roleCan,
   rookieTrialDaysLeft,
@@ -1000,11 +999,13 @@ export default function CrewScreen() {
             <View style={styles.headerGauge}>
               <ProgressBar value={levelProgress} height={7} />
             </View>
+            {/* La LIGUE est déjà portée par le cadre du blason (leagueTier) —
+                cette ligne ne garde que la progression liée à la jauge au-dessus,
+                pour ne jamais tronquer (§9) ni répéter l'info du blason (§20). */}
             <Text style={styles.xpLine} numberOfLines={1}>
-              {leagueLabelFor(MY_CREW.league)}
               {nextLevelXp !== null
-                ? ` · ${formatInt(nextLevelXp - MY_CREW.xp)} XP vers niv. ${level + 1}`
-                : ' · niveau max'}
+                ? `${formatInt(nextLevelXp - MY_CREW.xp)} XP vers niv. ${level + 1}`
+                : 'Niveau max atteint'}
             </Text>
           </View>
         </View>

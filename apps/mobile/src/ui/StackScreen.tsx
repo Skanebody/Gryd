@@ -42,7 +42,10 @@ export function StackScreen({ title, icon, kicker, subtitle, children }: StackSc
         </Pressable>
         <View style={styles.barTitleWrap}>
           {icon ? <Icon name={icon} size={20} color={colors.blanc} /> : null}
-          <Text style={styles.barTitle} numberOfLines={1}>
+          {/* §A.9 — titre de barre JAMAIS coupé par « … ». clip au lieu du défaut
+              RN `tail` : si un titre long débordait, on coupe net (le kicker sous
+              la barre porte le contexte complet, non tronqué). */}
+          <Text style={styles.barTitle} numberOfLines={1} ellipsizeMode="clip">
             {title}
           </Text>
         </View>

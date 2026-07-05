@@ -850,8 +850,9 @@ export default function WarRoomScreen() {
 
         {/* À TERMINER — frontières ouvertes du crew (AMENDEMENT-17 §CH2, boucle
             crew collaborative). « Ouvre une frontière. Ton crew peut la fermer. »
-            Max 2 lignes visibles (§1.3), « Voir tout » au-delà. Chaque ligne mène
-            à Course Live mode terminer, la route reste une action légère. */}
+            §A règle 16 (AUTORITÉ) : 1 SEULE card visible par section — la frontière
+            la plus urgente ; le reste part dans « Voir tout ». La ligne mène à
+            Course Live mode terminer, la route reste une action légère. */}
         <SectionHead
           icon="avantposte"
           label="À TERMINER · FRONTIÈRES"
@@ -860,19 +861,16 @@ export default function WarRoomScreen() {
         />
         {firstBoundary ? (
           <>
-            {OPEN_BOUNDARIES.slice(0, 2).map((boundary) => (
-              <BoundaryLine
-                key={boundary.key}
-                boundary={boundary}
-                onSeeRoute={() => router.push('/route-planner')}
-                onComplete={() => {
-                  toast.show(`Cap sur ${boundary.zone} — termine la boucle du crew`);
-                  router.push(
-                    `/course-live?intention=complete&boundary=${boundary.boundaryId}`,
-                  );
-                }}
-              />
-            ))}
+            <BoundaryLine
+              boundary={firstBoundary}
+              onSeeRoute={() => router.push('/route-planner')}
+              onComplete={() => {
+                toast.show(`Cap sur ${firstBoundary.zone} — termine la boucle du crew`);
+                router.push(
+                  `/course-live?intention=complete&boundary=${firstBoundary.boundaryId}`,
+                );
+              }}
+            />
             {/* RECO SKILL de fermeture (doc §29) : le meilleur Finisher du crew
                 pour clôturer la 1re frontière — « KORO recommandé · Finisher II ·
                 620 m restants ». Les mètres = le RESTE de la frontière (missingM),
@@ -890,7 +888,7 @@ export default function WarRoomScreen() {
                 }}
               />
             ) : null}
-            {OPEN_BOUNDARIES.length > 2 ? (
+            {OPEN_BOUNDARIES.length > 1 ? (
               <SeeAll
                 label={`Voir les ${OPEN_BOUNDARIES.length} frontières`}
                 onPress={() => router.navigate('/crew')}

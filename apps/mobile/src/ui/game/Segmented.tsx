@@ -103,10 +103,16 @@ export function Segmented<Id extends string>({
         ]}
       >
         {opt.icon ? <Icon name={opt.icon} size={15} color={labelColor} /> : null}
-        {/* numberOfLines=1 SANS ellipsize : en `scrollable` le segment fait la
-            taille du texte (jamais coupé) ; en largeur égale les labels sont
-            calibrés courts. */}
-        <Text style={[styles.label, { color: labelColor }]} numberOfLines={1}>
+        {/* numberOfLines=1 + ellipsizeMode="clip" : Règle §A.9 — JAMAIS de « … ».
+            En `scrollable` le segment fait la taille du texte (jamais coupé) ; en
+            largeur égale les labels sont calibrés courts. Si malgré tout un label
+            débordait une cellule à largeur fixe, on COUPE net (clip) plutôt que
+            d'afficher l'ellipse interdite (le défaut RN `tail` = « … »). */}
+        <Text
+          style={[styles.label, { color: labelColor }]}
+          numberOfLines={1}
+          ellipsizeMode="clip"
+        >
           {opt.label}
         </Text>
       </Pressable>

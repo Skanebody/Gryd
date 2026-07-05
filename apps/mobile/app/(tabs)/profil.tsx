@@ -353,7 +353,9 @@ export default function ProfilScreen() {
               <Text style={styles.title} numberOfLines={1}>
                 {displayedTitle}
               </Text>
-              <Text style={styles.identity} numberOfLines={1}>
+              {/* Level · tier · ville : 3 tokens variables. Wrap sur 2 lignes
+                  plutôt que couper au « … » (Règle §A.9 : jamais tronqué). */}
+              <Text style={styles.identity} numberOfLines={2}>
                 Level {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} · {profile.city}
               </Text>
               <View style={styles.crewRow}>

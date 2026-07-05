@@ -49,7 +49,9 @@ export function IconAction({
       <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2 }]}>
         <Icon name={icon} size={Math.round(size * 0.42)} color={colors.blanc} />
       </View>
-      <Text style={styles.label} numberOfLines={1}>
+      {/* §A.9 — label court, JAMAIS « … ». clip (pas le défaut RN `tail`) : si un
+          label dépassait, on coupe net plutôt que d'afficher l'ellipse interdite. */}
+      <Text style={styles.label} numberOfLines={1} ellipsizeMode="clip">
         {label}
       </Text>
     </Pressable>

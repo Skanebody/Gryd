@@ -49,7 +49,6 @@ import {
   MAP_SHEET_COMPACT_HEIGHT,
   Map3DToggle,
   MapBottomSheet,
-  StatePill,
   usePulse,
   useReduceMotion,
   useSlideIn,
@@ -64,11 +63,9 @@ import {
   etaSecondsAt,
   nextCheckpointAt,
   progressPctAt,
-  splitsAt,
   type NavToast,
 } from '../src/features/run/liveNav';
 import {
-  LIVE_EVENT_META,
   SIM_SECONDS_PER_TICK,
   SIM_TICK_MS,
   buildRunSimulation,
@@ -76,7 +73,6 @@ import {
   formatClock,
   formatKm,
   formatPace,
-  liveEventLogAt,
   resultStats,
   runModeFromParam,
   type LiveRunMode,
@@ -730,6 +726,12 @@ function DemoCourseLive({
             }
             semiSlot={
               <View style={styles.semiSlot}>
+                {/* AMENDEMENT-20 §1 + RÈGLE §A-11 : le live reste ULTRA-minimal
+                    (1 objectif + 1 progression). La sheet ne dashboarde pas —
+                    on garde ce qui aide à AGIR MAINTENANT : le prochain repère
+                    de nav + l'objectif crew (l'UNIQUE progression). Récompense
+                    estimée, splits et log d'états = data/stats avancées → au
+                    RÉSULTAT (post-run niveau 2, §A-12/14/15), jamais ici. */}
                 {/* Prochain checkpoint : virage + distance (« à 200 m ») */}
                 <View style={styles.rowCard}>
                   <Icon name="virage" size={18} color={colors.blanc} />
@@ -744,18 +746,7 @@ function DemoCourseLive({
                   </Text>
                 </View>
 
-                {/* Récompense potentielle (points estimés — le serveur décide) */}
-                <View style={styles.rowCard}>
-                  <Icon name="coffre" size={18} color={conquest ? gameColors.gold : colors.gris} />
-                  <View style={styles.rowTextWrap}>
-                    <Text style={styles.rowKicker}>RÉCOMPENSE POTENTIELLE</Text>
-                    <Text style={styles.rowValue} numberOfLines={1}>
-                      {conquest ? `+${formatInt(tick.points)} pts estimés` : 'Aucune (stats uniquement)'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Objectif crew (conquête) */}
+                {/* Objectif crew (conquête) — l'UNIQUE progression de la sheet. */}
                 {conquest ? (
                   <View style={styles.objectiveCard}>
                     <View style={styles.objectiveHead}>
@@ -767,41 +758,6 @@ function DemoCourseLive({
                     <ProgressBar value={zonePct / 100} height={5} />
                   </View>
                 ) : null}
-
-                {/* GRYD Verify : jauges de confiance */}
-                <View style={styles.trustRow}>
-                  <TrustGauge icon="gps" label="GPS TRUST" value={tick.gpsTrust} />
-                  <TrustGauge icon="radar" label="MOTION TRUST" value={tick.motionTrust} />
-                </View>
-              </View>
-            }
-            openSlot={
-              <View style={styles.openSlot}>
-                <Text style={styles.sectionKicker}>SPLITS</Text>
-                <View style={styles.splitsGrid}>
-                  {splitsAt(sim, tickIndex).map((s) => (
-                    <View key={s.km} style={styles.splitCell}>
-                      <Text style={styles.splitKm}>KM {s.km}</Text>
-                      <Text style={styles.splitPace}>{formatPace(s.paceS)}</Text>
-                    </View>
-                  ))}
-                  {tick.distanceM < 1000 ? (
-                    <Text style={styles.splitEmpty}>Premier kilomètre en cours…</Text>
-                  ) : null}
-                </View>
-
-                <Text style={styles.sectionKicker}>ÉTATS DU RUN</Text>
-                <View style={styles.eventLog}>
-                  {liveEventLogAt(tickIndex).map((e) => (
-                    <View key={e.kind} style={styles.eventRow}>
-                      <StatePill state={LIVE_EVENT_META[e.kind].state} label={LIVE_EVENT_META[e.kind].label} />
-                      <Text style={styles.eventTime}>{formatClock(e.atS)}</Text>
-                    </View>
-                  ))}
-                  {liveEventLogAt(tickIndex).length === 0 ? (
-                    <Text style={styles.splitEmpty}>Aucun événement pour l'instant.</Text>
-                  ) : null}
-                </View>
               </View>
             }
           />
@@ -1153,22 +1109,6 @@ function Stat({
       <Text style={styles.statLabel} numberOfLines={1}>
         {label}
       </Text>
-    </View>
-  );
-}
-
-/** Jauge de confiance GRYD Verify — bleu verify OK, rouge éteint si dégradé. */
-function TrustGauge({ icon, label, value }: { icon: 'gps' | 'radar'; label: string; value: number }) {
-  const ok = value >= VERIFIED_MIN_TRUST;
-  const tint = ok ? gameColors.verify : gameColors.danger;
-  return (
-    <View style={styles.trustGauge}>
-      <View style={styles.trustHead}>
-        <Icon name={icon} size={14} color={tint} />
-        <Text style={styles.trustLabel}>{label}</Text>
-        <Text style={[styles.trustValue, { color: tint }]}>{value}</Text>
-      </View>
-      <ProgressBar value={value / 100} height={4} fill={tint} />
     </View>
   );
 }
@@ -1752,40 +1692,4 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   objectiveText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  trustRow: { flexDirection: 'row', gap: 12, paddingTop: 2 },
-  trustGauge: { flex: 1, gap: 5 },
-  trustHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trustLabel: { color: colors.gris, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.8, flex: 1 },
-  trustValue: { fontSize: fontSizes.sm, fontWeight: '700', fontVariant: ['tabular-nums'] },
-
-  // ── Sheet ouverte : splits + états ──
-  openSlot: { paddingHorizontal: spacing.cardPadding, paddingTop: 16, gap: 8 },
-  sectionKicker: { color: colors.gris, fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
-  splitsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 6 },
-  splitCell: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  splitKm: { color: colors.gris, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
-  splitPace: {
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  splitEmpty: { color: colors.gris, fontSize: fontSizes.xs },
-  eventLog: { gap: 6 },
-  eventRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eventTime: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontVariant: ['tabular-nums'],
-  },
 });

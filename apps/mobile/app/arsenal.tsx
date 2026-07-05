@@ -199,7 +199,7 @@ export default function ArsenalScreen() {
   );
 
   const renderCard = useCallback(
-    (item: ArsenalCatalogItem) => {
+    (item: ArsenalCatalogItem, emphasis: 'primary' | 'secondary' = 'secondary') => {
       const ownedNow = isOwned(item.key);
       const equippedNow = isEquipped(item);
       const canEquip = equipScopeOf(item.key) !== null;
@@ -217,6 +217,7 @@ export default function ArsenalScreen() {
           state={item.draft ? 'locked' : item.packOnly && !ownedNow ? 'locked' : 'unlocked'}
           owned={ownedNow}
           equipped={equippedNow}
+          emphasis={emphasis}
           onEquip={canEquip && ownedNow && !equippedNow ? () => equip(item) : undefined}
           onObtain={buyable ? () => openDetail(item) : undefined}
           onView={() => openDetail(item)}
@@ -282,10 +283,15 @@ export default function ArsenalScreen() {
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
       {/* ── Sections §25 ── */}
+      {/* §A r.4/14 : UN SEUL gros bouton chartreuse sur l'écran. Il est réservé
+          au tout premier item mis en avant (Featured) ; tous les autres CTA de la
+          boutique passent en secondaire (surface + label blanc), sinon l'écran
+          devient un mur de chartreuse et plus rien ne dit « regarde ici ». */}
       {ARSENAL_SECTIONS.map((section) => {
         const items =
           section.key === 'featured' ? featured : itemsInSection(section.key);
         if (items.length === 0) return null;
+        const isFeatured = section.key === 'featured';
         const isPacks = section.key === 'packs';
         return (
           <View key={section.key}>
@@ -305,7 +311,9 @@ export default function ArsenalScreen() {
                       renderCard(item)
                     ),
                   )
-                : items.map((item) => renderCard(item))}
+                : items.map((item, index) =>
+                    renderCard(item, isFeatured && index === 0 ? 'primary' : 'secondary'),
+                  )}
             </View>
           </View>
         );

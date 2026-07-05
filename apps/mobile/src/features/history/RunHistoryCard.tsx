@@ -82,8 +82,12 @@ export const RunHistoryCard = memo(function RunHistoryCard({
               {entry.name}
             </Text>
           </View>
+          {/* Lieu et date sur deux lignes : jamais tronqué par « … » (règle 9). */}
           <Text style={styles.area} numberOfLines={1}>
-            {entry.area} · {entry.when}
+            {entry.area}
+          </Text>
+          <Text style={styles.when} numberOfLines={1}>
+            {entry.when}
           </Text>
         </View>
       </View>
@@ -153,6 +157,7 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   area: { color: colors.gris, fontSize: fontSizes.xs },
+  when: { color: colors.gris, fontSize: fontSizes.xs, opacity: 0.7 },
   effortRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
   effortMain: {
     color: colors.blanc,
