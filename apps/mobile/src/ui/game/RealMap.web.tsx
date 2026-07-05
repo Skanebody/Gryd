@@ -98,6 +98,23 @@ export interface RealMapGeoJSONLayer {
   lineOffset?: number;
   /** Pulse lent du contour (contesté) — coupé si reduce motion. */
   pulse?: boolean;
+  /**
+   * AMENDEMENT-24 — CARTE 3D : rend l'aplat de cette couche en `fill-extrusion`
+   * (volume 3D chartreuse translucide, le look signature GRYD) AU LIEU d'un
+   * `fill` plat, MAIS seulement si la carte est en mode 3D (`extrudeZones`).
+   * Défaut (`extrude` absent OU `extrudeZones` false) : la zone reste un aplat
+   * plat — non-régression totale (Battle Map / Course Live inchangées). La
+   * hauteur/base/opacité/couleur du volume sont propres à la couche.
+   */
+  extrude?: boolean;
+  /** Couleur de base du volume extrudé (défaut : `fillColor`). Token only. */
+  extrudeColor?: string;
+  /** Hauteur du volume (m MapLibre) — douce, le territoire « monte » sans tour. */
+  extrudeHeight?: number;
+  /** Base du volume (m) — sol par défaut (0). */
+  extrudeBase?: number;
+  /** Opacité du volume (perLayer — translucide, les rues restent devinables). */
+  extrudeOpacity?: number;
 }
 
 /**
@@ -189,6 +206,22 @@ export interface RealMapProps {
    * et sur la Battle Map (labels conservés). N'affecte JAMAIS les couches de jeu.
    */
   silent?: boolean;
+  /**
+   * AMENDEMENT-24 — CARTE 3D : inclinaison de la caméra (degrés). Défaut 0 =
+   * carte PLATE (2D actuelle) — non-régression totale. La « Carte 3D » de
+   * partage passe ~55° : le fond dark se PITCHE (relief de perspective) et les
+   * zones marquées `extrude` s'élèvent en volume. Aucun provider requis (pitch
+   * et fill-extrusion sont natifs MapLibre — données de zone = les nôtres).
+   */
+  pitch?: number;
+  /** Cap de la caméra (degrés). Défaut 0. La perspective 3D de partage cape ~-18°. */
+  bearing?: number;
+  /**
+   * AMENDEMENT-24 — CARTE 3D : rend les couches marquées `extrude` en volume 3D
+   * (`fill-extrusion`) plutôt qu'en aplat plat. Défaut false = aplat plat
+   * (2D actuelle). N'affecte QUE les couches qui portent elles-mêmes `extrude`.
+   */
+  extrudeZones?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -377,23 +410,61 @@ function applyGrydStyleOverrides(map: MapLibreMap, silent = false): void {
   if (silent) applySilentRunOverrides(map);
 }
 
-/** Ajoute (ou remplace) la source + les layers d'une couche de jeu. */
-function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer): void {
+/**
+ * AMENDEMENT-24 — CARTE 3D : une couche extrudée (spec.extrude) en mode 3D
+ * (extrudeZones) est peinte en `fill-extrusion` (volume) ; sinon elle retombe
+ * sur l'aplat plat (`fill`) de sa `fillColor` — non-régression. On calcule ici
+ * si CETTE couche doit s'élever en volume.
+ */
+function isExtruded(spec: RealMapGeoJSONLayer, extrudeZones: boolean): boolean {
+  return extrudeZones && spec.extrude === true;
+}
+
+/**
+ * Ajoute (ou remplace) la source + les layers d'une couche de jeu. `extrudeZones`
+ * (AMENDEMENT-24) fait rendre les couches `extrude` en volume 3D — défaut false
+ * = comportement 2D historique inchangé.
+ */
+function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer, extrudeZones = false): void {
   const existing = map.getSource(spec.id) as GeoJSONSource | undefined;
   if (existing) {
     existing.setData(spec.data);
   } else {
     map.addSource(spec.id, { type: 'geojson', data: spec.data });
   }
+  const extruded = isExtruded(spec, extrudeZones);
+  // ── Volume 3D (fill-extrusion) : uniquement en mode 3D pour une couche
+  //    `extrude`. Le look signature GRYD (le territoire monte). ──
+  const extrudeId = `${spec.id}-extrude`;
+  if (extruded && !map.getLayer(extrudeId)) {
+    map.addLayer({
+      id: extrudeId,
+      type: 'fill-extrusion',
+      source: spec.id,
+      paint: {
+        'fill-extrusion-color': spec.extrudeColor ?? spec.fillColor ?? '#ffffff',
+        'fill-extrusion-height': spec.extrudeHeight ?? 0,
+        'fill-extrusion-base': spec.extrudeBase ?? 0,
+        'fill-extrusion-opacity': spec.extrudeOpacity ?? spec.fillOpacity ?? 1,
+      },
+    });
+  } else if (extruded) {
+    map.setPaintProperty(extrudeId, 'fill-extrusion-color', spec.extrudeColor ?? spec.fillColor ?? '#ffffff');
+    map.setPaintProperty(extrudeId, 'fill-extrusion-height', spec.extrudeHeight ?? 0);
+    map.setPaintProperty(extrudeId, 'fill-extrusion-base', spec.extrudeBase ?? 0);
+    map.setPaintProperty(extrudeId, 'fill-extrusion-opacity', spec.extrudeOpacity ?? spec.fillOpacity ?? 1);
+  }
+  // ── Aplat plat (fill) : peint sauf si CETTE couche est actuellement extrudée
+  //    (le volume la remplace). En 2D, tout reste comme avant. ──
   const fillId = `${spec.id}-fill`;
-  if (spec.fillColor !== undefined && !map.getLayer(fillId)) {
+  if (spec.fillColor !== undefined && !extruded && !map.getLayer(fillId)) {
     map.addLayer({
       id: fillId,
       type: 'fill',
       source: spec.id,
       paint: { 'fill-color': spec.fillColor, 'fill-opacity': spec.fillOpacity ?? 1 },
     });
-  } else if (spec.fillColor !== undefined) {
+  } else if (spec.fillColor !== undefined && !extruded && map.getLayer(fillId)) {
     map.setPaintProperty(fillId, 'fill-color', spec.fillColor);
     map.setPaintProperty(fillId, 'fill-opacity', spec.fillOpacity ?? 1);
   }
@@ -499,6 +570,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     attributionCompact = true,
     basemap,
     silent = false,
+    pitch = 0,
+    bearing = 0,
+    extrudeZones = false,
     style,
     testID,
   }: RealMapProps,
@@ -526,6 +600,13 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   /** Fond au montage (le remount par `key` du parent porte la bascule). */
   const basemapRef = useRef<BasemapKey | undefined>(basemap);
   basemapRef.current = basemap;
+  /**
+   * Mode 3D (AMENDEMENT-24) lisible par le handler `load` (posé une fois) et
+   * l'upsert. `extrudeZones` de partage ne change jamais après montage (la
+   * carte 3D est un template dédié), mais on garde le miroir à jour par sûreté.
+   */
+  const extrudeZonesRef = useRef(extrudeZones);
+  extrudeZonesRef.current = extrudeZones;
   /** Cadrage d'ouverture : figé au premier rendu (la caméra vit ensuite). */
   const openBoundsRef = useRef<RealMapBounds | undefined>(bounds);
   const [styleReady, setStyleReady] = useState(false);
@@ -570,6 +651,10 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
             fitBoundsOptions: { padding: openBounds.paddingPx },
           }
         : { center: [openCamera.lng, openCamera.lat] as [number, number], zoom: openCamera.zoom }),
+      // AMENDEMENT-24 — CARTE 3D : pitch/bearing d'OUVERTURE (défaut 0 = plat,
+      // 2D historique). ~55° pour la carte de partage → relief de perspective.
+      pitch,
+      bearing,
       attributionControl: false, // remplacée par la mention compacte GRYD
       dragRotate: false,
       pitchWithRotate: false,
@@ -608,7 +693,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
       // n'éteignent le décor (eau/parcs/labels) que pour le fond sombre. En
       // Course Live (silentRef), les labels de quartiers sont EN PLUS masqués (§1).
       if (basemapRef.current !== 'color') applyGrydStyleOverrides(map, silentRef.current);
-      for (const spec of layersRef.current) upsertLayer(map, spec);
+      for (const spec of layersRef.current) upsertLayer(map, spec, extrudeZonesRef.current);
       for (const spec of pointLayersRef.current ?? []) upsertPointLayer(map, spec);
       setStyleReady(true);
       onZoomChangeRef.current?.(map.getZoom());
@@ -686,6 +771,19 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camera?.lng, camera?.lat, camera?.zoom]);
 
+  // AMENDEMENT-24 — CARTE 3D : pitch/bearing contrôlés (saut direct si reduce
+  // motion — pitch FIXE, aucune animation caméra imposée, charte §G). Défaut
+  // 0/0 = plat : n'exécute rien de visible sur les cartes 2D (Battle Map, Live).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (prefersReducedMotion()) {
+      map.jumpTo({ pitch, bearing });
+    } else {
+      map.easeTo({ pitch, bearing, duration: motion.transitionMs });
+    }
+  }, [pitch, bearing]);
+
   // Couches de jeu + points : upsert mémoïsé par identité des tableaux. Si le
   // style n'est pas (encore/plus) chargé — remontage, fast refresh — on laisse
   // le handler `load` poser les refs : jamais de throw en rendu.
@@ -693,12 +791,12 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     const map = mapRef.current;
     if (!map || !styleReady || !map.isStyleLoaded()) return;
     try {
-      for (const spec of geojsonLayers) upsertLayer(map, spec);
+      for (const spec of geojsonLayers) upsertLayer(map, spec, extrudeZones);
       for (const spec of pointLayers ?? []) upsertPointLayer(map, spec);
     } catch {
       // Style en cours de rechargement — le prochain `load` réappliquera tout.
     }
-  }, [geojsonLayers, pointLayers, styleReady]);
+  }, [geojsonLayers, pointLayers, styleReady, extrudeZones]);
 
   // Markers NATIFS maplibre-gl (§5 perf) : synchronisés sur le tableau de
   // props (création/déplacement/retrait), ré-appendus dans l'ordre (le dernier

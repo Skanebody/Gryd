@@ -30,6 +30,7 @@ import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { IconAction, Segmented, ShareCard, type ShareCardRatio } from '../src/ui/game';
+import { ShareMap3D } from '../src/features/share/ShareMap3D';
 import {
   SHARE_DEMO,
   SHARE_TEMPLATES,
@@ -37,15 +38,22 @@ import {
   type ShareTemplateId,
 } from '../src/features/share/templates';
 
-/** Formats d'export MVP (Story / Carré) — options du segmented « Format ». */
+/**
+ * Formats d'export (Story / Carré / Carte seule) — options du segmented
+ * « Format ». « Carte seule » (AMENDEMENT-24) = la carte 3D en grand, chrome
+ * minimal (trace + zone + 1 ligne).
+ */
 const FORMATS: readonly { id: ShareCardRatio; label: string; icon: 'partage' | 'carte' }[] = [
-  { id: 'story', label: 'Story 9:16', icon: 'partage' },
-  { id: 'square', label: 'Carré 1:1', icon: 'carte' },
+  // Libellés courts pour tenir 3-up à 375px (les ratios 9:16/1:1 étaient
+  // décoratifs — « Story » implique 9:16, « Carré » implique 1:1).
+  { id: 'story', label: 'Story', icon: 'partage' },
+  { id: 'square', label: 'Carré', icon: 'carte' },
+  { id: 'mapOnly', label: 'Carte seule', icon: 'carte' },
 ];
 
-/** Style = 3 principaux dans le segmented ; « Plus » déplie les 2 restants. */
+/** Style = 3 principaux dans le segmented ; « Plus » déplie les 3 restants. */
 const STYLE_MAIN: readonly ShareTemplateId[] = ['simple', 'conquete', 'defense'];
-const STYLE_EXTRA: readonly ShareTemplateId[] = ['boucle', 'crew'];
+const STYLE_EXTRA: readonly ShareTemplateId[] = ['boucle', 'crew', 'carte3d'];
 
 /** Libellé COURT par style (jamais tronqué). Distinct du `chip` legacy des templates. */
 const STYLE_LABEL: Record<ShareTemplateId, string> = {
@@ -54,6 +62,7 @@ const STYLE_LABEL: Record<ShareTemplateId, string> = {
   defense: 'Défense',
   boucle: 'Boucle',
   crew: 'Crew',
+  carte3d: 'Carte 3D',
 };
 
 /** Largeur de preview par format (la hauteur suit l'aspect de la card). */
@@ -61,6 +70,7 @@ const PREVIEW_WIDTH: Record<ShareCardRatio, number> = {
   story: 232,
   square: 300,
   feed: 280,
+  mapOnly: 264,
 };
 
 export default function PartageScreen() {
@@ -86,7 +96,17 @@ export default function PartageScreen() {
     () => SHARE_TEMPLATES.find((t) => t.id === selected) ?? SHARE_TEMPLATES_BY_ID.conquete,
     [selected],
   );
-  const cardProps = useMemo(() => template.build(SHARE_DEMO), [template]);
+  const cardProps = useMemo(() => {
+    const built = template.build(SHARE_DEMO);
+    // « Carte seule » (AMENDEMENT-24) : la carte 3D EN GRAND quel que soit le
+    // style — si le template n'a pas déjà son propre fond carte (les 5 SVG),
+    // on injecte la GRYD 3D Conquest Map plein cadre. Le style choisi ne règle
+    // alors QUE le KPI/la ligne (chrome minimale).
+    if (ratio === 'mapOnly' && built.mapBackground === undefined) {
+      return { ...built, mapBackground: <ShareMap3D style={styles.previewMap} /> };
+    }
+    return built;
+  }, [template, ratio]);
 
   // Segments « Style » : 3 principaux, ou les 5 une fois « Plus » déplié.
   const styleOptions = useMemo(
@@ -114,11 +134,13 @@ export default function PartageScreen() {
     toast.show(message);
   };
 
-  // CTA primaire aligné sur le format choisi (jamais « Story » en Carré).
+  // CTA primaire aligné sur le format choisi (jamais « Story » en Carré/Carte).
   const primaryCta =
     ratio === 'square'
       ? { label: 'Partager en carré', channel: 'instagram_feed' as const }
-      : { label: 'Story Instagram', channel: 'instagram_story' as const };
+      : ratio === 'mapOnly'
+        ? { label: 'Partager la carte', channel: 'instagram_feed' as const }
+        : { label: 'Story Instagram', channel: 'instagram_story' as const };
 
   return (
     <View style={styles.root}>
@@ -159,6 +181,10 @@ export default function PartageScreen() {
             value={ratio}
             onChange={(id) => setRatio(id)}
             tone="accent"
+            // 3 formats aux libellés complets (Story 9:16 · Carré 1:1 · Carte
+            // seule) → strip défilant : AUCUN label n'est jamais tronqué (§7,
+            // pet peeve #1), on fait défiler plutôt que couper « … ».
+            scrollable
           />
         </View>
 
@@ -174,7 +200,7 @@ export default function PartageScreen() {
                 hitSlop={10}
                 style={({ pressed }) => [styles.moreLink, pressed && styles.pressed]}
               >
-                <Text style={styles.moreLinkText}>+2 styles</Text>
+                <Text style={styles.moreLinkText}>+3 styles</Text>
               </Pressable>
             ) : null}
           </View>
@@ -273,7 +299,14 @@ function ShareToast({
 }
 
 function isTemplateId(v: string | undefined): v is ShareTemplateId {
-  return v === 'simple' || v === 'conquete' || v === 'defense' || v === 'boucle' || v === 'crew';
+  return (
+    v === 'simple' ||
+    v === 'conquete' ||
+    v === 'defense' ||
+    v === 'boucle' ||
+    v === 'crew' ||
+    v === 'carte3d'
+  );
 }
 
 const styles = StyleSheet.create({
@@ -294,6 +327,8 @@ const styles = StyleSheet.create({
 
   // La preview flotte librement dans l'espace (pas de container autour).
   previewWrap: { alignItems: 'center', marginTop: 22, marginBottom: 26 },
+  // Carte 3D injectée en « Carte seule » : remplit le slot plein cadre.
+  previewMap: { flex: 1 },
 
   // Un bloc « label + segmented » séparé du suivant par l'ESPACE, pas par une boîte.
   controlRow: { marginTop: 18 },

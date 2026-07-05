@@ -22,6 +22,7 @@
 import {
   Camera,
   CircleLayer,
+  FillExtrusionLayer,
   FillLayer,
   LineLayer,
   MapView,
@@ -30,6 +31,7 @@ import {
   SymbolLayer,
   type CameraRef,
   type CircleLayerStyle,
+  type FillExtrusionLayerStyle,
   type FillLayerStyle,
   type LineLayerStyle,
   type SymbolLayerStyle,
@@ -93,6 +95,22 @@ export interface RealMapGeoJSONLayer {
   lineOffset?: number;
   /** Pulse lent du contour (contesté) — coupé si reduce motion. */
   pulse?: boolean;
+  /**
+   * AMENDEMENT-24 — CARTE 3D : rend l'aplat de cette couche en FillExtrusion
+   * (volume 3D chartreuse translucide) AU LIEU d'un aplat plat, MAIS seulement
+   * si la carte est en mode 3D (`extrudeZones`). Défaut (`extrude` absent OU
+   * `extrudeZones` false) : aplat plat — non-régression (Battle Map/Live
+   * inchangées). Hauteur/base/opacité/couleur propres à la couche.
+   */
+  extrude?: boolean;
+  /** Couleur de base du volume extrudé (défaut : `fillColor`). Token only. */
+  extrudeColor?: string;
+  /** Hauteur du volume (m MapLibre) — douce, le territoire « monte » sans tour. */
+  extrudeHeight?: number;
+  /** Base du volume (m) — sol par défaut (0). */
+  extrudeBase?: number;
+  /** Opacité du volume (perLayer — translucide, les rues restent devinables). */
+  extrudeOpacity?: number;
 }
 
 /**
@@ -175,6 +193,30 @@ export interface RealMapProps {
    * un simple changement de mapStyle ne réajouterait pas les couches de jeu).
    */
   basemap?: BasemapKey;
+  /**
+   * CARTE SILENCIEUSE (AMENDEMENT-20 §1) — parité d'INTERFACE avec le fork web
+   * (les deux forks exposent la même API). Le fork web éteint les labels de
+   * quartiers ; côté natif le style dark-matter est chargé tel quel (pas de
+   * surcharge de calques de tuile ici) — la prop est donc acceptée sans effet
+   * visuel dédié pour l'instant. N'affecte JAMAIS les couches de jeu.
+   */
+  silent?: boolean;
+  /**
+   * AMENDEMENT-24 — CARTE 3D : inclinaison de la caméra (degrés). Défaut 0 =
+   * carte PLATE (2D actuelle) — non-régression totale. La « Carte 3D » de
+   * partage passe ~55° : le fond dark se PITCHE et les zones marquées `extrude`
+   * s'élèvent en volume. Aucun provider requis (pitch et FillExtrusion sont
+   * natifs MapLibre — données de zone = les nôtres).
+   */
+  pitch?: number;
+  /** Cap de la caméra (degrés). Défaut 0. La perspective 3D de partage cape ~-18°. */
+  bearing?: number;
+  /**
+   * AMENDEMENT-24 — CARTE 3D : rend les couches marquées `extrude` en volume 3D
+   * (FillExtrusionLayer) plutôt qu'en aplat plat. Défaut false = aplat plat
+   * (2D actuelle). N'affecte QUE les couches qui portent elles-mêmes `extrude`.
+   */
+  extrudeZones?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -266,6 +308,12 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     onZoomChange,
     attributionCompact = true,
     basemap,
+    // Parité d'interface web (AMENDEMENT-20 §1) — accepté, sans surcharge de
+    // calques de tuile côté natif (voir doc de la prop). Non destructuré vers MapView.
+    silent: _silent = false,
+    pitch = 0,
+    bearing = 0,
+    extrudeZones = false,
     style,
     testID,
   }: RealMapProps,
@@ -283,28 +331,43 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
    */
   const layerStyles = useMemo(
     () =>
-      geojsonLayers.map((spec) => ({
-        fill:
-          spec.fillColor !== undefined
+      geojsonLayers.map((spec) => {
+        // AMENDEMENT-24 — CARTE 3D : cette couche s'élève en volume seulement en
+        // mode 3D. Sinon (défaut), l'aplat plat historique — non-régression.
+        const extruded = extrudeZones && spec.extrude === true;
+        return {
+          // L'aplat plat est SUPPRIMÉ quand le volume le remplace (extruded).
+          fill:
+            spec.fillColor !== undefined && !extruded
+              ? ({
+                  fillColor: spec.fillColor,
+                  fillOpacity: spec.fillOpacity ?? 1,
+                } satisfies FillLayerStyle)
+              : null,
+          // Volume 3D chartreuse translucide (le look signature GRYD).
+          extrusion: extruded
             ? ({
-                fillColor: spec.fillColor,
-                fillOpacity: spec.fillOpacity ?? 1,
-              } satisfies FillLayerStyle)
+                fillExtrusionColor: spec.extrudeColor ?? spec.fillColor ?? '#ffffff',
+                fillExtrusionHeight: spec.extrudeHeight ?? 0,
+                fillExtrusionBase: spec.extrudeBase ?? 0,
+                fillExtrusionOpacity: spec.extrudeOpacity ?? spec.fillOpacity ?? 1,
+              } satisfies FillExtrusionLayerStyle)
             : null,
-        line:
-          spec.lineColor !== undefined && spec.pulse !== true
-            ? ({
-                lineColor: spec.lineColor,
-                lineWidth: spec.lineWidth ?? 1,
-                // §4ter : coins à jointure arrondie légère, extrémités rondes.
-                lineCap: 'round',
-                lineJoin: 'round',
-                ...(spec.lineDash ? { lineDasharray: [...spec.lineDash] } : {}),
-                ...(spec.lineOffset !== undefined ? { lineOffset: spec.lineOffset } : {}),
-              } satisfies LineLayerStyle)
-            : null,
-      })),
-    [geojsonLayers],
+          line:
+            spec.lineColor !== undefined && spec.pulse !== true
+              ? ({
+                  lineColor: spec.lineColor,
+                  lineWidth: spec.lineWidth ?? 1,
+                  // §4ter : coins à jointure arrondie légère, extrémités rondes.
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                  ...(spec.lineDash ? { lineDasharray: [...spec.lineDash] } : {}),
+                  ...(spec.lineOffset !== undefined ? { lineOffset: spec.lineOffset } : {}),
+                } satisfies LineLayerStyle)
+              : null,
+        };
+      }),
+    [geojsonLayers, extrudeZones],
   );
 
   /** Styles des calques de points (§4bis) — mémoïsés eux aussi. */
@@ -389,6 +452,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
               paddingTop: bounds.paddingPx,
               paddingBottom: bounds.paddingPx,
             }}
+            // AMENDEMENT-24 — CARTE 3D : inclinaison/cap (défaut 0/0 = plat).
+            pitch={pitch}
+            heading={bearing}
             animationMode="easeTo"
             animationDuration={reduceMotion ? 0 : motion.transitionMs}
           />
@@ -397,6 +463,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
             ref={cameraRef}
             centerCoordinate={[openCamera.lng, openCamera.lat]}
             zoomLevel={openCamera.zoom}
+            // AMENDEMENT-24 — CARTE 3D : inclinaison/cap (défaut 0/0 = plat).
+            pitch={pitch}
+            heading={bearing}
             animationMode="easeTo"
             animationDuration={reduceMotion ? 0 : motion.transitionMs}
           />
@@ -407,6 +476,10 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
           return (
             <ShapeSource key={spec.id} id={spec.id} shape={spec.data}>
               {memo?.fill ? <FillLayer id={`${spec.id}-fill`} style={memo.fill} /> : null}
+              {/* AMENDEMENT-24 — CARTE 3D : volume extrudé (le territoire monte). */}
+              {memo?.extrusion ? (
+                <FillExtrusionLayer id={`${spec.id}-extrude`} style={memo.extrusion} />
+              ) : null}
               {spec.pulse && spec.lineColor !== undefined ? (
                 <PulsingLineLayer
                   id={`${spec.id}-line`}
