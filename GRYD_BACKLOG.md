@@ -5,9 +5,8 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
 ## À faire — actionnable maintenant
-- [ ] Cooldown anti-harcèlement : formaliser « zone trop attaquée → répit » (au-delà de `already_owned_cooldown`) — anti-frustration Clash #5 — M
-- [ ] Import GPX : nouvel adaptateur de source (fichier .gpx) — l'alternative GRATUITE à Strava (API payante) — M (audit /gryd-loop : n'existe pas ; Apple Santé était déjà en tête, Strava passé en 'soon')
-- [ ] Crew Perks : brancher l'UI d'affichage des `CREW_PERKS` par niveau (les données existent, l'écran manque) — M
+_(vidé — les items actionnables ont été traités par le loop. Réalimenter depuis
+les docs produit / retours fondateur pour continuer.)_
 
 ## En attente d'un retour utilisateur (ne pas boucler dessus)
 - [ ] Carte satellite : ajuster les curseurs `SAT_CORE_WIDTH_MULT / SAT_LINE_ALPHA_BOOST / SAT_FILL_BOOST / SATELLITE_DIM` après capture d'écran du fondateur — S
@@ -22,6 +21,9 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] PostHog : clés projet (events §8 déjà nommés, câblage à finir)
 
 ## Fait (récent)
+- [x] Anti-harcèlement : protection « capture fraîche » 6 h (moteur, sans migration, ingest_run redéployé) — /gryd-loop tour 3, 480 tests
+- [x] Crew Perks UI : affichage des perks par niveau (débloqués/verrouillés) — /gryd-loop tour 4
+- [x] Import GPX : adaptateur + parseur pur (alternative gratuite à Strava) — /gryd-loop tour 5
 - [x] Sources : Strava passé en 'soon' (API désormais payante O7) — Apple Santé/Health Connect en tête (gratuits) — /gryd-loop tour 2
 - [x] Carte : couche de guerre lisible aussi sur fond `color` (Voyager) — `22454eb`
 - [x] AMENDEMENT-34 delta Clash (crew 50 + top 30, Raid Weekend 48h, Revanche 24h, colle quotidienne) — `b20c6e7`, 473 tests
