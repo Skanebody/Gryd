@@ -8,7 +8,7 @@
  * Supprimer mes données. Rien de câblé : stubs TODO(O2/backend).
  */
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
@@ -127,8 +127,19 @@ function TopicCard({ topic }: { topic: SupportTopic }) {
       accessibilityRole="button"
       accessibilityLabel={topic.title}
       onPress={() => {
-        // TODO backend : contestation / signalement / RGPD (§7.15). Aucun câblage MVP.
-        if (__DEV__) console.log(`[support] ${topic.key} — TODO backend`);
+        // Le bouton répond toujours au tap. RGPD (export/suppression) → l'écran
+        // Confidentialité qui porte les vrais contrôles ; les autres cas
+        // (contestation, signalement) → accusé honnête, traité par une personne.
+        // TODO(O1) backend : contestation / signalement (§7.15).
+        if (topic.key.startsWith('data_')) {
+          router.push('/confidentialite');
+          return;
+        }
+        Alert.alert(
+          topic.title,
+          'C’est noté. Une personne examine chaque demande et te répond sous quelques jours — le suivi dans l’app arrive très bientôt.',
+          [{ text: 'Compris' }],
+        );
       }}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >

@@ -243,6 +243,27 @@ const MISSION_ICON: Record<string, IconName> = {
   crew: 'crew',
 };
 
+/**
+ * Pont d'identifiants frontière (démo) — AMENDEMENT-17 §CH2. La War Room liste
+ * ses frontières ouvertes avec des ids `pb_*` (OPEN_BOUNDARIES), mais Course Live
+ * résout la frontière à terminer via `partialBoundaryById(param)` qui ne connaît
+ * QUE les ids `PARTIAL_BOUNDARIES_DEMO` (`republique` | `canal`). Sans mapping,
+ * tout `pb_*` retombe silencieusement sur la 1re frontière (République) → l'écran
+ * de complétion ouvre la MAUVAISE zone. On mappe donc chaque frontière War Room
+ * (par ZONE) vers l'id partiel correspondant ; les frontières sans jumelle
+ * serveur en démo (Jaurès, Belleville) renvoient `null` → l'appelant donne un
+ * retour honnête plutôt que d'ouvrir une autre zone. TODO(O1) : source unique
+ * `partial_boundaries` (l'id War Room = l'id serveur, mapping supprimé).
+ */
+const BOUNDARY_ID_TO_PARTIAL: Record<string, string> = {
+  pb_republique_koro: 'republique',
+};
+
+/** Param `boundary=` résolvable par Course Live pour une frontière, sinon null. */
+function partialBoundaryParamFor(boundaryId: string): string | null {
+  return BOUNDARY_ID_TO_PARTIAL[boundaryId] ?? null;
+}
+
 // ============================================================================
 // Primitives compactes (UI EN SCÈNES — lignes posées sur l'espace)
 // ============================================================================
@@ -765,9 +786,10 @@ export default function WarRoomScreen() {
         break;
       case 'finisher': {
         const b = OPEN_BOUNDARIES[0];
-        if (b) {
+        const param = b ? partialBoundaryParamFor(b.boundaryId) : null;
+        if (b && param) {
           toast.show(`Cap sur ${b.zone} — termine la boucle du crew`);
-          router.push(`/course-live?intention=complete&boundary=${b.boundaryId}`);
+          router.push(`/course-live?intention=complete&boundary=${param}`);
         } else {
           router.push('/route-planner');
         }
@@ -874,10 +896,13 @@ export default function WarRoomScreen() {
               boundary={firstBoundary}
               onSeeRoute={() => router.push('/route-planner')}
               onComplete={() => {
+                const param = partialBoundaryParamFor(firstBoundary.boundaryId);
+                if (!param) {
+                  toast.show(`${firstBoundary.zone} — complétion bientôt (O1)`);
+                  return;
+                }
                 toast.show(`Cap sur ${firstBoundary.zone} — termine la boucle du crew`);
-                router.push(
-                  `/course-live?intention=complete&boundary=${firstBoundary.boundaryId}`,
-                );
+                router.push(`/course-live?intention=complete&boundary=${param}`);
               }}
             />
             {/* RECO SKILL de fermeture (doc §29) : le meilleur Finisher du crew

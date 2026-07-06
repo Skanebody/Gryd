@@ -31,21 +31,24 @@ import { formatInt } from '../src/ui/format';
 function Section({
   title,
   count,
+  onSeeAll,
   children,
 }: {
   title: string;
   count: number;
+  onSeeAll?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{title}</Text>
-        {count > 2 ? (
+        {count > 2 && onSeeAll ? (
           <Pressable
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={`Voir tout — ${title}`}
+            onPress={onSeeAll}
           >
             <Text style={styles.seeAll}>Voir tout</Text>
           </Pressable>
@@ -111,7 +114,7 @@ export default function TerritoireScreen() {
         </View>
 
         {/* ── VILLES ──────────────────────────────────────────────────────── */}
-        <Section title="VILLES" count={d.cities.length}>
+        <Section title="VILLES" count={d.cities.length} onSeeAll={() => router.push('/(tabs)')}>
           {d.cities.slice(0, 2).map((c) => (
             <View key={c.city} style={styles.cityRow}>
               <View style={styles.cityLeft}>
@@ -130,7 +133,7 @@ export default function TerritoireScreen() {
         <ZoneLeaderboard data={DEFAULT_ZONE_LEADERBOARD} />
 
         {/* ── À DÉFENDRE ──────────────────────────────────────────────────── */}
-        <Section title="À DÉFENDRE" count={d.threats.length}>
+        <Section title="À DÉFENDRE" count={d.threats.length} onSeeAll={() => router.push('/(tabs)')}>
           {d.threats.slice(0, 2).map((t) => (
             <View key={t.name} style={styles.itemRow}>
               <View
@@ -152,7 +155,7 @@ export default function TerritoireScreen() {
         </Section>
 
         {/* ── ROUTES OUVERTES ─────────────────────────────────────────────── */}
-        <Section title="ROUTES OUVERTES" count={d.routes.length}>
+        <Section title="ROUTES OUVERTES" count={d.routes.length} onSeeAll={() => router.push('/(tabs)')}>
           {d.routes.slice(0, 2).map((r) => (
             <View key={r.label} style={styles.itemRow}>
               <View style={styles.itemIcon} accessible={false}>
@@ -183,6 +186,7 @@ export default function TerritoireScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voir sur la carte"
+          onPress={() => router.push('/(tabs)')}
           style={({ pressed }) => [styles.ctaPrimary, pressed && styles.pressed]}
         >
           <Icon name="carte" size={18} color={colors.noir} />
@@ -191,7 +195,10 @@ export default function TerritoireScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Défendre ${urgent?.name ?? ''}`}
-          onPress={() => setDefended(true)}
+          onPress={() => {
+            setDefended(true);
+            router.push('/route-planner?type=defense');
+          }}
           style={({ pressed }) => [styles.ctaGhost, pressed && styles.pressed]}
         >
           <Icon name="bouclier" size={18} color={colors.blanc} />
@@ -200,6 +207,7 @@ export default function TerritoireScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Partager mon territoire"
+          onPress={() => router.push('/partage?template=conquete')}
           style={({ pressed }) => [styles.ctaIcon, pressed && styles.pressed]}
         >
           <Icon name="partage" size={18} color={colors.blanc} />

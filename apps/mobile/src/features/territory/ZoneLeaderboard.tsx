@@ -67,7 +67,14 @@ function Row({ entry, top }: { entry: LeaderboardEntry; top: boolean }) {
   );
 }
 
-export function ZoneLeaderboard({ data }: { data: ZoneLeaderboardData }) {
+export function ZoneLeaderboard({
+  data,
+  onSeeAll,
+}: {
+  data: ZoneLeaderboardData;
+  /** Ouvre le classement complet de la zone (câblé par /territoire). Absent ⇒ pas de lien « Voir tout ». */
+  onSeeAll?: () => void;
+}) {
   const [board, setBoard] = useState<Board>('conquerors');
 
   const switchTo = (next: Board) => {
@@ -78,7 +85,7 @@ export function ZoneLeaderboard({ data }: { data: ZoneLeaderboardData }) {
 
   const entries = board === 'conquerors' ? data.conquerors : data.defenders;
   const visible = entries.slice(0, 3);
-  const hasMore = entries.length > 3;
+  const hasMore = entries.length > 3 && onSeeAll != null;
 
   return (
     <View style={styles.wrap}>
@@ -137,6 +144,7 @@ export function ZoneLeaderboard({ data }: { data: ZoneLeaderboardData }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Voir tout le classement — ${data.zone}`}
+          onPress={onSeeAll}
           hitSlop={8}
           style={({ pressed }) => [styles.seeAllRow, pressed && styles.pressed]}
         >

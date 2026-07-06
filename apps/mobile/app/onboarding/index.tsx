@@ -646,6 +646,10 @@ function InviteStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void
 function AccountStep({ onNext }: { onNext: () => void }) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<AuthResult>) => {
+    // Garde de réentrance : le bouton Apple (natif) n'a pas de prop `disabled`,
+    // donc un double-tap — ou Apple puis Google pendant l'attente — pourrait
+    // relancer l'auth. On ignore tout appel tant qu'un run est en cours.
+    if (busy) return;
     setBusy(true);
     const result = await fn();
     setBusy(false);

@@ -191,7 +191,7 @@ export default function SettingsSectionScreen() {
             icon="ami"
             label="Modifier le profil"
             detail="Nom, titre, avatar, cadre"
-            onPress={() => router.push('/settings-motivation')}
+            onPress={() => router.push('/profil-edit')}
           />
           <ActionRow
             icon="verrou"
