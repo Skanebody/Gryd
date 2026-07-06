@@ -57,6 +57,11 @@ import {
   type RouteDistanceOption,
 } from '../src/features/route/demo';
 import {
+  POPULAR_ROUTES_DEMO,
+  crewsTakenLabel,
+  popularRouteTarget,
+} from '../src/features/route/popularRoutes';
+import {
   OBJECTIVE_BY_ROUTE_TYPE,
   PRIORITIES_BY_OBJECTIVE,
   ROUTE_OBJECTIVE_LABELS,
@@ -105,6 +110,11 @@ function cardStats(route: PlannedRouteDemo): string {
     return `${formatKm(route.distanceKm)} km · ${route.streetsToSave} rues · ${route.expiresInH} h`;
   }
   return `${formatKm(route.distanceKm)} km · +${route.zones} zones`;
+}
+
+/** Stats compactes d'une boucle populaire : distance + zones potentielles. */
+function popularStats(target: PlannedRouteDemo): string {
+  return `${formatKm(target.distanceKm)} km · +${target.zones} zones`;
 }
 
 /** Objectif d'une route (AMENDEMENT-12 §A — dérivé du sous-type interne). */
@@ -368,6 +378,50 @@ export default function RoutePlannerScreen() {
           </Text>
         </Pressable>
 
+        {/* ── Boucles populaires (AMENDEMENT-32 §2) : tracés crowd-sourcés que
+            les crews réussissent le mieux. Tap = sélectionne la route (flux
+            existant). Signal SOCIAL, jamais un avantage acheté (anti P2W). ── */}
+        <SectionLabel icon="crew" label="BOUCLES POPULAIRES" />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.popularRow}
+        >
+          {POPULAR_ROUTES_DEMO.map((pop) => {
+            const target = popularRouteTarget(pop);
+            if (!target) return null;
+            const selected = target.id === route.id;
+            const crews = crewsTakenLabel(pop);
+            return (
+              <Pressable
+                key={pop.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Boucle populaire ${pop.name} — ${popularStats(target)}, ${crews}`}
+                onPress={() => selectRoute(target.id)}
+                style={({ pressed }) => [
+                  styles.popularCard,
+                  selected && styles.popularCardSelected,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.popularName} numberOfLines={1}>
+                  {pop.name}
+                </Text>
+                <Text style={styles.popularStats} numberOfLines={1}>
+                  {popularStats(target)}
+                </Text>
+                <View style={styles.popularCrews}>
+                  <Icon name="serie" size={12} color={colors.chartreuse} />
+                  <Text style={styles.popularCrewsText} numberOfLines={1}>
+                    {crews}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         {/* ── Options en chips (génération réelle = V1, sélection démo) ── */}
         <SectionLabel icon="reglages" label="OPTIONS" />
         <View style={styles.chipsRow}>
@@ -549,6 +603,29 @@ const styles = StyleSheet.create({
   cardTypeSelected: { color: colors.chartreuse },
   cardName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   cardStats: { color: colors.gris, fontSize: 11, lineHeight: 15, fontVariant: ['tabular-nums'] },
+  // Boucles populaires (AMENDEMENT-32 §2) — cards LÉGÈRES, une seule couche de
+  // container (pas de card-dans-card §A.3), défilement horizontal.
+  popularRow: { gap: 8, paddingRight: 4 },
+  popularCard: {
+    width: 168,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card - 6,
+    borderWidth: 1.5,
+    borderColor: colors.grisLigne,
+    padding: 12,
+    gap: 6,
+  },
+  popularCardSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
+  popularName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  popularStats: { color: colors.gris, fontSize: 11, fontVariant: ['tabular-nums'] },
+  popularCrews: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  popularCrewsText: {
+    flex: 1,
+    color: colors.chartreuse,
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',

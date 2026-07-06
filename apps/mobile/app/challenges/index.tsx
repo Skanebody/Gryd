@@ -68,6 +68,15 @@ function Row({ c }: { c: ChallengeCard }) {
           <ProgressBar value={pct} />
         </>
       )}
+
+      {c.sponsor ? (
+        // Mention sponsor DISCRÈTE (§3) : blason filaire + « Offert par … ».
+        // Anti pay-to-win : le sponsor n'influe sur aucun chiffre au-dessus.
+        <View style={styles.sponsorRow}>
+          <Icon name={c.sponsor.blason} size={14} color={colors.gris} />
+          <Text style={styles.sponsorText}>Offert par {c.sponsor.name} · entrée gratuite</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -130,4 +139,14 @@ const styles = StyleSheet.create({
   },
   rivalName: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
   rivalVs: { color: colors.gris, fontSize: fontSizes.sm, marginHorizontal: 8 },
+  sponsorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  sponsorText: { color: colors.gris, fontSize: fontSizes.xs, flex: 1 },
 });

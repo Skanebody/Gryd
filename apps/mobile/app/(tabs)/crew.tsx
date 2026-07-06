@@ -132,6 +132,16 @@ import {
 import { useCrewChat, CHAT_ME, type ChatThreadMessage } from '../../src/features/crew/chatStore';
 import { useCrewProfile } from '../../src/features/crew/crewEdit';
 import {
+  OUTING_RSVP_OPTIONS,
+  createOuting,
+  objectiveLabel,
+  setOutingRsvp,
+  useCrewOutings,
+  type CrewOutingObjective,
+  type OutingRsvp,
+  type OutingView,
+} from '../../src/features/crew/events';
+import {
   REQUEST_CHOICES,
   claimGift,
   createDonation,
@@ -152,10 +162,11 @@ import {
 const HAS_CREW = true;
 
 /** Onglets internes du HQ (doc §11 — pas de scroll infini). */
-type HqTab = 'base' | 'membres' | 'coffre' | 'perks' | 'chat';
+type HqTab = 'base' | 'membres' | 'sorties' | 'coffre' | 'perks' | 'chat';
 const HQ_TABS: readonly { key: HqTab; label: string }[] = [
   { key: 'base', label: 'Base' },
   { key: 'membres', label: 'Membres' },
+  { key: 'sorties', label: 'Sorties' },
   { key: 'coffre', label: 'Coffre' },
   { key: 'perks', label: 'Perks' },
   { key: 'chat', label: 'Chat' },
@@ -719,6 +730,111 @@ function CadeauCrewCard({
   );
 }
 
+/** Icône + teinte de l'objectif d'une sortie (état de jeu, pas déco). */
+const OUTING_OBJECTIVE_META: Record<
+  CrewOutingObjective,
+  { icon: IconName; tint: string }
+> = {
+  // Défense = bouclier + bleu « protégé » (§C : le violet reste réservé au
+  // statut CONTESTÉ ; une sortie défense = on protège/tient une zone).
+  defense: { icon: 'bouclier', tint: gameColors.verify },
+  // Conquête = cible + chartreuse crew (on va prendre du terrain ensemble).
+  conquete: { icon: 'cible', tint: gameColors.crew },
+};
+
+/**
+ * Carte d'une SORTIE de crew (AMENDEMENT-32 §1) : titre + heure + lieu de RDV +
+ * ZONE CIBLE avec objectif (défense/conquête) + RSVP « Je viens ». Une seule
+ * couche de container (§A.3), textes courts NON tronqués (§A.9). Le compteur
+ * « X viennent » est un signal de densité — jamais un classement (§A.19). ZÉRO
+ * effet de jeu : courir ensemble ne donne ni territoire ni point.
+ */
+function SortieCard({
+  outing,
+  onRsvp,
+}: {
+  outing: OutingView;
+  onRsvp: (outing: OutingView, choice: OutingRsvp) => void;
+}) {
+  const meta = OUTING_OBJECTIVE_META[outing.objective];
+  // Densité de la sortie : « 7 viennent » (jamais 0 → on n'affiche pas « 0 »).
+  const goingLabel =
+    outing.going > 0 ? `${outing.going} vien${outing.going > 1 ? 'nent' : 't'}` : null;
+  return (
+    <View style={styles.outingCard}>
+      {/* Ligne 1 : objectif (icône teintée) + titre + zone cible. */}
+      <View style={styles.outingTop}>
+        <View style={[styles.outingIcon, { borderColor: meta.tint }]}>
+          <Icon name={meta.icon} size={18} color={meta.tint} />
+        </View>
+        <View style={styles.outingHeadText}>
+          <Text style={styles.outingTitle} numberOfLines={1}>
+            {outing.title}
+          </Text>
+          <Text style={[styles.outingObjective, { color: meta.tint }]} numberOfLines={1}>
+            {objectiveLabel(outing.objective)} · {outing.zone}
+          </Text>
+        </View>
+      </View>
+
+      {/* Ligne 2 : quand + où (RDV) — 2 infos compactes, non tronquées. */}
+      <View style={styles.outingMetaRow}>
+        <Icon name="serie" size={13} color={colors.gris} />
+        <Text style={styles.outingMeta} numberOfLines={1}>
+          {outing.when}
+        </Text>
+      </View>
+      <View style={styles.outingMetaRow}>
+        <Icon name="pin" size={13} color={colors.gris} />
+        <Text style={styles.outingMeta} numberOfLines={2}>
+          {outing.place}
+        </Text>
+      </View>
+
+      {/* Ligne 3 : densité (X viennent) + qui organise. */}
+      <Text style={styles.outingDensity} numberOfLines={1}>
+        {goingLabel ? `${goingLabel} · ` : ''}
+        {outing.mine ? 'Ta sortie' : `Par ${outing.host}`}
+      </Text>
+
+      {/* RSVP : Je viens / Peut-être / Indispo — mon choix se souvient (persisté). */}
+      <View style={styles.outingRsvpRow}>
+        {OUTING_RSVP_OPTIONS.map((opt) => {
+          const selected = outing.myRsvp === opt;
+          const engaged = selected && opt === 'Je viens';
+          return (
+            <Pressable
+              key={opt}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${opt} · ${outing.title}`}
+              onPress={() => onRsvp(outing, opt)}
+              style={[
+                styles.outingRsvpChip,
+                selected && styles.outingRsvpChipSelected,
+                engaged && styles.outingRsvpChipEngaged,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.outingRsvpLabel,
+                  selected && styles.outingRsvpLabelSelected,
+                  engaged && styles.outingRsvpLabelEngaged,
+                ]}
+              >
+                {opt}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {outing.myRsvp ? (
+        <Text style={styles.outingRsvpDone}>Réponse envoyée au crew (démo)</Text>
+      ) : null}
+    </View>
+  );
+}
+
 /** En-tête d'une section du chat actionnable + « Voir tout » optionnel (anti-scroll). */
 function SectionHead({
   label,
@@ -765,6 +881,15 @@ export default function CrewScreen() {
   useConquestReactions();
   /** Requêtes émises + dons accomplis + cadeaux offerts (persistés, A.3). */
   const crewRequests = useCrewRequests();
+  /** Sorties de crew à venir + mon RSVP (persistés, AMENDEMENT-32 §1). */
+  const crewOutings = useCrewOutings();
+  /** Form « Créer une sortie » (bottom sheet) — false = fermé. */
+  const [outingSheet, setOutingSheet] = useState(false);
+  const [outingTitle, setOutingTitle] = useState('');
+  const [outingWhen, setOutingWhen] = useState('');
+  const [outingPlace, setOutingPlace] = useState('');
+  const [outingZone, setOutingZone] = useState('');
+  const [outingObjective, setOutingObjective] = useState<CrewOutingObjective>('conquete');
   /** Feuille « Demander » (choix de requête) — null = fermée. */
   const [askSheet, setAskSheet] = useState(false);
   /** Feuille « Offrir au crew » (cadeau premium) — null = fermée. */
@@ -993,6 +1118,40 @@ export default function CrewScreen() {
     haptics.light();
     const ok = claimGift(gift.id);
     if (ok) notify(`Récompense réclamée · ${gift.title} (démo)`);
+  };
+
+  // RSVP à une sortie (AMENDEMENT-32 §1) : « Je viens » / « Peut-être » /
+  // « Indispo », mon choix persiste (toggle dans le store). ZÉRO effet de jeu.
+  const onOutingRsvp = (outing: OutingView, choice: OutingRsvp) => {
+    haptics.light();
+    setOutingRsvp(outing.id, choice);
+  };
+
+  // Créer une sortie (form court) : titre + heure + lieu + zone obligatoires,
+  // objectif défense/conquête. Textes trimés, sortie persistée en tête de liste.
+  const outingReady =
+    outingTitle.trim().length > 0 &&
+    outingWhen.trim().length > 0 &&
+    outingPlace.trim().length > 0 &&
+    outingZone.trim().length > 0;
+  const submitOuting = () => {
+    if (!outingReady) return;
+    haptics.medium();
+    createOuting({
+      title: outingTitle.trim(),
+      when: outingWhen.trim(),
+      place: outingPlace.trim(),
+      zone: outingZone.trim(),
+      objective: outingObjective,
+    });
+    setOutingSheet(false);
+    setOutingTitle('');
+    setOutingWhen('');
+    setOutingPlace('');
+    setOutingZone('');
+    setOutingObjective('conquete');
+    setTab('sorties');
+    notify('Sortie créée — le crew la voit (démo)');
   };
 
   // ── Sections du chat actionnable filtrées (A.2/A.3) ──
@@ -1329,6 +1488,41 @@ export default function CrewScreen() {
               />
             </View>
           ))}
+        </>
+      ) : null}
+
+      {/* ══ SORTIES (AMENDEMENT-32 §1) : sorties de crew à venir (titre + heure +
+          lieu de RDV + ZONE cible défense/conquête) + « Je viens » (RSVP démo
+          persisté) + créer une sortie. SOCIAL, pas de monétisation (§A.19) —
+          courir ensemble = coordination + densité (le moat). 1 SEUL CTA plein
+          (Créer une sortie) ; les RSVP sont des chips (§A.4). ══ */}
+      {tab === 'sorties' ? (
+        <>
+          <SectionLabel>SORTIES À VENIR · {crewOutings.outings.length}</SectionLabel>
+
+          {/* UN SEUL gros CTA : créer une sortie. Ouvre le form court (sheet). */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Créer une sortie de crew"
+            onPress={() => {
+              haptics.light();
+              setOutingSheet(true);
+            }}
+            style={({ pressed }) => [styles.outingCreateBtn, pressed && styles.dim]}
+          >
+            <Icon name="plus" size={18} color={colors.noir} />
+            <Text style={styles.outingCreateLabel}>Créer une sortie</Text>
+          </Pressable>
+
+          <View style={styles.outingList}>
+            {crewOutings.outings.map((o) => (
+              <SortieCard key={o.id} outing={o} onRsvp={onOutingRsvp} />
+            ))}
+          </View>
+
+          <Text style={styles.outingNote}>
+            Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points (démo).
+          </Text>
         </>
       ) : null}
 
@@ -1806,6 +2000,138 @@ export default function CrewScreen() {
                 </Text>
               </View>
               <Icon name="chevron" size={15} color={colors.gris} />
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Form « Créer une sortie » (AMENDEMENT-32 §1) : titre + heure + lieu de
+          RDV + zone cible + objectif défense/conquête. Court, 1 seul CTA plein.
+          SOCIAL — aucune sortie ne donne de territoire ni de point (§A.19). ── */}
+      <Modal
+        visible={outingSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOutingSheet(false)}
+      >
+        <View style={styles.sheetRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            style={styles.sheetBackdrop}
+            onPress={() => setOutingSheet(false)}
+          />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetName}>Créer une sortie</Text>
+            <Text style={styles.sheetRole}>
+              Courir ensemble · aucune sortie ne donne de points ni de zones.
+            </Text>
+
+            <Text style={styles.outingFieldLabel}>Titre</Text>
+            <TextInput
+              value={outingTitle}
+              onChangeText={setOutingTitle}
+              placeholder="Défense République"
+              placeholderTextColor={colors.gris}
+              style={styles.outingInput}
+              maxLength={40}
+              returnKeyType="next"
+              accessibilityLabel="Titre de la sortie"
+            />
+
+            <Text style={styles.outingFieldLabel}>Heure</Text>
+            <TextInput
+              value={outingWhen}
+              onChangeText={setOutingWhen}
+              placeholder="Ce soir · 19:00"
+              placeholderTextColor={colors.gris}
+              style={styles.outingInput}
+              maxLength={40}
+              returnKeyType="next"
+              accessibilityLabel="Heure de la sortie"
+            />
+
+            <Text style={styles.outingFieldLabel}>Lieu de rendez-vous</Text>
+            <TextInput
+              value={outingPlace}
+              onChangeText={setOutingPlace}
+              placeholder="Métro République, sortie Magenta"
+              placeholderTextColor={colors.gris}
+              style={styles.outingInput}
+              maxLength={60}
+              returnKeyType="next"
+              accessibilityLabel="Lieu de rendez-vous"
+            />
+
+            <Text style={styles.outingFieldLabel}>Zone cible</Text>
+            <TextInput
+              value={outingZone}
+              onChangeText={setOutingZone}
+              placeholder="République"
+              placeholderTextColor={colors.gris}
+              style={styles.outingInput}
+              maxLength={40}
+              returnKeyType="done"
+              onSubmitEditing={submitOuting}
+              accessibilityLabel="Zone cible de la sortie"
+            />
+
+            {/* Objectif : Défense / Conquête — 2 chips exclusifs (pas de « GO »). */}
+            <Text style={styles.outingFieldLabel}>Objectif</Text>
+            <View style={styles.outingObjRow}>
+              {(['defense', 'conquete'] as const).map((obj) => {
+                const selected = outingObjective === obj;
+                const m = OUTING_OBJECTIVE_META[obj];
+                return (
+                  <Pressable
+                    key={obj}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={objectiveLabel(obj)}
+                    onPress={() => {
+                      haptics.light();
+                      setOutingObjective(obj);
+                    }}
+                    style={[
+                      styles.outingObjChip,
+                      selected && { borderColor: m.tint },
+                    ]}
+                  >
+                    <Icon name={m.icon} size={16} color={selected ? m.tint : colors.gris} />
+                    <Text
+                      style={[
+                        styles.outingObjLabel,
+                        selected && { color: m.tint },
+                      ]}
+                    >
+                      {objectiveLabel(obj)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Publier la sortie au crew"
+              accessibilityState={{ disabled: !outingReady }}
+              disabled={!outingReady}
+              onPress={submitOuting}
+              style={({ pressed }) => [
+                styles.outingSubmit,
+                outingReady ? styles.outingSubmitActive : styles.outingSubmitIdle,
+                pressed && outingReady && styles.dim,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.outingSubmitLabel,
+                  outingReady && styles.outingSubmitLabelActive,
+                ]}
+              >
+                Publier la sortie
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -2605,4 +2931,122 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   emptyActions: { marginTop: 18, gap: 10 },
+  // ── Sorties (AMENDEMENT-32 §1) ──
+  // UN SEUL gros CTA de la scène : créer une sortie (chartreuse, noir dessus).
+  outingCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: gameColors.crew,
+    borderRadius: radii.pill,
+    paddingVertical: 13,
+    marginBottom: 4,
+  },
+  outingCreateLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  outingList: { marginTop: 14, gap: 12 },
+  // Carte sortie = surface N1 unique (pas de card-dans-card), sections par l'espace.
+  outingCard: {
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    padding: 14,
+    gap: 8,
+  },
+  outingTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  outingIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: elevation.raised,
+  },
+  outingHeadText: { flex: 1, gap: 2 },
+  outingTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  outingObjective: { fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.3 },
+  outingMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  outingMeta: { flex: 1, color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.35 },
+  outingDensity: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.2,
+    fontVariant: ['tabular-nums'],
+  },
+  // RSVP = chips (§A.4, pas de 2ᵉ gros CTA) — calqué sur les chips RSVP défense.
+  outingRsvpRow: { flexDirection: 'row', gap: 8, marginTop: 2, flexWrap: 'wrap' },
+  outingRsvpChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: borderState.hairline,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  outingRsvpChipSelected: { borderColor: colors.blanc },
+  outingRsvpChipEngaged: { backgroundColor: gameColors.crew, borderColor: gameColors.crew },
+  outingRsvpLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  outingRsvpLabelSelected: { color: colors.blanc },
+  outingRsvpLabelEngaged: { color: colors.noir },
+  outingRsvpDone: { color: colors.gris, fontSize: fontSizes.xs },
+  outingNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 18,
+  },
+  // ── Form « Créer une sortie » (bottom sheet) ──
+  outingFieldLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.3,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  outingInput: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    backgroundColor: elevation.raised,
+    borderRadius: radii.card,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
+  },
+  outingObjRow: { flexDirection: 'row', gap: 10 },
+  outingObjChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: borderState.hairline,
+    paddingVertical: 11,
+  },
+  outingObjLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
+  outingSubmit: {
+    borderRadius: radii.pill,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+  },
+  outingSubmitActive: { backgroundColor: gameColors.crew },
+  outingSubmitIdle: { backgroundColor: elevation.raised },
+  outingSubmitLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  outingSubmitLabelActive: { color: colors.noir },
 });

@@ -103,6 +103,26 @@ export default function ChallengeDetailScreen() {
         <Icon name="coffre" size={18} color={colors.chartreuse} />
         <Text style={styles.rewardText}>{c.reward}</Text>
       </View>
+
+      {c.sponsor ? (
+        // Bloc sponsor (§3) : blason discret + « Offert par … » + garde-fou
+        // anti pay-to-win explicite. Le sponsor finance des lots/cosmétiques,
+        // JAMAIS du territoire, des points ni une victoire ; entrée gratuite.
+        <View style={styles.card}>
+          <Text style={styles.cardKicker}>OFFERT PAR</Text>
+          <View style={styles.sponsorHead}>
+            <View style={styles.sponsorBlason}>
+              <Icon name={c.sponsor.blason} size={18} color={colors.blanc} />
+            </View>
+            <Text style={styles.sponsorName}>{c.sponsor.name}</Text>
+          </View>
+          <Text style={styles.hint}>{c.sponsor.prizeNote}</Text>
+          <Text style={styles.hint}>
+            Participation libre et gratuite. Le sponsor ne donne ni territoire, ni points, ni
+            victoire — seulement des lots. Le jeu reste le même pour tout le monde.
+          </Text>
+        </View>
+      ) : null}
     </StackScreen>
   );
 }
@@ -168,4 +188,14 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
   },
   rewardText: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
+  sponsorHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  sponsorBlason: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    backgroundColor: colors.carbone2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sponsorName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600', flex: 1 },
 });

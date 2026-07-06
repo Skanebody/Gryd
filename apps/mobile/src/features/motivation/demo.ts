@@ -93,8 +93,29 @@ export const TODAY_HERO: TodayHero = {
  * (crew) sert la formulation positive « tu as contribué à X » (§11), jamais un
  * rang. `partnerName` (rivalry) = l'autre équipe, sans « tu perds/gagnes ».
  */
+/**
+ * Sponsor local d'un challenge (AMENDEMENT-32 §3, stratégie §3.5). ANTI PAY-TO-WIN
+ * STRICT : le sponsor finance des LOTS/COSMÉTIQUES, JAMAIS du territoire, des points
+ * ni une victoire ; l'entrée est GRATUITE (aucune loterie payante). Présence
+ * DISCRÈTE : un blason filaire + « Offert par … », jamais du branding envahissant.
+ * Démo (le vrai sponsor = back-office V1).
+ */
+export interface ChallengeSponsor {
+  /** Nom commercial du sponsor (ex. « Magasin Pas de Côté »). */
+  name: string;
+  /** Icône blason discrète (token @klaim/shared) — jamais un logo importé. */
+  blason: 'boutique' | 'cadeau' | 'medaille';
+  /** Nature des lots offerts — LOTS/COSMÉTIQUES uniquement, jamais du jeu. */
+  prizeNote: string;
+}
+
 export interface ChallengeCard {
-  id: keyof typeof CHALLENGE_SEEDS;
+  /**
+   * Id de la carte. Les challenges du catalogue reprennent une clé de
+   * `CHALLENGE_SEEDS` ; un challenge sponsorisé de démo (§3) porte son propre id
+   * (le vrai vient du back-office V1) — d'où le type large.
+   */
+  id: keyof typeof CHALLENGE_SEEDS | (string & {});
   type: ChallengeType;
   name: string;
   blurb: string;
@@ -115,6 +136,11 @@ export interface ChallengeCard {
   rivalOther?: number;
   /** Récompense annoncée (badge/coffre) — micro-victoire, pas d'échec puni. */
   reward: string;
+  /**
+   * Sponsor local optionnel (§3). Présent → la carte affiche « Offert par … » et
+   * un blason discret. Ne change RIEN au gameplay (anti pay-to-win).
+   */
+  sponsor?: ChallengeSponsor;
 }
 
 /**
@@ -158,6 +184,27 @@ export const CHALLENGES: ChallengeCard[] = [
     target: CHALLENGE_SEEDS.defense_30.target,
     unit: 'zones',
     reward: 'Badge Defender',
+  },
+  {
+    // Challenge sponsorisé de démo (§3). Objectif de distance (comme distance_10k)
+    // mais porté par un commerçant local. current borné ≤ cible. ANTI PAY-TO-WIN :
+    // la seule récompense est un LOT offert ; l'entrée est GRATUITE.
+    id: 'sponsor_store_50k',
+    type: 'solo',
+    name: 'Défi du quartier',
+    blurb:
+      '50 km cette semaine, en une ou plusieurs sorties. Un défi de distance offert par un commerçant du coin — participation libre et gratuite, pour le plaisir de courir.',
+    difficulty: 'standard',
+    metric: 'distanceM',
+    current: 32_000,
+    target: 50_000,
+    unit: 'km',
+    reward: 'Lots offerts par le sponsor (tirage libre, sans achat)',
+    sponsor: {
+      name: 'Magasin Pas de Côté',
+      blason: 'boutique',
+      prizeNote: 'Le sponsor offre des lots et cosmétiques. Aucun avantage en jeu.',
+    },
   },
   {
     id: 'crew_defense_week',
