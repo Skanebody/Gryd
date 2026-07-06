@@ -35,6 +35,8 @@ export interface PerkCardProps {
   description?: string;
   /** Anime le reveal (perk fraîchement débloqué, doc §24). */
   reveal?: boolean;
+  /** Remplace le libellé de la pastille d'état (ex. « Niveau 8 » quand verrouillé). */
+  stateLabel?: string;
   onPress?: () => void;
 }
 
@@ -47,6 +49,7 @@ export function PerkCard({
   xpRemaining,
   description,
   reveal = false,
+  stateLabel,
   onPress,
 }: PerkCardProps) {
   const { opacity, scale } = useReveal(reveal);
@@ -83,7 +86,7 @@ export function PerkCard({
             </Text>
           ) : null}
         </View>
-        <StatePill state={state} />
+        <StatePill state={state} label={stateLabel} />
       </Pressable>
     </Animated.View>
   );

@@ -1907,6 +1907,12 @@ export default function CrewScreen() {
       {/* ══ PERKS : cartes reward + PROCHAIN PERK (doc §11) ══ */}
       {tab === 'perks' ? (
         <>
+          {/* Rappel anti pay-to-win STRICT (§52) : les perks sont statut/orga/
+              cosmétique — jamais territoire, points ni protection. Ligne simple
+              (pas de card-dans-card §A). */}
+          <Text style={styles.perkNote}>
+            Cosmétique et organisation — jamais d'avantage territorial.
+          </Text>
           <SectionLabel>PERKS DÉBLOQUÉS · {unlockedPerks.length}</SectionLabel>
           <View style={styles.perkList}>
             {unlockedPerks.map((p) => {
@@ -1954,6 +1960,7 @@ export default function CrewScreen() {
                       rarity={visual.rarity}
                       levelRequired={p.level}
                       state="locked"
+                      stateLabel={`Niveau ${p.level}`}
                     />
                   );
                 })}
@@ -3038,6 +3045,12 @@ const styles = StyleSheet.create({
   },
   // ── Perks ──
   perkList: { gap: 8 },
+  perkNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
   // ── Chat actionnable (A.2) : filtres = Segmented scrollable (§4). ──
   chatFilters: { marginTop: 18 },
   // ── Chat actionnable : sections À FAIRE / MESSAGES / DONS / LOG ──
