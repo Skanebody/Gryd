@@ -39,6 +39,12 @@ import {
   type SkillDef,
   type SkillFamilyId,
 } from '@klaim/shared';
+import { contributeToRaid, useCrewRaid, type RaidView } from '../../src/features/crew/raid';
+import {
+  clearRevanche,
+  useCrewRevanche,
+  type RevancheView,
+} from '../../src/features/crew/revanche';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
@@ -207,6 +213,36 @@ function useCountdown(initialS: number): string {
     return () => clearInterval(id);
   }, []);
   return formatCountdown(left);
+}
+
+/**
+ * Tick minute qui force un re-render (60 000 ms = unité de temps, pas une
+ * constante de jeu). Les cartes Raid (48 h) et Revanche (24 h) se lisent à la
+ * minute : ce tick rafraîchit le `new Date()` capturé par les stores (statut,
+ * heures restantes) sans faire clignoter les secondes. Actif même en reduce
+ * motion (info temporelle, pas décoratif).
+ */
+function useMinuteTick(): void {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+}
+
+/**
+ * Fenêtre en HEURES lisible depuis un total d'heures fractionnaire (Raid /
+ * Revanche) : « 44 h » ou « 22 h 10 » (h + min quand la partie minute compte),
+ * jamais de seconde. Sous l'heure → « 12 min ». Plancher « Expire » à 0.
+ */
+function formatHoursWindow(totalH: number): string {
+  const totalMin = Math.max(0, Math.round(totalH * 60));
+  if (totalMin <= 0) return 'Expire';
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m} min`;
+  if (m <= 0) return `${h} h`;
+  return `${h} h ${m.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -455,6 +491,163 @@ function MissionLine({
         <Icon name="chevron" size={15} color={tint} />
       </View>
     </Pressable>
+  );
+}
+
+/**
+ * RAID WEEKEND (AMENDEMENT-34 §DELTA-CLASH) — LE format Clash « Raid Weekend »
+ * rendu GRYD : une offensive collective à fenêtre courte avec une barre de
+ * progression PERSISTANTE et PARTAGÉE. « Reprendre les quais · 620 / 1000 zones ·
+ * 48 h restantes ». Chacun contribue, la barre reste et monte pour tout le crew.
+ *
+ * §A : 1 décision (rejoindre le raid) + 1 SEUL CTA plein (« REJOINDRE » — le raid
+ * EST une conquête, il mérite le gros CTA de sa card). Liste COURTE de
+ * contributeurs (têtes de pont), jamais 50 lignes. Textes non tronqués. Anti
+ * pay-to-win : rejoindre ne donne aucun territoire/point — c'est le run normal
+ * mis en scène dans le temps (le claim reste serveur).
+ */
+function RaidWeekendCard({
+  raid,
+  onJoin,
+}: {
+  raid: RaidView;
+  onJoin: () => void;
+}) {
+  const window = formatHoursWindow(raid.hoursLeft);
+  const done = raid.status === 'complete';
+  const expired = raid.status === 'expired';
+  // La barre est le héros : titre + « pris / cible zones · fenêtre » sous elle.
+  // On montre 3 contributeurs max (têtes de pont) — signal de densité, pas un
+  // classement (§C : jamais tous les runners).
+  const top = raid.contributors.slice(0, 3);
+  // Libellé du CTA : REJOINDRE si je n'ai pas encore couru, COURIR ENCORE si oui
+  // (chacun contribue plusieurs fois, la barre reste). Jamais tronqué.
+  const ctaLabel = done ? 'RAID GAGNÉ' : raid.joined ? 'COURIR ENCORE' : 'REJOINDRE';
+  const statusLine = done
+    ? 'Objectif atteint — le crew a repris la zone.'
+    : expired
+      ? 'Fenêtre close. Prochaine offensive bientôt.'
+      : `${formatInt(raid.progress)} / ${formatInt(raid.target)} zones · ${window} restantes`;
+  return (
+    <View style={styles.raid}>
+      <View style={styles.raidHead}>
+        <View style={styles.lineIcon}>
+          <Icon name="raid" size={18} color={gameColors.crew} />
+        </View>
+        <View style={styles.lineHeadText}>
+          <Text style={styles.lineKicker} numberOfLines={1}>
+            RAID WEEKEND · CREW
+          </Text>
+          <Text style={styles.lineTitle} numberOfLines={1}>
+            {raid.title}
+          </Text>
+        </View>
+        <Text style={[styles.raidPct, { color: gameColors.crew }]} numberOfLines={1}>
+          {Math.round(raid.pct * 100)} %
+        </Text>
+      </View>
+      {/* Barre COLLECTIVE persistante — le cœur du format Clash. */}
+      <View style={styles.raidGauge}>
+        <ProgressBar value={raid.pct} height={8} />
+      </View>
+      <Text style={styles.raidStatus} numberOfLines={1}>
+        {statusLine}
+      </Text>
+      {/* Contributeurs (têtes de pont) — liste courte, jamais tout le crew. */}
+      {top.length > 0 ? (
+        <View style={styles.raidContribs}>
+          {top.map((c) => (
+            <Text
+              key={c.pseudo}
+              style={[styles.raidContrib, c.me && styles.raidContribMe]}
+              numberOfLines={1}
+            >
+              {c.me ? 'Toi' : c.pseudo} {formatInt(c.zones)}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      {/* 1 SEUL CTA de la card : rejoindre le raid (désactivé si clos/gagné). */}
+      <View style={styles.raidCta}>
+        <InlineRunCTA
+          label={ctaLabel}
+          size="md"
+          variant="primary"
+          disabled={done || expired}
+          onPress={onJoin}
+        />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * MISSION REVANCHE (AMENDEMENT-34 §DELTA-CLASH) — « rendre la pareille ». Un
+ * rival a repris ton secteur : mission URGENTE avec compte à rebours 24 h et
+ * 1 CTA [REPRENDRE]. Style ALERTE (contour rival), comme le HERO urgent mais
+ * pour l'offensive de reprise. §A : 1 décision + 1 CTA. On ne révèle QUE le
+ * secteur + le crew rival (jamais la position exacte, §C). Anti pay-to-win : la
+ * reprise ne donne que les points NORMAUX de vol (§3.4) — la revanche est un
+ * marqueur social/statut, pas un bonus.
+ */
+function RevancheMissionCard({
+  revanche,
+  onReprendre,
+  onDismiss,
+}: {
+  revanche: RevancheView;
+  onReprendre: () => void;
+  onDismiss?: () => void;
+}) {
+  const window = formatHoursWindow(revanche.hoursLeft);
+  const accent = gameColors.rival;
+  return (
+    <View style={styles.revanche}>
+      <View style={styles.revancheHead}>
+        <View style={styles.heroIcon}>
+          <Icon name="cible" size={20} color={accent} />
+        </View>
+        <View style={styles.heroHeadText}>
+          <Text style={[styles.heroKicker, { color: accent }]} numberOfLines={1}>
+            REVANCHE · {window}
+          </Text>
+          <Text style={styles.heroTitle} numberOfLines={1}>
+            {revanche.sector}
+          </Text>
+        </View>
+        <Text style={[styles.heroMetric, { color: accent }]} numberOfLines={1}>
+          -{formatInt(revanche.zonesLost)}
+        </Text>
+      </View>
+      <Text style={styles.heroPhrase} numberOfLines={2}>
+        {revanche.rivalCrew} a repris {formatInt(revanche.zonesLost)} zones sur{' '}
+        {revanche.sector}. Va les reprendre — la fenêtre ferme dans {window}.
+      </Text>
+      <View style={styles.revancheCta}>
+        <View style={styles.revancheCtaMain}>
+          <InlineRunCTA
+            label="REPRENDRE"
+            size="md"
+            variant="primary"
+            onPress={onReprendre}
+          />
+        </View>
+        {onDismiss ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Laisser filer cette revanche"
+            onPress={() => {
+              haptics.light();
+              onDismiss();
+            }}
+            hitSlop={8}
+            style={({ pressed }) => [styles.revancheDismiss, pressed && styles.pressed]}
+          >
+            <Text style={styles.revancheDismissLabel}>Laisser filer</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -726,6 +919,16 @@ export default function WarRoomScreen() {
   const toggle = (s: Exclude<OpenSection, null>) =>
     setOpen((cur) => (cur === s ? null : s));
 
+  // Tick minute : rafraîchit le `now` des stores Raid (48 h) et Revanche (24 h)
+  // → statut + heures restantes à jour, sans faire clignoter les secondes.
+  useMinuteTick();
+
+  // RAID WEEKEND + REVANCHE (AMENDEMENT-34) : stores démo persistants, moteur
+  // miroiré. La barre du raid est COLLECTIVE et reste ; la revanche est une
+  // mission URGENTE à fenêtre 24 h qui disparaît d'elle-même une fois expirée.
+  const { raid } = useCrewRaid();
+  const { revanche } = useCrewRevanche();
+
   useEffect(() => {
     screen('war_room');
   }, []);
@@ -857,6 +1060,46 @@ export default function WarRoomScreen() {
                   }
                 : undefined
             }
+          />
+        ) : null}
+
+        {/* REVANCHE (AMENDEMENT-34) — un rival a repris ton secteur : mission
+            URGENTE à compte à rebours 24 h, style ALERTE (contour rival), 1 CTA
+            [REPRENDRE]. Disparaît d'elle-même à l'expiration de la fenêtre (le
+            store renvoie null). Reprise = points NORMAUX (§3.4), jamais un bonus
+            (anti pay-to-win). Position exacte du rival JAMAIS révélée (§C). */}
+        {revanche ? (
+          <RevancheMissionCard
+            revanche={revanche}
+            onReprendre={() => {
+              haptics.medium();
+              screen('war_revanche_reprendre', { sector: revanche.sector });
+              toast.show(`Cap sur ${revanche.sector} — reprends tes zones`);
+              router.push('/route-planner?type=raid');
+            }}
+            onDismiss={() => {
+              clearRevanche();
+              toast.show('Revanche laissée — la fenêtre se referme');
+            }}
+          />
+        ) : null}
+
+        {/* RAID WEEKEND (AMENDEMENT-34) — offensive collective à fenêtre courte
+            avec barre PERSISTANTE et PARTAGÉE (« 620 / 1000 zones · 48 h »).
+            Chacun contribue, la barre reste. 1 CTA [REJOINDRE] → route-planner
+            mode raid ; la contribution démo fait monter la barre collective (elle
+            se souvient au reload). Anti pay-to-win : le run normal mis en scène. */}
+        {raid ? (
+          <RaidWeekendCard
+            raid={raid}
+            onJoin={() => {
+              haptics.medium();
+              screen('war_raid_join', { raidId: raid.id });
+              // Démo : ma contribution monte la barre collective persistante.
+              contributeToRaid(raid.id);
+              toast.show(`Raid rejoint — cap sur ${raid.zone}`);
+              router.push('/route-planner?type=raid');
+            }}
           />
         ) : null}
 
@@ -1210,6 +1453,70 @@ const styles = StyleSheet.create({
   },
   heroPhrase: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 12 },
   heroCta: { marginTop: 14 },
+
+  // --- RAID WEEKEND (AMENDEMENT-34) : card surface N1 à contour chartreuse doux
+  //     (gain collectif), barre partagée en héros. Le SEUL gros CTA de SA card. ---
+  raid: {
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: borderState.activeSoft,
+    padding: 16,
+    marginTop: 12,
+  },
+  raidHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  raidPct: {
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  raidGauge: { marginTop: 14 },
+  raidStatus: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    marginTop: 10,
+    fontVariant: ['tabular-nums'],
+  },
+  // Contributeurs : puces compactes qui s'enroulent (jamais tronquées), signal
+  // de densité (têtes de pont), pas un classement.
+  raidContribs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  raidContrib: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    backgroundColor: elevation.raised,
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    overflow: 'hidden',
+  },
+  raidContribMe: { color: colors.blanc },
+  raidCta: { marginTop: 16 },
+
+  // --- MISSION REVANCHE (AMENDEMENT-34) : card ALERTE (contour rival), même
+  //     grammaire que le HERO urgent mais pour l'offensive de reprise. ---
+  revanche: {
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: gameColors.rival,
+    padding: 16,
+    marginTop: 12,
+  },
+  revancheHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  revancheCta: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  // Le CTA prend l'espace disponible ; « Laisser filer » se pose à sa droite.
+  revancheCtaMain: { flex: 1 },
+  // « Laisser filer » : action ultra-légère (texte gris), jamais un 2e bouton
+  // plein — le seul gros CTA de la card reste « REPRENDRE ».
+  revancheDismiss: { paddingVertical: 8, paddingHorizontal: 4 },
+  revancheDismissLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
 
   // --- Lignes de mission compactes (posées sur l'espace, SANS cadre) ---
   line: {

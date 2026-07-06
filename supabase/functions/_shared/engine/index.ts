@@ -23,6 +23,8 @@ export * from './engine.ts';
 export * from './badges.ts';
 export * from './skills.ts';
 export * from './crew.ts';
+export * from './raid.ts';
+export * from './revanche.ts';
 export * from './social.ts';
 export * from './challenge.ts';
 export * from './bonus.ts';

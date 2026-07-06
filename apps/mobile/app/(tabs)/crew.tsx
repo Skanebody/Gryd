@@ -71,6 +71,7 @@ import {
   Segmented,
   WarEventCard,
   usePulse,
+  useReveal,
   type WarEventReaction,
 } from '../../src/ui/game';
 import {
@@ -115,6 +116,13 @@ import {
   type WarLogType,
 } from '../../src/features/crew/feed';
 import { ReactionBar } from '../../src/features/crew/ReactionBar';
+import {
+  DAILY_GLUE_SOCIAL_XP,
+  markDailyAction,
+  useDailyBoost,
+  useDailyGlue,
+  type DailyGlueView,
+} from '../../src/features/crew/dailyGlue';
 import {
   CONQUEST_REACTIONS,
   resolveConquestReactions,
@@ -884,6 +892,139 @@ function SortieCard({
   );
 }
 
+/**
+ * Une LIGNE d'action de la colle quotidienne (§A.3 : une seule couche de
+ * container, texte NON tronqué, 1 tap = 1 micro-action). Icône teintée à gauche,
+ * libellé + sous-titre au centre, état à droite (chip « Fait » quand accompli).
+ * `done` grise doucement la ligne — l'action reste lisible (jamais barrée).
+ */
+function DailyGlueRow({
+  icon,
+  tint,
+  label,
+  sub,
+  done,
+  doneLabel,
+  onPress,
+}: {
+  icon: IconName;
+  tint: string;
+  label: string;
+  sub: string;
+  done: boolean;
+  doneLabel: string;
+  onPress: () => void;
+}) {
+  // Micro-anim de validation (reveal) rejouée quand la ligne passe à « fait ».
+  const check = useReveal(done);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: done }}
+      accessibilityLabel={done ? `${label} — ${doneLabel}` : `${label}. ${sub}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.glueRow, pressed && styles.dim]}
+    >
+      <View style={[styles.glueIcon, { borderColor: tint }]}>
+        <Icon name={icon} size={18} color={tint} />
+      </View>
+      <View style={styles.glueBody}>
+        <Text style={[styles.glueLabel, done && styles.glueLabelDone]} numberOfLines={2}>
+          {label}
+        </Text>
+        <Text style={styles.glueSub} numberOfLines={2}>
+          {sub}
+        </Text>
+      </View>
+      {done ? (
+        <Animated.View style={[styles.glueDone, { opacity: check.opacity, transform: [{ scale: check.scale }] }]}>
+          <Icon name="reactClean" size={13} color={gameColors.crew} />
+          <Text style={styles.glueDoneLabel} numberOfLines={1}>
+            {doneLabel}
+          </Text>
+        </Animated.View>
+      ) : (
+        <Icon name="chevron" size={15} color={colors.gris} />
+      )}
+    </Pressable>
+  );
+}
+
+/**
+ * Section « AUJOURD'HUI » (AMENDEMENT-34, colle quotidienne façon Clash) : 4
+ * micro-actions SANS courir pour garder le crew vivant les jours off —
+ * Encourager un runner, Voter une cible, Signaler une zone faible, Boost coffre
+ * GRATUIT (1×/jour, DAILY_CHEST_BOOST_*). Chaque action pose un petit +XP SOCIAL
+ * cosmétique + une anim ; ZÉRO avantage territorial (anti pay-to-win STRICT).
+ * UNE seule section claire (§A), pas de card-dans-card : les lignes sont des
+ * surfaces N2 posées côte à côte. Reset à minuit géré par le store (dailyGlue).
+ */
+function DailyGlue({
+  glue,
+  onAction,
+  onBoost,
+}: {
+  glue: DailyGlueView;
+  onAction: (action: 'encourage' | 'vote' | 'signal') => void;
+  onBoost: () => void;
+}) {
+  return (
+    <View style={styles.glueSection}>
+      <View style={styles.glueHead}>
+        <Icon name="aujourdhui" size={15} color={gameColors.crew} />
+        <Text style={styles.glueKicker}>AUJOURD’HUI</Text>
+        <Text style={styles.glueProgress} numberOfLines={1}>
+          {glue.doneCount}/4 · +{glue.socialXpToday} XP
+        </Text>
+      </View>
+      <Text style={styles.glueLead} numberOfLines={2}>
+        Pas de run aujourd’hui ? Garde le crew vivant en 4 gestes.
+      </Text>
+
+      <DailyGlueRow
+        icon="reactRespect"
+        tint={gameColors.crew}
+        label="Encourager un runner"
+        sub="Envoie un boost de moral à celui qui part défendre."
+        done={glue.encourage}
+        doneLabel={`+${DAILY_GLUE_SOCIAL_XP} XP`}
+        onPress={() => onAction('encourage')}
+      />
+      <DailyGlueRow
+        icon="cible"
+        tint={gameColors.crew}
+        label="Voter une cible"
+        sub="Choisis la zone que le crew devrait viser en priorité."
+        done={glue.vote}
+        doneLabel={`+${DAILY_GLUE_SOCIAL_XP} XP`}
+        onPress={() => onAction('vote')}
+      />
+      <DailyGlueRow
+        icon="bouclier"
+        tint={gameColors.contested}
+        label="Signaler une zone faible"
+        sub="Préviens le crew d’un secteur qui risque de tomber."
+        done={glue.signal}
+        doneLabel={`+${DAILY_GLUE_SOCIAL_XP} XP`}
+        onPress={() => onAction('signal')}
+      />
+      <DailyGlueRow
+        icon="cadeau"
+        tint={gameColors.gold}
+        label="Boost coffre gratuit"
+        sub="Un petit coup de pouce au coffre crew. Gratuit, 1×/jour."
+        done={!glue.boostAvailable}
+        doneLabel="Utilisé"
+        onPress={onBoost}
+      />
+
+      <Text style={styles.glueNote} numberOfLines={2}>
+        Ces gestes nourrissent le crew et le coffre — jamais de territoire ni de points.
+      </Text>
+    </View>
+  );
+}
+
 /** En-tête d'une section du chat actionnable + « Voir tout » optionnel (anti-scroll). */
 function SectionHead({
   label,
@@ -932,6 +1073,8 @@ export default function CrewScreen() {
   const crewRequests = useCrewRequests();
   /** Sorties de crew à venir + mon RSVP (persistés, AMENDEMENT-32 §1). */
   const crewOutings = useCrewOutings();
+  /** Colle quotidienne : 4 micro-actions du jour (persistées, AMENDEMENT-34). */
+  const dailyGlue = useDailyGlue();
   /** Form « Créer une sortie » (bottom sheet) — false = fermé. */
   const [outingSheet, setOutingSheet] = useState(false);
   const [outingTitle, setOutingTitle] = useState('');
@@ -1007,7 +1150,13 @@ export default function CrewScreen() {
 
   // Coffre hebdo (§39.2) : état/palier DÉRIVÉS de chestStateFor (source unique,
   // identique à la War Room) — réclamable tant qu'il n'est pas ouvert.
-  const chestPct = MY_CREW.chestProgress / CREW_CHEST_WEEKLY_TARGET;
+  // Le boost coffre GRATUIT du jour (colle quotidienne) ajoute un petit +% au
+  // coffre DÉMO (visuel) — comme le Crew Boost payant, effet COFFRE uniquement,
+  // jamais points/XP de jeu/territoire (anti-P2W). Borné à 100 %.
+  const chestPct = Math.min(
+    1,
+    MY_CREW.chestProgress / CREW_CHEST_WEEKLY_TARGET + dailyGlue.chestBonusPct,
+  );
   const chest = chestStateFor(chestPct);
   const nextChestTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
   const chestClaimable = chest.state === 'claimable' && !chestOpened;
@@ -1177,6 +1326,38 @@ export default function CrewScreen() {
     haptics.light();
     const ok = claimGift(gift.id);
     if (ok) notify(`Récompense réclamée · ${gift.title} (démo)`);
+  };
+
+  // ── COLLE QUOTIDIENNE (AMENDEMENT-34) : 4 micro-actions SANS courir pour
+  // garder le crew vivant les jours off. Chaque action pose un +XP SOCIAL
+  // cosmétique + une anim ; ZÉRO territoire/point/vitesse/protection (anti-P2W).
+  // Encourager / Voter / Signaler : action ponctuelle, une fois/jour (idempotent).
+  const onDailyAction = (action: 'encourage' | 'vote' | 'signal') => {
+    const posted = markDailyAction(action);
+    if (!posted) {
+      notify('Déjà fait aujourd’hui — reviens demain (démo)');
+      return;
+    }
+    haptics.light();
+    const label =
+      action === 'encourage'
+        ? 'Encouragement envoyé au runner'
+        : action === 'vote'
+          ? 'Vote de cible enregistré'
+          : 'Zone faible signalée au crew';
+    notify(`${label} · +${DAILY_GLUE_SOCIAL_XP} XP social (démo)`);
+  };
+  // Boost coffre GRATUIT : capé 1×/jour (DAILY_CHEST_BOOST_*). Alimente le coffre
+  // crew DÉMO (visuel, +2 %) — jamais points/XP de jeu/territoire. success = geste
+  // de générosité franc ; refus doux si déjà utilisé aujourd'hui.
+  const onDailyBoost = () => {
+    const posted = useDailyBoost();
+    if (!posted) {
+      notify('Boost coffre déjà utilisé aujourd’hui — 1×/jour (démo)');
+      return;
+    }
+    haptics.success();
+    notify('Boost coffre offert — le coffre crew avance un peu (démo)');
   };
 
   // RSVP à une sortie (AMENDEMENT-32 §1) : « Je viens » / « Peut-être » /
@@ -1407,6 +1588,11 @@ export default function CrewScreen() {
           restent SECONDAIRES (repliés, après les stats + War Room). ══ */}
       {tab === 'base' ? (
         <>
+          {/* ── AUJOURD'HUI (AMENDEMENT-34) : colle quotidienne, 4 micro-actions
+              SANS courir pour garder le crew vivant les jours off. En TÊTE de la
+              Base (c'est le geste du jour), avant les stats. Anti-P2W strict. ── */}
+          <DailyGlue glue={dailyGlue} onAction={onDailyAction} onBoost={onDailyBoost} />
+
           <View style={styles.baseGrid}>
             {/* Territoire — le cœur du jeu : tap → détail secteur/frontières. */}
             <BaseCard
@@ -2485,6 +2671,67 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: 12,
   },
+  // ── AUJOURD'HUI (colle quotidienne) : UNE surface N1 de section (§A.3, une
+  // seule couche de container), posée en tête de la Base. Les 4 lignes sont des
+  // surfaces N2 côte à côte — jamais de card-dans-card. ──
+  glueSection: {
+    marginTop: 20,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    padding: spacing.cardPadding,
+    gap: 10,
+  },
+  glueHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  glueKicker: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  glueProgress: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontVariant: ['tabular-nums'],
+  },
+  glueLead: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 18 },
+  // Ligne d'action : icône teintée + texte + état, sur une surface N2 (raised).
+  glueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: elevation.raised,
+    borderRadius: radii.card,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  glueIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glueBody: { flex: 1, gap: 2 },
+  glueLabel: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  // « Fait » : le libellé se pose en gris doux — jamais barré, reste lisible.
+  glueLabelDone: { color: colors.gris },
+  glueSub: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 15 },
+  // Chip d'état « Fait · +5 XP » (chartreuse discret) — statut social, pas un gain.
+  glueDone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  glueDoneLabel: {
+    color: gameColors.crew,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  glueNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 15, marginTop: 2 },
   // ── Header base : LA surface N1 de la section (pose sur le fond, sans cadre). ──
   headerCard: {
     marginTop: 20,

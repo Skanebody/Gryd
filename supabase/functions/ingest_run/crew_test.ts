@@ -37,6 +37,7 @@ import {
   isRookieTrialOver,
   offensiveResult,
   playerLevelForXp,
+  crewSeasonScore,
   playerLevelXpTable,
   rookieTrialEndsAt,
   tierForLevel,
@@ -44,6 +45,7 @@ import {
   type ActivityScoreInput,
   type CrewXpRunInput,
 } from '../_shared/engine/crew.ts';
+import { CREW_SCORE_TOP_ACTIVE } from '../_shared/game-rules.ts';
 
 // ─── §34.3 crewLevelForXp : bornes exactes de la table ───────────────────────
 
@@ -353,4 +355,37 @@ Deno.test('rookieTrialEndsAt / isRookieTrialOver : bornes exactes ROOKIE_TRIAL_D
   assert(!isRookieTrialOver(start, end - 1));
   assert(isRookieTrialOver(start, end)); // borne incluse : essai fini pile à J+7
   assert(isRookieTrialOver(start, end + 1));
+});
+
+// ─── AMENDEMENT-34 §DELTA-CLASH — crewSeasonScore (topN plus actifs) ──────────
+
+Deno.test('crewSeasonScore : somme toutes les contributions sous le seuil topN', () => {
+  // Moins de topN contributeurs → toutes comptent.
+  assertEquals(crewSeasonScore([10, 20, 30]), 60);
+  assertEquals(crewSeasonScore([]), 0);
+});
+
+Deno.test('crewSeasonScore : ne garde que les topN PLUS GRANDES contributions', () => {
+  // 4 contributions, topN=2 → 40 + 30 = 70 (les deux plus grandes).
+  assertEquals(crewSeasonScore([10, 40, 20, 30], 2), 70);
+  // L'ordre d'entrée n'importe pas (tri desc interne).
+  assertEquals(crewSeasonScore([30, 20, 40, 10], 2), 70);
+});
+
+Deno.test('crewSeasonScore : un gros crew ne score que sur CREW_SCORE_TOP_ACTIVE membres', () => {
+  // 40 membres à 100 chacun, défaut topN = CREW_SCORE_TOP_ACTIVE → 30 × 100.
+  const contribs = Array.from({ length: 40 }, () => 100);
+  assertEquals(crewSeasonScore(contribs), CREW_SCORE_TOP_ACTIVE * 100);
+  // Ajouter des membres FAIBLES au-delà du top ne change pas le score.
+  assertEquals(crewSeasonScore([...contribs, 1, 2, 3]), CREW_SCORE_TOP_ACTIVE * 100);
+});
+
+Deno.test('crewSeasonScore : contributions négatives ignorées (plancher 0/membre)', () => {
+  assertEquals(crewSeasonScore([50, -100, 20], 3), 70);
+  assertEquals(crewSeasonScore([-5, -10], 3), 0);
+});
+
+Deno.test('crewSeasonScore : topN ≤ 0 → 0 (aucun membre ne compte)', () => {
+  assertEquals(crewSeasonScore([10, 20, 30], 0), 0);
+  assertEquals(crewSeasonScore([10, 20, 30], -1), 0);
 });

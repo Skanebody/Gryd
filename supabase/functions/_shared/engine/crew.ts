@@ -26,6 +26,7 @@ import {
   CREW_LEVEL_MAX,
   CREW_PERMISSIONS,
   CREW_ROLES,
+  CREW_SCORE_TOP_ACTIVE,
   CREW_XP_DAILY_CAP_PER_MEMBER,
   CREW_XP_ROUTE_DUP_DIVISOR,
   CREW_XP_SOURCES,
@@ -62,6 +63,30 @@ export function crewLevelForXp(xp: number): number {
     else break;
   }
   return Math.min(level, CREW_LEVEL_MAX);
+}
+
+// ─── AMENDEMENT-34 §DELTA-CLASH — Score de saison capé aux plus actifs ────────
+
+/**
+ * Score de saison d'un crew (AMENDEMENT-34, source = doc Clash→GRYD) : somme des
+ * `topN` PLUS GRANDES contributions individuelles. PURE. Empêche le « gros crew
+ * qui écrase par le nombre » — seuls les topN membres les plus actifs comptent
+ * (défaut CREW_SCORE_TOP_ACTIVE = 30). Les contributions négatives sont
+ * ignorées (plancher 0 par membre : personne ne fait BAISSER le score du crew).
+ * `topN ≤ 0` → 0 (aucun membre ne compte) ; moins de topN contributeurs → toutes
+ * comptent. N'affecte QUE le classement (anti pay-to-win : ne vend rien, plafonne
+ * juste l'avantage de la taille).
+ */
+export function crewSeasonScore(
+  contribs: readonly number[],
+  topN: number = CREW_SCORE_TOP_ACTIVE,
+): number {
+  if (topN <= 0) return 0;
+  return [...contribs]
+    .map((c) => Math.max(0, c))
+    .sort((a, b) => b - a)
+    .slice(0, topN)
+    .reduce((sum, c) => sum + c, 0);
 }
 
 // ─── §34.1 XP crew d'une course (sources + caps anti-farm) ────────────────────

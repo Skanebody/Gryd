@@ -186,7 +186,22 @@ export const SKIN_PREMIUM_ECLATS_MAX = 280;
 
 // ─── §3.5 Crews ──────────────────────────────────────────────────────────────
 export const CREW_MIN_MEMBERS = 2;
-export const CREW_MAX_MEMBERS = 10;
+/**
+ * Effectif MAX d'un crew (source = doc Clash→GRYD du fondateur : gros crews façon
+ * clan Supercell). Passé de 10 à 50 (AMENDEMENT-34). L'affichage `X/CREW_MAX_MEMBERS`
+ * s'adapte partout (aucun libellé ne code « 10 » en dur — cf. Hero.tsx / WarRoom.tsx
+ * qui consomment déjà la constante). Anti pay-to-win : un crew plus grand ne donne
+ * NI territoire NI points NI vitesse NI protection — seulement plus de monde.
+ */
+export const CREW_MAX_MEMBERS = 50;
+/**
+ * Score de saison : SEULS les CREW_SCORE_TOP_ACTIVE membres les PLUS ACTIFS
+ * comptent (source = doc Clash→GRYD). Empêche le « gros crew qui écrase par le
+ * nombre » : à 50 membres, un crew ne score que sur ses 30 meilleurs contributeurs.
+ * Consommé par engine/crew.ts `crewSeasonScore` (somme des topN contributions).
+ * Anti pay-to-win : plafonne l'avantage de la TAILLE, ne vend rien.
+ */
+export const CREW_SCORE_TOP_ACTIVE = 30;
 export const CREW_COLORS_COUNT = 12; // identité en DB ; rendu carte = AMENDEMENT-01
 export const CREW_CODE_LENGTH = 6;
 export const CREW_SWITCH_COOLDOWN_DAYS = 7;
@@ -1312,3 +1327,62 @@ export const BONUS_DEFENSE_DECAY_MAX_H = 12;
  * pour rester lisible côté DATA/moteur sans dépendre de badges.ts.
  */
 export const BONUS_MIN_MOTION_TRUST = 70;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMENDEMENT-34 §DELTA-CLASH — emprunts Clash of Clans → GRYD (06/07/2026).
+// SOURCE = le doc « Clash → GRYD » du fondateur (cadences façon clan, SANS
+// obliger à courir tous les jours). ~85 % du mapping existait déjà (crew, rôles,
+// perks par niveau, requêtes, feed, discovery, défense graduée, boucle crew) —
+// ceci n'ajoute QUE le delta : RAID crew, REVANCHE, coffre quotidien (boost léger
+// GRATUIT). ANTI PAY-TO-WIN STRICT : AUCUNE de ces constantes ne donne
+// territoire / points / vitesse / protection — que du social, du statut et une
+// jauge collective. Moteur PUR : engine/raid.ts + engine/revanche.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Durée (heures) d'un RAID crew (source = doc Clash : « raid » collectif à
+ * fenêtre courte façon Clan War / Raid Weekend). 48 h = un week-end de jeu.
+ * Un raid est une OFFENSIVE COLLECTIVE à durée bornée dont la progression est
+ * une jauge (zones prises pendant la fenêtre) ; consommé par engine/raid.ts
+ * (`raidStatus` : active avant échéance / complete si cible atteinte / expired).
+ * Anti pay-to-win : le raid ne DONNE pas de territoire bonus — il met en scène,
+ * dans le temps, la conquête que le crew fait de toute façon.
+ */
+export const RAID_DURATION_HOURS = 48;
+/**
+ * Cible de DÉMO d'un raid (zones à prendre pendant la fenêtre) — valeur de
+ * SEED/démo, pas un barème d'équilibrage (source = doc Clash, ordre de grandeur
+ * d'un objectif de raid week-end à l'échelle d'un gros crew). Les vraies cibles
+ * (par raid, par saison) seront en base ; cette constante documente le défaut
+ * MVP/démo consommé par `raidProgressPct` et les écrans. TUNABLE.
+ */
+export const RAID_DEMO_TARGET_ZONES = 1_000;
+
+/**
+ * Fenêtre (heures) de REVANCHE (source = doc Clash : après s'être fait attaquer/
+ * voler, on peut « rendre la pareille » pendant un temps limité). 24 h après le
+ * déclenchement (un vol/une attaque rival sur une zone du joueur/crew), la
+ * revanche est OUVERTE : signalisation sociale « prends ta revanche », pas un
+ * bonus de gameplay. Consommé par engine/revanche.ts (`revancheActive` /
+ * `revancheExpiry` / `revancheHoursLeft`). Anti pay-to-win STRICT : la revanche
+ * ne donne NI point NI territoire supplémentaire NI protection — c'est un
+ * MARQUEUR temporel qui invite à re-courir la zone (le gain reste celui des
+ * règles normales de reprise/vol §3.4).
+ */
+export const REVANCHE_WINDOW_HOURS = 24;
+
+/**
+ * Coffre QUOTIDIEN — nombre de « boosts » gratuits offerts par jour (source =
+ * doc Clash : récompense de connexion quotidienne, façon coffre/cadeau du jour).
+ * 1/jour, GRATUIT (jamais acheté). Sert d'accroche de rétention douce.
+ */
+export const DAILY_CHEST_BOOST_PER_DAY = 1;
+/**
+ * Ampleur (fraction) du boost du coffre quotidien : PETIT et GRATUIT (+2 %).
+ * S'applique — comme le Crew Boost payant (CREW_BOOST_CHEST_MULTIPLIER) — à la
+ * PROGRESSION DU COFFRE crew UNIQUEMENT, jamais aux points/territoire/XP/
+ * leaderboard. Anti pay-to-win STRICT : c'est un cadeau de connexion, pas un
+ * levier payant ; l'effet est volontairement marginal (agrément, pas puissance).
+ * TUNABLE.
+ */
+export const DAILY_CHEST_BOOST_PCT = 0.02;
