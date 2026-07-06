@@ -25,6 +25,18 @@ export const SEGMENT_PACE_MAX_S_KM = 12 * 60;
 
 // ─── §3.3 Propriété, vol, protection ─────────────────────────────────────────
 export const HEX_LOCK_HOURS = 24; // hex fraîchement capturé involable
+/**
+ * Anti-harcèlement / anti-ping-pong (doc « Clash » §4, retour fondateur « j'ai
+ * couru pour rien ») : une zone FRAÎCHEMENT capturée par autrui est PROTÉGÉE
+ * d'un re-vol immédiat pendant ces heures. Dérive de last_captured_at (=
+ * hex_claims.claimed_at, posé à now() à CHAQUE capture neutral/steal/pioneer,
+ * jamais touché par une simple défense) : un hex dont la dernière capture est
+ * dans cette fenêtre renvoie `blocked_fresh_protection` (0 pt) au lieu d'être
+ * volé. Protection AUTOMATIQUE et TEMPORELLE — jamais achetable (anti
+ * pay-to-win). Plus court que le lock 24 h : c'est l'attribution EXPLICABLE de
+ * la fraîcheur (« zone tout juste prise, laisse-lui le temps »), le lock prend
+ * le relais ensuite. TUNABLE (doc « MVP »). */
+export const FRESH_CAPTURE_PROTECT_HOURS = 6;
 export const NEW_PLAYER_PROTECTION_DAYS = 14; // territoire involable + sans decay
 /**
  * Durée de vie (jours) d'une zone non re-parcourue avant decay → neutre

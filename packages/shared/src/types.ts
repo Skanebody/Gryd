@@ -108,6 +108,7 @@ export type HexOutcome =
   | 'stolen' // +POINTS_STOLEN_HEX
   | 'defended' // +POINTS_DEFENDED_HEX (max 1×/24 h/hex)
   | 'blocked_lock' // lock 24 h d'un autre joueur
+  | 'blocked_fresh_protection' // capture fraîche d'autrui (< FRESH_CAPTURE_PROTECT_HOURS), anti-harcèlement
   | 'blocked_shield' // bouclier actif
   | 'blocked_new_player' // protection compte < 14 j
   | 'blocked_privacy' // zone privée (aucune donnée rendue)

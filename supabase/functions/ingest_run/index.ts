@@ -250,6 +250,11 @@ async function loadHexStates(
         lastDefendedAt: row.last_defended_at
           ? new Date(row.last_defended_at)
           : new Date(row.claimed_at),
+        // last_captured_at = claimed_at : posé à now() à CHAQUE capture
+        // (neutral/steal/pioneer), jamais touché par une défense. Sert la
+        // protection anti-harcèlement d'une capture fraîche (decideClaims →
+        // blocked_fresh_protection). Déjà sélectionné : zéro migration.
+        lastCapturedAt: row.claimed_at ? new Date(row.claimed_at) : null,
         everOwned: true,
       });
     }

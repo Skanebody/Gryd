@@ -8,6 +8,7 @@ import {
   ACTION_COEFF,
   CONTEXT_COEFF,
   type ContextCoeffKey,
+  FRESH_CAPTURE_PROTECT_HOURS,
   HEX_LOCK_HOURS,
   MAX_CLAIMS_PER_DAY,
   POINTS_BASE_PER_ZONE,
@@ -417,4 +418,95 @@ Deno.test('totaux cohérents sur une course mixte (formule §23)', () => {
     STEAL + DEFENSE + CONQUEST + POINTS_PIONEER_BONUS_BY_DENSITY.active, // 13 + 12 + 10 + 5 = 40
   );
   assert(r.results.every((x) => x.points >= 0));
+});
+
+// ─── Protection anti-harcèlement d'une capture fraîche (FRESH_CAPTURE_PROTECT_HOURS) ─
+// Doc « Clash » §4 : une zone d'AUTRUI fraîchement capturée (< la fenêtre) ne peut
+// pas être re-volée ce run → blocked_fresh_protection (0 pt). Dérive de
+// lastCapturedAt (= claimed_at). Automatique + temporelle → jamais achetable.
+
+Deno.test('hex adverse fraîchement capturé (< fenêtre) → blocked_fresh_protection, 0 pt', () => {
+  const states = new Map([[
+    HEX,
+    foeHex({ lastCapturedAt: hoursAgo(FRESH_CAPTURE_PROTECT_HOURS - 1) }),
+  ]]);
+  const r = one([HEX], states, ctx());
+  assertEquals(r.results, [
+    { h3: HEX, outcome: 'blocked_fresh_protection', points: 0, pioneer: false },
+  ]);
+  assertEquals(r.totals.blocked, 1);
+  assertEquals(r.totals.stolen, 0);
+  assertEquals(r.totals.points, 0);
+  assertEquals(FRESH_CAPTURE_PROTECT_HOURS, 6);
+});
+
+Deno.test('hex adverse capturé il y a longtemps (≥ fenêtre) → stolen (protection fraîche expirée)', () => {
+  const states = new Map([[
+    HEX,
+    foeHex({ lastCapturedAt: hoursAgo(FRESH_CAPTURE_PROTECT_HOURS + 1) }),
+  ]]);
+  const r = one([HEX], states, ctx());
+  assertEquals(r.results[0].outcome, 'stolen');
+  assertEquals(r.results[0].points, STEAL);
+});
+
+Deno.test('capture fraîche pile à la borne (= fenêtre) → volable (borne stricte <)', () => {
+  // now - lastCaptured == FRESH_CAPTURE_PROTECT_HOURS exactement → NON protégé.
+  const states = new Map([[
+    HEX,
+    foeHex({ lastCapturedAt: hoursAgo(FRESH_CAPTURE_PROTECT_HOURS) }),
+  ]]);
+  const r = one([HEX], states, ctx());
+  assertEquals(r.results[0].outcome, 'stolen');
+});
+
+Deno.test('MA propre zone fraîchement (re)capturée → NON affectée (défense/cooldown, jamais bloquée)', () => {
+  // owner = ME, capture fraîche : la protection anti-harcèlement ne vise QUE les
+  // hexes d'autrui. Ici lastDefended ancien → défense normale (pas de blocked).
+  const states = new Map([[
+    HEX,
+    foeHex({
+      ownerUserId: ME,
+      lastCapturedAt: hoursAgo(1),
+      lastDefendedAt: hoursAgo(48),
+    }),
+  ]]);
+  const r = one([HEX], states, ctx());
+  assertEquals(r.results[0].outcome, 'defended');
+  assertEquals(r.results[0].points, DEFENSE);
+  assertEquals(r.totals.blocked, 0);
+});
+
+Deno.test('capture fraîche prime sur le lock (les deux actifs → blocked_fresh_protection)', () => {
+  // Une capture fraîche pose AUSSI un lock 24 h : l'attribution explicable doit
+  // être la fraîcheur (priorité §6.0), pas le lock générique.
+  const states = new Map([[
+    HEX,
+    foeHex({
+      lastCapturedAt: hoursAgo(1),
+      lockedUntil: hoursAhead(HEX_LOCK_HOURS - 1),
+    }),
+  ]]);
+  const r = one([HEX], states, ctx());
+  assertEquals(r.results[0].outcome, 'blocked_fresh_protection');
+});
+
+Deno.test('lastCapturedAt absent (rétro-compat) → pas de protection fraîche → stolen', () => {
+  // foeHex() ne pose pas lastCapturedAt : une ligne sans info de fraîcheur reste
+  // volable selon les autres règles (aucune régression sur les vols existants).
+  const st = foeHex();
+  assertEquals(st.lastCapturedAt, undefined);
+  const r = one([HEX], new Map([[HEX, st]]), ctx());
+  assertEquals(r.results[0].outcome, 'stolen');
+});
+
+Deno.test('capture fraîche mais decay échu → neutre (decay prime, pas de faux blocage)', () => {
+  // Un hex au decay échu est neutre AVANT la branche adverse : une capture fraîche
+  // sur une ligne périmée ne doit pas la « protéger » à tort.
+  const states = new Map([[
+    HEX,
+    foeHex({ lastCapturedAt: hoursAgo(1), decayAt: hoursAgo(1) }),
+  ]]);
+  const r = one([HEX], states, ctx());
+  assertEquals(r.results[0].outcome, 'claimed_neutral');
 });

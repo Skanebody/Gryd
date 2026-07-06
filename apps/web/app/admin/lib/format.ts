@@ -64,6 +64,7 @@ export const OUTCOME_LABELS: Record<HexOutcome, string> = {
   defended: 'Défendu',
   already_owned_cooldown: 'Déjà à moi (cooldown 24 h)',
   blocked_lock: 'Bloqué — lock 24 h',
+  blocked_fresh_protection: 'Bloqué — zone fraîchement capturée (protégée)',
   blocked_shield: 'Bloqué — bouclier',
   blocked_new_player: 'Bloqué — nouveau joueur protégé',
   blocked_privacy: 'Bloqué — zone privée',

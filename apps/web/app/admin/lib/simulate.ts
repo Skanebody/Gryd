@@ -364,6 +364,7 @@ const KIND_BY_OUTCOME: Record<HexOutcome, MapHexKind> = {
   defended: 'mine',
   already_owned_cooldown: 'mine',
   blocked_lock: 'blocked',
+  blocked_fresh_protection: 'blocked',
   blocked_shield: 'blocked',
   blocked_new_player: 'blocked',
   blocked_privacy: 'blocked',

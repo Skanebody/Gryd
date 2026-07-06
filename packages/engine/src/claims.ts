@@ -18,7 +18,9 @@
  *   5. neutre                     → claimed_neutral (action conquest/clean_loop/
  *                                   route × contexte, + bonus pionnier par densité
  *                                   si jamais possédé)
- *   6. adverse : lock actif       → blocked_lock
+ *   6. adverse : capture fraîche   → blocked_fresh_protection (anti-harcèlement,
+ *                (< FRESH_CAPTURE_PROTECT_HOURS)  0 pt — priorité sur le lock)
+ *                lock actif       → blocked_lock
  *                bouclier actif   → blocked_shield
  *                propriétaire<14j → blocked_new_player
  *                sinon            → stolen (action ×1,3)
@@ -34,6 +36,7 @@
  */
 import {
   DEFEND_COOLDOWN_HOURS,
+  FRESH_CAPTURE_PROTECT_HOURS,
   HEX_LOCK_HOURS,
   MAX_CLAIMS_PER_DAY,
   NEW_PLAYER_PROTECTION_DAYS,
@@ -59,6 +62,15 @@ export interface HexState {
   decayAt: Date | null;
   /** Dernière défense/capture (colonne last_defended_at, AMENDEMENT-23 §D). */
   lastDefendedAt: Date | null;
+  /**
+   * Dernière CAPTURE de l'hex par son propriétaire actuel (colonne
+   * hex_claims.claimed_at : posée à now() à CHAQUE neutral/steal/pioneer, JAMAIS
+   * touchée par une défense — donc = « last_captured_at »). Sert la protection
+   * anti-harcèlement d'une capture fraîche (FRESH_CAPTURE_PROTECT_HOURS). Optionnel
+   * pour rétro-compat : absent/null → pas de fraîcheur connue → aucune protection
+   * fraîche (l'hex reste volable selon les autres règles). Aucune migration :
+   * loadHexStates le dérive de claimed_at, déjà sélectionné. */
+  lastCapturedAt?: Date | null;
   /** true si l'hex a déjà eu un propriétaire (bonus pionnier = jamais possédé). */
   everOwned: boolean;
 }
@@ -248,6 +260,18 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
     }
 
     // 6. Adverse : protections puis vol.
+    // 6.0 Capture fraîche d'autrui → protection anti-harcèlement (doc « Clash »
+    // §4). Priorité sur le lock : le re-vol d'une zone tout juste prise est bloqué
+    // et EXPLIQUÉ comme tel (« laisse-lui le temps ») tant que la dernière capture
+    // date de < FRESH_CAPTURE_PROTECT_HOURS. Fenêtre plus courte que le lock 24 h,
+    // qui prend le relais ensuite. Automatique + temporelle → jamais achetable.
+    const lastCaptured = state?.lastCapturedAt ?? null;
+    const freshlyCaptured = lastCaptured !== null &&
+      nowMs - lastCaptured.getTime() < FRESH_CAPTURE_PROTECT_HOURS * MS_PER_HOUR;
+    if (freshlyCaptured) {
+      push({ h3: hex, outcome: 'blocked_fresh_protection', points: 0, pioneer: false });
+      continue;
+    }
     if (isActive(state?.lockedUntil ?? null)) {
       push({ h3: hex, outcome: 'blocked_lock', points: 0, pioneer: false });
       continue;
