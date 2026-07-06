@@ -26,7 +26,8 @@ De « produit dense » à « beta live ». Chaque étape : **qui fait quoi**, d�
 
 ## 5. 🔴 Apple Developer + dev build EAS (O8) — GPS/HealthKit réels + TestFlight
 - **Toi** : enrôlement **Apple Developer** (99 $/an, `developer.apple.com`) + (Android) compte Play Console (25 $ une fois).
-- **Moi + toi** : `eas login` (ton compte Expo) → `eas build --profile development --platform ios` → tu installes le build sur ton iPhone (ou TestFlight). Là seulement : **vrai GPS**, **Apple Health/HealthKit**, capture d'une vraie course. C'est le seul moyen de générer de la vraie donnée (le preview web n'a pas de GPS). Puis **TestFlight** pour la beta fermée.
+- **Séquence exacte** (une fois le compte Apple prêt) : `eas login` (ton compte Expo) → `npx expo install expo-dev-client` (absent aujourd'hui — requis par le profil `development`) → `eas init` (lie le projet, écrit `extra.eas.projectId` dans app.json) → `eas build --profile development --platform ios` → installe sur ton iPhone. Là seulement : **vrai GPS**, capture d'une vraie course. Pour **HealthKit** (Apple Health) : à ce moment j'ajoute `react-native-health` + l'entitlement HealthKit + `NSHealthShareUsageDescription` dans app.json (l'adaptateur `appleHealth.ts` est un stub honnête qui documente ce câblage). Puis **TestFlight** pour la beta fermée.
+- **Déjà prêt de mon côté** : `eas.json` (profils development/preview/production, build device pour le GPS, env Supabase) ; `app.json` (permissions GPS iOS/Android + background location). Le build part dès `expo-dev-client` + `eas init`.
 - **Sans ça** : la base reste vide (aucune vraie course possible). C'est LE mur.
 
 ## 6. 🟢 Tuiles prod (O6) — optionnel
