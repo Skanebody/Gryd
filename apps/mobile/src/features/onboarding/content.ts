@@ -19,7 +19,6 @@ export const ONBOARDING_STEPS = [
   'sync', // 4a — import démo (branche « J'ai déjà des runs »)
   'run', // 4b — premier run 1 tap (branche « Je vais courir »)
   'capture', // 5 — 1re capture, moment signature
-  'invite', // 5b — amène ton crew (seeding densité, APRÈS la valeur — AMENDEMENT-31 §1)
   'account', // 6 — création de compte APRÈS la valeur
   'crew', // 7 — rejoindre / créer un crew
   'notifications', // 8 — opt-in notifs cadré
@@ -41,7 +40,6 @@ export const STEP_EVENT_N: Record<OnboardingStep, number> = {
   sync: 5,
   run: 6,
   capture: 7, // activation = 1re capture (métrique nord, §4)
-  invite: 8, // seeding densité — le moat crew, mesuré juste après l'activation
   account: 9,
   crew: 10,
   notifications: 11,
@@ -127,35 +125,6 @@ export const CAPTURE = {
   /** Actions proposées (jamais imposées). */
   share: 'Partager',
   cta: 'Continuer',
-} as const;
-
-/**
- * 5b — AMÈNE TON CREW : seeding densité, APRÈS la 1re capture (AMENDEMENT-31 §1
- * [P0], teardown Strava §2). Le moat DENSITÉ : un crew = rétention + clustering
- * géo. Jamais imposé (§7 : après la valeur — le joueur a déjà pris sa 1re zone).
- * Le lien est CÂBLÉ DÉMO (build via crew/invite ; deep link réel = prod). Copy
- * orientée « prends le quartier à plusieurs », jamais une promesse d'avantage
- * (anti pay-to-win : inviter amène des joueurs, pas du territoire).
- */
-export const INVITE = {
-  kicker: 'AMÈNE TON CREW',
-  /** Titre court, non tronqué — la promesse densité en une phrase. */
-  title: 'Prends le quartier à plusieurs.',
-  tagline:
-    'Seul tu prends des rues. À trois, vous tenez le quartier. Envoie ton lien, courez du même côté.',
-  /** Étiquette au-dessus du lien de partage démo. */
-  linkLabel: 'TON LIEN D’INVITE',
-  /** Objectif doux (jamais un quota bloquant) — « invite 3 potes ». */
-  goal: 'Invite 3 potes pour verrouiller ton quartier.',
-  /** CTA primaire (verbe contextuel — jamais « GO »). */
-  cta: 'Partager mon lien',
-  /** Action secondaire : copier le lien (icône + libellé). */
-  copy: 'Copier le lien',
-  /** Feedbacks courts (toast) — jamais bloquants. */
-  copied: 'Lien copié',
-  shared: 'Lien prêt à envoyer',
-  /** Sortie douce — on n'impose jamais (la valeur est déjà donnée). */
-  skip: 'Plus tard',
 } as const;
 
 /** 6 — Création de compte APRÈS la valeur (§6). Jamais un mur en écran 1. */
