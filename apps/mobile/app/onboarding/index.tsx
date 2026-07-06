@@ -41,6 +41,7 @@ import {
   CITY,
   CREW,
   HOOK,
+  INVITE,
   NOTIFICATIONS,
   PERMISSION,
   RUN,
@@ -48,6 +49,12 @@ import {
   SYNC,
   type OnboardingStep,
 } from '../../src/features/onboarding/content';
+import {
+  buildInviteLink,
+  copyInviteLink,
+  demoInviteToken,
+  shareInviteLink,
+} from '../../src/features/crew/invite';
 import {
   SYNC_DEMO_RUN,
   SYNC_PHASES,
@@ -60,6 +67,7 @@ import {
 import {
   CaptureFillVisual,
   CityBoard,
+  CrewDensityBoard,
   HookMapBackground,
   SyncProgressBar,
 } from '../../src/features/onboarding/visuals';
@@ -138,7 +146,10 @@ export default function OnboardingScreen() {
         />
       ) : null}
       {step === 'capture' ? (
-        <CaptureStep reduce={reduce} onNext={() => go('account')} />
+        <CaptureStep reduce={reduce} onNext={() => go('invite')} />
+      ) : null}
+      {step === 'invite' ? (
+        <InviteStep onNext={() => go('account')} onSkip={() => go('account')} />
       ) : null}
       {step === 'account' ? <AccountStep onNext={() => go('crew')} /> : null}
       {step === 'crew' ? (
@@ -550,6 +561,85 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 5b — AMÈNE TON CREW (AMENDEMENT-31 §1) : seeding densité, APRÈS la capture
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * « Prends le quartier à plusieurs » — l'étape densité, juste après la 1re
+ * capture (le joueur vient de prendre sa 1re zone → on lui montre qu'à plusieurs
+ * il TIENT le quartier). Un lien de partage démo (build via crew/invite) +
+ * [Partager] (CTA) + [Copier] (secondaire) + [Plus tard]. Jamais imposé (§7).
+ * CÂBLÉ DÉMO : lien réaliste `gryd.run/c/…` ; l'invite réelle = deep link prod.
+ * ANTI PAY-TO-WIN : inviter n'achète rien, ne donne aucun territoire — social pur.
+ */
+function InviteStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  // Lien démo dérivé d'un nom de crew de scénario (prod : code émis serveur).
+  const link = buildInviteLink(demoInviteToken('Foulées 93'));
+  // Feedback court sous le lien (jamais bloquant) — « Lien copié » / « prêt ».
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const doShare = async () => {
+    haptics.medium();
+    // §8 : l'invite est le levier densité — on log l'INTENTION (câblé démo).
+    track(EVENTS.inviteSent, { via: 'onboarding_share' });
+    const res = await shareInviteLink(link);
+    if (res.ok) {
+      track(EVENTS.shareCompleted, { channel: res.via });
+      setFeedback(INVITE.shared);
+      haptics.success();
+      // Le partage abouti fait avancer le flow (la valeur densité est passée).
+      onNext();
+    }
+    // Un « annulé » ne fait rien avancer (l'utilisateur reste sur l'écran).
+  };
+
+  const doCopy = async () => {
+    haptics.light();
+    track(EVENTS.inviteSent, { via: 'onboarding_copy' });
+    const res = await copyInviteLink(link);
+    if (res.ok) {
+      setFeedback(res.via === 'clipboard' ? INVITE.copied : INVITE.shared);
+      haptics.success();
+    }
+  };
+
+  return (
+    <View style={styles.step}>
+      <View style={styles.body}>
+        <Kicker>{INVITE.kicker}</Kicker>
+        <Text style={styles.title}>{INVITE.title}</Text>
+        <View style={styles.boardWrap}>
+          <CrewDensityBoard />
+        </View>
+        <Text style={styles.tagline}>{INVITE.tagline}</Text>
+
+        {/* Le lien de partage (démo) : étiquette + URL lisible + Copier inline. */}
+        <Text style={styles.inviteLinkLabel}>{INVITE.linkLabel}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${INVITE.copy} — ${link}`}
+          onPress={() => void doCopy()}
+          style={({ pressed }) => [styles.inviteLinkRow, pressed && styles.pressed]}
+        >
+          <Icon name="lien" size={18} color={colors.chartreuse} />
+          <Text style={styles.inviteLinkText} numberOfLines={1}>
+            {link.replace('https://', '')}
+          </Text>
+          <Icon name="copier" size={18} color={colors.gris} />
+        </Pressable>
+
+        {/* Objectif doux + feedback (jamais un quota bloquant). */}
+        <Text style={styles.inviteGoal}>{feedback ?? INVITE.goal}</Text>
+      </View>
+      <View style={styles.footer}>
+        <PrimaryCta label={INVITE.cta} icon="partage" onPress={() => void doShare()} />
+        <SkipLink label={INVITE.skip} onPress={onSkip} />
+      </View>
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 6 — COMPTE APRÈS LA VALEUR (§6) : Apple / passkey, 1 tap. Jamais un mur.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -888,4 +978,36 @@ const styles = StyleSheet.create({
   },
   captureUnit: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
   captureSub: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 8 },
+
+  // ── 5b INVITE : lien de partage démo (une couche, pas de card-dans-card) ──
+  inviteLinkLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  inviteLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 52,
+    paddingHorizontal: 16,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  inviteLinkText: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '500',
+  },
+  inviteGoal: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.4,
+    marginTop: 12,
+  },
 });

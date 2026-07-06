@@ -1,0 +1,709 @@
+/*
+ * GRYD Premium — page /abonnement (AMENDEMENT-31 §4).
+ * Charte ADDENDUM-DESIGN §C : noir/blanc/chartreuse #B4FF0D, dark-first,
+ * JAMAIS de chartreuse sur fond clair. Tokens de globals.css uniquement.
+ * §A : 1 écran = 1 décision · 1 CTA chartreuse par écran · pas de card-dans-card ·
+ * textes non tronqués (jamais « … ») · reduce motion respecté.
+ * Le seul CTA chartreuse de la page = « Activer GRYD Premium » (carte Premium).
+ */
+
+/* ── Squelette de page ───────────────────────────────────────────────────── */
+.page {
+  min-height: 100vh;
+  background: var(--fond);
+  color: var(--blanc);
+}
+
+.main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 24px 96px;
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 20px 18px 72px;
+  }
+}
+
+/* Barre de retour minimale (pas la nav landing — page autonome). */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 8px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: var(--blanc);
+  font-family: var(--disp);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.back {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 200ms ease-out;
+}
+
+.back:hover {
+  color: var(--blanc);
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.hero {
+  padding: 56px 0 40px;
+  max-width: 44ch;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 40px 0 28px;
+  }
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-bottom: 16px;
+}
+
+.kicker b {
+  color: var(--ch);
+  font-weight: inherit;
+}
+
+.heroTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: clamp(34px, 6vw, 60px);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+
+.heroSub {
+  color: var(--gris);
+  font-size: 17px;
+  line-height: 1.6;
+  margin-top: 18px;
+  max-width: 52ch;
+}
+
+/* ── Bandeau « Le territoire ne s'achète jamais » (cohérence Arsenal) ─────── */
+.creed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 20px;
+  background: color-mix(in srgb, var(--carbone) 72%, transparent);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 20px 24px;
+  margin-top: 8px;
+}
+
+.creedTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  color: var(--blanc);
+}
+
+.creedIcon {
+  color: var(--ch);
+  flex: none;
+}
+
+.creedList {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.creedItem {
+  font-size: 13px;
+  color: var(--gris);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+}
+
+.creedItem s {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.creedNote {
+  flex-basis: 100%;
+  color: var(--gris);
+  font-size: 13.5px;
+  line-height: 1.6;
+  max-width: 74ch;
+}
+
+.creedNote b {
+  color: var(--blanc);
+  font-weight: 500;
+}
+
+/* ── Sections génériques ─────────────────────────────────────────────────── */
+.section {
+  margin-top: 72px;
+}
+
+@media (max-width: 640px) {
+  .section {
+    margin-top: 56px;
+  }
+}
+
+.sectionHead {
+  max-width: 60ch;
+}
+
+.sectionKicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.sectionSub {
+  color: var(--gris);
+  font-size: 15.5px;
+  line-height: 1.6;
+  margin-top: 12px;
+  max-width: 60ch;
+}
+
+/* ── Toggle mensuel / annuel (annuel par défaut) ─────────────────────────── */
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}
+
+.toggle {
+  display: inline-flex;
+  padding: 4px;
+  gap: 3px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: var(--carbone);
+}
+
+.toggleBtn {
+  border: none;
+  background: transparent;
+  color: var(--gris);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    color 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.toggleActive {
+  background: var(--carbone2);
+  color: var(--blanc);
+}
+
+.saveNote {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--ch);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+.saveVisible {
+  opacity: 1;
+}
+
+/* ── Grille de plans ─────────────────────────────────────────────────────── */
+.plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 28px;
+  align-items: stretch;
+}
+
+@media (max-width: 980px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
+}
+
+.plan {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 26px 24px;
+}
+
+/* Highlight Premium : contour + halo chartreuse (porte le seul CTA primaire). */
+.planHighlight {
+  border-color: var(--ch40);
+  box-shadow: 0 0 40px var(--ch14);
+}
+
+/* Founder : accent or (édition limitée, usage « badge Fondateur » autorisé). */
+.planFounder {
+  border-color: color-mix(in srgb, var(--or) 30%, transparent);
+  box-shadow: 0 0 32px var(--or-14);
+}
+
+.planHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.planName {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.badgePremium {
+  color: var(--ch);
+  border-color: var(--ch40);
+}
+
+.badgeFounder {
+  color: var(--or);
+  border-color: color-mix(in srgb, var(--or) 40%, transparent);
+  background: var(--or-14);
+}
+
+.tagline {
+  color: var(--gris);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin-top: 12px;
+  min-height: 40px;
+}
+
+.price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 2px;
+  min-height: 48px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .price {
+    animation: priceIn 225ms ease-out;
+  }
+}
+
+@keyframes priceIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.priceValue {
+  font-family: var(--disp);
+  font-weight: 400;
+  font-size: 40px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.priceFree {
+  font-size: 34px;
+}
+
+.priceSuffix {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--gris);
+}
+
+/* Équivalent mensuel de l'annuel (transparence, non tronqué). */
+.priceHint {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--gris);
+  min-height: 16px;
+  margin-bottom: 4px;
+}
+
+.priceHint b {
+  color: var(--ch);
+  font-weight: inherit;
+}
+
+.features {
+  list-style: none;
+  margin: 20px 0 26px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1;
+}
+
+.feature {
+  position: relative;
+  padding-left: 22px;
+  color: var(--gris);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.feature::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--ligne);
+}
+
+.planHighlight .feature::before {
+  background: var(--ch40);
+}
+
+.planFounder .feature::before {
+  background: var(--or);
+}
+
+/* Rappel anti-P2W sur chaque plan payant (la preuve vit sur l'objet). */
+.planGuard {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gris);
+  border-top: 1px solid var(--ligne);
+  padding-top: 14px;
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+.cta {
+  width: 100%;
+  height: 52px;
+}
+
+/* CTA « déjà inclus » du plan Gratuit : pas un bouton d'achat, juste un état. */
+.ctaState {
+  width: 100%;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--gris);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ── Timeline d'essai transparente (emprunt Strava /subscribe) ───────────── */
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 28px;
+}
+
+@media (max-width: 780px) {
+  .timeline {
+    grid-template-columns: 1fr;
+  }
+}
+
+.step {
+  position: relative;
+  padding: 22px 22px 22px 24px;
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+}
+
+/* Étape « aujourd'hui » = état actif (contour chartreuse, §A.3 réservé actif). */
+.stepNow {
+  border-color: var(--ch40);
+}
+
+.stepRail {
+  position: absolute;
+  left: 24px;
+  top: 22px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gris);
+}
+
+.stepNow .stepRail {
+  background: var(--ch);
+  box-shadow: 0 0 0 4px var(--ch14);
+}
+
+.stepWhen {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+  padding-left: 22px;
+}
+
+.stepNow .stepWhen {
+  color: var(--ch);
+}
+
+.stepTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  margin-top: 10px;
+}
+
+.stepBody {
+  color: var(--gris);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin-top: 8px;
+}
+
+.timelineNote {
+  color: var(--gris);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin-top: 18px;
+  font-family: var(--serif);
+  font-style: italic;
+  max-width: 70ch;
+}
+
+/* ── Gérer mon abonnement (stub démo) ────────────────────────────────────── */
+.manage {
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 26px 24px;
+  margin-top: 28px;
+}
+
+.manageRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.manageStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ch);
+  border: 1px solid var(--ch40);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  align-self: flex-start;
+}
+
+.statusPillOff {
+  color: var(--gris);
+  border-color: var(--ligne);
+}
+
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.manageLine {
+  color: var(--gris);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.manageLine b {
+  color: var(--blanc);
+  font-weight: 500;
+}
+
+.manageBtn {
+  height: 46px;
+  padding: 0 22px;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--blanc);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 200ms ease-out;
+  white-space: nowrap;
+}
+
+.manageBtn:hover {
+  border-color: color-mix(in srgb, var(--blanc) 26%, transparent);
+}
+
+.manageHint {
+  color: var(--gris);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-top: 16px;
+  border-top: 1px solid var(--ligne);
+  padding-top: 14px;
+}
+
+/* ── Note démo / Stripe (câblage) ────────────────────────────────────────── */
+.demoNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 40px;
+  color: var(--gris);
+  font-size: 12.5px;
+  line-height: 1.55;
+  max-width: 74ch;
+}
+
+.demoNote svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--gris);
+}
+
+.demoNote b {
+  color: var(--blanc);
+  font-weight: 500;
+}
+
+/* Toast démo (câble paiement = intention ; prod = Stripe, O-item). */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 460px);
+  background: var(--carbone2);
+  border: 1px solid var(--ch40);
+  border-radius: var(--radius-pill);
+  padding: 13px 20px;
+  color: var(--blanc);
+  font-size: 13.5px;
+  line-height: 1.4;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.toastShown {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toastIcon {
+  color: var(--ch);
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggleBtn,
+  .saveNote,
+  .price,
+  .back,
+  .manageBtn,
+  .toast {
+    transition: none;
+    animation: none;
+  }
+}

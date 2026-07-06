@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { TerritoryFranceMap } from '../src/features/territory/TerritoryFranceMap';
 import { TERRITORY_PAGE_DEMO } from '../src/features/territory/pageDemo';
+import { ZoneLeaderboard } from '../src/features/territory/ZoneLeaderboard';
+import { DEFAULT_ZONE_LEADERBOARD } from '../src/features/territory/leaderboardDemo';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { formatInt } from '../src/ui/format';
@@ -120,6 +122,12 @@ export default function TerritoireScreen() {
             </View>
           ))}
         </Section>
+
+        {/* ── CLASSEMENT DE LA ZONE (AMENDEMENT-31 §3) ────────────────────────
+            Emprunt Strava (segment/KOM) rendu GRYD : sur la zone la plus
+            disputée (Canal), top conquérants/défenseurs + hook « raison de
+            revenir ». Section légère, pas de card-dans-card (§A3). */}
+        <ZoneLeaderboard data={DEFAULT_ZONE_LEADERBOARD} />
 
         {/* ── À DÉFENDRE ──────────────────────────────────────────────────── */}
         <Section title="À DÉFENDRE" count={d.threats.length}>

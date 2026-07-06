@@ -70,6 +70,7 @@ import {
   Segmented,
   WarEventCard,
   usePulse,
+  type WarEventReaction,
 } from '../../src/ui/game';
 import {
   ACTIVITY_STATUS_LABELS,
@@ -106,10 +107,20 @@ import {
   type ActionCardDemo,
   type BonusActionCard as BonusActionCardData,
   type ChatFilter,
+  type CrewReactionKey,
   type DefenseRsvp,
   type GiftCardDemo,
+  type WarLogEntryDemo,
+  type WarLogType,
 } from '../../src/features/crew/feed';
 import { ReactionBar } from '../../src/features/crew/ReactionBar';
+import {
+  CONQUEST_REACTIONS,
+  resolveConquestReactions,
+  seedConquestReactions,
+  toggleConquestReaction,
+  useConquestReactions,
+} from '../../src/features/crew/conquestReactions';
 import {
   GIFT_REACTIONS,
   resolveGiftReactions,
@@ -492,6 +503,71 @@ function BonusActionCard({
 }
 
 /**
+ * Types d'événements War Log qui sont une CONQUÊTE d'un coéquipier (§31.2) :
+ * une zone reprise (`reprise`) ou une frontière fermée qui capture la zone
+ * (`boundaryCompleted`). Seuls ceux-ci portent les kudos GRYD Respect/Feu/
+ * Défends-la (les autres events gardent la barre de réactions générique).
+ */
+const CONQUEST_EVENT_TYPES = new Set<WarLogType>(['reprise', 'boundaryCompleted']);
+
+/** true si l'event est la conquête d'un coéquipier → kudos GRYD persistés. */
+function isConquestEvent(type: WarLogType): boolean {
+  return CONQUEST_EVENT_TYPES.has(type);
+}
+
+/**
+ * Compteurs de départ des kudos de conquête (démo), dérivés des réactions
+ * génériques déjà portées par l'event dans feed.ts (POSITIVES : raid/respect/
+ * legend…). On mappe vers les 3 kudos GRYD sans toucher feed.ts : Respect ←
+ * respect ; Feu ← raid + fast + legend (l'élan de la prise) ; Défends-la ←
+ * defense + hold (tenir la zone). Jamais négatif (§11).
+ */
+function conquestSeedFor(
+  reactions: Partial<Record<CrewReactionKey, number>>,
+): Partial<Record<'respect' | 'feu' | 'defends', number>> {
+  const r = (k: CrewReactionKey) => reactions[k] ?? 0;
+  return {
+    respect: r('respect'),
+    feu: r('raid') + r('fast') + r('legend'),
+    defends: r('defense') + r('hold'),
+  };
+}
+
+/**
+ * Carte de CONQUÊTE d'un coéquipier (§31.2, emprunt kudos Strava rendu GRYD).
+ * Rend l'event via WarEventCard avec ses réactions natives câblées sur le store
+ * PERSISTÉ (conquestReactions.ts) : Respect · Feu · Défends-la (picto GRYD, pas
+ * d'emoji). Anti-shame : compteurs POSITIFS seulement, on salue la prise —
+ * jamais de « perdu », jamais de compteur négatif. Zéro effet de jeu.
+ */
+function ConquestEventCard({ item }: { item: WarLogEntryDemo }) {
+  // Seed idempotent des compteurs de départ (avant tout tap), dérivé des
+  // réactions génériques positives de l'event (pas d'édition de feed.ts).
+  seedConquestReactions(item.id, conquestSeedFor(item.reactions));
+  const state = resolveConquestReactions(item.id);
+  const reactions: readonly WarEventReaction[] = CONQUEST_REACTIONS.map((r) => ({
+    icon: r.icon,
+    count: state.counts[r.key] ?? 0,
+    mine: state.mine[r.key] === true,
+  }));
+  return (
+    <WarEventCard
+      icon={WAR_LOG_META[item.type].icon}
+      message={item.message}
+      zone={item.zone}
+      points={item.points}
+      minutesAgo={item.minutesAgo}
+      tint={warLogTint(item)}
+      reactions={reactions}
+      onReact={(icon) => {
+        const def = CONQUEST_REACTIONS.find((r) => r.icon === icon);
+        if (def) toggleConquestReaction(item.id, def.key);
+      }}
+    />
+  );
+}
+
+/**
  * Carte de DON (A.4) : kicker + qui + effet + [Voir] + réactions Merci/Respect/
  * Bien joué (persistées, reactions.ts). Statut social COSMÉTIQUE — la ligne
  * « 12 membres ont remercié Benjamin. » apparaît dès le 1ᵉʳ Merci. Don anonyme
@@ -685,6 +761,8 @@ export default function CrewScreen() {
   const chat = useCrewChat(chatNowBase);
   /** Abonne l'écran au store des réactions de don (re-render à chaque Merci). */
   useGiftReactions();
+  /** Abonne l'écran aux kudos de conquête (re-render à chaque Respect/Feu/Défends-la). */
+  useConquestReactions();
   /** Requêtes émises + dons accomplis + cadeaux offerts (persistés, A.3). */
   const crewRequests = useCrewRequests();
   /** Feuille « Demander » (choix de requête) — null = fermée. */
@@ -1563,17 +1641,25 @@ export default function CrewScreen() {
               {(showAllLog ? warLogEvents : warLogEvents.slice(0, 2)).map((item) =>
                 item.kind === 'event' ? (
                   <View key={item.id} style={styles.feedItem}>
-                    <WarEventCard
-                      icon={WAR_LOG_META[item.type].icon}
-                      message={item.message}
-                      zone={item.zone}
-                      points={item.points}
-                      minutesAgo={item.minutesAgo}
-                      tint={warLogTint(item)}
-                    />
-                    <View style={styles.feedReactions}>
-                      <ReactionBar initial={item.reactions} />
-                    </View>
+                    {isConquestEvent(item.type) ? (
+                      // Conquête d'un coéquipier → kudos GRYD persistés dans la
+                      // carte (Respect · Feu · Défends-la), pas de barre générique.
+                      <ConquestEventCard item={item} />
+                    ) : (
+                      <>
+                        <WarEventCard
+                          icon={WAR_LOG_META[item.type].icon}
+                          message={item.message}
+                          zone={item.zone}
+                          points={item.points}
+                          minutesAgo={item.minutesAgo}
+                          tint={warLogTint(item)}
+                        />
+                        <View style={styles.feedReactions}>
+                          <ReactionBar initial={item.reactions} />
+                        </View>
+                      </>
+                    )}
                   </View>
                 ) : null,
               )}
