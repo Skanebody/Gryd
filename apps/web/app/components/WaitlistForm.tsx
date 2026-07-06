@@ -1,8 +1,9 @@
 'use client';
 
-import { useActionState } from 'react';
-import { CITIES } from '@klaim/shared';
+import { useActionState, useEffect } from 'react';
+import { CITIES, EVENTS } from '@klaim/shared';
 import { joinWaitlist, type WaitlistFormState } from '../actions';
+import { trackWeb } from '../lib/analytics';
 import { FAKE_WAITLIST_COUNTS, WAITLIST_UNLOCK_THRESHOLD } from '../../lib/waitlist';
 import styles from './WaitlistForm.module.css';
 
@@ -10,6 +11,11 @@ const initialState: WaitlistFormState = { status: 'idle' };
 
 export function WaitlistForm() {
   const [state, formAction, pending] = useActionState(joinWaitlist, initialState);
+
+  // Conversion waitlist = l'event §8 le plus important du site (landing → inscrit).
+  useEffect(() => {
+    if (state.status === 'success') trackWeb(EVENTS.waitlistJoined);
+  }, [state.status]);
 
   if (state.status === 'success') {
     return (

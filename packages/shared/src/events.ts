@@ -4,6 +4,7 @@
 export const EVENTS = {
   // Funnel
   appOpen: 'app_open',
+  waitlistJoined: 'waitlist_joined', // web — inscription à la waitlist (landing)
   onboardingStep: 'onboarding_step', // props: { n }
   signupCompleted: 'signup_completed', // props: { method }
   permissionLocation: 'permission_location', // props: { result }

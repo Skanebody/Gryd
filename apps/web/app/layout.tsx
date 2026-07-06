@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Lora, Poppins, Space_Mono } from 'next/font/google';
 import './globals.css';
+import { PostHogProvider } from './components/PostHogProvider';
 
 /**
  * Typo Outcrowd (AMENDEMENT-03) : ITC Avant Garde Gothic Std (Md titres/UI, Bk texte) + Lora (éditorial).
@@ -57,7 +58,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr" className={`${poppins.variable} ${lora.variable} ${spaceMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <PostHogProvider>{children}</PostHogProvider>
+      </body>
     </html>
   );
 }
