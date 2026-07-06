@@ -16,6 +16,7 @@ export * from './zone.ts';
 export * from './sectors.ts';
 export * from './claims.ts';
 export * from './scoring.ts';
+export * from './engine.ts';
 export * from './badges.ts';
 export * from './skills.ts';
 export * from './crew.ts';

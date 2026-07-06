@@ -29,7 +29,6 @@ import {
   GROUP_RUN_START_TOLERANCE_MIN,
   H3_RESOLUTION,
   HEX_LOCK_HOURS,
-  LOOP_MIN_GPS_TRUST,
   OUTPOST_RADIUS_KM,
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
@@ -58,13 +57,10 @@ import {
   validateRun,
 } from '../_shared/engine/validation.ts';
 import {
-  detectLoop,
   enclosedCells,
   type GeoJsonPolygonal,
   hexesForSegments,
   loopInteriorCellCap,
-  type LoopRejectedReason,
-  loopShapeVerdict,
   loopTracePoints,
   pointInGeoJson,
 } from '../_shared/engine/hexing.ts';
@@ -76,13 +72,15 @@ import {
 } from '../_shared/engine/boundary.ts';
 import { decideClaims, deriveContextByHex, type HexState } from '../_shared/engine/claims.ts';
 import {
-  computeScore,
   distributePointsAdjustment,
   streakMultiplier,
-  verifyFactor,
 } from '../_shared/engine/scoring.ts';
 import { defenseHoursForCoverage, frontierCoverage } from '../_shared/engine/coverage.ts';
 import { extendDecay } from '../_shared/engine/zone.ts';
+import {
+  type OwnershipResolution,
+  runTerritoryEngine,
+} from '../_shared/engine/engine.ts';
 import {
   applyRejectedRun,
   applyRunToStats,
@@ -2066,44 +2064,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // MAX_CLAIMS_PER_DAY (total couloir + intérieur), c'est l'intérieur le
     // plus loin du tracé qui est tronqué (blocked_daily_cap). Chaque cellule
     // intérieure passe par les MÊMES règles, une par une.
+    // `loopTrace` reste calculé ICI (trace claimable contiguë) : le moteur le
+    // recalcule à l'identique en interne, mais le reste du handler (frontières
+    // crew partielles, §CH2) le réutilise tel quel plus bas.
     const loopTrace = loopTracePoints(validation.claimable);
-    const loop = loopTrace !== null ? detectLoop(loopTrace) : null;
-    const loopClosed = loop !== null;
-    let loopRejectedReason: LoopRejectedReason | undefined;
-    let capReached = false;
-    let interiorCells: string[] = [];
-    // AMENDEMENT-23 §D : GATE GPS TRUST — une boucle au GPS douteux
-    // (gpsTrust < LOOP_MIN_GPS_TRUST = 80, doc §5) ne capture PAS son intérieur
-    // plein (course + couloir restent valides, comme pour 'narrow'). On réutilise
-    // le motif loopRejectedReason='narrow' (copy « Zone non capturée : forme trop
-    // étroite. » couvre aussi le refus intérieur ; la cause fine est loggée dans
-    // celebration). Empêche de créer une zone pleine sur une trace peu fiable.
-    const loopGpsOk = validation.gpsTrust >= LOOP_MIN_GPS_TRUST;
-    if (loop !== null) {
-      const shape = loopShapeVerdict(loop);
-      if (!shape.ok) {
-        loopRejectedReason = shape.reason; // course valide, intérieur refusé (forme)
-      } else if (!loopGpsOk) {
-        loopRejectedReason = 'narrow'; // course valide, intérieur refusé (GPS < 80)
-      } else {
-        interiorCells = enclosedCells(loop.polygon, hexes);
-        const cellCap = loopInteriorCellCap(distanceM);
-        if (interiorCells.length > cellCap) {
-          interiorCells = interiorCells.slice(0, cellCap); // les plus proches du tracé
-          capReached = true;
-        }
-      }
-    }
-    const interiorSet = new Set(interiorCells);
-    const allHexes = interiorCells.length > 0 ? [...hexes, ...interiorCells] : hexes;
 
-    // ── Lecture d'état + décision (pur) ──────────────────────────────────────
-    // `crew` est chargé ICI (et non plus après la RPC) : le coeff_contexte de la
-    // formule §23 (crew_mission/contested) dépend du crew du coureur ET doit être
-    // décidé AVANT le scoring. Réutilisé tel quel par tout le reste du handler.
-    const states = await loadHexStates(allHexes);
-    const [crew, ownersCreatedAt, privacyHexes, noCaptureHexes, density, claimsToday] =
-      await Promise.all([
+    // ── Pipeline territorial (chemin CONQUÊTE) : UN point d'entrée pur ────────
+    // AMENDEMENT-12 §B + AMENDEMENT-16 §2 + AMENDEMENT-23 §D. `runTerritoryEngine`
+    // EMBALLE la séquence hexing → boucle/intérieur (gate forme + GPS < 80 + cap
+    // d'aire) → decideClaims → scoring qui était câblée ici à la main. Le SEUL
+    // accès I/O est le résolveur `resolveOwnership` injecté ci-dessous : il fait
+    // EXACTEMENT les mêmes lectures DB, dans le MÊME ordre, qu'avant l'extraction.
+    // Extraction mécanique, iso-comportement : mêmes hexes, mêmes claims, même
+    // score, même ordre d'écriture.
+    //
+    // `states`/`crew`/`density` sont chargés DANS le résolveur mais réutilisés par
+    // tout le reste du handler (défense graduée, processCrew, frontières,
+    // avant-postes/routes, célébration) : on les capture depuis le résolveur pour
+    // les garder disponibles à l'identique en aval.
+    let states!: ReadonlyMap<string, HexState>;
+    let crew!: { crewId: string | null; size: number };
+    let density!: ZoneDensity;
+    const resolveOwnership = async (
+      allHexes: readonly string[],
+    ): Promise<OwnershipResolution> => {
+      // `crew` est chargé ICI (et non plus après la RPC) : le coeff_contexte de la
+      // formule §23 (crew_mission/contested) dépend du crew du coureur ET doit être
+      // décidé AVANT le scoring. Réutilisé tel quel par tout le reste du handler.
+      states = await loadHexStates(allHexes);
+      const [
+        loadedCrew,
+        ownersCreatedAt,
+        privacyHexes,
+        noCaptureHexes,
+        loadedDensity,
+        claimsToday,
+      ] = await Promise.all([
         loadCrew(userId),
         loadOwnersCreatedAt(states, userId),
         loadPrivacyHexes(userId, allHexes),
@@ -2111,54 +2107,48 @@ Deno.serve(async (req: Request): Promise<Response> => {
         loadDensity(request.cityId),
         loadClaimsToday(userId, now),
       ]);
+      crew = loadedCrew;
+      density = loadedDensity;
 
-    // AMENDEMENT-23 §D / doc §23 : coeff_contexte par hex (contested/crew_mission),
-    // décidé SERVEUR depuis l'état pré-run + les offensives crew actives. Sans ce
-    // câblage, coeff_contexte valait toujours 1,0 et la moitié « contexte » de la
-    // formule §23 restait inerte (finding). Non pay-to-win : le contexte se gagne
-    // par la situation (rival présent / mission crew), jamais par un achat.
-    const contextByHex = await loadContextByHex(userId, crew.crewId, allHexes, states, now);
+      // AMENDEMENT-23 §D / doc §23 : coeff_contexte par hex (contested/crew_mission),
+      // décidé SERVEUR depuis l'état pré-run + les offensives crew actives. Sans ce
+      // câblage, coeff_contexte valait toujours 1,0 et la moitié « contexte » de la
+      // formule §23 restait inerte (finding). Non pay-to-win : le contexte se gagne
+      // par la situation (rival présent / mission crew), jamais par un achat.
+      const contextByHex = await loadContextByHex(userId, crew.crewId, allHexes, states, now);
 
-    const decision = decideClaims({
-      hexes: allHexes,
-      states,
-      context: {
-        userId,
-        userCreatedAt: new Date(profile.created_at),
-        now,
+      return {
+        states,
         ownersCreatedAt,
         privacyHexes,
         noCaptureHexes,
         zoneDensity: density,
         claimsToday,
-        // AMENDEMENT-23 §D : les cellules INTÉRIEURES d'une boucle bien formée
-        // prennent l'action `clean_loop` (×1,1) — « la boucle propre » du doc §23.
-        // Le couloir garde `conquest` (×1,0), le vol/défense leur action propre.
-        ...(interiorSet.size > 0 ? { interiorHexes: interiorSet } : {}),
-        // coeff_contexte §23 (×1,2 contested / ×1,1 crew_mission) — le plus fort
-        // contexte s'applique par hex (zoneBasePoints), jamais de cumul.
         ...(contextByHex.size > 0 ? { contextByHex } : {}),
-      },
-    });
+      };
+    };
 
-    // ── Scoring (pur) : formule §23 (base) × VERIFY × streak × perf ───────────
-    // AMENDEMENT-23 §D : verify_factor (doc §23) = paliers 80/60 sur le trustScore
-    // (min gpsTrust/motionTrust). ≥80 → ×1,0 (plein) ; ≥60 → ×0,5 (capture
-    // partielle) ; <60 → ×0 (stats only). Ici on est en branche `claimable`
-    // (motionTrust ≥ seuil flag) : le facteur ré-applique le palier fin sur le
-    // score. Puis streak (régularité, cap ×1,5) et performance (0,9-1,15),
-    // multiplicateurs EXTERNES orthogonaux (jamais pay-to-win).
-    const runVerifyFactor = verifyFactor(validation.trustScore);
-    const score = computeScore({
-      basePoints: decision.totals.points,
+    const territory = await runTerritoryEngine({
+      claimable: validation.claimable,
+      gpsTrust: validation.gpsTrust,
+      trustScore: validation.trustScore,
+      distanceM,
+      now,
+      userId,
+      userCreatedAt: new Date(profile.created_at),
       streakWeeks: profile.streak_weeks,
       isClub: profile.is_club,
-      verifyFactor: runVerifyFactor,
-      performance: {
-        dataReliability: validation.gpsTrust / 100,
-        isRegular: profile.streak_weeks >= 1,
-      },
+      resolveOwnership,
     });
+    // `hexes` (couloir) reste la constante calculée plus haut (§Hexing, ligne
+    // `hexesForSegments`) : le moteur la recalcule à l'identique en interne, mais
+    // le reste du handler la référence déjà — on ne la re-déclare pas. Le moteur
+    // rend le RESTE (intérieur, décision, score, verdict de boucle).
+    const { interiorCells, loopClosed, capReached, decision, score } = territory;
+    const loopRejectedReason = territory.loopRejectedReason;
+    // `interiorSet` reste dérivé ici (le couloir vs l'intérieur d'une boucle sert
+    // au comptage des zones fermées de la célébration, plus bas).
+    const interiorSet = new Set(interiorCells);
 
     // ── Insert runs PUIS RPC (claim_hexes vérifie l'existence du run) ────────
     const inserted = await insertRun({
