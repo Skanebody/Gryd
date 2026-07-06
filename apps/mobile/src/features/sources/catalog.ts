@@ -65,10 +65,14 @@ export const VERIFY_SOURCES: readonly VerifySourceDef[] = [
     path: 'Import + vérif',
   },
   {
+    // Adaptateur + edge `strava_import` prêts, MAIS l'API Strava est désormais
+    // réservée aux abonné(e)s (O7 : clés + abonnement) → on ne l'annonce plus
+    // comme connectable immédiatement. Apple Santé / Health Connect prennent la
+    // tête (gratuits). Repasser à 'connectable' dès que O7 est levé.
     key: 'strava',
     name: 'Strava',
     icon: 'route',
-    availability: 'connectable',
+    availability: 'soon',
     trust: 'medium',
     path: 'Vérification requise',
   },
