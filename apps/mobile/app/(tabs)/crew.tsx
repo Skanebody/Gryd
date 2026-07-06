@@ -22,6 +22,7 @@ import {
   type SetStateAction,
 } from 'react';
 import {
+  Alert,
   Animated,
   Modal,
   Pressable,
@@ -189,9 +190,22 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 function EmptyState() {
-  const todoCrewFlow = (step: string) => {
+  const todoCrewFlow = (step: 'create' | 'join') => {
     // TODO(O1) : création / rejoindre un crew (crew_created, crew_joined §8).
-    if (__DEV__) console.log(`[crew] ${step} — flux crew à venir (O1)`);
+    // En attendant le flux serveur, le bouton répond honnêtement au tap.
+    if (step === 'create') {
+      Alert.alert(
+        'Créer mon crew',
+        'La création de crew arrive très bientôt. En attendant, explore les crews autour de toi et rejoins-en un en un tap.',
+        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
+      );
+    } else {
+      Alert.alert(
+        'Rejoindre avec un code',
+        'Rejoindre un crew par code arrive très bientôt. En attendant, explore les crews autour de toi.',
+        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
+      );
+    }
   };
   return (
     <TabScreen

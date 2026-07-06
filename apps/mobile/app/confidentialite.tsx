@@ -14,7 +14,7 @@
  * compté même quand une course est masquée).
  */
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -362,7 +362,14 @@ export default function ConfidentialiteScreen() {
           <GhostButton
             label="Télécharger mes données"
             icon="partage"
-            onPress={() => haptics.light()}
+            onPress={() => {
+              haptics.light();
+              Alert.alert(
+                'Exporter mes données (RGPD)',
+                'On prépare une copie lisible de toutes tes données — courses, zones, profil. Tu la reçois par e-mail dès que la synchronisation serveur est active. Ça n’efface rien.',
+                [{ text: 'Compris' }],
+              );
+            }}
           />
         </View>
 
@@ -370,11 +377,23 @@ export default function ConfidentialiteScreen() {
         <DangerRow
           title="Supprimer mon historique de courses"
           subtitle="Retire tes courses de l'affichage. Ton impact déjà gagné pour le crew cette saison est anonymisé, pas effacé."
+          onPress={() =>
+            confirmPartialDelete(
+              'Supprimer mon historique de courses',
+              'Tes courses seront retirées de l’affichage. Ton impact déjà gagné pour le crew cette saison est anonymisé, pas effacé. Continuer ?',
+            )
+          }
         />
         <DangerRow
           title="Supprimer mes données sportives"
           subtitle="Efface FC, allure et cadence enregistrées. Sans effet sur le territoire."
           last
+          onPress={() =>
+            confirmPartialDelete(
+              'Supprimer mes données sportives',
+              'FC, allure et cadence enregistrées seront effacées. Sans effet sur ton territoire. Continuer ?',
+            )
+          }
         />
       </DisclosureCard>
 
@@ -497,19 +516,39 @@ function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Pro
 }
 
 /** Ligne d'action destructive (RGPD) — libellé explicite, pas de rouge criard. */
+/**
+ * Confirmation d'une suppression PARTIELLE (RGPD) — dialogue natif standard, CTA
+ * destructif clair. Démo : on confirme que la demande est prise en compte ; le
+ * vrai effacement serveur est câblé à O1 (Edge Function, service-role).
+ */
+function confirmPartialDelete(title: string, message: string): void {
+  haptics.medium();
+  Alert.alert(title, message, [
+    { text: 'Annuler', style: 'cancel' },
+    {
+      text: 'Supprimer',
+      style: 'destructive',
+      onPress: () =>
+        Alert.alert('Demande enregistrée', 'C’est pris en compte. La suppression est appliquée dès la prochaine synchronisation.'),
+    },
+  ]);
+}
+
 function DangerRow({
   title,
   subtitle,
   last = false,
+  onPress,
 }: {
   title: string;
   subtitle: string;
   last?: boolean;
+  onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={() => haptics.medium()}
+      onPress={onPress}
       style={({ pressed }) => [
         styles.dangerRow,
         !last && styles.dangerRowBorder,

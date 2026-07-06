@@ -9,7 +9,7 @@
  * GRYD, texte court, honnête sur ce qui est « bientôt ».
  */
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import {
@@ -45,6 +45,22 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
 
 const APP_VERSION = '0.1.0';
 const NOTIF_ORDER: NotifChannel[] = ['solo', 'crew', 'competition', 'off'];
+
+/** Domaine public GRYD (invites, pages légales). Aligné sur invite.ts / demo.ts. */
+const GRYD_SITE = 'https://gryd.run';
+
+/** Ouvre une page légale publique (Conditions) dans le navigateur — comportement
+ *  attendu par l'App Store pour les CGU. Fallback honnête si l'URL est injoignable. */
+function openLegal(path: string, fallbackTitle: string, fallbackBody: string): void {
+  const url = `${GRYD_SITE}/${path}`;
+  void Linking.openURL(url).catch(() => Alert.alert(fallbackTitle, fallbackBody));
+}
+
+/** Accusé de réception honnête pour un flux pas encore câblé (O1) — le bouton
+ *  répond au tap au lieu de rester muet, en cohérence avec la note « bientôt ». */
+function soonAlert(title: string, body: string): void {
+  Alert.alert(title, body, [{ text: 'Compris' }]);
+}
 
 function isSection(x: string | undefined): x is SettingsSectionId {
   return x !== undefined && (SECTION_IDS as readonly string[]).includes(x);
@@ -129,13 +145,23 @@ export default function SettingsSectionScreen() {
               icon="lien"
               label="Adresse e-mail"
               detail="Modifier l'e-mail du compte"
-              onPress={() => {}}
+              onPress={() =>
+                soonAlert(
+                  'Adresse e-mail',
+                  'La modification de l’e-mail arrive très bientôt. En attendant, écris-nous depuis Aide & support.',
+                )
+              }
             />
             <ActionRow
               icon="verrou"
               label="Sécurité & connexion"
               detail="Apple / Google, appareils connectés"
-              onPress={() => {}}
+              onPress={() =>
+                soonAlert(
+                  'Sécurité & connexion',
+                  'La gestion des connexions Apple / Google et des appareils arrive très bientôt.',
+                )
+              }
             />
             <Soon>Édition du compte bientôt disponible.</Soon>
           </Section>
@@ -196,7 +222,12 @@ export default function SettingsSectionScreen() {
             label="Quitter le crew"
             detail="Tu perds ta contribution au coffre"
             danger
-            onPress={() => {}}
+            onPress={() =>
+              soonAlert(
+                'Quitter le crew',
+                'Quitter un crew depuis l’app arrive très bientôt. Ta contribution au coffre reste comptée jusque-là.',
+              )
+            }
           />
           <Soon>Quitter le crew sera possible depuis l'app bientôt.</Soon>
         </Section>
@@ -274,9 +305,29 @@ export default function SettingsSectionScreen() {
             <ValueRow label="Saison" value="Saison 0 · Paris + Lille" />
           </Section>
           <Section label="LÉGAL">
-            <ActionRow icon="pass" label="Conditions d'utilisation" onPress={() => {}} />
+            <ActionRow
+              icon="pass"
+              label="Conditions d'utilisation"
+              onPress={() =>
+                openLegal(
+                  'conditions',
+                  'Conditions d’utilisation',
+                  'Retrouve les conditions d’utilisation sur gryd.run/conditions.',
+                )
+              }
+            />
             <ActionRow icon="verrou" label="Politique de confidentialité" onPress={() => router.push('/confidentialite')} />
-            <ActionRow icon="crest" label="Licences open source" onPress={() => {}} />
+            <ActionRow
+              icon="crest"
+              label="Licences open source"
+              onPress={() =>
+                Alert.alert(
+                  'Licences open source',
+                  'GRYD s’appuie sur des logiciels libres — React Native, Expo, MapLibre, H3, Supabase et d’autres. La liste complète des licences est publiée sur gryd.run/licences.',
+                  [{ text: 'Fermer' }],
+                )
+              }
+            />
             <Soon>Cours. Capture. Défends.</Soon>
           </Section>
         </>
