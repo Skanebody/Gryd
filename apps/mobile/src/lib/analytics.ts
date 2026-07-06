@@ -11,8 +11,14 @@ export type EventProps = Record<string, string | number | boolean | null>;
 
 const posthogKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
 
-/** Hébergement UE (données FR, SPEC §7 / RGPD). */
-const POSTHOG_HOST = 'https://eu.i.posthog.com';
+/**
+ * Hébergement : UE par défaut (données FR, SPEC §7 / RGPD). Configurable via
+ * EXPO_PUBLIC_POSTHOG_HOST — DOIT correspondre à la région du projet PostHog
+ * (eu.i.posthog.com pour un projet UE, us.i.posthog.com pour un projet US ; une
+ * clé projet US envoyée à l'host UE échoue). Un host US implique un transfert
+ * hors UE à divulguer dans la politique de confidentialité.
+ */
+const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://eu.i.posthog.com';
 
 const client: PostHog | null = posthogKey
   ? new PostHog(posthogKey, { host: POSTHOG_HOST })

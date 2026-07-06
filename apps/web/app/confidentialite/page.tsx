@@ -327,8 +327,12 @@ export default function ConfidentialitePage() {
               <b>Authentification</b> (Apple) — connexion via Sign in with Apple.
             </li>
             <li className={styles.item}>
-              <b>Mesure d&rsquo;audience produit</b> (analytics interne) — statistiques
-              d&rsquo;usage agrégées pour améliorer le jeu, sans revente.
+              <b>Mesure d&rsquo;audience produit</b> (PostHog) — statistiques d&rsquo;usage
+              agrégées pour améliorer le jeu, sans revente ni publicité. Les données
+              d&rsquo;analytics sont hébergées par PostHog aux <b>États-Unis</b>&nbsp;: ce
+              transfert hors Union européenne est encadré par les garanties appropriées
+              prévues par le RGPD (clauses contractuelles types et accord de traitement
+              des données conclus avec PostHog).
             </li>
             <li className={styles.item}>
               <b>Paiement</b> (Apple In-App Purchase) — pour les abonnements et achats de
