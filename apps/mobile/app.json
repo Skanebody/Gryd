@@ -1,5 +1,21 @@
 {
   "_note_gps_amendement15": "GPS réel (AMENDEMENT-15 §2) : permissions FINE/BACKGROUND_LOCATION + foregroundService Android, UIBackgroundModes location iOS. Test sur appareil = point ouvert O8 (dev build EAS/Xcode) — le GPS réel ne tourne PAS dans Expo Go web.",
+  "_note_appstore_amendement33": "App Store readiness (AMENDEMENT-33 §2, Guideline 5.1.1) : chaque permission déclare son POURQUOI. NSMotionUsageDescription = anti-triche GRYD Verify (podomètre). NSHealthShareUsageDescription = import optionnel des courses Apple Santé (activable à O8). Le vrai HealthKit (entitlement com.apple.developer.healthkit + plugin natif) est DOCUMENTÉ ci-dessous dans `_healthkit_o8` et volontairement NON branché : l'ajouter maintenant casserait le bundle web (module natif absent en Expo Web). À O8 (dev build EAS/Xcode) : installer `react-native-health` ou `expo-health-connect`, décommenter la config, régénérer le build.",
+  "_healthkit_o8": {
+    "_comment": "GABARIT À ACTIVER À O8 UNIQUEMENT — ne pas ajouter à `expo.plugins` tel quel (casse le build web). Copier ce bloc dans `expo.plugins` après avoir installé le module natif HealthKit et testé sur dev build.",
+    "plugin_a_activer": [
+      "react-native-health",
+      {
+        "isClinicalDataEnabled": false,
+        "healthSharePermission": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire — tu choisis quoi partager.",
+        "healthUpdatePermission": "GRYD n'écrit rien dans Apple Santé : l'accès reste en lecture seule pour importer tes courses."
+      }
+    ],
+    "entitlement_ios": {
+      "com.apple.developer.healthkit": true,
+      "com.apple.developer.healthkit.access": []
+    }
+  },
   "expo": {
     "name": "GRYD",
     "slug": "klaim",
@@ -22,6 +38,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "GRYD utilise ta position pendant tes courses pour capturer les zones que tu traverses sur la carte de ta ville. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
+        "NSMotionUsageDescription": "GRYD lit tes pas/mouvement pour vérifier que ta course est bien une course à pied (anti-triche GRYD Verify).",
+        "NSHealthShareUsageDescription": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire — tu choisis quoi partager.",
         "UIBackgroundModes": ["location"]
       }
     },

@@ -15,6 +15,8 @@
  */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   colors,
   fontSizes,
@@ -49,6 +51,11 @@ import {
   RUN_VISIBILITY_LABELS,
   SOCIAL_AUDIENCE_LABELS,
 } from '../src/features/privacy/labels';
+import {
+  REPORT_REVIEW_HOURS,
+  unblockMember,
+  useModeration,
+} from '../src/features/crew/moderation';
 
 /** Ordres d'options (source des enums = @klaim/shared / store). */
 const PROFILE_OPTS: { value: ProfileVisibility; label: string }[] = (
@@ -81,14 +88,48 @@ type SectionKey =
 
 export default function ConfidentialiteScreen() {
   const { prefs, update, enablePrivateMode } = usePrivacyPrefs();
+  // Joueurs bloqués (store de modération partagé avec le Crew Chat) — la carte
+  // « Blocage & signalement » les liste ici avec un « Débloquer » réel.
+  const { blocked } = useModeration();
   // Section ouverte (résumé + détail : une seule à la fois, aucune par défaut).
   const [openKey, setOpenKey] = useState<SectionKey | null>(null);
+  // Écran de confirmation de suppression de compte (5.1.1v). Plein écran =
+  // 1 écran / 1 décision (§A) : tant qu'il est ouvert, il remplace la page.
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     screen('privacy_settings');
   }, []);
 
   const toggle = (k: SectionKey) => setOpenKey((cur) => (cur === k ? null : k));
+
+  // Suppression de compte (Guideline 5.1.1v) — DÉMO : purge locale complète +
+  // retour onboarding. RÉEL (O1) : appeler l'Edge Function `delete_account`
+  // (service-role) qui efface compte + runs + hex_claims côté serveur, PUIS
+  // faire cette purge locale et déconnecter. Distinct de l'export RGPD.
+  const runAccountDeletion = async () => {
+    haptics.medium();
+    try {
+      // Démo : efface toutes les prefs/état locaux (privacy, motivation,
+      // onboarding, haptics…). Best-effort — un stockage indispo ne bloque rien.
+      await AsyncStorage.clear();
+    } catch {
+      // no-op : on route quand même vers l'onboarding.
+    }
+    router.replace('/onboarding');
+  };
+
+  if (confirmDelete) {
+    return (
+      <DeleteAccountConfirm
+        onCancel={() => {
+          haptics.light();
+          setConfirmDelete(false);
+        }}
+        onConfirm={() => void runAccountDeletion()}
+      />
+    );
+  }
 
   return (
     <StackScreen
@@ -266,15 +307,40 @@ export default function ConfidentialiteScreen() {
       >
         <Note>
           Bloque un joueur pour qu'il ne puisse plus te voir, te contacter, ni interagir avec toi.
-          Signale un comportement à l'équipe GRYD — traité sous 48 h.
+          Signale un message ou un membre depuis le chat de ton crew (menu ··· ou appui long) —
+          chaque signalement est examiné sous {REPORT_REVIEW_HOURS} h.
         </Note>
+        {blocked.length > 0 ? (
+          <>
+            <Text style={styles.miniLabel}>JOUEURS BLOQUÉS</Text>
+            {blocked.map((pseudo) => (
+              <View key={pseudo} style={styles.blockedRow}>
+                <Text style={styles.blockedName} numberOfLines={1}>
+                  {pseudo}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    haptics.light();
+                    unblockMember(pseudo);
+                  }}
+                  hitSlop={8}
+                  style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+                >
+                  <Text style={styles.unblock}>Débloquer</Text>
+                </Pressable>
+              </View>
+            ))}
+          </>
+        ) : null}
         <View style={styles.actionGap}>
           <GhostButton
-            label="Voir les joueurs bloqués"
-            icon="fermer"
-            onPress={() => haptics.light()}
+            label="Lire le code de conduite"
+            icon="bouclier"
+            onPress={() => {
+              haptics.light();
+              router.push('/code-conduite');
+            }}
           />
-          <GhostButton label="Signaler un joueur" icon="alerte" onPress={() => haptics.light()} />
         </View>
       </DisclosureCard>
 
@@ -287,9 +353,10 @@ export default function ConfidentialiteScreen() {
         onToggle={() => toggle('export')}
         danger
       >
+        <Text style={styles.miniLabel}>EXPORTER (RGPD)</Text>
         <Note>
-          Tu peux récupérer une copie de toutes tes données, ou en supprimer une partie. Ces choix
-          sont définitifs.
+          Récupère une copie de toutes tes données — courses, zones, profil — au format lisible.
+          Ça n'efface rien.
         </Note>
         <View style={styles.actionGap}>
           <GhostButton
@@ -299,7 +366,7 @@ export default function ConfidentialiteScreen() {
           />
         </View>
 
-        <Text style={styles.miniLabel}>SUPPRIMER</Text>
+        <Text style={styles.miniLabel}>SUPPRIMER PARTIELLEMENT</Text>
         <DangerRow
           title="Supprimer mon historique de courses"
           subtitle="Retire tes courses de l'affichage. Ton impact déjà gagné pour le crew cette saison est anonymisé, pas effacé."
@@ -307,13 +374,83 @@ export default function ConfidentialiteScreen() {
         <DangerRow
           title="Supprimer mes données sportives"
           subtitle="Efface FC, allure et cadence enregistrées. Sans effet sur le territoire."
-        />
-        <DangerRow
-          title="Supprimer mon compte"
-          subtitle="Efface ton profil et tes données personnelles. Ta contribution passée au crew est anonymisée pour ne pas fausser la saison."
           last
         />
       </DisclosureCard>
+
+      {/* Suppression de compte (Guideline 5.1.1v) — DISTINCTE de l'export : une
+          card dédiée, action unique, vers un écran de confirmation plein écran. */}
+      <SectionLabel>SUPPRESSION DU COMPTE</SectionLabel>
+      <View style={styles.deleteCard}>
+        <Text style={styles.deleteCardText}>
+          Tu peux supprimer ton compte GRYD directement depuis l'app. Cela efface ton compte, tes
+          courses et ton territoire. C'est irréversible.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Supprimer mon compte"
+          onPress={() => {
+            haptics.medium();
+            setConfirmDelete(true);
+          }}
+          style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
+        >
+          <Icon name="fermer" size={18} color={gameColors.danger} />
+          <Text style={styles.deleteRowLabel}>Supprimer mon compte</Text>
+          <View style={styles.deleteChevron}>
+            <Icon name="chevron" size={16} color={gameColors.danger} />
+          </View>
+        </Pressable>
+      </View>
+    </StackScreen>
+  );
+}
+
+/**
+ * Écran de confirmation de suppression de compte (Guideline 5.1.1v). PLEIN ÉCRAN
+ * = 1 écran / 1 décision (§A) : une seule action destructive, une seule sortie.
+ * Textes non tronqués, palette tri-couleur (danger = orange sobre, jamais de
+ * rouge criard ni de chartreuse sur fond clair). Le CTA de confirmation est un
+ * ghost destructif explicite — pas de disque chartreuse (réservé à COURIR).
+ */
+function DeleteAccountConfirm({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    screen('account_delete_confirm');
+  }, []);
+  return (
+    <StackScreen
+      title="Supprimer mon compte"
+      icon="alerte"
+      subtitle="Dernière étape avant l'effacement définitif."
+    >
+      <View style={styles.confirmBox}>
+        <Icon name="alerte" size={28} color={gameColors.danger} />
+        <Text style={styles.confirmTitle}>Ceci efface ton compte, tes courses et ton territoire.</Text>
+        <Text style={styles.confirmBody}>
+          Ton profil, ton historique de courses et les zones que tu tiens seront supprimés. Ta
+          contribution passée au crew est anonymisée pour ne pas fausser la saison. Cette action est
+          irréversible : on ne peut pas restaurer ton compte ensuite.
+        </Text>
+      </View>
+
+      <View style={styles.confirmActions}>
+        <GhostButton label="Annuler, garder mon compte" onPress={onCancel} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Supprimer définitivement mon compte"
+          onPress={onConfirm}
+          style={({ pressed }) => [styles.confirmDelete, pressed && styles.pressed]}
+        >
+          <Icon name="fermer" size={18} color={gameColors.danger} />
+          <Text style={styles.confirmDeleteText}>Supprimer définitivement</Text>
+        </Pressable>
+      </View>
     </StackScreen>
   );
 }
@@ -450,6 +587,17 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: 12 },
   actionGap: { gap: 10, marginTop: 12 },
 
+  blockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grisLigne,
+  },
+  blockedName: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
+  unblock: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '700' },
+
   dangerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -464,5 +612,75 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
     marginTop: 3,
+  },
+
+  // Card dédiée « Supprimer mon compte » (5.1.1v) — distincte de l'export.
+  deleteCard: {
+    backgroundColor: colors.carbone,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.card,
+    padding: spacing.cardPadding,
+  },
+  deleteCardText: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.5,
+  },
+  deleteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: gameColors.danger,
+  },
+  deleteRowLabel: {
+    color: gameColors.danger,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    flex: 1,
+  },
+  deleteChevron: { transform: [{ rotate: '90deg' }] },
+
+  // Écran de confirmation plein écran.
+  confirmBox: {
+    backgroundColor: colors.carbone,
+    borderWidth: 1,
+    borderColor: gameColors.danger,
+    borderRadius: radii.card,
+    padding: spacing.cardPadding,
+    gap: 12,
+    marginTop: 8,
+  },
+  confirmTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '600',
+    lineHeight: fontSizes.lg * 1.35,
+  },
+  confirmBody: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.55,
+  },
+  confirmActions: { gap: 12, marginTop: 20 },
+  confirmDelete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 52,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: gameColors.danger,
+  },
+  confirmDeleteText: {
+    color: gameColors.danger,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
   },
 });

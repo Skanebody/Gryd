@@ -144,14 +144,14 @@ export default function SettingsSectionScreen() {
               icon="partage"
               label="Exporter mes données"
               detail="Copie RGPD de tes courses et zones"
-              onPress={() => router.push('/support')}
+              onPress={() => router.push('/confidentialite')}
             />
             <ActionRow
               icon="fermer"
               label="Supprimer mon compte"
-              detail="Irréversible — c'est ton droit"
+              detail="Depuis l'app — irréversible, c'est ton droit"
               danger
-              onPress={() => router.push('/support')}
+              onPress={() => router.push('/confidentialite')}
             />
           </Section>
         </>

@@ -130,6 +130,18 @@ import {
   useGiftReactions,
 } from '../../src/features/crew/reactions';
 import { useCrewChat, CHAT_ME, type ChatThreadMessage } from '../../src/features/crew/chatStore';
+import {
+  REPORT_REASONS,
+  REPORT_REVIEW_HOURS,
+  blockMember,
+  containsBlockedWord,
+  isBlocked,
+  reportContent,
+  unblockMember,
+  useModeration,
+  type ReportReason,
+  type ReportTargetKind,
+} from '../../src/features/crew/moderation';
 import { useCrewProfile } from '../../src/features/crew/crewEdit';
 import {
   OUTING_RSVP_OPTIONS,
@@ -322,17 +334,24 @@ function ChatBubble({
   msg,
   rsvp,
   setRsvp,
+  onReport,
 }: {
   msg: ChatThreadMessage;
   rsvp: Record<string, DefenseRsvp>;
   setRsvp: Dispatch<SetStateAction<Record<string, DefenseRsvp>>>;
+  /** Ouvre la feuille « Signaler » sur ce message (menu … / appui long). */
+  onReport: (msg: ChatThreadMessage) => void;
 }) {
   const now = Date.now();
+  // Filtrage de mots (§1) : un message toxique est MASQUÉ (jamais montré en
+  // clair), tout en gardant l'auteur visible pour pouvoir le signaler/bloquer.
+  const masked = containsBlockedWord(msg.text);
+  const shownText = masked ? 'Message masqué (contenu signalé)' : msg.text;
   if (msg.me) {
     return (
       <View style={styles.bubbleRowMe}>
         <View style={[styles.bubble, styles.bubbleMe]}>
-          <Text style={styles.bubbleTextMe}>{msg.text}</Text>
+          <Text style={[styles.bubbleTextMe, masked && styles.bubbleMasked]}>{shownText}</Text>
           <Text style={styles.bubbleTimeMe}>{chatTimeLabel(msg.at, now)}</Text>
         </View>
       </View>
@@ -350,10 +369,26 @@ function ChatBubble({
             {msg.author}
           </Text>
           <Text style={styles.bubbleTime}>{chatTimeLabel(msg.at, now)}</Text>
+          {/* Menu « … » → Signaler ce message (App Store 1.2). Appui long aussi. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Signaler le message de ${msg.author}`}
+            hitSlop={8}
+            onPress={() => onReport(msg)}
+            style={({ pressed }) => [styles.bubbleMore, pressed && styles.dim]}
+          >
+            <Text style={styles.bubbleMoreDots}>···</Text>
+          </Pressable>
         </View>
-        <View style={[styles.bubble, styles.bubbleOther]}>
-          <Text style={styles.bubbleText}>{msg.text}</Text>
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Message de ${msg.author}. Appui long pour signaler.`}
+          onLongPress={() => onReport(msg)}
+          delayLongPress={350}
+          style={[styles.bubble, styles.bubbleOther]}
+        >
+          <Text style={[styles.bubbleText, masked && styles.bubbleMasked]}>{shownText}</Text>
+        </Pressable>
 
         {/* Sortie défense → RSVP (Je participe / Peut-être / Indispo) */}
         {msg.action === 'rsvp' ? (
@@ -904,6 +939,16 @@ export default function CrewScreen() {
   /** Feedback court des actions démo (invite, sheet membre). */
   const [notice, setNotice] = useState<string | null>(null);
   const [memberSheet, setMemberSheet] = useState<CrewMemberDemo | null>(null);
+  /** Modération (App Store 1.2) : membres bloqués + signalements persistés. */
+  const moderation = useModeration();
+  /** Cible du signalement en cours (message ou membre) — null = feuille fermée. */
+  const [reportTarget, setReportTarget] = useState<{
+    kind: ReportTargetKind;
+    targetId: string;
+    author: string;
+  } | null>(null);
+  /** Gestion « Membres bloqués » (liste + Débloquer) — false = fermée. */
+  const [blockedSheet, setBlockedSheet] = useState(false);
   const [chestOpened, setChestOpened] = useState(false);
   const [rsvp, setRsvp] = useState<Record<string, DefenseRsvp>>({});
   const [showTiers, setShowTiers] = useState(false);
@@ -1202,6 +1247,40 @@ export default function CrewScreen() {
       return;
     }
     notify(`${label} · ${member.pseudo} — envoyé au crew (démo)`);
+  };
+
+  // ── MODÉRATION (App Store 1.2) ────────────────────────────────────────────
+  // Ouvre la feuille « Signaler » sur un message (menu … / appui long).
+  const openReportMessage = (msg: ChatThreadMessage) => {
+    haptics.light();
+    setReportTarget({ kind: 'message', targetId: msg.id, author: msg.author });
+  };
+  // Ouvre la feuille « Signaler » sur un membre (depuis sa sheet d'actions).
+  const openReportMember = (member: CrewMemberDemo) => {
+    setMemberSheet(null);
+    haptics.light();
+    setReportTarget({ kind: 'member', targetId: member.pseudo, author: member.pseudo });
+  };
+  // Choix d'un motif → enregistre le signalement + toast « examiné sous 24 h ».
+  const onReportReason = (reason: ReportReason) => {
+    if (!reportTarget) return;
+    haptics.medium();
+    reportContent({ ...reportTarget, reason });
+    setReportTarget(null);
+    notify(`Signalement envoyé, examiné sous ${REPORT_REVIEW_HOURS} h. Merci (démo).`);
+  };
+  // Bloquer un membre : masque ses messages (filtre d'affichage) — silencieux.
+  const onBlockMember = (member: CrewMemberDemo) => {
+    setMemberSheet(null);
+    haptics.medium();
+    blockMember(member.pseudo);
+    notify(`${member.pseudo} bloqué. Ses messages sont masqués (démo).`);
+  };
+  // Débloquer depuis la liste « Membres bloqués ».
+  const onUnblockMember = (pseudo: string) => {
+    haptics.light();
+    unblockMember(pseudo);
+    notify(`${pseudo} débloqué. Ses messages réapparaissent (démo).`);
   };
 
   return (
@@ -1764,9 +1843,50 @@ export default function CrewScreen() {
             <View style={styles.chatSection}>
               <Text style={styles.chatSectionLabel}>MESSAGES</Text>
               <View style={styles.thread}>
-                {chat.messages.map((m) => (
-                  <ChatBubble key={m.id} msg={m} rsvp={rsvp} setRsvp={setRsvp} />
-                ))}
+                {/* Filtre d'affichage (§1) : les messages d'un membre BLOQUÉ ne
+                    sont jamais rendus. La liste bloquée vient du store persisté. */}
+                {chat.messages
+                  .filter((m) => m.me || !isBlocked(m.author))
+                  .map((m) => (
+                    <ChatBubble
+                      key={m.id}
+                      msg={m}
+                      rsvp={rsvp}
+                      setRsvp={setRsvp}
+                      onReport={openReportMessage}
+                    />
+                  ))}
+              </View>
+              {/* Accès permanent au cadre communautaire + gestion des bloqués. */}
+              <View style={styles.moderationBar}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Lire le code de conduite"
+                  onPress={() => {
+                    haptics.light();
+                    router.push('/code-conduite');
+                  }}
+                  style={({ pressed }) => [styles.moderationLink, pressed && styles.dim]}
+                >
+                  <Icon name="bouclier" size={14} color={colors.gris} />
+                  <Text style={styles.moderationLinkText}>Code de conduite</Text>
+                </Pressable>
+                {moderation.blocked.length > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Gérer les membres bloqués (${moderation.blocked.length})`}
+                    onPress={() => {
+                      haptics.light();
+                      setBlockedSheet(true);
+                    }}
+                    style={({ pressed }) => [styles.moderationLink, pressed && styles.dim]}
+                  >
+                    <Icon name="verrou" size={14} color={colors.gris} />
+                    <Text style={styles.moderationLinkText}>
+                      Bloqués ({moderation.blocked.length})
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
 
               {/* BARRE DE SAISIE — évidente, en bas du fil : où taper + Envoyer. */}
@@ -2190,8 +2310,151 @@ export default function CrewScreen() {
                     <Icon name="chevron" size={15} color={colors.gris} />
                   </Pressable>
                 ))}
+
+              {/* ── MODÉRATION (App Store 1.2) — jamais sur soi-même ── */}
+              {!memberSheet.me ? (
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Signaler ${memberSheet.pseudo}`}
+                    onPress={() => openReportMember(memberSheet)}
+                    style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+                  >
+                    <Icon name="alerte" size={18} color={colors.blanc} />
+                    <Text style={styles.sheetActionLabel}>Signaler ce membre</Text>
+                    <Icon name="chevron" size={15} color={colors.gris} />
+                  </Pressable>
+                  {isBlocked(memberSheet.pseudo) ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Débloquer ${memberSheet.pseudo}`}
+                      onPress={() => {
+                        const p = memberSheet.pseudo;
+                        setMemberSheet(null);
+                        onUnblockMember(p);
+                      }}
+                      style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+                    >
+                      <Icon name="verrou" size={18} color={colors.blanc} />
+                      <Text style={styles.sheetActionLabel}>Débloquer ce membre</Text>
+                      <Icon name="chevron" size={15} color={colors.gris} />
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Bloquer ${memberSheet.pseudo}`}
+                      onPress={() => onBlockMember(memberSheet)}
+                      style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+                    >
+                      <Icon name="verrou" size={18} color={gameColors.danger} />
+                      <Text style={[styles.sheetActionLabel, { color: gameColors.danger }]}>
+                        Bloquer ce membre
+                      </Text>
+                      <Icon name="chevron" size={15} color={colors.gris} />
+                    </Pressable>
+                  )}
+                </>
+              ) : null}
             </View>
           ) : null}
+        </View>
+      </Modal>
+
+      {/* ── Feuille « Signaler » (App Store 1.2) : motifs courts → signalement
+          persisté + toast « examiné sous 24 h ». Message OU membre. ── */}
+      <Modal
+        visible={reportTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReportTarget(null)}
+      >
+        <View style={styles.sheetRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            style={styles.sheetBackdrop}
+            onPress={() => setReportTarget(null)}
+          />
+          {reportTarget ? (
+            <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetName}>
+                {reportTarget.kind === 'message'
+                  ? 'Signaler ce message'
+                  : `Signaler ${reportTarget.author}`}
+              </Text>
+              <Text style={styles.sheetRole}>
+                Choisis un motif. Une personne l’examine sous {REPORT_REVIEW_HOURS} h. Le
+                signalement reste confidentiel.
+              </Text>
+              {REPORT_REASONS.map((r) => (
+                <Pressable
+                  key={r.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={r.label}
+                  onPress={() => onReportReason(r.key)}
+                  style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
+                >
+                  <Icon
+                    name={r.key === 'spam' ? 'cloche' : r.key === 'autre' ? 'info' : 'alerte'}
+                    size={18}
+                    color={r.key === 'haine' || r.key === 'harcelement' ? gameColors.danger : colors.blanc}
+                  />
+                  <View style={styles.sheetChoiceText}>
+                    <Text style={styles.sheetActionLabel}>{r.label}</Text>
+                    <Text style={styles.sheetChoiceHint} numberOfLines={1}>
+                      {r.hint}
+                    </Text>
+                  </View>
+                  <Icon name="chevron" size={15} color={colors.gris} />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+
+      {/* ── Feuille « Membres bloqués » : liste + Débloquer (App Store 1.2) ── */}
+      <Modal
+        visible={blockedSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setBlockedSheet(false)}
+      >
+        <View style={styles.sheetRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            style={styles.sheetBackdrop}
+            onPress={() => setBlockedSheet(false)}
+          />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetName}>Membres bloqués</Text>
+            <Text style={styles.sheetRole}>
+              Leurs messages te sont masqués. Débloque quand tu veux.
+            </Text>
+            {moderation.blocked.length === 0 ? (
+              <Text style={styles.blockedEmpty}>Personne n’est bloqué.</Text>
+            ) : (
+              moderation.blocked.map((pseudo) => (
+                <View key={pseudo} style={styles.sheetAction}>
+                  <Icon name="verrou" size={18} color={colors.gris} />
+                  <Text style={styles.sheetActionLabel} numberOfLines={1}>
+                    {pseudo}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Débloquer ${pseudo}`}
+                    onPress={() => onUnblockMember(pseudo)}
+                    style={({ pressed }) => [styles.unblockBtn, pressed && styles.dim]}
+                  >
+                    <Text style={styles.unblockBtnText}>Débloquer</Text>
+                  </Pressable>
+                </View>
+              ))
+            )}
+          </View>
         </View>
       </Modal>
     </TabScreen>
@@ -2771,6 +3034,31 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   bubbleTime: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
+  // « … » de signalement collé à la fin de l'en-tête (App Store 1.2).
+  bubbleMore: { marginLeft: 'auto', paddingHorizontal: 4 },
+  bubbleMoreDots: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 1 },
+  // Message masqué par le filtre de mots : texte grisé, neutre (anti-shame).
+  bubbleMasked: { color: colors.gris, fontStyle: 'italic' },
+  // ── Barre de modération sous le fil : liens discrets (§A, ton calme). ──
+  moderationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: borderState.hairline,
+  },
+  moderationLink: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  moderationLinkText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  blockedEmpty: { color: colors.gris, fontSize: fontSizes.sm, paddingVertical: 16 },
+  unblockBtn: {
+    backgroundColor: elevation.raised,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  unblockBtnText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
   bubble: {
     borderRadius: radii.card,
     paddingVertical: 10,

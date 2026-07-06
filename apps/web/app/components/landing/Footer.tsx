@@ -3,6 +3,8 @@
 /**
  * Footer : logo + « Run the Map. Première carte officielle : France. » + liens
  * d'ancres + mentions (âge minimum depuis @klaim/shared).
+ * Liens légaux (AMENDEMENT-33 §6) : Confidentialité → /confidentialite, Conditions
+ * → /conditions — URL publiques requises par App Store Connect + HealthKit.
  */
 
 import { MIN_AGE_YEARS } from '@klaim/shared';
@@ -18,7 +20,7 @@ const LINKS = [
 ] as const;
 
 export function Footer() {
-  const { copy, formatInt } = useLang();
+  const { copy, formatInt, lang } = useLang();
 
   return (
     <footer className={styles.footer}>
@@ -44,9 +46,16 @@ export function Footer() {
         <ul className={styles.legal}>
           <li>{copy.footer.age.replace('{age}', formatInt(MIN_AGE_YEARS))}</li>
           <li>
-            {/* TODO(légal) : page vie privée à rédiger (SPEC §7). */}
-            <a className={styles.legalLink} href="#">
+            {/* Politique de confidentialité — URL publique (App Store Connect + HealthKit, AMENDEMENT-33 §6). */}
+            <a className={styles.legalLink} href="/confidentialite">
               {copy.footer.privacy}
+            </a>
+          </li>
+          <li>
+            {/* CGU — URL publique (App Store Connect, AMENDEMENT-33 §6). Libellé local :
+                le dictionnaire landing n'a pas de clé « terms ». */}
+            <a className={styles.legalLink} href="/conditions">
+              {lang === 'fr' ? 'Conditions' : 'Terms'}
             </a>
           </li>
           <li>{copy.footer.company}</li>

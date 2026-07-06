@@ -1,0 +1,364 @@
+/*
+ * GRYD — pages légales (/confidentialite + /conditions).
+ * Charte ADDENDUM-DESIGN §C : noir/blanc/chartreuse #B4FF0D, dark-first,
+ * JAMAIS de chartreuse sur fond clair. Tokens de globals.css uniquement.
+ * §A : lecture linéaire, textes non tronqués (jamais « … »), pas de card-dans-card,
+ * un seul accent chartreuse par écran (le fil de la barre latérale de sommaire).
+ * Partagé par les deux routes légales (conditions importe ce module).
+ */
+
+/* ── Squelette de page ───────────────────────────────────────────────────── */
+.page {
+  min-height: 100vh;
+  background: var(--fond);
+  color: var(--blanc);
+}
+
+.main {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 24px 24px 96px;
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 20px 18px 72px;
+  }
+}
+
+/* Barre de retour minimale (page autonome, hors nav landing). */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 8px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: var(--blanc);
+  font-family: var(--disp);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.back {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 200ms ease-out;
+}
+
+.back:hover {
+  color: var(--blanc);
+}
+
+/* ── En-tête ─────────────────────────────────────────────────────────────── */
+.hero {
+  padding: 48px 0 24px;
+  border-bottom: 1px solid var(--ligne);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 32px 0 20px;
+  }
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-bottom: 16px;
+}
+
+.heroTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+}
+
+.heroSub {
+  color: var(--gris);
+  font-size: 16px;
+  line-height: 1.6;
+  margin-top: 16px;
+  max-width: 60ch;
+}
+
+.dateRow {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--gris);
+}
+
+.dateRow b {
+  color: var(--blanc);
+  font-weight: inherit;
+}
+
+/* ── Bandeau promesse (accent chartreuse unique de la page) ──────────────── */
+.pledge {
+  margin-top: 28px;
+  background: var(--ch14);
+  border: 1px solid var(--ch40);
+  border-left: 3px solid var(--ch);
+  border-radius: var(--radius-card);
+  padding: 20px 24px;
+}
+
+.pledgeTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--blanc);
+  margin-bottom: 8px;
+}
+
+.pledgeBody {
+  color: var(--blanc);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.pledgeBody b {
+  font-weight: 600;
+}
+
+/* ── Sommaire (ancres) ───────────────────────────────────────────────────── */
+.toc {
+  margin-top: 32px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 24px;
+}
+
+@media (max-width: 560px) {
+  .toc {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tocLink {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--gris);
+  text-decoration: none;
+  font-size: 13.5px;
+  line-height: 1.5;
+  padding: 4px 0;
+}
+
+.tocLink:hover {
+  color: var(--blanc);
+}
+
+.tocNum {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ch);
+  min-width: 1.6em;
+}
+
+/* ── Sections ────────────────────────────────────────────────────────────── */
+.section {
+  padding: 40px 0 0;
+  scroll-margin-top: 24px;
+}
+
+.sectionNum {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gris);
+  margin-bottom: 10px;
+}
+
+.sectionTitle {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: clamp(20px, 3vw, 26px);
+  line-height: 1.14;
+  letter-spacing: -0.01em;
+}
+
+.body {
+  color: var(--gris);
+  font-size: 15px;
+  line-height: 1.68;
+  margin-top: 14px;
+}
+
+.body + .body {
+  margin-top: 12px;
+}
+
+.body b {
+  color: var(--blanc);
+  font-weight: 600;
+}
+
+.body a {
+  color: var(--blanc);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.body a:hover {
+  color: var(--ch);
+}
+
+/* Charte : chartreuse interdite sur fond clair — ce lien reste sur fond sombre,
+   le survol vers --ch est donc conforme (contraste ≈ 15:1 sur --fond). */
+
+/* Liste de puces sobre (pas de card-in-card : simple <ul>). */
+.list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  position: relative;
+  padding-left: 20px;
+  color: var(--gris);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.item::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--ch);
+}
+
+.item b {
+  color: var(--blanc);
+  font-weight: 600;
+}
+
+/* Tableau des données (données ↔ finalité ↔ base légale ↔ conservation). */
+.tableWrap {
+  margin-top: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  min-width: 640px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ligne);
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.table th {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gris);
+  font-weight: 400;
+  background: color-mix(in srgb, var(--carbone) 60%, transparent);
+}
+
+.table td {
+  color: var(--gris);
+}
+
+.table td b {
+  color: var(--blanc);
+  font-weight: 600;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Note d'appui discrète en fin de section. */
+.note {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--carbone) 60%, transparent);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 14px 18px;
+  color: var(--gris);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--gris);
+}
+
+.note b {
+  color: var(--blanc);
+  font-weight: 600;
+}
+
+/* ── Pied de page légal ──────────────────────────────────────────────────── */
+.legalFoot {
+  margin-top: 56px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ligne);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  color: var(--gris);
+  font-size: 12.5px;
+}
+
+.legalFoot a {
+  color: var(--gris);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legalFoot a:hover {
+  color: var(--blanc);
+}
