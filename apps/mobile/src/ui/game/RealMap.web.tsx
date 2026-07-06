@@ -318,7 +318,9 @@ const WORLD_FALLBACK_CAMERA: RealMapCamera = { lng: 0, lat: 20, zoom: 1 };
  * CARTO dark-matter (la prod Protomaps devra fournir les mêmes stacks — O6).
  */
 const POINT_LABEL_FONTS = ['Montserrat Medium', 'Open Sans Bold', 'Noto Sans Regular'];
-const POINT_LABEL_HALO_WIDTH = 1.2;
+// Halo renforcé (1,2 → 1,7) : les libellés des points de guerre (« À sauver »,
+// « Attaque en cours »…) doivent tenir sur le satellite bruité (AMENDEMENT-28 §2).
+const POINT_LABEL_HALO_WIDTH = 1.7;
 /**
  * L'état offline ne se relève (`idle`/succès tuile) que si aucune erreur
  * tuile n'est survenue récemment (les tuiles en échec produisent aussi un

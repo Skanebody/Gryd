@@ -114,10 +114,32 @@ export function satelliteStyleSpec(): Record<string, unknown> {
         id: SATELLITE_BASEMAP.layerId,
         type: 'raster',
         source: SATELLITE_BASEMAP.sourceId,
+        // AMENDEMENT-28 §2 — LISIBILITÉ DE GUERRE : la photo aérienne est bruitée
+        // et contrastée (toits clairs, verdure, béton) → les traits/points de jeu
+        // s'y noyaient. On ASSOMBRIT et DÉSATURE le raster (façon Strava satellite)
+        // pour que le chartreuse/orange/violet ressortent — le fond recule, le jeu
+        // passe devant. Valeurs dans SATELLITE_DIM (ajustables sans toucher au rendu).
+        paint: {
+          'raster-brightness-max': SATELLITE_DIM.brightnessMax,
+          'raster-saturation': SATELLITE_DIM.saturation,
+          'raster-contrast': SATELLITE_DIM.contrast,
+        },
       },
     ],
   };
 }
+
+/**
+ * Assombrissement du fond satellite (AMENDEMENT-28 §2). La photo recule pour que
+ * les traits et points de guerre (chartreuse/orange/violet) passent devant.
+ * brightnessMax < 1 baisse le plafond de luminosité ; saturation < 0 mute les
+ * couleurs concurrentes (verdure, toits) ; contrast < 0 aplatit le bruit de texture.
+ */
+export const SATELLITE_DIM = {
+  brightnessMax: 0.58,
+  saturation: -0.3,
+  contrast: -0.06,
+} as const;
 
 /**
  * AMENDEMENT-27 — VRAI 3D (relief + bâtiments), constantes de source/rendu.
@@ -277,8 +299,9 @@ export const territoryStyle = {
    * pour tenir face aux zones claires (toits, sable, béton).
    */
   colorCasing: withAlpha(colors.noir, 0.55),
-  /** Liseré satellite : plus dense (la photo est plus contrastée que Voyager). */
-  satelliteCasing: withAlpha(colors.noir, 0.72),
+  /** Liseré satellite : plus dense (la photo est plus contrastée que Voyager) —
+   *  renforcé (0,72 → 0,82) pour que le trait tienne même sur les zones claires. */
+  satelliteCasing: withAlpha(colors.noir, 0.82),
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
