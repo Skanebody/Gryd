@@ -17,29 +17,36 @@
 
 Toutes reliées entre elles (pieds de page) + dans le footer de la landing.
 
-## Données que TOI SEUL peux fournir (remplacer les `[à compléter]`)
+## Identité société — RENSEIGNÉE (source : Pappers / RCS Paris, 06/07/2026)
 
-### Identité de la société (Mentions légales + CGV)
-1. **Capital social** de la SASU Nexus 1993 (montant en €).
-2. **Adresse du siège social** (complète).
-3. **Ville d'immatriculation au RCS** + **numéro SIREN** (9 chiffres).
-4. **N° de TVA intracommunautaire** (si assujettie).
-5. **Nom du directeur de la publication** (le Président de la SASU).
-6. **Téléphone de contact** (facultatif mais recommandé).
+Ces valeurs ont été reprises des données publiques du RCS et intégrées dans
+`/mentions-legales` et `/cgv` :
 
-### Hébergement (Mentions légales — obligatoire LCEN)
-7. **Hébergeur du site web gryd.run** : nom / raison sociale, adresse, téléphone.
-   (Ex. si déployé sur Vercel : « Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, USA ».
-   À confirmer selon l'hébergement réel.)
-   *Note : l'hébergement des données applicatives par Supabase (UE) est déjà mentionné.*
+| Champ | Valeur |
+|-------|--------|
+| Dénomination / forme | SASU Nexus 1993 |
+| SIREN | 982 786 154 |
+| SIRET (siège) | 982 786 154 00012 |
+| TVA intracommunautaire | FR18982786154 |
+| Capital social | 500 € |
+| Siège social | 66 avenue des Champs-Élysées, 75008 Paris |
+| RCS | Paris (immatriculée le 27/12/2023) |
+| Directeur de la publication / Président | Benjamin Bel |
+| Prix (repris de l'app) | Premium 8 €/mois · 69 €/an · Founder 149 € |
+| Prestataire de paiement web | Stripe (Stripe Payments Europe) |
 
-### Vente / consommation (CGV)
-8. **Prix définitifs TTC** : GRYD Premium mensuel, GRYD Premium annuel, Founder Pack.
-   (Le gabarit renvoie aux `[à compléter]` ; l'app affiche 8 €/mois, 69 €/an, 149 € en démo.)
-9. **Prestataire de paiement web** (ex. Stripe) — nom exact.
-10. **Médiateur de la consommation** — **obligatoire pour la vente B2C** (art. L612-1) :
-    il faut **adhérer à un médiateur agréé** (ex. via la CMAP, Medicys, l'AME…) et
-    indiquer son nom + coordonnées + site. C'est une démarche à faire, pas juste un texte.
+> À vérifier par toi : que ces valeurs sont toujours à jour, et que le nom du
+> directeur de la publication est bien celui que tu veux afficher publiquement.
+
+## Ce qui reste à fournir (les 2 derniers `[à compléter]`)
+
+1. **Hébergeur du site web gryd.run** (Mentions légales — obligatoire LCEN) : nom /
+   raison sociale, adresse, téléphone. Dépend de l'hébergement retenu.
+   (Ex. si déployé sur Vercel : « Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789,
+   USA ».) *L'hébergement des données applicatives par Supabase (UE) est déjà mentionné.*
+2. **Médiateur de la consommation** (CGV — **obligatoire B2C**, art. L612-1) : il faut
+   **adhérer à un médiateur agréé** (ex. CMAP, Medicys, l'AME…) puis indiquer son nom +
+   coordonnées + site. C'est une **démarche à effectuer**, pas seulement un texte.
 
 ## Points à faire valider par un juriste (au-delà des trous à remplir)
 

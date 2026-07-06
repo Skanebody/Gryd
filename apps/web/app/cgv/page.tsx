@@ -94,9 +94,10 @@ export default function CgvPage() {
           <div className={styles.pledge}>
             <p className={styles.pledgeTitle}>À finaliser avant publication</p>
             <p className={styles.pledgeBody}>
-              Les champs surlignés (identité du vendeur, médiateur de la consommation, prix
-              définitifs) doivent être complétés et l&rsquo;ensemble relu par un juriste
-              avant toute mise en vente.
+              L&rsquo;identité du vendeur et les prix sont renseignés. Reste à désigner le
+              champ surligné (médiateur de la consommation, dont l&rsquo;adhésion est
+              obligatoire) et à faire relire l&rsquo;ensemble par un juriste avant toute mise
+              en vente.
             </p>
           </div>
         </header>
@@ -131,9 +132,9 @@ export default function CgvPage() {
           <h2 className={styles.sectionTitle}>Vendeur</h2>
           <ul className={styles.list}>
             <li className={styles.item}>
-              <b>Vendeur&nbsp;:</b> SASU Nexus 1993, <Todo>capital</Todo>,{' '}
-              <Todo>siège social</Todo>, RCS <Todo>ville</Todo>, SIREN{' '}
-              <Todo>numéro</Todo>.
+              <b>Vendeur&nbsp;:</b> SASU Nexus 1993, au capital de 500&nbsp;€, siège social
+              66 avenue des Champs-Élysées, 75008 Paris, immatriculée au RCS de Paris sous le
+              n°&nbsp;982&nbsp;786&nbsp;154, TVA intracommunautaire FR18982786154.
             </li>
             <li className={styles.item}>
               <b>Contact&nbsp;:</b> <a href="mailto:support@gryd.run">support@gryd.run</a>
@@ -156,12 +157,10 @@ export default function CgvPage() {
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
-              <b>GRYD Premium&nbsp;:</b> <Todo>prix mensuel TTC</Todo>/mois ou{' '}
-              <Todo>prix annuel TTC</Todo>/an.
+              <b>GRYD Premium&nbsp;:</b> 8&nbsp;€ TTC/mois ou 69&nbsp;€ TTC/an.
             </li>
             <li className={styles.item}>
-              <b>Founder Pack&nbsp;:</b> <Todo>prix TTC</Todo> — paiement unique, édition
-              limitée.
+              <b>Founder Pack&nbsp;:</b> 149&nbsp;€ TTC — paiement unique, édition limitée.
             </li>
           </ul>
           <p className={styles.body}>
@@ -188,8 +187,8 @@ export default function CgvPage() {
             </li>
             <li className={styles.item}>
               <b>Sur le site gryd.run&nbsp;:</b> par carte bancaire via notre prestataire de
-              paiement sécurisé <Todo>prestataire (ex. Stripe)</Todo>. Nexus 1993
-              n&rsquo;a jamais accès aux données de ta carte.
+              paiement sécurisé Stripe (Stripe Payments Europe). Nexus 1993 n&rsquo;a jamais
+              accès aux données de ta carte.
             </li>
           </ul>
           <p className={styles.body}>

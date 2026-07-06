@@ -85,8 +85,9 @@ export default function MentionsLegalesPage() {
           <div className={styles.pledge}>
             <p className={styles.pledgeTitle}>À finaliser avant publication</p>
             <p className={styles.pledgeBody}>
-              Les champs surlignés doivent être remplacés par les informations légales
-              réelles de la SASU Nexus 1993, puis relus par un professionnel du droit.
+              L&rsquo;identité de la société est renseignée. Reste à compléter le champ
+              surligné (hébergeur du site, selon l&rsquo;hébergement retenu) et à faire relire
+              l&rsquo;ensemble par un professionnel du droit.
             </p>
           </div>
         </header>
@@ -118,21 +119,20 @@ export default function MentionsLegalesPage() {
               <b>Forme juridique&nbsp;:</b> société par actions simplifiée unipersonnelle (SASU)
             </li>
             <li className={styles.item}>
-              <b>Capital social&nbsp;:</b> <Todo>montant du capital</Todo>
+              <b>Capital social&nbsp;:</b> 500&nbsp;€
             </li>
             <li className={styles.item}>
-              <b>Siège social&nbsp;:</b> <Todo>adresse complète du siège</Todo>
+              <b>Siège social&nbsp;:</b> 66 avenue des Champs-Élysées, 75008 Paris
             </li>
             <li className={styles.item}>
-              <b>RCS&nbsp;:</b> <Todo>ville d&rsquo;immatriculation</Todo> —{' '}
-              <b>SIREN&nbsp;:</b> <Todo>numéro SIREN à 9 chiffres</Todo>
+              <b>RCS&nbsp;:</b> Paris (immatriculée le 27/12/2023) — <b>SIREN&nbsp;:</b> 982&nbsp;786&nbsp;154
+              {' '}— <b>SIRET (siège)&nbsp;:</b> 982&nbsp;786&nbsp;154&nbsp;00012
             </li>
             <li className={styles.item}>
-              <b>N° TVA intracommunautaire&nbsp;:</b> <Todo>FR + clé + SIREN (si assujettie)</Todo>
+              <b>N° TVA intracommunautaire&nbsp;:</b> FR18982786154
             </li>
             <li className={styles.item}>
               <b>Contact&nbsp;:</b> <a href="mailto:support@gryd.run">support@gryd.run</a>
-              {' '}— <Todo>téléphone (facultatif mais recommandé)</Todo>
             </li>
           </ul>
         </section>
@@ -141,8 +141,8 @@ export default function MentionsLegalesPage() {
           <p className={styles.sectionNum}>02</p>
           <h2 className={styles.sectionTitle}>Directeur de la publication</h2>
           <p className={styles.body}>
-            Le directeur de la publication est <Todo>nom du représentant légal (Président)</Todo>,
-            en sa qualité de représentant légal de la SASU Nexus 1993.
+            Le directeur de la publication est <b>Benjamin Bel</b>, en sa qualité de
+            président de la SASU Nexus 1993.
           </p>
         </section>
 
