@@ -65,6 +65,18 @@ export const VERIFY_SOURCES: readonly VerifySourceDef[] = [
     path: 'Import + vérif',
   },
   {
+    // Alternative GRATUITE à Strava (O7 payant) : un fichier .gpx exporté par
+    // n'importe quelle montre / app EST la source directe de la trace → trust
+    // élevé. Parse local (features/sources/adapters/gpx-parse.ts) → RunPoint[],
+    // puis pipeline serveur (ingest_run) seul juge du claim.
+    key: 'gpx',
+    name: 'Import GPX',
+    icon: 'lien',
+    availability: 'connectable',
+    trust: 'high',
+    path: 'Import + vérif',
+  },
+  {
     // Adaptateur + edge `strava_import` prêts, MAIS l'API Strava est désormais
     // réservée aux abonné(e)s (O7 : clés + abonnement) → on ne l'annonce plus
     // comme connectable immédiatement. Apple Santé / Health Connect prennent la

@@ -8,6 +8,7 @@
 import type { SourceAdapter } from './types';
 import { appleHealthAdapter } from './appleHealth';
 import { healthConnectAdapter } from './healthConnect';
+import { gpxAdapter } from './gpx';
 import { stravaAdapter } from './strava';
 import { comingSoonAdapter } from './watches';
 
@@ -15,6 +16,7 @@ import { comingSoonAdapter } from './watches';
 export const SOURCE_ADAPTERS: Readonly<Record<string, SourceAdapter>> = {
   apple_health: appleHealthAdapter,
   health_connect: healthConnectAdapter,
+  gpx: gpxAdapter,
   strava: stravaAdapter,
   garmin: comingSoonAdapter('garmin'),
   whoop: comingSoonAdapter('whoop'),
