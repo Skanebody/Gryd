@@ -136,8 +136,8 @@ export function satelliteStyleSpec(): Record<string, unknown> {
  * couleurs concurrentes (verdure, toits) ; contrast < 0 aplatit le bruit de texture.
  */
 export const SATELLITE_DIM = {
-  brightnessMax: 0.58,
-  saturation: -0.3,
+  brightnessMax: 0.5,
+  saturation: -0.32,
   contrast: -0.06,
 } as const;
 
@@ -692,6 +692,14 @@ const COLOR_CASING_EXTRA_PX = 2;
 /** Sur-largeur du liseré sur SATELLITE (AMENDEMENT-28) : un cran plus large (photo contrastée). */
 const SATELLITE_CASING_EXTRA_PX = 3;
 
+// AMENDEMENT-28 §2 — sur satellite (photo bruitée, déjà assombrie par SATELLITE_DIM),
+// la couche de GUERRE passe devant : cœur des traits ÉLARGI, alpha du trait RELEVÉ,
+// aplats DENSIFIÉS. Réglables ici. (Le fond `color` Voyager, plus calme, garde le
+// liseré seul.)
+const SAT_CORE_WIDTH_MULT = 1.75;
+const SAT_LINE_ALPHA_BOOST = 1.6;
+const SAT_FILL_BOOST = 1.9;
+
 export const battleMapStyle = {
   // Mon crew (chartreuse — trait net, AMENDEMENT-16 §0 : zéro glow)
   heldFill: mapTokens.mineFill,
@@ -1195,19 +1203,36 @@ function withColorCasing(
   const satellite = basemap === 'satellite';
   const casingColor = satellite ? territoryStyle.satelliteCasing : territoryStyle.colorCasing;
   const extraPx = satellite ? SATELLITE_CASING_EXTRA_PX : COLOR_CASING_EXTRA_PX;
+  // Sur satellite, la couche de guerre est renforcée (le fond est déjà assombri) :
+  // cœur plus large, alpha du trait relevé, aplats densifiés. Sur `color`, neutre.
+  const widthMult = satellite ? SAT_CORE_WIDTH_MULT : 1;
+  const lineBoost = satellite ? SAT_LINE_ALPHA_BOOST : 1;
+  const fillBoost = satellite ? SAT_FILL_BOOST : 1;
+  const boostFill = (s: RealMapGeoJSONLayer): RealMapGeoJSONLayer =>
+    s.fillOpacity !== undefined ? { ...s, fillOpacity: Math.min(1, s.fillOpacity * fillBoost) } : s;
   const out: RealMapGeoJSONLayer[] = [];
   for (const spec of layers) {
     if (spec.lineColor !== undefined) {
+      const coreWidth = (spec.lineWidth ?? 1) * widthMult;
       out.push({
         id: `${spec.id}-casing`,
         data: spec.data,
         lineColor: casingColor,
-        lineWidth: (spec.lineWidth ?? 1) + extraPx,
+        lineWidth: coreWidth + extraPx,
         ...(spec.lineDash ? { lineDash: spec.lineDash } : {}),
         ...(spec.lineOffset !== undefined ? { lineOffset: spec.lineOffset } : {}),
       });
+      // Cœur : élargi + alpha relevé sur satellite (scaleAlpha borne à 1 les rgba).
+      out.push(
+        boostFill({
+          ...spec,
+          lineWidth: coreWidth,
+          lineColor: scaleAlpha(spec.lineColor, lineBoost),
+        }),
+      );
+    } else {
+      out.push(boostFill(spec));
     }
-    out.push(spec);
   }
   return out;
 }
