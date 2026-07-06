@@ -188,6 +188,7 @@
             "npm:@types/react@19",
             "npm:h3-js@^4.5.0",
             "npm:next@15",
+            "npm:posthog-js@^1.398.0",
             "npm:react-dom@19",
             "npm:react@19",
             "npm:styled-jsx@^5.1.7",

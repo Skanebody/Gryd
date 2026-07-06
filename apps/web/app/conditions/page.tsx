@@ -219,11 +219,14 @@ export default function ConditionsPage() {
           <p className={styles.sectionNum}>06</p>
           <h2 className={styles.sectionTitle}>Abonnement & achats — statut uniquement</h2>
           <p className={styles.body}>
-            Le jeu est <b>gratuit et complet</b>. Les offres payantes (GRYD Premium, Founder
-            Pack, cosmétiques) relèvent exclusivement de la <b>couche statut / cosmétique /
-            supporter</b>&nbsp;: skins, templates de partage, analytics perso, badge
-            supporter. Elles n&rsquo;apportent <b>aucun avantage de territoire, de points ou
-            de victoire</b>.
+            Le jeu est <b>gratuit et complet</b>. GRYD ne propose qu&rsquo;<b>un seul
+            abonnement, GRYD Club</b> (bonus permanents de confort, d&rsquo;information en
+            lecture seule, de cosmétique et de statut&nbsp;: skins, radar des zones contestées,
+            stats avancées, templates de partage, gel de série, badge supporter), aux côtés
+            d&rsquo;<b>achats ponctuels</b> (Founder Pack, cosmétiques, boucliers de quartier
+            plafonnés). Aucune de ces offres n&rsquo;apporte <b>de territoire, de points, de
+            victoire ni de protection acquise&nbsp;: les boucliers sont capés et jamais inclus
+            dans l&rsquo;abonnement</b>.
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>

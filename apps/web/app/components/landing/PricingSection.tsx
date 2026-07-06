@@ -16,9 +16,7 @@
 import { useState, type ComponentType, type SVGProps } from 'react';
 import type { IconName } from '@klaim/shared';
 import {
-  CLUB_FOULEES_MULTIPLIER,
   ZONE_DECAY_DAYS,
-  SHIELD_CLUB_INCLUDED_PER_WEEK,
   SHIELD_DURATION_HOURS,
   SHIELD_EXTRA_ECLATS,
   SHIELD_MAX_ACTIVE_PER_WEEK,
@@ -61,7 +59,7 @@ const STRINGS = {
   fr: {
     kicker: 'Boutique de saison · zéro pay-to-win',
     title: 'ARSENAL RUNNING',
-    sub: 'Tu ne peux pas acheter la ville. Style, confort, statut — jamais la victoire.',
+    sub: 'Le jeu est gratuit et complet. La boutique n’ajoute que style, confort, info et statut — jamais du terrain, des points ni de la victoire.',
     rarityAria: 'Rareté',
     gelName: 'Streak Gel',
     gelEffect: 'Gel de série : une semaine sans courir, ta streak tient au lieu de casser.',
@@ -76,7 +74,7 @@ const STRINGS = {
     shieldName: 'Bouclier de quartier',
     shieldEffect:
       'Coque carbone sur ton secteur : jusqu’à {hexes} zones involables pendant {hours} h.',
-    shieldCap: 'Cap {max} / semaine · {club} inclus Club · {eclats} Éclats l’extra',
+    shieldCap: 'Achat ponctuel · cap {max} / semaine · {eclats} Éclats · jamais dans l’abonnement',
     bannerName: 'Bannière crew',
     bannerEffect: 'Ton emblème hissé sur les secteurs de ton crew, visible par toute la ville.',
     bannerCap: 'Cosmétique pur · identité, aucun avantage',
@@ -91,14 +89,14 @@ const STRINGS = {
     starterFeatures: [
       'Skin Neon Territory',
       '{eclats} Éclats',
-      '1 Shield — bouclier de quartier',
+      '1 Shield — consommable capé, hors abonnement',
       'Badge Founder — permanent',
     ],
   },
   en: {
     kicker: 'Season shop · zero pay-to-win',
     title: 'RUNNING ARSENAL',
-    sub: 'You can’t buy the city. Style, comfort, status — never the win.',
+    sub: 'The game is free and complete. The shop only adds style, comfort, intel and status — never ground, points or the win.',
     rarityAria: 'Rarity',
     gelName: 'Streak Gel',
     gelEffect: 'Series gel: miss a week of running and your streak holds instead of breaking.',
@@ -111,7 +109,7 @@ const STRINGS = {
     scoutCap: 'Intel only · zero zones, zero points',
     shieldName: 'District Shield',
     shieldEffect: 'Carbon shell over your sector: up to {hexes} zones unstealable for {hours} h.',
-    shieldCap: 'Cap {max} / week · {club} with Club · {eclats} Éclats extra',
+    shieldCap: 'One-off purchase · cap {max} / week · {eclats} Éclats · never in the subscription',
     bannerName: 'Crew Banner',
     bannerEffect: 'Your emblem raised over your crew’s sectors, visible to the whole city.',
     bannerCap: 'Pure cosmetic · identity, no advantage',
@@ -126,7 +124,7 @@ const STRINGS = {
     starterFeatures: [
       'Neon Territory skin',
       '{eclats} Éclats',
-      '1 Shield — district shield',
+      '1 Shield — capped consumable, outside the subscription',
       'Founder badge — permanent',
     ],
   },
@@ -142,7 +140,7 @@ type ArsenalEntry = {
 };
 
 export function PricingSection() {
-  const { lang, copy, formatEur, formatDecimal, formatInt } = useLang();
+  const { lang, copy, formatEur, formatInt } = useLang();
   const [period, setPeriod] = useState<Period>('monthly');
   const s = STRINGS[lang];
   const n = (v: number) => formatInt(v);
@@ -192,7 +190,6 @@ export function PricingSection() {
       }),
       cap: fill(s.shieldCap, {
         max: n(SHIELD_MAX_ACTIVE_PER_WEEK),
-        club: n(SHIELD_CLUB_INCLUDED_PER_WEEK),
         eclats: n(SHIELD_EXTRA_ECLATS),
       }),
     },
@@ -225,13 +222,15 @@ export function PricingSection() {
   };
 
   // Features Club composées avec les constantes @klaim/shared (aucun chiffre en dur).
-  // Icônes de renfort (décision fondateur) : bouclier sur le shield, série (flamme)
-  // sur les gels de streak — les autres bénéfices gardent la puce hexagonale.
+  // ANTI PAY-TO-WIN (décision fondateur) : le Club ne donne QUE du confort, de
+  // l'info en lecture seule, des cosmétiques et du statut — jamais de bouclier,
+  // de protection de zone ni de multiplicateur de points/foulées. Le gel de série
+  // garde son icône « série » (flamme) ; le reste porte la puce hexagonale.
   const clubFeatures: { text: string; icon?: IconName }[] = [
-    { text: `${formatInt(SHIELD_CLUB_INCLUDED_PER_WEEK)} ${copy.pricing.clubFeatures[0]}`, icon: 'bouclier' },
+    { text: copy.pricing.clubFeatures[0] ?? '' },
     { text: copy.pricing.clubFeatures[1] ?? '' },
     { text: copy.pricing.clubFeatures[2] ?? '' },
-    { text: `×${formatDecimal(CLUB_FOULEES_MULTIPLIER, 1)} ${copy.pricing.clubFeatures[3]}` },
+    { text: copy.pricing.clubFeatures[3] ?? '' },
     { text: `${formatInt(STREAK_FREEZE_CLUB_PER_MONTH)} ${copy.pricing.clubFeatures[4]}`, icon: 'serie' },
   ];
   // Starter Pack détaillé (AMENDEMENT-05 §3.10) — le dernier item (Badge
@@ -249,6 +248,21 @@ export function PricingSection() {
             {s.title}
           </h2>
           <p className={ui.sectionSub}>{s.sub}</p>
+        </Reveal>
+
+        {/* Freemium d'abord : le jeu complet est gratuit — le socle anti pay-to-win. */}
+        <Reveal delayMs={60}>
+          <aside className={styles.freeBox} aria-label={copy.pricing.freeTitle}>
+            <p className={styles.freeTitle}>{copy.pricing.freeTitle}</p>
+            <ul className={styles.freeList} role="list">
+              {copy.pricing.freeItems.map((item) => (
+                <li key={item} className={styles.freeItem}>
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className={styles.freeNote}>{copy.pricing.freeNote}</p>
+          </aside>
         </Reveal>
 
         {/* Vitrine d'objets — aucun CTA ici : le seul CTA chartreuse reste la carte Club. */}
@@ -359,6 +373,7 @@ export function PricingSection() {
                   </li>
                 ))}
               </ul>
+              <p className={styles.clubNote}>{copy.pricing.clubNote}</p>
               <a href="#waitlist" className={`${ui.btnPrimary} ${styles.cardCta}`}>
                 {copy.pricing.cta}
               </a>

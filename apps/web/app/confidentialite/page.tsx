@@ -332,9 +332,9 @@ export default function ConfidentialitePage() {
               revente ni publicité.
             </li>
             <li className={styles.item}>
-              <b>Paiement</b> (Apple In-App Purchase) — pour les abonnements et achats de
-              statut&nbsp;; Apple gère la transaction, nous ne voyons pas ta carte
-              bancaire.
+              <b>Paiement</b> (Apple In-App Purchase) — pour l&rsquo;abonnement GRYD Club et
+              les achats ponctuels&nbsp;; Apple gère la transaction, nous ne voyons pas ta
+              carte bancaire.
             </li>
           </ul>
           <p className={styles.body}>

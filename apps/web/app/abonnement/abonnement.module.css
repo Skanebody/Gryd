@@ -1,10 +1,10 @@
 /*
- * GRYD Premium — page /abonnement (AMENDEMENT-31 §4).
+ * GRYD Club — page /abonnement (AMENDEMENT-31 §4, modèle single-sub).
  * Charte ADDENDUM-DESIGN §C : noir/blanc/chartreuse #B4FF0D, dark-first,
  * JAMAIS de chartreuse sur fond clair. Tokens de globals.css uniquement.
  * §A : 1 écran = 1 décision · 1 CTA chartreuse par écran · pas de card-dans-card ·
  * textes non tronqués (jamais « … ») · reduce motion respecté.
- * Le seul CTA chartreuse de la page = « Activer GRYD Premium » (carte Premium).
+ * Le seul CTA chartreuse de la page = « Activer GRYD Club » (carte de l'abonnement).
  */
 
 /* ── Squelette de page ───────────────────────────────────────────────────── */
@@ -282,7 +282,7 @@
   padding: 26px 24px;
 }
 
-/* Highlight Premium : contour + halo chartreuse (porte le seul CTA primaire). */
+/* Highlight abonnement (Club) : contour + halo chartreuse (porte le seul CTA primaire). */
 .planHighlight {
   border-color: var(--ch40);
   box-shadow: 0 0 40px var(--ch14);
@@ -466,6 +466,29 @@
   background: transparent;
   color: var(--gris);
   font-size: 14px;
+  font-weight: 500;
+}
+
+/* Mention achats ponctuels (boosts/boucliers hors abonnement, capés). */
+.upsellNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 24px;
+  color: var(--gris);
+  font-size: 12.5px;
+  line-height: 1.55;
+  max-width: 74ch;
+}
+
+.upsellNote svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--gris);
+}
+
+.upsellNote b {
+  color: var(--blanc);
   font-weight: 500;
 }
 

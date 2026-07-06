@@ -93,7 +93,10 @@ export const FRONTIER_COVERAGE_BUFFER_M = 30;
 export const SHIELD_MAX_CLUSTER_HEXES = 300;
 export const SHIELD_DURATION_HOURS = 48;
 export const SHIELD_MAX_ACTIVE_PER_WEEK = 2; // cap absolu par joueur
-export const SHIELD_CLUB_INCLUDED_PER_WEEK = 1;
+// ANTI PAY-TO-WIN (décision fondateur) : l'abonnement GRYD Club ne bundle JAMAIS
+// de bouclier ni de protection de zone. Les boucliers restent des ACHATS
+// PONCTUELS capés (à la carte), jamais inclus dans le sub → 0.
+export const SHIELD_CLUB_INCLUDED_PER_WEEK = 0;
 
 // ─── §3.4 Points, streaks, monnaies ──────────────────────────────────────────
 // AMENDEMENT-23 §D + doc §23 : la FORMULE DE POINTS est désormais

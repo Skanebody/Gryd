@@ -202,7 +202,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     scope: 'zone',
     priceShards: SHIELD_EXTRA_ECLATS,
     consumable: true,
-    limit: `${SHIELD_EXTRA_PER_WEEK}/semaine (1 inclus Club) — sans effet en fin de saison`,
+    limit: `${SHIELD_EXTRA_PER_WEEK}/semaine max — achat ponctuel, jamais dans l'abonnement, sans effet en fin de saison`,
     description: `Protège un secteur pendant ${SHIELD_DURATION_HOURS} h. Ne rend pas invincible.`,
   },
   {
@@ -374,11 +374,10 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     section: 'subscriptions',
     scope: 'user',
     priceEur: eur(SKU_PRICES_EUR.club_monthly),
-    description: 'Stats avancées, heatmap, export HD, Radar Route et Streak Gel mensuels. Zéro avantage de jeu.',
+    description: 'Stats avancées, heatmap, export HD, Radar Route et Streak Gel mensuels. Zéro avantage de jeu, aucun bouclier.',
     contents: [
       'Stats avancées + heatmap personnelle',
       'Historique complet + export share HD',
-      `${SHIELD_CLUB_INCLUDED_PER_WEEK} bouclier inclus / semaine`,
       'Templates premium mensuels',
       'Radar Route + Streak Gel mensuels',
     ],

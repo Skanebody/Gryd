@@ -126,6 +126,55 @@
   color: var(--or);
 }
 
+/* ── Encadré freemium « gratuit pour toujours » : socle anti pay-to-win ──── */
+
+.freeBox {
+  margin-top: 36px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  background: var(--carbone);
+  border: 1px solid var(--ch40);
+  border-radius: var(--radius-card);
+  padding: 18px 22px;
+  box-shadow: 0 0 32px var(--ch14);
+}
+
+.freeTitle {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ch); /* chartreuse sur fond sombre = autorisé */
+}
+
+.freeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.freeItem {
+  font-size: 13px;
+  color: var(--blanc);
+  border: 1px solid var(--ch40);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+}
+
+.freeNote {
+  flex-basis: 100%;
+  color: var(--gris);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 70ch;
+}
+
 /* ── Encadré « jamais à vendre » : ghost barré ───────────────────────────── */
 
 .neverBox {
@@ -390,6 +439,14 @@
 
 .highlight .features .featureWithIcon .featureIcon {
   color: var(--ch);
+}
+
+/* Clarificateur anti pay-to-win sous les bénéfices du Club (confort/info/statut). */
+.clubNote {
+  margin: -8px 0 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--gris);
 }
 
 .cardCta {

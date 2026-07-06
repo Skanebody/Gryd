@@ -1,6 +1,7 @@
 /**
  * GRYD — Conditions Générales de Vente (CGV). OBLIGATOIRE dès lors qu'un service
- * payant est vendu à des consommateurs (GRYD Premium, Founder Pack) — art. L111-1
+ * payant est vendu à des consommateurs (abonnement GRYD Club, Founder Pack et achats
+ * in-app ponctuels) — art. L111-1
  * et s. du Code de la consommation. Distinct des CGU (/conditions) : les CGV
  * régissent la VENTE (prix, paiement, rétractation, reconduction, médiation).
  *
@@ -22,7 +23,7 @@ const EFFECTIVE = '6 juillet 2026';
 export const metadata: Metadata = {
   title: 'Conditions Générales de Vente — GRYD',
   description:
-    'CGV de GRYD : abonnement GRYD Premium et Founder Pack — prix, paiement, droit de rétractation, reconduction, résiliation, médiation de la consommation.',
+    'CGV de GRYD : abonnement GRYD Club, Founder Pack et achats in-app — prix, paiement, droit de rétractation, reconduction, résiliation, médiation de la consommation.',
 };
 
 function Todo({ children }: { children: ReactNode }) {
@@ -75,8 +76,8 @@ export default function CgvPage() {
           <p className={styles.kicker}>Conditions Générales de Vente</p>
           <h1 className={styles.heroTitle}>Conditions Générales de Vente</h1>
           <p className={styles.heroSub}>
-            Ces CGV régissent la vente des offres payantes de GRYD (GRYD Premium et Founder
-            Pack) aux consommateurs. Elles complètent les{' '}
+            Ces CGV régissent la vente des offres payantes de GRYD (abonnement GRYD Club,
+            Founder Pack et achats in-app ponctuels) aux consommateurs. Elles complètent les{' '}
             <a href="/conditions">conditions d&rsquo;utilisation</a> (usage du jeu) et la{' '}
             <a href="/confidentialite">politique de confidentialité</a>. Le jeu, le
             territoire et la progression restent entièrement gratuits&nbsp;: aucune offre
@@ -157,12 +158,18 @@ export default function CgvPage() {
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
-              <b>Abonnements</b> — <b>GRYD Club</b> (confort de jeu) et <b>GRYD Premium</b>
-              (statut / soutien), mensuels ou annuels.
+              <b>Abonnement (unique)</b> — <b>GRYD Club</b>, mensuel ou annuel. Il ouvre des
+              bonus permanents de <b>confort, d&rsquo;information (en lecture seule), de
+              cosmétique et de statut</b> (skins, radar des zones contestées, stats avancées,
+              templates de partage, gel de série, badge supporter). Il ne comprend <b>ni
+              bouclier, ni protection de zone, ni avantage territorial</b>.
             </li>
             <li className={styles.item}>
-              <b>Achats ponctuels</b> — Founder Pack, Starter Pack, Season Pass et packs
-              d&rsquo;Éclats (monnaie cosmétique).
+              <b>Achats ponctuels</b> — Founder Pack (à vie, édition limitée), Starter Pack,
+              Season Pass, packs d&rsquo;Éclats (monnaie cosmétique) et boucliers de quartier.
+              Les boucliers sont des consommables <b>plafonnés</b> et ne sont <b>jamais inclus
+              dans l&rsquo;abonnement</b>&nbsp;; comme toutes les offres, ils ne procurent ni
+              territoire, ni points, ni victoire.
             </li>
           </ul>
           <p className={styles.body}>
@@ -226,7 +233,7 @@ export default function CgvPage() {
           <p className={styles.sectionNum}>06</p>
           <h2 className={styles.sectionTitle}>Durée, reconduction &amp; résiliation</h2>
           <p className={styles.body}>
-            L&rsquo;abonnement GRYD Premium est souscrit pour la période choisie (mensuelle ou
+            L&rsquo;abonnement GRYD Club est souscrit pour la période choisie (mensuelle ou
             annuelle) et se renouvelle par tacite reconduction pour des périodes identiques,
             sauf résiliation.
           </p>
