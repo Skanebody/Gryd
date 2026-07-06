@@ -157,17 +157,21 @@ export default function CgvPage() {
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
-              <b>GRYD Premium&nbsp;:</b> 8&nbsp;€ TTC/mois ou 69&nbsp;€ TTC/an.
+              <b>Abonnements</b> — <b>GRYD Club</b> (confort de jeu) et <b>GRYD Premium</b>
+              (statut / soutien), mensuels ou annuels.
             </li>
             <li className={styles.item}>
-              <b>Founder Pack&nbsp;:</b> 149&nbsp;€ TTC — paiement unique, édition limitée.
+              <b>Achats ponctuels</b> — Founder Pack, Starter Pack, Season Pass et packs
+              d&rsquo;Éclats (monnaie cosmétique).
             </li>
           </ul>
           <p className={styles.body}>
-            Les prix sont indiqués en euros, toutes taxes comprises (TTC). Le vendeur se
-            réserve le droit de modifier ses prix&nbsp;; le prix applicable est celui affiché
-            au moment de la commande. Sur l&rsquo;App&nbsp;Store et Google&nbsp;Play, les prix
-            peuvent être ajustés selon les paliers tarifaires de la plateforme.
+            Le détail des offres et leurs <b>tarifs TTC en vigueur</b> (en euros, toutes taxes
+            comprises) sont présentés sur les pages d&rsquo;offres (site gryd.run et
+            application) et rappelés avant la validation de la commande&nbsp;: le prix
+            applicable est celui affiché à ce moment-là. Le vendeur se réserve le droit de
+            modifier ses prix. Sur l&rsquo;App&nbsp;Store et Google&nbsp;Play, les prix suivent
+            les paliers tarifaires de la plateforme.
           </p>
         </section>
 
