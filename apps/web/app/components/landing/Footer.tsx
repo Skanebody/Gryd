@@ -58,6 +58,17 @@ export function Footer() {
               {lang === 'fr' ? 'Conditions' : 'Terms'}
             </a>
           </li>
+          <li>
+            {/* CGV — obligatoire (vente d'abonnements) ; Mentions légales — obligatoire (LCEN). */}
+            <a className={styles.legalLink} href="/cgv">
+              {lang === 'fr' ? 'CGV' : 'Sales terms'}
+            </a>
+          </li>
+          <li>
+            <a className={styles.legalLink} href="/mentions-legales">
+              {lang === 'fr' ? 'Mentions légales' : 'Legal notice'}
+            </a>
+          </li>
           <li>{copy.footer.company}</li>
         </ul>
       </div>

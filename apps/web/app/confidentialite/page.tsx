@@ -460,6 +460,8 @@ export default function ConfidentialitePage() {
         {/* ── Pied de page légal ─────────────────────────────────────── */}
         <div className={styles.legalFoot}>
           <a href="/conditions">Conditions d&rsquo;utilisation</a>
+          <a href="/cgv">CGV</a>
+          <a href="/mentions-legales">Mentions légales</a>
           <a href="/">Retour à l&rsquo;accueil</a>
           <span>SASU Nexus 1993</span>
         </div>

@@ -318,6 +318,30 @@ export default function SettingsSectionScreen() {
             />
             <ActionRow icon="verrou" label="Politique de confidentialité" onPress={() => router.push('/confidentialite')} />
             <ActionRow
+              icon="pass"
+              label="Conditions de vente (CGV)"
+              detail="Abonnement, paiement, rétractation"
+              onPress={() =>
+                openLegal(
+                  'cgv',
+                  'Conditions Générales de Vente',
+                  'Retrouve les CGV sur gryd.run/cgv.',
+                )
+              }
+            />
+            <ActionRow
+              icon="pass"
+              label="Mentions légales"
+              detail="Éditeur, hébergement"
+              onPress={() =>
+                openLegal(
+                  'mentions-legales',
+                  'Mentions légales',
+                  'Retrouve les mentions légales sur gryd.run/mentions-legales.',
+                )
+              }
+            />
+            <ActionRow
               icon="crest"
               label="Licences open source"
               onPress={() =>

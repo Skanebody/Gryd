@@ -300,6 +300,8 @@ export default function ConditionsPage() {
 
         <div className={styles.legalFoot}>
           <a href="/confidentialite">Politique de confidentialité</a>
+          <a href="/cgv">CGV</a>
+          <a href="/mentions-legales">Mentions légales</a>
           <a href="/">Retour à l&rsquo;accueil</a>
           <span>SASU Nexus 1993</span>
         </div>
