@@ -22,11 +22,18 @@
  * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session →
  * (auth)/sign-in ; non configuré (O1) → mode dev.
  *
- * AMENDEMENT-07 §8 : après l'auth, si l'onboarding motivationnel n'a jamais été
- * vu, on redirige une fois vers /onboarding (natif uniquement — session réelle).
- * NON BLOQUANT : sur web `configured=false` (aperçu), donc jamais de redirection ;
- * et l'onboarding lui-même a un « Passer ». On n'agit qu'une fois les prefs lues
- * (évite un flash pendant la lecture AsyncStorage).
+ * AMENDEMENT-30 §3 — ONBOARDING SANS FRICTION : « jouer avant le compte ». Le
+ * gating est RÉORDONNÉ : un NOUVEAU visiteur (état pré-compte `onboardingDone`
+ * faux, onboarding/store) voit l'ONBOARDING D'ABORD — la 1re capture démo se
+ * fait AVANT toute auth ; le compte se crée à l'étape 6 du flow. La garde d'auth
+ * (sign-in) ne s'applique qu'ENSUITE (filet natif si l'onboarding est fait mais
+ * qu'aucune session n'existe encore). Un utilisateur DÉJÀ authentifié qui a fini
+ * l'onboarding saute tout (§3).
+ * NON BLOQUANT sur web preview (`configured=false`) : on NE force PAS la
+ * redirection vers l'onboarding (les tabs restent l'aperçu par défaut, les
+ * autres écrans testables) — le flow reste accessible/testable via /onboarding.
+ * On n'agit qu'une fois l'état d'onboarding lu (évite un flash pendant la lecture
+ * AsyncStorage).
  */
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -41,21 +48,27 @@ import {
 import { EVENTS, track } from '../../src/lib/analytics';
 import { Icon } from '../../src/ui/Icon';
 import { FloatingActionButton } from '../../src/ui/game';
-import { useMotivationPrefs } from '../../src/features/motivation/store';
+import { useOnboardingState } from '../../src/features/onboarding/store';
 import { useSession } from '../../src/lib/session';
 
 export default function TabsLayout() {
   const { session, loading, configured } = useSession();
-  const { prefs, loading: prefsLoading } = useMotivationPrefs();
+  const { state: onboarding, loading: onboardingLoading } = useOnboardingState();
 
   // Restauration de session en cours : fond noir muet (splash implicite).
   if (loading) return <View style={styles.root} />;
-  if (configured && !session) return <Redirect href="/sign-in" />;
 
-  // Onboarding motivationnel une seule fois, sur session réelle (§8).
-  if (configured && session && !prefsLoading && !prefs.onboardingSeen) {
+  // §3 — JOUER AVANT LE COMPTE : le nouveau visiteur voit l'onboarding en
+  // premier (capture démo avant toute auth). Sur web preview (configured=false)
+  // on ne force pas la redirection — les tabs restent l'aperçu par défaut,
+  // l'onboarding reste testable via /onboarding.
+  if (configured && !onboardingLoading && !onboarding.onboardingDone) {
     return <Redirect href="/onboarding" />;
   }
+
+  // Filet d'auth : onboarding fait mais pas de session (ex. compte différé à
+  // l'étape 6) → écran de connexion réel. Jamais atteint en preview web.
+  if (configured && !session) return <Redirect href="/sign-in" />;
 
   return (
     <View style={styles.root}>
