@@ -57,8 +57,6 @@ import {
 type PrimaryTab = 'joueurs' | 'crews' | 'ville';
 /** Filtre secondaire : portée (Paris/France) + période (Semaine/Saison). */
 type ScopeFilter = 'paris' | 'france';
-type PeriodFilter = 'semaine' | 'saison';
-
 const PRIMARY_TABS: readonly { id: PrimaryTab; label: string }[] = [
   { id: 'joueurs', label: 'Joueurs' },
   { id: 'crews', label: 'Crews' },
@@ -69,12 +67,6 @@ const PRIMARY_TABS: readonly { id: PrimaryTab; label: string }[] = [
 const SCOPE_OPTIONS: readonly { id: ScopeFilter; label: string }[] = [
   { id: 'paris', label: 'Paris' },
   { id: 'france', label: 'France' },
-];
-
-/** Filtre période (segmented). */
-const PERIOD_OPTIONS: readonly { id: PeriodFilter; label: string }[] = [
-  { id: 'semaine', label: 'Semaine' },
-  { id: 'saison', label: 'Saison' },
 ];
 
 /** Boards indexés — le filtre France sur Joueurs bascule vers le board national. */
@@ -213,7 +205,6 @@ export default function LeagueScreen() {
   const { prefs } = useMotivationPrefs();
   const [tab, setTab] = useState<PrimaryTab>('joueurs');
   const [scope, setScope] = useState<ScopeFilter>('paris');
-  const [period, setPeriod] = useState<PeriodFilter>('saison');
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
@@ -323,12 +314,14 @@ export default function LeagueScreen() {
           />
         </View>
 
-        {/* Filtre secondaire : portée (Paris/France) + période (Semaine/Saison).
-            Segmented `scrollable` = largeur de CONTENU (strips légers), posés sur
-            la même rangée séparés par l'espace — aucun label tronqué (pet peeve
-            #1), plus léger que les onglets primaires. Portée réservée à Joueurs. */}
-        <View style={styles.filterRow}>
-          {tab === 'joueurs' ? (
+        {/* Filtre secondaire : portée (Paris/France), réservée à l'onglet Joueurs.
+            Segmented `scrollable` = largeur de CONTENU (strips légers) — aucun label
+            tronqué (pet peeve #1), plus léger que les onglets primaires. La période
+            (Semaine/Saison) n'apparaît PAS tant qu'elle n'altère pas les données :
+            un vrai découpage hebdo/saison arrive avec le backend (O1). §A : jamais
+            de filtre qui ne fait rien. */}
+        {tab === 'joueurs' ? (
+          <View style={styles.filterRow}>
             <Segmented
               options={SCOPE_OPTIONS}
               value={scope}
@@ -340,17 +333,8 @@ export default function LeagueScreen() {
                 setShowAll(false);
               }}
             />
-          ) : null}
-          <View style={styles.filterSpacer} />
-          <Segmented
-            options={PERIOD_OPTIONS}
-            value={period}
-            tone="surface"
-            scrollable
-            accessibilityLabel="Période du classement"
-            onChange={setPeriod}
-          />
-        </View>
+          </View>
+        ) : null}
 
         {/* PODIUM top 3 — remonté à chaque changement de board (key) */}
         <Podium key={board.id} board={board} />
@@ -491,7 +475,6 @@ const styles = StyleSheet.create({
 
   // ── Filtre secondaire (deux strips content-width, séparés par l'espace) ──
   filterRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  filterSpacer: { flex: 1, minWidth: 8 },
 
   // ── Podium en marches ──
   podium: {
