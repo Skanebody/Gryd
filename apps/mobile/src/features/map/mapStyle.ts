@@ -700,6 +700,13 @@ const SAT_CORE_WIDTH_MULT = 1.75;
 const SAT_LINE_ALPHA_BOOST = 1.6;
 const SAT_FILL_BOOST = 1.9;
 
+// Fond `color` (Voyager, plan clair type iPhone) : plus calme que le satellite,
+// mais toujours clair → la couche de guerre a besoin d'un coup de pouce MODÉRÉ
+// (moins que satellite) pour ressortir. Entre « liseré seul » (1) et satellite.
+const COLOR_CORE_WIDTH_MULT = 1.35;
+const COLOR_LINE_ALPHA_BOOST = 1.3;
+const COLOR_FILL_BOOST = 1.4;
+
 export const battleMapStyle = {
   // Mon crew (chartreuse — trait net, AMENDEMENT-16 §0 : zéro glow)
   heldFill: mapTokens.mineFill,
@@ -1205,9 +1212,9 @@ function withColorCasing(
   const extraPx = satellite ? SATELLITE_CASING_EXTRA_PX : COLOR_CASING_EXTRA_PX;
   // Sur satellite, la couche de guerre est renforcée (le fond est déjà assombri) :
   // cœur plus large, alpha du trait relevé, aplats densifiés. Sur `color`, neutre.
-  const widthMult = satellite ? SAT_CORE_WIDTH_MULT : 1;
-  const lineBoost = satellite ? SAT_LINE_ALPHA_BOOST : 1;
-  const fillBoost = satellite ? SAT_FILL_BOOST : 1;
+  const widthMult = satellite ? SAT_CORE_WIDTH_MULT : COLOR_CORE_WIDTH_MULT;
+  const lineBoost = satellite ? SAT_LINE_ALPHA_BOOST : COLOR_LINE_ALPHA_BOOST;
+  const fillBoost = satellite ? SAT_FILL_BOOST : COLOR_FILL_BOOST;
   const boostFill = (s: RealMapGeoJSONLayer): RealMapGeoJSONLayer =>
     s.fillOpacity !== undefined ? { ...s, fillOpacity: Math.min(1, s.fillOpacity * fillBoost) } : s;
   const out: RealMapGeoJSONLayer[] = [];
