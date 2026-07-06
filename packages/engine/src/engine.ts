@@ -317,3 +317,185 @@ export async function runTerritoryEngine(
     explanation,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BOUCLE COLLECTIVE CREW (algo #8) — fermeture d'une frontière partielle
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ownership + contexte résolus depuis la DB pour l'intérieur PLAFONNÉ d'une
+ * boucle crew fermée. MÊME forme que les lectures d'ingest_run
+ * (loadHexStates / loadOwnersCreatedAt / loadPrivacyHexes / loadNoCaptureHexes /
+ * loadClaimsToday / loadContextByHex). Le résolveur reçoit l'ensemble déjà
+ * TRONQUÉ (`capped`) — le plafond d'aire est décidé PUR, en amont, comme
+ * ingest_run. Aucune densité ici : elle est fournie à l'entrée du moteur
+ * (`zoneDensity` de la course), pas relue par hex (miroir exact de
+ * completeBoundaries).
+ */
+export interface CrewOwnershipResolution {
+  /** État DB par hex (absent = jamais possédé). */
+  states: ReadonlyMap<string, HexState>;
+  /** Date de création de compte par ownerUserId (protection nouveau joueur). */
+  ownersCreatedAt: ReadonlyMap<string, Date>;
+  /** Hexes res 10 dans une zone privée du coureur (§7). */
+  privacyHexes: ReadonlySet<string>;
+  /** Hexes res 10 non capturables (autoroutes, zones militaires…). */
+  noCaptureHexes: ReadonlySet<string>;
+  /** Hexes déjà claimés/défendus aujourd'hui AVANT cette course (§6.4). */
+  claimsToday: number;
+  /** coeff_contexte §23 par hex (contested / crew_mission / zone_bonus). */
+  contextByHex?: ReadonlyMap<string, readonly ContextCoeffKey[]>;
+}
+
+/** Entrée du moteur de fermeture de boucle CREW (algo #8). */
+export interface CrewBoundaryCloseInput {
+  /**
+   * Anneau OUVREUR de la frontière partielle (points {lat,lng} de la course qui
+   * a ouvert la frontière, `partial_boundaries.opener_ring`). Le polygone de la
+   * boucle = anneau ouvreur + trace du finisher (pont end→start implicite).
+   */
+  openerRing: readonly { lat: number; lng: number }[];
+  /**
+   * Trace claimable du FINISHER (course qui referme). Sert au pont du polygone
+   * ET au couloir déjà pris par cette course (exclu de l'intérieur).
+   */
+  finisherTrace: readonly { lat: number; lng: number }[];
+  /** Longueur validée du segment contribuant du finisher (m) : moitié du plafond d'aire. */
+  finisherLengthM: number;
+  /** Longueur totale déjà accumulée par la frontière (m) : `total_length_m`, autre moitié du plafond. */
+  accumulatedLengthM: number;
+  /** Coureur finisher. */
+  userId: string;
+  /** Création du compte du finisher (exemption de decay < 14 j, §3.3). */
+  userCreatedAt: Date;
+  /** Horloge de la course (decideClaims l'utilise ; jamais Date.now() interne). */
+  now: Date;
+  /** Densité de la course (globale) : la zone crew qui referme prend cette densité. */
+  zoneDensity: ZoneDensity;
+  /**
+   * Résolveur d'ownership INJECTÉ (seul accès I/O) : reçoit l'intérieur DÉJÀ
+   * PLAFONNÉ (`capped`) et rend les états DB + le contexte. Appelé UNE fois,
+   * après le calcul du plafond d'aire.
+   */
+  resolveOwnership: (capped: readonly string[]) => Promise<CrewOwnershipResolution>;
+}
+
+/**
+ * Explicabilité structurée de la fermeture crew (miroir de la couche §23) :
+ * combien de cellules ont fermé, si le plafond d'aire a été atteint, la part de
+ * base vs multipliée. PAS de verify/streak ici : le score crew de la fermeture
+ * est le total de base de decideClaims (comme ingest_run — la fermeture crew ne
+ * passe pas par computeScore).
+ */
+export interface CrewBoundaryCloseExplanation {
+  /** true si le polygone (anneau + finisher) enclôt au moins une cellule. */
+  interiorClosed: boolean;
+  /** Cellules d'intérieur brutes (avant plafond d'aire). */
+  interiorCellCount: number;
+  /** Cellules d'intérieur réellement décidées (après plafond). */
+  cappedCellCount: number;
+  /** true si l'intérieur a été TRONQUÉ au plafond d'aire (secteurs les plus proches gardés). */
+  capReached: boolean;
+  /** Plafond d'aire (cellules) pour finisher + accumulé. */
+  cellCap: number;
+  points: {
+    /** Points de BASE crew (formule §23 : zones × action × contexte + pionnier). */
+    base: number;
+    /** Nombre d'hexes réellement pris (claimed_neutral + stolen) — l'action crew en aval. */
+    actionable: number;
+  };
+}
+
+/** Sortie du moteur de fermeture de boucle CREW. */
+export interface CrewBoundaryCloseResult {
+  /** Intérieur PLAFONNÉ (cellules décidées) — jamais tronqué côté couloir finisher (déjà pris). */
+  interiorCells: string[];
+  /** true si l'intérieur a été tronqué au plafond d'aire. */
+  cappedAt: boolean;
+  /** Décision par hex (pure) — appliquée atomiquement en aval par claim_hexes (zone → CREW). */
+  decision: DecideClaimsResult;
+  /** Explicabilité structurée. */
+  explanation: CrewBoundaryCloseExplanation;
+}
+
+/**
+ * Compose la fermeture d'une boucle CREW (algo #8). PURE (I/O uniquement via
+ * `resolveOwnership`). EXTRACTION à ISO-comportement du cœur de
+ * completeBoundaries (ingest_run) : mêmes appels, mêmes arguments, mêmes
+ * valeurs de sortie.
+ *
+ * Contrairement au solo (`runTerritoryEngine`), la boucle crew est fermée PAR
+ * CONSTRUCTION (anneau ouvreur + trace finisher) : PAS de detectLoop, PAS de
+ * loopShapeVerdict, PAS de gate GPS, et l'intérieur N'est PAS marqué
+ * `clean_loop` (le contexte ne passe pas `interiorHexes` — reproduit tel quel).
+ */
+export async function runCrewBoundaryClose(
+  input: CrewBoundaryCloseInput,
+): Promise<CrewBoundaryCloseResult> {
+  // ── Polygone = anneau ouvreur + trace finisher (pont end→start implicite) ──
+  const fullRing = [...input.openerRing, ...input.finisherTrace];
+  // Couloir du finisher déjà pris par cette course → exclu de l'intérieur.
+  // finisherTrace ({lat,lng}[]) EST un Segment (RunPoint[], `t` optionnel) : on
+  // le passe comme UNIQUE segment, exactement comme completeBoundaries.
+  const finisherCorridor = hexesForSegments([input.finisherTrace as Segment]);
+  const interiorCells = enclosedCells(fullRing, finisherCorridor);
+  // NB : interiorCells vide (rare) → on ferme quand même ; decideClaims([]) rend
+  // un total nul, la zone crew est la fermeture elle-même (comme ingest_run).
+
+  // ── Plafond d'aire par distance courue (finisher + accumulé) ───────────────
+  const cellCap = loopInteriorCellCap(input.finisherLengthM + input.accumulatedLengthM);
+  let capped = interiorCells;
+  let cappedAt = false;
+  if (capped.length > cellCap) {
+    capped = capped.slice(0, cellCap); // les plus proches du tracé
+    cappedAt = true;
+  }
+
+  // ── Lecture d'état + contexte (I/O INJECTÉ, seul accès DB) ─────────────────
+  const ownership = await input.resolveOwnership(capped);
+
+  // ── Décision SERVEUR des claims intérieurs (pure) ──────────────────────────
+  // MÊME contexte que completeBoundaries : densité GLOBALE de la course, PAS
+  // d'interiorHexes (la fermeture crew ne prend pas l'action clean_loop),
+  // contextByHex ajouté seulement si non vide.
+  const decision = decideClaims({
+    hexes: capped,
+    states: ownership.states,
+    context: {
+      userId: input.userId,
+      userCreatedAt: input.userCreatedAt,
+      now: input.now,
+      ownersCreatedAt: ownership.ownersCreatedAt,
+      privacyHexes: ownership.privacyHexes,
+      noCaptureHexes: ownership.noCaptureHexes,
+      zoneDensity: input.zoneDensity,
+      claimsToday: ownership.claimsToday,
+      ...(ownership.contextByHex !== undefined && ownership.contextByHex.size > 0
+        ? { contextByHex: ownership.contextByHex }
+        : {}),
+    },
+  });
+
+  const actionable = decision.results.filter(
+    (r) => r.outcome === 'claimed_neutral' || r.outcome === 'stolen',
+  ).length;
+
+  const explanation: CrewBoundaryCloseExplanation = {
+    interiorClosed: interiorCells.length > 0,
+    interiorCellCount: interiorCells.length,
+    cappedCellCount: capped.length,
+    capReached: cappedAt,
+    cellCap,
+    points: {
+      base: decision.totals.points,
+      actionable,
+    },
+  };
+
+  return {
+    interiorCells: capped,
+    cappedAt,
+    decision,
+    explanation,
+  };
+}

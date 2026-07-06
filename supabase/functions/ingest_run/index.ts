@@ -78,7 +78,9 @@ import {
 import { defenseHoursForCoverage, frontierCoverage } from '../_shared/engine/coverage.ts';
 import { extendDecay } from '../_shared/engine/zone.ts';
 import {
+  type CrewOwnershipResolution,
   type OwnershipResolution,
+  runCrewBoundaryClose,
   runTerritoryEngine,
 } from '../_shared/engine/engine.ts';
 import {
@@ -1430,46 +1432,55 @@ async function completeBoundaries(
     //    complet, MOINS le couloir du finisher déjà pris par cette course. ──
     const openerRing = (row.opener_ring ?? []).map((p) => ({ lat: p.lat, lng: p.lng }));
     if (openerRing.length < 2) continue; // anneau ouvreur manquant → on ne devine pas
-    const fullRing = [...openerRing, ...finisherTrace.map((p) => ({ lat: p.lat, lng: p.lng }))];
-    const finisherCorridor = hexesForSegments([finisherTrace as RunPoint[]]);
-    const interiorCells = enclosedCells(fullRing, finisherCorridor);
-    if (interiorCells.length === 0) {
-      // Boucle fermée mais intérieur vide (rare) : on ferme quand même la
-      // frontière et on répartit — la zone crew est la fermeture elle-même.
-    }
 
-    // Plafond d'aire par distance courue par le FINISHER (réutilise la règle
-    // boucle) : seules les cellules proches du tracé sont conservées au plafond.
-    let capped = interiorCells;
-    const cap = loopInteriorCellCap(verdict.finisherLengthM + Number(row.total_length_m));
-    if (capped.length > cap) capped = capped.slice(0, cap);
-
-    // ── Décision SERVEUR des claims intérieurs (jamais le client) ───────────
-    const states = await loadHexStates(capped);
-    const [ownersCreatedAt, privacyHexes, noCaptureHexes, claimsToday] = await Promise.all([
-      loadOwnersCreatedAt(states, ctx.userId),
-      loadPrivacyHexes(ctx.userId, capped),
-      loadNoCaptureHexes(capped),
-      loadClaimsToday(ctx.userId, ctx.now),
-    ]);
-    // coeff_contexte §23 de l'intérieur d'une boucle CREW fermée : une zone crew
-    // qui referme dans une offensive active (`crew_mission`) ou sur du rival
-    // (`contested`) est majorée comme un run normal. Même règle SERVEUR.
-    const contextByHex = await loadContextByHex(ctx.userId, ctx.crewId, capped, states, ctx.now);
-    const decision = decideClaims({
-      hexes: capped,
-      states,
-      context: {
-        userId: ctx.userId,
-        userCreatedAt: ctx.userCreatedAt,
-        now: ctx.now,
+    // ── Fermeture de boucle CREW (algo #8) : UN point d'entrée pur ────────────
+    // AMENDEMENT-17 §CH2. `runCrewBoundaryClose` EMBALLE la séquence fullRing →
+    // finisherCorridor → enclosedCells → plafond d'aire → decideClaims qui était
+    // câblée ici à la main. Le SEUL accès I/O est le résolveur `resolveOwnership`
+    // injecté ci-dessous : il fait EXACTEMENT les mêmes lectures DB, dans le MÊME
+    // ordre (loadHexStates(capped) puis Promise.all[owners/privacy/noCapture/
+    // claimsToday] puis loadContextByHex), qu'avant l'extraction. Extraction
+    // mécanique, iso-comportement : mêmes hexes intérieurs, mêmes claims, même
+    // plafond, même ordre d'écriture. Le moteur rend `decision` + l'intérieur
+    // plafonné, réutilisés à l'identique par tout le reste de la fonction.
+    const resolveOwnership = async (
+      capped: readonly string[],
+    ): Promise<CrewOwnershipResolution> => {
+      const states = await loadHexStates(capped);
+      const [ownersCreatedAt, privacyHexes, noCaptureHexes, claimsToday] = await Promise.all([
+        loadOwnersCreatedAt(states, ctx.userId),
+        loadPrivacyHexes(ctx.userId, capped),
+        loadNoCaptureHexes(capped),
+        loadClaimsToday(ctx.userId, ctx.now),
+      ]);
+      // coeff_contexte §23 de l'intérieur d'une boucle CREW fermée : une zone crew
+      // qui referme dans une offensive active (`crew_mission`) ou sur du rival
+      // (`contested`) est majorée comme un run normal. Même règle SERVEUR.
+      const contextByHex = await loadContextByHex(ctx.userId, ctx.crewId, capped, states, ctx.now);
+      return {
+        states,
         ownersCreatedAt,
         privacyHexes,
         noCaptureHexes,
-        zoneDensity: ctx.density,
         claimsToday,
         ...(contextByHex.size > 0 ? { contextByHex } : {}),
-      },
+      };
+    };
+
+    // Plafond d'aire par distance courue par le FINISHER (réutilise la règle
+    // boucle) : seules les cellules proches du tracé sont conservées au plafond.
+    // finisher + accumulé = loopInteriorCellCap(verdict.finisherLengthM +
+    // row.total_length_m), à l'identique.
+    const { decision } = await runCrewBoundaryClose({
+      openerRing,
+      finisherTrace,
+      finisherLengthM: verdict.finisherLengthM,
+      accumulatedLengthM: Number(row.total_length_m),
+      userId: ctx.userId,
+      userCreatedAt: ctx.userCreatedAt,
+      now: ctx.now,
+      zoneDensity: ctx.density,
+      resolveOwnership,
     });
     const actionable = decision.results.filter((r) =>
       r.outcome === 'claimed_neutral' || r.outcome === 'stolen'

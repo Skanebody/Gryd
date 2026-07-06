@@ -297,29 +297,52 @@ réimplémenter dans le point d'entrée unifié.
 
 ## 6. Point d'entrée unifié
 
-**But du chantier de refactor** : emballer la composition câblée à la main dans
-`ingest_run/index.ts` (~L2023-2161) en **un point d'entrée pur unique**, qui
-devient LA composition canonique du pipeline territorial.
+`packages/engine/src/engine.ts` **expose désormais DEUX orchestrateurs purs
+nommés**, un par algorithme-titre du pipeline territorial. Chacun emballe une
+séquence qui était auparavant câblée à la main dans `ingest_run/index.ts` en
+**un point d'entrée pur unique**, entrée = trace + état pré-run + contexte,
+sortie = décision + score. Toute la logique de jeu se documente et se teste en
+un endroit ; l'I/O serveur (chargements, RPC `claim_hexes`, défense graduée
+cross-run) reste **dehors**, injecté en argument, jamais ré-implémenté.
 
-- **Cible** : `packages/engine/src/engine.ts` exposant `runTerritoryEngine(...)`
-  *(à créer par le chantier — n'existe pas encore ; ce document en fixe le
-  contrat)*.
-- **Contenu** : la séquence exacte déjà en place — `filterPoints` → `computeStats`
-  → `validateRun` → `claimableSegments` → `loopTracePoints` → `detectLoop` →
-  `loopShapeVerdict` → `hexesForSegments` → `enclosedCells` (tronqué à
-  `loopInteriorCellCap`) → `deriveContextByHex` → `decideClaims` →
-  `verifyFactor` → `computeScore`. Une fonction pure, entrée = trace + état
-  pré-run + contexte, sortie = décision + score + intérieur/couloir.
-- **Ce qui reste dehors** (I/O serveur, injecté en argument, **pas** ré-implémenté) :
-  chargement d'état (`loadHexStates`), `loadPrivacyHexes`, `loadNoCaptureHexes`,
-  `loadCrew`, `loadDensity`, `loadClaimsToday`, la RPC `claim_hexes`, la défense
-  graduée cross-run et la frontière crew.
-- **Réutilisation** : `ingest_run` appelle `runTerritoryEngine` au lieu de
-  ré-orchestrer les 12 appels ; toute la logique de jeu se documente et se teste
-  en **un** endroit. `engine.ts` s'ajoute à `index.ts` (`export * from './engine.ts'`)
-  et à la génération Deno — le drift test couvre la copie `_shared/engine/engine.ts`.
+### 6.1 `runTerritoryEngine` — #1 conquête solo
 
-> Tant que le chantier n'a pas livré `engine.ts`, la **composition de référence
-> reste** le bloc `ingest_run/index.ts` ~L2023-2161. Le refactor doit produire
-> une sortie **bit-à-bit identique** à ce bloc (zéro régression) — c'est
-> l'extraction d'une composition existante, pas une nouvelle logique.
+- **Séquence** : `filterPoints` → `computeStats` → `validateRun` →
+  `claimableSegments` → `loopTracePoints` → `detectLoop` → `loopShapeVerdict` →
+  `hexesForSegments` → `enclosedCells` (tronqué à `loopInteriorCellCap`) →
+  `deriveContextByHex` → `decideClaims` → `verifyFactor` → `computeScore`.
+- **Appelé par** : le handler principal de `ingest_run` (~L2142), à la place de
+  la ré-orchestration manuelle des 12 appels.
+
+### 6.2 `runCrewBoundaryClose` — #8 boucle collective crew
+
+- **Rôle** : fermeture de la boucle **collective** d'un crew (l'intérieur d'un
+  anneau tracé à plusieurs), symétrique du solo mais **fermée par le crew**, pas
+  par un seul runner. Densité de contexte prise **globalement** sur la course.
+- **Séquence** : `fullRing` → `enclosedCells` (tronqué à `loopInteriorCellCap`,
+  d'où `cappedAt`) → dérivation de contexte globale → décision d'intérieur
+  (`claimed_neutral`).
+- **Appelé par** : `completeBoundaries` (`ingest_run/index.ts` ~L1474), à la
+  place du câblage inline précédent. Mêmes appels, mêmes arguments, mêmes
+  sorties qu'avant l'extraction.
+
+### 6.3 Ce qui reste inline — volontairement
+
+Les **flux de soutien** ne sont **pas** des algorithmes-titres et restent câblés
+inline dans `ingest_run` par choix :
+
+- **Contestation #6** (défense graduée / pression cross-run) ;
+- **Ouverture de route** (couloir hors boucle).
+
+Ce ne sont pas des compositions autonomes candidates à un orchestrateur nommé :
+les promouvoir n'apporterait pas de point de test unique et brouillerait la
+frontière moteur pur / I/O serveur. On les laisse là où ils sont.
+
+### 6.4 Génération & anti-régression
+
+`engine.ts` est exporté par `index.ts` (`export * from './engine.ts'`) et copié
+vers Deno par `scripts/sync-game-rules.mjs` ; le drift test couvre la copie
+`_shared/engine/engine.ts`. Les deux extractions sont **bit-à-bit identiques**
+aux compositions d'origine (zéro régression) — c'est de l'extraction, pas de la
+nouvelle logique. Filet : suite Deno verte à l'identique (446 → 449 avec les 3
+tests `runCrewBoundaryClose`).
