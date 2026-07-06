@@ -1,8 +1,12 @@
 /**
- * GRYD — onglet War Room, dashboard compact (AMENDEMENT-17 §1.3 + AMENDEMENT-22).
- * « Un écran = une action. » Les 3 priorités du crew sont comprises SANS
- * scroller : URGENT (défense critique) · ACTIF (conquête collective) ·
- * À TERMINER (frontières ouvertes) + COFFRE.
+ * GRYD — onglet MISSIONS (AMENDEMENT-29 : ex-War Room recadrée « choisir une
+ * mission » ; la coordination crew reste accessible depuis Crew). Dashboard
+ * compact (AMENDEMENT-17 §1.3 + AMENDEMENT-22) : « Un écran = une action. » Les
+ * 3 priorités du crew sont comprises SANS scroller — URGENT (défense critique) ·
+ * ACTIF (conquête collective) · À TERMINER (frontières ouvertes) + COFFRE. Cet
+ * écran ne fait que présenter les missions ; le bouton d'action flottant
+ * (AMENDEMENT-29, layout) porte l'intention de course, et chaque mission garde
+ * son action inline scopée à l'item (§A.4 : pas de 2ᵉ gros CTA en doublon).
  *
  * PROFONDEUR (AMENDEMENT-22, « UI en scènes ») : le fond noir est de l'ESPACE.
  * UNE seule vraie surface (N1) — la card URGENTE, seule à porter un contour
@@ -777,10 +781,15 @@ export default function WarRoomScreen() {
 
   return (
     <>
+      {/* Header MISSIONS (AMENDEMENT-29) — le TITRE porte le nom de l'écran
+          (« Missions », ex-War Room, recadré « choisir une mission »). Le kicker
+          reste le HUD de scène (saison · jours · ville · rang crew, doc §7) : il
+          situe, sans répéter le mot « Missions » (§A.20). Titre court non tronqué. */}
       <TabScreen
-        title="War Room"
+        title="Missions"
         icon="guerre"
         kicker={`${WAR_STATUS.seasonLabel} · J-${WAR_STATUS.daysLeft} · ${WAR_STATUS.city} · CREW #${WAR_STATUS.crewRank}`}
+        subtitle="Choisis ta prochaine mission."
       >
         {/* ================= 3 PRIORITÉS + COFFRE (sans scroll) ================= */}
 

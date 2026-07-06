@@ -1,14 +1,18 @@
 /**
- * GRYD — onglet League ACTIONNABLE (AMENDEMENT-17 §1.3). Un écran = une action :
- * l'essentiel (mon rang + l'écart + le rank-up émotionnel + le CTA) tient AU-
- * DESSUS du fold, sans scroll. Ordre :
+ * GRYD — onglet SAISON ACTIONNABLE (AMENDEMENT-29 : ex-League, recadré « la
+ * saison » = classement + récompenses + objectifs de saison ; AMENDEMENT-17
+ * §1.3). Un écran = une action : l'essentiel (mon rang + l'écart + le rank-up
+ * émotionnel + le CTA) tient AU-DESSUS du fold, sans scroll (§A.18). Ordre :
  *   1. Ma ligne « #8 KORO · 342 pts du #7 · ≈ 35 zones peuvent suffire »
- *   2. Rank-up émotionnel juste après (« Tu entres dans le Top 10… »)
- *   3. CTA [Trouver une route] (JAMAIS un GO — la League envoie vers le planner)
+ *   2. Rank-up émotionnel juste après (« Tu entres dans le Top 10… ») = l'objectif
+ *      de saison à tenir jusqu'au reset
+ *   3. CTA [Trouver une route] (JAMAIS un GO — la Saison envoie vers le planner)
  * Puis, en exploration : onglets RÉDUITS (Joueurs / Crews / Ville) + filtre
  * secondaire (Paris / France / Semaine / Saison) ; podium ; top 10 COMPACT (2
- * lignes visibles + « Voir tout »). L'écart en zones neutres est DÉRIVÉ via
- * POINTS_NEUTRAL_HEX — aucun barème local. Anti-shame : jamais « dernier/lent ».
+ * lignes visibles + « Voir tout ») ; récompenses de fin de saison. L'écart en
+ * zones neutres est DÉRIVÉ via POINTS_NEUTRAL_HEX — aucun barème local.
+ * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5 : le bouton
+ * flottant de course n'apparaît JAMAIS sur Saison).
  */
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -237,13 +241,16 @@ export default function LeagueScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header saison — SAISON 0 · SEMAINE 2/8 + PARIS LEAGUE (doc §17) */}
+        {/* Header SAISON (AMENDEMENT-29 : ex-« Paris League »). Le TITRE porte le
+            nom de l'écran (« Saison ») ; le kicker situe la saison + la semaine +
+            la ville (doc §17). Textes courts non tronqués. */}
         <Text style={styles.kicker}>
-          SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS}
+          SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} ·{' '}
+          {CITIES.paris.name.toUpperCase()}
         </Text>
         <View style={styles.titleRow}>
           <Icon name="classement" size={22} color={colors.blanc} />
-          <Text style={styles.title}>{CITIES.paris.name.toUpperCase()} LEAGUE</Text>
+          <Text style={styles.title}>Saison</Text>
         </View>
 
         {/* ── BLOC TOI EN HAUT (sans scroll) : rang + écart + rank-up + CTA ── */}

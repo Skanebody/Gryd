@@ -445,15 +445,16 @@ export default function RoutePlannerScreen() {
         })}
       </ScrollView>
 
-      {/* ── CTA évident : GO (AMENDEMENT-14 §2 — démarre la route sélectionnée) ── */}
+      {/* ── CTA évident : VERBE contextuel (AMENDEMENT-29 — « GO » retiré ; le
+          libellé = l'objectif de la route sélectionnée, CONQUÉRIR/DÉFENDRE). ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`GO — démarrer la route ${route.letter}, ${formatKm(route.distanceKm)} kilomètres`}
+          accessibilityLabel={`${ROUTE_OBJECTIVE_LABELS[objective]} — démarrer la route ${route.letter}, ${formatKm(route.distanceKm)} kilomètres`}
           onPress={startRun}
           style={({ pressed }) => [styles.startBtn, pressed && styles.startPressed]}
         >
-          <Text style={styles.startLabel}>GO</Text>
+          <Text style={styles.startLabel}>{ROUTE_OBJECTIVE_LABELS[objective].toUpperCase()}</Text>
         </Pressable>
       </View>
 

@@ -24,9 +24,11 @@ export {
 } from './ArsenalItemCard';
 export {
   ContextualRunButton,
+  FloatingActionButton,
   InlineRunCTA,
   RUN_BUTTON_LONG_PRESS_MS,
   type ContextualRunButtonProps,
+  type FloatingActionButtonProps,
   type InlineRunCTAProps,
   type InlineRunCTAVariant,
   type InlineRunCTASize,

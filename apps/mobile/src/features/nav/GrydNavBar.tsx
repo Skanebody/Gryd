@@ -1,9 +1,10 @@
 /**
  * GRYD — barre de navigation flottante : pill carbone, 5 onglets de JEU
- * Carte · War Room · Crew · League · Profil (AMENDEMENT-08 §3, doc §6 — la
- * route `classement` est conservée, seul le label devient « League »).
- * La Boutique est sortie de la nav (→ Arsenal, accès Profil/War Room). War Room
- * porte l'icône guerre. Icônes filaires 1,5 px (charte §F, set @klaim/shared
+ * Carte · Missions · Crew · Saison · Profil (AMENDEMENT-29 §1 — relabel : « War
+ * Room » → « Missions », « League » → « Saison » ; les routes `warroom` et
+ * `classement` sont CONSERVÉES, seuls les labels changent). La Boutique est
+ * sortie de la nav (→ Arsenal, accès Profil/Missions). L'onglet Missions porte
+ * l'icône guerre. Icônes filaires 1,5 px (charte §F, set @klaim/shared
  * — décision fondateur 03/07/2026) : icône 22 + label 10 dessous ; actif = icône
  * chartreuse (remplie si fillable, §C.3 « moi / état actif ») + label blanc.
  * ARBITRAGE FONDATEUR (AMENDEMENT-06) : l'icône active de la nav RESTE
@@ -26,9 +27,9 @@ interface TabItem {
 
 const TABS: readonly TabItem[] = [
   { label: 'Carte', href: '/', icon: 'carte' },
-  { label: 'War Room', href: '/warroom', icon: 'guerre' },
+  { label: 'Missions', href: '/warroom', icon: 'guerre' },
   { label: 'Crew', href: '/crew', icon: 'crew' },
-  { label: 'League', href: '/classement', icon: 'classement' },
+  { label: 'Saison', href: '/classement', icon: 'classement' },
   { label: 'Profil', href: '/profil', icon: 'profil' },
 ];
 

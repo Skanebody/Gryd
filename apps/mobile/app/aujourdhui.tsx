@@ -108,14 +108,15 @@ export default function AujourdhuiScreen() {
         <Text style={styles.heroName}>{route.name}</Text>
       </Pressable>
 
-      {/* LE CTA unique — GO, départ immédiat (accent chartreuse de l'écran). */}
+      {/* LE CTA unique — VERBE contextuel, départ immédiat (AMENDEMENT-29 :
+          « GO » retiré ; le libellé = l'objectif du plan du jour). */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="GO — départ immédiat sur le plan du jour"
+        accessibilityLabel={`${objectiveTag} — départ immédiat sur le plan du jour`}
         onPress={goNow}
         style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
       >
-        <Text style={styles.ctaLabel}>GO</Text>
+        <Text style={styles.ctaLabel}>{objectiveTag}</Text>
       </Pressable>
 
       {/* Bandeau semaine : 3 indicateurs, pas un feed. */}

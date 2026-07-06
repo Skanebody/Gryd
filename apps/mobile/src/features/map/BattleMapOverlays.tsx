@@ -24,8 +24,11 @@
  *   PANNEAU INFO (MapBottomSheet, révélé au tap sur le FAB Info) :
  *   - PEEK (compact) : la SITUATION EN HAUT (zone · état · Ton crew % vs rival %
  *     · directive bonus/temps) PUIS la MISSION (« Défendre République » +
- *     micro-bonus « bonus actif · +120 pts » + gros [Défendre] (RunButton) +
- *     lien discret « Voir les options »). Le SEUL gros CTA de l'écran vit ICI.
+ *     micro-bonus « bonus actif · +120 pts » + lien discret « Voir les
+ *     options »). AMENDEMENT-29 : le gros CTA de mission a MIGRÉ vers le BOUTON
+ *     D'ACTION FLOTTANT (au-dessus de la nav, gaté par route) — l'Info ne
+ *     duplique PLUS un 2ᵉ [Défendre] (anti double-CTA §A.4). Le SEUL gros CTA
+ *     chartreuse de l'écran est le bouton flottant.
  *   - OUVERT (tap « Voir les options ») : les options — PARCOURS (2-3) · ÉQUIPE
  *     (2 alliés opt-in + « Courir ensemble ») · DÉTAILS (missions + historique).
  *
@@ -37,7 +40,8 @@
  * chaque intention.
  * Events : screen('map_info_open') (révèle le panneau) / screen('map_sheet_open')
  * (déplie les options) / screen('map_parcours_select') / screen('map_mode_select')
- * ; EVENTS.runStart au départ réel (porté par RunButton).
+ * ; EVENTS.runStart au départ réel (porté par le bouton d'action FLOTTANT,
+ * AMENDEMENT-29 — plus par un CTA dans l'Info).
  */
 import { useCallback, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -57,7 +61,6 @@ import {
 // Peek dédié du panneau Info (situation + mission empilées) — importé direct :
 // le barrel n'expose pas cette constante et n'est pas dans le périmètre.
 import { MAP_SHEET_INFO_COMPACT_HEIGHT } from '../../ui/game/MapBottomSheet';
-import { RunButton } from '../nav/RunButton';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import { MISSIONS } from '../warroom/demo';
 import {
@@ -460,8 +463,10 @@ export function BattleMapOverlays({
  * PANNEAU INFO — peek (compact) : révélé par le FAB Info (AMENDEMENT-25 §1). Il
  * empile la SITUATION EN HAUT (zone · état · Ton crew % vs rival % · directive
  * bonus/temps) PUIS la MISSION (titre « Défendre République » · micro-ligne
- * bonus · gros [Défendre] (RunButton, le SEUL CTA de l'écran) · lien discret
- * [Voir les options] → les options). RIEN de tronqué.
+ * bonus · lien discret [Voir les options] → les options). AMENDEMENT-29 : le
+ * gros CTA de mission n'est PLUS ici — il a migré vers le bouton d'action
+ * FLOTTANT (au-dessus de la nav), SEUL gros CTA chartreuse de l'écran (anti
+ * double-CTA §A.4). RIEN de tronqué.
  */
 function InfoPanel({ onOptions }: { onOptions: () => void }) {
   const s = MAP_MISSION_SUMMARY;
@@ -494,17 +499,17 @@ function InfoPanel({ onOptions }: { onOptions: () => void }) {
       {/* Séparation par L'ESPACE (AMENDEMENT-22 : pas de card-dans-card). */}
       <View style={styles.infoDivider} />
 
-      {/* MISSION — le verbe + la zone, puis le SEUL gros CTA. */}
+      {/* MISSION — le verbe + la zone (SITUATION, pas un CTA). AMENDEMENT-29 :
+          le gros CTA de mission a MIGRÉ vers le bouton d'action FLOTTANT
+          (au-dessus de la nav) — l'Info ne duplique PLUS un 2ᵉ [Défendre]
+          (anti double-CTA §A.4). Il ne reste ici que la situation + le lien
+          discret « Voir les options ». */}
       <Text style={styles.missionTitle} numberOfLines={1}>
         {MAP_MISSION.cardTitle}
       </Text>
       <Text style={styles.missionMeta} numberOfLines={1}>
         {`${formatKm(MAP_MISSION.distanceKm)} · ${zonesLabel(MAP_MISSION.zones)}`}
       </Text>
-      {/* UN SEUL CTA de départ (RunButton = flux unique phase 1). */}
-      <View style={styles.ctaWrap}>
-        <RunButton label={MAP_MISSION.ctaLabel} />
-      </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Voir les options — parcours, équipe et détails"
@@ -787,7 +792,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
-  ctaWrap: { marginTop: 10 },
   // « Voir les options » — lien discret (déplie le panneau, jamais un 2ᵉ CTA).
   optionsLink: {
     color: colors.gris,

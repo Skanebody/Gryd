@@ -14,8 +14,9 @@
  *                 Carte le rebranche simplement en montant <RunButton />.
  *
  * Rendu : bouton plein-largeur chartreuse (InlineRunCTA). Le LIBELLÉ vient du
- * contexte (défaut « GO » ; la Carte peut passer DÉFENDRE / CONQUÉRIR / … via
- * `label`) — plus jamais un GO générique imposé par la nav.
+ * contexte (défaut « RUN » = course libre ; la Carte passe DÉFENDRE / CONQUÉRIR
+ * / … via `label`) — « GO » est retiré définitivement (AMENDEMENT-29 : toujours
+ * un verbe qui dit POURQUOI tu cours).
  */
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -29,9 +30,10 @@ import type { DefenseTargetDemo, RunIntention } from '../run/intention';
 
 export interface RunButtonProps {
   /**
-   * Libellé du CTA. Défaut « GO » (départ immédiat sur le plan auto). La Carte
-   * peut passer un libellé contextuel (DÉFENDRE / CONQUÉRIR / TERMINER…) tiré du
-   * plan — le bouton reste le point de départ unique, seul le mot change.
+   * Libellé du CTA. Défaut « RUN » (course libre — départ immédiat sur le plan
+   * auto). La Carte passe un libellé contextuel (DÉFENDRE / CONQUÉRIR /
+   * TERMINER…) tiré du plan — le bouton reste le point de départ unique, seul le
+   * mot change. « GO » est retiré (AMENDEMENT-29).
    */
   label?: string;
   size?: InlineRunCTASize;
@@ -47,7 +49,7 @@ export interface RunButtonProps {
  * (départ immédiat + intentions long-press). Aucun positionnement absolu : il
  * s'insère dans le layout de l'appelant.
  */
-export function RunButton({ label = 'GO', size = 'lg', tapOpensSheet = false }: RunButtonProps) {
+export function RunButton({ label = 'RUN', size = 'lg', tapOpensSheet = false }: RunButtonProps) {
   const router = useRouter();
   const [modePickerOpen, setModePickerOpen] = useState(false);
 
