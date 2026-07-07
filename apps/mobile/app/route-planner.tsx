@@ -106,9 +106,9 @@ function ctaMicrocopy(route: PlannedRouteDemo): string {
   return `${head} · +${formatInt(route.points)} pts`;
 }
 
-/** Est-ce une boucle GÉNÉRÉE (vs une route curatée) ? */
+/** Boucle DYNAMIQUE (réelle pré-routée) vs route curatée d'un plan ? */
 function isGenerated(route: PlannedRouteDemo): boolean {
-  return route.id.startsWith('gen_');
+  return !ROUTES_DEMO.some((r) => r.id === route.id);
 }
 
 /** Route curatée la plus proche en distance (pour lancer une vraie course live). */
@@ -174,13 +174,14 @@ export default function RoutePlannerScreen() {
 
   const clampKm = (km: number) => Math.min(GEN_MAX_KM, Math.max(GEN_MIN_KM, km));
 
-  /** Recalcule une boucle GÉNÉRÉE (le cœur « live façon Waze »). */
+  /** Sélectionne la boucle RÉELLE la plus proche (suit les rues). Renvoie la route. */
   const regen = (km: number, intent: PlannerIntention, sd: number) => {
-    const c = clampKm(km);
-    setTargetKm(c);
+    const r = generateLoop(clampKm(km), intent, sd);
+    setRoute(r);
     setIntention(intent);
     setSeed(sd);
-    setRoute(generateLoop(c, intent, sd));
+    setTargetKm(r.distanceKm); // distance RÉELLE du tracé retenu
+    return r;
   };
 
   /** Adopte une route CURATÉE (plans / priorité crew) — pas de génération. */
@@ -208,16 +209,15 @@ export default function RoutePlannerScreen() {
   const selectIntention = (intent: PlannerIntention) => {
     if (intent === intention) return;
     haptics.light();
-    regen(targetKm, intent, seed);
-    setDistanceDraft(formatKm(clampKm(targetKm)));
+    const r = regen(targetKm, intent, seed);
+    setDistanceDraft(formatKm(r.distanceKm));
     screen('route_planner_objective_select', { objective: intent });
   };
 
   const stepDistance = (delta: number) => {
     haptics.light();
-    const nk = clampKm(targetKm + delta);
-    regen(nk, intention, seed);
-    setDistanceDraft(formatKm(nk));
+    const r = regen(clampKm(targetKm + delta), intention, seed);
+    setDistanceDraft(formatKm(r.distanceKm));
   };
 
   const onDistanceType = (text: string) => {
@@ -226,7 +226,7 @@ export default function RoutePlannerScreen() {
     if (!Number.isNaN(parsed)) regen(parsed, intention, seed);
   };
 
-  const onDistanceBlur = () => setDistanceDraft(formatKm(clampKm(targetKm)));
+  const onDistanceBlur = () => setDistanceDraft(formatKm(route.distanceKm));
 
   const adoptNearby = (loop: PlannedRouteDemo) => {
     haptics.light();
