@@ -309,6 +309,16 @@ const SILENT_MINOR_ROAD_WIDTH_FACTOR = 0.55;
  * ligne de JEU touchée (elles n'ont pas de `source-layer`).
  */
 const SILENT_ROAD_OPACITY = 0.5;
+
+/**
+ * BATTLE MAP (retour fondateur) : « le jeu au 1er plan ». Le fond dark-matter est
+ * TRÈS atténué en permanence (pas seulement en run silencieux) pour que les
+ * territoires GRYD ressortent : bâtiments quasi invisibles, routes principales
+ * subtiles, secondaires très faibles, POI masqués. Valeurs ajustables sans rendu.
+ */
+const BATTLE_BUILDING_OPACITY = 0.12;
+const BATTLE_ROAD_OPACITY = 0.5;
+const BATTLE_MINOR_ROAD_OPACITY = 0.16;
 /** TestID de la carte de Course Live (LiveNavMap) → mode silencieux implicite. */
 const LIVE_RUN_TEST_ID = 'course-live-carte-reelle';
 /** Caméra de secours si ni `camera` ni `bounds` : monde entier (§4bis). */
@@ -454,10 +464,39 @@ function applyGrydStyleOverrides(map: MapLibreMap, silent = false): void {
         (id.includes('park') || id.includes('green') || id.includes('wood'))
       ) {
         map.setPaintProperty(layer.id, 'fill-color', mapTokens.parks);
+      } else if (layer.type === 'fill' && id.includes('building')) {
+        // Bâtiments QUASI INVISIBLES : le jeu passe devant (retour fondateur).
+        map.setPaintProperty(layer.id, 'fill-opacity', BATTLE_BUILDING_OPACITY);
+      } else if (
+        layer.type === 'line' &&
+        (id.includes('road') ||
+          id.includes('street') ||
+          id.includes('bridge') ||
+          id.includes('tunnel') ||
+          id.includes('transit') ||
+          id.includes('rail'))
+      ) {
+        // Routes atténuées ; secondaires TRÈS faibles → fond noir carbone.
+        const minor =
+          id.includes('minor') ||
+          id.includes('service') ||
+          id.includes('path') ||
+          id.includes('secondary') ||
+          id.includes('tertiary') ||
+          id.includes('link') ||
+          id.includes('rail') ||
+          id.includes('pedestrian');
+        map.setPaintProperty(
+          layer.id,
+          'line-opacity',
+          minor ? BATTLE_MINOR_ROAD_OPACITY : BATTLE_ROAD_OPACITY,
+        );
       } else if (layer.type === 'symbol') {
+        // Labels LIMITÉS : POI masqués, le reste gris discret (jamais criard).
+        const poi = id.includes('poi');
         map.setPaintProperty(layer.id, 'text-color', colors.gris);
-        map.setPaintProperty(layer.id, 'text-opacity', TILE_LABEL_OPACITY);
-        map.setPaintProperty(layer.id, 'icon-opacity', TILE_ICON_OPACITY);
+        map.setPaintProperty(layer.id, 'text-opacity', poi ? 0 : TILE_LABEL_OPACITY);
+        map.setPaintProperty(layer.id, 'icon-opacity', poi ? 0 : TILE_ICON_OPACITY);
       }
     } catch {
       // Calque sans cette propriété — on n'interrompt jamais le rendu.
