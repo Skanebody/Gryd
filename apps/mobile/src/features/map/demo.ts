@@ -203,6 +203,30 @@ export const MAP_MISSION_SUMMARY = {
   timeLeftLabel: '8 h restantes',
 } as const;
 
+/**
+ * ALERTE TACTIQUE (haut de carte) : UNE seule alerte forte — menace + enjeu
+ * chiffré + temps + rival — au lieu de plusieurs pills flottantes qui font du
+ * bruit. Hiérarchie claire, une info prioritaire. Étiquettes scénario.
+ */
+export const MAP_ALERT = {
+  title: MAP_MISSION.headerTitle, // « République attaquée »
+  zonesLabel: `${MAP_MISSION.zones} zones à défendre`,
+  timeLeftLabel: '14 min restantes',
+  rivalLine: MAP_RIVAL_PILL.message, // « Canal Crew reprend du terrain »
+} as const;
+
+/**
+ * CARTE « DÉFENDRE » contextuelle (bas de carte, au-dessus du bouton d'action) :
+ * la zone PRIORITAIRE (nom + distance viennent du coach mapOpportunities) +
+ * contrôle restant + récompense + depuis quand l'attaque dure. Tap → options.
+ * Rend le bouton DÉFENDRE logique (on sait QUOI on défend et POURQUOI).
+ */
+export const MAP_DEFEND_CARD = {
+  controlPct: 62,
+  rewardLabel: `+${MAP_MISSION.bonusPoints} XP crew`,
+  attackSinceLabel: `${MAP_CONTROL_HUD.rivalName} attaque depuis 8 min`,
+} as const;
+
 // ─── Membres crew SUR la carte (AMENDEMENT-09 §2) ───────────────────────────
 /**
  * INVARIANT AMENDEMENT-07 : jamais de position live publique. Ces 2 membres

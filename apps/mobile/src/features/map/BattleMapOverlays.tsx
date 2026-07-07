@@ -64,10 +64,12 @@ import { MAP_SHEET_INFO_COMPACT_HEIGHT } from '../../ui/game/MapBottomSheet';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import { MISSIONS } from '../warroom/demo';
 import {
+  DEFENSE_SECTOR,
   FRIEND_RUN_DEMO,
+  MAP_ALERT,
+  MAP_DEFEND_CARD,
   MAP_MISSION,
   MAP_MISSION_SUMMARY,
-  MAP_RIVAL_PILL,
   MATES_OPT_IN,
   PARCOURS_DEMO,
   parcoursMeta,
@@ -80,7 +82,7 @@ import {
   MAP_MODE_ORDER,
   type MapMode,
 } from './territory';
-import { mapOpportunities, opportunityColor, opportunityLabel } from './opportunities';
+import { formatOppDistance, mapOpportunities } from './opportunities';
 
 /**
  * Libellés AFFICHÉS des calques : « Raid » devient « Rival » à l'écran
@@ -118,6 +120,9 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
 const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Pile de FABs : dégagement au-dessus de la barre de nav (carte nue). */
 const FAB_ABOVE_NAV = 12;
+/** Hauteur approx. de la card DÉFENDRE persistante (3 lignes + padding) — pour
+ * garder la pile de FABs toujours au-dessus d'elle. */
+const DEFEND_CARD_HEIGHT = 66;
 /** Pile de FABs : dégagement au-dessus du panneau Info quand il est ouvert. */
 const FAB_ABOVE_INFO = 12;
 
@@ -205,7 +210,7 @@ export function BattleMapOverlays({
    */
   const fabBottom = infoOpen
     ? sheetBottom + MAP_SHEET_INFO_COMPACT_HEIGHT + FAB_ABOVE_INFO
-    : insets.bottom + RUN_BUTTON_BOTTOM + FAB_ABOVE_NAV;
+    : sheetBottom + DEFEND_CARD_HEIGHT + FAB_ABOVE_NAV;
 
   /** Toggle du panneau Info (le FAB Info révèle / referme la mission). */
   const toggleInfo = () => {
@@ -257,21 +262,10 @@ export function BattleMapOverlays({
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* ── HEADER COMPACT — UNE ligne (titre + sous-ligne) + pill rival ──── */}
       <View style={[styles.top, { top: insets.top + 10 }]} pointerEvents="box-none">
-        <View style={styles.header}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {MAP_MISSION.headerTitle}
-          </Text>
-          <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {MAP_MISSION.headerSubtitle}
-          </Text>
-        </View>
-
-        {/* Pill RIVAL : compacte, INFORMATIVE, SANS CTA (l'alerte informe). */}
-        <RivalPill />
-
-        {/* Coach « opportunités proches » : oriente vers l'action la plus proche,
-            INFORMATIF (jamais un 2ᵉ CTA §A.4). Masqué si rien autour. */}
-        <OpportunityPill />
+        {/* ALERTE TACTIQUE unique : menace + enjeu chiffré + temps + rival, une
+            hiérarchie claire. Remplace le header + les pills flottantes (fini le
+            bruit de mini-toasts au centre de la carte). */}
+        <AlertBanner />
       </View>
 
       {/* ── Droite : 3 FABs MAX (Calques + Recentrer + INFO) ──
@@ -324,8 +318,18 @@ export function BattleMapOverlays({
         />
       </View>
 
-      {/* ── Panneau INFO (révélé par le FAB Info) : PEEK = situation + mission +
-          [Défendre] ; OUVERT = les options. Carte nue tant qu'il est fermé. ── */}
+      {/* Carte « DÉFENDRE » PERSISTANTE (peek) tant que le panneau détaillé est
+          fermé : zone prioritaire + distance + contrôle + récompense, JUSTE
+          au-dessus du bouton d'action → le [DÉFENDRE] devient logique. Tap =
+          déplie les options (même sheet Info, pas un doublon). */}
+      {!infoOpen ? (
+        <View style={[styles.defendAnchor, { bottom: sheetBottom }]} pointerEvents="box-none">
+          <DefendCard onPress={toggleInfo} />
+        </View>
+      ) : null}
+
+      {/* ── Panneau INFO (révélé par le FAB Info OU le tap sur la carte Défendre) :
+          PEEK = situation + mission + [Défendre] ; OUVERT = les options. ── */}
       {infoOpen ? (
         <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
           <MapBottomSheet
@@ -531,55 +535,70 @@ function InfoPanel({ onOptions }: { onOptions: () => void }) {
 }
 
 /**
- * Pill RIVAL (AMENDEMENT-21 §5) : compacte, INFORMATIVE seulement, SANS CTA —
- * « Canal Crew reprend du terrain · 14 zones perdues ». Petite ligne discrète
- * (point orange = la menace), jamais un gros bloc rouge alarmiste permanent.
- * Slide-in doux à l'apparition (reduce motion → fondu). Le seul CTA de l'écran
- * reste [Défendre] dans le panneau Info.
+ * ALERTE TACTIQUE (haut de carte) : UNE seule alerte forte — menace (titre) +
+ * enjeu chiffré + temps restant + rival — au lieu de plusieurs pills flottantes
+ * qui font du bruit. Accent rival (barre orange à gauche) = urgence ; hiérarchie
+ * titre > enjeu/temps > rival. Ce n'est PAS un CTA (le seul gros CTA reste le
+ * bouton d'action). Slide-in doux (reduce motion → fondu).
  */
-function RivalPill() {
+function AlertBanner() {
   const { opacity, translateY } = useSlideIn(6);
   return (
-    <Animated.View style={[styles.rivalPill, { opacity, transform: [{ translateY }] }]}>
-      <View style={styles.rivalDot} />
-      <Text style={styles.rivalText} numberOfLines={1}>
-        {MAP_RIVAL_PILL.message}
-      </Text>
-      <Text style={styles.rivalSep}>·</Text>
-      <Text style={styles.rivalLost} numberOfLines={1}>
-        {zonesLabel(MAP_RIVAL_PILL.zonesLost)} perdues
-      </Text>
+    <Animated.View style={[styles.alert, { opacity, transform: [{ translateY }] }]}>
+      <View style={styles.alertBar} />
+      <View style={styles.alertBody}>
+        <Text style={styles.alertTitle} numberOfLines={1}>
+          {MAP_ALERT.title}
+        </Text>
+        <Text style={styles.alertMeta} numberOfLines={1}>
+          {MAP_ALERT.zonesLabel} · {MAP_ALERT.timeLeftLabel}
+        </Text>
+        <Text style={styles.alertRival} numberOfLines={1}>
+          {MAP_ALERT.rivalLine}
+        </Text>
+      </View>
     </Animated.View>
   );
 }
 
 /**
- * Coach « OPPORTUNITÉS PROCHES » (§carte) : l'opportunité la PLUS PROCHE autour de
- * moi (capturer une zone neutre · enfoncer une frontière rivale faible · défendre
- * une zone menacée), + un compteur des autres. INFORMATIF seulement — le seul gros
- * CTA de l'écran reste le bouton d'action flottant (§A.4). Dérivée PURE
- * (mapOpportunities, miroir engine) ; masquée si rien autour. Slide-in doux.
+ * Carte « DÉFENDRE » PERSISTANTE (bas de carte, au-dessus du bouton d'action) : la
+ * zone PRIORITAIRE (nom + distance dérivés du coach mapOpportunities) + contrôle
+ * restant + récompense + depuis quand l'attaque dure. Rend le bouton [DÉFENDRE]
+ * logique (on sait QUOI défendre et POURQUOI). INFORMATIVE + tap → déplie les
+ * options (MÊME sheet Info, pas un doublon). Émet opportunity_shown. Barre
+ * chartreuse = ma zone. Slide-in doux.
  */
-function OpportunityPill() {
-  const { opacity, translateY } = useSlideIn(6);
-  const opps = useMemo(() => mapOpportunities(), []);
-  const top = opps[0];
+function DefendCard({ onPress }: { onPress: () => void }) {
+  const { opacity, translateY } = useSlideIn(8);
+  const top = useMemo(() => mapOpportunities()[0], []);
   useEffect(() => {
     if (top) track(EVENTS.opportunityShown, { kind: top.kind, distance_m: top.distanceM });
   }, [top]);
-  if (!top) return null;
-  const extra = opps.length - 1;
+  const zoneName = top?.name ?? DEFENSE_SECTOR;
+  const distance = top ? formatOppDistance(top.distanceM) : `${MAP_MISSION.distanceKm} km`;
   return (
-    <Animated.View style={[styles.oppPill, { opacity, transform: [{ translateY }] }]}>
-      <View style={[styles.oppDot, { backgroundColor: opportunityColor(top) }]} />
-      <Text style={styles.oppText} numberOfLines={1}>
-        {opportunityLabel(top)}
-      </Text>
-      {extra > 0 ? (
-        <Text style={styles.oppMore} numberOfLines={1}>
-          · +{extra}
-        </Text>
-      ) : null}
+    <Animated.View style={[styles.defendWrap, { opacity, transform: [{ translateY }] }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${zoneName} à défendre — voir les options`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.defendCard, pressed && styles.pressed]}
+      >
+        <View style={styles.defendBar} />
+        <View style={styles.defendBody}>
+          <Text style={styles.defendTitle} numberOfLines={1}>
+            {zoneName} à défendre
+          </Text>
+          <Text style={styles.defendMeta} numberOfLines={1}>
+            {distance} · contrôle {MAP_DEFEND_CARD.controlPct} % · {MAP_DEFEND_CARD.rewardLabel}
+          </Text>
+          <Text style={styles.defendSince} numberOfLines={1}>
+            {MAP_DEFEND_CARD.attackSinceLabel}
+          </Text>
+        </View>
+        <Icon name="chevron" size={16} color={colors.gris} />
+      </Pressable>
     </Animated.View>
   );
 }
@@ -724,41 +743,52 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Pill RIVAL : compacte, INFORMATIVE, SANS CTA ──
-  rivalPill: {
+  // ── ALERTE TACTIQUE (haut) : une alerte forte, accent rival = urgence ──
+  alert: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
+    borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: OVERLAY_SURFACE,
-    maxWidth: '100%',
+    overflow: 'hidden',
   },
-  rivalDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: gameColors.rival },
-  rivalText: { color: colors.blanc, fontSize: 12, fontWeight: '600', flexShrink: 1 },
-  rivalSep: { color: colors.gris, fontSize: 12 },
-  rivalLost: { color: colors.gris, fontSize: 12, fontVariant: ['tabular-nums'] },
+  alertBar: { width: 4, backgroundColor: gameColors.rival },
+  alertBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 9 },
+  alertTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg, // 20 px
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  alertMeta: { color: colors.blanc, fontSize: 12.5, fontWeight: '700', marginTop: 2 },
+  alertRival: { color: gameColors.rival, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
-  // ── Pill OPPORTUNITÉS PROCHES : coach informatif, SANS CTA (§A.4) ──
-  oppPill: {
+  // ── Carte DÉFENDRE persistante (bas, au-dessus du bouton d'action) ──
+  // Ancre BAS dédiée (sheetWrap est ancré `top:0` pour le sheet qui grandit) :
+  // ici bottom = sheetBottom → la card flotte juste au-dessus de la nav.
+  defendAnchor: { position: 'absolute', left: 14, right: 14 },
+  defendWrap: { alignSelf: 'stretch' },
+  defendCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
+    borderColor: colors.chartreuse40,
     backgroundColor: OVERLAY_SURFACE,
-    maxWidth: '100%',
+    overflow: 'hidden',
+    paddingRight: 12,
   },
-  oppDot: { width: 6, height: 6, borderRadius: 3 },
-  oppText: { color: colors.blanc, fontSize: 12, fontWeight: '600', flexShrink: 1 },
-  oppMore: { color: colors.gris, fontSize: 12, fontVariant: ['tabular-nums'] },
+  defendBar: { width: 4, alignSelf: 'stretch', backgroundColor: gameColors.crew },
+  defendBody: { flex: 1, paddingLeft: 14, paddingVertical: 10 },
+  defendTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md, // 16 px
+    fontWeight: '800',
+    letterSpacing: 0.1,
+  },
+  defendMeta: { color: colors.blanc, fontSize: 12.5, fontWeight: '600', marginTop: 2 },
+  defendSince: { color: colors.gris, fontSize: 11.5, marginTop: 2 },
 
   // ── FAB column : 3 MAX (Calques + Recentrer + Info) ──
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
