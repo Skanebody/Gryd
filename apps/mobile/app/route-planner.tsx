@@ -60,10 +60,8 @@ import {
 import {
   OBJECTIVE_BY_ROUTE_TYPE,
   ROUTE_OBJECTIVE_LABELS,
-  ROUTE_SHAPE_LABELS,
   type PlannedRouteDemo,
   type RouteObjective,
-  type RouteShape,
 } from '../src/features/route/types';
 
 /** Hauteur de la carte : la route domine l'écran, les cards restent visibles. */
@@ -160,7 +158,6 @@ export default function RoutePlannerScreen() {
 
   // Options avancées (démo : sélection locale, la génération réelle est V1).
   const [distance, setDistance] = useState<RouteDistanceOption | null>(null);
-  const [shape, setShape] = useState<RouteShape | null>(null);
   const [constraints, setConstraints] = useState<readonly string[]>([]);
   const [sharedRouteIds, setSharedRouteIds] = useState<readonly string[]>([]);
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -178,7 +175,6 @@ export default function RoutePlannerScreen() {
     ? 'Ton crew a besoin de toi'
     : (activePlan?.status ?? RECOMMENDED_PLAN.status);
   const effectiveDistance = distance ?? distanceOptionFor(route);
-  const effectiveShape = shape ?? route.shape;
 
   // Route de défense (Priorité crew) = cible de l'alerte.
   const defenseRoute = ROUTES_DEMO.find((r) => r.id === ROUTE_OBJECTIVE.routeId);
@@ -188,7 +184,6 @@ export default function RoutePlannerScreen() {
     haptics.light();
     setRouteId(id);
     setDistance(null);
-    setShape(null);
     screen('route_planner_route_select', { route: id });
   };
 
@@ -382,19 +377,14 @@ export default function RoutePlannerScreen() {
                 />
               ))}
             </View>
-            <SectionLabel icon="reglages" label="FORMAT & CONFORT" />
+            <SectionLabel icon="reglages" label="CONFORT" />
+            {/* GRYD propose TOUJOURS des boucles fermées : la fermeture capture
+                l'intérieur (règle du jeu). Pas de « aller simple » ici — le
+                format n'est pas une option, c'est le cœur de la mécanique. */}
+            <Text style={styles.hint}>
+              Toujours une boucle fermée — c'est l'intérieur qui se capture.
+            </Text>
             <View style={styles.chipsRow}>
-              {(Object.keys(ROUTE_SHAPE_LABELS) as RouteShape[]).map((s) => (
-                <Chip
-                  key={s}
-                  label={ROUTE_SHAPE_LABELS[s]}
-                  selected={effectiveShape === s}
-                  onPress={() => {
-                    haptics.light();
-                    setShape(s);
-                  }}
-                />
-              ))}
               {ROUTE_CONSTRAINTS.map((c) => (
                 <Chip
                   key={c.key}
@@ -634,6 +624,7 @@ const styles = StyleSheet.create({
   chevUp: { transform: [{ rotate: '90deg' }] },
   adjustBody: { marginTop: 2 },
 
+  hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17, marginBottom: 8 },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   chip: {
     height: 34,
