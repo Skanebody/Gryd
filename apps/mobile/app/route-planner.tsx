@@ -9,16 +9,17 @@
  *   5. PRIORITÉ CREW = alerte défense contextuelle (bascule l'intention) ;
  *   6. « Ajuster » (façon Waze, tout recalcule EN LIVE) :
  *        • OBJECTIF : Conquérir / Attaquer / Défendre (change la boucle) ;
- *        • DISTANCE EXACTE : stepper + saisie libre — la boucle est GÉNÉRÉE à la
- *          distance demandée (features/route/generator) ;
- *        • AUTRES BOUCLES : variantes générées DISTINCTES des plans, régénérables ;
+ *        • DISTANCE EXACTE : stepper + saisie libre — l'itinéraire est ROUTÉ EN
+ *          DIRECT à la distance demandée (liveRouting, OSRM foot), avec la boucle
+ *          pré-routée la plus proche affichée INSTANTANÉMENT (loops.generated) ;
+ *        • AUTRES BOUCLES : autres tracés réels DISTINCTS des plans ;
  *        • partage crew ;
  *   7. CTA VERBE contextuel (CONQUÉRIR / ATTAQUER / DÉFENDRE) + microcopie.
- * Les boucles générées sont un PLACEHOLDER live client (déterministe, hors ligne).
- * Le vrai calcul rue-par-rue (snap réseau piéton, évitement d'axes) = V1 backend ;
- * le garde-fou walkability valide déjà chaque tracé. Data démo — events screen().
+ * Tous les tracés SUIVENT LES RUES (routés OSRM foot). Le routing live utilise le
+ * réseau au runtime ; hors ligne / échec → on garde la boucle pré-routée (repli).
+ * Le garde-fou walkability valide chaque tracé. Data démo — events screen().
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,6 +63,7 @@ import {
   type PlannerIntention,
 } from '../src/features/route/generator';
 import { isRouteWalkable } from '../src/features/route/walkability';
+import { routeLoop } from '../src/features/route/liveRouting';
 import type { PlannedRouteDemo } from '../src/features/route/types';
 
 /** Hauteur de la carte : la route domine l'écran, les cards restent visibles. */
@@ -155,6 +157,13 @@ export default function RoutePlannerScreen() {
   const [seed, setSeed] = useState(1);
   const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [routing, setRouting] = useState(false);
+  // Anti-course des requêtes live : seule la dernière (reqId courant) s'applique.
+  const reqIdRef = useRef(0);
+  const liveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+  }, []);
 
   useEffect(() => {
     screen('route_planner', { type: params.type ?? 'direct' });
@@ -174,14 +183,34 @@ export default function RoutePlannerScreen() {
 
   const clampKm = (km: number) => Math.min(GEN_MAX_KM, Math.max(GEN_MIN_KM, km));
 
-  /** Sélectionne la boucle RÉELLE la plus proche (suit les rues). Renvoie la route. */
-  const regen = (km: number, intent: PlannerIntention, sd: number) => {
-    const r = generateLoop(clampKm(km), intent, sd);
-    setRoute(r);
+  /**
+   * Demande une boucle : affiche INSTANTANÉMENT la pré-routée la plus proche
+   * (suit déjà les rues) puis AFFINE en LIVE via OSRM foot à la distance exacte
+   * (débouncé). Échec réseau/hors-ligne → on garde la pré-routée (repli). Renvoie
+   * la route instantanée (pour caler le brouillon de saisie).
+   */
+  const requestRoute = (km: number, intent: PlannerIntention, sd: number, debounceMs: number) => {
+    const c = clampKm(km);
+    const baked = generateLoop(c, intent, sd);
+    setRoute(baked);
     setIntention(intent);
     setSeed(sd);
-    setTargetKm(r.distanceKm); // distance RÉELLE du tracé retenu
-    return r;
+    setTargetKm(c);
+    if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+    const id = ++reqIdRef.current;
+    setRouting(true);
+    liveTimerRef.current = setTimeout(() => {
+      void routeLoop(c, intent, sd).then((live) => {
+        if (id !== reqIdRef.current) return; // requête dépassée
+        setRouting(false);
+        if (live) {
+          setRoute(live);
+          setTargetKm(live.distanceKm);
+          setDistanceDraft(formatKm(live.distanceKm));
+        }
+      });
+    }, debounceMs);
+    return baked;
   };
 
   /** Adopte une route CURATÉE (plans / priorité crew) — pas de génération. */
@@ -202,28 +231,28 @@ export default function RoutePlannerScreen() {
 
   const switchToDefense = () => {
     if (defenseRoute) adoptCurated(defenseRoute, 'defendre');
-    else regen(targetKm, 'defendre', seed);
+    else requestRoute(targetKm, 'defendre', seed, 0);
     screen('route_planner_objective_select', { objective: 'defendre' });
   };
 
   const selectIntention = (intent: PlannerIntention) => {
     if (intent === intention) return;
     haptics.light();
-    const r = regen(targetKm, intent, seed);
+    const r = requestRoute(targetKm, intent, seed, 0);
     setDistanceDraft(formatKm(r.distanceKm));
     screen('route_planner_objective_select', { objective: intent });
   };
 
   const stepDistance = (delta: number) => {
     haptics.light();
-    const r = regen(clampKm(targetKm + delta), intention, seed);
+    const r = requestRoute(clampKm(targetKm + delta), intention, seed, 0);
     setDistanceDraft(formatKm(r.distanceKm));
   };
 
   const onDistanceType = (text: string) => {
     setDistanceDraft(text);
     const parsed = parseFloat(text.replace(',', '.'));
-    if (!Number.isNaN(parsed)) regen(parsed, intention, seed);
+    if (!Number.isNaN(parsed)) requestRoute(parsed, intention, seed, 450); // débounce la frappe
   };
 
   const onDistanceBlur = () => setDistanceDraft(formatKm(route.distanceKm));
@@ -470,9 +499,16 @@ export default function RoutePlannerScreen() {
                 <Text style={styles.stepSign}>+</Text>
               </Pressable>
             </View>
-            <Text style={styles.hint}>
-              Tape la distance voulue ({GEN_MIN_KM}–{GEN_MAX_KM} km) — la boucle se recalcule.
-            </Text>
+            {routing ? (
+              <View style={styles.routingRow}>
+                <Icon name="reglages" size={13} color={colors.chartreuse} />
+                <Text style={styles.routingText}>Calcul de l'itinéraire…</Text>
+              </View>
+            ) : (
+              <Text style={styles.hint}>
+                Tape la distance voulue ({GEN_MIN_KM}–{GEN_MAX_KM} km) — l'itinéraire se route en direct.
+              </Text>
+            )}
             <View style={styles.safeRow}>
               <Icon name="bouclier" size={14} color={colors.chartreuse} />
               <Text style={styles.safeText}>
@@ -757,6 +793,8 @@ const styles = StyleSheet.create({
   stepUnit: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
 
   hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17, marginBottom: 6 },
+  routingRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
+  routingText: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700' },
   safeRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 },
   safeText: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17 },
 
