@@ -1765,11 +1765,33 @@ async function applyActiveBonus(
     if (chestErr) throw new Error(`crew_chests bonus upsert: ${chestErr.message}`);
   }
 
-  // NB(MVP) : le crédit d'XP perso (applied.xpDelta), le progrès de badge
-  // (applied.badgeProgress) et la durée de protection (applied.protectionH)
-  // sont RENVOYÉS au client via bonusApplied.effect et appliqués par leurs
-  // pipelines dédiés (XP/badges/bouclier) — la source de vérité de la
-  // récompense reste ce bonus. Aucun effet sur territoire/points/classement.
+  // 5b. XP perso du bonus (applied.xpDelta) : crédité sur users.xp. C'est un
+  // gain GAGNÉ par la course (pas un achat) → hors anti-P2W, et distinct de
+  // l'XP territoire (score.xp) crédité par claim_hexes. Même motif read→write
+  // que le coffre ci-dessus. N'affecte JAMAIS territoire/points/classement.
+  const xpDelta = Math.round(applied.xpDelta);
+  if (xpDelta > 0) {
+    const { data: uRow, error: uReadErr } = await supabase
+      .from('users')
+      .select('xp')
+      .eq('id', ctx.userId)
+      .maybeSingle();
+    if (uReadErr) throw new Error(`bonus xp read: ${uReadErr.message}`);
+    const newXp = ((uRow?.xp as number | undefined) ?? 0) + xpDelta;
+    const { error: uErr } = await supabase
+      .from('users')
+      .update({ xp: newXp })
+      .eq('id', ctx.userId);
+    if (uErr) throw new Error(`bonus xp update: ${uErr.message}`);
+  }
+
+  // NB(V1) : le progrès de badge (applied.badgeProgress) et la durée de
+  // protection (applied.protectionH) NE SONT PAS ENCORE persistés — leurs
+  // pipelines dédiés (badges / activation de bouclier) restent à câbler (le
+  // bouclier n'a d'ailleurs aucun chemin d'activation aujourd'hui, cf. audit).
+  // Ils sont seulement RENVOYÉS au client via bonusApplied.effect (libellé). À
+  // implémenter avant de promettre ces effets en prod. Aucun effet, aujourd'hui
+  // comme demain, sur territoire/points/classement.
 
   // 6. Fenêtre `claimed` (une seule récompense par fenêtre) + trace du claim.
   const { error: updErr } = await supabase
@@ -2248,6 +2270,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_user_id: userId,
         p_city_id: request.cityId ?? null,
         p_claims: rpcClaims,
+        // XP D18 (migration 0018) : le CUMUL lifetime users.xp est crédité de
+        // score.xp (SANS streak/perf), comme runs.xp_awarded — plus du total points.
+        p_xp: score.xp,
       });
       if (rpcError) throw new Error(`claim_hexes rpc: ${rpcError.message}`);
     }
