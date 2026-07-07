@@ -48,6 +48,7 @@ import {
 } from '@klaim/shared/game-rules';
 import type { HexClaimResult } from '@klaim/shared/types';
 import { zoneBasePoints } from './scoring.ts';
+import { groupCaptureBonusPct } from './group.ts';
 
 // Conversions d'unités — pas des règles de jeu.
 const MS_PER_HOUR = 3_600_000;
@@ -111,6 +112,15 @@ export interface DecideClaimsContext {
    * le lieu, PAS acheté — anti pay-to-win intact).
    */
   contextByHex?: ReadonlyMap<string, readonly ContextCoeffKey[]>;
+  /**
+   * AVANTAGE DE GROUPE (courses en crew) : nombre de coéquipiers CO-PRÉSENTS
+   * VALIDÉS same-crew sur cette capture (1 = solo). Allonge la durée du LOCK
+   * (= « vitesse de remplissage du contrôle », game-rules §GROUP) via
+   * groupCaptureBonusPct, CAPÉ à +40 %. N'affecte NI les points, NI l'attribution
+   * du hex, NI le decay. Absent/≤1 → solo → AUCUN bonus (comportement inchangé).
+   * L'appelant serveur doit garantir un compte same-crew (jamais de rivaux).
+   */
+  runners?: number;
 }
 
 export interface DecideClaimsInput {
@@ -294,7 +304,12 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
   return {
     results,
     totals,
-    lockedUntil: new Date(nowMs + HEX_LOCK_HOURS * MS_PER_HOUR),
+    // AVANTAGE DE GROUPE : le LOCK (= remplissage du contrôle) tient plus
+    // longtemps en course de crew — CAPÉ à +40 % (groupCaptureBonusPct), solo
+    // (runners ≤ 1) INCHANGÉ. N'affecte ni points ni attribution ni decay.
+    lockedUntil: new Date(
+      nowMs + HEX_LOCK_HOURS * (1 + groupCaptureBonusPct(context.runners ?? 1)) * MS_PER_HOUR,
+    ),
     decayAt: new Date(nowMs + ZONE_DECAY_DAYS * MS_PER_DAY),
     decayExempt: nowMs - context.userCreatedAt.getTime() <
       NEW_PLAYER_PROTECTION_DAYS * MS_PER_DAY,

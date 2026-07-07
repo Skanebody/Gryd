@@ -9,6 +9,7 @@ import {
   CONTEXT_COEFF,
   type ContextCoeffKey,
   FRESH_CAPTURE_PROTECT_HOURS,
+  GROUP_CAPTURE_BONUS_MAX_PCT,
   HEX_LOCK_HOURS,
   MAX_CLAIMS_PER_DAY,
   POINTS_BASE_PER_ZONE,
@@ -22,6 +23,7 @@ import {
   deriveContextByHex,
   type HexState,
 } from '../_shared/engine/claims.ts';
+import { groupCaptureBonusPct } from '../_shared/engine/group.ts';
 
 const NOW = new Date('2026-07-03T10:00:00Z');
 const ME = 'user-me';
@@ -394,6 +396,38 @@ Deno.test('lockedUntil = now + HEX_LOCK_HOURS, decayAt = now + ZONE_DECAY_DAYS (
 Deno.test('coureur < 14 j → decayExempt (territoire sans decay, §3.3)', () => {
   const r = one([HEX], new Map(), ctx({ userCreatedAt: daysAgo(3) }));
   assertEquals(r.decayExempt, true);
+});
+
+// ─── AVANTAGE DE GROUPE — le LOCK tient plus longtemps, capé, solo inchangé ──
+// Le bonus de groupe s'applique au LOCK (= remplissage du contrôle, game-rules
+// §GROUP), JAMAIS aux points/attribution/decay. Anti pay-to-win : capé +40 %.
+
+Deno.test('course de groupe → LOCK allongé de (1 + bonus), points/attribution/decay INCHANGÉS', () => {
+  const solo = one([HEX], new Map(), ctx());
+  const trio = one([HEX], new Map(), ctx({ runners: 3 }));
+  assertEquals(groupCaptureBonusPct(3), 0.25); // 3 coéquipiers → +25 %
+  assertEquals(trio.lockedUntil.getTime(), NOW.getTime() + HEX_LOCK_HOURS * (1 + 0.25) * MS_H);
+  assert(trio.lockedUntil.getTime() > solo.lockedUntil.getTime());
+  // Anti pay-to-win : rien d'autre ne bouge.
+  assertEquals(trio.totals.points, solo.totals.points);
+  assertEquals(trio.results[0].outcome, solo.results[0].outcome);
+  assertEquals(trio.decayAt.getTime(), solo.decayAt.getTime());
+});
+
+Deno.test('bonus de groupe CAPÉ à +40 % (5+ coéquipiers = identique)', () => {
+  assertEquals(groupCaptureBonusPct(12), GROUP_CAPTURE_BONUS_MAX_PCT);
+  const capped = one([HEX], new Map(), ctx({ runners: 12 }));
+  assertEquals(
+    capped.lockedUntil.getTime(),
+    NOW.getTime() + HEX_LOCK_HOURS * (1 + GROUP_CAPTURE_BONUS_MAX_PCT) * MS_H,
+  );
+});
+
+Deno.test('solo (runners ≤ 1 ou absent) → LOCK inchangé (comportement historique)', () => {
+  const base = NOW.getTime() + HEX_LOCK_HOURS * MS_H;
+  assertEquals(one([HEX], new Map(), ctx()).lockedUntil.getTime(), base); // absent
+  assertEquals(one([HEX], new Map(), ctx({ runners: 1 })).lockedUntil.getTime(), base);
+  assertEquals(one([HEX], new Map(), ctx({ runners: 0 })).lockedUntil.getTime(), base);
 });
 
 Deno.test('hexes dupliqués en entrée → décidés une seule fois', () => {

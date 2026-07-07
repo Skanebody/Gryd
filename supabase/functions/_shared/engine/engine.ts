@@ -105,6 +105,12 @@ export interface RunTerritoryInput {
   /** Compte Club (×1,5 sur les Foulées). */
   isClub: boolean;
   /**
+   * AVANTAGE DE GROUPE : nombre de coéquipiers CO-PRÉSENTS same-crew validés sur
+   * la capture (1 = solo). Threadé vers DecideClaimsContext.runners → allonge le
+   * LOCK (capé +40 %), jamais les points/attribution/decay. Absent → solo (inchangé).
+   */
+  runners?: number;
+  /**
    * Résolveur d'ownership INJECTÉ (seul accès I/O du pipeline) : reçoit
    * l'ensemble complet des hexes candidats (couloir + intérieur) et rend les
    * états DB + le contexte. Appelé UNE fois, après la construction d'`allHexes`.
@@ -266,6 +272,8 @@ export async function runTerritoryEngine(
       ...(ownership.contextByHex !== undefined && ownership.contextByHex.size > 0
         ? { contextByHex: ownership.contextByHex }
         : {}),
+      // Avantage de groupe : threadé tel quel (solo/undefined → aucun bonus).
+      ...(input.runners !== undefined ? { runners: input.runners } : {}),
     },
   });
 
