@@ -120,9 +120,6 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
 const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Pile de FABs : dégagement au-dessus de la barre de nav (carte nue). */
 const FAB_ABOVE_NAV = 12;
-/** Hauteur approx. de la card DÉFENDRE persistante (3 lignes + padding) — pour
- * garder la pile de FABs toujours au-dessus d'elle. */
-const DEFEND_CARD_HEIGHT = 66;
 /** Pile de FABs : dégagement au-dessus du panneau Info quand il est ouvert. */
 const FAB_ABOVE_INFO = 12;
 
@@ -210,7 +207,7 @@ export function BattleMapOverlays({
    */
   const fabBottom = infoOpen
     ? sheetBottom + MAP_SHEET_INFO_COMPACT_HEIGHT + FAB_ABOVE_INFO
-    : sheetBottom + DEFEND_CARD_HEIGHT + FAB_ABOVE_NAV;
+    : insets.bottom + RUN_BUTTON_BOTTOM + FAB_ABOVE_NAV;
 
   /** Toggle du panneau Info (le FAB Info révèle / referme la mission). */
   const toggleInfo = () => {
@@ -261,12 +258,9 @@ export function BattleMapOverlays({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* ── HEADER COMPACT — UNE ligne (titre + sous-ligne) + pill rival ──── */}
-      <View style={[styles.top, { top: insets.top + 10 }]} pointerEvents="box-none">
-        {/* ALERTE TACTIQUE unique : menace + enjeu chiffré + temps + rival, une
-            hiérarchie claire. Remplace le header + les pills flottantes (fini le
-            bruit de mini-toasts au centre de la carte). */}
-        <AlertBanner />
-      </View>
+      {/* HAUT : plus RIEN sur la carte. Le menu = hamburger (nav, haut gauche) ;
+          l'alerte + la défense vivent DANS le bouton Info (décision fondateur :
+          épuration maximale — on ne voit que la carte + Info + RUN). */}
 
       {/* ── Droite : 3 FABs MAX (Calques + Recentrer + INFO) ──
           Info est l'accès PRINCIPAL à l'action (remplace la card sticky). */}
@@ -318,18 +312,10 @@ export function BattleMapOverlays({
         />
       </View>
 
-      {/* Carte « DÉFENDRE » PERSISTANTE (peek) tant que le panneau détaillé est
-          fermé : zone prioritaire + distance + contrôle + récompense, JUSTE
-          au-dessus du bouton d'action → le [DÉFENDRE] devient logique. Tap =
-          déplie les options (même sheet Info, pas un doublon). */}
-      {!infoOpen ? (
-        <View style={[styles.defendAnchor, { bottom: sheetBottom }]} pointerEvents="box-none">
-          <DefendCard onPress={toggleInfo} />
-        </View>
-      ) : null}
-
-      {/* ── Panneau INFO (révélé par le FAB Info OU le tap sur la carte Défendre) :
-          PEEK = situation + mission + [Défendre] ; OUVERT = les options. ── */}
+      {/* ── Panneau INFO (révélé par le FAB Info) : TOUT est ici — l'alerte
+          (attaque + rival + temps), la zone à défendre (distance + contrôle +
+          récompense), la situation et les options. Rien de tout ça n'apparaît
+          sur la carte tant qu'on n'ouvre pas Info. ── */}
       {infoOpen ? (
         <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
           <MapBottomSheet
@@ -481,6 +467,13 @@ function InfoPanel({ onOptions }: { onOptions: () => void }) {
   const s = MAP_MISSION_SUMMARY;
   return (
     <View style={styles.info}>
+      {/* TOUT est ici (décision fondateur : rien sur la carte) — l'ALERTE
+          tactique (attaque + rival + temps) et la ZONE À DÉFENDRE (distance +
+          contrôle + récompense) EN PREMIER, puis la situation + les options. */}
+      <AlertBanner />
+      <DefendCard onPress={onOptions} />
+      <View style={styles.infoDivider} />
+
       {/* SITUATION (ex-3ᵉ FAB Info AMENDEMENT-17, revenu ici) — zone · état ·
           parts de contrôle · directive (bonus + temps restant). */}
       <Text style={styles.situationTitle} numberOfLines={1}>

@@ -1,23 +1,14 @@
 /**
- * GRYD — barre de navigation flottante ULTRA-SIMPLE (4 slots) :
- *   Carte · Crew · [ RUN ] · Moi
- * Décision fondateur : le menu ne sert qu'à 3 besoins — courir, regarder la
- * carte, gérer sa progression. On tombe de 5 onglets à 3 (Carte · Crew · Moi) +
- * un BOUTON RUN CENTRAL permanent, gros et chartreuse : « le joueur ne doit
- * jamais chercher comment courir ». Missions et Saison sortent de la barre
- * (accès depuis « Moi » → /warroom, /classement — routes conservées).
- *
- * Le bouton RUN reprend la dérivation CONTEXTUELLE de l'AMENDEMENT-29
- * (deriveContextualAction) : défaut RUN, mais DÉFENDRE/CONQUÉRIR/TERMINER selon
- * l'écran (Carte lit l'attaque, Missions la mission urgente) — jamais « GO ».
- * Appui long = Route Planner (choix avancés). Il n'est plus un overlay gaté :
- * il vit DANS la barre, toujours visible.
- *
- * Icônes filaires 1,5 px (charte §F). Onglet actif = icône chartreuse (remplie
- * si fillable, §C.3 « moi / actif ») + label blanc — exception nav officielle
- * (AMENDEMENT-08 §2). La tab bar native est masquée ; cette barre navigue via
- * expo-router. Aucune couleur hors tokens.
+ * GRYD — navigation ÉPURÉE AU MAXIMUM (décision fondateur). Plus de barre
+ * d'onglets en bas. À la place :
+ *   - un MENU hamburger en HAUT À GAUCHE : toute la navigation dedans (Carte,
+ *     Crew, Missions, Saison, Moi) ;
+ *   - un SEUL bouton d'action en BAS AU CENTRE : RUN (contextuel — DÉFENDRE /
+ *     CONQUÉRIR / TERMINER selon l'écran, jamais « GO »).
+ * La carte sert à DÉCIDER avant la course puis à MONTRER la course ; tout le
+ * reste est caché (menu, ou bouton Info de la carte). Rien d'autre à l'écran.
  */
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,144 +16,168 @@ import { colors, radii, type IconName } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { EVENTS, track } from '../../lib/analytics';
 import { deriveContextualAction, type ContextInput } from './contextualAction';
-import { NAV_BAR_BOTTOM, NAV_BAR_HEIGHT, NAV_BAR_SIDE } from './metrics';
 
-interface TabItem {
+interface NavItem {
   label: string;
   href: string;
   icon: IconName;
 }
 
-/** 3 onglets de navigation (le 4ᵉ slot central = le bouton RUN, ci-dessous). */
-const TABS: readonly TabItem[] = [
+/** Toute la navigation vit dans le menu hamburger. */
+const MENU_ITEMS: readonly NavItem[] = [
   { label: 'Carte', href: '/', icon: 'carte' },
   { label: 'Crew', href: '/crew', icon: 'crew' },
+  { label: 'Missions', href: '/warroom', icon: 'guerre' },
+  { label: 'Saison', href: '/classement', icon: 'classement' },
   { label: 'Moi', href: '/profil', icon: 'profil' },
 ];
 
-/**
- * Recadrage contextuel du bouton RUN par route (comme l'ancien FAB gaté, mais
- * ici le bouton est TOUJOURS présent) : la Carte lit l'attaque (⇒ DÉFENDRE),
- * Missions la mission urgente (⇒ TERMINER). Ailleurs → défaut RUN (course libre).
- */
+/** Recadrage contextuel du RUN par route (Carte lit l'attaque ⇒ DÉFENDRE, etc.). */
 const RUN_SCREEN_BY_PATH: Readonly<Record<string, NonNullable<ContextInput['screen']>>> = {
   '/': 'map',
   '/warroom': 'missions',
 };
 
-function NavTab({ tab, active, onPress }: { tab: TabItem; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      accessibilityLabel={tab.label}
-      hitSlop={8}
-      onPress={onPress}
-      style={styles.item}
-    >
-      <Icon name={tab.icon} size={22} color={active ? colors.chartreuse : colors.gris} active={active} />
-      <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
-        {tab.label}
-      </Text>
-    </Pressable>
-  );
-}
-
-/** Bouton RUN central : gros, chartreuse, surélevé — l'action principale permanente. */
-function RunButton() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const screen = RUN_SCREEN_BY_PATH[pathname];
-  const action = deriveContextualAction(screen ? { screen } : {});
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={action.a11yLabel}
-      onPress={() => {
-        // L'intention CLIENT part au live ; le tracé décide, le serveur tranche.
-        track(EVENTS.runStart, { context: action.kind, intention: action.intention });
-        router.push(action.targetHref);
-      }}
-      // Appui long = choix avancés (itinéraire/intentions) sans imposer un mode.
-      onLongPress={() => router.push('/route-planner')}
-      style={({ pressed }) => [styles.run, pressed && styles.runPressed]}
-    >
-      <Icon name={action.icon} size={22} color={colors.noir} />
-      <Text style={styles.runLabel} numberOfLines={1}>
-        {action.label}
-      </Text>
-    </Pressable>
-  );
-}
-
 export function GrydNavBar() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const screen = RUN_SCREEN_BY_PATH[pathname];
+  const action = deriveContextualAction(screen ? { screen } : {});
+
+  const go = (href: string) => {
+    setMenuOpen(false);
+    if (pathname !== href) router.navigate(href);
+  };
 
   return (
-    <View accessibilityRole="tablist" style={[styles.bar, { bottom: insets.bottom + NAV_BAR_BOTTOM }]}>
-      <NavTab
-        tab={TABS[0]!}
-        active={pathname === TABS[0]!.href}
-        onPress={() => pathname !== TABS[0]!.href && router.navigate(TABS[0]!.href)}
-      />
-      <NavTab
-        tab={TABS[1]!}
-        active={pathname === TABS[1]!.href}
-        onPress={() => pathname !== TABS[1]!.href && router.navigate(TABS[1]!.href)}
-      />
-      {/* Slot central : l'action principale, jamais un onglet. */}
-      <RunButton />
-      <NavTab
-        tab={TABS[2]!}
-        active={pathname === TABS[2]!.href}
-        onPress={() => pathname !== TABS[2]!.href && router.navigate(TABS[2]!.href)}
-      />
-    </View>
+    <>
+      {/* MENU hamburger — HAUT À GAUCHE */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Menu"
+        hitSlop={8}
+        onPress={() => setMenuOpen((o) => !o)}
+        style={[styles.menuBtn, { top: insets.top + 10 }]}
+      >
+        <View style={styles.hLine} />
+        <View style={styles.hLine} />
+        <View style={styles.hLine} />
+      </Pressable>
+
+      {/* RUN — BAS AU CENTRE, le SEUL bouton d'action (contextuel). */}
+      <View style={[styles.runAnchor, { bottom: insets.bottom + 22 }]} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={action.a11yLabel}
+          onPress={() => {
+            track(EVENTS.runStart, { context: action.kind, intention: action.intention });
+            router.push(action.targetHref);
+          }}
+          onLongPress={() => router.push('/route-planner')}
+          style={({ pressed }) => [styles.run, pressed && styles.runPressed]}
+        >
+          <Icon name={action.icon} size={24} color={colors.noir} />
+          <Text style={styles.runLabel} numberOfLines={1}>
+            {action.label}
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Menu déployé : scrim + panneau ancré sous le hamburger. */}
+      {menuOpen ? (
+        <View style={StyleSheet.absoluteFill}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fermer le menu"
+            style={styles.scrim}
+            onPress={() => setMenuOpen(false)}
+          />
+          <View style={[styles.menuPanel, { top: insets.top + 62 }]}>
+            {MENU_ITEMS.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Pressable
+                  key={item.href}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={item.label}
+                  onPress={() => go(item.href)}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                >
+                  <Icon
+                    name={item.icon}
+                    size={20}
+                    color={active ? colors.chartreuse : colors.blanc}
+                    active={active}
+                  />
+                  <Text style={[styles.menuLabel, active && styles.menuLabelActive]} numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {
+  menuBtn: {
     position: 'absolute',
-    left: NAV_BAR_SIDE,
-    right: NAV_BAR_SIDE,
-    height: NAV_BAR_HEIGHT,
-    borderRadius: radii.pill,
+    left: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: colors.carbone,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 6,
+    justifyContent: 'center',
+    gap: 4,
   },
-  item: {
-    alignItems: 'center',
-    gap: 3,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  label: { color: colors.gris, fontSize: 10, fontWeight: '500', letterSpacing: 0.2 },
-  labelActive: { color: colors.blanc },
-  // Bouton RUN : surélevé (déborde la barre), chartreuse plein, texte noir.
+  hLine: { width: 18, height: 2, borderRadius: 1, backgroundColor: colors.blanc },
+
+  runAnchor: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   run: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
     backgroundColor: colors.chartreuse,
     borderRadius: radii.pill,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    transform: [{ translateY: -14 }],
-    // Glow chartreuse discret — état N3 réservé à L'action principale (charte).
+    paddingHorizontal: 26,
+    paddingVertical: 16,
     shadowColor: colors.chartreuse,
     shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
   runPressed: { opacity: 0.85 },
-  runLabel: { color: colors.noir, fontSize: 13, fontWeight: '800', letterSpacing: 0.3 },
+  runLabel: { color: colors.noir, fontSize: 15, fontWeight: '800', letterSpacing: 0.4 },
+
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  menuPanel: {
+    position: 'absolute',
+    left: 14,
+    minWidth: 200,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
+  },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  menuItemPressed: { opacity: 0.7 },
+  menuLabel: { color: colors.blanc, fontSize: 15, fontWeight: '600' },
+  menuLabelActive: { color: colors.chartreuse },
 });

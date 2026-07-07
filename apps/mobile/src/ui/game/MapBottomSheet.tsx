@@ -36,7 +36,9 @@ export const MAP_SHEET_COMPACT_HEIGHT = 208;
  * troncature. Ne remplace pas MAP_SHEET_COMPACT_HEIGHT (défaut inchangé pour
  * tout autre usage) : passé via la prop `compactHeight`.
  */
-export const MAP_SHEET_INFO_COMPACT_HEIGHT = 320;
+// Peek Info = TOUT (alerte + zone à défendre + situation + mission) : hauteur
+// augmentée pour développer toutes les informations (décision fondateur).
+export const MAP_SHEET_INFO_COMPACT_HEIGHT = 460;
 /** Part de l'écran couverte en semi (~40 %). */
 export const MAP_SHEET_SEMI_RATIO = 0.4;
 /** Part de l'écran couverte en ouvert (~85 %). */
