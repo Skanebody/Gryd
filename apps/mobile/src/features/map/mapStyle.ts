@@ -792,59 +792,61 @@ export const battleMapStyle = {
 
 /**
  * Paliers de largeur `[zoom, px]` de la TRACE (§B — interpolation MapLibre
- * `line-width`). Le CORE va de ~5 px au niveau ville (z12) à ~14 px au niveau
- * rue (z18) ; le CASING est le core + un liseré porteur ; le GLOW déborde à
- * peine le casing. La Course Live vit à l'échelle rue (RUNNER_SCALE_ZOOM ≈ z16-17)
- * → la trace y est massive. Consommés via `RealMapGeoJSONLayer.lineWidthStops`.
+ * `line-width`). LARGEUR DOUBLÉE (décision fondateur : le trait du parcours doit
+ * être bien plus large) : le CORE va de ~12 px au niveau ville (z12) à ~28 px au
+ * niveau rue (z18) ; le CASING est le core + un liseré porteur ; le GLOW déborde à
+ * peine le casing. Le RIVAL reste PLUS FIN que ma trace (§B anti-confusion — non
+ * doublé). La Course Live vit à l'échelle rue (RUNNER_SCALE_ZOOM ≈ z16-17) → la
+ * trace y est massive. Consommés via `RealMapGeoJSONLayer.lineWidthStops`.
  */
 export const TRACE_WIDTH_STOPS = {
-  /** Trace COURUE — le héros : chartreuse pleine ÉPAISSE (§B core 9-12). */
+  /** Trace COURUE — le héros : chartreuse pleine ÉPAISSE (largeur DOUBLÉE). */
   runCore: [
+    [12, 12],
+    [14, 16],
+    [16, 22],
+    [18, 28],
+  ],
+  /** Casing sombre de la trace courue (core + liseré porteur — DOUBLÉ). */
+  runCasing: [
+    [12, 20],
+    [14, 25],
+    [16, 32],
+    [18, 38],
+  ],
+  /** Glow FIN de la trace courue (déborde à peine le casing — ratio conservé). */
+  runGlow: [
+    [12, 26],
+    [14, 32],
+    [16, 40],
+    [18, 48],
+  ],
+  /** Route RESTANTE / recommandée : chartreuse plus FINE que la courue (DOUBLÉE). */
+  routeRemainingCore: [
+    [12, 8],
+    [14, 12],
+    [16, 16],
+    [18, 20],
+  ],
+  routeRemainingCasing: [
+    [12, 14],
+    [14, 19],
+    [16, 24],
+    [18, 29],
+  ],
+  /** Segment MANQUANT (fermeture) : chartreuse pointillé (même gabarit que restante). */
+  missingCore: [
+    [12, 8],
+    [14, 12],
+    [16, 16],
+    [18, 20],
+  ],
+  /** Segment EXCLU (GPS écarté) : gris pointillé FAIBLE — le plus fin (doublé). */
+  excludedCore: [
     [12, 6],
     [14, 8],
     [16, 11],
     [18, 14],
-  ],
-  /** Casing sombre de la trace courue (core + liseré porteur — §B 14-16). */
-  runCasing: [
-    [12, 10],
-    [14, 12.5],
-    [16, 16],
-    [18, 19],
-  ],
-  /** Glow FIN de la trace courue (déborde à peine le casing — zéro halo A-16 §0). */
-  runGlow: [
-    [12, 13],
-    [14, 16],
-    [16, 20],
-    [18, 24],
-  ],
-  /** Route RESTANTE / recommandée : chartreuse plus FINE (§B core 6-8, 60 %). */
-  routeRemainingCore: [
-    [12, 4],
-    [14, 6],
-    [16, 8],
-    [18, 10],
-  ],
-  routeRemainingCasing: [
-    [12, 7],
-    [14, 9.5],
-    [16, 12],
-    [18, 14.5],
-  ],
-  /** Segment MANQUANT (fermeture) : chartreuse pointillé (même gabarit que restante). */
-  missingCore: [
-    [12, 4],
-    [14, 6],
-    [16, 8],
-    [18, 10],
-  ],
-  /** Segment EXCLU (GPS écarté) : gris pointillé FAIBLE — le plus fin. */
-  excludedCore: [
-    [12, 3],
-    [14, 4],
-    [16, 5.5],
-    [18, 7],
   ],
   /** RIVAL : orange PLUS FIN que ma trace (jamais aussi visible — §B, anti-confusion). */
   rivalCore: [
@@ -1017,11 +1019,12 @@ const CONTESTED_TRAIT_OFFSET_PX = 2.5;
 const DECAY_WIDTH = 2.2;
 /** Pointillés MapLibre : multiples de la largeur du trait (≈ « 6 5 » px SVG). */
 const DECAY_DASH: readonly number[] = [3, 2.5];
-const ROUTE_WIDTH = 4;
+// Lignes de PARCOURS/route DOUBLÉES (décision fondateur : trait plus large).
+const ROUTE_WIDTH = 8;
 const BONUS_RING_WIDTH = 2;
 const BONUS_DASH: readonly number[] = [3, 2];
-const PARCOURS_CASING_WIDTH = 7;
-const PARCOURS_WIDTH = 4;
+const PARCOURS_CASING_WIDTH = 14;
+const PARCOURS_WIDTH = 8;
 /** Segments de l'anneau de la zone bonus (cercle géodésique approché). */
 const BONUS_CIRCLE_STEPS = 48;
 
