@@ -5,10 +5,10 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
 ## À faire — actionnable maintenant
-### Map — retour fondateur (clarté) : hiérarchie de l'info FAITE (`a4acca9`) ; reste le VISUEL
-- [ ] Fond de carte plus STYLISÉ (jeu au 1er plan) : routes secondaires très faibles, bâtiments quasi invisibles, labels limités, fond plus noir — `mapStyle.ts` basemap dark — M
-- [ ] Identité visuelle des territoires plus forte (aplat+contour par rôle, contesté = double contour orange/chartreuse « plat clignotant », badge crew/rival sur zone) — `mapStyle.ts` territoryStateLayers/sectorStatus — M
+### Map — retour fondateur (clarté) : hiérarchie `a4acca9` + fond `297a2ec` + territoires `aeb2778` FAITS ; reste :
 - [ ] Différencier les tracés : route actuelle (chartreuse épais) vs recommandée (pointillé) vs rivale (orange) vs terminée (gris) — cohérence des langages — S/M
+- [ ] Parité NATIVE du fond atténué : porter les surcharges dark-matter (bâtiments/routes/labels) sur RealMap.tsx (aujourd'hui web-only) — M
+- [ ] Badge crew/rival posé sur la zone dominante + contesté « plat clignotant » (renfort d'identité) — `mapStyle.ts` sectorStatus — M
 ### Map (filtres + tap — audité, prêt à câbler)
 - [ ] Filtres carte → 4 (Carte/Attaque/Défense/Crew) : relabel MAP_MODE_ORDER + emphase Crew — `territory.ts` + `BattleMapOverlays` — S/M
 - [ ] Zones tappables → ouvrir la sheet au tap (onPress carte niveau lng/lat + hit-test secteur, SIMPLE per audit) — `MapScreen` + `BattleMapOverlays` — M
