@@ -10,7 +10,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] Zones tappables → ouvrir la bottom-sheet au tap (aujourd'hui ouverte par le FAB Info) — `BattleMapOverlays.tsx` + `MapBottomSheet` — M
 - [ ] « Opportunités proches » (coach tactique : zone capturable à X m, frontière faible…) — NOUVEAU module pur + bandeau carte — M
 ### Courses en groupe (fondation moteur + badges FAITE `9c96cac` ; reste le wiring + 3 mécaniques)
-- [ ] WIRING du bonus de capture collectif dans ingest_run (la fonction pure `groupCaptureBonusPct` capée existe + testée ; l'appliquer au remplissage de contrôle côté serveur) — M
+- [ ] ACTIVATION LIVE du bonus de groupe (le moteur l'applique déjà au LOCK via `DecideClaimsContext.runners`, testé — `8a3c596`) : faire passer `runners` par ingest_run avec un compte SAME-CREW validé → ajouter `ownerCrewId` au chargement d'état (loadHexStates), compter les co-présents de MON crew (pas `freshBy.size` brut = rivaux), déplacer la détection avant `runTerritoryEngine`, deploy — M
 - [ ] Crew shield à l'échelle du territoire crew (étendre le shield zone/joueur existant) — M
 - [ ] Objectifs crew QUOTIDIENS (board reset chaque jour ; l'hebdo + coffre login existent) — M
 - [ ] Zones « crew-only » (proche : outpost) — M/L
@@ -34,6 +34,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] PostHog : clés projet (events §8 déjà nommés, câblage à finir)
 
 ## Fait (récent)
+- [x] Bonus de groupe câblé au MOTEUR : le LOCK (= remplissage du contrôle) tient +% en course de crew via `DecideClaimsContext.runners`, capé +40 %, solo inchangé, tests — `8a3c596`, 497 tests (activation live = compte same-crew, à suivre)
 - [x] Avantages de groupe (fondation) : bonus de capture collectif CAPÉ +40 % (pur+testé, anti-P2W) + crew streak + 4 badges de groupe — `9c96cac`, 494 tests
 - [x] Carte : trait du parcours DOUBLÉ (trace courue + route + PARCOURS/ROUTE ×2, rival laissé plus fin) — `9b2be25`
 - [x] Nav ultra-simple 4 slots : Carte · Crew · [RUN central permanent] · Moi ; Missions/Saison sortis de la barre (→ Moi) — `f1edd1c`
