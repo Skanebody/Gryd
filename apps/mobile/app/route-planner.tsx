@@ -57,6 +57,7 @@ import {
   crewsTakenLabel,
   popularRouteTarget,
 } from '../src/features/route/popularRoutes';
+import { isRouteWalkable } from '../src/features/route/walkability';
 import {
   OBJECTIVE_BY_ROUTE_TYPE,
   ROUTE_OBJECTIVE_LABELS,
@@ -105,6 +106,16 @@ function ctaMicrocopy(route: PlannedRouteDemo): string {
 /** Objectif d'une route (AMENDEMENT-12 §A — dérivé du sous-type interne). */
 function routeObjective(route: PlannedRouteDemo): RouteObjective {
   return OBJECTIVE_BY_ROUTE_TYPE[route.typeKey];
+}
+
+/**
+ * Garde-fou walkability (moteur route.ts, miroir walkability.ts) : un itinéraire
+ * n'est PROPOSÉ que s'il est praticable à pied (jamais une autoroute) et connexe.
+ * Les routes démo sont authoring piéton (OSRM foot) → toutes valides ; ce filtre
+ * est un filet pour la génération réelle / les imports (Strava) V1.
+ */
+function routeWalkable(route: PlannedRouteDemo): boolean {
+  return isRouteWalkable({ points: route.line });
 }
 
 /** Micro-titre de section (PLANS / PRIORITÉ CREW…). */
@@ -275,7 +286,8 @@ export default function RoutePlannerScreen() {
         <View style={styles.plansRow}>
           {ROUTE_PLANS.map((plan) => {
             const target = ROUTES_DEMO.find((r) => r.id === plan.routeId);
-            if (!target) return null;
+            // Garde-fou : un plan non praticable à pied n'est jamais proposé.
+            if (!target || !routeWalkable(target)) return null;
             const selected = target.id === route.id;
             return (
               <Pressable
@@ -384,6 +396,10 @@ export default function RoutePlannerScreen() {
             <Text style={styles.hint}>
               Toujours une boucle fermée — c'est l'intérieur qui se capture.
             </Text>
+            <View style={styles.safeRow}>
+              <Icon name="bouclier" size={14} color={colors.chartreuse} />
+              <Text style={styles.safeText}>Vérifié accessible à pied — jamais d'autoroute.</Text>
+            </View>
             <View style={styles.chipsRow}>
               {ROUTE_CONSTRAINTS.map((c) => (
                 <Chip
@@ -406,7 +422,8 @@ export default function RoutePlannerScreen() {
             >
               {POPULAR_ROUTES_DEMO.map((pop) => {
                 const target = popularRouteTarget(pop);
-                if (!target) return null;
+                // Même garde-fou walkability sur les boucles crowd-sourcées.
+                if (!target || !routeWalkable(target)) return null;
                 const selected = target.id === route.id;
                 const crews = crewsTakenLabel(pop);
                 return (
@@ -624,7 +641,9 @@ const styles = StyleSheet.create({
   chevUp: { transform: [{ rotate: '90deg' }] },
   adjustBody: { marginTop: 2 },
 
-  hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17, marginBottom: 8 },
+  hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17, marginBottom: 6 },
+  safeRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 },
+  safeText: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17 },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   chip: {
     height: 34,

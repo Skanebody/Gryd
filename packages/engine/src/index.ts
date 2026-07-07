@@ -27,3 +27,4 @@ export * from './challenge.ts';
 export * from './bonus.ts';
 export * from './group.ts';
 export * from './opportunities.ts';
+export * from './route.ts';

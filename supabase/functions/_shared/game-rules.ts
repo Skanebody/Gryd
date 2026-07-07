@@ -1477,3 +1477,74 @@ export const DAILY_CHEST_BOOST_PER_DAY = 1;
  * TUNABLE.
  */
 export const DAILY_CHEST_BOOST_PCT = 0.02;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Garde-fous de WALKABILITÉ des routes (sécurité — décision fondateur).
+// « Vérifier que les routes utilisées sont bien accessibles à pied et non des
+// autoroutes. » Deux couches complémentaires :
+//   1. GÉNÉRATION : toute route GRYD est produite au profil PIÉTON (OSRM/valhalla
+//      `foot`), qui EXCLUT structurellement autoroutes/voies rapides.
+//   2. VALIDATION (défense en profondeur, engine/route.ts) : on RE-VÉRIFIE la
+//      géométrie renvoyée (surtout pour les sources non maîtrisées — import
+//      Strava, tracé utilisateur) contre une DENYLIST de classes de voies + une
+//      plausibilité de connexité. Une route non piétonne n'est jamais proposée.
+// Classes = valeurs OSM `highway=*`. Aucun nombre magique ailleurs.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Profil de routage AUTORISÉ pour toute génération d'itinéraire GRYD (jamais car/bike). */
+export const ROUTE_PEDESTRIAN_PROFILE = 'foot' as const;
+
+/**
+ * DENYLIST — classes de voies OSM sur lesquelles un coureur ne doit JAMAIS être
+ * routé (piéton interdit / dangereux). Une seule occurrence rend la route non
+ * walkable (rejet DUR). motorway/trunk = autoroutes et voies rapides ; les
+ * `*_link` sont les bretelles ; raceway/bus_guideway/construction/proposed ne
+ * sont pas des voies piétonnes utilisables.
+ */
+export const ROUTE_FORBIDDEN_HIGHWAY_CLASSES: readonly string[] = [
+  'motorway',
+  'motorway_link',
+  'trunk',
+  'trunk_link',
+  'raceway',
+  'bus_guideway',
+  'construction',
+  'proposed',
+];
+
+/**
+ * ALLOWLIST — classes de voies OSM normalement praticables à pied (trottoirs,
+ * chemins, rues résidentielles, voies partagées…). Une classe HORS de cette
+ * liste ET hors denylist = `unknown_class` : signal DOUX (on n'affole pas, mais
+ * on le remonte pour audit), jamais un rejet dur.
+ */
+export const ROUTE_WALKABLE_HIGHWAY_CLASSES: readonly string[] = [
+  'footway',
+  'path',
+  'pedestrian',
+  'living_street',
+  'residential',
+  'unclassified',
+  'service',
+  'track',
+  'cycleway',
+  'steps',
+  'tertiary',
+  'tertiary_link',
+  'secondary',
+  'secondary_link',
+  'primary',
+  'primary_link',
+  'road',
+];
+
+/**
+ * Écart MAX (m) entre deux sommets consécutifs d'un itinéraire avant de le juger
+ * DÉCONNECTÉ (téléport / « vol d'oiseau » hors réseau : traversée d'eau, saut de
+ * quartier). Volontairement HAUT (une longue avenue droite peut n'avoir qu'un
+ * segment) — c'est un filet de connexité structurelle, pas un détecteur
+ * d'autoroute (ça, c'est la denylist de classes). TUNABLE.
+ */
+export const ROUTE_MAX_STEP_M = 1_500;
+
+/** Nombre MINIMAL de points d'un itinéraire exploitable (départ + arrivée). */
+export const ROUTE_MIN_POINTS = 2;
