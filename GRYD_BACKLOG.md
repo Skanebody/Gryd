@@ -5,8 +5,10 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
 ## À faire — actionnable maintenant
-_(vidé — les items actionnables ont été traités par le loop. Réalimenter depuis
-les docs produit / retours fondateur pour continuer.)_
+- [ ] GRIP partout : le personnage à son rang dans Share card + post-run + classement + Crew (la signature GRYD, pas seulement le Profil) — M
+- [ ] Icônes façon Apple : remplacer les Lucide/génériques écran par écran par un jeu SF-like propriétaire (outline/filled/hiérarchique) — L
+- [ ] Badges façon Apple Fitness : médaillons à anneau de progression, branchés sur le moteur de badges existant — M
+- [ ] GRIP : assets vectoriels de prod à partir des fichiers sources fondateur (remplacer les SVG de référence) + polish accessoires (loupe Scout, basket Runner plus nets) — S
 
 ## En attente d'un retour utilisateur (ne pas boucler dessus)
 - [ ] Carte satellite : ajuster les curseurs `SAT_CORE_WIDTH_MULT / SAT_LINE_ALPHA_BOOST / SAT_FILL_BOOST / SATELLITE_DIM` après capture d'écran du fondateur — S
@@ -21,6 +23,8 @@ les docs produit / retours fondateur pour continuer.)_
 - [ ] PostHog : clés projet (events §8 déjà nommés, câblage à finir)
 
 ## Fait (récent)
+- [x] Personnage GRIP : 7 poses = 7 rangs dérivés du niveau existant, câblé au Profil (module Progression), anti-P2W — `aff8ccc`, 481 tests
+- [x] Consolidation monétisation : freemium + abonnement unique GRYD Club + boucliers sortis du sub (SHIELD_CLUB_INCLUDED_PER_WEEK 1→0) — `cec7f82`
 - [x] Anti-harcèlement : protection « capture fraîche » 6 h (moteur, sans migration, ingest_run redéployé) — /gryd-loop tour 3, 480 tests
 - [x] Crew Perks UI : affichage des perks par niveau (débloqués/verrouillés) — /gryd-loop tour 4
 - [x] Import GPX : adaptateur + parseur pur (alternative gratuite à Strava) — /gryd-loop tour 5
