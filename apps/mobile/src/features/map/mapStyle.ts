@@ -239,17 +239,18 @@ export function scaleAlpha(color: string, factor: number): string {
  * FRONTIÈRE par état. Consommé par MapScreen.web (SVG) et MapScreen (MapLibre).
  */
 export const territoryStyle = {
-  // Ton crew : aplat chartreuse discret + frontière fine semi-lumineuse.
-  // AMENDEMENT-16 §0 : ZÉRO halo/glow — un trait net + un remplissage faible.
-  crewFill: mapTokens.mineFill,
-  crewStroke: withAlpha(colors.chartreuse, 0.55),
+  // Ton crew : aplat chartreuse LISIBLE (identité « qui possède quoi », retour
+  // fondateur — renforcé maintenant que le fond est très sombre) + contour fort.
+  // AMENDEMENT-16 §0 : ZÉRO halo/glow — un trait net + un remplissage franc.
+  crewFill: withAlpha(colors.chartreuse, 0.3),
+  crewStroke: withAlpha(colors.chartreuse, 0.8),
 
-  // Rival : frontière orange MARQUÉE (l'état se lit à la frontière).
-  rivalFill: withAlpha(gameColors.rival, 0.13),
-  rivalStroke: withAlpha(gameColors.rival, 0.8),
+  // Rival : aplat orange MARQUÉ + frontière orange forte (l'ennemi se voit).
+  rivalFill: withAlpha(gameColors.rival, 0.26),
+  rivalStroke: withAlpha(gameColors.rival, 0.85),
 
   // Contesté : double contour chartreuse + orange (l'orange pulse lentement).
-  contestedFill: withAlpha(gameColors.contested, 0.13),
+  contestedFill: withAlpha(gameColors.contested, 0.24),
   contestedInnerStroke: withAlpha(colors.chartreuse, 0.7),
   contestedOuterStroke: withAlpha(gameColors.rival, 0.8),
 
