@@ -95,6 +95,20 @@ const MODE_CHIP_LABELS: Record<MapMode, string> = {
 };
 
 /**
+ * Couleur d'icône par mode/rôle (décision fondateur : « n'hésite pas à ajouter des
+ * couleurs »). Chaque calque devient identifiable À LA COULEUR (façon Waze) :
+ * territoire/route = chartreuse (moi), défense = bleu bouclier, rival = orange,
+ * exploration = or. Tokens de jeu uniquement (jamais une teinte hors charte).
+ */
+const MODE_COLOR: Record<MapMode, string> = {
+  territoire: gameColors.crew,
+  route: gameColors.crew,
+  defense: gameColors.verify,
+  raid: gameColors.rival,
+  exploration: gameColors.gold,
+};
+
+/**
  * FOND de carte (AMENDEMENT-28) — 3 options du menu Calques, libellés COURTS non
  * tronqués (charte : jamais de chartreuse sur clair ; l'actif se marque en carbon
  * + crew comme les calques). « Réaliste » = satellite (vraies photos aériennes).
@@ -690,11 +704,9 @@ function LayerMenu({
               pressed && styles.pressed,
             ]}
           >
-            <Icon
-              name={MAP_MODE_ICON[key]}
-              size={15}
-              color={on ? gameColors.crew : colors.blanc}
-            />
+            {/* Icône colorée PAR RÔLE (identifiable à la couleur) ; l'actif se
+                marque en plus par le fond `layerItemActive`. */}
+            <Icon name={MAP_MODE_ICON[key]} size={15} color={MODE_COLOR[key]} active={on} />
             <Text style={[styles.layerLabel, on && styles.layerLabelActive]} numberOfLines={1}>
               {MODE_CHIP_LABELS[key]}
             </Text>
