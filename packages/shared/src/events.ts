@@ -55,6 +55,7 @@ export const EVENTS = {
   healthkitImport: 'healthkit_import', // props: { runs }
   batteryReport: 'battery_report',
   mapLoadMs: 'map_load_ms',
+  opportunityShown: 'opportunity_shown', // props: { kind: capture|rival|defense, distance_m }
   crash: 'crash',
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

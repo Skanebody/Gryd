@@ -1285,6 +1285,17 @@ export const BONUS_MAX_TOTAL_PCT = 0.35;
  */
 export const FINISHER_BONUS_MISSING_MAX_M = 800;
 
+// ─── Opportunités proches (coach tactique de la carte) ───────────────────────
+/**
+ * Coach « opportunités proches » (§carte). `OPPORTUNITY_NEAR_MAX_M` = rayon
+ * « autour de toi » (au-delà, une zone n'est plus une opportunité proche).
+ * `OPPORTUNITY_DEFENSE_PRESSURE_MIN` = pression (0-100) au-dessus de laquelle une
+ * zone TENUE devient « à défendre ». Anti pay-to-win : une opportunité se lit dans
+ * la SITUATION (rôle + pression + distance), jamais achetée.
+ */
+export const OPPORTUNITY_NEAR_MAX_M = 2_000;
+export const OPPORTUNITY_DEFENSE_PRESSURE_MIN = 50;
+
 /**
  * Récompenses (part 0-1) des bonus MVP — TOUTES ≤ BONUS_MAX_TOTAL_PCT (le cap
  * les re-borne de toute façon). `chestPct` = surcroît de progression coffre

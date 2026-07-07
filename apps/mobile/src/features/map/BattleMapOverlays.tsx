@@ -43,12 +43,12 @@
  * ; EVENTS.runStart au départ réel (porté par le bouton d'action FLOTTANT,
  * AMENDEMENT-29 — plus par un CTA dans l'Info).
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
-import { screen } from '../../lib/analytics';
+import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 import {
@@ -80,6 +80,7 @@ import {
   MAP_MODE_ORDER,
   type MapMode,
 } from './territory';
+import { mapOpportunities, opportunityColor, opportunityLabel } from './opportunities';
 
 /**
  * Libellés AFFICHÉS des calques : « Raid » devient « Rival » à l'écran
@@ -267,6 +268,10 @@ export function BattleMapOverlays({
 
         {/* Pill RIVAL : compacte, INFORMATIVE, SANS CTA (l'alerte informe). */}
         <RivalPill />
+
+        {/* Coach « opportunités proches » : oriente vers l'action la plus proche,
+            INFORMATIF (jamais un 2ᵉ CTA §A.4). Masqué si rien autour. */}
+        <OpportunityPill />
       </View>
 
       {/* ── Droite : 3 FABs MAX (Calques + Recentrer + INFO) ──
@@ -549,6 +554,37 @@ function RivalPill() {
 }
 
 /**
+ * Coach « OPPORTUNITÉS PROCHES » (§carte) : l'opportunité la PLUS PROCHE autour de
+ * moi (capturer une zone neutre · enfoncer une frontière rivale faible · défendre
+ * une zone menacée), + un compteur des autres. INFORMATIF seulement — le seul gros
+ * CTA de l'écran reste le bouton d'action flottant (§A.4). Dérivée PURE
+ * (mapOpportunities, miroir engine) ; masquée si rien autour. Slide-in doux.
+ */
+function OpportunityPill() {
+  const { opacity, translateY } = useSlideIn(6);
+  const opps = useMemo(() => mapOpportunities(), []);
+  const top = opps[0];
+  useEffect(() => {
+    if (top) track(EVENTS.opportunityShown, { kind: top.kind, distance_m: top.distanceM });
+  }, [top]);
+  if (!top) return null;
+  const extra = opps.length - 1;
+  return (
+    <Animated.View style={[styles.oppPill, { opacity, transform: [{ translateY }] }]}>
+      <View style={[styles.oppDot, { backgroundColor: opportunityColor(top) }]} />
+      <Text style={styles.oppText} numberOfLines={1}>
+        {opportunityLabel(top)}
+      </Text>
+      {extra > 0 ? (
+        <Text style={styles.oppMore} numberOfLines={1}>
+          · +{extra}
+        </Text>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+/**
  * Menu « Calques » (AMENDEMENT-21) : ouvert par le FAB Calques — remplace la
  * rangée de 5 filtres permanente ET absorbe le choix de fond (plus de FAB Fond
  * dédié). En haut, le FOND de carte — 3 options explicites Sombre / Couleur /
@@ -705,6 +741,24 @@ const styles = StyleSheet.create({
   rivalText: { color: colors.blanc, fontSize: 12, fontWeight: '600', flexShrink: 1 },
   rivalSep: { color: colors.gris, fontSize: 12 },
   rivalLost: { color: colors.gris, fontSize: 12, fontVariant: ['tabular-nums'] },
+
+  // ── Pill OPPORTUNITÉS PROCHES : coach informatif, SANS CTA (§A.4) ──
+  oppPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: OVERLAY_SURFACE,
+    maxWidth: '100%',
+  },
+  oppDot: { width: 6, height: 6, borderRadius: 3 },
+  oppText: { color: colors.blanc, fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  oppMore: { color: colors.gris, fontSize: 12, fontVariant: ['tabular-nums'] },
 
   // ── FAB column : 3 MAX (Calques + Recentrer + Info) ──
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
