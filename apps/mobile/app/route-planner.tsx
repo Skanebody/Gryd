@@ -1,8 +1,8 @@
 /**
  * GRYD — CONQUÉRIR `/route-planner` : planificateur d'itinéraire LIVE, PARTOUT EN
  * FRANCE. Plus aucun point de départ figé (fini le mode démo République) :
- *   • DÉPART = ta position GPS, ou N'IMPORTE QUEL lieu cherché (ville, village,
- *     adresse) via geocoding gratuit ;
+ *   • DÉPART = TOUJOURS ta position actuelle (GPS de l'appareil), nommée par
+ *     reverse-geocoding ; touche le champ pour recentrer ;
  *   • header KPI = la boucle active (verbe · lieu · km + résumé) ;
  *   • carte route-first (RoutePlannerMap) centrée sur l'origine ;
  *   • « Pourquoi cette course ? » = 2-3 raisons ;
@@ -37,7 +37,7 @@ import {
   type PlannerIntention,
 } from '../src/features/route/generator';
 import { routeLoop } from '../src/features/route/liveRouting';
-import { currentPosition, geocodeFrance, type OriginPoint } from '../src/features/route/origin';
+import { currentPosition, reverseGeocode, type OriginPoint } from '../src/features/route/origin';
 import { EGO_REPUBLIQUE } from '../src/features/map/realAnchors';
 import type { PlannedRouteDemo } from '../src/features/route/types';
 
@@ -112,7 +112,6 @@ export default function RoutePlannerScreen() {
   const [route, setRoute] = useState<PlannedRouteDemo | null>(null);
   const [routing, setRouting] = useState(false);
   const [nearby, setNearby] = useState<PlannedRouteDemo[]>([]);
-  const [originQuery, setOriginQuery] = useState('');
   const [locating, setLocating] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
@@ -145,16 +144,29 @@ export default function RoutePlannerScreen() {
     liveTimerRef.current = setTimeout(() => applyRoute(o, km, intent, sd), 450);
   };
 
-  // Premier rendu : route un preset, puis tente le GPS et re-route dessus.
+  /** DÉPART = TOUJOURS la position actuelle : localise (GPS) + nomme + route. */
+  const locateAndRoute = (km: number, intent: PlannerIntention, sd: number) => {
+    setLocating(true);
+    void currentPosition().then(async (pos) => {
+      if (!pos) {
+        setLocating(false);
+        toast.show('Position indisponible — active la localisation');
+        return;
+      }
+      const label = (await reverseGeocode(pos)) ?? 'Ma position';
+      const o = { point: pos, label };
+      setLocating(false);
+      setOrigin(o);
+      applyRoute(o, km, intent, sd);
+    });
+  };
+
+  // Premier rendu : route un preset (affichage immédiat), puis localise et re-route.
   useEffect(() => {
     screen('route_planner', { type: params.type ?? 'direct' });
-    applyRoute(DEFAULT_ORIGIN, 3.4, params.type === 'defense' ? 'defendre' : 'conquerir', 1);
-    void currentPosition().then((pos) => {
-      if (!pos) return;
-      const o = { point: pos, label: 'Ma position' };
-      setOrigin(o);
-      applyRoute(o, 3.4, params.type === 'defense' ? 'defendre' : 'conquerir', 1);
-    });
+    const intent: PlannerIntention = params.type === 'defense' ? 'defendre' : 'conquerir';
+    applyRoute(DEFAULT_ORIGIN, 3.4, intent, 1);
+    locateAndRoute(3.4, intent, 1);
     return () => {
       if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
     };
@@ -178,38 +190,10 @@ export default function RoutePlannerScreen() {
     };
   }, [adjustOpen, origin, targetKm, intention, seed]);
 
-  const searchOrigin = () => {
-    const q = originQuery.trim();
-    if (!q) return;
+  const recentrer = () => {
     haptics.light();
-    setLocating(true);
-    void geocodeFrance(q).then((o) => {
-      setLocating(false);
-      if (!o) {
-        toast.show('Lieu introuvable en France');
-        return;
-      }
-      setOrigin(o);
-      setOriginQuery('');
-      applyRoute(o, targetKm, intention, seed);
-      screen('route_planner_origin', { source: 'search' });
-    });
-  };
-
-  const useMyPosition = () => {
-    haptics.light();
-    setLocating(true);
-    void currentPosition().then((pos) => {
-      setLocating(false);
-      if (!pos) {
-        toast.show('Position indisponible');
-        return;
-      }
-      const o = { point: pos, label: 'Ma position' };
-      setOrigin(o);
-      applyRoute(o, targetKm, intention, seed);
-      screen('route_planner_origin', { source: 'gps' });
-    });
+    locateAndRoute(targetKm, intention, seed);
+    screen('route_planner_origin', { source: 'gps' });
   };
 
   const selectPreset = (km: number, key: string) => {
@@ -327,38 +311,29 @@ export default function RoutePlannerScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── DÉPART : ta position OU n'importe quel lieu de France ── */}
+        {/* ── DÉPART = TOUJOURS ta position actuelle (recentre au tap) ── */}
         <SectionLabel icon="carte" label="DÉPART" />
-        <View style={styles.originRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Recentrer sur ma position"
+          onPress={recentrer}
+          style={({ pressed }) => [styles.originRow, pressed && styles.pressed]}
+        >
           <View style={styles.originField}>
-            <Icon name="carte" size={15} color={colors.gris} />
-            <TextInput
-              value={originQuery}
-              onChangeText={setOriginQuery}
-              onSubmitEditing={searchOrigin}
-              placeholder={`Départ : ${origin.label}`}
-              placeholderTextColor={colors.gris}
-              returnKeyType="search"
-              accessibilityLabel="Chercher un lieu de départ"
-              style={styles.originInput}
-            />
+            <Icon name="carte" size={15} color={colors.chartreuse} />
+            <Text style={styles.originLabel} numberOfLines={1}>
+              {locating ? 'Localisation…' : origin.label}
+            </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Utiliser ma position"
-            onPress={useMyPosition}
-            style={({ pressed }) => [styles.gpsBtn, pressed && styles.pressed]}
-          >
+          <View style={styles.gpsBtn}>
             {locating ? (
               <ActivityIndicator color={colors.chartreuse} size="small" />
             ) : (
               <Icon name="cible" size={18} color={colors.chartreuse} />
             )}
-          </Pressable>
-        </View>
-        <Text style={styles.hint}>
-          Tape une ville, un village ou une adresse — la boucle se route là-bas.
-        </Text>
+          </View>
+        </Pressable>
+        <Text style={styles.hint}>Départ = ta position actuelle (touche pour recentrer).</Text>
 
         {/* ── « Pourquoi cette course ? » ── */}
         {reasons.length > 0 ? (
@@ -634,7 +609,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone,
   },
-  originInput: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', padding: 0 },
+  originLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   gpsBtn: {
     width: 46,
     height: 46,
