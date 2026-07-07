@@ -477,6 +477,18 @@ export const BADGES: readonly BadgeDef[] = [
   def('crew', 'recruiter', 'Recruiter', 'Active 5 recrues via ton parrainage.', 'race', 'referralsActivated', 5),
   def('crew', 'group_run', 'Group Run', 'Cours en run groupé (départ synchronisé, trace partagée).', 'tempo', 'groupRuns', 1),
   def('crew', 'encourager', 'Encourager', 'Envoie 10 réactions de soutien sur le feed de ton crew.', 'tempo', 'reactionsSent', 10),
+  // Badges de groupe (cosmétiques/statut, AUCUN gain de jeu — pas de seuil de
+  // territoire). Réutilisent des métriques CREW déjà alimentées (jamais de
+  // nouvelle métrique : LifetimeStats est un Record<BadgeMetric> exhaustif).
+  // trio_loop : la boucle collective à 3 = 3 runs groupés (metric groupRuns,
+  // au-dessus de group_run=1). squad_run : 5 coéquipiers actifs la même semaine
+  // (activeMembersWeek). crew_raid : un raid crew remporté = une offensive
+  // rejointe (offensivesJoined). shield_line : un Crew Shield activé = un cluster
+  // protégé (clustersProtected).
+  def('crew', 'trio_loop', 'Trio Loop', 'Boucle collective à 3 : enchaîne 3 runs groupés avec ton crew.', 'race', 'groupRuns', 3),
+  def('crew', 'squad_run', 'Squad Run', 'Cours avec 5 coéquipiers actifs la même semaine.', 'race', 'activeMembersWeek', 5),
+  def('crew', 'crew_raid', 'Crew Raid', 'Remporte un raid crew (rejoins une offensive collective).', 'tempo', 'offensivesJoined', 1),
+  def('crew', 'shield_line', 'Shield Line', 'Active un Crew Shield en protégeant un secteur de ton crew.', 'tempo', 'clustersProtected', 1),
 
   // ── Performance (3 familles × 6) — cyan ──
   ...leveledFamily('pace_progress', 'Pace Progress', 'performance', 'paceImprovementSKm',

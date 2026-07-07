@@ -789,6 +789,51 @@ export const HANDLE_REGEX = /^[a-z0-9_]{3,20}$/;
  */
 export const COLLUSION_MAX_ALTERNATIONS = 3;
 
+// ─── AMENDEMENT-35 §1 Bonus de capture COLLECTIF (CAPÉ, anti pay-to-win) ──────
+/**
+ * Avantage de groupe #1 — bonus de VITESSE de remplissage du contrôle d'un hex
+ * quand plusieurs coéquipiers du MÊME crew capturent ENSEMBLE (co-présents sur
+ * la capture). Barème croissant PLAFONNÉ par nombre de runners.
+ *
+ * Anti pay-to-win (constitution §52) : ce bonus se GAGNE par l'effort collectif
+ * (courir ensemble, au même endroit, au même moment) — il ne s'ACHÈTE JAMAIS.
+ * Il s'applique UNIQUEMENT à la vitesse de remplissage du contrôle (le temps
+ * pour verrouiller l'hex), JAMAIS aux points bruts ni au territoire gagné, et
+ * il est CAPÉ (+40 % absolu) pour qu'un gros crew ne « steamroll » pas par le
+ * nombre. Le SOLO reste viable : 1 runner = +0 %, aucune pénalité.
+ *
+ * Indexé par nombre de coéquipiers présents : idx 0 et 1 → 0 % (solo = plancher),
+ * 2 → +15 %, 3 → +25 %, 4 → +35 %, 5+ → +40 % (dernier pas = cap absolu, indices
+ * au-delà de la table saturent au cap). Barème monotone croissant.
+ */
+export const GROUP_CAPTURE_BONUS_BY_RUNNERS: readonly number[] = [0, 0, 0.15, 0.25, 0.35, 0.4];
+/** Cap ABSOLU du bonus de capture collectif (part 0-1). Jamais dépassé. */
+export const GROUP_CAPTURE_BONUS_MAX_PCT = 0.4;
+
+// ─── AMENDEMENT-35 §2 Crew Streak (avantage de groupe #2, se GAGNE) ───────────
+/**
+ * Avantage de groupe #2 — le STREAK crew (le streak PERSO existe déjà :
+ * STREAK_* §MVP). Récompense la RÉGULARITÉ collective : nombre de jours où le
+ * crew est resté actif d'affilée. Bornes BASSES (accessible dès le 1er jour),
+ * paliers cosmétiques/fonctionnels sains — jamais un gain de territoire ou de
+ * points (anti pay-to-win) : `bonus` ouvre un bonus de coffre capé (déjà borné
+ * ailleurs), `premiumBadge` est purement un statut COSMÉTIQUE.
+ *
+ * jours actifs → tier (borne basse, on prend le plus haut palier franchi) :
+ *  1 j  → `active`        (streak amorcé)
+ *  3 j  → `bonus`         (le crew débloque son bonus de régularité)
+ *  7 j  → `chestPlus`     (coffre amélioré — plafond de coffre inchangé)
+ *  30 j → `premiumBadge`  (badge premium — COSMÉTIQUE/statut, zéro gameplay)
+ */
+export const CREW_STREAK_THRESHOLDS = {
+  active: 1,
+  bonus: 3,
+  chestPlus: 7,
+  premiumBadge: 30,
+} as const;
+/** Tier de streak crew ('none' = sous le 1er palier, streak non amorcé). */
+export type CrewStreakTier = 'none' | keyof typeof CREW_STREAK_THRESHOLDS;
+
 // ─── AMENDEMENT-07 §5 Challenges (motivation §15-§16) ────────────────────────
 /** Types de challenge (motivation §15). `event`/`season` catalogués, hors MVP actif. */
 export const CHALLENGE_TYPES = ['solo', 'crew', 'rivalry', 'event', 'season'] as const;
