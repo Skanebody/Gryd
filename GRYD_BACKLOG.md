@@ -6,7 +6,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 
 ## À faire — actionnable maintenant
 ### Map — retour fondateur (clarté) : hiérarchie `a4acca9` + fond `297a2ec` + territoires `aeb2778` FAITS ; reste :
-- [ ] Différencier les tracés : route actuelle (chartreuse épais) vs recommandée (pointillé) vs rivale (orange) vs terminée (gris) — cohérence des langages — S/M
+- [x] Tracés différenciés : recommandée = chartreuse pointillé vs course = plein épais vs rival = orange — commit route dash
 - [ ] Parité NATIVE du fond atténué : porter les surcharges dark-matter (bâtiments/routes/labels) sur RealMap.tsx (aujourd'hui web-only) — M
 - [ ] Badge crew/rival posé sur la zone dominante + contesté « plat clignotant » (renfort d'identité) — `mapStyle.ts` sectorStatus — M
 ### Map (filtres + tap — audité, prêt à câbler)
