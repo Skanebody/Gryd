@@ -14,7 +14,9 @@
  *   - Éclats (eclats_s/m/l) : crédités UNIQUEMENT sur un achat one-time
  *     (NON_RENEWING_PURCHASE, ou INITIAL_PURCHASE par tolérance) — jamais sur
  *     RENEWAL (un renewal ne re-crédite rien).
- *   - Starter pack : one-time → skin + STARTER_PACK_ECLATS Éclats + 1 bouclier.
+ *   - Starter pack : one-time → items cosmétiques (skin + frame + template +
+ *     streak_gel, cf. SKU_GRANTED_ITEM_KEYS.starter_pack) + STARTER_PACK_ECLATS
+ *     Éclats. AUCUN bouclier accordé (anti pay-to-win — pas de protection achetée).
  *   - AMENDEMENT-16 §4 : Founder Pack (Éclats + items), crew boosts
  *     (crew_boost_24/72/weekend/season → crew_boosts), gifts crew
  *     (cosmetic_chest_crew / recruit_template_crew / banner_crew →
