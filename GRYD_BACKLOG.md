@@ -9,13 +9,12 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] Filtres carte : relabel des 5 « Calques » vers 4 (Carte/Attaque/Défense/Crew) + ajouter le mode Crew — `map/territory.ts` + `BattleMapOverlays.tsx` — S/M
 - [ ] Zones tappables → ouvrir la bottom-sheet au tap (aujourd'hui ouverte par le FAB Info) — `BattleMapOverlays.tsx` + `MapBottomSheet` — M
 - [ ] « Opportunités proches » (coach tactique : zone capturable à X m, frontière faible…) — NOUVEAU module pur + bandeau carte — M
-### Courses en groupe (le reste existe : boucle collective, chest, raids, revanche, rôles, XP caps)
-- [ ] Bonus de capture collectif CAPÉ (+15/25/35/40 %) : constante game-rules + application pure + test — MANQUE — M
-- [ ] Badges de groupe manquants (Trio Loop, Squad Run, Crew Raid, Shield Line) — `shared/badges.ts` + catalog mobile — S
+### Courses en groupe (fondation moteur + badges FAITE `9c96cac` ; reste le wiring + 3 mécaniques)
+- [ ] WIRING du bonus de capture collectif dans ingest_run (la fonction pure `groupCaptureBonusPct` capée existe + testée ; l'appliquer au remplissage de contrôle côté serveur) — M
 - [ ] Crew shield à l'échelle du territoire crew (étendre le shield zone/joueur existant) — M
 - [ ] Objectifs crew QUOTIDIENS (board reset chaque jour ; l'hebdo + coffre login existent) — M
-- [ ] Crew streak (le streak perso existe ; ajouter au niveau crew) — M
 - [ ] Zones « crew-only » (proche : outpost) — M/L
+- [ ] Câbler `crewStreakTier` (fonction pure + seuils faits) dans le digest/affichage crew — S
 ### GRIP
 - [ ] GRIP dans les surfaces many-players (classement + membres crew) : mini-GRIP par joueur avec LOD/perf (§C jamais 200k) — M
 - [ ] Icônes façon Apple : remplacer les Lucide/génériques écran par écran par un jeu SF-like propriétaire (outline/filled/hiérarchique) — L
@@ -35,6 +34,8 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] PostHog : clés projet (events §8 déjà nommés, câblage à finir)
 
 ## Fait (récent)
+- [x] Avantages de groupe (fondation) : bonus de capture collectif CAPÉ +40 % (pur+testé, anti-P2W) + crew streak + 4 badges de groupe — `9c96cac`, 494 tests
+- [x] Carte : trait du parcours DOUBLÉ (trace courue + route + PARCOURS/ROUTE ×2, rival laissé plus fin) — `9b2be25`
 - [x] Nav ultra-simple 4 slots : Carte · Crew · [RUN central permanent] · Moi ; Missions/Saison sortis de la barre (→ Moi) — `f1edd1c`
 - [x] GRIP au partage & célébration : slot `mascot` ShareCard (6 templates /partage) + Profil share (central) + héros course-result — `8452db7`
 - [x] Personnage GRIP : 7 poses = 7 rangs dérivés du niveau existant, câblé au Profil (module Progression), anti-P2W — `aff8ccc`, 481 tests
