@@ -1024,6 +1024,12 @@ const DECAY_DASH: readonly number[] = [3, 2.5];
 const ROUTE_WIDTH = 8;
 const BONUS_RING_WIDTH = 2;
 const BONUS_DASH: readonly number[] = [3, 2];
+/**
+ * Route RECOMMANDÉE (bataille) = chartreuse POINTILLÉ — distincte de la trace de
+ * COURSE (chartreuse plein épais, §B) et de la route rivale (orange). Retour
+ * fondateur (point 6 : différencier les langages de tracé).
+ */
+const ROUTE_RECOMMEND_DASH: readonly number[] = [2, 1.6];
 const PARCOURS_CASING_WIDTH = 14;
 const PARCOURS_WIDTH = 8;
 /** Segments de l'anneau de la zone bonus (cercle géodésique approché). */
@@ -1304,12 +1310,14 @@ export function battleGameLayers(
         lineDash: BONUS_DASH,
         pulse: true,
       },
-      // Route ouverte : ligne ÉPAISSE le long du bd Richard-Lenoir (route-first).
+      // Route RECOMMANDÉE : chartreuse POINTILLÉ (suggestion, PAS ta trace en
+      // cours) — se distingue de la course (plein épais) et du rival (orange).
       {
         id: 'route-ouverte',
         data: routeCollectionCache,
         lineColor: scaleAlpha(terr.routeStroke, emph.route),
         lineWidth: ROUTE_WIDTH,
+        lineDash: ROUTE_RECOMMEND_DASH,
       },
     ]),
     // Parcours sélectionné (sheet) : aperçu gris sur liseré sombre — la
