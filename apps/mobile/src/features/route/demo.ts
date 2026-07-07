@@ -363,28 +363,53 @@ export const ROUTE_TYPE_SOON_TOAST: Partial<Record<RouteTypeKey, string>> = {
   course_privee: 'Course privée — stats uniquement, aucune capture',
 };
 
-// ─── Options de génération (chips — démo : la sélection est locale) ─────────
+// ─── Options d'ajustement — chaque chip CHANGE VRAIMENT le parcours ─────────
+// Avec 4 routes démo, « ajuster » = re-sélectionner l'itinéraire le plus adapté
+// (la vraie génération km-par-km / confort routing est V1). Chaque option pointe
+// donc une route RÉELLE : le tap met à jour carte + KPI + CTA (impact visible).
+// Seules les distances qui ont une route démo sont proposées (aucun chip mort).
 
-export const ROUTE_DISTANCE_OPTIONS = ['3 km', '5 km', '10 km', 'Libre'] as const;
+export const ROUTE_DISTANCE_OPTIONS = ['2 km', '3 km', '5 km'] as const;
 export type RouteDistanceOption = (typeof ROUTE_DISTANCE_OPTIONS)[number];
 
-/** Distance pré-cochée par proposition (cohérence chips ↔ route affichée). */
+/** Distance → route démo réelle sélectionnée au tap (l'itinéraire change). */
+export const ROUTE_ID_BY_DISTANCE: Record<RouteDistanceOption, string> = {
+  '2 km': 'route_eclair', // 2,1 km — canal, streak
+  '3 km': 'route_a_rapide', // 3,4 km — recommandée
+  '5 km': 'route_b_optimisee', // 5,1 km — max points
+};
+
+/**
+ * Distance mise en avant pour la route affichée = l'option dont la route cible
+ * est la plus proche en distance (chip actif cohérent avec le parcours courant).
+ */
 export function distanceOptionFor(route: PlannedRouteDemo): RouteDistanceOption {
-  if (route.distanceKm <= 3.5) return '3 km';
-  if (route.distanceKm <= 6) return '5 km';
-  if (route.distanceKm <= 11) return '10 km';
-  return 'Libre';
+  let best: RouteDistanceOption = ROUTE_DISTANCE_OPTIONS[0];
+  let bestDelta = Infinity;
+  for (const opt of ROUTE_DISTANCE_OPTIONS) {
+    const target = ROUTES_DEMO.find((r) => r.id === ROUTE_ID_BY_DISTANCE[opt]);
+    const delta = target ? Math.abs(target.distanceKm - route.distanceKm) : Infinity;
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = opt;
+    }
+  }
+  return best;
 }
 
-/** Contraintes toggles (sécurité / dénivelé — AMENDEMENT-10 §2). */
+/**
+ * Préférence de CONFORT → route démo qui la satisfait (impact réel sur le tracé,
+ * pas un toggle sans effet). `routeId` = itinéraire sélectionné au tap.
+ */
 export interface RouteConstraintOption {
   key: string;
   label: string;
+  routeId: string;
 }
 
 export const ROUTE_CONSTRAINTS: readonly RouteConstraintOption[] = [
-  { key: 'eviter_grands_axes', label: 'Éviter grands axes' },
-  { key: 'denivele_mini', label: 'Dénivelé mini' },
+  // La petite boucle du canal (quais résidentiels) évite les grands boulevards.
+  { key: 'eviter_grands_axes', label: 'Éviter grands axes', routeId: 'route_eclair' },
 ];
 
 // ─── Bloc objectif (War Room ↔ Route Planner — vocabulaire zones/rues) ──────

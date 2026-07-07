@@ -40,6 +40,7 @@ import {
   ROUTES_DEMO,
   ROUTE_CONSTRAINTS,
   ROUTE_DISTANCE_OPTIONS,
+  ROUTE_ID_BY_DISTANCE,
   ROUTE_OBJECTIVE,
   ROUTE_PLANS,
   distanceOptionFor,
@@ -49,7 +50,6 @@ import {
   routeReasons,
   routeShareFeedEntry,
   routeSocialName,
-  type RouteDistanceOption,
   type RoutePlanDemo,
 } from '../src/features/route/demo';
 import {
@@ -167,9 +167,8 @@ export default function RoutePlannerScreen() {
   const [routeId, setRouteId] = useState(initialId);
   const route = ROUTES_DEMO.find((r) => r.id === routeId) ?? ROUTES_DEMO[0];
 
-  // Options avancées (démo : sélection locale, la génération réelle est V1).
-  const [distance, setDistance] = useState<RouteDistanceOption | null>(null);
-  const [constraints, setConstraints] = useState<readonly string[]>([]);
+  // Ajustements : chaque chip RE-SÉLECTIONNE une route réelle (impact carte/KPI/
+  // CTA). Pas d'état local « mort » — la distance active se DÉRIVE de la route.
   const [sharedRouteIds, setSharedRouteIds] = useState<readonly string[]>([]);
   const [adjustOpen, setAdjustOpen] = useState(false);
 
@@ -185,7 +184,7 @@ export default function RoutePlannerScreen() {
   const statusLine = isDefense
     ? 'Ton crew a besoin de toi'
     : (activePlan?.status ?? RECOMMENDED_PLAN.status);
-  const effectiveDistance = distance ?? distanceOptionFor(route);
+  const effectiveDistance = distanceOptionFor(route);
 
   // Route de défense (Priorité crew) = cible de l'alerte.
   const defenseRoute = ROUTES_DEMO.find((r) => r.id === ROUTE_OBJECTIVE.routeId);
@@ -194,7 +193,6 @@ export default function RoutePlannerScreen() {
     if (id === routeId) return;
     haptics.light();
     setRouteId(id);
-    setDistance(null);
     screen('route_planner_route_select', { route: id });
   };
 
@@ -206,13 +204,6 @@ export default function RoutePlannerScreen() {
   const switchToDefense = () => {
     selectRoute(ROUTE_OBJECTIVE.routeId);
     screen('route_planner_objective_select', { objective: 'defendre' });
-  };
-
-  const toggleConstraint = (key: string) => {
-    haptics.light();
-    setConstraints((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
   };
 
   const shareRoute = () => {
@@ -382,10 +373,8 @@ export default function RoutePlannerScreen() {
                   key={d}
                   label={d}
                   selected={effectiveDistance === d}
-                  onPress={() => {
-                    haptics.light();
-                    setDistance(d);
-                  }}
+                  accessibilityLabel={`Distance ${d} — change l'itinéraire`}
+                  onPress={() => selectRoute(ROUTE_ID_BY_DISTANCE[d])}
                 />
               ))}
             </View>
@@ -405,8 +394,9 @@ export default function RoutePlannerScreen() {
                 <Chip
                   key={c.key}
                   label={c.label}
-                  selected={constraints.includes(c.key)}
-                  onPress={() => toggleConstraint(c.key)}
+                  selected={route.id === c.routeId}
+                  accessibilityLabel={`${c.label} — bascule sur un itinéraire adapté`}
+                  onPress={() => selectRoute(c.routeId)}
                 />
               ))}
             </View>
