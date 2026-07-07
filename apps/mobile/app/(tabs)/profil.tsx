@@ -242,6 +242,9 @@ interface ProfileLink {
  * dans le profil lui-même.
  */
 const LINKS: readonly ProfileLink[] = [
+  // Sortis de la barre (nav 4 slots) — accès depuis « Moi » (décision fondateur).
+  { label: 'Saison', detail: 'Classement, rang, récompenses de fin', icon: 'classement', href: '/classement' },
+  { label: 'Missions', detail: 'Défense, conquête, coffre du crew', icon: 'guerre', href: '/warroom' },
   { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
   { label: 'Performance', detail: 'Score Forme, records, impact GRYD', icon: 'performance', href: '/performance' },
   { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique', href: '/historique' },
