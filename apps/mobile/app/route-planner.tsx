@@ -1,27 +1,21 @@
 /**
- * GRYD — ROUTE PLANNER `/route-planner` (AMENDEMENT-10 §2 priorité 1,
- * AMENDEMENT-11 §3/§6, AMENDEMENT-12 §A). GRYD dit « COURS ICI pour prendre
- * ce territoire » : un écran = UNE décision — démarrer cette route. Régime
- * USAGE RÉEL : fond plein, contraste max, zéro glass, textes courts, CTA
- * évident. Le joueur ne voit que 2 OBJECTIFS :
- *   • 2 onglets CONQUÉRIR (routes rapide/optimisée/exploration) / DÉFENDRE
- *     (routes défense) — les 8 types AMENDEMENT-10 sont des sous-types
- *     internes, plus jamais exposés comme objectifs ;
- *   • Header KPI géant : DÉFENDRE · RÉPUBLIQUE — 4,8 KM · 28 min ·
- *     +86 zones · 12 rues à défendre · Boucle · retour départ ;
- *   • carte route-first (RoutePlannerMap : la route ÉCRASE tout, zéro
- *     hexagone — moteur H3 invisible via territory.ts) ;
- *   • propositions démo de l'onglet (A Rapide / B Optimisée · C Défense) —
- *     tap = la route s'affiche + résumé mis à jour ;
- *   • options en chips (3/5/10/libre · boucle/aller · priorité alignée sous
- *     l'objectif actif · sécurité · dénivelé) ;
- *   • bloc objectif (Défendre République — 12 rues à sauver · 48 h) ;
- *   • route = objet social (AMENDEMENT-11 §6) : Partager au crew (démo :
- *     toast + entrée feed locale) ;
- *   • CTA DÉMARRER → /course-live?mode=conquete&route=<id>.
- * Entrées : War Room `?type=raid|defense` (Voir la route), Battle Map, Today.
- * Données 100 % démo déterministes (features/route/demo) — génération réelle
- * d'itinéraires V1. Events : screen() générique (les noms §8 ne changent pas).
+ * GRYD — CONQUÉRIR `/route-planner` : ASSISTANT DE DÉCISION (doc « page
+ * Conquérir », AMENDEMENT-10/-12). L'écran ne demande plus de tout paramétrer :
+ * GRYD RECOMMANDE une course, le joueur ajuste vite. Compris en < 5 s :
+ *   1. header KPI géant = la course recommandée (verbe · zone · km · résumé) ;
+ *   2. carte route-first (RoutePlannerMap — la route écrase tout, zéro hex) ;
+ *   3. « Pourquoi cette course ? » = 2-3 raisons en chips ;
+ *   4. PLANS = 3 choix simples (Recommandée / Rapide / Max points) — tap = la
+ *      route s'affiche, KPI + carte + CTA mis à jour ;
+ *   5. PRIORITÉ CREW = carte d'alerte défense contextuelle (jamais un onglet au
+ *      même niveau) — tap = bascule l'écran en mode DÉFENDRE ;
+ *   6. « Ajuster la course » = TOUT l'avancé replié (distance/format/confort +
+ *      boucles populaires + partage crew) — ne bloque jamais le lancement ;
+ *   7. CTA VERBE contextuel (CONQUÉRIR / DÉFENDRE) + microcopie km·min·pts.
+ * Défaut : ouvre sur le plan RECOMMANDÉ (conquête), pas la défense. Entrée War
+ * Room `?type=raid|defense` présélectionne la bonne route. Données 100 % démo
+ * déterministes (features/route) — le scoring réel utilisateur/crew/territoire
+ * est V1. Events : screen() générique (les noms §8 ne changent pas).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -42,19 +36,21 @@ import { formatInt } from '../src/ui/format';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 import { RoutePlannerMap } from '../src/features/route/RoutePlannerMap';
 import {
-  PRIORITY_BY_ROUTE_ID,
+  RECOMMENDED_PLAN,
   ROUTES_DEMO,
   ROUTE_CONSTRAINTS,
   ROUTE_DISTANCE_OPTIONS,
-  ROUTE_ID_BY_OBJECTIVE,
-  ROUTE_ID_BY_PRIORITY,
   ROUTE_OBJECTIVE,
+  ROUTE_PLANS,
   distanceOptionFor,
+  planForRoute,
   routeDurationMin,
   routeIdForType,
+  routeReasons,
   routeShareFeedEntry,
   routeSocialName,
   type RouteDistanceOption,
+  type RoutePlanDemo,
 } from '../src/features/route/demo';
 import {
   POPULAR_ROUTES_DEMO,
@@ -63,19 +59,15 @@ import {
 } from '../src/features/route/popularRoutes';
 import {
   OBJECTIVE_BY_ROUTE_TYPE,
-  PRIORITIES_BY_OBJECTIVE,
   ROUTE_OBJECTIVE_LABELS,
-  ROUTE_OBJECTIVE_ORDER,
-  ROUTE_PRIORITY_LABELS,
   ROUTE_SHAPE_LABELS,
   type PlannedRouteDemo,
   type RouteObjective,
-  type RoutePriority,
   type RouteShape,
 } from '../src/features/route/types';
 
 /** Hauteur de la carte : la route domine l'écran, les cards restent visibles. */
-const MAP_HEIGHT = 290;
+const MAP_HEIGHT = 250;
 
 /** Km au format FR (« 4,8 »). */
 function formatKm(km: number): string {
@@ -96,25 +88,20 @@ function zonesLabel(route: PlannedRouteDemo): string {
 /** Résumé une ligne sous le KPI (vocabulaire zones/rues — jamais « hex »). */
 function routeSummary(route: PlannedRouteDemo): string {
   const dur = `${routeDurationMin(route)} min`;
-  const shape =
-    route.shape === 'boucle' ? 'Boucle · retour départ' : 'Aller simple';
+  const shape = route.shape === 'boucle' ? 'Boucle · retour départ' : 'Aller simple';
   if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
     return `${dur} · ${zonesLabel(route)} · ${route.streetsToSave} rues à défendre · ${shape}`;
   }
   return `${dur} · ${zonesLabel(route)} · +${formatInt(route.points)} pts · ${shape}`;
 }
 
-/** Ligne de stats d'une card de proposition (courte — cards de 1/3 d'écran). */
-function cardStats(route: PlannedRouteDemo): string {
+/** Microcopie chiffrée juste au-dessus du CTA (doc §14). */
+function ctaMicrocopy(route: PlannedRouteDemo): string {
+  const head = `${formatKm(route.distanceKm)} km · ${routeDurationMin(route)} min`;
   if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
-    return `${formatKm(route.distanceKm)} km · ${route.streetsToSave} rues · ${route.expiresInH} h`;
+    return `${head} · ${route.streetsToSave} rues à sauver`;
   }
-  return `${formatKm(route.distanceKm)} km · +${route.zones} zones`;
-}
-
-/** Stats compactes d'une boucle populaire : distance + zones potentielles. */
-function popularStats(target: PlannedRouteDemo): string {
-  return `${formatKm(target.distanceKm)} km · +${target.zones} zones`;
+  return `${head} · +${formatInt(route.points)} pts`;
 }
 
 /** Objectif d'une route (AMENDEMENT-12 §A — dérivé du sous-type interne). */
@@ -122,12 +109,17 @@ function routeObjective(route: PlannedRouteDemo): RouteObjective {
   return OBJECTIVE_BY_ROUTE_TYPE[route.typeKey];
 }
 
-/** Étiquette COURTE des cards : l'OBJECTIF (« CONQUÉRIR » / « DÉFENDRE »). */
-function cardTypeLabel(route: PlannedRouteDemo): string {
-  return ROUTE_OBJECTIVE_LABELS[routeObjective(route)].toUpperCase();
+/** Micro-titre de section (PLANS / PRIORITÉ CREW…). */
+function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
+  return (
+    <View style={styles.sectionHead}>
+      <Icon name={icon} size={13} color={colors.gris} />
+      <Text style={styles.sectionLabel}>{label}</Text>
+    </View>
+  );
 }
 
-/** Chip générique (options/catalogue) — sélection chartreuse, régime usage réel. */
+/** Chip générique (options/raisons) — sélection chartreuse, régime usage réel. */
 function Chip({
   label,
   selected,
@@ -145,24 +137,10 @@ function Chip({
       accessibilityState={{ selected }}
       accessibilityLabel={accessibilityLabel ?? label}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.chip,
-        selected && styles.chipSelected,
-        pressed && styles.pressed,
-      ]}
+      style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && styles.pressed]}
     >
       <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
     </Pressable>
-  );
-}
-
-/** Micro-titre de section (OPTIONS / CATALOGUE / OBJECTIF…). */
-function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
-  return (
-    <View style={styles.sectionHead}>
-      <Icon name={icon} size={13} color={colors.gris} />
-      <Text style={styles.sectionLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -171,17 +149,21 @@ export default function RoutePlannerScreen() {
   const toast = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
 
-  // Route sélectionnée : l'entrée `?type=` (War Room) présélectionne la bonne.
-  const initialId = useMemo(() => routeIdForType(params.type), [params.type]);
+  // Défaut = plan RECOMMANDÉ (conquête). Une entrée `?type=` (War Room) force la
+  // bonne route (raid → B, defense → C) sans changer le défaut global.
+  const initialId = useMemo(
+    () => (params.type ? routeIdForType(params.type) : RECOMMENDED_PLAN.routeId),
+    [params.type],
+  );
   const [routeId, setRouteId] = useState(initialId);
-  const route =
-    ROUTES_DEMO.find((r) => r.id === routeId) ?? ROUTES_DEMO[ROUTES_DEMO.length - 1];
+  const route = ROUTES_DEMO.find((r) => r.id === routeId) ?? ROUTES_DEMO[0];
 
-  // Options (démo : sélection locale, la génération réelle est V1).
+  // Options avancées (démo : sélection locale, la génération réelle est V1).
   const [distance, setDistance] = useState<RouteDistanceOption | null>(null);
   const [shape, setShape] = useState<RouteShape | null>(null);
   const [constraints, setConstraints] = useState<readonly string[]>([]);
   const [sharedRouteIds, setSharedRouteIds] = useState<readonly string[]>([]);
+  const [adjustOpen, setAdjustOpen] = useState(false);
 
   useEffect(() => {
     screen('route_planner', { type: params.type ?? 'direct' });
@@ -189,12 +171,17 @@ export default function RoutePlannerScreen() {
 
   if (!route) return null; // ROUTES_DEMO n'est jamais vide (garde TS).
 
-  // Valeurs effectives des chips : suivent la route tant que rien n'est forcé.
+  const objective = routeObjective(route);
+  const isDefense = objective === 'defendre';
+  const activePlan = planForRoute(route.id);
+  const statusLine = isDefense
+    ? 'Ton crew a besoin de toi'
+    : (activePlan?.status ?? RECOMMENDED_PLAN.status);
   const effectiveDistance = distance ?? distanceOptionFor(route);
   const effectiveShape = shape ?? route.shape;
-  const priority: RoutePriority = PRIORITY_BY_ROUTE_ID[route.id] ?? 'capture';
-  // Objectif actif (AMENDEMENT-12 §A) : DÉRIVÉ de la route sélectionnée.
-  const objective = routeObjective(route);
+
+  // Route de défense (Priorité crew) = cible de l'alerte.
+  const defenseRoute = ROUTES_DEMO.find((r) => r.id === ROUTE_OBJECTIVE.routeId);
 
   const selectRoute = (id: string) => {
     if (id === routeId) return;
@@ -205,15 +192,14 @@ export default function RoutePlannerScreen() {
     screen('route_planner_route_select', { route: id });
   };
 
-  const selectPriority = (p: RoutePriority) => {
-    selectRoute(ROUTE_ID_BY_PRIORITY[p]);
+  const selectPlan = (plan: RoutePlanDemo) => {
+    selectRoute(plan.routeId);
+    screen('route_planner_plan_select', { plan: plan.key });
   };
 
-  // Onglet objectif : présélectionne la route du verbe (Conquérir → A, Défendre → C).
-  const selectObjective = (o: RouteObjective) => {
-    if (o === objective) return;
-    selectRoute(ROUTE_ID_BY_OBJECTIVE[o]);
-    screen('route_planner_objective_select', { objective: o });
+  const switchToDefense = () => {
+    selectRoute(ROUTE_OBJECTIVE.routeId);
+    screen('route_planner_objective_select', { objective: 'defendre' });
   };
 
   const toggleConstraint = (key: string) => {
@@ -223,7 +209,6 @@ export default function RoutePlannerScreen() {
     );
   };
 
-  // Route = objet social (AMENDEMENT-11 §6) : partage crew démo.
   const shareRoute = () => {
     haptics.medium();
     toast.show(`${routeSocialName(route)} partagée au crew`);
@@ -236,14 +221,9 @@ export default function RoutePlannerScreen() {
     router.push(`/course-live?mode=conquete&route=${route.id}`);
   };
 
-  /** Points possibles de l'objectif = ceux de la route de défense (règles §3). */
-  const objectiveRoute = ROUTES_DEMO.find((r) => r.id === ROUTE_OBJECTIVE.routeId);
-  /** Routes de l'onglet actif (Conquérir : A/B — Défendre : C). */
-  const tabRoutes = ROUTES_DEMO.filter((r) => routeObjective(r) === objective);
-
   return (
     <View style={styles.root}>
-      {/* ── Header KPI géant (un écran = une décision : démarrer CETTE route) ── */}
+      {/* ── Header KPI géant = la course recommandée (verbe · zone · km) ── */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.topBar}>
           <Pressable
@@ -262,6 +242,9 @@ export default function RoutePlannerScreen() {
           </Text>
           <View style={styles.back} />
         </View>
+        <Text style={styles.status} numberOfLines={1}>
+          {statusLine}
+        </Text>
         <View style={styles.kpiRow}>
           <Text style={styles.kpi}>
             {formatKm(route.distanceKm)} <Text style={styles.kpiUnit}>KM</Text>
@@ -282,229 +265,226 @@ export default function RoutePlannerScreen() {
         contentContainerStyle={styles.panelContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 2 onglets objectif (AMENDEMENT-12 §A) : la seule question de
-            l'écran — Conquérir ou Défendre ── */}
-        <View style={styles.objectiveTabs} accessibilityRole="tablist">
-          {ROUTE_OBJECTIVE_ORDER.map((o) => {
-            const active = o === objective;
-            return (
-              <Pressable
-                key={o}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`Objectif ${ROUTE_OBJECTIVE_LABELS[o]}`}
-                onPress={() => selectObjective(o)}
-                style={({ pressed }) => [
-                  styles.objectiveTab,
-                  active && styles.objectiveTabActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Icon
-                  name={o === 'defendre' ? 'bouclier' : 'cible'}
-                  size={15}
-                  color={active ? colors.chartreuse : colors.gris}
-                />
-                <Text
-                  style={[styles.objectiveTabLabel, active && styles.objectiveTabLabelActive]}
-                >
-                  {ROUTE_OBJECTIVE_LABELS[o]}
-                </Text>
-              </Pressable>
-            );
-          })}
+        {/* ── « Pourquoi cette course ? » : 2-3 raisons en chips ── */}
+        <SectionLabel icon="cible" label="POURQUOI CETTE COURSE" />
+        <View style={styles.reasonRow}>
+          {routeReasons(route).map((reason) => (
+            <View key={reason} style={styles.reason}>
+              <Text style={styles.reasonText}>{reason}</Text>
+            </View>
+          ))}
         </View>
 
-        {/* ── Propositions de l'onglet : tap = la route s'affiche + résumé maj ── */}
-        <View style={styles.cardsRow}>
-          {tabRoutes.map((r) => {
-            const selected = r.id === route.id;
-            return (
-              <Pressable
-                key={r.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Route ${r.letter} ${r.name} — ${cardStats(r)}`}
-                onPress={() => selectRoute(r.id)}
-                style={({ pressed }) => [
-                  styles.card,
-                  selected && styles.cardSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.cardHead}>
-                  <View style={[styles.letterBadge, selected && styles.letterBadgeSelected]}>
-                    <Text style={[styles.letter, selected && styles.letterSelected]}>
-                      {r.letter}
-                    </Text>
-                  </View>
-                  <Text style={[styles.cardType, selected && styles.cardTypeSelected]} numberOfLines={1}>
-                    {cardTypeLabel(r)}
-                  </Text>
-                </View>
-                <Text style={styles.cardName} numberOfLines={1}>
-                  {r.name}
-                </Text>
-                <Text style={styles.cardStats} numberOfLines={2}>
-                  {cardStats(r)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* ── Bloc objectif : le War Room pointe ici (vocabulaire rues/zones) ── */}
-        <SectionLabel icon="bouclier" label="OBJECTIF CREW" />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${ROUTE_OBJECTIVE.title} — voir la route de défense`}
-          onPress={() => selectRoute(ROUTE_OBJECTIVE.routeId)}
-          style={({ pressed }) => [styles.objective, pressed && styles.pressed]}
-        >
-          <View style={styles.objectiveIcon}>
-            <Icon name="sablier" size={18} color={gameColors.danger} />
-          </View>
-          <View style={styles.objectiveBody}>
-            <Text style={styles.objectiveTitle} numberOfLines={1}>
-              {ROUTE_OBJECTIVE.title}
-            </Text>
-            <Text style={styles.objectiveMeta} numberOfLines={1}>
-              {ROUTE_OBJECTIVE.streetsToSave} rues à sauver ·{' '}
-              <Text style={styles.objectiveUrgent}>{ROUTE_OBJECTIVE.expiresInH} h restantes</Text>
-            </Text>
-          </View>
-          <Text style={styles.objectivePoints}>
-            +{formatInt(objectiveRoute?.points ?? 0)} pts
-          </Text>
-        </Pressable>
-
-        {/* ── Boucles populaires (AMENDEMENT-32 §2) : tracés crowd-sourcés que
-            les crews réussissent le mieux. Tap = sélectionne la route (flux
-            existant). Signal SOCIAL, jamais un avantage acheté (anti P2W). ── */}
-        <SectionLabel icon="crew" label="BOUCLES POPULAIRES" />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.popularRow}
-        >
-          {POPULAR_ROUTES_DEMO.map((pop) => {
-            const target = popularRouteTarget(pop);
+        {/* ── PLANS : 3 choix simples (tap = route + carte + CTA mis à jour) ── */}
+        <SectionLabel icon="cible" label="PLANS" />
+        <View style={styles.plansRow}>
+          {ROUTE_PLANS.map((plan) => {
+            const target = ROUTES_DEMO.find((r) => r.id === plan.routeId);
             if (!target) return null;
             const selected = target.id === route.id;
-            const crews = crewsTakenLabel(pop);
             return (
               <Pressable
-                key={pop.id}
+                key={plan.key}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
-                accessibilityLabel={`Boucle populaire ${pop.name} — ${popularStats(target)}, ${crews}`}
-                onPress={() => selectRoute(target.id)}
+                accessibilityLabel={`Plan ${plan.label} — ${formatKm(target.distanceKm)} kilomètres, +${formatInt(target.points)} points`}
+                onPress={() => selectPlan(plan)}
                 style={({ pressed }) => [
-                  styles.popularCard,
-                  selected && styles.popularCardSelected,
+                  styles.plan,
+                  selected && styles.planSelected,
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={styles.popularName} numberOfLines={1}>
-                  {pop.name}
+                <Text
+                  style={[styles.planLabel, selected && styles.planLabelSelected]}
+                  numberOfLines={1}
+                >
+                  {plan.label}
                 </Text>
-                <Text style={styles.popularStats} numberOfLines={1}>
-                  {popularStats(target)}
+                <Text style={styles.planDist} numberOfLines={1}>
+                  {formatKm(target.distanceKm)} km · {routeDurationMin(target)} min
                 </Text>
-                <View style={styles.popularCrews}>
-                  <Icon name="serie" size={12} color={colors.chartreuse} />
-                  <Text style={styles.popularCrewsText} numberOfLines={1}>
-                    {crews}
-                  </Text>
-                </View>
+                <Text style={styles.planPts} numberOfLines={1}>
+                  +{formatInt(target.points)} pts
+                </Text>
+                <Text style={styles.planReason} numberOfLines={1}>
+                  {plan.reason}
+                </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
-
-        {/* ── Options en chips (génération réelle = V1, sélection démo) ── */}
-        <SectionLabel icon="reglages" label="OPTIONS" />
-        <View style={styles.chipsRow}>
-          {ROUTE_DISTANCE_OPTIONS.map((d) => (
-            <Chip
-              key={d}
-              label={d}
-              selected={effectiveDistance === d}
-              onPress={() => {
-                haptics.light();
-                setDistance(d);
-              }}
-            />
-          ))}
-        </View>
-        <View style={styles.chipsRow}>
-          {(Object.keys(ROUTE_SHAPE_LABELS) as RouteShape[]).map((s) => (
-            <Chip
-              key={s}
-              label={ROUTE_SHAPE_LABELS[s]}
-              selected={effectiveShape === s}
-              onPress={() => {
-                haptics.light();
-                setShape(s);
-              }}
-            />
-          ))}
-          {ROUTE_CONSTRAINTS.map((c) => (
-            <Chip
-              key={c.key}
-              label={c.label}
-              selected={constraints.includes(c.key)}
-              onPress={() => toggleConstraint(c.key)}
-            />
-          ))}
-        </View>
-        {/* Priorités ALIGNÉES sous l'objectif actif (AMENDEMENT-12 §A) :
-            capture/performance/exploration sous Conquérir, défense sous
-            Défendre — plus de catalogue de types (sous-types internes). */}
-        <View style={styles.chipsRow}>
-          {PRIORITIES_BY_OBJECTIVE[objective].map((p) => (
-            <Chip
-              key={p}
-              label={ROUTE_PRIORITY_LABELS[p]}
-              selected={priority === p}
-              onPress={() => selectPriority(p)}
-              accessibilityLabel={`Priorité ${ROUTE_PRIORITY_LABELS[p]}`}
-            />
-          ))}
         </View>
 
-        {/* ── Route sociale : partage crew (démo — toast + entrée feed) ── */}
-        <SectionLabel icon="crew" label="CREW" />
+        {/* ── PRIORITÉ CREW : alerte défense contextuelle (jamais un onglet) ── */}
+        <SectionLabel icon="bouclier" label="PRIORITÉ CREW" />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Partager cette route au crew"
-          onPress={shareRoute}
-          style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
+          accessibilityState={{ selected: isDefense }}
+          accessibilityLabel={`${ROUTE_OBJECTIVE.title} — basculer en défense`}
+          onPress={switchToDefense}
+          style={({ pressed }) => [
+            styles.crewCard,
+            isDefense && styles.crewCardActive,
+            pressed && styles.pressed,
+          ]}
         >
-          <Icon name="partage" size={16} color={colors.blanc} />
-          <Text style={styles.shareLabel}>Partager au crew</Text>
+          <View style={styles.crewIcon}>
+            <Icon name="sablier" size={18} color={gameColors.danger} />
+          </View>
+          <View style={styles.crewBody}>
+            <Text style={styles.crewTitle} numberOfLines={1}>
+              {ROUTE_OBJECTIVE.title}
+            </Text>
+            <Text style={styles.crewMeta} numberOfLines={1}>
+              {ROUTE_OBJECTIVE.streetsToSave} rues à sauver ·{' '}
+              <Text style={styles.crewUrgent}>{ROUTE_OBJECTIVE.expiresInH} h restantes</Text>
+            </Text>
+          </View>
+          <View style={styles.crewRight}>
+            <Text style={styles.crewPoints}>+{formatInt(defenseRoute?.points ?? 0)} pts</Text>
+            <Text style={[styles.crewSwitch, isDefense && styles.crewSwitchActive]}>
+              {isDefense ? 'Actif' : 'Basculer'}
+            </Text>
+          </View>
         </Pressable>
-        {sharedRouteIds.map((id) => {
-          const shared = ROUTES_DEMO.find((r) => r.id === id);
-          if (!shared) return null;
-          return (
-            <View key={id} style={styles.feedRow}>
-              <Icon name="feed" size={14} color={colors.chartreuse} />
-              <Text style={styles.feedText} numberOfLines={1}>
-                {routeShareFeedEntry(shared)}
-              </Text>
-              <Text style={styles.feedTime}>à l'instant</Text>
+
+        {/* ── « Ajuster la course » : TOUT l'avancé replié (ne bloque jamais) ── */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: adjustOpen }}
+          accessibilityLabel="Ajuster la course"
+          onPress={() => {
+            haptics.light();
+            setAdjustOpen((o) => !o);
+          }}
+          style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}
+        >
+          <Icon name="reglages" size={16} color={colors.blanc} />
+          <Text style={styles.adjustLabel}>Ajuster la course</Text>
+          <View style={adjustOpen ? styles.chevUp : styles.chevDown}>
+            <Icon name="chevron" size={16} color={colors.gris} />
+          </View>
+        </Pressable>
+
+        {adjustOpen ? (
+          <View style={styles.adjustBody}>
+            <SectionLabel icon="reglages" label="DISTANCE" />
+            <View style={styles.chipsRow}>
+              {ROUTE_DISTANCE_OPTIONS.map((d) => (
+                <Chip
+                  key={d}
+                  label={d}
+                  selected={effectiveDistance === d}
+                  onPress={() => {
+                    haptics.light();
+                    setDistance(d);
+                  }}
+                />
+              ))}
             </View>
-          );
-        })}
+            <SectionLabel icon="reglages" label="FORMAT & CONFORT" />
+            <View style={styles.chipsRow}>
+              {(Object.keys(ROUTE_SHAPE_LABELS) as RouteShape[]).map((s) => (
+                <Chip
+                  key={s}
+                  label={ROUTE_SHAPE_LABELS[s]}
+                  selected={effectiveShape === s}
+                  onPress={() => {
+                    haptics.light();
+                    setShape(s);
+                  }}
+                />
+              ))}
+              {ROUTE_CONSTRAINTS.map((c) => (
+                <Chip
+                  key={c.key}
+                  label={c.label}
+                  selected={constraints.includes(c.key)}
+                  onPress={() => toggleConstraint(c.key)}
+                />
+              ))}
+            </View>
+
+            {/* Boucles populaires (AMENDEMENT-32 §2) — signal SOCIAL, jamais un
+                avantage acheté (anti P2W). Rangées ici (secondaire) : tap =
+                sélectionne la route (flux planner inchangé). */}
+            <SectionLabel icon="crew" label="AUTRES BOUCLES PROCHES" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.popularRow}
+            >
+              {POPULAR_ROUTES_DEMO.map((pop) => {
+                const target = popularRouteTarget(pop);
+                if (!target) return null;
+                const selected = target.id === route.id;
+                const crews = crewsTakenLabel(pop);
+                return (
+                  <Pressable
+                    key={pop.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`Boucle populaire ${pop.name} — ${formatKm(target.distanceKm)} km, ${crews}`}
+                    onPress={() => selectRoute(target.id)}
+                    style={({ pressed }) => [
+                      styles.popularCard,
+                      selected && styles.popularCardSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.popularName} numberOfLines={1}>
+                      {pop.name}
+                    </Text>
+                    <Text style={styles.popularStats} numberOfLines={1}>
+                      {formatKm(target.distanceKm)} km · +{target.zones} zones
+                    </Text>
+                    <View style={styles.popularCrews}>
+                      <Icon name="serie" size={12} color={colors.chartreuse} />
+                      <Text style={styles.popularCrewsText} numberOfLines={1}>
+                        {crews}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* Route = objet social (AMENDEMENT-11 §6) : partage crew démo. */}
+            <SectionLabel icon="crew" label="CREW" />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Partager cette route au crew"
+              onPress={shareRoute}
+              style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
+            >
+              <Icon name="partage" size={16} color={colors.blanc} />
+              <Text style={styles.shareLabel}>Partager au crew</Text>
+            </Pressable>
+            {sharedRouteIds.map((id) => {
+              const shared = ROUTES_DEMO.find((r) => r.id === id);
+              if (!shared) return null;
+              return (
+                <View key={id} style={styles.feedRow}>
+                  <Icon name="feed" size={14} color={colors.chartreuse} />
+                  <Text style={styles.feedText} numberOfLines={1}>
+                    {routeShareFeedEntry(shared)}
+                  </Text>
+                  <Text style={styles.feedTime}>à l'instant</Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
       </ScrollView>
 
-      {/* ── CTA évident : VERBE contextuel (AMENDEMENT-29 — « GO » retiré ; le
-          libellé = l'objectif de la route sélectionnée, CONQUÉRIR/DÉFENDRE). ── */}
+      {/* ── CTA VERBE contextuel + microcopie km·min·pts (doc §14) ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
+        <Text style={styles.ctaMicro} numberOfLines={1}>
+          {ctaMicrocopy(route)}
+        </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${ROUTE_OBJECTIVE_LABELS[objective]} — démarrer la route ${route.letter}, ${formatKm(route.distanceKm)} kilomètres`}
+          accessibilityLabel={`${ROUTE_OBJECTIVE_LABELS[objective]} — démarrer, ${formatKm(route.distanceKm)} kilomètres`}
           onPress={startRun}
           style={({ pressed }) => [styles.startBtn, pressed && styles.startPressed]}
         >
@@ -531,6 +511,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.6,
   },
+  status: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700', marginTop: 6 },
   kpiRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 2 },
   kpi: {
     color: colors.blanc,
@@ -548,63 +529,126 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
   },
   panel: { flex: 1 },
-  panelContent: {
-    paddingHorizontal: spacing.cardPadding,
-    paddingTop: 14,
-    paddingBottom: 16,
-  },
-  // Onglets objectif (AMENDEMENT-12 §A) — 2 réponses à « que puis-je faire ? ».
-  objectiveTabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  objectiveTab: {
-    flex: 1,
+  panelContent: { paddingHorizontal: spacing.cardPadding, paddingTop: 12, paddingBottom: 16 },
+
+  sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 44,
+    gap: 7,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  sectionLabel: { color: colors.gris, fontSize: 10, letterSpacing: 2, fontWeight: '700' },
+
+  // « Pourquoi cette course » — raisons en pills légères (pas de card-in-card).
+  reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  reason: {
+    height: 30,
+    paddingHorizontal: 12,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
     backgroundColor: colors.carbone,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  objectiveTabActive: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
-  objectiveTabLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  objectiveTabLabelActive: { color: colors.chartreuse },
-  cardsRow: { flexDirection: 'row', gap: 8 },
-  card: {
+  reasonText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+
+  // 3 plans côte à côte — cards compactes, une seule couche de container.
+  // Padding/police calibrés pour que « Recommandée » tienne SANS « … » (§A).
+  plansRow: { flexDirection: 'row', gap: 7 },
+  plan: {
     flex: 1,
     backgroundColor: colors.carbone,
     borderRadius: radii.card - 6,
     borderWidth: 1.5,
     borderColor: colors.grisLigne,
-    padding: 10,
-    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    gap: 3,
   },
-  cardSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  letterBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
+  planSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
+  planLabel: { color: colors.blanc, fontSize: 12, fontWeight: '800', letterSpacing: -0.2 },
+  planLabelSelected: { color: colors.chartreuse },
+  planDist: { color: colors.gris, fontSize: 10.5, fontVariant: ['tabular-nums'] },
+  planPts: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  planReason: { color: colors.gris, fontSize: 10, marginTop: 2 },
+
+  // Priorité crew — carte d'alerte défense (rouge), tap = bascule défense.
+  crewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card - 6,
+    borderWidth: 1,
+    borderColor: gameColors.danger,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  crewCardActive: { backgroundColor: colors.carbone2 },
+  crewIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: colors.grisLigne,
+    borderColor: gameColors.danger,
+    backgroundColor: gameColors.carbon,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  letterBadgeSelected: { backgroundColor: colors.chartreuse, borderColor: colors.chartreuse },
-  letter: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '800' },
-  letterSelected: { color: colors.noir },
-  cardType: { flex: 1, color: colors.gris, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 },
-  cardTypeSelected: { color: colors.chartreuse },
-  cardName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  cardStats: { color: colors.gris, fontSize: 11, lineHeight: 15, fontVariant: ['tabular-nums'] },
-  // Boucles populaires (AMENDEMENT-32 §2) — cards LÉGÈRES, une seule couche de
-  // container (pas de card-dans-card §A.3), défilement horizontal.
+  crewBody: { flex: 1, gap: 2 },
+  crewTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  crewMeta: { color: colors.gris, fontSize: fontSizes.xs },
+  crewUrgent: { color: gameColors.danger, fontWeight: '700' },
+  crewRight: { alignItems: 'flex-end', gap: 4 },
+  crewPoints: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  crewSwitch: { color: colors.gris, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  crewSwitchActive: { color: colors.chartreuse },
+
+  // « Ajuster » — en-tête repliable + corps (tout l'avancé).
+  adjustHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 18,
+    height: 46,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  adjustLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  chevDown: { transform: [{ rotate: '-90deg' }] },
+  chevUp: { transform: [{ rotate: '90deg' }] },
+  adjustBody: { marginTop: 2 },
+
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  chip: {
+    height: 34,
+    paddingHorizontal: 13,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
+  chipLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  chipLabelSelected: { color: colors.chartreuse },
+
   popularRow: { gap: 8, paddingRight: 4 },
   popularCard: {
     width: 168,
@@ -626,59 +670,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginTop: 18,
-    marginBottom: 8,
-  },
-  sectionLabel: { color: colors.gris, fontSize: 10, letterSpacing: 2, fontWeight: '700' },
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  chip: {
-    height: 34,
-    paddingHorizontal: 13,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
-  chipLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-  chipLabelSelected: { color: colors.chartreuse },
-  objective: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card - 6,
-    borderWidth: 1,
-    borderColor: gameColors.danger,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  objectiveIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: gameColors.danger,
-    backgroundColor: gameColors.carbon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  objectiveBody: { flex: 1, gap: 2 },
-  objectiveTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  objectiveMeta: { color: colors.gris, fontSize: fontSizes.xs },
-  objectiveUrgent: { color: gameColors.danger, fontWeight: '700' },
-  objectivePoints: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
+
   shareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -704,12 +696,21 @@ const styles = StyleSheet.create({
   },
   feedText: { flex: 1, color: colors.blanc, fontSize: fontSizes.xs },
   feedTime: { color: colors.gris, fontSize: 10 },
+
   ctaBar: {
     paddingHorizontal: spacing.cardPadding,
     paddingTop: 10,
     backgroundColor: colors.noir,
     borderTopWidth: 1,
     borderTopColor: colors.grisLigne,
+  },
+  ctaMicro: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontVariant: ['tabular-nums'],
   },
   startBtn: {
     height: 56,

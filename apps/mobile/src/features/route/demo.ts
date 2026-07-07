@@ -194,6 +194,40 @@ export const ROUTES_DEMO: readonly PlannedRouteDemo[] = [
       { lat: 48.86703, lng: 2.36415 }, // retour place de la République
     ],
   },
+  {
+    id: 'route_eclair',
+    letter: 'A', // sous-type interne conquête rapide (jamais exposé comme lettre)
+    name: 'Éclair',
+    typeKey: 'boucle_facile',
+    zone: 'Canal',
+    distanceKm: 2.1,
+    zones: 32,
+    loopZones: 16,
+    points: 32 * POINTS_NEUTRAL_HEX,
+    shape: 'boucle',
+    difficulty: 'Facile',
+    // Petite boucle du bas du canal Saint-Martin (géométrie réelle reprise du
+    // haut de la Route B, RDP identique) : République → quai de Valmy jusqu'à
+    // Bichat → retour quai de Jemmapes / Faubourg-du-Temple (~2,1 km). Idéale
+    // pour garder le streak sans réfléchir (plan « Rapide »).
+    line: [
+      { lat: 48.86703, lng: 2.36415 }, // place de la République, angle sud-est
+      { lat: 48.86722, lng: 2.36383 },
+      { lat: 48.86751, lng: 2.36424 }, // rue Beaurepaire → quai de Valmy
+      { lat: 48.86774, lng: 2.36436 },
+      { lat: 48.86844, lng: 2.36319 }, // square Frédérick-Lemaître
+      { lat: 48.86873, lng: 2.36302 },
+      { lat: 48.87005, lng: 2.36358 }, // passerelle Alibert / Hôtel du Nord
+      { lat: 48.87019, lng: 2.36384 },
+      { lat: 48.87172, lng: 2.36453 }, // rue Bichat (pointe de la boucle)
+      { lat: 48.87086, lng: 2.36538 }, // bascule rive est (quai de Jemmapes)
+      { lat: 48.87067, lng: 2.36534 },
+      { lat: 48.86859, lng: 2.36702 }, // croisement rue du Faubourg-du-Temple
+      { lat: 48.8678, lng: 2.36447 }, // rue du Faubourg-du-Temple, bas
+      { lat: 48.86722, lng: 2.36383 },
+      { lat: 48.86703, lng: 2.36415 }, // retour place de la République
+    ],
+  },
 ];
 
 /** Route par défaut (recommandée) et routage des entrées War Room `?type=`. */
@@ -225,6 +259,77 @@ export const ROUTE_ID_BY_OBJECTIVE: Record<RouteObjective, string> = {
   conquerir: 'route_a_rapide',
   defendre: 'route_c_defense',
 };
+
+// ─── Assistant de décision : 3 PLANS de conquête (GRYD_page_conquerir) ──────
+/**
+ * La page « Conquérir » n'est plus un configurateur : GRYD RECOMMANDE une course
+ * puis laisse ajuster. 3 plans de conquête générés (ici démo — le vrai scoring
+ * utilisateur/crew/territoire est V1) : Recommandée (meilleur équilibre), Rapide
+ * (friction minimale, streak), Max points (rentable crew). Chaque plan pointe une
+ * `ROUTES_DEMO` réelle (source de vérité unique). La DÉFENSE n'est PAS un plan :
+ * c'est la « Priorité crew » (carte d'alerte contextuelle), jamais au même niveau.
+ */
+export type RoutePlanKey = 'recommandee' | 'rapide' | 'max_points';
+
+export interface RoutePlanDemo {
+  key: RoutePlanKey;
+  /** Étiquette affichée du plan (jamais le `name` interne de la route). */
+  label: string;
+  routeId: string;
+  /** Statut une ligne en tête d'écran (« Recommandée pour toi »). */
+  status: string;
+  /** Raison COURTE sous les stats de la card (« Meilleur équilibre »). */
+  reason: string;
+}
+
+export const ROUTE_PLANS: readonly RoutePlanDemo[] = [
+  {
+    key: 'recommandee',
+    label: 'Recommandée',
+    routeId: 'route_a_rapide',
+    status: 'Recommandée pour toi',
+    reason: 'Meilleur équilibre',
+  },
+  {
+    key: 'rapide',
+    label: 'Rapide',
+    routeId: 'route_eclair',
+    status: 'Course rapide, pour ton streak',
+    reason: 'Simple et proche',
+  },
+  {
+    key: 'max_points',
+    label: 'Max points',
+    routeId: 'route_b_optimisee',
+    status: 'Plus rentable pour le crew',
+    // Raison COURTE (tient sur 1 ligne dans une card 1/3 d'écran, §A) — la
+    // valeur crew complète est dite par le `status` en tête d'écran.
+    reason: 'Rentable crew',
+  },
+];
+
+/** Le plan recommandé = défaut de la page (ouverture sur la conquête, pas la défense). */
+export const RECOMMENDED_PLAN: RoutePlanDemo = ROUTE_PLANS[0]!;
+
+/** Plan correspondant à une route (undefined pour la route de défense = Priorité crew). */
+export function planForRoute(routeId: string): RoutePlanDemo | undefined {
+  return ROUTE_PLANS.find((p) => p.routeId === routeId);
+}
+
+/**
+ * « Pourquoi cette course ? » — 2 à 3 raisons par route (reason_tags du doc,
+ * traduits en chips lisibles). Signal de décision, pas une règle de jeu.
+ */
+export const ROUTE_REASONS: Record<string, readonly string[]> = {
+  route_a_rapide: ['Adaptée à tes habitudes', 'Forte valeur crew', 'Boucle fermée'],
+  route_eclair: ['Idéale pour ton streak', 'Simple et proche', 'Boucle fermée'],
+  route_b_optimisee: ['Max de points', 'Forte valeur crew', 'Nouvelles rues'],
+  route_c_defense: ['Priorité crew', '12 rues à sauver', 'Boucle fermée'],
+};
+
+export function routeReasons(route: PlannedRouteDemo): readonly string[] {
+  return ROUTE_REASONS[route.id] ?? ['Boucle fermée'];
+}
 
 /** La priorité (chips) sélectionne une proposition — et réciproquement. */
 export const ROUTE_ID_BY_PRIORITY: Record<RoutePriority, string> = {
