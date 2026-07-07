@@ -10,7 +10,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] Zones tappables → ouvrir la bottom-sheet au tap (aujourd'hui ouverte par le FAB Info) — `BattleMapOverlays.tsx` + `MapBottomSheet` — M
 - [ ] « Opportunités proches » (coach tactique : zone capturable à X m, frontière faible…) — NOUVEAU module pur + bandeau carte — M
 ### Courses en groupe (fondation moteur + badges FAITE `9c96cac` ; reste le wiring + 3 mécaniques)
-- [ ] ACTIVATION LIVE du bonus de groupe (le moteur l'applique déjà au LOCK via `DecideClaimsContext.runners`, testé — `8a3c596`) : faire passer `runners` par ingest_run avec un compte SAME-CREW validé → ajouter `ownerCrewId` au chargement d'état (loadHexStates), compter les co-présents de MON crew (pas `freshBy.size` brut = rivaux), déplacer la détection avant `runTerritoryEngine`, deploy — M
+- [ ] DEPLOY ingest_run (bonus de groupe live câblé + testé — `442d631`) : `supabase functions deploy ingest_run` pour l'activer en prod (outward-facing, feu vert fondateur)
 - [ ] Crew shield à l'échelle du territoire crew (étendre le shield zone/joueur existant) — M
 - [ ] Objectifs crew QUOTIDIENS (board reset chaque jour ; l'hebdo + coffre login existent) — M
 - [ ] Zones « crew-only » (proche : outpost) — M/L
