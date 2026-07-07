@@ -311,14 +311,14 @@ const SILENT_MINOR_ROAD_WIDTH_FACTOR = 0.55;
 const SILENT_ROAD_OPACITY = 0.5;
 
 /**
- * BATTLE MAP (retour fondateur) : « le jeu au 1er plan ». Le fond dark-matter est
- * TRÈS atténué en permanence (pas seulement en run silencieux) pour que les
- * territoires GRYD ressortent : bâtiments quasi invisibles, routes principales
- * subtiles, secondaires très faibles, POI masqués. Valeurs ajustables sans rendu.
+ * BATTLE MAP mode SOMBRE façon WAZE NUIT (retour fondateur) : fond dark propre,
+ * ROUTES BIEN VISIBLES en gris (comme Waze — c'est une carte, pas un fond mort),
+ * hiérarchie principales > secondaires, bâtiments discrets, POI masqués. Les
+ * territoires GRYD (aplats renforcés) restent au 1er plan. Ajustables sans rendu.
  */
-const BATTLE_BUILDING_OPACITY = 0.12;
-const BATTLE_ROAD_OPACITY = 0.5;
-const BATTLE_MINOR_ROAD_OPACITY = 0.16;
+const BATTLE_BUILDING_OPACITY = 0.16;
+const BATTLE_ROAD_OPACITY = 0.7;
+const BATTLE_MINOR_ROAD_OPACITY = 0.4;
 /** TestID de la carte de Course Live (LiveNavMap) → mode silencieux implicite. */
 const LIVE_RUN_TEST_ID = 'course-live-carte-reelle';
 /** Caméra de secours si ni `camera` ni `bounds` : monde entier (§4bis). */

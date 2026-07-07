@@ -100,8 +100,10 @@ const MODE_CHIP_LABELS: Record<MapMode, string> = {
  * + crew comme les calques). « Réaliste » = satellite (vraies photos aériennes).
  */
 const BASEMAP_LABELS: Record<BasemapKey, string> = {
+  // Deux thèmes façon Waze (jour/nuit) : Clair (Voyager) & Sombre (dark-matter) —
+  // + Réaliste (satellite). Décision fondateur.
   dark: 'Sombre',
-  color: 'Couleur',
+  color: 'Clair',
   satellite: 'Réaliste',
 };
 /**
