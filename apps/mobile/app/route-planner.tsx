@@ -1,36 +1,25 @@
 /**
- * GRYD — CONQUÉRIR `/route-planner` : ASSISTANT DE DÉCISION + CALCUL LIVE.
- * GRYD recommande une course, puis on AJUSTE façon Waze :
- *   1. header KPI = la course active (verbe d'intention · zone · km + résumé) ;
- *   2. carte route-first (RoutePlannerMap — le tracé écrase tout) ;
- *   3. « Pourquoi cette course ? » = 2-3 raisons ;
- *   4. PLANS = 3 recommandations (Recommandée / Rapide / Max points) — tracés
- *      réels curatés, tap = itinéraire + KPI + CTA mis à jour ;
- *   5. PRIORITÉ CREW = alerte défense contextuelle (bascule l'intention) ;
- *   6. « Ajuster » (façon Waze, tout recalcule EN LIVE) :
- *        • OBJECTIF : Conquérir / Attaquer / Défendre (change la boucle) ;
- *        • DISTANCE EXACTE : stepper + saisie libre — l'itinéraire est ROUTÉ EN
- *          DIRECT à la distance demandée (liveRouting, OSRM foot), avec la boucle
- *          pré-routée la plus proche affichée INSTANTANÉMENT (loops.generated) ;
- *        • AUTRES BOUCLES : autres tracés réels DISTINCTS des plans ;
- *        • partage crew ;
- *   7. CTA VERBE contextuel (CONQUÉRIR / ATTAQUER / DÉFENDRE) + microcopie.
- * Tous les tracés SUIVENT LES RUES (routés OSRM foot). Le routing live utilise le
- * réseau au runtime ; hors ligne / échec → on garde la boucle pré-routée (repli).
- * Le garde-fou walkability valide chaque tracé. Data démo — events screen().
+ * GRYD — CONQUÉRIR `/route-planner` : planificateur d'itinéraire LIVE, PARTOUT EN
+ * FRANCE. Plus aucun point de départ figé (fini le mode démo République) :
+ *   • DÉPART = ta position GPS, ou N'IMPORTE QUEL lieu cherché (ville, village,
+ *     adresse) via geocoding gratuit ;
+ *   • header KPI = la boucle active (verbe · lieu · km + résumé) ;
+ *   • carte route-first (RoutePlannerMap) centrée sur l'origine ;
+ *   • « Pourquoi cette course ? » = 2-3 raisons ;
+ *   • PLANS = 3 formats (Recommandée / Rapide / Max points) routés autour de toi ;
+ *   • « Ajuster » : OBJECTIF (Conquérir/Attaquer/Défendre) + DISTANCE EXACTE
+ *     (1,5–50 km, saisie libre) + AUTRES BOUCLES (variantes) — tout est ROUTÉ EN
+ *     DIRECT rue par rue (OSRM foot) autour de l'origine ;
+ *   • CTA VERBE contextuel + microcopie.
+ * Tous les tracés SUIVENT LES RUES et se calculent via l'internet de l'utilisateur
+ * (serveur foot gratuit, sans clé). Le tracé courant reste affiché pendant le
+ * recalcul. Events screen().
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  colors,
-  fontSizes,
-  gameColors,
-  radii,
-  spacing,
-  type IconName,
-} from '@klaim/shared';
+import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -38,96 +27,65 @@ import { formatInt } from '../src/ui/format';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 import { RoutePlannerMap } from '../src/features/route/RoutePlannerMap';
 import {
-  RECOMMENDED_PLAN,
-  ROUTES_DEMO,
-  ROUTE_OBJECTIVE,
-  ROUTE_PLANS,
-  planForRoute,
-  routeDurationMin,
-  routeIdForType,
-  routeReasons,
-  routeSocialName,
-  type RoutePlanDemo,
-} from '../src/features/route/demo';
-import {
-  GEN_DEFAULT_KM,
   GEN_MAX_KM,
   GEN_MIN_KM,
   GEN_STEP_KM,
   PLANNER_INTENTION_LABELS,
   PLANNER_INTENTION_ORDER,
   PLANNER_INTENTION_STATUS,
-  generateLoop,
-  generateNearbyLoops,
   generatedReasons,
   type PlannerIntention,
 } from '../src/features/route/generator';
-import { isRouteWalkable } from '../src/features/route/walkability';
 import { routeLoop } from '../src/features/route/liveRouting';
+import { currentPosition, geocodeFrance, type OriginPoint } from '../src/features/route/origin';
+import { EGO_REPUBLIQUE } from '../src/features/map/realAnchors';
 import type { PlannedRouteDemo } from '../src/features/route/types';
 
-/** Hauteur de la carte : la route domine l'écran, les cards restent visibles. */
+/** Hauteur de la carte. */
 const MAP_HEIGHT = 250;
 
-/** Icône par intention (couleurs par rôle — jamais une couleur par crew). */
+/** Origine par défaut au premier rendu (remplacée par le GPS si dispo). */
+const DEFAULT_ORIGIN: OriginPoint = { point: EGO_REPUBLIQUE, label: 'Ma position' };
+
+/** 3 formats recommandés (distance + objectif) routés autour de l'origine. */
+const PLAN_PRESETS = [
+  { key: 'recommandee', label: 'Recommandée', km: 3.4, status: 'Meilleur équilibre' },
+  { key: 'rapide', label: 'Rapide', km: 2, status: 'Simple et proche' },
+  { key: 'max', label: 'Max points', km: 5, status: 'Plus de zones' },
+] as const;
+
+/** Icône par intention. */
 const INTENTION_ICON: Record<PlannerIntention, IconName> = {
   conquerir: 'cible',
   attaquer: 'guerre',
   defendre: 'bouclier',
 };
 
-/** Km au format FR (« 4,8 »). */
 function formatKm(km: number): string {
   return km.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
-/** « +86 zones dont 52 en boucle » (routes en boucle uniquement). */
+function estMinutes(km: number): number {
+  return Math.round((km * 1000 * 350) / 1000 / 60); // ~5'50/km (étiquette)
+}
+
 function zonesLabel(route: PlannedRouteDemo): string {
   const base = `+${route.zones} zones`;
-  return route.shape === 'boucle' && route.loopZones !== undefined
-    ? `${base} dont ${route.loopZones} en boucle`
-    : base;
+  return route.loopZones !== undefined ? `${base} dont ${route.loopZones} en boucle` : base;
 }
 
-/** Résumé une ligne sous le KPI (vocabulaire zones/rues — jamais « hex »). */
 function routeSummary(route: PlannedRouteDemo): string {
-  const dur = `${routeDurationMin(route)} min`;
-  const shape = route.shape === 'boucle' ? 'Boucle · retour départ' : 'Aller simple';
+  const dur = `${estMinutes(route.distanceKm)} min`;
   if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
-    return `${dur} · ${zonesLabel(route)} · ${route.streetsToSave} rues à défendre · ${shape}`;
+    return `${dur} · ${zonesLabel(route)} · ${route.streetsToSave} rues à défendre · Boucle`;
   }
-  return `${dur} · ${zonesLabel(route)} · +${formatInt(route.points)} pts · ${shape}`;
+  return `${dur} · ${zonesLabel(route)} · +${formatInt(route.points)} pts · Boucle`;
 }
 
-/** Microcopie chiffrée juste au-dessus du CTA. */
 function ctaMicrocopy(route: PlannedRouteDemo): string {
-  const head = `${formatKm(route.distanceKm)} km · ${routeDurationMin(route)} min`;
-  if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
-    return `${head} · ${route.streetsToSave} rues à sauver`;
-  }
-  return `${head} · +${formatInt(route.points)} pts`;
+  return `${formatKm(route.distanceKm)} km · ${estMinutes(route.distanceKm)} min · +${formatInt(route.points)} pts`;
 }
 
-/** Boucle DYNAMIQUE (réelle pré-routée) vs route curatée d'un plan ? */
-function isGenerated(route: PlannedRouteDemo): boolean {
-  return !ROUTES_DEMO.some((r) => r.id === route.id);
-}
-
-/** Route curatée la plus proche en distance (pour lancer une vraie course live). */
-function nearestCuratedId(km: number): string {
-  let best = ROUTES_DEMO[0]!;
-  let bestDelta = Infinity;
-  for (const r of ROUTES_DEMO) {
-    const d = Math.abs(r.distanceKm - km);
-    if (d < bestDelta) {
-      bestDelta = d;
-      best = r;
-    }
-  }
-  return best.id;
-}
-
-/** Micro-titre de section. */
 function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
   return (
     <View style={styles.sectionHead}>
@@ -137,125 +95,152 @@ function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
   );
 }
 
+const clampKm = (km: number) => Math.min(GEN_MAX_KM, Math.max(GEN_MIN_KM, km));
+
 export default function RoutePlannerScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
 
-  // Défaut = plan RECOMMANDÉ (tracé réel curaté). `?type=` (War Room) présélectionne.
-  const initial = useMemo(() => {
-    const id = params.type ? routeIdForType(params.type) : RECOMMENDED_PLAN.routeId;
-    return ROUTES_DEMO.find((r) => r.id === id) ?? ROUTES_DEMO[0]!;
-  }, [params.type]);
-
-  const [route, setRoute] = useState<PlannedRouteDemo>(initial);
+  const [origin, setOrigin] = useState<OriginPoint>(DEFAULT_ORIGIN);
   const [intention, setIntention] = useState<PlannerIntention>(
     params.type === 'defense' ? 'defendre' : 'conquerir',
   );
-  const [targetKm, setTargetKm] = useState(initial.distanceKm);
-  const [distanceDraft, setDistanceDraft] = useState(formatKm(initial.distanceKm));
+  const [targetKm, setTargetKm] = useState(3.4);
+  const [distanceDraft, setDistanceDraft] = useState(formatKm(3.4));
   const [seed, setSeed] = useState(1);
-  const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
-  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [route, setRoute] = useState<PlannedRouteDemo | null>(null);
   const [routing, setRouting] = useState(false);
-  // Anti-course des requêtes live : seule la dernière (reqId courant) s'applique.
+  const [nearby, setNearby] = useState<PlannedRouteDemo[]>([]);
+  const [originQuery, setOriginQuery] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
+
   const reqIdRef = useRef(0);
   const liveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
-  }, []);
 
-  useEffect(() => {
-    screen('route_planner', { type: params.type ?? 'direct' });
-  }, [params.type]);
-
-  const isDefense = intention === 'defendre';
-  const activePlan = planForRoute(route.id);
-  const statusLine = activePlan?.status ?? PLANNER_INTENTION_STATUS[intention];
-  const reasons = isGenerated(route) ? generatedReasons(route, intention) : routeReasons(route);
-  const defenseRoute = ROUTES_DEMO.find((r) => r.id === ROUTE_OBJECTIVE.routeId);
-
-  /** Boucles alternatives GÉNÉRÉES (distinctes des plans), recalculées en live. */
-  const nearbyLoops = useMemo(
-    () => generateNearbyLoops(targetKm, intention, 3, seed * 10 + 1),
-    [targetKm, intention, seed],
-  );
-
-  const clampKm = (km: number) => Math.min(GEN_MAX_KM, Math.max(GEN_MIN_KM, km));
-
-  /**
-   * Demande une boucle : affiche INSTANTANÉMENT la pré-routée la plus proche
-   * (suit déjà les rues) puis AFFINE en LIVE via OSRM foot à la distance exacte
-   * (débouncé). Échec réseau/hors-ligne → on garde la pré-routée (repli). Renvoie
-   * la route instantanée (pour caler le brouillon de saisie).
-   */
-  const requestRoute = (km: number, intent: PlannerIntention, sd: number, debounceMs: number) => {
+  /** Route en LIVE autour d'une origine explicite (garde le tracé courant pendant le calcul). */
+  const applyRoute = (o: OriginPoint, km: number, intent: PlannerIntention, sd: number) => {
     const c = clampKm(km);
-    const baked = generateLoop(c, intent, sd);
-    setRoute(baked);
     setIntention(intent);
-    setSeed(sd);
     setTargetKm(c);
-    if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+    setSeed(sd);
     const id = ++reqIdRef.current;
     setRouting(true);
-    liveTimerRef.current = setTimeout(() => {
-      void routeLoop(c, intent, sd).then((live) => {
-        if (id !== reqIdRef.current) return; // requête dépassée
-        setRouting(false);
-        if (live) {
-          setRoute(live);
-          setTargetKm(live.distanceKm);
-          setDistanceDraft(formatKm(live.distanceKm));
-        }
-      });
-    }, debounceMs);
-    return baked;
+    void routeLoop(o.point, o.label, c, intent, sd).then((r) => {
+      if (id !== reqIdRef.current) return;
+      setRouting(false);
+      if (r) {
+        setRoute(r);
+        setTargetKm(r.distanceKm);
+        setDistanceDraft(formatKm(r.distanceKm));
+      }
+    });
   };
 
-  /** Adopte une route CURATÉE (plans / priorité crew) — pas de génération. */
-  const adoptCurated = (r: PlannedRouteDemo, intent: PlannerIntention) => {
+  const applyDebounced = (o: OriginPoint, km: number, intent: PlannerIntention, sd: number) => {
+    if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+    setRouting(true);
+    liveTimerRef.current = setTimeout(() => applyRoute(o, km, intent, sd), 450);
+  };
+
+  // Premier rendu : route un preset, puis tente le GPS et re-route dessus.
+  useEffect(() => {
+    screen('route_planner', { type: params.type ?? 'direct' });
+    applyRoute(DEFAULT_ORIGIN, 3.4, params.type === 'defense' ? 'defendre' : 'conquerir', 1);
+    void currentPosition().then((pos) => {
+      if (!pos) return;
+      const o = { point: pos, label: 'Ma position' };
+      setOrigin(o);
+      applyRoute(o, 3.4, params.type === 'defense' ? 'defendre' : 'conquerir', 1);
+    });
+    return () => {
+      if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Variantes (autres boucles) : 3 boucles routées LIVE autour de l'origine.
+  useEffect(() => {
+    if (!adjustOpen) return;
+    let cancelled = false;
+    const spreads = [0.6, 1.35, 1.9];
+    void Promise.all(
+      spreads.map((s, i) =>
+        routeLoop(origin.point, origin.label, clampKm(targetKm * s), intention, seed * 10 + i + 2),
+      ),
+    ).then((list) => {
+      if (!cancelled) setNearby(list.filter((r): r is PlannedRouteDemo => r !== null));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [adjustOpen, origin, targetKm, intention, seed]);
+
+  const searchOrigin = () => {
+    const q = originQuery.trim();
+    if (!q) return;
     haptics.light();
-    setRoute(r);
-    setIntention(intent);
-    setTargetKm(r.distanceKm);
-    setDistanceDraft(formatKm(r.distanceKm));
+    setLocating(true);
+    void geocodeFrance(q).then((o) => {
+      setLocating(false);
+      if (!o) {
+        toast.show('Lieu introuvable en France');
+        return;
+      }
+      setOrigin(o);
+      setOriginQuery('');
+      applyRoute(o, targetKm, intention, seed);
+      screen('route_planner_origin', { source: 'search' });
+    });
   };
 
-  const selectPlan = (plan: RoutePlanDemo) => {
-    const target = ROUTES_DEMO.find((r) => r.id === plan.routeId);
-    if (!target) return;
-    adoptCurated(target, 'conquerir');
-    screen('route_planner_plan_select', { plan: plan.key });
+  const useMyPosition = () => {
+    haptics.light();
+    setLocating(true);
+    void currentPosition().then((pos) => {
+      setLocating(false);
+      if (!pos) {
+        toast.show('Position indisponible');
+        return;
+      }
+      const o = { point: pos, label: 'Ma position' };
+      setOrigin(o);
+      applyRoute(o, targetKm, intention, seed);
+      screen('route_planner_origin', { source: 'gps' });
+    });
   };
 
-  const switchToDefense = () => {
-    if (defenseRoute) adoptCurated(defenseRoute, 'defendre');
-    else requestRoute(targetKm, 'defendre', seed, 0);
-    screen('route_planner_objective_select', { objective: 'defendre' });
+  const selectPreset = (km: number, key: string) => {
+    haptics.light();
+    applyRoute(origin, km, 'conquerir', seed);
+    screen('route_planner_plan_select', { plan: key });
   };
 
   const selectIntention = (intent: PlannerIntention) => {
     if (intent === intention) return;
     haptics.light();
-    const r = requestRoute(targetKm, intent, seed, 0);
-    setDistanceDraft(formatKm(r.distanceKm));
+    applyRoute(origin, targetKm, intent, seed);
     screen('route_planner_objective_select', { objective: intent });
   };
 
   const stepDistance = (delta: number) => {
     haptics.light();
-    const r = requestRoute(clampKm(targetKm + delta), intention, seed, 0);
-    setDistanceDraft(formatKm(r.distanceKm));
+    const nk = clampKm(targetKm + delta);
+    setDistanceDraft(formatKm(nk));
+    applyRoute(origin, nk, intention, seed);
   };
 
   const onDistanceType = (text: string) => {
     setDistanceDraft(text);
     const parsed = parseFloat(text.replace(',', '.'));
-    if (!Number.isNaN(parsed)) requestRoute(parsed, intention, seed, 450); // débounce la frappe
+    if (!Number.isNaN(parsed)) applyDebounced(origin, parsed, intention, seed);
   };
 
-  const onDistanceBlur = () => setDistanceDraft(formatKm(route.distanceKm));
+  const onDistanceBlur = () => {
+    if (route) setDistanceDraft(formatKm(route.distanceKm));
+  };
 
   const adoptNearby = (loop: PlannedRouteDemo) => {
     haptics.light();
@@ -271,8 +256,9 @@ export default function RoutePlannerScreen() {
   };
 
   const shareRoute = () => {
+    if (!route) return;
     haptics.medium();
-    const text = `${routeSocialName(route)} partagée au crew`;
+    const text = `Boucle ${formatKm(route.distanceKm)} km autour de ${origin.label} partagée au crew`;
     toast.show(text);
     setSharedFeed((prev) =>
       prev.some((f) => f.id === route.id) ? prev : [...prev, { id: route.id, text }],
@@ -282,15 +268,16 @@ export default function RoutePlannerScreen() {
 
   const startRun = () => {
     haptics.medium();
-    const runId = isGenerated(route) ? nearestCuratedId(route.distanceKm) : route.id;
-    router.push(`/course-live?mode=conquete&route=${runId}`);
+    const intent = intention === 'defendre' ? 'defense' : 'conquest';
+    router.push(`/course-live?mode=conquete&intention=${intent}`);
   };
 
   const intentionLabel = PLANNER_INTENTION_LABELS[intention];
+  const reasons = route ? generatedReasons(route, intention) : [];
 
   return (
     <View style={styles.root}>
-      {/* ── Header KPI géant = la course active (verbe · zone · km) ── */}
+      {/* ── Header KPI = la boucle active (verbe · lieu · km) ── */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.topBar}>
           <Pressable
@@ -305,57 +292,101 @@ export default function RoutePlannerScreen() {
             </View>
           </Pressable>
           <Text style={styles.kicker} numberOfLines={1}>
-            {intentionLabel.toUpperCase()} · {route.zone.toUpperCase()}
+            {intentionLabel.toUpperCase()} · {(route?.zone ?? origin.label).toUpperCase()}
           </Text>
           <View style={styles.back} />
         </View>
         <Text style={styles.status} numberOfLines={1}>
-          {statusLine}
+          {routing ? 'Calcul de l’itinéraire…' : PLANNER_INTENTION_STATUS[intention]}
         </Text>
         <View style={styles.kpiRow}>
           <Text style={styles.kpi}>
-            {formatKm(route.distanceKm)} <Text style={styles.kpiUnit}>KM</Text>
+            {route ? formatKm(route.distanceKm) : '—'} <Text style={styles.kpiUnit}>KM</Text>
           </Text>
         </View>
         <Text style={styles.summary} numberOfLines={2}>
-          {routeSummary(route)}
+          {route ? routeSummary(route) : 'Choisis ton départ et ta distance.'}
         </Text>
       </View>
 
-      {/* ── Carte usage réel : la route écrase tout (RoutePlannerMap) ── */}
+      {/* ── Carte centrée sur l'origine ── */}
       <View style={styles.mapWrap}>
-        <RoutePlannerMap route={route} />
+        {route ? (
+          <RoutePlannerMap route={route} origin={origin.point} />
+        ) : (
+          <View style={styles.mapLoading}>
+            <ActivityIndicator color={colors.chartreuse} />
+            <Text style={styles.mapLoadingText}>Calcul de l&apos;itinéraire…</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView
         style={styles.panel}
         contentContainerStyle={styles.panelContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* ── « Pourquoi cette course ? » ── */}
-        <SectionLabel icon="cible" label="POURQUOI CETTE COURSE" />
-        <View style={styles.reasonRow}>
-          {reasons.map((reason) => (
-            <View key={reason} style={styles.reason}>
-              <Text style={styles.reasonText}>{reason}</Text>
-            </View>
-          ))}
+        {/* ── DÉPART : ta position OU n'importe quel lieu de France ── */}
+        <SectionLabel icon="carte" label="DÉPART" />
+        <View style={styles.originRow}>
+          <View style={styles.originField}>
+            <Icon name="carte" size={15} color={colors.gris} />
+            <TextInput
+              value={originQuery}
+              onChangeText={setOriginQuery}
+              onSubmitEditing={searchOrigin}
+              placeholder={`Départ : ${origin.label}`}
+              placeholderTextColor={colors.gris}
+              returnKeyType="search"
+              accessibilityLabel="Chercher un lieu de départ"
+              style={styles.originInput}
+            />
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Utiliser ma position"
+            onPress={useMyPosition}
+            style={({ pressed }) => [styles.gpsBtn, pressed && styles.pressed]}
+          >
+            {locating ? (
+              <ActivityIndicator color={colors.chartreuse} size="small" />
+            ) : (
+              <Icon name="cible" size={18} color={colors.chartreuse} />
+            )}
+          </Pressable>
         </View>
+        <Text style={styles.hint}>
+          Tape une ville, un village ou une adresse — la boucle se route là-bas.
+        </Text>
 
-        {/* ── PLANS : 3 recommandations curatées ── */}
+        {/* ── « Pourquoi cette course ? » ── */}
+        {reasons.length > 0 ? (
+          <>
+            <SectionLabel icon="cible" label="POURQUOI CETTE COURSE" />
+            <View style={styles.reasonRow}>
+              {reasons.map((reason) => (
+                <View key={reason} style={styles.reason}>
+                  <Text style={styles.reasonText}>{reason}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {/* ── PLANS : 3 formats routés autour de toi ── */}
         <SectionLabel icon="cible" label="PLANS" />
         <View style={styles.plansRow}>
-          {ROUTE_PLANS.map((plan) => {
-            const target = ROUTES_DEMO.find((r) => r.id === plan.routeId);
-            if (!target || !isRouteWalkable({ points: target.line })) return null;
-            const selected = target.id === route.id;
+          {PLAN_PRESETS.map((plan) => {
+            const selected =
+              !!route && intention === 'conquerir' && Math.abs(route.distanceKm - plan.km) < 0.7;
             return (
               <Pressable
                 key={plan.key}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
-                accessibilityLabel={`Plan ${plan.label} — ${formatKm(target.distanceKm)} kilomètres, +${formatInt(target.points)} points`}
-                onPress={() => selectPlan(plan)}
+                accessibilityLabel={`Plan ${plan.label}, ${plan.km} kilomètres`}
+                onPress={() => selectPreset(plan.km, plan.key)}
                 style={({ pressed }) => [
                   styles.plan,
                   selected && styles.planSelected,
@@ -366,53 +397,17 @@ export default function RoutePlannerScreen() {
                   {plan.label}
                 </Text>
                 <Text style={styles.planDist} numberOfLines={1}>
-                  {formatKm(target.distanceKm)} km · {routeDurationMin(target)} min
-                </Text>
-                <Text style={styles.planPts} numberOfLines={1}>
-                  +{formatInt(target.points)} pts
+                  ~{formatKm(plan.km)} km · {estMinutes(plan.km)} min
                 </Text>
                 <Text style={styles.planReason} numberOfLines={1}>
-                  {plan.reason}
+                  {plan.status}
                 </Text>
               </Pressable>
             );
           })}
         </View>
 
-        {/* ── PRIORITÉ CREW : alerte défense contextuelle ── */}
-        <SectionLabel icon="bouclier" label="PRIORITÉ CREW" />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ selected: isDefense }}
-          accessibilityLabel={`${ROUTE_OBJECTIVE.title} — basculer en défense`}
-          onPress={switchToDefense}
-          style={({ pressed }) => [
-            styles.crewCard,
-            isDefense && styles.crewCardActive,
-            pressed && styles.pressed,
-          ]}
-        >
-          <View style={styles.crewIcon}>
-            <Icon name="sablier" size={18} color={gameColors.danger} />
-          </View>
-          <View style={styles.crewBody}>
-            <Text style={styles.crewTitle} numberOfLines={1}>
-              {ROUTE_OBJECTIVE.title}
-            </Text>
-            <Text style={styles.crewMeta} numberOfLines={1}>
-              {ROUTE_OBJECTIVE.streetsToSave} rues à sauver ·{' '}
-              <Text style={styles.crewUrgent}>{ROUTE_OBJECTIVE.expiresInH} h restantes</Text>
-            </Text>
-          </View>
-          <View style={styles.crewRight}>
-            <Text style={styles.crewPoints}>+{formatInt(defenseRoute?.points ?? 0)} pts</Text>
-            <Text style={[styles.crewSwitch, isDefense && styles.crewSwitchActive]}>
-              {isDefense ? 'Actif' : 'Basculer'}
-            </Text>
-          </View>
-        </Pressable>
-
-        {/* ── « Ajuster » : recalcul LIVE (objectif + distance exacte + variantes) ── */}
+        {/* ── « Ajuster » : objectif + distance exacte + variantes (tout LIVE) ── */}
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: adjustOpen }}
@@ -432,7 +427,6 @@ export default function RoutePlannerScreen() {
 
         {adjustOpen ? (
           <View style={styles.adjustBody}>
-            {/* OBJECTIF : Conquérir / Attaquer / Défendre (change la boucle). */}
             <SectionLabel icon="cible" label="OBJECTIF" />
             <View style={styles.intentionRow}>
               {PLANNER_INTENTION_ORDER.map((it) => {
@@ -450,15 +444,8 @@ export default function RoutePlannerScreen() {
                       pressed && styles.pressed,
                     ]}
                   >
-                    <Icon
-                      name={INTENTION_ICON[it]}
-                      size={15}
-                      color={active ? colors.chartreuse : colors.gris}
-                    />
-                    <Text
-                      style={[styles.intentionLabel, active && styles.intentionLabelActive]}
-                      numberOfLines={1}
-                    >
+                    <Icon name={INTENTION_ICON[it]} size={15} color={active ? colors.chartreuse : colors.gris} />
+                    <Text style={[styles.intentionLabel, active && styles.intentionLabelActive]} numberOfLines={1}>
                       {PLANNER_INTENTION_LABELS[it]}
                     </Text>
                   </Pressable>
@@ -466,7 +453,6 @@ export default function RoutePlannerScreen() {
               })}
             </View>
 
-            {/* DISTANCE EXACTE : stepper + saisie libre → boucle générée en live. */}
             <SectionLabel icon="reglages" label="DISTANCE EXACTE" />
             <View style={styles.stepper}>
               <Pressable
@@ -499,27 +485,13 @@ export default function RoutePlannerScreen() {
                 <Text style={styles.stepSign}>+</Text>
               </Pressable>
             </View>
-            {routing ? (
-              <View style={styles.routingRow}>
-                <Icon name="reglages" size={13} color={colors.chartreuse} />
-                <Text style={styles.routingText}>Calcul de l'itinéraire…</Text>
-              </View>
-            ) : (
-              <Text style={styles.hint}>
-                Tape la distance voulue ({GEN_MIN_KM}–{GEN_MAX_KM} km) — l'itinéraire se route en direct.
-              </Text>
-            )}
-            <View style={styles.safeRow}>
-              <Icon name="bouclier" size={14} color={colors.chartreuse} />
-              <Text style={styles.safeText}>
-                Toujours une boucle fermée, vérifiée accessible à pied.
-              </Text>
-            </View>
+            <Text style={styles.hint}>
+              Du footing au trail ({formatKm(GEN_MIN_KM)}–{GEN_MAX_KM} km) — routé en direct, suit les rues.
+            </Text>
 
-            {/* AUTRES BOUCLES : variantes générées DISTINCTES des plans. */}
             <View style={styles.nearbyHead}>
               <Icon name="crew" size={13} color={colors.gris} />
-              <Text style={styles.sectionLabel}>AUTRES BOUCLES PROCHES</Text>
+              <Text style={styles.sectionLabel}>AUTRES BOUCLES</Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Régénérer d'autres boucles"
@@ -531,44 +503,45 @@ export default function RoutePlannerScreen() {
                 <Text style={styles.shuffleText}>Autres</Text>
               </Pressable>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.popularRow}
-            >
-              {nearbyLoops.map((loop, i) => {
-                const selected = loop.id === route.id;
-                return (
-                  <Pressable
-                    key={loop.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`Variante ${i + 1} — ${formatKm(loop.distanceKm)} km, ${loop.zones} zones`}
-                    onPress={() => adoptNearby(loop)}
-                    style={({ pressed }) => [
-                      styles.popularCard,
-                      selected && styles.popularCardSelected,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text style={styles.popularName} numberOfLines={1}>
-                      Variante {i + 1}
-                    </Text>
-                    <Text style={styles.popularStats} numberOfLines={1}>
-                      {formatKm(loop.distanceKm)} km · +{loop.zones} zones
-                    </Text>
-                    <View style={styles.popularCrews}>
-                      <Icon name="serie" size={12} color={colors.chartreuse} />
-                      <Text style={styles.popularCrewsText} numberOfLines={1}>
-                        {routeDurationMin(loop)} min · +{formatInt(loop.points)} pts
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
+              {nearby.length === 0 ? (
+                <View style={styles.nearbyLoading}>
+                  <ActivityIndicator color={colors.chartreuse} size="small" />
+                </View>
+              ) : (
+                nearby.map((loop, i) => {
+                  const selected = !!route && loop.id === route.id;
+                  return (
+                    <Pressable
+                      key={`${loop.id}-${i}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`Variante ${i + 1}, ${formatKm(loop.distanceKm)} km`}
+                      onPress={() => adoptNearby(loop)}
+                      style={({ pressed }) => [
+                        styles.popularCard,
+                        selected && styles.popularCardSelected,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={styles.popularName} numberOfLines={1}>
+                        Variante {i + 1}
                       </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
+                      <Text style={styles.popularStats} numberOfLines={1}>
+                        {formatKm(loop.distanceKm)} km · +{loop.zones} zones
+                      </Text>
+                      <View style={styles.popularCrews}>
+                        <Icon name="serie" size={12} color={colors.chartreuse} />
+                        <Text style={styles.popularCrewsText} numberOfLines={1}>
+                          {estMinutes(loop.distanceKm)} min · +{formatInt(loop.points)} pts
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
             </ScrollView>
 
-            {/* Route sociale : partage crew (démo). */}
             <SectionLabel icon="crew" label="CREW" />
             <Pressable
               accessibilityRole="button"
@@ -585,7 +558,7 @@ export default function RoutePlannerScreen() {
                 <Text style={styles.feedText} numberOfLines={1}>
                   {f.text}
                 </Text>
-                <Text style={styles.feedTime}>à l'instant</Text>
+                <Text style={styles.feedTime}>à l&apos;instant</Text>
               </View>
             ))}
           </View>
@@ -595,13 +568,14 @@ export default function RoutePlannerScreen() {
       {/* ── CTA VERBE contextuel + microcopie ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.ctaMicro} numberOfLines={1}>
-          {ctaMicrocopy(route)}
+          {route ? ctaMicrocopy(route) : '—'}
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${intentionLabel} — démarrer, ${formatKm(route.distanceKm)} kilomètres`}
+          accessibilityLabel={`${intentionLabel} — démarrer`}
           onPress={startRun}
-          style={({ pressed }) => [styles.startBtn, pressed && styles.startPressed]}
+          disabled={!route}
+          style={({ pressed }) => [styles.startBtn, pressed && styles.startPressed, !route && styles.startDisabled]}
         >
           <Text style={styles.startLabel}>{intentionLabel.toUpperCase()}</Text>
         </Pressable>
@@ -637,17 +611,40 @@ const styles = StyleSheet.create({
   },
   kpiUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '700' },
   summary: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 17 },
-  mapWrap: {
-    height: MAP_HEIGHT,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.grisLigne,
-  },
+  mapWrap: { height: MAP_HEIGHT, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.grisLigne },
+  mapLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.noir },
+  mapLoadingText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   panel: { flex: 1 },
   panelContent: { paddingHorizontal: spacing.cardPadding, paddingTop: 12, paddingBottom: 16 },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, marginBottom: 8 },
   sectionLabel: { color: colors.gris, fontSize: 10, letterSpacing: 2, fontWeight: '700' },
+
+  // Départ : champ de recherche + bouton position.
+  originRow: { flexDirection: 'row', gap: 8 },
+  originField: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 46,
+    paddingHorizontal: 12,
+    borderRadius: radii.card - 8,
+    borderWidth: 1.5,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  originInput: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', padding: 0 },
+  gpsBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: radii.card - 8,
+    borderWidth: 1.5,
+    borderColor: colors.chartreuse,
+    backgroundColor: colors.carbone2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reason: {
@@ -677,49 +674,7 @@ const styles = StyleSheet.create({
   planLabel: { color: colors.blanc, fontSize: 12, fontWeight: '800', letterSpacing: -0.2 },
   planLabelSelected: { color: colors.chartreuse },
   planDist: { color: colors.gris, fontSize: 10.5, fontVariant: ['tabular-nums'] },
-  planPts: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
   planReason: { color: colors.gris, fontSize: 10, marginTop: 2 },
-
-  crewCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card - 6,
-    borderWidth: 1,
-    borderColor: gameColors.danger,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  crewCardActive: { backgroundColor: colors.carbone2 },
-  crewIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: gameColors.danger,
-    backgroundColor: gameColors.carbon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  crewBody: { flex: 1, gap: 2 },
-  crewTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  crewMeta: { color: colors.gris, fontSize: fontSizes.xs },
-  crewUrgent: { color: gameColors.danger, fontWeight: '700' },
-  crewRight: { alignItems: 'flex-end', gap: 4 },
-  crewPoints: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  crewSwitch: { color: colors.gris, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  crewSwitchActive: { color: colors.chartreuse },
 
   adjustHead: {
     flexDirection: 'row',
@@ -738,7 +693,6 @@ const styles = StyleSheet.create({
   chevUp: { transform: [{ rotate: '90deg' }] },
   adjustBody: { marginTop: 2 },
 
-  // Objectif : 3 chips pleine largeur (comme des onglets).
   intentionRow: { flexDirection: 'row', gap: 7 },
   intentionChip: {
     flex: 1,
@@ -756,7 +710,6 @@ const styles = StyleSheet.create({
   intentionLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700' },
   intentionLabelActive: { color: colors.chartreuse },
 
-  // Distance exacte : stepper − [valeur] +.
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
   stepBtn: {
     width: 46,
@@ -792,11 +745,7 @@ const styles = StyleSheet.create({
   },
   stepUnit: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
 
-  hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17, marginBottom: 6 },
-  routingRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
-  routingText: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700' },
-  safeRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 },
-  safeText: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17 },
+  hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17, marginBottom: 6, marginTop: 2 },
 
   nearbyHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, marginBottom: 8 },
   shuffleBtn: {
@@ -810,6 +759,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
   },
   shuffleText: { color: colors.chartreuse, fontSize: 11, fontWeight: '700' },
+  nearbyLoading: { width: 120, height: 74, alignItems: 'center', justifyContent: 'center' },
 
   popularRow: { gap: 8, paddingRight: 4 },
   popularCard: {
@@ -851,7 +801,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 9,
     paddingHorizontal: 12,
-    backgroundColor: gameColors.carbon,
+    backgroundColor: colors.carbone,
     borderRadius: radii.card - 8,
     borderWidth: 1,
     borderColor: colors.grisLigne,
@@ -882,6 +832,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startPressed: { opacity: 0.85 },
+  startDisabled: { opacity: 0.4 },
   startLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 1.5 },
   pressed: { opacity: 0.7 },
 });

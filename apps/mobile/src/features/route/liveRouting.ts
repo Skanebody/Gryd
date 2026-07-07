@@ -1,34 +1,25 @@
 /**
- * GRYD — ROUTING PIÉTON EN CONTINU (façon Waze live). Route À LA VOLÉE une boucle
- * fermée d'une distance quelconque, RUE PAR RUE, via OSRM foot (même service que
- * les boucles pré-routées). Waypoints en rosace autour de l'ego → route OSRM →
- * géométrie qui SUIT LES RUES, calée en 2 passes sur la distance cible.
+ * GRYD — ROUTING PIÉTON EN CONTINU (façon Waze live), N'IMPORTE OÙ EN FRANCE.
+ * Route À LA VOLÉE une boucle fermée d'une distance quelconque, RUE PAR RUE, via
+ * OSRM foot, autour d'une ORIGINE quelconque (ta position GPS ou un lieu cherché
+ * — plus aucun point de départ figé). Waypoints en rosace autour de l'origine →
+ * route OSRM → géométrie qui SUIT LES RUES, calée en 2 passes sur la distance.
  *
- * Réseau AU RUNTIME (assumé — décision fondateur « go ») : en cas d'échec / hors
- * ligne, l'appelant garde la boucle pré-routée (loops.generated.ts) en repli, si
- * bien que l'écran fonctionne toujours. Aucune clé/API payante (serveur foot
- * communautaire). Résultat = PlannedRouteDemo (carte/KPI/CTA inchangés).
+ * Réseau AU RUNTIME (assumé — décision fondateur) : le calcul temps réel se fait
+ * via l'internet de l'utilisateur, gratuitement (serveur foot communautaire, sans
+ * clé). Échec / hors ligne → renvoie null (l'appelant garde le tracé courant).
  */
 import { POINTS_DEFENDED_HEX, POINTS_NEUTRAL_HEX } from '@klaim/shared';
-import { EGO_REPUBLIQUE, REAL_M_PER_DEG_LAT, type LatLngPoint } from '../map/realAnchors';
+import { REAL_M_PER_DEG_LAT, type LatLngPoint } from '../map/realAnchors';
 import type { PlannerIntention } from './generator';
 import type { PlannedRouteDemo, RouteTypeKey } from './types';
 
 const OSRM_FOOT = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot';
-const M_PER_DEG_LNG = REAL_M_PER_DEG_LAT * Math.cos((EGO_REPUBLIQUE.lat * Math.PI) / 180);
 
 const ZONES_PER_KM = 15.3;
 const LOOP_ZONE_RATIO = 0.6;
-/** Plus de waypoints pour les grandes boucles (tour plus rond, jusqu'au trail). */
-function nWpFor(km: number): number {
-  return Math.min(12, Math.max(6, Math.round(km / 3)));
-}
-/** Décimation bornée : ~150 points/boucle quelle que soit la distance. */
-function gapFor(distanceM: number): number {
-  return Math.max(8, distanceM / 150);
-}
 
-/** Cap (deg, 0 = est) par intention — dirige la boucle vers le bon secteur. */
+/** Cap (deg, 0 = est) par intention — oriente la boucle autour de l'origine. */
 const INTENTION_BEARING: Record<PlannerIntention, number> = {
   conquerir: 25,
   attaquer: 70,
@@ -39,12 +30,18 @@ const INTENTION_TYPE: Record<PlannerIntention, RouteTypeKey> = {
   attaquer: 'raid',
   defendre: 'defense',
 };
-const INTENTION_ZONE: Record<PlannerIntention, string> = {
-  conquerir: 'République',
-  attaquer: 'Belleville',
-  defendre: 'République',
-};
 
+/** Plus de waypoints pour les grandes boucles (tour plus rond, jusqu'au trail). */
+function nWpFor(km: number): number {
+  return Math.min(12, Math.max(6, Math.round(km / 3)));
+}
+/** Décimation bornée : ~150 points/boucle quelle que soit la distance. */
+function gapFor(distanceM: number): number {
+  return Math.max(8, distanceM / 150);
+}
+function mPerDegLng(lat: number): number {
+  return REAL_M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180);
+}
 function rng(seed: number): () => number {
   let s = seed % 2147483647;
   if (s <= 0) s += 2147483646;
@@ -52,12 +49,15 @@ function rng(seed: number): () => number {
 }
 const d2r = (d: number) => (d * Math.PI) / 180;
 
-function metersToLatLng(x: number, y: number): LatLngPoint {
-  return { lat: EGO_REPUBLIQUE.lat + y / REAL_M_PER_DEG_LAT, lng: EGO_REPUBLIQUE.lng + x / M_PER_DEG_LNG };
-}
-
-/** Waypoints d'une rosace fermée (ego = 1er = dernier). */
-function waypoints(bearingDeg: number, radiusM: number, jitter: readonly number[], n: number): LatLngPoint[] {
+/** Waypoints d'une rosace fermée autour de `origin` (origine = 1er = dernier). */
+function waypoints(
+  origin: LatLngPoint,
+  bearingDeg: number,
+  radiusM: number,
+  jitter: readonly number[],
+  n: number,
+): LatLngPoint[] {
+  const mLng = mPerDegLng(origin.lat);
   const cx = radiusM * Math.cos(d2r(bearingDeg));
   const cy = radiusM * Math.sin(d2r(bearingDeg));
   const start = bearingDeg + 180;
@@ -65,7 +65,9 @@ function waypoints(bearingDeg: number, radiusM: number, jitter: readonly number[
   for (let k = 0; k < n; k += 1) {
     const a = d2r(start + (360 * k) / n);
     const r = radiusM * (1 + (jitter[k] ?? 0));
-    pts.push(metersToLatLng(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+    const x = cx + r * Math.cos(a);
+    const y = cy + r * Math.sin(a);
+    pts.push({ lat: origin.lat + y / REAL_M_PER_DEG_LAT, lng: origin.lng + x / mLng });
   }
   pts.push(pts[0]!);
   return pts;
@@ -86,22 +88,23 @@ async function routeFoot(wps: readonly LatLngPoint[], signal?: AbortSignal): Pro
       return { distanceM: json.routes[0].distance, coords: json.routes[0].geometry.coordinates };
     }
   } catch {
-    // réseau/CORS/abort → repli côté appelant
+    // réseau / CORS / abort → repli côté appelant
   }
   return null;
 }
 
-/** Décime la polyligne : garde un point tous les >= minGapM. */
-function decimate(coords: readonly [number, number][], minGapM: number): LatLngPoint[] {
+/** Décime la polyligne : garde un point tous les >= minGapM (mètres). */
+function decimate(coords: readonly [number, number][], lat: number, minGapM: number): LatLngPoint[] {
+  const mLng = mPerDegLng(lat);
   const out: LatLngPoint[] = [];
   let last: LatLngPoint | null = null;
-  for (const [lng, lat] of coords) {
+  for (const [lng, latPt] of coords) {
     if (last) {
-      const dx = (lng - last.lng) * M_PER_DEG_LNG;
-      const dy = (lat - last.lat) * REAL_M_PER_DEG_LAT;
+      const dx = (lng - last.lng) * mLng;
+      const dy = (latPt - last.lat) * REAL_M_PER_DEG_LAT;
       if (Math.hypot(dx, dy) < minGapM) continue;
     }
-    const p = { lat: Number(lat.toFixed(5)), lng: Number(lng.toFixed(5)) };
+    const p = { lat: Number(latPt.toFixed(5)), lng: Number(lng.toFixed(5)) };
     out.push(p);
     last = p;
   }
@@ -109,11 +112,13 @@ function decimate(coords: readonly [number, number][], minGapM: number): LatLngP
 }
 
 /**
- * Route en direct une boucle piétonne d'une distance cible (km). Renvoie null en
- * cas d'échec réseau (l'appelant garde alors la boucle pré-routée). 2 passes de
- * calage sur la distance.
+ * Route en direct une boucle piétonne autour de `origin` (n'importe où), à la
+ * distance cible (km). `zoneLabel` nomme le secteur affiché (lieu de départ).
+ * Renvoie null en cas d'échec réseau. 2 passes de calage sur la distance.
  */
 export async function routeLoop(
+  origin: LatLngPoint,
+  zoneLabel: string,
   targetKm: number,
   intention: PlannerIntention,
   seed: number,
@@ -128,13 +133,13 @@ export async function routeLoop(
   let radius = (targetKm * 1000) / (2 * Math.PI);
   let result: OsrmResult | null = null;
   for (let pass = 0; pass < 2; pass += 1) {
-    result = await routeFoot(waypoints(INTENTION_BEARING[intention], radius, jitter, n), signal);
+    result = await routeFoot(waypoints(origin, INTENTION_BEARING[intention], radius, jitter, n), signal);
     if (!result || result.distanceM <= 0) return null;
     radius *= (targetKm * 1000) / result.distanceM;
   }
   if (!result) return null;
 
-  const line = decimate(result.coords, gapFor(result.distanceM));
+  const line = decimate(result.coords, origin.lat, gapFor(result.distanceM));
   if (line.length < 4) return null;
 
   const km = Math.round((result.distanceM / 1000) * 10) / 10;
@@ -146,7 +151,7 @@ export async function routeLoop(
     letter: 'A',
     name: 'Live',
     typeKey: INTENTION_TYPE[intention],
-    zone: INTENTION_ZONE[intention],
+    zone: zoneLabel,
     distanceKm: km,
     zones,
     loopZones,

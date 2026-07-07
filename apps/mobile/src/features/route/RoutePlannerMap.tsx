@@ -143,9 +143,11 @@ function directionArrows(
 
 export interface RoutePlannerMapProps {
   route: PlannedRouteDemo;
+  /** Point de départ affiché (« moi ») — dynamique (position/lieu cherché). */
+  origin?: LatLngPoint;
 }
 
-export function RoutePlannerMap({ route }: RoutePlannerMapProps) {
+export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlannerMapProps) {
   const mapRef = useRef<RealMapRef>(null);
   /** Opacités du mode ROUTE : l'itinéraire domine, le reste en transparence. */
   const emph = MODE_EMPHASIS.route;
@@ -218,15 +220,15 @@ export function RoutePlannerMap({ route }: RoutePlannerMapProps) {
         children: <StartMarker label={loop ? 'DÉPART · RETOUR' : 'DÉPART'} />,
       });
     }
-    // 2. Position actuelle : « moi » = l'ego démo RÉEL (République).
+    // 2. Position actuelle : « moi » = l'origine (position / lieu de départ).
     out.push({
       id: 'planner-ego',
-      lng: EGO_REPUBLIQUE.lng,
-      lat: EGO_REPUBLIQUE.lat,
+      lng: origin.lng,
+      lat: origin.lat,
       children: <EgoDot />,
     });
     return out;
-  }, [route.line]);
+  }, [route.line, origin]);
 
   return (
     <View style={styles.map}>
