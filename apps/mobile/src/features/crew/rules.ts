@@ -21,6 +21,7 @@ import {
   CREW_LEVEL_MAX,
   CREW_PERMISSIONS,
   CREW_XP_TABLE,
+  GRIP_RANK_LEVELS,
   PLAYER_LEVEL_MAX,
   PLAYER_LEVEL_XP_BASE,
   PLAYER_LEVEL_XP_RATIO,
@@ -28,6 +29,7 @@ import {
   ROOKIE_TRIAL_DAYS,
   type BadgeTier,
   type CrewActivityStatus,
+  type GripRank,
   type CrewChestTier,
   type CrewFrameTier,
   type CrewPermissionAction,
@@ -100,6 +102,25 @@ export function playerTierForLevel(level: number): PlayerTier {
   for (const [name, min] of entries) if (level >= min) tier = name;
   return tier;
 }
+
+/** Rang du personnage GRIP pour un niveau joueur (§43.3) — MIROIR engine/crew. */
+export function gripRankForLevel(level: number): GripRank {
+  const entries = Object.entries(GRIP_RANK_LEVELS) as [GripRank, number][];
+  let rank: GripRank = 'rookie';
+  for (const [name, min] of entries) if (level >= min) rank = name;
+  return rank;
+}
+
+/** Libellés d'affichage des rangs GRIP (noms de marque, invariants langue). */
+export const GRIP_RANK_LABELS: Record<GripRank, string> = {
+  rookie: 'Rookie',
+  runner: 'Runner',
+  scout: 'Scout',
+  defender: 'Defender',
+  conqueror: 'Conqueror',
+  veteran: 'Veteran',
+  legend: 'Legend',
+};
 
 /** État d'affichage du coffre hebdo (ChestCard) — dérivation UNIQUE partagée. */
 export interface CrewChestState {

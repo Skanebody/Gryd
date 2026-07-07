@@ -16,6 +16,7 @@ import {
   CREW_XP_DAILY_CAP_PER_MEMBER,
   CREW_XP_SOURCES,
   CREW_XP_TABLE,
+  GRIP_RANK_LEVELS,
   PLAYER_LEVEL_MAX,
   ROOKIE_RESTRICTIONS,
   ROOKIE_TRIAL_DAYS,
@@ -33,6 +34,7 @@ import {
   crewLevelForXp,
   crewRoleRank,
   crewXpForRun,
+  gripRankForLevel,
   hasCrewPermission,
   isRookieTrialOver,
   offensiveResult,
@@ -153,6 +155,26 @@ Deno.test('tierForLevel : tranches §43.1', () => {
   assertEquals(tierForLevel(40), 'elite');
   assertEquals(tierForLevel(50), 'legend');
   assertEquals(tierForLevel(99), 'legend');
+});
+
+Deno.test('gripRankForLevel : 7 poses §43.3, bornes basses + plancher/plafond', () => {
+  // Une pose par palier, alignée sur GRIP_RANK_LEVELS (bornes basses de niveau).
+  assertEquals(gripRankForLevel(0), 'rookie'); // plancher : niveau < 1
+  assertEquals(gripRankForLevel(1), 'rookie');
+  assertEquals(gripRankForLevel(4), 'rookie');
+  assertEquals(gripRankForLevel(5), 'runner');
+  assertEquals(gripRankForLevel(11), 'runner');
+  assertEquals(gripRankForLevel(12), 'scout');
+  assertEquals(gripRankForLevel(20), 'defender');
+  assertEquals(gripRankForLevel(30), 'conqueror');
+  assertEquals(gripRankForLevel(40), 'veteran');
+  assertEquals(gripRankForLevel(50), 'legend');
+  assertEquals(gripRankForLevel(99), 'legend'); // plafond
+  // Chaque borne mappe un rang DISTINCT → exactement 7 poses (une par palier).
+  const ranksAtBorders = new Set(
+    Object.values(GRIP_RANK_LEVELS).map((lvl) => gripRankForLevel(lvl)),
+  );
+  assertEquals(ranksAtBorders.size, 7);
 });
 
 Deno.test('crewFrameTierForLevel : tranches §43.2', () => {

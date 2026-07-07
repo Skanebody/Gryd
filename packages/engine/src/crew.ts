@@ -30,6 +30,7 @@ import {
   CREW_XP_TABLE,
   CO_CAPTAIN_KICKABLE_ROLES,
   CO_CAPTAIN_PROMOTE_MAX_ROLE,
+  GRIP_RANK_LEVELS,
   OFFENSIVE_RESULT_THRESHOLDS,
   PLAYER_LEVEL_MAX,
   PLAYER_LEVEL_XP_BASE,
@@ -42,6 +43,7 @@ import {
   type CrewFrameTier,
   type CrewPermissionAction,
   type CrewRole,
+  type GripRank,
   type OffensiveResult,
   type PlayerTier,
 } from '@klaim/shared/game-rules';
@@ -174,6 +176,17 @@ export function tierForLevel(level: number): PlayerTier {
   let tier: PlayerTier = 'road';
   for (const [name, min] of entries) if (level >= min) tier = name;
   return tier;
+}
+
+/**
+ * Rang du personnage GRIP pour un niveau joueur (§43.3, bornes basses). Réutilise
+ * le niveau (playerLevelForXp) — aucune nouvelle courbe. Plancher `rookie`. PURE.
+ */
+export function gripRankForLevel(level: number): GripRank {
+  const entries = Object.entries(GRIP_RANK_LEVELS) as [GripRank, number][];
+  let rank: GripRank = 'rookie';
+  for (const [name, min] of entries) if (level >= min) rank = name;
+  return rank;
 }
 
 /** Tier du cadre de blason crew pour un niveau crew (§43.2). PURE. */

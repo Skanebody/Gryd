@@ -715,6 +715,26 @@ export const PLAYER_TIER_THRESHOLDS = {
 } as const;
 export type PlayerTier = keyof typeof PLAYER_TIER_THRESHOLDS;
 
+// ─── §43.3 Personnage GRIP — 7 rangs cosmétiques dérivés du niveau joueur ─────
+/**
+ * Rangs du personnage-mascotte GRIP (une POSE par palier — la bande de référence
+ * fondateur : nu → course → loupe → bouclier → drapeau → bandeau → couronne).
+ * COSMÉTIQUE PUR : la pose se GAGNE au niveau joueur (§43.1, points de jeu course
+ * + contributions), JAMAIS achetée — anti pay-to-win. Bornes basses de NIVEAU (pas
+ * une nouvelle courbe : réutilise PLAYER_LEVEL_XP / playerLevelForXp). L'argent
+ * n'achète que du cosmétique neutre (skin/frame), jamais un rang.
+ */
+export const GRIP_RANK_LEVELS = {
+  rookie: 1,
+  runner: 5,
+  scout: 12,
+  defender: 20,
+  conqueror: 30,
+  veteran: 40,
+  legend: 50,
+} as const;
+export type GripRank = keyof typeof GRIP_RANK_LEVELS;
+
 // ─── §43.2 Crew Level Badge Frame (tiers visuels par niveau crew) ────────────
 /** Tier du cadre de blason crew par tranche de niveau (§43.2, bornes basses). */
 export const CREW_FRAME_THRESHOLDS = {

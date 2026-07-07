@@ -50,11 +50,14 @@ import { UNLOCKED_IDS, demoStat } from '../../src/features/badges/demo';
 import { MY_CREW } from '../../src/features/crew/demo';
 import {
   FRAME_TIER_LABELS,
+  GRIP_RANK_LABELS,
+  gripRankForLevel,
   playerLevelForXp,
   playerLevelXpTable,
   playerTierForLevel,
 } from '../../src/features/crew/rules';
 import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
+import { GripMascot } from '../../src/features/social/GripMascot';
 import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
@@ -86,6 +89,8 @@ const xp = MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS;
 /** Niveau/tier DÉRIVÉS de la courbe réelle (features/crew/rules). */
 const runnerLevel = playerLevelForXp(xp);
 const runnerTier = playerTierForLevel(runnerLevel);
+/** Rang du personnage GRIP (pose) dérivé du niveau (§43.3) — cosmétique, jamais acheté. */
+const gripRank = gripRankForLevel(runnerLevel);
 /** Bornes XP du niveau courant → jauge « Level N → N+1 » (courbe §43.1). */
 const XP_TABLE = playerLevelXpTable();
 const levelFloor = XP_TABLE[runnerLevel - 1] ?? 0;
@@ -562,16 +567,26 @@ export default function ProfilScreen() {
           <Text style={styles.sectionRowLabel}>PROGRESSION</Text>
         </View>
         <View style={styles.progressCard}>
-          <View style={styles.levelRow}>
-            <Text style={styles.levelLabel}>
-              Level {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
-              {Math.min(runnerLevel + 1, PLAYER_LEVEL_MAX)}
-            </Text>
-            <Text style={styles.levelXp}>
-              {formatInt(xp)} / {formatInt(levelCeil)} XP
-            </Text>
+          {/* GRIP — le personnage à son rang (§43.3) : la progression a un visage,
+              façon Waze. Pose DÉRIVÉE du niveau, jamais achetée (anti pay-to-win). */}
+          <View style={styles.gripRow}>
+            <GripMascot rank={gripRank} size={72} />
+            <View style={styles.gripInfo}>
+              <Text style={styles.gripRankName} numberOfLines={1}>
+                {GRIP_RANK_LABELS[gripRank]}
+              </Text>
+              <View style={styles.levelRow}>
+                <Text style={styles.levelLabel}>
+                  Level {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
+                  {Math.min(runnerLevel + 1, PLAYER_LEVEL_MAX)}
+                </Text>
+                <Text style={styles.levelXp}>
+                  {formatInt(xp)} / {formatInt(levelCeil)} XP
+                </Text>
+              </View>
+              <ProgressBar value={levelRatio} height={8} />
+            </View>
           </View>
-          <ProgressBar value={levelRatio} height={8} />
           <View style={styles.progressStatsRow}>
             <View style={styles.progressStat}>
               <Text style={styles.progressStatValue}>{MY_SOCIAL_PROFILE.formeScore}</Text>
@@ -966,6 +981,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     padding: spacing.cardPadding,
     gap: 10,
+  },
+  gripRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  gripInfo: { flex: 1, gap: 8, justifyContent: 'center' },
+  gripRankName: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
   levelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   levelLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
