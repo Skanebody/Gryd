@@ -54,37 +54,40 @@ export function GrydNavBar() {
 
   return (
     <>
-      {/* MENU hamburger — HAUT À GAUCHE */}
+      {/* MENU hamburger — BAS À DROITE */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Menu"
         hitSlop={8}
         onPress={() => setMenuOpen((o) => !o)}
-        style={[styles.menuBtn, { top: insets.top + 10 }]}
+        style={[styles.menuBtn, { bottom: insets.bottom + 22 }]}
       >
         <View style={styles.hLine} />
         <View style={styles.hLine} />
         <View style={styles.hLine} />
       </Pressable>
 
-      {/* RUN — BAS AU CENTRE, le SEUL bouton d'action (contextuel). */}
-      <View style={[styles.runAnchor, { bottom: insets.bottom + 22 }]} pointerEvents="box-none">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={action.a11yLabel}
-          onPress={() => {
-            track(EVENTS.runStart, { context: action.kind, intention: action.intention });
-            router.push(action.targetHref);
-          }}
-          onLongPress={() => router.push('/route-planner')}
-          style={({ pressed }) => [styles.run, pressed && styles.runPressed]}
-        >
-          <Icon name={action.icon} size={24} color={colors.noir} />
-          <Text style={styles.runLabel} numberOfLines={1}>
-            {action.label}
-          </Text>
-        </Pressable>
-      </View>
+      {/* RUN — BAS AU CENTRE, UNIQUEMENT sur la CARTE (retiré des autres écrans :
+          on ne lance une course que depuis la carte). */}
+      {pathname === '/' ? (
+        <View style={[styles.runAnchor, { bottom: insets.bottom + 22 }]} pointerEvents="box-none">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={action.a11yLabel}
+            onPress={() => {
+              track(EVENTS.runStart, { context: action.kind, intention: action.intention });
+              router.push(action.targetHref);
+            }}
+            onLongPress={() => router.push('/route-planner')}
+            style={({ pressed }) => [styles.run, pressed && styles.runPressed]}
+          >
+            <Icon name={action.icon} size={24} color={colors.noir} />
+            <Text style={styles.runLabel} numberOfLines={1}>
+              {action.label}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Menu déployé : scrim + panneau ancré sous le hamburger. */}
       {menuOpen ? (
@@ -95,7 +98,7 @@ export function GrydNavBar() {
             style={styles.scrim}
             onPress={() => setMenuOpen(false)}
           />
-          <View style={[styles.menuPanel, { top: insets.top + 62 }]}>
+          <View style={[styles.menuPanel, { bottom: insets.bottom + 74 }]}>
             {MENU_ITEMS.map((item) => {
               const active = pathname === item.href;
               return (
@@ -129,7 +132,7 @@ export function GrydNavBar() {
 const styles = StyleSheet.create({
   menuBtn: {
     position: 'absolute',
-    left: 14,
+    right: 14,
     width: 44,
     height: 44,
     borderRadius: 14,
@@ -163,7 +166,7 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   menuPanel: {
     position: 'absolute',
-    left: 14,
+    right: 14,
     minWidth: 200,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
