@@ -66,6 +66,8 @@ export interface ShareCardProps {
   mapBackground?: ReactNode;
   /** Blason crew discret (coin bas). */
   crest?: ReactNode;
+  /** Personnage GRIP (signature du joueur), petit, en pied. Masqué en `mapOnly`. */
+  mascot?: ReactNode;
   /** Format d'export (règle l'aspect). Défaut : `feed` (4:5). */
   ratio?: ShareCardRatio;
   /** Largeur imposée (hauteur dérivée du ratio). Défaut : s'étire au parent. */
@@ -85,6 +87,7 @@ export function ShareCard({
   children,
   mapBackground,
   crest,
+  mascot,
   ratio = 'feed',
   width,
   style,
@@ -177,7 +180,11 @@ export function ShareCard({
         ) : null}
 
         <View style={styles.footer}>
-          {crest && !mapOnly ? <View style={styles.crest}>{crest}</View> : <View />}
+          {/* Signature du joueur : GRIP (personnage) + blason crew, groupés à gauche. */}
+          <View style={styles.footerLeft}>
+            {mascot && !mapOnly ? mascot : null}
+            {crest && !mapOnly ? <View style={styles.crest}>{crest}</View> : null}
+          </View>
           <Text style={styles.hashtag}>{hashtag}</Text>
         </View>
       </View>
@@ -285,6 +292,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   crest: { opacity: 0.9 },
   hashtag: { color: gameColors.crew, fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 1 },
 });

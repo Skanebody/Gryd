@@ -417,16 +417,10 @@ export default function ProfilScreen() {
               stat={`#${profile.seasonRank}`}
               statLabel={`Rang saison · ${profile.seasonScope}`}
               title={`${profile.displayName} · ${profile.crewName}`}
-              subtitle={`Runner niv. ${runnerLevel} · ${displayedTitle}`}
+              subtitle={`${GRIP_RANK_LABELS[gripRank]} · niv. ${runnerLevel} · ${displayedTitle}`}
             >
-              <PlayerCardAvatar
-                initials={initials}
-                fillColor={profile.avatarColor}
-                tier={runnerTier}
-                equippedFrameKey={equipped.profile}
-                size={72}
-                isMe
-              />
+              {/* Carte identité character-forward : GRIP porte la signature GRYD. */}
+              <GripMascot rank={gripRank} size={72} />
             </ShareCard>
           </View>
         ) : null}

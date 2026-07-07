@@ -47,6 +47,9 @@ import {
   badgeColor,
   type BadgeDef,
 } from '../src/features/badges/catalog';
+import { GripMascot } from '../src/features/social/GripMascot';
+import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
+import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
 import Svg, { Path, Polyline } from 'react-native-svg';
 import {
   CORRIDOR_HALF_WIDTH_M,
@@ -503,6 +506,8 @@ function ConquestResultScreen({
   };
 }) {
   const insets = useSafeAreaInsets();
+  // Signature du joueur au moment dopamine : GRIP à son rang (dérivé de l'XP permanent).
+  const gripRank = gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
   const mode = runModeFromParam(params.mode);
   // Intention (AMENDEMENT-16 §1) : teinte la SYNTHÈSE multi-résultats + la copy
   // §28 (Conquête/Défense/Run libre) — jamais l'attribution (le serveur décide).
@@ -624,6 +629,10 @@ function ConquestResultScreen({
              Titre + KPI GÉANT + 1 ligne + CTA. RIEN d'autre : la validation
              GPS/Motion, l'impact détaillé et l'analyse boucle sont AU TAP. */}
         <ResultReveal visible haptic="success" style={styles.hero}>
+          {/* GRIP célèbre — petit, au-dessus du KPI (il personnalise, il ne vole pas la vedette). */}
+          <View style={styles.heroGrip}>
+            <GripMascot rank={gripRank} size={64} />
+          </View>
           <Text style={styles.heroTitle}>
             {isPrivate ? 'COURSE ENREGISTRÉE' : 'COURSE VALIDÉE'}
           </Text>
@@ -1318,6 +1327,7 @@ const styles = StyleSheet.create({
 
   // ── ÉCRAN 1 — émotionnel d'abord (AMENDEMENT-20 §2) ──
   hero: { alignItems: 'center', gap: 12, paddingTop: 24, paddingBottom: 8 },
+  heroGrip: { alignItems: 'center' },
   heroTitle: {
     color: colors.blanc,
     fontSize: fontSizes.lg,

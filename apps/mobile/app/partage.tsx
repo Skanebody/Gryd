@@ -37,6 +37,12 @@ import {
   SHARE_TEMPLATES_BY_ID,
   type ShareTemplateId,
 } from '../src/features/share/templates';
+import { GripMascot } from '../src/features/social/GripMascot';
+import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
+import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
+
+/** Rang GRIP du joueur (dérivé de l'XP permanent) — signature du partage. */
+const SHARE_GRIP_RANK = gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
 
 /**
  * Formats d'export (Story / Carré / Carte seule) — options du segmented
@@ -169,7 +175,12 @@ export default function PartageScreen() {
 
         {/* PREVIEW qui FLOTTE : la story EST le container (pas de card noire autour). */}
         <View style={styles.previewWrap}>
-          <ShareCard {...cardProps} ratio={ratio} width={PREVIEW_WIDTH[ratio]} />
+          <ShareCard
+            {...cardProps}
+            ratio={ratio}
+            width={PREVIEW_WIDTH[ratio]}
+            mascot={<GripMascot rank={SHARE_GRIP_RANK} size={36} />}
+          />
         </View>
 
         {/* Format — UN segmented (accent chartreuse). */}
