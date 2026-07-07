@@ -15,11 +15,13 @@ import {
   COLLUSION_MAX_ALTERNATIONS,
   GROUP_RUN_HEX_SHARE_MIN,
   GROUP_RUN_START_TOLERANCE_MIN,
+  HEX_LOCK_HOURS,
   SAME_CREW_CONTRIB_STEPS,
 } from '../game-rules.ts';
 import type { HexSocialStatus } from '../types.ts';
 
 const MS_PER_MIN = 60_000;
+const MS_PER_HOUR = 3_600_000;
 
 // ─── §3 Détection de Group Run ────────────────────────────────────────────────
 
@@ -66,6 +68,42 @@ export function sameCrewContribStep(index: number): number {
   if (index < 0) return 0;
   const steps = SAME_CREW_CONTRIB_STEPS;
   return index < steps.length ? steps[index]! : steps[steps.length - 1]!;
+}
+
+/** État minimal d'un hex pour le comptage de co-présence (sous-ensemble de HexState). */
+export interface CoPresenceHexState {
+  ownerUserId: string | null;
+  lockedUntil: Date | null;
+}
+
+/**
+ * Nombre de coureurs pour le BONUS DE CAPTURE DE GROUPE (§GROUP, groupCaptureBonusPct) :
+ * MOI + les coéquipiers SAME-CREW CO-PRÉSENTS = propriétaires d'un hex touché,
+ * fraîchement verrouillé (lock démarré ≤ GROUP_RUN_START_TOLERANCE_MIN de now) ET
+ * MEMBRE de mon crew (JAMAIS un rival), self exclu. PURE. Sans crew / aucun
+ * co-présent → 1 (solo → bonus 0 en aval, lock inchangé). Anti pay-to-win : ne
+ * compte que le crew réel, plafonné en aval par groupCaptureBonusPct (+40 %).
+ */
+export function sameCrewRunnerCount(
+  hexes: readonly string[],
+  states: ReadonlyMap<string, CoPresenceHexState>,
+  myUserId: string,
+  crewMemberIds: ReadonlySet<string>,
+  nowMs: number,
+): number {
+  if (crewMemberIds.size === 0) return 1; // sans crew → solo
+  const teammates = new Set<string>();
+  for (const h of hexes) {
+    const st = states.get(h);
+    if (!st || !st.ownerUserId || !st.lockedUntil) continue;
+    const owner = st.ownerUserId;
+    if (owner === myUserId) continue; // self exclu
+    if (!crewMemberIds.has(owner)) continue; // SAME-CREW uniquement (jamais rivaux)
+    const lockStartMs = st.lockedUntil.getTime() - HEX_LOCK_HOURS * MS_PER_HOUR;
+    if (Math.abs(nowMs - lockStartMs) / MS_PER_MIN > GROUP_RUN_START_TOLERANCE_MIN) continue;
+    teammates.add(owner);
+  }
+  return 1 + teammates.size; // moi + coéquipiers co-présents distincts
 }
 
 // ─── §3 Résolution d'un hex contesté entre crews ──────────────────────────────

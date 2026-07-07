@@ -111,6 +111,7 @@ import {
 import {
   collusionPenalty,
   resolveContestedHex,
+  sameCrewRunnerCount,
   type ContestedCrewPresence,
 } from '../_shared/engine/social.ts';
 import { challengeProgress } from '../_shared/engine/challenge.ts';
@@ -350,7 +351,9 @@ async function loadClaimsToday(userId: string, now: Date): Promise<number> {
 
 /** Crew actif du coureur (id + taille ; size 0 = sans crew) — badges Crew/Solitaire (§3),
  * rattachement crew des avant-postes/routes. */
-async function loadCrew(userId: string): Promise<{ crewId: string | null; size: number }> {
+async function loadCrew(
+  userId: string,
+): Promise<{ crewId: string | null; size: number; memberIds: ReadonlySet<string> }> {
   const { data, error } = await supabase
     .from('crew_members')
     .select('crew_id')
@@ -358,14 +361,17 @@ async function loadCrew(userId: string): Promise<{ crewId: string | null; size: 
     .is('left_at', null)
     .maybeSingle();
   if (error) throw new Error(`crew_members read: ${error.message}`);
-  if (!data) return { crewId: null, size: 0 };
-  const { count, error: countError } = await supabase
+  if (!data) return { crewId: null, size: 0, memberIds: new Set() };
+  // Membres ACTIFS du crew : user_ids réels — servent (a) la taille (badges/
+  // outposts) ET (b) le comptage SAME-CREW du bonus de groupe (jamais un rival).
+  const { data: members, error: membersError } = await supabase
     .from('crew_members')
-    .select('user_id', { count: 'exact', head: true })
+    .select('user_id')
     .eq('crew_id', data.crew_id)
     .is('left_at', null);
-  if (countError) throw new Error(`crew_members count: ${countError.message}`);
-  return { crewId: data.crew_id as string, size: count ?? 1 };
+  if (membersError) throw new Error(`crew_members list: ${membersError.message}`);
+  const memberIds = new Set<string>((members ?? []).map((m) => m.user_id as string));
+  return { crewId: data.crew_id as string, size: memberIds.size || 1, memberIds };
 }
 
 /** true si le départ tombe dans un événement actif (badge Événement) — bornes
@@ -2099,7 +2105,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // avant-postes/routes, célébration) : on les capture depuis le résolveur pour
     // les garder disponibles à l'identique en aval.
     let states!: ReadonlyMap<string, HexState>;
-    let crew!: { crewId: string | null; size: number };
+    let crew!: { crewId: string | null; size: number; memberIds: ReadonlySet<string> };
     let density!: ZoneDensity;
     const resolveOwnership = async (
       allHexes: readonly string[],
@@ -2140,6 +2146,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         noCaptureHexes,
         zoneDensity: density,
         claimsToday,
+        // Bonus de groupe : coéquipiers SAME-CREW co-présents (moi + eux), calculé
+        // ICI avec les états chargés → allonge le LOCK côté decideClaims (capé +40 %).
+        runners: sameCrewRunnerCount(allHexes, states, userId, crew.memberIds, now.getTime()),
         ...(contextByHex.size > 0 ? { contextByHex } : {}),
       };
     };

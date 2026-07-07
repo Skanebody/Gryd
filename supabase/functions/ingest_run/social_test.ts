@@ -9,16 +9,66 @@ import { assertEquals } from 'jsr:@std/assert@^1';
 import {
   COLLUSION_MAX_ALTERNATIONS,
   GROUP_RUN_START_TOLERANCE_MIN,
+  HEX_LOCK_HOURS,
   SAME_CREW_CONTRIB_STEPS,
 } from '../_shared/game-rules.ts';
 import {
   collusionPenalty,
+  type CoPresenceHexState,
   detectGroupRun,
   resolveContestedHex,
   sameCrewContribStep,
+  sameCrewRunnerCount,
 } from '../_shared/engine/social.ts';
 
 const MIN = 60_000;
+
+// ─── Bonus de groupe : comptage SAME-CREW des coureurs co-présents ───────────
+const HOUR = 3_600_000;
+/** Hex fraîchement verrouillé (lock démarré ~ now) → dans la fenêtre. */
+const freshLock = (nowMs: number) => new Date(nowMs + HEX_LOCK_HOURS * HOUR);
+/** Hex verrouillé trop tôt (hors GROUP_RUN_START_TOLERANCE_MIN). */
+const staleLock = (nowMs: number) =>
+  new Date(nowMs + HEX_LOCK_HOURS * HOUR - (GROUP_RUN_START_TOLERANCE_MIN + 5) * MIN);
+const NOW = 1_000_000_000;
+const stateMap = (entries: [string, CoPresenceHexState][]) =>
+  new Map<string, CoPresenceHexState>(entries);
+
+Deno.test('sameCrewRunnerCount : moi + 2 coéquipiers co-présents frais → 3 (self exclu)', () => {
+  const states = stateMap([
+    ['h1', { ownerUserId: 'mate-a', lockedUntil: freshLock(NOW) }],
+    ['h2', { ownerUserId: 'mate-b', lockedUntil: freshLock(NOW) }],
+    ['h3', { ownerUserId: 'me', lockedUntil: freshLock(NOW) }], // moi → exclu
+  ]);
+  const crew = new Set(['me', 'mate-a', 'mate-b']);
+  assertEquals(sameCrewRunnerCount(['h1', 'h2', 'h3'], states, 'me', crew, NOW), 3);
+});
+
+Deno.test('sameCrewRunnerCount : rival co-présent NON compté (anti pay-to-win)', () => {
+  const states = stateMap([
+    ['h1', { ownerUserId: 'mate-a', lockedUntil: freshLock(NOW) }],
+    ['h2', { ownerUserId: 'rival', lockedUntil: freshLock(NOW) }], // hors de mon crew
+  ]);
+  assertEquals(sameCrewRunnerCount(['h1', 'h2'], states, 'me', new Set(['me', 'mate-a']), NOW), 2);
+});
+
+Deno.test('sameCrewRunnerCount : lock trop ancien (hors tolérance) → non compté', () => {
+  const states = stateMap([['h1', { ownerUserId: 'mate-a', lockedUntil: staleLock(NOW) }]]);
+  assertEquals(sameCrewRunnerCount(['h1'], states, 'me', new Set(['me', 'mate-a']), NOW), 1);
+});
+
+Deno.test('sameCrewRunnerCount : sans crew → 1 (solo, aucun bonus)', () => {
+  const states = stateMap([['h1', { ownerUserId: 'anyone', lockedUntil: freshLock(NOW) }]]);
+  assertEquals(sameCrewRunnerCount(['h1'], states, 'me', new Set(), NOW), 1);
+});
+
+Deno.test('sameCrewRunnerCount : même coéquipier sur 2 hexes → compté une fois (dédup)', () => {
+  const states = stateMap([
+    ['h1', { ownerUserId: 'mate-a', lockedUntil: freshLock(NOW) }],
+    ['h2', { ownerUserId: 'mate-a', lockedUntil: freshLock(NOW) }],
+  ]);
+  assertEquals(sameCrewRunnerCount(['h1', 'h2'], states, 'me', new Set(['me', 'mate-a']), NOW), 2);
+});
 
 // ─── §3 detectGroupRun ───────────────────────────────────────────────────────
 

@@ -78,6 +78,13 @@ export interface OwnershipResolution {
   claimsToday: number;
   /** coeff_contexte §23 par hex (contested / crew_mission / zone_bonus). */
   contextByHex?: ReadonlyMap<string, readonly ContextCoeffKey[]>;
+  /**
+   * AVANTAGE DE GROUPE : nombre de coéquipiers CO-PRÉSENTS same-crew validés sur
+   * la capture (1 = solo), calculé par l'appelant serveur AVEC les états chargés
+   * ici (sameCrewRunnerCount). Threadé vers DecideClaimsContext.runners → allonge
+   * le LOCK (capé +40 %). Absent → solo (aucun bonus).
+   */
+  runners?: number;
 }
 
 /** Entrée du moteur territorial (chemin CONQUÊTE). */
@@ -272,8 +279,12 @@ export async function runTerritoryEngine(
       ...(ownership.contextByHex !== undefined && ownership.contextByHex.size > 0
         ? { contextByHex: ownership.contextByHex }
         : {}),
-      // Avantage de groupe : threadé tel quel (solo/undefined → aucun bonus).
-      ...(input.runners !== undefined ? { runners: input.runners } : {}),
+      // Avantage de groupe : le compte same-crew vient d'abord de la résolution
+      // d'ownership (serveur, calculé avec les états), sinon de l'input (autres
+      // appelants). Solo/undefined → aucun bonus.
+      ...((ownership.runners ?? input.runners) !== undefined
+        ? { runners: ownership.runners ?? input.runners }
+        : {}),
     },
   });
 
