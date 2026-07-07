@@ -8,7 +8,6 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 ### Map (le reste existe déjà : 8 états, LOD 3 niveaux, bottom-sheet, mapStyle)
 - [ ] Filtres carte : relabel des 5 « Calques » vers 4 (Carte/Attaque/Défense/Crew) + ajouter le mode Crew — `map/territory.ts` + `BattleMapOverlays.tsx` — S/M
 - [ ] Zones tappables → ouvrir la bottom-sheet au tap (aujourd'hui ouverte par le FAB Info) — `BattleMapOverlays.tsx` + `MapBottomSheet` — M
-- [ ] « Opportunités proches » (coach tactique : zone capturable à X m, frontière faible…) — NOUVEAU module pur + bandeau carte — M
 ### Courses en groupe (fondation moteur + badges FAITE `9c96cac` ; reste le wiring + 3 mécaniques)
 - [ ] DEPLOY ingest_run (bonus de groupe live câblé + testé — `442d631`) : `supabase functions deploy ingest_run` pour l'activer en prod (outward-facing, feu vert fondateur)
 - [ ] Crew shield à l'échelle du territoire crew (étendre le shield zone/joueur existant) — M
@@ -34,6 +33,8 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] PostHog : clés projet (events §8 déjà nommés, câblage à finir)
 
 ## Fait (récent)
+- [x] Carte : coach « opportunités proches » (module pur + tests + bandeau OpportunityPill, informatif sans CTA) — `e55cddc`, 508 tests
+- [x] Bonus de groupe ACTIF en live : ingest_run compte les coéquipiers same-crew (rivaux exclus) → lock étendu — `442d631`
 - [x] Bonus de groupe câblé au MOTEUR : le LOCK (= remplissage du contrôle) tient +% en course de crew via `DecideClaimsContext.runners`, capé +40 %, solo inchangé, tests — `8a3c596`, 497 tests (activation live = compte same-crew, à suivre)
 - [x] Avantages de groupe (fondation) : bonus de capture collectif CAPÉ +40 % (pur+testé, anti-P2W) + crew streak + 4 badges de groupe — `9c96cac`, 494 tests
 - [x] Carte : trait du parcours DOUBLÉ (trace courue + route + PARCOURS/ROUTE ×2, rival laissé plus fin) — `9b2be25`
