@@ -16,8 +16,16 @@ const OBJECTIVES = [
   { key: 'attaquer', bearing: 70 },
   { key: 'defendre', bearing: 210 },
 ];
-const DISTANCES_KM = [1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8];
-const N_WP = 6;
+// Amplitude large : du footing au trail (des coureurs font 50 km).
+const DISTANCES_KM = [1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
+/** Plus de waypoints pour les grandes boucles (tour plus rond). */
+function nWpFor(km) {
+  return Math.min(12, Math.max(6, Math.round(km / 3)));
+}
+/** Espacement de décimation : borne le nb de points (~150/boucle) quelle que soit la distance. */
+function gapFor(distanceM) {
+  return Math.max(8, distanceM / 150);
+}
 
 function rng(seed) {
   let s = seed % 2147483647;
@@ -32,13 +40,13 @@ function metersToLatLng(x, y) {
 }
 
 /** Waypoints d'une rosace fermée (ego = 1er = dernier). */
-function waypoints(bearingDeg, radiusM, jitter) {
+function waypoints(bearingDeg, radiusM, jitter, n) {
   const cx = radiusM * Math.cos(d2r(bearingDeg));
   const cy = radiusM * Math.sin(d2r(bearingDeg));
   const start = bearingDeg + 180;
   const pts = [];
-  for (let k = 0; k < N_WP; k += 1) {
-    const a = d2r(start + (360 * k) / N_WP);
+  for (let k = 0; k < n; k += 1) {
+    const a = d2r(start + (360 * k) / n);
     const r = radiusM * (1 + (jitter[k] ?? 0));
     pts.push(metersToLatLng(cx + r * Math.cos(a), cy + r * Math.sin(a)));
   }
@@ -83,13 +91,14 @@ function decimate(coords, minGapM) {
 }
 
 async function bakeLoop(objective, bearing, targetKm) {
+  const n = nWpFor(targetKm);
   const rand = rng(Math.round(bearing * 100 + targetKm * 10));
-  const jitter = Array.from({ length: N_WP }, () => (rand() - 0.5) * 0.34);
+  const jitter = Array.from({ length: n }, () => (rand() - 0.5) * 0.34);
   jitter[0] = 0;
   let radius = (targetKm * 1000) / (2 * Math.PI);
   let result = null;
   for (let pass = 0; pass < 3; pass += 1) {
-    const wps = waypoints(bearing, radius, jitter);
+    const wps = waypoints(bearing, radius, jitter, n);
     result = await routeFoot(wps);
     await sleep(300);
     if (!result || result.distanceM <= 0) return null;
@@ -97,7 +106,7 @@ async function bakeLoop(objective, bearing, targetKm) {
     if (Math.abs(result.distanceM - targetKm * 1000) < targetKm * 40) break; // < ~4%
   }
   if (!result) return null;
-  const line = decimate(result.coords, 8);
+  const line = decimate(result.coords, gapFor(result.distanceM));
   if (line.length < 4) return null;
   return {
     id: `real_${objective}_${Math.round(targetKm * 10)}`,

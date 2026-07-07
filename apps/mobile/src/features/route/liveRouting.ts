@@ -19,7 +19,14 @@ const M_PER_DEG_LNG = REAL_M_PER_DEG_LAT * Math.cos((EGO_REPUBLIQUE.lat * Math.P
 
 const ZONES_PER_KM = 15.3;
 const LOOP_ZONE_RATIO = 0.6;
-const N_WP = 6;
+/** Plus de waypoints pour les grandes boucles (tour plus rond, jusqu'au trail). */
+function nWpFor(km: number): number {
+  return Math.min(12, Math.max(6, Math.round(km / 3)));
+}
+/** Décimation bornée : ~150 points/boucle quelle que soit la distance. */
+function gapFor(distanceM: number): number {
+  return Math.max(8, distanceM / 150);
+}
 
 /** Cap (deg, 0 = est) par intention — dirige la boucle vers le bon secteur. */
 const INTENTION_BEARING: Record<PlannerIntention, number> = {
@@ -50,13 +57,13 @@ function metersToLatLng(x: number, y: number): LatLngPoint {
 }
 
 /** Waypoints d'une rosace fermée (ego = 1er = dernier). */
-function waypoints(bearingDeg: number, radiusM: number, jitter: readonly number[]): LatLngPoint[] {
+function waypoints(bearingDeg: number, radiusM: number, jitter: readonly number[], n: number): LatLngPoint[] {
   const cx = radiusM * Math.cos(d2r(bearingDeg));
   const cy = radiusM * Math.sin(d2r(bearingDeg));
   const start = bearingDeg + 180;
   const pts: LatLngPoint[] = [];
-  for (let k = 0; k < N_WP; k += 1) {
-    const a = d2r(start + (360 * k) / N_WP);
+  for (let k = 0; k < n; k += 1) {
+    const a = d2r(start + (360 * k) / n);
     const r = radiusM * (1 + (jitter[k] ?? 0));
     pts.push(metersToLatLng(cx + r * Math.cos(a), cy + r * Math.sin(a)));
   }
@@ -112,21 +119,22 @@ export async function routeLoop(
   seed: number,
   signal?: AbortSignal,
 ): Promise<PlannedRouteDemo | null> {
+  const n = nWpFor(targetKm);
   const rand = rng(seed * 131 + Math.round(targetKm * 10));
   const jitter: number[] = [];
-  for (let k = 0; k < N_WP; k += 1) jitter.push((rand() - 0.5) * 0.34);
+  for (let k = 0; k < n; k += 1) jitter.push((rand() - 0.5) * 0.34);
   jitter[0] = 0;
 
   let radius = (targetKm * 1000) / (2 * Math.PI);
   let result: OsrmResult | null = null;
   for (let pass = 0; pass < 2; pass += 1) {
-    result = await routeFoot(waypoints(INTENTION_BEARING[intention], radius, jitter), signal);
+    result = await routeFoot(waypoints(INTENTION_BEARING[intention], radius, jitter, n), signal);
     if (!result || result.distanceM <= 0) return null;
     radius *= (targetKm * 1000) / result.distanceM;
   }
   if (!result) return null;
 
-  const line = decimate(result.coords, 8);
+  const line = decimate(result.coords, gapFor(result.distanceM));
   if (line.length < 4) return null;
 
   const km = Math.round((result.distanceM / 1000) * 10) / 10;

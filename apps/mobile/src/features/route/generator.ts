@@ -32,10 +32,12 @@ export const PLANNER_INTENTION_STATUS: Record<PlannerIntention, string> = {
   defendre: 'Ton crew a besoin de toi',
 };
 
-// Bornes de distance = amplitude réelle des boucles pré-routées.
+// Bornes de distance : du footing au TRAIL — des coureurs font 50 km. Le min
+// suit les boucles pré-routées ; le max (50) est routé EN LIVE (le pré-routé
+// sert de repli le plus proche).
 const REAL_DISTANCES = REAL_LOOPS.map((l) => l.distanceKm);
 export const GEN_MIN_KM = REAL_DISTANCES.length ? Math.min(...REAL_DISTANCES) : 1.5;
-export const GEN_MAX_KM = REAL_DISTANCES.length ? Math.max(...REAL_DISTANCES) : 8;
+export const GEN_MAX_KM = 50;
 export const GEN_STEP_KM = 0.5;
 export const GEN_DEFAULT_KM = 3.4;
 
