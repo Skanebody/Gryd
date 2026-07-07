@@ -77,6 +77,7 @@ import {
   type ResultSummaryLine,
 } from '../src/features/run/intention';
 import { buildLiveNav } from '../src/features/run/liveNav';
+import { getPlannedRoute } from '../src/features/route/plannedRoute';
 import { buildRunLoop, loopSummaryAt, type RunLoop } from '../src/features/run/loop';
 import {
   buildRunSimulation,
@@ -475,6 +476,8 @@ export default function CourseResultScreen() {
     boundary?: string;
     /** AMENDEMENT-17 §CH2 — `open` (fermable) ou `completed` (boucle crew fermée). */
     boundary_state?: string;
+    /** Parcours PLANIFIÉ (Route Planner) → rejoue SA géométrie (store). */
+    planned?: string;
   }>();
 
   // AMENDEMENT-17 §CH2 — la frontière crew court-circuite la séquence dopamine :
@@ -503,6 +506,8 @@ function ConquestResultScreen({
     queued?: string;
     route?: string;
     intention?: string;
+    /** Parcours PLANIFIÉ (Route Planner) → rejoue SA géométrie (store). */
+    planned?: string;
   };
 }) {
   const insets = useSafeAreaInsets();
@@ -517,7 +522,12 @@ function ConquestResultScreen({
   // Boucle (AMENDEMENT-12) : rejouée depuis la même démo déterministe — même
   // itinéraire routé que la course si `route=<id>` (AMENDEMENT-13 §4ter) ; les
   // zones intérieures entrent dans les totaux AVANT points/bonus.
-  const nav = useMemo(() => buildLiveNav(sim, params.route), [sim, params.route]);
+  // Parcours planifié : rejoue EXACTEMENT le tracé couru (store), sinon `route=`.
+  const plannedLine = params.planned ? getPlannedRoute()?.line : undefined;
+  const nav = useMemo(
+    () => buildLiveNav(sim, params.route, plannedLine),
+    [sim, params.route, plannedLine],
+  );
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
   const stats = useMemo(
     () => resultStats(sim, tickIndex, loopSummaryAt(loop, tickIndex)),

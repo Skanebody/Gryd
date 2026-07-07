@@ -79,6 +79,8 @@ import {
 } from '../src/features/run/simulation';
 import { useRealRun } from '../src/features/run/gps/useRealRun';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
+import { getPlannedRoute } from '../src/features/route/plannedRoute';
+import type { LatLngPoint } from '../src/features/map/realAnchors';
 import {
   completeMissionLabel,
   conquestMissionLabel,
@@ -168,6 +170,8 @@ export default function CourseLiveScreen() {
     boundary?: string;
     /** AMENDEMENT-18 §C.4 — course lancée comme mission crew rejointe (alliés opt-in). */
     mission?: string;
+    /** Parcours PLANIFIÉ (Route Planner) → la course suit sa géométrie (store). */
+    planned?: string;
   }>();
   // AMENDEMENT-17 §CH2 — mode « terminer » : un membre reprend une frontière
   // ouverte par son crew pour la refermer. C'est une course de conquête (le
@@ -193,6 +197,8 @@ export default function CourseLiveScreen() {
     return <View style={styles.root} />;
   }
   if (gate.kind === 'real') return <RealCourseLive run={gate.run} />;
+  // Parcours PLANIFIÉ (Route Planner) : la course suit SA géométrie (store).
+  const plannedLine = params.planned ? getPlannedRoute()?.line : undefined;
   return (
     <DemoCourseLive
       mode={mode}
@@ -201,6 +207,7 @@ export default function CourseLiveScreen() {
       completeBoundary={completeBoundary}
       mission={mission}
       notice={gate.notice}
+      plannedLine={plannedLine}
     />
   );
 }
@@ -213,6 +220,7 @@ function DemoCourseLive({
   completeBoundary,
   mission,
   notice,
+  plannedLine,
 }: {
   mode: LiveRunMode;
   routeParam: string | string[] | undefined;
@@ -223,11 +231,17 @@ function DemoCourseLive({
   /** AMENDEMENT-18 §C.4 — mission crew rejointe : alliés live opt-in autorisés. */
   mission: boolean;
   notice: string | null;
+  /** Géométrie du parcours PLANIFIÉ à suivre (Route Planner) — sinon undefined. */
+  plannedLine?: readonly LatLngPoint[];
 }) {
   const insets = useSafeAreaInsets();
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
-  // §4ter : la simulation SUIT l'itinéraire ROUTÉ du parcours choisi (`route=`).
-  const nav = useMemo(() => buildLiveNav(sim, routeParam), [sim, routeParam]);
+  // §4ter : la course SUIT la géométrie du parcours — planifié (plannedLine) OU
+  // proposition démo (`route=`), sinon le scénario par défaut.
+  const nav = useMemo(
+    () => buildLiveNav(sim, routeParam, plannedLine),
+    [sim, routeParam, plannedLine],
+  );
   /** Boucle démo (AMENDEMENT-12 §C) — null hors conquête (aucune capture). */
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
   const lastIndex = sim.ticks.length - 1;
@@ -539,6 +553,8 @@ function DemoCourseLive({
         t: String(tickIndex),
         ...(routeId ? { route: routeId } : {}),
         ...(intention ? { intention } : {}),
+        // Parcours planifié : le résultat relit le store pour rejouer le MÊME tracé.
+        ...(plannedLine ? { planned: '1' } : {}),
       },
     });
   };

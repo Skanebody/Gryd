@@ -53,11 +53,19 @@ export const NAV_SCALE_BAR_METERS = 500;
 // roundtrip geoToWorld/worldToGeo restitue les lat/lng réels au micromètre —
 // les tracés se projettent tels quels sur les vraies tuiles.
 
-/** Ancre géo du monde de nav = départ commun des parcours routés (République). */
-const NAV_GEO_ANCHOR: LatLngPoint = ROUTES_DEMO[0]?.line[0] ?? EGO_REPUBLIQUE;
-/** Mètres par degré de longitude à l'ancre (cos φ). */
-const NAV_M_PER_DEG_LNG =
-  REAL_M_PER_DEG_LAT * Math.cos((NAV_GEO_ANCHOR.lat * Math.PI) / 180);
+/** Ancre géo PAR DÉFAUT du monde de nav = départ des parcours démo (République). */
+const NAV_DEFAULT_ANCHOR: LatLngPoint = ROUTES_DEMO[0]?.line[0] ?? EGO_REPUBLIQUE;
+/**
+ * Ancre géo COURANTE : le DÉPART du parcours réellement suivi. DYNAMIQUE — un
+ * parcours à Lyon ou Chamonix n'est plus déformé par le cos φ de Paris. Posée
+ * par buildLiveNav AVANT tout mapping ; une seule course active à la fois, donc
+ * cohérente pour tous les worldToGeo du rendu qui suivent.
+ */
+let navAnchor: LatLngPoint = NAV_DEFAULT_ANCHOR;
+/** Mètres par degré de longitude à l'ancre courante (cos φ). */
+function navMPerDegLng(): number {
+  return REAL_M_PER_DEG_LAT * Math.cos((navAnchor.lat * Math.PI) / 180);
+}
 
 /** Circonférence terrestre (m) — géodésie, pas une règle de jeu. */
 const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
@@ -70,7 +78,7 @@ const MAP_WORLD_TILE_PX = 512;
  * l'ex-échelle du monde px interne ne décrit plus l'écran).
  */
 export const NAV_MAP_METERS_PER_PIXEL =
-  (EARTH_CIRCUMFERENCE_M * Math.cos((NAV_GEO_ANCHOR.lat * Math.PI) / 180)) /
+  (EARTH_CIRCUMFERENCE_M * Math.cos((NAV_DEFAULT_ANCHOR.lat * Math.PI) / 180)) /
   (MAP_WORLD_TILE_PX * 2 ** RUNNER_SCALE_ZOOM);
 
 /**
@@ -84,10 +92,10 @@ const WORLD_HALF_HEIGHT_M = 2_250;
 function geoToWorld(p: LatLngPoint): RoutePoint {
   return {
     x:
-      ((p.lng - NAV_GEO_ANCHOR.lng) * NAV_M_PER_DEG_LNG + WORLD_HALF_WIDTH_M) /
+      ((p.lng - navAnchor.lng) * navMPerDegLng() + WORLD_HALF_WIDTH_M) /
       NAV_METERS_PER_PIXEL,
     y:
-      (WORLD_HALF_HEIGHT_M - (p.lat - NAV_GEO_ANCHOR.lat) * REAL_M_PER_DEG_LAT) /
+      (WORLD_HALF_HEIGHT_M - (p.lat - navAnchor.lat) * REAL_M_PER_DEG_LAT) /
       NAV_METERS_PER_PIXEL,
   };
 }
@@ -96,11 +104,11 @@ function geoToWorld(p: LatLngPoint): RoutePoint {
 export function worldToGeo(x: number, y: number): LatLngPoint {
   return {
     lat:
-      NAV_GEO_ANCHOR.lat +
+      navAnchor.lat +
       (WORLD_HALF_HEIGHT_M - y * NAV_METERS_PER_PIXEL) / REAL_M_PER_DEG_LAT,
     lng:
-      NAV_GEO_ANCHOR.lng +
-      (x * NAV_METERS_PER_PIXEL - WORLD_HALF_WIDTH_M) / NAV_M_PER_DEG_LNG,
+      navAnchor.lng +
+      (x * NAV_METERS_PER_PIXEL - WORLD_HALF_WIDTH_M) / navMPerDegLng(),
   };
 }
 
@@ -266,10 +274,23 @@ export interface LiveNav {
 export function buildLiveNav(
   sim: RunSimulation,
   routeParam?: string | string[],
+  explicitLine?: readonly LatLngPoint[],
 ): LiveNav {
-  const routed = plannedRouteFromParam(routeParam);
-  const plannedGeo = routed ? routed.line : DEFAULT_PLANNED_GEO;
-  const actualGeo = routed ? routed.line : DEFAULT_ACTUAL_GEO;
+  // `explicitLine` = parcours PLANIFIÉ (routé en direct, n'importe où en France,
+  // passé par le store). Sinon un `route=<id>` démo. Sinon le scénario par défaut.
+  const curated = plannedRouteFromParam(routeParam);
+  const followLine: readonly LatLngPoint[] | null =
+    explicitLine && explicitLine.length >= 2
+      ? explicitLine
+      : curated
+        ? curated.line
+        : null;
+  const routed = followLine !== null;
+  // Ancre le monde de nav sur le DÉPART du parcours suivi (dynamique → pas de
+  // déformation loin de Paris). Posée AVANT tout geoToWorld ci-dessous.
+  navAnchor = followLine?.[0] ?? DEFAULT_PLANNED_GEO[0] ?? NAV_DEFAULT_ANCHOR;
+  const plannedGeo = followLine ?? DEFAULT_PLANNED_GEO;
+  const actualGeo = followLine ?? DEFAULT_ACTUAL_GEO;
   const plannedPoints: RoutePoint[] = plannedGeo.map(geoToWorld);
   const actualPoints: RoutePoint[] = actualGeo.map(geoToWorld);
   const plannedCum = cumulativeLengths(plannedPoints);

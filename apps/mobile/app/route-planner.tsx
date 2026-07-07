@@ -37,6 +37,7 @@ import {
   type PlannerIntention,
 } from '../src/features/route/generator';
 import { routeLoop } from '../src/features/route/liveRouting';
+import { setPlannedRoute } from '../src/features/route/plannedRoute';
 import { currentPosition, reverseGeocode, type OriginPoint } from '../src/features/route/origin';
 import { EGO_REPUBLIQUE } from '../src/features/map/realAnchors';
 import type { PlannedRouteDemo } from '../src/features/route/types';
@@ -251,9 +252,12 @@ export default function RoutePlannerScreen() {
   };
 
   const startRun = () => {
+    if (!route) return;
     haptics.medium();
+    // Arme le parcours PLANIFIÉ : la course suivra EXACTEMENT ce tracé (store).
+    setPlannedRoute(route);
     const intent = intention === 'defendre' ? 'defense' : 'conquest';
-    router.push(`/course-live?mode=conquete&intention=${intent}`);
+    router.push(`/course-live?mode=conquete&intention=${intent}&planned=1`);
   };
 
   const intentionLabel = PLANNER_INTENTION_LABELS[intention];
