@@ -5,7 +5,14 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
 ## À faire — actionnable maintenant
-### Map (le reste existe déjà : 8 états, LOD 3 niveaux, bottom-sheet, mapStyle)
+### Map — retour fondateur (clarté) : hiérarchie de l'info FAITE (`a4acca9`) ; reste le VISUEL
+- [ ] Fond de carte plus STYLISÉ (jeu au 1er plan) : routes secondaires très faibles, bâtiments quasi invisibles, labels limités, fond plus noir — `mapStyle.ts` basemap dark — M
+- [ ] Identité visuelle des territoires plus forte (aplat+contour par rôle, contesté = double contour orange/chartreuse « plat clignotant », badge crew/rival sur zone) — `mapStyle.ts` territoryStateLayers/sectorStatus — M
+- [ ] Différencier les tracés : route actuelle (chartreuse épais) vs recommandée (pointillé) vs rivale (orange) vs terminée (gris) — cohérence des langages — S/M
+### Map (filtres + tap — audité, prêt à câbler)
+- [ ] Filtres carte → 4 (Carte/Attaque/Défense/Crew) : relabel MAP_MODE_ORDER + emphase Crew — `territory.ts` + `BattleMapOverlays` — S/M
+- [ ] Zones tappables → ouvrir la sheet au tap (onPress carte niveau lng/lat + hit-test secteur, SIMPLE per audit) — `MapScreen` + `BattleMapOverlays` — M
+### Map (socle déjà là : 8 états, LOD 3 niveaux, bottom-sheet, mapStyle)
 - [ ] Filtres carte : relabel des 5 « Calques » vers 4 (Carte/Attaque/Défense/Crew) + ajouter le mode Crew — `map/territory.ts` + `BattleMapOverlays.tsx` — S/M
 - [ ] Zones tappables → ouvrir la bottom-sheet au tap (aujourd'hui ouverte par le FAB Info) — `BattleMapOverlays.tsx` + `MapBottomSheet` — M
 ### Courses en groupe (fondation moteur + badges FAITE `9c96cac` ; reste le wiring + 3 mécaniques)
@@ -33,6 +40,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] PostHog : clés projet (events §8 déjà nommés, câblage à finir)
 
 ## Fait (récent)
+- [x] Carte = interface de décision (retour fondateur) : alerte tactique forte en haut + card DÉFENDRE contextuelle en bas au-dessus du bouton + suppression des mini-pills au centre — `a4acca9`
 - [x] Carte : coach « opportunités proches » (module pur + tests + bandeau OpportunityPill, informatif sans CTA) — `e55cddc`, 508 tests
 - [x] Bonus de groupe ACTIF en live : ingest_run compte les coéquipiers same-crew (rivaux exclus) → lock étendu — `442d631`
 - [x] Bonus de groupe câblé au MOTEUR : le LOCK (= remplissage du contrôle) tient +% en course de crew via `DecideClaimsContext.runners`, capé +40 %, solo inchangé, tests — `8a3c596`, 497 tests (activation live = compte same-crew, à suivre)
