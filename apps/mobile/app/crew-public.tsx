@@ -39,10 +39,10 @@ import {
 import {
   canApplyTo,
   playTagsFor,
-  publicCrewForTag,
   RECRUITMENT_LABELS,
   type CrewPlayTagKey,
 } from '../src/features/crew/publicDemo';
+import { usePublicCrew } from '../src/features/crew/usePublicCrew';
 import { useJoinPublicCrew } from '../src/features/crew/joinCrew';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 
@@ -70,8 +70,8 @@ export default function CrewPublicScreen() {
   const params = useLocalSearchParams<{ crew?: string }>();
   const toast = useToast();
   const joinCrew = useJoinPublicCrew();
-  // Guard §0 : param absent/inconnu → première fiche démo, jamais d'écran cassé.
-  const crew = publicCrewForTag(typeof params.crew === 'string' ? params.crew : undefined);
+  const crewParam = typeof params.crew === 'string' ? params.crew : undefined;
+  const { crew } = usePublicCrew(crewParam);
 
   useEffect(() => {
     screen('crew_public');

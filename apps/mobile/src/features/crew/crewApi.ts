@@ -13,11 +13,16 @@ export interface CrewSummary {
   xp: number;
   activity_score: number;
   activity_status: string;
+  tag: string | null;
+  slug: string | null;
+  league: string;
+  recruitment_status: string;
+  tags: string[];
 }
 
 export interface CrewMembershipResult {
   ok: boolean;
-  action: 'create' | 'join_by_code' | 'leave';
+  action: 'create' | 'join_by_code' | 'leave' | 'apply';
   crew?: CrewSummary;
   role?: string;
   error?: string;
@@ -42,6 +47,10 @@ export async function leaveCrew(): Promise<CrewMembershipResult> {
   return invoke({ action: 'leave' });
 }
 
+export async function applyToCrew(crewId: string, message?: string): Promise<CrewMembershipResult> {
+  return invoke({ action: 'apply', crewId, message: message?.trim() ?? '' });
+}
+
 export interface ActiveCrewMembership {
   crewId: string;
   role: string;
@@ -53,7 +62,9 @@ export async function fetchActiveCrew(userId: string): Promise<ActiveCrewMembers
   if (supabase === null) return null;
   const { data, error } = await supabase
     .from('crew_members')
-    .select('crew_id, role, crews(id, name, code, city_id, color, level, xp, activity_score, activity_status)')
+    .select(
+      'crew_id, role, crews(id, name, code, city_id, color, level, xp, activity_score, activity_status, tag, slug, league, recruitment_status, tags)',
+    )
     .eq('user_id', userId)
     .is('left_at', null)
     .maybeSingle();
@@ -63,6 +74,11 @@ export async function fetchActiveCrew(userId: string): Promise<ActiveCrewMembers
     ...raw,
     activity_score: raw.activity_score ?? 0,
     activity_status: raw.activity_status ?? 'dormant',
+    tag: raw.tag ?? null,
+    slug: raw.slug ?? null,
+    league: raw.league ?? 'bronze',
+    recruitment_status: raw.recruitment_status ?? 'on_request',
+    tags: raw.tags ?? [],
   };
   return { crewId: data.crew_id, role: data.role, crew };
 }

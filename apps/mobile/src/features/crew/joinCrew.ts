@@ -4,7 +4,7 @@
  */
 import { EVENTS, track } from '../../lib/analytics';
 import { useSession } from '../../lib/session';
-import { joinCrewByCode } from './crewApi';
+import { applyToCrew, joinCrewByCode } from './crewApi';
 import { canApplyTo, type PublicCrewDemo } from './publicDemo';
 
 const ERROR_LABELS: Record<string, string> = {
@@ -14,6 +14,10 @@ const ERROR_LABELS: Record<string, string> = {
   recruitment_closed: 'Ce crew ne recrute plus',
   crew_full: 'Ce crew est complet',
   invalid_code: 'Code d’invitation invalide',
+  application_exists: 'Tu as déjà une candidature en attente',
+  recruitment_not_on_request: 'Ce crew n’accepte pas les candidatures',
+  invalid_crew_id: 'Crew introuvable',
+  apply_failed: 'Impossible d’envoyer la candidature',
   offline: 'Hors ligne — réessaie plus tard',
   unauthorized: 'Connecte-toi pour rejoindre un crew',
 };
@@ -28,9 +32,9 @@ export interface JoinCrewOutcome {
   message: string;
 }
 
-/** Tente un join réel (open + joinCode) ou renvoie un message démo/on_request. */
+/** Tente un join réel (open + joinCode), une candidature (on_request) ou démo. */
 export async function joinPublicCrew(
-  crew: Pick<PublicCrewDemo, 'name' | 'recruitment' | 'joinCode'>,
+  crew: Pick<PublicCrewDemo, 'id' | 'name' | 'recruitment' | 'joinCode'>,
   sessionPresent: boolean,
 ): Promise<JoinCrewOutcome> {
   if (!canApplyTo(crew.recruitment)) {
@@ -41,8 +45,25 @@ export async function joinPublicCrew(
   }
 
   if (crew.recruitment === 'on_request') {
-    track(EVENTS.crewJoined, { via: 'application_stub' });
-    return { ok: true, message: `Demande envoyée à ${crew.name}` };
+    if (!sessionPresent) {
+      return {
+        ok: false,
+        message: 'Connecte-toi pour envoyer une candidature',
+      };
+    }
+    if (!crew.id) {
+      track(EVENTS.crewJoined, { via: 'application_stub' });
+      return { ok: true, message: `Demande envoyée à ${crew.name}` };
+    }
+    const result = await applyToCrew(crew.id);
+    if (result.ok) {
+      track(EVENTS.crewJoined, { via: 'application' });
+      return { ok: true, message: `Candidature envoyée à ${crew.name}` };
+    }
+    return {
+      ok: false,
+      message: errorMessage(result.error, `Impossible de candidater chez ${crew.name}`),
+    };
   }
 
   if (!sessionPresent) {
@@ -74,6 +95,6 @@ export function useJoinPublicCrew() {
   const { session, configured } = useSession();
   const sessionPresent = configured && session !== null;
 
-  return (crew: Pick<PublicCrewDemo, 'name' | 'recruitment' | 'joinCode'>) =>
+  return (crew: Pick<PublicCrewDemo, 'id' | 'name' | 'recruitment' | 'joinCode'>) =>
     joinPublicCrew(crew, sessionPresent);
 }

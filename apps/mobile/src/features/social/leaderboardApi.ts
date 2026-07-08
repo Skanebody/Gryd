@@ -37,6 +37,10 @@ export async function fetchPlayerLeaderboard(
   cityId = DEFAULT_CITY,
 ): Promise<LeagueBoard | null> {
   if (supabase === null) return null;
+  if (cityId === 'france') {
+    return fetchFrancePlayerLeaderboard(myUserId);
+  }
+
   const seasonId = await activeSeasonId(cityId);
   if (!seasonId) return null;
 
@@ -94,6 +98,101 @@ export async function fetchCrewLeaderboard(
     id: 'crews',
     label: 'Crews',
     kind: 'crew',
+    valueLabel: 'pts',
+    rows,
+  };
+}
+
+/** Classement villes par zones capturées (hex_claims actifs). */
+export async function fetchCityLeaderboard(myCityId: string | null): Promise<LeagueBoard | null> {
+  if (supabase === null) return null;
+
+  const { data: cities, error: citiesErr } = await supabase
+    .from('city_zones')
+    .select('city_id, name')
+    .eq('status', 'active');
+
+  if (citiesErr || !Array.isArray(cities) || cities.length === 0) return null;
+
+  const counts = await Promise.all(
+    cities.map(async (city) => {
+      const row = city as { city_id: string; name: string };
+      const { count } = await supabase!
+        .from('hex_claims')
+        .select('*', { count: 'exact', head: true })
+        .eq('city_id', row.city_id)
+        .or('decay_at.is.null,decay_at.gt.now()');
+      return { cityId: row.city_id, name: row.name, zones: count ?? 0 };
+    }),
+  );
+
+  const sorted = counts.filter((c) => c.zones > 0).sort((a, b) => b.zones - a.zones);
+  if (sorted.length === 0) return null;
+
+  const rows: LeagueRow[] = sorted.map((c, i) => ({
+    rank: i + 1,
+    name: c.name,
+    sub: c.cityId,
+    value: c.zones,
+    me: myCityId !== null && c.cityId === myCityId,
+  }));
+
+  return {
+    id: 'ville',
+    label: 'Ville',
+    kind: 'city',
+    valueLabel: 'zones',
+    rows,
+  };
+}
+
+async function fetchFrancePlayerLeaderboard(myUserId: string): Promise<LeagueBoard | null> {
+  if (supabase === null) return null;
+
+  const { data: seasons } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('status', 'active');
+  if (!seasons || seasons.length === 0) return null;
+
+  const seasonIds = seasons.map((s) => (s as { id: string }).id);
+  const { data: scores, error } = await supabase
+    .from('season_scores')
+    .select('user_id, points, users(pseudo)')
+    .in('season_id', seasonIds);
+
+  if (error || !Array.isArray(scores) || scores.length === 0) return null;
+
+  const totals = new Map<string, { pseudo: string; points: number }>();
+  for (const row of scores as {
+    user_id: string;
+    points: number;
+    users: { pseudo: string } | { pseudo: string }[] | null;
+  }[]) {
+    const rawUser = row.users;
+    const user = Array.isArray(rawUser) ? rawUser[0] : rawUser;
+    const prev = totals.get(row.user_id);
+    const nextPts = (prev?.points ?? 0) + Number(row.points);
+    totals.set(row.user_id, {
+      pseudo: user?.pseudo ?? prev?.pseudo ?? 'Coureur',
+      points: nextPts,
+    });
+  }
+
+  const sorted = [...totals.entries()].sort((a, b) => b[1].points - a[1].points).slice(0, 50);
+  if (sorted.length === 0) return null;
+
+  const rows: LeagueRow[] = sorted.map(([userId, { pseudo, points }], i) => ({
+    rank: i + 1,
+    name: pseudo,
+    value: points,
+    me: userId === myUserId,
+  }));
+
+  return {
+    id: 'france',
+    label: 'Joueurs',
+    kind: 'player',
     valueLabel: 'pts',
     rows,
   };

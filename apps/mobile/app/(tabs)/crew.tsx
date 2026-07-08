@@ -43,6 +43,7 @@ import {
   gameColors,
   radii,
   spacing,
+  type BadgeTier,
   type IconName,
 } from '@klaim/shared';
 import { useSession } from '../../src/lib/session';
@@ -1274,6 +1275,12 @@ export default function CrewScreen() {
   const maxChestPoints = Math.max(1, contributors[0]?.chestPoints ?? 1);
 
   const activeMembers = memberCount ?? MY_CREW.members.length;
+  const recruitSpots = isRealCrew
+    ? Math.max(0, CREW_MAX_MEMBERS - activeMembers)
+    : MY_CREW.recruitSpots;
+  const hqLeagueTier: BadgeTier = isRealCrew
+    ? (membership.crew.league as BadgeTier)
+    : MY_CREW.league;
   const hqTitle = isRealCrew ? membership.crew.name : crewProfile.name;
   const hqCity = isRealCrew ? membership.crew.city_id : MY_CREW.city;
   const crestSeed = isRealCrew ? membership.crew.id : MY_CREW.seed;
@@ -1589,9 +1596,9 @@ export default function CrewScreen() {
           <Animated.View style={{ transform: [{ scale: crestScale }] }}>
             <CrewCrest
               seed={crestSeed}
-              name={crewProfile.name}
+              name={hqTitle}
               size="xl"
-              leagueTier={MY_CREW.league}
+              leagueTier={hqLeagueTier}
             />
           </Animated.View>
           <View style={styles.headerInfo}>
@@ -1714,7 +1721,7 @@ export default function CrewScreen() {
               icon="crew"
               label="Membres"
               value={`${activeMembers}/${CREW_MAX_MEMBERS} actifs`}
-              sub={`${MY_CREW.recruitSpots} places ouvertes`}
+              sub={`${recruitSpots} places ouvertes`}
               onPress={() => setTab('membres')}
             />
             {/* Coffre — % hebdo + jauge ; tap → onglet Coffre. */}

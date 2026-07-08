@@ -53,7 +53,10 @@ export interface PublicCrewProfileDemo {
 }
 
 /** Fiche publique complète = crew découvrable + volet public. */
-export interface PublicCrewDemo extends DiscoveryCrewDemo, PublicCrewProfileDemo {}
+export interface PublicCrewDemo extends DiscoveryCrewDemo, PublicCrewProfileDemo {
+  /** UUID serveur — présent quand chargé depuis Supabase. */
+  id?: string;
+}
 
 /** Profils publics par tag de crew — mêmes crews que DISCOVERY_CREWS. */
 const PROFILES: Record<string, PublicCrewProfileDemo> = {

@@ -25,7 +25,7 @@ const json = (body: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json' },
   });
 
-type Action = 'create' | 'join_by_code' | 'leave';
+type Action = 'create' | 'join_by_code' | 'leave' | 'apply';
 
 interface CrewMembershipRequest {
   action: Action;
@@ -33,12 +33,19 @@ interface CrewMembershipRequest {
   color?: number;
   cityId?: string;
   code?: string;
+  crewId?: string;
+  message?: string;
 }
 
 function isRequest(body: unknown): body is CrewMembershipRequest {
   if (typeof body !== 'object' || body === null) return false;
   const b = body as Record<string, unknown>;
-  return b.action === 'create' || b.action === 'join_by_code' || b.action === 'leave';
+  return (
+    b.action === 'create' ||
+    b.action === 'join_by_code' ||
+    b.action === 'leave' ||
+    b.action === 'apply'
+  );
 }
 
 async function authUserId(req: Request): Promise<string | null> {
@@ -185,6 +192,48 @@ Deno.serve(async (req) => {
     if (memberErr) return json({ error: 'join_failed', detail: memberErr.message }, 500);
 
     return json({ ok: true, action: 'join_by_code', crew, role: CREW_ENTRY_ROLE });
+  }
+
+  if (body.action === 'apply') {
+    const can = await assertCanJoin(userId);
+    if (!can.ok) return json({ error: can.reason }, 400);
+
+    const crewId = typeof body.crewId === 'string' ? body.crewId.trim() : '';
+    if (crewId.length === 0) return json({ error: 'invalid_crew_id' }, 400);
+
+    const { data: crew, error: crewErr } = await supabase
+      .from('crews')
+      .select('id, name, recruitment_status')
+      .eq('id', crewId)
+      .maybeSingle();
+    if (crewErr || !crew) return json({ error: 'crew_not_found' }, 404);
+    if (crew.recruitment_status !== 'on_request') {
+      return json({ error: 'recruitment_not_on_request' }, 403);
+    }
+
+    const { data: pending } = await supabase
+      .from('crew_applications')
+      .select('id')
+      .eq('crew_id', crewId)
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (pending) return json({ error: 'application_exists' }, 409);
+
+    const message =
+      typeof body.message === 'string' && body.message.trim().length > 0
+        ? body.message.trim().slice(0, 280)
+        : null;
+
+    const { error: applyErr } = await supabase.from('crew_applications').insert({
+      crew_id: crewId,
+      user_id: userId,
+      message,
+      status: 'pending',
+    });
+    if (applyErr) return json({ error: 'apply_failed', detail: applyErr.message }, 500);
+
+    return json({ ok: true, action: 'apply', crew: { id: crew.id, name: crew.name } });
   }
 
   return json({ error: 'unknown_action' }, 400);

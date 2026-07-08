@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchActiveCrew } from '../crew/crewApi';
 import { useSession } from '../../lib/session';
 import { LEAGUE_BOARDS, type LeagueBoard } from './league';
-import { fetchCrewLeaderboard, fetchPlayerLeaderboard } from './leaderboardApi';
+import { fetchCrewLeaderboard, fetchCityLeaderboard, fetchPlayerLeaderboard } from './leaderboardApi';
 
 export type LeaderboardTab = 'joueurs' | 'crews' | 'ville';
 
@@ -27,12 +27,14 @@ export function useLeaderboard(): LeaderboardState {
   const [playerParis, setPlayerParis] = useState<LeagueBoard | null>(null);
   const [playerFrance, setPlayerFrance] = useState<LeagueBoard | null>(null);
   const [crewsParis, setCrewsParis] = useState<LeagueBoard | null>(null);
+  const [cityBoard, setCityBoard] = useState<LeagueBoard | null>(null);
 
   const refresh = useCallback(() => {
     if (useDemo || session === null) {
       setPlayerParis(null);
       setPlayerFrance(null);
       setCrewsParis(null);
+      setCityBoard(null);
       setLoading(false);
       return;
     }
@@ -40,14 +42,17 @@ export function useLeaderboard(): LeaderboardState {
     const userId = session.user.id;
     void (async () => {
       const crew = await fetchActiveCrew(userId);
-      const [pp, pf, cp] = await Promise.all([
+      const myCityId = crew?.crew.city_id ?? 'paris';
+      const [pp, pf, cp, city] = await Promise.all([
         fetchPlayerLeaderboard(userId, 'paris'),
         fetchPlayerLeaderboard(userId, 'france'),
         fetchCrewLeaderboard(crew?.crewId ?? null, 'paris'),
+        fetchCityLeaderboard(myCityId),
       ]);
       setPlayerParis(pp);
       setPlayerFrance(pf);
       setCrewsParis(cp);
+      setCityBoard(city);
     })().finally(() => setLoading(false));
   }, [session, useDemo]);
 
@@ -64,9 +69,9 @@ export function useLeaderboard(): LeaderboardState {
       if (tab === 'crews') {
         return crewsParis ?? demoBoard('crews');
       }
-      return demoBoard('ville');
+      return cityBoard ?? demoBoard('ville');
     },
-    [crewsParis, playerFrance, playerParis],
+    [cityBoard, crewsParis, playerFrance, playerParis],
   );
 
   return { loading, useDemo, boardFor, refresh };

@@ -26,9 +26,9 @@ import {
 } from '../src/features/crew/rules';
 import {
   playTagsFor,
-  PUBLIC_CREWS,
   type PublicCrewDemo,
 } from '../src/features/crew/publicDemo';
+import { useDiscoverableCrews } from '../src/features/crew/useDiscoverableCrews';
 import { useJoinPublicCrew } from '../src/features/crew/joinCrew';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 
@@ -64,14 +64,15 @@ export default function CrewDiscoveryScreen() {
   const [filter, setFilter] = useState<FilterKey>('all');
   const toast = useToast();
   const joinCrew = useJoinPublicCrew();
+  const { crews } = useDiscoverableCrews('paris');
 
   useEffect(() => {
     screen('crew_discovery');
   }, []);
 
   const filtered = useMemo(
-    () => PUBLIC_CREWS.filter((c) => matchesFilter(c, filter)),
-    [filter],
+    () => crews.filter((c) => matchesFilter(c, filter)),
+    [crews, filter],
   );
 
   return (
