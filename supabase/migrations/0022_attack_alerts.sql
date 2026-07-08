@@ -95,10 +95,12 @@ alter table public.item_usage_logs  enable row level security;
 revoke insert, update, delete on public.attack_alerts   from anon, authenticated;
 revoke insert, update, delete on public.item_usage_logs from anon, authenticated;
 
+drop policy if exists attack_alerts_select_own on public.attack_alerts;
 create policy attack_alerts_select_own on public.attack_alerts
   for select to authenticated
   using (user_id = (select auth.uid()));
 
+drop policy if exists item_usage_logs_select_own on public.item_usage_logs;
 create policy item_usage_logs_select_own on public.item_usage_logs
   for select to authenticated
   using (user_id = (select auth.uid()));
