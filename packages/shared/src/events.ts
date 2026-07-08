@@ -38,6 +38,7 @@ export const EVENTS = {
   subscriptionCancelled: 'subscription_cancelled',
   shieldActivated: 'shield_activated', // props: { source } — legacy
   attackAlertActivated: 'attack_alert_activated', // props: { h3, source }
+  streakGelActivated: 'streak_gel_activated', // props: { source }
   inventoryItemUsed: 'inventory_item_used', // props: { item_key }
   skinEquipped: 'skin_equipped',
   // Performance (AMENDEMENT-02)

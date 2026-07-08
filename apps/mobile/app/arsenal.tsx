@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BADGE_TIER_LABEL,
   CREW_BOOST_MAX_ACTIVE,
+  STREAK_GEL_MAX_PER_MONTH,
   borderState,
   colors,
   elevation,
@@ -63,9 +64,11 @@ import { fetchOwnedItemKeys, fetchEquippedItemKeys } from '../src/features/arsen
 import { hydrateEquippedFromServer } from '../src/features/arsenal/inventory';
 import {
   activateAttackAlert,
+  activateStreakGel,
   fetchFreshOwnedHex,
   formatArsenalRemaining,
   useActiveAttackAlerts,
+  useActiveStreakGel,
   type ActivateArsenalError,
 } from '../src/features/arsenal';
 import { useSession } from '../src/lib/session';
@@ -142,7 +145,9 @@ export default function ArsenalScreen() {
   const [gifting, setGifting] = useState<ArsenalCatalogItem | null>(null);
   const [giftAnonymous, setGiftAnonymous] = useState(false);
   const [activatingAlert, setActivatingAlert] = useState(false);
+  const [activatingGel, setActivatingGel] = useState(false);
   const { alerts: activeAlerts, refresh: refreshAlerts } = useActiveAttackAlerts();
+  const { gel: activeGel, refresh: refreshGel } = useActiveStreakGel();
 
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -232,15 +237,16 @@ export default function ArsenalScreen() {
     setDetail(item);
   }, []);
 
-  const activateAlertErrorCopy: Record<ActivateArsenalError, string> = useMemo(
+  const activateItemErrorCopy: Record<ActivateArsenalError, string> = useMemo(
     () => ({
       backend_not_configured: 'Backend non configuré.',
-      item_not_owned: 'Tu n’as plus d’alerte en stock.',
+      item_not_owned: 'Tu n’as plus cet objet en stock.',
       hex_not_owned: 'Zone introuvable.',
       hex_not_fresh: 'Capture une zone dans les 24 dernières heures pour activer une alerte.',
       weekly_cap_user: 'Cap atteint : 2 alertes max par semaine.',
       weekly_cap_crew: 'Ton crew a atteint le plafond d’alertes cette semaine.',
-      already_active: 'Une alerte est déjà active sur cette zone.',
+      monthly_cap: `Cap atteint : ${STREAK_GEL_MAX_PER_MONTH} Streak Gel max par mois.`,
+      already_active: 'Déjà actif — attends la fin du timer.',
       activate_failed: 'Activation impossible — réessaie dans un instant.',
     }),
     [],
@@ -259,7 +265,7 @@ export default function ArsenalScreen() {
       const result = await activateAttackAlert(h3);
       if ('error' in result) {
         haptics.light();
-        flashNotice(activateAlertErrorCopy[result.error]);
+        flashNotice(activateItemErrorCopy[result.error]);
         return;
       }
       haptics.success();
@@ -269,7 +275,26 @@ export default function ArsenalScreen() {
     } finally {
       setActivatingAlert(false);
     }
-  }, [session?.user.id, activatingAlert, flashNotice, activateAlertErrorCopy, refreshAlerts]);
+  }, [session?.user.id, activatingAlert, flashNotice, activateItemErrorCopy, refreshAlerts]);
+
+  const activateStreakGelItem = useCallback(async () => {
+    if (!session?.user.id || activatingGel) return;
+    setActivatingGel(true);
+    try {
+      const result = await activateStreakGel();
+      if ('error' in result) {
+        haptics.light();
+        flashNotice(activateItemErrorCopy[result.error]);
+        return;
+      }
+      haptics.success();
+      setDetail(null);
+      await refreshGel();
+      flashNotice('Série protégée — ta régularité est gelée une semaine.');
+    } finally {
+      setActivatingGel(false);
+    }
+  }, [session?.user.id, activatingGel, flashNotice, activateItemErrorCopy, refreshGel]);
 
   const featured = useMemo(
     () => FEATURED_KEYS.map((k) => itemByKey(k)).filter((i): i is ArsenalCatalogItem => !!i),
@@ -440,10 +465,28 @@ export default function ArsenalScreen() {
                 onBuy={(cur) => buy(detail, cur)}
                 onEquip={() => equip(detail)}
                 onActivate={
-                  detail.key === 'attack_alert' && isOwned(detail.key) ? activateAttackAlertItem : undefined
+                  detail.key === 'attack_alert' && isOwned(detail.key)
+                    ? activateAttackAlertItem
+                    : detail.key === 'streak_gel' && isOwned(detail.key)
+                      ? activateStreakGelItem
+                      : undefined
                 }
-                activating={activatingAlert}
+                activating={
+                  detail.key === 'attack_alert'
+                    ? activatingAlert
+                    : detail.key === 'streak_gel'
+                      ? activatingGel
+                      : false
+                }
+                activateLabel={
+                  detail.key === 'attack_alert'
+                    ? 'Activer sur ma dernière zone'
+                    : detail.key === 'streak_gel'
+                      ? 'Protéger ma série'
+                      : undefined
+                }
                 activeAlerts={detail.key === 'attack_alert' ? activeAlerts : []}
+                activeGelExpires={detail.key === 'streak_gel' ? activeGel?.expiresAt : undefined}
                 onGift={() => {
                   setGiftAnonymous(false);
                   setGifting(detail);
@@ -556,7 +599,9 @@ function ItemDetail({
   onEquip,
   onActivate,
   activating,
+  activateLabel,
   activeAlerts,
+  activeGelExpires,
   onGift,
   onClose,
 }: {
@@ -569,7 +614,9 @@ function ItemDetail({
   onEquip: () => void;
   onActivate?: () => void;
   activating?: boolean;
+  activateLabel?: string;
   activeAlerts?: readonly { id: string; expiresAt: string }[];
+  activeGelExpires?: string;
   onGift: () => void;
   onClose: () => void;
 }) {
@@ -617,6 +664,26 @@ function ItemDetail({
           <Text style={styles.detailChipText}>
             Informe seulement — ne bloque jamais la capture. Défends en courant.
           </Text>
+        </View>
+      ) : null}
+
+      {item.key === 'streak_gel' ? (
+        <View style={styles.detailChip}>
+          <Icon name="serie" size={13} color={gameColors.crew} />
+          <Text style={styles.detailChipText}>
+            Protège ta série hebdo — aucun effet territoire.
+          </Text>
+        </View>
+      ) : null}
+
+      {activeGelExpires ? (
+        <View style={styles.detailContents}>
+          <View style={styles.packLine}>
+            <Dot color={gameColors.crew} />
+            <Text style={styles.packLineText}>
+              Série gelée · {formatArsenalRemaining(activeGelExpires)}
+            </Text>
+          </View>
         </View>
       ) : null}
 
@@ -703,7 +770,7 @@ function ItemDetail({
               ]}
             >
               <Text style={styles.detailPrimaryText}>
-                {activating ? 'Activation…' : 'Activer sur ma dernière zone'}
+                {activating ? 'Activation…' : (activateLabel ?? 'Activer')}
               </Text>
             </Pressable>
           ) : scope && !equipped ? (

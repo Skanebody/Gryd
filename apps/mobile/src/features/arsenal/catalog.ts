@@ -30,6 +30,7 @@ import {
   SKU_PRICES_EUR,
   STARTER_PACK_ECLATS,
   STREAK_GEL_ECLATS,
+  STREAK_GEL_MAX_PER_MONTH,
   type BadgeTier,
 } from '@klaim/shared';
 import type { ArsenalCurrency } from '../../ui/game/ArsenalItemCard';
@@ -215,7 +216,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     scope: 'user',
     priceShards: STREAK_GEL_ECLATS,
     consumable: true,
-    limit: '2/mois max',
+    limit: `${STREAK_GEL_MAX_PER_MONTH}/mois max`,
     ownedDemo: true,
     description: 'Protège ta série hebdo une semaine. Aucun effet territoire.',
   },

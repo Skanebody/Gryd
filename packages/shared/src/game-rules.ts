@@ -203,6 +203,10 @@ export const STREAK_MULTIPLIER_STEP = 0.1;
 export const STREAK_MULTIPLIER_CAP = 1.5;
 export const STREAK_FREEZE_FREE_PER_MONTH = 1;
 export const STREAK_FREEZE_CLUB_PER_MONTH = 2;
+/** Streak Gel consommable : durée de protection de la série hebdo (§20.2). */
+export const STREAK_GEL_DURATION_DAYS = 7;
+/** Streak Gel consommable : plafond d'activations achetées par mois calendaire. */
+export const STREAK_GEL_MAX_PER_MONTH = 2;
 /** Foulées (monnaie douce) : 10 % des points gagnés. */
 export const FOULEES_RATE_OF_POINTS = 0.1;
 export const CLUB_FOULEES_MULTIPLIER = 1.5;

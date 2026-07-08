@@ -4,12 +4,21 @@
 import { supabase } from '../../lib/supabase';
 import { EVENTS, track } from '../../lib/analytics';
 
-export interface ActivateArsenalResult {
+export interface ActivateAttackAlertResult {
   alertId: string;
   h3index: string;
   expiresAt: string;
   source: string;
 }
+
+export interface ActivateStreakGelResult {
+  gelId: string;
+  expiresAt: string;
+  source: string;
+}
+
+/** @deprecated Utiliser ActivateAttackAlertResult */
+export type ActivateArsenalResult = ActivateAttackAlertResult;
 
 export type ActivateArsenalError =
   | 'backend_not_configured'
@@ -18,13 +27,14 @@ export type ActivateArsenalError =
   | 'hex_not_fresh'
   | 'weekly_cap_user'
   | 'weekly_cap_crew'
+  | 'monthly_cap'
   | 'already_active'
   | 'activate_failed';
 
 export async function activateAttackAlert(
   h3index: string,
   cityId = 'paris',
-): Promise<ActivateArsenalResult | { error: ActivateArsenalError }> {
+): Promise<ActivateAttackAlertResult | { error: ActivateArsenalError }> {
   if (!supabase) return { error: 'backend_not_configured' };
   const { data, error } = await supabase.rpc('activate_arsenal_item', {
     p_item_key: 'attack_alert',
@@ -49,6 +59,32 @@ export async function activateAttackAlert(
   };
   track(EVENTS.attackAlertActivated, { h3: h3index, source: res.source });
   track(EVENTS.inventoryItemUsed, { item_key: 'attack_alert' });
+  return res;
+}
+
+export async function activateStreakGel(): Promise<
+  ActivateStreakGelResult | { error: ActivateArsenalError }
+> {
+  if (!supabase) return { error: 'backend_not_configured' };
+  const { data, error } = await supabase.rpc('activate_arsenal_item', {
+    p_item_key: 'streak_gel',
+    p_h3index: null,
+    p_city_id: null,
+  });
+  if (error) {
+    const msg = error.message ?? '';
+    if (msg.includes('item_not_owned')) return { error: 'item_not_owned' };
+    if (msg.includes('monthly_cap')) return { error: 'monthly_cap' };
+    if (msg.includes('already_active')) return { error: 'already_active' };
+    return { error: 'activate_failed' };
+  }
+  const res = data as {
+    gelId: string;
+    expiresAt: string;
+    source: string;
+  };
+  track(EVENTS.streakGelActivated, { source: res.source });
+  track(EVENTS.inventoryItemUsed, { item_key: 'streak_gel' });
   return res;
 }
 

@@ -16,15 +16,22 @@ export {
 } from './catalog';
 export {
   activateAttackAlert,
+  activateStreakGel,
   fetchFreshOwnedHex,
   type ActivateArsenalError,
   type ActivateArsenalResult,
+  type ActivateAttackAlertResult,
+  type ActivateStreakGelResult,
 } from './activateApi';
 export {
   formatArsenalRemaining,
   useActiveAttackAlerts,
   type ActiveAttackAlert,
 } from './useAttackAlerts';
+export {
+  useActiveStreakGel,
+  type ActiveStreakGel,
+} from './useStreakGels';
 export {
   BOOST_CHEST_BONUS_LABEL,
   EQUIP_SCOPE_LABEL,
