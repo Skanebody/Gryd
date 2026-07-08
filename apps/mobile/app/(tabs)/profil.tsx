@@ -277,6 +277,9 @@ export default function ProfilScreen() {
 
   /** Profil ÉDITABLE persisté — l'édition depuis /profil-edit se reflète ici. */
   const { profile } = useMyProfile();
+  const seasonRank =
+    !useDemo && progress?.seasonRank != null ? progress.seasonRank : profile.seasonRank;
+  const crewName = membership?.crew.name ?? profile.crewName;
   /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
   const { equipped } = useEquippedCosmetics();
 
@@ -369,11 +372,11 @@ export default function ProfilScreen() {
               <View style={styles.crewRow}>
                 <CrewCrest
                   seed={membership?.crew.id ?? MY_CREW.seed}
-                  name={membership?.crew.name ?? profile.crewName}
+                  name={crewName}
                   size="s"
                 />
                 <Text style={styles.crewName} numberOfLines={1}>
-                  {membership?.crew.name ?? profile.crewName}
+                  {crewName}
                 </Text>
               </View>
             </View>
@@ -391,11 +394,7 @@ export default function ProfilScreen() {
               zones tenues · {useDemo ? TERRITORY_KPI.citiesLabel : profile.city}
             </Text>
             <Text style={styles.headerRank} numberOfLines={1}>
-              Rang #
-              {!useDemo && progress?.seasonRank != null
-                ? progress.seasonRank
-                : profile.seasonRank}{' '}
-              {profile.seasonScope}
+              Rang #{seasonRank} {profile.seasonScope}
             </Text>
           </View>
           {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
@@ -425,9 +424,9 @@ export default function ProfilScreen() {
         {shareOpen ? (
           <View style={styles.shareCardWrap}>
             <ShareCard
-              stat={`#${profile.seasonRank}`}
+              stat={`#${seasonRank}`}
               statLabel={`Rang saison · ${profile.seasonScope}`}
-              title={`${profile.displayName} · ${profile.crewName}`}
+              title={`${profile.displayName} · ${crewName}`}
               subtitle={`Runner niv. ${runnerLevel} · ${displayedTitle}`}
             >
               <PlayerCardAvatar

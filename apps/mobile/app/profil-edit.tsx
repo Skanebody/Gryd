@@ -22,6 +22,7 @@ import {
   gameColors,
   radii,
   spacing,
+  XP_RATE_OF_POINTS,
 } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
@@ -48,9 +49,6 @@ import { isFrameItem, useEquippedCosmetics } from '../src/features/arsenal';
 import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
 import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
 
-/** Tier joueur dérivé (anneau d'avatar par défaut) — jamais un nombre magique. */
-const RUNNER_TIER = playerTierForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
-
 /** Badges choisissables = débloqués, non-legacy, du plus rare au moins rare. */
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 
@@ -71,8 +69,12 @@ export default function ProfilEditScreen() {
   }, []);
 
   const { editable, save } = useMyProfile();
-  const { unlockedIds } = usePlayerProgress();
+  const { progress, useDemo, unlockedIds } = usePlayerProgress();
   const choosable = useMemo(() => choosableBadges(unlockedIds), [unlockedIds]);
+  const runnerTier = useMemo(() => {
+    const xp = useDemo ? MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS : (progress?.xp ?? 0);
+    return playerTierForLevel(playerLevelForXp(xp));
+  }, [progress?.xp, useDemo]);
   const { equipped, equip } = useEquippedCosmetics();
 
   // Brouillon local initialisé sur les valeurs persistées (reflète les édits déjà faits).
@@ -154,7 +156,7 @@ export default function ProfilEditScreen() {
         <PlayerCardAvatar
           initials={previewInitials}
           fillColor={avatarColor}
-          tier={RUNNER_TIER}
+          tier={runnerTier}
           equippedFrameKey={equippedFrameKey}
           size={72}
           isMe
@@ -348,7 +350,7 @@ export default function ProfilEditScreen() {
               <PlayerCardAvatar
                 initials={previewInitials}
                 fillColor={avatarColor}
-                tier={RUNNER_TIER}
+                tier={runnerTier}
                 equippedFrameKey={f.key}
                 size={44}
                 isMe={false}
