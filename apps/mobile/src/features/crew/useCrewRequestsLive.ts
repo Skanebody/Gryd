@@ -23,14 +23,17 @@ import {
 } from './requests';
 import {
   claimCrewGift,
+  fetchCrewDonations,
   fetchCrewGifts,
   fetchCrewRequests,
   fulfillCrewRequest,
   liveGiftToCard,
   offerCrewGift,
   createCrewRequest,
+  recordCrewDonation,
   type LiveCrewGift,
 } from './crewSocialApi';
+import { useCrewSocialRealtime } from '../../lib/realtimeRefresh';
 
 function liveGiftToOffered(g: LiveCrewGift): OfferedGift {
   return {
@@ -62,26 +65,36 @@ export function useCrewRequestsLive(members: readonly CrewMemberProfile[]): Crew
   const useLive = configured && session !== null && membership !== null;
   const [liveRequests, setLiveRequests] = useState<ActionCardDemo[]>([]);
   const [liveGifts, setLiveGifts] = useState<LiveCrewGift[]>([]);
+  const [liveDonations, setLiveDonations] = useState<SentDonation[]>([]);
   const names = useMemo(() => memberNameMap(members), [members]);
 
   const refresh = useCallback(() => {
     if (!useLive || membership === null || session === null) {
       setLiveRequests([]);
       setLiveGifts([]);
+      setLiveDonations([]);
       return;
     }
     void Promise.all([
       fetchCrewRequests(membership.crewId, names),
       fetchCrewGifts(membership.crewId, session.user.id, names),
-    ]).then(([reqs, gifts]) => {
+      fetchCrewDonations(membership.crewId, names),
+    ]).then(([reqs, gifts, donations]) => {
       setLiveRequests(reqs);
       setLiveGifts(gifts);
+      setLiveDonations(donations);
     });
   }, [membership, names, session, useLive]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useCrewSocialRealtime(
+    membership?.crewId ?? null,
+    useLive,
+    refresh,
+  );
 
   const liveGiftCards = useMemo(
     () => liveGifts.map(liveGiftToCard),
@@ -94,9 +107,14 @@ export function useCrewRequestsLive(members: readonly CrewMemberProfile[]): Crew
     return [...live, ...demo.gifts];
   }, [demo.gifts, liveGifts, useLive]);
 
+  const donations: readonly SentDonation[] = useMemo(() => {
+    if (!useLive || liveDonations.length === 0) return demo.donations;
+    return liveDonations;
+  }, [demo.donations, liveDonations, useLive]);
+
   return {
     requests: demo.requests,
-    donations: demo.donations,
+    donations,
     gifts,
     loaded: demo.loaded,
     liveActionCards: liveRequests,
@@ -136,14 +154,16 @@ export async function fulfillRequestMerged(
 export async function createDonationMerged(
   useLive: boolean,
   kind: DonationKind,
+  zone?: string,
   refresh?: () => void,
 ) {
   if (!useLive) {
     createDonationLocal(kind);
     return true;
   }
-  refresh?.();
-  return true;
+  const res = await recordCrewDonation(kind, zone);
+  if (res.ok) refresh?.();
+  return res.ok;
 }
 
 export async function offerGiftMerged(

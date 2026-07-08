@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import type { ChatThreadMessage } from './chatStore';
 import type { OutingRsvp, OutingView, CrewOutingObjective } from './events';
 import type { RequestChoiceKey } from './requests';
+import { DONATION_DEFAULTS, type DonationKind, type SentDonation } from './requests';
 import type { ActionCardDemo, GiftCardDemo } from './feed';
 
 export interface LiveCrewMessage {
@@ -266,8 +267,9 @@ export async function fetchCrewGifts(
   if (supabase === null) return [];
   const { data, error } = await supabase
     .from('crew_gifts')
-    .select('id, title, rewards_total, expires_at, offered_by_user_id')
+    .select('id, title, rewards_total, expires_at, offered_by_user_id, gift_kind')
     .eq('crew_id', crewId)
+    .in('gift_kind', ['boost', 'chest'])
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(10);
@@ -335,6 +337,46 @@ export async function offerCrewGift(input: {
 
 export async function claimCrewGift(giftId: string) {
   return invoke({ action: 'claim_gift', giftId });
+}
+
+export async function recordCrewDonation(kind: DonationKind, zone?: string) {
+  return invoke({ action: 'record_donation', donationKind: kind, zone });
+}
+
+export async function fetchCrewDonations(
+  crewId: string,
+  memberNames: ReadonlyMap<string, string>,
+): Promise<SentDonation[]> {
+  if (supabase === null) return [];
+  const { data, error } = await supabase
+    .from('crew_gifts')
+    .select('id, donation_kind, title, offered_by_user_id, created_at')
+    .eq('crew_id', crewId)
+    .eq('gift_kind', 'donation')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error || !Array.isArray(data)) return [];
+
+  return data
+    .map((row): SentDonation | null => {
+      const kind = row.donation_kind as DonationKind | null;
+      if (kind === null || !(kind in DONATION_DEFAULTS)) return null;
+      const defaults = DONATION_DEFAULTS[kind];
+      const offeredById = row.offered_by_user_id as string | null;
+      const donor = offeredById === null ? null : memberNames.get(offeredById) ?? 'Un membre';
+      const title = row.title as string;
+      const zonePart = title.includes('·') ? title.split('·').pop()?.trim() : undefined;
+      return {
+        id: row.id as string,
+        kind,
+        kicker: defaults.kicker,
+        message: zonePart !== undefined ? `${defaults.message} · ${zonePart}` : defaults.message,
+        effect: defaults.effect,
+        createdAt: new Date(row.created_at as string).getTime(),
+        by: donor,
+      };
+    })
+    .filter((d): d is SentDonation => d !== null);
 }
 
 export async function fetchCrewChestContributions(

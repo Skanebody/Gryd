@@ -21,7 +21,7 @@ cd "$ROOT"
 echo "→ Sync game-rules vers supabase/functions/_shared"
 node scripts/sync-game-rules.mjs
 
-echo "→ Push migrations (0019 crew social, …)"
+echo "→ Push migrations (0019 crew social, 0020 realtime, …)"
 npx supabase db push --project-ref "$PROJECT_REF"
 
 echo "→ Deploy Edge Functions"

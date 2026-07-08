@@ -28,7 +28,8 @@ type Action =
   | 'create_request'
   | 'fulfill_request'
   | 'offer_gift'
-  | 'claim_gift';
+  | 'claim_gift'
+  | 'record_donation';
 
 interface CrewSocialRequest {
   action: Action;
@@ -47,6 +48,8 @@ interface CrewSocialRequest {
   rewardsTotal?: number;
   anonymous?: boolean;
   giftKind?: string;
+  donationKind?: string;
+  zone?: string;
 }
 
 function isRequest(body: unknown): body is CrewSocialRequest {
@@ -73,6 +76,24 @@ async function activeMembership(userId: string) {
     .maybeSingle();
   return data;
 }
+
+const DONATION_COPY: Record<string, { kicker: string; message: string; effect: string }> = {
+  route: {
+    kicker: 'ROUTE DONNÉE',
+    message: 'a proposé une route',
+    effect: 'Prête à courir pour le crew',
+  },
+  scout: {
+    kicker: 'SCOUT REPORT',
+    message: 'a partagé un scout',
+    effect: 'Zone repérée pour le crew',
+  },
+  defense: {
+    kicker: 'DÉFENSE PRISE',
+    message: 'prend la défense',
+    effect: 'Secteur tenu pour le crew',
+  },
+};
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
@@ -264,6 +285,35 @@ Deno.serve(async (req) => {
     });
     if (claimErr) return json({ error: 'claim_failed', detail: claimErr.message }, 500);
     return json({ ok: true, action: 'claim_gift' });
+  }
+
+  if (body.action === 'record_donation') {
+    const donationKind = body.donationKind === 'route' || body.donationKind === 'scout' ||
+        body.donationKind === 'defense'
+      ? body.donationKind
+      : null;
+    if (donationKind === null) return json({ error: 'invalid_donation_kind' }, 400);
+    const zone = typeof body.zone === 'string' && body.zone.trim().length > 0
+      ? body.zone.trim().slice(0, 80)
+      : 'Crew';
+    const copy = DONATION_COPY[donationKind];
+    const title = `${copy.message} · ${zone}`;
+    const expiresAt = new Date(Date.now() + 30 * 24 * MS_PER_HOUR).toISOString();
+    const { data, error } = await supabase
+      .from('crew_gifts')
+      .insert({
+        crew_id: crewId,
+        gift_kind: 'donation',
+        donation_kind: donationKind,
+        title,
+        rewards_total: 1,
+        offered_by_user_id: userId,
+        expires_at: expiresAt,
+      })
+      .select('id')
+      .single();
+    if (error) return json({ error: 'donation_failed', detail: error.message }, 500);
+    return json({ ok: true, action: 'record_donation', donationId: data.id });
   }
 
   return json({ error: 'unknown_action' }, 400);

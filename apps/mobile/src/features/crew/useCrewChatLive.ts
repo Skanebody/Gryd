@@ -11,6 +11,7 @@ import {
   type CrewChat,
 } from './chatStore';
 import { fetchCrewMessages, liveMessageToThread, sendCrewMessage } from './crewSocialApi';
+import { useCrewSocialRealtime } from '../../lib/realtimeRefresh';
 
 export type { ChatThreadMessage } from './chatStore';
 
@@ -48,6 +49,8 @@ export function useCrewChatLive(
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useCrewSocialRealtime(membership?.crewId ?? null, useLive, refresh);
 
   const messages = useMemo(() => {
     if (!useLive || liveMessages.length === 0) {

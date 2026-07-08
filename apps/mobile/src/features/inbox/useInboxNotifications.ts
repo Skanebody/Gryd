@@ -10,6 +10,7 @@ import {
   markNotificationRead,
   type InboxNotification,
 } from './notificationsApi';
+import { useNotificationsRealtime } from '../../lib/realtimeRefresh';
 
 export function useInboxNotifications() {
   const { session, configured } = useSession();
@@ -37,6 +38,8 @@ export function useInboxNotifications() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useNotificationsRealtime(session?.user.id ?? null, useLive, refresh);
 
   const markRead = useCallback(
     async (id: string) => {

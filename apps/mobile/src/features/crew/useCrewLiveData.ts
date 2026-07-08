@@ -15,6 +15,7 @@ import {
   type CrewTerritoryLive,
 } from './crewLiveApi';
 import { fetchCrewChestContributions } from './crewSocialApi';
+import { useCrewSocialRealtime } from '../../lib/realtimeRefresh';
 import type { WarLogEntryDemo } from './feed';
 
 export interface CrewLiveDataState {
@@ -83,6 +84,8 @@ export function useCrewLiveData(
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useCrewSocialRealtime(crewId, crewId !== null && cityId !== null, refresh);
 
   return { loading, territory, chest, chestContributions, localRank, boost, feedEvents, refresh };
 }

@@ -1358,7 +1358,7 @@ export default function CrewScreen() {
     // un DON GRATUIT visible en DONS (+ Merci possible). ZÉRO territoire/point : le
     // routage vers la course reste inchangé (le claim reste décidé serveur §3).
     if (card.donationKind) {
-      void createDonationMerged(crewRequests.useLive, card.donationKind, crewRequests.refresh);
+      void createDonationMerged(crewRequests.useLive, card.donationKind, card.zone, crewRequests.refresh);
       if (!card.id.startsWith('req_')) {
         void fulfillRequestMerged(crewRequests.useLive, card.id, crewRequests.refresh);
       }
@@ -1377,7 +1377,11 @@ export default function CrewScreen() {
       return;
     }
     if (card.donationKind) {
-      notify(`${card.cta} · ${card.zone} — don enregistré, le crew le voit (démo)`);
+      notify(
+        crewRequests.useLive
+          ? `${card.cta} · ${card.zone} — don enregistré pour le crew`
+          : `${card.cta} · ${card.zone} — don enregistré, le crew le voit (démo)`,
+      );
       return;
     }
     notify(`${card.cta} · ${card.zone} — envoyé au crew (démo)`);

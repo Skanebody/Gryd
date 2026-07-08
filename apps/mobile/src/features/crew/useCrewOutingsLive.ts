@@ -17,6 +17,7 @@ import {
   fetchCrewEvents,
   rsvpCrewEvent,
 } from './crewSocialApi';
+import { useCrewSocialRealtime } from '../../lib/realtimeRefresh';
 import type { CrewMemberProfile } from './crewApi';
 
 function memberNameMap(members: readonly CrewMemberProfile[]): Map<string, string> {
@@ -65,6 +66,8 @@ export function useCrewOutingsLive(members: readonly CrewMemberProfile[]): CrewO
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useCrewSocialRealtime(membership?.crewId ?? null, useLive, refresh);
 
   if (!useLive || liveOutings.length === 0) {
     return { outings: demo.outings, loaded: demo.loaded, refresh, useLive };
