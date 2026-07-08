@@ -71,6 +71,21 @@ create table if not exists public.item_usage_logs (
   effect_applied jsonb not null default '{}'::jsonb,
   created_at    timestamptz not null default now()
 );
+-- Si la table existe déjà sans `created_at` (ex: précédent db push interrompu),
+-- on la rajoute pour que les index ci-dessous restent valides.
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'item_usage_logs'
+      and column_name = 'created_at'
+  ) then
+    alter table public.item_usage_logs
+      add column created_at timestamptz not null default now();
+  end if;
+end $$;
 create index if not exists item_usage_logs_user_idx
   on public.item_usage_logs (user_id, created_at desc);
 
