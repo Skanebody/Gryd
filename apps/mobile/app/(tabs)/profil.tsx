@@ -60,6 +60,8 @@ import { usePlayerProgress } from '../../src/features/social/usePlayerProgress';
 import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
+import { hydrateEquippedFromServer } from '../../src/features/arsenal/inventory';
+import { useSession } from '../../src/lib/session';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
 import { franceKpi } from '../../src/features/territory/franceTerritories';
@@ -73,7 +75,6 @@ import {
 } from '../../src/features/territory/territoryStatus';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
-import { useSession } from '../../src/lib/session';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -313,6 +314,11 @@ export default function ProfilScreen() {
   useEffect(() => {
     screen('profil');
   }, []);
+
+  useEffect(() => {
+    if (!configured || session === null) return;
+    void hydrateEquippedFromServer(session.user.id);
+  }, [configured, session]);
 
   const openEdit = () => router.push('/profil-edit');
 

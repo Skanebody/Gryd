@@ -60,6 +60,7 @@ export default function RootLayout() {
           <Stack.Screen name="settings-motivation" />
           {/* Historique (AMENDEMENT-17 §CH3) : liste + détail d'une course. */}
           <Stack.Screen name="historique" />
+          <Stack.Screen name="inbox" />
           <Stack.Screen name="course/[id]" />
           </Stack>
         </ErrorBoundary>

@@ -149,7 +149,8 @@ import {
   toggleGiftReaction,
   useGiftReactions,
 } from '../../src/features/crew/reactions';
-import { useCrewChat, CHAT_ME, type ChatThreadMessage } from '../../src/features/crew/chatStore';
+import { useCrewChatLive, type ChatThreadMessage } from '../../src/features/crew/useCrewChatLive';
+import { CHAT_ME } from '../../src/features/crew/chatStore';
 import {
   REPORT_REASONS,
   REPORT_REVIEW_HOURS,
@@ -165,30 +166,35 @@ import {
 import { useCrewProfile } from '../../src/features/crew/crewEdit';
 import {
   OUTING_RSVP_OPTIONS,
-  createOuting,
   objectiveLabel,
-  setOutingRsvp,
-  useCrewOutings,
   type CrewOutingObjective,
   type OutingRsvp,
   type OutingView,
 } from '../../src/features/crew/events';
 import {
+  createOutingMerged,
+  setOutingRsvpMerged,
+  useCrewOutingsLive,
+} from '../../src/features/crew/useCrewOutingsLive';
+import {
   REQUEST_CHOICES,
-  claimGift,
-  createDonation,
-  createRequest,
-  donationToGiftCard,
   giftClaimable,
   giftClaimedByMe,
   giftExpired,
   giftRewardsLeft,
-  offerGift,
-  requestToActionCard,
-  useCrewRequests,
   type OfferedGift,
   type RequestChoiceKey,
 } from '../../src/features/crew/requests';
+import {
+  claimGiftMerged,
+  createDonationMerged,
+  createRequestMerged,
+  donationToGiftCard,
+  fulfillRequestMerged,
+  offerGiftMerged,
+  requestToActionCard,
+  useCrewRequestsLive,
+} from '../../src/features/crew/useCrewRequestsLive';
 
 /** Toggle démo preview : forcer l'état vide en dev (session sans crew). */
 const FORCE_EMPTY_CREW_PREVIEW = false;
@@ -1142,15 +1148,15 @@ export default function CrewScreen() {
   const crewProfile = useCrewProfile();
   /** Base horaire figée au montage (ordre stable des messages démo). */
   const chatNowBase = useMemo(() => Date.now(), []);
-  const chat = useCrewChat(chatNowBase);
+  const chat = useCrewChatLive(chatNowBase, crewMembers);
   /** Abonne l'écran au store des réactions de don (re-render à chaque Merci). */
   useGiftReactions();
   /** Abonne l'écran aux kudos de conquête (re-render à chaque Respect/Feu/Défends-la). */
   useConquestReactions();
   /** Requêtes émises + dons accomplis + cadeaux offerts (persistés, A.3). */
-  const crewRequests = useCrewRequests();
+  const crewRequests = useCrewRequestsLive(crewMembers);
   /** Sorties de crew à venir + mon RSVP (persistés, AMENDEMENT-32 §1). */
-  const crewOutings = useCrewOutings();
+  const crewOutings = useCrewOutingsLive(crewMembers);
   /** Colle quotidienne : 4 micro-actions du jour (persistées, AMENDEMENT-34). */
   const dailyGlue = useDailyGlue();
   /** Form « Créer une sortie » (bottom sheet) — false = fermé. */
@@ -1268,14 +1274,14 @@ export default function CrewScreen() {
       weekHexes: 0,
       tier: 'road' as const,
       lastAction: 'Membre actif',
-      chestPoints: 0,
+      chestPoints: isRealCrew ? (live.chestContributions.get(m.userId) ?? 0) : 0,
       joinedDaysAgo: Math.max(
         0,
         Math.floor((Date.now() - new Date(m.joinedAt).getTime()) / 86_400_000),
       ),
       me: session?.user.id === m.userId,
     }));
-  }, [crewMembers, isRealCrew, session?.user.id]);
+  }, [crewMembers, isRealCrew, live.chestContributions, session?.user.id]);
 
   // Contributions coffre triées (Coffre) + max pour l'échelle des jauges.
   const contributors = useMemo(
@@ -1352,7 +1358,10 @@ export default function CrewScreen() {
     // un DON GRATUIT visible en DONS (+ Merci possible). ZÉRO territoire/point : le
     // routage vers la course reste inchangé (le claim reste décidé serveur §3).
     if (card.donationKind) {
-      createDonation(card.donationKind);
+      void createDonationMerged(crewRequests.useLive, card.donationKind, crewRequests.refresh);
+      if (!card.id.startsWith('req_')) {
+        void fulfillRequestMerged(crewRequests.useLive, card.id, crewRequests.refresh);
+      }
       setChatFilter('dons');
     }
     if (card.ctaKind === 'live') {
@@ -1414,7 +1423,7 @@ export default function CrewScreen() {
   const onAskChoice = (choice: RequestChoiceKey) => {
     haptics.medium();
     setAskSheet(false);
-    createRequest(choice);
+    void createRequestMerged(crewRequests.useLive, choice, crewRequests.refresh);
     // On bascule sur le filtre pertinent + on s'assure d'être sur l'onglet Chat.
     setChatFilter(choice === 'outing' ? 'missions' : 'demandes');
     setTab('chat');
@@ -1431,10 +1440,12 @@ export default function CrewScreen() {
   const onOfferGift = (kind: 'boost' | 'chest', anonymous: boolean) => {
     haptics.medium();
     setGiftSheet(false);
-    offerGift(
+    void offerGiftMerged(
+      crewRequests.useLive,
       kind === 'chest'
         ? { title: 'Coffre cosmétique', rewardsTotal: 5, anonymous, by: CHAT_ME }
         : { title: 'Crew Boost 24 h', rewardsTotal: 5, anonymous, by: CHAT_ME },
+      crewRequests.refresh,
     );
     setChatFilter('dons');
     setTab('chat');
@@ -1445,8 +1456,9 @@ export default function CrewScreen() {
   // (expiré / épuisé / déjà réclamé) sont dans claimGift — on ne toast que le OK.
   const onClaimGift = (gift: OfferedGift) => {
     haptics.light();
-    const ok = claimGift(gift.id);
-    if (ok) notify(`Récompense réclamée · ${gift.title} (démo)`);
+    void claimGiftMerged(crewRequests.useLive, gift.id, gift, crewRequests.refresh).then((ok) => {
+      if (ok) notify(`Récompense réclamée · ${gift.title}`);
+    });
   };
 
   // ── COLLE QUOTIDIENNE (AMENDEMENT-34) : 4 micro-actions SANS courir pour
@@ -1536,7 +1548,7 @@ export default function CrewScreen() {
   // « Indispo », mon choix persiste (toggle dans le store). ZÉRO effet de jeu.
   const onOutingRsvp = (outing: OutingView, choice: OutingRsvp) => {
     haptics.light();
-    setOutingRsvp(outing.id, choice);
+    void setOutingRsvpMerged(crewOutings.useLive, outing.id, choice, crewOutings.refresh);
   };
 
   // Créer une sortie (form court) : titre + heure + lieu + zone obligatoires,
@@ -1549,13 +1561,17 @@ export default function CrewScreen() {
   const submitOuting = () => {
     if (!outingReady) return;
     haptics.medium();
-    createOuting({
-      title: outingTitle.trim(),
-      when: outingWhen.trim(),
-      place: outingPlace.trim(),
-      zone: outingZone.trim(),
-      objective: outingObjective,
-    });
+    void createOutingMerged(
+      crewOutings.useLive,
+      {
+        title: outingTitle.trim(),
+        when: outingWhen.trim(),
+        place: outingPlace.trim(),
+        zone: outingZone.trim(),
+        objective: outingObjective,
+      },
+      crewOutings.refresh,
+    );
     setOutingSheet(false);
     setOutingTitle('');
     setOutingWhen('');
@@ -1569,8 +1585,11 @@ export default function CrewScreen() {
   // ── Sections du chat actionnable filtrées (A.2/A.3) ──
   // Mes REQUÊTES émises (bouton « Demander ») en TÊTE de À FAIRE, avant la démo.
   const myRequestCards = useMemo(
-    () => crewRequests.requests.map(requestToActionCard),
-    [crewRequests.requests],
+    () => [
+      ...crewRequests.liveActionCards,
+      ...crewRequests.requests.map(requestToActionCard),
+    ],
+    [crewRequests.liveActionCards, crewRequests.requests],
   );
   // À FAIRE : mes requêtes + cartes démo, filtrées (Dons/Résultats masquent À faire).
   const visibleActions = useMemo(() => {
@@ -1593,8 +1612,8 @@ export default function CrewScreen() {
     () =>
       chatFilter === 'resultats' || chatFilter === 'missions'
         ? []
-        : [...myDonationCards, ...GIFT_CARDS_DEMO],
-    [chatFilter, myDonationCards],
+        : [...crewRequests.liveGiftCards, ...myDonationCards, ...GIFT_CARDS_DEMO],
+    [chatFilter, crewRequests.liveGiftCards, myDonationCards],
   );
   // CADEAUX CREW premium offerts (réclamables) — dans la section Dons.
   const visibleCadeaux = useMemo(

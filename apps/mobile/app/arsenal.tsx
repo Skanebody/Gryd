@@ -59,7 +59,8 @@ import {
   type EquipScope,
 } from '../src/features/arsenal';
 import { fetchUserWallet } from '../src/features/arsenal/walletApi';
-import { fetchOwnedItemKeys } from '../src/features/arsenal/inventoryApi';
+import { fetchOwnedItemKeys, fetchEquippedItemKeys } from '../src/features/arsenal/inventoryApi';
+import { hydrateEquippedFromServer } from '../src/features/arsenal/inventory';
 import { useSession } from '../src/lib/session';
 
 /** Soldes DÉMO (Éclats généreux pour tester skins/frames ; Foulées legacy). */
@@ -109,8 +110,14 @@ export default function ArsenalScreen() {
       setOwned(new Set(INITIAL_OWNED));
       return;
     }
-    void fetchOwnedItemKeys(session.user.id).then((keys) => {
-      setOwned(new Set([...INITIAL_OWNED, ...keys]));
+    void Promise.all([
+      fetchOwnedItemKeys(session.user.id),
+      fetchEquippedItemKeys(session.user.id),
+    ]).then(([ownedKeys, equippedKeys]) => {
+      setOwned(new Set([...INITIAL_OWNED, ...ownedKeys]));
+      if (equippedKeys.length > 0) {
+        void hydrateEquippedFromServer(session.user.id);
+      }
     });
   }, [configured, session]);
   const [equipped, setEquipped] = useState<Partial<Record<EquipScope, string>>>(

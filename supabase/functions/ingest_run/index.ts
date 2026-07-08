@@ -883,6 +883,23 @@ async function processCrew(
         onConflict: 'crew_id,week_start',
       });
     if (chestErr) throw new Error(`crew_chests upsert: ${chestErr.message}`);
+
+    const { data: memberContrib, error: contribReadErr } = await supabase
+      .from('crew_chest_contributions')
+      .select('points')
+      .eq('crew_id', crewId)
+      .eq('user_id', userId)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    if (contribReadErr) throw new Error(`crew_chest_contributions read: ${contribReadErr.message}`);
+    const contribPoints = ((memberContrib?.points as number | undefined) ?? 0) + delta;
+    const { error: contribErr } = await supabase
+      .from('crew_chest_contributions')
+      .upsert(
+        { crew_id: crewId, user_id: userId, week_start: weekStart, points: contribPoints },
+        { onConflict: 'crew_id,user_id,week_start' },
+      );
+    if (contribErr) throw new Error(`crew_chest_contributions upsert: ${contribErr.message}`);
   }
 
   // ── Offensives actives (§38) : hexes claimés dans la zone cible ──────────
