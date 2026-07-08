@@ -21,7 +21,7 @@ const MOBILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../ap
 const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 const EXPO_TOKEN = process.env.EXPO_TOKEN?.trim();
 
-const EAS_ENVS = ['preview', 'development'];
+const EAS_ENVS = ['preview', 'development', 'production'];
 
 function run(args) {
   const line = `npx eas-cli@latest ${args.join(' ')}`;
@@ -68,7 +68,7 @@ for (const envName of EAS_ENVS) {
     '--value',
     ANON_KEY,
     '--visibility',
-    'secret',
+    'sensitive',
     '--scope',
     'project',
     '--environment',
