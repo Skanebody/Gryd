@@ -5,7 +5,7 @@
  * Prérequis :
  *   export EXPO_TOKEN=<expo.dev access token>
  *   cd apps/mobile && eas init   (une fois — lie le projectId)
- *   eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon>
+ *   npm run setup:eas   (EXPO_TOKEN + EXPO_PUBLIC_SUPABASE_ANON_KEY)
  *
  * Usage :
  *   node scripts/testflight-build.mjs [--profile preview|development] [--wait]

@@ -10,7 +10,7 @@
     "sync:rules": "node scripts/sync-game-rules.mjs",
     "deploy:staging": "node scripts/deploy-staging.mjs",
     "deploy:staging:dry": "node scripts/deploy-staging.mjs --dry-run",
-    "testflight:ios": "node scripts/testflight-build.mjs",
+    "setup:eas": "node scripts/setup-eas-env.mjs",
     "ship:staging": "node scripts/ship-staging.mjs",
     "test:functions": "deno test --allow-read supabase/functions/"
   }

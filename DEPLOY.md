@@ -9,23 +9,32 @@ Guide opérationnel pour O1 (Supabase) et O8 (TestFlight).
 1. Créer un [access token](https://supabase.com/dashboard/account/tokens)
 2. Récupérer la clé **anon** du projet : Settings → API → `anon` `public`
 
-### 2. Expo / EAS
+### 2. Expo / EAS (Option C)
 
 ```bash
+# 1. Token Expo (Chrome → expo.dev/settings/access-tokens)
+export EXPO_TOKEN=...
+
+# 2. Anon key Supabase (Chrome → project settings → API)
+export EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+
+# 3. Lier le projet (une fois)
 cd apps/mobile
 npx eas-cli login
-npx eas-cli init          # lie projectId dans app.json
-npx eas-cli credentials   # Apple Developer (certificats)
+npx eas-cli init
+
+# 4. Pousser les secrets EAS (preview + development)
+cd ../..
+npm run setup:eas
 ```
 
-Secrets projet EAS (build cloud) :
+Vérification :
 
 ```bash
-cd apps/mobile
-npx eas-cli secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<anon_key>"
-# Optionnel analytics :
-npx eas-cli secret:create --scope project --name EXPO_PUBLIC_POSTHOG_KEY --value "<ph_key>"
+cd apps/mobile && npx eas-cli env:list --environment preview
 ```
+
+L'`eas.json` référence déjà `@EXPO_PUBLIC_SUPABASE_ANON_KEY` sur les profils `preview` et `development`.
 
 ### 3. GitHub Actions (optionnel)
 
