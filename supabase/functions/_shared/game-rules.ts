@@ -410,6 +410,20 @@ export const SECTOR_PRESSURE_MAX = 100;
 /** Choix D18 : XP = points territoire bruts de la course (1:1), boosts cosmétiques V1. */
 export const XP_RATE_OF_POINTS = 1;
 
+// ─── Import onboarding fondateur (batch unique, neutres seulement, 0 pt saison) ─
+/** Fenêtre d'import rétroactif pour remplir la carte à l'inscription (jours). */
+export const ONBOARDING_IMPORT_WINDOW_DAYS = 30;
+/** Nombre max de courses avec trace GPS éligibles au claim onboarding. */
+export const ONBOARDING_IMPORT_MAX_CAPTURE_RUNS = 5;
+/** Nombre de courses retenues pour le bonus XP fondateur (les meilleures en hexes neutres). */
+export const ONBOARDING_IMPORT_XP_TOP_RUNS = 3;
+/** Plafond XP permanent crédité une seule fois à la fin du batch (~niveau 16). */
+export const ONBOARDING_IMPORT_XP_CAP = 8_000;
+/** Import onboarding : hexes déjà possédés par d'autres joueurs → pas de vol (claim neutre only). */
+export const ONBOARDING_IMPORT_NEUTRAL_ONLY = true;
+/** Points de saison crédités par un run onboarding (toujours 0 — classement repart à zéro). */
+export const ONBOARDING_IMPORT_SEASON_POINTS = 0;
+
 // ─── Villes seedées 'active' d'office pour la Saison 0 ──────────────────────
 export const CITIES = {
   paris: { id: 'paris', name: 'Paris', center: { lat: 48.8566, lng: 2.3522 } },
@@ -667,6 +681,23 @@ export const CREW_CHEST_WEIGHTS = {
   offensiveCompleted: 100,
 } as const;
 export type CrewChestSource = keyof typeof CREW_CHEST_WEIGHTS;
+
+/**
+ * Niveau crew minimum pour le coffre hebdo (perk `weekly_crew_chest`, §35 L5).
+ */
+export const CREW_CHEST_UNLOCK_LEVEL = 5;
+
+/**
+ * Foulées capées créditées à chaque membre actif à la réclamation (§39.3).
+ * Cosmétique/économie secondaire — jamais territoire ni points classement.
+ */
+export const CREW_CHEST_TIER_FOULEES = {
+  bronze: 40,
+  silver: 80,
+  gold: 120,
+  carbon: 160,
+  elite: 240,
+} as const;
 
 // ─── §45 Crew Activity Score ─────────────────────────────────────────────────
 /** Poids (%) des composantes du score de santé crew (§45) — somme = 100. */
@@ -1398,3 +1429,23 @@ export const DAILY_CHEST_BOOST_PER_DAY = 1;
  * TUNABLE.
  */
 export const DAILY_CHEST_BOOST_PCT = 0.02;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Recommandation de course (MVP — moteur packages/engine/recommendation.ts)
+// Pondérations du score final ; TUNABLE après tests terrain.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Poids Personal Fit dans le score de recommandation (0–1). */
+export const RECO_W_PERSONAL = 0.25;
+/** Poids Crew Impact. */
+export const RECO_W_CREW = 0.25;
+/** Poids Territory Value. */
+export const RECO_W_TERRITORY = 0.2;
+/** Poids Reward (XP/points estimés). */
+export const RECO_W_REWARD = 0.15;
+/** Poids Novelty (zones peu courues). */
+export const RECO_W_NOVELTY = 0.1;
+/** Pénalité Friction (distance/durée vs habitudes, complexité). */
+export const RECO_W_FRICTION = 0.25;
+/** Nombre max d'alternatives affichées après la recommandation principale. */
+export const RECO_MAX_ALTERNATIVES = 2;

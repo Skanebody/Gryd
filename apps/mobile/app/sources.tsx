@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
+import { executeFounderImport } from '../src/features/onboarding/executeFounderImport';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -130,6 +131,8 @@ export default function SourcesScreen() {
   /** États RÉELS par source, lus des adaptateurs (AMENDEMENT-15 §3). */
   const [snapshots, setSnapshots] = useState<Record<string, SourceAdapterSnapshot>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -179,6 +182,33 @@ export default function SourcesScreen() {
     setSnapshots((prev) => ({ ...prev, [key]: snap }));
   };
 
+  const claimTerritory = async () => {
+    if (importBusy) return;
+    haptics.light();
+    setImportBusy(true);
+    setImportSummary(null);
+    try {
+      const result = await executeFounderImport();
+      if (!result.ok) {
+        setImportSummary(
+          result.error === 'already_done'
+            ? 'Import déjà effectué sur ce compte.'
+            : 'Import impossible — réessaie plus tard.',
+        );
+        return;
+      }
+      setImportSummary(
+        result.alreadyDone
+          ? 'Import déjà effectué.'
+          : `${result.hexesClaimed} zones sur la carte · +${result.founderXpAwarded} XP bonus · niveau ${result.playerLevel}. Classement saison : tu pars avec tout le monde.`,
+      );
+    } catch {
+      setImportSummary('Import impossible — réessaie plus tard.');
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   const verifySources = VERIFY_SOURCES.filter((s) => s.availability !== 'soon');
   const soonSources = VERIFY_SOURCES.filter((s) => s.availability === 'soon');
 
@@ -194,6 +224,31 @@ export default function SourcesScreen() {
           <Text style={styles.heroLine}>Les autres enrichissent tes stats.</Text>
         </View>
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Réclamer mon territoire"
+        disabled={importBusy}
+        onPress={claimTerritory}
+        style={({ pressed }) => [
+          styles.claimBtn,
+          (pressed || importBusy) && styles.pressed,
+        ]}
+      >
+        <Text style={styles.claimLabel}>
+          {importBusy ? 'Import en cours…' : 'Réclamer mon territoire'}
+        </Text>
+        <Text style={styles.claimHint} numberOfLines={2}>
+          Tes 30 derniers jours remplissent la carte
+        </Text>
+      </Pressable>
+      <Text style={styles.claimPolicy} numberOfLines={3}>
+        Le classement Saison 0 repart à zéro pour tout le monde. Ton niveau reçoit un
+        bonus fondateur plafonné — la vraie montée se joue sur la saison.
+      </Text>
+      {importSummary ? (
+        <Text style={styles.importSummary}>{importSummary}</Text>
+      ) : null}
 
       <Text style={styles.sectionLabel}>SOURCES VÉRIFIÉES</Text>
       <View style={styles.list}>
@@ -324,6 +379,37 @@ const styles = StyleSheet.create({
   },
   soonChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   pressed: { opacity: 0.75 },
+  claimBtn: {
+    backgroundColor: gameColors.crew,
+    borderRadius: radii.card,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding,
+    marginTop: 16,
+  },
+  claimLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+  },
+  claimHint: {
+    color: colors.noir,
+    fontSize: fontSizes.sm,
+    marginTop: 4,
+    opacity: 0.75,
+  },
+  importSummary: {
+    color: gameColors.verify,
+    fontSize: fontSizes.sm,
+    marginTop: 8,
+    lineHeight: fontSizes.sm * 1.45,
+  },
+  claimPolicy: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 10,
+    marginBottom: 4,
+  },
   footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,

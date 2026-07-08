@@ -24,6 +24,7 @@ import {
   type ArsenalCatalogItem,
   type ArsenalScope,
 } from './catalog';
+import { equipUserItem, fetchEquippedItemKeys } from './inventoryApi';
 
 /** Portées équipables (un seul item actif par portée). */
 export type EquipScope = Extract<ArsenalScope, 'zone' | 'route' | 'profile' | 'crew' | 'share'>;
@@ -189,10 +190,26 @@ function getEquipSnapshot(): EquipMap {
   return equipSnapshot;
 }
 
+/** Fusionne l'équipement serveur (`user_inventory.equipped`) dans le store local. */
+export async function hydrateEquippedFromServer(userId: string): Promise<void> {
+  const keys = await fetchEquippedItemKeys(userId);
+  if (keys.length === 0) return;
+  await ensureEquipLoaded();
+  const next: EquipMap = { ...equippedState };
+  for (const key of keys) {
+    const scope = equipScopeOf(key);
+    if (scope !== null) next[scope] = key;
+  }
+  equippedState = next;
+  emitEquip();
+  await writeEquip(equippedState);
+}
+
 /** Équipe un item (résout sa portée), persiste et notifie tous les abonnés. */
 export async function equipCosmetic(key: string): Promise<void> {
   const scope = equipScopeOf(key);
   if (scope === null) return;
+  await equipUserItem(key);
   equippedState = { ...equippedState, [scope]: key };
   emitEquip();
   await writeEquip(equippedState);

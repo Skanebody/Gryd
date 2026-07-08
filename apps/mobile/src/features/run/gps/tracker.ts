@@ -216,6 +216,12 @@ export class RunTracker {
     };
   }
 
+  /** Points lat/lng gardés (trace affichable live, AMENDEMENT-13). */
+  traceGeo(): { lat: number; lng: number }[] {
+    const { smoothed } = this.pipeline();
+    return smoothed.map((p) => ({ lat: p.lat, lng: p.lng }));
+  }
+
   /** Photo instantanée pour l'UI. */
   snapshot(nowTs: number): TrackerSnapshot {
     const { smoothed, pauses, trust, keptPoints, totalFixes, accuracyRejects } = this.pipeline();

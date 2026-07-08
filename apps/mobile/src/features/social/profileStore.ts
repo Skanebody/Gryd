@@ -19,6 +19,8 @@ import { useCallback, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HANDLE_REGEX } from '@klaim/shared';
 import { MY_SOCIAL_PROFILE } from './demo';
+import { fetchUserProfile, upsertUserProfile } from './profileApi';
+import { supabase } from '../../lib/supabase';
 
 /** Champs du profil que le joueur peut éditer (le reste est dérivé/serveur). */
 export interface EditableProfile {
@@ -194,15 +196,22 @@ function emit(): void {
 /** Lecture lazy et unique des overrides persistés (déclenchée au 1ᵉʳ montage). */
 function ensureLoaded(): Promise<void> {
   if (!loadPromise) {
-    loadPromise = readOverrides()
-      .then((o) => {
-        overrides = o;
-        loaded = true;
-        emit();
-      })
-      .catch(() => {
-        loaded = true;
-      });
+    loadPromise = (async () => {
+      const local = await readOverrides();
+      let server: Partial<EditableProfile> = {};
+      if (supabase !== null) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData.session?.user.id;
+        if (userId) {
+          server = (await fetchUserProfile(userId)) ?? {};
+        }
+      }
+      overrides = { ...server, ...local };
+      loaded = true;
+      emit();
+    })().catch(() => {
+      loaded = true;
+    });
   }
   return loadPromise;
 }
@@ -224,11 +233,33 @@ export async function saveProfile(patch: ProfileOverrides): Promise<void> {
   overrides = { ...overrides, ...patch };
   emit();
   await writeOverrides(overrides);
+  const merged = { ...defaultEditable(), ...overrides };
+  await upsertUserProfile(merged);
 }
 
 /** RAZ des overrides persistés (utilitaire démo / tests). */
 export async function resetProfile(): Promise<void> {
   overrides = {};
+  emit();
+  await writeOverrides(overrides);
+}
+
+/** Recharge user_profiles serveur après connexion (merge champs locaux). */
+export async function reloadProfileFromServer(): Promise<void> {
+  if (supabase === null) return;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) return;
+  const server = await fetchUserProfile(userId);
+  if (!server) return;
+  const local = await readOverrides();
+  overrides = {
+    ...server,
+    title: local.title,
+    avatarColor: local.avatarColor,
+    avatarInitials: local.avatarInitials,
+    featuredBadgeIds: local.featuredBadgeIds,
+  };
   emit();
   await writeOverrides(overrides);
 }

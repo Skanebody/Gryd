@@ -53,6 +53,7 @@ export const EVENTS = {
   // Santé produit
   notificationOpened: 'notification_opened', // props: { type }
   healthkitImport: 'healthkit_import', // props: { runs }
+  onboardingImportComplete: 'onboarding_import_complete', // props: { runs, founder_xp, hexes }
   batteryReport: 'battery_report',
   mapLoadMs: 'map_load_ms',
   crash: 'crash',

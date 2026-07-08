@@ -185,6 +185,8 @@ export interface DiscoveryCrewDemo {
   recruitment: CrewRecruitmentStatus;
   /** Tags de style du crew (§10, crews.tags 0013) — chips discovery/matching. */
   tags: readonly CrewTag[];
+  /** Code d'invitation 6 caractères (crews.code) — présent si recrutement ouvert. */
+  joinCode?: string;
   language: string;
   objective: 'casual' | 'competitif' | 'pionnier';
   /** Signaux rapides §46 (booléens) — rendus en chips. */
@@ -207,7 +209,7 @@ export const DISCOVERY_CREWS: readonly DiscoveryCrewDemo[] = [
   },
   {
     name: 'LES PAVÉS 12', tag: 'PV', city: 'Paris', xp: 28_000, activityScore: 61,
-    members: 6, openSpots: 4, recruitment: 'open',
+    members: 6, openSpots: 4, recruitment: 'open', joinCode: 'PAVES1',
     tags: ['casual', 'defense', 'debutants_ok'],
     language: 'FR', objective: 'casual',
     warActive: false, defenseActive: true, beginnerFriendly: true, pioneer: false, weeklyRuns: 41,
@@ -221,7 +223,7 @@ export const DISCOVERY_CREWS: readonly DiscoveryCrewDemo[] = [
   },
   {
     name: 'PAYS DE CAUX RC', tag: 'PDC', city: 'Dieppe', xp: 6_200, activityScore: 55,
-    members: 5, openSpots: 5, recruitment: 'open',
+    members: 5, openSpots: 5, recruitment: 'open', joinCode: 'CAUXRC',
     tags: ['exploration', 'pionnier', 'run_club', 'debutants_ok'],
     language: 'FR', objective: 'pionnier',
     warActive: false, defenseActive: false, beginnerFriendly: true, pioneer: true, weeklyRuns: 18,

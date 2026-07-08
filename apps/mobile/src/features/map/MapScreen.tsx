@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, gameColors } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { Icon } from '../../ui/Icon';
 import {
@@ -43,9 +43,10 @@ import {
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
+import { useLiveMapData } from './useLiveMapData';
 import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
-import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
+import { EGO_CAMERA, EGO_REPUBLIQUE, type LatLngPoint } from './realAnchors';
 import { MODE_EMPHASIS, autoMapMode, type MapMode, type ModeEmphasis } from './territory';
 
 // ─── Constantes de rendu (UI uniquement — mêmes valeurs que la variante web) ─
@@ -137,7 +138,11 @@ function buildMarkers(
       id: `mate-${m.name}`,
       lng: m.position.lng,
       lat: m.position.lat,
-      children: <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />,
+      children: (
+        <View style={{ opacity: emph.mates }}>
+          <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />
+        </View>
+      ),
     })),
     // Moi — TOUJOURS au-dessus (dernier = peint en dernier).
     {
@@ -149,6 +154,14 @@ function buildMarkers(
   ];
 }
 
+const EMPTY_POINTS: BattleMapPoints = {
+  protectedCenter: EGO_REPUBLIQUE,
+  objectiveCenter: EGO_REPUBLIQUE,
+  outpost: EGO_REPUBLIQUE,
+  urgentDecay: [],
+  route: [],
+};
+
 export function MapScreen() {
   // AMENDEMENT-17 §1.2 : calque AUTO au montage selon le plan (défense →
   // calque défense ; sinon route-first). Plus de rangée de filtres à choisir.
@@ -157,10 +170,16 @@ export function MapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
 
+  const liveMap = useLiveMapData('paris');
+  const mapEmpty = liveMap?.kind === 'empty';
+
   const { points, summary } = useMemo(() => {
+    if (liveMap?.kind === 'live' || liveMap?.kind === 'empty') {
+      return { points: EMPTY_POINTS, summary: liveMap.summary };
+    }
     const data = battleMapData();
     return { points: data.points, summary: battleMapSummary(data.collection) };
-  }, []);
+  }, [liveMap]);
   /** Emphase des familles de couches selon le mode actif (AMENDEMENT-11 §3). */
   const emph = MODE_EMPHASIS[mode];
 
@@ -181,8 +200,14 @@ export function MapScreen() {
    * traits chartreuse (lisibilité — charte).
    */
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap),
-    [emph, selectedParcours, basemap],
+    () =>
+      battleGameLayers(
+        emph,
+        selectedParcours,
+        basemap,
+        liveMap?.kind === 'live' || liveMap?.kind === 'empty' ? liveMap.territoryGeo : undefined,
+      ),
+    [emph, selectedParcours, basemap, liveMap],
   );
 
   /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
@@ -248,6 +273,20 @@ export function MapScreen() {
       >
         {basemapAttribution(basemap)}
       </Text>
+
+      {mapEmpty ? (
+        <View
+          style={[
+            styles.emptyBanner,
+            { top: insets.top + 72 },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.emptyBannerText}>
+            Aucune zone capturée — pars courir pour revendiquer du terrain.
+          </Text>
+        </View>
+      ) : null}
 
       {/* ── HUD ÉCRAN MISSION (header 1 ligne, pill rival, card sticky + [Défendre],
           sheet 4 blocs, 2 FABs : Recentrer + Calques) — AMENDEMENT-21 ── */}
@@ -335,6 +374,23 @@ const styles = StyleSheet.create({
     color: colors.gris,
     opacity: 0.7,
     fontSize: 9,
+  },
+  emptyBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    backgroundColor: colors.carbone2,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  emptyBannerText: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    textAlign: 'center',
+    fontWeight: '600',
   },
 });
 
