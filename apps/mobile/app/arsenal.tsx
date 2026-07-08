@@ -58,6 +58,8 @@ import {
   type ArsenalCatalogItem,
   type EquipScope,
 } from '../src/features/arsenal';
+import { fetchUserWallet } from '../src/features/arsenal/walletApi';
+import { useSession } from '../src/lib/session';
 
 /** Soldes DÉMO (Éclats généreux pour tester skins/frames ; Foulées legacy). */
 const DEMO_WALLET = { eclats: 820, foulees: 2140 } as const;
@@ -83,12 +85,23 @@ function priceFor(
 
 export default function ArsenalScreen() {
   const insets = useSafeAreaInsets();
+  const { session, configured } = useSession();
+
   useEffect(() => {
     screen('arsenal');
     track(EVENTS.paywallView, { trigger: 'arsenal' });
   }, []);
 
   const [wallet, setWallet] = useState<{ eclats: number; foulees: number }>(DEMO_WALLET);
+  useEffect(() => {
+    if (!configured || session === null) {
+      setWallet(DEMO_WALLET);
+      return;
+    }
+    void fetchUserWallet(session.user.id).then((w) => {
+      if (w) setWallet(w);
+    });
+  }, [configured, session]);
   const [owned, setOwned] = useState<Set<string>>(() => new Set(INITIAL_OWNED));
   const [equipped, setEquipped] = useState<Partial<Record<EquipScope, string>>>(
     () => ({ ...INITIAL_EQUIPPED }),

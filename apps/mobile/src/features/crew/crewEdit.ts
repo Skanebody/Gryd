@@ -87,7 +87,14 @@ function persist() {
   void AsyncStorage.setItem(CREW_EDIT_STORAGE_KEY, JSON.stringify(current)).catch(() => {});
 }
 
-/** Écrit le profil édité (validé côté écran), persiste et notifie le HQ. */
+/** Persiste uniquement la description locale (pas de colonne serveur). */
+export function saveCrewDescriptionLocal(description: string): void {
+  current = { ...current, description: description.trim() };
+  persist();
+  emit();
+}
+
+/** Écrit le profil édité démo (validé côté écran), persiste et notifie le HQ. */
 export function saveCrewEdit(next: CrewEditState): void {
   current = {
     name: next.name.trim() || MY_CREW.name,

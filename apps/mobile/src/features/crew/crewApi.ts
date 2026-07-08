@@ -22,7 +22,7 @@ export interface CrewSummary {
 
 export interface CrewMembershipResult {
   ok: boolean;
-  action: 'create' | 'join_by_code' | 'leave' | 'apply';
+  action: 'create' | 'join_by_code' | 'leave' | 'apply' | 'update_profile';
   crew?: CrewSummary;
   role?: string;
   error?: string;
@@ -49,6 +49,23 @@ export async function leaveCrew(): Promise<CrewMembershipResult> {
 
 export async function applyToCrew(crewId: string, message?: string): Promise<CrewMembershipResult> {
   return invoke({ action: 'apply', crewId, message: message?.trim() ?? '' });
+}
+
+export interface CrewProfilePatch {
+  name?: string;
+  tag?: string;
+  recruitmentStatus?: string;
+  tags?: readonly string[];
+}
+
+export async function updateCrewProfile(patch: CrewProfilePatch): Promise<CrewMembershipResult> {
+  return invoke({
+    action: 'update_profile',
+    name: patch.name,
+    tag: patch.tag,
+    recruitmentStatus: patch.recruitmentStatus,
+    tags: patch.tags ? [...patch.tags] : undefined,
+  });
 }
 
 export interface ActiveCrewMembership {

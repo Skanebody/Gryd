@@ -14,6 +14,7 @@ import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { StackScreen } from '../../src/ui/StackScreen';
 import { findChallenge, formatChallengeValue } from '../../src/features/motivation/demo';
+import { useChallenges } from '../../src/features/motivation/useChallenges';
 import {
   CHALLENGE_DIFFICULTY_LABELS,
   CHALLENGE_TYPE_LABELS,
@@ -21,6 +22,7 @@ import {
 
 export default function ChallengeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { findChallenge } = useChallenges();
   const c = typeof id === 'string' ? findChallenge(id) : undefined;
 
   useEffect(() => {

@@ -34,16 +34,25 @@ import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
 import { InlineRunCTA } from '../src/ui/game';
+import type { CrewRole } from '@klaim/shared';
 import { MY_CREW } from '../src/features/crew/demo';
+import { updateCrewProfile } from '../src/features/crew/crewApi';
+import { useMyCrew } from '../src/features/crew/useMyCrew';
 import { RECRUITMENT_STATUS_LABELS, roleCan } from '../src/features/crew/rules';
 import {
   CREW_DESCRIPTION_MAX,
   CREW_NAME_MAX,
   CREW_TAG_MAX,
   crewEditSeed,
+  saveCrewDescriptionLocal,
   saveCrewEdit,
   useCrewProfile,
 } from '../src/features/crew/crewEdit';
+
+function mapCrewRole(role: string): CrewRole {
+  if (role === 'leader') return 'founder';
+  return role as CrewRole;
+}
 
 export default function CrewEditScreen() {
   useEffect(() => {
@@ -53,31 +62,54 @@ export default function CrewEditScreen() {
   }, []);
 
   const persisted = useCrewProfile();
-  // Mon rôle démo (KORO = founder) → gating de l'enregistrement (matrice §8).
-  const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
+  const { membership, refresh: refreshCrew } = useMyCrew();
+  const myRole = mapCrewRole(
+    membership?.role ?? MY_CREW.members.find((m) => m.me)?.role ?? 'runner',
+  );
   const canEditIdentity = roleCan(myRole, 'changeNameEmblem');
   const canManageRecruitment = roleCan(myRole, 'manageRecruitment');
   const canSave = canEditIdentity || canManageRecruitment;
+  const isRealCrew = membership !== null;
+
+  const seed = useMemo(() => {
+    if (!membership) return persisted;
+    return {
+      name: membership.crew.name,
+      tag: membership.crew.tag ?? MY_CREW.tag,
+      description: persisted.description,
+      recruitment: membership.crew.recruitment_status as CrewRecruitmentStatus,
+      tags: membership.crew.tags as CrewTag[],
+    };
+  }, [membership, persisted]);
 
   // Brouillon local, initialisé sur le profil persisté (reflète les édits déjà faits).
-  const [name, setName] = useState(persisted.name);
-  const [tag, setTag] = useState(persisted.tag);
-  const [description, setDescription] = useState(persisted.description);
-  const [recruitment, setRecruitment] = useState<CrewRecruitmentStatus>(persisted.recruitment);
-  const [tags, setTags] = useState<readonly CrewTag[]>(persisted.tags);
+  const [name, setName] = useState(seed.name);
+  const [tag, setTag] = useState(seed.tag);
+  const [description, setDescription] = useState(seed.description);
+  const [recruitment, setRecruitment] = useState<CrewRecruitmentStatus>(seed.recruitment);
+  const [tags, setTags] = useState<readonly CrewTag[]>(seed.tags);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setName(seed.name);
+    setTag(seed.tag);
+    setDescription(seed.description);
+    setRecruitment(seed.recruitment);
+    setTags(seed.tags);
+  }, [seed]);
 
   const nameValid = name.trim().length > 0;
   const tagValid = tag.trim().length > 0;
   const dirty = useMemo(
     () =>
-      name !== persisted.name ||
-      tag !== persisted.tag ||
-      description !== persisted.description ||
-      recruitment !== persisted.recruitment ||
-      tags.length !== persisted.tags.length ||
-      tags.some((t) => !persisted.tags.includes(t)),
-    [name, tag, description, recruitment, tags, persisted],
+      name !== seed.name ||
+      tag !== seed.tag ||
+      description !== seed.description ||
+      recruitment !== seed.recruitment ||
+      tags.length !== seed.tags.length ||
+      tags.some((t) => !seed.tags.includes(t)),
+    [name, tag, description, recruitment, tags, seed],
   );
 
   const toggleTag = (t: CrewTag) => {
@@ -88,11 +120,27 @@ export default function CrewEditScreen() {
 
   const onSave = () => {
     if (!canSave || !nameValid || !tagValid) return;
-    // InlineRunCTA déclenche déjà haptics.medium() au press (pas de double tap).
-    saveCrewEdit({ name, tag, description, recruitment, tags });
-    setSavedNotice(true);
-    // Petit délai laissé au feedback avant retour au HQ (le HQ reflète l'édit).
-    setTimeout(() => router.back(), 450);
+    setSaveError(null);
+    void (async () => {
+      if (isRealCrew) {
+        const result = await updateCrewProfile({
+          name: canEditIdentity ? name.trim() : undefined,
+          tag: canEditIdentity ? tag.trim().toUpperCase() : undefined,
+          recruitmentStatus: canManageRecruitment ? recruitment : undefined,
+          tags: canManageRecruitment ? tags : undefined,
+        });
+        if (!result.ok) {
+          setSaveError('Enregistrement impossible — réessaie plus tard.');
+          return;
+        }
+        saveCrewDescriptionLocal(description);
+        refreshCrew();
+      } else {
+        saveCrewEdit({ name, tag, description, recruitment, tags });
+      }
+      setSavedNotice(true);
+      setTimeout(() => router.back(), 450);
+    })();
   };
 
   const onReset = () => {
@@ -256,6 +304,7 @@ export default function CrewEditScreen() {
 
       {/* ── Enregistrer / Réinitialiser ── */}
       <View style={styles.saveBlock}>
+        {saveError ? <Text style={styles.gateText}>{saveError}</Text> : null}
         {savedNotice ? (
           <View style={styles.savedRow}>
             <Icon name="cible" size={14} color={gameColors.crew} />

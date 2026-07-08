@@ -8,7 +8,9 @@ import {
   CREW_CODE_LENGTH,
   CREW_ENTRY_ROLE,
   CREW_MAX_MEMBERS,
+  CREW_RECRUITMENT_STATUSES,
   CREW_SWITCH_COOLDOWN_DAYS,
+  CREW_TAG_KEYS,
 } from '../_shared/game-rules.ts';
 
 const MS_PER_DAY = 86_400_000;
@@ -25,7 +27,7 @@ const json = (body: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json' },
   });
 
-type Action = 'create' | 'join_by_code' | 'leave' | 'apply';
+type Action = 'create' | 'join_by_code' | 'leave' | 'apply' | 'update_profile';
 
 interface CrewMembershipRequest {
   action: Action;
@@ -35,6 +37,9 @@ interface CrewMembershipRequest {
   code?: string;
   crewId?: string;
   message?: string;
+  tag?: string;
+  recruitmentStatus?: string;
+  tags?: string[];
 }
 
 function isRequest(body: unknown): body is CrewMembershipRequest {
@@ -44,7 +49,8 @@ function isRequest(body: unknown): body is CrewMembershipRequest {
     b.action === 'create' ||
     b.action === 'join_by_code' ||
     b.action === 'leave' ||
-    b.action === 'apply'
+    b.action === 'apply' ||
+    b.action === 'update_profile'
   );
 }
 
@@ -234,6 +240,57 @@ Deno.serve(async (req) => {
     if (applyErr) return json({ error: 'apply_failed', detail: applyErr.message }, 500);
 
     return json({ ok: true, action: 'apply', crew: { id: crew.id, name: crew.name } });
+  }
+
+  if (body.action === 'update_profile') {
+    const active = await activeMembership(userId);
+    if (!active) return json({ error: 'not_in_crew' }, 400);
+    if (active.role !== 'founder') return json({ error: 'forbidden' }, 403);
+
+    const patch: Record<string, unknown> = {};
+
+    if (typeof body.name === 'string') {
+      const name = body.name.trim();
+      if (name.length < 1 || name.length > 40) return json({ error: 'invalid_name' }, 400);
+      patch.name = name;
+    }
+
+    if (typeof body.tag === 'string') {
+      const tag = body.tag.trim().toUpperCase();
+      if (!/^[A-Z0-9]{2,6}$/.test(tag)) return json({ error: 'invalid_tag' }, 400);
+      patch.tag = tag;
+    }
+
+    if (typeof body.recruitmentStatus === 'string') {
+      const status = body.recruitmentStatus.trim();
+      if (!(CREW_RECRUITMENT_STATUSES as readonly string[]).includes(status)) {
+        return json({ error: 'invalid_recruitment_status' }, 400);
+      }
+      patch.recruitment_status = status;
+    }
+
+    if (Array.isArray(body.tags)) {
+      const tags = body.tags.filter((t): t is string => typeof t === 'string');
+      const valid = tags.every((t) => (CREW_TAG_KEYS as readonly string[]).includes(t));
+      if (!valid) return json({ error: 'invalid_tags' }, 400);
+      patch.tags = tags;
+    }
+
+    if (Object.keys(patch).length === 0) return json({ error: 'empty_patch' }, 400);
+
+    const { data: crew, error: updateErr } = await supabase
+      .from('crews')
+      .update(patch)
+      .eq('id', active.crew_id)
+      .select(
+        'id, name, code, city_id, color, level, xp, activity_score, activity_status, tag, slug, league, recruitment_status, tags',
+      )
+      .single();
+    if (updateErr || !crew) {
+      return json({ error: 'update_failed', detail: updateErr?.message }, 500);
+    }
+
+    return json({ ok: true, action: 'update_profile', crew });
   }
 
   return json({ error: 'unknown_action' }, 400);
