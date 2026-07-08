@@ -15,6 +15,13 @@ if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
   exit 1
 fi
 
+if [[ "${SUPABASE_ACCESS_TOKEN}" == sb_secret_* ]]; then
+  echo "Erreur : SUPABASE_ACCESS_TOKEN contient la clé service (sb_secret_*)." >&2
+  echo "La CLI Supabase exige un Personal Access Token (sbp_*) depuis Account → Access Tokens." >&2
+  echo "Conserve la clé service dans SUPABASE_SERVICE_ROLE_KEY (runtime Edge Functions)." >&2
+  exit 1
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -24,7 +31,7 @@ node scripts/sync-game-rules.mjs
 echo "→ Push migrations (0019 crew social, 0020 realtime, …)"
 npx supabase db push --project-ref "$PROJECT_REF"
 
-echo "→ Deploy Edge Functions"
-npx supabase functions deploy claim_crew_chest crew_social --project-ref "$PROJECT_REF"
+echo "→ Deploy Edge Functions (claim_crew_chest, crew_social + staging set)"
+node scripts/deploy-staging.mjs --skip-db
 
 echo "✓ Déploiement terminé sur $PROJECT_REF"

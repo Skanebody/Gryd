@@ -23,6 +23,8 @@ const PROJECT_REF = process.env.SUPABASE_PROJECT_REF ?? 'sydwxwwirinjoheeodcg';
 const EDGE_FUNCTIONS = [
   'ingest_run',
   'crew_membership',
+  'claim_crew_chest',
+  'crew_social',
   'decay_job',
   'digest_job',
 ];
@@ -53,6 +55,17 @@ if (!process.env.SUPABASE_ACCESS_TOKEN && !dryRun) {
   process.exit(1);
 }
 
+const pat = process.env.SUPABASE_ACCESS_TOKEN ?? '';
+if (!dryRun && pat.startsWith('sb_secret_')) {
+  console.error(
+    'SUPABASE_ACCESS_TOKEN est une clé service (sb_secret_*), pas un PAT (sbp_*).',
+  );
+  console.error(
+    'Dashboard → Account → Access Tokens → générer un token, puis l’exporter en SUPABASE_ACCESS_TOKEN.',
+  );
+  process.exit(1);
+}
+
 console.log(`GRYD staging deploy — project ${PROJECT_REF}`);
 
 // Sync game-rules → edge functions shared copy
@@ -70,7 +83,14 @@ if (!skipDb) {
 
 if (!skipFn) {
   for (const fn of EDGE_FUNCTIONS) {
-    const deploy = npx(['functions', 'deploy', fn, '--project-ref', PROJECT_REF]);
+    const deploy = npx([
+      'functions',
+      'deploy',
+      fn,
+      '--project-ref',
+      PROJECT_REF,
+      '--use-api',
+    ]);
     if (deploy.status !== 0 && !dryRun) process.exit(deploy.status ?? 1);
   }
 }
