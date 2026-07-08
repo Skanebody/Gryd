@@ -2,7 +2,7 @@
  * GRYD — Types partagés : contrats client ↔ Edge Functions.
  * Le client n'attribue JAMAIS un hex : il envoie des points, le serveur décide.
  */
-import type { CityId } from './game-rules';
+import type { CityId } from './game-rules.ts';
 
 export type RunSource = 'gps' | 'healthkit' | 'strava';
 
