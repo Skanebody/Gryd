@@ -11,6 +11,8 @@ export interface CrewSummary {
   color: number;
   level: number;
   xp: number;
+  activity_score: number;
+  activity_status: string;
 }
 
 export interface CrewMembershipResult {
@@ -51,12 +53,17 @@ export async function fetchActiveCrew(userId: string): Promise<ActiveCrewMembers
   if (supabase === null) return null;
   const { data, error } = await supabase
     .from('crew_members')
-    .select('crew_id, role, crews(id, name, code, city_id, color, level, xp)')
+    .select('crew_id, role, crews(id, name, code, city_id, color, level, xp, activity_score, activity_status)')
     .eq('user_id', userId)
     .is('left_at', null)
     .maybeSingle();
   if (error || data === null || data.crews === null) return null;
-  const crew = data.crews as unknown as CrewSummary;
+  const raw = data.crews as unknown as CrewSummary;
+  const crew: CrewSummary = {
+    ...raw,
+    activity_score: raw.activity_score ?? 0,
+    activity_status: raw.activity_status ?? 'dormant',
+  };
   return { crewId: data.crew_id, role: data.role, crew };
 }
 

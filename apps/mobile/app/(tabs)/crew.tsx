@@ -55,6 +55,7 @@ import {
   type CrewMemberProfile,
 } from '../../src/features/crew/crewApi';
 import { useMyCrew } from '../../src/features/crew/useMyCrew';
+import { useCrewLiveData } from '../../src/features/crew/useCrewLiveData';
 import { haptics } from '../../src/lib/haptics';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
@@ -90,7 +91,7 @@ import {
   roleCan,
   rookieTrialDaysLeft,
 } from '../../src/features/crew/rules';
-import { CHEST_REWARDS, MY_CREW, type CrewMemberDemo } from '../../src/features/crew/demo';
+import { CHEST_REWARDS, MY_CREW, type CrewDemo, type CrewMemberDemo } from '../../src/features/crew/demo';
 import {
   BOOST_CHEST_BONUS_LABEL,
   INITIAL_CREW_WALL,
@@ -341,8 +342,8 @@ function BaseCard({
  * 2 147 · Frontières contestées 3 · Routes ouvertes 6 ». Tap → Battle Map.
  * Le violet contesté est un état de jeu (charte) — pas une déco.
  */
-function TerritoryBlock() {
-  const t = MY_CREW.territory;
+function TerritoryBlock({ territory }: { territory: CrewDemo['territory'] }) {
+  const t = territory;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1107,6 +1108,11 @@ export default function CrewScreen() {
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [crewMembers, setCrewMembers] = useState<CrewMemberProfile[]>([]);
   const isRealCrew = membership !== null;
+  const live = useCrewLiveData(
+    isRealCrew ? membership.crewId : null,
+    isRealCrew ? membership.crew.city_id : null,
+    crewMembers,
+  );
 
   useEffect(() => {
     if (!membership) {
@@ -1181,7 +1187,7 @@ export default function CrewScreen() {
   // effet COFFRE uniquement (+25 %), jamais de points. Un membre a offert un
   // Boost 24 h il y a 3 h (offrande NON anonyme en démo). Le timer descend en
   // live. O1 : cet état viendra de crew_boosts (0014).
-  const [boost] = useState<CrewBoostState>(() =>
+  const [demoBoost] = useState<CrewBoostState>(() =>
     startBoost(
       'crew_boost_24',
       { anonymous: false, by: 'LENA_RUN' },
@@ -1193,6 +1199,7 @@ export default function CrewScreen() {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+  const boost = isRealCrew && live.boost !== null ? live.boost : demoBoost;
   const boostActive = boost.endsAt === null || boost.endsAt > nowTick;
 
   // Crew Wall (§14) : opt-in, Supporters de la saison SANS montant ni classement.
@@ -1208,9 +1215,15 @@ export default function CrewScreen() {
   const levelProgress = crewLevelProgress(crewXp, level);
   const nextLevelXp = level < CREW_LEVEL_MAX ? crewXpForLevel(level + 1) : null;
 
-  // Statut d'activité (§45) — 91 → « Prêt guerre ».
-  const status = activityStatusForScore(MY_CREW.activityScore);
+  // Statut d'activité (§45) — live depuis crews.activity_status si membre.
+  const status = isRealCrew
+    ? (membership.crew.activity_status as ReturnType<typeof activityStatusForScore>)
+    : activityStatusForScore(MY_CREW.activityScore);
   const warReady = status === 'war_ready';
+
+  const territoryView = isRealCrew && live.territory !== null ? live.territory : MY_CREW.territory;
+  const chestProgress =
+    isRealCrew && live.chest !== null ? live.chest.progress : MY_CREW.chestProgress;
 
   // Coffre hebdo (§39.2) : état/palier DÉRIVÉS de chestStateFor (source unique,
   // identique à la War Room) — réclamable tant qu'il n'est pas ouvert.
@@ -1219,11 +1232,12 @@ export default function CrewScreen() {
   // jamais points/XP de jeu/territoire (anti-P2W). Borné à 100 %.
   const chestPct = Math.min(
     1,
-    MY_CREW.chestProgress / CREW_CHEST_WEEKLY_TARGET + dailyGlue.chestBonusPct,
+    chestProgress / CREW_CHEST_WEEKLY_TARGET + dailyGlue.chestBonusPct,
   );
   const chest = chestStateFor(chestPct);
   const nextChestTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
-  const chestClaimable = chest.state === 'claimable' && !chestOpened;
+  const chestAlreadyClaimed = isRealCrew && live.chest?.claimedAt != null;
+  const chestClaimable = chest.state === 'claimable' && !chestOpened && !chestAlreadyClaimed;
 
   // Perks (§35.1) : débloqués / prochain (XP restants dérivés) / à venir.
   const unlockedPerks = useMemo(() => CREW_PERKS.filter((p) => p.level <= level), [level]);
@@ -1263,7 +1277,8 @@ export default function CrewScreen() {
   const hqTitle = isRealCrew ? membership.crew.name : crewProfile.name;
   const hqCity = isRealCrew ? membership.crew.city_id : MY_CREW.city;
   const crestSeed = isRealCrew ? membership.crew.id : MY_CREW.seed;
-  const localRankLabel = isRealCrew ? '—' : String(MY_CREW.localRank);
+  const localRankLabel =
+    isRealCrew && live.localRank != null ? String(live.localRank) : isRealCrew ? '—' : String(MY_CREW.localRank);
 
   // Mon rôle démo (KORO = founder) → gating visuel des actions (matrice §8).
   const myRole = displayMembers.find((m) => m.me)?.role ?? 'runner';
@@ -1272,10 +1287,10 @@ export default function CrewScreen() {
 
   // War Log = UNIQUEMENT les événements (les messages vivent dans le sous-onglet
   // Chat) — on ne mélange plus événements et messages dans une seule liste.
-  const warLogEvents = useMemo(
-    () => CHAT_TIMELINE.filter((i) => i.kind === 'event'),
-    [],
-  );
+  const warLogEvents = useMemo(() => {
+    if (isRealCrew && live.feedEvents.length > 0) return live.feedEvents;
+    return CHAT_TIMELINE.filter((i) => i.kind === 'event');
+  }, [isRealCrew, live.feedEvents]);
 
   // AMENDEMENT-19 §4 — LE bonus social/Finisher pertinent pour le Crew Chat
   // (selectBonus(context, 'crew_chat') mirroré, feed.ts). Contexte DÉMO
@@ -1687,8 +1702,8 @@ export default function CrewScreen() {
               icon="pin"
               tint={gameColors.crew}
               label="Territoire"
-              value={`${formatInt(MY_CREW.territory.zonesHeld)} zones`}
-              sub={`${MY_CREW.territory.contestedBorders} frontières contestées`}
+              value={`${formatInt(territoryView.zonesHeld)} zones`}
+              sub={`${territoryView.contestedBorders} frontières contestées`}
               onPress={() => {
                 haptics.light();
                 setShowTerritory((v) => !v);
@@ -1727,7 +1742,7 @@ export default function CrewScreen() {
           </View>
 
           {/* Détail Territoire (AMENDEMENT-11 §4) révélé au tap de la card. */}
-          {showTerritory ? <TerritoryBlock /> : null}
+          {showTerritory ? <TerritoryBlock territory={territoryView} /> : null}
 
           {/* ── SECONDAIRE : Contribution / Boost / Crew Wall (§28/§14), replié
               par défaut — jamais en premier (pas de monétisation trop visible). ── */}
@@ -1918,7 +1933,7 @@ export default function CrewScreen() {
             }}
           />
           <Text style={styles.chestMeta}>
-            {formatInt(MY_CREW.chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
+            {formatInt(chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
             collectifs
           </Text>
 
