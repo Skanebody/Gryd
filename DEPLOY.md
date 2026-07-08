@@ -15,8 +15,8 @@ Guide opérationnel pour O1 (Supabase) et O8 (TestFlight).
 # 1. Token Expo (Chrome → expo.dev/settings/access-tokens)
 export EXPO_TOKEN=...
 
-# 2. Anon key Supabase (Chrome → project settings → API)
-export EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+# 2. Clé publishable Supabase (Settings → API — pas sb_secret_*)
+export SUPABASE_ANON_KEY=...
 
 # 3. Lier le projet (une fois)
 cd apps/mobile
@@ -34,7 +34,7 @@ Vérification :
 cd apps/mobile && npx eas-cli env:list --environment preview
 ```
 
-L'`eas.json` référence déjà `@EXPO_PUBLIC_SUPABASE_ANON_KEY` sur les profils `preview` et `development`.
+La clé `SUPABASE_ANON_KEY` est stockée sur EAS (visibility `sensitive`) et injectée au build via `app.config.ts` → `extra` — jamais dans le repo ni dans `eas.json`.
 
 ### 3. GitHub Actions (optionnel)
 
@@ -107,9 +107,12 @@ npm run ship:staging
 
 # Typecheck monorepo
 npm run typecheck
+
+# Scan secrets (clés/tokens en dur dans le repo)
+npm run check:secrets
 ```
 
-Côté mobile : build preview avec `EXPO_PUBLIC_SUPABASE_URL` déjà dans `eas.json` + anon key via secret EAS.
+Côté mobile : build preview avec `SUPABASE_URL` dans `eas.json` + `SUPABASE_ANON_KEY` via secret EAS (injectée dans `extra` au build).
 
 ---
 

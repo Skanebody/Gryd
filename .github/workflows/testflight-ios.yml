@@ -7,7 +7,7 @@
 # Prérequis compte Expo (une fois, hors CI) :
 #   cd apps/mobile && eas init
 #   eas credentials (Apple Developer lié)
-#   npm run setup:eas  (EXPO_TOKEN + EXPO_PUBLIC_SUPABASE_ANON_KEY)
+#   npm run setup:eas  (EXPO_TOKEN + SUPABASE_ANON_KEY)
 name: TestFlight iOS
 
 on:
