@@ -52,7 +52,9 @@ import {
   spacing,
   type IconName,
 } from '@klaim/shared';
-import { screen } from '../../src/lib/analytics';
+import { EVENTS, screen, track } from '../../src/lib/analytics';
+import { createCrew, joinCrewByCode } from '../../src/features/crew/crewApi';
+import { useMyCrew } from '../../src/features/crew/useMyCrew';
 import { haptics } from '../../src/lib/haptics';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
@@ -179,8 +181,8 @@ import {
   type RequestChoiceKey,
 } from '../../src/features/crew/requests';
 
-/** Toggle démo : passer à false pour prévisualiser l'état « sans crew ». */
-const HAS_CREW = true;
+/** Toggle démo preview : forcer l'état vide en dev (session sans crew). */
+const FORCE_EMPTY_CREW_PREVIEW = false;
 
 /** Onglets internes du HQ (doc §11 — pas de scroll infini). */
 type HqTab = 'base' | 'membres' | 'sorties' | 'coffre' | 'perks' | 'chat';
@@ -197,24 +199,51 @@ function SectionLabel({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
-function EmptyState() {
-  const todoCrewFlow = (step: 'create' | 'join') => {
-    // TODO(O1) : création / rejoindre un crew (crew_created, crew_joined §8).
-    // En attendant le flux serveur, le bouton répond honnêtement au tap.
-    if (step === 'create') {
-      Alert.alert(
-        'Créer mon crew',
-        'La création de crew arrive très bientôt. En attendant, explore les crews autour de toi et rejoins-en un en un tap.',
-        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
-      );
-    } else {
-      Alert.alert(
-        'Rejoindre avec un code',
-        'Rejoindre un crew par code arrive très bientôt. En attendant, explore les crews autour de toi.',
-        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
-      );
+function EmptyState({ onJoined }: { onJoined: () => void }) {
+  const [crewName, setCrewName] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submitCreate = () => {
+    const name = crewName.trim();
+    if (name.length < 1) {
+      Alert.alert('Nom requis', 'Choisis un nom de crew (1–40 caractères).');
+      return;
     }
+    setBusy(true);
+    void createCrew(name)
+      .then((res) => {
+        if (!res.ok) {
+          Alert.alert('Création impossible', res.error ?? 'Réessaie dans un instant.');
+          return;
+        }
+        track(EVENTS.crewCreated, { via: 'empty_state' });
+        haptics.success();
+        onJoined();
+      })
+      .finally(() => setBusy(false));
   };
+
+  const submitJoin = () => {
+    const code = joinCode.trim().toUpperCase();
+    if (code.length !== CREW_CODE_LENGTH) {
+      Alert.alert('Code invalide', `Le code crew fait ${CREW_CODE_LENGTH} caractères.`);
+      return;
+    }
+    setBusy(true);
+    void joinCrewByCode(code)
+      .then((res) => {
+        if (!res.ok) {
+          Alert.alert('Impossible de rejoindre', res.error ?? 'Vérifie le code.');
+          return;
+        }
+        track(EVENTS.crewJoined, { via: 'code' });
+        haptics.success();
+        onJoined();
+      })
+      .finally(() => setBusy(false));
+  };
+
   return (
     <TabScreen
       title="Crew"
@@ -229,10 +258,28 @@ function EmptyState() {
           tien ou rejoins-en un en 1 tap.
         </Text>
         <View style={styles.emptyActions}>
-          <GhostButton label="Créer mon crew" icon="plus" onPress={() => todoCrewFlow('create')} />
+          <TextInput
+            style={styles.emptyInput}
+            placeholder="Nom du crew"
+            placeholderTextColor={colors.gris}
+            value={crewName}
+            onChangeText={setCrewName}
+            maxLength={40}
+          />
+          <GhostButton label="Créer mon crew" icon="plus" onPress={submitCreate} disabled={busy} />
+          <TextInput
+            style={styles.emptyInput}
+            placeholder={`Code (${CREW_CODE_LENGTH} car.)`}
+            placeholderTextColor={colors.gris}
+            value={joinCode}
+            onChangeText={setJoinCode}
+            autoCapitalize="characters"
+            maxLength={CREW_CODE_LENGTH}
+          />
           <GhostButton
-            label={`Rejoindre avec un code (${CREW_CODE_LENGTH} caractères)`}
-            onPress={() => todoCrewFlow('join')}
+            label="Rejoindre avec le code"
+            onPress={submitJoin}
+            disabled={busy}
           />
           <GhostButton
             label="Explorer les crews autour de moi"
@@ -1055,6 +1102,8 @@ function SectionHead({
 }
 
 export default function CrewScreen() {
+  const { hasCrew, refresh: refreshCrew, loading: crewLoading } = useMyCrew();
+
   useEffect(() => {
     screen('crew_hq');
   }, []);
@@ -1207,7 +1256,9 @@ export default function CrewScreen() {
     [],
   );
 
-  if (!HAS_CREW) return <EmptyState />;
+  if (!crewLoading && (FORCE_EMPTY_CREW_PREVIEW || !hasCrew)) {
+    return <EmptyState onJoined={refreshCrew} />;
+  }
 
   const notify = (message: string) => {
     haptics.light();
@@ -1525,7 +1576,7 @@ export default function CrewScreen() {
             LÉGÈRES façon Strava (icône + label), jamais de grosse card — §3. */}
         <View style={styles.headerCta}>
           <InlineRunCTA
-            label="VOIR WAR ROOM"
+            label="VOIR MISSIONS"
             leading={<Icon name="guerre" size={18} color={colors.noir} />}
             onPress={() => router.navigate('/warroom')}
           />
@@ -3493,6 +3544,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   emptyActions: { marginTop: 18, gap: 10 },
+  emptyInput: {
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.card,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+  },
   // ── Sorties (AMENDEMENT-32 §1) ──
   // UN SEUL gros CTA de la scène : créer une sortie (chartreuse, noir dessus).
   outingCreateBtn: {

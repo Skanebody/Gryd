@@ -27,16 +27,16 @@
 
 ## Phase 1 — Boucle réelle (P0)
 
-- [ ] P1-BE-01 — RPC `hex_claims_in_bbox` — M — O1
+- [x] P1-BE-01 — RPC `hex_claims_for_city` — M — migration 0018
 - [ ] P1-BE-02 — Seed sectors Paris/Lille — M — O4
 - [ ] P1-BE-03 — Seed no_capture_zones minimum — M — O4
 - [ ] P1-BE-04 — Cron refresh sector_control post-ingest — S
-- [ ] P1-MOB-05 — `MapScreen` fetch hex_claims bbox — L — P1-BE-01
+- [x] P1-MOB-05 — `MapScreen` fetch hex_claims via RPC — L
 - [ ] P1-MOB-06 — Cache tuiles hex local — M
-- [ ] P1-MOB-07 — Post-run badges from `newBadges` — M — P0-MOB-03
-- [ ] P1-MOB-08 — Post-run bonus from `bonusApplied` — S
-- [ ] P1-MOB-09 — Crew create/join Supabase — L — O1
-- [ ] P1-MOB-10 — `pendingUpload` → refresh UI on sync — S
+- [x] P1-MOB-07 — Post-run badges from `newBadges` — M (Phase 0)
+- [x] P1-MOB-08 — Post-run bonus from `bonusApplied` — S (Phase 0)
+- [x] P1-MOB-09 — Crew create/join via `crew_membership` — L
+- [x] P1-MOB-10 — `pendingUpload` → map refresh on sync — S
 - [ ] P1-OPS-01 — Supabase staging project — S — O1
 - [ ] P1-OPS-02 — EAS secrets (URL, anon key) — S — O1
 - [ ] P1-OPS-03 — TestFlight internal build — M — O8
@@ -46,11 +46,11 @@
 ## Phase 2 — Friction & reco (P1)
 
 - [ ] P2-MOB-01 — Onboarding 3 écrans — M
-- [ ] P2-MOB-02 — RUN FAB central permanent — S
-- [ ] P2-MOB-03 — Route planner `recommendRun` integration — M — P0-ENG-01
+- [x] P2-MOB-02 — RUN bouton central nav — S
+- [x] P2-MOB-03 — Route planner `recommendRun` integration — M
 - [ ] P2-MOB-04 — Calques Contrôle/Action/Crew — M
 - [ ] P2-MOB-05 — Live Run réel + LiveNavMap GPS trace — L
-- [ ] P2-MOB-06 — Fix label « VOIR WAR ROOM » → Missions — S
+- [x] P2-MOB-06 — Fix label « VOIR WAR ROOM » → Missions — S
 - [ ] P2-BE-01 — Edge Function `recommend_run` — L
 - [ ] P2-MOB-07 — Fusion Saison → Profil entry — S
 

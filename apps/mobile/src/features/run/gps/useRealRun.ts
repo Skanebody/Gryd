@@ -32,6 +32,7 @@ import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
 import { queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
 import { saveLastRunResult } from '../../../lib/lastRunResult';
+import { notifyMapDataChanged } from '../../../lib/mapRefresh';
 import {
   clearActiveRun,
   clearCurrentRun,
@@ -131,6 +132,7 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
         if (!error && data !== null && data !== undefined) {
           const response = data as IngestRunResponse;
           await saveLastRunResult(payload.clientRunId, response);
+          notifyMapDataChanged();
           return { status: 'sent', response };
         }
       } catch {

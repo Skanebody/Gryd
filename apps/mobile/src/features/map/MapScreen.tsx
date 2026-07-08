@@ -43,6 +43,7 @@ import {
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
+import { useLiveMapData } from './useLiveMapData';
 import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
@@ -157,10 +158,16 @@ export function MapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
 
+  const liveMap = useLiveMapData('paris');
+
   const { points, summary } = useMemo(() => {
+    if (liveMap !== null) {
+      const data = battleMapData();
+      return { points: data.points, summary: liveMap.summary };
+    }
     const data = battleMapData();
     return { points: data.points, summary: battleMapSummary(data.collection) };
-  }, []);
+  }, [liveMap]);
   /** Emphase des familles de couches selon le mode actif (AMENDEMENT-11 §3). */
   const emph = MODE_EMPHASIS[mode];
 
@@ -181,8 +188,8 @@ export function MapScreen() {
    * traits chartreuse (lisibilité — charte).
    */
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap),
-    [emph, selectedParcours, basemap],
+    () => battleGameLayers(emph, selectedParcours, basemap, liveMap?.territoryGeo),
+    [emph, selectedParcours, basemap, liveMap],
   );
 
   /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */

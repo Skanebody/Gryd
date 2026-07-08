@@ -87,6 +87,7 @@ import {
 } from '../src/features/run/simulation';
 import { badgesFromIngest, statsFromIngest } from '../src/features/run/ingestStats';
 import { loadLastRunResult } from '../src/lib/lastRunResult';
+import { notifyMapDataChanged } from '../src/lib/mapRefresh';
 // AMENDEMENT-23 §B.4 — explicabilité post-run : schéma « la boucle fait la zone »
 // (réutilisé, DÉMO surchargée par les vrais totaux du run) + verify en libellé
 // dérivé des constantes gelées (jamais de nombre magique).
@@ -522,7 +523,10 @@ function ConquestResultScreen({
   useEffect(() => {
     if (!isRealRun || runId === undefined || runId === '') return;
     void loadLastRunResult(runId).then((r) => {
-      if (r !== null) setIngestResponse(r);
+      if (r !== null) {
+        setIngestResponse(r);
+        notifyMapDataChanged();
+      }
     });
   }, [isRealRun, runId]);
   // Intention (AMENDEMENT-16 §1) : teinte la SYNTHÈSE multi-résultats + la copy
