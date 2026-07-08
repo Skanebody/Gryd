@@ -107,6 +107,8 @@ export interface RunTerritoryInput {
    * états DB + le contexte. Appelé UNE fois, après la construction d'`allHexes`.
    */
   resolveOwnership: (allHexes: readonly string[]) => Promise<OwnershipResolution>;
+  /** Import onboarding : hexes neutres seulement (pas de vol/défense). */
+  neutralOnly?: boolean;
 }
 
 /**
@@ -263,6 +265,7 @@ export async function runTerritoryEngine(
       ...(ownership.contextByHex !== undefined && ownership.contextByHex.size > 0
         ? { contextByHex: ownership.contextByHex }
         : {}),
+      ...(input.neutralOnly ? { neutralOnly: true } : {}),
     },
   });
 

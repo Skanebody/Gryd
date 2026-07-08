@@ -410,6 +410,20 @@ export const SECTOR_PRESSURE_MAX = 100;
 /** Choix D18 : XP = points territoire bruts de la course (1:1), boosts cosmétiques V1. */
 export const XP_RATE_OF_POINTS = 1;
 
+// ─── Import onboarding fondateur (batch unique, neutres seulement, 0 pt saison) ─
+/** Fenêtre d'import rétroactif pour remplir la carte à l'inscription (jours). */
+export const ONBOARDING_IMPORT_WINDOW_DAYS = 30;
+/** Nombre max de courses avec trace GPS éligibles au claim onboarding. */
+export const ONBOARDING_IMPORT_MAX_CAPTURE_RUNS = 5;
+/** Nombre de courses retenues pour le bonus XP fondateur (les meilleures en hexes neutres). */
+export const ONBOARDING_IMPORT_XP_TOP_RUNS = 3;
+/** Plafond XP permanent crédité une seule fois à la fin du batch (~niveau 16). */
+export const ONBOARDING_IMPORT_XP_CAP = 8_000;
+/** Import onboarding : hexes déjà possédés par d'autres joueurs → pas de vol (claim neutre only). */
+export const ONBOARDING_IMPORT_NEUTRAL_ONLY = true;
+/** Points de saison crédités par un run onboarding (toujours 0 — classement repart à zéro). */
+export const ONBOARDING_IMPORT_SEASON_POINTS = 0;
+
 // ─── Villes seedées 'active' d'office pour la Saison 0 ──────────────────────
 export const CITIES = {
   paris: { id: 'paris', name: 'Paris', center: { lat: 48.8566, lng: 2.3522 } },

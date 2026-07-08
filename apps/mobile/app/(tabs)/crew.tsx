@@ -9,8 +9,7 @@
  * Coffre = ChestCard claimable + paliers + contributions ; Perks = cartes
  * reward + « PROCHAIN PERK — XP restants » ; Chat = War Log fusionné
  * (WarEventCard + réactions GRYD + LIVE) et messages actionnables (RSVP
- * défense, ping zone → carte). Données démo DÉTERMINISTES (features/crew) —
- * données démo DÉTERMINISTES (features/crew) avec fallback honnête si pas de crew.
+ * défense, ping zone → carte). Données live Supabase + fallback démo honnête.
  */
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import {

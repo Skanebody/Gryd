@@ -30,6 +30,8 @@ import {
   H3_RESOLUTION,
   HEX_LOCK_HOURS,
   OUTPOST_RADIUS_KM,
+  ONBOARDING_IMPORT_MAX_CAPTURE_RUNS,
+  ONBOARDING_IMPORT_NEUTRAL_ONLY,
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
   VERIFY_PARTIAL_MIN,
@@ -123,6 +125,7 @@ import {
 } from '../_shared/engine/bonus.ts';
 import { bonusById } from '../_shared/bonuses.ts';
 import type { BonusDefinition, BonusId } from '../_shared/types.ts';
+import { isWithinOnboardingImportWindow } from '../_shared/engine/onboarding.ts';
 
 const MS_PER_DAY = 86_400_000;
 const M_PER_KM = 1_000;
@@ -172,7 +175,7 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
   if (typeof body !== 'object' || body === null) return false;
   const b = body as Record<string, unknown>;
   return typeof b.clientRunId === 'string' && b.clientRunId.length > 0 &&
-    (b.source === 'gps' || b.source === 'healthkit') &&
+    (b.source === 'gps' || b.source === 'healthkit' || b.source === 'strava') &&
     typeof b.startedAt === 'string' &&
     Array.isArray(b.points) &&
     b.points.every((p) =>
@@ -183,13 +186,25 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
     ) &&
     (b.stepCount === undefined || typeof b.stepCount === 'number') &&
     (b.gpsTrust === undefined || (typeof b.gpsTrust === 'number' && Number.isFinite(b.gpsTrust))) &&
-    (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode)));
+    (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode))) &&
+    (b.onboardingRetro === undefined || typeof b.onboardingRetro === 'boolean');
 }
 
 interface UserProfile {
   created_at: string;
   streak_weeks: number;
   is_club: boolean;
+  onboarding_import_at?: string | null;
+}
+
+async function countOnboardingRetroRuns(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('runs')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_onboarding_retro', true);
+  if (error) throw new Error(`runs onboarding retro count: ${error.message}`);
+  return count ?? 0;
 }
 
 /** Réponse minimale reconstruite depuis la ligne runs quand celebration manque
@@ -1927,15 +1942,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!isIngestRunRequest(body)) return json({ error: 'invalid_payload' }, 400);
   const request = body;
   const runMode = effectiveRunMode(request.runMode);
+  const isOnboardingRetro = request.onboardingRetro === true;
 
   try {
     // Profil (streak, club, ancienneté) — nécessaire même pour le replay/rejet.
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('created_at, streak_weeks, is_club')
+      .select('created_at, streak_weeks, is_club, onboarding_import_at')
       .eq('id', userId)
       .single<UserProfile>();
     if (profileError || !profile) return json({ error: 'unknown_user' }, 403);
+
+    const now = new Date();
+
+    if (isOnboardingRetro) {
+      if (profile.onboarding_import_at) {
+        return json({ error: 'onboarding_import_already_done' }, 409);
+      }
+      if (!isWithinOnboardingImportWindow(new Date(request.startedAt), now)) {
+        return json({ error: 'onboarding_import_outside_window' }, 400);
+      }
+    }
 
     // ── Idempotence : zéro recalcul sur retry ────────────────────────────────
     const { data: existing, error: existingError } = await supabase
@@ -1954,7 +1981,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const now = new Date();
+    if (isOnboardingRetro) {
+      const retroCount = await countOnboardingRetroRuns(userId);
+      if (retroCount >= ONBOARDING_IMPORT_MAX_CAPTURE_RUNS) {
+        return json({ error: 'onboarding_import_run_cap' }, 400);
+      }
+    }
 
     // ── Stats §3.2 (pur) — calculées AVANT la dédup pour que la branche
     //    métrique de dedupeActivity (durée±10 % & distance±10 %) puisse jouer :
@@ -2169,16 +2201,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
       now,
       userId,
       userCreatedAt: new Date(profile.created_at),
-      streakWeeks: profile.streak_weeks,
+      streakWeeks: isOnboardingRetro ? 0 : profile.streak_weeks,
       isClub: profile.is_club,
+      neutralOnly: isOnboardingRetro && ONBOARDING_IMPORT_NEUTRAL_ONLY,
       resolveOwnership,
     });
     // `hexes` (couloir) reste la constante calculée plus haut (§Hexing, ligne
     // `hexesForSegments`) : le moteur la recalcule à l'identique en interne, mais
     // le reste du handler la référence déjà — on ne la re-déclare pas. Le moteur
     // rend le RESTE (intérieur, décision, score, verdict de boucle).
-    const { interiorCells, loopClosed, capReached, decision, score } = territory;
+    const { interiorCells, loopClosed, capReached, decision, score: territoryScore } = territory;
     const loopRejectedReason = territory.loopRejectedReason;
+    let onboardingXpCandidate = 0;
+    let score = territoryScore;
+    if (isOnboardingRetro) {
+      onboardingXpCandidate = score.xp;
+      score = { ...score, points: 0, foulees: 0, xp: 0 };
+    }
     // `interiorSet` reste dérivé ici (le couloir vs l'intérieur d'une boucle sert
     // au comptage des zones fermées de la célébration, plus bas).
     const interiorSet = new Set(interiorCells);
@@ -2190,6 +2229,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       reject_reason: null,
       points_awarded: score.points,
       xp_awarded: score.xp,
+      is_onboarding_retro: isOnboardingRetro,
+      onboarding_xp_candidate: isOnboardingRetro ? onboardingXpCandidate : 0,
     }, userId, request.clientRunId, profile.streak_weeks);
     if (inserted.replayed) return json(inserted.payload);
     const runId = inserted.runId;
@@ -2335,7 +2376,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // `claimedCentroids` = centres des hexes réellement pris (neutres + volés),
     // pour compter la contribution aux offensives dont la zone les couvre.
     let crewOutcome: CrewProcessResult = {};
-    if (crew.crewId !== null) {
+    if (!isOnboardingRetro && crew.crewId !== null) {
       const claimedCentroids = decision.results
         .filter((r) => r.outcome === 'claimed_neutral' || r.outcome === 'stolen')
         .map((r) => {
@@ -2365,7 +2406,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Le 1ᵉʳ coureur a claimé (lock) ; ce 2ᵉ ingest d'un AUTRE crew ≤ lock aurait
     // été bloqué_lock — on le bascule `contested` via resolveContestedHex (pur),
     // insère contested_group_runs + crew_feed_events, applique l'anti-collusion.
-    const contestedHexes = await handleContested(
+    const contestedHexes = isOnboardingRetro ? [] : await handleContested(
       userId,
       crew.crewId,
       runId,
@@ -2392,7 +2433,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // déjà fermée (loopClosed) : la zone est prise seul, rien à ouvrir.
     let boundaryCompleted: IngestRunResponse['boundaryCompleted'];
     let openBoundaryPayload: IngestRunResponse['openBoundary'];
-    if (crew.crewId !== null && loopTrace !== null) {
+    if (!isOnboardingRetro && crew.crewId !== null && loopTrace !== null) {
       const boundaryCtx: BoundaryClaimContext = {
         userId,
         userCreatedAt: new Date(profile.created_at),
@@ -2440,7 +2481,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // applique la récompense CAPÉE +35 % (un multiplicateur, jamais de cumul).
     const runVerified = (validation.motionTrust ?? 0) >= BONUS_MIN_MOTION_TRUST;
     let bonusApplied: IngestRunResponse['bonusApplied'];
-    if (runVerified) {
+    if (!isOnboardingRetro && runVerified) {
       const answered = new Set<BonusId>();
       if (boundaryCompleted !== undefined) answered.add('finisher');
       if (decision.totals.defended > 0) answered.add('defense_critical');
@@ -2468,7 +2509,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ── AMENDEMENT-07 §5 : challenges actifs (user + crew) ────────────────────
     // Une course valide alimente les challenges solo (sujet user) et crew/rivalry
     // (sujet crew). challengeProgress (pur) décide ratio/done ; feedback sain §12.
-    const challengeUpdates = await processChallenges(
+    const challengeUpdates = isOnboardingRetro ? [] : await processChallenges(
       userId,
       crew.crewId,
       {
@@ -2519,6 +2560,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       streak,
       results: decision.results,
       newBadges,
+      ...(isOnboardingRetro ? {
+        onboardingRetro: true,
+        onboardingXpCandidate,
+      } : {}),
       ...(crewOutcome.crewXp !== undefined ? { crewXp: crewOutcome.crewXp } : {}),
       ...(crewOutcome.crewLevelUp !== undefined ? { crewLevelUp: crewOutcome.crewLevelUp } : {}),
       ...(contestedHexes.length > 0 ? { contestedHexes } : {}),

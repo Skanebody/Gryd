@@ -70,4 +70,5 @@ export const OUTCOME_LABELS: Record<HexOutcome, string> = {
   blocked_privacy: 'Bloqué — zone privée',
   blocked_no_capture_zone: 'Bloqué — zone non capturable',
   blocked_daily_cap: 'Bloqué — plafond quotidien',
+  blocked_onboarding_neutral_only: 'Bloqué — import fondateur (hex non neutre)',
 };

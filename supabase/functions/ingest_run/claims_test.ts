@@ -510,3 +510,16 @@ Deno.test('capture fraîche mais decay échu → neutre (decay prime, pas de fau
   const r = one([HEX], states, ctx());
   assertEquals(r.results[0].outcome, 'claimed_neutral');
 });
+
+Deno.test('neutralOnly : hex adverse → blocked_onboarding_neutral_only (pas de vol)', () => {
+  const states = new Map([[HEX, foeHex()]]);
+  const r = one([HEX], states, ctx({ neutralOnly: true }));
+  assertEquals(r.results[0].outcome, 'blocked_onboarding_neutral_only');
+  assertEquals(r.totals.stolen, 0);
+});
+
+Deno.test('neutralOnly : hex neutre → claimed_neutral inchangé', () => {
+  const r = one([HEX], new Map(), ctx({ neutralOnly: true }));
+  assertEquals(r.results[0].outcome, 'claimed_neutral');
+  assertEquals(r.totals.claimed, 1);
+});

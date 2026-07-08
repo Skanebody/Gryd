@@ -22,6 +22,8 @@ const PROJECT_REF = process.env.SUPABASE_PROJECT_REF ?? 'sydwxwwirinjoheeodcg';
 
 const EDGE_FUNCTIONS = [
   'ingest_run',
+  'onboarding_import',
+  'strava_import',
   'crew_membership',
   'claim_crew_chest',
   'crew_social',

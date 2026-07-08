@@ -12,7 +12,10 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
-import { screen } from '../src/lib/analytics';
+import { screen, track } from '../src/lib/analytics';
+import { EVENTS } from '@klaim/shared';
+import { runOnboardingImport } from '../src/features/onboarding/onboardingImportApi';
+import { getStravaRefreshToken } from '../src/features/sources/adapters/strava';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -130,6 +133,8 @@ export default function SourcesScreen() {
   /** États RÉELS par source, lus des adaptateurs (AMENDEMENT-15 §3). */
   const [snapshots, setSnapshots] = useState<Record<string, SourceAdapterSnapshot>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -179,6 +184,47 @@ export default function SourcesScreen() {
     setSnapshots((prev) => ({ ...prev, [key]: snap }));
   };
 
+  const claimTerritory = async () => {
+    if (importBusy) return;
+    haptics.light();
+    setImportBusy(true);
+    setImportSummary(null);
+    try {
+      const strava = SOURCE_ADAPTERS.strava;
+      let refreshToken: string | undefined;
+      if (strava && snapshots.strava?.status === 'connected') {
+        if (strava.sync) {
+          const snap = await strava.sync();
+          setSnapshots((prev) => ({ ...prev, strava: snap }));
+        }
+        refreshToken = await getStravaRefreshToken();
+      }
+      const result = await runOnboardingImport({ refreshToken });
+      if ('error' in result) {
+        setImportSummary(
+          result.error === 'already_done'
+            ? 'Import déjà effectué sur ce compte.'
+            : 'Import impossible — réessaie plus tard.',
+        );
+        return;
+      }
+      track(EVENTS.onboardingImportComplete, {
+        runs: result.runsProcessed,
+        founder_xp: result.founderXpAwarded,
+        hexes: result.hexesClaimed,
+      });
+      setImportSummary(
+        result.alreadyDone
+          ? 'Import déjà effectué.'
+          : `${result.hexesClaimed} zones · bonus +${result.founderXpAwarded} XP · niveau ${result.playerLevel}`,
+      );
+    } catch {
+      setImportSummary('Import impossible — réessaie plus tard.');
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   const verifySources = VERIFY_SOURCES.filter((s) => s.availability !== 'soon');
   const soonSources = VERIFY_SOURCES.filter((s) => s.availability === 'soon');
 
@@ -194,6 +240,27 @@ export default function SourcesScreen() {
           <Text style={styles.heroLine}>Les autres enrichissent tes stats.</Text>
         </View>
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Réclamer mon territoire"
+        disabled={importBusy}
+        onPress={claimTerritory}
+        style={({ pressed }) => [
+          styles.claimBtn,
+          (pressed || importBusy) && styles.pressed,
+        ]}
+      >
+        <Text style={styles.claimLabel}>
+          {importBusy ? 'Import en cours…' : 'Réclamer mon territoire'}
+        </Text>
+        <Text style={styles.claimHint} numberOfLines={2}>
+          30 derniers jours · carte remplie · classement saison à zéro
+        </Text>
+      </Pressable>
+      {importSummary ? (
+        <Text style={styles.importSummary}>{importSummary}</Text>
+      ) : null}
 
       <Text style={styles.sectionLabel}>SOURCES VÉRIFIÉES</Text>
       <View style={styles.list}>
@@ -324,6 +391,29 @@ const styles = StyleSheet.create({
   },
   soonChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   pressed: { opacity: 0.75 },
+  claimBtn: {
+    backgroundColor: gameColors.crew,
+    borderRadius: radii.card,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding,
+    marginTop: 16,
+  },
+  claimLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+  },
+  claimHint: {
+    color: colors.noir,
+    fontSize: fontSizes.sm,
+    marginTop: 4,
+    opacity: 0.75,
+  },
+  importSummary: {
+    color: gameColors.verify,
+    fontSize: fontSizes.sm,
+    marginTop: 8,
+  },
   footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,
