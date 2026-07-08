@@ -17,6 +17,16 @@ export interface ActivateStreakGelResult {
   source: string;
 }
 
+export interface ActivateScoutPingResult {
+  pingId: string;
+  cityId: string;
+  h3index: string;
+  kind: string;
+  message: string;
+  expiresAt: string;
+  source: string;
+}
+
 /** @deprecated Utiliser ActivateAttackAlertResult */
 export type ActivateArsenalResult = ActivateAttackAlertResult;
 
@@ -27,7 +37,10 @@ export type ActivateArsenalError =
   | 'hex_not_fresh'
   | 'weekly_cap_user'
   | 'weekly_cap_crew'
+  | 'weekly_cap'
   | 'monthly_cap'
+  | 'invalid_city'
+  | 'no_finding'
   | 'already_active'
   | 'activate_failed';
 
@@ -85,6 +98,29 @@ export async function activateStreakGel(): Promise<
   };
   track(EVENTS.streakGelActivated, { source: res.source });
   track(EVENTS.inventoryItemUsed, { item_key: 'streak_gel' });
+  return res;
+}
+
+export async function activateScoutPing(
+  cityId = 'paris',
+): Promise<ActivateScoutPingResult | { error: ActivateArsenalError }> {
+  if (!supabase) return { error: 'backend_not_configured' };
+  const { data, error } = await supabase.rpc('activate_arsenal_item', {
+    p_item_key: 'scout_ping',
+    p_h3index: null,
+    p_city_id: cityId,
+  });
+  if (error) {
+    const msg = error.message ?? '';
+    if (msg.includes('item_not_owned')) return { error: 'item_not_owned' };
+    if (msg.includes('weekly_cap')) return { error: 'weekly_cap' };
+    if (msg.includes('invalid_city')) return { error: 'invalid_city' };
+    if (msg.includes('no_finding')) return { error: 'no_finding' };
+    return { error: 'activate_failed' };
+  }
+  const res = data as ActivateScoutPingResult;
+  track(EVENTS.scoutPingActivated, { kind: res.kind, city_id: res.cityId });
+  track(EVENTS.inventoryItemUsed, { item_key: 'scout_ping' });
   return res;
 }
 

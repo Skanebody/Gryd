@@ -23,6 +23,7 @@ import {
   BADGE_TIER_LABEL,
   CREW_BOOST_MAX_ACTIVE,
   STREAK_GEL_MAX_PER_MONTH,
+  SCOUT_PING_MAX_PER_WEEK,
   borderState,
   colors,
   elevation,
@@ -64,10 +65,12 @@ import { fetchOwnedItemKeys, fetchEquippedItemKeys } from '../src/features/arsen
 import { hydrateEquippedFromServer } from '../src/features/arsenal/inventory';
 import {
   activateAttackAlert,
+  activateScoutPing,
   activateStreakGel,
   fetchFreshOwnedHex,
   formatArsenalRemaining,
   useActiveAttackAlerts,
+  useActiveScoutPings,
   useActiveStreakGel,
   type ActivateArsenalError,
 } from '../src/features/arsenal';
@@ -146,8 +149,10 @@ export default function ArsenalScreen() {
   const [giftAnonymous, setGiftAnonymous] = useState(false);
   const [activatingAlert, setActivatingAlert] = useState(false);
   const [activatingGel, setActivatingGel] = useState(false);
+  const [activatingScout, setActivatingScout] = useState(false);
   const { alerts: activeAlerts, refresh: refreshAlerts } = useActiveAttackAlerts();
   const { gel: activeGel, refresh: refreshGel } = useActiveStreakGel();
+  const { pings: activeScoutPings, refresh: refreshScoutPings } = useActiveScoutPings();
 
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -246,6 +251,9 @@ export default function ArsenalScreen() {
       weekly_cap_user: 'Cap atteint : 2 alertes max par semaine.',
       weekly_cap_crew: 'Ton crew a atteint le plafond d’alertes cette semaine.',
       monthly_cap: `Cap atteint : ${STREAK_GEL_MAX_PER_MONTH} Streak Gel max par mois.`,
+      weekly_cap: `Cap atteint : ${SCOUT_PING_MAX_PER_WEEK} Scout Ping max par semaine.`,
+      invalid_city: 'Choisis une ville dans ton profil pour lancer un scan.',
+      no_finding: 'Aucune cible repérée dans ta ville pour l’instant — cours d’abord.',
       already_active: 'Déjà actif — attends la fin du timer.',
       activate_failed: 'Activation impossible — réessaie dans un instant.',
     }),
@@ -295,6 +303,26 @@ export default function ArsenalScreen() {
       setActivatingGel(false);
     }
   }, [session?.user.id, activatingGel, flashNotice, activateItemErrorCopy, refreshGel]);
+
+  const activateScoutPingItem = useCallback(async () => {
+    if (!session?.user.id || activatingScout) return;
+    setActivatingScout(true);
+    try {
+      const cityId = session.user.user_metadata?.city_id as string | undefined;
+      const result = await activateScoutPing(cityId ?? 'paris');
+      if ('error' in result) {
+        haptics.light();
+        flashNotice(activateItemErrorCopy[result.error]);
+        return;
+      }
+      haptics.success();
+      setDetail(null);
+      await refreshScoutPings();
+      flashNotice(result.message);
+    } finally {
+      setActivatingScout(false);
+    }
+  }, [session?.user.id, session?.user.user_metadata, activatingScout, flashNotice, activateItemErrorCopy, refreshScoutPings]);
 
   const featured = useMemo(
     () => FEATURED_KEYS.map((k) => itemByKey(k)).filter((i): i is ArsenalCatalogItem => !!i),
@@ -469,24 +497,31 @@ export default function ArsenalScreen() {
                     ? activateAttackAlertItem
                     : detail.key === 'streak_gel' && isOwned(detail.key)
                       ? activateStreakGelItem
-                      : undefined
+                      : detail.key === 'scout_ping' && isOwned(detail.key)
+                        ? activateScoutPingItem
+                        : undefined
                 }
                 activating={
                   detail.key === 'attack_alert'
                     ? activatingAlert
                     : detail.key === 'streak_gel'
                       ? activatingGel
-                      : false
+                      : detail.key === 'scout_ping'
+                        ? activatingScout
+                        : false
                 }
                 activateLabel={
                   detail.key === 'attack_alert'
                     ? 'Activer sur ma dernière zone'
                     : detail.key === 'streak_gel'
                       ? 'Protéger ma série'
-                      : undefined
+                      : detail.key === 'scout_ping'
+                        ? 'Lancer un scan'
+                        : undefined
                 }
                 activeAlerts={detail.key === 'attack_alert' ? activeAlerts : []}
                 activeGelExpires={detail.key === 'streak_gel' ? activeGel?.expiresAt : undefined}
+                activeScoutPings={detail.key === 'scout_ping' ? activeScoutPings : []}
                 onGift={() => {
                   setGiftAnonymous(false);
                   setGifting(detail);
@@ -602,6 +637,7 @@ function ItemDetail({
   activateLabel,
   activeAlerts,
   activeGelExpires,
+  activeScoutPings,
   onGift,
   onClose,
 }: {
@@ -617,6 +653,7 @@ function ItemDetail({
   activateLabel?: string;
   activeAlerts?: readonly { id: string; expiresAt: string }[];
   activeGelExpires?: string;
+  activeScoutPings?: readonly { id: string; message: string; expiresAt: string }[];
   onGift: () => void;
   onClose: () => void;
 }) {
@@ -673,6 +710,28 @@ function ItemDetail({
           <Text style={styles.detailChipText}>
             Protège ta série hebdo — aucun effet territoire.
           </Text>
+        </View>
+      ) : null}
+
+      {item.key === 'scout_ping' ? (
+        <View style={styles.detailChip}>
+          <Icon name="radar" size={13} color={gameColors.crew} />
+          <Text style={styles.detailChipText}>
+            Info temporaire — aucune capture automatique.
+          </Text>
+        </View>
+      ) : null}
+
+      {activeScoutPings && activeScoutPings.length > 0 ? (
+        <View style={styles.detailContents}>
+          {activeScoutPings.map((ping) => (
+            <View key={ping.id} style={styles.packLine}>
+              <Dot color={gameColors.crew} />
+              <Text style={styles.packLineText}>
+                {ping.message} · {formatArsenalRemaining(ping.expiresAt)}
+              </Text>
+            </View>
+          ))}
         </View>
       ) : null}
 

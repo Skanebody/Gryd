@@ -31,3 +31,4 @@ export * from './bonus.ts';
 export * from './recommendation.ts';
 export * from './attack_alerts.ts';
 export * from './streak_gel.ts';
+export * from './scout_ping.ts';

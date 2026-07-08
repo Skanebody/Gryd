@@ -22,6 +22,7 @@ import {
   ECLATS_PACKS,
   FOUNDER_PACK_ECLATS,
   SCOUT_PING_ECLATS,
+  SCOUT_PING_MAX_PER_WEEK,
   ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK,
   ATTACK_ALERT_DURATION_HOURS,
   ATTACK_ALERT_ECLATS,
@@ -229,7 +230,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     scope: 'zone',
     priceShards: SCOUT_PING_ECLATS,
     consumable: true,
-    limit: '1/semaine',
+    limit: `${SCOUT_PING_MAX_PER_WEEK}/semaine`,
     description: 'Révèle une zone fragile ou rentable. Info temporaire, aucune capture auto.',
   },
 

@@ -1131,6 +1131,10 @@ export const FOUNDER_PACK_ECLATS = 300;
 /** Prix Éclats des objets fonctionnels capés (doc §20) + bannière crew (§21.5). */
 export const STREAK_GEL_ECLATS = 60;
 export const SCOUT_PING_ECLATS = 120;
+/** Scout Ping : durée de visibilité du rapport (§20.3, info temporaire). */
+export const SCOUT_PING_DURATION_HOURS = 24;
+/** Scout Ping : plafond d'activations par semaine calendaire UTC. */
+export const SCOUT_PING_MAX_PER_WEEK = 1;
 export const BANNER_CREW_ECLATS = 350;
 
 /**
