@@ -25,11 +25,11 @@ import {
   FRAME_TIER_LABELS,
 } from '../src/features/crew/rules';
 import {
-  canApplyTo,
   playTagsFor,
   PUBLIC_CREWS,
   type PublicCrewDemo,
 } from '../src/features/crew/publicDemo';
+import { useJoinPublicCrew } from '../src/features/crew/joinCrew';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 
 /** Filtres rapides §27 — chaque clé teste un signal d'activité du crew. */
@@ -63,6 +63,7 @@ function matchesFilter(crew: PublicCrewDemo, key: FilterKey): boolean {
 export default function CrewDiscoveryScreen() {
   const [filter, setFilter] = useState<FilterKey>('all');
   const toast = useToast();
+  const joinCrew = useJoinPublicCrew();
 
   useEffect(() => {
     screen('crew_discovery');
@@ -117,15 +118,8 @@ export default function CrewDiscoveryScreen() {
                     runsPerWeek={crew.weeklyRuns}
                     seeking={crew.rolesWanted.map((r) => CREW_ROLE_LABELS[r] ?? r)}
                     onJoin={() => {
-                      // TODO(O1) : crew_joined / demande d'adhésion (§9, 4 statuts 0013).
                       haptics.medium();
-                      toast.show(
-                        crew.recruitment === 'open'
-                          ? `Bienvenue chez ${crew.name}`
-                          : canApplyTo(crew.recruitment)
-                            ? `Demande envoyée à ${crew.name}`
-                            : `${crew.name} recrute sur invitation uniquement`,
-                      );
+                      void joinCrew(crew).then((outcome) => toast.show(outcome.message));
                     }}
                     onViewBase={() =>
                       router.push({ pathname: '/crew-public', params: { crew: crew.tag } })

@@ -1398,3 +1398,23 @@ export const DAILY_CHEST_BOOST_PER_DAY = 1;
  * TUNABLE.
  */
 export const DAILY_CHEST_BOOST_PCT = 0.02;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Recommandation de course (MVP — moteur packages/engine/recommendation.ts)
+// Pondérations du score final ; TUNABLE après tests terrain.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Poids Personal Fit dans le score de recommandation (0–1). */
+export const RECO_W_PERSONAL = 0.25;
+/** Poids Crew Impact. */
+export const RECO_W_CREW = 0.25;
+/** Poids Territory Value. */
+export const RECO_W_TERRITORY = 0.2;
+/** Poids Reward (XP/points estimés). */
+export const RECO_W_REWARD = 0.15;
+/** Poids Novelty (zones peu courues). */
+export const RECO_W_NOVELTY = 0.1;
+/** Pénalité Friction (distance/durée vs habitudes, complexité). */
+export const RECO_W_FRICTION = 0.25;
+/** Nombre max d'alternatives affichées après la recommandation principale. */
+export const RECO_MAX_ALTERNATIVES = 2;

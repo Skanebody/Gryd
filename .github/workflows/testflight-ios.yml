@@ -1,0 +1,49 @@
+# GRYD — build iOS TestFlight internal (O8).
+# Déclenchement manuel : Actions → TestFlight iOS → Run workflow.
+#
+# Secrets requis :
+#   EXPO_TOKEN — https://expo.dev/accounts/[account]/settings/access-tokens
+#
+# Prérequis compte Expo (une fois, hors CI) :
+#   cd apps/mobile && eas init
+#   eas credentials (Apple Developer lié)
+#   npm run setup:eas  (EXPO_TOKEN + SUPABASE_ANON_KEY)
+name: TestFlight iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Profil EAS'
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - development
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: EAS Build iOS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        working-directory: apps/mobile
+        run: |
+          npx eas-cli@latest build \
+            --platform ios \
+            --profile "${{ inputs.profile }}" \
+            --non-interactive \
+            --no-wait

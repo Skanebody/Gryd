@@ -42,6 +42,8 @@ import {
   CHOOSE,
   CITY,
   CREW,
+  FAST_HOOK_BULLETS,
+  FAST_ONBOARDING,
   HOOK,
   NOTIFICATIONS,
   PERMISSION,
@@ -80,17 +82,23 @@ const CAPTURE_FILL_MS = 1100;
  * quitter le flow). `hook` n'a pas de précédent → aucune flèche. Les branches
  * sync/run et la capture reviennent au CHOIX du chemin (re-choisir sync ou run).
  */
-const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
-  city: 'hook',
-  permission: 'city',
-  choose: 'permission',
-  sync: 'choose',
-  run: 'choose',
-  capture: 'choose',
-  account: 'capture',
-  crew: 'account',
-  notifications: 'crew',
-};
+const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = FAST_ONBOARDING
+  ? {
+      permission: 'hook',
+      run: 'permission',
+      capture: 'run',
+    }
+  : {
+      city: 'hook',
+      permission: 'city',
+      choose: 'permission',
+      sync: 'choose',
+      run: 'choose',
+      capture: 'choose',
+      account: 'capture',
+      crew: 'account',
+      notifications: 'crew',
+    };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Écran
@@ -122,21 +130,27 @@ export default function OnboardingScreen() {
 
   /** Sortie du flow : marque l'onboarding fait (pré-compte) + route vers `href`. */
   const finish = useCallback(
-    async (href: '/' | '/crew-discovery' | '/crew') => {
+    async (href: '/' | '/crew-discovery' | '/crew' | '/route-planner') => {
       await update({ onboardingDone: true, firstCaptureDone: true });
       router.replace(href);
     },
     [update],
   );
 
+  const afterCapture = FAST_ONBOARDING
+    ? () => void finish('/route-planner')
+    : () => go('account');
+
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {step === 'hook' ? <HookStep onNext={() => go('city')} /> : null}
-      {step === 'city' ? <CityStep onNext={() => go('permission')} /> : null}
-      {step === 'permission' ? (
-        <PermissionStep onNext={() => go('choose')} />
+      {step === 'hook' ? (
+        <HookStep onNext={() => go(FAST_ONBOARDING ? 'permission' : 'city')} />
       ) : null}
-      {step === 'choose' ? (
+      {!FAST_ONBOARDING && step === 'city' ? <CityStep onNext={() => go('permission')} /> : null}
+      {step === 'permission' ? (
+        <PermissionStep onNext={() => go(FAST_ONBOARDING ? 'run' : 'choose')} />
+      ) : null}
+      {!FAST_ONBOARDING && step === 'choose' ? (
         <ChooseStep
           onSync={() => {
             void update({ path: 'sync' });
@@ -148,7 +162,7 @@ export default function OnboardingScreen() {
           }}
         />
       ) : null}
-      {step === 'sync' ? (
+      {!FAST_ONBOARDING && step === 'sync' ? (
         <SyncStep
           onDone={() => {
             void update({ firstCaptureDone: true });
@@ -159,23 +173,23 @@ export default function OnboardingScreen() {
       {step === 'run' ? (
         <RunStep
           onDone={() => {
-            void update({ firstCaptureDone: true });
+            void update({ firstCaptureDone: true, path: 'run' });
             go('capture');
           }}
         />
       ) : null}
       {step === 'capture' ? (
-        <CaptureStep reduce={reduce} onNext={() => go('account')} />
+        <CaptureStep reduce={reduce} onNext={afterCapture} />
       ) : null}
-      {step === 'account' ? <AccountStep onNext={() => go('crew')} /> : null}
-      {step === 'crew' ? (
+      {!FAST_ONBOARDING && step === 'account' ? <AccountStep onNext={() => go('crew')} /> : null}
+      {!FAST_ONBOARDING && step === 'crew' ? (
         <CrewStep
           onJoin={() => void finish('/crew-discovery')}
           onCreate={() => void finish('/crew')}
           onSkip={() => go('notifications')}
         />
       ) : null}
-      {step === 'notifications' ? (
+      {!FAST_ONBOARDING && step === 'notifications' ? (
         <NotificationsStep onDone={() => void finish('/')} />
       ) : null}
       {/* Flèche retour discrète (rendue en dernier = au-dessus) — jamais sur le hook. */}
@@ -258,9 +272,23 @@ function HookStep({ onNext }: { onNext: () => void }) {
         <Text style={styles.brand}>{HOOK.brand}</Text>
         <View style={styles.grow} />
         <Text style={styles.hookTitle}>{HOOK.title}</Text>
-        <Text style={styles.hookTagline}>{HOOK.tagline}</Text>
+        {FAST_ONBOARDING ? (
+          <View style={styles.hookBullets}>
+            {FAST_HOOK_BULLETS.map((line) => (
+              <Text key={line} style={styles.hookBullet}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.hookTagline}>{HOOK.tagline}</Text>
+        )}
         <View style={styles.footer}>
-          <PrimaryCta label={HOOK.cta} icon="carte" onPress={onNext} />
+          <PrimaryCta
+            label={FAST_ONBOARDING ? 'Commencer' : HOOK.cta}
+            icon="carte"
+            onPress={onNext}
+          />
         </View>
       </View>
     </View>
@@ -819,6 +847,13 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.md * 1.5,
     marginTop: 18,
     maxWidth: 320,
+  },
+  hookBullets: { marginTop: 18, gap: 10, maxWidth: 320 },
+  hookBullet: {
+    color: colors.gris,
+    fontSize: fontSizes.md,
+    lineHeight: fontSizes.md * 1.45,
+    letterSpacing: 0.1,
   },
 
   // ── 2 CITY / 5 CAPTURE : le plateau ──

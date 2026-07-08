@@ -57,6 +57,10 @@ import {
   type RouteDistanceOption,
 } from '../src/features/route/demo';
 import {
+  recommendRoutes,
+  recommendedRouteId,
+} from '../src/features/route/recommend';
+import {
   POPULAR_ROUTES_DEMO,
   crewsTakenLabel,
   popularRouteTarget,
@@ -171,8 +175,11 @@ export default function RoutePlannerScreen() {
   const toast = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
 
-  // Route sélectionnée : l'entrée `?type=` (War Room) présélectionne la bonne.
-  const initialId = useMemo(() => routeIdForType(params.type), [params.type]);
+  // Route sélectionnée : reco moteur, ou entrée War Room `?type=`.
+  const initialId = useMemo(() => {
+    if (params.type) return routeIdForType(params.type);
+    return recommendedRouteId('conquerir') ?? ROUTES_DEMO[0]!.id;
+  }, [params.type]);
   const [routeId, setRouteId] = useState(initialId);
   const route =
     ROUTES_DEMO.find((r) => r.id === routeId) ?? ROUTES_DEMO[ROUTES_DEMO.length - 1];
@@ -195,6 +202,10 @@ export default function RoutePlannerScreen() {
   const priority: RoutePriority = PRIORITY_BY_ROUTE_ID[route.id] ?? 'capture';
   // Objectif actif (AMENDEMENT-12 §A) : DÉRIVÉ de la route sélectionnée.
   const objective = routeObjective(route);
+  const recommendation = useMemo(
+    () => recommendRoutes(objective),
+    [objective],
+  );
 
   const selectRoute = (id: string) => {
     if (id === routeId) return;
@@ -270,6 +281,11 @@ export default function RoutePlannerScreen() {
         <Text style={styles.summary} numberOfLines={2}>
           {routeSummary(route)}
         </Text>
+        {recommendation && recommendation.recommended.id === route.id && recommendation.whyThis.length > 0 ? (
+          <Text style={styles.recoWhy} numberOfLines={2}>
+            {recommendation.whyThis.join(' · ')}
+          </Text>
+        ) : null}
       </View>
 
       {/* ── Carte usage réel : la route écrase tout (RoutePlannerMap) ── */}
@@ -541,6 +557,7 @@ const styles = StyleSheet.create({
   },
   kpiUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '700' },
   summary: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 17 },
+  recoWhy: { color: gameColors.crew, fontSize: fontSizes.xs, marginTop: 6, lineHeight: 16 },
   mapWrap: {
     height: MAP_HEIGHT,
     borderTopWidth: 1,

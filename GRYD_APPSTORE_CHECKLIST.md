@@ -29,7 +29,7 @@
 
 - Profil de build à utiliser : **`production`** (`eas build --platform ios --profile production`).
 - `appVersionSource: "remote"` (le build number est géré côté EAS/App Store Connect).
-- **Secrets** : jamais en dur. `EXPO_PUBLIC_SUPABASE_URL` est déjà dans les env EAS ; ajouter les clés PostHog / Supabase anon / (RevenueCat quand O3) via `eas secret` ou variables de profil, pas dans le repo.
+- **Secrets** : jamais en dur. `SUPABASE_URL` est dans `eas.json` ; `SUPABASE_ANON_KEY` (publishable uniquement) via `npm run setup:eas` → EAS sensitive → `app.config.ts` → `extra`. PostHog / RevenueCat (O3) idem. Jamais `sb_secret_*` côté mobile.
 - Point ouvert **O8** : le build production doit être un **dev/prod build EAS ou Xcode** pour tester le GPS réel et le podomètre (pas Expo Go / web).
 
 ### 1.3 Icône & splash

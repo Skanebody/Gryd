@@ -75,21 +75,12 @@ import {
 import type { BattleMapSummary } from './fakeHexes';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import {
+  MAP_MODE_HINTS,
   MAP_MODE_ICON,
   MAP_MODE_LABELS,
   MAP_MODE_ORDER,
   type MapMode,
 } from './territory';
-
-/**
- * Libellés AFFICHÉS des calques : « Raid » devient « Rival » à l'écran
- * (AMENDEMENT-12 §A — calque de lecture du territoire rival ; la clé interne
- * `raid` de territory.ts ne change pas).
- */
-const MODE_CHIP_LABELS: Record<MapMode, string> = {
-  ...MAP_MODE_LABELS,
-  raid: 'Rival',
-};
 
 /**
  * FOND de carte (AMENDEMENT-28) — 3 options du menu Calques, libellés COURTS non
@@ -632,7 +623,7 @@ function LayerMenu({
             key={key}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={`Calque ${MODE_CHIP_LABELS[key]}`}
+            accessibilityLabel={`Calque ${MAP_MODE_LABELS[key]}`}
             onPress={() => onSelect(key)}
             style={({ pressed }) => [
               styles.layerItem,
@@ -645,9 +636,14 @@ function LayerMenu({
               size={15}
               color={on ? gameColors.crew : colors.blanc}
             />
-            <Text style={[styles.layerLabel, on && styles.layerLabelActive]} numberOfLines={1}>
-              {MODE_CHIP_LABELS[key]}
-            </Text>
+            <View style={styles.layerTextCol}>
+              <Text style={[styles.layerLabel, on && styles.layerLabelActive]} numberOfLines={1}>
+                {MAP_MODE_LABELS[key]}
+              </Text>
+              <Text style={styles.layerHint} numberOfLines={2}>
+                {MAP_MODE_HINTS[key]}
+              </Text>
+            </View>
           </Pressable>
         );
       })}
@@ -719,7 +715,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     backgroundColor: OVERLAY_SURFACE,
     marginBottom: 4,
-    minWidth: 168,
+    minWidth: 200,
   },
   layerHeading: {
     color: colors.gris,
@@ -746,6 +742,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   layerItemActive: { borderColor: gameColors.crew, backgroundColor: gameColors.carbon },
+  layerTextCol: { flex: 1, gap: 1 },
+  layerHint: { color: colors.gris, fontSize: 9, lineHeight: 12, letterSpacing: 0.1 },
   // Toggle 2D/3D dans le menu Calques : pleine largeur du menu (aligné aux items).
   layerToggle: { alignSelf: 'stretch', marginHorizontal: 2 },
   layerLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },

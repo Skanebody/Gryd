@@ -43,6 +43,7 @@ import {
   RECRUITMENT_LABELS,
   type CrewPlayTagKey,
 } from '../src/features/crew/publicDemo';
+import { useJoinPublicCrew } from '../src/features/crew/joinCrew';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 
 /** Tag de jeu → libellé + teinte d'ÉTAT (même lecture que CrewDiscoveryCard). */
@@ -68,6 +69,7 @@ function roleMeta(role: string): { label: string; icon: IconName } {
 export default function CrewPublicScreen() {
   const params = useLocalSearchParams<{ crew?: string }>();
   const toast = useToast();
+  const joinCrew = useJoinPublicCrew();
   // Guard §0 : param absent/inconnu → première fiche démo, jamais d'écran cassé.
   const crew = publicCrewForTag(typeof params.crew === 'string' ? params.crew : undefined);
 
@@ -201,9 +203,8 @@ export default function CrewPublicScreen() {
             accessibilityState={{ disabled: !canRequest || placesLeft === 0 }}
             disabled={!canRequest || placesLeft === 0}
             onPress={() => {
-              // TODO(O1) : crew_applications (candidature réelle).
               haptics.medium();
-              toast.show(openRecruitment ? 'Bienvenue dans le crew' : 'Demande envoyée');
+              void joinCrew(crew).then((outcome) => toast.show(outcome.message));
             }}
             style={({ pressed }) => [
               styles.primary,

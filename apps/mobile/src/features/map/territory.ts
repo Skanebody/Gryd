@@ -62,50 +62,37 @@ export interface Territory {
   zoneCount: number;
 }
 
-// ─── Modes de carte (AMENDEMENT-11 §3 — remplacent les chips layers) ────────
+// ─── Modes de carte (UX Phase 2 — 3 calques : Contrôle / Action / Crew) ─────
 
-export type MapMode = 'territoire' | 'route' | 'defense' | 'raid' | 'exploration';
+export type MapMode = 'controle' | 'action' | 'crew';
 
-export const MAP_MODE_ORDER: readonly MapMode[] = [
-  'territoire',
-  'route',
-  'defense',
-  'raid',
-  'exploration',
-];
+export const MAP_MODE_ORDER: readonly MapMode[] = ['controle', 'action', 'crew'];
 
 export const MAP_MODE_LABELS: Record<MapMode, string> = {
-  territoire: 'Territoire',
-  route: 'Route',
-  defense: 'Défense',
-  raid: 'Raid',
-  exploration: 'Exploration',
+  controle: 'Contrôle',
+  action: 'Action',
+  crew: 'Crew',
 };
 
-export const DEFAULT_MAP_MODE: MapMode = 'territoire';
+/** Sous-titre court du calque (menu Couches). */
+export const MAP_MODE_HINTS: Record<MapMode, string> = {
+  controle: 'Qui tient quoi · rival · protection',
+  action: 'Défense · route reco · objectif',
+  crew: 'Alliés · raids · HQ',
+};
 
-/**
- * Icône du calque (sélecteur « Couches » AMENDEMENT-17 §1.2) — la carte n'a
- * plus de rangée de 5 filtres : UN bouton `calques` ouvre ce petit sélecteur,
- * et la couche est AUTO-choisie par défaut selon le contexte (autoMapMode).
- */
+export const DEFAULT_MAP_MODE: MapMode = 'controle';
+
+/** Icône du calque (menu « Couches » — 3 modes, UX_UI_SPEC §3.1). */
 export const MAP_MODE_ICON: Record<MapMode, IconName> = {
-  territoire: 'crew',
-  route: 'route',
-  defense: 'bouclier',
-  raid: 'raid',
-  exploration: 'radar',
+  controle: 'carte',
+  action: 'cible',
+  crew: 'crew',
 };
 
-/**
- * Calque AUTO selon la LECTURE du plan (AMENDEMENT-17 §1.2) : une défense
- * active pose d'emblée le calque `defense` (zones à sauver + route + rival +
- * timer en évidence, reste atténué) ; sinon `route` (route-first —
- * l'itinéraire domine). Aucun clic requis ; le joueur peut toujours changer
- * via « Couches ».
- */
+/** Calque AUTO : défense active → Action ; sinon Contrôle. */
 export function autoMapMode(lecture: 'conquete' | 'defense'): MapMode {
-  return lecture === 'defense' ? 'defense' : 'route';
+  return lecture === 'defense' ? 'action' : 'controle';
 }
 
 /**
@@ -125,19 +112,38 @@ export interface ModeEmphasis {
   defense: number;
   objective: number;
   route: number;
+  /** Alliés opt-in (calque Crew). */
+  mates: number;
 }
 
 export const MODE_EMPHASIS: Record<MapMode, ModeEmphasis> = {
-  // Qui contrôle quoi : tous les territoires pleins, routes en retrait.
-  territoire: { crew: 1, rival: 1, contested: 1, defense: 0.85, objective: 0.9, route: 0.45 },
-  // Où courir : l'itinéraire domine, les territoires passent en transparence.
-  route: { crew: 0.35, rival: 0.35, contested: 0.5, defense: 0.3, objective: 0.75, route: 1 },
-  // Zones/rues à sauver en surbrillance, le reste atténué.
-  defense: { crew: 0.9, rival: 0.35, contested: 0.6, defense: 1, objective: 0.25, route: 0.5 },
-  // Territoires rivaux à traverser.
-  raid: { crew: 0.4, rival: 1, contested: 1, defense: 0.3, objective: 0.5, route: 0.7 },
-  // Zones vierges + routes à ouvrir.
-  exploration: { crew: 0.35, rival: 0.3, contested: 0.35, defense: 0.25, objective: 1, route: 1 },
+  controle: {
+    crew: 1,
+    rival: 1,
+    contested: 1,
+    defense: 1,
+    objective: 0.55,
+    route: 0.35,
+    mates: 0.4,
+  },
+  action: {
+    crew: 0.55,
+    rival: 0.7,
+    contested: 0.85,
+    defense: 1,
+    objective: 1,
+    route: 1,
+    mates: 0.45,
+  },
+  crew: {
+    crew: 1,
+    rival: 0.65,
+    contested: 0.7,
+    defense: 0.6,
+    objective: 0.45,
+    route: 0.55,
+    mates: 1,
+  },
 };
 
 // ─── Pipeline géométrique ───────────────────────────────────────────────────

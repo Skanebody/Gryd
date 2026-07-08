@@ -28,3 +28,4 @@ export * from './revanche.ts';
 export * from './social.ts';
 export * from './challenge.ts';
 export * from './bonus.ts';
+export * from './recommendation.ts';

@@ -1033,6 +1033,7 @@ export const FULL_EMPHASIS: ModeEmphasis = {
   defense: 1,
   objective: 1,
   route: 1,
+  mates: 1,
 };
 
 type RealMapData = RealMapGeoJSONLayer['data'];
@@ -1098,8 +1099,9 @@ const parcoursCollectionCache = new Map<string, RealMapData>();
 export function territoryStateLayers(
   emph: ModeEmphasis,
   basemap: BasemapKey = 'dark',
+  territoryGeo?: ReadonlyMap<TerritoryState, RealMapData>,
 ): RealMapGeoJSONLayer[] {
-  const geo = territoryGeoByState();
+  const geo = territoryGeo ?? territoryGeoByState();
   const stateData = (state: TerritoryState): RealMapData =>
     geo.get(state) ?? EMPTY_COLLECTION;
   const terr = territoryStyle;
@@ -1254,6 +1256,7 @@ export function battleGameLayers(
   emph: ModeEmphasis,
   selectedParcoursId: string | null,
   basemap: BasemapKey = 'dark',
+  territoryGeo?: ReadonlyMap<TerritoryState, RealMapData>,
 ): RealMapGeoJSONLayer[] {
   if (!routeCollectionCache) {
     routeCollectionCache = lineCollection(battleMapData().points.route);
@@ -1277,7 +1280,7 @@ export function battleGameLayers(
 
   const terr = territoryStyle;
   return [
-    ...territoryStateLayers(emph, basemap),
+    ...territoryStateLayers(emph, basemap, territoryGeo),
     // §C — SECTEURS AGRÉGÉS par STATUT (0-4) au-DESSUS des territoires : c'est la
     // lecture « où est-ce chaud ? » (contesté violet + double contour pulsé,
     // attaque orange, urgence rouge, activité rival approximative). Peints sous
