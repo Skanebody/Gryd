@@ -56,9 +56,10 @@ create table if not exists public.attack_alerts (
 );
 create index if not exists attack_alerts_user_exp_idx
   on public.attack_alerts (user_id, expires_at desc);
-create index if not exists attack_alerts_hex_active_idx
-  on public.attack_alerts (h3index, expires_at desc)
-  where expires_at > now();
+-- Postgres requires immutable expressions in partial-index predicates.
+-- Use a regular index; queries already filter with `expires_at > now()` at runtime.
+create index if not exists attack_alerts_hex_exp_idx
+  on public.attack_alerts (h3index, expires_at desc);
 
 -- ═══ item_usage_logs (monétisation CoC→GRYD) ════════════════════════════════
 create table if not exists public.item_usage_logs (
