@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { PendingUploadNotifier } from '../src/lib/PendingUploadNotifier';
+import { DevPreviewBootstrap } from '../src/lib/DevPreviewBootstrap';
 import { SessionProvider } from '../src/lib/session';
 import { ErrorBoundary } from '../src/ui/ErrorBoundary';
 // AMENDEMENT-15 §2 : la tâche GPS background doit être définie AU CHARGEMENT
@@ -25,6 +26,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
+        <DevPreviewBootstrap />
         <PendingUploadNotifier />
         <StatusBar style="light" />
         {/* Boundary global brandé (AMENDEMENT-08 §0) : plus jamais d'écran d'erreur brut. */}
