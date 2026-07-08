@@ -138,7 +138,11 @@ function buildMarkers(
       id: `mate-${m.name}`,
       lng: m.position.lng,
       lat: m.position.lat,
-      children: <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />,
+      children: (
+        <View style={{ opacity: emph.mates }}>
+          <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />
+        </View>
+      ),
     })),
     // Moi — TOUJOURS au-dessus (dernier = peint en dernier).
     {

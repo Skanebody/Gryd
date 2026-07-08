@@ -147,8 +147,8 @@ export interface RoutePlannerMapProps {
 
 export function RoutePlannerMap({ route }: RoutePlannerMapProps) {
   const mapRef = useRef<RealMapRef>(null);
-  /** Opacités du mode ROUTE : l'itinéraire domine, le reste en transparence. */
-  const emph = MODE_EMPHASIS.route;
+  /** Opacités calque Action : l'itinéraire domine, le reste en transparence. */
+  const emph = MODE_EMPHASIS.action;
 
   /** Cadrage d'ouverture figé au montage (RealMap), puis fitBounds au tap. */
   const openBoundsRef = useRef<RealMapBounds>(routeBounds(route.line));

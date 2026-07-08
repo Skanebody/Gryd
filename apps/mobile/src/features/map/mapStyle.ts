@@ -1033,6 +1033,7 @@ export const FULL_EMPHASIS: ModeEmphasis = {
   defense: 1,
   objective: 1,
   route: 1,
+  mates: 1,
 };
 
 type RealMapData = RealMapGeoJSONLayer['data'];

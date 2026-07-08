@@ -37,7 +37,7 @@
 - [x] P1-MOB-08 — Post-run bonus from `bonusApplied` — S (Phase 0)
 - [x] P1-MOB-09 — Crew create/join via `crew_membership` — L
 - [x] P1-MOB-10 — `pendingUpload` → map refresh on sync — S
-- [ ] P1-OPS-01 — Supabase staging project — S — O1
+- [ ] P1-OPS-01 — Supabase staging project — S — O1 (script `scripts/deploy-staging.mjs`)
 - [ ] P1-OPS-02 — EAS secrets (URL, anon key) — S — O1
 - [ ] P1-OPS-03 — TestFlight internal build — M — O8
 
@@ -48,7 +48,7 @@
 - [x] P2-MOB-01 — Onboarding 3 écrans — M
 - [x] P2-MOB-02 — RUN bouton central nav — S
 - [x] P2-MOB-03 — Route planner `recommendRun` integration — M
-- [ ] P2-MOB-04 — Calques Contrôle/Action/Crew — M
+- [x] P2-MOB-04 — Calques Contrôle/Action/Crew — M
 - [x] P2-MOB-05 — Live Run réel + LiveNavMap GPS trace — L
 - [x] P2-MOB-06 — Fix label « VOIR WAR ROOM » → Missions — S
 - [ ] P2-BE-01 — Edge Function `recommend_run` — L

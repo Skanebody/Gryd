@@ -8,6 +8,8 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "sync:rules": "node scripts/sync-game-rules.mjs",
+    "deploy:staging": "node scripts/deploy-staging.mjs",
+    "deploy:staging:dry": "node scripts/deploy-staging.mjs --dry-run",
     "test:functions": "deno test --allow-read supabase/functions/"
   }
 }
