@@ -16,13 +16,12 @@
 import { useState, type ComponentType, type SVGProps } from 'react';
 import type { IconName } from '@klaim/shared';
 import {
+  ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK,
+  ATTACK_ALERT_DURATION_HOURS,
+  ATTACK_ALERT_ECLATS,
+  ATTACK_ALERT_MAX_PER_WEEK,
   CLUB_FOULEES_MULTIPLIER,
   ZONE_DECAY_DAYS,
-  SHIELD_CLUB_INCLUDED_PER_WEEK,
-  SHIELD_DURATION_HOURS,
-  SHIELD_EXTRA_ECLATS,
-  SHIELD_MAX_ACTIVE_PER_WEEK,
-  SHIELD_MAX_CLUSTER_HEXES,
   SKIN_PREMIUM_ECLATS_MAX,
   SKIN_PREMIUM_ECLATS_MIN,
   SKUS,
@@ -31,7 +30,7 @@ import {
   STREAK_FREEZE_FREE_PER_MONTH,
 } from '@klaim/shared';
 import { CLUB_ANNUAL_SAVINGS_PCT, PRICES_EUR, SEASON_PASS_PRICE_EUR } from '../../../lib/pricing';
-import { BannerIcon, GelIcon, RadarIcon, ScoutIcon, ShieldIcon, SkinIcon } from './ArsenalItems';
+import { BannerIcon, GelIcon, RadarIcon, ScoutIcon, SkinIcon } from './ArsenalItems';
 import { Icon } from '../ui/Icon';
 import { useLang } from './LangProvider';
 import { Reveal } from './Reveal';
@@ -73,10 +72,10 @@ const STRINGS = {
     scoutEffect:
       'Éclaireur de secteur : repère les territoires proches du decay ({days} j) avant qu’ils tombent.',
     scoutCap: 'Info uniquement · zéro zone, zéro point',
-    shieldName: 'Bouclier de quartier',
-    shieldEffect:
-      'Coque carbone sur ton secteur : jusqu’à {hexes} zones involables pendant {hours} h.',
-    shieldCap: 'Cap {max} / semaine · {club} inclus Club · {eclats} Éclats l’extra',
+    alertName: 'Alerte d’attaque',
+    alertEffect:
+      'Surveille une zone fraîche : tu es prévenu si on la cible pendant {hours} h.',
+    alertCap: 'Cap {max} / semaine · {club} inclus Club · {eclats} Éclats l’extra · ne bloque pas la capture',
     bannerName: 'Bannière crew',
     bannerEffect: 'Ton emblème hissé sur les secteurs de ton crew, visible par toute la ville.',
     bannerCap: 'Cosmétique pur · identité, aucun avantage',
@@ -91,7 +90,7 @@ const STRINGS = {
     starterFeatures: [
       'Skin Neon Territory',
       '{eclats} Éclats',
-      '1 Shield — bouclier de quartier',
+      '1 Alerte d’attaque',
       'Badge Founder — permanent',
     ],
   },
@@ -109,9 +108,10 @@ const STRINGS = {
     scoutName: 'Scout',
     scoutEffect: 'Sector scout: flags territories close to decay ({days} d) before they fall.',
     scoutCap: 'Intel only · zero zones, zero points',
-    shieldName: 'District Shield',
-    shieldEffect: 'Carbon shell over your sector: up to {hexes} zones unstealable for {hours} h.',
-    shieldCap: 'Cap {max} / week · {club} with Club · {eclats} Éclats extra',
+    alertName: 'Attack Alert',
+    alertEffect:
+      'Watch a fresh zone: you’re notified if it’s targeted for {hours} h.',
+    alertCap: 'Cap {max} / week · {club} with Club · {eclats} Éclats extra · never blocks capture',
     bannerName: 'Crew Banner',
     bannerEffect: 'Your emblem raised over your crew’s sectors, visible to the whole city.',
     bannerCap: 'Pure cosmetic · identity, no advantage',
@@ -126,7 +126,7 @@ const STRINGS = {
     starterFeatures: [
       'Neon Territory skin',
       '{eclats} Éclats',
-      '1 Shield — district shield',
+      '1 Attack Alert',
       'Founder badge — permanent',
     ],
   },
@@ -182,18 +182,17 @@ export function PricingSection() {
       cap: s.scoutCap,
     },
     {
-      id: 'shield',
+      id: 'attack_alert',
       rarity: 'carbon',
-      Icon: ShieldIcon,
-      name: s.shieldName,
-      effect: fill(s.shieldEffect, {
-        hexes: n(SHIELD_MAX_CLUSTER_HEXES),
-        hours: n(SHIELD_DURATION_HOURS),
+      Icon: RadarIcon,
+      name: s.alertName,
+      effect: fill(s.alertEffect, {
+        hours: n(ATTACK_ALERT_DURATION_HOURS),
       }),
-      cap: fill(s.shieldCap, {
-        max: n(SHIELD_MAX_ACTIVE_PER_WEEK),
-        club: n(SHIELD_CLUB_INCLUDED_PER_WEEK),
-        eclats: n(SHIELD_EXTRA_ECLATS),
+      cap: fill(s.alertCap, {
+        max: n(ATTACK_ALERT_MAX_PER_WEEK),
+        club: n(ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK),
+        eclats: n(ATTACK_ALERT_ECLATS),
       }),
     },
     {
@@ -225,10 +224,9 @@ export function PricingSection() {
   };
 
   // Features Club composées avec les constantes @klaim/shared (aucun chiffre en dur).
-  // Icônes de renfort (décision fondateur) : bouclier sur le shield, série (flamme)
-  // sur les gels de streak — les autres bénéfices gardent la puce hexagonale.
+  // Icônes de renfort : alerte sur l'inclusion Club, série (flamme) sur les gels.
   const clubFeatures: { text: string; icon?: IconName }[] = [
-    { text: `${formatInt(SHIELD_CLUB_INCLUDED_PER_WEEK)} ${copy.pricing.clubFeatures[0]}`, icon: 'bouclier' },
+    { text: `${formatInt(ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK)} ${copy.pricing.clubFeatures[0]}`, icon: 'alerte' },
     { text: copy.pricing.clubFeatures[1] ?? '' },
     { text: copy.pricing.clubFeatures[2] ?? '' },
     { text: `×${formatDecimal(CLUB_FOULEES_MULTIPLIER, 1)} ${copy.pricing.clubFeatures[3]}` },

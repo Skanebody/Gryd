@@ -15,6 +15,17 @@ export {
   type ArsenalSectionKey,
 } from './catalog';
 export {
+  activateAttackAlert,
+  fetchFreshOwnedHex,
+  type ActivateArsenalError,
+  type ActivateArsenalResult,
+} from './activateApi';
+export {
+  formatArsenalRemaining,
+  useActiveAttackAlerts,
+  type ActiveAttackAlert,
+} from './useAttackAlerts';
+export {
   BOOST_CHEST_BONUS_LABEL,
   EQUIP_SCOPE_LABEL,
   INITIAL_CREW_WALL,

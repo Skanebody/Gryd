@@ -61,6 +61,13 @@ import {
 import { fetchUserWallet } from '../src/features/arsenal/walletApi';
 import { fetchOwnedItemKeys, fetchEquippedItemKeys } from '../src/features/arsenal/inventoryApi';
 import { hydrateEquippedFromServer } from '../src/features/arsenal/inventory';
+import {
+  activateAttackAlert,
+  fetchFreshOwnedHex,
+  formatArsenalRemaining,
+  useActiveAttackAlerts,
+  type ActivateArsenalError,
+} from '../src/features/arsenal';
 import { useSession } from '../src/lib/session';
 
 /** Soldes DÉMO (Éclats généreux pour tester skins/frames ; Foulées legacy). */
@@ -134,6 +141,8 @@ export default function ArsenalScreen() {
   /** Item en cours d'offrande au crew (flux gifting). */
   const [gifting, setGifting] = useState<ArsenalCatalogItem | null>(null);
   const [giftAnonymous, setGiftAnonymous] = useState(false);
+  const [activatingAlert, setActivatingAlert] = useState(false);
+  const { alerts: activeAlerts, refresh: refreshAlerts } = useActiveAttackAlerts();
 
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -222,6 +231,45 @@ export default function ArsenalScreen() {
     setDetailCurrency(item.priceShards !== undefined ? 'eclats' : 'eur');
     setDetail(item);
   }, []);
+
+  const activateAlertErrorCopy: Record<ActivateArsenalError, string> = useMemo(
+    () => ({
+      backend_not_configured: 'Backend non configuré.',
+      item_not_owned: 'Tu n’as plus d’alerte en stock.',
+      hex_not_owned: 'Zone introuvable.',
+      hex_not_fresh: 'Capture une zone dans les 24 dernières heures pour activer une alerte.',
+      weekly_cap_user: 'Cap atteint : 2 alertes max par semaine.',
+      weekly_cap_crew: 'Ton crew a atteint le plafond d’alertes cette semaine.',
+      already_active: 'Une alerte est déjà active sur cette zone.',
+      activate_failed: 'Activation impossible — réessaie dans un instant.',
+    }),
+    [],
+  );
+
+  const activateAttackAlertItem = useCallback(async () => {
+    if (!session?.user.id || activatingAlert) return;
+    setActivatingAlert(true);
+    try {
+      const h3 = await fetchFreshOwnedHex(session.user.id);
+      if (!h3) {
+        haptics.light();
+        flashNotice('Capture une zone dans les 24 dernières heures pour activer une alerte.');
+        return;
+      }
+      const result = await activateAttackAlert(h3);
+      if ('error' in result) {
+        haptics.light();
+        flashNotice(activateAlertErrorCopy[result.error]);
+        return;
+      }
+      haptics.success();
+      setDetail(null);
+      await refreshAlerts();
+      flashNotice('Alerte active — tu seras prévenu si la zone est ciblée.');
+    } finally {
+      setActivatingAlert(false);
+    }
+  }, [session?.user.id, activatingAlert, flashNotice, activateAlertErrorCopy, refreshAlerts]);
 
   const featured = useMemo(
     () => FEATURED_KEYS.map((k) => itemByKey(k)).filter((i): i is ArsenalCatalogItem => !!i),
@@ -312,6 +360,20 @@ export default function ArsenalScreen() {
       ) : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
+      {activeAlerts.length > 0 ? (
+        <View style={styles.activeAlerts}>
+          <Text style={styles.activeAlertsLabel}>ALERTES ACTIVES</Text>
+          {activeAlerts.map((alert) => (
+            <View key={alert.id} style={styles.activeAlertRow}>
+              <Icon name="alerte" size={14} color={gameColors.crew} />
+              <Text style={styles.activeAlertText}>
+                Zone · {formatArsenalRemaining(alert.expiresAt)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {/* ── Sections §25 ── */}
       {/* §A r.4/14 : UN SEUL gros bouton chartreuse sur l'écran. Il est réservé
           au tout premier item mis en avant (Featured) ; tous les autres CTA de la
@@ -377,6 +439,11 @@ export default function ArsenalScreen() {
                 onCurrency={setDetailCurrency}
                 onBuy={(cur) => buy(detail, cur)}
                 onEquip={() => equip(detail)}
+                onActivate={
+                  detail.key === 'attack_alert' && isOwned(detail.key) ? activateAttackAlertItem : undefined
+                }
+                activating={activatingAlert}
+                activeAlerts={detail.key === 'attack_alert' ? activeAlerts : []}
                 onGift={() => {
                   setGiftAnonymous(false);
                   setGifting(detail);
@@ -487,6 +554,9 @@ function ItemDetail({
   onCurrency,
   onBuy,
   onEquip,
+  onActivate,
+  activating,
+  activeAlerts,
   onGift,
   onClose,
 }: {
@@ -497,6 +567,9 @@ function ItemDetail({
   onCurrency: (c: ArsenalPriceCurrency) => void;
   onBuy: (currency: ArsenalPriceCurrency) => void;
   onEquip: () => void;
+  onActivate?: () => void;
+  activating?: boolean;
+  activeAlerts?: readonly { id: string; expiresAt: string }[];
   onGift: () => void;
   onClose: () => void;
 }) {
@@ -535,6 +608,28 @@ function ItemDetail({
         <View style={styles.detailChip}>
           <Icon name="carte" size={13} color={gameColors.crew} />
           <Text style={styles.detailChipText}>Visible sur ta carte à la Saison 0.</Text>
+        </View>
+      ) : null}
+
+      {item.key === 'attack_alert' ? (
+        <View style={styles.detailChip}>
+          <Icon name="alerte" size={13} color={gameColors.crew} />
+          <Text style={styles.detailChipText}>
+            Informe seulement — ne bloque jamais la capture. Défends en courant.
+          </Text>
+        </View>
+      ) : null}
+
+      {activeAlerts && activeAlerts.length > 0 ? (
+        <View style={styles.detailContents}>
+          {activeAlerts.map((alert) => (
+            <View key={alert.id} style={styles.packLine}>
+              <Dot color={gameColors.crew} />
+              <Text style={styles.packLineText}>
+                Alerte active · {formatArsenalRemaining(alert.expiresAt)}
+              </Text>
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -596,7 +691,22 @@ function ItemDetail({
             <Text style={styles.detailLockedText}>Exclusif au pack</Text>
           </View>
         ) : owned ? (
-          scope && !equipped ? (
+          onActivate ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={activating}
+              onPress={onActivate}
+              style={({ pressed }) => [
+                styles.detailPrimary,
+                (pressed || activating) && styles.pressed,
+                activating && styles.detailLocked,
+              ]}
+            >
+              <Text style={styles.detailPrimaryText}>
+                {activating ? 'Activation…' : 'Activer sur ma dernière zone'}
+              </Text>
+            </Pressable>
+          ) : scope && !equipped ? (
             <Pressable
               accessibilityRole="button"
               onPress={onEquip}
@@ -765,6 +875,21 @@ const styles = StyleSheet.create({
   bannerSoft: { color: colors.gris, fontSize: fontSizes.sm },
   loot: { marginTop: 10 },
   notice: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 10, textAlign: 'center' },
+  activeAlerts: {
+    marginTop: 12,
+    gap: 8,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    padding: 14,
+  },
+  activeAlertsLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 1.5,
+    marginBottom: 2,
+  },
+  activeAlertRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  activeAlertText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,

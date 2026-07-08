@@ -36,7 +36,9 @@ export const EVENTS = {
   subscriptionStarted: 'subscription_started',
   subscriptionRenewed: 'subscription_renewed',
   subscriptionCancelled: 'subscription_cancelled',
-  shieldActivated: 'shield_activated', // props: { source }
+  shieldActivated: 'shield_activated', // props: { source } — legacy
+  attackAlertActivated: 'attack_alert_activated', // props: { h3, source }
+  inventoryItemUsed: 'inventory_item_used', // props: { item_key }
   skinEquipped: 'skin_equipped',
   // Performance (AMENDEMENT-02)
   performancePageViewed: 'performance_page_viewed',

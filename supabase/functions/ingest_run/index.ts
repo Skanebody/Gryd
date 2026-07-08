@@ -132,6 +132,7 @@ const M_PER_KM = 1_000;
 const DB_IN_CHUNK = 500; // taille des batches pour les clauses `in(...)`
 const DB_PAGE = 1_000; // pagination des lectures larges (plafond PostgREST)
 const REWARD_PRIORITY = 3; // P3 récompense (GRYD_notifications_logic.md §2)
+const STEAL_ALERT_PRIORITY = 1; // P1 attaque territoire (alerte défense)
 const WEATHER_TIMEOUT_MS = 3_000; // budget I/O Open-Meteo — technique, pas une règle de jeu
 
 const supabase = createClient(
@@ -158,6 +159,69 @@ const json = (body: unknown, status = 200): Response =>
     status,
     headers: { 'content-type': 'application/json' },
   });
+
+/** Outcomes rivaux qui déclenchent une alerte d'attaque (sans bloquer la capture). */
+const RIVAL_ATTACK_OUTCOMES = new Set([
+  'stolen',
+  'blocked_lock',
+  'blocked_shield',
+  'blocked_fresh_protection',
+  'blocked_new_player',
+]);
+
+/**
+ * Notifie les défenseurs dont une alerte d'attaque est active sur un hex ciblé.
+ * Option A monétisation : informer, jamais bloquer.
+ */
+async function notifyAttackAlerts(
+  attackerId: string,
+  results: readonly HexClaimResult[],
+  states: ReadonlyMap<string, HexState>,
+  now: Date,
+): Promise<void> {
+  const hits: { defenderId: string; h3Db: string; outcome: string }[] = [];
+  for (const r of results) {
+    if (!RIVAL_ATTACK_OUTCOMES.has(r.outcome)) continue;
+    const owner = states.get(r.h3)?.ownerUserId ?? null;
+    if (!owner || owner === attackerId) continue;
+    hits.push({ defenderId: owner, h3Db: h3ToDb(r.h3), outcome: r.outcome });
+  }
+  if (hits.length === 0) return;
+
+  const hexIds = [...new Set(hits.map((h) => h.h3Db))];
+  const { data: alerts, error } = await supabase
+    .from('attack_alerts')
+    .select('user_id, h3index')
+    .in('h3index', hexIds)
+    .gt('expires_at', now.toISOString());
+  if (error || !alerts?.length) return;
+
+  const alertSet = new Set(
+    alerts.map((a) => `${a.user_id}:${String(a.h3index)}`),
+  );
+  const rows = hits
+    .filter((h) => alertSet.has(`${h.defenderId}:${h.h3Db}`))
+    .map((h) => ({
+      user_id: h.defenderId,
+      type: 'steal' as const,
+      priority: STEAL_ALERT_PRIORITY,
+      payload: {
+        title: 'Zone sous pression',
+        body: h.outcome === 'stolen'
+          ? 'Une zone surveillée vient d\'être reprise — défends si tu peux.'
+          : 'Quelqu\'un cible une zone que tu surveilles — cours pour défendre.',
+        h3index: h.h3Db,
+        outcome: h.outcome,
+        cta: 'Défendre',
+        href: '/',
+      },
+    }));
+  if (rows.length === 0) return;
+  const { error: insertError } = await supabase.from('notifications').insert(rows);
+  if (insertError) {
+    console.error('attack_alert notification insert:', insertError.message);
+  }
+}
 
 const ZONE_DENSITIES = new Set(['active', 'emerging', 'pioneer', 'wild']);
 const RUN_MODES = new Set<RunMode>(['conquete', 'social_run', 'course_privee', 'race_mode', 'event_run']);
@@ -2300,6 +2364,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
       if (rpcError) throw new Error(`claim_hexes rpc: ${rpcError.message}`);
     }
+
+    await notifyAttackAlerts(userId, decision.results, states, now);
 
     // ── Mécaniques nourrissant les badges (décision fondateur 03/07/2026 :
     //    tous attribuables) : météo, événement, avant-poste, route. Les

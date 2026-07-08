@@ -91,9 +91,27 @@ export const DEFENSE_COVER_FULL_MIN = 0.8;
  */
 export const FRONTIER_COVERAGE_BUFFER_M = 30;
 export const SHIELD_MAX_CLUSTER_HEXES = 300;
+/** @deprecated Legacy — plus d'activation payante. Conservé pour hex_claims.shielded_until historiques. */
 export const SHIELD_DURATION_HOURS = 48;
-export const SHIELD_MAX_ACTIVE_PER_WEEK = 2; // cap absolu par joueur
+/** @deprecated Voir ATTACK_ALERT_* (option A — alerte, pas blocage). */
+export const SHIELD_MAX_ACTIVE_PER_WEEK = 2;
+/** @deprecated */
 export const SHIELD_CLUB_INCLUDED_PER_WEEK = 1;
+
+/**
+ * Alerte d'attaque (option A, monétisation CoC→GRYD) : notifie le défenseur quand
+ * une zone surveillée est ciblée. N'empêche JAMAIS la capture (anti pay-to-win).
+ */
+export const ATTACK_ALERT_DURATION_HOURS = 3;
+/** Cap absolu par joueur et par semaine (ISO). */
+export const ATTACK_ALERT_MAX_PER_WEEK = 2;
+/** Inclus Club mensuel par joueur / semaine. */
+export const ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK = 1;
+/** Plafond crew : les inclusions Club ne stackent pas linéairement à 50 membres. */
+export const ATTACK_ALERT_CREW_WEEKLY_CAP = 12;
+/** Activation possible sur une zone capturée depuis ≤ N h (fraîcheur). */
+export const ATTACK_ALERT_FRESH_CAPTURE_MAX_HOURS = 24;
+export const ATTACK_ALERT_ECLATS = 50;
 
 // ─── §3.4 Points, streaks, monnaies ──────────────────────────────────────────
 // AMENDEMENT-23 §D + doc §23 : la FORMULE DE POINTS est désormais
@@ -192,6 +210,7 @@ export const SKIN_EARNABLE_1_FOULEES = 800;
 export const SKIN_EARNABLE_2_FOULEES = 1_500;
 export const CREW_RENAME_FOULEES = 300;
 /** Éclats (monnaie premium, achetée uniquement — n'achète jamais hexes/points/Foulées/stats). */
+/** @deprecated Remplacé par ATTACK_ALERT_ECLATS — bouclier territorial retiré du MVP. */
 export const SHIELD_EXTRA_ECLATS = 90;
 export const SKIN_PREMIUM_ECLATS_MIN = 180;
 export const SKIN_PREMIUM_ECLATS_MAX = 280;
