@@ -85,7 +85,7 @@ import {
   type LiveRunMode,
   type RunResultStats,
 } from '../src/features/run/simulation';
-import { badgesFromIngest, statsFromIngest } from '../src/features/run/ingestStats';
+import { badgesFromIngest, calcBreakdownFromIngest, statsFromIngest } from '../src/features/run/ingestStats';
 import { loadLastRunResult } from '../src/lib/lastRunResult';
 import { notifyMapDataChanged } from '../src/lib/mapRefresh';
 // AMENDEMENT-23 §B.4 — explicabilité post-run : schéma « la boucle fait la zone »
@@ -566,6 +566,14 @@ function ConquestResultScreen({
   // (dans « Voir détails », replié par défaut — détail au tap, zéro flou).
   const [showCalc, setShowCalc] = useState(false);
 
+  const calcBreakdown = useMemo(
+    () =>
+      ingestResponse !== null
+        ? calcBreakdownFromIngest(ingestResponse)
+        : DEMO_CALC_BREAKDOWN,
+    [ingestResponse],
+  );
+
   const badgeId =
     mode === 'conquete'
       ? serverBadges[0] ?? (ingestResponse === null ? DEMO_UNLOCKED_BADGE_ID : undefined)
@@ -580,13 +588,13 @@ function ConquestResultScreen({
 
   // Mini-cartes en traits nets §4ter (avant/après + share card) — conquête.
   const sectorGeo = useMemo(
-    () => (mode === 'conquete' ? buildSectorGeometry() : null),
-    [mode],
+    () => (mode === 'conquete' && ingestResponse === null ? buildSectorGeometry() : null),
+    [mode, ingestResponse],
   );
-  // AVANT/APRÈS du remplissage de boucle — seulement si la boucle est fermée.
   const loopGeo = useMemo(
-    () => (stats.loopClosed && loop ? buildLoopGeometry(loop) : null),
-    [stats.loopClosed, loop],
+    () =>
+      stats.loopClosed && loop && ingestResponse === null ? buildLoopGeometry(loop) : null,
+    [stats.loopClosed, loop, ingestResponse],
   );
 
   useEffect(() => {
@@ -639,11 +647,27 @@ function ConquestResultScreen({
     : [];
   // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
   // « République défendue · Paris Est +5 % ».
-  const heroLine = conquest
-    ? `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`
-    : isPrivate
-      ? 'Course privée · visible par toi seul'
-      : `Social Run · ${formatKm(stats.distanceM)} km`;
+  const heroLine = useMemo(() => {
+    if (conquest && ingestResponse !== null) {
+      const captured = ingestResponse.hexes.claimed + ingestResponse.hexes.stolen;
+      if (captured > 0) return `+${formatInt(captured)} zones capturées`;
+      if (ingestResponse.hexes.defended > 0) {
+        return `${formatInt(ingestResponse.hexes.defended)} zones défendues`;
+      }
+      if (ingestResponse.openBoundary) {
+        return `Frontière ouverte · ${ingestResponse.openBoundary.name}`;
+      }
+      if (ingestResponse.boundaryCompleted) {
+        return `Frontière fermée · ${ingestResponse.boundaryCompleted.name}`;
+      }
+      return 'Course validée · stats enregistrées';
+    }
+    if (conquest) {
+      return `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`;
+    }
+    if (isPrivate) return 'Course privée · visible par toi seul';
+    return `Social Run · ${formatKm(stats.distanceM)} km`;
+  }, [conquest, ingestResponse, isPrivate, stats, summary.kicker]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
@@ -863,19 +887,19 @@ function ConquestResultScreen({
                       <View style={styles.calcCell}>
                         <MiniStat
                           label="DÉFENDUES"
-                          value={`+${formatInt(DEMO_CALC_BREAKDOWN.zonesDefended)}`}
+                          value={`+${formatInt(calcBreakdown.zonesDefended)}`}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
                           label="ROUTES"
-                          value={formatInt(DEMO_CALC_BREAKDOWN.routesOpened)}
+                          value={formatInt(calcBreakdown.routesOpened)}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
                           label="EXCLUS"
-                          value={formatInt(DEMO_CALC_BREAKDOWN.segmentsExcluded)}
+                          value={formatInt(calcBreakdown.segmentsExcluded)}
                         />
                       </View>
                       <View style={styles.calcCell}>

@@ -7,6 +7,12 @@ import type { IngestRunResponse } from '@klaim/shared';
 import { VERIFIED_MIN_TRUST } from '@klaim/shared';
 import type { LiveRunMode, RunResultStats } from './simulation';
 
+export interface IngestCalcBreakdown {
+  zonesDefended: number;
+  routesOpened: number;
+  segmentsExcluded: number;
+}
+
 const DEFAULT_ZONE = 'Ta zone';
 const DEFAULT_CREW = 'Ton crew';
 const DEFAULT_PLAYER = 'Toi';
@@ -42,6 +48,14 @@ export function statsFromIngest(
     rankGained: false,
     crewName: DEFAULT_CREW,
     playerName: DEFAULT_PLAYER,
+  };
+}
+
+export function calcBreakdownFromIngest(response: IngestRunResponse): IngestCalcBreakdown {
+  return {
+    zonesDefended: response.hexes.defended,
+    routesOpened: response.openBoundary ? 1 : 0,
+    segmentsExcluded: response.hexes.blocked,
   };
 }
 

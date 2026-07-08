@@ -47,7 +47,6 @@ import {
   BADGE_TOTAL,
 } from '../../src/features/badges/catalog';
 import { BadgeHex } from '../../src/features/badges/BadgeHex';
-import { UNLOCKED_IDS, demoStat } from '../../src/features/badges/demo';
 import { MY_CREW } from '../../src/features/crew/demo';
 import { useMyCrew } from '../../src/features/crew/useMyCrew';
 import {

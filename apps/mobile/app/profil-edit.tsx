@@ -30,7 +30,7 @@ import { StackScreen } from '../src/ui/StackScreen';
 import { InlineRunCTA } from '../src/ui/game';
 import { BadgeHex } from '../src/features/badges/BadgeHex';
 import { badgeById, badgeColor } from '../src/features/badges/catalog';
-import { UNLOCKED_IDS } from '../src/features/badges/demo';
+import { usePlayerProgress } from '../src/features/social/usePlayerProgress';
 import { PlayerCardAvatar } from '../src/features/social/PlayerCardAvatar';
 import {
   AVATAR_COLORS,
@@ -53,10 +53,13 @@ const RUNNER_TIER = playerTierForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
 
 /** Badges choisissables = débloqués, non-legacy, du plus rare au moins rare. */
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
-const CHOOSABLE_BADGES: readonly BadgeDefT[] = [...UNLOCKED_IDS]
-  .map((id) => badgeById(id))
-  .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
-  .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
+
+function choosableBadges(unlockedIds: ReadonlySet<string>): readonly BadgeDefT[] {
+  return [...unlockedIds]
+    .map((id) => badgeById(id))
+    .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
+    .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
+}
 
 /** Frames équipables (portée profile, hors titres) — cosmétique visible sur la card. */
 const FRAME_ITEMS = itemsInSection('frames').filter(isFrameItem);
@@ -68,6 +71,8 @@ export default function ProfilEditScreen() {
   }, []);
 
   const { editable, save } = useMyProfile();
+  const { unlockedIds } = usePlayerProgress();
+  const choosable = useMemo(() => choosableBadges(unlockedIds), [unlockedIds]);
   const { equipped, equip } = useEquippedCosmetics();
 
   // Brouillon local initialisé sur les valeurs persistées (reflète les édits déjà faits).
@@ -375,7 +380,7 @@ export default function ProfilEditScreen() {
         BADGES AFFICHÉS · {featuredBadgeIds.length}/{FEATURED_BADGE_COUNT}
       </Text>
       <View style={[styles.card, styles.badgeWrap]}>
-        {CHOOSABLE_BADGES.map((def) => {
+        {choosable.map((def) => {
           const on = featuredBadgeIds.includes(def.id);
           const full = !on && featuredBadgeIds.length >= FEATURED_BADGE_COUNT;
           return (
