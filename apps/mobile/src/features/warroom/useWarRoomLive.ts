@@ -14,6 +14,7 @@ import {
   type OpenBoundaryDemo,
 } from './demo';
 import { fetchWarRoomLive } from './warroomApi';
+import { fetchCrewChest, type CrewChestLive } from '../crew/crewLiveApi';
 
 export interface WarRoomLiveState {
   loading: boolean;
@@ -22,6 +23,7 @@ export interface WarRoomLiveState {
   offensive: OffensiveDemo;
   openBoundaries: readonly OpenBoundaryDemo[];
   crewRank: number;
+  chest: CrewChestLive | null;
   refresh: () => void;
 }
 
@@ -34,6 +36,7 @@ export function useWarRoomLive(): WarRoomLiveState {
   const [offensive, setOffensive] = useState(OFFENSIVE);
   const [openBoundaries, setOpenBoundaries] = useState<readonly OpenBoundaryDemo[]>(OPEN_BOUNDARIES);
   const [crewRank, setCrewRank] = useState(WAR_STATUS.crewRank);
+  const [chest, setChest] = useState<CrewChestLive | null>(null);
 
   const refresh = useCallback(() => {
     if (useDemo || session === null || membership === null) {
@@ -41,16 +44,21 @@ export function useWarRoomLive(): WarRoomLiveState {
       setOffensive(OFFENSIVE);
       setOpenBoundaries(OPEN_BOUNDARIES);
       setCrewRank(WAR_STATUS.crewRank);
+      setChest(null);
       setLoading(false);
       return;
     }
     setLoading(true);
-    void fetchWarRoomLive(membership.crewId, membership.crew.city_id, session.user.id)
-      .then((live) => {
+    void Promise.all([
+      fetchWarRoomLive(membership.crewId, membership.crew.city_id, session.user.id),
+      fetchCrewChest(membership.crewId),
+    ])
+      .then(([live, chestLive]) => {
         setDefenseMission(live.defenseMission ?? DEFENSE_MISSION);
         setOffensive(live.offensive ?? OFFENSIVE);
         setOpenBoundaries(live.openBoundaries.length > 0 ? live.openBoundaries : OPEN_BOUNDARIES);
         setCrewRank(live.crewRank ?? WAR_STATUS.crewRank);
+        setChest(chestLive);
       })
       .finally(() => setLoading(false));
   }, [membership, session, useDemo]);
@@ -59,5 +67,5 @@ export function useWarRoomLive(): WarRoomLiveState {
     refresh();
   }, [refresh]);
 
-  return { loading, useDemo, defenseMission, offensive, openBoundaries, crewRank, refresh };
+  return { loading, useDemo, defenseMission, offensive, openBoundaries, crewRank, chest, refresh };
 }

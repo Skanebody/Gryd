@@ -22,9 +22,10 @@ export interface CrewSummary {
 
 export interface CrewMembershipResult {
   ok: boolean;
-  action: 'create' | 'join_by_code' | 'leave' | 'apply' | 'update_profile';
+  action: 'create' | 'join_by_code' | 'leave' | 'apply' | 'update_profile' | 'decide_application';
   crew?: CrewSummary;
   role?: string;
+  decision?: 'accepted' | 'rejected';
   error?: string;
 }
 

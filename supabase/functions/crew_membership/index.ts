@@ -27,7 +27,7 @@ const json = (body: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json' },
   });
 
-type Action = 'create' | 'join_by_code' | 'leave' | 'apply' | 'update_profile';
+type Action = 'create' | 'join_by_code' | 'leave' | 'apply' | 'update_profile' | 'decide_application';
 
 interface CrewMembershipRequest {
   action: Action;
@@ -40,6 +40,8 @@ interface CrewMembershipRequest {
   tag?: string;
   recruitmentStatus?: string;
   tags?: string[];
+  applicationId?: string;
+  decision?: string;
 }
 
 function isRequest(body: unknown): body is CrewMembershipRequest {
@@ -50,7 +52,8 @@ function isRequest(body: unknown): body is CrewMembershipRequest {
     b.action === 'join_by_code' ||
     b.action === 'leave' ||
     b.action === 'apply' ||
-    b.action === 'update_profile'
+    b.action === 'update_profile' ||
+    b.action === 'decide_application'
   );
 }
 
@@ -291,6 +294,79 @@ Deno.serve(async (req) => {
     }
 
     return json({ ok: true, action: 'update_profile', crew });
+  }
+
+  if (body.action === 'decide_application') {
+    const active = await activeMembership(userId);
+    if (!active) return json({ error: 'not_in_crew' }, 400);
+    if (!['founder', 'co_captain', 'captain'].includes(active.role)) {
+      return json({ error: 'forbidden' }, 403);
+    }
+
+    const applicationId =
+      typeof body.applicationId === 'string' ? body.applicationId.trim() : '';
+    const decision = typeof body.decision === 'string' ? body.decision.trim() : '';
+    if (applicationId.length === 0) return json({ error: 'invalid_application_id' }, 400);
+    if (decision !== 'accepted' && decision !== 'rejected') {
+      return json({ error: 'invalid_decision' }, 400);
+    }
+
+    const { data: application, error: appErr } = await supabase
+      .from('crew_applications')
+      .select('id, crew_id, user_id, status')
+      .eq('id', applicationId)
+      .maybeSingle();
+    if (appErr || !application) return json({ error: 'application_not_found' }, 404);
+    if (application.crew_id !== active.crew_id) return json({ error: 'forbidden' }, 403);
+    if (application.status !== 'pending') return json({ error: 'application_not_pending' }, 409);
+
+    const nowIso = new Date().toISOString();
+
+    if (decision === 'rejected') {
+      const { error: rejectErr } = await supabase
+        .from('crew_applications')
+        .update({ status: 'rejected', decided_at: nowIso, decided_by: userId })
+        .eq('id', applicationId)
+        .eq('status', 'pending');
+      if (rejectErr) return json({ error: 'reject_failed', detail: rejectErr.message }, 500);
+      return json({ ok: true, action: 'decide_application', decision: 'rejected' });
+    }
+
+    const applicantId = application.user_id as string;
+    const { data: existingMember } = await supabase
+      .from('crew_members')
+      .select('crew_id')
+      .eq('user_id', applicantId)
+      .is('left_at', null)
+      .maybeSingle();
+    if (existingMember) return json({ error: 'applicant_in_crew' }, 409);
+
+    const count = await memberCount(active.crew_id);
+    if (count >= CREW_MAX_MEMBERS) return json({ error: 'crew_full' }, 403);
+
+    const { error: memberErr } = await supabase.from('crew_members').insert({
+      crew_id: active.crew_id,
+      user_id: applicantId,
+      role: CREW_ENTRY_ROLE,
+      role_since: nowIso,
+    });
+    if (memberErr) return json({ error: 'accept_failed', detail: memberErr.message }, 500);
+
+    const { error: acceptErr } = await supabase
+      .from('crew_applications')
+      .update({ status: 'accepted', decided_at: nowIso, decided_by: userId })
+      .eq('id', applicationId)
+      .eq('status', 'pending');
+    if (acceptErr) return json({ error: 'application_update_failed', detail: acceptErr.message }, 500);
+
+    await supabase.from('crew_feed_events').insert({
+      crew_id: active.crew_id,
+      actor_id: applicantId,
+      event_type: 'join',
+      payload: { body: 'Nouveau membre accepté via candidature' },
+    });
+
+    return json({ ok: true, action: 'decide_application', decision: 'accepted' });
   }
 
   return json({ error: 'unknown_action' }, 400);

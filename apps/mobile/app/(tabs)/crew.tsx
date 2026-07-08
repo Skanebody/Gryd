@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CREW_CHEST_TIERS,
   CREW_CHEST_TIER_ORDER,
+  CREW_CHEST_TIER_FOULEES,
   CREW_CHEST_WEEKLY_TARGET,
   CREW_CODE_LENGTH,
   CREW_GIFT_CLAIMS_PER_MEMBER,
@@ -55,6 +56,12 @@ import {
   joinCrewByCode,
   type CrewMemberProfile,
 } from '../../src/features/crew/crewApi';
+import { claimCrewChest } from '../../src/features/crew/crewChestApi';
+import {
+  decideApplication,
+  fetchPendingApplications,
+  type CrewApplicationRow,
+} from '../../src/features/crew/crewApplicationsApi';
 import { useMyCrew } from '../../src/features/crew/useMyCrew';
 import { useCrewLiveData } from '../../src/features/crew/useCrewLiveData';
 import { haptics } from '../../src/lib/haptics';
@@ -1123,6 +1130,7 @@ export default function CrewScreen() {
     }
     void fetchCrewMemberCount(membership.crewId).then(setMemberCount);
     void fetchCrewMembers(membership.crewId).then(setCrewMembers);
+    void fetchPendingApplications(membership.crewId).then(setPendingApplications);
   }, [membership]);
 
   useEffect(() => {
@@ -1177,6 +1185,8 @@ export default function CrewScreen() {
   /** Gestion « Membres bloqués » (liste + Débloquer) — false = fermée. */
   const [blockedSheet, setBlockedSheet] = useState(false);
   const [chestOpened, setChestOpened] = useState(false);
+  const [chestClaiming, setChestClaiming] = useState(false);
+  const [pendingApplications, setPendingApplications] = useState<CrewApplicationRow[]>([]);
   const [rsvp, setRsvp] = useState<Record<string, DefenseRsvp>>({});
   const [showTiers, setShowTiers] = useState(false);
   /** Contribution/boost = section SECONDAIRE repliée par défaut (§1.3). */
@@ -1291,6 +1301,7 @@ export default function CrewScreen() {
   const myRole = displayMembers.find((m) => m.me)?.role ?? 'runner';
   // Bouton « Modifier le crew » : founder-only (CREW_PERMISSIONS source de vérité).
   const canEditCrew = roleCan(myRole, 'changeNameEmblem') || roleCan(myRole, 'manageRecruitment');
+  const canReviewApplications = isRealCrew && roleCan(myRole, 'acceptApplications');
 
   // War Log = UNIQUEMENT les événements (les messages vivent dans le sous-onglet
   // Chat) — on ne mélange plus événements et messages dans une seule liste.
@@ -1442,6 +1453,57 @@ export default function CrewScreen() {
   // garder le crew vivant les jours off. Chaque action pose un +XP SOCIAL
   // cosmétique + une anim ; ZÉRO territoire/point/vitesse/protection (anti-P2W).
   // Encourager / Voter / Signaler : action ponctuelle, une fois/jour (idempotent).
+  const onClaimChest = () => {
+    if (chestClaiming) return;
+    if (!isRealCrew) {
+      setChestOpened(true);
+      setNotice(
+        chest.tier
+          ? `Palier ${CHEST_TIER_LABELS[chest.tier]} ouvert — récompenses au crew (démo)`
+          : null,
+      );
+      return;
+    }
+    if (!chestClaimable) return;
+    setChestClaiming(true);
+    haptics.medium();
+    void claimCrewChest()
+      .then((result) => {
+        if (!result.ok || !result.tier) {
+          notify(
+            result.error === 'already_claimed'
+              ? 'Coffre déjà réclamé cette semaine'
+              : 'Réclamation impossible pour l’instant',
+          );
+          return;
+        }
+        setChestOpened(true);
+        const foulees = result.fouleesEach ?? CREW_CHEST_TIER_FOULEES[result.tier];
+        setNotice(
+          `Palier ${CHEST_TIER_LABELS[result.tier]} — +${foulees} Foulées par membre`,
+        );
+        live.refresh();
+      })
+      .finally(() => setChestClaiming(false));
+  };
+
+  const onDecideApplication = (applicationId: string, decision: 'accepted' | 'rejected') => {
+    haptics.light();
+    void decideApplication(applicationId, decision).then((result) => {
+      if (!result.ok) {
+        notify('Décision impossible — réessaie plus tard');
+        return;
+      }
+      if (membership) {
+        void fetchPendingApplications(membership.crewId).then(setPendingApplications);
+        void fetchCrewMemberCount(membership.crewId).then(setMemberCount);
+        void fetchCrewMembers(membership.crewId).then(setCrewMembers);
+        refreshCrew();
+      }
+      notify(decision === 'accepted' ? 'Candidature acceptée' : 'Candidature refusée');
+    });
+  };
+
   const onDailyAction = (action: 'encourage' | 'vote' | 'signal') => {
     const posted = markDailyAction(action);
     if (!posted) {
@@ -1860,6 +1922,49 @@ export default function CrewScreen() {
       {/* ══ MEMBRES : MemberCard + sheet d'actions (doc §12) ══ */}
       {tab === 'membres' ? (
         <>
+          {canReviewApplications && pendingApplications.length > 0 ? (
+            <>
+              <SectionLabel>CANDIDATURES · {pendingApplications.length}</SectionLabel>
+              {pendingApplications.map((app) => (
+                <View key={app.id} style={styles.applicationRow}>
+                  <View style={styles.applicationBody}>
+                    <Text style={styles.applicationName} numberOfLines={1}>
+                      {app.displayName ?? app.handle}
+                    </Text>
+                    {app.message ? (
+                      <Text style={styles.applicationMsg} numberOfLines={2}>
+                        {app.message}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.applicationActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Refuser la candidature"
+                      onPress={() => onDecideApplication(app.id, 'rejected')}
+                      style={({ pressed }) => [styles.applicationBtn, pressed && styles.dim]}
+                    >
+                      <Text style={styles.applicationBtnLabel}>Refuser</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Accepter la candidature"
+                      onPress={() => onDecideApplication(app.id, 'accepted')}
+                      style={({ pressed }) => [
+                        styles.applicationBtn,
+                        styles.applicationBtnAccept,
+                        pressed && styles.dim,
+                      ]}
+                    >
+                      <Text style={[styles.applicationBtnLabel, styles.applicationBtnAcceptLabel]}>
+                        Accepter
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </>
+          ) : null}
           <SectionLabel>
             MEMBRES · {activeMembers}/{CREW_MAX_MEMBERS}
           </SectionLabel>
@@ -1930,14 +2035,7 @@ export default function CrewScreen() {
                 : 'Palier max atteint'
             }
             state={chestClaimable ? 'claimable' : 'inprogress'}
-            onOpen={() => {
-              setChestOpened(true);
-              setNotice(
-                chest.tier
-                  ? `Palier ${CHEST_TIER_LABELS[chest.tier]} ouvert — récompenses au crew (démo)`
-                  : null,
-              );
-            }}
+            onOpen={onClaimChest}
           />
           <Text style={styles.chestMeta}>
             {formatInt(chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
@@ -3099,13 +3197,6 @@ const styles = StyleSheet.create({
   },
   // ── Membres ──
   memberItem: { marginBottom: 8 },
-  // ── Coffre ──
-  chestMeta: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    marginTop: 10,
-    fontVariant: ['tabular-nums'],
-  },
   rewardList: { gap: 8 },
   // Paliers = détail AU TAP (§6) : rangée légère séparée par un filet, pas une card.
   tiersToggle: {
@@ -3135,6 +3226,41 @@ const styles = StyleSheet.create({
   tierPct: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontVariant: ['tabular-nums'],
+  },
+  // ── Candidatures ──
+  applicationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+    padding: 12,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+  },
+  applicationBody: { flex: 1, gap: 4 },
+  applicationName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  applicationMsg: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
+  applicationActions: { flexDirection: 'row', gap: 6 },
+  applicationBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: borderState.hairline,
+  },
+  applicationBtnAccept: {
+    backgroundColor: gameColors.crew,
+    borderColor: gameColors.crew,
+  },
+  applicationBtnLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700' },
+  applicationBtnAcceptLabel: { color: colors.noir },
+  // ── Coffre ──
+  chestMeta: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    marginTop: 8,
+    marginBottom: 12,
     fontVariant: ['tabular-nums'],
   },
   contribRow: {

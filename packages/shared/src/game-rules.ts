@@ -668,6 +668,23 @@ export const CREW_CHEST_WEIGHTS = {
 } as const;
 export type CrewChestSource = keyof typeof CREW_CHEST_WEIGHTS;
 
+/**
+ * Niveau crew minimum pour le coffre hebdo (perk `weekly_crew_chest`, §35 L5).
+ */
+export const CREW_CHEST_UNLOCK_LEVEL = 5;
+
+/**
+ * Foulées capées créditées à chaque membre actif à la réclamation (§39.3).
+ * Cosmétique/économie secondaire — jamais territoire ni points classement.
+ */
+export const CREW_CHEST_TIER_FOULEES = {
+  bronze: 40,
+  silver: 80,
+  gold: 120,
+  carbon: 160,
+  elite: 240,
+} as const;
+
 // ─── §45 Crew Activity Score ─────────────────────────────────────────────────
 /** Poids (%) des composantes du score de santé crew (§45) — somme = 100. */
 export const ACTIVITY_SCORE_WEIGHTS = {

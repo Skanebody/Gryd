@@ -59,6 +59,7 @@ import {
   type EquipScope,
 } from '../src/features/arsenal';
 import { fetchUserWallet } from '../src/features/arsenal/walletApi';
+import { fetchOwnedItemKeys } from '../src/features/arsenal/inventoryApi';
 import { useSession } from '../src/lib/session';
 
 /** Soldes DÉMO (Éclats généreux pour tester skins/frames ; Foulées legacy). */
@@ -103,6 +104,15 @@ export default function ArsenalScreen() {
     });
   }, [configured, session]);
   const [owned, setOwned] = useState<Set<string>>(() => new Set(INITIAL_OWNED));
+  useEffect(() => {
+    if (!configured || session === null) {
+      setOwned(new Set(INITIAL_OWNED));
+      return;
+    }
+    void fetchOwnedItemKeys(session.user.id).then((keys) => {
+      setOwned(new Set([...INITIAL_OWNED, ...keys]));
+    });
+  }, [configured, session]);
   const [equipped, setEquipped] = useState<Partial<Record<EquipScope, string>>>(
     () => ({ ...INITIAL_EQUIPPED }),
   );

@@ -920,6 +920,8 @@ export default function WarRoomScreen() {
     offensive: liveOffensive,
     openBoundaries: liveBoundaries,
     crewRank: liveCrewRank,
+    chest: liveChest,
+    useDemo: warDemo,
   } = useWarRoomLive();
   // Une seule section ouverte à la fois (anti-scroll) — tout replié au montage.
   const [open, setOpen] = useState<OpenSection>(null);
@@ -946,10 +948,11 @@ export default function WarRoomScreen() {
   const offensiveTimeLeft = useCountdown(liveOffensive.remainingS);
 
   // COFFRE — état/palier DÉRIVÉS de chestStateFor (source unique = Crew HQ).
-  const chestPct = MY_CREW.chestProgress / CREW_CHEST_WEEKLY_TARGET;
+  const chestProgress = !warDemo && liveChest !== null ? liveChest.progress : MY_CREW.chestProgress;
+  const chestPct = chestProgress / CREW_CHEST_WEEKLY_TARGET;
   const chest = chestStateFor(chestPct);
   const nextTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
-  const chestRemaining = Math.max(0, CREW_CHEST_WEEKLY_TARGET - MY_CREW.chestProgress);
+  const chestRemaining = Math.max(0, CREW_CHEST_WEEKLY_TARGET - chestProgress);
 
   // À TERMINER — frontières ouvertes (résumé ; détail au chantier 2).
   const firstBoundary = liveBoundaries[0];
