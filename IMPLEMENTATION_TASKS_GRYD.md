@@ -38,8 +38,8 @@
 - [x] P1-MOB-09 — Crew create/join via `crew_membership` — L
 - [x] P1-MOB-10 — `pendingUpload` → map refresh on sync — S
 - [ ] P1-OPS-01 — Supabase staging project — S — O1 (script `scripts/deploy-staging.mjs`)
-- [ ] P1-OPS-02 — EAS secrets (URL, anon key) — S — O1
-- [ ] P1-OPS-03 — TestFlight internal build — M — O8
+- [x] P1-OPS-02 — EAS secrets (URL, anon key) — S — O1 (`eas.json` + `DEPLOY.md`)
+- [x] P1-OPS-03 — TestFlight internal build — M — O8 (workflow + `npm run testflight:ios`)
 
 ---
 

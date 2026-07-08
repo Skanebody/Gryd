@@ -12,7 +12,8 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://sydwxwwirinjoheeodcg.supabase.co"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://sydwxwwirinjoheeodcg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "@EXPO_PUBLIC_SUPABASE_ANON_KEY"
       }
     },
     "preview": {
@@ -22,7 +23,8 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://sydwxwwirinjoheeodcg.supabase.co"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://sydwxwwirinjoheeodcg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "@EXPO_PUBLIC_SUPABASE_ANON_KEY"
       }
     },
     "production": {
@@ -31,6 +33,9 @@
     }
   },
   "submit": {
+    "preview": {
+      "ios": {}
+    },
     "production": {}
   }
 }
