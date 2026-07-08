@@ -45,8 +45,15 @@ import {
   spacing,
   type IconName,
 } from '@klaim/shared';
+import { useSession } from '../../src/lib/session';
 import { EVENTS, screen, track } from '../../src/lib/analytics';
-import { createCrew, fetchCrewMemberCount, joinCrewByCode } from '../../src/features/crew/crewApi';
+import {
+  createCrew,
+  fetchCrewMemberCount,
+  fetchCrewMembers,
+  joinCrewByCode,
+  type CrewMemberProfile,
+} from '../../src/features/crew/crewApi';
 import { useMyCrew } from '../../src/features/crew/useMyCrew';
 import { haptics } from '../../src/lib/haptics';
 import { GhostButton } from '../../src/ui/GhostButton';
@@ -1095,16 +1102,20 @@ function SectionHead({
 }
 
 export default function CrewScreen() {
+  const { session } = useSession();
   const { hasCrew, refresh: refreshCrew, loading: crewLoading, membership } = useMyCrew();
   const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [crewMembers, setCrewMembers] = useState<CrewMemberProfile[]>([]);
   const isRealCrew = membership !== null;
 
   useEffect(() => {
     if (!membership) {
       setMemberCount(null);
+      setCrewMembers([]);
       return;
     }
     void fetchCrewMemberCount(membership.crewId).then(setMemberCount);
+    void fetchCrewMembers(membership.crewId).then(setCrewMembers);
   }, [membership]);
 
   useEffect(() => {
@@ -1221,12 +1232,30 @@ export default function CrewScreen() {
     () => CREW_PERKS.filter((p) => p.level > level && p.key !== nextPerk?.key),
     [level, nextPerk],
   );
-  const nextPerkXpRemaining = nextPerk ? crewXpForLevel(nextPerk.level) - MY_CREW.xp : 0;
+  const nextPerkXpRemaining = nextPerk ? crewXpForLevel(nextPerk.level) - crewXp : 0;
+
+  const displayMembers: CrewMemberDemo[] = useMemo(() => {
+    if (!isRealCrew || crewMembers.length === 0) return [...MY_CREW.members];
+    return crewMembers.map((m) => ({
+      pseudo: m.displayName ?? m.handle,
+      role: m.role as CrewMemberDemo['role'],
+      availability: 'casual' as const,
+      weekHexes: 0,
+      tier: 'road' as const,
+      lastAction: 'Membre actif',
+      chestPoints: 0,
+      joinedDaysAgo: Math.max(
+        0,
+        Math.floor((Date.now() - new Date(m.joinedAt).getTime()) / 86_400_000),
+      ),
+      me: session?.user.id === m.userId,
+    }));
+  }, [crewMembers, isRealCrew, session?.user.id]);
 
   // Contributions coffre triées (Coffre) + max pour l'échelle des jauges.
   const contributors = useMemo(
-    () => [...MY_CREW.members].sort((a, b) => b.chestPoints - a.chestPoints),
-    [],
+    () => [...displayMembers].sort((a, b) => b.chestPoints - a.chestPoints),
+    [displayMembers],
   );
   const maxChestPoints = Math.max(1, contributors[0]?.chestPoints ?? 1);
 
@@ -1237,7 +1266,7 @@ export default function CrewScreen() {
   const localRankLabel = isRealCrew ? '—' : String(MY_CREW.localRank);
 
   // Mon rôle démo (KORO = founder) → gating visuel des actions (matrice §8).
-  const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
+  const myRole = displayMembers.find((m) => m.me)?.role ?? 'runner';
   // Bouton « Modifier le crew » : founder-only (CREW_PERMISSIONS source de vérité).
   const canEditCrew = roleCan(myRole, 'changeNameEmblem') || roleCan(myRole, 'manageRecruitment');
 
@@ -1812,7 +1841,7 @@ export default function CrewScreen() {
           <SectionLabel>
             MEMBRES · {activeMembers}/{CREW_MAX_MEMBERS}
           </SectionLabel>
-          {MY_CREW.members.map((m) => (
+          {displayMembers.map((m) => (
             <View key={m.pseudo} style={styles.memberItem}>
               <MemberCard
                 name={m.pseudo}

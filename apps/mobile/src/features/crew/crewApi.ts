@@ -71,3 +71,38 @@ export async function fetchCrewMemberCount(crewId: string): Promise<number> {
   if (error || count === null) return 0;
   return count;
 }
+
+export interface CrewMemberProfile {
+  userId: string;
+  role: string;
+  joinedAt: string;
+  handle: string;
+  displayName: string | null;
+}
+
+/** Membres actifs + profils visibles (crew). */
+export async function fetchCrewMembers(crewId: string): Promise<CrewMemberProfile[]> {
+  if (supabase === null) return [];
+  const { data, error } = await supabase
+    .from('crew_members')
+    .select('user_id, role, joined_at, user_profiles(handle, display_name)')
+    .eq('crew_id', crewId)
+    .is('left_at', null)
+    .order('joined_at', { ascending: true });
+  if (error || !Array.isArray(data)) return [];
+
+  return data.map((row) => {
+    const rawProfile = row.user_profiles as
+      | { handle: string; display_name: string | null }
+      | { handle: string; display_name: string | null }[]
+      | null;
+    const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
+    return {
+      userId: row.user_id as string,
+      role: row.role as string,
+      joinedAt: row.joined_at as string,
+      handle: profile?.handle ?? 'coureur',
+      displayName: profile?.display_name ?? null,
+    };
+  });
+}
