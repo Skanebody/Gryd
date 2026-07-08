@@ -45,14 +45,14 @@
 
 ## Phase 2 — Friction & reco (P1)
 
-- [ ] P2-MOB-01 — Onboarding 3 écrans — M
+- [x] P2-MOB-01 — Onboarding 3 écrans — M
 - [x] P2-MOB-02 — RUN bouton central nav — S
 - [x] P2-MOB-03 — Route planner `recommendRun` integration — M
 - [ ] P2-MOB-04 — Calques Contrôle/Action/Crew — M
-- [ ] P2-MOB-05 — Live Run réel + LiveNavMap GPS trace — L
+- [x] P2-MOB-05 — Live Run réel + LiveNavMap GPS trace — L
 - [x] P2-MOB-06 — Fix label « VOIR WAR ROOM » → Missions — S
 - [ ] P2-BE-01 — Edge Function `recommend_run` — L
-- [ ] P2-MOB-07 — Fusion Saison → Profil entry — S
+- [x] P2-MOB-07 — Fusion Saison → Profil entry — S
 
 ---
 

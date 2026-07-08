@@ -7,11 +7,18 @@
 import type { RunMode } from '@klaim/shared';
 import type { TrackerSnapshot } from './tracker';
 
+export interface TraceGeoPoint {
+  lat: number;
+  lng: number;
+}
+
 /** API de la course RÉELLE exposée à l'écran (RealCourseLive). */
 export interface RealRunApi {
   /** Mode effectif (celui du tracker — une reprise garde le mode d'origine). */
   effectiveMode: RunMode;
   snapshot: TrackerSnapshot;
+  /** Trace GPS lissée (mise à jour ~1 Hz). */
+  traceGeo: readonly TraceGeoPoint[];
   /** Bandeau « Active la position exacte » (iOS approximatif / Android coarse). */
   approxLocation: boolean;
   /** Autorisation retirée EN course (réglages) — pill honnête, jamais bloquant. */

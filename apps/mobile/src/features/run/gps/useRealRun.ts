@@ -425,6 +425,7 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
       dismissBackground,
       togglePause,
       finish,
+      traceGeo: t.traceGeo(),
     },
   };
 }

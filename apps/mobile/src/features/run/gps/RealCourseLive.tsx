@@ -5,10 +5,10 @@
  * signalState). Composant PUR côté imports natifs : tout passe par RealRunApi
  * (useRealRun) — il peut vivre dans le bundle web sans jamais y être rendu.
  *
+ * Mode Carte (AMENDEMENT-13 §2) : trace GPS réelle sur vraies tuiles via
+ * RealGpsLiveMap — pas de route démo Uber, juste le ruban qui s'étend.
+ *
  * Différences assumées avec la démo (honnêteté AMENDEMENT-15 §0) :
- *  - pas de mode Carte ici : la navigation LiveNavMap est construite sur la
- *    route DÉMO — brancher la carte réelle = AMENDEMENT-13 (autre chantier).
- *    À la place : bouton AIDE GPS (« Courir écran éteint » par constructeur) ;
  *  - Motion Trust (podomètre) en phase suivante : seule la jauge GPS TRUST
  *    est affichée, jamais une fausse jauge ;
  *  - à la fin : le VRAI IngestRunRequest part (si session réelle) et la
@@ -27,6 +27,9 @@ import { haptics } from '../../../lib/haptics';
 import { Icon } from '../../../ui/Icon';
 import { ProgressBar } from '../../../ui/ProgressBar';
 import { formatInt } from '../../../ui/format';
+import { FloatingMapButton } from '../../../ui/game';
+import { useMap3d } from '../../map/mapPref';
+import { RealGpsLiveMap, type RealGpsLiveMapHandle } from './RealGpsLiveMap';
 import {
   DEMO_TOTAL_DISTANCE_M,
   RUN_MODE_LABEL,
@@ -38,7 +41,6 @@ import {
 } from '../simulation';
 import type { RealRunApi } from './gateTypes';
 import {
-  BackgroundHelpSheet,
   BackgroundRationaleCard,
   GpsSignalPill,
   PreciseLocationBanner,
@@ -47,6 +49,8 @@ import {
 
 /** Diamètre des GROS contrôles une-main (même gabarit que la démo Nike). */
 const BIG_CONTROL_SIZE = 68;
+
+type LiveView = 'stats' | 'carte';
 
 /** Libellé de la pill principale selon la phase réelle (toujours visible). */
 function statusLabel(run: RealRunApi): string {
@@ -60,7 +64,10 @@ function statusLabel(run: RealRunApi): string {
 
 export function RealCourseLive({ run }: { run: RealRunApi }) {
   const insets = useSafeAreaInsets();
-  const [helpVisible, setHelpVisible] = useState(false);
+  const [view, setView] = useState<LiveView>('stats');
+  const [following, setFollowing] = useState(true);
+  const mapRef = useRef<RealGpsLiveMapHandle>(null);
+  const { map3d } = useMap3d();
   const finishedRef = useRef(false);
   const s = run.snapshot;
   const mode = run.effectiveMode;
@@ -96,6 +103,70 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   };
 
   const modeLabel = RUN_MODE_LABEL[mode as LiveRunMode] ?? 'Conquête';
+
+  if (view === 'carte') {
+    return (
+      <View style={styles.root}>
+        <RealGpsLiveMap
+          ref={mapRef}
+          traceGeo={run.traceGeo}
+          capturing={conquest}
+          mode3d={map3d}
+          onFollowChange={setFollowing}
+        />
+        <View style={[styles.topArea, { top: insets.top + 10 }]}>
+          <View style={styles.topPill}>
+            <View
+              style={[
+                styles.liveDot,
+                (paused || s.phase === 'paused-auto' || s.totalFixes === 0) && styles.liveDotPaused,
+              ]}
+            />
+            <Text style={styles.topPillText}>{statusLabel(run)}</Text>
+          </View>
+        </View>
+        <View style={[styles.mapFloatColumn, { bottom: insets.bottom + 120 }]}>
+          <BigControl
+            label={paused ? 'REPRENDRE' : 'PAUSE'}
+            accessibilityLabel={paused ? 'Reprendre la course' : 'Mettre la course en pause'}
+            active={paused}
+            onPress={run.togglePause}
+          >
+            <PausePlayGlyph paused={paused} size={24} />
+          </BigControl>
+          <FloatingMapButton
+            icon="gps"
+            accessibilityLabel={following ? 'Carte centrée sur toi' : 'Recentrer la carte sur toi'}
+            active={following}
+            onPress={() => mapRef.current?.recenter()}
+          />
+          <FloatingMapButton
+            icon="performance"
+            accessibilityLabel="Revenir aux stats"
+            onPress={() => setView('stats')}
+          />
+        </View>
+        <View style={[styles.mapBottomBar, { paddingBottom: insets.bottom + 12 }]}>
+          <Text style={styles.mapStat}>
+            {formatKm(s.distanceM)} km · {formatClock(s.activeS)}
+          </Text>
+          {conquest ? (
+            <Text style={styles.mapZones}>+{formatInt(s.zonesEstimated)} zones est.</Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Terminer la course (maintenir)"
+            onLongPress={finish}
+            delayLongPress={motion.holdToStopMs}
+            onPress={() => haptics.light()}
+            style={({ pressed }) => [styles.mapStop, pressed && styles.pressed]}
+          >
+            <View style={styles.bigStopSquare} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -210,11 +281,11 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           <PausePlayGlyph paused={paused} size={24} />
         </BigControl>
         <BigControl
-          label="AIDE GPS"
-          accessibilityLabel="Aide GPS : courir écran éteint"
-          onPress={() => setHelpVisible(true)}
+          label="CARTE"
+          accessibilityLabel="Voir la carte avec ta trace GPS"
+          onPress={() => setView('carte')}
         >
-          <Icon name="gps" size={24} color={colors.blanc} />
+          <Icon name="carte" size={24} color={colors.blanc} />
         </BigControl>
         <View style={styles.bigControlWrap}>
           <Pressable
@@ -234,11 +305,6 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         </View>
       </View>
 
-      <BackgroundHelpSheet
-        visible={helpVisible}
-        onClose={() => setHelpVisible(false)}
-        onOpenSettings={run.openSettings}
-      />
     </View>
   );
 }
@@ -417,4 +483,50 @@ const styles = StyleSheet.create({
   },
   bigStopSquare: { width: 18, height: 18, borderRadius: 3.5, backgroundColor: colors.blanc },
   bigLabel: { color: colors.gris, fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2 },
+
+  mapFloatColumn: {
+    position: 'absolute',
+    right: 14,
+    alignItems: 'center',
+    gap: 12,
+    zIndex: 3,
+  },
+  mapBottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: spacing.cardPadding,
+    paddingTop: 12,
+    backgroundColor: gameColors.carbon,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+    zIndex: 3,
+  },
+  mapStat: {
+    flex: 1,
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  mapZones: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  mapStop: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.carbone2,
+    borderWidth: 1.5,
+    borderColor: 'rgba(250,250,247,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

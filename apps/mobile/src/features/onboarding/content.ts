@@ -4,7 +4,12 @@
  * CTA à VERBES CONTEXTUELS (jamais « GO » — §A4). Principe : « aucun écran ne
  * demande avant d'avoir donné » — permission/compte/crew/notifs viennent APRÈS
  * la valeur. Aucune valeur de jeu ici, juste des chaînes FR.
+ *
+ * FAST_ONBOARDING (Phase 2) : 3 écrans — hook → permission → run/capture → app.
+ * Compte, crew et notifs sont différés (Profil / Crew / Paramètres).
  */
+/** true = flow court 3 écrans ; false = flow complet 8 étapes (AMENDEMENT-30). */
+export const FAST_ONBOARDING = true;
 
 /**
  * Ordre du flow (§7). Le stepper (app/onboarding/index) rend l'étape courante.
@@ -54,6 +59,13 @@ export const HOOK = {
   tagline: 'Cours. Capture. Défends. Le jeu de conquête pour run clubs.',
   cta: 'Découvrir ma ville',
 } as const;
+
+/** 3 promesses visibles sur l'écran hook (flow court Phase 2). */
+export const FAST_HOOK_BULLETS = [
+  'Cours — ta trace compte',
+  'Capture — chaque boucle prend des zones',
+  'Défends — ton crew tient le quartier',
+] as const;
 
 /** 2 — Ta ville maintenant : le quartier réel en plateau, valeur < 60 s (§2). */
 export const CITY = {

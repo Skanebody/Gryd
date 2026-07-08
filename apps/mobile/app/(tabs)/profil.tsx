@@ -237,6 +237,12 @@ interface ProfileLink {
  * dans le profil lui-même.
  */
 const LINKS: readonly ProfileLink[] = [
+  {
+    label: 'Saison & classement',
+    detail: 'Rang, ligues, objectifs Saison 0',
+    icon: 'trophee',
+    href: '/classement',
+  },
   { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
   { label: 'Performance', detail: 'Score Forme, records, impact GRYD', icon: 'performance', href: '/performance' },
   { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique', href: '/historique' },
