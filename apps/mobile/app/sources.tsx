@@ -216,7 +216,7 @@ export default function SourcesScreen() {
       setImportSummary(
         result.alreadyDone
           ? 'Import déjà effectué.'
-          : `${result.hexesClaimed} zones · bonus +${result.founderXpAwarded} XP · niveau ${result.playerLevel}`,
+          : `${result.hexesClaimed} zones sur la carte · +${result.founderXpAwarded} XP bonus · niveau ${result.playerLevel}. Classement saison : tu pars avec tout le monde.`,
       );
     } catch {
       setImportSummary('Import impossible — réessaie plus tard.');
@@ -255,9 +255,13 @@ export default function SourcesScreen() {
           {importBusy ? 'Import en cours…' : 'Réclamer mon territoire'}
         </Text>
         <Text style={styles.claimHint} numberOfLines={2}>
-          30 derniers jours · carte remplie · classement saison à zéro
+          Tes 30 derniers jours remplissent la carte
         </Text>
       </Pressable>
+      <Text style={styles.claimPolicy} numberOfLines={3}>
+        Le classement Saison 0 repart à zéro pour tout le monde. Ton niveau reçoit un
+        bonus fondateur plafonné — la vraie montée se joue sur la saison.
+      </Text>
       {importSummary ? (
         <Text style={styles.importSummary}>{importSummary}</Text>
       ) : null}
@@ -413,6 +417,14 @@ const styles = StyleSheet.create({
     color: gameColors.verify,
     fontSize: fontSizes.sm,
     marginTop: 8,
+    lineHeight: fontSizes.sm * 1.45,
+  },
+  claimPolicy: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 10,
+    marginBottom: 4,
   },
   footnote: {
     color: colors.gris,
