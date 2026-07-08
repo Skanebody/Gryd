@@ -2,9 +2,9 @@
  * GRYD — Types partagés : contrats client ↔ Edge Functions.
  * Le client n'attribue JAMAIS un hex : il envoie des points, le serveur décide.
  */
-import type { CityId } from './game-rules';
+import type { CityId } from './game-rules.ts';
 
-export type RunSource = 'gps' | 'healthkit';
+export type RunSource = 'gps' | 'healthkit' | 'strava';
 
 /**
  * Mode de course choisi au départ (AMENDEMENT-07 §2, social §10). `race_mode`
@@ -87,6 +87,12 @@ export interface IngestRunRequest {
    * déduit du gameplay — la récup se choisit, elle n'est ni imposée ni jugée.
    */
   easyMode?: boolean;
+  /**
+   * Batch unique d'import onboarding : remplit la carte (hexes neutres), 0 point
+   * saison, XP candidat pour le bonus fondateur plafonné (finalisé par
+   * `onboarding_import`). Une seule fois par compte (`users.onboarding_import_at`).
+   */
+  onboardingRetro?: boolean;
 }
 
 /** Avancement d'un challenge renvoyé après une course (AMENDEMENT-07 §5). */
@@ -114,6 +120,7 @@ export type HexOutcome =
   | 'blocked_privacy' // zone privée (aucune donnée rendue)
   | 'blocked_no_capture_zone' // zone non capturable (autoroute, zone militaire…)
   | 'blocked_daily_cap' // > MAX_CLAIMS_PER_DAY
+  | 'blocked_onboarding_neutral_only' // import fondateur : hex possédé par autrui
   | 'already_owned_cooldown'; // déjà à moi, défendu il y a < 24 h
 
 export interface HexClaimResult {
@@ -252,6 +259,39 @@ export interface IngestRunResponse {
     /** Effet appliqué, libellé court prêt à l'affichage (jamais tronqué). */
     effect: string;
   };
+  /**
+   * Import onboarding : XP théorique (base × verify) avant plafond fondateur.
+   * Absent hors `onboardingRetro`. Le crédit permanent arrive via `onboarding_import`.
+   */
+  onboardingXpCandidate?: number;
+  /** true si ce run faisait partie du batch onboarding (carte sans points saison). */
+  onboardingRetro?: boolean;
+}
+
+/** Réponse du batch unique `onboarding_import` (import fondateur). */
+export interface OnboardingImportResponse {
+  /** Batch déjà effectué sur ce compte. */
+  alreadyDone: boolean;
+  /** ISO 8601 de fin du batch (présent si alreadyDone ou succès). */
+  completedAt?: string;
+  /** Courses traitées dans ce batch (0 si alreadyDone). */
+  runsProcessed: number;
+  /** Hexes neutres capturés (somme du batch). */
+  hexesClaimed: number;
+  /** XP fondateur crédité (plafonné ONBOARDING_IMPORT_XP_CAP). */
+  founderXpAwarded: number;
+  /** Niveau joueur après crédit. */
+  playerLevel: number;
+  /** Courses stats_only comptabilisées en performance (sans claim). */
+  statsOnlyRuns: number;
+  /** Détail par run ingéré (ordre chronologique). */
+  runs: {
+    runId: string;
+    startedAt: string;
+    hexesClaimed: number;
+    onboardingXpCandidate: number;
+    status: RunStatus;
+  }[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -509,7 +549,8 @@ export type ItemType =
   | 'template_share' // template de share card (§16.1)
   | 'banner_crew' // bannière Crew HQ (§21.5)
   | 'emblem_crew' // blason crew premium (§16.2)
-  | 'shield' // bouclier secteur 48 h (§20.1, capé)
+  | 'shield' // legacy — draft, plus vendu (voir attack_alert)
+  | 'attack_alert' // alerte défense zone fraîche (§20, capé, sans blocage)
   | 'streak_gel' // protection de série perso (§20.2, capé)
   | 'scout_ping' // analyse de zone (§20.3, capé)
   | 'crew_boost' // contribution groupée capée (§21.1-§21.2)

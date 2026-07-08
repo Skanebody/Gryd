@@ -8,7 +8,7 @@
  * DÉMO pour l'écran, offline-first.
  *
  * PRIX : jamais en dur. Les prix EUR viennent de `SKU_PRICES_EUR`, les prix
- * Éclats fonctionnels de leurs constantes dédiées (`SHIELD_EXTRA_ECLATS`,
+ * Éclats fonctionnels de leurs constantes dédiées (`ATTACK_ALERT_ECLATS`,
  * `STREAK_GEL_ECLATS`, `SCOUT_PING_ECLATS`, `BANNER_CREW_ECLATS`). Les prix
  * Éclats purement cosmétiques (skins/frames/templates/blasons) sont des VALEURS
  * D'AFFICHAGE du seed §16 — bornées, jamais fonctionnelles, jamais du jeu.
@@ -22,14 +22,16 @@ import {
   ECLATS_PACKS,
   FOUNDER_PACK_ECLATS,
   SCOUT_PING_ECLATS,
-  SHIELD_CLUB_INCLUDED_PER_WEEK,
-  SHIELD_DURATION_HOURS,
-  SHIELD_EXTRA_ECLATS,
-  SHIELD_MAX_ACTIVE_PER_WEEK,
+  SCOUT_PING_MAX_PER_WEEK,
+  ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK,
+  ATTACK_ALERT_DURATION_HOURS,
+  ATTACK_ALERT_ECLATS,
+  ATTACK_ALERT_MAX_PER_WEEK,
   SKUS,
   SKU_PRICES_EUR,
   STARTER_PACK_ECLATS,
   STREAK_GEL_ECLATS,
+  STREAK_GEL_MAX_PER_MONTH,
   type BadgeTier,
 } from '@klaim/shared';
 import type { ArsenalCurrency } from '../../ui/game/ArsenalItemCard';
@@ -86,9 +88,9 @@ export interface ArsenalCatalogItem {
 /** Bornes EUR combinées (bannière/coffre/template §21) — devise par défaut EUR. */
 const eur = (n: number): number => n;
 
-// ─── Objets fonctionnels capés (doc §20) ─────────────────────────────────────
-// Boucliers ACHETABLES/semaine = cap absolu − ceux inclus au Club.
-const SHIELD_EXTRA_PER_WEEK = SHIELD_MAX_ACTIVE_PER_WEEK - SHIELD_CLUB_INCLUDED_PER_WEEK;
+// ─── Objets fonctionnels capés (doc §20, option A monétisation) ───────────────
+const ATTACK_ALERT_EXTRA_PER_WEEK =
+  ATTACK_ALERT_MAX_PER_WEEK - ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK;
 
 /**
  * Catalogue complet (miroir seed 0014). `priceShards`/`priceEur` référencent des
@@ -194,16 +196,17 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
 
   // ══ Objets fonctionnels capés (§20) ═════════════════════════════════════════
   {
-    key: 'shield',
-    name: 'Bouclier',
-    slug: 'shield',
+    key: 'attack_alert',
+    name: 'Alerte d\'attaque',
+    slug: 'radar',
     rarity: 'race',
     section: 'objets',
     scope: 'zone',
-    priceShards: SHIELD_EXTRA_ECLATS,
+    priceShards: ATTACK_ALERT_ECLATS,
     consumable: true,
-    limit: `${SHIELD_EXTRA_PER_WEEK}/semaine (1 inclus Club) — sans effet en fin de saison`,
-    description: `Protège un secteur pendant ${SHIELD_DURATION_HOURS} h. Ne rend pas invincible.`,
+    ownedDemo: true,
+    limit: `${ATTACK_ALERT_EXTRA_PER_WEEK}/semaine (+${ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK} inclus Club) · plafond crew`,
+    description: `Surveille une zone fraîche ${ATTACK_ALERT_DURATION_HOURS} h : tu es prévenu si on la cible. Ne bloque pas la capture — cours pour défendre.`,
   },
   {
     key: 'streak_gel',
@@ -214,7 +217,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     scope: 'user',
     priceShards: STREAK_GEL_ECLATS,
     consumable: true,
-    limit: '2/mois max',
+    limit: `${STREAK_GEL_MAX_PER_MONTH}/mois max`,
     ownedDemo: true,
     description: 'Protège ta série hebdo une semaine. Aucun effet territoire.',
   },
@@ -227,7 +230,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     scope: 'zone',
     priceShards: SCOUT_PING_ECLATS,
     consumable: true,
-    limit: '1/semaine',
+    limit: `${SCOUT_PING_MAX_PER_WEEK}/semaine`,
     description: 'Révèle une zone fragile ou rentable. Info temporaire, aucune capture auto.',
   },
 
@@ -378,7 +381,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     contents: [
       'Stats avancées + heatmap personnelle',
       'Historique complet + export share HD',
-      `${SHIELD_CLUB_INCLUDED_PER_WEEK} bouclier inclus / semaine`,
+      `${ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK} alerte d'attaque incluse / semaine`,
       'Templates premium mensuels',
       'Radar Route + Streak Gel mensuels',
     ],

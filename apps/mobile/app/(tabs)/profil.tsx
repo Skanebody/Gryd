@@ -37,6 +37,7 @@ import {
   gameColors,
   radii,
   spacing,
+  type BadgeMetric,
   type IconName,
   type SkillDef,
 } from '@klaim/shared';
@@ -46,8 +47,8 @@ import {
   BADGE_TOTAL,
 } from '../../src/features/badges/catalog';
 import { BadgeHex } from '../../src/features/badges/BadgeHex';
-import { UNLOCKED_IDS, demoStat } from '../../src/features/badges/demo';
 import { MY_CREW } from '../../src/features/crew/demo';
+import { useMyCrew } from '../../src/features/crew/useMyCrew';
 import {
   FRAME_TIER_LABELS,
   playerLevelForXp,
@@ -55,9 +56,12 @@ import {
   playerTierForLevel,
 } from '../../src/features/crew/rules';
 import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
+import { usePlayerProgress } from '../../src/features/social/usePlayerProgress';
 import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
+import { hydrateEquippedFromServer } from '../../src/features/arsenal/inventory';
+import { useSession } from '../../src/lib/session';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
 import { franceKpi } from '../../src/features/territory/franceTerritories';
@@ -71,7 +75,6 @@ import {
 } from '../../src/features/territory/territoryStatus';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
-import { useSession } from '../../src/lib/session';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -79,22 +82,11 @@ import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
 import { CrewCrest, IconAction, ShareCard } from '../../src/ui/game';
 
-const STREAK_WEEKS = 3;
+const STREAK_WEEKS_DEMO = 3;
 
 /** XP permanent : 1:1 avec les points territoire (choix D18), source shared. */
-const xp = MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS;
-/** Niveau/tier DÉRIVÉS de la courbe réelle (features/crew/rules). */
-const runnerLevel = playerLevelForXp(xp);
-const runnerTier = playerTierForLevel(runnerLevel);
-/** Bornes XP du niveau courant → jauge « Level N → N+1 » (courbe §43.1). */
 const XP_TABLE = playerLevelXpTable();
-const levelFloor = XP_TABLE[runnerLevel - 1] ?? 0;
-const levelCeil = runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
-const levelRatio = levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
-const streakMultiplier = Math.min(
-  1 + STREAK_WEEKS * STREAK_MULTIPLIER_STEP,
-  STREAK_MULTIPLIER_CAP,
-);
+
 /**
  * Territoire : KPI DÉRIVÉ des mêmes données démo que la vraie carte de France
  * (AMENDEMENT-13 §3 — digital twin, jamais codé en dur).
@@ -137,31 +129,23 @@ function ctaTone(intent: NextActionIntent, urgent: boolean): { bg: string; fg: s
 
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 
-/**
- * Badges affichables = débloqués, non-legacy, triés du plus rare au moins rare
- * (BADGE_TIER_RANK). Dérivé des stats démo (UNLOCKED_IDS) — jamais codé en dur.
- */
-const DISPLAYABLE_BADGES: readonly BadgeDefT[] = [...UNLOCKED_IDS]
-  .map((id) => badgeById(id))
-  .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
-  .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
-
-/** Défaut « équipés » = les 3 plus rares (AMENDEMENT-17 : 3, pas un carrousel). */
-const DEFAULT_FEATURED_BADGES: readonly BadgeDefT[] = DISPLAYABLE_BADGES.slice(0, 3);
-
-/**
- * Badges mis en avant EFFECTIFS : le choix manuel du joueur (featuredBadgeIds)
- * s'il est renseigné et valide, sinon le défaut (3 plus rares). On ne garde que
- * des badges réellement débloqués → jamais un slot vide/verrouillé sur la card.
- */
-function resolveFeaturedBadges(chosenIds: readonly string[]): readonly BadgeDefT[] {
-  const chosen = chosenIds
-    .map((id) => DISPLAYABLE_BADGES.find((b) => b.id === id))
-    .filter((def): def is BadgeDefT => def !== undefined);
-  return chosen.length > 0 ? chosen.slice(0, 3) : DEFAULT_FEATURED_BADGES;
+function displayableBadges(unlocked: ReadonlySet<string>): readonly BadgeDefT[] {
+  return [...unlocked]
+    .map((id) => badgeById(id))
+    .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
+    .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
 }
 
-const UNLOCKED_COUNT = UNLOCKED_IDS.size;
+function resolveFeaturedBadges(
+  chosenIds: readonly string[],
+  unlocked: ReadonlySet<string>,
+): readonly BadgeDefT[] {
+  const displayable = displayableBadges(unlocked);
+  const chosen = chosenIds
+    .map((id) => displayable.find((b) => b.id === id))
+    .filter((def): def is BadgeDefT => def !== undefined);
+  return chosen.length > 0 ? chosen.slice(0, 3) : displayable.slice(0, 3);
+}
 
 // ─── SKILLS (AMENDEMENT-23 §C, doc §28-§29) ──────────────────────────────────
 /**
@@ -196,8 +180,8 @@ interface DerivedSkill {
  * linéaire entre le seuil courant et le suivant. PURE, mêmes règles que
  * l'engine (bornes strictement croissantes garanties par le catalogue).
  */
-function deriveSkill(def: SkillDef): DerivedSkill {
-  const value = Math.max(0, demoStat(def.metric));
+function deriveSkill(def: SkillDef, getStat: (m: BadgeMetric) => number): DerivedSkill {
+  const value = Math.max(0, getStat(def.metric));
   const thresholds = def.levels.map((l) => l.threshold);
   let level = 0;
   for (const t of thresholds) if (value >= t) level += 1;
@@ -218,12 +202,6 @@ function deriveSkill(def: SkillDef): DerivedSkill {
   return { def, value, level: rank, maxed, nextThreshold, progress, remaining, unit };
 }
 
-/** Les 8 familles dérivées, dans l'ordre canonique du catalogue (doc §28). */
-const DERIVED_SKILLS: readonly DerivedSkill[] = SKILLS.map(deriveSkill);
-
-/** Combien de skills sont au moins niveau I (compteur d'écran, jamais en dur). */
-const SKILLS_UNLOCKED_COUNT = DERIVED_SKILLS.filter((s) => s.level > 0).length;
-
 interface ProfileLink {
   label: string;
   detail: string;
@@ -237,6 +215,12 @@ interface ProfileLink {
  * dans le profil lui-même.
  */
 const LINKS: readonly ProfileLink[] = [
+  {
+    label: 'Saison & classement',
+    detail: 'Rang, ligues, objectifs Saison 0',
+    icon: 'trophee',
+    href: '/classement',
+  },
   { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
   { label: 'Performance', detail: 'Score Forme, records, impact GRYD', icon: 'performance', href: '/performance' },
   { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique', href: '/historique' },
@@ -263,12 +247,40 @@ const LINKS: readonly ProfileLink[] = [
 
 export default function ProfilScreen() {
   const { session, configured } = useSession();
+  const { membership } = useMyCrew();
+  const { progress, useDemo, stat, unlockedIds } = usePlayerProgress();
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [shareOpen, setShareOpen] = useState(false);
 
+  const xp = useMemo(() => {
+    if (useDemo) return MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS;
+    return progress?.xp ?? 0;
+  }, [progress?.xp, useDemo]);
+
+  const runnerLevel = useMemo(() => playerLevelForXp(xp), [xp]);
+  const runnerTier = useMemo(() => playerTierForLevel(runnerLevel), [runnerLevel]);
+  const levelFloor = XP_TABLE[runnerLevel - 1] ?? 0;
+  const levelCeil =
+    runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
+  const levelRatio =
+    levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
+  const streakWeeks = useDemo ? STREAK_WEEKS_DEMO : (progress?.streakWeeks ?? 0);
+  const streakMultiplier = Math.min(
+    1 + streakWeeks * STREAK_MULTIPLIER_STEP,
+    STREAK_MULTIPLIER_CAP,
+  );
+  const zonesHeld = useDemo ? TERRITORY_KPI.totalZones : stat('hexesCaptured');
+
+  const derivedSkills = useMemo(() => SKILLS.map((s) => deriveSkill(s, stat)), [stat]);
+  const skillsUnlockedCount = derivedSkills.filter((s) => s.level > 0).length;
+  const unlockedCount = unlockedIds.size;
+
   /** Profil ÉDITABLE persisté — l'édition depuis /profil-edit se reflète ici. */
   const { profile } = useMyProfile();
+  const seasonRank =
+    !useDemo && progress?.seasonRank != null ? progress.seasonRank : profile.seasonRank;
+  const crewName = membership?.crew.name ?? profile.crewName;
   /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
   const { equipped } = useEquippedCosmetics();
 
@@ -295,13 +307,18 @@ export default function ProfilScreen() {
   const initials = effectiveInitials(profile);
   /** Badges mis en avant : choix du joueur, sinon les 3 plus rares. */
   const featuredBadges = useMemo(
-    () => resolveFeaturedBadges(profile.featuredBadgeIds),
-    [profile.featuredBadgeIds],
+    () => resolveFeaturedBadges(profile.featuredBadgeIds, unlockedIds),
+    [profile.featuredBadgeIds, unlockedIds],
   );
 
   useEffect(() => {
     screen('profil');
   }, []);
+
+  useEffect(() => {
+    if (!configured || session === null) return;
+    void hydrateEquippedFromServer(session.user.id);
+  }, [configured, session]);
 
   const openEdit = () => router.push('/profil-edit');
 
@@ -359,9 +376,13 @@ export default function ProfilScreen() {
                 Level {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} · {profile.city}
               </Text>
               <View style={styles.crewRow}>
-                <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
+                <CrewCrest
+                  seed={membership?.crew.id ?? MY_CREW.seed}
+                  name={crewName}
+                  size="s"
+                />
                 <Text style={styles.crewName} numberOfLines={1}>
-                  {profile.crewName}
+                  {crewName}
                 </Text>
               </View>
             </View>
@@ -375,11 +396,11 @@ export default function ProfilScreen() {
           {/* Les 2 infos qui comptent : territoire tenu + rang ville */}
           <View style={styles.headerStats}>
             <Text style={styles.headerHold} numberOfLines={1}>
-              <Text style={styles.headerHoldNum}>{formatInt(TERRITORY_KPI.totalZones)}</Text>{' '}
-              zones tenues · {TERRITORY_KPI.citiesLabel}
+              <Text style={styles.headerHoldNum}>{formatInt(zonesHeld)}</Text>{' '}
+              zones tenues · {useDemo ? TERRITORY_KPI.citiesLabel : profile.city}
             </Text>
             <Text style={styles.headerRank} numberOfLines={1}>
-              Rang #{profile.seasonRank} {profile.seasonScope}
+              Rang #{seasonRank} {profile.seasonScope}
             </Text>
           </View>
           {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
@@ -409,9 +430,9 @@ export default function ProfilScreen() {
         {shareOpen ? (
           <View style={styles.shareCardWrap}>
             <ShareCard
-              stat={`#${profile.seasonRank}`}
+              stat={`#${seasonRank}`}
               statLabel={`Rang saison · ${profile.seasonScope}`}
-              title={`${profile.displayName} · ${profile.crewName}`}
+              title={`${profile.displayName} · ${crewName}`}
               subtitle={`Runner niv. ${runnerLevel} · ${displayedTitle}`}
             >
               <PlayerCardAvatar
@@ -581,7 +602,7 @@ export default function ProfilScreen() {
               <Text style={styles.progressStatValue}>
                 {formatMultiplier(streakMultiplier)}
               </Text>
-              <Text style={styles.progressStatLabel}>Série · {STREAK_WEEKS} sem</Text>
+              <Text style={styles.progressStatLabel}>Série · {streakWeeks} sem</Text>
             </View>
             <View style={styles.progressStat}>
               <Text style={styles.progressStatValue}>
@@ -628,7 +649,7 @@ export default function ProfilScreen() {
           style={({ pressed }) => [styles.collectionLink, pressed && styles.dim]}
         >
           <Text style={styles.collectionLinkLabel}>
-            Voir la collection ({UNLOCKED_COUNT}/{BADGE_TOTAL})
+            Voir la collection ({unlockedCount}/{BADGE_TOTAL})
           </Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
@@ -643,10 +664,10 @@ export default function ProfilScreen() {
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={14} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>SKILLS</Text>
-          <Text style={styles.sectionRowCount}>{SKILLS_UNLOCKED_COUNT}/{SKILLS.length}</Text>
+          <Text style={styles.sectionRowCount}>{skillsUnlockedCount}/{SKILLS.length}</Text>
         </View>
         <View style={styles.skillsBlock}>
-          {DERIVED_SKILLS.map((s) => {
+          {derivedSkills.map((s) => {
             const locked = s.level === 0;
             const roman = s.level > 0 ? SKILL_ROMAN[s.level - 1] : null;
             // Roman du PROCHAIN niveau (défini seulement si non maxé → index ≤ 2).

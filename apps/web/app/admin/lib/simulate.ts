@@ -370,6 +370,7 @@ const KIND_BY_OUTCOME: Record<HexOutcome, MapHexKind> = {
   blocked_privacy: 'blocked',
   blocked_no_capture_zone: 'blocked',
   blocked_daily_cap: 'blocked',
+  blocked_onboarding_neutral_only: 'blocked',
 };
 
 function segmentPath(seg: Segment, id: string, kind: MapPath['kind']): MapPath {

@@ -4,7 +4,13 @@
  * CTA à VERBES CONTEXTUELS (jamais « GO » — §A4). Principe : « aucun écran ne
  * demande avant d'avoir donné » — permission/compte/crew/notifs viennent APRÈS
  * la valeur. Aucune valeur de jeu ici, juste des chaînes FR.
+ *
+ * FAST_ONBOARDING (Phase 2) : hook → permission → choix (sync | run) → capture → app.
+ * Branche sync Strava : compte minimal puis import fondateur réel (JWT).
+ * Branche run : démo run/capture. Compte/crew/notifs différés hors sync Strava.
  */
+/** true = flow court ; false = flow complet 8 étapes (AMENDEMENT-30). */
+export const FAST_ONBOARDING = true;
 
 /**
  * Ordre du flow (§7). Le stepper (app/onboarding/index) rend l'étape courante.
@@ -55,6 +61,13 @@ export const HOOK = {
   cta: 'Découvrir ma ville',
 } as const;
 
+/** 3 promesses visibles sur l'écran hook (flow court Phase 2). */
+export const FAST_HOOK_BULLETS = [
+  'Cours — ta trace compte',
+  'Capture — chaque boucle prend des zones',
+  'Défends — ton crew tient le quartier',
+] as const;
+
 /** 2 — Ta ville maintenant : le quartier réel en plateau, valeur < 60 s (§2). */
 export const CITY = {
   kicker: 'TA VILLE · MAINTENANT',
@@ -92,7 +105,7 @@ export const CHOOSE = {
   runSubtitle: 'Un run tout simple, zéro réglage. Ferme une boucle.',
 } as const;
 
-/** 4a — Sync (démo) : positionnement §6 + l'import scénarisé. */
+/** 4a — Sync : Strava réel (FAST) ou démo Apple Health (O8). */
 export const SYNC = {
   kicker: 'CAPTURE DEPUIS TES RUNS',
   title: 'Ta course devient une conquête.',
@@ -102,6 +115,24 @@ export const SYNC = {
   cta: 'Transformer ma course',
   /** Pendant/après le déroulé. */
   running: 'Import en cours',
+  /** Ligne politique import fondateur (FAST sync + Verify Hub). */
+  policy:
+    'Le classement Saison 0 repart à zéro pour tout le monde. Ton niveau reçoit un bonus fondateur plafonné — la vraie montée se joue sur la saison.',
+  /** Après connexion Strava — enchaîne vers le compte (import = serveur). */
+  stravaConnected: 'Strava connecté. Sauvegarde ta conquête pour l’importer.',
+  stravaConnectCta: 'Connecter Strava',
+  stravaBusy: 'Connexion…',
+} as const;
+
+/** Compte minimal sur la branche sync Strava (FAST) — AVANT l’import serveur. */
+export const FAST_SYNC_ACCOUNT = {
+  kicker: 'UNE DERNIÈRE ÉTAPE',
+  title: 'Sauvegarde avant l’import.',
+  tagline:
+    'Un compte, un tap. Tes runs Strava remplissent la carte — zones neutres uniquement, bonus XP plafonné.',
+  apple: 'Continuer avec Apple',
+  google: 'Continuer avec Google',
+  skip: 'Continuer sans compte',
 } as const;
 
 /** 4b — Premier run : 1 tap, objectif ultra-simple, zéro config (§4b). */

@@ -91,9 +91,27 @@ export const DEFENSE_COVER_FULL_MIN = 0.8;
  */
 export const FRONTIER_COVERAGE_BUFFER_M = 30;
 export const SHIELD_MAX_CLUSTER_HEXES = 300;
+/** @deprecated Legacy — plus d'activation payante. Conservé pour hex_claims.shielded_until historiques. */
 export const SHIELD_DURATION_HOURS = 48;
-export const SHIELD_MAX_ACTIVE_PER_WEEK = 2; // cap absolu par joueur
+/** @deprecated Voir ATTACK_ALERT_* (option A — alerte, pas blocage). */
+export const SHIELD_MAX_ACTIVE_PER_WEEK = 2;
+/** @deprecated */
 export const SHIELD_CLUB_INCLUDED_PER_WEEK = 1;
+
+/**
+ * Alerte d'attaque (option A, monétisation CoC→GRYD) : notifie le défenseur quand
+ * une zone surveillée est ciblée. N'empêche JAMAIS la capture (anti pay-to-win).
+ */
+export const ATTACK_ALERT_DURATION_HOURS = 3;
+/** Cap absolu par joueur et par semaine (ISO). */
+export const ATTACK_ALERT_MAX_PER_WEEK = 2;
+/** Inclus Club mensuel par joueur / semaine. */
+export const ATTACK_ALERT_CLUB_INCLUDED_PER_WEEK = 1;
+/** Plafond crew : les inclusions Club ne stackent pas linéairement à 50 membres. */
+export const ATTACK_ALERT_CREW_WEEKLY_CAP = 12;
+/** Activation possible sur une zone capturée depuis ≤ N h (fraîcheur). */
+export const ATTACK_ALERT_FRESH_CAPTURE_MAX_HOURS = 24;
+export const ATTACK_ALERT_ECLATS = 50;
 
 // ─── §3.4 Points, streaks, monnaies ──────────────────────────────────────────
 // AMENDEMENT-23 §D + doc §23 : la FORMULE DE POINTS est désormais
@@ -185,6 +203,10 @@ export const STREAK_MULTIPLIER_STEP = 0.1;
 export const STREAK_MULTIPLIER_CAP = 1.5;
 export const STREAK_FREEZE_FREE_PER_MONTH = 1;
 export const STREAK_FREEZE_CLUB_PER_MONTH = 2;
+/** Streak Gel consommable : durée de protection de la série hebdo (§20.2). */
+export const STREAK_GEL_DURATION_DAYS = 7;
+/** Streak Gel consommable : plafond d'activations achetées par mois calendaire. */
+export const STREAK_GEL_MAX_PER_MONTH = 2;
 /** Foulées (monnaie douce) : 10 % des points gagnés. */
 export const FOULEES_RATE_OF_POINTS = 0.1;
 export const CLUB_FOULEES_MULTIPLIER = 1.5;
@@ -192,6 +214,7 @@ export const SKIN_EARNABLE_1_FOULEES = 800;
 export const SKIN_EARNABLE_2_FOULEES = 1_500;
 export const CREW_RENAME_FOULEES = 300;
 /** Éclats (monnaie premium, achetée uniquement — n'achète jamais hexes/points/Foulées/stats). */
+/** @deprecated Remplacé par ATTACK_ALERT_ECLATS — bouclier territorial retiré du MVP. */
 export const SHIELD_EXTRA_ECLATS = 90;
 export const SKIN_PREMIUM_ECLATS_MIN = 180;
 export const SKIN_PREMIUM_ECLATS_MAX = 280;
@@ -409,6 +432,20 @@ export const SECTOR_PRESSURE_MAX = 100;
 // ─── XP joueur (permanent, jamais acheté, survit au reset — AMENDEMENT-02 §6) ─
 /** Choix D18 : XP = points territoire bruts de la course (1:1), boosts cosmétiques V1. */
 export const XP_RATE_OF_POINTS = 1;
+
+// ─── Import onboarding fondateur (batch unique, neutres seulement, 0 pt saison) ─
+/** Fenêtre d'import rétroactif pour remplir la carte à l'inscription (jours). */
+export const ONBOARDING_IMPORT_WINDOW_DAYS = 30;
+/** Nombre max de courses avec trace GPS éligibles au claim onboarding. */
+export const ONBOARDING_IMPORT_MAX_CAPTURE_RUNS = 5;
+/** Nombre de courses retenues pour le bonus XP fondateur (les meilleures en hexes neutres). */
+export const ONBOARDING_IMPORT_XP_TOP_RUNS = 3;
+/** Plafond XP permanent crédité une seule fois à la fin du batch (~niveau 16). */
+export const ONBOARDING_IMPORT_XP_CAP = 8_000;
+/** Import onboarding : hexes déjà possédés par d'autres joueurs → pas de vol (claim neutre only). */
+export const ONBOARDING_IMPORT_NEUTRAL_ONLY = true;
+/** Points de saison crédités par un run onboarding (toujours 0 — classement repart à zéro). */
+export const ONBOARDING_IMPORT_SEASON_POINTS = 0;
 
 // ─── Villes seedées 'active' d'office pour la Saison 0 ──────────────────────
 export const CITIES = {
@@ -667,6 +704,23 @@ export const CREW_CHEST_WEIGHTS = {
   offensiveCompleted: 100,
 } as const;
 export type CrewChestSource = keyof typeof CREW_CHEST_WEIGHTS;
+
+/**
+ * Niveau crew minimum pour le coffre hebdo (perk `weekly_crew_chest`, §35 L5).
+ */
+export const CREW_CHEST_UNLOCK_LEVEL = 5;
+
+/**
+ * Foulées capées créditées à chaque membre actif à la réclamation (§39.3).
+ * Cosmétique/économie secondaire — jamais territoire ni points classement.
+ */
+export const CREW_CHEST_TIER_FOULEES = {
+  bronze: 40,
+  silver: 80,
+  gold: 120,
+  carbon: 160,
+  elite: 240,
+} as const;
 
 // ─── §45 Crew Activity Score ─────────────────────────────────────────────────
 /** Poids (%) des composantes du score de santé crew (§45) — somme = 100. */
@@ -1077,6 +1131,10 @@ export const FOUNDER_PACK_ECLATS = 300;
 /** Prix Éclats des objets fonctionnels capés (doc §20) + bannière crew (§21.5). */
 export const STREAK_GEL_ECLATS = 60;
 export const SCOUT_PING_ECLATS = 120;
+/** Scout Ping : durée de visibilité du rapport (§20.3, info temporaire). */
+export const SCOUT_PING_DURATION_HOURS = 24;
+/** Scout Ping : plafond d'activations par semaine calendaire UTC. */
+export const SCOUT_PING_MAX_PER_WEEK = 1;
 export const BANNER_CREW_ECLATS = 350;
 
 /**
@@ -1398,3 +1456,23 @@ export const DAILY_CHEST_BOOST_PER_DAY = 1;
  * TUNABLE.
  */
 export const DAILY_CHEST_BOOST_PCT = 0.02;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Recommandation de course (MVP — moteur packages/engine/recommendation.ts)
+// Pondérations du score final ; TUNABLE après tests terrain.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Poids Personal Fit dans le score de recommandation (0–1). */
+export const RECO_W_PERSONAL = 0.25;
+/** Poids Crew Impact. */
+export const RECO_W_CREW = 0.25;
+/** Poids Territory Value. */
+export const RECO_W_TERRITORY = 0.2;
+/** Poids Reward (XP/points estimés). */
+export const RECO_W_REWARD = 0.15;
+/** Poids Novelty (zones peu courues). */
+export const RECO_W_NOVELTY = 0.1;
+/** Pénalité Friction (distance/durée vs habitudes, complexité). */
+export const RECO_W_FRICTION = 0.25;
+/** Nombre max d'alternatives affichées après la recommandation principale. */
+export const RECO_MAX_ALTERNATIVES = 2;

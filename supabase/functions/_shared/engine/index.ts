@@ -28,3 +28,7 @@ export * from './revanche.ts';
 export * from './social.ts';
 export * from './challenge.ts';
 export * from './bonus.ts';
+export * from './recommendation.ts';
+export * from './attack_alerts.ts';
+export * from './streak_gel.ts';
+export * from './scout_ping.ts';
