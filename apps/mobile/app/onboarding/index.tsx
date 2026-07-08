@@ -6,9 +6,11 @@
  * TOUJOURS après la valeur (la 1re capture, §5).
  *
  * Flow (§7) : 1 hook → 2 ta ville (plateau AVANT compte) → 3 permission GPS
- * pédagogique → 4 choix du chemin → 4a sync (démo import) OU 4b premier run
- * (1 tap) → 5 1re capture MOMENT SIGNATURE (remplissage + haptique success+heavy
- * + « +X zones » + Partager) → 6 compte APRÈS la valeur → 7 crew → 8 notifs.
+ * pédagogique → 4 choix du chemin → 4a sync (Strava réel en FAST) OU 4b premier run
+ * (1 tap) → 5 1re capture MOMENT SIGNATURE → app (FAST) ou compte/crew/notifs.
+ *
+ * FAST_ONBOARDING : hook → permission → choose → sync|run → capture → app.
+ * Branche sync Strava : OAuth → compte minimal → import serveur à la capture.
  *
  * Discipline (§A) : 1 écran = 1 décision, 1 CTA chartreuse contextuel (VERBES,
  * jamais « GO »), texte court non tronqué, pas de card-dans-card, compris en
@@ -21,7 +23,7 @@
  * Gating : à la sortie, on marque l'état PRÉ-COMPTE persistant (onboarding/store)
  * pour que (tabs)/_layout ne re-pousse plus l'onboarding. Un utilisateur DÉJÀ
  * authentifié (session réelle native) ne voit jamais cet écran (garde du layout).
- * CÂBLÉ DÉMO : la capture est simulée (import réel = O7/O8).
+ * CÂBLÉ : branche run = démo ; branche sync Strava = import fondateur réel (O7).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -31,11 +33,19 @@ import { colors, fontSizes, radii, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { signInWithApple, signInWithGoogle, type AuthResult } from '../../src/lib/auth';
+import { useSession } from '../../src/lib/session';
 import { Icon } from '../../src/ui/Icon';
 import { useCountUp, useReduceMotion } from '../../src/ui/game';
 import { withAlpha } from '../../src/features/map/mapStyle';
 import { OnboardingAppleButton } from '../../src/features/onboarding/AppleButton';
 import { useOnboardingState } from '../../src/features/onboarding/store';
+import {
+  captureFromImport,
+  DEMO_CAPTURE_RESULT,
+  type OnboardingCaptureResult,
+} from '../../src/features/onboarding/captureResult';
+import { executeFounderImport } from '../../src/features/onboarding/executeFounderImport';
+import { SOURCE_ADAPTERS } from '../../src/features/sources/adapters/registry';
 import {
   ACCOUNT,
   CAPTURE,
@@ -44,6 +54,7 @@ import {
   CREW,
   FAST_HOOK_BULLETS,
   FAST_ONBOARDING,
+  FAST_SYNC_ACCOUNT,
   HOOK,
   NOTIFICATIONS,
   PERMISSION,
@@ -85,8 +96,10 @@ const CAPTURE_FILL_MS = 1100;
 const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = FAST_ONBOARDING
   ? {
       permission: 'hook',
-      run: 'permission',
-      capture: 'run',
+      choose: 'permission',
+      sync: 'choose',
+      run: 'choose',
+      account: 'sync',
     }
   : {
       city: 'hook',
@@ -107,8 +120,14 @@ const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = FAST_ONBOARDI
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
+  const { session } = useSession();
   const { update } = useOnboardingState();
   const [step, setStep] = useState<OnboardingStep>('hook');
+  /** Étape précédente de la capture (run, sync démo, ou account Strava). */
+  const [captureFrom, setCaptureFrom] = useState<OnboardingStep>('run');
+  /** Import Strava réel prévu à la capture (branche sync FAST). */
+  const [importOnCapture, setImportOnCapture] = useState(false);
+  const [captureResult, setCaptureResult] = useState<OnboardingCaptureResult>(DEMO_CAPTURE_RESULT);
 
   // Funnel §8 : un event par étape atteinte (n dédié A-30, content.STEP_EVENT_N).
   useEffect(() => {
@@ -122,11 +141,11 @@ export default function OnboardingScreen() {
 
   /** Flèche retour : revient à l'étape précédente (sans effet sur `hook`). */
   const back = useCallback(() => {
-    const prev = STEP_PREV[step];
+    const prev = STEP_PREV[step] ?? (step === 'capture' ? captureFrom : undefined);
     if (!prev) return;
     haptics.light();
     setStep(prev);
-  }, [step]);
+  }, [step, captureFrom]);
 
   /** Sortie du flow : marque l'onboarding fait (pré-compte) + route vers `href`. */
   const finish = useCallback(
@@ -141,6 +160,16 @@ export default function OnboardingScreen() {
     ? () => void finish('/route-planner')
     : () => go('account');
 
+  const goCapture = useCallback(
+    (from: OnboardingStep, opts?: { importOnMount?: boolean; result?: OnboardingCaptureResult }) => {
+      setCaptureFrom(from);
+      setImportOnCapture(opts?.importOnMount ?? false);
+      setCaptureResult(opts?.result ?? DEMO_CAPTURE_RESULT);
+      go('capture');
+    },
+    [go],
+  );
+
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {step === 'hook' ? (
@@ -148,9 +177,9 @@ export default function OnboardingScreen() {
       ) : null}
       {!FAST_ONBOARDING && step === 'city' ? <CityStep onNext={() => go('permission')} /> : null}
       {step === 'permission' ? (
-        <PermissionStep onNext={() => go(FAST_ONBOARDING ? 'run' : 'choose')} />
+        <PermissionStep onNext={() => go('choose')} />
       ) : null}
-      {!FAST_ONBOARDING && step === 'choose' ? (
+      {step === 'choose' ? (
         <ChooseStep
           onSync={() => {
             void update({ path: 'sync' });
@@ -162,11 +191,20 @@ export default function OnboardingScreen() {
           }}
         />
       ) : null}
-      {!FAST_ONBOARDING && step === 'sync' ? (
+      {step === 'sync' ? (
         <SyncStep
+          realStrava={FAST_ONBOARDING}
+          onStravaReady={() => {
+            setImportOnCapture(true);
+            if (session) {
+              goCapture('sync', { importOnMount: true });
+              return;
+            }
+            go('account');
+          }}
           onDone={() => {
-            void update({ firstCaptureDone: true });
-            go('capture');
+            void update({ firstCaptureDone: true, path: 'sync' });
+            goCapture(FAST_ONBOARDING ? 'sync' : 'choose', { importOnMount: false });
           }}
         />
       ) : null}
@@ -174,12 +212,27 @@ export default function OnboardingScreen() {
         <RunStep
           onDone={() => {
             void update({ firstCaptureDone: true, path: 'run' });
-            go('capture');
+            goCapture(FAST_ONBOARDING ? 'run' : 'choose', { importOnMount: false });
           }}
         />
       ) : null}
       {step === 'capture' ? (
-        <CaptureStep reduce={reduce} onNext={afterCapture} />
+        <CaptureStep
+          reduce={reduce}
+          result={captureResult}
+          importOnMount={importOnCapture}
+          onResult={setCaptureResult}
+          onNext={afterCapture}
+        />
+      ) : null}
+      {FAST_ONBOARDING && step === 'account' ? (
+        <AccountStep
+          copy={FAST_SYNC_ACCOUNT}
+          onNext={() => {
+            void update({ firstCaptureDone: true });
+            goCapture('account', { importOnMount: true });
+          }}
+        />
       ) : null}
       {!FAST_ONBOARDING && step === 'account' ? <AccountStep onNext={() => go('crew')} /> : null}
       {!FAST_ONBOARDING && step === 'crew' ? (
@@ -193,7 +246,7 @@ export default function OnboardingScreen() {
         <NotificationsStep onDone={() => void finish('/')} />
       ) : null}
       {/* Flèche retour discrète (rendue en dernier = au-dessus) — jamais sur le hook. */}
-      {STEP_PREV[step] ? (
+      {(STEP_PREV[step] ?? (step === 'capture' ? captureFrom : undefined)) ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Revenir à l'étape précédente"
@@ -416,17 +469,56 @@ function PathCard({
 // 4a — SYNC (démo) (§4a) : import d'un run récent → 1re zone en secondes
 // ═══════════════════════════════════════════════════════════════════════════
 
-function SyncStep({ onDone }: { onDone: () => void }) {
+function SyncStep({
+  onDone,
+  onStravaReady,
+  realStrava = false,
+}: {
+  onDone: () => void;
+  onStravaReady?: () => void;
+  realStrava?: boolean;
+}) {
   const [source, setSource] = useState<SyncSourceKey | null>(null);
   const [running, setRunning] = useState(false);
+  const [stravaBusy, setStravaBusy] = useState(false);
+  const [stravaDetail, setStravaDetail] = useState<string | null>(null);
   const p = useSyncDemo(running, SYNC_DURATION_MS, onDone);
   const activeIndex = syncPhaseIndex(p);
   const chosen = source ? syncSource(source) : null;
 
-  const start = (key: SyncSourceKey) => {
+  const startDemo = (key: SyncSourceKey) => {
     haptics.medium();
     setSource(key);
     setRunning(true);
+  };
+
+  const connectStrava = async () => {
+    const adapter = SOURCE_ADAPTERS.strava;
+    if (!adapter || stravaBusy) return;
+    haptics.medium();
+    setStravaBusy(true);
+    setStravaDetail(null);
+    try {
+      const snap = await adapter.connect();
+      if (snap.status === 'connected') {
+        setSource('strava');
+        onStravaReady?.();
+        return;
+      }
+      setStravaDetail(snap.detail ?? 'Connexion impossible — réessaie plus tard');
+    } catch {
+      setStravaDetail('Connexion impossible — réessaie plus tard');
+    } finally {
+      setStravaBusy(false);
+    }
+  };
+
+  const onSourcePress = (key: SyncSourceKey) => {
+    if (realStrava && key === 'strava') {
+      void connectStrava();
+      return;
+    }
+    startDemo(key);
   };
 
   return (
@@ -437,27 +529,37 @@ function SyncStep({ onDone }: { onDone: () => void }) {
         <Text style={styles.tagline}>{SYNC.tagline}</Text>
 
         {!running ? (
-          // Choix de la source (Apple Health / Strava — libellés sources/catalog).
-          <View style={styles.sourceList}>
-            {SYNC_SOURCES.map((s) => (
-              <Pressable
-                key={s.key}
-                accessibilityRole="button"
-                accessibilityLabel={`${s.name} — ${s.trust}`}
-                onPress={() => start(s.key)}
-                style={({ pressed }) => [styles.sourceCard, pressed && styles.pathCardPressed]}
-              >
-                <View style={styles.pathIcon}>
-                  <Icon name={s.icon} size={24} color={colors.chartreuse} />
-                </View>
-                <View style={styles.pathText}>
-                  <Text style={styles.pathTitle}>{s.name}</Text>
-                  <Text style={styles.pathSubtitle}>{s.trust}</Text>
-                </View>
-                <Icon name="chevron" size={18} color={colors.gris} />
-              </Pressable>
-            ))}
-          </View>
+          <>
+            <View style={styles.sourceList}>
+              {SYNC_SOURCES.map((s) => (
+                <Pressable
+                  key={s.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${s.name} — ${s.trust}`}
+                  disabled={stravaBusy && s.key === 'strava'}
+                  onPress={() => onSourcePress(s.key)}
+                  style={({ pressed }) => [styles.sourceCard, pressed && styles.pathCardPressed]}
+                >
+                  <View style={styles.pathIcon}>
+                    <Icon name={s.icon} size={24} color={colors.chartreuse} />
+                  </View>
+                  <View style={styles.pathText}>
+                    <Text style={styles.pathTitle}>{s.name}</Text>
+                    <Text style={styles.pathSubtitle}>
+                      {s.key === 'strava' && stravaBusy ? SYNC.stravaBusy : s.trust}
+                    </Text>
+                  </View>
+                  <Icon name="chevron" size={18} color={colors.gris} />
+                </Pressable>
+              ))}
+            </View>
+            {realStrava ? (
+              <Text style={styles.syncPolicy} numberOfLines={3}>
+                {SYNC.policy}
+              </Text>
+            ) : null}
+            {stravaDetail ? <Text style={styles.syncError}>{stravaDetail}</Text> : null}
+          </>
         ) : (
           // Déroulé de l'import : source + run détecté + étapes cochées + barre.
           <View style={styles.syncRunning}>
@@ -548,16 +650,60 @@ function RunStep({ onDone }: { onDone: () => void }) {
 // 5 — 1re CAPTURE : MOMENT SIGNATURE (§5) — remplissage + haptique + « +X »
 // ═══════════════════════════════════════════════════════════════════════════
 
-function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }) {
-  // Progression 0..1 du remplissage + compteur (montent ensemble). Reduce
-  // motion → état final direct (la valeur reste lisible, jamais dépend de l'anim).
+function CaptureStep({
+  reduce,
+  result,
+  importOnMount,
+  onResult,
+  onNext,
+}: {
+  reduce: boolean;
+  result: OnboardingCaptureResult;
+  importOnMount: boolean;
+  onResult: (r: OnboardingCaptureResult) => void;
+  onNext: () => void;
+}) {
+  const [importing, setImporting] = useState(importOnMount);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [ready, setReady] = useState(!importOnMount);
   const [p, setP] = useState(reduce ? 1 : 0);
   const anim = useRef(new Animated.Value(0)).current;
-  // Haptique signature (§5.3) : success + heavy, tirée UNE fois à l'arrivée.
   const fired = useRef(false);
-  const zones = useCountUp(SYNC_DEMO_RUN.zones, CAPTURE_FILL_MS);
+  const zonesTarget = ready ? result.zones : 0;
+  const zones = useCountUp(zonesTarget, ready && !importing ? CAPTURE_FILL_MS : 0);
 
   useEffect(() => {
+    if (!importOnMount) return;
+    let alive = true;
+    void (async () => {
+      const outcome = await executeFounderImport();
+      if (!alive) return;
+      if (outcome.ok) {
+        onResult(
+          captureFromImport(
+            outcome.hexesClaimed,
+            outcome.founderXpAwarded,
+            outcome.playerLevel,
+          ),
+        );
+      } else {
+        setImportError(
+          outcome.error === 'already_done'
+            ? 'Import déjà effectué — aperçu démo.'
+            : 'Import impossible — aperçu démo.',
+        );
+        onResult(DEMO_CAPTURE_RESULT);
+      }
+      setImporting(false);
+      setReady(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [importOnMount, onResult]);
+
+  useEffect(() => {
+    if (!ready || importing) return;
     const fireHaptic = () => {
       if (fired.current) return;
       fired.current = true;
@@ -570,6 +716,8 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
       fireHaptic();
       return;
     }
+    fired.current = false;
+    anim.setValue(0);
     const id = anim.addListener(({ value }) => {
       setP(value);
       if (value >= 0.66) fireHaptic();
@@ -584,15 +732,28 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
       anim.removeListener(id);
       anim.stopAnimation();
     };
-  }, [reduce, anim]);
+  }, [ready, importing, reduce, anim]);
 
   const share = () => {
     haptics.light();
     track(EVENTS.shareCardGenerated, { source: 'onboarding' });
-    // Câblé démo : le partage réel arrive après le compte — ici on continue le
-    // flow (la carte de partage vit dans /partage, hors onboarding pré-compte).
     onNext();
   };
+
+  if (importing) {
+    return (
+      <View style={styles.step}>
+        <View style={styles.body}>
+          <Kicker>{SYNC.kicker}</Kicker>
+          <Text style={styles.title}>{SYNC.title}</Text>
+          <View style={styles.syncBarWrap}>
+            <SyncProgressBar p={0.45} />
+          </View>
+          <Text style={styles.syncHint}>{SYNC.running}…</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.step}>
@@ -602,14 +763,20 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
         <View style={styles.boardWrap}>
           <CaptureFillVisual p={p} />
         </View>
-        {/* Le gros chiffre héros (+X zones) — signature typographique. */}
         <View style={styles.captureStat}>
           <Text style={styles.captureNumber}>+{zones}</Text>
           <Text style={styles.captureUnit}>{CAPTURE.zonesLabel}</Text>
         </View>
         <Text style={styles.captureSub}>
-          dont {SYNC_DEMO_RUN.enclosedZones} {CAPTURE.loopLabel} · {SYNC_DEMO_RUN.zoneName}
+          dont {result.enclosedZones} {CAPTURE.loopLabel} · {result.zoneName}
         </Text>
+        {result.founderXp != null && result.playerLevel != null && !result.isDemo ? (
+          <Text style={styles.captureBonus}>
+            +{result.founderXp} XP bonus · niveau {result.playerLevel}. Classement saison : tu pars
+            avec tout le monde.
+          </Text>
+        ) : null}
+        {importError ? <Text style={styles.syncError}>{importError}</Text> : null}
       </View>
       <View style={styles.footer}>
         <PrimaryCta label={CAPTURE.cta} icon="conquete" onPress={onNext} />
@@ -623,7 +790,13 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
 // 6 — COMPTE APRÈS LA VALEUR (§6) : Apple / passkey, 1 tap. Jamais un mur.
 // ═══════════════════════════════════════════════════════════════════════════
 
-function AccountStep({ onNext }: { onNext: () => void }) {
+function AccountStep({
+  onNext,
+  copy = ACCOUNT,
+}: {
+  onNext: () => void;
+  copy?: typeof ACCOUNT | typeof FAST_SYNC_ACCOUNT;
+}) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<AuthResult>) => {
     // Garde de réentrance : le bouton Apple (natif) n'a pas de prop `disabled`,
@@ -640,23 +813,21 @@ function AccountStep({ onNext }: { onNext: () => void }) {
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{ACCOUNT.kicker}</Kicker>
+        <Kicker>{copy.kicker}</Kicker>
         <View style={styles.iconHero}>
           <View style={styles.iconHeroRing}>
             <Icon name="bouclier" size={40} color={colors.chartreuse} />
           </View>
         </View>
-        <Text style={styles.title}>{ACCOUNT.title}</Text>
-        <Text style={styles.tagline}>{ACCOUNT.tagline}</Text>
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.tagline}>{copy.tagline}</Text>
       </View>
       <View style={styles.footer}>
         {Platform.OS === 'ios' ? (
-          // Vrai bouton système Apple (fork natif — jamais bundlé sur web).
           <OnboardingAppleButton onPress={() => void run(signInWithApple)} />
         ) : (
-          // Web/Android : CTA Apple générique (auth.web = no-op « ok » en preview).
           <PrimaryCta
-            label={ACCOUNT.apple}
+            label={copy.apple}
             icon="profil"
             onPress={() => void run(signInWithApple)}
             a11yLabel="Continuer avec Apple"
@@ -664,14 +835,14 @@ function AccountStep({ onNext }: { onNext: () => void }) {
         )}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={ACCOUNT.google}
+          accessibilityLabel={copy.google}
           disabled={busy}
           onPress={() => void run(signInWithGoogle)}
           style={({ pressed }) => [styles.ghost, (pressed || busy) && styles.pressed]}
         >
-          <Text style={styles.ghostLabel}>{ACCOUNT.google}</Text>
+          <Text style={styles.ghostLabel}>{copy.google}</Text>
         </Pressable>
-        <SkipLink label={ACCOUNT.skip} onPress={onNext} />
+        <SkipLink label={copy.skip} onPress={onNext} />
       </View>
     </View>
   );
@@ -983,5 +1154,25 @@ const styles = StyleSheet.create({
   },
   captureUnit: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
   captureSub: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 8 },
+  captureBonus: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.45,
+    marginTop: 12,
+    maxWidth: 320,
+  },
+  syncPolicy: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 14,
+    maxWidth: 320,
+  },
+  syncError: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    marginTop: 10,
+    lineHeight: fontSizes.sm * 1.4,
+  },
 
 });

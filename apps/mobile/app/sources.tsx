@@ -12,10 +12,8 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
-import { screen, track } from '../src/lib/analytics';
-import { EVENTS } from '@klaim/shared';
-import { runOnboardingImport } from '../src/features/onboarding/onboardingImportApi';
-import { getStravaRefreshToken } from '../src/features/sources/adapters/strava';
+import { screen } from '../src/lib/analytics';
+import { executeFounderImport } from '../src/features/onboarding/executeFounderImport';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -190,17 +188,8 @@ export default function SourcesScreen() {
     setImportBusy(true);
     setImportSummary(null);
     try {
-      const strava = SOURCE_ADAPTERS.strava;
-      let refreshToken: string | undefined;
-      if (strava && snapshots.strava?.status === 'connected') {
-        if (strava.sync) {
-          const snap = await strava.sync();
-          setSnapshots((prev) => ({ ...prev, strava: snap }));
-        }
-        refreshToken = await getStravaRefreshToken();
-      }
-      const result = await runOnboardingImport({ refreshToken });
-      if ('error' in result) {
+      const result = await executeFounderImport();
+      if (!result.ok) {
         setImportSummary(
           result.error === 'already_done'
             ? 'Import déjà effectué sur ce compte.'
@@ -208,11 +197,6 @@ export default function SourcesScreen() {
         );
         return;
       }
-      track(EVENTS.onboardingImportComplete, {
-        runs: result.runsProcessed,
-        founder_xp: result.founderXpAwarded,
-        hexes: result.hexesClaimed,
-      });
       setImportSummary(
         result.alreadyDone
           ? 'Import déjà effectué.'
