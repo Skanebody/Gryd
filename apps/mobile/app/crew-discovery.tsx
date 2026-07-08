@@ -6,8 +6,8 @@
  * recherchés, CTA fort « Demander à rejoindre » + « Voir la base » →
  * /crew-public?crew=TAG. Niveau/tier DÉRIVÉS de l'XP réelle (features/crew/
  * rules), rôles recherchés depuis les fiches publiques (publicDemo) — mêmes
- * données que la page publique. Rejoindre = stub toast TODO(O1). Aucun nombre
- * magique. Zéro position live (§37.3).
+ * données que la page publique. Rejoindre via `useJoinPublicCrew` (crew_membership).
+ * Aucun nombre magique. Zéro position live (§37.3).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';

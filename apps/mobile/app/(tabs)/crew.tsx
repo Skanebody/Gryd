@@ -10,8 +10,7 @@
  * reward + « PROCHAIN PERK — XP restants » ; Chat = War Log fusionné
  * (WarEventCard + réactions GRYD + LIVE) et messages actionnables (RSVP
  * défense, ping zone → carte). Données démo DÉTERMINISTES (features/crew) —
- * TODO(O1) brancher crews / crew_members / crew_chests / crew_feed_events.
- * Aucun nombre magique : niveaux/paliers DÉRIVÉS de @klaim/shared via rules.
+ * données démo DÉTERMINISTES (features/crew) avec fallback honnête si pas de crew.
  */
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import {
@@ -1432,9 +1431,18 @@ export default function CrewScreen() {
     setChatFilter(choice === 'outing' ? 'missions' : 'demandes');
     setTab('chat');
     if (choice === 'boost') {
-      notify('Boost proposé au crew — 100 % optionnel, aucune obligation (démo)');
+      notify(
+        crewRequests.useLive
+          ? 'Boost proposé au crew — 100 % optionnel'
+          : 'Boost proposé au crew — 100 % optionnel, aucune obligation (démo)',
+      );
     } else {
-      notify(`Demande envoyée au crew · ${REQUEST_CHOICES.find((c) => c.key === choice)?.label} (démo)`);
+      const label = REQUEST_CHOICES.find((c) => c.key === choice)?.label ?? 'Demande';
+      notify(
+        crewRequests.useLive
+          ? `Demande envoyée au crew · ${label}`
+          : `Demande envoyée au crew · ${label} (démo)`,
+      );
     }
   };
 
@@ -1598,9 +1606,10 @@ export default function CrewScreen() {
   // À FAIRE : mes requêtes + cartes démo, filtrées (Dons/Résultats masquent À faire).
   const visibleActions = useMemo(() => {
     if (chatFilter === 'dons' || chatFilter === 'resultats') return [];
-    const all = [...myRequestCards, ...ACTION_CARDS_DEMO];
+    const demoActions = crewRequests.useLive ? [] : ACTION_CARDS_DEMO;
+    const all = [...myRequestCards, ...demoActions];
     return all.filter((c) => chatFilter === 'tout' || c.filters.includes(chatFilter));
-  }, [chatFilter, myRequestCards]);
+  }, [chatFilter, crewRequests.useLive, myRequestCards]);
   // La carte BONUS partage la section À FAIRE : visible sous Tout/Demandes/
   // Missions (comme une action d'entraide), masquée sous Dons/Résultats.
   const showBonusCard =
@@ -1616,8 +1625,10 @@ export default function CrewScreen() {
     () =>
       chatFilter === 'resultats' || chatFilter === 'missions'
         ? []
-        : [...crewRequests.liveGiftCards, ...myDonationCards, ...GIFT_CARDS_DEMO],
-    [chatFilter, crewRequests.liveGiftCards, myDonationCards],
+        : crewRequests.useLive
+          ? [...crewRequests.liveGiftCards, ...myDonationCards]
+          : [...crewRequests.liveGiftCards, ...myDonationCards, ...GIFT_CARDS_DEMO],
+    [chatFilter, crewRequests.liveGiftCards, crewRequests.useLive, myDonationCards],
   );
   // CADEAUX CREW premium offerts (réclamables) — dans la section Dons.
   const visibleCadeaux = useMemo(
@@ -2032,13 +2043,22 @@ export default function CrewScreen() {
           </Pressable>
 
           <View style={styles.outingList}>
+            {crewOutings.outings.length === 0 ? (
+              <Text style={styles.outingEmpty}>
+                {crewOutings.useLive
+                  ? 'Aucune sortie planifiée — crée la première pour le crew.'
+                  : 'Sorties démo — connecte-toi pour les sorties live.'}
+              </Text>
+            ) : null}
             {crewOutings.outings.map((o) => (
               <SortieCard key={o.id} outing={o} onRsvp={onOutingRsvp} />
             ))}
           </View>
 
           <Text style={styles.outingNote}>
-            Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points (démo).
+            {crewOutings.useLive
+              ? 'Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points.'
+              : 'Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points (démo).'}
           </Text>
         </>
       ) : null}
@@ -2283,6 +2303,13 @@ export default function CrewScreen() {
               <View style={styles.thread}>
                 {/* Filtre d'affichage (§1) : les messages d'un membre BLOQUÉ ne
                     sont jamais rendus. La liste bloquée vient du store persisté. */}
+                {chat.messages.filter((m) => m.me || !isBlocked(m.author)).length === 0 ? (
+                  <Text style={styles.chatEmpty}>
+                    {isRealCrew
+                      ? 'Aucun message pour l’instant — écris au crew ci-dessous.'
+                      : 'Fil démo — connecte-toi pour le chat live du crew.'}
+                  </Text>
+                ) : null}
                 {chat.messages
                   .filter((m) => m.me || !isBlocked(m.author))
                   .map((m) => (
@@ -3545,6 +3572,8 @@ const styles = StyleSheet.create({
   sheetChoiceHint: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
   // ── Chat : fil de discussion (bulles) ──
   thread: { marginTop: 4, gap: 12 },
+  chatEmpty: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20, marginBottom: 4 },
+  outingEmpty: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20, marginBottom: 8 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 32 },
   bubbleRowMe: { alignItems: 'flex-end', paddingLeft: 40 },
   avatar: {

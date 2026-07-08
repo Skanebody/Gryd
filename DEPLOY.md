@@ -83,19 +83,24 @@ npm run ship:staging
 
 ## Ce qui est déployé
 
-### Migration `0018_map_and_crew.sql`
+### Migrations récentes
 
-- RPC `hex_claims_for_city(p_city_id)` — lecture carte mobile
-- RPC `generate_crew_code()` — service_role only
+| Migration | Contenu |
+|-----------|---------|
+| `0018_map_and_crew.sql` | RPC `hex_claims_for_city`, `generate_crew_code()` |
+| `0019_crew_social.sql` | Chat, sorties, requêtes/dons, contributions coffre, `equip_user_item` |
+| `0020_crew_realtime.sql` | Publication Realtime (crew social + inbox) |
 
 ### Edge Functions
 
 | Function | Rôle |
 |----------|------|
 | `ingest_run` | GPS → claims serveur |
-| `crew_membership` | create / join_by_code / leave |
-| `decay_job` | decay territoire (cron) |
-| `digest_job` | notifications digest (cron) |
+| `crew_membership` | create / join_by_code / apply / leave |
+| `claim_crew_chest` | Réclamation coffre crew hebdo |
+| `crew_social` | Chat, sorties, requêtes, dons, cadeaux |
+| `decay_job` | Decay territoire (cron) |
+| `digest_job` | Notifications digest (cron) |
 
 ---
 

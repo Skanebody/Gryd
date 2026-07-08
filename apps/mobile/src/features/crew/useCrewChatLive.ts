@@ -53,7 +53,7 @@ export function useCrewChatLive(
   useCrewSocialRealtime(membership?.crewId ?? null, useLive, refresh);
 
   const messages = useMemo(() => {
-    if (!useLive || liveMessages.length === 0) {
+    if (!useLive) {
       const demo: ChatThreadMessage[] = DEMO_CHAT_MESSAGES.map((m) => ({
         id: m.id,
         author: m.author,

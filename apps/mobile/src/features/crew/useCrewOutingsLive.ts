@@ -69,13 +69,13 @@ export function useCrewOutingsLive(members: readonly CrewMemberProfile[]): CrewO
 
   useCrewSocialRealtime(membership?.crewId ?? null, useLive, refresh);
 
-  if (!useLive || liveOutings.length === 0) {
+  if (!useLive) {
     return { outings: demo.outings, loaded: demo.loaded, refresh, useLive };
   }
 
   return {
-    outings: [...liveOutings, ...demo.outings],
-    loaded: liveLoaded && demo.loaded,
+    outings: liveOutings,
+    loaded: liveLoaded,
     refresh,
     useLive,
   };
