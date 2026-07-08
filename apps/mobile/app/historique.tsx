@@ -17,20 +17,18 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { StackScreen } from '../src/ui/StackScreen';
 import { RunHistoryCard } from '../src/features/history/RunHistoryCard';
-import {
-  countByFilter,
-  HISTORY_FILTERS,
-  runsByFilter,
-  type HistoryFilter,
-} from '../src/features/history/demo';
+import { HISTORY_FILTERS, type HistoryFilter } from '../src/features/history/demo';
+import { useRunHistory } from '../src/features/history/useRunHistory';
 
 /** Barre de filtres horizontale (Tout/Conquêtes/Défenses/Routes/Stats only). */
 function FilterBar({
   active,
   onSelect,
+  countFor,
 }: {
   active: HistoryFilter;
   onSelect: (f: HistoryFilter) => void;
+  countFor: (f: HistoryFilter) => number;
 }) {
   return (
     <ScrollView
@@ -40,7 +38,7 @@ function FilterBar({
     >
       {HISTORY_FILTERS.map((f) => {
         const selected = f.key === active;
-        const count = countByFilter(f.key);
+        const count = countFor(f.key);
         return (
           <Pressable
             key={f.key}
@@ -69,6 +67,7 @@ function FilterBar({
 
 export default function HistoriqueScreen() {
   const [filter, setFilter] = useState<HistoryFilter>('all');
+  const { loading, useDemo, runsByFilter, countByFilter } = useRunHistory();
 
   useEffect(() => {
     screen('historique');
@@ -96,15 +95,23 @@ export default function HistoriqueScreen() {
       kicker="TES COURSES"
       subtitle="Tous tes parcours : le tracé, l’effort et ce qu’il a changé sur le terrain."
     >
-      <FilterBar active={filter} onSelect={selectFilter} />
+      <FilterBar active={filter} onSelect={selectFilter} countFor={countByFilter} />
 
       <Text style={styles.sectionLabel}>
         {`${total} COURSE${total > 1 ? 'S' : ''}`}
       </Text>
 
-      {list.length === 0 ? (
+      {loading ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Aucune course dans ce filtre pour l’instant.</Text>
+          <Text style={styles.emptyText}>Chargement de tes courses…</Text>
+        </View>
+      ) : list.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>
+            {useDemo
+              ? 'Aucune course dans ce filtre pour l’instant.'
+              : 'Aucune course enregistrée — pars courir pour remplir ton historique.'}
+          </Text>
         </View>
       ) : (
         <View style={styles.list}>

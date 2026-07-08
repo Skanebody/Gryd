@@ -9,7 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
-import { retryPendingUpload } from '../src/lib/pendingUpload';
+import { PendingUploadNotifier } from '../src/lib/PendingUploadNotifier';
 import { SessionProvider } from '../src/lib/session';
 import { ErrorBoundary } from '../src/ui/ErrorBoundary';
 // AMENDEMENT-15 §2 : la tâche GPS background doit être définie AU CHARGEMENT
@@ -20,14 +20,12 @@ import '../src/features/run/gps/registerBackgroundTask';
 export default function RootLayout() {
   useEffect(() => {
     track(EVENTS.appOpen);
-    // AMENDEMENT-15 §2 : une fin de course restée hors-ligne est renvoyée
-    // silencieusement à chaque lancement (idempotent par clientRunId, D14).
-    void retryPendingUpload();
   }, []);
 
   return (
     <SafeAreaProvider>
       <SessionProvider>
+        <PendingUploadNotifier />
         <StatusBar style="light" />
         {/* Boundary global brandé (AMENDEMENT-08 §0) : plus jamais d'écran d'erreur brut. */}
         <ErrorBoundary>

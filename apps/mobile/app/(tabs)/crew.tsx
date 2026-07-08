@@ -13,14 +13,7 @@
  * TODO(O1) brancher crews / crew_members / crew_chests / crew_feed_events.
  * Aucun nombre magique : niveaux/paliers DÉRIVÉS de @klaim/shared via rules.
  */
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import {
   Alert,
   Animated,
@@ -53,7 +46,7 @@ import {
   type IconName,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../src/lib/analytics';
-import { createCrew, joinCrewByCode } from '../../src/features/crew/crewApi';
+import { createCrew, fetchCrewMemberCount, joinCrewByCode } from '../../src/features/crew/crewApi';
 import { useMyCrew } from '../../src/features/crew/useMyCrew';
 import { haptics } from '../../src/lib/haptics';
 import { GhostButton } from '../../src/ui/GhostButton';
@@ -1102,7 +1095,17 @@ function SectionHead({
 }
 
 export default function CrewScreen() {
-  const { hasCrew, refresh: refreshCrew, loading: crewLoading } = useMyCrew();
+  const { hasCrew, refresh: refreshCrew, loading: crewLoading, membership } = useMyCrew();
+  const [memberCount, setMemberCount] = useState<number | null>(null);
+  const isRealCrew = membership !== null;
+
+  useEffect(() => {
+    if (!membership) {
+      setMemberCount(null);
+      return;
+    }
+    void fetchCrewMemberCount(membership.crewId).then(setMemberCount);
+  }, [membership]);
 
   useEffect(() => {
     screen('crew_hq');
@@ -1188,9 +1191,10 @@ export default function CrewScreen() {
   // Blason vivant : pulse très léger (reduce motion → inerte, géré par le hook).
   const crestScale = usePulse(true, 1.02);
 
-  // Niveau + jauge dérivés de l'XP réelle (§34.3).
-  const level = crewLevelForXp(MY_CREW.xp);
-  const levelProgress = crewLevelProgress(MY_CREW.xp, level);
+  // Niveau + jauge : XP réelle du crew connecté, sinon démo.
+  const crewXp = isRealCrew ? membership.crew.xp : MY_CREW.xp;
+  const level = isRealCrew ? membership.crew.level : crewLevelForXp(MY_CREW.xp);
+  const levelProgress = crewLevelProgress(crewXp, level);
   const nextLevelXp = level < CREW_LEVEL_MAX ? crewXpForLevel(level + 1) : null;
 
   // Statut d'activité (§45) — 91 → « Prêt guerre ».
@@ -1226,7 +1230,11 @@ export default function CrewScreen() {
   );
   const maxChestPoints = Math.max(1, contributors[0]?.chestPoints ?? 1);
 
-  const activeMembers = MY_CREW.members.length;
+  const activeMembers = memberCount ?? MY_CREW.members.length;
+  const hqTitle = isRealCrew ? membership.crew.name : crewProfile.name;
+  const hqCity = isRealCrew ? membership.crew.city_id : MY_CREW.city;
+  const crestSeed = isRealCrew ? membership.crew.id : MY_CREW.seed;
+  const localRankLabel = isRealCrew ? '—' : String(MY_CREW.localRank);
 
   // Mon rôle démo (KORO = founder) → gating visuel des actions (matrice §8).
   const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
@@ -1530,13 +1538,13 @@ export default function CrewScreen() {
   };
 
   return (
-    <TabScreen title={crewProfile.name} icon="crew" kicker={`CREW HQ · ${MY_CREW.city.toUpperCase()}`}>
+    <TabScreen title={hqTitle} icon="crew" kicker={`CREW HQ · ${hqCity.toUpperCase()}`}>
       {/* ── Header base : GRAND blason animé + frame ligue + niveau/XP ── */}
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
           <Animated.View style={{ transform: [{ scale: crestScale }] }}>
             <CrewCrest
-              seed={MY_CREW.seed}
+              seed={crestSeed}
               name={crewProfile.name}
               size="xl"
               leagueTier={MY_CREW.league}
@@ -1555,7 +1563,7 @@ export default function CrewScreen() {
             </View>
             {/* Ligne d'identité forte : niveau · rang ville · membres actifs. */}
             <Text style={styles.identityLine} numberOfLines={2}>
-              Niveau {level} · #{MY_CREW.localRank} {MY_CREW.city} · {activeMembers}/
+              Niveau {level} · #{localRankLabel} {hqCity} · {activeMembers}/
               {CREW_MAX_MEMBERS} actifs
             </Text>
             <View style={styles.headerGauge}>
@@ -1566,7 +1574,7 @@ export default function CrewScreen() {
                 pour ne jamais tronquer (§9) ni répéter l'info du blason (§20). */}
             <Text style={styles.xpLine} numberOfLines={1}>
               {nextLevelXp !== null
-                ? `${formatInt(nextLevelXp - MY_CREW.xp)} XP vers niv. ${level + 1}`
+                ? `${formatInt(nextLevelXp - crewXp)} XP vers niv. ${level + 1}`
                 : 'Niveau max atteint'}
             </Text>
           </View>
