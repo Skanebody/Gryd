@@ -126,6 +126,10 @@ import {
 import { bonusById } from '../_shared/bonuses.ts';
 import type { BonusDefinition, BonusId } from '../_shared/types.ts';
 import { isWithinOnboardingImportWindow } from '../_shared/engine/onboarding.ts';
+import {
+  buildAttackAlertNotifications,
+  collectAttackAlertHits,
+} from '../_shared/engine/attack_alerts.ts';
 
 const MS_PER_DAY = 86_400_000;
 const M_PER_KM = 1_000;
@@ -161,31 +165,13 @@ const json = (body: unknown, status = 200): Response =>
   });
 
 /** Outcomes rivaux qui déclenchent une alerte d'attaque (sans bloquer la capture). */
-const RIVAL_ATTACK_OUTCOMES = new Set([
-  'stolen',
-  'blocked_lock',
-  'blocked_shield',
-  'blocked_fresh_protection',
-  'blocked_new_player',
-]);
-
-/**
- * Notifie les défenseurs dont une alerte d'attaque est active sur un hex ciblé.
- * Option A monétisation : informer, jamais bloquer.
- */
 async function notifyAttackAlerts(
   attackerId: string,
   results: readonly HexClaimResult[],
   states: ReadonlyMap<string, HexState>,
   now: Date,
 ): Promise<void> {
-  const hits: { defenderId: string; h3Db: string; outcome: string }[] = [];
-  for (const r of results) {
-    if (!RIVAL_ATTACK_OUTCOMES.has(r.outcome)) continue;
-    const owner = states.get(r.h3)?.ownerUserId ?? null;
-    if (!owner || owner === attackerId) continue;
-    hits.push({ defenderId: owner, h3Db: h3ToDb(r.h3), outcome: r.outcome });
-  }
+  const hits = collectAttackAlertHits(attackerId, results, states);
   if (hits.length === 0) return;
 
   const hexIds = [...new Set(hits.map((h) => h.h3Db))];
@@ -196,26 +182,11 @@ async function notifyAttackAlerts(
     .gt('expires_at', now.toISOString());
   if (error || !alerts?.length) return;
 
-  const alertSet = new Set(
-    alerts.map((a) => `${a.user_id}:${String(a.h3index)}`),
+  const rows = buildAttackAlertNotifications(
+    hits,
+    alerts.map((a) => ({ userId: a.user_id, h3Db: String(a.h3index) })),
+    STEAL_ALERT_PRIORITY,
   );
-  const rows = hits
-    .filter((h) => alertSet.has(`${h.defenderId}:${h.h3Db}`))
-    .map((h) => ({
-      user_id: h.defenderId,
-      type: 'steal' as const,
-      priority: STEAL_ALERT_PRIORITY,
-      payload: {
-        title: 'Zone sous pression',
-        body: h.outcome === 'stolen'
-          ? 'Une zone surveillée vient d\'être reprise — défends si tu peux.'
-          : 'Quelqu\'un cible une zone que tu surveilles — cours pour défendre.',
-        h3index: h.h3Db,
-        outcome: h.outcome,
-        cta: 'Défendre',
-        href: '/',
-      },
-    }));
   if (rows.length === 0) return;
   const { error: insertError } = await supabase.from('notifications').insert(rows);
   if (insertError) {
