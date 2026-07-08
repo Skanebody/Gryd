@@ -36,7 +36,13 @@ export interface RealRunApi {
    * et la course attend en file — message discret « Course enregistrée —
    * envoi dès que possible » (anti-shame, jamais bloquant).
    */
-  finish: () => Promise<{ distanceM: number; durationS: number; uploadQueued: boolean }>;
+  finish: () => Promise<{
+    distanceM: number;
+    durationS: number;
+    uploadQueued: boolean;
+    clientRunId: string;
+    ingestSent: boolean;
+  }>;
 }
 
 /** Résultat du sélecteur : vrai GPS, simulation démo, ou démarrage en cours. */

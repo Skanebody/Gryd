@@ -76,16 +76,21 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     if (finishedRef.current) return;
     finishedRef.current = true;
     haptics.success();
-    void run.finish().then(({ distanceM, uploadQueued }) => {
-      // Célébration démo à l'échelle de la distance RÉELLE (placeholder O8).
+    void run.finish().then(({ distanceM, uploadQueued, clientRunId, ingestSent }) => {
       const t = Math.max(
         1,
         Math.min(SIM_LAST_TICK, Math.round((distanceM / DEMO_TOTAL_DISTANCE_M) * SIM_LAST_TICK)),
       );
       router.replace({
         pathname: '/course-result',
-        // Fin hors-ligne : ligne discrète « envoi dès que possible » (anti-shame).
-        params: { mode, t: String(t), ...(uploadQueued ? { queued: '1' } : {}) },
+        params: {
+          mode,
+          t: String(t),
+          source: 'real',
+          runId: clientRunId,
+          ...(uploadQueued ? { queued: '1' } : {}),
+          ...(ingestSent ? { ingest: '1' } : {}),
+        },
       });
     });
   };
