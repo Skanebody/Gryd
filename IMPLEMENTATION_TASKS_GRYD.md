@@ -15,12 +15,13 @@
 - [x] P0-DOC-06 — Checklist Apple `APPLE_STORE_CHECKLIST_GRYD.md` — S
 - [x] P0-DOC-07 — Plan QA `QA_TEST_PLAN_GRYD.md` — S
 - [x] P0-DOC-08 — Tasks list (ce fichier) — S
-- [ ] P0-ENG-01 — Moteur `recommendation.ts` + tests — M
-- [ ] P0-ENG-02 — Constantes reco dans `game-rules.ts` + sync — S
-- [ ] P0-MOB-01 — `lastRunResult.ts` store AsyncStorage — S
-- [ ] P0-MOB-02 — `useRealRun` capture `IngestRunResponse` — S
-- [ ] P0-MOB-03 — `course-result` branchement réponse serveur — M
-- [ ] P0-MOB-04 — `statsFromIngest()` mapper — S
+- [x] P0-ENG-01 — Moteur `recommendation.ts` + tests — M
+- [x] P0-ENG-02 — Constantes reco dans `game-rules.ts` + sync — S
+- [x] P0-MOB-01 — `lastRunResult.ts` store AsyncStorage — S
+- [x] P0-MOB-02 — `useRealRun` capture `IngestRunResponse` — S
+- [x] P0-MOB-03 — `course-result` branchement réponse serveur — M
+- [x] P0-MOB-04 — `statsFromIngest()` mapper — S
+- [x] P0-MOB-05 — `route/recommend.ts` wrapper client — S
 
 ---
 
