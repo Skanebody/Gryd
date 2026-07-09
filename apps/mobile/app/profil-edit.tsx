@@ -22,6 +22,7 @@ import {
   gameColors,
   radii,
   spacing,
+  XP_RATE_OF_POINTS,
 } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
@@ -30,7 +31,7 @@ import { StackScreen } from '../src/ui/StackScreen';
 import { InlineRunCTA } from '../src/ui/game';
 import { BadgeHex } from '../src/features/badges/BadgeHex';
 import { badgeById, badgeColor } from '../src/features/badges/catalog';
-import { UNLOCKED_IDS } from '../src/features/badges/demo';
+import { usePlayerProgress } from '../src/features/social/usePlayerProgress';
 import { PlayerCardAvatar } from '../src/features/social/PlayerCardAvatar';
 import {
   AVATAR_COLORS,
@@ -48,15 +49,15 @@ import { isFrameItem, useEquippedCosmetics } from '../src/features/arsenal';
 import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
 import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
 
-/** Tier joueur dérivé (anneau d'avatar par défaut) — jamais un nombre magique. */
-const RUNNER_TIER = playerTierForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
-
 /** Badges choisissables = débloqués, non-legacy, du plus rare au moins rare. */
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
-const CHOOSABLE_BADGES: readonly BadgeDefT[] = [...UNLOCKED_IDS]
-  .map((id) => badgeById(id))
-  .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
-  .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
+
+function choosableBadges(unlockedIds: ReadonlySet<string>): readonly BadgeDefT[] {
+  return [...unlockedIds]
+    .map((id) => badgeById(id))
+    .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
+    .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
+}
 
 /** Frames équipables (portée profile, hors titres) — cosmétique visible sur la card. */
 const FRAME_ITEMS = itemsInSection('frames').filter(isFrameItem);
@@ -68,6 +69,12 @@ export default function ProfilEditScreen() {
   }, []);
 
   const { editable, save } = useMyProfile();
+  const { progress, unlockedIds } = usePlayerProgress();
+  const choosable = useMemo(() => choosableBadges(unlockedIds), [unlockedIds]);
+  const runnerTier = useMemo(() => {
+    const xp = progress?.xp ?? 0;
+    return playerTierForLevel(playerLevelForXp(xp));
+  }, [progress?.xp]);
   const { equipped, equip } = useEquippedCosmetics();
 
   // Brouillon local initialisé sur les valeurs persistées (reflète les édits déjà faits).
@@ -149,7 +156,7 @@ export default function ProfilEditScreen() {
         <PlayerCardAvatar
           initials={previewInitials}
           fillColor={avatarColor}
-          tier={RUNNER_TIER}
+          tier={runnerTier}
           equippedFrameKey={equippedFrameKey}
           size={72}
           isMe
@@ -343,7 +350,7 @@ export default function ProfilEditScreen() {
               <PlayerCardAvatar
                 initials={previewInitials}
                 fillColor={avatarColor}
-                tier={RUNNER_TIER}
+                tier={runnerTier}
                 equippedFrameKey={f.key}
                 size={44}
                 isMe={false}
@@ -375,7 +382,7 @@ export default function ProfilEditScreen() {
         BADGES AFFICHÉS · {featuredBadgeIds.length}/{FEATURED_BADGE_COUNT}
       </Text>
       <View style={[styles.card, styles.badgeWrap]}>
-        {CHOOSABLE_BADGES.map((def) => {
+        {choosable.map((def) => {
           const on = featuredBadgeIds.includes(def.id);
           const full = !on && featuredBadgeIds.length >= FEATURED_BADGE_COUNT;
           return (

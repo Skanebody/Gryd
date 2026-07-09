@@ -1,22 +1,13 @@
 /**
- * GRYD — barre de navigation flottante : pill carbone, 5 onglets de JEU
- * Carte · Missions · Crew · Saison · Profil (AMENDEMENT-29 §1 — relabel : « War
- * Room » → « Missions », « League » → « Saison » ; les routes `warroom` et
- * `classement` sont CONSERVÉES, seuls les labels changent). La Boutique est
- * sortie de la nav (→ Arsenal, accès Profil/Missions). L'onglet Missions porte
- * l'icône guerre. Icônes filaires 1,5 px (charte §F, set @klaim/shared
- * — décision fondateur 03/07/2026) : icône 22 + label 10 dessous ; actif = icône
- * chartreuse (remplie si fillable, §C.3 « moi / état actif ») + label blanc.
- * ARBITRAGE FONDATEUR (AMENDEMENT-06) : l'icône active de la nav RESTE
- * chartreuse — exception officielle C.3 consignée à l'AMENDEMENT-08 §2, seule
- * exception nav autorisée. Ne pas « corriger » vers le blanc.
- * La tab bar native est masquée ; cette barre navigue via expo-router.
+ * GRYD — barre de navigation : Carte · Missions · RUN · Crew · Moi
+ * RUN = action principale chartreuse (route-planner).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, type IconName } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
+import { EVENTS, track } from '../../lib/analytics';
 import { NAV_BAR_BOTTOM, NAV_BAR_HEIGHT, NAV_BAR_SIDE } from './metrics';
 
 interface TabItem {
@@ -25,12 +16,11 @@ interface TabItem {
   icon: IconName;
 }
 
-const TABS: readonly TabItem[] = [
+const SIDE_TABS: readonly TabItem[] = [
   { label: 'Carte', href: '/', icon: 'carte' },
   { label: 'Missions', href: '/warroom', icon: 'guerre' },
   { label: 'Crew', href: '/crew', icon: 'crew' },
-  { label: 'Saison', href: '/classement', icon: 'classement' },
-  { label: 'Profil', href: '/profil', icon: 'profil' },
+  { label: 'Moi', href: '/profil', icon: 'profil' },
 ];
 
 export function GrydNavBar() {
@@ -38,38 +28,64 @@ export function GrydNavBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
+  const goTab = (href: string) => {
+    if (pathname !== href) router.navigate(href);
+  };
+
+  const goRun = () => {
+    track(EVENTS.runStart, { context: 'nav_run', intention: 'conquest' });
+    router.push('/route-planner');
+  };
+
+  const leftTabs = SIDE_TABS.slice(0, 2);
+  const rightTabs = SIDE_TABS.slice(2);
+
   return (
     <View
       accessibilityRole="tablist"
       style={[styles.bar, { bottom: insets.bottom + NAV_BAR_BOTTOM }]}
     >
-      {TABS.map((tab) => {
-        const active = pathname === tab.href;
-        return (
-          <Pressable
-            key={tab.href}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={tab.label}
-            hitSlop={8}
-            onPress={() => {
-              if (!active) router.navigate(tab.href);
-            }}
-            style={styles.item}
-          >
-            <Icon
-              name={tab.icon}
-              size={22}
-              color={active ? colors.chartreuse : colors.gris}
-              active={active}
-            />
-            <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {leftTabs.map((tab) => (
+        <NavItem key={tab.href} tab={tab} active={pathname === tab.href} onPress={() => goTab(tab.href)} />
+      ))}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Lancer une course"
+        onPress={goRun}
+        style={({ pressed }) => [styles.runBtn, pressed && styles.runBtnPressed]}
+      >
+        <Text style={styles.runLabel}>RUN</Text>
+      </Pressable>
+      {rightTabs.map((tab) => (
+        <NavItem key={tab.href} tab={tab} active={pathname === tab.href} onPress={() => goTab(tab.href)} />
+      ))}
     </View>
+  );
+}
+
+function NavItem({
+  tab,
+  active,
+  onPress,
+}: {
+  tab: TabItem;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={tab.label}
+      hitSlop={8}
+      onPress={onPress}
+      style={styles.item}
+    >
+      <Icon name={tab.icon} size={22} color={active ? colors.chartreuse : colors.gris} active={active} />
+      <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+        {tab.label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -80,21 +96,35 @@ const styles = StyleSheet.create({
     right: NAV_BAR_SIDE,
     height: NAV_BAR_HEIGHT,
     borderRadius: radii.pill,
-    // Maquette : carbone à 90 % + blur — opaque ici, aucune couleur hors tokens.
     backgroundColor: colors.carbone,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
   },
   item: {
     alignItems: 'center',
     gap: 3,
     paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
+    flex: 1,
   },
   label: { color: colors.gris, fontSize: 10, fontWeight: '500', letterSpacing: 0.2 },
   labelActive: { color: colors.blanc },
+  runBtn: {
+    backgroundColor: colors.chartreuse,
+    borderRadius: radii.pill,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    marginHorizontal: 2,
+  },
+  runBtnPressed: { opacity: 0.88 },
+  runLabel: {
+    color: colors.noir,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
 });

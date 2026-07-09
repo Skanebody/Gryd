@@ -111,6 +111,11 @@ export interface DecideClaimsContext {
    * le lieu, PAS acheté — anti pay-to-win intact).
    */
   contextByHex?: ReadonlyMap<string, readonly ContextCoeffKey[]>;
+  /**
+   * Import onboarding fondateur (ONBOARDING_IMPORT_NEUTRAL_ONLY) : seuls les hexes
+   * neutres sont capturés ; vol/défense sur hex possédé → blocked_onboarding_neutral_only.
+   */
+  neutralOnly?: boolean;
 }
 
 export interface DecideClaimsInput {
@@ -232,6 +237,10 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
 
     // 4. Déjà à moi → défense (decay repoussé dans les deux cas, §3.3/§3.4).
     if (owner === userId) {
+      if (context.neutralOnly) {
+        push({ h3: hex, outcome: 'blocked_onboarding_neutral_only', points: 0, pioneer: false });
+        continue;
+      }
       const lastDefended = state?.lastDefendedAt ?? null;
       const cooldownActive = lastDefended !== null &&
         nowMs - lastDefended.getTime() < DEFEND_COOLDOWN_HOURS * MS_PER_HOUR;
@@ -260,6 +269,10 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
     }
 
     // 6. Adverse : protections puis vol.
+    if (context.neutralOnly) {
+      push({ h3: hex, outcome: 'blocked_onboarding_neutral_only', points: 0, pioneer: false });
+      continue;
+    }
     // 6.0 Capture fraîche d'autrui → protection anti-harcèlement (doc « Clash »
     // §4). Priorité sur le lock : le re-vol d'une zone tout juste prise est bloqué
     // et EXPLIQUÉ comme tel (« laisse-lui le temps ») tant que la dernière capture

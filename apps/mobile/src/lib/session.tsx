@@ -5,6 +5,7 @@
  */
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { reloadProfileFromServer } from '../features/social/profileStore';
 import { isSupabaseConfigured, supabase } from './supabase';
 
 export interface SessionState {
@@ -32,8 +33,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .getSession()
       .then(({ data }) => setSession(data.session))
       .finally(() => setLoading(false));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
+      if (next !== null && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+        void reloadProfileFromServer();
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);

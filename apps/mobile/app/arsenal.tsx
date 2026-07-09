@@ -22,6 +22,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BADGE_TIER_LABEL,
   CREW_BOOST_MAX_ACTIVE,
+  STREAK_GEL_MAX_PER_MONTH,
+  SCOUT_PING_MAX_PER_WEEK,
   borderState,
   colors,
   elevation,
@@ -51,16 +53,28 @@ import {
   EQUIP_SCOPE_LABEL,
   FEATURED_KEYS,
   INITIAL_EQUIPPED,
-  INITIAL_OWNED,
   equipScopeOf,
   itemByKey,
   itemsInSection,
   type ArsenalCatalogItem,
   type EquipScope,
 } from '../src/features/arsenal';
-
-/** Soldes DÉMO (Éclats généreux pour tester skins/frames ; Foulées legacy). */
-const DEMO_WALLET = { eclats: 820, foulees: 2140 } as const;
+import { fetchUserWallet } from '../src/features/arsenal/walletApi';
+import { fetchOwnedItemKeys, fetchEquippedItemKeys } from '../src/features/arsenal/inventoryApi';
+import { hydrateEquippedFromServer } from '../src/features/arsenal/inventory';
+import {
+  activateAttackAlert,
+  activateScoutPing,
+  activateStreakGel,
+  fetchFreshOwnedHex,
+  formatArsenalRemaining,
+  useActiveAttackAlerts,
+  useActiveScoutPings,
+  useActiveStreakGel,
+  type ActivateArsenalError,
+} from '../src/features/arsenal';
+import { useSession } from '../src/lib/session';
+import { EMPTY_WALLET } from '../src/lib/liveMode';
 
 /** Puce pleine (le set d'icônes n'a pas de coche — dot chartreuse cohérent DA). */
 function Dot({ color = gameColors.crew, size = 6 }: { color?: string; size?: number }) {
@@ -83,13 +97,39 @@ function priceFor(
 
 export default function ArsenalScreen() {
   const insets = useSafeAreaInsets();
+  const { session, configured } = useSession();
+
   useEffect(() => {
     screen('arsenal');
     track(EVENTS.paywallView, { trigger: 'arsenal' });
   }, []);
 
-  const [wallet, setWallet] = useState<{ eclats: number; foulees: number }>(DEMO_WALLET);
-  const [owned, setOwned] = useState<Set<string>>(() => new Set(INITIAL_OWNED));
+  const [wallet, setWallet] = useState<{ eclats: number; foulees: number }>(EMPTY_WALLET);
+  useEffect(() => {
+    if (!configured || session === null) {
+      setWallet(EMPTY_WALLET);
+      return;
+    }
+    void fetchUserWallet(session.user.id).then((w) => {
+      if (w) setWallet(w);
+    });
+  }, [configured, session]);
+  const [owned, setOwned] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!configured || session === null) {
+      setOwned(new Set());
+      return;
+    }
+    void Promise.all([
+      fetchOwnedItemKeys(session.user.id),
+      fetchEquippedItemKeys(session.user.id),
+    ]).then(([ownedKeys, equippedKeys]) => {
+      setOwned(new Set(ownedKeys));
+      if (equippedKeys.length > 0) {
+        void hydrateEquippedFromServer(session.user.id);
+      }
+    });
+  }, [configured, session]);
   const [equipped, setEquipped] = useState<Partial<Record<EquipScope, string>>>(
     () => ({ ...INITIAL_EQUIPPED }),
   );
@@ -104,6 +144,12 @@ export default function ArsenalScreen() {
   /** Item en cours d'offrande au crew (flux gifting). */
   const [gifting, setGifting] = useState<ArsenalCatalogItem | null>(null);
   const [giftAnonymous, setGiftAnonymous] = useState(false);
+  const [activatingAlert, setActivatingAlert] = useState(false);
+  const [activatingGel, setActivatingGel] = useState(false);
+  const [activatingScout, setActivatingScout] = useState(false);
+  const { alerts: activeAlerts, refresh: refreshAlerts } = useActiveAttackAlerts();
+  const { gel: activeGel, refresh: refreshGel } = useActiveStreakGel();
+  const { pings: activeScoutPings, refresh: refreshScoutPings } = useActiveScoutPings();
 
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -192,6 +238,88 @@ export default function ArsenalScreen() {
     setDetailCurrency(item.priceShards !== undefined ? 'eclats' : 'eur');
     setDetail(item);
   }, []);
+
+  const activateItemErrorCopy: Record<ActivateArsenalError, string> = useMemo(
+    () => ({
+      backend_not_configured: 'Backend non configuré.',
+      item_not_owned: 'Tu n’as plus cet objet en stock.',
+      hex_not_owned: 'Zone introuvable.',
+      hex_not_fresh: 'Capture une zone dans les 24 dernières heures pour activer une alerte.',
+      weekly_cap_user: 'Cap atteint : 2 alertes max par semaine.',
+      weekly_cap_crew: 'Ton crew a atteint le plafond d’alertes cette semaine.',
+      monthly_cap: `Cap atteint : ${STREAK_GEL_MAX_PER_MONTH} Streak Gel max par mois.`,
+      weekly_cap: `Cap atteint : ${SCOUT_PING_MAX_PER_WEEK} Scout Ping max par semaine.`,
+      invalid_city: 'Choisis une ville dans ton profil pour lancer un scan.',
+      no_finding: 'Aucune cible repérée dans ta ville pour l’instant — cours d’abord.',
+      already_active: 'Déjà actif — attends la fin du timer.',
+      activate_failed: 'Activation impossible — réessaie dans un instant.',
+    }),
+    [],
+  );
+
+  const activateAttackAlertItem = useCallback(async () => {
+    if (!session?.user.id || activatingAlert) return;
+    setActivatingAlert(true);
+    try {
+      const h3 = await fetchFreshOwnedHex(session.user.id);
+      if (!h3) {
+        haptics.light();
+        flashNotice('Capture une zone dans les 24 dernières heures pour activer une alerte.');
+        return;
+      }
+      const result = await activateAttackAlert(h3);
+      if ('error' in result) {
+        haptics.light();
+        flashNotice(activateItemErrorCopy[result.error]);
+        return;
+      }
+      haptics.success();
+      setDetail(null);
+      await refreshAlerts();
+      flashNotice('Alerte active — tu seras prévenu si la zone est ciblée.');
+    } finally {
+      setActivatingAlert(false);
+    }
+  }, [session?.user.id, activatingAlert, flashNotice, activateItemErrorCopy, refreshAlerts]);
+
+  const activateStreakGelItem = useCallback(async () => {
+    if (!session?.user.id || activatingGel) return;
+    setActivatingGel(true);
+    try {
+      const result = await activateStreakGel();
+      if ('error' in result) {
+        haptics.light();
+        flashNotice(activateItemErrorCopy[result.error]);
+        return;
+      }
+      haptics.success();
+      setDetail(null);
+      await refreshGel();
+      flashNotice('Série protégée — ta régularité est gelée une semaine.');
+    } finally {
+      setActivatingGel(false);
+    }
+  }, [session?.user.id, activatingGel, flashNotice, activateItemErrorCopy, refreshGel]);
+
+  const activateScoutPingItem = useCallback(async () => {
+    if (!session?.user.id || activatingScout) return;
+    setActivatingScout(true);
+    try {
+      const cityId = session.user.user_metadata?.city_id as string | undefined;
+      const result = await activateScoutPing(cityId ?? 'paris');
+      if ('error' in result) {
+        haptics.light();
+        flashNotice(activateItemErrorCopy[result.error]);
+        return;
+      }
+      haptics.success();
+      setDetail(null);
+      await refreshScoutPings();
+      flashNotice(result.message);
+    } finally {
+      setActivatingScout(false);
+    }
+  }, [session?.user.id, session?.user.user_metadata, activatingScout, flashNotice, activateItemErrorCopy, refreshScoutPings]);
 
   const featured = useMemo(
     () => FEATURED_KEYS.map((k) => itemByKey(k)).filter((i): i is ArsenalCatalogItem => !!i),
@@ -282,6 +410,20 @@ export default function ArsenalScreen() {
       ) : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
+      {activeAlerts.length > 0 ? (
+        <View style={styles.activeAlerts}>
+          <Text style={styles.activeAlertsLabel}>ALERTES ACTIVES</Text>
+          {activeAlerts.map((alert) => (
+            <View key={alert.id} style={styles.activeAlertRow}>
+              <Icon name="alerte" size={14} color={gameColors.crew} />
+              <Text style={styles.activeAlertText}>
+                Zone · {formatArsenalRemaining(alert.expiresAt)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {/* ── Sections §25 ── */}
       {/* §A r.4/14 : UN SEUL gros bouton chartreuse sur l'écran. Il est réservé
           au tout premier item mis en avant (Featured) ; tous les autres CTA de la
@@ -347,6 +489,36 @@ export default function ArsenalScreen() {
                 onCurrency={setDetailCurrency}
                 onBuy={(cur) => buy(detail, cur)}
                 onEquip={() => equip(detail)}
+                onActivate={
+                  detail.key === 'attack_alert' && isOwned(detail.key)
+                    ? activateAttackAlertItem
+                    : detail.key === 'streak_gel' && isOwned(detail.key)
+                      ? activateStreakGelItem
+                      : detail.key === 'scout_ping' && isOwned(detail.key)
+                        ? activateScoutPingItem
+                        : undefined
+                }
+                activating={
+                  detail.key === 'attack_alert'
+                    ? activatingAlert
+                    : detail.key === 'streak_gel'
+                      ? activatingGel
+                      : detail.key === 'scout_ping'
+                        ? activatingScout
+                        : false
+                }
+                activateLabel={
+                  detail.key === 'attack_alert'
+                    ? 'Activer sur ma dernière zone'
+                    : detail.key === 'streak_gel'
+                      ? 'Protéger ma série'
+                      : detail.key === 'scout_ping'
+                        ? 'Lancer un scan'
+                        : undefined
+                }
+                activeAlerts={detail.key === 'attack_alert' ? activeAlerts : []}
+                activeGelExpires={detail.key === 'streak_gel' ? activeGel?.expiresAt : undefined}
+                activeScoutPings={detail.key === 'scout_ping' ? activeScoutPings : []}
                 onGift={() => {
                   setGiftAnonymous(false);
                   setGifting(detail);
@@ -457,6 +629,12 @@ function ItemDetail({
   onCurrency,
   onBuy,
   onEquip,
+  onActivate,
+  activating,
+  activateLabel,
+  activeAlerts,
+  activeGelExpires,
+  activeScoutPings,
   onGift,
   onClose,
 }: {
@@ -467,6 +645,12 @@ function ItemDetail({
   onCurrency: (c: ArsenalPriceCurrency) => void;
   onBuy: (currency: ArsenalPriceCurrency) => void;
   onEquip: () => void;
+  onActivate?: () => void;
+  activating?: boolean;
+  activateLabel?: string;
+  activeAlerts?: readonly { id: string; expiresAt: string }[];
+  activeGelExpires?: string;
+  activeScoutPings?: readonly { id: string; message: string; expiresAt: string }[];
   onGift: () => void;
   onClose: () => void;
 }) {
@@ -505,6 +689,70 @@ function ItemDetail({
         <View style={styles.detailChip}>
           <Icon name="carte" size={13} color={gameColors.crew} />
           <Text style={styles.detailChipText}>Visible sur ta carte à la Saison 0.</Text>
+        </View>
+      ) : null}
+
+      {item.key === 'attack_alert' ? (
+        <View style={styles.detailChip}>
+          <Icon name="alerte" size={13} color={gameColors.crew} />
+          <Text style={styles.detailChipText}>
+            Informe seulement — ne bloque jamais la capture. Défends en courant.
+          </Text>
+        </View>
+      ) : null}
+
+      {item.key === 'streak_gel' ? (
+        <View style={styles.detailChip}>
+          <Icon name="serie" size={13} color={gameColors.crew} />
+          <Text style={styles.detailChipText}>
+            Protège ta série hebdo — aucun effet territoire.
+          </Text>
+        </View>
+      ) : null}
+
+      {item.key === 'scout_ping' ? (
+        <View style={styles.detailChip}>
+          <Icon name="radar" size={13} color={gameColors.crew} />
+          <Text style={styles.detailChipText}>
+            Info temporaire — aucune capture automatique.
+          </Text>
+        </View>
+      ) : null}
+
+      {activeScoutPings && activeScoutPings.length > 0 ? (
+        <View style={styles.detailContents}>
+          {activeScoutPings.map((ping) => (
+            <View key={ping.id} style={styles.packLine}>
+              <Dot color={gameColors.crew} />
+              <Text style={styles.packLineText}>
+                {ping.message} · {formatArsenalRemaining(ping.expiresAt)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {activeGelExpires ? (
+        <View style={styles.detailContents}>
+          <View style={styles.packLine}>
+            <Dot color={gameColors.crew} />
+            <Text style={styles.packLineText}>
+              Série gelée · {formatArsenalRemaining(activeGelExpires)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {activeAlerts && activeAlerts.length > 0 ? (
+        <View style={styles.detailContents}>
+          {activeAlerts.map((alert) => (
+            <View key={alert.id} style={styles.packLine}>
+              <Dot color={gameColors.crew} />
+              <Text style={styles.packLineText}>
+                Alerte active · {formatArsenalRemaining(alert.expiresAt)}
+              </Text>
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -566,7 +814,22 @@ function ItemDetail({
             <Text style={styles.detailLockedText}>Exclusif au pack</Text>
           </View>
         ) : owned ? (
-          scope && !equipped ? (
+          onActivate ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={activating}
+              onPress={onActivate}
+              style={({ pressed }) => [
+                styles.detailPrimary,
+                (pressed || activating) && styles.pressed,
+                activating && styles.detailLocked,
+              ]}
+            >
+              <Text style={styles.detailPrimaryText}>
+                {activating ? 'Activation…' : (activateLabel ?? 'Activer')}
+              </Text>
+            </Pressable>
+          ) : scope && !equipped ? (
             <Pressable
               accessibilityRole="button"
               onPress={onEquip}
@@ -735,6 +998,21 @@ const styles = StyleSheet.create({
   bannerSoft: { color: colors.gris, fontSize: fontSizes.sm },
   loot: { marginTop: 10 },
   notice: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 10, textAlign: 'center' },
+  activeAlerts: {
+    marginTop: 12,
+    gap: 8,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    padding: 14,
+  },
+  activeAlertsLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 1.5,
+    marginBottom: 2,
+  },
+  activeAlertRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  activeAlertText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,

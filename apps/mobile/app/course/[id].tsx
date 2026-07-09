@@ -41,6 +41,7 @@ import {
   type RunHistoryEntry,
   type SegmentState,
 } from '../../src/features/history/demo';
+import { fetchRunById } from '../../src/features/history/runsApi';
 import { BoucleFaitLaZone, VerifySchema } from '../../src/features/explain/schemas';
 import { verifyTiersSentence } from '../../src/features/explain/labels';
 import {
@@ -315,11 +316,38 @@ function RunRouteScene({ runId }: { runId: string }) {
 
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const entry = typeof id === 'string' ? findRun(id) : undefined;
+  const [entry, setEntry] = useState<RunHistoryEntry | undefined>();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     screen('course_detail', { id: id ?? '' });
   }, [id]);
+
+  useEffect(() => {
+    if (typeof id !== 'string') {
+      setEntry(undefined);
+      setLoading(false);
+      return;
+    }
+    const demo = findRun(id);
+    if (demo) {
+      setEntry(demo);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    void fetchRunById(id)
+      .then((row) => setEntry(row ?? undefined))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <StackScreen title="Course" icon="historique">
+        <Text style={styles.empty}>Chargement de la course…</Text>
+      </StackScreen>
+    );
+  }
 
   if (!entry) {
     return (

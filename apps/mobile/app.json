@@ -18,7 +18,7 @@
   },
   "expo": {
     "name": "GRYD",
-    "slug": "klaim",
+    "slug": "gryd",
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "gryd",
@@ -40,7 +40,9 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
         "NSMotionUsageDescription": "GRYD lit tes pas/mouvement pour vérifier que ta course est bien une course à pied (anti-triche GRYD Verify).",
         "NSHealthShareUsageDescription": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire — tu choisis quoi partager.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -50,7 +52,12 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -77,6 +84,12 @@
       ],
       "expo-apple-authentication"
     ],
-    "experiments": {}
+    "experiments": {},
+    "extra": {
+      "eas": {
+        "projectId": "03ba8328-a59f-4b74-86e0-eb3ad7b66f56"
+      }
+    },
+    "owner": "nexus-1993"
   }
 }

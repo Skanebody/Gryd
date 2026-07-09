@@ -32,15 +32,22 @@ import {
   type BadgeDef,
   type BadgeFamilyId,
 } from '../src/features/badges/catalog';
-import { UNLOCKED_DEMO, UNLOCKED_IDS, demoStat } from '../src/features/badges/demo';
+import type { BadgeMetric } from '@klaim/shared';
+import { usePlayerProgress } from '../src/features/social/usePlayerProgress';
 import { screen } from '../src/lib/analytics';
 import { BadgeCard, useReduceMotion } from '../src/ui/game';
 
 /** Filtre actif : une famille, la section secrets, ou tout. */
 type FilterId = BadgeFamilyId | 'all';
 
-function badgeState(def: BadgeDef): BadgeHexState {
-  if (UNLOCKED_IDS.has(def.id)) return 'unlocked';
+type BadgeProgressCtx = {
+  stat: (metric: BadgeMetric) => number;
+  unlockedIds: ReadonlySet<string>;
+  unlockedDate: (id: string) => string | undefined;
+};
+
+function badgeState(def: BadgeDef, ctx: BadgeProgressCtx): BadgeHexState {
+  if (ctx.unlockedIds.has(def.id)) return 'unlocked';
   return def.secret ? 'secretLocked' : 'locked';
 }
 
@@ -49,10 +56,18 @@ function badgeState(def: BadgeDef): BadgeHexState {
  * demi-largeur (2 colonnes). Jauge pour les badges progressifs, récompense
  * dérivée du catalogue, secrets masqués gérés par la carte (state secretLocked).
  */
-function BadgeCardCell({ def, onSelect }: { def: BadgeDef; onSelect: (def: BadgeDef) => void }) {
-  const state = badgeState(def);
+function BadgeCardCell({
+  def,
+  onSelect,
+  ctx,
+}: {
+  def: BadgeDef;
+  onSelect: (def: BadgeDef) => void;
+  ctx: BadgeProgressCtx;
+}) {
+  const state = badgeState(def, ctx);
   const prog = def.familySlug && !def.secret
-    ? badgeProgress(def.id, demoStat(def.metric))
+    ? badgeProgress(def.id, ctx.stat(def.metric))
     : null;
   return (
     <View style={styles.gridCell}>
@@ -92,20 +107,28 @@ function FamilyHeader({ name, color, unlocked, total }: {
 }
 
 /** Une section famille complète (bandeau + grille). */
-function FamilySection({ id, name, color, defs, onSelect }: {
+function FamilySection({
+  id,
+  name,
+  color,
+  defs,
+  onSelect,
+  ctx,
+}: {
   id: string;
   name: string;
   color: string;
   defs: readonly BadgeDef[];
   onSelect: (def: BadgeDef) => void;
+  ctx: BadgeProgressCtx;
 }) {
-  const unlocked = defs.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+  const unlocked = defs.filter((b) => ctx.unlockedIds.has(b.id)).length;
   return (
     <View key={id} style={styles.section}>
       <FamilyHeader name={name} color={color} unlocked={unlocked} total={defs.length} />
       <View style={styles.grid}>
         {defs.map((def) => (
-          <BadgeCardCell key={def.id} def={def} onSelect={onSelect} />
+          <BadgeCardCell key={def.id} def={def} onSelect={onSelect} ctx={ctx} />
         ))}
       </View>
     </View>
@@ -144,7 +167,15 @@ const SHEET_REDUCED_FADE_MS = 120;
  * Reduce motion (useReduceMotion, même règle que useSlideIn/useReveal) :
  * fondu court SANS translation — le mouvement disparaît, jamais la lisibilité.
  */
-function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }) {
+function BadgeSheet({
+  def,
+  onDismiss,
+  ctx,
+}: {
+  def: BadgeDef;
+  onDismiss: () => void;
+  ctx: BadgeProgressCtx;
+}) {
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
@@ -169,14 +200,13 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
     });
   }, [onDismiss, progress, reduce]);
 
-  const state = badgeState(def);
+  const state = badgeState(def, ctx);
   const unlocked = state === 'unlocked';
   const hidden = def.secret && !unlocked;
   const accent = badgeColor(def);
-  const unlockedAt = UNLOCKED_DEMO.get(def.id);
+  const unlockedAt = ctx.unlockedDate(def.id);
 
-  // Progression : uniquement pour les badges progressifs non secrets non pleins.
-  const prog = def.familySlug ? badgeProgress(def.id, demoStat(def.metric)) : null;
+  const prog = def.familySlug ? badgeProgress(def.id, ctx.stat(def.metric)) : null;
   const next = nextLevelOf(def.id);
   const showGauge = prog !== null && !hidden && !prog.unlocked;
   // Récompense (titre à afficher) — dérivée du catalogue, jamais inventée.
@@ -316,26 +346,29 @@ export default function BadgesScreen() {
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<BadgeDef | null>(null);
   const [filter, setFilter] = useState<FilterId>('all');
+  const { stat, unlockedIds, unlockedDate } = usePlayerProgress();
+  const ctx = useMemo(
+    (): BadgeProgressCtx => ({ stat, unlockedIds, unlockedDate }),
+    [stat, unlockedIds, unlockedDate],
+  );
 
   useEffect(() => {
-    // Pas d'event §8 dédié aux badges → screen view standard (analytics.ts)
     screen('badges');
   }, []);
 
-  const unlockedTotal = COLLECTION_BADGES.filter((b) => UNLOCKED_IDS.has(b.id)).length;
-  const tierMax = maxTierLabel(UNLOCKED_IDS);
+  const unlockedTotal = COLLECTION_BADGES.filter((b) => unlockedIds.has(b.id)).length;
+  const tierMax = maxTierLabel(unlockedIds);
   const secrets = secretBadges();
-  const secretsUnlocked = secrets.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+  const secretsUnlocked = secrets.filter((b) => unlockedIds.has(b.id)).length;
 
-  // « Proches du déblocage » : top 3 badges verrouillés, non secrets, par ratio.
   const nearlyUnlocked = useMemo(() => {
     return COLLECTION_BADGES
-      .filter((b) => !UNLOCKED_IDS.has(b.id) && !b.secret)
-      .map((b) => ({ def: b, prog: badgeProgress(b.id, demoStat(b.metric)) }))
+      .filter((b) => !unlockedIds.has(b.id) && !b.secret)
+      .map((b) => ({ def: b, prog: badgeProgress(b.id, stat(b.metric)) }))
       .filter((x) => x.prog !== null && x.prog.ratio > 0 && !x.prog.unlocked)
       .sort((a, b) => (b.prog!.ratio - a.prog!.ratio))
       .slice(0, 3);
-  }, []);
+  }, [stat, unlockedIds]);
 
   // Familles à afficher selon le filtre.
   const shownFamilies = filter === 'all' || filter === 'secret'
@@ -454,6 +487,7 @@ export default function BadgesScreen() {
               color={family.color}
               defs={defs}
               onSelect={setSelected}
+              ctx={ctx}
             />
           );
         })}
@@ -466,6 +500,7 @@ export default function BadgesScreen() {
             color={SECRET_BADGE_COLOR}
             defs={secrets}
             onSelect={setSelected}
+            ctx={ctx}
           />
         ) : null}
 
@@ -473,7 +508,9 @@ export default function BadgesScreen() {
         <TierRow />
       </ScrollView>
 
-      {selected ? <BadgeSheet def={selected} onDismiss={() => setSelected(null)} /> : null}
+      {selected ? (
+        <BadgeSheet def={selected} onDismiss={() => setSelected(null)} ctx={ctx} />
+      ) : null}
     </View>
   );
 }

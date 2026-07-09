@@ -9,18 +9,9 @@
  * Coffre = ChestCard claimable + paliers + contributions ; Perks = cartes
  * reward + « PROCHAIN PERK — XP restants » ; Chat = War Log fusionné
  * (WarEventCard + réactions GRYD + LIVE) et messages actionnables (RSVP
- * défense, ping zone → carte). Données démo DÉTERMINISTES (features/crew) —
- * TODO(O1) brancher crews / crew_members / crew_chests / crew_feed_events.
- * Aucun nombre magique : niveaux/paliers DÉRIVÉS de @klaim/shared via rules.
+ * défense, ping zone → carte). Données live Supabase + fallback démo honnête.
  */
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import {
   Alert,
   Animated,
@@ -36,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CREW_CHEST_TIERS,
   CREW_CHEST_TIER_ORDER,
+  CREW_CHEST_TIER_FOULEES,
   CREW_CHEST_WEEKLY_TARGET,
   CREW_CODE_LENGTH,
   CREW_GIFT_CLAIMS_PER_MEMBER,
@@ -50,9 +42,26 @@ import {
   gameColors,
   radii,
   spacing,
+  type BadgeTier,
   type IconName,
 } from '@klaim/shared';
-import { screen } from '../../src/lib/analytics';
+import { useSession } from '../../src/lib/session';
+import { EVENTS, screen, track } from '../../src/lib/analytics';
+import {
+  createCrew,
+  fetchCrewMemberCount,
+  fetchCrewMembers,
+  joinCrewByCode,
+  type CrewMemberProfile,
+} from '../../src/features/crew/crewApi';
+import { claimCrewChest } from '../../src/features/crew/crewChestApi';
+import {
+  decideApplication,
+  fetchPendingApplications,
+  type CrewApplicationRow,
+} from '../../src/features/crew/crewApplicationsApi';
+import { useMyCrew } from '../../src/features/crew/useMyCrew';
+import { useCrewLiveData } from '../../src/features/crew/useCrewLiveData';
 import { haptics } from '../../src/lib/haptics';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
@@ -88,7 +97,7 @@ import {
   roleCan,
   rookieTrialDaysLeft,
 } from '../../src/features/crew/rules';
-import { CHEST_REWARDS, MY_CREW, type CrewMemberDemo } from '../../src/features/crew/demo';
+import { CHEST_REWARDS, MY_CREW, type CrewDemo, type CrewMemberDemo } from '../../src/features/crew/demo';
 import {
   BOOST_CHEST_BONUS_LABEL,
   INITIAL_CREW_WALL,
@@ -138,7 +147,8 @@ import {
   toggleGiftReaction,
   useGiftReactions,
 } from '../../src/features/crew/reactions';
-import { useCrewChat, CHAT_ME, type ChatThreadMessage } from '../../src/features/crew/chatStore';
+import { useCrewChatLive, type ChatThreadMessage } from '../../src/features/crew/useCrewChatLive';
+import { CHAT_ME } from '../../src/features/crew/chatStore';
 import {
   REPORT_REASONS,
   REPORT_REVIEW_HOURS,
@@ -154,33 +164,38 @@ import {
 import { useCrewProfile } from '../../src/features/crew/crewEdit';
 import {
   OUTING_RSVP_OPTIONS,
-  createOuting,
   objectiveLabel,
-  setOutingRsvp,
-  useCrewOutings,
   type CrewOutingObjective,
   type OutingRsvp,
   type OutingView,
 } from '../../src/features/crew/events';
 import {
+  createOutingMerged,
+  setOutingRsvpMerged,
+  useCrewOutingsLive,
+} from '../../src/features/crew/useCrewOutingsLive';
+import {
   REQUEST_CHOICES,
-  claimGift,
-  createDonation,
-  createRequest,
-  donationToGiftCard,
   giftClaimable,
   giftClaimedByMe,
   giftExpired,
   giftRewardsLeft,
-  offerGift,
-  requestToActionCard,
-  useCrewRequests,
   type OfferedGift,
   type RequestChoiceKey,
 } from '../../src/features/crew/requests';
+import {
+  claimGiftMerged,
+  createDonationMerged,
+  createRequestMerged,
+  donationToGiftCard,
+  fulfillRequestMerged,
+  offerGiftMerged,
+  requestToActionCard,
+  useCrewRequestsLive,
+} from '../../src/features/crew/useCrewRequestsLive';
 
-/** Toggle démo : passer à false pour prévisualiser l'état « sans crew ». */
-const HAS_CREW = true;
+/** Toggle démo preview : forcer l'état vide en dev (session sans crew). */
+const FORCE_EMPTY_CREW_PREVIEW = false;
 
 /** Onglets internes du HQ (doc §11 — pas de scroll infini). */
 type HqTab = 'base' | 'membres' | 'sorties' | 'coffre' | 'perks' | 'chat';
@@ -197,24 +212,51 @@ function SectionLabel({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
-function EmptyState() {
-  const todoCrewFlow = (step: 'create' | 'join') => {
-    // TODO(O1) : création / rejoindre un crew (crew_created, crew_joined §8).
-    // En attendant le flux serveur, le bouton répond honnêtement au tap.
-    if (step === 'create') {
-      Alert.alert(
-        'Créer mon crew',
-        'La création de crew arrive très bientôt. En attendant, explore les crews autour de toi et rejoins-en un en un tap.',
-        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
-      );
-    } else {
-      Alert.alert(
-        'Rejoindre avec un code',
-        'Rejoindre un crew par code arrive très bientôt. En attendant, explore les crews autour de toi.',
-        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
-      );
+function EmptyState({ onJoined }: { onJoined: () => void }) {
+  const [crewName, setCrewName] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submitCreate = () => {
+    const name = crewName.trim();
+    if (name.length < 1) {
+      Alert.alert('Nom requis', 'Choisis un nom de crew (1–40 caractères).');
+      return;
     }
+    setBusy(true);
+    void createCrew(name)
+      .then((res) => {
+        if (!res.ok) {
+          Alert.alert('Création impossible', res.error ?? 'Réessaie dans un instant.');
+          return;
+        }
+        track(EVENTS.crewCreated, { via: 'empty_state' });
+        haptics.success();
+        onJoined();
+      })
+      .finally(() => setBusy(false));
   };
+
+  const submitJoin = () => {
+    const code = joinCode.trim().toUpperCase();
+    if (code.length !== CREW_CODE_LENGTH) {
+      Alert.alert('Code invalide', `Le code crew fait ${CREW_CODE_LENGTH} caractères.`);
+      return;
+    }
+    setBusy(true);
+    void joinCrewByCode(code)
+      .then((res) => {
+        if (!res.ok) {
+          Alert.alert('Impossible de rejoindre', res.error ?? 'Vérifie le code.');
+          return;
+        }
+        track(EVENTS.crewJoined, { via: 'code' });
+        haptics.success();
+        onJoined();
+      })
+      .finally(() => setBusy(false));
+  };
+
   return (
     <TabScreen
       title="Crew"
@@ -229,10 +271,28 @@ function EmptyState() {
           tien ou rejoins-en un en 1 tap.
         </Text>
         <View style={styles.emptyActions}>
-          <GhostButton label="Créer mon crew" icon="plus" onPress={() => todoCrewFlow('create')} />
+          <TextInput
+            style={styles.emptyInput}
+            placeholder="Nom du crew"
+            placeholderTextColor={colors.gris}
+            value={crewName}
+            onChangeText={setCrewName}
+            maxLength={40}
+          />
+          <GhostButton label="Créer mon crew" icon="plus" onPress={submitCreate} disabled={busy} />
+          <TextInput
+            style={styles.emptyInput}
+            placeholder={`Code (${CREW_CODE_LENGTH} car.)`}
+            placeholderTextColor={colors.gris}
+            value={joinCode}
+            onChangeText={setJoinCode}
+            autoCapitalize="characters"
+            maxLength={CREW_CODE_LENGTH}
+          />
           <GhostButton
-            label={`Rejoindre avec un code (${CREW_CODE_LENGTH} caractères)`}
-            onPress={() => todoCrewFlow('join')}
+            label="Rejoindre avec le code"
+            onPress={submitJoin}
+            disabled={busy}
           />
           <GhostButton
             label="Explorer les crews autour de moi"
@@ -294,8 +354,8 @@ function BaseCard({
  * 2 147 · Frontières contestées 3 · Routes ouvertes 6 ». Tap → Battle Map.
  * Le violet contesté est un état de jeu (charte) — pas une déco.
  */
-function TerritoryBlock() {
-  const t = MY_CREW.territory;
+function TerritoryBlock({ territory }: { territory: CrewDemo['territory'] }) {
+  const t = territory;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1055,6 +1115,28 @@ function SectionHead({
 }
 
 export default function CrewScreen() {
+  const { session } = useSession();
+  const { hasCrew, refresh: refreshCrew, loading: crewLoading, membership } = useMyCrew();
+  const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [crewMembers, setCrewMembers] = useState<CrewMemberProfile[]>([]);
+  const isRealCrew = membership !== null;
+  const live = useCrewLiveData(
+    isRealCrew ? membership.crewId : null,
+    isRealCrew ? membership.crew.city_id : null,
+    crewMembers,
+  );
+
+  useEffect(() => {
+    if (!membership) {
+      setMemberCount(null);
+      setCrewMembers([]);
+      return;
+    }
+    void fetchCrewMemberCount(membership.crewId).then(setMemberCount);
+    void fetchCrewMembers(membership.crewId).then(setCrewMembers);
+    void fetchPendingApplications(membership.crewId).then(setPendingApplications);
+  }, [membership]);
+
   useEffect(() => {
     screen('crew_hq');
   }, []);
@@ -1062,17 +1144,15 @@ export default function CrewScreen() {
   const [tab, setTab] = useState<HqTab>('base');
   /** Profil crew effectif (reflète l'édition founder persistée au retour). */
   const crewProfile = useCrewProfile();
-  /** Base horaire figée au montage (ordre stable des messages démo). */
-  const chatNowBase = useMemo(() => Date.now(), []);
-  const chat = useCrewChat(chatNowBase);
+  const chat = useCrewChatLive(crewMembers);
   /** Abonne l'écran au store des réactions de don (re-render à chaque Merci). */
   useGiftReactions();
   /** Abonne l'écran aux kudos de conquête (re-render à chaque Respect/Feu/Défends-la). */
   useConquestReactions();
   /** Requêtes émises + dons accomplis + cadeaux offerts (persistés, A.3). */
-  const crewRequests = useCrewRequests();
+  const crewRequests = useCrewRequestsLive(crewMembers);
   /** Sorties de crew à venir + mon RSVP (persistés, AMENDEMENT-32 §1). */
-  const crewOutings = useCrewOutings();
+  const crewOutings = useCrewOutingsLive(crewMembers);
   /** Colle quotidienne : 4 micro-actions du jour (persistées, AMENDEMENT-34). */
   const dailyGlue = useDailyGlue();
   /** Form « Créer une sortie » (bottom sheet) — false = fermé. */
@@ -1107,6 +1187,8 @@ export default function CrewScreen() {
   /** Gestion « Membres bloqués » (liste + Débloquer) — false = fermée. */
   const [blockedSheet, setBlockedSheet] = useState(false);
   const [chestOpened, setChestOpened] = useState(false);
+  const [chestClaiming, setChestClaiming] = useState(false);
+  const [pendingApplications, setPendingApplications] = useState<CrewApplicationRow[]>([]);
   const [rsvp, setRsvp] = useState<Record<string, DefenseRsvp>>({});
   const [showTiers, setShowTiers] = useState(false);
   /** Contribution/boost = section SECONDAIRE repliée par défaut (§1.3). */
@@ -1118,7 +1200,7 @@ export default function CrewScreen() {
   // effet COFFRE uniquement (+25 %), jamais de points. Un membre a offert un
   // Boost 24 h il y a 3 h (offrande NON anonyme en démo). Le timer descend en
   // live. O1 : cet état viendra de crew_boosts (0014).
-  const [boost] = useState<CrewBoostState>(() =>
+  const [demoBoost] = useState<CrewBoostState>(() =>
     startBoost(
       'crew_boost_24',
       { anonymous: false, by: 'LENA_RUN' },
@@ -1130,6 +1212,7 @@ export default function CrewScreen() {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+  const boost = isRealCrew && live.boost !== null ? live.boost : demoBoost;
   const boostActive = boost.endsAt === null || boost.endsAt > nowTick;
 
   // Crew Wall (§14) : opt-in, Supporters de la saison SANS montant ni classement.
@@ -1139,14 +1222,21 @@ export default function CrewScreen() {
   // Blason vivant : pulse très léger (reduce motion → inerte, géré par le hook).
   const crestScale = usePulse(true, 1.02);
 
-  // Niveau + jauge dérivés de l'XP réelle (§34.3).
-  const level = crewLevelForXp(MY_CREW.xp);
-  const levelProgress = crewLevelProgress(MY_CREW.xp, level);
+  // Niveau + jauge : XP réelle du crew connecté, sinon démo.
+  const crewXp = isRealCrew ? membership.crew.xp : MY_CREW.xp;
+  const level = isRealCrew ? membership.crew.level : crewLevelForXp(MY_CREW.xp);
+  const levelProgress = crewLevelProgress(crewXp, level);
   const nextLevelXp = level < CREW_LEVEL_MAX ? crewXpForLevel(level + 1) : null;
 
-  // Statut d'activité (§45) — 91 → « Prêt guerre ».
-  const status = activityStatusForScore(MY_CREW.activityScore);
+  // Statut d'activité (§45) — live depuis crews.activity_status si membre.
+  const status = isRealCrew
+    ? (membership.crew.activity_status as ReturnType<typeof activityStatusForScore>)
+    : activityStatusForScore(MY_CREW.activityScore);
   const warReady = status === 'war_ready';
+
+  const territoryView = isRealCrew && live.territory !== null ? live.territory : MY_CREW.territory;
+  const chestProgress =
+    isRealCrew && live.chest !== null ? live.chest.progress : MY_CREW.chestProgress;
 
   // Coffre hebdo (§39.2) : état/palier DÉRIVÉS de chestStateFor (source unique,
   // identique à la War Room) — réclamable tant qu'il n'est pas ouvert.
@@ -1155,11 +1245,12 @@ export default function CrewScreen() {
   // jamais points/XP de jeu/territoire (anti-P2W). Borné à 100 %.
   const chestPct = Math.min(
     1,
-    MY_CREW.chestProgress / CREW_CHEST_WEEKLY_TARGET + dailyGlue.chestBonusPct,
+    chestProgress / CREW_CHEST_WEEKLY_TARGET + dailyGlue.chestBonusPct,
   );
   const chest = chestStateFor(chestPct);
   const nextChestTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
-  const chestClaimable = chest.state === 'claimable' && !chestOpened;
+  const chestAlreadyClaimed = isRealCrew && live.chest?.claimedAt != null;
+  const chestClaimable = chest.state === 'claimable' && !chestOpened && !chestAlreadyClaimed;
 
   // Perks (§35.1) : débloqués / prochain (XP restants dérivés) / à venir.
   const unlockedPerks = useMemo(() => CREW_PERKS.filter((p) => p.level <= level), [level]);
@@ -1168,28 +1259,58 @@ export default function CrewScreen() {
     () => CREW_PERKS.filter((p) => p.level > level && p.key !== nextPerk?.key),
     [level, nextPerk],
   );
-  const nextPerkXpRemaining = nextPerk ? crewXpForLevel(nextPerk.level) - MY_CREW.xp : 0;
+  const nextPerkXpRemaining = nextPerk ? crewXpForLevel(nextPerk.level) - crewXp : 0;
+
+  const displayMembers: CrewMemberDemo[] = useMemo(() => {
+    if (!isRealCrew || crewMembers.length === 0) return [...MY_CREW.members];
+    return crewMembers.map((m) => ({
+      pseudo: m.displayName ?? m.handle,
+      role: m.role as CrewMemberDemo['role'],
+      availability: 'casual' as const,
+      weekHexes: 0,
+      tier: 'road' as const,
+      lastAction: 'Membre actif',
+      chestPoints: isRealCrew ? (live.chestContributions.get(m.userId) ?? 0) : 0,
+      joinedDaysAgo: Math.max(
+        0,
+        Math.floor((Date.now() - new Date(m.joinedAt).getTime()) / 86_400_000),
+      ),
+      me: session?.user.id === m.userId,
+    }));
+  }, [crewMembers, isRealCrew, live.chestContributions, session?.user.id]);
 
   // Contributions coffre triées (Coffre) + max pour l'échelle des jauges.
   const contributors = useMemo(
-    () => [...MY_CREW.members].sort((a, b) => b.chestPoints - a.chestPoints),
-    [],
+    () => [...displayMembers].sort((a, b) => b.chestPoints - a.chestPoints),
+    [displayMembers],
   );
   const maxChestPoints = Math.max(1, contributors[0]?.chestPoints ?? 1);
 
-  const activeMembers = MY_CREW.members.length;
+  const activeMembers = memberCount ?? MY_CREW.members.length;
+  const recruitSpots = isRealCrew
+    ? Math.max(0, CREW_MAX_MEMBERS - activeMembers)
+    : MY_CREW.recruitSpots;
+  const hqLeagueTier: BadgeTier = isRealCrew
+    ? (membership.crew.league as BadgeTier)
+    : MY_CREW.league;
+  const hqTitle = isRealCrew ? membership.crew.name : crewProfile.name;
+  const hqCity = isRealCrew ? membership.crew.city_id : MY_CREW.city;
+  const crestSeed = isRealCrew ? membership.crew.id : MY_CREW.seed;
+  const localRankLabel =
+    isRealCrew && live.localRank != null ? String(live.localRank) : isRealCrew ? '—' : String(MY_CREW.localRank);
 
   // Mon rôle démo (KORO = founder) → gating visuel des actions (matrice §8).
-  const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
+  const myRole = displayMembers.find((m) => m.me)?.role ?? 'runner';
   // Bouton « Modifier le crew » : founder-only (CREW_PERMISSIONS source de vérité).
   const canEditCrew = roleCan(myRole, 'changeNameEmblem') || roleCan(myRole, 'manageRecruitment');
+  const canReviewApplications = isRealCrew && roleCan(myRole, 'acceptApplications');
 
   // War Log = UNIQUEMENT les événements (les messages vivent dans le sous-onglet
   // Chat) — on ne mélange plus événements et messages dans une seule liste.
-  const warLogEvents = useMemo(
-    () => CHAT_TIMELINE.filter((i) => i.kind === 'event'),
-    [],
-  );
+  const warLogEvents = useMemo(() => {
+    if (isRealCrew && live.feedEvents.length > 0) return live.feedEvents;
+    return CHAT_TIMELINE.filter((i) => i.kind === 'event');
+  }, [isRealCrew, live.feedEvents]);
 
   // AMENDEMENT-19 §4 — LE bonus social/Finisher pertinent pour le Crew Chat
   // (selectBonus(context, 'crew_chat') mirroré, feed.ts). Contexte DÉMO
@@ -1207,7 +1328,9 @@ export default function CrewScreen() {
     [],
   );
 
-  if (!HAS_CREW) return <EmptyState />;
+  if (!crewLoading && (FORCE_EMPTY_CREW_PREVIEW || !hasCrew)) {
+    return <EmptyState onJoined={refreshCrew} />;
+  }
 
   const notify = (message: string) => {
     haptics.light();
@@ -1231,7 +1354,10 @@ export default function CrewScreen() {
     // un DON GRATUIT visible en DONS (+ Merci possible). ZÉRO territoire/point : le
     // routage vers la course reste inchangé (le claim reste décidé serveur §3).
     if (card.donationKind) {
-      createDonation(card.donationKind);
+      void createDonationMerged(crewRequests.useLive, card.donationKind, card.zone, crewRequests.refresh);
+      if (!card.id.startsWith('req_')) {
+        void fulfillRequestMerged(crewRequests.useLive, card.id, crewRequests.refresh);
+      }
       setChatFilter('dons');
     }
     if (card.ctaKind === 'live') {
@@ -1247,7 +1373,11 @@ export default function CrewScreen() {
       return;
     }
     if (card.donationKind) {
-      notify(`${card.cta} · ${card.zone} — don enregistré, le crew le voit (démo)`);
+      notify(
+        crewRequests.useLive
+          ? `${card.cta} · ${card.zone} — don enregistré pour le crew`
+          : `${card.cta} · ${card.zone} — don enregistré, le crew le voit (démo)`,
+      );
       return;
     }
     notify(`${card.cta} · ${card.zone} — envoyé au crew (démo)`);
@@ -1293,14 +1423,23 @@ export default function CrewScreen() {
   const onAskChoice = (choice: RequestChoiceKey) => {
     haptics.medium();
     setAskSheet(false);
-    createRequest(choice);
+    void createRequestMerged(crewRequests.useLive, choice, crewRequests.refresh);
     // On bascule sur le filtre pertinent + on s'assure d'être sur l'onglet Chat.
     setChatFilter(choice === 'outing' ? 'missions' : 'demandes');
     setTab('chat');
     if (choice === 'boost') {
-      notify('Boost proposé au crew — 100 % optionnel, aucune obligation (démo)');
+      notify(
+        crewRequests.useLive
+          ? 'Boost proposé au crew — 100 % optionnel'
+          : 'Boost proposé au crew — 100 % optionnel, aucune obligation (démo)',
+      );
     } else {
-      notify(`Demande envoyée au crew · ${REQUEST_CHOICES.find((c) => c.key === choice)?.label} (démo)`);
+      const label = REQUEST_CHOICES.find((c) => c.key === choice)?.label ?? 'Demande';
+      notify(
+        crewRequests.useLive
+          ? `Demande envoyée au crew · ${label}`
+          : `Demande envoyée au crew · ${label} (démo)`,
+      );
     }
   };
 
@@ -1310,10 +1449,12 @@ export default function CrewScreen() {
   const onOfferGift = (kind: 'boost' | 'chest', anonymous: boolean) => {
     haptics.medium();
     setGiftSheet(false);
-    offerGift(
+    void offerGiftMerged(
+      crewRequests.useLive,
       kind === 'chest'
         ? { title: 'Coffre cosmétique', rewardsTotal: 5, anonymous, by: CHAT_ME }
         : { title: 'Crew Boost 24 h', rewardsTotal: 5, anonymous, by: CHAT_ME },
+      crewRequests.refresh,
     );
     setChatFilter('dons');
     setTab('chat');
@@ -1324,14 +1465,66 @@ export default function CrewScreen() {
   // (expiré / épuisé / déjà réclamé) sont dans claimGift — on ne toast que le OK.
   const onClaimGift = (gift: OfferedGift) => {
     haptics.light();
-    const ok = claimGift(gift.id);
-    if (ok) notify(`Récompense réclamée · ${gift.title} (démo)`);
+    void claimGiftMerged(crewRequests.useLive, gift.id, gift, crewRequests.refresh).then((ok) => {
+      if (ok) notify(`Récompense réclamée · ${gift.title}`);
+    });
   };
 
   // ── COLLE QUOTIDIENNE (AMENDEMENT-34) : 4 micro-actions SANS courir pour
   // garder le crew vivant les jours off. Chaque action pose un +XP SOCIAL
   // cosmétique + une anim ; ZÉRO territoire/point/vitesse/protection (anti-P2W).
   // Encourager / Voter / Signaler : action ponctuelle, une fois/jour (idempotent).
+  const onClaimChest = () => {
+    if (chestClaiming) return;
+    if (!isRealCrew) {
+      setChestOpened(true);
+      setNotice(
+        chest.tier
+          ? `Palier ${CHEST_TIER_LABELS[chest.tier]} ouvert — récompenses au crew (démo)`
+          : null,
+      );
+      return;
+    }
+    if (!chestClaimable) return;
+    setChestClaiming(true);
+    haptics.medium();
+    void claimCrewChest()
+      .then((result) => {
+        if (!result.ok || !result.tier) {
+          notify(
+            result.error === 'already_claimed'
+              ? 'Coffre déjà réclamé cette semaine'
+              : 'Réclamation impossible pour l’instant',
+          );
+          return;
+        }
+        setChestOpened(true);
+        const foulees = result.fouleesEach ?? CREW_CHEST_TIER_FOULEES[result.tier];
+        setNotice(
+          `Palier ${CHEST_TIER_LABELS[result.tier]} — +${foulees} Foulées par membre`,
+        );
+        live.refresh();
+      })
+      .finally(() => setChestClaiming(false));
+  };
+
+  const onDecideApplication = (applicationId: string, decision: 'accepted' | 'rejected') => {
+    haptics.light();
+    void decideApplication(applicationId, decision).then((result) => {
+      if (!result.ok) {
+        notify('Décision impossible — réessaie plus tard');
+        return;
+      }
+      if (membership) {
+        void fetchPendingApplications(membership.crewId).then(setPendingApplications);
+        void fetchCrewMemberCount(membership.crewId).then(setMemberCount);
+        void fetchCrewMembers(membership.crewId).then(setCrewMembers);
+        refreshCrew();
+      }
+      notify(decision === 'accepted' ? 'Candidature acceptée' : 'Candidature refusée');
+    });
+  };
+
   const onDailyAction = (action: 'encourage' | 'vote' | 'signal') => {
     const posted = markDailyAction(action);
     if (!posted) {
@@ -1364,7 +1557,7 @@ export default function CrewScreen() {
   // « Indispo », mon choix persiste (toggle dans le store). ZÉRO effet de jeu.
   const onOutingRsvp = (outing: OutingView, choice: OutingRsvp) => {
     haptics.light();
-    setOutingRsvp(outing.id, choice);
+    void setOutingRsvpMerged(crewOutings.useLive, outing.id, choice, crewOutings.refresh);
   };
 
   // Créer une sortie (form court) : titre + heure + lieu + zone obligatoires,
@@ -1377,13 +1570,17 @@ export default function CrewScreen() {
   const submitOuting = () => {
     if (!outingReady) return;
     haptics.medium();
-    createOuting({
-      title: outingTitle.trim(),
-      when: outingWhen.trim(),
-      place: outingPlace.trim(),
-      zone: outingZone.trim(),
-      objective: outingObjective,
-    });
+    void createOutingMerged(
+      crewOutings.useLive,
+      {
+        title: outingTitle.trim(),
+        when: outingWhen.trim(),
+        place: outingPlace.trim(),
+        zone: outingZone.trim(),
+        objective: outingObjective,
+      },
+      crewOutings.refresh,
+    );
     setOutingSheet(false);
     setOutingTitle('');
     setOutingWhen('');
@@ -1397,15 +1594,19 @@ export default function CrewScreen() {
   // ── Sections du chat actionnable filtrées (A.2/A.3) ──
   // Mes REQUÊTES émises (bouton « Demander ») en TÊTE de À FAIRE, avant la démo.
   const myRequestCards = useMemo(
-    () => crewRequests.requests.map(requestToActionCard),
-    [crewRequests.requests],
+    () => [
+      ...crewRequests.liveActionCards,
+      ...crewRequests.requests.map(requestToActionCard),
+    ],
+    [crewRequests.liveActionCards, crewRequests.requests],
   );
   // À FAIRE : mes requêtes + cartes démo, filtrées (Dons/Résultats masquent À faire).
   const visibleActions = useMemo(() => {
     if (chatFilter === 'dons' || chatFilter === 'resultats') return [];
-    const all = [...myRequestCards, ...ACTION_CARDS_DEMO];
+    const demoActions = crewRequests.useLive ? [] : ACTION_CARDS_DEMO;
+    const all = [...myRequestCards, ...demoActions];
     return all.filter((c) => chatFilter === 'tout' || c.filters.includes(chatFilter));
-  }, [chatFilter, myRequestCards]);
+  }, [chatFilter, crewRequests.useLive, myRequestCards]);
   // La carte BONUS partage la section À FAIRE : visible sous Tout/Demandes/
   // Missions (comme une action d'entraide), masquée sous Dons/Résultats.
   const showBonusCard =
@@ -1421,8 +1622,10 @@ export default function CrewScreen() {
     () =>
       chatFilter === 'resultats' || chatFilter === 'missions'
         ? []
-        : [...myDonationCards, ...GIFT_CARDS_DEMO],
-    [chatFilter, myDonationCards],
+        : crewRequests.useLive
+          ? [...crewRequests.liveGiftCards, ...myDonationCards]
+          : [...crewRequests.liveGiftCards, ...myDonationCards, ...GIFT_CARDS_DEMO],
+    [chatFilter, crewRequests.liveGiftCards, crewRequests.useLive, myDonationCards],
   );
   // CADEAUX CREW premium offerts (réclamables) — dans la section Dons.
   const visibleCadeaux = useMemo(
@@ -1479,16 +1682,16 @@ export default function CrewScreen() {
   };
 
   return (
-    <TabScreen title={crewProfile.name} icon="crew" kicker={`CREW HQ · ${MY_CREW.city.toUpperCase()}`}>
+    <TabScreen title={hqTitle} icon="crew" kicker={`CREW HQ · ${hqCity.toUpperCase()}`}>
       {/* ── Header base : GRAND blason animé + frame ligue + niveau/XP ── */}
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
           <Animated.View style={{ transform: [{ scale: crestScale }] }}>
             <CrewCrest
-              seed={MY_CREW.seed}
-              name={crewProfile.name}
+              seed={crestSeed}
+              name={hqTitle}
               size="xl"
-              leagueTier={MY_CREW.league}
+              leagueTier={hqLeagueTier}
             />
           </Animated.View>
           <View style={styles.headerInfo}>
@@ -1504,7 +1707,7 @@ export default function CrewScreen() {
             </View>
             {/* Ligne d'identité forte : niveau · rang ville · membres actifs. */}
             <Text style={styles.identityLine} numberOfLines={2}>
-              Niveau {level} · #{MY_CREW.localRank} {MY_CREW.city} · {activeMembers}/
+              Niveau {level} · #{localRankLabel} {hqCity} · {activeMembers}/
               {CREW_MAX_MEMBERS} actifs
             </Text>
             <View style={styles.headerGauge}>
@@ -1515,7 +1718,7 @@ export default function CrewScreen() {
                 pour ne jamais tronquer (§9) ni répéter l'info du blason (§20). */}
             <Text style={styles.xpLine} numberOfLines={1}>
               {nextLevelXp !== null
-                ? `${formatInt(nextLevelXp - MY_CREW.xp)} XP vers niv. ${level + 1}`
+                ? `${formatInt(nextLevelXp - crewXp)} XP vers niv. ${level + 1}`
                 : 'Niveau max atteint'}
             </Text>
           </View>
@@ -1525,7 +1728,7 @@ export default function CrewScreen() {
             LÉGÈRES façon Strava (icône + label), jamais de grosse card — §3. */}
         <View style={styles.headerCta}>
           <InlineRunCTA
-            label="VOIR WAR ROOM"
+            label="VOIR MISSIONS"
             leading={<Icon name="guerre" size={18} color={colors.noir} />}
             onPress={() => router.navigate('/warroom')}
           />
@@ -1599,8 +1802,8 @@ export default function CrewScreen() {
               icon="pin"
               tint={gameColors.crew}
               label="Territoire"
-              value={`${formatInt(MY_CREW.territory.zonesHeld)} zones`}
-              sub={`${MY_CREW.territory.contestedBorders} frontières contestées`}
+              value={`${formatInt(territoryView.zonesHeld)} zones`}
+              sub={`${territoryView.contestedBorders} frontières contestées`}
               onPress={() => {
                 haptics.light();
                 setShowTerritory((v) => !v);
@@ -1611,7 +1814,7 @@ export default function CrewScreen() {
               icon="crew"
               label="Membres"
               value={`${activeMembers}/${CREW_MAX_MEMBERS} actifs`}
-              sub={`${MY_CREW.recruitSpots} places ouvertes`}
+              sub={`${recruitSpots} places ouvertes`}
               onPress={() => setTab('membres')}
             />
             {/* Coffre — % hebdo + jauge ; tap → onglet Coffre. */}
@@ -1639,7 +1842,7 @@ export default function CrewScreen() {
           </View>
 
           {/* Détail Territoire (AMENDEMENT-11 §4) révélé au tap de la card. */}
-          {showTerritory ? <TerritoryBlock /> : null}
+          {showTerritory ? <TerritoryBlock territory={territoryView} /> : null}
 
           {/* ── SECONDAIRE : Contribution / Boost / Crew Wall (§28/§14), replié
               par défaut — jamais en premier (pas de monétisation trop visible). ── */}
@@ -1750,10 +1953,53 @@ export default function CrewScreen() {
       {/* ══ MEMBRES : MemberCard + sheet d'actions (doc §12) ══ */}
       {tab === 'membres' ? (
         <>
+          {canReviewApplications && pendingApplications.length > 0 ? (
+            <>
+              <SectionLabel>CANDIDATURES · {pendingApplications.length}</SectionLabel>
+              {pendingApplications.map((app) => (
+                <View key={app.id} style={styles.applicationRow}>
+                  <View style={styles.applicationBody}>
+                    <Text style={styles.applicationName} numberOfLines={1}>
+                      {app.displayName ?? app.handle}
+                    </Text>
+                    {app.message ? (
+                      <Text style={styles.applicationMsg} numberOfLines={2}>
+                        {app.message}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.applicationActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Refuser la candidature"
+                      onPress={() => onDecideApplication(app.id, 'rejected')}
+                      style={({ pressed }) => [styles.applicationBtn, pressed && styles.dim]}
+                    >
+                      <Text style={styles.applicationBtnLabel}>Refuser</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Accepter la candidature"
+                      onPress={() => onDecideApplication(app.id, 'accepted')}
+                      style={({ pressed }) => [
+                        styles.applicationBtn,
+                        styles.applicationBtnAccept,
+                        pressed && styles.dim,
+                      ]}
+                    >
+                      <Text style={[styles.applicationBtnLabel, styles.applicationBtnAcceptLabel]}>
+                        Accepter
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </>
+          ) : null}
           <SectionLabel>
             MEMBRES · {activeMembers}/{CREW_MAX_MEMBERS}
           </SectionLabel>
-          {MY_CREW.members.map((m) => (
+          {displayMembers.map((m) => (
             <View key={m.pseudo} style={styles.memberItem}>
               <MemberCard
                 name={m.pseudo}
@@ -1794,13 +2040,22 @@ export default function CrewScreen() {
           </Pressable>
 
           <View style={styles.outingList}>
+            {crewOutings.outings.length === 0 ? (
+              <Text style={styles.outingEmpty}>
+                {crewOutings.useLive
+                  ? 'Aucune sortie planifiée — crée la première pour le crew.'
+                  : 'Sorties démo — connecte-toi pour les sorties live.'}
+              </Text>
+            ) : null}
             {crewOutings.outings.map((o) => (
               <SortieCard key={o.id} outing={o} onRsvp={onOutingRsvp} />
             ))}
           </View>
 
           <Text style={styles.outingNote}>
-            Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points (démo).
+            {crewOutings.useLive
+              ? 'Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points.'
+              : 'Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points (démo).'}
           </Text>
         </>
       ) : null}
@@ -1820,17 +2075,10 @@ export default function CrewScreen() {
                 : 'Palier max atteint'
             }
             state={chestClaimable ? 'claimable' : 'inprogress'}
-            onOpen={() => {
-              setChestOpened(true);
-              setNotice(
-                chest.tier
-                  ? `Palier ${CHEST_TIER_LABELS[chest.tier]} ouvert — récompenses au crew (démo)`
-                  : null,
-              );
-            }}
+            onOpen={onClaimChest}
           />
           <Text style={styles.chestMeta}>
-            {formatInt(MY_CREW.chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
+            {formatInt(chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
             collectifs
           </Text>
 
@@ -2052,6 +2300,13 @@ export default function CrewScreen() {
               <View style={styles.thread}>
                 {/* Filtre d'affichage (§1) : les messages d'un membre BLOQUÉ ne
                     sont jamais rendus. La liste bloquée vient du store persisté. */}
+                {chat.messages.filter((m) => m.me || !isBlocked(m.author)).length === 0 ? (
+                  <Text style={styles.chatEmpty}>
+                    {isRealCrew
+                      ? 'Aucun message pour l’instant — écris au crew ci-dessous.'
+                      : 'Fil démo — connecte-toi pour le chat live du crew.'}
+                  </Text>
+                ) : null}
                 {chat.messages
                   .filter((m) => m.me || !isBlocked(m.author))
                   .map((m) => (
@@ -2989,13 +3244,6 @@ const styles = StyleSheet.create({
   },
   // ── Membres ──
   memberItem: { marginBottom: 8 },
-  // ── Coffre ──
-  chestMeta: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    marginTop: 10,
-    fontVariant: ['tabular-nums'],
-  },
   rewardList: { gap: 8 },
   // Paliers = détail AU TAP (§6) : rangée légère séparée par un filet, pas une card.
   tiersToggle: {
@@ -3025,6 +3273,41 @@ const styles = StyleSheet.create({
   tierPct: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontVariant: ['tabular-nums'],
+  },
+  // ── Candidatures ──
+  applicationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+    padding: 12,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+  },
+  applicationBody: { flex: 1, gap: 4 },
+  applicationName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  applicationMsg: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
+  applicationActions: { flexDirection: 'row', gap: 6 },
+  applicationBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: borderState.hairline,
+  },
+  applicationBtnAccept: {
+    backgroundColor: gameColors.crew,
+    borderColor: gameColors.crew,
+  },
+  applicationBtnLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700' },
+  applicationBtnAcceptLabel: { color: colors.noir },
+  // ── Coffre ──
+  chestMeta: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    marginTop: 8,
+    marginBottom: 12,
     fontVariant: ['tabular-nums'],
   },
   contribRow: {
@@ -3286,6 +3569,8 @@ const styles = StyleSheet.create({
   sheetChoiceHint: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
   // ── Chat : fil de discussion (bulles) ──
   thread: { marginTop: 4, gap: 12 },
+  chatEmpty: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20, marginBottom: 4 },
+  outingEmpty: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20, marginBottom: 8 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 32 },
   bubbleRowMe: { alignItems: 'flex-end', paddingLeft: 40 },
   avatar: {
@@ -3493,6 +3778,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   emptyActions: { marginTop: 18, gap: 10 },
+  emptyInput: {
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.card,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+  },
   // ── Sorties (AMENDEMENT-32 §1) ──
   // UN SEUL gros CTA de la scène : créer une sortie (chartreuse, noir dessus).
   outingCreateBtn: {

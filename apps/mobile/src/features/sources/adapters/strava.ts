@@ -111,6 +111,11 @@ async function importVia(
   return { status: 'connected', lastSync: link.lastSync };
 }
 
+export async function getStravaRefreshToken(): Promise<string | undefined> {
+  const link = await readLink();
+  return link?.refreshToken;
+}
+
 export const stravaAdapter: SourceAdapter = {
   id: 'strava',
   trustLevel: 'medium', // import → vérification requise (catalog AMENDEMENT-10 §6)

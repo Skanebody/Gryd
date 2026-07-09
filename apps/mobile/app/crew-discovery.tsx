@@ -6,8 +6,8 @@
  * recherchés, CTA fort « Demander à rejoindre » + « Voir la base » →
  * /crew-public?crew=TAG. Niveau/tier DÉRIVÉS de l'XP réelle (features/crew/
  * rules), rôles recherchés depuis les fiches publiques (publicDemo) — mêmes
- * données que la page publique. Rejoindre = stub toast TODO(O1). Aucun nombre
- * magique. Zéro position live (§37.3).
+ * données que la page publique. Rejoindre via `useJoinPublicCrew` (crew_membership).
+ * Aucun nombre magique. Zéro position live (§37.3).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -25,11 +25,11 @@ import {
   FRAME_TIER_LABELS,
 } from '../src/features/crew/rules';
 import {
-  canApplyTo,
   playTagsFor,
-  PUBLIC_CREWS,
   type PublicCrewDemo,
 } from '../src/features/crew/publicDemo';
+import { useDiscoverableCrews } from '../src/features/crew/useDiscoverableCrews';
+import { useJoinPublicCrew } from '../src/features/crew/joinCrew';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 
 /** Filtres rapides §27 — chaque clé teste un signal d'activité du crew. */
@@ -63,14 +63,16 @@ function matchesFilter(crew: PublicCrewDemo, key: FilterKey): boolean {
 export default function CrewDiscoveryScreen() {
   const [filter, setFilter] = useState<FilterKey>('all');
   const toast = useToast();
+  const joinCrew = useJoinPublicCrew();
+  const { crews } = useDiscoverableCrews('paris');
 
   useEffect(() => {
     screen('crew_discovery');
   }, []);
 
   const filtered = useMemo(
-    () => PUBLIC_CREWS.filter((c) => matchesFilter(c, filter)),
-    [filter],
+    () => crews.filter((c) => matchesFilter(c, filter)),
+    [crews, filter],
   );
 
   return (
@@ -117,15 +119,8 @@ export default function CrewDiscoveryScreen() {
                     runsPerWeek={crew.weeklyRuns}
                     seeking={crew.rolesWanted.map((r) => CREW_ROLE_LABELS[r] ?? r)}
                     onJoin={() => {
-                      // TODO(O1) : crew_joined / demande d'adhésion (§9, 4 statuts 0013).
                       haptics.medium();
-                      toast.show(
-                        crew.recruitment === 'open'
-                          ? `Bienvenue chez ${crew.name}`
-                          : canApplyTo(crew.recruitment)
-                            ? `Demande envoyée à ${crew.name}`
-                            : `${crew.name} recrute sur invitation uniquement`,
-                      );
+                      void joinCrew(crew).then((outcome) => toast.show(outcome.message));
                     }}
                     onViewBase={() =>
                       router.push({ pathname: '/crew-public', params: { crew: crew.tag } })

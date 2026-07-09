@@ -15,6 +15,30 @@ export {
   type ArsenalSectionKey,
 } from './catalog';
 export {
+  activateAttackAlert,
+  activateScoutPing,
+  activateStreakGel,
+  fetchFreshOwnedHex,
+  type ActivateArsenalError,
+  type ActivateArsenalResult,
+  type ActivateAttackAlertResult,
+  type ActivateScoutPingResult,
+  type ActivateStreakGelResult,
+} from './activateApi';
+export {
+  formatArsenalRemaining,
+  useActiveAttackAlerts,
+  type ActiveAttackAlert,
+} from './useAttackAlerts';
+export {
+  useActiveStreakGel,
+  type ActiveStreakGel,
+} from './useStreakGels';
+export {
+  useActiveScoutPings,
+  type ActiveScoutPing,
+} from './useScoutPings';
+export {
   BOOST_CHEST_BONUS_LABEL,
   EQUIP_SCOPE_LABEL,
   INITIAL_CREW_WALL,
