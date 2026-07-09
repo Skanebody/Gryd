@@ -113,10 +113,6 @@ const SOURCES: { name: string; state: SourceState; Glyph: ComponentType<SVGProps
   { name: 'Strava', state: 'connected', Glyph: GlyphSwoosh },
   { name: 'Health Connect', state: 'active', Glyph: GlyphConnect },
   { name: 'Garmin', state: 'soon', Glyph: GlyphCompass },
-  { name: 'WHOOP', state: 'soon', Glyph: GlyphPulse },
-  { name: 'Fitbit', state: 'soon', Glyph: GlyphTracker },
-  { name: 'Polar', state: 'soon', Glyph: GlyphGauge },
-  { name: 'Coros', state: 'soon', Glyph: GlyphRays },
 ];
 
 export function ConnectGear() {

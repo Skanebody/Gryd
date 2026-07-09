@@ -13,7 +13,7 @@
  */
 
 import { CREW_MAX_MEMBERS, SEASON_DURATION_WEEKS } from '@klaim/shared';
-import { DEMO_LEADERBOARD, FRANCE_CAPTURABLE_KM2 } from '../../../lib/landing';
+import { FRANCE_CAPTURABLE_KM2 } from '../../../lib/landing';
 import { HexMap } from '../HexMap';
 import { Icon } from '../ui/Icon';
 import { useLang } from './LangProvider';
@@ -37,21 +37,11 @@ const STRINGS = {
     kicker: 'Beta fondateur · Saison 0',
     sub: 'Courez dehors. Prenez le quartier. Défendez en crew.',
     ctaCrew: 'Créer mon crew',
-    boardTitle: 'Classement crews · Saison 0',
-    boardPtsUnit: 'pts',
-    tagMine: 'Ton crew',
-    tagRival: 'Rival',
-    boardAria: 'Classement de démonstration des crews de la Saison 0',
   },
   en: {
     kicker: 'Founder beta · Season 0',
     sub: 'Run outside. Take the block. Defend with your crew.',
     ctaCrew: 'Create my crew',
-    boardTitle: 'Crew leaderboard · Season 0',
-    boardPtsUnit: 'pts',
-    tagMine: 'Your crew',
-    tagRival: 'Rival',
-    boardAria: 'Season 0 demo crew leaderboard',
   },
 } as const;
 
@@ -82,7 +72,7 @@ function HeroStat({
 }
 
 export function Hero() {
-  const { lang, copy, formatInt } = useLang();
+  const { lang, copy } = useLang();
   const S = STRINGS[lang];
   const { requestSim } = usePhone();
   const stats = useReveal<HTMLDivElement>();
@@ -140,7 +130,7 @@ export function Hero() {
               <a href="#waitlist" className={`${ui.btnPrimary} ${styles.ctaPulse}`}>
                 {copy.hero.ctaPrimary}
               </a>
-              <a href="#crews" className={ui.btnGhost}>
+              <a href="#waitlist" className={ui.btnGhost}>
                 {S.ctaCrew}
               </a>
             </div>
@@ -165,31 +155,6 @@ export function Hero() {
               <Icon name="conquete" size={14} />
               {copy.hero.ctaSecondary}
             </button>
-          </div>
-
-          <div className={styles.board} aria-label={S.boardAria}>
-            <p className={styles.boardTitle}>{S.boardTitle}</p>
-            <ol className={styles.boardList}>
-              {DEMO_LEADERBOARD.map((row) => (
-                <li
-                  key={row.name}
-                  className={`${styles.boardRow} ${
-                    row.kind === 'mine' ? styles.rowMine : row.kind === 'rival' ? styles.rowRival : ''
-                  }`}
-                >
-                  <span className={styles.boardRank}>#{row.rank}</span>
-                  <span className={styles.boardName}>{row.name}</span>
-                  {row.kind !== 'neutral' ? (
-                    <span className={`${styles.tag} ${row.kind === 'mine' ? styles.tagMine : styles.tagRival}`}>
-                      {row.kind === 'mine' ? S.tagMine : S.tagRival}
-                    </span>
-                  ) : null}
-                  <span className={styles.boardPts}>
-                    {formatInt(row.points)} <small className={styles.boardUnit}>{S.boardPtsUnit}</small>
-                  </span>
-                </li>
-              ))}
-            </ol>
           </div>
         </Reveal>
       </div>

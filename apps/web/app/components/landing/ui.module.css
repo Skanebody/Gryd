@@ -5,12 +5,12 @@
  */
 
 .section {
-  padding: 88px 24px;
+  padding: 56px 24px;
 }
 
 @media (max-width: 640px) {
   .section {
-    padding: 64px 18px;
+    padding: 44px 18px;
   }
 }
 

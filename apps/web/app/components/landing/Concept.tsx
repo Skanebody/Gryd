@@ -384,20 +384,6 @@ export function GameplayLoop() {
             )}
           </div>
         </div>
-
-        {/* Avant / Après (AMENDEMENT-05 §2) */}
-        <Reveal delayMs={120}>
-          <div className={styles.beforeAfter}>
-            <div className={`${ui.card} ${styles.baCard}`}>
-              <span className={ui.monoLabel}>{t.beforeLabel}</span>
-              <p className={styles.baText}>{t.beforeText}</p>
-            </div>
-            <div className={`${ui.card} ${styles.baCard} ${styles.baAfter}`}>
-              <span className={`${ui.monoLabel} ${styles.baAfterLabel}`}>{t.afterLabel}</span>
-              <p className={styles.baText}>{t.afterText}</p>
-            </div>
-          </div>
-        </Reveal>
       </div>
     </section>
   );

@@ -18,8 +18,8 @@ import styles from './SiteHeader.module.css';
    Performance = éclair · Accès = boutique. Le CTA Waitlist reste texte seul. */
 const LINKS = [
   { href: '#concept', key: 'concept', icon: 'carte' },
-  { href: '#map', key: 'map', icon: 'pin' },
-  { href: '#crews', key: 'crews', icon: 'crew' },
+  { href: '#connect', key: 'connect', icon: 'route' },
+  { href: '#faq', key: 'faq', icon: 'badge' },
   { href: '#waitlist', key: 'access', icon: 'boutique' },
 ] as const satisfies readonly { href: string; key: string; icon: IconName }[];
 
