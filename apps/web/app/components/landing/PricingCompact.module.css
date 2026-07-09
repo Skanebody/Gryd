@@ -1,0 +1,69 @@
+.strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 28px;
+}
+
+@media (max-width: 720px) {
+  .strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tier {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.tierHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tierName {
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.tierPrice {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--gris);
+  white-space: nowrap;
+}
+
+.tierBody {
+  color: var(--gris);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.footnote {
+  margin-top: 18px;
+  color: var(--gris);
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 58ch;
+}
+
+.link {
+  display: inline-flex;
+  margin-top: 14px;
+  color: var(--blanc);
+  font-size: 14px;
+  text-decoration: none;
+  border-bottom: 1px solid var(--ligne);
+  transition: border-color 180ms ease-out;
+}
+
+.link:hover {
+  border-color: var(--ch40);
+}
