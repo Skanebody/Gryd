@@ -109,6 +109,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .update({ is_club: decision.kind === 'club_on' })
           .eq('id', decision.userId);
         if (error) throw new Error(`users is_club update: ${error.message}`);
+        const { error: entError } = await supabase.rpc('sync_club_entitlements', {
+          p_user_id: decision.userId,
+          p_active: decision.kind === 'club_on',
+        });
+        if (entError) throw new Error(`sync_club_entitlements: ${entError.message}`);
         break;
       }
       case 'credit_eclats':

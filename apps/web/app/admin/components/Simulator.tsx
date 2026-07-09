@@ -213,7 +213,7 @@ export function Simulator() {
                 <div className={styles.legend}>
                   <span><i className={`${styles.swatch} ${styles.swMine}`} /> à moi / défendu</span>
                   <span><i className={`${styles.swatch} ${styles.swStolen}`} /> volé</span>
-                  <span><i className={`${styles.swatch} ${styles.swBlocked}`} /> bloqué (lock · bouclier · protégé · zone)</span>
+                  <span><i className={`${styles.swatch} ${styles.swBlocked}`} /> bloqué (lock · legacy · protégé · zone)</span>
                   <span><i className={`${styles.swatch} ${styles.swFrozen}`} /> gelé (flagged)</span>
                   <span><i className={`${styles.swatch} ${styles.swOutline}`} /> non attribué / rejeté</span>
                   <span><i className={`${styles.swatch} ${styles.swTrace}`} /> trace claimable</span>

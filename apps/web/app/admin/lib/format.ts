@@ -65,9 +65,10 @@ export const OUTCOME_LABELS: Record<HexOutcome, string> = {
   already_owned_cooldown: 'Déjà à moi (cooldown 24 h)',
   blocked_lock: 'Bloqué — lock 24 h',
   blocked_fresh_protection: 'Bloqué — zone fraîchement capturée (protégée)',
-  blocked_shield: 'Bloqué — bouclier',
+  blocked_shield: 'Bloqué — bouclier legacy (hex)',
   blocked_new_player: 'Bloqué — nouveau joueur protégé',
   blocked_privacy: 'Bloqué — zone privée',
   blocked_no_capture_zone: 'Bloqué — zone non capturable',
   blocked_daily_cap: 'Bloqué — plafond quotidien',
+  blocked_onboarding_neutral_only: 'Bloqué — import fondateur (hex non neutre)',
 };

@@ -83,7 +83,11 @@ import {
   resultStats,
   runModeFromParam,
   type LiveRunMode,
+  type RunResultStats,
 } from '../src/features/run/simulation';
+import { badgesFromIngest, calcBreakdownFromIngest, statsFromIngest } from '../src/features/run/ingestStats';
+import { loadLastRunResult } from '../src/lib/lastRunResult';
+import { notifyMapDataChanged } from '../src/lib/mapRefresh';
 // AMENDEMENT-23 §B.4 — explicabilité post-run : schéma « la boucle fait la zone »
 // (réutilisé, DÉMO surchargée par les vrais totaux du run) + verify en libellé
 // dérivé des constantes gelées (jamais de nombre magique).
@@ -468,6 +472,11 @@ export default function CourseResultScreen() {
     queued?: string;
     route?: string;
     intention?: string;
+    /** Course GPS réelle — id clientRunId pour lire IngestRunResponse. */
+    source?: string;
+    runId?: string;
+    /** ingest_run a répondu (vs file offline). */
+    ingest?: string;
     /** AMENDEMENT-17 §CH2 — id de la frontière crew rejouée (démo). */
     boundary?: string;
     /** AMENDEMENT-17 §CH2 — `open` (fermable) ou `completed` (boucle crew fermée). */
@@ -500,10 +509,26 @@ function ConquestResultScreen({
     queued?: string;
     route?: string;
     intention?: string;
+    source?: string;
+    runId?: string;
+    ingest?: string;
   };
 }) {
   const insets = useSafeAreaInsets();
   const mode = runModeFromParam(params.mode);
+  const isRealRun = params.source === 'real';
+  const runId = Array.isArray(params.runId) ? params.runId[0] : params.runId;
+  const [ingestResponse, setIngestResponse] = useState<IngestRunResponse | null>(null);
+
+  useEffect(() => {
+    if (!isRealRun || runId === undefined || runId === '') return;
+    void loadLastRunResult(runId).then((r) => {
+      if (r !== null) {
+        setIngestResponse(r);
+        notifyMapDataChanged();
+      }
+    });
+  }, [isRealRun, runId]);
   // Intention (AMENDEMENT-16 §1) : teinte la SYNTHÈSE multi-résultats + la copy
   // §28 (Conquête/Défense/Run libre) — jamais l'attribution (le serveur décide).
   const intention = intentionFromParam(params.intention);
@@ -514,9 +539,16 @@ function ConquestResultScreen({
   // zones intérieures entrent dans les totaux AVANT points/bonus.
   const nav = useMemo(() => buildLiveNav(sim, params.route), [sim, params.route]);
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
-  const stats = useMemo(
-    () => resultStats(sim, tickIndex, loopSummaryAt(loop, tickIndex)),
-    [sim, tickIndex, loop],
+  const stats = useMemo((): RunResultStats => {
+    if (ingestResponse !== null) {
+      return statsFromIngest(ingestResponse, mode);
+    }
+    return resultStats(sim, tickIndex, loopSummaryAt(loop, tickIndex));
+  }, [ingestResponse, mode, sim, tickIndex, loop]);
+
+  const serverBadges = useMemo(
+    () => (ingestResponse !== null ? badgesFromIngest(ingestResponse) : []),
+    [ingestResponse],
   );
   const reduce = useReduceMotion();
 
@@ -534,22 +566,35 @@ function ConquestResultScreen({
   // (dans « Voir détails », replié par défaut — détail au tap, zéro flou).
   const [showCalc, setShowCalc] = useState(false);
 
-  const badge = mode === 'conquete' ? badgeById(DEMO_UNLOCKED_BADGE_ID) : undefined;
+  const calcBreakdown = useMemo(
+    () =>
+      ingestResponse !== null
+        ? calcBreakdownFromIngest(ingestResponse)
+        : DEMO_CALC_BREAKDOWN,
+    [ingestResponse],
+  );
+
+  const badgeId =
+    mode === 'conquete'
+      ? serverBadges[0] ?? (ingestResponse === null ? DEMO_UNLOCKED_BADGE_ID : undefined)
+      : undefined;
+  const badge = badgeId !== undefined ? badgeById(badgeId) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
 
-  // AMENDEMENT-19 §4/§7 — bonus ciblé appliqué (conquête, démo). En prod =
-  // IngestRunResponse.bonusApplied. UN seul bonus principal, libellé court.
-  const bonusApplied = mode === 'conquete' ? DEMO_BONUS_APPLIED : undefined;
+  const bonusApplied =
+    mode === 'conquete'
+      ? (ingestResponse?.bonusApplied ?? (ingestResponse === null ? DEMO_BONUS_APPLIED : undefined))
+      : undefined;
 
   // Mini-cartes en traits nets §4ter (avant/après + share card) — conquête.
   const sectorGeo = useMemo(
-    () => (mode === 'conquete' ? buildSectorGeometry() : null),
-    [mode],
+    () => (mode === 'conquete' && ingestResponse === null ? buildSectorGeometry() : null),
+    [mode, ingestResponse],
   );
-  // AVANT/APRÈS du remplissage de boucle — seulement si la boucle est fermée.
   const loopGeo = useMemo(
-    () => (stats.loopClosed && loop ? buildLoopGeometry(loop) : null),
-    [stats.loopClosed, loop],
+    () =>
+      stats.loopClosed && loop && ingestResponse === null ? buildLoopGeometry(loop) : null,
+    [stats.loopClosed, loop, ingestResponse],
   );
 
   useEffect(() => {
@@ -602,11 +647,27 @@ function ConquestResultScreen({
     : [];
   // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
   // « République défendue · Paris Est +5 % ».
-  const heroLine = conquest
-    ? `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`
-    : isPrivate
-      ? 'Course privée · visible par toi seul'
-      : `Social Run · ${formatKm(stats.distanceM)} km`;
+  const heroLine = useMemo(() => {
+    if (conquest && ingestResponse !== null) {
+      const captured = ingestResponse.hexes.claimed + ingestResponse.hexes.stolen;
+      if (captured > 0) return `+${formatInt(captured)} zones capturées`;
+      if (ingestResponse.hexes.defended > 0) {
+        return `${formatInt(ingestResponse.hexes.defended)} zones défendues`;
+      }
+      if (ingestResponse.openBoundary) {
+        return `Frontière ouverte · ${ingestResponse.openBoundary.name}`;
+      }
+      if (ingestResponse.boundaryCompleted) {
+        return `Frontière fermée · ${ingestResponse.boundaryCompleted.name}`;
+      }
+      return 'Course validée · stats enregistrées';
+    }
+    if (conquest) {
+      return `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`;
+    }
+    if (isPrivate) return 'Course privée · visible par toi seul';
+    return `Social Run · ${formatKm(stats.distanceM)} km`;
+  }, [conquest, ingestResponse, isPrivate, stats, summary.kicker]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
@@ -649,6 +710,11 @@ function ConquestResultScreen({
           {params.queued === '1' ? (
             <Text style={styles.heroQueued} numberOfLines={1}>
               Envoi dès que possible.
+            </Text>
+          ) : null}
+          {isRealRun && params.ingest === '1' && ingestResponse !== null ? (
+            <Text style={styles.heroVerified} numberOfLines={1}>
+              Résultat serveur · {ingestResponse.status}
             </Text>
           ) : null}
         </ResultReveal>
@@ -821,19 +887,19 @@ function ConquestResultScreen({
                       <View style={styles.calcCell}>
                         <MiniStat
                           label="DÉFENDUES"
-                          value={`+${formatInt(DEMO_CALC_BREAKDOWN.zonesDefended)}`}
+                          value={`+${formatInt(calcBreakdown.zonesDefended)}`}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
                           label="ROUTES"
-                          value={formatInt(DEMO_CALC_BREAKDOWN.routesOpened)}
+                          value={formatInt(calcBreakdown.routesOpened)}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
                           label="EXCLUS"
-                          value={formatInt(DEMO_CALC_BREAKDOWN.segmentsExcluded)}
+                          value={formatInt(calcBreakdown.segmentsExcluded)}
                         />
                       </View>
                       <View style={styles.calcCell}>
@@ -1339,6 +1405,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   heroQueued: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
+  heroVerified: { color: gameColors.crew, fontSize: fontSizes.xs, textAlign: 'center' },
 
   // « Voir détails » — secondaire discret, sous le CTA principal.
   detailsToggle: {

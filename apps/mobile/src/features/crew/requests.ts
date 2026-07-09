@@ -108,6 +108,8 @@ export interface SentDonation {
   /** Effet en clair (« 3,4 km · 12 zones · prête à courir »). */
   effect: string;
   createdAt: number;
+  /** Pseudo du donateur (live serveur) ; absent = CHAT_ME en démo. */
+  by?: string | null;
 }
 
 // ─── Type d'un cadeau premium offert (réclamable) ─────────────────────────────
@@ -249,8 +251,8 @@ export function createRequest(choice: RequestChoiceKey): SentRequest {
   return req;
 }
 
-/** Détails par nature de don (démo) — kicker + message + effet. */
-const DONATION_DEFAULTS: Record<
+/** Détails par nature de don — partagés mobile + mapping live serveur. */
+export const DONATION_DEFAULTS: Record<
   DonationKind,
   { kicker: string; message: string; effect: string }
 > = {
@@ -410,7 +412,7 @@ export function donationToGiftCard(don: SentDonation): GiftCardDemo {
     id: don.id,
     kind: don.kind,
     kicker: don.kicker,
-    by: CHAT_ME,
+    by: don.by ?? CHAT_ME,
     message: don.message,
     effect: don.effect,
     cta: cta.cta,

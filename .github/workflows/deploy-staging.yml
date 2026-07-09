@@ -1,0 +1,45 @@
+# GRYD — déploiement Supabase staging (O1).
+# Déclenchement manuel : Actions → Deploy Staging → Run workflow.
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   SUPABASE_ACCESS_TOKEN  — https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_REF   — ex. sydwxwwirinjoheeodcg (optionnel, défaut dans le script)
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_functions:
+        description: 'Migrations SQL uniquement (skip edge functions)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Supabase staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.skip_functions }}" = "true" ]; then
+            ARGS="--skip-fn"
+          fi
+          node scripts/deploy-staging.mjs $ARGS

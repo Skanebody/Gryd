@@ -1,23 +1,18 @@
 /**
- * GRYD — page PERFORMANCE (AMENDEMENT-17 CHANTIER 3). Running + impact GRYD,
- * PAS une copie Strava. Résumé + détail : au-dessus du fold on décide en un
- * regard — Score Forme géant (/100 + interprétation), Cette semaine, Impact
- * GRYD. Le détail (Progression avec UN mini-graph, Records, GRYD Verify) est
- * plus bas, au scroll. Pas 15 graphiques.
- *
- * Style dark GRYD, accent chartreuse, texte court, cards compactes, anti-shame.
- * Aucune valeur de jeu ici : la page LIT des données démo déterministes
- * (features/performance/demo) dérivées de la même source que carte + profil.
- * Analytics : event §8 `performance_page_viewed` à l'ouverture.
+ * GRYD — page PERFORMANCE (running + impact GRYD).
+ * Socle gratuit : Score Forme, semaine, impact GRYD, Verify.
+ * Analyse avancée : premium (GRYD Club) — paywall doux.
  */
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes } from '@klaim/shared';
+import { FEATURE_KEYS, colors, fontSizes } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
+import { usePremiumGate } from '../src/features/monetization/usePremiumGate';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
+import { SoftPaywall } from '../src/ui/SoftPaywall';
 import { PERFORMANCE } from '../src/features/performance/demo';
 import {
   GrydImpactCard,
@@ -29,6 +24,8 @@ import {
 } from '../src/features/performance/components';
 
 export default function PerformanceScreen() {
+  const advanced = usePremiumGate(FEATURE_KEYS.advancedStats);
+
   useEffect(() => {
     track(EVENTS.performancePageViewed);
   }, []);
@@ -43,7 +40,6 @@ export default function PerformanceScreen() {
   return (
     <StackScreen title="Performance" icon="performance" kicker="TA FORME · TON IMPACT">
       <View style={styles.stack}>
-        {/* ── AU-DESSUS DU FOLD : décider en un regard ── */}
         <ScoreFormeHero score={p.formeScore} delta={p.formeDelta} reading={p.formeReading} />
         <WeekCard
           runs={p.week.runs}
@@ -55,17 +51,27 @@ export default function PerformanceScreen() {
         />
         <GrydImpactCard stats={p.gryd.stats} crewLine={p.gryd.crewLine} />
 
-        {/* ── DÉTAIL : au scroll, pour explorer ── */}
-        <ProgressionCard
-          distancePct={p.progression.distancePct}
-          paceGainSec={p.progression.paceGainSec}
-          regularityWeeks={p.progression.regularityWeeks}
-          trend={p.progression.trend}
-        />
-        <RecordsCard records={p.records} />
+        {advanced.loading ? (
+          <Text style={styles.loading}>Chargement de ton accès…</Text>
+        ) : advanced.available ? (
+          <>
+            <ProgressionCard
+              distancePct={p.progression.distancePct}
+              paceGainSec={p.progression.paceGainSec}
+              regularityWeeks={p.progression.regularityWeeks}
+              trend={p.progression.trend}
+            />
+            <RecordsCard records={p.records} />
+          </>
+        ) : (
+          <SoftPaywall
+            trigger="performance_advanced"
+            title="Analyse avancée"
+            body="Disponible avec GRYD Club. Ton historique basique et ton impact territorial restent gratuits."
+          />
+        )}
 
         <VerifyCard reliablePct={p.verify.reliablePct} channels={p.verify.channels} />
-        {/* Lien vers le hub GRYD Verify (détail des sources / fiabilité). */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voir GRYD Verify et les sources connectées"
@@ -82,6 +88,7 @@ export default function PerformanceScreen() {
 
 const styles = StyleSheet.create({
   stack: { gap: 14, marginTop: 4 },
+  loading: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center', paddingVertical: 8 },
   verifyLink: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -77,6 +77,7 @@ import {
   type OpenBoundaryDemo,
   type WarHistoryEventDemo,
 } from '../../src/features/warroom/demo';
+import { useWarRoomLive } from '../../src/features/warroom/useWarRoomLive';
 import {
   BONUS_ICON,
   MAP_BONUS_CONTEXT,
@@ -914,6 +915,14 @@ type OpenSection = 'objectifs' | 'routes' | 'scout' | 'historique' | null;
 
 export default function WarRoomScreen() {
   const toast = useToast();
+  const {
+    defenseMission: liveDefense,
+    offensive: liveOffensive,
+    openBoundaries: liveBoundaries,
+    crewRank: liveCrewRank,
+    chest: liveChest,
+    loading: warLoading,
+  } = useWarRoomLive();
   // Une seule section ouverte à la fois (anti-scroll) — tout replié au montage.
   const [open, setOpen] = useState<OpenSection>(null);
   const toggle = (s: Exclude<OpenSection, null>) =>
@@ -934,18 +943,23 @@ export default function WarRoomScreen() {
   }, []);
 
   // ACTIF — conquête collective : progression + reste + compte à rebours animé.
-  const offensivePct = OFFENSIVE.hexesTaken / OFFENSIVE.objectiveHexes;
-  const offensiveLeft = OFFENSIVE.objectiveHexes - OFFENSIVE.hexesTaken;
-  const offensiveTimeLeft = useCountdown(OFFENSIVE.remainingS);
+  const offensivePct =
+    liveOffensive !== null && liveOffensive.objectiveHexes > 0
+      ? liveOffensive.hexesTaken / liveOffensive.objectiveHexes
+      : 0;
+  const offensiveLeft =
+    liveOffensive !== null ? liveOffensive.objectiveHexes - liveOffensive.hexesTaken : 0;
+  const offensiveTimeLeft = useCountdown(liveOffensive?.remainingS ?? 0);
 
   // COFFRE — état/palier DÉRIVÉS de chestStateFor (source unique = Crew HQ).
-  const chestPct = MY_CREW.chestProgress / CREW_CHEST_WEEKLY_TARGET;
+  const chestProgress = liveChest?.progress ?? 0;
+  const chestPct = chestProgress / CREW_CHEST_WEEKLY_TARGET;
   const chest = chestStateFor(chestPct);
   const nextTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
-  const chestRemaining = Math.max(0, CREW_CHEST_WEEKLY_TARGET - MY_CREW.chestProgress);
+  const chestRemaining = Math.max(0, CREW_CHEST_WEEKLY_TARGET - chestProgress);
 
   // À TERMINER — frontières ouvertes (résumé ; détail au chantier 2).
-  const firstBoundary = OPEN_BOUNDARIES[0];
+  const firstBoundary = liveBoundaries[0];
 
   // RECO PAR SKILL (doc §29) — le bon COÉQUIPIER pour chaque mission, dérivé du
   // catalogue GELÉ. Défense urgente → meilleur Defender ; fermeture de frontière
@@ -958,10 +972,12 @@ export default function WarRoomScreen() {
   // Membre à assigner sur la défense (démo : première DISPO correspondante).
   const assignee = useMemo(
     () =>
-      MY_CREW.members.find(
-        (m) => m.availability === DEFENSE_MISSION.assignedAvailability && !m.me,
-      ),
-    [],
+      liveDefense
+        ? MY_CREW.members.find(
+            (m) => m.availability === liveDefense.assignedAvailability && !m.me,
+          )
+        : undefined,
+    [liveDefense],
   );
 
   // Gating visuel par MON rôle démo (matrice §8) — le serveur reste seul juge.
@@ -984,11 +1000,11 @@ export default function WarRoomScreen() {
     screen('war_bonus_act', { bonusId: bonus.def.id });
     switch (bonus.def.id) {
       case 'defense_critical':
-        toast.show(`Défense lancée — zone ${DEFENSE_MISSION.zone}`);
+        toast.show(`Défense lancée — zone ${liveDefense?.zone ?? 'ta zone'}`);
         router.push('/route-planner?type=defense');
         break;
       case 'finisher': {
-        const b = OPEN_BOUNDARIES[0];
+        const b = liveBoundaries[0];
         const param = b ? partialBoundaryParamFor(b.boundaryId) : null;
         if (b && param) {
           toast.show(`Cap sur ${b.zone} — termine la boucle du crew`);
@@ -1013,43 +1029,51 @@ export default function WarRoomScreen() {
       <TabScreen
         title="Missions"
         icon="guerre"
-        kicker={`${WAR_STATUS.seasonLabel} · J-${WAR_STATUS.daysLeft} · ${WAR_STATUS.city} · CREW #${WAR_STATUS.crewRank}`}
+        kicker={`${WAR_STATUS.seasonLabel} · J-${WAR_STATUS.daysLeft} · ${WAR_STATUS.city} · CREW #${liveCrewRank ?? '—'}`}
         subtitle="Choisis ta prochaine mission."
       >
         {/* ================= 3 PRIORITÉS + COFFRE (sans scroll) ================= */}
 
         {/* URGENT — défense critique. LA seule vraie surface + LE seul gros CTA. */}
-        <UrgentHero
-          icon="sablier"
-          kicker="URGENT · DÉFENSE"
-          title={DEFENSE_MISSION.zone}
-          metric={`${DEFENSE_MISSION.expiresInH} h`}
-          phrase={`${DEFENSE_MISSION.hexes} zones expirent dans ${DEFENSE_MISSION.expiresInH} h. Une course suffit pour les sauver.`}
-          cta="DÉFENDRE"
-          onPress={openMap}
-          onCta={() => {
-            haptics.medium();
-            toast.show(`Défense lancée — zone ${DEFENSE_MISSION.zone}`);
-            router.push('/route-planner?type=defense');
-          }}
-          onLongPressCta={
-            canAssign
-              ? () => {
-                  toast.show(
-                    assignee
-                      ? `Défense proposée à ${assignee.pseudo}`
-                      : 'Défense proposée au crew',
-                  );
-                }
-              : undefined
-          }
-        />
+        {liveDefense ? (
+          <UrgentHero
+            icon="sablier"
+            kicker="URGENT · DÉFENSE"
+            title={liveDefense.zone}
+            metric={`${liveDefense.expiresInH} h`}
+            phrase={`${liveDefense.hexes > 0 ? `${liveDefense.hexes} zones expirent` : 'Des zones expirent'} dans ${liveDefense.expiresInH} h. Une course suffit pour les sauver.`}
+            cta="DÉFENDRE"
+            onPress={openMap}
+            onCta={() => {
+              haptics.medium();
+              toast.show(`Défense lancée — zone ${liveDefense.zone}`);
+              router.push('/route-planner?type=defense');
+            }}
+            onLongPressCta={
+              canAssign
+                ? () => {
+                    toast.show(
+                      assignee
+                        ? `Défense proposée à ${assignee.pseudo}`
+                        : 'Défense proposée au crew',
+                    );
+                  }
+                : undefined
+            }
+          />
+        ) : warLoading ? (
+          <Text style={styles.emptyMission}>Chargement des missions…</Text>
+        ) : (
+          <Text style={styles.emptyMission}>
+            Aucune mission urgente — pars courir ou rejoins ton crew pour lancer une offensive.
+          </Text>
+        )}
 
         {/* RECO SKILL de la défense urgente (doc §29) : le meilleur Defender du
             crew, sur UNE ligne sobre sous le HERO. Le skill ORIENTE (aucun gain
             territorial). Tap = proposer la défense à ce membre si j'en ai le droit
             (§8) ; sinon informatif. */}
-        {defenseReco ? (
+        {liveDefense && defenseReco ? (
           <SkillRecoLine
             reco={defenseReco}
             tint={gameColors.danger}
@@ -1106,21 +1130,23 @@ export default function WarRoomScreen() {
         {/* ACTIF — conquête collective (République 496/800). Ligne compacte, action
             légère « Rejoindre » (pas un second gros bouton). Le kicker évite « … » :
             durée + décompte sur la sous-ligne, pas dans le kicker. */}
-        <MissionLine
-          icon="raid"
-          tint={gameColors.crew}
-          kicker="ACTIF · CONQUÊTE"
-          title={OFFENSIVE.zone}
-          metric={`${formatInt(OFFENSIVE.hexesTaken)}/${formatInt(OFFENSIVE.objectiveHexes)}`}
-          phrase={`${formatInt(offensiveLeft)} zones · ${OFFENSIVE.activeMembers}/${OFFENSIVE.totalMembers} en course · ${OFFENSIVE_DURATION_H} h · ${offensiveTimeLeft}`}
-          progress={offensivePct}
-          action="Rejoindre"
-          onPress={() => {
-            haptics.medium();
-            toast.show(`Conquête collective rejointe — cap sur ${OFFENSIVE.zone}`);
-            router.push('/route-planner?type=raid');
-          }}
-        />
+        {liveOffensive ? (
+          <MissionLine
+            icon="raid"
+            tint={gameColors.crew}
+            kicker="ACTIF · CONQUÊTE"
+            title={liveOffensive.zone}
+            metric={`${formatInt(liveOffensive.hexesTaken)}/${formatInt(liveOffensive.objectiveHexes)}`}
+            phrase={`${formatInt(offensiveLeft)} zones · ${liveOffensive.activeMembers}/${liveOffensive.totalMembers} en course · ${OFFENSIVE_DURATION_H} h · ${offensiveTimeLeft}`}
+            progress={offensivePct}
+            action="Rejoindre"
+            onPress={() => {
+              haptics.medium();
+              toast.show(`Conquête collective rejointe — cap sur ${liveOffensive.zone}`);
+              router.push('/route-planner?type=raid');
+            }}
+          />
+        ) : null}
 
         {/* À TERMINER — frontières ouvertes du crew (AMENDEMENT-17 §CH2, boucle
             crew collaborative). « Ouvre une frontière. Ton crew peut la fermer. »
@@ -1131,7 +1157,7 @@ export default function WarRoomScreen() {
           icon="avantposte"
           label="À TERMINER · FRONTIÈRES"
           tint={gameColors.crew}
-          count={OPEN_BOUNDARIES.length}
+          count={liveBoundaries.length}
         />
         {firstBoundary ? (
           <>
@@ -1165,9 +1191,9 @@ export default function WarRoomScreen() {
                 }}
               />
             ) : null}
-            {OPEN_BOUNDARIES.length > 1 ? (
+            {liveBoundaries.length > 1 ? (
               <SeeAll
-                label={`Voir les ${OPEN_BOUNDARIES.length} frontières`}
+                label={`Voir les ${liveBoundaries.length} frontières`}
                 onPress={() => router.navigate('/crew')}
               />
             ) : null}
@@ -1623,6 +1649,7 @@ const styles = StyleSheet.create({
 
   // --- État vide (frontières) : texte posé sur l'espace, pas une card ---
   emptyText: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18, marginTop: 10 },
+  emptyMission: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20, marginVertical: 12 },
 
   // --- Bonus crew actif : ligne à glow chartreuse doux (gain, état N3) ---
   bonusLine: {

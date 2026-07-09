@@ -26,11 +26,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { LocationSubscription } from 'expo-location';
 import * as Crypto from 'expo-crypto';
-import type { IngestRunRequest } from '@klaim/shared';
+import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
-import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
-import { queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
+import { queuePendingUpload, drainPendingUploadQueue } from '../../../lib/pendingUpload';
+import { invokeIngestRun } from '../../../lib/ingestRunClient';
 import {
   clearActiveRun,
   clearCurrentRun,
@@ -121,15 +121,15 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
    *  - 'none'   : pas de backend/session (flux démo) — aucun envoi attendu.
    */
   const uploadOrQueue = useCallback(
-    async (payload: IngestRunRequest): Promise<'sent' | 'queued' | 'lost' | 'none'> => {
-      if (supabase === null || sessionRef.current === null) return 'none';
-      try {
-        const { error } = await supabase.functions.invoke('ingest_run', { body: payload });
-        if (!error) return 'sent';
-      } catch {
-        // Hors-ligne/réseau coupé net → file ci-dessous.
+    async (
+      payload: IngestRunRequest,
+    ): Promise<{ status: 'sent' | 'queued' | 'lost' | 'none'; response?: IngestRunResponse }> => {
+      if (sessionRef.current === null) return { status: 'none' };
+      const result = await invokeIngestRun(payload);
+      if (result.ok && result.response !== undefined) {
+        return { status: 'sent', response: result.response };
       }
-      return (await queuePendingUpload(payload)) ? 'queued' : 'lost';
+      return (await queuePendingUpload(payload)) ? { status: 'queued' } : { status: 'lost' };
     },
     [],
   );
@@ -358,10 +358,12 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
     distanceM: number;
     durationS: number;
     uploadQueued: boolean;
+    clientRunId: string;
+    ingestSent: boolean;
   }> => {
     const t = trackerRef.current;
     if (t === null || finishedRef.current) {
-      return { distanceM: 0, durationS: 0, uploadQueued: false };
+      return { distanceM: 0, durationS: 0, uploadQueued: false, clientRunId: '', ingestSent: false };
     }
     finishedRef.current = true;
     const now = Date.now();
@@ -373,29 +375,21 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
       duration: Math.round(snap.activeS),
       source: 'gps',
     });
-    // Le VRAI payload part vers ingest_run (seul juge) si session réelle —
-    // sinon flux démo actuel (aucun envoi). Idempotent par clientRunId.
-    // Hors-ligne : le payload est mis en FILE (jamais purgé sans être à
-    // l'abri), renvoyé silencieusement au prochain lancement/fin de course.
-    const upload = await uploadOrQueue(t.buildPayload());
-    if (upload === 'sent') {
-      // Une course précédente attend peut-être encore son envoi : on en profite.
-      void retryPendingUpload();
+    const payload = t.buildPayload();
+    const upload = await uploadOrQueue(payload);
+    if (upload.status === 'sent') {
+      void drainPendingUploadQueue();
     }
-    // Purge des clés de CETTE course — sauf si le payload n'est NULLE PART
-    // ailleurs ('lost' : stockage KO, le buffer reste le dernier filet).
-    if (upload !== 'lost') {
+    if (upload.status !== 'lost') {
       await clearCurrentRun();
-      // Une course interrompue encore en attente de choix garde son buffer :
-      // elle sera re-proposée au prochain GO (jamais effacée sans décision).
       if (pendingStoredRef.current === null) await clearActiveRun();
     }
     return {
       distanceM: snap.distanceM,
       durationS: snap.activeS,
-      // Message discret « Course enregistrée — envoi dès que possible » —
-      // anti-shame, jamais bloquant.
-      uploadQueued: upload === 'queued' || upload === 'lost',
+      uploadQueued: upload.status === 'queued' || upload.status === 'lost',
+      clientRunId: t.runId,
+      ingestSent: upload.status === 'sent',
     };
   }, [stopSensors, uploadOrQueue]);
 
@@ -422,6 +416,7 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
       dismissBackground,
       togglePause,
       finish,
+      traceGeo: t.traceGeo(),
     },
   };
 }

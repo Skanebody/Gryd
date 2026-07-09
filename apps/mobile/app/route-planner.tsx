@@ -29,6 +29,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
+  FEATURE_KEYS,
   fontSizes,
   gameColors,
   radii,
@@ -40,6 +41,8 @@ import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { formatInt } from '../src/ui/format';
 import { ToastHost, useToast } from '../src/features/social/Toast';
+import { usePremiumGate } from '../src/features/monetization/usePremiumGate';
+import { SoftPaywall } from '../src/ui/SoftPaywall';
 import { RoutePlannerMap } from '../src/features/route/RoutePlannerMap';
 import {
   PRIORITY_BY_ROUTE_ID,
@@ -56,6 +59,10 @@ import {
   routeSocialName,
   type RouteDistanceOption,
 } from '../src/features/route/demo';
+import {
+  recommendRoutes,
+  recommendedRouteId,
+} from '../src/features/route/recommend';
 import {
   POPULAR_ROUTES_DEMO,
   crewsTakenLabel,
@@ -170,9 +177,14 @@ export default function RoutePlannerScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
+  const advancedRoute = usePremiumGate(FEATURE_KEYS.routeBuilderAdvanced);
+  const [routePaywallDismissed, setRoutePaywallDismissed] = useState(false);
 
-  // Route sélectionnée : l'entrée `?type=` (War Room) présélectionne la bonne.
-  const initialId = useMemo(() => routeIdForType(params.type), [params.type]);
+  // Route sélectionnée : reco moteur, ou entrée War Room `?type=`.
+  const initialId = useMemo(() => {
+    if (params.type) return routeIdForType(params.type);
+    return recommendedRouteId('conquerir') ?? ROUTES_DEMO[0]!.id;
+  }, [params.type]);
   const [routeId, setRouteId] = useState(initialId);
   const route =
     ROUTES_DEMO.find((r) => r.id === routeId) ?? ROUTES_DEMO[ROUTES_DEMO.length - 1];
@@ -195,6 +207,10 @@ export default function RoutePlannerScreen() {
   const priority: RoutePriority = PRIORITY_BY_ROUTE_ID[route.id] ?? 'capture';
   // Objectif actif (AMENDEMENT-12 §A) : DÉRIVÉ de la route sélectionnée.
   const objective = routeObjective(route);
+  const recommendation = useMemo(
+    () => recommendRoutes(objective),
+    [objective],
+  );
 
   const selectRoute = (id: string) => {
     if (id === routeId) return;
@@ -270,6 +286,11 @@ export default function RoutePlannerScreen() {
         <Text style={styles.summary} numberOfLines={2}>
           {routeSummary(route)}
         </Text>
+        {recommendation && recommendation.recommended.id === route.id && recommendation.whyThis.length > 0 ? (
+          <Text style={styles.recoWhy} numberOfLines={2}>
+            {recommendation.whyThis.join(' · ')}
+          </Text>
+        ) : null}
       </View>
 
       {/* ── Carte usage réel : la route écrase tout (RoutePlannerMap) ── */}
@@ -378,51 +399,60 @@ export default function RoutePlannerScreen() {
           </Text>
         </Pressable>
 
-        {/* ── Boucles populaires (AMENDEMENT-32 §2) : tracés crowd-sourcés que
-            les crews réussissent le mieux. Tap = sélectionne la route (flux
-            existant). Signal SOCIAL, jamais un avantage acheté (anti P2W). ── */}
-        <SectionLabel icon="crew" label="BOUCLES POPULAIRES" />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.popularRow}
-        >
-          {POPULAR_ROUTES_DEMO.map((pop) => {
-            const target = popularRouteTarget(pop);
-            if (!target) return null;
-            const selected = target.id === route.id;
-            const crews = crewsTakenLabel(pop);
-            return (
-              <Pressable
-                key={pop.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Boucle populaire ${pop.name} — ${popularStats(target)}, ${crews}`}
-                onPress={() => selectRoute(target.id)}
-                style={({ pressed }) => [
-                  styles.popularCard,
-                  selected && styles.popularCardSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.popularName} numberOfLines={1}>
-                  {pop.name}
-                </Text>
-                <Text style={styles.popularStats} numberOfLines={1}>
-                  {popularStats(target)}
-                </Text>
-                <View style={styles.popularCrews}>
-                  <Icon name="serie" size={12} color={colors.chartreuse} />
-                  <Text style={styles.popularCrewsText} numberOfLines={1}>
-                    {crews}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* ── Boucles populaires + options avancées (GRYD Club) ── */}
+        {advancedRoute.available ? (
+          <>
+            <SectionLabel icon="crew" label="BOUCLES POPULAIRES" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.popularRow}
+            >
+              {POPULAR_ROUTES_DEMO.map((pop) => {
+                const target = popularRouteTarget(pop);
+                if (!target) return null;
+                const selected = target.id === route.id;
+                const crews = crewsTakenLabel(pop);
+                return (
+                  <Pressable
+                    key={pop.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`Boucle populaire ${pop.name} — ${popularStats(target)}, ${crews}`}
+                    onPress={() => selectRoute(target.id)}
+                    style={({ pressed }) => [
+                      styles.popularCard,
+                      selected && styles.popularCardSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.popularName} numberOfLines={1}>
+                      {pop.name}
+                    </Text>
+                    <Text style={styles.popularStats} numberOfLines={1}>
+                      {popularStats(target)}
+                    </Text>
+                    <View style={styles.popularCrews}>
+                      <Icon name="serie" size={12} color={colors.chartreuse} />
+                      <Text style={styles.popularCrewsText} numberOfLines={1}>
+                        {crews}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : !routePaywallDismissed ? (
+          <SoftPaywall
+            trigger="route_planner_advanced"
+            title="Route planner avancé"
+            body="La mission recommandée reste gratuite. GRYD Club débloque boucles populaires, priorités tactiques et contraintes de sécurité."
+            onLater={() => setRoutePaywallDismissed(true)}
+          />
+        ) : null}
 
-        {/* ── Options en chips (génération réelle = V1, sélection démo) ── */}
+        {/* ── Options en chips (distance/forme gratuites ; contraintes premium) ── */}
         <SectionLabel icon="reglages" label="OPTIONS" />
         <View style={styles.chipsRow}>
           {ROUTE_DISTANCE_OPTIONS.map((d) => (
@@ -449,20 +479,22 @@ export default function RoutePlannerScreen() {
               }}
             />
           ))}
-          {ROUTE_CONSTRAINTS.map((c) => (
-            <Chip
-              key={c.key}
-              label={c.label}
-              selected={constraints.includes(c.key)}
-              onPress={() => toggleConstraint(c.key)}
-            />
-          ))}
+          {advancedRoute.available
+            ? ROUTE_CONSTRAINTS.map((c) => (
+                <Chip
+                  key={c.key}
+                  label={c.label}
+                  selected={constraints.includes(c.key)}
+                  onPress={() => toggleConstraint(c.key)}
+                />
+              ))
+            : null}
         </View>
-        {/* Priorités ALIGNÉES sous l'objectif actif (AMENDEMENT-12 §A) :
-            capture/performance/exploration sous Conquérir, défense sous
-            Défendre — plus de catalogue de types (sous-types internes). */}
         <View style={styles.chipsRow}>
-          {PRIORITIES_BY_OBJECTIVE[objective].map((p) => (
+          {(advancedRoute.available
+            ? PRIORITIES_BY_OBJECTIVE[objective]
+            : PRIORITIES_BY_OBJECTIVE[objective].slice(0, 1)
+          ).map((p) => (
             <Chip
               key={p}
               label={ROUTE_PRIORITY_LABELS[p]}
@@ -541,6 +573,7 @@ const styles = StyleSheet.create({
   },
   kpiUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '700' },
   summary: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 17 },
+  recoWhy: { color: gameColors.crew, fontSize: fontSizes.xs, marginTop: 6, lineHeight: 16 },
   mapWrap: {
     height: MAP_HEIGHT,
     borderTopWidth: 1,

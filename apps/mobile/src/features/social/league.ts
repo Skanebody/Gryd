@@ -43,6 +43,20 @@ export interface LeagueBoard {
   rows: readonly LeagueRow[];
 }
 
+/** Tableau vide honnête (live sans données classement). */
+export function emptyLeagueBoard(id: LeagueTabId): LeagueBoard {
+  const meta: Record<LeagueTabId, Pick<LeagueBoard, 'label' | 'kind' | 'valueLabel'>> = {
+    joueurs: { label: 'Joueurs', kind: 'player', valueLabel: 'pts' },
+    crews: { label: 'Crews', kind: 'crew', valueLabel: 'pts' },
+    ville: { label: 'Ville', kind: 'city', valueLabel: 'pts' },
+    france: { label: 'France', kind: 'player', valueLabel: 'pts' },
+    pionniers: { label: 'Pionniers', kind: 'player', valueLabel: 'hexes' },
+    performance: { label: 'Performance', kind: 'player', valueLabel: 'score' },
+  };
+  const m = meta[id];
+  return { id, ...m, rows: [] };
+}
+
 /** Semaine de saison courante (DATA démo — la vraie vient du serveur). */
 export const LEAGUE_SEASON_WEEK = 2;
 

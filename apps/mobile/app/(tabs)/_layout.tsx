@@ -40,6 +40,7 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
+import { BattleLiveSync } from '../../src/features/nav/BattleLiveSync';
 import { FAB_BOTTOM } from '../../src/features/nav/metrics';
 import {
   deriveContextualAction,
@@ -72,6 +73,7 @@ export default function TabsLayout() {
 
   return (
     <View style={styles.root}>
+      <BattleLiveSync />
       <Tabs screenOptions={{ headerShown: false, tabBarStyle: styles.hiddenTabBar }}>
         <Tabs.Screen name="index" options={{ title: 'Carte', tabBarLabel: 'Carte' }} />
         {/* Route `warroom` conservée, label recadré « Missions » (AMENDEMENT-29 §1). */}
