@@ -10,3 +10,4 @@
 - [GRYD_launch_crew_founders.md](./GRYD_launch_crew_founders.md)
 - [GRYD_store_submission.md](./GRYD_store_submission.md)
 - [GRYD_sponsors_partners.md](./GRYD_sponsors_partners.md)
+- [GRYD_free_vs_premium_running_layer.md](./GRYD_free_vs_premium_running_layer.md) — matrice Strava-like : gratuit (jeu) vs premium (analyse/planif)

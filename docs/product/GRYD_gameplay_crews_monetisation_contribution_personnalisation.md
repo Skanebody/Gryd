@@ -21,6 +21,8 @@ Le style, le statut, l’organisation et la contribution peuvent être premium.
 La victoire ne s’achète jamais.
 ```
 
+> **Matrice running (Strava-like) :** voir [GRYD_free_vs_premium_running_layer.md](./GRYD_free_vs_premium_running_layer.md) — ce qui est gratuit (jeu + sécurité + classements core), premium (analyse/planif/cosmétique), et interdit derrière un paywall.
+
 ---
 
 # 1. Logique d’usage : ne pas forcer le choix avant chaque run
