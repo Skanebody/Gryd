@@ -49,6 +49,7 @@ import {
   type RealMapRef,
 } from '../../ui/game';
 import { deriveAutoPlan } from '../nav/runContext';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import {
   TERRITORY_DOT_MAX_ZOOM,
@@ -113,7 +114,18 @@ function buildMarkers(
   points: BattleMapPoints,
   decayAnchor: LatLngPoint | null,
   emph: ModeEmphasis,
+  liveOnly: boolean,
 ): RealMapMarker[] {
+  if (liveOnly) {
+    return [
+      {
+        id: 'ego',
+        lng: EGO_CAMERA.lng,
+        lat: EGO_CAMERA.lat,
+        children: <EgoMarker />,
+      },
+    ];
+  }
   return [
     ...POIS_ON_MAP.map((p) => ({
       id: `poi-${p.kind}`,
@@ -192,6 +204,15 @@ const EMPTY_POINTS: BattleMapPoints = {
   route: [],
 };
 
+const EMPTY_SUMMARY = {
+  held: 0,
+  decay: 0,
+  decayUrgent: 0,
+  contested: 0,
+  objectiveHexes: 0,
+  possiblePoints: 0,
+} as const;
+
 export function MapScreen() {
   // AMENDEMENT-17 §1.2 : calque AUTO au montage selon le plan (défense →
   // calque défense ; sinon route-first). Plus de rangée de filtres à choisir.
@@ -202,10 +223,15 @@ export function MapScreen() {
 
   const liveMap = useLiveMapData('paris');
   const mapEmpty = liveMap?.kind === 'empty';
+  const isLiveMap =
+    isSupabaseConfigured && (liveMap?.kind === 'live' || liveMap?.kind === 'empty');
 
   const { points, summary } = useMemo(() => {
     if (liveMap?.kind === 'live' || liveMap?.kind === 'empty') {
       return { points: EMPTY_POINTS, summary: liveMap.summary };
+    }
+    if (isSupabaseConfigured) {
+      return { points: EMPTY_POINTS, summary: EMPTY_SUMMARY };
     }
     const data = battleMapData();
     return { points: data.points, summary: battleMapSummary(data.collection) };
@@ -235,13 +261,15 @@ export function MapScreen() {
         emph,
         selectedParcours,
         basemap,
-        liveMap?.kind === 'live' || liveMap?.kind === 'empty' ? liveMap.territoryGeo : undefined,
+        liveMap?.kind === 'live' || liveMap?.kind === 'empty' || isSupabaseConfigured
+          ? liveMap?.territoryGeo
+          : undefined,
       ),
     [emph, selectedParcours, basemap, liveMap],
   );
 
   /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
-  const decayAnchor = useMemo(() => decaySablierAnchor(), []);
+  const decayAnchor = useMemo(() => (isLiveMap ? null : decaySablierAnchor()), [isLiveMap]);
 
   /**
    * Vue monde/pays (§4bis) : sous le zoom seuil (le VRAI zoom caméra), les
@@ -255,8 +283,8 @@ export function MapScreen() {
   }, []);
 
   const markers = useMemo(
-    () => (worldView ? [] : buildMarkers(points, decayAnchor, emph)),
-    [points, decayAnchor, emph, worldView],
+    () => (worldView ? [] : buildMarkers(points, decayAnchor, emph, isLiveMap)),
+    [points, decayAnchor, emph, worldView, isLiveMap],
   );
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */

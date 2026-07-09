@@ -1144,9 +1144,7 @@ export default function CrewScreen() {
   const [tab, setTab] = useState<HqTab>('base');
   /** Profil crew effectif (reflète l'édition founder persistée au retour). */
   const crewProfile = useCrewProfile();
-  /** Base horaire figée au montage (ordre stable des messages démo). */
-  const chatNowBase = useMemo(() => Date.now(), []);
-  const chat = useCrewChatLive(chatNowBase, crewMembers);
+  const chat = useCrewChatLive(crewMembers);
   /** Abonne l'écran au store des réactions de don (re-render à chaque Merci). */
   useGiftReactions();
   /** Abonne l'écran aux kudos de conquête (re-render à chaque Respect/Feu/Défends-la). */

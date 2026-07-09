@@ -1,25 +1,30 @@
 /**
- * GRYD — hook fiche crew publique par tag/slug.
+ * GRYD — hook fiche crew publique (Supabase uniquement).
  */
 import { useEffect, useState } from 'react';
 import { useSession } from '../../lib/session';
+import { isBackendLive } from '../../lib/liveMode';
 import { fetchPublicCrewByTag } from './crewDiscoveryApi';
-import { publicCrewForTag, type PublicCrewDemo } from './publicDemo';
+import { type PublicCrewDemo } from './publicDemo';
 
-export function usePublicCrew(tagOrSlug?: string): { crew: PublicCrewDemo; useDemo: boolean } {
-  const { session, configured } = useSession();
-  const useDemo = !configured || session === null;
-  const [crew, setCrew] = useState<PublicCrewDemo>(() => publicCrewForTag(tagOrSlug));
+export function usePublicCrew(tagOrSlug?: string): { crew: PublicCrewDemo | null; loading: boolean } {
+  const { session } = useSession();
+  const canLoad = isBackendLive(session);
+  const [crew, setCrew] = useState<PublicCrewDemo | null>(null);
+  const [loading, setLoading] = useState(canLoad);
 
   useEffect(() => {
-    if (useDemo) {
-      setCrew(publicCrewForTag(tagOrSlug));
+    if (!canLoad || !tagOrSlug) {
+      setCrew(null);
+      setLoading(false);
       return;
     }
-    void fetchPublicCrewByTag(tagOrSlug).then((live) => {
-      setCrew(live ?? publicCrewForTag(tagOrSlug));
-    });
-  }, [tagOrSlug, useDemo]);
+    setLoading(true);
+    void fetchPublicCrewByTag(tagOrSlug)
+      .then(setCrew)
+      .catch(() => setCrew(null))
+      .finally(() => setLoading(false));
+  }, [canLoad, tagOrSlug]);
 
-  return { crew, useDemo };
+  return { crew, loading };
 }

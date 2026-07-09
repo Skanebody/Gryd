@@ -1,28 +1,27 @@
 /**
- * GRYD — hook crew actif (remplace HAS_CREW hardcodé en prod).
+ * GRYD — hook crew actif (live uniquement).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../lib/session';
+import { isBackendLive } from '../../lib/liveMode';
 import { fetchActiveCrew, type ActiveCrewMembership } from './crewApi';
-import { MY_CREW } from './demo';
 
 export interface MyCrewState {
   loading: boolean;
-  /** true = membre d'un crew (réel ou démo). */
   hasCrew: boolean;
   membership: ActiveCrewMembership | null;
-  /** Nom affiché (réel ou démo). */
   crewName: string;
   refresh: () => void;
 }
 
 export function useMyCrew(): MyCrewState {
-  const { session, configured } = useSession();
+  const { session } = useSession();
+  const canLoad = isBackendLive(session);
   const [membership, setMembership] = useState<ActiveCrewMembership | null>(null);
-  const [loading, setLoading] = useState(configured);
+  const [loading, setLoading] = useState(canLoad);
 
   const refresh = useCallback(() => {
-    if (!configured || session === null) {
+    if (!canLoad || session === null) {
       setMembership(null);
       setLoading(false);
       return;
@@ -31,15 +30,17 @@ export function useMyCrew(): MyCrewState {
     void fetchActiveCrew(session.user.id)
       .then(setMembership)
       .finally(() => setLoading(false));
-  }, [configured, session]);
+  }, [canLoad, session]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const demoMode = !configured || session === null;
-  const hasCrew = demoMode ? true : membership !== null;
-  const crewName = membership?.crew.name ?? MY_CREW.name;
-
-  return { loading, hasCrew, membership, crewName, refresh };
+  return {
+    loading,
+    hasCrew: membership !== null,
+    membership,
+    crewName: membership?.crew.name ?? '',
+    refresh,
+  };
 }

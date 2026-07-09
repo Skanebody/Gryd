@@ -248,15 +248,12 @@ const LINKS: readonly ProfileLink[] = [
 export default function ProfilScreen() {
   const { session, configured } = useSession();
   const { membership } = useMyCrew();
-  const { progress, useDemo, stat, unlockedIds } = usePlayerProgress();
+  const { progress, stat, unlockedIds } = usePlayerProgress();
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [shareOpen, setShareOpen] = useState(false);
 
-  const xp = useMemo(() => {
-    if (useDemo) return MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS;
-    return progress?.xp ?? 0;
-  }, [progress?.xp, useDemo]);
+  const xp = useMemo(() => progress?.xp ?? 0, [progress?.xp]);
 
   const runnerLevel = useMemo(() => playerLevelForXp(xp), [xp]);
   const runnerTier = useMemo(() => playerTierForLevel(runnerLevel), [runnerLevel]);
@@ -265,12 +262,12 @@ export default function ProfilScreen() {
     runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
   const levelRatio =
     levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
-  const streakWeeks = useDemo ? STREAK_WEEKS_DEMO : (progress?.streakWeeks ?? 0);
+  const streakWeeks = progress?.streakWeeks ?? 0;
   const streakMultiplier = Math.min(
     1 + streakWeeks * STREAK_MULTIPLIER_STEP,
     STREAK_MULTIPLIER_CAP,
   );
-  const zonesHeld = useDemo ? TERRITORY_KPI.totalZones : stat('hexesCaptured');
+  const zonesHeld = stat('hexesCaptured');
 
   const derivedSkills = useMemo(() => SKILLS.map((s) => deriveSkill(s, stat)), [stat]);
   const skillsUnlockedCount = derivedSkills.filter((s) => s.level > 0).length;
@@ -278,8 +275,7 @@ export default function ProfilScreen() {
 
   /** Profil ÉDITABLE persisté — l'édition depuis /profil-edit se reflète ici. */
   const { profile } = useMyProfile();
-  const seasonRank =
-    !useDemo && progress?.seasonRank != null ? progress.seasonRank : profile.seasonRank;
+  const seasonRank = progress?.seasonRank ?? profile.seasonRank;
   const crewName = membership?.crew.name ?? profile.crewName;
   /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
   const { equipped } = useEquippedCosmetics();
@@ -397,7 +393,7 @@ export default function ProfilScreen() {
           <View style={styles.headerStats}>
             <Text style={styles.headerHold} numberOfLines={1}>
               <Text style={styles.headerHoldNum}>{formatInt(zonesHeld)}</Text>{' '}
-              zones tenues · {useDemo ? TERRITORY_KPI.citiesLabel : profile.city}
+              zones tenues · {profile.city}
             </Text>
             <Text style={styles.headerRank} numberOfLines={1}>
               Rang #{seasonRank} {profile.seasonScope}

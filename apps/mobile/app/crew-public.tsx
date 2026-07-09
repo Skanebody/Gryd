@@ -71,11 +71,29 @@ export default function CrewPublicScreen() {
   const toast = useToast();
   const joinCrew = useJoinPublicCrew();
   const crewParam = typeof params.crew === 'string' ? params.crew : undefined;
-  const { crew } = usePublicCrew(crewParam);
+  const { crew, loading } = usePublicCrew(crewParam);
 
   useEffect(() => {
     screen('crew_public');
   }, []);
+
+  if (loading) {
+    return (
+      <StackScreen title="Crew" icon="crest" kicker="CREW">
+        <Text style={{ color: colors.gris, fontSize: fontSizes.sm }}>Chargement…</Text>
+      </StackScreen>
+    );
+  }
+
+  if (!crew) {
+    return (
+      <StackScreen title="Crew introuvable" icon="crest" kicker="CREW">
+        <Text style={{ color: colors.gris, fontSize: fontSizes.sm }}>
+          Ce crew n'existe pas ou n'est plus recrutable.
+        </Text>
+      </StackScreen>
+    );
+  }
 
   const level = crewLevelForXp(crew.xp);
   const tier = crewFrameTierForLevel(level);

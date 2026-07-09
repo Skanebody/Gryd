@@ -1,40 +1,40 @@
 /**
- * GRYD — hook liste crews découvrables (Supabase ou démo).
+ * GRYD — hook liste crews découvrables (Supabase uniquement).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../lib/session';
+import { isBackendLive } from '../../lib/liveMode';
 import { fetchDiscoverableCrews } from './crewDiscoveryApi';
-import { PUBLIC_CREWS, type PublicCrewDemo } from './publicDemo';
+import { type PublicCrewDemo } from './publicDemo';
 
 export interface DiscoverableCrewsState {
   loading: boolean;
-  useDemo: boolean;
   crews: readonly PublicCrewDemo[];
   refresh: () => void;
 }
 
 export function useDiscoverableCrews(cityId = 'paris'): DiscoverableCrewsState {
-  const { session, configured } = useSession();
-  const useDemo = !configured || session === null;
-  const [loading, setLoading] = useState(configured);
-  const [crews, setCrews] = useState<readonly PublicCrewDemo[]>(PUBLIC_CREWS);
+  const { session } = useSession();
+  const canLoad = isBackendLive(session);
+  const [loading, setLoading] = useState(canLoad);
+  const [crews, setCrews] = useState<readonly PublicCrewDemo[]>([]);
 
   const refresh = useCallback(() => {
-    if (useDemo) {
-      setCrews(PUBLIC_CREWS);
+    if (!canLoad) {
+      setCrews([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     void fetchDiscoverableCrews(cityId)
-      .then((live) => setCrews(live.length > 0 ? live : PUBLIC_CREWS))
-      .catch(() => setCrews(PUBLIC_CREWS))
+      .then(setCrews)
+      .catch(() => setCrews([]))
       .finally(() => setLoading(false));
-  }, [cityId, useDemo]);
+  }, [canLoad, cityId]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return { loading, useDemo, crews, refresh };
+  return { loading, crews, refresh };
 }

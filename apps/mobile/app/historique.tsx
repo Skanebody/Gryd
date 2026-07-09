@@ -67,7 +67,7 @@ function FilterBar({
 
 export default function HistoriqueScreen() {
   const [filter, setFilter] = useState<HistoryFilter>('all');
-  const { loading, useDemo, runsByFilter, countByFilter } = useRunHistory();
+  const { loading, runsByFilter, countByFilter } = useRunHistory();
 
   useEffect(() => {
     screen('historique');
@@ -108,9 +108,7 @@ export default function HistoriqueScreen() {
       ) : list.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
-            {useDemo
-              ? 'Aucune course dans ce filtre pour l’instant.'
-              : 'Aucune course enregistrée — pars courir pour remplir ton historique.'}
+            Aucune course enregistrée — pars courir pour remplir ton historique.
           </Text>
         </View>
       ) : (

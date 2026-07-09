@@ -1,20 +1,14 @@
 /**
- * GRYD — hook historique : runs serveur si connecté, démo sinon.
+ * GRYD — hook historique : runs serveur uniquement (état vide sinon).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../lib/session';
-import {
-  countByFilter,
-  runsByFilter,
-  type HistoryFilter,
-  type RunHistoryEntry,
-} from './demo';
+import { isBackendLive } from '../../lib/liveMode';
+import { type HistoryFilter, type RunHistoryEntry } from './demo';
 import { fetchMyRuns, filterRunEntries } from './runsApi';
 
 export interface RunHistoryState {
   loading: boolean;
-  /** true = pas de backend/session → données démo. */
-  useDemo: boolean;
   entries: readonly RunHistoryEntry[];
   runsByFilter: (filter: HistoryFilter) => readonly RunHistoryEntry[];
   countByFilter: (filter: HistoryFilter) => number;
@@ -22,13 +16,13 @@ export interface RunHistoryState {
 }
 
 export function useRunHistory(): RunHistoryState {
-  const { session, configured } = useSession();
+  const { session } = useSession();
+  const canLoad = isBackendLive(session);
   const [entries, setEntries] = useState<RunHistoryEntry[]>([]);
-  const [loading, setLoading] = useState(configured);
-  const useDemo = !configured || session === null;
+  const [loading, setLoading] = useState(canLoad);
 
   const refresh = useCallback(() => {
-    if (useDemo || session === null) {
+    if (!canLoad || session === null) {
       setEntries([]);
       setLoading(false);
       return;
@@ -37,32 +31,25 @@ export function useRunHistory(): RunHistoryState {
     void fetchMyRuns(session.user.id)
       .then(setEntries)
       .finally(() => setLoading(false));
-  }, [session, useDemo]);
+  }, [canLoad, session]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const listFor = useCallback(
-    (filter: HistoryFilter) => {
-      if (useDemo) return runsByFilter(filter);
-      return filterRunEntries(entries, filter);
-    },
-    [entries, useDemo],
+    (filter: HistoryFilter) => filterRunEntries(entries, filter),
+    [entries],
   );
 
   const countFor = useCallback(
-    (filter: HistoryFilter) => {
-      if (useDemo) return countByFilter(filter);
-      return filterRunEntries(entries, filter).length;
-    },
-    [entries, useDemo],
+    (filter: HistoryFilter) => filterRunEntries(entries, filter).length,
+    [entries],
   );
 
   return {
     loading,
-    useDemo,
-    entries: useDemo ? runsByFilter('all') : entries,
+    entries,
     runsByFilter: listFor,
     countByFilter: countFor,
     refresh,

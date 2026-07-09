@@ -1,46 +1,46 @@
 /**
- * GRYD — hook challenges actifs (Supabase ou démo).
+ * GRYD — hook challenges actifs (Supabase uniquement).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../lib/session';
+import { isBackendLive } from '../../lib/liveMode';
 import { fetchActiveChallenges, findChallengeInList } from './challengesApi';
-import { CHALLENGES, type ChallengeCard } from './demo';
+import { type ChallengeCard } from './demo';
 
 export interface ChallengesState {
   loading: boolean;
-  useDemo: boolean;
   challenges: readonly ChallengeCard[];
   findChallenge: (id: string) => ChallengeCard | undefined;
   refresh: () => void;
 }
 
 export function useChallenges(): ChallengesState {
-  const { session, configured } = useSession();
-  const useDemo = !configured || session === null;
-  const [loading, setLoading] = useState(configured);
-  const [challenges, setChallenges] = useState<readonly ChallengeCard[]>(CHALLENGES);
+  const { session } = useSession();
+  const canLoad = isBackendLive(session);
+  const [loading, setLoading] = useState(canLoad);
+  const [challenges, setChallenges] = useState<readonly ChallengeCard[]>([]);
 
   const refresh = useCallback(() => {
-    if (useDemo || session === null) {
-      setChallenges(CHALLENGES);
+    if (!canLoad || session === null) {
+      setChallenges([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     void fetchActiveChallenges(session.user.id)
-      .then((live) => setChallenges(live.length > 0 ? live : CHALLENGES))
-      .catch(() => setChallenges(CHALLENGES))
+      .then(setChallenges)
+      .catch(() => setChallenges([]))
       .finally(() => setLoading(false));
-  }, [session, useDemo]);
+  }, [canLoad, session]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const findChallenge = useCallback(
-    (id: string) => findChallengeInList(challenges, id) ?? findChallengeInList(CHALLENGES, id),
+    (id: string) => findChallengeInList(challenges, id),
     [challenges],
   );
 
-  return { loading, useDemo, challenges, findChallenge, refresh };
+  return { loading, challenges, findChallenge, refresh };
 }

@@ -53,7 +53,6 @@ import {
   EQUIP_SCOPE_LABEL,
   FEATURED_KEYS,
   INITIAL_EQUIPPED,
-  INITIAL_OWNED,
   equipScopeOf,
   itemByKey,
   itemsInSection,
@@ -75,9 +74,7 @@ import {
   type ActivateArsenalError,
 } from '../src/features/arsenal';
 import { useSession } from '../src/lib/session';
-
-/** Soldes DÉMO (Éclats généreux pour tester skins/frames ; Foulées legacy). */
-const DEMO_WALLET = { eclats: 820, foulees: 2140 } as const;
+import { EMPTY_WALLET } from '../src/lib/liveMode';
 
 /** Puce pleine (le set d'icônes n'a pas de coche — dot chartreuse cohérent DA). */
 function Dot({ color = gameColors.crew, size = 6 }: { color?: string; size?: number }) {
@@ -107,27 +104,27 @@ export default function ArsenalScreen() {
     track(EVENTS.paywallView, { trigger: 'arsenal' });
   }, []);
 
-  const [wallet, setWallet] = useState<{ eclats: number; foulees: number }>(DEMO_WALLET);
+  const [wallet, setWallet] = useState<{ eclats: number; foulees: number }>(EMPTY_WALLET);
   useEffect(() => {
     if (!configured || session === null) {
-      setWallet(DEMO_WALLET);
+      setWallet(EMPTY_WALLET);
       return;
     }
     void fetchUserWallet(session.user.id).then((w) => {
       if (w) setWallet(w);
     });
   }, [configured, session]);
-  const [owned, setOwned] = useState<Set<string>>(() => new Set(INITIAL_OWNED));
+  const [owned, setOwned] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     if (!configured || session === null) {
-      setOwned(new Set(INITIAL_OWNED));
+      setOwned(new Set());
       return;
     }
     void Promise.all([
       fetchOwnedItemKeys(session.user.id),
       fetchEquippedItemKeys(session.user.id),
     ]).then(([ownedKeys, equippedKeys]) => {
-      setOwned(new Set([...INITIAL_OWNED, ...ownedKeys]));
+      setOwned(new Set(ownedKeys));
       if (equippedKeys.length > 0) {
         void hydrateEquippedFromServer(session.user.id);
       }

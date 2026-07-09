@@ -1,14 +1,11 @@
 /**
- * GRYD — hook War Room live avec fallback démo.
+ * GRYD — hook War Room live (états vides si pas de crew / pas de mission).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../lib/session';
+import { isBackendLive } from '../../lib/liveMode';
 import { useMyCrew } from '../crew/useMyCrew';
 import {
-  DEFENSE_MISSION,
-  OFFENSIVE,
-  OPEN_BOUNDARIES,
-  WAR_STATUS,
   type DefenseMissionDemo,
   type OffensiveDemo,
   type OpenBoundaryDemo,
@@ -18,32 +15,31 @@ import { fetchCrewChest, type CrewChestLive } from '../crew/crewLiveApi';
 
 export interface WarRoomLiveState {
   loading: boolean;
-  useDemo: boolean;
-  defenseMission: DefenseMissionDemo;
-  offensive: OffensiveDemo;
+  defenseMission: DefenseMissionDemo | null;
+  offensive: OffensiveDemo | null;
   openBoundaries: readonly OpenBoundaryDemo[];
-  crewRank: number;
+  crewRank: number | null;
   chest: CrewChestLive | null;
   refresh: () => void;
 }
 
 export function useWarRoomLive(): WarRoomLiveState {
-  const { session, configured } = useSession();
+  const { session } = useSession();
   const { membership } = useMyCrew();
-  const useDemo = !configured || session === null || membership === null;
-  const [loading, setLoading] = useState(!useDemo);
-  const [defenseMission, setDefenseMission] = useState(DEFENSE_MISSION);
-  const [offensive, setOffensive] = useState(OFFENSIVE);
-  const [openBoundaries, setOpenBoundaries] = useState<readonly OpenBoundaryDemo[]>(OPEN_BOUNDARIES);
-  const [crewRank, setCrewRank] = useState(WAR_STATUS.crewRank);
+  const canLoad = isBackendLive(session) && membership !== null;
+  const [loading, setLoading] = useState(canLoad);
+  const [defenseMission, setDefenseMission] = useState<DefenseMissionDemo | null>(null);
+  const [offensive, setOffensive] = useState<OffensiveDemo | null>(null);
+  const [openBoundaries, setOpenBoundaries] = useState<readonly OpenBoundaryDemo[]>([]);
+  const [crewRank, setCrewRank] = useState<number | null>(null);
   const [chest, setChest] = useState<CrewChestLive | null>(null);
 
   const refresh = useCallback(() => {
-    if (useDemo || session === null || membership === null) {
-      setDefenseMission(DEFENSE_MISSION);
-      setOffensive(OFFENSIVE);
-      setOpenBoundaries(OPEN_BOUNDARIES);
-      setCrewRank(WAR_STATUS.crewRank);
+    if (!canLoad || session === null || membership === null) {
+      setDefenseMission(null);
+      setOffensive(null);
+      setOpenBoundaries([]);
+      setCrewRank(null);
       setChest(null);
       setLoading(false);
       return;
@@ -54,18 +50,18 @@ export function useWarRoomLive(): WarRoomLiveState {
       fetchCrewChest(membership.crewId),
     ])
       .then(([live, chestLive]) => {
-        setDefenseMission(live.defenseMission ?? DEFENSE_MISSION);
-        setOffensive(live.offensive ?? OFFENSIVE);
-        setOpenBoundaries(live.openBoundaries.length > 0 ? live.openBoundaries : OPEN_BOUNDARIES);
-        setCrewRank(live.crewRank ?? WAR_STATUS.crewRank);
+        setDefenseMission(live.defenseMission);
+        setOffensive(live.offensive);
+        setOpenBoundaries(live.openBoundaries);
+        setCrewRank(live.crewRank);
         setChest(chestLive);
       })
       .finally(() => setLoading(false));
-  }, [membership, session, useDemo]);
+  }, [canLoad, membership, session]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return { loading, useDemo, defenseMission, offensive, openBoundaries, crewRank, chest, refresh };
+  return { loading, defenseMission, offensive, openBoundaries, crewRank, chest, refresh };
 }

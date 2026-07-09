@@ -1,15 +1,11 @@
 /**
- * GRYD — hook chat crew live + fallback démo.
+ * GRYD — hook chat crew live (vide si pas de crew).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from '../../lib/session';
+import { isBackendLive } from '../../lib/liveMode';
 import { useMyCrew } from './useMyCrew';
-import {
-  DEMO_CHAT_MESSAGES,
-  sendChatMessage,
-  type ChatThreadMessage,
-  type CrewChat,
-} from './chatStore';
+import { type ChatThreadMessage, type CrewChat } from './chatStore';
 import { fetchCrewMessages, liveMessageToThread, sendCrewMessage } from './crewSocialApi';
 import { useCrewSocialRealtime } from '../../lib/realtimeRefresh';
 
@@ -22,12 +18,11 @@ function memberNameMap(
 }
 
 export function useCrewChatLive(
-  nowBase: number,
   members: readonly { userId: string; handle: string; displayName: string | null }[],
 ): CrewChat & { refresh: () => void } {
-  const { session, configured } = useSession();
+  const { session } = useSession();
   const { membership } = useMyCrew();
-  const useLive = configured && session !== null && membership !== null;
+  const useLive = isBackendLive(session) && membership !== null;
   const [liveMessages, setLiveMessages] = useState<ChatThreadMessage[]>([]);
   const [loaded, setLoaded] = useState(!useLive);
   const names = useMemo(() => memberNameMap(members), [members]);
@@ -52,25 +47,9 @@ export function useCrewChatLive(
 
   useCrewSocialRealtime(membership?.crewId ?? null, useLive, refresh);
 
-  const messages = useMemo(() => {
-    if (!useLive) {
-      const demo: ChatThreadMessage[] = DEMO_CHAT_MESSAGES.map((m) => ({
-        id: m.id,
-        author: m.author,
-        text: m.text,
-        me: m.me === true,
-        at: nowBase - m.minutesAgo * 60_000,
-        action: m.action,
-        reactions: m.reactions,
-      }));
-      return demo;
-    }
-    return liveMessages;
-  }, [liveMessages, nowBase, useLive]);
-
   const send = useCallback(
     (text: string) => {
-      if (!useLive) return sendChatMessage(text);
+      if (!useLive) return null;
       const trimmed = text.trim();
       if (trimmed.length === 0) return null;
       void sendCrewMessage(trimmed).then((res) => {
@@ -81,5 +60,5 @@ export function useCrewChatLive(
     [refresh, useLive],
   );
 
-  return { messages, loaded, send, refresh };
+  return { messages: liveMessages, loaded, send, refresh };
 }

@@ -69,12 +69,12 @@ export default function ProfilEditScreen() {
   }, []);
 
   const { editable, save } = useMyProfile();
-  const { progress, useDemo, unlockedIds } = usePlayerProgress();
+  const { progress, unlockedIds } = usePlayerProgress();
   const choosable = useMemo(() => choosableBadges(unlockedIds), [unlockedIds]);
   const runnerTier = useMemo(() => {
-    const xp = useDemo ? MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS : (progress?.xp ?? 0);
+    const xp = progress?.xp ?? 0;
     return playerTierForLevel(playerLevelForXp(xp));
-  }, [progress?.xp, useDemo]);
+  }, [progress?.xp]);
   const { equipped, equip } = useEquippedCosmetics();
 
   // Brouillon local initialisé sur les valeurs persistées (reflète les édits déjà faits).
