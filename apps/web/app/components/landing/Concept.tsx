@@ -141,25 +141,16 @@ type LoopStrings = {
 
 const STRINGS: Record<'fr' | 'en', LoopStrings> = {
   fr: {
-    kicker: 'Gameplay loop',
-    title: 'Pas de joystick. Pas de triche. Ton corps est la manette.',
-    sub: 'Cinq gestes, une seule boucle. Chaque course fait bouger la même carte.',
+    kicker: 'Boucle',
+    title: 'Ton corps est la manette.',
+    sub: '5 gestes. 1 carte. Chaque course la fait bouger.',
     stepAria: 'Étape',
     steps: [
-      { name: 'Cours', body: 'Trace ta route. Chaque mètre valide peut capturer.' },
-      {
-        name: 'Capture',
-        body: `Les zones traversées passent à ton crew — verrouillées ${HEX_LOCK_HOURS} h après capture.`,
-      },
-      {
-        name: 'Défends',
-        body: `Les zones non défendues s'effacent avec le temps : ${ZONE_DECAY_DAYS} jours sans passage et la zone redevient neutre.`,
-      },
-      { name: 'Attaque', body: 'Reprends les secteurs adverses et fais tomber leur contrôle.' },
-      {
-        name: 'Domine',
-        body: `Monte au classement de ta ville, ton département, puis la France — la saison dure ${SEASON_DURATION_WEEKS} semaines.`,
-      },
+      { name: 'Cours', body: 'Ta trace = territoire.' },
+      { name: 'Capture', body: `Verrou ${HEX_LOCK_HOURS} h.` },
+      { name: 'Défends', body: `${ZONE_DECAY_DAYS} j sans passage = neutre.` },
+      { name: 'Attaque', body: 'Reprends les secteurs rivaux.' },
+      { name: 'Domine', body: `Saison ${SEASON_DURATION_WEEKS} semaines.` },
     ],
     chips: [
       'Run live · route en cours',
@@ -172,31 +163,22 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
     yourCrew: 'Ton crew',
     rivalTag: 'Rival',
     pointsUnit: 'pts',
-    beforeLabel: 'Avant GRYD',
-    beforeText: 'Tu cours, c’est enregistré.',
+    beforeLabel: 'Avant',
+    beforeText: 'Tu cours. Point.',
     afterLabel: 'Avec GRYD',
-    afterText: 'Tu cours, tu prends un territoire, ton crew avance, la carte change.',
+    afterText: 'Tu cours. Tu prends. La carte bouge.',
   },
   en: {
-    kicker: 'Gameplay loop',
-    title: 'No joystick. No cheating. Your body is the controller.',
-    sub: 'Five moves, one loop. Every run moves the same map.',
+    kicker: 'Loop',
+    title: 'Your body is the controller.',
+    sub: '5 moves. 1 map. Every run shifts it.',
     stepAria: 'Step',
     steps: [
-      { name: 'Run', body: 'Trace your route. Every valid metre can capture.' },
-      {
-        name: 'Capture',
-        body: `The zones you cross flip to your crew — locked for ${HEX_LOCK_HOURS} h after capture.`,
-      },
-      {
-        name: 'Defend',
-        body: `Undefended zones fade over time: ${ZONE_DECAY_DAYS} days without a run and the zone turns neutral.`,
-      },
-      { name: 'Attack', body: 'Take back enemy sectors and break their control.' },
-      {
-        name: 'Dominate',
-        body: `Climb the rankings of your city, your department, then all of France — a season lasts ${SEASON_DURATION_WEEKS} weeks.`,
-      },
+      { name: 'Run', body: 'Your trace = territory.' },
+      { name: 'Capture', body: `${HEX_LOCK_HOURS} h lock.` },
+      { name: 'Defend', body: `${ZONE_DECAY_DAYS} days idle = neutral.` },
+      { name: 'Attack', body: 'Take rival sectors back.' },
+      { name: 'Dominate', body: `${SEASON_DURATION_WEEKS}-week season.` },
     ],
     chips: [
       'Run live · tracing route',
@@ -209,10 +191,10 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
     yourCrew: 'Your crew',
     rivalTag: 'Rival',
     pointsUnit: 'pts',
-    beforeLabel: 'Before GRYD',
-    beforeText: 'You run, it gets logged.',
+    beforeLabel: 'Before',
+    beforeText: 'You run. Done.',
     afterLabel: 'With GRYD',
-    afterText: 'You run, you take territory, your crew advances, the map changes.',
+    afterText: 'You run. You take. The map moves.',
   },
 };
 

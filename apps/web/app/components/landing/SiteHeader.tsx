@@ -19,9 +19,7 @@ import styles from './SiteHeader.module.css';
 const LINKS = [
   { href: '#concept', key: 'concept', icon: 'carte' },
   { href: '#map', key: 'map', icon: 'pin' },
-  { href: '#warroom', key: 'warroom', icon: 'alerte' },
   { href: '#crews', key: 'crews', icon: 'crew' },
-  { href: '#performance', key: 'performance', icon: 'performance' },
   { href: '#waitlist', key: 'access', icon: 'boutique' },
 ] as const satisfies readonly { href: string; key: string; icon: IconName }[];
 

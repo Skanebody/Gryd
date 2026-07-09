@@ -71,8 +71,76 @@
 .sub {
   color: var(--gris);
   font-size: 17px;
-  line-height: 1.65;
-  max-width: 48ch;
+  line-height: 1.5;
+  max-width: 36ch;
+}
+
+.pills {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--ligne);
+  background: color-mix(in srgb, var(--carbone) 88%, transparent);
+  color: var(--blanc);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: pillIn 320ms ease-out forwards;
+}
+
+.trustLine {
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ch);
+}
+
+.ctaPulse {
+  box-shadow: 0 0 0 0 var(--ch40);
+  animation: ctaGlow 2.8s ease-in-out infinite;
+}
+
+@keyframes pillIn {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ctaGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--ch14);
+  }
+  50% {
+    box-shadow: 0 0 0 6px var(--ch14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  .ctaPulse {
+    animation: none;
+  }
 }
 
 .ctas {
@@ -158,6 +226,7 @@
 .simBtn {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   height: 38px;
   padding: 0 18px;
   border: 1px solid var(--ligne);
