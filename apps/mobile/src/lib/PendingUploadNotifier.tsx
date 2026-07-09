@@ -1,24 +1,29 @@
 /**
- * GRYD — toast au lancement si une course hors-ligne vient d'être synchronisée.
+ * GRYD — sync file au lancement + retour foreground (Never lose a run).
  */
 import { useEffect } from 'react';
-import { retryPendingUpload } from '../lib/pendingUpload';
+import { useSession } from './session';
+import { subscribeSyncQueue } from './syncQueue';
 import { ToastHost, useToast } from '../features/social/Toast';
 
 export function PendingUploadNotifier() {
   const toast = useToast();
+  const { session } = useSession();
 
   useEffect(() => {
-    void retryPendingUpload().then((result) => {
-      if (!result.ok) return;
-      const zones = result.zonesCaptured ?? 0;
+    if (session === null) return;
+    return subscribeSyncQueue(({ drained, zonesCaptured }) => {
+      const n = drained;
+      const zones = zonesCaptured;
       toast.show(
-        zones > 0
-          ? `Course synchronisée · +${zones} zones`
-          : 'Course synchronisée',
+        n > 1
+          ? `${n} courses synchronisées`
+          : zones > 0
+            ? `Course synchronisée · +${zones} zones`
+            : 'Course synchronisée',
       );
     });
-  }, []);
+  }, [session, toast]);
 
   return <ToastHost state={toast} />;
 }

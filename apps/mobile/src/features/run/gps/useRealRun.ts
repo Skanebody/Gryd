@@ -28,11 +28,9 @@ import type { LocationSubscription } from 'expo-location';
 import * as Crypto from 'expo-crypto';
 import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
-import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
-import { queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
-import { saveLastRunResult } from '../../../lib/lastRunResult';
-import { notifyMapDataChanged } from '../../../lib/mapRefresh';
+import { queuePendingUpload, drainPendingUploadQueue } from '../../../lib/pendingUpload';
+import { invokeIngestRun } from '../../../lib/ingestRunClient';
 import {
   clearActiveRun,
   clearCurrentRun,
@@ -126,17 +124,10 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
     async (
       payload: IngestRunRequest,
     ): Promise<{ status: 'sent' | 'queued' | 'lost' | 'none'; response?: IngestRunResponse }> => {
-      if (supabase === null || sessionRef.current === null) return { status: 'none' };
-      try {
-        const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
-        if (!error && data !== null && data !== undefined) {
-          const response = data as IngestRunResponse;
-          await saveLastRunResult(payload.clientRunId, response);
-          notifyMapDataChanged();
-          return { status: 'sent', response };
-        }
-      } catch {
-        // Hors-ligne/réseau coupé net → file ci-dessous.
+      if (sessionRef.current === null) return { status: 'none' };
+      const result = await invokeIngestRun(payload);
+      if (result.ok && result.response !== undefined) {
+        return { status: 'sent', response: result.response };
       }
       return (await queuePendingUpload(payload)) ? { status: 'queued' } : { status: 'lost' };
     },
@@ -387,7 +378,7 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
     const payload = t.buildPayload();
     const upload = await uploadOrQueue(payload);
     if (upload.status === 'sent') {
-      void retryPendingUpload();
+      void drainPendingUploadQueue();
     }
     if (upload.status !== 'lost') {
       await clearCurrentRun();

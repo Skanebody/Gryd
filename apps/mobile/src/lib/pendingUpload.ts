@@ -1,63 +1,104 @@
 /**
- * GRYD — envoi différé de fin de course (AMENDEMENT-15 §2, hors-ligne).
+ * GRYD — file d'envoi différé (Never lose a run).
+ * Multi-run : plusieurs payloads en attente (FIFO), idempotents par clientRunId.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
-import { saveLastRunResult } from './lastRunResult';
-import { notifyMapDataChanged } from './mapRefresh';
-import { supabase } from './supabase';
+import type { IngestRunRequest } from '@klaim/shared';
+import { invokeIngestRun } from './ingestRunClient';
 
-const PENDING_UPLOAD_KEY = 'gryd.pendingUpload.v1';
+const QUEUE_KEY = 'gryd.pendingUploadQueue.v1';
+const LEGACY_KEY = 'gryd.pendingUpload.v1';
 
 export interface PendingUploadResult {
   ok: boolean;
   clientRunId?: string;
   zonesCaptured?: number;
+  drained?: number;
 }
 
-export async function queuePendingUpload(payload: IngestRunRequest): Promise<boolean> {
+async function readQueue(): Promise<IngestRunRequest[]> {
   try {
-    await AsyncStorage.setItem(PENDING_UPLOAD_KEY, JSON.stringify(payload));
+    const raw = await AsyncStorage.getItem(QUEUE_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((p) => typeof (p as IngestRunRequest)?.clientRunId === 'string');
+      }
+    }
+    const legacy = await AsyncStorage.getItem(LEGACY_KEY);
+    if (legacy !== null) {
+      const one = JSON.parse(legacy) as IngestRunRequest;
+      if (typeof one?.clientRunId === 'string') {
+        await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify([one]));
+        await AsyncStorage.removeItem(LEGACY_KEY);
+        return [one];
+      }
+    }
+  } catch {
+    // corruption → file vide
+  }
+  return [];
+}
+
+async function writeQueue(queue: IngestRunRequest[]): Promise<boolean> {
+  try {
+    if (queue.length === 0) {
+      await AsyncStorage.removeItem(QUEUE_KEY);
+      return true;
+    }
+    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
     return true;
   } catch {
     return false;
   }
 }
 
+export async function pendingUploadCount(): Promise<number> {
+  const q = await readQueue();
+  return q.length;
+}
+
+export async function hasPendingUpload(): Promise<boolean> {
+  return (await pendingUploadCount()) > 0;
+}
+
+export async function queuePendingUpload(payload: IngestRunRequest): Promise<boolean> {
+  const queue = await readQueue();
+  const withoutDup = queue.filter((p) => p.clientRunId !== payload.clientRunId);
+  return writeQueue([...withoutDup, payload]);
+}
+
+/** Envoie le plus ancien payload en attente. */
 export async function retryPendingUpload(): Promise<PendingUploadResult> {
-  if (supabase === null) return { ok: false };
-  let payload: IngestRunRequest | null = null;
-  try {
-    const raw = await AsyncStorage.getItem(PENDING_UPLOAD_KEY);
-    if (raw === null) return { ok: false };
-    payload = JSON.parse(raw) as IngestRunRequest;
-  } catch {
-    return { ok: false };
+  const queue = await readQueue();
+  if (queue.length === 0) return { ok: false };
+
+  const [head, ...rest] = queue;
+  if (head === undefined) return { ok: false };
+
+  const result = await invokeIngestRun(head);
+  if (!result.ok) return { ok: false };
+
+  await writeQueue(rest);
+  const zonesCaptured =
+    result.response !== undefined
+      ? result.response.hexes.claimed +
+        result.response.hexes.stolen +
+        result.response.hexes.defended
+      : 0;
+  return { ok: true, clientRunId: head.clientRunId, zonesCaptured, drained: 1 };
+}
+
+/** Vide toute la file (FIFO) — appelé au reconnect / lancement. */
+export async function drainPendingUploadQueue(max = 20): Promise<PendingUploadResult> {
+  let drained = 0;
+  let last: PendingUploadResult = { ok: false };
+  for (let i = 0; i < max; i++) {
+    const r = await retryPendingUpload();
+    if (!r.ok) break;
+    last = r;
+    drained += 1;
   }
-  if (typeof payload?.clientRunId !== 'string') {
-    try {
-      await AsyncStorage.removeItem(PENDING_UPLOAD_KEY);
-    } catch {
-      // no-op
-    }
-    return { ok: false };
-  }
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session === null) return { ok: false };
-    const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
-    if (error) return { ok: false };
-    let zonesCaptured = 0;
-    if (data !== null && data !== undefined) {
-      const response = data as IngestRunResponse;
-      zonesCaptured =
-        response.hexes.claimed + response.hexes.stolen + response.hexes.defended;
-      await saveLastRunResult(payload.clientRunId, response);
-      notifyMapDataChanged();
-    }
-    await AsyncStorage.removeItem(PENDING_UPLOAD_KEY);
-    return { ok: true, clientRunId: payload.clientRunId, zonesCaptured };
-  } catch {
-    return { ok: false };
-  }
+  if (drained === 0) return { ok: false };
+  return { ...last, drained };
 }

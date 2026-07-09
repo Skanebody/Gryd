@@ -126,3 +126,22 @@ export const ENTITLEMENT_SOURCES = {
 } as const;
 
 export type EntitlementSource = (typeof ENTITLEMENT_SOURCES)[keyof typeof ENTITLEMENT_SOURCES];
+
+/** Features accordées par GRYD Club (abonnement — pas le gameplay territorial). */
+export const CLUB_GRANTED_FEATURES: readonly FeatureKey[] = [
+  FEATURE_KEYS.advancedStats,
+  FEATURE_KEYS.advancedHistory,
+  FEATURE_KEYS.leaderboardFilters,
+  FEATURE_KEYS.advancedGoals,
+  FEATURE_KEYS.routeBuilderAdvanced,
+] as const;
+
+/** Features accordées par GRYD Pass (saison — V1.5, quand SKU actif). */
+export const PASS_GRANTED_FEATURES: readonly FeatureKey[] = [
+  ...CLUB_GRANTED_FEATURES,
+  FEATURE_KEYS.advancedRoutes,
+  FEATURE_KEYS.routeReroll,
+  FEATURE_KEYS.savedRoutesUnlimited,
+  FEATURE_KEYS.customChallenges,
+  FEATURE_KEYS.premiumReplay,
+] as const;
