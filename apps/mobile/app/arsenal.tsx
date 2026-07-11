@@ -46,21 +46,19 @@ import {
   type ArsenalPriceCurrency,
 } from '../src/ui/game';
 import {
-  ARSENAL_SECTIONS,
+  ARSENAL_NEED_OPTIONS,
   BOOST_CHEST_BONUS_LABEL,
   EQUIP_SCOPE_LABEL,
-  FEATURED_KEYS,
-  INITIAL_EQUIPPED,
-  INITIAL_OWNED,
   equipScopeOf,
-  itemByKey,
-  itemsInSection,
+  explainArsenalItem,
+  rankArsenalItems,
+  useArsenalInventory,
+  useArsenalSignals,
   type ArsenalCatalogItem,
-  type EquipScope,
+  type ArsenalNeedKey,
+  type ArsenalPlayerSignals,
+  type ArsenalRecommendation,
 } from '../src/features/arsenal';
-
-/** Soldes DÉMO (Éclats généreux pour tester skins/frames ; Foulées legacy). */
-const DEMO_WALLET = { eclats: 820, foulees: 2140 } as const;
 
 /** Puce pleine (le set d'icônes n'a pas de coche — dot chartreuse cohérent DA). */
 function Dot({ color = gameColors.crew, size = 6 }: { color?: string; size?: number }) {
@@ -88,11 +86,6 @@ export default function ArsenalScreen() {
     track(EVENTS.paywallView, { trigger: 'arsenal' });
   }, []);
 
-  const [wallet, setWallet] = useState<{ eclats: number; foulees: number }>(DEMO_WALLET);
-  const [owned, setOwned] = useState<Set<string>>(() => new Set(INITIAL_OWNED));
-  const [equipped, setEquipped] = useState<Partial<Record<EquipScope, string>>>(
-    () => ({ ...INITIAL_EQUIPPED }),
-  );
   /** Item ouvert en détail (sheet). */
   const [detail, setDetail] = useState<ArsenalCatalogItem | null>(null);
   /** Devise choisie dans le détail (items double-prix : Éclats OU €). */
@@ -104,6 +97,11 @@ export default function ArsenalScreen() {
   /** Item en cours d'offrande au crew (flux gifting). */
   const [gifting, setGifting] = useState<ArsenalCatalogItem | null>(null);
   const [giftAnonymous, setGiftAnonymous] = useState(false);
+  /** Besoin exploré : l'écran démarre toujours sur le conseil algorithmique. */
+  const [selectedNeed, setSelectedNeed] = useState<ArsenalNeedKey>('for_you');
+  const { signals: arsenalSignals, loading: arsenalSignalsLoading } = useArsenalSignals();
+  const arsenalInventory = useArsenalInventory();
+  const { wallet, ownedKeys: owned, equipped } = arsenalInventory;
 
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -143,20 +141,19 @@ export default function ArsenalScreen() {
       const price = priceFor(item, currency);
       if (!price) return;
       if (price.currency === 'eclats') {
-        if (wallet.eclats < price.amount) {
+        if (!arsenalInventory.spendEclats(price.amount)) {
           haptics.light();
           flashNotice('Éclats insuffisants — un pack d’Éclats les recharge.');
           return;
         }
-        setWallet((w) => ({ ...w, eclats: w.eclats - price.amount }));
       }
       // EUR : pas de vrai débit en démo (O3), on révèle directement le loot.
       haptics.success();
-      setOwned((s) => new Set(s).add(item.key));
+      arsenalInventory.grantLocalItem(item.key);
       setDetail(null);
       flashLoot(item, 'buy');
     },
-    [wallet.eclats, flashLoot, flashNotice],
+    [arsenalInventory, wallet.eclats, flashLoot, flashNotice],
   );
 
   /** Équiper un skin/frame/bannière possédé (rendu carte réel = V1). */
@@ -165,11 +162,11 @@ export default function ArsenalScreen() {
       const scope = equipScopeOf(item.key);
       if (scope === null) return;
       haptics.light();
-      setEquipped((e) => ({ ...e, [scope]: item.key }));
+      void arsenalInventory.equipItem(item.key);
       setDetail(null);
       flashLoot(item, 'equip');
     },
-    [flashLoot],
+    [arsenalInventory, flashLoot],
   );
 
   /** Confirme l'offrande au crew (démo) : reveal + message sobre, zéro montant. */
@@ -193,13 +190,34 @@ export default function ArsenalScreen() {
     setDetail(item);
   }, []);
 
-  const featured = useMemo(
-    () => FEATURED_KEYS.map((k) => itemByKey(k)).filter((i): i is ArsenalCatalogItem => !!i),
-    [],
+  const recommendations = useMemo(
+    () =>
+      rankArsenalItems(arsenalSignals, {
+        ownedKeys: owned,
+        equipped,
+        walletEclats: wallet.eclats,
+      }),
+    [arsenalSignals, owned, equipped, wallet.eclats],
+  );
+
+  const primaryRecommendation = recommendations[0];
+  const primaryRecommendationKey = primaryRecommendation?.item.key;
+
+  const visibleRecommendations = useMemo(
+    () => {
+      const entries = recommendations.filter(
+        (entry) =>
+          entry.item.key !== primaryRecommendationKey &&
+          (selectedNeed === 'for_you' || entry.advice.need === selectedNeed),
+      );
+      return selectedNeed === 'for_you' ? entries.slice(0, 5) : entries;
+    },
+    [recommendations, primaryRecommendationKey, selectedNeed],
   );
 
   const renderCard = useCallback(
-    (item: ArsenalCatalogItem, emphasis: 'primary' | 'secondary' = 'secondary') => {
+    (entry: ArsenalRecommendation, emphasis: 'primary' | 'secondary' = 'secondary') => {
+      const { item, advice } = entry;
       const ownedNow = isOwned(item.key);
       const equippedNow = isEquipped(item);
       const canEquip = equipScopeOf(item.key) !== null;
@@ -211,7 +229,11 @@ export default function ArsenalScreen() {
           name={item.name}
           slug={item.slug}
           rarity={item.rarity}
-          usage={item.description}
+          usage={advice.headline}
+          explanation={[
+            { label: 'Effet', text: advice.benefit },
+            { label: 'Limite', text: advice.guardrail },
+          ]}
           limit={item.limit}
           price={buyable ? price : undefined}
           state={item.draft ? 'locked' : item.packOnly && !ownedNow ? 'locked' : 'unlocked'}
@@ -248,8 +270,10 @@ export default function ArsenalScreen() {
         </View>
         <View style={styles.walletDivider} />
         <View style={styles.walletCell}>
-          <Icon name="couronne" size={18} color={colors.gris} />
-          <Text style={styles.walletClubOff}>Club : inactif</Text>
+          <Icon name="couronne" size={18} color={wallet.isClub ? colors.chartreuse : colors.gris} />
+          <Text style={wallet.isClub ? styles.walletClubOn : styles.walletClubOff}>
+            Club : {wallet.isClub ? 'actif' : 'inactif'}
+          </Text>
         </View>
       </View>
 
@@ -282,42 +306,38 @@ export default function ArsenalScreen() {
       ) : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-      {/* ── Sections §25 ── */}
-      {/* §A r.4/14 : UN SEUL gros bouton chartreuse sur l'écran. Il est réservé
-          au tout premier item mis en avant (Featured) ; tous les autres CTA de la
-          boutique passent en secondaire (surface + label blanc), sinon l'écran
-          devient un mur de chartreuse et plus rien ne dit « regarde ici ». */}
-      {ARSENAL_SECTIONS.map((section) => {
-        const items =
-          section.key === 'featured' ? featured : itemsInSection(section.key);
-        if (items.length === 0) return null;
-        const isFeatured = section.key === 'featured';
-        const isPacks = section.key === 'packs';
-        return (
-          <View key={section.key}>
-            <Text style={styles.sectionLabel}>{section.label}</Text>
-            {section.note ? <Text style={styles.sectionNote}>{section.note}</Text> : null}
-            <View style={styles.sectionItems}>
-              {isPacks
-                ? items.map((item) =>
-                    item.contents ? (
-                      <PackCard
-                        key={item.key}
-                        item={item}
-                        owned={isOwned(item.key)}
-                        onView={() => openDetail(item)}
-                      />
-                    ) : (
-                      renderCard(item)
-                    ),
-                  )
-                : items.map((item, index) =>
-                    renderCard(item, isFeatured && index === 0 ? 'primary' : 'secondary'),
-                  )}
-            </View>
-          </View>
-        );
-      })}
+      {/* ── Conseil algorithmique : GRYD choisit d'abord, l'utilisateur explore ensuite. */}
+      {primaryRecommendation ? (
+        <AdvisorCard
+          entry={primaryRecommendation}
+          owned={isOwned(primaryRecommendation.item.key)}
+          equipped={isEquipped(primaryRecommendation.item)}
+          price={priceFor(primaryRecommendation.item, 'eclats')}
+          onView={() => openDetail(primaryRecommendation.item)}
+        />
+      ) : null}
+
+      <Text style={styles.sectionLabel}>EXPLORER PAR BESOIN</Text>
+      <Segmented
+        accessibilityLabel="Besoin Arsenal"
+        tone="surface"
+        scrollable
+        value={selectedNeed}
+        onChange={setSelectedNeed}
+        options={ARSENAL_NEED_OPTIONS}
+        style={styles.needSegmented}
+      />
+      <Text style={styles.sectionNote}>
+        {selectedNeed === 'for_you'
+          ? arsenalSignalsLoading || arsenalInventory.loading
+            ? 'Tri en cours avec ton contexte : carte, crew, streak, partage et solde.'
+            : 'Trié avec ton contexte : carte, crew, streak, solde et items possédés.'
+          : 'Même catalogue, filtré par utilité immédiate. Le détail explique toujours la limite.'}
+      </Text>
+
+      <View style={styles.sectionItems}>
+        {visibleRecommendations.map((entry) => renderCard(entry))}
+      </View>
 
       <Text style={styles.footnote}>
         Aucun objet ne vend des zones, des kilomètres, une victoire ou un rang de ligue —
@@ -341,6 +361,7 @@ export default function ArsenalScreen() {
             {detail ? (
               <ItemDetail
                 item={detail}
+                signals={arsenalSignals}
                 owned={isOwned(detail.key)}
                 equipped={isEquipped(detail)}
                 currency={detailCurrency}
@@ -375,6 +396,7 @@ export default function ArsenalScreen() {
             {gifting ? (
               <GiftFlow
                 item={gifting}
+                signals={arsenalSignals}
                 anonymous={giftAnonymous}
                 onToggleAnonymous={() => setGiftAnonymous((a) => !a)}
                 onConfirm={() => confirmGift(gifting, giftAnonymous)}
@@ -388,62 +410,70 @@ export default function ArsenalScreen() {
   );
 }
 
-// ─── Pack card riche (§19 : Founder/Starter avec contenu) ────────────────────
+function priceLabel(price: { amount: number; currency: ArsenalPriceCurrency } | undefined): string {
+  if (!price) return 'Déjà débloqué ou pack';
+  if (price.currency === 'eur') {
+    return `${price.amount.toLocaleString('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} €`;
+  }
+  return `${formatInt(price.amount)} ${price.currency === 'eclats' ? 'Éclats' : 'Foulées'}`;
+}
 
-function PackCard({
-  item,
+function AdvisorCard({
+  entry,
   owned,
+  equipped,
+  price,
   onView,
 }: {
-  item: ArsenalCatalogItem;
+  entry: ArsenalRecommendation;
   owned: boolean;
+  equipped: boolean;
+  price: { amount: number; currency: ArsenalPriceCurrency } | undefined;
   onView: () => void;
 }) {
-  const isFounder = item.key === 'founder_pack';
+  const { item, advice } = entry;
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onView}
-      style={({ pressed }) => [
-        styles.packCard,
-        isFounder && styles.packCardFounder,
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={styles.packHeader}>
-        <View style={styles.packIcon}>
-          <ArsenalIcon
-            slug={item.slug}
-            size={30}
-            color={isFounder ? gameColors.gold : colors.blanc}
-          />
+    <View style={styles.advisor}>
+      <View style={styles.advisorHeader}>
+        <View style={styles.advisorIcon}>
+          <ArsenalIcon slug={item.slug} size={42} color={colors.blanc} />
         </View>
-        <View style={styles.packHeaderText}>
-          <Text style={styles.packName}>{item.name}</Text>
-          <Text style={styles.packRarity}>
-            {BADGE_TIER_LABEL[item.rarity]}
-            {item.limit ? ` · ${item.limit}` : ''}
+        <View style={styles.advisorTitleWrap}>
+          <Text style={styles.advisorKicker}>CHOISI POUR TOI</Text>
+          <Text style={styles.advisorName}>{item.name}</Text>
+          <Text style={styles.advisorMeta}>
+            {BADGE_TIER_LABEL[item.rarity]} · {owned ? (equipped ? 'Équipé' : 'Possédé') : priceLabel(price)}
           </Text>
         </View>
-        <Text style={styles.packPrice}>
-          {item.priceEur?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-        </Text>
       </View>
-      <View style={styles.packContents}>
-        {(item.contents ?? []).map((line) => (
-          <View key={line} style={styles.packLine}>
-            <Dot />
-            <Text style={styles.packLineText}>{line}</Text>
-          </View>
-        ))}
+
+      <View style={styles.advisorLines}>
+        <ExplanationLine label="Pourquoi" text={advice.whyNow} />
+        <ExplanationLine label="Comment" text={advice.mechanic} />
+        <ExplanationLine label="Sert à" text={advice.benefit} />
+        <ExplanationLine label="Limite" text={advice.guardrail} />
       </View>
-      <View style={styles.packFooter}>
-        <Text style={styles.packFooterNote}>
-          {owned ? 'Dans ton arsenal' : 'Paiement bientôt disponible — aucun avantage de jeu.'}
-        </Text>
-        <Text style={styles.packCta}>{owned ? 'Voir' : 'Détails'}</Text>
-      </View>
-    </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={onView}
+        style={({ pressed }) => [styles.advisorCta, pressed && styles.pressed]}
+      >
+        <Text style={styles.advisorCtaText}>{owned ? 'Gérer l’item' : 'Comprendre et obtenir'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ExplanationLine({ label, text }: { label: string; text: string }) {
+  return (
+    <View style={styles.explainLine}>
+      <Text style={styles.explainLabel}>{label}</Text>
+      <Text style={styles.explainText}>{text}</Text>
+    </View>
   );
 }
 
@@ -451,6 +481,7 @@ function PackCard({
 
 function ItemDetail({
   item,
+  signals,
   owned,
   equipped,
   currency,
@@ -461,6 +492,7 @@ function ItemDetail({
   onClose,
 }: {
   item: ArsenalCatalogItem;
+  signals: ArsenalPlayerSignals;
   owned: boolean;
   equipped: boolean;
   currency: ArsenalPriceCurrency;
@@ -476,6 +508,7 @@ function ItemDetail({
   const dual = item.priceShards !== undefined && item.priceEur !== undefined;
   const hasEclats = item.priceShards !== undefined;
   const hasEur = item.priceEur !== undefined;
+  const advice = explainArsenalItem(item, signals);
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -493,6 +526,14 @@ function ItemDetail({
       </View>
 
       <Text style={styles.detailDesc}>{item.description}</Text>
+
+      <View style={styles.detailExplain}>
+        <ExplanationLine label="Usage" text={advice.headline} />
+        <ExplanationLine label="Comment" text={advice.mechanic} />
+        <ExplanationLine label="Sert à" text={advice.benefit} />
+        <ExplanationLine label="Pourquoi" text={advice.whyNow} />
+        <ExplanationLine label="Limite" text={advice.guardrail} />
+      </View>
 
       {item.limit ? (
         <View style={styles.detailChip}>
@@ -619,18 +660,21 @@ function ItemDetail({
 
 function GiftFlow({
   item,
+  signals,
   anonymous,
   onToggleAnonymous,
   onConfirm,
   onCancel,
 }: {
   item: ArsenalCatalogItem;
+  signals: ArsenalPlayerSignals;
   anonymous: boolean;
   onToggleAnonymous: () => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   const isBoost = item.section === 'crew_boosts' && item.key.startsWith('crew_boost');
+  const advice = explainArsenalItem(item, signals);
   return (
     <View>
       <View style={styles.sheetHandle} />
@@ -647,6 +691,12 @@ function GiftFlow({
           </Text>
           <Text style={styles.giftDesc}>{item.description}</Text>
         </View>
+      </View>
+
+      <View style={styles.giftExplain}>
+        <ExplanationLine label="Effet" text={advice.benefit} />
+        <ExplanationLine label="Comment" text={advice.mechanic} />
+        <ExplanationLine label="Limite" text={advice.guardrail} />
       </View>
 
       {/* Copy contribution gelée §28 */}
@@ -719,6 +769,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   walletLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
+  walletClubOn: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
   walletClubOff: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   walletDivider: { width: 1, height: 34, backgroundColor: colors.grisLigne },
   // Bannière doctrine (§28) : plus de boîte — texte posé sur l'ESPACE avec un
@@ -735,6 +786,57 @@ const styles = StyleSheet.create({
   bannerSoft: { color: colors.gris, fontSize: fontSizes.sm },
   loot: { marginTop: 10 },
   notice: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 10, textAlign: 'center' },
+  advisor: {
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: borderState.activeSoft,
+    padding: 16,
+    gap: 14,
+    marginTop: 14,
+  },
+  advisorHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  advisorIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: elevation.raised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  advisorTitleWrap: { flex: 1, gap: 2 },
+  advisorKicker: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+  },
+  advisorName: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800' },
+  advisorMeta: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  advisorLines: {
+    gap: 9,
+    borderTopWidth: 1,
+    borderTopColor: borderState.hairline,
+    paddingTop: 12,
+  },
+  explainLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  explainLabel: {
+    width: 70,
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  explainText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 19 },
+  advisorCta: {
+    height: 48,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  advisorCtaText: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -749,6 +851,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 10,
   },
+  needSegmented: { marginBottom: 10 },
   sectionItems: { gap: 10 },
   footnote: {
     color: colors.gris,
@@ -756,53 +859,9 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.xs * 1.6,
     marginTop: 22,
   },
-
-  // Pack cards riches — N1 qui flotte, sans contour. Founder = rareté LEGEND :
-  // un filet or (N3, état de rareté) est la SEULE exception 80/20 autorisée.
-  packCard: {
-    backgroundColor: elevation.surface,
-    borderRadius: radii.card,
-    padding: 16,
-    gap: 14,
-  },
-  packCardFounder: { borderWidth: 1, borderColor: gameColors.gold },
   pressed: { opacity: 0.85 },
-  packHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  // Disque N2 relevé (pas de boîte encadrée = pas de card-dans-card).
-  packIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: elevation.raised,
-  },
-  packHeaderText: { flex: 1 },
-  packName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  packRarity: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: 2,
-  },
-  packPrice: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800' },
-  packContents: { gap: 7 },
   packLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   packLineText: { color: colors.blanc, fontSize: fontSizes.sm, flex: 1 },
-  // Séparateur = filet HAIRLINE discret (règle : un filet sépare, il n'encadre pas).
-  packFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: borderState.hairline,
-    paddingTop: 12,
-  },
-  packFooterNote: { color: colors.gris, fontSize: fontSizes.xs, flex: 1 },
-  packCta: { color: gameColors.crew, fontSize: fontSizes.sm, fontWeight: '700' },
 
   // Sheets (détail + gifting)
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
@@ -848,6 +907,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   detailDesc: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20, marginBottom: 12 },
+  detailExplain: {
+    gap: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: borderState.hairline,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
   // Chip N2 relevé, sans contour (info légère, pas un état).
   detailChip: {
     flexDirection: 'row',
@@ -930,6 +997,14 @@ const styles = StyleSheet.create({
   giftPreviewText: { flex: 1 },
   giftEffect: { color: gameColors.crew, fontSize: fontSizes.sm, fontWeight: '800' },
   giftDesc: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 16 },
+  giftExplain: {
+    gap: 9,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: borderState.hairline,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
   // Copy de contribution = texte posé sur l'espace, plus de boîte encadrée.
   giftContribBox: {
     paddingVertical: 4,

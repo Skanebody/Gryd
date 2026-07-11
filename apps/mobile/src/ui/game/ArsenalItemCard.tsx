@@ -109,6 +109,8 @@ export interface ArsenalItemCardProps {
   rarity: BadgeTier;
   /** Usage en une ligne (« Protège un cluster 48 h »). */
   usage: string;
+  /** Explication compacte visible sans ouvrir le détail. */
+  explanation?: readonly { label: string; text: string }[];
   /** Limite anti-abus (« 1 / semaine ») — objets capés doc §20. */
   limit?: string;
   /** Prix (absent = gratuit/débloqué par le jeu). Devise EUR = pack payant réel. */
@@ -143,6 +145,7 @@ export function ArsenalItemCard({
   icon,
   rarity,
   usage,
+  explanation,
   limit,
   price,
   state = 'unlocked',
@@ -198,16 +201,26 @@ export function ArsenalItemCard({
           )}
         </View>
         <View style={styles.body}>
-          <Text style={[styles.name, locked && styles.nameDim]} numberOfLines={1}>
+          <Text style={[styles.name, locked && styles.nameDim]}>
             {name}
           </Text>
-          <Text style={styles.rarity} numberOfLines={1}>
+          <Text style={styles.rarity}>
             {BADGE_TIER_LABEL[rarity]}
             {limit ? ` · Limite : ${limit}` : ''}
           </Text>
-          <Text style={styles.usage} numberOfLines={2}>
+          <Text style={styles.usage}>
             {usage}
           </Text>
+          {explanation && explanation.length > 0 ? (
+            <View style={styles.explanation}>
+              {explanation.map((line) => (
+                <View key={`${line.label}-${line.text}`} style={styles.explanationLine}>
+                  <Text style={styles.explanationLabel}>{line.label}</Text>
+                  <Text style={styles.explanationText}>{line.text}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
         {showPill ? <StatePill state={pillState} label={pillLabel} /> : null}
       </Pressable>
@@ -301,6 +314,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   usage: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
+  explanation: { gap: 5, marginTop: 7 },
+  explanationLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  explanationLabel: {
+    width: 48,
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+  },
+  explanationText: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   price: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   priceValue: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },

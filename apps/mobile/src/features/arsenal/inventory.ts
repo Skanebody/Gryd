@@ -11,13 +11,15 @@
  * avantage. Un boost n'ajoute QUE de la progression coffre (cosmétique/orga).
  * Le Crew Wall n'affiche JAMAIS de montant ni de classement de payeurs (§14).
  */
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   CREW_BOOSTS,
   CREW_BOOST_CHEST_MULTIPLIER,
   type CrewBoostSku,
 } from '@klaim/shared';
+import { useSession } from '../../lib/session';
+import { supabase } from '../../lib/supabase';
 import {
   ARSENAL_CATALOG,
   itemByKey,
@@ -32,6 +34,7 @@ export type EquipScope = Extract<ArsenalScope, 'zone' | 'route' | 'profile' | 'c
 export const INITIAL_OWNED: readonly string[] = ARSENAL_CATALOG.filter((i) => i.ownedDemo).map(
   (i) => i.key,
 );
+const INITIAL_OWNED_SET: ReadonlySet<string> = new Set(INITIAL_OWNED);
 
 /** Équipement initial : les skins offerts sont équipés par défaut (démo). */
 export const INITIAL_EQUIPPED: Readonly<Partial<Record<EquipScope, string>>> = {
@@ -39,6 +42,15 @@ export const INITIAL_EQUIPPED: Readonly<Partial<Record<EquipScope, string>>> = {
   profile: 'frame_road',
   share: 'template_first_zone',
 };
+
+/** Soldes offline-first pour tester l'Arsenal sans backend configuré. */
+export const DEMO_WALLET = { eclats: 820, foulees: 2140, isClub: false } as const;
+
+export interface ArsenalWallet {
+  eclats: number;
+  foulees: number;
+  isClub: boolean;
+}
 
 /**
  * Portée d'équipement d'un item (skins/frames/bannières/blasons). Les
@@ -218,6 +230,199 @@ export function useEquippedCosmetics(): EquipStore {
   const equip = useCallback(equipCosmetic, []);
   const unequip = useCallback(unequipCosmetic, []);
   return { equipped, loading: !equipLoaded, equip, unequip };
+}
+
+// ─── Inventaire Arsenal complet (serveur si possible, local sinon) ───────────
+
+export type ArsenalInventorySource = 'local' | 'server';
+
+export interface ArsenalInventoryStore {
+  wallet: ArsenalWallet;
+  ownedKeys: ReadonlySet<string>;
+  equipped: EquipMap;
+  source: ArsenalInventorySource;
+  loading: boolean;
+  /** Débite seulement l'overlay local de démo ; le serveur reste lecture seule. */
+  spendEclats: (amount: number) => boolean;
+  /** Ajoute un item à l'overlay local après un achat démo / reveal. */
+  grantLocalItem: (key: string) => void;
+  /** Équipement optimiste local, sans écriture backend. */
+  equipItem: (key: string) => Promise<void>;
+}
+
+interface RemoteInventorySnapshot {
+  wallet: ArsenalWallet;
+  ownedKeys: ReadonlySet<string>;
+  equipped: EquipMap;
+}
+
+type RemoteUserRow = {
+  eclats?: unknown;
+  foulees?: unknown;
+  is_club?: unknown;
+};
+
+type RemoteInventoryRow = {
+  quantity?: unknown;
+  equipped?: unknown;
+  acquired_at?: unknown;
+  items?: { item_key?: unknown } | { item_key?: unknown }[] | null;
+};
+
+function asNumber(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function itemKeyFromInventoryRow(row: RemoteInventoryRow): string | null {
+  const item = Array.isArray(row.items) ? row.items[0] : row.items;
+  const key = item?.item_key;
+  return typeof key === 'string' ? key : null;
+}
+
+async function fetchRemoteInventory(userId: string): Promise<RemoteInventorySnapshot | null> {
+  if (!supabase) return null;
+
+  const [walletResult, inventoryResult] = await Promise.all([
+    supabase
+      .from('users')
+      .select('eclats, foulees, is_club')
+      .eq('id', userId)
+      .maybeSingle(),
+    supabase
+      .from('user_inventory')
+      .select('quantity, equipped, acquired_at, items(item_key)')
+      .eq('user_id', userId)
+      .order('acquired_at', { ascending: false }),
+  ]);
+
+  if (walletResult.error) throw walletResult.error;
+  if (inventoryResult.error) throw inventoryResult.error;
+  if (!walletResult.data) return null;
+
+  const walletRow = walletResult.data as RemoteUserRow;
+  const ownedKeys = new Set<string>();
+  const equipped: EquipMap = {};
+
+  for (const row of (inventoryResult.data ?? []) as RemoteInventoryRow[]) {
+    const key = itemKeyFromInventoryRow(row);
+    const quantity = asNumber(row.quantity) ?? 0;
+    if (!key || quantity <= 0) continue;
+    ownedKeys.add(key);
+    if (row.equipped === true) {
+      const scope = equipScopeOf(key);
+      if (scope !== null && equipped[scope] === undefined) equipped[scope] = key;
+    }
+  }
+
+  return {
+    wallet: {
+      eclats: asNumber(walletRow.eclats) ?? 0,
+      foulees: asNumber(walletRow.foulees) ?? 0,
+      isClub: walletRow.is_club === true,
+    },
+    ownedKeys,
+    equipped,
+  };
+}
+
+function unionOwned(base: ReadonlySet<string>, overlay: ReadonlySet<string>): ReadonlySet<string> {
+  if (overlay.size === 0) return base;
+  return new Set([...base, ...overlay]);
+}
+
+export function useArsenalInventory(): ArsenalInventoryStore {
+  const { equipped: localEquipped, loading: localEquippedLoading, equip } = useEquippedCosmetics();
+  const { session, configured, loading: sessionLoading } = useSession();
+  const [remote, setRemote] = useState<RemoteInventorySnapshot | null>(null);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [ownedOverlay, setOwnedOverlay] = useState<ReadonlySet<string>>(() => new Set());
+  const [equippedOverlay, setEquippedOverlay] = useState<EquipMap>({});
+  const [walletDelta, setWalletDelta] = useState({ eclats: 0, foulees: 0 });
+
+  const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    setOwnedOverlay(new Set());
+    setEquippedOverlay({});
+    setWalletDelta({ eclats: 0, foulees: 0 });
+  }, [userId]);
+
+  useEffect(() => {
+    if (!configured || !userId || !supabase) {
+      setRemote(null);
+      setRemoteLoading(false);
+      return;
+    }
+
+    let alive = true;
+    setRemoteLoading(true);
+    void fetchRemoteInventory(userId)
+      .then((snapshot) => {
+        if (alive) setRemote(snapshot);
+      })
+      .catch(() => {
+        if (alive) setRemote(null);
+      })
+      .finally(() => {
+        if (alive) setRemoteLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [configured, userId]);
+
+  const source: ArsenalInventorySource = remote ? 'server' : 'local';
+  const baseWallet = remote?.wallet ?? DEMO_WALLET;
+  const wallet = useMemo<ArsenalWallet>(
+    () => ({
+      eclats: Math.max(0, baseWallet.eclats + walletDelta.eclats),
+      foulees: Math.max(0, baseWallet.foulees + walletDelta.foulees),
+      isClub: baseWallet.isClub,
+    }),
+    [baseWallet.eclats, baseWallet.foulees, baseWallet.isClub, walletDelta.eclats, walletDelta.foulees],
+  );
+
+  const baseOwned = remote?.ownedKeys ?? INITIAL_OWNED_SET;
+  const ownedKeys = useMemo(() => unionOwned(baseOwned, ownedOverlay), [baseOwned, ownedOverlay]);
+  const baseEquipped = remote?.equipped ?? localEquipped;
+  const equipped = useMemo(() => ({ ...baseEquipped, ...equippedOverlay }), [baseEquipped, equippedOverlay]);
+
+  const spendEclats = useCallback(
+    (amount: number) => {
+      if (amount <= 0) return true;
+      if (wallet.eclats < amount) return false;
+      setWalletDelta((cur) => ({ ...cur, eclats: cur.eclats - amount }));
+      return true;
+    },
+    [wallet.eclats],
+  );
+
+  const grantLocalItem = useCallback((key: string) => {
+    setOwnedOverlay((cur) => new Set(cur).add(key));
+  }, []);
+
+  const equipItem = useCallback(
+    async (key: string) => {
+      const scope = equipScopeOf(key);
+      if (scope === null) return;
+      setEquippedOverlay((cur) => ({ ...cur, [scope]: key }));
+      await equip(key);
+    },
+    [equip],
+  );
+
+  return {
+    wallet,
+    ownedKeys,
+    equipped,
+    source,
+    loading: localEquippedLoading || sessionLoading || remoteLoading,
+    spendEclats,
+    grantLocalItem,
+    equipItem,
+  };
 }
 
 // ─── Crew Boost DÉMO (doc §13.1) ─────────────────────────────────────────────
