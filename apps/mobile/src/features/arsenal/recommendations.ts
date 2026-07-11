@@ -102,7 +102,7 @@ function defaultWhy(signals: ArsenalPlayerSignals, need: ArsenalAdviceNeed): str
         : 'Utile quand le crew prépare une sortie ou veut mieux s’organiser.';
     case 'identity':
       return signals.wantsMapIdentity
-        ? 'Tu personnalises déjà ta trace : GRYD pousse les items visibles dans ton style de run.'
+        ? 'Tu personnalises déjà ta trace : GRYD pousse les objets visibles dans ton style de run.'
         : 'Utile pour rendre ton profil et ta carte plus reconnaissables.';
     case 'share':
       return signals.shareIntent
@@ -157,7 +157,7 @@ export function explainArsenalItem(
       mechanic: 'Le boost s’applique aux contributions de coffre pendant la fenêtre affichée.',
       benefit: `${BOOST_BONUS_LABEL} pendant ${item.key === SKUS.crewBoost24 ? '24 h' : '72 h'}.`,
       whyNow: defaultWhy(signals, 'crew'),
-      guardrail: 'Un seul boost actif, pas de cumul, aucun point leaderboard direct.',
+      guardrail: 'Un seul boost actif, pas de cumul, aucun point de classement direct.',
     };
   }
 
@@ -204,7 +204,7 @@ export function explainArsenalItem(
     return {
       need: 'crew',
       headline: 'Rendre le crew identifiable',
-      mechanic: 'L’item s’équipe côté crew et modifie la vitrine, pas la carte de contrôle.',
+      mechanic: 'L’objet s’équipe côté crew et modifie la vitrine, pas la carte de contrôle.',
       benefit: 'Améliore la vitrine du Crew HQ et les moments de recrutement.',
       whyNow: signals.hasCrew
         ? 'Tu joues en crew : GRYD privilégie ce qui sert au groupe avant les vitrines solo.'
@@ -250,7 +250,7 @@ export function explainArsenalItem(
     return {
       need: 'identity',
       headline: 'Clarifier ton statut de joueur',
-      mechanic: 'L’item s’affiche sur ta Player Card, ton badge ou ton titre.',
+      mechanic: 'L’objet s’affiche sur ta Player Card, ton badge ou ton titre.',
       benefit: 'Habille ta Player Card, ton badge ou ton titre.',
       whyNow: defaultWhy(signals, 'identity'),
       guardrail: 'Statut visuel seulement : le rang se gagne en courant.',
@@ -274,8 +274,8 @@ export function explainArsenalItem(
     return {
       need: 'identity',
       headline: 'Démarrer avec une panoplie claire',
-      mechanic: 'Le pack regroupe plusieurs items pour éviter de choisir chaque pièce séparément.',
-      benefit: 'Regroupe Éclats, skins, frame et templates pour éviter de choisir item par item.',
+      mechanic: 'Le pack regroupe plusieurs objets pour éviter de choisir chaque pièce séparément.',
+      benefit: 'Regroupe Éclats, skins, frame et templates pour éviter de choisir objet par objet.',
       whyNow: defaultWhy(signals, 'identity'),
       guardrail: 'Pack de style et statut : aucune zone, aucun kilomètre, aucun rang.',
     };
@@ -285,9 +285,9 @@ export function explainArsenalItem(
     return {
       need: 'identity',
       headline: 'Recharger la personnalisation',
-      mechanic: 'Tu achètes des Éclats, puis tu les dépenses dans les items de style.',
+      mechanic: 'Tu achètes des Éclats, puis tu les dépenses dans les objets de style.',
       benefit: 'Ajoute des Éclats pour acheter skins, frames et templates.',
-      whyNow: 'À utiliser seulement si ton solde bloque l’item que tu veux vraiment.',
+      whyNow: 'À utiliser seulement si ton solde bloque l’objet que tu veux vraiment.',
       guardrail: 'Les Éclats n’achètent jamais le territoire.',
     };
   }
@@ -295,7 +295,7 @@ export function explainArsenalItem(
   return {
     need: 'identity',
     headline: 'Personnaliser ton expérience',
-    mechanic: 'L’item modifie l’apparence ou le confort d’affichage.',
+    mechanic: 'L’objet modifie l’apparence ou le confort d’affichage.',
     benefit: item.description,
     whyNow: defaultWhy(signals, 'identity'),
     guardrail: 'Aucun effet sur la conquête ou le classement.',

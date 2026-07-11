@@ -1,14 +1,15 @@
 /**
- * GRYD — onglet Profil COMPACT (AMENDEMENT-17 §1.3). Un écran = une identité,
- * pas d'action de course : la Player Card (nom · level · crew · « 55 zones
- * tenues · Paris + Lille » · rang ville) porte deux CTA sobres — [Partager] /
- * [Modifier mon profil], JAMAIS un GO, jamais « Ajouter » sur SON propre
- * profil. Puis 3 modules seulement, ordre AMENDEMENT-17 : Territoire (remonté,
- * intégré haut) → Progression → Badges (3 équipés + « Voir collection », pas de
- * carrousel géant). Les listes longues (collection, historique, perf, amis…)
- * descendent en liens vers des pages dédiées. Niveau/tier/rang DÉRIVÉS des
- * règles réelles (features/crew/rules) — aucun nombre magique local. Zéro
- * position live.
+ * GRYD — onglet Profil COMPACT (AMENDEMENT-17 §1.3). Un écran = une identité :
+ * la carte de joueur (nom · niveau · crew · « 55 zones tenues · Paris + Lille »
+ * · rang ville) porte deux actions sobres — [Partager] / [Modifier profil],
+ * JAMAIS un GO, jamais « Ajouter » sur SON propre profil. Puis les modules,
+ * ordre AMENDEMENT-17 : Territoire (résumé stratégique — il porte le SEUL CTA
+ * chartreuse de l'écran, contextuel Défendre/Conquérir) → Progression → Badges
+ * (3 équipés + « Voir collection ») → Spécialisations. Les listes longues
+ * descendent en liens vers des pages dédiées ; « Confidentialité & géoloc » y
+ * est un accès DIRECT à 1 tap (confiance visible, distinct de Paramètres).
+ * Niveau/tier/rang DÉRIVÉS des règles réelles (features/crew/rules) — aucun
+ * nombre magique local. Zéro position live.
  *
  * RETOUR FONDATEUR : « pas trouvé les boutons pour modifier le profil » → la
  * card porte DEUX affordances d'édition ÉVIDENTES (bouton plein « Modifier mon
@@ -220,9 +221,11 @@ interface ProfileLink {
 }
 
 /**
- * PLUS — toutes les listes longues descendent en liens vers des pages dédiées
- * (AMENDEMENT-17 : « Listes longues → pages dédiées »). Aucun contenu déroulé
- * dans le profil lui-même.
+ * RACCOURCIS — toutes les listes longues descendent en liens vers des pages
+ * dédiées (AMENDEMENT-17 : « Listes longues → pages dédiées »). Aucun contenu
+ * déroulé dans le profil lui-même. « Confidentialité & géoloc » est un accès
+ * DIRECT à 1 tap (audit confiance : la géoloc ne s'enterre pas sous
+ * Paramètres), placé AVANT la boutique.
  */
 const LINKS: readonly ProfileLink[] = [
   // Sortis de la barre (nav 4 slots) — accès depuis « Moi » (décision fondateur).
@@ -231,7 +234,13 @@ const LINKS: readonly ProfileLink[] = [
   { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
   { label: 'Performance', detail: 'Score Forme, records, impact GRYD', icon: 'performance', href: '/performance' },
   { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique', href: '/historique' },
-  { label: 'Arsenal', detail: 'Skins, objets capés, Club — Gear', icon: 'boutique', href: '/arsenal' },
+  {
+    label: 'Confidentialité & géoloc',
+    detail: 'Qui voit quoi, masquer départ/arrivée, couper le live',
+    icon: 'verrou',
+    href: '/confidentialite',
+  },
+  { label: 'Arsenal', detail: 'Skins, objets capés, GRYD Club', icon: 'boutique', href: '/arsenal' },
   {
     label: 'Sources connectées',
     detail: 'GPS, Apple Health, Strava, WHOOP…',
@@ -245,8 +254,8 @@ const LINKS: readonly ProfileLink[] = [
     href: '/support',
   },
   {
-    label: 'Paramètres & confidentialité',
-    detail: 'Zones privées, notifications, compte',
+    label: 'Paramètres',
+    detail: 'Notifications, compte, carte, crew',
     icon: 'reglages',
     href: '/parametres',
   },
@@ -342,7 +351,7 @@ export default function ProfilScreen() {
       >
         <Icon name="reglages" size={22} color={colors.blanc} />
       </Pressable>
-      <TabScreen title={profile.displayName} kicker="PLAYER CARD">
+      <TabScreen title={profile.displayName} kicker="CARTE DE JOUEUR">
         {/* ── Player Card compacte : identité + 2 chiffres clés + rang ── */}
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
@@ -374,10 +383,10 @@ export default function ProfilScreen() {
               <Text style={styles.title} numberOfLines={1}>
                 {displayedTitle}
               </Text>
-              {/* Level · tier · ville : 3 tokens variables. Wrap sur 2 lignes
+              {/* Niveau · tier · ville : 3 tokens variables. Wrap sur 2 lignes
                   plutôt que couper au « … » (Règle §A.9 : jamais tronqué). */}
               <Text style={styles.identity} numberOfLines={2}>
-                Level {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} · {profile.city}
+                Niveau {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} · {profile.city}
               </Text>
               <View style={styles.crewRow}>
                 <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
@@ -406,11 +415,11 @@ export default function ProfilScreen() {
           {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
               de gros rectangle. Le seul gros CTA chartreuse de l'écran est l'action
               CONTEXTUELLE du territoire (Défendre / Conquérir), pas l'édition de profil.
-              JAMAIS un GO, jamais « Ajouter » sur son propre profil. */}
+              Verbe + objet (« Modifier profil », jamais un verbe seul ni un GO). */}
           <View style={styles.headerActions}>
             <IconAction
               icon="profil"
-              label="Modifier"
+              label="Modifier profil"
               accessibilityLabel="Modifier mon profil"
               onPress={openEdit}
             />
@@ -420,7 +429,7 @@ export default function ProfilScreen() {
               accessibilityLabel="Partager ma carte de joueur"
               onPress={() => {
                 setShareOpen((v) => !v);
-                if (!shareOpen) toast.show('Share card prête — capture-la pour la partager');
+                if (!shareOpen) toast.show('Carte de partage prête — capture-la pour la partager');
               }}
             />
           </View>
@@ -571,7 +580,7 @@ export default function ProfilScreen() {
           </Pressable>
         ) : null}
 
-        {/* ── MODULE 2 · PROGRESSION : Level N → N+1, jauge XP réelle ── */}
+        {/* ── MODULE 2 · PROGRESSION : Niveau N → N+1, jauge XP réelle ── */}
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={14} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>PROGRESSION</Text>
@@ -587,7 +596,7 @@ export default function ProfilScreen() {
               </Text>
               <View style={styles.levelRow}>
                 <Text style={styles.levelLabel}>
-                  Level {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
+                  Niveau {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
                   {Math.min(runnerLevel + 1, PLAYER_LEVEL_MAX)}
                 </Text>
                 <Text style={styles.levelXp}>
@@ -606,7 +615,9 @@ export default function ProfilScreen() {
               <Text style={styles.progressStatValue}>
                 {formatMultiplier(streakMultiplier)}
               </Text>
-              <Text style={styles.progressStatLabel}>Série · {STREAK_WEEKS} sem</Text>
+              {/* Même source que le multiplicateur (serveur si session, sinon
+                  démo) — le libellé ne peut pas contredire le chiffre. */}
+              <Text style={styles.progressStatLabel}>Série · {streakWeeks} sem</Text>
             </View>
             <View style={styles.progressStat}>
               <Text style={styles.progressStatValue}>
@@ -667,7 +678,7 @@ export default function ProfilScreen() {
             AUCUN gain de territoire/points affiché (Supporter = entraide only). */}
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={14} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>SKILLS</Text>
+          <Text style={styles.sectionRowLabel}>SPÉCIALISATIONS</Text>
           <Text style={styles.sectionRowCount}>{skillsUnlockedCount}/{SKILLS.length}</Text>
         </View>
         <View style={styles.skillsBlock}>
@@ -724,8 +735,9 @@ export default function ProfilScreen() {
           })}
         </View>
 
-        {/* PLUS — listes longues déportées en pages dédiées */}
-        <Text style={styles.sectionLabel}>PLUS</Text>
+        {/* RACCOURCIS — listes longues déportées en pages dédiées (« PLUS » était
+            un label vague, banni des libellés d'action) */}
+        <Text style={styles.sectionLabel}>RACCOURCIS</Text>
         {LINKS.map((link) => (
           <Pressable
             key={link.label}
@@ -764,13 +776,14 @@ export default function ProfilScreen() {
 const styles = StyleSheet.create({
   dim: { opacity: 0.7 },
 
-  // ── Bouton Paramètres (overlay coin haut-droit, au-dessus du scroll) ──
+  // ── Bouton Paramètres (overlay coin haut-droit, au-dessus du scroll) —
+  //    cible de tap ≥ 44 px (+ hitSlop). ──
   settingsBtn: {
     position: 'absolute',
     right: spacing.cardPadding - 6,
     zIndex: 10,
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -942,8 +955,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: fontSizes.sm * 1.28,
   },
+  // CTA contextuel — cible de tap ≥ 44 px.
   territoryCta: {
     borderRadius: radii.pill,
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 16,
   },

@@ -1,18 +1,23 @@
 /**
- * GRYD — onglet SAISON ACTIONNABLE (AMENDEMENT-29 : ex-League, recadré « la
- * saison » = classement + récompenses + objectifs de saison ; AMENDEMENT-17
- * §1.3). Un écran = une action : l'essentiel (mon rang + l'écart + le rank-up
- * émotionnel + le CTA) tient AU-DESSUS du fold, sans scroll (§A.18). Ordre :
- *   1. Ma ligne « #8 KORO · 342 pts du #7 · ≈ 35 zones peuvent suffire »
- *   2. Rank-up émotionnel juste après (« Tu entres dans le Top 10… ») = l'objectif
- *      de saison à tenir jusqu'au reset
- *   3. CTA [Trouver une route] (JAMAIS un GO — la Saison envoie vers le planner)
- * Puis, en exploration : onglets RÉDUITS (Joueurs / Crews / Ville) + filtre
- * secondaire (Paris / France / Semaine / Saison) ; podium ; top 10 COMPACT (2
- * lignes visibles + « Voir tout ») ; récompenses de fin de saison. L'écart en
- * zones neutres est DÉRIVÉ via POINTS_NEUTRAL_HEX — aucun barème local.
- * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5 : le bouton
- * flottant de course n'apparaît JAMAIS sur Saison).
+ * GRYD — onglet SAISON ACTIONNABLE (AMENDEMENT-29 : ex-League ; AMENDEMENT-17
+ * §1.3). Un écran = UNE décision : le bloc TOI tient au-dessus du fold (§A.18)
+ * et porte UN SEUL objectif (audit zero-friction) :
+ *   1. Ma ligne « #8 KORO · toi · 342 pts du #7 »
+ *   2. UNE phrase-objectif concrète « ≈ 35 zones pour passer LENA_RUN. »
+ *   3. CTA [TROUVER UNE ROUTE] (JAMAIS un GO — la Saison envoie vers le planner)
+ * État #1 dédié : « en tête » + « Défends ton titre… » + CTA [DÉFENDRE MON RANG].
+ * Le rappel de récompense (Top 10 → Badge Paris) vit dans la section Récompenses,
+ * pas dans le bloc TOI (deux objectifs concurrents = friction). Le bloc TOI
+ * n'apparaît QUE sur le board dont il est dérivé (Joueurs·Paris) — jamais figé
+ * au-dessus d'un podium Crews/Ville/France.
+ * En exploration : onglets réduits (Joueurs / Crews / Ville) + portée (Paris /
+ * France) ; podium ; liste COMPACTE fenêtrée AUTOUR de ma ligne (mes voisins
+ * directs, pas des rangs anonymes) + « Voir tout » ; récompenses de fin de
+ * saison datées sur l'horloge unique de l'écran (la semaine de saison).
+ * L'écart en zones neutres est DÉRIVÉ via POINTS_NEUTRAL_HEX — aucun barème
+ * local. Honnêteté : « · DÉMO » dans le kicker quand le board Joueurs est la
+ * démo locale ; note « démonstration » sur les boards sans source serveur.
+ * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -76,13 +81,16 @@ const BOARD = (id: string): LeagueBoard =>
 /**
  * Board Joueurs·Paris = saison active RÉELLE (season_scores via la vue
  * player_leaderboard) quand une session existe, sinon démo — voir
- * useSeasonLeaderboard. La ligne « TOI », l'écart et le rank-up en sont DÉRIVÉS
- * dans le composant (useMemo), car ils dépendent du board dynamique du hook.
+ * useSeasonLeaderboard. La ligne « TOI » et l'écart en sont DÉRIVÉS dans le
+ * composant (useMemo), car ils dépendent du board dynamique du hook.
  * Joueurs·France / Crews / Ville restent démo (aucune source serveur au MVP).
  */
 
-/** Combien de lignes hors podium montrer avant « Voir tout » (compact §1.3). */
+/** Lignes hors podium en compact quand JE n'y figure pas (compact §1.3). */
 const COMPACT_ROWS = 2;
+/** Fenêtre compacte AUTOUR de ma ligne : voisin du dessus + moi + voisin du
+ * dessous — la liste parle de moi, pas de rangs anonymes (audit P2). */
+const COMPACT_WINDOW = 3;
 
 /** Visuel de rang : avatar joueur / blason crew / hex ville. */
 function RowVisual({ row, board, big = false }: {
@@ -197,8 +205,8 @@ export default function LeagueScreen() {
     screen('classement');
   }, []);
 
-  // Board Joueurs·Paris réel (saison active) si session, sinon démo.
-  const { joueursBoard } = useSeasonLeaderboard();
+  // Board Joueurs·Paris réel (saison active) si session, sinon démo (`source`).
+  const { joueursBoard, source } = useSeasonLeaderboard();
 
   const discreet = prefs.discreetMode;
   // Joueurs·Paris = board réel du hook ; France/Crews/Ville restent démo.
@@ -208,7 +216,7 @@ export default function LeagueScreen() {
     return BOARD('ville');
   }, [tab, scope, joueursBoard]);
 
-  // Ma ligne + écart + rank-up, DÉRIVÉS du board Joueurs dynamique (§17).
+  // Ma ligne + écart, DÉRIVÉS du board Joueurs dynamique (§17).
   const meRow = useMemo(() => joueursBoard.rows.find((r) => r.me === true), [joueursBoard]);
   const aboveRow = useMemo(
     () => (meRow ? joueursBoard.rows.find((r) => r.rank === meRow.rank - 1) : undefined),
@@ -217,13 +225,32 @@ export default function LeagueScreen() {
   const gapPoints = meRow && aboveRow ? aboveRow.value - meRow.value : 0;
   const gapHexes = Math.ceil(gapPoints / POINTS_NEUTRAL_HEX);
   const inTop10 = meRow !== undefined && meRow.rank <= 10;
+  const isLeader = meRow !== undefined && meRow.rank === 1;
+
+  // Le bloc TOI est dérivé du board Joueurs·Paris : il ne s'affiche QUE sur ce
+  // board (jamais une ancre joueur figée au-dessus d'un podium Crews/Ville/
+  // France — audit P1). Le #1 garde sa carte : état « en tête » dédié.
+  const onJoueursParis = tab === 'joueurs' && scope === 'paris';
+  const showToi =
+    !discreet && onJoueursParis && meRow !== undefined && (aboveRow !== undefined || isLeader);
 
   // Mode discret §10.3 : je n'apparais JAMAIS dans un leaderboard global.
   const rows = discreet ? board.rows.filter((r) => r.me !== true) : board.rows;
   const listRows = rows.filter((r) => r.rank > 3);
-  const visibleRows = showAll ? listRows : listRows.slice(0, COMPACT_ROWS);
+  // Compact : fenêtre centrée sur MA ligne quand j'y figure (mes voisins
+  // directs), sinon les premières lignes. « Voir tout » déplie le reste.
+  const meListIdx = listRows.findIndex((r) => r.me === true);
+  const windowSize = meListIdx >= 0 ? COMPACT_WINDOW : COMPACT_ROWS;
+  const windowStart =
+    meListIdx >= 0 ? Math.max(0, Math.min(meListIdx - 1, listRows.length - windowSize)) : 0;
+  const visibleRows = showAll ? listRows : listRows.slice(windowStart, windowStart + windowSize);
   const hiddenCount = listRows.length - visibleRows.length;
-  const showToi = !discreet && meRow !== undefined && aboveRow !== undefined;
+  // « ··· » si la fenêtre compacte saute des rangs après le podium (sauf si la
+  // ligne porte déjà sa propre rupture gapBefore).
+  const showLeadEllipsis = !showAll && windowStart > 0 && visibleRows[0]?.gapBefore !== true;
+  // Honnêteté : Crews / Ville / Joueurs·France n'ont AUCUNE source serveur au
+  // MVP — on le dit. (Quand source==='local', le kicker porte déjà « · DÉMO ».)
+  const showDemoNote = source === 'server' && board.id !== 'joueurs';
 
   return (
     <View style={styles.root}>
@@ -239,17 +266,21 @@ export default function LeagueScreen() {
       >
         {/* Header SAISON (AMENDEMENT-29 : ex-« Paris League »). Le TITRE porte le
             nom de l'écran (« Saison ») ; le kicker situe la saison + la semaine +
-            la ville (doc §17). Textes courts non tronqués. */}
+            la ville — l'HORLOGE UNIQUE de l'écran est la semaine de saison.
+            Honnêteté : « · DÉMO » quand le board Joueurs est la démo locale. */}
         <Text style={styles.kicker}>
           SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} ·{' '}
           {CITIES.paris.name.toUpperCase()}
+          {source === 'local' ? ' · DÉMO' : ''}
         </Text>
         <View style={styles.titleRow}>
           <Icon name="classement" size={22} color={colors.blanc} />
           <Text style={styles.title}>Saison</Text>
         </View>
 
-        {/* ── BLOC TOI EN HAUT (sans scroll) : rang + écart + rank-up + CTA ── */}
+        {/* ── BLOC TOI EN HAUT (sans scroll) : rang + UNE phrase-objectif + CTA.
+            3 idées max (§1 : 1 card = 1 idée, ≤ 3 infos) — le rappel Top 10
+            vit dans la section Récompenses, pas ici. ── */}
         {discreet ? (
           <View style={styles.discreetBanner}>
             <Icon name="discret" size={18} color={colors.blanc} />
@@ -263,37 +294,29 @@ export default function LeagueScreen() {
           </View>
         ) : showToi ? (
           <View style={styles.toiCard}>
-            {/* 1 · Mon rang + écart, formulation POSITIVE */}
+            {/* 1 · Mon rang + écart nommé (le #1 lit « en tête »), jamais de honte */}
             <View style={styles.toiTop}>
               <Text style={styles.toiRank}>#{meRow!.rank}</Text>
               <Text style={styles.toiName} numberOfLines={1}>
                 {meRow!.name} · toi
               </Text>
               <Text style={styles.toiGap}>
-                {formatInt(gapPoints)} pts du #{aboveRow!.rank}
+                {isLeader ? 'en tête' : `${formatInt(gapPoints)} pts du #${aboveRow!.rank}`}
               </Text>
             </View>
+
+            {/* 2 · UNE phrase-objectif concrète, cible nommée, sans sur-promesse.
+                Le rappel de récompense (Top 10 → badge) vit dans Récompenses. */}
             <Text style={styles.toiHint}>
-              ≈ {gapHexes} zones peuvent suffire — le prochain run peut le faire.
+              {isLeader
+                ? 'Défends ton titre jusqu’à la fin de la saison.'
+                : `≈ ${formatInt(Math.max(1, gapHexes))} zones pour passer ${aboveRow!.name}.`}
             </Text>
 
-            {/* 2 · Rank-up ÉMOTIONNEL juste après le rang. Ligne LÉGÈRE posée sur
-                la surface (plus de card-dans-card §1) : séparée par l'espace, pas
-                par une boîte. Le seul contour de la scène reste celui du bloc. */}
-            {inTop10 ? (
-              <View style={styles.rankUpRow}>
-                <Icon name="badge" size={16} color={colors.chartreuse} />
-                <Text style={styles.rankUpText}>
-                  Tu entres dans le Top 10. Tiens ton rang jusqu'au reset pour débloquer le{' '}
-                  <Text style={styles.rankUpEmph}>Badge Paris</Text>.
-                </Text>
-              </View>
-            ) : null}
-
-            {/* 3 · CTA contextuel — JAMAIS un GO ; la League mène au planner */}
+            {/* 3 · CTA contextuel — JAMAIS un GO ; la Saison mène au planner */}
             <View style={styles.toiCta}>
               <InlineRunCTA
-                label="TROUVER UNE ROUTE"
+                label={isLeader ? 'DÉFENDRE MON RANG' : 'TROUVER UNE ROUTE'}
                 leading={<Icon name="route" size={18} color={colors.noir} />}
                 onPress={() => router.push('/route-planner')}
               />
@@ -304,7 +327,7 @@ export default function LeagueScreen() {
         {/* ── Exploration : onglets RÉDUITS + filtre secondaire ──
             Groupes de choix = UN Segmented chacun (AMENDEMENT-22 §4), pas N
             rectangles. `tone="surface"` : le seul focus chartreuse fort de la
-            scène est le CTA « Trouver une route » du bloc TOI. */}
+            scène est le CTA du bloc TOI (Trouver une route / Défendre mon rang). */}
         <View style={styles.tabsWrap}>
           <Segmented
             options={PRIMARY_TABS}
@@ -341,11 +364,17 @@ export default function LeagueScreen() {
           </View>
         ) : null}
 
+        {/* Honnêteté : boards sans source serveur = démonstration, on le dit */}
+        {showDemoNote ? (
+          <Text style={styles.demoNote}>Classement de démonstration — pas encore de données réelles.</Text>
+        ) : null}
+
         {/* PODIUM top 3 — remonté à chaque changement de board (key) */}
         <Podium key={board.id} board={board} />
 
-        {/* Rangs 4+ — COMPACT : 2 visibles + « Voir tout » */}
+        {/* Rangs 4+ — COMPACT : fenêtre autour de MA ligne + « Voir tout » */}
         <View style={styles.list}>
+          {showLeadEllipsis ? <Text style={styles.ellipsis}>···</Text> : null}
           {visibleRows.map((row) => (
             <BoardRow key={`${board.id}-${row.rank}`} row={row} board={board} />
           ))}
@@ -363,18 +392,31 @@ export default function LeagueScreen() {
           </Pressable>
         ) : null}
 
-        {/* Récompenses Top 10 (doc §17) — repliées sous le fold */}
+        {/* Récompenses Top 10 (doc §17) — sous le fold, datées sur l'horloge
+            unique de l'écran (semaine de saison, pas de « fin de saison »
+            abstraite). Le rappel « tiens ton rang » vit ICI, lié aux gains —
+            pas dans le bloc TOI où il concurrencerait l'objectif du jour. */}
         <View style={styles.sectionHead}>
           <Icon name="cadeau" size={14} color={colors.gris} />
-          <Text style={styles.sectionLabel}>RÉCOMPENSES TOP 10 · FIN DE SAISON</Text>
+          <Text style={styles.sectionLabel}>
+            RÉCOMPENSES TOP 10 · FIN SEMAINE {SEASON_DURATION_WEEKS}
+          </Text>
         </View>
+        {!discreet && inTop10 && meRow ? (
+          <Text style={styles.rewardHint}>
+            Tu es #{meRow.rank} — reste dans le Top 10 pour les débloquer.
+          </Text>
+        ) : null}
         <View style={styles.rewardList}>
           {TOP10_REWARDS.map((r) => (
             <RewardCard
               key={r.label}
               icon={r.icon}
               label={r.label}
-              sublabel={r.sublabel}
+              // Libellé LOCAL : « reset de saison » (jargon, données démo
+              // league.ts hors périmètre) → « fin de saison », cohérent avec
+              // la copie de l'écran.
+              sublabel={r.sublabel.replace('au reset de saison', 'à la fin de saison')}
               state="inprogress"
             />
           ))}
@@ -430,29 +472,12 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.3,
   },
+  // Phrase-objectif UNIQUE du bloc TOI (cible nommée, pas de sur-promesse).
   toiHint: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
   },
-  // Rank-up : ligne légère posée sur la surface du bloc TOI, séparée par un
-  // filet neutre discret (pas un cadre) — jamais une card-dans-card (§1).
-  rankUpRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-start',
-    marginTop: 2,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
-  },
-  rankUpText: {
-    flex: 1,
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.55,
-  },
-  rankUpEmph: { color: colors.chartreuse, fontWeight: '700' },
   toiCta: { marginTop: 2 },
 
   // ── Bandeau mode discret (AMENDEMENT-07 §10.3) ──
@@ -480,6 +505,14 @@ const styles = StyleSheet.create({
 
   // ── Filtre secondaire (deux strips content-width, séparés par l'espace) ──
   filterRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+
+  // ── Note d'honnêteté : board sans source serveur = démonstration ──
+  demoNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 12,
+  },
 
   // ── Podium en marches ──
   podium: {
@@ -556,7 +589,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  rowValueLabel: { color: colors.gris, fontSize: 10, letterSpacing: 0.4 },
+  // ≥ 12 px partout (accessibilité) — jamais de label sous fontSizes.xs.
+  rowValueLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4 },
 
   // ── « Voir tout » : action LÉGÈRE (§3), pas une card bordée. Texte + compteur
   // + chevron posés sur l'espace, séparés par un simple filet en haut. ──
@@ -606,5 +640,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
+  // Rappel « tiens ton rang » lié aux gains (déplacé hors du bloc TOI).
+  rewardHint: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: -4,
+    marginBottom: 10,
+  },
   rewardList: { gap: 8 },
 });

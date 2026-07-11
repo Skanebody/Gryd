@@ -1,12 +1,16 @@
 /**
  * GRYD — Confidentialité (AMENDEMENT-17 CHANTIER 3). LA page la plus critique :
- * elle gouverne l'exposition de la géolocalisation. Contrôle total, clair, sans
- * jargon. Résumé + détail : chaque groupe est une card repliée (valeur courante
- * visible sans scroll), le détail s'ouvre au tap — une seule ouverte à la fois.
+ * elle gouverne l'exposition de la géolocalisation. Le sous-titre dit le
+ * POURQUOI du GPS (courses → territoire, rien de partagé sans accord). Résumé +
+ * détail : chaque groupe est une card repliée (valeur courante visible sans
+ * scroll), le détail s'ouvre au tap — une seule ouverte à la fois.
  *
  * Au-dessus du fold : MODE PRIVÉ (toggle maître) + Profil + Courses +
- * Départ/arrivée + Position live. Le reste (données sportives/territoire, crew &
- * social, blocage, export/suppression RGPD) se déplie plus bas.
+ * Départ/arrivée + Position live. Plus bas : données sportives/territoire, crew
+ * & social, blocage & signalement ACTIONNABLES ICI (signaler un pseudo avec
+ * motif via reportContent, bloquer via blockMember, débloquer, lien vers le
+ * chat crew pour un message précis), âge minimum affiché, export RGPD réel et
+ * suppression de compte (5.1.1v).
  *
  * Défauts alignés AMENDEMENT-07 (voir store) : position live JAMAIS, FC privée,
  * profil/courses `crew`. Chaque changement est persisté localement (AsyncStorage)
@@ -14,7 +18,7 @@
  * compté même quand une course est masquée).
  */
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -55,9 +59,13 @@ import {
   SOCIAL_AUDIENCE_LABELS,
 } from '../src/features/privacy/labels';
 import {
+  REPORT_REASONS,
   REPORT_REVIEW_HOURS,
+  blockMember,
+  reportContent,
   unblockMember,
   useModeration,
+  type ReportReason,
 } from '../src/features/crew/moderation';
 
 /** Ordres d'options (source des enums = @klaim/shared / store). */
@@ -76,6 +84,11 @@ const RADIUS_OPTS: { value: MaskRadius; label: string }[] = (
 const AUDIENCE_OPTS: { value: SocialAudience; label: string }[] = (
   ['everyone', 'friends', 'crew', 'nobody'] as SocialAudience[]
 ).map((v) => ({ value: v, label: SOCIAL_AUDIENCE_LABELS[v] }));
+/** Motifs de signalement (source unique : store de modération partagé). */
+const REASON_OPTS: { value: ReportReason; label: string }[] = REPORT_REASONS.map((r) => ({
+  value: r.key,
+  label: r.label,
+}));
 
 /** Clés des sections dépliables (une seule ouverte à la fois). */
 type SectionKey =
@@ -101,12 +114,52 @@ export default function ConfidentialiteScreen() {
   // Écran de confirmation de suppression de compte (5.1.1v). Plein écran =
   // 1 écran / 1 décision (§A) : tant qu'il est ouvert, il remplace la page.
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Signalement/blocage ACTIONNABLE depuis la card « Blocage & signalement » :
+  // pseudo saisi + motif choisi → reportContent / blockMember (store partagé
+  // avec le Crew Chat — mêmes données, même traitement sous 24 h).
+  const [targetPseudo, setTargetPseudo] = useState('');
+  const [reportReason, setReportReason] = useState<ReportReason>('spam');
 
   useEffect(() => {
     screen('privacy_settings');
   }, []);
 
   const toggle = (k: SectionKey) => setOpenKey((cur) => (cur === k ? null : k));
+
+  // Signale le pseudo saisi avec le motif choisi (RÉEL : store de modération —
+  // persistance locale + écriture `content_reports` si session). Feedback
+  // immédiat, jamais de promesse morte.
+  const submitReport = () => {
+    const pseudo = targetPseudo.trim();
+    if (pseudo.length === 0) {
+      Alert.alert('Pseudo manquant', 'Entre le pseudo du joueur à signaler.');
+      return;
+    }
+    haptics.medium();
+    reportContent({ kind: 'member', targetId: pseudo, author: pseudo, reason: reportReason });
+    setTargetPseudo('');
+    Alert.alert(
+      'Signalement envoyé',
+      `Merci. Une personne de l'équipe examine ton signalement sous ${REPORT_REVIEW_HOURS} h.`,
+    );
+  };
+
+  // Bloque le pseudo saisi (RÉEL : blockMember, silencieux pour l'autre). Le
+  // joueur apparaît aussitôt dans la liste « Joueurs bloqués » ci-dessous.
+  const submitBlock = () => {
+    const pseudo = targetPseudo.trim();
+    if (pseudo.length === 0) {
+      Alert.alert('Pseudo manquant', 'Entre le pseudo du joueur à bloquer.');
+      return;
+    }
+    haptics.medium();
+    blockMember(pseudo);
+    setTargetPseudo('');
+    Alert.alert(
+      'Joueur bloqué',
+      `${pseudo} ne peut plus te voir, te contacter, ni interagir avec toi. Tu peux le débloquer ici à tout moment.`,
+    );
+  };
 
   // Suppression de compte (Guideline 5.1.1v). RÉEL : si session, on appelle
   // l'Edge Function `delete_account` (service-role) qui supprime auth.users → le
@@ -180,7 +233,7 @@ export default function ConfidentialiteScreen() {
     <StackScreen
       title="Confidentialité"
       icon="verrou"
-      subtitle="Ta géoloc t'appartient. Tout est réglable ici, et fermé par défaut."
+      subtitle="Ta géoloc t'appartient. On la lit pour transformer tes courses en territoire — rien n'est partagé sans ton accord. Tout est fermé par défaut."
     >
       {/* MODE PRIVÉ — toggle maître, tout en haut. */}
       <MasterCard active={prefs.privateMode} onEnable={enablePrivateMode} />
@@ -311,9 +364,11 @@ export default function ConfidentialiteScreen() {
 
       <SectionLabel>CREW & SOCIAL</SectionLabel>
 
+      {/* Titre aligné sur le CONTENU (ajout, invitation, message, statut) —
+          « contacter » était plus étroit que les 4 réglages qu'il couvre. */}
       <DisclosureCard
         icon="crew"
-        title="Qui peut me contacter"
+        title="Qui peut interagir"
         value={SOCIAL_AUDIENCE_LABELS[prefs.whoCanMessage]}
         open={openKey === 'social'}
         onToggle={() => toggle('social')}
@@ -344,17 +399,38 @@ export default function ConfidentialiteScreen() {
         />
       </DisclosureCard>
 
+      {/* Blocage & signalement ACTIONNABLES ICI (la card tient sa promesse) :
+          pseudo saisi + motif → Signaler / Bloquer, liste des bloqués avec
+          Débloquer, et lien direct vers le chat crew pour un message précis. */}
       <DisclosureCard
         icon="bouclier"
         title="Blocage & signalement"
+        value={blocked.length > 0 ? `${blocked.length} bloqué${blocked.length > 1 ? 's' : ''}` : undefined}
         open={openKey === 'block'}
         onToggle={() => toggle('block')}
       >
         <Note>
-          Bloque un joueur pour qu'il ne puisse plus te voir, te contacter, ni interagir avec toi.
-          Signale un message ou un membre depuis le chat de ton crew (menu ··· ou appui long) —
-          chaque signalement est examiné sous {REPORT_REVIEW_HOURS} h.
+          Un joueur bloqué ne peut plus te voir, te contacter, ni interagir avec toi. Chaque
+          signalement est examiné par une personne sous {REPORT_REVIEW_HOURS} h.
         </Note>
+        <Text style={styles.miniLabel}>PSEUDO DU JOUEUR</Text>
+        <TextInput
+          accessibilityLabel="Pseudo du joueur à signaler ou bloquer"
+          value={targetPseudo}
+          onChangeText={setTargetPseudo}
+          placeholder="Ex. K.Runner75"
+          placeholderTextColor={colors.gris}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.pseudoInput}
+        />
+        <Text style={styles.miniLabel}>MOTIF DU SIGNALEMENT</Text>
+        <SelectPills options={REASON_OPTS} value={reportReason} onChange={setReportReason} />
+        <Note>{REPORT_REASONS.find((r) => r.key === reportReason)?.hint ?? ''}</Note>
+        <View style={styles.actionGap}>
+          <GhostButton label="Signaler ce joueur" icon="alerte" onPress={submitReport} />
+          <GhostButton label="Bloquer ce joueur" icon="bouclier" onPress={submitBlock} />
+        </View>
         {blocked.length > 0 ? (
           <>
             <Text style={styles.miniLabel}>JOUEURS BLOQUÉS</Text>
@@ -364,12 +440,14 @@ export default function ConfidentialiteScreen() {
                   {pseudo}
                 </Text>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Débloquer ${pseudo}`}
                   onPress={() => {
                     haptics.light();
                     unblockMember(pseudo);
                   }}
                   hitSlop={8}
-                  style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+                  style={({ pressed }) => [styles.unblockBtn, pressed && styles.pressed]}
                 >
                   <Text style={styles.unblock}>Débloquer</Text>
                 </Pressable>
@@ -377,7 +455,19 @@ export default function ConfidentialiteScreen() {
             ))}
           </>
         ) : null}
+        <View style={styles.divider} />
+        <Note>
+          Pour signaler un message précis, passe par le chat du crew (appui long sur le message).
+        </Note>
         <View style={styles.actionGap}>
+          <GhostButton
+            label="Ouvrir le chat du crew"
+            icon="crew"
+            onPress={() => {
+              haptics.light();
+              router.push('/crew');
+            }}
+          />
           <GhostButton
             label="Lire le code de conduite"
             icon="bouclier"
@@ -390,6 +480,13 @@ export default function ConfidentialiteScreen() {
       </DisclosureCard>
 
       <SectionLabel>MES DONNÉES (RGPD)</SectionLabel>
+
+      {/* Âge minimum SURFACE ici (protection des mineurs) — même règle que
+          l'age-gate de l'onboarding (features/onboarding/content.ts, 16 ans). */}
+      <View style={styles.ageRow}>
+        <Icon name="info" size={16} color={colors.gris} />
+        <Text style={styles.ageText}>Âge minimum : 16 ans — confirmé à ton inscription.</Text>
+      </View>
 
       <DisclosureCard
         icon="reglages"
@@ -411,27 +508,17 @@ export default function ConfidentialiteScreen() {
           />
         </View>
 
-        <Text style={styles.miniLabel}>SUPPRIMER PARTIELLEMENT</Text>
+        <Text style={styles.miniLabel}>SUPPRIMER PARTIELLEMENT (BIENTÔT)</Text>
         <DangerRow
           title="Supprimer mon historique de courses"
-          subtitle="Retire tes courses de l'affichage. Ton impact déjà gagné pour le crew cette saison est anonymisé, pas effacé."
-          onPress={() =>
-            confirmPartialDelete(
-              'Supprimer mon historique de courses',
-              'Tes courses seront retirées de l’affichage. Ton impact déjà gagné pour le crew cette saison est anonymisé, pas effacé. Continuer ?',
-            )
-          }
+          subtitle="Retirera tes courses de l'affichage. Ton impact déjà gagné pour le crew reste anonymisé, pas effacé. Bientôt depuis l'app."
+          onPress={() => confirmPartialDelete('Supprimer mon historique de courses')}
         />
         <DangerRow
           title="Supprimer mes données sportives"
-          subtitle="Efface FC, allure et cadence enregistrées. Sans effet sur le territoire."
+          subtitle="Effacera FC, allure et cadence enregistrées. Sans effet sur le territoire. Bientôt depuis l'app."
           last
-          onPress={() =>
-            confirmPartialDelete(
-              'Supprimer mes données sportives',
-              'FC, allure et cadence enregistrées seront effacées. Sans effet sur ton territoire. Continuer ?',
-            )
-          }
+          onPress={() => confirmPartialDelete('Supprimer mes données sportives')}
         />
       </DisclosureCard>
 
@@ -553,23 +640,20 @@ function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Pro
   );
 }
 
-/** Ligne d'action destructive (RGPD) — libellé explicite, pas de rouge criard. */
 /**
- * Confirmation d'une suppression PARTIELLE (RGPD) — dialogue natif standard, CTA
- * destructif clair. Démo : on confirme que la demande est prise en compte ; le
- * vrai effacement serveur est câblé à O1 (Edge Function, service-role).
+ * Suppression PARTIELLE (RGPD) — l'effacement serveur automatique n'est PAS
+ * encore câblé (O1, Edge Function service-role). HONNÊTE : on ne simule jamais
+ * une confirmation destructive ni un « c'est appliqué » mensonger ; on annonce
+ * la disponibilité à venir et on pointe les vrais chemins (support, export,
+ * suppression de compte réelle ci-dessous).
  */
-function confirmPartialDelete(title: string, message: string): void {
-  haptics.medium();
-  Alert.alert(title, message, [
-    { text: 'Annuler', style: 'cancel' },
-    {
-      text: 'Supprimer',
-      style: 'destructive',
-      onPress: () =>
-        Alert.alert('Demande enregistrée', 'C’est pris en compte. La suppression est appliquée dès la prochaine synchronisation.'),
-    },
-  ]);
+function confirmPartialDelete(title: string): void {
+  haptics.light();
+  Alert.alert(
+    title,
+    "Bientôt disponible depuis l'app. En attendant, demande-la depuis Aide & support — ou exporte / supprime ton compte ci-dessous, ces deux actions sont déjà réelles.",
+    [{ text: 'Compris' }],
+  );
 }
 
 function DangerRow({
@@ -668,12 +752,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 12,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: colors.grisLigne,
   },
   blockedName: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
+  // Cible de tap ≥ 44 px (bouton réel, pas un simple texte chartreuse).
+  unblockBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 10 },
   unblock: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '700' },
+
+  // Champ pseudo (signaler / bloquer) — 48 px, texte md (pas de zoom iOS).
+  pseudoInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.pill,
+    paddingHorizontal: 16,
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    marginTop: 6,
+  },
+
+  // Ligne informative « Âge minimum » (protection des mineurs) — pas une card.
+  ageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  ageText: {
+    flex: 1,
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+  },
 
   dangerRow: {
     flexDirection: 'row',
@@ -709,6 +822,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginTop: 14,
+    minHeight: 44,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: radii.pill,

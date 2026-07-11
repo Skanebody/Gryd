@@ -193,10 +193,13 @@ const styles = StyleSheet.create({
   },
 
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  // Pastille >= 44 px de hauteur tactile (audit zéro-friction / Apple HIG).
   pill: {
     borderWidth: 1,
     borderColor: colors.grisLigne,
     borderRadius: radii.pill,
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: 9,
     paddingHorizontal: 15,
   },
@@ -204,10 +207,12 @@ const styles = StyleSheet.create({
   pillLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
   pillLabelOn: { color: colors.blanc },
 
+  // Rangée-interrupteur >= 44 px de hauteur tactile (audit zéro-friction).
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    minHeight: 44,
     paddingVertical: 12,
   },
   switchText: { flex: 1 },

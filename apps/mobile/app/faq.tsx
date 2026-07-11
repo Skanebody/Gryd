@@ -4,10 +4,15 @@
  * (AMENDEMENT-22 §6). Sections posées sur le fond, séparées par l'espace, sans
  * card-dans-card. Les 20 Q/R (§33) regroupées par catégorie + la FAQ courte
  * post-run (§34). Le jargon technique (`advanced`) est masqué derrière un
- * segmented control « Simple / Avancé » — jamais visible par défaut.
+ * segmented control « Simple / Avancé » (cible tactile ≥ 44 px).
  *
  * Contenu et libellés viennent de content.ts / labels.ts : les valeurs sont
  * déjà résolues depuis les CONSTANTES game-rules.ts. AUCUN nombre magique ici.
+ * Cet écran applique en plus des RÉÉCRITURES D'AFFICHAGE locales (zéro-friction) :
+ * « stats only » → « compte en stats » (même vocabulaire que la pill du Résultat
+ * de course), Q3 en une raison de refus par ligne avec seuils étiquetés, total
+ * post-run additif avec unité nommée. Les seuils restent dérivés des helpers
+ * labels.ts — jamais de littéral.
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -30,8 +35,14 @@ import {
   type SchemaId,
 } from '../src/features/explain/content';
 import {
+  closeToleranceLabel,
   defenseHoursLabels,
+  gpsGateLabel,
+  runMinDistanceLabel,
+  runMinDurationLabel,
   verifyTiersLabel,
+  widthMinLabel,
+  zoneLifecycleLabels,
 } from '../src/features/explain/labels';
 import {
   BonusCible,
@@ -61,6 +72,52 @@ const CATEGORY_ORDER: readonly FaqCategory[] = [
   'verify',
   'economie',
 ];
+
+/**
+ * Francisation d'affichage : le statut « stats only » arrive tel quel de
+ * content.ts / labels.ts (hors périmètre de cet écran) ; ici il s'affiche
+ * « compte en stats » — exactement le libellé de la pill du Résultat de course.
+ */
+function frStatut(text: string): string {
+  return text.replace(/stats only/g, 'compte en stats');
+}
+
+/**
+ * Réécritures locales zéro-friction (les textes source vivent dans content.ts,
+ * hors périmètre de cet écran). Q3 : UNE raison de refus par ligne, chaque
+ * seuil étiqueté — fini les trois « 80 » de sens différents dans une même
+ * phrase ; les valeurs restent dérivées des helpers labels.ts (aucun nombre
+ * magique). Q10 / Q12 / Q16 : zéro anglicisme (« stats only », « decay »,
+ * « boosts pay-to-win »).
+ */
+const FAQ_TEXT_OVERRIDES: Readonly<Record<string, { q?: string; a?: string }>> = {
+  q3: {
+    a: [
+      `· Boucle non refermée : écart départ-arrivée > ${closeToleranceLabel()}.`,
+      `· Signal GPS trop faible : indice sous ${gpsGateLabel()}.`,
+      `· Tracé trop étroit : moins de ${widthMinLabel()} de large.`,
+      '· Surface trop petite, ou au-dessus du plafond.',
+      `· Course trop courte : moins de ${runMinDistanceLabel()} ou ${runMinDurationLabel()}.`,
+    ].join('\n'),
+  },
+  q10: { q: 'Pourquoi ma course compte seulement en stats ?' },
+  q12: {
+    a: `Stable ${zoneLifecycleLabels().stable}, fragile ${zoneLifecycleLabels().fragile}, à défendre les ${zoneLifecycleLabels().aDefendre}, expirée ${zoneLifecycleLabels().decay}.`,
+  },
+  q16: { q: 'Les bonus payants font-ils gagner ?' },
+};
+
+/**
+ * FAQ post-course : total ADDITIF avec unité nommée (214 + 33 = 247 zones,
+ * signalé comme exemple — jamais présenté comme la vraie course de l'utilisateur)
+ * et statut en français, aligné sur la pill « Compte en stats » du Résultat.
+ */
+const POST_RUN_TEXT_OVERRIDES: Readonly<Record<string, { q?: string; a?: string }>> = {
+  zones: {
+    a: 'Exemple : la trace couvre +214 zones, la fermeture de la boucle en ajoute +33. Total : +247 zones.',
+  },
+  stats_only: { q: 'Pourquoi « compte en stats » ?' },
+};
 
 /** Schéma associé à une Q/R (mêmes labels game-rules que la page calcul). */
 function Schema({ id }: { id: SchemaId }) {
@@ -174,7 +231,7 @@ export default function FaqScreen() {
     <StackScreen
       title="Calculs & règles"
       icon="aide"
-      kicker="CALCULS & RÈGLES DU JEU"
+      kicker="QUESTIONS & RÉPONSES"
       subtitle="Toutes les réponses, détails au tap. Chaque capture — ou refus — s'explique."
     >
       {/* Segmented control (AMENDEMENT-22 §4) : masque le jargon par défaut. */}
@@ -205,17 +262,20 @@ export default function FaqScreen() {
         return (
           <View key={cat} style={styles.group}>
             <Text style={styles.groupLabel}>{FAQ_CATEGORY_LABELS[cat]}</Text>
-            {items.map((item) => (
-              <AccordionRow
-                key={item.id}
-                icon={item.icon}
-                q={item.q}
-                a={item.a}
-                schemaId={item.schemaId}
-                open={openId === item.id}
-                onToggle={() => toggle(item.id)}
-              />
-            ))}
+            {items.map((item) => {
+              const local = FAQ_TEXT_OVERRIDES[item.id];
+              return (
+                <AccordionRow
+                  key={item.id}
+                  icon={item.icon}
+                  q={frStatut(local?.q ?? item.q)}
+                  a={frStatut(local?.a ?? item.a)}
+                  schemaId={item.schemaId}
+                  open={openId === item.id}
+                  onToggle={() => toggle(item.id)}
+                />
+              );
+            })}
           </View>
         );
       })}
@@ -223,17 +283,20 @@ export default function FaqScreen() {
       {/* FAQ courte post-run (§34) : questions express après une course. */}
       <View style={styles.group}>
         <Text style={styles.groupLabel}>Après une course</Text>
-        {POST_RUN_FAQ.map((item: PostRunFaqItem) => (
-          <AccordionRow
-            key={item.id}
-            icon={item.icon}
-            q={item.q}
-            a={item.a}
-            schemaId={item.schemaId}
-            open={openId === `post_${item.id}`}
-            onToggle={() => toggle(`post_${item.id}`)}
-          />
-        ))}
+        {POST_RUN_FAQ.map((item: PostRunFaqItem) => {
+          const local = POST_RUN_TEXT_OVERRIDES[item.id];
+          return (
+            <AccordionRow
+              key={item.id}
+              icon={item.icon}
+              q={frStatut(local?.q ?? item.q)}
+              a={frStatut(local?.a ?? item.a)}
+              schemaId={item.schemaId}
+              open={openId === `post_${item.id}`}
+              onToggle={() => toggle(`post_${item.id}`)}
+            />
+          );
+        })}
       </View>
 
       <Text style={styles.footnote}>
@@ -254,7 +317,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
-  segment: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
+  // Cible tactile ≥ 44 px (HIG) : minHeight garanti, texte centré verticalement.
+  segment: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   segmentOn: { backgroundColor: colors.carbone2 },
   segmentText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
   segmentTextOn: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
@@ -287,10 +357,11 @@ const styles = StyleSheet.create({
   a: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.55 },
   schemaWrap: { alignItems: 'center', marginTop: 18 },
 
+  // Texte de lecture (pas un micro-label) : sm pour rester lisible en mouvement.
   footnote: {
     color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.6,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.6,
     marginTop: 28,
   },
 });

@@ -1,11 +1,12 @@
 /**
  * GRYD — ArsenalItemCard : objet d'Arsenal (AMENDEMENT-08 §1 & §9, doc §20).
  * L'icône personnalisée de l'objet (AMENDEMENT-14 §5, registre arsenal-icons)
- * EST le visuel : dessin distinctif par objet, encadré ET teinté par la rareté
- * (tier — BADGE_TIER_STYLE, tiers hauts colorés carbon/elite/legend), nom,
- * usage, limite, prix (Éclats / Foulées), statut. ZÉRO pay-to-win : cette
- * carte n'affiche que style/confort/objets capés — l'invariant est porté par
- * les écrans (bannière doc §20).
+ * EST le visuel : dessin distinctif par objet, teinté par la rareté (tier —
+ * BADGE_TIER_STYLE, tiers hauts colorés carbon/elite/legend), nom, usage en
+ * une ligne, explication compacte (≤ 2 lignes labellisées), prix (Éclats / €),
+ * statut. UN SEUL bouton d'action par carte (cible ≥ 44 px) ; le corps ouvre
+ * le détail au tap. ZÉRO pay-to-win : cette carte n'affiche que style/confort/
+ * objets capés — l'invariant est porté par les écrans (bannière doc §20).
  * `statsonly` = préview sans achat ; `owned` = déjà dans l'arsenal.
  * Compat : `icon` (IconName filaire) reste accepté en secours quand aucun
  * `slug` n'est fourni — les usages existants ne cassent pas.
@@ -123,9 +124,11 @@ export interface ArsenalItemCardProps {
   equipped?: boolean;
   /** Équipable depuis l'inventaire : affiche « Équiper » (§16, rendu carte V1). */
   onEquip?: () => void;
-  /** CTA principal « Obtenir » (haptic medium — achat, doc §25). */
+  /** CTA principal du footer (haptic medium). Le libellé DOIT dire ce qui se
+   *  passe vraiment : « Obtenir » seulement si le tap achète, « Voir détails »
+   *  si le tap ouvre la sheet de décision. */
   onObtain?: () => void;
-  /** Libellé du CTA principal (défaut « Obtenir » ; « Offrir au crew » en gifting). */
+  /** Libellé du CTA principal (défaut « Obtenir » — verbe précis obligatoire). */
   obtainLabel?: string;
   /** CTA secondaire « Voir » (préview / détail). */
   onView?: () => void;
@@ -327,8 +330,9 @@ const styles = StyleSheet.create({
   price: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   priceValue: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   ownedLabel: { color: colors.gris, fontSize: fontSizes.xs },
+  // Cible tactile ≥ 44 px (HIG) : achat/équipement à une main, en mouvement.
   primary: {
-    height: 38,
+    height: 44,
     paddingHorizontal: 18,
     borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,

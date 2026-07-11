@@ -5,8 +5,10 @@
  * Notifications, Carte, À propos, Avancé. Course & Notifications pilotent le
  * store motivation (filtrage d'affichage/notifs, JAMAIS le gameplay §1). Les
  * réglages purement techniques (tolérance boucle…) vivent sous « Avancé » et
- * restent en lecture (moteur serveur, jamais un curseur client). Style dark
- * GRYD, texte court, honnête sur ce qui est « bientôt ».
+ * restent en lecture (moteur serveur, jamais un curseur client). L'identité
+ * affichée (nom, titre, crew) vient du profil ÉDITABLE persisté (useMyProfile)
+ * — MÊME source que l'onglet Profil, jamais la constante démo. Style dark GRYD,
+ * texte court, honnête sur ce qui est « bientôt ».
  */
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -22,7 +24,7 @@ import {
   type NotifChannel,
 } from '../../src/features/motivation/store';
 import { Section, SwitchRow, TogglePill } from '../../src/features/motivation/ui';
-import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
+import { useMyProfile } from '../../src/features/social/profileStore';
 import { screen } from '../../src/lib/analytics';
 import { getHapticsEnabled, setHapticsEnabled } from '../../src/lib/haptics';
 import {
@@ -119,6 +121,9 @@ export default function SettingsSectionScreen() {
   const meta = settingsRowBySection(id);
 
   const { prefs, update } = useMotivationPrefs();
+  // Identité ÉDITABLE persistée (même source que Profil / profil-edit) : une
+  // édition du nom/titre se reflète ici immédiatement — une seule vérité.
+  const { profile } = useMyProfile();
   const [hapticsOn, setHapticsOn] = useState(true);
 
   useEffect(() => {
@@ -140,7 +145,7 @@ export default function SettingsSectionScreen() {
       {id === 'compte' ? (
         <>
           <Section label="IDENTIFIANTS">
-            <ValueRow label="Connecté en tant que" value={MY_SOCIAL_PROFILE.displayName} />
+            <ValueRow label="Connecté en tant que" value={profile.displayName} />
             <ActionRow
               icon="lien"
               label="Adresse e-mail"
@@ -185,8 +190,8 @@ export default function SettingsSectionScreen() {
 
       {id === 'profil' ? (
         <Section label="APPARENCE PUBLIQUE">
-          <ValueRow label="Nom affiché" value={MY_SOCIAL_PROFILE.displayName} />
-          <ValueRow label="Titre" value={MY_SOCIAL_PROFILE.title} />
+          <ValueRow label="Nom affiché" value={profile.displayName} />
+          <ValueRow label="Titre" value={profile.title} />
           <ActionRow
             icon="ami"
             label="Modifier le profil"
@@ -204,10 +209,10 @@ export default function SettingsSectionScreen() {
 
       {id === 'crew' ? (
         <Section label="MON CREW">
-          <ValueRow label="Crew" value={MY_SOCIAL_PROFILE.crewName} />
+          <ValueRow label="Crew" value={profile.crewName} />
           <ActionRow
             icon="guerre"
-            label="Voir la War Room"
+            label="Missions du crew"
             detail="Frontières ouvertes, défenses"
             onPress={() => router.push('/warroom')}
           />

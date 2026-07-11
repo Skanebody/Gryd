@@ -97,7 +97,9 @@ export const DEFAULT_PRIVACY: PrivacyPrefs = {
   heartRatePrivate: true,
   sportDataPrivate: false,
   territoryVisible: true,
-  whoCanAdd: 'everyone',
+  // Défaut CONSERVATEUR (audit zéro-friction : « fermé par défaut » doit être
+  // vrai partout — 'everyone' était le seul défaut ouvert de la page).
+  whoCanAdd: 'crew',
   whoCanInvite: 'crew',
   whoCanMessage: 'crew',
   whoSeesStatus: 'crew',

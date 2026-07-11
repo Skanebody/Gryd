@@ -9,7 +9,15 @@
  * portés par content.ts (défauts des schémas), signalés comme tels.
  *
  * Accès : Support (« Pourquoi ma course n'a pas compté ? »), Paramètres, et le
- * lien post-run « Comment est calculé ce résultat ? ». Lien vers la FAQ en pied.
+ * lien post-run « Comment est calculé ce résultat ? ».
+ *
+ * Positionnement zéro-friction : cette page = VISITE GUIDÉE (kicker « VISITE
+ * GUIDÉE · 6 ÉTAPES ») ; la FAQ = questions précises — le lien de pied dit
+ * « Voir toutes les questions » pour lever l'homonymie entre les deux écrans.
+ * Réécritures d'affichage locales : l'exemple de boucle devient ADDITIF avec
+ * unité nommée (214 + 33 = 247 zones) et « stats only » s'affiche « compte en
+ * stats » (même pill que le Résultat de course) — les textes source vivent
+ * dans content.ts / labels.ts.
  */
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -35,6 +43,25 @@ import {
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
+
+/**
+ * Francisation d'affichage : « stats only » (hérité de labels.ts, hors
+ * périmètre de cet écran) s'affiche « compte en stats » — exactement le
+ * libellé de la pill du Résultat de course.
+ */
+function frStatut(text: string): string {
+  return text.replace(/stats only/g, 'compte en stats');
+}
+
+/**
+ * Exemple réécrit localement : ordre ADDITIF avec unité nommée (214 + 33 =
+ * 247 zones) au lieu du total coincé entre ses deux composantes (texte source
+ * dans content.ts, hors périmètre). Chiffres = scénario démo, signalé « Exemple ».
+ */
+const EXAMPLE_OVERRIDES: Readonly<Partial<Record<SchemaId, string>>> = {
+  boucle_fait_zone:
+    'Exemple : trace seule +214 zones · fermeture de la boucle +33 = 247 zones.',
+};
 
 /**
  * Rend le schéma d'une section. Les 2 schémas paramétrés (défense, verify)
@@ -92,7 +119,9 @@ function SceneBlock({ section, index }: { section: ExplainSection; index: number
       <View style={styles.schemaWrap}>
         <Schema id={section.schemaId} width={schemaWidth} />
       </View>
-      <Text style={styles.example}>{section.example}</Text>
+      <Text style={styles.example}>
+        {frStatut(EXAMPLE_OVERRIDES[section.id] ?? section.example)}
+      </Text>
     </View>
   );
 }
@@ -106,7 +135,7 @@ export default function CalculZonesScreen() {
     <StackScreen
       title="Calcul des zones"
       icon="info"
-      kicker="COMMENT GRYD CALCULE TES ZONES"
+      kicker={`VISITE GUIDÉE · ${EXPLAIN_SECTIONS.length} ÉTAPES`}
       subtitle="Chaque zone gagnée s'explique — chaque zone refusée aussi."
     >
       <View style={styles.list}>
@@ -115,14 +144,16 @@ export default function CalculZonesScreen() {
         ))}
       </View>
 
+      {/* Sortie explicite vers la FAQ : verbe + objet, jamais un quasi-homonyme
+          du titre de cette page. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Ouvrir Calculs & règles du jeu"
+        accessibilityLabel="Voir toutes les questions"
         onPress={() => router.push('/faq')}
         style={({ pressed }) => [styles.faqLink, pressed && styles.pressed]}
       >
         <Icon name="aide" size={18} color={colors.blanc} />
-        <Text style={styles.faqLinkText}>Calculs & règles du jeu</Text>
+        <Text style={styles.faqLinkText}>Voir toutes les questions</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
     </StackScreen>
@@ -157,10 +188,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   schemaWrap: { alignItems: 'center', marginTop: 18 },
+  // Exemple concret = contenu clé (pas un micro-label) : sm, lisible en mouvement.
   example: {
     color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.55,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.55,
     marginTop: 16,
   },
   // Action légère de bas de page (pas un gros CTA chartreuse — celui-ci reste rare).

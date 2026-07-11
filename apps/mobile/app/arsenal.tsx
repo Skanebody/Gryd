@@ -1,16 +1,19 @@
 /**
  * GRYD — ARSENAL V2 (AMENDEMENT-16 §4, doc §25). Boutique = vrai écran de jeu.
- * Sections §25 : Featured · Packs · Objets · Skins Territoire · Skins Trace ·
- * Frames & statut · Blasons Crew · Bannières Crew · Templates Share · Crew
- * Boosts · Club & Pass. Chaque item ouvre un DÉTAIL (sheet) : nom, type,
- * rareté, prix (Éclats OU €), preview, possédé/équipé, description, limite,
- * contenu des packs. Achat DÉMO = purchase reveal + inventaire local ;
- * ÉQUIPER depuis l'inventaire (rendu réel des skins carte = V1 → copy honnête
- * « visible sur ta carte à la Saison 0 »). Gifting « Offrir au crew » depuis
- * les items crew : choisir → confirmer → offrande anonyme optionnelle →
- * message feed sobre. JAMAIS de classement de payeurs ni de montant (§14).
+ * Structure : solde Éclats (les Foulées ne s'affichent PAS ici — rien ne se
+ * dépense en Foulées dans l'Arsenal, un micro-label en pied d'écran le dit) ·
+ * bannière anti-pay-to-win permanente · UNE carte « CHOISI POUR TOI » (3 lignes
+ * max : Sert à / Limite / Pourquoi ; achat 1 tap « Obtenir · X Éclats » si le
+ * solde suffit, sinon « Voir détails » ; « Équiper » si l'objet est possédé) ·
+ * exploration par besoin (segmented 5 onglets). Chaque objet ouvre un DÉTAIL
+ * (sheet) : preview, description + fonctionnement, 3 lignes (Sert à / Pourquoi /
+ * Limite), plafond, prix (Éclats OU €), CTA. Achat DÉMO = purchase reveal +
+ * inventaire local ; solde insuffisant = message chiffré « Il te manque N
+ * Éclats ». Gifting « Offrir au crew » : choisir → offrir → offrande anonyme
+ * optionnelle → message feed sobre. JAMAIS de classement de payeurs ni de
+ * montant (§14).
  *
- * ANTI PAY-TO-WIN (doc §12, bannière permanente) : aucun item ne vend
+ * ANTI PAY-TO-WIN (doc §12, bannière permanente) : aucun objet ne vend
  * territoire, km, zones, points ni attaque/défense. Un Crew Boost n'agit QUE
  * sur la progression du coffre crew. Prix : constantes de game-rules
  * (SKU_PRICES_EUR, ECLATS_PACKS, SHIELD/STREAK/SCOUT/BANNER_*) — zéro nombre
@@ -112,7 +115,6 @@ export default function ArsenalScreen() {
   );
 
   const eclatsDisplay = useCountUp(wallet.eclats);
-  const fouleesDisplay = useCountUp(wallet.foulees);
 
   const isOwned = useCallback((key: string) => owned.has(key), [owned]);
   const isEquipped = useCallback(
@@ -143,7 +145,9 @@ export default function ArsenalScreen() {
       if (price.currency === 'eclats') {
         if (!arsenalInventory.spendEclats(price.amount)) {
           haptics.light();
-          flashNotice('Éclats insuffisants — un pack d’Éclats les recharge.');
+          // Message chiffré, jamais un nudge vers un pack : l'utilisateur sait
+          // exactement combien il lui manque et décide seul.
+          flashNotice(`Il te manque ${formatInt(price.amount - wallet.eclats)} Éclats pour cet objet.`);
           return;
         }
       }
@@ -215,6 +219,12 @@ export default function ArsenalScreen() {
     [recommendations, primaryRecommendationKey, selectedNeed],
   );
 
+  /**
+   * Carte de liste (exploration) : 3 lignes max (usage / Sert à / Limite) + prix.
+   * L'achat se décide dans la sheet — le bouton dit donc « Voir détails »
+   * (jamais « Obtenir » pour une action qui n'obtient pas). « Équiper » reste
+   * direct : il équipe vraiment en un tap.
+   */
   const renderCard = useCallback(
     (entry: ArsenalRecommendation, emphasis: 'primary' | 'secondary' = 'secondary') => {
       const { item, advice } = entry;
@@ -231,10 +241,9 @@ export default function ArsenalScreen() {
           rarity={item.rarity}
           usage={advice.headline}
           explanation={[
-            { label: 'Effet', text: advice.benefit },
+            { label: 'Sert à', text: advice.benefit },
             { label: 'Limite', text: advice.guardrail },
           ]}
-          limit={item.limit}
           price={buyable ? price : undefined}
           state={item.draft ? 'locked' : item.packOnly && !ownedNow ? 'locked' : 'unlocked'}
           owned={ownedNow}
@@ -242,6 +251,7 @@ export default function ArsenalScreen() {
           emphasis={emphasis}
           onEquip={canEquip && ownedNow && !equippedNow ? () => equip(item) : undefined}
           onObtain={buyable ? () => openDetail(item) : undefined}
+          obtainLabel="Voir détails"
           onView={() => openDetail(item)}
         />
       );
@@ -250,8 +260,9 @@ export default function ArsenalScreen() {
   );
 
   return (
-    <StackScreen title="Arsenal" icon="boutique" kicker="ARSENAL · SAISON 0 · GEAR">
-      {/* Soldes — Éclats & Foulées animés, Club inactif en démo. */}
+    <StackScreen title="Arsenal" icon="boutique" kicker="ARSENAL · SAISON 0">
+      {/* Solde — Éclats animés + statut Club. Les Foulées ne s'affichent pas :
+          aucun objet de l'écran ne se paie en Foulées (micro-label en pied). */}
       <View style={styles.wallet}>
         <View style={styles.walletCell}>
           <View style={styles.walletValueRow}>
@@ -259,14 +270,6 @@ export default function ArsenalScreen() {
             <Text style={styles.walletValue}>{formatInt(eclatsDisplay)}</Text>
           </View>
           <Text style={styles.walletLabel}>Éclats</Text>
-        </View>
-        <View style={styles.walletDivider} />
-        <View style={styles.walletCell}>
-          <View style={styles.walletValueRow}>
-            <ArsenalIcon slug="foulees" size={16} color={colors.blanc} />
-            <Text style={styles.walletValue}>{formatInt(fouleesDisplay)}</Text>
-          </View>
-          <Text style={styles.walletLabel}>Foulées</Text>
         </View>
         <View style={styles.walletDivider} />
         <View style={styles.walletCell}>
@@ -306,13 +309,18 @@ export default function ArsenalScreen() {
       ) : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-      {/* ── Conseil algorithmique : GRYD choisit d'abord, l'utilisateur explore ensuite. */}
+      {/* ── Conseil algorithmique : GRYD choisit d'abord, l'utilisateur explore ensuite.
+          Achat 1 tap si l'objet se paie en Éclats et que le solde suffit ;
+          « Voir détails » reste toujours accessible. */}
       {primaryRecommendation ? (
         <AdvisorCard
           entry={primaryRecommendation}
           owned={isOwned(primaryRecommendation.item.key)}
           equipped={isEquipped(primaryRecommendation.item)}
           price={priceFor(primaryRecommendation.item, 'eclats')}
+          walletEclats={wallet.eclats}
+          onBuy={() => buy(primaryRecommendation.item, 'eclats')}
+          onEquip={() => equip(primaryRecommendation.item)}
           onView={() => openDetail(primaryRecommendation.item)}
         />
       ) : null}
@@ -330,8 +338,8 @@ export default function ArsenalScreen() {
       <Text style={styles.sectionNote}>
         {selectedNeed === 'for_you'
           ? arsenalSignalsLoading || arsenalInventory.loading
-            ? 'Tri en cours avec ton contexte : carte, crew, streak, partage et solde.'
-            : 'Trié avec ton contexte : carte, crew, streak, solde et items possédés.'
+            ? 'Tri en cours : carte, crew, série, partage et solde.'
+            : 'Trié selon ton jeu : carte, crew, série, solde et objets possédés.'
           : 'Même catalogue, filtré par utilité immédiate. Le détail explique toujours la limite.'}
       </Text>
 
@@ -342,6 +350,11 @@ export default function ArsenalScreen() {
       <Text style={styles.footnote}>
         Aucun objet ne vend des zones, des kilomètres, une victoire ou un rang de ligue —
         tout ça se gagne en courant. Les Éclats servent au style ; le confort reste capé.
+      </Text>
+      {/* Micro-label honnête : les Foulées existent mais rien ne se dépense en
+          Foulées ici — on le dit au lieu d'afficher une monnaie morte en haut. */}
+      <Text style={styles.footnoteSub}>
+        Les Foulées se gagnent en courant — bientôt dépensables.
       </Text>
 
       {/* ══ DÉTAIL ITEM (sheet §25) ══ */}
@@ -411,7 +424,7 @@ export default function ArsenalScreen() {
 }
 
 function priceLabel(price: { amount: number; currency: ArsenalPriceCurrency } | undefined): string {
-  if (!price) return 'Déjà débloqué ou pack';
+  if (!price) return 'Exclusif au pack';
   if (price.currency === 'eur') {
     return `${price.amount.toLocaleString('fr-FR', {
       minimumFractionDigits: 2,
@@ -421,20 +434,55 @@ function priceLabel(price: { amount: number; currency: ArsenalPriceCurrency } | 
   return `${formatInt(price.amount)} ${price.currency === 'eclats' ? 'Éclats' : 'Foulées'}`;
 }
 
+/**
+ * Carte « CHOISI POUR TOI » : 3 lignes max (Sert à / Limite / Pourquoi), UN CTA
+ * chartreuse au verbe précis — « Obtenir · X Éclats » (achat 1 tap si le solde
+ * suffit), « Équiper » (possédé équipable), sinon « Voir détails » (sheet).
+ * Quand l'achat direct ou l'équipement est possible, « Voir détails » reste
+ * accessible en action secondaire discrète.
+ */
 function AdvisorCard({
   entry,
   owned,
   equipped,
   price,
+  walletEclats,
+  onBuy,
+  onEquip,
   onView,
 }: {
   entry: ArsenalRecommendation;
   owned: boolean;
   equipped: boolean;
   price: { amount: number; currency: ArsenalPriceCurrency } | undefined;
+  walletEclats: number;
+  onBuy: () => void;
+  onEquip: () => void;
   onView: () => void;
 }) {
   const { item, advice } = entry;
+  const canEquipNow = owned && !equipped && equipScopeOf(item.key) !== null;
+  const oneTapBuy =
+    !owned &&
+    !item.packOnly &&
+    !item.draft &&
+    price !== undefined &&
+    price.currency === 'eclats' &&
+    walletEclats >= price.amount;
+  const primaryLabel = canEquipNow
+    ? 'Équiper'
+    : oneTapBuy
+      ? `Obtenir · ${priceLabel(price)}`
+      : 'Voir détails';
+  const onPrimary = canEquipNow ? onEquip : oneTapBuy ? onBuy : onView;
+  // Le prix ne s'affiche qu'à UN endroit : dans le CTA quand il achète,
+  // sinon dans la ligne méta (source unique, jamais les deux).
+  const meta = owned
+    ? `${BADGE_TIER_LABEL[item.rarity]} · ${equipped ? 'Équipé' : 'Possédé'}`
+    : oneTapBuy
+      ? BADGE_TIER_LABEL[item.rarity]
+      : `${BADGE_TIER_LABEL[item.rarity]} · ${priceLabel(price)}`;
+
   return (
     <View style={styles.advisor}>
       <View style={styles.advisorHeader}>
@@ -444,26 +492,32 @@ function AdvisorCard({
         <View style={styles.advisorTitleWrap}>
           <Text style={styles.advisorKicker}>CHOISI POUR TOI</Text>
           <Text style={styles.advisorName}>{item.name}</Text>
-          <Text style={styles.advisorMeta}>
-            {BADGE_TIER_LABEL[item.rarity]} · {owned ? (equipped ? 'Équipé' : 'Possédé') : priceLabel(price)}
-          </Text>
+          <Text style={styles.advisorMeta}>{meta}</Text>
         </View>
       </View>
 
       <View style={styles.advisorLines}>
-        <ExplanationLine label="Pourquoi" text={advice.whyNow} />
-        <ExplanationLine label="Comment" text={advice.mechanic} />
         <ExplanationLine label="Sert à" text={advice.benefit} />
         <ExplanationLine label="Limite" text={advice.guardrail} />
+        <ExplanationLine label="Pourquoi" text={advice.whyNow} />
       </View>
 
       <Pressable
         accessibilityRole="button"
-        onPress={onView}
+        onPress={onPrimary}
         style={({ pressed }) => [styles.advisorCta, pressed && styles.pressed]}
       >
-        <Text style={styles.advisorCtaText}>{owned ? 'Gérer l’item' : 'Comprendre et obtenir'}</Text>
+        <Text style={styles.advisorCtaText}>{primaryLabel}</Text>
       </Pressable>
+      {primaryLabel !== 'Voir détails' ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onView}
+          style={({ pressed }) => [styles.advisorGhost, pressed && styles.pressed]}
+        >
+          <Text style={styles.advisorGhostText}>Voir détails</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -525,11 +579,13 @@ function ItemDetail({
         </Text>
       </View>
 
-      <Text style={styles.detailDesc}>{item.description}</Text>
+      {/* Description + fonctionnement fusionnés en UN paragraphe, puis 3 lignes
+          utiles max (Sert à / Pourquoi / Limite) — jamais un mur de labels. */}
+      <Text style={styles.detailDesc}>
+        {item.description} {advice.mechanic}
+      </Text>
 
       <View style={styles.detailExplain}>
-        <ExplanationLine label="Usage" text={advice.headline} />
-        <ExplanationLine label="Comment" text={advice.mechanic} />
         <ExplanationLine label="Sert à" text={advice.benefit} />
         <ExplanationLine label="Pourquoi" text={advice.whyNow} />
         <ExplanationLine label="Limite" text={advice.guardrail} />
@@ -538,7 +594,7 @@ function ItemDetail({
       {item.limit ? (
         <View style={styles.detailChip}>
           <Icon name="verrou" size={13} color={colors.gris} />
-          <Text style={styles.detailChipText}>Limite : {item.limit}</Text>
+          <Text style={styles.detailChipText}>Plafond : {item.limit}</Text>
         </View>
       ) : null}
 
@@ -694,7 +750,7 @@ function GiftFlow({
       </View>
 
       <View style={styles.giftExplain}>
-        <ExplanationLine label="Effet" text={advice.benefit} />
+        <ExplanationLine label="Sert à" text={advice.benefit} />
         <ExplanationLine label="Comment" text={advice.mechanic} />
         <ExplanationLine label="Limite" text={advice.guardrail} />
       </View>
@@ -734,7 +790,7 @@ function GiftFlow({
         style={({ pressed }) => [styles.detailPrimary, pressed && styles.pressed]}
       >
         <Text style={styles.detailPrimaryText}>
-          Confirmer ·{' '}
+          Offrir ·{' '}
           {item.priceEur !== undefined
             ? `${item.priceEur.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
             : `${item.priceShards?.toLocaleString('fr-FR')} Éclats`}
@@ -837,6 +893,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   advisorCtaText: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
+  // Action secondaire de l'advisor (« Voir détails ») : texte simple, cible 44px.
+  advisorGhost: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -6,
+  },
+  advisorGhostText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -858,6 +922,13 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
     marginTop: 22,
+  },
+  // Micro-label Foulées : même rang qu'une footnote, jamais au rang du solde.
+  footnoteSub: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.6,
+    marginTop: 6,
   },
   pressed: { opacity: 0.85 },
   packLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
