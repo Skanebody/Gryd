@@ -1,16 +1,16 @@
 /**
  * GRYD — CREW HQ, la base du crew (AMENDEMENT-08 §6, doc §11-§14).
- * Fini le scroll infini SaaS : header de base (GRAND blason animé + frame de
- * ligue + niveau/XP + Prêt guerre + rank local + membres actifs + coffre hebdo
- * + offensive) puis ONGLETS INTERNES Base / Membres / Coffre / Perks / Chat.
- * Base = bento 6 cartes (AMENDEMENT-10 §6) + bloc TERRITOIRE CREW
- * (AMENDEMENT-11 §4 — zones/secteurs/rues, jamais de « hex » visible) + CTA ;
- * Membres = MemberCard + sheet d'actions démo ;
- * Coffre = ChestCard claimable + paliers + contributions ; Perks = cartes
- * reward + « PROCHAIN PERK — XP restants » ; Chat = War Log fusionné
- * (WarEventCard + réactions GRYD + LIVE) et messages actionnables (RSVP
- * défense, ping zone → carte). Données démo DÉTERMINISTES (features/crew) —
- * TODO(O1) brancher crews / crew_members / crew_chests / crew_feed_events.
+ * 3 ONGLETS INTERNES seulement : Base / Chat / Membres (zéro mini-SaaS).
+ * Base = LA décision de l'écran : carte MISSION PRIORITAIRE en tête
+ * (« DÉFENSE URGENTE · République · 48 h » + unique CTA chartreuse DÉFENDRE,
+ * câblée sur MY_CREW.urgentDefense) + lien gris vers les missions (War Room),
+ * puis tuiles Territoire / Coffre / Membres / Perks (détail Coffre & Perks
+ * révélé AU TAP, dans la Base — plus d'onglets dédiés), colle quotidienne
+ * « AUJOURD'HUI » en secondaire, contribution/boost repliés (jamais mis en
+ * avant). Chat = centre d'action (À FAIRE + messages + dons + résultats) ;
+ * Membres = roster + sheet d'actions + section SORTIES (fusionnée ici).
+ * Données démo DÉTERMINISTES (features/crew) — TODO(O1) brancher crews /
+ * crew_members / crew_chests / crew_feed_events.
  * Aucun nombre magique : niveaux/paliers DÉRIVÉS de @klaim/shared via rules.
  */
 import {
@@ -76,7 +76,6 @@ import {
 } from '../../src/ui/game';
 import {
   ACTIVITY_STATUS_LABELS,
-  CHEST_TIER_LABELS,
   PERK_VISUALS,
   PERK_VISUAL_FALLBACK,
   activityStatusForScore,
@@ -182,16 +181,39 @@ import {
 /** Toggle démo : passer à false pour prévisualiser l'état « sans crew ». */
 const HAS_CREW = true;
 
-/** Onglets internes du HQ (doc §11 — pas de scroll infini). */
-type HqTab = 'base' | 'membres' | 'sorties' | 'coffre' | 'perks' | 'chat';
+/** Onglets internes du HQ — 3 seulement (§A « 1 écran = 1 décision »). */
+type HqTab = 'base' | 'chat' | 'membres';
 const HQ_TABS: readonly { key: HqTab; label: string }[] = [
   { key: 'base', label: 'Base' },
-  { key: 'membres', label: 'Membres' },
-  { key: 'sorties', label: 'Sorties' },
-  { key: 'coffre', label: 'Coffre' },
-  { key: 'perks', label: 'Perks' },
   { key: 'chat', label: 'Chat' },
+  { key: 'membres', label: 'Membres' },
 ];
+
+/**
+ * Paliers du coffre en FRANÇAIS (les clés viennent de rules.ts qui garde les
+ * noms techniques Silver/Gold… — label local pour ne jamais afficher de
+ * jargon anglais à l'écran).
+ */
+const TIER_LABELS_FR: Record<string, string> = {
+  bronze: 'Bronze',
+  silver: 'Argent',
+  gold: 'Or',
+  carbon: 'Carbone',
+  elite: 'Élite',
+};
+const tierLabelFr = (tier: string): string => TIER_LABELS_FR[tier] ?? tier;
+
+/**
+ * Statut d'activité du crew en FRANÇAIS (ACTIVITY_STATUS_LABELS de rules.ts
+ * garde des libellés techniques anglais pour certains états — label local).
+ */
+const STATUS_LABELS_FR: Record<string, string> = {
+  dormant: 'En sommeil',
+  casual: 'Tranquille',
+  active: 'Actif',
+  competitive: 'Compétitif',
+  war_ready: 'Prêt guerre',
+};
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
@@ -279,13 +301,49 @@ function BaseCard({
       <Text style={[styles.baseCardValue, { color: tint }]} numberOfLines={1}>
         {value}
       </Text>
+      {/* Détail : 2 lignes possibles — un texte n'est JAMAIS coupé par « … ». */}
       {sub ? (
-        <Text style={styles.baseCardSub} numberOfLines={1}>
+        <Text style={styles.baseCardSub} numberOfLines={2}>
           {sub}
         </Text>
       ) : null}
       {progress !== undefined ? <ProgressBar value={progress} height={4} /> : null}
     </Pressable>
+  );
+}
+
+/**
+ * Carte MISSION PRIORITAIRE — LA décision du Crew HQ, en tête de la Base.
+ * Câblée sur MY_CREW.urgentDefense : « DÉFENSE URGENTE · République · 48 h »
+ * + UNIQUE CTA chartreuse « DÉFENDRE · RÉPUBLIQUE » qui route vers la course
+ * en intention défense (le serveur reste seul juge du claim §3). Liseré violet
+ * contesté = état de jeu « sous pression », pas une déco. 3 infos max :
+ * secteur · rues · heures restantes (seule horloge de la Base).
+ */
+function UrgentMissionCard() {
+  const d = MY_CREW.urgentDefense;
+  return (
+    <View style={styles.missionCard}>
+      <View style={styles.missionHead}>
+        <Icon name="bouclier" size={16} color={gameColors.contested} />
+        <Text style={styles.missionKicker}>DÉFENSE URGENTE</Text>
+        <Text style={styles.missionHours} numberOfLines={1}>
+          {d.hoursLeft} h restantes
+        </Text>
+      </View>
+      <Text style={styles.missionSector} numberOfLines={1}>
+        {d.sector}
+      </Text>
+      <Text style={styles.missionMeta} numberOfLines={1}>
+        {d.streets} rues à tenir avant la fin du délai
+      </Text>
+      <InlineRunCTA
+        label={`DÉFENDRE · ${d.sector.toUpperCase()}`}
+        leading={<Icon name="bouclier" size={18} color={colors.noir} />}
+        accessibilityLabel={`Défendre ${d.sector} — il reste ${d.hoursLeft} heures`}
+        onPress={() => router.push('/course-live?intention=defense')}
+      />
+    </View>
   );
 }
 
@@ -395,7 +453,7 @@ function ChatBubble({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Signaler le message de ${msg.author}`}
-            hitSlop={8}
+            hitSlop={14}
             onPress={() => onReport(msg)}
             style={({ pressed }) => [styles.bubbleMore, pressed && styles.dim]}
           >
@@ -483,9 +541,10 @@ const ACTION_META: Record<
 };
 
 /**
- * Carte d'action « À FAIRE » (A.2) : type + zone + 1-2 infos + 1 CTA plein.
- * Le CTA route vers l'écran de course/planner (le client ne claim jamais) ou
- * relaie une action démo (sortie, demande). Libellé de CTA JAMAIS tronqué.
+ * Carte d'action « À FAIRE » (A.2) : type + zone + 1-2 infos + 1 CTA (pill N2
+ * relevé, verbe précis — le seul CTA chartreuse plein de la scène Chat reste
+ * « Demander de l'aide »). Le CTA route vers l'écran de course/planner (le
+ * client ne claim jamais) ou relaie une action démo. Libellé JAMAIS tronqué.
  */
 function ActionCard({
   card,
@@ -1044,6 +1103,7 @@ function SectionHead({
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: showAll }}
+          hitSlop={8}
           onPress={onToggle}
           style={({ pressed }) => [styles.seeAllBtn, pressed && styles.dim]}
         >
@@ -1113,6 +1173,10 @@ export default function CrewScreen() {
   const [showContribution, setShowContribution] = useState(false);
   /** Détail territoire (secteur / zones / frontières / routes) révélé au tap. */
   const [showTerritory, setShowTerritory] = useState(false);
+  /** Détail Coffre (ChestCard + paliers + contributions) révélé au tap (Base). */
+  const [showCoffre, setShowCoffre] = useState(false);
+  /** Détail Perks (débloqués + prochain + à venir) révélé au tap (Base). */
+  const [showPerks, setShowPerks] = useState(false);
 
   // ── Crew Boost DÉMO actif (AMENDEMENT-16 §13.1) : contribution volontaire,
   // effet COFFRE uniquement (+25 %), jamais de points. Un membre a offert un
@@ -1255,8 +1319,8 @@ export default function CrewScreen() {
 
   // CTA d'une carte BONUS (AMENDEMENT-19 §4) : GRYD révèle le bon moment, le
   // JOUEUR agit — on route vers l'écran adéquat selon la famille (finisher →
-  // fermer la frontière ; défense → défendre ; coffre → onglet Coffre). Le
-  // serveur reste seul juge de la récompense (§3) : ici on ne fait qu'inviter.
+  // fermer la frontière ; défense → défendre ; coffre → détail Coffre de la
+  // Base). Le serveur reste seul juge de la récompense (§3) : on invite.
   const onBonusCta = (card: BonusActionCardData) => {
     haptics.medium();
     switch (card.bonus.id) {
@@ -1267,18 +1331,20 @@ export default function CrewScreen() {
         router.push('/course-live?intention=defense');
         return;
       case 'crew_chest':
-        setTab('coffre');
+        setTab('base');
+        setShowCoffre(true);
         return;
       default:
         notify(`${card.bonus.cta} · ${card.title} (démo)`);
     }
   };
 
-  // CTA « Voir » d'un don : coffre (onglet), carte, ou Arsenal.
+  // CTA « Voir » d'un don : coffre (détail dans la Base), carte, ou Arsenal.
   const onGiftCta = (gift: GiftCardDemo) => {
     haptics.light();
     if (gift.ctaKind === 'chest') {
-      setTab('coffre');
+      setTab('base');
+      setShowCoffre(true);
       return;
     }
     if (gift.ctaKind === 'map') {
@@ -1390,7 +1456,7 @@ export default function CrewScreen() {
     setOutingPlace('');
     setOutingZone('');
     setOutingObjective('conquete');
-    setTab('sorties');
+    setTab('membres');
     notify('Sortie créée — le crew la voit (démo)');
   };
 
@@ -1499,13 +1565,14 @@ export default function CrewScreen() {
                 color={warReady ? gameColors.crew : colors.blanc}
               />
               <Text style={[styles.statusChipText, warReady && styles.statusChipTextWar]}>
-                {ACTIVITY_STATUS_LABELS[status]}
+                {STATUS_LABELS_FR[status] ?? ACTIVITY_STATUS_LABELS[status]}
               </Text>
             </View>
-            {/* Ligne d'identité forte : niveau · rang ville · membres actifs. */}
+            {/* Ligne d'identité : l'ACTIVITÉ d'abord (X/Y actifs), puis niveau
+                et rang ville — le statut vit déjà dans le chip au-dessus. */}
             <Text style={styles.identityLine} numberOfLines={2}>
-              Niveau {level} · #{MY_CREW.localRank} {MY_CREW.city} · {activeMembers}/
-              {CREW_MAX_MEMBERS} actifs
+              {activeMembers}/{CREW_MAX_MEMBERS} actifs · Niveau {level} · #
+              {MY_CREW.localRank} {MY_CREW.city}
             </Text>
             <View style={styles.headerGauge}>
               <ProgressBar value={levelProgress} height={7} />
@@ -1521,25 +1588,21 @@ export default function CrewScreen() {
           </View>
         </View>
 
-        {/* UN SEUL gros CTA chartreuse (Voir War Room). Actions secondaires
-            LÉGÈRES façon Strava (icône + label), jamais de grosse card — §3. */}
+        {/* AUCUN gros CTA ici : le geste du moment vit dans la carte MISSION
+            en tête de la Base (unique CTA chartreuse du landing). Actions
+            secondaires LÉGÈRES façon Strava (icône + label), jamais de card. */}
         <View style={styles.headerCta}>
-          <InlineRunCTA
-            label="VOIR WAR ROOM"
-            leading={<Icon name="guerre" size={18} color={colors.noir} />}
-            onPress={() => router.navigate('/warroom')}
-          />
           <View style={styles.headerActions}>
             <IconAction
               icon="ajoutami"
-              label="Inviter"
+              label="Inviter un coureur"
               onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
             />
             {/* « Modifier le crew » (founder §8.1) → écran d'édition. */}
             {canEditCrew ? (
               <IconAction
                 icon="reglages"
-                label="Modifier"
+                label="Modifier le crew"
                 onPress={() => {
                   haptics.light();
                   router.push('/crew-edit');
@@ -1550,17 +1613,18 @@ export default function CrewScreen() {
         </View>
       </View>
 
-      {/* ── Onglets internes = UN segmented control (§4). Ton `surface` : un gros
-          CTA chartreuse (Voir War Room) existe déjà dans la scène, donc l'onglet
-          actif se relève en N2 (pas un 2ᵉ focus chartreuse fort). Coffre à
-          récupérer = pastille « • » collée au label (état de jeu, non tronqué). ── */}
+      {/* ── Onglets internes = UN segmented control (§4), 3 sections. Ton
+          `surface` : le CTA chartreuse de la mission est le focus fort de la
+          scène, donc l'onglet actif se relève en N2. Coffre à récupérer =
+          pastille « • » sur Base (le coffre y vit) — doublée par le texte
+          « À récupérer » de la tuile Coffre (jamais la couleur seule). ── */}
       <Segmented
         style={styles.hqSegmented}
         tone="surface"
         accessibilityLabel="Sections du crew"
         options={HQ_TABS.map((t) => ({
           id: t.key,
-          label: t.key === 'coffre' && chestClaimable ? `${t.label} •` : t.label,
+          label: t.key === 'base' && chestClaimable ? `${t.label} •` : t.label,
         }))}
         value={tab}
         onChange={setTab}
@@ -1583,15 +1647,26 @@ export default function CrewScreen() {
         </Pressable>
       ) : null}
 
-      {/* ══ BASE : 4 cards compactes (§1.3) — 1 titre + 1 chiffre + 1 CTA au tap.
-          Territoire / Membres / Coffre / Contribution. Boost & contribution
-          restent SECONDAIRES (repliés, après les stats + War Room). ══ */}
+      {/* ══ BASE — une seule colonne de priorité : (1) MISSION PRIORITAIRE
+          (l'unique CTA chartreuse du landing) + lien gris Missions, (2) tuiles
+          Territoire / Coffre / Membres / Perks (détail AU TAP, dans la Base),
+          (3) AUJOURD'HUI en secondaire, (4) contribution/boost repliés. ══ */}
       {tab === 'base' ? (
         <>
-          {/* ── AUJOURD'HUI (AMENDEMENT-34) : colle quotidienne, 4 micro-actions
-              SANS courir pour garder le crew vivant les jours off. En TÊTE de la
-              Base (c'est le geste du jour), avant les stats. Anti-P2W strict. ── */}
-          <DailyGlue glue={dailyGlue} onAction={onDailyAction} onBoost={onDailyBoost} />
+          {/* ── LA décision de l'écran : défense urgente (urgentDefense). ── */}
+          <UrgentMissionCard />
+          {/* Lien discret (texte gris) vers toutes les missions — la War Room
+              n'est plus le CTA héros, juste une navigation légère. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Voir toutes les missions du crew"
+            hitSlop={8}
+            onPress={() => router.navigate('/warroom')}
+            style={({ pressed }) => [styles.missionsLink, pressed && styles.dim]}
+          >
+            <Text style={styles.missionsLinkText}>Toutes les missions du crew</Text>
+            <Icon name="chevron" size={14} color={colors.gris} />
+          </Pressable>
 
           <View style={styles.baseGrid}>
             {/* Territoire — le cœur du jeu : tap → détail secteur/frontières. */}
@@ -1606,7 +1681,26 @@ export default function CrewScreen() {
                 setShowTerritory((v) => !v);
               }}
             />
-            {/* Membres — tap → onglet Membres (roster + actions). */}
+            {/* Coffre — % hebdo + jauge ; tap → détail (paliers, contributions). */}
+            <BaseCard
+              icon="coffre"
+              tint={chestClaimable ? gameColors.crew : gameColors.gold}
+              label="Coffre"
+              value={`${Math.round(chestPct * 100)} %`}
+              sub={
+                chestClaimable
+                  ? 'À récupérer'
+                  : nextChestTier
+                    ? `Prochain palier à ${Math.round(CREW_CHEST_TIERS[nextChestTier] * 100)} %`
+                    : 'Palier max atteint'
+              }
+              progress={chestPct}
+              onPress={() => {
+                haptics.light();
+                setShowCoffre((v) => !v);
+              }}
+            />
+            {/* Membres — tap → onglet Membres (roster + sorties). */}
             <BaseCard
               icon="crew"
               label="Membres"
@@ -1614,32 +1708,194 @@ export default function CrewScreen() {
               sub={`${MY_CREW.recruitSpots} places ouvertes`}
               onPress={() => setTab('membres')}
             />
-            {/* Coffre — % hebdo + jauge ; tap → onglet Coffre. */}
+            {/* Perks — tap → détail (débloqués / prochain / à venir). */}
             <BaseCard
-              icon="coffre"
-              tint={chestClaimable ? gameColors.crew : gameColors.gold}
-              label="Coffre"
-              value={`${Math.round(chestPct * 100)} %`}
-              sub={chestClaimable ? 'À récupérer' : `Palier ${nextChestTier ? CHEST_TIER_LABELS[nextChestTier] : 'max'}`}
-              progress={chestPct}
-              onPress={() => setTab('coffre')}
-            />
-            {/* Contribution — SECONDAIRE : ouvre la section boost repliée plus bas. */}
-            <BaseCard
-              icon="cadeau"
-              tint={boostActive ? gameColors.gold : colors.blanc}
-              label="Contribution"
-              value={boostActive ? 'Boost actif' : 'Boost dispo'}
-              sub={boostActive ? formatBoostRemaining(boost, nowTick) : 'Accélère le coffre'}
+              icon="couronne"
+              label="Perks"
+              value={`${unlockedPerks.length} débloqués`}
+              sub={nextPerk ? `Prochain au niveau ${nextPerk.level}` : 'Tous débloqués'}
               onPress={() => {
                 haptics.light();
-                setShowContribution(true);
+                setShowPerks((v) => !v);
               }}
             />
           </View>
 
-          {/* Détail Territoire (AMENDEMENT-11 §4) révélé au tap de la card. */}
+          {/* Détail Territoire (AMENDEMENT-11 §4) révélé au tap de la tuile. */}
           {showTerritory ? <TerritoryBlock /> : null}
+
+          {/* ── Détail COFFRE (ex-onglet Coffre, fusionné ici) : ChestCard +
+              paliers + contributions — révélé au tap de la tuile Coffre. ── */}
+          {showCoffre ? (
+            <>
+              <SectionLabel>COFFRE HEBDO</SectionLabel>
+              <ChestCard
+                label="Coffre crew hebdo"
+                progress={chestPct}
+                nextMilestone={
+                  nextChestTier
+                    ? `Prochain palier : ${tierLabelFr(nextChestTier)} · ${Math.round(
+                        CREW_CHEST_TIERS[nextChestTier] * 100,
+                      )} %`
+                    : 'Palier max atteint'
+                }
+                state={chestClaimable ? 'claimable' : 'inprogress'}
+                onOpen={() => {
+                  setChestOpened(true);
+                  setNotice(
+                    chest.tier
+                      ? `Palier ${tierLabelFr(chest.tier)} ouvert — récompenses au crew (démo)`
+                      : null,
+                  );
+                }}
+              />
+              <Text style={styles.chestMeta}>
+                {formatInt(MY_CREW.chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
+                collectifs
+              </Text>
+
+              {chestOpened && chest.tier ? (
+                <>
+                  <SectionLabel>
+                    RÉCOMPENSES · PALIER {tierLabelFr(chest.tier).toUpperCase()}
+                  </SectionLabel>
+                  <View style={styles.rewardList}>
+                    {CHEST_REWARDS.map((r) => (
+                      <RewardCard
+                        key={r.label}
+                        icon={r.icon}
+                        label={r.label}
+                        sublabel={r.sublabel}
+                        state="unlocked"
+                        tint={gameColors.gold}
+                        reveal
+                      />
+                    ))}
+                  </View>
+                </>
+              ) : null}
+
+              {/* Détail des paliers au tap (copywriting court, doc §27) */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showTiers }}
+                onPress={() => setShowTiers((v) => !v)}
+                style={({ pressed }) => [styles.tiersToggle, pressed && styles.dim]}
+              >
+                <Text style={styles.tiersToggleText}>Paliers du coffre</Text>
+                <Icon name="chevron" size={15} color={colors.gris} />
+              </Pressable>
+              {showTiers ? (
+                <View style={styles.tiersCard}>
+                  {CREW_CHEST_TIER_ORDER.map((t) => {
+                    const reached = chestPct >= CREW_CHEST_TIERS[t];
+                    return (
+                      <View key={t} style={styles.tierRow}>
+                        <Icon
+                          name={reached ? 'coffre' : 'verrou'}
+                          size={15}
+                          color={reached ? gameColors.gold : colors.gris}
+                        />
+                        <Text style={[styles.tierName, !reached && styles.dimText]}>
+                          {tierLabelFr(t)}
+                        </Text>
+                        <Text style={styles.tierPct}>
+                          {Math.round(CREW_CHEST_TIERS[t] * 100)} %
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              <SectionLabel>CONTRIBUTIONS DES MEMBRES</SectionLabel>
+              {contributors.map((m) => (
+                <View key={m.pseudo} style={styles.contribRow}>
+                  <Text
+                    style={[styles.contribName, m.me && styles.contribNameMe]}
+                    numberOfLines={1}
+                  >
+                    {m.pseudo}
+                  </Text>
+                  <View style={styles.contribBar}>
+                    <ProgressBar value={m.chestPoints / maxChestPoints} height={5} />
+                  </View>
+                  <Text style={styles.contribPts}>{formatInt(m.chestPoints)}</Text>
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          {/* ── Détail PERKS (ex-onglet Perks, fusionné ici) : rappel anti
+              pay-to-win + débloqués / prochain / à venir — révélé au tap. ── */}
+          {showPerks ? (
+            <>
+              {/* Rappel anti pay-to-win STRICT (§52) : les perks sont statut/
+                  orga/cosmétique — jamais territoire, points ni protection. */}
+              <Text style={styles.perkNote}>
+                Cosmétique et organisation — jamais d'avantage territorial.
+              </Text>
+              <SectionLabel>PERKS DÉBLOQUÉS · {unlockedPerks.length}</SectionLabel>
+              <View style={styles.perkList}>
+                {unlockedPerks.map((p) => {
+                  const visual = PERK_VISUALS[p.key] ?? PERK_VISUAL_FALLBACK;
+                  return (
+                    <PerkCard
+                      key={p.key}
+                      name={p.name}
+                      icon={visual.icon}
+                      rarity={visual.rarity}
+                      levelRequired={p.level}
+                      state="unlocked"
+                      description={p.desc}
+                    />
+                  );
+                })}
+              </View>
+
+              {nextPerk ? (
+                <>
+                  <SectionLabel>PROCHAIN PERK</SectionLabel>
+                  <PerkCard
+                    name={nextPerk.name}
+                    icon={(PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).icon}
+                    rarity={(PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).rarity}
+                    levelRequired={nextPerk.level}
+                    state="inprogress"
+                    xpRemaining={nextPerkXpRemaining}
+                    description={nextPerk.desc}
+                  />
+                </>
+              ) : null}
+
+              {futurePerks.length > 0 ? (
+                <>
+                  <SectionLabel>À VENIR</SectionLabel>
+                  <View style={styles.perkList}>
+                    {futurePerks.map((p) => {
+                      const visual = PERK_VISUALS[p.key] ?? PERK_VISUAL_FALLBACK;
+                      return (
+                        <PerkCard
+                          key={p.key}
+                          name={p.name}
+                          icon={visual.icon}
+                          rarity={visual.rarity}
+                          levelRequired={p.level}
+                          state="locked"
+                          stateLabel={`Niveau ${p.level}`}
+                        />
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
+            </>
+          ) : null}
+
+          {/* ── AUJOURD'HUI (AMENDEMENT-34) : colle quotidienne, 4 micro-actions
+              SANS courir — en SECONDAIRE, après la mission et les chiffres clés
+              (le signal avant le bruit). Anti-P2W strict. ── */}
+          <DailyGlue glue={dailyGlue} onAction={onDailyAction} onBoost={onDailyBoost} />
 
           {/* ── SECONDAIRE : Contribution / Boost / Crew Wall (§28/§14), replié
               par défaut — jamais en premier (pas de monétisation trop visible). ── */}
@@ -1747,7 +2003,9 @@ export default function CrewScreen() {
         </>
       ) : null}
 
-      {/* ══ MEMBRES : MemberCard + sheet d'actions (doc §12) ══ */}
+      {/* ══ MEMBRES : MemberCard + sheet d'actions (doc §12) + section SORTIES
+          (AMENDEMENT-32 §1, fusionnée ici — les sorties sont l'affaire des
+          membres). 1 SEUL CTA plein de la scène : « Créer une sortie ». ══ */}
       {tab === 'membres' ? (
         <>
           <SectionLabel>
@@ -1767,19 +2025,12 @@ export default function CrewScreen() {
               />
             </View>
           ))}
-        </>
-      ) : null}
 
-      {/* ══ SORTIES (AMENDEMENT-32 §1) : sorties de crew à venir (titre + heure +
-          lieu de RDV + ZONE cible défense/conquête) + « Je viens » (RSVP démo
-          persisté) + créer une sortie. SOCIAL, pas de monétisation (§A.19) —
-          courir ensemble = coordination + densité (le moat). 1 SEUL CTA plein
-          (Créer une sortie) ; les RSVP sont des chips (§A.4). ══ */}
-      {tab === 'sorties' ? (
-        <>
+          {/* ── SORTIES à venir : titre + heure + lieu de RDV + zone cible
+              défense/conquête + RSVP chips (persisté). SOCIAL, zéro effet de
+              jeu — courir ensemble = coordination + densité (le moat). ── */}
           <SectionLabel>SORTIES À VENIR · {crewOutings.outings.length}</SectionLabel>
 
-          {/* UN SEUL gros CTA : créer une sortie. Ouvre le form court (sheet). */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Créer une sortie de crew"
@@ -1805,171 +2056,6 @@ export default function CrewScreen() {
         </>
       ) : null}
 
-      {/* ══ COFFRE : WEEKLY CHEST + paliers + contributions (doc §11) ══ */}
-      {tab === 'coffre' ? (
-        <>
-          <SectionLabel>WEEKLY CHEST</SectionLabel>
-          <ChestCard
-            label="Coffre crew hebdo"
-            progress={chestPct}
-            nextMilestone={
-              nextChestTier
-                ? `Prochain palier : ${CHEST_TIER_LABELS[nextChestTier]} · ${Math.round(
-                    CREW_CHEST_TIERS[nextChestTier] * 100,
-                  )} %`
-                : 'Palier max atteint'
-            }
-            state={chestClaimable ? 'claimable' : 'inprogress'}
-            onOpen={() => {
-              setChestOpened(true);
-              setNotice(
-                chest.tier
-                  ? `Palier ${CHEST_TIER_LABELS[chest.tier]} ouvert — récompenses au crew (démo)`
-                  : null,
-              );
-            }}
-          />
-          <Text style={styles.chestMeta}>
-            {formatInt(MY_CREW.chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
-            collectifs
-          </Text>
-
-          {chestOpened && chest.tier ? (
-            <>
-              <SectionLabel>RÉCOMPENSES · PALIER {CHEST_TIER_LABELS[chest.tier].toUpperCase()}</SectionLabel>
-              <View style={styles.rewardList}>
-                {CHEST_REWARDS.map((r) => (
-                  <RewardCard
-                    key={r.label}
-                    icon={r.icon}
-                    label={r.label}
-                    sublabel={r.sublabel}
-                    state="unlocked"
-                    tint={gameColors.gold}
-                    reveal
-                  />
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          {/* Détail des paliers au tap (copywriting court, doc §27) */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: showTiers }}
-            onPress={() => setShowTiers((v) => !v)}
-            style={({ pressed }) => [styles.tiersToggle, pressed && styles.dim]}
-          >
-            <Text style={styles.tiersToggleText}>Paliers du coffre</Text>
-            <Icon name="chevron" size={15} color={colors.gris} />
-          </Pressable>
-          {showTiers ? (
-            <View style={styles.tiersCard}>
-              {CREW_CHEST_TIER_ORDER.map((t) => {
-                const reached = chestPct >= CREW_CHEST_TIERS[t];
-                return (
-                  <View key={t} style={styles.tierRow}>
-                    <Icon
-                      name={reached ? 'coffre' : 'verrou'}
-                      size={15}
-                      color={reached ? gameColors.gold : colors.gris}
-                    />
-                    <Text style={[styles.tierName, !reached && styles.dimText]}>
-                      {CHEST_TIER_LABELS[t]}
-                    </Text>
-                    <Text style={styles.tierPct}>
-                      {Math.round(CREW_CHEST_TIERS[t] * 100)} %
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          ) : null}
-
-          <SectionLabel>CONTRIBUTIONS DES MEMBRES</SectionLabel>
-          {contributors.map((m) => (
-            <View key={m.pseudo} style={styles.contribRow}>
-              <Text
-                style={[styles.contribName, m.me && styles.contribNameMe]}
-                numberOfLines={1}
-              >
-                {m.pseudo}
-              </Text>
-              <View style={styles.contribBar}>
-                <ProgressBar value={m.chestPoints / maxChestPoints} height={5} />
-              </View>
-              <Text style={styles.contribPts}>{formatInt(m.chestPoints)}</Text>
-            </View>
-          ))}
-        </>
-      ) : null}
-
-      {/* ══ PERKS : cartes reward + PROCHAIN PERK (doc §11) ══ */}
-      {tab === 'perks' ? (
-        <>
-          {/* Rappel anti pay-to-win STRICT (§52) : les perks sont statut/orga/
-              cosmétique — jamais territoire, points ni protection. Ligne simple
-              (pas de card-dans-card §A). */}
-          <Text style={styles.perkNote}>
-            Cosmétique et organisation — jamais d'avantage territorial.
-          </Text>
-          <SectionLabel>PERKS DÉBLOQUÉS · {unlockedPerks.length}</SectionLabel>
-          <View style={styles.perkList}>
-            {unlockedPerks.map((p) => {
-              const visual = PERK_VISUALS[p.key] ?? PERK_VISUAL_FALLBACK;
-              return (
-                <PerkCard
-                  key={p.key}
-                  name={p.name}
-                  icon={visual.icon}
-                  rarity={visual.rarity}
-                  levelRequired={p.level}
-                  state="unlocked"
-                  description={p.desc}
-                />
-              );
-            })}
-          </View>
-
-          {nextPerk ? (
-            <>
-              <SectionLabel>PROCHAIN PERK</SectionLabel>
-              <PerkCard
-                name={nextPerk.name}
-                icon={(PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).icon}
-                rarity={(PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).rarity}
-                levelRequired={nextPerk.level}
-                state="inprogress"
-                xpRemaining={nextPerkXpRemaining}
-                description={nextPerk.desc}
-              />
-            </>
-          ) : null}
-
-          {futurePerks.length > 0 ? (
-            <>
-              <SectionLabel>À VENIR</SectionLabel>
-              <View style={styles.perkList}>
-                {futurePerks.map((p) => {
-                  const visual = PERK_VISUALS[p.key] ?? PERK_VISUAL_FALLBACK;
-                  return (
-                    <PerkCard
-                      key={p.key}
-                      name={p.name}
-                      icon={visual.icon}
-                      rarity={visual.rarity}
-                      levelRequired={p.level}
-                      state="locked"
-                      stateLabel={`Niveau ${p.level}`}
-                    />
-                  );
-                })}
-              </View>
-            </>
-          ) : null}
-        </>
-      ) : null}
-
       {/* ══ CHAT ACTIONNABLE (AMENDEMENT-18 A.2) : le chat n'est PAS un WhatsApp,
           c'est le CENTRE D'ACTION du crew. 3 sections — À FAIRE (ouverte, en
           haut), MESSAGES (fil humain, secondaire), LOG (War Log compressé) —
@@ -1989,10 +2075,11 @@ export default function CrewScreen() {
             scrollable
           />
 
-          {/* ── DEMANDER / OFFRIR (A.3) : en tête du chat actionnable. « Demander »
-              ouvre la feuille de choix (Défense/Terminer/Route/Scout/Sortie/
-              Proposer un boost) → carte requête. « Offrir » propose un cadeau
-              premium (Boost/Coffre) → carte CADEAU CREW réclamable. ── */}
+          {/* ── DEMANDER / OFFRIR (A.3) : en tête du chat actionnable. « Demander
+              de l'aide » (unique CTA chartreuse de la scène) ouvre la feuille de
+              choix → carte requête. « Offrir au crew » (cadeau premium) reste un
+              LIEN LÉGER en dessous — donner de l'argent n'a jamais le même poids
+              visuel que demander de l'aide (anti-P2W, §A.19). ── */}
           <View style={styles.askRow}>
             <Pressable
               accessibilityRole="button"
@@ -2004,19 +2091,20 @@ export default function CrewScreen() {
               style={({ pressed }) => [styles.askBtn, pressed && styles.dim]}
             >
               <Icon name="ajoutami" size={16} color={colors.noir} />
-              <Text style={styles.askBtnLabel}>Demander</Text>
+              <Text style={styles.askBtnLabel}>Demander de l'aide</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Offrir un cadeau au crew"
+              hitSlop={6}
               onPress={() => {
                 haptics.light();
                 setGiftSheet(true);
               }}
-              style={({ pressed }) => [styles.offerBtn, pressed && styles.dim]}
+              style={({ pressed }) => [styles.offerLink, pressed && styles.dim]}
             >
-              <Icon name="cadeau" size={16} color={gameColors.gold} />
-              <Text style={styles.offerBtnLabel}>Offrir au crew</Text>
+              <Icon name="cadeau" size={14} color={gameColors.gold} />
+              <Text style={styles.offerLinkLabel}>Offrir au crew</Text>
             </Pressable>
           </View>
 
@@ -2147,11 +2235,11 @@ export default function CrewScreen() {
             </View>
           ) : null}
 
-          {/* ── SECTION 3 · LOG (War Log compressé) : 2 visibles + Voir tout ── */}
+          {/* ── SECTION 3 · RÉSULTATS (War Log compressé) : 2 visibles + Voir tout ── */}
           {showLog ? (
             <View style={styles.chatSection}>
               <SectionHead
-                label="LOG"
+                label="RÉSULTATS"
                 count={warLogEvents.length}
                 showAll={showAllLog}
                 onToggle={() => {
@@ -2188,7 +2276,7 @@ export default function CrewScreen() {
           ) : null}
 
           <Text style={styles.chatNote}>
-            Ton crew ne parle pas seulement. Il agit. Messages du crew — pas de MP (MVP, démo).
+            Le crew agit ici. Pas de messages privés (démo).
           </Text>
         </>
       ) : null}
@@ -2653,6 +2741,7 @@ export default function CrewScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Débloquer ${pseudo}`}
+                    hitSlop={8}
                     onPress={() => onUnblockMember(pseudo)}
                     style={({ pressed }) => [styles.unblockBtn, pressed && styles.dim]}
                   >
@@ -2739,6 +2828,49 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   glueNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 15, marginTop: 2 },
+  // ── MISSION PRIORITAIRE (tête de la Base) : surface N1 + liseré violet
+  //    contesté = état de jeu « sous pression » (pas une déco). 3 infos max
+  //    (secteur · rues · heures) + l'unique CTA chartreuse du landing. ──
+  missionCard: {
+    marginTop: 18,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: gameColors.contested,
+    padding: spacing.cardPadding,
+    gap: 8,
+  },
+  missionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  missionKicker: {
+    flex: 1,
+    color: gameColors.contested,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  missionHours: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  missionSector: {
+    color: colors.blanc,
+    fontSize: fontSizes.xl,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  missionMeta: { color: colors.gris, fontSize: fontSizes.xs, marginBottom: 4 },
+  // Lien discret « Toutes les missions du crew » (War Room) — texte gris,
+  // navigation légère, jamais un 2ᵉ CTA.
+  missionsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+  },
+  missionsLinkText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   // ── Header base : LA surface N1 de la section (pose sur le fond, sans cadre). ──
   headerCard: {
     marginTop: 20,
@@ -2830,7 +2962,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     fontVariant: ['tabular-nums'],
   },
-  baseCardSub: { color: colors.gris, fontSize: 11, letterSpacing: 0.2 },
+  baseCardSub: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
   // ── Bascule Contribution & boost (secondaire, repliée) : détail AU TAP (§6).
   //    Rangée légère séparée par l'ESPACE + un filet, pas une card cadrée. ──
   contribToggle: {
@@ -2838,7 +2970,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginTop: 18,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: borderState.hairline,
   },
@@ -2874,7 +3006,7 @@ const styles = StyleSheet.create({
   boostBonusText: { color: gameColors.gold, fontSize: fontSizes.xs, fontWeight: '800' },
   boostSub: { color: colors.gris, fontSize: fontSizes.xs },
   boostTimer: { color: colors.blanc, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  boostNote: { color: colors.gris, fontSize: 11, lineHeight: 15, marginTop: 1 },
+  boostNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16, marginTop: 1 },
   // ── Contribution + Crew Wall (§14/§28) : surface N1 unique, sans cadre. ──
   contribCard: {
     backgroundColor: elevation.surface,
@@ -2930,7 +3062,7 @@ const styles = StyleSheet.create({
   },
   wallSupporter: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', flexShrink: 1 },
   wallContribution: { color: colors.gris, fontSize: fontSizes.xs, flexShrink: 1, textAlign: 'right' },
-  wallFootnote: { color: colors.gris, fontSize: 11, marginTop: 2 },
+  wallFootnote: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
   // ── TERRITOIRE CREW (AMENDEMENT-11 §4) : détail au tap = surface N1 posée. ──
   territoryCard: {
     marginTop: 14,
@@ -2983,7 +3115,7 @@ const styles = StyleSheet.create({
   },
   territoryLabel: {
     color: colors.gris,
-    fontSize: 10,
+    fontSize: fontSizes.xs,
     letterSpacing: 0.3,
     textAlign: 'center',
   },
@@ -3003,7 +3135,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 18,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: borderState.hairline,
   },
@@ -3068,12 +3200,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
   },
-  // « Voir tout » = action légère : pill N2 relevé, sans contour.
+  // « Voir tout » = action légère : pill N2 relevé, sans contour (hitSlop en
+  // JSX pour garder la cible tactile ≥ 44 px).
   seeAllBtn: {
     borderRadius: radii.pill,
     backgroundColor: elevation.raised,
-    paddingVertical: 5,
-    paddingHorizontal: 11,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   seeAllLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   // ── Carte d'action « À FAIRE » : surface N1 (sans cadre) + 1 CTA plein. ──
@@ -3103,16 +3236,18 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   actionZone: { color: colors.gris, fontSize: fontSizes.xs },
-  // CTA plein chartreuse — libellé NOIR (contraste charte), jamais tronqué.
+  // CTA de carte = pill N2 relevé, verbe précis jamais tronqué. Un seul CTA
+  // chartreuse plein par scène (§A.4) : dans le Chat c'est « Demander de
+  // l'aide » — les cartes gardent un bouton clair mais en poids secondaire.
   actionCta: {
-    backgroundColor: gameColors.crew,
+    backgroundColor: elevation.raised,
     borderRadius: radii.pill,
-    paddingVertical: 12,
+    paddingVertical: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionCtaLabel: {
-    color: colors.noir,
+    color: colors.blanc,
     fontSize: fontSizes.sm,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -3138,7 +3273,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  bonusEffect: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
+  bonusEffect: { fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.2 },
   // ── Carte de DON (A.4) : kicker + effet + réactions Merci/Respect/Bien joué ──
   // Don = surface N1 ; liseré or = STATUT « cadeau » (état N3), pas déco.
   giftCard: {
@@ -3180,8 +3315,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
     backgroundColor: elevation.raised,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
   },
   giftReactMine: { borderColor: borderState.active },
   giftReactLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
@@ -3205,33 +3340,29 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   giftCtaLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-  // ── Demander / Offrir (A.3) — barre en tête du chat actionnable ──
-  askRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  // ── Demander / Offrir (A.3) — en tête du chat actionnable. « Demander de
+  // l'aide » = l'unique CTA chartreuse plein de la scène ; « Offrir au crew »
+  // = LIEN léger dessous (la contribution payante n'est jamais mise en avant). ──
+  askRow: { marginTop: 18, gap: 4 },
   askBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: gameColors.crew,
     borderRadius: radii.pill,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
   // Libellé NOIR sur chartreuse (contraste charte, jamais l'inverse).
   askBtnLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.3 },
-  // « Offrir » = action secondaire à côté du gros CTA « Demander » : pill N2
-  // relevé sans contour (le sens « cadeau » vient de l'icône + label or).
-  offerBtn: {
-    flex: 1,
+  offerLink: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: elevation.raised,
-    borderRadius: radii.pill,
+    gap: 7,
     paddingVertical: 12,
   },
-  offerBtnLabel: { color: gameColors.gold, fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0.2 },
+  offerLinkLabel: { color: gameColors.gold, fontSize: fontSizes.xs, fontWeight: '600' },
   // ── Carte CADEAU CREW (A.3, gifting premium réclamable) ──
   // Cadeau premium = surface N1 ; liseré or = STATUT « cadeau » (état N3).
   cadeauCard: {
@@ -3267,7 +3398,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   cadeauMessage: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
-  cadeauMeta: { color: colors.gris, fontSize: 11, letterSpacing: 0.2, fontVariant: ['tabular-nums'] },
+  cadeauMeta: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2, fontVariant: ['tabular-nums'] },
   cadeauCta: {
     borderRadius: radii.pill,
     paddingVertical: 11,
@@ -3307,7 +3438,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     flexShrink: 1,
   },
-  bubbleTime: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
+  bubbleTime: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
   // « … » de signalement collé à la fin de l'en-tête (App Store 1.2).
   bubbleMore: { marginLeft: 'auto', paddingHorizontal: 4 },
   bubbleMoreDots: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 1 },
@@ -3323,14 +3454,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: borderState.hairline,
   },
-  moderationLink: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  // Liens de modération : padding vertical généreux → cible tactile ≥ 44 px.
+  moderationLink: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 12 },
   moderationLinkText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   blockedEmpty: { color: colors.gris, fontSize: fontSizes.sm, paddingVertical: 16 },
   unblockBtn: {
     backgroundColor: elevation.raised,
     borderRadius: radii.pill,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 10,
   },
   unblockBtnText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
   bubble: {
@@ -3359,7 +3491,7 @@ const styles = StyleSheet.create({
   bubbleTextMe: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
   bubbleTimeMe: {
     color: colors.gris,
-    fontSize: 10,
+    fontSize: fontSizes.xs,
     marginTop: 4,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
@@ -3405,7 +3537,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
     backgroundColor: elevation.raised,
-    paddingVertical: 8,
+    paddingVertical: 11,
     paddingHorizontal: 14,
   },
   rsvpChipSelected: { borderColor: colors.blanc },
@@ -3551,7 +3683,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: borderState.hairline,
-    paddingVertical: 8,
+    paddingVertical: 11,
     paddingHorizontal: 14,
   },
   outingRsvpChipSelected: { borderColor: colors.blanc },

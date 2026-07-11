@@ -149,7 +149,7 @@ export const MAP_RIVAL_ALERT: MapRivalAlertDemo = {
 /**
  * Header COMPACT (une ligne) + card sticky + micro-ligne bonus + pill rival.
  * Copy radicalement court, FR, virgule décimale, RIEN de tronqué :
- *   header  « République attaquée » / « 3 zones à sauver »
+ *   header  « République attaquée » / « 3 zones à défendre »
  *   card    « Défendre République » / « 4,4 km · 3 zones · bonus actif »
  *   bonus   micro-ligne « bonus actif · +120 pts »
  *   rival   pill « Canal Crew reprend du terrain » / « 14 zones perdues »
@@ -159,8 +159,8 @@ export const MAP_RIVAL_ALERT: MapRivalAlertDemo = {
 export const MAP_MISSION = {
   /** Header, ligne 1 : la menace, en une accroche courte. */
   headerTitle: `${DEFENSE_SECTOR} attaquée`,
-  /** Header, ligne 2 : l'enjeu chiffré (n zones à sauver). */
-  headerSubtitle: '3 zones à sauver',
+  /** Header, ligne 2 : l'enjeu chiffré — UN seul verbe partout (défendre). */
+  headerSubtitle: '3 zones à défendre',
   /** Card, titre : l'action (le verbe + la zone). */
   cardTitle: `Défendre ${DEFENSE_SECTOR}`,
   /** Card, méta : distance · zones · bonus (chaîne assemblée non tronquée). */
@@ -204,27 +204,27 @@ export const MAP_MISSION_SUMMARY = {
 } as const;
 
 /**
- * ALERTE TACTIQUE (haut de carte) : UNE seule alerte forte — menace + enjeu
- * chiffré + temps + rival — au lieu de plusieurs pills flottantes qui font du
- * bruit. Hiérarchie claire, une info prioritaire. Étiquettes scénario.
+ * ALERTE TACTIQUE : menace + enjeu chiffré + temps + rival. HORLOGE UNIQUE de
+ * l'écran : timeLeftLabel DÉRIVE de MAP_MISSION_SUMMARY (une seule source —
+ * plus jamais « 14 min » vs « 8 h » contradictoires). Étiquettes scénario.
  */
 export const MAP_ALERT = {
   title: MAP_MISSION.headerTitle, // « République attaquée »
   zonesLabel: `${MAP_MISSION.zones} zones à défendre`,
-  timeLeftLabel: '14 min restantes',
+  timeLeftLabel: MAP_MISSION_SUMMARY.timeLeftLabel, // « 8 h restantes » — source unique
   rivalLine: MAP_RIVAL_PILL.message, // « Canal Crew reprend du terrain »
 } as const;
 
 /**
- * CARTE « DÉFENDRE » contextuelle (bas de carte, au-dessus du bouton d'action) :
- * la zone PRIORITAIRE (nom + distance viennent du coach mapOpportunities) +
- * contrôle restant + récompense + depuis quand l'attaque dure. Tap → options.
- * Rend le bouton DÉFENDRE logique (on sait QUOI on défend et POURQUOI).
+ * CARTE « DÉFENDRE » contextuelle (sheet Info) : la zone PRIORITAIRE (nom +
+ * distance viennent du coach mapOpportunities) + contrôle restant + récompense
+ * (unité UNIQUE « pts » — jamais XP côté carte) + la pression rivale (SANS 2ᵉ
+ * horloge : la seule horloge de l'écran est MAP_MISSION_SUMMARY.timeLeftLabel).
  */
 export const MAP_DEFEND_CARD = {
   controlPct: 62,
-  rewardLabel: `+${MAP_MISSION.bonusPoints} XP crew`,
-  attackSinceLabel: `${MAP_CONTROL_HUD.rivalName} attaque depuis 8 min`,
+  rewardLabel: `+${MAP_MISSION.bonusPoints} pts crew`,
+  rivalLine: MAP_RIVAL_PILL.message, // « Canal Crew reprend du terrain »
 } as const;
 
 // ─── Membres crew SUR la carte (AMENDEMENT-09 §2) ───────────────────────────

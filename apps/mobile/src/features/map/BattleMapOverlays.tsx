@@ -9,7 +9,7 @@
  *
  *   ÉCRAN PAR DÉFAUT (rien d'autre) :
  *   1. HEADER COMPACT — UNE ligne : « République attaquée » + sous-ligne
- *      « 3 zones à sauver ». Un seul message : va défendre République.
+ *      « 3 zones à défendre ». Un seul message : va défendre République.
  *   2. PILL RIVAL : compacte, INFORMATIVE, SANS CTA (« Canal Crew reprend du
  *      terrain · 14 zones perdues »). L'alerte informe, l'Info convertit.
  *   3. CARTE : plein écran (silencieuse — pilotée par MapScreen/mapStyle).
@@ -22,13 +22,13 @@
  *   remplace la card sticky, il ne s'ajoute pas à un cockpit.
  *
  *   PANNEAU INFO (MapBottomSheet, révélé au tap sur le FAB Info) :
- *   - PEEK (compact) : la SITUATION EN HAUT (zone · état · Ton crew % vs rival %
- *     · directive bonus/temps) PUIS la MISSION (« Défendre République » +
- *     micro-bonus « bonus actif · +120 pts » + lien discret « Voir les
- *     options »). AMENDEMENT-29 : le gros CTA de mission a MIGRÉ vers le BOUTON
- *     D'ACTION FLOTTANT (au-dessus de la nav, gaté par route) — l'Info ne
- *     duplique PLUS un 2ᵉ [Défendre] (anti double-CTA §A.4). Le SEUL gros CTA
- *     chartreuse de l'écran est le bouton flottant.
+ *   - PEEK (compact) : LA mission formulée UNE SEULE FOIS (audit zéro-friction)
+ *     — card « {zone} à défendre » (distance · contrôle · +pts · pression
+ *     rivale, tap = options) PUIS la SITUATION (état · parts de contrôle ·
+ *     bonus + temps restant = l'HORLOGE UNIQUE) + lien discret « Voir les
+ *     options ». AMENDEMENT-29 : le gros CTA de mission vit sur le BOUTON
+ *     D'ACTION FLOTTANT — l'Info ne duplique JAMAIS un 2ᵉ [Défendre] (anti
+ *     double-CTA §A.4). Le SEUL gros CTA chartreuse de l'écran est le bouton.
  *   - OUVERT (tap « Voir les options ») : les options — PARCOURS (2-3) · ÉQUIPE
  *     (2 alliés opt-in + « Courir ensemble ») · DÉTAILS (missions + historique).
  *
@@ -66,7 +66,6 @@ import { MISSIONS } from '../warroom/demo';
 import {
   DEFENSE_SECTOR,
   FRIEND_RUN_DEMO,
-  MAP_ALERT,
   MAP_DEFEND_CARD,
   MAP_MISSION,
   MAP_MISSION_SUMMARY,
@@ -111,20 +110,21 @@ const MODE_COLOR: Record<MapMode, string> = {
 /**
  * FOND de carte (AMENDEMENT-28) — 3 options du menu Calques, libellés COURTS non
  * tronqués (charte : jamais de chartreuse sur clair ; l'actif se marque en carbon
- * + crew comme les calques). « Réaliste » = satellite (vraies photos aériennes).
+ * + crew comme les calques). « Satellite » dit ce que c'est (audit zéro-friction :
+ * « Réaliste » était ambigu — vraies photos aériennes = satellite).
  */
 const BASEMAP_LABELS: Record<BasemapKey, string> = {
   // Deux thèmes façon Waze (jour/nuit) : Clair (Voyager) & Sombre (dark-matter) —
-  // + Réaliste (satellite). Décision fondateur.
+  // + Satellite. Décision fondateur.
   dark: 'Sombre',
   color: 'Clair',
-  satellite: 'Réaliste',
+  satellite: 'Satellite',
 };
 /**
  * Icône par fond : on réutilise le jeu d'icônes EXISTANT (`@klaim/shared` n'a
  * pas d'icône « satellite » — hors périmètre). `carte` (losange type plan) pour
- * les fonds plan ; `calques` (pile de losanges) pour le réaliste satellite, qui
- * se distingue ainsi visuellement sans nouvelle icône. Le libellé fait foi.
+ * les fonds plan ; `calques` (pile de losanges) pour le satellite, qui se
+ * distingue ainsi visuellement sans nouvelle icône. Le libellé fait foi.
  */
 const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
   dark: 'carte',
@@ -483,15 +483,15 @@ function InfoPanel({ onOptions }: { onOptions: () => void }) {
   const s = MAP_MISSION_SUMMARY;
   return (
     <View style={styles.info}>
-      {/* TOUT est ici (décision fondateur : rien sur la carte) — l'ALERTE
-          tactique (attaque + rival + temps) et la ZONE À DÉFENDRE (distance +
-          contrôle + récompense) EN PREMIER, puis la situation + les options. */}
-      <AlertBanner />
+      {/* LA mission, formulée UNE SEULE FOIS (audit zéro-friction : plus de
+          répétition alerte/carte/situation/mission) : la card « à défendre »
+          porte zone + distance + contrôle + récompense + pression rivale, et
+          son tap ouvre les options. */}
       <DefendCard onPress={onOptions} />
       <View style={styles.infoDivider} />
 
-      {/* SITUATION (ex-3ᵉ FAB Info AMENDEMENT-17, revenu ici) — zone · état ·
-          parts de contrôle · directive (bonus + temps restant). */}
+      {/* SITUATION (ex-3ᵉ FAB Info AMENDEMENT-17, revenu ici) — état · parts de
+          contrôle · directive (bonus + temps restant = l'HORLOGE UNIQUE). */}
       <Text style={styles.situationTitle} numberOfLines={1}>
         {s.zone} · {s.stateLabel}
       </Text>
@@ -514,26 +514,14 @@ function InfoPanel({ onOptions }: { onOptions: () => void }) {
         </View>
       </View>
 
-      {/* Séparation par L'ESPACE (AMENDEMENT-22 : pas de card-dans-card). */}
-      <View style={styles.infoDivider} />
-
-      {/* MISSION — le verbe + la zone (SITUATION, pas un CTA). AMENDEMENT-29 :
-          le gros CTA de mission a MIGRÉ vers le bouton d'action FLOTTANT
-          (au-dessus de la nav) — l'Info ne duplique PLUS un 2ᵉ [Défendre]
-          (anti double-CTA §A.4). Il ne reste ici que la situation + le lien
-          discret « Voir les options ». */}
-      <Text style={styles.missionTitle} numberOfLines={1}>
-        {MAP_MISSION.cardTitle}
-      </Text>
-      <Text style={styles.missionMeta} numberOfLines={1}>
-        {`${formatKm(MAP_MISSION.distanceKm)} · ${zonesLabel(MAP_MISSION.zones)}`}
-      </Text>
+      {/* Le CTA de mission vit sur le BOUTON D'ACTION FLOTTANT (AMENDEMENT-29,
+          anti double-CTA §A.4) — ici seulement le lien discret vers les options. */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Voir les options — parcours, équipe et détails"
         hitSlop={8}
         onPress={onOptions}
-        style={({ pressed }) => pressed && styles.pressed}
+        style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
       >
         <Text style={styles.optionsLink} numberOfLines={1}>
           {MAP_MISSION.optionsLabel}
@@ -544,39 +532,12 @@ function InfoPanel({ onOptions }: { onOptions: () => void }) {
 }
 
 /**
- * ALERTE TACTIQUE (haut de carte) : UNE seule alerte forte — menace (titre) +
- * enjeu chiffré + temps restant + rival — au lieu de plusieurs pills flottantes
- * qui font du bruit. Accent rival (barre orange à gauche) = urgence ; hiérarchie
- * titre > enjeu/temps > rival. Ce n'est PAS un CTA (le seul gros CTA reste le
- * bouton d'action). Slide-in doux (reduce motion → fondu).
- */
-function AlertBanner() {
-  const { opacity, translateY } = useSlideIn(6);
-  return (
-    <Animated.View style={[styles.alert, { opacity, transform: [{ translateY }] }]}>
-      <View style={styles.alertBar} />
-      <View style={styles.alertBody}>
-        <Text style={styles.alertTitle} numberOfLines={1}>
-          {MAP_ALERT.title}
-        </Text>
-        <Text style={styles.alertMeta} numberOfLines={1}>
-          {MAP_ALERT.zonesLabel} · {MAP_ALERT.timeLeftLabel}
-        </Text>
-        <Text style={styles.alertRival} numberOfLines={1}>
-          {MAP_ALERT.rivalLine}
-        </Text>
-      </View>
-    </Animated.View>
-  );
-}
-
-/**
- * Carte « DÉFENDRE » PERSISTANTE (bas de carte, au-dessus du bouton d'action) : la
- * zone PRIORITAIRE (nom + distance dérivés du coach mapOpportunities) + contrôle
- * restant + récompense + depuis quand l'attaque dure. Rend le bouton [DÉFENDRE]
- * logique (on sait QUOI défendre et POURQUOI). INFORMATIVE + tap → déplie les
- * options (MÊME sheet Info, pas un doublon). Émet opportunity_shown. Barre
- * chartreuse = ma zone. Slide-in doux.
+ * LA carte mission de la sheet Info (formulation UNIQUE — audit zéro-friction) :
+ * la zone PRIORITAIRE (nom + distance dérivés du coach mapOpportunities) +
+ * contrôle restant + récompense (pts) + pression rivale (SANS 2ᵉ horloge — la
+ * seule horloge de l'écran est le chip « temps restant » de la situation).
+ * INFORMATIVE + tap → déplie les options (MÊME sheet, pas un doublon). Émet
+ * opportunity_shown. Barre chartreuse = ma zone. Slide-in doux.
  */
 function DefendCard({ onPress }: { onPress: () => void }) {
   const { opacity, translateY } = useSlideIn(8);
@@ -603,7 +564,7 @@ function DefendCard({ onPress }: { onPress: () => void }) {
             {distance} · contrôle {MAP_DEFEND_CARD.controlPct} % · {MAP_DEFEND_CARD.rewardLabel}
           </Text>
           <Text style={styles.defendSince} numberOfLines={1}>
-            {MAP_DEFEND_CARD.attackSinceLabel}
+            {MAP_DEFEND_CARD.rivalLine}
           </Text>
         </View>
         <Icon name="chevron" size={16} color={colors.gris} />
@@ -750,30 +711,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── ALERTE TACTIQUE (haut) : une alerte forte, accent rival = urgence ──
-  alert: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: OVERLAY_SURFACE,
-    overflow: 'hidden',
-  },
-  alertBar: { width: 4, backgroundColor: gameColors.rival },
-  alertBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 9 },
-  alertTitle: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg, // 20 px
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  alertMeta: { color: colors.blanc, fontSize: 12.5, fontWeight: '700', marginTop: 2 },
-  alertRival: { color: gameColors.rival, fontSize: 12, fontWeight: '600', marginTop: 2 },
-
-  // ── Carte DÉFENDRE persistante (bas, au-dessus du bouton d'action) ──
-  // Ancre BAS dédiée (sheetWrap est ancré `top:0` pour le sheet qui grandit) :
-  // ici bottom = sheetBottom → la card flotte juste au-dessus de la nav.
+  // ── Carte « à défendre » (sheet Info — LA formulation unique de la mission) ──
   defendAnchor: { position: 'absolute', left: 14, right: 14 },
   defendWrap: { alignSelf: 'stretch' },
   defendCard: {
@@ -795,7 +733,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   defendMeta: { color: colors.blanc, fontSize: 12.5, fontWeight: '600', marginTop: 2 },
-  defendSince: { color: colors.gris, fontSize: 11.5, marginTop: 2 },
+  // Pression rivale (>= 12 px — audit zéro-friction : aucun texte sous 12 px).
+  defendSince: { color: gameColors.rival, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
   // ── FAB column : 3 MAX (Calques + Recentrer + Info) ──
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
@@ -874,22 +813,14 @@ const styles = StyleSheet.create({
   // Divider : sépare situation et mission par l'espace (pas de 2 boîtes).
   infoDivider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: 12 },
 
-  // MISSION (dans le peek Info) : le verbe + la zone + le gros CTA.
-  missionTitle: { color: colors.blanc, fontSize: 17, fontWeight: '800', letterSpacing: 0.2 },
-  missionMeta: {
-    color: colors.gris,
-    fontSize: 13,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
-  },
   // « Voir les options » — lien discret (déplie le panneau, jamais un 2ᵉ CTA).
+  // Zone de tap >= 44 px (audit zéro-friction) portée par le conteneur.
+  optionsHit: { minHeight: 44, justifyContent: 'center', marginTop: 2 },
   optionsLink: {
     color: colors.gris,
     fontSize: 13,
     textDecorationLine: 'underline',
     textAlign: 'center',
-    marginTop: 10,
   },
 
   // ── Panneau Info OUVERT : les options (Parcours / Équipe / Détails) ──
