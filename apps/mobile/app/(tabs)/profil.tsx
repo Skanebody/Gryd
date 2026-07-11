@@ -28,7 +28,6 @@ import {
   SKILL_ROMAN,
   STREAK_MULTIPLIER_CAP,
   STREAK_MULTIPLIER_STEP,
-  XP_RATE_OF_POINTS,
   badgeKeyByName,
   borderState,
   colors,
@@ -60,6 +59,7 @@ import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
 import { GripMascot } from '../../src/features/social/GripMascot';
 import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
+import { useMyEconomy } from '../../src/features/social/economy';
 import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
@@ -84,22 +84,9 @@ import { CrewCrest, IconAction, ShareCard } from '../../src/ui/game';
 
 const STREAK_WEEKS = 3;
 
-/** XP permanent : 1:1 avec les points territoire (choix D18), source shared. */
-const xp = MY_SOCIAL_PROFILE.xp * XP_RATE_OF_POINTS;
-/** Niveau/tier DÉRIVÉS de la courbe réelle (features/crew/rules). */
-const runnerLevel = playerLevelForXp(xp);
-const runnerTier = playerTierForLevel(runnerLevel);
-/** Rang du personnage GRIP (pose) dérivé du niveau (§43.3) — cosmétique, jamais acheté. */
-const gripRank = gripRankForLevel(runnerLevel);
-/** Bornes XP du niveau courant → jauge « Level N → N+1 » (courbe §43.1). */
+/** Bornes XP par niveau (courbe §43.1) — table pure. Le niveau/tier/jauge sont
+ *  DÉRIVÉS de l'XP RÉELLE dans le composant (O1 : useMyEconomy), plus au module. */
 const XP_TABLE = playerLevelXpTable();
-const levelFloor = XP_TABLE[runnerLevel - 1] ?? 0;
-const levelCeil = runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
-const levelRatio = levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
-const streakMultiplier = Math.min(
-  1 + STREAK_WEEKS * STREAK_MULTIPLIER_STEP,
-  STREAK_MULTIPLIER_CAP,
-);
 /**
  * Territoire : KPI DÉRIVÉ des mêmes données démo que la vraie carte de France
  * (AMENDEMENT-13 §3 — digital twin, jamais codé en dur).
@@ -277,6 +264,25 @@ export default function ProfilScreen() {
 
   /** Profil ÉDITABLE persisté — l'édition depuis /profil-edit se reflète ici. */
   const { profile } = useMyProfile();
+  // O1 Pass 2 : chiffres RÉELS (users.xp/foulées/série + season_scores) quand une
+  // session Supabase existe, sinon fallback démo. Niveau/tier/GRIP/jauge DÉRIVÉS
+  // de l'XP effective via la courbe partagée — jamais un nombre magique.
+  const economy = useMyEconomy();
+  const xp = economy.xp;
+  const runnerLevel = playerLevelForXp(xp);
+  const runnerTier = playerTierForLevel(runnerLevel);
+  const gripRank = gripRankForLevel(runnerLevel);
+  const levelFloor = XP_TABLE[runnerLevel - 1] ?? 0;
+  const levelCeil =
+    runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
+  const levelRatio = levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
+  const streakWeeks = economy.source === 'server' ? economy.streakWeeks : STREAK_WEEKS;
+  const streakMultiplier = Math.min(
+    1 + streakWeeks * STREAK_MULTIPLIER_STEP,
+    STREAK_MULTIPLIER_CAP,
+  );
+  const seasonRank =
+    economy.source === 'server' ? (economy.seasonRank ?? profile.seasonRank) : profile.seasonRank;
   /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
   const { equipped } = useEquippedCosmetics();
 
@@ -387,7 +393,7 @@ export default function ProfilScreen() {
               zones tenues · {TERRITORY_KPI.citiesLabel}
             </Text>
             <Text style={styles.headerRank} numberOfLines={1}>
-              Rang #{profile.seasonRank} {profile.seasonScope}
+              Rang #{seasonRank} {profile.seasonScope}
             </Text>
           </View>
           {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
@@ -417,7 +423,7 @@ export default function ProfilScreen() {
         {shareOpen ? (
           <View style={styles.shareCardWrap}>
             <ShareCard
-              stat={`#${profile.seasonRank}`}
+              stat={`#${seasonRank}`}
               statLabel={`Rang saison · ${profile.seasonScope}`}
               title={`${profile.displayName} · ${profile.crewName}`}
               subtitle={`${GRIP_RANK_LABELS[gripRank]} · niv. ${runnerLevel} · ${displayedTitle}`}
