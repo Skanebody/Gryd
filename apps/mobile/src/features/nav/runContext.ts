@@ -1,16 +1,17 @@
 /**
- * GRYD — PLAN AUTO du bouton GO (AMENDEMENT-14 §1-3, précise AMENDEMENT-12 §A).
- * L'objectif est un RÉSULTAT, pas une question : le joueur ne choisit jamais
- * conquérir/défendre — le moteur classe déjà chaque zone serveur-side. Ici on
- * DÉRIVE (données démo déterministes, jamais saisi) :
+ * GRYD — PLAN AUTO du départ de course (AMENDEMENT-14 §1-3, précise
+ * AMENDEMENT-12 §A). L'objectif est un RÉSULTAT, pas une question : le joueur
+ * ne choisit jamais conquérir/défendre — le moteur classe déjà chaque zone
+ * serveur-side. Ici on DÉRIVE (données démo déterministes, jamais saisi) :
  *   lecture `defense`   zones en decay urgent sur la Battle Map OU mission
  *                       défense active (warroom/demo DEFENSE_MISSION)
  *   lecture `conquete`  sinon (défaut)
  * et le PLAN AUTO en une phrase + un itinéraire démo (« Défends le Canal ·
  * 3 zones à sauver » → route défense ; « Conquiers République · +94 zones » →
- * route recommandée). GO = départ immédiat sur ce plan ; le Route Planner
- * devient un outil OPTIONNEL. Le serveur décide toujours du territoire — la
- * lecture ne teinte que kicker/sheet, plus jamais le libellé du bouton.
+ * route recommandée). Le tap sur le bouton de départ = départ immédiat sur ce
+ * plan ; le Route Planner devient un outil OPTIONNEL. Le serveur décide
+ * toujours du territoire — la lecture ne teinte que kicker/sheet, plus jamais
+ * le libellé du bouton.
  */
 import { battleMapData, battleMapSummary, type BattleMapSummary } from '../map/fakeHexes';
 import { DEFENSE_MISSION, OFFENSIVE } from '../warroom/demo';
@@ -24,7 +25,7 @@ export const RULE_PHRASE =
 /** Lecture du plan auto — teinte kicker/sheet uniquement (pas un choix). */
 export type RunLecture = 'conquete' | 'defense';
 
-/** Le plan auto (smart default démo) affiché au-dessus du GO. */
+/** Le plan auto (smart default démo) affiché au-dessus du bouton de départ. */
 export interface AutoRunPlan {
   lecture: RunLecture;
   /** Itinéraire démo pré-choisi (ids de features/route/demo). */
@@ -51,8 +52,8 @@ function demoRouteId(objective: keyof typeof ROUTE_ID_BY_OBJECTIVE): string {
 function buildPlan(mode: RunButtonMode, summary: BattleMapSummary): AutoRunPlan {
   if (mode === 'DEFENDRE') {
     const routeId = demoRouteId('defendre');
-    // La phrase suit la ZONE DE LA ROUTE résolue (le GO y mène vraiment) — pas
-    // la mission War Room, qui peut viser une autre zone dans la démo.
+    // La phrase suit la ZONE DE LA ROUTE résolue (le départ y mène vraiment) —
+    // pas la mission War Room, qui peut viser une autre zone dans la démo.
     const route = ROUTES_DEMO.find((r) => r.id === routeId);
     const zone = route?.zone ?? DEFENSE_MISSION.zone;
     const n = Math.max(1, summary.decay);
@@ -125,7 +126,7 @@ export function mapDirective(): MapDirective {
 
 let cached: BattleContext | null = null;
 
-/** Contexte de bataille partagé bouton GO / HUD carte (calculé une fois — démo). */
+/** Contexte de bataille partagé bouton de départ / HUD carte (calculé une fois — démo). */
 export function battleContext(): BattleContext {
   if (cached) return cached;
   const summary = battleMapSummary(battleMapData().collection);
@@ -140,12 +141,12 @@ export function deriveRunButtonMode(): RunButtonMode {
   return battleContext().mode;
 }
 
-/** Le plan auto courant (phrase + route) — bandeau carte, Today, bouton GO. */
+/** Le plan auto courant (phrase + route) — bandeau carte, Today, bouton de départ. */
 export function deriveAutoPlan(): AutoRunPlan {
   return battleContext().plan;
 }
 
-/** Départ immédiat GO : toujours mode conquête + itinéraire du plan auto. */
+/** Départ immédiat : toujours mode conquête + itinéraire du plan auto. */
 export function goHref(plan: AutoRunPlan): string {
   return `/course-live?mode=conquete&route=${plan.routeId}`;
 }

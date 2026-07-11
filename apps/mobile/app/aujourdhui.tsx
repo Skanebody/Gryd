@@ -1,13 +1,13 @@
 /**
- * GRYD — Page « Aujourd'hui » refondue : PORTE D'ENTRÉE quotidienne
- * (AMENDEMENT-10 §4, AMENDEMENT-11 vocabulaire zones/territoires). Règle
- * stricte « un écran = une décision » : 1 objectif (la ROUTE RECOMMANDÉE,
- * KPI géant), 2-3 indicateurs (bandeau semaine : runs · Score Forme · coffre
- * crew), 1 CTA « GO » (AMENDEMENT-14 §2 : départ IMMÉDIAT sur le plan auto —
- * la card route reste tappable vers le Route Planner, outil optionnel), pas de
- * feed. Le prochain badge proche (1 carte compacte) reste une invitation
- * douce, jamais une injonction. Régime usage réel : fond plein, pas de glass,
- * contraste max.
+ * GRYD — Page « Aujourd'hui » : PORTE D'ENTRÉE quotidienne (AMENDEMENT-10 §4,
+ * AMENDEMENT-11 vocabulaire zones/territoires). Règle stricte « un écran = une
+ * décision » : 1 objectif (la ROUTE RECOMMANDÉE, KPI géant), 2-3 indicateurs
+ * (bandeau semaine : courses · Score Forme · coffre crew), 1 CTA verbe
+ * (AMENDEMENT-29 : « GO » retiré) — le libellé du CTA ET la destination du
+ * départ viennent de la MÊME source `battleContext()` (jamais deux lectures
+ * divergentes) ; la card route reste tappable vers le Route Planner, outil
+ * optionnel. Pas de feed. Le prochain badge proche (1 carte compacte) reste
+ * une invitation douce, jamais une injonction. Fond plein, contraste max.
  *
  * Data démo déterministe (features/motivation/demo TODAY + TODAY_HERO,
  * badge dérivé du catalogue + stats démo). Anti-shame (§11) conservé.
@@ -45,11 +45,10 @@ export default function AujourdhuiScreen() {
 
   const { route } = TODAY_HERO;
 
-  // AMENDEMENT-12 §A : la route recommandée est étiquetée sur les 2 verbes
-  // joueur — DÉFENDRE si c'est une route défense (démo), sinon CONQUÉRIR.
-  const objectiveTag = route.name.toLowerCase().includes('défense')
-    ? 'DÉFENDRE'
-    : 'CONQUÉRIR';
+  // AMENDEMENT-12 §A : 2 verbes joueur. SOURCE UNIQUE battleContext() — le
+  // verbe affiché (card + CTA) et le départ goNow() partagent le même plan.
+  const { mode: battleMode, plan } = useMemo(() => battleContext(), []);
+  const objectiveTag = battleMode === 'DEFENDRE' ? 'DÉFENDRE' : 'CONQUÉRIR';
 
   // Débloqués + progression : réels (user_badges/user_stats) si session, sinon démo.
   const { unlockedIds, stat } = useMyBadges();
@@ -66,11 +65,10 @@ export default function AujourdhuiScreen() {
 
   const goPlanner = () => router.push('/route-planner');
 
-  /** GO (AMENDEMENT-14 §2) : départ immédiat sur le plan auto — zéro question. */
+  /** Départ immédiat (AMENDEMENT-14 §2) sur le plan auto — zéro question. */
   const goNow = () => {
-    const { mode: context, plan } = battleContext();
     haptics.medium();
-    track(EVENTS.runStart, { mode: 'conquete', context, route: plan.routeId });
+    track(EVENTS.runStart, { mode: 'conquete', context: battleMode, route: plan.routeId });
     router.push(goHref(plan));
   };
 
@@ -101,12 +99,11 @@ export default function AujourdhuiScreen() {
           <Text style={styles.kpiUnit}>km</Text>
         </View>
 
+        {/* ≤ 3 infos sur la card : km (KPI) + zones + durée estimée (~). */}
         <View style={styles.metaRow}>
           <Text style={styles.metaStrong}>+{route.zones} zones</Text>
           <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.meta}>{route.durationMin} min</Text>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.meta}>{route.kind}</Text>
+          <Text style={styles.meta}>~{route.durationMin} min</Text>
         </View>
         <Text style={styles.heroName}>{route.name}</Text>
       </Pressable>
@@ -129,7 +126,7 @@ export default function AujourdhuiScreen() {
             {TODAY.weekRuns}
             <Text style={styles.weekTarget}>/{TODAY.weekTarget}</Text>
           </Text>
-          <Text style={styles.weekLabel}>RUNS</Text>
+          <Text style={styles.weekLabel}>COURSES</Text>
         </View>
         <View style={styles.weekSep} />
         <View style={styles.weekCell}>
@@ -277,7 +274,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   weekTarget: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
-  weekLabel: { color: colors.gris, fontSize: fontSizes.xs - 2, letterSpacing: 1.5 },
+  weekLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.5 },
 
   badgeBlock: { marginTop: 18 },
   blockKicker: {

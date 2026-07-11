@@ -1,14 +1,14 @@
 /**
- * GRYD — layout (tabs) : navigation ULTRA-SIMPLE à 4 slots pilotée par la barre
- * flottante custom (GrydNavBar) : Carte · Crew · [RUN central] · Moi. Décision
- * fondateur : le menu ne répond qu'à 3 besoins (courir · carte · progression).
- * Missions et Saison SORTENT de la barre (routes `warroom`/`classement`
- * conservées, atteintes depuis « Moi »). La tab bar native reste masquée.
+ * GRYD — layout (tabs) : BARRE D'ONGLETS BASSE PERSISTANTE custom (GrydNavBar)
+ * par-dessus des Tabs expo-router dont la tab bar NATIVE est masquée.
+ * 4 destinations visibles en 1 tap : Carte · Crew · Saison · Moi ; la route
+ * `warroom` (Missions) est conservée HORS barre, atteinte depuis « Moi ».
  *
- * Le BOUTON RUN CONTEXTUEL (AMENDEMENT-29) n'est plus un overlay gaté : il vit
- * DANS GrydNavBar, toujours visible, au centre — « le joueur ne doit jamais
+ * Au CENTRE de la barre, soulevé : LE bouton d'action contextuel chartreuse
+ * (AMENDEMENT-29), présent sur TOUS les onglets — « le joueur ne doit jamais
  * chercher comment courir ». Sa dérivation (deriveContextualAction : RUN par
- * défaut, DÉFENDRE/CONQUÉRIR/TERMINER selon l'écran) est portée par la barre.
+ * défaut, DÉFENDRE/CONQUÉRIR/TERMINER selon l'écran) est portée par la barre,
+ * avec un lien « Course libre » visible quand le verbe dérivé n'est pas RUN.
  *
  * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session →
  * (auth)/sign-in ; non configuré (O1) → mode dev.
@@ -45,13 +45,13 @@ export default function TabsLayout() {
     <View style={styles.root}>
       <Tabs screenOptions={{ headerShown: false, tabBarStyle: styles.hiddenTabBar }}>
         <Tabs.Screen name="index" options={{ title: 'Carte', tabBarLabel: 'Carte' }} />
-        {/* Routes conservées, hors barre : atteintes depuis « Moi ». */}
+        {/* Seule route HORS barre : Missions, atteinte depuis « Moi ». */}
         <Tabs.Screen name="warroom" options={{ title: 'Missions', tabBarLabel: 'Missions' }} />
         <Tabs.Screen name="crew" options={{ title: 'Crew', tabBarLabel: 'Crew' }} />
         <Tabs.Screen name="classement" options={{ title: 'Saison', tabBarLabel: 'Saison' }} />
         <Tabs.Screen name="profil" options={{ title: 'Moi', tabBarLabel: 'Moi' }} />
       </Tabs>
-      {/* Barre flottante 4 slots — Carte · Crew · [RUN] · Moi (RUN au centre). */}
+      {/* Barre d'onglets persistante (Carte · Crew · Saison · Moi) + action centrale. */}
       <GrydNavBar />
     </View>
   );

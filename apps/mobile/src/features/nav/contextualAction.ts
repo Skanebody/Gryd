@@ -1,14 +1,15 @@
 /**
- * GRYD — DÉRIVATION de l'ACTION contextuelle du bouton flottant (AMENDEMENT-29).
+ * GRYD — DÉRIVATION de l'ACTION contextuelle du bouton CENTRAL de la barre
+ * d'onglets (AMENDEMENT-29).
  *
  * « Navigation = où je vais. Bouton principal = ce que je fais MAINTENANT. »
- * Un SEUL bouton chartreuse flottant, dont le LIBELLÉ + l'INTENTION + la CIBLE
- * changent selon le contexte de jeu. Ce module est PUR (aucun rendu, aucun
- * hook d'état interne) : il lit les mêmes sources DÉMO déterministes que le
- * reste de l'app (battleContext / MISSIONS / frontières partielles) et rend
- * l'action à afficher. Le défaut est TOUJOURS **RUN** (course libre) — jamais
- * « GO » (retiré définitivement, AMENDEMENT-29 : toujours un VERBE qui dit
- * POURQUOI tu cours).
+ * Un SEUL bouton chartreuse, au centre de la barre et présent sur TOUS les
+ * onglets, dont le LIBELLÉ + l'INTENTION + la CIBLE changent selon le contexte
+ * de jeu. Ce module est PUR (aucun rendu, aucun hook d'état interne) : il lit
+ * les mêmes sources DÉMO déterministes que le reste de l'app (battleContext /
+ * MISSIONS / frontières partielles) et rend l'action à afficher. Le défaut est
+ * TOUJOURS **RUN** (course libre) — jamais « GO » (retiré définitivement,
+ * AMENDEMENT-29 : toujours un VERBE qui dit POURQUOI tu cours).
  *
  * Le bouton porte l'INTENTION CLIENT (conquest / defense / complete) vers
  * `/course-live` — 100 % client, jamais envoyée au serveur (le tracé décide, le
@@ -21,7 +22,8 @@
  * (les stores sont démo déterministes). On dérive donc le contexte de l'écran
  * courant : sur la Carte (`/`) → le contexte de la Battle Map (attaque ⇒
  * DÉFENDRE) ; sur Missions (`/warroom`) → la mission urgente (frontière ⇒
- * TERMINER, sinon défense ⇒ DÉFENDRE). Quand la vraie sélection existera
+ * TERMINER, sinon défense ⇒ DÉFENDRE) ; sur Crew / Saison / Moi → RUN libre
+ * (aucun contexte de jeu à lire). Quand la vraie sélection existera
  * (territoryStatus live), il suffira de la passer dans `ContextInput`.
  */
 import { battleContext, goHref, intentionHref } from './runContext';
@@ -33,7 +35,7 @@ import { MISSIONS, OPEN_BOUNDARIES } from '../warroom/demo';
 import type { IconName } from '@klaim/shared';
 
 /**
- * Les 5 verbes possibles du bouton (JAMAIS « GO »). Chacun = une intention de
+ * Les 5 verbes possibles du bouton central (JAMAIS « GO »). Chacun = une intention de
  * course distincte, portée telle quelle vers le live.
  *   run       course LIBRE (aucune sélection) — GRYD classe après coup.
  *   defendre  zone attaquée sélectionnée — mission défense + route conseillée.
@@ -98,8 +100,8 @@ function runAction(): ContextualAction {
     label: 'RUN',
     icon: 'foulees',
     intention: null,
-    // Run libre = départ immédiat sur le plan auto (comme le tap GO d'avant,
-    // mais SANS intention imposée — GRYD détecte conquis/défendu/route).
+    // Run libre = départ immédiat sur le plan auto, SANS intention imposée —
+    // GRYD détecte après coup conquis/défendu/route.
     targetHref: goHref(battleContext().plan),
     a11yLabel: 'Lancer une course libre',
   };
@@ -181,7 +183,7 @@ function openCrewMission(): { label: string; boundaryId?: string } | null {
 }
 
 /**
- * DÉRIVE l'action contextuelle du bouton flottant (PURE). Ordre de priorité
+ * DÉRIVE l'action contextuelle du bouton central (PURE). Ordre de priorité
  * (Règles §C, adapté à ce que le bouton lance) :
  *   1. sélection EXPLICITE (V1) : boundary ⇒ TERMINER · zone ⇒ DÉFENDRE/CONQUÉRIR
  *      · mission crew ⇒ REJOINDRE ;
@@ -214,7 +216,7 @@ export function deriveContextualAction(input: ContextInput = {}): ContextualActi
   if (input.screen === 'missions') {
     // Missions = « choisir une mission ». La zone attaquée (DÉFENDRE) est DÉJÀ
     // portée en tête d'écran par la carte URGENT · DÉFENSE (CTA in-content de la
-    // liste) : le bouton FLOTTANT prend donc l'action COMPLÉMENTAIRE la plus
+    // liste) : le bouton CENTRAL prend donc l'action COMPLÉMENTAIRE la plus
     // urgente pour ne pas DUPLIQUER ce DÉFENDRE (§A.4) — la frontière crew à
     // refermer (TERMINER, section « À TERMINER » de l'écran), puis la mission
     // crew à rejoindre (REJOINDRE), puis DÉFENDRE, puis CONQUÉRIR en dernier.

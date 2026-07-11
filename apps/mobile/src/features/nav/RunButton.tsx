@@ -1,17 +1,15 @@
 /**
- * GRYD — RunButton : CTA de lancement de course RÉUTILISABLE et INLINE.
+ * GRYD — RunButton : CTA de départ de course RÉUTILISABLE et INLINE. Aucun
+ * positionnement absolu : il s'insère dans le layout de l'appelant (la CARTE le
+ * rend dans sa bottom sheet). Le bouton d'action contextuel de la NAVIGATION
+ * est distinct : c'est la capsule centrale de GrydNavBar.
  *
- * AMENDEMENT-17 §1.1 : ce composant ne FLOTTE plus jamais en overlay central
- * bas (« pas deux GO » ; retiré de l'overlay global du layout). Il n'est plus
- * monté dans `(tabs)/_layout`. La CARTE l'appelle DANS sa bottom sheet comme le
- * SEUL point de départ de course ; il n'y a donc qu'un GO à l'écran.
- *
- * Il reste utile (non redondant) car il encapsule TOUT le flux de départ :
- *   - TAP         départ immédiat sur le plan auto (AMENDEMENT-14 §2).
+ * Il encapsule TOUT le flux de départ :
+ *   - TAP         départ immédiat sur le plan auto (AMENDEMENT-14 §2) ;
  *   - APPUI LONG  RunModeSheet : choix avancés + INTENTIONS Conquérir/Défendre
  *                 (AMENDEMENT-16 §1, client-seul) + « Planifier une boucle » +
- *                 « Changer d'itinéraire ». Ce flux long-press SURVIT ici et la
- *                 Carte le rebranche simplement en montant <RunButton />.
+ *                 « Changer d'itinéraire » — annoncé au lecteur d'écran via
+ *                 l'accessibilityLabel (pas un geste caché).
  *
  * Rendu : bouton plein-largeur chartreuse (InlineRunCTA). Le LIBELLÉ vient du
  * contexte (défaut « RUN » = course libre ; la Carte passe DÉFENDRE / CONQUÉRIR

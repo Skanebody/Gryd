@@ -1,22 +1,34 @@
 /**
- * GRYD — CONQUÉRIR `/route-planner` : planificateur d'itinéraire LIVE, PARTOUT EN
- * FRANCE. Plus aucun point de départ figé (fini le mode démo République) :
- *   • DÉPART = TOUJOURS ta position actuelle (GPS de l'appareil), nommée par
- *     reverse-geocoding ; touche le champ pour recentrer ;
- *   • header KPI = la boucle active (verbe · lieu · km + résumé) ;
- *   • carte route-first (RoutePlannerMap) centrée sur l'origine ;
- *   • « Pourquoi cette course ? » = 2-3 raisons ;
- *   • PLANS = 3 formats (Recommandée / Rapide / Max points) routés autour de toi ;
- *   • « Ajuster » : OBJECTIF (Conquérir/Attaquer/Défendre) + DISTANCE EXACTE
- *     (1,5–50 km, saisie libre) + AUTRES BOUCLES (variantes) — tout est ROUTÉ EN
- *     DIRECT rue par rue (OSRM foot) autour de l'origine ;
- *   • CTA VERBE contextuel + microcopie.
- * Tous les tracés SUIVENT LES RUES et se calculent via l'internet de l'utilisateur
- * (serveur foot gratuit, sans clé). Le tracé courant reste affiché pendant le
- * recalcul. Events screen().
+ * GRYD — `/route-planner` : planificateur d'itinéraire LIVE, partout en France.
+ * HONNÊTETÉ GPS (audit zéro-friction P0) :
+ *   • DÉPART = la position réelle (GPS) uniquement — tant qu'elle n'est pas
+ *     confirmée, le CTA de départ est DÉSACTIVÉ ; états explicites
+ *     « Localisation… » puis « Position introuvable » + « Réessayer la
+ *     localisation » sur échec ;
+ *   • le point démo Paris n'est JAMAIS étiqueté « Ma position » : sur web sans
+ *     géoloc, fallback EXPLICITE « Démo · Paris » (CTA actif, contexte assumé) ;
+ *   • header épuré (3 blocs) : verbe · lieu / KPI km / résumé ≤ 3 infos
+ *     (~min · zones · pts) — les minutes sont TOUJOURS une estimation (~) ;
+ *   • PLANS = 3 formats (Recommandée / Rapide / Max points) — changer de plan
+ *     ne change JAMAIS l'objectif courant ;
+ *   • « Ajuster » (replié, dispo une fois l'origine connue) : OBJECTIF 2 verbes
+ *     (Conquérir / Défendre — AMENDEMENT-12 §A) + DISTANCE EXACTE (1,5–50 km)
+ *     + AUTRES BOUCLES (variantes) + partage crew ;
+ *   • CTA VERBE contextuel, actif seulement position confirmée OU démo explicite.
+ * Tous les tracés SUIVENT LES RUES (OSRM foot, sans clé) ; le tracé courant
+ * reste affiché pendant un recalcul (spinner discret près du KPI). Events screen().
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
@@ -27,12 +39,11 @@ import { formatInt } from '../src/ui/format';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 import { RoutePlannerMap } from '../src/features/route/RoutePlannerMap';
 import {
+  GEN_DEFAULT_KM,
   GEN_MAX_KM,
   GEN_MIN_KM,
   GEN_STEP_KM,
   PLANNER_INTENTION_LABELS,
-  PLANNER_INTENTION_ORDER,
-  PLANNER_INTENTION_STATUS,
   generatedReasons,
   type PlannerIntention,
 } from '../src/features/route/generator';
@@ -45,15 +56,21 @@ import type { PlannedRouteDemo } from '../src/features/route/types';
 /** Hauteur de la carte. */
 const MAP_HEIGHT = 250;
 
-/** Origine par défaut au premier rendu (remplacée par le GPS si dispo). */
-const DEFAULT_ORIGIN: OriginPoint = { point: EGO_REPUBLIQUE, label: 'Ma position' };
+/** État de la géolocalisation — pilote labels, carte et CTA (jamais de mensonge). */
+type GpsState = 'locating' | 'ok' | 'demo' | 'error';
 
-/** 3 formats recommandés (distance + objectif) routés autour de l'origine. */
+/** Fallback web SANS géoloc : point démo EXPLICITE (jamais « Ma position »). */
+const DEMO_ORIGIN: OriginPoint = { point: EGO_REPUBLIQUE, label: 'Démo · Paris' };
+
+/** 3 formats recommandés (distance) routés autour de l'origine — l'objectif courant est conservé. */
 const PLAN_PRESETS = [
-  { key: 'recommandee', label: 'Recommandée', km: 3.4, status: 'Meilleur équilibre' },
+  { key: 'recommandee', label: 'Recommandée', km: GEN_DEFAULT_KM, status: 'Meilleur équilibre' },
   { key: 'rapide', label: 'Rapide', km: 2, status: 'Simple et proche' },
   { key: 'max', label: 'Max points', km: 5, status: 'Plus de zones' },
 ] as const;
+
+/** 2 verbes joueur (AMENDEMENT-12 §A) — « attaquer » n'est plus proposé ici. */
+const INTENTION_CHOICES: readonly PlannerIntention[] = ['conquerir', 'defendre'];
 
 /** Icône par intention. */
 const INTENTION_ICON: Record<PlannerIntention, IconName> = {
@@ -66,25 +83,24 @@ function formatKm(km: number): string {
   return km.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
+/** Allure d'ESTIMATION des durées (~5'50/km) — étiquette UI, pas une règle de jeu. */
+const EST_PACE_SEC_PER_KM = 350;
+
 function estMinutes(km: number): number {
-  return Math.round((km * 1000 * 350) / 1000 / 60); // ~5'50/km (étiquette)
+  return Math.round((km * EST_PACE_SEC_PER_KM) / 60);
 }
 
-function zonesLabel(route: PlannedRouteDemo): string {
-  const base = `+${route.zones} zones`;
-  return route.loopZones !== undefined ? `${base} dont ${route.loopZones} en boucle` : base;
-}
-
+/** Résumé header : max 3 infos, minutes toujours estimées (~). */
 function routeSummary(route: PlannedRouteDemo): string {
-  const dur = `${estMinutes(route.distanceKm)} min`;
+  const dur = `~${estMinutes(route.distanceKm)} min`;
   if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
-    return `${dur} · ${zonesLabel(route)} · ${route.streetsToSave} rues à défendre · Boucle`;
+    return `${dur} · +${route.zones} zones · ${route.streetsToSave} rues à défendre`;
   }
-  return `${dur} · ${zonesLabel(route)} · +${formatInt(route.points)} pts · Boucle`;
+  return `${dur} · +${route.zones} zones · +${formatInt(route.points)} pts`;
 }
 
 function ctaMicrocopy(route: PlannedRouteDemo): string {
-  return `${formatKm(route.distanceKm)} km · ${estMinutes(route.distanceKm)} min · +${formatInt(route.points)} pts`;
+  return `${formatKm(route.distanceKm)} km · ~${estMinutes(route.distanceKm)} min · +${formatInt(route.points)} pts`;
 }
 
 function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
@@ -103,17 +119,18 @@ export default function RoutePlannerScreen() {
   const toast = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
 
-  const [origin, setOrigin] = useState<OriginPoint>(DEFAULT_ORIGIN);
+  // Origine : `null` tant que rien n'est confirmé — aucun tracé fantôme Paris.
+  const [origin, setOrigin] = useState<OriginPoint | null>(null);
+  const [gps, setGps] = useState<GpsState>('locating');
   const [intention, setIntention] = useState<PlannerIntention>(
     params.type === 'defense' ? 'defendre' : 'conquerir',
   );
-  const [targetKm, setTargetKm] = useState(3.4);
-  const [distanceDraft, setDistanceDraft] = useState(formatKm(3.4));
+  const [targetKm, setTargetKm] = useState(GEN_DEFAULT_KM);
+  const [distanceDraft, setDistanceDraft] = useState(formatKm(GEN_DEFAULT_KM));
   const [seed, setSeed] = useState(1);
   const [route, setRoute] = useState<PlannedRouteDemo | null>(null);
   const [routing, setRouting] = useState(false);
   const [nearby, setNearby] = useState<PlannedRouteDemo[]>([]);
-  const [locating, setLocating] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
 
@@ -145,38 +162,48 @@ export default function RoutePlannerScreen() {
     liveTimerRef.current = setTimeout(() => applyRoute(o, km, intent, sd), 450);
   };
 
-  /** DÉPART = TOUJOURS la position actuelle : localise (GPS) + nomme + route. */
+  /**
+   * Localise (GPS) + nomme + route. Échec :
+   *   web    → fallback démo EXPLICITE (« Démo · Paris »), CTA actif ;
+   *   natif  → état `error` (CTA désactivé + « Réessayer la localisation »).
+   */
   const locateAndRoute = (km: number, intent: PlannerIntention, sd: number) => {
-    setLocating(true);
+    setGps('locating');
     void currentPosition().then(async (pos) => {
       if (!pos) {
-        setLocating(false);
-        toast.show('Position indisponible — active la localisation');
+        if (Platform.OS === 'web') {
+          setGps('demo');
+          setOrigin(DEMO_ORIGIN);
+          applyRoute(DEMO_ORIGIN, km, intent, sd);
+        } else {
+          setGps('error');
+          toast.show('Position introuvable — active la localisation');
+        }
         return;
       }
+      // Position CONFIRMÉE : « Ma position » n'est utilisé que si le nom échoue.
       const label = (await reverseGeocode(pos)) ?? 'Ma position';
       const o = { point: pos, label };
-      setLocating(false);
+      setGps('ok');
       setOrigin(o);
       applyRoute(o, km, intent, sd);
     });
   };
 
-  // Premier rendu : route un preset (affichage immédiat), puis localise et re-route.
+  // Premier rendu : localisation d'abord — aucun tracé tant que l'origine est inconnue.
   useEffect(() => {
     screen('route_planner', { type: params.type ?? 'direct' });
     const intent: PlannerIntention = params.type === 'defense' ? 'defendre' : 'conquerir';
-    applyRoute(DEFAULT_ORIGIN, 3.4, intent, 1);
-    locateAndRoute(3.4, intent, 1);
+    locateAndRoute(GEN_DEFAULT_KM, intent, 1);
     return () => {
       if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Variantes (autres boucles) : 3 boucles routées LIVE autour de l'origine.
+  // Variantes (autres boucles) : 3 boucles routées LIVE autour de l'origine connue.
   useEffect(() => {
-    if (!adjustOpen) return;
+    if (!adjustOpen || !origin) return;
     let cancelled = false;
     const spreads = [0.6, 1.35, 1.9];
     void Promise.all(
@@ -197,20 +224,23 @@ export default function RoutePlannerScreen() {
     screen('route_planner_origin', { source: 'gps' });
   };
 
+  /** Choisir un plan change la DISTANCE, jamais l'objectif courant. */
   const selectPreset = (km: number, key: string) => {
     haptics.light();
-    applyRoute(origin, km, 'conquerir', seed);
+    if (origin) applyRoute(origin, km, intention, seed);
+    else locateAndRoute(km, intention, seed);
     screen('route_planner_plan_select', { plan: key });
   };
 
   const selectIntention = (intent: PlannerIntention) => {
-    if (intent === intention) return;
+    if (intent === intention || !origin) return;
     haptics.light();
     applyRoute(origin, targetKm, intent, seed);
     screen('route_planner_objective_select', { objective: intent });
   };
 
   const stepDistance = (delta: number) => {
+    if (!origin) return;
     haptics.light();
     const nk = clampKm(targetKm + delta);
     setDistanceDraft(formatKm(nk));
@@ -219,6 +249,7 @@ export default function RoutePlannerScreen() {
 
   const onDistanceType = (text: string) => {
     setDistanceDraft(text);
+    if (!origin) return;
     const parsed = parseFloat(text.replace(',', '.'));
     if (!Number.isNaN(parsed)) applyDebounced(origin, parsed, intention, seed);
   };
@@ -237,11 +268,12 @@ export default function RoutePlannerScreen() {
 
   const shuffleNearby = () => {
     haptics.light();
+    setNearby([]); // feedback immédiat : le spinner remplace la liste pendant le recalcul.
     setSeed((s) => s + 1);
   };
 
   const shareRoute = () => {
-    if (!route) return;
+    if (!route || !origin) return;
     haptics.medium();
     const text = `Boucle ${formatKm(route.distanceKm)} km autour de ${origin.label} partagée au crew`;
     toast.show(text);
@@ -251,8 +283,11 @@ export default function RoutePlannerScreen() {
     screen('route_planner_share', { route: route.id });
   };
 
+  // Départ possible UNIQUEMENT position confirmée OU mode démo explicite.
+  const startDisabled = !route || gps === 'locating' || gps === 'error';
+
   const startRun = () => {
-    if (!route) return;
+    if (!route || startDisabled) return;
     haptics.medium();
     // Arme le parcours PLANIFIÉ : la course suivra EXACTEMENT ce tracé (store).
     setPlannedRoute(route);
@@ -263,9 +298,30 @@ export default function RoutePlannerScreen() {
   const intentionLabel = PLANNER_INTENTION_LABELS[intention];
   const reasons = route ? generatedReasons(route, intention) : [];
 
+  // Labels honnêtes par état GPS — jamais « Ma position » sans position confirmée.
+  const placeLabel =
+    route?.zone ?? origin?.label ?? (gps === 'error' ? 'Position introuvable' : 'Localisation…');
+  const originLabel =
+    gps === 'locating' ? 'Localisation…' : gps === 'error' ? 'Position introuvable' : (origin?.label ?? '—');
+  const originHint =
+    gps === 'ok'
+      ? 'Départ = ta position actuelle (touche pour recentrer).'
+      : gps === 'demo'
+        ? 'Géolocalisation indisponible ici — tracé démo autour de Paris.'
+        : gps === 'error'
+          ? 'Position introuvable — active la localisation pour partir.'
+          : 'Le départ sera calé sur ta position réelle.';
+  const summaryText = route
+    ? routeSummary(route)
+    : gps === 'error'
+      ? 'Active la localisation pour préparer ta boucle.'
+      : gps === 'demo'
+        ? 'Boucle démo en calcul autour de Paris.'
+        : 'Ta boucle arrive dès que ta position est confirmée.';
+
   return (
     <View style={styles.root}>
-      {/* ── Header KPI = la boucle active (verbe · lieu · km) ── */}
+      {/* ── Header épuré : verbe · lieu / KPI km / résumé ≤ 3 infos ── */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.topBar}>
           <Pressable
@@ -280,31 +336,41 @@ export default function RoutePlannerScreen() {
             </View>
           </Pressable>
           <Text style={styles.kicker} numberOfLines={1}>
-            {intentionLabel.toUpperCase()} · {(route?.zone ?? origin.label).toUpperCase()}
+            {intentionLabel.toUpperCase()} · {placeLabel.toUpperCase()}
           </Text>
           <View style={styles.back} />
         </View>
-        <Text style={styles.status} numberOfLines={1}>
-          {routing ? 'Calcul de l’itinéraire…' : PLANNER_INTENTION_STATUS[intention]}
-        </Text>
         <View style={styles.kpiRow}>
           <Text style={styles.kpi}>
             {route ? formatKm(route.distanceKm) : '—'} <Text style={styles.kpiUnit}>KM</Text>
           </Text>
+          {routing && route ? (
+            <ActivityIndicator size="small" color={colors.chartreuse} style={styles.kpiSpin} />
+          ) : null}
         </View>
         <Text style={styles.summary} numberOfLines={2}>
-          {route ? routeSummary(route) : 'Choisis ton départ et ta distance.'}
+          {summaryText}
         </Text>
       </View>
 
-      {/* ── Carte centrée sur l'origine ── */}
+      {/* ── Carte : tracé réel uniquement — sinon état localisation/calcul explicite ── */}
       <View style={styles.mapWrap}>
-        {route ? (
+        {route && origin ? (
           <RoutePlannerMap route={route} origin={origin.point} />
         ) : (
           <View style={styles.mapLoading}>
-            <ActivityIndicator color={colors.chartreuse} />
-            <Text style={styles.mapLoadingText}>Calcul de l&apos;itinéraire…</Text>
+            {gps === 'error' ? (
+              <Icon name="carte" size={22} color={colors.gris} />
+            ) : (
+              <ActivityIndicator color={colors.chartreuse} />
+            )}
+            <Text style={styles.mapLoadingText}>
+              {gps === 'error'
+                ? 'Position introuvable'
+                : gps === 'locating'
+                  ? 'Localisation…'
+                  : 'Calcul de l’itinéraire…'}
+            </Text>
           </View>
         )}
       </View>
@@ -315,29 +381,46 @@ export default function RoutePlannerScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── DÉPART = TOUJOURS ta position actuelle (recentre au tap) ── */}
+        {/* ── DÉPART : label honnête par état (position / démo / introuvable) ── */}
         <SectionLabel icon="carte" label="DÉPART" />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Recentrer sur ma position"
+          accessibilityLabel={
+            gps === 'error' ? 'Réessayer la localisation' : 'Recentrer sur ma position'
+          }
           onPress={recentrer}
           style={({ pressed }) => [styles.originRow, pressed && styles.pressed]}
         >
           <View style={styles.originField}>
-            <Icon name="carte" size={15} color={colors.chartreuse} />
+            <Icon
+              name="carte"
+              size={15}
+              color={gps === 'error' ? colors.gris : colors.chartreuse}
+            />
             <Text style={styles.originLabel} numberOfLines={1}>
-              {locating ? 'Localisation…' : origin.label}
+              {originLabel}
             </Text>
           </View>
           <View style={styles.gpsBtn}>
-            {locating ? (
+            {gps === 'locating' ? (
               <ActivityIndicator color={colors.chartreuse} size="small" />
             ) : (
               <Icon name="cible" size={18} color={colors.chartreuse} />
             )}
           </View>
         </Pressable>
-        <Text style={styles.hint}>Départ = ta position actuelle (touche pour recentrer).</Text>
+        <Text style={styles.hint}>{originHint}</Text>
+        {gps === 'error' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Réessayer la localisation"
+            onPress={recentrer}
+            style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
+          >
+            <Icon name="cible" size={16} color={colors.blanc} />
+            <Text style={styles.retryLabel}>Réessayer la localisation</Text>
+          </Pressable>
+        ) : null}
 
         {/* ── « Pourquoi cette course ? » ── */}
         {reasons.length > 0 ? (
@@ -353,12 +436,11 @@ export default function RoutePlannerScreen() {
           </>
         ) : null}
 
-        {/* ── PLANS : 3 formats routés autour de toi ── */}
+        {/* ── PLANS : 3 formats — la distance change, l'objectif reste ── */}
         <SectionLabel icon="cible" label="PLANS" />
         <View style={styles.plansRow}>
           {PLAN_PRESETS.map((plan) => {
-            const selected =
-              !!route && intention === 'conquerir' && Math.abs(route.distanceKm - plan.km) < 0.7;
+            const selected = !!route && Math.abs(route.distanceKm - plan.km) < 0.7;
             return (
               <Pressable
                 key={plan.key}
@@ -376,7 +458,7 @@ export default function RoutePlannerScreen() {
                   {plan.label}
                 </Text>
                 <Text style={styles.planDist} numberOfLines={1}>
-                  ~{formatKm(plan.km)} km · {estMinutes(plan.km)} min
+                  ~{formatKm(plan.km)} km · ~{estMinutes(plan.km)} min
                 </Text>
                 <Text style={styles.planReason} numberOfLines={1}>
                   {plan.status}
@@ -386,29 +468,31 @@ export default function RoutePlannerScreen() {
           })}
         </View>
 
-        {/* ── « Ajuster » : objectif + distance exacte + variantes (tout LIVE) ── */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: adjustOpen }}
-          accessibilityLabel="Ajuster la course"
-          onPress={() => {
-            haptics.light();
-            setAdjustOpen((o) => !o);
-          }}
-          style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}
-        >
-          <Icon name="reglages" size={16} color={colors.blanc} />
-          <Text style={styles.adjustLabel}>Ajuster la course</Text>
-          <View style={adjustOpen ? styles.chevUp : styles.chevDown}>
-            <Icon name="chevron" size={16} color={colors.gris} />
-          </View>
-        </Pressable>
+        {/* ── « Ajuster » (dispo une fois l'origine connue) : objectif + distance + variantes ── */}
+        {origin ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: adjustOpen }}
+            accessibilityLabel="Ajuster la course"
+            onPress={() => {
+              haptics.light();
+              setAdjustOpen((o) => !o);
+            }}
+            style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}
+          >
+            <Icon name="reglages" size={16} color={colors.blanc} />
+            <Text style={styles.adjustLabel}>Ajuster la course</Text>
+            <View style={adjustOpen ? styles.chevUp : styles.chevDown}>
+              <Icon name="chevron" size={16} color={colors.gris} />
+            </View>
+          </Pressable>
+        ) : null}
 
-        {adjustOpen ? (
+        {origin && adjustOpen ? (
           <View style={styles.adjustBody}>
             <SectionLabel icon="cible" label="OBJECTIF" />
             <View style={styles.intentionRow}>
-              {PLANNER_INTENTION_ORDER.map((it) => {
+              {INTENTION_CHOICES.map((it) => {
                 const active = it === intention;
                 return (
                   <Pressable
@@ -465,7 +549,7 @@ export default function RoutePlannerScreen() {
               </Pressable>
             </View>
             <Text style={styles.hint}>
-              Du footing au trail ({formatKm(GEN_MIN_KM)}–{GEN_MAX_KM} km) — routé en direct, suit les rues.
+              {formatKm(GEN_MIN_KM)} à {GEN_MAX_KM} km — le tracé suit les rues.
             </Text>
 
             <View style={styles.nearbyHead}>
@@ -479,7 +563,7 @@ export default function RoutePlannerScreen() {
                 style={({ pressed }) => [styles.shuffleBtn, pressed && styles.pressed]}
               >
                 <Icon name="reglages" size={13} color={colors.chartreuse} />
-                <Text style={styles.shuffleText}>Autres</Text>
+                <Text style={styles.shuffleText}>Régénérer</Text>
               </Pressable>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
@@ -512,7 +596,7 @@ export default function RoutePlannerScreen() {
                       <View style={styles.popularCrews}>
                         <Icon name="serie" size={12} color={colors.chartreuse} />
                         <Text style={styles.popularCrewsText} numberOfLines={1}>
-                          {estMinutes(loop.distanceKm)} min · +{formatInt(loop.points)} pts
+                          ~{estMinutes(loop.distanceKm)} min · +{formatInt(loop.points)} pts
                         </Text>
                       </View>
                     </Pressable>
@@ -544,17 +628,22 @@ export default function RoutePlannerScreen() {
         ) : null}
       </ScrollView>
 
-      {/* ── CTA VERBE contextuel + microcopie ── */}
+      {/* ── CTA VERBE contextuel — désactivé tant que la position n'est pas confirmée ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.ctaMicro} numberOfLines={1}>
-          {route ? ctaMicrocopy(route) : '—'}
+          {route ? ctaMicrocopy(route) : gps === 'error' ? 'Position requise pour partir' : '—'}
         </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${intentionLabel} — démarrer`}
+          accessibilityState={{ disabled: startDisabled }}
           onPress={startRun}
-          disabled={!route}
-          style={({ pressed }) => [styles.startBtn, pressed && styles.startPressed, !route && styles.startDisabled]}
+          disabled={startDisabled}
+          style={({ pressed }) => [
+            styles.startBtn,
+            pressed && !startDisabled && styles.startPressed,
+            startDisabled && styles.startDisabled,
+          ]}
         >
           <Text style={styles.startLabel}>{intentionLabel.toUpperCase()}</Text>
         </Pressable>
@@ -579,8 +668,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.6,
   },
-  status: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700', marginTop: 6 },
-  kpiRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 2 },
+  kpiRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
   kpi: {
     color: colors.blanc,
     fontSize: fontSizes.xxl,
@@ -589,6 +677,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   kpiUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '700' },
+  kpiSpin: { marginLeft: 10, marginBottom: 8 },
   summary: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 17 },
   mapWrap: { height: MAP_HEIGHT, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.grisLigne },
   mapLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.noir },
@@ -597,9 +686,9 @@ const styles = StyleSheet.create({
   panelContent: { paddingHorizontal: spacing.cardPadding, paddingTop: 12, paddingBottom: 16 },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, marginBottom: 8 },
-  sectionLabel: { color: colors.gris, fontSize: 10, letterSpacing: 2, fontWeight: '700' },
+  sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2, fontWeight: '700' },
 
-  // Départ : champ de recherche + bouton position.
+  // Départ : champ d'état + bouton position.
   originRow: { flexDirection: 'row', gap: 8 },
   originField: {
     flex: 1,
@@ -624,6 +713,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    marginTop: 4,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+  },
+  retryLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
 
   reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reason: {
@@ -650,10 +752,10 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   planSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
-  planLabel: { color: colors.blanc, fontSize: 12, fontWeight: '800', letterSpacing: -0.2 },
+  planLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: -0.2 },
   planLabelSelected: { color: colors.chartreuse },
-  planDist: { color: colors.gris, fontSize: 10.5, fontVariant: ['tabular-nums'] },
-  planReason: { color: colors.gris, fontSize: 10, marginTop: 2 },
+  planDist: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
+  planReason: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
 
   adjustHead: {
     flexDirection: 'row',
@@ -679,7 +781,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 42,
+    height: 44,
     borderRadius: radii.pill,
     borderWidth: 1.5,
     borderColor: colors.grisLigne,
@@ -731,13 +833,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    height: 36,
+    paddingHorizontal: 12,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
   },
-  shuffleText: { color: colors.chartreuse, fontSize: 11, fontWeight: '700' },
+  shuffleText: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700' },
   nearbyLoading: { width: 120, height: 74, alignItems: 'center', justifyContent: 'center' },
 
   popularRow: { gap: 8, paddingRight: 4 },
@@ -752,12 +854,12 @@ const styles = StyleSheet.create({
   },
   popularCardSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
   popularName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  popularStats: { color: colors.gris, fontSize: 11, fontVariant: ['tabular-nums'] },
+  popularStats: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
   popularCrews: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   popularCrewsText: {
     flex: 1,
     color: colors.chartreuse,
-    fontSize: 11,
+    fontSize: fontSizes.xs,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -786,7 +888,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
   },
   feedText: { flex: 1, color: colors.blanc, fontSize: fontSizes.xs },
-  feedTime: { color: colors.gris, fontSize: 10 },
+  feedTime: { color: colors.gris, fontSize: fontSizes.xs },
 
   ctaBar: {
     paddingHorizontal: spacing.cardPadding,
