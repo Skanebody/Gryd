@@ -14,7 +14,7 @@
  * compté même quand une course est masquée).
  */
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -137,6 +137,31 @@ export default function ConfidentialiteScreen() {
       // no-op : on route quand même vers l'onboarding.
     }
     router.replace('/onboarding');
+  };
+
+  // Export RGPD (art. 15/20) — RÉEL : si session, appelle l'Edge Function
+  // `export_account` (service-role) qui agrège les données perso de l'utilisateur,
+  // puis présente le JSON via la feuille de partage native (aucune lib ajoutée).
+  // Sans session (dev/web) : message d'indisponibilité. Ne modifie/efface rien.
+  const runDataExport = async () => {
+    haptics.light();
+    if (!(configured && session && supabase)) {
+      Alert.alert('Export indisponible', 'Connecte-toi pour exporter tes données.');
+      return;
+    }
+    try {
+      const { data, error } = await supabase.functions.invoke('export_account');
+      if (error || !data) {
+        Alert.alert('Export impossible', 'Réessaie dans un instant ou contacte le support.');
+        return;
+      }
+      await Share.share({
+        title: 'Mes données GRYD (RGPD)',
+        message: JSON.stringify(data, null, 2),
+      });
+    } catch {
+      Alert.alert('Export impossible', 'Réessaie dans un instant ou contacte le support.');
+    }
   };
 
   if (confirmDelete) {
@@ -375,21 +400,14 @@ export default function ConfidentialiteScreen() {
       >
         <Text style={styles.miniLabel}>EXPORTER (RGPD)</Text>
         <Note>
-          Récupère une copie de toutes tes données — courses, zones, profil — au format lisible.
-          Ça n'efface rien.
+          Récupère une copie de toutes tes données — courses, zones, profil — au format JSON,
+          via le partage. Ça n'efface rien.
         </Note>
         <View style={styles.actionGap}>
           <GhostButton
-            label="Télécharger mes données"
+            label="Exporter mes données"
             icon="partage"
-            onPress={() => {
-              haptics.light();
-              Alert.alert(
-                'Exporter mes données (RGPD)',
-                'On prépare une copie lisible de toutes tes données — courses, zones, profil. Tu la reçois par e-mail dès que la synchronisation serveur est active. Ça n’efface rien.',
-                [{ text: 'Compris' }],
-              );
-            }}
+            onPress={() => void runDataExport()}
           />
         </View>
 
