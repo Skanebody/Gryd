@@ -10,8 +10,8 @@
  * affichés immédiatement, comme motivation/store — web privé toléré).
  *
  * On sépare deux jalons (le funnel A-30 : « activation = 1re capture ») :
- *   firstCaptureDone — la valeur a été donnée (étape 5 atteinte). Débloque la
- *                      proposition compte/crew/notifs SANS jamais les imposer.
+ *   firstCaptureDone — la valeur a été donnée (le moment signature atteint).
+ *                      Débloque la proposition compte/crew SANS jamais l'imposer.
  *   onboardingDone   — le visiteur est ressorti du flow (compte créé, ou « plus
  *                      tard » assumé). Le gating ne re-pousse plus l'onboarding.
  */

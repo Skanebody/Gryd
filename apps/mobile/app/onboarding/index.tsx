@@ -1,22 +1,28 @@
 /**
- * GRYD — ONBOARDING SANS FRICTION (AMENDEMENT-30, stratégie §6/§7). REFONTE :
- * un stepper 8 étapes qui déplace TOUTE la friction hors de la course et active
- * (1re capture) le plus vite. Règle cardinale : « aucun écran ne demande avant
- * d'avoir donné » — permission GPS, compte, crew et notifications viennent
- * TOUJOURS après la valeur (la 1re capture, §5).
+ * GRYD — ONBOARDING SANS FRICTION (AMENDEMENT-30, stratégie §6/§7). Un stepper
+ * qui déplace TOUTE la friction hors de la course et active (1re capture) le
+ * plus vite. Règle cardinale : « aucun écran ne demande avant d'avoir donné » —
+ * la permission GPS ne vit QUE dans la branche « run » (juste avant Lancer le
+ * run ; la branche « sync » ne la voit jamais), compte et crew viennent après
+ * la 1re capture, et les notifications sont HORS onboarding (opt-in au 1er
+ * contexte utile, copy NOTIFICATIONS conservée dans content.ts).
  *
- * Flow (§7) : 1 hook → 2 ta ville (plateau AVANT compte) → 3 permission GPS
- * pédagogique → 4 choix du chemin → 4a sync (démo import) OU 4b premier run
- * (1 tap) → 5 1re capture MOMENT SIGNATURE (remplissage + haptique success+heavy
- * + « +X zones » + Partager) → 6 compte APRÈS la valeur → 7 crew → 8 notifs.
+ * Flow : 1 hook → 1b âge (16+) → 2 le terrain de jeu (plateau démo AVANT tout
+ * compte) → 3 choix du chemin → 3a sync (démo import, pas de GPS) OU
+ * 3b permission GPS → premier run (1 tap) → 4 1re capture MOMENT SIGNATURE
+ * (remplissage + haptique success+heavy + « +X zones » + Partager, CTA
+ * « Défendre ma zone ») → 5 compte APRÈS la valeur → 6 crew → sortie.
+ * Max 7 écrans jusqu'à la capture (6 sur la branche sync).
  *
  * Discipline (§A) : 1 écran = 1 décision, 1 CTA chartreuse contextuel (VERBES,
- * jamais « GO »), texte court non tronqué, pas de card-dans-card, compris en
- * < 3 s, reduce motion + haptique (§5.3 : capture = success + heavy). Une flèche
- * retour DISCRÈTE (gris, coin haut-gauche, jamais un 2e CTA) rattrape un mistap
- * sans quitter le flow — absente sur le hook (STEP_PREV). Web preview
- * (`configured=false`) : la permission GPS et les notifs sont SIMULÉES (boutons
- * démo), l'auth est no-op « ok » (auth.web) — le flow tourne de bout en bout.
+ * jamais « GO »/« Continuer »), texte court non tronqué, pas de card-dans-card,
+ * compris en < 3 s, reduce motion + haptique (§5.3 : capture = success + heavy).
+ * Copy 100 % centralisée dans content.ts, honnête (aucun nom de lieu tant
+ * qu'aucun GPS). Une flèche retour DISCRÈTE (gris, coin haut-gauche, ≥ 44 px,
+ * jamais un 2e CTA) rattrape un mistap sans quitter le flow — absente sur le
+ * hook (STEP_PREV). Web preview (`configured=false`) : la permission GPS est
+ * SIMULÉE (bouton démo), l'auth est no-op « ok » (auth.web) — le flow tourne
+ * de bout en bout.
  *
  * Gating : à la sortie, on marque l'état PRÉ-COMPTE persistant (onboarding/store)
  * pour que (tabs)/_layout ne re-pousse plus l'onboarding. Un utilisateur DÉJÀ
@@ -44,7 +50,6 @@ import {
   CITY,
   CREW,
   HOOK,
-  NOTIFICATIONS,
   PERMISSION,
   RUN,
   STEP_EVENT_N,
@@ -78,20 +83,20 @@ const CAPTURE_FILL_MS = 1100;
 
 /**
  * Étape précédente pour la flèche retour discrète (§A : rattraper un mistap sans
- * quitter le flow). `hook` n'a pas de précédent → aucune flèche. Les branches
- * sync/run et la capture reviennent au CHOIX du chemin (re-choisir sync ou run).
+ * quitter le flow). `hook` n'a pas de précédent → aucune flèche. La branche sync
+ * et la capture reviennent au CHOIX du chemin (re-choisir sync ou run) ; la
+ * branche run remonte sa propre séquence (run → permission → choose).
  */
 const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
   age: 'hook',
   city: 'age',
-  permission: 'city',
-  choose: 'permission',
+  choose: 'city',
   sync: 'choose',
-  run: 'choose',
+  permission: 'choose',
+  run: 'permission',
   capture: 'choose',
   account: 'capture',
   crew: 'account',
-  notifications: 'crew',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -142,10 +147,7 @@ export default function OnboardingScreen() {
           }}
         />
       ) : null}
-      {step === 'city' ? <CityStep onNext={() => go('permission')} /> : null}
-      {step === 'permission' ? (
-        <PermissionStep onNext={() => go('choose')} />
-      ) : null}
+      {step === 'city' ? <CityStep onNext={() => go('choose')} /> : null}
       {step === 'choose' ? (
         <ChooseStep
           onSync={() => {
@@ -154,10 +156,12 @@ export default function OnboardingScreen() {
           }}
           onRun={() => {
             void update({ path: 'run' });
-            go('run');
+            // La permission GPS n'existe QUE sur ce chemin (juste avant le run).
+            go('permission');
           }}
         />
       ) : null}
+      {step === 'permission' ? <PermissionStep onNext={() => go('run')} /> : null}
       {step === 'sync' ? (
         <SyncStep
           onDone={() => {
@@ -182,11 +186,8 @@ export default function OnboardingScreen() {
         <CrewStep
           onJoin={() => void finish('/crew-discovery')}
           onCreate={() => void finish('/crew')}
-          onSkip={() => go('notifications')}
+          onSkip={() => void finish('/')}
         />
-      ) : null}
-      {step === 'notifications' ? (
-        <NotificationsStep onDone={() => void finish('/')} />
       ) : null}
       {/* Flèche retour discrète (rendue en dernier = au-dessus) — jamais sur le hook. */}
       {STEP_PREV[step] ? (
@@ -339,7 +340,8 @@ function AgeStep({ onConfirm }: { onConfirm: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 2 — TA VILLE MAINTENANT (§2) : quartier en plateau AVANT tout compte
+// 2 — LE TERRAIN DE JEU (§2) : plateau démo AVANT tout compte (copy honnête :
+// aucune localisation obtenue → jamais « ton quartier »)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CityStep({ onNext }: { onNext: () => void }) {
@@ -361,14 +363,15 @@ function CityStep({ onNext }: { onNext: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3 — PERMISSION GPS PÉDAGOGIQUE (§3) : on explique AVANT la demande système
+// 3b — PERMISSION GPS PÉDAGOGIQUE : UNIQUEMENT sur la branche « run », juste
+// avant Lancer le run (la branche « sync » ne la voit jamais)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function PermissionStep({ onNext }: { onNext: () => void }) {
   const askGps = () => {
     // Web preview : SIMULÉ (aucune API système). Natif : la vraie demande
     // expo-location vit dans le flow de course (useRealRun) au 1er run réel —
-    // ici on pose l'INTENTION et on log le funnel (permission pédagogique §3).
+    // ici on pose l'INTENTION et on log le funnel (permission pédagogique).
     haptics.medium();
     track(EVENTS.permissionLocation, { result: 'onboarding_accept' });
     onNext();
@@ -394,7 +397,7 @@ function PermissionStep({ onNext }: { onNext: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4 — CHOIX DU CHEMIN (§4) : 2 options claires (sync / run), verbes pas « GO »
+// 3 — CHOIX DU CHEMIN (§4) : 2 options claires (sync / run), verbes pas « GO »
 // ═══════════════════════════════════════════════════════════════════════════
 
 function ChooseStep({ onSync, onRun }: { onSync: () => void; onRun: () => void }) {
@@ -456,7 +459,8 @@ function PathCard({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4a — SYNC (démo) (§4a) : import d'un run récent → 1re zone en secondes
+// 3a — SYNC (démo) (§4a) : import d'un run récent → 1re zone en secondes.
+// Le tap sur une source LANCE l'import (pas de CTA séparé — une décision, un tap).
 // ═══════════════════════════════════════════════════════════════════════════
 
 function SyncStep({ onDone }: { onDone: () => void }) {
@@ -511,7 +515,7 @@ function SyncStep({ onDone }: { onDone: () => void }) {
               </Text>
             </View>
             <Text style={styles.syncRunMeta}>
-              {(SYNC_DEMO_RUN.distanceM / 1000).toFixed(1).replace('.', ',')} km · une boucle
+              {(SYNC_DEMO_RUN.distanceM / 1000).toFixed(1).replace('.', ',')} km · {SYNC.loopMeta}
             </Text>
             <View style={styles.syncSteps}>
               {SYNC_PHASES.map((ph, i) => {
@@ -526,7 +530,10 @@ function SyncStep({ onDone }: { onDone: () => void }) {
                         active && styles.syncDotActive,
                       ]}
                     >
+                      {/* L'état ne repose jamais sur la seule couleur : fait =
+                          glyphe verrou, en cours = point plein (forme). */}
                       {done ? <Icon name="verrou" size={11} color={colors.noir} /> : null}
+                      {active ? <View style={styles.syncDotInner} /> : null}
                     </View>
                     <Text style={[styles.syncStepLabel, (done || active) && styles.syncStepLabelOn]}>
                       {ph.label}
@@ -547,7 +554,7 @@ function SyncStep({ onDone }: { onDone: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4b — PREMIER RUN (§4b) : 1 tap RUN, objectif ultra-simple, zéro config
+// 3b — PREMIER RUN (§4b) : 1 tap RUN, objectif ultra-simple, zéro config
 // ═══════════════════════════════════════════════════════════════════════════
 
 function RunStep({ onDone }: { onDone: () => void }) {
@@ -574,7 +581,7 @@ function RunStep({ onDone }: { onDone: () => void }) {
             <View style={styles.runHeroRing}>
               <Icon name="conquete" size={44} color={colors.chartreuse} />
             </View>
-            <Text style={styles.runHeroObjective}>Ferme une boucle. La zone est à toi.</Text>
+            <Text style={styles.runHeroObjective}>{RUN.objective}</Text>
           </View>
         )}
       </View>
@@ -588,7 +595,8 @@ function RunStep({ onDone }: { onDone: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 5 — 1re CAPTURE : MOMENT SIGNATURE (§5) — remplissage + haptique + « +X »
+// 4 — 1re CAPTURE : MOMENT SIGNATURE (§5) — remplissage + haptique + « +X ».
+// Copy honnête : « autour de toi » (aucun nom de lieu tant qu'aucun GPS).
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }) {
@@ -651,7 +659,7 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
           <Text style={styles.captureUnit}>{CAPTURE.zonesLabel}</Text>
         </View>
         <Text style={styles.captureSub}>
-          dont {SYNC_DEMO_RUN.enclosedZones} {CAPTURE.loopLabel} · {SYNC_DEMO_RUN.zoneName}
+          dont {SYNC_DEMO_RUN.enclosedZones} {CAPTURE.loopLabel} · {CAPTURE.nearLabel}
         </Text>
       </View>
       <View style={styles.footer}>
@@ -663,7 +671,7 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6 — COMPTE APRÈS LA VALEUR (§6) : Apple / passkey, 1 tap. Jamais un mur.
+// 5 — COMPTE APRÈS LA VALEUR (§6) : Apple / passkey, 1 tap. Jamais un mur.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function AccountStep({ onNext }: { onNext: () => void }) {
@@ -702,7 +710,6 @@ function AccountStep({ onNext }: { onNext: () => void }) {
             label={ACCOUNT.apple}
             icon="profil"
             onPress={() => void run(signInWithApple)}
-            a11yLabel="Continuer avec Apple"
           />
         )}
         <Pressable
@@ -721,7 +728,8 @@ function AccountStep({ onNext }: { onNext: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7 — CREW (§7) : proposé APRÈS la 1re capture, jamais imposé
+// 6 — CREW (§7) : proposé APRÈS la 1re capture, jamais imposé. Dernière étape :
+// chaque sortie (rejoindre / créer / plus tard) quitte le flow.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CrewStep({
@@ -762,39 +770,6 @@ function CrewStep({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 8 — NOTIFICATIONS (§8) : opt-in cadré, APRÈS la valeur
-// ═══════════════════════════════════════════════════════════════════════════
-
-function NotificationsStep({ onDone }: { onDone: () => void }) {
-  const enable = () => {
-    // Web preview : SIMULÉ. Natif : la vraie demande de permission notifs se
-    // fera au premier contexte utile (push contextuel §35) — ici on cadre
-    // l'opt-in et on log l'intention.
-    haptics.medium();
-    track(EVENTS.notificationOpened, { type: 'onboarding_optin' });
-    onDone();
-  };
-  return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{NOTIFICATIONS.kicker}</Kicker>
-        <View style={styles.iconHero}>
-          <View style={styles.iconHeroRing}>
-            <Icon name="cloche" size={40} color={colors.chartreuse} />
-          </View>
-        </View>
-        <Text style={styles.title}>{NOTIFICATIONS.title}</Text>
-        <Text style={styles.tagline}>{NOTIFICATIONS.tagline}</Text>
-      </View>
-      <View style={styles.footer}>
-        <PrimaryCta label={NOTIFICATIONS.cta} icon="cloche" onPress={enable} />
-        <SkipLink label={NOTIFICATIONS.skip} onPress={onDone} />
-      </View>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Styles
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -802,13 +777,13 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   // Flèche retour discrète : coin haut-gauche, au-dessus du contenu de l'étape.
   // `top` posé sur la boîte de padding (root paddingTop = insets.top) → juste
-  // sous l'encoche. Gris discret, jamais un 2e CTA (§A).
+  // sous l'encoche. Gris discret, jamais un 2e CTA (§A). Cible ≥ 44×44 (+hitSlop).
   back: {
     position: 'absolute',
     top: 8,
     left: 8,
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -865,8 +840,8 @@ const styles = StyleSheet.create({
   },
   ghostLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
 
-  // Sortie douce « Plus tard ».
-  skip: { alignItems: 'center', paddingVertical: 12 },
+  // Sortie douce « Plus tard » — cible tactile ≥ 44 px.
+  skip: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingVertical: 12 },
   skipLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
 
   // ── 1 HOOK ──
@@ -892,10 +867,10 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
 
-  // ── 2 CITY / 5 CAPTURE : le plateau ──
+  // ── 2 CITY / 4 CAPTURE : le plateau ──
   boardWrap: { marginTop: 20, marginBottom: 4 },
 
-  // ── 3 / 6 / 7 / 8 : hero icône ──
+  // ── 1b / 3b / 5 / 6 : hero icône ──
   iconHero: { alignItems: 'center', marginBottom: 26 },
   iconHeroRing: {
     width: 92,
@@ -908,7 +883,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ── 4 CHOOSE : cartes-chemin ──
+  // ── 3 CHOOSE : cartes-chemin ──
   pathList: { marginTop: 26, gap: 12 },
   pathCard: {
     flexDirection: 'row',
@@ -938,7 +913,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  // ── 4a SYNC ──
+  // ── 3a SYNC ──
   sourceList: { marginTop: 22, gap: 12 },
   sourceCard: {
     flexDirection: 'row',
@@ -966,6 +941,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   syncDotActive: { borderColor: colors.chartreuse },
+  /** Point plein de l'étape EN COURS (cue de forme, pas seulement de couleur). */
+  syncDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+  },
   syncDotDone: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse },
   syncStepLabel: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
   syncStepLabelOn: { color: colors.blanc },
@@ -979,7 +961,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
-  // ── 4b RUN ──
+  // ── 3b RUN ──
   runHeroWrap: { alignItems: 'center', marginTop: 30 },
   runHeroRing: {
     width: 108,
@@ -1001,7 +983,7 @@ const styles = StyleSheet.create({
   },
   runningWrap: { marginTop: 18, alignItems: 'center' },
 
-  // ── 5 CAPTURE ──
+  // ── 4 CAPTURE ──
   captureTitle: {
     color: colors.blanc,
     fontSize: fontSizes.xl,

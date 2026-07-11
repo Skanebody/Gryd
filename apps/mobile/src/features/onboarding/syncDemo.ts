@@ -25,18 +25,21 @@ export interface SyncSourceDef {
   /** Libellé visible (identique à VERIFY_SOURCES). */
   name: string;
   icon: IconName;
-  /** Niveau de confiance résumé (copy A-10 §6 : Apple = élevé, Strava = moyen). */
+  /**
+   * Niveau de confiance résumé (sens A-10 §6 : Apple = élevé, Strava = moyen).
+   * Libellé FR « Fiabilité » — jamais le jargon anglais « Trust » à l'écran.
+   */
   trust: string;
 }
 
 /**
- * Deux sources proposées à l'étape 4a. Ordre : santé OS d'abord (trust élevé),
- * puis Strava (trust moyen — vérif requise). Miroir de sources/catalog, mais
- * réduit aux DEUX branchées en démo (les montres restent « Bientôt » ailleurs).
+ * Deux sources proposées à l'étape 3a. Ordre : santé OS d'abord (fiabilité
+ * élevée), puis Strava (fiabilité moyenne — vérif requise). Miroir de
+ * sources/catalog, réduit aux DEUX branchées en démo (montres = « Bientôt »).
  */
 export const SYNC_SOURCES: readonly SyncSourceDef[] = [
-  { key: 'apple_health', name: 'Apple Health', icon: 'lien', trust: 'Trust élevé' },
-  { key: 'strava', name: 'Strava', icon: 'route', trust: 'Trust moyen' },
+  { key: 'apple_health', name: 'Apple Health', icon: 'lien', trust: 'Fiabilité élevée' },
+  { key: 'strava', name: 'Strava', icon: 'route', trust: 'Fiabilité moyenne' },
 ] as const;
 
 /** Retrouve la définition d'une source (défaut Apple Health — jamais de crash). */
@@ -95,7 +98,8 @@ export function syncPhaseIndex(p: number): number {
  * Le run importé mis en scène. Distance/allure = un run « déjà couru »
  * plausible ; `zones` = zones estimées capturées (donnée démo, pas une règle).
  * Cohérent avec le vocabulaire de la boucle (AMENDEMENT-12 : « dont N en boucle »).
- * Zone nommée reprise de l'écosystème Paris (course-result : « Paris Est »).
+ * AUCUN nom de lieu : tant qu'aucun GPS n'est obtenu, l'app ne prétend jamais
+ * connaître un quartier (l'écran capture dit « autour de toi »).
  */
 export const SYNC_DEMO_RUN = {
   /** Distance du run importé (m) — « 6,4 km ». */
@@ -108,8 +112,6 @@ export const SYNC_DEMO_RUN = {
   zones: 47,
   /** Dont N à l'intérieur de la boucle (le reste = couloir du tracé). */
   enclosedZones: 29,
-  /** Quartier pris (démo — cohérent Paris). */
-  zoneName: 'Paris Est',
 } as const;
 
 // ─── Hook de progression du déroulé (cross-platform, reduce motion) ──────────

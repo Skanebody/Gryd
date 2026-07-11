@@ -5,11 +5,12 @@
  * fond clair — ici tout est sur noir). Réutilise `territoryStyle`/`traceStyle`
  * (mapStyle) et les hooks d'anim du design system (reduce motion respecté).
  *
- * Trois briques :
+ * Quatre briques :
  *   HookMapBackground — carte stylisée animée EN FOND du splash (§1).
- *   CityBoard         — le quartier en PLATEAU DE JEU : zones par rôle, présence
- *                       rivale, une zone-objectif à prendre (§2, couleurs §C).
+ *   CityBoard         — le TERRAIN DE JEU en plateau DÉMO (aucune localisation
+ *                       réelle) : zones par rôle, rival, zone-objectif (§2, §C).
  *   CaptureFillVisual — la zone-cible qui SE REMPLIT à la capture (§5, payoff).
+ *   SyncProgressBar   — barre de progression sobre du déroulé d'import (3a).
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
@@ -165,10 +166,11 @@ export function HookMapBackground() {
   );
 }
 
-// ─── 2 — Le quartier en plateau de jeu (§2) ──────────────────────────────────
+// ─── 2 — Le terrain de jeu en plateau (§2) ───────────────────────────────────
 
 /**
- * Ta ville MAINTENANT : le plan + mon territoire + le rival + une ZONE-OBJECTIF
+ * Le TERRAIN DE JEU (plateau DÉMO — aucune localisation réelle, la copy de
+ * l'écran l'assume) : le plan + mon territoire + le rival + une ZONE-OBJECTIF
  * neutre qui PULSE doucement (« celle-ci, prends-la »). Les 3 rôles se lisent
  * par couleur ET forme (§C) : chartreuse = moi, orange = rival, cible pointillée
  * pulsée = objectif. Position du joueur = flèche chartreuse dans mon territoire.
@@ -286,78 +288,10 @@ export function CaptureFillVisual({ p }: { p: number }) {
   );
 }
 
-// ─── 5b — La densité crew : mon quartier tenu à plusieurs (§1 AMENDEMENT-31) ──
+// ─── Barre de progression du déroulé d'import (branche 3a) ───────────────────
 
 /**
- * Ma zone (déjà prise) + des ALLIÉS qui apparaissent autour et étendent le
- * territoire chartreuse — le « moat densité » rendu visible : à plusieurs, on
- * TIENT le quartier. Pas de rival ici (le message est positif, on recrute) ;
- * les alliés = points chartreuse secondaire (rôle §C), ma zone = chartreuse.
- * Reduce motion → état final direct (les alliés déjà là).
- */
-const DENSITY_MINE =
-  'M60,150 C52,120 82,98 124,98 C162,98 190,112 196,138 C200,158 186,172 168,176 C182,190 182,212 160,222 C132,234 84,228 66,204 C56,190 62,168 60,150 Z';
-/** Positions des alliés (autour de ma zone) — apparaissent en cascade. */
-const ALLIES: readonly { cx: number; cy: number }[] = [
-  { cx: 214, cy: 96 },
-  { cx: 232, cy: 168 },
-  { cx: 118, cy: 66 },
-  { cx: 92, cy: 236 },
-];
-
-export function CrewDensityBoard() {
-  const reveal = useProgress(1500, 0, false);
-  const pulse = useProgress(1700, 0, true);
-  const mineOp = ramp(reveal, 0, 0.45);
-  // Halo doux respirant autour de ma zone (état « à toi », discret).
-  const halo = 0.5 + 0.5 * pulse;
-  return (
-    <View style={styles.board}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>
-        {STREETS.map((d) => (
-          <Path key={d} d={d} stroke={withAlpha(colors.blanc, 0.07)} strokeWidth={2} fill="none" />
-        ))}
-        {/* Ma zone déjà capturée (aplat chartreuse + trait net, zéro halo dur). */}
-        <Path
-          d={DENSITY_MINE}
-          fill={territoryStyle.crewFill}
-          stroke={territoryStyle.crewStroke}
-          strokeWidth={1.8}
-          opacity={mineOp}
-        />
-        {/* Alliés qui rejoignent : points chartreuse secondaire + liens fins vers
-            ma zone (le clustering densité). Chacun révélé en cascade. */}
-        {ALLIES.map((a, i) => {
-          const start = 0.35 + i * 0.15;
-          const op = ramp(reveal, start, start + 0.25);
-          return (
-            <G key={`${a.cx}-${a.cy}`} opacity={op}>
-              <Path
-                d={`M128,150 L${a.cx},${a.cy}`}
-                stroke={withAlpha(colors.chartreuse, 0.28)}
-                strokeWidth={1.5}
-                strokeDasharray="3 4"
-                fill="none"
-              />
-              <Circle cx={a.cx} cy={a.cy} r={9} fill={withAlpha(colors.chartreuse, 0.14 * halo)} />
-              <Circle cx={a.cx} cy={a.cy} r={4.5} fill={withAlpha(colors.chartreuse, 0.85)} />
-            </G>
-          );
-        })}
-        {/* Ma position au cœur de la zone. */}
-        <G opacity={mineOp}>
-          <Circle cx={128} cy={150} r={11} fill={withAlpha(colors.chartreuse, 0.16)} />
-          <Path d="M128,142 L134,156 L128,152 L122,156 Z" fill={colors.chartreuse} />
-        </G>
-      </Svg>
-    </View>
-  );
-}
-
-// ─── Petit visuel « source de sync » (branche 4a) ────────────────────────────
-
-/**
- * Barre de progression sobre du déroulé d'import (§4a) — remplissage chartreuse
+ * Barre de progression sobre du déroulé d'import (3a) — remplissage chartreuse
  * (état « en cours », emploi §C.3 (4)). `p` 0..1 piloté par le hook useSyncDemo.
  * Piste carbone, jamais de skeleton chartreuse (charte §G : loaders gris).
  */

@@ -1,50 +1,53 @@
 /**
- * GRYD — contenu des 8 étapes de l'onboarding SANS FRICTION (AMENDEMENT-30 §1/§7).
+ * GRYD — contenu des étapes de l'onboarding SANS FRICTION (AMENDEMENT-30 §1/§7).
  * Copy CENTRALISÉE (l'écran reste du rendu) : titres géants courts, sous-titres,
- * CTA à VERBES CONTEXTUELS (jamais « GO » — §A4). Principe : « aucun écran ne
- * demande avant d'avoir donné » — permission/compte/crew/notifs viennent APRÈS
- * la valeur. Aucune valeur de jeu ici, juste des chaînes FR.
+ * CTA à VERBES CONTEXTUELS (jamais « GO »/« Continuer » — §A4). Principe :
+ * « aucun écran ne demande avant d'avoir donné » — la permission GPS ne vit QUE
+ * dans la branche « run » (juste avant de lancer le run), le compte et le crew
+ * viennent APRÈS la 1re capture, et les notifications sont HORS onboarding
+ * (opt-in au 1er contexte utile). Zéro nom de lieu tant qu'aucun GPS n'est
+ * obtenu (plateau démo = « le terrain de jeu », jamais « ton quartier »).
+ * Aucune valeur de jeu ici, juste des chaînes FR.
  */
 
 /**
- * Ordre du flow (§7). Le stepper (app/onboarding/index) rend l'étape courante.
- * `choose` bifurque vers `sync` OU `run` (4a/4b) ; les deux rejoignent `capture`
- * (5, le payoff), puis compte (6), crew (7), notifs (8).
+ * Ordre du flow. Le stepper (app/onboarding/index) rend l'étape courante.
+ * `choose` bifurque : `sync` (import, AUCUNE demande GPS) OU `permission → run`
+ * (le GPS n'est demandé qu'à ceux qui vont courir). Les deux branches rejoignent
+ * `capture` (le payoff), puis compte et crew. Max 7 écrans jusqu'à la capture.
  */
 export const ONBOARDING_STEPS = [
   'hook', // 1 — splash / accroche
   'age', // 1b — age-gate 16+ (Apple 5.1.1 / mineurs RGPD), avant toute collecte
-  'city', // 2 — ta ville en plateau de jeu
-  'permission', // 3 — permission GPS pédagogique
-  'choose', // 4 — choix du chemin (sync / run)
-  'sync', // 4a — import démo (branche « J'ai déjà des runs »)
-  'run', // 4b — premier run 1 tap (branche « Je vais courir »)
-  'capture', // 5 — 1re capture, moment signature
-  'account', // 6 — création de compte APRÈS la valeur
-  'crew', // 7 — rejoindre / créer un crew
-  'notifications', // 8 — opt-in notifs cadré
+  'city', // 2 — le terrain de jeu en plateau (démo, aucune localisation)
+  'choose', // 3 — choix du chemin (sync / run)
+  'sync', // 3a — import démo (branche « J'ai déjà des runs » — pas de GPS)
+  'permission', // 3b — permission GPS, UNIQUEMENT avant le premier run
+  'run', // 3b — premier run 1 tap (branche « Je vais courir »)
+  'capture', // 4 — 1re capture, moment signature
+  'account', // 5 — création de compte APRÈS la valeur
+  'crew', // 6 — rejoindre / créer un crew, puis sortie du flow
 ] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 /**
- * n de l'event `onboarding_step` (§8) pour le funnel A-30. Numérotation dédiée
- * (1..10) qui suit l'ORDRE du flow sans friction — distincte de l'ancien mapping
- * motivationnel. Les branches 4a/4b partagent l'esprit « étape 4 » mais gardent
- * un n propre pour mesurer sync vs run (§4 : « choix sync vs run »).
+ * n de l'event `onboarding_step` (§8) pour le funnel A-30. Les n sont des
+ * IDENTIFIANTS STABLES d'étape (continuité PostHog), pas des positions : la
+ * permission (n=3) vit désormais dans la branche « run », l'âge garde son n
+ * dédié (12) et les branches 3a/3b gardent un n propre pour mesurer sync vs run.
  */
 export const STEP_EVENT_N: Record<OnboardingStep, number> = {
   hook: 1,
   age: 12, // gate 16+ — n identifiant (hors séquence historique du funnel)
   city: 2,
-  permission: 3,
   choose: 4,
   sync: 5,
+  permission: 3, // branche « run » uniquement (juste avant Lancer le run)
   run: 6,
   capture: 7, // activation = 1re capture (métrique nord, §4)
   account: 9,
   crew: 10,
-  notifications: 11,
 };
 
 // ─── Copy par étape ──────────────────────────────────────────────────────────
@@ -75,18 +78,23 @@ export const AGE = {
     'GRYD n’est pas accessible avant 16 ans. On garde ta ville au chaud pour toi.',
 } as const;
 
-/** 2 — Ta ville maintenant : le quartier réel en plateau, valeur < 60 s (§2). */
+/**
+ * 2 — Le terrain de jeu : plateau DÉMO, valeur < 60 s (§2). Copy HONNÊTE :
+ * aucune localisation n'est encore obtenue → jamais « ton quartier », jamais un
+ * nom de lieu. Les deux couleurs sont nommées en toutes lettres (l'info n'est
+ * jamais portée par la seule couleur).
+ */
 export const CITY = {
-  kicker: 'TA VILLE · MAINTENANT',
-  title: 'Voilà ton quartier. À prendre.',
-  tagline:
-    'Chaque zone se gagne en courant. Le chartreuse, c’est toi. L’orange, un crew rival déjà là.',
-  cta: 'Je veux ce terrain',
+  kicker: 'LA VILLE · MAINTENANT',
+  title: 'Voilà le terrain de jeu. À prendre.',
+  tagline: 'Chaque zone se gagne en courant. Chartreuse = toi, orange = un crew rival.',
+  cta: 'Prendre ce terrain',
 } as const;
 
 /**
- * 3 — Permission GPS PÉDAGOGIQUE : on EXPLIQUE avant la demande système (§3).
- * Web preview : la demande est simulée (bouton démo), aucune API système.
+ * 3b — Permission GPS PÉDAGOGIQUE, UNIQUEMENT dans la branche « run » (juste
+ * avant Lancer le run — la branche « sync » ne la voit jamais). On EXPLIQUE
+ * avant la demande système. Web preview : demande simulée, aucune API système.
  */
 export const PERMISSION = {
   kicker: 'UNE SEULE CHOSE',
@@ -95,70 +103,78 @@ export const PERMISSION = {
     'GRYD suit ta trace pendant la course pour transformer tes rues en zones. Rien n’est partagé en direct.',
   /** Verbe d'ACCORD, jamais « GO » (§A4). */
   cta: 'Activer le GPS',
-  /** Sortie douce : on n'impose rien (mais on a déjà donné la valeur en 2). */
+  /** Sortie douce : on n'impose rien (la vraie demande revient au 1er run réel). */
   skip: 'Plus tard',
 } as const;
 
-/** 4 — Choix du chemin : 2 options claires (§4). Verbes, pas « GO ». */
+/** 3 — Choix du chemin : 2 options claires (§4). Verbes, pas « GO ». */
 export const CHOOSE = {
   kicker: 'DEUX FAÇONS DE COMMENCER',
   title: 'On capture ta première zone ?',
   tagline: 'Choisis ton point de départ — les deux mènent à ta première capture.',
-  /** 4a — branche sync. */
+  /** 3a — branche sync. */
   syncTitle: 'J’ai déjà des runs',
   syncSubtitle: 'Apple Health, Strava — on transforme ta dernière course.',
-  /** 4b — branche run in-app. */
+  /** 3b — branche run in-app. */
   runTitle: 'Je vais courir',
   runSubtitle: 'Un run tout simple, zéro réglage. Ferme une boucle.',
 } as const;
 
-/** 4a — Sync (démo) : positionnement §6 + l'import scénarisé. */
+/**
+ * 3a — Sync (démo) : positionnement §6 + l'import scénarisé. Pas de CTA dédié :
+ * le tap sur une source LANCE l'import (une décision = un tap).
+ */
 export const SYNC = {
   kicker: 'CAPTURE DEPUIS TES RUNS',
   title: 'Ta course devient une conquête.',
   tagline:
     'Cours comme tu veux — Apple Watch, Garmin, Strava. GRYD fait le reste. Choisis une source :',
-  /** Lancement de l'import (verbe d'action, pas « GO »). */
-  cta: 'Transformer ma course',
-  /** Pendant/après le déroulé. */
+  /** Méta du run détecté (« 6,4 km · une boucle »). */
+  loopMeta: 'une boucle',
+  /** Pendant le déroulé. */
   running: 'Import en cours',
 } as const;
 
-/** 4b — Premier run : 1 tap, objectif ultra-simple, zéro config (§4b). */
+/** 3b — Premier run : 1 tap, objectif ultra-simple, zéro config (§4b). */
 export const RUN = {
   kicker: 'TON PREMIER RUN',
   title: 'Un objectif. Ferme une boucle.',
   tagline: 'Pas de réglages, pas de plan. Tu pars, tu reviens, la zone est à toi.',
+  /** L'objectif sous le hero (une seule règle, une phrase). */
+  objective: 'Ferme une boucle. La zone est à toi.',
   /** Le lancement de course — verbe RUN (charte : le seul « RUN », pas « GO »). */
   cta: 'Lancer le run',
   /** Pendant le run démo. */
   running: 'Run en cours',
 } as const;
 
-/** 5 — 1re capture, MOMENT SIGNATURE (§5) : le payoff. */
+/** 4 — 1re capture, MOMENT SIGNATURE (§5) : le payoff. */
 export const CAPTURE = {
   kicker: 'PREMIÈRE CAPTURE',
   /** Titre du reveal — court, célébratif, jamais tronqué. */
   title: 'Première zone prise.',
   zonesLabel: 'zones capturées',
   loopLabel: 'en boucle',
+  /** Localisation HONNÊTE : aucun GPS encore → jamais un nom de lieu. */
+  nearLabel: 'autour de toi',
   /** Actions proposées (jamais imposées). */
   share: 'Partager',
-  cta: 'Continuer',
+  /** Verbe contextuel de la boucle Défends — jamais « Continuer » (§A4). */
+  cta: 'Défendre ma zone',
 } as const;
 
-/** 6 — Création de compte APRÈS la valeur (§6). Jamais un mur en écran 1. */
+/** 5 — Création de compte APRÈS la valeur (§6). Jamais un mur en écran 1. */
 export const ACCOUNT = {
   kicker: 'GARDE TES ZONES',
   title: 'Sauvegarde ta conquête.',
   tagline: 'Un compte, un tap. Tes zones te suivent sur tous tes appareils.',
-  apple: 'Continuer avec Apple',
-  google: 'Continuer avec Google',
+  apple: 'Se connecter avec Apple',
+  google: 'Se connecter avec Google',
   /** Différer reste possible (non bloquant). */
   skip: 'Plus tard',
 } as const;
 
-/** 7 — Crew : proposé APRÈS la 1re capture, jamais imposé (§7). */
+/** 6 — Crew : proposé APRÈS la 1re capture, jamais imposé (§7). Dernière étape. */
 export const CREW = {
   kicker: 'TU N’ES PAS SEUL',
   title: 'Rejoins un crew. Prends la ville.',
@@ -168,7 +184,11 @@ export const CREW = {
   skip: 'Plus tard',
 } as const;
 
-/** 8 — Notifications : opt-in cadré, APRÈS la valeur (§8). */
+/**
+ * Notifications — HORS onboarding : l'opt-in se fait au 1er contexte utile
+ * (push contextuel §35), plus jamais dans le stepper. Copy conservée pour cet
+ * écran contextuel à venir.
+ */
 export const NOTIFICATIONS = {
   kicker: 'RESTE DANS LA PARTIE',
   title: 'Sois prévenu quand on t’attaque.',
