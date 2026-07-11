@@ -32,15 +32,15 @@ import {
   type BadgeDef,
   type BadgeFamilyId,
 } from '../src/features/badges/catalog';
-import { UNLOCKED_DEMO, UNLOCKED_IDS, demoStat } from '../src/features/badges/demo';
+import { useMyBadges, type MyBadges } from '../src/features/badges/myBadges';
 import { screen } from '../src/lib/analytics';
 import { BadgeCard, useReduceMotion } from '../src/ui/game';
 
 /** Filtre actif : une famille, la section secrets, ou tout. */
 type FilterId = BadgeFamilyId | 'all';
 
-function badgeState(def: BadgeDef): BadgeHexState {
-  if (UNLOCKED_IDS.has(def.id)) return 'unlocked';
+function badgeState(def: BadgeDef, unlockedIds: MyBadges['unlockedIds']): BadgeHexState {
+  if (unlockedIds.has(def.id)) return 'unlocked';
   return def.secret ? 'secretLocked' : 'locked';
 }
 
@@ -49,10 +49,15 @@ function badgeState(def: BadgeDef): BadgeHexState {
  * demi-largeur (2 colonnes). Jauge pour les badges progressifs, récompense
  * dérivée du catalogue, secrets masqués gérés par la carte (state secretLocked).
  */
-function BadgeCardCell({ def, onSelect }: { def: BadgeDef; onSelect: (def: BadgeDef) => void }) {
-  const state = badgeState(def);
+function BadgeCardCell({ def, onSelect, unlockedIds, stat }: {
+  def: BadgeDef;
+  onSelect: (def: BadgeDef) => void;
+  unlockedIds: MyBadges['unlockedIds'];
+  stat: MyBadges['stat'];
+}) {
+  const state = badgeState(def, unlockedIds);
   const prog = def.familySlug && !def.secret
-    ? badgeProgress(def.id, demoStat(def.metric))
+    ? badgeProgress(def.id, stat(def.metric))
     : null;
   return (
     <View style={styles.gridCell}>
@@ -92,20 +97,22 @@ function FamilyHeader({ name, color, unlocked, total }: {
 }
 
 /** Une section famille complète (bandeau + grille). */
-function FamilySection({ id, name, color, defs, onSelect }: {
+function FamilySection({ id, name, color, defs, onSelect, unlockedIds, stat }: {
   id: string;
   name: string;
   color: string;
   defs: readonly BadgeDef[];
   onSelect: (def: BadgeDef) => void;
+  unlockedIds: MyBadges['unlockedIds'];
+  stat: MyBadges['stat'];
 }) {
-  const unlocked = defs.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+  const unlocked = defs.filter((b) => unlockedIds.has(b.id)).length;
   return (
     <View key={id} style={styles.section}>
       <FamilyHeader name={name} color={color} unlocked={unlocked} total={defs.length} />
       <View style={styles.grid}>
         {defs.map((def) => (
-          <BadgeCardCell key={def.id} def={def} onSelect={onSelect} />
+          <BadgeCardCell key={def.id} def={def} onSelect={onSelect} unlockedIds={unlockedIds} stat={stat} />
         ))}
       </View>
     </View>
@@ -144,7 +151,13 @@ const SHEET_REDUCED_FADE_MS = 120;
  * Reduce motion (useReduceMotion, même règle que useSlideIn/useReveal) :
  * fondu court SANS translation — le mouvement disparaît, jamais la lisibilité.
  */
-function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }) {
+function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat }: {
+  def: BadgeDef;
+  onDismiss: () => void;
+  unlockedIds: MyBadges['unlockedIds'];
+  unlockedDates: MyBadges['unlockedDates'];
+  stat: MyBadges['stat'];
+}) {
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
@@ -169,14 +182,14 @@ function BadgeSheet({ def, onDismiss }: { def: BadgeDef; onDismiss: () => void }
     });
   }, [onDismiss, progress, reduce]);
 
-  const state = badgeState(def);
+  const state = badgeState(def, unlockedIds);
   const unlocked = state === 'unlocked';
   const hidden = def.secret && !unlocked;
   const accent = badgeColor(def);
-  const unlockedAt = UNLOCKED_DEMO.get(def.id);
+  const unlockedAt = unlockedDates.get(def.id);
 
   // Progression : uniquement pour les badges progressifs non secrets non pleins.
-  const prog = def.familySlug ? badgeProgress(def.id, demoStat(def.metric)) : null;
+  const prog = def.familySlug ? badgeProgress(def.id, stat(def.metric)) : null;
   const next = nextLevelOf(def.id);
   const showGauge = prog !== null && !hidden && !prog.unlocked;
   // Récompense (titre à afficher) — dérivée du catalogue, jamais inventée.
@@ -322,20 +335,23 @@ export default function BadgesScreen() {
     screen('badges');
   }, []);
 
-  const unlockedTotal = COLLECTION_BADGES.filter((b) => UNLOCKED_IDS.has(b.id)).length;
-  const tierMax = maxTierLabel(UNLOCKED_IDS);
+  // Débloqués + progression : réels (user_badges/user_stats) si session, sinon démo.
+  const { unlockedIds, unlockedDates, stat } = useMyBadges();
+
+  const unlockedTotal = COLLECTION_BADGES.filter((b) => unlockedIds.has(b.id)).length;
+  const tierMax = maxTierLabel(unlockedIds);
   const secrets = secretBadges();
-  const secretsUnlocked = secrets.filter((b) => UNLOCKED_IDS.has(b.id)).length;
+  const secretsUnlocked = secrets.filter((b) => unlockedIds.has(b.id)).length;
 
   // « Proches du déblocage » : top 3 badges verrouillés, non secrets, par ratio.
   const nearlyUnlocked = useMemo(() => {
     return COLLECTION_BADGES
-      .filter((b) => !UNLOCKED_IDS.has(b.id) && !b.secret)
-      .map((b) => ({ def: b, prog: badgeProgress(b.id, demoStat(b.metric)) }))
+      .filter((b) => !unlockedIds.has(b.id) && !b.secret)
+      .map((b) => ({ def: b, prog: badgeProgress(b.id, stat(b.metric)) }))
       .filter((x) => x.prog !== null && x.prog.ratio > 0 && !x.prog.unlocked)
       .sort((a, b) => (b.prog!.ratio - a.prog!.ratio))
       .slice(0, 3);
-  }, []);
+  }, [unlockedIds, stat]);
 
   // Familles à afficher selon le filtre.
   const shownFamilies = filter === 'all' || filter === 'secret'
@@ -454,6 +470,8 @@ export default function BadgesScreen() {
               color={family.color}
               defs={defs}
               onSelect={setSelected}
+              unlockedIds={unlockedIds}
+              stat={stat}
             />
           );
         })}
@@ -466,6 +484,8 @@ export default function BadgesScreen() {
             color={SECRET_BADGE_COLOR}
             defs={secrets}
             onSelect={setSelected}
+            unlockedIds={unlockedIds}
+            stat={stat}
           />
         ) : null}
 
@@ -473,7 +493,15 @@ export default function BadgesScreen() {
         <TierRow />
       </ScrollView>
 
-      {selected ? <BadgeSheet def={selected} onDismiss={() => setSelected(null)} /> : null}
+      {selected ? (
+        <BadgeSheet
+          def={selected}
+          onDismiss={() => setSelected(null)}
+          unlockedIds={unlockedIds}
+          unlockedDates={unlockedDates}
+          stat={stat}
+        />
+      ) : null}
     </View>
   );
 }
