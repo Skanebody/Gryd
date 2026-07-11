@@ -4,20 +4,24 @@
  *   - MODE STATS (défaut) : écran minimal type Nike — fond noir PLEIN, zéro
  *     glass, zéro décor. Distance GÉANTE (fontSizes.heroMax), « +N ZONES »
  *     chartreuse, allure, temps, pill GRYD VERIFIED. Contrôles bas gros,
- *     une main : [Pause] [Carte] [Terminer (appui maintenu)].
+ *     une main : [Pause] [Carte] [Terminer (appui maintenu)] — labels
+ *     d'action ≥ 12 px (lisibles en courant).
  *   - MODE CARTE : la navigation type Uber (LiveNavMap) sur les VRAIES tuiles
  *     (RealMap — AMENDEMENT-16 §0) : la route à suivre + le ruban chartreuse
- *     NET qui S'ÉTEND derrière le coureur le long des vraies rues (zones H3
- *     invisibles — jamais une grille, zéro halo), virage suivant,
- *     destination. Chiffres dans la MapBottomSheet (anti-bruit).
- * La pill ARRIVÉE X MIN · Y % / EN PAUSE reste TOUJOURS visible : un événement
- * (zone privée, GPS faible, contesté…) s'EMPILE dessous — il enrichit la
- * lecture, il ne remplace jamais l'ETA ni l'état pause. Toasts vocabulaire
- * territoire (« Secteur pris · +N zones ») dans les DEUX modes. `?route=<id>`
- * → nom de la route démo en tête. Terminer = appui MAINTENU
- * (motion.holdToStopMs, stop protégé §G) → /course-result (inchangé).
- * Le client n'attribue jamais une zone : tout est « estimé », le serveur
- * (ingest_run) reste seul décideur.
+ *     NET qui S'ÉTEND derrière le coureur le long des vraies rues. Chiffres
+ *     dans la MapBottomSheet (anti-bruit). Le FAB Pause est le SEUL disque
+ *     PLEIN (blanc, chartreuse en pause) de la colonne — repérable d'un
+ *     coup d'œil parmi les FABs carbone.
+ * UNE seule lecture de la boucle (audit zéro-friction) : le bandeau mission
+ * du haut porte l'ÉTAT (« BOUCLE · 72 % · 320 m »), la card live basse porte
+ * l'ACTION (« FERME TA BOUCLE · Retour 320 m »). Aucune ligne intermédiaire.
+ * Le slot droit du bandeau n'affiche une ETA (« 9 min ») QUE s'il existe une
+ * destination (mission/défense/conquête) ; en RUN LIBRE il dit « EN COURS »
+ * — l'app ne ment jamais sur une arrivée qui n'existe pas.
+ * Anti-bruit : au plus UNE alerte temporaire à la fois (le toast s'efface
+ * pendant une mini-anim N3). Terminer = appui MAINTENU (motion.holdToStopMs,
+ * stop protégé §G) → /course-result. Le client n'attribue jamais une zone :
+ * tout est « estimé », le serveur (ingest_run) reste seul décideur.
  *
  * AMENDEMENT-15 §2 — sélecteur réel/simulation : sur NATIF avec permission,
  * useRealRun branche le vrai tracker GPS (RealCourseLive) ; sur web ou sans
@@ -30,6 +34,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import {
+  LOOP_MIN_PERIMETER_M,
   VERIFIED_MIN_TRUST,
   colors,
   fontSizes,
@@ -295,7 +300,7 @@ function DemoCourseLive({
   /** Zones estimées AFFICHÉES : couloir + intérieur dès la fermeture. */
   const zonesTotal = conquest ? tick.hexes + enclosedZones : 0;
   const zoneJump = useZoneJump(loopClosed);
-  /** « départ à ~N m » — même arrondi 10 m que la lecture nav. */
+  /** « Retour N m » (card d'action boucle) — même arrondi 10 m que la nav. */
   const loopDistLabel = formatInt(
     Math.max(CHECKPOINT_ROUND_M, Math.round(loopStatus.distM / CHECKPOINT_ROUND_M) * CHECKPOINT_ROUND_M),
   );
@@ -349,19 +354,32 @@ function DemoCourseLive({
       : conquest
         ? 'cible'
         : 'performance';
-  /** ETA courte à droite du bandeau : « 9 min » / « PAUSE » / « Arrivée ». */
+  /** Run LIBRE : aucune destination → aucune ETA (l'app ne ment jamais). */
+  const freeRun = !completeBoundary && intention !== 'defense' && !conquest;
+  /**
+   * Slot droit du bandeau : « PAUSE » / « EN COURS » (run libre, la course
+   * reste ouverte tant qu'on ne maintient pas Terminer) / « Arrivée » /
+   * « 9 min » (ETA — SEULEMENT quand une destination réelle existe).
+   */
   const etaLabel = paused
     ? 'PAUSE'
-    : simDone
-      ? 'Arrivée'
-      : `${Math.max(1, Math.ceil(etaS / 60))} min`;
+    : freeRun
+      ? 'EN COURS'
+      : simDone
+        ? 'Arrivée'
+        : `${Math.max(1, Math.ceil(etaS / 60))} min`;
 
   // ── Feedback temps réel scripté : toast + haptic (anti-bruit : 1 à la fois) ─
   const [toast, setToast] = useState<{ key: number; toast: NavToast } | null>(null);
   const toastKeyRef = useRef(0);
   const showToast = (t: NavToast) => {
     toastKeyRef.current += 1;
-    setToast({ key: toastKeyRef.current, toast: t });
+    // App FR, zéro jargon anglais : « Checkpoint — X » (copy nav partagée,
+    // liveNav.ts hors périmètre de cet écran) s'affiche « Repère — X ».
+    setToast({
+      key: toastKeyRef.current,
+      toast: { ...t, text: t.text.replace(/^Checkpoint — /, 'Repère — ') },
+    });
   };
   useEffect(() => {
     const scripted = nav.toasts.get(tickIndex);
@@ -441,13 +459,18 @@ function DemoCourseLive({
   // ── AMENDEMENT-18 §C.2 — CARD LIVE BASSE selon le mode ────────────────────
   // Résumé PERMANENT de l'objectif (distinct des indications événementielles) :
   // Boucle en cours / Défense / Terminer / Run libre. Une card = 3 infos max.
+  // Audit zéro-friction : le bandeau mission porte déjà l'ÉTAT chiffré → la
+  // card porte l'ACTION (jamais deux lectures de la même progression). Les
+  // libellés partagés (indications.ts, hors périmètre) sont ajustés ICI.
   const liveCard: LiveCard = useMemo(() => {
     if (completeBoundary) {
-      return completeLiveCard({
+      const card = completeLiveCard({
         zone: completeBoundary.zone,
         remainingM: completeRemainingM,
         coveredPct: completeCoveredPct,
       });
+      // « Connexion 2 rues » (copy partagée) est cryptique en effort → verbe.
+      return card.detail === 'Connexion 2 rues' ? { ...card, detail: 'Relie 2 rues' } : card;
     }
     if (intention === 'defense') {
       return defenseLiveCard({
@@ -457,14 +480,23 @@ function DemoCourseLive({
       });
     }
     if (conquest) {
-      return loopLiveCard({
+      const card = loopLiveCard({
         closed: loopClosed,
         pct: pct,
         distToCloseM: loopStatus.distM,
         enclosedZones,
       });
+      // Boucle ouverte : le bandeau dit « BOUCLE · 72 % · 320 m » (état) — la
+      // card dit QUOI FAIRE : « FERME TA BOUCLE · Retour 320 m » + barre.
+      return loopClosed
+        ? card
+        : { ...card, kicker: 'FERME TA BOUCLE', value: `Retour ${loopDistLabel} m`, detail: undefined };
     }
-    return freeRunLiveCard({ loopPossible: tick.distanceM >= 2000 });
+    const loopPossible = tick.distanceM >= LOOP_MIN_PERIMETER_M;
+    const card = freeRunLiveCard({ loopPossible });
+    // « GRYD analyse ton tracé » (copy partagée) ne demande rien au coureur :
+    // avant le seuil de boucle, la card reste à 2 infos — pas de ligne morte.
+    return loopPossible ? card : { ...card, detail: undefined };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dérivé du tick
   }, [
     completeBoundary,
@@ -474,6 +506,7 @@ function DemoCourseLive({
     routeParam,
     conquest,
     loopClosed,
+    loopDistLabel,
     pct,
     loopStatus.distM,
     enclosedZones,
@@ -518,7 +551,7 @@ function DemoCourseLive({
   const sendPing = (ping: QuickPing) => {
     haptics.medium();
     setPingsOpen(false);
-    showToast({ kind: 'checkpoint', text: `Ping · ${ping.sent}`, icon: ping.icon, tint: colors.chartreuse, haptic: 'medium' });
+    showToast({ kind: 'checkpoint', text: `Ping · ${pingLabel(ping)}`, icon: ping.icon, tint: colors.chartreuse, haptic: 'medium' });
   };
 
   const finish = () => {
@@ -748,11 +781,11 @@ function DemoCourseLive({
                     de nav + l'objectif crew (l'UNIQUE progression). Récompense
                     estimée, splits et log d'états = data/stats avancées → au
                     RÉSULTAT (post-run niveau 2, §A-12/14/15), jamais ici. */}
-                {/* Prochain checkpoint : virage + distance (« à 200 m ») */}
+                {/* Prochain repère de nav : virage + distance (« à 200 m ») */}
                 <View style={styles.rowCard}>
                   <Icon name="virage" size={18} color={colors.blanc} />
                   <View style={styles.rowTextWrap}>
-                    <Text style={styles.rowKicker}>PROCHAIN CHECKPOINT</Text>
+                    <Text style={styles.rowKicker}>PROCHAIN REPÈRE</Text>
                     <Text style={styles.rowValue} numberOfLines={1}>
                       {checkpoint.label}
                     </Text>
@@ -797,20 +830,8 @@ function DemoCourseLive({
               </Animated.Text>
             ) : null}
 
-            {/* Boucle en texte (mode Stats, §12 C : même info sans carte). */}
-            {conquest && loopStatus.phase !== 'none' ? (
-              <Text
-                style={[styles.loopLine, loopStatus.phase !== 'open' && styles.loopLineAccent]}
-                numberOfLines={1}
-              >
-                {loopClosed
-                  ? `BOUCLE FERMÉE · +${formatInt(enclosedZones)} ZONES`
-                  : loopStatus.phase === 'approach'
-                    ? `FERME TA BOUCLE · DÉPART À ~${loopDistLabel} M`
-                    : `BOUCLE OUVERTE · DÉPART À ~${loopDistLabel} M`}
-              </Text>
-            ) : null}
-
+            {/* La boucle se lit UNE fois : bandeau mission = état, card live
+                basse = action. Aucune ligne intermédiaire ici (audit P1). */}
             <View style={styles.secondaryRow}>
               <View style={styles.secondaryStat}>
                 <Text style={styles.secondaryValue}>{formatPace(paceSPerKm)}</Text>
@@ -914,8 +935,9 @@ function DemoCourseLive({
         ) : null}
       </View>
 
-      {/* ── Toast de feedback scripté (1 seul, remplacé par le suivant) ── */}
-      {toast ? (
+      {/* ── Toast de feedback scripté (1 seul, remplacé par le suivant). UNE
+           alerte temporaire à la fois : il s'efface pendant une mini-anim N3. ── */}
+      {toast && !n3 ? (
         <View style={[styles.toastArea, { top: insets.top + topStackOffset }]} pointerEvents="none">
           <FeedbackToast key={toast.key} toast={toast.toast} />
         </View>
@@ -1052,6 +1074,14 @@ function N3Event({ ind }: { ind: LiveIndication }) {
 }
 
 /**
+ * Libellé FR d'un ping affiché sur cet écran : « Je suis out » (copy partagée
+ * QUICK_PINGS, hors périmètre) est un anglicisme → « Je m'arrête ».
+ */
+function pingLabel(ping: QuickPing): string {
+  return ping.id === 'out' ? 'Je m’arrête' : ping.label;
+}
+
+/**
  * Quick Pings (§C.4) : menu prédéfini (pas de clavier en courant), gros boutons
  * une-main. Un tap = envoi (démo : toast + haptic) + fermeture. Backdrop pour
  * refermer sans envoyer.
@@ -1083,13 +1113,13 @@ function PingsMenu({
             <Pressable
               key={ping.id}
               accessibilityRole="button"
-              accessibilityLabel={`Ping : ${ping.label}`}
+              accessibilityLabel={`Ping : ${pingLabel(ping)}`}
               onPress={() => onSend(ping)}
               style={({ pressed }) => [styles.pingChip, pressed && styles.pressed]}
             >
               <Icon name={ping.icon} size={16} color={colors.chartreuse} />
               <Text style={styles.pingChipText} numberOfLines={1}>
-                {ping.label}
+                {pingLabel(ping)}
               </Text>
             </Pressable>
           ))}
@@ -1142,16 +1172,21 @@ function FeedbackToast({ toast }: { toast: NavToast }) {
   );
 }
 
-/** Glyphe pause/lecture local (icônes shared sans pictogramme lecteur). */
-function PausePlayGlyph({ paused, size }: { paused: boolean; size: number }) {
+/**
+ * Glyphe pause/lecture local (icônes shared sans pictogramme lecteur).
+ * `color` force une teinte unique (glyphe noir sur les disques pleins clairs —
+ * jamais de chartreuse sur fond clair) ; défaut : lecture chartreuse / pause
+ * blanche sur les surfaces sombres.
+ */
+function PausePlayGlyph({ paused, size, color }: { paused: boolean; size: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20">
       {paused ? (
-        <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={colors.chartreuse} />
+        <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={color ?? colors.chartreuse} />
       ) : (
         <>
-          <Path d="M7 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
-          <Path d="M13 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M7 4.5v11" stroke={color ?? colors.blanc} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M13 4.5v11" stroke={color ?? colors.blanc} strokeWidth={3} strokeLinecap="round" />
         </>
       )}
     </Svg>
@@ -1196,8 +1231,11 @@ function BigControl({
 }
 
 /**
- * Pause/reprendre — même gabarit que FloatingMapButton (44 px, carbone),
- * glyphe pause/lecture local (mode Carte).
+ * Pause/reprendre du mode Carte — même gabarit 44 px que FloatingMapButton,
+ * mais SEUL disque PLEIN de la colonne (blanc · chartreuse en pause) : la
+ * pause se repère d'un coup d'œil parmi les FABs carbone, sans chercher.
+ * Glyphe NOIR (jamais de chartreuse sur fond clair) ; l'état pause est aussi
+ * porté par le texte « PAUSE » du bandeau mission (jamais la seule couleur).
  */
 function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => void }) {
   return (
@@ -1215,7 +1253,7 @@ function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => 
         pressed && styles.pressed,
       ]}
     >
-      <PausePlayGlyph paused={paused} size={20} />
+      <PausePlayGlyph paused={paused} size={20} color={colors.noir} />
     </Pressable>
   );
 }
@@ -1223,14 +1261,14 @@ function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
 
-  // ✕ Quitter (haut gauche) + overlay de confirmation (abandonner la course).
+  // ✕ Quitter (haut gauche, cible ≥ 44 px) + overlay de confirmation.
   quitButton: {
     position: 'absolute',
     left: 14,
     zIndex: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: gameColors.carbon,
@@ -1330,7 +1368,7 @@ const styles = StyleSheet.create({
   },
   techChipText: {
     color: colors.gris,
-    fontSize: 11,
+    fontSize: fontSizes.xs,
     fontWeight: '700',
     letterSpacing: 0.4,
   },
@@ -1341,17 +1379,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chartreuse,
   },
   liveDotPaused: { backgroundColor: colors.gris },
-  // ── Boucle (AMENDEMENT-12 §C) : ligne texte du mode Stats (les pills du haut
-  //    ont été fusionnées dans le bandeau mission — AMENDEMENT-20 §1). ──
-  loopLine: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    fontVariant: ['tabular-nums'],
-    marginTop: 6,
-  },
-  loopLineAccent: { color: colors.chartreuse },
   /** Le Stat ZONES garde sa part de rangée quand il saute (scale). */
   zoneStatWrap: { flex: 1 },
 
@@ -1373,7 +1400,7 @@ const styles = StyleSheet.create({
   liveCardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   liveCardKicker: {
     color: colors.gris,
-    fontSize: 11,
+    fontSize: fontSizes.xs,
     fontWeight: '800',
     letterSpacing: 1,
     flex: 1,
@@ -1384,7 +1411,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
-  liveCardDetail: { color: colors.gris, fontSize: 12, fontWeight: '600', marginTop: -2 },
+  liveCardDetail: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', marginTop: -2 },
   n2Card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1467,7 +1494,7 @@ const styles = StyleSheet.create({
   },
   pingsKicker: {
     color: colors.gris,
-    fontSize: 11,
+    fontSize: fontSizes.xs,
     fontWeight: '800',
     letterSpacing: 1.4,
   },
@@ -1549,9 +1576,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
+  // ≥ 12 px : les labels d'unité restent lisibles en mouvement (audit P1).
   secondaryLabel: {
     color: colors.gris,
-    fontSize: 9.5,
+    fontSize: fontSizes.xs,
     fontWeight: '700',
     letterSpacing: 1.4,
   },
@@ -1569,7 +1597,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     color: gameColors.verify,
-    fontSize: 10.5,
+    fontSize: fontSizes.xs,
     fontWeight: '800',
     letterSpacing: 1.4,
   },
@@ -1601,9 +1629,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(250,250,247,0.35)',
   },
   bigStopSquare: { width: 18, height: 18, borderRadius: 3.5, backgroundColor: colors.blanc },
+  // ≥ 12 px : TERMINER/PAUSE/CARTE se lisent en courant (audit P1 — le label
+  // de l'action la plus critique ne peut pas être le plus petit texte).
   bigLabel: {
     color: colors.gris,
-    fontSize: 9.5,
+    fontSize: fontSizes.xs,
     fontWeight: '800',
     letterSpacing: 1.2,
   },
@@ -1612,19 +1642,18 @@ const styles = StyleSheet.create({
   // AMENDEMENT-26 — toggle 2D/3D discret : ancré en haut à droite (en face du ✕),
   // au-dessus de la carte, jamais dans la colonne de FABs (anti-cockpit A-22).
   map3dToggle: { position: 'absolute', right: 14, zIndex: 20, alignItems: 'flex-end' },
+  // FAB Pause = SEUL disque PLEIN de la colonne carte (blanc / chartreuse en
+  // pause, glyphe noir) : différencié des FABs carbone d'un coup d'œil.
   pauseDisc: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
+    backgroundColor: colors.blanc,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pauseDiscActive: {
-    backgroundColor: colors.chartreuse14,
-    borderColor: colors.chartreuse40,
+    backgroundColor: colors.chartreuse,
   },
 
   scaleBar: { position: 'absolute', left: 14 },
@@ -1636,8 +1665,9 @@ const styles = StyleSheet.create({
     borderColor: colors.gris,
     opacity: 0.7,
   },
-  scaleLabel: { color: colors.gris, fontSize: 9, marginTop: 3, fontVariant: ['tabular-nums'] },
-  attribution: { color: colors.gris, opacity: 0.7, fontSize: 9, marginTop: 2 },
+  // ≥ 12 px même pour l'échelle/attribution (aucun texte illisible en course).
+  scaleLabel: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3, fontVariant: ['tabular-nums'] },
+  attribution: { color: colors.gris, opacity: 0.7, fontSize: fontSizes.xs, marginTop: 2 },
 
   // ── Sheet compacte : 4 chiffres nets + Terminer (appui maintenu) ──
   compactRow: {
@@ -1652,7 +1682,7 @@ const styles = StyleSheet.create({
   statValueAccent: { color: colors.chartreuse },
   statValueMono: { fontVariant: ['tabular-nums'] },
   statUnit: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
-  statLabel: { color: colors.gris, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.8 },
+  statLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.8 },
   stopButton: {
     width: STOP_BUTTON_SIZE,
     height: STOP_BUTTON_SIZE,
@@ -1682,7 +1712,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   rowTextWrap: { flex: 1, gap: 1 },
-  rowKicker: { color: colors.gris, fontSize: 9.5, fontWeight: '700', letterSpacing: 1.2 },
+  rowKicker: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1.2 },
   rowValue: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   rowRight: {
     color: colors.blanc,
