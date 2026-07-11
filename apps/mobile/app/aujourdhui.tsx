@@ -30,7 +30,7 @@ import {
   badgeProgress,
   badgeRewardLabel,
 } from '../src/features/badges/catalog';
-import { UNLOCKED_IDS, demoStat } from '../src/features/badges/demo';
+import { useMyBadges } from '../src/features/badges/myBadges';
 import { TODAY, TODAY_HERO } from '../src/features/motivation/demo';
 
 /** « 4,8 » — le KPI géant est la distance, la virgule est FR. */
@@ -51,15 +51,18 @@ export default function AujourdhuiScreen() {
     ? 'DÉFENDRE'
     : 'CONQUÉRIR';
 
+  // Débloqués + progression : réels (user_badges/user_stats) si session, sinon démo.
+  const { unlockedIds, stat } = useMyBadges();
+
   // Prochain badge proche : top 1 verrouillé non secret par ratio (même calcul
   // que la section « Proches du déblocage » de la Collection — cohérence).
   const nextBadge = useMemo(() => {
     return COLLECTION_BADGES
-      .filter((b) => !UNLOCKED_IDS.has(b.id) && !b.secret)
-      .map((b) => ({ def: b, prog: badgeProgress(b.id, demoStat(b.metric)) }))
+      .filter((b) => !unlockedIds.has(b.id) && !b.secret)
+      .map((b) => ({ def: b, prog: badgeProgress(b.id, stat(b.metric)) }))
       .filter((x) => x.prog !== null && x.prog.ratio > 0 && !x.prog.unlocked)
       .sort((a, b) => b.prog!.ratio - a.prog!.ratio)[0];
-  }, []);
+  }, [unlockedIds, stat]);
 
   const goPlanner = () => router.push('/route-planner');
 

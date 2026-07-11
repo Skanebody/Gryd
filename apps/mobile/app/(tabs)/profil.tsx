@@ -45,7 +45,7 @@ import {
   BADGE_TOTAL,
 } from '../../src/features/badges/catalog';
 import { BadgeHex } from '../../src/features/badges/BadgeHex';
-import { UNLOCKED_IDS, demoStat } from '../../src/features/badges/demo';
+import { useMyBadges } from '../../src/features/badges/myBadges';
 import { MY_CREW } from '../../src/features/crew/demo';
 import {
   FRAME_TIER_LABELS,
@@ -131,29 +131,30 @@ type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 
 /**
  * Badges affichables = débloqués, non-legacy, triés du plus rare au moins rare
- * (BADGE_TIER_RANK). Dérivé des stats démo (UNLOCKED_IDS) — jamais codé en dur.
+ * (BADGE_TIER_RANK). DÉRIVÉ des débloqués RÉELS (O1 : useMyBadges) dans le
+ * composant — plus au niveau module (jamais codé en dur).
  */
-const DISPLAYABLE_BADGES: readonly BadgeDefT[] = [...UNLOCKED_IDS]
-  .map((id) => badgeById(id))
-  .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
-  .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
-
-/** Défaut « équipés » = les 3 plus rares (AMENDEMENT-17 : 3, pas un carrousel). */
-const DEFAULT_FEATURED_BADGES: readonly BadgeDefT[] = DISPLAYABLE_BADGES.slice(0, 3);
+function displayableBadgesFrom(unlockedIds: ReadonlySet<string>): readonly BadgeDefT[] {
+  return [...unlockedIds]
+    .map((id) => badgeById(id))
+    .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
+    .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
+}
 
 /**
  * Badges mis en avant EFFECTIFS : le choix manuel du joueur (featuredBadgeIds)
  * s'il est renseigné et valide, sinon le défaut (3 plus rares). On ne garde que
  * des badges réellement débloqués → jamais un slot vide/verrouillé sur la card.
  */
-function resolveFeaturedBadges(chosenIds: readonly string[]): readonly BadgeDefT[] {
+function resolveFeaturedBadges(
+  chosenIds: readonly string[],
+  displayable: readonly BadgeDefT[],
+): readonly BadgeDefT[] {
   const chosen = chosenIds
-    .map((id) => DISPLAYABLE_BADGES.find((b) => b.id === id))
+    .map((id) => displayable.find((b) => b.id === id))
     .filter((def): def is BadgeDefT => def !== undefined);
-  return chosen.length > 0 ? chosen.slice(0, 3) : DEFAULT_FEATURED_BADGES;
+  return chosen.length > 0 ? chosen.slice(0, 3) : displayable.slice(0, 3);
 }
-
-const UNLOCKED_COUNT = UNLOCKED_IDS.size;
 
 // ─── SKILLS (AMENDEMENT-23 §C, doc §28-§29) ──────────────────────────────────
 /**
@@ -163,11 +164,12 @@ const UNLOCKED_COUNT = UNLOCKED_IDS.size;
  * `@klaim/engine` (même contrainte que le catalogue de badges client) : le
  * catalogue + les seuils GELÉS viennent de `@klaim/shared` (`SKILLS`), aucun
  * nombre magique local. Les STATS réutilisent la MÊME source que les badges
- * (`demoStat`, features/badges/demo) — pas de barème parallèle.
+ * (O1 : `useMyBadges().stat` — user_stats réel si session, sinon démo) — pas de
+ * barème parallèle. `deriveSkill(def, statValue)` reste PURE (reçoit la valeur).
  */
 interface DerivedSkill {
   def: SkillDef;
-  /** Valeur courante du compteur (clé LifetimeStats via demoStat). */
+  /** Valeur courante du compteur (clé LifetimeStats via useMyBadges().stat). */
   value: number;
   /** Niveau atteint : 0 = verrouillé … 3 = III. */
   level: 0 | 1 | 2 | 3;
@@ -188,8 +190,8 @@ interface DerivedSkill {
  * linéaire entre le seuil courant et le suivant. PURE, mêmes règles que
  * l'engine (bornes strictement croissantes garanties par le catalogue).
  */
-function deriveSkill(def: SkillDef): DerivedSkill {
-  const value = Math.max(0, demoStat(def.metric));
+function deriveSkill(def: SkillDef, statValue: number): DerivedSkill {
+  const value = Math.max(0, statValue);
   const thresholds = def.levels.map((l) => l.threshold);
   let level = 0;
   for (const t of thresholds) if (value >= t) level += 1;
@@ -209,12 +211,6 @@ function deriveSkill(def: SkillDef): DerivedSkill {
   const unit = def.levels[0].requirement.replace(/^[\d\s .,]+/, '').trim();
   return { def, value, level: rank, maxed, nextThreshold, progress, remaining, unit };
 }
-
-/** Les 8 familles dérivées, dans l'ordre canonique du catalogue (doc §28). */
-const DERIVED_SKILLS: readonly DerivedSkill[] = SKILLS.map(deriveSkill);
-
-/** Combien de skills sont au moins niveau I (compteur d'écran, jamais en dur). */
-const SKILLS_UNLOCKED_COUNT = DERIVED_SKILLS.filter((s) => s.level > 0).length;
 
 interface ProfileLink {
   label: string;
@@ -307,11 +303,22 @@ export default function ProfilScreen() {
 
   /** Initiales + couleur d'avatar issues du profil éditable. */
   const initials = effectiveInitials(profile);
+
+  // O1 : débloqués + progression RÉELS (user_badges/user_stats) si session, sinon démo.
+  const { unlockedIds, stat } = useMyBadges();
+  const displayableBadges = useMemo(() => displayableBadgesFrom(unlockedIds), [unlockedIds]);
+  const unlockedCount = unlockedIds.size;
   /** Badges mis en avant : choix du joueur, sinon les 3 plus rares. */
   const featuredBadges = useMemo(
-    () => resolveFeaturedBadges(profile.featuredBadgeIds),
-    [profile.featuredBadgeIds],
+    () => resolveFeaturedBadges(profile.featuredBadgeIds, displayableBadges),
+    [profile.featuredBadgeIds, displayableBadges],
   );
+  /** Skills dérivés des stats RÉELLES (mêmes seuils gelés que l'engine). */
+  const derivedSkills = useMemo<readonly DerivedSkill[]>(
+    () => SKILLS.map((d) => deriveSkill(d, stat(d.metric))),
+    [stat],
+  );
+  const skillsUnlockedCount = derivedSkills.filter((s) => s.level > 0).length;
 
   useEffect(() => {
     screen('profil');
@@ -646,7 +653,7 @@ export default function ProfilScreen() {
           style={({ pressed }) => [styles.collectionLink, pressed && styles.dim]}
         >
           <Text style={styles.collectionLinkLabel}>
-            Voir la collection ({UNLOCKED_COUNT}/{BADGE_TOTAL})
+            Voir la collection ({unlockedCount}/{BADGE_TOTAL})
           </Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
@@ -661,10 +668,10 @@ export default function ProfilScreen() {
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={14} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>SKILLS</Text>
-          <Text style={styles.sectionRowCount}>{SKILLS_UNLOCKED_COUNT}/{SKILLS.length}</Text>
+          <Text style={styles.sectionRowCount}>{skillsUnlockedCount}/{SKILLS.length}</Text>
         </View>
         <View style={styles.skillsBlock}>
-          {DERIVED_SKILLS.map((s) => {
+          {derivedSkills.map((s) => {
             const locked = s.level === 0;
             const roman = s.level > 0 ? SKILL_ROMAN[s.level - 1] : null;
             // Roman du PROCHAIN niveau (défini seulement si non maxé → index ≤ 2).

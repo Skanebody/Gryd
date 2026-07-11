@@ -30,7 +30,7 @@ import { StackScreen } from '../src/ui/StackScreen';
 import { InlineRunCTA } from '../src/ui/game';
 import { BadgeHex } from '../src/features/badges/BadgeHex';
 import { badgeById, badgeColor } from '../src/features/badges/catalog';
-import { UNLOCKED_IDS } from '../src/features/badges/demo';
+import { useMyBadges } from '../src/features/badges/myBadges';
 import { PlayerCardAvatar } from '../src/features/social/PlayerCardAvatar';
 import {
   AVATAR_COLORS,
@@ -51,12 +51,9 @@ import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
 /** Tier joueur dérivé (anneau d'avatar par défaut) — jamais un nombre magique. */
 const RUNNER_TIER = playerTierForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
 
-/** Badges choisissables = débloqués, non-legacy, du plus rare au moins rare. */
+/** Badges choisissables = débloqués, non-legacy, du plus rare au moins rare.
+ *  DÉRIVÉS dans le composant (O1 : useMyBadges) — plus au niveau module. */
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
-const CHOOSABLE_BADGES: readonly BadgeDefT[] = [...UNLOCKED_IDS]
-  .map((id) => badgeById(id))
-  .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
-  .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]);
 
 /** Frames équipables (portée profile, hors titres) — cosmétique visible sur la card. */
 const FRAME_ITEMS = itemsInSection('frames').filter(isFrameItem);
@@ -69,6 +66,17 @@ export default function ProfilEditScreen() {
 
   const { editable, save } = useMyProfile();
   const { equipped, equip } = useEquippedCosmetics();
+
+  // Badges choisissables : réels (user_badges) si session, sinon démo.
+  const { unlockedIds } = useMyBadges();
+  const choosableBadges = useMemo<readonly BadgeDefT[]>(
+    () =>
+      [...unlockedIds]
+        .map((id) => badgeById(id))
+        .filter((def): def is BadgeDefT => def !== undefined && !def.legacy)
+        .sort((a, b) => BADGE_TIER_RANK[b.tier] - BADGE_TIER_RANK[a.tier]),
+    [unlockedIds],
+  );
 
   // Brouillon local initialisé sur les valeurs persistées (reflète les édits déjà faits).
   const [displayName, setDisplayName] = useState(editable.displayName);
@@ -375,7 +383,7 @@ export default function ProfilEditScreen() {
         BADGES AFFICHÉS · {featuredBadgeIds.length}/{FEATURED_BADGE_COUNT}
       </Text>
       <View style={[styles.card, styles.badgeWrap]}>
-        {CHOOSABLE_BADGES.map((def) => {
+        {choosableBadges.map((def) => {
           const on = featuredBadgeIds.includes(def.id);
           const full = !on && featuredBadgeIds.length >= FEATURED_BADGE_COUNT;
           return (
