@@ -18,14 +18,17 @@
   },
   "expo": {
     "name": "GRYD",
-    "slug": "klaim",
+    "slug": "gryd",
+    "owner": "iambelou",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "gryd",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0A0B09",
     "newArchEnabled": false,
     "splash": {
+      "image": "./assets/splash.png",
       "backgroundColor": "#0A0B09",
       "resizeMode": "contain"
     },
@@ -45,6 +48,10 @@
     },
     "android": {
       "package": "fr.nexus1993.gryd",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0B09"
+      },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -56,6 +63,11 @@
     "web": {
       "bundler": "metro",
       "output": "single"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4c80219c-3a84-445a-9add-5e5afade6d14"
+      }
     },
     "plugins": [
       "expo-router",
