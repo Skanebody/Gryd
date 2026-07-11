@@ -1,0 +1,11 @@
+-- ⚠️ Rapatriée depuis la prod (schema_migrations) le 11/07/2026 — appliquée en remote,
+-- absente du repo local. Reconstruction fidèle des statements déployés.
+
+-- GRYD — 0023 Attack alerts indexes fix
+-- Postgres partial index predicates must be IMMUTABLE; the previous 0022
+-- attempted `where expires_at > now()` for a partial index.
+
+drop index if exists attack_alerts_hex_active_idx;
+
+create index if not exists attack_alerts_hex_exp_idx
+  on public.attack_alerts (h3index, expires_at desc);
