@@ -27,6 +27,9 @@ import {
 } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
+import { supabase } from '../src/lib/supabase';
+import { useSession } from '../src/lib/session';
+import { signOut } from '../src/lib/auth';
 import { StackScreen } from '../src/ui/StackScreen';
 import { GhostButton } from '../src/ui/GhostButton';
 import { Icon } from '../src/ui/Icon';
@@ -91,6 +94,8 @@ export default function ConfidentialiteScreen() {
   // Joueurs bloqués (store de modération partagé avec le Crew Chat) — la carte
   // « Blocage & signalement » les liste ici avec un « Débloquer » réel.
   const { blocked } = useModeration();
+  // Session : la suppression RÉELLE serveur n'a lieu que si une session existe.
+  const { session, configured } = useSession();
   // Section ouverte (résumé + détail : une seule à la fois, aucune par défaut).
   const [openKey, setOpenKey] = useState<SectionKey | null>(null);
   // Écran de confirmation de suppression de compte (5.1.1v). Plein écran =
@@ -103,15 +108,30 @@ export default function ConfidentialiteScreen() {
 
   const toggle = (k: SectionKey) => setOpenKey((cur) => (cur === k ? null : k));
 
-  // Suppression de compte (Guideline 5.1.1v) — DÉMO : purge locale complète +
-  // retour onboarding. RÉEL (O1) : appeler l'Edge Function `delete_account`
-  // (service-role) qui efface compte + runs + hex_claims côté serveur, PUIS
-  // faire cette purge locale et déconnecter. Distinct de l'export RGPD.
+  // Suppression de compte (Guideline 5.1.1v). RÉEL : si session, on appelle
+  // l'Edge Function `delete_account` (service-role) qui supprime auth.users → le
+  // CASCADE FK efface compte + runs + hex_claims + season_scores + badges +
+  // crew_members côté serveur. PUIS déconnexion + purge locale + retour
+  // onboarding. Sur ÉCHEC serveur : on n'efface RIEN localement et on informe —
+  // jamais de faux « compte supprimé ». Sans session (dev/web) : purge locale
+  // seule. Distinct de l'export RGPD.
   const runAccountDeletion = async () => {
     haptics.medium();
+    if (configured && session && supabase) {
+      const { error } = await supabase.functions.invoke('delete_account');
+      if (error) {
+        Alert.alert(
+          'Suppression impossible',
+          "Ton compte n'a pas pu être supprimé. Réessaie dans un instant ou contacte le support.",
+        );
+        return;
+      }
+      // Session serveur invalidée : on réinitialise l'auth locale (best-effort).
+      await signOut().catch(() => {});
+    }
     try {
-      // Démo : efface toutes les prefs/état locaux (privacy, motivation,
-      // onboarding, haptics…). Best-effort — un stockage indispo ne bloque rien.
+      // Efface toutes les prefs/état locaux (privacy, motivation, onboarding,
+      // haptics, session persistée…). Best-effort — un stockage indispo ne bloque rien.
       await AsyncStorage.clear();
     } catch {
       // no-op : on route quand même vers l'onboarding.
