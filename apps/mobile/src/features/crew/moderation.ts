@@ -9,14 +9,20 @@
  *  - `reports`  : signalements émis (message ou membre) + motif + horodatage.
  *  - `blocked`  : pseudos bloqués — leurs messages sont MASQUÉS à l'affichage.
  *
- * Tout est LOCAL (démo) — TODO(O1) brancher `content_reports` / `user_blocks`
- * (migration à venir) via Edge Function (écriture client interdite côté DB).
+ * O1 (migration 0029_moderation) : HYBRIDE — si une session existe, blocages et
+ * signalements sont écrits dans `user_blocks` / `content_reports` (RLS : on n'agit
+ * que pour soi, blocker_id/reporter_id = auth.uid()) ET hydratés au chargement ;
+ * sinon — ou si la migration n'est pas encore poussée (table absente = erreur
+ * avalée) — on reste 100 % LOCAL. L'API reste SYNCHRONE : l'écriture Supabase est
+ * fire-and-forget best-effort, l'état local mis à jour optimistiquement.
  * Les signalements réels sont traités par une personne sous 24 h (process
- * documenté dans GRYD_APPSTORE_CHECKLIST). Anti-shame : bloquer est SILENCIEUX
- * (l'autre n'est jamais notifié), aucun compteur public de signalements.
+ * documenté dans GRYD_APPSTORE_CHECKLIST) via le dashboard admin (service-role).
+ * Anti-shame : bloquer est SILENCIEUX (l'autre n'est jamais notifié), aucun
+ * compteur public de signalements.
  */
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../../lib/supabase';
 
 /** Motifs de signalement — courts, non tronqués (§A.9), ordre stable. */
 export type ReportReason = 'spam' | 'haine' | 'harcelement' | 'autre';
@@ -139,9 +145,12 @@ function ensureLoaded(): Promise<void> {
         }
         loaded = true;
         emit();
+        // Fusion des données réelles (Supabase) si session — best-effort.
+        void hydrateRemote();
       })
       .catch(() => {
         loaded = true;
+        void hydrateRemote();
       });
   }
   return loadPromise;
@@ -149,6 +158,69 @@ function ensureLoaded(): Promise<void> {
 
 function persist() {
   void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
+}
+
+// ─── Pont Supabase (O1) : best-effort, ne casse JAMAIS le chemin local ────────
+
+/** Motifs valides — garde de parse pour l'hydratation distante. */
+const VALID_REASONS: readonly ReportReason[] = ['spam', 'haine', 'harcelement', 'autre'];
+
+/** id de l'utilisateur connecté, ou null (mode dev / hors session / pas de client). */
+async function currentUserId(): Promise<string | null> {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fusionne les blocages/signalements RÉELS de l'utilisateur (Supabase) dans
+ * l'état local — best-effort : session absente, table non poussée (migration
+ * 0029) ou erreur réseau laisse l'état LOCAL intact. Union dédupliquée : le local
+ * optimiste n'est jamais perdu.
+ */
+async function hydrateRemote(): Promise<void> {
+  const uid = await currentUserId();
+  if (!uid || !supabase) return;
+  try {
+    const [blocksRes, reportsRes] = await Promise.all([
+      supabase.from('user_blocks').select('blocked_pseudo').eq('blocker_id', uid),
+      supabase
+        .from('content_reports')
+        .select('id, kind, target_id, author, reason, created_at')
+        .eq('reporter_id', uid),
+    ]);
+    if (blocksRes.error || reportsRes.error) return; // table absente / RLS → garder local
+    const remoteBlocked = (blocksRes.data ?? [])
+      .map((r) => (r as { blocked_pseudo?: unknown }).blocked_pseudo)
+      .filter((p): p is string => typeof p === 'string');
+    const remoteReports: ContentReport[] = (reportsRes.data ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      const reason = VALID_REASONS.includes(row.reason as ReportReason)
+        ? (row.reason as ReportReason)
+        : 'autre';
+      const at = typeof row.created_at === 'string' ? Date.parse(row.created_at) : NaN;
+      return {
+        id: String(row.id),
+        kind: row.kind === 'member' ? 'member' : 'message',
+        targetId: String(row.target_id),
+        author: String(row.author),
+        reason,
+        at: Number.isFinite(at) ? at : Date.now(),
+      };
+    });
+    const blocked = [...new Set<string>([...state.blocked, ...remoteBlocked])];
+    const byId = new Map<string, ContentReport>();
+    for (const rep of [...state.reports, ...remoteReports]) byId.set(rep.id, rep);
+    state = { reports: [...byId.values()], blocked };
+    persist();
+    emit();
+  } catch {
+    // best-effort : on garde l'état local.
+  }
 }
 
 /**
@@ -173,6 +245,21 @@ export function reportContent(input: {
   state = { ...state, reports: [...state.reports, report] };
   persist();
   emit();
+  // Enregistrement serveur (RLS reporter_id = moi) si session — fire-and-forget.
+  void currentUserId().then((uid) => {
+    if (uid && supabase) {
+      void supabase
+        .from('content_reports')
+        .insert({
+          reporter_id: uid,
+          kind: input.kind,
+          target_id: input.targetId,
+          author: input.author,
+          reason: input.reason,
+        })
+        .then(() => {}, () => {});
+    }
+  });
   return report;
 }
 
@@ -182,6 +269,14 @@ export function blockMember(pseudo: string): void {
   state = { ...state, blocked: [...state.blocked, pseudo] };
   persist();
   emit();
+  void currentUserId().then((uid) => {
+    if (uid && supabase) {
+      void supabase
+        .from('user_blocks')
+        .insert({ blocker_id: uid, blocked_pseudo: pseudo })
+        .then(() => {}, () => {});
+    }
+  });
 }
 
 /** Débloque un membre (ses messages réapparaissent). */
@@ -190,6 +285,16 @@ export function unblockMember(pseudo: string): void {
   state = { ...state, blocked: state.blocked.filter((p) => p !== pseudo) };
   persist();
   emit();
+  void currentUserId().then((uid) => {
+    if (uid && supabase) {
+      void supabase
+        .from('user_blocks')
+        .delete()
+        .eq('blocker_id', uid)
+        .eq('blocked_pseudo', pseudo)
+        .then(() => {}, () => {});
+    }
+  });
 }
 
 /** true si ce pseudo est actuellement bloqué (filtre d'affichage du chat). */
