@@ -26,7 +26,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { LocationSubscription } from 'expo-location';
 import * as Crypto from 'expo-crypto';
-import type { IngestRunRequest } from '@klaim/shared';
+import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
 import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
@@ -42,6 +42,7 @@ import {
   type StoredRun,
 } from '../../../lib/runStore';
 import type { LiveRunMode } from '../simulation';
+import { setLastRunResult } from '../runResult';
 import {
   checkBackgroundGranted,
   checkForegroundPermission,
@@ -124,8 +125,13 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
     async (payload: IngestRunRequest): Promise<'sent' | 'queued' | 'lost' | 'none'> => {
       if (supabase === null || sessionRef.current === null) return 'none';
       try {
-        const { error } = await supabase.functions.invoke('ingest_run', { body: payload });
-        if (!error) return 'sent';
+        const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
+        if (!error) {
+          // O1 Pass 3 : la réponse du serveur (seul juge) n'est plus jetée — elle
+          // est armée pour que course-result affiche les VRAIS points/zones/badges.
+          setLastRunResult((data ?? null) as IngestRunResponse | null);
+          return 'sent';
+        }
       } catch {
         // Hors-ligne/réseau coupé net → file ci-dessous.
       }

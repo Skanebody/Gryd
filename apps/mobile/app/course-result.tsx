@@ -78,6 +78,7 @@ import {
 } from '../src/features/run/intention';
 import { buildLiveNav } from '../src/features/run/liveNav';
 import { getPlannedRoute } from '../src/features/route/plannedRoute';
+import { getLastRunResult } from '../src/features/run/runResult';
 import { buildRunLoop, loopSummaryAt, type RunLoop } from '../src/features/run/loop';
 import {
   buildRunSimulation,
@@ -549,12 +550,26 @@ function ConquestResultScreen({
   // (dans « Voir détails », replié par défaut — détail au tap, zéro flou).
   const [showCalc, setShowCalc] = useState(false);
 
-  const badge = mode === 'conquete' ? badgeById(DEMO_UNLOCKED_BADGE_ID) : undefined;
+  // O1 Pass 3 : quand une VRAIE course a été envoyée à ingest_run (seul juge), on
+  // affiche EXACTEMENT ce que le serveur a décidé (badge/bonus, ou aucun) ; sinon
+  // (course web / hors session) fallback sur le scénario démo. serverResult=null
+  // ⇒ comportement démo strictement inchangé.
+  const serverResult = getLastRunResult();
+  const badgeId = serverResult
+    ? serverResult.newBadges[0]
+    : mode === 'conquete'
+      ? DEMO_UNLOCKED_BADGE_ID
+      : undefined;
+  const badge = badgeId ? badgeById(badgeId) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
 
   // AMENDEMENT-19 §4/§7 — bonus ciblé appliqué (conquête, démo). En prod =
   // IngestRunResponse.bonusApplied. UN seul bonus principal, libellé court.
-  const bonusApplied = mode === 'conquete' ? DEMO_BONUS_APPLIED : undefined;
+  const bonusApplied = serverResult
+    ? serverResult.bonusApplied
+    : mode === 'conquete'
+      ? DEMO_BONUS_APPLIED
+      : undefined;
 
   // Mini-cartes en traits nets §4ter (avant/après + share card) — conquête.
   const sectorGeo = useMemo(
