@@ -14,7 +14,7 @@
  * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5 : le bouton
  * flottant de course n'apparaît JAMAIS sur Saison).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +31,7 @@ import {
 } from '@klaim/shared';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
-import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
+import { useSeasonLeaderboard } from '../../src/features/social/leagueBoard';
 import {
   LEAGUE_BOARDS,
   LEAGUE_SEASON_WEEK,
@@ -74,26 +74,12 @@ const BOARD = (id: string): LeagueBoard =>
   LEAGUE_BOARDS.find((b) => b.id === id) ?? LEAGUE_BOARDS[0]!;
 
 /**
- * Résout le board selon onglet + portée. Joueurs·France → classement national ;
- * Crews/Ville n'ont qu'un board (la portée est indicative). Sans nombre magique :
- * on ne fait que router vers les boards démo existants.
+ * Board Joueurs·Paris = saison active RÉELLE (season_scores via la vue
+ * player_leaderboard) quand une session existe, sinon démo — voir
+ * useSeasonLeaderboard. La ligne « TOI », l'écart et le rank-up en sont DÉRIVÉS
+ * dans le composant (useMemo), car ils dépendent du board dynamique du hook.
+ * Joueurs·France / Crews / Ville restent démo (aucune source serveur au MVP).
  */
-function resolveBoard(tab: PrimaryTab, scope: ScopeFilter): LeagueBoard {
-  if (tab === 'joueurs') return BOARD(scope === 'france' ? 'france' : 'joueurs');
-  if (tab === 'crews') return BOARD('crews');
-  return BOARD('ville');
-}
-
-/** Ma ligne du board Joueurs·Paris = l'ancre du bloc « TOI » toujours en haut. */
-const JOUEURS_BOARD = BOARD('joueurs');
-const ME_ROW = JOUEURS_BOARD.rows.find((r) => r.me === true);
-const ABOVE_ROW = ME_ROW
-  ? JOUEURS_BOARD.rows.find((r) => r.rank === ME_ROW.rank - 1)
-  : undefined;
-/** Écart vers le rang supérieur, converti en zones neutres (directive §17). */
-const GAP_POINTS = ME_ROW && ABOVE_ROW ? ABOVE_ROW.value - ME_ROW.value : 0;
-const GAP_HEXES = Math.ceil(GAP_POINTS / POINTS_NEUTRAL_HEX);
-const IN_TOP10 = ME_ROW !== undefined && ME_ROW.rank <= 10;
 
 /** Combien de lignes hors podium montrer avant « Voir tout » (compact §1.3). */
 const COMPACT_ROWS = 2;
@@ -211,14 +197,33 @@ export default function LeagueScreen() {
     screen('classement');
   }, []);
 
+  // Board Joueurs·Paris réel (saison active) si session, sinon démo.
+  const { joueursBoard } = useSeasonLeaderboard();
+
   const discreet = prefs.discreetMode;
-  const board = resolveBoard(tab, scope);
+  // Joueurs·Paris = board réel du hook ; France/Crews/Ville restent démo.
+  const board = useMemo<LeagueBoard>(() => {
+    if (tab === 'joueurs') return scope === 'france' ? BOARD('france') : joueursBoard;
+    if (tab === 'crews') return BOARD('crews');
+    return BOARD('ville');
+  }, [tab, scope, joueursBoard]);
+
+  // Ma ligne + écart + rank-up, DÉRIVÉS du board Joueurs dynamique (§17).
+  const meRow = useMemo(() => joueursBoard.rows.find((r) => r.me === true), [joueursBoard]);
+  const aboveRow = useMemo(
+    () => (meRow ? joueursBoard.rows.find((r) => r.rank === meRow.rank - 1) : undefined),
+    [joueursBoard, meRow],
+  );
+  const gapPoints = meRow && aboveRow ? aboveRow.value - meRow.value : 0;
+  const gapHexes = Math.ceil(gapPoints / POINTS_NEUTRAL_HEX);
+  const inTop10 = meRow !== undefined && meRow.rank <= 10;
+
   // Mode discret §10.3 : je n'apparais JAMAIS dans un leaderboard global.
   const rows = discreet ? board.rows.filter((r) => r.me !== true) : board.rows;
   const listRows = rows.filter((r) => r.rank > 3);
   const visibleRows = showAll ? listRows : listRows.slice(0, COMPACT_ROWS);
   const hiddenCount = listRows.length - visibleRows.length;
-  const showToi = !discreet && ME_ROW !== undefined && ABOVE_ROW !== undefined;
+  const showToi = !discreet && meRow !== undefined && aboveRow !== undefined;
 
   return (
     <View style={styles.root}>
@@ -260,22 +265,22 @@ export default function LeagueScreen() {
           <View style={styles.toiCard}>
             {/* 1 · Mon rang + écart, formulation POSITIVE */}
             <View style={styles.toiTop}>
-              <Text style={styles.toiRank}>#{ME_ROW!.rank}</Text>
+              <Text style={styles.toiRank}>#{meRow!.rank}</Text>
               <Text style={styles.toiName} numberOfLines={1}>
-                {MY_SOCIAL_PROFILE.displayName} · toi
+                {meRow!.name} · toi
               </Text>
               <Text style={styles.toiGap}>
-                {formatInt(GAP_POINTS)} pts du #{ABOVE_ROW!.rank}
+                {formatInt(gapPoints)} pts du #{aboveRow!.rank}
               </Text>
             </View>
             <Text style={styles.toiHint}>
-              ≈ {GAP_HEXES} zones peuvent suffire — le prochain run peut le faire.
+              ≈ {gapHexes} zones peuvent suffire — le prochain run peut le faire.
             </Text>
 
             {/* 2 · Rank-up ÉMOTIONNEL juste après le rang. Ligne LÉGÈRE posée sur
                 la surface (plus de card-dans-card §1) : séparée par l'espace, pas
                 par une boîte. Le seul contour de la scène reste celui du bloc. */}
-            {IN_TOP10 ? (
+            {inTop10 ? (
               <View style={styles.rankUpRow}>
                 <Icon name="badge" size={16} color={colors.chartreuse} />
                 <Text style={styles.rankUpText}>
