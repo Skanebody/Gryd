@@ -13,6 +13,7 @@
  */
 export const ONBOARDING_STEPS = [
   'hook', // 1 — splash / accroche
+  'age', // 1b — age-gate 16+ (Apple 5.1.1 / mineurs RGPD), avant toute collecte
   'city', // 2 — ta ville en plateau de jeu
   'permission', // 3 — permission GPS pédagogique
   'choose', // 4 — choix du chemin (sync / run)
@@ -34,6 +35,7 @@ export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
  */
 export const STEP_EVENT_N: Record<OnboardingStep, number> = {
   hook: 1,
+  age: 12, // gate 16+ — n identifiant (hors séquence historique du funnel)
   city: 2,
   permission: 3,
   choose: 4,
@@ -53,6 +55,24 @@ export const HOOK = {
   title: 'Prends ta ville.',
   tagline: 'Cours. Capture. Défends. Le jeu de conquête pour run clubs.',
   cta: 'Découvrir ma ville',
+} as const;
+
+/**
+ * 1b — Age-gate 16+ (Apple Guideline 5.1.1 / protection des mineurs RGPD). Vient
+ * APRÈS le splash mais AVANT toute collecte (GPS, compte). Auto-déclaration : un
+ * choix clair « 16+ » (CTA) vs « moins de 16 » (lien → écran de blocage terminal).
+ */
+export const AGE = {
+  kicker: 'AVANT DE COMMENCER',
+  title: 'Tu as 16 ans ou plus ?',
+  tagline:
+    'GRYD utilise ta position et se joue en communauté. L’âge minimum est 16 ans.',
+  confirm: 'Oui, j’ai 16 ans ou plus',
+  under: 'J’ai moins de 16 ans',
+  /** Écran de blocage si &lt; 16 (pas de chemin vers l'avant). */
+  blockedTitle: 'Reviens à 16 ans.',
+  blockedTagline:
+    'GRYD n’est pas accessible avant 16 ans. On garde ta ville au chaud pour toi.',
 } as const;
 
 /** 2 — Ta ville maintenant : le quartier réel en plateau, valeur < 60 s (§2). */

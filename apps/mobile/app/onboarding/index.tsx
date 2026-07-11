@@ -38,6 +38,7 @@ import { OnboardingAppleButton } from '../../src/features/onboarding/AppleButton
 import { useOnboardingState } from '../../src/features/onboarding/store';
 import {
   ACCOUNT,
+  AGE,
   CAPTURE,
   CHOOSE,
   CITY,
@@ -81,7 +82,8 @@ const CAPTURE_FILL_MS = 1100;
  * sync/run et la capture reviennent au CHOIX du chemin (re-choisir sync ou run).
  */
 const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
-  city: 'hook',
+  age: 'hook',
+  city: 'age',
   permission: 'city',
   choose: 'permission',
   sync: 'choose',
@@ -131,7 +133,15 @@ export default function OnboardingScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {step === 'hook' ? <HookStep onNext={() => go('city')} /> : null}
+      {step === 'hook' ? <HookStep onNext={() => go('age')} /> : null}
+      {step === 'age' ? (
+        <AgeStep
+          onConfirm={() => {
+            void update({ ageConfirmed: true });
+            go('city');
+          }}
+        />
+      ) : null}
       {step === 'city' ? <CityStep onNext={() => go('permission')} /> : null}
       {step === 'permission' ? (
         <PermissionStep onNext={() => go('choose')} />
@@ -262,6 +272,67 @@ function HookStep({ onNext }: { onNext: () => void }) {
         <View style={styles.footer}>
           <PrimaryCta label={HOOK.cta} icon="carte" onPress={onNext} />
         </View>
+      </View>
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1b — AGE-GATE 16+ (Apple 5.1.1 / mineurs) : AVANT toute collecte GPS/compte
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Auto-déclaration d'âge. « 16+ » = CTA chartreuse (avance) ; « moins de 16 » =
+ * lien gris secondaire → écran de blocage TERMINAL (aucun chemin vers l'avant :
+ * §A 1 CTA). Le blocage est un état local (remount = nouvelle tentative — une
+ * auto-déclaration reste par nature contournable ; c'est le gate attendu).
+ */
+function AgeStep({ onConfirm }: { onConfirm: () => void }) {
+  const [blocked, setBlocked] = useState(false);
+
+  if (blocked) {
+    return (
+      <View style={styles.step}>
+        <View style={styles.body}>
+          <Kicker>{AGE.kicker}</Kicker>
+          <View style={styles.iconHero}>
+            <View style={styles.iconHeroRing}>
+              <Icon name="verrou" size={40} color={colors.chartreuse} />
+            </View>
+          </View>
+          <Text style={styles.title}>{AGE.blockedTitle}</Text>
+          <Text style={styles.tagline}>{AGE.blockedTagline}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.step}>
+      <View style={styles.body}>
+        <Kicker>{AGE.kicker}</Kicker>
+        <View style={styles.iconHero}>
+          <View style={styles.iconHeroRing}>
+            <Icon name="profil" size={40} color={colors.chartreuse} />
+          </View>
+        </View>
+        <Text style={styles.title}>{AGE.title}</Text>
+        <Text style={styles.tagline}>{AGE.tagline}</Text>
+      </View>
+      <View style={styles.footer}>
+        <PrimaryCta
+          label={AGE.confirm}
+          icon="bouclier"
+          onPress={onConfirm}
+          a11yLabel="J'ai 16 ans ou plus"
+        />
+        <SkipLink
+          label={AGE.under}
+          onPress={() => {
+            haptics.light();
+            setBlocked(true);
+          }}
+        />
       </View>
     </View>
   );

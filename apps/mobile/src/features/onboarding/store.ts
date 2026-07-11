@@ -26,6 +26,8 @@ export interface OnboardingState {
   onboardingDone: boolean;
   /** La 1re capture démo a eu lieu (la valeur est donnée). */
   firstCaptureDone: boolean;
+  /** Age-gate 16+ franchi (Apple 5.1.1 / mineurs) — persiste l'auto-déclaration. */
+  ageConfirmed: boolean;
   /** Chemin d'activation retenu (analytics/reprise). */
   path: OnboardingPath;
 }
@@ -34,6 +36,7 @@ export interface OnboardingState {
 export const DEFAULT_ONBOARDING_STATE: OnboardingState = {
   onboardingDone: false,
   firstCaptureDone: false,
+  ageConfirmed: false,
   path: null,
 };
 
