@@ -13,8 +13,10 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Surveiller tout le monorepo (packages/shared inclus).
-config.watchFolders = [workspaceRoot];
+// 1. Surveiller tout le monorepo (packages/shared inclus) EN PLUS des défauts
+// Expo (expo-doctor exige que les défauts soient conservés ; workspaceRoot est
+// le parent de projectRoot donc il couvre l'app).
+config.watchFolders = [...(config.watchFolders ?? []), workspaceRoot];
 // 2. Résoudre les node_modules de l'app puis ceux de la racine (hoisting npm).
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
