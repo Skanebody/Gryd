@@ -151,6 +151,7 @@ import {
   type ReportTargetKind,
 } from '../../src/features/crew/moderation';
 import { useCrewProfile } from '../../src/features/crew/crewEdit';
+import { buildInviteLink, copyInviteLink, demoInviteToken } from '../../src/features/crew/invite';
 import {
   OUTING_RSVP_OPTIONS,
   createOuting,
@@ -1596,7 +1597,22 @@ export default function CrewScreen() {
             <IconAction
               icon="ajoutami"
               label="Inviter un coureur"
-              onPress={() => notify('Lien d’invitation copié — gryd.run/c/foulees93 (démo)')}
+              onPress={() => {
+                // Zéro-mensonge : on COPIE vraiment le lien (expo-clipboard/web),
+                // avec repli sur la feuille de partage native. Le feedback reflète
+                // ce qui s'est réellement passé (copié vs partagé vs affiché).
+                const link = buildInviteLink(demoInviteToken(crewProfile.name));
+                haptics.light();
+                void copyInviteLink(link).then((res) =>
+                  setNotice(
+                    res.ok && res.via === 'clipboard'
+                      ? `Lien d’invitation copié — ${link}`
+                      : res.ok
+                        ? `Invitation partagée — ${link}`
+                        : `Lien d’invitation : ${link}`,
+                  ),
+                );
+              }}
             />
             {/* « Modifier le crew » (founder §8.1) → écran d'édition. */}
             {canEditCrew ? (
@@ -2207,7 +2223,7 @@ export default function CrewScreen() {
                   onPress={sendMessage}
                   style={[styles.sendBtn, canSend ? styles.sendBtnActive : styles.sendBtnIdle]}
                 >
-                  <Icon name="partage" size={18} color={canSend ? colors.noir : colors.gris} />
+                  <Icon name="partage" size={18} color={canSend ? gameColors.crew : colors.gris} />
                 </Pressable>
               </View>
             </View>
@@ -3311,6 +3327,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    minHeight: 44,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'transparent',
@@ -3335,6 +3352,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 4,
+    minHeight: 44,
     borderRadius: radii.pill,
     backgroundColor: elevation.raised,
     paddingVertical: 10,
@@ -3525,7 +3543,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnActive: { backgroundColor: gameColors.crew },
+  // Actif = variante CONTOUR chartreuse (pas plein) : « Demander de l'aide »
+  // reste l'UNIQUE bloc chartreuse plein de la scène Chat (charte : 1 seul).
+  sendBtnActive: {
+    backgroundColor: elevation.raised,
+    borderWidth: 1.5,
+    borderColor: gameColors.crew,
+  },
   sendBtnIdle: { backgroundColor: elevation.raised },
   // ── War Log ──
   feedItem: { marginBottom: 12 },
@@ -3533,6 +3557,8 @@ const styles = StyleSheet.create({
   rsvpRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
   // Choix RSVP = pills N2 relevés sans contour ; sélection/engagement = état N3.
   rsvpChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'transparent',
@@ -3554,6 +3580,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 12,
+    minHeight: 44,
     borderRadius: radii.pill,
     backgroundColor: elevation.raised,
     paddingVertical: 10,
@@ -3680,6 +3707,8 @@ const styles = StyleSheet.create({
   // RSVP = chips (§A.4, pas de 2ᵉ gros CTA) — calqué sur les chips RSVP défense.
   outingRsvpRow: { flexDirection: 'row', gap: 8, marginTop: 2, flexWrap: 'wrap' },
   outingRsvpChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: borderState.hairline,

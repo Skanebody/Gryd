@@ -341,7 +341,11 @@ function DemoCourseLive({
       return defenseMissionLabel(zone, covered);
     }
     if (conquest) {
-      return conquestMissionLabel(loopStatus.phase, loopStatus.distM, tick.distanceM);
+      const label = conquestMissionLabel(loopStatus.phase, loopStatus.distM, tick.distanceM);
+      // Le client n'attribue jamais une zone (ingest_run seul décideur) : à la
+      // fermeture, on nuance « zone prise » → « zone prise (à valider) » plutôt
+      // que d'affirmer un claim serveur.
+      return loopClosed ? label.replace('zone prise', 'zone prise (à valider)') : label;
     }
     // Run libre : la mission = les chiffres de la course (Strava discipline).
     return freeRunMissionLabel(formatKm(tick.distanceM), formatPace(paceSPerKm));
@@ -368,6 +372,13 @@ function DemoCourseLive({
       : simDone
         ? 'Arrivée'
         : `${Math.max(1, Math.ceil(etaS / 60))} min`;
+  /**
+   * UNE seule horloge visible à la fois : l'ETA « N min » (compte à rebours) et
+   * le chrono TEMPS de la sheet compacte sont deux lectures du temps. En mode
+   * Carte, la sheet porte déjà TEMPS → on masque l'ETA chiffré du bandeau (les
+   * états PAUSE / EN COURS / Arrivée, eux, ne sont pas des horloges → conservés).
+   */
+  const etaIsCountdown = !paused && !freeRun && !simDone;
 
   // ── Feedback temps réel scripté : toast + haptic (anti-bruit : 1 à la fois) ─
   const [toast, setToast] = useState<{ key: number; toast: NavToast } | null>(null);
@@ -436,14 +447,16 @@ function DemoCourseLive({
   useEffect(() => {
     if (simDone) setN2(null);
   }, [simDone]);
-  // Burst N3 « ZONE CONQUISE · +N » à la fermeture de boucle (conquête/terminer) :
+  // Burst N3 « BOUCLE FERMÉE · +N zones estimées » à la fermeture (conquête/terminer) :
   // remplace le toast texte par la mini-anim événement (haptique forte, courte).
+  // « BOUCLE (CREW) FERMÉE » = fait géométrique du tracé client ; le nombre de
+  // zones est « estimé » (le serveur ingest_run reste seul décideur du claim).
   useEffect(() => {
     if (!loopClosed || enclosedZones === 0) return;
     fireN3({
       level: 'n3',
-      text: completeBoundary ? 'BOUCLE CREW FERMÉE' : 'ZONE CONQUISE',
-      sub: `+${formatInt(enclosedZones)} zones`,
+      text: completeBoundary ? 'BOUCLE CREW FERMÉE' : 'BOUCLE FERMÉE',
+      sub: `+${formatInt(enclosedZones)} zones estimées`,
       icon: 'carte',
       tint: colors.chartreuse,
     });
@@ -786,7 +799,7 @@ function DemoCourseLive({
                   <Icon name="virage" size={18} color={colors.blanc} />
                   <View style={styles.rowTextWrap}>
                     <Text style={styles.rowKicker}>PROCHAIN REPÈRE</Text>
-                    <Text style={styles.rowValue} numberOfLines={1}>
+                    <Text style={styles.rowValue} numberOfLines={1} ellipsizeMode="clip">
                       {checkpoint.label}
                     </Text>
                   </View>
@@ -916,12 +929,14 @@ function DemoCourseLive({
         <View style={styles.missionBanner}>
           <View style={[styles.liveDot, paused && styles.liveDotPaused]} />
           <Icon name={missionIcon} size={13} color={colors.chartreuse} />
-          <Text style={styles.missionText} numberOfLines={1}>
+          <Text style={styles.missionText} numberOfLines={1} ellipsizeMode="clip">
             {missionLabel}
           </Text>
-          <Text style={styles.missionEta} numberOfLines={1}>
-            {etaLabel}
-          </Text>
+          {view === 'carte' && etaIsCountdown ? null : (
+            <Text style={styles.missionEta} numberOfLines={1} ellipsizeMode="clip">
+              {etaLabel}
+            </Text>
+          )}
         </View>
         {/* SEGMENT EXCLU / GPS rétrogradé (§1) : micro-chip discret « GPS faible »,
              jamais un bandeau plein. Le détail technique va au résultat. */}
@@ -1011,15 +1026,15 @@ function LiveCardView({ card }: { card: LiveCard }) {
     <View style={styles.liveCard}>
       <View style={styles.liveCardHead}>
         <Icon name={card.icon} size={15} color={colors.chartreuse} />
-        <Text style={styles.liveCardKicker} numberOfLines={1}>
+        <Text style={styles.liveCardKicker} numberOfLines={1} ellipsizeMode="clip">
           {card.kicker}
         </Text>
-        <Text style={styles.liveCardValue} numberOfLines={1}>
+        <Text style={styles.liveCardValue} numberOfLines={1} ellipsizeMode="clip">
           {card.value}
         </Text>
       </View>
       {card.detail ? (
-        <Text style={styles.liveCardDetail} numberOfLines={1}>
+        <Text style={styles.liveCardDetail} numberOfLines={1} ellipsizeMode="clip">
           {card.detail}
         </Text>
       ) : null}
@@ -1035,7 +1050,7 @@ function N2ActionCard({ ind }: { ind: LiveIndication }) {
   return (
     <View style={styles.n2Card}>
       <Icon name={ind.icon as IconName} size={15} color={ind.tint} />
-      <Text style={[styles.n2Text, { color: ind.tint }]} numberOfLines={1}>
+      <Text style={[styles.n2Text, { color: ind.tint }]} numberOfLines={1} ellipsizeMode="clip">
         {ind.text}
       </Text>
     </View>
@@ -1106,7 +1121,8 @@ function PingsMenu({
       <Animated.View
         style={[styles.pingsSheet, { paddingBottom: bottom, opacity, transform: [{ translateY }] }]}
       >
-        <View style={styles.pingsHandle} />
+        {/* Pas de poignée de drag : la feuille se ferme par tap du backdrop, pas
+            par glissement — aucune fausse affordance de geste inexistant. */}
         <Text style={styles.pingsKicker}>PING RAPIDE AU CREW</Text>
         <View style={styles.pingsGrid}>
           {QUICK_PINGS.map((ping) => (
@@ -1118,7 +1134,7 @@ function PingsMenu({
               style={({ pressed }) => [styles.pingChip, pressed && styles.pressed]}
             >
               <Icon name={ping.icon} size={16} color={colors.chartreuse} />
-              <Text style={styles.pingChipText} numberOfLines={1}>
+              <Text style={styles.pingChipText} numberOfLines={1} ellipsizeMode="clip">
                 {pingLabel(ping)}
               </Text>
             </Pressable>
@@ -1485,13 +1501,6 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     gap: 12,
   },
-  pingsHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.grisLigne,
-    alignSelf: 'center',
-  },
   pingsKicker: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -1502,6 +1511,7 @@ const styles = StyleSheet.create({
   pingChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
     backgroundColor: gameColors.carbon,
     borderRadius: radii.pill,
@@ -1509,6 +1519,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     paddingHorizontal: 14,
     paddingVertical: 11,
+    minHeight: 44,
   },
   pingChipText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800' },
 

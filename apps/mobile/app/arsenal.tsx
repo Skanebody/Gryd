@@ -95,8 +95,11 @@ export default function ArsenalScreen() {
   const [detailCurrency, setDetailCurrency] = useState<ArsenalPriceCurrency>('eclats');
   /** Loot révélé (reveal façon coffre sous le header). */
   const [loot, setLoot] = useState<{ item: ArsenalCatalogItem; kind: 'buy' | 'equip' | 'gift' } | null>(null);
-  /** Message calme (solde insuffisant / gifting confirmé). */
+  /** Message calme (gifting confirmé) rendu sous le header, écran de base. */
   const [notice, setNotice] = useState<string | null>(null);
+  /** Message d'échec rendu DANS la sheet ouverte (solde insuffisant) : sinon il
+   *  s'affiche derrière le backdrop et reste invisible pour l'utilisateur. */
+  const [sheetNotice, setSheetNotice] = useState<string | null>(null);
   /** Item en cours d'offrande au crew (flux gifting). */
   const [gifting, setGifting] = useState<ArsenalCatalogItem | null>(null);
   const [giftAnonymous, setGiftAnonymous] = useState(false);
@@ -106,10 +109,17 @@ export default function ArsenalScreen() {
   const arsenalInventory = useArsenalInventory();
   const { wallet, ownedKeys: owned, equipped } = arsenalInventory;
 
-  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timers séparés : le reveal loot, le message de base et le message de sheet
+  // ont chacun leur horloge — sinon un flashNotice annule le timer d'un
+  // flashLoot en cours (la RewardCard resterait alors affichée pour toujours).
+  const lootTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sheetNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
-      if (dismissTimer.current !== null) clearTimeout(dismissTimer.current);
+      if (lootTimer.current !== null) clearTimeout(lootTimer.current);
+      if (noticeTimer.current !== null) clearTimeout(noticeTimer.current);
+      if (sheetNoticeTimer.current !== null) clearTimeout(sheetNoticeTimer.current);
     },
     [],
   );
@@ -126,15 +136,23 @@ export default function ArsenalScreen() {
   );
 
   const flashLoot = useCallback((item: ArsenalCatalogItem, kind: 'buy' | 'equip' | 'gift') => {
-    if (dismissTimer.current !== null) clearTimeout(dismissTimer.current);
+    if (lootTimer.current !== null) clearTimeout(lootTimer.current);
     setLoot({ item, kind });
-    dismissTimer.current = setTimeout(() => setLoot(null), motion.toastDismissMs * 2);
+    lootTimer.current = setTimeout(() => setLoot(null), motion.toastDismissMs * 2);
   }, []);
 
   const flashNotice = useCallback((msg: string) => {
-    if (dismissTimer.current !== null) clearTimeout(dismissTimer.current);
+    if (noticeTimer.current !== null) clearTimeout(noticeTimer.current);
     setNotice(msg);
-    dismissTimer.current = setTimeout(() => setNotice(null), motion.toastDismissMs);
+    noticeTimer.current = setTimeout(() => setNotice(null), motion.toastDismissMs);
+  }, []);
+
+  /** Échec affiché DANS la sheet (au-dessus du backdrop). Reste plus longtemps
+   *  qu'un notice de base : c'est un message d'erreur, pas une confirmation. */
+  const flashSheetNotice = useCallback((msg: string) => {
+    if (sheetNoticeTimer.current !== null) clearTimeout(sheetNoticeTimer.current);
+    setSheetNotice(msg);
+    sheetNoticeTimer.current = setTimeout(() => setSheetNotice(null), motion.toastDismissMs * 2);
   }, []);
 
   /** Achat DÉMO : Éclats → solde descend ; EUR → reveal (paiement réel = O3). */
@@ -146,8 +164,12 @@ export default function ArsenalScreen() {
         if (!arsenalInventory.spendEclats(price.amount)) {
           haptics.light();
           // Message chiffré, jamais un nudge vers un pack : l'utilisateur sait
-          // exactement combien il lui manque et décide seul.
-          flashNotice(`Il te manque ${formatInt(price.amount - wallet.eclats)} Éclats pour cet objet.`);
+          // exactement combien il lui manque et décide seul. Si la sheet détail
+          // est ouverte, on l'affiche DEDANS (sinon il se rend derrière le
+          // backdrop, invisible) ; sinon sous le header de l'écran de base.
+          const shortMsg = `Il te manque ${formatInt(price.amount - wallet.eclats)} Éclats pour cet objet.`;
+          if (detail !== null) flashSheetNotice(shortMsg);
+          else flashNotice(shortMsg);
           return;
         }
       }
@@ -157,7 +179,7 @@ export default function ArsenalScreen() {
       setDetail(null);
       flashLoot(item, 'buy');
     },
-    [arsenalInventory, wallet.eclats, flashLoot, flashNotice],
+    [arsenalInventory, wallet.eclats, detail, flashLoot, flashNotice, flashSheetNotice],
   );
 
   /** Équiper un skin/frame/bannière possédé (rendu carte réel = V1). */
@@ -190,6 +212,8 @@ export default function ArsenalScreen() {
   );
 
   const openDetail = useCallback((item: ArsenalCatalogItem) => {
+    if (sheetNoticeTimer.current !== null) clearTimeout(sheetNoticeTimer.current);
+    setSheetNotice(null);
     setDetailCurrency(item.priceShards !== undefined ? 'eclats' : 'eur');
     setDetail(item);
   }, []);
@@ -377,6 +401,7 @@ export default function ArsenalScreen() {
                 signals={arsenalSignals}
                 owned={isOwned(detail.key)}
                 equipped={isEquipped(detail)}
+                notice={sheetNotice}
                 currency={detailCurrency}
                 onCurrency={setDetailCurrency}
                 onBuy={(cur) => buy(detail, cur)}
@@ -538,6 +563,7 @@ function ItemDetail({
   signals,
   owned,
   equipped,
+  notice,
   currency,
   onCurrency,
   onBuy,
@@ -549,6 +575,7 @@ function ItemDetail({
   signals: ArsenalPlayerSignals;
   owned: boolean;
   equipped: boolean;
+  notice: string | null;
   currency: ArsenalPriceCurrency;
   onCurrency: (c: ArsenalPriceCurrency) => void;
   onBuy: (currency: ArsenalPriceCurrency) => void;
@@ -648,6 +675,15 @@ function ItemDetail({
           ]}
           style={styles.currencySegmented}
         />
+      ) : null}
+
+      {/* Échec d'achat (solde insuffisant) : affiché DANS la sheet, juste au-dessus
+          du CTA où le tap a eu lieu — visible au-dessus du backdrop, pas derrière. */}
+      {notice ? (
+        <View style={styles.sheetNotice}>
+          <ArsenalIcon slug="eclats" size={16} color={colors.blanc} />
+          <Text style={styles.sheetNoticeText}>{notice}</Text>
+        </View>
       ) : null}
 
       {/* CTA principal */}
@@ -1016,6 +1052,19 @@ const styles = StyleSheet.create({
   },
   detailOwnedText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', flex: 1 },
   currencySegmented: { marginBottom: 14 },
+  // Échec d'achat dans la sheet : surface N2 relevée (visible sur le fond noir du
+  // sheet), texte blanc lisible — un message d'erreur qui ne se cache pas.
+  sheetNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: elevation.raised,
+    borderRadius: radii.card,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  sheetNoticeText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', lineHeight: 18 },
   detailActions: { gap: 10, marginTop: 4 },
   detailPrimary: {
     height: 50,

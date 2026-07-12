@@ -32,6 +32,7 @@ import {
 } from '../src/features/badges/catalog';
 import { useMyBadges } from '../src/features/badges/myBadges';
 import { TODAY, TODAY_HERO } from '../src/features/motivation/demo';
+import { ROUTES_DEMO, routeDurationMin, routeSocialName } from '../src/features/route/demo';
 
 /** « 4,8 » — le KPI géant est la distance, la virgule est FR. */
 function kmLabel(km: number): string {
@@ -43,12 +44,23 @@ export default function AujourdhuiScreen() {
     screen('today');
   }, []);
 
-  const { route } = TODAY_HERO;
-
   // AMENDEMENT-12 §A : 2 verbes joueur. SOURCE UNIQUE battleContext() — le
   // verbe affiché (card + CTA) et le départ goNow() partagent le même plan.
   const { mode: battleMode, plan } = useMemo(() => battleContext(), []);
   const objectiveTag = battleMode === 'DEFENDRE' ? 'DÉFENDRE' : 'CONQUÉRIR';
+
+  // L'app ne ment jamais : la card héros DÉCRIT la course que le CTA lance
+  // vraiment. km/zones/durée/nom sont dérivés de LA route du plan (plan.routeId,
+  // la même que goNow()), jamais d'un KPI figé qui divergerait du départ réel.
+  const route = useMemo(() => {
+    const r = ROUTES_DEMO.find((x) => x.id === plan.routeId) ?? ROUTES_DEMO[0];
+    return {
+      name: r ? routeSocialName(r) : objectiveTag,
+      distanceKm: r?.distanceKm ?? 0,
+      zones: r?.zones ?? 0,
+      durationMin: r ? routeDurationMin(r) : 0,
+    };
+  }, [plan.routeId, objectiveTag]);
 
   // Débloqués + progression : réels (user_badges/user_stats) si session, sinon démo.
   const { unlockedIds, stat } = useMyBadges();

@@ -369,9 +369,11 @@ function CityStep({ onNext }: { onNext: () => void }) {
 
 function PermissionStep({ onNext }: { onNext: () => void }) {
   const askGps = () => {
-    // Web preview : SIMULÉ (aucune API système). Natif : la vraie demande
-    // expo-location vit dans le flow de course (useRealRun) au 1er run réel —
-    // ici on pose l'INTENTION et on log le funnel (permission pédagogique).
+    // Honnêteté (§ charte n°1) : cet écran est PÉDAGOGIQUE, il ne déclenche AUCUNE
+    // boîte système ici — ni sur web (simulé), ni sur natif. La vraie demande
+    // expo-location vit dans le flow de course (useRealRun), en contexte, au 1er
+    // run réel. Le tap enregistre donc une INTENTION (funnel `onboarding_accept`,
+    // jamais un « granted » OS) — c'est un accord de principe, pas une activation.
     haptics.medium();
     track(EVENTS.permissionLocation, { result: 'onboarding_accept' });
     onNext();
@@ -510,9 +512,14 @@ function SyncStep({ onDone }: { onDone: () => void }) {
           <View style={styles.syncRunning}>
             <View style={styles.syncSourceRow}>
               {chosen ? <Icon name={chosen.icon} size={20} color={colors.chartreuse} /> : null}
-              <Text style={styles.syncSourceName}>
+              <Text style={styles.syncSourceName} numberOfLines={1} ellipsizeMode="clip">
                 {chosen?.name} · {SYNC_DEMO_RUN.whenLabel}
               </Text>
+              {/* Honnêteté (§ charte n°1) : l'import réel n'est pas branché (O7/O8) —
+                  ce run détecté est un EXEMPLE, jamais présenté comme une vraie sync. */}
+              <View style={styles.demoTag}>
+                <Text style={styles.demoTagLabel}>Exemple</Text>
+              </View>
             </View>
             <Text style={styles.syncRunMeta}>
               {(SYNC_DEMO_RUN.distanceM / 1000).toFixed(1).replace('.', ',')} km · {SYNC.loopMeta}
@@ -531,8 +538,9 @@ function SyncStep({ onDone }: { onDone: () => void }) {
                       ]}
                     >
                       {/* L'état ne repose jamais sur la seule couleur : fait =
-                          glyphe verrou, en cours = point plein (forme). */}
-                      {done ? <Icon name="verrou" size={11} color={colors.noir} /> : null}
+                          badge coché (cue « TERMINÉ », pas « verrouillé »), en
+                          cours = point plein (forme). */}
+                      {done ? <Icon name="badge" size={12} color={colors.noir} /> : null}
                       {active ? <View style={styles.syncDotInner} /> : null}
                     </View>
                     <Text style={[styles.syncStepLabel, (done || active) && styles.syncStepLabelOn]}>
@@ -637,13 +645,10 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
     };
   }, [reduce, anim]);
 
-  const share = () => {
-    haptics.light();
-    track(EVENTS.shareCardGenerated, { source: 'onboarding' });
-    // Câblé démo : le partage réel arrive après le compte — ici on continue le
-    // flow (la carte de partage vit dans /partage, hors onboarding pré-compte).
-    onNext();
-  };
+  // Honnêteté (§ charte n°1) : PAS d'affordance « Partager » ici — rien n'est
+  // partagé en pré-compte et aucune card n'est générée. Le vrai partage (carte
+  // de replay) vit dans /partage, APRÈS le compte ; on n'émet donc jamais
+  // shareCardGenerated sans partage réel. Un seul CTA : « Défendre ma zone ».
 
   return (
     <View style={styles.step}>
@@ -664,7 +669,6 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
       </View>
       <View style={styles.footer}>
         <PrimaryCta label={CAPTURE.cta} icon="conquete" onPress={onNext} />
-        <SkipLink label={CAPTURE.share} onPress={share} />
       </View>
     </View>
   );
@@ -676,17 +680,24 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
 
 function AccountStep({ onNext }: { onNext: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const run = async (fn: () => Promise<AuthResult>) => {
     // Garde de réentrance : le bouton Apple (natif) n'a pas de prop `disabled`,
     // donc un double-tap — ou Apple puis Google pendant l'attente — pourrait
     // relancer l'auth. On ignore tout appel tant qu'un run est en cours.
     if (busy) return;
     setBusy(true);
+    setFailed(false);
     const result = await fn();
     setBusy(false);
-    // Un échec/refus n'est jamais un mur (§4.1) : on avance quand même (la valeur
-    // est déjà donnée) ; un succès enchaîne pareil vers le crew.
-    if (result.ok || !result.ok) onNext();
+    // Honnêteté (§ charte n°1) : un refus/échec n'est PAS un succès — on n'avance
+    // que si l'auth réussit. On reste sur l'écran avec un message court. Ce n'est
+    // pas un mur (§4.1) : « Plus tard » laisse toujours passer sans compte.
+    if (result.ok) {
+      onNext();
+    } else {
+      setFailed(true);
+    }
   };
   return (
     <View style={styles.step}>
@@ -701,6 +712,11 @@ function AccountStep({ onNext }: { onNext: () => void }) {
         <Text style={styles.tagline}>{ACCOUNT.tagline}</Text>
       </View>
       <View style={styles.footer}>
+        {failed ? (
+          <Text style={styles.authError} accessibilityRole="alert">
+            Connexion impossible. Réessaie, ou passe cette étape.
+          </Text>
+        ) : null}
         {Platform.OS === 'ios' ? (
           // Vrai bouton système Apple (fork natif — jamais bundlé sur web).
           <OnboardingAppleButton onPress={() => void run(signInWithApple)} />
@@ -927,7 +943,21 @@ const styles = StyleSheet.create({
   },
   syncRunning: { marginTop: 24 },
   syncSourceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  syncSourceName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
+  syncSourceName: { flexShrink: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
+  // Tag « Exemple » discret : dit la vérité (import démo) sans casser la scène.
+  demoTag: {
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  demoTagLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
   syncRunMeta: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 4 },
   syncSteps: { marginTop: 22, gap: 14 },
   syncStepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -1002,4 +1032,12 @@ const styles = StyleSheet.create({
   captureUnit: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
   captureSub: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 8 },
 
+  // Message d'échec d'auth (honnête) : centré, lisible (≥ 12 px), non chartreuse.
+  authError: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
 });

@@ -65,7 +65,6 @@ import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import { MISSIONS } from '../warroom/demo';
 import {
   DEFENSE_SECTOR,
-  FRIEND_RUN_DEMO,
   MAP_DEFEND_CARD,
   MAP_MISSION,
   MAP_MISSION_SUMMARY,
@@ -365,10 +364,10 @@ export function BattleMapOverlays({
                       ]}
                     >
                       <View style={styles.rowBody}>
-                        <Text style={styles.rowTitle} numberOfLines={1}>
+                        <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
                           {p.name}
                         </Text>
-                        <Text style={styles.rowMeta} numberOfLines={1}>
+                        <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
                           {formatKm(meta.distanceKm)} · {zonesLabel(meta.hexes)} · +{meta.points} pts
                         </Text>
                       </View>
@@ -390,27 +389,27 @@ export function BattleMapOverlays({
                     <Icon name="ami" size={14} color={gameColors.crew} />
                   </View>
                   <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
+                    <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
                       {MATES_OPT_IN.length} alliés proches
                     </Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
+                    <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
                       {nearestMateName} · {formatKm(nearestMateKm)}
                     </Text>
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Courir ensemble avec les alliés proches"
-                    onPress={() => {
-                      haptics.medium();
-                      // Démo : le run groupé réel passera par l'invitation AMENDEMENT-07.
-                      if (__DEV__) console.log('[map] courir ensemble (démo)');
-                    }}
-                    style={({ pressed }) => [styles.joinCta, pressed && styles.pressed]}
+                  {/* L'app NE MENT JAMAIS : le run groupé réel (invitation
+                      AMENDEMENT-07) n'existe pas encore. Pas de faux succès
+                      (ni haptique « medium », ni onPress muet) — on annonce
+                      l'état VRAI : badge « Bientôt » non actionnable, texte
+                      gris (jamais chartreuse, réservée aux vraies actions). */}
+                  <View
+                    accessibilityRole="text"
+                    accessibilityLabel="Courir ensemble avec les alliés proches : bientôt disponible"
+                    style={styles.joinSoon}
                   >
-                    <Text style={styles.joinCtaLabel} numberOfLines={1}>
-                      Courir ensemble
+                    <Text style={styles.joinSoonLabel} numberOfLines={1} ellipsizeMode="clip">
+                      Bientôt
                     </Text>
-                  </Pressable>
+                  </View>
                 </View>
 
                 {/* BLOC — DÉTAILS (missions liées + historique local). */}
@@ -429,10 +428,10 @@ export function BattleMapOverlays({
                       <Icon name="cible" size={14} color={colors.blanc} />
                     </View>
                     <View style={styles.rowBody}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>
+                      <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
                         {mission.label}
                       </Text>
-                      <Text style={styles.rowMeta} numberOfLines={1}>
+                      <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
                         {mission.progress}/{mission.target} · mission du jour
                       </Text>
                     </View>
@@ -452,11 +451,14 @@ export function BattleMapOverlays({
                     <Icon name="historique" size={14} color={colors.blanc} />
                   </View>
                   <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
+                    <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
                       Mon historique
                     </Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
-                      {FRIEND_RUN_DEMO.name} · {FRIEND_RUN_DEMO.zone} · {FRIEND_RUN_DEMO.distanceKm} km
+                    {/* JAMAIS la course d'un autre sous « Mon historique » :
+                        libellé honnête (mes courses, /historique) — plus de
+                        run d'ami (FRIEND_RUN_DEMO) présenté comme le mien. */}
+                    <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
+                      Tes courses passées
                     </Text>
                   </View>
                   <Icon name="chevron" size={14} color={colors.gris} />
@@ -557,10 +559,10 @@ function DefendCard({ onPress }: { onPress: () => void }) {
       >
         <View style={styles.defendBar} />
         <View style={styles.defendBody}>
-          <Text style={styles.defendTitle} numberOfLines={1}>
+          <Text style={styles.defendTitle} numberOfLines={1} ellipsizeMode="clip">
             {zoneName} à défendre
           </Text>
-          <Text style={styles.defendMeta} numberOfLines={1}>
+          <Text style={styles.defendMeta} numberOfLines={1} ellipsizeMode="clip">
             {distance} · contrôle {MAP_DEFEND_CARD.controlPct} % · {MAP_DEFEND_CARD.rewardLabel}
           </Text>
           <Text style={styles.defendSince} numberOfLines={1}>
@@ -753,7 +755,7 @@ const styles = StyleSheet.create({
   },
   layerHeading: {
     color: colors.gris,
-    fontSize: 10,
+    fontSize: fontSizes.xs, // >= 12 px (a11y : aucun texte porteur sous 12)
     fontWeight: '700',
     letterSpacing: 1,
     marginLeft: 2,
@@ -769,6 +771,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minHeight: 44, // cible tactile >= 44 px (a11y)
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: radii.pill,
@@ -809,7 +812,8 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     backgroundColor: gameColors.carbon,
   },
-  situationChipText: { color: colors.blanc, fontSize: 11, fontWeight: '600' },
+  // Porte l'HORLOGE « 8 h restantes » + le bonus : >= 12 px (a11y).
+  situationChipText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   // Divider : sépare situation et mission par l'espace (pas de 2 boîtes).
   infoDivider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: 12 },
 
@@ -832,7 +836,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.gris,
-    fontSize: 10,
+    fontSize: fontSizes.xs, // >= 12 px (a11y)
     fontWeight: '700',
     letterSpacing: 1,
     marginTop: 6,
@@ -863,9 +867,11 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, gap: 1 },
   rowTitle: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-  rowMeta: { color: colors.gris, fontSize: 11, fontVariant: ['tabular-nums'] },
-  onMapTag: { color: gameColors.crew, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-  joinCta: {
+  rowMeta: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
+  onMapTag: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.5 },
+  // Badge « Bientôt » (le run groupé n'existe pas encore) : contour muet,
+  // texte GRIS — jamais chartreuse (réservée aux vraies actions/CTA).
+  joinSoon: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: radii.pill,
@@ -873,5 +879,5 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     backgroundColor: gameColors.carbon,
   },
-  joinCtaLabel: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '700' },
+  joinSoonLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700' },
 });

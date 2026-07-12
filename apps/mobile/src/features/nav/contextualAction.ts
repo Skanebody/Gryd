@@ -27,11 +27,8 @@
  * (territoryStatus live), il suffira de la passer dans `ContextInput`.
  */
 import { battleContext, goHref, intentionHref } from './runContext';
-import {
-  PARTIAL_BOUNDARIES_DEMO,
-  type PartialBoundaryDemo,
-} from '../run/intention';
-import { MISSIONS, OPEN_BOUNDARIES } from '../warroom/demo';
+import { type PartialBoundaryDemo } from '../run/intention';
+import { MISSIONS } from '../warroom/demo';
 import type { IconName } from '@klaim/shared';
 
 /**
@@ -82,7 +79,7 @@ export interface ContextualAction {
  */
 export interface ContextInput {
   /** Écran d'où provient le bouton (recadre la lecture démo). */
-  screen?: 'map' | 'missions' | 'zone' | 'route' | 'loop';
+  screen?: 'map' | 'zone' | 'route' | 'loop';
   /** Zone sélectionnée (V1) : `attacked` ⇒ DÉFENDRE, `neutral`/`rival` ⇒ CONQUÉRIR. */
   selectedZone?: { kind: 'attacked' | 'neutral' | 'rival'; routeId?: string } | null;
   /** Frontière crew presque fermée sélectionnée (V1) ⇒ TERMINER. */
@@ -165,35 +162,16 @@ function joinAction(missionLabel: string, boundaryId?: string): ContextualAction
 // ─── Dérivation (pure) ───────────────────────────────────────────────────────
 
 /**
- * Première frontière crew « presque fermée » (démo). En V1 c'est la frontière
- * partielle du crew la plus proche du seuil ; ici la première de la liste démo
- * (République, 620 m) sert de cible TERMINER par défaut sur Missions.
- */
-function nearlyClosedBoundary(): PartialBoundaryDemo | null {
-  return PARTIAL_BOUNDARIES_DEMO[0] ?? null;
-}
-
-/** Y a-t-il une mission crew ouverte à rejoindre ? (démo : type `crew`). */
-function openCrewMission(): { label: string; boundaryId?: string } | null {
-  const crew = MISSIONS.find((m) => m.kind === 'crew' && m.progress < m.target);
-  if (!crew) return null;
-  // Une frontière crew ouverte donne la cible « terminer » à rejoindre.
-  const boundaryId = OPEN_BOUNDARIES[0]?.boundaryId;
-  return { label: crew.label, boundaryId };
-}
-
-/**
  * DÉRIVE l'action contextuelle du bouton central (PURE). Ordre de priorité
  * (Règles §C, adapté à ce que le bouton lance) :
  *   1. sélection EXPLICITE (V1) : boundary ⇒ TERMINER · zone ⇒ DÉFENDRE/CONQUÉRIR
  *      · mission crew ⇒ REJOINDRE ;
  *   2. sinon, lecture de l'ÉCRAN :
- *      - `missions` : action COMPLÉMENTAIRE du CTA in-content (la zone attaquée
- *        DÉFENDRE est déjà en tête d'écran) ⇒ frontière à refermer TERMINER,
- *        puis mission crew REJOINDRE, puis DÉFENDRE, puis CONQUÉRIR ;
  *      - `map` / `zone` / `route` / `loop` : la Battle Map est attaquée ⇒
  *        DÉFENDRE (lecture `DEFENDRE` de battleContext), sinon CONQUÉRIR ;
- *   3. DÉFAUT ABSOLU : **RUN** (course libre).
+ *   3. DÉFAUT ABSOLU : **RUN** (course libre). Missions/War Room (`/warroom`)
+ *      passe par ce défaut RUN neutre : son CONTENU porte déjà le verbe de la
+ *      mission n°1 — pas de 2e verbe chartreuse divergent (§A.4).
  * Ne renvoie JAMAIS « GO ».
  */
 export function deriveContextualAction(input: ContextInput = {}): ContextualAction {
@@ -213,21 +191,6 @@ export function deriveContextualAction(input: ContextInput = {}): ContextualActi
   const ctx = battleContext();
 
   // 2) Lecture de l'écran (démo déterministe).
-  if (input.screen === 'missions') {
-    // Missions = « choisir une mission ». La zone attaquée (DÉFENDRE) est DÉJÀ
-    // portée en tête d'écran par la carte URGENT · DÉFENSE (CTA in-content de la
-    // liste) : le bouton CENTRAL prend donc l'action COMPLÉMENTAIRE la plus
-    // urgente pour ne pas DUPLIQUER ce DÉFENDRE (§A.4) — la frontière crew à
-    // refermer (TERMINER, section « À TERMINER » de l'écran), puis la mission
-    // crew à rejoindre (REJOINDRE), puis DÉFENDRE, puis CONQUÉRIR en dernier.
-    const boundary = nearlyClosedBoundary();
-    if (boundary) return completeAction(boundary);
-    const crew = openCrewMission();
-    if (crew) return joinAction(crew.label, crew.boundaryId);
-    if (ctx.mode === 'DEFENDRE') return defendAction('ta zone', ctx.plan.routeId);
-    return conquerAction('une zone', ctx.plan.routeId);
-  }
-
   if (
     input.screen === 'map' ||
     input.screen === 'zone' ||

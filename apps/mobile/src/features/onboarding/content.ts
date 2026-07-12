@@ -101,8 +101,11 @@ export const PERMISSION = {
   title: 'Le GPS dessine ton territoire.',
   tagline:
     'GRYD suit ta trace pendant la course pour transformer tes rues en zones. Rien n’est partagé en direct.',
-  /** Verbe d'ACCORD, jamais « GO » (§A4). */
-  cta: 'Activer le GPS',
+  // Verbe d'ACCORD honnête (jamais « GO » §A4) : ce tap n'ouvre AUCUNE boîte
+  // système ici — il consent à l'usage du GPS et mène au run, où la vraie
+  // demande expo-location arrive. « Activer le GPS » promettait une activation
+  // immédiate qui n'a pas lieu → « Utiliser le GPS » (consentement à l'usage).
+  cta: 'Utiliser le GPS',
   /** Sortie douce : on n'impose rien (la vraie demande revient au 1er run réel). */
   skip: 'Plus tard',
 } as const;

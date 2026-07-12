@@ -102,14 +102,14 @@ export function ContextualRunButton({
             ]}
           >
             {leading ? <View style={styles.discLeading}>{leading}</View> : null}
-            <Text style={styles.label} numberOfLines={1}>
+            <Text style={styles.label} numberOfLines={1} ellipsizeMode="clip">
               {label}
             </Text>
           </Pressable>
         </Animated.View>
       </View>
       {hint ? (
-        <Text style={styles.hint} numberOfLines={1}>
+        <Text style={styles.hint} numberOfLines={1} ellipsizeMode="clip">
           {hint}
         </Text>
       ) : null}
@@ -187,7 +187,7 @@ export function FloatingActionButton({
           style={[styles.fab, disabled && styles.disabled]}
         >
           {leading ? <View style={styles.fabLeading}>{leading}</View> : null}
-          <Text style={styles.fabLabel} numberOfLines={1}>
+          <Text style={styles.fabLabel} numberOfLines={1} ellipsizeMode="clip">
             {label}
           </Text>
         </Pressable>
@@ -267,6 +267,9 @@ export function InlineRunCTA({
         ]}
       >
         {leading ? <View style={styles.ctaLeading}>{leading}</View> : null}
+        {/* CTA héros : le libellé complet doit tenir — on RÉTRÉCIT pour l'ajuster
+            (jamais couper §A), avec clip en dernier recours (jamais l'ellipse
+            « … »). « TROUVER UNE ROUTE » / « DÉFENDRE MON RANG » tiennent ainsi. */}
         <Text
           style={[
             styles.ctaLabel,
@@ -274,6 +277,9 @@ export function InlineRunCTA({
             isPrimary ? styles.ctaLabelPrimary : styles.ctaLabelSecondary,
           ]}
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          ellipsizeMode="clip"
         >
           {label}
         </Text>

@@ -160,6 +160,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    // Cible tactile >= 44 px (Apple HIG / audit zéro-friction) : un seul correctif
+    // ici relève TOUS les segmenteds de l'app (Format/Style partage, portée
+    // Saison, devise Arsenal, calques Carte…). Le contenu reste centré.
+    minHeight: 44,
     paddingVertical: 9,
     borderRadius: radii.pill,
   },

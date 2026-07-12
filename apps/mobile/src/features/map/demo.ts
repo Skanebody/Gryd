@@ -222,7 +222,11 @@ export const MAP_ALERT = {
  * horloge : la seule horloge de l'écran est MAP_MISSION_SUMMARY.timeLeftLabel).
  */
 export const MAP_DEFEND_CARD = {
-  controlPct: 62,
+  // « contrôle » de la zone = part de contrôle du CREW (source UNIQUE :
+  // MAP_CONTROL_HUD.crewPct, reprise par MAP_MISSION_SUMMARY.crewPct). La card
+  // « à défendre » et la SITUATION affichent ainsi la MÊME valeur pour
+  // République — plus jamais 62 % vs 42 % pour la même zone dans le panneau Info.
+  controlPct: MAP_CONTROL_HUD.crewPct,
   rewardLabel: `+${MAP_MISSION.bonusPoints} pts crew`,
   rivalLine: MAP_RIVAL_PILL.message, // « Canal Crew reprend du terrain »
 } as const;

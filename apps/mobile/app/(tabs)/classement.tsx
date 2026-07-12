@@ -15,8 +15,10 @@
  * directs, pas des rangs anonymes) + « Voir tout » ; récompenses de fin de
  * saison datées sur l'horloge unique de l'écran (la semaine de saison).
  * L'écart en zones neutres est DÉRIVÉ via POINTS_NEUTRAL_HEX — aucun barème
- * local. Honnêteté : « · DÉMO » dans le kicker quand le board Joueurs est la
- * démo locale ; note « démonstration » sur les boards sans source serveur.
+ * local. Honnêteté : la SEMAINE de saison est TOUJOURS une valeur démo (jamais
+ * lue du serveur) → marquée « (DÉMO) » dans le kicker, quelle que soit la source
+ * des lignes ; note « démonstration » sur tout board dont les lignes ne viennent
+ * pas encore du serveur (Joueurs·Paris réel seulement quand source==='server').
  * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5).
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -146,8 +148,9 @@ function Podium({ board }: { board: LeagueBoard }) {
         c.row ? (
           <View key={c.row.rank} style={styles.podiumCol}>
             <RowVisual row={c.row} board={board} big={c.row.rank === 1} />
-            <Text style={styles.podiumName} numberOfLines={1}>
+            <Text style={styles.podiumName} numberOfLines={1} ellipsizeMode="clip">
               {c.row.name}
+              {c.row.me === true ? meSuffix(board) : ''}
             </Text>
             <Text style={styles.podiumValue}>{formatInt(c.row.value)}</Text>
             <View style={[styles.podiumStep, { height: c.step }]}>
@@ -174,12 +177,13 @@ function BoardRow({ row, board }: { row: LeagueRow; board: LeagueBoard }) {
           <Text
             style={[styles.rowName, row.me === true && styles.rowNameMe]}
             numberOfLines={1}
+            ellipsizeMode="clip"
           >
             {row.name}
             {row.me === true ? meSuffix(board) : ''}
           </Text>
           {row.sub ? (
-            <Text style={styles.rowSub} numberOfLines={1}>
+            <Text style={styles.rowSub} numberOfLines={1} ellipsizeMode="clip">
               {row.sub}
             </Text>
           ) : null}
@@ -234,6 +238,14 @@ export default function LeagueScreen() {
   const showToi =
     !discreet && onJoueursParis && meRow !== undefined && (aboveRow !== undefined || isLeader);
 
+  // Portée RÉELLE du board courant : le kicker ne fige plus « PARIS ». France
+  // pour Joueurs·France et pour le board Ville (classement national des villes) ;
+  // Paris sinon (Joueurs·Paris, Crews — démo francilienne).
+  const scopeLabel =
+    tab === 'ville' || (tab === 'joueurs' && scope === 'france')
+      ? 'FRANCE'
+      : CITIES.paris.name.toUpperCase();
+
   // Mode discret §10.3 : je n'apparais JAMAIS dans un leaderboard global.
   const rows = discreet ? board.rows.filter((r) => r.me !== true) : board.rows;
   const listRows = rows.filter((r) => r.rank > 3);
@@ -248,9 +260,10 @@ export default function LeagueScreen() {
   // « ··· » si la fenêtre compacte saute des rangs après le podium (sauf si la
   // ligne porte déjà sa propre rupture gapBefore).
   const showLeadEllipsis = !showAll && windowStart > 0 && visibleRows[0]?.gapBefore !== true;
-  // Honnêteté : Crews / Ville / Joueurs·France n'ont AUCUNE source serveur au
-  // MVP — on le dit. (Quand source==='local', le kicker porte déjà « · DÉMO ».)
-  const showDemoNote = source === 'server' && board.id !== 'joueurs';
+  // Honnêteté : un board est une démo tant que ses LIGNES ne viennent pas du
+  // serveur. Joueurs·Paris est réel UNIQUEMENT quand la lecture serveur a résolu
+  // (source==='server') ; Joueurs·France / Crews / Ville restent démo au MVP.
+  const boardIsDemo = board.id === 'joueurs' ? source === 'local' : true;
 
   return (
     <View style={styles.root}>
@@ -266,12 +279,12 @@ export default function LeagueScreen() {
       >
         {/* Header SAISON (AMENDEMENT-29 : ex-« Paris League »). Le TITRE porte le
             nom de l'écran (« Saison ») ; le kicker situe la saison + la semaine +
-            la ville — l'HORLOGE UNIQUE de l'écran est la semaine de saison.
-            Honnêteté : « · DÉMO » quand le board Joueurs est la démo locale. */}
+            la portée du board — l'HORLOGE UNIQUE de l'écran est la semaine de
+            saison. Honnêteté : cette semaine n'est JAMAIS lue du serveur (aucune
+            fenêtre de saison n'est fetchée) → marquée « (DÉMO) » quelle que soit
+            la source des lignes ; la portée est dérivée du board (plus figée). */}
         <Text style={styles.kicker}>
-          SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} ·{' '}
-          {CITIES.paris.name.toUpperCase()}
-          {source === 'local' ? ' · DÉMO' : ''}
+          SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} (DÉMO) · {scopeLabel}
         </Text>
         <View style={styles.titleRow}>
           <Icon name="classement" size={22} color={colors.blanc} />
@@ -297,7 +310,7 @@ export default function LeagueScreen() {
             {/* 1 · Mon rang + écart nommé (le #1 lit « en tête »), jamais de honte */}
             <View style={styles.toiTop}>
               <Text style={styles.toiRank}>#{meRow!.rank}</Text>
-              <Text style={styles.toiName} numberOfLines={1}>
+              <Text style={styles.toiName} numberOfLines={1} ellipsizeMode="clip">
                 {meRow!.name} · toi
               </Text>
               <Text style={styles.toiGap}>
@@ -315,8 +328,10 @@ export default function LeagueScreen() {
 
             {/* 3 · CTA contextuel — JAMAIS un GO ; la Saison mène au planner */}
             <View style={styles.toiCta}>
+              {/* Libellés COURTS qui tiennent sans jamais tronquer (§A « textes
+                  jamais coupés ») — l'icône route porte le contexte « planner ». */}
               <InlineRunCTA
-                label={isLeader ? 'DÉFENDRE MON RANG' : 'TROUVER UNE ROUTE'}
+                label={isLeader ? 'DÉFENDRE' : 'MA ROUTE'}
                 leading={<Icon name="route" size={18} color={colors.noir} />}
                 onPress={() => router.push('/route-planner')}
               />
@@ -364,8 +379,9 @@ export default function LeagueScreen() {
           </View>
         ) : null}
 
-        {/* Honnêteté : boards sans source serveur = démonstration, on le dit */}
-        {showDemoNote ? (
+        {/* Honnêteté : boards dont les lignes ne viennent pas du serveur =
+            démonstration, on le dit (y compris Joueurs·Paris hors session). */}
+        {boardIsDemo ? (
           <Text style={styles.demoNote}>Classement de démonstration — pas encore de données réelles.</Text>
         ) : null}
 
@@ -402,7 +418,10 @@ export default function LeagueScreen() {
             RÉCOMPENSES TOP 10 · FIN SEMAINE {SEASON_DURATION_WEEKS}
           </Text>
         </View>
-        {!discreet && inTop10 && meRow ? (
+        {/* Rang perso = celui du board Joueurs·Paris (dont meRow/inTop10 sont
+            dérivés) : ne l'affiche QUE sur ce board, jamais sur Crews/Ville/
+            France où « Tu es #8 » n'aurait aucun rapport avec la liste visible. */}
+        {!discreet && onJoueursParis && inTop10 && meRow ? (
           <Text style={styles.rewardHint}>
             Tu es #{meRow.rank} — reste dans le Top 10 pour les débloquer.
           </Text>

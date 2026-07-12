@@ -17,7 +17,7 @@
  * et pilote le FILTRAGE d'affichage — jamais le gameplay (l'impact crew reste
  * compté même quand une course est masquée).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,9 +38,11 @@ import { StackScreen } from '../src/ui/StackScreen';
 import { GhostButton } from '../src/ui/GhostButton';
 import { Icon } from '../src/ui/Icon';
 import {
+  PRIVATE_MODE_PATCH,
   usePrivacyPrefs,
   type LivePosition,
   type MaskRadius,
+  type PrivacyPrefs,
   type RunVisibility,
   type SocialAudience,
 } from '../src/features/privacy/store';
@@ -104,6 +106,17 @@ type SectionKey =
 
 export default function ConfidentialiteScreen() {
   const { prefs, update, enablePrivateMode } = usePrivacyPrefs();
+  // « Mode privé » ACTIF = DÉRIVÉ de l'état RÉEL des réglages, pas du flag figé
+  // `privateMode` : si l'utilisateur ré-ouvre un réglage sensible après avoir tout
+  // verrouillé, la card ne peut plus prétendre « tout est verrouillé » (l'app ne
+  // ment jamais). On compare chaque réglage d'exposition à sa valeur fermée.
+  const privateActive = useMemo(
+    () =>
+      (Object.keys(PRIVATE_MODE_PATCH) as (keyof PrivacyPrefs)[])
+        .filter((k) => k !== 'privateMode')
+        .every((k) => prefs[k] === PRIVATE_MODE_PATCH[k]),
+    [prefs],
+  );
   // Joueurs bloqués (store de modération partagé avec le Crew Chat) — la carte
   // « Blocage & signalement » les liste ici avec un « Débloquer » réel.
   const { blocked } = useModeration();
@@ -236,7 +249,7 @@ export default function ConfidentialiteScreen() {
       subtitle="Ta géoloc t'appartient. On la lit pour transformer tes courses en territoire — rien n'est partagé sans ton accord. Tout est fermé par défaut."
     >
       {/* MODE PRIVÉ — toggle maître, tout en haut. */}
-      <MasterCard active={prefs.privateMode} onEnable={enablePrivateMode} />
+      <MasterCard active={privateActive} onEnable={enablePrivateMode} />
 
       {/* Au-dessus du fold : Profil + Courses + Départ/arrivée + Position live. */}
       <DisclosureCard
@@ -613,8 +626,8 @@ function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Pro
         {active ? <Text style={styles.masterBadge}>ACTIVÉ</Text> : null}
       </View>
       <Text style={styles.masterDesc}>
-        Un seul geste pour tout fermer : courses non publiques, départ et arrivée masqués, position
-        en direct coupée, données sportives privées, impact crew anonymisé.
+        Un seul geste pour tout fermer : profil privé, courses non publiques, départ et arrivée
+        masqués, position en direct coupée, données sportives privées.
       </Text>
       {active ? (
         <View style={styles.masterConfirm}>

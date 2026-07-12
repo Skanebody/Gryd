@@ -490,7 +490,7 @@ function MissionRow({
       <View style={styles.lineFoot}>
         <Text style={styles.lineMeta}>{entry.meta}</Text>
         <View style={styles.lineActionWrap}>
-          <Text style={styles.lineActionLabel} numberOfLines={1}>
+          <Text style={styles.lineActionLabel} numberOfLines={1} ellipsizeMode="clip">
             {entry.action}
           </Text>
           <Icon name="chevron" size={15} color={colors.blanc} />
@@ -539,7 +539,9 @@ function CrewBonusLine({
         </View>
         <Icon name="chevron" size={16} color={gameColors.crew} />
       </View>
-      <Text style={styles.linePhrase} numberOfLines={2}>
+      {/* Effet crew jamais coupé (§A.9 « textes jamais coupés ») : pas de clamp,
+          le texte passe à la ligne comme la phrase du hero. */}
+      <Text style={styles.linePhrase}>
         {effect} {during}. {def.copy.body}
       </Text>
     </Pressable>
@@ -740,7 +742,7 @@ export default function WarRoomScreen() {
       action: 'Défendre',
       skillFamily: 'defender',
       onStart: () => {
-        toast.show(`Défense lancée — zone ${DEFENSE_MISSION.zone}`);
+        toast.show(`Défense ${DEFENSE_MISSION.zone} — choisis ta route`);
         router.push('/route-planner?type=defense');
       },
       onDetail: openMap,
@@ -895,7 +897,7 @@ export default function WarRoomScreen() {
     screen('war_bonus_act', { bonusId: bonus.def.id });
     switch (bonus.def.id) {
       case 'defense_critical':
-        toast.show(`Défense lancée — zone ${DEFENSE_MISSION.zone}`);
+        toast.show(`Défense ${DEFENSE_MISSION.zone} — choisis ta route`);
         router.push('/route-planner?type=defense');
         break;
       case 'finisher': {
@@ -942,7 +944,10 @@ export default function WarRoomScreen() {
                 onPress={
                   canAssign
                     ? () => {
-                        toast.show(`${hero.title} proposée à ${heroReco.pseudo}`);
+                        // Démo : aucune requête ciblée n'est encore émise vers un
+                        // membre (TODO O1 : crew_requests ciblées). On ne PRÉTEND
+                        // donc pas un envoi — feedback honnête « (démo) ».
+                        toast.show(`Proposé (démo) — ${heroReco.pseudo} pour ${hero.title}`);
                       }
                     : undefined
                 }
@@ -998,7 +1003,7 @@ export default function WarRoomScreen() {
           <View style={styles.lineFoot}>
             <Text style={styles.lineMeta}>{chestPhrase}</Text>
             <View style={styles.lineActionWrap}>
-              <Text style={styles.lineActionLabel} numberOfLines={1}>
+              <Text style={styles.lineActionLabel} numberOfLines={1} ellipsizeMode="clip">
                 Voir le coffre
               </Text>
               <Icon name="chevron" size={15} color={colors.blanc} />
@@ -1243,10 +1248,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 12,
   },
-  heroHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
   heroIcon: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     backgroundColor: elevation.raised,
     alignItems: 'center',

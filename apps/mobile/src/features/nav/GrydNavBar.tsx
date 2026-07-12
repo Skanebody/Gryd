@@ -16,7 +16,6 @@ import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, radii, type IconName } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
-import { EVENTS, track } from '../../lib/analytics';
 import {
   deriveContextualAction,
   type ContextInput,
@@ -67,13 +66,19 @@ export function GrydNavBar() {
   const action = deriveContextualAction(screen ? { screen } : {});
   // Run libre toujours atteignable : lien discret quand le verbe central diffère.
   const freeRun = action.kind === 'run' ? null : deriveContextualAction({});
+  // Sur /warroom le CONTENU porte déjà le CTA hero chartreuse PLEIN (mission n°1).
+  // La capsule d'action passe donc en variante CONTOUR : un SEUL bloc chartreuse
+  // plein par scène (Règles §A — 1 écran = 1 seul CTA chartreuse plein).
+  const actionOutlined = pathname === '/warroom';
 
   const go = (href: string) => {
     if (pathname !== href) router.navigate(href);
   };
 
   const launch = (a: ContextualAction) => {
-    track(EVENTS.runStart, { context: a.kind, intention: a.intention });
+    // Ce tap NAVIGUE seulement vers l'écran live — il ne DÉMARRE pas la course.
+    // Le VRAI run_start §8 est émis au départ GPS (useRealRun) : l'émettre ici
+    // double-compterait l'event (une course = un seul run_start).
     router.push(a.targetHref);
   };
 
@@ -134,10 +139,20 @@ export function GrydNavBar() {
           accessibilityRole="button"
           accessibilityLabel={action.a11yLabel}
           onPress={() => launch(action)}
-          style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+          style={({ pressed }) => [
+            styles.action,
+            actionOutlined && styles.actionOutlined,
+            pressed && styles.actionPressed,
+          ]}
         >
-          <Icon name={action.icon} size={22} color={colors.noir} />
-          <Text style={styles.actionLabel}>{action.label}</Text>
+          <Icon
+            name={action.icon}
+            size={22}
+            color={actionOutlined ? colors.chartreuse : colors.noir}
+          />
+          <Text style={[styles.actionLabel, actionOutlined && styles.actionLabelOutlined]}>
+            {action.label}
+          </Text>
         </Pressable>
       </View>
     </>
@@ -189,12 +204,27 @@ const styles = StyleSheet.create({
   },
   actionPressed: { opacity: 0.85 },
   actionLabel: { color: colors.noir, fontSize: 15, fontWeight: '800', letterSpacing: 0.4 },
+  /**
+   * Variante CONTOUR : quand le CONTENU de l'écran porte déjà le CTA chartreuse
+   * PLEIN (mission n°1 sur /warroom), la capsule devient un contour chartreuse
+   * sur fond carbone (chartreuse sur sombre = contraste OK) — jamais un 2e bloc
+   * chartreuse PLEIN sur la même scène (Règles §A).
+   */
+  actionOutlined: {
+    backgroundColor: colors.carbone,
+    borderColor: colors.chartreuse,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  actionLabelOutlined: { color: colors.chartreuse },
 
   /** Lien discret (jamais un 2e CTA chartreuse) — fond sombre pour rester lisible sur la carte. */
   freeRunLink: {
     marginBottom: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radii.pill,
     backgroundColor: colors.carbone,
     borderWidth: 1,

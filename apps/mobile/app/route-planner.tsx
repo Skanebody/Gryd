@@ -275,7 +275,7 @@ export default function RoutePlannerScreen() {
   const shareRoute = () => {
     if (!route || !origin) return;
     haptics.medium();
-    const text = `Boucle ${formatKm(route.distanceKm)} km autour de ${origin.label} partagée au crew`;
+    const text = `Boucle ${formatKm(route.distanceKm)} km autour de ${origin.label} ajoutée à ton plan de crew (démo)`;
     toast.show(text);
     setSharedFeed((prev) =>
       prev.some((f) => f.id === route.id) ? prev : [...prev, { id: route.id, text }],
@@ -397,7 +397,7 @@ export default function RoutePlannerScreen() {
               size={15}
               color={gps === 'error' ? colors.gris : colors.chartreuse}
             />
-            <Text style={styles.originLabel} numberOfLines={1}>
+            <Text style={styles.originLabel} numberOfLines={1} ellipsizeMode="clip">
               {originLabel}
             </Text>
           </View>
@@ -454,14 +454,18 @@ export default function RoutePlannerScreen() {
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={[styles.planLabel, selected && styles.planLabelSelected]} numberOfLines={1}>
-                  {plan.label}
+                <Text
+                  style={[styles.planLabel, selected && styles.planLabelSelected]}
+                  numberOfLines={1}
+                  ellipsizeMode="clip"
+                >
+                  {selected ? `✓ ${plan.label}` : plan.label}
                 </Text>
-                <Text style={styles.planDist} numberOfLines={1}>
+                <Text style={styles.planDist} numberOfLines={1} ellipsizeMode="clip">
                   ~{formatKm(plan.km)} km · ~{estMinutes(plan.km)} min
                 </Text>
-                <Text style={styles.planReason} numberOfLines={1}>
-                  {plan.status}
+                <Text style={styles.planReason} numberOfLines={1} ellipsizeMode="clip">
+                  {selected ? 'Choisi' : plan.status}
                 </Text>
               </Pressable>
             );
@@ -508,8 +512,12 @@ export default function RoutePlannerScreen() {
                     ]}
                   >
                     <Icon name={INTENTION_ICON[it]} size={15} color={active ? colors.chartreuse : colors.gris} />
-                    <Text style={[styles.intentionLabel, active && styles.intentionLabelActive]} numberOfLines={1}>
-                      {PLANNER_INTENTION_LABELS[it]}
+                    <Text
+                      style={[styles.intentionLabel, active && styles.intentionLabelActive]}
+                      numberOfLines={1}
+                      ellipsizeMode="clip"
+                    >
+                      {active ? `✓ ${PLANNER_INTENTION_LABELS[it]}` : PLANNER_INTENTION_LABELS[it]}
                     </Text>
                   </Pressable>
                 );
@@ -587,15 +595,15 @@ export default function RoutePlannerScreen() {
                         pressed && styles.pressed,
                       ]}
                     >
-                      <Text style={styles.popularName} numberOfLines={1}>
-                        Variante {i + 1}
+                      <Text style={styles.popularName} numberOfLines={1} ellipsizeMode="clip">
+                        {selected ? `✓ Variante ${i + 1}` : `Variante ${i + 1}`}
                       </Text>
-                      <Text style={styles.popularStats} numberOfLines={1}>
+                      <Text style={styles.popularStats} numberOfLines={1} ellipsizeMode="clip">
                         {formatKm(loop.distanceKm)} km · +{loop.zones} zones
                       </Text>
                       <View style={styles.popularCrews}>
                         <Icon name="serie" size={12} color={colors.chartreuse} />
-                        <Text style={styles.popularCrewsText} numberOfLines={1}>
+                        <Text style={styles.popularCrewsText} numberOfLines={1} ellipsizeMode="clip">
                           ~{estMinutes(loop.distanceKm)} min · +{formatInt(loop.points)} pts
                         </Text>
                       </View>

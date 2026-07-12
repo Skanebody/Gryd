@@ -594,6 +594,13 @@ function ConquestResultScreen({
         zonesGained: stats.hexes,
         loopBonusZones: stats.enclosedZones,
         crewPoints: stats.totalPoints,
+        // Style DÉFENSE : ne JAMAIS laisser passer les valeurs démo (+48 h /
+        // 2 zones tenues) comme si c'était CE run. Les zones tenues = zones
+        // réellement couvertes par ce run (dérivé) ; la durée de tenue est
+        // décidée serveur (indispo côté client démo) → valeur neutre honnête 0,
+        // jamais une défense inventée. TODO(O1) : holdHours réel via ingest_run.
+        zonesDefended: stats.hexes,
+        holdHours: 0,
         distanceKm: formatKm(stats.distanceM),
         paceLabel: formatPace(stats.paceSPerKm),
         clockLabel: formatClock(stats.durationS),
@@ -702,13 +709,13 @@ function ConquestResultScreen({
 
           {/* Le POURQUOI du chiffre, au niveau 1 (données déjà calculées). */}
           {conquest && stats.loopClosed ? (
-            <Text style={styles.heroWhy} numberOfLines={1}>
+            <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
               Boucle fermée · +{formatInt(stats.enclosedZones)} zones d'un coup
             </Text>
           ) : null}
 
           {/* 1 ligne émotionnelle, courte, jamais tronquée. */}
-          <Text style={styles.heroLine} numberOfLines={1}>
+          <Text style={styles.heroLine} numberOfLines={1} ellipsizeMode="clip">
             {heroLine}
           </Text>
 
@@ -722,7 +729,7 @@ function ConquestResultScreen({
               style={({ pressed }) => [styles.heroBadge, pressed && styles.pressed]}
             >
               <Icon name="badge" size={16} color={badgeColor(badge)} />
-              <Text style={styles.heroBadgeText} numberOfLines={1}>
+              <Text style={styles.heroBadgeText} numberOfLines={1} ellipsizeMode="clip">
                 Badge débloqué · {badge.name}
               </Text>
               <Icon name="chevron" size={14} color={colors.gris} />

@@ -372,7 +372,7 @@ export default function ProfilScreen() {
                 isMe
               />
               <View style={styles.editPencil}>
-                <Icon name="profil" size={13} color={colors.noir} />
+                <Icon name="profil" size={13} color={colors.chartreuse} />
               </View>
             </Pressable>
             <View style={styles.headerInfo}>
@@ -405,7 +405,7 @@ export default function ProfilScreen() {
           {/* Les 2 infos qui comptent : territoire tenu + rang ville */}
           <View style={styles.headerStats}>
             <Text style={styles.headerHold} numberOfLines={1}>
-              <Text style={styles.headerHoldNum}>{formatInt(TERRITORY_KPI.totalZones)}</Text>{' '}
+              <Text style={styles.headerHoldNum}>{formatInt(territory.zonesHeld)}</Text>{' '}
               zones tenues · {TERRITORY_KPI.citiesLabel}
             </Text>
             <Text style={styles.headerRank} numberOfLines={1}>
@@ -537,7 +537,11 @@ export default function ProfilScreen() {
                 pressed && styles.dim,
               ]}
             >
-              <Text style={[styles.territoryCtaLabel, { color: cta.fg }]} numberOfLines={1}>
+              <Text
+                style={[styles.territoryCtaLabel, { color: cta.fg }]}
+                numberOfLines={1}
+                ellipsizeMode="clip"
+              >
                 {territory.next.cta}
               </Text>
             </Pressable>
@@ -573,7 +577,7 @@ export default function ProfilScreen() {
                 Cours et défends avec eux
               </Text>
             </View>
-            <Text style={styles.soloCrewCta} numberOfLines={1}>
+            <Text style={styles.soloCrewCta} numberOfLines={1} ellipsizeMode="clip">
               {territory.soloCrewHint.cta}
             </Text>
             <Icon name="chevron" size={16} color={colors.gris} />
@@ -801,7 +805,9 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerInfo: { flex: 1 },
-  // Avatar pressable + pastille crayon chartreuse (édition évidente sur la card)
+  // Avatar pressable + pastille crayon (édition évidente sur la card). Variante
+  //  SURFACE/contour chartreuse (pas un disque plein) : le SEUL chartreuse plein
+  //  de la scène reste le gros CTA territoire (charte : un seul accent plein).
   avatarPress: { width: 72, height: 72 },
   editPencil: {
     position: 'absolute',
@@ -810,9 +816,9 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-    borderWidth: 2,
-    borderColor: colors.carbone,
+    backgroundColor: colors.carbone,
+    borderWidth: 1.5,
+    borderColor: colors.chartreuse,
     alignItems: 'center',
     justifyContent: 'center',
   },
