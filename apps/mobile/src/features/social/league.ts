@@ -57,7 +57,7 @@ export const LEAGUE_BOARDS: readonly LeagueBoard[] = [
     kind: 'player',
     valueLabel: 'pts',
     rows: [
-      { rank: 1, name: 'SPRINTEUSE·88', sub: 'CREW NORD·XI', value: 9480 },
+      { rank: 1, name: 'SPRINT·88', sub: 'CREW NORD·XI', value: 9480 },
       { rank: 2, name: 'K.RUNNER', sub: 'LES PAVÉS 12', value: 8102 },
       { rank: 3, name: 'MOLOKAÏ', sub: 'LES FOULÉES 9³', value: 7645 },
       { rank: 4, name: 'INES.11', sub: 'CREW NORD·XI', value: 6890 },
@@ -110,7 +110,7 @@ export const LEAGUE_BOARDS: readonly LeagueBoard[] = [
     valueLabel: 'pts',
     rows: [
       { rank: 1, name: 'TRAILMAN·13', sub: 'Marseille', value: 12_480 },
-      { rank: 2, name: 'SPRINTEUSE·88', sub: 'Paris', value: 9480 },
+      { rank: 2, name: 'SPRINT·88', sub: 'Paris', value: 9480 },
       { rank: 3, name: 'NORDISTE.59', sub: 'Lille', value: 9120 },
       { rank: 4, name: 'K.RUNNER', sub: 'Paris', value: 8102 },
       { rank: 5, name: 'MOLOKAÏ', sub: 'Paris', value: 7645 },
@@ -144,7 +144,7 @@ export const LEAGUE_BOARDS: readonly LeagueBoard[] = [
       { rank: 1, name: 'K.RUNNER', sub: 'Paris', value: 94 },
       { rank: 2, name: 'INES.11', sub: 'Paris', value: 91 },
       { rank: 3, name: 'MOLOKAÏ', sub: 'Paris', value: 88 },
-      { rank: 4, name: 'SPRINTEUSE·88', sub: 'Paris', value: 86 },
+      { rank: 4, name: 'SPRINT·88', sub: 'Paris', value: 86 },
       { rank: 5, name: 'LENA_RUN', sub: 'Paris', value: 82 },
       { rank: 6, name: 'KORO', sub: 'Paris', value: 78, me: true },
       { rank: 7, name: 'JOG.PARMENTIER', sub: 'Paris', value: 74 },
