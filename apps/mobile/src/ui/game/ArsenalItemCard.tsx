@@ -218,7 +218,9 @@ export function ArsenalItemCard({
             <View style={styles.explanation}>
               {explanation.map((line) => (
                 <View key={`${line.label}-${line.text}`} style={styles.explanationLine}>
-                  <Text style={styles.explanationLabel}>{line.label}</Text>
+                  <Text style={styles.explanationLabel} numberOfLines={1} ellipsizeMode="clip">
+                    {line.label}
+                  </Text>
                   <Text style={styles.explanationText}>{line.text}</Text>
                 </View>
               ))}
@@ -320,7 +322,9 @@ const styles = StyleSheet.create({
   explanation: { gap: 5, marginTop: 7 },
   explanationLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   explanationLabel: {
-    width: 48,
+    // 66 px : « POURQUOI » (le plus long des libellés) tient sur UNE ligne — à
+    // 48 px il se coupait en « POURQUO / I » (§A textes jamais coupés).
+    width: 66,
     color: colors.blanc,
     fontSize: fontSizes.xs,
     fontWeight: '800',

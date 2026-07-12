@@ -548,7 +548,9 @@ function AdvisorCard({
 function ExplanationLine({ label, text }: { label: string; text: string }) {
   return (
     <View style={styles.explainLine}>
-      <Text style={styles.explainLabel}>{label}</Text>
+      <Text style={styles.explainLabel} numberOfLines={1} ellipsizeMode="clip">
+        {label}
+      </Text>
       <Text style={styles.explainText}>{text}</Text>
     </View>
   );
@@ -917,7 +919,9 @@ const styles = StyleSheet.create({
   },
   explainLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   explainLabel: {
-    width: 70,
+    // 80 px : « POURQUOI » (majuscules + letterSpacing) tient sur UNE ligne — à
+    // 70 px il se coupait en « POURQUO / I » (§A textes jamais coupés).
+    width: 80,
     color: colors.gris,
     fontSize: fontSizes.xs,
     fontWeight: '800',
