@@ -1,6 +1,6 @@
 # GRYD — monorepo
 
-Jeu de conquête de territoire par la course à pied. Nom public : **GRYD** (« Cours. Capture. Défends. » — le jeu de conquête de territoire pour run clubs). **Clearance INPI à faire avant usage public.** France entière capturable, Saison 0 focalisée Paris + Lille.
+Jeu de conquête de territoire par la course à pied. Nom public : **GRYD** (« Cours. Capture. Défends. » — le jeu de conquête de territoire pour run clubs). **Clearance INPI à faire avant usage public.** **Europe entière capturable** (`AMENDEMENT-35-EUROPE.md` — remplace « France entière »), Saison 0 focalisée Paris + Lille. L'élargissement Europe est une VISION : ne jamais fabriquer de données européennes factices (villes/classements/rivaux) tant qu'aucun vrai utilisateur ne les peuple — la vision se surface en copie + docs, pas en inventant des rankings.
 
 ## Autorité documentaire (ordre strict)
 1. `docs/product/GRYD_MASTER_SPEC.md` + les 17 autres `docs/product/GRYD_*.md` — source de vérité produit.

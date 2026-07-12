@@ -26,7 +26,6 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  CITIES,
   POINTS_NEUTRAL_HEX,
   SEASON_DURATION_WEEKS,
   colors,
@@ -62,21 +61,22 @@ import {
 
 /** Onglets RÉDUITS (AMENDEMENT-17) : 3 natures au lieu de 6 onglets coupés. */
 type PrimaryTab = 'joueurs' | 'crews' | 'ville';
-/** Filtre secondaire : portée (Paris/France) + période (Semaine/Saison). */
-type ScopeFilter = 'paris' | 'france';
 const PRIMARY_TABS: readonly { id: PrimaryTab; label: string }[] = [
   { id: 'joueurs', label: 'Joueurs' },
   { id: 'crews', label: 'Crews' },
   { id: 'ville', label: 'Ville' },
 ];
 
-/** Filtre portée (segmented) — n'apparaît que pour l'onglet Joueurs. */
-const SCOPE_OPTIONS: readonly { id: ScopeFilter; label: string }[] = [
-  { id: 'paris', label: 'Paris' },
-  { id: 'france', label: 'France' },
-];
+// AMENDEMENT-35 (Europe) : le filtre de portée « Paris / France » est RETIRÉ.
+// C'était un artefact de démo (Paris codé en dur = ego démo ; « France » ne
+// pointait que sur des lignes factices) et le jeu vise l'Europe entière, pas un
+// binaire Paris/France. La dimension géographique vit dans l'onglet « Ville »
+// (les villes qui s'affrontent) ; l'onglet Joueurs = un seul classement (ta
+// ville de saison, dérivé du serveur). Un vrai scope local↔large reviendra quand
+// il y aura des données multi-villes réelles (jamais de scope qui ne montre que
+// de la démo — règle §A + honnêteté).
 
-/** Boards indexés — le filtre France sur Joueurs bascule vers le board national. */
+/** Boards indexés (Crews / Ville — démo au MVP ; Joueurs vient du hook). */
 const BOARD = (id: string): LeagueBoard =>
   LEAGUE_BOARDS.find((b) => b.id === id) ?? LEAGUE_BOARDS[0]!;
 
@@ -202,7 +202,6 @@ export default function LeagueScreen() {
   const toast = useToast();
   const { prefs } = useMotivationPrefs();
   const [tab, setTab] = useState<PrimaryTab>('joueurs');
-  const [scope, setScope] = useState<ScopeFilter>('paris');
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
@@ -213,12 +212,12 @@ export default function LeagueScreen() {
   const { joueursBoard, source } = useSeasonLeaderboard();
 
   const discreet = prefs.discreetMode;
-  // Joueurs·Paris = board réel du hook ; France/Crews/Ville restent démo.
+  // Joueurs = board réel du hook (ta ville de saison) ; Crews / Ville démo au MVP.
   const board = useMemo<LeagueBoard>(() => {
-    if (tab === 'joueurs') return scope === 'france' ? BOARD('france') : joueursBoard;
+    if (tab === 'joueurs') return joueursBoard;
     if (tab === 'crews') return BOARD('crews');
     return BOARD('ville');
-  }, [tab, scope, joueursBoard]);
+  }, [tab, joueursBoard]);
 
   // Ma ligne + écart, DÉRIVÉS du board Joueurs dynamique (§17).
   const meRow = useMemo(() => joueursBoard.rows.find((r) => r.me === true), [joueursBoard]);
@@ -231,20 +230,12 @@ export default function LeagueScreen() {
   const inTop10 = meRow !== undefined && meRow.rank <= 10;
   const isLeader = meRow !== undefined && meRow.rank === 1;
 
-  // Le bloc TOI est dérivé du board Joueurs·Paris : il ne s'affiche QUE sur ce
-  // board (jamais une ancre joueur figée au-dessus d'un podium Crews/Ville/
-  // France — audit P1). Le #1 garde sa carte : état « en tête » dédié.
-  const onJoueursParis = tab === 'joueurs' && scope === 'paris';
+  // Le bloc TOI est dérivé du board Joueurs : il ne s'affiche QUE sur cet onglet
+  // (jamais une ancre joueur figée au-dessus d'un podium Crews/Ville — audit P1).
+  // Le #1 garde sa carte : état « en tête » dédié.
+  const onJoueurs = tab === 'joueurs';
   const showToi =
-    !discreet && onJoueursParis && meRow !== undefined && (aboveRow !== undefined || isLeader);
-
-  // Portée RÉELLE du board courant : le kicker ne fige plus « PARIS ». France
-  // pour Joueurs·France et pour le board Ville (classement national des villes) ;
-  // Paris sinon (Joueurs·Paris, Crews — démo francilienne).
-  const scopeLabel =
-    tab === 'ville' || (tab === 'joueurs' && scope === 'france')
-      ? 'FRANCE'
-      : CITIES.paris.name.toUpperCase();
+    !discreet && onJoueurs && meRow !== undefined && (aboveRow !== undefined || isLeader);
 
   // Mode discret §10.3 : je n'apparais JAMAIS dans un leaderboard global.
   const rows = discreet ? board.rows.filter((r) => r.me !== true) : board.rows;
@@ -278,13 +269,16 @@ export default function LeagueScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header SAISON (AMENDEMENT-29 : ex-« Paris League »). Le TITRE porte le
-            nom de l'écran (« Saison ») ; le kicker situe la saison + la semaine +
-            la portée du board — l'HORLOGE UNIQUE de l'écran est la semaine de
-            saison. Honnêteté : cette semaine n'est JAMAIS lue du serveur (aucune
-            fenêtre de saison n'est fetchée) → marquée « (DÉMO) » quelle que soit
-            la source des lignes ; la portée est dérivée du board (plus figée). */}
+            nom de l'écran (« Saison ») ; le kicker situe la saison + la semaine —
+            l'HORLOGE UNIQUE de l'écran est la semaine de saison. Honnêteté : cette
+            semaine n'est JAMAIS lue du serveur (aucune fenêtre de saison n'est
+            fetchée) → marquée « (DÉMO) » quelle que soit la source des lignes.
+            AMENDEMENT-35 (Europe) : plus de suffixe de portée « PARIS/FRANCE »
+            figé — le jeu vise l'Europe, l'onglet dit déjà ce qu'on regarde ;
+            afficher « EUROPE » sur des lignes démo Paris/Lille serait un mensonge
+            (la vision Europe est portée par la note démo + les docs). */}
         <Text style={styles.kicker}>
-          SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} (DÉMO) · {scopeLabel}
+          SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} (DÉMO)
         </Text>
         <View style={styles.titleRow}>
           <Icon name="classement" size={22} color={colors.blanc} />
@@ -357,32 +351,17 @@ export default function LeagueScreen() {
           />
         </View>
 
-        {/* Filtre secondaire : portée (Paris/France), réservée à l'onglet Joueurs.
-            Segmented `scrollable` = largeur de CONTENU (strips légers) — aucun label
-            tronqué (pet peeve #1), plus léger que les onglets primaires. La période
-            (Semaine/Saison) n'apparaît PAS tant qu'elle n'altère pas les données :
-            un vrai découpage hebdo/saison arrive avec le backend (O1). §A : jamais
-            de filtre qui ne fait rien. */}
-        {tab === 'joueurs' ? (
-          <View style={styles.filterRow}>
-            <Segmented
-              options={SCOPE_OPTIONS}
-              value={scope}
-              tone="surface"
-              scrollable
-              accessibilityLabel="Portée du classement"
-              onChange={(id) => {
-                setScope(id);
-                setShowAll(false);
-              }}
-            />
-          </View>
-        ) : null}
+        {/* AMENDEMENT-35 : le filtre de portée « Paris/France » a été RETIRÉ (voir
+            l'en-tête du fichier) — plus léger, plus honnête, et l'onglet « Ville »
+            porte déjà la géographie. */}
 
         {/* Honnêteté : boards dont les lignes ne viennent pas du serveur =
-            démonstration, on le dit (y compris Joueurs·Paris hors session). */}
+            démonstration, on le dit — et on situe la vision (Europe) sans mentir
+            sur les données (Saison 0 ouvre Paris + Lille, le reste suit). */}
         {boardIsDemo ? (
-          <Text style={styles.demoNote}>Classement de démonstration — pas encore de données réelles.</Text>
+          <Text style={styles.demoNote}>
+            Classement de démonstration — Saison 0 ouvre Paris et Lille, l’Europe suit.
+          </Text>
         ) : null}
 
         {/* PODIUM top 3 — remonté à chaque changement de board (key) */}
@@ -418,10 +397,10 @@ export default function LeagueScreen() {
             RÉCOMPENSES TOP 10 · FIN SEMAINE {SEASON_DURATION_WEEKS}
           </Text>
         </View>
-        {/* Rang perso = celui du board Joueurs·Paris (dont meRow/inTop10 sont
-            dérivés) : ne l'affiche QUE sur ce board, jamais sur Crews/Ville/
-            France où « Tu es #8 » n'aurait aucun rapport avec la liste visible. */}
-        {!discreet && onJoueursParis && inTop10 && meRow ? (
+        {/* Rang perso = celui du board Joueurs (dont meRow/inTop10 sont dérivés) :
+            ne l'affiche QUE sur cet onglet, jamais sur Crews/Ville où « Tu es #8 »
+            n'aurait aucun rapport avec la liste visible. */}
+        {!discreet && onJoueurs && inTop10 && meRow ? (
           <Text style={styles.rewardHint}>
             Tu es #{meRow.rank} — reste dans le Top 10 pour les débloquer.
           </Text>
@@ -523,7 +502,6 @@ const styles = StyleSheet.create({
   tabsWrap: { marginTop: 22 },
 
   // ── Filtre secondaire (deux strips content-width, séparés par l'espace) ──
-  filterRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
 
   // ── Note d'honnêteté : board sans source serveur = démonstration ──
   demoNote: {
