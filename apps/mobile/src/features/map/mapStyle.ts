@@ -266,9 +266,11 @@ export const territoryStyle = {
   // Objectif : zone chaude DOUCE (aplat très léger). AMENDEMENT-21 (écran
   // mission) : encore atténué — la carte n'affiche FORT que ma position, la
   // zone ciblée, la route et le point d'arrivée ; le reste recède (moins de
-  // superpositions vertes).
+  // superpositions vertes). AMENDEMENT-36 : plus d'aplat — la cible = un contour
+  // pointillé (le tracé à FERMER), désigné aussi par son pin.
   objectiveFill: withAlpha(colors.chartreuse, 0.06),
   objectiveSoft: withAlpha(colors.chartreuse, 0.05),
+  objectiveStroke: withAlpha(colors.chartreuse, 0.55),
 
   // Avant-poste : petit blob organique tenu par mon crew (secondaire → discret).
   outpostFill: withAlpha(colors.chartreuse, 0.07),
@@ -1113,50 +1115,46 @@ export function territoryStateLayers(
   const stateData = (state: TerritoryState): RealMapData =>
     geo.get(state) ?? EMPTY_COLLECTION;
   const terr = territoryStyle;
+  // AMENDEMENT-36 (retour fondateur « retire les zones ») : la carte est
+  // « JUSTE LE TRACÉ ». Plus AUCUN aplat de territoire — chaque possession est
+  // rendue par son TRACÉ (le contour de la boucle / la ligne du couloir), coloré
+  // par RÔLE. Les gros remplissages chartreuse/orange qui dominaient la carte
+  // sont supprimés ; l'aire enfermée se lit par le contour, pas par un aplat.
+  // (Le `void terr.crewFill…` n'existe plus ici : fillColor/fillOpacity retirés.)
   return withColorCasing(basemap, [
-    // Rival : ruban sombre teinté + frontière orange MARQUÉE.
+    // Rival : frontière orange MARQUÉE (le tracé rival), sans aplat.
     {
       id: 'terr-rival',
       data: stateData('rival'),
-      fillColor: terr.rivalFill,
-      fillOpacity: emph.rival,
       lineColor: scaleAlpha(terr.rivalStroke, emph.rival),
       lineWidth: RIVAL_BORDER_WIDTH,
     },
-    // Objectif : aplat léger SEUL (AMENDEMENT-16 §0 — plus de lueur large,
-    // le pin marker suffit à désigner la zone).
+    // Objectif : contour chartreuse POINTILLÉ (le tracé à fermer) — plus d'aplat ;
+    // le pin marker désigne aussi la zone (AMENDEMENT-16 §0 / -36).
     {
       id: 'terr-objective',
       data: stateData('objective'),
-      fillColor: terr.objectiveFill,
-      fillOpacity: emph.objective,
+      lineColor: scaleAlpha(terr.objectiveStroke, emph.objective),
+      lineWidth: BORDER_WIDTH,
+      lineDash: DECAY_DASH,
     },
-    // Mon crew : remplissage faible + trait continu NET (le tracé du run) —
-    // AMENDEMENT-16 §0 : la couche de glow sous le trait a disparu.
+    // Mon crew : trait continu NET = LE TRACÉ du run (le contour de la boucle).
+    // AMENDEMENT-36 : plus de remplissage — juste le tracé.
     {
       id: 'terr-crew',
       data: stateData('crew'),
-      fillColor: terr.crewFill,
-      fillOpacity: emph.crew,
       lineColor: scaleAlpha(terr.crewStroke, emph.crew),
       lineWidth: BORDER_WIDTH,
     },
-    // Avant-poste : petite boucle nette tenue (place de la Bastille).
+    // Avant-poste : petite boucle nette tenue (place de la Bastille), sans aplat.
     {
       id: 'terr-outpost',
       data: stateData('outpost'),
-      fillColor: terr.outpostFill,
-      fillOpacity: emph.crew,
       lineColor: scaleAlpha(terr.outpostStroke, emph.crew),
       lineWidth: BORDER_WIDTH,
     },
-    // Zone à défendre (decay) : ruban à frontière pointillée — muted red si urgent.
-    {
-      id: 'terr-decay-urgent-fill',
-      data: stateData('decayUrgent'),
-      fillColor: terr.decayUrgentFill,
-      fillOpacity: emph.defense,
-    },
+    // Zone à défendre (decay) : frontière pointillée — muted red si urgent (le
+    // trait terr-decay-urgent ci-dessous porte l'état ; plus d'aplat rouge).
     {
       id: 'terr-decay',
       data: stateData('decay'),
