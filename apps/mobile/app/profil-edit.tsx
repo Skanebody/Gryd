@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { goBack } from '../src/lib/nav';
 import {
   BADGE_TIER_RANK,
   badgeKeyByName,
@@ -147,7 +148,7 @@ export default function ProfilEditScreen() {
     });
     setSavedNotice(true);
     // Petit délai laissé au feedback avant retour (le profil reflète l'édit).
-    setTimeout(() => router.back(), 450);
+    setTimeout(() => goBack('/profil'), 450);
   };
 
   return (

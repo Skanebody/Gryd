@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { TerritoryFranceMap } from '../src/features/territory/TerritoryFranceMap';
@@ -84,7 +85,7 @@ export default function TerritoireScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Revenir au profil"
-              onPress={() => router.back()}
+              onPress={() => goBack('/profil')}
               hitSlop={12}
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}
             >

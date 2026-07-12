@@ -30,6 +30,7 @@ import {
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
@@ -328,7 +329,7 @@ export default function RoutePlannerScreen() {
             accessibilityRole="button"
             accessibilityLabel="Retour"
             hitSlop={12}
-            onPress={() => router.back()}
+            onPress={() => goBack()}
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
           >
             <View style={styles.mirror}>

@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { goBack } from '../src/lib/nav';
 import {
   CREW_RECRUITMENT_STATUSES,
   CREW_TAGS,
@@ -92,7 +93,7 @@ export default function CrewEditScreen() {
     saveCrewEdit({ name, tag, description, recruitment, tags });
     setSavedNotice(true);
     // Petit délai laissé au feedback avant retour au HQ (le HQ reflète l'édit).
-    setTimeout(() => router.back(), 450);
+    setTimeout(() => goBack('/crew'), 450);
   };
 
   const onReset = () => {

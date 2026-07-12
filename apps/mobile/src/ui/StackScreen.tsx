@@ -7,10 +7,11 @@
  */
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, spacing, type IconName } from '@klaim/shared';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../features/nav/metrics';
+import { goBack } from '../lib/nav';
 import { Icon } from './Icon';
 
 interface StackScreenProps {
@@ -20,10 +21,12 @@ interface StackScreenProps {
   /** Sur-titre mono gris optionnel sous la barre. */
   kicker?: string;
   subtitle?: string;
+  /** Parent de repli si l'écran n'a pas d'historique (défaut : les onglets). */
+  backHref?: Href;
   children: ReactNode;
 }
 
-export function StackScreen({ title, icon, kicker, subtitle, children }: StackScreenProps) {
+export function StackScreen({ title, icon, kicker, subtitle, backHref, children }: StackScreenProps) {
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
@@ -32,7 +35,7 @@ export function StackScreen({ title, icon, kicker, subtitle, children }: StackSc
           accessibilityRole="button"
           accessibilityLabel="Retour"
           hitSlop={12}
-          onPress={() => router.back()}
+          onPress={() => goBack(backHref)}
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
           {/* Chevron pointé à gauche (le tracé pointe à droite → miroir). */}

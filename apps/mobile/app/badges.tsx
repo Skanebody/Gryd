@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, motion, radii, spacing } from '@klaim/shared';
 import { Icon } from '../src/ui/Icon';
@@ -372,7 +372,7 @@ export default function BadgesScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Revenir au profil"
-          onPress={() => router.back()}
+          onPress={() => goBack('/profil')}
           hitSlop={12}
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
