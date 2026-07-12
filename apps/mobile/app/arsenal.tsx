@@ -244,10 +244,12 @@ export default function ArsenalScreen() {
   );
 
   /**
-   * Carte de liste (exploration) : 3 lignes max (usage / Sert à / Limite) + prix.
-   * L'achat se décide dans la sheet — le bouton dit donc « Voir détails »
-   * (jamais « Obtenir » pour une action qui n'obtient pas). « Équiper » reste
-   * direct : il équipe vraiment en un tap.
+   * Carte de liste (exploration) — §A « 1 card = 1 idée, ≤ 3 infos » : on garde
+   * en surface le strict nécessaire (nom + 1 ligne d'usage courte + prix/CTA).
+   * « Sert à »/« Limite » ne sont PLUS empilés ici — ils vivent au tap, dans la
+   * sheet détail (ItemDetail les affiche toujours). L'achat se décide dans la
+   * sheet : le bouton dit donc « Voir détails » (jamais « Obtenir » pour une
+   * action qui n'obtient pas). « Équiper » reste direct : il équipe en un tap.
    */
   const renderCard = useCallback(
     (entry: ArsenalRecommendation, emphasis: 'primary' | 'secondary' = 'secondary') => {
@@ -264,10 +266,6 @@ export default function ArsenalScreen() {
           slug={item.slug}
           rarity={item.rarity}
           usage={advice.headline}
-          explanation={[
-            { label: 'Sert à', text: advice.benefit },
-            { label: 'Limite', text: advice.guardrail },
-          ]}
           price={buyable ? price : undefined}
           state={item.draft ? 'locked' : item.packOnly && !ownedNow ? 'locked' : 'unlocked'}
           owned={ownedNow}
@@ -719,9 +717,15 @@ function ItemDetail({
             style={({ pressed }) => [styles.detailPrimary, pressed && styles.pressed]}
           >
             <Text style={styles.detailPrimaryText}>
-              {hasEclats && (!dual || currency === 'eclats')
-                ? `Obtenir · ${item.priceShards?.toLocaleString('fr-FR')} Éclats`
-                : `Obtenir · ${item.priceEur?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+              {/* Une seule lecture du prix par scène : en double-prix, le
+                  segmented au-dessus PORTE déjà les deux montants (celui choisi
+                  surligné) — le CTA ne répète donc pas le prix, il dit « Obtenir ».
+                  Hors double-prix, aucun segmented : le CTA porte le prix. */}
+              {dual
+                ? 'Obtenir'
+                : hasEclats
+                  ? `Obtenir · ${item.priceShards?.toLocaleString('fr-FR')} Éclats`
+                  : `Obtenir · ${item.priceEur?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
             </Text>
           </Pressable>
         )}

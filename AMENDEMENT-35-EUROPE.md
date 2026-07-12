@@ -68,3 +68,25 @@ il y aura des **données multi-villes réelles** — jamais avant.
 Moteur, règles de jeu §3, charte tri-couleur, épuration §A, anti pay-to-win,
 architecture Supabase/RLS. Seul le **cadre géographique déclaré** (France → Europe)
 et le retrait du filtre de portée du classement changent.
+
+## 6. Précision (12/07/2026) — villes européennes sur un board DÉMO
+
+Le §2 est **précisé**, pas contredit. La ligne rouge de l'honnêteté est :
+**présenter du démo comme RÉEL** — retirer le marqueur « (DÉMO) », ou prétendre
+que de vrais classements/joueurs européens existent. Elle n'interdit PAS d'avoir
+des **villes européennes placeholder sur un board EXPLICITEMENT marqué
+« démonstration »**.
+
+Concrètement : l'onglet **« Ville »** du classement affiche déjà « Classement de
+démonstration » et listait des villes françaises hors-focus (Lyon, Marseille…) où
+aucun vrai joueur ne court encore — exactement le même statut « placeholder » que
+Berlin ou Barcelone. Le board Ville démo est donc **européanisé** (Paris + Lille
+en tête = focus Saison 0, puis Berlin/Barcelone/Milan/Amsterdam/Bruxelles/Lyon)
+pour **illustrer** la vision Europe. Tant que le board reste marqué démo et ne
+prétend rien de réel, c'est honnête.
+
+Restent interdits (inchangé) : retirer le « (DÉMO) », afficher « EUROPE » comme si
+les lignes étaient réelles, ou fabriquer des **rivaux européens live** sur la carte
+de jeu. La **carte France** (marqueurs de villes) n'est PAS européanisée ici
+(contrainte de layout du bandeau de chips + caméra Paris) — elle suivra quand de
+vraies villes seront peuplées.

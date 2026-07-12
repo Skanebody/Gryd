@@ -374,21 +374,14 @@ function TerritoryBlock() {
         <Text style={styles.territoryPct}>{t.controlPct} %</Text>
       </View>
       <ProgressBar value={t.controlPct / 100} height={6} />
+      {/* Surface ≤ 3 infos (§A) : secteur + contrôle % (le KPI, jauge) + le seul
+          signal d'action — les frontières contestées (violet). Le reste (zones
+          tenues, routes ouvertes) vit sur la carte, ouverte au tap de la carte. */}
       <View style={styles.territoryStats}>
-        <View style={styles.territoryCell}>
-          <Text style={styles.territoryValue}>{formatInt(t.zonesHeld)}</Text>
-          <Text style={styles.territoryLabel}>Zones tenues</Text>
-        </View>
-        <View style={styles.territoryCell}>
-          <Text style={[styles.territoryValue, { color: gameColors.contested }]}>
-            {t.contestedBorders}
-          </Text>
-          <Text style={styles.territoryLabel}>Frontières contestées</Text>
-        </View>
-        <View style={styles.territoryCell}>
-          <Text style={styles.territoryValue}>{t.openRoutes}</Text>
-          <Text style={styles.territoryLabel}>Routes ouvertes</Text>
-        </View>
+        <Text style={[styles.territoryValue, { color: gameColors.contested }]}>
+          {t.contestedBorders}
+        </Text>
+        <Text style={styles.territoryStatLabel}>frontières contestées · détail sur la carte</Text>
       </View>
     </Pressable>
   );
@@ -1178,6 +1171,8 @@ export default function CrewScreen() {
   const [showCoffre, setShowCoffre] = useState(false);
   /** Détail Perks (débloqués + prochain + à venir) révélé au tap (Base). */
   const [showPerks, setShowPerks] = useState(false);
+  /** Détail header (niveau + rang ville) révélé au tap — surface ≤ 3 infos (§A). */
+  const [showHeaderDetail, setShowHeaderDetail] = useState(false);
 
   // ── Crew Boost DÉMO actif (AMENDEMENT-16 §13.1) : contribution volontaire,
   // effet COFFRE uniquement (+25 %), jamais de points. Un membre a offert un
@@ -1380,7 +1375,7 @@ export default function CrewScreen() {
     offerGift(
       kind === 'chest'
         ? { title: 'Coffre cosmétique', rewardsTotal: 5, anonymous, by: CHAT_ME }
-        : { title: 'Crew Boost 24 h', rewardsTotal: 5, anonymous, by: CHAT_ME },
+        : { title: 'Boost crew 24 h', rewardsTotal: 5, anonymous, by: CHAT_ME },
     );
     setChatFilter('dons');
     setTab('chat');
@@ -1569,12 +1564,23 @@ export default function CrewScreen() {
                 {STATUS_LABELS_FR[status] ?? ACTIVITY_STATUS_LABELS[status]}
               </Text>
             </View>
-            {/* Ligne d'identité : l'ACTIVITÉ d'abord (X/Y actifs), puis niveau
-                et rang ville — le statut vit déjà dans le chip au-dessus. */}
-            <Text style={styles.identityLine} numberOfLines={2}>
-              {activeMembers}/{CREW_MAX_MEMBERS} actifs · Niveau {level} · #
-              {MY_CREW.localRank} {MY_CREW.city}
-            </Text>
+            {/* Surface ≤ 3 infos (§A) : le chip (état) + l'ACTIVITÉ (X/Y actifs,
+                le KPI qui domine) + la progression (jauge + XP). Niveau et rang
+                ville passent en SECONDAIRE au tap — jamais perdus, jamais tronqués. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showHeaderDetail }}
+              accessibilityLabel="Détails du crew : niveau et rang dans la ville"
+              hitSlop={6}
+              onPress={() => {
+                haptics.light();
+                setShowHeaderDetail((v) => !v);
+              }}
+            >
+              <Text style={styles.identityLine} numberOfLines={1}>
+                {activeMembers}/{CREW_MAX_MEMBERS} actifs
+              </Text>
+            </Pressable>
             <View style={styles.headerGauge}>
               <ProgressBar value={levelProgress} height={7} />
             </View>
@@ -1586,6 +1592,12 @@ export default function CrewScreen() {
                 ? `${formatInt(nextLevelXp - MY_CREW.xp)} XP vers niv. ${level + 1}`
                 : 'Niveau max atteint'}
             </Text>
+            {/* SECONDAIRE (tap) : niveau + rang ville — détail, jamais imposé. */}
+            {showHeaderDetail ? (
+              <Text style={styles.headerDetailLine} numberOfLines={1}>
+                Niveau {level} · #{MY_CREW.localRank} {MY_CREW.city}
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -1727,7 +1739,7 @@ export default function CrewScreen() {
             {/* Perks — tap → détail (débloqués / prochain / à venir). */}
             <BaseCard
               icon="couronne"
-              label="Perks"
+              label="Avantages"
               value={`${unlockedPerks.length} débloqués`}
               sub={nextPerk ? `Prochain au niveau ${nextPerk.level}` : 'Tous débloqués'}
               onPress={() => {
@@ -1851,7 +1863,7 @@ export default function CrewScreen() {
               <Text style={styles.perkNote}>
                 Cosmétique et organisation — jamais d'avantage territorial.
               </Text>
-              <SectionLabel>PERKS DÉBLOQUÉS · {unlockedPerks.length}</SectionLabel>
+              <SectionLabel>AVANTAGES DÉBLOQUÉS · {unlockedPerks.length}</SectionLabel>
               <View style={styles.perkList}>
                 {unlockedPerks.map((p) => {
                   const visual = PERK_VISUALS[p.key] ?? PERK_VISUAL_FALLBACK;
@@ -1871,7 +1883,7 @@ export default function CrewScreen() {
 
               {nextPerk ? (
                 <>
-                  <SectionLabel>PROCHAIN PERK</SectionLabel>
+                  <SectionLabel>PROCHAIN AVANTAGE</SectionLabel>
                   <PerkCard
                     name={nextPerk.name}
                     icon={(PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).icon}
@@ -1979,7 +1991,7 @@ export default function CrewScreen() {
                     {wallOptIn ? <View style={styles.wallCheckDot} /> : null}
                   </View>
                   <View style={styles.wallToggleText}>
-                    <Text style={styles.wallToggleLabel}>Afficher le Crew Wall</Text>
+                    <Text style={styles.wallToggleLabel}>Afficher le Mur du crew</Text>
                     <Text style={styles.wallToggleSub}>
                       Supporters de la saison — sans montant, offrande anonyme respectée.
                     </Text>
@@ -2389,13 +2401,13 @@ export default function CrewScreen() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Offrir un Crew Boost 24 h"
+              accessibilityLabel="Offrir un Boost crew 24 h"
               onPress={() => onOfferGift('boost', false)}
               style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
             >
               <Icon name="cadeau" size={18} color={gameColors.gold} />
               <View style={styles.sheetChoiceText}>
-                <Text style={styles.sheetActionLabel}>Crew Boost 24 h</Text>
+                <Text style={styles.sheetActionLabel}>Boost crew 24 h</Text>
                 <Text style={styles.sheetChoiceHint} numberOfLines={1}>
                   Accélère le coffre · jamais de territoire
                 </Text>
@@ -2931,6 +2943,12 @@ const styles = StyleSheet.create({
     marginTop: 7,
     fontVariant: ['tabular-nums'],
   },
+  // Détail header révélé au tap (niveau + rang ville) — secondaire, gris.
+  headerDetailLine: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    marginTop: 6,
+  },
   // Gros CTA + rangée d'actions légères, séparés du bloc identité par un filet
   // discret (séparateur, PAS un cadre de card).
   headerCta: {
@@ -3117,23 +3135,24 @@ const styles = StyleSheet.create({
   },
   territoryStats: {
     flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
     marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: borderState.hairline,
   },
-  territoryCell: { flex: 1, alignItems: 'center', gap: 3 },
   territoryValue: {
     color: colors.blanc,
     fontSize: fontSizes.md,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  territoryLabel: {
+  territoryStatLabel: {
+    flex: 1,
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 0.3,
-    textAlign: 'center',
   },
   // ── Membres ──
   memberItem: { marginBottom: 8 },

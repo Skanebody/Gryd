@@ -7,6 +7,14 @@
  * uniquement : l'écart en hexes neutres est DÉRIVÉ côté écran via
  * POINTS_NEUTRAL_HEX — aucun barème ici. TODO(O1) brancher les leaderboards
  * Supabase et supprimer ce fichier.
+ *
+ * CADRE EUROPE (AMENDEMENT-35, précisé §6) : l'onglet « Ville » est un board de
+ * DÉMONSTRATION (l'écran l'affiche « Classement de démonstration ») — au même
+ * titre que Lyon/Marseille (aucun vrai joueur n'y court encore), il peut illustrer
+ * la vision EUROPE avec des villes européennes placeholder. Paris + Lille restent
+ * EN TÊTE (focus Saison 0). Honnêteté §A : le mensonge interdit c'est présenter
+ * du démo comme RÉEL (retirer le « (DÉMO) », prétendre de vrais classements
+ * européens), PAS avoir des villes européennes sur un board explicitement démo.
  */
 import type { IconName } from '@klaim/shared';
 
@@ -93,14 +101,16 @@ export const LEAGUE_BOARDS: readonly LeagueBoard[] = [
     kind: 'city',
     valueLabel: 'zones',
     rows: [
-      { rank: 1, name: 'Paris', sub: 'Île-de-France', value: 48_210, me: true },
-      { rank: 2, name: 'Lille', sub: 'Hauts-de-France', value: 22_480 },
-      { rank: 3, name: 'Lyon', sub: 'Auvergne-Rhône-Alpes', value: 18_340 },
-      { rank: 4, name: 'Marseille', sub: 'PACA', value: 16_900 },
-      { rank: 5, name: 'Bordeaux', sub: 'Nouvelle-Aquitaine', value: 12_750 },
-      { rank: 6, name: 'Nantes', sub: 'Pays de la Loire', value: 11_230 },
-      { rank: 7, name: 'Rennes', sub: 'Bretagne', value: 9840 },
-      { rank: 8, name: 'Strasbourg', sub: 'Grand Est', value: 9310 },
+      // Board DÉMO (Europe entière, AMENDEMENT-35) : Paris + Lille en tête (focus
+      // Saison 0), puis grandes villes européennes en placeholder démo.
+      { rank: 1, name: 'Paris', sub: 'France', value: 48_210, me: true },
+      { rank: 2, name: 'Lille', sub: 'France', value: 22_480 },
+      { rank: 3, name: 'Berlin', sub: 'Allemagne', value: 18_340 },
+      { rank: 4, name: 'Barcelone', sub: 'Espagne', value: 16_900 },
+      { rank: 5, name: 'Milan', sub: 'Italie', value: 12_750 },
+      { rank: 6, name: 'Amsterdam', sub: 'Pays-Bas', value: 11_230 },
+      { rank: 7, name: 'Bruxelles', sub: 'Belgique', value: 9840 },
+      { rank: 8, name: 'Lyon', sub: 'France', value: 9310 },
     ],
   },
   {

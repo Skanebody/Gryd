@@ -7,6 +7,14 @@
  * générés ici restent la VÉRITÉ « zones » (KPI/zoneCount — les cellules sont
  * le moteur invisible, jamais rendues). 100 % déterministe — aucune règle de
  * jeu ici, pur ancrage démo. Remplacé par hex_claims (Supabase) au Milestone 2.
+ *
+ * CADRE EUROPE (AMENDEMENT-35) : le plafond géographique de GRYD est désormais
+ * l'EUROPE, mais la Saison 0 reste focalisée Paris + Lille (+ Lyon rival démo).
+ * Règle d'honnêteté §A NON négociable (AMENDEMENT-35 §2/§4) : on NE fabrique PAS
+ * de villes ou de rivaux européens factices (Berlin, Barcelone, Milan…) sur la
+ * carte tant qu'aucun vrai coureur ne les peuple — la vision Europe se surface
+ * en COPIE + docs, jamais en inventant des possessions/rivaux. FRANCE_CITIES_DEMO
+ * reste donc l'ancrage réel Saison 0 (Paris/Lille/Lyon), pas un atlas européen.
  */
 import { gridDisk, gridPathCells, latLngToCell } from 'h3-js';
 import { H3_RESOLUTION } from '@klaim/shared';

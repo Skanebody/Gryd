@@ -1,7 +1,7 @@
 /**
  * GRYD — onglet Profil COMPACT (AMENDEMENT-17 §1.3). Un écran = une identité :
- * la carte de joueur (nom · niveau · crew · « 55 zones tenues · Paris + Lille »
- * · rang ville) porte deux actions sobres — [Partager] / [Modifier profil],
+ * la carte de joueur (nom · titre · niveau · ville · crew — ≤ 3 infos en
+ * surface) porte deux actions sobres — [Partager] / [Modifier profil],
  * JAMAIS un GO, jamais « Ajouter » sur SON propre profil. Puis les modules,
  * ordre AMENDEMENT-17 : Territoire (résumé stratégique — il porte le SEUL CTA
  * chartreuse de l'écran, contextuel Défendre/Conquérir) → Progression → Badges
@@ -49,7 +49,6 @@ import { BadgeHex } from '../../src/features/badges/BadgeHex';
 import { useMyBadges } from '../../src/features/badges/myBadges';
 import { MY_CREW } from '../../src/features/crew/demo';
 import {
-  FRAME_TIER_LABELS,
   GRIP_RANK_LABELS,
   gripRankForLevel,
   playerLevelForXp,
@@ -64,7 +63,6 @@ import { useMyEconomy } from '../../src/features/social/economy';
 import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
-import { franceKpi } from '../../src/features/territory/franceTerritories';
 import {
   TERRITORY_DEMO_FLAGS,
   TERRITORY_STATUS_META,
@@ -88,11 +86,6 @@ const STREAK_WEEKS = 3;
 /** Bornes XP par niveau (courbe §43.1) — table pure. Le niveau/tier/jauge sont
  *  DÉRIVÉS de l'XP RÉELLE dans le composant (O1 : useMyEconomy), plus au module. */
 const XP_TABLE = playerLevelXpTable();
-/**
- * Territoire : KPI DÉRIVÉ des mêmes données démo que la vraie carte de France
- * (AMENDEMENT-13 §3 — digital twin, jamais codé en dur).
- */
-const TERRITORY_KPI = franceKpi();
 
 /**
  * Résout un flag démo territoire depuis le paramètre de route `?territory=…`
@@ -383,10 +376,11 @@ export default function ProfilScreen() {
               <Text style={styles.title} numberOfLines={1}>
                 {displayedTitle}
               </Text>
-              {/* Niveau · tier · ville : 3 tokens variables. Wrap sur 2 lignes
-                  plutôt que couper au « … » (Règle §A.9 : jamais tronqué). */}
+              {/* Niveau · ville : descripteur d'identité compact (le tier est lu
+                  sur l'anneau d'avatar ; le niveau détaillé vit dans Progression).
+                  Wrap sur 2 lignes plutôt que couper au « … » (Règle §A.9). */}
               <Text style={styles.identity} numberOfLines={2}>
-                Niveau {runnerLevel} · {FRAME_TIER_LABELS[runnerTier]} · {profile.city}
+                Niveau {runnerLevel} · {profile.city}
               </Text>
               <View style={styles.crewRow}>
                 <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
@@ -396,22 +390,10 @@ export default function ProfilScreen() {
               </View>
             </View>
           </View>
-          {/* Bio courte optionnelle (anti-shame : jamais imposée) */}
-          {profile.bio.trim().length > 0 ? (
-            <Text style={styles.bio} numberOfLines={2}>
-              {profile.bio}
-            </Text>
-          ) : null}
-          {/* Les 2 infos qui comptent : territoire tenu + rang ville */}
-          <View style={styles.headerStats}>
-            <Text style={styles.headerHold} numberOfLines={1}>
-              <Text style={styles.headerHoldNum}>{formatInt(territory.zonesHeld)}</Text>{' '}
-              zones tenues · {TERRITORY_KPI.citiesLabel}
-            </Text>
-            <Text style={styles.headerRank} numberOfLines={1}>
-              Rang #{seasonRank} {profile.seasonScope}
-            </Text>
-          </View>
+          {/* Bio + stats (zones tenues, rang ville) SORTIES de la surface pour tenir
+              ≤ 3 infos (§A) : les zones tenues sont le héros du module « Mon
+              territoire » juste dessous, le rang vit dans Saison, la bio s'édite via
+              « Modifier profil ». La card ne garde que l'IDENTITÉ. */}
           {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
               de gros rectangle. Le seul gros CTA chartreuse de l'écran est l'action
               CONTEXTUELLE du territoire (Défendre / Conquérir), pas l'édition de profil.
@@ -504,13 +486,8 @@ export default function ProfilScreen() {
               <Text style={styles.territoryHeroScope} numberOfLines={1}>
                 {territory.scopeLabel}
               </Text>
-
-              {/* 3 faits stratégiques : frontières · routes · zone à défendre */}
-              {territory.facts.length > 0 ? (
-                <Text style={styles.territoryFacts} numberOfLines={2}>
-                  {territory.facts.join(' · ')}
-                </Text>
-              ) : null}
+              {/* Faits stratégiques (frontières · routes · zone à défendre) déportés
+                  au détail /territoire — le résumé garde statut + héros + action (§A). */}
             </View>
 
             {/* ── 40 % MINI-CARTE (aperçu statique, non-interactif) ── */}
@@ -546,18 +523,8 @@ export default function ProfilScreen() {
               </Text>
             </Pressable>
           </View>
-
-          {/* ── Micro-badges territoire (≤ 3, le reste au tap) ── */}
-          {territory.badges.length > 0 ? (
-            <View style={styles.territoryBadges}>
-              {territory.badges.slice(0, 3).map((b) => (
-                <View key={b.label} style={styles.territoryBadgeChip}>
-                  <Icon name={b.icon} size={11} color={colors.gris} />
-                  <Text style={styles.territoryBadgeText}>{b.label}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
+          {/* Micro-badges territoire déportés au détail /territoire (le résumé
+              reste à ≤ 3 infos : statut · héros zones · prochaine action). */}
         </View>
 
         {/* ── SOLO (A.5) : l'app ne semble jamais vide — crews près de toi ── */}
@@ -831,7 +798,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, letterSpacing: 0.3 },
-  bio: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
   crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   crewName: {
     flex: 1,
@@ -839,24 +805,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: '600',
     letterSpacing: 0.4,
-  },
-  headerStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: borderState.hairline,
-    paddingTop: 12,
-  },
-  headerHold: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
-  headerHoldNum: { color: colors.chartreuse, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  headerRank: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 0.3,
   },
   // Actions légères (IconAction) — rangée répartie, sans gros rectangle.
   headerActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: 28 },
@@ -930,12 +878,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     letterSpacing: 0.2,
   },
-  territoryFacts: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.3,
-    letterSpacing: 0.2,
-  },
   // Mini-carte (aperçu statique, ~40 %) — VRAIE preview de contenu (la carte EST
   //  le container) : pas de cadre, elle flotte sur la surface, fond = espace N0.
   territoryMini: {
@@ -970,22 +912,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   territoryCtaLabel: { fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.6 },
-  // Micro-badges territoire (≤ 3) — pills posées côte à côte ; si les 3 labels ne
-  //  tiennent pas sur la largeur de la card, elles PASSENT À LA LIGNE (flexWrap) au
-  //  lieu de rétrécir/tronquer. Interdiction absolue de « … » sur un label (pet peeve #1).
-  territoryBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  // Micro-badges = pills N2 relevées, SANS contour (le contour est réservé aux états).
-  //  Pas de flexShrink : chaque pill se dimensionne sur son libellé complet.
-  territoryBadgeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: elevation.raised,
-    borderRadius: radii.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  territoryBadgeText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
 
   // ── Bloc SOLO : crews près de toi (A.5 — jamais de vide en solo) ──
   // Bloc SOLO = invitation (prompt) → l'un des 20 % avec contour : filet chartreuse

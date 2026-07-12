@@ -851,7 +851,7 @@ function ConquestResultScreen({
                   )}
                   <View style={styles.verifiedTrust}>
                     <MiniStat label="GPS" value={String(stats.gpsTrust)} />
-                    <MiniStat label="MOTION" value={String(stats.motionTrust)} />
+                    <MiniStat label="MOUVEMENT" value={String(stats.motionTrust)} />
                   </View>
                 </View>
               </View>
@@ -944,11 +944,11 @@ function ConquestResultScreen({
                         <MiniStat label="GPS" value={String(stats.gpsTrust)} />
                       </View>
                       <View style={styles.calcCell}>
-                        <MiniStat label="MOTION" value={String(stats.motionTrust)} />
+                        <MiniStat label="MOUVEMENT" value={String(stats.motionTrust)} />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
-                          label="VERIFY"
+                          label="VALIDÉ"
                           value={
                             stats.verified ? `≥ ${verifyTiers.full}` : `< ${verifyTiers.partial}`
                           }
@@ -1038,7 +1038,7 @@ function ConquestResultScreen({
                   tier={badge.tier}
                   state="unlocked"
                   requirement={badge.requirement}
-                  reward="Frame de profil Routes"
+                  reward="Cadre de profil Routes"
                 />
               </View>
             ) : null}

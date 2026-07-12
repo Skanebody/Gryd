@@ -111,15 +111,15 @@ export function gripRankForLevel(level: number): GripRank {
   return rank;
 }
 
-/** Libellés d'affichage des rangs GRIP (noms de marque, invariants langue). */
+/** Libellés d'affichage des rangs GRIP (français ; clés/enum inchangés). */
 export const GRIP_RANK_LABELS: Record<GripRank, string> = {
-  rookie: 'Rookie',
-  runner: 'Runner',
-  scout: 'Scout',
-  defender: 'Defender',
-  conqueror: 'Conqueror',
-  veteran: 'Veteran',
-  legend: 'Legend',
+  rookie: 'Recrue',
+  runner: 'Coureur',
+  scout: 'Éclaireur',
+  defender: 'Défenseur',
+  conqueror: 'Conquérant',
+  veteran: 'Vétéran',
+  legend: 'Légende',
 };
 
 /** État d'affichage du coffre hebdo (ChestCard) — dérivation UNIQUE partagée. */

@@ -55,7 +55,6 @@ import {
 } from '../../src/ui/game';
 import {
   chestStateFor,
-  CHEST_TIER_LABELS,
   CREW_ROLE_LABELS,
   roleCan,
 } from '../../src/features/crew/rules';
@@ -310,10 +309,12 @@ interface MissionEntry {
   title: string;
   /** SEUL chiffre-clé de l'écran : minutes restantes avant la fin de fenêtre. */
   minutesLeft: number;
-  /** Sous-ligne compacte : distance approx + gain estimé. Jamais tronquée. */
+  /**
+   * Sous-ligne compacte : distance approx + enjeu chiffré (gain estimé OU zones
+   * restantes). UNIQUE ligne de données affichée sous le titre, aussi bien en
+   * ligne « Autres missions » qu'en surface du hero (densité §A). Jamais tronquée.
+   */
   meta: string;
-  /** Phrase du hero : objet + distance + enjeu + gain (brief mission n°1). */
-  phrase: string;
   /** Verbe du SEUL CTA plein (si cette mission est n°1). */
   cta: string;
   /** Verbe précis de l'action inline (ligne compacte). */
@@ -372,11 +373,13 @@ function SectionToggle({
 
 /**
  * MISSION n°1 — LA seule vraie surface (N1) de l'écran et LE seul CTA
- * chartreuse plein. Kicker + titre + temps restant (grand, avec la mention
- * « restant » : jamais un chiffre porté par la seule position) + phrase
- * complète (objet · distance · enjeu · gain, JAMAIS tronquée) + CTA.
+ * chartreuse plein. Densité §A « 1 card = 1 idée, ≤ 3 infos » : kicker (le
+ * verbe/nature) + titre (l'objet) + temps restant (grand, UNE seule fois, avec
+ * la mention « restant ») + UNE ligne compacte (distance + enjeu chiffré). Le
+ * verbe et le temps dominent ; le reste (récit, coéquipiers, gain détaillé)
+ * descend au tap sur l'en-tête — jamais imposé en surface.
  * « URGENT » + contour rouge réservés aux fenêtres < 12 h ; sinon badge neutre
- * « PRIORITÉ 1 » et contour discret. Le détail descend au tap sur l'en-tête.
+ * « PRIORITÉ 1 » et contour discret.
  */
 function MissionHero({
   entry,
@@ -437,8 +440,11 @@ function MissionHero({
           ) : null}
         </View>
       </Pressable>
-      {/* Phrase de mission complète — jamais clampée (« textes jamais coupés »). */}
-      <Text style={styles.heroPhrase}>{entry.phrase}</Text>
+      {/* UNE ligne compacte (distance + enjeu chiffré) — jamais clampée
+          (« textes jamais coupés »). Densité §A : le verbe (kicker + CTA) et le
+          temps dominent ; le temps n'apparaît QU'UNE fois (dans la métrique
+          ci-dessus), jamais répété ici. Le récit long descend au tap. */}
+      <Text style={styles.heroMeta}>{entry.meta}</Text>
       <View style={styles.heroCta}>
         <InlineRunCTA label={entry.cta} size="md" variant="primary" onPress={entry.onStart} />
       </View>
@@ -676,6 +682,21 @@ function SkillRecoLine({
   );
 }
 
+/**
+ * Paliers de coffre EN FRANÇAIS (surface uniquement). Les clés/enum côté moteur
+ * restent inchangées (`bronze`/`silver`/`gold`/`carbon`/`elite` dans
+ * `features/crew/rules`) — on ne traduit QUE le libellé affiché. Map locale car
+ * ce chantier reste dans warroom.tsx (CHEST_TIER_LABELS reste anglais côté rules,
+ * à franciser dans un chantier crew dédié).
+ */
+const CHEST_TIER_LABELS_FR: Record<string, string> = {
+  bronze: 'Bronze',
+  silver: 'Argent',
+  gold: 'Or',
+  carbon: 'Carbone',
+  elite: 'Élite',
+};
+
 // ============================================================================
 // Écran
 // ============================================================================
@@ -737,7 +758,6 @@ export default function WarRoomScreen() {
       title: DEFENSE_MISSION.zone,
       minutesLeft: min,
       meta: [dist, `≈ +${formatInt(DEFENSE_PTS_EST)} pts`].filter(Boolean).join(' · '),
-      phrase: `${DEFENSE_MISSION.zone}${dist ? ` · ${dist}` : ''}. ${DEFENSE_MISSION.hexes} zones tombent dans ${formatWindow(min)} — une boucle les sauve (≈ +${formatInt(DEFENSE_PTS_EST)} pts crew).`,
       cta: 'DÉFENDRE',
       action: 'Défendre',
       skillFamily: 'defender',
@@ -764,7 +784,6 @@ export default function WarRoomScreen() {
       title: revanche.sector,
       minutesLeft: min,
       meta: [dist, `≈ +${formatInt(pts)} pts`].filter(Boolean).join(' · '),
-      phrase: `${revanche.sector}${dist ? ` · ${dist}` : ''}. ${revanche.rivalCrew} t'a pris ${formatInt(revanche.zonesLost)} zones — reprends-les avant la fin de fenêtre (≈ +${formatInt(pts)} pts).`,
       cta: 'REPRENDRE',
       action: 'Reprendre',
       skillFamily: 'conqueror',
@@ -789,8 +808,9 @@ export default function WarRoomScreen() {
       kindLabel: 'RAID CREW',
       title: raid.zone,
       minutesLeft: min,
-      meta: [dist, `${formatInt(zonesLeft)} zones à reprendre`].filter(Boolean).join(' · '),
-      phrase: `${raid.zone}${dist ? ` · ${dist}` : ''}. « ${raid.title} » : reste ${formatInt(zonesLeft)} zones à reprendre avec le crew (≈ +${STEAL_PTS_PER_ZONE} pts par zone).`,
+      meta: [dist, `${formatInt(zonesLeft)} zones à reprendre`, `≈ +${STEAL_PTS_PER_ZONE} pts/zone`]
+        .filter(Boolean)
+        .join(' · '),
       cta: raid.joined ? 'COURIR ENCORE' : 'REJOINDRE LE RAID',
       action: raid.joined ? 'Courir encore' : 'Rejoindre le raid',
       skillFamily: 'conqueror',
@@ -815,8 +835,9 @@ export default function WarRoomScreen() {
       kindLabel: 'CONQUÊTE CREW',
       title: OFFENSIVE.zone,
       minutesLeft: min,
-      meta: [dist, `${formatInt(zonesLeft)} zones à prendre`].filter(Boolean).join(' · '),
-      phrase: `${OFFENSIVE.zone}${dist ? ` · ${dist}` : ''}. ${formatInt(zonesLeft)} zones à prendre, ${OFFENSIVE.activeMembers} coéquipiers sur ${OFFENSIVE.totalMembers} déjà en course (≈ +${CONQUEST_PTS_PER_ZONE} pts par zone).`,
+      meta: [dist, `${formatInt(zonesLeft)} zones à prendre`, `≈ +${CONQUEST_PTS_PER_ZONE} pts/zone`]
+        .filter(Boolean)
+        .join(' · '),
       cta: 'CONQUÉRIR',
       action: 'Conquérir',
       skillFamily: 'conqueror',
@@ -843,7 +864,6 @@ export default function WarRoomScreen() {
       title: `Boucle ${b.zone}`,
       minutesLeft: min,
       meta: [dist, `reste ${formatInt(b.missingM)} m à courir`].filter(Boolean).join(' · '),
-      phrase: `${b.zone}${dist ? ` · ${dist}` : ''}. Il reste ${formatInt(b.missingM)} m pour fermer la boucle ouverte par ${b.opener} avant la fin de fenêtre.`,
       cta: param ? 'TERMINER LA BOUCLE' : 'VOIR LA ROUTE',
       action: param ? 'Terminer' : 'Voir la route',
       skillFamily: 'finisher',
@@ -877,8 +897,8 @@ export default function WarRoomScreen() {
   const nextTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
   const chestRemaining = Math.max(0, CREW_CHEST_WEEKLY_TARGET - MY_CREW.chestProgress);
   const chestPhrase = nextTier
-    ? `${Math.round(chestPct * 100)} % — encore ${formatInt(chestRemaining)} pts pour le palier ${CHEST_TIER_LABELS[nextTier]}.`
-    : `${Math.round(chestPct * 100)} % — palier ${chest.tier ? CHEST_TIER_LABELS[chest.tier] : 'max'} atteint cette semaine.`;
+    ? `${Math.round(chestPct * 100)} % — encore ${formatInt(chestRemaining)} pts pour le palier ${CHEST_TIER_LABELS_FR[nextTier]}.`
+    : `${Math.round(chestPct * 100)} % — palier ${chest.tier ? CHEST_TIER_LABELS_FR[chest.tier] : 'max'} atteint cette semaine.`;
 
   // Gating visuel par MON rôle démo (matrice §8) — le serveur reste seul juge.
   const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
@@ -1269,7 +1289,7 @@ const styles = StyleSheet.create({
   // La mention « restant » colle au chiffre : le temps n'est jamais porté par
   // la seule position/couleur.
   heroMetricCaption: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
-  heroPhrase: {
+  heroMeta: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: 18,

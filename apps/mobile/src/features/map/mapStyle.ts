@@ -925,19 +925,26 @@ type TraceLayerList = RealMapGeoJSONLayer[];
  * `contested` remplace le core plein par un core chartreuse + un DOUBLE trait
  * orange décalé PULSÉ (langage contesté §C) — la trace reste dominante (le core
  * chartreuse est plein, l'orange n'est qu'un liseré latéral).
+ *
+ * `alpha` (0-1, défaut 1) module l'INTENSITÉ de TOUTE la pile (casing/glow/core
+ * + liseré contesté) par `scaleAlpha` — c'est l'emphase des MODES de carte
+ * (AMENDEMENT-11 §3) appliquée à la trace héros : à 0,9 (défense) ma trace est un
+ * hero net ; à 0,35 (route/exploration) elle RECULE comme une simple frontière,
+ * sans jamais changer de teinte (aucune couleur hors tokens). À 1 : rendu inchangé.
  */
 export function runTraceLayers(
   idBase: string,
   data: RealMapData,
-  opts: { glow?: boolean; contested?: boolean } = {},
+  opts: { glow?: boolean; contested?: boolean; alpha?: number } = {},
 ): TraceLayerList {
   const glow = opts.glow ?? true;
+  const a = opts.alpha ?? 1;
   const out: TraceLayerList = [
     // 1. Casing sombre porteur — détache la trace du fond ET du satellite/clair.
     {
       id: `${idBase}-casing`,
       data,
-      lineColor: traceStyle.casing,
+      lineColor: scaleAlpha(traceStyle.casing, a),
       lineWidthStops: TRACE_WIDTH_STOPS.runCasing,
       lineWidth: 15,
     },
@@ -947,7 +954,7 @@ export function runTraceLayers(
     out.push({
       id: `${idBase}-glow`,
       data,
-      lineColor: traceStyle.glow,
+      lineColor: scaleAlpha(traceStyle.glow, a),
       lineWidthStops: TRACE_WIDTH_STOPS.runGlow,
       lineWidth: 20,
     });
@@ -956,7 +963,7 @@ export function runTraceLayers(
   out.push({
     id: `${idBase}-core`,
     data,
-    lineColor: traceStyle.core,
+    lineColor: scaleAlpha(traceStyle.core, a),
     lineWidthStops: TRACE_WIDTH_STOPS.runCore,
     lineWidth: 11,
   });
@@ -968,7 +975,7 @@ export function runTraceLayers(
     out.push({
       id: `${idBase}-contested`,
       data,
-      lineColor: withAlpha(gameColors.rival, 0.9),
+      lineColor: scaleAlpha(withAlpha(gameColors.rival, 0.9), a),
       lineWidthStops: TRACE_WIDTH_STOPS.rivalCore,
       lineWidth: 4,
       lineOffset: TRACE_CONTESTED_OFFSET_PX,
@@ -982,21 +989,27 @@ export function runTraceLayers(
  * §B — Couches d'un segment RIVAL : orange, TOUJOURS plus fin/discret que ma
  * trace (casing sombre léger + core orange). Jamais aussi visible que la
  * mienne (anti-confusion §C : moi = chartreuse dominante, rival = orange en
- * retrait).
+ * retrait). `alpha` (0-1, défaut 1) module l'intensité par le mode de carte
+ * (emph.rival), comme runTraceLayers — la teinte reste le token orange.
  */
-export function rivalTraceLayers(idBase: string, data: RealMapData): TraceLayerList {
+export function rivalTraceLayers(
+  idBase: string,
+  data: RealMapData,
+  opts: { alpha?: number } = {},
+): TraceLayerList {
+  const a = opts.alpha ?? 1;
   return [
     {
       id: `${idBase}-casing`,
       data,
-      lineColor: traceStyle.rivalCasing,
+      lineColor: scaleAlpha(traceStyle.rivalCasing, a),
       lineWidthStops: TRACE_WIDTH_STOPS.rivalCasing,
       lineWidth: 9,
     },
     {
       id: `${idBase}-core`,
       data,
-      lineColor: traceStyle.rivalCore,
+      lineColor: scaleAlpha(traceStyle.rivalCore, a),
       lineWidthStops: TRACE_WIDTH_STOPS.rivalCore,
       lineWidth: 6,
     },
@@ -1015,7 +1028,8 @@ export function rivalTraceLayers(idBase: string, data: RealMapData): TraceLayerL
     AMENDEMENT-16 §0 : une frontière = CE trait + un remplissage faible,
     RIEN d'autre — plus aucune couche de lueur/glow sous les traits. */
 const BORDER_WIDTH = 2.2;
-const RIVAL_BORDER_WIDTH = 2.6;
+// (RIVAL_BORDER_WIDTH retiré : le rival n'est plus une ligne fine mais une VRAIE
+//  trace façon Strava via rivalTraceLayers — largeur par zoom, cf. TRACE_WIDTH_STOPS.)
 const CONTESTED_TRAIT_WIDTH = 2.2;
 /** Écart latéral du DOUBLE trait contesté (line-offset ± — §4ter). */
 const CONTESTED_TRAIT_OFFSET_PX = 2.5;
@@ -1122,13 +1136,11 @@ export function territoryStateLayers(
   // sont supprimés ; l'aire enfermée se lit par le contour, pas par un aplat.
   // (Le `void terr.crewFill…` n'existe plus ici : fillColor/fillOpacity retirés.)
   return withColorCasing(basemap, [
-    // Rival : frontière orange MARQUÉE (le tracé rival), sans aplat.
-    {
-      id: 'terr-rival',
-      data: stateData('rival'),
-      lineColor: scaleAlpha(terr.rivalStroke, emph.rival),
-      lineWidth: RIVAL_BORDER_WIDTH,
-    },
+    // Rival : VRAIE trace façon Strava (orange, casing+core, largeur par zoom),
+    // mais TOUJOURS plus fine/discrète que la mienne (rivalTraceLayers §B/§C) et
+    // modulée par emph.rival (recule fort hors des modes rival). Plus de simple
+    // ligne fine : l'ennemi se lit comme un tracé, jamais aussi présent que le mien.
+    ...rivalTraceLayers('terr-rival', stateData('rival'), { alpha: emph.rival }),
     // Objectif : contour chartreuse POINTILLÉ (le tracé à fermer) — plus d'aplat ;
     // le pin marker désigne aussi la zone (AMENDEMENT-16 §0 / -36).
     {
@@ -1138,14 +1150,14 @@ export function territoryStateLayers(
       lineWidth: BORDER_WIDTH,
       lineDash: DECAY_DASH,
     },
-    // Mon crew : trait continu NET = LE TRACÉ du run (le contour de la boucle).
-    // AMENDEMENT-36 : plus de remplissage — juste le tracé.
-    {
-      id: 'terr-crew',
-      data: stateData('crew'),
-      lineColor: scaleAlpha(terr.crewStroke, emph.crew),
-      lineWidth: BORDER_WIDTH,
-    },
+    // Mon crew : MA trace = le POINT FOCAL de la carte propre (§B). VRAIE trace
+    // héros façon Strava (casing sombre + core chartreuse plein, largeur par
+    // zoom, round caps) au lieu de la ligne fine. `glow=false` : sur la carte
+    // (≠ Course Live) on garde le trait net sans liseré vivant, pour ne pas
+    // réintroduire d'aplat. L'intensité suit le MODE via emph.crew : en défense
+    // (0,9) c'est un hero net ; en route/exploration (0,35) elle RECULE comme
+    // avant. Le core reste chartreuse pleine (aucune couleur hors tokens).
+    ...runTraceLayers('terr-crew', stateData('crew'), { glow: false, alpha: emph.crew }),
     // Avant-poste : petite boucle nette tenue (place de la Bastille), sans aplat.
     {
       id: 'terr-outpost',

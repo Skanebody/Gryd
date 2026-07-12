@@ -187,7 +187,7 @@ const req = (unit: string) => (t: number) => `${t.toLocaleString('fr-FR')} ${uni
 export const SKILLS: readonly SkillDef[] = [
   family(
     'defender',
-    'Defender',
+    'Défenseur',
     'Tient les frontières — recommandé pour défendre une zone fragile.',
     'defends',
     'skill_defender',
@@ -197,7 +197,7 @@ export const SKILLS: readonly SkillDef[] = [
   ),
   family(
     'finisher',
-    'Finisher',
+    'Finisseur',
     'Ferme les boucles — recommandé pour terminer une boucle ouverte.',
     'loopRuns',
     'skill_finisher',
@@ -207,7 +207,7 @@ export const SKILLS: readonly SkillDef[] = [
   ),
   family(
     'scout',
-    'Scout',
+    'Éclaireur',
     'Repère le terrain — recommandé pour explorer un secteur inconnu.',
     'pioneerHexes',
     'skill_scout',
@@ -217,7 +217,7 @@ export const SKILLS: readonly SkillDef[] = [
   ),
   family(
     'route_maker',
-    'Route Maker',
+    'Traceur',
     'Trace les itinéraires — recommandé pour relier deux secteurs.',
     'routes',
     'skill_route_maker',
@@ -227,7 +227,7 @@ export const SKILLS: readonly SkillDef[] = [
   ),
   family(
     'conqueror',
-    'Conqueror',
+    'Conquérant',
     'Prend du terrain — recommandé pour une conquête ou une reprise.',
     'hexesCaptured',
     'skill_conqueror',
@@ -237,7 +237,7 @@ export const SKILLS: readonly SkillDef[] = [
   ),
   family(
     'strategist',
-    'Strategist',
+    'Stratège',
     'Pense le plan — recommandé pour mener une mission de crew.',
     'offensivesJoined',
     'skill_strategist',
@@ -247,7 +247,7 @@ export const SKILLS: readonly SkillDef[] = [
   ),
   family(
     'supporter',
-    'Supporter',
+    'Soutien',
     'Soutient le crew — aucun pouvoir territorial, tout en entraide.',
     'crewContributions',
     'skill_supporter',
@@ -257,7 +257,7 @@ export const SKILLS: readonly SkillDef[] = [
   ),
   family(
     'streak_runner',
-    'Streak Runner',
+    'Régulier',
     'Court régulièrement — recommandé pour maintenir la cadence du crew.',
     'weeksActive',
     'skill_streak_runner',
