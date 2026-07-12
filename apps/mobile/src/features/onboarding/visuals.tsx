@@ -5,19 +5,37 @@
  * fond clair — ici tout est sur noir). Réutilise `territoryStyle`/`traceStyle`
  * (mapStyle) et les hooks d'anim du design system (reduce motion respecté).
  *
+ * VRAIS TRACÉS (demande fondateur) : plus AUCUN blob/ellipse décoratif — chaque
+ * territoire et chaque trace sont projetés depuis les VRAIES géométries de rues
+ * (realAnchors : BOUCLE_REPUBLIQUE, RUE_FAUBOURG_DU_TEMPLE, square Villemin,
+ * avenues hôtes) via le projecteur pur `fitTracesToBox`. Le plateau devient une
+ * mini-carte HONNÊTE du quartier République (mon territoire au centre, le rival
+ * à l'est, l'objectif au nord se lisent à leur vraie place relative).
+ *
  * Quatre briques :
- *   HookMapBackground — carte stylisée animée EN FOND du splash (§1).
- *   CityBoard         — le TERRAIN DE JEU en plateau DÉMO (aucune localisation
- *                       réelle) : zones par rôle, rival, zone-objectif (§2, §C).
- *   CaptureFillVisual — la zone-cible qui SE REMPLIT à la capture (§5, payoff).
+ *   HookMapBackground — carte réelle animée EN FOND du splash (§1).
+ *   CityBoard         — le TERRAIN DE JEU (plateau DÉMO — aucune géoloc réelle,
+ *                       la copy l'assume) : zones par rôle sur vrais tracés (§2, §C).
+ *   CaptureFillVisual — la vraie boucle République qui SE DESSINE puis SE REMPLIT
+ *                       à la capture (§5, payoff).
  *   SyncProgressBar   — barre de progression sobre du déroulé d'import (3a).
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import Svg, { Circle, Path, G } from 'react-native-svg';
+import Svg, { Circle, Path, Polyline, G } from 'react-native-svg';
 import { colors, gameColors } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game';
 import { territoryStyle, traceStyle, withAlpha } from '../map/mapStyle';
+import { fitTracesToBox, tracePrefix } from '../map/projectTrace';
+import {
+  AVENUE_DE_LA_REPUBLIQUE,
+  BOUCLE_REPUBLIQUE,
+  BOUCLE_SQUARE_VILLEMIN,
+  BOULEVARD_VOLTAIRE,
+  EGO_REPUBLIQUE,
+  QUAI_VALMY,
+  RUE_FAUBOURG_DU_TEMPLE,
+} from '../map/realAnchors';
 
 // ─── Progression 0..1 pilotée par état (props SVG — driver JS) ───────────────
 
@@ -68,53 +86,51 @@ function ramp(p: number, from: number, to: number): number {
   return (p - from) / (to - from);
 }
 
-// ─── Décor de plan commun (rues + territoires organiques) ────────────────────
+// ─── Décor de plan commun (VRAIES rues + territoires tracé-based) ────────────
 
 const BOARD_W = 320;
 const BOARD_H = 300;
 
-/** Rues stylisées du plan (traits fins neutres) — décor, jamais un état de jeu. */
-const STREETS: readonly string[] = [
-  'M0,70 C80,60 220,84 320,66',
-  'M0,138 C90,128 240,150 320,134',
-  'M0,208 C100,198 226,220 320,206',
-  'M62,0 C58,90 66,180 60,300',
-  'M158,0 C154,96 164,196 156,300',
-  'M248,0 C254,92 244,198 252,300',
-];
+/**
+ * Rues hôtes RÉELLES du quartier (traits fins neutres) — décor honnête, jamais
+ * un état de jeu. Ce sont les axes qui portent les couloirs de course
+ * (avenue de la République, quai de Valmy, bd Voltaire) : le plan est vrai.
+ */
+const REAL_STREETS = [AVENUE_DE_LA_REPUBLIQUE, QUAI_VALMY, BOULEVARD_VOLTAIRE] as const;
 
-/** Territoire de MON crew (blob organique, bas-gauche) — chartreuse discret. */
-const MINE_BLOB =
-  'M26,150 C18,120 44,96 84,94 C120,92 150,104 158,128 C164,146 152,158 138,164 C154,176 156,196 138,208 C112,226 60,222 40,198 C28,184 30,168 26,150 Z';
-/** Territoire RIVAL (blob, haut-droite) — orange, l'état se lit à la frontière. */
-const RIVAL_BLOB =
-  'M198,70 C214,46 258,42 288,58 C312,72 320,102 304,124 C292,140 270,146 254,138 C242,148 222,150 206,140 C186,128 180,104 186,84 C188,76 192,74 198,70 Z';
-/** ZONE-OBJECTIF (blob central, neutre) — celle que le joueur va prendre (§2). */
-const TARGET_BLOB =
-  'M138,150 C150,132 184,128 206,142 C226,154 230,180 210,196 C190,212 152,208 138,190 C128,178 128,164 138,150 Z';
+/**
+ * Projection PARTAGÉE du plateau : l'union « mon territoire (boucle République) +
+ * rival (Faubourg-du-Temple) + objectif (square Villemin) » cadrée dans le board.
+ * Chaque tracé garde sa forme ET sa position relative réelle (§4ter). Constante
+ * de module (déterministe) — calculée une fois.
+ */
+const BOARD_PROJ = fitTracesToBox(
+  [BOUCLE_REPUBLIQUE, RUE_FAUBOURG_DU_TEMPLE, BOUCLE_SQUARE_VILLEMIN],
+  BOARD_W,
+  BOARD_H,
+  18,
+);
 
-/** Aplat + traits du plan de quartier (fond commun ville/capture). */
-function BoardBase({ rivalOpacity = 1 }: { rivalOpacity?: number }) {
+/** Chemins projetés (déterministes) réutilisés par les briques du plateau. */
+const MINE_PATH = BOARD_PROJ.path(BOUCLE_REPUBLIQUE, true);
+const RIVAL_POINTS = BOARD_PROJ.points(RUE_FAUBOURG_DU_TEMPLE);
+const TARGET_PATH = BOARD_PROJ.path(BOUCLE_SQUARE_VILLEMIN, true);
+const EGO_PT = BOARD_PROJ.project(EGO_REPUBLIQUE);
+
+/** Rues réelles projetées (décor commun ville/hook). */
+function RealStreets({ proj = BOARD_PROJ, opacity = 0.08 }: { proj?: typeof BOARD_PROJ; opacity?: number }) {
   return (
     <>
-      {STREETS.map((d) => (
-        <Path key={d} d={d} stroke={withAlpha(colors.blanc, 0.08)} strokeWidth={2} fill="none" />
+      {REAL_STREETS.map((street, i) => (
+        <Polyline
+          key={i}
+          points={proj.points(street)}
+          stroke={withAlpha(colors.blanc, opacity)}
+          strokeWidth={2}
+          strokeLinecap="round"
+          fill="none"
+        />
       ))}
-      {/* Mon territoire — aplat chartreuse discret + trait net (zéro halo). */}
-      <Path
-        d={MINE_BLOB}
-        fill={territoryStyle.crewFill}
-        stroke={territoryStyle.crewStroke}
-        strokeWidth={1.8}
-      />
-      {/* Territoire rival — frontière orange marquée. */}
-      <Path
-        d={RIVAL_BLOB}
-        fill={territoryStyle.rivalFill}
-        stroke={territoryStyle.rivalStroke}
-        strokeWidth={2.4}
-        opacity={rivalOpacity}
-      />
     </>
   );
 }
@@ -122,43 +138,44 @@ function BoardBase({ rivalOpacity = 1 }: { rivalOpacity?: number }) {
 // ─── 1 — Fond de carte animé du splash (§1) ──────────────────────────────────
 
 /**
- * Carte stylisée EN FOND du hook : le plan + les territoires apparaissent en
- * douceur, une trace chartreuse se dessine lentement (vie, pas décor gratuit).
- * Volontairement ATTÉNUÉ (opacity globale basse) : c'est un fond, le titre
- * domine. Reduce motion → état final direct.
+ * Carte RÉELLE EN FOND du hook : les vraies rues + mon territoire apparaissent en
+ * douceur, la vraie boucle République se dessine lentement (vie, pas décor
+ * gratuit). Volontairement ATTÉNUÉ (opacity globale basse) : c'est un fond, le
+ * titre domine. Reduce motion → état final direct.
  */
-const HOOK_TRACE =
-  'M40,250 C34,210 58,176 100,162 C142,148 196,150 232,168 C262,183 268,214 244,232';
-const HOOK_TRACE_LEN = 430;
-
 export function HookMapBackground() {
   const p = useProgress(3200, 0, false);
   const drawP = ramp(p, 0.1, 0.9);
   const fadeIn = ramp(p, 0, 0.4);
+  const drawn = tracePrefix(BOUCLE_REPUBLIQUE, drawP);
   return (
     <View style={styles.hookBg} pointerEvents="none">
       <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`} preserveAspectRatio="xMidYMid slice">
         <G opacity={0.5 * fadeIn + 0.001}>
-          <BoardBase rivalOpacity={fadeIn} />
+          <RealStreets />
+          <Path
+            d={MINE_PATH}
+            fill={territoryStyle.crewFill}
+            stroke={territoryStyle.crewStroke}
+            strokeWidth={1.6}
+          />
         </G>
-        {/* Trace chartreuse qui se dessine (casing sombre dessous). */}
-        <Path
-          d={HOOK_TRACE}
+        {/* La vraie boucle qui se dessine (casing sombre + core chartreuse). */}
+        <Polyline
+          points={BOARD_PROJ.points(drawn)}
           stroke={traceStyle.casing}
           strokeWidth={6}
           strokeLinecap="round"
+          strokeLinejoin="round"
           fill="none"
-          strokeDasharray={`${HOOK_TRACE_LEN}`}
-          strokeDashoffset={HOOK_TRACE_LEN * (1 - drawP)}
         />
-        <Path
-          d={HOOK_TRACE}
+        <Polyline
+          points={BOARD_PROJ.points(drawn)}
           stroke={traceStyle.core}
           strokeWidth={3.5}
           strokeLinecap="round"
+          strokeLinejoin="round"
           fill="none"
-          strokeDasharray={`${HOOK_TRACE_LEN}`}
-          strokeDashoffset={HOOK_TRACE_LEN * (1 - drawP)}
           opacity={0.85}
         />
       </Svg>
@@ -169,11 +186,13 @@ export function HookMapBackground() {
 // ─── 2 — Le terrain de jeu en plateau (§2) ───────────────────────────────────
 
 /**
- * Le TERRAIN DE JEU (plateau DÉMO — aucune localisation réelle, la copy de
- * l'écran l'assume) : le plan + mon territoire + le rival + une ZONE-OBJECTIF
- * neutre qui PULSE doucement (« celle-ci, prends-la »). Les 3 rôles se lisent
- * par couleur ET forme (§C) : chartreuse = moi, orange = rival, cible pointillée
- * pulsée = objectif. Position du joueur = flèche chartreuse dans mon territoire.
+ * Le TERRAIN DE JEU (plateau DÉMO — aucune géoloc réelle, la copy de l'écran
+ * l'assume) sur de VRAIS tracés : mon territoire = la boucle République remplie ;
+ * le rival = le couloir Faubourg-du-Temple (orange, l'état se lit à la ligne) ;
+ * l'OBJECTIF = la boucle du square Villemin, contour pointillé qui PULSE
+ * (« celle-ci, prends-la »). Les 3 rôles se lisent par couleur ET forme (§C) :
+ * chartreuse = moi, orange = rival, cible pointillée pulsée = objectif. Position
+ * du joueur = flèche chartreuse à l'ego réel (place de la République).
  */
 export function CityBoard() {
   const reveal = useProgress(1400, 0, false);
@@ -186,103 +205,105 @@ export function CityBoard() {
   return (
     <View style={styles.board}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>
-        {STREETS.map((d) => (
-          <Path key={d} d={d} stroke={withAlpha(colors.blanc, 0.08)} strokeWidth={2} fill="none" />
-        ))}
-        {/* Mon territoire. */}
+        <RealStreets />
+        {/* Mon territoire — vraie boucle République remplie (aplat + trait net). */}
         <Path
-          d={MINE_BLOB}
+          d={MINE_PATH}
           fill={territoryStyle.crewFill}
           stroke={territoryStyle.crewStroke}
-          strokeWidth={1.8}
+          strokeWidth={2}
+          strokeLinejoin="round"
           opacity={mineOp}
         />
-        {/* Rival. */}
-        <Path
-          d={RIVAL_BLOB}
-          fill={territoryStyle.rivalFill}
+        {/* Rival — vrai couloir Faubourg-du-Temple (ligne orange, §C). */}
+        <Polyline
+          points={RIVAL_POINTS}
+          fill="none"
           stroke={territoryStyle.rivalStroke}
-          strokeWidth={2.4}
+          strokeWidth={4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           opacity={rivalOp}
         />
-        {/* Zone-objectif neutre : aplat très léger + contour pointillé PULSÉ. */}
+        {/* Zone-objectif — vraie boucle Villemin : aplat léger + contour pointillé PULSÉ. */}
         <Path
-          d={TARGET_BLOB}
+          d={TARGET_PATH}
           fill={territoryStyle.objectiveFill}
           stroke={withAlpha(colors.chartreuse, 0.7)}
           strokeWidth={2}
           strokeDasharray="6 5"
+          strokeLinejoin="round"
           opacity={targetOp * targetPulse}
         />
-        {/* Position du joueur : flèche/triangle chartreuse dans mon territoire. */}
+        {/* Position du joueur : flèche/triangle chartreuse à l'ego réel. */}
         <G opacity={mineOp}>
-          <Circle cx={82} cy={150} r={11} fill={withAlpha(colors.chartreuse, 0.16)} />
-          <Path d="M82,142 L88,156 L82,152 L76,156 Z" fill={colors.chartreuse} />
+          <Circle cx={EGO_PT.x} cy={EGO_PT.y} r={11} fill={withAlpha(colors.chartreuse, 0.16)} />
+          <Path
+            d={`M${EGO_PT.x},${EGO_PT.y - 8} L${EGO_PT.x + 6},${EGO_PT.y + 6} L${EGO_PT.x},${EGO_PT.y + 2} L${EGO_PT.x - 6},${EGO_PT.y + 6} Z`}
+            fill={colors.chartreuse}
+          />
         </G>
       </Svg>
     </View>
   );
 }
 
-// ─── 5 — La capture : la zone-cible se remplit (§5, moment signature) ─────────
-
-const CAP_TRACE =
-  'M96,214 C82,180 100,150 138,142 C182,133 220,146 232,178 C242,206 224,232 190,236 C158,240 120,236 108,224 C102,219 100,220 96,214';
-const CAP_TRACE_LEN = 470;
-/** Blob intérieur (la zone) qui se remplit une fois la boucle fermée. */
-const CAP_ZONE =
-  'M112,196 C100,164 124,140 162,134 C200,128 234,142 240,172 C246,198 226,222 192,226 C154,230 122,224 112,196 Z';
+// ─── 5 — La capture : la vraie boucle se dessine et se remplit (§5) ──────────
 
 /**
- * Animation de REMPLISSAGE de zone à la capture (§5). Progression pilotée par le
- * parent (`p` 0..1 — même déroulé que le compteur « +X »), pour que l'anim et le
- * chiffre montent ensemble. La trace se dessine, ferme la boucle, l'intérieur se
- * remplit en chartreuse. Reduce motion : le parent passe p=1 → état final.
+ * Projection dédiée de la boucle République seule (grande, centrée) — le payoff
+ * mérite tout le cadre. Déterministe.
+ */
+const CAP_PROJ = fitTracesToBox([BOUCLE_REPUBLIQUE], BOARD_W, BOARD_H, 30);
+const CAP_ZONE_PATH = CAP_PROJ.path(BOUCLE_REPUBLIQUE, true);
+const CAP_START = CAP_PROJ.project(BOUCLE_REPUBLIQUE[0] ?? EGO_REPUBLIQUE);
+
+/**
+ * Animation de REMPLISSAGE de zone à la capture (§5) sur la VRAIE boucle
+ * République. Progression pilotée par le parent (`p` 0..1 — même déroulé que le
+ * compteur « +X »), pour que l'anim et le chiffre montent ensemble. La trace se
+ * dessine le long des vraies rues, ferme la boucle, l'intérieur se remplit en
+ * chartreuse. Reduce motion : le parent passe p=1 → état final.
  */
 export function CaptureFillVisual({ p }: { p: number }) {
   const drawP = ramp(p, 0, 0.62);
   const closed = p >= 0.66;
   const fillOp = ramp(p, 0.66, 1);
+  const drawn = tracePrefix(BOUCLE_REPUBLIQUE, drawP);
+  const drawnPoints = CAP_PROJ.points(drawn);
   return (
     <View style={styles.capture}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>
-        {STREETS.map((d) => (
-          <Path key={d} d={d} stroke={withAlpha(colors.blanc, 0.07)} strokeWidth={2} fill="none" />
-        ))}
-        {/* Le rival, en retrait (contexte). */}
-        <Path d={RIVAL_BLOB} fill={territoryStyle.rivalFill} stroke={territoryStyle.rivalStroke} strokeWidth={2} opacity={0.5} />
+        <RealStreets proj={CAP_PROJ} opacity={0.07} />
         {/* La zone capturée qui SE REMPLIT (le payoff). */}
         <Path
-          d={CAP_ZONE}
+          d={CAP_ZONE_PATH}
           fill={withAlpha(colors.chartreuse, 0.22)}
           stroke={territoryStyle.crewStroke}
           strokeWidth={2}
+          strokeLinejoin="round"
           opacity={fillOp}
         />
         {/* Trace héros : casing sombre + core chartreuse qui se dessine et ferme. */}
-        <Path
-          d={CAP_TRACE}
+        <Polyline
+          points={drawnPoints}
           stroke={traceStyle.casing}
           strokeWidth={7}
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
-          strokeDasharray={`${CAP_TRACE_LEN}`}
-          strokeDashoffset={CAP_TRACE_LEN * (1 - drawP)}
         />
-        <Path
-          d={CAP_TRACE}
+        <Polyline
+          points={drawnPoints}
           stroke={traceStyle.core}
           strokeWidth={4}
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
-          strokeDasharray={`${CAP_TRACE_LEN}`}
-          strokeDashoffset={CAP_TRACE_LEN * (1 - drawP)}
         />
         {/* Départ = arrivée (la boucle se referme dessus). */}
-        <Circle cx={96} cy={214} r={5} fill={colors.noir} stroke={traceStyle.core} strokeWidth={2.5} />
-        {closed ? <Circle cx={96} cy={214} r={6.5} fill={traceStyle.core} /> : null}
+        <Circle cx={CAP_START.x} cy={CAP_START.y} r={5} fill={colors.noir} stroke={traceStyle.core} strokeWidth={2.5} />
+        {closed ? <Circle cx={CAP_START.x} cy={CAP_START.y} r={6.5} fill={traceStyle.core} /> : null}
       </Svg>
     </View>
   );

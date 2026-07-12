@@ -36,9 +36,20 @@ import {
   SHARE_DEMO,
   SHARE_TEMPLATES,
   SHARE_TEMPLATES_BY_ID,
+  type ShareDemoData,
   type ShareTemplateId,
+  type ShareView,
 } from '../src/features/share/templates';
-import { intentionFromParam } from '../src/features/run/intention';
+import { applySharePrivacy } from '../src/features/share/sharePrivacy';
+import { buildShareLink, defaultShareTarget } from '../src/features/share/shareDeepLink';
+import {
+  copyText,
+  openShareSheet,
+  stickerText,
+  type ShareActionResult,
+} from '../src/features/share/shareActions';
+import { usePrivacyPrefs } from '../src/features/privacy/store';
+import { intentionFromParam, type RunIntention } from '../src/features/run/intention';
 import { GripMascot } from '../src/features/social/GripMascot';
 import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
 import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
@@ -59,9 +70,15 @@ const FORMATS: readonly { id: ShareCardRatio; label: string; icon: 'partage' | '
   { id: 'mapOnly', label: 'Carte seule', icon: 'carte' },
 ];
 
-/** Style = 3 principaux dans le segmented ; « +3 styles » déplie les restants. */
+/** Style = 3 principaux dans le segmented ; « Plus de styles » déplie les restants. */
 const STYLE_MAIN: readonly ShareTemplateId[] = ['simple', 'conquete', 'defense'];
-const STYLE_EXTRA: readonly ShareTemplateId[] = ['boucle', 'crew', 'carte3d'];
+const STYLE_EXTRA: readonly ShareTemplateId[] = [
+  'boucle',
+  'crew',
+  'classement',
+  'avantApres',
+  'carte3d',
+];
 
 /** Libellé COURT par style (jamais tronqué). Distinct du `chip` legacy des templates. */
 const STYLE_LABEL: Record<ShareTemplateId, string> = {
@@ -70,8 +87,19 @@ const STYLE_LABEL: Record<ShareTemplateId, string> = {
   defense: 'Défense',
   boucle: 'Boucle',
   crew: 'Crew',
+  classement: 'Classement',
+  avantApres: 'Avant/Après',
   carte3d: 'Carte 3D',
 };
+
+/** Styles dont la carte porte un VRAI tracé animable (bouton Rejouer pertinent). */
+const ANIMATABLE_STYLES: readonly ShareTemplateId[] = [
+  'simple',
+  'conquete',
+  'boucle',
+  'classement',
+  'avantApres',
+];
 
 /** Largeur de preview par format (la hauteur suit l'aspect de la card). */
 const PREVIEW_WIDTH: Record<ShareCardRatio, number> = {
@@ -115,9 +143,23 @@ export default function PartageScreen() {
   const [stylesExpanded, setStylesExpanded] = useState<boolean>(
     isTemplateId(params.template) ? STYLE_EXTRA.includes(params.template) : false,
   );
+  // Rejouer l'animation de la preview (doc §4.8 « Replay Conquête » — free =
+  // replay animé in-app, honnête : la trace se redessine et la zone se remplit).
+  const [replayKey, setReplayKey] = useState(0);
+
+  // MASQUAGE PRIVACY (doc §9) : par défaut on retire départ/arrivée du tracé
+  // PARTAGÉ. La zone conquise reste entière (territoire public, pas la position).
+  const { prefs } = usePrivacyPrefs();
+  const maskEndpoints = prefs.maskEndpoints;
+  const safeTrace = useMemo(
+    () => (maskEndpoints ? applySharePrivacy(runCard.trace) : runCard.trace),
+    [maskEndpoints, runCard.trace],
+  );
+  const privacyNote = maskEndpoints ? 'Départ et arrivée masqués' : undefined;
 
   useEffect(() => {
     screen('partage', { template: selected });
+    // Preview auto-générée (doc §12 : share_preview_generated).
     track(EVENTS.shareCardGenerated);
   }, []);
 
@@ -125,10 +167,25 @@ export default function PartageScreen() {
     () => SHARE_TEMPLATES.find((t) => t.id === selected) ?? SHARE_TEMPLATES_BY_ID.conquete,
     [selected],
   );
+  // État de RENDU injecté dans chaque carte : anime + rejoue + fournit le tracé
+  // DÉJÀ masqué (privacy). La preview est animée d'entrée (story auto, doc §7.2).
+  // captured=false en social_run : aucune capture → la zone ne se remplit pas.
+  const view: ShareView = useMemo(
+    () => ({ animated: true, replayKey, trace: safeTrace, captured: !statsOnlyShare }),
+    [replayKey, safeTrace, statsOnlyShare],
+  );
+
+  // Le badge « Départ et arrivée masqués » n'est HONNÊTE que sur une carte qui
+  // rend RÉELLEMENT la trace tronquée (les templates SVG animables, hors « Carte
+  // seule »). La Carte 3D / mapOnly rend une boucle FERMÉE (départ = arrivée) et
+  // ne peut pas refléter le masquage → pas de badge menteur là-dessus.
+  const traceShown = ANIMATABLE_STYLES.includes(selected) && ratio !== 'mapOnly';
+
   const cardProps = useMemo(() => {
     // La card projette les VRAIES valeurs du run (runCard) — SHARE_DEMO ne
-    // passe ici que dans le mode exemple.
-    const built = template.build(runCard);
+    // passe ici que dans le mode exemple. `privacyNote` = badge de confiance §9,
+    // seulement là où la trace tronquée est réellement visible.
+    const built = { ...template.build(runCard, view), privacyNote: traceShown ? privacyNote : undefined };
     // « Carte seule » (AMENDEMENT-24) : la carte 3D EN GRAND quel que soit le
     // style — si le template n'a pas déjà son propre fond carte (les 5 SVG),
     // on injecte la GRYD 3D Conquest Map plein cadre. Le style choisi ne règle
@@ -137,7 +194,22 @@ export default function PartageScreen() {
       return { ...built, mapBackground: <ShareMap3D style={styles.previewMap} /> };
     }
     return built;
-  }, [template, ratio, runCard]);
+  }, [template, ratio, runCard, view, privacyNote, traceShown]);
+
+  // DEEP LINK de la story (doc §6.4) : UN lien par partage, dérivé de
+  // l'intention/zone/crew + du style choisi. Attaché à tous les partages.
+  const deepLink = useMemo(
+    () =>
+      buildShareLink(
+        defaultShareTarget({
+          intention,
+          zoneName: runCard.zoneName,
+          crewName: runCard.crewName,
+          templateId: selected,
+        }),
+      ),
+    [intention, runCard.zoneName, runCard.crewName, selected],
+  );
 
   // Segments « Style » : 3 principaux, ou tous une fois « +3 styles » déplié.
   // « Boucle » n'est proposé que si la course a réellement fermé une boucle.
@@ -153,18 +225,67 @@ export default function PartageScreen() {
 
   const pickStyle = (id: ShareTemplateId) => {
     setSelected(id);
-    track(EVENTS.shareCardGenerated);
+    track(EVENTS.shareTemplateChanged, { template: id });
   };
   const expandStyles = () => {
     haptics.light();
     setStylesExpanded(true);
   };
 
-  // Actions démo : intention câblée, confirmation immédiate par toast (§3).
-  const act = (message: string, channel: string) => {
+  // Le style courant porte-t-il un vrai tracé animable (bouton Rejouer utile) ?
+  const canReplay = ANIMATABLE_STYLES.includes(selected);
+
+  // Message narratif prêt à coller (doc §6.1 « partager une conséquence ») +
+  // le deep link. UN seul lien par story (§6.3).
+  const shareMessage = `${buildShareHeadline(intention, runCard, statsOnlyShare)}\n${deepLink}`;
+
+  // Action de partage RÉELLE (fire-and-forget) : ne confirme que si ça a marché
+  // (honnêteté — un « annulé » reste silencieux). `msg` peut dépendre du canal
+  // réel (`via`) pour ne jamais mentir (« copié » vs « prêt à partager »).
+  // `onOk` émet les events qui exigent un succès réel (jamais au tap).
+  const runAction = (
+    p: Promise<ShareActionResult>,
+    msg: string | ((via: 'clipboard' | 'share' | 'webshare') => string),
+    channel: string,
+    onOk?: (via: 'clipboard' | 'share' | 'webshare') => void,
+  ) => {
     haptics.light();
-    track(EVENTS.shareCompleted, { channel });
-    toast.show(message);
+    void p.then((r) => {
+      if (r.ok) {
+        track(EVENTS.shareCompleted, { channel });
+        onOk?.(r.via);
+        toast.show(typeof msg === 'function' ? msg(r.via) : msg);
+      } else if (r.reason === 'unavailable') {
+        toast.show('Partage indisponible ici');
+      }
+      // 'dismissed' → silencieux (l'utilisateur a fermé la feuille de partage).
+    });
+  };
+
+  // Sticker transparent (doc §4.2) : copie le sticker TEXTE prêt à coller + lien.
+  // HONNÊTE : « copié · colle-le » seulement si c'est VRAIMENT allé au presse-
+  // papier (via clipboard) ; sinon (feuille de partage native) → « prêt à
+  // partager ». L'event sticker_copied n'est émis qu'en cas de copie réelle.
+  const copySticker = () => {
+    const head = statsOnlyShare
+      ? `${runCard.distanceKm} km sur GRYD`
+      : `+${runCard.zonesGained} zones · ${runCard.zoneName}`;
+    runAction(
+      copyText(stickerText(runCard, head, deepLink)),
+      (via) =>
+        via === 'clipboard' ? 'Sticker copié · colle-le sur ta story' : 'Sticker prêt à partager',
+      'sticker',
+      (via) => {
+        if (via === 'clipboard') track(EVENTS.stickerCopied, { template: selected });
+      },
+    );
+  };
+
+  // Replay Conquête (doc §4.8) : rejoue l'animation de la preview (free = in-app).
+  const replay = () => {
+    haptics.light();
+    track(EVENTS.replayPlayed, { template: selected });
+    setReplayKey((k) => k + 1);
   };
 
   // Titre = ce que la course a fait (jamais « conquête » pour une défense) ;
@@ -234,7 +355,10 @@ export default function PartageScreen() {
             options={FORMATS}
             value={ratio}
             onChange={(id) => setRatio(id)}
-            tone="accent"
+            // surface (pas accent) : un seul focus chartreuse fort par scène est
+            // la CTA « Partager » (§A). Un segment actif chartreuse plein ferait
+            // un 2e bloc chartreuse concurrent.
+            tone="surface"
             // 3 formats aux libellés complets (Story · Carré · Carte seule) →
             // strip défilant : AUCUN label n'est jamais tronqué (§7).
             scrollable
@@ -255,7 +379,7 @@ export default function PartageScreen() {
                   hitSlop={14}
                   style={({ pressed }) => [styles.moreLink, pressed && styles.pressed]}
                 >
-                  <Text style={styles.moreLinkText}>+3 styles</Text>
+                  <Text style={styles.moreLinkText}>Plus de styles</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -274,22 +398,34 @@ export default function PartageScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={primaryCta.label}
-          onPress={() => act('Image prête à partager', primaryCta.channel)}
+          onPress={() => runAction(openShareSheet(shareMessage), 'Story prête.', primaryCta.channel)}
           style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
         >
           <Icon name="partage" size={18} color={colors.noir} />
           <Text style={styles.ctaLabel}>{primaryCta.label}</Text>
         </Pressable>
 
-        {/* Actions LÉGÈRES (icône + label), zéro grosse card. */}
+        {/* Actions LÉGÈRES (doc §7.2 : Sticker · Rejouer · Plus), zéro grosse card. */}
         <View style={styles.actionRow}>
-          <IconAction icon="cadeau" label="Sauver" onPress={() => act('Image enregistrée', 'save')} />
-          <IconAction icon="copier" label="Copier" onPress={() => act('Copiée', 'copy')} />
+          <IconAction
+            icon="copier"
+            label="Sticker"
+            accessibilityLabel="Copier le sticker à coller sur ta story"
+            onPress={copySticker}
+          />
+          {canReplay ? (
+            <IconAction
+              icon="route"
+              label="Rejouer"
+              accessibilityLabel="Rejouer l'animation de conquête"
+              onPress={replay}
+            />
+          ) : null}
           <IconAction
             icon="partage"
             label="Autre app"
             accessibilityLabel="Partager vers une autre app"
-            onPress={() => act('Image prête à partager', 'native')}
+            onPress={() => runAction(openShareSheet(shareMessage), 'Story prête.', 'native')}
           />
         </View>
       </ScrollView>
@@ -358,8 +494,30 @@ function isTemplateId(v: string | undefined): v is ShareTemplateId {
     v === 'defense' ||
     v === 'boucle' ||
     v === 'crew' ||
+    v === 'classement' ||
+    v === 'avantApres' ||
     v === 'carte3d'
   );
+}
+
+/**
+ * Message narratif prêt à coller (doc §6.1 : « partager une conséquence, pas une
+ * performance »). Court, une seule histoire. Le lien est ajouté par l'appelant.
+ * Jamais de position rival ni de départ/arrivée (doc §8) : que le résultat.
+ */
+function buildShareHeadline(
+  intention: RunIntention | null,
+  d: ShareDemoData,
+  statsOnly: boolean,
+): string {
+  if (statsOnly) return `${d.distanceKm} km sur GRYD. Cours. Capture. Défends.`;
+  if (intention === 'defense') {
+    return `${d.zoneName} tient encore. ${d.zonesDefended} zones défendues. #GRYD`;
+  }
+  if (intention === 'conquest') {
+    return `J'ai pris ${d.zoneName}. +${d.zonesGained} zones. #GRYD`;
+  }
+  return `+${d.zonesGained} zones sur ${d.zoneName}. #GRYD`;
 }
 
 const styles = StyleSheet.create({

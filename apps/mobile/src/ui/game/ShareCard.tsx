@@ -21,6 +21,8 @@
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import type { ReactNode } from 'react';
+import { Icon } from '../Icon';
+import { withAlpha } from '../../features/map/mapStyle';
 
 /** Format d'export de la card (change le ratio de la preview). */
 export type ShareCardRatio = 'story' | 'square' | 'feed' | 'mapOnly';
@@ -68,6 +70,17 @@ export interface ShareCardProps {
   crest?: ReactNode;
   /** Personnage GRIP (signature du joueur), petit, en pied. Masqué en `mapOnly`. */
   mascot?: ReactNode;
+  /**
+   * Badge « GRYD Verified » (doc partage §4.1/§13, hiérarchie #5) — sceau de
+   * confiance de la story (course réellement validée serveur). Masqué en `mapOnly`.
+   */
+  verified?: boolean;
+  /**
+   * Note de confidentialité affichée DANS la preview (doc partage §9 « badge de
+   * confiance ») : « Départ et arrivée masqués ». Toujours visible si fournie —
+   * c'est un signal de sécurité, jamais caché.
+   */
+  privacyNote?: string;
   /** Format d'export (règle l'aspect). Défaut : `feed` (4:5). */
   ratio?: ShareCardRatio;
   /** Largeur imposée (hauteur dérivée du ratio). Défaut : s'étire au parent. */
@@ -88,6 +101,8 @@ export function ShareCard({
   mapBackground,
   crest,
   mascot,
+  verified = false,
+  privacyNote,
   ratio = 'feed',
   width,
   style,
@@ -130,7 +145,11 @@ export function ShareCard({
           <Text style={styles.wordmark}>GRYD</Text>
           {kicker && !mapOnly ? (
             <View style={[styles.kickerPill, { borderColor: accent }]}>
-              <Text style={[styles.kickerText, { color: accent }]} numberOfLines={1}>
+              <Text
+                style={[styles.kickerText, { color: accent }]}
+                numberOfLines={1}
+                ellipsizeMode="clip"
+              >
                 {kicker}
               </Text>
             </View>
@@ -138,7 +157,7 @@ export function ShareCard({
         </View>
 
         {title && !mapOnly ? (
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="clip">
             {title}
           </Text>
         ) : null}
@@ -154,7 +173,7 @@ export function ShareCard({
           >
             {stat}
           </Text>
-          <Text style={styles.statLabel} numberOfLines={1}>
+          <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="clip">
             {statLabel.toUpperCase()}
           </Text>
           {subtitle && !mapOnly ? (
@@ -179,6 +198,30 @@ export function ShareCard({
           </View>
         ) : null}
 
+        {/* Sceau de confiance : GRYD Verified (course validée serveur) + note
+            de confidentialité (départ/arrivée masqués). Trust > décor. */}
+        {(verified && !mapOnly) || privacyNote ? (
+          <View style={styles.trustRow}>
+            {verified && !mapOnly ? (
+              <View style={styles.verifiedPill}>
+                <Icon name="badge" size={12} color={colors.chartreuse} />
+                <Text style={styles.verifiedText} numberOfLines={1} ellipsizeMode="clip">
+                  GRYD Verified
+                </Text>
+              </View>
+            ) : null}
+            {privacyNote ? (
+              <View style={styles.privacyPill}>
+                <Icon name="verrou" size={12} color={colors.gris} />
+                {/* §A.9 : jamais l'ellipse « … » — on coupe net si trop étroit. */}
+                <Text style={styles.privacyText} numberOfLines={1} ellipsizeMode="clip">
+                  {privacyNote}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={styles.footer}>
           {/* Signature du joueur : GRIP (personnage) + blason crew, groupés à gauche. */}
           <View style={styles.footerLeft}>
@@ -200,7 +243,7 @@ const styles = StyleSheet.create({
     backgroundColor: gameColors.carbon, // fond carte sombre (§3)
     borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: 'rgba(250,250,247,0.05)', // filet quasi invisible (≈ moitié du hairline)
+    borderColor: withAlpha(colors.blanc, 0.05), // filet quasi invisible (≈ moitié du hairline)
     padding: spacing.cardPadding,
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -226,7 +269,7 @@ const styles = StyleSheet.create({
   // sans l'éteindre (charte §F — l'urgence/valeur passe par le mot et le chiffre).
   mapScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,11,9,0.28)',
+    backgroundColor: withAlpha(colors.noir, 0.28),
   },
   // Calque du contenu au-dessus de la carte (occupe tout le cadre, colonne).
   chrome: {
@@ -286,6 +329,28 @@ const styles = StyleSheet.create({
   statCell: { alignItems: 'center', flex: 1, gap: 2 },
   statValue: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800', letterSpacing: -0.5 },
   statCellLabel: { color: colors.gris, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  // Ligne de confiance : verified + privacy, centrée, discrète (jamais criarde).
+  trustRow: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  verifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.chartreuse40,
+  },
+  verifiedText: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.6 },
+  privacyPill: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
+  privacyText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', flexShrink: 1 },
   footer: {
     alignSelf: 'stretch',
     flexDirection: 'row',

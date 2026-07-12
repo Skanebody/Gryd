@@ -7,21 +7,22 @@
  * Composant PUR. Noms & % = SCÉNARIOS DÉMO passés en props (défauts = doc §20).
  * Charte : les deux tracés + la zone en chartreuse (le crew = « moi » élargi).
  */
-import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
 import type { SchemaBaseProps } from './types';
+import { realLoopSchema } from './realLoop';
 
 const VB_W = 280;
 const VB_H = 172;
 const RATIO = VB_H / VB_W;
 
-/** Segment du 1er runner (majeure partie de la frontière). */
-const SEG_A = 'M120 40 C 72 30, 44 60, 50 96 C 54 122, 84 134, 116 128';
-/** Segment du 2nd runner (le manquant qui referme la boucle). */
-const SEG_B = 'M116 128 C 138 122, 150 92, 148 70 C 146 52, 138 42, 120 40';
-/** Remplissage intérieur une fois la boucle refermée. */
-const ZONE_FILL =
-  'M120 40 C 72 30, 44 60, 50 96 C 54 122, 84 134, 116 128 C 138 122, 150 92, 148 70 C 146 52, 138 42, 120 40 Z';
+/**
+ * VRAIE boucle République projetée, découpée en deux demi-tracés (ouvreur /
+ * finisher) — plus de segments 'C' fabriqués. La zone remplie = le path fermé.
+ */
+const LOOP = realLoopSchema(140, 128, 10);
+const LOOP_X = 18;
+const LOOP_Y = 20;
 
 export interface Contributor {
   name: string;
@@ -51,24 +52,33 @@ export function BoucleCollective({
       viewBox={`0 0 ${VB_W} ${VB_H}`}
       accessibilityLabel={accessibilityLabel}
     >
-      {/* Intérieur rempli = zone du crew */}
-      <Path d={ZONE_FILL} fill={colors.chartreuse14} stroke="none" />
+      <G transform={`translate(${LOOP_X} ${LOOP_Y})`}>
+        {/* Intérieur rempli = zone du crew (le tracé réel EST la frontière) */}
+        <Path d={LOOP.path} fill={colors.chartreuse14} stroke="none" />
 
-      {/* Segment A (ouvreur) — trait plein chartreuse */}
-      <Path d={SEG_A} fill="none" stroke={colors.chartreuse} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
-      {/* Segment B (finisher) — trait chartreuse pointillé = le manquant refermé */}
-      <Path
-        d={SEG_B}
-        fill="none"
-        stroke={colors.chartreuse}
-        strokeWidth={4}
-        strokeDasharray="7 6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Point de jonction des deux segments */}
-      <Circle cx={116} cy={128} r={4.5} fill={colors.chartreuse} />
-      <Circle cx={120} cy={40} r={4.5} fill={colors.chartreuse} />
+        {/* Segment A (ouvreur) — trait plein chartreuse */}
+        <Polyline
+          points={LOOP.openerPoints}
+          fill="none"
+          stroke={colors.chartreuse}
+          strokeWidth={4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Segment B (finisher) — trait chartreuse pointillé = le manquant refermé */}
+        <Polyline
+          points={LOOP.finisherPoints}
+          fill="none"
+          stroke={colors.chartreuse}
+          strokeWidth={4}
+          strokeDasharray="7 6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Points de jonction / fermeture des deux segments */}
+        <Circle cx={LOOP.join.x} cy={LOOP.join.y} r={4.5} fill={colors.chartreuse} />
+        <Circle cx={LOOP.start.x} cy={LOOP.start.y} r={4.5} fill={colors.chartreuse} />
+      </G>
 
       {/* Contributions au prorata (opener = plein, finisher = pointillé) */}
       <G>

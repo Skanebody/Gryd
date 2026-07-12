@@ -28,6 +28,9 @@ export const EVENTS = {
   inviteAccepted: 'invite_accepted', // H3
   shareCardGenerated: 'share_card_generated',
   shareCompleted: 'share_completed', // props: { channel }
+  shareTemplateChanged: 'share_template_changed', // props: { template } — doc partage viral §12
+  stickerCopied: 'sticker_copied', // sticker territoire copié pour story — doc partage viral §12
+  replayPlayed: 'replay_played', // replay animé de la conquête rejoué — doc partage viral §12
   posterDownloaded: 'poster_downloaded',
   // Monétisation
   paywallView: 'paywall_view', // props: { trigger }

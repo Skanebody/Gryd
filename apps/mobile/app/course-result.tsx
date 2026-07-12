@@ -597,6 +597,10 @@ function ConquestResultScreen({
         distanceKm: formatKm(stats.distanceM),
         paceLabel: formatPace(stats.paceSPerKm),
         clockLabel: formatClock(stats.durationS),
+        // VRAI tracé de CETTE course (même géométrie que les mini-cartes du
+        // Résultat) — le partage anime le parcours réellement couru, pas la démo.
+        // Fallback démo seulement si le tracé est absent/dégénéré (< 3 points).
+        ...(loop && loop.traceGeo.length >= 3 ? { trace: loop.traceGeo } : {}),
       }),
     });
     router.push({ pathname: '/partage', params: { mode, intention: params.intention ?? '' } });

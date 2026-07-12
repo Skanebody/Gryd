@@ -9,16 +9,21 @@
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
 import type { SchemaBaseProps } from './types';
+import { realLoopSchema } from './realLoop';
 
 const VB_W = 280;
 const VB_H = 168;
 const RATIO = VB_H / VB_W;
 
-/** Même contour de boucle des deux côtés (avant = trait seul / après = rempli). */
-const LOOP_PATH =
-  'M40 44 C 78 26, 108 34, 112 62 C 116 92, 92 112, 60 108 C 30 104, 16 74, 40 44 Z';
-const LOOP_PATH_RIGHT =
-  'M188 44 C 226 26, 256 34, 260 62 C 264 92, 240 112, 208 108 C 178 104, 164 74, 188 44 Z';
+/**
+ * MÊME vraie boucle République projetée des deux côtés (avant = trait seul gris /
+ * après = intérieur rempli chartreuse) — plus de lobe 'C' fabriqué. On la pose
+ * via un translate : gauche puis droite.
+ */
+const LOOP = realLoopSchema(112, 96, 8);
+const LOOP_LEFT_X = 8;
+const LOOP_RIGHT_X = 156;
+const LOOP_Y = 8;
 
 export interface BoucleFaitLaZoneProps extends SchemaBaseProps {
   /** Zones capturées par la trace seule (démo). Défaut 214. */
@@ -48,11 +53,12 @@ export function BoucleFaitLaZone({
       {/* AVANT — trace seule : contour non rempli, gris (couloir du passage) */}
       <G>
         <Path
-          d={LOOP_PATH}
+          d={LOOP.path}
           fill="none"
           stroke={colors.gris}
-          strokeWidth={4}
+          strokeWidth={3}
           strokeLinejoin="round"
+          transform={`translate(${LOOP_LEFT_X} ${LOOP_Y})`}
         />
         <SvgText x={64} y={78} fill={colors.blanc} fontSize={18} fontFamily={fonts.mono} textAnchor="middle">
           {`+${traceZones}`}
@@ -74,14 +80,16 @@ export function BoucleFaitLaZone({
 
       {/* APRÈS — boucle fermée : intérieur rempli chartreuse, +gain souligné */}
       <G>
-        <Path
-          d={LOOP_PATH_RIGHT}
-          fill={colors.chartreuse14}
-          stroke={colors.chartreuse40}
-          strokeWidth={4}
-          strokeLinejoin="round"
-        />
-        <Circle cx={188} cy={44} r={4} fill={colors.chartreuse} />
+        <G transform={`translate(${LOOP_RIGHT_X} ${LOOP_Y})`}>
+          <Path
+            d={LOOP.path}
+            fill={colors.chartreuse14}
+            stroke={colors.chartreuse40}
+            strokeWidth={3}
+            strokeLinejoin="round"
+          />
+          <Circle cx={LOOP.start.x} cy={LOOP.start.y} r={4} fill={colors.chartreuse} />
+        </G>
         <SvgText x={212} y={72} fill={colors.chartreuse} fontSize={18} fontFamily={fonts.mono} textAnchor="middle">
           {`+${loopZones}`}
         </SvgText>
