@@ -31,7 +31,7 @@ import { setZoneSheetOpen } from './mapUiStore';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, withAlpha } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
@@ -817,7 +817,7 @@ function LayerMenu({
 }
 
 /** Surface profonde translucide commune aux flottants (HUD sur carte). */
-const OVERLAY_SURFACE = 'rgba(16,18,16,0.92)';
+const OVERLAY_SURFACE = withAlpha(gameColors.carbon, 0.92);
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },

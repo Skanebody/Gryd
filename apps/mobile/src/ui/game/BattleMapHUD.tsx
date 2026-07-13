@@ -5,7 +5,7 @@
  * L'état de zone est rendu par la pastille d'état commune (couleur = état).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, withAlpha } from '@klaim/shared';
 import { Icon } from '../Icon';
 import { StatePill, type GameVisualState } from './states';
 
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     // Surface profonde translucide : le HUD flotte sur la carte sans la masquer.
-    backgroundColor: 'rgba(16,18,16,0.88)',
+    backgroundColor: withAlpha(gameColors.carbon, 0.88),
   },
   left: { flex: 1, gap: 4 },
   season: {

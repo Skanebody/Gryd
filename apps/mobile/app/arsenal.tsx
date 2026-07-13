@@ -33,6 +33,7 @@ import {
   motion,
   radii,
   spacing,
+  withAlpha,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
@@ -1016,7 +1017,7 @@ const styles = StyleSheet.create({
 
   // Sheets (détail + gifting)
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
-  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: withAlpha(colors.noir, 0.6) },
   // Bottom sheet = plan N1. Filet hairline en bord haut seulement (séparateur
   // du backdrop, pas un cadre). Fond noir profond pour que les surfaces N2
   // relevées à l'intérieur ressortent.

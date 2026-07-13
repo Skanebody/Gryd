@@ -13,7 +13,7 @@
  */
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Platform } from 'react-native';
-import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, spacing, withAlpha } from '@klaim/shared';
 import { Icon } from '../../../ui/Icon';
 import { StatePill } from '../../../ui/game';
 import type { GpsSignalState } from './engine/gps';
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
 
   sheetBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(10,11,9,0.85)',
+    backgroundColor: withAlpha(colors.noir, 0.85),
     justifyContent: 'flex-end',
   },
   sheet: {

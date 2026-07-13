@@ -153,6 +153,20 @@ export const gameColors = {
 export type GameColorName = keyof typeof gameColors;
 
 /**
+ * Décline un TOKEN hex (#RRGGBB) en `rgba()` à l'alpha voulu — LA façon
+ * autorisée de produire une teinte translucide (§ charte « toute couleur hors
+ * tokens = bug » : une variante alpha DÉRIVE du token, jamais un rgba littéral
+ * recodé à la main). Ex. withAlpha(colors.blanc, 0.28), withAlpha(gameColors.gold, 0.22).
+ */
+export function withAlpha(tokenHex: string, alpha: number): string {
+  const h = tokenHex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
  * RÈGLES NON NÉGOCIABLES §C — COULEUR PAR RÔLE (pas par identité de crew). La
  * carte colore le rôle d'une zone DANS LE CONTEXTE du joueur, jamais l'identité
  * universelle d'un crew (« on ne colore pas 200 000 utilisateurs »). Jamais plus

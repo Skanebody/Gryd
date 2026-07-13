@@ -9,7 +9,7 @@ import Constants from 'expo-constants';
 import { forwardRef, useImperativeHandle, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
-import { colors, fonts } from '@klaim/shared';
+import { colors, fonts, withAlpha } from '@klaim/shared';
 import { MAP_BASEMAP_STYLES, basemapAttribution } from '../../features/map/mapStyle';
 import type {
   RealMapBounds,
@@ -230,7 +230,7 @@ function ExpoGoMapFallback({
           <Path
             key={`grid-a-${index}`}
             d={`M ${index * 120 - 240} 0 L ${index * 120 + 280} ${VIEWBOX_SIZE}`}
-            stroke="rgba(250,250,247,0.08)"
+            stroke={withAlpha(colors.blanc, 0.08)}
             strokeWidth={2}
           />
         ))}
@@ -238,7 +238,7 @@ function ExpoGoMapFallback({
           <Path
             key={`grid-b-${index}`}
             d={`M ${index * 120 + 280} 0 L ${index * 120 - 240} ${VIEWBOX_SIZE}`}
-            stroke="rgba(250,250,247,0.05)"
+            stroke={withAlpha(colors.blanc, 0.05)}
             strokeWidth={2}
           />
         ))}

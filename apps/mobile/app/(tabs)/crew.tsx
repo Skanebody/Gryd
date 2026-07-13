@@ -3617,7 +3617,7 @@ const styles = StyleSheet.create({
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   sheetBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5,5,5,0.72)', // voile noir charte
+    backgroundColor: colors.scrimStrong, // voile noir charte (token)
   },
   // Bottom sheet = surface N1 qui flotte sur le voile ; pas de cadre.
   sheet: {

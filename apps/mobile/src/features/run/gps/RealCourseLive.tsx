@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   bigStopDisc: {
     backgroundColor: colors.carbone2,
     borderWidth: 1.5,
-    borderColor: 'rgba(250,250,247,0.35)',
+    borderColor: colors.blanc35,
   },
   bigStopSquare: { width: 18, height: 18, borderRadius: 3.5, backgroundColor: colors.blanc },
   bigLabel: { color: colors.gris, fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2 },

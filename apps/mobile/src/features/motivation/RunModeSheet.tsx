@@ -18,7 +18,7 @@
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii, spacing, type RunMode } from '@klaim/shared';
+import { colors, fontSizes, radii, spacing, withAlpha, type RunMode } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { RULE_PHRASE } from '../nav/runContext';
 import {
@@ -261,7 +261,7 @@ function IntentionRow({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: withAlpha(colors.noir, 0.55),
     justifyContent: 'flex-end',
   },
   sheet: {

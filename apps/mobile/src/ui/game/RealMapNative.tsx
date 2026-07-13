@@ -539,7 +539,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
           // Volume 3D chartreuse translucide (le look signature GRYD).
           extrusion: extruded
             ? ({
-                fillExtrusionColor: spec.extrudeColor ?? spec.fillColor ?? '#ffffff',
+                fillExtrusionColor: spec.extrudeColor ?? spec.fillColor ?? colors.blanc,
                 fillExtrusionHeight: spec.extrudeHeight ?? 0,
                 fillExtrusionBase: spec.extrudeBase ?? 0,
                 fillExtrusionOpacity: spec.extrudeOpacity ?? spec.fillOpacity ?? 1,

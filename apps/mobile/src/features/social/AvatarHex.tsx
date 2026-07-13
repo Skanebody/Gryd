@@ -16,14 +16,14 @@ import Svg, {
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
-import { colors } from '@klaim/shared';
+import { colors, gameColors, withAlpha } from '@klaim/shared';
 import type { PlayerTier } from '@klaim/shared';
 
 const VIEWBOX = 100;
 const CENTER = VIEWBOX / 2;
 
-/** Or chaud partagé avec CrewFrame — cohérence « legend = or + halo ». */
-const OR = '#E7B84C';
+/** Or chaud partagé avec CrewFrame (token gameColors.gold, hors chartreuse). */
+const OR = gameColors.gold;
 
 interface FrameStyle {
   stroke: string;
@@ -35,11 +35,11 @@ interface FrameStyle {
 /** Recette par tier joueur (road→legend) — miroir de CrewFrame.TIER_STYLE. */
 const TIER_STYLE: Record<PlayerTier, FrameStyle> = {
   road: { stroke: colors.grisLigne, strokeWidth: 2, outerRing: false, glow: null },
-  tempo: { stroke: 'rgba(250,250,247,0.28)', strokeWidth: 2.5, outerRing: false, glow: null },
+  tempo: { stroke: withAlpha(colors.blanc, 0.28), strokeWidth: 2.5, outerRing: false, glow: null },
   race: { stroke: colors.blanc, strokeWidth: 2.5, outerRing: true, glow: null },
-  carbon: { stroke: colors.blanc, strokeWidth: 3, outerRing: true, glow: 'rgba(250,250,247,0.18)' },
-  elite: { stroke: OR, strokeWidth: 3, outerRing: true, glow: 'rgba(231,184,76,0.22)' },
-  legend: { stroke: OR, strokeWidth: 3.5, outerRing: true, glow: 'rgba(231,184,76,0.38)' },
+  carbon: { stroke: colors.blanc, strokeWidth: 3, outerRing: true, glow: withAlpha(colors.blanc, 0.18) },
+  elite: { stroke: OR, strokeWidth: 3, outerRing: true, glow: withAlpha(OR, 0.22) },
+  legend: { stroke: OR, strokeWidth: 3.5, outerRing: true, glow: withAlpha(OR, 0.38) },
 };
 
 function hexPoints(cx: number, cy: number, r: number): string {

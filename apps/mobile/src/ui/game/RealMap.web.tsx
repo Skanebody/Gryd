@@ -742,14 +742,14 @@ function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer, extrudeZones =
       type: 'fill-extrusion',
       source: spec.id,
       paint: {
-        'fill-extrusion-color': spec.extrudeColor ?? spec.fillColor ?? '#ffffff',
+        'fill-extrusion-color': spec.extrudeColor ?? spec.fillColor ?? colors.blanc,
         'fill-extrusion-height': spec.extrudeHeight ?? 0,
         'fill-extrusion-base': spec.extrudeBase ?? 0,
         'fill-extrusion-opacity': spec.extrudeOpacity ?? spec.fillOpacity ?? 1,
       },
     });
   } else if (extruded) {
-    map.setPaintProperty(extrudeId, 'fill-extrusion-color', spec.extrudeColor ?? spec.fillColor ?? '#ffffff');
+    map.setPaintProperty(extrudeId, 'fill-extrusion-color', spec.extrudeColor ?? spec.fillColor ?? colors.blanc);
     map.setPaintProperty(extrudeId, 'fill-extrusion-height', spec.extrudeHeight ?? 0);
     map.setPaintProperty(extrudeId, 'fill-extrusion-base', spec.extrudeBase ?? 0);
     map.setPaintProperty(extrudeId, 'fill-extrusion-opacity', spec.extrudeOpacity ?? spec.fillOpacity ?? 1);
