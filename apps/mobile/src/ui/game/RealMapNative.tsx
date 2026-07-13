@@ -322,6 +322,9 @@ const POINT_LABEL_EXPR = ['get', 'label'] as const;
  * (trait fin) ⇒ zoneId null ⇒ tap traité comme « vide » (désélection).
  */
 const TERRITORY_QUERY_BASE_IDS: readonly string[] = [
+  // Ligne de capture invisible LARGE (§3 P2) : élargit la cible tactile des
+  // zones-couloirs fines — interrogée EN PREMIER (elle est peinte tout au fond).
+  'terr-hit-line',
   'terr-crew-fill-fill',
   'terr-rival-fill-fill',
   'terr-contested-fill-fill',

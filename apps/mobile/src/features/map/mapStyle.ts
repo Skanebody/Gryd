@@ -1311,6 +1311,13 @@ function applySelectionDim(
  * module fills (fillOpacity) et frontières (scaleAlpha) ; MapLibre fond les
  * transitions de peinture (bascule douce).
  */
+/**
+ * Largeur (px) de la LIGNE DE CAPTURE invisible du tap (§3, P2) : assez large
+ * pour attraper un tap approximatif sur une zone-COULOIR (LineString fine ~4 px),
+ * comme la hit-area élargie d'une polyline Strava/Google Maps.
+ */
+const HIT_LINE_WIDTH = 16;
+
 export function territoryStateLayers(
   emph: ModeEmphasis,
   basemap: BasemapKey = 'dark',
@@ -1320,6 +1327,12 @@ export function territoryStateLayers(
   const stateData = (state: TerritoryState): RealMapData =>
     geo.get(state) ?? EMPTY_COLLECTION;
   const terr = territoryStyle;
+  // AMENDEMENT-37 §3 (P2) — toutes les features de territoire fusionnées, pour la
+  // ligne de capture invisible : rend les zones-couloirs fines faciles à taper.
+  const allTerritoryFeatures: RealMapData = {
+    type: 'FeatureCollection',
+    features: [...geo.values()].flatMap((c) => c.features),
+  };
   // AMENDEMENT-37 §1 (révise -36 « zéro aplat ») : un FILL de possession SUBTIL
   // revient SOUS la trace (plancher 16-18 %, la trace reste dominante §B), modulé
   // par l'emphase du MODE. §5 : les tracés de territoire sont GELÉS (largeur 0)
@@ -1327,10 +1340,25 @@ export function territoryStateLayers(
   // lecture, jamais des tracés sub-pixel. §5 aussi : le contesté ne PULSE plus.
   const gz = TERRITORY_TRACE_MIN_ZOOM;
   const layers: RealMapGeoJSONLayer[] = [
-    // ── FILLS DE POSSESSION (peints EN PREMIER = SOUS les traces, §19) : aplat de
-    //    rôle léger (crew ~16 % / rival ~16 % / contesté ~18 %), fill-opacity =
-    //    emphase du mode (recule en route/exploration). Ne rend QUE là où l'état a
-    //    une aire fermée (les couloirs LineString n'ont pas d'aplat). ──
+    // ── LIGNE DE CAPTURE (§3, P2) : peinte EN PREMIER (tout au fond), INVISIBLE
+    //    (lineOpacity 0), LARGE (HIT_LINE_WIDTH) — élargit la zone tactile des
+    //    zones-couloirs fines pour que le tap lise leur `zoneId`. Gelée sous z13
+    //    comme les traces (on ne tape un couloir que là où il est visible).
+    //    withColorCasing la saute (opacity 0 → pas de liseré sur fond clair) ;
+    //    applySelectionDim la dédouble en `-dim` (la requête native inclut les
+    //    jumelles). Zéro impact visuel. ──
+    {
+      id: 'terr-hit',
+      data: allTerritoryFeatures,
+      lineColor: colors.noir, // jamais peint (lineOpacity 0)
+      lineOpacity: 0,
+      lineWidth: HIT_LINE_WIDTH,
+      lineWidthStops: gatedConstantWidth(HIT_LINE_WIDTH, gz),
+    },
+    // ── FILLS DE POSSESSION (peints SOUS les traces, §19) : aplat de rôle léger
+    //    (crew ~16 % / rival ~16 % / contesté ~18 %), fill-opacity = emphase du
+    //    mode (recule en route/exploration). Ne rend QUE là où l'état a une aire
+    //    fermée (les couloirs LineString n'ont pas d'aplat). ──
     {
       id: 'terr-crew-fill',
       data: areaFeaturesOnly(stateData('crew')),
@@ -1497,7 +1525,10 @@ function withColorCasing(
     s.fillOpacity !== undefined ? { ...s, fillOpacity: Math.min(1, s.fillOpacity * fillBoost) } : s;
   const out: RealMapGeoJSONLayer[] = [];
   for (const spec of layers) {
-    if (spec.lineColor !== undefined) {
+    // Une ligne INVISIBLE (lineOpacity 0 — ex. la ligne de capture du tap, §3)
+    // ne reçoit JAMAIS de casing : sinon un liseré sombre large apparaîtrait sur
+    // les fonds clairs alors que la ligne elle-même ne se voit pas.
+    if (spec.lineColor !== undefined && spec.lineOpacity !== 0) {
       const coreWidth = (spec.lineWidth ?? 1) * widthMult;
       out.push({
         id: `${spec.id}-casing`,
