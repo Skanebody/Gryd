@@ -31,6 +31,7 @@ import {
   SymbolLayer,
   VectorSource,
   type CameraRef,
+  type MapViewRef,
   type CircleLayerStyle,
   type Expression,
   type FillExtrusionLayerStyle,
@@ -187,6 +188,12 @@ export interface RealMapMarker {
 export interface RealMapPressEvent {
   lng: number;
   lat: number;
+  /**
+   * AMENDEMENT-37 §3 (contrat C2) — `zoneId` de la zone de TERRITOIRE tapée (lu
+   * par queryRenderedFeaturesAtPoint sur les couches territoire au point du tap).
+   * `null` = tap sur le vide (aucune zone) → l'écran désélectionne.
+   */
+  zoneId?: string | null;
 }
 
 export interface RealMapRef {
@@ -303,6 +310,53 @@ const POINT_LABEL_HALO_WIDTH = 1.2;
 /** Couleur/label des points lus PAR FEATURE (tokens posés en amont). */
 const POINT_COLOR_EXPR = ['get', 'color'] as const;
 const POINT_LABEL_EXPR = ['get', 'label'] as const;
+
+/**
+ * AMENDEMENT-37 §3 (contrat C2/C4) — couches de TERRITOIRE interrogées au tap
+ * (queryRenderedFeaturesAtPoint). Ids DÉRIVÉS de battleGameLayers (mapStyle) :
+ * fills `${id}-fill` des états à AIRE (crew/rival/contesté) + traces `${id}-line`
+ * (core/casing) des tracés de rôle. STABLES quel que soit le fond : les liserés
+ * `-casing` sur fond clair sont EN PLUS, mais le core (même id de base) reste au
+ * sommet et porte le `zoneId`. Le binding natif exige un `layerIDs: string[]` —
+ * on scope donc à cette liste (perf + on ignore le décor). Une feature manquée
+ * (trait fin) ⇒ zoneId null ⇒ tap traité comme « vide » (désélection).
+ */
+const TERRITORY_QUERY_BASE_IDS: readonly string[] = [
+  'terr-crew-fill-fill',
+  'terr-rival-fill-fill',
+  'terr-contested-fill-fill',
+  'terr-crew-casing-line',
+  'terr-crew-core-line',
+  'terr-rival-casing-line',
+  'terr-rival-core-line',
+  'terr-objective-line',
+  'terr-outpost-line',
+  'terr-decay-line',
+  'terr-decay-urgent-line',
+  'terr-protected-line',
+  'terr-contested-line',
+  'terr-contested-outer-line',
+];
+// AMENDEMENT-37 §2 : à la sélection, applySelectionDim (mapStyle) déplace les
+// zones NON sélectionnées dans des couches jumelles `${id}-dim` (sublayers
+// `-dim-fill` / `-dim-line`). Sans elles dans le scope, taper une AUTRE zone
+// pendant qu'une est sélectionnée n'interrogerait que les couches base élaguées
+// → zoneId null → désélection au lieu de bascule (parité avec le fork web qui,
+// lui, filtre par préfixe `terr-` et inclut donc déjà les jumelles). On dérive
+// donc la variante `-dim` de chaque id (insérée avant le suffixe -fill/-line).
+const TERRITORY_QUERY_LAYER_IDS: string[] = [
+  ...TERRITORY_QUERY_BASE_IDS,
+  ...TERRITORY_QUERY_BASE_IDS.map((id) => id.replace(/-(fill|line)$/, '-dim-$1')),
+];
+
+/** 1ʳᵉ feature portant un `zoneId` string non vide dans une collection (§3). */
+function firstZoneId(features: readonly GeoJSON.Feature[] | undefined): string | null {
+  for (const f of features ?? []) {
+    const z = f.properties?.zoneId;
+    if (typeof z === 'string' && z.length > 0) return z;
+  }
+  return null;
+}
 
 /**
  * AMENDEMENT-27 — VRAI 3D : bâtiments de la ville extrudés (fork natif). Id du
@@ -452,6 +506,8 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
    */
   const is3d = pitch > 0;
   const cameraRef = useRef<CameraRef>(null);
+  /** Réf MapView — queryRenderedFeaturesAtPoint au tap (§3 tap→zone). */
+  const mapViewRef = useRef<MapViewRef>(null);
   const reduceMotion = useReduceMotion();
   const [offline, setOffline] = useState(false);
   const openCamera = camera ?? WORLD_FALLBACK_CAMERA;
@@ -559,6 +615,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   return (
     <View style={[styles.root, style]} testID={testID}>
       <MapView
+        ref={mapViewRef}
         style={styles.map}
         mapStyle={basemapStyleUrl(basemap)}
         attributionEnabled={false}
@@ -573,7 +630,22 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         onPress={(feature) => {
           if (!onPress || feature.geometry.type !== 'Point') return;
           const [lng, lat] = feature.geometry.coordinates;
-          if (lng !== undefined && lat !== undefined) onPress({ lng, lat });
+          if (lng === undefined || lat === undefined) return;
+          // §3 : id de la zone tapée via queryRenderedFeaturesAtPoint (point
+          // ÉCRAN porté par le feature onPress) → sheet de zone. NE casse pas les
+          // markers (MarkerView, hors des couches de la carte).
+          const props = feature.properties as { screenPointX?: number; screenPointY?: number } | null;
+          const sx = props?.screenPointX;
+          const sy = props?.screenPointY;
+          const view = mapViewRef.current;
+          if (view && typeof sx === 'number' && typeof sy === 'number') {
+            void view
+              .queryRenderedFeaturesAtPoint([sx, sy], undefined, TERRITORY_QUERY_LAYER_IDS)
+              .then((fc) => onPress({ lng, lat, zoneId: firstZoneId(fc?.features) }))
+              .catch(() => onPress({ lng, lat, zoneId: null }));
+          } else {
+            onPress({ lng, lat, zoneId: null });
+          }
         }}
       >
         {/* §4bis : cadrage d'OUVERTURE seulement (camera OU fitBounds) — le

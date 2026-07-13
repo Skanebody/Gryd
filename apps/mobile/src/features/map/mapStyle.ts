@@ -1215,6 +1215,91 @@ function areaFeaturesOnly(data: RealMapData): RealMapData {
 }
 
 /**
+ * AMENDEMENT-37 §2 — DIMMING À LA SÉLECTION (étude §4.2 « l'actif domine ») :
+ * quand une zone est tapée (`selectedZoneId`), elle reste à 100 % et TOUT le
+ * reste du territoire retombe à ce facteur (~20 %, fourchette étude 15-25 %).
+ * Constante de RENDU nommée — jamais une règle de jeu. `selectedZoneId=null` ⇒
+ * facteur non appliqué (non-régression Batch 1).
+ */
+export const DIM_FACTOR = 0.2;
+
+/**
+ * Partitionne une collection par la zone tapée : `keepSelected` garde les
+ * features dont `properties.zoneId` == selectedZoneId (la zone ACTIVE, 100 %),
+ * sinon les AUTRES (le contexte à atténuer). Le nom de propriété `zoneId` est le
+ * contrat partagé C1/C4 (même nom que le tap, agent A). Une feature sans zoneId
+ * n'est jamais « la sélection » → elle retombe dans le contexte atténué.
+ */
+function featuresByZone(
+  data: RealMapData,
+  keepSelected: boolean,
+  selectedZoneId: string,
+): RealMapData {
+  return {
+    type: 'FeatureCollection',
+    features: data.features.filter((f) => {
+      const isSelected = f.properties?.zoneId === selectedZoneId;
+      return keepSelected ? isSelected : !isSelected;
+    }),
+  };
+}
+
+/**
+ * Jumelle ATTÉNUÉE (~DIM_FACTOR) d'une couche de territoire, pour le CONTEXTE non
+ * sélectionné (étude §4.2). Id `${id}-dim` STABLE : le renderer ne retire jamais
+ * une couche, la jumelle existe donc TOUJOURS (vidée quand aucune zone n'est
+ * active). COMPOSE la sélection AVEC le LOD zoom du fill (§1) en multipliant
+ * chaque palier `fillOpacityStops` par DIM_FACTOR ; pour les traits, atténue la
+ * teinte via `scaleAlpha` (tokens only, aucune teinte nouvelle). Jamais de pulse
+ * sur le contexte atténué.
+ */
+function dimmedLayer(spec: RealMapGeoJSONLayer, data: RealMapData): RealMapGeoJSONLayer {
+  const dim: RealMapGeoJSONLayer = { ...spec, id: `${spec.id}-dim`, data, pulse: false };
+  if (spec.fillColor !== undefined) {
+    dim.fillOpacity = (spec.fillOpacity ?? 1) * DIM_FACTOR;
+    if (spec.fillOpacityStops) {
+      dim.fillOpacityStops = spec.fillOpacityStops.map(
+        ([zoom, op]) => [zoom, op * DIM_FACTOR] as const,
+      );
+    }
+  }
+  if (spec.lineColor !== undefined) {
+    dim.lineColor = scaleAlpha(spec.lineColor, DIM_FACTOR);
+    if (spec.lineOpacity !== undefined) dim.lineOpacity = spec.lineOpacity * DIM_FACTOR;
+  }
+  return dim;
+}
+
+/**
+ * AMENDEMENT-37 §2 — applique le DIMMING À LA SÉLECTION à la pile de couches de
+ * territoire. Chaque couche est dédoublée en (base + jumelle `-dim`), à ids
+ * STABLES (le renderer ne retire jamais une couche : les deux existent toujours) :
+ *   - `selectedZoneId=null` : base = couche d'origine INCHANGÉE, jumelle VIDE →
+ *     rendu identique au Batch 1 (la jumelle ne peint rien) ;
+ *   - zone active : la base ne porte QUE la zone tapée (100 %), la jumelle porte
+ *     TOUT le reste, atténué à ~DIM_FACTOR (« l'actif domine », étude §4.2).
+ * La jumelle est peinte SOUS la base (contexte dessous, zone active dessus). La
+ * route active reste, elle, AU-DESSUS des territoires (§19 — empilée après cette
+ * pile). Ne partitionne QUE par `zoneId` (contrat C1/C4).
+ */
+function applySelectionDim(
+  layers: RealMapGeoJSONLayer[],
+  selectedZoneId: string | null,
+): RealMapGeoJSONLayer[] {
+  const out: RealMapGeoJSONLayer[] = [];
+  for (const spec of layers) {
+    if (selectedZoneId === null) {
+      out.push(dimmedLayer(spec, EMPTY_COLLECTION));
+      out.push(spec);
+    } else {
+      out.push(dimmedLayer(spec, featuresByZone(spec.data, false, selectedZoneId)));
+      out.push({ ...spec, data: featuresByZone(spec.data, true, selectedZoneId) });
+    }
+  }
+  return out;
+}
+
+/**
  * Couches des TERRITOIRES par état, dans l'ORDRE DE PEINTURE — builder PARTAGÉ
  * des deux cartes (§4bis : une seule source, allTerritories ; « Mon
  * territoire » l'appelle avec FULL_EMPHASIS) : rival → objectif (aplat léger)
@@ -1229,6 +1314,7 @@ function areaFeaturesOnly(data: RealMapData): RealMapData {
 export function territoryStateLayers(
   emph: ModeEmphasis,
   basemap: BasemapKey = 'dark',
+  selectedZoneId: string | null = null,
 ): RealMapGeoJSONLayer[] {
   const geo = territoryGeoByState();
   const stateData = (state: TerritoryState): RealMapData =>
@@ -1240,7 +1326,7 @@ export function territoryStateLayers(
   // sous TERRITORY_TRACE_MIN_ZOOM — au dézoom, villes puis secteurs portent la
   // lecture, jamais des tracés sub-pixel. §5 aussi : le contesté ne PULSE plus.
   const gz = TERRITORY_TRACE_MIN_ZOOM;
-  return withColorCasing(basemap, [
+  const layers: RealMapGeoJSONLayer[] = [
     // ── FILLS DE POSSESSION (peints EN PREMIER = SOUS les traces, §19) : aplat de
     //    rôle léger (crew ~16 % / rival ~16 % / contesté ~18 %), fill-opacity =
     //    emphase du mode (recule en route/exploration). Ne rend QUE là où l'état a
@@ -1343,7 +1429,42 @@ export function territoryStateLayers(
       lineWidthStops: gatedConstantWidth(CONTESTED_TRAIT_WIDTH, gz),
       lineOffset: CONTESTED_TRAIT_OFFSET_PX,
     },
-  ]);
+    // AMENDEMENT-37 §5 (étude §8) — FRONTIÈRE OUVERTE : trait chartreuse POINTILLÉ
+    // (le tracé « à fermer », dash `missing` réutilisé). Le marker « point de
+    // fermeture » est posé par MapScreen (agent A). Gelée sous le seuil quartier.
+    {
+      id: 'terr-open-boundary',
+      data: stateData('openBoundary'),
+      lineColor: scaleAlpha(traceStyle.missing, emph.crew),
+      lineWidth: BORDER_WIDTH,
+      lineWidthStops: gateWidthStops(TRACE_WIDTH_STOPS.missingCore, gz),
+      lineDash: TRACE_DASH.missing,
+    },
+    // AMENDEMENT-37 §5 (étude §8) — BOUCLE À TERMINER : l'anneau OUVERT rendu en
+    // trace chartreuse nette (territoryTraceLayers, casing+core) — une boucle
+    // presque bouclée. Le segment manquant surligné + le label de distance
+    // restante sont des markers MapScreen (agent A). Gelée sous le seuil quartier.
+    ...territoryTraceLayers('terr-loop-incomplete', stateData('loopIncomplete'), traceStyle.missing, {
+      alpha: emph.objective,
+      minZoom: gz,
+    }),
+    // AMENDEMENT-37 §5 (étude §8) — ZONE EXCLUE : trait GRIS pointillé discret
+    // (dash `excluded`, la teinte grise dit « hors-jeu ») — AUCUN CTA de conquête
+    // (la raison s'affiche au tap, côté sheet MapScreen). Gelée sous le seuil quartier.
+    {
+      id: 'terr-excluded',
+      data: stateData('excluded'),
+      lineColor: scaleAlpha(traceStyle.excluded, traceStyle.excludedOpacity * emph.defense),
+      lineWidth: BORDER_WIDTH,
+      lineWidthStops: gateWidthStops(TRACE_WIDTH_STOPS.excludedCore, gz),
+      lineDash: TRACE_DASH.excluded,
+    },
+  ];
+  // §2 : DIMMING À LA SÉLECTION (l'actif domine) — dédouble chaque couche en base
+  // (zone active, 100 %) + jumelle `-dim` (contexte atténué). Appliqué AVANT le
+  // liseré clair, pour que withColorCasing dote base ET jumelle de leur casing sur
+  // fond color/satellite. selectedZoneId=null ⇒ base inchangée + jumelle vide.
+  return withColorCasing(basemap, applySelectionDim(layers, selectedZoneId));
 }
 
 /**
@@ -1411,6 +1532,7 @@ export function battleGameLayers(
   emph: ModeEmphasis,
   selectedParcoursId: string | null,
   basemap: BasemapKey = 'dark',
+  selectedZoneId: string | null = null,
 ): RealMapGeoJSONLayer[] {
   if (!routeCollectionCache) {
     routeCollectionCache = lineCollection(battleMapData().points.route);
@@ -1434,7 +1556,10 @@ export function battleGameLayers(
 
   const terr = territoryStyle;
   return [
-    ...territoryStateLayers(emph, basemap),
+    // §2 : la sélection dédouble/atténue les territoires (l'actif domine) ; les
+    // secteurs agrégés, la zone bonus et la route ne sont PAS des zones à zoneId
+    // (la route active reste au-dessus, §19 — non dimmée par la sélection).
+    ...territoryStateLayers(emph, basemap, selectedZoneId),
     // §C — SECTEURS AGRÉGÉS par STATUT (0-4) au-DESSUS des territoires : c'est la
     // lecture « où est-ce chaud ? » (contesté violet + double contour SANS pulse,
     // attaque orange, urgence rouge, activité rival approximative). Peints sous

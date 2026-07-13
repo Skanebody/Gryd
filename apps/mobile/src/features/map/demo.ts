@@ -30,6 +30,7 @@ import {
 } from '@klaim/shared';
 import type { GameVisualState, PoiKind } from '../../ui/game';
 import { timeAgoLabel } from '../../ui/game/states';
+import { TERRITORY_ZONE_IDS, type TerritoryZoneId } from './allTerritories';
 import { parcoursConquest, type ParcoursConquest } from './fakeHexes';
 import {
   AVENUE_DE_LA_REPUBLIQUE,
@@ -147,6 +148,210 @@ export const MAP_RIVAL_HEAD = {
 
 /** Secteur défendu par l'objectif crew (vocabulaire zones/rues — étiquette démo). */
 export const DEFENSE_SECTOR = 'République';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DÉTAIL PAR ZONE (AMENDEMENT-37 §3/§10) — un tap sur une zone ouvre SA sheet.
+// Modèle démo déterministe indexé par le `zoneId` stable des features de
+// territoire (TERRITORY_ZONE_IDS, allTerritories.ts — MÊME clé). Champs §10 :
+// propriétaire (VRAI crew, peut être rival/autre), contrôle %, tenue depuis,
+// surface km², défendue il y a X, PRESSION (top rival % + neutre %), ACTIVITÉ
+// 24 H (AGRÉGÉE — jamais localisée), ACTION RECOMMANDÉE (+ 1 CTA). Étiquettes
+// Paris/Lille/Lyon (S0) — ZÉRO ranking européen fabriqué (garde-fou CLAUDE.md).
+// Le CLAIM reste tranché SERVEUR : ces valeurs ne sont que de l'AFFICHAGE.
+// TODO(O1) : dérivé des parts réelles (hex_claims / defense_missions) au M2.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Rôle du propriétaire d'une zone → pastille par RÔLE (jamais par crew). */
+export type ZoneOwnerRole = 'mine' | 'rival' | 'other';
+
+/** Pression sur une zone (agrégée — top rival % + part neutre %). */
+export interface ZonePressure {
+  topRivalName: string;
+  topRivalPct: number;
+  neutralPct: number;
+}
+
+/** Activité 24 H d'une zone — AGRÉGÉE (runs/alliés/rivaux), jamais localisée. */
+export interface ZoneActivity24h {
+  runs: number;
+  allies: number;
+  rivals: number;
+}
+
+/** Action recommandée sur une zone : « {type} · {km} · {min} · +{n} zones » + 1 CTA. */
+export interface ZoneAction {
+  type: string;
+  km: number;
+  minutes: number;
+  zones: number;
+  ctaLabel: string;
+}
+
+/** Détail §10 d'UNE zone (tap → sheet). Étiquettes démo — le serveur tranche. */
+export interface ZoneDetail {
+  /** Nom AFFICHÉ (vocabulaire zones/rues — étiquette démo). */
+  name: string;
+  /** Rôle du propriétaire (pastille : mine=chartreuse / rival=orange / other=gris). */
+  ownerRole: ZoneOwnerRole;
+  /** VRAI crew propriétaire (peut être rival/autre) — étiquette démo. */
+  ownerName: string;
+  /** Contrôle % du propriétaire sur la zone. */
+  controlPct: number;
+  /** Tenue depuis (libellé court « depuis 6 j » / « en jeu »). */
+  heldSinceLabel: string;
+  /** Surface (km²). */
+  areaKm2: number;
+  /** Défendue il y a (libellé « il y a 2 h »). */
+  defendedAgoLabel: string;
+  pressure: ZonePressure;
+  activity24h: ZoneActivity24h;
+  action: ZoneAction;
+}
+
+/** Mon crew démo (cohérent avec le mini war feed « NIGHT PACERS »). */
+const MY_CREW = 'Night Pacers';
+/** Rival principal démo (cohérent avec MAP_CONTROL_HUD.rivalName). */
+const RIVAL_CREW = MAP_CONTROL_HUD.rivalName;
+
+/**
+ * Détail par zone, indexé par `zoneId` (TERRITORY_ZONE_IDS). La sheet fait
+ * `ZONE_DETAILS[selectedZoneId]` ; une zone sans entrée n'ouvre pas de sheet
+ * (repli sûr). Couverture complète des features de territoire (allTerritories).
+ */
+export const ZONE_DETAILS: Record<TerritoryZoneId, ZoneDetail> = {
+  [TERRITORY_ZONE_IDS.republique]: {
+    name: 'République',
+    ownerRole: 'mine',
+    ownerName: MY_CREW,
+    controlPct: MAP_CONTROL_HUD.crewPct, // même part que la tête de carte (42 %)
+    heldSinceLabel: 'depuis 6 j',
+    areaKm2: 0.8,
+    defendedAgoLabel: 'il y a 2 h',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: MAP_CONTROL_HUD.rivalPct, neutralPct: MAP_CONTROL_HUD.neutralPct },
+    activity24h: { runs: 24, allies: 12, rivals: 9 },
+    action: { type: 'Défendre', km: 4.4, minutes: 26, zones: 3, ctaLabel: 'Défendre la zone' },
+  },
+  [TERRITORY_ZONE_IDS.quaiValmy]: {
+    name: 'Quai de Valmy',
+    ownerRole: 'mine',
+    ownerName: MY_CREW,
+    controlPct: 71,
+    heldSinceLabel: 'depuis 3 j',
+    areaKm2: 0.3,
+    defendedAgoLabel: 'il y a 5 h',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: 18, neutralPct: 11 },
+    activity24h: { runs: 11, allies: 7, rivals: 2 },
+    action: { type: 'Consolider', km: 2.1, minutes: 13, zones: 1, ctaLabel: 'Renforcer la zone' },
+  },
+  [TERRITORY_ZONE_IDS.lilleCentre]: {
+    name: 'Lille Centre',
+    ownerRole: 'mine',
+    ownerName: MY_CREW,
+    controlPct: 63,
+    heldSinceLabel: 'depuis 9 j',
+    areaKm2: 1.1,
+    defendedAgoLabel: 'il y a 1 j',
+    pressure: { topRivalName: 'Nord Runners', topRivalPct: 22, neutralPct: 15 },
+    activity24h: { runs: 8, allies: 5, rivals: 3 },
+    action: { type: 'Étendre', km: 3.0, minutes: 18, zones: 2, ctaLabel: 'Étendre la zone' },
+  },
+  [TERRITORY_ZONE_IDS.placeRepublique]: {
+    name: 'Place de la République',
+    ownerRole: 'mine',
+    ownerName: MY_CREW,
+    controlPct: 88,
+    heldSinceLabel: 'depuis 12 j',
+    areaKm2: 0.15,
+    defendedAgoLabel: 'il y a 30 min',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: 8, neutralPct: 4 },
+    activity24h: { runs: 15, allies: 10, rivals: 1 },
+    action: { type: 'Patrouiller', km: 1.2, minutes: 7, zones: 1, ctaLabel: 'Patrouiller la zone' },
+  },
+  [TERRITORY_ZONE_IDS.avenueRepublique]: {
+    name: 'Avenue de la République',
+    ownerRole: 'mine',
+    ownerName: MY_CREW,
+    controlPct: 34,
+    heldSinceLabel: 'depuis 2 j',
+    areaKm2: 0.4,
+    defendedAgoLabel: 'il y a 9 h',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: 44, neutralPct: 22 },
+    activity24h: { runs: 9, allies: 3, rivals: 6 },
+    action: { type: 'Défendre', km: 2.6, minutes: 16, zones: 2, ctaLabel: 'Sauver la zone' },
+  },
+  [TERRITORY_ZONE_IDS.avenueRepubliqueFin]: {
+    name: 'Avenue de la République — Est',
+    ownerRole: 'mine',
+    ownerName: MY_CREW,
+    controlPct: 21,
+    heldSinceLabel: 'depuis 1 j',
+    areaKm2: 0.2,
+    defendedAgoLabel: 'il y a 14 h',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: 57, neutralPct: 22 },
+    activity24h: { runs: 6, allies: 2, rivals: 7 },
+    action: { type: 'Défendre', km: 1.9, minutes: 12, zones: 1, ctaLabel: "Sauver d'urgence" },
+  },
+  [TERRITORY_ZONE_IDS.faubourgTemple]: {
+    name: 'Faubourg-du-Temple',
+    ownerRole: 'rival',
+    ownerName: RIVAL_CREW,
+    controlPct: 61,
+    heldSinceLabel: 'depuis 4 j',
+    areaKm2: 0.5,
+    defendedAgoLabel: 'il y a 3 h',
+    pressure: { topRivalName: MY_CREW, topRivalPct: 27, neutralPct: 12 },
+    activity24h: { runs: 18, allies: 5, rivals: 11 },
+    action: { type: 'Attaquer', km: 3.4, minutes: 21, zones: 2, ctaLabel: 'Attaquer la zone' },
+  },
+  [TERRITORY_ZONE_IDS.lyonRhone]: {
+    name: 'Berges du Rhône',
+    ownerRole: 'rival',
+    ownerName: 'Rhône Runners',
+    controlPct: 68,
+    heldSinceLabel: 'depuis 7 j',
+    areaKm2: 1.4,
+    defendedAgoLabel: 'il y a 6 h',
+    pressure: { topRivalName: MY_CREW, topRivalPct: 19, neutralPct: 13 },
+    activity24h: { runs: 12, allies: 4, rivals: 8 },
+    action: { type: 'Explorer', km: 5.0, minutes: 30, zones: 3, ctaLabel: 'Repérer la zone' },
+  },
+  [TERRITORY_ZONE_IDS.canalEst]: {
+    name: 'Canal Est',
+    ownerRole: 'other',
+    ownerName: 'Zone contestée',
+    controlPct: 50,
+    heldSinceLabel: 'en jeu',
+    areaKm2: 0.3,
+    defendedAgoLabel: 'il y a 1 h',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: 46, neutralPct: 8 },
+    activity24h: { runs: 20, allies: 9, rivals: 11 },
+    action: { type: 'Capturer', km: 2.2, minutes: 14, zones: 1, ctaLabel: 'Capturer la zone' },
+  },
+  [TERRITORY_ZONE_IDS.squareVillemin]: {
+    name: 'Square Villemin',
+    ownerRole: 'other',
+    ownerName: 'Zone libre',
+    controlPct: 12,
+    heldSinceLabel: 'libre',
+    areaKm2: 0.18,
+    defendedAgoLabel: 'jamais',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: 20, neutralPct: 68 },
+    activity24h: { runs: 7, allies: 4, rivals: 3 },
+    action: { type: 'Capturer', km: 1.6, minutes: 10, zones: 1, ctaLabel: 'Capturer la zone' },
+  },
+  [TERRITORY_ZONE_IDS.bastille]: {
+    name: 'Place de la Bastille',
+    ownerRole: 'mine',
+    ownerName: MY_CREW,
+    controlPct: 55,
+    heldSinceLabel: 'depuis 5 j',
+    areaKm2: 0.35,
+    defendedAgoLabel: 'il y a 4 h',
+    pressure: { topRivalName: RIVAL_CREW, topRivalPct: 30, neutralPct: 15 },
+    activity24h: { runs: 10, allies: 6, rivals: 4 },
+    action: { type: 'Consolider', km: 2.8, minutes: 17, zones: 1, ctaLabel: "Tenir l'avant-poste" },
+  },
+};
 
 export interface MapWarFeedEventDemo {
   icon: IconName;

@@ -203,21 +203,55 @@ export function loopRing(trace: readonly LatLngPoint[]): [number, number][] {
   return trace.map((p) => [p.lng, p.lat]);
 }
 
-function polygonFeature(state: TerritoryState, ring: [number, number][]): GameFeature {
+/**
+ * AMENDEMENT-37 §3 (contrat C1/C4) — IDENTIFIANT DE ZONE stable et unique par
+ * FEATURE de territoire. Il est posé dans les `properties` GeoJSON (lu par
+ * `['get','zoneId']` côté rendu et par le TAP → sheet de zone, contrat partagé).
+ * Source UNIQUE des clés : `ZONE_DETAILS` (demo.ts) les réutilise à l'identique
+ * pour que le tap retrouve toujours le bon détail. Étiquettes Paris/Lille/Lyon —
+ * données démo déterministes, ZÉRO ranking européen fabriqué (garde-fou CLAUDE.md).
+ */
+export const TERRITORY_ZONE_IDS = {
+  republique: 'republique',
+  quaiValmy: 'quai-valmy',
+  lilleCentre: 'lille-centre',
+  placeRepublique: 'place-republique',
+  avenueRepublique: 'avenue-republique',
+  avenueRepubliqueFin: 'avenue-republique-fin',
+  faubourgTemple: 'faubourg-temple',
+  lyonRhone: 'lyon-rhone',
+  canalEst: 'canal-est',
+  squareVillemin: 'square-villemin',
+  bastille: 'bastille',
+} as const;
+
+/** Id de zone d'une feature de territoire (union des valeurs de TERRITORY_ZONE_IDS). */
+export type TerritoryZoneId = (typeof TERRITORY_ZONE_IDS)[keyof typeof TERRITORY_ZONE_IDS];
+
+function polygonFeature(
+  state: TerritoryState,
+  zoneId: TerritoryZoneId,
+  ring: [number, number][],
+): GameFeature {
   const first = ring[0];
   const closed = first ? [...ring, first] : ring;
   return {
     type: 'Feature',
     geometry: { type: 'Polygon', coordinates: [closed] },
-    properties: { state },
+    // `zoneId` (contrat C1) : lu au TAP (queryRenderedFeatures) et au dimming.
+    properties: { state, zoneId },
   };
 }
 
-function lineFeature(state: TerritoryState, trace: readonly LatLngPoint[]): GameFeature {
+function lineFeature(
+  state: TerritoryState,
+  zoneId: TerritoryZoneId,
+  trace: readonly LatLngPoint[],
+): GameFeature {
   return {
     type: 'Feature',
     geometry: { type: 'LineString', coordinates: trace.map((p) => [p.lng, p.lat]) },
-    properties: { state },
+    properties: { state, zoneId },
   };
 }
 
@@ -248,42 +282,49 @@ export function territoryGeoByState(): ReadonlyMap<TerritoryState, GameCollectio
   // plus de ruban rempli de 60 m qui se lit comme un halo. Seules les BOUCLES
   // fermées gardent un aplat (l'aire enfermée = la zone). ribbonRing n'est donc
   // plus utilisé pour l'affichage des couloirs.
+  const Z = TERRITORY_ZONE_IDS;
   const byState = new Map<TerritoryState, GameCollection>([
     [
       'crew',
       collection([
-        polygonFeature('crew', loopRing(BOUCLE_REPUBLIQUE)),
-        lineFeature('crew', QUAI_VALMY),
-        polygonFeature('crew', loopRing(LILLE_BOUCLE)),
+        polygonFeature('crew', Z.republique, loopRing(BOUCLE_REPUBLIQUE)),
+        lineFeature('crew', Z.quaiValmy, QUAI_VALMY),
+        polygonFeature('crew', Z.lilleCentre, loopRing(LILLE_BOUCLE)),
       ]),
     ],
     [
       'protected',
-      collection([polygonFeature('protected', loopRing(BOUCLE_PLACE_REPUBLIQUE))]),
+      collection([polygonFeature('protected', Z.placeRepublique, loopRing(BOUCLE_PLACE_REPUBLIQUE))]),
     ],
     [
       'decay',
-      collection([lineFeature('decay', AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_FROM_WAYPOINT))]),
+      collection([
+        lineFeature('decay', Z.avenueRepublique, AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_FROM_WAYPOINT)),
+      ]),
     ],
     [
       'decayUrgent',
       collection([
-        lineFeature('decayUrgent', AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_URGENT_FROM_WAYPOINT)),
+        lineFeature(
+          'decayUrgent',
+          Z.avenueRepubliqueFin,
+          AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_URGENT_FROM_WAYPOINT),
+        ),
       ]),
     ],
     [
       'rival',
       collection([
-        lineFeature('rival', rivalTraceParis),
-        lineFeature('rival', LYON_BERGES_RHONE),
+        lineFeature('rival', Z.faubourgTemple, rivalTraceParis),
+        lineFeature('rival', Z.lyonRhone, LYON_BERGES_RHONE),
       ]),
     ],
-    ['contested', collection([lineFeature('contested', contestedTrace)])],
+    ['contested', collection([lineFeature('contested', Z.canalEst, contestedTrace)])],
     [
       'objective',
-      collection([polygonFeature('objective', loopRing(BOUCLE_SQUARE_VILLEMIN))]),
+      collection([polygonFeature('objective', Z.squareVillemin, loopRing(BOUCLE_SQUARE_VILLEMIN))]),
     ],
-    ['outpost', collection([polygonFeature('outpost', loopRing(BOUCLE_BASTILLE))])],
+    ['outpost', collection([polygonFeature('outpost', Z.bastille, loopRing(BOUCLE_BASTILLE))])],
   ]);
   geoByStateCache = byState;
   return byState;

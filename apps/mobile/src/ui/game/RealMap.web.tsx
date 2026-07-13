@@ -190,6 +190,12 @@ export interface RealMapMarker {
 export interface RealMapPressEvent {
   lng: number;
   lat: number;
+  /**
+   * AMENDEMENT-37 §3 (contrat C2) — `zoneId` de la zone de TERRITOIRE tapée (lu
+   * par queryRenderedFeatures sur les couches territoire au point du tap).
+   * `null` = tap sur le vide (aucune zone) → l'écran désélectionne.
+   */
+  zoneId?: string | null;
 }
 
 export interface RealMapRef {
@@ -371,6 +377,29 @@ function isTilesAvailabilityError(event: unknown, gameSourceIds: readonly string
     return /fetch|network|tile|glyph|sprite/i.test(e.error.message);
   }
   return true;
+}
+
+/**
+ * AMENDEMENT-37 §3 (contrat C2/C4) — id de zone de TERRITOIRE sous un point
+ * écran : queryRenderedFeatures scopé aux couches de territoire (ids `terr-*`
+ * présents dans le style — fills + traces) → la 1ʳᵉ feature portant un `zoneId`
+ * string (posé dans allTerritories). `null` = tap sur le vide (aucune zone).
+ * Défensif : le style peut être en rechargement (setStyle / remount).
+ */
+function territoryZoneIdAt(map: MapLibreMap, point: MapMouseEvent['point']): string | null {
+  try {
+    const ids = (map.getStyle()?.layers ?? [])
+      .map((l) => l.id)
+      .filter((id) => id.startsWith('terr-') && map.getLayer(id));
+    if (ids.length === 0) return null;
+    for (const f of map.queryRenderedFeatures(point, { layers: ids })) {
+      const z = f.properties?.zoneId;
+      if (typeof z === 'string' && z.length > 0) return z;
+    }
+  } catch {
+    // Style en rechargement entre deux frames — pas de zone pour ce tap.
+  }
+  return null;
 }
 
 /** prefers-reduced-motion (web) — jamais d'animation si actif. */
@@ -1063,7 +1092,13 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
       onZoomChangeRef.current?.(map.getZoom());
     });
     map.on('click', (e: MapMouseEvent) => {
-      onPressRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+      // §3 : id de la zone tapée (null sur le vide) — NE casse pas les markers
+      // (maplibregl.Marker DOM, hors des features de la carte).
+      onPressRef.current?.({
+        lng: e.lngLat.lng,
+        lat: e.lngLat.lat,
+        zoneId: territoryZoneIdAt(map, e.point),
+      });
     });
 
     return () => {

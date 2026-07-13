@@ -31,6 +31,7 @@ import {
   RealMap,
   usePulse,
   type RealMapMarker,
+  type RealMapPressEvent,
   type RealMapRef,
 } from '../../ui/game';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
@@ -155,6 +156,10 @@ export function MapScreen() {
   // ULTÉRIEURE (menace réellement live), mais n'est plus l'état INITIAL.
   const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
   const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
+  // AMENDEMENT-37 §3 : zone tapée (null = carte nue). Un tap carte la pose
+  // (tap sur le vide → null = désélection) ; elle pilote la sheet de zone (HUD)
+  // ET l'accent « l'actif domine » via le 4ᵉ arg de battleGameLayers (contrat C3).
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
 
@@ -182,9 +187,16 @@ export function MapScreen() {
    * traits chartreuse (lisibilité — charte).
    */
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap),
-    [emph, selectedParcours, basemap],
+    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId),
+    [emph, selectedParcours, basemap, selectedZoneId],
   );
+
+  /** Tap carte → zone tapée (null sur le vide = désélection). */
+  const onMapPress = useCallback((e: RealMapPressEvent) => {
+    setSelectedZoneId(e.zoneId ?? null);
+  }, []);
+  /** Fermer la sheet de zone → carte nue (retour au peek mission). */
+  const closeZone = useCallback(() => setSelectedZoneId(null), []);
 
   /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
   const decayAnchor = useMemo(() => decaySablierAnchor(), []);
@@ -230,6 +242,7 @@ export function MapScreen() {
         pointLayers={territoryDotLayers()}
         markers={markers}
         onZoomChange={onZoomChange}
+        onPress={onMapPress}
         attributionCompact={false}
         basemap={basemap}
         mode3d={map3d}
@@ -259,6 +272,8 @@ export function MapScreen() {
         onRecenter={recenter}
         selectedParcoursId={selectedParcours}
         onSelectParcours={setSelectedParcours}
+        selectedZoneId={selectedZoneId}
+        onCloseZone={closeZone}
         basemap={basemap}
         onToggleBasemap={toggle}
         map3d={map3d}

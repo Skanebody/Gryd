@@ -27,6 +27,7 @@ import {
   ACTION_SLOT_WIDTH,
   NAV_BAR_HEIGHT,
 } from './metrics';
+import { useZoneSheetOpen } from '../map/mapUiStore';
 
 interface NavItem {
   label: string;
@@ -66,10 +67,13 @@ export function GrydNavBar() {
   const action = deriveContextualAction(screen ? { screen } : {});
   // Run libre toujours atteignable : lien discret quand le verbe central diffère.
   const freeRun = action.kind === 'run' ? null : deriveContextualAction({});
-  // Sur /warroom le CONTENU porte déjà le CTA hero chartreuse PLEIN (mission n°1).
-  // La capsule d'action passe donc en variante CONTOUR : un SEUL bloc chartreuse
-  // plein par scène (Règles §A — 1 écran = 1 seul CTA chartreuse plein).
-  const actionOutlined = pathname === '/warroom';
+  // Sur /warroom le CONTENU porte déjà le CTA hero chartreuse PLEIN (mission n°1) ;
+  // sur la Carte, une sheet de ZONE ouverte affiche son CTA chartreuse plein
+  // « Défendre la zone » (AMENDEMENT-37 §3). Dans ces deux cas la capsule d'action
+  // passe en variante CONTOUR : un SEUL bloc chartreuse plein par scène (Règles
+  // §A.4 — 1 écran = 1 seul CTA chartreuse plein).
+  const zoneSheetOpen = useZoneSheetOpen();
+  const actionOutlined = pathname === '/warroom' || (pathname === '/' && zoneSheetOpen);
 
   const go = (href: string) => {
     if (pathname !== href) router.navigate(href);

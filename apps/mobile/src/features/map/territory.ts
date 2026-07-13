@@ -32,7 +32,15 @@ const MIN_RING_VERTICES = 4;
 
 // ─── Types exportés (états de territoire — consommés par toutes les cartes) ─
 
-/** États de TERRITOIRE rendus (le neutre n'existe pas : c'est la basemap). */
+/**
+ * États de TERRITOIRE rendus (le neutre n'existe pas : c'est la basemap).
+ * AMENDEMENT-37 §5 (étude §8) — 3 états de FRONTIÈRE ajoutés :
+ *   openBoundary   frontière OUVERTE (trait pointillé + point de fermeture)
+ *   loopIncomplete boucle À TERMINER (anneau ouvert + segment manquant chartreuse)
+ *   excluded       zone EXCLUE (trait gris, hors-jeu — aucun CTA de conquête)
+ * Leur RENDU vit dans mapStyle.territoryStateLayers ; il ne s'ALLUME que si la
+ * source fournit des features de ces états (sinon la couche existe, vide).
+ */
 export type TerritoryState =
   | 'crew'
   | 'protected'
@@ -41,7 +49,10 @@ export type TerritoryState =
   | 'rival'
   | 'contested'
   | 'objective'
-  | 'outpost';
+  | 'outpost'
+  | 'openBoundary'
+  | 'loopIncomplete'
+  | 'excluded';
 
 /** Position [lng, lat] — ordre GeoJSON (h3.cellsToMultiPolygon(_, true)). */
 export type LngLat = [number, number];
