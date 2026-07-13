@@ -853,16 +853,36 @@ export const TRACE_WIDTH_STOPS = {
   ],
   /** RIVAL : orange PLUS FIN que ma trace (jamais aussi visible — §B, anti-confusion). */
   rivalCore: [
-    [12, 3],
-    [14, 4.5],
+    [12, 2.5],
+    [14, 3.2],
+    [16, 4],
+    [18, 5],
+  ],
+  rivalCasing: [
+    [12, 4],
+    [14, 4.8],
     [16, 6],
     [18, 7.5],
   ],
-  rivalCasing: [
-    [12, 5.5],
-    [14, 7],
-    [16, 9],
-    [18, 11],
+  /**
+   * TERRITOIRE (statique, Battle Map) — trace FINE ET ÉLÉGANTE, distincte du
+   * tracé de COURSE LIVE (volontairement massif). Premium 2026 : un trait qui
+   * respire (~3,5 px ville → 6 px rue), casing sombre discret (+1,5 px), zéro
+   * glow. Fini le « gros ver ». Consommé par territoryTraceLayers.
+   */
+  territoryCore: [
+    [12, 3],
+    [13, 3.5],
+    [14, 4],
+    [16, 5],
+    [18, 6],
+  ],
+  territoryCasing: [
+    [12, 4.5],
+    [13, 5],
+    [14, 5.5],
+    [16, 7],
+    [18, 8.5],
   ],
 } as const satisfies Record<string, readonly (readonly [number, number])[]>;
 
@@ -1004,14 +1024,47 @@ export function rivalTraceLayers(
       data,
       lineColor: scaleAlpha(traceStyle.rivalCasing, a),
       lineWidthStops: TRACE_WIDTH_STOPS.rivalCasing,
-      lineWidth: 9,
+      lineWidth: 6,
     },
     {
       id: `${idBase}-core`,
       data,
       lineColor: scaleAlpha(traceStyle.rivalCore, a),
       lineWidthStops: TRACE_WIDTH_STOPS.rivalCore,
-      lineWidth: 6,
+      lineWidth: 4,
+    },
+  ];
+}
+
+/**
+ * TERRITOIRE (Battle Map / Mon territoire) — trace FINE et ÉLÉGANTE (premium
+ * 2026), distincte du tracé de COURSE LIVE (volontairement massif via
+ * runTraceLayers). Deux couches SEULEMENT : casing sombre discret (détache la
+ * trace du fond, ~+1,5 px) + core plein (la teinte de rôle). ZÉRO glow (aucun
+ * halo/lueur — un trait net qui respire). `alpha` module par le mode (emph).
+ * `color` = teinte de rôle du core (chartreuse pour le crew).
+ */
+export function territoryTraceLayers(
+  idBase: string,
+  data: RealMapData,
+  color: string,
+  opts: { alpha?: number } = {},
+): TraceLayerList {
+  const a = opts.alpha ?? 1;
+  return [
+    {
+      id: `${idBase}-casing`,
+      data,
+      lineColor: scaleAlpha(traceStyle.casing, a),
+      lineWidthStops: TRACE_WIDTH_STOPS.territoryCasing,
+      lineWidth: 5.5,
+    },
+    {
+      id: `${idBase}-core`,
+      data,
+      lineColor: scaleAlpha(color, a),
+      lineWidthStops: TRACE_WIDTH_STOPS.territoryCore,
+      lineWidth: 4,
     },
   ];
 }
@@ -1150,14 +1203,12 @@ export function territoryStateLayers(
       lineWidth: BORDER_WIDTH,
       lineDash: DECAY_DASH,
     },
-    // Mon crew : MA trace = le POINT FOCAL de la carte propre (§B). VRAIE trace
-    // héros façon Strava (casing sombre + core chartreuse plein, largeur par
-    // zoom, round caps) au lieu de la ligne fine. `glow=false` : sur la carte
-    // (≠ Course Live) on garde le trait net sans liseré vivant, pour ne pas
-    // réintroduire d'aplat. L'intensité suit le MODE via emph.crew : en défense
-    // (0,9) c'est un hero net ; en route/exploration (0,35) elle RECULE comme
-    // avant. Le core reste chartreuse pleine (aucune couleur hors tokens).
-    ...runTraceLayers('terr-crew', stateData('crew'), { glow: false, alpha: emph.crew }),
+    // Mon crew : MA trace = le point focal, mais FINE et ÉLÉGANTE (premium 2026,
+    // territoryTraceLayers) — PAS la trace massive de la Course Live (qui, elle,
+    // reste épaisse). Casing sombre discret + core chartreuse plein, largeur par
+    // zoom (~4 px ville → 6 px rue), zéro glow. Intensité par le MODE (emph.crew) :
+    // hero net en défense, recule en route/exploration. Le « gros ver » est fini.
+    ...territoryTraceLayers('terr-crew', stateData('crew'), traceStyle.core, { alpha: emph.crew }),
     // Avant-poste : petite boucle nette tenue (place de la Bastille), sans aplat.
     {
       id: 'terr-outpost',
