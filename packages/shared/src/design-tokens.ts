@@ -11,7 +11,10 @@ export const colors = {
   gris: '#8A8F84', // texte secondaire, labels
   grisLigne: 'rgba(250,250,247,0.10)', // bordures 1 px, séparateurs (blanc 8-12 %)
   chartreuse: '#B4FF0D', // accent unique — 4 emplois : moi/crew, CTA primaire, gains, live
-  chartreuse14: 'rgba(180,255,13,0.14)', // remplissage de MON territoire
+  // Remplissage de MON territoire. AMENDEMENT-37 §1 : plancher du FILL de possession
+  // (LOD carte) — porté de 0,14 → 0,16 (subtil, jamais un aplat lourd ; la trace
+  // reste dominante). Source UNIQUE du fill crew (mapTokens.mineFill).
+  chartreuse14: 'rgba(180,255,13,0.16)', // remplissage de MON territoire (fill possession §1)
   chartreuse40: 'rgba(180,255,13,0.40)', // contours de territoire, glows
   eau: '#0D1112', // fond de carte : eau
 } as const;
@@ -121,6 +124,12 @@ export const gameColors = {
   gold: '#E7B84C',
   /** GRYD Verify / info de confiance. */
   verify: '#6FB7FF',
+  /**
+   * Territoire PROTÉGÉ — bleu ÉLECTRIQUE (AMENDEMENT-37 §5). DISSOCIÉ de `verify`
+   * (#6FB7FF, réservé au GRYD Verify) : le protégé est un ÉTAT de zone (bouclier),
+   * pas une info de confiance. Teinte franche, lisible sur fond sombre.
+   */
+  electricBlue: '#2E6BFF',
   /** Danger / decay urgent (rouge éteint, jamais criard). */
   danger: '#D64545',
   /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre). */
@@ -183,7 +192,8 @@ export function roleColor(role: SectorRoleColorKey): string {
     case 'contested':
       return gameColors.contested;
     case 'protected':
-      return gameColors.verify;
+      // AMENDEMENT-37 §5 : protégé = bleu ÉLECTRIQUE (dissocié de verify #6FB7FF).
+      return gameColors.electricBlue;
     case 'decay':
       return gameColors.danger;
     case 'bonus':

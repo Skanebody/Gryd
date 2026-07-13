@@ -21,7 +21,13 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { MapScreen } from '../../src/features/map/MapScreen';
-import { MAP_MISSION, MAP_MISSION_SUMMARY } from '../../src/features/map/demo';
+import {
+  MAP_FRESHNESS,
+  MAP_HUD,
+  MAP_MISSION,
+  MAP_MISSION_SUMMARY,
+  MAP_RIVAL_HEAD,
+} from '../../src/features/map/demo';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
@@ -60,6 +66,16 @@ const MISSION_LINE_TEXT = `${MAP_MISSION.headerTitle} · ${ZONES_LABEL} · ${TIM
 
 /** Détail au tap : distance + gain — unité unique « pts » (jamais XP ici). */
 const MISSION_DETAIL_META = `${formatKm(MAP_MISSION.distanceKm)} · +${MAP_MISSION.bonusPoints} pts crew`;
+
+/**
+ * TÊTE DE CARTE (AMENDEMENT-37 §4 + §26.2) : le secteur (« PARIS EST »), la
+ * FRAÎCHEUR fusionnée sur la même ligne (« ● À jour », jamais un 2ᵉ bloc), et le
+ * RIVAL principal agrégé sous elle (« Canal Crew · 38 % », teinte orange). Compris
+ * sans tap, en < 3 s ; textes courts jamais tronqués. Réutilise le nom de secteur
+ * existant (MAP_HUD.zoneName) et les parts démo (MAP_RIVAL_HEAD).
+ */
+const SECTOR_NAME = MAP_HUD.zoneName.toUpperCase(); // « PARIS EST »
+const RIVAL_HEAD_TEXT = `${MAP_RIVAL_HEAD.name} · ${MAP_RIVAL_HEAD.pct} %`;
 
 export default function CarteTab() {
   return (
@@ -107,6 +123,27 @@ function MissionLine() {
       style={[styles.missionWrap, { top: insets.top + MISSION_LINE_TOP_GAP }]}
       pointerEvents="box-none"
     >
+      {/* Tête de carte : secteur · fraîcheur (fusionnée) + rival agrégé — lu sans
+          tap, compact, jamais un pavé. La fraîcheur ne fait JAMAIS un 2ᵉ bloc. */}
+      <View
+        style={styles.sectorHead}
+        pointerEvents="none"
+        accessibilityRole="text"
+        accessibilityLabel={`Secteur ${SECTOR_NAME}, données ${MAP_FRESHNESS.label}. Rival principal ${MAP_RIVAL_HEAD.name}, ${MAP_RIVAL_HEAD.pct} pour cent.`}
+      >
+        <Text style={styles.sectorLine} numberOfLines={1}>
+          <Text style={styles.sectorName}>{SECTOR_NAME}</Text>
+          <Text style={styles.sectorSep}>{'   ·   '}</Text>
+          {/* Point de fraîcheur : teinte de RÔLE par état (jamais couleur seule —
+              le libellé porte le sens ; le ● ne fait que le renforcer). */}
+          <Text style={{ color: MAP_FRESHNESS.dotTint }}>{'●'}</Text>
+          <Text style={styles.sectorFresh}>{` ${MAP_FRESHNESS.label}`}</Text>
+        </Text>
+        <Text style={styles.rivalLine} numberOfLines={1}>
+          {RIVAL_HEAD_TEXT}
+        </Text>
+      </View>
+
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: detailOpen }}
@@ -171,6 +208,22 @@ const styles = StyleSheet.create({
     right: MISSION_LINE_SIDE,
     gap: 8,
   },
+  // ── Tête de carte : secteur · fraîcheur + rival (compacte, non intrusive) ──
+  sectorHead: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    backgroundColor: colors.carbone,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 2,
+  },
+  sectorLine: { fontSize: fontSizes.xs, fontWeight: '700' },
+  sectorName: { color: colors.blanc, letterSpacing: 0.4 },
+  sectorSep: { color: colors.gris },
+  sectorFresh: { color: colors.gris, fontWeight: '600' },
+  rivalLine: { fontSize: fontSizes.xs, fontWeight: '700', color: gameColors.rival },
+
   missionLine: {
     minHeight: MIN_TAP_TARGET,
     flexDirection: 'row',

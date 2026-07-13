@@ -33,7 +33,6 @@ import {
   type RealMapMarker,
   type RealMapRef,
 } from '../../ui/game';
-import { deriveAutoPlan } from '../nav/runContext';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import {
   TERRITORY_DOT_MAX_ZOOM,
@@ -46,7 +45,7 @@ import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHex
 import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
-import { MODE_EMPHASIS, autoMapMode, type MapMode, type ModeEmphasis } from './territory';
+import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
 
 // ─── Constantes de rendu (UI uniquement — mêmes valeurs que la variante web) ─
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -150,9 +149,11 @@ function buildMarkers(
 }
 
 export function MapScreen() {
-  // AMENDEMENT-17 §1.2 : calque AUTO au montage selon le plan (défense →
-  // calque défense ; sinon route-first). Plus de rangée de filtres à choisir.
-  const [mode, setMode] = useState<MapMode>(() => autoMapMode(deriveAutoPlan().lecture));
+  // AMENDEMENT-37 §7 : la carte OUVRE en mode CONTRÔLE (territoire = tous les
+  // territoires pleins) — « état du monde d'abord » (étude §12, ordre
+  // comprendre→décider→courir). autoMapMode reste disponible pour une bascule
+  // ULTÉRIEURE (menace réellement live), mais n'est plus l'état INITIAL.
+  const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
   const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
@@ -267,9 +268,11 @@ export function MapScreen() {
   );
 }
 
-/** Point « moi » : dot chartreuse cerclé blanc + halo pulsé (reduce motion → fixe). */
+/** Point « moi » : dot chartreuse cerclé blanc + halo STATIQUE (AMENDEMENT-37 §5
+ * « une seule animation permanente » : le halo ego ne pulse plus — l'unique
+ * pulse permanent est réservé au secteur le plus urgent, géré ailleurs). */
 function EgoMarker() {
-  const halo = usePulse(true, 1.3, EGO_PULSE_MS);
+  const halo = usePulse(false, 1.3, EGO_PULSE_MS);
   const haloOpacity = halo.interpolate({ inputRange: [1, 1.3], outputRange: [0.4, 0.05] });
   return (
     <View pointerEvents="none" style={styles.ego}>

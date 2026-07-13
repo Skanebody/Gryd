@@ -17,7 +17,11 @@ import {
   SECTOR_STATUS_LEVELS,
 } from '@klaim/shared';
 import type { RealMapGeoJSONLayer } from '../../ui/game';
-import { SECTOR_BADGE_LABELS, territoryGeoByState } from './allTerritories';
+import {
+  SECTOR_BADGE_LABELS,
+  TERRITORY_TRACE_MIN_ZOOM,
+  territoryGeoByState,
+} from './allTerritories';
 import { MAP_BONUS_ZONE, PARCOURS_DEMO } from './demo';
 import { battleMapData } from './fakeHexes';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
@@ -249,14 +253,17 @@ export const territoryStyle = {
   rivalFill: withAlpha(gameColors.rival, 0.26),
   rivalStroke: withAlpha(gameColors.rival, 0.85),
 
-  // Contesté : double contour chartreuse + orange (l'orange pulse lentement).
+  // Contesté : double contour chartreuse + orange décalé (AMENDEMENT-37 §5 : NE
+  // PULSE PLUS — le double contour décalé suffit ; le pulse est réservé à l'urgence).
   contestedFill: withAlpha(gameColors.contested, 0.24),
   contestedInnerStroke: withAlpha(colors.chartreuse, 0.7),
   contestedOuterStroke: withAlpha(gameColors.rival, 0.8),
 
-  // Protégé : trait verify NET le long du tracé (1 icône shield par secteur —
-  // AMENDEMENT-16 §0 : plus de halo, la teinte verify du trait dit l'état).
-  protectedStroke: withAlpha(gameColors.verify, 0.4),
+  // Protégé : trait bleu ÉLECTRIQUE NET le long du tracé (1 icône shield par
+  // secteur — AMENDEMENT-16 §0 : plus de halo, la teinte dit l'état).
+  // AMENDEMENT-37 §5 : bleu électrique (dissocié de verify) + contour RENFORCÉ
+  // (0,4 → 0,8, fourchette contour §7.2) — le protégé se lit sans halo.
+  protectedStroke: withAlpha(gameColors.electricBlue, 0.8),
 
   // Zone à défendre (decay) : frontière pointillée — muted red si urgent.
   decayStroke: withAlpha(colors.blanc, 0.45),
@@ -319,13 +326,15 @@ export const territoryStyle = {
 
 /**
  * §C — CONTESTÉ : DOUBLE CONTOUR. Le contour EXTÉRIEUR orange (rival) est plus
- * large et pulse ; le contour INTÉRIEUR chartreuse (mon crew) est plus fin,
- * plein. Les deux teintes viennent des tokens (roleColor('rival') / ('mine')).
- * Décalage latéral ± pour que les deux traits se lisent séparément (jamais un
- * seul trait bicolore). Largeurs en px de trait MapLibre.
+ * large ; le contour INTÉRIEUR chartreuse (mon crew) est plus fin, plein. Les
+ * deux teintes viennent des tokens (roleColor('rival') / ('mine')). Décalage
+ * latéral ± pour que les deux traits se lisent séparément (jamais un seul trait
+ * bicolore). Largeurs en px de trait MapLibre.
+ * AMENDEMENT-37 §5 : le contesté NE PULSE PLUS (le double contour décalé le
+ * distingue déjà) — le pulse permanent est réservé au secteur pic/urgent.
  */
 export const CONTESTED_STYLE = {
-  /** Contour extérieur (rival) — le plus visible, pulsé. */
+  /** Contour extérieur (rival) — le plus visible. */
   outerColor: roleColor('rival'),
   outerWidthPx: 3,
   outerOffsetPx: 2.5,
@@ -335,8 +344,8 @@ export const CONTESTED_STYLE = {
   innerOffsetPx: -2.5,
   /** Remplissage violet TRÈS discret (la ville reste lisible). */
   fill: withAlpha(gameColors.contested, 0.12),
-  /** Le contour extérieur pulse (respecté par reduce motion côté rendu). */
-  outerPulse: true,
+  /** AMENDEMENT-37 §5 : plus de pulse sur le contesté (réservé à l'urgence). */
+  outerPulse: false,
 } as const;
 
 /**
@@ -344,6 +353,11 @@ export const CONTESTED_STYLE = {
  * contour) : motif diagonal discret pour distinguer le contesté SANS couleur
  * (daltonisme). Réutilise le vocabulaire de motifs des crews (design-tokens
  * foePatterns : 'hatch45'). Le rendu génère le pattern ; on n'en fixe que la spec.
+ * AMENDEMENT-37 (backlog §C) : SPEC RÉSERVÉE — la refonte carte 2026 a retiré le
+ * rendu des hachures de secteur (le double contour décalé porte déjà le
+ * contesté) ; ce token conserve la spécification pour la décision « réactiver
+ * les hachures contesté/exclue vs les abandonner » listée au backlog. Non câblé
+ * volontairement (donnée de style, pas du code mort exécutable).
  */
 export const CONTESTED_HATCH = {
   pattern: 'hatch45' as const,
@@ -431,14 +445,16 @@ export const SECTOR_STATUS_SPEC: Record<SectorStatusKey, SectorStatusStyleSpec> 
     badgeLabel: SECTOR_BADGE_LABELS.pression,
     alertPriority: SECTOR_STATUS_LEVELS.pression,
   },
-  // 2 — Contestée : double contour + violet + hachures + « Zone contestée » (pulse lent).
+  // 2 — Contestée : double contour + violet + hachures + « Zone contestée ».
+  // AMENDEMENT-37 §5 : ne pulse PLUS (le double contour décalé suffit ; le pulse
+  // permanent est réservé au secteur pic/urgent).
   contestee: {
     level: SECTOR_STATUS_LEVELS.contestee,
     strokeColor: roleColor('contested'),
     fill: CONTESTED_STYLE.fill,
     shape: 'doubleHatch',
     icon: 'cible',
-    pulse: true,
+    pulse: false,
     doubleContour: true,
     badgeLabel: SECTOR_BADGE_LABELS.contestee,
     alertPriority: SECTOR_STATUS_LEVELS.contestee,
@@ -516,17 +532,10 @@ const SECTOR_PULSE_RADIUS_M = 45;
 const SECTOR_PULSE_WIDTH = 1.5;
 /** Segments du cercle géodésique d'un secteur (assez lisse à ce rayon). */
 const SECTOR_CIRCLE_STEPS = 40;
-/** Largeur du contour d'un secteur agrégé (px écran). */
-const SECTOR_STROKE_WIDTH = 2.4;
-/** Double contour contesté : demi-écart des deux traits (px) — ext orange / int chartreuse. */
-const SECTOR_CONTOUR_OFFSET_PX = 3;
 // LOD des secteurs : SECTOR_MIN_ZOOM vit dans allTerritories (sibling de
 // TERRITORY_DOT_MAX_ZOOM, la LOD des marqueurs-points) et est importé ici —
 // sous ce zoom les disques sont sub-pixel et les points villes portent seuls la
 // lecture ; au-dessus, secteurs + badges prennent le relais (§C LOD).
-
-/** Rayon de référence pour convertir l'espacement px des hachures en mètres. */
-const SECTOR_DISC_RADIUS_PX_REF = 90;
 
 /** Disque géodésique (secteur agrégé) autour d'un centre — même maths que la zone bonus. */
 function sectorDiscRing(center: LatLngPoint, radiusM: number): number[][] {
@@ -541,68 +550,12 @@ function sectorDiscRing(center: LatLngPoint, radiusM: number): number[][] {
   return ring;
 }
 
-/**
- * HACHURES diagonales (2ᵉ canal de forme du contesté, §C — daltonisme) : de
- * vrais segments à 45° couvrant le disque, espacés de CONTESTED_HATCH.spacingPx
- * (converti en mètres via le rayon), en LineString. Pas de fill-pattern (non
- * disponible via RealMapGeoJSONLayer) — la géométrie EST la hachure.
- */
-function sectorHatchLines(center: LatLngPoint, radiusM: number): GeoJSONLineFeature[] {
-  const out: GeoJSONLineFeature[] = [];
-  // Espacement des hachures en mètres : proportionnel au rayon (≈ radius / 4 →
-  // ~8 diagonales sur le diamètre) pour une texture LÉGÈRE constante quel que
-  // soit le zoom — le ratio CONTESTED_HATCH.spacingPx/RADIUS_PX_REF ne fait que
-  // moduler finement cette densité (jamais un remplissage plein, §C daltonisme).
-  const densityRatio = CONTESTED_HATCH.spacingPx / SECTOR_DISC_RADIUS_PX_REF;
-  const step = Math.max(radiusM / 6, radiusM * densityRatio);
-  const mPerDegLng = REAL_M_PER_DEG_LNG;
-  const mPerDegLat = REAL_M_PER_DEG_LAT;
-  // Diagonale u = (1,1)/√2 ; on balaie la perpendiculaire de -r√2 à +r√2.
-  for (let d = -radiusM; d <= radiusM; d += step) {
-    // Corde de la droite {centre + d·n + t·u} ∩ disque, n ⟂ u.
-    const half = Math.sqrt(Math.max(0, radiusM * radiusM - d * d));
-    if (half <= 0) continue;
-    const nx = -Math.SQRT1_2;
-    const ny = Math.SQRT1_2;
-    const ux = Math.SQRT1_2;
-    const uy = Math.SQRT1_2;
-    const ax = d * nx - half * ux;
-    const ay = d * ny - half * uy;
-    const bx = d * nx + half * ux;
-    const by = d * ny + half * uy;
-    out.push({
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [center.lng + ax / mPerDegLng, center.lat + ay / mPerDegLat],
-          [center.lng + bx / mPerDegLng, center.lat + by / mPerDegLat],
-        ],
-      },
-    });
-  }
-  return out;
-}
-
-type GeoJSONPolygonFeature = {
-  type: 'Feature';
-  properties: Record<string, unknown>;
-  geometry: { type: 'Polygon'; coordinates: number[][][] };
-};
 type GeoJSONLineFeature = {
   type: 'Feature';
   properties: Record<string, unknown>;
   geometry: { type: 'LineString'; coordinates: number[][] };
 };
 
-function sectorDiscFeature(center: LatLngPoint, radiusM: number): GeoJSONPolygonFeature {
-  return {
-    type: 'Feature',
-    properties: {},
-    geometry: { type: 'Polygon', coordinates: [sectorDiscRing(center, radiusM)] },
-  };
-}
 function sectorRingFeature(center: LatLngPoint, radiusM: number): GeoJSONLineFeature {
   return {
     type: 'Feature',
@@ -914,6 +867,61 @@ export const traceStyle = {
 
 type TraceLayerList = RealMapGeoJSONLayer[];
 
+type WidthStops = readonly (readonly [number, number])[];
+
+/**
+ * AMENDEMENT-37 §5 — LOD des TRACÉS DE TERRITOIRE sans champ `minzoom` natif sur
+ * les couches ligne : on ÉTEINT la largeur du trait (0 px = invisible, round cap
+ * compris) sous `TERRITORY_TRACE_MIN_ZOOM`, et on la rétablit au quartier. Comme
+ * `line-width` supporte déjà l'interpolation par zoom (lineWidthStops, §B), c'est
+ * une simple palette de largeur — aucune dépendance de rendu nouvelle.
+ * `TRACE_GATE_EPS` : le palier juste sous le seuil (bascule nette 0 → pleine).
+ */
+const TRACE_GATE_EPS = 0.01;
+
+/** Largeur interpolée (linéaire, bornée hors plage) d'une palette à un zoom donné. */
+function widthAtZoom(stops: WidthStops, zoom: number): number {
+  const first = stops[0];
+  if (!first) return 0;
+  if (zoom <= first[0]) return first[1];
+  for (let i = 1; i < stops.length; i += 1) {
+    const a = stops[i - 1];
+    const b = stops[i];
+    if (!a || !b) continue;
+    if (zoom <= b[0]) {
+      const span = b[0] - a[0] || 1;
+      return a[1] + ((b[1] - a[1]) * (zoom - a[0])) / span;
+    }
+  }
+  return stops[stops.length - 1]?.[1] ?? 0;
+}
+
+/**
+ * Éteint une palette de largeur sous `minZoom` (largeur 0), la révèle à `minZoom`
+ * (largeur interpolée du palier d'origine), puis garde la courbe d'origine
+ * au-dessus — la LOD « tracés de territoire dès le quartier » (§5).
+ */
+function gateWidthStops(stops: WidthStops, minZoom: number): WidthStops {
+  const gated: [number, number][] = [
+    [minZoom - TRACE_GATE_EPS, 0],
+    [minZoom, widthAtZoom(stops, minZoom)],
+  ];
+  for (const [z, w] of stops) {
+    if (z > minZoom) gated.push([z, w]);
+  }
+  return gated;
+}
+
+/** Palette de largeur CONSTANTE (frontière fine), éteinte sous `minZoom` (§5). */
+function gatedConstantWidth(width: number, minZoom: number): WidthStops {
+  const gated: [number, number][] = [
+    [minZoom - TRACE_GATE_EPS, 0],
+    [minZoom, width],
+    [22, width],
+  ];
+  return gated;
+}
+
 /**
  * §B — Construit la pile de couches d'UNE trace COURUE (le héros) pour une
  * source de ligne : `casing` (sombre, dessous) → `glow` (chartreuse diluée fine)
@@ -994,22 +1002,25 @@ export function runTraceLayers(
 export function rivalTraceLayers(
   idBase: string,
   data: RealMapData,
-  opts: { alpha?: number } = {},
+  opts: { alpha?: number; minZoom?: number } = {},
 ): TraceLayerList {
   const a = opts.alpha ?? 1;
+  // AMENDEMENT-37 §5 : LOD — le tracé rival de TERRITOIRE n'apparaît qu'au quartier.
+  const gate = (stops: WidthStops): WidthStops =>
+    opts.minZoom === undefined ? stops : gateWidthStops(stops, opts.minZoom);
   return [
     {
       id: `${idBase}-casing`,
       data,
       lineColor: scaleAlpha(traceStyle.rivalCasing, a),
-      lineWidthStops: TRACE_WIDTH_STOPS.rivalCasing,
+      lineWidthStops: gate(TRACE_WIDTH_STOPS.rivalCasing),
       lineWidth: 6,
     },
     {
       id: `${idBase}-core`,
       data,
       lineColor: scaleAlpha(traceStyle.rivalCore, a),
-      lineWidthStops: TRACE_WIDTH_STOPS.rivalCore,
+      lineWidthStops: gate(TRACE_WIDTH_STOPS.rivalCore),
       lineWidth: 4,
     },
   ];
@@ -1027,22 +1038,25 @@ export function territoryTraceLayers(
   idBase: string,
   data: RealMapData,
   color: string,
-  opts: { alpha?: number } = {},
+  opts: { alpha?: number; minZoom?: number } = {},
 ): TraceLayerList {
   const a = opts.alpha ?? 1;
+  // AMENDEMENT-37 §5 : LOD — la trace de territoire n'apparaît qu'au quartier.
+  const gate = (stops: WidthStops): WidthStops =>
+    opts.minZoom === undefined ? stops : gateWidthStops(stops, opts.minZoom);
   return [
     {
       id: `${idBase}-casing`,
       data,
       lineColor: scaleAlpha(traceStyle.casing, a),
-      lineWidthStops: TRACE_WIDTH_STOPS.territoryCasing,
+      lineWidthStops: gate(TRACE_WIDTH_STOPS.territoryCasing),
       lineWidth: 5.5,
     },
     {
       id: `${idBase}-core`,
       data,
       lineColor: scaleAlpha(color, a),
-      lineWidthStops: TRACE_WIDTH_STOPS.territoryCore,
+      lineWidthStops: gate(TRACE_WIDTH_STOPS.territoryCore),
       lineWidth: 4,
     },
   ];
@@ -1145,6 +1159,62 @@ let bonusCollectionCache: RealMapData | null = null;
 const parcoursCollectionCache = new Map<string, RealMapData>();
 
 /**
+ * AMENDEMENT-37 §1 — FILLS DE POSSESSION SUBTILS (révise AMENDEMENT-36 « zéro
+ * aplat »). Un aplat de rôle LÉGER revient SOUS la trace pour lire « qui possède
+ * quoi » à la surface — PLANCHER d'opacité, jamais un plafond : la trace / le
+ * contour reste DOMINANT (§B). Source UNIQUE du fill crew = `mapTokens.mineFill`
+ * (chartreuse ~16 %) ; rival / contesté = teinte de rôle à ~16 / ~18 % (jamais
+ * > 18 %, sinon on retombe dans les 26-30 % lourds bannis par -36). Posés EN
+ * PREMIER (sous les traces, §19) et modulés par l'emphase du MODE (fill-opacity :
+ * ils reculent en route/exploration).
+ * ⚠ Distincts de `territoryStyle.crewFill/rivalFill/contestedFill` (0,30/0,26/0,24)
+ * qui restent l'aplat PLEIN des écrans héros Partage/Historique/Onboarding —
+ * consommateurs VIVANTS (RunLoopMap/ShareMap/LiveNavMap/onboarding), PAS des
+ * constantes mortes : on ne les touche donc pas.
+ */
+const LOD_FILL_CREW = mapTokens.mineFill;
+const LOD_FILL_RIVAL = withAlpha(gameColors.rival, 0.16);
+const LOD_FILL_CONTESTED = withAlpha(gameColors.contested, 0.18);
+
+// AMENDEMENT-37 §1 — LOD du FILL de possession : l'aplat NAÎT au dézoom
+// métropole (z10), tient plein jusqu'au quartier (z15), puis s'EFFACE au niveau
+// rue (z16+) où la trace-héros domine seule (esprit -36 préservé). Sous z10
+// (pays) : 0 — les territoires y sont sub-pixel, le fill n'y serait que du bruit.
+const FILL_LOD_IN = 10; // métropole : l'aplat apparaît
+const FILL_LOD_HOLD = 15; // quartier : encore plein
+const FILL_LOD_OUT = 16; // rue : effacé, la trace domine
+
+/**
+ * Paliers `[zoom, opacité]` du fill de possession pour une opacité de crête
+ * `peak` (l'emphase du mode) : 0 sous z10, montée jusqu'à `peak` à z10, plein
+ * jusqu'à z15, retombée à 0 à z16. Borné hors plage par MapLibre (clamp).
+ */
+function fillLodStops(peak: number): ReadonlyArray<readonly [number, number]> {
+  return [
+    [FILL_LOD_IN - 1, 0],
+    [FILL_LOD_IN, peak],
+    [FILL_LOD_HOLD, peak],
+    [FILL_LOD_OUT, 0],
+  ];
+}
+
+/**
+ * Ne garde que les features à AIRE FERMÉE (Polygon/MultiPolygon) d'une
+ * collection — un fill de possession ne vaut que pour une BOUCLE (§4ter :
+ * « seules les boucles fermées gardent un aplat » ; un couloir LineString n'a
+ * pas d'aire). Évite aussi tout aplat parasite sur les tracés-lignes dans le
+ * fallback SVG (Expo Go, qui referme les paths ouverts).
+ */
+function areaFeaturesOnly(data: RealMapData): RealMapData {
+  return {
+    type: 'FeatureCollection',
+    features: data.features.filter(
+      (f) => f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon',
+    ),
+  };
+}
+
+/**
  * Couches des TERRITOIRES par état, dans l'ORDRE DE PEINTURE — builder PARTAGÉ
  * des deux cartes (§4bis : une seule source, allTerritories ; « Mon
  * territoire » l'appelle avec FULL_EMPHASIS) : rival → objectif (aplat léger)
@@ -1164,18 +1234,42 @@ export function territoryStateLayers(
   const stateData = (state: TerritoryState): RealMapData =>
     geo.get(state) ?? EMPTY_COLLECTION;
   const terr = territoryStyle;
-  // AMENDEMENT-36 (retour fondateur « retire les zones ») : la carte est
-  // « JUSTE LE TRACÉ ». Plus AUCUN aplat de territoire — chaque possession est
-  // rendue par son TRACÉ (le contour de la boucle / la ligne du couloir), coloré
-  // par RÔLE. Les gros remplissages chartreuse/orange qui dominaient la carte
-  // sont supprimés ; l'aire enfermée se lit par le contour, pas par un aplat.
-  // (Le `void terr.crewFill…` n'existe plus ici : fillColor/fillOpacity retirés.)
+  // AMENDEMENT-37 §1 (révise -36 « zéro aplat ») : un FILL de possession SUBTIL
+  // revient SOUS la trace (plancher 16-18 %, la trace reste dominante §B), modulé
+  // par l'emphase du MODE. §5 : les tracés de territoire sont GELÉS (largeur 0)
+  // sous TERRITORY_TRACE_MIN_ZOOM — au dézoom, villes puis secteurs portent la
+  // lecture, jamais des tracés sub-pixel. §5 aussi : le contesté ne PULSE plus.
+  const gz = TERRITORY_TRACE_MIN_ZOOM;
   return withColorCasing(basemap, [
+    // ── FILLS DE POSSESSION (peints EN PREMIER = SOUS les traces, §19) : aplat de
+    //    rôle léger (crew ~16 % / rival ~16 % / contesté ~18 %), fill-opacity =
+    //    emphase du mode (recule en route/exploration). Ne rend QUE là où l'état a
+    //    une aire fermée (les couloirs LineString n'ont pas d'aplat). ──
+    {
+      id: 'terr-crew-fill',
+      data: areaFeaturesOnly(stateData('crew')),
+      fillColor: LOD_FILL_CREW,
+      fillOpacity: emph.crew, // repli scalaire (rendu SVG statique)
+      fillOpacityStops: fillLodStops(emph.crew), // §1 : plein z10-15, effacé z16+
+    },
+    {
+      id: 'terr-rival-fill',
+      data: areaFeaturesOnly(stateData('rival')),
+      fillColor: LOD_FILL_RIVAL,
+      fillOpacity: emph.rival,
+      fillOpacityStops: fillLodStops(emph.rival),
+    },
+    {
+      id: 'terr-contested-fill',
+      data: areaFeaturesOnly(stateData('contested')),
+      fillColor: LOD_FILL_CONTESTED,
+      fillOpacity: emph.contested,
+      fillOpacityStops: fillLodStops(emph.contested),
+    },
     // Rival : VRAIE trace façon Strava (orange, casing+core, largeur par zoom),
     // mais TOUJOURS plus fine/discrète que la mienne (rivalTraceLayers §B/§C) et
-    // modulée par emph.rival (recule fort hors des modes rival). Plus de simple
-    // ligne fine : l'ennemi se lit comme un tracé, jamais aussi présent que le mien.
-    ...rivalTraceLayers('terr-rival', stateData('rival'), { alpha: emph.rival }),
+    // modulée par emph.rival (recule fort hors des modes rival). Gelée sous z13.
+    ...rivalTraceLayers('terr-rival', stateData('rival'), { alpha: emph.rival, minZoom: gz }),
     // Objectif : contour chartreuse POINTILLÉ (le tracé à fermer) — plus d'aplat ;
     // le pin marker désigne aussi la zone (AMENDEMENT-16 §0 / -36).
     {
@@ -1183,20 +1277,25 @@ export function territoryStateLayers(
       data: stateData('objective'),
       lineColor: scaleAlpha(terr.objectiveStroke, emph.objective),
       lineWidth: BORDER_WIDTH,
+      lineWidthStops: gatedConstantWidth(BORDER_WIDTH, gz),
       lineDash: DECAY_DASH,
     },
     // Mon crew : MA trace = le point focal, mais FINE et ÉLÉGANTE (premium 2026,
     // territoryTraceLayers) — PAS la trace massive de la Course Live (qui, elle,
     // reste épaisse). Casing sombre discret + core chartreuse plein, largeur par
     // zoom (~4 px ville → 6 px rue), zéro glow. Intensité par le MODE (emph.crew) :
-    // hero net en défense, recule en route/exploration. Le « gros ver » est fini.
-    ...territoryTraceLayers('terr-crew', stateData('crew'), traceStyle.core, { alpha: emph.crew }),
+    // hero net en défense, recule en route/exploration. Gelée sous z13.
+    ...territoryTraceLayers('terr-crew', stateData('crew'), traceStyle.core, {
+      alpha: emph.crew,
+      minZoom: gz,
+    }),
     // Avant-poste : petite boucle nette tenue (place de la Bastille), sans aplat.
     {
       id: 'terr-outpost',
       data: stateData('outpost'),
       lineColor: scaleAlpha(terr.outpostStroke, emph.crew),
       lineWidth: BORDER_WIDTH,
+      lineWidthStops: gatedConstantWidth(BORDER_WIDTH, gz),
     },
     // Zone à défendre (decay) : frontière pointillée — muted red si urgent (le
     // trait terr-decay-urgent ci-dessous porte l'état ; plus d'aplat rouge).
@@ -1205,6 +1304,7 @@ export function territoryStateLayers(
       data: stateData('decay'),
       lineColor: scaleAlpha(terr.decayStroke, emph.defense),
       lineWidth: DECAY_WIDTH,
+      lineWidthStops: gatedConstantWidth(DECAY_WIDTH, gz),
       lineDash: DECAY_DASH,
     },
     {
@@ -1212,23 +1312,27 @@ export function territoryStateLayers(
       data: stateData('decayUrgent'),
       lineColor: scaleAlpha(terr.decayUrgentStroke, emph.defense),
       lineWidth: DECAY_WIDTH,
+      lineWidthStops: gatedConstantWidth(DECAY_WIDTH, gz),
       lineDash: DECAY_DASH,
     },
-    // Secteur protégé : trait verify NET le long du tracé (le shield est un
-    // marker, UNE icône par secteur — AMENDEMENT-16 §0 : plus de halo).
+    // Secteur protégé : trait bleu ÉLECTRIQUE NET le long du tracé (le shield est
+    // un marker, UNE icône par secteur — AMENDEMENT-16 §0 : plus de halo).
     {
       id: 'terr-protected',
       data: stateData('protected'),
       lineColor: scaleAlpha(terr.protectedStroke, emph.defense),
       lineWidth: BORDER_WIDTH,
+      lineWidthStops: gatedConstantWidth(BORDER_WIDTH, gz),
     },
     // Contesté (§4ter) : la PORTION de tracé partagée en DOUBLE trait décalé —
-    // chartreuse d'un côté, orange PULSÉ de l'autre. Plus aucun blob.
+    // chartreuse d'un côté, orange de l'autre. AMENDEMENT-37 §5 : NE PULSE PLUS
+    // (le double contour décalé distingue déjà le contesté).
     {
       id: 'terr-contested',
       data: stateData('contested'),
       lineColor: scaleAlpha(terr.contestedInnerStroke, emph.contested),
       lineWidth: CONTESTED_TRAIT_WIDTH,
+      lineWidthStops: gatedConstantWidth(CONTESTED_TRAIT_WIDTH, gz),
       lineOffset: -CONTESTED_TRAIT_OFFSET_PX,
     },
     {
@@ -1236,8 +1340,8 @@ export function territoryStateLayers(
       data: stateData('contested'),
       lineColor: scaleAlpha(terr.contestedOuterStroke, emph.contested),
       lineWidth: CONTESTED_TRAIT_WIDTH,
+      lineWidthStops: gatedConstantWidth(CONTESTED_TRAIT_WIDTH, gz),
       lineOffset: CONTESTED_TRAIT_OFFSET_PX,
-      pulse: true,
     },
   ]);
 }
@@ -1332,7 +1436,7 @@ export function battleGameLayers(
   return [
     ...territoryStateLayers(emph, basemap),
     // §C — SECTEURS AGRÉGÉS par STATUT (0-4) au-DESSUS des territoires : c'est la
-    // lecture « où est-ce chaud ? » (contesté violet + double contour pulsé,
+    // lecture « où est-ce chaud ? » (contesté violet + double contour SANS pulse,
     // attaque orange, urgence rouge, activité rival approximative). Peints sous
     // la route/bonus (le trait route-first reste au premier plan) — le badge
     // texte court est porté à part par sectorStatusPointLayers (calque symbol
@@ -1342,7 +1446,9 @@ export function battleGameLayers(
     // COULEUR ils reçoivent le liseré sombre porteur (withColorCasing), pas le
     // fill de la zone bonus (un aplat lit très bien sur Voyager).
     ...withColorCasing(basemap, [
-      // Zone bonus (1 MAX) : anneau or pointillé, respiration lente.
+      // Zone bonus (1 MAX) : anneau or pointillé STATIQUE. AMENDEMENT-37 §4 : le
+      // pulse est FIGÉ — une seule animation permanente sur la carte, réservée au
+      // secteur pic/urgent. Le bonus reste lisible par sa forme (anneau or pointillé).
       {
         id: 'bonus-zone',
         data: bonusCollectionCache,
@@ -1351,7 +1457,6 @@ export function battleGameLayers(
         lineColor: terr.bonusStroke,
         lineWidth: BONUS_RING_WIDTH,
         lineDash: BONUS_DASH,
-        pulse: true,
       },
       // Route RECOMMANDÉE : chartreuse POINTILLÉ (suggestion, PAS ta trace en
       // cours) — se distingue de la course (plein épais) et du rival (orange).

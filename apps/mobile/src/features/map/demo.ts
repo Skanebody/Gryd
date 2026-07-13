@@ -21,6 +21,7 @@ import {
   FINISHER_BONUS_MISSING_MAX_M,
   POINTS_DEFENDED_HEX,
   POINTS_STOLEN_HEX,
+  colors,
   gameColors,
   type BonusDefinition,
   type BonusId,
@@ -28,6 +29,7 @@ import {
   type IconName,
 } from '@klaim/shared';
 import type { GameVisualState, PoiKind } from '../../ui/game';
+import { timeAgoLabel } from '../../ui/game/states';
 import { parcoursConquest, type ParcoursConquest } from './fakeHexes';
 import {
   AVENUE_DE_LA_REPUBLIQUE,
@@ -69,6 +71,78 @@ export const MAP_CONTROL_HUD = {
   rivalName: 'Canal Crew',
   rivalPct: 38,
   neutralPct: 20,
+} as const;
+
+/**
+ * FRAÎCHEUR DES DONNÉES (AMENDEMENT-37 §4, critère étude §26.14). La carte doit
+ * dire si elle est À JOUR — micro-indicateur 1 ligne FUSIONNÉ dans la tête de
+ * carte (« PARIS EST · ● À jour »), jamais un 2ᵉ bloc. 4 états déterministes ;
+ * le point ● prend une teinte de RÔLE par état (chartreuse = à jour, orange =
+ * données vieillissantes, gris = mise à jour…/hors ligne) — tokens uniquement,
+ * jamais chartreuse sur fond clair (la tête de carte est sur fond carbone sombre).
+ * Source démo déterministe — TODO(O1) : dérivée de la dernière synchro réelle des
+ * tuiles/claims au M2.
+ */
+export type MapFreshnessState = 'fresh' | 'updating' | 'offline' | 'stale';
+
+export interface MapFreshnessDemo {
+  state: MapFreshnessState;
+  /** Fraîcheur (min) — pertinent pour l'état `stale` (« données de N min »). */
+  minutesAgo: number;
+  /** Libellé COURT prêt à afficher (« À jour », « il y a 12 min »…). */
+  label: string;
+  /** Teinte du point ● par rôle (tokens uniquement). */
+  dotTint: string;
+}
+
+/** Libellé prêt à afficher d'un état de fraîcheur (réutilise timeAgoLabel pour `stale`). */
+function mapFreshnessLabel(state: MapFreshnessState, minutesAgo: number): string {
+  switch (state) {
+    case 'fresh':
+      return 'À jour';
+    case 'updating':
+      return 'Mise à jour…';
+    case 'offline':
+      return 'Hors ligne';
+    case 'stale':
+      return timeAgoLabel(minutesAgo); // « il y a N min » (source unique des feeds)
+  }
+}
+
+/** Teinte de RÔLE du point ● par état (tokens uniquement). */
+function mapFreshnessDotTint(state: MapFreshnessState): string {
+  switch (state) {
+    case 'fresh':
+      return gameColors.crew; // chartreuse — à jour
+    case 'stale':
+      return gameColors.rival; // orange — données vieillissantes (dégradé)
+    case 'updating':
+    case 'offline':
+      return colors.gris; // gris neutre — mise à jour… / hors ligne
+  }
+}
+
+/** État de fraîcheur démo (déterministe : la démo est À JOUR). */
+const MAP_FRESHNESS_STATE: MapFreshnessState = 'fresh';
+const MAP_FRESHNESS_MINUTES = 0;
+
+export const MAP_FRESHNESS: MapFreshnessDemo = {
+  state: MAP_FRESHNESS_STATE,
+  minutesAgo: MAP_FRESHNESS_MINUTES,
+  label: mapFreshnessLabel(MAP_FRESHNESS_STATE, MAP_FRESHNESS_MINUTES),
+  dotTint: mapFreshnessDotTint(MAP_FRESHNESS_STATE),
+};
+
+/**
+ * RIVAL NOMMÉ EN TÊTE (AMENDEMENT-37 §26.2, quick win) : le rival principal du
+ * secteur surface au 1er niveau (SANS tap), AGRÉGÉ seulement (jamais de position
+ * live). « Canal Crew · 38 % » — teinte rival (orange) dans la tête de carte.
+ * Réutilise les parts de contrôle démo (MAP_CONTROL_HUD) — aucun crew/ranking
+ * européen fabriqué (garde-fou CLAUDE.md).
+ */
+export const MAP_RIVAL_HEAD = {
+  name: MAP_CONTROL_HUD.rivalName,
+  pct: MAP_CONTROL_HUD.rivalPct,
 } as const;
 
 /** Secteur défendu par l'objectif crew (vocabulaire zones/rues — étiquette démo). */

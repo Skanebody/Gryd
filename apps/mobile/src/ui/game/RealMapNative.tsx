@@ -99,6 +99,14 @@ export interface RealMapGeoJSONLayer {
   data: GeoJSON.FeatureCollection;
   fillColor?: string;
   fillOpacity?: number;
+  /**
+   * AMENDEMENT-37 §1 — FILL DE POSSESSION LOD : opacité DYNAMIQUE par zoom
+   * (paliers `[zoom, opacité]`). Quand présent, `fillOpacity` devient une
+   * interpolation MapLibre — l'aplat de propriété ne vit qu'au dézoom
+   * ville/quartier puis s'efface au niveau rue (z16+) où la trace-héros domine
+   * seule (esprit -36). `fillOpacity` reste le repli. Parité avec le fork web.
+   */
+  fillOpacityStops?: readonly (readonly [number, number])[];
   lineColor?: string;
   lineWidth?: number;
   /**
@@ -337,6 +345,25 @@ function lineWidthValue(spec: RealMapGeoJSONLayer): number | Expression {
 }
 
 /**
+ * AMENDEMENT-37 §1 — FILL DE POSSESSION LOD : valeur `fillOpacity` d'une couche.
+ * Si `fillOpacityStops` est fourni (paliers `[zoom, opacité]`), renvoie une
+ * interpolation LINÉAIRE par zoom (l'aplat naît au dézoom ville puis s'efface au
+ * niveau rue) ; sinon le scalaire `fillOpacity` (défaut 1) — non-régression.
+ * Parité avec le fork web / avec `lineWidthValue`.
+ */
+function fillOpacityValue(spec: RealMapGeoJSONLayer): number | Expression {
+  if (spec.fillOpacityStops && spec.fillOpacityStops.length >= 2) {
+    return [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      ...spec.fillOpacityStops.flatMap(([zoom, op]) => [zoom, op]),
+    ] as Expression;
+  }
+  return spec.fillOpacity ?? 1;
+}
+
+/**
  * Contour PULSÉ (contesté §4ter) isolé dans sa propre feuille : le toggle
  * d'opacité ne re-rend QUE ce composant, et le fondu min↔1 est fait par la
  * transition de style MapLibre (GPU). Reduce motion → contour plein fixe.
@@ -446,7 +473,8 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
             spec.fillColor !== undefined && !extruded
               ? ({
                   fillColor: spec.fillColor,
-                  fillOpacity: spec.fillOpacity ?? 1,
+                  // §1 : opacité par zoom (interpolate) si stops, sinon scalaire.
+                  fillOpacity: fillOpacityValue(spec),
                 } satisfies FillLayerStyle)
               : null,
           // Volume 3D chartreuse translucide (le look signature GRYD).

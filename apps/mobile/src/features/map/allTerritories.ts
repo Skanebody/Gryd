@@ -61,8 +61,12 @@ import type { TerritoryState } from './territory';
  * chaque territoire est représenté par un marqueur-point + label ville ;
  * au-dessus, les tracés nets reprennent (et les gros labels disparaissent).
  * Appliqué en maxzoom MapLibre sur les DEUX cartes.
+ * AMENDEMENT-37 §6 (couture LOD) : porté 9 → 10 pour que les MARQUEURS-POINTS
+ * villes tiennent jusqu'au seuil des SECTEURS (SECTOR_MIN_ZOOM = 10) — plus de
+ * trou de lecture z9-11 entre dots et secteurs (handoff net au bord de bande
+ * pays z6-9 / métropole z10-12).
  */
-export const TERRITORY_DOT_MAX_ZOOM = 9;
+export const TERRITORY_DOT_MAX_ZOOM = 10;
 
 /** Marqueur-point : taille minimale lisible au niveau monde (~10 px de Ø). */
 const TERRITORY_DOT_RADIUS_PX = 5;
@@ -358,8 +362,23 @@ export function territoryDotLayers(): readonly RealMapPointLayer[] {
  * (sibling de TERRITORY_DOT_MAX_ZOOM, la LOD des points) et RÉUTILISÉ par
  * mapStyle pour les disques — dépendance à sens unique mapStyle → allTerritories
  * (aucun cycle). Constante de RENDU (LOD), pas une règle de jeu.
+ * AMENDEMENT-37 §6 (couture LOD) : abaissé 11 → 10 pour ALIGNER les secteurs sur
+ * la bande MÉTROPOLE (z10-12) de l'étude §11 et FERMER le trou z9-11 : les dots
+ * villes tiennent jusqu'à z10 (TERRITORY_DOT_MAX_ZOOM), les secteurs prennent le
+ * relais dès z10 — handoff continu, plus de bande morte.
  */
-export const SECTOR_MIN_ZOOM = 11;
+export const SECTOR_MIN_ZOOM = 10;
+
+/**
+ * AMENDEMENT-37 §5/§6 — Zoom SEUIL d'apparition des TRACÉS DE TERRITOIRE (bande
+ * QUARTIER, étude §11 : z13-15). Sous ce zoom, la lecture « qui possède quoi »
+ * est portée par les VILLES (dots, ≤ TERRITORY_DOT_MAX_ZOOM) puis les SECTEURS
+ * (disques + badges, ≥ SECTOR_MIN_ZOOM) ; les tracés fins de territoire
+ * n'apparaissent qu'au quartier, sinon ils sont sub-pixel et bruités au dézoom.
+ * Consommé par mapStyle (territoryStateLayers gèle la largeur des couches ligne
+ * de territoire à 0 sous ce zoom). Constante de RENDU (LOD), pas une règle de jeu.
+ */
+export const TERRITORY_TRACE_MIN_ZOOM = 13;
 
 /**
  * §C — Libellés COURTS des badges de statut (jamais tronqués, §A9). Source

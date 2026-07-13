@@ -98,6 +98,16 @@ export interface RealMapGeoJSONLayer {
   data: GeoJSON.FeatureCollection;
   fillColor?: string;
   fillOpacity?: number;
+  /**
+   * AMENDEMENT-37 §1 — FILL DE POSSESSION LOD : opacité DYNAMIQUE par zoom
+   * (paliers `[zoom, opacité]`). Quand présent, `fill-opacity` devient une
+   * interpolation MapLibre au lieu d'un scalaire — l'aplat de propriété ne vit
+   * qu'au dézoom ville/quartier puis s'EFFACE au niveau rue (z16+) où la
+   * trace-héros domine seule (esprit -36 préservé). `fillOpacity` n'est alors
+   * qu'un repli (rendu SVG statique). Constantes de STYLE (mapStyle), jamais des
+   * règles de jeu.
+   */
+  fillOpacityStops?: readonly (readonly [number, number])[];
   lineColor?: string;
   lineWidth?: number;
   /**
@@ -653,6 +663,25 @@ function lineWidthValue(spec: RealMapGeoJSONLayer): number | unknown[] {
 }
 
 /**
+ * AMENDEMENT-37 §1 — FILL DE POSSESSION LOD : valeur `fill-opacity` MapLibre.
+ * Si `fillOpacityStops` est fourni (paliers `[zoom, opacité]`), renvoie une
+ * interpolation LINÉAIRE bornée par zoom (l'aplat naît au dézoom ville puis
+ * s'efface au niveau rue) ; sinon le scalaire `fillOpacity` (défaut 1) —
+ * non-régression totale. Parité avec `lineWidthValue`.
+ */
+function fillOpacityValue(spec: RealMapGeoJSONLayer): number | unknown[] {
+  if (spec.fillOpacityStops && spec.fillOpacityStops.length >= 2) {
+    return [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      ...spec.fillOpacityStops.flatMap(([zoom, op]) => [zoom, op]),
+    ];
+  }
+  return spec.fillOpacity ?? 1;
+}
+
+/**
  * AMENDEMENT-24 — CARTE 3D : une couche extrudée (spec.extrude) en mode 3D
  * (extrudeZones) est peinte en `fill-extrusion` (volume) ; sinon elle retombe
  * sur l'aplat plat (`fill`) de sa `fillColor` — non-régression. On calcule ici
@@ -704,11 +733,14 @@ function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer, extrudeZones =
       id: fillId,
       type: 'fill',
       source: spec.id,
-      paint: { 'fill-color': spec.fillColor, 'fill-opacity': spec.fillOpacity ?? 1 },
+      // §1 : opacité par zoom (interpolate) si `fillOpacityStops`, sinon scalaire.
+      // Cast `as number` = même convention que `line-width` (l'expression est
+      // valide au runtime MapLibre ; le type paint attend un scalaire strict).
+      paint: { 'fill-color': spec.fillColor, 'fill-opacity': fillOpacityValue(spec) as number },
     });
   } else if (spec.fillColor !== undefined && !extruded && map.getLayer(fillId)) {
     map.setPaintProperty(fillId, 'fill-color', spec.fillColor);
-    map.setPaintProperty(fillId, 'fill-opacity', spec.fillOpacity ?? 1);
+    map.setPaintProperty(fillId, 'fill-opacity', fillOpacityValue(spec) as number);
   }
   const lineId = `${spec.id}-line`;
   // §B : largeur par zoom (interpolate) si `lineWidthStops`, sinon scalaire.
