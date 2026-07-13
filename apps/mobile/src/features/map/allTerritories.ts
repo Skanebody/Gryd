@@ -70,8 +70,13 @@ export const TERRITORY_DOT_MAX_ZOOM = 10;
 
 /** Marqueur-point : taille minimale lisible au niveau monde (~10 px de Ø). */
 const TERRITORY_DOT_RADIUS_PX = 5;
-/** Cerclage noir du point (détache le point des tuiles sombres). */
-const TERRITORY_DOT_STROKE_PX = 2;
+/**
+ * Cerclage (casing) noir du point ville. AMENDEMENT-37 §9 (contraste satellite) :
+ * porté 2 → 2,5 px — le dot chartreuse/rival est au « point limite » du garde-fou
+ * sur imagerie satellite CLAIRE ; un casing noir plus épais le détache franchement
+ * du fond clair sans toucher sa teinte (tokens-only). Neutre sur dark/color.
+ */
+const TERRITORY_DOT_STROKE_PX = 2.5;
 /** Label ville sous le point (mêmes proportions que l'ex-CityMarkerBadge). */
 const TERRITORY_LABEL_SIZE_PX = 10;
 const TERRITORY_LABEL_OFFSET_EM = 0.8;
@@ -471,9 +476,50 @@ export const SECTOR_BADGE_LABELS: Record<SectorStatusKey, string | null> = {
  */
 const EGO_HOME_SECTOR_ID = 'paris-villemin';
 
+/**
+ * AMENDEMENT-37 §7.1 (étude carte 2026) — OPACITÉ = FORCE de contrôle, au niveau
+ * SECTEUR. La teinte des LABELS de secteur (badge de statut + % de contrôle) est
+ * modulée en OPACITÉ par MON emprise (view.minePercent) : un secteur tenu FORT se
+ * lit à pleine opacité, un secteur faiblement tenu est LÉGÈREMENT atténué — une
+ * nuance de PROFONDEUR (« qui tient fort vs faiblement »), jamais un clignotement
+ * ni un label qui disparaît. Bande VOLONTAIREMENT ÉTROITE : le plancher reste très
+ * lisible. Seule la TEINTE du label porte l'atténuation ; le halo/casing noir
+ * restent PLEINS (contraste garanti sur les deux fonds, §9). N'affecte JAMAIS les
+ * aplats de possession des territoires (tunés). Constantes de RENDU (LOD/force),
+ * pas des règles de jeu.
+ */
+const SECTOR_FORCE_ALPHA_MIN = 0.75;
+const SECTOR_FORCE_ALPHA_MAX = 1;
+
+/**
+ * Teinte de token de RÔLE (#RRGGBB) modulée en opacité par la FORCE (minePercent
+ * 0-1) → chaîne `rgba()` (forme la plus portable web + natif/Hermes ; on n'ajoute
+ * jamais d'alpha à un token déjà en rgba()). Format DÉTERMINISTE (pas d'Intl).
+ * Emprise faible → SECTOR_FORCE_ALPHA_MIN ; emprise pleine → SECTOR_FORCE_ALPHA_MAX.
+ */
+function withForceAlpha(hexColor: string, minePercent: number): string {
+  // Défensif : ne module QUE des tokens hex #RRGGBB. Tout autre format (déjà en
+  // rgba(), nommé…) est renvoyé tel quel plutôt que produire un rgba(NaN,…).
+  if (hexColor.length !== 7 || hexColor[0] !== '#') return hexColor;
+  const clamped = minePercent < 0 ? 0 : minePercent > 1 ? 1 : minePercent;
+  const alpha =
+    SECTOR_FORCE_ALPHA_MIN + (SECTOR_FORCE_ALPHA_MAX - SECTOR_FORCE_ALPHA_MIN) * clamped;
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
+}
+
 /** Point du badge de statut (rayon) — petit, le libellé porte l'info. */
 const SECTOR_BADGE_DOT_RADIUS_PX = 3;
-const SECTOR_BADGE_DOT_STROKE_PX = 1.5;
+/**
+ * Casing noir du point de secteur (badge de statut + ancre du % de contrôle).
+ * AMENDEMENT-37 §9 (contraste satellite) : porté 1,5 → 2 px — un casing plus épais
+ * détache le disque de statut/% de l'imagerie satellite CLAIRE (point limite du
+ * garde-fou « jamais chartreuse sur fond clair »), sans changer la teinte. Neutre
+ * sur fond dark/color (le casing noir se fond dans les tuiles sombres).
+ */
+const SECTOR_BADGE_DOT_STROKE_PX = 2;
 const SECTOR_BADGE_LABEL_SIZE_PX = 11;
 const SECTOR_BADGE_LABEL_OFFSET_EM = 1;
 const SECTOR_BADGE_LABEL_LETTER_SPACING_EM = 0.02;
@@ -511,7 +557,9 @@ export function sectorStatusBadgeLayer(): RealMapPointLayer {
         geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
         properties: {
           label: SECTOR_BADGE_LABELS[v.status.key] ?? '',
-          color: roleColor(roleKey),
+          // §7.1 — opacité = force : la teinte de statut est atténuée si je tiens
+          // ce secteur faiblement, pleine si je le tiens fort (le halo reste plein).
+          color: withForceAlpha(roleColor(roleKey), v.minePercent),
         },
       };
     }),
@@ -579,7 +627,9 @@ export function sectorControlPctLayer(): RealMapPointLayer {
         geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
         properties: {
           label: formatControlPercent(v.minePercent),
-          color: roleColor(mineDominant ? 'mine' : 'neutral'),
+          // §7.1 — opacité = force : plus mon emprise est forte, plus la teinte du
+          // % est pleine ; faible emprise → légèrement atténuée (halo noir plein).
+          color: withForceAlpha(roleColor(mineDominant ? 'mine' : 'neutral'), v.minePercent),
         },
       };
     }),

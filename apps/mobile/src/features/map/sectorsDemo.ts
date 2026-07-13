@@ -10,9 +10,11 @@
  * les MÊMES seuils depuis @klaim/shared. AUCUN nombre magique ; toute divergence
  * avec engine/sectors.ts serait un bug (le serveur reste seul décideur en V1).
  *
- * Fournit : `PARIS_DEMO_SECTORS` (5 secteurs bruts calibrés sur les 5 niveaux
- * stable→urgence) et `PARIS_DEMO_SECTOR_VIEWS` (les vues dérivées pour l'ego
- * démo — l'objet que le RENDU consomme). Aucune couleur ici : le rendu lit
+ * Fournit : `PARIS_DEMO_SECTORS` (6 secteurs bruts — les 5 niveaux
+ * stable→urgence + un 2ᵉ secteur `contestee` NON-ego pour que le badge « Zone
+ * contestée » se DÉMONTRE à l'écran, cf. plus bas) et `PARIS_DEMO_SECTOR_VIEWS`
+ * (les vues dérivées pour l'ego démo — l'objet que le RENDU consomme). Aucune
+ * couleur ici : le rendu lit
  * `view.status.key` / `view.ownerRole` / `view.contested` et applique roleColor
  * + la forme + l'icône (jamais la couleur seule — daltonisme).
  */
@@ -223,7 +225,7 @@ export interface DemoSector {
   center: LatLngPoint;
 }
 
-// ─── 5 secteurs calibrés sur les 5 niveaux (§C) ──────────────────────────────
+// ─── 6 secteurs : les 5 niveaux (§C) + un 2ᵉ contesté démontrable ────────────
 // Parts en FRACTION (0-1). Inputs de pression choisis pour tomber DANS la bande
 // visée (poids 45/30/30/20, saturations 20 runs / 16 zones — validé numériquement).
 
@@ -320,6 +322,35 @@ export const PARIS_DEMO_SECTORS: readonly DemoSector[] = [
       rivalReclaimed24h: 14, // > 8 → contesté (c) aussi
       decayFraction: 0.6, // 0.6 × 20 = 12 → total saturé ≥ 81 → URGENCE
       lastAttackAt: hAgo(2),
+    },
+  },
+
+  // ── Niveau 2 · CONTESTÉE (bis) — le badge « Zone contestée » DÉMONTRÉ (§8/§26.3) ──
+  // Le seul autre secteur contesté (Villemin) est le FOYER de l'ego : son badge est
+  // VOLONTAIREMENT masqué (header + anti-bandeau, allTerritories EGO_HOME_SECTOR_ID).
+  // Résultat : le libellé « Zone contestée » (§7.2 : violet + double contour +
+  // hachures) n'apparaissait JAMAIS à l'écran. Ce secteur NON-ego, à l'est du canal
+  // (avenue Parmentier, 11e — cohérent avec la zone démo Paris Est déjà peuplée et
+  // le membre JOG.PARMENTIER), le rend démontrable au zoom métropole. Contesté par la
+  // règle (a) : le rival Canal Crew tient ≥ 0.25 ET je tiens ≤ 0.60 → dispute franche.
+  // Pression volontairement SOUS le seuil « défense » du coach (≈41 < 50) : il informe
+  // par son badge, sans surgir dans les opportunités proches ni voler la mission
+  // République. Pas d'assaut EN COURS (lastAttackAt null) → « contestée », pas « attaque ».
+  {
+    name: 'Parmentier',
+    center: { lat: 48.8656, lng: 2.3757 }, // avenue Parmentier / Saint-Maur (11e)
+    sector: {
+      id: 'paris-parmentier',
+      ownerCrewId: DEMO_MY_CREW_ID,
+      ownerPercent: 0.56,
+      topRivalCrewId: DEMO_RIVAL_CREW_ID,
+      topRivalPercent: 0.3, // rival ≥ 0.25 ET mine ≤ 0.60 → contesté (a)
+      neutralPercent: 0.14,
+      rivalActivityRecent: 6, // 6/20 → 0.3 × 45 = 13.5
+      zonesLostRecent: 3, // 3/16 → ≈ 0.1875 × 30 ≈ 5.6
+      rivalReclaimed24h: 4, // < 8 → (c) non déclenchée
+      decayFraction: 0, // flip ≈ 0.74 × 30 ≈ 22 → pression ≈ 41 (bande pression, < 50)
+      lastAttackAt: null, // pas d'assaut EN COURS → « contestée », pas « attaque »
     },
   },
 ] as const;

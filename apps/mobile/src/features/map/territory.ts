@@ -75,7 +75,16 @@ export interface Territory {
 
 // ─── Modes de carte (AMENDEMENT-11 §3 — remplacent les chips layers) ────────
 
-export type MapMode = 'territoire' | 'route' | 'defense' | 'raid' | 'exploration';
+/**
+ * AMENDEMENT-37 (étude §12) — 3 LENTILLES de lecture regroupent les calques :
+ *   Contrôle → `territoire` (défaut : qui possède quoi)
+ *   Action   → `route` / `defense` / `raid` / `exploration` (où agir seul)
+ *   Crew     → `crew` (ADDITIF : « où mon crew a-t-il besoin de moi ? » —
+ *              boucles à terminer, demandes de défense, alliés opt-in, HQ)
+ * `crew` ne fabrique aucune donnée : il ne fait que ré-emphaser les familles
+ * déjà rendues (defense + objective + crew/boucles montent, le reste s'atténue).
+ */
+export type MapMode = 'territoire' | 'route' | 'defense' | 'raid' | 'exploration' | 'crew';
 
 export const MAP_MODE_ORDER: readonly MapMode[] = [
   'territoire',
@@ -83,6 +92,7 @@ export const MAP_MODE_ORDER: readonly MapMode[] = [
   'defense',
   'raid',
   'exploration',
+  'crew',
 ];
 
 export const MAP_MODE_LABELS: Record<MapMode, string> = {
@@ -91,6 +101,7 @@ export const MAP_MODE_LABELS: Record<MapMode, string> = {
   defense: 'Défense',
   raid: 'Raid',
   exploration: 'Exploration',
+  crew: 'Crew',
 };
 
 export const DEFAULT_MAP_MODE: MapMode = 'territoire';
@@ -106,6 +117,7 @@ export const MAP_MODE_ICON: Record<MapMode, IconName> = {
   defense: 'bouclier',
   raid: 'raid',
   exploration: 'radar',
+  crew: 'crew',
 };
 
 /**
@@ -149,6 +161,11 @@ export const MODE_EMPHASIS: Record<MapMode, ModeEmphasis> = {
   raid: { crew: 0.4, rival: 1, contested: 1, defense: 0.3, objective: 0.5, route: 0.7 },
   // Zones vierges + routes à ouvrir.
   exploration: { crew: 0.35, rival: 0.3, contested: 0.35, defense: 0.25, objective: 1, route: 1 },
+  // « Où mon crew a besoin de moi » : boucles à terminer + demandes de défense +
+  // territoire/alliés du crew en avant ; rival/route/contesté en retrait (on lit
+  // l'ACTION collective, pas la carte de contrôle). Aucune donnée fabriquée —
+  // ré-emphase des familles déjà rendues.
+  crew: { crew: 1, rival: 0.3, contested: 0.5, defense: 1, objective: 1, route: 0.5 },
 };
 
 // ─── Pipeline géométrique ───────────────────────────────────────────────────

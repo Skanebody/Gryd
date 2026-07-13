@@ -85,6 +85,8 @@ const MODE_COLOR: Record<MapMode, string> = {
   defense: gameColors.verify,
   raid: gameColors.rival,
   exploration: gameColors.gold,
+  // Lentille Crew : ton du crew/allié = la chartreuse (moi/crew), rôle « on joue ensemble ».
+  crew: gameColors.crew,
 };
 
 /**
