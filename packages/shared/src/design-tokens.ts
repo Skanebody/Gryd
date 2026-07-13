@@ -17,6 +17,14 @@ export const colors = {
   chartreuse14: 'rgba(180,255,13,0.16)', // remplissage de MON territoire (fill possession §1)
   chartreuse40: 'rgba(180,255,13,0.40)', // contours de territoire, glows
   eau: '#0D1112', // fond de carte : eau
+  // Déclinaisons ALPHA du blanc + scrims (§ charte : tokens, jamais rgba inliné) —
+  // bordures/overlays translucides des HUD (course-live, FAB, scrims de modale).
+  blanc12: 'rgba(250,250,247,0.12)', // bordure hairline renforcée
+  blanc14: 'rgba(250,250,247,0.14)', // bordure de FAB/overlay
+  blanc22: 'rgba(250,250,247,0.22)', // bordure marquée
+  blanc35: 'rgba(250,250,247,0.35)', // bordure forte (état actif discret)
+  scrim: 'rgba(0,0,0,0.45)', // voile léger sous une couche flottante
+  scrimStrong: 'rgba(5,5,5,0.72)', // voile plein d'une modale/sheet
 } as const;
 
 /** Rendu carte égocentré (addendum §D — AMENDEMENT-01). */
@@ -134,6 +142,13 @@ export const gameColors = {
   danger: '#D64545',
   /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre). */
   carbon: '#101210',
+  /**
+   * Déclinaisons ALPHA (§ charte : toute couleur hors tokens = bug — les washes/
+   * bordures translucides passent par un TOKEN, jamais un rgba littéral inliné).
+   * Dérivées des teintes de rôle ci-dessus.
+   */
+  verifySoft: 'rgba(111,183,255,0.28)', // #6FB7FF @ 28 % — bordure/wash d'info de confiance
+  dangerSoft: 'rgba(214,69,69,0.16)', // #D64545 @ 16 % — wash de decay/urgent
 } as const;
 export type GameColorName = keyof typeof gameColors;
 

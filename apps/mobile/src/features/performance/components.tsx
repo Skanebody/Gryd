@@ -268,12 +268,25 @@ function RecordCell({ record }: { record: PerfRecord }) {
 }
 
 export function RecordsCard({ records }: { records: readonly PerfRecord[] }) {
+  // Aplati (AMENDEMENT-22 §A) : les records sont posés sur l'espace de la card,
+  // séparés par des filets hairline (colonnes façon WeekCard, rangées façon
+  // Skills) — jamais une boîte bordée par cellule. UN seul niveau de boîte.
+  const rows: { a: PerfRecord; b?: PerfRecord }[] = [];
+  for (let i = 0; i < records.length; i += 2) {
+    const a = records[i];
+    if (!a) continue;
+    rows.push({ a, b: records[i + 1] });
+  }
   return (
     <View style={styles.card}>
       <SectionTitle icon="cible" label="Records" />
       <View style={styles.recordGrid}>
-        {records.map((r) => (
-          <RecordCell key={r.key} record={r} />
+        {rows.map((row, ri) => (
+          <View key={row.a.key} style={[styles.recordRow, ri > 0 && styles.recordRowSep]}>
+            <RecordCell record={row.a} />
+            <View style={styles.recordColSep} />
+            {row.b ? <RecordCell record={row.b} /> : <View style={styles.recordCell} />}
+          </View>
         ))}
       </View>
     </View>
@@ -481,17 +494,17 @@ const styles = StyleSheet.create({
   trendLabel: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
   trendLabelLast: { color: colors.blanc, fontWeight: '700' },
 
-  // ── Records ──
-  recordGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // ── Records (aplati : filets hairline, aucun cadre par cellule) ──
+  recordGrid: {},
+  recordRow: { flexDirection: 'row', alignItems: 'stretch' },
+  recordRowSep: { borderTopWidth: 1, borderTopColor: colors.grisLigne },
+  recordColSep: { width: 1, backgroundColor: colors.grisLigne, marginVertical: 12 },
   recordCell: {
-    width: '47.5%',
-    flexGrow: 1,
-    backgroundColor: colors.carbone2,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 12,
+    flex: 1,
     gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
   },
   recordHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   recordLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
@@ -505,7 +518,7 @@ const styles = StyleSheet.create({
   recordMeta: { color: colors.gris, fontSize: fontSizes.xs },
 
   // ── Verify ──
-  verifyCard: { borderColor: 'rgba(111,183,255,0.28)' },
+  verifyCard: { borderColor: gameColors.verifySoft },
   verifyHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   verifyIcon: {
     width: 38,

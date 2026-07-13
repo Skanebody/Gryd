@@ -121,9 +121,9 @@ export default function CrewDiscoveryScreen() {
                       haptics.medium();
                       toast.show(
                         crew.recruitment === 'open'
-                          ? `Bienvenue chez ${crew.name}`
+                          ? `Bienvenue chez ${crew.name} (démo)`
                           : canApplyTo(crew.recruitment)
-                            ? `Demande envoyée à ${crew.name}`
+                            ? `Demande envoyée à ${crew.name} (démo)`
                             : `${crew.name} recrute sur invitation uniquement`,
                       );
                     }}

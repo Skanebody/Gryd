@@ -337,7 +337,7 @@ export default function ProfilEditScreen() {
 
       {/* ── FRAME cosmétique équipé — effet TANGIBLE sur la Player Card ── */}
       <Text style={styles.sectionLabel}>FRAME DE LA CARD</Text>
-      <View style={[styles.card, styles.frameWrap]}>
+      <View style={styles.frameWrap}>
         {FRAME_ITEMS.map((f) => {
           const on = f.key === equippedFrameKey;
           return (
@@ -383,7 +383,7 @@ export default function ProfilEditScreen() {
       <Text style={styles.sectionLabel}>
         BADGES AFFICHÉS · {featuredBadgeIds.length}/{FEATURED_BADGE_COUNT}
       </Text>
-      <View style={[styles.card, styles.badgeWrap]}>
+      <View style={styles.badgeWrap}>
         {choosableBadges.map((def) => {
           const on = featuredBadgeIds.includes(def.id);
           const full = !on && featuredBadgeIds.length >= FEATURED_BADGE_COUNT;

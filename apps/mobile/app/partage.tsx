@@ -23,11 +23,12 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, elevation, fontSizes, motion, radii } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
+import { goBack } from '../src/lib/nav';
 import { Icon } from '../src/ui/Icon';
 import { IconAction, Segmented, ShareCard, type ShareCardRatio } from '../src/ui/game';
 import { ShareMap3D } from '../src/features/share/ShareMap3D';
@@ -319,7 +320,7 @@ export default function PartageScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Revenir au résultat"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          onPress={() => goBack()}
           hitSlop={12}
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}
         >

@@ -30,6 +30,7 @@ import { formatInt } from '../src/ui/format';
 import { CrewCrest, CREW_ROLE_META } from '../src/ui/game';
 import {
   ACTIVITY_STATUS_LABELS,
+  CREW_STATUS_LABELS_FR,
   activityStatusForScore,
   CREW_ROLE_LABELS,
   crewFrameTierForLevel,
@@ -111,7 +112,9 @@ export default function CrewPublicScreen() {
           </Text>
           <View style={styles.statusChip}>
             <Icon name="radar" size={13} color={gameColors.crew} />
-            <Text style={styles.statusText}>{ACTIVITY_STATUS_LABELS[status]}</Text>
+            <Text style={styles.statusText}>
+              {CREW_STATUS_LABELS_FR[status] ?? ACTIVITY_STATUS_LABELS[status]}
+            </Text>
           </View>
           {tags.length > 0 ? (
             <View style={styles.tags}>
@@ -203,7 +206,9 @@ export default function CrewPublicScreen() {
             onPress={() => {
               // TODO(O1) : crew_applications (candidature réelle).
               haptics.medium();
-              toast.show(openRecruitment ? 'Bienvenue dans le crew' : 'Demande envoyée');
+              toast.show(
+                openRecruitment ? 'Bienvenue dans le crew (démo)' : 'Demande envoyée (démo)',
+              );
             }}
             style={({ pressed }) => [
               styles.primary,

@@ -142,7 +142,10 @@ export default function AujourdhuiScreen() {
         </View>
         <View style={styles.weekSep} />
         <View style={styles.weekCell}>
-          <Text style={styles.weekValue}>{TODAY.formScore}</Text>
+          <Text style={styles.weekValue}>
+            {TODAY.formScore}
+            <Text style={styles.weekTarget}>/100</Text>
+          </Text>
           <Text style={styles.weekLabel}>SCORE FORME</Text>
         </View>
         <View style={styles.weekSep} />

@@ -214,6 +214,20 @@ export const ACTIVITY_STATUS_LABELS: Record<CrewActivityStatus, string> = {
   war_ready: 'Prêt guerre',
 };
 
+/**
+ * Libellés d'activité crew 100 % FRANÇAIS (§45) — SOURCE UNIQUE consommée par
+ * Crew HQ et la page publique (jamais de jargon anglais à l'écran dans une UI
+ * FR). ACTIVITY_STATUS_LABELS garde le vocabulaire de jeu original ; ces
+ * libellés-ci sont la version localisée à afficher, fallback dessus si absent.
+ */
+export const CREW_STATUS_LABELS_FR: Record<CrewActivityStatus, string> = {
+  dormant: 'En sommeil',
+  casual: 'Tranquille',
+  active: 'Actif',
+  competitive: 'Compétitif',
+  war_ready: 'Prêt guerre',
+};
+
 /** Nom FR de palier de coffre (§39.2). */
 export const CHEST_TIER_LABELS: Record<CrewChestTier, string> = {
   bronze: 'Bronze',

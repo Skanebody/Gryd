@@ -106,7 +106,7 @@ export const HISTORY_FILTERS: readonly { key: HistoryFilter; label: string }[] =
   { key: 'conquest', label: 'Conquêtes' },
   { key: 'defense', label: 'Défenses' },
   { key: 'route', label: 'Routes' },
-  { key: 'stats', label: 'Stats only' },
+  { key: 'stats', label: 'Stats seules' },
 ];
 
 /** Libellés courts du motif de refus (bloc raison du détail). */
@@ -418,5 +418,5 @@ export function fmtPace(sPerKm: number): string {
 export const VERIFY_LABELS: Record<VerifyStatus, string> = {
   verified: 'GRYD Verified',
   partial: 'Capture partielle',
-  statsonly: 'Stats only',
+  statsonly: 'Stats seules',
 };

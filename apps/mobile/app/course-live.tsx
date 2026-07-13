@@ -1289,12 +1289,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: gameColors.carbon,
     borderWidth: 1,
-    borderColor: 'rgba(250,250,247,0.14)',
+    borderColor: colors.blanc14,
   },
   quitOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 30,
-    backgroundColor: 'rgba(5,5,5,0.72)',
+    backgroundColor: colors.scrimStrong,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
@@ -1304,7 +1304,7 @@ const styles = StyleSheet.create({
     backgroundColor: gameColors.carbon,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(250,250,247,0.12)',
+    borderColor: colors.blanc12,
     padding: 20,
     gap: 6,
   },
@@ -1316,7 +1316,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: 'rgba(250,250,247,0.22)',
+    borderColor: colors.blanc22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1485,7 +1485,7 @@ const styles = StyleSheet.create({
   // ── Quick pings (§C.4) : feuille basse, gros chips une-main ──
   pingsBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: colors.scrim,
   },
   pingsSheet: {
     position: 'absolute',
@@ -1637,7 +1637,7 @@ const styles = StyleSheet.create({
   bigStopDisc: {
     backgroundColor: colors.carbone2,
     borderWidth: 1.5,
-    borderColor: 'rgba(250,250,247,0.35)',
+    borderColor: colors.blanc35,
   },
   bigStopSquare: { width: 18, height: 18, borderRadius: 3.5, backgroundColor: colors.blanc },
   // ≥ 12 px : TERMINER/PAUSE/CARTE se lisent en courant (audit P1 — le label
@@ -1699,7 +1699,7 @@ const styles = StyleSheet.create({
     height: STOP_BUTTON_SIZE,
     borderRadius: STOP_BUTTON_SIZE / 2,
     borderWidth: 1.5,
-    borderColor: 'rgba(250,250,247,0.35)',
+    borderColor: colors.blanc35,
     backgroundColor: colors.carbone2,
     alignItems: 'center',
     justifyContent: 'center',

@@ -634,6 +634,18 @@ function ConquestResultScreen({
   const totalZones = stats.hexes;
   const verifyTiers = verifyTiersLabel();
 
+  // AMENDEMENT-23 §B.4 / honnêteté §A — décomposition technique du calcul.
+  // `defended` est RÉEL dès qu'une vraie course a été jugée par ingest_run
+  // (serverResult.hexes.defended, seul juge) ; routes ouvertes / segments exclus
+  // ne sont pas encore renvoyés par le serveur → restent un scénario démo,
+  // étiqueté « démo » pour ne jamais se confondre avec les vraies valeurs
+  // GPS/MOUVEMENT/VALIDÉ (dérivées du run) dans la même grille.
+  // TODO(O1) : exposer routesOpened/segmentsExcluded côté ingest_run.
+  const zonesDefended = serverResult
+    ? serverResult.hexes.defended
+    : DEMO_CALC_BREAKDOWN.zonesDefended;
+  const defendedNote = serverResult ? undefined : 'démo';
+
   // Synthèse multi-résultats (doc §2/§3.1) — conquête seulement (les modes
   // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
   // copy §28 ; le tracé (démo) produit tous les effets listés.
@@ -925,19 +937,22 @@ function ConquestResultScreen({
                       <View style={styles.calcCell}>
                         <MiniStat
                           label="DÉFENDUES"
-                          value={`+${formatInt(DEMO_CALC_BREAKDOWN.zonesDefended)}`}
+                          value={`+${formatInt(zonesDefended)}`}
+                          note={defendedNote}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
-                          label="ROUTES"
+                          label="ROUTES OUVERTES"
                           value={formatInt(DEMO_CALC_BREAKDOWN.routesOpened)}
+                          note="démo"
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
-                          label="EXCLUS"
+                          label="SEGMENTS EXCLUS"
                           value={formatInt(DEMO_CALC_BREAKDOWN.segmentsExcluded)}
+                          note="démo"
                         />
                       </View>
                       <View style={styles.calcCell}>
@@ -1088,15 +1103,18 @@ function CalcZoneRow({
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <View style={styles.miniStat}>
       <Text style={styles.miniStatValue} numberOfLines={1}>
         {value}
       </Text>
-      <Text style={styles.miniStatLabel} numberOfLines={1}>
-        {label}
-      </Text>
+      <Text style={styles.miniStatLabel}>{label}</Text>
+      {note ? (
+        <Text style={styles.miniStatNote} numberOfLines={1}>
+          {note}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -1667,6 +1685,15 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: '600',
     letterSpacing: 1,
+  },
+  // Repère « démo » discret : distingue une valeur de scénario d'une vraie mesure
+  // (honnêteté §A) — jamais mêlée sans distinction aux vraies stats GPS/MOUVEMENT.
+  miniStatNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    marginTop: 1,
   },
   statsNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
 

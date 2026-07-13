@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  itemIconUrgent: { backgroundColor: 'rgba(214,69,69,0.16)' },
+  itemIconUrgent: { backgroundColor: gameColors.dangerSoft },
   itemName: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   itemDetail: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   itemDetailUrgent: { color: gameColors.danger },

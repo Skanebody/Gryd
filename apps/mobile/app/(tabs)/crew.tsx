@@ -76,6 +76,7 @@ import {
 } from '../../src/ui/game';
 import {
   ACTIVITY_STATUS_LABELS,
+  CREW_STATUS_LABELS_FR,
   PERK_VISUALS,
   PERK_VISUAL_FALLBACK,
   activityStatusForScore,
@@ -203,18 +204,6 @@ const TIER_LABELS_FR: Record<string, string> = {
   elite: 'Élite',
 };
 const tierLabelFr = (tier: string): string => TIER_LABELS_FR[tier] ?? tier;
-
-/**
- * Statut d'activité du crew en FRANÇAIS (ACTIVITY_STATUS_LABELS de rules.ts
- * garde des libellés techniques anglais pour certains états — label local).
- */
-const STATUS_LABELS_FR: Record<string, string> = {
-  dormant: 'En sommeil',
-  casual: 'Tranquille',
-  active: 'Actif',
-  competitive: 'Compétitif',
-  war_ready: 'Prêt guerre',
-};
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
@@ -1561,7 +1550,7 @@ export default function CrewScreen() {
                 color={warReady ? gameColors.crew : colors.blanc}
               />
               <Text style={[styles.statusChipText, warReady && styles.statusChipTextWar]}>
-                {STATUS_LABELS_FR[status] ?? ACTIVITY_STATUS_LABELS[status]}
+                {CREW_STATUS_LABELS_FR[status] ?? ACTIVITY_STATUS_LABELS[status]}
               </Text>
             </View>
             {/* Surface ≤ 3 infos (§A) : le chip (état) + l'ACTIVITÉ (X/Y actifs,
@@ -3074,12 +3063,13 @@ const styles = StyleSheet.create({
   wallToggleText: { flex: 1 },
   wallToggleLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   wallToggleSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2, lineHeight: 16 },
-  // Wall = vraie liste-preview relevée (N2) dans la surface Contribution (N1).
+  // Wall = section À PLAT dans la surface Contribution (N1) : jamais de
+  // card-dans-card (§A) — un séparateur hairline sépare, pas un second cadre.
   wall: {
-    backgroundColor: elevation.raised,
-    borderRadius: radii.card,
-    padding: 14,
-    marginTop: 10,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: borderState.hairline,
     gap: 8,
   },
   wallTitle: {

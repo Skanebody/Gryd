@@ -43,6 +43,10 @@ export default function PerformanceScreen() {
   return (
     <StackScreen title="Performance" icon="performance" kicker="TA FORME · TON IMPACT">
       <View style={styles.stack}>
+        {/* Honnêteté (§A) : tant qu'O1 n'est pas câblé, ces chiffres sont une
+            démo — jamais présentés comme les vraies stats du joueur. */}
+        <Text style={styles.demoNote}>Données de démonstration — pas encore tes vrais chiffres.</Text>
+
         {/* ── AU-DESSUS DU FOLD : décider en un regard ── */}
         <ScoreFormeHero score={p.formeScore} delta={p.formeDelta} reading={p.formeReading} />
         <WeekCard
@@ -82,6 +86,13 @@ export default function PerformanceScreen() {
 
 const styles = StyleSheet.create({
   stack: { gap: 14, marginTop: 4 },
+  demoNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginBottom: 2,
+  },
   verifyLink: {
     flexDirection: 'row',
     alignItems: 'center',
