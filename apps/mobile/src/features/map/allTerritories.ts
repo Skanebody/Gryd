@@ -390,6 +390,11 @@ export function territoryDotLayers(): readonly RealMapPointLayer[] {
     // pris le relais en dessous). Même calque `pointLayers` que les villes, donc
     // servi aux DEUX cartes sans toucher MapScreen.
     sectorStatusBadgeLayer(),
+    // §11 z10-12 — % de CONTRÔLE dominant par secteur : répond « qui contrôle
+    // quoi » dès le dézoom métropole (le badge de statut, lui, ne dit QUE le
+    // statut). Posé AU-DESSUS du point (le badge de statut est en dessous) → pas
+    // de collision, ≤ 1 label court en plus. Borné [métropole, quartier[.
+    sectorControlPctLayer(),
   ];
   return dotLayersCache;
 }
@@ -420,6 +425,25 @@ export const SECTOR_MIN_ZOOM = 10;
  * de territoire à 0 sous ce zoom). Constante de RENDU (LOD), pas une règle de jeu.
  */
 export const TERRITORY_TRACE_MIN_ZOOM = 13;
+
+/**
+ * AMENDEMENT-37 §6 + étude §11 (bande MÉTROPOLE z10-12) — Zoom SEUIL du % de
+ * CONTRÔLE dominant par secteur. Aligné sur SECTOR_MIN_ZOOM : le % apparaît AVEC
+ * les disques de secteur, pour répondre « qui contrôle quoi » DÈS le dézoom
+ * métropole — sans attendre le tap (le blason/nom du crew, eux, restent au tap,
+ * §9 : jamais de nom de crew fabriqué au dézoom). Constante de RENDU (LOD), pas
+ * une règle de jeu.
+ */
+export const SECTOR_PCT_MIN_ZOOM = SECTOR_MIN_ZOOM;
+
+/**
+ * AMENDEMENT-37 §6 + étude §11 (bord QUARTIER z13) — Zoom PLAFOND du % de
+ * contrôle : au quartier, les TRACÉS de territoire + frontières + missions
+ * (≥ TERRITORY_TRACE_MIN_ZOOM) prennent le relais de l'agrégat « % de secteur »,
+ * qui s'efface pour ne pas DOUBLER l'info fine (et rester hors du budget ≤ 3
+ * labels du quartier, §15). Constante de RENDU (LOD), pas une règle de jeu.
+ */
+export const SECTOR_PCT_MAX_ZOOM = TERRITORY_TRACE_MIN_ZOOM;
 
 /**
  * §C — Libellés COURTS des badges de statut (jamais tronqués, §A9). Source
@@ -503,6 +527,75 @@ export function sectorStatusBadgeLayer(): RealMapPointLayer {
     textOffsetEm: SECTOR_BADGE_LABEL_OFFSET_EM,
     textHaloColor: colors.noir,
     textLetterSpacing: SECTOR_BADGE_LABEL_LETTER_SPACING_EM,
+  };
+}
+
+/**
+ * Label % de contrôle : posé AU-DESSUS du point (offset NÉGATIF) pour ne pas
+ * entrer en collision avec le badge de statut du même secteur (posé EN DESSOUS,
+ * SECTOR_BADGE_LABEL_OFFSET_EM). Le point réutilise la taille du badge de statut
+ * (même ancre visuelle — si les deux calques coïncident, un seul disque se voit).
+ */
+const SECTOR_PCT_LABEL_SIZE_PX = 12;
+const SECTOR_PCT_LABEL_OFFSET_EM = -1;
+const SECTOR_PCT_LABEL_LETTER_SPACING_EM = 0.02;
+
+/**
+ * Format % de contrôle DÉTERMINISTE (pas d'Intl — parité Hermes) : une fraction
+ * 0-1 → un entier borné suivi de « % » (ex. 0.64 → « 64% »). Court, jamais
+ * tronqué (§A9).
+ */
+function formatControlPercent(fraction: number): string {
+  const pct = Math.round(fraction * 100);
+  const bounded = pct < 0 ? 0 : pct > 100 ? 100 : pct;
+  return `${bounded}%`;
+}
+
+/**
+ * §11 z10-12 (bande MÉTROPOLE) — Calque du % de CONTRÔLE dominant par secteur.
+ * Répond à la question « qui contrôle quoi » DÈS le dézoom, là où le badge de
+ * statut ne dit QUE le statut (« Zone contestée »…). Le nombre est MON emprise
+ * (view.minePercent) ; on n'affiche JAMAIS le nom/blason du crew au dézoom (§9 —
+ * ils restent au tap, zéro nom de crew fabriqué). Teinte de RÔLE : chartreuse si
+ * JE domine (minePercent ≥ rivalPercent), sinon gris neutre (mon emprise
+ * faiblit) — jamais l'orange rival, qui laisserait croire que le NOMBRE est
+ * celui de l'adversaire. Halo noir → contraste garanti sur les DEUX fonds
+ * (jamais de chartreuse « nue » sur fond clair, §C — même parade que les dots
+ * villes). Le secteur FOYER de l'ego est EXCLU, comme pour le badge de statut
+ * (§A20/§A9 : le header porte déjà son état et son label tomberait sous le
+ * bandeau). Borné [SECTOR_PCT_MIN_ZOOM, SECTOR_PCT_MAX_ZOOM] : n'apparaît qu'à la
+ * métropole et s'efface au quartier (les tracés prennent le relais). Même
+ * `pointLayers` que les villes/badges → servi aux DEUX cartes sans toucher MapScreen.
+ */
+export function sectorControlPctLayer(): RealMapPointLayer {
+  const data: GameCollection = {
+    type: 'FeatureCollection',
+    features: PARIS_DEMO_SECTOR_VIEWS.filter((v) => v.id !== EGO_HOME_SECTOR_ID).map((v) => {
+      // Rôle de teinte dérivé de la DOMINANCE (pas d'une couleur par crew) :
+      // mien dominant → chartreuse ; sinon neutre (le nombre reste le mien).
+      const mineDominant = v.minePercent >= v.rivalPercent;
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
+        properties: {
+          label: formatControlPercent(v.minePercent),
+          color: roleColor(mineDominant ? 'mine' : 'neutral'),
+        },
+      };
+    }),
+  };
+  return {
+    id: 'sector-control-pct',
+    data,
+    minZoom: SECTOR_PCT_MIN_ZOOM,
+    maxZoom: SECTOR_PCT_MAX_ZOOM,
+    circleRadius: SECTOR_BADGE_DOT_RADIUS_PX,
+    circleStrokeColor: colors.noir,
+    circleStrokeWidth: SECTOR_BADGE_DOT_STROKE_PX,
+    textSize: SECTOR_PCT_LABEL_SIZE_PX,
+    textOffsetEm: SECTOR_PCT_LABEL_OFFSET_EM,
+    textHaloColor: colors.noir,
+    textLetterSpacing: SECTOR_PCT_LABEL_LETTER_SPACING_EM,
   };
 }
 

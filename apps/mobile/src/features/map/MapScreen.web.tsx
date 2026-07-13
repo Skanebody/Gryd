@@ -89,6 +89,34 @@ const SCALE_STEPS_M: readonly number[] = [
   500_000, 1_000_000, 2_000_000,
 ];
 
+// ─── Bandes de zoom sémantiques (AMENDEMENT-37 §6/§11, étude §11/§15) ────────
+// Les marqueurs s'ÉTAGENT par bande au lieu de s'allumer d'un bloc au seul seuil
+// worldView. Seuils de RENDU nommés (jamais de littéral baladé), dérivés du VRAI
+// zoom caméra (onZoomChange) — worldView (dots villes) reste géré côté MapLibre.
+/** Missions/objectifs (bouclier, sablier, pin) + POI/défi : QUARTIER (z13-15). */
+const MISSION_MARKER_MIN_ZOOM = 13;
+/** Alliés opt-in (mates) : RUE (z16-18) seulement — jamais au quartier. */
+const ALLY_MARKER_MIN_ZOOM = 16;
+/** §15 : au plus 3 LABELS visibles au zoom QUARTIER (avant la bande RUE). */
+const QUARTIER_MAX_LABELS = 3;
+
+/**
+ * Bande sémantique dérivée du zoom réel (couture LOD, §11) :
+ *   `world`    z<10  — dots villes (MapLibre), ego seul en marker
+ *   `metro`    10-12 — secteurs + contrôle % (couches), ego seul
+ *   `district` 13-15 — territoires + missions/objectifs + POI/défi
+ *   `street`   z16+  — + alliés opt-in
+ * On ne stocke PAS le zoom brut (re-render par frame) : l'état ne change qu'au
+ * franchissement d'un seuil de bande.
+ */
+type ZoomBand = 'world' | 'metro' | 'district' | 'street';
+function zoomBand(zoom: number): ZoomBand {
+  if (zoom < TERRITORY_DOT_MAX_ZOOM) return 'world';
+  if (zoom < MISSION_MARKER_MIN_ZOOM) return 'metro';
+  if (zoom < ALLY_MARKER_MIN_ZOOM) return 'district';
+  return 'street';
+}
+
 // AMENDEMENT-21 : la Carte est un ÉCRAN MISSION. Les contrôles flottants (fond
 // dark/couleur + calques de lecture) vivent DANS le menu « Calques » du HUD
 // (BattleMapOverlays) — plus aucun FAB de bascule de fond ici (2 FABs max :
@@ -103,30 +131,45 @@ const markerColors = {
 } as const;
 
 /**
- * Markers RealMap de la scène (UNE icône par SECTEUR — jamais par cellule) :
- * POI ≤ 4, avant-poste, shield du secteur maison, sablier du secteur en decay,
- * pin objectif, défi (1 MAX), mates OPT-IN, et « moi » au-dessus de tout.
- * L'emphase du mode actif module l'opacité de chaque famille (AMENDEMENT-11 §3).
+ * Markers RealMap de la scène (UNE icône par SECTEUR — jamais par cellule),
+ * ÉTAGÉS par bande de zoom (AMENDEMENT-37 §6/§11) — identiques à la variante
+ * native. `showMissions` (quartier z13+) allume missions/objectifs (avant-poste,
+ * shield, sablier, pin, défi) + POI ; `showAllies` (rue z16+) allume les mates
+ * OPT-IN. EGO est TOUJOURS peint au-dessus. L'emphase du mode module l'opacité de
+ * chaque famille (AMENDEMENT-11 §3).
  */
 function buildMarkers(
   points: BattleMapPoints,
   decayAnchor: LatLngPoint | null,
   emph: ModeEmphasis,
+  showMissions: boolean,
+  showAllies: boolean,
 ): RealMapMarker[] {
-  return [
-    ...POIS_ON_MAP.map((p) => ({
-      id: `poi-${p.kind}`,
-      lng: p.position.lng,
-      lat: p.position.lat,
-      children: <PoiMarker kind={p.kind} label={p.label} />,
-    })),
-    {
+  const markers: RealMapMarker[] = [];
+
+  // ── Missions / objectifs + POI / défi — QUARTIER (z13-15) ──────────────────
+  if (showMissions) {
+    // POI running : §15 borne les LABELS à QUARTIER_MAX_LABELS au quartier (les
+    // POI sont la famille la moins prioritaire à porter du texte, §14) ; à la
+    // rue (showAllies) la contrainte quartier ne s'applique plus.
+    let labelBudget = showAllies ? Number.POSITIVE_INFINITY : QUARTIER_MAX_LABELS;
+    for (const p of POIS_ON_MAP) {
+      const keepLabel = p.label !== undefined && labelBudget > 0;
+      if (keepLabel) labelBudget -= 1;
+      markers.push({
+        id: `poi-${p.kind}`,
+        lng: p.position.lng,
+        lat: p.position.lat,
+        children: <PoiMarker kind={p.kind} label={keepLabel ? p.label : undefined} />,
+      });
+    }
+    markers.push({
       id: 'outpost',
       lng: points.outpost.lng,
       lat: points.outpost.lat,
       children: <StateIcon icon="avantposte" tint={markerColors.neutral} opacity={emph.crew} />,
-    },
-    {
+    });
+    markers.push({
       id: 'shield',
       lng: points.protectedCenter.lng,
       lat: points.protectedCenter.lat,
@@ -138,45 +181,49 @@ function buildMarkers(
           liftPx={SHIELD_ABOVE_EGO_PX}
         />
       ),
-    },
-    ...(decayAnchor
-      ? [
-          {
-            id: 'sablier',
-            lng: decayAnchor.lng,
-            lat: decayAnchor.lat,
-            children: (
-              <StateIcon icon="sablier" tint={markerColors.danger} opacity={emph.defense} />
-            ),
-          },
-        ]
-      : []),
-    {
+    });
+    if (decayAnchor) {
+      markers.push({
+        id: 'sablier',
+        lng: decayAnchor.lng,
+        lat: decayAnchor.lat,
+        children: <StateIcon icon="sablier" tint={markerColors.danger} opacity={emph.defense} />,
+      });
+    }
+    markers.push({
       id: 'objective-pin',
       lng: points.objectiveCenter.lng,
       lat: points.objectiveCenter.lat,
       children: <StateIcon icon="pin" tint={markerColors.crew} opacity={emph.objective} />,
-    },
-    {
+    });
+    markers.push({
       id: 'challenge',
       lng: MAP_CHALLENGE.position.lng,
       lat: MAP_CHALLENGE.position.lat,
       children: <StateIcon icon="cible" tint={markerColors.neutral} opacity={emph.objective} />,
-    },
-    ...MATES_OPT_IN.map((m) => ({
-      id: `mate-${m.name}`,
-      lng: m.position.lng,
-      lat: m.position.lat,
-      children: <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />,
-    })),
-    // Moi — TOUJOURS au-dessus (dernier = peint en dernier).
-    {
-      id: 'ego',
-      lng: EGO_CAMERA.lng,
-      lat: EGO_CAMERA.lat,
-      children: <EgoMarker />,
-    },
-  ];
+    });
+  }
+
+  // ── Alliés opt-in — RUE (z16-18) seulement ─────────────────────────────────
+  if (showAllies) {
+    for (const m of MATES_OPT_IN) {
+      markers.push({
+        id: `mate-${m.name}`,
+        lng: m.position.lng,
+        lat: m.position.lat,
+        children: <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />,
+      });
+    }
+  }
+
+  // ── Moi — TOUJOURS présent, peint en dernier (au-dessus de tout) ───────────
+  markers.push({
+    id: 'ego',
+    lng: EGO_CAMERA.lng,
+    lat: EGO_CAMERA.lat,
+    children: <EgoMarker />,
+  });
+  return markers;
 }
 
 export function MapScreen() {
@@ -232,20 +279,22 @@ export function MapScreen() {
   const decayAnchor = useMemo(() => decaySablierAnchor(), []);
 
   /**
-   * Vue monde/pays (§4bis) : sous le zoom seuil (le VRAI zoom caméra), les
-   * icônes de secteur (échelle coureur) seraient un amas illisible → on les
-   * retire ; les possessions restent lisibles via les marqueurs-points villes,
-   * rendus en LAYERS MapLibre bornés par zoom (territoryDotLayers).
+   * Bande de zoom sémantique (§6/§11) dérivée du VRAI zoom caméra. Elle étage les
+   * marqueurs (missions au quartier, alliés à la rue, ego toujours) au lieu de
+   * les allumer d'un bloc ; la vue monde/pays (dots villes, §4bis) est la bande
+   * `world`, gérée côté MapLibre par le maxzoom de territoryDotLayers. L'état ne
+   * change qu'au franchissement d'un seuil (pas de re-render par frame).
    */
-  const [worldView, setWorldView] = useState(false);
+  const [band, setBand] = useState<ZoomBand>(() => zoomBand(EGO_CAMERA.zoom));
   const onZoomChange = useCallback((zoom: number) => {
-    setWorldView(zoom < TERRITORY_DOT_MAX_ZOOM);
+    setBand(zoomBand(zoom));
   }, []);
 
-  const markers = useMemo(
-    () => (worldView ? [] : buildMarkers(points, decayAnchor, emph)),
-    [points, decayAnchor, emph, worldView],
-  );
+  const markers = useMemo(() => {
+    const showMissions = band === 'district' || band === 'street';
+    const showAllies = band === 'street';
+    return buildMarkers(points, decayAnchor, emph, showMissions, showAllies);
+  }, [points, decayAnchor, emph, band]);
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
