@@ -48,6 +48,7 @@ import {
   useReveal,
   type ArsenalPriceCurrency,
 } from '../src/ui/game';
+import { ArsenalPreview } from '../src/features/arsenal/preview';
 import {
   ARSENAL_NEED_OPTIONS,
   BOOST_CHEST_BONUS_LABEL,
@@ -62,6 +63,9 @@ import {
   type ArsenalPlayerSignals,
   type ArsenalRecommendation,
 } from '../src/features/arsenal';
+
+/** Largeur (px) de l'illustration d'aperçu dans le détail — prominente, tient sur mobile. */
+const PREVIEW_ILLUS_SIZE = 208;
 
 /** Puce pleine (le set d'icônes n'a pas de coche — dot chartreuse cohérent DA). */
 function Dot({ color = gameColors.crew, size = 6 }: { color?: string; size?: number }) {
@@ -594,10 +598,13 @@ function ItemDetail({
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.sheetHandle} />
-      {/* Preview : grande icône encadrée (rendu réel skins = V1). */}
+      {/* Aperçu ILLUSTRÉ « à quoi ça sert » : rendu fidèle du cosmétique OU schéma
+          de mécanique honnête de l'objet (anti pay-to-win) — plus une icône
+          générique. Le fond du panneau reste elevation.raised (les aperçus de skin
+          territoire y masquent leur décor). */}
       <View style={styles.detailPreview}>
-        <View style={styles.detailPreviewBox}>
-          <ArsenalIcon slug={item.slug} size={64} color={colors.blanc} />
+        <View style={styles.detailIllus}>
+          <ArsenalPreview item={item} size={PREVIEW_ILLUS_SIZE} />
         </View>
         <Text style={styles.detailName}>{item.name}</Text>
         <Text style={styles.detailMeta}>
@@ -1003,6 +1010,18 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   detailPreview: { alignItems: 'center', gap: 8, marginBottom: 14 },
+  // Panneau d'ILLUSTRATION du détail : surface N2 relevée, pleine largeur, qui
+  // accueille l'aperçu SVG (skin/objet). Fond = elevation.raised (les aperçus de
+  // skin territoire y fondent leur masque de décor).
+  detailIllus: {
+    alignSelf: 'stretch',
+    borderRadius: 20,
+    backgroundColor: elevation.raised,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    overflow: 'hidden',
+  },
   // Preview d'objet = disque N2 relevé qui FLOTTE sur la surface du sheet (pas
   // de cadre encadré : le contour est réservé aux états).
   detailPreviewBox: {
