@@ -11,6 +11,7 @@
  * Compat : `icon` (IconName filaire) reste accepté en secours quand aucun
  * `slug` n'est fourni — les usages existants ne cassent pas.
  */
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import {
@@ -104,6 +105,12 @@ export interface ArsenalItemCardProps {
    * Prioritaire sur `icon` ; absent, on résout quand même par le nom.
    */
   slug?: string;
+  /**
+   * APERÇU ILLUSTRÉ optionnel (rendu à la place de l'icône, même emplacement N2) :
+   * l'appelant y pose un mini-aperçu SVG pour les cosmétiques (on voit le skin/
+   * frame d'un coup d'œil). Absent → l'icône filaire du registre est rendue.
+   */
+  preview?: ReactNode;
   /** Icône filaire de secours (compat usages existants sans slug). */
   icon?: IconName;
   /** Rareté visuelle (tier road → legend, cadre + teinte de l'icône). */
@@ -145,6 +152,7 @@ export interface ArsenalItemCardProps {
 export function ArsenalItemCard({
   name,
   slug,
+  preview,
   icon,
   rarity,
   usage,
@@ -197,10 +205,12 @@ export function ArsenalItemCard({
             card). La rareté haute teinte l'icône ; les tiers bas la posent en
             blanc — le cercle porte le visuel, pas une boîte encadrée. */}
         <View style={styles.iconWrap}>
-          {slug !== undefined || icon === undefined ? (
-            <ArsenalIcon slug={slug ?? name} size={36} color={iconColor} />
-          ) : (
-            <Icon name={icon} size={36} color={iconColor} />
+          {preview ?? (
+            slug !== undefined || icon === undefined ? (
+              <ArsenalIcon slug={slug ?? name} size={36} color={iconColor} />
+            ) : (
+              <Icon name={icon} size={36} color={iconColor} />
+            )
           )}
         </View>
         <View style={styles.body}>

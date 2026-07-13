@@ -19,7 +19,7 @@
  * (SKU_PRICES_EUR, ECLATS_PACKS, SHIELD/STREAK/SCOUT/BANNER_*) — zéro nombre
  * magique de prix dans cet écran.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -66,6 +66,34 @@ import {
 
 /** Largeur (px) de l'illustration d'aperçu dans le détail — prominente, tient sur mobile. */
 const PREVIEW_ILLUS_SIZE = 208;
+
+/**
+ * Sections dont l'aperçu illustré se lit bien en VIGNETTE (cosmétiques VISUELS :
+ * on reconnaît le skin/frame/bannière d'un coup d'œil). Les schémas d'OBJETS
+ * (Bouclier, Crew Boost…) sont chargés de légendes honnêtes illisibles en petit :
+ * ils gardent l'icône filaire nette sur les cartes de liste, l'illustration
+ * complète vivant dans le détail.
+ */
+const THUMBNAIL_SECTIONS: ReadonlySet<string> = new Set([
+  'skins_territory',
+  'skins_trace',
+  'frames',
+  'banners',
+  'emblems',
+  'templates',
+]);
+/** Côté (px) de la vignette illustrée dans le disque d'icône d'une carte. */
+const CARD_ILLUS_SIZE = 52;
+
+/**
+ * Vignette illustrée d'un item pour les cartes (liste + advisor) — cosmétiques
+ * uniquement (cf. THUMBNAIL_SECTIONS). `undefined` → la carte rend son icône.
+ */
+function cardThumb(item: ArsenalCatalogItem): ReactNode {
+  return THUMBNAIL_SECTIONS.has(item.section) ? (
+    <ArsenalPreview item={item} size={CARD_ILLUS_SIZE} />
+  ) : undefined;
+}
 
 /** Puce pleine (le set d'icônes n'a pas de coche — dot chartreuse cohérent DA). */
 function Dot({ color = gameColors.crew, size = 6 }: { color?: string; size?: number }) {
@@ -268,6 +296,7 @@ export default function ArsenalScreen() {
           key={item.key}
           name={item.name}
           slug={item.slug}
+          preview={cardThumb(item)}
           rarity={item.rarity}
           usage={advice.headline}
           price={buyable ? price : undefined}
@@ -514,7 +543,7 @@ function AdvisorCard({
     <View style={styles.advisor}>
       <View style={styles.advisorHeader}>
         <View style={styles.advisorIcon}>
-          <ArsenalIcon slug={item.slug} size={42} color={colors.blanc} />
+          {cardThumb(item) ?? <ArsenalIcon slug={item.slug} size={42} color={colors.blanc} />}
         </View>
         <View style={styles.advisorTitleWrap}>
           <Text style={styles.advisorKicker}>CHOISI POUR TOI</Text>
