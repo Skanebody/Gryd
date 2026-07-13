@@ -64,6 +64,16 @@ const EXAMPLE_OVERRIDES: Readonly<Partial<Record<SchemaId, string>>> = {
 };
 
 /**
+ * Honnêteté (charte §1) : TOUS les exemples de scène sont des scénarios démo
+ * (chiffres, %, noms de crews fictifs). On préfixe donc « Exemple : » de façon
+ * systématique — sauf ceux qui le portent déjà (override) — pour qu'aucune
+ * donnée fabriquée ne se lise comme un chiffre réel.
+ */
+function withExamplePrefix(text: string): string {
+  return /^exemple\b/i.test(text.trimStart()) ? text : `Exemple : ${text}`;
+}
+
+/**
  * Rend le schéma d'une section. Les 2 schémas paramétrés (défense, verify)
  * reçoivent leurs libellés depuis les VRAIES constantes (labels.ts), jamais des
  * littéraux — les autres portent déjà les scénarios démo en défaut de props.
@@ -120,7 +130,7 @@ function SceneBlock({ section, index }: { section: ExplainSection; index: number
         <Schema id={section.schemaId} width={schemaWidth} />
       </View>
       <Text style={styles.example}>
-        {frStatut(EXAMPLE_OVERRIDES[section.id] ?? section.example)}
+        {withExamplePrefix(frStatut(EXAMPLE_OVERRIDES[section.id] ?? section.example))}
       </Text>
     </View>
   );

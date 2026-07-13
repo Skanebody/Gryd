@@ -72,7 +72,7 @@ const ENFORCEMENT: readonly Rule[] = [
     title: 'Signale ce qui te choque',
     body:
       'Sur un message ou un membre : appui long ou menu « Signaler », choisis un motif. ' +
-      'Chaque signalement est examiné par une personne sous 24 h.',
+      'Chaque signalement est examiné par une personne, réponse sous quelques jours.',
   },
   {
     key: 'block',

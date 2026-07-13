@@ -183,7 +183,7 @@ export default function SourcesScreen() {
   const soonSources = VERIFY_SOURCES.filter((s) => s.availability === 'soon');
 
   return (
-    <StackScreen title="GRYD Verify Hub" icon="radar" kicker="GRYD VERIFY HUB">
+    <StackScreen title="GRYD Verify Hub" icon="radar" kicker="VÉRIFICATION">
       {/* Entête (AMENDEMENT-10 §6) — le bleu verify = état de confiance. */}
       <View style={styles.hero}>
         <View style={styles.heroIcon}>

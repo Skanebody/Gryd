@@ -106,6 +106,7 @@ export default function SettingsMotivationScreen() {
             const on = visibleLevels.includes(lvl);
             return (
               <View key={lvl} style={[styles.levelChip, on && styles.levelChipOn]}>
+                <View style={[styles.levelDot, on && styles.levelDotOn]} />
                 <Text style={[styles.levelText, on && styles.levelTextOn]}>
                   {LEADERBOARD_LABELS[lvl]}
                 </Text>
@@ -194,6 +195,9 @@ const styles = StyleSheet.create({
   },
   levels: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   levelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     borderRadius: 999,
@@ -201,7 +205,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     opacity: 0.5,
   },
-  levelChipOn: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14, opacity: 1 },
+  // Affichage DÉRIVÉ (lecture seule), pas un toggle : le point chartreuse marque « visible »,
+  // le libellé atténué « masqué ». Volontairement sans bordure chartreuse pour ne pas imiter
+  // les pastilles interactives (Notifications / Profil) de la même page (audit P2 clarté).
+  levelChipOn: { opacity: 1 },
+  levelDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.grisLigne },
+  levelDotOn: { backgroundColor: colors.chartreuse },
   levelText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
   levelTextOn: { color: colors.blanc },
   pillsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
