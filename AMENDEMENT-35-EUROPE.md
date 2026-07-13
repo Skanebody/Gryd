@@ -69,24 +69,21 @@ Moteur, règles de jeu §3, charte tri-couleur, épuration §A, anti pay-to-win,
 architecture Supabase/RLS. Seul le **cadre géographique déclaré** (France → Europe)
 et le retrait du filtre de portée du classement changent.
 
-## 6. Précision (12/07/2026) — villes européennes sur un board DÉMO
+## 6. RÉTRACTÉ (13/07/2026) — pas de villes européennes, même sur un board DÉMO
 
-Le §2 est **précisé**, pas contredit. La ligne rouge de l'honnêteté est :
-**présenter du démo comme RÉEL** — retirer le marqueur « (DÉMO) », ou prétendre
-que de vrais classements/joueurs européens existent. Elle n'interdit PAS d'avoir
-des **villes européennes placeholder sur un board EXPLICITEMENT marqué
-« démonstration »**.
+**Cette section §6 avait « précisé » qu'on pouvait mettre des villes européennes
+placeholder (Berlin/Barcelone/Milan…) sur le board « Ville » tant qu'il était
+marqué démo. C'ÉTAIT FAUX** — un contournement de la constitution, retiré depuis.
 
-Concrètement : l'onglet **« Ville »** du classement affiche déjà « Classement de
-démonstration » et listait des villes françaises hors-focus (Lyon, Marseille…) où
-aucun vrai joueur ne court encore — exactement le même statut « placeholder » que
-Berlin ou Barcelone. Le board Ville démo est donc **européanisé** (Paris + Lille
-en tête = focus Saison 0, puis Berlin/Barcelone/Milan/Amsterdam/Bruxelles/Lyon)
-pour **illustrer** la vision Europe. Tant que le board reste marqué démo et ne
-prétend rien de réel, c'est honnête.
+La constitution `CLAUDE.md` est **CATÉGORIQUE** et prime : « ne jamais fabriquer
+de données européennes factices (villes/classements/rivaux) tant qu'aucun vrai
+utilisateur ne les peuple — la vision se surface en **copie + docs**, pas en
+inventant des rankings. » Inventer des **rangs européens chiffrés** EST exactement
+l'acte prohibé ; l'étiquette « démonstration » ne le couvre PAS. Le §2 de cet
+amendement le disait déjà correctement — §6 le contredisait, §2 gagne.
 
-Restent interdits (inchangé) : retirer le « (DÉMO) », afficher « EUROPE » comme si
-les lignes étaient réelles, ou fabriquer des **rivaux européens live** sur la carte
-de jeu. La **carte France** (marqueurs de villes) n'est PAS européanisée ici
-(contrainte de layout du bandeau de chips + caméra Paris) — elle suivra quand de
-vraies villes seront peuplées.
+**État réel du code** : le board « Ville » est cantonné à la **France** (Paris /
+Lille / Lyon démo). Berlin/Barcelone/Milan/Amsterdam/Bruxelles ont été **retirés**
+(`league.ts`). La vision Europe vit uniquement dans la **COPIE** de l'écran
+(demoNote « l'Europe suit ») et les docs, jamais dans un tableau chiffré. Idem
+carte : aucun rival/ville européen inventé.
