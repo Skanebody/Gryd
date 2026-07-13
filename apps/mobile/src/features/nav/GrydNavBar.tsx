@@ -64,9 +64,11 @@ export function GrydNavBar() {
   const insets = useSafeAreaInsets();
 
   const screen = RUN_SCREEN_BY_PATH[pathname] ?? null;
+  // AMENDEMENT-38 (override fondateur) : le bouton central est un unique « GO ».
+  // On garde `deriveContextualAction` pour la CIBLE (routing contextuel : GO lance
+  // la défense/conquête sur la Carte, la course libre ailleurs) + le contexte a11y ;
+  // seul le MOT affiché devient « GO » (le lien « Course libre » est retiré).
   const action = deriveContextualAction(screen ? { screen } : {});
-  // Run libre toujours atteignable : lien discret quand le verbe central diffère.
-  const freeRun = action.kind === 'run' ? null : deriveContextualAction({});
   // Sur /warroom le CONTENU porte déjà le CTA hero chartreuse PLEIN (mission n°1) ;
   // sur la Carte, une sheet de ZONE ouverte affiche son CTA chartreuse plein
   // « Défendre la zone » (AMENDEMENT-37 §3). Dans ces deux cas la capsule d'action
@@ -121,27 +123,17 @@ export function GrydNavBar() {
         {TABS.slice(2).map(renderTab)}
       </View>
 
-      {/* Bouton d'action contextuel — LE seul CTA chartreuse de la nav. */}
+      {/* Bouton central « GO » (AMENDEMENT-38) — LE seul CTA chartreuse de la nav,
+          libellé unique ; GO lance l'action de l'écran (routing contextuel conservé). */}
       <View
         style={[styles.actionAnchor, { bottom: insets.bottom + NAV_BAR_HEIGHT - ACTION_BUTTON_EMBED }]}
         pointerEvents="box-none"
       >
-        {freeRun ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Course libre — départ sans objectif imposé"
-            hitSlop={{ top: 10, bottom: 10, left: 16, right: 16 }}
-            onPress={() => launch(freeRun)}
-            style={({ pressed }) => [styles.freeRunLink, pressed && styles.pressed]}
-          >
-            <Text style={styles.freeRunText} numberOfLines={1}>
-              Course libre
-            </Text>
-          </Pressable>
-        ) : null}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={action.a11yLabel}
+          // Le nom accessible commence par « GO » (libellé visible, WCAG 2.5.3) puis
+          // décrit ce que GO lance ici (course de défense / conquête / libre).
+          accessibilityLabel={`GO — ${action.a11yLabel}`}
           onPress={() => launch(action)}
           style={({ pressed }) => [
             styles.action,
@@ -149,14 +141,8 @@ export function GrydNavBar() {
             pressed && styles.actionPressed,
           ]}
         >
-          <Icon
-            name={action.icon}
-            size={22}
-            color={actionOutlined ? colors.chartreuse : colors.noir}
-          />
-          <Text style={[styles.actionLabel, actionOutlined && styles.actionLabelOutlined]}>
-            {action.label}
-          </Text>
+          <Icon name="foulees" size={22} color={actionOutlined ? colors.chartreuse : colors.noir} />
+          <Text style={[styles.actionLabel, actionOutlined && styles.actionLabelOutlined]}>GO</Text>
         </Pressable>
       </View>
     </>
@@ -221,18 +207,4 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   actionLabelOutlined: { color: colors.chartreuse },
-
-  /** Lien discret (jamais un 2e CTA chartreuse) — fond sombre pour rester lisible sur la carte. */
-  freeRunLink: {
-    marginBottom: 6,
-    minHeight: 44,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.pill,
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  freeRunText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
 });
