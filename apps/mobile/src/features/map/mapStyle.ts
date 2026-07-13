@@ -510,7 +510,10 @@ export const ROLE_SHAPE_ICON: Record<
  * trop grand les empile en anneaux concentriques illisibles (§A « compris en
  * 3 s »). Le badge texte porte le sens ; le disque n'est qu'un repère de zone.
  */
-const SECTOR_DISC_RADIUS_M = 92;
+/** Rayon de l'anneau de PULSE (secteur le plus urgent) — tight, discret. */
+const SECTOR_PULSE_RADIUS_M = 45;
+/** Largeur de l'anneau de pulse (px) — fin (un signal, pas un contour épais). */
+const SECTOR_PULSE_WIDTH = 1.5;
 /** Segments du cercle géodésique d'un secteur (assez lisse à ce rayon). */
 const SECTOR_CIRCLE_STEPS = 40;
 /** Largeur du contour d'un secteur agrégé (px écran). */
@@ -619,75 +622,51 @@ type SectorViewWithPlace = SectorView & { name: string; center: LatLngPoint };
  * teintes viennent de SECTOR_STATUS_SPEC / CONTESTED_STYLE (tokens) — zéro
  * couleur par crew. `emphContested` module l'opacité (mode Raid/Territoire).
  */
-function sectorStatusLayers(view: SectorViewWithPlace, emphContested: number): RealMapGeoJSONLayer[] {
+function sectorStatusLayers(
+  view: SectorViewWithPlace,
+  emphContested: number,
+  isPeak: boolean,
+): RealMapGeoJSONLayer[] {
   const { level, key } = view.status;
   if (level <= SECTOR_STATUS_LEVELS.stable) return [];
+  // Refonte carte PREMIUM 2026 + AMENDEMENT-36 (« zéro aplat ») : plus de disque
+  // rempli, plus de double anneau, plus de hachures — ce vocabulaire de « zones
+  // qui pulsent » se chevauchait et faisait cartoonesque. Le STATUT est désormais
+  // porté par le BADGE (pastille de rôle + icône de forme + libellé court —
+  // sectorStatusBadgeLayer) + les traces de rôle (contesté/rival/decay). SEUL le
+  // secteur le PLUS urgent (isPeak) reçoit UN anneau FIN pulsé : le seul mouvement
+  // de la carte = un signal, pas du décor. Les autres n'ont que leur badge.
+  if (!isPeak) return [];
   const spec = SECTOR_STATUS_SPEC[key];
-  const id = `sector-${view.id}`;
-  const center = view.center;
-  const layers: RealMapGeoJSONLayer[] = [];
-
-  // 1. Aplat de statut (violet contesté / orange pression-attaque / rouge urgence)
-  //    — très discret, la ville reste lisible dessous (§C).
-  layers.push({
-    id: `${id}-fill`,
-    data: { type: 'FeatureCollection', features: [sectorDiscFeature(center, SECTOR_DISC_RADIUS_M)] },
-    fillColor: spec.fill,
-    fillOpacity: emphContested,
-  });
-
-  if (spec.doubleContour) {
-    // 2a. DOUBLE CONTOUR (§C, niveau ≥ contesté) : contour INTÉRIEUR chartreuse
-    //     (mon crew) décalé vers l'intérieur — trait plein, non pulsé.
-    layers.push({
-      id: `${id}-inner`,
-      data: { type: 'FeatureCollection', features: [sectorRingFeature(center, SECTOR_DISC_RADIUS_M)] },
-      lineColor: CONTESTED_STYLE.innerColor,
-      lineWidth: CONTESTED_STYLE.innerWidthPx,
-      lineOffset: -SECTOR_CONTOUR_OFFSET_PX,
-    });
-    // 2b. Contour EXTÉRIEUR orange (rival) décalé vers l'extérieur + PULSE lent
-    //     (coupé par reduce motion côté RealMap → reste plein, jamais invisible).
-    layers.push({
-      id: `${id}-outer`,
-      data: { type: 'FeatureCollection', features: [sectorRingFeature(center, SECTOR_DISC_RADIUS_M)] },
-      lineColor: CONTESTED_STYLE.outerColor,
-      lineWidth: CONTESTED_STYLE.outerWidthPx,
-      lineOffset: SECTOR_CONTOUR_OFFSET_PX,
-      pulse: spec.pulse,
-    });
-    // 2c. HACHURES légères (2ᵉ canal de forme — daltonisme, §C).
-    layers.push({
-      id: `${id}-hatch`,
-      data: { type: 'FeatureCollection', features: sectorHatchLines(center, SECTOR_DISC_RADIUS_M) },
-      lineColor: CONTESTED_HATCH.color,
-      lineWidth: CONTESTED_HATCH.widthPx,
-    });
-  } else {
-    // 2. Contour SIMPLE (niveau pression / urgence sans double contour) : la
-    //    teinte de statut (orange léger ou rouge limité), pulsé si le spec le dit.
-    layers.push({
-      id: `${id}-ring`,
-      data: { type: 'FeatureCollection', features: [sectorRingFeature(center, SECTOR_DISC_RADIUS_M)] },
+  return [
+    {
+      id: `sector-${view.id}-pulse`,
+      data: {
+        type: 'FeatureCollection',
+        features: [sectorRingFeature(view.center, SECTOR_PULSE_RADIUS_M)],
+      },
       lineColor: spec.strokeColor,
-      lineWidth: SECTOR_STROKE_WIDTH,
-      pulse: spec.pulse,
-    });
-  }
-
-  return layers;
+      lineWidth: SECTOR_PULSE_WIDTH,
+      lineOpacity: emphContested,
+      pulse: true,
+    },
+  ];
 }
 
 /**
- * §C — TOUTES les couches de secteurs agrégés de la démo Paris (ego =
- * gryd-republique), dans l'ordre de peinture (statut croissant : le plus chaud
- * PAR-DESSUS — priorité d'affichage §C). C'est ce que la Battle Map empile
- * au-dessus des territoires. `emphContested` = emphase du mode actif.
+ * §C — Couches de secteurs de la démo Paris, ÉPURÉES (refonte premium 2026) :
+ * les badges (sectorStatusBadgeLayer) marquent tous les secteurs chauds ; ICI on
+ * n'ajoute qu'UN anneau fin PULSÉ sur le secteur de plus HAUTE priorité (le plus
+ * urgent) — un seul mouvement à l'écran. `emphContested` = emphase du mode actif.
  */
 export function sectorStatusLayersAll(emphContested = 1): RealMapGeoJSONLayer[] {
-  return [...PARIS_DEMO_SECTOR_VIEWS]
-    .sort((a, b) => a.status.level - b.status.level)
-    .flatMap((view) => sectorStatusLayers(view, emphContested));
+  const hot = PARIS_DEMO_SECTOR_VIEWS.filter(
+    (v) => v.status.level > SECTOR_STATUS_LEVELS.stable,
+  );
+  if (hot.length === 0) return [];
+  const peakLevel = Math.max(...hot.map((v) => v.status.level));
+  const peak = hot.find((v) => v.status.level === peakLevel);
+  return hot.flatMap((view) => sectorStatusLayers(view, emphContested, view === peak));
 }
 
 /** Sur-largeur du liseré sombre (px de part et d'autre du trait) — fin. */
@@ -1080,13 +1059,16 @@ export function territoryTraceLayers(
 /** Traitements de frontière (§4ter : trait continu 2-2,5 px — px écran).
     AMENDEMENT-16 §0 : une frontière = CE trait + un remplissage faible,
     RIEN d'autre — plus aucune couche de lueur/glow sous les traits. */
-const BORDER_WIDTH = 2.2;
+// Refonte premium 2026 : une SEULE « épaisseur de trait de carte » pour toutes
+// les frontières secondaires (objectif/avant-poste/decay/protégé/contesté) → 1,8 px
+// (au lieu de 2,2). Cohérence système/élégante, sous ma trace crew (core ~4 px).
+const BORDER_WIDTH = 1.8;
 // (RIVAL_BORDER_WIDTH retiré : le rival n'est plus une ligne fine mais une VRAIE
 //  trace façon Strava via rivalTraceLayers — largeur par zoom, cf. TRACE_WIDTH_STOPS.)
-const CONTESTED_TRAIT_WIDTH = 2.2;
-/** Écart latéral du DOUBLE trait contesté (line-offset ± — §4ter). */
-const CONTESTED_TRAIT_OFFSET_PX = 2.5;
-const DECAY_WIDTH = 2.2;
+const CONTESTED_TRAIT_WIDTH = 1.8;
+/** Écart latéral du DOUBLE trait contesté (line-offset ± — §4ter), resserré. */
+const CONTESTED_TRAIT_OFFSET_PX = 2;
+const DECAY_WIDTH = 1.8;
 /** Pointillés MapLibre : multiples de la largeur du trait (≈ « 6 5 » px SVG). */
 const DECAY_DASH: readonly number[] = [3, 2.5];
 // Lignes de PARCOURS/route DOUBLÉES (décision fondateur : trait plus large).
