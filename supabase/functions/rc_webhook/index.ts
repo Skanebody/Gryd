@@ -12,6 +12,7 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { SEASON_DURATION_WEEKS } from '../_shared/game-rules.ts';
+import { secretsMatch } from '../_shared/secret.ts';
 import { mapRevenueCatEvent, type RevenueCatEvent } from './logic.ts';
 
 const MS_PER_HOUR = 3_600_000;
@@ -34,7 +35,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // RevenueCat envoie la valeur configurée, verbatim, dans Authorization.
   const secret = Deno.env.get('RC_WEBHOOK_SECRET') ?? '';
-  if (!secret || req.headers.get('authorization') !== secret) {
+  if (!secret || !secretsMatch(req.headers.get('authorization') ?? '', secret)) {
     return json({ error: 'unauthorized' }, 401);
   }
 

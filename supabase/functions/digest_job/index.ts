@@ -14,6 +14,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { buildDigest, canPush, type Digest, type DigestEvent } from './logic.ts';
 import { activityScore, chestTierFor } from '../_shared/engine/crew.ts';
+import { secretsMatch } from '../_shared/secret.ts';
 import {
   BONUS_CREW_CHEST_MAX_RATIO,
   BONUS_CREW_CHEST_MIN_RATIO,
@@ -52,7 +53,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   const secret = Deno.env.get('CRON_SECRET') ?? '';
-  if (!secret || req.headers.get('x-cron-secret') !== secret) {
+  if (!secret || !secretsMatch(req.headers.get('x-cron-secret') ?? '', secret)) {
     return json({ error: 'unauthorized' }, 401);
   }
 

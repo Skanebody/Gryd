@@ -10,6 +10,7 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { DECAY_WARNING_DAYS_BEFORE } from '../_shared/game-rules.ts';
+import { secretsMatch } from '../_shared/secret.ts';
 import { type DecayHexRow, partitionDecay } from './logic.ts';
 
 const MS_PER_DAY = 86_400_000;
@@ -39,7 +40,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Auth job : secret partagé avec le scheduler (pas de JWT utilisateur ici).
   const secret = Deno.env.get('CRON_SECRET') ?? '';
-  if (!secret || req.headers.get('x-cron-secret') !== secret) {
+  if (!secret || !secretsMatch(req.headers.get('x-cron-secret') ?? '', secret)) {
     return json({ error: 'unauthorized' }, 401);
   }
 

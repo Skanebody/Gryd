@@ -14,6 +14,7 @@
  * Toute la logique vit dans logic.ts — ce fichier ne fait que de l'I/O.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { secretsMatch } from '../_shared/secret.ts';
 import {
   computeFinalRanks,
   founderBadges,
@@ -47,7 +48,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   const secret = Deno.env.get('CRON_SECRET') ?? '';
-  if (!secret || req.headers.get('x-cron-secret') !== secret) {
+  if (!secret || !secretsMatch(req.headers.get('x-cron-secret') ?? '', secret)) {
     return json({ error: 'unauthorized' }, 401);
   }
 
