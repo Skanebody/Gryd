@@ -189,6 +189,11 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
     ) &&
     (b.stepCount === undefined || typeof b.stepCount === 'number') &&
     (b.gpsTrust === undefined || (typeof b.gpsTrust === 'number' && Number.isFinite(b.gpsTrust))) &&
+    // cityId doit être une ville CONNUE (audit sécurité) : non validé, il permettait (a) de
+    // déclarer une ville arbitraire pour récupérer sa densité — donc majorer les points
+    // (« choix opportuniste de densité ») — et (b) de faire planter le handler en 500 sur
+    // l'accès non gardé CITIES[cityId].name. Inconnu → 400 invalid_payload.
+    (b.cityId === undefined || (typeof b.cityId === 'string' && b.cityId in CITIES)) &&
     (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode)));
 }
 
@@ -1459,10 +1464,14 @@ async function completeBoundaries(
     // mécanique, iso-comportement : mêmes hexes intérieurs, mêmes claims, même
     // plafond, même ordre d'écriture. Le moteur rend `decision` + l'intérieur
     // plafonné, réutilisés à l'identique par tout le reste de la fonction.
+    // `states` est chargé DANS le résolveur mais réutilisé en aval (garde TOCTOU 0031 :
+    // expected_owner du payload claim_hexes) → on le capture ici, comme le fait déjà le
+    // chemin course principal. Sans ça, `states` restait local à la closure (ReferenceError).
+    let states!: ReadonlyMap<string, HexState>;
     const resolveOwnership = async (
       capped: readonly string[],
     ): Promise<CrewOwnershipResolution> => {
-      const states = await loadHexStates(capped);
+      states = await loadHexStates(capped);
       const [ownersCreatedAt, privacyHexes, noCaptureHexes, claimsToday] = await Promise.all([
         loadOwnersCreatedAt(states, ctx.userId),
         loadPrivacyHexes(ctx.userId, capped),
@@ -2587,8 +2596,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     await persistCelebration(runId, response, score.points);
     return json(response);
   } catch (err) {
+    // Le détail reste dans les logs serveur ; la réponse est GÉNÉRIQUE (audit sécurité) :
+    // `${err}` exposait des internals (noms de tables/colonnes, messages Postgres, chemins)
+    // à tout utilisateur authentifié → cartographie gratuite du backend pour un attaquant.
+    // Aligné sur strava_import:239, qui faisait déjà ça correctement.
     console.error('ingest_run:', err);
-    return json({ error: 'internal_error', message: `${err}` }, 500);
+    return json({ error: 'internal_error' }, 500);
   }
 });
 
