@@ -27,6 +27,12 @@ export const RUN_AVG_PACE_MAX_S_KM = 10 * 60;
  */
 export const RUN_MAX_DISTANCE_M = 100_000; // 100 km
 export const RUN_MAX_POINTS = 100_000; // points GPS max/payload (~24 h @ 1 Hz), borné AVANT parsing
+/**
+ * Throttle anti-DoS d'ingest_run (audit sécurité) : chaque appel = pipeline lourd
+ * (~30-66 requêtes DB). Plafond par utilisateur/heure, TRÈS au-dessus d'un usage humain
+ * (~1-2 courses/jour) → ne gêne personne, coupe le flood scripté d'un compte.
+ */
+export const INGEST_MAX_RUNS_PER_HOUR = 30;
 /** Filtrage des points GPS. */
 export const POINT_MAX_ACCURACY_M = 25;
 export const POINT_MAX_SPEED_KMH = 25; // au-delà → point rejeté

@@ -29,6 +29,7 @@ import {
   GROUP_RUN_START_TOLERANCE_MIN,
   H3_RESOLUTION,
   HEX_LOCK_HOURS,
+  INGEST_MAX_RUNS_PER_HOUR,
   OUTPOST_RADIUS_KM,
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
@@ -1952,7 +1953,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Promise.all pour ne pas tenir la connexion sur deux aller-retours séquentiels
     // (réduction du temps de connexion tenu, cf. cible 200 concurrents). Précédence
     // d'erreur inchangée : on juge le profil AVANT l'idempotence.
-    const [profileRes, existingRes] = await Promise.all([
+    const [rateRes, profileRes, existingRes] = await Promise.all([
+      // Throttle anti-DoS (audit sécurité) : plafonne les ingests lourds par utilisateur,
+      // dans la MÊME salve que profil+idempotence (zéro aller-retour en plus). Fenêtre 1 h.
+      supabase.rpc('hit_rate_limit', {
+        p_key: `ingest:${userId}`,
+        p_max: INGEST_MAX_RUNS_PER_HOUR,
+        p_window_s: 3600,
+      }),
       supabase
         .from('users')
         .select('created_at, streak_weeks, is_club')
@@ -1965,6 +1973,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .eq('client_run_id', request.clientRunId)
         .maybeSingle(),
     ]);
+    // Fail-OPEN si l'infra du limiteur échoue (dispo > throttle strict — c'est de la défense
+    // en profondeur, pas la barrière d'auth) ; fail-CLOSED 429 quand le quota est dépassé.
+    if (rateRes.error) console.error('[ingest_run] hit_rate_limit:', rateRes.error.message);
+    else if (rateRes.data === false) return json({ error: 'rate_limited' }, 429);
+
     const { data: profile, error: profileError } = profileRes;
     if (profileError || !profile) return json({ error: 'unknown_user' }, 403);
 
