@@ -36,9 +36,18 @@ export async function joinWaitlist(
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // TODO(env) : brancher le projet Supabase (DISCOVERY point ouvert O1).
-    // En attendant, succès simulé pour ne pas bloquer le dev du site.
-    console.log('[waitlist] TODO env Supabase absentes — inscription simulée :', {
+    // Honnêteté (charte §1) : ne JAMAIS renvoyer un faux « succès » sans insert —
+    // le visiteur croirait être inscrit et son e-mail serait perdu en silence.
+    // En PROD, l'env absente est une mauvaise config → erreur honnête. En DEV
+    // seulement, on tolère un succès simulé pour ne pas bloquer le travail local.
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[waitlist] env Supabase absente en production — inscription NON enregistrée');
+      return {
+        status: 'error',
+        message: 'L’inscription est momentanément indisponible. Réessaie dans quelques minutes.',
+      };
+    }
+    console.log('[waitlist] DEV — env Supabase absente, inscription simulée (non enregistrée) :', {
       email,
       postalCode,
     });
