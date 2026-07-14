@@ -55,6 +55,7 @@ export const REJECT_REASON_LABELS: Record<RejectReason, string> = {
   too_brief: 'Trop brève (< 6 min)',
   pace_too_fast: 'Allure trop rapide (anti-vélo)',
   pace_too_slow: 'Allure trop lente',
+  too_far: 'Trop longue (> 100 km, plafond anti-abus)',
   no_valid_points: 'Aucun point GPS exploitable',
 };
 

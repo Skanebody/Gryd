@@ -291,6 +291,10 @@ function buildDataset(anchorMs: number): AdminDemoData {
           distanceM = 2_500 + Math.floor(rng() * 2_000);
           avgPaceSKm = RUN_AVG_PACE_MAX_S_KM + 40 + Math.floor(rng() * 80);
           break;
+        case 'too_far':
+          distanceM = 105_000 + Math.floor(rng() * 40_000); // > RUN_MAX_DISTANCE_M (plafond anti-abus)
+          avgPaceSKm = 330 + Math.floor(rng() * 120);
+          break;
         case 'no_valid_points':
           distanceM = 0;
           avgPaceSKm = 0;
