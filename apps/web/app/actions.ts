@@ -55,13 +55,20 @@ export async function joinWaitlist(
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const { error } = await supabase
-    .from('waitlist')
-    .insert({ email_or_user: email, postal_code: postalCode });
+  // Sécurité (0034) : plus d'insert direct sur `waitlist` (fermé au client pour couper
+  // l'insertion en masse). On passe par la RPC SECURITY DEFINER qui valide et insère UNE
+  // ligne. Elle renvoie 'ok' | 'invalid'.
+  const { data, error } = await supabase.rpc('waitlist_join', {
+    p_email: email,
+    p_postal_code: postalCode,
+  });
 
   if (error) {
-    console.error('[waitlist] insert échoué :', error.message);
+    console.error('[waitlist] rpc waitlist_join échouée :', error.message);
     return { status: 'error', message: 'L’inscription n’est pas passée. Réessaie dans un instant.' };
+  }
+  if (data === 'invalid') {
+    return { status: 'error', message: 'Vérifie ton e-mail et ton code postal (5 chiffres).' };
   }
 
   return { status: 'success' };
