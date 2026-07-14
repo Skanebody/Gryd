@@ -32,6 +32,7 @@ import {
   OUTPOST_RADIUS_KM,
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
+  RUN_MAX_POINTS,
   VERIFY_PARTIAL_MIN,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
@@ -176,6 +177,9 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
     (b.source === 'gps' || b.source === 'healthkit') &&
     typeof b.startedAt === 'string' &&
     Array.isArray(b.points) &&
+    // Borne AVANT le .every()/parsing (audit sécurité) : un tableau géant (millions
+    // de points) est rejeté en O(1) au lieu de faire itérer tout le pipeline.
+    b.points.length <= RUN_MAX_POINTS &&
     b.points.every((p) =>
       typeof p === 'object' && p !== null &&
       typeof (p as Record<string, unknown>).lat === 'number' &&
@@ -1996,7 +2000,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // (départ±3 min & durée±10 % & distance±10 %) via les vraies valeurs ci-dessus.
     // Un doublon d'une course déjà ingérée → réponse DOUCE 'duplicate'
     // (idempotente, pas d'erreur), et on trace l'import dans imported_activities.
-    const runHash = request.polylineHash ?? await polylineHash(request.points);
+    // Sécurité anti-rejeu (audit) : le hash de dédup est TOUJOURS calculé serveur,
+    // JAMAIS celui fourni par le client — sinon un hash aléatoire à chaque envoi rend
+    // la branche « hash identique » de findDuplicateRun morte, et la même course se
+    // rejoue à volonté (farming XP/streak/challenges). request.polylineHash est ignoré.
+    const runHash = await polylineHash(request.points);
     const dupOf = await findDuplicateRun(userId, {
       startedAt: request.startedAt,
       durationS,

@@ -15,6 +15,18 @@ export const RUN_MIN_DURATION_S = 6 * 60;
 /** Allure moyenne admise, en secondes par km : [2:50 ; 10:00] (borne basse anti-vélo). */
 export const RUN_AVG_PACE_MIN_S_KM = 2 * 60 + 50;
 export const RUN_AVG_PACE_MAX_S_KM = 10 * 60;
+/**
+ * Plafonds ANTI-ABUS d'UNE course/session (§3.2, audit sécurité offensif) : au-delà,
+ * le payload est implausible → rejet serveur. Volontairement TRÈS généreux pour ne
+ * JAMAIS exclure un ultra légitime ; ils ne servent qu'à couper les payloads forgés /
+ * erronés grossiers et l'amplification DoS (trace serpentine de milliers d'hexes,
+ * tableau de points géant). Ne remplacent pas une vraie attestation d'appareil.
+ * NB durée : pas de plafond dédié — l'allure max (RUN_AVG_PACE_MAX_S_KM = 10:00/km)
+ * borne déjà la durée par la distance (une course > 24 h serait « pace_too_slow » ou,
+ * si assez longue pour ne pas l'être, « too_far »).
+ */
+export const RUN_MAX_DISTANCE_M = 100_000; // 100 km
+export const RUN_MAX_POINTS = 100_000; // points GPS max/payload (~24 h @ 1 Hz), borné AVANT parsing
 /** Filtrage des points GPS. */
 export const POINT_MAX_ACCURACY_M = 25;
 export const POINT_MAX_SPEED_KMH = 25; // au-delà → point rejeté

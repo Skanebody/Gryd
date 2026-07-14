@@ -44,6 +44,7 @@ export type RejectReason =
   | 'too_brief' // < RUN_MIN_DURATION_S
   | 'pace_too_fast' // allure moyenne < RUN_AVG_PACE_MIN_S_KM (anti-vélo)
   | 'pace_too_slow' // allure moyenne > RUN_AVG_PACE_MAX_S_KM
+  | 'too_far' // > RUN_MAX_DISTANCE_M (plafond anti-abus/forge)
   | 'no_valid_points'; // tous les points filtrés
 
 /** Un point GPS brut envoyé par le client (ou issu d'une route HealthKit). */

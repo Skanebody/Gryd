@@ -80,6 +80,14 @@ Deno.test('course trop lente (> 10:00/km) → rejected pace_too_slow', () => {
   assertEquals(v, { status: 'rejected', reason: 'pace_too_slow' });
 });
 
+Deno.test('course > 100 km (plausible en allure) → rejected too_far (plafond anti-abus)', () => {
+  // 120 km en 12 h : allure 360 s/km (6:00, dans les bornes), points espacés < 100 m
+  // et < 25 km/h → passe filtrage/allure, mais distance > RUN_MAX_DISTANCE_M.
+  const { segments } = filterPoints(line({ distanceM: 120_000, durationS: 12 * 3600, n: 1300 }));
+  const v = validateRun(computeStats(segments));
+  assertEquals(v, { status: 'rejected', reason: 'too_far' });
+});
+
 Deno.test('course valide 5 km/30 min → valid', () => {
   const { segments } = filterPoints(line({ distanceM: 5000, durationS: 1800, n: 300 }));
   assertEquals(validateRun(computeStats(segments)), { status: 'valid' });

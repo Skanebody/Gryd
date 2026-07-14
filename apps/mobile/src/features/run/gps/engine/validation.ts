@@ -15,6 +15,7 @@ import {
   POINT_MAX_SPEED_KMH,
   RUN_AVG_PACE_MAX_S_KM,
   RUN_AVG_PACE_MIN_S_KM,
+  RUN_MAX_DISTANCE_M,
   RUN_MIN_DISTANCE_M,
   RUN_MIN_DURATION_S,
   SEGMENT_PACE_MAX_S_KM,
@@ -139,6 +140,10 @@ export function validateRun(stats: RunStats): RunValidation {
   if (stats.avgPaceSKm > RUN_AVG_PACE_MAX_S_KM) {
     return { status: 'rejected', reason: 'pace_too_slow' };
   }
+  // Plafond anti-abus (audit sécurité) : au-delà, le payload est implausible pour UNE
+  // session → rejet. Coupe les traces forgées géantes et l'amplification DoS. (La durée
+  // est déjà bornée par l'allure max : pas de plafond de durée dédié — voir game-rules.)
+  if (stats.distanceM > RUN_MAX_DISTANCE_M) return { status: 'rejected', reason: 'too_far' };
   return { status: 'valid' };
 }
 
