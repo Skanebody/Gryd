@@ -13,9 +13,29 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 export const ADMIN_COOKIE = 'gryd_admin';
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 h
 
-const secret = () => process.env.ADMIN_SESSION_SECRET ?? 'dev-only-secret';
-export const adminEmail = () => process.env.ADMIN_EMAIL ?? 'admin@gryd.run';
-export const adminPassword = () => process.env.ADMIN_PASSWORD ?? 'gryd-s0-fondateur';
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+/**
+ * Lit une variable d'env requise. En PRODUCTION, AUCUN défaut exploitable : si la
+ * variable manque (ou est trop courte pour un secret), on THROW plutôt que de
+ * démarrer avec une valeur par défaut — le repo est PUBLIC, donc un défaut =
+ * une clé maître offerte (forge de cookie admin en 2 min). En dev seulement, on
+ * tolère un défaut local pour ne pas bloquer le travail. Fail-closed by design.
+ */
+function requireEnv(name: string, devFallback: string, minLen = 1): string {
+  const v = process.env[name];
+  if (v && v.length >= minLen) return v;
+  if (IS_PROD) {
+    throw new Error(
+      `[admin] ${name} absent ou trop court en production — démarrage refusé (pas de valeur par défaut exploitable).`,
+    );
+  }
+  return devFallback;
+}
+
+const secret = () => requireEnv('ADMIN_SESSION_SECRET', 'dev-only-secret', 32);
+export const adminEmail = () => requireEnv('ADMIN_EMAIL', 'admin@gryd.run');
+export const adminPassword = () => requireEnv('ADMIN_PASSWORD', 'gryd-s0-fondateur', 12);
 
 interface SessionPayload {
   email: string;
@@ -50,6 +70,10 @@ export function verifySessionToken(token: string | undefined): { email: string }
     >;
     if (typeof data.email !== 'string' || typeof data.exp !== 'number') return null;
     if (data.exp < Date.now()) return null;
+    // Allowlist : même correctement signé, un jeton émis pour un autre email que
+    // l'admin configuré est REFUSÉ. Sans ça, quiconque connaît le secret pouvait
+    // se forger une session sous n'importe quelle identité.
+    if (data.email.toLowerCase() !== adminEmail().toLowerCase()) return null;
     return { email: data.email };
   } catch {
     return null;
