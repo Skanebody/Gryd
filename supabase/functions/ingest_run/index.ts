@@ -1942,21 +1942,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const runMode = effectiveRunMode(request.runMode);
 
   try {
-    // Profil (streak, club, ancienneté) — nécessaire même pour le replay/rejet.
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('created_at, streak_weeks, is_club')
-      .eq('id', userId)
-      .single<UserProfile>();
+    // Profil (streak, club, ancienneté, requis même au replay) + idempotence
+    // (course déjà ingérée ?) : deux lectures INDÉPENDANTES (l'une par id, l'autre
+    // par user_id+client_run_id, aucune ne dépend de l'autre) → une seule salve
+    // Promise.all pour ne pas tenir la connexion sur deux aller-retours séquentiels
+    // (réduction du temps de connexion tenu, cf. cible 200 concurrents). Précédence
+    // d'erreur inchangée : on juge le profil AVANT l'idempotence.
+    const [profileRes, existingRes] = await Promise.all([
+      supabase
+        .from('users')
+        .select('created_at, streak_weeks, is_club')
+        .eq('id', userId)
+        .single<UserProfile>(),
+      supabase
+        .from('runs')
+        .select('id, status, reject_reason, distance_m, duration_s, avg_pace_s_km, points_awarded, xp_awarded, celebration')
+        .eq('user_id', userId)
+        .eq('client_run_id', request.clientRunId)
+        .maybeSingle(),
+    ]);
+    const { data: profile, error: profileError } = profileRes;
     if (profileError || !profile) return json({ error: 'unknown_user' }, 403);
 
     // ── Idempotence : zéro recalcul sur retry ────────────────────────────────
-    const { data: existing, error: existingError } = await supabase
-      .from('runs')
-      .select('id, status, reject_reason, distance_m, duration_s, avg_pace_s_km, points_awarded, xp_awarded, celebration')
-      .eq('user_id', userId)
-      .eq('client_run_id', request.clientRunId)
-      .maybeSingle();
+    const { data: existing, error: existingError } = existingRes;
     if (existingError) throw new Error(`runs read: ${existingError.message}`);
     if (existing) {
       const payload = existing.celebration as IngestRunResponse | null;
