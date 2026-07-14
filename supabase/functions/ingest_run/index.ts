@@ -1501,6 +1501,8 @@ async function completeBoundaries(
         h3index: h3ToDb(r.h3),
         outcome: rpcOutcome(r),
         points: r.points,
+        // Garde TOCTOU (0031) : owner observé → skip si l'hex a changé depuis la décision.
+        expected_owner: states.get(r.h3)?.ownerUserId ?? null,
         locked_until: decision.lockedUntil.toISOString(),
         decay_at: decision.decayExempt ? null : decision.decayAt.toISOString(),
       }));
@@ -2256,6 +2258,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
           h3index: h3ToDb(r.h3),
           outcome: rpcOutcome(r),
           points: finalPerHex[i],
+          // Garde TOCTOU (0031) : owner OBSERVÉ par le moteur → claim_hexes n'applique
+          // que si l'état DB n'a pas changé depuis (sinon conflit de concurrence → skip).
+          expected_owner: states.get(r.h3)?.ownerUserId ?? null,
           locked_until: isCapture ? decision.lockedUntil.toISOString() : null,
           // Capture : now + 14 j (ou null si nouveau joueur, §3.3). Défense :
           // échéance ÉTENDUE de +24/48/72 h (défense graduée). already_owned_
