@@ -54,6 +54,39 @@ export type TerritoryState =
   | 'loopIncomplete'
   | 'excluded';
 
+/**
+ * Identifiant OPAQUE d'un territoire (AMENDEMENT-39 P0.2, contraintes fondateur).
+ *
+ * Remplace l'ancienne union FERMÉE des 11 zones démo : elle rendait impossible
+ * l'affichage de vraies captures (hex_claims n'a aucun id de ce vocabulaire) et
+ * aurait recréé le problème au prochain ajout de zone.
+ *
+ * Valeur réelle = **cellule H3 PARENTE** (résolution TERRITORY_ZONE_RES) qui contient
+ * le territoire. Choix délibéré contre un hash(owner + cellules) :
+ *   - un hash des cellules est déterministe mais PAS STABLE : le moindre hex capturé,
+ *     volé ou décru change l'id → tout deep link partagé meurt (contrainte §3) ;
+ *   - inclure owner_id ferait qu'une zone VOLÉE devient un autre id, alors que c'est
+ *     le MÊME lieu — ce qui casse « Lena a repris République · prends-la-moi ».
+ * Une ZONE est un LIEU : elle a un propriétaire, elle n'est pas définie par lui.
+ * La cellule géographique, elle, ne bouge jamais → id stable à vie, deep-linkable.
+ *
+ * Les zones démo gardent leurs slugs lisibles (`republique`…) : le type est opaque,
+ * il accepte les deux mondes sans rien casser.
+ */
+export type TerritoryId = string & { readonly __brand: 'TerritoryId' };
+
+/** Construit un TerritoryId depuis une clé brute (slug démo ou cellule H3 réelle). */
+export function territoryId(raw: string): TerritoryId {
+  return raw as TerritoryId;
+}
+
+/**
+ * Résolution H3 d'une ZONE (≈ 0,7 km² à res 8) : la granularité « quartier » du jeu,
+ * au-dessus des micro-cellules de capture (res 10, ≈ 65 m). Sert d'id de zone ET de
+ * groupement de rendu (une feature fusionnée par zone × état).
+ */
+export const TERRITORY_ZONE_RES = 8;
+
 /** Position [lng, lat] — ordre GeoJSON (h3.cellsToMultiPolygon(_, true)). */
 export type LngLat = [number, number];
 

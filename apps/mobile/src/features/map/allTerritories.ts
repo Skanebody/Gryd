@@ -52,7 +52,7 @@ import {
   RUE_FAUBOURG_DU_TEMPLE,
   type LatLngPoint,
 } from './realAnchors';
-import type { TerritoryState } from './territory';
+import { territoryId, type TerritoryId, type TerritoryState } from './territory';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
 
@@ -216,22 +216,33 @@ export function loopRing(trace: readonly LatLngPoint[]): [number, number][] {
  * pour que le tap retrouve toujours le bon détail. Étiquettes Paris/Lille/Lyon —
  * données démo déterministes, ZÉRO ranking européen fabriqué (garde-fou CLAUDE.md).
  */
+// Zones DÉMO : slugs lisibles, passés par `territoryId()` — le type est opaque, donc
+// démo et réel (cellules H3) cohabitent sans que l'un ferme la porte à l'autre.
 export const TERRITORY_ZONE_IDS = {
-  republique: 'republique',
-  quaiValmy: 'quai-valmy',
-  lilleCentre: 'lille-centre',
-  placeRepublique: 'place-republique',
-  avenueRepublique: 'avenue-republique',
-  avenueRepubliqueFin: 'avenue-republique-fin',
-  faubourgTemple: 'faubourg-temple',
-  lyonRhone: 'lyon-rhone',
-  canalEst: 'canal-est',
-  squareVillemin: 'square-villemin',
-  bastille: 'bastille',
+  republique: territoryId('republique'),
+  quaiValmy: territoryId('quai-valmy'),
+  lilleCentre: territoryId('lille-centre'),
+  placeRepublique: territoryId('place-republique'),
+  avenueRepublique: territoryId('avenue-republique'),
+  avenueRepubliqueFin: territoryId('avenue-republique-fin'),
+  faubourgTemple: territoryId('faubourg-temple'),
+  lyonRhone: territoryId('lyon-rhone'),
+  canalEst: territoryId('canal-est'),
+  squareVillemin: territoryId('square-villemin'),
+  bastille: territoryId('bastille'),
 } as const;
 
-/** Id de zone d'une feature de territoire (union des valeurs de TERRITORY_ZONE_IDS). */
-export type TerritoryZoneId = (typeof TERRITORY_ZONE_IDS)[keyof typeof TERRITORY_ZONE_IDS];
+/**
+ * Id de zone d'une feature de territoire.
+ *
+ * AMENDEMENT-39 P0.2 : ce n'est PLUS l'union fermée des 11 zones démo — c'était le
+ * verrou qui empêchait d'afficher de vraies captures (hex_claims ne connaît aucun de
+ * ces slugs) et qui se serait re-fermé au prochain ajout. C'est désormais un
+ * identifiant OPAQUE (`TerritoryId`) : les zones démo gardent leurs slugs lisibles,
+ * les zones réelles utilisent leur cellule H3 parente (stable, deep-linkable).
+ * Alias conservé pour ne pas casser les consommateurs (tap, dimming).
+ */
+export type TerritoryZoneId = TerritoryId;
 
 function polygonFeature(
   state: TerritoryState,
