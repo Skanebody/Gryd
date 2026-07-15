@@ -58,6 +58,7 @@ import {
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
+import { useRealTerritories } from './hexClaims';
 import {
   basemapAttribution,
   battleGameLayers,
@@ -80,6 +81,8 @@ const SHIELD_ABOVE_EGO_PX = 26;
 const MARKER_SIZE = 18;
 /** La barre d'échelle flotte à gauche du bouton COURIR, au-dessus de la nav. */
 const SCALE_ABOVE_RUN_BOTTOM = 6;
+/** La note d'honnêteté (P0.2) se pose juste au-dessus de l'échelle/attribution. */
+const DATA_NOTE_ABOVE_RUN_BOTTOM = 34;
 /** Largeur max de la barre d'échelle + segment de mesure (comme ScaleControl). */
 const SCALE_MAX_PX = 130;
 const SCALE_PROBE_PX = 100;
@@ -263,9 +266,15 @@ export function MapScreen() {
    * le fond COULEUR, battleGameLayers ajoute le liseré sombre porteur sous les
    * traits chartreuse (lisibilité — charte).
    */
+  /**
+   * P0.2 (AMENDEMENT-39) — LES VRAIES CAPTURES, à parité stricte avec la variante
+   * native : `territories` non-null ⇒ on peint `hex_claims` (même vide : la carte
+   * dit le vide au lieu d'inventer un Paris conquis) ; null ⇒ démo ÉTIQUETÉE.
+   */
+  const { territories, isReal } = useRealTerritories();
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId),
-    [emph, selectedParcours, basemap, selectedZoneId],
+    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, territories),
+    [emph, selectedParcours, basemap, selectedZoneId, territories],
   );
 
   /** Tap carte → zone tapée (null sur le vide = désélection). */
@@ -333,6 +342,25 @@ export function MapScreen() {
         style={StyleSheet.absoluteFill}
         testID="battle-map-reelle"
       />
+
+      {/* ── NOTE D'HONNÊTETÉ (P0.2) — parité stricte avec la variante native.
+          Rendue ICI (dans MapScreen) et non dans ScaleAttribution : l'état de
+          source vit dans ce composant. Si ce n'est pas ta donnée, on le DIT ;
+          si c'est vraiment vide, on nomme le vide. Aucun CTA (§A : le bouton
+          GO est déjà l'unique action de l'écran). ── */}
+      {(!isReal || territories?.length === 0) && (
+        <Text
+          style={[
+            styles.dataNote,
+            { bottom: insets.bottom + RUN_BUTTON_BOTTOM + DATA_NOTE_ABOVE_RUN_BOTTOM },
+          ]}
+          accessibilityRole="text"
+        >
+          {isReal
+            ? 'Aucun territoire capturé pour l’instant — cours pour prendre ta première zone.'
+            : 'Territoires de démonstration — pas encore tes vraies captures.'}
+        </Text>
+      )}
 
       {/* ── Échelle MapLibre stylée tokens + attribution (au-dessus de la nav) ── */}
       <ScaleAttribution
@@ -509,6 +537,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   attribution: { color: colors.gris, opacity: 0.7, fontSize: 9, marginTop: 2 },
+  // Jamais chartreuse : réservée à l'action, et illisible sur fond clair (charte).
+  dataNote: { position: 'absolute', left: 14, right: 14, color: colors.gris, fontSize: 11 },
 });
 
 export default MapScreen;

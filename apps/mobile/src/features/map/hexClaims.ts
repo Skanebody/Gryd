@@ -138,17 +138,34 @@ export interface UseRealTerritoriesResult {
 }
 
 /**
- * Lecture réelle des captures d'une ville.
+ * Lecture réelle des captures.
  *
- * Requête volontairement la plus SIMPLE qui marche : filtre `city_id`, qui utilise
- * l'index EXISTANT `hex_claims_city_idx` (0002) sous la policy `hex_claims_select_all`
- * (0003). Aucune migration, aucun index à créer. La LOD par cellules parentes ne devient
- * nécessaire qu'à l'échelle (cf. audit 200 concurrents) — pas au MVP, et on ne
- * pré-optimise pas une carte que personne ne regarde encore.
+ * ⚠️ PAS DE FILTRE `city_id` — et c'est un choix, pas un oubli. Deux raisons, la
+ * seconde étant un BUG que le filtre aurait rendu invisible :
+ *
+ * 1. Erreur de catégorie. `city_id` est la « ville de rattachement DÉCLARÉE
+ *    (classements) » (types.ts:65) et « la capture n'y est PAS bornée » —
+ *    AMENDEMENT-02/35 : on capture dans toute l'Europe. Filtrer la CARTE par ville
+ *    masquerait le territoire réellement possédé hors Paris/Lille. La carte mentirait.
+ *
+ * 2. Le filtre ne matcherait RIEN. `claim_hexes` insère `city_id = p_city_id`
+ *    (0031:123-127), alimenté par `ctx.cityId ?? null` (ingest_run:1526) ; or le SEUL
+ *    constructeur de payload (`tracker.ts:295 buildPayload`) ne déclare JAMAIS `cityId`
+ *    — le champ est optionnel côté serveur (index.ts:196). Toute capture réelle a donc
+ *    `city_id = NULL`. Un `.eq('city_id', …)` renverrait 0 ligne À VIE, ce qui se lit
+ *    exactement comme « aucune capture » : la panne serait indétectable à l'œil.
+ *    (Conséquence hors P0.2, à traiter séparément : les classements PAR VILLE n'ont
+ *    aucune donnée à agréger.)
+ *
+ * Volume : la table est lue en entier. Assumé au MVP (0 ligne aujourd'hui), cohérent
+ * avec le « aucun filtrage par viewport, volumes MVP négligeables » d'allTerritories.
+ * Pas de `.limit()` : une troncature silencieuse ferait à nouveau mentir la carte.
+ * Le filtrage par VIEWPORT + LOD est la vraie réponse à l'échelle (audit 200 joueurs)
+ * et exige une colonne de zone indexée — un chantier à part, pas une rustine ici.
  *
  * Sans session (ou sans backend) → `isReal:false` : l'appelant garde la démo ÉTIQUETÉE.
  */
-export function useRealTerritories(cityId: string | undefined): UseRealTerritoriesResult {
+export function useRealTerritories(): UseRealTerritoriesResult {
   const { session } = useSession();
   const [territories, setTerritories] = useState<RealTerritory[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -157,7 +174,7 @@ export function useRealTerritories(cityId: string | undefined): UseRealTerritori
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
-    if (!supabase || !session || !cityId) {
+    if (!supabase || !session) {
       setTerritories(null);
       return;
     }
@@ -166,8 +183,7 @@ export function useRealTerritories(cityId: string | undefined): UseRealTerritori
     void (async () => {
       const { data, error } = await supabase
         .from('hex_claims')
-        .select('h3index, owner_user_id, claim_type, decay_at, claimed_at')
-        .eq('city_id', cityId);
+        .select('h3index, owner_user_id, claim_type, decay_at, claimed_at');
       if (cancelled) return;
       setLoading(false);
       if (error) {
@@ -176,12 +192,12 @@ export function useRealTerritories(cityId: string | undefined): UseRealTerritori
         setTerritories(null);
         return;
       }
-      setTerritories(buildTerritories((data ?? []) as HexClaimRow[], session.user.id));
+        setTerritories(buildTerritories((data ?? []) as HexClaimRow[], session.user.id));
     })();
     return () => {
       cancelled = true;
     };
-  }, [cityId, session, tick]);
+  }, [session, tick]);
 
   return {
     territories,

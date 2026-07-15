@@ -35,6 +35,9 @@ import {
   SECTOR_STATUS_LEVELS,
 } from '@klaim/shared';
 import type { RealMapBounds, RealMapPointLayer } from '../../ui/game';
+// Type seul (effacé à la compilation) : allTerritories reste un module UI pur,
+// il n'embarque ni React ni le client Supabase de hexClaims.
+import type { RealTerritory } from './hexClaims';
 import {
   FRANCE_CITIES_DEMO,
   LILLE_BOUCLE,
@@ -244,13 +247,18 @@ export const TERRITORY_ZONE_IDS = {
  */
 export type TerritoryZoneId = TerritoryId;
 
+/** GeoJSON exige un anneau FERMÉ (dernier point = premier). */
+function closeRing(ring: [number, number][]): [number, number][] {
+  const first = ring[0];
+  return first ? [...ring, first] : ring;
+}
+
 function polygonFeature(
   state: TerritoryState,
   zoneId: TerritoryZoneId,
   ring: [number, number][],
 ): GameFeature {
-  const first = ring[0];
-  const closed = first ? [...ring, first] : ring;
+  const closed = closeRing(ring);
   return {
     type: 'Feature',
     geometry: { type: 'Polygon', coordinates: [closed] },
@@ -280,13 +288,57 @@ function collection(features: GameFeature[]): GameCollection {
 let geoByStateCache: ReadonlyMap<TerritoryState, GameCollection> | null = null;
 
 /**
- * GeoJSON par état de territoire — calculé une fois (démo déterministe).
- * Les DEUX cartes consomment cette map : la Battle Map rend AUSSI les
- * possessions hors Paris (boucle Lille crew + couloir rival Lyon, mêmes
- * traitements de frontière) — naviguer jusqu'à Lille montre son territoire.
- * Toutes les géométries sont TRACÉ-BASED (§4ter).
+ * Territoires RÉELS (hex_claims fusionnés) → GeoJSON par état.
+ *
+ * P0.2 : un territoire réel est un multi-polygone d'hexes fusionnés — il peut
+ * légitimement avoir des TROUS (un hex volé au milieu de ma zone). On garde donc
+ * TOUS les anneaux (`rings`), là où `polygonFeature` n'en prend qu'un : perdre un
+ * trou ferait mentir la carte en peignant comme mien un hex qui ne l'est pas.
+ *
+ * `zoneId` porte le `territoryId` (cellule H3 parente) → le tap (contrat C1) et le
+ * dimming marchent sur le réel EXACTEMENT comme sur la démo, sans les toucher.
  */
-export function territoryGeoByState(): ReadonlyMap<TerritoryState, GameCollection> {
+export function realTerritoriesToGeo(
+  real: readonly RealTerritory[],
+): ReadonlyMap<TerritoryState, GameCollection> {
+  const byState = new Map<TerritoryState, GameFeature[]>();
+  for (const territory of real) {
+    const { status, territoryId: zoneId } = territory.props;
+    const features = byState.get(status) ?? [];
+    for (const rings of territory.polygons) {
+      if (rings.length === 0) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: rings.map(closeRing) },
+        properties: { state: status, zoneId },
+      });
+    }
+    byState.set(status, features);
+  }
+  const out = new Map<TerritoryState, GameCollection>();
+  for (const [state, features] of byState) out.set(state, collection(features));
+  return out;
+}
+
+/**
+ * GeoJSON par état de territoire — LA source des deux cartes.
+ *
+ * P0.2 (AMENDEMENT-39) : `real` non-null ⇒ on rend les VRAIES captures et la démo
+ * n'est jamais consultée — y compris `real: []`, qui rend une carte VIDE. C'est
+ * volontaire : un joueur qui n'a rien capturé doit voir qu'il n'a rien capturé.
+ * `real: null` ⇒ pas de session/backend ⇒ démo ÉTIQUETÉE (l'appelant l'annonce).
+ *
+ * Le cache ne couvre QUE la démo (déterministe, calculée une fois). Le réel n'est
+ * pas caché ici : il change à chaque capture, et un cache de module survivrait au
+ * changement de joueur — la carte afficherait le territoire du compte précédent.
+ *
+ * Démo : les DEUX cartes rendent aussi les possessions hors Paris (boucle Lille
+ * crew + couloir rival Lyon). Géométries TRACÉ-BASED (§4ter).
+ */
+export function territoryGeoByState(
+  real: readonly RealTerritory[] | null = null,
+): ReadonlyMap<TerritoryState, GameCollection> {
+  if (real) return realTerritoriesToGeo(real);
   if (geoByStateCache) return geoByStateCache;
   const rivalTraceParis = RUE_FAUBOURG_DU_TEMPLE.slice(
     0,

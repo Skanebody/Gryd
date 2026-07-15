@@ -43,6 +43,7 @@ import {
 import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
+import { useRealTerritories } from './hexClaims';
 import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
@@ -60,6 +61,8 @@ const SHIELD_ABOVE_EGO_PX = 26;
 const MARKER_SIZE = 18;
 /** L'attribution flotte au-dessus de la nav (le bas de carte est couvert). */
 const ATTRIBUTION_ABOVE_RUN_BOTTOM = 6;
+/** La note d'honnêteté (P0.2) se pose juste au-dessus de l'attribution. */
+const DATA_NOTE_ABOVE_RUN_BOTTOM = 22;
 
 // ─── Bandes de zoom sémantiques (AMENDEMENT-37 §6/§11, étude §11/§15) ────────
 // Les marqueurs s'ÉTAGENT par bande au lieu de s'allumer d'un bloc au seul seuil
@@ -234,9 +237,15 @@ export function MapScreen() {
    * le fond COULEUR, battleGameLayers ajoute le liseré sombre porteur sous les
    * traits chartreuse (lisibilité — charte).
    */
+  /**
+   * P0.2 (AMENDEMENT-39) — LES VRAIES CAPTURES. `territories` non-null ⇒ la carte
+   * peint `hex_claims`, la démo n'est plus consultée. Y compris quand c'est VIDE :
+   * un joueur qui n'a rien capturé voit une carte vide, pas un faux Paris conquis.
+   */
+  const { territories, isReal } = useRealTerritories();
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId),
-    [emph, selectedParcours, basemap, selectedZoneId],
+    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, territories),
+    [emph, selectedParcours, basemap, selectedZoneId, territories],
   );
 
   /** Tap carte → zone tapée (null sur le vide = désélection). */
@@ -299,6 +308,26 @@ export function MapScreen() {
         style={StyleSheet.absoluteFill}
         testID="battle-map-reelle"
       />
+
+      {/* ── NOTE D'HONNÊTETÉ (P0.2) — même règle que performance.tsx et
+          classement.tsx : si ce n'est pas ta donnée, on le DIT.
+          • démo (pas de session/backend) → on l'étiquette, jamais de faux réel ;
+          • réel et vide → on nomme le vide au lieu de le laisser passer pour un
+            bug de chargement. Aucun CTA ici : le bouton GO est déjà l'action de
+            l'écran (§A — 1 écran = 1 décision, 1 seule CTA chartreuse). ── */}
+      {(!isReal || territories?.length === 0) && (
+        <Text
+          style={[
+            styles.dataNote,
+            { bottom: insets.bottom + RUN_BUTTON_BOTTOM + DATA_NOTE_ABOVE_RUN_BOTTOM },
+          ]}
+          accessibilityRole="text"
+        >
+          {isReal
+            ? 'Aucun territoire capturé pour l’instant — cours pour prendre ta première zone.'
+            : 'Territoires de démonstration — pas encore tes vraies captures.'}
+        </Text>
+      )}
 
       {/* ── Attribution relogée au-dessus de la nav (obligation légale) —
           dérivée du fond actif : © OpenStreetMap © CARTO sur dark/color, ©
@@ -403,6 +432,15 @@ const styles = StyleSheet.create({
     color: colors.gris,
     opacity: 0.7,
     fontSize: 9,
+  },
+  // Note d'honnêteté : lisible sans voler la vedette à la carte. Gris sur fond
+  // sombre (jamais chartreuse : réservée à l'action, et illisible sur clair).
+  dataNote: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    color: colors.gris,
+    fontSize: 11,
   },
 });
 

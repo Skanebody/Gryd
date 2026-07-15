@@ -24,6 +24,7 @@ import {
 } from './allTerritories';
 import { MAP_BONUS_ZONE, PARCOURS_DEMO } from './demo';
 import { battleMapData } from './fakeHexes';
+import type { RealTerritory } from './hexClaims';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
 import { PARIS_DEMO_SECTOR_VIEWS, type SectorView } from './sectorsDemo';
 import { type ModeEmphasis, type TerritoryState } from './territory';
@@ -1322,8 +1323,10 @@ export function territoryStateLayers(
   emph: ModeEmphasis,
   basemap: BasemapKey = 'dark',
   selectedZoneId: string | null = null,
+  real: readonly RealTerritory[] | null = null,
 ): RealMapGeoJSONLayer[] {
-  const geo = territoryGeoByState();
+  // P0.2 : `real` non-null ⇒ vraies captures (même vides) ; null ⇒ démo étiquetée.
+  const geo = territoryGeoByState(real);
   const stateData = (state: TerritoryState): RealMapData =>
     geo.get(state) ?? EMPTY_COLLECTION;
   const terr = territoryStyle;
@@ -1564,6 +1567,7 @@ export function battleGameLayers(
   selectedParcoursId: string | null,
   basemap: BasemapKey = 'dark',
   selectedZoneId: string | null = null,
+  real: readonly RealTerritory[] | null = null,
 ): RealMapGeoJSONLayer[] {
   if (!routeCollectionCache) {
     routeCollectionCache = lineCollection(battleMapData().points.route);
@@ -1590,7 +1594,7 @@ export function battleGameLayers(
     // §2 : la sélection dédouble/atténue les territoires (l'actif domine) ; les
     // secteurs agrégés, la zone bonus et la route ne sont PAS des zones à zoneId
     // (la route active reste au-dessus, §19 — non dimmée par la sélection).
-    ...territoryStateLayers(emph, basemap, selectedZoneId),
+    ...territoryStateLayers(emph, basemap, selectedZoneId, real),
     // §C — SECTEURS AGRÉGÉS par STATUT (0-4) au-DESSUS des territoires : c'est la
     // lecture « où est-ce chaud ? » (contesté violet + double contour SANS pulse,
     // attaque orange, urgence rouge, activité rival approximative). Peints sous
