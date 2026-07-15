@@ -143,3 +143,25 @@ export function buildTerritories(
   }
   return out;
 }
+
+/**
+ * Le texte que la carte affiche sur sa SOURCE de données. Pur et partagé par les DEUX
+ * cartes (native + web) : une seule vérité, impossible à faire diverger, et testable.
+ *
+ * Les trois cas sont distincts et ne doivent JAMAIS être confondus :
+ *   • `failed`  — connecté mais la lecture a échoué. Dire « pas encore tes vraies
+ *     captures » ici serait un mensonge par omission : le territoire existe peut-être,
+ *     on n'a pas su le lire.
+ *   • `!isReal` — pas de session/backend : c'est la démo, on l'étiquette.
+ *   • vide réel — chargé, zéro capture : on NOMME le vide, sinon il se lit comme un
+ *     chargement en panne.
+ * Retourne null quand il n'y a rien d'honnête à ajouter (du vrai territoire s'affiche).
+ */
+export function dataNote(isReal: boolean, failed: boolean, count = 0): string | null {
+  if (failed) return 'Territoires indisponibles — on n’a pas pu charger tes captures.';
+  if (!isReal) return 'Territoires de démonstration — pas encore tes vraies captures.';
+  if (count === 0) {
+    return 'Aucun territoire capturé pour l’instant — cours pour prendre ta première zone.';
+  }
+  return null;
+}

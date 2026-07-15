@@ -11,7 +11,7 @@
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { cellToParent, gridDisk, latLngToCell } from 'h3-js';
-import { buildTerritories, dbToH3, stateFor, type HexClaimRow } from './territoryBuild.ts';
+import { buildTerritories, dataNote, dbToH3, stateFor, type HexClaimRow } from './territoryBuild.ts';
 
 const ME = 'me-uuid';
 const RIVAL_A = 'rival-a-uuid';
@@ -137,4 +137,23 @@ Deno.test('hexes NON CONTIGUS du même propriétaire : un territoire, plusieurs 
   const built = buildTerritories([...paris, ...lille].map((c) => row(c, ME)), ME);
   assertEquals(built.length, 1);
   assertEquals(built[0].polygons.length, 2, 'deux paquets séparés = deux polygones');
+});
+
+Deno.test('dataNote : les 3 cas de source ne sont JAMAIS confondus', () => {
+  // Échec de lecture ≠ « tu n'as rien capturé ». Le distinguer est tout l'objet du champ
+  // `failed` : un joueur connecté hors réseau lisait « pas encore tes vraies captures »,
+  // sous-entendu qu'il n'avait rien pris — alors que son territoire existe.
+  const echec = dataNote(false, true);
+  const demo = dataNote(false, false);
+  const vide = dataNote(true, false, 0);
+  assert(echec !== null && /pas pu charger/.test(echec));
+  assert(demo !== null && /démonstration/.test(demo));
+  assert(vide !== null && /Aucun territoire/.test(vide));
+  assert(new Set([echec, demo, vide]).size === 3, 'trois états = trois messages distincts');
+
+  // `failed` prime : connecté + échec ne doit jamais afficher « démonstration ».
+  assertEquals(dataNote(true, true), echec);
+
+  // Du vrai territoire affiché : rien à dire, on n'ajoute pas de bruit à l'écran.
+  assertEquals(dataNote(true, false, 3), null);
 });

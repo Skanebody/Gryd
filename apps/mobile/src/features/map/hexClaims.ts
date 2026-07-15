@@ -29,6 +29,14 @@ export interface UseRealTerritoriesResult {
   territories: RealTerritory[] | null;
   /** true quand la source est le serveur (sinon l'appelant doit étiqueter « démo »). */
   isReal: boolean;
+  /**
+   * true = on a une session mais la LECTURE A ÉCHOUÉ (réseau/serveur). À distinguer
+   * absolument de « pas de session » : sans ça, un joueur connecté hors réseau lisait
+   * « pas encore tes vraies captures » — sous-entendu « tu n'as rien capturé », alors
+   * que son territoire existe et qu'on n'a simplement pas su le charger. Un mensonge
+   * par omission, exactement le genre que la charte interdit.
+   */
+  failed: boolean;
   loading: boolean;
   reload: () => void;
 }
@@ -64,6 +72,7 @@ export interface UseRealTerritoriesResult {
 export function useRealTerritories(): UseRealTerritoriesResult {
   const { session } = useSession();
   const [territories, setTerritories] = useState<RealTerritory[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -72,10 +81,12 @@ export function useRealTerritories(): UseRealTerritoriesResult {
   useEffect(() => {
     if (!supabase || !session) {
       setTerritories(null);
+      setFailed(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    setFailed(false);
     void (async () => {
       const { data, error } = await supabase
         .from('hex_claims')
@@ -83,9 +94,12 @@ export function useRealTerritories(): UseRealTerritoriesResult {
       if (cancelled) return;
       setLoading(false);
       if (error) {
-        // Échec réseau → on NE bascule PAS sur la démo en la faisant passer pour du réel.
+        // Échec réseau → on NE bascule PAS sur la démo en la faisant passer pour du réel,
+        // et on ne prétend PAS non plus que le joueur n'a rien capturé : `failed` permet
+        // à l'écran de dire la vérité (« on n'a pas pu charger »), pas une approximation.
         console.error('[hexClaims] lecture hex_claims échouée :', error.message);
         setTerritories(null);
+        setFailed(true);
         return;
       }
         setTerritories(buildTerritories((data ?? []) as HexClaimRow[], session.user.id));
@@ -98,6 +112,7 @@ export function useRealTerritories(): UseRealTerritoriesResult {
   return {
     territories,
     isReal: territories !== null,
+    failed,
     loading,
     reload,
   };

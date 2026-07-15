@@ -44,6 +44,7 @@ import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
 import { useRealTerritories } from './hexClaims';
+import { dataNote } from './territoryBuild';
 import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
@@ -242,7 +243,7 @@ export function MapScreen() {
    * peint `hex_claims`, la démo n'est plus consultée. Y compris quand c'est VIDE :
    * un joueur qui n'a rien capturé voit une carte vide, pas un faux Paris conquis.
    */
-  const { territories, isReal } = useRealTerritories();
+  const { territories, isReal, failed } = useRealTerritories();
   const layers = useMemo(
     () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, territories),
     [emph, selectedParcours, basemap, selectedZoneId, territories],
@@ -309,13 +310,14 @@ export function MapScreen() {
         testID="battle-map-reelle"
       />
 
-      {/* ── NOTE D'HONNÊTETÉ (P0.2) — même règle que performance.tsx et
-          classement.tsx : si ce n'est pas ta donnée, on le DIT.
-          • démo (pas de session/backend) → on l'étiquette, jamais de faux réel ;
-          • réel et vide → on nomme le vide au lieu de le laisser passer pour un
-            bug de chargement. Aucun CTA ici : le bouton GO est déjà l'action de
-            l'écran (§A — 1 écran = 1 décision, 1 seule CTA chartreuse). ── */}
-      {(!isReal || territories?.length === 0) && (
+      {/* ── NOTE D'HONNÊTETÉ (P0.2/P0.3) — même règle que performance.tsx et
+          classement.tsx : si ce n'est pas ta donnée, on le DIT. TROIS cas distincts,
+          jamais confondus :
+          • échec de chargement → on ne prétend PAS que tu n'as rien capturé ;
+          • démo (pas de session/backend) → étiquetée, jamais de faux réel ;
+          • réel et vide → on nomme le vide au lieu de le laisser passer pour un bug.
+          Aucun CTA (§A — 1 écran = 1 décision, le bouton GO est déjà l'action). ── */}
+      {(failed || !isReal || territories?.length === 0) && (
         <Text
           style={[
             styles.dataNote,
@@ -323,9 +325,7 @@ export function MapScreen() {
           ]}
           accessibilityRole="text"
         >
-          {isReal
-            ? 'Aucun territoire capturé pour l’instant — cours pour prendre ta première zone.'
-            : 'Territoires de démonstration — pas encore tes vraies captures.'}
+          {dataNote(isReal, failed, territories?.length ?? 0)}
         </Text>
       )}
 
