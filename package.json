@@ -8,6 +8,7 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "sync:rules": "node scripts/sync-game-rules.mjs",
-    "test:functions": "deno test --allow-read supabase/functions/"
+    "test:functions": "deno test --allow-read supabase/functions/",
+    "test:map": "cd apps/mobile && deno test --allow-read --allow-env src/features/map/"
   }
 }
