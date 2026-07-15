@@ -47,6 +47,21 @@ function sign(payload: string): string {
   return createHmac('sha256', secret()).update(payload).digest('base64url');
 }
 
+/**
+ * Comparaison à TEMPS CONSTANT (identifiants admin). `a !== b` court-circuite au premier
+ * octet différent : le temps de réponse fuit la validité. Même exigence que les gates
+ * webhook/cron (supabase/functions/_shared/secret.ts).
+ */
+export function constantTimeEquals(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) {
+    timingSafeEqual(bb, bb); // lisse le temps, puis échec
+    return false;
+  }
+  return timingSafeEqual(ba, bb);
+}
+
 /** Jeton `base64url(payload).signature` — payload {email, exp: now + 24 h}. */
 export function createSessionToken(email: string): string {
   const payload = Buffer.from(
