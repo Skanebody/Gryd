@@ -35,6 +35,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { colors, gameColors } from '@klaim/shared';
@@ -272,7 +273,22 @@ export function MapScreen() {
    * native : `territories` non-null ⇒ on peint `hex_claims` (même vide : la carte
    * dit le vide au lieu d'inventer un Paris conquis) ; null ⇒ démo ÉTIQUETÉE.
    */
-  const { territories, isReal, failed } = useRealTerritories();
+  const { territories, isReal, failed, reload } = useRealTerritories();
+  // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
+  // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
+  // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
+  // à CHAQUE retour sur l'onglet Carte — donc au retour de course-result — en
+  // sautant le premier focus (le hook fetch déjà au montage, pas de doublon).
+  const firstFocusRef = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocusRef.current) {
+        firstFocusRef.current = false;
+        return;
+      }
+      reload();
+    }, [reload]),
+  );
   const layers = useMemo(
     () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, territories),
     [emph, selectedParcours, basemap, selectedZoneId, territories],

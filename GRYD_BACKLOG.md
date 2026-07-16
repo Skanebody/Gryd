@@ -8,8 +8,8 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 > Réf. opérations exactes : [MVP_CHANGESET.md](MVP_CHANGESET.md). Pas de push/deploy sans « pousse ».
 
 ### P0 — cœur (vraie personne → vraie capture → vraie zone visible → mesurée)
-- [ ] C1+B1+B2 Résultat honnête : course-result lit serverResult (KPI réels), clamp 8,2 km retiré, états « Aucune zone capturée » + « Boucle presque fermée · N m » — M
-- [ ] C5 Refresh carte post-capture : consommer reload() (retour ingest 'sent' + useFocusEffect onglet Carte) — S
+- [x] C1+B1+B2 Résultat honnête (3 chemins : jugé/en-file/démo) — `9d24465`
+- [x] C5 Refresh carte post-capture (useFocusEffect, 1er focus sauté, parité native/web)
 - [ ] C2+C3 Never lose a run : pendingUpload distingue 4xx (sortir+surfacer) de réseau (retenter) ; session-null en cours de run → file au lieu de purge — S
 - [ ] C4+D3 cityId dérivé serveur (point-in-polygon 1er fix sur city_zones avant claim_hexes) + test Deno « run Paris → season_scores>0 » (déploiement ensuite, feu vert requis) — M
 - [ ] D2+C6 Mesure d'activation : émettre territory_captured (capture persistée), loop_closed/almost/run_rejected ; wrapper track event_id unique + UTC — M
