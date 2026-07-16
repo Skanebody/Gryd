@@ -46,11 +46,7 @@ import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
 import { useRealTerritories } from './hexClaims';
 import { getLastRunResult } from '../run/runResult';
-import {
-  buildWidgetView,
-  selectWidgetState,
-  type TerritoryWidgetView,
-} from '../widget/territoryWidget';
+import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
 import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
@@ -277,31 +273,15 @@ export function MapScreen() {
   const widget = useMemo(() => {
     if (!isReal || territories === null) return null;
     const lastResult = getLastRunResult();
-    const mine = territories.filter((t) => t.props.status === 'crew');
-    const openBoundary = lastResult?.openBoundary ?? null;
-    const captured = lastResult
-      ? lastResult.hexes.claimed + lastResult.hexes.stolen + lastResult.hexes.pioneer > 0
-      : false;
-    const state = selectWidgetState({
-      hasCapturedTerritory: mine.length > 0,
-      recentlyLostTerritory: false,
-      activeAttack: false,
-      incompleteLoop: openBoundary !== null,
-      urgentCrewRequest: false,
-      recentShareworthyCapture: captured,
-      closeToNextRank: false,
-    });
-    return buildWidgetView(state, {
-      controlledAreaM2: mine.reduce((sum, t) => sum + t.props.areaM2, 0),
-      territoryCount: mine.length,
-      localRank: null, // season_scores : câblé après déploiement C4
-      localRankAreaLabel: null,
-      displayName: openBoundary?.name ?? null,
-      rivalName: null,
-      estimatedRunDistanceM: null,
-      remainingLoopDistanceM: openBoundary?.missingM ?? null,
-      eventAreaM2: null,
-      minutesSinceEvent: null,
+    const ob = lastResult?.openBoundary;
+    return buildRealWidgetView({
+      mineAreasM2: territories
+        .filter((t) => t.props.status === 'crew')
+        .map((t) => t.props.areaM2),
+      openBoundary: ob ? { name: ob.name, missingM: ob.missingM } : null,
+      capturedInLastRun: lastResult
+        ? lastResult.hexes.claimed + lastResult.hexes.stolen + lastResult.hexes.pioneer > 0
+        : false,
     });
   }, [isReal, territories]);
 

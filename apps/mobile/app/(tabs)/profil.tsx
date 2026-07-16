@@ -23,6 +23,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
+  TerritoryWidgetCard,
+  useTerritoryWidgetView,
+} from '../../src/features/widget/TerritoryWidgetCard';
+import {
   BADGE_TIER_RANK,
   PLAYER_LEVEL_MAX,
   SKILLS,
@@ -255,6 +259,7 @@ const LINKS: readonly ProfileLink[] = [
 ];
 
 export default function ProfilScreen() {
+  const widgetView = useTerritoryWidgetView();
   const { session, configured } = useSession();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -442,90 +447,97 @@ export default function ProfilScreen() {
         {/* Card = View (pas Pressable) : la CTA est un bouton propre à part
             → évite le <button> dans <button>. Le RÉSUMÉ (statut/stats/carte)
             est lui-même tappable pour ouvrir /territoire, la CTA fait l'action. */}
+        {/* Widget « Mon territoire » (spec 17/07) : quand le RÉEL existe, il
+            REMPLACE le résumé stratégique démo ci-dessous — jamais deux blocs
+            « MON TERRITOIRE », jamais une démo présentée comme le joueur. */}
+        {widgetView ? (
+          <TerritoryWidgetCard view={widgetView} />
+        ) : (
         <View style={styles.territoryCard}>
-          {/* Bannière de crise (SOUS ATTAQUE) — ton rival, au-dessus du reste */}
-          {territory.alert ? (
-            <View style={styles.territoryAlert}>
-              <Icon name="alerte" size={13} color={colors.noir} />
-              <Text style={styles.territoryAlertText} numberOfLines={1}>
-                {territory.alert}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Résumé tappable → détail /territoire */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Ouvrir le détail de mon territoire"
-            onPress={() => router.push('/territoire')}
-            style={({ pressed }) => [styles.territoryBody, pressed && styles.dim]}
-          >
-            {/* ── 60 % STATS ── */}
-            <View style={styles.territoryStats}>
-              {/* Ligne statut : badge coloré (Stable / Contesté / Sous attaque…).
-                  Masquée quand la bannière de crise est là : elle porte déjà le
-                  statut → pas de doublon, on gagne la hauteur (≤ 260 px). */}
-              {territory.alert ? null : (
-                <View style={styles.territoryStatusRow}>
-                  <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                  <Text style={[styles.statusLabel, { color: statusColor }]} numberOfLines={1}>
-                    {statusMeta.label}
-                  </Text>
-                </View>
-              )}
-
-              {/* Gros chiffre : zones tenues + unité, puis portée sur toute la
-                  largeur (quartier « Paris Est » ou villes « Paris 42 · Lille 13 »
-                  — jamais tronqué : c'est une donnée, pas un pseudo). */}
-              <View style={styles.territoryHero}>
-                <Text style={styles.territoryHeroNum}>{formatInt(territory.zonesHeld)}</Text>
-                <Text style={styles.territoryHeroUnit} numberOfLines={2}>
-                  {territory.zonesUnit}
+            {/* Bannière de crise (SOUS ATTAQUE) — ton rival, au-dessus du reste */}
+            {territory.alert ? (
+              <View style={styles.territoryAlert}>
+                <Icon name="alerte" size={13} color={colors.noir} />
+                <Text style={styles.territoryAlertText} numberOfLines={1}>
+                  {territory.alert}
                 </Text>
               </View>
-              <Text style={styles.territoryHeroScope} numberOfLines={1}>
-                {territory.scopeLabel}
-              </Text>
-              {/* Faits stratégiques (frontières · routes · zone à défendre) déportés
-                  au détail /territoire — le résumé garde statut + héros + action (§A). */}
-            </View>
-
-            {/* ── 40 % MINI-CARTE (aperçu statique, non-interactif) ── */}
-            <View style={styles.territoryMini}>
-              <TerritoryFranceMap preview />
-            </View>
-          </Pressable>
-
-          {/* ── PROCHAINE ACTION + CTA CONTEXTUEL (jamais « Explorer » vague) ── */}
-          <View style={styles.territoryNextRow}>
-            <Text
-              style={styles.territoryNext}
-              numberOfLines={territory.next.allowLongHeadline ? 3 : 2}
-            >
-              {territory.next.headline}
-            </Text>
+            ) : null}
+  
+            {/* Résumé tappable → détail /territoire */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={territory.next.cta}
-              onPress={() => router.push(territory.next.route)}
-              style={({ pressed }) => [
-                styles.territoryCta,
-                { backgroundColor: cta.bg },
-                pressed && styles.dim,
-              ]}
+              accessibilityLabel="Ouvrir le détail de mon territoire"
+              onPress={() => router.push('/territoire')}
+              style={({ pressed }) => [styles.territoryBody, pressed && styles.dim]}
             >
-              <Text
-                style={[styles.territoryCtaLabel, { color: cta.fg }]}
-                numberOfLines={1}
-                ellipsizeMode="clip"
-              >
-                {territory.next.cta}
-              </Text>
+              {/* ── 60 % STATS ── */}
+              <View style={styles.territoryStats}>
+                {/* Ligne statut : badge coloré (Stable / Contesté / Sous attaque…).
+                    Masquée quand la bannière de crise est là : elle porte déjà le
+                    statut → pas de doublon, on gagne la hauteur (≤ 260 px). */}
+                {territory.alert ? null : (
+                  <View style={styles.territoryStatusRow}>
+                    <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                    <Text style={[styles.statusLabel, { color: statusColor }]} numberOfLines={1}>
+                      {statusMeta.label}
+                    </Text>
+                  </View>
+                )}
+  
+                {/* Gros chiffre : zones tenues + unité, puis portée sur toute la
+                    largeur (quartier « Paris Est » ou villes « Paris 42 · Lille 13 »
+                    — jamais tronqué : c'est une donnée, pas un pseudo). */}
+                <View style={styles.territoryHero}>
+                  <Text style={styles.territoryHeroNum}>{formatInt(territory.zonesHeld)}</Text>
+                  <Text style={styles.territoryHeroUnit} numberOfLines={2}>
+                    {territory.zonesUnit}
+                  </Text>
+                </View>
+                <Text style={styles.territoryHeroScope} numberOfLines={1}>
+                  {territory.scopeLabel}
+                </Text>
+                {/* Faits stratégiques (frontières · routes · zone à défendre) déportés
+                    au détail /territoire — le résumé garde statut + héros + action (§A). */}
+              </View>
+  
+              {/* ── 40 % MINI-CARTE (aperçu statique, non-interactif) ── */}
+              <View style={styles.territoryMini}>
+                <TerritoryFranceMap preview />
+              </View>
             </Pressable>
+  
+            {/* ── PROCHAINE ACTION + CTA CONTEXTUEL (jamais « Explorer » vague) ── */}
+            <View style={styles.territoryNextRow}>
+              <Text
+                style={styles.territoryNext}
+                numberOfLines={territory.next.allowLongHeadline ? 3 : 2}
+              >
+                {territory.next.headline}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={territory.next.cta}
+                onPress={() => router.push(territory.next.route)}
+                style={({ pressed }) => [
+                  styles.territoryCta,
+                  { backgroundColor: cta.bg },
+                  pressed && styles.dim,
+                ]}
+              >
+                <Text
+                  style={[styles.territoryCtaLabel, { color: cta.fg }]}
+                  numberOfLines={1}
+                  ellipsizeMode="clip"
+                >
+                  {territory.next.cta}
+                </Text>
+              </Pressable>
+            </View>
+            {/* Micro-badges territoire déportés au détail /territoire (le résumé
+                reste à ≤ 3 infos : statut · héros zones · prochaine action). */}
           </View>
-          {/* Micro-badges territoire déportés au détail /territoire (le résumé
-              reste à ≤ 3 infos : statut · héros zones · prochaine action). */}
-        </View>
+        )}
 
         {/* ── SOLO (A.5) : l'app ne semble jamais vide — crews près de toi ── */}
         {territory.soloCrewHint ? (

@@ -231,3 +231,45 @@ export function buildWidgetView(
       };
   }
 }
+
+/**
+ * Sources RÉELLES du widget — types STRUCTURELS (aucun import) pour rester pur
+ * et testable en Deno : la carte et le profil y versent leurs données.
+ */
+export interface RealWidgetSources {
+  /** Aires (m²) des territoires 'crew' — issues de hex_claims (aire H3 réelle). */
+  mineAreasM2: readonly number[];
+  /** Frontière ouverte du dernier verdict serveur (openBoundary), sinon null. */
+  openBoundary: { name: string; missingM: number } | null;
+  /** Le dernier run jugé a-t-il capturé (claimed+stolen+pioneer > 0) ? */
+  capturedInLastRun: boolean;
+}
+
+/**
+ * Widget depuis le RÉEL uniquement — les signaux sans source (attaque, zone
+ * perdue, crew, rang) restent ÉTEINTS : on ne fabrique pas une urgence.
+ * Partagé par la Carte (peek) et le Profil (card compacte) : une seule logique.
+ */
+export function buildRealWidgetView(src: RealWidgetSources): TerritoryWidgetView {
+  const state = selectWidgetState({
+    hasCapturedTerritory: src.mineAreasM2.length > 0,
+    recentlyLostTerritory: false,
+    activeAttack: false,
+    incompleteLoop: src.openBoundary !== null,
+    urgentCrewRequest: false,
+    recentShareworthyCapture: src.capturedInLastRun,
+    closeToNextRank: false,
+  });
+  return buildWidgetView(state, {
+    controlledAreaM2: src.mineAreasM2.reduce((sum, a) => sum + a, 0),
+    territoryCount: src.mineAreasM2.length,
+    localRank: null, // season_scores : câblé après déploiement C4
+    localRankAreaLabel: null,
+    displayName: src.openBoundary?.name ?? null,
+    rivalName: null,
+    estimatedRunDistanceM: null,
+    remainingLoopDistanceM: src.openBoundary?.missingM ?? null,
+    eventAreaM2: null,
+    minutesSinceEvent: null,
+  });
+}

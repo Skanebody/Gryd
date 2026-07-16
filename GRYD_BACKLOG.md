@@ -20,7 +20,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 ### WIDGET « Mon territoire » (spec fondateur 17/07 — formule : possession + changement + action)
 - [x] W1 Fondation pure (8 états, priorité stricte, copie spec, 7 tests, events §8)
 - [x] W2 Widget carte (réel : first_capture/stable/loop_incomplete/share_moment ; démo → MissionPeek inchangé ; action=LIEN anti double-CTA)
-- [ ] W3 Widget compact au PROFIL — S
+- [x] W3 Widget compact au profil (remplace le résumé démo quand le réel existe, même fondation)
 - [ ] W4 Widget OS iOS/Android + Live Activity — BLOQUÉ O8 (extension native + dev build + Apple) — L
 
 ### P1 — boucle virale
