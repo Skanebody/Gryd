@@ -4,6 +4,30 @@ Format : `- [ ] <titre> — <valeur> — <S/M/L>`. Fait → `- [x]` + hash de co
 Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
+## PRIORITÉ ABSOLUE — MVP_CHANGESET (validé fondateur 17/07, verdict NO-GO à lever)
+> Réf. opérations exactes : [MVP_CHANGESET.md](MVP_CHANGESET.md). Pas de push/deploy sans « pousse ».
+
+### P0 — cœur (vraie personne → vraie capture → vraie zone visible → mesurée)
+- [ ] C1+B1+B2 Résultat honnête : course-result lit serverResult (KPI réels), clamp 8,2 km retiré, états « Aucune zone capturée » + « Boucle presque fermée · N m » — M
+- [ ] C5 Refresh carte post-capture : consommer reload() (retour ingest 'sent' + useFocusEffect onglet Carte) — S
+- [ ] C2+C3 Never lose a run : pendingUpload distingue 4xx (sortir+surfacer) de réseau (retenter) ; session-null en cours de run → file au lieu de purge — S
+- [ ] C4+D3 cityId dérivé serveur (point-in-polygon 1er fix sur city_zones avant claim_hexes) + test Deno « run Paris → season_scores>0 » (déploiement ensuite, feu vert requis) — M
+- [ ] D2+C6 Mesure d'activation : émettre territory_captured (capture persistée), loop_closed/almost/run_rejected ; wrapper track event_id unique + UTC — M
+- [ ] D1 Email OTP : signInWithOtp/verifyOtp dans sign-in (filet indépendant d'Apple) — M
+- [ ] B4/C7 « Mon territoire » honnête : étiquette démo (minimum) ou branché réel — S
+- [ ] B5 Cacher le bouton Google mort tant que client id absent — S
+
+### P1 — boucle virale
+- [ ] D5+D6 Export story PNG 9:16 : deps view-shot/sharing/media-library + captureRef + shareAsync + events share_exported — M
+- [ ] C8+C9+B3 Purge des inventions de la card (rang #8/Paris Est, verified:true ×8, « Contestée ») + ShareMap fit sur vraie zone — M
+- [ ] D4 Guidage live de boucle : « il manque N m » porté du flux démo vers RealCourseLive — M
+- [ ] C11 Migration pilote mono-ville : une seule saison active + polygone resserré — S
+- [ ] D8 Feature flags minimal : masquer season/shop/arsenal/war_room — M
+- [ ] C10+D7 Deep links réception — BLOQUÉ arbitrage host (gryd.run vs gryd.app, fondateur) + hébergeur AASA — L
+
+### Rappels fondateur (hors repo)
+- [ ] A1 Activer provider Apple (dashboard) + test iPhone neuf · A2 confirmer POSTHOG_KEY dans build EAS · A3 trancher host deep links
+
 ## À faire — actionnable maintenant
 ### Map — retour fondateur (clarté) : hiérarchie `a4acca9` + fond `297a2ec` + territoires `aeb2778` FAITS ; reste :
 - [x] Tracés différenciés : recommandée = chartreuse pointillé vs course = plein épais vs rival = orange — commit route dash

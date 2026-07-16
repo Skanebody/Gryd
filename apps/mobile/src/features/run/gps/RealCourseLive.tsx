@@ -76,8 +76,11 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     if (finishedRef.current) return;
     finishedRef.current = true;
     haptics.success();
-    void run.finish().then(({ distanceM, uploadQueued }) => {
-      // Célébration démo à l'échelle de la distance RÉELLE (placeholder O8).
+    void run.finish().then(({ distanceM, durationS, uploadQueued }) => {
+      // `t` ne rythme plus que l'ANIMATION de célébration (rejouée depuis la
+      // démo) — plus jamais les chiffres : P0 C1, les KPI du résultat viennent
+      // du serveur (serverResult) ou des mesures réelles dist/dur ci-dessous.
+      // Le clamp 8,2 km ne borne donc plus aucune donnée affichée.
       const t = Math.max(
         1,
         Math.min(SIM_LAST_TICK, Math.round((distanceM / DEMO_TOTAL_DISTANCE_M) * SIM_LAST_TICK)),
@@ -85,7 +88,13 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       router.replace({
         pathname: '/course-result',
         // Fin hors-ligne : ligne discrète « envoi dès que possible » (anti-shame).
-        params: { mode, t: String(t), ...(uploadQueued ? { queued: '1' } : {}) },
+        params: {
+          mode,
+          t: String(t),
+          dist: String(Math.round(distanceM)),
+          dur: String(Math.round(durationS)),
+          ...(uploadQueued ? { queued: '1' } : {}),
+        },
       });
     });
   };

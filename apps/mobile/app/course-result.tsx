@@ -441,6 +441,13 @@ function SectorBeforeAfter({
   );
 }
 
+/** Param numérique optionnel (dist/dur réels) — null si absent/invalide. */
+function numParam(param: string | string[] | undefined): number | null {
+  const raw = Array.isArray(param) ? param[0] : param;
+  const n = raw !== undefined ? Number(raw) : Number.NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function tickParam(param: string | string[] | undefined, fallback: number): number {
   const raw = Array.isArray(param) ? param[0] : param;
   const n = raw !== undefined ? Number.parseInt(raw, 10) : Number.NaN;
@@ -464,6 +471,9 @@ export default function CourseResultScreen() {
     mode?: string;
     t?: string;
     queued?: string;
+    /** P0 C1 — distance (m) et durée (s) RÉELLES mesurées par le tracker (chemin GPS). */
+    dist?: string;
+    dur?: string;
     route?: string;
     intention?: string;
     /** AMENDEMENT-17 §CH2 — id de la frontière crew rejouée (démo). */
@@ -498,6 +508,9 @@ function ConquestResultScreen({
     mode?: string;
     t?: string;
     queued?: string;
+    /** P0 C1 — distance (m) / durée (s) RÉELLES du tracker (chemin GPS). */
+    dist?: string;
+    dur?: string;
     route?: string;
     intention?: string;
     /** Parcours PLANIFIÉ (Route Planner) → rejoue SA géométrie (store). */
@@ -523,10 +536,63 @@ function ConquestResultScreen({
     [sim, params.route, plannedLine],
   );
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
-  const stats = useMemo(
+  const demoStats = useMemo(
     () => resultStats(sim, tickIndex, loopSummaryAt(loop, tickIndex)),
     [sim, tickIndex, loop],
   );
+  // P0 C1 (MVP_CHANGESET) — l'écran ne MENT plus : quand une vraie course a été
+  // jugée par ingest_run, TOUS les KPI viennent de sa réponse (distance, durée,
+  // allure, zones, boucle, verified) — plus jamais de la simulation démo. Le
+  // clamp 8,2 km disparaît de fait : rien de réel ne passe plus par la démo.
+  // Hors-ligne (payload en file) : distance/durée RÉELLES via params dist/dur,
+  // zones inconnues tant que le serveur n'a pas jugé — on ne les invente pas.
+  const serverResult = getLastRunResult();
+  const realDistM = numParam(params.dist);
+  const realDurS = numParam(params.dur);
+  /** Course réelle (GPS) — même si le verdict serveur n'est pas encore arrivé. */
+  const isRealRun = serverResult !== null || realDistM !== null;
+  const stats = useMemo(() => {
+    if (serverResult) {
+      const hexes =
+        serverResult.hexes.claimed + serverResult.hexes.stolen + serverResult.hexes.pioneer;
+      return {
+        ...demoStats,
+        distanceM: serverResult.distanceM,
+        durationS: serverResult.durationS,
+        paceSPerKm: serverResult.avgPaceSKm,
+        hexes,
+        loopClosed: serverResult.loopClosed === true,
+        enclosedZones: serverResult.enclosedZones ?? 0,
+        basePoints: serverResult.pointsAwarded,
+        bonusPct: 0,
+        totalPoints: serverResult.pointsAwarded,
+        verified: serverResult.status === 'valid' || serverResult.status === 'partial',
+        // Aucun secteur réel câblé : « Zone », jamais un faux nom (charte).
+        zoneName: 'Zone',
+        zonePctBefore: 0,
+        zonePctAfter: 0,
+        rankGained: false,
+      };
+    }
+    if (realDistM !== null) {
+      // Réel mais pas encore jugé (hors-ligne) : vraies mesures, zéro invention.
+      return {
+        ...demoStats,
+        distanceM: realDistM,
+        durationS: realDurS ?? 0,
+        paceSPerKm: realDistM > 0 && realDurS ? realDurS / (realDistM / 1000) : 0,
+        hexes: 0,
+        loopClosed: false,
+        enclosedZones: 0,
+        verified: false,
+        zoneName: 'Zone',
+        zonePctBefore: 0,
+        zonePctAfter: 0,
+        rankGained: false,
+      };
+    }
+    return demoStats;
+  }, [demoStats, serverResult, realDistM, realDurS]);
 
   const conquest = mode === 'conquete';
   const isPrivate = mode === 'course_privee';
@@ -545,10 +611,9 @@ function ConquestResultScreen({
   // affiche EXACTEMENT ce que le serveur a décidé (badge/bonus, ou aucun) ; sinon
   // (course web / hors session) fallback sur le scénario démo. serverResult=null
   // ⇒ comportement démo strictement inchangé.
-  const serverResult = getLastRunResult();
   const badgeId = serverResult
     ? serverResult.newBadges[0]
-    : mode === 'conquete'
+    : mode === 'conquete' && !isRealRun
       ? DEMO_UNLOCKED_BADGE_ID
       : undefined;
   const badge = badgeId ? badgeById(badgeId) : undefined;
@@ -654,7 +719,8 @@ function ConquestResultScreen({
   // (« {zone} +X % ») est déjà portée par la section CONTRIBUTION CREW plus bas
   // ET par la heroLine de l'écran 1. On la retire ici pour tenir la card à 3
   // idées (conquête · défense · route) et supprimer la redondance.
-  const summaryLines = conquest
+  // Réel : pas de % de secteur (aucun secteur câblé) — on ne fabrique rien.
+  const summaryLines = conquest && !isRealRun
     ? resultSummaryLines(intention, stats.zoneName, stats.zonePctAfter - stats.zonePctBefore).filter(
         (line) => line.icon !== 'crew',
       )
@@ -662,7 +728,9 @@ function ConquestResultScreen({
   // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
   // « République défendue · Paris Est +5 % ».
   const heroLine = conquest
-    ? `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`
+    ? isRealRun
+      ? `${summary.kicker} · ${formatKm(stats.distanceM)} km`
+      : `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`
     : isPrivate
       ? 'Course privée · visible par toi seul'
       : `Social Run · ${formatKm(stats.distanceM)} km`;
@@ -698,7 +766,7 @@ function ConquestResultScreen({
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           {/* La VALIDATION vit dans sa pill (séparée du titre — jamais « validée »
               en guise de victoire). Jargon banni : « stats only » → français. */}
-          {!isPrivate ? (
+          {!isPrivate && !(isRealRun && !serverResult) ? (
             stats.verified ? (
               <StatePill state="verified" label="GRYD VERIFIED" />
             ) : (
@@ -707,7 +775,7 @@ function ConquestResultScreen({
           ) : null}
 
           {/* KPI géant — le chiffre qui se comprend en 2 s. */}
-          {conquest ? (
+          {conquest && !(isRealRun && !serverResult) ? (
             <View style={styles.heroKpi}>
               <ZoneCountUp value={stats.hexes} />
               <Text style={styles.heroKpiLabel}>ZONES CAPTURÉES</Text>
@@ -723,6 +791,18 @@ function ConquestResultScreen({
           {conquest && stats.loopClosed ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
               Boucle fermée · +{formatInt(stats.enclosedZones)} zones d'un coup
+            </Text>
+          ) : null}
+
+          {/* P0 C1 — l'échec est EXPLIQUÉ, jamais un simple « 0 » sec (copy gelée §CH2). */}
+          {conquest && serverResult?.openBoundary ? (
+            <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
+              Boucle presque fermée · Il manque {formatInt(serverResult.openBoundary.missingM)} m
+            </Text>
+          ) : null}
+          {conquest && serverResult && stats.hexes === 0 && !serverResult.openBoundary ? (
+            <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
+              Aucune zone capturée — ferme une boucle pour prendre la zone.
             </Text>
           ) : null}
 
@@ -983,7 +1063,7 @@ function ConquestResultScreen({
             ) : null}
 
             {/* SECTEUR — frontière repoussée (avant/après §4ter). */}
-            {conquest && sectorGeo ? (
+            {conquest && !isRealRun && sectorGeo ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>FRONTIÈRE</Text>
                 <SectorBeforeAfter
@@ -995,8 +1075,8 @@ function ConquestResultScreen({
               </View>
             ) : null}
 
-            {/* CONTRIBUTION CREW — la zone monte. */}
-            {conquest ? (
+            {/* CONTRIBUTION CREW — la zone monte (démo : % de secteur fabriqués). */}
+            {conquest && !isRealRun ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>CONTRIBUTION CREW</Text>
                 <View style={styles.crewLine}>
