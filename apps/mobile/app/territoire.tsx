@@ -21,6 +21,7 @@ import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { TerritoryFranceMap } from '../src/features/territory/TerritoryFranceMap';
+import { dataNote } from '../src/features/map/territoryBuild';
 import { TERRITORY_PAGE_DEMO } from '../src/features/territory/pageDemo';
 import { ZoneLeaderboard } from '../src/features/territory/ZoneLeaderboard';
 import { DEFAULT_ZONE_LEADERBOARD } from '../src/features/territory/leaderboardDemo';
@@ -98,6 +99,12 @@ export default function TerritoireScreen() {
           </View>
 
           <Text style={styles.title}>Territoire de {d.runner}</Text>
+          {/* P0 B4 (MVP_CHANGESET) — cet écran rend TERRITORY_PAGE_DEMO : depuis que la
+              Battle Map lit les vraies captures, le présenter comme le joueur était un
+              mensonge silencieux. Même formulation canonique que la carte (dataNote). */}
+          <Text style={styles.demoNote}>
+            {dataNote(false, false)}
+          </Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryStrong}>{formatInt(d.totalZones)} zones tenues</Text>
             <Text style={styles.summaryDot}> · </Text>
@@ -229,6 +236,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { width: 32, alignItems: 'flex-start' },
   backChevron: { transform: [{ scaleX: -1 }] },
+  demoNote: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 6 },
   kicker: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
   title: {
     color: colors.blanc,

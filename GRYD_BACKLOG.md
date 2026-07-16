@@ -14,7 +14,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] C4+D3 cityId dérivé serveur + 4 tests contours réels (DÉPLOIEMENT ingest_run REQUIS — feu vert « pousse »)
 - [x] D2+C6 Mesure d'activation : claim_result/loop_closed/loop_almost_closed émis depuis la réponse serveur + event_id/UTC dans le wrapper
 - [x] D1 Email OTP (requestEmailOtp/verifyEmailOtp + UI 2 étapes) — ⚠️ fondateur : template e-mail doit afficher {{ .Token }}
-- [ ] B4/C7 « Mon territoire » honnête : étiquette démo (minimum) ou branché réel — S
+- [x] B4/C7 « Mon territoire » étiqueté démo (dataNote canonique) — branchement réel = chantier secteurs à part
 - [x] B5 Bouton Google caché tant que EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID absent (fait avec D1)
 
 ### P1 — boucle virale
