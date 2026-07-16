@@ -13,10 +13,9 @@ import styles from './Footer.module.css';
 
 const LINKS = [
   { href: '#concept', key: 'concept' },
-  { href: '#map', key: 'map' },
-  { href: '#crews', key: 'crews' },
-  { href: '#performance', key: 'performance' },
-  { href: '#pricing', key: 'access' },
+  { href: '#connect', key: 'connect' },
+  { href: '#faq', key: 'faq' },
+  { href: '#waitlist', key: 'access' },
 ] as const;
 
 export function Footer() {

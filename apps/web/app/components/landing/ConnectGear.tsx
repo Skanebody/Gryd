@@ -106,20 +106,13 @@ function GlyphRays(props: SVGProps<SVGSVGElement>) {
 
 /**
  * Sources §4.10 — noms de marque en libellé (autorisé), pictogramme générique.
- * État : Apple Health = actif (source pivot iOS) ; Health Connect = actif
- * (pivot Android) ; le reste = bientôt. Strava est « bientôt » et non « connecté »
- * car son API est désormais réservée aux abonné(e)s (O7) — cohérent avec le
- * catalogue de sources de l'app. Garmin idem (adaptateur pas encore branché).
+ * État : Apple Health + Strava = actifs (beta fondateur) ; le reste = bientôt.
  */
 const SOURCES: { name: string; state: SourceState; Glyph: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   { name: 'Apple Health', state: 'active', Glyph: GlyphHealth },
+  { name: 'Strava', state: 'connected', Glyph: GlyphSwoosh },
   { name: 'Health Connect', state: 'active', Glyph: GlyphConnect },
-  { name: 'Strava', state: 'soon', Glyph: GlyphSwoosh },
   { name: 'Garmin', state: 'soon', Glyph: GlyphCompass },
-  { name: 'WHOOP', state: 'soon', Glyph: GlyphPulse },
-  { name: 'Fitbit', state: 'soon', Glyph: GlyphTracker },
-  { name: 'Polar', state: 'soon', Glyph: GlyphGauge },
-  { name: 'Coros', state: 'soon', Glyph: GlyphRays },
 ];
 
 export function ConnectGear() {

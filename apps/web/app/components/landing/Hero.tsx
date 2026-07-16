@@ -13,8 +13,9 @@
  */
 
 import { CREW_MAX_MEMBERS, SEASON_DURATION_WEEKS } from '@klaim/shared';
-import { DEMO_LEADERBOARD, FRANCE_CAPTURABLE_KM2 } from '../../../lib/landing';
+import { FRANCE_CAPTURABLE_KM2 } from '../../../lib/landing';
 import { HexMap } from '../HexMap';
+import { Icon } from '../ui/Icon';
 import { useLang } from './LangProvider';
 import { usePhone } from './PhoneContext';
 import { useCountUp } from './useCountUp';
@@ -33,26 +34,22 @@ import styles from './Hero.module.css';
 
 const STRINGS = {
   fr: {
-    kicker: 'La France est ouverte.',
-    sub: 'Rejoins ton crew, prends ton quartier, et termine la saison au sommet de la carte.',
+    kicker: 'Beta fondateur · Saison 0',
+    sub: 'Courez dehors. Prenez le quartier. Défendez en crew.',
     ctaCrew: 'Créer mon crew',
-    boardTitle: 'Classement crews · Saison 0',
-    boardPtsUnit: 'pts',
-    tagMine: 'Ton crew',
-    tagRival: 'Rival',
-    boardAria: 'Classement de démonstration des crews de la Saison 0',
   },
   en: {
-    kicker: 'France is open.',
-    sub: 'Join your crew, take your neighbourhood, and finish the season on top of the map.',
+    kicker: 'Founder beta · Season 0',
+    sub: 'Run outside. Take the block. Defend with your crew.',
     ctaCrew: 'Create my crew',
-    boardTitle: 'Crew leaderboard · Season 0',
-    boardPtsUnit: 'pts',
-    tagMine: 'Your crew',
-    tagRival: 'Rival',
-    boardAria: 'Season 0 demo crew leaderboard',
   },
 } as const;
+
+const PILLS = [
+  { key: 'pillGps' as const, icon: 'gps' as const },
+  { key: 'pillStrava' as const, icon: 'route' as const },
+  { key: 'pillCrew' as const, icon: 'crew' as const },
+];
 
 function HeroStat({
   target,
@@ -75,7 +72,7 @@ function HeroStat({
 }
 
 export function Hero() {
-  const { lang, copy, formatInt } = useLang();
+  const { lang, copy } = useLang();
   const S = STRINGS[lang];
   const { requestSim } = usePhone();
   const stats = useReveal<HTMLDivElement>();
@@ -104,6 +101,25 @@ export function Hero() {
             <p className={styles.sub}>{S.sub}</p>
           </Reveal>
 
+          <Reveal delayMs={100}>
+            <ul className={styles.pills} aria-label="Sources actives">
+              {PILLS.map((pill, i) => (
+                <li
+                  key={pill.key}
+                  className={styles.pill}
+                  style={{ animationDelay: `${i * 80}ms` }}
+                >
+                  <Icon name={pill.icon} size={16} />
+                  <span>{copy.hero[pill.key]}</span>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+
+          <Reveal delayMs={120}>
+            <p className={styles.trustLine}>{copy.hero.trustLine}</p>
+          </Reveal>
+
           <Reveal delayMs={140}>
             <SeasonCountdown />
           </Reveal>
@@ -111,10 +127,10 @@ export function Hero() {
           <Reveal delayMs={200}>
             <div className={styles.ctas}>
               {/* 1 seul CTA chartreuse par section : celui-ci. */}
-              <a href="#waitlist" className={ui.btnPrimary}>
+              <a href="#waitlist" className={`${ui.btnPrimary} ${styles.ctaPulse}`}>
                 {copy.hero.ctaPrimary}
               </a>
-              <a href="#crews" className={ui.btnGhost}>
+              <a href="#waitlist" className={ui.btnGhost}>
                 {S.ctaCrew}
               </a>
             </div>
@@ -136,33 +152,9 @@ export function Hero() {
           <div className={styles.simRow}>
             {/* Rejoue la séquence RAID LIVE du téléphone (PhoneContext.simTick). */}
             <button type="button" className={styles.simBtn} onClick={requestSim}>
+              <Icon name="conquete" size={14} />
               {copy.hero.ctaSecondary}
             </button>
-          </div>
-
-          <div className={styles.board} aria-label={S.boardAria}>
-            <p className={styles.boardTitle}>{S.boardTitle}</p>
-            <ol className={styles.boardList}>
-              {DEMO_LEADERBOARD.map((row) => (
-                <li
-                  key={row.name}
-                  className={`${styles.boardRow} ${
-                    row.kind === 'mine' ? styles.rowMine : row.kind === 'rival' ? styles.rowRival : ''
-                  }`}
-                >
-                  <span className={styles.boardRank}>#{row.rank}</span>
-                  <span className={styles.boardName}>{row.name}</span>
-                  {row.kind !== 'neutral' ? (
-                    <span className={`${styles.tag} ${row.kind === 'mine' ? styles.tagMine : styles.tagRival}`}>
-                      {row.kind === 'mine' ? S.tagMine : S.tagRival}
-                    </span>
-                  ) : null}
-                  <span className={styles.boardPts}>
-                    {formatInt(row.points)} <small className={styles.boardUnit}>{S.boardPtsUnit}</small>
-                  </span>
-                </li>
-              ))}
-            </ol>
           </div>
         </Reveal>
       </div>
