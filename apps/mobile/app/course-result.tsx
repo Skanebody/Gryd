@@ -673,6 +673,24 @@ function ConquestResultScreen({
         // Résultat) — le partage anime le parcours réellement couru, pas la démo.
         // Fallback démo seulement si le tracé est absent/dégénéré (< 3 points).
         ...(loop && loop.traceGeo.length >= 3 ? { trace: loop.traceGeo } : {}),
+        // P1 C8/B3 — course RÉELLE : zéro invention résiduelle sur la card.
+        // verified vient du serveur (stats l'est déjà), le rang n'existe pas
+        // encore (season_scores) → styles Classement neutralisés plutôt que
+        // « #8 Paris Est », l'état AVANT est inconnu → ligne masquée, et les
+        // identités démo (KORO / LES FOULÉES 9³) ne signent jamais un vrai run.
+        ...(isRealRun
+          ? {
+              verified: stats.verified,
+              rankLabel: null,
+              rankZone: null,
+              rankDelta: null,
+              beforeState: null,
+              // Pas d'identité de remplissage : sans pseudo chargé, la card
+              // signe par la ZONE (helper who() des templates), jamais par KORO.
+              playerName: '',
+              crewName: '',
+            }
+          : {}),
       }),
     });
     router.push({ pathname: '/partage', params: { mode, intention: params.intention ?? '' } });

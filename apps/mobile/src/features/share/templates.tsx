@@ -80,12 +80,18 @@ export interface ShareDemoData {
   clockLabel: string;
   /** VRAI tracé GPS du run (défaut : boucle République). Jamais une ellipse. */
   trace: readonly LatLngPoint[];
-  /** Rang atteint (« #8 ») — template Classement (§4.7). */
-  rankLabel: string;
-  /** Zone/ligue du classement (« PARIS EST »). */
-  rankZone: string;
-  /** Variation de place (« +3 places cette semaine »). */
-  rankDelta: string;
+  /** GRYD Verified de CE run (serveur seul juge) — plus jamais un `true` en dur. */
+  verified: boolean;
+  /**
+   * Rang atteint (« #8 ») — template Classement (§4.7). NULL = pas de classement
+   * réel disponible (season_scores vide) → le style Classement est RETIRÉ de la
+   * liste plutôt que d'inventer un rang (charte : zéro donnée fabriquée).
+   */
+  rankLabel: string | null;
+  rankZone: string | null;
+  rankDelta: string | null;
+  /** État de la zone AVANT la course (Avant/Après). NULL = inconnu → ligne masquée. */
+  beforeState: string | null;
 }
 
 /** Scénario de démo (cohérent course-result : boucle République, +47 zones). */
@@ -102,9 +108,11 @@ export const SHARE_DEMO: ShareDemoData = {
   paceLabel: "5'12",
   clockLabel: '22:54',
   trace: BOUCLE_REPUBLIQUE,
+  verified: true,
   rankLabel: '#8',
   rankZone: 'Paris Est',
   rankDelta: '+3 places',
+  beforeState: 'Contestée',
 };
 
 /**
@@ -127,7 +135,13 @@ function ShieldBadge({ accent }: { accent: string }): ReactNode {
  * tu as fait. GRYD montre ce que tu as changé. » Reduce motion : la carte
  * « après » est simplement remplie (l'anim ne porte aucune info).
  */
-function BeforeAfter({ view }: { view?: ShareView }): ReactNode {
+function BeforeAfter({
+  view,
+  beforeState,
+}: {
+  view?: ShareView;
+  beforeState: string | null;
+}): ReactNode {
   const trace = view?.trace;
   return (
     <View style={styles.beforeAfter}>
@@ -140,7 +154,7 @@ function BeforeAfter({ view }: { view?: ShareView }): ReactNode {
           captured={false}
           trace={trace}
         />
-        <Text style={styles.baState}>Contestée</Text>
+        {beforeState ? <Text style={styles.baState}>{beforeState}</Text> : null}
       </View>
       <View style={styles.baCol}>
         <Text style={[styles.baLabel, styles.baLabelAfter]}>APRÈS</Text>
@@ -182,17 +196,22 @@ function map(d: ShareDemoData, view: ShareView | undefined, mode: 'loop' | 'defe
   );
 }
 
+/** Signature de card sans champ vide (« KORO · CREW », « KORO », ou la zone). */
+function who(d: ShareDemoData): string {
+  return [d.playerName, d.crewName].filter(Boolean).join(' · ') || d.zoneName;
+}
+
 export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
   // 1. CARTE SIMPLE — façon Strava : trace chartreuse + 3 stats, sobre.
   {
     id: 'simple',
     chip: 'Carte simple',
     build: (d, view) => ({
-      title: `${d.playerName} · ${d.crewName}`,
+      title: who(d),
       stat: `${d.distanceKm} km`,
       statLabel: 'Course validée',
       stats: stravaStats(d),
-      verified: true,
+      verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: map(d, view),
     }),
@@ -203,11 +222,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     chip: 'Conquête',
     build: (d, view) => ({
       kicker: 'SECTEUR PRIS',
-      title: `${d.playerName} · ${d.crewName}`,
+      title: who(d),
       stat: `+${d.zonesGained}`,
       statLabel: `Zones · ${d.zoneName}`,
       subtitle: `${d.zoneName} passe côté crew`,
-      verified: true,
+      verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: map(d, view),
     }),
@@ -218,11 +237,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     chip: 'Défense',
     build: (d) => ({
       kicker: 'ZONE DÉFENDUE',
-      title: `${d.playerName} · ${d.crewName}`,
+      title: who(d),
       stat: `+${d.holdHours} h`,
       statLabel: `${d.zonesDefended} zones tenues`,
       subtitle: `${d.zoneName} · frontière gardée`,
-      verified: true,
+      verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: <ShieldBadge accent={gameColors.crew} />,
     }),
@@ -233,11 +252,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     chip: 'Boucle',
     build: (d, view) => ({
       kicker: 'BOUCLE FERMÉE',
-      title: `${d.playerName} · ${d.crewName}`,
+      title: who(d),
       stat: `+${d.loopBonusZones}`,
       statLabel: 'Zones bonus',
       subtitle: 'La boucle fait la zone',
-      verified: true,
+      verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: map(d, view),
     }),
@@ -252,7 +271,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
       stat: `+${d.crewPoints}`,
       statLabel: 'Points crew',
       subtitle: `${d.playerName} a fait monter ${d.crewName}`,
-      verified: true,
+      verified: d.verified,
       children: <CrewCrest seed={d.crewName} name={d.crewName} size="xl" />,
     }),
   },
@@ -262,12 +281,14 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'classement',
     chip: 'Classement',
     build: (d, view) => ({
-      kicker: `TOP 10 ${d.rankZone.toUpperCase()}`,
-      title: `${d.playerName} · ${d.crewName}`,
-      stat: d.rankLabel,
-      statLabel: `${d.rankDelta} cette semaine`,
-      subtitle: `${d.playerName} grimpe à ${d.rankLabel} sur ${d.rankZone}`,
-      verified: true,
+      kicker: d.rankZone ? `TOP 10 ${d.rankZone.toUpperCase()}` : 'CLASSEMENT',
+      title: who(d),
+      stat: d.rankLabel ?? '—',
+      statLabel: d.rankDelta ? `${d.rankDelta} cette semaine` : 'classement à venir',
+      subtitle: d.rankLabel && d.rankZone
+        ? `${who(d)} grimpe à ${d.rankLabel} sur ${d.rankZone}`
+        : 'Le classement local ouvre avec la saison.',
+      verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: map(d, view),
     }),
@@ -279,12 +300,12 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     chip: 'Avant/Après',
     build: (d, view) => ({
       kicker: 'AVANT · APRÈS',
-      title: `${d.playerName} · ${d.crewName}`,
+      title: who(d),
       stat: `+${d.zonesGained}`,
       statLabel: `${d.zoneName} reprise`,
-      verified: true,
+      verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
-      children: <BeforeAfter view={view} />,
+      children: <BeforeAfter view={view} beforeState={d.beforeState} />,
     }),
   },
   // 8. CARTE 3D (AMENDEMENT-24) — GRYD 3D Conquest Map : fond carte MapLibre
@@ -296,10 +317,10 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     chip: 'Carte 3D',
     build: (d) => ({
       kicker: 'SECTEUR PRIS',
-      title: `${d.playerName} · ${d.crewName}`,
+      title: who(d),
       stat: `+${d.zonesGained}`,
       statLabel: `Zones · ${d.zoneName}`,
-      verified: true,
+      verified: d.verified,
       mapBackground: <ShareMap3D style={styles.map3d} />,
     }),
   },

@@ -170,11 +170,18 @@ export function ShareMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [play, replayKey]);
 
-  const loop = loopRing(BOUCLE_REPUBLIQUE);
+  // P1 C9 (MVP_CHANGESET) — le cadrage suit la VRAIE trace quand elle existe :
+  // fit() ne recevait que la boucle démo République, donc une course ailleurs
+  // sortait de la viewBox. Et la ZONE dessinée est la boucle réellement courue
+  // (« la boucle fait la zone ») — plus jamais la forme démo sous un vrai run.
+  // Le couloir rival est une géométrie DÉMO : jamais dessiné sous une vraie trace.
+  const hasRealTrace = trace !== undefined && trace.length >= 3;
+  const loop = hasRealTrace ? loopRing(trace) : loopRing(BOUCLE_REPUBLIQUE);
   const rival = ribbonRing(RUE_FAUBOURG_DU_TEMPLE, CORRIDOR_HALF_WIDTH_M);
-  const { project } = fit(mode === 'defense' ? [loop, rival] : [loop]);
+  const showRival = mode === 'defense' && !hasRealTrace;
+  const { project } = fit(showRival ? [loop, rival] : [loop]);
   const loopPath = ringPath(loop, project);
-  const rivalPath = ringPath(rival, project);
+  const rivalPath = showRival ? ringPath(rival, project) : '';
 
   // Trace du run : par défaut la boucle fermée ; une trace fournie (privacy)
   // reste OUVERTE — le trou départ/arrivée EST le masquage, on ne le referme pas.
@@ -198,8 +205,8 @@ export function ShareMap({
   return (
     <View style={[styles.wrap, style]}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${VB} ${VB}`}>
-        {/* Frontière rivale tenue (mode défense) — orange net dessous. */}
-        {mode === 'defense' ? (
+        {/* Frontière rivale tenue (mode défense, géométrie démo) — jamais sous une vraie trace. */}
+        {mode === 'defense' && rivalPath ? (
           <Path
             d={rivalPath}
             fill={territoryStyle.rivalFill}

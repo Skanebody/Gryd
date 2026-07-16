@@ -19,9 +19,9 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 
 ### P1 — boucle virale
 - [x] D5+D6 Export story PNG (view-shot+sharing posés, shareAsImage + share_exported, filet texte web) — vérif device au dev build
-- [ ] C8+C9+B3 Purge des inventions de la card (rang #8/Paris Est, verified:true ×8, « Contestée ») + ShareMap fit sur vraie zone — M
+- [x] C8+C9+B3 Card honnête (verified serveur, rang null neutralisé, beforeState masqué, signature sans KORO) + ShareMap cadre la vraie trace
 - [ ] D4 Guidage live de boucle : « il manque N m » porté du flux démo vers RealCourseLive — M
-- [ ] C11 Migration pilote mono-ville : une seule saison active + polygone resserré — S
+- [ ] C11 Migration pilote mono-ville — REQUALIFIÉ BLOQUÉ FONDATEUR : désactiver Lille contredit CLAUDE.md (« Saison 0 Paris + Lille ») — arbitrage produit requis
 - [ ] D8 Feature flags minimal : masquer season/shop/arsenal/war_room — M
 - [ ] C10+D7 Deep links réception — BLOQUÉ arbitrage host (gryd.run vs gryd.app, fondateur) + hébergeur AASA — L
 
