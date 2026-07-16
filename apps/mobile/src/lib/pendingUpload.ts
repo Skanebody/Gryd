@@ -12,10 +12,26 @@
  * déclencheur connectivité) est documentée V1 dans DISCOVERY.md.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import type { IngestRunRequest } from '@klaim/shared';
+import { EVENTS, track } from './analytics';
 import { supabase } from './supabase';
 
 const PENDING_UPLOAD_KEY = 'gryd.pendingUpload.v1';
+
+/**
+ * P0 C2 (MVP_CHANGESET) — un REJET DÉFINITIF du serveur n'est pas une panne réseau.
+ * Avant : `if (error) return` avalait un 403 unknown_user ou un 400 invalid_payload
+ * exactement comme un hors-ligne → la course « partait » en boucle à vie sans jamais
+ * arriver, indistinguable d'une file saine. Ici : 4xx (hors 429, rate limit → on
+ * retentera passé la fenêtre) = le serveur A JUGÉ ; l'idempotence (clientRunId)
+ * garantit qu'un renvoi rendrait le MÊME verdict — retenter est inutile.
+ */
+export function isPermanentRejection(error: unknown): boolean {
+  if (!(error instanceof FunctionsHttpError)) return false; // réseau/relay → réessayable
+  const status = (error.context as { status?: number } | undefined)?.status;
+  return typeof status === 'number' && status >= 400 && status < 500 && status !== 429;
+}
 
 /**
  * Marque une course « à renvoyer ». Retourne false si le stockage lui-même est
@@ -59,7 +75,23 @@ export async function retryPendingUpload(): Promise<void> {
     const { data } = await supabase.auth.getSession();
     if (data.session === null) return; // pas de session : on retentera connecté
     const { error } = await supabase.functions.invoke('ingest_run', { body: payload });
-    if (error) return; // toujours hors-ligne/en erreur : le slot reste, on retentera
+    if (error) {
+      if (isPermanentRejection(error)) {
+        // Jugé et refusé : sortir de la file (sinon retry infini silencieux) et
+        // le DIRE — au moins à la mesure (claim_result est l'event d'issue de
+        // capture) et au log. Le payload reste idempotent : rien n'est perdu
+        // côté serveur, il a déjà statué.
+        const status = (error.context as { status?: number } | undefined)?.status;
+        console.warn('[pendingUpload] course rejetée définitivement par le serveur :', status);
+        track(EVENTS.claimResult, {
+          outcome: 'rejected_permanent',
+          http: status ?? 0,
+          source: 'pending_retry',
+        });
+        await AsyncStorage.removeItem(PENDING_UPLOAD_KEY);
+      }
+      return; // hors-ligne/5xx/429 : le slot reste, on retentera
+    }
     await AsyncStorage.removeItem(PENDING_UPLOAD_KEY);
   } catch {
     // Réseau coupé net : silencieux, le slot reste pour la prochaine tentative.

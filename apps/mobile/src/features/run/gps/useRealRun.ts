@@ -30,7 +30,7 @@ import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
 import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
-import { queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
+import { isPermanentRejection, queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
 import {
   clearActiveRun,
   clearCurrentRun,
@@ -115,15 +115,24 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
 
   /**
    * Envoi d'un payload de fin de course (AMENDEMENT-15 §2) :
-   *  - 'sent'   : ingest_run a répondu sans erreur ;
-   *  - 'queued' : hors-ligne/erreur → payload en file (pendingUpload, slot
+   *  - 'sent'     : ingest_run a répondu sans erreur ;
+   *  - 'rejected' : le serveur a JUGÉ et refusé (4xx hors 429) — pas de file
+   *                 (l'idempotence rendrait le même verdict), pas de message
+   *                 « envoi dès que possible » (ce serait faux) ;
+   *  - 'queued' : hors-ligne/5xx/429 → payload en file (pendingUpload, slot
    *               unique MVP — DISCOVERY), renvoyé silencieusement plus tard ;
    *  - 'lost'   : stockage indisponible (l'appelant garde son dernier filet) ;
    *  - 'none'   : pas de backend/session (flux démo) — aucun envoi attendu.
    */
   const uploadOrQueue = useCallback(
-    async (payload: IngestRunRequest): Promise<'sent' | 'queued' | 'lost' | 'none'> => {
-      if (supabase === null || sessionRef.current === null) return 'none';
+    async (payload: IngestRunRequest): Promise<'sent' | 'rejected' | 'queued' | 'lost' | 'none'> => {
+      if (supabase === null) return 'none'; // vrai flux démo : aucun backend
+      if (sessionRef.current === null) {
+        // P0 C3 — session tombée EN COURS de course : on ne purge JAMAIS une vraie
+        // course sans l'avoir mise à l'abri. En file : retryPendingUpload exige une
+        // session (il attendra la reconnexion), le payload est idempotent.
+        return (await queuePendingUpload(payload)) ? 'queued' : 'lost';
+      }
       try {
         const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
         if (!error) {
@@ -131,6 +140,19 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
           // est armée pour que course-result affiche les VRAIS points/zones/badges.
           setLastRunResult((data ?? null) as IngestRunResponse | null);
           return 'sent';
+        }
+        if (isPermanentRejection(error)) {
+          // P0 C2 — le serveur A JUGÉ (4xx hors 429) : mettre en file serait un
+          // retry infini vers le même verdict (idempotence). Pas de « envoi dès
+          // que possible » (ce serait faux) ; l'issue part à la mesure.
+          const status = (error.context as { status?: number } | undefined)?.status;
+          console.warn('[useRealRun] course rejetée définitivement :', status);
+          track(EVENTS.claimResult, {
+            outcome: 'rejected_permanent',
+            http: status ?? 0,
+            source: 'finish',
+          });
+          return 'rejected';
         }
       } catch {
         // Hors-ligne/réseau coupé net → file ci-dessous.

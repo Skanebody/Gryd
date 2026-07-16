@@ -10,7 +10,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 ### P0 — cœur (vraie personne → vraie capture → vraie zone visible → mesurée)
 - [x] C1+B1+B2 Résultat honnête (3 chemins : jugé/en-file/démo) — `9d24465`
 - [x] C5 Refresh carte post-capture (useFocusEffect, 1er focus sauté, parité native/web)
-- [ ] C2+C3 Never lose a run : pendingUpload distingue 4xx (sortir+surfacer) de réseau (retenter) ; session-null en cours de run → file au lieu de purge — S
+- [x] C2+C3 Never lose a run (4xx≠réseau, 429 réessayable, session-null→file, statut 'rejected')
 - [ ] C4+D3 cityId dérivé serveur (point-in-polygon 1er fix sur city_zones avant claim_hexes) + test Deno « run Paris → season_scores>0 » (déploiement ensuite, feu vert requis) — M
 - [ ] D2+C6 Mesure d'activation : émettre territory_captured (capture persistée), loop_closed/almost/run_rejected ; wrapper track event_id unique + UTC — M
 - [ ] D1 Email OTP : signInWithOtp/verifyOtp dans sign-in (filet indépendant d'Apple) — M
