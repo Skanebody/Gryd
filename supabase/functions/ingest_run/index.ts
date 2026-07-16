@@ -330,6 +330,34 @@ async function loadNoCaptureHexes(hexes: readonly string[]): Promise<ReadonlySet
   return result;
 }
 
+/**
+ * P0 C4 (MVP_CHANGESET) — ville DÉRIVÉE du 1er point GPS quand le client ne la
+ * déclare pas. Constat d'audit : buildPayload (tracker.ts) n'émet JAMAIS cityId
+ * → p_city_id NULL dans claim_hexes → v_season_id NULL → season_scores jamais
+ * incrémenté → le classement LOCAL (objectif nommé du pilote) ne se peuplait
+ * jamais. Point-in-polygon (moteur pur, déjà utilisé pour les privacy zones)
+ * sur les contours RÉELS de city_zones actives (0033). Hors de toute zone →
+ * undefined (capture France/Europe entière inchangée, densité 'wild').
+ */
+async function deriveCityId(points: readonly RunPoint[]): Promise<string | undefined> {
+  const first = points[0];
+  if (!first) return undefined;
+  const { data, error } = await supabase
+    .from('city_zones')
+    .select('city_id, geojson')
+    .eq('status', 'active');
+  if (error || !data) {
+    if (error) console.error('[ingest_run] deriveCityId:', error.message);
+    return undefined; // fail-open : la course reste valide, densité 'wild'
+  }
+  for (const zone of data) {
+    if (pointInGeoJson(first.lat, first.lng, zone.geojson as GeoJsonPolygonal)) {
+      return zone.city_id as string;
+    }
+  }
+  return undefined;
+}
+
 /** Densité globale de la course : city_zones.status si connue, sinon 'wild'. */
 async function loadDensity(cityId: string | undefined): Promise<'active' | 'emerging' | 'pioneer' | 'wild'> {
   if (!cityId) return 'wild';
@@ -2003,6 +2031,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const now = new Date();
+
+    // P0 C4 — le client ne déclare jamais cityId (buildPayload) : on le dérive du
+    // 1er fix, UNE fois, ici — tous les usages aval (densité, insert runs.city_id,
+    // claim_hexes→season_scores, contested) lisent request.cityId et en héritent.
+    if (request.cityId === undefined) {
+      request.cityId = (await deriveCityId(request.points)) as typeof request.cityId;
+    }
 
     // ── Stats §3.2 (pur) — calculées AVANT la dédup pour que la branche
     //    métrique de dedupeActivity (durée±10 % & distance±10 %) puisse jouer :
