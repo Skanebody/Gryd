@@ -39,6 +39,12 @@ export const EVENTS = {
   // sheet (≠ share_card_generated : la preview React). Le KPI viralité du pilote
   // (« nouveaux activés pour 100 captures partagées ») se mesure d'ici.
   shareExported: 'share_exported', // props: { ratio, channel }
+  // Widget « Mon territoire » (spec 17/07) — le KPI : % de CTA ayant conduit à
+  // une action territoriale validée. viewed = vue UTILISATEUR (jamais le
+  // rafraîchissement automatique) ; props communs : widget_state, primary_action.
+  territoryWidgetViewed: 'territory_widget_viewed', // props: { widget_state }
+  territoryWidgetActionTapped: 'territory_widget_action_tapped', // props: { widget_state, primary_action }
+  territoryWidgetStateChanged: 'territory_widget_state_changed', // props: { from, to }
   shareCompleted: 'share_completed', // props: { channel }
   shareTemplateChanged: 'share_template_changed', // props: { template } — doc partage viral §12
   stickerCopied: 'sticker_copied', // sticker territoire copié pour story — doc partage viral §12

@@ -17,6 +17,12 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] B4/C7 « Mon territoire » étiqueté démo (dataNote canonique) — branchement réel = chantier secteurs à part
 - [x] B5 Bouton Google caché tant que EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID absent (fait avec D1)
 
+### WIDGET « Mon territoire » (spec fondateur 17/07 — formule : possession + changement + action)
+- [x] W1 Fondation pure (8 états, priorité stricte, copie spec, 7 tests, events §8)
+- [ ] W2 Widget interne en haut de la CARTE : remplace MissionPeek par le widget (réel : first_capture/stable/loop_incomplete/share_moment via useRealTerritories+getLastRunResult ; démo étiquetée pour attack/lost/crew) — M
+- [ ] W3 Widget compact au PROFIL — S
+- [ ] W4 Widget OS iOS/Android + Live Activity — BLOQUÉ O8 (extension native + dev build + Apple) — L
+
 ### P1 — boucle virale
 - [x] D5+D6 Export story PNG (view-shot+sharing posés, shareAsImage + share_exported, filet texte web) — vérif device au dev build
 - [x] C8+C9+B3 Card honnête (verified serveur, rang null neutralisé, beforeState masqué, signature sans KORO) + ShareMap cadre la vraie trace
