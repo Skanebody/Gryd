@@ -20,7 +20,7 @@ import { supabase } from './supabase';
 // Ferme proprement la popup d'auth au retour dans l'app (deep link scheme "gryd", cf. app.json).
 WebBrowser.maybeCompleteAuthSession();
 
-export type SignInMethod = 'apple' | 'google';
+export type SignInMethod = 'apple' | 'google' | 'email_otp';
 
 export type AuthFailureReason =
   | 'supabase_not_configured' // O1 : pas de backend → mode dev, carte en accès direct
@@ -54,6 +54,7 @@ async function makeNoncePair(): Promise<{ raw: string; hashed: string }> {
 
 /** Sign in with Apple (composant natif côté écran, logique ici). */
 export async function signInWithApple(): Promise<AuthResult> {
+  track(EVENTS.signupStarted, { method: 'apple' satisfies SignInMethod });
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   const nonce = await makeNoncePair();
 
@@ -87,6 +88,7 @@ export async function signInWithApple(): Promise<AuthResult> {
 
 /** Sign in with Google via expo-auth-session (id_token → Supabase). */
 export async function signInWithGoogle(): Promise<AuthResult> {
+  track(EVENTS.signupStarted, { method: 'google' satisfies SignInMethod });
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   const clientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   if (!clientId) return { ok: false, reason: 'google_not_configured' };
@@ -127,6 +129,35 @@ export async function signInWithGoogle(): Promise<AuthResult> {
 }
 
 /** Déconnexion (+ détache l'utilisateur des events). */
+/**
+ * P0 D1 (MVP_CHANGESET) — FILET EMAIL OTP. L'app n'offrait QUE Apple+Google
+ * (tous deux désactivés côté serveur au moment de l'audit) : zéro porte
+ * d'entrée. L'OTP par CODE (pas magic-link : aucun handler de deep link requis)
+ * est la voie de secours du test fermé — email actif côté serveur (vérifié).
+ * ⚠️ Fondateur : le template « Magic Link » du dashboard doit afficher
+ * {{ .Token }} pour que le code à 6 chiffres apparaisse dans l'e-mail.
+ */
+export async function requestEmailOtp(email: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
+  track(EVENTS.signupStarted, { method: 'email_otp' satisfies SignInMethod });
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true },
+  });
+  if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  return { ok: true };
+}
+
+/** Vérifie le code reçu par e-mail → session (trigger 0028 provisionne users). */
+export async function verifyEmailOtp(email: string, code: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
+  const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+  if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  if (data.user) identify(data.user.id);
+  track(EVENTS.signupCompleted, { method: 'email_otp' satisfies SignInMethod });
+  return { ok: true };
+}
+
 export async function signOut(): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   const { error } = await supabase.auth.signOut();

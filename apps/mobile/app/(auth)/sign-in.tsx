@@ -4,14 +4,20 @@
  * Un refus/échec n'est jamais un mur (§4.1) : message + retry.
  */
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
 import { colors, fontSizes, mapTokens, radii, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
-import { signInWithApple, signInWithGoogle, type AuthResult } from '../../src/lib/auth';
+import {
+  requestEmailOtp,
+  signInWithApple,
+  signInWithGoogle,
+  verifyEmailOtp,
+  type AuthResult,
+} from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
 
 const ONBOARDING_STEP_PROMISE = 1;
@@ -120,11 +126,18 @@ function failureMessage(result: AuthResult): string | null {
   return 'La connexion a échoué. Réessaie — ta course ne se perdra jamais pour ça.';
 }
 
+/** P0 B5 — un bouton Google MORT est un mensonge : caché tant que le client id manque. */
+const GOOGLE_CONFIGURED = Boolean(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
+
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const { session, configured } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // P0 D1 — filet email OTP (code à 6 chiffres, pas de magic-link : zéro deep link).
+  const [emailStep, setEmailStep] = useState<'hidden' | 'email' | 'code'>('hidden');
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
 
   useEffect(() => {
     track(EVENTS.onboardingStep, { n: ONBOARDING_STEP_PROMISE });
@@ -133,12 +146,13 @@ export default function SignInScreen() {
   // Déjà connecté, ou mode dev sans backend → carte directement.
   if (session || !configured) return <Redirect href="/" />;
 
-  const run = async (fn: () => Promise<AuthResult>) => {
+  const run = async (fn: () => Promise<AuthResult>): Promise<AuthResult> => {
     setBusy(true);
     setError(null);
     const result = await fn();
     setError(failureMessage(result));
     setBusy(false);
+    return result;
   };
 
   return (
@@ -165,15 +179,92 @@ export default function SignInScreen() {
             onPress={() => void run(signInWithApple)}
           />
         ) : null}
-        {/* Bouton secondaire ghost (addendum §F) */}
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={() => void run(signInWithGoogle)}
-          style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
-        >
-          <Text style={styles.ghostLabel}>Continuer avec Google</Text>
-        </Pressable>
+        {/* Bouton secondaire ghost (addendum §F) — B5 : jamais de bouton mort. */}
+        {GOOGLE_CONFIGURED ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => void run(signInWithGoogle)}
+            style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
+          >
+            <Text style={styles.ghostLabel}>Continuer avec Google</Text>
+          </Pressable>
+        ) : null}
+
+        {/* P0 D1 — filet e-mail : replié par défaut (§A, l'écran garde UNE décision). */}
+        {emailStep === 'hidden' ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => setEmailStep('email')}
+            style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
+          >
+            <Text style={styles.ghostLabel}>Continuer avec un e-mail</Text>
+          </Pressable>
+        ) : null}
+        {emailStep === 'email' ? (
+          <>
+            <TextInput
+              accessibilityLabel="Adresse e-mail"
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="ton@email.fr"
+              placeholderTextColor={colors.gris}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoFocus
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy || !email.includes('@')}
+              onPress={() => {
+                // N'avance vers la saisie du code QUE si l'envoi a réussi.
+                void run(() => requestEmailOtp(email.trim())).then((r) => {
+                  if (r.ok) setEmailStep('code');
+                });
+              }}
+              style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
+            >
+              <Text style={styles.ghostLabel}>Recevoir un code</Text>
+            </Pressable>
+          </>
+        ) : null}
+        {emailStep === 'code' ? (
+          <>
+            <Text style={styles.otpHint}>Code envoyé à {email.trim()}</Text>
+            <TextInput
+              accessibilityLabel="Code reçu par e-mail"
+              style={styles.input}
+              value={code}
+              onChangeText={setCode}
+              placeholder="123456"
+              placeholderTextColor={colors.gris}
+              keyboardType="number-pad"
+              maxLength={6}
+              autoFocus
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy || code.length < 6}
+              onPress={() => void run(() => verifyEmailOtp(email.trim(), code.trim()))}
+              style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
+            >
+              <Text style={styles.ghostLabel}>Valider le code</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={() => {
+                setCode('');
+                void run(() => requestEmailOtp(email.trim()));
+              }}
+            >
+              <Text style={styles.otpResend}>Renvoyer le code</Text>
+            </Pressable>
+          </>
+        ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
     </View>
@@ -223,6 +314,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ghostPressed: { opacity: 0.7 },
+  input: {
+    height: 52,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    color: colors.blanc,
+    paddingHorizontal: 20,
+    fontSize: fontSizes.sm,
+  },
+  otpHint: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
+  otpResend: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+    paddingVertical: 6,
+  },
   ghostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500' },
   error: { color: colors.blanc, fontSize: fontSizes.sm, textAlign: 'center', marginTop: 6 },
 });

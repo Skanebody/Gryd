@@ -6,6 +6,9 @@ export const EVENTS = {
   appOpen: 'app_open',
   waitlistJoined: 'waitlist_joined', // web — inscription à la waitlist (landing)
   onboardingStep: 'onboarding_step', // props: { n }
+  // P0 D1 — chute AVANT l'inscription (funnel Activation) : émis au tap d'une
+  // méthode de connexion, complété (ou pas) par signup_completed.
+  signupStarted: 'signup_started', // props: { method }
   signupCompleted: 'signup_completed', // props: { method }
   permissionLocation: 'permission_location', // props: { result }
   citySelected: 'city_selected',
