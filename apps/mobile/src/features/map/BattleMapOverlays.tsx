@@ -56,6 +56,7 @@ import {
 } from './demo';
 import type { BattleMapSummary } from './fakeHexes';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
+import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import {
   MAP_MODE_ICON,
   MAP_MODE_LABELS,
@@ -185,6 +186,16 @@ export interface BattleMapOverlaysProps {
    */
   map3d?: boolean;
   onSetMap3d?: (value: boolean) => void;
+  /**
+   * WIDGET « Mon territoire » (spec 17/07) — fourni par MapScreen quand les
+   * DONNÉES RÉELLES existent (session + hex_claims lus). Il REMPLACE alors le
+   * peek mission démo. Absent/null ⇒ MissionPeek démo inchangé (étiqueté par la
+   * note de source de la carte). L'action du widget est un LIEN (anti
+   * double-CTA §A.4 / AMENDEMENT-29 : le gros CTA reste le bouton flottant).
+   */
+  widget?: TerritoryWidgetView | null;
+  /** Tap sur l'action du widget (routage côté écran : partage, options…). */
+  onWidgetAction?: (view: TerritoryWidgetView) => void;
 }
 
 export function BattleMapOverlays({
@@ -198,6 +209,8 @@ export function BattleMapOverlays({
   onCloseZone,
   basemap = 'dark',
   onToggleBasemap,
+  widget = null,
+  onWidgetAction,
   map3d,
   onSetMap3d,
 }: BattleMapOverlaysProps) {
@@ -381,7 +394,16 @@ export function BattleMapOverlays({
             onStateChange={(state) => {
               if (state !== 'compact') screen('map_sheet_open', { state });
             }}
-            compactSlot={<MissionPeek onOptions={openOptions} />}
+            compactSlot={
+              widget ? (
+                <TerritoryWidgetPeek
+                  view={widget}
+                  onAction={() => onWidgetAction?.(widget)}
+                />
+              ) : (
+                <MissionPeek onOptions={openOptions} />
+              )
+            }
             openSlot={
               <View style={styles.openBlock}>
                 {/* SITUATION (état · parts de contrôle · directive bonus + temps
@@ -503,6 +525,63 @@ export function BattleMapOverlays({
           />
         )}
       </View>
+    </View>
+  );
+}
+
+/**
+ * WIDGET « Mon territoire » (spec 17/07) rendu dans le peek de la carte :
+ * titre de situation + ≤ 2 lignes + UNE action en LIEN (le gros CTA chartreuse
+ * reste le bouton flottant — anti double-CTA §A.4). Vue utilisateur trackée
+ * UNE fois par état (jamais le refresh auto), tap tracké avec l'action.
+ */
+function TerritoryWidgetPeek({
+  view,
+  onAction,
+}: {
+  view: TerritoryWidgetView;
+  onAction: () => void;
+}) {
+  useEffect(() => {
+    track(EVENTS.territoryWidgetViewed, { widget_state: view.state });
+  }, [view.state]);
+  return (
+    <View style={styles.info}>
+      <View style={styles.peekHead}>
+        <View style={styles.missionBar} />
+        <View style={styles.rowBody}>
+          <Text style={styles.peekTitle} numberOfLines={1} ellipsizeMode="clip">
+            {view.title}
+          </Text>
+          {view.lines[0] ? (
+            <Text style={styles.peekMeta} numberOfLines={1} ellipsizeMode="clip">
+              {view.lines[0]}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      {view.lines[1] ? (
+        <Text style={styles.peekMeta} numberOfLines={1} ellipsizeMode="clip">
+          {view.lines[1]}
+        </Text>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={view.ctaLabel}
+        hitSlop={8}
+        onPress={() => {
+          track(EVENTS.territoryWidgetActionTapped, {
+            widget_state: view.state,
+            primary_action: view.action,
+          });
+          onAction();
+        }}
+        style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
+      >
+        <Text style={styles.optionsLink} numberOfLines={1}>
+          {view.ctaLabel}
+        </Text>
+      </Pressable>
     </View>
   );
 }

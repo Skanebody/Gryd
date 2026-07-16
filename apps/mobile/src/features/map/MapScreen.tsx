@@ -21,7 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, gameColors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
@@ -45,6 +45,12 @@ import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
 import { useRealTerritories } from './hexClaims';
+import { getLastRunResult } from '../run/runResult';
+import {
+  buildWidgetView,
+  selectWidgetState,
+  type TerritoryWidgetView,
+} from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
 import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
@@ -260,6 +266,55 @@ export function MapScreen() {
       reload();
     }, [reload]),
   );
+  /**
+   * WIDGET « Mon territoire » (spec 17/07) — construit UNIQUEMENT depuis des
+   * données RÉELLES : territoires lus de hex_claims + dernier verdict serveur
+   * (openBoundary → boucle presque fermée ; capture → moment de partage).
+   * Les signaux sans source réelle (attaque, zone perdue, crew, rang) restent
+   * ÉTEINTS — on ne fabrique pas une urgence. Démo (pas de session) ⇒ null ⇒
+   * le peek mission démo actuel, étiqueté par la note de source.
+   */
+  const widget = useMemo(() => {
+    if (!isReal || territories === null) return null;
+    const lastResult = getLastRunResult();
+    const mine = territories.filter((t) => t.props.status === 'crew');
+    const openBoundary = lastResult?.openBoundary ?? null;
+    const captured = lastResult
+      ? lastResult.hexes.claimed + lastResult.hexes.stolen + lastResult.hexes.pioneer > 0
+      : false;
+    const state = selectWidgetState({
+      hasCapturedTerritory: mine.length > 0,
+      recentlyLostTerritory: false,
+      activeAttack: false,
+      incompleteLoop: openBoundary !== null,
+      urgentCrewRequest: false,
+      recentShareworthyCapture: captured,
+      closeToNextRank: false,
+    });
+    return buildWidgetView(state, {
+      controlledAreaM2: mine.reduce((sum, t) => sum + t.props.areaM2, 0),
+      territoryCount: mine.length,
+      localRank: null, // season_scores : câblé après déploiement C4
+      localRankAreaLabel: null,
+      displayName: openBoundary?.name ?? null,
+      rivalName: null,
+      estimatedRunDistanceM: null,
+      remainingLoopDistanceM: openBoundary?.missingM ?? null,
+      eventAreaM2: null,
+      minutesSinceEvent: null,
+    });
+  }, [isReal, territories]);
+
+  /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
+  const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
+    if (view.action === 'share') {
+      router.push('/partage');
+      return;
+    }
+    // go / view_map / complete… : la carte EST l'écran d'action (GO flottant).
+    mapRef.current?.flyTo(EGO_CAMERA);
+  }, []);
+
   const layers = useMemo(
     () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, territories),
     [emph, selectedParcours, basemap, selectedZoneId, territories],
@@ -361,6 +416,8 @@ export function MapScreen() {
       {/* ── HUD ÉCRAN MISSION (header 1 ligne, pill rival, card sticky + [Défendre],
           sheet 4 blocs, 2 FABs : Recentrer + Calques) — AMENDEMENT-21 ── */}
       <BattleMapOverlays
+        widget={widget}
+        onWidgetAction={onWidgetAction}
         mode={mode}
         onSelectMode={setMode}
         summary={summary}

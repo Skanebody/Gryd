@@ -19,7 +19,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 
 ### WIDGET « Mon territoire » (spec fondateur 17/07 — formule : possession + changement + action)
 - [x] W1 Fondation pure (8 états, priorité stricte, copie spec, 7 tests, events §8)
-- [ ] W2 Widget interne en haut de la CARTE : remplace MissionPeek par le widget (réel : first_capture/stable/loop_incomplete/share_moment via useRealTerritories+getLastRunResult ; démo étiquetée pour attack/lost/crew) — M
+- [x] W2 Widget carte (réel : first_capture/stable/loop_incomplete/share_moment ; démo → MissionPeek inchangé ; action=LIEN anti double-CTA)
 - [ ] W3 Widget compact au PROFIL — S
 - [ ] W4 Widget OS iOS/Android + Live Activity — BLOQUÉ O8 (extension native + dev build + Apple) — L
 
