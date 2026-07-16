@@ -18,7 +18,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] B5 Bouton Google caché tant que EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID absent (fait avec D1)
 
 ### P1 — boucle virale
-- [ ] D5+D6 Export story PNG 9:16 : deps view-shot/sharing/media-library + captureRef + shareAsync + events share_exported — M
+- [x] D5+D6 Export story PNG (view-shot+sharing posés, shareAsImage + share_exported, filet texte web) — vérif device au dev build
 - [ ] C8+C9+B3 Purge des inventions de la card (rang #8/Paris Est, verified:true ×8, « Contestée ») + ShareMap fit sur vraie zone — M
 - [ ] D4 Guidage live de boucle : « il manque N m » porté du flux démo vers RealCourseLive — M
 - [ ] C11 Migration pilote mono-ville : une seule saison active + polygone resserré — S

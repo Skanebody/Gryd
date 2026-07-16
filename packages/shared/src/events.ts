@@ -35,6 +35,10 @@ export const EVENTS = {
   inviteSent: 'invite_sent',
   inviteAccepted: 'invite_accepted', // H3
   shareCardGenerated: 'share_card_generated',
+  // P1 D6 (MVP_CHANGESET) — image PNG réellement rasterisée et remise au share
+  // sheet (≠ share_card_generated : la preview React). Le KPI viralité du pilote
+  // (« nouveaux activés pour 100 captures partagées ») se mesure d'ici.
+  shareExported: 'share_exported', // props: { ratio, channel }
   shareCompleted: 'share_completed', // props: { channel }
   shareTemplateChanged: 'share_template_changed', // props: { template } — doc partage viral §12
   stickerCopied: 'sticker_copied', // sticker territoire copié pour story — doc partage viral §12

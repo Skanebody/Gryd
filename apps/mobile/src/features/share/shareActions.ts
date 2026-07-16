@@ -13,11 +13,13 @@
  * coller (résultat territorial + lien), 100 % fonctionnel sans dépendance.
  */
 import { Platform, Share } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import type { ShareDemoData } from './templates';
 
 /** Résultat d'une action (feedback UI, jamais une exception propagée). */
 export type ShareActionResult =
-  | { ok: true; via: 'clipboard' | 'share' | 'webshare' }
+  | { ok: true; via: 'clipboard' | 'share' | 'webshare' | 'image' }
   | { ok: false; reason: 'dismissed' | 'unavailable' };
 
 interface ClipboardModule {
@@ -73,6 +75,33 @@ export async function copyText(text: string): Promise<ShareActionResult> {
  * Feuille de partage système (native) ou Web Share API (preview). Un « annulé »
  * n'est jamais une erreur. Fire-and-forget.
  */
+/**
+ * P1 D6 (MVP_CHANGESET) — LA story est une IMAGE, pas un texte. Rasterise le
+ * conteneur de la ShareCard (react-native-view-shot) en PNG et le remet au
+ * share sheet natif (expo-sharing). Le partage texte reste le FILET (web, ou
+ * échec de capture) : jamais un partage muet, mais jamais annoncé comme story.
+ * `target` = la ref du <View> qui enveloppe la ShareCard (collapsable={false}).
+ */
+export async function shareAsImage(
+  target: unknown,
+  fallbackMessage: string,
+): Promise<ShareActionResult> {
+  if (Platform.OS === 'web' || target == null) return openShareSheet(fallbackMessage);
+  try {
+    const uri = await captureRef(target as Parameters<typeof captureRef>[0], {
+      format: 'png',
+      quality: 1,
+    });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' });
+      return { ok: true, via: 'image' };
+    }
+  } catch (e) {
+    console.warn('[share] export image échoué, filet texte :', e);
+  }
+  return openShareSheet(fallbackMessage);
+}
+
 export async function openShareSheet(message: string): Promise<ShareActionResult> {
   if (Platform.OS === 'web') {
     try {

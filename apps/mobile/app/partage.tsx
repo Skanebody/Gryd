@@ -46,6 +46,7 @@ import { buildShareLink, defaultShareTarget } from '../src/features/share/shareD
 import {
   copyText,
   openShareSheet,
+  shareAsImage,
   stickerText,
   type ShareActionResult,
 } from '../src/features/share/shareActions';
@@ -140,6 +141,8 @@ export default function PartageScreen() {
     !statsOnlyShare && isTemplateId(params.template) ? params.template : defaultTemplate,
   );
   const [ratio, setRatio] = useState<ShareCardRatio>('story');
+  /** Cible de l'export PNG (D6) : le conteneur EXACT de la ShareCard. */
+  const cardShotRef = useRef<View | null>(null);
   // « +3 styles » ouvre le choix complet (déplié aussi si on arrive sur un extra).
   const [stylesExpanded, setStylesExpanded] = useState<boolean>(
     isTemplateId(params.template) ? STYLE_EXTRA.includes(params.template) : false,
@@ -246,9 +249,9 @@ export default function PartageScreen() {
   // `onOk` émet les events qui exigent un succès réel (jamais au tap).
   const runAction = (
     p: Promise<ShareActionResult>,
-    msg: string | ((via: 'clipboard' | 'share' | 'webshare') => string),
+    msg: string | ((via: 'clipboard' | 'share' | 'webshare' | 'image') => string),
     channel: string,
-    onOk?: (via: 'clipboard' | 'share' | 'webshare') => void,
+    onOk?: (via: 'clipboard' | 'share' | 'webshare' | 'image') => void,
   ) => {
     haptics.light();
     void p.then((r) => {
@@ -338,8 +341,9 @@ export default function PartageScreen() {
           </Text>
         ) : null}
 
-        {/* PREVIEW qui FLOTTE : la story EST le container (pas de card noire autour). */}
-        <View style={styles.previewWrap}>
+        {/* PREVIEW qui FLOTTE : la story EST le container (pas de card noire autour).
+            `cardShotRef` + collapsable=false : la cible EXACTE de l'export PNG (D6). */}
+        <View ref={cardShotRef} collapsable={false} style={styles.previewWrap}>
           <ShareCard
             {...cardProps}
             ratio={ratio}
@@ -399,7 +403,19 @@ export default function PartageScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={primaryCta.label}
-          onPress={() => runAction(openShareSheet(shareMessage), 'Story prête.', primaryCta.channel)}
+          onPress={() =>
+            runAction(
+              shareAsImage(cardShotRef.current, shareMessage),
+              (via) => (via === 'image' ? 'Story exportée.' : 'Story prête.'),
+              primaryCta.channel,
+              (via) => {
+                // P1 D6 — share_exported = une IMAGE a réellement été produite
+                // (≠ share_card_generated, la preview React ; ≠ share_completed,
+                // qui compte aussi le filet texte).
+                if (via === 'image') track(EVENTS.shareExported, { ratio, channel: primaryCta.channel });
+              },
+            )
+          }
           style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
         >
           <Icon name="partage" size={18} color={colors.noir} />
