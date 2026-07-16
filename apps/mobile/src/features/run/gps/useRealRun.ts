@@ -138,7 +138,28 @@ export function useRealRun(mode: LiveRunMode): RealRunGate {
         if (!error) {
           // O1 Pass 3 : la réponse du serveur (seul juge) n'est plus jetée — elle
           // est armée pour que course-result affiche les VRAIS points/zones/badges.
-          setLastRunResult((data ?? null) as IngestRunResponse | null);
+          const result = (data ?? null) as IngestRunResponse | null;
+          setLastRunResult(result);
+          if (result) {
+            // P0 D2 — l'ACTIVATION se mesure sur la capture PERSISTÉE (la réponse
+            // du seul juge), jamais sur un bouton. claim_result était défini
+            // (§8) mais jamais émis : le funnel du pilote était aveugle.
+            track(EVENTS.claimResult, {
+              new: result.hexes.claimed,
+              stolen: result.hexes.stolen,
+              defended: result.hexes.defended,
+              pioneer: result.hexes.pioneer,
+              status: result.status,
+              rejected_reason: result.rejectReason ?? null,
+            });
+            if (result.loopClosed === true) {
+              track(EVENTS.loopClosed, { enclosed_zones: result.enclosedZones ?? 0 });
+            }
+            if (result.openBoundary) {
+              // Signal d'activation RATÉE : le « il manquait N m » du funnel.
+              track(EVENTS.loopAlmostClosed, { missing_m: result.openBoundary.missingM });
+            }
+          }
           return 'sent';
         }
         if (isPermanentRejection(error)) {

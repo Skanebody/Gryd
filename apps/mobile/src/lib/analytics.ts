@@ -24,6 +24,22 @@ const client: PostHog | null = posthogKey
   ? new PostHog(posthogKey, { host: POSTHOG_HOST })
   : null;
 
+/**
+ * P0 C6 (MVP_CHANGESET) — chaque event porte un `event_id` unique (déduplication
+ * côté entrepôt : les retries réseau de PostHog peuvent doubler un capture) et un
+ * `event_ts` ISO 8601 UTC (l'horodatage d'ÉMISSION, indépendant de l'heure
+ * d'ingestion). Posés ici, dans LE wrapper — aucun call-site à modifier.
+ */
+function commonProps(): EventProps {
+  return {
+    event_id:
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    event_ts: new Date().toISOString(),
+  };
+}
+
 /** Trace un event §8. No-op si PostHog n'est pas configuré (O3). */
 export function track(event: EventName, props?: EventProps): void {
   if (!client) {
@@ -32,7 +48,7 @@ export function track(event: EventName, props?: EventProps): void {
     }
     return;
   }
-  client.capture(event, props);
+  client.capture(event, { ...commonProps(), ...props });
 }
 
 /**

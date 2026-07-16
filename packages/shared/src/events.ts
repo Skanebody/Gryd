@@ -16,6 +16,11 @@ export const EVENTS = {
   runCancelAttempt: 'run_cancel_attempt',
   runComplete: 'run_complete', // props: { distance, duration, source }
   claimResult: 'claim_result', // props: { new, stolen, defended, rejected_reason }
+  // P0 D2 (MVP_CHANGESET) — activation mesurable : émis depuis la RÉPONSE serveur
+  // (capture persistée), jamais depuis l'UI. loop_almost_closed = signal d'activation
+  // ratée (openBoundary.missingM) — le « il manquait N m » du funnel.
+  loopClosed: 'loop_closed', // props: { enclosed_zones }
+  loopAlmostClosed: 'loop_almost_closed', // props: { missing_m }
   celebrationViewed: 'celebration_viewed',
   stealSuffered: 'steal_suffered',
   revengeRun: 'revenge_run', // props: { delay_h } — H2

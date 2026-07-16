@@ -12,7 +12,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] C5 Refresh carte post-capture (useFocusEffect, 1er focus sauté, parité native/web)
 - [x] C2+C3 Never lose a run (4xx≠réseau, 429 réessayable, session-null→file, statut 'rejected')
 - [x] C4+D3 cityId dérivé serveur + 4 tests contours réels (DÉPLOIEMENT ingest_run REQUIS — feu vert « pousse »)
-- [ ] D2+C6 Mesure d'activation : émettre territory_captured (capture persistée), loop_closed/almost/run_rejected ; wrapper track event_id unique + UTC — M
+- [x] D2+C6 Mesure d'activation : claim_result/loop_closed/loop_almost_closed émis depuis la réponse serveur + event_id/UTC dans le wrapper
 - [ ] D1 Email OTP : signInWithOtp/verifyOtp dans sign-in (filet indépendant d'Apple) — M
 - [ ] B4/C7 « Mon territoire » honnête : étiquette démo (minimum) ou branché réel — S
 - [ ] B5 Cacher le bouton Google mort tant que client id absent — S
