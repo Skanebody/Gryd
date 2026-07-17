@@ -838,8 +838,6 @@ const styles = StyleSheet.create({
   // Card dédiée « Supprimer mon compte » (5.1.1v) — distincte de l'export.
   deleteCard: {
     backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     borderRadius: radii.card,
     padding: spacing.cardPadding,
   },

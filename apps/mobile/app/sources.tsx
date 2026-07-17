@@ -257,8 +257,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     marginTop: spacing.xs,
   },
@@ -294,8 +292,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.md,
   },
   // Recul VISUEL des sources « à venir » sans crever le contraste AA du texte :

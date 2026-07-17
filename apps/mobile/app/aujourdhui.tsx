@@ -268,8 +268,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 14,
     marginTop: 16,
     marginBottom: 10,

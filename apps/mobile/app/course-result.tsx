@@ -1577,8 +1577,6 @@ const styles = StyleSheet.create({
   verifiedCard: {
     backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: 14,
     alignItems: 'flex-start',
@@ -1647,8 +1645,6 @@ const styles = StyleSheet.create({
   summaryCard: {
     backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: spacing.sm,
   },
@@ -1705,8 +1701,6 @@ const styles = StyleSheet.create({
   sectorCard: {
     backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     alignItems: 'center',
     gap: spacing.sm,
@@ -1759,8 +1753,6 @@ const styles = StyleSheet.create({
   statsCard: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: spacing.sm,
   },
@@ -1917,8 +1909,6 @@ const styles = StyleSheet.create({
   contribCard: {
     backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     gap: spacing.sm,
   },

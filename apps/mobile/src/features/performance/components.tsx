@@ -368,8 +368,6 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 24,
     paddingHorizontal: spacing.cardPadding,
     alignItems: 'center',
