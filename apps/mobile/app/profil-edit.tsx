@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { flags } from '../src/lib/flags';
 import { goBack } from '../src/lib/nav';
 import {
   BADGE_TIER_RANK,
@@ -365,19 +366,24 @@ export default function ProfilEditScreen() {
           );
         })}
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Ouvrir l'Arsenal pour d'autres cosmétiques"
-        onPress={() => {
-          haptics.light();
-          router.push('/arsenal');
-        }}
-        style={({ pressed }) => [styles.arsenalLink, pressed && styles.dim]}
-      >
-        <Icon name="boutique" size={16} color={colors.blanc} />
-        <Text style={styles.arsenalLinkText}>Débloquer d&apos;autres frames — Arsenal</Text>
-        <Icon name="chevron" size={15} color={colors.gris} />
-      </Pressable>
+      {/* D8 : Arsenal masqué hors MVP. */}
+      {flags.arsenal ? (
+        <>
+          <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ouvrir l'Arsenal pour d'autres cosmétiques"
+          onPress={() => {
+            haptics.light();
+            router.push('/arsenal');
+          }}
+          style={({ pressed }) => [styles.arsenalLink, pressed && styles.dim]}
+        >
+          <Icon name="boutique" size={16} color={colors.blanc} />
+          <Text style={styles.arsenalLinkText}>Débloquer d&apos;autres frames — Arsenal</Text>
+          <Icon name="chevron" size={15} color={colors.gris} />
+        </Pressable>
+        </>
+      ) : null}
 
       {/* ── BADGES MIS EN AVANT (3 max) ── */}
       <Text style={styles.sectionLabel}>

@@ -52,6 +52,7 @@ import {
   spacing,
   type IconName,
 } from '@klaim/shared';
+import { flags } from '../../src/lib/flags';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { GhostButton } from '../../src/ui/GhostButton';
@@ -1336,6 +1337,8 @@ export default function CrewScreen() {
       router.navigate('/');
       return;
     }
+    // D8 : Arsenal masqué hors MVP — le don retombe sur la base du crew.
+    if (!flags.arsenal) return;
     router.push('/arsenal');
   };
 
@@ -1673,17 +1676,20 @@ export default function CrewScreen() {
           {/* ── LA décision de l'écran : défense urgente (urgentDefense). ── */}
           <UrgentMissionCard />
           {/* Lien discret (texte gris) vers toutes les missions — la War Room
-              n'est plus le CTA héros, juste une navigation légère. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Voir toutes les missions du crew"
-            hitSlop={8}
-            onPress={() => router.navigate('/warroom')}
-            style={({ pressed }) => [styles.missionsLink, pressed && styles.dim]}
-          >
-            <Text style={styles.missionsLinkText}>Toutes les missions du crew</Text>
-            <Icon name="chevron" size={14} color={colors.gris} />
-          </Pressable>
+              n'est plus le CTA héros, juste une navigation légère. D8 : hors
+              MVP la route est masquée, le lien disparaît avec elle. */}
+          {flags.warRoom ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voir toutes les missions du crew"
+              hitSlop={8}
+              onPress={() => router.navigate('/warroom')}
+              style={({ pressed }) => [styles.missionsLink, pressed && styles.dim]}
+            >
+              <Text style={styles.missionsLinkText}>Toutes les missions du crew</Text>
+              <Icon name="chevron" size={14} color={colors.gris} />
+            </Pressable>
+          ) : null}
 
           <View style={styles.baseGrid}>
             {/* Territoire — le cœur du jeu : tap → détail secteur/frontières. */}
@@ -2009,11 +2015,13 @@ export default function CrewScreen() {
                   </View>
                 ) : null}
 
-                <GhostButton
-                  label="Voir l’Arsenal"
-                  icon="boutique"
-                  onPress={() => router.push('/arsenal')}
-                />
+                {flags.arsenal ? (
+                  <GhostButton
+                    label="Voir l’Arsenal"
+                    icon="boutique"
+                    onPress={() => router.push('/arsenal')}
+                  />
+                ) : null}
               </View>
             </>
           ) : null}

@@ -28,6 +28,7 @@ import {
   NAV_BAR_HEIGHT,
 } from './metrics';
 import { useZoneSheetOpen } from '../map/mapUiStore';
+import { flags } from '../../lib/flags';
 
 interface NavItem {
   label: string;
@@ -35,11 +36,13 @@ interface NavItem {
   icon: IconName;
 }
 
-/** Les 4 destinations de la barre (2 de chaque côté du bouton central). */
+/** Les destinations de la barre (réparties autour du bouton central).
+ *  D8 : « Saison » n'existe que hors MVP (flags.season) — la surface pilote
+ *  est Carte · Crew · Moi ; les scores de saison s'accumulent quand même. */
 const TABS: readonly NavItem[] = [
   { label: 'Carte', href: '/', icon: 'carte' },
   { label: 'Crew', href: '/crew', icon: 'crew' },
-  { label: 'Saison', href: '/classement', icon: 'classement' },
+  ...(flags.season ? [{ label: 'Saison', href: '/classement', icon: 'classement' } as const] : []),
   { label: 'Moi', href: '/profil', icon: 'profil' },
 ];
 
@@ -117,10 +120,10 @@ export function GrydNavBar() {
     <>
       {/* Barre d'onglets persistante — ancrée au bord bas, pleine largeur. */}
       <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
-        {TABS.slice(0, 2).map(renderTab)}
+        {TABS.slice(0, Math.ceil(TABS.length / 2)).map(renderTab)}
         {/* Réserve du bouton central (rendu au-dessus, soulevé). */}
         <View style={styles.actionSlot} pointerEvents="none" />
-        {TABS.slice(2).map(renderTab)}
+        {TABS.slice(Math.ceil(TABS.length / 2)).map(renderTab)}
       </View>
 
       {/* Bouton central « GO » (AMENDEMENT-38) — LE seul CTA chartreuse de la nav,

@@ -19,7 +19,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { flags } from '../../src/lib/flags';
 import {
   ACTION_COEFF,
   CONTEXT_COEFF,
@@ -704,6 +705,9 @@ const CHEST_TIER_LABELS_FR: Record<string, string> = {
 type OpenSection = 'objectifs' | 'routes' | 'scout' | 'historique' | null;
 
 export default function WarRoomScreen() {
+  // D8 — surface hors MVP : route masquée (les moteurs restent intacts).
+  if (!flags.warRoom) return <Redirect href="/" />;
+
   const toast = useToast();
   // Une seule section ouverte à la fois (anti-scroll) — tout replié au montage.
   const [open, setOpen] = useState<OpenSection>(null);

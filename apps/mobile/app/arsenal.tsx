@@ -35,6 +35,8 @@ import {
   spacing,
   withAlpha,
 } from '@klaim/shared';
+import { Redirect } from 'expo-router';
+import { flags } from '../src/lib/flags';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -116,6 +118,9 @@ function priceFor(
 }
 
 export default function ArsenalScreen() {
+  // D8 — surface hors MVP : route masquée (les moteurs restent intacts).
+  if (!flags.arsenal) return <Redirect href="/" />;
+
   const insets = useSafeAreaInsets();
   useEffect(() => {
     screen('arsenal');

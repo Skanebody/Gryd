@@ -10,6 +10,7 @@
  * jeu ici — uniquement de la navigation et du texte.
  */
 import type { IconName } from '@klaim/shared';
+import { flags } from '../../lib/flags';
 
 /** Slug d'une sous-page interne rendue par app/parametres/[section].tsx. */
 export type SettingsSectionId =
@@ -74,12 +75,15 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
         detail: 'GPS, Apple Health, Strava, WHOOP…',
         icon: 'lien',
       },
-      {
-        href: '/arsenal',
-        label: 'Abonnement & achats',
-        detail: 'GRYD Club, skins, objets',
-        icon: 'boutique',
-      },
+      // D8 : Arsenal masqué hors MVP — la ligne disparaît avec la route.
+      ...(flags.arsenal
+        ? [{
+            href: '/arsenal',
+            label: 'Abonnement & achats',
+            detail: 'GRYD Club, skins, objets',
+            icon: 'boutique',
+          } as const]
+        : []),
       {
         href: '/confidentialite',
         label: 'Confidentialité',

@@ -25,6 +25,7 @@ import {
 } from '../../src/features/motivation/store';
 import { Section, SwitchRow, TogglePill } from '../../src/features/motivation/ui';
 import { useMyProfile } from '../../src/features/social/profileStore';
+import { flags } from '../../src/lib/flags';
 import { screen } from '../../src/lib/analytics';
 import { getHapticsEnabled, setHapticsEnabled } from '../../src/lib/haptics';
 import {
@@ -210,12 +211,15 @@ export default function SettingsSectionScreen() {
       {id === 'crew' ? (
         <Section label="MON CREW">
           <ValueRow label="Crew" value={profile.crewName} />
-          <ActionRow
-            icon="guerre"
-            label="Missions du crew"
-            detail="Frontières ouvertes, défenses"
-            onPress={() => router.push('/warroom')}
-          />
+          {/* D8 : War Room masquée hors MVP. */}
+          {flags.warRoom ? (
+            <ActionRow
+              icon="guerre"
+              label="Missions du crew"
+              detail="Frontières ouvertes, défenses"
+              onPress={() => router.push('/warroom')}
+            />
+          ) : null}
           <ActionRow
             icon="cloche"
             label="Notifications crew"

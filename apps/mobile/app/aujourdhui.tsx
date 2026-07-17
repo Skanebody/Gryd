@@ -16,6 +16,7 @@ import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { flags } from '../src/lib/flags';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { battleContext, goHref } from '../src/features/nav/runContext';
@@ -192,16 +193,21 @@ export default function AujourdhuiScreen() {
         <Text style={styles.linkLabel}>Mes challenges</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Ouvrir la War Room"
-        onPress={() => router.push('/warroom')}
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Icon name="guerre" size={20} color={colors.blanc} />
-        <Text style={styles.linkLabel}>War Room</Text>
-        <Icon name="chevron" size={16} color={colors.gris} />
-      </Pressable>
+      {/* D8 : War Room masquée hors MVP. */}
+      {flags.warRoom ? (
+        <>
+          <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ouvrir la War Room"
+          onPress={() => router.push('/warroom')}
+          style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+        >
+          <Icon name="guerre" size={20} color={colors.blanc} />
+          <Text style={styles.linkLabel}>War Room</Text>
+          <Icon name="chevron" size={16} color={colors.gris} />
+        </Pressable>
+        </>
+      ) : null}
     </StackScreen>
   );
 }

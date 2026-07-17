@@ -21,9 +21,10 @@
  * pas encore du serveur (Joueurs·Paris réel seulement quand source==='server').
  * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5).
  */
+import { flags } from '../../src/lib/flags';
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   POINTS_NEUTRAL_HEX,
@@ -198,6 +199,9 @@ function BoardRow({ row, board }: { row: LeagueRow; board: LeagueBoard }) {
 }
 
 export default function LeagueScreen() {
+  // D8 — surface hors MVP : route masquée (les scores s'accumulent quand même).
+  if (!flags.season) return <Redirect href="/" />;
+
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const { prefs } = useMotivationPrefs();

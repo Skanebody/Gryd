@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { flags } from '../src/lib/flags';
 import { goBack } from '../src/lib/nav';
 import {
   CREW_RECRUITMENT_STATUSES,
@@ -165,20 +166,25 @@ export default function CrewEditScreen() {
         {!tagValid ? <Text style={styles.invalid}>Le tag ne peut pas être vide.</Text> : null}
 
         {/* Anti pay-to-win : le blason vit dans l'Arsenal (lien, jamais ici). */}
-        <View style={styles.divider} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ouvrir l'Arsenal pour le blason du crew"
-          onPress={() => {
-            haptics.light();
-            router.push('/arsenal');
-          }}
-          style={({ pressed }) => [styles.crestLink, pressed && styles.dim]}
-        >
-          <Icon name="crest" size={16} color={colors.blanc} />
-          <Text style={styles.crestLinkText}>Blason &amp; cosmétiques — Arsenal</Text>
-          <Icon name="chevron" size={15} color={colors.gris} />
-        </Pressable>
+        {/* D8 : Arsenal masqué hors MVP — le lien disparaît avec la route. */}
+        {flags.arsenal ? (
+          <>
+            <View style={styles.divider} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ouvrir l'Arsenal pour le blason du crew"
+              onPress={() => {
+                haptics.light();
+                router.push('/arsenal');
+              }}
+              style={({ pressed }) => [styles.crestLink, pressed && styles.dim]}
+            >
+              <Icon name="crest" size={16} color={colors.blanc} />
+              <Text style={styles.crestLinkText}>Blason &amp; cosmétiques — Arsenal</Text>
+              <Icon name="chevron" size={15} color={colors.gris} />
+            </Pressable>
+          </>
+        ) : null}
       </View>
 
       {/* ── DESCRIPTION ── */}

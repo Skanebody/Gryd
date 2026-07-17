@@ -75,6 +75,7 @@ import {
   type NextActionIntent,
   type TerritoryDemoFlag,
 } from '../../src/features/territory/territoryStatus';
+import { flags } from '../../src/lib/flags';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -226,8 +227,14 @@ interface ProfileLink {
  */
 const LINKS: readonly ProfileLink[] = [
   // Sortis de la barre (nav 4 slots) — accès depuis « Moi » (décision fondateur).
-  { label: 'Saison', detail: 'Classement, rang, récompenses de fin', icon: 'classement', href: '/classement' },
-  { label: 'Missions', detail: 'Défense, conquête, coffre du crew', icon: 'guerre', href: '/warroom' },
+  // D8 : hors MVP fermé, Saison/Missions/Arsenal disparaissent de la SURFACE
+  // (flags.ts) — les moteurs continuent d'accumuler, rien n'est perdu au flip.
+  ...(flags.season
+    ? [{ label: 'Saison', detail: 'Classement, rang, récompenses de fin', icon: 'classement', href: '/classement' } as const]
+    : []),
+  ...(flags.warRoom
+    ? [{ label: 'Missions', detail: 'Défense, conquête, coffre du crew', icon: 'guerre', href: '/warroom' } as const]
+    : []),
   { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
   { label: 'Performance', detail: 'Score Forme, records, impact GRYD', icon: 'performance', href: '/performance' },
   { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique', href: '/historique' },
@@ -237,7 +244,9 @@ const LINKS: readonly ProfileLink[] = [
     icon: 'verrou',
     href: '/confidentialite',
   },
-  { label: 'Arsenal', detail: 'Skins, objets capés, GRYD Club', icon: 'boutique', href: '/arsenal' },
+  ...(flags.arsenal
+    ? [{ label: 'Arsenal', detail: 'Skins, objets capés, GRYD Club', icon: 'boutique', href: '/arsenal' } as const]
+    : []),
   {
     label: 'Sources connectées',
     detail: 'GPS, Apple Health, Strava, WHOOP…',

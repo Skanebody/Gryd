@@ -32,6 +32,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, radii, withAlpha } from '@klaim/shared';
+import { flags } from '../../lib/flags';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
@@ -308,12 +309,14 @@ export function BattleMapOverlays({
     screen('map_zone_details', { zone: selectedZoneId });
   };
 
-  /** CTA d'action recommandée sur la zone (le CLAIM reste tranché serveur). */
+  /** CTA d'action recommandée sur la zone (le CLAIM reste tranché serveur).
+   *  D8 : hors MVP la War Room est masquée — l'action honnête est la COURSE
+   *  (défendre/conquérir = courir), pas un écran de missions. */
   const actOnZone = () => {
     if (!selectedZoneId) return;
     haptics.light();
     screen('map_zone_act', { zone: selectedZoneId });
-    router.push('/warroom');
+    router.push(flags.warRoom ? '/warroom' : '/course-live?mode=conquete');
   };
 
   const mission = MISSIONS[0];
@@ -474,7 +477,7 @@ export function BattleMapOverlays({
 
                 {/* BLOC — DÉTAILS (missions liées + historique local). */}
                 <Text style={styles.sectionTitle}>DÉTAILS</Text>
-                {mission ? (
+                {mission && flags.warRoom ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Mission ${mission.label} — ouvrir la War Room`}
