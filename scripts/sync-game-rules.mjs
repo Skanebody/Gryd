@@ -15,7 +15,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dest = join(root, 'supabase', 'functions', '_shared');
 mkdirSync(dest, { recursive: true });
 
-for (const f of ['badges.ts', 'game-rules.ts', 'types.ts']) {
+for (const f of ['badges.ts', 'game-rules.ts', 'types.ts', 'sectorName.ts']) {
   copyFileSync(join(root, 'packages', 'shared', 'src', f), join(dest, f));
   console.log(`sync: ${f} → supabase/functions/_shared/`);
 }
