@@ -351,6 +351,14 @@ export default function PartageScreen() {
             mascot={<GripMascot rank={SHARE_GRIP_RANK} size={36} />}
           />
         </View>
+        {/* Le signal privacy vit dans l'APERÇU (retour fondateur : il rassure le
+            partageur AVANT le partage — le visuel final, lui, reste épuré). Le
+            template héros ne rend plus la note DANS l'image ; on la montre ici. */}
+        {cardProps.heroTitle && cardProps.privacyNote ? (
+          <Text style={styles.privacyCaption} numberOfLines={1}>
+            🔒 {cardProps.privacyNote}
+          </Text>
+        ) : null}
 
         {/* Format — UN segmented (accent chartreuse). */}
         <View style={styles.controlRow}>
@@ -553,6 +561,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   // Note exemple (mode sans course) — honnête, discrète, jamais < 12 px.
+  privacyCaption: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    textAlign: 'center',
+    marginTop: 8,
+  },
   exampleNote: {
     color: colors.gris,
     fontSize: fontSizes.sm,

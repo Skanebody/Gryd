@@ -20,7 +20,7 @@
  */
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Icon } from '../Icon';
 import { withAlpha } from '../../features/map/mapStyle';
 
@@ -48,6 +48,18 @@ export interface ShareCardProps {
   statLabel: string;
   /** Bandeau court en haut (« SECTEUR PRIS », « RÉPUBLIQUE DÉFENDUE »). */
   kicker?: string;
+  /**
+   * MODE HÉROS (retour fondateur 17/07 — « une information principale, une
+   * preuve visuelle, un défi ») : message principal MASSIF (« J'AI PRIS\n
+   * RÉPUBLIQUE »). Sa présence bascule la card en layout épuré 5 éléments :
+   * résultat · trace en GRAND · impact · identité · défi. Le kicker, le
+   * sous-titre, la note privacy (déplacée dans l'aperçu), la mascotte, le
+   * blason et le hashtag ne sont PAS rendus ; Verified devient « ✓ Verified »
+   * discret en haut à droite. Absent = layout historique inchangé.
+   */
+  heroTitle?: string;
+  /** Défi viral (« PRENDS-LA-MOI ») — la SEULE capsule du mode héros. */
+  challenge?: string;
   /** Titre haut (« KORO · LES FOULÉES 9³ »). */
   title?: string;
   /** Sous-titre (« Paris Est passe à 62 % »). */
@@ -88,10 +100,44 @@ export interface ShareCardProps {
   style?: ViewStyle;
 }
 
+/**
+ * Message principal du mode héros — §A.9 « textes jamais coupés » : la taille
+ * est CALCULÉE depuis la largeur mesurée (onLayout) et la ligne la plus longue,
+ * une seule taille pour tout le bloc (jamais « RÉPUBLIQ/UE », y compris sur web
+ * où adjustsFontSizeToFit n'existe pas). 0,64 em ≈ chasse moyenne des capitales
+ * en graisse 800 (letterSpacing -1 déjà déduit via le +len).
+ */
+function HeroTitleLines({ text }: { text: string }) {
+  const [blockW, setBlockW] = useState(0);
+  const lines = text.split('\n');
+  const longest = Math.max(...lines.map((l) => l.length), 1);
+  const fitted = blockW > 0 ? Math.floor((blockW + longest - 1) / (0.64 * longest)) : fontSizes.xxl;
+  const size = Math.min(fontSizes.xxl, Math.max(fontSizes.lg, fitted));
+  return (
+    <View
+      style={styles.heroTitleBlock}
+      onLayout={(e) => setBlockW(e.nativeEvent.layout.width)}
+    >
+      {lines.map((line) => (
+        <Text
+          key={line}
+          style={[styles.heroTitle, { color: colors.blanc, fontSize: size, lineHeight: size * 1.04 }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {line}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 export function ShareCard({
   stat,
   statLabel,
   kicker,
+  heroTitle,
+  challenge,
   title,
   subtitle,
   stats,
@@ -111,7 +157,9 @@ export function ShareCard({
   // « Carte seule » (AMENDEMENT-24) : chrome minimale — GRYD + KPI + 1 ligne, la
   // carte en grand. Ni kicker, ni pied de stats, ni sous-titre.
   const mapOnly = ratio === 'mapOnly';
-  const trimmed = mapOnly ? undefined : stats?.slice(0, 3);
+  // Mode héros : densité minimale — 5 éléments, rien d'autre.
+  const hero = heroTitle !== undefined && !mapOnly;
+  const trimmed = mapOnly || hero ? undefined : stats?.slice(0, 3);
   // Le KPI domine, mais un carré 1:1 (court) ne peut pas porter le hero plein :
   // on l'ajuste au ratio pour que rien ne se chevauche (web = pas d'autoshrink).
   const heroSize = ratio === 'square' ? fontSizes.xxl : fontSizes.hero;
@@ -143,7 +191,12 @@ export function ShareCard({
       <View style={[styles.chrome, hasMap ? styles.chromeOnMap : null]}>
         <View style={styles.topRow}>
           <Text style={styles.wordmark}>GRYD</Text>
-          {kicker && !mapOnly ? (
+          {hero && verified ? (
+            <Text style={styles.verifiedDiscreet} numberOfLines={1}>
+              ✓ Verified
+            </Text>
+          ) : null}
+          {kicker && !mapOnly && !hero ? (
             <View style={[styles.kickerPill, { borderColor: accent }]}>
               <Text
                 style={[styles.kickerText, { color: accent }]}
@@ -156,7 +209,9 @@ export function ShareCard({
           ) : null}
         </View>
 
-        {title && !mapOnly ? (
+        {hero ? <HeroTitleLines text={heroTitle!} /> : null}
+
+        {title && !mapOnly && !hero ? (
           <Text style={styles.title} numberOfLines={1} ellipsizeMode="clip">
             {title}
           </Text>
@@ -164,24 +219,58 @@ export function ShareCard({
 
         {/* En « Carte seule » le bloc KPI descend en bas (la carte occupe le
             haut) ; sinon il reste centré comme historiquement. */}
-        <View style={mapOnly ? styles.centerBottom : styles.center}>
-          {!hasMap ? children : null}
-          <Text
-            style={[styles.stat, { color: accent, fontSize: heroSize }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            {stat}
-          </Text>
-          <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="clip">
-            {statLabel.toUpperCase()}
-          </Text>
-          {subtitle && !mapOnly ? (
+        <View style={mapOnly ? styles.centerBottom : hero ? styles.centerHero : styles.center}>
+          {/* Héros : la trace occupe le cœur de la card (35-45 % de hauteur). */}
+          {!hasMap ? (
+            <View style={hero ? styles.heroVisual : null}>{children}</View>
+          ) : null}
+          {hero ? (
+            <View style={styles.heroImpactRow}>
+              <Text
+                style={[styles.stat, { color: accent, fontSize: heroSize }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {stat}
+              </Text>
+              <Text style={styles.heroImpactLabel} numberOfLines={1}>
+                {statLabel.toUpperCase()}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text
+                style={[styles.stat, { color: accent, fontSize: heroSize }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {stat}
+              </Text>
+              <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="clip">
+                {statLabel.toUpperCase()}
+              </Text>
+            </>
+          )}
+          {hero && title ? (
+            <Text style={styles.heroIdentity} numberOfLines={1} ellipsizeMode="clip">
+              {title}
+            </Text>
+          ) : null}
+          {subtitle && !mapOnly && !hero ? (
             <Text style={styles.subtitle} numberOfLines={2}>
               {subtitle}
             </Text>
           ) : null}
         </View>
+
+        {/* DÉFI viral — la seule capsule du mode héros. */}
+        {hero && challenge ? (
+          <View style={[styles.challengePill, { borderColor: accent }]}>
+            <Text style={[styles.challengeText, { color: accent }]} numberOfLines={1}>
+              {challenge}
+            </Text>
+          </View>
+        ) : null}
 
         {trimmed && trimmed.length > 0 ? (
           <View style={styles.statsRow}>
@@ -200,7 +289,7 @@ export function ShareCard({
 
         {/* Sceau de confiance : GRYD Verified (course validée serveur) + note
             de confidentialité (départ/arrivée masqués). Trust > décor. */}
-        {(verified && !mapOnly) || privacyNote ? (
+        {!hero && ((verified && !mapOnly) || privacyNote) ? (
           <View style={styles.trustRow}>
             {verified && !mapOnly ? (
               <View style={styles.verifiedPill}>
@@ -222,6 +311,7 @@ export function ShareCard({
           </View>
         ) : null}
 
+        {hero ? null : (
         <View style={styles.footer}>
           {/* Signature du joueur : GRIP (personnage) + blason crew, groupés à gauche. */}
           <View style={styles.footerLeft}>
@@ -230,6 +320,7 @@ export function ShareCard({
           </View>
           <Text style={styles.hashtag}>{hashtag}</Text>
         </View>
+        )}
       </View>
     </View>
   );
@@ -351,6 +442,35 @@ const styles = StyleSheet.create({
   verifiedText: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.6 },
   privacyPill: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
   privacyText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', flexShrink: 1 },
+  // ── Mode héros (5 éléments, retour fondateur 17/07) ──────────────────────
+  heroTitleBlock: { alignSelf: 'stretch' },
+  heroTitle: {
+    alignSelf: 'stretch',
+    fontSize: fontSizes.xxl,
+    lineHeight: fontSizes.xxl * 1.04,
+    fontWeight: '800',
+    letterSpacing: -1,
+  },
+  centerHero: { alignSelf: 'stretch', alignItems: 'flex-start', gap: 10, flex: 1 },
+  // La preuve visuelle : la trace en GRAND (≈ 40 % de la hauteur), centrée.
+  heroVisual: { alignSelf: 'stretch', flex: 1, alignItems: 'center', justifyContent: 'center' },
+  heroImpactRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  heroImpactLabel: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '800',
+    letterSpacing: 2,
+  },
+  heroIdentity: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600', letterSpacing: 0.5 },
+  verifiedDiscreet: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  challengePill: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: radii.pill,
+    paddingVertical: 12,
+  },
+  challengeText: { fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 2 },
   footer: {
     alignSelf: 'stretch',
     flexDirection: 'row',

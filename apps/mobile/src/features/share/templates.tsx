@@ -182,6 +182,19 @@ function stravaStats(d: ShareDemoData): readonly ShareStat[] {
 }
 
 /** Mini-carte partage réutilisée par les 5 templates SVG (VRAI tracé animé). */
+/** Trace en GRAND pour le template héros (preuve visuelle, ~40 % de la card). */
+function mapHero(d: ShareDemoData, view?: ShareView): ReactNode {
+  return (
+    <ShareMap
+      style={styles.mapHero}
+      animated={view?.animated}
+      replayKey={view?.replayKey}
+      trace={view?.trace ?? d.trace}
+      captured={view?.captured}
+    />
+  );
+}
+
 function map(d: ShareDemoData, view: ShareView | undefined, mode: 'loop' | 'defense' = 'loop'): ReactNode {
   return (
     <ShareMap
@@ -216,19 +229,23 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
       children: map(d, view),
     }),
   },
-  // 2. CONQUÊTE — « SECTEUR PRIS · +47 zones · République ».
+  // 2. CONQUÊTE — TEMPLATE PRINCIPAL, mode HÉROS (retour fondateur 17/07) :
+  //    « une information principale, une preuve visuelle, un défi ». 5 éléments :
+  //    J'AI PRIS {ZONE} · grande trace · +47 ZONES · identité · PRENDS-LA-MOI.
+  //    Supprimés du visuel : kicker, phrase narrative, note privacy (déplacée
+  //    dans l'aperçu), badge hexagonal, mascotte, hashtag. Verified = « ✓ »
+  //    discret. Beaucoup d'émotion, une seule capsule.
   {
     id: 'conquete',
     chip: 'Conquête',
     build: (d, view) => ({
-      kicker: 'SECTEUR PRIS',
+      heroTitle: `J'AI PRIS\n${d.zoneName.toUpperCase()}`,
+      challenge: 'PRENDS-LA-MOI',
       title: who(d),
       stat: `+${d.zonesGained}`,
-      statLabel: `Zones · ${d.zoneName}`,
-      subtitle: `${d.zoneName} passe côté crew`,
+      statLabel: 'Zones',
       verified: d.verified,
-      crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
-      children: map(d, view),
+      children: mapHero(d, view),
     }),
   },
   // 3. DÉFENSE — « RÉPUBLIQUE DÉFENDUE · 2 zones · +48 h » + bouclier.
@@ -340,6 +357,8 @@ export const SHARE_TEMPLATES_BY_ID: Record<ShareTemplateId, ShareTemplate> = {
 
 const styles = StyleSheet.create({
   map: { width: '50%', maxWidth: 170, maxHeight: 150 },
+  // Héros : la preuve visuelle domine — large, carrée, bornée par le slot flex.
+  mapHero: { width: '86%', maxWidth: 300, aspectRatio: 1, maxHeight: 300 },
   // Carte 3D : remplit le slot plein cadre `mapBackground` de la ShareCard.
   map3d: { flex: 1 },
   // Halo doux (glow), disque translucide sans contour dur — un emblème, pas une boîte.
