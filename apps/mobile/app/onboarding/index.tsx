@@ -33,7 +33,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { signInWithApple, signInWithGoogle, type AuthResult } from '../../src/lib/auth';
@@ -200,7 +200,7 @@ export default function OnboardingScreen() {
         >
           {/* Chevron pointé à gauche (le tracé pointe à droite → miroir, comme StackScreen). */}
           <View style={styles.backMirror}>
-            <Icon name="chevron" size={22} color={colors.gris} />
+            <Icon name="chevron" size={iconSizes.lg} color={colors.gris} />
           </View>
         </Pressable>
       ) : null}
@@ -448,7 +448,7 @@ function PathCard({
       style={({ pressed }) => [styles.pathCard, pressed && styles.pathCardPressed]}
     >
       <View style={styles.pathIcon}>
-        <Icon name={icon} size={26} color={colors.chartreuse} />
+        <Icon name={icon} size={iconSizes.lg} color={colors.chartreuse} />
       </View>
       <View style={styles.pathText}>
         <Text style={styles.pathTitle}>{title}</Text>
@@ -503,7 +503,7 @@ function SyncStep({ onDone }: { onDone: () => void }) {
                   <Text style={styles.pathTitle}>{s.name}</Text>
                   <Text style={styles.pathSubtitle}>{s.trust}</Text>
                 </View>
-                <Icon name="chevron" size={18} color={colors.gris} />
+                <Icon name="chevron" size={iconSizes.md} color={colors.gris} />
               </Pressable>
             ))}
           </View>
@@ -512,7 +512,7 @@ function SyncStep({ onDone }: { onDone: () => void }) {
           <View style={styles.syncRunning}>
             <View style={styles.syncSourceRow}>
               {chosen ? <Icon name={chosen.icon} size={20} color={colors.chartreuse} /> : null}
-              <Text style={styles.syncSourceName} numberOfLines={1} ellipsizeMode="clip">
+              <Text style={styles.syncSourceName} numberOfLines={1} adjustsFontSizeToFit>
                 {chosen?.name} · {SYNC_DEMO_RUN.whenLabel}
               </Text>
               {/* Honnêteté (§ charte n°1) : l'import réel n'est pas branché (O7/O8) —
@@ -807,9 +807,9 @@ const styles = StyleSheet.create({
   backMirror: { transform: [{ scaleX: -1 }] },
   step: { flex: 1, paddingHorizontal: spacing.cardPadding + 4 },
   // Corps : contenu principal (titre + visuel + tagline) — centré verticalement.
-  body: { flex: 1, justifyContent: 'center', paddingTop: 16 },
+  body: { flex: 1, justifyContent: 'center', paddingTop: spacing.md },
   grow: { flex: 1 },
-  footer: { paddingBottom: 16, paddingTop: 12, gap: 10 },
+  footer: { paddingBottom: spacing.md, paddingTop: spacing.sm, gap: 10 },
 
   kicker: {
     color: colors.gris,
@@ -857,11 +857,11 @@ const styles = StyleSheet.create({
   ghostLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
 
   // Sortie douce « Plus tard » — cible tactile ≥ 44 px.
-  skip: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingVertical: 12 },
+  skip: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingVertical: spacing.sm },
   skipLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
 
   // ── 1 HOOK ──
-  hookContent: { flex: 1, paddingHorizontal: 0, paddingTop: 20, paddingBottom: 0 },
+  hookContent: { flex: 1, paddingHorizontal: 0, paddingTop: spacing.lg, paddingBottom: 0 },
   brand: {
     color: colors.chartreuse, // emploi §C.3 : accent, sur fond noir (jamais clair)
     fontSize: fontSizes.lg,
@@ -884,7 +884,7 @@ const styles = StyleSheet.create({
   },
 
   // ── 2 CITY / 4 CAPTURE : le plateau ──
-  boardWrap: { marginTop: 20, marginBottom: 4 },
+  boardWrap: { marginTop: spacing.lg, marginBottom: spacing.xxs },
 
   // ── 1b / 3b / 5 / 6 : hero icône ──
   iconHero: { alignItems: 'center', marginBottom: 26 },
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
   },
 
   // ── 3 CHOOSE : cartes-chemin ──
-  pathList: { marginTop: 26, gap: 12 },
+  pathList: { marginTop: 26, gap: spacing.sm },
   pathCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -930,7 +930,7 @@ const styles = StyleSheet.create({
   },
 
   // ── 3a SYNC ──
-  sourceList: { marginTop: 22, gap: 12 },
+  sourceList: { marginTop: 22, gap: spacing.sm },
   sourceCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -941,15 +941,15 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     padding: spacing.cardPadding - 2,
   },
-  syncRunning: { marginTop: 24 },
-  syncSourceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  syncRunning: { marginTop: spacing.xl },
+  syncSourceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   syncSourceName: { flexShrink: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
   // Tag « Exemple » discret : dit la vérité (import démo) sans casser la scène.
   demoTag: {
     borderWidth: 1,
     borderColor: colors.grisLigne,
     borderRadius: radii.pill,
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.xs,
     paddingVertical: 2,
   },
   demoTagLabel: {
@@ -958,9 +958,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
-  syncRunMeta: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 4 },
+  syncRunMeta: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.xxs },
   syncSteps: { marginTop: 22, gap: 14 },
-  syncStepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  syncStepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   syncDot: {
     width: 22,
     height: 22,
@@ -981,14 +981,14 @@ const styles = StyleSheet.create({
   syncDotDone: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse },
   syncStepLabel: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
   syncStepLabelOn: { color: colors.blanc },
-  syncBarWrap: { marginTop: 24 },
+  syncBarWrap: { marginTop: spacing.xl },
   syncHint: {
     color: colors.chartreuse,
     fontSize: fontSizes.xs,
     fontWeight: '600',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    marginTop: 16,
+    marginTop: spacing.md,
   },
 
   // ── 3b RUN ──
@@ -1020,7 +1020,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.6,
   },
-  captureStat: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 20 },
+  captureStat: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: spacing.lg },
   captureNumber: {
     color: colors.chartreuse,
     fontSize: fontSizes.heroMax,
@@ -1030,7 +1030,7 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.heroMax,
   },
   captureUnit: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
-  captureSub: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 8 },
+  captureSub: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.xs },
 
   // Message d'échec d'auth (honnête) : centré, lisible (≥ 12 px), non chartreuse.
   authError: {
@@ -1038,6 +1038,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: '500',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xxs,
   },
 });

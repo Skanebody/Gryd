@@ -13,7 +13,7 @@
  */
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Platform } from 'react-native';
-import { colors, fontSizes, gameColors, radii, spacing, withAlpha } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing, withAlpha } from '@klaim/shared';
 import { Icon } from '../../../ui/Icon';
 import { StatePill } from '../../../ui/game';
 import type { GpsSignalState } from './engine/gps';
@@ -157,7 +157,7 @@ export function BackgroundHelpSheet({
       <View style={styles.sheetBackdrop}>
         <View style={styles.sheet}>
           <View style={styles.sheetHead}>
-            <Icon name="gps" size={18} color={colors.chartreuse} />
+            <Icon name="gps" size={iconSizes.md} color={colors.chartreuse} />
             <Text style={styles.sheetTitle}>COURIR ÉCRAN ÉTEINT</Text>
             <Pressable
               accessibilityRole="button"
@@ -246,8 +246,11 @@ const styles = StyleSheet.create({
     borderColor: colors.chartreuse,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    minHeight: sizes.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  bannerBtnText: { color: colors.chartreuse, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  bannerBtnText: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1 },
 
   card: {
     backgroundColor: gameColors.carbon,
@@ -259,7 +262,7 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     alignSelf: 'center',
   },
-  cardTitle: { color: colors.gris, fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
+  cardTitle: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.6 },
   cardText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   cardRow: { flexDirection: 'row', gap: 10, marginTop: 2 },
   cardBtnMain: {
@@ -268,6 +271,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: sizes.touchTarget,
   },
   cardBtnMainText: { color: colors.noir, fontSize: fontSizes.xs, fontWeight: '900', letterSpacing: 1 },
   cardBtnGhost: {
@@ -277,6 +282,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: sizes.touchTarget,
   },
   cardBtnGhostText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1 },
 
@@ -329,6 +336,6 @@ const styles = StyleSheet.create({
   helpHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   helpVendor: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800', flex: 1 },
   helpVendorActive: { color: colors.chartreuse },
-  helpTag: { color: colors.chartreuse, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  helpTag: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1 },
   helpStep: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17 },
 });

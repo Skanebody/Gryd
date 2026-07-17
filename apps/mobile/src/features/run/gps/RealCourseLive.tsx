@@ -21,7 +21,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { VERIFIED_MIN_TRUST, colors, fontSizes, gameColors, motion, radii, spacing } from '@klaim/shared';
+import { VERIFIED_MIN_TRUST, colors, fontSizes, gameColors, iconSizes, motion, radii, spacing } from '@klaim/shared';
 import { screen } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
 import { Icon } from '../../../ui/Icon';
@@ -125,14 +125,14 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         ) : null}
         {!conquest ? (
           <View style={styles.statsOnlyPill}>
-            <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={13} color={colors.gris} />
+            <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={iconSizes.xs} color={colors.gris} />
             <Text style={styles.statsOnlyText}>{modeLabel} — stats uniquement, aucune capture</Text>
           </View>
         ) : null}
         {run.approxLocation ? <PreciseLocationBanner onOpenSettings={run.openSettings} /> : null}
         {run.bgPrompt === 'denied' ? (
           <View style={styles.statsOnlyPill}>
-            <Icon name="gps" size={13} color={colors.gris} />
+            <Icon name="gps" size={iconSizes.xs} color={colors.gris} />
             <Text style={styles.statsOnlyText}>Course enregistrée quand l’app est ouverte.</Text>
           </View>
         ) : null}
@@ -157,7 +157,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         </Text>
 
         {conquest ? (
-          <Text style={styles.zonesValue} numberOfLines={1}>
+          <Text style={styles.zonesValue} numberOfLines={1} adjustsFontSizeToFit>
             +{formatInt(s.zonesEstimated)} ZONES ESTIMÉES
           </Text>
         ) : null}
@@ -190,7 +190,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
 
         {verified ? (
           <View style={styles.verifiedPill}>
-            <Icon name="bouclier" size={13} color={gameColors.verify} />
+            <Icon name="bouclier" size={iconSizes.xs} color={gameColors.verify} />
             <Text style={styles.verifiedText}>GRYD VERIFIED</Text>
           </View>
         ) : null}
@@ -200,7 +200,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           <View style={styles.trustHead}>
             <Icon
               name="gps"
-              size={14}
+              size={iconSizes.sm}
               color={s.gpsTrust >= VERIFIED_MIN_TRUST ? gameColors.verify : gameColors.danger}
             />
             <Text style={styles.trustLabel}>GPS TRUST</Text>
@@ -333,13 +333,13 @@ const styles = StyleSheet.create({
   topPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs,
     backgroundColor: gameColors.carbon,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: spacing.xs,
   },
   topPillText: {
     color: colors.blanc,
@@ -359,16 +359,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: spacing.xxs,
   },
-  statsOnlyText: { color: colors.gris, fontSize: 11 },
+  statsOnlyText: { color: colors.gris, fontSize: fontSizes.xs },
 
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.cardPadding,
-    gap: 4,
+    gap: spacing.xxs,
   },
   heroKicker: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 2.4 },
   heroValue: {
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
     fontVariant: ['tabular-nums'],
-    marginTop: 4,
+    marginTop: spacing.xxs,
   },
   loopHintReady: { color: colors.chartreuse },
   secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 22, marginTop: 18 },
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
-  secondaryLabel: { color: colors.gris, fontSize: 9.5, fontWeight: '700', letterSpacing: 1.4 },
+  secondaryLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1.4 },
   secondaryDivider: { width: 1, height: 30, backgroundColor: colors.grisLigne },
   verifiedPill: {
     flexDirection: 'row',
@@ -416,20 +416,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: gameColors.verify,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: spacing.xxs,
     marginTop: 16,
   },
-  verifiedText: { color: gameColors.verify, fontSize: 10.5, fontWeight: '800', letterSpacing: 1.4 },
+  verifiedText: { color: gameColors.verify, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.4 },
   trustGauge: { width: 190, gap: 5, marginTop: 18 },
   trustHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trustLabel: { color: colors.gris, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.8, flex: 1 },
+  trustLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.8, flex: 1 },
   trustValue: { fontSize: fontSizes.sm, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
   controls: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 26,
+    gap: spacing.xl,
   },
   bigControlWrap: { alignItems: 'center', gap: 7 },
   bigDisc: {
@@ -449,5 +449,5 @@ const styles = StyleSheet.create({
     borderColor: colors.blanc35,
   },
   bigStopSquare: { width: 18, height: 18, borderRadius: 3.5, backgroundColor: colors.blanc },
-  bigLabel: { color: colors.gris, fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2 },
+  bigLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.2 },
 });

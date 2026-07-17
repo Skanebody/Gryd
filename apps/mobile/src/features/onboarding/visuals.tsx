@@ -23,7 +23,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Polyline, G } from 'react-native-svg';
-import { colors, gameColors } from '@klaim/shared';
+import { colors, gameColors, radii } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game';
 import { territoryStyle, traceStyle, withAlpha } from '../map/mapStyle';
 import { fitTracesToBox, tracePrefix } from '../map/projectTrace';
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   board: {
     width: '100%',
     aspectRatio: BOARD_W / BOARD_H,
-    borderRadius: 20,
+    borderRadius: radii.card,
     borderWidth: 1,
     borderColor: withAlpha(colors.blanc, 0.12),
     backgroundColor: gameColors.carbon,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   capture: {
     width: '100%',
     aspectRatio: BOARD_W / BOARD_H,
-    borderRadius: 20,
+    borderRadius: radii.card,
     borderWidth: 1,
     borderColor: withAlpha(colors.chartreuse, 0.3),
     backgroundColor: gameColors.carbon,
@@ -347,13 +347,13 @@ const styles = StyleSheet.create({
   },
   syncTrack: {
     height: 8,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.carbone2,
     overflow: 'hidden',
   },
   syncFill: {
     height: '100%',
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,
   },
 });

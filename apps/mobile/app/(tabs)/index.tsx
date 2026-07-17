@@ -19,7 +19,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii } from '@klaim/shared';
 import { MapScreen } from '../../src/features/map/MapScreen';
 import {
   MAP_FRESHNESS,
@@ -164,7 +164,7 @@ function MissionLine() {
         >
           {MISSION_LINE_TEXT}
         </Text>
-        <Icon name="chevron" size={14} color={colors.gris} />
+        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
       </Pressable>
 
       {detailOpen ? (
@@ -189,7 +189,7 @@ function MissionLine() {
             <Text style={styles.detailActionLabel} numberOfLines={1}>
               Planifier un parcours
             </Text>
-            <Icon name="chevron" size={14} color={colors.blanc} />
+            <Icon name="chevron" size={iconSizes.sm} color={colors.blanc} />
           </Pressable>
         </View>
       ) : null}

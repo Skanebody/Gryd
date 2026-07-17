@@ -49,6 +49,7 @@ import {
   fontSizes,
   gameColors,
   radii,
+  sizes,
   spacing,
   type IconName,
 } from '@klaim/shared';
@@ -2789,7 +2790,7 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
-    marginTop: 26,
+    marginTop: spacing.xl,
     marginBottom: 12,
   },
   // ── AUJOURD'HUI (colle quotidienne) : UNE surface N1 de section (§A.3, une
@@ -2845,7 +2846,7 @@ const styles = StyleSheet.create({
   glueLabelDone: { color: colors.gris },
   glueSub: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 15 },
   // Chip d'état « Fait · +5 XP » (chartreuse discret) — statut social, pas un gain.
-  glueDone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  glueDone: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
   glueDoneLabel: {
     color: gameColors.crew,
     fontSize: fontSizes.xs,
@@ -2956,7 +2957,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   // Rangée d'IconAction (Inviter · Modifier) répartie, façon Strava.
-  headerActions: { flexDirection: 'row', justifyContent: 'center', gap: 40 },
+  headerActions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xxl },
   // ── Segmented HQ (primitive) : posé sur le fond, respire au-dessus de la Base. ──
   hqSegmented: { marginTop: 16 },
   // ── Notice (feedback démo) : toast N2 relevé, sans contour permanent. ──
@@ -3020,12 +3021,12 @@ const styles = StyleSheet.create({
   boostIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: radii.control,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: elevation.raised,
   },
-  boostBody: { flex: 1, gap: 3 },
+  boostBody: { flex: 1, gap: spacing.xxs },
   boostTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   boostTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '800' },
   boostBonus: {
@@ -3058,7 +3059,7 @@ const styles = StyleSheet.create({
   wallCheckbox: {
     width: 24,
     height: 24,
-    borderRadius: 7,
+    borderRadius: radii.sm,
     borderWidth: 1.5,
     borderColor: borderState.hairline,
     alignItems: 'center',
@@ -3255,13 +3256,13 @@ const styles = StyleSheet.create({
   actionIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: radii.control,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: elevation.raised,
   },
-  actionBody: { flex: 1, gap: 3 },
+  actionBody: { flex: 1, gap: spacing.xxs },
   actionTitle: {
     color: colors.blanc,
     fontSize: fontSizes.md,
@@ -3273,9 +3274,10 @@ const styles = StyleSheet.create({
   // chartreuse plein par scène (§A.4) : dans le Chat c'est « Demander de
   // l'aide » — les cartes gardent un bouton clair mais en poids secondaire.
   actionCta: {
+    minHeight: sizes.touchTarget,
     backgroundColor: elevation.raised,
     borderRadius: radii.pill,
-    paddingVertical: 13,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3344,13 +3346,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'transparent',
     backgroundColor: elevation.raised,
     paddingVertical: 10,
-    paddingHorizontal: 13,
+    paddingHorizontal: spacing.sm,
   },
   giftReactMine: { borderColor: borderState.active },
   giftReactLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
@@ -3369,7 +3371,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 4,
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     borderRadius: radii.pill,
     backgroundColor: elevation.raised,
     paddingVertical: 10,
@@ -3384,9 +3386,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    minHeight: sizes.touchTarget,
     backgroundColor: gameColors.crew,
     borderRadius: radii.pill,
-    paddingVertical: 13,
+    paddingVertical: spacing.sm,
   },
   // Libellé NOIR sur chartreuse (contraste charte, jamais l'inverse).
   askBtnLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.3 },
@@ -3394,7 +3397,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: spacing.xs,
     paddingVertical: 12,
   },
   offerLinkLabel: { color: gameColors.gold, fontSize: fontSizes.xs, fontWeight: '600' },
@@ -3435,8 +3438,9 @@ const styles = StyleSheet.create({
   cadeauMessage: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.4 },
   cadeauMeta: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2, fontVariant: ['tabular-nums'] },
   cadeauCta: {
+    minHeight: sizes.touchTarget,
     borderRadius: radii.pill,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -3490,7 +3494,7 @@ const styles = StyleSheet.create({
     borderTopColor: borderState.hairline,
   },
   // Liens de modération : padding vertical généreux → cible tactile ≥ 44 px.
-  moderationLink: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 12 },
+  moderationLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: sizes.touchTarget, paddingVertical: 12 },
   moderationLinkText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   blockedEmpty: { color: colors.gris, fontSize: fontSizes.sm, paddingVertical: 16 },
   unblockBtn: {
@@ -3574,13 +3578,13 @@ const styles = StyleSheet.create({
   rsvpRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
   // Choix RSVP = pills N2 relevés sans contour ; sélection/engagement = état N3.
   rsvpChip: {
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     justifyContent: 'center',
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'transparent',
     backgroundColor: elevation.raised,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 14,
   },
   rsvpChipSelected: { borderColor: colors.blanc },
@@ -3597,7 +3601,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 12,
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     borderRadius: radii.pill,
     backgroundColor: elevation.raised,
     paddingVertical: 10,
@@ -3618,7 +3622,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     paddingVertical: 14,
     paddingHorizontal: spacing.cardPadding,
-    marginTop: 26,
+    marginTop: spacing.xl,
   },
   discoveryText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   // ── Sheet membre ──
@@ -3644,7 +3648,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sheetName: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', letterSpacing: -0.3 },
-  sheetRole: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3, marginBottom: 12 },
+  sheetRole: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs, marginBottom: 12 },
   sheetAction: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3676,9 +3680,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    minHeight: sizes.touchTarget,
     backgroundColor: gameColors.crew,
     borderRadius: radii.pill,
-    paddingVertical: 13,
+    paddingVertical: spacing.sm,
     marginBottom: 4,
   },
   outingCreateLabel: {
@@ -3699,7 +3704,7 @@ const styles = StyleSheet.create({
   outingIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: radii.control,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
@@ -3724,12 +3729,12 @@ const styles = StyleSheet.create({
   // RSVP = chips (§A.4, pas de 2ᵉ gros CTA) — calqué sur les chips RSVP défense.
   outingRsvpRow: { flexDirection: 'row', gap: 8, marginTop: 2, flexWrap: 'wrap' },
   outingRsvpChip: {
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     justifyContent: 'center',
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: borderState.hairline,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 14,
   },
   outingRsvpChipSelected: { borderColor: colors.blanc },
@@ -3774,8 +3779,9 @@ const styles = StyleSheet.create({
   },
   outingObjLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
   outingSubmit: {
+    minHeight: sizes.touchTarget,
     borderRadius: radii.pill,
-    paddingVertical: 13,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 18,

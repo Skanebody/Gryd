@@ -31,7 +31,7 @@ import { setZoneSheetOpen } from './mapUiStore';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii, withAlpha } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
 import { flags } from '../../lib/flags';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
@@ -432,17 +432,17 @@ export function BattleMapOverlays({
                       ]}
                     >
                       <View style={styles.rowBody}>
-                        <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
+                        <Text style={styles.rowTitle} numberOfLines={1} adjustsFontSizeToFit>
                           {p.name}
                         </Text>
-                        <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
+                        <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
                           {formatKm(meta.distanceKm)} · {zonesLabel(meta.hexes)} · +{meta.points} pts
                         </Text>
                       </View>
                       {selected ? (
                         <Text style={styles.onMapTag}>SUR LA CARTE</Text>
                       ) : (
-                        <Icon name="chevron" size={14} color={colors.gris} />
+                        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
                       )}
                     </Pressable>
                   );
@@ -452,13 +452,13 @@ export function BattleMapOverlays({
                 <Text style={styles.sectionTitle}>ÉQUIPE</Text>
                 <View style={styles.rowCard}>
                   <View style={styles.rowIcon}>
-                    <Icon name="ami" size={14} color={gameColors.crew} />
+                    <Icon name="ami" size={iconSizes.sm} color={gameColors.crew} />
                   </View>
                   <View style={styles.rowBody}>
                     <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
                       {MATES_OPT_IN.length} alliés proches
                     </Text>
-                    <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
+                    <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
                       {nearestMateName} · {formatKm(nearestMateKm)}
                     </Text>
                   </View>
@@ -488,17 +488,17 @@ export function BattleMapOverlays({
                     style={({ pressed }) => [styles.rowCard, pressed && styles.pressed]}
                   >
                     <View style={styles.rowIcon}>
-                      <Icon name="cible" size={14} color={colors.blanc} />
+                      <Icon name="cible" size={iconSizes.sm} color={colors.blanc} />
                     </View>
                     <View style={styles.rowBody}>
-                      <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
+                      <Text style={styles.rowTitle} numberOfLines={1} adjustsFontSizeToFit>
                         {mission.label}
                       </Text>
-                      <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
+                      <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
                         {mission.progress}/{mission.target} · mission du jour
                       </Text>
                     </View>
-                    <Icon name="chevron" size={14} color={colors.gris} />
+                    <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
                   </Pressable>
                 ) : null}
                 <Pressable
@@ -511,7 +511,7 @@ export function BattleMapOverlays({
                   style={({ pressed }) => [styles.rowCard, pressed && styles.pressed]}
                 >
                   <View style={styles.rowIcon}>
-                    <Icon name="historique" size={14} color={colors.blanc} />
+                    <Icon name="historique" size={iconSizes.sm} color={colors.blanc} />
                   </View>
                   <View style={styles.rowBody}>
                     <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
@@ -521,7 +521,7 @@ export function BattleMapOverlays({
                       Tes courses passées
                     </Text>
                   </View>
-                  <Icon name="chevron" size={14} color={colors.gris} />
+                  <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
                 </Pressable>
               </View>
             }
@@ -553,18 +553,18 @@ function TerritoryWidgetPeek({
       <View style={styles.peekHead}>
         <View style={styles.missionBar} />
         <View style={styles.rowBody}>
-          <Text style={styles.peekTitle} numberOfLines={1} ellipsizeMode="clip">
+          <Text style={styles.peekTitle} numberOfLines={1} adjustsFontSizeToFit>
             {view.title}
           </Text>
           {view.lines[0] ? (
-            <Text style={styles.peekMeta} numberOfLines={1} ellipsizeMode="clip">
+            <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
               {view.lines[0]}
             </Text>
           ) : null}
         </View>
       </View>
       {view.lines[1] ? (
-        <Text style={styles.peekMeta} numberOfLines={1} ellipsizeMode="clip">
+        <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
           {view.lines[1]}
         </Text>
       ) : null}
@@ -607,16 +607,16 @@ function MissionPeek({ onOptions }: { onOptions: () => void }) {
       <View style={styles.peekHead}>
         <View style={styles.missionBar} />
         <View style={styles.rowBody}>
-          <Text style={styles.peekTitle} numberOfLines={1} ellipsizeMode="clip">
+          <Text style={styles.peekTitle} numberOfLines={1} adjustsFontSizeToFit>
             {s.zone} sous pression
           </Text>
-          <Text style={styles.peekMeta} numberOfLines={1} ellipsizeMode="clip">
+          <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
             {zonesLabel(MAP_MISSION.zones)} · {formatKm(MAP_MISSION.distanceKm)}
           </Text>
         </View>
       </View>
       {/* Rival nommé (§26.2) — teinte rival (orange), informatif, sans CTA. */}
-      <Text style={styles.peekRival} numberOfLines={1} ellipsizeMode="clip">
+      <Text style={styles.peekRival} numberOfLines={1} adjustsFontSizeToFit>
         {MAP_RIVAL_PILL.message}
       </Text>
       <Pressable
@@ -691,7 +691,7 @@ function ZonePeek({
     <View style={styles.info}>
       <View style={styles.zoneHead}>
         <View style={[styles.zonePastille, { backgroundColor: ZONE_ROLE_TINT[detail.ownerRole] }]} />
-        <Text style={styles.zoneName} numberOfLines={1} ellipsizeMode="clip">
+        <Text style={styles.zoneName} numberOfLines={1} adjustsFontSizeToFit>
           {detail.name}
         </Text>
         <Pressable
@@ -705,7 +705,7 @@ function ZonePeek({
         </Pressable>
       </View>
 
-      <Text style={styles.zoneOwner} numberOfLines={1} ellipsizeMode="clip">
+      <Text style={styles.zoneOwner} numberOfLines={1} adjustsFontSizeToFit>
         {ownerLine}
       </Text>
       <Text style={styles.zoneControl} numberOfLines={1}>
@@ -713,7 +713,7 @@ function ZonePeek({
       </Text>
 
       {/* ACTION RECOMMANDÉE §10 : ligne informative + 1 CTA chartreuse. */}
-      <Text style={styles.zoneActionLine} numberOfLines={1} ellipsizeMode="clip">
+      <Text style={styles.zoneActionLine} numberOfLines={1} adjustsFontSizeToFit>
         {actionLine(detail)}
       </Text>
       <Pressable
@@ -767,7 +767,7 @@ function ZoneDetailBlock({
       </Text>
 
       <Text style={styles.sectionTitle}>PRESSION</Text>
-      <Text style={styles.zoneDetailLine} numberOfLines={1} ellipsizeMode="clip">
+      <Text style={styles.zoneDetailLine} numberOfLines={1} adjustsFontSizeToFit>
         {p.topRivalName} {p.topRivalPct} % · Neutre {p.neutralPct} %
       </Text>
 
@@ -786,7 +786,7 @@ function ZoneDetailBlock({
         style={({ pressed }) => [styles.rowCard, pressed && styles.pressed]}
       >
         <View style={styles.rowIcon}>
-          <Icon name="historique" size={14} color={colors.blanc} />
+          <Icon name="historique" size={iconSizes.sm} color={colors.blanc} />
         </View>
         <View style={styles.rowBody}>
           <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
@@ -796,7 +796,7 @@ function ZoneDetailBlock({
             Conquêtes et défenses passées
           </Text>
         </View>
-        <Icon name="chevron" size={14} color={colors.gris} />
+        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
       </Pressable>
     </View>
   );
@@ -1066,7 +1066,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: radii.control,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone,
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
   rowIcon: {
     width: 26,
     height: 26,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     alignItems: 'center',

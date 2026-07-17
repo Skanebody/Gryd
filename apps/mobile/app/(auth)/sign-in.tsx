@@ -18,7 +18,7 @@ import { Redirect } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
-import { colors, fontSizes, mapTokens, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
 import {
   requestEmailOtp,
@@ -284,6 +284,7 @@ export default function SignInScreen() {
                 setCode('');
                 void run(() => requestEmailOtp(email.trim()));
               }}
+              style={{ minHeight: sizes.touchTarget, justifyContent: 'center', alignItems: 'center' }}
             >
               <Text style={styles.otpResend}>Renvoyer le code</Text>
             </Pressable>
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.noir,
-    paddingHorizontal: spacing.cardPadding + 4,
+    paddingHorizontal: spacing.xl,
   },
   // Le contenu garde le layout space-between historique (hero en haut, actions en
   // bas), mais devient défilable quand le clavier réduit la hauteur utile.
@@ -330,7 +331,7 @@ const styles = StyleSheet.create({
     marginTop: 22,
     maxWidth: 320,
   },
-  actions: { gap: 11 },
+  actions: { gap: spacing.sm },
   appleButton: { height: 56, width: '100%' },
   ghostButton: {
     height: 52,

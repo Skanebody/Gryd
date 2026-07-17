@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, gameColors } from '@klaim/shared';
+import { colors, fontSizes, gameColors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { Icon } from '../../ui/Icon';
 import {
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     color: colors.gris,
-    fontSize: 11,
+    fontSize: fontSizes.xs,
   },
 });
 

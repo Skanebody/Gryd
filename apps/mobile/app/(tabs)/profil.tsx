@@ -39,7 +39,9 @@ import {
   elevation,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
+  sizes,
   spacing,
   type IconName,
   type SkillDef,
@@ -356,7 +358,7 @@ export default function ProfilScreen() {
           pressed && styles.dim,
         ]}
       >
-        <Icon name="reglages" size={22} color={colors.blanc} />
+        <Icon name="reglages" size={iconSizes.lg} color={colors.blanc} />
       </Pressable>
       <TabScreen title={profile.displayName} kicker="CARTE DE JOUEUR">
         {/* ── Player Card compacte : identité + 2 chiffres clés + rang ── */}
@@ -379,7 +381,7 @@ export default function ProfilScreen() {
                 isMe
               />
               <View style={styles.editPencil}>
-                <Icon name="profil" size={13} color={colors.chartreuse} />
+                <Icon name="profil" size={iconSizes.xs} color={colors.chartreuse} />
               </View>
             </Pressable>
             <View style={styles.headerInfo}>
@@ -450,7 +452,7 @@ export default function ProfilScreen() {
             Ce que je contrôle · ce qui est menacé · ma PROCHAINE action. Card
             compacte ≤ 260 px, 60 % stats / 40 % mini-carte, CTA CONTEXTUEL. */}
         <View style={styles.sectionRow}>
-          <Icon name="pin" size={14} color={colors.gris} />
+          <Icon name="pin" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>MON TERRITOIRE</Text>
         </View>
         {/* Card = View (pas Pressable) : la CTA est un bouton propre à part
@@ -466,7 +468,7 @@ export default function ProfilScreen() {
             {/* Bannière de crise (SOUS ATTAQUE) — ton rival, au-dessus du reste */}
             {territory.alert ? (
               <View style={styles.territoryAlert}>
-                <Icon name="alerte" size={13} color={colors.noir} />
+                <Icon name="alerte" size={iconSizes.xs} color={colors.noir} />
                 <Text style={styles.territoryAlertText} numberOfLines={1}>
                   {territory.alert}
                 </Text>
@@ -556,7 +558,7 @@ export default function ProfilScreen() {
             onPress={() => router.push(territory.soloCrewHint!.route)}
             style={({ pressed }) => [styles.soloCrewCard, pressed && styles.dim]}
           >
-            <Icon name="crew" size={18} color={colors.chartreuse} />
+            <Icon name="crew" size={iconSizes.md} color={colors.chartreuse} />
             <View style={styles.soloCrewInfo}>
               <Text style={styles.soloCrewHeadline} numberOfLines={1}>
                 {territory.soloCrewHint.headline}
@@ -574,7 +576,7 @@ export default function ProfilScreen() {
 
         {/* ── MODULE 2 · PROGRESSION : Niveau N → N+1, jauge XP réelle ── */}
         <View style={styles.sectionRow}>
-          <Icon name="niveau" size={14} color={colors.gris} />
+          <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>PROGRESSION</Text>
         </View>
         <View style={styles.progressCard}>
@@ -622,7 +624,7 @@ export default function ProfilScreen() {
 
         {/* ── MODULE 3 · BADGES : 3 équipés + « Voir collection » (pas géant) ── */}
         <View style={styles.sectionRow}>
-          <Icon name="badge" size={14} color={colors.gris} />
+          <Icon name="badge" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>BADGES ÉQUIPÉS</Text>
         </View>
         <View style={styles.badgeRow}>
@@ -669,7 +671,7 @@ export default function ProfilScreen() {
             Verrouillé (niveau 0) → « commence à <seuil I> ». Anti pay-to-win :
             AUCUN gain de territoire/points affiché (Supporter = entraide only). */}
         <View style={styles.sectionRow}>
-          <Icon name="niveau" size={14} color={colors.gris} />
+          <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>SPÉCIALISATIONS</Text>
           <Text style={styles.sectionRowCount}>{skillsUnlockedCount}/{SKILLS.length}</Text>
         </View>
@@ -683,7 +685,7 @@ export default function ProfilScreen() {
               <View key={s.def.id} style={styles.skillRow}>
                 <Icon
                   name={s.def.icon as IconName}
-                  size={22}
+                  size={iconSizes.lg}
                   color={locked ? colors.gris : colors.chartreuse}
                 />
                 <View style={styles.skillInfo}>
@@ -774,8 +776,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: spacing.cardPadding - 6,
     zIndex: 10,
-    width: 44,
-    height: 44,
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -785,7 +787,7 @@ const styles = StyleSheet.create({
   //    Pas de contour (80/20 : un cadre de card n'est pas un état) — elle se
   //    détache du fond par sa surface + l'espace, pas par une bordure. ──
   headerCard: {
-    marginTop: 16,
+    marginTop: spacing.md,
     backgroundColor: elevation.surface,
     borderRadius: radii.card,
     padding: spacing.cardPadding,
@@ -818,8 +820,8 @@ const styles = StyleSheet.create({
     marginTop: 3,
     letterSpacing: 0.3,
   },
-  identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, letterSpacing: 0.3 },
-  crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs, letterSpacing: 0.3 },
+  crewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
   crewName: {
     flex: 1,
     color: colors.blanc,
@@ -836,8 +838,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    marginTop: 24,
-    marginBottom: 12,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
 
@@ -848,7 +850,7 @@ const styles = StyleSheet.create({
     backgroundColor: elevation.surface,
     borderRadius: radii.card,
     padding: spacing.cardPadding,
-    gap: 8,
+    gap: spacing.xs,
     overflow: 'hidden',
   },
   // Bannière de crise (SOUS ATTAQUE) — pleine, ton rival, texte foncé (contraste)
@@ -869,13 +871,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   // Corps 60/40 : stats à gauche, mini-carte à droite
-  territoryBody: { flexDirection: 'row', gap: 12 },
+  territoryBody: { flexDirection: 'row', gap: spacing.sm },
   territoryStats: { flex: 3, justifyContent: 'space-between', gap: 5 },
   territoryStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusLabel: { fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.8 },
   // Gros chiffre héros + unité à droite, portée en dessous (pleine largeur)
-  territoryHero: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  territoryHero: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
   territoryHeroNum: {
     color: colors.chartreuse,
     fontSize: 32,
@@ -890,7 +892,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.3,
     letterSpacing: 0.2,
-    paddingBottom: 4,
+    paddingBottom: spacing.xxs,
   },
   territoryHeroScope: {
     color: colors.blanc,
@@ -904,7 +906,7 @@ const styles = StyleSheet.create({
   territoryMini: {
     flex: 2,
     minHeight: 92,
-    borderRadius: 12,
+    borderRadius: radii.control,
     overflow: 'hidden',
     backgroundColor: elevation.base,
   },
@@ -915,7 +917,7 @@ const styles = StyleSheet.create({
     gap: 10,
     borderTopWidth: 1,
     borderTopColor: borderState.hairline,
-    paddingTop: 8,
+    paddingTop: spacing.xs,
   },
   territoryNext: {
     flex: 1,
@@ -927,10 +929,10 @@ const styles = StyleSheet.create({
   // CTA contextuel — cible de tap ≥ 44 px.
   territoryCta: {
     borderRadius: radii.pill,
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
   },
   territoryCtaLabel: { fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.6 },
 
@@ -940,14 +942,14 @@ const styles = StyleSheet.create({
   soloCrewCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.sm,
     backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: borderState.activeSoft,
     paddingVertical: 14,
     paddingHorizontal: spacing.cardPadding,
-    marginTop: 12,
+    marginTop: spacing.sm,
   },
   soloCrewInfo: { flex: 1 },
   soloCrewHeadline: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
@@ -962,7 +964,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   gripRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  gripInfo: { flex: 1, gap: 8, justifyContent: 'center' },
+  gripInfo: { flex: 1, gap: spacing.xs, justifyContent: 'center' },
   gripRankName: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
@@ -978,7 +980,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.3,
   },
-  progressStatsRow: { flexDirection: 'row', marginTop: 4 },
+  progressStatsRow: { flexDirection: 'row', marginTop: spacing.xxs },
   progressStat: { flex: 1, gap: 2 },
   progressStatValue: {
     color: colors.blanc,
@@ -995,9 +997,9 @@ const styles = StyleSheet.create({
   badgeCell: {
     flex: 1,
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.xs,
   },
   badgeName: {
     color: colors.blanc,
@@ -1012,8 +1014,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    paddingHorizontal: 4,
-    marginTop: 8,
+    paddingHorizontal: spacing.xxs,
+    marginTop: spacing.xs,
   },
   collectionLinkLabel: {
     flex: 1,
@@ -1038,9 +1040,9 @@ const styles = StyleSheet.create({
   skillRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.sm,
     paddingVertical: 11,
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xxs,
     borderBottomWidth: 1,
     borderBottomColor: borderState.hairline,
   },
@@ -1074,7 +1076,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     letterSpacing: 2,
     marginTop: 26,
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
   // PLUS = liste de navigation LÉGÈRE (façon Strava) : rows posées sur l'espace,
   //  séparées par un filet neutre (borderState.hairline), PAS une card par lien.
@@ -1083,7 +1085,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     paddingVertical: 15,
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xxs,
     borderBottomWidth: 1,
     borderBottomColor: borderState.hairline,
   },

@@ -39,6 +39,7 @@ import {
   colors,
   fontSizes,
   gameColors,
+  iconSizes,
   motion,
   radii,
   spacing,
@@ -796,10 +797,10 @@ function DemoCourseLive({
                     RÉSULTAT (post-run niveau 2, §A-12/14/15), jamais ici. */}
                 {/* Prochain repère de nav : virage + distance (« à 200 m ») */}
                 <View style={styles.rowCard}>
-                  <Icon name="virage" size={18} color={colors.blanc} />
+                  <Icon name="virage" size={iconSizes.md} color={colors.blanc} />
                   <View style={styles.rowTextWrap}>
                     <Text style={styles.rowKicker}>PROCHAIN REPÈRE</Text>
-                    <Text style={styles.rowValue} numberOfLines={1} ellipsizeMode="clip">
+                    <Text style={styles.rowValue} numberOfLines={1} adjustsFontSizeToFit>
                       {checkpoint.label}
                     </Text>
                   </View>
@@ -838,6 +839,7 @@ function DemoCourseLive({
               <Animated.Text
                 style={[styles.zonesValue, { transform: [{ scale: zoneJump }] }]}
                 numberOfLines={1}
+                adjustsFontSizeToFit
               >
                 +{formatInt(zonesTotal)} ZONES
               </Animated.Text>
@@ -859,7 +861,7 @@ function DemoCourseLive({
 
             {verified ? (
               <View style={styles.verifiedPill}>
-                <Icon name="bouclier" size={13} color={gameColors.verify} />
+                <Icon name="bouclier" size={iconSizes.xs} color={gameColors.verify} />
                 <Text style={styles.verifiedText}>GRYD VERIFIED</Text>
               </View>
             ) : null}
@@ -892,7 +894,7 @@ function DemoCourseLive({
                 active={pingsOpen}
                 onPress={() => setPingsOpen((o) => !o)}
               >
-                <Icon name="cloche" size={22} color={colors.blanc} />
+                <Icon name="cloche" size={iconSizes.lg} color={colors.blanc} />
               </BigControl>
             ) : null}
             <View style={styles.bigControlWrap}>
@@ -928,8 +930,8 @@ function DemoCourseLive({
       <View style={[styles.topArea, { top: insets.top + 10 }]} pointerEvents="none">
         <View style={styles.missionBanner}>
           <View style={[styles.liveDot, paused && styles.liveDotPaused]} />
-          <Icon name={missionIcon} size={13} color={colors.chartreuse} />
-          <Text style={styles.missionText} numberOfLines={1} ellipsizeMode="clip">
+          <Icon name={missionIcon} size={iconSizes.xs} color={colors.chartreuse} />
+          <Text style={styles.missionText} numberOfLines={1} adjustsFontSizeToFit>
             {missionLabel}
           </Text>
           {view === 'carte' && etaIsCountdown ? null : (
@@ -1025,11 +1027,11 @@ function LiveCardView({ card }: { card: LiveCard }) {
   return (
     <View style={styles.liveCard}>
       <View style={styles.liveCardHead}>
-        <Icon name={card.icon} size={15} color={colors.chartreuse} />
-        <Text style={styles.liveCardKicker} numberOfLines={1} ellipsizeMode="clip">
+        <Icon name={card.icon} size={iconSizes.sm} color={colors.chartreuse} />
+        <Text style={styles.liveCardKicker} numberOfLines={1} adjustsFontSizeToFit>
           {card.kicker}
         </Text>
-        <Text style={styles.liveCardValue} numberOfLines={1} ellipsizeMode="clip">
+        <Text style={styles.liveCardValue} numberOfLines={1} adjustsFontSizeToFit>
           {card.value}
         </Text>
       </View>
@@ -1049,7 +1051,7 @@ function LiveCardView({ card }: { card: LiveCard }) {
 function N2ActionCard({ ind }: { ind: LiveIndication }) {
   return (
     <View style={styles.n2Card}>
-      <Icon name={ind.icon as IconName} size={15} color={ind.tint} />
+      <Icon name={ind.icon as IconName} size={iconSizes.sm} color={ind.tint} />
       <Text style={[styles.n2Text, { color: ind.tint }]} numberOfLines={1} ellipsizeMode="clip">
         {ind.text}
       </Text>
@@ -1073,7 +1075,7 @@ function N3Event({ ind }: { ind: LiveIndication }) {
     <View style={styles.n3Overlay} pointerEvents="none">
       <Animated.View style={[styles.n3Card, { opacity, transform: [{ scale }] }]}>
         <View style={styles.n3IconRing}>
-          <Icon name={ind.icon as IconName} size={26} color={colors.chartreuse} />
+          <Icon name={ind.icon as IconName} size={iconSizes.lg} color={colors.chartreuse} />
         </View>
         <Text style={styles.n3Title} numberOfLines={1}>
           {ind.text}
@@ -1302,7 +1304,7 @@ const styles = StyleSheet.create({
   quitCard: {
     width: '100%',
     backgroundColor: gameColors.carbon,
-    borderRadius: 22,
+    borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.blanc12,
     padding: 20,
@@ -1350,7 +1352,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.chartreuse40,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: spacing.xs,
     maxWidth: 360,
   },
   missionText: {
@@ -1373,7 +1375,7 @@ const styles = StyleSheet.create({
   techChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: spacing.xxs,
     backgroundColor: gameColors.carbon,
     borderRadius: radii.pill,
     borderWidth: 1,
@@ -1410,7 +1412,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     gap: 8,
   },
   liveCardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1453,10 +1455,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: gameColors.carbon,
-    borderRadius: 22,
+    borderRadius: radii.card,
     borderWidth: 1.5,
     borderColor: colors.chartreuse40,
-    paddingHorizontal: 30,
+    paddingHorizontal: spacing.xxl,
     paddingVertical: 22,
   },
   n3IconRing: {
@@ -1493,8 +1495,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: colors.carbone,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: radii.card,
+    borderTopRightRadius: radii.card,
     borderTopWidth: 1,
     borderColor: colors.grisLigne,
     paddingHorizontal: spacing.cardPadding,
@@ -1518,7 +1520,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     minHeight: 44,
   },
   pingChipText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800' },
@@ -1603,7 +1605,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: gameColors.verify,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: spacing.xxs,
     marginTop: 16,
   },
   verifiedText: {
@@ -1617,9 +1619,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 26,
+    gap: spacing.xl,
   },
-  bigControlWrap: { alignItems: 'center', gap: 7 },
+  bigControlWrap: { alignItems: 'center', gap: spacing.xs },
   bigDisc: {
     width: BIG_CONTROL_SIZE,
     height: BIG_CONTROL_SIZE,
@@ -1716,11 +1718,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     backgroundColor: colors.carbone,
-    borderRadius: 14,
+    borderRadius: radii.control,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: spacing.xs,
   },
   rowTextWrap: { flex: 1, gap: 1 },
   rowKicker: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1.2 },
@@ -1733,11 +1735,11 @@ const styles = StyleSheet.create({
   },
   objectiveCard: {
     backgroundColor: colors.carbone,
-    borderRadius: 14,
+    borderRadius: radii.control,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: spacing.xs,
     gap: 6,
   },
   objectiveHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -22,6 +22,7 @@ import {
   colors,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
   spacing,
   type IngestRunResponse,
@@ -825,7 +826,7 @@ function ConquestResultScreen({
           ) : null}
 
           {/* 1 ligne émotionnelle, courte, jamais tronquée. */}
-          <Text style={styles.heroLine} numberOfLines={1} ellipsizeMode="clip">
+          <Text style={styles.heroLine} numberOfLines={1} adjustsFontSizeToFit>
             {heroLine}
           </Text>
 
@@ -839,10 +840,10 @@ function ConquestResultScreen({
               style={({ pressed }) => [styles.heroBadge, pressed && styles.pressed]}
             >
               <Icon name="badge" size={16} color={badgeColor(badge)} />
-              <Text style={styles.heroBadgeText} numberOfLines={1} ellipsizeMode="clip">
+              <Text style={styles.heroBadgeText} numberOfLines={1} adjustsFontSizeToFit>
                 Badge débloqué · {badge.name}
               </Text>
-              <Icon name="chevron" size={14} color={colors.gris} />
+              <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
             </Pressable>
           ) : null}
 
@@ -864,7 +865,7 @@ function ConquestResultScreen({
               onPress={share}
               style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
             >
-              <Icon name="partage" size={18} color={colors.noir} />
+              <Icon name="partage" size={iconSizes.md} color={colors.noir} />
               <Text style={styles.shareLabel}>Partager</Text>
             </Pressable>
           ) : null}
@@ -874,7 +875,7 @@ function ConquestResultScreen({
             onPress={goMap}
             style={({ pressed }) => [styles.boundarySecondary, pressed && styles.pressed]}
           >
-            <Icon name="carte" size={17} color={colors.blanc} />
+            <Icon name="carte" size={iconSizes.sm} color={colors.blanc} />
             <Text style={styles.boundarySecondaryLabel}>Voir mon territoire</Text>
           </Pressable>
           <Pressable
@@ -1294,7 +1295,7 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
               pour fermer la zone.
             </Text>
             <View style={styles.boundaryMetaRow}>
-              <Icon name="verrou" size={13} color={colors.gris} />
+              <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
               <Text style={styles.boundaryMeta}>{boundaryExpiryLabel(boundary)}</Text>
             </View>
           </View>
@@ -1308,7 +1309,7 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
           onPress={finishNow}
           style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
         >
-          <Icon name="route" size={18} color={colors.noir} />
+          <Icon name="route" size={iconSizes.md} color={colors.noir} />
           <Text style={styles.shareLabel}>Terminer maintenant</Text>
         </Pressable>
         <Pressable
@@ -1316,7 +1317,7 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
           onPress={askCrew}
           style={({ pressed }) => [styles.boundarySecondary, pressed && styles.pressed]}
         >
-          <Icon name="crew" size={17} color={colors.blanc} />
+          <Icon name="crew" size={iconSizes.sm} color={colors.blanc} />
           <Text style={styles.boundarySecondaryLabel}>Demander au crew</Text>
         </Pressable>
         <Pressable
@@ -1421,7 +1422,7 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
             ))}
             <View style={styles.contribDivider} />
             <View style={styles.contribRow}>
-              <Icon name="coffre" size={17} color={gameColors.gold} />
+              <Icon name="coffre" size={iconSizes.sm} color={gameColors.gold} />
               <Text style={styles.contribName}>Crew</Text>
               <Text style={[styles.contribPct, styles.contribCrewPts]}>
                 +{formatInt(boundary.crewPoints)} pts
@@ -1437,7 +1438,7 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
           onPress={share}
           style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
         >
-          <Icon name="partage" size={18} color={colors.noir} />
+          <Icon name="partage" size={iconSizes.md} color={colors.noir} />
           <Text style={styles.shareLabel}>Partager la conquête</Text>
         </Pressable>
         <Pressable
@@ -1479,7 +1480,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.cardPadding,
-    paddingBottom: 8,
+    paddingBottom: spacing.xs,
   },
   barKicker: {
     color: colors.gris,
@@ -1487,12 +1488,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 2,
   },
-  content: { paddingHorizontal: spacing.cardPadding, gap: 18, paddingTop: 8 },
+  content: { paddingHorizontal: spacing.cardPadding, gap: 18, paddingTop: spacing.xs },
   block: { gap: 10 },
   pressed: { opacity: 0.75 },
 
   // ── ÉCRAN 1 — émotionnel d'abord (AMENDEMENT-20 §2) ──
-  hero: { alignItems: 'center', gap: 12, paddingTop: 24, paddingBottom: 8 },
+  hero: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xl, paddingBottom: spacing.xs },
   heroGrip: { alignItems: 'center' },
   heroTitle: {
     color: colors.blanc,
@@ -1525,9 +1526,9 @@ const styles = StyleSheet.create({
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs,
     minHeight: 44,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.chartreuse40,
@@ -1544,7 +1545,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     minHeight: 44,
-    paddingVertical: 12,
+    paddingVertical: spacing.sm,
   },
   detailsToggleLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
   detailsWrap: { gap: 18, marginTop: 4 },
@@ -1556,7 +1557,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: colors.grisLigne,
-    paddingTop: 12,
+    paddingTop: spacing.sm,
   },
   impactTotalLabel: {
     color: colors.gris,
@@ -1582,7 +1583,7 @@ const styles = StyleSheet.create({
     gap: 14,
     alignItems: 'flex-start',
   },
-  verifiedTrust: { flexDirection: 'row', gap: 24, alignSelf: 'stretch' },
+  verifiedTrust: { flexDirection: 'row', gap: spacing.xl, alignSelf: 'stretch' },
 
   // Analyse boucle — sous-titre pédagogique court.
   analyseSub: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
@@ -1607,9 +1608,9 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: '700',
   },
-  calcBody: { gap: 16, paddingTop: 4 },
+  calcBody: { gap: spacing.md, paddingTop: spacing.xxs },
   calcSchema: { alignItems: 'center' },
-  calcZonesRows: { gap: 8 },
+  calcZonesRows: { gap: spacing.xs },
   calcZoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1626,10 +1627,10 @@ const styles = StyleSheet.create({
   calcGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 16,
+    rowGap: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.grisLigne,
-    paddingTop: 16,
+    paddingTop: spacing.md,
   },
   // 3 par ligne (33 %) — MiniStat garde son flex:1 dans sa cellule.
   calcCell: { width: '33%', flexDirection: 'row' },
@@ -1649,7 +1650,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
-    gap: 12,
+    gap: spacing.sm,
   },
   summaryHead: { gap: 4 },
   summaryKicker: {
@@ -1659,12 +1660,12 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   summaryCopy: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 18 },
-  summaryLines: { gap: 8 },
+  summaryLines: { gap: spacing.xs },
   summaryLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   summaryLineText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   summaryLineAccent: { color: colors.chartreuse, fontWeight: '800' },
 
-  validated: { alignItems: 'center', gap: 10, paddingVertical: 8 },
+  validated: { alignItems: 'center', gap: 10, paddingVertical: spacing.xs },
   validatedTitle: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
@@ -1674,7 +1675,7 @@ const styles = StyleSheet.create({
   },
   validatedSub: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
 
-  zonesBlock: { alignItems: 'center', gap: 4, paddingVertical: 6 },
+  zonesBlock: { alignItems: 'center', gap: spacing.xxs, paddingVertical: 6 },
   zonesHero: {
     color: colors.chartreuse,
     fontSize: fontSizes.hero,
@@ -1708,7 +1709,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.sm,
   },
   sectorTitle: {
     color: colors.gris,
@@ -1761,7 +1762,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
-    gap: 12,
+    gap: spacing.sm,
   },
   statsHero: {
     color: colors.blanc,
@@ -1770,7 +1771,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   statsHeroUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '600' },
-  statsRow: { flexDirection: 'row', gap: 12 },
+  statsRow: { flexDirection: 'row', gap: spacing.sm },
   miniStat: { flex: 1, gap: 2 },
   miniStatValue: {
     color: colors.blanc,
@@ -1795,7 +1796,7 @@ const styles = StyleSheet.create({
   },
   statsNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
 
-  crewLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  crewLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   crewText: { color: colors.blanc, fontSize: fontSizes.sm, flex: 1, lineHeight: 20 },
   crewPct: { color: colors.chartreuse, fontWeight: '800' },
 
@@ -1827,7 +1828,7 @@ const styles = StyleSheet.create({
   bonusIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: radii.control,
     borderWidth: 1.5,
     borderColor: colors.chartreuse40,
     alignItems: 'center',
@@ -1919,7 +1920,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
-    gap: 12,
+    gap: spacing.sm,
   },
   contribRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   contribAvatar: {
@@ -1953,7 +1954,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.chartreuse40,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.md,
     paddingVertical: 10,
     maxWidth: 340,
   },
