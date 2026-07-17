@@ -26,7 +26,9 @@ import {
   colors,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
+  sizes,
   spacing,
   type CrewRecruitmentStatus,
   type CrewTag,
@@ -181,7 +183,7 @@ export default function CrewEditScreen() {
             >
               <Icon name="crest" size={16} color={colors.blanc} />
               <Text style={styles.crestLinkText}>Blason &amp; cosmétiques — Arsenal</Text>
-              <Icon name="chevron" size={15} color={colors.gris} />
+              <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
             </Pressable>
           </>
         ) : null}
@@ -265,13 +267,13 @@ export default function CrewEditScreen() {
       <View style={styles.saveBlock}>
         {savedNotice ? (
           <View style={styles.savedRow}>
-            <Icon name="cible" size={14} color={gameColors.crew} />
+            <Icon name="cible" size={iconSizes.sm} color={gameColors.crew} />
             <Text style={styles.savedText}>Enregistré — le crew est à jour.</Text>
           </View>
         ) : null}
         <InlineRunCTA
           label="ENREGISTRER"
-          leading={<Icon name="cible" size={18} color={colors.noir} />}
+          leading={<Icon name="cible" size={iconSizes.md} color={colors.noir} />}
           disabled={!canSave || !nameValid || !tagValid || !dirty}
           onPress={onSave}
         />
@@ -294,7 +296,7 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
-    marginTop: 24,
+    marginTop: spacing.xl,
     marginBottom: 10,
   },
   card: {
@@ -313,7 +315,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 12,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 14,
   },
   gateText: { flex: 1, color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17 },
@@ -321,7 +323,7 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 0.4,
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: {
@@ -333,7 +335,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 14,
   },
   counter: {
@@ -348,11 +350,11 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontVariant: ['tabular-nums'],
     textAlign: 'right',
-    marginTop: 8,
+    marginTop: spacing.xs,
   },
-  invalid: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 8 },
-  divider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: 16 },
-  crestLink: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  invalid: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xs },
+  divider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: spacing.md },
+  crestLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: sizes.touchTarget },
   crestLinkText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   textarea: {
     color: colors.blanc,
@@ -367,7 +369,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   // ── Recrutement (radio) ──
-  radioRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  radioRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   radioRowBorder: { borderTopWidth: 1, borderTopColor: colors.grisLigne },
   radio: {
     width: 22,
@@ -383,23 +385,25 @@ const styles = StyleSheet.create({
   radioLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   radioLabelOn: { color: gameColors.crew },
   // ── Tags de style ──
-  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   tagChip: {
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone2,
-    paddingVertical: 8,
+    paddingVertical: spacing.xs,
     paddingHorizontal: 14,
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
   },
   tagChipOn: { backgroundColor: gameColors.crew, borderColor: gameColors.crew },
   tagChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   // Libellé noir sur chartreuse (contraste charte — jamais l'inverse).
   tagChipTextOn: { color: colors.noir },
   // ── Enregistrer ──
-  saveBlock: { marginTop: 26, gap: 12 },
-  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  saveBlock: { marginTop: spacing.xl, gap: spacing.sm },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   savedText: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600' },
-  resetBtn: { alignItems: 'center', paddingVertical: 10 },
+  resetBtn: { alignItems: 'center', paddingVertical: 10, minHeight: sizes.touchTarget, justifyContent: 'center' },
   resetText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
 });

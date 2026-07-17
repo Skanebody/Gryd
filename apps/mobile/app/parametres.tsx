@@ -9,7 +9,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { SETTINGS_GROUPS, type SettingsRow } from '../src/features/settings/sections';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
@@ -48,7 +48,7 @@ function Row({ row }: { row: SettingsRow }) {
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       <View style={styles.iconWrap}>
-        <Icon name={row.icon} size={18} color={colors.blanc} />
+        <Icon name={row.icon} size={iconSizes.md} color={colors.blanc} />
       </View>
       <View style={styles.info}>
         <Text style={styles.label} numberOfLines={1}>
@@ -102,19 +102,19 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: spacing.sm,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 13,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.cardPadding,
-    marginBottom: 10,
+    marginBottom: spacing.sm,
   },
   iconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     alignItems: 'center',
@@ -122,5 +122,5 @@ const styles = StyleSheet.create({
   },
   info: { flex: 1 },
   label: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  detail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3 },
+  detail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs },
 });

@@ -8,7 +8,7 @@
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -100,7 +100,7 @@ export default function ChallengeDetailScreen() {
       ) : null}
 
       <View style={styles.rewardRow}>
-        <Icon name="coffre" size={18} color={colors.chartreuse} />
+        <Icon name="coffre" size={iconSizes.md} color={colors.chartreuse} />
         <Text style={styles.rewardText}>{c.reward}</Text>
       </View>
 
@@ -112,7 +112,7 @@ export default function ChallengeDetailScreen() {
           <Text style={styles.cardKicker}>OFFERT PAR</Text>
           <View style={styles.sponsorHead}>
             <View style={styles.sponsorBlason}>
-              <Icon name={c.sponsor.blason} size={18} color={colors.blanc} />
+              <Icon name={c.sponsor.blason} size={iconSizes.md} color={colors.blanc} />
             </View>
             <Text style={styles.sponsorName}>{c.sponsor.name}</Text>
           </View>
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontVariant: ['tabular-nums'],
   },
-  progressNums: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 8 },
+  progressNums: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, marginBottom: 8 },
   current: {
     color: colors.blanc,
     fontSize: fontSizes.xxl,
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    marginBottom: 6,
+    marginBottom: spacing.xs,
   },
   rivalSide: { alignItems: 'center', flex: 1 },
   rivalScore: {
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   rivalName: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 4 },
-  rivalVs: { color: colors.gris, fontSize: fontSizes.md, marginHorizontal: 10 },
+  rivalVs: { color: colors.gris, fontSize: fontSizes.md, marginHorizontal: spacing.xs },
   rewardRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: colors.grisLigne,
   },
-  rewardText: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
+  rewardText: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500', flex: 1 },
   sponsorHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
   sponsorBlason: {
     width: 36,

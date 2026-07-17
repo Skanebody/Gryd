@@ -32,7 +32,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -107,7 +107,7 @@ function ctaMicrocopy(route: PlannedRouteDemo): string {
 function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
   return (
     <View style={styles.sectionHead}>
-      <Icon name={icon} size={13} color={colors.gris} />
+      <Icon name={icon} size={iconSizes.xs} color={colors.gris} />
       <Text style={styles.sectionLabel}>{label}</Text>
     </View>
   );
@@ -333,7 +333,7 @@ export default function RoutePlannerScreen() {
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
           >
             <View style={styles.mirror}>
-              <Icon name="chevron" size={22} color={colors.blanc} />
+              <Icon name="chevron" size={iconSizes.lg} color={colors.blanc} />
             </View>
           </Pressable>
           <Text style={styles.kicker} numberOfLines={1}>
@@ -361,7 +361,7 @@ export default function RoutePlannerScreen() {
         ) : (
           <View style={styles.mapLoading}>
             {gps === 'error' ? (
-              <Icon name="carte" size={22} color={colors.gris} />
+              <Icon name="carte" size={iconSizes.lg} color={colors.gris} />
             ) : (
               <ActivityIndicator color={colors.chartreuse} />
             )}
@@ -395,10 +395,10 @@ export default function RoutePlannerScreen() {
           <View style={styles.originField}>
             <Icon
               name="carte"
-              size={15}
+              size={iconSizes.sm}
               color={gps === 'error' ? colors.gris : colors.chartreuse}
             />
-            <Text style={styles.originLabel} numberOfLines={1} ellipsizeMode="clip">
+            <Text style={styles.originLabel} numberOfLines={1} adjustsFontSizeToFit>
               {originLabel}
             </Text>
           </View>
@@ -406,7 +406,7 @@ export default function RoutePlannerScreen() {
             {gps === 'locating' ? (
               <ActivityIndicator color={colors.chartreuse} size="small" />
             ) : (
-              <Icon name="cible" size={18} color={colors.chartreuse} />
+              <Icon name="cible" size={iconSizes.md} color={colors.chartreuse} />
             )}
           </View>
         </Pressable>
@@ -512,7 +512,7 @@ export default function RoutePlannerScreen() {
                       pressed && styles.pressed,
                     ]}
                   >
-                    <Icon name={INTENTION_ICON[it]} size={15} color={active ? colors.chartreuse : colors.gris} />
+                    <Icon name={INTENTION_ICON[it]} size={iconSizes.sm} color={active ? colors.chartreuse : colors.gris} />
                     <Text
                       style={[styles.intentionLabel, active && styles.intentionLabelActive]}
                       numberOfLines={1}
@@ -562,7 +562,7 @@ export default function RoutePlannerScreen() {
             </Text>
 
             <View style={styles.nearbyHead}>
-              <Icon name="crew" size={13} color={colors.gris} />
+              <Icon name="crew" size={iconSizes.xs} color={colors.gris} />
               <Text style={styles.sectionLabel}>AUTRES BOUCLES</Text>
               <Pressable
                 accessibilityRole="button"
@@ -571,7 +571,7 @@ export default function RoutePlannerScreen() {
                 onPress={shuffleNearby}
                 style={({ pressed }) => [styles.shuffleBtn, pressed && styles.pressed]}
               >
-                <Icon name="reglages" size={13} color={colors.chartreuse} />
+                <Icon name="reglages" size={iconSizes.xs} color={colors.chartreuse} />
                 <Text style={styles.shuffleText}>Régénérer</Text>
               </Pressable>
             </View>
@@ -626,7 +626,7 @@ export default function RoutePlannerScreen() {
             </Pressable>
             {sharedFeed.map((f) => (
               <View key={f.id} style={styles.feedRow}>
-                <Icon name="feed" size={14} color={colors.chartreuse} />
+                <Icon name="feed" size={iconSizes.sm} color={colors.chartreuse} />
                 <Text style={styles.feedText} numberOfLines={1}>
                   {f.text}
                 </Text>

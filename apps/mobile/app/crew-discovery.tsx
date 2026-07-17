@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { CREW_MAX_MEMBERS, CREW_TAGS, colors, fontSizes, radii } from '@klaim/shared';
+import { CREW_MAX_MEMBERS, CREW_TAGS, colors, fontSizes, radii, sizes, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -163,39 +163,41 @@ export default function CrewDiscoveryScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { marginTop: 16, gap: 12 },
+  list: { marginTop: spacing.md, gap: spacing.sm },
   // Chips recrutement/tags sous chaque card — neutres (identité, pas état de jeu).
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
   metaChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xxs,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone,
   },
-  metaChipText: { color: colors.gris, fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
+  metaChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
   metaChipRecruit: { borderColor: colors.blanc },
-  metaChipRecruitText: { color: colors.blanc, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  metaChipRecruitText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.3 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.md },
   filterChip: {
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
     backgroundColor: colors.carbone,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 8,
-    paddingHorizontal: 13,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   // Actif = bordure blanche (motif classement/badges) — chartreuse réservée
   // à moi/crew, CTA primaire, gains, live.
   filterChipActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
   filterText: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
   filterTextActive: { color: colors.blanc, fontWeight: '600' },
-  empty: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center', paddingVertical: 24 },
+  empty: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center', paddingVertical: spacing.xl },
   footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
-    marginTop: 18,
+    marginTop: spacing.md,
   },
 });

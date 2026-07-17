@@ -25,6 +25,7 @@ import {
   colors,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
   spacing,
   type ProfileVisibility,
@@ -552,7 +553,7 @@ export default function ConfidentialiteScreen() {
           }}
           style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
         >
-          <Icon name="fermer" size={18} color={gameColors.danger} />
+          <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
           <Text style={styles.deleteRowLabel}>Supprimer mon compte</Text>
           <View style={styles.deleteChevron}>
             <Icon name="chevron" size={16} color={gameColors.danger} />
@@ -604,7 +605,7 @@ function DeleteAccountConfirm({
           onPress={onConfirm}
           style={({ pressed }) => [styles.confirmDelete, pressed && styles.pressed]}
         >
-          <Icon name="fermer" size={18} color={gameColors.danger} />
+          <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
           <Text style={styles.confirmDeleteText}>Supprimer définitivement</Text>
         </Pressable>
       </View>
@@ -621,7 +622,7 @@ function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Pro
   return (
     <View style={[styles.master, active && styles.masterActive]}>
       <View style={styles.masterHead}>
-        <Icon name="verrou" size={22} color={active ? colors.chartreuse : colors.blanc} />
+        <Icon name="verrou" size={iconSizes.lg} color={active ? colors.chartreuse : colors.blanc} />
         <Text style={styles.masterTitle}>Mode privé</Text>
         {active ? <Text style={styles.masterBadge}>ACTIVÉ</Text> : null}
       </View>
@@ -645,7 +646,7 @@ function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Pro
           }}
           style={({ pressed }) => [styles.masterCta, pressed && styles.pressed]}
         >
-          <Icon name="verrou" size={18} color={colors.noir} />
+          <Icon name="verrou" size={iconSizes.md} color={colors.noir} />
           <Text style={styles.masterCtaText}>Activer le mode privé</Text>
         </Pressable>
       )}
@@ -758,7 +759,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 2,
   },
-  divider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: 12 },
+  divider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: spacing.sm },
   actionGap: { gap: 10, marginTop: 12 },
 
   blockedRow: {
@@ -814,7 +815,7 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
-    marginTop: 3,
+    marginTop: spacing.xxs,
   },
 
   // Card dédiée « Supprimer mon compte » (5.1.1v) — distincte de l'export.
@@ -871,7 +872,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.55,
   },
-  confirmActions: { gap: 12, marginTop: 20 },
+  confirmActions: { gap: spacing.sm, marginTop: spacing.lg },
   confirmDelete: {
     flexDirection: 'row',
     alignItems: 'center',

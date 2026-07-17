@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
+import { colors, fontSizes, radii, sizes, spacing, type IconName } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 
 /** Carte-option « radio » pleine largeur (onboarding : un choix par groupe). */
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.4,
-    marginTop: 3,
+    marginTop: spacing.xxs,
   },
   radio: {
     width: 22,
@@ -190,8 +190,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     borderRadius: radii.pill,
-    paddingVertical: 9,
-    paddingHorizontal: 15,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
   },
   pillOn: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14 },
   pillLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
@@ -206,7 +208,7 @@ const styles = StyleSheet.create({
   switchText: { flex: 1 },
   switchTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
 
-  section: { marginTop: 26 },
+  section: { marginTop: spacing.xl },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,

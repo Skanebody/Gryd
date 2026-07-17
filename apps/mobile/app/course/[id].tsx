@@ -21,7 +21,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
@@ -169,7 +169,7 @@ function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
         onPress={toggle}
         style={({ pressed }) => [styles.calcHead, pressed && styles.pressed]}
       >
-        <Icon name="badge" size={18} color={colors.blanc} />
+        <Icon name="badge" size={iconSizes.md} color={colors.blanc} />
         <View style={styles.calcHeadText}>
           <Text style={styles.calcTitle}>Détail du calcul</Text>
           <Text style={styles.calcSub} numberOfLines={1}>
@@ -248,7 +248,7 @@ function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
             style={({ pressed }) => [styles.calcLink, pressed && styles.pressed]}
           >
             <Text style={styles.calcLinkText}>Comment GRYD calcule tes zones</Text>
-            <Icon name="chevron" size={14} color={colors.chartreuse} />
+            <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
           </Pressable>
         </View>
       ) : null}
@@ -388,7 +388,7 @@ export default function CourseDetailScreen() {
           <View style={styles.reasonHead}>
             <Icon
               name={entry.verify === 'partial' ? 'gps' : 'alerte'}
-              size={18}
+              size={iconSizes.md}
               color={entry.refusal === 'speed_incoherent' ? gameColors.danger : colors.gris}
             />
             <Text style={styles.reasonTitle}>
@@ -473,7 +473,7 @@ export default function CourseDetailScreen() {
           onPress={share}
           style={({ pressed }) => [styles.primaryCta, pressed && styles.pressed]}
         >
-          <Icon name="partage" size={18} color={colors.noir} />
+          <Icon name="partage" size={iconSizes.md} color={colors.noir} />
           <Text style={styles.primaryLabel}>Partager</Text>
         </Pressable>
         <GhostButton label="Voir sur la carte" icon="carte" onPress={seeOnMap} />
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingVertical: 18,
-    marginTop: 8,
+    marginTop: spacing.xs,
   },
   effortCell: { flex: 1, alignItems: 'center', gap: 4 },
   effortValue: {
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  effortLabel: { color: colors.gris, fontSize: 10, letterSpacing: 1.5 },
+  effortLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.5 },
   effortDivider: { width: 1, height: 34, backgroundColor: colors.grisLigne },
   pillRow: { flexDirection: 'row', marginTop: 14 },
   // ── Raison de refus ──
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    padding: 16,
+    padding: spacing.md,
     gap: 8,
   },
   reasonCardHot: { borderColor: gameColors.danger },
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.5,
   },
-  block: { marginTop: 16 },
+  block: { marginTop: spacing.md },
   // ── Parcours (tracé + toggle 2D/3D, AMENDEMENT-25 §2) ──
   // Scène posée sur le fond : pas de card autour (le tracé EST la surface).
   routeScene: { marginTop: 18, gap: 10 },
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
   },
-  calcHeadText: { flex: 1, gap: 2 },
+  calcHeadText: { flex: 1, gap: spacing.xxs },
   calcTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   calcSub: { color: colors.gris, fontSize: fontSizes.xs },
   chevronOpen: { transform: [{ rotate: '90deg' }] },
@@ -609,6 +609,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingVertical: 4,
+    minHeight: sizes.touchTarget,
   },
   calcLinkText: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '600' },
   // ── Sections ──
@@ -616,8 +617,8 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
-    marginTop: 24,
-    marginBottom: 12,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
   impactList: { gap: 10 },
   impactRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -650,14 +651,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 14,
   },
   segLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm },
   segKm: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
   segState: { fontSize: fontSizes.xs, fontWeight: '700' },
   // ── CTA ──
-  ctaBlock: { gap: 10, marginTop: 26 },
+  ctaBlock: { gap: 10, marginTop: spacing.xl },
   primaryCta: {
     height: 52,
     borderRadius: radii.pill,

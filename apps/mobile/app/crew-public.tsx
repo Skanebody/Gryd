@@ -17,6 +17,7 @@ import {
   colors,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
   spacing,
   type IconName,
@@ -111,7 +112,7 @@ export default function CrewPublicScreen() {
             Niv. {level} · {leagueLabel}
           </Text>
           <View style={styles.statusChip}>
-            <Icon name="radar" size={13} color={gameColors.crew} />
+            <Icon name="radar" size={iconSizes.xs} color={gameColors.crew} />
             <Text style={styles.statusText}>
               {CREW_STATUS_LABELS_FR[status] ?? ACTIVITY_STATUS_LABELS[status]}
             </Text>
@@ -167,7 +168,7 @@ export default function CrewPublicScreen() {
 
         {/* Recrutement : statut + places restantes */}
         <View style={styles.recruitCard}>
-          <Icon name="ajoutami" size={18} color={colors.blanc} />
+          <Icon name="ajoutami" size={iconSizes.md} color={colors.blanc} />
           <View style={styles.recruitInfo}>
             <Text style={styles.recruitLabel}>RECRUTEMENT</Text>
             <Text style={styles.recruitValue}>{RECRUITMENT_LABELS[crew.recruitment]}</Text>
@@ -188,7 +189,7 @@ export default function CrewPublicScreen() {
                 const meta = roleMeta(role);
                 return (
                   <View key={role} style={styles.roleChip}>
-                    <Icon name={meta.icon} size={14} color={colors.blanc} />
+                    <Icon name={meta.icon} size={iconSizes.sm} color={colors.blanc} />
                     <Text style={styles.roleText}>{meta.label}</Text>
                   </View>
                 );
@@ -248,13 +249,13 @@ export default function CrewPublicScreen() {
 const styles = StyleSheet.create({
   headerCard: {
     alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
+    gap: spacing.xs,
+    marginTop: spacing.md,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 22,
+    paddingVertical: spacing.lg,
     paddingHorizontal: spacing.cardPadding,
   },
   name: {
@@ -273,42 +274,42 @@ const styles = StyleSheet.create({
     backgroundColor: colors.carbone2,
     borderRadius: radii.pill,
     paddingVertical: 6,
-    paddingHorizontal: 11,
+    paddingHorizontal: spacing.sm,
   },
   statusText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 2 },
   tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xxs,
     borderRadius: radii.pill,
     borderWidth: 1,
   },
-  tagLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+  tagLabel: { fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.3 },
   // Tags de style §10 : chips neutres (blanc/gris), jamais chartreuse (identité, pas état).
   styleTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xxs,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone2,
   },
-  styleTagLabel: { color: colors.blanc, fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
+  styleTagLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
   bio: {
     color: colors.gris,
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.55,
-    marginTop: 16,
+    marginTop: spacing.md,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 18,
+    marginTop: spacing.md,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 16,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.cardPadding,
   },
   stat: { alignItems: 'center', flex: 1 },
@@ -318,21 +319,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  statLabel: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3 },
+  statLabel: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs },
   recruitCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    marginTop: 12,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 14,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.cardPadding,
   },
   recruitInfo: { flex: 1 },
-  recruitLabel: { color: colors.gris, fontSize: 10, letterSpacing: 1.2 },
+  recruitLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.2 },
   recruitValue: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', marginTop: 2 },
   places: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '700' },
   placesFull: { color: colors.gris },
@@ -340,23 +341,23 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
-    marginTop: 26,
-    marginBottom: 12,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
-  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   roleChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: spacing.xs,
     backgroundColor: colors.carbone,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   roleText: { color: colors.blanc, fontSize: fontSizes.xs, letterSpacing: 0.2 },
-  actions: { marginTop: 24, gap: 10 },
+  actions: { marginTop: spacing.xl, gap: spacing.sm },
   primary: {
     height: 52,
     borderRadius: radii.pill,
@@ -367,12 +368,12 @@ const styles = StyleSheet.create({
   // Libellé noir sur chartreuse (contraste charte — jamais l'inverse).
   primaryLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '700' },
   dim: { opacity: 0.6 },
-  actionsRow: { flexDirection: 'row', gap: 10 },
+  actionsRow: { flexDirection: 'row', gap: spacing.sm },
   actionCell: { flex: 1 },
   footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
-    marginTop: 22,
+    marginTop: spacing.xl,
   },
 });

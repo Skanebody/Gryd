@@ -24,7 +24,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { colors, fontSizes } from '@klaim/shared';
+import { colors, fontSizes, radii, spacing } from '@klaim/shared';
 import {
   FAQ_CATEGORY_LABELS,
   FAQ_ITEMS,
@@ -312,16 +312,16 @@ const styles = StyleSheet.create({
   segmented: {
     flexDirection: 'row',
     backgroundColor: colors.carbone,
-    borderRadius: 12,
-    padding: 4,
-    marginTop: 16,
-    marginBottom: 8,
+    borderRadius: radii.control,
+    padding: spacing.xxs,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   // Cible tactile ≥ 44 px (HIG) : minHeight garanti, texte centré verticalement.
   segment: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 9,
+    borderRadius: radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -329,22 +329,22 @@ const styles = StyleSheet.create({
   segmentText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
   segmentTextOn: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
 
-  group: { marginTop: 24 },
+  group: { marginTop: spacing.xl },
   groupLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
 
   // Un accordéon = une ligne posée sur le fond, séparée par un filet discret.
   row: { borderBottomWidth: 1, borderBottomColor: colors.grisLigne },
-  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   pressed: { opacity: 0.6 },
   iconWrap: {
     width: 30,
     height: 30,
-    borderRadius: 9,
+    borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     alignItems: 'center',
@@ -353,9 +353,9 @@ const styles = StyleSheet.create({
   q: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', lineHeight: fontSizes.sm * 1.35 },
   chevronOpen: { transform: [{ rotate: '90deg' }] },
 
-  answer: { paddingBottom: 18, paddingLeft: 42 },
+  answer: { paddingBottom: spacing.md, paddingLeft: 42 },
   a: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.55 },
-  schemaWrap: { alignItems: 'center', marginTop: 18 },
+  schemaWrap: { alignItems: 'center', marginTop: spacing.md },
 
   // Texte de lecture (pas un micro-label) : sm pour rester lisible en mouvement.
   footnote: {

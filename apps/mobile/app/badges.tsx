@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, motion, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, motion, radii, sizes, spacing } from '@klaim/shared';
 import { Icon } from '../src/ui/Icon';
 import { BadgeHex, type BadgeHexState } from '../src/features/badges/BadgeHex';
 import {
@@ -378,7 +378,7 @@ export default function BadgesScreen() {
         >
           {/* Chevron filaire inversé (retour) — charte §F */}
           <View style={styles.backChevron}>
-            <Icon name="chevron" size={14} color={colors.gris} />
+            <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
           </View>
           <Text style={styles.backText}>Profil</Text>
         </Pressable>
@@ -509,7 +509,7 @@ export default function BadgesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   content: { paddingHorizontal: spacing.cardPadding },
-  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 14 },
+  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', minHeight: sizes.touchTarget, gap: 4, marginBottom: 14 },
   backChevron: { transform: [{ scaleX: -1 }] },
   backPressed: { opacity: 0.6 },
   backText: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 0.4 },
@@ -539,9 +539,10 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
+    minHeight: sizes.touchTarget,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
@@ -583,7 +584,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  section: { marginTop: 30 },
+  section: { marginTop: spacing.xxl },
   bandeau: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   familyName: {
     color: colors.blanc,
@@ -591,7 +592,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  familyTrait: { flex: 1, height: 2, borderRadius: 1, opacity: 0.7 },
+  familyTrait: { flex: 1, height: 2, borderRadius: radii.pill, opacity: 0.7 },
   familyCount: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -620,13 +621,13 @@ const styles = StyleSheet.create({
   tierHex: {
     width: 22,
     height: 22,
-    borderRadius: 6,
+    borderRadius: radii.sm,
     transform: [{ rotate: '45deg' }],
     backgroundColor: colors.carbone,
   },
   tierLabel: {
     color: colors.gris,
-    fontSize: 10,
+    fontSize: fontSizes.xs,
     letterSpacing: 0.4,
   },
 

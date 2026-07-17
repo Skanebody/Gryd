@@ -22,6 +22,7 @@ import {
   colors,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
   spacing,
 } from '@klaim/shared';
@@ -380,7 +381,7 @@ export default function ProfilEditScreen() {
         >
           <Icon name="boutique" size={16} color={colors.blanc} />
           <Text style={styles.arsenalLinkText}>Débloquer d&apos;autres frames — Arsenal</Text>
-          <Icon name="chevron" size={15} color={colors.gris} />
+          <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
         </Pressable>
         </>
       ) : null}
@@ -427,13 +428,13 @@ export default function ProfilEditScreen() {
       <View style={styles.saveBlock}>
         {savedNotice ? (
           <View style={styles.savedRow}>
-            <Icon name="cible" size={14} color={gameColors.crew} />
+            <Icon name="cible" size={iconSizes.sm} color={gameColors.crew} />
             <Text style={styles.savedText}>Enregistré — ton profil est à jour.</Text>
           </View>
         ) : null}
         <InlineRunCTA
           label="ENREGISTRER"
-          leading={<Icon name="profil" size={18} color={colors.noir} />}
+          leading={<Icon name="profil" size={iconSizes.md} color={colors.noir} />}
           disabled={!canSave || !dirty}
           onPress={onSave}
         />
@@ -476,10 +477,10 @@ const styles = StyleSheet.create({
   previewHandle: {
     color: colors.gris,
     fontSize: fontSizes.xs,
-    marginTop: 3,
+    marginTop: spacing.xxs,
     fontVariant: ['tabular-nums'],
   },
-  previewTitle: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700', marginTop: 5 },
+  previewTitle: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700', marginTop: spacing.xxs },
 
   // ── Champs texte ──
   fieldLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4, marginBottom: 8 },
@@ -494,7 +495,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 11,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 14,
   },
   inputHandle: { fontVariant: ['tabular-nums'] },
@@ -558,7 +559,7 @@ const styles = StyleSheet.create({
   frameChipOn: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14 },
   frameChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', textAlign: 'center' },
   frameChipTextOn: { color: colors.blanc },
-  frameChipTag: { color: colors.chartreuse, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  frameChipTag: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.5 },
   arsenalLink: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   arsenalLinkText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
 
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
   badgeCellNameOn: { color: colors.blanc },
 
   // ── Enregistrer ──
-  saveBlock: { marginTop: 26, gap: 12 },
+  saveBlock: { marginTop: spacing.xl, gap: 12 },
   savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   savedText: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600' },
 });

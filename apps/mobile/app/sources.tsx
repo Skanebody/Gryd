@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -187,7 +187,7 @@ export default function SourcesScreen() {
       {/* Entête (AMENDEMENT-10 §6) — le bleu verify = état de confiance. */}
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
-          <Icon name="radar" size={22} color={gameColors.verify} />
+          <Icon name="radar" size={iconSizes.lg} color={gameColors.verify} />
         </View>
         <View style={styles.heroTextWrap}>
           <Text style={styles.heroStrong}>Seules les courses vérifiées capturent.</Text>
@@ -235,24 +235,24 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: spacing.sm,
     backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
-    marginTop: 8,
+    marginTop: spacing.xs,
   },
   heroIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: radii.control,
     borderWidth: 1.5,
     borderColor: gameColors.verify,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroTextWrap: { flex: 1, gap: 2 },
+  heroTextWrap: { flex: 1, gap: spacing.xxs },
   heroStrong: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
@@ -264,33 +264,33 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
-    marginTop: 24,
-    marginBottom: 12,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
-  list: { gap: 10 },
+  list: { gap: spacing.sm },
   // ── Ligne source ──
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.sm,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    padding: 14,
+    padding: spacing.md,
   },
   cardSoon: { opacity: 0.66 },
   iconWrap: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: radii.control,
     borderWidth: 1.5,
     borderColor: colors.grisLigne,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: gameColors.carbon,
   },
-  body: { flex: 1, gap: 3 },
+  body: { flex: 1, gap: spacing.xxs },
   name: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   nameSoon: { color: colors.gris },
   trustLine: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
@@ -303,24 +303,27 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: gameColors.verify,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   statusChipText: { color: gameColors.verify, fontSize: fontSizes.xs, fontWeight: '700' },
   connectBtn: {
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    minHeight: sizes.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
   },
   connectLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   soonChip: {
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   soonChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   pressed: { opacity: 0.75 },
@@ -328,6 +331,6 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
-    marginTop: 20,
+    marginTop: spacing.lg,
   },
 });

@@ -8,7 +8,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -73,7 +73,7 @@ function Row({ c }: { c: ChallengeCard }) {
         // Mention sponsor DISCRÈTE (§3) : blason filaire + « Offert par … ».
         // Anti pay-to-win : le sponsor n'influe sur aucun chiffre au-dessus.
         <View style={styles.sponsorRow}>
-          <Icon name={c.sponsor.blason} size={14} color={colors.gris} />
+          <Icon name={c.sponsor.blason} size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sponsorText}>Offert par {c.sponsor.name} · entrée gratuite</Text>
         </View>
       ) : null}
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   pressed: { opacity: 0.8 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: spacing.sm },
   iconWrap: {
     width: 40,
     height: 40,
@@ -120,8 +120,8 @@ const styles = StyleSheet.create({
   },
   headText: { flex: 1 },
   name: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
-  meta: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
-  progressNums: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 8 },
+  meta: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs },
+  progressNums: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, marginBottom: 8 },
   current: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
@@ -137,12 +137,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  rivalName: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
+  rivalName: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs },
   rivalVs: { color: colors.gris, fontSize: fontSizes.sm, marginHorizontal: 8 },
   sponsorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.xs,
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,

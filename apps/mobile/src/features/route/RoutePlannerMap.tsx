@@ -22,7 +22,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { colors } from '@klaim/shared';
+import { colors, fontSizes } from '@klaim/shared';
 import {
   RealMap,
   type RealMapBounds,
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   },
   startLabel: {
     color: colors.blanc,
-    fontSize: 9,
+    fontSize: fontSizes.xs,
     fontWeight: '700',
     letterSpacing: 1.2,
   },
