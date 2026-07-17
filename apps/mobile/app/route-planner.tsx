@@ -132,6 +132,9 @@ export default function RoutePlannerScreen() {
   const [route, setRoute] = useState<PlannedRouteDemo | null>(null);
   const [routing, setRouting] = useState(false);
   const [nearby, setNearby] = useState<PlannedRouteDemo[]>([]);
+  // Distingue « en cours de calcul » de « aucune variante » : sans ce flag, une
+  // liste vide (échec réseau) était indistinguable d'un chargement → spinner infini.
+  const [nearbyLoading, setNearbyLoading] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
 
@@ -146,15 +149,27 @@ export default function RoutePlannerScreen() {
     setSeed(sd);
     const id = ++reqIdRef.current;
     setRouting(true);
-    void routeLoop(o.point, o.label, c, intent, sd).then((r) => {
-      if (id !== reqIdRef.current) return;
-      setRouting(false);
-      if (r) {
-        setRoute(r);
-        setTargetKm(r.distanceKm);
-        setDistanceDraft(formatKm(r.distanceKm));
-      }
-    });
+    void routeLoop(o.point, o.label, c, intent, sd)
+      .then((r) => {
+        if (id !== reqIdRef.current) return;
+        setRouting(false);
+        if (r) {
+          setRoute(r);
+          setTargetKm(r.distanceKm);
+          setDistanceDraft(formatKm(r.distanceKm));
+        } else {
+          // Routage indisponible (OSRM null) : jamais de spinner infini — on
+          // arrête le chargement, le tracé courant reste, message re-tentable.
+          toast.show('Parcours indisponible — réessaie dans un instant');
+        }
+      })
+      .catch(() => {
+        // Rejet réseau/serveur : même filet honnête (sans ce catch, setRouting
+        // resterait à true → spinner infini + unhandled rejection).
+        if (id !== reqIdRef.current) return;
+        setRouting(false);
+        toast.show('Parcours indisponible — réessaie dans un instant');
+      });
   };
 
   const applyDebounced = (o: OriginPoint, km: number, intent: PlannerIntention, sd: number) => {
@@ -207,13 +222,24 @@ export default function RoutePlannerScreen() {
     if (!adjustOpen || !origin) return;
     let cancelled = false;
     const spreads = [0.6, 1.35, 1.9];
+    setNearbyLoading(true);
     void Promise.all(
       spreads.map((s, i) =>
         routeLoop(origin.point, origin.label, clampKm(targetKm * s), intention, seed * 10 + i + 2),
       ),
-    ).then((list) => {
-      if (!cancelled) setNearby(list.filter((r): r is PlannedRouteDemo => r !== null));
-    });
+    )
+      .then((list) => {
+        if (cancelled) return;
+        setNearby(list.filter((r): r is PlannedRouteDemo => r !== null));
+        setNearbyLoading(false);
+      })
+      .catch(() => {
+        // Rejet réseau/serveur : liste vide + fin de chargement (jamais de
+        // spinner infini). L'état vide affiche un message re-tentable.
+        if (cancelled) return;
+        setNearby([]);
+        setNearbyLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -269,7 +295,8 @@ export default function RoutePlannerScreen() {
 
   const shuffleNearby = () => {
     haptics.light();
-    setNearby([]); // feedback immédiat : le spinner remplace la liste pendant le recalcul.
+    setNearby([]);
+    setNearbyLoading(true); // feedback immédiat : le spinner remplace la liste pendant le recalcul.
     setSeed((s) => s + 1);
   };
 
@@ -576,9 +603,13 @@ export default function RoutePlannerScreen() {
               </Pressable>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
-              {nearby.length === 0 ? (
+              {nearbyLoading ? (
                 <View style={styles.nearbyLoading}>
                   <ActivityIndicator color={colors.chartreuse} size="small" />
+                </View>
+              ) : nearby.length === 0 ? (
+                <View style={styles.nearbyLoading}>
+                  <Text style={styles.mapLoadingText}>Autres boucles indisponibles</Text>
                 </View>
               ) : (
                 nearby.map((loop, i) => {
