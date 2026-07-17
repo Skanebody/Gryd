@@ -27,7 +27,7 @@
  * (sheet de zone) / screen('map_zone_details') (« Plus ») / screen('map_zone_act').
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { setZoneSheetOpen } from './mapUiStore';
+import { setZoneSheetOpen, setMapHudHidden, useMapHudHidden } from './mapUiStore';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -217,6 +217,8 @@ export function BattleMapOverlays({
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  /** « Carte nue » : l'utilisateur a masqué tout le HUD (FAB « info » ci-dessous). */
+  const hudHidden = useMapHudHidden();
   // Peek MISSION persistant (§8) : `sheet.initial` distingue le PEEK (compact)
   // de l'état OUVERT (les options), remonté par « Voir les options » (remount
   // key + initialState — snap, façon reduce motion).
@@ -246,6 +248,9 @@ export function BattleMapOverlays({
       setLayersOpen(false);
       setSheet((s) => ({ key: s.key + 1, initial: 'compact' }));
       onCloseZone?.();
+      // « Repart de la carte » inclut le HUD : chaque entrée sur l'onglet réaffiche
+      // les infos (pas de carte nue « collante » qui semblerait un écran cassé).
+      setMapHudHidden(false);
     }, [onCloseZone]),
   );
 
@@ -270,14 +275,30 @@ export function BattleMapOverlays({
 
   /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
   const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
-  /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission). */
+  // « Carte nue » masque le HUD : ligne mission (haut, dans index.tsx), sheet du bas
+  // et FABs de contrôle (Calques + Recentrer). Un tap sur une ZONE reste explicite →
+  // sa sheet s'affiche même en carte nue (la carte ne devient pas inerte). Seul le FAB
+  // « info » (bascule) subsiste toujours pour tout ramener.
+  const sheetVisible = zoneOpen || !hudHidden;
+  /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav. */
   const activeCompactHeight = zoneOpen ? ZONE_SHEET_COMPACT_HEIGHT : MISSION_PEEK_COMPACT_HEIGHT;
-  const fabBottom = sheetBottom + activeCompactHeight + FAB_ABOVE_SHEET;
+  const fabBottom = sheetVisible ? sheetBottom + activeCompactHeight + FAB_ABOVE_SHEET : sheetBottom;
 
   /** « Voir les options » : déplie le peek mission sur les options (open). */
   const openOptions = () => {
     haptics.light();
     setSheet((s) => ({ key: s.key + 1, initial: 'open' }));
+  };
+
+  /**
+   * Bascule « carte nue » (demande fondateur) : masque/affiche TOUT le HUD (ligne
+   * mission du haut + sheet du bas + FABs de contrôle) → carte plein écran. Ferme
+   * d'abord le menu Calques pour ne rien laisser d'ouvert derrière.
+   */
+  const toggleHud = () => {
+    haptics.light();
+    setLayersOpen(false);
+    setMapHudHidden(!hudHidden);
   };
 
   const selectMode = (key: MapMode) => {
@@ -331,14 +352,15 @@ export function BattleMapOverlays({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* ── Droite : 2 FABs MAX (Calques + Recentrer) — AMENDEMENT-37 §8.
-          L'accès à l'action vit dans le peek mission persistant / la sheet de
-          zone, plus dans un 3ᵉ FAB « Info ». ── */}
+      {/* ── Droite : FABs de contrôle. Calques + Recentrer (AMENDEMENT-37 §8) NE
+          s'affichent qu'en HUD visible ; le FAB « info » (bascule CARTE NUE —
+          demande fondateur) reste TOUJOURS présent, en bas de la pile (le plus
+          accessible au pouce), pour tout ramener depuis la carte nue. ── */}
       <View
         style={[styles.fabColumn, { bottom: fabBottom }]}
         pointerEvents="box-none"
       >
-        {layersOpen ? (
+        {layersOpen && !hudHidden ? (
           <LayerMenu
             active={mode}
             onSelect={selectMode}
@@ -356,19 +378,32 @@ export function BattleMapOverlays({
             onSetMap3d={onSetMap3d}
           />
         ) : null}
+        {!hudHidden ? (
+          <>
+            <FloatingMapButton
+              icon="calques"
+              accessibilityLabel="Calques et fond de carte"
+              active={layersOpen}
+              onPress={() => {
+                haptics.light();
+                setLayersOpen((v) => !v);
+              }}
+            />
+            <FloatingMapButton
+              icon="gps"
+              accessibilityLabel="Recentrer sur moi"
+              onPress={() => onRecenter?.()}
+            />
+          </>
+        ) : null}
+        {/* Bascule CARTE NUE — `active` = HUD affiché ; tap = masquer/afficher tout. */}
         <FloatingMapButton
-          icon="calques"
-          accessibilityLabel="Calques et fond de carte"
-          active={layersOpen}
-          onPress={() => {
-            haptics.light();
-            setLayersOpen((v) => !v);
-          }}
-        />
-        <FloatingMapButton
-          icon="gps"
-          accessibilityLabel="Recentrer sur moi"
-          onPress={() => onRecenter?.()}
+          icon="info"
+          accessibilityLabel={
+            hudHidden ? 'Afficher les infos de la carte' : 'Masquer les infos — carte plein écran'
+          }
+          active={!hudHidden}
+          onPress={toggleHud}
         />
       </View>
 
@@ -389,7 +424,7 @@ export function BattleMapOverlays({
             }
             openSlot={<ZoneDetailBlock detail={zoneDetail} onHistory={() => router.push('/historique')} />}
           />
-        ) : (
+        ) : hudHidden ? null : (
           <MapBottomSheet
             key={`mission-${sheet.key}`}
             initialState={sheet.initial}

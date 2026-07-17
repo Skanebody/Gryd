@@ -31,6 +31,7 @@ import {
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { useSession } from '../../src/lib/session';
+import { useMapHudHidden } from '../../src/features/map/mapUiStore';
 import { Icon } from '../../src/ui/Icon';
 
 // ─── Métriques locales (layout uniquement — aucune constante de jeu) ────────
@@ -97,7 +98,20 @@ function MissionLine() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { session, configured } = useSession();
+  const hudHidden = useMapHudHidden();
   const [detailOpen, setDetailOpen] = useState(false);
+
+  // Retour sur la Carte = détail refermé (même règle « carte nue » que le HUD).
+  // TOUS les hooks AVANT les retours conditionnels ci-dessous (Rules of Hooks) :
+  // le HUD masqué / un vrai user sortent tôt, mais jamais en sautant un hook.
+  useFocusEffect(
+    useCallback(() => {
+      setDetailOpen(false);
+    }, []),
+  );
+
+  // « Carte nue » : l'utilisateur a masqué tout le HUD → plus de ligne mission.
+  if (hudHidden) return null;
 
   // O1 (états vides) : mission/secteur/rival ci-dessous sont de la DÉMO (MAP_MISSION,
   // MAP_HUD, MAP_RIVAL_HEAD) — aucune source serveur de mission n'est encore câblée.
@@ -106,13 +120,6 @@ function MissionLine() {
   // son bandeau `dataNote` (« cours pour prendre ta première zone »). L'accès Route
   // Planner vit ailleurs (bouton GO, Aujourd'hui, War Room). Showcase : démo intacte.
   if (configured && session) return null;
-
-  // Retour sur la Carte = détail refermé (même règle « carte nue » que le HUD).
-  useFocusEffect(
-    useCallback(() => {
-      setDetailOpen(false);
-    }, []),
-  );
 
   const toggleDetail = () => {
     haptics.light();

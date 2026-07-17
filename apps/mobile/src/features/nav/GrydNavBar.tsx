@@ -21,12 +21,7 @@ import {
   type ContextInput,
   type ContextualAction,
 } from './contextualAction';
-import {
-  ACTION_BUTTON_EMBED,
-  ACTION_BUTTON_HEIGHT,
-  ACTION_SLOT_WIDTH,
-  NAV_BAR_HEIGHT,
-} from './metrics';
+import { ACTION_BUTTON_GAP, ACTION_BUTTON_HEIGHT, NAV_BAR_HEIGHT } from './metrics';
 import { useZoneSheetOpen } from '../map/mapUiStore';
 import { flags } from '../../lib/flags';
 
@@ -118,18 +113,17 @@ export function GrydNavBar() {
 
   return (
     <>
-      {/* Barre d'onglets persistante — ancrée au bord bas, pleine largeur. */}
-      <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
-        {TABS.slice(0, Math.ceil(TABS.length / 2)).map(renderTab)}
-        {/* Réserve du bouton central (rendu au-dessus, soulevé). */}
-        <View style={styles.actionSlot} pointerEvents="none" />
-        {TABS.slice(Math.ceil(TABS.length / 2)).map(renderTab)}
-      </View>
+      {/* Barre d'onglets persistante — ancrée au bord bas, pleine largeur.
+          Onglets RÉGULIÈREMENT espacés (plus de slot central réservé) : GO ne
+          s'encastre plus dans la barre, il FLOTTE au-dessus (AMENDEMENT-39). */}
+      <View style={[styles.bar, { paddingBottom: insets.bottom }]}>{TABS.map(renderTab)}</View>
 
-      {/* Bouton central « GO » (AMENDEMENT-38) — LE seul CTA chartreuse de la nav,
-          libellé unique ; GO lance l'action de l'écran (routing contextuel conservé). */}
+      {/* Bouton « GO » (AMENDEMENT-38) — LE seul CTA chartreuse de la nav, libellé
+          unique ; GO lance l'action de l'écran (routing contextuel conservé). Il
+          FLOTTE ENTIÈREMENT au-dessus de la barre, centré (AMENDEMENT-39) — ombre
+          chartreuse pour le détacher du fond ; ne chevauche plus les onglets. */}
       <View
-        style={[styles.actionAnchor, { bottom: insets.bottom + NAV_BAR_HEIGHT - ACTION_BUTTON_EMBED }]}
+        style={[styles.actionAnchor, { bottom: insets.bottom + NAV_BAR_HEIGHT + ACTION_BUTTON_GAP }]}
         pointerEvents="box-none"
       >
         <Pressable
@@ -176,7 +170,6 @@ const styles = StyleSheet.create({
   activeBarOn: { backgroundColor: colors.chartreuse },
   tabLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   tabLabelActive: { color: colors.chartreuse, fontWeight: '700' },
-  actionSlot: { width: ACTION_SLOT_WIDTH },
 
   actionAnchor: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   action: {
