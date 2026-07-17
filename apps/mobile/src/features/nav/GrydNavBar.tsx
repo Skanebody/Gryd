@@ -1,28 +1,19 @@
 /**
- * GRYD — navigation basse PERSISTANTE (remplace l'ancien menu hamburger) :
- *   - une BARRE D'ONGLETS toujours visible, 4 destinations en 1 tap :
- *     Carte · Crew · Saison · Moi (Missions/War Room reste une route atteinte
- *     depuis « Moi »). Onglet actif = trait chartreuse + icône PLEINE + label
- *     gras + accessibilityState selected — jamais la couleur seule ;
- *   - UN bouton d'action contextuel chartreuse SOULEVÉ au centre, présent sur
- *     TOUS les onglets (deriveContextualAction : RUN par défaut, DÉFENDRE /
- *     CONQUÉRIR / TERMINER / REJOINDRE selon l'écran — jamais « GO ») ;
- *   - quand le verbe dérivé n'est PAS le RUN libre, un lien texte discret
- *     « Course libre » au-dessus du bouton garde le run libre atteignable en
- *     1 tap (aucun geste caché — l'ancien long-press invisible est supprimé).
+ * GRYD — navigation basse PERSISTANTE : une BARRE D'ONGLETS toujours visible,
+ * destinations en 1 tap : Carte · Crew · Moi (Saison hors MVP ; Missions/War Room
+ * atteintes depuis « Moi »). Onglet actif = trait chartreuse + icône PLEINE + label
+ * gras + accessibilityState selected — jamais la couleur seule.
+ *
+ * Le DÉPART de course n'est PLUS dans la nav (override fondateur) : c'est un GESTE
+ * « glisser pour courir » (SlideToStart) rendu UNIQUEMENT sur la Carte. La barre
+ * reste donc un simple rang d'onglets, régulièrement espacés.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, iconSizes, radii, spacing, type IconName } from '@klaim/shared';
+import { colors, fontSizes, spacing, type IconName } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
-import {
-  deriveContextualAction,
-  type ContextInput,
-  type ContextualAction,
-} from './contextualAction';
-import { ACTION_BUTTON_GAP, ACTION_BUTTON_HEIGHT, NAV_BAR_HEIGHT } from './metrics';
-import { useZoneSheetOpen } from '../map/mapUiStore';
+import { NAV_BAR_HEIGHT } from './metrics';
 import { flags } from '../../lib/flags';
 
 interface NavItem {
@@ -31,7 +22,7 @@ interface NavItem {
   icon: IconName;
 }
 
-/** Les destinations de la barre (réparties autour du bouton central).
+/** Les destinations de la barre.
  *  D8 : « Saison » n'existe que hors MVP (flags.season) — la surface pilote
  *  est Carte · Crew · Moi ; les scores de saison s'accumulent quand même. */
 const TABS: readonly NavItem[] = [
@@ -41,49 +32,13 @@ const TABS: readonly NavItem[] = [
   { label: 'Moi', href: '/profil', icon: 'profil' },
 ];
 
-/**
- * Contexte de dérivation du bouton central par route. `null` = aucun contexte
- * de jeu à lire ⇒ défaut RUN (course libre). La Carte lit l'attaque en cours
- * (DÉFENDRE / CONQUÉRIR). Missions reste en RUN neutre : son CONTENU porte déjà
- * le verbe de la mission n°1 (hero) — deux verbes chartreuse divergents sur le
- * même écran seraient la confusion que l'audit zéro-friction condamne (§A.4).
- */
-const RUN_SCREEN_BY_PATH: Readonly<Record<string, NonNullable<ContextInput['screen']> | null>> = {
-  '/': 'map',
-  '/warroom': null,
-  '/crew': null,
-  '/classement': null,
-  '/profil': null,
-};
-
 export function GrydNavBar() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const screen = RUN_SCREEN_BY_PATH[pathname] ?? null;
-  // AMENDEMENT-38 (override fondateur) : le bouton central est un unique « GO ».
-  // On garde `deriveContextualAction` pour la CIBLE (routing contextuel : GO lance
-  // la défense/conquête sur la Carte, la course libre ailleurs) + le contexte a11y ;
-  // seul le MOT affiché devient « GO » (le lien « Course libre » est retiré).
-  const action = deriveContextualAction(screen ? { screen } : {});
-  // Sur /warroom le CONTENU porte déjà le CTA hero chartreuse PLEIN (mission n°1) ;
-  // sur la Carte, une sheet de ZONE ouverte affiche son CTA chartreuse plein
-  // « Défendre la zone » (AMENDEMENT-37 §3). Dans ces deux cas la capsule d'action
-  // passe en variante CONTOUR : un SEUL bloc chartreuse plein par scène (Règles
-  // §A.4 — 1 écran = 1 seul CTA chartreuse plein).
-  const zoneSheetOpen = useZoneSheetOpen();
-  const actionOutlined = pathname === '/warroom' || (pathname === '/' && zoneSheetOpen);
-
   const go = (href: string) => {
     if (pathname !== href) router.navigate(href);
-  };
-
-  const launch = (a: ContextualAction) => {
-    // Ce tap NAVIGUE seulement vers l'écran live — il ne DÉMARRE pas la course.
-    // Le VRAI run_start §8 est émis au départ GPS (useRealRun) : l'émettre ici
-    // double-compterait l'event (une course = un seul run_start).
-    router.push(a.targetHref);
   };
 
   const renderTab = (item: NavItem) => {
@@ -111,38 +66,9 @@ export function GrydNavBar() {
     );
   };
 
+  // Barre d'onglets persistante — ancrée au bord bas, pleine largeur, onglets réguliers.
   return (
-    <>
-      {/* Barre d'onglets persistante — ancrée au bord bas, pleine largeur.
-          Onglets RÉGULIÈREMENT espacés (plus de slot central réservé) : GO ne
-          s'encastre plus dans la barre, il FLOTTE au-dessus (AMENDEMENT-39). */}
-      <View style={[styles.bar, { paddingBottom: insets.bottom }]}>{TABS.map(renderTab)}</View>
-
-      {/* Bouton « GO » (AMENDEMENT-38) — LE seul CTA chartreuse de la nav, libellé
-          unique ; GO lance l'action de l'écran (routing contextuel conservé). Il
-          FLOTTE ENTIÈREMENT au-dessus de la barre, centré (AMENDEMENT-39) — ombre
-          chartreuse pour le détacher du fond ; ne chevauche plus les onglets. */}
-      <View
-        style={[styles.actionAnchor, { bottom: insets.bottom + NAV_BAR_HEIGHT + ACTION_BUTTON_GAP }]}
-        pointerEvents="box-none"
-      >
-        <Pressable
-          accessibilityRole="button"
-          // Le nom accessible commence par « GO » (libellé visible, WCAG 2.5.3) puis
-          // décrit ce que GO lance ici (course de défense / conquête / libre).
-          accessibilityLabel={`GO — ${action.a11yLabel}`}
-          onPress={() => launch(action)}
-          style={({ pressed }) => [
-            styles.action,
-            actionOutlined && styles.actionOutlined,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Icon name="foulees" size={iconSizes.lg} color={actionOutlined ? colors.chartreuse : colors.noir} />
-          <Text style={[styles.actionLabel, actionOutlined && styles.actionLabelOutlined]}>GO</Text>
-        </Pressable>
-      </View>
-    </>
+    <View style={[styles.bar, { paddingBottom: insets.bottom }]}>{TABS.map(renderTab)}</View>
   );
 }
 
@@ -170,37 +96,4 @@ const styles = StyleSheet.create({
   activeBarOn: { backgroundColor: colors.chartreuse },
   tabLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   tabLabelActive: { color: colors.chartreuse, fontWeight: '700' },
-
-  actionAnchor: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  action: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    height: ACTION_BUTTON_HEIGHT,
-    paddingHorizontal: 22,
-    backgroundColor: colors.chartreuse,
-    borderRadius: radii.pill,
-    borderWidth: 3,
-    borderColor: colors.noir,
-    shadowColor: colors.chartreuse,
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-  actionPressed: { opacity: 0.85 },
-  actionLabel: { color: colors.noir, fontSize: 15, fontWeight: '800', letterSpacing: 0.4 },
-  /**
-   * Variante CONTOUR : quand le CONTENU de l'écran porte déjà le CTA chartreuse
-   * PLEIN (mission n°1 sur /warroom), la capsule devient un contour chartreuse
-   * sur fond carbone (chartreuse sur sombre = contraste OK) — jamais un 2e bloc
-   * chartreuse PLEIN sur la même scène (Règles §A).
-   */
-  actionOutlined: {
-    backgroundColor: colors.carbone,
-    borderColor: colors.chartreuse,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  actionLabelOutlined: { color: colors.chartreuse },
 });

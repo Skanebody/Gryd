@@ -1,37 +1,32 @@
 /**
- * GRYD — métriques de la navigation basse PERSISTANTE (GrydNavBar) :
+ * GRYD — métriques de la navigation basse PERSISTANTE (GrydNavBar) + du départ de
+ * course sur la Carte :
  *   - barre d'onglets pleine largeur, destinations RÉGULIÈREMENT espacées
  *     (Carte · Crew · Moi en MVP), ancrée au bord bas (au-dessus du safe-area) ;
- *   - capsule d'action « GO » (AMENDEMENT-38) qui FLOTTE ENTIÈREMENT au-dessus de
- *     la barre, centrée (AMENDEMENT-39 : plus d'encastrement — l'ancien slot
- *     réservé supposait 4 onglets ; en MVP 3 onglets, l'encastrement décentrait
- *     GO et le mettait à cheval sur les onglets → « mal placé »).
- * Partagées entre la barre et les écrans (dégagement bas du contenu).
+ *   - le DÉPART de course (SlideToStart, override fondateur) n'est PLUS dans la nav :
+ *     il vit UNIQUEMENT sur la Carte, en bas, au-dessus de la barre d'onglets.
  * Métriques de LAYOUT uniquement — aucune constante de jeu ici.
  */
 
 /** Hauteur du rang d'onglets (trait actif 3 + icône 20 + label 12), hors safe-area. */
 export const NAV_BAR_HEIGHT = 60;
 
-/** Hauteur de la capsule d'action « GO » (icône + libellé). */
-export const ACTION_BUTTON_HEIGHT = 56;
+/** Hauteur de la piste « glisser pour courir » (SlideToStart), sur la Carte. */
+export const SLIDE_START_HEIGHT = 60;
+/** Écart entre le haut de la barre d'onglets et le bas de la piste de départ. */
+export const SLIDE_START_GAP = 12;
 
 /**
- * Espace de SÉPARATION entre le bord haut de la barre et le bas de la capsule GO.
- * GO flotte au-dessus de la barre (ne l'encastre plus, ne chevauche plus les
- * onglets) — cet écart garantit la respiration visuelle façon Strava/Nike.
+ * Dégagement bas du contenu scrollable des onglets NON-carte (Crew, Moi, écrans
+ * poussés) : seule la barre d'onglets est à dégager — le départ de course ne vit
+ * plus ici. L'appelant ajoute `insets.bottom`.
  */
-export const ACTION_BUTTON_GAP = 12;
+export const TAB_CONTENT_BOTTOM_CLEARANCE = NAV_BAR_HEIGHT + 8;
 
 /**
- * Repère « au-dessus de la nav » pour la sheet/CTA de la Carte (l'appelant ajoute
- * `insets.bottom`) : barre + écart + capsule GO flottante en entier + petite marge.
- * Tout contenu ou sheet ancré ici passe donc AU-DESSUS du GO flottant.
+ * Repère « au-dessus du départ de course » sur la CARTE (l'appelant ajoute
+ * `insets.bottom`) : barre d'onglets + écart + piste SlideToStart + petite marge.
+ * Toute sheet / FAB / mention de la carte s'ancre AU-DESSUS de cette valeur, donc
+ * au-dessus de la piste de départ.
  */
-export const RUN_BUTTON_BOTTOM = NAV_BAR_HEIGHT + ACTION_BUTTON_GAP + ACTION_BUTTON_HEIGHT + 8;
-
-/**
- * Dégagement bas du contenu scrollable des onglets : la barre et la capsule GO
- * flottante ne recouvrent JAMAIS le contenu.
- */
-export const TAB_CONTENT_BOTTOM_CLEARANCE = RUN_BUTTON_BOTTOM + 8;
+export const RUN_BUTTON_BOTTOM = NAV_BAR_HEIGHT + SLIDE_START_GAP + SLIDE_START_HEIGHT + 8;

@@ -28,7 +28,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { setZoneSheetOpen, setMapHudHidden, useMapHudHidden } from './mapUiStore';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
@@ -122,10 +122,17 @@ const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Pile de FABs : dégagement au-dessus de la sheet visible. */
 const FAB_ABOVE_SHEET = 12;
 /**
- * Hauteur du PEEK MISSION persistant (§8) : titre + méta + rival + lien options,
- * assez de peek pour tout montrer SANS troncature (§A9). La carte reste le cœur.
+ * Hauteur du PEEK MISSION persistant (§8) : titre + méta + rival + lien options.
+ * Calée AU PLUS JUSTE sur le contenu réel (poignée 18 + bloc info ~118) pour ne
+ * PAS laisser de vide sous « Voir les options » — le peek épouse son contenu, la
+ * carte reste le cœur. (Était 168 → ~30 px de vide sous le lien.)
  */
-const MISSION_PEEK_COMPACT_HEIGHT = 168;
+const MISSION_PEEK_COMPACT_HEIGHT = 138;
+/** Espace du HUD haut à préserver (secteur + ligne mission) — le menu Calques ne
+ *  descend jamais son bord haut au-dessus de cette limite (anti-chevauchement). */
+const TOP_HUD_CLEARANCE = 112;
+/** Hauteur de la pile de FABs OUVERTE (4 FABs de 44 + 3 gaps de 10 + marge). */
+const FAB_STACK_OPEN_HEIGHT = 4 * 44 + 3 * 10 + 6;
 /**
  * Hauteur du PEEK ZONE (§3/§10) : en-tête + propriétaire + contrôle + action
  * recommandée + 1 CTA + « Plus » — sans troncature. Le détail (surface, tenue,
@@ -292,6 +299,15 @@ export function BattleMapOverlays({
   const activeCompactHeight = zoneOpen ? ZONE_SHEET_COMPACT_HEIGHT : MISSION_PEEK_COMPACT_HEIGHT;
   const fabBottom = sheetVisible ? sheetBottom + activeCompactHeight + FAB_ABOVE_SHEET : sheetBottom;
 
+  // Le menu Calques s'ouvre AU-DESSUS de la pile de FABs. On PLAFONNE sa hauteur à
+  // l'espace libre entre le HUD du haut (secteur + ligne mission) et le sommet des
+  // FABs → il défile au lieu de recouvrir « République attaquée » (retour fondateur).
+  const { height: winH } = useWindowDimensions();
+  const layerMenuMaxHeight = Math.max(
+    120,
+    winH - insets.top - TOP_HUD_CLEARANCE - fabBottom - FAB_STACK_OPEN_HEIGHT,
+  );
+
   /** « Voir les options » : déplie le peek mission sur les options (open). */
   const openOptions = () => {
     haptics.light();
@@ -390,6 +406,7 @@ export function BattleMapOverlays({
       >
         {toolsOpen && layersOpen ? (
           <LayerMenu
+            maxHeight={layerMenuMaxHeight}
             active={mode}
             onSelect={selectMode}
             basemap={basemap}
@@ -881,6 +898,7 @@ function ZoneDetailBlock({
  * par défaut. L'actif se lit en chartreuse sur la surface SOMBRE du menu.
  */
 function LayerMenu({
+  maxHeight,
   active,
   onSelect,
   basemap,
@@ -888,6 +906,8 @@ function LayerMenu({
   map3d,
   onSetMap3d,
 }: {
+  /** Plafond de hauteur : au-delà, le menu défile (ne recouvre pas le HUD haut). */
+  maxHeight?: number;
   active: MapMode;
   onSelect: (mode: MapMode) => void;
   basemap: BasemapKey;
@@ -896,7 +916,12 @@ function LayerMenu({
   onSetMap3d?: (value: boolean) => void;
 }) {
   return (
-    <View style={styles.layerMenu}>
+    <ScrollView
+      style={[styles.layerMenu, maxHeight != null ? { maxHeight } : null]}
+      contentContainerStyle={styles.layerMenuContent}
+      showsVerticalScrollIndicator={false}
+      bounces={false}
+    >
       {onSelectBasemap ? (
         <>
           <Text style={styles.layerHeading}>FOND</Text>
@@ -967,7 +992,7 @@ function LayerMenu({
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -980,11 +1005,10 @@ const styles = StyleSheet.create({
   // ── FAB column : 2 MAX (Calques + Recentrer) ──
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
 
-  // ── Menu Calques (fond + vue + calques de lecture) ──
+  // ── Menu Calques (fond + vue + calques de lecture) — ScrollView plafonné ──
   layerMenu: {
     alignSelf: 'flex-end',
-    gap: 4,
-    padding: 8,
+    flexGrow: 0, // épouse son contenu tant qu'on est sous `maxHeight`
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
@@ -992,6 +1016,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     minWidth: 168,
   },
+  layerMenuContent: { gap: 4, padding: 8 },
   layerHeading: {
     color: colors.gris,
     fontSize: fontSizes.xs, // >= 12 px (a11y)

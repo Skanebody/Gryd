@@ -15,12 +15,15 @@
  * plus le seul accès). Aucun CTA chartreuse plein ici : le SEUL CTA de
  * l'écran reste le bouton flottant DÉFENDRE de la nav (anti double-CTA §A.4).
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, iconSizes, radii } from '@klaim/shared';
 import { MapScreen } from '../../src/features/map/MapScreen';
+import { SlideToStart } from '../../src/features/nav/SlideToStart';
+import { deriveContextualAction } from '../../src/features/nav/contextualAction';
+import { NAV_BAR_HEIGHT, SLIDE_START_GAP } from '../../src/features/nav/metrics';
 import {
   MAP_FRESHNESS,
   MAP_HUD,
@@ -84,6 +87,31 @@ export default function CarteTab() {
     <View style={styles.root}>
       <MapScreen />
       <MissionLine />
+      <MapStartSlider />
+    </View>
+  );
+}
+
+/**
+ * Départ de course sur la Carte (override fondateur) : « glisser pour courir »
+ * (SlideToStart), UNIQUEMENT ici — pas dans la nav. Ancré au-dessus de la barre
+ * d'onglets. Toujours présent (même en carte nue) : c'est L'ACTION, pas de l'info.
+ * Le routing reste contextuel (deriveContextualAction → cible du live).
+ */
+function MapStartSlider() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const action = useMemo(() => deriveContextualAction({ screen: 'map' }), []);
+  return (
+    <View
+      style={[styles.startWrap, { bottom: insets.bottom + NAV_BAR_HEIGHT + SLIDE_START_GAP }]}
+      pointerEvents="box-none"
+    >
+      <SlideToStart
+        label="GO"
+        accessibilityLabel={`GO — ${action.a11yLabel}`}
+        onComplete={() => router.push(action.targetHref)}
+      />
     </View>
   );
 }
@@ -217,6 +245,9 @@ function MissionLine() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   pressed: { opacity: 0.7 },
+
+  // ── Départ de course « glisser pour courir » (au-dessus de la barre d'onglets) ──
+  startWrap: { position: 'absolute', left: 16, right: 16 },
 
   // ── Ligne mission (toujours visible, sur la carte) ──
   missionWrap: {
