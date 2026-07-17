@@ -56,8 +56,74 @@ export const fonts = {
 /** Échelle typo mobile (addendum §E). Les stats héros dominent chaque écran de résultat. */
 export const fontSizes = { xs: 12, sm: 14, md: 16, lg: 20, xl: 28, xxl: 40, hero: 64, heroMax: 88 } as const;
 
-export const radii = { card: 20, pill: 999 } as const;
-export const spacing = { cardPadding: 20 } as const;
+/**
+ * Rayons (audit UI 2026). 4 paliers + pill : `sm` petit composant · `control`
+ * bouton/input/conteneur d'icône · `card` surface/sheet · `pill` capsule. Le set
+ * ferme les 134 littéraux (les paliers 8 et 12 n'avaient pas de nom → 14 rayons
+ * de fait). `card`/`pill` inchangés (rétro-compat).
+ */
+export const radii = { sm: 8, control: 12, card: 20, pill: 999 } as const;
+
+/**
+ * Échelle d'espacement sur grille 4 px (audit UI 2026). AVANT : `cardPadding`
+ * était le SEUL token → ~6 % de tokenisation, 1 429 littéraux, grille de fait
+ * 2 px. `cardPadding` (= lg = 20) est CONSERVÉ dans l'objet pour les usages
+ * existants `spacing.cardPadding` ; les nouveaux écrans consomment l'échelle.
+ * Marge horizontale d'écran = `lg` (axe unique).
+ */
+export const spacing = {
+  xxs: 4, // micro-espace (icône↔texte, gap de pills)
+  xs: 8, // espace interne faible
+  sm: 12, // espace compact (gap de liste, padding de chip)
+  md: 16, // espace standard (padding de card compacte)
+  lg: 20, // séparation de blocs = marge d'écran = ANCIEN cardPadding
+  xl: 24, // séparation de sections
+  xxl: 32, // séparation majeure
+  cardPadding: 20, // = lg — conservé pour les 86 usages `spacing.cardPadding`
+} as const;
+
+/**
+ * Tailles d'icônes (audit UI 2026). AVANT : 18 tailles littérales, 31 % sur
+ * cible. Typer `IconProps.size` sur ces valeurs refuse 13/15/17/18 à la
+ * compilation. Migration : 11→12, 13→12, 14→16, 15→16, 17→16, 18→20, 22→24…
+ */
+export const iconSizes = { xs: 12, sm: 16, md: 20, lg: 24, display: 48 } as const;
+export type IconSize = (typeof iconSizes)[keyof typeof iconSizes];
+
+/**
+ * Gabarits d'interaction (audit UI 2026). Le rôle « bouton primaire » existait
+ * en 9 hauteurs (33→56) → on gèle 2 hauteurs + le plancher tactile WCAG 2.5.5.
+ * Consommés par le futur composant `Button` partagé.
+ */
+export const sizes = {
+  buttonLg: 56, // CTA principal plein écran / bas de page
+  buttonMd: 48, // CTA secondaire, boutons en ligne, sheet
+  touchTarget: 44, // plancher tactile absolu (minHeight/hitSlop garanti)
+} as const;
+
+/**
+ * Rôles typographiques fermes (audit UI 2026) — 184 combinaisons de fait pour
+ * ~6 rôles. Chaque rôle : taille + graisse + lineHeight + letterSpacing.
+ * La COULEUR et `textTransform` (uppercase des kickers) s'appliquent à l'usage
+ * (`[typography.kicker, { color: colors.gris }]`). Le rôle `stat` laisse
+ * `fontSize`/`lineHeight` à l'usage (rampe lg/xl/xxl/heroMax). Plancher 12.
+ */
+export const typography = {
+  /** R1 — kicker / label de section (uppercase + gris à l'usage). */
+  kicker: { fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 2, lineHeight: 16 },
+  /** R2 — titre d'écran. */
+  title: { fontSize: fontSizes.xl, fontWeight: '700', letterSpacing: -0.5, lineHeight: 31 },
+  /** R3 — titre de card (md) / titre d'item de liste (sm) — MÊME graisse. */
+  cardTitle: { fontSize: fontSizes.md, fontWeight: '700', letterSpacing: 0, lineHeight: 20 },
+  itemTitle: { fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0, lineHeight: 18 },
+  /** R4 — corps (14/400) + méta (12/600 gris). */
+  body: { fontSize: fontSizes.sm, fontWeight: '400', letterSpacing: 0, lineHeight: 21 },
+  meta: { fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0, lineHeight: 17 },
+  /** R5 — label de CTA — IDENTIQUE partout (GO, capsule nav, CTA inline, sheet). */
+  button: { fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 0.5, lineHeight: 20 },
+  /** R6 — valeur / stat (tabular). fontSize choisi à l'usage : lg|xl|xxl|hero|heroMax. */
+  stat: { fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
+} as const;
 
 /**
  * AMENDEMENT-22 — RÈGLE DE PROFONDEUR GRYD (« UI en scènes, pas en boîtes »).

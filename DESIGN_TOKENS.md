@@ -32,19 +32,21 @@ Pire : 8 dérivations arithmétiques `cardPadding ± 2/4/6` fabriquent activemen
 (14, 18, 24). Le token unique est devenu un *générateur* de violations.
 
 ```ts
-// packages/shared/src/design-tokens.ts — REMPLACE spacing = { cardPadding: 20 }
+// packages/shared/src/design-tokens.ts — ÉTEND spacing (fait, commit L1)
 export const spacing = {
   xxs: 4,   // micro-espace (icône↔texte serré, gap de pills)
   xs: 8,    // espace interne faible
   sm: 12,   // espace compact (gap de liste, padding de chip)
   md: 16,   // espace standard (padding de card compacte)
-  lg: 20,   // séparation de blocs = ANCIEN cardPadding (marge d'écran, padding card)
+  lg: 20,   // séparation de blocs = marge d'écran (axe unique)
   xl: 24,   // séparation de sections
   xxl: 32,  // séparation majeure
+  cardPadding: 20, // = lg — CONSERVÉ dans l'objet (86 usages `spacing.cardPadding` intacts)
 } as const;
-/** Alias rétro-compat le temps de la migration — pointe vers lg. À retirer en fin de codemod. */
-export const cardPadding = spacing.lg;
 ```
+> `cardPadding` reste **dans l'objet** (pas externalisé) : les 86 usages
+> `spacing.cardPadding` continuent de fonctionner sans migration. Le codemod les
+> remplacera par `spacing.lg` progressivement, écran par écran.
 
 **Marge horizontale d'écran** — axe unique **`spacing.lg` (20 px)** (déjà la valeur dominante sur
 ~25 écrans). Trois écrans à corriger : `sign-in.tsx:278` et `onboarding/index.tsx:808` sont à
