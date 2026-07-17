@@ -12,9 +12,10 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, sizes, spacing, typography } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
+import { Card } from '../src/ui/Card';
 import { StackScreen } from '../src/ui/StackScreen';
 import { RunHistoryCard } from '../src/features/history/RunHistoryCard';
 import {
@@ -103,9 +104,9 @@ export default function HistoriqueScreen() {
       </Text>
 
       {list.length === 0 ? (
-        <View style={styles.empty}>
+        <Card style={styles.empty}>
           <Text style={styles.emptyText}>Aucune course dans ce filtre pour l’instant.</Text>
-        </View>
+        </Card>
       ) : (
         <View style={styles.list}>
           {list.map((entry) => (
@@ -122,13 +123,13 @@ const styles = StyleSheet.create({
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: spacing.xs,
+    minHeight: sizes.touchTarget, // plancher tactile 44 (P1 : chips étaient ~37 px)
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.md,
   },
   filterChipOn: { borderColor: gameColors.crew, backgroundColor: colors.chartreuse14 },
   filterLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
@@ -141,21 +142,14 @@ const styles = StyleSheet.create({
   },
   filterCountOn: { color: gameColors.crew },
   sectionLabel: {
+    ...typography.kicker,
     color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    marginTop: 22,
-    marginBottom: 12,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
-  list: { gap: 12 },
+  list: { gap: spacing.sm },
   pressed: { opacity: 0.75 },
-  empty: {
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: spacing.cardPadding,
-    alignItems: 'center',
-  },
+  // Card fournit fond/rayon/padding (sans contour, règle 80/20) : on ne garde que le centrage.
+  empty: { alignItems: 'center' },
   emptyText: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
 });
