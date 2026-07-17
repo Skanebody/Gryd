@@ -90,10 +90,12 @@ function SourceRow({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Déconnecter ${source.name}`}
+          accessibilityState={{ busy }}
+          disabled={busy}
           onPress={onDisconnect}
-          style={({ pressed }) => [styles.statusChip, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.statusChip, (pressed || busy) && styles.pressed]}
         >
-          <Text style={styles.statusChipText}>Connecté</Text>
+          <Text style={styles.statusChipText}>{busy ? 'Déconnexion…' : 'Connecté'}</Text>
         </Pressable>
       ) : status === 'disconnected' ? (
         <Pressable
@@ -173,10 +175,27 @@ export default function SourcesScreen() {
 
   const disconnect = async (key: string) => {
     const adapter = SOURCE_ADAPTERS[key];
-    if (!adapter) return;
+    if (!adapter || busyKey) return; // même garde anti double-tap que connect()
     haptics.light();
-    const snap = await adapter.disconnect();
-    setSnapshots((prev) => ({ ...prev, [key]: snap }));
+    setBusyKey(key);
+    try {
+      const snap = await adapter.disconnect();
+      setSnapshots((prev) => ({ ...prev, [key]: snap }));
+    } catch {
+      // Filet UI symétrique de connect() (AMENDEMENT-15 §3 « jamais d'exception
+      // vers l'UI ») : la déconnexion a échoué → la source RESTE connectée,
+      // message honnête, action re-tentable, aucun crash.
+      setSnapshots((prev) => ({
+        ...prev,
+        [key]: {
+          status: 'connected',
+          lastSync: prev[key]?.lastSync ?? null,
+          detail: 'Déconnexion impossible — réessaie plus tard',
+        },
+      }));
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   const verifySources = VERIFY_SOURCES.filter((s) => s.availability !== 'soon');
