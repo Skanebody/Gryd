@@ -56,6 +56,7 @@ import {
 import { flags } from '../../src/lib/flags';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
+import { useSession } from '../../src/lib/session';
 import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -1105,6 +1106,12 @@ export default function CrewScreen() {
   }, []);
 
   const [tab, setTab] = useState<HqTab>('base');
+  // Activation O1 : aucune source de crew RÉELLE (crew_members non peuplé). Un vrai
+  // utilisateur (session) n'a donc PAS de crew → EmptyState « crée/rejoins un crew »
+  // (rendu APRÈS tous les hooks, jamais un HQ fabriqué). Showcase (web/dev sans
+  // session) → HQ démo. Le gate effectif est juste avant le return (Rules of Hooks).
+  const { session, configured } = useSession();
+  const realUser = configured && !!session;
   /** Profil crew effectif (reflète l'édition founder persistée au retour). */
   const crewProfile = useCrewProfile();
   /** Base horaire figée au montage (ordre stable des messages démo). */
@@ -1258,7 +1265,6 @@ export default function CrewScreen() {
     [],
   );
 
-  if (!HAS_CREW) return <EmptyState />;
 
   const notify = (message: string) => {
     haptics.light();
@@ -1532,6 +1538,9 @@ export default function CrewScreen() {
     unblockMember(pseudo);
     notify(`${pseudo} débloqué. Ses messages réapparaissent (démo).`);
   };
+
+  // Gate APRÈS tous les hooks (Rules of Hooks) : pas de crew réel → EmptyState.
+  if (!HAS_CREW || realUser) return <EmptyState />;
 
   return (
     <TabScreen title={crewProfile.name} icon="crew" kicker={`CREW HQ · ${MY_CREW.city.toUpperCase()}`}>
