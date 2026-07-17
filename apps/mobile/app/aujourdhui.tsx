@@ -35,6 +35,8 @@ import {
 import { useMyBadges } from '../src/features/badges/myBadges';
 import { TODAY, TODAY_HERO } from '../src/features/motivation/demo';
 import { ROUTES_DEMO, routeDurationMin, routeSocialName } from '../src/features/route/demo';
+import { useMyProfile } from '../src/features/social/profileStore';
+import { useSession } from '../src/lib/session';
 
 /** « 4,8 » — le KPI géant est la distance, la virgule est FR. */
 function kmLabel(km: number): string {
@@ -67,6 +69,17 @@ export default function AujourdhuiScreen() {
   // Débloqués + progression : réels (user_badges/user_stats) si session, sinon démo.
   const { unlockedIds, stat } = useMyBadges();
 
+  // O1 (états vides) : le prénom, la « situation » (MAP_HUD.zoneName démo) et le
+  // bandeau semaine (weekRuns/formScore/coffre crew — aucun câblé au réel) sont de
+  // la DÉMO. Un vrai user (session) reçoit un accueil HONNÊTE : son vrai prénom, une
+  // situation neutre sans quartier inventé, et pas de faux chiffres de semaine tant
+  // que rien n'est câblé (mêmes stats masquées que sur le Profil). Showcase inchangé.
+  const { session, configured } = useSession();
+  const { profile } = useMyProfile();
+  const realUser = configured && !!session;
+  const greetingName = realUser ? profile.displayName : TODAY_HERO.greetingName;
+  const situation = realUser ? 'Ta prochaine course t’attend.' : TODAY_HERO.situation;
+
   // Prochain badge proche : top 1 verrouillé non secret par ratio (même calcul
   // que la section « Proches du déblocage » de la Collection — cohérence).
   const nextBadge = useMemo(() => {
@@ -89,8 +102,8 @@ export default function AujourdhuiScreen() {
   return (
     <StackScreen title="Aujourd'hui" icon="aujourdhui" kicker="TA JOURNÉE GRYD">
       {/* Bonjour + situation en UNE phrase — le contexte avant la décision. */}
-      <Text style={styles.greeting}>BONJOUR {TODAY_HERO.greetingName}</Text>
-      <Text style={styles.situation}>{TODAY_HERO.situation}</Text>
+      <Text style={styles.greeting}>BONJOUR {greetingName}</Text>
+      <Text style={styles.situation}>{situation}</Text>
 
       {/* L'OBJECTIF : carte héros ROUTE RECOMMANDÉE (tap → Route Planner). */}
       <Pressable
@@ -133,30 +146,39 @@ export default function AujourdhuiScreen() {
         />
       </View>
 
-      {/* Bandeau semaine : 3 indicateurs, pas un feed. */}
-      <View style={styles.weekBand}>
-        <View style={styles.weekCell}>
-          <Text style={styles.weekValue}>
-            {TODAY.weekRuns}
-            <Text style={styles.weekTarget}>/{TODAY.weekTarget}</Text>
-          </Text>
-          <Text style={styles.weekLabel}>COURSES</Text>
-        </View>
-        <View style={styles.weekSep} />
-        <View style={styles.weekCell}>
-          <Text style={styles.weekValue}>
-            {TODAY.formScore}
-            <Text style={styles.weekTarget}>/100</Text>
-          </Text>
-          <Text style={styles.weekLabel}>SCORE FORME</Text>
-        </View>
-        <View style={styles.weekSep} />
-        <View style={styles.weekCell}>
-          <Text style={styles.weekValue}>{TODAY_HERO.crewChestPct} %</Text>
-          <Text style={styles.weekLabel}>COFFRE CREW</Text>
-        </View>
-      </View>
-      <ProgressBar value={TODAY.weekTarget > 0 ? TODAY.weekRuns / TODAY.weekTarget : 1} height={6} />
+      {/* Bandeau semaine : 3 indicateurs, pas un feed. Aucun n'est câblé au réel
+          (O1) — masqué pour un vrai user (comme la stats-row du Profil) plutôt que
+          de présenter de la démo comme sa semaine. Showcase : bandeau démo intact. */}
+      {realUser ? null : (
+        <>
+          <View style={styles.weekBand}>
+            <View style={styles.weekCell}>
+              <Text style={styles.weekValue}>
+                {TODAY.weekRuns}
+                <Text style={styles.weekTarget}>/{TODAY.weekTarget}</Text>
+              </Text>
+              <Text style={styles.weekLabel}>COURSES</Text>
+            </View>
+            <View style={styles.weekSep} />
+            <View style={styles.weekCell}>
+              <Text style={styles.weekValue}>
+                {TODAY.formScore}
+                <Text style={styles.weekTarget}>/100</Text>
+              </Text>
+              <Text style={styles.weekLabel}>SCORE FORME</Text>
+            </View>
+            <View style={styles.weekSep} />
+            <View style={styles.weekCell}>
+              <Text style={styles.weekValue}>{TODAY_HERO.crewChestPct} %</Text>
+              <Text style={styles.weekLabel}>COFFRE CREW</Text>
+            </View>
+          </View>
+          <ProgressBar
+            value={TODAY.weekTarget > 0 ? TODAY.weekRuns / TODAY.weekTarget : 1}
+            height={6}
+          />
+        </>
+      )}
 
       {/* Prochain badge proche — 1 seule carte, invitation douce. */}
       {nextBadge ? (
