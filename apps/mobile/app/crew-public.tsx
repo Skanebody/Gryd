@@ -9,7 +9,8 @@
  * nombre magique. Données démo (features/crew/publicDemo). Zéro position live.
  */
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams } from 'expo-router';
 import {
   CREW_MAX_MEMBERS,
@@ -220,17 +221,36 @@ export default function CrewPublicScreen() {
           </Pressable>
           <View style={styles.actionsRow}>
             <View style={styles.actionCell}>
+              {/* Zéro-lie : partage RÉEL (feuille OS). Aucun toast « partagée »
+                  fabriqué — la feuille est son propre retour ; toast seulement
+                  si l'utilisateur confirme un partage. */}
               <GhostButton
                 label="Partager"
                 icon="partage"
-                onPress={() => toast.show('Fiche crew partagée')}
+                onPress={() => {
+                  void Share.share({
+                    message: `Rejoins ${crew.name} sur GRYD\n${crew.inviteLink}`,
+                  })
+                    .then((r) => {
+                      if (r.action === Share.sharedAction) toast.show('Fiche partagée');
+                    })
+                    .catch(() => {
+                      /* partage annulé/indispo : pas de faux succès */
+                    });
+                }}
               />
             </View>
             <View style={styles.actionCell}>
+              {/* Zéro-lie : copie RÉELLE — le toast « Lien copié » ne s'affiche
+                  qu'APRÈS la mise en presse-papier effective. */}
               <GhostButton
                 label="Copier le lien"
                 icon="copier"
-                onPress={() => toast.show(`Lien copié — ${crew.inviteLink}`)}
+                onPress={() => {
+                  void Clipboard.setStringAsync(crew.inviteLink)
+                    .then(() => toast.show('Lien copié'))
+                    .catch(() => toast.show('Copie indisponible'));
+                }}
               />
             </View>
           </View>
@@ -238,7 +258,7 @@ export default function CrewPublicScreen() {
 
         <Text style={styles.footnote}>
           Les signaux d'activité sont agrégés au niveau du crew. Aucune position live n'est
-          exposée (§37.3).
+          exposée.
         </Text>
       </StackScreen>
       <ToastHost state={toast} />

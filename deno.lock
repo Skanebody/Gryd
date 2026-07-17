@@ -185,6 +185,7 @@
             "npm:@types/react@~18.3.12",
             "npm:expo-apple-authentication@~7.1.3",
             "npm:expo-auth-session@~6.0.3",
+            "npm:expo-clipboard@~7.0.1",
             "npm:expo-constants@~17.0.8",
             "npm:expo-crypto@~14.0.2",
             "npm:expo-haptics@~14.0.1",
