@@ -157,7 +157,9 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   area: { color: colors.gris, fontSize: fontSizes.xs },
-  when: { color: colors.gris, fontSize: fontSizes.xs, opacity: 0.7 },
+  // colors.gris EST déjà la couleur atténuée : l'opacity 0.7 en plus faisait
+  // tomber la date sous le contraste AA. Le gris seul suffit (contraste préservé).
+  when: { color: colors.gris, fontSize: fontSizes.xs },
   effortRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
   effortMain: {
     color: colors.blanc,

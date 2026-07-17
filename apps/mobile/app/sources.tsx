@@ -298,7 +298,10 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     padding: spacing.md,
   },
-  cardSoon: { opacity: 0.66 },
+  // Recul VISUEL des sources « à venir » sans crever le contraste AA du texte :
+  // 0.66 faisait tomber le gris 12 px sous 4,5:1. La chip d'état (« Bientôt » /
+  // « Dev build requis ») porte déjà le signal — 0.85 suffit à reculer la card.
+  cardSoon: { opacity: 0.85 },
   iconWrap: {
     width: 44,
     height: 44,
