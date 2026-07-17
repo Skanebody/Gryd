@@ -600,25 +600,30 @@ export default function ProfilScreen() {
               <ProgressBar value={levelRatio} height={8} />
             </View>
           </View>
+          {/* Zéro-lie : Score Forme et « % du coffre crew » ne sont pas encore
+              câblés au réel (O1) — les présenter à côté de la Série RÉELLE (issue
+              d'une session) ferait passer de la démo pour du vrai. Sur session
+              serveur on n'affiche donc QUE des stats réelles (Série + Niveau +
+              badges débloqués) ; en démo, la rangée démo reste cohérente. */}
           <View style={styles.progressStatsRow}>
-            <View style={styles.progressStat}>
-              <Text style={styles.progressStatValue}>{MY_SOCIAL_PROFILE.formeScore}</Text>
-              <Text style={styles.progressStatLabel}>Score Forme</Text>
-            </View>
-            <View style={styles.progressStat}>
-              <Text style={styles.progressStatValue}>
-                {formatMultiplier(streakMultiplier)}
-              </Text>
-              {/* Même source que le multiplicateur (serveur si session, sinon
-                  démo) — le libellé ne peut pas contredire le chiffre. */}
-              <Text style={styles.progressStatLabel}>Série · {streakWeeks} sem</Text>
-            </View>
-            <View style={styles.progressStat}>
-              <Text style={styles.progressStatValue}>
-                {MY_SOCIAL_PROFILE.crewChestContribPct} %
-              </Text>
-              <Text style={styles.progressStatLabel}>du coffre crew</Text>
-            </View>
+            {(economy.source === 'server'
+              ? [
+                  { value: formatMultiplier(streakMultiplier), label: `Série · ${streakWeeks} sem` },
+                  { value: formatInt(unlockedCount), label: 'badges débloqués' },
+                ]
+              : [
+                  { value: `${MY_SOCIAL_PROFILE.formeScore}`, label: 'Score Forme' },
+                  { value: formatMultiplier(streakMultiplier), label: `Série · ${streakWeeks} sem` },
+                  { value: `${MY_SOCIAL_PROFILE.crewChestContribPct} %`, label: 'du coffre crew' },
+                ]
+            ).map((s) => (
+              <View key={s.label} style={styles.progressStat}>
+                <Text style={styles.progressStatValue}>{s.value}</Text>
+                <Text style={styles.progressStatLabel} numberOfLines={1}>
+                  {s.label}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
 
