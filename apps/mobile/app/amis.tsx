@@ -19,6 +19,20 @@ import { FriendCard } from '../src/ui/game';
 import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
 import { FRIENDS, MY_SOCIAL_PROFILE, type FriendDemo } from '../src/features/social/demo';
 import { ToastHost, useToast, type ToastController } from '../src/features/social/Toast';
+import { useSession } from '../src/lib/session';
+
+const NO_FRIENDS: readonly FriendDemo[] = [];
+
+/**
+ * Amis : AUCUNE source réelle d'amis n'est encore câblée (O1). Un vrai
+ * utilisateur (session) voit donc une liste VIDE honnête — jamais de faux amis
+ * présentés comme les siens (« l'app ne ment jamais »). La démo ne sert que le
+ * showcase (web / dev sans session).
+ */
+function useFriends(): readonly FriendDemo[] {
+  const { session, configured } = useSession();
+  return configured && session ? NO_FRIENDS : FRIENDS;
+}
 
 type TabKey = 'friends' | 'requests' | 'suggestions' | 'qr' | 'search';
 
@@ -72,7 +86,10 @@ function FriendsList({ toast, onMore }: {
   toast: ToastController;
   onMore: (friend: FriendDemo) => void;
 }) {
-  const friends = FRIENDS.filter((f) => f.state === 'accepted');
+  const friends = useFriends().filter((f) => f.state === 'accepted');
+  if (friends.length === 0) {
+    return <Text style={styles.empty}>Pas encore d’amis. Invite ton crew ou fais scanner ton QR.</Text>;
+  }
   return (
     <View style={styles.list}>
       {friends.map((f) => (
@@ -92,7 +109,7 @@ function RequestsList({ toast, onMore }: {
   toast: ToastController;
   onMore: (friend: FriendDemo) => void;
 }) {
-  const requests = FRIENDS.filter((f) => f.state === 'incoming');
+  const requests = useFriends().filter((f) => f.state === 'incoming');
   if (requests.length === 0) {
     return <Text style={styles.empty}>Aucune demande en attente.</Text>;
   }
@@ -123,7 +140,10 @@ function SuggestionsList({ toast, onMore }: {
   toast: ToastController;
   onMore: (friend: FriendDemo) => void;
 }) {
-  const suggestions = FRIENDS.filter((f) => f.state === 'suggested');
+  const suggestions = useFriends().filter((f) => f.state === 'suggested');
+  if (suggestions.length === 0) {
+    return <Text style={styles.empty}>Aucune suggestion pour l’instant.</Text>;
+  }
   return (
     <View style={styles.list}>
       {suggestions.map((f) => (
@@ -170,9 +190,10 @@ function SearchPanel({ toast, onMore }: {
   const [query, setQuery] = useState('');
   const normalized = query.trim().toLowerCase().replace(/^@/, '');
   const valid = HANDLE_REGEX.test(normalized);
+  const friends = useFriends();
   const matches = useMemo(
-    () => (normalized ? FRIENDS.filter((f) => f.handle.includes(normalized)) : []),
-    [normalized],
+    () => (normalized ? friends.filter((f) => f.handle.includes(normalized)) : []),
+    [normalized, friends],
   );
 
   return (
@@ -309,8 +330,9 @@ export default function AmisScreen() {
     screen('amis');
   }, []);
 
-  const friendsCount = FRIENDS.filter((f) => f.state === 'accepted').length;
-  const requestsCount = FRIENDS.filter((f) => f.state === 'incoming').length;
+  const friends = useFriends();
+  const friendsCount = friends.filter((f) => f.state === 'accepted').length;
+  const requestsCount = friends.filter((f) => f.state === 'incoming').length;
 
   return (
     <>
