@@ -9,3 +9,4 @@ export * from './badge-icons';
 export * from './arsenal-icons';
 export * from './france-geo';
 export * from './icons';
+export * from './sectorName';

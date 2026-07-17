@@ -50,7 +50,8 @@ import {
 } from '../src/features/route/generator';
 import { routeLoop } from '../src/features/route/liveRouting';
 import { setPlannedRoute } from '../src/features/route/plannedRoute';
-import { currentPosition, reverseGeocode, type OriginPoint } from '../src/features/route/origin';
+import { currentPosition, type OriginPoint } from '../src/features/route/origin';
+import { resolveSectorName } from '../src/features/map/sectorNaming';
 import { EGO_REPUBLIQUE } from '../src/features/map/realAnchors';
 import type { PlannedRouteDemo } from '../src/features/route/types';
 
@@ -197,8 +198,12 @@ export default function RoutePlannerScreen() {
         }
         return;
       }
-      // Position CONFIRMÉE : « Ma position » n'est utilisé que si le nom échoue.
-      const label = (await reverseGeocode(pos)) ?? 'Ma position';
+      // Position CONFIRMÉE → nom RÉEL du secteur (quartier/village, PARTOUT en
+      // Europe) via reverse-geocode + hiérarchie de repli + cache (resolveSectorName).
+      // Clé de cache ~ granularité secteur (coords arrondies) ; « Ma position » ne
+      // sert que si aucun nom OSM (réseau HS) — jamais un faux lieu.
+      const key = `${pos.lat.toFixed(2)},${pos.lng.toFixed(2)}`;
+      const label = await resolveSectorName(pos, key, 'Ma position');
       const o = { point: pos, label };
       setGps('ok');
       setOrigin(o);
