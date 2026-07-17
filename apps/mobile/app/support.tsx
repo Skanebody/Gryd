@@ -84,7 +84,7 @@ const RUN_TOPICS: readonly SupportTopic[] = [
   },
 ];
 
-/** Signalements — traités par une personne, réponse sous quelques jours. */
+/** Signalements — le canal de modération est en cours de mise en place (O1). */
 const REPORT_TOPICS: readonly SupportTopic[] = [
   {
     key: 'report_cheat',
@@ -136,9 +136,12 @@ function TopicCard({ topic }: { topic: SupportTopic }) {
           router.push('/confidentialite');
           return;
         }
+        // Zéro-lie : ces signalements généraux n'ont pas encore de destination
+        // (backend de modération O1 en cours) — on ne prétend PLUS qu'« une
+        // personne examine ta demande ». Message honnête sur l'état réel.
         Alert.alert(
           topic.title,
-          'C’est noté. Une personne examine chaque demande et te répond sous quelques jours — le suivi dans l’app arrive très bientôt.',
+          'Le signalement en un tap arrive très bientôt. Pour l’instant cette remontée n’est pas encore transmise — on finalise le canal de modération.',
           [{ text: 'Compris' }],
         );
       }}
