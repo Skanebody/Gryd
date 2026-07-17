@@ -30,6 +30,7 @@ import {
   elevation,
   fontSizes,
   gameColors,
+  iconSizes,
   motion,
   radii,
   spacing,
@@ -334,7 +335,7 @@ export default function ArsenalScreen() {
         </View>
         <View style={styles.walletDivider} />
         <View style={styles.walletCell}>
-          <Icon name="couronne" size={18} color={wallet.isClub ? colors.chartreuse : colors.gris} />
+          <Icon name="couronne" size={iconSizes.md} color={wallet.isClub ? colors.chartreuse : colors.gris} />
           <Text style={wallet.isClub ? styles.walletClubOn : styles.walletClubOff}>
             Club : {wallet.isClub ? 'actif' : 'inactif'}
           </Text>
@@ -344,7 +345,7 @@ export default function ArsenalScreen() {
       {/* Bannière permanente anti-pay-to-win (copy §28) — posée sur l'espace,
           plus de boîte : un filet supérieur discret la sépare du solde. */}
       <View style={styles.banner}>
-        <Icon name="verrou" size={18} color={colors.blanc} />
+        <Icon name="verrou" size={iconSizes.md} color={colors.blanc} />
         <View style={styles.bannerTextWrap}>
           <Text style={styles.bannerStrong}>Le territoire ne s'achète pas.</Text>
           <Text style={styles.bannerSoft}>Le style, le statut et l'organisation, oui.</Text>
@@ -662,14 +663,14 @@ function ItemDetail({
 
       {item.limit ? (
         <View style={styles.detailChip}>
-          <Icon name="verrou" size={13} color={colors.gris} />
+          <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
           <Text style={styles.detailChipText}>Plafond : {item.limit}</Text>
         </View>
       ) : null}
 
       {isSkin ? (
         <View style={styles.detailChip}>
-          <Icon name="carte" size={13} color={gameColors.crew} />
+          <Icon name="carte" size={iconSizes.xs} color={gameColors.crew} />
           <Text style={styles.detailChipText}>Visible sur ta carte à la Saison 0.</Text>
         </View>
       ) : null}
@@ -781,7 +782,7 @@ function ItemDetail({
             onPress={onGift}
             style={({ pressed }) => [styles.detailGhost, pressed && styles.pressed]}
           >
-            <Icon name="cadeau" size={15} color={colors.blanc} />
+            <Icon name="cadeau" size={iconSizes.sm} color={colors.blanc} />
             <Text style={styles.detailGhostText}>Offrir au crew</Text>
           </Pressable>
         ) : null}
@@ -1050,7 +1051,7 @@ const styles = StyleSheet.create({
   // skin territoire y fondent leur masque de décor).
   detailIllus: {
     alignSelf: 'stretch',
-    borderRadius: 20,
+    borderRadius: radii.card,
     backgroundColor: elevation.raised,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1062,7 +1063,7 @@ const styles = StyleSheet.create({
   detailPreviewBox: {
     width: 96,
     height: 96,
-    borderRadius: 20,
+    borderRadius: radii.card,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: elevation.raised,

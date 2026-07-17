@@ -34,8 +34,10 @@ import {
   elevation,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
   skillIconName,
+  spacing,
   type IconName,
   type SkillDef,
   type SkillFamilyId,
@@ -361,7 +363,7 @@ function SectionToggle({
       }}
       style={({ pressed }) => [styles.sectionToggle, pressed && styles.pressed]}
     >
-      <Icon name={icon} size={15} color={colors.gris} />
+      <Icon name={icon} size={iconSizes.sm} color={colors.gris} />
       <Text style={styles.sectionLabel}>{label}</Text>
       {count !== undefined ? <Text style={styles.sectionCount}>{count}</Text> : null}
       <View style={styles.sectionSpacer} />
@@ -482,7 +484,7 @@ function MissionRow({
     >
       <View style={styles.lineHead}>
         <View style={styles.lineIcon}>
-          <Icon name={entry.icon} size={18} color={urgent ? gameColors.danger : colors.blanc} />
+          <Icon name={entry.icon} size={iconSizes.md} color={urgent ? gameColors.danger : colors.blanc} />
         </View>
         <Text style={styles.lineTitle} numberOfLines={1}>
           {entry.title}
@@ -497,7 +499,7 @@ function MissionRow({
       <View style={styles.lineFoot}>
         <Text style={styles.lineMeta}>{entry.meta}</Text>
         <View style={styles.lineActionWrap}>
-          <Text style={styles.lineActionLabel} numberOfLines={1} ellipsizeMode="clip">
+          <Text style={styles.lineActionLabel} numberOfLines={1} adjustsFontSizeToFit>
             {entry.action}
           </Text>
           <Icon name="chevron" size={15} color={colors.blanc} />
@@ -534,7 +536,7 @@ function CrewBonusLine({
     >
       <View style={styles.lineHead}>
         <View style={styles.lineIcon}>
-          <Icon name={BONUS_ICON[def.id]} size={18} color={gameColors.crew} />
+          <Icon name={BONUS_ICON[def.id]} size={iconSizes.md} color={gameColors.crew} />
         </View>
         <View style={styles.bonusText}>
           <Text style={styles.lineKicker} numberOfLines={1}>
@@ -599,7 +601,7 @@ function SeeAll({ label, onPress }: { label: string; onPress: () => void }) {
       style={({ pressed }) => [styles.seeAll, pressed && styles.pressed]}
     >
       <Text style={styles.seeAllLabel}>{label}</Text>
-      <Icon name="chevron" size={14} color={colors.chartreuse} />
+      <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
     </Pressable>
   );
 }
@@ -618,7 +620,7 @@ function SectionHead({
 }) {
   return (
     <View style={styles.sectionHead}>
-      <Icon name={icon} size={15} color={tint} />
+      <Icon name={icon} size={iconSizes.sm} color={tint} />
       <Text style={styles.sectionLabel}>{label}</Text>
       {count !== undefined && count > 0 ? (
         <Text style={styles.sectionCount}>{count}</Text>
@@ -1015,7 +1017,7 @@ export default function WarRoomScreen() {
         >
           <View style={styles.lineHead}>
             <View style={styles.lineIcon}>
-              <Icon name="coffre" size={18} color={gameColors.gold} />
+              <Icon name="coffre" size={iconSizes.md} color={gameColors.gold} />
             </View>
             <Text style={styles.lineTitle} numberOfLines={1}>
               Coffre du crew
@@ -1027,7 +1029,7 @@ export default function WarRoomScreen() {
           <View style={styles.lineFoot}>
             <Text style={styles.lineMeta}>{chestPhrase}</Text>
             <View style={styles.lineActionWrap}>
-              <Text style={styles.lineActionLabel} numberOfLines={1} ellipsizeMode="clip">
+              <Text style={styles.lineActionLabel} numberOfLines={1} adjustsFontSizeToFit>
                 Voir le coffre
               </Text>
               <Icon name="chevron" size={15} color={colors.blanc} />
@@ -1082,7 +1084,7 @@ export default function WarRoomScreen() {
           <View style={styles.sectionBody}>
             {/* Rôle + permissions (matrice §8) — gating visuel, ligne sans cadre. */}
             <View style={styles.roleBanner}>
-              <Icon name="couronne" size={14} color={colors.blanc} />
+              <Icon name="couronne" size={iconSizes.sm} color={colors.blanc} />
               <Text style={styles.roleBannerText} numberOfLines={1}>
                 Ton rôle : {CREW_ROLE_LABELS[myRole]}
               </Text>
@@ -1112,7 +1114,7 @@ export default function WarRoomScreen() {
                   onPress={() => router.push(it.href)}
                   style={({ pressed }) => [styles.motivChip, pressed && styles.pressed]}
                 >
-                  <Icon name={it.icon} size={18} color={colors.blanc} />
+                  <Icon name={it.icon} size={iconSizes.md} color={colors.blanc} />
                   <Text style={styles.motivLabel}>{it.label}</Text>
                 </Pressable>
               ))}
@@ -1126,7 +1128,7 @@ export default function WarRoomScreen() {
                   <View style={styles.lineIcon}>
                     <Icon
                       name={MISSION_ICON[m.kind] ?? 'mission'}
-                      size={18}
+                      size={iconSizes.md}
                       color={done ? gameColors.crew : colors.blanc}
                     />
                   </View>
@@ -1269,14 +1271,14 @@ const styles = StyleSheet.create({
     backgroundColor: elevation.surface,
     borderRadius: radii.card,
     borderWidth: 1,
-    padding: 16,
+    padding: spacing.md,
     marginTop: 12,
   },
-  heroHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
+  heroHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
   heroIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: radii.control,
     backgroundColor: elevation.raised,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1311,7 +1313,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     minHeight: 44,
   },
-  lineHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  lineHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   // Pastille d'icône = N2 relevé, sans contour (contour réservé aux états).
   lineIcon: {
     width: 38,
@@ -1349,7 +1351,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontVariant: ['tabular-nums'],
   },
-  lineActionWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  lineActionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
   // Action inline (verbe + chevron) en blanc : le SEUL élément chartreuse plein
   // de l'écran reste le CTA du hero.
   lineActionLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
@@ -1369,7 +1371,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    marginTop: 8,
+    marginTop: spacing.xs,
     minHeight: 44,
     paddingHorizontal: 2,
   },
@@ -1462,7 +1464,7 @@ const styles = StyleSheet.create({
   rolePermNo: { color: colors.gris },
 
   // --- Motivation chips (AMENDEMENT-07) : actions légères, remplissent la rangée ---
-  motivRow: { flexDirection: 'row', gap: 8 },
+  motivRow: { flexDirection: 'row', gap: spacing.xs },
   motivChip: {
     flex: 1,
     flexDirection: 'row',
@@ -1518,7 +1520,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     minHeight: 44,
-    paddingVertical: 8,
+    paddingVertical: spacing.xs,
   },
   seeAllLabel: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700' },
 });

@@ -14,7 +14,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii, type IconName } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import {
   deriveContextualAction,
@@ -144,7 +144,7 @@ export function GrydNavBar() {
             pressed && styles.actionPressed,
           ]}
         >
-          <Icon name="foulees" size={22} color={actionOutlined ? colors.chartreuse : colors.noir} />
+          <Icon name="foulees" size={iconSizes.lg} color={actionOutlined ? colors.chartreuse : colors.noir} />
           <Text style={[styles.actionLabel, actionOutlined && styles.actionLabelOutlined]}>GO</Text>
         </Pressable>
       </View>
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     height: NAV_BAR_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: spacing.xxs,
   },
   pressed: { opacity: 0.7 },
   /** Trait actif : présence/absence = canal non-couleur (en plus icône pleine + gras). */
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   action: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs,
     height: ACTION_BUTTON_HEIGHT,
     paddingHorizontal: 22,
     backgroundColor: colors.chartreuse,

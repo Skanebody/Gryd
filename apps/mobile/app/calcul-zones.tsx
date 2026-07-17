@@ -22,7 +22,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, spacing } from '@klaim/shared';
 import {
   EXPLAIN_SECTIONS,
   type ExplainSection,
@@ -162,7 +162,7 @@ export default function CalculZonesScreen() {
         onPress={() => router.push('/faq')}
         style={({ pressed }) => [styles.faqLink, pressed && styles.pressed]}
       >
-        <Icon name="aide" size={18} color={colors.blanc} />
+        <Icon name="aide" size={iconSizes.md} color={colors.blanc} />
         <Text style={styles.faqLinkText}>Voir toutes les questions</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
@@ -171,10 +171,10 @@ export default function CalculZonesScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { marginTop: 12 },
+  list: { marginTop: spacing.sm },
   // Une SCÈNE posée sur le fond : séparée par l'espace, sans contour (AMENDEMENT-22).
   scene: { marginBottom: 40 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconWrap: {
     width: 38,
     height: 38,
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.5,
-    marginTop: 12,
+    marginTop: spacing.sm,
   },
   schemaWrap: { alignItems: 'center', marginTop: 18 },
   // Exemple concret = contenu clé (pas un micro-label) : sm, lisible en mouvement.
@@ -203,15 +203,15 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.55,
-    marginTop: 16,
+    marginTop: spacing.md,
   },
   // Action légère de bas de page (pas un gros CTA chartreuse — celui-ci reste rare).
   faqLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    marginTop: 4,
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    marginTop: spacing.xxs,
     borderTopWidth: 1,
     borderTopColor: colors.grisLigne,
   },

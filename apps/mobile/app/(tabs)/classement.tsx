@@ -33,6 +33,7 @@ import {
   elevation,
   fontSizes,
   gameColors,
+  iconSizes,
   radii,
   spacing,
 } from '@klaim/shared';
@@ -285,7 +286,7 @@ export default function LeagueScreen() {
           SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} (DÉMO)
         </Text>
         <View style={styles.titleRow}>
-          <Icon name="classement" size={22} color={colors.blanc} />
+          <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
           <Text style={styles.title}>Saison</Text>
         </View>
 
@@ -294,7 +295,7 @@ export default function LeagueScreen() {
             vit dans la section Récompenses, pas ici. ── */}
         {discreet ? (
           <View style={styles.discreetBanner}>
-            <Icon name="discret" size={18} color={colors.blanc} />
+            <Icon name="discret" size={iconSizes.md} color={colors.blanc} />
             <View style={styles.discreetBody}>
               <Text style={styles.discreetTitle}>Mode discret actif</Text>
               <Text style={styles.discreetText}>
@@ -330,7 +331,7 @@ export default function LeagueScreen() {
                   jamais coupés ») — l'icône route porte le contexte « planner ». */}
               <InlineRunCTA
                 label={isLeader ? 'DÉFENDRE' : 'MA ROUTE'}
-                leading={<Icon name="route" size={18} color={colors.noir} />}
+                leading={<Icon name="route" size={iconSizes.md} color={colors.noir} />}
                 onPress={() => router.push('/route-planner')}
               />
             </View>
@@ -396,7 +397,7 @@ export default function LeagueScreen() {
             abstraite). Le rappel « tiens ton rang » vit ICI, lié aux gains —
             pas dans le bloc TOI où il concurrencerait l'objectif du jour. */}
         <View style={styles.sectionHead}>
-          <Icon name="cadeau" size={14} color={colors.gris} />
+          <Icon name="cadeau" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionLabel}>
             RÉCOMPENSES TOP 10 · FIN SEMAINE {SEASON_DURATION_WEEKS}
           </Text>
@@ -485,7 +486,7 @@ const styles = StyleSheet.create({
   // ── Bandeau mode discret (AMENDEMENT-07 §10.3) ──
   discreetBanner: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.sm,
     marginTop: 16,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
@@ -512,7 +513,7 @@ const styles = StyleSheet.create({
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
-    marginTop: 12,
+    marginTop: spacing.sm,
   },
 
   // ── Podium en marches ──
@@ -522,7 +523,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 22,
   },
-  podiumCol: { flex: 1, alignItems: 'center', gap: 4 },
+  podiumCol: { flex: 1, alignItems: 'center', gap: spacing.xxs },
   podiumName: {
     color: colors.blanc,
     fontSize: fontSizes.xs,
@@ -547,7 +548,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radii.card,
     backgroundColor: elevation.surface,
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: spacing.xs,
   },
 
   // ── Lignes 4+ ──
@@ -564,11 +565,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.sm,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.noir, // invisible : réserve la place pour la bordure de MA ligne
-    marginBottom: 4,
+    marginBottom: spacing.xxs,
   },
   rowMe: { backgroundColor: colors.carbone, borderColor: colors.chartreuse40 },
   rank: {
