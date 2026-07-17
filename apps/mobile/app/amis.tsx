@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { HANDLE_REGEX, colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import { HANDLE_REGEX, colors, fontSizes, gameColors, radii, sizes, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { GhostButton } from '../src/ui/GhostButton';
 import { Icon } from '../src/ui/Icon';
@@ -365,8 +365,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    minHeight: sizes.touchTarget, // plancher tactile 44 (P1 : onglets ~33 px)
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
   },
   // Actif = bordure blanche (motif classement/badges) — chartreuse réservée
   // à moi/crew, CTA primaire, gains, live.

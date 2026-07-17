@@ -5,7 +5,7 @@
  * menu « … » (anti-shame : jamais de mise en avant négative).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii, type BadgeTier } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, sizes, spacing, type BadgeTier } from '@klaim/shared';
 import { Icon } from '../Icon';
 import { PlayerAvatarFrame } from './PlayerAvatarFrame';
 
@@ -125,21 +125,23 @@ const styles = StyleSheet.create({
   handle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
   where: { color: colors.gris, fontSize: fontSizes.xs },
   status: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600' },
+  // Kebab « … » : cible tactile portée à 44 (P1 : était 34×34).
   more: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   moreLabel: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '700', lineHeight: 20 },
-  actions: { flexDirection: 'row', gap: 8 },
+  actions: { flexDirection: 'row', gap: spacing.xs },
+  // Pills d'invitation : plancher tactile 44 (P1 : hauteur ~33 px).
   action: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    gap: spacing.xxs,
+    minHeight: sizes.touchTarget,
+    paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
