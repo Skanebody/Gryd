@@ -297,6 +297,14 @@ export default function ProfilScreen() {
   );
   const seasonRank =
     economy.source === 'server' ? (economy.seasonRank ?? profile.seasonRank) : profile.seasonRank;
+  // O1 (états vides) : un vrai user (session) n'a pas encore de crew — aucune source
+  // crew réelle n'est peuplée (crew_members vide) et l'onglet Crew montre l'EmptyState.
+  // Le profil ne doit donc PAS afficher le crew démo « LES FOULÉES 9³ » : ce serait une
+  // contradiction directe. De même, pas de faux rang de saison tant que le serveur n'en
+  // renvoie pas. Showcase (web/dev sans session) : identité démo complète inchangée.
+  const realUser = configured && !!session;
+  const showCrew = !realUser;
+  const hasRealSeasonRank = economy.source === 'server' && economy.seasonRank != null;
   /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
   const { equipped } = useEquippedCosmetics();
 
@@ -398,12 +406,14 @@ export default function ProfilScreen() {
               <Text style={styles.identity} numberOfLines={2}>
                 Niveau {runnerLevel} · {profile.city}
               </Text>
-              <View style={styles.crewRow}>
-                <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
-                <Text style={styles.crewName} numberOfLines={1}>
-                  {profile.crewName}
-                </Text>
-              </View>
+              {showCrew ? (
+                <View style={styles.crewRow}>
+                  <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
+                  <Text style={styles.crewName} numberOfLines={1}>
+                    {profile.crewName}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
           {/* Bio + stats (zones tenues, rang ville) SORTIES de la surface pour tenir
@@ -437,9 +447,11 @@ export default function ProfilScreen() {
         {shareOpen ? (
           <View style={styles.shareCardWrap}>
             <ShareCard
-              stat={`#${seasonRank}`}
-              statLabel={`Rang saison · ${profile.seasonScope}`}
-              title={`${profile.displayName} · ${profile.crewName}`}
+              stat={realUser && !hasRealSeasonRank ? `${runnerLevel}` : `#${seasonRank}`}
+              statLabel={
+                realUser && !hasRealSeasonRank ? 'Niveau' : `Rang saison · ${profile.seasonScope}`
+              }
+              title={showCrew ? `${profile.displayName} · ${profile.crewName}` : profile.displayName}
               subtitle={`${GRIP_RANK_LABELS[gripRank]} · niv. ${runnerLevel} · ${displayedTitle}`}
             >
               {/* Carte identité character-forward : GRIP porte la signature GRYD. */}
