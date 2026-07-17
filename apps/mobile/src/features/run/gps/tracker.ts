@@ -46,6 +46,7 @@ import {
   type PauseInterval,
   type RawFix,
 } from './engine/gps';
+import { loopGapM } from './engine/loopHint';
 
 const MS_PER_S = 1_000;
 
@@ -71,6 +72,12 @@ export interface TrackerSnapshot {
   keptPoints: number;
   /** Fixes bruts reçus depuis le départ. */
   totalFixes: number;
+  /**
+   * Écart À VOL D'OISEAU départ ↔ position courante (m) — nourrit le guidage
+   * de boucle D4 (« retour ~N m »). null tant que la trace a < 2 points.
+   * Estimation locale : le serveur reste seul juge de la fermeture.
+   */
+  loopGapM: number | null;
   /**
    * Des fixes ARRIVENT mais aucun n'est exploitable (accuracy > max) :
    * signature de la « position approximative » iOS 14+/Android coarse →
@@ -267,6 +274,7 @@ export class RunTracker {
       zonesEstimated,
       keptPoints,
       totalFixes,
+      loopGapM: loopGapM(smoothed),
       // Position approximative : le dernier fix est FRAIS mais inutilisable
       // (accuracy > max) — signature de « Précision exacte » désactivée
       // (iOS 14+) ou d'une permission Android coarse. accuracyRejects garde le

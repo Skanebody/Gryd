@@ -37,6 +37,7 @@ import {
   type LiveRunMode,
 } from '../simulation';
 import type { RealRunApi } from './gateTypes';
+import { loopHint, roundLoopM } from './engine/loopHint';
 import {
   BackgroundHelpSheet,
   BackgroundRationaleCard,
@@ -67,6 +68,9 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const conquest = mode === 'conquete';
   const paused = s.phase === 'paused-user';
   const verified = s.gpsTrust >= VERIFIED_MIN_TRUST && s.keptPoints > 0;
+  // D4 — guidage de boucle (pur) : rien avant le périmètre minimal, « prête »
+  // sous la tolérance serveur, sinon l'écart au départ à vol d'oiseau.
+  const hint = loopHint({ conquest, distanceM: s.distanceM, gapM: s.loopGapM });
 
   useEffect(() => {
     screen('course_live', { mode, gps: 'real' });
@@ -155,6 +159,20 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         {conquest ? (
           <Text style={styles.zonesValue} numberOfLines={1}>
             +{formatInt(s.zonesEstimated)} ZONES ESTIMÉES
+          </Text>
+        ) : null}
+
+        {/* D4 — guidage de boucle honnête : écart au départ à vol d'oiseau
+            (« ~ »), seuils = les règles SERVEUR (le serveur reste seul juge).
+            Une seule ligne, jamais de pill de plus (live minimal §A). */}
+        {hint ? (
+          <Text
+            style={[styles.loopHint, hint.kind === 'ready' && styles.loopHintReady]}
+            numberOfLines={1}
+          >
+            {hint.kind === 'ready'
+              ? 'BOUCLE PRÊTE — termine quand tu veux'
+              : `BOUCLE · retour ~${formatInt(roundLoopM(hint.gapM))} m`}
           </Text>
         ) : null}
 
@@ -369,6 +387,17 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
+  // D4 — ligne de guidage boucle : discrète (gris) tant qu'on est loin,
+  // chartreuse quand la boucle est prête (le SEUL moment qui appelle une action).
+  loopHint: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    fontVariant: ['tabular-nums'],
+    marginTop: 4,
+  },
+  loopHintReady: { color: colors.chartreuse },
   secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 22, marginTop: 18 },
   secondaryStat: { alignItems: 'center', gap: 2 },
   secondaryValue: {
