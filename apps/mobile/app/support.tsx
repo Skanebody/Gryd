@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
+import { IconPlate } from '../src/ui/Card';
 import { StackScreen } from '../src/ui/StackScreen';
 
 interface SupportTopic {
@@ -143,9 +144,7 @@ function TopicCard({ topic }: { topic: SupportTopic }) {
       }}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <View style={styles.iconWrap}>
-        <Icon name={topic.icon} size={18} color={colors.blanc} />
-      </View>
+      <IconPlate icon={topic.icon} />
       <View style={styles.info}>
         <Text style={styles.title}>{topic.title}</Text>
         <Text style={styles.body}>{topic.body}</Text>
@@ -164,9 +163,7 @@ function NavCard({ topic }: { topic: NavTopic }) {
       onPress={() => router.push(topic.href)}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <View style={styles.iconWrap}>
-        <Icon name={topic.icon} size={18} color={colors.blanc} />
-      </View>
+      <IconPlate icon={topic.icon} />
       <View style={styles.info}>
         <Text style={styles.title}>{topic.title}</Text>
         <Text style={styles.body}>{topic.body}</Text>
@@ -237,15 +234,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   pressed: { opacity: 0.7 },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   info: { flex: 1 },
   title: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   body: {
