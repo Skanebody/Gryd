@@ -25,6 +25,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 
 ### P1 — boucle virale
 - [x] D5+D6 Export story PNG (view-shot+sharing posés, shareAsImage + share_exported, filet texte web) — vérif device au dev build
+- [x] Story épurée 5 éléments (retour fondateur : Résultat massif · trace en GRAND · Impact · Identité · Défi seule capsule ; privacy → légende sous l'aperçu ; titres jamais coupés web+natif) — `66192b0`
 - [x] C8+C9+B3 Card honnête (verified serveur, rang null neutralisé, beforeState masqué, signature sans KORO) + ShareMap cadre la vraie trace
 - [ ] D4 Guidage live de boucle : « il manque N m » porté du flux démo vers RealCourseLive — M
 - [ ] C11 Migration pilote mono-ville — REQUALIFIÉ BLOQUÉ FONDATEUR : désactiver Lille contredit CLAUDE.md (« Saison 0 Paris + Lille ») — arbitrage produit requis
