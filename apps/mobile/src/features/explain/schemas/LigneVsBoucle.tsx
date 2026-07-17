@@ -1,9 +1,11 @@
 /**
- * GRYD — Schéma 1 « Ligne vs boucle » (§31.1).
- * À GAUCHE : un trait simple → ouvre une ROUTE (gris, pas de zone).
- * À DROITE : une boucle fermée REMPLIE → crée une ZONE (chartreuse, mon territoire).
- * Composant PUR (aucun état) : dessine la règle « une ligne ouvre une route,
- * une boucle crée une zone ». Charte : gris = neutre/route, chartreuse = ma zone.
+ * GRYD — Schéma 1 « Ligne vs boucle » (§31.1, option A — vérité).
+ * À GAUCHE : une ligne → PREND les rues courues (chartreuse fin : elles sont à toi,
+ *   conformément au moteur `allHexes=[couloir,…]` + doc lignes droites §2 « capture
+ *   uniquement les hexes traversés »). Trait fin = territoire, mais pas de zone pleine.
+ * À DROITE : une boucle fermée REMPLIE → prend TOUTE la zone (chartreuse plein).
+ * Les deux sont À TOI (chartreuse) ; la boucle est le plus gros lot (plein > fin).
+ * Composant PUR (aucun état). Charte : chartreuse = à moi.
  */
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
@@ -20,17 +22,17 @@ const LOOP_X = 156;
 const LOOP_Y = 18;
 
 export interface LigneVsBoucleProps extends SchemaBaseProps {
-  /** Libellé sous le trait (défaut « Route ouverte »). */
+  /** Libellé sous le trait (défaut « Rues prises »). */
   lineLabel?: string;
-  /** Libellé sous la boucle (défaut « Zone capturée »). */
+  /** Libellé sous la boucle (défaut « Zone prise »). */
   loopLabel?: string;
 }
 
 export function LigneVsBoucle({
   size = VB_W,
-  lineLabel = 'Route ouverte',
-  loopLabel = 'Zone capturée',
-  accessibilityLabel = 'Un trait ouvre une route, une boucle fermée crée une zone.',
+  lineLabel = 'Rues prises',
+  loopLabel = 'Zone prise',
+  accessibilityLabel = 'Une ligne prend les rues courues, une boucle fermée prend toute la zone.',
 }: LigneVsBoucleProps) {
   const width = size;
   const height = size * RATIO;
@@ -44,11 +46,11 @@ export function LigneVsBoucle({
       {/* Séparateur d'espace au centre (filet discret, pas un cadre) */}
       <Path d={`M${VB_W / 2} 18 L${VB_W / 2} ${VB_H - 42}`} stroke={colors.grisLigne} strokeWidth={1} />
 
-      {/* GAUCHE — le trait ouvre une route */}
+      {/* GAUCHE — la ligne PREND les rues courues (chartreuse fin = à toi) */}
       <G>
         <Path
           d="M22 62 C 52 40, 88 92, 118 66"
-          stroke={colors.gris}
+          stroke={colors.chartreuse}
           strokeWidth={4}
           fill="none"
           strokeLinecap="round"
@@ -59,7 +61,7 @@ export function LigneVsBoucle({
         <SvgText
           x={70}
           y={VB_H - 20}
-          fill={colors.gris}
+          fill={colors.chartreuse}
           fontSize={13}
           fontFamily={fonts.text}
           textAnchor="middle"

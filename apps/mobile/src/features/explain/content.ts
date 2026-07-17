@@ -67,9 +67,9 @@ export const EXPLAIN_SECTIONS: readonly ExplainSection[] = [
   {
     id: 'ligne_vs_boucle',
     icon: 'boucle_ouverte',
-    title: 'La ligne ouvre une route',
-    line: 'Une course qui ne se referme pas ne crée pas de zone : elle ouvre une route.',
-    example: 'Base → République, 4,2 km : route ouverte, aucune zone.',
+    title: 'La ligne prend les rues',
+    line: 'Une course qui ne se referme pas prend les rues qu’elle traverse — elles sont à toi. Pas de zone pleine : ferme la boucle pour l’intérieur.',
+    example: 'Base → République, 4,2 km : les rues courues sont à toi, mais pas de zone pleine.',
     schemaId: 'ligne_vs_boucle',
   },
   {
@@ -154,8 +154,8 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     id: 'q2',
     category: 'zones',
     icon: 'route',
-    q: 'Une ligne droite capture-t-elle une zone ?',
-    a: 'Non. Une ligne ouvre une route ou défend un passage, mais ne crée pas de territoire.',
+    q: 'Courir tout droit, ça capture quelque chose ?',
+    a: 'Oui : les rues que tu traverses deviennent à toi. Ça n’ouvre pas une ZONE pleine (l’intérieur) — pour ça, ferme une boucle.',
     schemaId: 'ligne_vs_boucle',
   },
   {
@@ -284,7 +284,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     category: 'zones',
     icon: 'route',
     q: 'Comment fonctionne une route ouverte ?',
-    a: 'Une course sans boucle peut ouvrir une route : relier deux secteurs, préparer une conquête ou une défense, proposer un itinéraire crew.',
+    a: 'Une course sans boucle prend déjà les rues courues, et ouvre une route : relier deux secteurs, préparer une conquête ou une défense, proposer un itinéraire crew.',
   },
   {
     id: 'q20',

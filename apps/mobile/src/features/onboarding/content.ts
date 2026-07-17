@@ -142,7 +142,9 @@ export const SYNC = {
 export const RUN = {
   kicker: 'TON PREMIER RUN',
   title: 'Un objectif. Ferme une boucle.',
-  tagline: 'Pas de réglages, pas de plan. Tu pars, tu reviens, la zone est à toi.',
+  // Honnête (doc lignes droites §2 : les hexes traversés sont capturés) : même
+  // tout droit tu prends les rues courues ; la boucle, elle, prend toute la zone.
+  tagline: 'Cours tout droit : tu prends les rues. Ferme la boucle : toute la zone est à toi.',
   /** L'objectif sous le hero (une seule règle, une phrase). */
   objective: 'Ferme une boucle. La zone est à toi.',
   /** Le lancement de course — verbe RUN (charte : le seul « RUN », pas « GO »). */
