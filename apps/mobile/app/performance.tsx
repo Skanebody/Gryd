@@ -13,7 +13,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes } from '@klaim/shared';
+import { colors, fontSizes, sizes, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -85,7 +85,7 @@ export default function PerformanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  stack: { gap: 14, marginTop: 4 },
+  stack: { gap: spacing.sm, marginTop: spacing.xxs },
   demoNote: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -97,8 +97,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
+    gap: spacing.xxs,
+    minHeight: sizes.touchTarget, // P1 : le lien était ~41 px de haut
+    paddingVertical: spacing.sm,
   },
   verifyLinkText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
   pressed: { opacity: 0.6 },

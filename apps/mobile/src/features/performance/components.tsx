@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   trendBarFillLast: { backgroundColor: colors.chartreuse },
-  trendLabel: { color: colors.gris, fontSize: 10, fontVariant: ['tabular-nums'] },
+  trendLabel: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
   trendLabelLast: { color: colors.blanc, fontWeight: '700' },
 
   // ── Records (aplati : filets hairline, aucun cadre par cellule) ──
