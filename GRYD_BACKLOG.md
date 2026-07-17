@@ -29,7 +29,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] C8+C9+B3 Card honnête (verified serveur, rang null neutralisé, beforeState masqué, signature sans KORO) + ShareMap cadre la vraie trace
 - [x] D4 Guidage live de boucle réel (loopHint pur : écart vol d'oiseau départ↔courant, seuils serveur game-rules, « BOUCLE PRÊTE » chartreuse ; test:map 22→26) — `7f92d7e`
 - [ ] C11 Migration pilote mono-ville — REQUALIFIÉ BLOQUÉ FONDATEUR : désactiver Lille contredit CLAUDE.md (« Saison 0 Paris + Lille ») — arbitrage produit requis
-- [ ] D8 Feature flags minimal : masquer season/shop/arsenal/war_room — M
+- [x] D8 Feature flags minimal (flags.ts season/warRoom/arsenal, EXPO_PUBLIC_FULL_SURFACE=1 ré-affiche ; nav 3 onglets + GO, gardes de route Redirect, tous les liens d'entrée gatés) — `4fdeec4`
 - [ ] C10+D7 Deep links réception — BLOQUÉ arbitrage host (gryd.run vs gryd.app, fondateur) + hébergeur AASA — L
 
 ### Rappels fondateur (hors repo)
