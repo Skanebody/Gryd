@@ -17,6 +17,7 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Card } from '../src/ui/Card';
 import { StackScreen } from '../src/ui/StackScreen';
+import { useSession } from '../src/lib/session';
 import { RunHistoryCard } from '../src/features/history/RunHistoryCard';
 import {
   countByFilter,
@@ -29,9 +30,11 @@ import {
 function FilterBar({
   active,
   onSelect,
+  realUser,
 }: {
   active: HistoryFilter;
   onSelect: (f: HistoryFilter) => void;
+  realUser: boolean;
 }) {
   return (
     <ScrollView
@@ -41,7 +44,9 @@ function FilterBar({
     >
       {HISTORY_FILTERS.map((f) => {
         const selected = f.key === active;
-        const count = countByFilter(f.key);
+        // Vrai user : aucune source de courses réelle câblée (O1) → compteurs à 0
+        // (jamais de faux total). Démo showcase (web/dev sans session) inchangée.
+        const count = realUser ? 0 : countByFilter(f.key);
         return (
           <Pressable
             key={f.key}
@@ -70,6 +75,11 @@ function FilterBar({
 
 export default function HistoriqueScreen() {
   const [filter, setFilter] = useState<HistoryFilter>('all');
+  // Activation O1 : aucune source de courses RÉELLE n'est encore câblée. Un vrai
+  // utilisateur (session) ne voit donc PAS de fausses courses passées — liste
+  // vide honnête. La démo ne sert que le showcase (web/dev sans session).
+  const { session, configured } = useSession();
+  const realUser = configured && !!session;
 
   useEffect(() => {
     screen('historique');
@@ -87,8 +97,9 @@ export default function HistoriqueScreen() {
   };
 
   // AMENDEMENT-25 §2 : la LISTE COMPLÈTE du filtre — plus de fold « 3 dernières ».
-  const list = runsByFilter(filter);
-  const total = countByFilter(filter);
+  // Gate session : vrai user → vide (pas de source réelle) ; showcase → démo.
+  const list = realUser ? [] : runsByFilter(filter);
+  const total = realUser ? 0 : countByFilter(filter);
 
   return (
     <StackScreen
@@ -97,7 +108,7 @@ export default function HistoriqueScreen() {
       kicker="TES COURSES"
       subtitle="Tous tes parcours : le tracé, l’effort et ce qu’il a changé sur le terrain."
     >
-      <FilterBar active={filter} onSelect={selectFilter} />
+      <FilterBar active={filter} onSelect={selectFilter} realUser={realUser} />
 
       <Text style={styles.sectionLabel}>
         {`${total} COURSE${total > 1 ? 'S' : ''}`}
@@ -105,7 +116,11 @@ export default function HistoriqueScreen() {
 
       {list.length === 0 ? (
         <Card style={styles.empty}>
-          <Text style={styles.emptyText}>Aucune course dans ce filtre pour l’instant.</Text>
+          <Text style={styles.emptyText}>
+            {realUser
+              ? 'Tes courses apparaîtront ici après ta première capture. Lance-toi !'
+              : 'Aucune course dans ce filtre pour l’instant.'}
+          </Text>
         </Card>
       ) : (
         <View style={styles.list}>
