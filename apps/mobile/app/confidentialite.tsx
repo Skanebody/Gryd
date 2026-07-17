@@ -18,7 +18,7 @@
  * compté même quand une course est masquée).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -128,6 +128,9 @@ export default function ConfidentialiteScreen() {
   // Écran de confirmation de suppression de compte (5.1.1v). Plein écran =
   // 1 écran / 1 décision (§A) : tant qu'il est ouvert, il remplace la page.
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Garde de ré-entrée de la suppression (action DESTRUCTIVE réseau) : sans elle,
+  // un double-tap déclenche deux invoke('delete_account').
+  const [deleting, setDeleting] = useState(false);
   // Signalement/blocage ACTIONNABLE depuis la card « Blocage & signalement » :
   // pseudo saisi + motif choisi → reportContent / blockMember (store partagé
   // avec le Crew Chat — mêmes données, même traitement sous 24 h).
@@ -183,10 +186,13 @@ export default function ConfidentialiteScreen() {
   // jamais de faux « compte supprimé ». Sans session (dev/web) : purge locale
   // seule. Distinct de l'export RGPD.
   const runAccountDeletion = async () => {
+    if (deleting) return; // anti double-tap sur une action irréversible
+    setDeleting(true);
     haptics.medium();
     if (configured && session && supabase) {
       const { error } = await supabase.functions.invoke('delete_account');
       if (error) {
+        setDeleting(false); // échec : on rend la main pour réessayer
         Alert.alert(
           'Suppression impossible',
           "Ton compte n'a pas pu être supprimé. Réessaie dans un instant ou contacte le support.",
@@ -234,6 +240,7 @@ export default function ConfidentialiteScreen() {
   if (confirmDelete) {
     return (
       <DeleteAccountConfirm
+        busy={deleting}
         onCancel={() => {
           haptics.light();
           setConfirmDelete(false);
@@ -574,9 +581,11 @@ export default function ConfidentialiteScreen() {
 function DeleteAccountConfirm({
   onCancel,
   onConfirm,
+  busy,
 }: {
   onCancel: () => void;
   onConfirm: () => void;
+  busy: boolean;
 }) {
   useEffect(() => {
     screen('account_delete_confirm');
@@ -598,15 +607,23 @@ function DeleteAccountConfirm({
       </View>
 
       <View style={styles.confirmActions}>
-        <GhostButton label="Annuler, garder mon compte" onPress={onCancel} />
+        <GhostButton label="Annuler, garder mon compte" onPress={onCancel} disabled={busy} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Supprimer définitivement mon compte"
+          accessibilityState={{ disabled: busy, busy }}
+          disabled={busy}
           onPress={onConfirm}
-          style={({ pressed }) => [styles.confirmDelete, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.confirmDelete, (pressed || busy) && styles.pressed]}
         >
-          <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
-          <Text style={styles.confirmDeleteText}>Supprimer définitivement</Text>
+          {busy ? (
+            <ActivityIndicator size="small" color={gameColors.danger} />
+          ) : (
+            <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
+          )}
+          <Text style={styles.confirmDeleteText}>
+            {busy ? 'Suppression…' : 'Supprimer définitivement'}
+          </Text>
         </Pressable>
       </View>
     </StackScreen>
