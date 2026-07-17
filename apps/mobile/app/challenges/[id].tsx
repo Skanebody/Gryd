@@ -139,8 +139,6 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
     marginBottom: 12,
   },
