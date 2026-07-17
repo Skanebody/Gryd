@@ -4,7 +4,16 @@
  * Un refus/échec n'est jamais un mur (§4.1) : message + retry.
  */
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { Redirect } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -156,9 +165,24 @@ export default function SignInScreen() {
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+    // P0 — le flux e-mail OTP saisit du texte : sans esquive du clavier, le champ
+    // et le CTA (bas de l'écran, layout space-between) sont masqués sur petit écran
+    // → connexion impossible. KeyboardAvoidingView + ScrollView les remontent ;
+    // keyboardShouldPersistTaps garde le CTA tappable clavier ouvert.
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       {/* Visuel promesse : carte égocentrée de sa ville, montrée derrière le hero. */}
       <PromiseHexField />
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.hero}>
         <Text style={styles.kicker}>SAISON 0 · PARIS & LILLE</Text>
         {/* TODO fonts : Space Grotesk 700, tracking -2 % (addendum §E) — système en attendant */}
@@ -267,7 +291,8 @@ export default function SignInScreen() {
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -276,8 +301,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.noir,
     paddingHorizontal: spacing.cardPadding + 4,
-    justifyContent: 'space-between',
   },
+  // Le contenu garde le layout space-between historique (hero en haut, actions en
+  // bas), mais devient défilable quand le clavier réduit la hauteur utile.
+  scrollContent: { flexGrow: 1, justifyContent: 'space-between' },
   // Champ d'hexagones décoratif : occupe le haut de l'écran, derrière hero + actions
   // (premier enfant + absolu = plan de fond). pointerEvents none → n'intercepte rien.
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: '64%' },
