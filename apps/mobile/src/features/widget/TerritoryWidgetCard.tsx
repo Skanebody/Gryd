@@ -10,7 +10,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, radii, sizes, spacing, typography } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { useEffectOncePerState } from './useEffectOncePerState';
 import { useRealTerritories } from '../map/hexClaims';
@@ -51,13 +51,16 @@ export function TerritoryWidgetCard({ view }: { view: TerritoryWidgetView }) {
   });
 
   return (
+    // Pas de kicker « MON TERRITOIRE » ici : le profil porte déjà cet en-tête de
+    // section juste au-dessus (audit : jamais deux fois le même titre empilés).
     <View style={styles.card} accessibilityLabel={`Mon territoire : ${view.title}`}>
-      <Text style={styles.kicker}>MON TERRITOIRE</Text>
-      <Text style={styles.title} numberOfLines={1} ellipsizeMode="clip">
+      {/* Titre = DONNÉE réelle (« LENA A REPRIS RÉPUBLIQUE ») : on rétrécit pour
+          tenir, jamais de coupure silencieuse (§A.9). */}
+      <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
         {view.title}
       </Text>
       {view.lines.map((line) => (
-        <Text key={line} style={styles.line} numberOfLines={1} ellipsizeMode="clip">
+        <Text key={line} style={styles.line} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9}>
           {line}
         </Text>
       ))}
@@ -66,7 +69,7 @@ export function TerritoryWidgetCard({ view }: { view: TerritoryWidgetView }) {
         accessibilityLabel={view.ctaLabel}
         hitSlop={8}
         onPress={() => actOn(view)}
-        style={({ pressed }) => pressed && styles.pressed}
+        style={({ pressed }) => [styles.actionRow, pressed && styles.pressed]}
       >
         <Text style={styles.action}>{view.ctaLabel}</Text>
       </Pressable>
@@ -80,12 +83,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grisLigne,
     padding: spacing.cardPadding,
-    gap: 4,
+    gap: spacing.xxs,
   },
-  kicker: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.5 },
-  title: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  line: { color: colors.gris, fontSize: fontSizes.sm },
+  title: { ...typography.cardTitle, color: colors.blanc },
+  line: { ...typography.body, color: colors.gris },
   // Lien d'action (anti double-CTA §A.4) — chartreuse sur fond sombre (charte).
-  action: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '600', marginTop: 4 },
+  // Plancher tactile 44 (P1 : le lien faisait ~17 px de haut).
+  actionRow: { minHeight: sizes.touchTarget, justifyContent: 'center', marginTop: spacing.xxs },
+  action: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '600' },
   pressed: { opacity: 0.7 },
 });
