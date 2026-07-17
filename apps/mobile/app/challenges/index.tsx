@@ -13,7 +13,8 @@ import { screen } from '../../src/lib/analytics';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { StackScreen } from '../../src/ui/StackScreen';
-import { CHALLENGES, formatChallengeValue, type ChallengeCard } from '../../src/features/motivation/demo';
+import { formatChallengeValue, type ChallengeCard } from '../../src/features/motivation/demo';
+import { useChallenges } from '../../src/features/motivation/challengeState';
 import {
   CHALLENGE_DIFFICULTY_LABELS,
   CHALLENGE_TYPE_LABELS,
@@ -86,13 +87,16 @@ export default function ChallengesScreen() {
     screen('challenges');
   }, []);
 
+  // Catalogue légitime, progression RÉELLE (0 pour un vrai user), démo showcase.
+  const challenges = useChallenges();
+
   return (
     <StackScreen
       title="Challenges"
       icon="mission"
       subtitle="Des objectifs choisis, à ton rythme. La régularité compte autant que la performance."
     >
-      {CHALLENGES.map((c) => (
+      {challenges.map((c) => (
         <Row key={c.id} c={c} />
       ))}
     </StackScreen>

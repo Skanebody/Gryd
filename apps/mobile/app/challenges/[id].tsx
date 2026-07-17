@@ -13,7 +13,8 @@ import { screen } from '../../src/lib/analytics';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { StackScreen } from '../../src/ui/StackScreen';
-import { findChallenge, formatChallengeValue } from '../../src/features/motivation/demo';
+import { formatChallengeValue } from '../../src/features/motivation/demo';
+import { useChallenge } from '../../src/features/motivation/challengeState';
 import {
   CHALLENGE_DIFFICULTY_LABELS,
   CHALLENGE_TYPE_LABELS,
@@ -21,7 +22,7 @@ import {
 
 export default function ChallengeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const c = typeof id === 'string' ? findChallenge(id) : undefined;
+  const c = useChallenge(typeof id === 'string' ? id : undefined);
 
   useEffect(() => {
     screen('challenge_detail', { id: id ?? '' });
