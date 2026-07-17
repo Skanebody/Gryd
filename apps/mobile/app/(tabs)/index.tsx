@@ -30,6 +30,7 @@ import {
 } from '../../src/features/map/demo';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
+import { useSession } from '../../src/lib/session';
 import { Icon } from '../../src/ui/Icon';
 
 // ─── Métriques locales (layout uniquement — aucune constante de jeu) ────────
@@ -95,7 +96,16 @@ export default function CarteTab() {
 function MissionLine() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { session, configured } = useSession();
   const [detailOpen, setDetailOpen] = useState(false);
+
+  // O1 (états vides) : mission/secteur/rival ci-dessous sont de la DÉMO (MAP_MISSION,
+  // MAP_HUD, MAP_RIVAL_HEAD) — aucune source serveur de mission n'est encore câblée.
+  // Un vrai user (session) ne doit donc PAS voir « République attaquée · Canal Crew
+  // 38 % » : ce serait fabriquer une mission et un rival. La carte reste honnête via
+  // son bandeau `dataNote` (« cours pour prendre ta première zone »). L'accès Route
+  // Planner vit ailleurs (bouton GO, Aujourd'hui, War Room). Showcase : démo intacte.
+  if (configured && session) return null;
 
   // Retour sur la Carte = détail refermé (même règle « carte nue » que le HUD).
   useFocusEffect(
