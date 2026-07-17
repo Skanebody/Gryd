@@ -14,12 +14,12 @@
  * live/tracé public. screen('territoire') au montage (§8, écran sans event
  * dédié). Données démo : franceKpi() (titre) + pageDemo (sections).
  */
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
 import { TerritoryFranceMap } from '../src/features/territory/TerritoryFranceMap';
 import { dataNote } from '../src/features/map/territoryBuild';
 import { TERRITORY_PAGE_DEMO } from '../src/features/territory/pageDemo';
@@ -64,7 +64,6 @@ function Section({
 export default function TerritoireScreen() {
   const insets = useSafeAreaInsets();
   const d = TERRITORY_PAGE_DEMO;
-  const [defended, setDefended] = useState(false);
 
   useEffect(() => {
     screen('territoire');
@@ -190,27 +189,26 @@ export default function TerritoireScreen() {
       </ScrollView>
 
       {/* ── CTA bas contextuel (jamais « Explorer la carte » vague) ──────── */}
-      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.sm }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voir sur la carte"
           onPress={() => router.push('/(tabs)')}
           style={({ pressed }) => [styles.ctaPrimary, pressed && styles.pressed]}
         >
-          <Icon name="carte" size={18} color={colors.noir} />
+          <Icon name="carte" size={iconSizes.md} color={colors.noir} />
           <Text style={styles.ctaPrimaryLabel}>Voir sur la carte</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Défendre ${urgent?.name ?? ''}`}
-          onPress={() => {
-            setDefended(true);
-            router.push('/route-planner?type=defense');
-          }}
+          onPress={() => router.push('/route-planner?type=defense')}
           style={({ pressed }) => [styles.ctaGhost, pressed && styles.pressed]}
         >
-          <Icon name="bouclier" size={18} color={colors.blanc} />
-          <Text style={styles.ctaGhostLabel}>{defended ? 'En défense' : 'Défendre'}</Text>
+          <Icon name="bouclier" size={iconSizes.md} color={colors.blanc} />
+          {/* Zéro-lie : le bouton MÈNE à la planification de défense — il ne
+              « met pas en défense » (aucun état réel derrière). Label stable. */}
+          <Text style={styles.ctaGhostLabel}>Défendre</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -218,7 +216,7 @@ export default function TerritoireScreen() {
           onPress={() => router.push('/partage?template=conquete')}
           style={({ pressed }) => [styles.ctaIcon, pressed && styles.pressed]}
         >
-          <Icon name="partage" size={18} color={colors.blanc} />
+          <Icon name="partage" size={iconSizes.md} color={colors.blanc} />
         </Pressable>
       </View>
     </View>
@@ -330,9 +328,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.xs,
     paddingHorizontal: spacing.cardPadding,
-    paddingTop: 12,
+    paddingTop: spacing.sm,
     backgroundColor: colors.noir,
     borderTopWidth: 1,
     borderTopColor: colors.grisLigne,
@@ -342,8 +340,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    height: 48,
+    gap: spacing.xs,
+    height: sizes.buttonMd,
     borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,
   },
@@ -352,9 +350,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    height: 48,
-    paddingHorizontal: 18,
+    gap: spacing.xs,
+    height: sizes.buttonMd,
+    paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
@@ -362,9 +360,9 @@ const styles = StyleSheet.create({
   },
   ctaGhostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   ctaIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: sizes.buttonMd,
+    height: sizes.buttonMd,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
