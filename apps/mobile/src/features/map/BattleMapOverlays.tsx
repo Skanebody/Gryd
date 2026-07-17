@@ -228,6 +228,13 @@ export function BattleMapOverlays({
   });
   /** Menu « Calques » (fond + calques de lecture) — fermé par défaut. */
   const [layersOpen, setLayersOpen] = useState(false);
+  /**
+   * Menu « Outils » de la carte (demande fondateur) : les 3 contrôles (Calques,
+   * Recentrer, Carte nue) sont REGROUPÉS derrière UN seul bouton déclencheur ;
+   * fermé par défaut → la carte ne montre qu'une icône. Ils restent INDÉPENDANTS
+   * (chacun sa propre action) une fois le menu ouvert.
+   */
+  const [toolsOpen, setToolsOpen] = useState(false);
   /** Sheet de zone dépliée sur son détail (§10 « Plus ») — reset à chaque zone. */
   const [zoneExpanded, setZoneExpanded] = useState(false);
 
@@ -246,6 +253,7 @@ export function BattleMapOverlays({
   useFocusEffect(
     useCallback(() => {
       setLayersOpen(false);
+      setToolsOpen(false);
       setSheet((s) => ({ key: s.key + 1, initial: 'compact' }));
       onCloseZone?.();
       // « Repart de la carte » inclut le HUD : chaque entrée sur l'onglet réaffiche
@@ -291,13 +299,32 @@ export function BattleMapOverlays({
   };
 
   /**
+   * Ouvre/ferme le menu « Outils » (les 3 contrôles). En le fermant, on referme
+   * aussi le sous-menu Calques (rien d'ouvert derrière le bouton replié).
+   */
+  const toggleTools = () => {
+    haptics.light();
+    const next = !toolsOpen;
+    setToolsOpen(next);
+    if (!next) setLayersOpen(false);
+  };
+
+  /** Recentrer = action one-shot → on referme le menu Outils (« ferme en l'utilisant »). */
+  const recenterAndClose = () => {
+    onRecenter?.();
+    setToolsOpen(false);
+    setLayersOpen(false);
+  };
+
+  /**
    * Bascule « carte nue » (demande fondateur) : masque/affiche TOUT le HUD (ligne
-   * mission du haut + sheet du bas + FABs de contrôle) → carte plein écran. Ferme
-   * d'abord le menu Calques pour ne rien laisser d'ouvert derrière.
+   * mission du haut + sheet du bas) → carte plein écran. One-shot → referme aussi le
+   * menu Outils et le sous-menu Calques pour laisser une carte réellement nue.
    */
   const toggleHud = () => {
     haptics.light();
     setLayersOpen(false);
+    setToolsOpen(false);
     setMapHudHidden(!hudHidden);
   };
 
@@ -352,15 +379,16 @@ export function BattleMapOverlays({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* ── Droite : FABs de contrôle. Calques + Recentrer (AMENDEMENT-37 §8) NE
-          s'affichent qu'en HUD visible ; le FAB « info » (bascule CARTE NUE —
-          demande fondateur) reste TOUJOURS présent, en bas de la pile (le plus
-          accessible au pouce), pour tout ramener depuis la carte nue. ── */}
+      {/* ── Droite : UN menu « Outils » (demande fondateur). Par défaut la carte ne
+          montre qu'UN bouton déclencheur ; au tap il révèle les 3 contrôles
+          INDÉPENDANTS (Calques, Recentrer, Carte nue), et se referme au re-tap ou
+          après usage d'un one-shot. Le déclencheur reste TOUJOURS visible (dernier
+          de la pile = en bas, sous le pouce) — même en carte nue, pour tout ramener. ── */}
       <View
         style={[styles.fabColumn, { bottom: fabBottom }]}
         pointerEvents="box-none"
       >
-        {layersOpen && !hudHidden ? (
+        {toolsOpen && layersOpen ? (
           <LayerMenu
             active={mode}
             onSelect={selectMode}
@@ -378,7 +406,7 @@ export function BattleMapOverlays({
             onSetMap3d={onSetMap3d}
           />
         ) : null}
-        {!hudHidden ? (
+        {toolsOpen ? (
           <>
             <FloatingMapButton
               icon="calques"
@@ -392,18 +420,28 @@ export function BattleMapOverlays({
             <FloatingMapButton
               icon="gps"
               accessibilityLabel="Recentrer sur moi"
-              onPress={() => onRecenter?.()}
+              onPress={recenterAndClose}
+            />
+            {/* Bascule CARTE NUE — `active` = HUD affiché ; tap = masquer/afficher le HUD. */}
+            <FloatingMapButton
+              icon="info"
+              accessibilityLabel={
+                hudHidden
+                  ? 'Afficher les infos de la carte'
+                  : 'Masquer les infos — carte plein écran'
+              }
+              active={!hudHidden}
+              onPress={toggleHud}
             />
           </>
         ) : null}
-        {/* Bascule CARTE NUE — `active` = HUD affiché ; tap = masquer/afficher tout. */}
+        {/* Déclencheur du menu Outils — toujours visible. Ouvert = ✕ (referme),
+            fermé = ⚙ (ouvre). Un seul bouton sur la carte au repos. */}
         <FloatingMapButton
-          icon="info"
-          accessibilityLabel={
-            hudHidden ? 'Afficher les infos de la carte' : 'Masquer les infos — carte plein écran'
-          }
-          active={!hudHidden}
-          onPress={toggleHud}
+          icon={toolsOpen ? 'fermer' : 'reglages'}
+          accessibilityLabel={toolsOpen ? 'Fermer les outils de la carte' : 'Outils de la carte'}
+          active={toolsOpen}
+          onPress={toggleTools}
         />
       </View>
 
