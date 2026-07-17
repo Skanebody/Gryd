@@ -20,6 +20,7 @@ import { flags } from '../src/lib/flags';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { battleContext, goHref } from '../src/features/nav/runContext';
+import { Button } from '../src/ui/Button';
 import { Icon } from '../src/ui/Icon';
 import { ProgressBar } from '../src/ui/ProgressBar';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -122,15 +123,15 @@ export default function AujourdhuiScreen() {
       </Pressable>
 
       {/* LE CTA unique — VERBE contextuel, départ immédiat (AMENDEMENT-29 :
-          « GO » retiré ; le libellé = l'objectif du plan du jour). */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${objectiveTag} — départ immédiat sur le plan du jour`}
-        onPress={goNow}
-        style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
-      >
-        <Text style={styles.ctaLabel}>{objectiveTag}</Text>
-      </Pressable>
+          « GO » retiré ; le libellé = l'objectif du plan du jour). Composant
+          Button partagé (audit UI L2) : famille, autoshrink, plancher tactile. */}
+      <View style={styles.ctaWrap}>
+        <Button
+          label={objectiveTag}
+          onPress={goNow}
+          accessibilityLabel={`${objectiveTag} — départ immédiat sur le plan du jour`}
+        />
+      </View>
 
       {/* Bandeau semaine : 3 indicateurs, pas un feed. */}
       <View style={styles.weekBand}>
@@ -260,20 +261,7 @@ const styles = StyleSheet.create({
   meta: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
   heroName: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 10 },
 
-  cta: {
-    height: 56,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-  },
-  ctaLabel: {
-    color: colors.noir,
-    fontSize: fontSizes.md,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-  },
+  ctaWrap: { marginTop: spacing.sm },
 
   weekBand: {
     flexDirection: 'row',
