@@ -220,7 +220,7 @@ export const DISCOVERY_CREWS: readonly DiscoveryCrewDemo[] = [
     warActive: false, defenseActive: false, beginnerFriendly: true, pioneer: false, weeklyRuns: 22,
   },
   {
-    name: 'PAYS DE CAUX RC', tag: 'PDC', city: 'Dieppe', xp: 6_200, activityScore: 55,
+    name: 'MÉTROPOLE LILLOISE', tag: 'MEL', city: 'Lille', xp: 6_200, activityScore: 55,
     members: 5, openSpots: 5, recruitment: 'open',
     tags: ['exploration', 'pionnier', 'run_club', 'debutants_ok'],
     language: 'FR', objective: 'pionnier',

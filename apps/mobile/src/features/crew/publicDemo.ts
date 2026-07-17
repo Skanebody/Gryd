@@ -75,11 +75,11 @@ const PROFILES: Record<string, PublicCrewProfileDemo> = {
     heldHexes: 121,
     inviteLink: 'gryd.run/c/bpmbastille',
   },
-  PDC: {
-    bio: 'Pionniers du pays de Caux : tout est à ouvrir ici. Chaque course dessine la carte — rejoins les premiers.',
+  MEL: {
+    bio: 'Pionniers de la métropole lilloise : tout est encore à ouvrir ici. Chaque course dessine la carte — rejoins les premiers.',
     rolesWanted: ['scout', 'runner'],
     heldHexes: 74,
-    inviteLink: 'gryd.run/c/paysdecaux',
+    inviteLink: 'gryd.run/c/metropole-lille',
   },
 };
 

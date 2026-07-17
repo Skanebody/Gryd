@@ -67,10 +67,10 @@ export const FRIENDS: readonly FriendDemo[] = [
   { handle: 'pacer20e', displayName: 'PACER·20E', city: 'Paris', xp: 2100, crewTag: '9³', state: 'accepted', inMyCrew: true, availability: 'Dispo défense', runsThisWeek: 2 },
   { handle: 'nadia.k', displayName: 'NADIA.K', city: 'Lille', xp: 6400, crewTag: 'N11', state: 'accepted', availability: 'Exploration', runsThisWeek: 4 },
   { handle: 'yanis_ep', displayName: 'YANIS_EP', city: 'Paris', xp: 900, state: 'accepted', runsThisWeek: 1 },
-  { handle: 'sofia.trail', displayName: 'SOFIA.TRAIL', city: 'Dieppe', xp: 11_800, crewTag: 'PDC', state: 'accepted', availability: 'Dispo guerre', runsThisWeek: 6 },
+  { handle: 'sofia.trail', displayName: 'SOFIA.TRAIL', city: 'Lille', xp: 11_800, crewTag: 'MEL', state: 'accepted', availability: 'Dispo guerre', runsThisWeek: 6 },
 
   { handle: 'theo_canal', displayName: 'THEO_CANAL', city: 'Paris', xp: 4700, crewTag: 'CAN', state: 'incoming', reason: '2 amis en commun' },
-  { handle: 'maya.pdc', displayName: 'MAYA.PDC', city: 'Rouen', xp: 1500, state: 'incoming', reason: 'Scanné ton QR' },
+  { handle: 'maya.59', displayName: 'MAYA.59', city: 'Lille', xp: 1500, state: 'incoming', reason: 'Scanné ton QR' },
 
   { handle: 'jog.parmentier', displayName: 'JOG.PARMENTIER', city: 'Paris', xp: 2600, crewTag: '9³', state: 'suggested', reason: 'Même crew', inMyCrew: true },
   { handle: 'toutdroit', displayName: 'TOUTDROIT', city: 'Paris', xp: 1200, crewTag: '9³', state: 'suggested', reason: 'Même crew', inMyCrew: true },
