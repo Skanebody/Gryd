@@ -487,17 +487,21 @@ export default function RoutePlannerScreen() {
                   pressed && styles.pressed,
                 ]}
               >
+                {/* §A « aucun texte coupé » : à 3 chips sur 375px et au plancher
+                    a11y 12px, ces lignes débordaient (« ✓ Recommandée », « …~20 mi »).
+                    La coche est retirée (la sélection reste lisible : couleur
+                    chartreuse + fond sélectionné + ligne « Choisi » + a11y state) ;
+                    distance et statut passent sur 2 lignes au lieu d'être rognés. */}
                 <Text
                   style={[styles.planLabel, selected && styles.planLabelSelected]}
                   numberOfLines={1}
-                  ellipsizeMode="clip"
                 >
-                  {selected ? `✓ ${plan.label}` : plan.label}
+                  {plan.label}
                 </Text>
-                <Text style={styles.planDist} numberOfLines={1} ellipsizeMode="clip">
-                  ~{formatKm(plan.km)} km · ~{estMinutes(plan.km)} min
+                <Text style={styles.planDist} numberOfLines={2}>
+                  {`~${formatKm(plan.km)} km · ~${estMinutes(plan.km)} min`}
                 </Text>
-                <Text style={styles.planReason} numberOfLines={1} ellipsizeMode="clip">
+                <Text style={styles.planReason} numberOfLines={2}>
                   {selected ? 'Choisi' : plan.status}
                 </Text>
               </Pressable>
@@ -793,7 +797,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.grisLigne,
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     gap: 3,
   },
   planSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
