@@ -475,6 +475,11 @@ export default function ProfilScreen() {
             « MON TERRITOIRE », jamais une démo présentée comme le joueur. */}
         {widgetView ? (
           <TerritoryWidgetCard view={widgetView} />
+        ) : realUser ? (
+          // O1 : un vrai user dont le widget réel n'est pas (encore) résolu
+          // (chargement / pas de capture) ne doit PAS voir le résumé DÉMO
+          // « Paris 42 · Lille 13 » comme si c'était le sien — rien plutôt qu'un mensonge.
+          null
         ) : (
         <View style={styles.territoryCard}>
             {/* Bannière de crise (SOUS ATTAQUE) — ton rival, au-dessus du reste */}

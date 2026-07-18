@@ -17,8 +17,25 @@
  */
 import { useCallback, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Session } from '@supabase/supabase-js';
 import { HANDLE_REGEX } from '@klaim/shared';
 import { MY_SOCIAL_PROFILE } from './demo';
+import { useSession } from '../../lib/session';
+
+/**
+ * Identité lisible dérivée de la SESSION (vrai user O1) : nom du compte, sinon
+ * préfixe e-mail, sinon un neutre « Coureur ». Sert à NE PAS présenter le persona
+ * démo « KORO »/@koro à un vrai utilisateur qui n'a pas encore édité son profil
+ * (le back `user_profiles` n'est pas branché — TODO O1). PURE.
+ */
+function sessionIdentity(session: Session | null): { displayName: string; handle: string } {
+  const meta = (session?.user?.user_metadata ?? {}) as { full_name?: string; name?: string };
+  const emailPrefix = session?.user?.email?.split('@')[0];
+  const displayName = (meta.full_name || meta.name || emailPrefix || 'Coureur').toString().trim() || 'Coureur';
+  const handle =
+    (emailPrefix || displayName).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20) || 'coureur';
+  return { displayName, handle };
+}
 
 /** Champs du profil que le joueur peut éditer (le reste est dérivé/serveur). */
 export interface EditableProfile {
@@ -241,9 +258,25 @@ export async function resetProfile(): Promise<void> {
  */
 export function useMyProfile(): ProfileStore {
   const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { session, configured } = useSession();
   const save = useCallback(saveProfile, []);
+  const merged = mergeProfile(current);
+  // O1 : pour un vrai user (session) qui n'a pas encore édité son nom / @handle,
+  // on n'affiche PAS le persona démo « KORO »/@koro — on dérive son identité de la
+  // session (nom du compte / e-mail). Showcase (sans session) : démo inchangée.
+  const profile =
+    configured && session
+      ? (() => {
+          const id = sessionIdentity(session);
+          return {
+            ...merged,
+            ...(current.displayName === undefined ? { displayName: id.displayName } : {}),
+            ...(current.handle === undefined ? { handle: id.handle } : {}),
+          };
+        })()
+      : merged;
   return {
-    profile: mergeProfile(current),
+    profile,
     editable: { ...defaultEditable(), ...current },
     loading: !loaded,
     save,

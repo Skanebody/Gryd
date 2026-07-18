@@ -353,10 +353,14 @@ export default function BadgesScreen() {
       .slice(0, 3);
   }, [unlockedIds, stat]);
 
-  // Familles à afficher selon le filtre.
-  const shownFamilies = filter === 'all' || filter === 'secret'
-    ? BADGE_FAMILIES
-    : BADGE_FAMILIES.filter((f) => f.id === filter);
+  // Familles à afficher selon le filtre. « Secrets » ne montre QUE les secrets
+  // (aucune famille normale) — sinon le chip filtrait comme « Tous ».
+  const shownFamilies =
+    filter === 'all'
+      ? BADGE_FAMILIES
+      : filter === 'secret'
+        ? []
+        : BADGE_FAMILIES.filter((f) => f.id === filter);
   const showSecrets = filter === 'all' || filter === 'secret';
   const showNearly = filter === 'all' && nearlyUnlocked.length > 0;
 

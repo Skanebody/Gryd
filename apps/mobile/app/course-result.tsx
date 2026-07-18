@@ -624,7 +624,7 @@ function ConquestResultScreen({
   // IngestRunResponse.bonusApplied. UN seul bonus principal, libellé court.
   const bonusApplied = serverResult
     ? serverResult.bonusApplied
-    : mode === 'conquete'
+    : mode === 'conquete' && !isRealRun
       ? DEMO_BONUS_APPLIED
       : undefined;
 
@@ -960,10 +960,16 @@ function ConquestResultScreen({
                   ) : (
                     <StatePill state="statsonly" label="Stats enregistrées" />
                   )}
-                  <View style={styles.verifiedTrust}>
-                    <MiniStat label="GPS" value={String(stats.gpsTrust)} />
-                    <MiniStat label="MOUVEMENT" value={String(stats.motionTrust)} />
-                  </View>
+                  {/* Scores GPS/mouvement : DÉMO (resultStats) — le serveur ne les
+                      renvoie pas encore (O1). On ne les montre donc PAS pour une vraie
+                      course (sinon on affiche une qualité GPS fabriquée). Le statut
+                      « GRYD VERIFIED » lui vient bien du serveur (stats.verified). */}
+                  {!isRealRun ? (
+                    <View style={styles.verifiedTrust}>
+                      <MiniStat label="GPS" value={String(stats.gpsTrust)} />
+                      <MiniStat label="MOUVEMENT" value={String(stats.motionTrust)} />
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ) : null}

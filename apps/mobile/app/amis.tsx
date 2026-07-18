@@ -17,7 +17,8 @@ import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
 import { FriendCard } from '../src/ui/game';
 import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
-import { FRIENDS, MY_SOCIAL_PROFILE, type FriendDemo } from '../src/features/social/demo';
+import { FRIENDS, type FriendDemo } from '../src/features/social/demo';
+import { useMyProfile } from '../src/features/social/profileStore';
 import { ToastHost, useToast, type ToastController } from '../src/features/social/Toast';
 import { useSession } from '../src/lib/session';
 
@@ -165,11 +166,14 @@ function SuggestionsList({ toast, onMore }: {
 }
 
 function QrPanel({ toast }: { toast: ToastController }) {
+  // Identité RÉELLE via useMyProfile (session-aware) : un vrai user ne voit plus
+  // le @handle démo « koro » comme si c'était son propre QR (O1).
+  const { profile } = useMyProfile();
   return (
     <View style={styles.qrWrap}>
       <View style={styles.qrCard}>
         <Icon name="qr" size={120} color={colors.blanc} />
-        <Text style={styles.qrHandle}>@{MY_SOCIAL_PROFILE.handle}</Text>
+        <Text style={styles.qrHandle}>@{profile.handle}</Text>
       </View>
       <Text style={styles.qrHint}>
         Fais scanner ce code pour t'ajouter en un tap — ou scanne celui d'un autre coureur.

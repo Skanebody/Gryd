@@ -65,9 +65,13 @@ const ZONES_LABEL = `${MAP_MISSION.zones} zone${MAP_MISSION.zones > 1 ? 's' : ''
  * son détail lisent CETTE valeur ; aucun autre compteur n'est affiché ici.
  */
 const TIME_LEFT_LABEL = MAP_MISSION_SUMMARY.timeLeftLabel;
+/** Temps COMPACT pour la ligne (« 8 h ») : la ligne tient sur 375 px au plancher
+ *  a11y 12 px sans être coupée (§A « textes jamais tronqués »). Le détail au tap
+ *  et le lecteur d'écran gardent la forme longue. */
+const TIME_COMPACT = TIME_LEFT_LABEL.replace(/\s*restantes?\.?$/i, '').trim();
 
-/** « République attaquée · 3 zones · 8 h restantes » — la mission en 1 ligne. */
-const MISSION_LINE_TEXT = `${MAP_MISSION.headerTitle} · ${ZONES_LABEL} · ${TIME_LEFT_LABEL}`;
+/** « République attaquée · 3 zones · 8 h » — la mission en 1 ligne (compacte). */
+const MISSION_LINE_TEXT = `${MAP_MISSION.headerTitle} · ${ZONES_LABEL} · ${TIME_COMPACT}`;
 
 /** Détail au tap : distance + gain — unité unique « pts » (jamais XP ici). */
 const MISSION_DETAIL_META = `${formatKm(MAP_MISSION.distanceKm)} · +${MAP_MISSION.bonusPoints} pts crew`;

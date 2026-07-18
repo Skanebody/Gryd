@@ -369,8 +369,10 @@ export default function LeagueScreen() {
           </Text>
         ) : null}
 
-        {/* PODIUM top 3 — remonté à chaque changement de board (key) */}
-        <Podium key={board.id} board={board} />
+        {/* PODIUM top 3 — remonté à chaque changement de board (key). Reçoit les
+            lignes FILTRÉES (`rows`) : en mode discret je n'apparais pas non plus
+            sur le podium (§10.3) — le podium gère déjà un rang manquant (case vide). */}
+        <Podium key={board.id} board={{ ...board, rows }} />
 
         {/* Rangs 4+ — COMPACT : fenêtre autour de MA ligne + « Voir tout » */}
         <View style={styles.list}>

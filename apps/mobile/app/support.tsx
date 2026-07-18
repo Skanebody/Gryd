@@ -197,7 +197,7 @@ export default function SupportScreen() {
       title="Support"
       icon="aide"
       kicker="AIDE"
-      subtitle="Comprendre pourquoi une course compte — ou pas — et faire valoir tes droits. Une personne lit chaque demande."
+      subtitle="Comprendre pourquoi une course compte — ou pas — et faire valoir tes droits."
     >
       <View style={styles.list}>
         <Text style={styles.sectionLabel}>COMPRENDRE LES CALCULS</Text>
