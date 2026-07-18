@@ -1598,10 +1598,14 @@ export function battleGameLayers(
     // §C — SECTEURS AGRÉGÉS par STATUT (0-4) au-DESSUS des territoires : c'est la
     // lecture « où est-ce chaud ? » (contesté violet + double contour SANS pulse,
     // attaque orange, urgence rouge, activité rival approximative). Peints sous
-    // la route/bonus (le trait route-first reste au premier plan) — le badge
-    // texte court est porté à part par sectorStatusPointLayers (calque symbol
-    // borné par zoom). L'emphase `contested` du mode actif module leur opacité.
-    ...sectorStatusLayersAll(emph.contested),
+    // la route/bonus (le trait route-first reste au premier plan). L'emphase
+    // `contested` du mode actif module leur opacité.
+    // O1 (états vides) : ces secteurs viennent de PARIS_DEMO_SECTOR_VIEWS. Comme
+    // les territoires (territoryStateLayers), on ne les montre QU'EN SHOWCASE
+    // (real === null) — un vrai user ne voit plus de faux « secteur contesté » sur
+    // ses vraies captures. Le rendu des VRAIS secteurs (sector_snapshot 0037 +
+    // géométrie sectors.geojson) est le chantier suivant, à vérifier avec données.
+    ...(real === null ? sectorStatusLayersAll(emph.contested) : []),
     // Zone bonus (1 MAX) + route ouverte : traits or/chartreuse — sur le fond
     // COULEUR ils reçoivent le liseré sombre porteur (withColorCasing), pas le
     // fill de la zone bonus (un aplat lit très bien sur Voyager).
