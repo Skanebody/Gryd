@@ -13,7 +13,11 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { secretsMatch } from '../_shared/secret.ts';
-import { computeSectorSnapshot, type SectorControlRow } from '../_shared/engine/sectorSnapshot.ts';
+import {
+  computeSectorSnapshot,
+  type SectorActivity,
+  type SectorControlRow,
+} from '../_shared/engine/sectorSnapshot.ts';
 
 const PAGE = 1000; // PostgREST plafonne les lectures à 1000 lignes
 const UPSERT_CHUNK = 500;
@@ -78,11 +82,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
       bySector.set(r.sector_id, arr);
     }
 
-    // 3. Snapshot §C par secteur (moteur pur) — activité non câblée au MVP → {}.
+    // 3. Signaux d'ACTIVITÉ par secteur (vue sector_activity, 0040) : vols récents +
+    //    decay imminent → nourrissent pression/statut (attaque active, urgence…).
+    const activityBySector = new Map<string, SectorActivity>();
+    {
+      const { data: acts, error: actErr } = await supabase
+        .from('sector_activity')
+        .select('sector_id, zones_lost_recent, rival_reclaimed_24h, last_attack_at, decay_fraction');
+      if (actErr) return json({ error: `sector_activity read: ${actErr.message}` }, 500);
+      for (const a of (acts ?? []) as Array<{
+        sector_id: string;
+        zones_lost_recent: number;
+        rival_reclaimed_24h: number;
+        last_attack_at: string | null;
+        decay_fraction: number | string;
+      }>) {
+        activityBySector.set(a.sector_id, {
+          zonesLostRecent: Number(a.zones_lost_recent) || 0,
+          rivalReclaimed24h: Number(a.rival_reclaimed_24h) || 0,
+          decayFraction: Number(a.decay_fraction) || 0,
+          lastAttackAt: a.last_attack_at ? new Date(a.last_attack_at) : null,
+        });
+      }
+    }
+
+    // 4. Snapshot §C par secteur (moteur pur) + activité réelle.
     const now = new Date();
     const nowIso = now.toISOString();
     const snapshots = [...bySector.entries()].map(([sector_id, ctrl]) => {
-      const s = computeSectorSnapshot(ctrl, {}, now);
+      const act = activityBySector.get(sector_id) ?? {};
+      const s = computeSectorSnapshot(ctrl, act, now);
       return {
         sector_id,
         owner_crew_id: s.ownerCrewId,
@@ -93,18 +122,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
         pressure_score: s.pressureScore,
         status_level: s.statusLevel,
         contested: s.contested,
-        last_attack_at: null,
+        last_attack_at: act.lastAttackAt ? act.lastAttackAt.toISOString() : null,
         updated_at: nowIso,
       };
     });
 
-    // 4. Upsert les secteurs actifs.
+    // 5. Upsert les secteurs actifs.
     for (const batch of chunk(snapshots, UPSERT_CHUNK)) {
       const { error } = await supabase.from('sector_snapshot').upsert(batch, { onConflict: 'sector_id' });
       if (error) return json({ error: `sector_snapshot upsert: ${error.message}` }, 500);
     }
 
-    // 5. Neutraliser les secteurs devenus VIDES (plus aucun claim non-décayé → sortis
+    // 6. Neutraliser les secteurs devenus VIDES (plus aucun claim non-décayé → sortis
     //    de la vue) : on retire leur snapshot pour ne pas montrer un ancien owner.
     const activeIds = new Set(bySector.keys());
     const { data: existing, error: exErr } = await supabase.from('sector_snapshot').select('sector_id');
