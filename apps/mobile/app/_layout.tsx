@@ -8,6 +8,10 @@
 // AVANT que le reste de l'app ne charge. Une erreur fatale s'affiche à l'écran
 // au lieu de tuer l'app en silence.
 import '../src/lib/bootDiagnostics';
+// CAUSE RÉELLE du crash de démarrage iOS (builds 1-3) : le TextDecoder du
+// runtime Expo/Hermes ne connaît pas utf-16le, or h3-js (Emscripten) en crée
+// un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js.
+import '../src/lib/textDecoderUtf16';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
