@@ -87,7 +87,8 @@
           "motionPermission": "GRYD compte tes pas pendant tes courses pour vérifier que l'effort est réel. Jamais en dehors d'une course."
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {},
     "runtimeVersion": {
