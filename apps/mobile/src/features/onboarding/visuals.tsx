@@ -29,12 +29,12 @@ import { territoryStyle, traceStyle, withAlpha } from '../map/mapStyle';
 import { fitTracesToBox, tracePrefix } from '../map/projectTrace';
 import {
   AVENUE_DE_LA_REPUBLIQUE,
+  BOUCLE_BASTILLE,
   BOUCLE_REPUBLIQUE,
   BOUCLE_SQUARE_VILLEMIN,
   BOULEVARD_VOLTAIRE,
   EGO_REPUBLIQUE,
   QUAI_VALMY,
-  RUE_FAUBOURG_DU_TEMPLE,
 } from '../map/realAnchors';
 
 // ─── Progression 0..1 pilotée par état (props SVG — driver JS) ───────────────
@@ -99,13 +99,18 @@ const BOARD_H = 300;
 const REAL_STREETS = [AVENUE_DE_LA_REPUBLIQUE, QUAI_VALMY, BOULEVARD_VOLTAIRE] as const;
 
 /**
- * Projection PARTAGÉE du plateau : l'union « mon territoire (boucle République) +
- * rival (Faubourg-du-Temple) + objectif (square Villemin) » cadrée dans le board.
- * Chaque tracé garde sa forme ET sa position relative réelle (§4ter). Constante
- * de module (déterministe) — calculée une fois.
+ * Projection PARTAGÉE du plateau (retour terrain 20/07 : « je dois comprendre
+ * quand une zone est prise, partagée, ou à quelqu'un d'autre » — le trait orange
+ * nu se lisait comme un bug). L'exemple enseigne les 3 ÉTATS DE ZONE (§C), sur
+ * trois VRAIES boucles à leur vraie position relative :
+ *   • République (centre) = zone À TOI (chartreuse pleine) ;
+ *   • square Villemin (nord) = zone CONTESTÉE (violet — deux crews se la
+ *     disputent) ;
+ *   • Bastille (sud) = zone À UN CREW RIVAL (orange pleine).
+ * Constante de module (déterministe) — calculée une fois.
  */
 const BOARD_PROJ = fitTracesToBox(
-  [BOUCLE_REPUBLIQUE, RUE_FAUBOURG_DU_TEMPLE, BOUCLE_SQUARE_VILLEMIN],
+  [BOUCLE_REPUBLIQUE, BOUCLE_SQUARE_VILLEMIN, BOUCLE_BASTILLE],
   BOARD_W,
   BOARD_H,
   18,
@@ -113,8 +118,8 @@ const BOARD_PROJ = fitTracesToBox(
 
 /** Chemins projetés (déterministes) réutilisés par les briques du plateau. */
 const MINE_PATH = BOARD_PROJ.path(BOUCLE_REPUBLIQUE, true);
-const RIVAL_POINTS = BOARD_PROJ.points(RUE_FAUBOURG_DU_TEMPLE);
-const TARGET_PATH = BOARD_PROJ.path(BOUCLE_SQUARE_VILLEMIN, true);
+const CONTESTED_PATH = BOARD_PROJ.path(BOUCLE_SQUARE_VILLEMIN, true);
+const RIVAL_PATH = BOARD_PROJ.path(BOUCLE_BASTILLE, true);
 const EGO_PT = BOARD_PROJ.project(EGO_REPUBLIQUE);
 
 /** Rues réelles projetées (décor commun ville/hook). */
@@ -187,26 +192,24 @@ export function HookMapBackground() {
 
 /**
  * Le TERRAIN DE JEU (plateau DÉMO — aucune géoloc réelle, la copy de l'écran
- * l'assume) sur de VRAIS tracés : mon territoire = la boucle République remplie ;
- * le rival = le couloir Faubourg-du-Temple (orange, l'état se lit à la ligne) ;
- * l'OBJECTIF = la boucle du square Villemin, contour pointillé qui PULSE
- * (« celle-ci, prends-la »). Les 3 rôles se lisent par couleur ET forme (§C) :
- * chartreuse = moi, orange = rival, cible pointillée pulsée = objectif. Position
- * du joueur = flèche chartreuse à l'ego réel (place de la République).
+ * l'assume) : la LEÇON DES 3 ÉTATS DE ZONE (§C, retour terrain 20/07) sur trois
+ * vraies boucles. Chaque état est une ZONE PLEINE — jamais un trait nu, qui se
+ * lisait comme un bug :
+ *   chartreuse = à toi · violet = contestée (les deux crews se la disputent,
+ *   double contour) · orange = à un crew rival.
+ * Les trois se révèlent en cascade ; position du joueur = flèche chartreuse à
+ * l'ego réel (place de la République), DANS sa zone — comme sur la vraie carte.
  */
 export function CityBoard() {
   const reveal = useProgress(1400, 0, false);
-  const pulse = useProgress(1600, 0, true);
   const mineOp = ramp(reveal, 0, 0.5);
-  const rivalOp = ramp(reveal, 0.25, 0.75);
-  const targetOp = ramp(reveal, 0.5, 1);
-  // Pulse du contour objectif : opacité qui respire (reduce motion → plein fixe).
-  const targetPulse = 0.55 + 0.45 * pulse;
+  const contestedOp = ramp(reveal, 0.25, 0.75);
+  const rivalOp = ramp(reveal, 0.5, 1);
   return (
     <View style={styles.board}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>
         <RealStreets />
-        {/* Mon territoire — vraie boucle République remplie (aplat + trait net). */}
+        {/* À TOI — vraie boucle République remplie (aplat + trait net). */}
         <Path
           d={MINE_PATH}
           fill={territoryStyle.crewFill}
@@ -215,25 +218,33 @@ export function CityBoard() {
           strokeLinejoin="round"
           opacity={mineOp}
         />
-        {/* Rival — vrai couloir Faubourg-du-Temple (ligne orange, §C). */}
-        <Polyline
-          points={RIVAL_POINTS}
+        {/* CONTESTÉE — vraie boucle Villemin en violet (§C), double contour
+            (plein + pointillé décalé) : « deux crews se la disputent ». */}
+        <Path
+          d={CONTESTED_PATH}
+          fill={withAlpha(gameColors.contested, 0.24)}
+          stroke={withAlpha(gameColors.contested, 0.9)}
+          strokeWidth={2}
+          strokeLinejoin="round"
+          opacity={contestedOp}
+        />
+        <Path
+          d={CONTESTED_PATH}
           fill="none"
+          stroke={withAlpha(gameColors.contested, 0.5)}
+          strokeWidth={5}
+          strokeDasharray="3 6"
+          strokeLinejoin="round"
+          opacity={contestedOp}
+        />
+        {/* AU RIVAL — vraie boucle Bastille en orange PLEIN (une zone, pas un trait). */}
+        <Path
+          d={RIVAL_PATH}
+          fill={territoryStyle.rivalFill}
           stroke={territoryStyle.rivalStroke}
-          strokeWidth={4}
-          strokeLinecap="round"
+          strokeWidth={2}
           strokeLinejoin="round"
           opacity={rivalOp}
-        />
-        {/* Zone-objectif — vraie boucle Villemin : aplat léger + contour pointillé PULSÉ. */}
-        <Path
-          d={TARGET_PATH}
-          fill={territoryStyle.objectiveFill}
-          stroke={withAlpha(colors.chartreuse, 0.7)}
-          strokeWidth={2}
-          strokeDasharray="6 5"
-          strokeLinejoin="round"
-          opacity={targetOp * targetPulse}
         />
         {/* Position du joueur : flèche/triangle chartreuse à l'ego réel. */}
         <G opacity={mineOp}>

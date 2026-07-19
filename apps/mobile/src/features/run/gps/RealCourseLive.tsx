@@ -53,7 +53,9 @@ const BIG_CONTROL_SIZE = 68;
 function statusLabel(run: RealRunApi): string {
   const s = run.snapshot;
   if (s.phase === 'paused-user') return 'EN PAUSE';
-  if (s.phase === 'paused-auto') return 'EN PAUSE AUTO';
+  // Retour terrain 20/07 : « EN PAUSE AUTO » seul se lisait comme un problème
+  // GPS. On dit POURQUOI (l'arrêt) et COMMENT reprendre — pas un bug, un état.
+  if (s.phase === 'paused-auto') return 'EN PAUSE AUTO · BOUGE POUR REPRENDRE';
   if (s.phase === 'finished') return 'COURSE TERMINÉE';
   if (s.totalFixes === 0) return 'RECHERCHE GPS…';
   return 'EN COURSE';

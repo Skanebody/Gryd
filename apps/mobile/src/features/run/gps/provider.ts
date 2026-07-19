@@ -135,6 +135,24 @@ export function openLocationSettings(): void {
  * detectPauses/signalState à l'arrêt (plus aucun fix au feu rouge → faux
  * « signal perdu »). Le filtrage anti-jitter est le travail du moteur.
  */
+/**
+ * Position PONCTUELLE (carte, hors course) : une lecture Balanced, pas de watch
+ * BestForNavigation qui viderait la batterie sur un onglet passif. Renvoie null
+ * si la permission manque ou si la lecture échoue — l'appelant garde son
+ * fallback, jamais de throw sur le chemin d'un écran.
+ */
+export async function getCurrentPositionOnce(): Promise<RawFix | null> {
+  try {
+    if (!(await Location.getForegroundPermissionsAsync()).granted) return null;
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    return toRawFix(loc);
+  } catch {
+    return null;
+  }
+}
+
 export async function watchPosition(
   onFix: (fix: RawFix) => void,
 ): Promise<Location.LocationSubscription> {

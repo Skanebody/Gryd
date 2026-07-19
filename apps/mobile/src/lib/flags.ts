@@ -14,6 +14,19 @@
  */
 const FULL_SURFACE = process.env.EXPO_PUBLIC_FULL_SURFACE === '1';
 
+/**
+ * VITRINE vs VRAI PRODUIT (retour terrain fondateur, 20/07/2026 — 1er test sur
+ * iPhone : « je suis à Ouville-la-Rivière, l'app me met à République avec des
+ * zones déjà prises »). La démo (territoires peints, missions, rivaux, POI,
+ * villes) n'a le droit d'exister QUE sur la vitrine web (preview/showcase, où
+ * aucune géoloc réelle n'existe). Sur l'app NATIVE installée, c'est un VRAI
+ * produit : données réelles ou VIDES, jamais fabriquées — peu importe qu'une
+ * session existe ou non (« l'app ne ment jamais »).
+ */
+import { Platform } from 'react-native';
+
+export const isShowcasePlatform = Platform.OS === 'web';
+
 export const flags = {
   /** Onglet Saison + classements de saison (les scores s'accumulent quand même). */
   season: FULL_SURFACE,

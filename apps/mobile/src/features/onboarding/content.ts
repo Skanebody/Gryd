@@ -87,7 +87,10 @@ export const AGE = {
 export const CITY = {
   kicker: 'LA VILLE · MAINTENANT',
   title: 'Voilà le terrain de jeu. À prendre.',
-  tagline: 'Chaque zone se gagne en courant. Chartreuse = toi, orange = un crew rival.',
+  // Retour terrain 20/07 : la légende nomme les 3 ÉTATS DE ZONE que le plateau
+  // montre (§C) — comprendre prise / contestée / au rival AVANT la vraie carte.
+  tagline:
+    'Chaque zone se gagne en courant. Chartreuse = à toi, violet = contestée, orange = à un crew rival.',
   cta: 'Prendre ce terrain',
 } as const;
 

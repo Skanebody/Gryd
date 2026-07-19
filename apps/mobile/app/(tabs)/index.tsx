@@ -33,6 +33,7 @@ import {
 } from '../../src/features/map/demo';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
+import { isShowcasePlatform } from '../../src/lib/flags';
 import { useSession } from '../../src/lib/session';
 import { useMapHudHidden } from '../../src/features/map/mapUiStore';
 import { Icon } from '../../src/ui/Icon';
@@ -151,7 +152,10 @@ function MissionLine() {
   // 38 % » : ce serait fabriquer une mission et un rival. La carte reste honnête via
   // son bandeau `dataNote` (« cours pour prendre ta première zone »). L'accès Route
   // Planner vit ailleurs (bouton GO, Aujourd'hui, War Room). Showcase : démo intacte.
-  if (configured && session) return null;
+  // Retour terrain 20/07 : sur l'app NATIVE, cette mission démo n'a pas le droit
+  // d'exister même sans session (« République attaquée » à Ouville-la-Rivière) —
+  // la démo est réservée à la vitrine web. isShowcasePlatform (src/lib/flags).
+  if ((configured && session) || !isShowcasePlatform) return null;
 
   const toggleDetail = () => {
     haptics.light();

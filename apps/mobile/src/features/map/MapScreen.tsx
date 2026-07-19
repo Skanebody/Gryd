@@ -52,6 +52,8 @@ import { basemapAttribution, battleGameLayers } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
+import { isShowcasePlatform } from '../../lib/flags';
+import { getCurrentPositionOnce } from '../run/gps/provider';
 
 // ─── Constantes de rendu (UI uniquement — mêmes valeurs que la variante web) ─
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -122,11 +124,18 @@ function buildMarkers(
   emph: ModeEmphasis,
   showMissions: boolean,
   showAllies: boolean,
+  ego: LatLngPoint,
+  demoOverlays: boolean,
 ): RealMapMarker[] {
   const markers: RealMapMarker[] = [];
 
   // ── Missions / objectifs + POI / défi — QUARTIER (z13-15) ──────────────────
-  if (showMissions) {
+  // `demoOverlays` (vitrine web uniquement) : POI, défi, avant-poste, bouclier,
+  // sablier, objectif et alliés sont de la DÉMO (fakeHexes/demo.ts). Sur l'app
+  // NATIVE ils n'existent pas tant qu'aucune source réelle ne les nourrit —
+  // retour terrain fondateur : « des zones déjà prises alors que je n'ai rien
+  // fait ». Seul EGO est toujours peint.
+  if (demoOverlays && showMissions) {
     // POI running : §15 borne les LABELS à QUARTIER_MAX_LABELS au quartier (les
     // POI sont la famille la moins prioritaire à porter du texte, §14) ; à la
     // rue (showAllies) la contrainte quartier ne s'applique plus.
@@ -183,7 +192,7 @@ function buildMarkers(
   }
 
   // ── Alliés opt-in — RUE (z16-18) seulement ─────────────────────────────────
-  if (showAllies) {
+  if (demoOverlays && showAllies) {
     for (const m of MATES_OPT_IN) {
       markers.push({
         id: `mate-${m.name}`,
@@ -197,8 +206,8 @@ function buildMarkers(
   // ── Moi — TOUJOURS présent, peint en dernier (au-dessus de tout) ───────────
   markers.push({
     id: 'ego',
-    lng: EGO_CAMERA.lng,
-    lat: EGO_CAMERA.lat,
+    lng: ego.lng,
+    lat: ego.lat,
     children: <EgoMarker />,
   });
   return markers;
@@ -217,6 +226,32 @@ export function MapScreen() {
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
+
+  /**
+   * POSITION RÉELLE (retour terrain fondateur : « je suis à Ouville-la-Rivière,
+   * la carte me met à République »). Sur natif : une lecture ponctuelle au
+   * montage (Balanced — pas de watch BestForNavigation sur un onglet passif),
+   * la caméra VOLE vers le vrai point au premier fix, et EGO est peint là.
+   * Permission manquante ou échec → fallback EGO_CAMERA (République), comme la
+   * vitrine. Web : jamais de géoloc (vitrine assumée).
+   */
+  const [egoPos, setEgoPos] = useState<LatLngPoint>({ lat: EGO_CAMERA.lat, lng: EGO_CAMERA.lng });
+  const centeredOnRealRef = useRef(false);
+  useEffect(() => {
+    if (isShowcasePlatform) return;
+    let cancelled = false;
+    void getCurrentPositionOnce().then((fix) => {
+      if (cancelled || !fix) return;
+      setEgoPos({ lat: fix.lat, lng: fix.lng });
+      if (!centeredOnRealRef.current) {
+        centeredOnRealRef.current = true;
+        mapRef.current?.flyTo({ ...EGO_CAMERA, lat: fix.lat, lng: fix.lng });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { points, summary } = useMemo(() => {
     const data = battleMapData();
@@ -292,12 +327,19 @@ export function MapScreen() {
       return;
     }
     // go / view_map / complete… : la carte EST l'écran d'action (GO flottant).
-    mapRef.current?.flyTo(EGO_CAMERA);
-  }, []);
+    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
+  }, [egoPos]);
 
+  /**
+   * NATIF = jamais de territoires démo : sans session, `territories` est null et
+   * battleGameLayers peindrait le faux Paris conquis. Sur l'app installée on
+   * passe [] → carte réelle VIDE (P0.2 : « un joueur qui n'a rien capturé voit
+   * une carte vide »). La vitrine web garde la démo étiquetée.
+   */
+  const paintedTerritories = isShowcasePlatform ? territories : (territories ?? []);
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, territories),
-    [emph, selectedParcours, basemap, selectedZoneId, territories],
+    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, paintedTerritories),
+    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories],
   );
 
   /** Tap carte → zone tapée (null sur le vide = désélection). */
@@ -309,6 +351,13 @@ export function MapScreen() {
 
   /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
   const decayAnchor = useMemo(() => decaySablierAnchor(), []);
+
+  /**
+   * Dots villes (France/Europe) = données DÉMO (FRANCE_CITIES_DEMO + secteurs
+   * Paris) : vitrine web uniquement. Sur natif → aucune fausse ville conquise
+   * (CLAUDE.md : zéro donnée factice) tant qu'aucune agrégation réelle n'existe.
+   */
+  const cityDotLayers = useMemo(() => (isShowcasePlatform ? territoryDotLayers() : []), []);
 
   /**
    * Bande de zoom sémantique (§6/§11) dérivée du VRAI zoom caméra. Elle étage les
@@ -325,8 +374,8 @@ export function MapScreen() {
   const markers = useMemo(() => {
     const showMissions = band === 'district' || band === 'street';
     const showAllies = band === 'street';
-    return buildMarkers(points, decayAnchor, emph, showMissions, showAllies);
-  }, [points, decayAnchor, emph, band]);
+    return buildMarkers(points, decayAnchor, emph, showMissions, showAllies, egoPos, isShowcasePlatform);
+  }, [points, decayAnchor, emph, band, egoPos]);
 
   // map_load_ms (§8 santé produit) — du montage au premier rendu (parité web).
   const mountedAtRef = useRef<number>(Date.now());
@@ -337,8 +386,20 @@ export function MapScreen() {
     track(EVENTS.mapLoadMs, { ms: Date.now() - mountedAtRef.current });
   }, []);
 
-  // Recentrer : retour ego fluide (flyTo — saut direct si reduce motion).
-  const recenter = () => mapRef.current?.flyTo(EGO_CAMERA);
+  // Recentrer : retour ego fluide (flyTo — saut direct si reduce motion). Sur
+  // natif on RAFRAÎCHIT d'abord la position (l'utilisateur a pu se déplacer).
+  const recenter = () => {
+    if (isShowcasePlatform) {
+      mapRef.current?.flyTo(EGO_CAMERA);
+      return;
+    }
+    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
+    void getCurrentPositionOnce().then((fix) => {
+      if (!fix) return;
+      setEgoPos({ lat: fix.lat, lng: fix.lng });
+      mapRef.current?.flyTo({ ...EGO_CAMERA, lat: fix.lat, lng: fix.lng });
+    });
+  };
 
   return (
     <View style={styles.root}>
@@ -350,7 +411,7 @@ export function MapScreen() {
         ref={mapRef}
         camera={EGO_CAMERA}
         geojsonLayers={layers}
-        pointLayers={territoryDotLayers()}
+        pointLayers={cityDotLayers}
         markers={markers}
         onZoomChange={onZoomChange}
         onPress={onMapPress}
@@ -376,7 +437,12 @@ export function MapScreen() {
           ]}
           accessibilityRole="text"
         >
-          {dataNote(isReal, failed, territories?.length ?? 0)}
+          {/* Natif sans session : on ne peint AUCUNE démo (paintedTerritories=[]),
+              donc la note « démonstration » serait fausse — le vrai état est
+              « pas de compte connecté ». Les autres cas gardent dataNote. */}
+          {!isShowcasePlatform && !isReal && !failed
+            ? 'Connecte-toi pour voir et capturer tes zones.'
+            : dataNote(isReal, failed, territories?.length ?? 0)}
         </Text>
       )}
 

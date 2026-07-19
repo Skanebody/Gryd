@@ -256,8 +256,12 @@ export class RunTracker {
 
     // Zones estimées : cellules H3 uniques de la trace gardée (hors conquête → 0,
     // rien n'est capturé — même règle que la démo, le serveur reste seul juge).
+    // Retour terrain 20/07 : au tout premier fix, la cellule de DÉPART comptait
+    // déjà → « +1 ZONES ESTIMÉES » à 0,00 km, à l'arrêt. Une zone s'estime en
+    // COURANT : tant que le déplacement ne dépasse pas le bruit GPS
+    // (GPS_ACCURACY_MAX_M), rien n'est estimé.
     let zonesEstimated = 0;
-    if (this.mode === 'conquete') {
+    if (this.mode === 'conquete' && distanceM >= GPS_ACCURACY_MAX_M) {
       const cells = new Set<string>();
       for (const p of smoothed) cells.add(latLngToCell(p.lat, p.lng, H3_RESOLUTION));
       zonesEstimated = cells.size;
