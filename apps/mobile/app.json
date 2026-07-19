@@ -89,6 +89,12 @@
       ],
       "expo-apple-authentication"
     ],
-    "experiments": {}
+    "experiments": {},
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/4c80219c-3a84-445a-9add-5e5afade6d14"
+    }
   }
 }
