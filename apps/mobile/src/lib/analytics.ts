@@ -20,8 +20,23 @@ const posthogKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
  */
 const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://eu.i.posthog.com';
 
+/**
+ * DÉFENSIF : `new PostHog(...)` s'exécute à l'import (donc avant tout rendu, hors
+ * ErrorBoundary) et touche du natif (stockage, réseau). L'analytique ne doit
+ * JAMAIS pouvoir empêcher l'app de démarrer — on dégrade en no-op silencieux.
+ */
+function makePostHog(): PostHog | null {
+  if (!posthogKey) return null;
+  try {
+    return new PostHog(posthogKey, { host: POSTHOG_HOST });
+  } catch (e) {
+    console.warn('[GRYD] PostHog indisponible', e);
+    return null;
+  }
+}
+
 const client: PostHog | null = posthogKey
-  ? new PostHog(posthogKey, { host: POSTHOG_HOST })
+  ? makePostHog()
   : null;
 
 /**

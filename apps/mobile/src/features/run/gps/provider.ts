@@ -57,16 +57,24 @@ export function setBackgroundFixListener(listener: FixListener | null): void {
 }
 
 if (Platform.OS !== 'web') {
-  TaskManager.defineTask(GPS_BACKGROUND_TASK, async ({ data, error }) => {
-    if (error || !data) return; // un raté de tâche ne casse jamais la course
-    const locations = (data as { locations?: Location.LocationObject[] }).locations ?? [];
-    if (locations.length === 0) return;
-    const fixes = locations.map(toRawFix);
-    if (backgroundListener) backgroundListener(fixes);
-    // Relance headless après kill : personne n'écoute → file persistée,
-    // fusionnée à la restauration (runStore.drainBackgroundFixes).
-    else await appendBackgroundFixes(fixes);
-  });
+  // DÉFENSIF : ce bloc s'exécute à l'ÉVALUATION DU BUNDLE (avant tout rendu
+  // React, donc hors de portée de l'ErrorBoundary). Si expo-task-manager n'est
+  // pas disponible, un throw ici tue l'app au démarrage sans écran d'erreur.
+  // Perdre la reprise headless est acceptable ; perdre l'app ne l'est pas.
+  try {
+    TaskManager.defineTask(GPS_BACKGROUND_TASK, async ({ data, error }) => {
+      if (error || !data) return; // un raté de tâche ne casse jamais la course
+      const locations = (data as { locations?: Location.LocationObject[] }).locations ?? [];
+      if (locations.length === 0) return;
+      const fixes = locations.map(toRawFix);
+      if (backgroundListener) backgroundListener(fixes);
+      // Relance headless après kill : personne n'écoute → file persistée,
+      // fusionnée à la restauration (runStore.drainBackgroundFixes).
+      else await appendBackgroundFixes(fixes);
+    });
+  } catch (e) {
+    console.warn('[GRYD] tâche GPS background indisponible', e);
+  }
 }
 
 // ─── Permissions (progressives, jamais bloquantes) ───────────────────────────

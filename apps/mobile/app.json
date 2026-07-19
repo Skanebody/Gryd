@@ -95,6 +95,8 @@
       "policy": "appVersion"
     },
     "updates": {
+      "_comment_diagnostic": "DÉSACTIVÉ TEMPORAIREMENT (19/07/2026, crash au démarrage du 1er build iOS). expo-updates ErrorRecovery (ios/EXUpdates/ErrorRecovery.swift) attend RemoteLoadTimeoutMs=5000 une update de secours après une erreur JS de démarrage, n'en trouve aucune (canal preview jamais publié) puis provoque un crash MUET — ce qui masque l'erreur réelle et explique le délai de ~5 s. Le réactiver seulement quand l'app est stable, ET après un premier `eas update --channel preview` pour que la récupération ait un filet.",
+      "enabled": false,
       "url": "https://u.expo.dev/4c80219c-3a84-445a-9add-5e5afade6d14"
     }
   }

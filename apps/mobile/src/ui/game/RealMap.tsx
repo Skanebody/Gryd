@@ -55,9 +55,21 @@ function isExpoGo(): boolean {
   return Constants.appOwnership === 'expo';
 }
 
-function loadNativeMap(): RealMapNativeModule['RealMap'] {
-  nativeModule ??= require('./RealMapNative') as RealMapNativeModule;
-  return nativeModule.RealMap;
+/**
+ * Charge la carte native. DÉFENSIF : `RealMapNative` importe
+ * @maplibre/maplibre-react-native, qui fait `Object.create(NativeModules.MLRNModule)`
+ * à portée module → TypeError si le module natif n'est pas enregistré. Sans ce
+ * garde, un souci de liaison MapLibre tue l'app entière au 1ᵉʳ rendu de la carte
+ * (l'onglet Carte est l'onglet initial). Renvoie null → repli lisible.
+ */
+function loadNativeMap(): RealMapNativeModule['RealMap'] | null {
+  try {
+    nativeModule ??= require('./RealMapNative') as RealMapNativeModule;
+    return nativeModule.RealMap;
+  } catch (e) {
+    console.warn('[GRYD] carte native indisponible', e);
+    return null;
+  }
 }
 
 function visitCoordinates(value: unknown, visit: (lng: number, lat: number) => void): void {
@@ -334,6 +346,9 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(pro
   if (isExpoGo()) return <ExpoGoMapFallback {...props} />;
 
   const NativeMap = loadNativeMap();
+  // Module natif absent/cassé : on dégrade vers le même repli qu'Expo Go plutôt
+  // que de faire tomber toute l'app (l'onglet Carte est l'écran d'entrée).
+  if (!NativeMap) return <ExpoGoMapFallback {...props} />;
   return <NativeMap {...props} ref={ref} />;
 });
 

@@ -10,17 +10,30 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
+/**
+ * DÉFENSIF : `createClient` s'exécute à l'import et LÈVE une exception si l'URL
+ * est malformée (le garde ci-dessous ne teste que la présence, pas le format).
+ * Un throw ici tuerait l'app au démarrage, avant tout écran. On retombe alors
+ * sur le mode sans backend plutôt que de faire planter le lancement.
+ */
+function makeSupabase(): SupabaseClient | null {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  try {
+    return createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false, // React Native : pas d'URL de callback web
+      },
+    });
+  } catch (e) {
+    console.warn('[GRYD] client Supabase indisponible', e);
+    return null;
+  }
+}
+
 /** Null tant que O1 (projet Supabase) n'est pas configuré. */
-export const supabase: SupabaseClient | null =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          storage: AsyncStorage,
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: false, // React Native : pas d'URL de callback web
-        },
-      })
-    : null;
+export const supabase: SupabaseClient | null = makeSupabase();
 
 export const isSupabaseConfigured: boolean = supabase !== null;
