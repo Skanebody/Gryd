@@ -3,6 +3,11 @@
  * Thème dark-first (fond = token noir, jamais #000 pur), provider de session
  * Supabase minimal, track app_open (§8) à l'ouverture.
  */
+// DIAGNOSTIC CRASH iOS (temporaire) : DOIT être le tout premier import — les
+// imports s'évaluent dans l'ordre, et ce module pose le handler d'erreur global
+// AVANT que le reste de l'app ne charge. Une erreur fatale s'affiche à l'écran
+// au lieu de tuer l'app en silence.
+import '../src/lib/bootDiagnostics';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';

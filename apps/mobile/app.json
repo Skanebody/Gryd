@@ -16,6 +16,7 @@
       "com.apple.developer.healthkit.access": []
     }
   },
+  "_note_updates_retire": "expo-updates RETIRÉ ENTIÈREMENT le 20/07/2026 (crash au démarrage du 1er build iOS). Le .ips prouve que le crash survient sur expo.controller.errorRecoveryQueue MÊME avec EXUpdatesEnabled=false dans le plist du build (vérifié par UUID + plutil sur l'IPA) : ErrorRecovery avale l'erreur réelle, attend 5 s une update de secours (canal jamais publié), puis abort — crash muet. enabled:false n'a PAS suffi → dépendance désinstallée + channel retirés d'eas.json (sinon EAS la réinstalle tout seul, cf. 39a6299). À réintroduire une fois l'app stable : réinstaller expo-updates, remettre updates.url + runtimeVersion + channels, et publier une 1re update AVANT tout build pour que la récupération ait un filet.",
   "expo": {
     "name": "GRYD",
     "slug": "gryd",
@@ -43,7 +44,9 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
         "NSMotionUsageDescription": "GRYD lit tes pas/mouvement pour vérifier que ta course est bien une course à pied (anti-triche GRYD Verify).",
         "NSHealthShareUsageDescription": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire — tu choisis quoi partager.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -90,14 +93,6 @@
       "expo-apple-authentication",
       "@maplibre/maplibre-react-native"
     ],
-    "experiments": {},
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "_comment_diagnostic": "DÉSACTIVÉ TEMPORAIREMENT (19/07/2026, crash au démarrage du 1er build iOS). expo-updates ErrorRecovery (ios/EXUpdates/ErrorRecovery.swift) attend RemoteLoadTimeoutMs=5000 une update de secours après une erreur JS de démarrage, n'en trouve aucune (canal preview jamais publié) puis provoque un crash MUET — ce qui masque l'erreur réelle et explique le délai de ~5 s. Le réactiver seulement quand l'app est stable, ET après un premier `eas update --channel preview` pour que la récupération ait un filet.",
-      "enabled": false,
-      "url": "https://u.expo.dev/4c80219c-3a84-445a-9add-5e5afade6d14"
-    }
+    "experiments": {}
   }
 }
