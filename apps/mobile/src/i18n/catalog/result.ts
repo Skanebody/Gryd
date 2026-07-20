@@ -24,6 +24,23 @@ export const C = defineCatalog({
     de: '{n} Zonen gemeinsam gelaufen — bezahlt nach deinem Rang',
     pt: '{n} zonas corridas em grupo — pagas pelo seu lugar',
   },
+  // Crew réel 3/3 : la conséquence COLLECTIVE d'une capture — vraie depuis
+  // l'union carte (2/3) : les zones du coureur sont chartreuse chez ses
+  // coéquipiers. Deux entrées (1 / n) : l'interpolation ne conjugue pas.
+  crewImpactOne: {
+    fr: 'Capturées pour ton crew — ton coéquipier les voit sur sa carte',
+    en: 'Captured for your crew — your teammate sees them on their map',
+    es: 'Capturadas para tu crew — tu compañero las ve en su mapa',
+    de: 'Für deine Crew erobert — dein Teamkollege sieht sie auf seiner Karte',
+    pt: 'Capturadas para o seu crew — seu colega as vê no mapa dele',
+  },
+  crewImpactMany: {
+    fr: 'Capturées pour ton crew — {n} coéquipiers les voient sur leur carte',
+    en: 'Captured for your crew — {n} teammates see them on their maps',
+    es: 'Capturadas para tu crew — {n} compañeros las ven en sus mapas',
+    de: 'Für deine Crew erobert — {n} Teamkollegen sehen sie auf ihren Karten',
+    pt: 'Capturadas para o seu crew — {n} colegas as veem em seus mapas',
+  },
   // ── Résultat — barre + titres héros ──
   barKicker: {
     fr: 'RÉSULTAT DE COURSE',

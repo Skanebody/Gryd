@@ -78,6 +78,7 @@ import {
 import { buildLiveNav } from '../src/features/run/liveNav';
 import { getPlannedRoute } from '../src/features/route/plannedRoute';
 import { getLastRunResult } from '../src/features/run/runResult';
+import { useRealCrew } from '../src/features/crew/real';
 import { setShareRun, shareCardFromResult } from '../src/features/share/shareRun';
 import { buildRunLoop, loopSummaryAt, type RunLoop } from '../src/features/run/loop';
 import {
@@ -550,6 +551,10 @@ function ConquestResultScreen({
   // Hors-ligne (payload en file) : distance/durée RÉELLES via params dist/dur,
   // zones inconnues tant que le serveur n'a pas jugé — on ne les invente pas.
   const serverResult = getLastRunResult();
+  // Crew réel 3/3 : roster RÉEL (hook silencieux — vide sans session/crew).
+  // Compte des coéquipiers (moi exclu) pour la ligne de conséquence collective.
+  const { members: crewMembers } = useRealCrew();
+  const crewTeammates = crewMembers.filter((m) => !m.isMe).length;
   const realDistM = numParam(params.dist);
   const realDurS = numParam(params.dur);
   /** Course réelle (GPS) — même si le verdict serveur n'est pas encore arrivé. */
@@ -864,6 +869,17 @@ function ConquestResultScreen({
           {serverResult?.hexes.coCaptured !== undefined && serverResult.hexes.coCaptured > 0 ? (
             <Text style={styles.heroQueued} numberOfLines={2}>
               {t(C.coCapturedNote, { n: serverResult.hexes.coCaptured })}
+            </Text>
+          ) : null}
+
+          {/* Crew réel 3/3 : la conséquence COLLECTIVE — vraie (union carte 2/3),
+              jamais fabriquée : uniquement si le SERVEUR a jugé des captures ET
+              que le roster réel a d'autres membres. Même gabarit discret. */}
+          {serverResult && stats.hexes > 0 && crewTeammates > 0 ? (
+            <Text style={styles.heroQueued} numberOfLines={2}>
+              {crewTeammates === 1
+                ? t(C.crewImpactOne)
+                : t(C.crewImpactMany, { n: crewTeammates })}
             </Text>
           ) : null}
         </ResultReveal>
