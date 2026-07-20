@@ -215,4 +215,12 @@ export const C = defineCatalog({
     de: 'Route planen — den Routenplaner öffnen',
     pt: 'Planejar uma rota — abrir o planejador de rotas',
   },
+  // « Où est mon run » (fiabilité 21/07) : le slot pendingUpload rendu VISIBLE.
+  pendingRunNote: {
+    fr: '1 course à synchroniser — toucher pour envoyer',
+    en: '1 run to sync — tap to send',
+    es: '1 carrera por sincronizar — toca para enviar',
+    de: '1 Lauf zu synchronisieren — tippen zum Senden',
+    pt: '1 corrida para sincronizar — toque para enviar',
+  },
 });

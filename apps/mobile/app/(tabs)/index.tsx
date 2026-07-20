@@ -38,6 +38,7 @@ import { useLocale, useT } from '../../src/i18n/store';
 import type { Locale } from '../../src/i18n/types';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
+import { hasPendingUpload, retryPendingUpload } from '../../src/lib/pendingUpload';
 import { isShowcasePlatform } from '../../src/lib/flags';
 import { useSession } from '../../src/lib/session';
 import { useMapHudHidden } from '../../src/features/map/mapUiStore';
@@ -110,12 +111,47 @@ function MapStartSlider() {
       style={[styles.startWrap, { bottom: insets.bottom + NAV_BAR_HEIGHT + SLIDE_START_GAP }]}
       pointerEvents="box-none"
     >
+      <PendingRunNote />
       <SlideToStart
         label="GO"
         accessibilityLabel={`GO — ${action.a11yLabel}`}
         onComplete={() => router.push(action.targetHref)}
       />
     </View>
+  );
+}
+
+/**
+ * « Où est mon run » (fiabilité — « aucun run perdu », 21/07) : quand une fin
+ * de course attend dans le slot pendingUpload, le DIRE au lieu du silence.
+ * Le retry automatique existe déjà (_layout au lancement, useRealRun en fin de
+ * course) — ceci est la fenêtre de VÉRITÉ + une relance manuelle au toucher.
+ * État discret au-dessus de GO (pas un 2ᵉ CTA — §A) ; disparaît sitôt envoyé.
+ */
+function PendingRunNote() {
+  const t = useT();
+  const [pending, setPending] = useState(false);
+  const refresh = useCallback(() => {
+    void hasPendingUpload().then(setPending);
+  }, []);
+  useFocusEffect(refresh);
+  if (!pending) return null;
+  const resend = () => {
+    haptics.light();
+    void retryPendingUpload().then(refresh);
+  };
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t(C.pendingRunNote)}
+      onPress={resend}
+      style={({ pressed }) => [styles.pendingNote, pressed && { opacity: 0.7 }]}
+      testID="pending-run-note"
+    >
+      <Text style={styles.pendingNoteText} numberOfLines={1} adjustsFontSizeToFit>
+        {t(C.pendingRunNote)}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -380,7 +416,23 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 
   // ── Départ de course « glisser pour courir » (au-dessus de la barre d'onglets) ──
-  startWrap: { position: 'absolute', left: 16, right: 16 },
+  startWrap: { position: 'absolute', left: 16, right: 16, gap: 8 },
+  // « Où est mon run » : état discret (fond sombre, texte blanc) — jamais un
+  // 2ᵉ CTA chartreuse (§A), disparaît sitôt la course envoyée.
+  pendingNote: {
+    alignSelf: 'center',
+    backgroundColor: colors.carbone,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.grisLigne,
+  },
+  pendingNoteText: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+  },
 
   // ── Ligne mission (toujours visible, sur la carte) ──
   missionWrap: {

@@ -22,7 +22,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 
 - [x] Alerte haptique GPS perdu en course (fort à la perte, léger à la récup, muet en pause) — le coureur regarde la route, pas l'écran — S — `9716943`
 - [ ] TORTURE TEST TERRAIN (fondateur, aucune ligne de code) : run réel avec kill volontaire de l'app à mi-course → reprise → upload ; run en mode avion → file → sync au retour ; tunnel/bâtiment → signal lost → récup. Chaque échec devient un chantier P0 — S
-- [ ] Écran « où est mon run » post-crash : si un run est en file (pendingUpload), le dire explicitement sur Aujourd'hui (« 1 course en attente de sync ») au lieu du silence — S
+- [x] « Où est mon run » : pill « 1 course à synchroniser — toucher pour envoyer » au-dessus de GO (hasPendingUpload + relance manuelle), disparaît sitôt envoyée — S (ce commit)
 
 ## PRIORITÉ ABSOLUE — MVP_CHANGESET (validé fondateur 17/07, verdict NO-GO à lever)
 > Réf. opérations exactes : [MVP_CHANGESET.md](MVP_CHANGESET.md). Pas de push/deploy sans « pousse ».

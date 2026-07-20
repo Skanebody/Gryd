@@ -47,6 +47,23 @@ export async function queuePendingUpload(payload: IngestRunRequest): Promise<boo
 }
 
 /**
+ * Y a-t-il une course en attente d'envoi ? Lecture UI (« où est mon run » —
+ * fiabilité 21/07) : le slot était invisible, un coureur crashé/hors-ligne ne
+ * savait pas si sa course existait encore. Corrompu/illisible → false (le
+ * prochain retry purgera : on n'affiche jamais une promesse inenvoyable).
+ */
+export async function hasPendingUpload(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_UPLOAD_KEY);
+    if (raw === null) return false;
+    const payload = JSON.parse(raw) as { clientRunId?: unknown };
+    return typeof payload.clientRunId === 'string';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Retente l'envoi en attente. Silencieux et jamais bloquant : no-op sans
  * backend (O1), sans session ou sans course en attente ; toujours hors-ligne →
  * le payload RESTE en place (idempotent, on retentera). La clé n'est purgée
