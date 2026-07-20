@@ -52,6 +52,7 @@ import {
 import type { HexClaimResult } from '../types.ts';
 import { zoneBasePoints } from './scoring.ts';
 import { groupCaptureBonusPct } from './group.ts';
+import { coCaptureShare } from './social.ts';
 
 // Conversions d'unités — pas des règles de jeu.
 const MS_PER_HOUR = 3_600_000;
@@ -109,6 +110,20 @@ export interface DecideClaimsContext {
    */
   corridorAction?: Extract<ActionCoeffKey, 'conquest' | 'route'>;
   /**
+   * AMENDEMENT-41 (LE RELAIS) : rang de CE coureur (≥ 2) par hex CO-PRÉSENT
+   * d'une capture fraîche d'AUTRUI (le propriétaire = rang 1). Fourni par
+   * l'appelant (ingest lit hex_co_captures depuis claimed_at — chantier 1).
+   * Hex absent (ou map absente) → comportement HISTORIQUE :
+   * blocked_fresh_protection. Le rang ne s'applique QUE dans la fenêtre fresh.
+   */
+  coCaptureRankByHex?: ReadonlyMap<string, number>;
+  /**
+   * AMENDEMENT-41 : hexes où CE coureur a déjà été crédité d'un relais depuis
+   * moins de DEFEND_COOLDOWN_HOURS → `co_captured_cooldown` (0 pt, anti-farm).
+   * Symétrie exacte avec already_owned_cooldown côté propriétaire.
+   */
+  coCaptureCooldownHexes?: ReadonlySet<string>;
+  /**
    * Contexte de jeu par hex (doc §23) : contested / crew_mission / zone_bonus.
    * Le PLUS FORT contexte applicable majore les points (contextCoeff). Hex
    * absent = aucun contexte (×1,0). `zone_bonus` = hotspot de carte (gagné par
@@ -140,6 +155,12 @@ export interface DecideClaimsTotals {
   defended: number;
   pioneer: number;
   blocked: number;
+  /**
+   * AMENDEMENT-41 : relais (co_captured + co_captured_cooldown). JAMAIS compté
+   * dans `blocked` (le co-coureur n'est pas « bloqué », il est payé) et ne
+   * consomme PAS le plafond quotidien de claims (un relais n'est pas un claim).
+   */
+  coCaptured: number;
   /**
    * Points de BASE (doc §23 : zones × action × contexte + pionnier), AVANT
    * verify/streak/performance. computeScore applique verify puis les
@@ -188,10 +209,16 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
     defended: 0,
     pioneer: 0,
     blocked: 0,
+    coCaptured: 0,
     points: 0,
   };
   // Compteur pour le plafond §6.4 : claims/défenses du jour + ceux de cette course.
   let countedToday = context.claimsToday;
+  // A-41 : reste courant des points de relais. À 1/rang, la part par hex peut
+  // être fractionnaire (ex. 10 × 1/30 = 0,33) : un arrondi par hex donnerait 0
+  // à tous les rangs ≥ 21 — anti-shame cassé. On accumule l'EXACT et chaque hex
+  // verse l'entier dû : sur 200 hexes, le rang 30 touche bien ~67 pts.
+  let coCaptureCarry = 0;
   const seen = new Set<string>();
 
   for (const hex of input.hexes) {
@@ -215,6 +242,12 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
         case 'already_owned_cooldown':
           totals.defended++;
           countedToday++;
+          break;
+        // A-41 : un relais n'est PAS un claim — jamais dans `blocked`, ne
+        // consomme pas le plafond quotidien (countedToday inchangé).
+        case 'co_captured':
+        case 'co_captured_cooldown':
+          totals.coCaptured++;
           break;
         default:
           totals.blocked++;
@@ -282,6 +315,32 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
     const freshlyCaptured = lastCaptured !== null &&
       nowMs - lastCaptured.getTime() < FRESH_CAPTURE_PROTECT_HOURS * MS_PER_HOUR;
     if (freshlyCaptured) {
+      // 6.0-bis (AMENDEMENT-41 — LE RELAIS) : si l'appelant atteste que CE
+      // coureur était CO-PRÉSENT sur cette capture fraîche (rang fourni), il
+      // n'est pas « bloqué » : il est PAYÉ — part harmonique 1/rang de la
+      // valeur §23 de l'hex (même dérivation d'action que le neutre :
+      // clean_loop si intérieur de boucle, sinon couloir). AUCUNE écriture
+      // d'horloge : owner/lock/decay/fresh restent au propriétaire — la
+      // protection anti-harcèlement conserve tout son sens pour un rival
+      // TARDIF (rang absent → comportement historique, bit-à-bit).
+      const coCooldown = context.coCaptureCooldownHexes?.has(hex) === true;
+      if (coCooldown) {
+        // Déjà crédité sur cet hex < DEFEND_COOLDOWN_HOURS (anti-farm,
+        // symétrique d'already_owned_cooldown) — re-parcouru, 0 pt.
+        push({ h3: hex, outcome: 'co_captured_cooldown', points: 0, pioneer: false });
+        continue;
+      }
+      const coRank = context.coCaptureRankByHex?.get(hex);
+      if (coRank !== undefined) {
+        const action: ActionCoeffKey = interiorHexes?.has(hex) ? 'clean_loop' : corridorAction;
+        // Reste courant (voir déclaration de coCaptureCarry) : par-hex entier,
+        // total exact à ±1 près — aucun rang ne finit à zéro sur une boucle.
+        const exact = zoneBasePoints(action, ctxFor(hex)) * coCaptureShare(coRank);
+        const points = Math.floor(exact + coCaptureCarry + 1e-9);
+        coCaptureCarry = exact + coCaptureCarry - points;
+        push({ h3: hex, outcome: 'co_captured', points, pioneer: false });
+        continue;
+      }
       push({ h3: hex, outcome: 'blocked_fresh_protection', points: 0, pioneer: false });
       continue;
     }

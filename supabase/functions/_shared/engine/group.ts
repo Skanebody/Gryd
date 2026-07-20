@@ -2,7 +2,7 @@
 // Source : packages/engine/src/group.ts
 
 /**
- * GRYD — engine/group.ts (AMENDEMENT-35 : avantages de GROUPE, anti pay-to-win).
+ * GRYD — engine/group.ts (AMENDEMENT-41 §4 : avantages de GROUPE, anti pay-to-win).
  *
  * Fonctions PURES : aucune I/O, aucune horloge, aucun nombre magique (tout vient
  * de @klaim/shared/game-rules). Deux avantages qui se GAGNENT en jouant, jamais

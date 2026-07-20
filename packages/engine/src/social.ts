@@ -229,3 +229,27 @@ export function collusionPenalty(history: ContestedHistory): 'none' | 'stats_onl
   }
   return alternations > COLLUSION_MAX_ALTERNATIONS ? 'stats_only' : 'none';
 }
+
+// ─── AMENDEMENT-41 : LE RELAIS (loi harmonique) ───────────────────────────────
+
+/**
+ * Part de RELAIS d'un co-coureur sur un hex fraîchement capturé par un autre
+ * (AMENDEMENT-41 §2). PURE, LOI HARMONIQUE — aucun barème, aucune constante :
+ *
+ *   part = 1 / rang   (rang 1 = le propriétaire, part pleine implicite)
+ *
+ * Propriétés (toutes testées) :
+ *  - explicable en une phrase (§A) : « le 2ᵉ touche la moitié, le 3ᵉ le tiers » ;
+ *  - plancher anti-shame ÉMERGENT : 1/30 ≈ 0,033 — jamais zéro, sans rustine ;
+ *  - total auto-limité : Σ 1/k ≈ H(n), croissance logarithmique (pas
+ *    d'inflation linéaire même à 200 coureurs) ;
+ *  - monotone décroissante : arriver plus tard ne rapporte jamais plus.
+ * Garde-fous : rang non fini ou < 1 → 0 (jamais de part gratuite) ; rang
+ * fractionnaire → tronqué (floor).
+ */
+export function coCaptureShare(rank: number): number {
+  if (!Number.isFinite(rank)) return 0;
+  const r = Math.floor(rank);
+  if (r < 1) return 0;
+  return 1 / r;
+}

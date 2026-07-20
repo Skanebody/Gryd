@@ -115,7 +115,10 @@ export type HexOutcome =
   | 'blocked_privacy' // zone privée (aucune donnée rendue)
   | 'blocked_no_capture_zone' // zone non capturable (autoroute, zone militaire…)
   | 'blocked_daily_cap' // > MAX_CLAIMS_PER_DAY
-  | 'already_owned_cooldown'; // déjà à moi, défendu il y a < 24 h
+  | 'already_owned_cooldown' // déjà à moi, défendu il y a < 24 h
+  // AMENDEMENT-41 (LE RELAIS) : co-coureur d'une capture fraîche d'autrui.
+  | 'co_captured' // payé 1/rang de la valeur de l'hex (loi harmonique) — n'écrit JAMAIS lock/decay/owner
+  | 'co_captured_cooldown'; // relais déjà crédité sur cet hex < DEFEND_COOLDOWN_HOURS → 0 pt (anti-farm)
 
 export interface HexClaimResult {
   /** Index H3 res 10 en représentation string (converti en BIGINT en DB). */

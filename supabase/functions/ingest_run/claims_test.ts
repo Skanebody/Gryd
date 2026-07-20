@@ -24,6 +24,7 @@ import {
   type HexState,
 } from '../_shared/engine/claims.ts';
 import { groupCaptureBonusPct } from '../_shared/engine/group.ts';
+import { coCaptureShare } from '../_shared/engine/social.ts';
 
 const NOW = new Date('2026-07-03T10:00:00Z');
 const ME = 'user-me';
@@ -543,4 +544,89 @@ Deno.test('capture fraîche mais decay échu → neutre (decay prime, pas de fau
   ]]);
   const r = one([HEX], states, ctx());
   assertEquals(r.results[0].outcome, 'claimed_neutral');
+});
+
+// ─── AMENDEMENT-41 : LE RELAIS (attribution unique, récompense partagée) ──────
+// Une sortie de groupe ne produit plus 29 zéros : le co-coureur d'une capture
+// FRAÎCHE d'autrui est payé 1/rang (loi harmonique), sans JAMAIS toucher
+// owner/lock/decay. Sans les nouveaux inputs → comportement historique bit-à-bit.
+
+Deno.test('A-41 loi harmonique coCaptureShare : 1/rang, plancher émergent, garde-fous', () => {
+  assertEquals(coCaptureShare(1), 1);
+  assertEquals(coCaptureShare(2), 0.5);
+  assertEquals(coCaptureShare(3), 1 / 3);
+  assertEquals(coCaptureShare(30), 1 / 30);
+  // Garde-fous : jamais de part gratuite ni négative, fractionnaire tronqué.
+  assertEquals(coCaptureShare(0), 0);
+  assertEquals(coCaptureShare(-4), 0);
+  assertEquals(coCaptureShare(Number.NaN), 0);
+  assertEquals(coCaptureShare(Number.POSITIVE_INFINITY), 0);
+  assertEquals(coCaptureShare(2.9), 0.5);
+  // Monotone décroissante : arriver plus tard ne rapporte jamais plus.
+  for (let r = 2; r < 100; r++) assert(coCaptureShare(r + 1) < coCaptureShare(r));
+});
+
+Deno.test('A-41 co_captured : rang 2 sur capture fraîche → moitié de la valeur, hors blocked, hors plafond claims', () => {
+  const states = new Map([[HEX, foeHex({ lastCapturedAt: hoursAgo(0.1) })]]);
+  const r = one([HEX], states, ctx({ coCaptureRankByHex: new Map([[HEX, 2]]) }));
+  assertEquals(r.results, [
+    { h3: HEX, outcome: 'co_captured', points: CONQUEST / 2, pioneer: false },
+  ]);
+  assertEquals(r.totals.coCaptured, 1);
+  assertEquals(r.totals.blocked, 0);
+  assertEquals(r.totals.points, CONQUEST / 2);
+});
+
+Deno.test('A-41 reste courant : rang 30 sur 6 hexes → ~1/3 pt/hex versé en entiers, jamais un total nul', () => {
+  const hexes = [HEX, HEX2, '8a1fb46622e8fff', '8a1fb46622e9fff', '8a1fb46622eafff', '8a1fb46622ebfff'];
+  const states = new Map(hexes.map((h) => [h, foeHex({ lastCapturedAt: hoursAgo(0.1) })]));
+  const ranks = new Map(hexes.map((h) => [h, 30]));
+  const r = one(hexes, states, ctx({ coCaptureRankByHex: ranks }));
+  // 6 hexes × 10 pts × 1/30 = 2,0 exactement — l'arrondi par reste courant
+  // verse 2 pts au total (aucun hex ne « perd » la fraction, anti-shame).
+  assertEquals(r.totals.points, 2);
+  assertEquals(r.totals.coCaptured, 6);
+  assert(r.results.every((x) => x.outcome === 'co_captured'));
+});
+
+Deno.test('A-41 cooldown : relais déjà crédité sur cet hex < 24 h → co_captured_cooldown, 0 pt (prioritaire sur le rang)', () => {
+  const states = new Map([[HEX, foeHex({ lastCapturedAt: hoursAgo(0.1) })]]);
+  const r = one([HEX], states, ctx({
+    coCaptureRankByHex: new Map([[HEX, 2]]),
+    coCaptureCooldownHexes: new Set([HEX]),
+  }));
+  assertEquals(r.results, [
+    { h3: HEX, outcome: 'co_captured_cooldown', points: 0, pioneer: false },
+  ]);
+  assertEquals(r.totals.coCaptured, 1);
+  assertEquals(r.totals.points, 0);
+});
+
+Deno.test('A-41 NON-RÉGRESSION : sans les nouveaux inputs, une capture fraîche d’autrui reste blocked_fresh_protection (bit-à-bit)', () => {
+  const states = new Map([[HEX, foeHex({ lastCapturedAt: hoursAgo(0.1) })]]);
+  const r = one([HEX], states, ctx());
+  assertEquals(r.results, [
+    { h3: HEX, outcome: 'blocked_fresh_protection', points: 0, pioneer: false },
+  ]);
+  assertEquals(r.totals.blocked, 1);
+  assertEquals(r.totals.coCaptured, 0);
+});
+
+Deno.test('A-41 invariant plafond : un relais ne consomme pas MAX_CLAIMS_PER_DAY (le claim suivant passe encore)', () => {
+  const states = new Map([[HEX, foeHex({ lastCapturedAt: hoursAgo(0.1) })]]);
+  const r = one([HEX, HEX2], states, ctx({
+    claimsToday: MAX_CLAIMS_PER_DAY - 1,
+    coCaptureRankByHex: new Map([[HEX, 2]]),
+  }));
+  // HEX = relais (ne compte pas) → HEX2 (neutre) tient dans le dernier slot.
+  assertEquals(r.results[0]!.outcome, 'co_captured');
+  assertEquals(r.results[1]!.outcome, 'claimed_neutral');
+});
+
+Deno.test('A-41 invariant horloges : les sorties lockedUntil/decayAt d’un run 100 % relais sont identiques à un run 100 % bloqué (rien de spécifique n’est posé)', () => {
+  const states = new Map([[HEX, foeHex({ lastCapturedAt: hoursAgo(0.1) })]]);
+  const relay = one([HEX], states, ctx({ coCaptureRankByHex: new Map([[HEX, 2]]) }));
+  const blockedRun = one([HEX], states, ctx());
+  assertEquals(relay.lockedUntil.getTime(), blockedRun.lockedUntil.getTime());
+  assertEquals(relay.decayAt.getTime(), blockedRun.decayAt.getTime());
 });

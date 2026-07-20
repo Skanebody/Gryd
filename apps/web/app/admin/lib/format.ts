@@ -71,4 +71,7 @@ export const OUTCOME_LABELS: Record<HexOutcome, string> = {
   blocked_privacy: 'Bloqué — zone privée',
   blocked_no_capture_zone: 'Bloqué — zone non capturable',
   blocked_daily_cap: 'Bloqué — plafond quotidien',
+  // AMENDEMENT-41 (LE RELAIS) — le co-coureur d'une capture fraîche est payé.
+  co_captured: 'Relais — part 1/rang de la valeur',
+  co_captured_cooldown: 'Relais — déjà crédité (< 24 h), 0 pt',
 };

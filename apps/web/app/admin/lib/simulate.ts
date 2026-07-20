@@ -370,6 +370,10 @@ const KIND_BY_OUTCOME: Record<HexOutcome, MapHexKind> = {
   blocked_privacy: 'blocked',
   blocked_no_capture_zone: 'blocked',
   blocked_daily_cap: 'blocked',
+  // A-41 : l'hex reste possédé par un AUTRE (le relais ne prend rien) — même
+  // rendu carte que 'blocked' ; la différence (payé vs 0 pt) vit dans les labels.
+  co_captured: 'blocked',
+  co_captured_cooldown: 'blocked',
 };
 
 function segmentPath(seg: Segment, id: string, kind: MapPath['kind']): MapPath {

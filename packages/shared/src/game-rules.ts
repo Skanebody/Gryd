@@ -807,7 +807,20 @@ export const HANDLE_REGEX = /^[a-z0-9_]{3,20}$/;
  */
 export const COLLUSION_MAX_ALTERNATIONS = 3;
 
-// ─── AMENDEMENT-35 §1 Bonus de capture COLLECTIF (CAPÉ, anti pay-to-win) ──────
+// ─── AMENDEMENT-41 : sorties de groupe — LE RELAIS ────────────────────────────
+/**
+ * Plafond QUOTIDIEN de points de RELAIS (`co_captured`) par compte. Le relais
+ * paie une part 1/rang de la valeur d'un hex fraîchement pris par un autre
+ * coureur (loi harmonique — AUCUN barème : `coCaptureShare` dans engine/social).
+ * Ce cap borne le rendement d'une ferme multi-comptes en attendant la
+ * séparation plausible des traces (A-41 §5.3). Ordre de grandeur : la valeur
+ * d'une boucle solo type (~200 hexes × POINTS_BASE_PER_ZONE).
+ * Distinct de MAX_CLAIMS_PER_DAY : un relais n'est PAS un claim (il n'écrit
+ * jamais lock/decay/owner) et ne consomme pas ce plafond-là.
+ */
+export const CO_CAPTURE_DAILY_POINTS_CAP = 2_000;
+
+// ─── AMENDEMENT-41 §4 Bonus de capture COLLECTIF (CAPÉ, anti pay-to-win) ──────
 /**
  * Avantage de groupe #1 — bonus de VITESSE de remplissage du contrôle d'un hex
  * quand plusieurs coéquipiers du MÊME crew capturent ENSEMBLE (co-présents sur
@@ -828,7 +841,7 @@ export const GROUP_CAPTURE_BONUS_BY_RUNNERS: readonly number[] = [0, 0, 0.15, 0.
 /** Cap ABSOLU du bonus de capture collectif (part 0-1). Jamais dépassé. */
 export const GROUP_CAPTURE_BONUS_MAX_PCT = 0.4;
 
-// ─── AMENDEMENT-35 §2 Crew Streak (avantage de groupe #2, se GAGNE) ───────────
+// ─── AMENDEMENT-41 §4 Crew Streak (avantage de groupe #2, se GAGNE) ───────────
 /**
  * Avantage de groupe #2 — le STREAK crew (le streak PERSO existe déjà :
  * STREAK_* §MVP). Récompense la RÉGULARITÉ collective : nombre de jours où le
