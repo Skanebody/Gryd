@@ -120,6 +120,9 @@ import {
   type LiveMate,
   type RivalSector,
 } from '../src/features/run/livemates';
+import { C } from '../src/i18n/catalog/courseLive';
+import { useLocale, useT } from '../src/i18n/store';
+import type { Entry } from '../src/i18n/types';
 
 /** Marge entre la sheet compacte et l'UI flottante (boutons, échelle). */
 const ABOVE_SHEET_GAP = 12;
@@ -241,12 +244,16 @@ function DemoCourseLive({
   plannedLine?: readonly LatLngPoint[];
 }) {
   const insets = useSafeAreaInsets();
+  const t = useT();
+  // Langue courante : les toasts scriptés de liveNav (module pur) se résolvent
+  // à la construction → la scène se rebâtit à la bascule de langue.
+  const locale = useLocale();
   const sim = useMemo(() => buildRunSimulation(mode), [mode]);
   // §4ter : la course SUIT la géométrie du parcours — planifié (plannedLine) OU
   // proposition démo (`route=`), sinon le scénario par défaut.
   const nav = useMemo(
-    () => buildLiveNav(sim, routeParam, plannedLine),
-    [sim, routeParam, plannedLine],
+    () => buildLiveNav(sim, routeParam, plannedLine, locale),
+    [sim, routeParam, plannedLine, locale],
   );
   /** Boucle démo (AMENDEMENT-12 §C) — null hors conquête (aucune capture). */
   const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
@@ -290,7 +297,7 @@ function DemoCourseLive({
   const zonePct = crewZonePctAt(sim, tickIndex);
   const etaS = etaSecondsAt(sim, tickIndex);
   const pct = progressPctAt(sim, tickIndex);
-  const checkpoint = nextCheckpointAt(nav, tickIndex);
+  const checkpoint = nextCheckpointAt(nav, tickIndex, locale);
   /** GRYD Verify : confiance instantanée ≥ seuil réel (jamais décoratif). */
   const verified = Math.min(tick.gpsTrust, tick.motionTrust) >= VERIFIED_MIN_TRUST;
 
@@ -345,8 +352,9 @@ function DemoCourseLive({
       const label = conquestMissionLabel(loopStatus.phase, loopStatus.distM, tick.distanceM);
       // Le client n'attribue jamais une zone (ingest_run seul décideur) : à la
       // fermeture, on nuance « zone prise » → « zone prise (à valider) » plutôt
-      // que d'affirmer un claim serveur.
-      return loopClosed ? label.replace('zone prise', 'zone prise (à valider)') : label;
+      // que d'affirmer un claim serveur. Le fragment cherché et son remplacement
+      // vivent au catalogue (parité avec la copie partagée d'intention.ts).
+      return loopClosed ? label.replace(t(C.zoneTakenSource), t(C.zoneTakenPending)) : label;
     }
     // Run libre : la mission = les chiffres de la course (Strava discipline).
     return freeRunMissionLabel(formatKm(tick.distanceM), formatPace(paceSPerKm));
@@ -367,12 +375,12 @@ function DemoCourseLive({
    * « 9 min » (ETA — SEULEMENT quand une destination réelle existe).
    */
   const etaLabel = paused
-    ? 'PAUSE'
+    ? t(C.statePause)
     : freeRun
-      ? 'EN COURS'
+      ? t(C.stateOngoing)
       : simDone
-        ? 'Arrivée'
-        : `${Math.max(1, Math.ceil(etaS / 60))} min`;
+        ? t(C.arrival)
+        : t(C.etaMin, { n: Math.max(1, Math.ceil(etaS / 60)) });
   /**
    * UNE seule horloge visible à la fois : l'ETA « N min » (compte à rebours) et
    * le chrono TEMPS de la sheet compacte sont deux lectures du temps. En mode
@@ -384,14 +392,11 @@ function DemoCourseLive({
   // ── Feedback temps réel scripté : toast + haptic (anti-bruit : 1 à la fois) ─
   const [toast, setToast] = useState<{ key: number; toast: NavToast } | null>(null);
   const toastKeyRef = useRef(0);
-  const showToast = (t: NavToast) => {
+  const showToast = (next: NavToast) => {
     toastKeyRef.current += 1;
-    // App FR, zéro jargon anglais : « Checkpoint — X » (copy nav partagée,
-    // liveNav.ts hors périmètre de cet écran) s'affiche « Repère — X ».
-    setToast({
-      key: toastKeyRef.current,
-      toast: { ...t, text: t.text.replace(/^Checkpoint — /, 'Repère — ') },
-    });
+    // Les toasts scriptés arrivent déjà localisés (liveNav résout au catalogue :
+    // « Repère — X » en fr, « Checkpoint — X » ailleurs) — zéro réécriture ici.
+    setToast({ key: toastKeyRef.current, toast: next });
   };
   useEffect(() => {
     const scripted = nav.toasts.get(tickIndex);
@@ -456,8 +461,8 @@ function DemoCourseLive({
     if (!loopClosed || enclosedZones === 0) return;
     fireN3({
       level: 'n3',
-      text: completeBoundary ? 'BOUCLE CREW FERMÉE' : 'BOUCLE FERMÉE',
-      sub: `+${formatInt(enclosedZones)} zones estimées`,
+      text: completeBoundary ? t(C.crewLoopClosedTitle) : t(C.loopClosedTitle),
+      sub: t(C.estimatedZones, { n: formatInt(enclosedZones) }),
       icon: 'carte',
       tint: colors.chartreuse,
     });
@@ -484,7 +489,8 @@ function DemoCourseLive({
         coveredPct: completeCoveredPct,
       });
       // « Connexion 2 rues » (copy partagée) est cryptique en effort → verbe.
-      return card.detail === 'Connexion 2 rues' ? { ...card, detail: 'Relie 2 rues' } : card;
+      // Fragment source + remplacement au catalogue (parité avec indications.ts).
+      return card.detail === t(C.connect2Source) ? { ...card, detail: t(C.connect2Action) } : card;
     }
     if (intention === 'defense') {
       return defenseLiveCard({
@@ -504,7 +510,12 @@ function DemoCourseLive({
       // card dit QUOI FAIRE : « FERME TA BOUCLE · Retour 320 m » + barre.
       return loopClosed
         ? card
-        : { ...card, kicker: 'FERME TA BOUCLE', value: `Retour ${loopDistLabel} m`, detail: undefined };
+        : {
+            ...card,
+            kicker: t(C.loopKicker),
+            value: t(C.loopBackValue, { d: loopDistLabel }),
+            detail: undefined,
+          };
     }
     const loopPossible = tick.distanceM >= LOOP_MIN_PERIMETER_M;
     const card = freeRunLiveCard({ loopPossible });
@@ -525,6 +536,7 @@ function DemoCourseLive({
     loopStatus.distM,
     enclosedZones,
     tickIndex,
+    t,
   ]);
 
   // ── AMENDEMENT-18 §C.4 — ALLIÉS opt-in (mission SEULEMENT) + RIVAL secteur ──
@@ -565,7 +577,13 @@ function DemoCourseLive({
   const sendPing = (ping: QuickPing) => {
     haptics.medium();
     setPingsOpen(false);
-    showToast({ kind: 'checkpoint', text: `Ping · ${pingLabel(ping)}`, icon: ping.icon, tint: colors.chartreuse, haptic: 'medium' });
+    showToast({
+      kind: 'checkpoint',
+      text: t(C.pingSentToast, { label: pingLabel(ping, t) }),
+      icon: ping.icon,
+      tint: colors.chartreuse,
+      haptic: 'medium',
+    });
   };
 
   const finish = () => {
@@ -611,7 +629,7 @@ function DemoCourseLive({
     track(EVENTS.runCancelAttempt);
     showToast({
       kind: 'checkpoint',
-      text: 'Maintiens pour terminer',
+      text: t(C.holdToFinishToast),
       icon: 'verrou',
       tint: colors.blanc,
       haptic: 'light',
@@ -655,9 +673,9 @@ function DemoCourseLive({
     // Mode dégradé GPS (AMENDEMENT-15 §2 : permission refusée…) : prioritaire,
     // reste discret — jamais bloquant. Une phrase brève.
     if (notice !== null) return notice;
-    if (tick.event === 'gps_faible') return 'GPS faible';
-    if (tick.event === 'segment_exclu') return 'GPS faible';
-    if (tick.event === 'zone_privee') return 'Zone privée';
+    if (tick.event === 'gps_faible') return t(C.gpsWeak);
+    if (tick.event === 'segment_exclu') return t(C.gpsWeak);
+    if (tick.event === 'zone_privee') return t(C.privateZone);
     return null;
   })();
   /**
@@ -673,7 +691,7 @@ function DemoCourseLive({
           de « Terminer » (maintenir). Toujours visible dans les 2 vues. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Quitter la course"
+        accessibilityLabel={t(C.a11yQuitRun)}
         onPress={askQuit}
         hitSlop={10}
         style={({ pressed }) => [styles.quitButton, { top: insets.top + 10 }, pressed && styles.pressed]}
@@ -703,7 +721,7 @@ function DemoCourseLive({
             <PausePlayButton paused={paused} onPress={togglePause} />
             <FloatingMapButton
               icon="gps"
-              accessibilityLabel={following ? 'Carte centrée sur toi' : 'Recentrer la carte sur toi'}
+              accessibilityLabel={following ? t(C.a11yMapCentered) : t(C.a11yRecenter)}
               active={following}
               onPress={() => mapRef.current?.recenter()}
             />
@@ -712,14 +730,14 @@ function DemoCourseLive({
             {matesOn ? (
               <FloatingMapButton
                 icon="cloche"
-                accessibilityLabel="Envoyer un ping au crew"
+                accessibilityLabel={t(C.a11yPingCrew)}
                 active={pingsOpen}
                 onPress={() => setPingsOpen((o) => !o)}
               />
             ) : null}
             <FloatingMapButton
               icon="performance"
-              accessibilityLabel="Revenir aux stats"
+              accessibilityLabel={t(C.a11yBackToStats)}
               onPress={() => switchView('stats')}
             />
           </View>
@@ -741,7 +759,7 @@ function DemoCourseLive({
             <Map3DToggle
               value={map3d}
               onChange={setMap3d}
-              accessibilityLabel="Vue de la carte du run"
+              accessibilityLabel={t(C.a11yMapView)}
               testID="course-live-toggle-3d"
             />
           </View>
@@ -758,13 +776,13 @@ function DemoCourseLive({
           <MapBottomSheet
             compactSlot={
               <View style={styles.compactRow}>
-                <Stat label="DISTANCE" value={formatKm(tick.distanceM)} unit="km" mono />
-                <Stat label="TEMPS" value={formatClock(elapsedS)} mono />
-                <Stat label="ALLURE" value={formatPace(paceSPerKm)} mono />
+                <Stat label={t(C.distance)} value={formatKm(tick.distanceM)} unit="km" mono />
+                <Stat label={t(C.timeLabel)} value={formatClock(elapsedS)} mono />
+                <Stat label={t(C.paceLabel)} value={formatPace(paceSPerKm)} mono />
                 {/* Le compteur SAUTE de +N à la fermeture de boucle (§12 C). */}
                 <Animated.View style={[styles.zoneStatWrap, { transform: [{ scale: zoneJump }] }]}>
                   <Stat
-                    label="ZONES"
+                    label={t(C.zonesLabel)}
                     value={conquest ? formatInt(zonesTotal) : '—'}
                     accent={conquest}
                   />
@@ -772,7 +790,7 @@ function DemoCourseLive({
                 <Animated.View style={{ transform: [{ scale: donePulse }] }}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Terminer la course (maintenir)"
+                    accessibilityLabel={t(C.a11yFinishHold)}
                     onLongPress={finish}
                     delayLongPress={motion.holdToStopMs}
                     onPress={onStopShortPress}
@@ -799,13 +817,20 @@ function DemoCourseLive({
                 <View style={styles.rowCard}>
                   <Icon name="virage" size={iconSizes.md} color={colors.blanc} />
                   <View style={styles.rowTextWrap}>
-                    <Text style={styles.rowKicker}>PROCHAIN REPÈRE</Text>
+                    <Text style={styles.rowKicker}>{t(C.nextCheckpoint)}</Text>
                     <Text style={styles.rowValue} numberOfLines={1} adjustsFontSizeToFit>
                       {checkpoint.label}
                     </Text>
                   </View>
                   <Text style={styles.rowRight}>
-                    à {formatInt(Math.max(CHECKPOINT_ROUND_M, Math.round(checkpoint.distanceM / CHECKPOINT_ROUND_M) * CHECKPOINT_ROUND_M))} m
+                    {t(C.atMeters, {
+                      n: formatInt(
+                        Math.max(
+                          CHECKPOINT_ROUND_M,
+                          Math.round(checkpoint.distanceM / CHECKPOINT_ROUND_M) * CHECKPOINT_ROUND_M,
+                        ),
+                      ),
+                    })}
                   </Text>
                 </View>
 
@@ -814,7 +839,7 @@ function DemoCourseLive({
                   <View style={styles.objectiveCard}>
                     <View style={styles.objectiveHead}>
                       <Icon name="cible" size={16} color={gameColors.crew} />
-                      <Text style={styles.rowKicker}>OBJECTIF CREW</Text>
+                      <Text style={styles.rowKicker}>{t(C.crewObjective)}</Text>
                       <Text style={styles.objectivePct}>{zonePct} %</Text>
                     </View>
                     <Text style={styles.objectiveText}>{sim.crew.objective}</Text>
@@ -829,7 +854,7 @@ function DemoCourseLive({
         /* ── MODE STATS (défaut) : Nike épuré, fond noir plein, zéro décor ── */
         <View style={[styles.statsBody, { paddingTop: insets.top + topStackOffset + 26 }]}>
           <View style={styles.statsCenter}>
-            <Text style={styles.heroKicker}>DISTANCE</Text>
+            <Text style={styles.heroKicker}>{t(C.distance)}</Text>
             <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>
               {formatKm(tick.distanceM)}
               <Text style={styles.heroUnit}> KM</Text>
@@ -841,7 +866,7 @@ function DemoCourseLive({
                 numberOfLines={1}
                 adjustsFontSizeToFit
               >
-                +{formatInt(zonesTotal)} ZONES
+                {t(C.zonesJump, { n: formatInt(zonesTotal) })}
               </Animated.Text>
             ) : null}
 
@@ -850,12 +875,12 @@ function DemoCourseLive({
             <View style={styles.secondaryRow}>
               <View style={styles.secondaryStat}>
                 <Text style={styles.secondaryValue}>{formatPace(paceSPerKm)}</Text>
-                <Text style={styles.secondaryLabel}>ALLURE /KM</Text>
+                <Text style={styles.secondaryLabel}>{t(C.pacePerKm)}</Text>
               </View>
               <View style={styles.secondaryDivider} />
               <View style={styles.secondaryStat}>
                 <Text style={styles.secondaryValue}>{formatClock(elapsedS)}</Text>
-                <Text style={styles.secondaryLabel}>TEMPS</Text>
+                <Text style={styles.secondaryLabel}>{t(C.timeLabel)}</Text>
               </View>
             </View>
 
@@ -873,24 +898,24 @@ function DemoCourseLive({
           {/* ── Contrôles bas GROS, une main : [Pause] [Carte] [Ping] [Terminer] ── */}
           <View style={[styles.statsControls, { paddingBottom: insets.bottom + 18 }]}>
             <BigControl
-              label={paused ? 'REPRENDRE' : 'PAUSE'}
-              accessibilityLabel={paused ? 'Reprendre la course' : 'Mettre la course en pause'}
+              label={paused ? t(C.controlResume) : t(C.controlPause)}
+              accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
               active={paused}
               onPress={togglePause}
             >
               <PausePlayGlyph paused={paused} size={24} />
             </BigControl>
             <BigControl
-              label="CARTE"
-              accessibilityLabel="Afficher la carte de navigation"
+              label={t(C.controlMap)}
+              accessibilityLabel={t(C.a11yShowNavMap)}
               onPress={() => switchView('carte')}
             >
               <Icon name="carte" size={24} color={colors.blanc} />
             </BigControl>
             {matesOn ? (
               <BigControl
-                label="PING"
-                accessibilityLabel="Envoyer un ping au crew"
+                label={t(C.controlPing)}
+                accessibilityLabel={t(C.a11yPingCrew)}
                 active={pingsOpen}
                 onPress={() => setPingsOpen((o) => !o)}
               >
@@ -901,7 +926,7 @@ function DemoCourseLive({
               <Animated.View style={{ transform: [{ scale: donePulse }] }}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Terminer la course (maintenir)"
+                  accessibilityLabel={t(C.a11yFinishHold)}
                   onLongPress={finish}
                   delayLongPress={motion.holdToStopMs}
                   onPress={onStopShortPress}
@@ -915,7 +940,7 @@ function DemoCourseLive({
                   <View style={[styles.bigStopSquare, simDone && styles.stopSquareDone]} />
                 </Pressable>
               </Animated.View>
-              <Text style={styles.bigLabel}>TERMINER</Text>
+              <Text style={styles.bigLabel}>{t(C.controlFinish)}</Text>
             </View>
           </View>
         </View>
@@ -978,12 +1003,12 @@ function DemoCourseLive({
       {quitOpen ? (
         <View style={styles.quitOverlay}>
           <View style={styles.quitCard}>
-            <Text style={styles.quitTitle}>Quitter la course ?</Text>
-            <Text style={styles.quitBody}>Elle ne sera pas enregistrée.</Text>
+            <Text style={styles.quitTitle}>{t(C.quitTitle)}</Text>
+            <Text style={styles.quitBody}>{t(C.quitBody)}</Text>
             <View style={styles.quitActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Reprendre la course"
+                accessibilityLabel={t(C.a11yResumeRun)}
                 onPress={() => {
                   haptics.light();
                   setQuitOpen(false);
@@ -991,15 +1016,15 @@ function DemoCourseLive({
                 }}
                 style={({ pressed }) => [styles.quitResume, pressed && styles.pressed]}
               >
-                <Text style={styles.quitResumeText}>Reprendre</Text>
+                <Text style={styles.quitResumeText}>{t(C.quitResume)}</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Quitter sans enregistrer"
+                accessibilityLabel={t(C.a11yQuitNoSave)}
                 onPress={confirmQuit}
                 style={({ pressed }) => [styles.quitConfirm, pressed && styles.pressed]}
               >
-                <Text style={styles.quitConfirmText}>Quitter</Text>
+                <Text style={styles.quitConfirmText}>{t(C.quitConfirm)}</Text>
               </Pressable>
             </View>
           </View>
@@ -1090,12 +1115,16 @@ function N3Event({ ind }: { ind: LiveIndication }) {
   );
 }
 
+/** Traducteur passé aux helpers (signature de useT / t du store). */
+type Translator = (entry: Entry, vars?: Record<string, string | number>) => string;
+
 /**
- * Libellé FR d'un ping affiché sur cet écran : « Je suis out » (copy partagée
- * QUICK_PINGS, hors périmètre) est un anglicisme → « Je m'arrête ».
+ * Libellé d'un ping affiché sur cet écran : « Je suis out » (copy partagée
+ * QUICK_PINGS, hors périmètre) est un anglicisme → override local traduit
+ * (« Je m'arrête »). Les autres pings gardent le libellé partagé.
  */
-function pingLabel(ping: QuickPing): string {
-  return ping.id === 'out' ? 'Je m’arrête' : ping.label;
+function pingLabel(ping: QuickPing, t: Translator): string {
+  return ping.id === 'out' ? t(C.pingStop) : ping.label;
 }
 
 /**
@@ -1113,11 +1142,12 @@ function PingsMenu({
   onClose: () => void;
 }) {
   const { opacity, translateY } = useSlideIn(14);
+  const t = useT();
   return (
     <>
       <Pressable
         style={styles.pingsBackdrop}
-        accessibilityLabel="Fermer les pings"
+        accessibilityLabel={t(C.a11yClosePings)}
         onPress={onClose}
       />
       <Animated.View
@@ -1125,19 +1155,19 @@ function PingsMenu({
       >
         {/* Pas de poignée de drag : la feuille se ferme par tap du backdrop, pas
             par glissement — aucune fausse affordance de geste inexistant. */}
-        <Text style={styles.pingsKicker}>PING RAPIDE AU CREW</Text>
+        <Text style={styles.pingsKicker}>{t(C.pingsKicker)}</Text>
         <View style={styles.pingsGrid}>
           {QUICK_PINGS.map((ping) => (
             <Pressable
               key={ping.id}
               accessibilityRole="button"
-              accessibilityLabel={`Ping : ${pingLabel(ping)}`}
+              accessibilityLabel={t(C.a11yPingItem, { label: pingLabel(ping, t) })}
               onPress={() => onSend(ping)}
               style={({ pressed }) => [styles.pingChip, pressed && styles.pressed]}
             >
               <Icon name={ping.icon} size={16} color={colors.chartreuse} />
               <Text style={styles.pingChipText} numberOfLines={1} ellipsizeMode="clip">
-                {pingLabel(ping)}
+                {pingLabel(ping, t)}
               </Text>
             </Pressable>
           ))}
@@ -1256,10 +1286,11 @@ function BigControl({
  * porté par le texte « PAUSE » du bandeau mission (jamais la seule couleur).
  */
 function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => void }) {
+  const t = useT();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={paused ? 'Reprendre la course' : 'Mettre la course en pause'}
+      accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
       accessibilityState={{ selected: paused }}
       onPress={() => {
         haptics.light();

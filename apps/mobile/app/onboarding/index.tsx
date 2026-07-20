@@ -36,6 +36,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
+import { useT } from '../../src/i18n/store';
 import { signInWithApple, signInWithGoogle, type AuthResult } from '../../src/lib/auth';
 import { Icon } from '../../src/ui/Icon';
 import { useCountUp, useReduceMotion } from '../../src/ui/game';
@@ -50,6 +51,7 @@ import {
   CITY,
   CREW,
   HOOK,
+  NAV,
   PERMISSION,
   RUN,
   STEP_EVENT_N,
@@ -106,6 +108,7 @@ const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
+  const t = useT();
   const { update } = useOnboardingState();
   const [step, setStep] = useState<OnboardingStep>('hook');
 
@@ -193,7 +196,7 @@ export default function OnboardingScreen() {
       {STEP_PREV[step] ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Revenir à l'étape précédente"
+          accessibilityLabel={t(NAV.back)}
           hitSlop={12}
           onPress={back}
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}
@@ -261,6 +264,7 @@ function SkipLink({ label, onPress }: { label: string; onPress: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function HookStep({ onNext }: { onNext: () => void }) {
+  const t = useT();
   return (
     <View style={styles.step}>
       <HookMapBackground />
@@ -268,10 +272,10 @@ function HookStep({ onNext }: { onNext: () => void }) {
       <View style={styles.hookContent} pointerEvents="box-none">
         <Text style={styles.brand}>{HOOK.brand}</Text>
         <View style={styles.grow} />
-        <Text style={styles.hookTitle}>{HOOK.title}</Text>
-        <Text style={styles.hookTagline}>{HOOK.tagline}</Text>
+        <Text style={styles.hookTitle}>{t(HOOK.title)}</Text>
+        <Text style={styles.hookTagline}>{t(HOOK.tagline)}</Text>
         <View style={styles.footer}>
-          <PrimaryCta label={HOOK.cta} icon="carte" onPress={onNext} />
+          <PrimaryCta label={t(HOOK.cta)} icon="carte" onPress={onNext} />
         </View>
       </View>
     </View>
@@ -289,20 +293,21 @@ function HookStep({ onNext }: { onNext: () => void }) {
  * auto-déclaration reste par nature contournable ; c'est le gate attendu).
  */
 function AgeStep({ onConfirm }: { onConfirm: () => void }) {
+  const t = useT();
   const [blocked, setBlocked] = useState(false);
 
   if (blocked) {
     return (
       <View style={styles.step}>
         <View style={styles.body}>
-          <Kicker>{AGE.kicker}</Kicker>
+          <Kicker>{t(AGE.kicker)}</Kicker>
           <View style={styles.iconHero}>
             <View style={styles.iconHeroRing}>
               <Icon name="verrou" size={40} color={colors.chartreuse} />
             </View>
           </View>
-          <Text style={styles.title}>{AGE.blockedTitle}</Text>
-          <Text style={styles.tagline}>{AGE.blockedTagline}</Text>
+          <Text style={styles.title}>{t(AGE.blockedTitle)}</Text>
+          <Text style={styles.tagline}>{t(AGE.blockedTagline)}</Text>
         </View>
       </View>
     );
@@ -311,24 +316,24 @@ function AgeStep({ onConfirm }: { onConfirm: () => void }) {
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{AGE.kicker}</Kicker>
+        <Kicker>{t(AGE.kicker)}</Kicker>
         <View style={styles.iconHero}>
           <View style={styles.iconHeroRing}>
             <Icon name="profil" size={40} color={colors.chartreuse} />
           </View>
         </View>
-        <Text style={styles.title}>{AGE.title}</Text>
-        <Text style={styles.tagline}>{AGE.tagline}</Text>
+        <Text style={styles.title}>{t(AGE.title)}</Text>
+        <Text style={styles.tagline}>{t(AGE.tagline)}</Text>
       </View>
       <View style={styles.footer}>
         <PrimaryCta
-          label={AGE.confirm}
+          label={t(AGE.confirm)}
           icon="bouclier"
           onPress={onConfirm}
-          a11yLabel="J'ai 16 ans ou plus"
+          a11yLabel={t(AGE.confirmA11y)}
         />
         <SkipLink
-          label={AGE.under}
+          label={t(AGE.under)}
           onPress={() => {
             haptics.light();
             setBlocked(true);
@@ -345,18 +350,19 @@ function AgeStep({ onConfirm }: { onConfirm: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CityStep({ onNext }: { onNext: () => void }) {
+  const t = useT();
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{CITY.kicker}</Kicker>
-        <Text style={styles.title}>{CITY.title}</Text>
+        <Kicker>{t(CITY.kicker)}</Kicker>
+        <Text style={styles.title}>{t(CITY.title)}</Text>
         <View style={styles.boardWrap}>
           <CityBoard />
         </View>
-        <Text style={styles.tagline}>{CITY.tagline}</Text>
+        <Text style={styles.tagline}>{t(CITY.tagline)}</Text>
       </View>
       <View style={styles.footer}>
-        <PrimaryCta label={CITY.cta} icon="cible" onPress={onNext} />
+        <PrimaryCta label={t(CITY.cta)} icon="cible" onPress={onNext} />
       </View>
     </View>
   );
@@ -368,6 +374,7 @@ function CityStep({ onNext }: { onNext: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function PermissionStep({ onNext }: { onNext: () => void }) {
+  const t = useT();
   const askGps = () => {
     // Honnêteté (§ charte n°1) : cet écran est PÉDAGOGIQUE, il ne déclenche AUCUNE
     // boîte système ici — ni sur web (simulé), ni sur natif. La vraie demande
@@ -381,18 +388,18 @@ function PermissionStep({ onNext }: { onNext: () => void }) {
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{PERMISSION.kicker}</Kicker>
+        <Kicker>{t(PERMISSION.kicker)}</Kicker>
         <View style={styles.iconHero}>
           <View style={styles.iconHeroRing}>
             <Icon name="gps" size={40} color={colors.chartreuse} />
           </View>
         </View>
-        <Text style={styles.title}>{PERMISSION.title}</Text>
-        <Text style={styles.tagline}>{PERMISSION.tagline}</Text>
+        <Text style={styles.title}>{t(PERMISSION.title)}</Text>
+        <Text style={styles.tagline}>{t(PERMISSION.tagline)}</Text>
       </View>
       <View style={styles.footer}>
-        <PrimaryCta label={PERMISSION.cta} icon="gps" onPress={askGps} />
-        <SkipLink label={PERMISSION.skip} onPress={onNext} />
+        <PrimaryCta label={t(PERMISSION.cta)} icon="gps" onPress={askGps} />
+        <SkipLink label={t(PERMISSION.skip)} onPress={onNext} />
       </View>
     </View>
   );
@@ -403,23 +410,24 @@ function PermissionStep({ onNext }: { onNext: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function ChooseStep({ onSync, onRun }: { onSync: () => void; onRun: () => void }) {
+  const t = useT();
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{CHOOSE.kicker}</Kicker>
-        <Text style={styles.title}>{CHOOSE.title}</Text>
-        <Text style={styles.tagline}>{CHOOSE.tagline}</Text>
+        <Kicker>{t(CHOOSE.kicker)}</Kicker>
+        <Text style={styles.title}>{t(CHOOSE.title)}</Text>
+        <Text style={styles.tagline}>{t(CHOOSE.tagline)}</Text>
         <View style={styles.pathList}>
           <PathCard
             icon="lien"
-            title={CHOOSE.syncTitle}
-            subtitle={CHOOSE.syncSubtitle}
+            title={t(CHOOSE.syncTitle)}
+            subtitle={t(CHOOSE.syncSubtitle)}
             onPress={onSync}
           />
           <PathCard
             icon="conquete"
-            title={CHOOSE.runTitle}
-            subtitle={CHOOSE.runSubtitle}
+            title={t(CHOOSE.runTitle)}
+            subtitle={t(CHOOSE.runSubtitle)}
             onPress={onRun}
           />
         </View>
@@ -466,6 +474,7 @@ function PathCard({
 // ═══════════════════════════════════════════════════════════════════════════
 
 function SyncStep({ onDone }: { onDone: () => void }) {
+  const t = useT();
   const [source, setSource] = useState<SyncSourceKey | null>(null);
   const [running, setRunning] = useState(false);
   const p = useSyncDemo(running, SYNC_DURATION_MS, onDone);
@@ -481,9 +490,9 @@ function SyncStep({ onDone }: { onDone: () => void }) {
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{SYNC.kicker}</Kicker>
-        <Text style={styles.title}>{SYNC.title}</Text>
-        <Text style={styles.tagline}>{SYNC.tagline}</Text>
+        <Kicker>{t(SYNC.kicker)}</Kicker>
+        <Text style={styles.title}>{t(SYNC.title)}</Text>
+        <Text style={styles.tagline}>{t(SYNC.tagline)}</Text>
 
         {!running ? (
           // Choix de la source (Apple Health / Strava — libellés sources/catalog).
@@ -518,11 +527,12 @@ function SyncStep({ onDone }: { onDone: () => void }) {
               {/* Honnêteté (§ charte n°1) : l'import réel n'est pas branché (O7/O8) —
                   ce run détecté est un EXEMPLE, jamais présenté comme une vraie sync. */}
               <View style={styles.demoTag}>
-                <Text style={styles.demoTagLabel}>Exemple</Text>
+                <Text style={styles.demoTagLabel}>{t(SYNC.demoTag)}</Text>
               </View>
             </View>
             <Text style={styles.syncRunMeta}>
-              {(SYNC_DEMO_RUN.distanceM / 1000).toFixed(1).replace('.', ',')} km · {SYNC.loopMeta}
+              {(SYNC_DEMO_RUN.distanceM / 1000).toFixed(1).replace('.', ',')} km ·{' '}
+              {t(SYNC.loopMeta)}
             </Text>
             <View style={styles.syncSteps}>
               {SYNC_PHASES.map((ph, i) => {
@@ -553,7 +563,7 @@ function SyncStep({ onDone }: { onDone: () => void }) {
             <View style={styles.syncBarWrap}>
               <SyncProgressBar p={p} />
             </View>
-            <Text style={styles.syncHint}>{SYNC.running}…</Text>
+            <Text style={styles.syncHint}>{t(SYNC.running)}…</Text>
           </View>
         )}
       </View>
@@ -566,6 +576,7 @@ function SyncStep({ onDone }: { onDone: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function RunStep({ onDone }: { onDone: () => void }) {
+  const t = useT();
   const [running, setRunning] = useState(false);
   const p = useSyncDemo(running, RUN_DURATION_MS, onDone);
   const start = () => {
@@ -576,26 +587,26 @@ function RunStep({ onDone }: { onDone: () => void }) {
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{RUN.kicker}</Kicker>
-        <Text style={styles.title}>{RUN.title}</Text>
-        <Text style={styles.tagline}>{RUN.tagline}</Text>
+        <Kicker>{t(RUN.kicker)}</Kicker>
+        <Text style={styles.title}>{t(RUN.title)}</Text>
+        <Text style={styles.tagline}>{t(RUN.tagline)}</Text>
         {running ? (
           <View style={styles.runningWrap}>
             <CaptureFillVisual p={p} />
-            <Text style={styles.syncHint}>{RUN.running}…</Text>
+            <Text style={styles.syncHint}>{t(RUN.running)}…</Text>
           </View>
         ) : (
           <View style={styles.runHeroWrap}>
             <View style={styles.runHeroRing}>
               <Icon name="conquete" size={44} color={colors.chartreuse} />
             </View>
-            <Text style={styles.runHeroObjective}>{RUN.objective}</Text>
+            <Text style={styles.runHeroObjective}>{t(RUN.objective)}</Text>
           </View>
         )}
       </View>
       {!running ? (
         <View style={styles.footer}>
-          <PrimaryCta label={RUN.cta} icon="conquete" onPress={start} a11yLabel="Lancer le run" />
+          <PrimaryCta label={t(RUN.cta)} icon="conquete" onPress={start} />
         </View>
       ) : null}
     </View>
@@ -608,6 +619,7 @@ function RunStep({ onDone }: { onDone: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }) {
+  const t = useT();
   // Progression 0..1 du remplissage + compteur (montent ensemble). Reduce
   // motion → état final direct (la valeur reste lisible, jamais dépend de l'anim).
   const [p, setP] = useState(reduce ? 1 : 0);
@@ -653,22 +665,22 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{CAPTURE.kicker}</Kicker>
-        <Text style={styles.captureTitle}>{CAPTURE.title}</Text>
+        <Kicker>{t(CAPTURE.kicker)}</Kicker>
+        <Text style={styles.captureTitle}>{t(CAPTURE.title)}</Text>
         <View style={styles.boardWrap}>
           <CaptureFillVisual p={p} />
         </View>
         {/* Le gros chiffre héros (+X zones) — signature typographique. */}
         <View style={styles.captureStat}>
           <Text style={styles.captureNumber}>+{zones}</Text>
-          <Text style={styles.captureUnit}>{CAPTURE.zonesLabel}</Text>
+          <Text style={styles.captureUnit}>{t(CAPTURE.zonesLabel)}</Text>
         </View>
         <Text style={styles.captureSub}>
-          dont {SYNC_DEMO_RUN.enclosedZones} {CAPTURE.loopLabel} · {CAPTURE.nearLabel}
+          {t(CAPTURE.sub, { n: SYNC_DEMO_RUN.enclosedZones })}
         </Text>
       </View>
       <View style={styles.footer}>
-        <PrimaryCta label={CAPTURE.cta} icon="conquete" onPress={onNext} />
+        <PrimaryCta label={t(CAPTURE.cta)} icon="conquete" onPress={onNext} />
       </View>
     </View>
   );
@@ -679,6 +691,7 @@ function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }
 // ═══════════════════════════════════════════════════════════════════════════
 
 function AccountStep({ onNext }: { onNext: () => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const run = async (fn: () => Promise<AuthResult>) => {
@@ -702,19 +715,19 @@ function AccountStep({ onNext }: { onNext: () => void }) {
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{ACCOUNT.kicker}</Kicker>
+        <Kicker>{t(ACCOUNT.kicker)}</Kicker>
         <View style={styles.iconHero}>
           <View style={styles.iconHeroRing}>
             <Icon name="bouclier" size={40} color={colors.chartreuse} />
           </View>
         </View>
-        <Text style={styles.title}>{ACCOUNT.title}</Text>
-        <Text style={styles.tagline}>{ACCOUNT.tagline}</Text>
+        <Text style={styles.title}>{t(ACCOUNT.title)}</Text>
+        <Text style={styles.tagline}>{t(ACCOUNT.tagline)}</Text>
       </View>
       <View style={styles.footer}>
         {failed ? (
           <Text style={styles.authError} accessibilityRole="alert">
-            Connexion impossible. Réessaie, ou passe cette étape.
+            {t(ACCOUNT.error)}
           </Text>
         ) : null}
         {Platform.OS === 'ios' ? (
@@ -723,21 +736,21 @@ function AccountStep({ onNext }: { onNext: () => void }) {
         ) : (
           // Web/Android : CTA Apple générique (auth.web = no-op « ok » en preview).
           <PrimaryCta
-            label={ACCOUNT.apple}
+            label={t(ACCOUNT.apple)}
             icon="profil"
             onPress={() => void run(signInWithApple)}
           />
         )}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={ACCOUNT.google}
+          accessibilityLabel={t(ACCOUNT.google)}
           disabled={busy}
           onPress={() => void run(signInWithGoogle)}
           style={({ pressed }) => [styles.ghost, (pressed || busy) && styles.pressed]}
         >
-          <Text style={styles.ghostLabel}>{ACCOUNT.google}</Text>
+          <Text style={styles.ghostLabel}>{t(ACCOUNT.google)}</Text>
         </Pressable>
-        <SkipLink label={ACCOUNT.skip} onPress={onNext} />
+        <SkipLink label={t(ACCOUNT.skip)} onPress={onNext} />
       </View>
     </View>
   );
@@ -757,29 +770,30 @@ function CrewStep({
   onCreate: () => void;
   onSkip: () => void;
 }) {
+  const t = useT();
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{CREW.kicker}</Kicker>
+        <Kicker>{t(CREW.kicker)}</Kicker>
         <View style={styles.iconHero}>
           <View style={styles.iconHeroRing}>
             <Icon name="crew" size={40} color={colors.chartreuse} />
           </View>
         </View>
-        <Text style={styles.title}>{CREW.title}</Text>
-        <Text style={styles.tagline}>{CREW.tagline}</Text>
+        <Text style={styles.title}>{t(CREW.title)}</Text>
+        <Text style={styles.tagline}>{t(CREW.tagline)}</Text>
       </View>
       <View style={styles.footer}>
-        <PrimaryCta label={CREW.join} icon="crew" onPress={onJoin} />
+        <PrimaryCta label={t(CREW.join)} icon="crew" onPress={onJoin} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={CREW.create}
+          accessibilityLabel={t(CREW.create)}
           onPress={onCreate}
           style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
         >
-          <Text style={styles.ghostLabel}>{CREW.create}</Text>
+          <Text style={styles.ghostLabel}>{t(CREW.create)}</Text>
         </Pressable>
-        <SkipLink label={CREW.skip} onPress={onSkip} />
+        <SkipLink label={t(CREW.skip)} onPress={onSkip} />
       </View>
     </View>
   );

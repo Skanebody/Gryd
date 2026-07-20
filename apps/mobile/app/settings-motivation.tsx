@@ -44,6 +44,8 @@ import {
   useMotivationPrefs,
   type NotifChannel,
 } from '../src/features/motivation/store';
+import { C } from '../src/i18n/catalog/motivation';
+import { useT } from '../src/i18n/store';
 
 const STYLE_ORDER: PlayStyle[] = ['focus_solo', 'mixte', 'crew_war'];
 const STYLE_ICON: Record<PlayStyle, 'aujourdhui' | 'crew' | 'cible'> = {
@@ -51,18 +53,14 @@ const STYLE_ICON: Record<PlayStyle, 'aujourdhui' | 'crew' | 'cible'> = {
   mixte: 'crew',
   crew_war: 'cible',
 };
-const VISIBILITY_OPTS: { value: ProfileVisibility; label: string }[] = (
-  ['private', 'friends', 'crew', 'public'] as ProfileVisibility[]
-).map((v) => ({ value: v, label: PROFILE_VISIBILITY_LABELS[v] }));
-const ACTIVITY_OPTS: { value: ActivitySharing; label: string }[] = (
-  ['private', 'friends', 'crew', 'stats_only'] as ActivitySharing[]
-).map((v) => ({ value: v, label: ACTIVITY_SHARING_LABELS[v] }));
-const MAP_OPTS: { value: MapSharing; label: string }[] = (
-  ['precise', 'simplified', 'territory_only', 'none'] as MapSharing[]
-).map((v) => ({ value: v, label: MAP_SHARING_LABELS[v] }));
+// Ordres à MODULE SCOPE (structure) — les libellés sont résolus à l'affichage.
+const VISIBILITY_ORDER: ProfileVisibility[] = ['private', 'friends', 'crew', 'public'];
+const ACTIVITY_ORDER: ActivitySharing[] = ['private', 'friends', 'crew', 'stats_only'];
+const MAP_ORDER: MapSharing[] = ['precise', 'simplified', 'territory_only', 'none'];
 const NOTIF_ORDER: NotifChannel[] = ['solo', 'crew', 'competition', 'off'];
 
 export default function SettingsMotivationScreen() {
+  const t = useT();
   const { prefs, update } = useMotivationPrefs();
   // Retours haptiques : réglage global (src/lib/haptics), défaut activé.
   const [hapticsOn, setHapticsOn] = useState(true);
@@ -84,14 +82,25 @@ export default function SettingsMotivationScreen() {
   // Classements visibles = dérivés (§10.2/§10.3), pas un réglage libre.
   const visibleLevels = leaderboardVisibility(prefs.playStyle, prefs.discreetMode);
 
+  // Options des pastilles : ordre module + libellé résolu dans la langue courante.
+  const visibilityOpts = VISIBILITY_ORDER.map((v) => ({
+    value: v,
+    label: t(PROFILE_VISIBILITY_LABELS[v]),
+  }));
+  const activityOpts = ACTIVITY_ORDER.map((v) => ({
+    value: v,
+    label: t(ACTIVITY_SHARING_LABELS[v]),
+  }));
+  const mapOpts = MAP_ORDER.map((v) => ({ value: v, label: t(MAP_SHARING_LABELS[v]) }));
+
   return (
-    <StackScreen title="Motivation" icon="reglages" subtitle="Comment GRYD s'adapte à toi.">
-      <Section label="STYLE DE JEU">
+    <StackScreen title={t(C.motivationTitle)} icon="reglages" subtitle={t(C.motivationSubtitle)}>
+      <Section label={t(C.sectionPlayStyle)}>
         {STYLE_ORDER.map((s) => (
           <OptionCard
             key={s}
-            title={PLAY_STYLE_LABELS[s].title}
-            subtitle={PLAY_STYLE_LABELS[s].subtitle}
+            title={t(PLAY_STYLE_LABELS[s].title)}
+            subtitle={t(PLAY_STYLE_LABELS[s].subtitle)}
             icon={STYLE_ICON[s]}
             selected={prefs.playStyle === s}
             onPress={() => void update({ playStyle: s })}
@@ -99,10 +108,8 @@ export default function SettingsMotivationScreen() {
         ))}
       </Section>
 
-      <Section label="CLASSEMENTS VISIBLES">
-        <Text style={styles.note}>
-          Adaptés à ton style. Ceux qui te ressemblent apparaissent ; les autres restent masqués.
-        </Text>
+      <Section label={t(C.sectionLeaderboards)}>
+        <Text style={styles.note}>{t(C.leaderboardsNote)}</Text>
         <View style={styles.levels}>
           {LEADERBOARD_LEVELS.map((lvl) => {
             const on = visibleLevels.includes(lvl);
@@ -110,7 +117,7 @@ export default function SettingsMotivationScreen() {
               <View key={lvl} style={[styles.levelChip, on && styles.levelChipOn]}>
                 <View style={[styles.levelDot, on && styles.levelDotOn]} />
                 <Text style={[styles.levelText, on && styles.levelTextOn]}>
-                  {LEADERBOARD_LABELS[lvl]}
+                  {t(LEADERBOARD_LABELS[lvl])}
                 </Text>
               </View>
             );
@@ -118,12 +125,12 @@ export default function SettingsMotivationScreen() {
         </View>
       </Section>
 
-      <Section label="NOTIFICATIONS">
+      <Section label={t(C.sectionNotifs)}>
         <View style={styles.pillsWrap}>
           {NOTIF_ORDER.map((ch) => (
             <TogglePill
               key={ch}
-              label={NOTIF_CHANNEL_LABELS[ch].title}
+              label={t(NOTIF_CHANNEL_LABELS[ch].title)}
               on={prefs.notifChannels.includes(ch)}
               onPress={() =>
                 void update({ notifChannels: toggleNotifChannel(prefs.notifChannels, ch) })
@@ -133,40 +140,40 @@ export default function SettingsMotivationScreen() {
         </View>
         <Text style={styles.note}>
           {prefs.notifChannels.includes('off')
-            ? NOTIF_CHANNEL_LABELS.off.subtitle
-            : 'Tu reçois seulement ce qui compte pour toi. Jamais de rappel culpabilisant.'}
+            ? t(NOTIF_CHANNEL_LABELS.off.subtitle)
+            : t(C.notifsNote)}
         </Text>
       </Section>
 
-      <Section label="PROFIL VISIBLE PAR">
+      <Section label={t(C.sectionProfileVisible)}>
         <SelectPills
-          options={VISIBILITY_OPTS}
+          options={visibilityOpts}
           value={prefs.profileVisibility}
           onChange={(v) => void update({ profileVisibility: v })}
         />
       </Section>
 
-      <Section label="PARTAGE D'ACTIVITÉ">
+      <Section label={t(C.sectionActivitySharing)}>
         <SelectPills
-          options={ACTIVITY_OPTS}
+          options={activityOpts}
           value={prefs.activitySharing}
           onChange={(v) => void update({ activitySharing: v })}
         />
       </Section>
 
-      <Section label="TRACE SUR LA CARTE">
+      <Section label={t(C.sectionMapTrace)}>
         <SelectPills
-          options={MAP_OPTS}
+          options={mapOpts}
           value={prefs.mapSharing}
           onChange={(v) => void update({ mapSharing: v })}
         />
-        <Text style={styles.note}>Ta position en direct n'est jamais partagée.</Text>
+        <Text style={styles.note}>{t(C.mapTraceNote)}</Text>
       </Section>
 
-      <Section label="RETOURS HAPTIQUES">
+      <Section label={t(C.sectionHaptics)}>
         <SwitchRow
-          title="Retours haptiques"
-          subtitle="Vibrations légères sur les captures, badges et victoires."
+          title={t(C.hapticsTitle)}
+          subtitle={t(C.hapticsSubtitle)}
           value={hapticsOn}
           onValueChange={(v) => {
             setHapticsOn(v);
@@ -175,10 +182,10 @@ export default function SettingsMotivationScreen() {
         />
       </Section>
 
-      <Section label="MODE DISCRET">
+      <Section label={t(C.sectionDiscreet)}>
         <SwitchRow
-          title="Rester discret"
-          subtitle="Hors des classements globaux, profil limité, partage au choix. Un droit, pas un recul."
+          title={t(C.discreetTitle)}
+          subtitle={t(C.discreetSubtitle)}
           icon="discret"
           value={prefs.discreetMode}
           onValueChange={(v) => void update({ discreetMode: v })}

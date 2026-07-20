@@ -13,6 +13,7 @@ import {
   type UserTerritoryContext,
   type WidgetState,
 } from './territoryWidget.ts';
+import { LOCALES } from '../../i18n/types.ts';
 
 const CALME: UserTerritoryContext = {
   hasCapturedTerritory: true,
@@ -139,6 +140,37 @@ Deno.test('formatKm2 : français, jamais de cellules', () => {
   assertEquals(formatKm2(740_000), '0,74 km²');
   assertEquals(formatKm2(140_000), '0,14 km²');
   assertEquals(formatKm2(12_345_678), '12,3 km²');
+  // Décimale par langue : point en anglais, virgule ailleurs (pas d'Intl — parité Hermes).
+  assertEquals(formatKm2(740_000, 'en'), '0.74 km²');
+  assertEquals(formatKm2(740_000, 'de'), '0,74 km²');
+});
+
+Deno.test('i18n : les 8 états rendent la MÊME structure dans les 5 langues (parité, pas de fuite)', () => {
+  const states: WidgetState[] = [
+    'first_capture',
+    'territory_lost',
+    'under_attack',
+    'loop_incomplete',
+    'crew_help',
+    'share_moment',
+    'rank_progress',
+    'stable',
+  ];
+  for (const locale of LOCALES) {
+    for (const state of states) {
+      const v = buildWidgetView(state, INPUT, locale);
+      assert(v.title.length > 0, `${locale}/${state} : titre vide`);
+      assert(v.ctaLabel.length > 0, `${locale}/${state} : CTA vide`);
+      assert(v.lines.length <= 2, `${locale}/${state} : ${v.lines.length} lignes (max 2)`);
+      const texte = [v.title, ...v.lines, v.ctaLabel].join(' ');
+      assert(!/undefined|NaN|\{\w+\}/.test(texte), `${locale}/${state} : placeholder non résolu`);
+    }
+    // Le nom neutre « Zone » est traduit — jamais inventé, jamais un nom propre.
+    const lost = buildWidgetView('territory_lost', { ...INPUT, displayName: null, rivalName: null }, locale);
+    assert(lost.title.length > 0, `${locale} : titre sans displayName vide`);
+  }
+  // Le défaut (sans locale) reste le français — appelant non migré inchangé.
+  assertEquals(buildWidgetView('stable', INPUT).title, buildWidgetView('stable', INPUT, 'fr').title);
 });
 
 Deno.test('données manquantes : les lignes optionnelles disparaissent, jamais « undefined »', () => {

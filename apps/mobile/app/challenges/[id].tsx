@@ -18,9 +18,14 @@ import { useChallenge } from '../../src/features/motivation/challengeState';
 import {
   CHALLENGE_DIFFICULTY_LABELS,
   CHALLENGE_TYPE_LABELS,
+  challengeUnitLabel,
+  encouragement,
 } from '../../src/features/motivation/labels';
+import { C } from '../../src/i18n/catalog/motivation';
+import { useT } from '../../src/i18n/store';
 
 export default function ChallengeDetailScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useChallenge(typeof id === 'string' ? id : undefined);
 
@@ -30,8 +35,8 @@ export default function ChallengeDetailScreen() {
 
   if (!c) {
     return (
-      <StackScreen title="Challenge" icon="mission">
-        <Text style={styles.empty}>Ce challenge n'est plus disponible.</Text>
+      <StackScreen title={t(C.challengeTitle)} icon="mission">
+        <Text style={styles.empty}>{t(C.challengeUnavailable)}</Text>
       </StackScreen>
     );
   }
@@ -39,22 +44,24 @@ export default function ChallengeDetailScreen() {
   const pct = c.target > 0 ? c.current / c.target : 0.5;
   const remaining = Math.max(0, c.target - c.current);
   const done = c.target > 0 && c.current >= c.target;
+  // « {n} » est remplacé au rendu par un <Text> stylé — même place, 5 langues.
+  const contribParts = t(C.crewContrib).split('{n}');
 
   return (
     <StackScreen
       title={c.name}
       icon="mission"
-      kicker={`${CHALLENGE_TYPE_LABELS[c.type].toUpperCase()} · ${CHALLENGE_DIFFICULTY_LABELS[c.difficulty].toUpperCase()}`}
+      kicker={`${t(CHALLENGE_TYPE_LABELS[c.type]).toUpperCase()} · ${t(CHALLENGE_DIFFICULTY_LABELS[c.difficulty]).toUpperCase()}`}
     >
       <Text style={styles.blurb}>{c.blurb}</Text>
 
       {c.type === 'rivalry' ? (
         <View style={styles.card}>
-          <Text style={styles.cardKicker}>LES DEUX CAMPS</Text>
+          <Text style={styles.cardKicker}>{t(C.bothSidesKicker)}</Text>
           <View style={styles.rivalRow}>
             <View style={styles.rivalSide}>
               <Text style={styles.rivalScore}>{c.rivalMine}</Text>
-              <Text style={styles.rivalName}>Ton crew</Text>
+              <Text style={styles.rivalName}>{t(C.yourCrew)}</Text>
             </View>
             <Text style={styles.rivalVs}>vs</Text>
             <View style={styles.rivalSide}>
@@ -62,40 +69,37 @@ export default function ChallengeDetailScreen() {
               <Text style={styles.rivalName}>{c.partnerName}</Text>
             </View>
           </View>
-          <Text style={styles.hint}>
-            Objectif : tenir le quartier ensemble, dans le fair-play. Le score final n'enlève rien à
-            personne.
-          </Text>
+          <Text style={styles.hint}>{t(C.rivalryFairPlay)}</Text>
         </View>
       ) : (
         <View style={styles.card}>
-          <Text style={styles.cardKicker}>PROGRESSION</Text>
+          <Text style={styles.cardKicker}>{t(C.progressKicker)}</Text>
           <View style={styles.progressNums}>
             <Text style={styles.current}>{formatChallengeValue(c.current, c.unit)}</Text>
             <Text style={styles.target}>
-              / {formatChallengeValue(c.target, c.unit)} {c.unit === 'km' ? '' : c.unit}
+              / {formatChallengeValue(c.target, c.unit)} {challengeUnitLabel(c.unit)}
             </Text>
           </View>
           <ProgressBar value={pct} />
           <Text style={styles.hint}>
-            {done
-              ? 'Objectif atteint. Beau travail.'
-              : `Plus que ${formatChallengeValue(remaining, c.unit)} ${c.unit === 'km' ? '' : c.unit} — tu y es presque.`}
+            {encouragement(
+              done,
+              `${formatChallengeValue(remaining, c.unit)} ${challengeUnitLabel(c.unit)}`.trim(),
+            )}
           </Text>
         </View>
       )}
 
       {c.type === 'crew' ? (
         <View style={styles.card}>
-          <Text style={styles.cardKicker}>TA CONTRIBUTION</Text>
+          <Text style={styles.cardKicker}>{t(C.contributionKicker)}</Text>
           <Text style={styles.contrib}>
-            Tu as déjà défendu <Text style={styles.contribNum}>{c.myContrib}</Text> zones pour le crew.
+            {contribParts[0]}
+            <Text style={styles.contribNum}>{c.myContrib}</Text>
+            {contribParts[1]}
           </Text>
           {c.personalMinimum ? (
-            <Text style={styles.hint}>
-              Le minimum d'équipe est de {c.personalMinimum} — c'est un repère, pas un jugement. Chaque
-              zone aide le coffre.
-            </Text>
+            <Text style={styles.hint}>{t(C.teamMinimum, { n: c.personalMinimum })}</Text>
           ) : null}
         </View>
       ) : null}
@@ -110,7 +114,7 @@ export default function ChallengeDetailScreen() {
         // anti pay-to-win explicite. Le sponsor finance des lots/cosmétiques,
         // JAMAIS du territoire, des points ni une victoire ; entrée gratuite.
         <View style={styles.card}>
-          <Text style={styles.cardKicker}>OFFERT PAR</Text>
+          <Text style={styles.cardKicker}>{t(C.offeredByKicker)}</Text>
           <View style={styles.sponsorHead}>
             <View style={styles.sponsorBlason}>
               <Icon name={c.sponsor.blason} size={iconSizes.md} color={colors.blanc} />
@@ -118,10 +122,7 @@ export default function ChallengeDetailScreen() {
             <Text style={styles.sponsorName}>{c.sponsor.name}</Text>
           </View>
           <Text style={styles.hint}>{c.sponsor.prizeNote}</Text>
-          <Text style={styles.hint}>
-            Participation libre et gratuite. Le sponsor ne donne ni territoire, ni points, ni
-            victoire — seulement des lots. Le jeu reste le même pour tout le monde.
-          </Text>
+          <Text style={styles.hint}>{t(C.sponsorGuard)}</Text>
         </View>
       ) : null}
     </StackScreen>

@@ -1,39 +1,46 @@
 /**
- * GRYD — contenu de l'explicabilité (AMENDEMENT-23 §B / §32-§34, C2).
+ * GRYD — contenu de l'explicabilité (AMENDEMENT-23 §B / §32-§34, C2), i18n.
  * DONNÉES (pas d'UI) des 6 sections de « Comment GRYD calcule tes zones » et de
  * la FAQ « Calculs & règles du jeu » (20 Q/R §33 + FAQ courte post-run §34).
  *
+ * i18n : chaque texte est une `Entry` (5 langues, catalogue
+ * i18n/catalog/explain.ts) que les ÉCRANS résolvent via t() à l'affichage —
+ * la bascule de langue reste donc instantanée malgré le module scope. Les
+ * valeurs de règles ({close}, {gps}, {window}…) sont injectées ICI, langue par
+ * langue, via fillEntry (labels.ts) : présentation seule, zéro logique de jeu.
+ *
  * Discipline (AMENDEMENT-23 §0) : ces textes DÉCRIVENT LE MOTEUR RÉEL post-C1
- * (défense graduée +24/48/72 h, decay 14 j + statuts, points multiplicatifs
- * zones × action × contexte × verify, verify 80/60, gate GPS 80, cap 3 km²,
- * largeur 80 m). AUCUN NOMBRE MAGIQUE dans le corps : toute valeur passe par un
- * helper de labels.ts (résolu à l'affichage). Les exemples chiffrés démo
- * (+247/+214/+33, 79/21 %, 620 m) sont des SCÉNARIOS (champ `example`),
- * signalés comme tels, jamais des règles.
+ * (défense graduée +24/48/72 h, decay 14 j + statuts, verify 80/60, gate GPS
+ * 80, largeur 80 m). AUCUN NOMBRE MAGIQUE dans le corps : toute valeur passe
+ * par un helper de labels.ts. Les exemples chiffrés démo (+247/+214/+33,
+ * 79/21 %, 620 m) sont des SCÉNARIOS, signalés « Exemple : », jamais des
+ * règles. Les réécritures zéro-friction historiques (« compte en stats », Q3
+ * en liste, total additif) sont fondues dans le catalogue — plus d'overrides
+ * d'écran.
  *
  * Structure exploitable par des accordéons (détails au tap) : chaque item porte
  * une icône propriétaire (`IconName`) et un `schemaId` optionnel pour le schéma
  * pédagogique associé. Textes COURTS, mobile-first, zéro jargon hors `advanced`.
  */
 import type { IconName } from '@klaim/shared';
+import type { Entry } from '../../i18n/types';
+import { C } from '../../i18n/catalog/explain';
 import {
-  decayDaysLabel,
-  zoneLifecycleLabels,
-  defenseHoursLabels,
-  coverageBufferLabel,
-  actionCoeffLabel,
-  contextCoeffLabel,
-  verifyTiersLabel,
-  verifyTiersSentence,
-  gpsGateLabel,
-  widthMinLabel,
-  loopMaxAreaCapLabel,
   closeToleranceLabel,
+  coverageBufferLabel,
+  crewLoopWindowLabel,
+  decayDaysEntry,
+  defenseHoursLabels,
+  fillEntry,
+  finisherMinEntry,
+  bonusCapEntry,
+  gpsGateLabel,
   runMinDistanceLabel,
   runMinDurationLabel,
-  crewLoopWindowLabel,
-  finisherMinLabel,
-  bonusCapLabel,
+  verifyTiersLabel,
+  verifyTiersSentenceEntry,
+  widthMinLabel,
+  zoneLifecycleEntries,
 } from './labels';
 
 /** Identifiants des 6 schémas SVG pédagogiques (§31). Un agent Écrans les rend. */
@@ -45,6 +52,11 @@ export type SchemaId =
   | 'bonus_cible' // 5 · segment manquant en pointillé + éclair
   | 'verify'; // 6 · check bleu / segment grisé
 
+// Valeurs de règles injectées dans les textes (dérivées de game-rules.ts).
+const HOURS = defenseHoursLabels();
+const TIERS = verifyTiersLabel();
+const LIFECYCLE = zoneLifecycleEntries();
+
 // ─── Page « Comment GRYD calcule tes zones » (§32) ───────────────────────────
 
 /** Une des 6 sections : icône + phrase simple + schéma + exemple concret. */
@@ -52,12 +64,12 @@ export interface ExplainSection {
   id: SchemaId;
   /** Icône propriétaire (icons.ts). */
   icon: IconName;
-  /** Titre court (2-4 mots). */
-  title: string;
-  /** UNE phrase simple, sans jargon. */
-  line: string;
-  /** Exemple concret — scénario démo (champ à afficher en accent secondaire). */
-  example: string;
+  /** Titre court (2-4 mots) — Entry résolue par l'écran via t(). */
+  title: Entry;
+  /** UNE phrase simple, sans jargon — Entry. */
+  line: Entry;
+  /** Exemple concret — scénario démo préfixé « Exemple : » — Entry. */
+  example: Entry;
   /** Schéma pédagogique associé (§31). */
   schemaId: SchemaId;
 }
@@ -67,49 +79,55 @@ export const EXPLAIN_SECTIONS: readonly ExplainSection[] = [
   {
     id: 'ligne_vs_boucle',
     icon: 'boucle_ouverte',
-    title: 'La ligne prend les rues',
-    line: 'Une course qui ne se referme pas prend les rues qu’elle traverse — elles sont à toi. Pas de zone pleine : ferme la boucle pour l’intérieur.',
-    example: 'Base → République, 4,2 km : les rues courues sont à toi, mais pas de zone pleine.',
+    title: C.secLigneTitle,
+    line: C.secLigneLine,
+    example: C.secLigneExample,
     schemaId: 'ligne_vs_boucle',
   },
   {
     id: 'boucle_fait_zone',
     icon: 'boucle_fermee',
-    title: 'La boucle crée une zone',
-    line: 'Quand ton tracé revient à son départ, GRYD remplit l’intérieur : c’est ta zone.',
-    example: 'Trace seule : +214 · boucle fermée : +247 · gain de boucle : +33.',
+    title: C.secBoucleTitle,
+    line: C.secBoucleLine,
+    example: C.secBoucleExample,
     schemaId: 'boucle_fait_zone',
   },
   {
     id: 'defense_frontiere',
     icon: 'bouclier',
-    title: 'La défense protège',
-    line: 'Repasser sur ta frontière prolonge ta zone : plus tu la couvres, plus elle tient.',
-    example: `Traverser ${defenseHoursLabels().traverse} · longer ${defenseHoursLabels().longe} · couvrir ${defenseHoursLabels().cover}.`,
+    title: C.secDefenseTitle,
+    line: C.secDefenseLine,
+    example: fillEntry(C.secDefenseExample, {
+      traverse: HOURS.traverse,
+      longe: HOURS.longe,
+      cover: HOURS.cover,
+    }),
     schemaId: 'defense_frontiere',
   },
   {
     id: 'boucle_collective',
     icon: 'crew',
-    title: 'Le crew ferme ensemble',
-    line: 'Tu ouvres une frontière, un membre du crew la referme : la zone est au crew.',
-    example: 'KORO ouvre 79 %, LENA ferme 21 % : zone crew capturée.',
+    title: C.secCrewTitle,
+    line: C.secCrewLine,
+    example: C.secCrewExample,
     schemaId: 'boucle_collective',
   },
   {
     id: 'bonus_cible',
     icon: 'performance',
-    title: 'Les bonus sont ciblés',
-    line: 'Les bonus visent le bon moment (boucle presque fermée, zone qui expire), jamais du territoire.',
-    example: 'Il reste 620 m à fermer : bonus Finisher actif.',
+    title: C.secBonusTitle,
+    line: C.secBonusLine,
+    example: C.secBonusExample,
     schemaId: 'bonus_cible',
   },
   {
     id: 'verify',
     icon: 'badge',
-    title: 'GRYD Verify valide',
-    line: 'GRYD vérifie GPS et mouvement : une course fiable capture, une course douteuse compte en stats.',
-    example: verifyTiersSentence(),
+    title: C.secVerifyTitle,
+    line: C.secVerifyLine,
+    // Les paliers verify sont des RÈGLES réelles, mais l'écran les présente
+    // dans le slot « exemple » — même préfixe d'honnêteté que les autres scènes.
+    example: fillEntry(C.examplePrefixed, { text: verifyTiersSentenceEntry() }),
     schemaId: 'verify',
   },
 ] as const;
@@ -124,20 +142,22 @@ export interface FaqItem {
   id: string;
   category: FaqCategory;
   icon: IconName;
-  q: string;
-  a: string;
+  /** Question — Entry résolue par l'écran via t(). */
+  q: Entry;
+  /** Réponse courte — Entry. */
+  a: Entry;
   schemaId?: SchemaId;
   /** true = détail technique (n'apparaît qu'en section avancée). */
   advanced?: boolean;
 }
 
 /** Libellés des catégories FAQ (pour les en-têtes d'accordéon). */
-export const FAQ_CATEGORY_LABELS: Record<FaqCategory, string> = {
-  zones: 'Zones & boucles',
-  defense: 'Défense & durée',
-  crew: 'Crew',
-  verify: 'GRYD Verify',
-  economie: 'Points & bonus',
+export const FAQ_CATEGORY_LABELS: Record<FaqCategory, Entry> = {
+  zones: C.catZones,
+  defense: C.catDefense,
+  crew: C.catCrew,
+  verify: C.catVerify,
+  economie: C.catEconomie,
 };
 
 /** Les 20 Q/R du §33, dans l'ordre du doc. Réponses courtes, moteur réel. */
@@ -146,31 +166,38 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     id: 'q1',
     category: 'zones',
     icon: 'boucle_fermee',
-    q: 'Comment GRYD calcule une zone ?',
-    a: 'GRYD analyse ton tracé GPS. Si ton parcours forme une boucle valide, l’intérieur devient ta zone.',
+    q: C.q1Q,
+    a: C.q1A,
     schemaId: 'ligne_vs_boucle',
   },
   {
     id: 'q2',
     category: 'zones',
     icon: 'route',
-    q: 'Courir tout droit, ça capture quelque chose ?',
-    a: 'Oui : les rues que tu traverses deviennent à toi. Ça n’ouvre pas une ZONE pleine (l’intérieur) — pour ça, ferme une boucle.',
+    q: C.q2Q,
+    a: C.q2A,
     schemaId: 'ligne_vs_boucle',
   },
   {
     id: 'q3',
     category: 'zones',
     icon: 'boucle_ouverte',
-    q: 'Pourquoi ma boucle n’a pas créé de zone ?',
-    a: `Boucle pas assez fermée (écart > ${closeToleranceLabel()}), GPS sous ${gpsGateLabel()}, forme trop étroite (< ${widthMinLabel()} de large), trop petite, trop grande, ou course sous ${runMinDistanceLabel()} / ${runMinDurationLabel()}.`,
+    q: C.q3Q,
+    // UNE raison de refus par ligne, chaque seuil étiqueté (zéro-friction).
+    a: fillEntry(C.q3A, {
+      close: closeToleranceLabel(),
+      gps: gpsGateLabel(),
+      width: widthMinLabel(),
+      dist: runMinDistanceLabel(),
+      dur: runMinDurationLabel(),
+    }),
   },
   {
     id: 'q4',
     category: 'defense',
     icon: 'bouclier',
-    q: 'Que veut dire « frontière couverte » ?',
-    a: `La portion de ta frontière que tu as vraiment courue. GRYD mesure ce qui passe à moins de ${coverageBufferLabel()} de ton tracé.`,
+    q: C.q4Q,
+    a: fillEntry(C.q4A, { buffer: coverageBufferLabel() }),
     schemaId: 'defense_frontiere',
     advanced: true,
   },
@@ -178,120 +205,127 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     id: 'q5',
     category: 'crew',
     icon: 'crew',
-    q: 'Un membre du crew peut-il finir ma boucle ?',
-    a: `Oui. Si tu ouvres une frontière et qu’il manque un segment, ton crew a ${crewLoopWindowLabel()} pour la refermer (contribution mini ${finisherMinLabel()}).`,
+    q: C.q5Q,
+    a: fillEntry(C.q5A, {
+      window: crewLoopWindowLabel(),
+      min: finisherMinEntry(),
+    }),
     schemaId: 'boucle_collective',
   },
   {
     id: 'q6',
     category: 'crew',
     icon: 'cible',
-    q: 'Un rival peut-il finir ma boucle ?',
-    a: 'Non. Un rival peut contester la zone, mais jamais compléter une boucle pour ton crew.',
+    q: C.q6Q,
+    a: C.q6A,
   },
   {
     id: 'q7',
     category: 'zones',
     icon: 'conquete',
-    q: 'Comment GRYD calcule les zones reprises à un rival ?',
-    a: 'Si ta boucle recouvre un territoire rival, GRYD recalcule les cellules à l’intérieur et met à jour le contrôle du secteur.',
+    q: C.q7Q,
+    a: C.q7A,
   },
   {
     id: 'q8',
     category: 'verify',
     icon: 'segment_exclu',
-    q: 'Pourquoi une partie de ma course est « segment exclu » ?',
-    a: 'GPS faible, vitesse incohérente, saut GPS ou mouvement suspect. La course reste valide sportivement, mais ce segment ne capture pas.',
+    q: C.q8Q,
+    a: C.q8A,
     schemaId: 'verify',
   },
   {
     id: 'q9',
     category: 'verify',
     icon: 'badge',
-    q: 'C’est quoi GRYD Verify ?',
-    a: `Un contrôle de fiabilité (GPS, vitesse, mouvement, source). ${verifyTiersSentence()}`,
+    q: C.q9Q,
+    a: fillEntry(C.q9A, { sentence: verifyTiersSentenceEntry() }),
     schemaId: 'verify',
   },
   {
     id: 'q10',
     category: 'verify',
     icon: 'segment_exclu',
-    q: 'Pourquoi ma course est en « stats only » ?',
-    a: `Elle compte pour tes stats mais pas pour la capture : pas de boucle, GPS sous ${verifyTiersLabel().partial}, source non éligible ou zone interdite.`,
+    q: C.q10Q,
+    a: fillEntry(C.q10A, { partial: TIERS.partial }),
   },
   {
     id: 'q11',
     category: 'defense',
     icon: 'bouclier',
-    q: 'Comment fonctionne la défense ?',
-    a: `Traverser, longer ou refermer ta frontière. Plus tu la couvres, plus la zone tient : ${defenseHoursLabels().traverse}, ${defenseHoursLabels().longe} ou ${defenseHoursLabels().cover}.`,
+    q: C.q11Q,
+    a: fillEntry(C.q11A, {
+      traverse: HOURS.traverse,
+      longe: HOURS.longe,
+      cover: HOURS.cover,
+    }),
     schemaId: 'defense_frontiere',
   },
   {
     id: 'q12',
     category: 'defense',
     icon: 'sablier',
-    q: 'Combien de temps une zone reste à nous ?',
-    a: `Stable ${zoneLifecycleLabels().stable}, fragile ${zoneLifecycleLabels().fragile}, à défendre les ${zoneLifecycleLabels().aDefendre}, decay ${zoneLifecycleLabels().decay}.`,
+    q: C.q12Q,
+    a: fillEntry(C.q12A, LIFECYCLE),
   },
   {
     id: 'q13',
     category: 'defense',
     icon: 'sablier',
-    q: 'Les zones expirent-elles ?',
-    a: `Oui. Sans défense pendant ${decayDaysLabel()}, une zone devient fragile puis repasse neutre — plus facile à reprendre.`,
+    q: C.q13Q,
+    a: fillEntry(C.q13A, { days: decayDaysEntry() }),
   },
   {
     id: 'q14',
     category: 'economie',
     icon: 'performance',
-    q: 'Les bonus sont-ils aléatoires ?',
-    a: 'Partiellement : aléatoires dans l’apparition, ciblés dans la pertinence (ta position, ton crew, les zones faibles, les boucles ouvertes).',
+    q: C.q14Q,
+    a: C.q14A,
     schemaId: 'bonus_cible',
   },
   {
     id: 'q15',
     category: 'economie',
     icon: 'coffre',
-    q: 'Peut-on acheter une zone ?',
-    a: 'Non. Le territoire ne s’achète jamais, il se gagne en courant. Les achats servent au style, au confort et au coffre crew.',
+    q: C.q15Q,
+    a: C.q15A,
   },
   {
     id: 'q16',
     category: 'economie',
     icon: 'performance',
-    q: 'Les boosts payants sont-ils pay-to-win ?',
-    a: `Non : aucun bonus ne donne de territoire ni de victoire. Pas de cumul, total capé à ${bonusCapLabel()}, impact sur coffre, XP et cosmétiques seulement.`,
+    q: C.q16Q,
+    a: fillEntry(C.q16A, { cap: bonusCapEntry() }),
   },
   {
     id: 'q17',
     category: 'zones',
     icon: 'carte',
-    q: 'Pourquoi mes zones ne collent pas exactement à ma trace ?',
-    a: 'GRYD transforme ton tracé en zone propre et lissée. Le calcul reste précis en arrière-plan, l’affichage est simplifié.',
+    q: C.q17Q,
+    a: C.q17A,
     advanced: true,
   },
   {
     id: 'q18',
     category: 'zones',
     icon: 'carte',
-    q: 'Pourquoi GRYD n’affiche pas les cellules techniques ?',
-    a: 'Trop complexe à l’œil. Tu vois des territoires lisibles ; le calcul par micro-cellules reste précis en coulisses.',
+    q: C.q18Q,
+    a: C.q18A,
     advanced: true,
   },
   {
     id: 'q19',
     category: 'zones',
     icon: 'route',
-    q: 'Comment fonctionne une route ouverte ?',
-    a: 'Une course sans boucle prend déjà les rues courues, et ouvre une route : relier deux secteurs, préparer une conquête ou une défense, proposer un itinéraire crew.',
+    q: C.q19Q,
+    a: C.q19A,
   },
   {
     id: 'q20',
     category: 'crew',
     icon: 'crew',
-    q: 'Comment sont calculées les contributions dans une boucle collective ?',
-    a: 'Chaque membre est crédité selon la longueur de frontière qu’il a validée. Exemple : KORO 79 %, LENA 21 %. La zone appartient au crew.',
+    q: C.q20Q,
+    a: C.q20A,
     schemaId: 'boucle_collective',
   },
 ] as const;
@@ -302,38 +336,40 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
 export interface PostRunFaqItem {
   id: string;
   icon: IconName;
-  q: string;
-  a: string;
+  /** Question — Entry résolue par l'écran via t(). */
+  q: Entry;
+  /** Réponse — Entry. */
+  a: Entry;
   schemaId?: SchemaId;
 }
 
-/** Les 4 réponses courtes du §34. Chiffres démo = scénario du run affiché. */
+/** Les 4 réponses courtes du §34. Chiffres démo = scénario, signalé « Exemple ». */
 export const POST_RUN_FAQ: readonly PostRunFaqItem[] = [
   {
     id: 'zones',
     icon: 'boucle_fermee',
-    q: 'Pourquoi +247 zones ?',
-    a: 'Ta trace a couvert +214 zones. Ta boucle fermée en a ajouté +33. Total : +247.',
+    q: C.postRunZonesQ,
+    a: C.postRunZonesA,
     schemaId: 'boucle_fait_zone',
   },
   {
     id: 'segment',
     icon: 'segment_exclu',
-    q: 'Pourquoi un segment exclu ?',
-    a: 'Une partie du GPS était trop faible. La course reste validée, mais ce segment ne capture pas.',
+    q: C.postRunSegmentQ,
+    a: C.postRunSegmentA,
     schemaId: 'verify',
   },
   {
     id: 'stats_only',
     icon: 'historique',
-    q: 'Pourquoi « stats only » ?',
-    a: 'Ta course compte sportivement, mais ne remplit pas les conditions de capture.',
+    q: C.postRunStatsQ,
+    a: C.postRunStatsA,
   },
   {
     id: 'frontiere_ouverte',
     icon: 'boucle_ouverte',
-    q: 'Pourquoi « frontière ouverte » ?',
-    a: 'Tu as presque fermé une zone. Il manque un segment que toi ou ton crew pouvez terminer.',
+    q: C.postRunFrontiereQ,
+    a: C.postRunFrontiereA,
     schemaId: 'boucle_collective',
   },
 ] as const;

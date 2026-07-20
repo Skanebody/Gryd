@@ -56,6 +56,7 @@ import {
   MAP_BASEMAP_STYLES,
   basemapAttribution,
   buildings3dStyle,
+  localizedBasemapSpec,
   satelliteStyleSpec,
   type BasemapKey,
 } from '../../features/map/mapStyle';
@@ -74,7 +75,11 @@ export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
  */
 function basemapStyleUrl(basemap: BasemapKey | undefined): string {
   if (basemap === 'satellite') return JSON.stringify(satelliteStyleSpec());
-  return MAP_BASEMAP_STYLES[basemap ?? 'dark'];
+  const key = basemap ?? 'dark';
+  // Labels en langue LOCALE (spec patchée name_en→name) si le préchargement a
+  // abouti — sinon l'URL CARTO brute. Lu AU MONTAGE uniquement : l'appelant
+  // remonte la carte via sa key quand la spec localisée devient disponible.
+  return localizedBasemapSpec(key) ?? MAP_BASEMAP_STYLES[key];
 }
 
 export interface RealMapCamera {
@@ -222,6 +227,14 @@ export interface RealMapProps {
   onPress?: (event: RealMapPressEvent) => void;
   /** Zoom courant, notifié à chaque mouvement de caméra (seuils UI §4bis). */
   onZoomChange?: (zoom: number) => void;
+  /**
+   * Style NATIF chargé : un flyTo lancé AVANT cet événement peut être perdu par
+   * le natif (retour terrain 20/07 : caméra restée sur le fallback Paris alors
+   * que la vraie position était connue). Les appelants qui recentrent au
+   * démarrage doivent attendre ce signal. Distinct de `onMapReady`, qui est la
+   * prop WEB (elle passe l'instance maplibre-gl et n'est jamais appelée ici).
+   */
+  onStyleLoaded?: () => void;
   /**
    * WEB UNIQUEMENT : reçoit l'instance maplibre-gl dès sa création — permet de
    * scoper échelle/outils à CETTE carte. JAMAIS appelé par le fork natif
@@ -478,6 +491,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     markers,
     onPress,
     onZoomChange,
+    onStyleLoaded,
     attributionCompact = true,
     basemap,
     // Parité d'interface web (AMENDEMENT-20 §1) — accepté, sans surcharge de
@@ -627,7 +641,10 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         rotateEnabled={false}
         pitchEnabled={false}
         onDidFailLoadingMap={() => setOffline(true)}
-        onDidFinishLoadingMap={() => setOffline(false)}
+        onDidFinishLoadingMap={() => {
+          setOffline(false);
+          onStyleLoaded?.();
+        }}
         onRegionIsChanging={(feature) => onZoomChange?.(feature.properties.zoomLevel)}
         onRegionDidChange={(feature) => onZoomChange?.(feature.properties.zoomLevel)}
         onPress={(feature) => {

@@ -19,6 +19,9 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
 import { colors, fontSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
+import { C } from '../../src/i18n/catalog/auth';
+import { useT } from '../../src/i18n/store';
+import type { Entry } from '../../src/i18n/types';
 import { EVENTS, track } from '../../src/lib/analytics';
 import {
   requestEmailOtp,
@@ -127,12 +130,13 @@ function PromiseHexField() {
   );
 }
 
-function failureMessage(result: AuthResult): string | null {
+/** Retourne l'Entry i18n (résolue à l'affichage — la bascule de langue suit). */
+function failureMessage(result: AuthResult): Entry | null {
   if (result.ok || (!result.ok && result.reason === 'cancelled')) return null;
   if (!result.ok && result.reason === 'google_not_configured') {
-    return 'Connexion Google pas encore configurée (O2). Utilise Apple pour l’instant.';
+    return C.errorGoogleNotConfigured;
   }
-  return 'La connexion a échoué. Réessaie — ta course ne se perdra jamais pour ça.';
+  return C.errorSignInFailed;
 }
 
 /** P0 B5 — un bouton Google MORT est un mensonge : caché tant que le client id manque. */
@@ -140,8 +144,9 @@ const GOOGLE_CONFIGURED = Boolean(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
+  const t = useT();
   const { session, configured } = useSession();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Entry | null>(null);
   const [busy, setBusy] = useState(false);
   // P0 D1 — filet email OTP (code à 6 chiffres, pas de magic-link : zéro deep link).
   const [emailStep, setEmailStep] = useState<'hidden' | 'email' | 'code'>('hidden');
@@ -184,13 +189,10 @@ export default function SignInScreen() {
         showsVerticalScrollIndicator={false}
       >
       <View style={styles.hero}>
-        <Text style={styles.kicker}>SAISON 0 · PARIS & LILLE</Text>
+        <Text style={styles.kicker}>{t(C.kicker)}</Text>
         {/* TODO fonts : Space Grotesk 700, tracking -2 % (addendum §E) — système en attendant */}
-        <Text style={styles.title}>Cours.{'\n'}Capture.{'\n'}Défends.</Text>
-        <Text style={styles.subtitle}>
-          Chaque course capture des zones sur la carte réelle de ta ville. Ton crew tient
-          le quartier — ou le perd.
-        </Text>
+        <Text style={styles.title}>{t(C.title)}</Text>
+        <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
       </View>
 
       <View style={styles.actions}>
@@ -211,7 +213,7 @@ export default function SignInScreen() {
             onPress={() => void run(signInWithGoogle)}
             style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
           >
-            <Text style={styles.ghostLabel}>Continuer avec Google</Text>
+            <Text style={styles.ghostLabel}>{t(C.googleCta)}</Text>
           </Pressable>
         ) : null}
 
@@ -223,17 +225,17 @@ export default function SignInScreen() {
             onPress={() => setEmailStep('email')}
             style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
           >
-            <Text style={styles.ghostLabel}>Continuer avec un e-mail</Text>
+            <Text style={styles.ghostLabel}>{t(C.emailCta)}</Text>
           </Pressable>
         ) : null}
         {emailStep === 'email' ? (
           <>
             <TextInput
-              accessibilityLabel="Adresse e-mail"
+              accessibilityLabel={t(C.emailFieldA11y)}
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="ton@email.fr"
+              placeholder={t(C.emailPlaceholder)}
               placeholderTextColor={colors.gris}
               autoCapitalize="none"
               autoCorrect={false}
@@ -251,15 +253,15 @@ export default function SignInScreen() {
               }}
               style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
             >
-              <Text style={styles.ghostLabel}>Recevoir un code</Text>
+              <Text style={styles.ghostLabel}>{t(C.otpRequestCta)}</Text>
             </Pressable>
           </>
         ) : null}
         {emailStep === 'code' ? (
           <>
-            <Text style={styles.otpHint}>Code envoyé à {email.trim()}</Text>
+            <Text style={styles.otpHint}>{t(C.otpSent, { email: email.trim() })}</Text>
             <TextInput
-              accessibilityLabel="Code reçu par e-mail"
+              accessibilityLabel={t(C.otpFieldA11y)}
               style={styles.input}
               value={code}
               onChangeText={setCode}
@@ -275,7 +277,7 @@ export default function SignInScreen() {
               onPress={() => void run(() => verifyEmailOtp(email.trim(), code.trim()))}
               style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
             >
-              <Text style={styles.ghostLabel}>Valider le code</Text>
+              <Text style={styles.ghostLabel}>{t(C.otpVerifyCta)}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -286,11 +288,11 @@ export default function SignInScreen() {
               }}
               style={{ minHeight: sizes.touchTarget, justifyContent: 'center', alignItems: 'center' }}
             >
-              <Text style={styles.otpResend}>Renvoyer le code</Text>
+              <Text style={styles.otpResend}>{t(C.otpResendCta)}</Text>
             </Pressable>
           </>
         ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error}>{t(error)}</Text> : null}
       </View>
       </ScrollView>
     </KeyboardAvoidingView>

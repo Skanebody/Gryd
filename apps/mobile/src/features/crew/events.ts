@@ -20,6 +20,8 @@
  */
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Entry } from '../../i18n/types';
+import { C } from '../../i18n/catalog/crew';
 import { CHAT_ME } from './chatStore';
 import { DEMO_OUTINGS } from './eventsDemo';
 
@@ -92,9 +94,9 @@ export interface OutingView {
   going: number;
 }
 
-/** Libellé humain de l'objectif (non tronqué, court). PURE. */
-export function objectiveLabel(objective: CrewOutingObjective): string {
-  return objective === 'defense' ? 'Défense' : 'Conquête';
+/** Libellé humain de l'objectif (non tronqué, court) — Entry résolue par t(). */
+export function objectiveLabel(objective: CrewOutingObjective): Entry {
+  return objective === 'defense' ? C.objectiveDefense : C.objectiveConquete;
 }
 
 // ─── Store minimal (notifier + snapshot mémoïsé, useSyncExternalStore) ────────

@@ -29,6 +29,8 @@
 import { battleContext, goHref, intentionHref } from './runContext';
 import { type PartialBoundaryDemo } from '../run/intention';
 import { MISSIONS } from '../warroom/demo';
+import { C } from '../../i18n/catalog/nav';
+import { format, resolve, type Locale } from '../../i18n/types';
 import type { IconName } from '@klaim/shared';
 
 /**
@@ -89,60 +91,62 @@ export interface ContextInput {
 }
 
 // ─── Constructeurs d'action (une source de vérité par verbe) ─────────────────
+// Module PUR : la langue arrive en paramètre (resolve/format de ../../i18n/types,
+// jamais le store) — les textes viennent du catalogue nav (i18n/catalog/nav).
 
 /** RUN — course LIBRE, défaut absolu. Aucune intention, le live classe après. */
-function runAction(): ContextualAction {
+function runAction(locale: Locale): ContextualAction {
   return {
     kind: 'run',
-    label: 'RUN',
+    label: resolve(C.actionRun, locale),
     icon: 'foulees',
     intention: null,
     // Run libre = départ immédiat sur le plan auto, SANS intention imposée —
     // GRYD détecte après coup conquis/défendu/route.
     targetHref: goHref(battleContext().plan),
-    a11yLabel: 'Lancer une course libre',
+    a11yLabel: resolve(C.a11yRun, locale),
   };
 }
 
 /** DÉFENDRE — zone attaquée : intention défense + route de la zone à protéger. */
-function defendAction(zone: string, routeId?: string): ContextualAction {
+function defendAction(zone: string, locale: Locale, routeId?: string): ContextualAction {
   return {
     kind: 'defendre',
-    label: 'DÉFENDRE',
+    label: resolve(C.actionDefendre, locale),
     icon: 'bouclier',
     intention: 'defense',
     targetHref: intentionHref('defense', routeId),
-    a11yLabel: `Défendre ${zone} — lancer la course de défense`,
+    a11yLabel: format(C.a11yDefendre, { zone }, locale),
   };
 }
 
 /** CONQUÉRIR — zone neutre/rivale : intention conquête (course de capture). */
-function conquerAction(zone: string, routeId?: string): ContextualAction {
+function conquerAction(zone: string, locale: Locale, routeId?: string): ContextualAction {
   return {
     kind: 'conquerir',
-    label: 'CONQUÉRIR',
+    label: resolve(C.actionConquerir, locale),
     icon: 'cible',
     intention: 'conquest',
     targetHref: intentionHref('conquest', routeId),
-    a11yLabel: `Conquérir ${zone} — lancer la course de conquête`,
+    a11yLabel: format(C.a11yConquerir, { zone }, locale),
   };
 }
 
 /** TERMINER — boucle crew presque fermée : intention complete + boundary id. */
-function completeAction(boundary: PartialBoundaryDemo): ContextualAction {
+function completeAction(boundary: PartialBoundaryDemo, locale: Locale): ContextualAction {
   return {
     kind: 'terminer',
-    label: 'TERMINER',
+    label: resolve(C.actionTerminer, locale),
     icon: 'boucle_fermee',
     intention: 'complete',
     // Mode terminer du live : intention=complete + boundary=<id> (run/intention).
     targetHref: `/course-live?mode=conquete&intention=complete&boundary=${boundary.id}`,
-    a11yLabel: `Terminer ${boundary.zone} — refermer la boucle du crew`,
+    a11yLabel: format(C.a11yTerminer, { zone: boundary.zone }, locale),
   };
 }
 
 /** REJOINDRE — mission crew ouverte : rejoint la course collective du crew. */
-function joinAction(missionLabel: string, boundaryId?: string): ContextualAction {
+function joinAction(missionLabel: string, locale: Locale, boundaryId?: string): ContextualAction {
   // Rejoindre = participer à la boucle crew ouverte (mode terminer si une
   // frontière est en jeu, sinon une conquête collective). L'intention reste
   // client ; le serveur reste seul décideur des contributions.
@@ -151,11 +155,11 @@ function joinAction(missionLabel: string, boundaryId?: string): ContextualAction
     : intentionHref('conquest');
   return {
     kind: 'rejoindre',
-    label: 'REJOINDRE',
+    label: resolve(C.actionRejoindre, locale),
     icon: 'crew',
     intention: boundaryId ? 'complete' : 'conquest',
     targetHref: href,
-    a11yLabel: `Rejoindre la mission du crew — ${missionLabel}`,
+    a11yLabel: format(C.a11yRejoindre, { mission: missionLabel }, locale),
   };
 }
 
@@ -173,19 +177,22 @@ function joinAction(missionLabel: string, boundaryId?: string): ContextualAction
  *      passe par ce défaut RUN neutre : son CONTENU porte déjà le verbe de la
  *      mission n°1 — pas de 2e verbe chartreuse divergent (§A.4).
  * Ne renvoie JAMAIS « GO ».
+ *
+ * `locale` : langue des libellés (module pur — les composants la lisent via
+ * useLocale() et la passent ici ; jamais d'import du store i18n dans ce module).
  */
-export function deriveContextualAction(input: ContextInput = {}): ContextualAction {
+export function deriveContextualAction(input: ContextInput, locale: Locale): ContextualAction {
   // 1) Sélection explicite (V1) — préférée dès qu'elle existe.
-  if (input.selectedBoundary) return completeAction(input.selectedBoundary);
+  if (input.selectedBoundary) return completeAction(input.selectedBoundary, locale);
   if (input.selectedZone) {
     const { kind, routeId } = input.selectedZone;
     return kind === 'attacked'
-      ? defendAction('cette zone', routeId)
-      : conquerAction('cette zone', routeId);
+      ? defendAction(resolve(C.zoneThis, locale), locale, routeId)
+      : conquerAction(resolve(C.zoneThis, locale), locale, routeId);
   }
   if (input.selectedCrewMissionId) {
     const m = MISSIONS.find((x) => x.key === input.selectedCrewMissionId);
-    return joinAction(m?.label ?? 'mission crew');
+    return joinAction(m?.label ?? resolve(C.crewMissionFallback, locale), locale);
   }
 
   const ctx = battleContext();
@@ -199,11 +206,11 @@ export function deriveContextualAction(input: ContextInput = {}): ContextualActi
   ) {
     // La Battle Map lit l'attaque : mode DEFENDRE ⇒ DÉFENDRE, sinon CONQUÉRIR.
     if (ctx.mode === 'DEFENDRE') {
-      return defendAction('ta zone', ctx.plan.routeId);
+      return defendAction(resolve(C.zoneYours, locale), locale, ctx.plan.routeId);
     }
-    return conquerAction('ta zone', ctx.plan.routeId);
+    return conquerAction(resolve(C.zoneYours, locale), locale, ctx.plan.routeId);
   }
 
   // 3) Défaut absolu — RUN libre (jamais « GO »).
-  return runAction();
+  return runAction(locale);
 }

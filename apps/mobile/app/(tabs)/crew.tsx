@@ -65,7 +65,6 @@ import { formatInt } from '../../src/ui/format';
 import {
   ChestCard,
   CrewCrest,
-  CREW_ROLE_META,
   IconAction,
   InlineRunCTA,
   MemberCard,
@@ -78,8 +77,6 @@ import {
   type WarEventReaction,
 } from '../../src/ui/game';
 import {
-  ACTIVITY_STATUS_LABELS,
-  CREW_STATUS_LABELS_FR,
   PERK_VISUALS,
   PERK_VISUAL_FALLBACK,
   activityStatusForScore,
@@ -91,6 +88,17 @@ import {
   roleCan,
   rookieTrialDaysLeft,
 } from '../../src/features/crew/rules';
+import {
+  C,
+  CREW_ROLE_E,
+  CREW_STATUS_E,
+  DEFENSE_RSVP_E,
+  OUTING_RSVP_E,
+  REPORT_REASON_E,
+  TIER_E,
+} from '../../src/i18n/catalog/crew';
+import { t as tGlobal, useT } from '../../src/i18n/store';
+import type { Entry } from '../../src/i18n/types';
 import { CHEST_REWARDS, MY_CREW, type CrewMemberDemo } from '../../src/features/crew/demo';
 import {
   BOOST_CHEST_BONUS_LABEL,
@@ -112,6 +120,7 @@ import {
   type ActionCardDemo,
   type BonusActionCard as BonusActionCardData,
   type ChatFilter,
+  type CrewLocText,
   type CrewReactionKey,
   type DefenseRsvp,
   type GiftCardDemo,
@@ -188,69 +197,65 @@ const HAS_CREW = true;
 
 /** Onglets internes du HQ — 3 seulement (§A « 1 écran = 1 décision »). */
 type HqTab = 'base' | 'chat' | 'membres';
-const HQ_TABS: readonly { key: HqTab; label: string }[] = [
-  { key: 'base', label: 'Base' },
-  { key: 'chat', label: 'Chat' },
-  { key: 'membres', label: 'Membres' },
+const HQ_TABS: readonly { key: HqTab; label: Entry }[] = [
+  { key: 'base', label: C.tabBase },
+  { key: 'chat', label: C.tabChat },
+  { key: 'membres', label: C.tabMembers },
 ];
 
 /**
- * Paliers du coffre en FRANÇAIS (les clés viennent de rules.ts qui garde les
- * noms techniques Silver/Gold… — label local pour ne jamais afficher de
- * jargon anglais à l'écran).
+ * Palier du coffre localisé (catalogue crew, TIER_E) — les clés restent les
+ * noms techniques de rules.ts. Repli sur la clé brute (robustesse démo).
+ * Résolu via t() global : appelé pendant le rendu d'un écran déjà abonné à la
+ * locale (useT dans CrewScreen) → recalcul à chaque bascule.
  */
-const TIER_LABELS_FR: Record<string, string> = {
-  bronze: 'Bronze',
-  silver: 'Argent',
-  gold: 'Or',
-  carbon: 'Carbone',
-  elite: 'Élite',
+const tierLabelFr = (tier: string): string => {
+  const entry = (TIER_E as Readonly<Record<string, Entry | undefined>>)[tier];
+  return entry ? tGlobal(entry) : tier;
 };
-const tierLabelFr = (tier: string): string => TIER_LABELS_FR[tier] ?? tier;
+
+/** Résout un texte localisable de carte (feed.ts CrewLocText) — via t() global. */
+const locText = (x: CrewLocText): string => ('raw' in x ? x.raw : tGlobal(x.entry, x.vars));
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
 function EmptyState() {
+  const t = useT();
   const todoCrewFlow = (step: 'create' | 'join') => {
     // TODO(O1) : création / rejoindre un crew (crew_created, crew_joined §8).
     // En attendant le flux serveur, le bouton répond honnêtement au tap.
     if (step === 'create') {
-      Alert.alert(
-        'Créer mon crew',
-        'La création de crew arrive très bientôt. En attendant, explore les crews autour de toi et rejoins-en un en un tap.',
-        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
-      );
+      Alert.alert(t(C.createMyCrew), t(C.alertCreateBody), [
+        { text: t(C.explore), onPress: () => router.push('/crew-discovery') },
+        { text: t(C.later), style: 'cancel' },
+      ]);
     } else {
-      Alert.alert(
-        'Rejoindre avec un code',
-        'Rejoindre un crew par code arrive très bientôt. En attendant, explore les crews autour de toi.',
-        [{ text: 'Explorer', onPress: () => router.push('/crew-discovery') }, { text: 'Plus tard', style: 'cancel' }],
-      );
+      Alert.alert(t(C.alertJoinTitle), t(C.alertJoinBody), [
+        { text: t(C.explore), onPress: () => router.push('/crew-discovery') },
+        { text: t(C.later), style: 'cancel' },
+      ]);
     }
   };
   return (
     <TabScreen
       title="Crew"
       icon="crew"
-      kicker="SAISON 0 · PARIS"
-      subtitle="Le jeu de conquête de territoire pour run clubs."
+      kicker={t(C.kickerSeason)}
+      subtitle={t(C.emptySubtitle)}
     >
       <View style={styles.emptyCard}>
-        <Text style={styles.emptyTitle}>Personne ne tient un quartier seul.</Text>
-        <Text style={styles.emptyBody}>
-          Un crew cumule le territoire de ses coureurs — et le défend quand tu dors. Fonde le
-          tien ou rejoins-en un en 1 tap.
-        </Text>
+        <Text style={styles.emptyTitle}>{t(C.emptyTitle)}</Text>
+        <Text style={styles.emptyBody}>{t(C.emptyBody)}</Text>
         <View style={styles.emptyActions}>
-          <GhostButton label="Créer mon crew" icon="plus" onPress={() => todoCrewFlow('create')} />
+          <GhostButton label={t(C.createMyCrew)} icon="plus" onPress={() => todoCrewFlow('create')} />
           <GhostButton
-            label={`Rejoindre avec un code (${CREW_CODE_LENGTH} caractères)`}
+            label={t(C.joinWithCodeN, { n: CREW_CODE_LENGTH })}
             onPress={() => todoCrewFlow('join')}
           />
           <GhostButton
-            label="Explorer les crews autour de moi"
+            label={t(C.exploreAroundMe)}
             icon="crew"
             onPress={() => router.push('/crew-discovery')}
           />
@@ -314,26 +319,27 @@ function BaseCard({
  * secteur · rues · heures restantes (seule horloge de la Base).
  */
 function UrgentMissionCard() {
+  const t = useT();
   const d = MY_CREW.urgentDefense;
   return (
     <View style={styles.missionCard}>
       <View style={styles.missionHead}>
         <Icon name="bouclier" size={16} color={gameColors.contested} />
-        <Text style={styles.missionKicker}>DÉFENSE URGENTE</Text>
+        <Text style={styles.missionKicker}>{t(C.urgentDefense)}</Text>
         <Text style={styles.missionHours} numberOfLines={1}>
-          {d.hoursLeft} h restantes
+          {t(C.hoursLeft, { h: d.hoursLeft })}
         </Text>
       </View>
       <Text style={styles.missionSector} numberOfLines={1}>
         {d.sector}
       </Text>
       <Text style={styles.missionMeta} numberOfLines={1}>
-        {d.streets} rues à tenir avant la fin du délai
+        {t(C.streetsToHold, { n: d.streets })}
       </Text>
       <InlineRunCTA
-        label={`DÉFENDRE · ${d.sector.toUpperCase()}`}
+        label={`${t(C.defendCta)} · ${d.sector.toUpperCase()}`}
         leading={<Icon name="bouclier" size={18} color={colors.noir} />}
-        accessibilityLabel={`Défendre ${d.sector} — il reste ${d.hoursLeft} heures`}
+        accessibilityLabel={t(C.defendA11y, { sector: d.sector, h: d.hoursLeft })}
         onPress={() => router.push('/course-live?intention=defense')}
       />
     </View>
@@ -346,34 +352,35 @@ function UrgentMissionCard() {
  * Le violet contesté est un état de jeu (charte) — pas une déco.
  */
 function TerritoryBlock() {
-  const t = MY_CREW.territory;
+  const t = useT();
+  const terr = MY_CREW.territory;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Territoire crew : ${t.sector} ${t.controlPct} % — ouvrir la carte`}
+      accessibilityLabel={t(C.territoryA11y, { sector: terr.sector, pct: terr.controlPct })}
       onPress={() => router.navigate('/')}
       style={({ pressed }) => [styles.territoryCard, pressed && styles.dim]}
     >
       <View style={styles.territoryHead}>
         <Icon name="pin" size={16} color={gameColors.crew} />
-        <Text style={styles.territoryKicker}>TERRITOIRE CREW</Text>
+        <Text style={styles.territoryKicker}>{t(C.territoryKicker)}</Text>
         <Icon name="chevron" size={14} color={colors.gris} />
       </View>
       <View style={styles.territoryMain}>
         <Text style={styles.territorySector} numberOfLines={1}>
-          {t.sector}
+          {terr.sector}
         </Text>
-        <Text style={styles.territoryPct}>{t.controlPct} %</Text>
+        <Text style={styles.territoryPct}>{terr.controlPct} %</Text>
       </View>
-      <ProgressBar value={t.controlPct / 100} height={6} />
+      <ProgressBar value={terr.controlPct / 100} height={6} />
       {/* Surface ≤ 3 infos (§A) : secteur + contrôle % (le KPI, jauge) + le seul
           signal d'action — les frontières contestées (violet). Le reste (zones
           tenues, routes ouvertes) vit sur la carte, ouverte au tap de la carte. */}
       <View style={styles.territoryStats}>
         <Text style={[styles.territoryValue, { color: gameColors.contested }]}>
-          {t.contestedBorders}
+          {terr.contestedBorders}
         </Text>
-        <Text style={styles.territoryStatLabel}>frontières contestées · détail sur la carte</Text>
+        <Text style={styles.territoryStatLabel}>{t(C.contestedDetail)}</Text>
       </View>
     </Pressable>
   );
@@ -382,13 +389,14 @@ function TerritoryBlock() {
 /** Horodatage court d'un message chat (« à l'instant », « 14:32 », « hier »). */
 function chatTimeLabel(at: number, now: number): string {
   const diffMin = Math.max(0, Math.round((now - at) / 60_000));
-  if (diffMin < 1) return "à l'instant";
+  // Localisé via t() global — appelé au rendu d'un composant abonné (useT).
+  if (diffMin < 1) return tGlobal(C.justNow);
   if (diffMin < 60) return `${diffMin} min`;
   const d = new Date(at);
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   if (diffMin < 24 * 60) return `${hh}:${mm}`;
-  return `hier ${hh}:${mm}`;
+  return tGlobal(C.yesterdayAt, { time: `${hh}:${mm}` });
 }
 
 /**
@@ -408,11 +416,12 @@ function ChatBubble({
   /** Ouvre la feuille « Signaler » sur ce message (menu … / appui long). */
   onReport: (msg: ChatThreadMessage) => void;
 }) {
+  const t = useT();
   const now = Date.now();
   // Filtrage de mots (§1) : un message toxique est MASQUÉ (jamais montré en
   // clair), tout en gardant l'auteur visible pour pouvoir le signaler/bloquer.
   const masked = containsBlockedWord(msg.text);
-  const shownText = masked ? 'Message masqué (contenu signalé)' : msg.text;
+  const shownText = masked ? t(C.maskedMessage) : msg.text;
   if (msg.me) {
     return (
       <View style={styles.bubbleRowMe}>
@@ -438,7 +447,7 @@ function ChatBubble({
           {/* Menu « … » → Signaler ce message (App Store 1.2). Appui long aussi. */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Signaler le message de ${msg.author}`}
+            accessibilityLabel={t(C.reportMessageOf, { author: msg.author })}
             hitSlop={14}
             onPress={() => onReport(msg)}
             style={({ pressed }) => [styles.bubbleMore, pressed && styles.dim]}
@@ -448,7 +457,7 @@ function ChatBubble({
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Message de ${msg.author}. Appui long pour signaler.`}
+          accessibilityLabel={t(C.messageLongPress, { author: msg.author })}
           onLongPress={() => onReport(msg)}
           delayLongPress={350}
           style={[styles.bubble, styles.bubbleOther]}
@@ -485,14 +494,15 @@ function ChatBubble({
                         engaged && styles.rsvpLabelEngaged,
                       ]}
                     >
-                      {opt}
+                      {/* Clé stable FR (état local) — présentation localisée. */}
+                      {DEFENSE_RSVP_E[opt] ? t(DEFENSE_RSVP_E[opt]!) : opt}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
             {rsvp[msg.id] ? (
-              <Text style={styles.rsvpDone}>Réponse envoyée au crew (démo)</Text>
+              <Text style={styles.rsvpDone}>{t(C.rsvpSent)}</Text>
             ) : null}
           </>
         ) : null}
@@ -505,7 +515,7 @@ function ChatBubble({
             style={({ pressed }) => [styles.mapBtn, pressed && styles.dim]}
           >
             <Icon name="carte" size={14} color={colors.blanc} />
-            <Text style={styles.mapBtnLabel}>Ouvrir la carte</Text>
+            <Text style={styles.mapBtnLabel}>{t(C.openMap)}</Text>
           </Pressable>
         ) : null}
 
@@ -582,6 +592,8 @@ function BonusActionCard({
   card: BonusActionCardData;
   onCta: (card: BonusActionCardData) => void;
 }) {
+  // Abonne la carte à la locale (les textes CrewLocText sont résolus au rendu).
+  useT();
   return (
     <View style={[styles.bonusCard, { borderColor: card.tint }]}>
       <View style={styles.actionTop}>
@@ -590,22 +602,22 @@ function BonusActionCard({
         </View>
         <View style={styles.actionBody}>
           <Text style={[styles.bonusTitle, { color: card.tint }]} numberOfLines={1}>
-            {card.title}
+            {locText(card.title)}
           </Text>
           <Text style={styles.actionZone} numberOfLines={2}>
-            {card.detail}
+            {locText(card.detail)}
           </Text>
         </View>
       </View>
       {/* Effet PROMIS (libellé court non tronqué) — jamais points/territoire. */}
       <View style={[styles.bonusEffectPill, { borderColor: card.tint }]}>
         <Text style={[styles.bonusEffect, { color: card.tint }]} numberOfLines={1}>
-          {card.effect}
+          {locText(card.effect)}
         </Text>
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${card.bonus.cta} · ${card.title}`}
+        accessibilityLabel={`${card.bonus.cta} · ${locText(card.title)}`}
         onPress={() => onCta(card)}
         style={({ pressed }) => [styles.actionCta, pressed && styles.dim]}
       >
@@ -687,11 +699,12 @@ function ConquestEventCard({ item }: { item: WarLogEntryDemo }) {
  * → « ce membre » (jamais de nom forcé). ZÉRO pay-to-win.
  */
 function GiftCard({ gift, onCta }: { gift: GiftCardDemo; onCta: (gift: GiftCardDemo) => void }) {
+  const t = useT();
   // Seed idempotent des compteurs de départ (avant tout tap).
   seedGiftReactions(gift.id, gift.seed);
   const state = resolveGiftReactions(gift.id);
   const thanks = thanksLine(gift.id, gift.by);
-  const who = gift.by ?? 'Un membre';
+  const who = gift.by ?? t(C.aMember);
   return (
     <View style={styles.giftCard}>
       <View style={styles.giftHead}>
@@ -720,7 +733,7 @@ function GiftCard({ gift, onCta }: { gift: GiftCardDemo; onCta: (gift: GiftCardD
               key={r.key}
               accessibilityRole="button"
               accessibilityState={{ selected: mine }}
-              accessibilityLabel={`${r.label} · ${gift.kicker}`}
+              accessibilityLabel={`${t(r.label)} · ${gift.kicker}`}
               onPress={() => {
                 haptics.light();
                 toggleGiftReaction(gift.id, r.key);
@@ -728,7 +741,7 @@ function GiftCard({ gift, onCta }: { gift: GiftCardDemo; onCta: (gift: GiftCardD
               style={[styles.giftReact, mine && styles.giftReactMine]}
             >
               <Text style={[styles.giftReactLabel, mine && styles.giftReactLabelMine]}>
-                {r.label}
+                {t(r.label)}
               </Text>
               {count > 0 ? (
                 <Text style={[styles.giftReactCount, mine && styles.giftReactLabelMine]}>
@@ -757,7 +770,7 @@ function GiftCard({ gift, onCta }: { gift: GiftCardDemo; onCta: (gift: GiftCardD
 
 /** Fenêtre de réclamation restante d'un cadeau (« 23 h », « 42 min », « Expiré »). */
 function giftWindowLabel(gift: OfferedGift, now: number): string {
-  if (giftExpired(gift, now)) return 'Expiré';
+  if (giftExpired(gift, now)) return tGlobal(C.expired);
   const min = Math.max(0, Math.round((gift.expiresAt - now) / 60_000));
   if (min >= 60) return `${Math.floor(min / 60)} h`;
   return `${min} min`;
@@ -779,19 +792,20 @@ function CadeauCrewCard({
   now: number;
   onClaim: (gift: OfferedGift) => void;
 }) {
+  const t = useT();
   const left = giftRewardsLeft(gift);
   const mine = giftClaimedByMe(gift);
   const expired = giftExpired(gift, now);
   const claimable = giftClaimable(gift, now);
-  const who = gift.by ?? 'Un membre';
+  const who = gift.by ?? t(C.aMember);
   // État du CTA : réclamable / déjà réclamé / épuisé / expiré.
   const ctaLabel = mine
-    ? 'Déjà réclamé'
+    ? t(C.alreadyClaimed)
     : expired
-      ? 'Offre expirée'
+      ? t(C.offerExpired)
       : left <= 0
-        ? 'Tout réclamé'
-        : 'Réclamer';
+        ? t(C.allClaimed)
+        : t(C.claim);
   return (
     <View style={styles.cadeauCard}>
       <View style={styles.cadeauHead}>
@@ -799,18 +813,23 @@ function CadeauCrewCard({
           <Icon name="cadeau" size={16} color={gameColors.gold} />
         </View>
         <Text style={styles.cadeauKicker} numberOfLines={1}>
-          CADEAU CREW
+          {t(C.cadeauKicker)}
         </Text>
         <Text style={styles.cadeauWindow} numberOfLines={1}>
           {giftWindowLabel(gift, now)}
         </Text>
       </View>
       <Text style={styles.cadeauMessage} numberOfLines={2}>
-        <Text style={styles.giftBy}>{who} </Text>a offert un {gift.title}
+        <Text style={styles.giftBy}>{who} </Text>
+        {t(C.offeredGift, { title: gift.title })}
       </Text>
       {/* Récompenses restantes — jamais de montant ni de prix (A.3). */}
       <Text style={styles.cadeauMeta} numberOfLines={1}>
-        {left} récompense{left > 1 ? 's' : ''} · {CREW_GIFT_CLAIMS_PER_MEMBER}/membre · expire {CREW_GIFT_EXPIRY_H} h
+        {t(C.cadeauMeta, {
+          rewards: left === 1 ? t(C.rewardsOne) : t(C.rewardsMany, { n: left }),
+          c: CREW_GIFT_CLAIMS_PER_MEMBER,
+          h: CREW_GIFT_EXPIRY_H,
+        })}
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -858,10 +877,15 @@ function SortieCard({
   outing: OutingView;
   onRsvp: (outing: OutingView, choice: OutingRsvp) => void;
 }) {
+  const t = useT();
   const meta = OUTING_OBJECTIVE_META[outing.objective];
   // Densité de la sortie : « 7 viennent » (jamais 0 → on n'affiche pas « 0 »).
   const goingLabel =
-    outing.going > 0 ? `${outing.going} vien${outing.going > 1 ? 'nent' : 't'}` : null;
+    outing.going > 0
+      ? outing.going === 1
+        ? t(C.goingOne)
+        : t(C.goingMany, { n: outing.going })
+      : null;
   return (
     <View style={styles.outingCard}>
       {/* Ligne 1 : objectif (icône teintée) + titre + zone cible. */}
@@ -874,7 +898,7 @@ function SortieCard({
             {outing.title}
           </Text>
           <Text style={[styles.outingObjective, { color: meta.tint }]} numberOfLines={1}>
-            {objectiveLabel(outing.objective)} · {outing.zone}
+            {t(objectiveLabel(outing.objective))} · {outing.zone}
           </Text>
         </View>
       </View>
@@ -896,7 +920,7 @@ function SortieCard({
       {/* Ligne 3 : densité (X viennent) + qui organise. */}
       <Text style={styles.outingDensity} numberOfLines={1}>
         {goingLabel ? `${goingLabel} · ` : ''}
-        {outing.mine ? 'Ta sortie' : `Par ${outing.host}`}
+        {outing.mine ? t(C.yourOuting) : t(C.byHost, { host: outing.host })}
       </Text>
 
       {/* RSVP : Je viens / Peut-être / Indispo — mon choix se souvient (persisté). */}
@@ -909,7 +933,7 @@ function SortieCard({
               key={opt}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`${opt} · ${outing.title}`}
+              accessibilityLabel={`${OUTING_RSVP_E[opt] ? t(OUTING_RSVP_E[opt]!) : opt} · ${outing.title}`}
               onPress={() => onRsvp(outing, opt)}
               style={[
                 styles.outingRsvpChip,
@@ -924,14 +948,15 @@ function SortieCard({
                   engaged && styles.outingRsvpLabelEngaged,
                 ]}
               >
-                {opt}
+                {/* Clé stable FR (persistée) — présentation localisée. */}
+                {OUTING_RSVP_E[opt] ? t(OUTING_RSVP_E[opt]!) : opt}
               </Text>
             </Pressable>
           );
         })}
       </View>
       {outing.myRsvp ? (
-        <Text style={styles.outingRsvpDone}>Réponse envoyée au crew (démo)</Text>
+        <Text style={styles.outingRsvpDone}>{t(C.rsvpSent)}</Text>
       ) : null}
     </View>
   );
@@ -1013,58 +1038,60 @@ function DailyGlue({
   onAction: (action: 'encourage' | 'vote' | 'signal') => void;
   onBoost: () => void;
 }) {
+  const t = useT();
+  const xpChip = t(C.xpPlus, { n: DAILY_GLUE_SOCIAL_XP });
   return (
     <View style={styles.glueSection}>
       <View style={styles.glueHead}>
         <Icon name="aujourdhui" size={15} color={gameColors.crew} />
-        <Text style={styles.glueKicker}>AUJOURD’HUI</Text>
+        <Text style={styles.glueKicker}>{t(C.todayKicker)}</Text>
         <Text style={styles.glueProgress} numberOfLines={1}>
-          {glue.doneCount}/4 · +{glue.socialXpToday} XP
+          {t(C.glueProgress, { done: glue.doneCount, xp: glue.socialXpToday })}
         </Text>
       </View>
       <Text style={styles.glueLead} numberOfLines={2}>
-        Pas de run aujourd’hui ? Garde le crew vivant en 4 gestes.
+        {t(C.glueLead)}
       </Text>
 
       <DailyGlueRow
         icon="reactRespect"
         tint={gameColors.crew}
-        label="Encourager un runner"
-        sub="Envoie un boost de moral à celui qui part défendre."
+        label={t(C.glueEncourage)}
+        sub={t(C.glueEncourageSub)}
         done={glue.encourage}
-        doneLabel={`+${DAILY_GLUE_SOCIAL_XP} XP`}
+        doneLabel={xpChip}
         onPress={() => onAction('encourage')}
       />
       <DailyGlueRow
         icon="cible"
         tint={gameColors.crew}
-        label="Voter une cible"
-        sub="Choisis la zone que le crew devrait viser en priorité."
+        label={t(C.glueVote)}
+        sub={t(C.glueVoteSub)}
         done={glue.vote}
-        doneLabel={`+${DAILY_GLUE_SOCIAL_XP} XP`}
+        doneLabel={xpChip}
         onPress={() => onAction('vote')}
       />
       <DailyGlueRow
         icon="bouclier"
         tint={gameColors.contested}
-        label="Signaler une zone faible"
-        sub="Préviens le crew d’un secteur qui risque de tomber."
+        label={t(C.glueSignal)}
+        sub={t(C.glueSignalSub)}
         done={glue.signal}
-        doneLabel={`+${DAILY_GLUE_SOCIAL_XP} XP`}
+        doneLabel={xpChip}
         onPress={() => onAction('signal')}
       />
       <DailyGlueRow
         icon="cadeau"
         tint={gameColors.gold}
-        label="Boost coffre gratuit"
-        sub="Un petit coup de pouce au coffre crew. Gratuit, 1×/jour."
+        label={t(C.glueBoost)}
+        sub={t(C.glueBoostSub)}
         done={!glue.boostAvailable}
-        doneLabel="Utilisé"
+        doneLabel={t(C.used)}
         onPress={onBoost}
       />
 
       <Text style={styles.glueNote} numberOfLines={2}>
-        Ces gestes nourrissent le crew et le coffre — jamais de territoire ni de points.
+        {t(C.glueNote)}
       </Text>
     </View>
   );
@@ -1082,6 +1109,7 @@ function SectionHead({
   showAll: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   return (
     <View style={styles.chatSectionHead}>
       <Text style={styles.chatSectionLabel}>{label}</Text>
@@ -1093,7 +1121,9 @@ function SectionHead({
           onPress={onToggle}
           style={({ pressed }) => [styles.seeAllBtn, pressed && styles.dim]}
         >
-          <Text style={styles.seeAllLabel}>{showAll ? 'Réduire' : `Voir tout (${count})`}</Text>
+          <Text style={styles.seeAllLabel}>
+            {showAll ? t(C.collapse) : t(C.seeAllN, { n: count })}
+          </Text>
         </Pressable>
       ) : null}
     </View>
@@ -1106,6 +1136,8 @@ export default function CrewScreen() {
   }, []);
 
   const [tab, setTab] = useState<HqTab>('base');
+  /** Traduction réactive (re-render à la bascule de langue, Paramètres). */
+  const t = useT();
   // Activation O1 : aucune source de crew RÉELLE (crew_members non peuplé). Un vrai
   // utilisateur (session) n'a donc PAS de crew → EmptyState « crée/rejoins un crew »
   // (rendu APRÈS tous les hooks, jamais un HQ fabriqué). Showcase (web/dev sans
@@ -1304,10 +1336,10 @@ export default function CrewScreen() {
       return;
     }
     if (card.donationKind) {
-      notify(`${card.cta} · ${card.zone} — don enregistré, le crew le voit (démo)`);
+      notify(t(C.donationRecorded, { cta: card.cta, zone: card.zone }));
       return;
     }
-    notify(`${card.cta} · ${card.zone} — envoyé au crew (démo)`);
+    notify(t(C.sentToCrewNotice, { cta: card.cta, zone: card.zone }));
   };
 
   // CTA d'une carte BONUS (AMENDEMENT-19 §4) : GRYD révèle le bon moment, le
@@ -1328,7 +1360,7 @@ export default function CrewScreen() {
         setShowCoffre(true);
         return;
       default:
-        notify(`${card.bonus.cta} · ${card.title} (démo)`);
+        notify(t(C.bonusDemoNotice, { cta: card.bonus.cta, title: locText(card.title) }));
     }
   };
 
@@ -1359,9 +1391,10 @@ export default function CrewScreen() {
     setChatFilter(choice === 'outing' ? 'missions' : 'demandes');
     setTab('chat');
     if (choice === 'boost') {
-      notify('Boost proposé au crew — 100 % optionnel, aucune obligation (démo)');
+      notify(t(C.boostProposedNotice));
     } else {
-      notify(`Demande envoyée au crew · ${REQUEST_CHOICES.find((c) => c.key === choice)?.label} (démo)`);
+      const def = REQUEST_CHOICES.find((c) => c.key === choice);
+      notify(t(C.requestSentNotice, { label: def ? t(def.label) : choice }));
     }
   };
 
@@ -1373,12 +1406,12 @@ export default function CrewScreen() {
     setGiftSheet(false);
     offerGift(
       kind === 'chest'
-        ? { title: 'Coffre cosmétique', rewardsTotal: 5, anonymous, by: CHAT_ME }
-        : { title: 'Boost crew 24 h', rewardsTotal: 5, anonymous, by: CHAT_ME },
+        ? { title: t(C.cosmeticChest), rewardsTotal: 5, anonymous, by: CHAT_ME }
+        : { title: t(C.boostCrew24), rewardsTotal: 5, anonymous, by: CHAT_ME },
     );
     setChatFilter('dons');
     setTab('chat');
-    notify('Cadeau offert au crew — à réclamer sous 24 h (démo)');
+    notify(t(C.giftOfferedNotice, { h: CREW_GIFT_EXPIRY_H }));
   };
 
   // Réclamer un cadeau (démo) : décrémente les récompenses + toast. Les gardes
@@ -1386,7 +1419,7 @@ export default function CrewScreen() {
   const onClaimGift = (gift: OfferedGift) => {
     haptics.light();
     const ok = claimGift(gift.id);
-    if (ok) notify(`Récompense réclamée · ${gift.title} (démo)`);
+    if (ok) notify(t(C.rewardClaimedNotice, { title: gift.title }));
   };
 
   // ── COLLE QUOTIDIENNE (AMENDEMENT-34) : 4 micro-actions SANS courir pour
@@ -1396,17 +1429,17 @@ export default function CrewScreen() {
   const onDailyAction = (action: 'encourage' | 'vote' | 'signal') => {
     const posted = markDailyAction(action);
     if (!posted) {
-      notify('Déjà fait aujourd’hui — reviens demain (démo)');
+      notify(t(C.alreadyDoneToday));
       return;
     }
     haptics.light();
     const label =
       action === 'encourage'
-        ? 'Encouragement envoyé au runner'
+        ? t(C.encourageSent)
         : action === 'vote'
-          ? 'Vote de cible enregistré'
-          : 'Zone faible signalée au crew';
-    notify(`${label} · +${DAILY_GLUE_SOCIAL_XP} XP social (démo)`);
+          ? t(C.voteRecorded)
+          : t(C.weakZoneSignaled);
+    notify(t(C.socialXpNotice, { label, n: DAILY_GLUE_SOCIAL_XP }));
   };
   // Boost coffre GRATUIT : capé 1×/jour (DAILY_CHEST_BOOST_*). Alimente le coffre
   // crew DÉMO (visuel, +2 %) — jamais points/XP de jeu/territoire. success = geste
@@ -1414,11 +1447,11 @@ export default function CrewScreen() {
   const onDailyBoost = () => {
     const posted = useDailyBoost();
     if (!posted) {
-      notify('Boost coffre déjà utilisé aujourd’hui — 1×/jour (démo)');
+      notify(t(C.boostUsedToday));
       return;
     }
     haptics.success();
-    notify('Boost coffre offert — le coffre crew avance un peu (démo)');
+    notify(t(C.boostGiven));
   };
 
   // RSVP à une sortie (AMENDEMENT-32 §1) : « Je viens » / « Peut-être » /
@@ -1452,7 +1485,7 @@ export default function CrewScreen() {
     setOutingZone('');
     setOutingObjective('conquete');
     setTab('membres');
-    notify('Sortie créée — le crew la voit (démo)');
+    notify(t(C.outingCreated));
   };
 
   // ── Sections du chat actionnable filtrées (A.2/A.3) ──
@@ -1496,13 +1529,17 @@ export default function CrewScreen() {
   // LOG : masqué sous Demandes/Dons (le Log = Résultats).
   const showLog = chatFilter === 'tout' || chatFilter === 'resultats' || chatFilter === 'missions';
 
-  const memberAction = (label: string, member: CrewMemberDemo) => {
+  const memberAction = (
+    key: 'mission' | 'outing' | 'promote' | 'profil',
+    label: string,
+    member: CrewMemberDemo,
+  ) => {
     setMemberSheet(null);
-    if (label === 'Voir profil' && member.me) {
+    if (key === 'profil' && member.me) {
       router.navigate('/profil');
       return;
     }
-    notify(`${label} · ${member.pseudo} — envoyé au crew (démo)`);
+    notify(t(C.memberActionSent, { action: label, name: member.pseudo }));
   };
 
   // ── MODÉRATION (App Store 1.2) ────────────────────────────────────────────
@@ -1523,20 +1560,20 @@ export default function CrewScreen() {
     haptics.medium();
     reportContent({ ...reportTarget, reason });
     setReportTarget(null);
-    notify(`Signalement envoyé, examiné sous ${REPORT_REVIEW_HOURS} h. Merci (démo).`);
+    notify(t(C.reportSentNotice, { h: REPORT_REVIEW_HOURS }));
   };
   // Bloquer un membre : masque ses messages (filtre d'affichage) — silencieux.
   const onBlockMember = (member: CrewMemberDemo) => {
     setMemberSheet(null);
     haptics.medium();
     blockMember(member.pseudo);
-    notify(`${member.pseudo} bloqué. Ses messages sont masqués (démo).`);
+    notify(t(C.memberBlockedNotice, { name: member.pseudo }));
   };
   // Débloquer depuis la liste « Membres bloqués ».
   const onUnblockMember = (pseudo: string) => {
     haptics.light();
     unblockMember(pseudo);
-    notify(`${pseudo} débloqué. Ses messages réapparaissent (démo).`);
+    notify(t(C.memberUnblockedNotice, { name: pseudo }));
   };
 
   // Gate APRÈS tous les hooks (Rules of Hooks) : pas de crew réel → EmptyState.
@@ -1563,7 +1600,7 @@ export default function CrewScreen() {
                 color={warReady ? gameColors.crew : colors.blanc}
               />
               <Text style={[styles.statusChipText, warReady && styles.statusChipTextWar]}>
-                {CREW_STATUS_LABELS_FR[status] ?? ACTIVITY_STATUS_LABELS[status]}
+                {t(CREW_STATUS_E[status])}
               </Text>
             </View>
             {/* Surface ≤ 3 infos (§A) : le chip (état) + l'ACTIVITÉ (X/Y actifs,
@@ -1572,7 +1609,7 @@ export default function CrewScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: showHeaderDetail }}
-              accessibilityLabel="Détails du crew : niveau et rang dans la ville"
+              accessibilityLabel={t(C.headerDetailA11y)}
               hitSlop={6}
               onPress={() => {
                 haptics.light();
@@ -1580,7 +1617,7 @@ export default function CrewScreen() {
               }}
             >
               <Text style={styles.identityLine} numberOfLines={1}>
-                {activeMembers}/{CREW_MAX_MEMBERS} actifs
+                {t(C.activesCount, { n: activeMembers, max: CREW_MAX_MEMBERS })}
               </Text>
             </Pressable>
             <View style={styles.headerGauge}>
@@ -1591,13 +1628,17 @@ export default function CrewScreen() {
                 pour ne jamais tronquer (§9) ni répéter l'info du blason (§20). */}
             <Text style={styles.xpLine} numberOfLines={1}>
               {nextLevelXp !== null
-                ? `${formatInt(nextLevelXp - MY_CREW.xp)} XP vers niv. ${level + 1}`
-                : 'Niveau max atteint'}
+                ? t(C.xpToNext, { xp: formatInt(nextLevelXp - MY_CREW.xp), lvl: level + 1 })
+                : t(C.levelMax)}
             </Text>
             {/* SECONDAIRE (tap) : niveau + rang ville — détail, jamais imposé. */}
             {showHeaderDetail ? (
               <Text style={styles.headerDetailLine} numberOfLines={1}>
-                Niveau {level} · #{MY_CREW.localRank} {MY_CREW.city}
+                {t(C.headerDetailLine, {
+                  lvl: level,
+                  rank: MY_CREW.localRank,
+                  city: MY_CREW.city,
+                })}
               </Text>
             ) : null}
           </View>
@@ -1610,7 +1651,7 @@ export default function CrewScreen() {
           <View style={styles.headerActions}>
             <IconAction
               icon="ajoutami"
-              label="Inviter un coureur"
+              label={t(C.inviteRunner)}
               onPress={() => {
                 // Zéro-mensonge : on COPIE vraiment le lien (expo-clipboard/web),
                 // avec repli sur la feuille de partage native. Le feedback reflète
@@ -1620,10 +1661,10 @@ export default function CrewScreen() {
                 void copyInviteLink(link).then((res) =>
                   setNotice(
                     res.ok && res.via === 'clipboard'
-                      ? `Lien d’invitation copié — ${link}`
+                      ? t(C.inviteCopied, { link })
                       : res.ok
-                        ? `Invitation partagée — ${link}`
-                        : `Lien d’invitation : ${link}`,
+                        ? t(C.inviteShared, { link })
+                        : t(C.inviteLinkIs, { link }),
                   ),
                 );
               }}
@@ -1632,7 +1673,7 @@ export default function CrewScreen() {
             {canEditCrew ? (
               <IconAction
                 icon="reglages"
-                label="Modifier le crew"
+                label={t(C.editCrew)}
                 onPress={() => {
                   haptics.light();
                   router.push('/crew-edit');
@@ -1651,10 +1692,13 @@ export default function CrewScreen() {
       <Segmented
         style={styles.hqSegmented}
         tone="surface"
-        accessibilityLabel="Sections du crew"
-        options={HQ_TABS.map((t) => ({
-          id: t.key,
-          label: t.key === 'base' && chestClaimable ? `${t.label} •` : t.label,
+        accessibilityLabel={t(C.crewSectionsA11y)}
+        options={HQ_TABS.map((tabDef) => ({
+          id: tabDef.key,
+          label:
+            tabDef.key === 'base' && chestClaimable
+              ? `${t(tabDef.label)} •`
+              : t(tabDef.label),
         }))}
         value={tab}
         onChange={setTab}
@@ -1665,7 +1709,7 @@ export default function CrewScreen() {
       {notice ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Fermer la notification"
+          accessibilityLabel={t(C.closeNoticeA11y)}
           onPress={() => setNotice(null)}
           style={styles.notice}
         >
@@ -1691,12 +1735,12 @@ export default function CrewScreen() {
           {flags.warRoom ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Voir toutes les missions du crew"
+              accessibilityLabel={t(C.allMissionsA11y)}
               hitSlop={8}
               onPress={() => router.navigate('/warroom')}
               style={({ pressed }) => [styles.missionsLink, pressed && styles.dim]}
             >
-              <Text style={styles.missionsLinkText}>Toutes les missions du crew</Text>
+              <Text style={styles.missionsLinkText}>{t(C.allMissions)}</Text>
               <Icon name="chevron" size={14} color={colors.gris} />
             </Pressable>
           ) : null}
@@ -1706,9 +1750,9 @@ export default function CrewScreen() {
             <BaseCard
               icon="pin"
               tint={gameColors.crew}
-              label="Territoire"
-              value={`${formatInt(MY_CREW.territory.zonesHeld)} zones`}
-              sub={`${MY_CREW.territory.contestedBorders} frontières contestées`}
+              label={t(C.tileTerritory)}
+              value={t(C.zonesCount, { n: formatInt(MY_CREW.territory.zonesHeld) })}
+              sub={t(C.contestedBordersCount, { n: MY_CREW.territory.contestedBorders })}
               onPress={() => {
                 haptics.light();
                 setShowTerritory((v) => !v);
@@ -1718,14 +1762,14 @@ export default function CrewScreen() {
             <BaseCard
               icon="coffre"
               tint={chestClaimable ? gameColors.crew : gameColors.gold}
-              label="Coffre"
+              label={t(C.tileChest)}
               value={`${Math.round(chestPct * 100)} %`}
               sub={
                 chestClaimable
-                  ? 'À récupérer'
+                  ? t(C.toClaim)
                   : nextChestTier
-                    ? `Prochain palier à ${Math.round(CREW_CHEST_TIERS[nextChestTier] * 100)} %`
-                    : 'Palier max atteint'
+                    ? t(C.nextTierAt, { pct: Math.round(CREW_CHEST_TIERS[nextChestTier] * 100) })
+                    : t(C.tierMaxReached)
               }
               progress={chestPct}
               onPress={() => {
@@ -1736,17 +1780,17 @@ export default function CrewScreen() {
             {/* Membres — tap → onglet Membres (roster + sorties). */}
             <BaseCard
               icon="crew"
-              label="Membres"
-              value={`${activeMembers}/${CREW_MAX_MEMBERS} actifs`}
-              sub={`${MY_CREW.recruitSpots} places ouvertes`}
+              label={t(C.tabMembers)}
+              value={t(C.activesCount, { n: activeMembers, max: CREW_MAX_MEMBERS })}
+              sub={t(C.openSpots, { n: MY_CREW.recruitSpots })}
               onPress={() => setTab('membres')}
             />
             {/* Perks — tap → détail (débloqués / prochain / à venir). */}
             <BaseCard
               icon="couronne"
-              label="Avantages"
-              value={`${unlockedPerks.length} débloqués`}
-              sub={nextPerk ? `Prochain au niveau ${nextPerk.level}` : 'Tous débloqués'}
+              label={t(C.tilePerks)}
+              value={t(C.unlockedCount, { n: unlockedPerks.length })}
+              sub={nextPerk ? t(C.nextAtLevel, { n: nextPerk.level }) : t(C.allUnlocked)}
               onPress={() => {
                 haptics.light();
                 setShowPerks((v) => !v);
@@ -1761,36 +1805,39 @@ export default function CrewScreen() {
               paliers + contributions — révélé au tap de la tuile Coffre. ── */}
           {showCoffre ? (
             <>
-              <SectionLabel>COFFRE HEBDO</SectionLabel>
+              <SectionLabel>{t(C.weeklyChestKicker)}</SectionLabel>
               <ChestCard
-                label="Coffre crew hebdo"
+                label={t(C.weeklyChestCard)}
                 progress={chestPct}
                 nextMilestone={
                   nextChestTier
-                    ? `Prochain palier : ${tierLabelFr(nextChestTier)} · ${Math.round(
-                        CREW_CHEST_TIERS[nextChestTier] * 100,
-                      )} %`
-                    : 'Palier max atteint'
+                    ? t(C.nextTierLabel, {
+                        tier: tierLabelFr(nextChestTier),
+                        pct: Math.round(CREW_CHEST_TIERS[nextChestTier] * 100),
+                      })
+                    : t(C.tierMaxReached)
                 }
                 state={chestClaimable ? 'claimable' : 'inprogress'}
                 onOpen={() => {
                   setChestOpened(true);
                   setNotice(
                     chest.tier
-                      ? `Palier ${tierLabelFr(chest.tier)} ouvert — récompenses au crew (démo)`
+                      ? t(C.tierOpened, { tier: tierLabelFr(chest.tier) })
                       : null,
                   );
                 }}
               />
               <Text style={styles.chestMeta}>
-                {formatInt(MY_CREW.chestProgress)} / {formatInt(CREW_CHEST_WEEKLY_TARGET)} points
-                collectifs
+                {t(C.collectivePoints, {
+                  a: formatInt(MY_CREW.chestProgress),
+                  b: formatInt(CREW_CHEST_WEEKLY_TARGET),
+                })}
               </Text>
 
               {chestOpened && chest.tier ? (
                 <>
                   <SectionLabel>
-                    RÉCOMPENSES · PALIER {tierLabelFr(chest.tier).toUpperCase()}
+                    {t(C.rewardsTierSection, { tier: tierLabelFr(chest.tier).toUpperCase() })}
                   </SectionLabel>
                   <View style={styles.rewardList}>
                     {CHEST_REWARDS.map((r) => (
@@ -1815,25 +1862,25 @@ export default function CrewScreen() {
                 onPress={() => setShowTiers((v) => !v)}
                 style={({ pressed }) => [styles.tiersToggle, pressed && styles.dim]}
               >
-                <Text style={styles.tiersToggleText}>Paliers du coffre</Text>
+                <Text style={styles.tiersToggleText}>{t(C.chestTiers)}</Text>
                 <Icon name="chevron" size={15} color={colors.gris} />
               </Pressable>
               {showTiers ? (
                 <View style={styles.tiersCard}>
-                  {CREW_CHEST_TIER_ORDER.map((t) => {
-                    const reached = chestPct >= CREW_CHEST_TIERS[t];
+                  {CREW_CHEST_TIER_ORDER.map((tier) => {
+                    const reached = chestPct >= CREW_CHEST_TIERS[tier];
                     return (
-                      <View key={t} style={styles.tierRow}>
+                      <View key={tier} style={styles.tierRow}>
                         <Icon
                           name={reached ? 'coffre' : 'verrou'}
                           size={15}
                           color={reached ? gameColors.gold : colors.gris}
                         />
                         <Text style={[styles.tierName, !reached && styles.dimText]}>
-                          {tierLabelFr(t)}
+                          {tierLabelFr(tier)}
                         </Text>
                         <Text style={styles.tierPct}>
-                          {Math.round(CREW_CHEST_TIERS[t] * 100)} %
+                          {Math.round(CREW_CHEST_TIERS[tier] * 100)} %
                         </Text>
                       </View>
                     );
@@ -1841,7 +1888,7 @@ export default function CrewScreen() {
                 </View>
               ) : null}
 
-              <SectionLabel>CONTRIBUTIONS DES MEMBRES</SectionLabel>
+              <SectionLabel>{t(C.memberContribs)}</SectionLabel>
               {contributors.map((m) => (
                 <View key={m.pseudo} style={styles.contribRow}>
                   <Text
@@ -1865,10 +1912,8 @@ export default function CrewScreen() {
             <>
               {/* Rappel anti pay-to-win STRICT (§52) : les perks sont statut/
                   orga/cosmétique — jamais territoire, points ni protection. */}
-              <Text style={styles.perkNote}>
-                Cosmétique et organisation — jamais d'avantage territorial.
-              </Text>
-              <SectionLabel>AVANTAGES DÉBLOQUÉS · {unlockedPerks.length}</SectionLabel>
+              <Text style={styles.perkNote}>{t(C.perkNote)}</Text>
+              <SectionLabel>{t(C.perksUnlocked, { n: unlockedPerks.length })}</SectionLabel>
               <View style={styles.perkList}>
                 {unlockedPerks.map((p) => {
                   const visual = PERK_VISUALS[p.key] ?? PERK_VISUAL_FALLBACK;
@@ -1888,7 +1933,7 @@ export default function CrewScreen() {
 
               {nextPerk ? (
                 <>
-                  <SectionLabel>PROCHAIN AVANTAGE</SectionLabel>
+                  <SectionLabel>{t(C.nextPerkKicker)}</SectionLabel>
                   <PerkCard
                     name={nextPerk.name}
                     icon={(PERK_VISUALS[nextPerk.key] ?? PERK_VISUAL_FALLBACK).icon}
@@ -1903,7 +1948,7 @@ export default function CrewScreen() {
 
               {futurePerks.length > 0 ? (
                 <>
-                  <SectionLabel>À VENIR</SectionLabel>
+                  <SectionLabel>{t(C.upcomingKicker)}</SectionLabel>
                   <View style={styles.perkList}>
                     {futurePerks.map((p) => {
                       const visual = PERK_VISUALS[p.key] ?? PERK_VISUAL_FALLBACK;
@@ -1915,7 +1960,7 @@ export default function CrewScreen() {
                           rarity={visual.rarity}
                           levelRequired={p.level}
                           state="locked"
-                          stateLabel={`Niveau ${p.level}`}
+                          stateLabel={t(C.levelN, { n: p.level })}
                         />
                       );
                     })}
@@ -1943,7 +1988,7 @@ export default function CrewScreen() {
           >
             <Icon name="cadeau" size={16} color={boostActive ? gameColors.gold : colors.gris} />
             <Text style={styles.contribToggleText}>
-              Contribution &amp; boost {boostActive ? '· actif' : ''}
+              {t(C.contribToggle)} {boostActive ? t(C.activeSuffix) : ''}
             </Text>
             <Icon name="chevron" size={15} color={colors.gris} />
           </Pressable>
@@ -1958,30 +2003,24 @@ export default function CrewScreen() {
                   </View>
                   <View style={styles.boostBody}>
                     <View style={styles.boostTopRow}>
-                      <Text style={styles.boostTitle}>Boost actif</Text>
+                      <Text style={styles.boostTitle}>{t(C.boostActiveTitle)}</Text>
                       <View style={styles.boostBonus}>
                         <Text style={styles.boostBonusText}>{BOOST_CHEST_BONUS_LABEL}</Text>
                       </View>
                     </View>
                     <Text style={styles.boostSub}>
-                      {boost.by ? `${boost.by} a boosté le crew` : 'Un membre a boosté le crew'} ·{' '}
+                      {boost.by ? t(C.boostedBy, { name: boost.by }) : t(C.memberBoosted)} ·{' '}
                       <Text style={styles.boostTimer}>{formatBoostRemaining(boost, nowTick)}</Text>
                     </Text>
-                    <Text style={styles.boostNote}>
-                      Accélère la progression du coffre. Jamais de points ni de zones.
-                    </Text>
+                    <Text style={styles.boostNote}>{t(C.boostNote)}</Text>
                   </View>
                 </View>
               ) : null}
 
               <View style={styles.contribCard}>
-                <Text style={styles.contribLead}>Offre un boost à ton crew.</Text>
-                <Text style={styles.contribBody}>
-                  Tous les runs comptent plus fort pour le coffre.
-                </Text>
-                <Text style={styles.contribStrong}>
-                  Aucune obligation. La victoire reste sur la route.
-                </Text>
+                <Text style={styles.contribLead}>{t(C.contribLead)}</Text>
+                <Text style={styles.contribBody}>{t(C.contribBody)}</Text>
+                <Text style={styles.contribStrong}>{t(C.contribStrong)}</Text>
 
                 <Pressable
                   accessibilityRole="switch"
@@ -1996,16 +2035,14 @@ export default function CrewScreen() {
                     {wallOptIn ? <View style={styles.wallCheckDot} /> : null}
                   </View>
                   <View style={styles.wallToggleText}>
-                    <Text style={styles.wallToggleLabel}>Afficher le Mur du crew</Text>
-                    <Text style={styles.wallToggleSub}>
-                      Supporters de la saison — sans montant, offrande anonyme respectée.
-                    </Text>
+                    <Text style={styles.wallToggleLabel}>{t(C.showWall)}</Text>
+                    <Text style={styles.wallToggleSub}>{t(C.wallSub)}</Text>
                   </View>
                 </Pressable>
 
                 {wallOptIn ? (
                   <View style={styles.wall}>
-                    <Text style={styles.wallTitle}>Supporters de la saison</Text>
+                    <Text style={styles.wallTitle}>{t(C.wallTitle)}</Text>
                     {INITIAL_CREW_WALL.map((entry) => (
                       <View
                         key={`${entry.supporter ?? 'anon'}-${entry.contribution}`}
@@ -2019,15 +2056,13 @@ export default function CrewScreen() {
                         </Text>
                       </View>
                     ))}
-                    <Text style={styles.wallFootnote}>
-                      Aucun montant. Aucun classement par dépense.
-                    </Text>
+                    <Text style={styles.wallFootnote}>{t(C.wallFootnote)}</Text>
                   </View>
                 ) : null}
 
                 {flags.arsenal ? (
                   <GhostButton
-                    label="Voir l’Arsenal"
+                    label={t(C.seeArsenal)}
                     icon="boutique"
                     onPress={() => router.push('/arsenal')}
                   />
@@ -2044,7 +2079,7 @@ export default function CrewScreen() {
       {tab === 'membres' ? (
         <>
           <SectionLabel>
-            MEMBRES · {activeMembers}/{CREW_MAX_MEMBERS}
+            {t(C.membersCount, { n: activeMembers, max: CREW_MAX_MEMBERS })}
           </SectionLabel>
           {MY_CREW.members.map((m) => (
             <View key={m.pseudo} style={styles.memberItem}>
@@ -2064,11 +2099,11 @@ export default function CrewScreen() {
           {/* ── SORTIES à venir : titre + heure + lieu de RDV + zone cible
               défense/conquête + RSVP chips (persisté). SOCIAL, zéro effet de
               jeu — courir ensemble = coordination + densité (le moat). ── */}
-          <SectionLabel>SORTIES À VENIR · {crewOutings.outings.length}</SectionLabel>
+          <SectionLabel>{t(C.outingsUpcoming, { n: crewOutings.outings.length })}</SectionLabel>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Créer une sortie de crew"
+            accessibilityLabel={t(C.createOutingA11y)}
             onPress={() => {
               haptics.light();
               setOutingSheet(true);
@@ -2076,7 +2111,7 @@ export default function CrewScreen() {
             style={({ pressed }) => [styles.outingCreateBtn, pressed && styles.dim]}
           >
             <Icon name="plus" size={18} color={colors.noir} />
-            <Text style={styles.outingCreateLabel}>Créer une sortie</Text>
+            <Text style={styles.outingCreateLabel}>{t(C.createOuting)}</Text>
           </Pressable>
 
           <View style={styles.outingList}>
@@ -2085,9 +2120,7 @@ export default function CrewScreen() {
             ))}
           </View>
 
-          <Text style={styles.outingNote}>
-            Courir ensemble, c’est plus de terrain tenu. Aucune sortie ne donne de points (démo).
-          </Text>
+          <Text style={styles.outingNote}>{t(C.outingNote)}</Text>
         </>
       ) : null}
 
@@ -2103,8 +2136,8 @@ export default function CrewScreen() {
           <Segmented
             style={styles.chatFilters}
             tone="surface"
-            accessibilityLabel="Filtrer le chat du crew"
-            options={CHAT_FILTERS.map((f) => ({ id: f.key, label: f.label }))}
+            accessibilityLabel={t(C.filterChatA11y)}
+            options={CHAT_FILTERS.map((f) => ({ id: f.key, label: t(f.label) }))}
             value={chatFilter}
             onChange={setChatFilter}
             scrollable
@@ -2118,7 +2151,7 @@ export default function CrewScreen() {
           <View style={styles.askRow}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Demander de l'aide au crew"
+              accessibilityLabel={t(C.askHelpA11y)}
               onPress={() => {
                 haptics.light();
                 setAskSheet(true);
@@ -2126,11 +2159,11 @@ export default function CrewScreen() {
               style={({ pressed }) => [styles.askBtn, pressed && styles.dim]}
             >
               <Icon name="ajoutami" size={16} color={colors.noir} />
-              <Text style={styles.askBtnLabel}>Demander de l'aide</Text>
+              <Text style={styles.askBtnLabel}>{t(C.askHelp)}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Offrir un cadeau au crew"
+              accessibilityLabel={t(C.offerToCrewA11y)}
               hitSlop={6}
               onPress={() => {
                 haptics.light();
@@ -2139,7 +2172,7 @@ export default function CrewScreen() {
               style={({ pressed }) => [styles.offerLink, pressed && styles.dim]}
             >
               <Icon name="cadeau" size={14} color={gameColors.gold} />
-              <Text style={styles.offerLinkLabel}>Offrir au crew</Text>
+              <Text style={styles.offerLinkLabel}>{t(C.offerToCrew)}</Text>
             </Pressable>
           </View>
 
@@ -2148,7 +2181,7 @@ export default function CrewScreen() {
           {showBonusCard || visibleActions.length > 0 ? (
             <View style={styles.chatSection}>
               <SectionHead
-                label="À FAIRE"
+                label={t(C.sectionTodo)}
                 count={visibleActions.length + (showBonusCard ? 1 : 0)}
                 showAll={showAllActions}
                 onToggle={() => {
@@ -2171,7 +2204,7 @@ export default function CrewScreen() {
           {/* ── SECTION 2 · MESSAGES (fil humain, secondaire) + composer ── */}
           {showMessages ? (
             <View style={styles.chatSection}>
-              <Text style={styles.chatSectionLabel}>MESSAGES</Text>
+              <Text style={styles.chatSectionLabel}>{t(C.sectionMessages)}</Text>
               <View style={styles.thread}>
                 {/* Filtre d'affichage (§1) : les messages d'un membre BLOQUÉ ne
                     sont jamais rendus. La liste bloquée vient du store persisté. */}
@@ -2191,7 +2224,7 @@ export default function CrewScreen() {
               <View style={styles.moderationBar}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Lire le code de conduite"
+                  accessibilityLabel={t(C.codeOfConductA11y)}
                   onPress={() => {
                     haptics.light();
                     router.push('/code-conduite');
@@ -2199,12 +2232,12 @@ export default function CrewScreen() {
                   style={({ pressed }) => [styles.moderationLink, pressed && styles.dim]}
                 >
                   <Icon name="bouclier" size={14} color={colors.gris} />
-                  <Text style={styles.moderationLinkText}>Code de conduite</Text>
+                  <Text style={styles.moderationLinkText}>{t(C.codeOfConduct)}</Text>
                 </Pressable>
                 {moderation.blocked.length > 0 ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Gérer les membres bloqués (${moderation.blocked.length})`}
+                    accessibilityLabel={t(C.manageBlockedA11y, { n: moderation.blocked.length })}
                     onPress={() => {
                       haptics.light();
                       setBlockedSheet(true);
@@ -2213,7 +2246,7 @@ export default function CrewScreen() {
                   >
                     <Icon name="verrou" size={14} color={colors.gris} />
                     <Text style={styles.moderationLinkText}>
-                      Bloqués ({moderation.blocked.length})
+                      {t(C.blockedCount, { n: moderation.blocked.length })}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -2224,7 +2257,7 @@ export default function CrewScreen() {
                 <TextInput
                   value={draft}
                   onChangeText={setDraft}
-                  placeholder="Écris au crew…"
+                  placeholder={t(C.composerPh)}
                   placeholderTextColor={colors.gris}
                   style={styles.composerInput}
                   multiline
@@ -2232,11 +2265,11 @@ export default function CrewScreen() {
                   onSubmitEditing={sendMessage}
                   blurOnSubmit={false}
                   returnKeyType="send"
-                  accessibilityLabel="Écris un message au crew"
+                  accessibilityLabel={t(C.composerA11y)}
                 />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Envoyer le message"
+                  accessibilityLabel={t(C.sendMessageA11y)}
                   accessibilityState={{ disabled: !canSend }}
                   disabled={!canSend}
                   onPress={sendMessage}
@@ -2252,7 +2285,7 @@ export default function CrewScreen() {
               (route/scout/segment/défense) + Merci/Respect/Bien joué ── */}
           {visibleGifts.length > 0 || visibleCadeaux.length > 0 ? (
             <View style={styles.chatSection}>
-              <Text style={styles.chatSectionLabel}>DONS</Text>
+              <Text style={styles.chatSectionLabel}>{t(C.sectionGifts)}</Text>
               <View style={styles.actionList}>
                 {/* Cadeaux premium offerts (réclamables) EN TÊTE — les plus récents. */}
                 {visibleCadeaux.map((gift) => (
@@ -2274,7 +2307,7 @@ export default function CrewScreen() {
           {showLog ? (
             <View style={styles.chatSection}>
               <SectionHead
-                label="RÉSULTATS"
+                label={t(C.sectionResults)}
                 count={warLogEvents.length}
                 showAll={showAllLog}
                 onToggle={() => {
@@ -2310,21 +2343,19 @@ export default function CrewScreen() {
             </View>
           ) : null}
 
-          <Text style={styles.chatNote}>
-            Le crew agit ici. Pas de messages privés (démo).
-          </Text>
+          <Text style={styles.chatNote}>{t(C.chatNote)}</Text>
         </>
       ) : null}
 
       {/* Accès Crew Discovery (§46) */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Explorer d'autres crews"
+        accessibilityLabel={t(C.exploreOtherCrews)}
         onPress={() => router.push('/crew-discovery')}
         style={({ pressed }) => [styles.discoveryLink, pressed && styles.dim]}
       >
         <Icon name="crew" size={18} color={colors.blanc} />
-        <Text style={styles.discoveryText}>Explorer d'autres crews</Text>
+        <Text style={styles.discoveryText}>{t(C.exploreOtherCrews)}</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
 
@@ -2338,21 +2369,19 @@ export default function CrewScreen() {
         <View style={styles.sheetRoot}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Fermer"
+            accessibilityLabel={t(C.close)}
             style={styles.sheetBackdrop}
             onPress={() => setAskSheet(false)}
           />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetName}>Demander au crew</Text>
-            <Text style={styles.sheetRole}>
-              Quelqu’un aide · le crew progresse · tout le monde le voit.
-            </Text>
+            <Text style={styles.sheetName}>{t(C.askSheetTitle)}</Text>
+            <Text style={styles.sheetRole}>{t(C.askSheetSub)}</Text>
             {REQUEST_CHOICES.map((choice) => (
               <Pressable
                 key={choice.key}
                 accessibilityRole="button"
-                accessibilityLabel={choice.label}
+                accessibilityLabel={t(choice.label)}
                 onPress={() => onAskChoice(choice.key)}
                 style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
               >
@@ -2374,9 +2403,9 @@ export default function CrewScreen() {
                   color={choice.key === 'boost' ? gameColors.gold : colors.blanc}
                 />
                 <View style={styles.sheetChoiceText}>
-                  <Text style={styles.sheetActionLabel}>{choice.label}</Text>
+                  <Text style={styles.sheetActionLabel}>{t(choice.label)}</Text>
                   <Text style={styles.sheetChoiceHint} numberOfLines={1}>
-                    {choice.hint}
+                    {t(choice.hint)}
                   </Text>
                 </View>
                 <Icon name="chevron" size={15} color={colors.gris} />
@@ -2396,57 +2425,57 @@ export default function CrewScreen() {
         <View style={styles.sheetRoot}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Fermer"
+            accessibilityLabel={t(C.close)}
             style={styles.sheetBackdrop}
             onPress={() => setGiftSheet(false)}
           />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetName}>Offrir au crew</Text>
+            <Text style={styles.sheetName}>{t(C.offerToCrew)}</Text>
             <Text style={styles.sheetRole}>
-              Un geste, pas un avantage · 1 réclamation/membre · expire 24 h · jamais de points.
+              {t(C.giftSheetSub, { c: CREW_GIFT_CLAIMS_PER_MEMBER, h: CREW_GIFT_EXPIRY_H })}
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Offrir un Boost crew 24 h"
+              accessibilityLabel={t(C.offerBoostA11y)}
               onPress={() => onOfferGift('boost', false)}
               style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
             >
               <Icon name="cadeau" size={18} color={gameColors.gold} />
               <View style={styles.sheetChoiceText}>
-                <Text style={styles.sheetActionLabel}>Boost crew 24 h</Text>
+                <Text style={styles.sheetActionLabel}>{t(C.boostCrew24)}</Text>
                 <Text style={styles.sheetChoiceHint} numberOfLines={1}>
-                  Accélère le coffre · jamais de territoire
+                  {t(C.boostHint)}
                 </Text>
               </View>
               <Icon name="chevron" size={15} color={colors.gris} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Offrir un Coffre cosmétique"
+              accessibilityLabel={t(C.offerChestA11y)}
               onPress={() => onOfferGift('chest', false)}
               style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
             >
               <Icon name="coffre" size={18} color={gameColors.gold} />
               <View style={styles.sheetChoiceText}>
-                <Text style={styles.sheetActionLabel}>Coffre cosmétique</Text>
+                <Text style={styles.sheetActionLabel}>{t(C.cosmeticChest)}</Text>
                 <Text style={styles.sheetChoiceHint} numberOfLines={1}>
-                  5 récompenses cosmétiques à réclamer
+                  {t(C.chestHint, { n: 5 })}
                 </Text>
               </View>
               <Icon name="chevron" size={15} color={colors.gris} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Offrir un Coffre cosmétique anonymement"
+              accessibilityLabel={t(C.offerChestAnonA11y)}
               onPress={() => onOfferGift('chest', true)}
               style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
             >
               <Icon name="verrou" size={18} color={colors.blanc} />
               <View style={styles.sheetChoiceText}>
-                <Text style={styles.sheetActionLabel}>Coffre · offrande anonyme</Text>
+                <Text style={styles.sheetActionLabel}>{t(C.chestAnon)}</Text>
                 <Text style={styles.sheetChoiceHint} numberOfLines={1}>
-                  Ton nom n’apparaît pas · aucun classement
+                  {t(C.chestAnonHint)}
                 </Text>
               </View>
               <Icon name="chevron" size={15} color={colors.gris} />
@@ -2538,7 +2567,7 @@ export default function CrewScreen() {
                     key={obj}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    accessibilityLabel={objectiveLabel(obj)}
+                    accessibilityLabel={t(objectiveLabel(obj))}
                     onPress={() => {
                       haptics.light();
                       setOutingObjective(obj);
@@ -2555,7 +2584,7 @@ export default function CrewScreen() {
                         selected && { color: m.tint },
                       ]}
                     >
-                      {objectiveLabel(obj)}
+                      {t(objectiveLabel(obj))}
                     </Text>
                   </Pressable>
                 );
@@ -2606,7 +2635,7 @@ export default function CrewScreen() {
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetName}>{memberSheet.pseudo}</Text>
               <Text style={styles.sheetRole}>
-                {CREW_ROLE_META[memberCardRole(memberSheet.role)].label}
+                {t(CREW_ROLE_E[memberCardRole(memberSheet.role)])}
                 {/* Rookie : jours d'essai restants (§8.7, ROOKIE_TRIAL_DAYS). */}
                 {memberSheet.role === 'rookie'
                   ? ` · essai — ${rookieTrialDaysLeft(memberSheet.joinedDaysAgo ?? 0)} j restants`
@@ -2617,26 +2646,39 @@ export default function CrewScreen() {
                   le serveur reste seul juge. Promouvoir : jamais sur le founder. */}
               {(
                 [
-                  { label: 'Assigner mission', icon: 'mission', can: roleCan(myRole, 'assignObjectives') },
-                  { label: 'Inviter sortie', icon: 'ami', can: roleCan(myRole, 'createOuting') },
                   {
-                    label: 'Promouvoir',
+                    key: 'mission',
+                    entry: C.actionAssignMission,
+                    icon: 'mission',
+                    can: roleCan(myRole, 'assignObjectives'),
+                  },
+                  {
+                    key: 'outing',
+                    entry: C.actionInviteOuting,
+                    icon: 'ami',
+                    can: roleCan(myRole, 'createOuting'),
+                  },
+                  {
+                    key: 'promote',
+                    entry: C.actionPromote,
                     icon: 'couronne',
                     can: roleCan(myRole, 'promote') && memberSheet.role !== 'founder',
                   },
-                  { label: 'Voir profil', icon: 'profil', can: true },
+                  { key: 'profil', entry: C.actionViewProfile, icon: 'profil', can: true },
                 ] as const
               )
                 .filter((a) => a.can)
                 .map((a) => (
                   <Pressable
-                    key={a.label}
+                    key={a.key}
                     accessibilityRole="button"
-                    onPress={() => memberAction(a.label, memberSheet)}
+                    // La clé pilote le comportement, le libellé TRADUIT part dans
+                    // le toast de confirmation (memberActionSent).
+                    onPress={() => memberAction(a.key, t(a.entry), memberSheet)}
                     style={({ pressed }) => [styles.sheetAction, pressed && styles.dim]}
                   >
                     <Icon name={a.icon} size={18} color={colors.blanc} />
-                    <Text style={styles.sheetActionLabel}>{a.label}</Text>
+                    <Text style={styles.sheetActionLabel}>{t(a.entry)}</Text>
                     <Icon name="chevron" size={15} color={colors.gris} />
                   </Pressable>
                 ))}

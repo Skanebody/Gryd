@@ -31,6 +31,9 @@ import {
   MAP_MISSION_SUMMARY,
   MAP_RIVAL_HEAD,
 } from '../../src/features/map/demo';
+import { C } from '../../src/i18n/catalog/nav';
+import { useLocale, useT } from '../../src/i18n/store';
+import type { Locale } from '../../src/i18n/types';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { isShowcasePlatform } from '../../src/lib/flags';
@@ -52,13 +55,12 @@ const MIN_TAP_TARGET = 44;
 const MISSION_TEXT_SIZE = 13;
 const MISSION_TEXT_MIN_SCALE = fontSizes.xs / MISSION_TEXT_SIZE;
 
-/** « 4,4 km » — décimale française, pas d'Intl (parité Hermes). */
-function formatKm(km: number): string {
-  return `${km.toFixed(1).replace('.', ',')} km`;
+/** « 4,4 km » — décimale selon la langue, pas d'Intl (parité Hermes) ;
+ *  « km » invariant. Seul l'anglais prend le point. */
+function formatKm(km: number, locale: Locale): string {
+  const fixed = km.toFixed(1);
+  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km`;
 }
-
-/** « 3 zones » — accord singulier/pluriel (jamais tronqué). */
-const ZONES_LABEL = `${MAP_MISSION.zones} zone${MAP_MISSION.zones > 1 ? 's' : ''}`;
 
 /**
  * SOURCE UNIQUE d'horloge de l'écran : le temps restant de la mission
@@ -71,12 +73,6 @@ const TIME_LEFT_LABEL = MAP_MISSION_SUMMARY.timeLeftLabel;
  *  et le lecteur d'écran gardent la forme longue. */
 const TIME_COMPACT = TIME_LEFT_LABEL.replace(/\s*restantes?\.?$/i, '').trim();
 
-/** « République attaquée · 3 zones · 8 h » — la mission en 1 ligne (compacte). */
-const MISSION_LINE_TEXT = `${MAP_MISSION.headerTitle} · ${ZONES_LABEL} · ${TIME_COMPACT}`;
-
-/** Détail au tap : distance + gain — unité unique « pts » (jamais XP ici). */
-const MISSION_DETAIL_META = `${formatKm(MAP_MISSION.distanceKm)} · +${MAP_MISSION.bonusPoints} pts crew`;
-
 /**
  * TÊTE DE CARTE (AMENDEMENT-37 §4 + §26.2) : le secteur (« PARIS EST »), la
  * FRAÎCHEUR fusionnée sur la même ligne (« ● À jour », jamais un 2ᵉ bloc), et le
@@ -84,8 +80,7 @@ const MISSION_DETAIL_META = `${formatKm(MAP_MISSION.distanceKm)} · +${MAP_MISSI
  * sans tap, en < 3 s ; textes courts jamais tronqués. Réutilise le nom de secteur
  * existant (MAP_HUD.zoneName) et les parts démo (MAP_RIVAL_HEAD).
  */
-const SECTOR_NAME = MAP_HUD.zoneName.toUpperCase(); // « PARIS EST »
-const RIVAL_HEAD_TEXT = `${MAP_RIVAL_HEAD.name} · ${MAP_RIVAL_HEAD.pct} %`;
+const SECTOR_NAME = MAP_HUD.zoneName.toUpperCase(); // « PARIS EST » — nom propre, invariant.
 
 export default function CarteTab() {
   return (
@@ -106,7 +101,8 @@ export default function CarteTab() {
 function MapStartSlider() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const action = useMemo(() => deriveContextualAction({ screen: 'map' }), []);
+  const locale = useLocale();
+  const action = useMemo(() => deriveContextualAction({ screen: 'map' }, locale), [locale]);
   return (
     <View
       style={[styles.startWrap, { bottom: insets.bottom + NAV_BAR_HEIGHT + SLIDE_START_GAP }]}
@@ -132,6 +128,8 @@ function MissionLine() {
   const router = useRouter();
   const { session, configured } = useSession();
   const hudHidden = useMapHudHidden();
+  const t = useT();
+  const locale = useLocale();
   const [detailOpen, setDetailOpen] = useState(false);
 
   // Retour sur la Carte = détail refermé (même règle « carte nue » que le HUD).
@@ -156,6 +154,23 @@ function MissionLine() {
   // d'exister même sans session (« République attaquée » à Ouville-la-Rivière) —
   // la démo est réservée à la vitrine web. isShowcasePlatform (src/lib/flags).
   if ((configured && session) || !isShowcasePlatform) return null;
+
+  // ── Textes de la ligne mission — résolus à l'affichage (catalogue nav) ──
+  // Les libellés DÉMO (headerTitle, cardTitle, freshness…) viennent de map/demo
+  // et restent tels quels ; seuls les gabarits appartiennent au catalogue.
+  const zonesCount: number = MAP_MISSION.zones; // élargit le littéral démo (3) pour l'accord.
+  const zonesLabel = t(zonesCount === 1 ? C.zonesOne : C.zonesMany, { n: zonesCount });
+  /** « République attaquée · 3 zones · 8 h » — la mission en 1 ligne (compacte). */
+  const missionLineText = `${MAP_MISSION.headerTitle} · ${zonesLabel} · ${TIME_COMPACT}`;
+  /** Détail au tap : distance + gain — unité unique « pts » (jamais XP ici). */
+  const missionDetailMeta = t(C.missionDetailMeta, {
+    km: formatKm(MAP_MISSION.distanceKm, locale),
+    pts: MAP_MISSION.bonusPoints,
+  });
+  const rivalHeadText = t(C.rivalShare, {
+    name: MAP_RIVAL_HEAD.name,
+    pct: MAP_RIVAL_HEAD.pct,
+  });
 
   const toggleDetail = () => {
     haptics.light();
@@ -182,7 +197,12 @@ function MissionLine() {
         style={styles.sectorHead}
         pointerEvents="none"
         accessibilityRole="text"
-        accessibilityLabel={`Secteur ${SECTOR_NAME}, données ${MAP_FRESHNESS.label}. Rival principal ${MAP_RIVAL_HEAD.name}, ${MAP_RIVAL_HEAD.pct} pour cent.`}
+        accessibilityLabel={t(C.sectorHeadA11y, {
+          sector: SECTOR_NAME,
+          freshness: MAP_FRESHNESS.label,
+          rival: MAP_RIVAL_HEAD.name,
+          pct: MAP_RIVAL_HEAD.pct,
+        })}
       >
         <Text style={styles.sectorLine} numberOfLines={1}>
           <Text style={styles.sectorName}>{SECTOR_NAME}</Text>
@@ -193,16 +213,16 @@ function MissionLine() {
           <Text style={styles.sectorFresh}>{` ${MAP_FRESHNESS.label}`}</Text>
         </Text>
         <Text style={styles.rivalLine} numberOfLines={1}>
-          {RIVAL_HEAD_TEXT}
+          {rivalHeadText}
         </Text>
       </View>
 
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: detailOpen }}
-        accessibilityLabel={`${MISSION_LINE_TEXT} — ${
-          detailOpen ? 'fermer le détail de la mission' : 'voir le détail de la mission'
-        }`}
+        accessibilityLabel={`${missionLineText} — ${t(
+          detailOpen ? C.missionDetailCloseA11y : C.missionDetailOpenA11y,
+        )}`}
         onPress={toggleDetail}
         style={({ pressed }) => [styles.missionLine, pressed && styles.pressed]}
         testID="battle-map-mission-line"
@@ -215,7 +235,7 @@ function MissionLine() {
           adjustsFontSizeToFit
           minimumFontScale={MISSION_TEXT_MIN_SCALE}
         >
-          {MISSION_LINE_TEXT}
+          {missionLineText}
         </Text>
         <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
       </Pressable>
@@ -227,20 +247,20 @@ function MissionLine() {
             {MAP_MISSION.cardTitle}
           </Text>
           <Text style={styles.detailMeta} numberOfLines={1}>
-            {MISSION_DETAIL_META}
+            {missionDetailMeta}
           </Text>
           <View style={styles.detailDivider} />
           {/* Entrée VISIBLE vers le Route Planner — action inline légère
               (texte + chevron), jamais un 2ᵉ CTA chartreuse. */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Planifier un parcours — ouvrir le planificateur d'itinéraire"
+            accessibilityLabel={t(C.planRouteA11y)}
             onPress={openPlanner}
             style={({ pressed }) => [styles.detailAction, pressed && styles.pressed]}
             testID="battle-map-plan-route"
           >
             <Text style={styles.detailActionLabel} numberOfLines={1}>
-              Planifier un parcours
+              {t(C.planRoute)}
             </Text>
             <Icon name="chevron" size={iconSizes.sm} color={colors.blanc} />
           </Pressable>

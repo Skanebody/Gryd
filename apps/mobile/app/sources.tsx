@@ -12,6 +12,9 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
+import { C } from '../src/i18n/catalog/auth';
+import { useT } from '../src/i18n/store';
+import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -24,11 +27,11 @@ import {
 import { SOURCE_ADAPTERS } from '../src/features/sources/adapters/registry';
 import type { SourceAdapterSnapshot } from '../src/features/sources/adapters/types';
 
-/** Libellés FR courts des états non connectables (chips neutres). */
-const STATUS_CHIP_LABELS: Record<string, string> = {
-  needs_keys: 'Configuration requise',
-  needs_dev_build: 'Dev build requis',
-  coming_soon: 'Bientôt',
+/** Libellés courts des états non connectables (chips neutres) — Entries i18n. */
+const STATUS_CHIP_LABELS: Record<string, Entry> = {
+  needs_keys: C.chipNeedsKeys,
+  needs_dev_build: C.chipNeedsDevBuild,
+  coming_soon: C.chipSoon,
 };
 
 /** Ligne source : nom, « Trust élevé · Capture directe », statut RÉEL. */
@@ -45,10 +48,12 @@ function SourceRow({
   onConnect: () => void;
   onDisconnect: () => void;
 }) {
+  const t = useT();
   const isNative = source.availability === 'native';
   const status = isNative ? 'native' : snapshot?.status;
   const active = isNative || status === 'connected';
   const trustHigh = source.trust === 'high';
+  const statusChipEntry = status ? STATUS_CHIP_LABELS[status] : undefined;
 
   return (
     <View style={[styles.card, status === 'coming_soon' && styles.cardSoon]}>
@@ -84,23 +89,25 @@ function SourceRow({
 
       {status === 'native' ? (
         <View style={styles.statusChip}>
-          <Text style={styles.statusChipText}>Actif</Text>
+          <Text style={styles.statusChipText}>{t(C.statusActive)}</Text>
         </View>
       ) : status === 'connected' ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Déconnecter ${source.name}`}
+          accessibilityLabel={t(C.disconnectA11y, { name: source.name })}
           accessibilityState={{ busy }}
           disabled={busy}
           onPress={onDisconnect}
           style={({ pressed }) => [styles.statusChip, (pressed || busy) && styles.pressed]}
         >
-          <Text style={styles.statusChipText}>{busy ? 'Déconnexion…' : 'Connecté'}</Text>
+          <Text style={styles.statusChipText}>
+            {busy ? t(C.statusDisconnecting) : t(C.statusConnected)}
+          </Text>
         </Pressable>
       ) : status === 'disconnected' ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Connecter ${source.name}`}
+          accessibilityLabel={t(C.connectA11y, { name: source.name })}
           disabled={busy}
           onPress={onConnect}
           style={({ pressed }) => [
@@ -108,11 +115,11 @@ function SourceRow({
             (pressed || busy) && styles.pressed,
           ]}
         >
-          <Text style={styles.connectLabel}>{busy ? 'Connexion…' : 'Connecter'}</Text>
+          <Text style={styles.connectLabel}>{busy ? t(C.connectBusy) : t(C.connectCta)}</Text>
         </Pressable>
       ) : status ? (
         <View style={styles.soonChip}>
-          <Text style={styles.soonChipText}>{STATUS_CHIP_LABELS[status] ?? status}</Text>
+          <Text style={styles.soonChipText}>{statusChipEntry ? t(statusChipEntry) : status}</Text>
         </View>
       ) : (
         // Statuts en cours de lecture (AsyncStorage) — placeholder neutre.
@@ -125,6 +132,7 @@ function SourceRow({
 }
 
 export default function SourcesScreen() {
+  const t = useT();
   useEffect(() => {
     screen('sources');
   }, []);
@@ -165,7 +173,7 @@ export default function SourcesScreen() {
         [key]: {
           status: 'disconnected',
           lastSync: null,
-          detail: 'Connexion impossible — réessaie plus tard',
+          detail: t(C.connectFailed),
         },
       }));
     } finally {
@@ -190,7 +198,7 @@ export default function SourcesScreen() {
         [key]: {
           status: 'connected',
           lastSync: prev[key]?.lastSync ?? null,
-          detail: 'Déconnexion impossible — réessaie plus tard',
+          detail: t(C.disconnectFailed),
         },
       }));
     } finally {
@@ -202,19 +210,19 @@ export default function SourcesScreen() {
   const soonSources = VERIFY_SOURCES.filter((s) => s.availability === 'soon');
 
   return (
-    <StackScreen title="GRYD Verify Hub" icon="radar" kicker="VÉRIFICATION">
+    <StackScreen title="GRYD Verify Hub" icon="radar" kicker={t(C.sourcesKicker)}>
       {/* Entête (AMENDEMENT-10 §6) — le bleu verify = état de confiance. */}
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
           <Icon name="radar" size={iconSizes.lg} color={gameColors.verify} />
         </View>
         <View style={styles.heroTextWrap}>
-          <Text style={styles.heroStrong}>Seules les courses vérifiées capturent.</Text>
-          <Text style={styles.heroLine}>Les autres enrichissent tes stats.</Text>
+          <Text style={styles.heroStrong}>{t(C.sourcesHeroStrong)}</Text>
+          <Text style={styles.heroLine}>{t(C.sourcesHeroLine)}</Text>
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>SOURCES VÉRIFIÉES</Text>
+      <Text style={styles.sectionLabel}>{t(C.sectionVerified)}</Text>
       <View style={styles.list}>
         {verifySources.map((source) => (
           <SourceRow
@@ -228,7 +236,7 @@ export default function SourcesScreen() {
         ))}
       </View>
 
-      <Text style={styles.sectionLabel}>BIENTÔT</Text>
+      <Text style={styles.sectionLabel}>{t(C.sectionSoon)}</Text>
       <View style={styles.list}>
         {soonSources.map((source) => (
           <SourceRow
@@ -242,10 +250,7 @@ export default function SourcesScreen() {
         ))}
       </View>
 
-      <Text style={styles.footnote}>
-        GRYD Verify lit tes activités, vérifie l'effort réel, déduplique les doublons, puis
-        décide si elles peuvent capturer du territoire.
-      </Text>
+      <Text style={styles.footnote}>{t(C.sourcesFootnote)}</Text>
     </StackScreen>
   );
 }

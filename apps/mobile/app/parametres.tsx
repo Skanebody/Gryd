@@ -11,6 +11,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { SETTINGS_GROUPS, type SettingsRow } from '../src/features/settings/sections';
+import { C } from '../src/i18n/catalog/reglages';
+import { useT } from '../src/i18n/store';
+import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -18,22 +21,23 @@ import { StackScreen } from '../src/ui/StackScreen';
 /**
  * Lignes d'explicabilité (AMENDEMENT-23 §B), ajoutées côté écran plutôt que
  * dans le catalogue partagé : elles pointent vers les 2 nouvelles routes
- * (calcul-zones, faq). Icônes propriétaires, détails au tap.
+ * (calcul-zones, faq). Icônes propriétaires, détails au tap. Les textes sont
+ * des Entries i18n, résolues à l'affichage (structure conservée).
  */
-const EXPLAIN_ROWS: readonly SettingsRow[] = [
+const EXPLAIN_ROWS = [
   {
     href: '/calcul-zones',
-    label: 'Comment GRYD calcule tes zones',
-    detail: 'Ligne, boucle, défense, crew, bonus, Verify',
+    label: C.explainZonesTitle,
+    detail: C.explainZonesDetail,
     icon: 'info',
   },
   {
     href: '/faq',
-    label: 'Calculs & règles du jeu',
-    detail: 'La FAQ complète, détails au tap',
+    label: C.explainFaqTitle,
+    detail: C.explainFaqDetail,
     icon: 'aide',
   },
-];
+] satisfies readonly { href: string; label: Entry; detail: Entry; icon: SettingsRow['icon'] }[];
 
 function Row({ row }: { row: SettingsRow }) {
   const go = () => {
@@ -64,12 +68,13 @@ function Row({ row }: { row: SettingsRow }) {
 }
 
 export default function ParametresScreen() {
+  const t = useT();
   useEffect(() => {
     screen('parametres');
   }, []);
 
   return (
-    <StackScreen title="Paramètres" icon="reglages" kicker="RÉGLAGES">
+    <StackScreen title={t(C.paramsTitle)} icon="reglages" kicker={t(C.paramsKicker)}>
       {SETTINGS_GROUPS.map((group) => (
         <View key={group.label}>
           <Text style={styles.groupLabel}>{group.label}</Text>
@@ -81,10 +86,27 @@ export default function ParametresScreen() {
       {/* Explicabilité (AMENDEMENT-23 §B) : accès direct aux règles depuis les
           Paramètres, en plus de l'Aide. Détails au tap dans la page dédiée. */}
       <View>
-        <Text style={styles.groupLabel}>EXPLICABILITÉ</Text>
+        <Text style={styles.groupLabel}>{t(C.paramsSecExplicabilite)}</Text>
         {EXPLAIN_ROWS.map((row) => (
-          <Row key={row.label} row={row} />
+          <Row
+            key={row.href}
+            row={{ href: row.href, icon: row.icon, label: t(row.label), detail: t(row.detail) }}
+          />
         ))}
+      </View>
+
+      {/* Langue (20/07) : une ligne dédiée, pas noyée dans « Course » — c'est le
+          réglage qui conditionne la lecture de TOUT le reste. */}
+      <View>
+        <Text style={styles.groupLabel}>{t(C.langueTitle).toUpperCase()}</Text>
+        <Row
+          row={{
+            href: '/langue',
+            icon: 'info',
+            label: t(C.langueTitle),
+            detail: t(C.langueDetail),
+          }}
+        />
       </View>
     </StackScreen>
   );

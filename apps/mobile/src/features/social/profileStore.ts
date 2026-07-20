@@ -19,19 +19,26 @@ import { useCallback, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
 import { HANDLE_REGEX } from '@klaim/shared';
+import type { Entry } from '../../i18n/types';
+import { t } from '../../i18n/store';
+import { C } from '../../i18n/catalog/profil';
 import { MY_SOCIAL_PROFILE } from './demo';
 import { useSession } from '../../lib/session';
 
 /**
  * Identité lisible dérivée de la SESSION (vrai user O1) : nom du compte, sinon
- * préfixe e-mail, sinon un neutre « Coureur ». Sert à NE PAS présenter le persona
- * démo « KORO »/@koro à un vrai utilisateur qui n'a pas encore édité son profil
- * (le back `user_profiles` n'est pas branché — TODO O1). PURE.
+ * préfixe e-mail, sinon un neutre « Coureur » (traduit via le catalogue i18n).
+ * Sert à NE PAS présenter le persona démo « KORO »/@koro à un vrai utilisateur
+ * qui n'a pas encore édité son profil (le back `user_profiles` n'est pas
+ * branché — TODO O1). Dépend de la locale courante (résolue à l'appel).
  */
 function sessionIdentity(session: Session | null): { displayName: string; handle: string } {
+  const fallbackName = t(C.defaultRunnerName);
   const meta = (session?.user?.user_metadata ?? {}) as { full_name?: string; name?: string };
   const emailPrefix = session?.user?.email?.split('@')[0];
-  const displayName = (meta.full_name || meta.name || emailPrefix || 'Coureur').toString().trim() || 'Coureur';
+  const displayName =
+    (meta.full_name || meta.name || emailPrefix || fallbackName).toString().trim() || fallbackName;
+  // Le @handle est un INVARIANT technique (a-z0-9_) — le repli reste « coureur ».
   const handle =
     (emailPrefix || displayName).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20) || 'coureur';
   return { displayName, handle };
@@ -63,14 +70,15 @@ export interface EditableProfile {
 /**
  * Palette d'avatar : tokens charte uniquement (noir/blanc/chartreuse + carbones).
  * JAMAIS une couleur hors design-tokens (règle non négociable). Le blanc et la
- * chartreuse servent d'accents ; les carbones de fonds sobres.
+ * chartreuse servent d'accents ; les carbones de fonds sobres. Les labels sont
+ * des Entries i18n — résolus à l'affichage (a11y du sélecteur de couleur).
  */
-export const AVATAR_COLORS: readonly { key: string; value: string; label: string }[] = [
-  { key: 'chartreuse', value: '#B4FF0D', label: 'Chartreuse' },
-  { key: 'blanc', value: '#FAFAF7', label: 'Ivoire' },
-  { key: 'carbone2', value: '#1D201B', label: 'Carbone' },
-  { key: 'gris', value: '#8A8F84', label: 'Gris' },
-  { key: 'noir', value: '#0A0B09', label: 'Nuit' },
+export const AVATAR_COLORS: readonly { key: string; value: string; label: Entry }[] = [
+  { key: 'chartreuse', value: '#B4FF0D', label: C.avatarChartreuse },
+  { key: 'blanc', value: '#FAFAF7', label: C.avatarIvory },
+  { key: 'carbone2', value: '#1D201B', label: C.avatarCarbon },
+  { key: 'gris', value: '#8A8F84', label: C.avatarGrey },
+  { key: 'noir', value: '#0A0B09', label: C.avatarNight },
 ];
 
 /** Couleur d'avatar par défaut (1re de la palette — accent chartreuse charte). */
@@ -144,11 +152,12 @@ export function effectiveInitials(p: Pick<EditableProfile, 'avatarInitials' | 'd
   return (p.displayName.trim().charAt(0) || '?').toUpperCase();
 }
 
-/** Valide un @handle (regex figée base). Renvoie null si OK, sinon un message. */
+/** Valide un @handle (regex figée base). Renvoie null si OK, sinon un message
+ *  déjà traduit (locale courante — résolu à l'appel, donc au render). */
 export function validateHandle(handle: string): string | null {
-  if (handle.length === 0) return 'Le @handle est requis.';
+  if (handle.length === 0) return t(C.handleRequired);
   if (!HANDLE_REGEX.test(handle)) {
-    return '3 à 20 caractères : minuscules, chiffres et « _ ».';
+    return t(C.handleInvalid);
   }
   return null;
 }

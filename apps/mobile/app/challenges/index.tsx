@@ -18,11 +18,15 @@ import { useChallenges } from '../../src/features/motivation/challengeState';
 import {
   CHALLENGE_DIFFICULTY_LABELS,
   CHALLENGE_TYPE_LABELS,
+  challengeUnitLabel,
 } from '../../src/features/motivation/labels';
+import { C } from '../../src/i18n/catalog/motivation';
+import { useT } from '../../src/i18n/store';
 
 const TYPE_ICON = { solo: 'aujourdhui', crew: 'crew', rivalry: 'cible' } as const;
 
 function Row({ c }: { c: ChallengeCard }) {
+  const t = useT();
   const isRivalry = c.type === 'rivalry';
   const pct = c.target > 0 ? c.current / c.target : 0.5;
   return (
@@ -39,7 +43,7 @@ function Row({ c }: { c: ChallengeCard }) {
         <View style={styles.headText}>
           <Text style={styles.name}>{c.name}</Text>
           <Text style={styles.meta}>
-            {CHALLENGE_TYPE_LABELS[c.type]} · {CHALLENGE_DIFFICULTY_LABELS[c.difficulty]}
+            {t(CHALLENGE_TYPE_LABELS[c.type])} · {t(CHALLENGE_DIFFICULTY_LABELS[c.difficulty])}
           </Text>
         </View>
         <Icon name="chevron" size={16} color={colors.gris} />
@@ -50,7 +54,7 @@ function Row({ c }: { c: ChallengeCard }) {
         <View style={styles.rivalRow}>
           <View style={styles.rivalSide}>
             <Text style={styles.rivalScore}>{c.rivalMine}</Text>
-            <Text style={styles.rivalName}>Ton crew</Text>
+            <Text style={styles.rivalName}>{t(C.yourCrew)}</Text>
           </View>
           <Text style={styles.rivalVs}>vs</Text>
           <View style={styles.rivalSide}>
@@ -63,7 +67,7 @@ function Row({ c }: { c: ChallengeCard }) {
           <View style={styles.progressNums}>
             <Text style={styles.current}>{formatChallengeValue(c.current, c.unit)}</Text>
             <Text style={styles.target}>
-              / {formatChallengeValue(c.target, c.unit)} {c.unit === 'km' ? '' : c.unit}
+              / {formatChallengeValue(c.target, c.unit)} {challengeUnitLabel(c.unit)}
             </Text>
           </View>
           <ProgressBar value={pct} />
@@ -75,7 +79,7 @@ function Row({ c }: { c: ChallengeCard }) {
         // Anti pay-to-win : le sponsor n'influe sur aucun chiffre au-dessus.
         <View style={styles.sponsorRow}>
           <Icon name={c.sponsor.blason} size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sponsorText}>Offert par {c.sponsor.name} · entrée gratuite</Text>
+          <Text style={styles.sponsorText}>{t(C.sponsorLine, { name: c.sponsor.name })}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -83,6 +87,8 @@ function Row({ c }: { c: ChallengeCard }) {
 }
 
 export default function ChallengesScreen() {
+  const t = useT();
+
   useEffect(() => {
     screen('challenges');
   }, []);
@@ -92,9 +98,9 @@ export default function ChallengesScreen() {
 
   return (
     <StackScreen
-      title="Challenges"
+      title={t(C.challengesTitle)}
       icon="mission"
-      subtitle="Des objectifs choisis, à ton rythme. La régularité compte autant que la performance."
+      subtitle={t(C.challengesSubtitle)}
     >
       {challenges.map((c) => (
         <Row key={c.id} c={c} />

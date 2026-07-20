@@ -13,19 +13,23 @@
  */
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Entry } from '../../i18n/types';
+import { C } from '../../i18n/catalog/crew';
+import { t } from '../../i18n/store';
 
 /** Les 3 réactions de don (ordre stable d'affichage, A.3). */
 export type GiftReactionKey = 'merci' | 'respect' | 'bienjoue';
 
 export interface GiftReactionDef {
   key: GiftReactionKey;
-  label: string;
+  /** Libellé localisé — résolu par t() à l'affichage. */
+  label: Entry;
 }
 
 export const GIFT_REACTIONS: readonly GiftReactionDef[] = [
-  { key: 'merci', label: 'Merci' },
-  { key: 'respect', label: 'Respect' },
-  { key: 'bienjoue', label: 'Bien joué' },
+  { key: 'merci', label: C.reactMerci },
+  { key: 'respect', label: C.reactRespect },
+  { key: 'bienjoue', label: C.reactBienJoue },
 ];
 
 /** Compteurs d'un don : par réaction + drapeau « j'ai déjà réagi » par clé. */
@@ -141,9 +145,10 @@ export function resolveGiftReactions(giftId: string): GiftReactionState {
 export function thanksLine(giftId: string, by: string | null): string | null {
   const merci = resolveGiftReactions(giftId).counts.merci ?? 0;
   if (merci <= 0) return null;
-  const who = by ?? 'ce membre';
-  const verb = merci === 1 ? 'membre a remercié' : 'membres ont remercié';
-  return `${merci} ${verb} ${who}.`;
+  // Localisé via t() module (l'écran re-render à la bascule de langue → la
+  // ligne est recalculée avec la locale courante).
+  const who = by ?? t(C.thisMember);
+  return merci === 1 ? t(C.thanksOne, { who }) : t(C.thanksMany, { n: merci, who });
 }
 
 function subscribe(listener: () => void): () => void {

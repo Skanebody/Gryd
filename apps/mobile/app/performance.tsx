@@ -27,8 +27,11 @@ import {
   VerifyCard,
   WeekCard,
 } from '../src/features/performance/components';
+import { useT } from '../src/i18n/store';
+import { C } from '../src/i18n/catalog/historique';
 
 export default function PerformanceScreen() {
+  const t = useT();
   useEffect(() => {
     track(EVENTS.performancePageViewed);
   }, []);
@@ -41,11 +44,11 @@ export default function PerformanceScreen() {
   };
 
   return (
-    <StackScreen title="Performance" icon="performance" kicker="TA FORME · TON IMPACT">
+    <StackScreen title={t(C.perfTitle)} icon="performance" kicker={t(C.perfKicker)}>
       <View style={styles.stack}>
         {/* Honnêteté (§A) : tant qu'O1 n'est pas câblé, ces chiffres sont une
             démo — jamais présentés comme les vraies stats du joueur. */}
-        <Text style={styles.demoNote}>Données de démonstration — pas encore tes vrais chiffres.</Text>
+        <Text style={styles.demoNote}>{t(C.perfDemoNote)}</Text>
 
         {/* ── AU-DESSUS DU FOLD : décider en un regard ── */}
         <ScoreFormeHero score={p.formeScore} delta={p.formeDelta} reading={p.formeReading} />
@@ -72,11 +75,11 @@ export default function PerformanceScreen() {
         {/* Lien vers le hub GRYD Verify (détail des sources / fiabilité). */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Voir GRYD Verify et les sources connectées"
+          accessibilityLabel={t(C.a11yPerfVerifyLink)}
           onPress={openSources}
           style={({ pressed }) => [styles.verifyLink, pressed && styles.pressed]}
         >
-          <Text style={styles.verifyLinkText}>Voir GRYD Verify · sources connectées</Text>
+          <Text style={styles.verifyLinkText}>{t(C.perfVerifyLink)}</Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
       </View>

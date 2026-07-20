@@ -11,6 +11,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { HANDLE_REGEX, colors, fontSizes, gameColors, radii, sizes, spacing } from '@klaim/shared';
+import type { Entry } from '../src/i18n/types';
+import { useT } from '../src/i18n/store';
+import { C } from '../src/i18n/catalog/profil';
 import { screen } from '../src/lib/analytics';
 import { GhostButton } from '../src/ui/GhostButton';
 import { Icon } from '../src/ui/Icon';
@@ -37,12 +40,13 @@ function useFriends(): readonly FriendDemo[] {
 
 type TabKey = 'friends' | 'requests' | 'suggestions' | 'qr' | 'search';
 
-const TABS: readonly { key: TabKey; label: string }[] = [
-  { key: 'friends', label: 'Amis' },
-  { key: 'requests', label: 'Demandes' },
-  { key: 'suggestions', label: 'Suggestions' },
-  { key: 'qr', label: 'QR' },
-  { key: 'search', label: 'Recherche' },
+// Libellés = Entries i18n (structure au module, résolution t() à l'affichage).
+const TABS: readonly { key: TabKey; label: Entry }[] = [
+  { key: 'friends', label: C.friendsTitle },
+  { key: 'requests', label: C.tabRequests },
+  { key: 'suggestions', label: C.tabSuggestions },
+  { key: 'qr', label: C.tabQr },
+  { key: 'search', label: C.tabSearch },
 ];
 
 /** Tier joueur DÉRIVÉ de l'XP (aucun tier codé en dur). */
@@ -62,6 +66,7 @@ function DemoFriendCard({
   onMore?: () => void;
   withInvites?: boolean;
 }) {
+  const t = useT();
   return (
     <FriendCard
       handle={`@${friend.handle}`}
@@ -71,11 +76,11 @@ function DemoFriendCard({
       runsThisWeek={friend.runsThisWeek}
       tier={tierOf(friend)}
       onInviteRun={
-        withInvites ? () => toast.show(`Sortie proposée à @${friend.handle}`) : undefined
+        withInvites ? () => toast.show(t(C.toastRunInvite, { handle: friend.handle })) : undefined
       }
       onInviteCrew={
         withInvites && friend.inMyCrew !== true
-          ? () => toast.show(`Invitation crew envoyée à @${friend.handle}`)
+          ? () => toast.show(t(C.toastCrewInvite, { handle: friend.handle }))
           : undefined
       }
       onMore={onMore}
@@ -87,9 +92,10 @@ function FriendsList({ toast, onMore }: {
   toast: ToastController;
   onMore: (friend: FriendDemo) => void;
 }) {
+  const t = useT();
   const friends = useFriends().filter((f) => f.state === 'accepted');
   if (friends.length === 0) {
-    return <Text style={styles.empty}>Pas encore d’amis. Invite ton crew ou fais scanner ton QR.</Text>;
+    return <Text style={styles.empty}>{t(C.emptyFriends)}</Text>;
   }
   return (
     <View style={styles.list}>
@@ -110,9 +116,10 @@ function RequestsList({ toast, onMore }: {
   toast: ToastController;
   onMore: (friend: FriendDemo) => void;
 }) {
+  const t = useT();
   const requests = useFriends().filter((f) => f.state === 'incoming');
   if (requests.length === 0) {
-    return <Text style={styles.empty}>Aucune demande en attente.</Text>;
+    return <Text style={styles.empty}>{t(C.emptyRequests)}</Text>;
   }
   return (
     <View style={styles.list}>
@@ -122,13 +129,13 @@ function RequestsList({ toast, onMore }: {
           <View style={styles.actionRow}>
             <View style={styles.actionCell}>
               <GhostButton
-                label="Accepter"
+                label={t(C.accept)}
                 icon="ajoutami"
-                onPress={() => toast.show(`@${f.handle} ajouté`)}
+                onPress={() => toast.show(t(C.toastFriendAdded, { handle: f.handle }))}
               />
             </View>
             <View style={styles.actionCell}>
-              <GhostButton label="Refuser" onPress={() => toast.show('Demande refusée')} />
+              <GhostButton label={t(C.decline)} onPress={() => toast.show(t(C.toastRequestDeclined))} />
             </View>
           </View>
         </View>
@@ -141,9 +148,10 @@ function SuggestionsList({ toast, onMore }: {
   toast: ToastController;
   onMore: (friend: FriendDemo) => void;
 }) {
+  const t = useT();
   const suggestions = useFriends().filter((f) => f.state === 'suggested');
   if (suggestions.length === 0) {
-    return <Text style={styles.empty}>Aucune suggestion pour l’instant.</Text>;
+    return <Text style={styles.empty}>{t(C.emptySuggestions)}</Text>;
   }
   return (
     <View style={styles.list}>
@@ -153,9 +161,9 @@ function SuggestionsList({ toast, onMore }: {
           <View style={styles.actionRow}>
             <View style={styles.actionCell}>
               <GhostButton
-                label="Ajouter"
+                label={t(C.add)}
                 icon="ajoutami"
-                onPress={() => toast.show(`Demande envoyée à @${f.handle}`)}
+                onPress={() => toast.show(t(C.toastRequestSent, { handle: f.handle }))}
               />
             </View>
           </View>
@@ -166,6 +174,7 @@ function SuggestionsList({ toast, onMore }: {
 }
 
 function QrPanel({ toast }: { toast: ToastController }) {
+  const t = useT();
   // Identité RÉELLE via useMyProfile (session-aware) : un vrai user ne voit plus
   // le @handle démo « koro » comme si c'était son propre QR (O1).
   const { profile } = useMyProfile();
@@ -175,13 +184,11 @@ function QrPanel({ toast }: { toast: ToastController }) {
         <Icon name="qr" size={120} color={colors.blanc} />
         <Text style={styles.qrHandle}>@{profile.handle}</Text>
       </View>
-      <Text style={styles.qrHint}>
-        Fais scanner ce code pour t'ajouter en un tap — ou scanne celui d'un autre coureur.
-      </Text>
+      <Text style={styles.qrHint}>{t(C.qrHint)}</Text>
       <GhostButton
-        label="Scanner un QR"
+        label={t(C.scanQr)}
         icon="qr"
-        onPress={() => toast.show('Scanner — écran à venir (O1)')}
+        onPress={() => toast.show(t(C.toastScannerSoon))}
       />
     </View>
   );
@@ -191,6 +198,7 @@ function SearchPanel({ toast, onMore }: {
   toast: ToastController;
   onMore: (friend: FriendDemo) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const normalized = query.trim().toLowerCase().replace(/^@/, '');
   const valid = HANDLE_REGEX.test(normalized);
@@ -207,7 +215,7 @@ function SearchPanel({ toast, onMore }: {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="handle (3-20, a-z 0-9 _)"
+          placeholder={t(C.searchPlaceholder)}
           placeholderTextColor={colors.gris}
           autoCapitalize="none"
           autoCorrect={false}
@@ -215,22 +223,20 @@ function SearchPanel({ toast, onMore }: {
         />
       </View>
       {normalized.length > 0 && !valid ? (
-        <Text style={styles.invalid}>
-          Handle invalide : minuscules, chiffres et _ uniquement (3 à 20).
-        </Text>
+        <Text style={styles.invalid}>{t(C.searchInvalid)}</Text>
       ) : null}
 
       {valid && matches.length === 0 ? (
         <View style={styles.list}>
           <View style={styles.emptyCard}>
             <Text style={styles.emptyHandle}>@{normalized}</Text>
-            <Text style={styles.emptyMeta}>Aucun coureur trouvé avec ce handle.</Text>
+            <Text style={styles.emptyMeta}>{t(C.searchNoRunner)}</Text>
             <View style={styles.actionRow}>
               <View style={styles.actionCell}>
                 <GhostButton
-                  label="Envoyer une demande"
+                  label={t(C.sendRequest)}
                   icon="ajoutami"
-                  onPress={() => toast.show(`Demande envoyée à @${normalized}`)}
+                  onPress={() => toast.show(t(C.toastRequestSent, { handle: normalized }))}
                 />
               </View>
             </View>
@@ -246,9 +252,9 @@ function SearchPanel({ toast, onMore }: {
               <View style={styles.actionRow}>
                 <View style={styles.actionCell}>
                   <GhostButton
-                    label="Ajouter"
+                    label={t(C.add)}
                     icon="ajoutami"
-                    onPress={() => toast.show(`Demande envoyée à @${f.handle}`)}
+                    onPress={() => toast.show(t(C.toastRequestSent, { handle: f.handle }))}
                   />
                 </View>
               </View>
@@ -269,26 +275,27 @@ function MoreMenu({ friend, toast, onDismiss }: {
   toast: ToastController;
   onDismiss: () => void;
 }) {
+  const t = useT();
   const options: { label: string; danger?: boolean; onPress: () => void }[] = [
     {
-      label: 'Voir le profil',
-      onPress: () => toast.show(`Profil de @${friend.handle} — écran à venir (O1)`),
+      label: t(C.menuViewProfile),
+      onPress: () => toast.show(t(C.toastProfileSoon, { handle: friend.handle })),
     },
     {
-      label: 'Retirer de mes amis',
-      onPress: () => toast.show(`@${friend.handle} retiré de tes amis`),
+      label: t(C.menuRemoveFriend),
+      onPress: () => toast.show(t(C.toastFriendRemoved, { handle: friend.handle })),
     },
     {
-      label: `Bloquer @${friend.handle}`,
+      label: t(C.menuBlock, { handle: friend.handle }),
       danger: true,
-      onPress: () => toast.show(`@${friend.handle} bloqué`),
+      onPress: () => toast.show(t(C.toastBlocked, { handle: friend.handle })),
     },
   ];
   return (
     <View style={StyleSheet.absoluteFill}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Fermer le menu"
+        accessibilityLabel={t(C.a11yCloseMenu)}
         style={[StyleSheet.absoluteFill, styles.menuOverlay]}
         onPress={onDismiss}
       />
@@ -313,11 +320,11 @@ function MoreMenu({ friend, toast, onDismiss }: {
         ))}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Annuler"
+          accessibilityLabel={t(C.cancel)}
           onPress={onDismiss}
           style={({ pressed }) => [styles.menuCancel, pressed && styles.menuItemPressed]}
         >
-          <Text style={styles.menuCancelLabel}>Annuler</Text>
+          <Text style={styles.menuCancelLabel}>{t(C.cancel)}</Text>
         </Pressable>
       </View>
     </View>
@@ -325,6 +332,7 @@ function MoreMenu({ friend, toast, onDismiss }: {
 }
 
 export default function AmisScreen() {
+  const t = useT();
   const [tab, setTab] = useState<TabKey>('friends');
   const [menuFor, setMenuFor] = useState<FriendDemo | null>(null);
   const toast = useToast();
@@ -341,26 +349,26 @@ export default function AmisScreen() {
   return (
     <>
       <StackScreen
-        title="Amis"
+        title={t(C.friendsTitle)}
         icon="ami"
-        kicker={`${friendsCount} AMIS · ${requestsCount} DEMANDES`}
+        kicker={t(C.friendsKicker, { friends: friendsCount, requests: requestsCount })}
       >
         {/* Onglets pill (scroll horizontal implicite via wrap) */}
         <View style={styles.tabs}>
-          {TABS.map((t) => (
+          {TABS.map((tabDef) => (
             <Pressable
-              key={t.key}
+              key={tabDef.key}
               accessibilityRole="button"
-              accessibilityLabel={t.label}
+              accessibilityLabel={t(tabDef.label)}
               onPress={() => {
-                setTab(t.key);
-                screen(`amis_${t.key}`);
+                setTab(tabDef.key);
+                screen(`amis_${tabDef.key}`);
               }}
-              style={[styles.tab, tab === t.key && styles.tabActive]}
+              style={[styles.tab, tab === tabDef.key && styles.tabActive]}
             >
-              <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
-                {t.label}
-                {t.key === 'requests' && requestsCount > 0 ? ` · ${requestsCount}` : ''}
+              <Text style={[styles.tabText, tab === tabDef.key && styles.tabTextActive]}>
+                {t(tabDef.label)}
+                {tabDef.key === 'requests' && requestsCount > 0 ? ` · ${requestsCount}` : ''}
               </Text>
             </Pressable>
           ))}
@@ -372,9 +380,7 @@ export default function AmisScreen() {
         {tab === 'qr' ? <QrPanel toast={toast} /> : null}
         {tab === 'search' ? <SearchPanel toast={toast} onMore={setMenuFor} /> : null}
 
-        <Text style={styles.footnote}>
-          Aucune position live n'est partagée. Ton profil suit tes réglages de visibilité.
-        </Text>
+        <Text style={styles.footnote}>{t(C.friendsFootnote)}</Text>
       </StackScreen>
       {menuFor ? (
         <MoreMenu friend={menuFor} toast={toast} onDismiss={() => setMenuFor(null)} />

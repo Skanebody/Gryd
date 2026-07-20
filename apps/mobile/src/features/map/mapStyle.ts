@@ -94,6 +94,70 @@ export const SATELLITE_BASEMAP = {
  * éteindre). Retourné en objet (MapLibre accepte URL string OU StyleSpecification)
  * → aucun fichier de style à héberger, keyless de bout en bout.
  */
+// ─── Labels en langue LOCALE (retour terrain 20/07 : « la map est en anglais »)
+//
+// Les styles CARTO GL (dark-matter / voyager) préfèrent `name_en` dans leurs
+// text-fields → villes/pays anglicisés. On télécharge le style UNE fois, on
+// remplace name_en par name (nom local : Paris reste Paris, München reste
+// München) et on sert la spec JSON patchée. Un style ne se REMPLACE PAS à chaud
+// (les couches de jeu seraient perdues — cf. key={basemap} de MapScreen) : les
+// consommateurs écoutent la révision et REMONTENT la carte quand c'est prêt.
+const localizedSpecs = new Map<BasemapKey, string>();
+const inFlight = new Set<BasemapKey>();
+const specListeners = new Set<() => void>();
+let specRevision = 0;
+
+function bumpSpecRevision(): void {
+  specRevision += 1;
+  for (const l of specListeners) l();
+}
+
+async function fetchAndLocalize(key: 'dark' | 'color'): Promise<void> {
+  if (localizedSpecs.has(key) || inFlight.has(key)) return;
+  inFlight.add(key);
+  try {
+    const res = await fetch(MAP_BASEMAP_STYLES[key]);
+    const style = (await res.json()) as { layers?: { layout?: Record<string, unknown> }[] };
+    for (const layer of style.layers ?? []) {
+      const tf = layer.layout?.['text-field'];
+      if (tf !== undefined && layer.layout) {
+        layer.layout['text-field'] = JSON.parse(
+          JSON.stringify(tf).split('name_en').join('name'),
+        ) as unknown;
+      }
+    }
+    localizedSpecs.set(key, JSON.stringify(style));
+    bumpSpecRevision();
+  } catch {
+    // Hors-ligne / échec réseau : on garde l'URL brute (labels name_en assumés).
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+/** Précharge les styles localisés (appelé au montage de la carte, jamais à l'import). */
+export function prefetchLocalizedBasemaps(): void {
+  void fetchAndLocalize('dark');
+  void fetchAndLocalize('color');
+}
+
+/** Spec localisée si disponible, sinon undefined (l'appelant retombe sur l'URL). */
+export function localizedBasemapSpec(key: BasemapKey): string | undefined {
+  return key === 'dark' || key === 'color' ? localizedSpecs.get(key) : undefined;
+}
+
+/** Révision des specs localisées — s'abonner pour remonter la carte quand prêt. */
+export function subscribeBasemapSpecs(listener: () => void): () => void {
+  specListeners.add(listener);
+  return () => {
+    specListeners.delete(listener);
+  };
+}
+
+export function basemapSpecRevision(): number {
+  return specRevision;
+}
+
 export function satelliteStyleSpec(): Record<string, unknown> {
   return {
     version: 8,
@@ -1609,7 +1673,12 @@ export function battleGameLayers(
     // Zone bonus (1 MAX) + route ouverte : traits or/chartreuse — sur le fond
     // COULEUR ils reçoivent le liseré sombre porteur (withColorCasing), pas le
     // fill de la zone bonus (un aplat lit très bien sur Voyager).
-    ...withColorCasing(basemap, [
+    // Retour terrain 20/07 (2e passe) : bonus/route/parcours sont de la DÉMO
+    // (MAP_BONUS_ZONE, battleMapData, PARCOURS_DEMO) — même règle que les
+    // secteurs : dès que du RÉEL est peint (real ≠ null, y compris vide), ces
+    // couches disparaissent. C'étaient les « marquages » vus sur la vraie carte.
+    ...(real === null
+      ? withColorCasing(basemap, [
       // Zone bonus (1 MAX) : anneau or pointillé STATIQUE. AMENDEMENT-37 §4 : le
       // pulse est FIGÉ — une seule animation permanente sur la carte, réservée au
       // secteur pic/urgent. Le bonus reste lisible par sa forme (anneau or pointillé).
@@ -1631,21 +1700,27 @@ export function battleGameLayers(
         lineWidth: ROUTE_WIDTH,
         lineDash: ROUTE_RECOMMEND_DASH,
       },
-    ]),
+    ])
+      : []),
     // Parcours sélectionné (sheet) : aperçu gris sur liseré sombre — la
     // désélection vide la source (les couches restent, l'ordre est stable).
     // Il porte DÉJÀ son propre casing sombre (parcoursCasing) : pas de double.
-    {
-      id: 'parcours-casing',
-      data: parcoursData,
-      lineColor: terr.parcoursCasing,
-      lineWidth: PARCOURS_CASING_WIDTH,
-    },
-    {
-      id: 'parcours-apercu',
-      data: parcoursData,
-      lineColor: terr.parcoursPreview,
-      lineWidth: PARCOURS_WIDTH,
-    },
+    // Même gate que bonus/route : PARCOURS_DEMO n'existe qu'en showcase.
+    ...(real === null
+      ? [
+          {
+            id: 'parcours-casing',
+            data: parcoursData,
+            lineColor: terr.parcoursCasing,
+            lineWidth: PARCOURS_CASING_WIDTH,
+          },
+          {
+            id: 'parcours-apercu',
+            data: parcoursData,
+            lineColor: terr.parcoursPreview,
+            lineWidth: PARCOURS_WIDTH,
+          },
+        ]
+      : []),
   ];
 }

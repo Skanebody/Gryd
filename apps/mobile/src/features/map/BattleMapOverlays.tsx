@@ -32,6 +32,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
+import { C } from '../../i18n/catalog/map';
+import { useLocale, useT } from '../../i18n/store';
+import type { Entry, Locale } from '../../i18n/types';
 import { flags } from '../../lib/flags';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
@@ -58,22 +61,25 @@ import {
 import type { BattleMapSummary } from './fakeHexes';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
-import {
-  MAP_MODE_ICON,
-  MAP_MODE_LABELS,
-  MAP_MODE_ORDER,
-  type MapMode,
-} from './territory';
+import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
 import { mapOpportunities } from './opportunities';
+
+/** Signature du hook useT — pour typer les helpers purs qui reçoivent t. */
+type Translate = (entry: Entry, vars?: Record<string, string | number>) => string;
 
 /**
  * Libellés AFFICHÉS des calques : « Raid » devient « Rival » à l'écran
- * (AMENDEMENT-12 §A — calque de lecture du territoire rival ; la clé interne
- * `raid` de territory.ts ne change pas).
+ * (AMENDEMENT-12 §A — la clé interne `raid` de territory.ts ne change pas).
+ * Entries de catalogue résolues à l'affichage (t) — les libellés fr de
+ * MAP_MODE_LABELS restent la clé interne, plus jamais un texte d'écran.
  */
-const MODE_CHIP_LABELS: Record<MapMode, string> = {
-  ...MAP_MODE_LABELS,
-  raid: 'Rival',
+const MODE_CHIP_ENTRIES: Record<MapMode, Entry> = {
+  territoire: C.modeTerritoire,
+  route: C.modeRoute,
+  defense: C.modeDefense,
+  raid: C.modeRival,
+  exploration: C.modeExploration,
+  crew: C.modeCrew,
 };
 
 /**
@@ -94,11 +100,12 @@ const MODE_COLOR: Record<MapMode, string> = {
 /**
  * FOND de carte (AMENDEMENT-28) — 3 options du menu Calques, libellés COURTS non
  * tronqués (« Satellite » dit ce que c'est — vraies photos aériennes).
+ * Entries de catalogue — résolues à l'affichage (t).
  */
-const BASEMAP_LABELS: Record<BasemapKey, string> = {
-  dark: 'Sombre',
-  color: 'Clair',
-  satellite: 'Satellite',
+const BASEMAP_ENTRIES: Record<BasemapKey, Entry> = {
+  dark: C.basemapDark,
+  color: C.basemapLight,
+  satellite: C.basemapSatellite,
 };
 /** Icône par fond : réutilise le jeu d'icônes EXISTANT (le libellé fait foi). */
 const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
@@ -140,27 +147,28 @@ const FAB_STACK_OPEN_HEIGHT = 4 * 44 + 3 * 10 + 6;
  */
 const ZONE_SHEET_COMPACT_HEIGHT = 224;
 
-/** « 4,4 km » — décimale française, pas d'Intl (parité Hermes). */
-function formatKm(km: number): string {
-  return `${km.toFixed(1).replace('.', ',')} km`;
+/** « 4,4 km » — virgule décimale sauf en anglais (point), pas d'Intl (parité Hermes). */
+function formatKm(km: number, locale: Locale): string {
+  const fixed = km.toFixed(1);
+  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km`;
 }
 
-/** « 3 zones » / « 1 zone » — accord singulier/pluriel (jamais tronqué). */
-function zonesLabel(n: number): string {
+/** « 3 zones » / « 1 zone » — accord singulier/pluriel via catalogue (jamais tronqué). */
+function zonesLabel(t: Translate, n: number): string {
   const v = Math.max(1, n);
-  return `${v} zone${v > 1 ? 's' : ''}`;
+  return t(v > 1 ? C.zonesMany : C.zonesOne, { n: v });
 }
 
-/** « 0,8 km² » — décimale française, zéros de fin retirés (jamais tronqué). */
-function formatArea(km2: number): string {
+/** « 0,8 km² » — même règle décimale, zéros de fin retirés (jamais tronqué). */
+function formatArea(km2: number, locale: Locale): string {
   const s = km2.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-  return `${s.replace('.', ',')} km²`;
+  return `${locale === 'en' ? s : s.replace('.', ',')} km²`;
 }
 
 /** Ligne d'ACTION RECOMMANDÉE §10 : « {type} · {km} · {min} min · +{n} zones ». */
-function actionLine(detail: ZoneDetail): string {
+function actionLine(detail: ZoneDetail, t: Translate, locale: Locale): string {
   const a = detail.action;
-  return `${a.type} · ${formatKm(a.km)} · ${a.minutes} min · +${zonesLabel(a.zones)}`;
+  return `${a.type} · ${formatKm(a.km, locale)} · ${a.minutes} min · +${zonesLabel(t, a.zones)}`;
 }
 
 export interface BattleMapOverlaysProps {
@@ -224,6 +232,8 @@ export function BattleMapOverlays({
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const t = useT();
+  const locale = useLocale();
   /** « Carte nue » : l'utilisateur a masqué tout le HUD (FAB « info » ci-dessous). */
   const hudHidden = useMapHudHidden();
   // Peek MISSION persistant (§8) : `sheet.initial` distingue le PEEK (compact)
@@ -427,7 +437,7 @@ export function BattleMapOverlays({
           <>
             <FloatingMapButton
               icon="calques"
-              accessibilityLabel="Calques et fond de carte"
+              accessibilityLabel={t(C.layersFabA11y)}
               active={layersOpen}
               onPress={() => {
                 haptics.light();
@@ -436,17 +446,13 @@ export function BattleMapOverlays({
             />
             <FloatingMapButton
               icon="gps"
-              accessibilityLabel="Recentrer sur moi"
+              accessibilityLabel={t(C.recenterA11y)}
               onPress={recenterAndClose}
             />
             {/* Bascule CARTE NUE — `active` = HUD affiché ; tap = masquer/afficher le HUD. */}
             <FloatingMapButton
               icon="info"
-              accessibilityLabel={
-                hudHidden
-                  ? 'Afficher les infos de la carte'
-                  : 'Masquer les infos — carte plein écran'
-              }
+              accessibilityLabel={hudHidden ? t(C.hudShowA11y) : t(C.hudHideA11y)}
               active={!hudHidden}
               onPress={toggleHud}
             />
@@ -456,7 +462,7 @@ export function BattleMapOverlays({
             fermé = ⚙ (ouvre). Un seul bouton sur la carte au repos. */}
         <FloatingMapButton
           icon={toolsOpen ? 'fermer' : 'reglages'}
-          accessibilityLabel={toolsOpen ? 'Fermer les outils de la carte' : 'Outils de la carte'}
+          accessibilityLabel={toolsOpen ? t(C.toolsCloseA11y) : t(C.toolsOpenA11y)}
           active={toolsOpen}
           onPress={toggleTools}
         />
@@ -504,7 +510,7 @@ export function BattleMapOverlays({
                 <SituationBlock />
 
                 {/* BLOC — PARCOURS (2-3 max : km + gain). */}
-                <Text style={styles.sectionTitle}>PARCOURS</Text>
+                <Text style={styles.sectionTitle}>{t(C.sectionRoutes)}</Text>
                 {PARCOURS_DEMO.map((p) => {
                   const meta = parcoursMeta(p);
                   const selected = selectedParcoursId === p.id;
@@ -513,7 +519,10 @@ export function BattleMapOverlays({
                       key={p.id}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
-                      accessibilityLabel={`Parcours ${p.name}, ${formatKm(meta.distanceKm)}`}
+                      accessibilityLabel={t(C.routeA11y, {
+                        name: p.name,
+                        km: formatKm(meta.distanceKm, locale),
+                      })}
                       onPress={() => selectParcours(p.id)}
                       style={({ pressed }) => [
                         styles.rowCard,
@@ -526,11 +535,12 @@ export function BattleMapOverlays({
                           {p.name}
                         </Text>
                         <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
-                          {formatKm(meta.distanceKm)} · {zonesLabel(meta.hexes)} · +{meta.points} pts
+                          {formatKm(meta.distanceKm, locale)} · {zonesLabel(t, meta.hexes)} ·{' '}
+                          {t(C.plusPts, { n: meta.points })}
                         </Text>
                       </View>
                       {selected ? (
-                        <Text style={styles.onMapTag}>SUR LA CARTE</Text>
+                        <Text style={styles.onMapTag}>{t(C.onMapTag)}</Text>
                       ) : (
                         <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
                       )}
@@ -539,38 +549,38 @@ export function BattleMapOverlays({
                 })}
 
                 {/* BLOC — ÉQUIPE (nombre d'alliés + le plus proche, non tronqué). */}
-                <Text style={styles.sectionTitle}>ÉQUIPE</Text>
+                <Text style={styles.sectionTitle}>{t(C.sectionTeam)}</Text>
                 <View style={styles.rowCard}>
                   <View style={styles.rowIcon}>
                     <Icon name="ami" size={iconSizes.sm} color={gameColors.crew} />
                   </View>
                   <View style={styles.rowBody}>
                     <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
-                      {MATES_OPT_IN.length} alliés proches
+                      {t(C.alliesNearby, { n: MATES_OPT_IN.length })}
                     </Text>
                     <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
-                      {nearestMateName} · {formatKm(nearestMateKm)}
+                      {nearestMateName} · {formatKm(nearestMateKm, locale)}
                     </Text>
                   </View>
                   {/* L'app NE MENT JAMAIS : le run groupé réel n'existe pas
                       encore — badge « Bientôt » non actionnable, texte gris. */}
                   <View
                     accessibilityRole="text"
-                    accessibilityLabel="Courir ensemble avec les alliés proches : bientôt disponible"
+                    accessibilityLabel={t(C.soonA11y)}
                     style={styles.joinSoon}
                   >
                     <Text style={styles.joinSoonLabel} numberOfLines={1} ellipsizeMode="clip">
-                      Bientôt
+                      {t(C.soonBadge)}
                     </Text>
                   </View>
                 </View>
 
                 {/* BLOC — DÉTAILS (missions liées + historique local). */}
-                <Text style={styles.sectionTitle}>DÉTAILS</Text>
+                <Text style={styles.sectionTitle}>{t(C.sectionDetails)}</Text>
                 {mission && flags.warRoom ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Mission ${mission.label} — ouvrir la War Room`}
+                    accessibilityLabel={t(C.missionA11y, { label: mission.label })}
                     onPress={() => {
                       haptics.light();
                       router.push('/warroom');
@@ -585,7 +595,10 @@ export function BattleMapOverlays({
                         {mission.label}
                       </Text>
                       <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
-                        {mission.progress}/{mission.target} · mission du jour
+                        {t(C.missionOfDay, {
+                          progress: mission.progress,
+                          target: mission.target,
+                        })}
                       </Text>
                     </View>
                     <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
@@ -593,7 +606,7 @@ export function BattleMapOverlays({
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Historique de mes courses"
+                  accessibilityLabel={t(C.historyA11y)}
                   onPress={() => {
                     haptics.light();
                     router.push('/historique');
@@ -605,10 +618,10 @@ export function BattleMapOverlays({
                   </View>
                   <View style={styles.rowBody}>
                     <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
-                      Mon historique
+                      {t(C.myHistory)}
                     </Text>
                     <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
-                      Tes courses passées
+                      {t(C.pastRuns)}
                     </Text>
                   </View>
                   <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
@@ -687,6 +700,8 @@ function TerritoryWidgetPeek({
  * opportunity_shown. Barre chartreuse = ma mission.
  */
 function MissionPeek({ onOptions }: { onOptions: () => void }) {
+  const t = useT();
+  const locale = useLocale();
   const top = useMemo(() => mapOpportunities()[0], []);
   useEffect(() => {
     if (top) track(EVENTS.opportunityShown, { kind: top.kind, distance_m: top.distanceM });
@@ -698,10 +713,10 @@ function MissionPeek({ onOptions }: { onOptions: () => void }) {
         <View style={styles.missionBar} />
         <View style={styles.rowBody}>
           <Text style={styles.peekTitle} numberOfLines={1} adjustsFontSizeToFit>
-            {s.zone} sous pression
+            {t(C.underPressure, { zone: s.zone })}
           </Text>
           <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
-            {zonesLabel(MAP_MISSION.zones)} · {formatKm(MAP_MISSION.distanceKm)}
+            {zonesLabel(t, MAP_MISSION.zones)} · {formatKm(MAP_MISSION.distanceKm, locale)}
           </Text>
         </View>
       </View>
@@ -711,7 +726,7 @@ function MissionPeek({ onOptions }: { onOptions: () => void }) {
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Voir les options — parcours, équipe et détails"
+        accessibilityLabel={t(C.optionsA11y)}
         hitSlop={8}
         onPress={onOptions}
         style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
@@ -730,6 +745,7 @@ function MissionPeek({ onOptions }: { onOptions: () => void }) {
  * (séparation par l'espace). Vit dans l'état OUVERT du peek mission.
  */
 function SituationBlock() {
+  const t = useT();
   const s = MAP_MISSION_SUMMARY;
   return (
     <View style={styles.situation}>
@@ -737,14 +753,14 @@ function SituationBlock() {
         {s.zone} · {s.stateLabel}
       </Text>
       <Text style={styles.situationShares} numberOfLines={1}>
-        <Text style={styles.situationCrew}>Ton crew {s.crewPct} %</Text>
+        <Text style={styles.situationCrew}>{t(C.yourCrewPct, { pct: s.crewPct })}</Text>
         {`  ·  ${s.rivalName} ${s.rivalPct} %`}
       </Text>
       <View style={styles.situationFoot}>
         <View style={styles.situationChip}>
           <Icon name="eclats" size={12} color={gameColors.crew} />
           <Text style={styles.situationChipText} numberOfLines={1}>
-            {MAP_MISSION.bonusMicroLabel} · +{MAP_MISSION.bonusPoints} pts
+            {MAP_MISSION.bonusMicroLabel} · {t(C.plusPts, { n: MAP_MISSION.bonusPoints })}
           </Text>
         </View>
         <View style={styles.situationChip}>
@@ -775,8 +791,10 @@ function ZonePeek({
   onAct: () => void;
   onMore: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const ownerLine =
-    detail.ownerRole === 'other' ? detail.ownerName : `Détenu par ${detail.ownerName}`;
+    detail.ownerRole === 'other' ? detail.ownerName : t(C.heldBy, { name: detail.ownerName });
   return (
     <View style={styles.info}>
       <View style={styles.zoneHead}>
@@ -786,12 +804,12 @@ function ZonePeek({
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Fermer la zone — revenir à la carte"
+          accessibilityLabel={t(C.closeZoneA11y)}
           hitSlop={8}
           onPress={onClose}
           style={({ pressed }) => [styles.zoneCloseHit, pressed && styles.pressed]}
         >
-          <Text style={styles.zoneCloseText}>Fermer</Text>
+          <Text style={styles.zoneCloseText}>{t(C.closeLabel)}</Text>
         </Pressable>
       </View>
 
@@ -799,12 +817,12 @@ function ZonePeek({
         {ownerLine}
       </Text>
       <Text style={styles.zoneControl} numberOfLines={1}>
-        Contrôle {detail.controlPct} %
+        {t(C.controlPct, { pct: detail.controlPct })}
       </Text>
 
       {/* ACTION RECOMMANDÉE §10 : ligne informative + 1 CTA chartreuse. */}
       <Text style={styles.zoneActionLine} numberOfLines={1} adjustsFontSizeToFit>
-        {actionLine(detail)}
+        {actionLine(detail, t, locale)}
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -819,13 +837,13 @@ function ZonePeek({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Plus — détail de la zone : surface, tenue, pression et activité"
+        accessibilityLabel={t(C.moreA11y)}
         hitSlop={8}
         onPress={onMore}
         style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
       >
         <Text style={styles.optionsLink} numberOfLines={1}>
-          Plus
+          {t(C.moreLabel)}
         </Text>
       </Pressable>
     </View>
@@ -845,30 +863,39 @@ function ZoneDetailBlock({
   detail: ZoneDetail;
   onHistory: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const p = detail.pressure;
   const a = detail.activity24h;
   return (
     <View style={styles.openBlock}>
       <Text style={styles.zoneDetailLine} numberOfLines={1}>
-        Tenue {detail.heldSinceLabel} · {formatArea(detail.areaKm2)}
+        {t(C.heldSinceArea, {
+          held: detail.heldSinceLabel,
+          area: formatArea(detail.areaKm2, locale),
+        })}
       </Text>
       <Text style={styles.zoneDetailLine} numberOfLines={1}>
-        Défendue {detail.defendedAgoLabel}
+        {t(C.defendedAgo, { ago: detail.defendedAgoLabel })}
       </Text>
 
-      <Text style={styles.sectionTitle}>PRESSION</Text>
+      <Text style={styles.sectionTitle}>{t(C.sectionPressure)}</Text>
       <Text style={styles.zoneDetailLine} numberOfLines={1} adjustsFontSizeToFit>
-        {p.topRivalName} {p.topRivalPct} % · Neutre {p.neutralPct} %
+        {t(C.pressureLine, {
+          rival: p.topRivalName,
+          rivalPct: p.topRivalPct,
+          neutralPct: p.neutralPct,
+        })}
       </Text>
 
-      <Text style={styles.sectionTitle}>ACTIVITÉ 24 H</Text>
+      <Text style={styles.sectionTitle}>{t(C.sectionActivity)}</Text>
       <Text style={styles.zoneDetailLine} numberOfLines={1}>
-        {a.runs} runs · {a.allies} alliés · {a.rivals} rivaux
+        {t(C.activityLine, { runs: a.runs, allies: a.allies, rivals: a.rivals })}
       </Text>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Voir l'historique"
+        accessibilityLabel={t(C.historyLinkA11y)}
         onPress={() => {
           haptics.light();
           onHistory();
@@ -880,10 +907,10 @@ function ZoneDetailBlock({
         </View>
         <View style={styles.rowBody}>
           <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
-            Historique de la zone
+            {t(C.zoneHistoryTitle)}
           </Text>
           <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
-            Conquêtes et défenses passées
+            {t(C.zoneHistoryMeta)}
           </Text>
         </View>
         <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
@@ -915,6 +942,7 @@ function LayerMenu({
   map3d?: boolean;
   onSetMap3d?: (value: boolean) => void;
 }) {
+  const t = useT();
   return (
     <ScrollView
       style={[styles.layerMenu, maxHeight != null ? { maxHeight } : null]}
@@ -924,7 +952,7 @@ function LayerMenu({
     >
       {onSelectBasemap ? (
         <>
-          <Text style={styles.layerHeading}>FOND</Text>
+          <Text style={styles.layerHeading}>{t(C.headingBasemap)}</Text>
           {BASEMAP_KEYS.map((key) => {
             const on = basemap === key;
             return (
@@ -932,7 +960,7 @@ function LayerMenu({
                 key={key}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={`Fond de carte ${BASEMAP_LABELS[key]}`}
+                accessibilityLabel={t(C.basemapA11y, { label: t(BASEMAP_ENTRIES[key]) })}
                 onPress={() => onSelectBasemap(key)}
                 style={({ pressed }) => [
                   styles.layerItem,
@@ -949,7 +977,7 @@ function LayerMenu({
                   style={[styles.layerLabel, on && styles.layerLabelActive]}
                   numberOfLines={1}
                 >
-                  {BASEMAP_LABELS[key]}
+                  {t(BASEMAP_ENTRIES[key])}
                 </Text>
               </Pressable>
             );
@@ -959,7 +987,7 @@ function LayerMenu({
       ) : null}
       {onSetMap3d ? (
         <>
-          <Text style={styles.layerHeading}>VUE</Text>
+          <Text style={styles.layerHeading}>{t(C.headingView)}</Text>
           <Map3DToggle
             value={map3d}
             onChange={onSetMap3d}
@@ -969,7 +997,7 @@ function LayerMenu({
           <View style={styles.layerDivider} />
         </>
       ) : null}
-      <Text style={styles.layerHeading}>CALQUES</Text>
+      <Text style={styles.layerHeading}>{t(C.headingLayers)}</Text>
       {MAP_MODE_ORDER.map((key) => {
         const on = active === key;
         return (
@@ -977,7 +1005,7 @@ function LayerMenu({
             key={key}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={`Calque ${MODE_CHIP_LABELS[key]}`}
+            accessibilityLabel={t(C.layerA11y, { label: t(MODE_CHIP_ENTRIES[key]) })}
             onPress={() => onSelect(key)}
             style={({ pressed }) => [
               styles.layerItem,
@@ -987,7 +1015,7 @@ function LayerMenu({
           >
             <Icon name={MAP_MODE_ICON[key]} size={15} color={MODE_COLOR[key]} active={on} />
             <Text style={[styles.layerLabel, on && styles.layerLabelActive]} numberOfLines={1}>
-              {MODE_CHIP_LABELS[key]}
+              {t(MODE_CHIP_ENTRIES[key])}
             </Text>
           </Pressable>
         );

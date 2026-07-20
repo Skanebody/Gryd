@@ -11,6 +11,8 @@
  */
 import Svg, { G, Path, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/explain';
+import { useT } from '../../../i18n/store';
 import type { SchemaBaseProps } from './types';
 
 const VB_W = 280;
@@ -75,8 +77,9 @@ export function DefenseFrontiere({
   traverseLabel = '+24 h',
   longeLabel = '+48 h',
   coverLabel = '+72 h',
-  accessibilityLabel = 'Plus ton tracé couvre la frontière, plus la défense est longue.',
+  accessibilityLabel,
 }: DefenseFrontiereProps) {
+  const t = useT();
   const width = size;
   const height = size * RATIO;
   return (
@@ -84,15 +87,15 @@ export function DefenseFrontiere({
       width={width}
       height={height}
       viewBox={`0 0 ${VB_W} ${VB_H}`}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={accessibilityLabel ?? t(C.schemaDefenseA11y)}
     >
       {/* 1 — Traverser : le tracé coupe l'intérieur (couverture faible) */}
-      <Mini x={2} runnerD="M8 30 L60 46" title="Traverser" duration={traverseLabel} strong={false} />
+      <Mini x={2} runnerD="M8 30 L60 46" title={t(C.schemaCross)} duration={traverseLabel} strong={false} />
       {/* 2 — Longer : le tracé suit une partie de la frontière */}
       <Mini
         x={100}
         runnerD="M14 20 C 40 8, 64 16, 66 38"
-        title="Longer"
+        title={t(C.schemaFollow)}
         duration={longeLabel}
         strong={false}
       />
@@ -100,7 +103,7 @@ export function DefenseFrontiere({
       <Mini
         x={198}
         runnerD="M14 20 C 40 8, 64 16, 66 38 C 68 60, 44 70, 22 62 C 6 56, 2 30, 14 20 Z"
-        title="Fermer"
+        title={t(C.schemaClose)}
         duration={coverLabel}
         strong
       />

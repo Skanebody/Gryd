@@ -26,6 +26,8 @@ import {
   radii,
   spacing,
 } from '@klaim/shared';
+import { useT } from '../src/i18n/store';
+import { C } from '../src/i18n/catalog/profil';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -62,6 +64,7 @@ type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 const FRAME_ITEMS = itemsInSection('frames').filter(isFrameItem);
 
 export default function ProfilEditScreen() {
+  const t = useT();
   useEffect(() => {
     // Pas d'event §8 dédié à l'édition profil → screen view standard.
     screen('profil_edit');
@@ -154,7 +157,7 @@ export default function ProfilEditScreen() {
   };
 
   return (
-    <StackScreen title="Modifier mon profil" icon="profil" kicker="PLAYER CARD · IDENTITÉ">
+    <StackScreen title={t(C.editMyProfile)} icon="profil" kicker={t(C.editKicker)}>
       {/* ── APERÇU vivant : reflète nom, couleur, initiales et frame équipé ── */}
       <View style={styles.previewCard}>
         <PlayerCardAvatar
@@ -167,7 +170,7 @@ export default function ProfilEditScreen() {
         />
         <View style={styles.previewInfo}>
           <Text style={styles.previewName} numberOfLines={1}>
-            {displayName.trim().length > 0 ? displayName : 'Ton nom'}
+            {displayName.trim().length > 0 ? displayName : t(C.previewNameFallback)}
           </Text>
           <Text style={styles.previewHandle} numberOfLines={1}>
             @{handle || 'handle'}
@@ -181,9 +184,9 @@ export default function ProfilEditScreen() {
       </View>
 
       {/* ── IDENTITÉ : nom + @handle ── */}
-      <Text style={styles.sectionLabel}>IDENTITÉ</Text>
+      <Text style={styles.sectionLabel}>{t(C.sectionIdentity)}</Text>
       <View style={styles.card}>
-        <Text style={styles.fieldLabel}>Nom affiché</Text>
+        <Text style={styles.fieldLabel}>{t(C.fieldDisplayName)}</Text>
         <View style={styles.inputRow}>
           <TextInput
             value={displayName}
@@ -200,7 +203,7 @@ export default function ProfilEditScreen() {
             {displayName.length}/{DISPLAY_NAME_MAX}
           </Text>
         </View>
-        {!nameValid ? <Text style={styles.invalid}>Le nom ne peut pas être vide.</Text> : null}
+        {!nameValid ? <Text style={styles.invalid}>{t(C.nameEmpty)}</Text> : null}
 
         <View style={styles.divider} />
 
@@ -225,14 +228,14 @@ export default function ProfilEditScreen() {
         {handleError ? (
           <Text style={styles.invalid}>{handleError}</Text>
         ) : (
-          <Text style={styles.hint}>3 à 20 caractères : minuscules, chiffres, « _ ».</Text>
+          <Text style={styles.hint}>{t(C.handleHint)}</Text>
         )}
       </View>
 
       {/* ── TITRE + VILLE ── */}
-      <Text style={styles.sectionLabel}>TITRE &amp; VILLE</Text>
+      <Text style={styles.sectionLabel}>{t(C.sectionTitleCity)}</Text>
       <View style={styles.card}>
-        <Text style={styles.fieldLabel}>Titre affiché</Text>
+        <Text style={styles.fieldLabel}>{t(C.fieldTitle)}</Text>
         <View style={styles.inputRow}>
           <TextInput
             value={title}
@@ -240,7 +243,7 @@ export default function ProfilEditScreen() {
               setTitle(v.slice(0, TITLE_MAX));
               touched();
             }}
-            placeholder="Tenace du 19ᵉ"
+            placeholder={t(C.titlePlaceholder)}
             placeholderTextColor={colors.gris}
             style={styles.input}
             maxLength={TITLE_MAX}
@@ -252,7 +255,7 @@ export default function ProfilEditScreen() {
 
         <View style={styles.divider} />
 
-        <Text style={styles.fieldLabel}>Ville</Text>
+        <Text style={styles.fieldLabel}>{t(C.fieldCity)}</Text>
         <View style={styles.inputRow}>
           <TextInput
             value={city}
@@ -272,7 +275,7 @@ export default function ProfilEditScreen() {
       </View>
 
       {/* ── BIO (optionnelle, anti-shame) ── */}
-      <Text style={styles.sectionLabel}>BIO COURTE</Text>
+      <Text style={styles.sectionLabel}>{t(C.sectionBio)}</Text>
       <View style={styles.card}>
         <TextInput
           value={bio}
@@ -280,7 +283,7 @@ export default function ProfilEditScreen() {
             setBio(v.slice(0, BIO_MAX));
             touched();
           }}
-          placeholder="Une ligne sur ta manière de courir (optionnel)."
+          placeholder={t(C.bioPlaceholder)}
           placeholderTextColor={colors.gris}
           style={styles.textarea}
           multiline
@@ -292,9 +295,9 @@ export default function ProfilEditScreen() {
       </View>
 
       {/* ── AVATAR : couleur + initiales ── */}
-      <Text style={styles.sectionLabel}>AVATAR</Text>
+      <Text style={styles.sectionLabel}>{t(C.sectionAvatar)}</Text>
       <View style={styles.card}>
-        <Text style={styles.fieldLabel}>Couleur</Text>
+        <Text style={styles.fieldLabel}>{t(C.fieldColor)}</Text>
         <View style={styles.swatchRow}>
           {AVATAR_COLORS.map((c) => {
             const on = c.value === avatarColor;
@@ -302,7 +305,7 @@ export default function ProfilEditScreen() {
               <Pressable
                 key={c.key}
                 accessibilityRole="button"
-                accessibilityLabel={`Avatar ${c.label}`}
+                accessibilityLabel={t(C.a11yAvatarColor, { label: t(c.label) })}
                 accessibilityState={{ selected: on }}
                 onPress={() => {
                   haptics.light();
@@ -319,7 +322,7 @@ export default function ProfilEditScreen() {
 
         <View style={styles.divider} />
 
-        <Text style={styles.fieldLabel}>Initiales (1-2 lettres, optionnel)</Text>
+        <Text style={styles.fieldLabel}>{t(C.fieldInitials)}</Text>
         <View style={styles.inputRow}>
           <TextInput
             value={avatarInitials}
@@ -338,7 +341,7 @@ export default function ProfilEditScreen() {
       </View>
 
       {/* ── FRAME cosmétique équipé — effet TANGIBLE sur la Player Card ── */}
-      <Text style={styles.sectionLabel}>FRAME DE LA CARD</Text>
+      <Text style={styles.sectionLabel}>{t(C.sectionFrame)}</Text>
       <View style={styles.frameWrap}>
         {FRAME_ITEMS.map((f) => {
           const on = f.key === equippedFrameKey;
@@ -346,7 +349,7 @@ export default function ProfilEditScreen() {
             <Pressable
               key={f.key}
               accessibilityRole="button"
-              accessibilityLabel={`Équiper ${f.name}`}
+              accessibilityLabel={t(C.a11yEquip, { name: f.name })}
               accessibilityState={{ selected: on }}
               onPress={() => onEquipFrame(f.key)}
               style={[styles.frameChip, on && styles.frameChipOn]}
@@ -362,7 +365,7 @@ export default function ProfilEditScreen() {
               <Text style={[styles.frameChipText, on && styles.frameChipTextOn]} numberOfLines={1}>
                 {f.name.replace(/^Frame\s*/, '')}
               </Text>
-              {on ? <Text style={styles.frameChipTag}>Équipé</Text> : null}
+              {on ? <Text style={styles.frameChipTag}>{t(C.equippedTag)}</Text> : null}
             </Pressable>
           );
         })}
@@ -372,7 +375,7 @@ export default function ProfilEditScreen() {
         <>
           <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Ouvrir l'Arsenal pour d'autres cosmétiques"
+          accessibilityLabel={t(C.a11yOpenArsenal)}
           onPress={() => {
             haptics.light();
             router.push('/arsenal');
@@ -380,7 +383,7 @@ export default function ProfilEditScreen() {
           style={({ pressed }) => [styles.arsenalLink, pressed && styles.dim]}
         >
           <Icon name="boutique" size={16} color={colors.blanc} />
-          <Text style={styles.arsenalLinkText}>Débloquer d&apos;autres frames — Arsenal</Text>
+          <Text style={styles.arsenalLinkText}>{t(C.arsenalLink)}</Text>
           <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
         </Pressable>
         </>
@@ -388,7 +391,7 @@ export default function ProfilEditScreen() {
 
       {/* ── BADGES MIS EN AVANT (3 max) ── */}
       <Text style={styles.sectionLabel}>
-        BADGES AFFICHÉS · {featuredBadgeIds.length}/{FEATURED_BADGE_COUNT}
+        {t(C.sectionFeaturedBadges, { n: featuredBadgeIds.length, max: FEATURED_BADGE_COUNT })}
       </Text>
       <View style={styles.badgeWrap}>
         {choosableBadges.map((def) => {
@@ -398,7 +401,7 @@ export default function ProfilEditScreen() {
             <Pressable
               key={def.id}
               accessibilityRole="button"
-              accessibilityLabel={`Badge ${def.name}`}
+              accessibilityLabel={t(C.a11yBadge, { name: def.name })}
               accessibilityState={{ selected: on, disabled: full }}
               disabled={full}
               onPress={() => toggleBadge(def.id)}
@@ -420,20 +423,18 @@ export default function ProfilEditScreen() {
           );
         })}
       </View>
-      <Text style={styles.hint}>
-        Sans choix, la card affiche automatiquement tes 3 badges les plus rares.
-      </Text>
+      <Text style={styles.hint}>{t(C.featuredHint)}</Text>
 
       {/* ── Enregistrer ── */}
       <View style={styles.saveBlock}>
         {savedNotice ? (
           <View style={styles.savedRow}>
             <Icon name="cible" size={iconSizes.sm} color={gameColors.crew} />
-            <Text style={styles.savedText}>Enregistré — ton profil est à jour.</Text>
+            <Text style={styles.savedText}>{t(C.savedNotice)}</Text>
           </View>
         ) : null}
         <InlineRunCTA
-          label="ENREGISTRER"
+          label={t(C.saveCta)}
           leading={<Icon name="profil" size={iconSizes.md} color={colors.noir} />}
           disabled={!canSave || !dirty}
           onPress={onSave}

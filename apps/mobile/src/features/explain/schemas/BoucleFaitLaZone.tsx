@@ -8,6 +8,8 @@
  */
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/explain';
+import { useT } from '../../../i18n/store';
 import type { SchemaBaseProps } from './types';
 import { realLoopSchema } from './realLoop';
 
@@ -39,8 +41,9 @@ export function BoucleFaitLaZone({
   traceZones = 214,
   loopZones = 247,
   loopGain = 33,
-  accessibilityLabel = 'La trace seule capture le passage ; la boucle fermée ajoute l’intérieur.',
+  accessibilityLabel,
 }: BoucleFaitLaZoneProps) {
+  const t = useT();
   const width = size;
   const height = size * RATIO;
   return (
@@ -48,7 +51,7 @@ export function BoucleFaitLaZone({
       width={width}
       height={height}
       viewBox={`0 0 ${VB_W} ${VB_H}`}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={accessibilityLabel ?? t(C.schemaBoucleFaitA11y)}
     >
       {/* AVANT — trace seule : contour non rempli, gris (couloir du passage) */}
       <G>
@@ -64,7 +67,7 @@ export function BoucleFaitLaZone({
           {`+${traceZones}`}
         </SvgText>
         <SvgText x={64} y={140} fill={colors.gris} fontSize={12} fontFamily={fonts.text} textAnchor="middle">
-          Trace seule
+          {t(C.schemaTraceAlone)}
         </SvgText>
       </G>
 
@@ -94,10 +97,10 @@ export function BoucleFaitLaZone({
           {`+${loopZones}`}
         </SvgText>
         <SvgText x={212} y={92} fill={colors.blanc} fontSize={12} fontFamily={fonts.mono} textAnchor="middle">
-          {`+${loopGain} par la boucle`}
+          {t(C.schemaLoopGain, { n: loopGain })}
         </SvgText>
         <SvgText x={212} y={140} fill={colors.gris} fontSize={12} fontFamily={fonts.text} textAnchor="middle">
-          Boucle fermée
+          {t(C.schemaLoopClosed)}
         </SvgText>
       </G>
     </Svg>

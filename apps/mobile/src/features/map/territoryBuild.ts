@@ -9,6 +9,8 @@
  */
 import { cellArea } from 'h3-js';
 import { cellsToTerritory, territoryId, type TerritoryId, type TerritoryState } from './territory';
+import { C } from '../../i18n/catalog/map';
+import { resolve, type Locale } from '../../i18n/types';
 
 /** Une capture telle que stockée : h3index est un BIGINT côté Postgres. */
 export interface HexClaimRow {
@@ -156,12 +158,19 @@ export function buildTerritories(
  *   • vide réel — chargé, zéro capture : on NOMME le vide, sinon il se lit comme un
  *     chargement en panne.
  * Retourne null quand il n'y a rien d'honnête à ajouter (du vrai territoire s'affiche).
+ *
+ * `locale` traduit la note (module PUR : résolution i18n directe via le
+ * catalogue, jamais d'import du store) — défaut 'fr', les écrans passent
+ * useLocale().
  */
-export function dataNote(isReal: boolean, failed: boolean, count = 0): string | null {
-  if (failed) return 'Territoires indisponibles — on n’a pas pu charger tes captures.';
-  if (!isReal) return 'Territoires de démonstration — pas encore tes vraies captures.';
-  if (count === 0) {
-    return 'Aucun territoire capturé pour l’instant — cours pour prendre ta première zone.';
-  }
+export function dataNote(
+  isReal: boolean,
+  failed: boolean,
+  count = 0,
+  locale: Locale = 'fr',
+): string | null {
+  if (failed) return resolve(C.dataNoteFailed, locale);
+  if (!isReal) return resolve(C.dataNoteDemo, locale);
+  if (count === 0) return resolve(C.dataNoteEmpty, locale);
   return null;
 }

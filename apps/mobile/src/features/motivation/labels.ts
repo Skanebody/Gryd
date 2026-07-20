@@ -1,9 +1,13 @@
 /**
- * GRYD — libellés FR des écrans motivation (AMENDEMENT-07 §1/§7/§8, motivation
+ * GRYD — libellés des écrans motivation (AMENDEMENT-07 §1/§7/§8, motivation
  * §10/§11/§17/§21). Copie ANTI-SHAME partout (§11) : jamais « lent / dernier /
  * tu fais perdre » ; formulations positives et choisies. Séparé des règles pour
  * que la data (@klaim/shared) reste la source unique des enums — ici, uniquement
  * de la présentation.
+ *
+ * i18n : les valeurs sont des `Entry` (5 langues, parité forcée par le type)
+ * issues du catalogue src/i18n/catalog/motivation.ts. Les composants résolvent
+ * à l'affichage via `t()` (useT / t du store i18n).
  */
 import type {
   ActivitySharing,
@@ -15,112 +19,118 @@ import type {
   ProfileVisibility,
   RunMode,
 } from '@klaim/shared';
+import type { Entry } from '../../i18n/types';
+import { C } from '../../i18n/catalog/motivation';
+import { t } from '../../i18n/store';
 import type { NotifChannel } from './store';
 
 /** Style de jeu (§2) : titre + sous-titre non prescriptif (aucun n'est « mieux »). */
-export const PLAY_STYLE_LABELS: Record<PlayStyle, { title: string; subtitle: string }> = {
-  focus_solo: {
-    title: 'Focus Solo',
-    subtitle: 'Ta forme, tes objectifs, à ton rythme. Le territoire en bonus.',
-  },
-  mixte: {
-    title: 'Mixte',
-    subtitle: 'Un peu de tout : progression perso et vie de crew, sans pression.',
-  },
-  crew_war: {
-    title: 'Crew War',
-    subtitle: 'Conquête, défense, classements. Tu joues pour ton crew.',
-  },
+export const PLAY_STYLE_LABELS: Record<PlayStyle, { title: Entry; subtitle: Entry }> = {
+  focus_solo: { title: C.playStyleFocusSoloTitle, subtitle: C.playStyleFocusSoloSubtitle },
+  mixte: { title: C.playStyleMixteTitle, subtitle: C.playStyleMixteSubtitle },
+  crew_war: { title: C.playStyleCrewWarTitle, subtitle: C.playStyleCrewWarSubtitle },
 };
 
 /** Visibilité du profil (§4). */
-export const PROFILE_VISIBILITY_LABELS: Record<ProfileVisibility, string> = {
-  private: 'Moi seul',
-  friends: 'Mes amis',
-  crew: 'Mon crew',
-  public: 'Public',
+export const PROFILE_VISIBILITY_LABELS: Record<ProfileVisibility, Entry> = {
+  private: C.visPrivate,
+  friends: C.visFriends,
+  crew: C.visCrew,
+  public: C.visPublic,
 };
 
 /** Partage d'activité (§4). */
-export const ACTIVITY_SHARING_LABELS: Record<ActivitySharing, string> = {
-  private: 'Personne',
-  friends: 'Mes amis',
-  crew: 'Mon crew',
-  stats_only: 'Stats seules (sans trace)',
+export const ACTIVITY_SHARING_LABELS: Record<ActivitySharing, Entry> = {
+  private: C.actPrivate,
+  friends: C.visFriends,
+  crew: C.visCrew,
+  stats_only: C.actStatsOnly,
 };
 
 /** Partage de carte / trace (§4) — jamais de position live, quel que soit le choix. */
-export const MAP_SHARING_LABELS: Record<MapSharing, string> = {
-  precise: 'Trace précise',
-  simplified: 'Trace simplifiée',
-  territory_only: 'Territoire seul',
-  none: 'Rien',
+export const MAP_SHARING_LABELS: Record<MapSharing, Entry> = {
+  precise: C.mapPrecise,
+  simplified: C.mapSimplified,
+  territory_only: C.mapTerritoryOnly,
+  none: C.mapNone,
 };
 
 /** Modes de course au départ (§2/§8). Explication courte de l'effet. */
 export const RUN_MODE_LABELS: Record<
   Extract<RunMode, 'conquete' | 'social_run' | 'course_privee'>,
-  { title: string; subtitle: string; icon: 'carte' | 'crew' | 'verrou' }
+  { title: Entry; subtitle: Entry; icon: 'carte' | 'crew' | 'verrou' }
 > = {
   conquete: {
-    title: 'Conquête',
-    subtitle: 'Capture et défends des zones. Le mode complet.',
+    title: C.runModeConqueteTitle,
+    subtitle: C.runModeConqueteSubtitle,
     icon: 'carte',
   },
   social_run: {
-    title: 'Social Run',
-    subtitle: 'Cours en groupe pour le plaisir : stats, badges et XP, sans capture.',
+    title: C.runModeSocialTitle,
+    subtitle: C.runModeSocialSubtitle,
     icon: 'crew',
   },
   course_privee: {
-    title: 'Course privée',
-    subtitle: 'Juste pour toi : stats perso, rien de partagé, rien sur la carte.',
+    title: C.runModePriveeTitle,
+    subtitle: C.runModePriveeSubtitle,
     icon: 'verrou',
   },
 };
 
 /** Niveaux de classement (§10) — du plus intime au plus large. */
-export const LEADERBOARD_LABELS: Record<LeaderboardLevel, string> = {
-  personnel: 'Personnel',
-  crew: 'Crew',
-  amis: 'Amis',
-  local: 'Local',
-  ville: 'Ville',
-  region: 'Région',
-  france: 'France',
-  global: 'Tous',
+export const LEADERBOARD_LABELS: Record<LeaderboardLevel, Entry> = {
+  personnel: C.lbPersonnel,
+  crew: C.lbCrew,
+  amis: C.lbAmis,
+  local: C.lbLocal,
+  ville: C.lbVille,
+  region: C.lbRegion,
+  france: C.lbFrance,
+  global: C.lbGlobal,
 };
 
 /** Canaux de notification (§21). */
-export const NOTIF_CHANNEL_LABELS: Record<NotifChannel, { title: string; subtitle: string }> = {
-  solo: { title: 'Solo', subtitle: 'Objectif du jour, records, séries.' },
-  crew: { title: 'Crew', subtitle: 'Coffre, défense, activité du crew.' },
-  competition: { title: 'Compétition', subtitle: 'Rivalités, classements, offensives.' },
-  off: { title: 'Silence', subtitle: 'Aucune notification. Tu ouvres quand tu veux.' },
+export const NOTIF_CHANNEL_LABELS: Record<NotifChannel, { title: Entry; subtitle: Entry }> = {
+  solo: { title: C.notifSoloTitle, subtitle: C.notifSoloSubtitle },
+  crew: { title: C.notifCrewTitle, subtitle: C.notifCrewSubtitle },
+  competition: { title: C.notifCompetitionTitle, subtitle: C.notifCompetitionSubtitle },
+  off: { title: C.notifOffTitle, subtitle: C.notifOffSubtitle },
 };
 
 /** Type de challenge (§17) → étiquette courte. */
-export const CHALLENGE_TYPE_LABELS: Record<ChallengeType, string> = {
-  solo: 'Solo',
-  crew: 'Crew',
-  rivalry: 'Rivalité',
-  event: 'Événement',
-  season: 'Saison',
+export const CHALLENGE_TYPE_LABELS: Record<ChallengeType, Entry> = {
+  solo: C.chTypeSolo,
+  crew: C.chTypeCrew,
+  rivalry: C.chTypeRivalry,
+  event: C.chTypeEvent,
+  season: C.chTypeSeason,
 };
 
 /** Difficulté (§16) → étiquette DOUCE (jamais « facile/dur » culpabilisant). */
-export const CHALLENGE_DIFFICULTY_LABELS: Record<ChallengeDifficulty, string> = {
-  chill: 'Tranquille',
-  standard: 'Régulier',
-  intense: 'Ambitieux',
+export const CHALLENGE_DIFFICULTY_LABELS: Record<ChallengeDifficulty, Entry> = {
+  chill: C.chDiffChill,
+  standard: C.chDiffStandard,
+  intense: C.chDiffIntense,
 };
 
 /**
+ * Unité d'affichage d'un challenge (le seed fournit la clé technique : 'km' est
+ * déjà rendu par formatChallengeValue, les autres sont traduites ici). Langue
+ * courante du store — les écrans re-rendent au changement (useT ailleurs).
+ */
+export function challengeUnitLabel(unit: string): string {
+  if (unit === 'km') return '';
+  if (unit === 'courses') return t(C.unitCourses);
+  if (unit === 'zones') return t(C.unitZones);
+  return unit;
+}
+
+/**
  * Message anti-shame de progression (§11) : jamais de rang négatif, toujours du
- * chemin parcouru ou restant. PURE. `remaining` en unités déjà formatées par
- * l'appelant (ex. « 1 course », « 2,3 km »).
+ * chemin parcouru ou restant. `remaining` en unités déjà formatées par
+ * l'appelant (ex. « 1 course », « 2,3 km »). Langue courante du store.
  */
 export function encouragement(done: boolean, remaining: string): string {
-  if (done) return 'Objectif atteint. Beau travail.';
-  return `Plus que ${remaining} — tu y es presque.`;
+  if (done) return t(C.goalReached);
+  return t(C.almostThere, { remaining });
 }

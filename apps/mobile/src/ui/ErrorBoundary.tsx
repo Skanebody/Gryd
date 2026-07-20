@@ -9,6 +9,10 @@ import { Component, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Polygon } from 'react-native-svg';
 import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+// i18n : composant CLASSE (pas de hook) → résolution ponctuelle via t() du
+// store (langue courante au moment de l'erreur — le boundary reste autonome).
+import { C } from '../i18n/catalog/route';
+import { t } from '../i18n/store';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -74,12 +78,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             strokeLinejoin="round"
           />
         </Svg>
-        <Text style={styles.title}>Reprends ta course.</Text>
-        <Text style={styles.subtitle}>
-          Un accroc technique a coupé la scène. Ton territoire, lui, n'a pas bougé.
-        </Text>
+        <Text style={styles.title}>{t(C.errorTitle)}</Text>
+        <Text style={styles.subtitle}>{t(C.errorSubtitle)}</Text>
         <Pressable accessibilityRole="button" onPress={this.reload} style={styles.button}>
-          <Text style={styles.buttonLabel}>Recharger</Text>
+          <Text style={styles.buttonLabel}>{t(C.errorReload)}</Text>
         </Pressable>
       </View>
     );

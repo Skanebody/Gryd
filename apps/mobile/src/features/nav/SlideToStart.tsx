@@ -21,6 +21,8 @@ import {
   View,
 } from 'react-native';
 import { colors, radii } from '@klaim/shared';
+import { C } from '../../i18n/catalog/nav';
+import { useT } from '../../i18n/store';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 
@@ -41,6 +43,7 @@ export interface SlideToStartProps {
 }
 
 export function SlideToStart({ label = 'GO', accessibilityLabel, onComplete }: SlideToStartProps) {
+  const t = useT();
   const [trackW, setTrackW] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
   /** Course maximale du pouce (piste - pouce - marges). */
@@ -125,7 +128,7 @@ export function SlideToStart({ label = 'GO', accessibilityLabel, onComplete }: S
       style={styles.track}
       onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
       accessibilityRole="adjustable"
-      accessibilityLabel={accessibilityLabel ?? `${label} — glisse pour lancer la course`}
+      accessibilityLabel={accessibilityLabel ?? t(C.slideToStartA11y, { label })}
     >
       {/* Libellé + chevrons animés (centrés) — invitent au glissement. */}
       <Animated.View style={[styles.center, { opacity: contentOpacity }]} pointerEvents="none">

@@ -31,10 +31,13 @@ import { haptics } from '../src/lib/haptics';
 import { goBack } from '../src/lib/nav';
 import { Icon } from '../src/ui/Icon';
 import { IconAction, Segmented, ShareCard, type ShareCardRatio } from '../src/ui/game';
+import { C } from '../src/i18n/catalog/result';
+import { useT } from '../src/i18n/store';
+import type { Entry } from '../src/i18n/types';
 import { ShareMap3D } from '../src/features/share/ShareMap3D';
 import { getShareRun } from '../src/features/share/shareRun';
 import {
-  SHARE_DEMO,
+  shareDemo,
   SHARE_TEMPLATES,
   SHARE_TEMPLATES_BY_ID,
   type ShareDemoData,
@@ -64,12 +67,13 @@ const SHARE_GRIP_RANK = gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp))
  * « Format ». « Carte seule » (AMENDEMENT-24) = la carte 3D en grand, chrome
  * minimal (trace + zone + 1 ligne).
  */
-const FORMATS: readonly { id: ShareCardRatio; label: string; icon: 'partage' | 'carte' }[] = [
+const FORMATS: readonly { id: ShareCardRatio; label: Entry; icon: 'partage' | 'carte' }[] = [
   // Libellés courts pour tenir 3-up à 375px (les ratios 9:16/1:1 étaient
-  // décoratifs — « Story » implique 9:16, « Carré » implique 1:1).
-  { id: 'story', label: 'Story', icon: 'partage' },
-  { id: 'square', label: 'Carré', icon: 'carte' },
-  { id: 'mapOnly', label: 'Carte seule', icon: 'carte' },
+  // décoratifs — « Story » implique 9:16, « Carré » implique 1:1). Entries
+  // i18n résolues au rendu (t) — parité 5 langues forcée par le type.
+  { id: 'story', label: C.formatStory, icon: 'partage' },
+  { id: 'square', label: C.formatSquare, icon: 'carte' },
+  { id: 'mapOnly', label: C.formatMapOnly, icon: 'carte' },
 ];
 
 /** Style = 3 principaux dans le segmented ; « Plus de styles » déplie les restants. */
@@ -82,16 +86,16 @@ const STYLE_EXTRA: readonly ShareTemplateId[] = [
   'carte3d',
 ];
 
-/** Libellé COURT par style (jamais tronqué). Distinct du `chip` legacy des templates. */
-const STYLE_LABEL: Record<ShareTemplateId, string> = {
-  simple: 'Carte',
-  conquete: 'Conquête',
-  defense: 'Défense',
-  boucle: 'Boucle',
-  crew: 'Crew',
-  classement: 'Classement',
-  avantApres: 'Avant/Après',
-  carte3d: 'Carte 3D',
+/** Libellé COURT par style (jamais tronqué, résolu au rendu). Distinct du `chip` legacy. */
+const STYLE_LABEL: Record<ShareTemplateId, Entry> = {
+  simple: C.styleMap,
+  conquete: C.styleConquest,
+  defense: C.styleDefense,
+  boucle: C.styleLoop,
+  crew: C.styleCrew,
+  classement: C.styleRanking,
+  avantApres: C.styleBeforeAfter,
+  carte3d: C.styleMap3d,
 };
 
 /** Styles dont la carte porte un VRAI tracé animable (bouton Rejouer pertinent). */
@@ -114,6 +118,7 @@ const PREVIEW_WIDTH: Record<ShareCardRatio, number> = {
 export default function PartageScreen() {
   const insets = useSafeAreaInsets();
   const toast = useShareToast();
+  const t = useT();
   const params = useLocalSearchParams<{
     template?: string;
     mode?: string;
@@ -121,10 +126,12 @@ export default function PartageScreen() {
   }>();
 
   // PARTAGE VRAI : les stats de la course affichée au Résultat (shareRun.ts).
-  // null = /partage ouvert sans course → EXEMPLE annoncé comme tel.
+  // null = /partage ouvert sans course → EXEMPLE annoncé comme tel. La démo est
+  // résolue dans la langue courante (t stable par langue → recalcul à la bascule).
   const shareRun = getShareRun();
   const isExample = shareRun === null;
-  const runCard = shareRun?.card ?? SHARE_DEMO;
+  const demoCard = useMemo(() => shareDemo(), [t]);
+  const runCard = shareRun?.card ?? demoCard;
   const intention = shareRun ? shareRun.intention : intentionFromParam(params.intention);
   // Social Run = stats seules, aucune capture : on ne propose JAMAIS un visuel
   // « secteur pris » pour une course qui n'a rien capturé.
@@ -159,7 +166,7 @@ export default function PartageScreen() {
     () => (maskEndpoints ? applySharePrivacy(runCard.trace) : runCard.trace),
     [maskEndpoints, runCard.trace],
   );
-  const privacyNote = maskEndpoints ? 'Départ et arrivée masqués' : undefined;
+  const privacyNote = maskEndpoints ? t(C.privacyMasked) : undefined;
 
   useEffect(() => {
     screen('partage', { template: selected });
@@ -198,7 +205,8 @@ export default function PartageScreen() {
       return { ...built, mapBackground: <ShareMap3D style={styles.previewMap} /> };
     }
     return built;
-  }, [template, ratio, runCard, view, privacyNote, traceShown]);
+    // `t` (stable par langue) force la re-construction des cards à la bascule.
+  }, [template, ratio, runCard, view, privacyNote, traceShown, t]);
 
   // DEEP LINK de la story (doc §6.4) : UN lien par partage, dérivé de
   // l'intention/zone/crew + du style choisi. Attaché à tous les partages.
@@ -223,9 +231,9 @@ export default function PartageScreen() {
     );
     return (stylesExpanded ? [...STYLE_MAIN, ...extras] : STYLE_MAIN).map((id) => ({
       id,
-      label: STYLE_LABEL[id],
+      label: t(STYLE_LABEL[id]),
     }));
-  }, [stylesExpanded, isExample, runCard.loopBonusZones]);
+  }, [stylesExpanded, isExample, runCard.loopBonusZones, t]);
 
   const pickStyle = (id: ShareTemplateId) => {
     setSelected(id);
@@ -241,7 +249,7 @@ export default function PartageScreen() {
 
   // Message narratif prêt à coller (doc §6.1 « partager une conséquence ») +
   // le deep link. UN seul lien par story (§6.3).
-  const shareMessage = `${buildShareHeadline(intention, runCard, statsOnlyShare)}\n${deepLink}`;
+  const shareMessage = `${buildShareHeadline(t, intention, runCard, statsOnlyShare)}\n${deepLink}`;
 
   // Action de partage RÉELLE (fire-and-forget) : ne confirme que si ça a marché
   // (honnêteté — un « annulé » reste silencieux). `msg` peut dépendre du canal
@@ -260,7 +268,7 @@ export default function PartageScreen() {
         onOk?.(r.via);
         toast.show(typeof msg === 'function' ? msg(r.via) : msg);
       } else if (r.reason === 'unavailable') {
-        toast.show('Partage indisponible ici');
+        toast.show(t(C.shareUnavailable));
       }
       // 'dismissed' → silencieux (l'utilisateur a fermé la feuille de partage).
     });
@@ -272,12 +280,11 @@ export default function PartageScreen() {
   // partager ». L'event sticker_copied n'est émis qu'en cas de copie réelle.
   const copySticker = () => {
     const head = statsOnlyShare
-      ? `${runCard.distanceKm} km sur GRYD`
-      : `+${runCard.zonesGained} zones · ${runCard.zoneName}`;
+      ? t(C.stickerHeadDistance, { km: runCard.distanceKm })
+      : t(C.stickerHeadZones, { n: runCard.zonesGained, zone: runCard.zoneName });
     runAction(
       copyText(stickerText(runCard, head, deepLink)),
-      (via) =>
-        via === 'clipboard' ? 'Sticker copié · colle-le sur ta story' : 'Sticker prêt à partager',
+      (via) => (via === 'clipboard' ? t(C.stickerCopied) : t(C.stickerReady)),
       'sticker',
       (via) => {
         if (via === 'clipboard') track(EVENTS.stickerCopied, { template: selected });
@@ -295,20 +302,20 @@ export default function PartageScreen() {
   // Titre = ce que la course a fait (jamais « conquête » pour une défense) ;
   // sans course armée, l'écran s'annonce comme aperçu d'exemple.
   const title = isExample
-    ? 'Aperçu du partage'
+    ? t(C.sharePreviewTitle)
     : intention === 'defense'
-      ? 'Partager ta défense'
+      ? t(C.shareDefenseTitle)
       : intention === 'conquest'
-        ? 'Partager ta conquête'
-        : 'Partager ta course';
+        ? t(C.shareConquestTitle)
+        : t(C.shareRunTitle);
 
   // CTA primaire aligné sur le format choisi — toujours un verbe précis.
   const primaryCta =
     ratio === 'square'
-      ? { label: 'Partager en carré', channel: 'instagram_feed' as const }
+      ? { label: t(C.shareSquareCta), channel: 'instagram_feed' as const }
       : ratio === 'mapOnly'
-        ? { label: 'Partager la carte', channel: 'instagram_feed' as const }
-        : { label: 'Partager en story', channel: 'instagram_story' as const };
+        ? { label: t(C.shareMapCta), channel: 'instagram_feed' as const }
+        : { label: t(C.shareStoryCta), channel: 'instagram_story' as const };
 
   return (
     <View style={styles.root}>
@@ -322,7 +329,7 @@ export default function PartageScreen() {
         {/* Retour (chevron inversé, charte §F). */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Revenir au résultat"
+          accessibilityLabel={t(C.backToResultA11y)}
           onPress={() => goBack()}
           hitSlop={12}
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}
@@ -330,15 +337,13 @@ export default function PartageScreen() {
           <View style={styles.backChevron}>
             <Icon name="chevron" size={14} color={colors.gris} />
           </View>
-          <Text style={styles.backText}>Résultat</Text>
+          <Text style={styles.backText}>{t(C.backToResult)}</Text>
         </Pressable>
 
         <Text style={styles.title}>{title}</Text>
         {/* Honnêteté : sans course, les chiffres sont un exemple — dit tel quel. */}
         {isExample ? (
-          <Text style={styles.exampleNote}>
-            Exemple — termine une course pour partager la tienne.
-          </Text>
+          <Text style={styles.exampleNote}>{t(C.exampleNote)}</Text>
         ) : null}
 
         {/* PREVIEW qui FLOTTE : la story EST le container (pas de card noire autour).
@@ -362,10 +367,10 @@ export default function PartageScreen() {
 
         {/* Format — UN segmented (accent chartreuse). */}
         <View style={styles.controlRow}>
-          <Text style={[styles.controlLabel, styles.controlLabelSolo]}>Format</Text>
+          <Text style={[styles.controlLabel, styles.controlLabelSolo]}>{t(C.formatLabel)}</Text>
           <Segmented
-            accessibilityLabel="Format de partage"
-            options={FORMATS}
+            accessibilityLabel={t(C.formatA11y)}
+            options={FORMATS.map((f) => ({ id: f.id, label: t(f.label), icon: f.icon }))}
             value={ratio}
             onChange={(id) => setRatio(id)}
             // surface (pas accent) : un seul focus chartreuse fort par scène est
@@ -383,21 +388,21 @@ export default function PartageScreen() {
         {!statsOnlyShare ? (
           <View style={styles.controlRow}>
             <View style={styles.controlHead}>
-              <Text style={styles.controlLabel}>Style</Text>
+              <Text style={styles.controlLabel}>{t(C.styleLabel)}</Text>
               {!stylesExpanded ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Afficher plus de styles"
+                  accessibilityLabel={t(C.moreStylesA11y)}
                   onPress={expandStyles}
                   hitSlop={14}
                   style={({ pressed }) => [styles.moreLink, pressed && styles.pressed]}
                 >
-                  <Text style={styles.moreLinkText}>Plus de styles</Text>
+                  <Text style={styles.moreLinkText}>{t(C.moreStyles)}</Text>
                 </Pressable>
               ) : null}
             </View>
             <Segmented
-              accessibilityLabel="Style de la carte"
+              accessibilityLabel={t(C.styleA11y)}
               options={styleOptions}
               value={selected}
               onChange={pickStyle}
@@ -414,7 +419,7 @@ export default function PartageScreen() {
           onPress={() =>
             runAction(
               shareAsImage(cardShotRef.current, shareMessage),
-              (via) => (via === 'image' ? 'Story exportée.' : 'Story prête.'),
+              (via) => (via === 'image' ? t(C.storyExported) : t(C.storyReady)),
               primaryCta.channel,
               (via) => {
                 // P1 D6 — share_exported = une IMAGE a réellement été produite
@@ -434,23 +439,23 @@ export default function PartageScreen() {
         <View style={styles.actionRow}>
           <IconAction
             icon="copier"
-            label="Sticker"
-            accessibilityLabel="Copier le sticker à coller sur ta story"
+            label={t(C.stickerAction)}
+            accessibilityLabel={t(C.stickerA11y)}
             onPress={copySticker}
           />
           {canReplay ? (
             <IconAction
               icon="route"
-              label="Rejouer"
-              accessibilityLabel="Rejouer l'animation de conquête"
+              label={t(C.replayAction)}
+              accessibilityLabel={t(C.replayA11y)}
               onPress={replay}
             />
           ) : null}
           <IconAction
             icon="partage"
-            label="Autre app"
-            accessibilityLabel="Partager vers une autre app"
-            onPress={() => runAction(openShareSheet(shareMessage), 'Story prête.', 'native')}
+            label={t(C.otherApp)}
+            accessibilityLabel={t(C.otherAppA11y)}
+            onPress={() => runAction(openShareSheet(shareMessage), t(C.storyReady), 'native')}
           />
         </View>
       </ScrollView>
@@ -529,20 +534,22 @@ function isTemplateId(v: string | undefined): v is ShareTemplateId {
  * Message narratif prêt à coller (doc §6.1 : « partager une conséquence, pas une
  * performance »). Court, une seule histoire. Le lien est ajouté par l'appelant.
  * Jamais de position rival ni de départ/arrivée (doc §8) : que le résultat.
+ * `t` vient du composant (useT) — le message suit la langue courante.
  */
 function buildShareHeadline(
+  t: ReturnType<typeof useT>,
   intention: RunIntention | null,
   d: ShareDemoData,
   statsOnly: boolean,
 ): string {
-  if (statsOnly) return `${d.distanceKm} km sur GRYD. Cours. Capture. Défends.`;
+  if (statsOnly) return t(C.headlineStats, { km: d.distanceKm });
   if (intention === 'defense') {
-    return `${d.zoneName} tient encore. ${d.zonesDefended} zones défendues. #GRYD`;
+    return t(C.headlineDefense, { zone: d.zoneName, n: d.zonesDefended });
   }
   if (intention === 'conquest') {
-    return `J'ai pris ${d.zoneName}. +${d.zonesGained} zones. #GRYD`;
+    return t(C.headlineConquest, { zone: d.zoneName, n: d.zonesGained });
   }
-  return `+${d.zonesGained} zones sur ${d.zoneName}. #GRYD`;
+  return t(C.headlineDefault, { n: d.zonesGained, zone: d.zoneName });
 }
 
 const styles = StyleSheet.create({

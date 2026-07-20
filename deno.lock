@@ -190,6 +190,7 @@
             "npm:expo-crypto@~14.0.2",
             "npm:expo-haptics@~14.0.1",
             "npm:expo-linking@~7.0.5",
+            "npm:expo-localization@~16.0.1",
             "npm:expo-location@~18.0.10",
             "npm:expo-media-library@~17.0.6",
             "npm:expo-router@4.0",

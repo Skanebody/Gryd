@@ -36,11 +36,13 @@ import {
   fmtKm,
   fmtPace,
   findRun,
-  REFUSAL_TITLES,
-  VERIFY_LABELS,
+  type RefusalReason,
   type RunHistoryEntry,
   type SegmentState,
 } from '../../src/features/history/demo';
+import { useT } from '../../src/i18n/store';
+import type { Entry } from '../../src/i18n/types';
+import { C } from '../../src/i18n/catalog/historique';
 import { BoucleFaitLaZone, VerifySchema } from '../../src/features/explain/schemas';
 import { verifyTiersSentence } from '../../src/features/explain/labels';
 import {
@@ -58,19 +60,27 @@ const LOOP_TRACE: Record<string, readonly LatLngPoint[]> = {
 /** Métadonnées d'affichage d'un état de segment (couleur + libellé + icône). */
 const SEGMENT_META: Record<
   SegmentState,
-  { label: string; tint: string; icon: import('@klaim/shared').IconName }
+  { label: Entry; tint: string; icon: import('@klaim/shared').IconName }
 > = {
-  valid: { label: 'Validé', tint: gameColors.verify, icon: 'gps' },
-  weak_gps: { label: 'GPS faible · exclu', tint: colors.gris, icon: 'alerte' },
-  pause: { label: 'Pause', tint: colors.gris, icon: 'sablier' },
+  valid: { label: C.segValid, tint: gameColors.verify, icon: 'gps' },
+  weak_gps: { label: C.segWeakGps, tint: colors.gris, icon: 'alerte' },
+  pause: { label: C.segPause, tint: colors.gris, icon: 'sablier' },
 };
 
-/** Pastille Verify d'en-tête (miroir de la card). */
-function headerPill(entry: RunHistoryEntry): { state: GameVisualState; label: string } {
-  if (entry.refusal === 'speed_incoherent') return { state: 'rejected', label: 'Refusé' };
-  if (entry.verify === 'verified') return { state: 'verified', label: VERIFY_LABELS.verified };
-  if (entry.verify === 'partial') return { state: 'contested', label: VERIFY_LABELS.partial };
-  return { state: 'statsonly', label: VERIFY_LABELS.statsonly };
+/** Titres traduits du motif de refus (bloc raison) — résolus à l'affichage. */
+const REFUSAL_TITLE_ENTRIES: Record<Exclude<RefusalReason, null>, Entry> = {
+  loop_open: C.refusalLoopOpen,
+  zone_thin: C.refusalZoneThin,
+  gps_unstable: C.refusalGpsUnstable,
+  speed_incoherent: C.refusalSpeed,
+};
+
+/** Pastille Verify d'en-tête (miroir de la card) — libellé résolu au rendu. */
+function headerPill(entry: RunHistoryEntry): { state: GameVisualState; label: Entry } {
+  if (entry.refusal === 'speed_incoherent') return { state: 'rejected', label: C.verifyRejected };
+  if (entry.verify === 'verified') return { state: 'verified', label: C.verifyVerified };
+  if (entry.verify === 'partial') return { state: 'contested', label: C.verifyPartial };
+  return { state: 'statsonly', label: C.verifyStatsOnly };
 }
 
 // ─── Détail du calcul (explicabilité §B.5) ───────────────────────────────────
@@ -87,23 +97,24 @@ interface CalcRow {
  * Décompose une course en chiffres DÉJÀ décidés serveur (miroir demo). Zéro
  * calcul de jeu : on lit `loopMap` (trace/boucle), on COMPTE les segments
  * `weak_gps` (exclus) et on mappe le statut Verify. Rien n'est fabriqué : une
- * ligne n'apparaît que si sa donnée existe sur l'entrée.
+ * ligne n'apparaît que si sa donnée existe sur l'entrée. `t` vient du composant
+ * appelant (résolution de langue à l'affichage, re-render à la bascule).
  */
-function calcRows(entry: RunHistoryEntry): readonly CalcRow[] {
+function calcRows(entry: RunHistoryEntry, t: ReturnType<typeof useT>): readonly CalcRow[] {
   const rows: CalcRow[] = [];
   if (entry.loopMap) {
     const gain = entry.loopMap.afterZones - entry.loopMap.beforeZones;
-    rows.push({ icon: 'route', label: 'Zones par la trace', value: `+${entry.loopMap.beforeZones}` });
+    rows.push({ icon: 'route', label: t(C.calcZonesTrace), value: `+${entry.loopMap.beforeZones}` });
     rows.push({
       icon: 'boucle_fermee',
-      label: 'Zones par la boucle',
+      label: t(C.calcZonesLoop),
       value: `+${entry.loopMap.afterZones}`,
       gain: true,
     });
     if (gain > 0) {
       rows.push({
         icon: 'conquete',
-        label: 'Gain de la fermeture',
+        label: t(C.calcClosureGain),
         value: `+${gain}`,
         gain: true,
       });
@@ -112,8 +123,8 @@ function calcRows(entry: RunHistoryEntry): readonly CalcRow[] {
   const excluded = entry.segments.filter((s) => s.state === 'weak_gps');
   rows.push({
     icon: 'segment_exclu',
-    label: 'Segments exclus',
-    value: excluded.length === 0 ? 'aucun' : String(excluded.length),
+    label: t(C.calcExcludedSegments),
+    value: excluded.length === 0 ? t(C.calcNone) : String(excluded.length),
   });
   return rows;
 }
@@ -129,12 +140,12 @@ function defendedLabel(entry: RunHistoryEntry): string | null {
   return line ? line.label : null;
 }
 
-/** Libellé + état de la ligne « GRYD Verify » du détail. */
-function verifyLine(entry: RunHistoryEntry): { label: string; tint: string } {
-  if (entry.refusal === 'speed_incoherent') return { label: 'Refusé', tint: gameColors.danger };
-  if (entry.verify === 'verified') return { label: VERIFY_LABELS.verified, tint: gameColors.verify };
-  if (entry.verify === 'partial') return { label: VERIFY_LABELS.partial, tint: gameColors.verify };
-  return { label: VERIFY_LABELS.statsonly, tint: colors.gris };
+/** Libellé + état de la ligne « GRYD Verify » du détail (résolu au rendu). */
+function verifyLine(entry: RunHistoryEntry): { label: Entry; tint: string } {
+  if (entry.refusal === 'speed_incoherent') return { label: C.verifyRejected, tint: gameColors.danger };
+  if (entry.verify === 'verified') return { label: C.verifyVerified, tint: gameColors.verify };
+  if (entry.verify === 'partial') return { label: C.verifyPartial, tint: gameColors.verify };
+  return { label: C.verifyStatsOnly, tint: colors.gris };
 }
 
 /**
@@ -144,8 +155,9 @@ function verifyLine(entry: RunHistoryEntry): { label: string; tint: string } {
  * Un seul lien vers la page complète. Contours d'état, pas de card-dans-card.
  */
 function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
-  const rows = calcRows(entry);
+  const rows = calcRows(entry, t);
   const verify = verifyLine(entry);
   const defended = defendedLabel(entry);
   const hasLoop = Boolean(entry.loopMap);
@@ -165,15 +177,15 @@ function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        accessibilityLabel="Détail du calcul de cette course"
+        accessibilityLabel={t(C.a11yCalcDetail)}
         onPress={toggle}
         style={({ pressed }) => [styles.calcHead, pressed && styles.pressed]}
       >
         <Icon name="badge" size={iconSizes.md} color={colors.blanc} />
         <View style={styles.calcHeadText}>
-          <Text style={styles.calcTitle}>Détail du calcul</Text>
+          <Text style={styles.calcTitle}>{t(C.calcTitle)}</Text>
           <Text style={styles.calcSub} numberOfLines={1}>
-            {open ? 'Comment cette course a compté' : 'Voir comment cette course a compté'}
+            {open ? t(C.calcSubOpen) : t(C.calcSubClosed)}
           </Text>
         </View>
         <View style={open ? styles.chevronOpen : undefined}>
@@ -210,7 +222,7 @@ function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
                 GRYD Verify
               </Text>
               <Text style={[styles.calcRowValue, { color: verify.tint }]} numberOfLines={1}>
-                {verify.label}
+                {t(verify.label)}
               </Text>
             </View>
           </View>
@@ -231,7 +243,7 @@ function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
                 traceZones={entry.loopMap.beforeZones}
                 loopZones={entry.loopMap.afterZones}
                 loopGain={entry.loopMap.afterZones - entry.loopMap.beforeZones}
-                accessibilityLabel="La trace seule capture le passage ; la boucle ajoute l’intérieur."
+                accessibilityLabel={t(C.a11ySchemaLoop)}
               />
             ) : (
               <VerifySchema size={264} />
@@ -243,11 +255,11 @@ function CalcDetail({ entry }: { entry: RunHistoryEntry }) {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Ouvrir la page Comment GRYD calcule tes zones"
+            accessibilityLabel={t(C.a11yOpenCalcPage)}
             onPress={openCalcPage}
             style={({ pressed }) => [styles.calcLink, pressed && styles.pressed]}
           >
-            <Text style={styles.calcLinkText}>Comment GRYD calcule tes zones</Text>
+            <Text style={styles.calcLinkText}>{t(C.calcLink)}</Text>
             <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
           </Pressable>
         </View>
@@ -281,6 +293,7 @@ const ROUTE_VIEW_OPTIONS = [
  * porté par RealMap (pitch fixe). `runId` scope l'event d'analytics.
  */
 function RunRouteScene({ runId }: { runId: string }) {
+  const t = useT();
   const [mode, setMode] = useState<RouteViewMode>('2d');
   const trace = runTrace(runId);
   if (!trace) return null;
@@ -294,13 +307,13 @@ function RunRouteScene({ runId }: { runId: string }) {
   return (
     <View style={styles.routeScene}>
       <View style={styles.routeHead}>
-        <Text style={styles.sectionLabelInline}>LE PARCOURS</Text>
+        <Text style={styles.sectionLabelInline}>{t(C.routeSection)}</Text>
         <Segmented
           options={ROUTE_VIEW_OPTIONS}
           value={mode}
           onChange={pick}
           tone="surface"
-          accessibilityLabel="Voir le parcours en 2D ou en 3D"
+          accessibilityLabel={t(C.a11yRouteToggle)}
           style={styles.routeToggle}
         />
       </View>
@@ -314,6 +327,7 @@ function RunRouteScene({ runId }: { runId: string }) {
 }
 
 export default function CourseDetailScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const entry = typeof id === 'string' ? findRun(id) : undefined;
 
@@ -323,8 +337,8 @@ export default function CourseDetailScreen() {
 
   if (!entry) {
     return (
-      <StackScreen title="Course" icon="historique">
-        <Text style={styles.empty}>Cette course n’est plus disponible.</Text>
+      <StackScreen title={t(C.runFallbackTitle)} icon="historique">
+        <Text style={styles.empty}>{t(C.runGone)}</Text>
       </StackScreen>
     );
   }
@@ -356,22 +370,22 @@ export default function CourseDetailScreen() {
       <View style={styles.effortCard}>
         <View style={styles.effortCell}>
           <Text style={styles.effortValue}>{fmtKm(entry.km)}</Text>
-          <Text style={styles.effortLabel}>DISTANCE</Text>
+          <Text style={styles.effortLabel}>{t(C.statDistance)}</Text>
         </View>
         <View style={styles.effortDivider} />
         <View style={styles.effortCell}>
           <Text style={styles.effortValue}>{fmtDuration(entry.durationS)}</Text>
-          <Text style={styles.effortLabel}>DURÉE</Text>
+          <Text style={styles.effortLabel}>{t(C.statDuration)}</Text>
         </View>
         <View style={styles.effortDivider} />
         <View style={styles.effortCell}>
           <Text style={styles.effortValue}>{fmtPace(entry.paceSPerKm)}</Text>
-          <Text style={styles.effortLabel}>ALLURE</Text>
+          <Text style={styles.effortLabel}>{t(C.statPace)}</Text>
         </View>
       </View>
 
       <View style={styles.pillRow}>
-        <StatePill state={pill.state} label={pill.label} />
+        <StatePill state={pill.state} label={t(pill.label)} />
       </View>
 
       {/* PARCOURS : le dessin du tracé, toggle 2D / 3D (AMENDEMENT-25 §2) */}
@@ -393,8 +407,8 @@ export default function CourseDetailScreen() {
             />
             <Text style={styles.reasonTitle}>
               {entry.refusal
-                ? REFUSAL_TITLES[entry.refusal]
-                : 'Capture partielle'}
+                ? t(REFUSAL_TITLE_ENTRIES[entry.refusal])
+                : t(C.verifyPartial)}
             </Text>
           </View>
           {entry.refusalDetail ? (
@@ -420,7 +434,7 @@ export default function CourseDetailScreen() {
       </View>
 
       {/* Impact territorial : lignes variées */}
-      <Text style={styles.sectionLabel}>IMPACT SUR LE TERRAIN</Text>
+      <Text style={styles.sectionLabel}>{t(C.impactSection)}</Text>
       <View style={styles.impactList}>
         {entry.impactLines.map((line, i) => (
           <View key={i} style={styles.impactRow}>
@@ -446,7 +460,7 @@ export default function CourseDetailScreen() {
       {entry.crewNote ? <Text style={styles.crewNote}>{entry.crewNote}</Text> : null}
 
       {/* Segments : valide / GPS faible / pause */}
-      <Text style={styles.sectionLabel}>SEGMENTS</Text>
+      <Text style={styles.sectionLabel}>{t(C.segmentsSection)}</Text>
       <View style={styles.segList}>
         {entry.segments.map((seg, i) => {
           const meta = SEGMENT_META[seg.state];
@@ -459,7 +473,7 @@ export default function CourseDetailScreen() {
               {seg.km > 0 ? (
                 <Text style={styles.segKm}>{fmtKm(seg.km)}</Text>
               ) : null}
-              <Text style={[styles.segState, { color: meta.tint }]}>{meta.label}</Text>
+              <Text style={[styles.segState, { color: meta.tint }]}>{t(meta.label)}</Text>
             </View>
           );
         })}
@@ -469,15 +483,15 @@ export default function CourseDetailScreen() {
       <View style={styles.ctaBlock}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Partager cette course"
+          accessibilityLabel={t(C.a11yShareRun)}
           onPress={share}
           style={({ pressed }) => [styles.primaryCta, pressed && styles.pressed]}
         >
           <Icon name="partage" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.primaryLabel}>Partager</Text>
+          <Text style={styles.primaryLabel}>{t(C.share)}</Text>
         </Pressable>
-        <GhostButton label="Voir sur la carte" icon="carte" onPress={seeOnMap} />
-        <GhostButton label="Signaler un problème" icon="alerte" onPress={report} />
+        <GhostButton label={t(C.seeOnMap)} icon="carte" onPress={seeOnMap} />
+        <GhostButton label={t(C.reportProblem)} icon="alerte" onPress={report} />
       </View>
     </StackScreen>
   );

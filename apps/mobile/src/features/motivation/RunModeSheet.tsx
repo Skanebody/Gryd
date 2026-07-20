@@ -30,6 +30,7 @@ import {
   type DefenseTargetDemo,
   type RunIntention,
 } from '../run/intention';
+import { useT } from '../../i18n/store';
 import { RUN_MODE_LABELS } from './labels';
 
 /** Modes proposés au départ (MVP actif — race_mode/event_run = V1, exclus). */
@@ -60,6 +61,7 @@ export function RunModeSheet({
   onChangeRoute?: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const insets = useSafeAreaInsets();
   // Sous-panneaux d'intention dépliés à la demande (repliés par défaut :
   // Run libre est l'action première — on ne noie pas le tap GO).
@@ -181,7 +183,7 @@ export function RunModeSheet({
               <Pressable
                 key={mode}
                 accessibilityRole="button"
-                accessibilityLabel={def.title}
+                accessibilityLabel={t(def.title)}
                 onPress={() => onSelect(mode)}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
@@ -189,8 +191,8 @@ export function RunModeSheet({
                   <Icon name={def.icon} size={22} color={colors.blanc} />
                 </View>
                 <View style={styles.rowText}>
-                  <Text style={styles.rowTitle}>{def.title}</Text>
-                  <Text style={styles.rowSubtitle}>{def.subtitle}</Text>
+                  <Text style={styles.rowTitle}>{t(def.title)}</Text>
+                  <Text style={styles.rowSubtitle}>{t(def.subtitle)}</Text>
                 </View>
                 <View style={styles.chevron}>
                   <Icon name="chevron" size={18} color={colors.gris} />

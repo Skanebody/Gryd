@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, spacing, type IconName } from '@klaim/shared';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../features/nav/metrics';
 import { goBack } from '../lib/nav';
+import { C } from '../i18n/catalog/route';
+import { useT } from '../i18n/store';
 import { Icon } from './Icon';
 
 interface StackScreenProps {
@@ -28,12 +30,13 @@ interface StackScreenProps {
 
 export function StackScreen({ title, icon, kicker, subtitle, backHref, children }: StackScreenProps) {
   const insets = useSafeAreaInsets();
+  const t = useT();
   return (
     <View style={styles.root}>
       <View style={[styles.bar, { paddingTop: insets.top + 10 }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Retour"
+          accessibilityLabel={t(C.back)}
           hitSlop={12}
           onPress={() => goBack(backHref)}
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}

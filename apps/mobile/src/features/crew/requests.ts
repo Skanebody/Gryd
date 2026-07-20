@@ -28,6 +28,8 @@ import {
   CREW_GIFT_CLAIMS_PER_MEMBER,
   CREW_GIFT_EXPIRY_H,
 } from '@klaim/shared';
+import type { Entry } from '../../i18n/types';
+import { C } from '../../i18n/catalog/crew';
 import { CHAT_ME } from './chatStore';
 import type { ActionCardDemo, GiftCardDemo } from './feed';
 
@@ -51,20 +53,20 @@ export type RequestChoiceKey =
 
 export interface RequestChoiceDef {
   key: RequestChoiceKey;
-  /** Libellé court non tronqué du choix (« Défense », « Terminer une boucle »). */
-  label: string;
-  /** Une ligne d'aide (ce que ça déclenche). */
-  hint: string;
+  /** Libellé court non tronqué du choix — Entry localisée, résolue par t(). */
+  label: Entry;
+  /** Une ligne d'aide (ce que ça déclenche) — Entry localisée. */
+  hint: Entry;
 }
 
 /** Ordre stable de la feuille de choix (Demander). */
 export const REQUEST_CHOICES: readonly RequestChoiceDef[] = [
-  { key: 'defense', label: 'Défense', hint: 'Un secteur à tenir' },
-  { key: 'finish', label: 'Terminer une boucle', hint: 'Il manque quelques mètres' },
-  { key: 'route', label: 'Route', hint: 'Une boucle à proposer' },
-  { key: 'scout', label: 'Scout', hint: 'Repérer une zone rivale' },
-  { key: 'outing', label: 'Sortie', hint: 'Courir ensemble' },
-  { key: 'boost', label: 'Proposer un boost', hint: 'Optionnel · accélère le coffre' },
+  { key: 'defense', label: C.reqDefense, hint: C.reqDefenseHint },
+  { key: 'finish', label: C.reqFinish, hint: C.reqFinishHint },
+  { key: 'route', label: C.reqRoute, hint: C.reqRouteHint },
+  { key: 'scout', label: C.reqScout, hint: C.reqScoutHint },
+  { key: 'outing', label: C.reqOuting, hint: C.reqOutingHint },
+  { key: 'boost', label: C.reqBoost, hint: C.reqBoostHint },
 ];
 
 export const REQUEST_CHOICE_BY_KEY: Record<RequestChoiceKey, RequestChoiceDef> =

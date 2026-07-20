@@ -14,6 +14,9 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Platform } from 'react-native';
 import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing, withAlpha } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/runGps';
+import { useT } from '../../../i18n/store';
+import type { Entry } from '../../../i18n/types';
 import { Icon } from '../../../ui/Icon';
 import { StatePill } from '../../../ui/game';
 import type { GpsSignalState } from './engine/gps';
@@ -28,14 +31,15 @@ export function GpsSignalPill({
   signal: GpsSignalState;
   permissionRevoked: boolean;
 }) {
+  const t = useT();
   if (permissionRevoked) {
-    return <StatePill state="rejected" label="GPS coupé — réactive la position dans Réglages" />;
+    return <StatePill state="rejected" label={t(C.signalRevoked)} />;
   }
   if (signal === 'lost') {
-    return <StatePill state="decay" label="Signal perdu — on continue, rien n’est compté à tort" />;
+    return <StatePill state="decay" label={t(C.signalLost)} />;
   }
   if (signal === 'weak') {
-    return <StatePill state="decay" label="GPS faible — continue, le signal revient" />;
+    return <StatePill state="decay" label={t(C.signalWeak)} />;
   }
   return null;
 }
@@ -43,19 +47,20 @@ export function GpsSignalPill({
 // ─── Bandeau précision approximative (iOS 14+ / Android coarse) ──────────────
 
 export function PreciseLocationBanner({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const t = useT();
   return (
     <View style={styles.banner}>
       <Icon name="gps" size={16} color={colors.chartreuse} />
       <Text style={styles.bannerText} numberOfLines={2}>
-        Active la position exacte pour capturer tes zones.
+        {t(C.preciseBanner)}
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Ouvrir les réglages de position"
+        accessibilityLabel={t(C.a11yOpenLocationSettings)}
         onPress={onOpenSettings}
         style={({ pressed }) => [styles.bannerBtn, pressed && styles.pressed]}
       >
-        <Text style={styles.bannerBtnText}>RÉGLAGES</Text>
+        <Text style={styles.bannerBtnText}>{t(C.btnSettings)}</Text>
       </Pressable>
     </View>
   );
@@ -70,28 +75,27 @@ export function BackgroundRationaleCard({
   onAllow: () => void;
   onLater: () => void;
 }) {
+  const t = useT();
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>COURIR ÉCRAN ÉTEINT</Text>
-      <Text style={styles.cardText}>
-        Autorise la position en arrière-plan pour que ta course continue écran verrouillé.
-      </Text>
+      <Text style={styles.cardTitle}>{t(C.bgTitle)}</Text>
+      <Text style={styles.cardText}>{t(C.bgText)}</Text>
       <View style={styles.cardRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Autoriser la position en arrière-plan"
+          accessibilityLabel={t(C.a11yAllowBackground)}
           onPress={onAllow}
           style={({ pressed }) => [styles.cardBtnMain, pressed && styles.pressed]}
         >
-          <Text style={styles.cardBtnMainText}>AUTORISER</Text>
+          <Text style={styles.cardBtnMainText}>{t(C.btnAllow)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Plus tard"
+          accessibilityLabel={t(C.a11yLater)}
           onPress={onLater}
           style={({ pressed }) => [styles.cardBtnGhost, pressed && styles.pressed]}
         >
-          <Text style={styles.cardBtnGhostText}>PLUS TARD</Text>
+          <Text style={styles.cardBtnGhostText}>{t(C.btnLater)}</Text>
         </Pressable>
       </View>
     </View>
@@ -110,26 +114,27 @@ export function RestoreRunCard({
   onResume: () => void;
   onDiscard: () => void;
 }) {
+  const t = useT();
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>COURSE INTERROMPUE RETROUVÉE</Text>
-      <Text style={styles.cardText}>{distanceLabel} — reprendre ou enregistrer telle quelle ?</Text>
+      <Text style={styles.cardTitle}>{t(C.restoreTitle)}</Text>
+      <Text style={styles.cardText}>{t(C.restoreQuestion, { distance: distanceLabel })}</Text>
       <View style={styles.cardRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Reprendre la course interrompue"
+          accessibilityLabel={t(C.a11yResumeInterrupted)}
           onPress={onResume}
           style={({ pressed }) => [styles.cardBtnMain, pressed && styles.pressed]}
         >
-          <Text style={styles.cardBtnMainText}>REPRENDRE</Text>
+          <Text style={styles.cardBtnMainText}>{t(C.btnResume)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Enregistrer la course interrompue telle quelle"
+          accessibilityLabel={t(C.a11ySaveInterrupted)}
           onPress={onDiscard}
           style={({ pressed }) => [styles.cardBtnGhost, pressed && styles.pressed]}
         >
-          <Text style={styles.cardBtnGhostText}>ENREGISTRER</Text>
+          <Text style={styles.cardBtnGhostText}>{t(C.btnSave)}</Text>
         </Pressable>
       </View>
     </View>
@@ -147,6 +152,7 @@ export function BackgroundHelpSheet({
   onClose: () => void;
   onOpenSettings: () => void;
 }) {
+  const t = useT();
   const vendorId = currentVendorId();
   const sections =
     Platform.OS === 'android'
@@ -158,28 +164,25 @@ export function BackgroundHelpSheet({
         <View style={styles.sheet}>
           <View style={styles.sheetHead}>
             <Icon name="gps" size={iconSizes.md} color={colors.chartreuse} />
-            <Text style={styles.sheetTitle}>COURIR ÉCRAN ÉTEINT</Text>
+            <Text style={styles.sheetTitle}>{t(C.bgTitle)}</Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Fermer l’aide"
+              accessibilityLabel={t(C.a11yCloseHelp)}
               onPress={onClose}
               style={({ pressed }) => [styles.sheetClose, pressed && styles.pressed]}
             >
               <Text style={styles.sheetCloseText}>✕</Text>
             </Pressable>
           </View>
-          <Text style={styles.sheetIntro}>
-            Certains téléphones coupent le GPS en fond pour économiser la batterie. Deux minutes
-            de réglages et ta trace ne s’arrête plus.
-          </Text>
+          <Text style={styles.sheetIntro}>{t(C.helpIntro)}</Text>
           <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollInner}>
             {Platform.OS === 'ios' ? (
-              <HelpSection title="iPhone" highlighted steps={[...IOS_HELP_STEPS]} />
+              <HelpSection title="iPhone" highlighted steps={IOS_HELP_STEPS} />
             ) : (
               sections.map((v) => (
                 <HelpSection
                   key={v.id}
-                  title={v.vendor}
+                  title={t(v.vendor)}
                   highlighted={v.id === vendorId}
                   steps={v.steps}
                 />
@@ -188,11 +191,11 @@ export function BackgroundHelpSheet({
           </ScrollView>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Ouvrir les réglages de GRYD"
+            accessibilityLabel={t(C.a11yOpenGrydSettings)}
             onPress={onOpenSettings}
             style={({ pressed }) => [styles.cardBtnMain, pressed && styles.pressed]}
           >
-            <Text style={styles.cardBtnMainText}>OUVRIR LES RÉGLAGES DE GRYD</Text>
+            <Text style={styles.cardBtnMainText}>{t(C.btnOpenGrydSettings)}</Text>
           </Pressable>
         </View>
       </View>
@@ -206,18 +209,19 @@ function HelpSection({
   highlighted,
 }: {
   title: string;
-  steps: string[];
+  steps: readonly Entry[];
   highlighted: boolean;
 }) {
+  const t = useT();
   return (
     <View style={[styles.helpSection, highlighted && styles.helpSectionActive]}>
       <View style={styles.helpHead}>
         <Text style={[styles.helpVendor, highlighted && styles.helpVendorActive]}>{title}</Text>
-        {highlighted ? <Text style={styles.helpTag}>TON TÉLÉPHONE</Text> : null}
+        {highlighted ? <Text style={styles.helpTag}>{t(C.helpYourPhone)}</Text> : null}
       </View>
       {steps.map((s) => (
-        <Text key={s} style={styles.helpStep}>
-          · {s}
+        <Text key={s.fr} style={styles.helpStep}>
+          · {t(s)}
         </Text>
       ))}
     </View>

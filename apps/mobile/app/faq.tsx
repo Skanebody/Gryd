@@ -6,13 +6,11 @@
  * post-run (§34). Le jargon technique (`advanced`) est masqué derrière un
  * segmented control « Simple / Avancé » (cible tactile ≥ 44 px).
  *
- * Contenu et libellés viennent de content.ts / labels.ts : les valeurs sont
- * déjà résolues depuis les CONSTANTES game-rules.ts. AUCUN nombre magique ici.
- * Cet écran applique en plus des RÉÉCRITURES D'AFFICHAGE locales (zéro-friction) :
- * « stats only » → « compte en stats » (même vocabulaire que la pill du Résultat
- * de course), Q3 en une raison de refus par ligne avec seuils étiquetés, total
- * post-run additif avec unité nommée. Les seuils restent dérivés des helpers
- * labels.ts — jamais de littéral.
+ * i18n : contenu et libellés arrivent en `Entry` 5 langues (content.ts +
+ * catalogue explain) et sont résolus ICI via t() — bascule instantanée. Les
+ * valeurs sont déjà dérivées des CONSTANTES game-rules.ts (labels.ts) : AUCUN
+ * nombre magique. Les réécritures zéro-friction historiques (« compte en
+ * stats », Q3 en liste, total additif) vivent désormais dans le catalogue.
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -35,14 +33,8 @@ import {
   type SchemaId,
 } from '../src/features/explain/content';
 import {
-  closeToleranceLabel,
   defenseHoursLabels,
-  gpsGateLabel,
-  runMinDistanceLabel,
-  runMinDurationLabel,
   verifyTiersLabel,
-  widthMinLabel,
-  zoneLifecycleLabels,
 } from '../src/features/explain/labels';
 import {
   BonusCible,
@@ -52,6 +44,8 @@ import {
   LigneVsBoucle,
   VerifySchema,
 } from '../src/features/explain/schemas';
+import { C } from '../src/i18n/catalog/explain';
+import { useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -73,54 +67,9 @@ const CATEGORY_ORDER: readonly FaqCategory[] = [
   'economie',
 ];
 
-/**
- * Francisation d'affichage : le statut « stats only » arrive tel quel de
- * content.ts / labels.ts (hors périmètre de cet écran) ; ici il s'affiche
- * « compte en stats » — exactement le libellé de la pill du Résultat de course.
- */
-function frStatut(text: string): string {
-  return text.replace(/stats only/g, 'compte en stats');
-}
-
-/**
- * Réécritures locales zéro-friction (les textes source vivent dans content.ts,
- * hors périmètre de cet écran). Q3 : UNE raison de refus par ligne, chaque
- * seuil étiqueté — fini les trois « 80 » de sens différents dans une même
- * phrase ; les valeurs restent dérivées des helpers labels.ts (aucun nombre
- * magique). Q10 / Q12 / Q16 : zéro anglicisme (« stats only », « decay »,
- * « boosts pay-to-win »).
- */
-const FAQ_TEXT_OVERRIDES: Readonly<Record<string, { q?: string; a?: string }>> = {
-  q3: {
-    a: [
-      `· Boucle non refermée : écart départ-arrivée > ${closeToleranceLabel()}.`,
-      `· Signal GPS trop faible : indice sous ${gpsGateLabel()}.`,
-      `· Tracé trop étroit : moins de ${widthMinLabel()} de large.`,
-      '· Surface trop petite, ou au-dessus du plafond.',
-      `· Course trop courte : moins de ${runMinDistanceLabel()} ou ${runMinDurationLabel()}.`,
-    ].join('\n'),
-  },
-  q10: { q: 'Pourquoi ma course compte seulement en stats ?' },
-  q12: {
-    a: `Stable ${zoneLifecycleLabels().stable}, fragile ${zoneLifecycleLabels().fragile}, à défendre les ${zoneLifecycleLabels().aDefendre}, expirée ${zoneLifecycleLabels().decay}.`,
-  },
-  q16: { q: 'Les bonus payants font-ils gagner ?' },
-};
-
-/**
- * FAQ post-course : total ADDITIF avec unité nommée (214 + 33 = 247 zones,
- * signalé comme exemple — jamais présenté comme la vraie course de l'utilisateur)
- * et statut en français, aligné sur la pill « Compte en stats » du Résultat.
- */
-const POST_RUN_TEXT_OVERRIDES: Readonly<Record<string, { q?: string; a?: string }>> = {
-  zones: {
-    a: 'Exemple : la trace couvre +214 zones, la fermeture de la boucle en ajoute +33. Total : +247 zones.',
-  },
-  stats_only: { q: 'Pourquoi « compte en stats » ?' },
-};
-
 /** Schéma associé à une Q/R (mêmes labels game-rules que la page calcul). */
 function Schema({ id }: { id: SchemaId }) {
+  const t = useT();
   const width = 260;
   switch (id) {
     case 'ligne_vs_boucle':
@@ -143,12 +92,12 @@ function Schema({ id }: { id: SchemaId }) {
     case 'bonus_cible':
       return <BonusCible size={width} />;
     case 'verify': {
-      const t = verifyTiersLabel();
+      const tiers = verifyTiersLabel();
       return (
         <VerifySchema
           size={width}
-          validLabel={`Capture validée · ${t.full}+`}
-          excludedLabel={`Segment exclu · < ${t.partial}`}
+          validLabel={t(C.verifyValidWithTier, { n: tiers.full })}
+          excludedLabel={t(C.verifyExcludedWithTier, { n: tiers.partial })}
         />
       );
     }
@@ -203,6 +152,7 @@ function AccordionRow({
 }
 
 export default function FaqScreen() {
+  const t = useT();
   const [openId, setOpenId] = useState<string | null>(null);
   const [advanced, setAdvanced] = useState(false);
 
@@ -229,30 +179,34 @@ export default function FaqScreen() {
 
   return (
     <StackScreen
-      title="Calculs & règles"
+      title={t(C.faqTitle)}
       icon="aide"
-      kicker="QUESTIONS & RÉPONSES"
-      subtitle="Toutes les réponses, détails au tap. Chaque capture — ou refus — s'explique."
+      kicker={t(C.faqKicker)}
+      subtitle={t(C.faqSubtitle)}
     >
       {/* Segmented control (AMENDEMENT-22 §4) : masque le jargon par défaut. */}
       <View style={styles.segmented}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Réponses simples"
+          accessibilityLabel={t(C.faqSimpleA11y)}
           accessibilityState={{ selected: !advanced }}
           onPress={() => setAdvanced(false)}
           style={[styles.segment, !advanced && styles.segmentOn]}
         >
-          <Text style={!advanced ? styles.segmentTextOn : styles.segmentText}>Simple</Text>
+          <Text style={!advanced ? styles.segmentTextOn : styles.segmentText}>
+            {t(C.faqSimple)}
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Réponses avancées"
+          accessibilityLabel={t(C.faqAdvancedA11y)}
           accessibilityState={{ selected: advanced }}
           onPress={() => setAdvanced(true)}
           style={[styles.segment, advanced && styles.segmentOn]}
         >
-          <Text style={advanced ? styles.segmentTextOn : styles.segmentText}>Avancé</Text>
+          <Text style={advanced ? styles.segmentTextOn : styles.segmentText}>
+            {t(C.faqAdvanced)}
+          </Text>
         </Pressable>
       </View>
 
@@ -261,48 +215,39 @@ export default function FaqScreen() {
         if (items === undefined || items.length === 0) return null;
         return (
           <View key={cat} style={styles.group}>
-            <Text style={styles.groupLabel}>{FAQ_CATEGORY_LABELS[cat]}</Text>
-            {items.map((item) => {
-              const local = FAQ_TEXT_OVERRIDES[item.id];
-              return (
-                <AccordionRow
-                  key={item.id}
-                  icon={item.icon}
-                  q={frStatut(local?.q ?? item.q)}
-                  a={frStatut(local?.a ?? item.a)}
-                  schemaId={item.schemaId}
-                  open={openId === item.id}
-                  onToggle={() => toggle(item.id)}
-                />
-              );
-            })}
+            <Text style={styles.groupLabel}>{t(FAQ_CATEGORY_LABELS[cat])}</Text>
+            {items.map((item) => (
+              <AccordionRow
+                key={item.id}
+                icon={item.icon}
+                q={t(item.q)}
+                a={t(item.a)}
+                schemaId={item.schemaId}
+                open={openId === item.id}
+                onToggle={() => toggle(item.id)}
+              />
+            ))}
           </View>
         );
       })}
 
       {/* FAQ courte post-run (§34) : questions express après une course. */}
       <View style={styles.group}>
-        <Text style={styles.groupLabel}>Après une course</Text>
-        {POST_RUN_FAQ.map((item: PostRunFaqItem) => {
-          const local = POST_RUN_TEXT_OVERRIDES[item.id];
-          return (
-            <AccordionRow
-              key={item.id}
-              icon={item.icon}
-              q={frStatut(local?.q ?? item.q)}
-              a={frStatut(local?.a ?? item.a)}
-              schemaId={item.schemaId}
-              open={openId === `post_${item.id}`}
-              onToggle={() => toggle(`post_${item.id}`)}
-            />
-          );
-        })}
+        <Text style={styles.groupLabel}>{t(C.faqPostRunGroup)}</Text>
+        {POST_RUN_FAQ.map((item: PostRunFaqItem) => (
+          <AccordionRow
+            key={item.id}
+            icon={item.icon}
+            q={t(item.q)}
+            a={t(item.a)}
+            schemaId={item.schemaId}
+            open={openId === `post_${item.id}`}
+            onToggle={() => toggle(`post_${item.id}`)}
+          />
+        ))}
       </View>
 
-      <Text style={styles.footnote}>
-        Une question sans réponse ici ? L'aide GRYD reprend chaque cas, et une personne lit chaque
-        demande.
-      </Text>
+      <Text style={styles.footnote}>{t(C.faqFootnote)}</Text>
     </StackScreen>
   );
 }

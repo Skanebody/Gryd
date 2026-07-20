@@ -25,6 +25,8 @@ import {
 } from '../../src/features/motivation/store';
 import { Section, SwitchRow, TogglePill } from '../../src/features/motivation/ui';
 import { useMyProfile } from '../../src/features/social/profileStore';
+import { C } from '../../src/i18n/catalog/reglages';
+import { t as tStatic, useT } from '../../src/i18n/store';
 import { flags } from '../../src/lib/flags';
 import { screen } from '../../src/lib/analytics';
 import { getHapticsEnabled, setHapticsEnabled } from '../../src/lib/haptics';
@@ -62,7 +64,7 @@ function openLegal(path: string, fallbackTitle: string, fallbackBody: string): v
 /** Accusé de réception honnête pour un flux pas encore câblé (O1) — le bouton
  *  répond au tap au lieu de rester muet, en cohérence avec la note « bientôt ». */
 function soonAlert(title: string, body: string): void {
-  Alert.alert(title, body, [{ text: 'Compris' }]);
+  Alert.alert(title, body, [{ text: tStatic(C.compris) }]);
 }
 
 function isSection(x: string | undefined): x is SettingsSectionId {
@@ -120,6 +122,7 @@ export default function SettingsSectionScreen() {
   const raw = Array.isArray(params.section) ? params.section[0] : params.section;
   const id: SettingsSectionId = isSection(raw) ? raw : 'compte';
   const meta = settingsRowBySection(id);
+  const t = useT();
 
   const { prefs, update } = useMotivationPrefs();
   // Identité ÉDITABLE persistée (même source que Profil / profil-edit) : une
@@ -142,46 +145,36 @@ export default function SettingsSectionScreen() {
   }, []);
 
   return (
-    <StackScreen title={meta?.label ?? 'Paramètres'} icon={meta?.icon ?? 'reglages'}>
+    <StackScreen title={meta?.label ?? t(C.paramsTitle)} icon={meta?.icon ?? 'reglages'}>
       {id === 'compte' ? (
         <>
-          <Section label="IDENTIFIANTS">
-            <ValueRow label="Connecté en tant que" value={profile.displayName} />
+          <Section label={t(C.secIdentifiants)}>
+            <ValueRow label={t(C.connectedAs)} value={profile.displayName} />
             <ActionRow
               icon="lien"
-              label="Adresse e-mail"
-              detail="Modifier l'e-mail du compte"
-              onPress={() =>
-                soonAlert(
-                  'Adresse e-mail',
-                  'La modification de l’e-mail arrive très bientôt. En attendant, écris-nous depuis Aide & support.',
-                )
-              }
+              label={t(C.emailLabel)}
+              detail={t(C.emailDetail)}
+              onPress={() => soonAlert(t(C.emailLabel), t(C.emailSoonBody))}
             />
             <ActionRow
               icon="verrou"
-              label="Sécurité & connexion"
-              detail="Apple / Google, appareils connectés"
-              onPress={() =>
-                soonAlert(
-                  'Sécurité & connexion',
-                  'La gestion des connexions Apple / Google et des appareils arrive très bientôt.',
-                )
-              }
+              label={t(C.securityLabel)}
+              detail={t(C.securityDetail)}
+              onPress={() => soonAlert(t(C.securityLabel), t(C.securitySoonBody))}
             />
-            <Soon>Édition du compte bientôt disponible.</Soon>
+            <Soon>{t(C.accountSoonNote)}</Soon>
           </Section>
-          <Section label="COMPTE">
+          <Section label={t(C.secCompte)}>
             <ActionRow
               icon="partage"
-              label="Exporter mes données"
-              detail="Copie RGPD de tes courses et zones"
+              label={t(C.exporterMesDonnees)}
+              detail={t(C.exportDataDetail)}
               onPress={() => router.push('/confidentialite')}
             />
             <ActionRow
               icon="fermer"
-              label="Supprimer mon compte"
-              detail="Depuis l'app — irréversible, c'est ton droit"
+              label={t(C.supprimerMonCompte)}
+              detail={t(C.deleteAccountDetail)}
               danger
               onPress={() => router.push('/confidentialite')}
             />
@@ -190,92 +183,87 @@ export default function SettingsSectionScreen() {
       ) : null}
 
       {id === 'profil' ? (
-        <Section label="APPARENCE PUBLIQUE">
-          <ValueRow label="Nom affiché" value={profile.displayName} />
-          <ValueRow label="Titre" value={profile.title} />
+        <Section label={t(C.secApparence)}>
+          <ValueRow label={t(C.displayName)} value={profile.displayName} />
+          <ValueRow label={t(C.titleLabel)} value={profile.title} />
           <ActionRow
             icon="ami"
-            label="Modifier le profil"
-            detail="Nom, titre, avatar, cadre"
+            label={t(C.editProfile)}
+            detail={t(C.editProfileDetail)}
             onPress={() => router.push('/profil-edit')}
           />
           <ActionRow
             icon="verrou"
-            label="Qui voit mon profil"
-            detail="Visibilité, mode privé"
+            label={t(C.whoSeesProfile)}
+            detail={t(C.whoSeesProfileDetail)}
             onPress={() => router.push('/confidentialite')}
           />
         </Section>
       ) : null}
 
       {id === 'crew' ? (
-        <Section label="MON CREW">
+        <Section label={t(C.secMonCrew)}>
           <ValueRow label="Crew" value={profile.crewName} />
           {/* D8 : War Room masquée hors MVP. */}
           {flags.warRoom ? (
             <ActionRow
               icon="guerre"
-              label="Missions du crew"
-              detail="Frontières ouvertes, défenses"
+              label={t(C.crewMissions)}
+              detail={t(C.crewMissionsDetail)}
               onPress={() => router.push('/warroom')}
             />
           ) : null}
           <ActionRow
             icon="cloche"
-            label="Notifications crew"
-            detail="Défenses, frontières à fermer"
+            label={t(C.crewNotifs)}
+            detail={t(C.crewNotifsDetail)}
             onPress={() => router.push('/parametres/notifications')}
           />
           <ActionRow
             icon="fermer"
-            label="Quitter le crew"
-            detail="Tu perds ta contribution au coffre"
+            label={t(C.leaveCrew)}
+            detail={t(C.leaveCrewDetail)}
             danger
-            onPress={() =>
-              soonAlert(
-                'Quitter le crew',
-                'Quitter un crew depuis l’app arrive très bientôt. Ta contribution au coffre reste comptée jusque-là.',
-              )
-            }
+            onPress={() => soonAlert(t(C.leaveCrew), t(C.leaveCrewSoonBody))}
           />
-          <Soon>Quitter le crew sera possible depuis l'app bientôt.</Soon>
+          <Soon>{t(C.leaveCrewSoonNote)}</Soon>
         </Section>
       ) : null}
 
       {id === 'course' ? (
         <>
-          <Section label="STYLE DE JEU">
-            <Text style={styles.note}>{PLAY_STYLE_LABELS[prefs.playStyle].subtitle}</Text>
+          <Section label={t(C.secStyleJeu)}>
+            <Text style={styles.note}>{t(PLAY_STYLE_LABELS[prefs.playStyle].subtitle)}</Text>
             <ActionRow
               icon="cible"
-              label="Régler mon style"
-              detail="Focus solo · Mixte · Guerre de crew"
+              label={t(C.setStyle)}
+              detail={t(C.setStyleDetail)}
               onPress={() => router.push('/settings-motivation')}
             />
           </Section>
-          <Section label="PENDANT LA COURSE">
+          <Section label={t(C.secPendantCourse)}>
             <SwitchRow
-              title="Retours haptiques"
-              subtitle="Vibrations légères sur les captures, badges et victoires."
+              title={t(C.hapticsTitle)}
+              subtitle={t(C.hapticsSubtitle)}
               value={hapticsOn}
               onValueChange={(v) => {
                 setHapticsOn(v);
                 setHapticsEnabled(v);
               }}
             />
-            <ValueRow label="Unités" value="Kilomètres" />
-            <ValueRow label="Annonces audio" value="Bientôt" />
+            <ValueRow label={t(C.unites)} value={t(C.kilometres)} />
+            <ValueRow label={t(C.annoncesAudio)} value={t(C.bientot)} />
           </Section>
         </>
       ) : null}
 
       {id === 'notifications' ? (
-        <Section label="CE QUE TU REÇOIS">
+        <Section label={t(C.secCeQueTuRecois)}>
           <View style={styles.pills}>
             {NOTIF_ORDER.map((ch) => (
               <TogglePill
                 key={ch}
-                label={NOTIF_CHANNEL_LABELS[ch].title}
+                label={t(NOTIF_CHANNEL_LABELS[ch].title)}
                 on={prefs.notifChannels.includes(ch)}
                 onPress={() =>
                   void update({ notifChannels: toggleNotifChannel(prefs.notifChannels, ch) })
@@ -285,23 +273,20 @@ export default function SettingsSectionScreen() {
           </View>
           <Text style={styles.note}>
             {prefs.notifChannels.includes('off')
-              ? NOTIF_CHANNEL_LABELS.off.subtitle
-              : 'Frontières ouvertes, défenses, rivaux : seulement ce qui compte pour toi. Jamais de rappel culpabilisant.'}
+              ? t(NOTIF_CHANNEL_LABELS.off.subtitle)
+              : t(C.notifsNote)}
           </Text>
         </Section>
       ) : null}
 
       {id === 'carte' ? (
-        <Section label="AFFICHAGE DE LA CARTE">
-          <ValueRow label="Couche par défaut" value="Auto" />
-          <Text style={styles.note}>
-            La carte choisit seule la bonne couche selon le contexte (défense, route, rival). Tu
-            peux forcer une couche via le bouton Couches sur la carte.
-          </Text>
+        <Section label={t(C.secAffichageCarte)}>
+          <ValueRow label={t(C.coucheDefaut)} value={t(C.coucheAuto)} />
+          <Text style={styles.note}>{t(C.carteNote)}</Text>
           <ActionRow
             icon="verrou"
-            label="Ma trace sur la carte"
-            detail="Précise, simplifiée ou masquée"
+            label={t(C.maTrace)}
+            detail={t(C.maTraceDetail)}
             onPress={() => router.push('/confidentialite')}
           />
         </Section>
@@ -310,78 +295,55 @@ export default function SettingsSectionScreen() {
       {id === 'apropos' ? (
         <>
           <Section label="GRYD">
-            <ValueRow label="Version" value={APP_VERSION} />
-            <ValueRow label="Saison" value="Saison 0 · Paris + Lille" />
+            <ValueRow label={t(C.version)} value={APP_VERSION} />
+            <ValueRow label={t(C.saison)} value={t(C.saisonValue)} />
           </Section>
-          <Section label="LÉGAL">
+          <Section label={t(C.secLegal)}>
             <ActionRow
               icon="pass"
-              label="Conditions d'utilisation"
-              onPress={() =>
-                openLegal(
-                  'conditions',
-                  'Conditions d’utilisation',
-                  'Retrouve les conditions d’utilisation sur gryd.run/conditions.',
-                )
-              }
+              label={t(C.cgu)}
+              onPress={() => openLegal('conditions', t(C.cgu), t(C.cguFallbackBody))}
             />
-            <ActionRow icon="verrou" label="Politique de confidentialité" onPress={() => router.push('/confidentialite')} />
+            <ActionRow icon="verrou" label={t(C.privacyPolicy)} onPress={() => router.push('/confidentialite')} />
             <ActionRow
               icon="pass"
-              label="Conditions de vente (CGV)"
-              detail="Abonnement, paiement, rétractation"
-              onPress={() =>
-                openLegal(
-                  'cgv',
-                  'Conditions Générales de Vente',
-                  'Retrouve les CGV sur gryd.run/cgv.',
-                )
-              }
+              label={t(C.cgv)}
+              detail={t(C.cgvDetail)}
+              onPress={() => openLegal('cgv', t(C.cgvFallbackTitle), t(C.cgvFallbackBody))}
             />
             <ActionRow
               icon="pass"
-              label="Mentions légales"
-              detail="Éditeur, hébergement"
+              label={t(C.mentions)}
+              detail={t(C.mentionsDetail)}
               onPress={() =>
-                openLegal(
-                  'mentions-legales',
-                  'Mentions légales',
-                  'Retrouve les mentions légales sur gryd.run/mentions-legales.',
-                )
+                openLegal('mentions-legales', t(C.mentions), t(C.mentionsFallbackBody))
               }
             />
             <ActionRow
               icon="crest"
-              label="Licences open source"
+              label={t(C.licences)}
               onPress={() =>
-                Alert.alert(
-                  'Licences open source',
-                  'GRYD s’appuie sur des logiciels libres — React Native, Expo, MapLibre, H3, Supabase et d’autres. La liste complète des licences est publiée sur gryd.run/licences.',
-                  [{ text: 'Fermer' }],
-                )
+                Alert.alert(t(C.licences), t(C.licencesBody), [{ text: t(C.fermer) }])
               }
             />
-            <Soon>Cours. Capture. Défends.</Soon>
+            <Soon>{t(C.tagline)}</Soon>
           </Section>
         </>
       ) : null}
 
       {id === 'avance' ? (
         <>
-          <Section label="RÈGLES DE JEU">
-            <Text style={styles.note}>
-              Ces valeurs sont décidées côté serveur (moteur GRYD) et affichées ici pour
-              transparence. On ne les règle jamais depuis le téléphone.
-            </Text>
-            <ValueRow label="Fermeture de frontière crew" value="24 h" />
-            <ValueRow label="Tolérance de jonction (ville)" value="80 m" />
-            <ValueRow label="Contribution min. du finisher" value="400 m ou 15 %" />
+          <Section label={t(C.secReglesJeu)}>
+            <Text style={styles.note}>{t(C.reglesNote)}</Text>
+            <ValueRow label={t(C.fermetureFrontiere)} value="24 h" />
+            <ValueRow label={t(C.toleranceJonction)} value="80 m" />
+            <ValueRow label={t(C.contributionMin)} value={t(C.contributionMinValue)} />
           </Section>
-          <Section label="DIAGNOSTICS">
+          <Section label={t(C.secDiagnostics)}>
             <ActionRow
               icon="radar"
-              label="Fiabilité GRYD Verify"
-              detail="GPS, mouvement, sources connectées"
+              label={t(C.fiabiliteVerify)}
+              detail={t(C.fiabiliteVerifyDetail)}
               onPress={() => router.push('/sources')}
             />
             <ValueRow label="Build" value={APP_VERSION} />

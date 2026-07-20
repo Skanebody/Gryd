@@ -25,6 +25,21 @@ import {
   runsByFilter,
   type HistoryFilter,
 } from '../src/features/history/demo';
+import { useT } from '../src/i18n/store';
+import type { Entry } from '../src/i18n/types';
+import { C } from '../src/i18n/catalog/historique';
+
+/**
+ * Libellés traduits des filtres, par clé (la structure HISTORY_FILTERS reste la
+ * source de l'ordre/des clés ; la résolution de langue se fait à l'affichage).
+ */
+const FILTER_LABELS: Record<HistoryFilter, Entry> = {
+  all: C.filterAll,
+  conquest: C.filterConquest,
+  defense: C.filterDefense,
+  route: C.filterRoute,
+  stats: C.filterStats,
+};
 
 /** Barre de filtres horizontale (Tout/Conquêtes/Défenses/Routes/Stats only). */
 function FilterBar({
@@ -36,6 +51,7 @@ function FilterBar({
   onSelect: (f: HistoryFilter) => void;
   realUser: boolean;
 }) {
+  const t = useT();
   return (
     <ScrollView
       horizontal
@@ -47,12 +63,13 @@ function FilterBar({
         // Vrai user : aucune source de courses réelle câblée (O1) → compteurs à 0
         // (jamais de faux total). Démo showcase (web/dev sans session) inchangée.
         const count = realUser ? 0 : countByFilter(f.key);
+        const label = t(FILTER_LABELS[f.key]);
         return (
           <Pressable
             key={f.key}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            accessibilityLabel={`Filtre ${f.label}, ${count} courses`}
+            accessibilityLabel={t(C.a11yFilter, { label, n: count })}
             onPress={() => onSelect(f.key)}
             style={({ pressed }) => [
               styles.filterChip,
@@ -61,7 +78,7 @@ function FilterBar({
             ]}
           >
             <Text style={[styles.filterLabel, selected && styles.filterLabelOn]}>
-              {f.label}
+              {label}
             </Text>
             <Text style={[styles.filterCount, selected && styles.filterCountOn]}>
               {count}
@@ -74,6 +91,7 @@ function FilterBar({
 }
 
 export default function HistoriqueScreen() {
+  const t = useT();
   const [filter, setFilter] = useState<HistoryFilter>('all');
   // Activation O1 : aucune source de courses RÉELLE n'est encore câblée. Un vrai
   // utilisateur (session) ne voit donc PAS de fausses courses passées — liste
@@ -103,23 +121,21 @@ export default function HistoriqueScreen() {
 
   return (
     <StackScreen
-      title="Historique"
+      title={t(C.historiqueTitle)}
       icon="historique"
-      kicker="TES COURSES"
-      subtitle="Tous tes parcours : le tracé, l’effort et ce qu’il a changé sur le terrain."
+      kicker={t(C.historiqueKicker)}
+      subtitle={t(C.historiqueSubtitle)}
     >
       <FilterBar active={filter} onSelect={selectFilter} realUser={realUser} />
 
       <Text style={styles.sectionLabel}>
-        {`${total} COURSE${total > 1 ? 'S' : ''}`}
+        {t(total === 1 ? C.countRunsOne : C.countRunsMany, { n: total })}
       </Text>
 
       {list.length === 0 ? (
         <Card style={styles.empty}>
           <Text style={styles.emptyText}>
-            {realUser
-              ? 'Tes courses apparaîtront ici après ta première capture. Lance-toi !'
-              : 'Aucune course dans ce filtre pour l’instant.'}
+            {realUser ? t(C.emptyRealUser) : t(C.emptyFilter)}
           </Text>
         </Card>
       ) : (

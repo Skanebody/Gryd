@@ -13,6 +13,8 @@
  * flux existant : chaque boucle populaire pointe vers une proposition `ROUTES_DEMO`
  * réelle (la carte, le KPI et le CTA du planner ne changent pas de contrat).
  */
+import { C } from '../../i18n/catalog/route';
+import { t } from '../../i18n/store';
 import type { PlannedRouteDemo } from './types';
 import { ROUTES_DEMO } from './demo';
 
@@ -74,10 +76,10 @@ export function popularRouteTarget(pop: PopularRouteDemo): PlannedRouteDemo | un
 /**
  * Libellé social « X crews l'ont prise » (accord singulier/pluriel). C'est le
  * signal crowd-sourcé qui réduit la friction « où courir » — jamais un chiffre
- * de points ou un avantage.
+ * de points ou un avantage. i18n : résolu en langue courante (t du store).
  */
 export function crewsTakenLabel(pop: PopularRouteDemo): string {
   return pop.crewsTaken > 1
-    ? `${pop.crewsTaken} crews l'ont prise`
-    : `${pop.crewsTaken} crew l'a prise`;
+    ? t(C.crewsTakenMany, { n: pop.crewsTaken })
+    : t(C.crewsTakenOne, { n: pop.crewsTaken });
 }

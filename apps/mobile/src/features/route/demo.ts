@@ -13,9 +13,10 @@
  * (§4ter) — plus aucun lissage de cellules côté rendu.
  */
 import { POINTS_DEFENDED_HEX, POINTS_NEUTRAL_HEX } from '@klaim/shared';
+import { C } from '../../i18n/catalog/route';
+import { t } from '../../i18n/store';
 import {
   OBJECTIVE_BY_ROUTE_TYPE,
-  ROUTE_OBJECTIVE_NOUNS,
   type PlannedRouteDemo,
   type RouteObjective,
   type RoutePriority,
@@ -426,16 +427,19 @@ export const ROUTE_OBJECTIVE = {
 
 /**
  * Nom social complet d'une route — sur les 2 verbes (AMENDEMENT-12 §A) :
- * « Route conquête Canal » / « Route défense République ».
+ * « Route conquête Canal » / « Route défense République ». i18n : résolu en
+ * langue courante via t() (signature inchangée pour les appelants — aujourdhui).
  */
 export function routeSocialName(route: PlannedRouteDemo): string {
-  const noun = ROUTE_OBJECTIVE_NOUNS[OBJECTIVE_BY_ROUTE_TYPE[route.typeKey]];
-  return `Route ${noun} ${route.zone}`;
+  const objective = OBJECTIVE_BY_ROUTE_TYPE[route.typeKey];
+  return objective === 'defendre'
+    ? t(C.socialNameDefense, { zone: route.zone })
+    : t(C.socialNameConquest, { zone: route.zone });
 }
 
 /** Entrée de feed crew après partage (démo : affichée localement + toast). */
 export function routeShareFeedEntry(route: PlannedRouteDemo): string {
-  return `${routeSocialName(route)} partagée au crew`;
+  return t(C.sharedToCrewFeed, { name: routeSocialName(route) });
 }
 
 // (§4ter — l'ex-« bande de cellules capturables » a disparu avec les blobs :

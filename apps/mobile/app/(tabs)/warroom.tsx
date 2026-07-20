@@ -42,6 +42,9 @@ import {
   type SkillDef,
   type SkillFamilyId,
 } from '@klaim/shared';
+import { C } from '../../src/i18n/catalog/flagged';
+import { useT, t as tGlobal } from '../../src/i18n/store';
+import type { Entry } from '../../src/i18n/types';
 import { contributeToRaid, useCrewRaid } from '../../src/features/crew/raid';
 import { useCrewRevanche } from '../../src/features/crew/revanche';
 import { screen } from '../../src/lib/analytics';
@@ -205,10 +208,12 @@ const URGENT_WINDOW_MIN = 12 * 60;
  * LE format du temps restant, unique pour tout l'écran (une seule sémantique) :
  * « 48 h » / « 4 h 21 » / « 41 min » / « Fenêtre close » à 0. À la MINUTE,
  * JAMAIS de seconde (inutile et anxiogène sur des fenêtres en heures).
+ * Helper module (hors composant) : résolution i18n via le t du store — l'écran
+ * re-rend au changement de langue (useT), donc le libellé suit.
  */
 function formatWindow(totalMin: number): string {
   const clamped = Math.max(0, Math.round(totalMin));
-  if (clamped <= 0) return 'Fenêtre close';
+  if (clamped <= 0) return tGlobal(C.fenetreClose);
   const h = Math.floor(clamped / 60);
   const m = clamped % 60;
   if (h <= 0) return `${m} min`;
@@ -352,10 +357,11 @@ function SectionToggle({
   onToggle: () => void;
   count?: number;
 }) {
+  const t = useT();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${open ? 'Replier' : 'Déplier'} ${label}`}
+      accessibilityLabel={t(open ? C.toggleCloseA11y : C.toggleOpenA11y, { label })}
       accessibilityState={{ expanded: open }}
       onPress={() => {
         haptics.light();
@@ -393,10 +399,9 @@ function MissionHero({
   urgent: boolean;
   timeLabel: string;
 }) {
+  const t = useT();
   const accent = urgent ? gameColors.danger : colors.blanc;
-  const kicker = urgent
-    ? `URGENT · ${entry.kindLabel}`
-    : `${entry.kindLabel} · PRIORITÉ 1`;
+  const kicker = t(urgent ? C.urgentKicker : C.prioKicker, { kind: entry.kindLabel });
   return (
     <View
       style={[
@@ -407,7 +412,7 @@ function MissionHero({
       <Pressable
         accessibilityRole={entry.onDetail ? 'button' : undefined}
         accessibilityLabel={
-          entry.onDetail ? `${entry.title} — voir le détail sur la carte` : undefined
+          entry.onDetail ? t(C.heroDetailA11y, { title: entry.title }) : undefined
         }
         disabled={!entry.onDetail}
         onPress={
@@ -439,7 +444,7 @@ function MissionHero({
             {timeLabel}
           </Text>
           {entry.minutesLeft > 0 ? (
-            <Text style={styles.heroMetricCaption}>restant</Text>
+            <Text style={styles.heroMetricCaption}>{t(C.restant)}</Text>
           ) : null}
         </View>
       </Pressable>
@@ -471,7 +476,8 @@ function MissionRow({
   urgent: boolean;
   timeLabel: string;
 }) {
-  const timeText = entry.minutesLeft > 0 ? `reste ${timeLabel}` : timeLabel;
+  const t = useT();
+  const timeText = entry.minutesLeft > 0 ? t(C.resteTime, { time: timeLabel }) : timeLabel;
   return (
     <Pressable
       accessibilityRole="button"
@@ -523,10 +529,11 @@ function CrewBonusLine({
   bonus: SelectedBonusDemo;
   onAct: () => void;
 }) {
+  const t = useT();
   const def = bonus.def;
   // « +25 % coffre crew » → phrase courte « Coffre +25 % pendant 24 h ».
   const effect = bonusEffectLabelDemo(def);
-  const during = `pendant ${def.durationH} h`;
+  const during = t(C.bonusPendant, { h: def.durationH });
   return (
     <Pressable
       accessibilityRole="button"
@@ -540,7 +547,7 @@ function CrewBonusLine({
         </View>
         <View style={styles.bonusText}>
           <Text style={styles.lineKicker} numberOfLines={1}>
-            BONUS CREW ACTIF
+            {t(C.bonusKicker)}
           </Text>
           <Text style={styles.lineTitle} numberOfLines={1}>
             {def.name}
@@ -644,19 +651,20 @@ function SkillRecoLine({
   reco: MemberSkillReco;
   onPress?: () => void;
 }) {
+  const t = useT();
   const skill = `${reco.def.name} ${reco.roman}`;
   if (!onPress) {
     return (
       <View
         accessibilityRole="text"
-        accessibilityLabel={`Recommandé pour cette mission : ${reco.pseudo} · ${skill}`}
+        accessibilityLabel={t(C.recoInfoA11y, { pseudo: reco.pseudo, skill })}
         style={styles.recoRow}
       >
         <View style={styles.recoIcon}>
           <Icon name={skillIconName(reco.def.id) as IconName} size={15} color={colors.gris} />
         </View>
         <Text style={styles.recoLabel} numberOfLines={2}>
-          <Text style={styles.recoPrefix}>Recommandé : </Text>
+          <Text style={styles.recoPrefix}>{t(C.recoInfoPrefix)}</Text>
           {reco.pseudo} · {skill}
         </Text>
       </View>
@@ -665,7 +673,7 @@ function SkillRecoLine({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Proposer la mission à ${reco.pseudo} — ${skill}`}
+      accessibilityLabel={t(C.recoProposeA11y, { pseudo: reco.pseudo, skill })}
       onPress={() => {
         haptics.light();
         onPress();
@@ -676,7 +684,7 @@ function SkillRecoLine({
         <Icon name={skillIconName(reco.def.id) as IconName} size={15} color={colors.gris} />
       </View>
       <Text style={styles.recoLabel} numberOfLines={2}>
-        <Text style={styles.recoPrefix}>Proposer à </Text>
+        <Text style={styles.recoPrefix}>{t(C.recoProposePrefix)}</Text>
         {reco.pseudo}
         <Text style={styles.recoTrailing}> — {skill}</Text>
       </Text>
@@ -686,18 +694,17 @@ function SkillRecoLine({
 }
 
 /**
- * Paliers de coffre EN FRANÇAIS (surface uniquement). Les clés/enum côté moteur
+ * Paliers de coffre LOCALISÉS (surface uniquement). Les clés/enum côté moteur
  * restent inchangées (`bronze`/`silver`/`gold`/`carbon`/`elite` dans
- * `features/crew/rules`) — on ne traduit QUE le libellé affiché. Map locale car
- * ce chantier reste dans warroom.tsx (CHEST_TIER_LABELS reste anglais côté rules,
- * à franciser dans un chantier crew dédié).
+ * `features/crew/rules`) — on ne traduit QUE le libellé affiché (Entries i18n,
+ * résolues avec t() à l'affichage).
  */
-const CHEST_TIER_LABELS_FR: Record<string, string> = {
-  bronze: 'Bronze',
-  silver: 'Argent',
-  gold: 'Or',
-  carbon: 'Carbone',
-  elite: 'Élite',
+const CHEST_TIER_ENTRIES: Record<string, Entry> = {
+  bronze: C.tierBronze,
+  silver: C.tierArgent,
+  gold: C.tierOr,
+  carbon: C.tierCarbone,
+  elite: C.tierElite,
 };
 
 // ============================================================================
@@ -710,6 +717,7 @@ export default function WarRoomScreen() {
   // D8 — surface hors MVP : route masquée (les moteurs restent intacts).
   if (!flags.warRoom) return <Redirect href="/" />;
 
+  const t = useT();
   const toast = useToast();
   // Une seule section ouverte à la fois (anti-scroll) — tout replié au montage.
   const [open, setOpen] = useState<OpenSection>(null);
@@ -760,15 +768,17 @@ export default function WarRoomScreen() {
     entries.push({
       key: 'defense',
       icon: 'bouclier',
-      kindLabel: 'DÉFENSE',
+      kindLabel: t(C.kindDefense),
       title: DEFENSE_MISSION.zone,
       minutesLeft: min,
-      meta: [dist, `≈ +${formatInt(DEFENSE_PTS_EST)} pts`].filter(Boolean).join(' · '),
-      cta: 'DÉFENDRE',
-      action: 'Défendre',
+      meta: [dist, t(C.metaGainEst, { pts: formatInt(DEFENSE_PTS_EST) })]
+        .filter(Boolean)
+        .join(' · '),
+      cta: t(C.ctaDefendre),
+      action: t(C.actionDefendre),
       skillFamily: 'defender',
       onStart: () => {
-        toast.show(`Défense ${DEFENSE_MISSION.zone} — choisis ta route`);
+        toast.show(t(C.toastDefense, { zone: DEFENSE_MISSION.zone }));
         router.push('/route-planner?type=defense');
       },
       onDetail: openMap,
@@ -786,16 +796,16 @@ export default function WarRoomScreen() {
     entries.push({
       key: 'revanche',
       icon: 'cible',
-      kindLabel: 'REVANCHE',
+      kindLabel: t(C.kindRevanche),
       title: revanche.sector,
       minutesLeft: min,
-      meta: [dist, `≈ +${formatInt(pts)} pts`].filter(Boolean).join(' · '),
-      cta: 'REPRENDRE',
-      action: 'Reprendre',
+      meta: [dist, t(C.metaGainEst, { pts: formatInt(pts) })].filter(Boolean).join(' · '),
+      cta: t(C.ctaReprendre),
+      action: t(C.actionReprendre),
       skillFamily: 'conqueror',
       onStart: () => {
         screen('war_revanche_reprendre', { sector: revanche.sector });
-        toast.show(`Cap sur ${revanche.sector} — reprends tes zones`);
+        toast.show(t(C.toastRevanche, { zone: revanche.sector }));
         router.push('/route-planner?type=raid');
       },
     });
@@ -811,20 +821,24 @@ export default function WarRoomScreen() {
     entries.push({
       key: 'raid',
       icon: 'raid',
-      kindLabel: 'RAID CREW',
+      kindLabel: t(C.kindRaid),
       title: raid.zone,
       minutesLeft: min,
-      meta: [dist, `${formatInt(zonesLeft)} zones à reprendre`, `≈ +${STEAL_PTS_PER_ZONE} pts/zone`]
+      meta: [
+        dist,
+        t(C.metaZonesReprendre, { n: formatInt(zonesLeft) }),
+        t(C.metaGainPerZone, { pts: STEAL_PTS_PER_ZONE }),
+      ]
         .filter(Boolean)
         .join(' · '),
-      cta: raid.joined ? 'COURIR ENCORE' : 'REJOINDRE LE RAID',
-      action: raid.joined ? 'Courir encore' : 'Rejoindre le raid',
+      cta: t(raid.joined ? C.ctaCourirEncore : C.ctaRejoindreRaid),
+      action: t(raid.joined ? C.actionCourirEncore : C.actionRejoindreRaid),
       skillFamily: 'conqueror',
       onStart: () => {
         screen('war_raid_join', { raidId: raid.id });
         // Démo : ma contribution monte la barre collective persistante.
         contributeToRaid(raid.id);
-        toast.show(`Raid rejoint — cap sur ${raid.zone}`);
+        toast.show(t(C.toastRaid, { zone: raid.zone }));
         router.push('/route-planner?type=raid');
       },
     });
@@ -838,17 +852,21 @@ export default function WarRoomScreen() {
     entries.push({
       key: 'conquest',
       icon: 'guerre',
-      kindLabel: 'CONQUÊTE CREW',
+      kindLabel: t(C.kindConquete),
       title: OFFENSIVE.zone,
       minutesLeft: min,
-      meta: [dist, `${formatInt(zonesLeft)} zones à prendre`, `≈ +${CONQUEST_PTS_PER_ZONE} pts/zone`]
+      meta: [
+        dist,
+        t(C.metaZonesPrendre, { n: formatInt(zonesLeft) }),
+        t(C.metaGainPerZone, { pts: CONQUEST_PTS_PER_ZONE }),
+      ]
         .filter(Boolean)
         .join(' · '),
-      cta: 'CONQUÉRIR',
-      action: 'Conquérir',
+      cta: t(C.ctaConquerir),
+      action: t(C.actionConquerir),
       skillFamily: 'conqueror',
       onStart: () => {
-        toast.show(`Conquête collective rejointe — cap sur ${OFFENSIVE.zone}`);
+        toast.show(t(C.toastConquete, { zone: OFFENSIVE.zone }));
         router.push('/route-planner?type=raid');
       },
       onDetail: openMap,
@@ -866,16 +884,16 @@ export default function WarRoomScreen() {
     entries.push({
       key: b.key,
       icon: 'avantposte',
-      kindLabel: 'BOUCLE À TERMINER',
-      title: `Boucle ${b.zone}`,
+      kindLabel: t(C.kindBoucle),
+      title: t(C.boucleTitle, { zone: b.zone }),
       minutesLeft: min,
-      meta: [dist, `reste ${formatInt(b.missingM)} m à courir`].filter(Boolean).join(' · '),
-      cta: param ? 'TERMINER LA BOUCLE' : 'VOIR LA ROUTE',
-      action: param ? 'Terminer' : 'Voir la route',
+      meta: [dist, t(C.metaResteM, { m: formatInt(b.missingM) })].filter(Boolean).join(' · '),
+      cta: t(param ? C.ctaTerminerBoucle : C.ctaVoirRoute),
+      action: t(param ? C.actionTerminer : C.actionVoirRoute),
       skillFamily: 'finisher',
       onStart: () => {
         if (param) {
-          toast.show(`Cap sur ${b.zone} — termine la boucle du crew`);
+          toast.show(t(C.toastBoucle, { zone: b.zone }));
           router.push(`/course-live?intention=complete&boundary=${param}`);
         } else {
           router.push('/route-planner');
@@ -903,8 +921,15 @@ export default function WarRoomScreen() {
   const nextTier = CREW_CHEST_TIER_ORDER.find((t) => chestPct < CREW_CHEST_TIERS[t]);
   const chestRemaining = Math.max(0, CREW_CHEST_WEEKLY_TARGET - MY_CREW.chestProgress);
   const chestPhrase = nextTier
-    ? `${Math.round(chestPct * 100)} % — encore ${formatInt(chestRemaining)} pts pour le palier ${CHEST_TIER_LABELS_FR[nextTier]}.`
-    : `${Math.round(chestPct * 100)} % — palier ${chest.tier ? CHEST_TIER_LABELS_FR[chest.tier] : 'max'} atteint cette semaine.`;
+    ? t(C.chestPhraseNext, {
+        pct: Math.round(chestPct * 100),
+        pts: formatInt(chestRemaining),
+        tier: t(CHEST_TIER_ENTRIES[nextTier] ?? C.tierMax),
+      })
+    : t(C.chestPhraseMax, {
+        pct: Math.round(chestPct * 100),
+        tier: t((chest.tier ? CHEST_TIER_ENTRIES[chest.tier] : undefined) ?? C.tierMax),
+      });
 
   // Gating visuel par MON rôle démo (matrice §8) — le serveur reste seul juge.
   const myRole = MY_CREW.members.find((m) => m.me)?.role ?? 'runner';
@@ -923,14 +948,14 @@ export default function WarRoomScreen() {
     screen('war_bonus_act', { bonusId: bonus.def.id });
     switch (bonus.def.id) {
       case 'defense_critical':
-        toast.show(`Défense ${DEFENSE_MISSION.zone} — choisis ta route`);
+        toast.show(t(C.toastDefense, { zone: DEFENSE_MISSION.zone }));
         router.push('/route-planner?type=defense');
         break;
       case 'finisher': {
         const b = OPEN_BOUNDARIES[0];
         const param = b ? partialBoundaryParamFor(b.boundaryId) : null;
         if (b && param) {
-          toast.show(`Cap sur ${b.zone} — termine la boucle du crew`);
+          toast.show(t(C.toastBoucle, { zone: b.zone }));
           router.push(`/course-live?intention=complete&boundary=${param}`);
         } else {
           router.push('/route-planner');
@@ -938,7 +963,7 @@ export default function WarRoomScreen() {
         break;
       }
       default:
-        toast.show('Cap sur le coffre — cours pour le remplir');
+        toast.show(t(C.toastCoffre));
         openMap();
     }
   };
@@ -949,10 +974,10 @@ export default function WarRoomScreen() {
           Kicker HUD minimal : ville · saison · jours restants (le rang crew vit
           dans Crew/Saison, pas dans le kicker de décision). Titre non tronqué. */}
       <TabScreen
-        title="Missions"
+        title={t(C.missionsTitle)}
         icon="guerre"
-        kicker={`${WAR_STATUS.city} · ${WAR_STATUS.seasonLabel} · J-${WAR_STATUS.daysLeft}`}
-        subtitle="Ta prochaine mission, triée par urgence."
+        kicker={`${WAR_STATUS.city} · ${WAR_STATUS.seasonLabel} · ${t(C.jMinus, { n: WAR_STATUS.daysLeft })}`}
+        subtitle={t(C.missionsSubtitle)}
       >
         {/* ============ MISSION n°1 — LA décision + LE seul CTA plein ============ */}
         {hero ? (
@@ -973,7 +998,9 @@ export default function WarRoomScreen() {
                         // Démo : aucune requête ciblée n'est encore émise vers un
                         // membre (TODO O1 : crew_requests ciblées). On ne PRÉTEND
                         // donc pas un envoi — feedback honnête « (démo) ».
-                        toast.show(`Proposé (démo) — ${heroReco.pseudo} pour ${hero.title}`);
+                        toast.show(
+                          t(C.toastPropose, { pseudo: heroReco.pseudo, mission: hero.title }),
+                        );
                       }
                     : undefined
                 }
@@ -981,15 +1008,13 @@ export default function WarRoomScreen() {
             ) : null}
           </>
         ) : (
-          <Text style={styles.emptyText}>
-            Aucune mission en cours — cours pour ouvrir le terrain, le crew suivra.
-          </Text>
+          <Text style={styles.emptyText}>{t(C.emptyMissions)}</Text>
         )}
 
         {/* ============ AUTRES MISSIONS — lignes compactes, même horloge ============ */}
         {others.length > 0 ? (
           <>
-            <SectionHead icon="mission" label="AUTRES MISSIONS" count={others.length} />
+            <SectionHead icon="mission" label={t(C.sectionAutres)} count={others.length} />
             {others.map((entry) => (
               <MissionRow
                 key={entry.key}
@@ -1007,10 +1032,10 @@ export default function WarRoomScreen() {
             courant, pas en tapant). */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Coffre du crew — ${chestPhrase} Voir le coffre.`}
+          accessibilityLabel={t(C.coffreA11y, { phrase: chestPhrase })}
           onPress={() => {
             haptics.light();
-            toast.show('Cap sur le coffre — cours pour le remplir');
+            toast.show(t(C.toastCoffre));
             openMap();
           }}
           style={({ pressed }) => [styles.line, pressed && styles.pressed]}
@@ -1020,7 +1045,7 @@ export default function WarRoomScreen() {
               <Icon name="coffre" size={iconSizes.md} color={gameColors.gold} />
             </View>
             <Text style={styles.lineTitle} numberOfLines={1}>
-              Coffre du crew
+              {t(C.coffreTitle)}
             </Text>
           </View>
           <View style={styles.lineGauge}>
@@ -1030,7 +1055,7 @@ export default function WarRoomScreen() {
             <Text style={styles.lineMeta}>{chestPhrase}</Text>
             <View style={styles.lineActionWrap}>
               <Text style={styles.lineActionLabel} numberOfLines={1} adjustsFontSizeToFit>
-                Voir le coffre
+                {t(C.voirCoffre)}
               </Text>
               <Icon name="chevron" size={15} color={colors.blanc} />
             </View>
@@ -1050,7 +1075,7 @@ export default function WarRoomScreen() {
             pay-to-win). Ligne légère posée sur l'espace, sans cadre. */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Demander de l'aide au crew"
+          accessibilityLabel={t(C.askCrewA11y)}
           onPress={() => {
             haptics.light();
             router.navigate('/crew');
@@ -1061,9 +1086,9 @@ export default function WarRoomScreen() {
             <Icon name="ajoutami" size={16} color={gameColors.crew} />
           </View>
           <View style={styles.askText}>
-            <Text style={styles.askTitle}>Demander au crew</Text>
+            <Text style={styles.askTitle}>{t(C.askCrewTitle)}</Text>
             <Text style={styles.askSub} numberOfLines={1}>
-              Défense · Terminer · Route · Scout
+              {t(C.askCrewSub)}
             </Text>
           </View>
           <Icon name="chevron" size={16} color={colors.gris} />
@@ -1075,7 +1100,7 @@ export default function WarRoomScreen() {
             missions « À faire ». Descendu sous le fold, replié par défaut. */}
         <SectionToggle
           icon="mission"
-          label="OBJECTIFS"
+          label={t(C.sectionObjectifs)}
           open={open === 'objectifs'}
           onToggle={() => toggle('objectifs')}
           count={MISSIONS.length}
@@ -1086,14 +1111,14 @@ export default function WarRoomScreen() {
             <View style={styles.roleBanner}>
               <Icon name="couronne" size={iconSizes.sm} color={colors.blanc} />
               <Text style={styles.roleBannerText} numberOfLines={1}>
-                Ton rôle : {CREW_ROLE_LABELS[myRole]}
+                {t(C.roleLabel, { role: CREW_ROLE_LABELS[myRole] })}
               </Text>
               <View style={styles.sectionSpacer} />
               <Text style={[styles.rolePerm, canLaunch ? styles.rolePermOk : styles.rolePermNo]}>
-                {canLaunch ? 'Peut lancer' : 'Lancer : Co-Cap+'}
+                {t(canLaunch ? C.permCanLaunch : C.permLaunchNo)}
               </Text>
               <Text style={[styles.rolePerm, canAssign ? styles.rolePermOk : styles.rolePermNo]}>
-                {canAssign ? 'Peut assigner' : 'Assigner : Cap+'}
+                {t(canAssign ? C.permCanAssign : C.permAssignNo)}
               </Text>
             </View>
 
@@ -1102,9 +1127,9 @@ export default function WarRoomScreen() {
             <View style={styles.motivRow}>
               {(
                 [
-                  { label: "Aujourd'hui", icon: 'aujourdhui', href: '/aujourdhui' },
-                  { label: 'Challenges', icon: 'mission', href: '/challenges' },
-                  { label: 'Motivation', icon: 'reglages', href: '/settings-motivation' },
+                  { label: t(C.motivAujourdhui), icon: 'aujourdhui', href: '/aujourdhui' },
+                  { label: t(C.motivChallenges), icon: 'mission', href: '/challenges' },
+                  { label: t(C.motivMotivation), icon: 'reglages', href: '/settings-motivation' },
                 ] as { label: string; icon: IconName; href: string }[]
               ).map((it) => (
                 <Pressable
@@ -1148,7 +1173,7 @@ export default function WarRoomScreen() {
             })}
             {MISSIONS.length > 2 ? (
               <SeeAll
-                label={`Voir les ${MISSIONS.length} objectifs`}
+                label={t(C.seeAllObjectifs, { n: MISSIONS.length })}
                 onPress={() => router.push('/challenges')}
               />
             ) : null}
@@ -1158,7 +1183,7 @@ export default function WarRoomScreen() {
         {/* ROUTES — lignes sur l'espace, max 2 visibles, « Voir tout » au-delà. */}
         <SectionToggle
           icon="route"
-          label="ROUTES"
+          label={t(C.sectionRoutes)}
           open={open === 'routes'}
           onToggle={() => toggle('routes')}
           count={WAR_ROUTES.length}
@@ -1171,7 +1196,7 @@ export default function WarRoomScreen() {
                 <Pressable
                   key={route.key}
                   accessibilityRole="button"
-                  accessibilityLabel={`Voir la route ${route.label} sur la carte`}
+                  accessibilityLabel={t(C.routeA11y, { label: route.label })}
                   onPress={openMap}
                   style={({ pressed }) => [styles.routeRow, pressed && styles.pressed]}
                 >
@@ -1188,19 +1213,21 @@ export default function WarRoomScreen() {
                     </Text>
                     <Text style={styles.routeMeta} numberOfLines={1}>
                       {route.km.toLocaleString('fr-FR')} km
-                      {route.expiresInH !== undefined ? ` · expire dans ${route.expiresInH} h` : ''}
+                      {route.expiresInH !== undefined
+                        ? ` · ${t(C.routeExpire, { h: route.expiresInH })}`
+                        : ''}
                     </Text>
                   </View>
                   <StatePill
                     state={isOpen ? 'active' : 'decay'}
-                    label={isOpen ? 'Ouverte' : 'À défendre'}
+                    label={t(isOpen ? C.routeOuverte : C.routeADefendre)}
                   />
                 </Pressable>
               );
             })}
             {WAR_ROUTES.length > 2 ? (
               <SeeAll
-                label={`Voir les ${WAR_ROUTES.length} routes`}
+                label={t(C.seeAllRoutes, { n: WAR_ROUTES.length })}
                 onPress={() => router.push('/route-planner')}
               />
             ) : null}
@@ -1210,7 +1237,7 @@ export default function WarRoomScreen() {
         {/* RAPPORTS SCOUT — renseignement agrégé, jamais de position live. */}
         <SectionToggle
           icon="scout"
-          label="RAPPORTS SCOUT"
+          label={t(C.sectionScout)}
           open={open === 'scout'}
           onToggle={() => toggle('scout')}
           count={SCOUT_REPORTS.length}
@@ -1222,7 +1249,7 @@ export default function WarRoomScreen() {
                 key={report.key}
                 icon={report.icon}
                 message={report.message}
-                zone={`${report.zone} · scout ${report.scout}`}
+                zone={t(C.scoutZone, { zone: report.zone, name: report.scout })}
                 minutesAgo={report.minutesAgo}
                 tint={gameColors[report.tint]}
                 onPress={openMap}
@@ -1234,7 +1261,7 @@ export default function WarRoomScreen() {
         {/* HISTORIQUE — War Log compressé, max 2 visibles + « Voir tout ». */}
         <SectionToggle
           icon="historique"
-          label="HISTORIQUE"
+          label={t(C.sectionHistorique)}
           open={open === 'historique'}
           onToggle={() => toggle('historique')}
           count={WAR_HISTORY.length}
@@ -1245,7 +1272,7 @@ export default function WarRoomScreen() {
               <HistoryEvent key={event.key} event={event} />
             ))}
             {WAR_HISTORY.length > 2 ? (
-              <SeeAll label="Voir tout l'historique" onPress={openMap} />
+              <SeeAll label={t(C.seeAllHistory)} onPress={openMap} />
             ) : null}
           </View>
         ) : null}

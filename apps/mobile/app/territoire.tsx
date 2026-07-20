@@ -28,6 +28,8 @@ import { DEFAULT_ZONE_LEADERBOARD } from '../src/features/territory/leaderboardD
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { formatInt } from '../src/ui/format';
+import { useT } from '../src/i18n/store';
+import { C } from '../src/i18n/catalog/historique';
 
 /** Section compacte : titre + ≤ 2 items visibles + « Voir tout » (anti-scroll). */
 function Section({
@@ -41,6 +43,7 @@ function Section({
   onSeeAll?: () => void;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
@@ -49,10 +52,10 @@ function Section({
           <Pressable
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`Voir tout — ${title}`}
+            accessibilityLabel={t(C.a11ySeeAll, { title })}
             onPress={onSeeAll}
           >
-            <Text style={styles.seeAll}>Voir tout</Text>
+            <Text style={styles.seeAll}>{t(C.seeAll)}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -62,6 +65,7 @@ function Section({
 }
 
 export default function TerritoireScreen() {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const d = TERRITORY_PAGE_DEMO;
 
@@ -84,7 +88,7 @@ export default function TerritoireScreen() {
           <View style={styles.topBar}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Revenir au profil"
+              accessibilityLabel={t(C.a11yBackProfile)}
               onPress={() => goBack('/profil')}
               hitSlop={12}
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}
@@ -93,11 +97,11 @@ export default function TerritoireScreen() {
                 <Icon name="chevron" size={20} color={colors.blanc} />
               </View>
             </Pressable>
-            <Text style={styles.kicker}>MON TERRITOIRE</Text>
+            <Text style={styles.kicker}>{t(C.territoryKicker)}</Text>
             <View style={styles.back} />
           </View>
 
-          <Text style={styles.title}>Territoire de {d.runner}</Text>
+          <Text style={styles.title}>{t(C.territoryOf, { name: d.runner })}</Text>
           {/* P0 B4 (MVP_CHANGESET) — cet écran rend TERRITORY_PAGE_DEMO : depuis que la
               Battle Map lit les vraies captures, le présenter comme le joueur était un
               mensonge silencieux. Même formulation canonique que la carte (dataNote). */}
@@ -105,12 +109,14 @@ export default function TerritoireScreen() {
             {dataNote(false, false)}
           </Text>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryStrong}>{formatInt(d.totalZones)} zones tenues</Text>
+            <Text style={styles.summaryStrong}>
+              {t(C.zonesHeld, { n: formatInt(d.totalZones) })}
+            </Text>
             <Text style={styles.summaryDot}> · </Text>
             <Text style={styles.summaryMuted}>{d.citiesLabel}</Text>
             <Text style={styles.summaryDot}> · </Text>
             <Text style={styles.summaryContested}>
-              {d.contestedBorders} frontières contestées
+              {t(C.contestedBorders, { n: d.contestedBorders })}
             </Text>
           </View>
         </View>
@@ -121,14 +127,18 @@ export default function TerritoireScreen() {
         </View>
 
         {/* ── VILLES ──────────────────────────────────────────────────────── */}
-        <Section title="VILLES" count={d.cities.length} onSeeAll={() => router.push('/(tabs)')}>
+        <Section
+          title={t(C.sectionCities)}
+          count={d.cities.length}
+          onSeeAll={() => router.push('/(tabs)')}
+        >
           {d.cities.slice(0, 2).map((c) => (
             <View key={c.city} style={styles.cityRow}>
               <View style={styles.cityLeft}>
                 <Text style={styles.cityName}>{c.city}</Text>
                 <Text style={styles.cityStatus}>{c.status}</Text>
               </View>
-              <Text style={styles.cityZones}>{formatInt(c.zones)} zones</Text>
+              <Text style={styles.cityZones}>{t(C.zonesCount, { n: formatInt(c.zones) })}</Text>
             </View>
           ))}
         </Section>
@@ -140,7 +150,11 @@ export default function TerritoireScreen() {
         <ZoneLeaderboard data={DEFAULT_ZONE_LEADERBOARD} />
 
         {/* ── À DÉFENDRE ──────────────────────────────────────────────────── */}
-        <Section title="À DÉFENDRE" count={d.threats.length} onSeeAll={() => router.push('/(tabs)')}>
+        <Section
+          title={t(C.sectionDefend)}
+          count={d.threats.length}
+          onSeeAll={() => router.push('/(tabs)')}
+        >
           {d.threats.slice(0, 2).map((t) => (
             <View key={t.name} style={styles.itemRow}>
               <View
@@ -162,7 +176,11 @@ export default function TerritoireScreen() {
         </Section>
 
         {/* ── ROUTES OUVERTES ─────────────────────────────────────────────── */}
-        <Section title="ROUTES OUVERTES" count={d.routes.length} onSeeAll={() => router.push('/(tabs)')}>
+        <Section
+          title={t(C.sectionOpenRoutes)}
+          count={d.routes.length}
+          onSeeAll={() => router.push('/(tabs)')}
+        >
           {d.routes.slice(0, 2).map((r) => (
             <View key={r.label} style={styles.itemRow}>
               <View style={styles.itemIcon} accessible={false}>
@@ -175,7 +193,7 @@ export default function TerritoireScreen() {
         </Section>
 
         {/* ── RECORDS TERRITOIRE (anti-shame : que du positif) ────────────── */}
-        <Section title="RECORDS TERRITOIRE" count={d.records.length}>
+        <Section title={t(C.sectionRecords)} count={d.records.length}>
           {d.records.slice(0, 2).map((rec) => (
             <View key={rec.label} style={styles.itemRow}>
               <View style={styles.itemIcon} accessible={false}>
@@ -192,27 +210,27 @@ export default function TerritoireScreen() {
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.sm }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Voir sur la carte"
+          accessibilityLabel={t(C.seeOnMap)}
           onPress={() => router.push('/(tabs)')}
           style={({ pressed }) => [styles.ctaPrimary, pressed && styles.pressed]}
         >
           <Icon name="carte" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.ctaPrimaryLabel}>Voir sur la carte</Text>
+          <Text style={styles.ctaPrimaryLabel}>{t(C.seeOnMap)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Défendre ${urgent?.name ?? ''}`}
+          accessibilityLabel={t(C.a11yDefend, { name: urgent?.name ?? '' })}
           onPress={() => router.push('/route-planner?type=defense')}
           style={({ pressed }) => [styles.ctaGhost, pressed && styles.pressed]}
         >
           <Icon name="bouclier" size={iconSizes.md} color={colors.blanc} />
           {/* Zéro-lie : le bouton MÈNE à la planification de défense — il ne
               « met pas en défense » (aucun état réel derrière). Label stable. */}
-          <Text style={styles.ctaGhostLabel}>Défendre</Text>
+          <Text style={styles.ctaGhostLabel}>{t(C.defend)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Partager mon territoire"
+          accessibilityLabel={t(C.a11yShareTerritory)}
           onPress={() => router.push('/partage?template=conquete')}
           style={({ pressed }) => [styles.ctaIcon, pressed && styles.pressed]}
         >

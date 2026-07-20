@@ -22,6 +22,9 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { VERIFIED_MIN_TRUST, colors, fontSizes, gameColors, iconSizes, motion, radii, spacing } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/runGps';
+import { useT } from '../../../i18n/store';
+import type { Entry } from '../../../i18n/types';
 import { screen } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
 import { Icon } from '../../../ui/Icon';
@@ -50,18 +53,19 @@ import {
 const BIG_CONTROL_SIZE = 68;
 
 /** Libellé de la pill principale selon la phase réelle (toujours visible). */
-function statusLabel(run: RealRunApi): string {
+function statusLabel(run: RealRunApi): Entry {
   const s = run.snapshot;
-  if (s.phase === 'paused-user') return 'EN PAUSE';
+  if (s.phase === 'paused-user') return C.statusPaused;
   // Retour terrain 20/07 : « EN PAUSE AUTO » seul se lisait comme un problème
   // GPS. On dit POURQUOI (l'arrêt) et COMMENT reprendre — pas un bug, un état.
-  if (s.phase === 'paused-auto') return 'EN PAUSE AUTO · BOUGE POUR REPRENDRE';
-  if (s.phase === 'finished') return 'COURSE TERMINÉE';
-  if (s.totalFixes === 0) return 'RECHERCHE GPS…';
-  return 'EN COURSE';
+  if (s.phase === 'paused-auto') return C.statusPausedAuto;
+  if (s.phase === 'finished') return C.statusFinished;
+  if (s.totalFixes === 0) return C.statusSearchingGps;
+  return C.statusRunning;
 }
 
 export function RealCourseLive({ run }: { run: RealRunApi }) {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const [helpVisible, setHelpVisible] = useState(false);
   const finishedRef = useRef(false);
@@ -105,7 +109,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     });
   };
 
-  const modeLabel = RUN_MODE_LABEL[mode as LiveRunMode] ?? 'Conquête';
+  const modeLabel = RUN_MODE_LABEL[mode as LiveRunMode] ?? t(C.modeConquete);
 
   return (
     <View style={styles.root}>
@@ -118,7 +122,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
               (paused || s.phase === 'paused-auto' || s.totalFixes === 0) && styles.liveDotPaused,
             ]}
           />
-          <Text style={styles.topPillText}>{statusLabel(run)}</Text>
+          <Text style={styles.topPillText}>{t(statusLabel(run))}</Text>
         </View>
         {/* En pause MANUELLE les fixes sont volontairement ignorés : ne jamais
              afficher un faux « Signal perdu » (états honnêtes, anti-shame). */}
@@ -128,14 +132,14 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         {!conquest ? (
           <View style={styles.statsOnlyPill}>
             <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={iconSizes.xs} color={colors.gris} />
-            <Text style={styles.statsOnlyText}>{modeLabel} — stats uniquement, aucune capture</Text>
+            <Text style={styles.statsOnlyText}>{t(C.statsOnlyMode, { mode: modeLabel })}</Text>
           </View>
         ) : null}
         {run.approxLocation ? <PreciseLocationBanner onOpenSettings={run.openSettings} /> : null}
         {run.bgPrompt === 'denied' ? (
           <View style={styles.statsOnlyPill}>
             <Icon name="gps" size={iconSizes.xs} color={colors.gris} />
-            <Text style={styles.statsOnlyText}>Course enregistrée quand l’app est ouverte.</Text>
+            <Text style={styles.statsOnlyText}>{t(C.foregroundOnly)}</Text>
           </View>
         ) : null}
         {run.bgPrompt === 'offer' ? (
@@ -143,7 +147,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         ) : null}
         {run.restore !== null ? (
           <RestoreRunCard
-            distanceLabel={`${formatKm(run.restore.distanceM)} km retrouvés`}
+            distanceLabel={t(C.restoreKmFound, { km: formatKm(run.restore.distanceM) })}
             onResume={run.restore.resume}
             onDiscard={run.restore.discard}
           />
@@ -152,7 +156,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
 
       {/* ── Centre Nike : KPI géants RÉELS ── */}
       <View style={styles.center}>
-        <Text style={styles.heroKicker}>DISTANCE</Text>
+        <Text style={styles.heroKicker}>{t(C.kickerDistance)}</Text>
         <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>
           {formatKm(s.distanceM)}
           <Text style={styles.heroUnit}> KM</Text>
@@ -160,7 +164,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
 
         {conquest ? (
           <Text style={styles.zonesValue} numberOfLines={1} adjustsFontSizeToFit>
-            +{formatInt(s.zonesEstimated)} ZONES ESTIMÉES
+            {t(C.zonesEstimated, { n: formatInt(s.zonesEstimated) })}
           </Text>
         ) : null}
 
@@ -173,20 +177,20 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
             numberOfLines={1}
           >
             {hint.kind === 'ready'
-              ? 'BOUCLE PRÊTE — termine quand tu veux'
-              : `BOUCLE · retour ~${formatInt(roundLoopM(hint.gapM))} m`}
+              ? t(C.loopReady)
+              : t(C.loopReturn, { m: formatInt(roundLoopM(hint.gapM)) })}
           </Text>
         ) : null}
 
         <View style={styles.secondaryRow}>
           <View style={styles.secondaryStat}>
             <Text style={styles.secondaryValue}>{formatPace(s.paceSPerKm)}</Text>
-            <Text style={styles.secondaryLabel}>ALLURE /KM</Text>
+            <Text style={styles.secondaryLabel}>{t(C.paceLabel)}</Text>
           </View>
           <View style={styles.secondaryDivider} />
           <View style={styles.secondaryStat}>
             <Text style={styles.secondaryValue}>{formatClock(s.activeS)}</Text>
-            <Text style={styles.secondaryLabel}>TEMPS</Text>
+            <Text style={styles.secondaryLabel}>{t(C.timeLabel)}</Text>
           </View>
         </View>
 
@@ -226,16 +230,16 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       {/* ── Contrôles bas GROS, une main : [Pause] [Aide GPS] [Terminer] ── */}
       <View style={[styles.controls, { paddingBottom: insets.bottom + 18 }]}>
         <BigControl
-          label={paused ? 'REPRENDRE' : 'PAUSE'}
-          accessibilityLabel={paused ? 'Reprendre la course' : 'Mettre la course en pause'}
+          label={paused ? t(C.ctrlResume) : t(C.ctrlPause)}
+          accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
           active={paused}
           onPress={run.togglePause}
         >
           <PausePlayGlyph paused={paused} size={24} />
         </BigControl>
         <BigControl
-          label="AIDE GPS"
-          accessibilityLabel="Aide GPS : courir écran éteint"
+          label={t(C.ctrlGpsHelp)}
+          accessibilityLabel={t(C.a11yGpsHelp)}
           onPress={() => setHelpVisible(true)}
         >
           <Icon name="gps" size={24} color={colors.blanc} />
@@ -243,7 +247,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         <View style={styles.bigControlWrap}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Terminer la course (maintenir)"
+            accessibilityLabel={t(C.a11yFinishRun)}
             onLongPress={finish}
             delayLongPress={motion.holdToStopMs}
             onPress={() => {
@@ -254,7 +258,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           >
             <View style={styles.bigStopSquare} />
           </Pressable>
-          <Text style={styles.bigLabel}>TERMINER</Text>
+          <Text style={styles.bigLabel}>{t(C.ctrlFinish)}</Text>
         </View>
       </View>
 

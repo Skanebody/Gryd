@@ -9,6 +9,8 @@
  */
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/explain';
+import { useT } from '../../../i18n/store';
 import type { SchemaBaseProps } from './types';
 
 const VB_W = 280;
@@ -35,10 +37,11 @@ export interface BonusCibleProps extends SchemaBaseProps {
 export function BonusCible({
   size = VB_W,
   remainingMeters = 620,
-  ctaLabel = 'Termine la boucle',
-  bonusLabel = 'Bonus Finisher',
-  accessibilityLabel = 'Il reste un segment à courir ; un bonus ciblé t’invite à fermer la boucle.',
+  ctaLabel,
+  bonusLabel,
+  accessibilityLabel,
 }: BonusCibleProps) {
+  const t = useT();
   const width = size;
   const height = size * RATIO;
   return (
@@ -46,7 +49,7 @@ export function BonusCible({
       width={width}
       height={height}
       viewBox={`0 0 ${VB_W} ${VB_H}`}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={accessibilityLabel ?? t(C.schemaBonusA11y)}
     >
       {/* Boucle courue (plein) */}
       <Path d={DONE} fill="none" stroke={colors.chartreuse} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
@@ -70,7 +73,7 @@ export function BonusCible({
         <Path d={BOLT} fill={colors.chartreuse} stroke="none" />
       </G>
       <SvgText x={232} y={72} fill={colors.chartreuse} fontSize={11} fontFamily={fonts.text} textAnchor="middle">
-        {bonusLabel}
+        {bonusLabel ?? t(C.schemaFinisherBonus)}
       </SvgText>
 
       {/* CTA (unique) — pill chartreuse, texte NOIR (jamais chartreuse sur clair : ici noir sur chartreuse = OK) */}
@@ -87,7 +90,7 @@ export function BonusCible({
           fontFamily={fonts.text}
           textAnchor="middle"
         >
-          {ctaLabel}
+          {ctaLabel ?? t(C.schemaFinishLoopCta)}
         </SvgText>
       </G>
     </Svg>

@@ -78,6 +78,9 @@ import {
   type TerritoryDemoFlag,
 } from '../../src/features/territory/territoryStatus';
 import { flags } from '../../src/lib/flags';
+import type { Entry } from '../../src/i18n/types';
+import { useT } from '../../src/i18n/store';
+import { C } from '../../src/i18n/catalog/profil';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -214,8 +217,8 @@ function deriveSkill(def: SkillDef, statValue: number): DerivedSkill {
 }
 
 interface ProfileLink {
-  label: string;
-  detail: string;
+  label: Entry;
+  detail: Entry;
   icon: IconName;
   href?: string;
 }
@@ -225,51 +228,53 @@ interface ProfileLink {
  * dédiées (AMENDEMENT-17 : « Listes longues → pages dédiées »). Aucun contenu
  * déroulé dans le profil lui-même. « Confidentialité & géoloc » est un accès
  * DIRECT à 1 tap (audit confiance : la géoloc ne s'enterre pas sous
- * Paramètres), placé AVANT la boutique.
+ * Paramètres), placé AVANT la boutique. Les libellés sont des Entries i18n —
+ * la structure reste au module, la résolution se fait à l'affichage (t()).
  */
 const LINKS: readonly ProfileLink[] = [
   // Sortis de la barre (nav 4 slots) — accès depuis « Moi » (décision fondateur).
   // D8 : hors MVP fermé, Saison/Missions/Arsenal disparaissent de la SURFACE
   // (flags.ts) — les moteurs continuent d'accumuler, rien n'est perdu au flip.
   ...(flags.season
-    ? [{ label: 'Saison', detail: 'Classement, rang, récompenses de fin', icon: 'classement', href: '/classement' } as const]
+    ? [{ label: C.linkSeason, detail: C.linkSeasonDetail, icon: 'classement', href: '/classement' } as const]
     : []),
   ...(flags.warRoom
-    ? [{ label: 'Missions', detail: 'Défense, conquête, coffre du crew', icon: 'guerre', href: '/warroom' } as const]
+    ? [{ label: C.linkMissions, detail: C.linkMissionsDetail, icon: 'guerre', href: '/warroom' } as const]
     : []),
-  { label: 'Mes amis', detail: 'Amis, demandes, suggestions, QR', icon: 'ami', href: '/amis' },
-  { label: 'Performance', detail: 'Score Forme, records, impact GRYD', icon: 'performance', href: '/performance' },
-  { label: 'Historique de courses', detail: 'Toutes tes conquêtes', icon: 'historique', href: '/historique' },
+  { label: C.linkFriends, detail: C.linkFriendsDetail, icon: 'ami', href: '/amis' },
+  { label: C.linkPerformance, detail: C.linkPerformanceDetail, icon: 'performance', href: '/performance' },
+  { label: C.linkHistory, detail: C.linkHistoryDetail, icon: 'historique', href: '/historique' },
   {
-    label: 'Confidentialité & géoloc',
-    detail: 'Qui voit quoi, masquer départ/arrivée, couper le live',
+    label: C.linkPrivacy,
+    detail: C.linkPrivacyDetail,
     icon: 'verrou',
     href: '/confidentialite',
   },
   ...(flags.arsenal
-    ? [{ label: 'Arsenal', detail: 'Skins, objets capés, GRYD Club', icon: 'boutique', href: '/arsenal' } as const]
+    ? [{ label: C.linkArsenal, detail: C.linkArsenalDetail, icon: 'boutique', href: '/arsenal' } as const]
     : []),
   {
-    label: 'Sources connectées',
-    detail: 'GPS, Apple Health, Strava, WHOOP…',
+    label: C.linkSources,
+    detail: C.linkSourcesDetail,
     icon: 'lien',
     href: '/sources',
   },
   {
-    label: 'Support course',
-    detail: 'Course non comptée, signalement, données',
+    label: C.linkSupport,
+    detail: C.linkSupportDetail,
     icon: 'aide',
     href: '/support',
   },
   {
-    label: 'Paramètres',
-    detail: 'Notifications, compte, carte, crew',
+    label: C.linkSettings,
+    detail: C.linkSettingsDetail,
     icon: 'reglages',
     href: '/parametres',
   },
 ];
 
 export default function ProfilScreen() {
+  const t = useT();
   const widgetView = useTerritoryWidgetView();
   const { session, configured } = useSession();
   const toast = useToast();
@@ -357,7 +362,7 @@ export default function ProfilScreen() {
       {/* Accès Paramètres — icône réglages en haut à droite, hors du flux compact */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Ouvrir les paramètres"
+        accessibilityLabel={t(C.a11yOpenSettings)}
         hitSlop={12}
         onPress={() => router.push('/parametres')}
         style={({ pressed }) => [
@@ -368,14 +373,14 @@ export default function ProfilScreen() {
       >
         <Icon name="reglages" size={iconSizes.lg} color={colors.blanc} />
       </Pressable>
-      <TabScreen title={profile.displayName} kicker="CARTE DE JOUEUR">
+      <TabScreen title={profile.displayName} kicker={t(C.kickerPlayerCard)}>
         {/* ── Player Card compacte : identité + 2 chiffres clés + rang ── */}
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
             {/* Avatar + crayon d'édition ÉVIDENT posé dessus (affordance 1/2) */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Modifier mon profil"
+              accessibilityLabel={t(C.editMyProfile)}
               onPress={openEdit}
               hitSlop={8}
               style={({ pressed }) => [styles.avatarPress, pressed && styles.dim]}
@@ -404,7 +409,7 @@ export default function ProfilScreen() {
                   sur l'anneau d'avatar ; le niveau détaillé vit dans Progression).
                   Wrap sur 2 lignes plutôt que couper au « … » (Règle §A.9). */}
               <Text style={styles.identity} numberOfLines={2}>
-                Niveau {runnerLevel} · {profile.city}
+                {t(C.identityLine, { n: runnerLevel, city: profile.city })}
               </Text>
               {showCrew ? (
                 <View style={styles.crewRow}>
@@ -427,17 +432,17 @@ export default function ProfilScreen() {
           <View style={styles.headerActions}>
             <IconAction
               icon="profil"
-              label="Modifier profil"
-              accessibilityLabel="Modifier mon profil"
+              label={t(C.actionEditProfile)}
+              accessibilityLabel={t(C.editMyProfile)}
               onPress={openEdit}
             />
             <IconAction
               icon="partage"
-              label="Partager"
-              accessibilityLabel="Partager ma carte de joueur"
+              label={t(C.actionShare)}
+              accessibilityLabel={t(C.a11yShareCard)}
               onPress={() => {
                 setShareOpen((v) => !v);
-                if (!shareOpen) toast.show('Carte de partage prête — capture-la pour la partager');
+                if (!shareOpen) toast.show(t(C.toastShareReady));
               }}
             />
           </View>
@@ -449,10 +454,16 @@ export default function ProfilScreen() {
             <ShareCard
               stat={realUser && !hasRealSeasonRank ? `${runnerLevel}` : `#${seasonRank}`}
               statLabel={
-                realUser && !hasRealSeasonRank ? 'Niveau' : `Rang saison · ${profile.seasonScope}`
+                realUser && !hasRealSeasonRank
+                  ? t(C.levelWord)
+                  : t(C.statSeasonRank, { scope: profile.seasonScope })
               }
               title={showCrew ? `${profile.displayName} · ${profile.crewName}` : profile.displayName}
-              subtitle={`${GRIP_RANK_LABELS[gripRank]} · niv. ${runnerLevel} · ${displayedTitle}`}
+              subtitle={t(C.shareSubtitle, {
+                rank: GRIP_RANK_LABELS[gripRank],
+                n: runnerLevel,
+                title: displayedTitle,
+              })}
             >
               {/* Carte identité character-forward : GRIP porte la signature GRYD. */}
               <GripMascot rank={gripRank} size={72} />
@@ -465,7 +476,7 @@ export default function ProfilScreen() {
             compacte ≤ 260 px, 60 % stats / 40 % mini-carte, CTA CONTEXTUEL. */}
         <View style={styles.sectionRow}>
           <Icon name="pin" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>MON TERRITOIRE</Text>
+          <Text style={styles.sectionRowLabel}>{t(C.sectionTerritory)}</Text>
         </View>
         {/* Card = View (pas Pressable) : la CTA est un bouton propre à part
             → évite le <button> dans <button>. Le RÉSUMÉ (statut/stats/carte)
@@ -495,7 +506,7 @@ export default function ProfilScreen() {
             {/* Résumé tappable → détail /territoire */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Ouvrir le détail de mon territoire"
+              accessibilityLabel={t(C.a11yOpenTerritory)}
               onPress={() => router.push('/territoire')}
               style={({ pressed }) => [styles.territoryBody, pressed && styles.dim]}
             >
@@ -581,7 +592,7 @@ export default function ProfilScreen() {
                 {territory.soloCrewHint.headline}
               </Text>
               <Text style={styles.soloCrewSub} numberOfLines={1}>
-                Cours et défends avec eux
+                {t(C.soloCrewSub)}
               </Text>
             </View>
             <Text style={styles.soloCrewCta} numberOfLines={1} ellipsizeMode="clip">
@@ -594,7 +605,7 @@ export default function ProfilScreen() {
         {/* ── MODULE 2 · PROGRESSION : Niveau N → N+1, jauge XP réelle ── */}
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>PROGRESSION</Text>
+          <Text style={styles.sectionRowLabel}>{t(C.sectionProgress)}</Text>
         </View>
         <View style={styles.progressCard}>
           {/* GRIP — le personnage à son rang (§43.3) : la progression a un visage,
@@ -607,7 +618,7 @@ export default function ProfilScreen() {
               </Text>
               <View style={styles.levelRow}>
                 <Text style={styles.levelLabel}>
-                  Niveau {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
+                  {t(C.levelWord)} {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
                   {Math.min(runnerLevel + 1, PLAYER_LEVEL_MAX)}
                 </Text>
                 <Text style={styles.levelXp}>
@@ -625,13 +636,22 @@ export default function ProfilScreen() {
           <View style={styles.progressStatsRow}>
             {(economy.source === 'server'
               ? [
-                  { value: formatMultiplier(streakMultiplier), label: `Série · ${streakWeeks} sem` },
-                  { value: formatInt(unlockedCount), label: 'badges débloqués' },
+                  {
+                    value: formatMultiplier(streakMultiplier),
+                    label: t(C.statStreak, { n: streakWeeks }),
+                  },
+                  { value: formatInt(unlockedCount), label: t(C.statBadgesUnlocked) },
                 ]
               : [
-                  { value: `${MY_SOCIAL_PROFILE.formeScore}`, label: 'Score Forme' },
-                  { value: formatMultiplier(streakMultiplier), label: `Série · ${streakWeeks} sem` },
-                  { value: `${MY_SOCIAL_PROFILE.crewChestContribPct} %`, label: 'du coffre crew' },
+                  { value: `${MY_SOCIAL_PROFILE.formeScore}`, label: t(C.statFormScore) },
+                  {
+                    value: formatMultiplier(streakMultiplier),
+                    label: t(C.statStreak, { n: streakWeeks }),
+                  },
+                  {
+                    value: `${MY_SOCIAL_PROFILE.crewChestContribPct} %`,
+                    label: t(C.statCrewChest),
+                  },
                 ]
             ).map((s) => (
               <View key={s.label} style={styles.progressStat}>
@@ -647,14 +667,14 @@ export default function ProfilScreen() {
         {/* ── MODULE 3 · BADGES : 3 équipés + « Voir collection » (pas géant) ── */}
         <View style={styles.sectionRow}>
           <Icon name="badge" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>BADGES ÉQUIPÉS</Text>
+          <Text style={styles.sectionRowLabel}>{t(C.sectionBadges)}</Text>
         </View>
         <View style={styles.badgeRow}>
           {featuredBadges.map((def) => (
             <Pressable
               key={def.id}
               accessibilityRole="button"
-              accessibilityLabel={`Badge ${def.name}`}
+              accessibilityLabel={t(C.a11yBadge, { name: def.name })}
               onPress={() => router.push('/badges')}
               style={({ pressed }) => [styles.badgeCell, pressed && styles.dim]}
             >
@@ -675,12 +695,12 @@ export default function ProfilScreen() {
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Voir la collection de badges"
+          accessibilityLabel={t(C.a11ySeeBadgeCollection)}
           onPress={() => router.push('/badges')}
           style={({ pressed }) => [styles.collectionLink, pressed && styles.dim]}
         >
           <Text style={styles.collectionLinkLabel}>
-            Voir la collection ({unlockedCount}/{BADGE_TOTAL})
+            {t(C.seeCollection, { n: unlockedCount, total: BADGE_TOTAL })}
           </Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
@@ -694,7 +714,7 @@ export default function ProfilScreen() {
             AUCUN gain de territoire/points affiché (Supporter = entraide only). */}
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>SPÉCIALISATIONS</Text>
+          <Text style={styles.sectionRowLabel}>{t(C.sectionSkills)}</Text>
           <Text style={styles.sectionRowCount}>{skillsUnlockedCount}/{SKILLS.length}</Text>
         </View>
         <View style={styles.skillsBlock}>
@@ -740,10 +760,15 @@ export default function ProfilScreen() {
                       amorçage si verrouillé. Toujours une donnée, non tronquée. */}
                   <Text style={styles.skillSub}>
                     {locked
-                      ? `Commence à ${formatInt(s.def.levels[0].threshold)} ${s.unit}`
+                      ? t(C.skillStartAt, { n: formatInt(s.def.levels[0].threshold), unit: s.unit })
                       : s.maxed
-                        ? 'Niveau max atteint'
-                        : `${formatInt(s.remaining)} ${s.unit} avant ${s.def.name} ${nextRoman}`}
+                        ? t(C.skillMaxed)
+                        : t(C.skillRemaining, {
+                            n: formatInt(s.remaining),
+                            unit: s.unit,
+                            name: s.def.name,
+                            roman: nextRoman,
+                          })}
                   </Text>
                 </View>
               </View>
@@ -753,16 +778,16 @@ export default function ProfilScreen() {
 
         {/* RACCOURCIS — listes longues déportées en pages dédiées (« PLUS » était
             un label vague, banni des libellés d'action) */}
-        <Text style={styles.sectionLabel}>RACCOURCIS</Text>
+        <Text style={styles.sectionLabel}>{t(C.sectionShortcuts)}</Text>
         {LINKS.map((link) => (
           <Pressable
-            key={link.label}
+            key={link.href ?? link.icon}
             accessibilityRole="button"
-            accessibilityLabel={link.label}
+            accessibilityLabel={t(link.label)}
             disabled={link.href === undefined}
             onPress={() => {
               if (link.href !== undefined) router.push(link.href);
-              else if (__DEV__) console.log(`[profil] ${link.label} — écran à venir (O1)`);
+              else if (__DEV__) console.log(`[profil] ${t(link.label)} — écran à venir (O1)`);
             }}
             style={({ pressed }) => [
               styles.linkRow,
@@ -771,8 +796,8 @@ export default function ProfilScreen() {
           >
             <Icon name={link.icon} size={20} color={colors.blanc} />
             <View style={styles.linkInfo}>
-              <Text style={styles.linkLabel}>{link.label}</Text>
-              <Text style={styles.linkDetail}>{link.detail}</Text>
+              <Text style={styles.linkLabel}>{t(link.label)}</Text>
+              <Text style={styles.linkDetail}>{t(link.detail)}</Text>
             </View>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
@@ -780,7 +805,7 @@ export default function ProfilScreen() {
 
         {configured && session ? (
           <View style={styles.signOutWrap}>
-            <GhostButton label="Se déconnecter" onPress={() => void signOut()} />
+            <GhostButton label={t(C.signOut)} onPress={() => void signOut()} />
           </View>
         ) : null}
       </TabScreen>

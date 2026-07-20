@@ -24,6 +24,17 @@ import {
   type GameColorName,
   type IconName,
 } from '@klaim/shared';
+import type { Entry } from '../../i18n/types';
+import { C } from '../../i18n/catalog/crew';
+
+/**
+ * Texte localisable porté par une carte (résolu à l'AFFICHAGE par t() du
+ * composant — jamais figé à la construction). `raw` = repli non traduit
+ * (copy @klaim/shared hors périmètre i18n crew).
+ */
+export type CrewLocText =
+  | { entry: Entry; vars?: Record<string, string | number> }
+  | { raw: string };
 
 // ─── Réactions GRYD custom (§8) : icônes, jamais emojis ───────────────────────
 export type CrewReactionKey =
@@ -40,20 +51,20 @@ export interface CrewReactionDef {
   key: CrewReactionKey;
   /** Icône du set partagé (ajoutées à icons.ts, ADDITIF). */
   icon: IconName;
-  /** Libellé court FR (accessibilité + tooltip). */
-  label: string;
+  /** Libellé court localisé (accessibilité + tooltip) — résolu par t(). */
+  label: Entry;
 }
 
 /** Ordre stable des 8 réactions (barre de réactions). */
 export const CREW_REACTIONS: readonly CrewReactionDef[] = [
-  { key: 'raid', icon: 'reactRaid', label: 'Raid' },
-  { key: 'defense', icon: 'reactDefense', label: 'Défense' },
-  { key: 'clean', icon: 'reactClean', label: 'Clean' },
-  { key: 'fast', icon: 'reactFast', label: 'Fast' },
-  { key: 'rankup', icon: 'reactRankup', label: 'Rank up' },
-  { key: 'hold', icon: 'reactHold', label: 'Hold' },
-  { key: 'respect', icon: 'reactRespect', label: 'Respect' },
-  { key: 'legend', icon: 'reactLegend', label: 'Legend' },
+  { key: 'raid', icon: 'reactRaid', label: C.reactRaid },
+  { key: 'defense', icon: 'reactDefense', label: C.reactDefenseWord },
+  { key: 'clean', icon: 'reactClean', label: C.reactClean },
+  { key: 'fast', icon: 'reactFast', label: C.reactFast },
+  { key: 'rankup', icon: 'reactRankup', label: C.reactRankup },
+  { key: 'hold', icon: 'reactHold', label: C.reactHold },
+  { key: 'respect', icon: 'reactRespect', label: C.reactRespect },
+  { key: 'legend', icon: 'reactLegend', label: C.reactLegend },
 ];
 
 export const CREW_REACTION_BY_KEY: Record<CrewReactionKey, CrewReactionDef> = Object.fromEntries(
@@ -158,12 +169,12 @@ export type DefenseRsvp = (typeof DEFENSE_RSVP_OPTIONS)[number];
 
 /** Filtres en chips (A.2) — pilotent l'affichage des 3 sections. */
 export type ChatFilter = 'tout' | 'demandes' | 'missions' | 'dons' | 'resultats';
-export const CHAT_FILTERS: readonly { key: ChatFilter; label: string }[] = [
-  { key: 'tout', label: 'Tout' },
-  { key: 'demandes', label: 'Demandes' },
-  { key: 'missions', label: 'Missions' },
-  { key: 'dons', label: 'Dons' },
-  { key: 'resultats', label: 'Résultats' },
+export const CHAT_FILTERS: readonly { key: ChatFilter; label: Entry }[] = [
+  { key: 'tout', label: C.filterAll },
+  { key: 'demandes', label: C.filterRequests },
+  { key: 'missions', label: C.filterMissions },
+  { key: 'dons', label: C.filterGifts },
+  { key: 'resultats', label: C.filterResults },
 ];
 
 /**
@@ -577,18 +588,18 @@ export function selectCrewChatBonus(ctx: CrewChatBonusContext): BonusDefinition 
 /**
  * Libellé COURT et NON TRONQUÉ de l'effet PROMIS d'un bonus (doc §4). PURE.
  * Miroir de engine/bonusEffectLabel : coffre > XP > protection > badge >
- * cosmétique. Jamais « points » ni « territoire ». Utilisé sous le titre de la
- * carte bonus du Crew Chat comme sur le post-run.
+ * cosmétique. Jamais « points » ni « territoire ». Renvoie un texte LOCALISABLE
+ * (CrewLocText, résolu par t() à l'affichage) — repli `raw` sur le nom shared.
  */
-export function bonusEffectLabel(bonus: BonusDefinition): string {
+export function bonusEffectLabel(bonus: BonusDefinition): CrewLocText {
   const r = bonus.reward;
-  const pct = (p: number) => `${Math.round(p * 100)} %`;
-  if (r.chestPct !== undefined) return `+${pct(r.chestPct)} coffre crew`;
-  if (r.xpPct !== undefined) return `+${pct(r.xpPct)} XP`;
-  if (r.protectionH !== undefined) return `+${r.protectionH} h de protection`;
-  if (r.badgeProgress !== undefined) return 'Progrès badge';
-  if (r.cosmetic !== undefined) return 'Cosmétique débloqué';
-  return bonus.name;
+  const pct = (p: number) => Math.round(p * 100);
+  if (r.chestPct !== undefined) return { entry: C.effectChestPct, vars: { p: pct(r.chestPct) } };
+  if (r.xpPct !== undefined) return { entry: C.effectXpPct, vars: { p: pct(r.xpPct) } };
+  if (r.protectionH !== undefined) return { entry: C.effectProtection, vars: { h: r.protectionH } };
+  if (r.badgeProgress !== undefined) return { entry: C.effectBadgeProgress };
+  if (r.cosmetic !== undefined) return { entry: C.effectCosmetic };
+  return { raw: bonus.name };
 }
 
 /**
@@ -614,43 +625,55 @@ export const BONUS_CARD_META: Record<BonusId, { icon: IconName; tint: string }> 
 export interface BonusActionCard {
   id: string;
   bonus: BonusDefinition;
-  /** Titre court en capitales (« BONUS FINISHER »). */
-  title: string;
+  /** Titre court en capitales (« BONUS FINISHER ») — localisable. */
+  title: CrewLocText;
   /** Effet promis, libellé court non tronqué (« +25 % coffre crew »). */
-  effect: string;
+  effect: CrewLocText;
   /** Zone concernée (« République ») — jamais de coordonnée. */
   zone?: string;
-  /** Détail contextuel court (« Il manque 620 m pour capturer »). */
-  detail: string;
+  /** Détail contextuel court (« Il manque 620 m pour capturer ») — localisable. */
+  detail: CrewLocText;
   /** Icône + teinte (BONUS_CARD_META). */
   icon: IconName;
   tint: string;
 }
 
+/** Titre localisé par famille de bonus (repli composé sur le nom shared). */
+const BONUS_TITLE_E: Partial<Record<BonusId, Entry>> = {
+  finisher: C.bonusTitleFinisher,
+  defense_critical: C.bonusTitleDefense,
+  crew_chest: C.bonusTitleCrewChest,
+  return: C.bonusTitleReturn,
+  exploration: C.bonusTitleExploration,
+  clean_loop: C.bonusTitleCleanLoop,
+};
+
 /** Détail contextuel court d'un bonus crew_chat (« Il manque 620 m … »). PURE. */
-function crewChatBonusDetail(bonus: BonusDefinition, ctx: CrewChatBonusContext): string {
+function crewChatBonusDetail(bonus: BonusDefinition, ctx: CrewChatBonusContext): CrewLocText {
   const zone = ctx.zone;
   switch (bonus.id) {
     case 'finisher': {
       const m = ctx.nearestOpenBoundaryMissingM;
-      return m !== undefined
-        ? `Il manque ${m} m pour capturer ${zone ?? 'la zone'}`
-        : bonus.copy.body;
+      if (m === undefined) return { raw: bonus.copy.body };
+      return zone
+        ? { entry: C.bonusDetailFinisher, vars: { m, zone } }
+        : { entry: C.bonusDetailFinisherNoZone, vars: { m } };
     }
     case 'defense_critical': {
       const h = ctx.soonestZoneDecayH;
-      return h !== undefined
-        ? `${zone ?? 'Une zone'} s’efface dans ${h} h — défends-la`
-        : bonus.copy.body;
+      if (h === undefined) return { raw: bonus.copy.body };
+      return zone
+        ? { entry: C.bonusDetailDefense, vars: { h, zone } }
+        : { entry: C.bonusDetailDefenseNoZone, vars: { h } };
     }
     case 'crew_chest': {
       const r = ctx.chestRatio;
       return r !== undefined
-        ? `Coffre à ${Math.round(r * 100)} % — chaque sortie compte`
-        : bonus.copy.body;
+        ? { entry: C.bonusDetailChest, vars: { pct: Math.round(r * 100) } }
+        : { raw: bonus.copy.body };
     }
     default:
-      return bonus.copy.body;
+      return { raw: bonus.copy.body };
   }
 }
 
@@ -663,10 +686,13 @@ export function buildCrewChatBonusCard(ctx: CrewChatBonusContext): BonusActionCa
   const bonus = selectCrewChatBonus(ctx);
   if (!bonus) return null;
   const meta = BONUS_CARD_META[bonus.id];
+  const titleEntry = BONUS_TITLE_E[bonus.id];
   return {
     id: `bonus_${bonus.id}`,
     bonus,
-    title: `BONUS ${bonus.name.replace(/^Bonus\s+/i, '').toUpperCase()}`,
+    title: titleEntry
+      ? { entry: titleEntry }
+      : { raw: `BONUS ${bonus.name.replace(/^Bonus\s+/i, '').toUpperCase()}` },
     effect: bonusEffectLabel(bonus),
     zone: ctx.zone,
     detail: crewChatBonusDetail(bonus, ctx),

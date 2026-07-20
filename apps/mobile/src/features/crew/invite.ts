@@ -22,6 +22,8 @@
  * point de défaillance (fire-and-forget : un échec ne casse jamais le flow).
  */
 import { Platform, Share } from 'react-native';
+import { C } from '../../i18n/catalog/crew';
+import { t } from '../../i18n/store';
 
 /**
  * Hôte du lien de partage (démo). Court, lisible dans une story/DM (façon
@@ -92,7 +94,8 @@ function sanitizeToken(raw: string): string {
  * (anti pay-to-win). Le lien est ajouté à la fin par l'appelant/`Share`.
  */
 export function inviteMessage(link: string): string {
-  return `Je prends mon quartier sur GRYD. Rejoins mon crew, on le tient à plusieurs : ${link}`;
+  // Localisé (catalogue crew) — résolu à l'appel avec la locale courante.
+  return t(C.inviteMessage, { link });
 }
 
 // ─── Clipboard optionnel (require dynamique, jamais un crash au bundle) ───────

@@ -29,6 +29,8 @@ import {
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
+import { C } from '../src/i18n/catalog/result';
+import { useT } from '../src/i18n/store';
 import { Icon } from '../src/ui/Icon';
 import { formatInt } from '../src/ui/format';
 import {
@@ -106,13 +108,10 @@ const DEMO_UNLOCKED_BADGE_ID = 'route_opened_3';
  * active_bonus éligible, cap +35 %, un seul multiplicateur). `effect` est un
  * libellé COURT prêt à afficher — jamais points/territoire/rang. Ici la course
  * de conquête ferme la frontière crew République → Bonus Finisher, +25 % coffre.
+ * name/effect sont de la copy → résolus à l'affichage (t) dans la langue courante.
  * TODO(O1) : remplacer par la vraie réponse d'ingest_run.
  */
-const DEMO_BONUS_APPLIED: IngestRunResponse['bonusApplied'] = {
-  bonusId: 'finisher',
-  name: 'Bonus Finisher',
-  effect: '+25 % coffre crew',
-};
+const DEMO_BONUS_ID = 'finisher';
 
 /**
  * AMENDEMENT-23 §B.4 — décomposition du calcul de CE run (démo). Les 3 nombres
@@ -324,18 +323,19 @@ function LoopBeforeAfter({
   corridorZones: number;
   totalZones: number;
 }) {
+  const t = useT();
   const aspect = geometry.vbW / geometry.vbH;
   return (
     <View style={styles.sectorCard}>
       <Text style={styles.sectorTitle} numberOfLines={1}>
-        LA BOUCLE FAIT LA ZONE
+        {t(C.loopMakesZoneTitle)}
       </Text>
       <View style={styles.sectorRow}>
         <View style={styles.sectorSide}>
           <View style={[styles.loopMap, { aspectRatio: aspect }]}>
             <LoopMiniMap d={geometry.beforePath} route={geometry.routePoints} vbW={geometry.vbW} vbH={geometry.vbH} />
           </View>
-          <Text style={styles.sectorSideLabel}>LE TRAIT</Text>
+          <Text style={styles.sectorSideLabel}>{t(C.loopSideTrace)}</Text>
           <Text style={styles.sectorPct}>+{formatInt(corridorZones)}</Text>
         </View>
         <Icon name="chevron" size={20} color={colors.gris} />
@@ -343,7 +343,7 @@ function LoopBeforeAfter({
           <View style={[styles.loopMap, { aspectRatio: aspect }]}>
             <LoopMiniMap d={geometry.afterPath} route={geometry.routePoints} vbW={geometry.vbW} vbH={geometry.vbH} />
           </View>
-          <Text style={styles.sectorSideLabel}>LA BOUCLE</Text>
+          <Text style={styles.sectorSideLabel}>{t(C.loopSideLoop)}</Text>
           <Text style={[styles.sectorPct, styles.sectorPctAfter]}>+{formatInt(totalZones)}</Text>
         </View>
       </View>
@@ -416,17 +416,18 @@ function SectorBeforeAfter({
   pctAfter: number;
   geometry: SectorGeometry;
 }) {
+  const t = useT();
   return (
     <View style={styles.sectorCard}>
       <Text style={styles.sectorTitle} numberOfLines={1}>
-        {zoneName.toUpperCase()} · FRONTIÈRE REPOUSSÉE
+        {t(C.sectorPushedTitle, { zone: zoneName.toUpperCase() })}
       </Text>
       <View style={styles.sectorRow}>
         <View style={styles.sectorSide}>
           <View style={styles.sectorMap}>
             <SectorMiniMap side={geometry.before} />
           </View>
-          <Text style={styles.sectorSideLabel}>AVANT</Text>
+          <Text style={styles.sectorSideLabel}>{t(C.beforeLabel)}</Text>
           <Text style={styles.sectorPct}>{pctBefore} %</Text>
         </View>
         <Icon name="chevron" size={20} color={colors.gris} />
@@ -434,7 +435,7 @@ function SectorBeforeAfter({
           <View style={styles.sectorMap}>
             <SectorMiniMap side={geometry.after} route={geometry.routePoints} />
           </View>
-          <Text style={styles.sectorSideLabel}>APRÈS</Text>
+          <Text style={styles.sectorSideLabel}>{t(C.afterLabel)}</Text>
           <Text style={[styles.sectorPct, styles.sectorPctAfter]}>{pctAfter} %</Text>
         </View>
       </View>
@@ -519,6 +520,7 @@ function ConquestResultScreen({
   };
 }) {
   const insets = useSafeAreaInsets();
+  const t = useT();
   // Signature du joueur au moment dopamine : GRIP à son rang (dérivé de l'XP permanent).
   const gripRank = gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
   const mode = runModeFromParam(params.mode);
@@ -569,7 +571,7 @@ function ConquestResultScreen({
         totalPoints: serverResult.pointsAwarded,
         verified: serverResult.status === 'valid' || serverResult.status === 'partial',
         // Aucun secteur réel câblé : « Zone », jamais un faux nom (charte).
-        zoneName: 'Zone',
+        zoneName: t(C.zoneFallback),
         zonePctBefore: 0,
         zonePctAfter: 0,
         rankGained: false,
@@ -586,14 +588,15 @@ function ConquestResultScreen({
         loopClosed: false,
         enclosedZones: 0,
         verified: false,
-        zoneName: 'Zone',
+        zoneName: t(C.zoneFallback),
         zonePctBefore: 0,
         zonePctAfter: 0,
         rankGained: false,
       };
     }
     return demoStats;
-  }, [demoStats, serverResult, realDistM, realDurS]);
+    // `t` (stable par langue) : le nom de zone neutre suit la bascule de langue.
+  }, [demoStats, serverResult, realDistM, realDurS, t]);
 
   const conquest = mode === 'conquete';
   const isPrivate = mode === 'course_privee';
@@ -621,11 +624,12 @@ function ConquestResultScreen({
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
 
   // AMENDEMENT-19 §4/§7 — bonus ciblé appliqué (conquête, démo). En prod =
-  // IngestRunResponse.bonusApplied. UN seul bonus principal, libellé court.
-  const bonusApplied = serverResult
+  // IngestRunResponse.bonusApplied. UN seul bonus principal, libellé court —
+  // la copy démo (name/effect) est résolue ici dans la langue courante.
+  const bonusApplied: IngestRunResponse['bonusApplied'] | undefined = serverResult
     ? serverResult.bonusApplied
     : mode === 'conquete' && !isRealRun
-      ? DEMO_BONUS_APPLIED
+      ? { bonusId: DEMO_BONUS_ID, name: t(C.demoBonusName), effect: t(C.demoBonusEffect) }
       : undefined;
 
   // Mini-cartes en traits nets §4ter (avant/après + share card) — conquête.
@@ -728,7 +732,7 @@ function ConquestResultScreen({
   const zonesDefended = serverResult
     ? serverResult.hexes.defended
     : DEMO_CALC_BREAKDOWN.zonesDefended;
-  const defendedNote = serverResult ? undefined : 'démo';
+  const defendedNote = serverResult ? undefined : t(C.demoNote);
 
   // Synthèse multi-résultats (doc §2/§3.1) — conquête seulement (les modes
   // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
@@ -751,23 +755,23 @@ function ConquestResultScreen({
       ? `${summary.kicker} · ${formatKm(stats.distanceM)} km`
       : `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`
     : isPrivate
-      ? 'Course privée · visible par toi seul'
-      : `Social Run · ${formatKm(stats.distanceM)} km`;
+      ? t(C.privateLine)
+      : t(C.socialRunLine, { km: formatKm(stats.distanceM) });
   // Titre du moment dopamine : le RÉSULTAT (territoire/zone), jamais un tampon
   // administratif — la validation vit dans la pill GRYD VERIFIED, séparée.
   const heroTitle = isPrivate
-    ? 'COURSE ENREGISTRÉE'
+    ? t(C.heroPrivate)
     : !conquest
-      ? 'COURSE TERMINÉE'
+      ? t(C.heroDone)
       : intention === 'defense'
-        ? 'ZONE DÉFENDUE'
-        : 'TERRITOIRE ÉTENDU';
+        ? t(C.heroDefended)
+        : t(C.heroExtended);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
       {/* Barre : kicker seul — l'écran 1 est déjà l'état final, rien à passer. */}
       <View style={styles.bar}>
-        <Text style={styles.barKicker}>RÉSULTAT DE COURSE</Text>
+        <Text style={styles.barKicker}>{t(C.barKicker)}</Text>
       </View>
 
       <ScrollView
@@ -789,7 +793,7 @@ function ConquestResultScreen({
             stats.verified ? (
               <StatePill state="verified" label="GRYD VERIFIED" />
             ) : (
-              <StatePill state="statsonly" label="Compte en stats" />
+              <StatePill state="statsonly" label={t(C.statsOnlyPill)} />
             )
           ) : null}
 
@@ -797,7 +801,7 @@ function ConquestResultScreen({
           {conquest && !(isRealRun && !serverResult) ? (
             <View style={styles.heroKpi}>
               <ZoneCountUp value={stats.hexes} />
-              <Text style={styles.heroKpiLabel}>ZONES CAPTURÉES</Text>
+              <Text style={styles.heroKpiLabel}>{t(C.zonesCaptured)}</Text>
             </View>
           ) : (
             <View style={styles.heroKpi}>
@@ -809,19 +813,19 @@ function ConquestResultScreen({
           {/* Le POURQUOI du chiffre, au niveau 1 (données déjà calculées). */}
           {conquest && stats.loopClosed ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
-              Boucle fermée · +{formatInt(stats.enclosedZones)} zones d'un coup
+              {t(C.loopClosedBurst, { n: formatInt(stats.enclosedZones) })}
             </Text>
           ) : null}
 
           {/* P0 C1 — l'échec est EXPLIQUÉ, jamais un simple « 0 » sec (copy gelée §CH2). */}
           {conquest && serverResult?.openBoundary ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
-              Boucle presque fermée · Il manque {formatInt(serverResult.openBoundary.missingM)} m
+              {t(C.almostClosed, { m: formatInt(serverResult.openBoundary.missingM) })}
             </Text>
           ) : null}
           {conquest && serverResult && stats.hexes === 0 && !serverResult.openBoundary ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
-              Aucune zone capturée — ferme une boucle pour prendre la zone.
+              {t(C.noZones)}
             </Text>
           ) : null}
 
@@ -835,13 +839,13 @@ function ConquestResultScreen({
           {conquest && badge ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Badge débloqué : ${badge.name}. Voir le badge`}
+              accessibilityLabel={t(C.badgeUnlockedA11y, { name: badge.name })}
               onPress={openBadgeDetails}
               style={({ pressed }) => [styles.heroBadge, pressed && styles.pressed]}
             >
               <Icon name="badge" size={16} color={badgeColor(badge)} />
               <Text style={styles.heroBadgeText} numberOfLines={1} adjustsFontSizeToFit>
-                Badge débloqué · {badge.name}
+                {t(C.badgeUnlockedBanner, { name: badge.name })}
               </Text>
               <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
             </Pressable>
@@ -850,7 +854,7 @@ function ConquestResultScreen({
           {/* Fin hors-ligne (AMENDEMENT-15 §2) : discret, anti-shame, jamais bloquant. */}
           {params.queued === '1' ? (
             <Text style={styles.heroQueued} numberOfLines={1}>
-              Envoi dès que possible.
+              {t(C.queuedNote)}
             </Text>
           ) : null}
         </ResultReveal>
@@ -866,36 +870,28 @@ function ConquestResultScreen({
               style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
             >
               <Icon name="partage" size={iconSizes.md} color={colors.noir} />
-              <Text style={styles.shareLabel}>Partager</Text>
+              <Text style={styles.shareLabel}>{t(C.share)}</Text>
             </Pressable>
           ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Voir mon territoire"
+            accessibilityLabel={t(C.seeTerritory)}
             onPress={goMap}
             style={({ pressed }) => [styles.boundarySecondary, pressed && styles.pressed]}
           >
             <Icon name="carte" size={iconSizes.sm} color={colors.blanc} />
-            <Text style={styles.boundarySecondaryLabel}>Voir mon territoire</Text>
+            <Text style={styles.boundarySecondaryLabel}>{t(C.seeTerritory)}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              showDetails
-                ? 'Masquer les détails'
-                : conquest
-                  ? 'Comment j\'ai gagné ces zones'
-                  : 'Voir mes stats'
+              showDetails ? t(C.hideDetails) : conquest ? t(C.howIWon) : t(C.seeMyStats)
             }
             onPress={toggleDetails}
             style={({ pressed }) => [styles.detailsToggle, pressed && styles.pressed]}
           >
             <Text style={styles.detailsToggleLabel}>
-              {showDetails
-                ? 'Masquer les détails'
-                : conquest
-                  ? 'Comment j\'ai gagné ces zones'
-                  : 'Voir mes stats'}
+              {showDetails ? t(C.hideDetails) : conquest ? t(C.howIWon) : t(C.seeMyStats)}
             </Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
@@ -910,7 +906,7 @@ function ConquestResultScreen({
             {/* IMPACT — synthèse multi-résultats + total. */}
             {conquest ? (
               <View style={styles.block}>
-                <Text style={styles.stepKicker}>IMPACT</Text>
+                <Text style={styles.stepKicker}>{t(C.impactKicker)}</Text>
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryLines}>
                     {summaryLines.map((line) => (
@@ -918,12 +914,13 @@ function ConquestResultScreen({
                     ))}
                   </View>
                   <View style={styles.impactTotalRow}>
-                    <Text style={styles.impactTotalLabel}>TOTAL</Text>
+                    <Text style={styles.impactTotalLabel}>{t(C.totalLabel)}</Text>
                     <Text style={styles.impactTotalValue}>
                       +{formatInt(stats.hexes)}
                       {stats.loopClosed ? (
                         <Text style={styles.impactTotalSub}>
-                          {'  '}dont {formatInt(stats.enclosedZones)} en boucle
+                          {'  '}
+                          {t(C.ofWhichLoop, { n: formatInt(stats.enclosedZones) })}
                         </Text>
                       ) : null}
                     </Text>
@@ -935,16 +932,14 @@ function ConquestResultScreen({
             {/* Stats (social / privé) — la distance domine. */}
             {!conquest ? (
               <View style={styles.block}>
-                <Text style={styles.stepKicker}>DÉTAILS</Text>
+                <Text style={styles.stepKicker}>{t(C.detailsKicker)}</Text>
                 <View style={styles.statsCard}>
                   <View style={styles.statsRow}>
-                    <MiniStat label="TEMPS" value={formatClock(stats.durationS)} />
-                    <MiniStat label="ALLURE" value={`${formatPace(stats.paceSPerKm)}/km`} />
+                    <MiniStat label={t(C.timeLabel)} value={formatClock(stats.durationS)} />
+                    <MiniStat label={t(C.paceLabel)} value={`${formatPace(stats.paceSPerKm)}/km`} />
                   </View>
                   <Text style={styles.statsNote}>
-                    {isPrivate
-                      ? 'Course privée — rien n\'apparaît sur la carte ni dans le feed.'
-                      : 'Social Run — stats et badges comptent, aucune capture.'}
+                    {isPrivate ? t(C.privateNote) : t(C.socialNote)}
                   </Text>
                 </View>
               </View>
@@ -958,7 +953,7 @@ function ConquestResultScreen({
                   {stats.verified ? (
                     <StatePill state="verified" label="GRYD VERIFIED" />
                   ) : (
-                    <StatePill state="statsonly" label="Stats enregistrées" />
+                    <StatePill state="statsonly" label={t(C.statsSavedPill)} />
                   )}
                   {/* Scores GPS/mouvement : DÉMO (resultStats) — le serveur ne les
                       renvoie pas encore (O1). On ne les montre donc PAS pour une vraie
@@ -967,7 +962,7 @@ function ConquestResultScreen({
                   {!isRealRun ? (
                     <View style={styles.verifiedTrust}>
                       <MiniStat label="GPS" value={String(stats.gpsTrust)} />
-                      <MiniStat label="MOUVEMENT" value={String(stats.motionTrust)} />
+                      <MiniStat label={t(C.movementLabel)} value={String(stats.motionTrust)} />
                     </View>
                   ) : null}
                 </View>
@@ -978,14 +973,14 @@ function ConquestResultScreen({
                 EXISTANTE, déplacée ICI (pas sur l'écran 1). */}
             {conquest && loopGeo ? (
               <View style={styles.block}>
-                <Text style={styles.stepKicker}>ANALYSE</Text>
+                <Text style={styles.stepKicker}>{t(C.analysisKicker)}</Text>
                 <LoopBeforeAfter
                   geometry={loopGeo}
                   corridorZones={stats.hexes - stats.enclosedZones}
                   totalZones={stats.hexes}
                 />
                 <Text style={styles.analyseSub}>
-                  Boucle fermée : +{formatInt(stats.enclosedZones)} zones gagnées.
+                  {t(C.loopGainNote, { n: formatInt(stats.enclosedZones) })}
                 </Text>
               </View>
             ) : null}
@@ -1000,18 +995,12 @@ function ConquestResultScreen({
               <View style={styles.block}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    showCalc
-                      ? 'Masquer le calcul du résultat'
-                      : 'Comment est calculé ce résultat ?'
-                  }
+                  accessibilityLabel={showCalc ? t(C.calcHideA11y) : t(C.calcQuestion)}
                   onPress={toggleCalc}
                   style={({ pressed }) => [styles.calcHeader, pressed && styles.pressed]}
                 >
                   <Icon name="boucle_fermee" size={16} color={colors.chartreuse} />
-                  <Text style={styles.calcHeaderLabel}>
-                    Comment est calculé ce résultat ?
-                  </Text>
+                  <Text style={styles.calcHeaderLabel}>{t(C.calcQuestion)}</Text>
                   <Icon name="chevron" size={16} color={colors.gris} />
                 </Pressable>
 
@@ -1028,47 +1017,47 @@ function ConquestResultScreen({
 
                     {/* Décomposition en 3 lignes (trace / boucle / gain). */}
                     <View style={styles.calcZonesRows}>
-                      <CalcZoneRow label="Trace seule" value={`+${formatInt(traceZones)}`} />
+                      <CalcZoneRow label={t(C.traceOnly)} value={`+${formatInt(traceZones)}`} />
                       <CalcZoneRow
-                        label="Boucle fermée"
+                        label={t(C.loopClosedRow)}
                         value={`+${formatInt(totalZones)}`}
                         accent
                       />
-                      <CalcZoneRow label="Gain de boucle" value={`+${formatInt(loopGain)}`} />
+                      <CalcZoneRow label={t(C.loopGainRow)} value={`+${formatInt(loopGain)}`} />
                     </View>
 
                     {/* Grille technique : le reste du calcul, valeurs brutes. */}
                     <View style={styles.calcGrid}>
                       <View style={styles.calcCell}>
                         <MiniStat
-                          label="DÉFENDUES"
+                          label={t(C.defendedLabel)}
                           value={`+${formatInt(zonesDefended)}`}
                           note={defendedNote}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
-                          label="ROUTES OUVERTES"
+                          label={t(C.routesOpenedLabel)}
                           value={formatInt(DEMO_CALC_BREAKDOWN.routesOpened)}
-                          note="démo"
+                          note={t(C.demoNote)}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
-                          label="SEGMENTS EXCLUS"
+                          label={t(C.segmentsExcludedLabel)}
                           value={formatInt(DEMO_CALC_BREAKDOWN.segmentsExcluded)}
-                          note="démo"
+                          note={t(C.demoNote)}
                         />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat label="GPS" value={String(stats.gpsTrust)} />
                       </View>
                       <View style={styles.calcCell}>
-                        <MiniStat label="MOUVEMENT" value={String(stats.motionTrust)} />
+                        <MiniStat label={t(C.movementLabel)} value={String(stats.motionTrust)} />
                       </View>
                       <View style={styles.calcCell}>
                         <MiniStat
-                          label="VALIDÉ"
+                          label={t(C.validLabel)}
                           value={
                             stats.verified ? `≥ ${verifyTiers.full}` : `< ${verifyTiers.partial}`
                           }
@@ -1078,9 +1067,7 @@ function ConquestResultScreen({
 
                     {/* Statut verify — la conclusion, en une ligne. */}
                     <Text style={styles.calcVerifyNote} numberOfLines={2}>
-                      {stats.verified
-                        ? 'GPS et mouvement fiables : capture pleine.'
-                        : 'GPS ou mouvement insuffisants : stats enregistrées, pas de capture.'}
+                      {stats.verified ? t(C.verifyOk) : t(C.verifyKo)}
                     </Text>
                   </View>
                 ) : null}
@@ -1090,7 +1077,7 @@ function ConquestResultScreen({
             {/* SECTEUR — frontière repoussée (avant/après §4ter). */}
             {conquest && !isRealRun && sectorGeo ? (
               <View style={styles.block}>
-                <Text style={styles.stepKicker}>FRONTIÈRE</Text>
+                <Text style={styles.stepKicker}>{t(C.borderKicker)}</Text>
                 <SectorBeforeAfter
                   zoneName={stats.zoneName}
                   pctBefore={stats.zonePctBefore}
@@ -1103,15 +1090,15 @@ function ConquestResultScreen({
             {/* CONTRIBUTION CREW — la zone monte (démo : % de secteur fabriqués). */}
             {conquest && !isRealRun ? (
               <View style={styles.block}>
-                <Text style={styles.stepKicker}>CONTRIBUTION CREW</Text>
+                <Text style={styles.stepKicker}>{t(C.crewContribKicker)}</Text>
                 <View style={styles.crewLine}>
                   <CrewCrest seed={stats.crewName} name={stats.crewName} size="s" />
                   <Text style={styles.crewText}>
-                    {stats.zoneName} passe à{' '}
+                    {t(C.crewRiseTo, { zone: stats.zoneName })}{' '}
                     <Text style={styles.crewPct}>{stats.zonePctAfter} %</Text>
                     {stats.rankGained
-                      ? ` — ${stats.crewName} gagne 1 rang.`
-                      : ` — chaque zone compte pour ${stats.crewName}.`}
+                      ? ` — ${t(C.crewGainsRank, { crew: stats.crewName })}`
+                      : ` — ${t(C.everyZoneCounts, { crew: stats.crewName })}`}
                   </Text>
                 </View>
                 {stats.rankGained ? (
@@ -1129,7 +1116,7 @@ function ConquestResultScreen({
             {/* BONUS APPLIQUÉ (AMENDEMENT-19 §4) — ligne sobre. */}
             {conquest && bonusApplied ? (
               <View style={styles.block}>
-                <Text style={styles.stepKicker}>BONUS APPLIQUÉ</Text>
+                <Text style={styles.stepKicker}>{t(C.bonusAppliedKicker)}</Text>
                 <View style={styles.bonusCard}>
                   <View style={styles.bonusIcon}>
                     <Icon name="cadeau" size={20} color={gameColors.crew} />
@@ -1139,7 +1126,7 @@ function ConquestResultScreen({
                       {bonusApplied.name}
                     </Text>
                     <Text style={styles.bonusEffect} numberOfLines={1}>
-                      Bonus appliqué · {bonusApplied.effect}
+                      {t(C.bonusAppliedLine, { effect: bonusApplied.effect })}
                     </Text>
                   </View>
                 </View>
@@ -1149,7 +1136,7 @@ function ConquestResultScreen({
             {/* BADGE DÉBLOQUÉ — inline (le reveal plein écran n'encombre plus l'écran 1). */}
             {conquest && badge && badgeFamily ? (
               <View style={styles.block}>
-                <Text style={styles.stepKicker}>BADGE DÉBLOQUÉ</Text>
+                <Text style={styles.stepKicker}>{t(C.badgeUnlockedKicker)}</Text>
                 <BadgeCard
                   name={badge.name}
                   family={badge.family}
@@ -1158,7 +1145,7 @@ function ConquestResultScreen({
                   tier={badge.tier}
                   state="unlocked"
                   requirement={badge.requirement}
-                  reward="Cadre de profil Routes"
+                  reward={t(C.badgeReward)}
                 />
               </View>
             ) : null}
@@ -1234,6 +1221,7 @@ function MiniStat({ label, value, note }: { label: string; value: string; note?:
 
 function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
   const insets = useSafeAreaInsets();
+  const t = useT();
   const [askedToast, setAskedToast] = useState(false);
 
   useEffect(() => {
@@ -1269,7 +1257,7 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
       <View style={styles.bar}>
-        <Text style={styles.barKicker}>RÉSULTAT DE COURSE</Text>
+        <Text style={styles.barKicker}>{t(C.barKicker)}</Text>
       </View>
 
       <ScrollView
@@ -1279,7 +1267,7 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
         {/* Course validée + GRYD VERIFIED (le run compte — anti-shame). */}
         <ResultReveal visible haptic="none" style={styles.block}>
           <View style={styles.validated}>
-            <Text style={styles.validatedTitle}>COURSE VALIDÉE</Text>
+            <Text style={styles.validatedTitle}>{t(C.runValidated)}</Text>
             <StatePill state="verified" label="GRYD VERIFIED" />
           </View>
         </ResultReveal>
@@ -1289,16 +1277,17 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
           <View style={styles.boundaryCard}>
             <View style={styles.boundaryHead}>
               <Icon name="route" size={16} color={colors.chartreuse} />
-              <Text style={styles.boundaryKicker}>FRONTIÈRE OUVERTE</Text>
+              <Text style={styles.boundaryKicker}>{t(C.openBoundaryKicker)}</Text>
             </View>
             <Text style={styles.boundaryLead}>
-              Tu as tracé <Text style={styles.boundaryLeadAccent}>{tracedKmLabel(boundary)}</Text>{' '}
-              autour de {boundary.zone}.
+              {t(C.tracedPrefix)}{' '}
+              <Text style={styles.boundaryLeadAccent}>{tracedKmLabel(boundary)}</Text>{' '}
+              {t(C.tracedSuffix, { zone: boundary.zone })}
             </Text>
             <Text style={styles.boundaryMissing}>
-              Il manque{' '}
+              {t(C.missingPrefix)}{' '}
               <Text style={styles.boundaryMissingAccent}>{formatInt(boundary.missingM)} m</Text>{' '}
-              pour fermer la zone.
+              {t(C.missingSuffix)}
             </Text>
             <View style={styles.boundaryMetaRow}>
               <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
@@ -1316,7 +1305,7 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
           style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
         >
           <Icon name="route" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.shareLabel}>Terminer maintenant</Text>
+          <Text style={styles.shareLabel}>{t(C.finishNow)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -1324,25 +1313,22 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
           style={({ pressed }) => [styles.boundarySecondary, pressed && styles.pressed]}
         >
           <Icon name="crew" size={iconSizes.sm} color={colors.blanc} />
-          <Text style={styles.boundarySecondaryLabel}>Demander au crew</Text>
+          <Text style={styles.boundarySecondaryLabel}>{t(C.askCrew)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Voir mon territoire"
+          accessibilityLabel={t(C.seeTerritory)}
           onPress={goMap}
           hitSlop={8}
           style={({ pressed }) => [styles.mapLink, pressed && styles.pressed]}
         >
-          <Text style={styles.mapLinkLabel}>Voir mon territoire</Text>
+          <Text style={styles.mapLinkLabel}>{t(C.seeTerritory)}</Text>
         </Pressable>
       </View>
 
       {/* Toast « Mission envoyée dans la War Room. » (démo — auto-dismiss). */}
       {askedToast ? (
-        <BoundaryToast
-          bottom={insets.bottom + 96}
-          text="Mission envoyée dans la War Room."
-        />
+        <BoundaryToast bottom={insets.bottom + 96} text={t(C.missionSentToast)} />
       ) : null}
     </View>
   );
@@ -1356,6 +1342,7 @@ function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
 
 function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
   const insets = useSafeAreaInsets();
+  const t = useT();
 
   useEffect(() => {
     screen('course_result', { mode: 'conquete', boundary: 'completed' });
@@ -1386,7 +1373,7 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
       <View style={styles.bar}>
-        <Text style={styles.barKicker}>RÉSULTAT DE COURSE</Text>
+        <Text style={styles.barKicker}>{t(C.barKicker)}</Text>
       </View>
 
       <ScrollView
@@ -1396,7 +1383,7 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
         {/* Le titre = le geste : la boucle crew est fermée, la zone capturée. */}
         <ResultReveal visible haptic="success" style={styles.block}>
           <View style={styles.validated}>
-            <Text style={styles.validatedTitle}>BOUCLE CREW FERMÉE</Text>
+            <Text style={styles.validatedTitle}>{t(C.crewLoopClosed)}</Text>
             <StatePill state="verified" label="GRYD VERIFIED" />
           </View>
         </ResultReveal>
@@ -1407,13 +1394,13 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
             <Text style={styles.boundaryZoneHero} numberOfLines={1}>
               {boundary.zone}
             </Text>
-            <Text style={styles.zonesLabel}>ZONE CAPTURÉE</Text>
+            <Text style={styles.zonesLabel}>{t(C.zoneCapturedLabel)}</Text>
           </View>
         </ResultReveal>
 
         {/* Contributions crew au prorata (moteur) — simple, sans géométrie. */}
         <ResultReveal visible style={styles.block}>
-          <Text style={styles.stepKicker}>CONTRIBUTION CREW</Text>
+          <Text style={styles.stepKicker}>{t(C.crewContribKicker)}</Text>
           <View style={styles.contribCard}>
             {boundary.contributions.map((c) => (
               <View key={c.name} style={styles.contribRow}>
@@ -1431,7 +1418,7 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
               <Icon name="coffre" size={iconSizes.sm} color={gameColors.gold} />
               <Text style={styles.contribName}>Crew</Text>
               <Text style={[styles.contribPct, styles.contribCrewPts]}>
-                +{formatInt(boundary.crewPoints)} pts
+                {t(C.crewPts, { n: formatInt(boundary.crewPoints) })}
               </Text>
             </View>
           </View>
@@ -1445,16 +1432,16 @@ function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }
           style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
         >
           <Icon name="partage" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.shareLabel}>Partager la conquête</Text>
+          <Text style={styles.shareLabel}>{t(C.shareConquest)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Voir mon territoire"
+          accessibilityLabel={t(C.seeTerritory)}
           onPress={goMap}
           hitSlop={8}
           style={({ pressed }) => [styles.mapLink, pressed && styles.pressed]}
         >
-          <Text style={styles.mapLinkLabel}>Voir mon territoire</Text>
+          <Text style={styles.mapLinkLabel}>{t(C.seeTerritory)}</Text>
         </Pressable>
       </View>
     </View>

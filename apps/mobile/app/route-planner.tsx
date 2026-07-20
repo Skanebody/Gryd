@@ -54,6 +54,11 @@ import { currentPosition, type OriginPoint } from '../src/features/route/origin'
 import { resolveSectorName } from '../src/features/map/sectorNaming';
 import { EGO_REPUBLIQUE } from '../src/features/map/realAnchors';
 import type { PlannedRouteDemo } from '../src/features/route/types';
+// `tNow` = résolution hors composant (helpers module) ; le composant utilise
+// useT() (réactif — re-rend à la bascule de langue, ce qui rafraîchit aussi
+// les helpers appelés pendant le rendu).
+import { C } from '../src/i18n/catalog/route';
+import { t as tNow, useT } from '../src/i18n/store';
 
 /** Hauteur de la carte. */
 const MAP_HEIGHT = 250;
@@ -62,13 +67,16 @@ const MAP_HEIGHT = 250;
 type GpsState = 'locating' | 'ok' | 'demo' | 'error';
 
 /** Fallback web SANS géoloc : point démo EXPLICITE (jamais « Ma position »). */
-const DEMO_ORIGIN: OriginPoint = { point: EGO_REPUBLIQUE, label: 'Démo · Paris' };
+function demoOrigin(): OriginPoint {
+  return { point: EGO_REPUBLIQUE, label: tNow(C.demoOriginLabel) };
+}
 
-/** 3 formats recommandés (distance) routés autour de l'origine — l'objectif courant est conservé. */
+/** 3 formats recommandés (distance) routés autour de l'origine — l'objectif courant est conservé.
+ *  Labels/status = Entries i18n, résolus à l'affichage. */
 const PLAN_PRESETS = [
-  { key: 'recommandee', label: 'Recommandée', km: GEN_DEFAULT_KM, status: 'Meilleur équilibre' },
-  { key: 'rapide', label: 'Rapide', km: 2, status: 'Simple et proche' },
-  { key: 'max', label: 'Max points', km: 5, status: 'Plus de zones' },
+  { key: 'recommandee', label: C.planRecommended, km: GEN_DEFAULT_KM, status: C.planStatusBalance },
+  { key: 'rapide', label: C.planFast, km: 2, status: C.planStatusSimple },
+  { key: 'max', label: C.planMaxPoints, km: 5, status: C.planStatusZones },
 ] as const;
 
 /** 2 verbes joueur (AMENDEMENT-12 §A) — « attaquer » n'est plus proposé ici. */
@@ -92,17 +100,22 @@ function estMinutes(km: number): number {
   return Math.round((km * EST_PACE_SEC_PER_KM) / 60);
 }
 
-/** Résumé header : max 3 infos, minutes toujours estimées (~). */
+/** Résumé header : max 3 infos, minutes toujours estimées (~). Résolu langue courante
+ *  (le composant re-rend au changement de langue via useT). */
 function routeSummary(route: PlannedRouteDemo): string {
   const dur = `~${estMinutes(route.distanceKm)} min`;
   if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
-    return `${dur} · +${route.zones} zones · ${route.streetsToSave} rues à défendre`;
+    return tNow(C.summaryDefense, { dur, zones: route.zones, streets: route.streetsToSave });
   }
-  return `${dur} · +${route.zones} zones · +${formatInt(route.points)} pts`;
+  return tNow(C.summaryConquest, { dur, zones: route.zones, pts: formatInt(route.points) });
 }
 
 function ctaMicrocopy(route: PlannedRouteDemo): string {
-  return `${formatKm(route.distanceKm)} km · ~${estMinutes(route.distanceKm)} min · +${formatInt(route.points)} pts`;
+  return tNow(C.ctaMicro, {
+    km: formatKm(route.distanceKm),
+    min: estMinutes(route.distanceKm),
+    pts: formatInt(route.points),
+  });
 }
 
 function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
@@ -119,6 +132,7 @@ const clampKm = (km: number) => Math.min(GEN_MAX_KM, Math.max(GEN_MIN_KM, km));
 export default function RoutePlannerScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const t = useT();
   const params = useLocalSearchParams<{ type?: string }>();
 
   // Origine : `null` tant que rien n'est confirmé — aucun tracé fantôme Paris.
@@ -161,7 +175,7 @@ export default function RoutePlannerScreen() {
         } else {
           // Routage indisponible (OSRM null) : jamais de spinner infini — on
           // arrête le chargement, le tracé courant reste, message re-tentable.
-          toast.show('Parcours indisponible — réessaie dans un instant');
+          toast.show(tNow(C.toastRouteUnavailable));
         }
       })
       .catch(() => {
@@ -169,7 +183,7 @@ export default function RoutePlannerScreen() {
         // resterait à true → spinner infini + unhandled rejection).
         if (id !== reqIdRef.current) return;
         setRouting(false);
-        toast.show('Parcours indisponible — réessaie dans un instant');
+        toast.show(tNow(C.toastRouteUnavailable));
       });
   };
 
@@ -189,12 +203,13 @@ export default function RoutePlannerScreen() {
     void currentPosition().then(async (pos) => {
       if (!pos) {
         if (Platform.OS === 'web') {
+          const demo = demoOrigin();
           setGps('demo');
-          setOrigin(DEMO_ORIGIN);
-          applyRoute(DEMO_ORIGIN, km, intent, sd);
+          setOrigin(demo);
+          applyRoute(demo, km, intent, sd);
         } else {
           setGps('error');
-          toast.show('Position introuvable — active la localisation');
+          toast.show(tNow(C.toastPositionNotFound));
         }
         return;
       }
@@ -203,7 +218,7 @@ export default function RoutePlannerScreen() {
       // Clé de cache ~ granularité secteur (coords arrondies) ; « Ma position » ne
       // sert que si aucun nom OSM (réseau HS) — jamais un faux lieu.
       const key = `${pos.lat.toFixed(2)},${pos.lng.toFixed(2)}`;
-      const label = await resolveSectorName(pos, key, 'Ma position');
+      const label = await resolveSectorName(pos, key, tNow(C.myPosition));
       const o = { point: pos, label };
       setGps('ok');
       setOrigin(o);
@@ -308,7 +323,7 @@ export default function RoutePlannerScreen() {
   const shareRoute = () => {
     if (!route || !origin) return;
     haptics.medium();
-    const text = `Boucle ${formatKm(route.distanceKm)} km autour de ${origin.label} ajoutée à ton plan de crew (démo)`;
+    const text = t(C.shareToastText, { km: formatKm(route.distanceKm), place: origin.label });
     toast.show(text);
     setSharedFeed((prev) =>
       prev.some((f) => f.id === route.id) ? prev : [...prev, { id: route.id, text }],
@@ -328,29 +343,29 @@ export default function RoutePlannerScreen() {
     router.push(`/course-live?mode=conquete&intention=${intent}&planned=1`);
   };
 
-  const intentionLabel = PLANNER_INTENTION_LABELS[intention];
+  const intentionLabel = t(PLANNER_INTENTION_LABELS[intention]);
   const reasons = route ? generatedReasons(route, intention) : [];
 
   // Labels honnêtes par état GPS — jamais « Ma position » sans position confirmée.
   const placeLabel =
-    route?.zone ?? origin?.label ?? (gps === 'error' ? 'Position introuvable' : 'Localisation…');
+    route?.zone ?? origin?.label ?? (gps === 'error' ? t(C.positionNotFound) : t(C.locating));
   const originLabel =
-    gps === 'locating' ? 'Localisation…' : gps === 'error' ? 'Position introuvable' : (origin?.label ?? '—');
+    gps === 'locating' ? t(C.locating) : gps === 'error' ? t(C.positionNotFound) : (origin?.label ?? '—');
   const originHint =
     gps === 'ok'
-      ? 'Départ = ta position actuelle (touche pour recentrer).'
+      ? t(C.hintGpsOk)
       : gps === 'demo'
-        ? 'Géolocalisation indisponible ici — tracé démo autour de Paris.'
+        ? t(C.hintGpsDemo)
         : gps === 'error'
-          ? 'Position introuvable — active la localisation pour partir.'
-          : 'Le départ sera calé sur ta position réelle.';
+          ? t(C.hintGpsError)
+          : t(C.hintGpsLocating);
   const summaryText = route
     ? routeSummary(route)
     : gps === 'error'
-      ? 'Active la localisation pour préparer ta boucle.'
+      ? t(C.summaryGpsError)
       : gps === 'demo'
-        ? 'Boucle démo en calcul autour de Paris.'
-        : 'Ta boucle arrive dès que ta position est confirmée.';
+        ? t(C.summaryDemoComputing)
+        : t(C.summaryWaitingPosition);
 
   return (
     <View style={styles.root}>
@@ -359,7 +374,7 @@ export default function RoutePlannerScreen() {
         <View style={styles.topBar}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Retour"
+            accessibilityLabel={t(C.back)}
             hitSlop={12}
             onPress={() => goBack()}
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
@@ -398,11 +413,7 @@ export default function RoutePlannerScreen() {
               <ActivityIndicator color={colors.chartreuse} />
             )}
             <Text style={styles.mapLoadingText}>
-              {gps === 'error'
-                ? 'Position introuvable'
-                : gps === 'locating'
-                  ? 'Localisation…'
-                  : 'Calcul de l’itinéraire…'}
+              {gps === 'error' ? t(C.positionNotFound) : gps === 'locating' ? t(C.locating) : t(C.mapComputing)}
             </Text>
           </View>
         )}
@@ -415,12 +426,10 @@ export default function RoutePlannerScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* ── DÉPART : label honnête par état (position / démo / introuvable) ── */}
-        <SectionLabel icon="carte" label="DÉPART" />
+        <SectionLabel icon="carte" label={t(C.secStart)} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={
-            gps === 'error' ? 'Réessayer la localisation' : 'Recentrer sur ma position'
-          }
+          accessibilityLabel={gps === 'error' ? t(C.retryLocation) : t(C.a11yRecenter)}
           onPress={recentrer}
           style={({ pressed }) => [styles.originRow, pressed && styles.pressed]}
         >
@@ -446,23 +455,23 @@ export default function RoutePlannerScreen() {
         {gps === 'error' ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Réessayer la localisation"
+            accessibilityLabel={t(C.retryLocation)}
             onPress={recentrer}
             style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
           >
             <Icon name="cible" size={16} color={colors.blanc} />
-            <Text style={styles.retryLabel}>Réessayer la localisation</Text>
+            <Text style={styles.retryLabel}>{t(C.retryLocation)}</Text>
           </Pressable>
         ) : null}
 
         {/* ── « Pourquoi cette course ? » ── */}
         {reasons.length > 0 ? (
           <>
-            <SectionLabel icon="cible" label="POURQUOI CETTE COURSE" />
+            <SectionLabel icon="cible" label={t(C.secWhy)} />
             <View style={styles.reasonRow}>
               {reasons.map((reason) => (
-                <View key={reason} style={styles.reason}>
-                  <Text style={styles.reasonText}>{reason}</Text>
+                <View key={reason.fr} style={styles.reason}>
+                  <Text style={styles.reasonText}>{t(reason)}</Text>
                 </View>
               ))}
             </View>
@@ -470,7 +479,7 @@ export default function RoutePlannerScreen() {
         ) : null}
 
         {/* ── PLANS : 3 formats — la distance change, l'objectif reste ── */}
-        <SectionLabel icon="cible" label="PLANS" />
+        <SectionLabel icon="cible" label={t(C.secPlans)} />
         <View style={styles.plansRow}>
           {PLAN_PRESETS.map((plan) => {
             const selected = !!route && Math.abs(route.distanceKm - plan.km) < 0.7;
@@ -479,7 +488,7 @@ export default function RoutePlannerScreen() {
                 key={plan.key}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
-                accessibilityLabel={`Plan ${plan.label}, ${plan.km} kilomètres`}
+                accessibilityLabel={t(C.a11yPlan, { label: t(plan.label), km: plan.km })}
                 onPress={() => selectPreset(plan.km, plan.key)}
                 style={({ pressed }) => [
                   styles.plan,
@@ -496,13 +505,13 @@ export default function RoutePlannerScreen() {
                   style={[styles.planLabel, selected && styles.planLabelSelected]}
                   numberOfLines={1}
                 >
-                  {plan.label}
+                  {t(plan.label)}
                 </Text>
                 <Text style={styles.planDist} numberOfLines={2}>
                   {`~${formatKm(plan.km)} km · ~${estMinutes(plan.km)} min`}
                 </Text>
                 <Text style={styles.planReason} numberOfLines={2}>
-                  {selected ? 'Choisi' : plan.status}
+                  {selected ? t(C.planChosen) : t(plan.status)}
                 </Text>
               </Pressable>
             );
@@ -514,7 +523,7 @@ export default function RoutePlannerScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: adjustOpen }}
-            accessibilityLabel="Ajuster la course"
+            accessibilityLabel={t(C.adjustRun)}
             onPress={() => {
               haptics.light();
               setAdjustOpen((o) => !o);
@@ -522,7 +531,7 @@ export default function RoutePlannerScreen() {
             style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}
           >
             <Icon name="reglages" size={16} color={colors.blanc} />
-            <Text style={styles.adjustLabel}>Ajuster la course</Text>
+            <Text style={styles.adjustLabel}>{t(C.adjustRun)}</Text>
             <View style={adjustOpen ? styles.chevUp : styles.chevDown}>
               <Icon name="chevron" size={16} color={colors.gris} />
             </View>
@@ -531,16 +540,17 @@ export default function RoutePlannerScreen() {
 
         {origin && adjustOpen ? (
           <View style={styles.adjustBody}>
-            <SectionLabel icon="cible" label="OBJECTIF" />
+            <SectionLabel icon="cible" label={t(C.secObjective)} />
             <View style={styles.intentionRow}>
               {INTENTION_CHOICES.map((it) => {
                 const active = it === intention;
+                const itLabel = t(PLANNER_INTENTION_LABELS[it]);
                 return (
                   <Pressable
                     key={it}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
-                    accessibilityLabel={`Objectif ${PLANNER_INTENTION_LABELS[it]}`}
+                    accessibilityLabel={t(C.a11yObjective, { label: itLabel })}
                     onPress={() => selectIntention(it)}
                     style={({ pressed }) => [
                       styles.intentionChip,
@@ -554,18 +564,18 @@ export default function RoutePlannerScreen() {
                       numberOfLines={1}
                       ellipsizeMode="clip"
                     >
-                      {active ? `✓ ${PLANNER_INTENTION_LABELS[it]}` : PLANNER_INTENTION_LABELS[it]}
+                      {active ? `✓ ${itLabel}` : itLabel}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
 
-            <SectionLabel icon="reglages" label="DISTANCE EXACTE" />
+            <SectionLabel icon="reglages" label={t(C.secExactDistance)} />
             <View style={styles.stepper}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Diminuer la distance"
+                accessibilityLabel={t(C.a11yDecreaseDistance)}
                 onPress={() => stepDistance(-GEN_STEP_KM)}
                 style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}
               >
@@ -578,7 +588,7 @@ export default function RoutePlannerScreen() {
                   onBlur={onDistanceBlur}
                   keyboardType="decimal-pad"
                   selectTextOnFocus
-                  accessibilityLabel="Distance en kilomètres"
+                  accessibilityLabel={t(C.a11yDistanceKm)}
                   style={styles.stepInput}
                   placeholderTextColor={colors.gris}
                 />
@@ -586,7 +596,7 @@ export default function RoutePlannerScreen() {
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Augmenter la distance"
+                accessibilityLabel={t(C.a11yIncreaseDistance)}
                 onPress={() => stepDistance(GEN_STEP_KM)}
                 style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}
               >
@@ -594,21 +604,21 @@ export default function RoutePlannerScreen() {
               </Pressable>
             </View>
             <Text style={styles.hint}>
-              {formatKm(GEN_MIN_KM)} à {GEN_MAX_KM} km — le tracé suit les rues.
+              {t(C.distanceRangeHint, { min: formatKm(GEN_MIN_KM), max: GEN_MAX_KM })}
             </Text>
 
             <View style={styles.nearbyHead}>
               <Icon name="crew" size={iconSizes.xs} color={colors.gris} />
-              <Text style={styles.sectionLabel}>AUTRES BOUCLES</Text>
+              <Text style={styles.sectionLabel}>{t(C.secOtherLoops)}</Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Régénérer d'autres boucles"
+                accessibilityLabel={t(C.a11yRegenerate)}
                 hitSlop={8}
                 onPress={shuffleNearby}
                 style={({ pressed }) => [styles.shuffleBtn, pressed && styles.pressed]}
               >
                 <Icon name="reglages" size={iconSizes.xs} color={colors.chartreuse} />
-                <Text style={styles.shuffleText}>Régénérer</Text>
+                <Text style={styles.shuffleText}>{t(C.regenerate)}</Text>
               </Pressable>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
@@ -618,17 +628,18 @@ export default function RoutePlannerScreen() {
                 </View>
               ) : nearby.length === 0 ? (
                 <View style={styles.nearbyLoading}>
-                  <Text style={styles.mapLoadingText}>Autres boucles indisponibles</Text>
+                  <Text style={styles.mapLoadingText}>{t(C.loopsUnavailable)}</Text>
                 </View>
               ) : (
                 nearby.map((loop, i) => {
                   const selected = !!route && loop.id === route.id;
+                  const variantLabel = t(C.variantN, { n: i + 1 });
                   return (
                     <Pressable
                       key={`${loop.id}-${i}`}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
-                      accessibilityLabel={`Variante ${i + 1}, ${formatKm(loop.distanceKm)} km`}
+                      accessibilityLabel={t(C.a11yVariant, { n: i + 1, km: formatKm(loop.distanceKm) })}
                       onPress={() => adoptNearby(loop)}
                       style={({ pressed }) => [
                         styles.popularCard,
@@ -637,15 +648,15 @@ export default function RoutePlannerScreen() {
                       ]}
                     >
                       <Text style={styles.popularName} numberOfLines={1} ellipsizeMode="clip">
-                        {selected ? `✓ Variante ${i + 1}` : `Variante ${i + 1}`}
+                        {selected ? `✓ ${variantLabel}` : variantLabel}
                       </Text>
                       <Text style={styles.popularStats} numberOfLines={1} ellipsizeMode="clip">
-                        {formatKm(loop.distanceKm)} km · +{loop.zones} zones
+                        {t(C.variantStats, { km: formatKm(loop.distanceKm), zones: loop.zones })}
                       </Text>
                       <View style={styles.popularCrews}>
                         <Icon name="serie" size={12} color={colors.chartreuse} />
                         <Text style={styles.popularCrewsText} numberOfLines={1} ellipsizeMode="clip">
-                          ~{estMinutes(loop.distanceKm)} min · +{formatInt(loop.points)} pts
+                          {t(C.variantMeta, { min: estMinutes(loop.distanceKm), pts: formatInt(loop.points) })}
                         </Text>
                       </View>
                     </Pressable>
@@ -654,15 +665,16 @@ export default function RoutePlannerScreen() {
               )}
             </ScrollView>
 
+            {/* « CREW » : invariant produit (concept Crew) — jamais traduit. */}
             <SectionLabel icon="crew" label="CREW" />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Partager cette route au crew"
+              accessibilityLabel={t(C.a11yShareCrew)}
               onPress={shareRoute}
               style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
             >
               <Icon name="partage" size={16} color={colors.blanc} />
-              <Text style={styles.shareLabel}>Partager au crew</Text>
+              <Text style={styles.shareLabel}>{t(C.shareToCrew)}</Text>
             </Pressable>
             {sharedFeed.map((f) => (
               <View key={f.id} style={styles.feedRow}>
@@ -670,7 +682,7 @@ export default function RoutePlannerScreen() {
                 <Text style={styles.feedText} numberOfLines={1}>
                   {f.text}
                 </Text>
-                <Text style={styles.feedTime}>à l&apos;instant</Text>
+                <Text style={styles.feedTime}>{t(C.justNow)}</Text>
               </View>
             ))}
           </View>
@@ -680,11 +692,11 @@ export default function RoutePlannerScreen() {
       {/* ── CTA VERBE contextuel — désactivé tant que la position n'est pas confirmée ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.ctaMicro} numberOfLines={1}>
-          {route ? ctaMicrocopy(route) : gps === 'error' ? 'Position requise pour partir' : '—'}
+          {route ? ctaMicrocopy(route) : gps === 'error' ? t(C.ctaPositionRequired) : '—'}
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${intentionLabel} — démarrer`}
+          accessibilityLabel={t(C.a11yStart, { verb: intentionLabel })}
           accessibilityState={{ disabled: startDisabled }}
           onPress={startRun}
           disabled={startDisabled}

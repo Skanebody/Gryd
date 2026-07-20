@@ -41,6 +41,8 @@ import {
   type LatLngPoint,
 } from '../map/realAnchors';
 import { MODE_EMPHASIS } from '../map/territory';
+import { C } from '../../i18n/catalog/route';
+import { useT } from '../../i18n/store';
 import type { PlannedRouteDemo } from './types';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
@@ -149,6 +151,7 @@ export interface RoutePlannerMapProps {
 
 export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlannerMapProps) {
   const mapRef = useRef<RealMapRef>(null);
+  const t = useT();
   /** Opacités du mode ROUTE : l'itinéraire domine, le reste en transparence. */
   const emph = MODE_EMPHASIS.route;
 
@@ -217,7 +220,7 @@ export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlanner
         id: 'planner-start',
         lng: first.lng,
         lat: first.lat,
-        children: <StartMarker label={loop ? 'DÉPART · RETOUR' : 'DÉPART'} />,
+        children: <StartMarker label={loop ? t(C.mapStartReturn) : t(C.mapStart)} />,
       });
     }
     // 2. Position actuelle : « moi » = l'origine (position / lieu de départ).
@@ -228,7 +231,8 @@ export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlanner
       children: <EgoDot />,
     });
     return out;
-  }, [route.line, origin]);
+    // `t` change d'identité à la bascule de langue → labels DÉPART re-résolus.
+  }, [route.line, origin, t]);
 
   return (
     <View style={styles.map}>

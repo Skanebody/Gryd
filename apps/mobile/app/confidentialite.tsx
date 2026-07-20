@@ -30,6 +30,8 @@ import {
   spacing,
   type ProfileVisibility,
 } from '@klaim/shared';
+import { C } from '../src/i18n/catalog/reglages';
+import { t as tStatic, useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { supabase } from '../src/lib/supabase';
@@ -106,6 +108,7 @@ type SectionKey =
   | 'export';
 
 export default function ConfidentialiteScreen() {
+  const t = useT();
   const { prefs, update, enablePrivateMode } = usePrivacyPrefs();
   // « Mode privé » ACTIF = DÉRIVÉ de l'état RÉEL des réglages, pas du flag figé
   // `privateMode` : si l'utilisateur ré-ouvre un réglage sensible après avoir tout
@@ -149,16 +152,13 @@ export default function ConfidentialiteScreen() {
   const submitReport = () => {
     const pseudo = targetPseudo.trim();
     if (pseudo.length === 0) {
-      Alert.alert('Pseudo manquant', 'Entre le pseudo du joueur à signaler.');
+      Alert.alert(t(C.pseudoManquantTitle), t(C.reportMissingBody));
       return;
     }
     haptics.medium();
     reportContent({ kind: 'member', targetId: pseudo, author: pseudo, reason: reportReason });
     setTargetPseudo('');
-    Alert.alert(
-      'Signalement envoyé',
-      `Merci. Une personne de l'équipe examine ton signalement sous ${REPORT_REVIEW_HOURS} h.`,
-    );
+    Alert.alert(t(C.reportSentTitle), t(C.reportSentBody, { h: REPORT_REVIEW_HOURS }));
   };
 
   // Bloque le pseudo saisi (RÉEL : blockMember, silencieux pour l'autre). Le
@@ -166,16 +166,13 @@ export default function ConfidentialiteScreen() {
   const submitBlock = () => {
     const pseudo = targetPseudo.trim();
     if (pseudo.length === 0) {
-      Alert.alert('Pseudo manquant', 'Entre le pseudo du joueur à bloquer.');
+      Alert.alert(t(C.pseudoManquantTitle), t(C.blockMissingBody));
       return;
     }
     haptics.medium();
     blockMember(pseudo);
     setTargetPseudo('');
-    Alert.alert(
-      'Joueur bloqué',
-      `${pseudo} ne peut plus te voir, te contacter, ni interagir avec toi. Tu peux le débloquer ici à tout moment.`,
-    );
+    Alert.alert(t(C.playerBlockedTitle), t(C.playerBlockedBody, { pseudo }));
   };
 
   // Suppression de compte (Guideline 5.1.1v). RÉEL : si session, on appelle
@@ -193,10 +190,7 @@ export default function ConfidentialiteScreen() {
       const { error } = await supabase.functions.invoke('delete_account');
       if (error) {
         setDeleting(false); // échec : on rend la main pour réessayer
-        Alert.alert(
-          'Suppression impossible',
-          "Ton compte n'a pas pu être supprimé. Réessaie dans un instant ou contacte le support.",
-        );
+        Alert.alert(t(C.deleteFailTitle), t(C.deleteFailBody));
         return;
       }
       // Session serveur invalidée : on réinitialise l'auth locale (best-effort).
@@ -219,21 +213,21 @@ export default function ConfidentialiteScreen() {
   const runDataExport = async () => {
     haptics.light();
     if (!(configured && session && supabase)) {
-      Alert.alert('Export indisponible', 'Connecte-toi pour exporter tes données.');
+      Alert.alert(t(C.exportUnavailableTitle), t(C.exportUnavailableBody));
       return;
     }
     try {
       const { data, error } = await supabase.functions.invoke('export_account');
       if (error || !data) {
-        Alert.alert('Export impossible', 'Réessaie dans un instant ou contacte le support.');
+        Alert.alert(t(C.exportFailTitle), t(C.exportFailBody));
         return;
       }
       await Share.share({
-        title: 'Mes données GRYD (RGPD)',
+        title: t(C.exportShareTitle),
         message: JSON.stringify(data, null, 2),
       });
     } catch {
-      Alert.alert('Export impossible', 'Réessaie dans un instant ou contacte le support.');
+      Alert.alert(t(C.exportFailTitle), t(C.exportFailBody));
     }
   };
 
@@ -251,18 +245,14 @@ export default function ConfidentialiteScreen() {
   }
 
   return (
-    <StackScreen
-      title="Confidentialité"
-      icon="verrou"
-      subtitle="Ta géoloc t'appartient. On la lit pour transformer tes courses en territoire — rien n'est partagé sans ton accord. Tout est fermé par défaut."
-    >
+    <StackScreen title={t(C.privTitle)} icon="verrou" subtitle={t(C.privSubtitle)}>
       {/* MODE PRIVÉ — toggle maître, tout en haut. */}
       <MasterCard active={privateActive} onEnable={enablePrivateMode} />
 
       {/* Au-dessus du fold : Profil + Courses + Départ/arrivée + Position live. */}
       <DisclosureCard
         icon="profil"
-        title="Profil visible par"
+        title={t(C.profilVisiblePar)}
         value={PROFILE_VISIBILITY_LABELS[prefs.profileVisibility]}
         open={openKey === 'profile'}
         onToggle={() => toggle('profile')}
@@ -276,7 +266,7 @@ export default function ConfidentialiteScreen() {
 
       <DisclosureCard
         icon="route"
-        title="Visibilité des courses"
+        title={t(C.visibiliteCourses)}
         value={RUN_VISIBILITY_LABELS[prefs.runVisibility]}
         open={openKey === 'runs'}
         onToggle={() => toggle('runs')}
@@ -286,28 +276,25 @@ export default function ConfidentialiteScreen() {
           value={prefs.runVisibility}
           onChange={(v) => void update({ runVisibility: v })}
         />
-        <Note>
-          « Masqué » cache ta trace et tes stats aux autres. Ton impact pour le crew reste compté
-          — masquer une course ne pénalise jamais ton équipe.
-        </Note>
+        <Note>{t(C.masqueNote)}</Note>
       </DisclosureCard>
 
       <DisclosureCard
         icon="pin"
-        title="Départ & arrivée"
-        value={prefs.maskEndpoints ? MASK_RADIUS_LABELS[prefs.maskRadius] : 'Visibles'}
+        title={t(C.departArrivee)}
+        value={prefs.maskEndpoints ? MASK_RADIUS_LABELS[prefs.maskRadius] : t(C.visibles)}
         open={openKey === 'endpoints'}
         onToggle={() => toggle('endpoints')}
       >
         <SwitchRow
-          title="Masquer départ et arrivée"
-          subtitle="Le début et la fin de tes courses sont floutés autour de tes lieux sensibles."
+          title={t(C.masquerDepartArrivee)}
+          subtitle={t(C.masquerDepartSub)}
           value={prefs.maskEndpoints}
           onValueChange={(v) => void update({ maskEndpoints: v })}
         />
         {prefs.maskEndpoints ? (
           <>
-            <Text style={styles.miniLabel}>RAYON DE FLOU</Text>
+            <Text style={styles.miniLabel}>{t(C.rayonFlou)}</Text>
             <SelectPills
               options={RADIUS_OPTS}
               value={prefs.maskRadius}
@@ -315,12 +302,12 @@ export default function ConfidentialiteScreen() {
             />
             <View style={styles.divider} />
             <SwitchRow
-              title="Autour du domicile"
+              title={t(C.autourDomicile)}
               value={prefs.maskHome}
               onValueChange={(v) => void update({ maskHome: v })}
             />
             <SwitchRow
-              title="Autour du travail"
+              title={t(C.autourTravail)}
               value={prefs.maskWork}
               onValueChange={(v) => void update({ maskWork: v })}
             />
@@ -330,7 +317,7 @@ export default function ConfidentialiteScreen() {
 
       <DisclosureCard
         icon="gps"
-        title="Position en direct"
+        title={t(C.positionDirect)}
         value={LIVE_POSITION_LABELS[prefs.livePosition].label}
         open={openKey === 'live'}
         onToggle={() => toggle('live')}
@@ -340,28 +327,28 @@ export default function ConfidentialiteScreen() {
           value={prefs.livePosition}
           onChange={(v) => void update({ livePosition: v })}
         />
-        <Note>{LIVE_POSITION_LABELS[prefs.livePosition].hint} Par défaut : jamais.</Note>
+        <Note>{`${LIVE_POSITION_LABELS[prefs.livePosition].hint} ${t(C.parDefautJamais)}`}</Note>
       </DisclosureCard>
 
       {/* Sous le fold : données, social, sécurité, RGPD. */}
-      <SectionLabel>DONNÉES</SectionLabel>
+      <SectionLabel>{t(C.secDonnees)}</SectionLabel>
 
       <DisclosureCard
         icon="performance"
-        title="Données sportives"
-        value={prefs.heartRatePrivate ? 'FC privée' : 'FC visible'}
+        title={t(C.donneesSportives)}
+        value={prefs.heartRatePrivate ? t(C.fcPrivee) : t(C.fcVisible)}
         open={openKey === 'sport'}
         onToggle={() => toggle('sport')}
       >
         <SwitchRow
-          title="Fréquence cardiaque privée"
-          subtitle="Ta FC n'est visible que par toi. Recommandé."
+          title={t(C.freqCardiaquePrivee)}
+          subtitle={t(C.freqCardiaqueSub)}
           value={prefs.heartRatePrivate}
           onValueChange={(v) => void update({ heartRatePrivate: v })}
         />
         <SwitchRow
-          title="Allure & cadence privées"
-          subtitle="Masque le détail de tes performances aux autres."
+          title={t(C.allureCadencePrivees)}
+          subtitle={t(C.allureCadenceSub)}
           value={prefs.sportDataPrivate}
           onValueChange={(v) => void update({ sportDataPrivate: v })}
         />
@@ -369,50 +356,50 @@ export default function ConfidentialiteScreen() {
 
       <DisclosureCard
         icon="carte"
-        title="Données territoire"
-        value={prefs.territoryVisible ? 'Visibles' : 'Masquées'}
+        title={t(C.donneesTerritoire)}
+        value={prefs.territoryVisible ? t(C.visibles) : t(C.masquees)}
         open={openKey === 'territory'}
         onToggle={() => toggle('territory')}
       >
         <SwitchRow
-          title="Afficher mes zones tenues"
-          subtitle="Tes secteurs contrôlés apparaissent sur ton profil et sur la carte publique."
+          title={t(C.afficherZonesTenues)}
+          subtitle={t(C.afficherZonesSub)}
           value={prefs.territoryVisible}
           onValueChange={(v) => void update({ territoryVisible: v })}
         />
-        <Note>Masquer tes territoires n'enlève rien à ton crew : ils comptent toujours.</Note>
+        <Note>{t(C.masquerTerritoiresNote)}</Note>
       </DisclosureCard>
 
-      <SectionLabel>CREW & SOCIAL</SectionLabel>
+      <SectionLabel>{t(C.secCrewSocial)}</SectionLabel>
 
       {/* Titre aligné sur le CONTENU (ajout, invitation, message, statut) —
           « contacter » était plus étroit que les 4 réglages qu'il couvre. */}
       <DisclosureCard
         icon="crew"
-        title="Qui peut interagir"
+        title={t(C.quiPeutInteragir)}
         value={SOCIAL_AUDIENCE_LABELS[prefs.whoCanMessage]}
         open={openKey === 'social'}
         onToggle={() => toggle('social')}
       >
-        <Text style={styles.miniLabel}>QUI PEUT M'AJOUTER</Text>
+        <Text style={styles.miniLabel}>{t(C.quiPeutAjouter)}</Text>
         <SelectPills
           options={AUDIENCE_OPTS}
           value={prefs.whoCanAdd}
           onChange={(v) => void update({ whoCanAdd: v })}
         />
-        <Text style={styles.miniLabel}>QUI PEUT M'INVITER DANS UN CREW</Text>
+        <Text style={styles.miniLabel}>{t(C.quiPeutInviter)}</Text>
         <SelectPills
           options={AUDIENCE_OPTS}
           value={prefs.whoCanInvite}
           onChange={(v) => void update({ whoCanInvite: v })}
         />
-        <Text style={styles.miniLabel}>QUI PEUT M'ENVOYER UN MESSAGE</Text>
+        <Text style={styles.miniLabel}>{t(C.quiPeutMessage)}</Text>
         <SelectPills
           options={AUDIENCE_OPTS}
           value={prefs.whoCanMessage}
           onChange={(v) => void update({ whoCanMessage: v })}
         />
-        <Text style={styles.miniLabel}>QUI VOIT MON STATUT</Text>
+        <Text style={styles.miniLabel}>{t(C.quiVoitStatut)}</Text>
         <SelectPills
           options={AUDIENCE_OPTS}
           value={prefs.whoSeesStatus}
@@ -425,36 +412,37 @@ export default function ConfidentialiteScreen() {
           Débloquer, et lien direct vers le chat crew pour un message précis. */}
       <DisclosureCard
         icon="bouclier"
-        title="Blocage & signalement"
-        value={blocked.length > 0 ? `${blocked.length} bloqué${blocked.length > 1 ? 's' : ''}` : undefined}
+        title={t(C.blocageSignalement)}
+        value={
+          blocked.length > 0
+            ? t(blocked.length > 1 ? C.blockedMany : C.blockedOne, { n: blocked.length })
+            : undefined
+        }
         open={openKey === 'block'}
         onToggle={() => toggle('block')}
       >
-        <Note>
-          Un joueur bloqué ne peut plus te voir, te contacter, ni interagir avec toi. Chaque
-          signalement est examiné par une personne sous {REPORT_REVIEW_HOURS} h.
-        </Note>
-        <Text style={styles.miniLabel}>PSEUDO DU JOUEUR</Text>
+        <Note>{t(C.blockNote, { h: REPORT_REVIEW_HOURS })}</Note>
+        <Text style={styles.miniLabel}>{t(C.pseudoJoueurLabel)}</Text>
         <TextInput
-          accessibilityLabel="Pseudo du joueur à signaler ou bloquer"
+          accessibilityLabel={t(C.pseudoInputA11y)}
           value={targetPseudo}
           onChangeText={setTargetPseudo}
-          placeholder="Ex. K.Runner75"
+          placeholder={t(C.pseudoPlaceholder)}
           placeholderTextColor={colors.gris}
           autoCapitalize="none"
           autoCorrect={false}
           style={styles.pseudoInput}
         />
-        <Text style={styles.miniLabel}>MOTIF DU SIGNALEMENT</Text>
+        <Text style={styles.miniLabel}>{t(C.motifSignalement)}</Text>
         <SelectPills options={REASON_OPTS} value={reportReason} onChange={setReportReason} />
         <Note>{REPORT_REASONS.find((r) => r.key === reportReason)?.hint ?? ''}</Note>
         <View style={styles.actionGap}>
-          <GhostButton label="Signaler ce joueur" icon="alerte" onPress={submitReport} />
-          <GhostButton label="Bloquer ce joueur" icon="bouclier" onPress={submitBlock} />
+          <GhostButton label={t(C.signalerJoueur)} icon="alerte" onPress={submitReport} />
+          <GhostButton label={t(C.bloquerJoueur)} icon="bouclier" onPress={submitBlock} />
         </View>
         {blocked.length > 0 ? (
           <>
-            <Text style={styles.miniLabel}>JOUEURS BLOQUÉS</Text>
+            <Text style={styles.miniLabel}>{t(C.joueursBloques)}</Text>
             {blocked.map((pseudo) => (
               <View key={pseudo} style={styles.blockedRow}>
                 <Text style={styles.blockedName} numberOfLines={1}>
@@ -462,7 +450,7 @@ export default function ConfidentialiteScreen() {
                 </Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Débloquer ${pseudo}`}
+                  accessibilityLabel={t(C.debloquerA11y, { pseudo })}
                   onPress={() => {
                     haptics.light();
                     unblockMember(pseudo);
@@ -470,19 +458,17 @@ export default function ConfidentialiteScreen() {
                   hitSlop={8}
                   style={({ pressed }) => [styles.unblockBtn, pressed && styles.pressed]}
                 >
-                  <Text style={styles.unblock}>Débloquer</Text>
+                  <Text style={styles.unblock}>{t(C.debloquer)}</Text>
                 </Pressable>
               </View>
             ))}
           </>
         ) : null}
         <View style={styles.divider} />
-        <Note>
-          Pour signaler un message précis, passe par le chat du crew (appui long sur le message).
-        </Note>
+        <Note>{t(C.signalerMessageNote)}</Note>
         <View style={styles.actionGap}>
           <GhostButton
-            label="Ouvrir le chat du crew"
+            label={t(C.ouvrirChatCrew)}
             icon="crew"
             onPress={() => {
               haptics.light();
@@ -490,7 +476,7 @@ export default function ConfidentialiteScreen() {
             }}
           />
           <GhostButton
-            label="Lire le code de conduite"
+            label={t(C.lireCodeConduite)}
             icon="bouclier"
             onPress={() => {
               haptics.light();
@@ -500,60 +486,54 @@ export default function ConfidentialiteScreen() {
         </View>
       </DisclosureCard>
 
-      <SectionLabel>MES DONNÉES (RGPD)</SectionLabel>
+      <SectionLabel>{t(C.secMesDonneesRgpd)}</SectionLabel>
 
       {/* Âge minimum SURFACE ici (protection des mineurs) — même règle que
           l'age-gate de l'onboarding (features/onboarding/content.ts, 16 ans). */}
       <View style={styles.ageRow}>
         <Icon name="info" size={16} color={colors.gris} />
-        <Text style={styles.ageText}>Âge minimum : 16 ans — confirmé à ton inscription.</Text>
+        <Text style={styles.ageText}>{t(C.ageMinimum)}</Text>
       </View>
 
       <DisclosureCard
         icon="reglages"
-        title="Export & suppression"
+        title={t(C.exportSuppression)}
         open={openKey === 'export'}
         onToggle={() => toggle('export')}
         danger
       >
-        <Text style={styles.miniLabel}>EXPORTER (RGPD)</Text>
-        <Note>
-          Récupère une copie de toutes tes données — courses, zones, profil — au format JSON,
-          via le partage. Ça n'efface rien.
-        </Note>
+        <Text style={styles.miniLabel}>{t(C.exporterRgpdLabel)}</Text>
+        <Note>{t(C.exportNote)}</Note>
         <View style={styles.actionGap}>
           <GhostButton
-            label="Exporter mes données"
+            label={t(C.exporterMesDonnees)}
             icon="partage"
             onPress={() => void runDataExport()}
           />
         </View>
 
-        <Text style={styles.miniLabel}>SUPPRIMER PARTIELLEMENT (BIENTÔT)</Text>
+        <Text style={styles.miniLabel}>{t(C.supprimerPartiellement)}</Text>
         <DangerRow
-          title="Supprimer mon historique de courses"
-          subtitle="Retirera tes courses de l'affichage. Ton impact déjà gagné pour le crew reste anonymisé, pas effacé. Bientôt depuis l'app."
-          onPress={() => confirmPartialDelete('Supprimer mon historique de courses')}
+          title={t(C.suppHistoriqueTitle)}
+          subtitle={t(C.suppHistoriqueSub)}
+          onPress={() => confirmPartialDelete(t(C.suppHistoriqueTitle))}
         />
         <DangerRow
-          title="Supprimer mes données sportives"
-          subtitle="Effacera FC, allure et cadence enregistrées. Sans effet sur le territoire. Bientôt depuis l'app."
+          title={t(C.suppSportivesTitle)}
+          subtitle={t(C.suppSportivesSub)}
           last
-          onPress={() => confirmPartialDelete('Supprimer mes données sportives')}
+          onPress={() => confirmPartialDelete(t(C.suppSportivesTitle))}
         />
       </DisclosureCard>
 
       {/* Suppression de compte (Guideline 5.1.1v) — DISTINCTE de l'export : une
           card dédiée, action unique, vers un écran de confirmation plein écran. */}
-      <SectionLabel>SUPPRESSION DU COMPTE</SectionLabel>
+      <SectionLabel>{t(C.secSuppressionCompte)}</SectionLabel>
       <View style={styles.deleteCard}>
-        <Text style={styles.deleteCardText}>
-          Tu peux supprimer ton compte GRYD directement depuis l'app. Cela efface ton compte, tes
-          courses et ton territoire. C'est irréversible.
-        </Text>
+        <Text style={styles.deleteCardText}>{t(C.deleteCardText)}</Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Supprimer mon compte"
+          accessibilityLabel={t(C.supprimerMonCompte)}
           onPress={() => {
             haptics.medium();
             setConfirmDelete(true);
@@ -561,7 +541,7 @@ export default function ConfidentialiteScreen() {
           style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
         >
           <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
-          <Text style={styles.deleteRowLabel}>Supprimer mon compte</Text>
+          <Text style={styles.deleteRowLabel}>{t(C.supprimerMonCompte)}</Text>
           <View style={styles.deleteChevron}>
             <Icon name="chevron" size={16} color={gameColors.danger} />
           </View>
@@ -587,30 +567,27 @@ function DeleteAccountConfirm({
   onConfirm: () => void;
   busy: boolean;
 }) {
+  const t = useT();
   useEffect(() => {
     screen('account_delete_confirm');
   }, []);
   return (
     <StackScreen
-      title="Supprimer mon compte"
+      title={t(C.supprimerMonCompte)}
       icon="alerte"
-      subtitle="Dernière étape avant l'effacement définitif."
+      subtitle={t(C.deleteConfirmSubtitle)}
     >
       <View style={styles.confirmBox}>
         <Icon name="alerte" size={28} color={gameColors.danger} />
-        <Text style={styles.confirmTitle}>Ceci efface ton compte, tes courses et ton territoire.</Text>
-        <Text style={styles.confirmBody}>
-          Ton profil, ton historique de courses et les zones que tu tiens seront supprimés. Ta
-          contribution passée au crew est anonymisée pour ne pas fausser la saison. Cette action est
-          irréversible : on ne peut pas restaurer ton compte ensuite.
-        </Text>
+        <Text style={styles.confirmTitle}>{t(C.deleteConfirmTitle)}</Text>
+        <Text style={styles.confirmBody}>{t(C.deleteConfirmBody)}</Text>
       </View>
 
       <View style={styles.confirmActions}>
-        <GhostButton label="Annuler, garder mon compte" onPress={onCancel} disabled={busy} />
+        <GhostButton label={t(C.annulerGarder)} onPress={onCancel} disabled={busy} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Supprimer définitivement mon compte"
+          accessibilityLabel={t(C.deleteDefinitifA11y)}
           accessibilityState={{ disabled: busy, busy }}
           disabled={busy}
           onPress={onConfirm}
@@ -622,7 +599,7 @@ function DeleteAccountConfirm({
             <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
           )}
           <Text style={styles.confirmDeleteText}>
-            {busy ? 'Suppression…' : 'Supprimer définitivement'}
+            {busy ? t(C.suppressionEnCours) : t(C.supprimerDefinitivement)}
           </Text>
         </Pressable>
       </View>
@@ -636,23 +613,19 @@ function DeleteAccountConfirm({
  * détail des réglages reste accessible en dessous pour ajuster.
  */
 function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Promise<void> }) {
+  const t = useT();
   return (
     <View style={[styles.master, active && styles.masterActive]}>
       <View style={styles.masterHead}>
         <Icon name="verrou" size={iconSizes.lg} color={active ? colors.chartreuse : colors.blanc} />
-        <Text style={styles.masterTitle}>Mode privé</Text>
-        {active ? <Text style={styles.masterBadge}>ACTIVÉ</Text> : null}
+        <Text style={styles.masterTitle}>{t(C.modePrive)}</Text>
+        {active ? <Text style={styles.masterBadge}>{t(C.modePriveActive)}</Text> : null}
       </View>
-      <Text style={styles.masterDesc}>
-        Un seul geste pour tout fermer : profil privé, courses non publiques, départ et arrivée
-        masqués, position en direct coupée, données sportives privées.
-      </Text>
+      <Text style={styles.masterDesc}>{t(C.modePriveDesc)}</Text>
       {active ? (
         <View style={styles.masterConfirm}>
           <Icon name="badge" size={16} color={colors.chartreuse} />
-          <Text style={styles.masterConfirmText}>
-            Tout est verrouillé. Ajuste chaque réglage ci-dessous si besoin.
-          </Text>
+          <Text style={styles.masterConfirmText}>{t(C.modePriveConfirm)}</Text>
         </View>
       ) : (
         <Pressable
@@ -664,7 +637,7 @@ function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Pro
           style={({ pressed }) => [styles.masterCta, pressed && styles.pressed]}
         >
           <Icon name="verrou" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.masterCtaText}>Activer le mode privé</Text>
+          <Text style={styles.masterCtaText}>{t(C.activerModePrive)}</Text>
         </Pressable>
       )}
     </View>
@@ -680,11 +653,7 @@ function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Pro
  */
 function confirmPartialDelete(title: string): void {
   haptics.light();
-  Alert.alert(
-    title,
-    "Bientôt disponible depuis l'app. En attendant, demande-la depuis Aide & support — ou exporte / supprime ton compte ci-dessous, ces deux actions sont déjà réelles.",
-    [{ text: 'Compris' }],
-  );
+  Alert.alert(title, tStatic(C.partialDeleteBody), [{ text: tStatic(C.compris) }]);
 }
 
 function DangerRow({

@@ -9,6 +9,9 @@
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing, type IconName } from '@klaim/shared';
+import { C } from '../src/i18n/catalog/reglages';
+import { useT } from '../src/i18n/store';
+import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -16,110 +19,56 @@ import { StackScreen } from '../src/ui/StackScreen';
 interface Rule {
   key: string;
   icon: IconName;
-  title: string;
-  body: string;
+  title: Entry;
+  body: Entry;
 }
 
 /** Les règles de la communauté GRYD — courtes, non négociables. */
 const RULES: readonly Rule[] = [
-  {
-    key: 'respect',
-    icon: 'crew',
-    title: 'Respecte les autres coureurs',
-    body:
-      'On se pousse à courir, jamais à se rabaisser. Encouragements et fair-play, dans le crew ' +
-      'comme face aux rivaux. Pas de moquerie, pas d’acharnement.',
-  },
-  {
-    key: 'zero_haine',
-    icon: 'alerte',
-    title: 'Tolérance zéro : harcèlement et haine',
-    body:
-      'Aucun racisme, sexisme, homophobie, menace, insulte ni harcèlement. Un seul message de ' +
-      'ce type suffit à faire retirer le contenu et suspendre le compte.',
-  },
-  {
-    key: 'pseudo',
-    icon: 'profil',
-    title: 'Un pseudo et un crew corrects',
-    body:
-      'Le nom de ton crew et ton pseudo sont publics. Rien de haineux, sexuel ou trompeur : ' +
-      'ils peuvent être modifiés ou masqués par la modération.',
-  },
-  {
-    key: 'no_spam',
-    icon: 'cloche',
-    title: 'Pas de spam ni d’arnaque',
-    body:
-      'Le chat crew sert à jouer et se coordonner. Pas de publicité, de lien douteux ni de ' +
-      'sollicitation d’argent. Les demandes de boost sont toujours facultatives.',
-  },
-  {
-    key: 'securite',
-    icon: 'bouclier',
-    title: 'La sécurité passe avant le jeu',
-    body:
-      'Cours en respectant le code de la route et les lieux privés. Aucune zone ne vaut de se ' +
-      'mettre, ni de mettre quelqu’un, en danger.',
-  },
+  { key: 'respect', icon: 'crew', title: C.respectTitle, body: C.respectBody },
+  { key: 'zero_haine', icon: 'alerte', title: C.zeroHaineTitle, body: C.zeroHaineBody },
+  { key: 'pseudo', icon: 'profil', title: C.pseudoCorrectTitle, body: C.pseudoCorrectBody },
+  { key: 'no_spam', icon: 'cloche', title: C.noSpamTitle, body: C.noSpamBody },
+  { key: 'securite', icon: 'bouclier', title: C.securiteTitle, body: C.securiteBody },
 ];
 
 /** Ce que fait la modération quand une règle est enfreinte. */
 const ENFORCEMENT: readonly Rule[] = [
-  {
-    key: 'report',
-    icon: 'alerte',
-    title: 'Signale ce qui te choque',
-    body:
-      'Sur un message ou un membre : appui long ou menu « Signaler », choisis un motif. ' +
-      'Chaque signalement est examiné par une personne, réponse sous quelques jours.',
-  },
-  {
-    key: 'block',
-    icon: 'verrou',
-    title: 'Bloque qui tu ne veux plus voir',
-    body:
-      'Bloquer un membre masque tous ses messages, immédiatement et sans le prévenir. ' +
-      'Tu peux le débloquer à tout moment.',
-  },
-  {
-    key: 'sanctions',
-    icon: 'fermer',
-    title: 'Ce qu’on fait des abus',
-    body:
-      'Contenu retiré, avertissement, puis suspension du compte en cas de récidive ou de ' +
-      'gravité. Les décisions sont prises par une personne, jamais automatiquement.',
-  },
+  { key: 'report', icon: 'alerte', title: C.reportEnfTitle, body: C.reportEnfBody },
+  { key: 'block', icon: 'verrou', title: C.blockEnfTitle, body: C.blockEnfBody },
+  { key: 'sanctions', icon: 'fermer', title: C.sanctionsTitle, body: C.sanctionsBody },
 ];
 
 function RuleCard({ rule, tint = colors.blanc }: { rule: Rule; tint?: string }) {
+  const t = useT();
   return (
     <View style={styles.card}>
       <View style={styles.iconWrap}>
         <Icon name={rule.icon} size={18} color={tint} />
       </View>
       <View style={styles.info}>
-        <Text style={styles.title}>{rule.title}</Text>
-        <Text style={styles.body}>{rule.body}</Text>
+        <Text style={styles.title}>{t(rule.title)}</Text>
+        <Text style={styles.body}>{t(rule.body)}</Text>
       </View>
     </View>
   );
 }
 
 export default function CodeConduiteScreen() {
+  const t = useT();
   useEffect(() => {
     screen('code_conduite');
   }, []);
 
   return (
     <StackScreen
-      title="Code de conduite"
+      title={t(C.conduiteTitle)}
       icon="crew"
-      kicker="COMMUNAUTÉ"
-      subtitle="GRYD est un jeu qui pousse à courir, pas à se rabaisser. Ces règles s’appliquent à tout le monde, tout le temps."
+      kicker={t(C.conduiteKicker)}
+      subtitle={t(C.conduiteSubtitle)}
     >
       <View style={styles.list}>
-        <Text style={styles.sectionLabel}>LES RÈGLES</Text>
+        <Text style={styles.sectionLabel}>{t(C.secLesRegles)}</Text>
         {RULES.map((r) => (
           <RuleCard
             key={r.key}
@@ -128,16 +77,13 @@ export default function CodeConduiteScreen() {
           />
         ))}
 
-        <Text style={styles.sectionLabel}>MODÉRATION</Text>
+        <Text style={styles.sectionLabel}>{t(C.secModeration)}</Text>
         {ENFORCEMENT.map((r) => (
           <RuleCard key={r.key} rule={r} />
         ))}
       </View>
 
-      <Text style={styles.footnote}>
-        En jouant à GRYD, tu acceptes ce code de conduite. Le contenu haineux ou de harcèlement
-        n’a pas sa place ici — une personne lit chaque signalement.
-      </Text>
+      <Text style={styles.footnote}>{t(C.conduiteFootnote)}</Text>
     </StackScreen>
   );
 }

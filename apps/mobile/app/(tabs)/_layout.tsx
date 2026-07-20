@@ -23,11 +23,14 @@ import { StyleSheet, View } from 'react-native';
 import { colors } from '@klaim/shared';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
 import { useOnboardingState } from '../../src/features/onboarding/store';
+import { C } from '../../src/i18n/catalog/nav';
+import { useT } from '../../src/i18n/store';
 import { useSession } from '../../src/lib/session';
 
 export default function TabsLayout() {
   const { session, loading, configured } = useSession();
   const { state: onboarding, loading: onboardingLoading } = useOnboardingState();
+  const t = useT();
 
   // Restauration de session en cours : fond noir muet (splash implicite).
   if (loading) return <View style={styles.root} />;
@@ -44,12 +47,19 @@ export default function TabsLayout() {
   return (
     <View style={styles.root}>
       <Tabs screenOptions={{ headerShown: false, tabBarStyle: styles.hiddenTabBar }}>
-        <Tabs.Screen name="index" options={{ title: 'Carte', tabBarLabel: 'Carte' }} />
+        <Tabs.Screen name="index" options={{ title: t(C.tabCarte), tabBarLabel: t(C.tabCarte) }} />
         {/* Seule route HORS barre : Missions, atteinte depuis « Moi ». */}
-        <Tabs.Screen name="warroom" options={{ title: 'Missions', tabBarLabel: 'Missions' }} />
+        <Tabs.Screen
+          name="warroom"
+          options={{ title: t(C.tabMissions), tabBarLabel: t(C.tabMissions) }}
+        />
+        {/* « Crew » = invariant produit (jamais traduit). */}
         <Tabs.Screen name="crew" options={{ title: 'Crew', tabBarLabel: 'Crew' }} />
-        <Tabs.Screen name="classement" options={{ title: 'Saison', tabBarLabel: 'Saison' }} />
-        <Tabs.Screen name="profil" options={{ title: 'Moi', tabBarLabel: 'Moi' }} />
+        <Tabs.Screen
+          name="classement"
+          options={{ title: t(C.tabSaison), tabBarLabel: t(C.tabSaison) }}
+        />
+        <Tabs.Screen name="profil" options={{ title: t(C.tabMoi), tabBarLabel: t(C.tabMoi) }} />
       </Tabs>
       {/* Barre d'onglets persistante (Carte · Crew · Saison · Moi) + action centrale. */}
       <GrydNavBar />

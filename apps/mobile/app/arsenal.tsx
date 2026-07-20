@@ -37,6 +37,8 @@ import {
   withAlpha,
 } from '@klaim/shared';
 import { Redirect } from 'expo-router';
+import { C } from '../src/i18n/catalog/flagged';
+import { useT, t as tGlobal } from '../src/i18n/store';
 import { flags } from '../src/lib/flags';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
@@ -123,6 +125,7 @@ export default function ArsenalScreen() {
   if (!flags.arsenal) return <Redirect href="/" />;
 
   const insets = useSafeAreaInsets();
+  const t = useT();
   useEffect(() => {
     screen('arsenal');
     track(EVENTS.paywallView, { trigger: 'arsenal' });
@@ -206,7 +209,9 @@ export default function ArsenalScreen() {
           // exactement combien il lui manque et décide seul. Si la sheet détail
           // est ouverte, on l'affiche DEDANS (sinon il se rend derrière le
           // backdrop, invisible) ; sinon sous le header de l'écran de base.
-          const shortMsg = `Il te manque ${formatInt(price.amount - wallet.eclats)} Éclats pour cet objet.`;
+          const shortMsg = t(C.missingEclats, {
+            n: formatInt(price.amount - wallet.eclats),
+          });
           if (detail !== null) flashSheetNotice(shortMsg);
           else flashNotice(shortMsg);
           return;
@@ -218,7 +223,7 @@ export default function ArsenalScreen() {
       setDetail(null);
       flashLoot(item, 'buy');
     },
-    [arsenalInventory, wallet.eclats, detail, flashLoot, flashNotice, flashSheetNotice],
+    [arsenalInventory, wallet.eclats, detail, flashLoot, flashNotice, flashSheetNotice, t],
   );
 
   /** Équiper un skin/frame/bannière possédé (rendu carte réel = V1). */
@@ -243,11 +248,11 @@ export default function ArsenalScreen() {
       flashLoot(item, 'gift');
       flashNotice(
         anonymous
-          ? `Un membre a offert ${item.name} au crew. Message posté sans nom.`
-          : `Tu as offert ${item.name} au crew. Message posté au feed.`,
+          ? t(C.giftFeedAnon, { item: item.name })
+          : t(C.giftFeedNamed, { item: item.name }),
       );
     },
-    [flashLoot, flashNotice],
+    [flashLoot, flashNotice, t],
   );
 
   const openDetail = useCallback((item: ArsenalCatalogItem) => {
@@ -313,16 +318,16 @@ export default function ArsenalScreen() {
           emphasis={emphasis}
           onEquip={canEquip && ownedNow && !equippedNow ? () => equip(item) : undefined}
           onObtain={buyable ? () => openDetail(item) : undefined}
-          obtainLabel="Voir détails"
+          obtainLabel={t(C.voirDetails)}
           onView={() => openDetail(item)}
         />
       );
     },
-    [isOwned, isEquipped, equip, openDetail],
+    [isOwned, isEquipped, equip, openDetail, t],
   );
 
   return (
-    <StackScreen title="Arsenal" icon="boutique" kicker="ARSENAL · SAISON 0">
+    <StackScreen title={t(C.arsenalTitle)} icon="boutique" kicker={t(C.arsenalKicker)}>
       {/* Solde — Éclats animés + statut Club. Les Foulées ne s'affichent pas :
           aucun objet de l'écran ne se paie en Foulées (micro-label en pied). */}
       <View style={styles.wallet}>
@@ -337,7 +342,7 @@ export default function ArsenalScreen() {
         <View style={styles.walletCell}>
           <Icon name="couronne" size={iconSizes.md} color={wallet.isClub ? colors.chartreuse : colors.gris} />
           <Text style={wallet.isClub ? styles.walletClubOn : styles.walletClubOff}>
-            Club : {wallet.isClub ? 'actif' : 'inactif'}
+            {t(wallet.isClub ? C.clubActive : C.clubInactive)}
           </Text>
         </View>
       </View>
@@ -347,8 +352,8 @@ export default function ArsenalScreen() {
       <View style={styles.banner}>
         <Icon name="verrou" size={iconSizes.md} color={colors.blanc} />
         <View style={styles.bannerTextWrap}>
-          <Text style={styles.bannerStrong}>Le territoire ne s'achète pas.</Text>
-          <Text style={styles.bannerSoft}>Le style, le statut et l'organisation, oui.</Text>
+          <Text style={styles.bannerStrong}>{t(C.bannerStrong)}</Text>
+          <Text style={styles.bannerSoft}>{t(C.bannerSoft)}</Text>
         </View>
       </View>
 
@@ -359,10 +364,10 @@ export default function ArsenalScreen() {
             label={loot.item.name}
             sublabel={
               loot.kind === 'equip'
-                ? 'Équipé'
+                ? t(C.lootEquipped)
                 : loot.kind === 'gift'
-                  ? 'Offert au crew'
-                  : 'Dans ton arsenal'
+                  ? t(C.lootGifted)
+                  : t(C.lootOwnedSub)
             }
             state="unlocked"
             reveal
@@ -387,9 +392,9 @@ export default function ArsenalScreen() {
         />
       ) : null}
 
-      <Text style={styles.sectionLabel}>EXPLORER PAR BESOIN</Text>
+      <Text style={styles.sectionLabel}>{t(C.exploreLabel)}</Text>
       <Segmented
-        accessibilityLabel="Besoin Arsenal"
+        accessibilityLabel={t(C.needA11y)}
         tone="surface"
         scrollable
         value={selectedNeed}
@@ -400,24 +405,19 @@ export default function ArsenalScreen() {
       <Text style={styles.sectionNote}>
         {selectedNeed === 'for_you'
           ? arsenalSignalsLoading || arsenalInventory.loading
-            ? 'Tri en cours : carte, crew, série, partage et solde.'
-            : 'Trié selon ton jeu : carte, crew, série, solde et objets possédés.'
-          : 'Même catalogue, filtré par utilité immédiate. Le détail explique toujours la limite.'}
+            ? t(C.noteSorting)
+            : t(C.noteSorted)
+          : t(C.noteFiltered)}
       </Text>
 
       <View style={styles.sectionItems}>
         {visibleRecommendations.map((entry) => renderCard(entry))}
       </View>
 
-      <Text style={styles.footnote}>
-        Aucun objet ne vend des zones, des kilomètres, une victoire ou un rang de ligue —
-        tout ça se gagne en courant. Les Éclats servent au style ; le confort reste capé.
-      </Text>
+      <Text style={styles.footnote}>{t(C.footnote)}</Text>
       {/* Micro-label honnête : les Foulées existent mais rien ne se dépense en
           Foulées ici — on le dit au lieu d'afficher une monnaie morte en haut. */}
-      <Text style={styles.footnoteSub}>
-        Les Foulées se gagnent en courant — bientôt dépensables.
-      </Text>
+      <Text style={styles.footnoteSub}>{t(C.footnoteSub)}</Text>
 
       {/* ══ DÉTAIL ITEM (sheet §25) ══ */}
       <Modal
@@ -428,7 +428,7 @@ export default function ArsenalScreen() {
       >
         <View style={styles.sheetRoot}>
           <Pressable
-            accessibilityLabel="Fermer"
+            accessibilityLabel={t(C.fermer)}
             style={styles.sheetBackdrop}
             onPress={() => setDetail(null)}
           />
@@ -464,7 +464,7 @@ export default function ArsenalScreen() {
       >
         <View style={styles.sheetRoot}>
           <Pressable
-            accessibilityLabel="Fermer"
+            accessibilityLabel={t(C.fermer)}
             style={styles.sheetBackdrop}
             onPress={() => setGifting(null)}
           />
@@ -487,7 +487,9 @@ export default function ArsenalScreen() {
 }
 
 function priceLabel(price: { amount: number; currency: ArsenalPriceCurrency } | undefined): string {
-  if (!price) return 'Exclusif au pack';
+  // Helper module (hors composant) : t du store — les écrans appelants re-rendent
+  // au changement de langue (useT), le libellé suit.
+  if (!price) return tGlobal(C.exclusifPack);
   if (price.currency === 'eur') {
     return `${price.amount.toLocaleString('fr-FR', {
       minimumFractionDigits: 2,
@@ -523,6 +525,7 @@ function AdvisorCard({
   onEquip: () => void;
   onView: () => void;
 }) {
+  const t = useT();
   const { item, advice } = entry;
   const canEquipNow = owned && !equipped && equipScopeOf(item.key) !== null;
   const oneTapBuy =
@@ -533,15 +536,18 @@ function AdvisorCard({
     price.currency === 'eclats' &&
     walletEclats >= price.amount;
   const primaryLabel = canEquipNow
-    ? 'Équiper'
+    ? t(C.equiper)
     : oneTapBuy
-      ? `Obtenir · ${priceLabel(price)}`
-      : 'Voir détails';
+      ? t(C.obtenirPrice, { price: priceLabel(price) })
+      : t(C.voirDetails);
   const onPrimary = canEquipNow ? onEquip : oneTapBuy ? onBuy : onView;
+  // « Voir détails » n'est doublé en action secondaire que si le CTA fait autre
+  // chose (équiper / achat 1 tap).
+  const primaryIsView = !canEquipNow && !oneTapBuy;
   // Le prix ne s'affiche qu'à UN endroit : dans le CTA quand il achète,
   // sinon dans la ligne méta (source unique, jamais les deux).
   const meta = owned
-    ? `${BADGE_TIER_LABEL[item.rarity]} · ${equipped ? 'Équipé' : 'Possédé'}`
+    ? `${BADGE_TIER_LABEL[item.rarity]} · ${equipped ? t(C.lootEquipped) : t(C.possede)}`
     : oneTapBuy
       ? BADGE_TIER_LABEL[item.rarity]
       : `${BADGE_TIER_LABEL[item.rarity]} · ${priceLabel(price)}`;
@@ -553,16 +559,16 @@ function AdvisorCard({
           {cardThumb(item) ?? <ArsenalIcon slug={item.slug} size={42} color={colors.blanc} />}
         </View>
         <View style={styles.advisorTitleWrap}>
-          <Text style={styles.advisorKicker}>CHOISI POUR TOI</Text>
+          <Text style={styles.advisorKicker}>{t(C.choisiPourToi)}</Text>
           <Text style={styles.advisorName}>{item.name}</Text>
           <Text style={styles.advisorMeta}>{meta}</Text>
         </View>
       </View>
 
       <View style={styles.advisorLines}>
-        <ExplanationLine label="Sert à" text={advice.benefit} />
-        <ExplanationLine label="Limite" text={advice.guardrail} />
-        <ExplanationLine label="Pourquoi" text={advice.whyNow} />
+        <ExplanationLine label={t(C.labelSertA)} text={advice.benefit} />
+        <ExplanationLine label={t(C.labelLimite)} text={advice.guardrail} />
+        <ExplanationLine label={t(C.labelPourquoi)} text={advice.whyNow} />
       </View>
 
       <Pressable
@@ -572,13 +578,13 @@ function AdvisorCard({
       >
         <Text style={styles.advisorCtaText}>{primaryLabel}</Text>
       </Pressable>
-      {primaryLabel !== 'Voir détails' ? (
+      {!primaryIsView ? (
         <Pressable
           accessibilityRole="button"
           onPress={onView}
           style={({ pressed }) => [styles.advisorGhost, pressed && styles.pressed]}
         >
-          <Text style={styles.advisorGhostText}>Voir détails</Text>
+          <Text style={styles.advisorGhostText}>{t(C.voirDetails)}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -623,6 +629,7 @@ function ItemDetail({
   onGift: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const { opacity, scale } = useReveal(true);
   const scope = equipScopeOf(item.key);
   const isSkin = item.section === 'skins_territory' || item.section === 'skins_trace';
@@ -645,7 +652,7 @@ function ItemDetail({
         <Text style={styles.detailName}>{item.name}</Text>
         <Text style={styles.detailMeta}>
           {BADGE_TIER_LABEL[item.rarity]}
-          {item.draft ? ' · Saison 1' : ''}
+          {item.draft ? t(C.saison1Suffix) : ''}
         </Text>
       </View>
 
@@ -656,22 +663,22 @@ function ItemDetail({
       </Text>
 
       <View style={styles.detailExplain}>
-        <ExplanationLine label="Sert à" text={advice.benefit} />
-        <ExplanationLine label="Pourquoi" text={advice.whyNow} />
-        <ExplanationLine label="Limite" text={advice.guardrail} />
+        <ExplanationLine label={t(C.labelSertA)} text={advice.benefit} />
+        <ExplanationLine label={t(C.labelPourquoi)} text={advice.whyNow} />
+        <ExplanationLine label={t(C.labelLimite)} text={advice.guardrail} />
       </View>
 
       {item.limit ? (
         <View style={styles.detailChip}>
           <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
-          <Text style={styles.detailChipText}>Plafond : {item.limit}</Text>
+          <Text style={styles.detailChipText}>{t(C.plafond, { limit: item.limit })}</Text>
         </View>
       ) : null}
 
       {isSkin ? (
         <View style={styles.detailChip}>
           <Icon name="carte" size={iconSizes.xs} color={gameColors.crew} />
-          <Text style={styles.detailChipText}>Visible sur ta carte à la Saison 0.</Text>
+          <Text style={styles.detailChipText}>{t(C.visibleCarte)}</Text>
         </View>
       ) : null}
 
@@ -691,7 +698,7 @@ function ItemDetail({
         <View style={styles.detailOwned}>
           <Dot size={7} />
           <Text style={styles.detailOwnedText}>
-            {equipped ? 'Équipé' : 'Dans ton arsenal'}
+            {equipped ? t(C.lootEquipped) : t(C.lootOwnedSub)}
             {scope ? ` · ${EQUIP_SCOPE_LABEL[scope]}` : ''}
           </Text>
         </View>
@@ -702,7 +709,7 @@ function ItemDetail({
           focus fort de la scène. */}
       {dual && !owned ? (
         <Segmented
-          accessibilityLabel="Devise de paiement"
+          accessibilityLabel={t(C.deviseA11y)}
           tone="surface"
           value={currency}
           onChange={onCurrency}
@@ -734,12 +741,12 @@ function ItemDetail({
         {item.draft ? (
           <View style={[styles.detailPrimary, styles.detailLocked]}>
             <Icon name="verrou" size={15} color={colors.gris} />
-            <Text style={styles.detailLockedText}>Bientôt — Saison 1</Text>
+            <Text style={styles.detailLockedText}>{t(C.bientotSaison1)}</Text>
           </View>
         ) : item.packOnly && !owned ? (
           <View style={[styles.detailPrimary, styles.detailLocked]}>
             <Icon name="verrou" size={15} color={colors.gris} />
-            <Text style={styles.detailLockedText}>Exclusif au pack</Text>
+            <Text style={styles.detailLockedText}>{t(C.exclusifPack)}</Text>
           </View>
         ) : owned ? (
           scope && !equipped ? (
@@ -748,11 +755,13 @@ function ItemDetail({
               onPress={onEquip}
               style={({ pressed }) => [styles.detailPrimary, pressed && styles.pressed]}
             >
-              <Text style={styles.detailPrimaryText}>Équiper</Text>
+              <Text style={styles.detailPrimaryText}>{t(C.equiper)}</Text>
             </Pressable>
           ) : (
             <View style={[styles.detailPrimary, styles.detailLocked]}>
-              <Text style={styles.detailLockedText}>{equipped ? 'Équipé' : 'Possédé'}</Text>
+              <Text style={styles.detailLockedText}>
+                {equipped ? t(C.lootEquipped) : t(C.possede)}
+              </Text>
             </View>
           )
         ) : (
@@ -767,10 +776,14 @@ function ItemDetail({
                   surligné) — le CTA ne répète donc pas le prix, il dit « Obtenir ».
                   Hors double-prix, aucun segmented : le CTA porte le prix. */}
               {dual
-                ? 'Obtenir'
+                ? t(C.obtenir)
                 : hasEclats
-                  ? `Obtenir · ${item.priceShards?.toLocaleString('fr-FR')} Éclats`
-                  : `Obtenir · ${item.priceEur?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                  ? t(C.obtenirPrice, {
+                      price: `${item.priceShards?.toLocaleString('fr-FR')} Éclats`,
+                    })
+                  : t(C.obtenirPrice, {
+                      price: `${item.priceEur?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`,
+                    })}
             </Text>
           </Pressable>
         )}
@@ -783,13 +796,13 @@ function ItemDetail({
             style={({ pressed }) => [styles.detailGhost, pressed && styles.pressed]}
           >
             <Icon name="cadeau" size={iconSizes.sm} color={colors.blanc} />
-            <Text style={styles.detailGhostText}>Offrir au crew</Text>
+            <Text style={styles.detailGhostText}>{t(C.offrirCrew)}</Text>
           </Pressable>
         ) : null}
       </View>
 
       <Pressable accessibilityRole="button" onPress={onClose} style={styles.detailClose}>
-        <Text style={styles.detailCloseText}>Fermer</Text>
+        <Text style={styles.detailCloseText}>{t(C.fermer)}</Text>
       </Pressable>
       {/* Anim wrapper (reveal) — placé en fin pour ne pas gêner le scroll. */}
       <View style={{ opacity, transform: [{ scale }], height: 0 }} pointerEvents="none" />
@@ -814,12 +827,13 @@ function GiftFlow({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const isBoost = item.section === 'crew_boosts' && item.key.startsWith('crew_boost');
   const advice = explainArsenalItem(item, signals);
   return (
     <View>
       <View style={styles.sheetHandle} />
-      <Text style={styles.giftTitle}>Offrir au crew</Text>
+      <Text style={styles.giftTitle}>{t(C.offrirCrew)}</Text>
       <Text style={styles.giftSubtitle}>{item.name}</Text>
 
       <View style={styles.giftPreview}>
@@ -828,22 +842,22 @@ function GiftFlow({
         </View>
         <View style={styles.giftPreviewText}>
           <Text style={styles.giftEffect}>
-            {isBoost ? BOOST_CHEST_BONUS_LABEL : 'Cadeau cosmétique au crew'}
+            {isBoost ? BOOST_CHEST_BONUS_LABEL : t(C.cadeauCosmetique)}
           </Text>
           <Text style={styles.giftDesc}>{item.description}</Text>
         </View>
       </View>
 
       <View style={styles.giftExplain}>
-        <ExplanationLine label="Sert à" text={advice.benefit} />
-        <ExplanationLine label="Comment" text={advice.mechanic} />
-        <ExplanationLine label="Limite" text={advice.guardrail} />
+        <ExplanationLine label={t(C.labelSertA)} text={advice.benefit} />
+        <ExplanationLine label={t(C.labelComment)} text={advice.mechanic} />
+        <ExplanationLine label={t(C.labelLimite)} text={advice.guardrail} />
       </View>
 
       {/* Copy contribution gelée §28 */}
       <View style={styles.giftContribBox}>
-        <Text style={styles.giftContribLine}>Tous les runs comptent plus fort pour le coffre.</Text>
-        <Text style={styles.giftContribStrong}>Aucune obligation. La victoire reste sur la route.</Text>
+        <Text style={styles.giftContribLine}>{t(C.contribLine)}</Text>
+        <Text style={styles.giftContribStrong}>{t(C.contribStrong)}</Text>
       </View>
 
       {/* Offrande anonyme (§14 — jamais de classement de payeurs) */}

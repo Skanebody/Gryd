@@ -37,13 +37,20 @@ import { TODAY, TODAY_HERO } from '../src/features/motivation/demo';
 import { ROUTES_DEMO, routeDurationMin, routeSocialName } from '../src/features/route/demo';
 import { useMyProfile } from '../src/features/social/profileStore';
 import { useSession } from '../src/lib/session';
+import { C } from '../src/i18n/catalog/motivation';
+import { useLocale, useT } from '../src/i18n/store';
+import type { Locale } from '../src/i18n/types';
 
-/** « 4,8 » — le KPI géant est la distance, la virgule est FR. */
-function kmLabel(km: number): string {
-  return km.toFixed(1).replace('.', ',');
+/** « 4,8 » — le KPI géant est la distance ; séparateur décimal selon la langue. */
+function kmLabel(km: number, locale: Locale): string {
+  const s = km.toFixed(1);
+  return locale === 'en' ? s : s.replace('.', ',');
 }
 
 export default function AujourdhuiScreen() {
+  const t = useT();
+  const locale = useLocale();
+
   useEffect(() => {
     screen('today');
   }, []);
@@ -51,7 +58,7 @@ export default function AujourdhuiScreen() {
   // AMENDEMENT-12 §A : 2 verbes joueur. SOURCE UNIQUE battleContext() — le
   // verbe affiché (card + CTA) et le départ goNow() partagent le même plan.
   const { mode: battleMode, plan } = useMemo(() => battleContext(), []);
-  const objectiveTag = battleMode === 'DEFENDRE' ? 'DÉFENDRE' : 'CONQUÉRIR';
+  const objectiveTag = battleMode === 'DEFENDRE' ? t(C.objectiveDefend) : t(C.objectiveConquer);
 
   // L'app ne ment jamais : la card héros DÉCRIT la course que le CTA lance
   // vraiment. km/zones/durée/nom sont dérivés de LA route du plan (plan.routeId,
@@ -78,7 +85,7 @@ export default function AujourdhuiScreen() {
   const { profile } = useMyProfile();
   const realUser = configured && !!session;
   const greetingName = realUser ? profile.displayName : TODAY_HERO.greetingName;
-  const situation = realUser ? 'Ta prochaine course t’attend.' : TODAY_HERO.situation;
+  const situation = realUser ? t(C.todayNextRunAwaits) : TODAY_HERO.situation;
 
   // Prochain badge proche : top 1 verrouillé non secret par ratio (même calcul
   // que la section « Proches du déblocage » de la Collection — cohérence).
@@ -100,35 +107,39 @@ export default function AujourdhuiScreen() {
   };
 
   return (
-    <StackScreen title="Aujourd'hui" icon="aujourdhui" kicker="TA JOURNÉE GRYD">
+    <StackScreen title={t(C.todayTitle)} icon="aujourdhui" kicker={t(C.todayKicker)}>
       {/* Bonjour + situation en UNE phrase — le contexte avant la décision. */}
-      <Text style={styles.greeting}>BONJOUR {greetingName}</Text>
+      <Text style={styles.greeting}>{t(C.todayGreeting, { name: greetingName })}</Text>
       <Text style={styles.situation}>{situation}</Text>
 
       {/* L'OBJECTIF : carte héros ROUTE RECOMMANDÉE (tap → Route Planner). */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Route recommandée — objectif ${objectiveTag} : ${route.name}, ${kmLabel(route.distanceKm)} kilomètres`}
+        accessibilityLabel={t(C.todayHeroA11y, {
+          objective: objectiveTag,
+          name: route.name,
+          km: kmLabel(route.distanceKm, locale),
+        })}
         onPress={goPlanner}
         style={({ pressed }) => [styles.hero, pressed && styles.pressed]}
       >
         <View style={styles.heroHead}>
           <Icon name="route" size={18} color={colors.chartreuse} />
           <Text style={styles.heroKicker}>
-            ROUTE RECOMMANDÉE · <Text style={styles.heroObjective}>{objectiveTag}</Text>
+            {t(C.todayRouteKicker)} · <Text style={styles.heroObjective}>{objectiveTag}</Text>
           </Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </View>
 
         {/* KPI GÉANT (AMENDEMENT-10 §1) : la distance domine l'écran. */}
         <View style={styles.kpiRow}>
-          <Text style={styles.kpi}>{kmLabel(route.distanceKm)}</Text>
+          <Text style={styles.kpi}>{kmLabel(route.distanceKm, locale)}</Text>
           <Text style={styles.kpiUnit}>km</Text>
         </View>
 
         {/* ≤ 3 infos sur la card : km (KPI) + zones + durée estimée (~). */}
         <View style={styles.metaRow}>
-          <Text style={styles.metaStrong}>+{route.zones} zones</Text>
+          <Text style={styles.metaStrong}>{t(C.todayZonesPlus, { n: route.zones })}</Text>
           <Text style={styles.metaDot}>·</Text>
           <Text style={styles.meta}>~{route.durationMin} min</Text>
         </View>
@@ -142,7 +153,7 @@ export default function AujourdhuiScreen() {
         <Button
           label={objectiveTag}
           onPress={goNow}
-          accessibilityLabel={`${objectiveTag} — départ immédiat sur le plan du jour`}
+          accessibilityLabel={t(C.todayCtaA11y, { objective: objectiveTag })}
         />
       </View>
 
@@ -157,7 +168,7 @@ export default function AujourdhuiScreen() {
                 {TODAY.weekRuns}
                 <Text style={styles.weekTarget}>/{TODAY.weekTarget}</Text>
               </Text>
-              <Text style={styles.weekLabel}>COURSES</Text>
+              <Text style={styles.weekLabel}>{t(C.todayWeekRuns)}</Text>
             </View>
             <View style={styles.weekSep} />
             <View style={styles.weekCell}>
@@ -165,12 +176,12 @@ export default function AujourdhuiScreen() {
                 {TODAY.formScore}
                 <Text style={styles.weekTarget}>/100</Text>
               </Text>
-              <Text style={styles.weekLabel}>SCORE FORME</Text>
+              <Text style={styles.weekLabel}>{t(C.todayWeekForm)}</Text>
             </View>
             <View style={styles.weekSep} />
             <View style={styles.weekCell}>
-              <Text style={styles.weekValue}>{TODAY_HERO.crewChestPct} %</Text>
-              <Text style={styles.weekLabel}>COFFRE CREW</Text>
+              <Text style={styles.weekValue}>{t(C.pctValue, { n: TODAY_HERO.crewChestPct })}</Text>
+              <Text style={styles.weekLabel}>{t(C.todayWeekChest)}</Text>
             </View>
           </View>
           <ProgressBar
@@ -183,12 +194,13 @@ export default function AujourdhuiScreen() {
       {/* Prochain badge proche — 1 seule carte, invitation douce. */}
       {nextBadge ? (
         <View style={styles.badgeBlock}>
-          <Text style={styles.blockKicker}>PROCHAIN BADGE</Text>
+          <Text style={styles.blockKicker}>{t(C.todayNextBadge)}</Text>
           <BadgeCard
             name={nextBadge.def.name}
             family={nextBadge.def.family}
             familyLabel={
-              BADGE_FAMILIES.find((f) => f.id === nextBadge.def.family)?.name ?? 'Secret'
+              BADGE_FAMILIES.find((f) => f.id === nextBadge.def.family)?.name ??
+              t(C.badgeFamilySecret)
             }
             familyColor={badgeColor(nextBadge.def)}
             tier={nextBadge.def.tier}
@@ -208,12 +220,12 @@ export default function AujourdhuiScreen() {
       {/* Accès existants (ghost — l'accent reste au CTA). */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Voir mes challenges"
+        accessibilityLabel={t(C.todayMyChallengesA11y)}
         onPress={() => router.push('/challenges')}
         style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
       >
         <Icon name="mission" size={20} color={colors.blanc} />
-        <Text style={styles.linkLabel}>Mes challenges</Text>
+        <Text style={styles.linkLabel}>{t(C.todayMyChallenges)}</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
       {/* D8 : War Room masquée hors MVP. */}
@@ -221,7 +233,7 @@ export default function AujourdhuiScreen() {
         <>
           <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Ouvrir la War Room"
+          accessibilityLabel={t(C.todayWarRoomA11y)}
           onPress={() => router.push('/warroom')}
           style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
         >

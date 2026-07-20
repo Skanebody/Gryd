@@ -37,6 +37,9 @@ import {
   radii,
   spacing,
 } from '@klaim/shared';
+import { C } from '../../src/i18n/catalog/flagged';
+import { useT } from '../../src/i18n/store';
+import type { Entry } from '../../src/i18n/types';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
 import { useSeasonLeaderboard } from '../../src/features/social/leagueBoard';
@@ -61,12 +64,13 @@ import {
   useSlideIn,
 } from '../../src/ui/game';
 
-/** Onglets RÉDUITS (AMENDEMENT-17) : 3 natures au lieu de 6 onglets coupés. */
+/** Onglets RÉDUITS (AMENDEMENT-17) : 3 natures au lieu de 6 onglets coupés.
+ * Labels = Entries i18n, résolus à l'affichage (le composant appelle t()). */
 type PrimaryTab = 'joueurs' | 'crews' | 'ville';
-const PRIMARY_TABS: readonly { id: PrimaryTab; label: string }[] = [
-  { id: 'joueurs', label: 'Joueurs' },
-  { id: 'crews', label: 'Crews' },
-  { id: 'ville', label: 'Ville' },
+const PRIMARY_TABS: readonly { id: PrimaryTab; label: Entry }[] = [
+  { id: 'joueurs', label: C.tabJoueurs },
+  { id: 'crews', label: C.tabCrews },
+  { id: 'ville', label: C.tabVille },
 ];
 
 // AMENDEMENT-35 (Europe) : le filtre de portée « Paris / France » est RETIRÉ.
@@ -124,15 +128,17 @@ function RowVisual({ row, board, big = false }: {
   return <PlayerAvatarFrame name={row.name} size={big ? 'l' : 's'} isMe={row.me === true} />;
 }
 
-/** Suffixe « toi » adapté à la nature du board (jamais de honte, juste l'ancre). */
-function meSuffix(board: LeagueBoard): string {
-  if (board.kind === 'crew') return ' · ton crew';
-  if (board.kind === 'city') return ' · ta ville';
-  return ' · toi';
+/** Suffixe « toi » adapté à la nature du board (jamais de honte, juste l'ancre).
+ * Renvoie l'Entry i18n — le composant appelant la résout avec t(). */
+function meSuffix(board: LeagueBoard): Entry {
+  if (board.kind === 'crew') return C.suffixCrew;
+  if (board.kind === 'city') return C.suffixVille;
+  return C.suffixMoi;
 }
 
 /** PODIUM top 3 en marches : #2 / #1 (plus haut) / #3, médailles intégrées. */
 function Podium({ board }: { board: LeagueBoard }) {
+  const t = useT();
   const slide = useSlideIn(14);
   const first = board.rows.find((r) => r.rank === 1);
   const second = board.rows.find((r) => r.rank === 2);
@@ -152,7 +158,7 @@ function Podium({ board }: { board: LeagueBoard }) {
             <RowVisual row={c.row} board={board} big={c.row.rank === 1} />
             <Text style={styles.podiumName} numberOfLines={1} ellipsizeMode="clip">
               {c.row.name}
-              {c.row.me === true ? meSuffix(board) : ''}
+              {c.row.me === true ? t(meSuffix(board)) : ''}
             </Text>
             <Text style={styles.podiumValue}>{formatInt(c.row.value)}</Text>
             <View style={[styles.podiumStep, { height: c.step }]}>
@@ -169,6 +175,7 @@ function Podium({ board }: { board: LeagueBoard }) {
 
 /** Ligne de classement standard (rangs 4+), MA ligne ancrée chartreuse. */
 function BoardRow({ row, board }: { row: LeagueRow; board: LeagueBoard }) {
+  const t = useT();
   return (
     <>
       {row.gapBefore === true ? <Text style={styles.ellipsis}>···</Text> : null}
@@ -182,7 +189,7 @@ function BoardRow({ row, board }: { row: LeagueRow; board: LeagueBoard }) {
             ellipsizeMode="clip"
           >
             {row.name}
-            {row.me === true ? meSuffix(board) : ''}
+            {row.me === true ? t(meSuffix(board)) : ''}
           </Text>
           {row.sub ? (
             <Text style={styles.rowSub} numberOfLines={1} ellipsizeMode="clip">
@@ -204,10 +211,16 @@ export default function LeagueScreen() {
   if (!flags.season) return <Redirect href="/" />;
 
   const insets = useSafeAreaInsets();
+  const t = useT();
   const toast = useToast();
   const { prefs } = useMotivationPrefs();
   const [tab, setTab] = useState<PrimaryTab>('joueurs');
   const [showAll, setShowAll] = useState(false);
+  // Onglets résolus dans la langue courante (labels module = Entries).
+  const tabOptions = useMemo(
+    () => PRIMARY_TABS.map((o) => ({ id: o.id, label: t(o.label) })),
+    [t],
+  );
 
   useEffect(() => {
     screen('classement');
@@ -283,11 +296,11 @@ export default function LeagueScreen() {
             afficher « EUROPE » sur des lignes démo Paris/Lille serait un mensonge
             (la vision Europe est portée par la note démo + les docs). */}
         <Text style={styles.kicker}>
-          SAISON 0 · SEMAINE {LEAGUE_SEASON_WEEK}/{SEASON_DURATION_WEEKS} (DÉMO)
+          {t(C.saisonKicker, { week: LEAGUE_SEASON_WEEK, total: SEASON_DURATION_WEEKS })}
         </Text>
         <View style={styles.titleRow}>
           <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
-          <Text style={styles.title}>Saison</Text>
+          <Text style={styles.title}>{t(C.saisonTitle)}</Text>
         </View>
 
         {/* ── BLOC TOI EN HAUT (sans scroll) : rang + UNE phrase-objectif + CTA.
@@ -297,11 +310,8 @@ export default function LeagueScreen() {
           <View style={styles.discreetBanner}>
             <Icon name="discret" size={iconSizes.md} color={colors.blanc} />
             <View style={styles.discreetBody}>
-              <Text style={styles.discreetTitle}>Mode discret actif</Text>
-              <Text style={styles.discreetText}>
-                Ton rang n'apparaît pas dans les classements publics. Ta progression reste
-                visible pour toi, dans ton profil.
-              </Text>
+              <Text style={styles.discreetTitle}>{t(C.discreetTitle)}</Text>
+              <Text style={styles.discreetText}>{t(C.discreetText)}</Text>
             </View>
           </View>
         ) : showToi ? (
@@ -310,10 +320,13 @@ export default function LeagueScreen() {
             <View style={styles.toiTop}>
               <Text style={styles.toiRank}>#{meRow!.rank}</Text>
               <Text style={styles.toiName} numberOfLines={1} ellipsizeMode="clip">
-                {meRow!.name} · toi
+                {meRow!.name}
+                {t(C.suffixMoi)}
               </Text>
               <Text style={styles.toiGap}>
-                {isLeader ? 'en tête' : `${formatInt(gapPoints)} pts du #${aboveRow!.rank}`}
+                {isLeader
+                  ? t(C.enTete)
+                  : t(C.gapPts, { pts: formatInt(gapPoints), rank: aboveRow!.rank })}
               </Text>
             </View>
 
@@ -321,8 +334,11 @@ export default function LeagueScreen() {
                 Le rappel de récompense (Top 10 → badge) vit dans Récompenses. */}
             <Text style={styles.toiHint}>
               {isLeader
-                ? 'Défends ton titre jusqu’à la fin de la saison.'
-                : `≈ ${formatInt(Math.max(1, gapHexes))} zones pour passer ${aboveRow!.name}.`}
+                ? t(C.toiHintLeader)
+                : t(C.toiHintChase, {
+                    n: formatInt(Math.max(1, gapHexes)),
+                    name: aboveRow!.name,
+                  })}
             </Text>
 
             {/* 3 · CTA contextuel — JAMAIS un GO ; la Saison mène au planner */}
@@ -330,7 +346,7 @@ export default function LeagueScreen() {
               {/* Libellés COURTS qui tiennent sans jamais tronquer (§A « textes
                   jamais coupés ») — l'icône route porte le contexte « planner ». */}
               <InlineRunCTA
-                label={isLeader ? 'DÉFENDRE' : 'MA ROUTE'}
+                label={t(isLeader ? C.ctaDefendre : C.ctaMaRoute)}
                 leading={<Icon name="route" size={iconSizes.md} color={colors.noir} />}
                 onPress={() => router.push('/route-planner')}
               />
@@ -344,10 +360,10 @@ export default function LeagueScreen() {
             scène est le CTA du bloc TOI (Trouver une route / Défendre mon rang). */}
         <View style={styles.tabsWrap}>
           <Segmented
-            options={PRIMARY_TABS}
+            options={tabOptions}
             value={tab}
             tone="surface"
-            accessibilityLabel="Nature du classement"
+            accessibilityLabel={t(C.tabsA11y)}
             onChange={(id) => {
               setTab(id);
               setShowAll(false);
@@ -363,11 +379,7 @@ export default function LeagueScreen() {
         {/* Honnêteté : boards dont les lignes ne viennent pas du serveur =
             démonstration, on le dit — et on situe la vision (Europe) sans mentir
             sur les données (Saison 0 ouvre Paris + Lille, le reste suit). */}
-        {boardIsDemo ? (
-          <Text style={styles.demoNote}>
-            Classement de démonstration — Saison 0 ouvre Paris et Lille, l’Europe suit.
-          </Text>
-        ) : null}
+        {boardIsDemo ? <Text style={styles.demoNote}>{t(C.demoNote)}</Text> : null}
 
         {/* PODIUM top 3 — remonté à chaque changement de board (key). Reçoit les
             lignes FILTRÉES (`rows`) : en mode discret je n'apparais pas non plus
@@ -384,11 +396,11 @@ export default function LeagueScreen() {
         {hiddenCount > 0 ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Voir tout le classement"
+            accessibilityLabel={t(C.seeAllBoardA11y)}
             onPress={() => setShowAll(true)}
             style={({ pressed }) => [styles.seeAll, pressed && styles.pressed]}
           >
-            <Text style={styles.seeAllLabel}>Voir tout</Text>
+            <Text style={styles.seeAllLabel}>{t(C.seeAll)}</Text>
             <Text style={styles.seeAllCount}>+{hiddenCount}</Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
@@ -401,16 +413,14 @@ export default function LeagueScreen() {
         <View style={styles.sectionHead}>
           <Icon name="cadeau" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionLabel}>
-            RÉCOMPENSES TOP 10 · FIN SEMAINE {SEASON_DURATION_WEEKS}
+            {t(C.rewardsLabel, { week: SEASON_DURATION_WEEKS })}
           </Text>
         </View>
         {/* Rang perso = celui du board Joueurs (dont meRow/inTop10 sont dérivés) :
             ne l'affiche QUE sur cet onglet, jamais sur Crews/Ville où « Tu es #8 »
             n'aurait aucun rapport avec la liste visible. */}
         {!discreet && onJoueurs && inTop10 && meRow ? (
-          <Text style={styles.rewardHint}>
-            Tu es #{meRow.rank} — reste dans le Top 10 pour les débloquer.
-          </Text>
+          <Text style={styles.rewardHint}>{t(C.rewardHint, { rank: meRow.rank })}</Text>
         ) : null}
         <View style={styles.rewardList}>
           {TOP10_REWARDS.map((r) => (

@@ -19,7 +19,7 @@
  * reste la variante web ; vérification device au Milestone 2 (pulse natif =
  * transitions de style, §5).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,7 +48,13 @@ import { useRealTerritories } from './hexClaims';
 import { getLastRunResult } from '../run/runResult';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
-import { basemapAttribution, battleGameLayers } from './mapStyle';
+import {
+  basemapAttribution,
+  basemapSpecRevision,
+  battleGameLayers,
+  prefetchLocalizedBasemaps,
+  subscribeBasemapSpecs,
+} from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
@@ -236,6 +242,10 @@ export function MapScreen() {
    * vitrine. Web : jamais de géoloc (vitrine assumée).
    */
   const [egoPos, setEgoPos] = useState<LatLngPoint>({ lat: EGO_CAMERA.lat, lng: EGO_CAMERA.lng });
+  /** True dès qu'un VRAI fix a remplacé le fallback République. */
+  const [hasRealFix, setHasRealFix] = useState(false);
+  /** True quand le style natif est chargé — un flyTo AVANT est perdu (terrain 20/07 : caméra restée à Paris). */
+  const [mapReady, setMapReady] = useState(isShowcasePlatform);
   const centeredOnRealRef = useRef(false);
   useEffect(() => {
     if (isShowcasePlatform) return;
@@ -243,15 +253,19 @@ export function MapScreen() {
     void getCurrentPositionOnce().then((fix) => {
       if (cancelled || !fix) return;
       setEgoPos({ lat: fix.lat, lng: fix.lng });
-      if (!centeredOnRealRef.current) {
-        centeredOnRealRef.current = true;
-        mapRef.current?.flyTo({ ...EGO_CAMERA, lat: fix.lat, lng: fix.lng });
-      }
+      setHasRealFix(true);
     });
     return () => {
       cancelled = true;
     };
   }, []);
+  // Recentrage initial : SEULEMENT quand la carte est prête ET la position
+  // connue — peu importe l'ordre d'arrivée des deux.
+  useEffect(() => {
+    if (!mapReady || !hasRealFix || centeredOnRealRef.current) return;
+    centeredOnRealRef.current = true;
+    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
+  }, [mapReady, hasRealFix, egoPos]);
 
   const { points, summary } = useMemo(() => {
     const data = battleMapData();
@@ -262,6 +276,18 @@ export function MapScreen() {
 
   /** Fond de carte persisté (défaut sombre) — dark-first, bascule opt-in. */
   const { basemap, toggle } = useBasemapStyle();
+
+  /**
+   * Labels en langue LOCALE (retour terrain : « la map est en anglais ») : on
+   * précharge les styles CARTO patchés (name_en→name) et on REMONTE la carte
+   * (via sa key) quand la spec localisée est prête — un swap à chaud perdrait
+   * les couches de jeu. En pratique : un seul remontage, dans les toutes
+   * premières secondes de la session.
+   */
+  const specRev = useSyncExternalStore(subscribeBasemapSpecs, basemapSpecRevision, basemapSpecRevision);
+  useEffect(() => {
+    prefetchLocalizedBasemaps();
+  }, []);
 
   /**
    * Vue 2D/3D persistée (AMENDEMENT-26, défaut false = 2D) — partagée par toutes
@@ -407,13 +433,14 @@ export function MapScreen() {
           `key={basemap}` : parité web — on remonte la carte à chaque bascule
           (un simple changement de mapStyle ne réajouterait pas les couches). */}
       <RealMap
-        key={basemap}
+        key={`${basemap}-${specRev}`}
         ref={mapRef}
         camera={EGO_CAMERA}
         geojsonLayers={layers}
         pointLayers={cityDotLayers}
         markers={markers}
         onZoomChange={onZoomChange}
+        onStyleLoaded={() => setMapReady(true)}
         onPress={onMapPress}
         attributionCompact={false}
         basemap={basemap}

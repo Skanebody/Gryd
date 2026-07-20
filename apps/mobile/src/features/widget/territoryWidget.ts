@@ -15,7 +15,13 @@
  *
  * Étapes produit : 1) haut de la carte · 2) profil · 3) widget iOS/Android
  * (BLOQUÉ O8 : extension native + dev build) · 4) Live Activity (plus tard).
+ *
+ * i18n : module PUR → résolution directe catalogue (resolve/format + `locale`
+ * en paramètre, défaut 'fr'), JAMAIS d'import du store. Les écrans passent
+ * useLocale().
  */
+import { C } from '../../i18n/catalog/map';
+import { format, resolve, type Locale } from '../../i18n/types';
 
 /** Priorité stricte de la spec — l'ordre du tableau EST la règle. */
 export type WidgetState =
@@ -92,20 +98,26 @@ export interface TerritoryWidgetView {
   action: WidgetAction;
 }
 
-/** 0,74 km² — français, virgule, 2 décimales significatives (jamais de cellules). */
-export function formatKm2(areaM2: number): string {
+/**
+ * 0,74 km² — 2 décimales significatives, jamais de cellules. Virgule décimale
+ * partout sauf en anglais (point) — pas d'Intl (parité Hermes/Deno).
+ */
+export function formatKm2(areaM2: number, locale: Locale = 'fr'): string {
   const km2 = areaM2 / 1_000_000;
   const digits = km2 >= 10 ? 1 : 2;
-  return `${km2.toFixed(digits).replace('.', ',')} km²`;
+  const fixed = km2.toFixed(digits);
+  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km²`;
 }
 
-/** 3,2 km — depuis des mètres. */
-function km(m: number): string {
-  return `${(m / 1000).toFixed(1).replace('.', ',')} km`;
+/** 3,2 km — depuis des mètres (même règle décimale que formatKm2). */
+function km(m: number, locale: Locale): string {
+  const fixed = (m / 1000).toFixed(1);
+  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km`;
 }
 
-function zoneName(input: TerritoryWidgetInput): string {
-  return input.displayName ?? 'Zone';
+/** Aucun nom inventé : null → « Zone » traduit (catalogue). */
+function zoneName(input: TerritoryWidgetInput, locale: Locale): string {
+  return input.displayName ?? resolve(C.zoneFallback, locale);
 }
 
 /**
@@ -116,24 +128,29 @@ function zoneName(input: TerritoryWidgetInput): string {
 export function buildWidgetView(
   state: WidgetState,
   input: TerritoryWidgetInput,
+  locale: Locale = 'fr',
 ): TerritoryWidgetView {
-  const possession = `${formatKm2(input.controlledAreaM2)} · ${input.territoryCount} zone${
-    input.territoryCount > 1 ? 's' : ''
-  }`;
+  const zonesEntry = input.territoryCount > 1 ? C.zonesMany : C.zonesOne;
+  const possession = `${formatKm2(input.controlledAreaM2, locale)} · ${format(
+    zonesEntry,
+    { n: input.territoryCount },
+    locale,
+  )}`;
   const rank =
     input.localRank !== null && input.localRankAreaLabel
       ? `#${input.localRank} ${input.localRankAreaLabel}`
       : null;
+  const zone = zoneName(input, locale);
 
   switch (state) {
     case 'first_capture':
       return {
         state,
-        title: 'PRENDS TA PREMIÈRE ZONE',
+        title: resolve(C.wFirstTitle, locale),
         lines: [
-          'Ferme une boucle près de toi.',
+          resolve(C.wFirstLine, locale),
           ...(input.estimatedRunDistanceM !== null
-            ? [`${km(input.estimatedRunDistanceM)} estimés`]
+            ? [format(C.wKmEstimated, { km: km(input.estimatedRunDistanceM, locale) }, locale)]
             : []),
         ],
         ctaLabel: 'GO',
@@ -143,90 +160,100 @@ export function buildWidgetView(
       return {
         state,
         title: input.rivalName
-          ? `${input.rivalName.toUpperCase()} A REPRIS ${zoneName(input).toUpperCase()}`
-          : `${zoneName(input).toUpperCase()} A ÉTÉ REPRISE`,
+          ? format(
+              C.wLostTitleRival,
+              { rival: input.rivalName.toUpperCase(), zone: zone.toUpperCase() },
+              locale,
+            )
+          : format(C.wLostTitle, { zone: zone.toUpperCase() }, locale),
         lines: [
           ...(input.minutesSinceEvent !== null
-            ? [`Perdue il y a ${input.minutesSinceEvent} min`]
+            ? [format(C.wLostAgo, { min: input.minutesSinceEvent }, locale)]
             : []),
           ...(input.estimatedRunDistanceM !== null
-            ? [`${km(input.estimatedRunDistanceM)} estimés`]
+            ? [format(C.wKmEstimated, { km: km(input.estimatedRunDistanceM, locale) }, locale)]
             : []),
         ],
-        ctaLabel: 'LA REPRENDRE',
+        ctaLabel: resolve(C.wLostCta, locale),
         action: 'recapture',
       };
     case 'under_attack':
       return {
         state,
-        title: `${zoneName(input).toUpperCase()} SOUS PRESSION`,
+        title: format(C.wAttackTitle, { zone: zone.toUpperCase() }, locale),
         lines: [
           input.eventAreaM2 !== null
-            ? `${formatKm2(input.eventAreaM2)} menacés`
-            : 'Ta zone est contestée.',
+            ? format(C.wAttackThreatened, { area: formatKm2(input.eventAreaM2, locale) }, locale)
+            : resolve(C.wAttackContested, locale),
           ...(input.estimatedRunDistanceM !== null
-            ? [`${km(input.estimatedRunDistanceM)} pour défendre`]
+            ? [format(C.wAttackKmToDefend, { km: km(input.estimatedRunDistanceM, locale) }, locale)]
             : []),
         ],
-        ctaLabel: 'DÉFENDRE',
+        ctaLabel: resolve(C.wAttackCta, locale),
         action: 'defend',
       };
     case 'loop_incomplete':
       return {
         state,
-        title: 'BOUCLE PRESQUE FERMÉE',
+        title: resolve(C.wLoopTitle, locale),
         lines: [
           input.remainingLoopDistanceM !== null
-            ? `Il manque ${Math.round(input.remainingLoopDistanceM)} m à ${zoneName(input)}.`
-            : `Il manque quelques mètres à ${zoneName(input)}.`,
+            ? format(C.wLoopMissing, { m: Math.round(input.remainingLoopDistanceM), zone }, locale)
+            : format(C.wLoopMissingFew, { zone }, locale),
         ],
-        ctaLabel: 'TERMINER',
+        ctaLabel: resolve(C.wLoopCta, locale),
         action: 'complete',
       };
     case 'crew_help':
       return {
         state,
-        title: 'TON CREW A BESOIN DE TOI',
+        title: resolve(C.wCrewTitle, locale),
         lines: [
           input.remainingLoopDistanceM !== null
-            ? `Il manque ${Math.round(input.remainingLoopDistanceM)} m pour fermer ${zoneName(input)}.`
-            : `Aide ton crew à fermer ${zoneName(input)}.`,
+            ? format(C.wCrewMissing, { m: Math.round(input.remainingLoopDistanceM), zone }, locale)
+            : format(C.wCrewHelp, { zone }, locale),
         ],
-        ctaLabel: 'AIDER',
+        ctaLabel: resolve(C.wCrewCta, locale),
         action: 'help',
       };
     case 'share_moment':
       return {
         state,
-        title: `${zoneName(input).toUpperCase()} EST À TOI`,
+        title: format(C.wShareTitle, { zone: zone.toUpperCase() }, locale),
         lines: [
-          ...(input.eventAreaM2 !== null ? [`+${formatKm2(input.eventAreaM2)}`] : []),
+          ...(input.eventAreaM2 !== null ? [`+${formatKm2(input.eventAreaM2, locale)}`] : []),
           ...(input.minutesSinceEvent !== null
-            ? [`Capturée il y a ${input.minutesSinceEvent} min`]
+            ? [format(C.wShareCapturedAgo, { min: input.minutesSinceEvent }, locale)]
             : []),
         ],
-        ctaLabel: 'PARTAGER',
+        ctaLabel: resolve(C.wShareCta, locale),
         action: 'share',
       };
     case 'rank_progress':
       return {
         state,
-        title: 'PLUS QU’UNE PLACE',
+        title: resolve(C.wRankTitle, locale),
         lines: [
           ...(input.eventAreaM2 !== null && input.localRank !== null
-            ? [`${formatKm2(input.eventAreaM2)} pour passer #${input.localRank - 1}`]
+            ? [
+                format(
+                  C.wRankToPass,
+                  { area: formatKm2(input.eventAreaM2, locale), rank: input.localRank - 1 },
+                  locale,
+                ),
+              ]
             : []),
           possession,
         ],
-        ctaLabel: 'CONQUÉRIR',
+        ctaLabel: resolve(C.wRankCta, locale),
         action: 'conquer',
       };
     case 'stable':
       return {
         state,
-        title: 'TON TERRITOIRE TIENT',
+        title: resolve(C.wStableTitle, locale),
         lines: [possession, ...(rank ? [rank] : [])],
-        ctaLabel: 'VOIR LA CARTE',
+        ctaLabel: resolve(C.wStableCta, locale),
         action: 'view_map',
       };
   }
@@ -250,7 +277,10 @@ export interface RealWidgetSources {
  * perdue, crew, rang) restent ÉTEINTS : on ne fabrique pas une urgence.
  * Partagé par la Carte (peek) et le Profil (card compacte) : une seule logique.
  */
-export function buildRealWidgetView(src: RealWidgetSources): TerritoryWidgetView {
+export function buildRealWidgetView(
+  src: RealWidgetSources,
+  locale: Locale = 'fr',
+): TerritoryWidgetView {
   const state = selectWidgetState({
     hasCapturedTerritory: src.mineAreasM2.length > 0,
     recentlyLostTerritory: false,
@@ -260,16 +290,20 @@ export function buildRealWidgetView(src: RealWidgetSources): TerritoryWidgetView
     recentShareworthyCapture: src.capturedInLastRun,
     closeToNextRank: false,
   });
-  return buildWidgetView(state, {
-    controlledAreaM2: src.mineAreasM2.reduce((sum, a) => sum + a, 0),
-    territoryCount: src.mineAreasM2.length,
-    localRank: null, // season_scores : câblé après déploiement C4
-    localRankAreaLabel: null,
-    displayName: src.openBoundary?.name ?? null,
-    rivalName: null,
-    estimatedRunDistanceM: null,
-    remainingLoopDistanceM: src.openBoundary?.missingM ?? null,
-    eventAreaM2: null,
-    minutesSinceEvent: null,
-  });
+  return buildWidgetView(
+    state,
+    {
+      controlledAreaM2: src.mineAreasM2.reduce((sum, a) => sum + a, 0),
+      territoryCount: src.mineAreasM2.length,
+      localRank: null, // season_scores : câblé après déploiement C4
+      localRankAreaLabel: null,
+      displayName: src.openBoundary?.name ?? null,
+      rivalName: null,
+      estimatedRunDistanceM: null,
+      remainingLoopDistanceM: src.openBoundary?.missingM ?? null,
+      eventAreaM2: null,
+      minutesSinceEvent: null,
+    },
+    locale,
+  );
 }

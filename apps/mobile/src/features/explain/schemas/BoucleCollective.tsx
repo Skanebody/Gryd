@@ -9,6 +9,8 @@
  */
 import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/explain';
+import { useT } from '../../../i18n/store';
 import type { SchemaBaseProps } from './types';
 import { realLoopSchema } from './realLoop';
 
@@ -41,8 +43,9 @@ export function BoucleCollective({
   size = VB_W,
   opener = { name: 'KORO', pct: 79 },
   finisher = { name: 'LENA', pct: 21 },
-  accessibilityLabel = 'Deux membres du crew ferment une boucle ; la zone est au crew, contributions au prorata.',
+  accessibilityLabel,
 }: BoucleCollectiveProps) {
+  const t = useT();
   const width = size;
   const height = size * RATIO;
   return (
@@ -50,7 +53,7 @@ export function BoucleCollective({
       width={width}
       height={height}
       viewBox={`0 0 ${VB_W} ${VB_H}`}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={accessibilityLabel ?? t(C.schemaCollectiveA11y)}
     >
       <G transform={`translate(${LOOP_X} ${LOOP_Y})`}>
         {/* Intérieur rempli = zone du crew (le tracé réel EST la frontière) */}
@@ -87,7 +90,7 @@ export function BoucleCollective({
           {opener.name}
         </SvgText>
         <SvgText x={VB_W - 10} y={74} fill={colors.chartreuse} fontSize={14} fontFamily={fonts.mono} textAnchor="end">
-          {`${opener.pct} %`}
+          {t(C.pctShare, { n: opener.pct })}
         </SvgText>
       </G>
       <G>
@@ -96,12 +99,12 @@ export function BoucleCollective({
           {finisher.name}
         </SvgText>
         <SvgText x={VB_W - 10} y={104} fill={colors.gris} fontSize={14} fontFamily={fonts.mono} textAnchor="end">
-          {`${finisher.pct} %`}
+          {t(C.pctShare, { n: finisher.pct })}
         </SvgText>
       </G>
 
       <SvgText x={186} y={140} fill={colors.gris} fontSize={11} fontFamily={fonts.text}>
-        Zone au crew
+        {t(C.schemaZoneToCrew)}
       </SvgText>
     </Svg>
   );

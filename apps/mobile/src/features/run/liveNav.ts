@@ -25,6 +25,8 @@
  */
 import { latLngToCell } from 'h3-js';
 import { H3_RESOLUTION, colors, gameColors, type IconName } from '@klaim/shared';
+import { C } from '../../i18n/catalog/courseLive';
+import { format, resolve, type Locale } from '../../i18n/types';
 import type { RoutePoint } from '../../ui/game';
 import {
   EGO_REPUBLIQUE,
@@ -270,11 +272,15 @@ export interface LiveNav {
  * tombe exactement sur la destination au dernier tick). Si `routeParam`
  * désigne une proposition du planner, la course SUIT sa polyligne ROUTÉE
  * (§4ter) — pas de scénario de déviation dans ce cas (plan = réel).
+ * `locale` traduit les toasts scriptés (module PUR : résolution i18n directe,
+ * jamais d'import du store) — défaut 'fr' pour les appelants qui ne rejouent
+ * que la géométrie (course-result n'affiche pas ces toasts).
  */
 export function buildLiveNav(
   sim: RunSimulation,
   routeParam?: string | string[],
   explicitLine?: readonly LatLngPoint[],
+  locale: Locale = 'fr',
 ): LiveNav {
   // `explicitLine` = parcours PLANIFIÉ (routé en direct, n'importe où en France,
   // passé par le store). Sinon un `route=<id>` démo. Sinon le scénario par défaut.
@@ -386,7 +392,7 @@ export function buildLiveNav(
 
   place(lastIndex, {
     kind: 'arrivee',
-    text: 'Destination atteinte',
+    text: resolve(C.toastArrival, locale),
     icon: 'pin',
     tint: colors.chartreuse,
     haptic: 'medium',
@@ -395,7 +401,7 @@ export function buildLiveNav(
     // Le scénario de déviation n'existe que sur le parcours par défaut.
     place(deviationTick, {
       kind: 'deviation',
-      text: 'Déviation — itinéraire recalculé',
+      text: resolve(C.toastDeviation, locale),
       icon: 'route',
       tint: colors.blanc,
       haptic: 'light',
@@ -405,7 +411,8 @@ export function buildLiveNav(
     if (cp.tick >= 0 && cp.tick < lastIndex) {
       place(cp.tick, {
         kind: 'checkpoint',
-        text: `Checkpoint — ${cp.label}`,
+        // « Repère — X » en fr (zéro jargon anglais), « Checkpoint — X » ailleurs.
+        text: format(C.toastCheckpoint, { label: cp.label }, locale),
         icon: 'virage',
         tint: colors.chartreuse,
         haptic: 'light',
@@ -414,7 +421,7 @@ export function buildLiveNav(
   }
   place(Math.min(RECORD_SEGMENT_TICK, lastIndex - TOAST_MIN_GAP_TICKS), {
     kind: 'record',
-    text: 'Nouveau record segment',
+    text: resolve(C.toastRecord, locale),
     icon: 'performance',
     tint: gameColors.gold,
     haptic: 'medium',
@@ -428,7 +435,7 @@ export function buildLiveNav(
       if (gained >= CAPTURE_CLUSTER_MIN_ZONES && canPlace(i)) {
         toasts.set(i, {
           kind: 'capture',
-          text: `Secteur pris · +${gained} zones`,
+          text: format(C.toastSectorTaken, { n: gained }, locale),
           icon: 'carte',
           tint: colors.chartreuse,
           haptic: 'light',
@@ -463,6 +470,7 @@ function clampIndex(nav: LiveNav, tickIndex: number): number {
 export function nextCheckpointAt(
   nav: LiveNav,
   tickIndex: number,
+  locale: Locale = 'fr',
 ): { label: string; distanceM: number } {
   const i = clampIndex(nav, tickIndex);
   const len = nav.ticks[i]?.lenPx ?? 0;
@@ -473,7 +481,10 @@ export function nextCheckpointAt(
   if (next) {
     return { label: next.label, distanceM: (next.cumPx - len) * NAV_METERS_PER_PIXEL };
   }
-  return { label: 'Arrivée', distanceM: Math.max(0, total - len) * NAV_METERS_PER_PIXEL };
+  return {
+    label: resolve(C.arrival, locale),
+    distanceM: Math.max(0, total - len) * NAV_METERS_PER_PIXEL,
+  };
 }
 
 /** Temps restant estimé (s) — la démo scriptée fait foi (déterministe). */
@@ -523,9 +534,10 @@ export interface LiveRouteInfo {
   summary: string;
 }
 
-/** Libellé km court (virgule française) — étiquette démo, pas une règle. */
-function kmLabel(km: number): string {
-  return `${km.toFixed(1).replace('.', ',')} km`;
+/** Libellé km court (séparateur décimal par langue : point en, virgule ailleurs). */
+function kmLabel(km: number, locale: Locale): string {
+  const fixed = km.toFixed(1);
+  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km`;
 }
 
 /**
@@ -533,14 +545,15 @@ function kmLabel(km: number): string {
  * local est mort : nom, distance routée et zones sortent de la même source
  * que la carte du planner, plus aucun résumé codé en dur ici).
  */
-function liveRouteInfo(route: PlannedRouteDemo): LiveRouteInfo {
+function liveRouteInfo(route: PlannedRouteDemo, locale: Locale): LiveRouteInfo {
+  const km = kmLabel(route.distanceKm, locale);
   return {
     id: route.id.replace(/_/g, '-'),
-    name: `Route ${route.letter} — ${route.name}`,
+    name: format(C.routeName, { letter: route.letter, name: route.name }, locale),
     summary:
       route.streetsToSave !== undefined
-        ? `${kmLabel(route.distanceKm)} · ${route.streetsToSave} rues à sauver`
-        : `${kmLabel(route.distanceKm)} · +${route.zones} zones`,
+        ? format(C.routeSummaryStreets, { km, n: route.streetsToSave }, locale)
+        : format(C.routeSummaryZones, { km, n: route.zones }, locale),
   };
 }
 
@@ -550,9 +563,12 @@ function liveRouteInfo(route: PlannedRouteDemo): LiveRouteInfo {
  */
 export function routeInfoFromParam(
   param: string | string[] | undefined,
+  locale: Locale = 'fr',
 ): LiveRouteInfo | null {
   const norm = normalizedRouteParam(param);
   if (!norm) return null;
   const route = plannedRouteFromParam(param);
-  return route ? liveRouteInfo(route) : { id: norm, name: 'Itinéraire recommandé', summary: '' };
+  return route
+    ? liveRouteInfo(route, locale)
+    : { id: norm, name: resolve(C.recommendedRoute, locale), summary: '' };
 }

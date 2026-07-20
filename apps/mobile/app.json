@@ -91,7 +91,8 @@
         }
       ],
       "expo-apple-authentication",
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      "expo-localization"
     ],
     "experiments": {}
   }

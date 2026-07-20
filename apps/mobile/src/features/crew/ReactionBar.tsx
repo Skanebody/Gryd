@@ -8,6 +8,8 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, elevation, fontSizes, radii } from '@klaim/shared';
+import { C } from '../../i18n/catalog/crew';
+import { useT } from '../../i18n/store';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 import {
@@ -22,6 +24,7 @@ interface ReactionBarProps {
 }
 
 export function ReactionBar({ initial }: ReactionBarProps) {
+  const t = useT();
   const [counts, setCounts] = useState<Partial<Record<CrewReactionKey, number>>>(initial);
   const [open, setOpen] = useState(false);
 
@@ -43,7 +46,7 @@ export function ReactionBar({ initial }: ReactionBarProps) {
           <Pressable
             key={r.key}
             accessibilityRole="button"
-            accessibilityLabel={`Réaction ${r.label}`}
+            accessibilityLabel={t(C.reactionA11y, { label: t(r.label) })}
             onPress={() => react(r.key)}
             style={({ pressed }) => [styles.chip, pressed && styles.dim]}
           >
@@ -53,7 +56,7 @@ export function ReactionBar({ initial }: ReactionBarProps) {
         ))}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Ajouter une réaction"
+          accessibilityLabel={t(C.addReaction)}
           onPress={() => setOpen((o) => !o)}
           style={({ pressed }) => [styles.addBtn, pressed && styles.dim]}
         >
@@ -67,12 +70,12 @@ export function ReactionBar({ initial }: ReactionBarProps) {
             <Pressable
               key={r.key}
               accessibilityRole="button"
-              accessibilityLabel={r.label}
+              accessibilityLabel={t(r.label)}
               onPress={() => react(r.key)}
               style={({ pressed }) => [styles.paletteItem, pressed && styles.dim]}
             >
               <Icon name={r.icon} size={18} color={colors.blanc} />
-              <Text style={styles.paletteLabel}>{r.label}</Text>
+              <Text style={styles.paletteLabel}>{t(r.label)}</Text>
             </Pressable>
           ))}
         </View>

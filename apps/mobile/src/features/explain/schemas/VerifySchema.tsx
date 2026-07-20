@@ -10,6 +10,8 @@
  */
 import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 import { colors, fonts, gameColors } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/explain';
+import { useT } from '../../../i18n/store';
 import type { SchemaBaseProps } from './types';
 
 // viewBox élargi (316 vs 280) pour que les libellés injectés de paliers verify
@@ -31,10 +33,11 @@ export interface VerifySchemaProps extends SchemaBaseProps {
 
 export function VerifySchema({
   size = VB_W,
-  validLabel = 'Capture validée',
-  excludedLabel = 'Segment exclu',
-  accessibilityLabel = 'Un GPS propre valide la capture ; un segment faible est exclu.',
+  validLabel,
+  excludedLabel,
+  accessibilityLabel,
 }: VerifySchemaProps) {
+  const t = useT();
   const width = size;
   const height = size * RATIO;
   return (
@@ -42,7 +45,7 @@ export function VerifySchema({
       width={width}
       height={height}
       viewBox={`0 0 ${VB_W} ${VB_H}`}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={accessibilityLabel ?? t(C.schemaVerifyA11y)}
     >
       {/* Ligne du haut — VALIDÉE : trait bleu verify + check bleu */}
       <G>
@@ -67,7 +70,7 @@ export function VerifySchema({
           />
         </G>
         <SvgText x={196} y={45} fill={colors.blanc} fontSize={12} fontFamily={fonts.text}>
-          {validLabel}
+          {validLabel ?? t(C.schemaCaptureValid)}
         </SvgText>
       </G>
 
@@ -89,7 +92,7 @@ export function VerifySchema({
           <Line x1={5} y1={-5} x2={-5} y2={5} stroke={colors.gris} strokeWidth={2.5} strokeLinecap="round" />
         </G>
         <SvgText x={196} y={97} fill={colors.gris} fontSize={12} fontFamily={fonts.text}>
-          {excludedLabel}
+          {excludedLabel ?? t(C.schemaSegmentExcluded)}
         </SvgText>
       </G>
     </Svg>

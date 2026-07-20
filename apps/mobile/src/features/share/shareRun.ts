@@ -8,11 +8,11 @@
  * d'affichage, rien ne part au serveur.
  *
  * Si /partage s'ouvre SANS course armée (deep link, dev), il retombe sur
- * SHARE_DEMO et se présente comme EXEMPLE — jamais comme « ta course ».
+ * shareDemo() et se présente comme EXEMPLE — jamais comme « ta course ».
  */
 import type { RunIntention } from '../run/intention';
 import type { LiveRunMode } from '../run/simulation';
-import { SHARE_DEMO, type ShareDemoData } from './templates';
+import { shareDemo, type ShareDemoData } from './templates';
 
 export interface ShareRunData {
   /** Valeurs projetées dans les cards — celles de l'écran Résultat. */
@@ -41,5 +41,5 @@ export function getShareRun(): ShareRunData | null {
  * en prod, tout vient d'IngestRunResponse (le serveur reste seul juge).
  */
 export function shareCardFromResult(overrides: Partial<ShareDemoData>): ShareDemoData {
-  return { ...SHARE_DEMO, ...overrides };
+  return { ...shareDemo(), ...overrides };
 }

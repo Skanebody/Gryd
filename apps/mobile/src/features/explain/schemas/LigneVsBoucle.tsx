@@ -5,10 +5,13 @@
  *   uniquement les hexes traversés »). Trait fin = territoire, mais pas de zone pleine.
  * À DROITE : une boucle fermée REMPLIE → prend TOUTE la zone (chartreuse plein).
  * Les deux sont À TOI (chartreuse) ; la boucle est le plus gros lot (plein > fin).
- * Composant PUR (aucun état). Charte : chartreuse = à moi.
+ * Composant sans état. Charte : chartreuse = à moi. Libellés par défaut i18n
+ * (catalogue explain) — surchargables par props.
  */
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@klaim/shared';
+import { C } from '../../../i18n/catalog/explain';
+import { useT } from '../../../i18n/store';
 import type { SchemaBaseProps } from './types';
 import { realLoopSchema } from './realLoop';
 
@@ -30,10 +33,11 @@ export interface LigneVsBoucleProps extends SchemaBaseProps {
 
 export function LigneVsBoucle({
   size = VB_W,
-  lineLabel = 'Rues prises',
-  loopLabel = 'Zone prise',
-  accessibilityLabel = 'Une ligne prend les rues courues, une boucle fermée prend toute la zone.',
+  lineLabel,
+  loopLabel,
+  accessibilityLabel,
 }: LigneVsBoucleProps) {
+  const t = useT();
   const width = size;
   const height = size * RATIO;
   return (
@@ -41,7 +45,7 @@ export function LigneVsBoucle({
       width={width}
       height={height}
       viewBox={`0 0 ${VB_W} ${VB_H}`}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={accessibilityLabel ?? t(C.schemaLigneA11y)}
     >
       {/* Séparateur d'espace au centre (filet discret, pas un cadre) */}
       <Path d={`M${VB_W / 2} 18 L${VB_W / 2} ${VB_H - 42}`} stroke={colors.grisLigne} strokeWidth={1} />
@@ -66,7 +70,7 @@ export function LigneVsBoucle({
           fontFamily={fonts.text}
           textAnchor="middle"
         >
-          {lineLabel}
+          {lineLabel ?? t(C.schemaStreetsTaken)}
         </SvgText>
       </G>
 
@@ -92,7 +96,7 @@ export function LigneVsBoucle({
           fontFamily={fonts.text}
           textAnchor="middle"
         >
-          {loopLabel}
+          {loopLabel ?? t(C.schemaZoneTaken)}
         </SvgText>
       </G>
     </Svg>

@@ -6,18 +6,17 @@
  * valeurs injectées (défense +24/48/72 h, verify 80/60) viennent des CONSTANTES
  * game-rules.ts via les helpers de labels.ts — AUCUN nombre magique ici. Les
  * chiffres en prose (+247/+214/+33, 79/21 %, 620 m) sont des SCÉNARIOS démo
- * portés par content.ts (défauts des schémas), signalés comme tels.
+ * signalés « Exemple : » dans le catalogue.
  *
  * Accès : Support (« Pourquoi ma course n'a pas compté ? »), Paramètres, et le
  * lien post-run « Comment est calculé ce résultat ? ».
  *
- * Positionnement zéro-friction : cette page = VISITE GUIDÉE (kicker « VISITE
- * GUIDÉE · 6 ÉTAPES ») ; la FAQ = questions précises — le lien de pied dit
- * « Voir toutes les questions » pour lever l'homonymie entre les deux écrans.
- * Réécritures d'affichage locales : l'exemple de boucle devient ADDITIF avec
- * unité nommée (214 + 33 = 247 zones) et « stats only » s'affiche « compte en
- * stats » (même pill que le Résultat de course) — les textes source vivent
- * dans content.ts / labels.ts.
+ * i18n : titres, phrases et exemples arrivent en `Entry` 5 langues (content.ts
+ * + catalogue explain) et sont résolus ICI via t(). Les réécritures
+ * zéro-friction historiques (additif 214 + 33 = 247, « compte en stats »,
+ * préfixe « Exemple : » systématique) vivent désormais dans le catalogue.
+ * Positionnement : cette page = VISITE GUIDÉE ; la FAQ = questions précises —
+ * le lien de pied dit « Voir toutes les questions » pour lever l'homonymie.
  */
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -40,38 +39,11 @@ import {
   LigneVsBoucle,
   VerifySchema,
 } from '../src/features/explain/schemas';
+import { C } from '../src/i18n/catalog/explain';
+import { useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
-
-/**
- * Francisation d'affichage : « stats only » (hérité de labels.ts, hors
- * périmètre de cet écran) s'affiche « compte en stats » — exactement le
- * libellé de la pill du Résultat de course.
- */
-function frStatut(text: string): string {
-  return text.replace(/stats only/g, 'compte en stats');
-}
-
-/**
- * Exemple réécrit localement : ordre ADDITIF avec unité nommée (214 + 33 =
- * 247 zones) au lieu du total coincé entre ses deux composantes (texte source
- * dans content.ts, hors périmètre). Chiffres = scénario démo, signalé « Exemple ».
- */
-const EXAMPLE_OVERRIDES: Readonly<Partial<Record<SchemaId, string>>> = {
-  boucle_fait_zone:
-    'Exemple : trace seule +214 zones · fermeture de la boucle +33 = 247 zones.',
-};
-
-/**
- * Honnêteté (charte §1) : TOUS les exemples de scène sont des scénarios démo
- * (chiffres, %, noms de crews fictifs). On préfixe donc « Exemple : » de façon
- * systématique — sauf ceux qui le portent déjà (override) — pour qu'aucune
- * donnée fabriquée ne se lise comme un chiffre réel.
- */
-function withExamplePrefix(text: string): string {
-  return /^exemple\b/i.test(text.trimStart()) ? text : `Exemple : ${text}`;
-}
 
 /**
  * Rend le schéma d'une section. Les 2 schémas paramétrés (défense, verify)
@@ -79,6 +51,7 @@ function withExamplePrefix(text: string): string {
  * littéraux — les autres portent déjà les scénarios démo en défaut de props.
  */
 function Schema({ id, width }: { id: SchemaId; width: number }) {
+  const t = useT();
   switch (id) {
     case 'ligne_vs_boucle':
       return <LigneVsBoucle size={width} />;
@@ -100,12 +73,12 @@ function Schema({ id, width }: { id: SchemaId; width: number }) {
     case 'bonus_cible':
       return <BonusCible size={width} />;
     case 'verify': {
-      const t = verifyTiersLabel();
+      const tiers = verifyTiersLabel();
       return (
         <VerifySchema
           size={width}
-          validLabel={`Capture validée · ${t.full}+`}
-          excludedLabel={`Segment exclu · < ${t.partial}`}
+          validLabel={t(C.verifyValidWithTier, { n: tiers.full })}
+          excludedLabel={t(C.verifyExcludedWithTier, { n: tiers.partial })}
         />
       );
     }
@@ -114,6 +87,7 @@ function Schema({ id, width }: { id: SchemaId; width: number }) {
 
 /** Une scène : numéro + icône + titre, phrase, schéma centré, exemple discret. */
 function SceneBlock({ section, index }: { section: ExplainSection; index: number }) {
+  const t = useT();
   // Largeur du schéma bornée à la scène (padding écran des deux côtés).
   const schemaWidth = 280;
   return (
@@ -123,30 +97,30 @@ function SceneBlock({ section, index }: { section: ExplainSection; index: number
           <Icon name={section.icon} size={20} color={colors.blanc} />
         </View>
         <Text style={styles.step}>{`0${index + 1}`}</Text>
-        <Text style={styles.title}>{section.title}</Text>
+        <Text style={styles.title}>{t(section.title)}</Text>
       </View>
-      <Text style={styles.line}>{section.line}</Text>
+      <Text style={styles.line}>{t(section.line)}</Text>
       <View style={styles.schemaWrap}>
         <Schema id={section.schemaId} width={schemaWidth} />
       </View>
-      <Text style={styles.example}>
-        {withExamplePrefix(frStatut(EXAMPLE_OVERRIDES[section.id] ?? section.example))}
-      </Text>
+      <Text style={styles.example}>{t(section.example)}</Text>
     </View>
   );
 }
 
 export default function CalculZonesScreen() {
+  const t = useT();
+
   useEffect(() => {
     screen('calcul_zones');
   }, []);
 
   return (
     <StackScreen
-      title="Calcul des zones"
+      title={t(C.calcTitle)}
       icon="info"
-      kicker={`VISITE GUIDÉE · ${EXPLAIN_SECTIONS.length} ÉTAPES`}
-      subtitle="Chaque zone gagnée s'explique — chaque zone refusée aussi."
+      kicker={t(C.calcKicker, { n: EXPLAIN_SECTIONS.length })}
+      subtitle={t(C.calcSubtitle)}
     >
       <View style={styles.list}>
         {EXPLAIN_SECTIONS.map((section, i) => (
@@ -158,12 +132,12 @@ export default function CalculZonesScreen() {
           du titre de cette page. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Voir toutes les questions"
+        accessibilityLabel={t(C.calcSeeAllQuestions)}
         onPress={() => router.push('/faq')}
         style={({ pressed }) => [styles.faqLink, pressed && styles.pressed]}
       >
         <Icon name="aide" size={iconSizes.md} color={colors.blanc} />
-        <Text style={styles.faqLinkText}>Voir toutes les questions</Text>
+        <Text style={styles.faqLinkText}>{t(C.calcSeeAllQuestions)}</Text>
         <Icon name="chevron" size={16} color={colors.gris} />
       </Pressable>
     </StackScreen>

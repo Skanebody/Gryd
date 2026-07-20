@@ -25,6 +25,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, gameColors } from '@klaim/shared';
 import { CrewCrest, type ShareCardProps, type ShareStat } from '../../ui/game';
 import { Icon } from '../../ui/Icon';
+import { C } from '../../i18n/catalog/result';
+import { t, useT } from '../../i18n/store';
 import { BOUCLE_REPUBLIQUE, type LatLngPoint } from '../map/realAnchors';
 import { ShareMap } from './ShareMap';
 import { ShareMap3D } from './ShareMap3D';
@@ -94,8 +96,12 @@ export interface ShareDemoData {
   beforeState: string | null;
 }
 
-/** Scénario de démo (cohérent course-result : boucle République, +47 zones). */
-export const SHARE_DEMO: ShareDemoData = {
+/**
+ * Scénario de démo (cohérent course-result : boucle République, +47 zones).
+ * Les noms propres/valeurs restent invariants ; seuls rankDelta et beforeState
+ * sont de la copy traduisible → résolus à l'appel via `shareDemo()`.
+ */
+const SHARE_DEMO_BASE: Omit<ShareDemoData, 'rankDelta' | 'beforeState'> = {
   playerName: 'KORO',
   crewName: 'LES FOULÉES 9³',
   zoneName: 'République',
@@ -111,9 +117,16 @@ export const SHARE_DEMO: ShareDemoData = {
   verified: true,
   rankLabel: '#8',
   rankZone: 'Paris Est',
-  rankDelta: '+3 places',
-  beforeState: 'Contestée',
 };
+
+/** Démo résolue dans la langue COURANTE (appelée au rendu/au partage, jamais figée). */
+export function shareDemo(): ShareDemoData {
+  return {
+    ...SHARE_DEMO_BASE,
+    rankDelta: t(C.demoRankDelta),
+    beforeState: t(C.demoContested),
+  };
+}
 
 /**
  * Bouclier « défense tenue » — emblème en GLOW (AMENDEMENT-22), pas une boîte
@@ -142,11 +155,12 @@ function BeforeAfter({
   view?: ShareView;
   beforeState: string | null;
 }): ReactNode {
+  const tt = useT();
   const trace = view?.trace;
   return (
     <View style={styles.beforeAfter}>
       <View style={styles.baCol}>
-        <Text style={styles.baLabel}>AVANT</Text>
+        <Text style={styles.baLabel}>{tt(C.beforeLabel)}</Text>
         <ShareMap
           style={styles.baMap}
           mode="defense"
@@ -157,7 +171,7 @@ function BeforeAfter({
         {beforeState ? <Text style={styles.baState}>{beforeState}</Text> : null}
       </View>
       <View style={styles.baCol}>
-        <Text style={[styles.baLabel, styles.baLabelAfter]}>APRÈS</Text>
+        <Text style={[styles.baLabel, styles.baLabelAfter]}>{tt(C.afterLabel)}</Text>
         <ShareMap
           style={styles.baMap}
           mode="loop"
@@ -166,7 +180,7 @@ function BeforeAfter({
           replayKey={view?.replayKey}
           trace={trace}
         />
-        <Text style={[styles.baState, styles.baStateAfter]}>Tenue</Text>
+        <Text style={[styles.baState, styles.baStateAfter]}>{tt(C.heldState)}</Text>
       </View>
     </View>
   );
@@ -175,9 +189,9 @@ function BeforeAfter({
 /** Les 3 stats « façon Strava » communes (distance · allure · durée). */
 function stravaStats(d: ShareDemoData): readonly ShareStat[] {
   return [
-    { value: `${d.distanceKm} km`, label: 'Distance' },
-    { value: `${d.paceLabel}`, label: 'Allure' },
-    { value: d.clockLabel, label: 'Durée' },
+    { value: `${d.distanceKm} km`, label: t(C.distanceStat) },
+    { value: `${d.paceLabel}`, label: t(C.paceStat) },
+    { value: d.clockLabel, label: t(C.durationStat) },
   ];
 }
 
@@ -222,7 +236,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     build: (d, view) => ({
       title: who(d),
       stat: `${d.distanceKm} km`,
-      statLabel: 'Course validée',
+      statLabel: t(C.runValidatedLabel),
       stats: stravaStats(d),
       verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
@@ -239,11 +253,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'conquete',
     chip: 'Conquête',
     build: (d, view) => ({
-      heroTitle: `J'AI PRIS\n${d.zoneName.toUpperCase()}`,
-      challenge: 'PRENDS-LA-MOI',
+      heroTitle: t(C.heroTook, { zone: d.zoneName.toUpperCase() }),
+      challenge: t(C.challengeTakeIt),
       title: who(d),
       stat: `+${d.zonesGained}`,
-      statLabel: 'Zones',
+      statLabel: t(C.zonesStatLabel),
       verified: d.verified,
       children: mapHero(d, view),
     }),
@@ -253,11 +267,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'defense',
     chip: 'Défense',
     build: (d) => ({
-      kicker: 'ZONE DÉFENDUE',
+      kicker: t(C.heroDefended),
       title: who(d),
       stat: `+${d.holdHours} h`,
-      statLabel: `${d.zonesDefended} zones tenues`,
-      subtitle: `${d.zoneName} · frontière gardée`,
+      statLabel: t(C.zonesHeldLabel, { n: d.zonesDefended }),
+      subtitle: t(C.borderGuarded, { zone: d.zoneName }),
       verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: <ShieldBadge accent={gameColors.crew} />,
@@ -268,11 +282,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'boucle',
     chip: 'Boucle',
     build: (d, view) => ({
-      kicker: 'BOUCLE FERMÉE',
+      kicker: t(C.loopClosedKicker),
       title: who(d),
       stat: `+${d.loopBonusZones}`,
-      statLabel: 'Zones bonus',
-      subtitle: 'La boucle fait la zone',
+      statLabel: t(C.bonusZonesLabel),
+      subtitle: t(C.loopMakesZoneSub),
       verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: map(d, view),
@@ -283,11 +297,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'crew',
     chip: 'Crew',
     build: (d) => ({
-      kicker: 'POUR LE CREW',
+      kicker: t(C.forCrewKicker),
       title: d.crewName,
       stat: `+${d.crewPoints}`,
-      statLabel: 'Points crew',
-      subtitle: `${d.playerName} a fait monter ${d.crewName}`,
+      statLabel: t(C.crewPointsLabel),
+      subtitle: t(C.liftedCrew, { player: d.playerName, crew: d.crewName }),
       verified: d.verified,
       children: <CrewCrest seed={d.crewName} name={d.crewName} size="xl" />,
     }),
@@ -298,13 +312,15 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'classement',
     chip: 'Classement',
     build: (d, view) => ({
-      kicker: d.rankZone ? `TOP 10 ${d.rankZone.toUpperCase()}` : 'CLASSEMENT',
+      kicker: d.rankZone ? t(C.top10Kicker, { zone: d.rankZone.toUpperCase() }) : t(C.rankingKicker),
       title: who(d),
       stat: d.rankLabel ?? '—',
-      statLabel: d.rankDelta ? `${d.rankDelta} cette semaine` : 'classement à venir',
+      statLabel: d.rankDelta
+        ? t(C.rankDeltaWeek, { delta: d.rankDelta })
+        : t(C.rankingSoonLabel),
       subtitle: d.rankLabel && d.rankZone
-        ? `${who(d)} grimpe à ${d.rankLabel} sur ${d.rankZone}`
-        : 'Le classement local ouvre avec la saison.',
+        ? t(C.climbsTo, { who: who(d), rank: d.rankLabel, zone: d.rankZone })
+        : t(C.rankingOpensSeason),
       verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: map(d, view),
@@ -316,10 +332,10 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'avantApres',
     chip: 'Avant/Après',
     build: (d, view) => ({
-      kicker: 'AVANT · APRÈS',
+      kicker: t(C.beforeAfterKicker),
       title: who(d),
       stat: `+${d.zonesGained}`,
-      statLabel: `${d.zoneName} reprise`,
+      statLabel: t(C.zoneRetaken, { zone: d.zoneName }),
       verified: d.verified,
       crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
       children: <BeforeAfter view={view} beforeState={d.beforeState} />,
@@ -333,10 +349,10 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'carte3d',
     chip: 'Carte 3D',
     build: (d) => ({
-      kicker: 'SECTEUR PRIS',
+      kicker: t(C.sectorTakenKicker),
       title: who(d),
       stat: `+${d.zonesGained}`,
-      statLabel: `Zones · ${d.zoneName}`,
+      statLabel: t(C.zonesOfZone, { zone: d.zoneName }),
       verified: d.verified,
       mapBackground: <ShareMap3D style={styles.map3d} />,
     }),

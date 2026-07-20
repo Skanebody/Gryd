@@ -12,6 +12,7 @@
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { cellToParent, gridDisk, latLngToCell } from 'h3-js';
 import { buildTerritories, dataNote, dbToH3, stateFor, type HexClaimRow } from './territoryBuild.ts';
+import { LOCALES } from '../../i18n/types.ts';
 
 const ME = 'me-uuid';
 const RIVAL_A = 'rival-a-uuid';
@@ -156,4 +157,19 @@ Deno.test('dataNote : les 3 cas de source ne sont JAMAIS confondus', () => {
 
   // Du vrai territoire affiché : rien à dire, on n'ajoute pas de bruit à l'écran.
   assertEquals(dataNote(true, false, 3), null);
+});
+
+Deno.test('dataNote : i18n — 3 messages distincts dans CHAQUE langue, null reste null', () => {
+  for (const locale of LOCALES) {
+    const notes = [
+      dataNote(false, true, 0, locale),
+      dataNote(false, false, 0, locale),
+      dataNote(true, false, 0, locale),
+    ];
+    assert(notes.every((n) => n !== null && n.length > 0), `${locale} : note vide`);
+    assert(new Set(notes).size === 3, `${locale} : trois états = trois messages distincts`);
+    assertEquals(dataNote(true, false, 3, locale), null);
+  }
+  // Le défaut (sans locale) reste le français — les appelants non migrés ne changent pas.
+  assertEquals(dataNote(false, false), dataNote(false, false, 0, 'fr'));
 });
