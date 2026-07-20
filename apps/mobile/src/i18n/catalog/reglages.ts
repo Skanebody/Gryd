@@ -412,6 +412,81 @@ export const C = defineCatalog({
     de: 'WAS DU BEKOMMST',
     pt: 'O QUE VOCÊ RECEBE',
   },
+  // ── Notifications sur CET appareil (PÉRIMÈTRE 3) ──
+  // Chaque statut a son propre texte : l'écran doit pouvoir dire POURQUOI il ne
+  // notifie pas, jamais afficher un bouton qui ne fait rien.
+  pushDeviceLabel: {
+    fr: 'Notifications sur ce téléphone',
+    en: 'Notifications on this phone',
+    es: 'Notificaciones en este teléfono',
+    de: 'Mitteilungen auf diesem Handy',
+    pt: 'Notificações neste telefone',
+  },
+  pushIdle: {
+    fr: 'Pas encore activées — touche pour recevoir l’alerte quand une zone s’efface',
+    en: 'Not on yet — tap to get an alert when a zone is fading',
+    es: 'Aún no activadas — toca para recibir un aviso cuando una zona se borra',
+    de: 'Noch nicht aktiv — tippe, um bei verblassenden Zonen benachrichtigt zu werden',
+    pt: 'Ainda não ativadas — toque para receber aviso quando uma zona sumir',
+  },
+  pushRegistered: {
+    fr: 'Activées sur cet appareil — touche pour les couper',
+    en: 'On for this device — tap to turn them off',
+    es: 'Activadas en este dispositivo — toca para desactivarlas',
+    de: 'Auf diesem Gerät aktiv — tippe zum Ausschalten',
+    pt: 'Ativadas neste aparelho — toque para desligar',
+  },
+  pushBusy: {
+    fr: 'Enregistrement en cours…',
+    en: 'Registering…',
+    es: 'Registrando…',
+    de: 'Wird registriert…',
+    pt: 'Registrando…',
+  },
+  pushDenied: {
+    fr: 'Refusées pour GRYD dans les réglages du téléphone — tu peux les réautoriser là-bas',
+    en: 'Denied for GRYD in your phone settings — you can allow them again there',
+    es: 'Denegadas para GRYD en los ajustes del teléfono — puedes permitirlas de nuevo allí',
+    de: 'In den Handy-Einstellungen für GRYD abgelehnt — du kannst sie dort wieder erlauben',
+    pt: 'Negadas para o GRYD nos ajustes do telefone — você pode permitir de novo lá',
+  },
+  pushUnsupported: {
+    fr: 'Indisponible dans le navigateur — depuis l’app installée uniquement',
+    en: 'Not available in the browser — from the installed app only',
+    es: 'No disponible en el navegador — solo desde la app instalada',
+    de: 'Im Browser nicht verfügbar — nur in der installierten App',
+    pt: 'Indisponível no navegador — só pelo app instalado',
+  },
+  pushUnavailable: {
+    fr: 'Pas encore disponibles sur cette version de l’app',
+    en: 'Not available yet in this version of the app',
+    es: 'Todavía no disponibles en esta versión de la app',
+    de: 'In dieser App-Version noch nicht verfügbar',
+    pt: 'Ainda não disponíveis nesta versão do app',
+  },
+  pushNotConfigured: {
+    fr: 'Connecte-toi pour recevoir les alertes de tes zones',
+    en: 'Sign in to get alerts about your zones',
+    es: 'Inicia sesión para recibir avisos de tus zonas',
+    de: 'Melde dich an, um Hinweise zu deinen Zonen zu bekommen',
+    pt: 'Entre na conta para receber avisos das suas zonas',
+  },
+  pushError: {
+    fr: 'Impossible d’enregistrer cet appareil pour l’instant — réessaie plus tard',
+    en: 'Couldn’t register this device right now — try again later',
+    es: 'No se pudo registrar este dispositivo ahora — inténtalo más tarde',
+    de: 'Gerät konnte gerade nicht registriert werden — versuch es später',
+    pt: 'Não deu para registrar este aparelho agora — tente mais tarde',
+  },
+  // Les heures et le plafond sont INTERPOLÉS depuis game-rules (PUSH_QUIET_HOURS_*,
+  // PUSH_MAX_PER_DAY) : aucun nombre de règle ne vit dans une chaîne.
+  pushQuietNote: {
+    fr: 'Rien entre {start} h et {end} h, {max} notifications par jour au maximum, et jamais une par course.',
+    en: 'Nothing between {start}:00 and {end}:00, {max} notifications a day at most, and never one per run.',
+    es: 'Nada entre las {start} h y las {end} h, {max} notificaciones al día como máximo, y nunca una por carrera.',
+    de: 'Nichts zwischen {start} und {end} Uhr, höchstens {max} Mitteilungen pro Tag, und nie eine pro Lauf.',
+    pt: 'Nada entre {start} h e {end} h, no máximo {max} notificações por dia, e nunca uma por corrida.',
+  },
   notifsNote: {
     fr: 'Frontières ouvertes, défenses, rivaux : seulement ce qui compte pour toi. Jamais de rappel culpabilisant.',
     en: 'Open borders, defenses, rivals: only what matters to you. Never a guilt-trip reminder.',

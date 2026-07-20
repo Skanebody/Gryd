@@ -6,66 +6,17 @@
  *     défaut Europe/Paris) + cap PUSH_MAX_PER_DAY tous types confondus.
  *   - buildDigest : regroupe les petits événements en UN résumé
  *     (« Résumé GRYD — 3 zones défendues, 1 zone perdue… », doc notifs §6).
+ *
+ * canPush vit désormais dans `../_shared/push.ts` (PÉRIMÈTRE 3) : decay_job en a
+ * besoin aussi, et deux copies de la règle « quiet hours + cap » auraient
+ * dérivé. Ré-exporté ici pour ne rien casser des appelants existants.
  */
-import {
-  PUSH_MAX_PER_DAY,
-  PUSH_QUIET_HOURS_END,
-  PUSH_QUIET_HOURS_START,
-} from '../_shared/game-rules.ts';
-
-const DEFAULT_TIME_ZONE = 'Europe/Paris'; // Saison 0 : Paris + Lille
-
-export interface PushUser {
-  id: string;
-  /** IANA — préférence utilisateur quand elle existera (settings V1). */
-  timeZone?: string;
-}
-
-export type PushBlockReason = 'quiet_hours' | 'daily_cap';
-
-export interface CanPushResult {
-  allowed: boolean;
-  reason?: PushBlockReason;
-}
-
-/** Heure locale + jour local (YYYY-MM-DD) d'un instant, sans réseau. */
-function localParts(at: Date, timeZone: string): { hour: number; day: string } {
-  const parts = new Intl.DateTimeFormat('fr-FR', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-  }).formatToParts(at);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
-  // hour12:false peut rendre '24' pour minuit selon les runtimes → normalise.
-  const hour = Number(get('hour')) % 24;
-  return { hour, day: `${get('year')}-${get('month')}-${get('day')}` };
-}
-
-/**
- * Un push est-il envoyable maintenant ?
- * @param pushLog dates d'envoi récentes du joueur (push_log.sent_at) — seules
- * celles du même jour LOCAL que `now` comptent pour le cap.
- */
-export function canPush(user: PushUser, now: Date, pushLog: readonly Date[]): CanPushResult {
-  const tz = user.timeZone ?? DEFAULT_TIME_ZONE;
-  const { hour, day } = localParts(now, tz);
-
-  // Quiet hours 21h-8h (§4.3) : [21h; minuit[ ∪ [minuit; 8h[ — 21:00 pile est
-  // déjà silencieux, 8:00 pile est de nouveau autorisé.
-  if (hour >= PUSH_QUIET_HOURS_START || hour < PUSH_QUIET_HOURS_END) {
-    return { allowed: false, reason: 'quiet_hours' };
-  }
-
-  const sentToday = pushLog.filter((d) => localParts(d, tz).day === day).length;
-  if (sentToday >= PUSH_MAX_PER_DAY) {
-    return { allowed: false, reason: 'daily_cap' };
-  }
-
-  return { allowed: true };
-}
+export {
+  canPush,
+  type CanPushResult,
+  type PushBlockReason,
+  type PushUser,
+} from '../_shared/push.ts';
 
 // ─── Digest (doc notifs §6) ──────────────────────────────────────────────────
 

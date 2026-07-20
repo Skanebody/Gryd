@@ -71,16 +71,22 @@ for (const f of readdirSync(engineSrc).filter((n) => n.endsWith('.ts')).sort()) 
   console.log(`sync: engine/${f} → supabase/functions/_shared/engine/`);
 }
 
-// ─── Moteur GPS mobile (AMENDEMENT-15 §2) : gps.ts + validation.ts → Expo ────
+// ─── Moteur mobile : sous-ensembles de packages/engine → Expo ────────────────
 // Metro/tsconfig Expo ne résolvent ni les subpath exports `@klaim/shared/*`
 // ni les imports Deno `./x.ts` de packages/engine — comme pour _shared/, on
 // GÉNÈRE une copie (imports réécrits pour Metro) au lieu de mirrorer à la main.
-// SEULEMENT les fichiers requis par le tracking (gps + haversineM), pour ne
-// pas tirer h3-js/le moteur de claim dans le bundle mobile.
+// SEULEMENT les fichiers dont l'écran a besoin, pour ne pas tirer h3-js ni le
+// moteur de claim dans le bundle mobile.
+//   · run/gps/engine   : tracking GPS (AMENDEMENT-15 §2) ;
+//   · crew/engine      : mission prioritaire du crew (AMENDEMENT-43 §0 maillon 3)
+//                        — crewMission.ts n'importe QUE game-rules, aucun h3.
 // ⚠ MIROIR EXACT dans supabase/functions/ingest_run/mobile_gps_drift_test.ts
-//   (mobileHeader + transformMobileLine + MOBILE_ENGINE_FILES).
+//   (mobileHeader + transformMobileLine + MOBILE_ENGINE_TARGETS).
 
-const MOBILE_ENGINE_FILES = ['gps.ts', 'validation.ts'];
+const MOBILE_ENGINE_TARGETS = [
+  { files: ['gps.ts', 'validation.ts'], dir: ['apps', 'mobile', 'src', 'features', 'run', 'gps', 'engine'] },
+  { files: ['crewMission.ts'], dir: ['apps', 'mobile', 'src', 'features', 'crew', 'engine'] },
+];
 
 const mobileHeader = (name) =>
   `// GÉNÉRÉ par scripts/sync-game-rules.mjs — ne pas éditer.\n` +
@@ -92,12 +98,13 @@ const transformMobileLine = (line) =>
     .replace(/(['"])@klaim\/shared\/types\1/g, '$1@klaim/shared$1')
     .replace(/(['"])\.\/validation\.ts\1/g, '$1./validation$1');
 
-const mobileDest = join(root, 'apps', 'mobile', 'src', 'features', 'run', 'gps', 'engine');
-mkdirSync(mobileDest, { recursive: true });
-
-for (const f of MOBILE_ENGINE_FILES) {
-  const source = readFileSync(join(engineSrc, f), 'utf8');
-  const out = mobileHeader(f) + source.split('\n').map(transformMobileLine).join('\n');
-  writeFileSync(join(mobileDest, f), out);
-  console.log(`sync: engine/${f} → apps/mobile/src/features/run/gps/engine/`);
+for (const target of MOBILE_ENGINE_TARGETS) {
+  const mobileDest = join(root, ...target.dir);
+  mkdirSync(mobileDest, { recursive: true });
+  for (const f of target.files) {
+    const source = readFileSync(join(engineSrc, f), 'utf8');
+    const out = mobileHeader(f) + source.split('\n').map(transformMobileLine).join('\n');
+    writeFileSync(join(mobileDest, f), out);
+    console.log(`sync: engine/${f} → ${target.dir.join('/')}/`);
+  }
 }

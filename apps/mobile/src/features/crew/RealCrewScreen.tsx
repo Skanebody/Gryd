@@ -79,10 +79,87 @@ function refusalError(reason: CrewRefusal, daysLeft?: number): ErrView {
       return { entry: C.rlErrAlreadyInCrew };
     case 'bad_name':
       return { entry: C.rlErrBadName };
+    case 'name_unavailable':
+      return { entry: C.rlErrNameUnavailable };
     case 'bad_city':
       return { entry: C.rlErrBadCity };
     default:
       return { entry: C.rlErrGeneric };
+  }
+}
+
+/**
+ * MISSION → copie affichable (A-43 §0 maillon 3, format doctrine : une phrase +
+ * le manque CONCRET + une action).
+ *
+ * Cette fonction ne fait QUE traduire des faits déjà dérivés (moteur pur
+ * `chooseCrewMission`) : elle n'ajoute aucun chiffre, aucune urgence, aucun nom
+ * de lieu. Les délais sont recalculés depuis les VRAIES échéances de la base et
+ * arrondis VERS LE BAS (« dans 5 h » quand il reste 5 h 50 : sous-estimer une
+ * marge est honnête, la sur-estimer ment) ; sous une heure, on le dit en toutes
+ * lettres plutôt que d'afficher « 0 h ».
+ *
+ * Le crew adverse n'est jamais nommé : la doctrine bannit les rivaux fabriqués,
+ * et exposer un vrai crew ici en ferait une cible.
+ */
+function missionCopy(
+  m: CrewMission,
+  nowMs: number,
+): { title: ErrView; gap: ErrView } | { note: Entry } | null {
+  const H = 3_600_000;
+  switch (m.kind) {
+    case 'defend': {
+      const hours = Math.floor(Math.max(0, m.deadlineAt - nowMs) / H);
+      const soon = hours < 1;
+      return {
+        title: m.sectorName
+          ? { entry: C.cmDefendNamed, vars: { sector: m.sectorName } }
+          : { entry: C.cmDefend },
+        gap: {
+          entry: m.zones === 1
+            ? (soon ? C.cmDefendGapSoonOne : C.cmDefendGapOne)
+            : (soon ? C.cmDefendGapSoonN : C.cmDefendGapN),
+          vars: { n: m.zones, h: hours },
+        },
+      };
+    }
+    case 'reclaim': {
+      const hours = Math.floor(Math.max(0, nowMs - m.lastLostAt) / H);
+      // Au-delà d'un jour, « il y a 53 h » ne parle à personne.
+      const useDays = hours >= 24;
+      const days = Math.floor(hours / 24);
+      return {
+        title: m.sectorName
+          ? { entry: C.cmReclaimNamed, vars: { sector: m.sectorName } }
+          : { entry: C.cmReclaim },
+        gap: {
+          entry: m.zones === 1
+            ? (useDays ? C.cmReclaimGapOneD : C.cmReclaimGapOneH)
+            : (useDays ? C.cmReclaimGapND : C.cmReclaimGapNH),
+          vars: { n: m.zones, h: hours, d: days },
+        },
+      };
+    }
+    case 'close_loop':
+      return {
+        title: m.name
+          ? { entry: C.cmLoopNamed, vars: { name: m.name } }
+          : { entry: C.cmLoop },
+        // Mètres arrondis au plus PROCHE : c'est une distance mesurée, pas une
+        // marge de sécurité — et jamais en dessous de 1 m tant qu'il en reste.
+        gap: { entry: C.cmLoopGap, vars: { m: Math.max(1, Math.round(m.missingM)) } },
+      };
+    case 'capture':
+      return {
+        title: m.sectorName
+          ? { entry: C.cmCaptureNamed, vars: { sector: m.sectorName } }
+          : { entry: C.cmCapture },
+        gap: { entry: C.cmCaptureGap, vars: { n: m.freeZones } },
+      };
+    case 'none':
+      return { note: m.reason === 'no_data' ? C.cmNoneNoData : C.cmNoneStable };
+    default:
+      return null;
   }
 }
 
@@ -98,6 +175,7 @@ export function RealCrewScreen() {
     crew,
     members,
     overview,
+    mission,
     memberCount,
     maxMembers,
     reload,

@@ -5,9 +5,12 @@
  * perdues… ») ; les autres jours → digest CREW quotidien (activité des
  * membres), seulement s'il y a des événements — jamais de résumé vide.
  *
- * Inbox toujours (notifications type 'digest', P6) ; push seulement si
- * canPush l'autorise (quiet hours 21h-8h + cap PUSH_MAX_PER_DAY, §4.3),
- * tracé dans push_log. L'envoi Expo réel = TODO (payload prêt).
+ * Inbox toujours (notifications type 'digest', P6). Le PUSH du digest n'est
+ * PAS envoyé : son texte est composé en français en dur (buildDigest) alors que
+ * push_devices.locale sait dans quelle langue écrire. Il ne consomme donc plus
+ * le cap PUSH_MAX_PER_DAY (PÉRIMÈTRE 3 — il l'écrivait à tort dans push_log).
+ * L'infrastructure d'envoi réelle vit dans _shared/expo-push.ts + _shared/push.ts
+ * et sert déjà l'avertissement de decay (decay_job).
  *
  * Toute la logique vit dans logic.ts — ce fichier ne fait que de l'I/O.
  */
@@ -84,7 +87,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ── Livraison : inbox pour tous, push si les garde-fous l'autorisent ─────
     const userIds = digests.map((d) => d.userId);
     const pushLogs = await loadRecentPushLogs(userIds, now);
-    let pushed = 0;
+    // « éligible » = les garde-fous auraient laissé passer un push. Ce n'est PAS
+    // un envoi : rien n'est encore poussé pour le digest (voir plus bas).
+    let pushEligible = 0;
 
     for (const { userId, digest } of digests) {
       const { error: notifError } = await supabase.from('notifications').insert({
@@ -96,28 +101,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (notifError) throw new Error(`notifications insert: ${notifError.message}`);
 
       // NB : le digest en quiet hours nécessiterait l'opt-in explicite (doc §3)
-      // — pas de settings notifications en MVP, donc on respecte les quiet hours.
+      // — on respecte donc les quiet hours.
       const gate = canPush({ id: userId }, now, pushLogs.get(userId) ?? []);
       if (!gate.allowed) continue;
+      pushEligible += 1;
 
-      const { error: logError } = await supabase.from('push_log').insert({
-        user_id: userId,
-        sent_at: now.toISOString(),
-        type: 'digest',
-      });
-      if (logError) throw new Error(`push_log insert: ${logError.message}`);
-      pushed += 1;
-
-      // TODO(Expo) — envoi push réel via exp.host/--/api/v2/push/send avec les
-      // ExpoPushTokens du joueur (table device_tokens à venir). Payload prêt :
-      // { to: <expoPushToken>, title: digest.title, body: digest.body,
-      //   data: { type: 'digest', cta: 'open_inbox' }, priority: 'default' }
+      // PÉRIMÈTRE 3 — CORRECTION D'UN MENSONGE : ce bloc écrivait une ligne
+      // `push_log` alors qu'AUCUN push n'était envoyé (l'envoi Expo était un
+      // TODO). Conséquences réelles : le cap PUSH_MAX_PER_DAY était consommé
+      // par des envois fantômes — donc l'avertissement de decay, lui bien
+      // réel depuis ce chantier, pouvait être supprimé pour « cap atteint »
+      // à cause d'un digest jamais parti. On ne journalise plus rien ici.
+      //
+      // Ce qui manque pour brancher le digest sur le vrai envoi (tout le reste
+      // est prêt : `_shared/expo-push.ts`, `push_devices`, planification) :
+      // `buildDigest` compose son texte en français en dur, alors que
+      // `push_devices.locale` sait dans quelle langue écrire au joueur. Pousser
+      // en l'état enverrait du français à un joueur allemand. À faire dans le
+      // chantier i18n serveur, pas ici.
     }
 
     return json({
       mode: weekly ? 'weekly' : 'crew',
       digests: digests.length,
-      pushed,
+      pushEligible,
+      pushed: 0, // le digest n'est pas encore poussé (i18n serveur manquante)
       boostsExpired,
       boundariesExpired,
       bonusesExpired,

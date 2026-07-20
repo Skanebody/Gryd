@@ -13,7 +13,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
+import {
+  colors,
+  fontSizes,
+  gameColors,
+  iconSizes,
+  PUSH_MAX_PER_DAY,
+  PUSH_QUIET_HOURS_END,
+  PUSH_QUIET_HOURS_START,
+  radii,
+  sizes,
+  spacing,
+} from '@klaim/shared';
 import {
   NOTIF_CHANNEL_LABELS,
   PLAY_STYLE_LABELS,
@@ -24,6 +35,8 @@ import {
   type NotifChannel,
 } from '../../src/features/motivation/store';
 import { SwitchRow, TogglePill } from '../../src/features/motivation/ui';
+import { useDeviceNotifications } from '../../src/features/notifications/useDeviceNotifications';
+import type { PushStatus } from '../../src/features/notifications/push';
 import { SectionLabel } from '../../src/features/privacy/ui';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import { C } from '../../src/i18n/catalog/reglages';
@@ -51,6 +64,21 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
 
 const APP_VERSION = '0.1.0';
 const NOTIF_ORDER: NotifChannel[] = ['solo', 'crew', 'competition', 'off'];
+
+/**
+ * Un texte par diagnostic (features/notifications/push.ts). L'écran ne dit
+ * jamais « activé » quand il ne l'est pas, et explique toujours l'obstacle.
+ */
+const PUSH_STATUS_TEXT: Readonly<Record<PushStatus, (typeof C)['pushIdle']>> = {
+  idle: C.pushIdle,
+  registered: C.pushRegistered,
+  unsupported: C.pushUnsupported,
+  module_missing: C.pushUnavailable,
+  unavailable: C.pushUnavailable,
+  permission_denied: C.pushDenied,
+  not_configured: C.pushNotConfigured,
+  error: C.pushError,
+};
 
 /** Domaine public GRYD (invites, pages légales). Aligné sur invite.ts / demo.ts. */
 const GRYD_SITE = 'https://gryd.run';
@@ -156,6 +184,14 @@ export default function SettingsSectionScreen() {
   // édition du nom/titre se reflète ici immédiatement — une seule vérité.
   const { profile } = useMyProfile();
   const [hapticsOn, setHapticsOn] = useState(true);
+  // État RÉEL du push sur ce téléphone + propagation des canaux au serveur
+  // (un job serveur ne peut respecter que les préférences qu'il connaît).
+  const {
+    status: pushStatus,
+    busy: pushBusy,
+    enable: pushEnable,
+    disable: pushDisable,
+  } = useDeviceNotifications(prefs.notifChannels);
 
   useEffect(() => {
     screen('parametres_section', { section: id });
@@ -302,6 +338,30 @@ export default function SettingsSectionScreen() {
             {prefs.notifChannels.includes('off')
               ? t(NOTIF_CHANNEL_LABELS.off.subtitle)
               : t(C.notifsNote)}
+          </Text>
+          {/* Choisir SES canaux ne sert à rien si l'appareil n'est enregistré
+              nulle part : cette ligne dit l'état RÉEL du téléphone, et son
+              détail change avec le diagnostic (jamais un « Activer » muet). */}
+          {!prefs.notifChannels.includes('off') ? (
+            <ActionRow
+              icon="cloche"
+              label={t(C.pushDeviceLabel)}
+              detail={pushBusy ? t(C.pushBusy) : t(PUSH_STATUS_TEXT[pushStatus])}
+              onPress={() => {
+                if (pushStatus === 'registered') pushDisable();
+                // Refus système : seul le joueur peut revenir dessus, dans les
+                // réglages du téléphone — redemander ne rouvrirait rien.
+                else if (pushStatus === 'permission_denied') void Linking.openSettings();
+                else pushEnable();
+              }}
+            />
+          ) : null}
+          <Text style={styles.note}>
+            {t(C.pushQuietNote, {
+              start: PUSH_QUIET_HOURS_START,
+              end: PUSH_QUIET_HOURS_END,
+              max: PUSH_MAX_PER_DAY,
+            })}
           </Text>
         </Section>
       ) : null}

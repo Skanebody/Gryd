@@ -239,6 +239,35 @@ export const CREW_COLORS_COUNT = 12; // identité en DB ; rendu carte = AMENDEME
 export const CREW_CODE_LENGTH = 6;
 export const CREW_SWITCH_COOLDOWN_DAYS = 7;
 
+/**
+ * ─── AMENDEMENT-43 §0 maillon 3 — LA MISSION PRIORITAIRE DU CREW ────────────
+ * « je cours pour l'AIDER ». Le crew a TOUJOURS AU PLUS UNE mission affichée,
+ * DÉRIVÉE de l'état RÉEL (engine/crewMission.ts `chooseCrewMission`) — jamais
+ * scriptée, jamais fabriquée. Quand la donnée réelle ne permet rien, la
+ * dérivation renvoie `none` et l'écran le DIT (état honnête, pas un échec).
+ *
+ * La fenêtre de DÉFENSE n'a pas sa constante ici : c'est déjà
+ * ZONE_DEFEND_WINDOW_HOURS (« à défendre » = dernières 48 h avant l'échéance de
+ * decay, doc §24). Une 2ᵉ constante dirait deux vérités différentes du même
+ * seuil.
+ */
+
+/**
+ * Fenêtre (heures) pendant laquelle une zone PERDUE reste « à reprendre ».
+ * Au-delà, la perte est de l'histoire : la remettre en mission prioritaire
+ * inventerait une urgence morte. Source réelle : `contested_group_runs`
+ * (prev_owner_crew_id = nous, winner_crew_id = un autre crew).
+ */
+export const CREW_MISSION_RECLAIM_WINDOW_H = 168; // 7 jours
+
+/**
+ * Nombre MINIMUM de zones réellement libres dans un secteur pour en faire une
+ * mission de capture. En dessous, « allez prendre 1 zone » n'est pas une
+ * mission de crew, c'est du bruit. Les zones libres sont COMPTÉES
+ * (sectors.total_hexes − claims vivants du secteur), jamais estimées.
+ */
+export const CREW_MISSION_CAPTURE_MIN_FREE = 3;
+
 // ─── §3.6 Saison ─────────────────────────────────────────────────────────────
 export const SEASON_DURATION_WEEKS = 8;
 export const INTERSEASON_DAYS = 7;

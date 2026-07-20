@@ -232,6 +232,173 @@ export const C = defineCatalog({
     de: 'Platz {rank} von {total} Crews der Stadt',
     pt: 'Posição {rank} de {total} crews da cidade',
   },
+  // ── NOTRE PRIORITÉ (A-43 §0 maillon 3) ─────────────────────────────────────
+  // Une phrase + le manque CONCRET + une action. Chaque chiffre vient de la
+  // base (engine/crewMission.ts) : aucun secteur, rival, distance ou délai n'est
+  // inventé. Quand aucune mission n'est dérivable, on le DIT (cmNone*).
+  cmLabel: {
+    fr: 'NOTRE PRIORITÉ',
+    en: 'OUR PRIORITY',
+    es: 'NUESTRA PRIORIDAD',
+    de: 'UNSERE PRIORITÄT',
+    pt: 'NOSSA PRIORIDADE',
+  },
+  /** Défendre — avec le nom RÉEL du secteur (reverse-geocode). */
+  cmDefendNamed: {
+    fr: 'Défendre {sector}',
+    en: 'Defend {sector}',
+    es: 'Defender {sector}',
+    de: '{sector} verteidigen',
+    pt: 'Defender {sector}',
+  },
+  /** Défendre — secteur pas encore nommé : on ne fabrique pas de quartier. */
+  cmDefend: {
+    fr: 'Défendre notre territoire',
+    en: 'Defend our territory',
+    es: 'Defender nuestro territorio',
+    de: 'Unser Revier verteidigen',
+    pt: 'Defender nosso território',
+  },
+  cmDefendGapOne: {
+    fr: '1 zone expire dans {h} h.',
+    en: '1 zone expires in {h} h.',
+    es: '1 zona expira en {h} h.',
+    de: '1 Zone läuft in {h} h ab.',
+    pt: '1 zona expira em {h} h.',
+  },
+  cmDefendGapN: {
+    fr: '{n} zones expirent, la première dans {h} h.',
+    en: '{n} zones expire, the first in {h} h.',
+    es: '{n} zonas expiran, la primera en {h} h.',
+    de: '{n} Zonen laufen ab, die erste in {h} h.',
+    pt: '{n} zonas expiram, a primeira em {h} h.',
+  },
+  /** Moins d'une heure : on n'arrondit pas à « 0 h ». */
+  cmDefendGapSoonOne: {
+    fr: '1 zone expire dans moins d’une heure.',
+    en: '1 zone expires in less than an hour.',
+    es: '1 zona expira en menos de una hora.',
+    de: '1 Zone läuft in weniger als einer Stunde ab.',
+    pt: '1 zona expira em menos de uma hora.',
+  },
+  cmDefendGapSoonN: {
+    fr: '{n} zones expirent, la première dans moins d’une heure.',
+    en: '{n} zones expire, the first in less than an hour.',
+    es: '{n} zonas expiran, la primera en menos de una hora.',
+    de: '{n} Zonen laufen ab, die erste in weniger als einer Stunde.',
+    pt: '{n} zonas expiram, a primeira em menos de uma hora.',
+  },
+  /** Reprendre — le crew adverse n'est JAMAIS nommé (rivaux non exposés). */
+  cmReclaimNamed: {
+    fr: 'Reprendre {sector}',
+    en: 'Take {sector} back',
+    es: 'Recuperar {sector}',
+    de: '{sector} zurückholen',
+    pt: 'Retomar {sector}',
+  },
+  cmReclaim: {
+    fr: 'Reprendre ce qu’on a perdu',
+    en: 'Take back what we lost',
+    es: 'Recuperar lo que perdimos',
+    de: 'Zurückholen, was wir verloren haben',
+    pt: 'Retomar o que perdemos',
+  },
+  cmReclaimGapOneH: {
+    fr: '1 zone perdue il y a {h} h.',
+    en: '1 zone lost {h} h ago.',
+    es: '1 zona perdida hace {h} h.',
+    de: '1 Zone vor {h} h verloren.',
+    pt: '1 zona perdida há {h} h.',
+  },
+  cmReclaimGapNH: {
+    fr: '{n} zones perdues, la dernière il y a {h} h.',
+    en: '{n} zones lost, the last one {h} h ago.',
+    es: '{n} zonas perdidas, la última hace {h} h.',
+    de: '{n} Zonen verloren, die letzte vor {h} h.',
+    pt: '{n} zonas perdidas, a última há {h} h.',
+  },
+  cmReclaimGapOneD: {
+    fr: '1 zone perdue il y a {d} j.',
+    en: '1 zone lost {d} d ago.',
+    es: '1 zona perdida hace {d} d.',
+    de: '1 Zone vor {d} T verloren.',
+    pt: '1 zona perdida há {d} d.',
+  },
+  cmReclaimGapND: {
+    fr: '{n} zones perdues, la dernière il y a {d} j.',
+    en: '{n} zones lost, the last one {d} d ago.',
+    es: '{n} zonas perdidas, la última hace {d} d.',
+    de: '{n} Zonen verloren, die letzte vor {d} T.',
+    pt: '{n} zonas perdidas, a última há {d} d.',
+  },
+  /** Boucle ouverte par un membre : le manque en mètres vient du serveur. */
+  cmLoopNamed: {
+    fr: 'Fermer la boucle {name}',
+    en: 'Close the {name} loop',
+    es: 'Cerrar el bucle {name}',
+    de: 'Die Schleife {name} schließen',
+    pt: 'Fechar o circuito {name}',
+  },
+  cmLoop: {
+    fr: 'Fermer la boucle ouverte',
+    en: 'Close the open loop',
+    es: 'Cerrar el bucle abierto',
+    de: 'Die offene Schleife schließen',
+    pt: 'Fechar o circuito aberto',
+  },
+  cmLoopGap: {
+    fr: 'Il manque {m} m pour la refermer.',
+    en: '{m} m left to close it.',
+    es: 'Faltan {m} m para cerrarlo.',
+    de: 'Es fehlen noch {m} m.',
+    pt: 'Faltam {m} m para fechar.',
+  },
+  /** Capturer — « proche » = un secteur où le crew tient DÉJÀ du terrain. */
+  cmCaptureNamed: {
+    fr: 'Prendre du terrain à {sector}',
+    en: 'Take ground in {sector}',
+    es: 'Ganar terreno en {sector}',
+    de: 'Gelände in {sector} erobern',
+    pt: 'Ganhar terreno em {sector}',
+  },
+  cmCapture: {
+    fr: 'Prendre du terrain là où on court',
+    en: 'Take ground where we run',
+    es: 'Ganar terreno donde corremos',
+    de: 'Gelände erobern, wo wir laufen',
+    pt: 'Ganhar terreno onde corremos',
+  },
+  cmCaptureGap: {
+    fr: '{n} zones libres là où votre crew tient déjà du terrain.',
+    en: '{n} free zones where your crew already holds ground.',
+    es: '{n} zonas libres donde tu crew ya tiene terreno.',
+    de: '{n} freie Zonen dort, wo euer Crew schon Gelände hält.',
+    pt: '{n} zonas livres onde seu crew já tem terreno.',
+  },
+  /** Aucune mission — crew sans aucun fait exploitable. Honnête, pas un échec. */
+  cmNoneNoData: {
+    fr: 'Rien à défendre pour l’instant : la première zone prise donnera sa première priorité au crew.',
+    en: 'Nothing to defend yet: the first zone taken will give the crew its first priority.',
+    es: 'Nada que defender por ahora: la primera zona conquistada dará al crew su primera prioridad.',
+    de: 'Noch nichts zu verteidigen: Die erste eroberte Zone gibt dem Crew seine erste Priorität.',
+    pt: 'Nada a defender por enquanto: a primeira zona conquistada dará ao crew sua primeira prioridade.',
+  },
+  /** Aucune mission — on a lu, et tout va bien. On le dit aussi. */
+  cmNoneStable: {
+    fr: 'Rien n’expire, rien n’a été perdu : tout est stable. Courez pour agrandir le territoire.',
+    en: 'Nothing expiring, nothing lost: all stable. Run to grow the territory.',
+    es: 'Nada expira, nada se perdió: todo estable. Corred para ampliar el territorio.',
+    de: 'Nichts läuft ab, nichts ging verloren: alles stabil. Lauft, um das Revier zu vergrößern.',
+    pt: 'Nada expira, nada foi perdido: tudo estável. Corram para ampliar o território.',
+  },
+  /** Action INLINE (§A : le seul CTA chartreuse de l'écran reste « Inviter »). */
+  cmSeeOnMap: {
+    fr: 'Voir sur la carte',
+    en: 'See on the map',
+    es: 'Ver en el mapa',
+    de: 'Auf der Karte ansehen',
+    pt: 'Ver no mapa',
+  },
   /** Crew sans aucun hex : on le DIT, on ne décore pas un zéro. */
   rlNoTerritory: {
     fr: 'Votre crew n’a pas encore de territoire — courez pour en prendre.',
@@ -338,6 +505,17 @@ export const C = defineCatalog({
     es: 'Elige un nombre para tu crew.',
     de: 'Wähle einen Namen für deinen Crew.',
     pt: 'Escolha um nome para seu crew.',
+  },
+  // Modération serveur du nom (0050). Le message dit CE QU'IL FAUT FAIRE, sans
+  // jamais nommer la règle ni le mot reconnu : « le mot X est interdit » serait
+  // un mode d'emploi du contournement. Même phrase pour une insulte, une marque
+  // ou un caractère invisible — les cas sont indistinguables côté joueur.
+  rlErrNameUnavailable: {
+    fr: 'Ce nom n’est pas disponible. Choisis-en un autre.',
+    en: 'That name isn’t available. Pick another one.',
+    es: 'Ese nombre no está disponible. Elige otro.',
+    de: 'Dieser Name ist nicht verfügbar. Wähle einen anderen.',
+    pt: 'Esse nome não está disponível. Escolha outro.',
   },
   rlErrBadCity: {
     fr: 'Choisis une ville.',

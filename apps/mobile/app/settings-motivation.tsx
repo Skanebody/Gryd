@@ -44,6 +44,7 @@ import {
   useMotivationPrefs,
   type NotifChannel,
 } from '../src/features/motivation/store';
+import { useDeviceNotifications } from '../src/features/notifications/useDeviceNotifications';
 import { C } from '../src/i18n/catalog/motivation';
 import { useT } from '../src/i18n/store';
 
@@ -62,6 +63,9 @@ const NOTIF_ORDER: NotifChannel[] = ['solo', 'crew', 'competition', 'off'];
 export default function SettingsMotivationScreen() {
   const t = useT();
   const { prefs, update } = useMotivationPrefs();
+  // Les canaux sont éditables ICI AUSSI : sans cette propagation, couper un
+  // canal sur cet écran ne changerait rien à ce que le serveur envoie.
+  useDeviceNotifications(prefs.notifChannels);
   // Retours haptiques : réglage global (src/lib/haptics), défaut activé.
   const [hapticsOn, setHapticsOn] = useState(true);
 

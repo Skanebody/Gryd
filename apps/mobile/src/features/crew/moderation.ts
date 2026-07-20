@@ -64,8 +64,17 @@ export const REPORT_REVIEW_HOURS = 24;
  * contient un est MASQUÉ à l'affichage (remplacé par « Message masqué »), sans
  * bloquer son auteur. Volontairement minimal — le vrai filtrage vit côté
  * serveur (Edge Function) ; ici on démontre la mécanique exigée par la 1.2.
+ *
  * On teste sur des RACINES (inclusion, insensible à la casse/accents) pour
  * couvrir quelques déclinaisons sans lister d'insultes en clair partout.
+ *
+ * PÉRIMÈTRE — à ne pas confondre : cette liste ne concerne QUE le chat, et elle
+ * est LOCALE (donc contournable par un client modifié). Le NOM DE CREW, lui, est
+ * filtré côté SERVEUR depuis la migration 0050 (crew_name_refusal : insultes
+ * fr/en, marques et termes officiels via reserved_handles, homoglyphes,
+ * caractères invisibles, leet) — appelé par create_crew, et doublé d'un trigger
+ * sur crews.name pour que toute future voie de renommage y passe aussi. Ne
+ * jamais réimplémenter ce filtre ici : le serveur reste seul juge.
  */
 const BLOCKED_WORD_ROOTS: readonly string[] = [
   'connard',

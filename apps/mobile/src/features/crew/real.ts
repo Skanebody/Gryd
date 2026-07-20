@@ -29,6 +29,13 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
 import { isShowcasePlatform } from '../../lib/flags';
+import {
+  chooseCrewMission,
+  CREW_MISSION_WINDOWS,
+  type CrewLoopState,
+  type CrewMission,
+  type CrewSectorState,
+} from './engine/crewMission';
 
 // ─── Contrat RPC (jsonb) — typé sur les réponses des fonctions serveur ───────
 
@@ -101,6 +108,11 @@ export type CrewRefusal =
   | 'already_in_crew'
   | 'cooldown'
   | 'bad_name'
+  // Modération SERVEUR du nom (0050) : insulte, marque, terme officiel GRYD,
+  // caractère trompeur. Motif VOLONTAIREMENT UNIQUE — le serveur ne dit jamais
+  // quelle règle a mordu ni quel mot il a reconnu, sinon le refus devient un
+  // mode d'emploi du contournement. Le détail reste en base, pour la revue.
+  | 'name_unavailable'
   | 'bad_color'
   | 'bad_city'
   | 'bad_code'
@@ -219,6 +231,74 @@ export function parseCrewOverview(raw: unknown): CrewOverview | null {
   };
 }
 
+// ─── Mission prioritaire du crew (A-43 §0 maillon 3) — lecture + dérivation ──
+
+/** Timestamp ISO serveur → ms, ou `null` si absent/illisible. */
+function asMs(v: unknown): number | null {
+  if (typeof v !== 'string' || v.length === 0) return null;
+  const ms = Date.parse(v);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Nombre fini, sinon `null` (0 serait une affirmation, `null` est un aveu). */
+function asNum(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * jsonb `crew_mission_inputs` → entrées du moteur, ou `null` si la forme n'est
+ * pas celle attendue (refus `{ok:false}`, réseau, contrat futur). `null` ⇒
+ * AUCUN bloc mission à l'écran : on ne dit pas « aucune mission » alors qu'on
+ * n'a simplement pas réussi à lire. Ne rien savoir et savoir qu'il n'y a rien
+ * sont deux choses différentes, et une seule des deux se raconte au joueur.
+ */
+export function parseCrewMissionInputs(
+  raw: unknown,
+): { sectors: CrewSectorState[]; loops: CrewLoopState[] } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const root = raw as Record<string, unknown>;
+  if (root.ok !== true) return null;
+
+  const sectors: CrewSectorState[] = [];
+  if (Array.isArray(root.sectors)) {
+    for (const entry of root.sectors) {
+      if (!entry || typeof entry !== 'object') continue;
+      const s = entry as Record<string, unknown>;
+      sectors.push({
+        sectorId: asText(s.sectorId),
+        sectorName: asText(s.sectorName),
+        heldTotal: asNum(s.heldTotal) ?? 0,
+        expiringSoon: asNum(s.expiringSoon) ?? 0,
+        earliestDecayAt: asMs(s.earliestDecayAt),
+        lostRecently: asNum(s.lostRecently) ?? 0,
+        lastLostAt: asMs(s.lastLostAt),
+        // `null` PRÉSERVÉ : « inconnu » ne doit jamais devenir « 0 libre »,
+        // sinon un secteur non rattaché se ferait passer pour saturé.
+        freeHexes: asNum(s.freeHexes),
+      });
+    }
+  }
+
+  const loops: CrewLoopState[] = [];
+  if (Array.isArray(root.loops)) {
+    for (const entry of root.loops) {
+      if (!entry || typeof entry !== 'object') continue;
+      const l = entry as Record<string, unknown>;
+      const id = asText(l.id);
+      const missingM = asNum(l.missingM);
+      if (!id || missingM === null) continue;
+      loops.push({
+        id,
+        name: asText(l.name) ?? '',
+        missingM,
+        expiresAt: asMs(l.expiresAt),
+      });
+    }
+  }
+
+  return { sectors, loops };
+}
+
 /** Couleur d'identité auto (0..CREW_COLORS_COUNT-1) — pas de picker à la création. */
 export function randomCrewColor(): number {
   return Math.floor(Math.random() * CREW_COLORS_COUNT);
@@ -243,6 +323,19 @@ export interface UseRealCrewResult {
   overview: CrewOverview | null;
   /** true pendant la 1re lecture du territoire (le roster, lui, est déjà là). */
   overviewLoading: boolean;
+  /**
+   * LA mission prioritaire du crew (A-43 §0 maillon 3), dérivée par le moteur
+   * PUR `chooseCrewMission` à partir des faits de `crew_mission_inputs` (0049).
+   *
+   * Trois valeurs, trois écrans différents — la distinction est le cœur de la
+   * doctrine « l'app ne ment jamais » :
+   *  · `null`             → on n'a PAS PU lire (chargement, échec, pas de crew).
+   *                          L'écran n'affiche AUCUN bloc.
+   *  · `{kind:'none'}`    → on a lu, et il n'y a réellement rien à faire.
+   *                          L'écran le DIT.
+   *  · une mission        → un fait mesuré, avec son manque chiffré.
+   */
+  mission: CrewMission | null;
   /** Effectif actif (X de X/CREW_MAX_MEMBERS). */
   memberCount: number;
   /** Plafond d'affichage (CREW_MAX_MEMBERS). */
@@ -296,6 +389,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
   const [members, setMembers] = useState<RealCrewMember[]>([]);
   const [overview, setOverview] = useState<CrewOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
+  const [mission, setMission] = useState<CrewMission | null>(null);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -308,6 +402,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setCrew(null);
       setMembers([]);
       setOverview(null);
+      setMission(null);
       setOverviewLoading(false);
       setLoading(false);
       return;
@@ -322,6 +417,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setCrew(null);
       setMembers([]);
       setOverview(null);
+      setMission(null);
       setOverviewLoading(false);
       setLoading(false);
     };
@@ -394,6 +490,28 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
         } catch {
           if (cancelled) return;
           setOverview(null);
+        }
+
+        // ── LA mission prioritaire (0049 + moteur pur) ───────────────────────
+        // Les DEUX fenêtres sont envoyées depuis game-rules : le SQL n'écrit
+        // aucun seuil de jeu en dur (il refuse même une fenêtre absente plutôt
+        // que d'en inventer une). Échec de lecture ⇒ `mission = null` ⇒ AUCUN
+        // bloc : « je n'ai pas pu lire » ne se dit pas « aucune mission ».
+        try {
+          const { data, error } = await client.rpc('crew_mission_inputs', {
+            p_defend_window_h: CREW_MISSION_WINDOWS.defendWindowH,
+            p_reclaim_window_h: CREW_MISSION_WINDOWS.reclaimWindowH,
+          });
+          if (cancelled) return;
+          const facts = error ? null : parseCrewMissionInputs(data);
+          setMission(
+            facts === null
+              ? null
+              : chooseCrewMission({ nowMs: Date.now(), sectors: facts.sectors, loops: facts.loops }),
+          );
+        } catch {
+          if (cancelled) return;
+          setMission(null);
         }
         setOverviewLoading(false);
       } catch {
@@ -509,6 +627,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
     members,
     overview,
     overviewLoading,
+    mission,
     memberCount: members.length,
     maxMembers: CREW_MAX_MEMBERS,
     reload,
