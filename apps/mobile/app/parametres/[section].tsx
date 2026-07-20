@@ -338,13 +338,17 @@ export default function SettingsSectionScreen() {
               detail={t(C.cgvDetail)}
               onPress={() => openLegal('cgv', t(C.cgvFallbackTitle), t(C.cgvFallbackBody))}
             />
+            {/* Les mentions légales ouvraient « gryd.run/mentions-legales » — un
+                domaine INEXISTANT (arbitrage O10 non tranché) vers des pages web
+                non déployées : un cul-de-sac, alors que la LCEN exige qu'elles
+                soient accessibles. Elles vivent désormais DANS l'app
+                (app/a-propos.tsx) : aucun domaine, aucun réseau, toujours
+                affichables. */}
             <ActionRow
               icon="pass"
               label={t(C.mentions)}
               detail={t(C.mentionsDetail)}
-              onPress={() =>
-                openLegal('mentions-legales', t(C.mentions), t(C.mentionsFallbackBody))
-              }
+              onPress={() => router.push('/a-propos')}
             />
             <ActionRow
               icon="crest"
