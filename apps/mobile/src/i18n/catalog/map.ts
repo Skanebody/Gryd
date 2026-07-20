@@ -415,25 +415,25 @@ export const C = defineCatalog({
 
   // ── Note de SOURCE de la carte (territoryBuild.dataNote — 3 cas distincts) ──
   dataNoteFailed: {
-    fr: 'Territoires indisponibles — on n’a pas pu charger tes captures.',
-    en: 'Territories unavailable — we couldn’t load your captures.',
-    es: 'Territorios no disponibles: no pudimos cargar tus capturas.',
-    de: 'Gebiete nicht verfügbar — deine Eroberungen ließen sich nicht laden.',
-    pt: 'Territórios indisponíveis — não conseguimos carregar suas capturas.',
+    fr: 'Territoires non chargés',
+    en: 'Territories didn’t load',
+    es: 'Territorios no cargados',
+    de: 'Gebiete nicht geladen',
+    pt: 'Territórios não carregados',
   },
   dataNoteDemo: {
-    fr: 'Territoires de démonstration — pas encore tes vraies captures.',
-    en: 'Demo territories — not your real captures yet.',
-    es: 'Territorios de demostración: aún no son tus capturas reales.',
-    de: 'Demo-Gebiete — noch nicht deine echten Eroberungen.',
-    pt: 'Territórios de demonstração — ainda não são suas capturas reais.',
+    fr: 'Territoires de démonstration',
+    en: 'Demo territories',
+    es: 'Territorios de demostración',
+    de: 'Demo-Gebiete',
+    pt: 'Territórios de demonstração',
   },
   dataNoteEmpty: {
-    fr: 'Aucun territoire capturé pour l’instant — cours pour prendre ta première zone.',
-    en: 'No territory captured yet — run to take your first zone.',
-    es: 'Ningún territorio capturado todavía: corre para tomar tu primera zona.',
-    de: 'Noch kein Gebiet erobert — lauf los und hol dir deine erste Zone.',
-    pt: 'Nenhum território capturado ainda — corra para tomar sua primeira zona.',
+    fr: 'Cours pour prendre ta première zone',
+    en: 'Run to take your first zone',
+    es: 'Corre y toma tu primera zona',
+    de: 'Lauf los, hol dir deine erste Zone',
+    pt: 'Corra para tomar sua primeira zona',
   },
 
   // ── Widget « Mon territoire » (8 états — territoryWidget.ts) ──

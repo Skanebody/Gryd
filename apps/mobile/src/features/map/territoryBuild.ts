@@ -166,12 +166,16 @@ export function buildTerritories(
  * cartes (native + web) : une seule vérité, impossible à faire diverger, et testable.
  *
  * Les trois cas sont distincts et ne doivent JAMAIS être confondus :
- *   • `failed`  — connecté mais la lecture a échoué. Dire « pas encore tes vraies
- *     captures » ici serait un mensonge par omission : le territoire existe peut-être,
- *     on n'a pas su le lire.
+ *   • `failed`  — connecté mais la lecture a échoué. Dire « démonstration » ou « aucun
+ *     territoire » ici serait un mensonge par omission : le territoire existe peut-être,
+ *     on n'a pas su le lire. On dit donc que la LECTURE a échoué, pas le joueur.
  *   • `!isReal` — pas de session/backend : c'est la démo, on l'étiquette.
- *   • vide réel — chargé, zéro capture : on NOMME le vide, sinon il se lit comme un
- *     chargement en panne.
+ *   • vide réel — chargé, zéro capture : on donne l'ACTION (« prends ta première
+ *     zone »), qui dit le vide sans le nommer et sans laisser croire à une panne.
+ *
+ * Copie volontairement COURTE (§A, retour terrain « le bloc est trop large ») : une
+ * seule proposition, jamais deux — le bandeau tient sur une ligne en 375 px dans les
+ * cinq langues. Toute rallonge future doit repasser ce test.
  * Retourne null quand il n'y a rien d'honnête à ajouter (du vrai territoire s'affiche).
  *
  * `locale` traduit la note (module PUR : résolution i18n directe via le

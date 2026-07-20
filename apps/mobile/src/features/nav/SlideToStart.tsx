@@ -168,7 +168,9 @@ export function SlideToStart({ label = 'GO', accessibilityLabel, onComplete }: S
           },
         ]}
       >
-        <Icon name="foulees" size={26} color={colors.noir} />
+        {/* Basket, pas `foulees` (la monnaie) — retour terrain 20/07 : l'icône
+            du DÉPART doit dire « courir », pas « acheter ». */}
+        <Icon name="basket" size={26} color={colors.noir} />
       </Animated.View>
     </View>
   );

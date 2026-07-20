@@ -9,7 +9,7 @@
  * shared). Données démo (features/social/demo). Zéro position live.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { HANDLE_REGEX, colors, fontSizes, gameColors, radii, sizes, spacing } from '@klaim/shared';
 import type { Entry } from '../src/i18n/types';
 import { useT } from '../src/i18n/store';
@@ -219,6 +219,10 @@ function SearchPanel({ toast, onMore }: {
           placeholderTextColor={colors.gris}
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="search"
+          // Recherche live : « Rechercher » referme le clavier pour découvrir
+          // les résultats (ils sont sous le champ, donc sous le clavier).
+          onSubmitEditing={() => Keyboard.dismiss()}
           style={styles.input}
         />
       </View>

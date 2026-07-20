@@ -273,6 +273,12 @@ export function RealCrewScreen() {
             maxLength={40}
             autoCapitalize="words"
             returnKeyType="done"
+            // « Done » VALIDE (retour terrain 20/07) : la touche existait mais
+            // ne faisait rien — il fallait fermer le clavier à la main pour
+            // atteindre le CTA. Ici le geste naturel crée le crew.
+            onSubmitEditing={() => {
+              if (canSubmit && !busy) void onCreate();
+            }}
             accessibilityLabel={t(C.rlNamePlaceholder)}
           />
 
@@ -334,6 +340,10 @@ export function RealCrewScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
             returnKeyType="done"
+            // Code complet + « Done » = on rejoint, sans chercher le bouton.
+            onSubmitEditing={() => {
+              if (canSubmit && !busy) void onJoin();
+            }}
             accessibilityLabel={t(C.rlCodePlaceholder, { n: CREW_CODE_LENGTH })}
           />
 

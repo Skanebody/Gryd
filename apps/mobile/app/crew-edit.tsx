@@ -15,7 +15,7 @@
  * anti-shame (aucun ton culpabilisant). Analytics : screen('crew_edit').
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { flags } from '../src/lib/flags';
 import { goBack } from '../src/lib/nav';
@@ -37,6 +37,7 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
+import { KeyboardSaveBar } from '../src/ui/KeyboardSaveBar';
 import { InlineRunCTA } from '../src/ui/game';
 import { MY_CREW } from '../src/features/crew/demo';
 import { RECRUITMENT_STATUS_LABELS, roleCan } from '../src/features/crew/rules';
@@ -110,8 +111,34 @@ export default function CrewEditScreen() {
     setSavedNotice(false);
   };
 
+  /**
+   * Annuler depuis la barre clavier : même rétablissement que « Réinitialiser »,
+   * plus la fermeture du clavier — on RESTE sur l'écran (la flèche retour est le
+   * chemin pour sortir). Réutilise onReset : une seule vérité sur ce qu'est
+   * « revenir aux valeurs d'origine ».
+   */
+  const onCancelEdits = () => {
+    onReset();
+    Keyboard.dismiss();
+  };
+
   return (
-    <StackScreen title="Modifier le crew" icon="crew" kicker="FONDATEUR · IDENTITÉ DU CREW">
+    <StackScreen
+      title="Modifier le crew"
+      icon="crew"
+      kicker="FONDATEUR · IDENTITÉ DU CREW"
+      /* Même correctif que profil-edit (retour terrain 20/07 : « il doit y
+         avoir le même problème quand on crée ou modifie le crew ») — le CTA de
+         pied de page passait sous le clavier dès la première frappe. */
+      floating={
+        <KeyboardSaveBar
+          visible={dirty}
+          onSave={onSave}
+          onCancel={onCancelEdits}
+          saveDisabled={!canSave || !nameValid || !tagValid}
+        />
+      }
+    >
       {!canSave ? (
         <View style={styles.gateCard}>
           <Icon name="verrou" size={16} color={colors.gris} />

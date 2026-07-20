@@ -11,7 +11,20 @@
  * Niveau/tier/rang DÉRIVÉS des règles réelles (features/crew/rules) — aucun
  * nombre magique local. Zéro position live.
  *
- * RETOUR FONDATEUR : « pas trouvé les boutons pour modifier le profil » → la
+ * RETOUR TERRAIN 20/07 (« le bloc du haut, rien n'est aligné » · « trop de
+ * scroll, pas assez intuitif » · « le raccourci fait doublon avec Paramètres ») :
+ *  1. Le pseudo n'est plus affiché DEUX fois (titre d'écran + card) — le titre
+ *     d'écran est le nom de la page (« Moi ») et l'identité vit dans UNE grille :
+ *     avatar 72 │ colonne (nom · @handle · titre · niveau/ville), crew en pleine
+ *     largeur dessous, puis un bandeau de 3 chiffres à colonnes égales en
+ *     tabular-nums (§A r.17 : niveau · rang · zones tenues).
+ *  2. SPÉCIALISATIONS (8 familles) est un ACCORDÉON replié par défaut — le
+ *     compteur « n/8 » reste visible en surface, le détail est au tap (§A).
+ *  3. RACCOURCIS perd ses 4 doublons du bouton Paramètres (Arsenal, Sources,
+ *     Support, Paramètres — tous dans /parametres) et ses sous-titres : 10 rows
+ *     à 2 étages → 4-6 rows à 1 étage.
+ *
+ * RETOUR FONDATEUR précédent : « pas trouvé les boutons pour modifier le profil » → la
  * card porte DEUX affordances d'édition ÉVIDENTES (bouton plein « Modifier mon
  * profil » + crayon sur l'avatar) vers /profil-edit. L'IDENTITÉ affichée (nom,
  * titre, ville, avatar, badges) vient du profil ÉDITABLE persisté (useMyProfile)
@@ -218,59 +231,39 @@ function deriveSkill(def: SkillDef, statValue: number): DerivedSkill {
 
 interface ProfileLink {
   label: Entry;
-  detail: Entry;
   icon: IconName;
-  href?: string;
+  href: string;
 }
 
 /**
- * RACCOURCIS — toutes les listes longues descendent en liens vers des pages
- * dédiées (AMENDEMENT-17 : « Listes longues → pages dédiées »). Aucun contenu
- * déroulé dans le profil lui-même. « Confidentialité & géoloc » est un accès
- * DIRECT à 1 tap (audit confiance : la géoloc ne s'enterre pas sous
- * Paramètres), placé AVANT la boutique. Les libellés sont des Entries i18n —
- * la structure reste au module, la résolution se fait à l'affichage (t()).
+ * RACCOURCIS — destinations de JEU uniquement, une LIGNE chacune.
+ *
+ * RETOUR TERRAIN 20/07 (« le raccourci créer sous forme de menu déroulant ou
+ * complètement le retirer et créer juste un bouton paramètre », « trop de
+ * scroll ») : les 4 entrées qui FAISAIENT DOUBLON avec le bouton Paramètres
+ * (engrenage, haut-droit) sont RETIRÉES de cette liste — Arsenal, Sources
+ * connectées, Support/Aide et Paramètres lui-même sont déjà des lignes de
+ * `SETTINGS_GROUPS` dans /parametres, donc toujours atteignables à 2 taps.
+ * Le sous-titre descriptif de chaque ligne saute aussi : il doublait la hauteur
+ * de la liste sans rien apprendre (« Historique de courses » se comprend seul).
+ * 10 lignes à 2 étages → 4 à 6 lignes à 1 étage.
+ *
+ * « Confidentialité & géoloc » RESTE ici : accès DIRECT à 1 tap (audit
+ * confiance — la géoloc ne s'enterre pas sous Paramètres), en plus de sa ligne
+ * dans /parametres.
  */
 const LINKS: readonly ProfileLink[] = [
   // Sortis de la barre (nav 4 slots) — accès depuis « Moi » (décision fondateur).
-  // D8 : hors MVP fermé, Saison/Missions/Arsenal disparaissent de la SURFACE
-  // (flags.ts) — les moteurs continuent d'accumuler, rien n'est perdu au flip.
+  // D8 : hors MVP fermé, Saison/Missions disparaissent de la SURFACE (flags.ts)
+  // — les moteurs continuent d'accumuler, rien n'est perdu au flip.
   ...(flags.season
-    ? [{ label: C.linkSeason, detail: C.linkSeasonDetail, icon: 'classement', href: '/classement' } as const]
+    ? [{ label: C.linkSeason, icon: 'classement', href: '/classement' } as const]
     : []),
-  ...(flags.warRoom
-    ? [{ label: C.linkMissions, detail: C.linkMissionsDetail, icon: 'guerre', href: '/warroom' } as const]
-    : []),
-  { label: C.linkFriends, detail: C.linkFriendsDetail, icon: 'ami', href: '/amis' },
-  { label: C.linkPerformance, detail: C.linkPerformanceDetail, icon: 'performance', href: '/performance' },
-  { label: C.linkHistory, detail: C.linkHistoryDetail, icon: 'historique', href: '/historique' },
-  {
-    label: C.linkPrivacy,
-    detail: C.linkPrivacyDetail,
-    icon: 'verrou',
-    href: '/confidentialite',
-  },
-  ...(flags.arsenal
-    ? [{ label: C.linkArsenal, detail: C.linkArsenalDetail, icon: 'boutique', href: '/arsenal' } as const]
-    : []),
-  {
-    label: C.linkSources,
-    detail: C.linkSourcesDetail,
-    icon: 'lien',
-    href: '/sources',
-  },
-  {
-    label: C.linkSupport,
-    detail: C.linkSupportDetail,
-    icon: 'aide',
-    href: '/support',
-  },
-  {
-    label: C.linkSettings,
-    detail: C.linkSettingsDetail,
-    icon: 'reglages',
-    href: '/parametres',
-  },
+  ...(flags.warRoom ? [{ label: C.linkMissions, icon: 'guerre', href: '/warroom' } as const] : []),
+  { label: C.linkFriends, icon: 'ami', href: '/amis' },
+  { label: C.linkPerformance, icon: 'performance', href: '/performance' },
+  { label: C.linkHistory, icon: 'historique', href: '/historique' },
+  { label: C.linkPrivacy, icon: 'verrou', href: '/confidentialite' },
 ];
 
 export default function ProfilScreen() {
@@ -280,6 +273,9 @@ export default function ProfilScreen() {
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [shareOpen, setShareOpen] = useState(false);
+  /** Spécialisations : 8 familles = 8 lignes hautes. Repliées PAR DÉFAUT
+   *  (retour terrain 20/07 « trop de scroll ») — détails au tap (§A). */
+  const [skillsOpen, setSkillsOpen] = useState(false);
 
   /** Profil ÉDITABLE persisté — l'édition depuis /profil-edit se reflète ici. */
   const { profile } = useMyProfile();
@@ -351,6 +347,30 @@ export default function ProfilScreen() {
   );
   const skillsUnlockedCount = derivedSkills.filter((s) => s.level > 0).length;
 
+  /**
+   * Bandeau de 3 chiffres de la player card (§A r.17 : niveau · rang · zones
+   * tenues). Colonnes de largeur ÉGALE, valeurs en tabular-nums → les chiffres
+   * s'alignent verticalement quel que soit leur nombre de digits.
+   *
+   * ZÉRO MENSONGE : un vrai user ne voit QUE des chiffres réels — les zones
+   * tenues démo (`territory.zonesHeld`, scénario showcase) et le rang de saison
+   * non résolu par le serveur ne s'affichent jamais pour lui ; à la place, le
+   * compteur de badges (user_badges réel) tient la 3ᵉ colonne.
+   */
+  const headerStats: readonly { value: string; label: string }[] = realUser
+    ? [
+        { value: formatInt(runnerLevel), label: t(C.levelWord) },
+        ...(hasRealSeasonRank
+          ? [{ value: `#${formatInt(seasonRank)}`, label: t(C.statRankShort) }]
+          : []),
+        { value: formatInt(unlockedCount), label: t(C.statBadgesShort) },
+      ]
+    : [
+        { value: formatInt(runnerLevel), label: t(C.levelWord) },
+        { value: `#${formatInt(seasonRank)}`, label: t(C.statRankShort) },
+        { value: formatInt(territory.zonesHeld), label: t(C.statZonesHeld) },
+      ];
+
   useEffect(() => {
     screen('profil');
   }, []);
@@ -373,8 +393,18 @@ export default function ProfilScreen() {
       >
         <Icon name="reglages" size={iconSizes.lg} color={colors.blanc} />
       </Pressable>
-      <TabScreen title={profile.displayName} kicker={t(C.kickerPlayerCard)}>
-        {/* ── Player Card compacte : identité + 2 chiffres clés + rang ── */}
+      {/* Titre d'écran = le NOM DE LA PAGE, plus le pseudo : le pseudo était
+          affiché DEUX fois (titre 28 px collé à gauche de l'écran, puis dans la
+          card, décalé de la largeur de l'avatar) — d'où le « rien n'est aligné ».
+          L'identité vit maintenant dans UN seul bloc, la player card. */}
+      <TabScreen title={t(C.tabMe)} kicker={t(C.kickerPlayerCard)}>
+        {/* ── PLAYER CARD (§A r.17) — UNE grille, trois rangées :
+            1. avatar 72 │ colonne texte (pseudo · @handle · titre · niveau/ville)
+            2. crew (pleine largeur, sous la grille — plus une 4ᵉ ligne serrée)
+            3. bandeau de 3 chiffres à colonnes égales, tabular-nums
+            puis les 2 actions légères. Toute la colonne texte partage le MÊME
+            bord gauche et un interligne régulier (gap, plus de marginTop
+            au cas par cas) : c'est ça, la baseline commune. ── */}
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
             {/* Avatar + crayon d'édition ÉVIDENT posé dessus (affordance 1/2) */}
@@ -398,10 +428,16 @@ export default function ProfilScreen() {
               </View>
             </Pressable>
             <View style={styles.headerInfo}>
-              <Text style={styles.handle} numberOfLines={1}>
+              <Text style={styles.name} numberOfLines={1}>
                 {profile.displayName}
               </Text>
-              {/* Titre affiché (cosmétique équipé prioritaire) + level/tier */}
+              {/* @handle — invariant technique, jamais traduit. Directement sous
+                  le nom, même bord gauche : le couple nom/@ se lit d'un bloc. */}
+              <Text style={styles.handle} numberOfLines={1}>
+                @{profile.handle}
+              </Text>
+              {/* Titre affiché (cosmétique équipé prioritaire). Chartreuse sur
+                  surface N1 SOMBRE (elevation.surface = carbone) — jamais clair. */}
               <Text style={styles.title} numberOfLines={1}>
                 {displayedTitle}
               </Text>
@@ -411,20 +447,30 @@ export default function ProfilScreen() {
               <Text style={styles.identity} numberOfLines={2}>
                 {t(C.identityLine, { n: runnerLevel, city: profile.city })}
               </Text>
-              {showCrew ? (
-                <View style={styles.crewRow}>
-                  <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
-                  <Text style={styles.crewName} numberOfLines={1}>
-                    {profile.crewName}
-                  </Text>
-                </View>
-              ) : null}
             </View>
           </View>
-          {/* Bio + stats (zones tenues, rang ville) SORTIES de la surface pour tenir
-              ≤ 3 infos (§A) : les zones tenues sont le héros du module « Mon
-              territoire » juste dessous, le rang vit dans Saison, la bio s'édite via
-              « Modifier profil ». La card ne garde que l'IDENTITÉ. */}
+          {showCrew ? (
+            <View style={styles.crewRow}>
+              <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
+              <Text style={styles.crewName} numberOfLines={1}>
+                {profile.crewName}
+              </Text>
+            </View>
+          ) : null}
+          {/* Bandeau de chiffres — colonnes de largeur égale, valeurs alignées
+              sur une même ligne de base, libellés courts sur une seule ligne. */}
+          <View style={styles.statsStrip}>
+            {headerStats.map((s) => (
+              <View key={s.label} style={styles.statCell}>
+                <Text style={styles.statValue} numberOfLines={1}>
+                  {s.value}
+                </Text>
+                <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="clip">
+                  {s.label}
+                </Text>
+              </View>
+            ))}
+          </View>
           {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
               de gros rectangle. Le seul gros CTA chartreuse de l'écran est l'action
               CONTEXTUELLE du territoire (Défendre / Conquérir), pas l'édition de profil.
@@ -712,13 +758,24 @@ export default function ProfilScreen() {
             icône + « <name> <roman> · <value> <unité> » + jauge de progression.
             Verrouillé (niveau 0) → « commence à <seuil I> ». Anti pay-to-win :
             AUCUN gain de territoire/points affiché (Supporter = entraide only). */}
-        <View style={styles.sectionRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: skillsOpen }}
+          accessibilityLabel={t(C.a11yToggleSection, { section: t(C.sectionSkills) })}
+          onPress={() => setSkillsOpen((v) => !v)}
+          style={({ pressed }) => [styles.sectionRow, pressed && styles.dim]}
+        >
           <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>{t(C.sectionSkills)}</Text>
-          <Text style={styles.sectionRowCount}>{skillsUnlockedCount}/{SKILLS.length}</Text>
-        </View>
+          <Text style={styles.sectionRowCount}>
+            {skillsUnlockedCount}/{SKILLS.length}
+          </Text>
+          <View style={skillsOpen ? styles.chevronOpen : styles.chevronClosed}>
+            <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
+          </View>
+        </Pressable>
         <View style={styles.skillsBlock}>
-          {derivedSkills.map((s) => {
+          {(skillsOpen ? derivedSkills : []).map((s) => {
             const locked = s.level === 0;
             const roman = s.level > 0 ? SKILL_ROMAN[s.level - 1] : null;
             // Roman du PROCHAIN niveau (défini seulement si non maxé → index ≤ 2).
@@ -737,7 +794,11 @@ export default function ProfilScreen() {
                       <Text style={styles.skillLocked}>{s.def.name}</Text>
                     ) : (
                       <>
-                        {s.def.name}{' '}
+                        {/* Retour terrain 20/07 : le NOM d'une spécialisation
+                            débloquée passe en chartreuse (comme son icône) —
+                            fond = espace N0 (colors.noir), donc jamais de
+                            chartreuse sur clair. Verrouillé = gris. */}
+                        <Text style={styles.skillNameUnlocked}>{s.def.name}</Text>{' '}
                         <Text style={styles.skillRoman}>{roman}</Text>
                       </>
                     )}
@@ -781,24 +842,16 @@ export default function ProfilScreen() {
         <Text style={styles.sectionLabel}>{t(C.sectionShortcuts)}</Text>
         {LINKS.map((link) => (
           <Pressable
-            key={link.href ?? link.icon}
+            key={link.href}
             accessibilityRole="button"
             accessibilityLabel={t(link.label)}
-            disabled={link.href === undefined}
-            onPress={() => {
-              if (link.href !== undefined) router.push(link.href);
-              else if (__DEV__) console.log(`[profil] ${t(link.label)} — écran à venir (O1)`);
-            }}
-            style={({ pressed }) => [
-              styles.linkRow,
-              pressed && link.href !== undefined && styles.dim,
-            ]}
+            onPress={() => router.push(link.href)}
+            style={({ pressed }) => [styles.linkRow, pressed && styles.dim]}
           >
-            <Icon name={link.icon} size={20} color={colors.blanc} />
-            <View style={styles.linkInfo}>
-              <Text style={styles.linkLabel}>{t(link.label)}</Text>
-              <Text style={styles.linkDetail}>{t(link.detail)}</Text>
-            </View>
+            <Icon name={link.icon} size={iconSizes.md} color={colors.blanc} />
+            <Text style={styles.linkLabel} numberOfLines={1}>
+              {t(link.label)}
+            </Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
         ))}
@@ -841,7 +894,9 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  headerInfo: { flex: 1 },
+  // Colonne texte : UN seul bord gauche, UN interligne régulier (gap) — plus de
+  // marginTop au cas par cas (3 px ici, spacing.xxs là) qui désalignait tout.
+  headerInfo: { flex: 1, gap: spacing.xxs },
   // Avatar pressable + pastille crayon (édition évidente sur la card). Variante
   //  SURFACE/contour chartreuse (pas un disque plein) : le SEUL chartreuse plein
   //  de la scène reste le gros CTA territoire (charte : un seul accent plein).
@@ -859,16 +914,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  handle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', letterSpacing: 0.3 },
+  // Nom affiché — le seul texte « lourd » de la colonne (hiérarchie 1).
+  name: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    lineHeight: fontSizes.lg * 1.15,
+  },
+  // @handle — gris, juste sous le nom, MÊME bord gauche (hiérarchie 2).
+  handle: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    lineHeight: fontSizes.sm * 1.2,
+  },
+  // Titre cosmétique — chartreuse sur surface N1 SOMBRE (carbone), jamais clair.
   title: {
     color: colors.chartreuse,
     fontSize: fontSizes.xs,
     fontWeight: '700',
-    marginTop: 3,
     letterSpacing: 0.3,
+    lineHeight: fontSizes.xs * 1.25,
   },
-  identity: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs, letterSpacing: 0.3 },
-  crewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  identity: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.3,
+    lineHeight: fontSizes.xs * 1.3,
+  },
+  // Crew : rangée pleine largeur SOUS la grille avatar/texte (plus une 4ᵉ ligne
+  // serrée dans la colonne) — le blason s'aligne sur le bord de la card.
+  crewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   crewName: {
     flex: 1,
     color: colors.blanc,
@@ -876,6 +954,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.4,
   },
+  // Bandeau de chiffres — colonnes ÉGALES, filet haut discret, tabular-nums :
+  // les valeurs restent alignées quel que soit le nombre de digits.
+  statsStrip: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: borderState.hairline,
+    paddingTop: spacing.sm,
+  },
+  statCell: { flex: 1, gap: 2 },
+  statValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    fontVariant: ['tabular-nums'],
+  },
+  statLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
   // Actions légères (IconAction) — rangée répartie, sans gros rectangle.
   headerActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: 28 },
   shareCardWrap: { marginTop: 14 },
@@ -889,6 +984,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
+  // Chevron d'accordéon : « > » au repos, « v » ouvert (l'icône `chevron` du set
+  // pointe à droite — on la fait pivoter, pas de second tracé à inventer).
+  chevronClosed: { marginLeft: spacing.xs },
+  chevronOpen: { marginLeft: spacing.xs, transform: [{ rotate: '90deg' }] },
 
   // ── MODULE Territoire = résumé stratégique (AMENDEMENT-18 Partie B).
   //    Surface N1 unique, sans contour (80/20) — sa CTA contextuelle porte le
@@ -1101,6 +1200,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
+  // Nom d'une spécialisation DÉBLOQUÉE : chartreuse, comme son icône (retour
+  // terrain 20/07). Fond = espace N0 sombre → contraste conforme.
+  skillNameUnlocked: { color: colors.chartreuse, fontWeight: '700' },
   skillRoman: { color: colors.chartreuse, fontWeight: '800' },
   skillMeta: {
     color: colors.gris,
@@ -1125,19 +1227,20 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: spacing.sm,
   },
-  // PLUS = liste de navigation LÉGÈRE (façon Strava) : rows posées sur l'espace,
-  //  séparées par un filet neutre (borderState.hairline), PAS une card par lien.
+  // RACCOURCIS = liste de navigation LÉGÈRE (façon Strava) : rows posées sur
+  //  l'espace, séparées par un filet neutre, PAS une card par lien. UNE seule
+  //  ligne de texte par row (le sous-titre descriptif est supprimé) → cible de
+  //  tap toujours ≥ 44 px grâce au minHeight, moitié moins de scroll.
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingVertical: 15,
+    minHeight: sizes.touchTarget,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xxs,
     borderBottomWidth: 1,
     borderBottomColor: borderState.hairline,
   },
-  linkInfo: { flex: 1 },
-  linkLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  linkDetail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 3 },
+  linkLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
   signOutWrap: { marginTop: 18 },
 });

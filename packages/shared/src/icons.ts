@@ -48,11 +48,32 @@ export const ICONS = {
   /** Historique — horloge. */
   historique: { paths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 7v5l3.5 2'] },
   /** Réglages — engrenage épuré. */
+  /**
+   * Réglages — ENGRENAGE (retour terrain 20/07 : « pourquoi le menu c'est une
+   * icône soleil ? pas du tout intuitif »). L'ancien tracé était littéralement
+   * un soleil (disque + 8 rayons droits détachés) : rien n'y disait
+   * « paramètres ». Ici : couronne dentée FERMÉE (8 dents trapézoïdales sur le
+   * pourtour) + moyeu — la forme universellement lue comme un réglage.
+   */
   reglages: {
     paths: [
-      'M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
-      'M12 2.5v3', 'M12 18.5v3', 'M2.5 12h3', 'M18.5 12h3',
-      'M5 5l2.1 2.1', 'M16.9 16.9 19 19', 'M19 5l-2.1 2.1', 'M7.1 16.9 5 19',
+      'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+      'M13.4 2.6a.8.8 0 0 0-.8-.6h-1.2a.8.8 0 0 0-.8.6l-.3 1.8a8 8 0 0 0-1.7.7L7.1 4.4a.8.8 0 0 0-1 .1L5.2 5.4a.8.8 0 0 0-.1 1l1.1 1.5a8 8 0 0 0-.7 1.7l-1.8.3a.8.8 0 0 0-.6.8v1.2a.8.8 0 0 0 .6.8l1.8.3a8 8 0 0 0 .7 1.7l-1.1 1.5a.8.8 0 0 0 .1 1l.9.9a.8.8 0 0 0 1 .1l1.5-1.1a8 8 0 0 0 1.7.7l.3 1.8a.8.8 0 0 0 .8.6h1.2a.8.8 0 0 0 .8-.6l.3-1.8a8 8 0 0 0 1.7-.7l1.5 1.1a.8.8 0 0 0 1-.1l.9-.9a.8.8 0 0 0 .1-1l-1.1-1.5a8 8 0 0 0 .7-1.7l1.8-.3a.8.8 0 0 0 .6-.8v-1.2a.8.8 0 0 0-.6-.8l-1.8-.3a8 8 0 0 0-.7-1.7l1.1-1.5a.8.8 0 0 0-.1-1l-.9-.9a.8.8 0 0 0-1-.1l-1.5 1.1a8 8 0 0 0-1.7-.7l-.3-1.8z',
+    ],
+  },
+  /**
+   * Basket de running — l'icône du DÉPART (override fondateur 20/07 : le bouton
+   * GO portait `foulees`, la MONNAIE du jeu : contresens total sur l'action la
+   * plus importante de l'app). Profil de chaussure : semelle épaisse, tige,
+   * languette, lacets — lisible à 26 px.
+   */
+  basket: {
+    paths: [
+      'M3 17.5h18a1 1 0 0 0 1-1v-.6c0-.9-.6-1.7-1.5-1.9l-5.2-1.3a3 3 0 0 1-1.3-.7l-2.6-2.4a2 2 0 0 0-1.4-.6H8.2a2 2 0 0 0-2 2v5',
+      'M3 17.5v1.3a1 1 0 0 0 1 1h16.5a1.5 1.5 0 0 0 1.5-1.5v-.8',
+      'M6.2 12.6h4',
+      'M11.2 10.2l-1.6 1.6',
+      'M13.6 12.4l-1.7 1.7',
     ],
   },
   /** Partage. */

@@ -26,9 +26,24 @@ interface StackScreenProps {
   /** Parent de repli si l'écran n'a pas d'historique (défaut : les onglets). */
   backHref?: Href;
   children: ReactNode;
+  /**
+   * Couche FLOTTANTE rendue HORS du ScrollView (donc fixe à l'écran) : barre
+   * « Enregistrer / Annuler » qui suit le clavier, toast, etc. Sans cette porte
+   * de sortie, un élément positionné en absolu passé dans `children` se cale
+   * sur le CONTENU scrollable et défile avec lui — il ne serait pas fixe.
+   */
+  floating?: ReactNode;
 }
 
-export function StackScreen({ title, icon, kicker, subtitle, backHref, children }: StackScreenProps) {
+export function StackScreen({
+  title,
+  icon,
+  kicker,
+  subtitle,
+  backHref,
+  children,
+  floating,
+}: StackScreenProps) {
   const insets = useSafeAreaInsets();
   const t = useT();
   return (
@@ -69,6 +84,7 @@ export function StackScreen({ title, icon, kicker, subtitle, backHref, children 
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         {children}
       </ScrollView>
+      {floating}
     </View>
   );
 }

@@ -18,7 +18,17 @@
  * compté même quand une course est masquée).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -431,6 +441,11 @@ export default function ConfidentialiteScreen() {
           placeholderTextColor={colors.gris}
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="done"
+          // Les actions (Signaler / Bloquer) sont SOUS le clavier pendant la
+          // saisie (retour terrain 20/07) : « Done » referme le clavier et les
+          // rend atteignables, sans quitter le champ ni perdre la saisie.
+          onSubmitEditing={() => Keyboard.dismiss()}
           style={styles.pseudoInput}
         />
         <Text style={styles.miniLabel}>{t(C.motifSignalement)}</Text>

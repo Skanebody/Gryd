@@ -215,6 +215,30 @@ export const C = defineCatalog({
     de: 'Route planen — den Routenplaner öffnen',
     pt: 'Planejar uma rota — abrir o planejador de rotas',
   },
+  // Barre « Sauvegarder / Annuler » qui suit le clavier (retour terrain 20/07 :
+  // le CTA de sauvegarde était caché par le clavier dès qu'on tapait du texte).
+  // Labels COURTS : la barre est étroite, rien ne doit être tronqué (§A).
+  saveBarQuestion: {
+    fr: 'Enregistrer les modifications ?',
+    en: 'Save your changes?',
+    es: '¿Guardar los cambios?',
+    de: 'Änderungen speichern?',
+    pt: 'Salvar as alterações?',
+  },
+  saveBarSave: {
+    fr: 'Enregistrer',
+    en: 'Save',
+    es: 'Guardar',
+    de: 'Speichern',
+    pt: 'Salvar',
+  },
+  saveBarCancel: {
+    fr: 'Annuler',
+    en: 'Cancel',
+    es: 'Cancelar',
+    de: 'Abbrechen',
+    pt: 'Cancelar',
+  },
   // « Où est mon run » (fiabilité 21/07) : le slot pendingUpload rendu VISIBLE.
   pendingRunNote: {
     fr: '1 course à synchroniser — toucher pour envoyer',

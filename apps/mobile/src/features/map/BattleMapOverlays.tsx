@@ -405,11 +405,15 @@ export function BattleMapOverlays({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* ── Droite : UN menu « Outils » (demande fondateur). Par défaut la carte ne
-          montre qu'UN bouton déclencheur ; au tap il révèle les 3 contrôles
-          INDÉPENDANTS (Calques, Recentrer, Carte nue), et se referme au re-tap ou
-          après usage d'un one-shot. Le déclencheur reste TOUJOURS visible (dernier
-          de la pile = en bas, sous le pouce) — même en carte nue, pour tout ramener. ── */}
+      {/* ── Droite : DEUX boutons permanents (retour terrain 20/07 : « il manque un
+          bouton sur la carte pour revenir à ma position exacte à chaque fois »).
+          RECENTRER est l'action la plus fréquente d'une carte de running — elle
+          était enterrée dans le menu Outils : 2 taps pour se retrouver, alors
+          qu'on la cherche en courant, à une main. Elle passe donc au 1er niveau,
+          juste au-dessus du déclencheur Outils (qui garde Calques / Carte nue).
+          Total = 2 FABs permanents : la limite d'AMENDEMENT-37 est respectée à
+          l'unité près. Le déclencheur reste le dernier de la pile (en bas, sous
+          le pouce) — même en carte nue, pour tout ramener. ── */}
       <View
         style={[styles.fabColumn, { bottom: fabBottom }]}
         pointerEvents="box-none"
@@ -444,11 +448,6 @@ export function BattleMapOverlays({
                 setLayersOpen((v) => !v);
               }}
             />
-            <FloatingMapButton
-              icon="gps"
-              accessibilityLabel={t(C.recenterA11y)}
-              onPress={recenterAndClose}
-            />
             {/* Bascule CARTE NUE — `active` = HUD affiché ; tap = masquer/afficher le HUD. */}
             <FloatingMapButton
               icon="info"
@@ -458,8 +457,16 @@ export function BattleMapOverlays({
             />
           </>
         ) : null}
+        {/* RECENTRER — PERMANENT (retour terrain 20/07). L'action la plus
+            fréquente d'une carte de running : « où suis-je ? » se répond en 1 tap,
+            à une main, en courant. Ferme le menu Outils s'il est ouvert. */}
+        <FloatingMapButton
+          icon="gps"
+          accessibilityLabel={t(C.recenterA11y)}
+          onPress={recenterAndClose}
+        />
         {/* Déclencheur du menu Outils — toujours visible. Ouvert = ✕ (referme),
-            fermé = ⚙ (ouvre). Un seul bouton sur la carte au repos. */}
+            fermé = ⚙ (ouvre, engrenage désormais lisible comme tel). */}
         <FloatingMapButton
           icon={toolsOpen ? 'fermer' : 'reglages'}
           accessibilityLabel={toolsOpen ? t(C.toolsCloseA11y) : t(C.toolsOpenA11y)}

@@ -11,6 +11,16 @@ import { defineCatalog } from '../types';
 
 export const C = defineCatalog({
   // ─── Onglet Profil : header / player card ──────────────────────────────────
+  /** Titre d'écran = le NOM DE LA PAGE (« Moi »), pas le pseudo : le pseudo vit
+   *  DANS la player card, aligné avec l'avatar et le @handle (retour terrain
+   *  20/07 : « le bloc du haut, rien n'est aligné »). */
+  tabMe: {
+    fr: 'Moi',
+    en: 'Me',
+    es: 'Yo',
+    de: 'Ich',
+    pt: 'Eu',
+  },
   kickerPlayerCard: {
     fr: 'CARTE DE JOUEUR',
     en: 'PLAYER CARD',
@@ -75,6 +85,28 @@ export const C = defineCatalog({
     es: 'Nivel',
     de: 'Level',
     pt: 'Nível',
+  },
+  // ─── Player card : bandeau de 3 chiffres (labels COURTS, une seule ligne) ──
+  statZonesHeld: {
+    fr: 'Zones tenues',
+    en: 'Zones held',
+    es: 'Zonas tomadas',
+    de: 'Zonen gehalten',
+    pt: 'Zonas mantidas',
+  },
+  statRankShort: {
+    fr: 'Rang saison',
+    en: 'Season rank',
+    es: 'Rango temp.',
+    de: 'Saisonrang',
+    pt: 'Rank temporada',
+  },
+  statBadgesShort: {
+    fr: 'Badges',
+    en: 'Badges',
+    es: 'Insignias',
+    de: 'Abzeichen',
+    pt: 'Insígnias',
   },
   statSeasonRank: {
     fr: 'Rang saison · {scope}',
@@ -182,6 +214,14 @@ export const C = defineCatalog({
   },
 
   // ─── Onglet Profil : spécialisations ───────────────────────────────────────
+  /** Accordéon : une seule Entry pour toutes les sections repliables. */
+  a11yToggleSection: {
+    fr: 'Afficher ou masquer {section}',
+    en: 'Show or hide {section}',
+    es: 'Mostrar u ocultar {section}',
+    de: '{section} ein- oder ausblenden',
+    pt: 'Mostrar ou ocultar {section}',
+  },
   sectionSkills: {
     fr: 'SPÉCIALISATIONS',
     en: 'SPECIALIZATIONS',
@@ -212,6 +252,12 @@ export const C = defineCatalog({
   },
 
   // ─── Onglet Profil : raccourcis ────────────────────────────────────────────
+  // Retour terrain 20/07 : les raccourcis qui FAISAIENT DOUBLON avec le bouton
+  // Paramètres (engrenage, haut-droit) ont été RETIRÉS — Arsenal, Sources
+  // connectées, Support et Paramètres lui-même vivent déjà dans /parametres
+  // (SETTINGS_GROUPS). Il ne reste que les destinations de JEU, en une ligne
+  // chacune (le sous-titre descriptif est supprimé : il doublait la hauteur
+  // sans rien apprendre — « Historique de courses » se comprend seul).
   sectionShortcuts: {
     fr: 'RACCOURCIS',
     en: 'SHORTCUTS',
@@ -226,26 +272,12 @@ export const C = defineCatalog({
     de: 'Saison',
     pt: 'Temporada',
   },
-  linkSeasonDetail: {
-    fr: 'Classement, rang, récompenses de fin',
-    en: 'Leaderboard, rank, end-of-season rewards',
-    es: 'Clasificación, rango, recompensas finales',
-    de: 'Rangliste, Rang, Endbelohnungen',
-    pt: 'Classificação, rank, recompensas finais',
-  },
   linkMissions: {
     fr: 'Missions',
     en: 'Missions',
     es: 'Misiones',
     de: 'Missionen',
     pt: 'Missões',
-  },
-  linkMissionsDetail: {
-    fr: 'Défense, conquête, coffre du crew',
-    en: 'Defense, conquest, crew chest',
-    es: 'Defensa, conquista, cofre del crew',
-    de: 'Verteidigung, Eroberung, Crew-Truhe',
-    pt: 'Defesa, conquista, baú do crew',
   },
   linkFriends: {
     fr: 'Mes amis',
@@ -254,26 +286,12 @@ export const C = defineCatalog({
     de: 'Meine Freunde',
     pt: 'Meus amigos',
   },
-  linkFriendsDetail: {
-    fr: 'Amis, demandes, suggestions, QR',
-    en: 'Friends, requests, suggestions, QR',
-    es: 'Amigos, solicitudes, sugerencias, QR',
-    de: 'Freunde, Anfragen, Vorschläge, QR',
-    pt: 'Amigos, pedidos, sugestões, QR',
-  },
   linkPerformance: {
     fr: 'Performance',
     en: 'Performance',
     es: 'Rendimiento',
     de: 'Leistung',
     pt: 'Desempenho',
-  },
-  linkPerformanceDetail: {
-    fr: 'Score Forme, records, impact GRYD',
-    en: 'Form Score, records, GRYD impact',
-    es: 'Score Forma, récords, impacto GRYD',
-    de: 'Form-Score, Rekorde, GRYD-Impact',
-    pt: 'Score de Forma, recordes, impacto GRYD',
   },
   linkHistory: {
     fr: 'Historique de courses',
@@ -282,83 +300,12 @@ export const C = defineCatalog({
     de: 'Lauf-Historie',
     pt: 'Histórico de corridas',
   },
-  linkHistoryDetail: {
-    fr: 'Toutes tes conquêtes',
-    en: 'All your conquests',
-    es: 'Todas tus conquistas',
-    de: 'Alle deine Eroberungen',
-    pt: 'Todas as suas conquistas',
-  },
   linkPrivacy: {
     fr: 'Confidentialité & géoloc',
     en: 'Privacy & location',
     es: 'Privacidad y ubicación',
     de: 'Privatsphäre & Standort',
     pt: 'Privacidade e localização',
-  },
-  linkPrivacyDetail: {
-    fr: 'Qui voit quoi, masquer départ/arrivée, couper le live',
-    en: 'Who sees what, hide start/finish, turn off live',
-    es: 'Quién ve qué, ocultar salida/llegada, apagar el live',
-    de: 'Wer was sieht, Start/Ziel verbergen, Live aus',
-    pt: 'Quem vê o quê, ocultar partida/chegada, desligar o live',
-  },
-  linkArsenal: {
-    fr: 'Arsenal',
-    en: 'Arsenal',
-    es: 'Arsenal',
-    de: 'Arsenal',
-    pt: 'Arsenal',
-  },
-  linkArsenalDetail: {
-    fr: 'Skins, objets capés, GRYD Club',
-    en: 'Skins, capped items, GRYD Club',
-    es: 'Skins, objetos limitados, GRYD Club',
-    de: 'Skins, limitierte Items, GRYD Club',
-    pt: 'Skins, itens limitados, GRYD Club',
-  },
-  linkSources: {
-    fr: 'Sources connectées',
-    en: 'Connected sources',
-    es: 'Fuentes conectadas',
-    de: 'Verbundene Quellen',
-    pt: 'Fontes conectadas',
-  },
-  // Marques uniquement — identique dans les 5 langues.
-  linkSourcesDetail: {
-    fr: 'GPS, Apple Health, Strava, WHOOP…',
-    en: 'GPS, Apple Health, Strava, WHOOP…',
-    es: 'GPS, Apple Health, Strava, WHOOP…',
-    de: 'GPS, Apple Health, Strava, WHOOP…',
-    pt: 'GPS, Apple Health, Strava, WHOOP…',
-  },
-  linkSupport: {
-    fr: 'Support course',
-    en: 'Run support',
-    es: 'Soporte de carrera',
-    de: 'Lauf-Support',
-    pt: 'Suporte de corrida',
-  },
-  linkSupportDetail: {
-    fr: 'Course non comptée, signalement, données',
-    en: 'Uncounted run, reports, data',
-    es: 'Carrera no contada, reportes, datos',
-    de: 'Nicht gezählter Lauf, Meldung, Daten',
-    pt: 'Corrida não contada, denúncia, dados',
-  },
-  linkSettings: {
-    fr: 'Paramètres',
-    en: 'Settings',
-    es: 'Ajustes',
-    de: 'Einstellungen',
-    pt: 'Configurações',
-  },
-  linkSettingsDetail: {
-    fr: 'Notifications, compte, carte, crew',
-    en: 'Notifications, account, map, crew',
-    es: 'Notificaciones, cuenta, mapa, crew',
-    de: 'Mitteilungen, Konto, Karte, Crew',
-    pt: 'Notificações, conta, mapa, crew',
   },
   signOut: {
     fr: 'Se déconnecter',

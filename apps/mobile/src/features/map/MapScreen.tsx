@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { Icon } from '../../ui/Icon';
 import {
@@ -131,7 +131,7 @@ function buildMarkers(
   emph: ModeEmphasis,
   showMissions: boolean,
   showAllies: boolean,
-  ego: LatLngPoint,
+  ego: LatLngPoint | null,
   demoOverlays: boolean,
 ): RealMapMarker[] {
   const markers: RealMapMarker[] = [];
@@ -210,13 +210,17 @@ function buildMarkers(
     }
   }
 
-  // ── Moi — TOUJOURS présent, peint en dernier (au-dessus de tout) ───────────
-  markers.push({
-    id: 'ego',
-    lng: ego.lng,
-    lat: ego.lat,
-    children: <EgoMarker />,
-  });
+  // ── Moi — peint en dernier (au-dessus de tout), UNIQUEMENT si on sait où je
+  // suis. `ego` null = pas encore de fix (ou permission refusée) : on ne pose
+  // AUCUN point « moi » — un dot posé sur un lieu inventé serait un mensonge.
+  if (ego) {
+    markers.push({
+      id: 'ego',
+      lng: ego.lng,
+      lat: ego.lat,
+      children: <EgoMarker />,
+    });
+  }
   return markers;
 }
 
@@ -235,38 +239,50 @@ export function MapScreen() {
   const mapRef = useRef<RealMapRef>(null);
 
   /**
-   * POSITION RÉELLE (retour terrain fondateur : « je suis à Ouville-la-Rivière,
-   * la carte me met à République »). Sur natif : une lecture ponctuelle au
-   * montage (Balanced — pas de watch BestForNavigation sur un onglet passif),
-   * la caméra VOLE vers le vrai point au premier fix, et EGO est peint là.
-   * Permission manquante ou échec → fallback EGO_CAMERA (République), comme la
-   * vitrine. Web : jamais de géoloc (vitrine assumée).
+   * POSITION RÉELLE (retour terrain fondateur 20/07 : « quand je démarre il met
+   * encore à République » alors qu'il court en Normandie).
+   *
+   * L'ancienne version initialisait egoPos à EGO_CAMERA (République) et passait
+   * `camera={EGO_CAMERA}` en dur : sur natif la carte OUVRAIT donc sur Paris —
+   * un lieu inventé présenté comme la position du joueur — puis tentait un flyTo
+   * impératif à l'arrivée du fix. Ce flyTo était de surcroît perdu au moindre
+   * remontage de RealMap (`key={basemap}-${specRev}` : le patch des labels
+   * localisés remonte la carte dans les premières secondes) → retour à Paris,
+   * définitif car `centeredOnRealRef` était déjà consommé.
+   *
+   * Nouveau contrat, natif : `null` tant qu'aucun VRAI fix n'est arrivé. Aucune
+   * position par défaut, donc AUCUN point « moi » et AUCUNE caméra Paris — la
+   * carte ouvre sur la vue neutre monde de RealMap (camera undefined) et se
+   * cadre sur le joueur DÈS le premier fix. Permission absente (GO-first : on ne
+   * la demande pas ici) ou lecture en échec ⇒ on reste sur la vue neutre, jamais
+   * un faux Paris. Web : vitrine assumée, ego = République.
    */
-  const [egoPos, setEgoPos] = useState<LatLngPoint>({ lat: EGO_CAMERA.lat, lng: EGO_CAMERA.lng });
-  /** True dès qu'un VRAI fix a remplacé le fallback République. */
-  const [hasRealFix, setHasRealFix] = useState(false);
-  /** True quand le style natif est chargé — un flyTo AVANT est perdu (terrain 20/07 : caméra restée à Paris). */
-  const [mapReady, setMapReady] = useState(isShowcasePlatform);
-  const centeredOnRealRef = useRef(false);
+  const [egoPos, setEgoPos] = useState<LatLngPoint | null>(
+    isShowcasePlatform ? { lat: EGO_CAMERA.lat, lng: EGO_CAMERA.lng } : null,
+  );
   useEffect(() => {
     if (isShowcasePlatform) return;
     let cancelled = false;
     void getCurrentPositionOnce().then((fix) => {
       if (cancelled || !fix) return;
       setEgoPos({ lat: fix.lat, lng: fix.lng });
-      setHasRealFix(true);
     });
     return () => {
       cancelled = true;
     };
   }, []);
-  // Recentrage initial : SEULEMENT quand la carte est prête ET la position
-  // connue — peu importe l'ordre d'arrivée des deux.
-  useEffect(() => {
-    if (!mapReady || !hasRealFix || centeredOnRealRef.current) return;
-    centeredOnRealRef.current = true;
-    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
-  }, [mapReady, hasRealFix, egoPos]);
+
+  /**
+   * Caméra d'OUVERTURE, DÉCLARATIVE (plus aucun flyTo initial impératif) : elle
+   * suit egoPos, donc elle survit aux remontages de RealMap (basemap/specRev) —
+   * c'était la cause du retour à Paris. `undefined` = vue neutre monde côté
+   * RealMap (WORLD_FALLBACK_CAMERA) : honnête tant qu'on ne sait pas où est le
+   * joueur. EGO_CAMERA (République) ne sert plus qu'à la VITRINE web.
+   */
+  const openCamera = useMemo(
+    () => (egoPos ? { ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng } : undefined),
+    [egoPos],
+  );
 
   const { points, summary } = useMemo(() => {
     const data = battleMapData();
@@ -367,6 +383,8 @@ export function MapScreen() {
       return;
     }
     // go / view_map / complete… : la carte EST l'écran d'action (GO flottant).
+    // Sans position connue on ne vole nulle part (jamais un retour vers Paris).
+    if (!egoPos) return;
     mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
   }, [egoPos]);
 
@@ -406,7 +424,12 @@ export function MapScreen() {
    * `world`, gérée côté MapLibre par le maxzoom de territoryDotLayers. L'état ne
    * change qu'au franchissement d'un seuil (pas de re-render par frame).
    */
-  const [band, setBand] = useState<ZoomBand>(() => zoomBand(EGO_CAMERA.zoom));
+  // Bande INITIALE = celle de la caméra d'ouverture réelle : vitrine = échelle
+  // coureur (EGO_CAMERA), natif = vue neutre monde tant qu'aucun fix n'est
+  // arrivé. onZoomChange prend le relais dès la première région rendue.
+  const [band, setBand] = useState<ZoomBand>(() =>
+    isShowcasePlatform ? zoomBand(EGO_CAMERA.zoom) : 'world',
+  );
   const onZoomChange = useCallback((zoom: number) => {
     setBand(zoomBand(zoom));
   }, []);
@@ -433,7 +456,9 @@ export function MapScreen() {
       mapRef.current?.flyTo(EGO_CAMERA);
       return;
     }
-    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
+    // Natif : on vole vers la DERNIÈRE position connue si elle existe (jamais
+    // vers République), puis on rafraîchit — l'utilisateur a pu se déplacer.
+    if (egoPos) mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
     void getCurrentPositionOnce().then((fix) => {
       if (!fix) return;
       setEgoPos({ lat: fix.lat, lng: fix.lng });
@@ -449,12 +474,11 @@ export function MapScreen() {
       <RealMap
         key={`${basemap}-${specRev}`}
         ref={mapRef}
-        camera={EGO_CAMERA}
+        camera={openCamera}
         geojsonLayers={layers}
         pointLayers={cityDotLayers}
         markers={markers}
         onZoomChange={onZoomChange}
-        onStyleLoaded={() => setMapReady(true)}
         onPress={onMapPress}
         attributionCompact={false}
         basemap={basemap}
@@ -468,23 +492,32 @@ export function MapScreen() {
           jamais confondus :
           • échec de chargement → on ne prétend PAS que tu n'as rien capturé ;
           • démo (pas de session/backend) → étiquetée, jamais de faux réel ;
-          • réel et vide → on nomme le vide au lieu de le laisser passer pour un bug.
-          Aucun CTA (§A — 1 écran = 1 décision, le bouton GO est déjà l'action). ── */}
+          • réel et vide → on donne l'ACTION, qui dit le vide sans le laisser passer
+            pour un bug.
+          Aucun CTA (§A — 1 écran = 1 décision, le bouton GO est déjà l'action) : la
+          pill est une PHRASE, pas un bouton (pointerEvents none, aucun tap). ── */}
       {(failed || !isReal || territories?.length === 0) && (
-        <Text
+        <View
           style={[
             styles.dataNote,
             { bottom: insets.bottom + RUN_BUTTON_BOTTOM + DATA_NOTE_ABOVE_RUN_BOTTOM },
           ]}
-          accessibilityRole="text"
+          pointerEvents="none"
         >
-          {/* Natif sans session : on ne peint AUCUNE démo (paintedTerritories=[]),
-              donc la note « démonstration » serait fausse — le vrai état est
-              « pas de compte connecté ». Les autres cas gardent dataNote. */}
-          {!isShowcasePlatform && !isReal && !failed
-            ? 'Connecte-toi pour voir et capturer tes zones.'
-            : dataNote(isReal, failed, territories?.length ?? 0)}
-        </Text>
+          <Text
+            style={styles.dataNoteText}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            accessibilityRole="text"
+          >
+            {/* Natif sans session : on ne peint AUCUNE démo (paintedTerritories=[]),
+                donc la note « démonstration » serait fausse — le vrai état est
+                « pas de compte connecté ». Les autres cas gardent dataNote. */}
+            {!isShowcasePlatform && !isReal && !failed
+              ? 'Connecte-toi pour capturer'
+              : dataNote(isReal, failed, territories?.length ?? 0)}
+          </Text>
+        </View>
       )}
 
       {/* ── Attribution relogée au-dessus de la nav (obligation légale) —
@@ -593,14 +626,26 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     fontSize: 9,
   },
-  // Note d'honnêteté : lisible sans voler la vedette à la carte. Gris sur fond
-  // sombre (jamais chartreuse : réservée à l'action, et illisible sur clair).
+  // Note d'honnêteté : une PILL centrée, pas un bandeau pleine largeur (retour
+  // terrain « le bloc est trop large »). Même famille que styles.pendingNote de
+  // l'onglet Aujourd'hui. Largeur = celle du texte, plafonnée à 86 % : elle ne
+  // s'étire jamais d'un bord à l'autre et ne masque pas la carte. Blanc sur
+  // carbone (jamais chartreuse : réservée à l'action, et illisible sur clair).
   dataNote: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    color: colors.gris,
+    alignSelf: 'center',
+    maxWidth: '86%',
+    backgroundColor: colors.carbone,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.grisLigne,
+  },
+  dataNoteText: {
+    color: colors.blanc,
     fontSize: fontSizes.xs,
+    fontWeight: '600',
   },
 });
 

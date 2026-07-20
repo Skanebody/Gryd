@@ -12,7 +12,7 @@
  * anti-shame (bio jamais imposée). Analytics : screen('profil_edit').
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { flags } from '../src/lib/flags';
 import { goBack } from '../src/lib/nav';
@@ -32,6 +32,7 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
+import { KeyboardSaveBar } from '../src/ui/KeyboardSaveBar';
 import { InlineRunCTA } from '../src/ui/game';
 import { BadgeHex } from '../src/features/badges/BadgeHex';
 import { badgeById, badgeColor } from '../src/features/badges/catalog';
@@ -138,6 +139,24 @@ export default function ProfilEditScreen() {
     void equip(key); // persiste + met à jour l'aperçu ET la Player Card
   };
 
+  /**
+   * Annuler (barre clavier) : on RÉTABLIT les valeurs d'origine et on ferme le
+   * clavier — on ne quitte PAS l'écran. Le joueur qui s'est trompé de champ
+   * reprend son édition ; celui qui veut vraiment sortir a la flèche retour.
+   */
+  const onCancelEdits = () => {
+    haptics.light();
+    setDisplayName(editable.displayName);
+    setHandle(editable.handle);
+    setTitle(editable.title);
+    setCity(editable.city);
+    setBio(editable.bio);
+    setAvatarColor(editable.avatarColor);
+    setAvatarInitials(editable.avatarInitials);
+    setFeaturedBadgeIds(editable.featuredBadgeIds);
+    Keyboard.dismiss();
+  };
+
   const onSave = () => {
     if (!canSave) return;
     // InlineRunCTA déclenche déjà haptics au press.
@@ -157,7 +176,24 @@ export default function ProfilEditScreen() {
   };
 
   return (
-    <StackScreen title={t(C.editMyProfile)} icon="profil" kicker={t(C.editKicker)}>
+    <StackScreen
+      title={t(C.editMyProfile)}
+      icon="profil"
+      kicker={t(C.editKicker)}
+      /* Barre qui SUIT LE CLAVIER (retour terrain 20/07) : dès qu'une valeur
+         change, « Enregistrer les modifications ? » se pose au-dessus du
+         clavier. Le CTA de pied de page devenait inatteignable pendant la
+         saisie — une modification tapée était une modification perdue. Rendue
+         via `floating` : hors du ScrollView, donc fixe à l'écran. */
+      floating={
+        <KeyboardSaveBar
+          visible={dirty}
+          onSave={onSave}
+          onCancel={onCancelEdits}
+          saveDisabled={!canSave}
+        />
+      }
+    >
       {/* ── APERÇU vivant : reflète nom, couleur, initiales et frame équipé ── */}
       <View style={styles.previewCard}>
         <PlayerCardAvatar
@@ -425,7 +461,7 @@ export default function ProfilEditScreen() {
       </View>
       <Text style={styles.hint}>{t(C.featuredHint)}</Text>
 
-      {/* ── Enregistrer ── */}
+      {/* ── Enregistrer (en pied de contenu — reste le chemin au repos) ── */}
       <View style={styles.saveBlock}>
         {savedNotice ? (
           <View style={styles.savedRow}>

@@ -147,10 +147,13 @@ Deno.test('dataNote : les 3 cas de source ne sont JAMAIS confondus', () => {
   const echec = dataNote(false, true);
   const demo = dataNote(false, false);
   const vide = dataNote(true, false, 0);
-  assert(echec !== null && /pas pu charger/.test(echec));
+  assert(echec !== null && /non chargés/.test(echec));
   assert(demo !== null && /démonstration/.test(demo));
-  assert(vide !== null && /Aucun territoire/.test(vide));
+  assert(vide !== null && /première zone/.test(vide));
   assert(new Set([echec, demo, vide]).size === 3, 'trois états = trois messages distincts');
+
+  // L'échec ne doit JAMAIS se lire comme « tu n'as rien pris » ni comme de la démo.
+  assert(!/démonstration|aucun/i.test(echec), 'échec de lecture ≠ vide ≠ démo');
 
   // `failed` prime : connecté + échec ne doit jamais afficher « démonstration ».
   assertEquals(dataNote(true, true), echec);
@@ -172,6 +175,25 @@ Deno.test('dataNote : i18n — 3 messages distincts dans CHAQUE langue, null res
   }
   // Le défaut (sans locale) reste le français — les appelants non migrés ne changent pas.
   assertEquals(dataNote(false, false), dataNote(false, false, 0, 'fr'));
+});
+
+Deno.test('dataNote : la note reste COMPACTE (retour terrain « le bloc est trop large »)', () => {
+  // La note est une pill flottante posée sur la carte, à ~86 % d'un écran de 375 px.
+  // Au-delà de ce budget elle repasse sur deux lignes ou rétrécit sa police : le bloc
+  // redevient le bandeau pleine largeur que le fondateur a signalé. Garde-fou dur.
+  const MAX = 38;
+  for (const locale of LOCALES) {
+    for (const note of [
+      dataNote(false, true, 0, locale),
+      dataNote(false, false, 0, locale),
+      dataNote(true, false, 0, locale),
+    ]) {
+      assert(note !== null);
+      assert(note.length <= MAX, `${locale} : « ${note} » = ${note.length} > ${MAX} caractères`);
+      // UNE proposition, pas deux : pas de tiret cadratin ni de deux-points de liaison.
+      assert(!/—|: /.test(note), `${locale} : « ${note} » enchaîne deux propositions`);
+    }
+  }
 });
 
 // ─── Crew réel 2/3 : l'union du territoire crew (§C « moi/mon crew = chartreuse ») ───
