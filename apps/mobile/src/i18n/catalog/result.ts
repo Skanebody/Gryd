@@ -876,11 +876,11 @@ export const C = defineCatalog({
 
   // ── Partage : headlines narratives (doc §6.1 — une conséquence, pas une perf) ──
   headlineStats: {
-    fr: '{km} km sur GRYD. Cours. Capture. Défends.',
-    en: '{km} km on GRYD. Run. Capture. Defend.',
-    es: '{km} km en GRYD. Corre. Captura. Defiende.',
-    de: '{km} km auf GRYD. Lauf. Erobere. Verteidige.',
-    pt: '{km} km no GRYD. Corra. Capture. Defenda.',
+    fr: '{km} km sur GRYD. Chaque run change la carte.',
+    en: '{km} km on GRYD. Every run changes the map.',
+    es: '{km} km en GRYD. Cada carrera cambia el mapa.',
+    de: '{km} km auf GRYD. Jeder Lauf verändert die Karte.',
+    pt: '{km} km no GRYD. Cada corrida muda o mapa.',
   },
   headlineDefense: {
     fr: '{zone} tient encore. {n} zones défendues. #GRYD',

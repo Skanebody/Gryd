@@ -1,6 +1,6 @@
 /**
  * GRYD — écran promesse + sign-in (SPEC §4.1 étapes 1 et 3).
- * « Cours. Capture. Défends. » — 2 taps, zéro formulaire.
+ * « Cours pour ton crew. Conquiers ta ville. » — 2 taps, zéro formulaire.
  * Un refus/échec n'est jamais un mur (§4.1) : message + retry.
  */
 import { useEffect, useState } from 'react';

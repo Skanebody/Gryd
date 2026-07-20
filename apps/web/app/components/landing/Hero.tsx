@@ -2,7 +2,8 @@
 
 /**
  * Hero V2 « war room » (AMENDEMENT-05 §3.1) : kicker fort « LA FRANCE EST
- * OUVERTE. » + H1 « Cours. Capture. Défends. » + sous-titre crew/quartier/
+ * OUVERTE. » + H1 « Cours pour ton crew. Conquiers ta ville. » (A-42, 2 lignes,
+ * accent chartreuse sur la 2ᵉ) + sous-titre crew/quartier/
  * saison (§2), compte à rebours Saison 0, 2 CTA (« Réserver mon accès »
  * chartreuse → #waitlist, « Créer mon crew » ghost → #crews), 3 stat-cards à
  * compteurs (chiffres réels @klaim/shared), téléphone HUD RAID LIVE entouré
@@ -34,7 +35,7 @@ import styles from './Hero.module.css';
 const STRINGS = {
   fr: {
     kicker: 'La France est ouverte.',
-    sub: 'Rejoins ton crew, prends ton quartier, et termine la saison au sommet de la carte.',
+    sub: 'Chaque run change la carte. Rejoins ton crew, prends ton quartier, et termine la saison au sommet de la carte.',
     ctaCrew: 'Créer mon crew',
     boardTitle: 'Classement crews · Saison 0',
     boardPtsUnit: 'pts',
@@ -44,7 +45,7 @@ const STRINGS = {
   },
   en: {
     kicker: 'France is open.',
-    sub: 'Join your crew, take your neighbourhood, and finish the season on top of the map.',
+    sub: 'Every run changes the map. Join your crew, take your neighbourhood, and finish the season on top of the map.',
     ctaCrew: 'Create my crew',
     boardTitle: 'Crew leaderboard · Season 0',
     boardPtsUnit: 'pts',
@@ -90,13 +91,12 @@ export function Hero() {
         <div className={styles.copyCol}>
           <Reveal>
             <h1 className={styles.title}>
-              {/* Kicker fort V2 — le vrai statement, au-dessus du triptyque. */}
+              {/* Kicker fort V2 — le vrai statement, au-dessus de la tagline 2 lignes. */}
               <span className={styles.kicker}>{S.kicker}</span>
               {copy.hero.line1}
               <br />
+              {/* Accent chartreuse sur la 2ᵉ ligne (A-42) : « Conquiers ta ville. » */}
               <span className={styles.accent}>{copy.hero.line2}</span>
-              <br />
-              {copy.hero.line3}
             </h1>
           </Reveal>
 

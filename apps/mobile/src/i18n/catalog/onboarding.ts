@@ -41,11 +41,11 @@ export const C = defineCatalog({
     pt: 'Tome sua cidade.',
   },
   hookTagline: {
-    fr: 'Cours. Capture. Défends. Le jeu de conquête pour run clubs.',
-    en: 'Run. Capture. Defend. The conquest game for run clubs.',
-    es: 'Corre. Captura. Defiende. El juego de conquista para run clubs.',
-    de: 'Lauf. Erobere. Verteidige. Das Eroberungsspiel für Run-Clubs.',
-    pt: 'Corra. Capture. Defenda. O jogo de conquista para run clubs.',
+    fr: 'Cours pour ton crew. Conquiers ta ville.',
+    en: 'Run for your crew. Conquer your city.',
+    es: 'Corre por tu crew. Conquista tu ciudad.',
+    de: 'Lauf für deine Crew. Erobere deine Stadt.',
+    pt: 'Corra pelo seu crew. Conquiste sua cidade.',
   },
   hookCta: {
     fr: 'Découvrir ma ville',

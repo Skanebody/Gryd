@@ -60,10 +60,11 @@ Fournir des captures **dark-first** conformes charte (aucune chartreuse sur clai
 | Champ | Proposition |
 |---|---|
 | **Nom** | GRYD |
-| **Sous-titre** | Cours. Capture. Défends. |
+| **Sous-titre** | Conquiers ta ville en courant ¹ |
 | **Catégorie principale** | **Health & Fitness** |
 | **Catégorie secondaire** | Sports *(ou Games — à décider ; Health & Fitness reste la primaire car l'app est fondée sur la course réelle)* |
 | **Description** | Jeu de conquête de territoire par la course à pied. Cours dans ta ville pour capturer des zones sur la carte, défends ton territoire avec ton crew, et grimpe dans la ligue. GRYD transforme chaque sortie running en conquête : la trace GPS de ta course dessine les zones que tu revendiques. Rejoins un run club, coordonne les défenses, et fais grandir ton territoire — **le territoire ne s'achète jamais, il se court.** Saison 0 : Paris et Lille. *(rédaction finale à valider — pas de promesse de fonctionnalité non livrée, guideline 2.3.1)* |
+| ¹ Tagline complète | Cours pour ton crew. Conquiers ta ville. (AMENDEMENT-42 ; va aussi dans le texte promotionnel + description) |
 | **Mots-clés** | running, course à pied, territoire, conquête, crew, run club, GPS, carte, fitness, jeu, Paris, Lille, sport |
 | **Âge (rating)** | **12+** *(voir §1.6)* |
 | **URL de support** | `https://gryd.run/support` *(à publier — page de contact réelle, guideline 1.5)* |

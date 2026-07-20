@@ -29,9 +29,8 @@ const fr = {
     logoAria: 'GRYD — retour en haut de page',
   },
   hero: {
-    line1: 'Cours.',
-    line2: 'Capture.',
-    line3: 'Défends.',
+    line1: 'Cours pour ton crew.',
+    line2: 'Conquiers ta ville.',
     ctaPrimary: 'Réserver mon accès',
     ctaSecondary: 'Simuler une course',
     statKm: 'km² capturables',
@@ -234,9 +233,8 @@ const en: Dict = {
     logoAria: 'GRYD — back to top',
   },
   hero: {
-    line1: 'Run.',
-    line2: 'Capture.',
-    line3: 'Defend.',
+    line1: 'Run for your crew.',
+    line2: 'Conquer your city.',
     ctaPrimary: 'Reserve my access',
     ctaSecondary: 'Simulate a run',
     statKm: 'km² up for capture',

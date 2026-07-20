@@ -578,11 +578,11 @@ export const C = defineCatalog({
     pt: 'O GRYD se apoia em software livre — React Native, Expo, MapLibre, H3, Supabase e outros. A lista completa de licenças está publicada em gryd.run/licences.',
   },
   tagline: {
-    fr: 'Cours. Capture. Défends.',
-    en: 'Run. Capture. Defend.',
-    es: 'Corre. Captura. Defiende.',
-    de: 'Lauf. Erobere. Verteidige.',
-    pt: 'Corra. Capture. Defenda.',
+    fr: 'Cours pour ton crew. Conquiers ta ville.',
+    en: 'Run for your crew. Conquer your city.',
+    es: 'Corre por tu crew. Conquista tu ciudad.',
+    de: 'Lauf für deine Crew. Erobere deine Stadt.',
+    pt: 'Corra pelo seu crew. Conquiste sua cidade.',
   },
 
   // ── Sous-page Avancé ──

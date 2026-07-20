@@ -22,11 +22,11 @@ export const C = defineCatalog({
     pt: 'TEMPORADA 0 · PARIS & LILLE',
   },
   title: {
-    fr: 'Cours.\nCapture.\nDéfends.',
-    en: 'Run.\nCapture.\nDefend.',
-    es: 'Corre.\nCaptura.\nDefiende.',
-    de: 'Lauf.\nErobere.\nVerteidige.',
-    pt: 'Corra.\nCapture.\nDefenda.',
+    fr: 'Cours pour ton crew.\nConquiers ta ville.',
+    en: 'Run for your crew.\nConquer your city.',
+    es: 'Corre por tu crew.\nConquista tu ciudad.',
+    de: 'Lauf für deine Crew.\nErobere deine Stadt.',
+    pt: 'Corra pelo seu crew.\nConquiste sua cidade.',
   },
   subtitle: {
     fr: 'Chaque course capture des zones sur la carte réelle de ta ville. Ton crew tient le quartier — ou le perd.',

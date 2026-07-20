@@ -50,9 +50,9 @@ const spaceMono = Space_Mono({
 
 // TODO(légal) : « GRYD » est un nom de code — aucun usage public sans clearance INPI (CLAUDE.md).
 export const metadata: Metadata = {
-  title: 'GRYD — Cours. Capture. Défends.',
+  title: 'GRYD — Cours pour ton crew. Conquiers ta ville.',
   description:
-    'Chaque course capture du territoire réel. Conquiers ton quartier rue après rue — Paris et Lille, Saison 0. Ton quartier ouvre à 500 inscrits.',
+    'Le jeu de guerre territoriale entre crews de running. Chaque run change la carte.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
