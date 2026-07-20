@@ -82,27 +82,51 @@ export interface PrivacyPrefs {
 }
 
 /**
- * Défauts alignés AMENDEMENT-07 (motivation DEFAULT_PREFS) + géoloc verrouillée :
- * position live JAMAIS, FC privée, endpoints masqués à 500 m domicile+travail.
+ * Défauts — DÉCISION FONDATEUR 20/07/2026 : « tout le monde par défaut ».
+ *
+ * ARBITRAGE : une conquête que personne d'extérieur ne voit ne recrute
+ * personne. Le défaut « crew » protégeait l'utilisateur mais étouffait la
+ * boucle virale, qui est la raison d'être du partage (A-43). On ouvre donc la
+ * VISIBILITÉ SOCIALE : profil et courses publics, et n'importe qui peut
+ * ajouter / inviter / écrire / voir le statut.
+ *
+ * ─── LES TROIS PLANCHERS QUI NE S'OUVRENT PAS ────────────────────────────────
+ * Ils ne sont PAS un oubli et ne doivent pas être « alignés » sur le reste :
+ *
+ * 1. `maskEndpoints` (500 m autour du domicile) — le départ et l'arrivée d'une
+ *    course révèlent l'ADRESSE du coureur. C'est le risque documenté n°1 des
+ *    apps de running (incidents Strava). Une trace publique est acceptable ;
+ *    une trace publique qui commence sur le paillasson ne l'est pas.
+ * 2. `livePosition: 'never'` — la position EN TEMPS RÉEL d'une personne seule
+ *    dehors. Aucune viralité ne justifie de la diffuser par défaut.
+ * 3. `heartRatePrivate: true` — la fréquence cardiaque est une donnée de SANTÉ,
+ *    catégorie particulière au sens du RGPD (art. 9) : son traitement exige un
+ *    consentement EXPLICITE, qu'un défaut ne peut par construction pas
+ *    constituer. La rendre publique par défaut serait illicite, pas seulement
+ *    imprudent.
+ *
+ * L'utilisateur peut ouvrir ces trois-là lui-même (c'est son choix, éclairé) ;
+ * l'app ne le fait pas à sa place. `privateMode` (toggle maître) referme tout
+ * d'un coup, y compris ce que ce défaut vient d'ouvrir.
  */
 export const DEFAULT_PRIVACY: PrivacyPrefs = {
   privateMode: false,
-  profileVisibility: 'crew',
-  runVisibility: 'crew',
+  profileVisibility: 'public',
+  runVisibility: 'public',
+  // ── Planchers de sécurité : volontairement fermés (voir en-tête). ──
   maskEndpoints: true,
   maskRadius: '500',
   maskHome: true,
   maskWork: false,
   livePosition: 'never',
   heartRatePrivate: true,
+  // ── Ouverts avec le reste (allure/cadence : perf, pas santé au sens art. 9). ──
   sportDataPrivate: false,
   territoryVisible: true,
-  // Défaut CONSERVATEUR (audit zéro-friction : « fermé par défaut » doit être
-  // vrai partout — 'everyone' était le seul défaut ouvert de la page).
-  whoCanAdd: 'crew',
-  whoCanInvite: 'crew',
-  whoCanMessage: 'crew',
-  whoSeesStatus: 'crew',
+  whoCanAdd: 'everyone',
+  whoCanInvite: 'everyone',
+  whoCanMessage: 'everyone',
+  whoSeesStatus: 'everyone',
 };
 
 const STORAGE_KEY = 'gryd.privacy.prefs.v1';

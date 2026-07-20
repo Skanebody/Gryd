@@ -43,10 +43,27 @@ export interface MotivationPrefs {
 }
 
 /** Défauts §1 — jamais de position live, tolérants, non compétitifs par défaut. */
+/**
+ * Défauts — DÉCISION FONDATEUR 20/07/2026 : « tout le monde par défaut ».
+ * ALIGNÉS sur `privacy/store.ts` DEFAULT_PRIVACY, qui est la page de référence :
+ * les deux écrans de réglages liraient sinon des valeurs différentes pour le
+ * MÊME concept (le header de privacy/store.ts documente ce miroir).
+ *
+ * `activitySharing` n'a pas de valeur `public` dans l'enum partagé
+ * (private | friends | crew | stats_only) : `friends` est le cran le plus
+ * ouvert disponible, et c'est `runVisibility: 'public'` (privacy/store.ts) qui
+ * porte la visibilité réelle des courses.
+ *
+ * `mapSharing` reste `simplified` — DÉLIBÉRÉ, ce n'est pas un oubli : `precise`
+ * publierait la trace au mètre près, ce qui reconstitue les habitudes de
+ * déplacement (et contourne de fait le floutage des extrémités en révélant le
+ * point de convergence quotidien). La trace simplifiée raconte la conquête sans
+ * livrer l'itinéraire exact.
+ */
 export const DEFAULT_PREFS: MotivationPrefs = {
   playStyle: 'mixte',
-  profileVisibility: 'crew',
-  activitySharing: 'crew',
+  profileVisibility: 'public',
+  activitySharing: 'friends',
   mapSharing: 'simplified',
   notifChannels: ['solo', 'crew'],
   discreetMode: false,

@@ -658,12 +658,20 @@ export const C = defineCatalog({
     de: 'Datenschutz',
     pt: 'Privacidade',
   },
+  /**
+   * Cette phrase promettait « tout est fermé par défaut ». Depuis la décision
+   * fondateur du 20/07 (profil et courses PUBLICS par défaut), elle était
+   * devenue FAUSSE — et sur la page confidentialité, une phrase fausse est la
+   * pire de toutes. Nouvelle promesse : exacte et vérifiable ligne à ligne —
+   * ce qui est ouvert, et les trois choses qui ne le sont jamais sans un geste
+   * explicite (domicile flouté, position live, données de santé).
+   */
   privSubtitle: {
-    fr: "Ta géoloc t'appartient. On la lit pour transformer tes courses en territoire — rien n'est partagé sans ton accord. Tout est fermé par défaut.",
-    en: 'Your location is yours. We read it to turn your runs into territory — nothing is shared without your consent. Everything is locked by default.',
-    es: 'Tu ubicación es tuya. La leemos para convertir tus carreras en territorio — nada se comparte sin tu permiso. Todo está cerrado por defecto.',
-    de: 'Dein Standort gehört dir. Wir lesen ihn, um deine Läufe in Gebiet zu verwandeln — nichts wird ohne dein Einverständnis geteilt. Alles ist standardmäßig geschlossen.',
-    pt: 'Sua localização é sua. Nós a lemos para transformar suas corridas em território — nada é compartilhado sem seu acordo. Tudo fica fechado por padrão.',
+    fr: "Ton profil et tes courses sont publics par défaut — c'est ce qui fait vivre la carte. Trois choses restent fermées tant que tu ne les ouvres pas toi-même : ton domicile est flouté, ta position en direct n'est jamais partagée, et tes données de santé restent privées.",
+    en: 'Your profile and runs are public by default — that is what keeps the map alive. Three things stay closed until you open them yourself: your home is blurred, your live position is never shared, and your health data stays private.',
+    es: 'Tu perfil y tus carreras son públicos por defecto — es lo que mantiene viva el mapa. Tres cosas siguen cerradas hasta que las abras tú: tu domicilio está difuminado, tu posición en directo nunca se comparte y tus datos de salud siguen siendo privados.',
+    de: 'Dein Profil und deine Läufe sind standardmäßig öffentlich — das hält die Karte lebendig. Drei Dinge bleiben zu, bis du sie selbst öffnest: dein Zuhause ist unscharf, deine Live-Position wird nie geteilt, und deine Gesundheitsdaten bleiben privat.',
+    pt: 'Seu perfil e suas corridas são públicos por padrão — é o que mantém o mapa vivo. Três coisas continuam fechadas até você mesmo abri-las: sua casa fica borrada, sua posição ao vivo nunca é compartilhada e seus dados de saúde permanecem privados.',
   },
 
   // ── Confidentialité — alerts (signaler / bloquer / export / suppression) ──
