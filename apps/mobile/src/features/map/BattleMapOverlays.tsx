@@ -138,8 +138,9 @@ const MISSION_PEEK_COMPACT_HEIGHT = 138;
 /** Espace du HUD haut à préserver (secteur + ligne mission) — le menu Calques ne
  *  descend jamais son bord haut au-dessus de cette limite (anti-chevauchement). */
 const TOP_HUD_CLEARANCE = 112;
-/** Hauteur de la pile de FABs OUVERTE (4 FABs de 44 + 3 gaps de 10 + marge). */
-const FAB_STACK_OPEN_HEIGHT = 4 * 44 + 3 * 10 + 6;
+/** Hauteur de la pile de FABs PERMANENTS (2 FABs de 44 + 1 gap de 10 + marge)
+ *  — réserve l'espace sous le menu Calques pour qu'il ne recouvre pas la pile. */
+const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
 /**
  * Hauteur du PEEK ZONE (§3/§10) : en-tête + propriétaire + contrôle + action
  * recommandée + 1 CTA + « Plus » — sans troncature. Le détail (surface, tenue,
@@ -234,7 +235,7 @@ export function BattleMapOverlays({
   const router = useRouter();
   const t = useT();
   const locale = useLocale();
-  /** « Carte nue » : l'utilisateur a masqué tout le HUD (FAB « info » ci-dessous). */
+  /** « Carte nue » : l'utilisateur a masqué tout le HUD (rangée du menu Calques). */
   const hudHidden = useMapHudHidden();
   // Peek MISSION persistant (§8) : `sheet.initial` distingue le PEEK (compact)
   // de l'état OUVERT (les options), remonté par « Voir les options » (remount
@@ -243,15 +244,15 @@ export function BattleMapOverlays({
     key: 0,
     initial: 'compact',
   });
-  /** Menu « Calques » (fond + calques de lecture) — fermé par défaut. */
-  const [layersOpen, setLayersOpen] = useState(false);
   /**
-   * Menu « Outils » de la carte (demande fondateur) : les 3 contrôles (Calques,
-   * Recentrer, Carte nue) sont REGROUPÉS derrière UN seul bouton déclencheur ;
-   * fermé par défaut → la carte ne montre qu'une icône. Ils restent INDÉPENDANTS
-   * (chacun sa propre action) une fois le menu ouvert.
+   * Menu « Calques » (fond + vue + carte nue + calques de lecture) — fermé par
+   * défaut, ouvert EN 1 TAP par le FAB Calques permanent (retour terrain 20/07 :
+   * l'ancien détour « Outils → Calques » imposait 3 taps à travers 2 menus
+   * imbriqués ; on aplatit à 1). Re-tap du FAB ou tap ailleurs (backdrop) =
+   * referme. Plus de menu « Outils » intermédiaire ni d'engrenage : le
+   * déclencheur EST Calques.
    */
-  const [toolsOpen, setToolsOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
   /** Sheet de zone dépliée sur son détail (§10 « Plus ») — reset à chaque zone. */
   const [zoneExpanded, setZoneExpanded] = useState(false);
 
@@ -270,7 +271,6 @@ export function BattleMapOverlays({
   useFocusEffect(
     useCallback(() => {
       setLayersOpen(false);
-      setToolsOpen(false);
       setSheet((s) => ({ key: s.key + 1, initial: 'compact' }));
       onCloseZone?.();
       // « Repart de la carte » inclut le HUD : chaque entrée sur l'onglet réaffiche
@@ -300,10 +300,10 @@ export function BattleMapOverlays({
 
   /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
   const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
-  // « Carte nue » masque le HUD : ligne mission (haut, dans index.tsx), sheet du bas
-  // et FABs de contrôle (Calques + Recentrer). Un tap sur une ZONE reste explicite →
-  // sa sheet s'affiche même en carte nue (la carte ne devient pas inerte). Seul le FAB
-  // « info » (bascule) subsiste toujours pour tout ramener.
+  // « Carte nue » masque le HUD : ligne mission (haut, index.tsx) + sheet du bas.
+  // Les 2 FABs permanents (Recentrer + Calques) RESTENT visibles même en carte nue :
+  // le FAB Calques rouvre le menu, dont la rangée « Carte nue » (active) ramène tout.
+  // Un tap sur une ZONE reste explicite → sa sheet s'affiche même en carte nue.
   const sheetVisible = zoneOpen || !hudHidden;
   /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav. */
   const activeCompactHeight = zoneOpen ? ZONE_SHEET_COMPACT_HEIGHT : MISSION_PEEK_COMPACT_HEIGHT;
@@ -315,7 +315,7 @@ export function BattleMapOverlays({
   const { height: winH } = useWindowDimensions();
   const layerMenuMaxHeight = Math.max(
     120,
-    winH - insets.top - TOP_HUD_CLEARANCE - fabBottom - FAB_STACK_OPEN_HEIGHT,
+    winH - insets.top - TOP_HUD_CLEARANCE - fabBottom - FAB_STACK_HEIGHT,
   );
 
   /** « Voir les options » : déplie le peek mission sur les options (open). */
@@ -324,33 +324,31 @@ export function BattleMapOverlays({
     setSheet((s) => ({ key: s.key + 1, initial: 'open' }));
   };
 
-  /**
-   * Ouvre/ferme le menu « Outils » (les 3 contrôles). En le fermant, on referme
-   * aussi le sous-menu Calques (rien d'ouvert derrière le bouton replié).
-   */
-  const toggleTools = () => {
-    haptics.light();
-    const next = !toolsOpen;
-    setToolsOpen(next);
-    if (!next) setLayersOpen(false);
+  /** FAB Calques : ouvre/ferme le menu Calques EN 1 TAP (haptic géré par le FAB). */
+  const toggleLayers = () => {
+    setLayersOpen((v) => !v);
   };
 
-  /** Recentrer = action one-shot → on referme le menu Outils (« ferme en l'utilisant »). */
+  /** Ferme le menu Calques (re-tap FAB ou tap « ailleurs » sur le backdrop). */
+  const closeLayers = () => {
+    setLayersOpen(false);
+  };
+
+  /** Recentrer = action one-shot → referme le menu Calques (« ferme en l'utilisant »). */
   const recenterAndClose = () => {
     onRecenter?.();
-    setToolsOpen(false);
     setLayersOpen(false);
   };
 
   /**
-   * Bascule « carte nue » (demande fondateur) : masque/affiche TOUT le HUD (ligne
-   * mission du haut + sheet du bas) → carte plein écran. One-shot → referme aussi le
-   * menu Outils et le sous-menu Calques pour laisser une carte réellement nue.
+   * Bascule « carte nue » (rangée du menu Calques) : masque/affiche TOUT le HUD
+   * (ligne mission du haut + sheet du bas) → carte plein écran. Referme le menu
+   * pour qu'on VOIE réellement la carte nue ; le FAB Calques reste visible pour
+   * rouvrir le menu et tout ramener.
    */
   const toggleHud = () => {
     haptics.light();
     setLayersOpen(false);
-    setToolsOpen(false);
     setMapHudHidden(!hudHidden);
   };
 
@@ -405,20 +403,28 @@ export function BattleMapOverlays({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* ── Droite : DEUX boutons permanents (retour terrain 20/07 : « il manque un
-          bouton sur la carte pour revenir à ma position exacte à chaque fois »).
-          RECENTRER est l'action la plus fréquente d'une carte de running — elle
-          était enterrée dans le menu Outils : 2 taps pour se retrouver, alors
-          qu'on la cherche en courant, à une main. Elle passe donc au 1er niveau,
-          juste au-dessus du déclencheur Outils (qui garde Calques / Carte nue).
-          Total = 2 FABs permanents : la limite d'AMENDEMENT-37 est respectée à
-          l'unité près. Le déclencheur reste le dernier de la pile (en bas, sous
-          le pouce) — même en carte nue, pour tout ramener. ── */}
+      {/* Backdrop invisible : un tap « ailleurs » referme le menu Calques (contrat
+          §1). Rendu SOUS la pile de FABs et la sheet (enfants suivants = au-dessus)
+          → seuls les taps hors de ces zones l'atteignent. Absent quand le menu est
+          fermé : la carte reçoit alors ses gestes normalement (pan/zoom). Hors a11y
+          (les lecteurs d'écran referment via le FAB Calques, dont l'état
+          « sélectionné » est lisible). */}
+      {layersOpen ? (
+        <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={closeLayers} />
+      ) : null}
+
+      {/* ── Droite : 2 FABs PERMANENTS (AMENDEMENT-37 §8) — Recentrer + Calques.
+          Le FAB Calques ouvre le menu EN 1 TAP (retour terrain 20/07 : l'ancien
+          détour « Outils → Calques » imposait 3 taps à travers 2 menus imbriqués).
+          Le menu Calques absorbe désormais « Carte nue » (rangée d'affichage) :
+          plus de menu Outils ni d'engrenage. Le déclencheur Calques est le dernier
+          de la pile (en bas, sous le pouce), visible même en carte nue pour tout
+          ramener. ── */}
       <View
         style={[styles.fabColumn, { bottom: fabBottom }]}
         pointerEvents="box-none"
       >
-        {toolsOpen && layersOpen ? (
+        {layersOpen ? (
           <LayerMenu
             maxHeight={layerMenuMaxHeight}
             active={mode}
@@ -435,43 +441,24 @@ export function BattleMapOverlays({
             }
             map3d={map3d}
             onSetMap3d={onSetMap3d}
+            hudHidden={hudHidden}
+            onToggleHud={toggleHud}
           />
         ) : null}
-        {toolsOpen ? (
-          <>
-            <FloatingMapButton
-              icon="calques"
-              accessibilityLabel={t(C.layersFabA11y)}
-              active={layersOpen}
-              onPress={() => {
-                haptics.light();
-                setLayersOpen((v) => !v);
-              }}
-            />
-            {/* Bascule CARTE NUE — `active` = HUD affiché ; tap = masquer/afficher le HUD. */}
-            <FloatingMapButton
-              icon="info"
-              accessibilityLabel={hudHidden ? t(C.hudShowA11y) : t(C.hudHideA11y)}
-              active={!hudHidden}
-              onPress={toggleHud}
-            />
-          </>
-        ) : null}
-        {/* RECENTRER — PERMANENT (retour terrain 20/07). L'action la plus
-            fréquente d'une carte de running : « où suis-je ? » se répond en 1 tap,
-            à une main, en courant. Ferme le menu Outils s'il est ouvert. */}
+        {/* RECENTRER — permanent : « où suis-je ? » se répond en 1 tap, à une main,
+            en courant. Referme le menu Calques s'il est ouvert. */}
         <FloatingMapButton
           icon="gps"
           accessibilityLabel={t(C.recenterA11y)}
           onPress={recenterAndClose}
         />
-        {/* Déclencheur du menu Outils — toujours visible. Ouvert = ✕ (referme),
-            fermé = ⚙ (ouvre, engrenage désormais lisible comme tel). */}
+        {/* CALQUES — permanent, déclencheur DIRECT du menu Calques (1 tap ouvre,
+            re-tap referme). Actif = menu ouvert. Reste visible en carte nue. */}
         <FloatingMapButton
-          icon={toolsOpen ? 'fermer' : 'reglages'}
-          accessibilityLabel={toolsOpen ? t(C.toolsCloseA11y) : t(C.toolsOpenA11y)}
-          active={toolsOpen}
-          onPress={toggleTools}
+          icon="calques"
+          accessibilityLabel={t(C.layersFabA11y)}
+          active={layersOpen}
+          onPress={toggleLayers}
         />
       </View>
 
@@ -927,9 +914,11 @@ function ZoneDetailBlock({
 }
 
 /**
- * Menu « Calques » (AMENDEMENT-21) : ouvert par le FAB Calques — le FOND (Sombre
- * / Clair / Satellite) en haut, la VUE 2D/3D, puis les calques de lecture. Fermé
- * par défaut. L'actif se lit en chartreuse sur la surface SOMBRE du menu.
+ * Menu « Calques » (AMENDEMENT-21) : ouvert EN 1 TAP par le FAB Calques — le FOND
+ * (Sombre / Clair / Satellite) en haut, la VUE (2D/3D + « Carte nue »), puis les
+ * calques de lecture. Fermé par défaut. L'actif se lit en chartreuse sur la
+ * surface SOMBRE du menu. La rangée « Carte nue » (retour terrain 20/07) remplace
+ * l'ancien FAB : masquer tout le HUD est une option d'AFFICHAGE, sa vraie famille.
  */
 function LayerMenu({
   maxHeight,
@@ -939,6 +928,8 @@ function LayerMenu({
   onSelectBasemap,
   map3d,
   onSetMap3d,
+  hudHidden,
+  onToggleHud,
 }: {
   /** Plafond de hauteur : au-delà, le menu défile (ne recouvre pas le HUD haut). */
   maxHeight?: number;
@@ -948,6 +939,10 @@ function LayerMenu({
   onSelectBasemap?: (key: BasemapKey) => void;
   map3d?: boolean;
   onSetMap3d?: (value: boolean) => void;
+  /** « Carte nue » actif = tout le HUD est masqué (la rangée est en surbrillance). */
+  hudHidden: boolean;
+  /** Bascule « Carte nue » (masque/affiche le HUD) — referme le menu pour la voir. */
+  onToggleHud: () => void;
 }) {
   const t = useT();
   return (
@@ -992,18 +987,37 @@ function LayerMenu({
           <View style={styles.layerDivider} />
         </>
       ) : null}
+      {/* VUE — options d'AFFICHAGE de la carte. Toujours présent car « Carte nue »
+          (masquer tout le HUD) y vit désormais : elle reste accessible même sans
+          toggle 3D. Le 2D/3D n'apparaît que si le parent le pilote (onSetMap3d). */}
+      <Text style={styles.layerHeading}>{t(C.headingView)}</Text>
       {onSetMap3d ? (
-        <>
-          <Text style={styles.layerHeading}>{t(C.headingView)}</Text>
-          <Map3DToggle
-            value={map3d}
-            onChange={onSetMap3d}
-            style={styles.layerToggle}
-            testID="battle-map-3d-toggle"
-          />
-          <View style={styles.layerDivider} />
-        </>
+        <Map3DToggle
+          value={map3d}
+          onChange={onSetMap3d}
+          style={styles.layerToggle}
+          testID="battle-map-3d-toggle"
+        />
       ) : null}
+      {/* « Carte nue » — bascule d'affichage (masque/affiche tout le HUD). Icône
+          « discret » (masquer). Actif = HUD masqué ; l'a11y décrit l'action du tap. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: hudHidden }}
+        accessibilityLabel={hudHidden ? t(C.hudShowA11y) : t(C.hudHideA11y)}
+        onPress={onToggleHud}
+        style={({ pressed }) => [
+          styles.layerItem,
+          hudHidden && styles.layerItemActive,
+          pressed && styles.pressed,
+        ]}
+      >
+        <Icon name="discret" size={15} color={hudHidden ? gameColors.crew : colors.blanc} />
+        <Text style={[styles.layerLabel, hudHidden && styles.layerLabelActive]} numberOfLines={1}>
+          {t(C.hudRowLabel)}
+        </Text>
+      </Pressable>
+      <View style={styles.layerDivider} />
       <Text style={styles.layerHeading}>{t(C.headingLayers)}</Text>
       {MAP_MODE_ORDER.map((key) => {
         const on = active === key;

@@ -28,8 +28,20 @@ import { Icon } from '../../ui/Icon';
 
 /** Géométrie de la piste — layout only, aucune constante de jeu. */
 const TRACK_HEIGHT = 60;
-const THUMB_SIZE = 52;
+const THUMB_SIZE = 52; // ≥ sizes.touchTarget (44) : cible du curseur confortable
 const TRACK_PAD = 4; // marge intérieure entre le bord et le pouce
+/**
+ * Largeur MAX de la piste (retour terrain 20/07 : « le slider n'est-il pas un peu
+ * trop large ? »). Un glissement one-handed confortable balaie un ARC de pouce, pas
+ * toute la largeur de l'écran : étirée bord-à-bord (~358 pt sur iPhone standard,
+ * jusqu'à ~398 pt sur Pro Max), la piste plante son ORIGINE à gauche — hors de la
+ * zone de confort du pouce sur les grands écrans — et force un réajustement de prise
+ * en fin/début de course. On plafonne à 280 pt PUIS on CENTRE (`alignSelf: center`,
+ * ci-dessous) : la piste vit sous l'arc naturel du pouce, identique pour droitiers
+ * ET gauchers. À 280 pt la course utile tombe à ~220 pt (≈ 36 mm), déclenchée à
+ * 0,75 ≈ 165 pt (≈ 27 mm) : franc, intentionnel, atteignable sans lâcher le téléphone.
+ */
+const MAX_TRACK_WIDTH = 280;
 /** Fraction de la piste à franchir pour déclencher (généreux : ~75 %). */
 const COMPLETE_RATIO = 0.75;
 
@@ -178,6 +190,14 @@ export function SlideToStart({ label = 'GO', accessibilityLabel, onComplete }: S
 
 const styles = StyleSheet.create({
   track: {
+    // `width: '100%'` conserve l'étirement au parent, `maxWidth` le plafonne, et
+    // `alignSelf: 'center'` recentre la piste plafonnée sous l'arc du pouce (cf.
+    // MAX_TRACK_WIDTH). Les trois sont nécessaires ensemble : sans `width`, la piste
+    // se réduirait à la largeur de son contenu (le pouce ~60 pt) une fois `alignSelf`
+    // sorti du `stretch` par défaut.
+    width: '100%',
+    maxWidth: MAX_TRACK_WIDTH,
+    alignSelf: 'center',
     height: TRACK_HEIGHT,
     borderRadius: radii.pill,
     backgroundColor: colors.carbone,

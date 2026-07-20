@@ -108,7 +108,7 @@ export const C = defineCatalog({
     pt: 'CAMADAS',
   },
 
-  // ── FABs / menu Outils (a11y) ──
+  // ── FABs / menu Calques (a11y) ──
   layersFabA11y: {
     fr: 'Calques et fond de carte',
     en: 'Layers and basemap',
@@ -137,19 +137,15 @@ export const C = defineCatalog({
     de: 'Infos ausblenden — Karte im Vollbild',
     pt: 'Ocultar infos — mapa em tela cheia',
   },
-  toolsOpenA11y: {
-    fr: 'Outils de la carte',
-    en: 'Map tools',
-    es: 'Herramientas del mapa',
-    de: 'Karten-Werkzeuge',
-    pt: 'Ferramentas do mapa',
-  },
-  toolsCloseA11y: {
-    fr: 'Fermer les outils de la carte',
-    en: 'Close map tools',
-    es: 'Cerrar las herramientas del mapa',
-    de: 'Karten-Werkzeuge schließen',
-    pt: 'Fechar as ferramentas do mapa',
+  /** Libellé AFFICHÉ de la rangée « Carte nue » du menu Calques (option
+   *  d'affichage — masque tout le HUD). Court dans les 5 langues (§A, jamais
+   *  tronqué à 375 px), l'état actif porte le sens « bare mode ON ». */
+  hudRowLabel: {
+    fr: 'Carte nue',
+    en: 'Clean map',
+    es: 'Mapa limpio',
+    de: 'Nur Karte',
+    pt: 'Mapa limpo',
   },
   basemapA11y: {
     fr: 'Fond de carte {label}',

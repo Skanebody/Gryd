@@ -629,6 +629,94 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     [reduceMotion],
   );
 
+  // ─── CAMÉRA : OUVERTURE DÉCLARATIVE + MUTATIONS IMPÉRATIVES ────────────────
+  // POURQUOI (retour terrain 20/07 « quand je zoom, le zoom revient en arrière ») :
+  // une caméra CONTRÔLÉE (centerCoordinate/zoomLevel/pitch/heading passés en
+  // props à <Camera>) se BAT contre les doigts de l'utilisateur. Le binding
+  // reconstruit un `stop` natif à chaque changement de ces props ET le ré-applique
+  // (easeTo) ; or `centerCoordinate={[lng,lat]}` est un tableau RECRÉÉ à chaque
+  // rendu, donc le stop change d'identité à CHAQUE rendu. Et MapScreen re-rend
+  // PENDANT un pincement (onRegionIsChanging → onZoomChange → setBand au
+  // franchissement d'une bande z10/13/16) → la caméra d'ouverture est ré-appliquée
+  // PAR-DESSUS le geste → le zoom « revient en arrière ». Mot pour mot la plainte.
+  //
+  // La SEULE combinaison qui survit à la fois aux GESTES et aux REMONTAGES :
+  //   • OUVERTURE = `defaultSettings` (ci-dessous, dans le JSX) — lu par le binding
+  //     UNE SEULE FOIS au montage (useState(makeNativeCameraStop(defaultSettings))).
+  //     Les gestes sont donc LIBRES par construction (aucun stop contrôlé qui les
+  //     écrase), et le remontage de la carte (key `basemap-specRev`) rouvre au bon
+  //     endroit puisque `defaultSettings` relit la prop COURANTE — c'est ce qui
+  //     protégeait du bug « retour à Paris ». NE PAS repasser en props contrôlées.
+  //   • CHANGEMENTS = impératifs, déclenchés SEULEMENT quand la VALEUR change
+  //     (comparaison par lng/lat/zoom — jamais par identité d'objet), via
+  //     cameraRef.current.setCamera / fitBounds. Un re-rendu de bande ne change
+  //     AUCUNE valeur → aucune ré-application → le geste est intact.
+
+  // (a) Premier fix GPS : MapScreen fait passer `camera` de undefined à la vraie
+  // position → la caméra vole sur l'ego. Comparaison PAR VALEUR : le ref est
+  // initialisé à la valeur de MONTAGE (déjà cadrée par defaultSettings), donc
+  // aucun re-tir au montage ; seul un vrai changement lng/lat/zoom recentre.
+  const cameraValueRef = useRef<RealMapCamera | undefined>(camera);
+  useEffect(() => {
+    if (!camera) {
+      cameraValueRef.current = undefined;
+      return;
+    }
+    const prev = cameraValueRef.current;
+    if (prev && prev.lng === camera.lng && prev.lat === camera.lat && prev.zoom === camera.zoom) {
+      return;
+    }
+    cameraValueRef.current = camera;
+    cameraRef.current?.setCamera({
+      centerCoordinate: [camera.lng, camera.lat],
+      zoomLevel: camera.zoom,
+      pitch,
+      heading: bearing,
+      animationMode: 'easeTo',
+      animationDuration: reduceMotion ? 0 : motion.transitionMs,
+    });
+  }, [camera, pitch, bearing, reduceMotion]);
+
+  // Cadrage `bounds` (« Mon territoire ») : fitBounds impératif au CHANGEMENT de
+  // valeur (ne/sw/paddingPx) — même logique par valeur, jamais par identité.
+  const boundsValueRef = useRef<RealMapBounds | undefined>(bounds);
+  useEffect(() => {
+    if (!bounds) {
+      boundsValueRef.current = undefined;
+      return;
+    }
+    const prev = boundsValueRef.current;
+    if (
+      prev &&
+      prev.ne[0] === bounds.ne[0] &&
+      prev.ne[1] === bounds.ne[1] &&
+      prev.sw[0] === bounds.sw[0] &&
+      prev.sw[1] === bounds.sw[1] &&
+      prev.paddingPx === bounds.paddingPx
+    ) {
+      return;
+    }
+    boundsValueRef.current = bounds;
+    cameraRef.current?.fitBounds(bounds.ne, bounds.sw, bounds.paddingPx, reduceMotion ? 0 : FLY_TO_MS);
+  }, [bounds, reduceMotion]);
+
+  // (d) Toggle 2D/3D (AMENDEMENT-26) : `pitch`/`bearing` changent → on incline la
+  // caméra impérativement. Basculer en 3D DOIT toujours pitcher, même si le centre
+  // n'a pas bougé — d'où un effet dédié (le changement de pitch seul ne touche pas
+  // la valeur `camera`, donc l'effet (a) l'ignore).
+  const orientationRef = useRef({ pitch, bearing });
+  useEffect(() => {
+    const prev = orientationRef.current;
+    if (prev.pitch === pitch && prev.bearing === bearing) return;
+    orientationRef.current = { pitch, bearing };
+    cameraRef.current?.setCamera({
+      pitch,
+      heading: bearing,
+      animationMode: 'easeTo',
+      animationDuration: reduceMotion ? 0 : motion.transitionMs,
+    });
+  }, [pitch, bearing, reduceMotion]);
+
   return (
     <View style={[styles.root, style]} testID={testID}>
       <MapView
@@ -669,36 +757,39 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
         }}
       >
         {/* §4bis : cadrage d'OUVERTURE seulement (camera OU fitBounds) — le
-            monde reste librement navigable (aucun maxBounds, aucun minZoom). */}
-        {bounds ? (
-          <Camera
-            ref={cameraRef}
-            bounds={{
-              ne: bounds.ne,
-              sw: bounds.sw,
-              paddingLeft: bounds.paddingPx,
-              paddingRight: bounds.paddingPx,
-              paddingTop: bounds.paddingPx,
-              paddingBottom: bounds.paddingPx,
-            }}
-            // AMENDEMENT-24 — CARTE 3D : inclinaison/cap (défaut 0/0 = plat).
-            pitch={pitch}
-            heading={bearing}
-            animationMode="easeTo"
-            animationDuration={reduceMotion ? 0 : motion.transitionMs}
-          />
-        ) : (
-          <Camera
-            ref={cameraRef}
-            centerCoordinate={[openCamera.lng, openCamera.lat]}
-            zoomLevel={openCamera.zoom}
-            // AMENDEMENT-24 — CARTE 3D : inclinaison/cap (défaut 0/0 = plat).
-            pitch={pitch}
-            heading={bearing}
-            animationMode="easeTo"
-            animationDuration={reduceMotion ? 0 : motion.transitionMs}
-          />
-        )}
+            monde reste librement navigable (aucun maxBounds, aucun minZoom).
+            `defaultSettings` = appliqué au MONTAGE uniquement (le binding le fige
+            dans un useState) : aucune prop de caméra CONTRÔLÉE ici, donc rien ne
+            ré-écrase le geste de pincement (voir le bloc « CAMÉRA » plus haut). Les
+            recadrages ultérieurs (premier fix, recentrer, toggle 3D) passent par
+            les effets impératifs / l'API ref. Au remontage (key basemap-specRev),
+            un nouveau Camera relit la prop courante → rouvre sur l'ego. */}
+        <Camera
+          ref={cameraRef}
+          defaultSettings={
+            bounds
+              ? {
+                  bounds: {
+                    ne: bounds.ne,
+                    sw: bounds.sw,
+                    paddingLeft: bounds.paddingPx,
+                    paddingRight: bounds.paddingPx,
+                    paddingTop: bounds.paddingPx,
+                    paddingBottom: bounds.paddingPx,
+                  },
+                  // AMENDEMENT-24 — CARTE 3D : inclinaison/cap (défaut 0/0 = plat).
+                  pitch,
+                  heading: bearing,
+                }
+              : {
+                  centerCoordinate: [openCamera.lng, openCamera.lat],
+                  zoomLevel: openCamera.zoom,
+                  // AMENDEMENT-24 — CARTE 3D : inclinaison/cap (défaut 0/0 = plat).
+                  pitch,
+                  heading: bearing,
+                }
+          }
+        />
 
         {/* AMENDEMENT-27 — VRAI 3D : BÂTIMENTS de la ville extrudés (mode 3D
             SEULEMENT). Source vectorielle CARTO DÉDIÉE (id propre, keyless
