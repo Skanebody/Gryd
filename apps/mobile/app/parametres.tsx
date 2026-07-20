@@ -51,8 +51,13 @@ function Row({ row }: { row: SettingsRow }) {
       onPress={go}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
+      {/* Icône d'identité de la ligne EN CHARTREUSE (21/07) : la liste était
+          entièrement monochrome, donc plate et lente à parcourir. L'accent porte
+          le RÔLE « voici le sujet du réglage » (§C) — fond `carbone` (sombre),
+          donc jamais de chartreuse sur clair. Le chevron, lui, reste gris :
+          c'est une affordance de navigation, pas une identité. */}
       <View style={styles.iconWrap}>
-        <Icon name={row.icon} size={iconSizes.md} color={colors.blanc} />
+        <Icon name={row.icon} size={iconSizes.md} color={colors.chartreuse} />
       </View>
       <View style={styles.info}>
         <Text style={styles.label} numberOfLines={1}>

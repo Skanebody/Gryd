@@ -49,3 +49,10 @@ Session autonome : les décisions sont extraites de la spec (gelée pour la Sais
 
 ## AMENDEMENT-16 §2 — zones interdites géographiques (ajout 05/07/2026)
 - **V1 explicite** : exclusion GÉOGRAPHIQUE des zones interdites (eau, autoroutes, voies ferrées, zones militaires, écoles, hôpitaux, zones dangereuses signalées — doc gameplay §5 étape 5) : nécessite une source géo serveur (seed OSM/IGN dans `no_capture_zones`). Le mécanisme EXISTANT s'applique déjà cellule par cellule (`no_capture_zones` GeoJSON + privacy zones → `blocked_no_capture_zone`/`blocked_privacy` dans decideClaims) et servira de support au seed V1 — rien à changer au moteur.
+
+## Point ouvert O10 — domaine des liens d'invite crew (ajout 21/07/2026)
+- **O10. Domaine public `gryd.app` vs `gryd.run`** (fondateur — achat + DNS) : bloque les UNIVERSAL LINKS des invites crew, PAS l'invitation elle-même.
+  - **Marche aujourd'hui, sans domaine** : le QR/lien `gryd://c/<CODE>` (scheme `gryd`, propriété GRYD) ouvre l'app sur `app/c/[code].tsx` ; adhésion arbitrée par `join_crew_by_code` ; si le scanneur n'a pas de compte, l'intention est mémorisée 24 h (`src/features/crew/pendingInvite.ts`) et reprise automatiquement après inscription.
+  - **Attend le domaine** : un inconnu SANS l'app qui scanne un lien `https://…/c/<CODE>` n'atterrit sur rien (aucune page servie, aucune association OS). Il faut (a) la page web `/c/<code>` qui propose le store, (b) `/.well-known/apple-app-site-association` + `/.well-known/assetlinks.json`, (c) coller le gabarit `_universal_links_o10` d'`apps/mobile/app.json` dans `expo.ios`/`expo.android`.
+  - **Arbitrage tenu** : ne RIEN déclarer dans `app.json` pour un domaine non possédé — une entitlement `associated-domains` (ou un `intentFilter` autoVerify) sur un domaine tiers demande à l'OS d'intercepter les liens de quelqu'un d'autre, échoue à la vérification, et part telle quelle en revue App Store.
+  - **Coût du basculement, une fois le domaine acquis : app.json uniquement.** Le code applicatif accepte DÉJÀ les deux hôtes (`INVITE_HOSTS`).

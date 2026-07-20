@@ -78,7 +78,16 @@ export function demoInviteToken(crewName: string): string {
   return `${base}`.slice(0, 16);
 }
 
-/** Nettoie un token pour une URL : ascii minuscule, tirets, jamais vide côté appel. */
+/**
+ * Nettoie un token pour une URL : ascii minuscule, jamais vide côté appel.
+ *
+ * ⚠ CONTRAT POUR LA FUTURE PAGE WEB (arbitrage de domaine, O10) : le lien encodé
+ * dans le QR est en MINUSCULES (`/c/ab12cd`) alors que l'app AFFICHE le code en
+ * majuscules (`AB12CD`). Sans conséquence in-app — `normalizeInviteCode` remet
+ * en majuscules avant tout usage et les deux regex de parsing sont en /i — mais
+ * la page servie sur le domaine DEVRA être INSENSIBLE À LA CASSE : sinon des QR
+ * déjà imprimés cesseraient de fonctionner, et un QR imprimé ne se corrige pas.
+ */
 function sanitizeToken(raw: string): string {
   return raw
     .normalize('NFD')

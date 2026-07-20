@@ -13,7 +13,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, spacing } from '@klaim/shared';
 import {
   NOTIF_CHANNEL_LABELS,
   PLAY_STYLE_LABELS,
@@ -92,7 +92,15 @@ function ActionRow({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
-      <Icon name={icon} size={20} color={danger === true ? gameColors.danger : colors.blanc} />
+      {/* Même règle que la liste Paramètres (21/07) : l'icône de tête porte le
+          RÔLE de la ligne. Chartreuse par défaut sur fond `carbone` (sombre) ;
+          une action DESTRUCTIVE garde le rouge sémantique — l'accent ne doit
+          jamais banaliser « supprimer mon compte » / « quitter le crew ». */}
+      <Icon
+        name={icon}
+        size={iconSizes.md}
+        color={danger === true ? gameColors.danger : colors.chartreuse}
+      />
       <View style={styles.rowInfo}>
         <Text style={[styles.rowLabel, danger === true && styles.rowLabelDanger]}>{label}</Text>
         {detail !== undefined ? <Text style={styles.rowDetail}>{detail}</Text> : null}

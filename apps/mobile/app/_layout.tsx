@@ -12,14 +12,20 @@ import '../src/lib/bootDiagnostics';
 // runtime Expo/Hermes ne connaît pas utf-16le, or h3-js (Emscripten) en crée
 // un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js.
 import '../src/lib/textDecoderUtf16';
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { Linking } from 'react-native';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { retryPendingUpload } from '../src/lib/pendingUpload';
 import { SessionProvider } from '../src/lib/session';
+import {
+  parseInviteUrl,
+  rememberPendingInvite,
+  startPendingInviteWatcher,
+} from '../src/features/crew/pendingInvite';
 import { ErrorBoundary } from '../src/ui/ErrorBoundary';
 // AMENDEMENT-15 §2 : la tâche GPS background doit être définie AU CHARGEMENT
 // du bundle (relance headless après kill). Variante .web.ts vide — le preview
@@ -32,6 +38,70 @@ export default function RootLayout() {
     // AMENDEMENT-15 §2 : une fin de course restée hors-ligne est renvoyée
     // silencieusement à chaque lancement (idempotent par clientRunId, D14).
     void retryPendingUpload();
+  }, []);
+
+  // ── RÉCEPTION DES LIENS D'INVITE CREW (demande fondateur 21/07/2026) ────────
+  // DEUX chemins, tous deux nécessaires : `getInitialURL` quand l'app est
+  // LANCÉE par le lien (elle n'existait pas encore, aucun listener n'aurait pu
+  // l'entendre), et le listener `url` quand elle est DÉJÀ ouverte (le lancement
+  // initial, lui, n'émet pas d'événement). Un seul des deux ⇒ la moitié des
+  // scans de QR ne fait rien.
+  //
+  // Le parsing est STRICT (`parseInviteUrl`) : une URL non reconnue — autre
+  // domaine, autre chemin, code de mauvaise longueur — est IGNORÉE. On ne route
+  // jamais sur une entrée externe non validée.
+  // ANTI-DOUBLON : expo-router route DÉJÀ tout seul un lien dont le chemin
+  // correspond à une route existante. Sans garde, l'app empilerait DEUX fois
+  // l'écran d'invitation (le « retour » revenant sur lui-même). On compare donc
+  // au chemin courant avant de naviguer. On garde quand même notre handler : il
+  // VALIDE le code (le routage automatique, lui, accepterait n'importe quoi) et
+  // couvre les runtimes où l'auto-linking ne se déclenche pas.
+  // ANTI-DOUBLON PAR CODE, pas par pathname : `open()` est appelé depuis la
+  // microtâche de résolution de getInitialURL, donc potentiellement AVANT que le
+  // routage automatique d'expo-router ait mis à jour `usePathname()`. Comparer au
+  // pathname lisait alors encore '/' : la garde ne se déclenchait pas et l'écran
+  // d'invitation s'empilait deux fois (le « Retour » revenait sur lui-même). Une
+  // ref sur le dernier code traité est immunisée au timing.
+  const lastHandledCodeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const open = (url: string | null): void => {
+      const code = parseInviteUrl(url);
+      if (!alive || !code) return;
+      if (lastHandledCodeRef.current === code) return; // déjà traité
+      lastHandledCodeRef.current = code;
+      // MÉMORISATION ICI, et INCONDITIONNELLE (correctif du bloquant relevé par
+      // la vérification adversariale). Elle vivait dans l'écran /c/[code], gardée
+      // par `sessionLoading` : au démarrage à froid ce drapeau est VRAI, donc le
+      // 1er passage de l'effet renonçait, et la mémorisation dépendait d'un 2e
+      // passage… pendant que (tabs)/_layout rendait un <Redirect> vers
+      // /onboarding ou /sign-in qui remplace la pile entière. Deux lectures
+      // asynchrones indépendantes en COURSE — et si le Redirect gagnait,
+      // l'invitation était perdue en silence, EXACTEMENT pour la personne pas
+      // encore inscrite que ce parcours vise. Le layout racine, lui, est toujours
+      // monté : poser l'intention ici la rend indépendante du routage.
+      void rememberPendingInvite(code);
+      router.push({ pathname: '/c/[code]', params: { code } });
+    };
+    // Défensif : sur un runtime où Linking n'est pas dispo (preview dégradée),
+    // l'app démarre quand même — un lien manqué ne vaut pas un crash.
+    try {
+      void Linking.getInitialURL()
+        .then(open)
+        .catch(() => undefined);
+    } catch {
+      // ignoré
+    }
+    const sub = Linking.addEventListener('url', ({ url }) => open(url));
+    // Reprise de l'invitation mémorisée dès que la session devient valide
+    // (inscription différée) — posée ICI, dans un layout toujours monté.
+    const stopWatcher = startPendingInviteWatcher();
+    return () => {
+      alive = false;
+      sub.remove();
+      stopWatcher();
+    };
   }, []);
 
   return (
@@ -64,6 +134,8 @@ export default function RootLayout() {
           {/* Social (AMENDEMENT-07 §8) : Amis, fiche crew publique/recrutement. */}
           <Stack.Screen name="amis" />
           <Stack.Screen name="crew-public" />
+          {/* Atterrissage d'une invitation crew (QR / lien `gryd://c/CODE`). */}
+          <Stack.Screen name="c/[code]" />
           {/* Motivation (AMENDEMENT-07 §8) : Aujourd'hui, Challenges, réglages. */}
           <Stack.Screen name="aujourdhui" />
           <Stack.Screen name="challenges/index" />

@@ -2467,6 +2467,167 @@ export const C = defineCatalog({
     de: 'Zurücksetzen',
     pt: 'Redefinir',
   },
+
+  // ── Écran INVITER (QR de recrutement — demande fondateur 21/07) ─────────────
+  qrKicker: {
+    fr: 'INVITER',
+    en: 'INVITE',
+    es: 'INVITAR',
+    de: 'EINLADEN',
+    pt: 'CONVIDAR',
+  },
+  qrHowTo: {
+    fr: 'Fais scanner ce QR code. Sans scan, le code ci-dessous se tape dans « J’ai un code ».',
+    en: 'Have this QR code scanned. No scanner? The code below can be typed under “I have a code”.',
+    es: 'Haz que escaneen este código QR. Sin escáner, el código de abajo se escribe en «Tengo un código».',
+    de: 'Lass diesen QR-Code scannen. Ohne Scan: Der Code unten wird unter „Ich habe einen Code“ eingetippt.',
+    pt: 'Peça para escanearem este QR code. Sem escanear, o código abaixo se digita em “Tenho um código”.',
+  },
+  qrCodeLabel: {
+    fr: 'CODE DU CREW',
+    en: 'CREW CODE',
+    es: 'CÓDIGO DEL CREW',
+    de: 'CREW-CODE',
+    pt: 'CÓDIGO DO CREW',
+  },
+  qrA11yImage: {
+    fr: 'QR code d’invitation du crew {name}',
+    en: 'Invite QR code for crew {name}',
+    es: 'Código QR de invitación del crew {name}',
+    de: 'Einladungs-QR-Code des Crews {name}',
+    pt: 'QR code de convite do crew {name}',
+  },
+  qrShare: {
+    fr: 'Partager l’invitation',
+    en: 'Share the invite',
+    es: 'Compartir la invitación',
+    de: 'Einladung teilen',
+    pt: 'Compartilhar o convite',
+  },
+  qrCopyCode: {
+    fr: 'Copier le code',
+    en: 'Copy the code',
+    es: 'Copiar el código',
+    de: 'Code kopieren',
+    pt: 'Copiar o código',
+  },
+  qrCopied: {
+    fr: 'Code copié.',
+    en: 'Code copied.',
+    es: 'Código copiado.',
+    de: 'Code kopiert.',
+    pt: 'Código copiado.',
+  },
+  qrShared: {
+    fr: 'Invitation partagée.',
+    en: 'Invite shared.',
+    es: 'Invitación compartida.',
+    de: 'Einladung geteilt.',
+    pt: 'Convite compartilhado.',
+  },
+  qrShareUnavailable: {
+    fr: 'Partage indisponible sur cet appareil.',
+    en: 'Sharing is unavailable on this device.',
+    es: 'Compartir no está disponible en este dispositivo.',
+    de: 'Teilen ist auf diesem Gerät nicht verfügbar.',
+    pt: 'Compartilhamento indisponível neste aparelho.',
+  },
+  qrLoading: {
+    fr: 'Récupération du code du crew…',
+    en: 'Fetching the crew code…',
+    es: 'Obteniendo el código del crew…',
+    de: 'Crew-Code wird geladen…',
+    pt: 'Buscando o código do crew…',
+  },
+  qrErrTitle: {
+    fr: 'Code indisponible',
+    en: 'Code unavailable',
+    es: 'Código no disponible',
+    de: 'Code nicht verfügbar',
+    pt: 'Código indisponível',
+  },
+  qrErrBody: {
+    fr: 'Impossible de récupérer le code du crew. Sans lui, pas de QR : vérifie ta connexion et réessaie.',
+    en: 'The crew code could not be fetched. No code means no QR: check your connection and try again.',
+    es: 'No se pudo obtener el código del crew. Sin él no hay QR: revisa tu conexión e inténtalo de nuevo.',
+    de: 'Der Crew-Code konnte nicht geladen werden. Ohne ihn kein QR: Verbindung prüfen und erneut versuchen.',
+    pt: 'Não foi possível buscar o código do crew. Sem ele não há QR: verifique sua conexão e tente de novo.',
+  },
+  qrRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+
+  // ── Atterrissage d'une invitation (app/c/[code].tsx) ────────────────────────
+  // Les REFUS réutilisent les entrées rlErr* : une seule vérité par situation.
+  // Le NOM du crew n'apparaît qu'APRÈS l'adhésion (rlWelcome) — avant, l'app ne
+  // le connaît pas et n'en invente pas.
+  cInviteTitle: {
+    fr: 'Invitation',
+    en: 'Invitation',
+    es: 'Invitación',
+    de: 'Einladung',
+    pt: 'Convite',
+  },
+  cInviteJoinTitle: {
+    fr: 'Rejoindre ce crew',
+    en: 'Join this crew',
+    es: 'Unirte a este crew',
+    de: 'Diesem Crew beitreten',
+    pt: 'Entrar neste crew',
+  },
+  cInviteJoinBody: {
+    fr: 'Ce code t’ouvre le crew. Tu cours pour lui dès ta prochaine sortie.',
+    en: 'This code opens the crew. You run for it from your next outing.',
+    es: 'Este código te abre el crew. Corres por él desde tu próxima salida.',
+    de: 'Dieser Code öffnet den Crew. Ab deinem nächsten Lauf läufst du für ihn.',
+    pt: 'Este código abre o crew. Você corre por ele já na próxima saída.',
+  },
+  cInviteSignedOutTitle: {
+    fr: 'Crée ton compte pour rejoindre',
+    en: 'Create your account to join',
+    es: 'Crea tu cuenta para unirte',
+    de: 'Erstelle dein Konto zum Beitreten',
+    pt: 'Crie sua conta para entrar',
+  },
+  cInviteSignedOutBody: {
+    fr: 'On garde cette invitation : dès que ton compte existe, tu entres dans le crew.',
+    en: 'We keep this invitation: as soon as your account exists, you join the crew.',
+    es: 'Guardamos esta invitación: en cuanto exista tu cuenta, entras en el crew.',
+    de: 'Wir behalten diese Einladung: sobald dein Konto existiert, kommst du in den Crew.',
+    pt: 'Guardamos este convite: assim que sua conta existir, você entra no crew.',
+  },
+  cInviteAlreadyMine: {
+    fr: 'Tu es déjà dans ce crew.',
+    en: 'You’re already in this crew.',
+    es: 'Ya estás en este crew.',
+    de: 'Du bist schon in diesem Crew.',
+    pt: 'Você já está neste crew.',
+  },
+  cInviteBadLink: {
+    fr: 'Ce lien d’invitation est incomplet',
+    en: 'This invitation link is incomplete',
+    es: 'Este enlace de invitación está incompleto',
+    de: 'Dieser Einladungslink ist unvollständig',
+    pt: 'Este link de convite está incompleto',
+  },
+  cInviteBadLinkBody: {
+    fr: 'Demande le code à la personne qui t’invite : il se saisit à la main dans Crew.',
+    en: 'Ask the person inviting you for the code: you can type it by hand in Crew.',
+    es: 'Pide el código a quien te invita: puedes escribirlo a mano en Crew.',
+    de: 'Frag die einladende Person nach dem Code: Du kannst ihn in Crew eintippen.',
+    pt: 'Peça o código a quem te convidou: dá para digitá-lo na aba Crew.',
+  },
+  cInviteSeeCrew: {
+    fr: 'Voir mon crew',
+    en: 'See my crew',
+    es: 'Ver mi crew',
+    de: 'Meinen Crew ansehen',
+    pt: 'Ver meu crew',
+  },
 });
 
 // ─── Lookups par clé de jeu (Entries dérivées du catalogue — parité garantie) ──

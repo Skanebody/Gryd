@@ -115,10 +115,19 @@ de devise mentirait). À corriger avant tout branchement d'achat réel.
   coureur, écrit `hex_claims.winner_crew_id` et l'XP quotidienne par membre.
   Aucune ligne d'app native ne les lit. Le maillon 4 de la boucle est un trou de
   **lecture**, pas de moteur — d'où un LOT 1 court.
-- **Le deep link entrant n'est pas reçu** : zéro `Linking.getInitialURL`, zéro
-  listener `'url'`, aucune route `/c/[code]`, aucun `associatedDomains`. On
-  génère un lien d'invite parfait qui, cliqué, ne fait rien. La viralité est
-  coupée au dernier mètre (dépend de la décision « domaine »).
+- ~~Le deep link entrant n'est pas reçu~~ **RÉSOLU le 21/07** : réception câblée
+  (`getInitialURL` + listener `'url'`), route `/c/[code]`, QR de recrutement
+  réel, et **inscription différée** — un inconnu scanne, l'intention est
+  mémorisée AVANT toute redirection, il crée son compte, l'app le fait entrer
+  dans le crew toute seule.
+  **Reste suspendu à la décision domaine** : uniquement le cas de l'inconnu qui
+  n'a PAS l'app (il lui faut une page hébergée). Deux contraintes à respecter le
+  jour où cette page existera, sous peine de casser des QR **déjà imprimés** —
+  un QR imprimé ne se corrige pas :
+  1. la page doit être **insensible à la casse** (le lien encodé est en
+     minuscules, l'app affiche le code en majuscules) ;
+  2. chemin `/c/<code>` + fichier AASA servi sur le domaine retenu. L'app accepte
+     déjà les deux hôtes via `INVITE_HOSTS` : aucun code applicatif à toucher.
 - **Aucun event de funnel n'est émis** : `inviteSent`/`inviteAccepted` sont
   définis dans `events.ts` et jamais `track()`és. Le badge « Recruiter » est
   donc inatteignable alors qu'il est affiché comme atteignable.

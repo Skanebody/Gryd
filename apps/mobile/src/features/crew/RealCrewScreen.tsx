@@ -40,7 +40,7 @@ import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
 import type { Entry } from '../../i18n/types';
 import { C, CREW_ROLE_E } from '../../i18n/catalog/crew';
-import { buildInviteLink, shareInviteLink } from './invite';
+import { CrewInviteQRScreen } from './CrewInviteQRScreen';
 import {
   crewCreateDecision,
   normalizeCrewCode,
@@ -59,7 +59,7 @@ function roleLabelEntry(role: string): Entry | null {
   return (CREW_ROLE_E as Readonly<Record<string, Entry | undefined>>)[role] ?? null;
 }
 
-type Mode = 'home' | 'create' | 'join';
+type Mode = 'home' | 'create' | 'join' | 'invite';
 
 interface ErrView {
   entry: Entry;
@@ -192,14 +192,9 @@ export function RealCrewScreen() {
     }
   }, [busy, code, joinByCode, reload, resetForms]);
 
-  const onShare = useCallback(async () => {
-    const res = await fetchMyCode();
-    if (!res.ok) {
-      setFlash({ entry: C.rlErrGeneric });
-      return;
-    }
-    await shareInviteLink(buildInviteLink(res.code));
-  }, [fetchMyCode]);
+  // « Inviter » n'ouvre plus directement la feuille de partage : il MÈNE à
+  // l'écran d'invitation (QR + code + actions). Le CTA chartreuse de cet écran
+  // reste unique — c'est la même porte, elle donne juste sur plus (§A).
 
   const onLeave = useCallback(() => {
     Alert.alert(
@@ -263,6 +258,19 @@ export function RealCrewScreen() {
 
   // ── AVEC CREW : nom, effectif, roster, inviter (CTA), quitter (discret) ──────
   if (crew) {
+    // Écran d'invitation (QR de recrutement) — même état « mon crew », une
+    // couche plus loin. Le retour ramène ici sans rien recharger.
+    if (mode === 'invite') {
+      return (
+        <CrewInviteQRScreen
+          crewName={crew.name}
+          memberCount={memberCount}
+          maxMembers={maxMembers}
+          fetchMyCode={fetchMyCode}
+          onBack={goHome}
+        />
+      );
+    }
     return (
       <TabScreen title={crew.name} kicker={kicker}>
         {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
@@ -335,7 +343,7 @@ export function RealCrewScreen() {
         </View>
 
         <View style={styles.cta}>
-          <Button label={t(C.rlShareCode)} icon="partage" onPress={() => void onShare()} />
+          <Button label={t(C.rlShareCode)} icon="partage" onPress={() => setMode('invite')} />
         </View>
         <View style={styles.leaveRow}>
           <GhostButton label={t(C.rlLeave)} onPress={onLeave} />

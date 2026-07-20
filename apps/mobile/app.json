@@ -16,6 +16,23 @@
       "com.apple.developer.healthkit.access": []
     }
   },
+  "_note_deeplink_invite_o10": "INVITES CREW (QR / lien) — ARBITRAGE 21/07/2026 : le scheme `gryd://` ci-dessous NOUS APPARTIENT (déclaré par `expo.scheme`) et suffit à faire fonctionner `gryd://c/<CODE>` DÈS AUJOURD'HUI sur un dev build. En revanche `ios.associatedDomains` et un `android.intentFilters` autoVerify sur gryd.run / gryd.app sont VOLONTAIREMENT ABSENTS : déclarer un domaine qu'on ne possède pas revient à demander à l'OS d'intercepter les liens https d'un tiers, et la validation échouerait de toute façon (Apple exige un `apple-app-site-association` servi en https sur le domaine, Android un `assetlinks.json` — donc l'App Store recevrait une entitlement `com.apple.developer.associated-domains` invérifiable). Blocage réel : le choix gryd.app vs gryd.run (point ouvert O10, DISCOVERY.md). Le gabarit prêt à coller est dans `_universal_links_o10`. Le code applicatif, lui, accepte DÉJÀ les deux hôtes (`INVITE_HOSTS` dans src/features/crew/pendingInvite.ts) : le jour où le domaine est acheté, il n'y a QUE ce fichier à modifier.",
+  "_universal_links_o10": {
+    "_comment": "GABARIT À ACTIVER QUAND LE DOMAINE EST ACHETÉ ET VÉRIFIÉ — remplacer <DOMAINE> par gryd.app ou gryd.run, coller `ios_a_ajouter` dans `expo.ios` et `android_a_ajouter` dans `expo.android`, puis publier /.well-known/apple-app-site-association et /.well-known/assetlinks.json sur le domaine AVANT de builder (sans eux, l'OS n'associe rien et le lien ouvre le navigateur).",
+    "ios_a_ajouter": {
+      "associatedDomains": ["applinks:<DOMAINE>"]
+    },
+    "android_a_ajouter": {
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "<DOMAINE>", "pathPrefix": "/c" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    }
+  },
   "_note_updates_retire": "expo-updates RETIRÉ ENTIÈREMENT le 20/07/2026 (crash au démarrage du 1er build iOS). Le .ips prouve que le crash survient sur expo.controller.errorRecoveryQueue MÊME avec EXUpdatesEnabled=false dans le plist du build (vérifié par UUID + plutil sur l'IPA) : ErrorRecovery avale l'erreur réelle, attend 5 s une update de secours (canal jamais publié), puis abort — crash muet. enabled:false n'a PAS suffi → dépendance désinstallée + channel retirés d'eas.json (sinon EAS la réinstalle tout seul, cf. 39a6299). À réintroduire une fois l'app stable : réinstaller expo-updates, remettre updates.url + runtimeVersion + channels, et publier une 1re update AVANT tout build pour que la récupération ait un filet.",
   "expo": {
     "name": "GRYD",
