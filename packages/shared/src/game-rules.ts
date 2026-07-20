@@ -820,6 +820,16 @@ export const COLLUSION_MAX_ALTERNATIONS = 3;
  */
 export const CO_CAPTURE_DAILY_POINTS_CAP = 2_000;
 
+// ─── Mission dynamique RÉELLE (repositionnement « mission-first ») ────────────
+/**
+ * Fenêtre « ta zone expire bientôt » : une zone à MOI dont le decay tombe dans
+ * moins de MISSION_DEFEND_WINDOW_H devient LA mission prioritaire (« défends X
+ * avant {h} h »). Au-delà, la mission bascule sur l'extension de territoire.
+ * 100 % dérivée de données RÉELLES (hex_claims.decay_at) — jamais une urgence
+ * fabriquée (règle zéro-mensonge).
+ */
+export const MISSION_DEFEND_WINDOW_H = 72;
+
 // ─── AMENDEMENT-41 §4 Bonus de capture COLLECTIF (CAPÉ, anti pay-to-win) ──────
 /**
  * Avantage de groupe #1 — bonus de VITESSE de remplissage du contrôle d'un hex

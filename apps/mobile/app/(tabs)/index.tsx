@@ -32,6 +32,8 @@ import {
   MAP_RIVAL_HEAD,
 } from '../../src/features/map/demo';
 import { C } from '../../src/i18n/catalog/nav';
+import { C as M } from '../../src/i18n/catalog/mission';
+import { useRealMission } from '../../src/features/mission/useRealMission';
 import { useLocale, useT } from '../../src/i18n/store';
 import type { Locale } from '../../src/i18n/types';
 import { screen } from '../../src/lib/analytics';
@@ -131,6 +133,9 @@ function MissionLine() {
   const t = useT();
   const locale = useLocale();
   const [detailOpen, setDetailOpen] = useState(false);
+  // NATIF : la mission RÉELLE dérivée de MES vraies captures + ma position.
+  // null en showcase / sans session / échec (voir hook) — appelé inconditionnellement.
+  const { mission: realMission } = useRealMission();
 
   // Retour sur la Carte = détail refermé (même règle « carte nue » que le HUD).
   // TOUS les hooks AVANT les retours conditionnels ci-dessous (Rules of Hooks) :
@@ -144,16 +149,116 @@ function MissionLine() {
   // « Carte nue » : l'utilisateur a masqué tout le HUD → plus de ligne mission.
   if (hudHidden) return null;
 
-  // O1 (états vides) : mission/secteur/rival ci-dessous sont de la DÉMO (MAP_MISSION,
-  // MAP_HUD, MAP_RIVAL_HEAD) — aucune source serveur de mission n'est encore câblée.
-  // Un vrai user (session) ne doit donc PAS voir « République attaquée · Canal Crew
-  // 38 % » : ce serait fabriquer une mission et un rival. La carte reste honnête via
-  // son bandeau `dataNote` (« cours pour prendre ta première zone »). L'accès Route
-  // Planner vit ailleurs (bouton GO, Aujourd'hui, War Room). Showcase : démo intacte.
-  // Retour terrain 20/07 : sur l'app NATIVE, cette mission démo n'a pas le droit
-  // d'exister même sans session (« République attaquée » à Ouville-la-Rivière) —
-  // la démo est réservée à la vitrine web. isShowcasePlatform (src/lib/flags).
-  if ((configured && session) || !isShowcasePlatform) return null;
+  // ── NATIF (device installé) : mission RÉELLE ou RIEN — jamais la démo. ──
+  // CLAUDE.md / retour terrain 20/07 : sur l'app native, « République attaquée ·
+  // Canal Crew 38 % » n'a pas le droit d'exister (fabriquer une mission ET un
+  // rival). isShowcasePlatform est toujours false ici → on prend cette branche,
+  // qui ne lit QUE la mission dérivée de MES vraies captures (useRealMission),
+  // sans tête de secteur ni rival (aucune donnée fabriquée). Deux cas :
+  //  • null / loading / first_capture → RIEN : le widget « Prends ta première
+  //    zone » (BattleMapOverlays) porte déjà ce cas — pas de doublon §A ;
+  //  • defend_expiring / expand → LA ligne mission réelle (gabarit démo §A).
+  if (!isShowcasePlatform) {
+    if (!realMission || realMission.kind === 'first_capture') return null;
+
+    // Narrow UNE fois : `defend` non-null ⟺ mission de défense — accès `hoursLeft`
+    // sûr (un booléen isDefend séparé ne rétrécirait pas l'union → erreur TS).
+    const defend = realMission.kind === 'defend_expiring' ? realMission : null;
+    const kmLabel =
+      realMission.distanceM != null ? formatKm(realMission.distanceM / 1000, locale) : null;
+    // Titre COURT (détail au tap) : sans distance — la distance vit sur la ligne.
+    const nearText = defend ? t(M.missionDefend, { h: defend.hoursLeft }) : t(M.missionExpand);
+    // Ligne compacte : ajoute la distance dès qu'un fix GPS existe (variante Far).
+    const lineText =
+      kmLabel != null
+        ? defend
+          ? t(M.missionDefendFar, { km: kmLabel, h: defend.hoursLeft })
+          : t(M.missionExpandFar, { km: kmLabel })
+        : nearText;
+    // Accent par RÔLE (§C — renforce le texte, jamais seul porteur de sens) :
+    // decay urgent = danger (rouge) ; croissance de MON territoire = chartreuse.
+    const accent = defend ? gameColors.danger : colors.chartreuse;
+
+    const toggleRealDetail = () => {
+      haptics.light();
+      setDetailOpen((open) => {
+        const next = !open;
+        if (next) screen('map_mission_line_open');
+        return next;
+      });
+    };
+    const openRealPlanner = () => {
+      haptics.light();
+      // Le planner lit `type` (defense → défendre, sinon conquérir) et prend son
+      // origine du GPS LIVE — il ne consomme pas l'anchor de la mission (cf. risks).
+      router.push(defend ? '/route-planner?type=defense' : '/route-planner');
+    };
+
+    return (
+      <View
+        style={[styles.missionWrap, { top: insets.top + MISSION_LINE_TOP_GAP }]}
+        pointerEvents="box-none"
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: detailOpen }}
+          accessibilityLabel={`${lineText} — ${t(
+            detailOpen ? C.missionDetailCloseA11y : C.missionDetailOpenA11y,
+          )}`}
+          onPress={toggleRealDetail}
+          style={({ pressed }) => [styles.missionLine, pressed && styles.pressed]}
+          testID="battle-map-mission-line-real"
+        >
+          {/* Accent de RÔLE — renforce le texte, ne le remplace jamais (§C). */}
+          <View style={[styles.missionBar, { backgroundColor: accent }]} />
+          <Text
+            style={styles.missionText}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={MISSION_TEXT_MIN_SCALE}
+          >
+            {lineText}
+          </Text>
+          <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
+        </Pressable>
+
+        {detailOpen ? (
+          <View style={styles.missionDetail}>
+            {/* Détail au tap (jamais imposé) : rappel court + entrée Route Planner. */}
+            <Text
+              style={styles.detailTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={MISSION_TEXT_MIN_SCALE}
+            >
+              {nearText}
+            </Text>
+            <View style={styles.detailDivider} />
+            {/* Entrée VISIBLE vers le Route Planner — action inline, jamais un
+                2ᵉ CTA chartreuse plein (§A.4 : le seul CTA reste GO). */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(M.missionPlanA11y)}
+              onPress={openRealPlanner}
+              style={({ pressed }) => [styles.detailAction, pressed && styles.pressed]}
+              testID="battle-map-plan-route-real"
+            >
+              <Text style={styles.detailActionLabel} numberOfLines={1}>
+                {t(M.missionPlan)}
+              </Text>
+              <Icon name="chevron" size={iconSizes.sm} color={colors.blanc} />
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  // ── SHOWCASE (vitrine web) : mission DÉMO ci-dessous, INCHANGÉE. ──
+  // La démo (MAP_MISSION, MAP_HUD, MAP_RIVAL_HEAD) est réservée à la vitrine, où
+  // aucune géoloc réelle n'existe. Un vrai user connecté sur la vitrine (session)
+  // ne voit pas la démo non plus : la carte reste honnête via son `dataNote`.
+  if (configured && session) return null;
 
   // ── Textes de la ligne mission — résolus à l'affichage (catalogue nav) ──
   // Les libellés DÉMO (headerTitle, cardTitle, freshness…) viennent de map/demo

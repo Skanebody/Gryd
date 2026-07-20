@@ -9,6 +9,6 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "sync:rules": "node scripts/sync-game-rules.mjs",
     "test:functions": "deno test --allow-read supabase/functions/",
-    "test:map": "cd apps/mobile && deno test --allow-read --allow-env --no-lock src/features/map/ src/features/widget/ src/features/run/gps/engine/"
+    "test:map": "cd apps/mobile && deno test --allow-read --allow-env --no-lock src/features/map/ src/features/widget/ src/features/mission/ src/features/run/gps/engine/"
   }
 }

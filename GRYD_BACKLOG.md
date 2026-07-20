@@ -4,6 +4,17 @@ Format : `- [ ] <titre> — <valeur> — <S/M/L>`. Fait → `- [x]` + hash de co
 Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
+## Repositionnement mission-first (décision fondateur 21/07/2026, analyse stratégique vs INTVL)
+> Réf : AMENDEMENT-41 + analyse stratégique INTVL (shared territories livré par INTVL 2026 — notre réponse = LE RELAIS). Les 4 comportements MVP à mesurer via PostHog : comprendre la capture / dévier son parcours / revenir après attaque / inviter.
+
+- [x] Mission dynamique RÉELLE v1 (defend/expand/first_capture depuis hex_claims + GPS) — la feature-réflexe « où courir maintenant » — M (ce commit)
+- [ ] Crew réel bout-en-bout — créer/rejoindre, union réelle sur la carte, conséquence collective sur le résultat (« N membres bénéficient ») — L
+- [ ] Boucle de retour asynchrone — notification « ta zone expire dans 48 h / a été prise » (decay serveur déjà réel, notifs à câbler) — M
+- [ ] Mission v2 : secteurs réels + rival réel (sector_snapshot 0037 + activité 0040) quand la densité existe — M
+- [ ] DÉCISION FONDATEUR : couche PvE étiquetée (forteresses « système ») vs objectifs solo purs — attendre les 1res données de rétention — S (décision)
+- [ ] « Ensemble ça tient » : lock-extension rétroactive par les relais A-41 (écrite par le système au nom du propriétaire, jamais par le relayeur) — M
+- [ ] Séparation plausible des traces (anti multi-téléphone A-41 §6) — L
+
 ## PRIORITÉ ABSOLUE — MVP_CHANGESET (validé fondateur 17/07, verdict NO-GO à lever)
 > Réf. opérations exactes : [MVP_CHANGESET.md](MVP_CHANGESET.md). Pas de push/deploy sans « pousse ».
 
