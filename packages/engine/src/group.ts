@@ -12,8 +12,11 @@ import {
   CREW_STREAK_THRESHOLDS,
   GROUP_CAPTURE_BONUS_BY_RUNNERS,
   GROUP_CAPTURE_BONUS_MAX_PCT,
+  HEX_LOCK_HOURS,
   type CrewStreakTier,
 } from '@klaim/shared/game-rules';
+
+const MS_PER_HOUR = 3_600_000;
 
 // ─── §1 Bonus de capture collectif (CAPÉ) ─────────────────────────────────────
 
@@ -57,4 +60,61 @@ export function crewStreakTier(activeDays: number): CrewStreakTier {
   let tier: CrewStreakTier = 'none';
   for (const [name, min] of entries) if (days >= min) tier = name;
   return tier;
+}
+
+// ─── §3 Extension rétroactive du lock propriétaire (LE RELAIS, A-41 §4) ───────
+
+/**
+ * Contexte MINIMAL pour recalculer la borne de lock d'un hex fraîchement capturé
+ * quand un relais (co_captured) est crédité au PROPRIÉTAIRE.
+ */
+export interface RetroLockInput {
+  /** Instant de la capture fraîche = hex_claims.claimed_at du PROPRIÉTAIRE. */
+  claimedAt: Date;
+  /** locked_until courant du propriétaire, ou null si aucun lock posé. */
+  currentLockedUntil: Date | null;
+  /** Rang du relayeur = coureurs sur la capture (rang 2 = propriétaire + 1 relais). */
+  runnersTotal: number;
+}
+
+/**
+ * Nouvelle borne `locked_until` du PROPRIÉTAIRE quand « Ensemble ça tient » (A-41
+ * §4) : un relais crédité sur un hex FRAÎCHEMENT capturé ÉTEND le lock du
+ * propriétaire. PURE (aucune horloge, aucune I/O, aucun nombre magique de jeu).
+ *
+ *   locked_until = claimedAt + HEX_LOCK_HOURS × (1 + groupCaptureBonusPct(runnersTotal))
+ *
+ * Même barème CAPÉ (+40 %) que la vitesse de capture — anti pay-to-win : on
+ * n'accorde QUE du TEMPS de lock, jamais des points ni de la surface.
+ *
+ * Invariants (A-41 §1, les trois horloges) — retourne `null` (⇒ ne RIEN écrire,
+ * on ne touche jamais decay_at / owner / claimed_at / fresh) si :
+ *  - `runnersTotal < 2` (solo / rang 1, ou non fini) : le relayeur ne gagne
+ *    AUCUNE protection pour lui-même ;
+ *  - `claimedAt` invalide (getTime NaN) : entrée inexploitable ;
+ *  - la borne calculée n'ALLONGE pas le lock courant (≤ `currentLockedUntil`) :
+ *    on n'écrit QUE pour rallonger, JAMAIS pour raccourcir.
+ * `currentLockedUntil` null (ou Date invalide) = aucune borne basse → on étend
+ * dès `runnersTotal ≥ 2`. Le cooldown (co_captured_cooldown) est décidé en amont
+ * par l'appelant : il ne fournit tout simplement pas d'entrée à étendre.
+ */
+export function retroactiveLockUntil(input: RetroLockInput): Date | null {
+  const { claimedAt, currentLockedUntil, runnersTotal } = input;
+  // Rang < 2 (ou non fini) : pas de relais → aucune extension. On ne protège
+  // jamais le relayeur, et on n'écrit rien sur une entrée dégénérée.
+  if (!Number.isFinite(runnersTotal) || Math.floor(runnersTotal) < 2) return null;
+  // claimedAt inexploitable (Invalid Date) → on ne calcule rien.
+  const claimedMs = claimedAt?.getTime?.();
+  if (claimedMs === undefined || Number.isNaN(claimedMs)) return null;
+
+  const bonus = groupCaptureBonusPct(runnersTotal); // barème CAPÉ (+40 %), partagé
+  const extendedMs = claimedMs + HEX_LOCK_HOURS * (1 + bonus) * MS_PER_HOUR;
+
+  // On n'écrit QUE pour ALLONGER : borne courante valide et ≥ calcul → null
+  // (ne JAMAIS raccourcir un lock). Borne courante nulle/invalide → on étend.
+  const currentMs = currentLockedUntil?.getTime?.();
+  if (currentMs !== undefined && !Number.isNaN(currentMs) && extendedMs <= currentMs) {
+    return null;
+  }
+  return new Date(extendedMs);
 }

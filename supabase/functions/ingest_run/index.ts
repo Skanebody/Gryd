@@ -121,6 +121,7 @@ import {
   type ContestedCrewPresence,
 } from '../_shared/engine/social.ts';
 import { challengeProgress } from '../_shared/engine/challenge.ts';
+import { retroactiveLockUntil } from '../_shared/engine/group.ts';
 import {
   applyBonusReward,
   type BonusApplyBase,
@@ -2500,7 +2501,65 @@ Deno.serve(async (req: Request): Promise<Response> => {
         });
       if (coCapturedRows.length > 0) {
         const { error: coErr } = await supabase.from('hex_co_captures').insert(coCapturedRows);
-        if (coErr) console.error('[A-41] hex_co_captures insert (best-effort):', coErr.message);
+        if (coErr) {
+          console.error('[A-41] hex_co_captures insert (best-effort):', coErr.message);
+        } else {
+          // ── A-41 §4 « Ensemble ça tient » : extension rétroactive du lock ────
+          // POURQUOI : « le solo conquiert, le groupe fait TENIR ». Un relais
+          // crédité (co_captured) sur un hex FRAÎCHEMENT capturé RALLONGE le lock
+          // du PROPRIÉTAIRE — anti pay-to-win : on n'accorde QUE du TEMPS de lock,
+          // jamais des points ni de la surface.
+          // INVARIANT : le SYSTÈME (service-role) étend AU NOM DU PROPRIÉTAIRE,
+          // jamais le relayeur pour lui-même ; on n'écrit QUE pour ALLONGER ; on
+          // ne touche NI decay_at / owner_user_id / claimed_at / fresh. Un
+          // co_captured_cooldown ne figure PAS dans coCapturedRows (filtre
+          // 'co_captured' strict) → aucune extension. Best-effort STRICT : un
+          // échec loggue et ne change NI la réponse NI le verdict du run déjà
+          // crédité.
+          try {
+            for (const r of actionable.filter((x) => x.outcome === 'co_captured')) {
+              const st = states.get(r.h3);
+              // Double garde owner + claimed_at OBLIGATOIRE : sans propriétaire ET
+              // capture datés (contexte de rang chargé au début), on n'étend RIEN
+              // — on ne classe jamais une capture qu'on n'a pas observée, et le
+              // couple owner+claimed_at neutralise la course « zone re-capturée
+              // entre-temps » (le lock d'une autre capture ne sera jamais touché).
+              const expectedOwner = st?.ownerUserId ?? null;
+              const capturedAt = st?.lastCapturedAt ?? null;
+              if (expectedOwner === null || capturedAt === null) continue;
+              const newLock = retroactiveLockUntil({
+                claimedAt: capturedAt,
+                currentLockedUntil: st?.lockedUntil ?? null,
+                runnersTotal: coCaptureRanks.get(r.h3) ?? 2,
+              });
+              if (newLock === null) continue; // rang 1, ou lock courant déjà ≥ : ne rien écrire
+              // Garde claimed_at par PLAGE d'une milliseconde, pas par égalité :
+              // Postgres stocke claimed_at en MICROSECONDES (now() de claim_hexes),
+              // JS Date tronque en ms → un .eq() sur l'ISO ms ne matcherait ~jamais
+              // (…123Z vs .123456) et le mécanisme serait un no-op silencieux
+              // (bloquant relevé par la vérif adversariale). La plage [ms, ms+1)
+              // matche exactement la capture observée, et une re-capture (autre
+              // now(), autre ms) reste hors plage : la garde anti-course tient.
+              const msFloor = new Date(capturedAt.getTime()).toISOString();
+              const msCeil = new Date(capturedAt.getTime() + 1).toISOString();
+              const { error: lockErr } = await supabase
+                .from('hex_claims')
+                .update({ locked_until: newLock.toISOString() })
+                .eq('h3index', h3ToDb(r.h3))
+                .eq('owner_user_id', expectedOwner)
+                .gte('claimed_at', msFloor)
+                .lt('claimed_at', msCeil);
+              if (lockErr) {
+                console.warn(
+                  '[ingest_run] A-41 retro-lock update (best-effort, lock inchangé):',
+                  lockErr.message,
+                );
+              }
+            }
+          } catch (e) {
+            console.warn('[ingest_run] A-41 retro-lock fail-safe (lock inchangé ce run):', e);
+          }
+        }
       }
     }
 
