@@ -8,8 +8,16 @@
  *   sans crew  → pitch 1 ligne + « Créer mon crew » (chartreuse) + « J’ai un code » (ghost) ;
  *   création   → nom + ville (si >1) → « Créer le crew » ;
  *   rejoindre  → code {CREW_CODE_LENGTH} caractères → « Rejoindre » ;
- *   avec crew  → nom, X/CREW_MAX_MEMBERS, roster, « Inviter » (chartreuse, vrai code
- *                via my_crew_code + module invite), « Quitter » en action discrète.
+ *   avec crew  → nom, X/CREW_MAX_MEMBERS, TERRITOIRE (zones tenues + rang ville),
+ *                roster (pseudo + rôle + contribution), « Inviter » (chartreuse,
+ *                vrai code via my_crew_code), « Quitter » en action discrète.
+ *
+ * Territoire + contributions = maillons 2 et 4 de la boucle AMENDEMENT-43 §0
+ * (« je vois ce que mon crew contrôle », « ma contribution est visible »),
+ * servis par crew_overview() (0044), calculé frais sur hex_claims. Trois états
+ * honnêtes : donnée absente (chargement/échec) ⇒ AUCUN bloc ; crew sans hex ⇒
+ * phrase explicite, pas un zéro décoré ni une aire inventée ; crew avec hexes ⇒
+ * compte + rang. Le bloc reste de l'INFO : le seul CTA chartreuse est « Inviter ».
  * Erreurs du contrat RPC → messages i18n honnêtes (cooldown {days}, full, bad_code…).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -31,7 +39,7 @@ import { GhostButton } from '../../ui/GhostButton';
 import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
 import type { Entry } from '../../i18n/types';
-import { C } from '../../i18n/catalog/crew';
+import { C, CREW_ROLE_E } from '../../i18n/catalog/crew';
 import { buildInviteLink, shareInviteLink } from './invite';
 import {
   crewCreateDecision,
@@ -41,6 +49,15 @@ import {
   type CityOption,
   type CrewRefusal,
 } from './real';
+
+/**
+ * Rôle serveur (texte) → libellé localisé, ou null si la valeur est inconnue du
+ * catalogue (rôle ajouté côté DB avant l'app) : on n'affiche alors RIEN plutôt
+ * qu'une clé technique.
+ */
+function roleLabelEntry(role: string): Entry | null {
+  return (CREW_ROLE_E as Readonly<Record<string, Entry | undefined>>)[role] ?? null;
+}
 
 type Mode = 'home' | 'create' | 'join';
 
@@ -80,6 +97,7 @@ export function RealCrewScreen() {
     loading,
     crew,
     members,
+    overview,
     memberCount,
     maxMembers,
     reload,
@@ -88,7 +106,7 @@ export function RealCrewScreen() {
     leaveCrew,
     fetchMyCode,
     listCities,
-  } = useRealCrew();
+  } = useRealCrew({ withOverview: true });
 
   const [mode, setMode] = useState<Mode>('home');
   const [name, setName] = useState('');
@@ -210,6 +228,22 @@ export function RealCrewScreen() {
 
   const kicker = useMemo(() => t(C.kickerSeason), [t]);
 
+  // Rôle + contribution par membre (crew_overview, 0044). Le roster garde son
+  // ORDRE D'ANCIENNETÉ (pas de reclassement quand la donnée arrive : l'écran ne
+  // saute pas sous le doigt) ; l'overview ne fait qu'enrichir chaque ligne.
+  const detailByUser = useMemo(() => {
+    const map = new Map<string, { role: string; contributionPct: number }>();
+    for (const c of overview?.contributions ?? []) {
+      map.set(c.userId, { role: c.role, contributionPct: c.contributionPct });
+    }
+    return map;
+  }, [overview]);
+
+  // Le crew ne tient RIEN ⇒ aucune contribution affichée : « 0 % » sur toutes
+  // les lignes n'apprend rien et encombre (§A). Le bloc territoire dit déjà,
+  // en une phrase honnête, qu'il n'y a pas encore de territoire.
+  const showContributions = (overview?.territory.hexesHeld ?? 0) > 0;
+
   // ── DÉCONNECTÉ / sans backend : aucun crew fictif, on invite à se connecter ──
   if (!ready) {
     return (
@@ -234,18 +268,70 @@ export function RealCrewScreen() {
         {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
         <Text style={styles.count}>{t(C.rlMembersOf, { count: memberCount, max: maxMembers })}</Text>
 
+        {/*
+          BLOC TERRITOIRE — maillon 2 de la boucle A-43 « je vois ce que mon
+          crew contrôle ». Bloc d'INFO, pas un bouton : le seul CTA chartreuse
+          de l'écran reste « Inviter » (§A). Absent tant que crew_overview n'a
+          rien renvoyé (chargement OU échec) : ne rien dire vaut mieux que dire
+          « 0 zone » à tort. Aucune aire en m² n'est affichée — le serveur n'en
+          émet pas (0044, choix n°1) et on n'en fabrique pas ici.
+        */}
+        {overview ? (
+          <View style={styles.territory}>
+            <Text style={styles.sectionLabel}>{t(C.rlTerritoryLabel)}</Text>
+            {overview.territory.hexesHeld > 0 ? (
+              <>
+                <Text style={styles.territoryValue}>
+                  {overview.territory.hexesHeld === 1
+                    ? t(C.rlZonesHeldOne)
+                    : t(C.rlZonesHeldN, { n: overview.territory.hexesHeld })}
+                </Text>
+                {/* Rang tu si le crew est seul dans sa ville : « 1 sur 1 » n'est
+                    pas un classement, c'est du bruit. */}
+                {overview.territory.cityRank !== null &&
+                overview.territory.crewsInCity !== null &&
+                overview.territory.crewsInCity > 1 ? (
+                  <Text style={styles.territoryHint}>
+                    {t(C.rlCityRank, {
+                      rank: overview.territory.cityRank,
+                      total: overview.territory.crewsInCity,
+                    })}
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text style={styles.territoryEmpty}>{t(C.rlNoTerritory)}</Text>
+            )}
+          </View>
+        ) : null}
+
         <View style={styles.roster}>
-          {members.map((m, i) => (
-            <View
-              key={m.userId}
-              style={[styles.memberRow, i < members.length - 1 && styles.memberDivider]}
-            >
-              <Text style={styles.memberName} numberOfLines={1}>
-                {m.pseudo}
-              </Text>
-              {m.isMe ? <Text style={styles.youTag}>{t(C.rlYouTag)}</Text> : null}
-            </View>
-          ))}
+          {members.map((m, i) => {
+            const detail = detailByUser.get(m.userId);
+            const roleEntry = detail ? roleLabelEntry(detail.role) : null;
+            return (
+              <View
+                key={m.userId}
+                style={[styles.memberRow, i < members.length - 1 && styles.memberDivider]}
+              >
+                <View style={styles.memberIdentity}>
+                  <View style={styles.memberNameRow}>
+                    <Text style={styles.memberName} numberOfLines={1}>
+                      {m.pseudo}
+                    </Text>
+                    {m.isMe ? <Text style={styles.youTag}>{t(C.rlYouTag)}</Text> : null}
+                  </View>
+                  {/* Le RÔLE rend le fondateur identifiable (correctif A-43). */}
+                  {roleEntry ? <Text style={styles.memberRole}>{t(roleEntry)}</Text> : null}
+                </View>
+                {showContributions && detail ? (
+                  <Text style={styles.memberPct}>
+                    {t(C.rlContributionPct, { pct: detail.contributionPct })}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.cta}>
@@ -404,7 +490,16 @@ const styles = StyleSheet.create({
 
   // Effectif + roster
   count: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.lg, letterSpacing: 1 },
-  roster: { marginTop: spacing.sm, marginBottom: spacing.lg },
+
+  // Territoire : bloc à plat (surtout PAS une card — le roster n'en est pas une
+  // non plus, deux cards imbriquées ou juxtaposées casseraient §A).
+  territory: { marginTop: spacing.lg, gap: spacing.xs },
+  sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.5 },
+  territoryValue: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '700' },
+  territoryHint: { color: colors.gris, fontSize: fontSizes.sm },
+  territoryEmpty: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
+
+  roster: { marginTop: spacing.lg, marginBottom: spacing.lg },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -413,7 +508,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   memberDivider: { borderBottomWidth: 1, borderBottomColor: colors.grisLigne },
+  // flexShrink sur la colonne d'identité : le % (court, jamais tronqué) garde
+  // sa place, seul un pseudo très long s'ellipse.
+  memberIdentity: { flexShrink: 1, gap: 2 },
+  memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   memberName: { color: colors.blanc, fontSize: fontSizes.md, flexShrink: 1 },
+  memberRole: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1 },
+  memberPct: { color: colors.blanc, fontSize: fontSizes.sm, flexShrink: 0 },
   youTag: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1 },
 
   // Formulaires

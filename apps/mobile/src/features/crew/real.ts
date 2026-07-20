@@ -48,6 +48,47 @@ export interface RealCrewMember {
   isMe: boolean;
 }
 
+/**
+ * Territoire du crew, calculé FRAIS par `crew_overview()` (migration 0044).
+ *
+ * ⚠ AUCUNE AIRE : la RPC n'émet volontairement PAS de clé `areaM2` (aucune aire
+ * réelle n'existe en base — cf. choix n°1 de 0044). Ne jamais en fabriquer une
+ * côté client à partir de `hexesHeld` : ce serait un chiffre inventé à l'écran.
+ *
+ * ⚠ NE JAMAIS lire `crew_leaderboard` pour ça : vue matérialisée rafraîchie par
+ * aucun job du repo, donc figée à zéro (constat 0044). Elle afficherait
+ * « 0 zone » à vie.
+ */
+export interface CrewTerritory {
+  /** Hexes tenus par les membres ACTIFS, non expirés. 0 = le crew ne tient rien. */
+  hexesHeld: number;
+  /** Dernière capture du crew, ou null s'il n'a jamais rien pris. */
+  lastCaptureAt: string | null;
+  /** Rang dans la ville du crew (ex aequo partagés), null si non calculable. */
+  cityRank: number | null;
+  /** Nombre de crews dans la ville (contexte du rang), null si non calculable. */
+  crewsInCity: number | null;
+}
+
+/** Part d'un membre dans le territoire du crew (maillon 4 de la boucle §0). */
+export interface CrewContribution {
+  userId: string;
+  pseudo: string;
+  /** Rôle serveur (`CrewRole` attendu ; typé large : la DB reste souveraine). */
+  role: string;
+  hexesHeld: number;
+  /** Part ENTIÈRE (plancher) — 0 partout quand le crew ne tient rien. */
+  contributionPct: number;
+}
+
+/** Retour utile de `crew_overview()` (les refus retombent sur `null`). */
+export interface CrewOverview {
+  territory: CrewTerritory;
+  /** Mon rôle dans le crew, ou null si le serveur ne le renseigne pas. */
+  myRole: string | null;
+  contributions: CrewContribution[];
+}
+
 /** Ville sélectionnable à la création (city_zones, colonnes publiques). */
 export interface CityOption {
   cityId: string;
@@ -118,6 +159,66 @@ export function crewJoinDecision(code: string): JoinPreflight {
   return { ok: true };
 }
 
+// ─── Lecture DÉFENSIVE du jsonb crew_overview (PUR, testable) ────────────────
+
+function asFiniteInt(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : null;
+}
+
+function asText(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/**
+ * jsonb → CrewOverview, ou `null` si la forme n'est pas celle attendue (refus
+ * `{ok:false}`, erreur réseau, contrat futur inconnu). `null` = l'écran
+ * n'affiche AUCUN bloc territoire : mieux vaut ne rien dire que dire « 0 ».
+ */
+export function parseCrewOverview(raw: unknown): CrewOverview | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const root = raw as Record<string, unknown>;
+  if (root.ok !== true) return null;
+
+  const terr = root.territory;
+  if (!terr || typeof terr !== 'object') return null;
+  const t = terr as Record<string, unknown>;
+  const hexesHeld = asFiniteInt(t.hexesHeld);
+  // Sans compte fiable il n'y a pas de territoire à montrer : on se tait.
+  if (hexesHeld === null || hexesHeld < 0) return null;
+
+  const contributions: CrewContribution[] = [];
+  if (Array.isArray(root.members)) {
+    for (const entry of root.members) {
+      if (!entry || typeof entry !== 'object') continue;
+      const m = entry as Record<string, unknown>;
+      const userId = asText(m.userId);
+      const held = asFiniteInt(m.hexesHeld);
+      const pct = asFiniteInt(m.contributionPct);
+      if (!userId || held === null || pct === null) continue;
+      contributions.push({
+        userId,
+        pseudo: asText(m.pseudo) ?? '—',
+        role: asText(m.role) ?? '',
+        hexesHeld: Math.max(0, held),
+        // Bornage client : un pourcentage hors [0,100] serait un bug serveur,
+        // il ne doit jamais atteindre l'écran.
+        contributionPct: Math.min(100, Math.max(0, pct)),
+      });
+    }
+  }
+
+  return {
+    territory: {
+      hexesHeld,
+      lastCaptureAt: asText(t.lastCaptureAt),
+      cityRank: asFiniteInt(t.cityRank),
+      crewsInCity: asFiniteInt(t.crewsInCity),
+    },
+    myRole: asText(root.role),
+    contributions,
+  };
+}
+
 /** Couleur d'identité auto (0..CREW_COLORS_COUNT-1) — pas de picker à la création. */
 export function randomCrewColor(): number {
   return Math.floor(Math.random() * CREW_COLORS_COUNT);
@@ -134,6 +235,14 @@ export interface UseRealCrewResult {
   crew: RealCrew | null;
   /** Membres actifs (moi inclus), triés par ancienneté. */
   members: RealCrewMember[];
+  /**
+   * Territoire + contributions (crew_overview, 0044), ou null : pas de crew,
+   * lecture ratée, ou contrat inattendu. null ⇒ l'écran n'affiche pas le bloc
+   * territoire (jamais un zéro fabriqué).
+   */
+  overview: CrewOverview | null;
+  /** true pendant la 1re lecture du territoire (le roster, lui, est déjà là). */
+  overviewLoading: boolean;
   /** Effectif actif (X de X/CREW_MAX_MEMBERS). */
   memberCount: number;
   /** Plafond d'affichage (CREW_MAX_MEMBERS). */
@@ -165,10 +274,28 @@ interface MyMembershipRow {
   crews: CrewCols | CrewCols[] | null;
 }
 
-export function useRealCrew(): UseRealCrewResult {
+export interface UseRealCrewOptions {
+  /**
+   * Charger AUSSI le territoire + les contributions (`crew_overview`, 0044) ?
+   *
+   * Défaut FALSE, volontairement. `crew_overview` est un AGRÉGAT serveur (scan
+   * des hex_claims des membres + classement de tous les crews de la ville) et
+   * le hook refetch à chaque prise de focus. Or deux consommateurs sur trois
+   * n'ont besoin que du roster : MapScreen (teinte des zones du crew) et
+   * course-result (« N coéquipiers en bénéficient »). Sans ce drapeau, le
+   * simple fait de revenir sur l'onglet Carte payait l'agrégat pour une donnée
+   * jamais affichée. Seul l'écran Crew le demande.
+   */
+  withOverview?: boolean;
+}
+
+export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult {
+  const { withOverview = false } = options;
   const { session } = useSession();
   const [crew, setCrew] = useState<RealCrew | null>(null);
   const [members, setMembers] = useState<RealCrewMember[]>([]);
+  const [overview, setOverview] = useState<CrewOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -180,6 +307,8 @@ export function useRealCrew(): UseRealCrewResult {
     if (!ready || !supabase || !session) {
       setCrew(null);
       setMembers([]);
+      setOverview(null);
+      setOverviewLoading(false);
       setLoading(false);
       return;
     }
@@ -187,6 +316,15 @@ export function useRealCrew(): UseRealCrewResult {
     const myId = session.user.id;
     let cancelled = false;
     setLoading(true);
+    setOverviewLoading(true);
+    /** Sortie « pas de crew » : aucune donnée fabriquée, aucun bloc territoire. */
+    const clearAll = () => {
+      setCrew(null);
+      setMembers([]);
+      setOverview(null);
+      setOverviewLoading(false);
+      setLoading(false);
+    };
     void (async () => {
       try {
         // MON adhésion active + le crew (colonnes publiques via l'embed FK).
@@ -199,17 +337,13 @@ export function useRealCrew(): UseRealCrewResult {
         if (cancelled) return;
         if (mine.error || !mine.data) {
           // Pas de crew (ou lecture ratée) : état vide, jamais une démo.
-          setCrew(null);
-          setMembers([]);
-          setLoading(false);
+          clearAll();
           return;
         }
         const row = mine.data as unknown as MyMembershipRow;
         const c = Array.isArray(row.crews) ? (row.crews[0] ?? null) : row.crews;
         if (!c) {
-          setCrew(null);
-          setMembers([]);
-          setLoading(false);
+          clearAll();
           return;
         }
         const myCrew: RealCrew = { id: c.id, name: c.name, color: c.color, cityId: c.city_id };
@@ -243,17 +377,37 @@ export function useRealCrew(): UseRealCrewResult {
         setCrew(myCrew);
         setMembers(list);
         setLoading(false);
+
+        // ── Territoire + contributions (0044) ────────────────────────────────
+        // Lecture SÉPARÉE et POSTÉRIEURE : le roster s'affiche sans attendre
+        // l'agrégat, et un échec ici ne fait pas disparaître le crew (le bloc
+        // territoire reste simplement absent — jamais un « 0 zone » inventé).
+        // OPT-IN (withOverview) : seul l'écran Crew paie cet agrégat.
+        if (!withOverview) {
+          setOverviewLoading(false);
+          return;
+        }
+        try {
+          const { data, error } = await client.rpc('crew_overview');
+          if (cancelled) return;
+          setOverview(error ? null : parseCrewOverview(data));
+        } catch {
+          if (cancelled) return;
+          setOverview(null);
+        }
+        setOverviewLoading(false);
       } catch {
         if (cancelled) return;
-        setCrew(null);
-        setMembers([]);
-        setLoading(false);
+        clearAll();
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [ready, session, tick]);
+    // `withOverview` est un BOOLÉEN (destructuré des options) et non l'objet
+    // `options` — dont l'identité change à chaque rendu de l'appelant et
+    // relancerait le fetch en boucle.
+  }, [ready, session, tick, withOverview]);
 
   // Refetch au retour sur l'onglet Crew (patron useRealMission) : on saute le
   // 1er focus (le fetch au montage suffit), les suivants rafraîchissent après
@@ -353,6 +507,8 @@ export function useRealCrew(): UseRealCrewResult {
     loading,
     crew,
     members,
+    overview,
+    overviewLoading,
     memberCount: members.length,
     maxMembers: CREW_MAX_MEMBERS,
     reload,

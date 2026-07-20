@@ -202,6 +202,52 @@ export const C = defineCatalog({
     de: 'du',
     pt: 'você',
   },
+  // ── Bloc TERRITOIRE de l'écran crew natif (maillon 2 de la boucle A-43) ─────
+  rlTerritoryLabel: {
+    fr: 'TERRITOIRE',
+    en: 'TERRITORY',
+    es: 'TERRITORIO',
+    de: 'REVIER',
+    pt: 'TERRITÓRIO',
+  },
+  rlZonesHeldOne: {
+    fr: '1 zone tenue',
+    en: '1 zone held',
+    es: '1 zona mantenida',
+    de: '1 gehaltene Zone',
+    pt: '1 zona mantida',
+  },
+  rlZonesHeldN: {
+    fr: '{n} zones tenues',
+    en: '{n} zones held',
+    es: '{n} zonas mantenidas',
+    de: '{n} gehaltene Zonen',
+    pt: '{n} zonas mantidas',
+  },
+  /** Rang sans ordinal : « Rang 2 sur 7 » se traduit sans piège de genre/suffixe. */
+  rlCityRank: {
+    fr: 'Rang {rank} sur {total} crews de la ville',
+    en: 'Rank {rank} of {total} crews in the city',
+    es: 'Puesto {rank} de {total} crews de la ciudad',
+    de: 'Platz {rank} von {total} Crews der Stadt',
+    pt: 'Posição {rank} de {total} crews da cidade',
+  },
+  /** Crew sans aucun hex : on le DIT, on ne décore pas un zéro. */
+  rlNoTerritory: {
+    fr: 'Votre crew n’a pas encore de territoire — courez pour en prendre.',
+    en: 'Your crew holds no territory yet — go run and take some.',
+    es: 'Tu crew aún no tiene territorio — corre para conquistarlo.',
+    de: 'Euer Crew hält noch kein Revier — lauft los und erobert welches.',
+    pt: 'Seu crew ainda não tem território — corra para conquistar.',
+  },
+  /** Part d'un membre dans le territoire du crew (maillon 4). */
+  rlContributionPct: {
+    fr: '{pct} %',
+    en: '{pct}%',
+    es: '{pct} %',
+    de: '{pct} %',
+    pt: '{pct} %',
+  },
   rlShareCode: {
     fr: 'Inviter (partager le code)',
     en: 'Invite (share the code)',
