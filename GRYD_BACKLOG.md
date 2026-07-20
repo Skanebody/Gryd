@@ -8,7 +8,9 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 > Réf : AMENDEMENT-41 + analyse stratégique INTVL (shared territories livré par INTVL 2026 — notre réponse = LE RELAIS). Les 4 comportements MVP à mesurer via PostHog : comprendre la capture / dévier son parcours / revenir après attaque / inviter.
 
 - [x] Mission dynamique RÉELLE v1 (defend/expand/first_capture depuis hex_claims + GPS) — la feature-réflexe « où courir maintenant » — M (ce commit)
-- [ ] Crew réel bout-en-bout — créer/rejoindre, union réelle sur la carte, conséquence collective sur le résultat (« N membres bénéficient ») — L
+- [x] Crew réel 1/3 : créer/rejoindre/quitter RÉEL — RPC serveur (0042, SECURITY DEFINER, code généré serveur, cooldown 7 j, plafond 50 verrouillé FOR UPDATE) + écran natif honnête + règle pure testée — M (ce commit)
+- [ ] Crew réel 2/3 : union réelle sur la carte — mes zones + celles des membres en couche crew (hex_claims des membres actifs) — M
+- [ ] Crew réel 3/3 : conséquence collective au résultat — « ton run a aidé N membres » (brancher coCaptured/RELAIS + roster réel) — S
 - [ ] Boucle de retour asynchrone — notification « ta zone expire dans 48 h / a été prise » (decay serveur déjà réel, notifs à câbler) — M
 - [ ] Mission v2 : secteurs réels + rival réel (sector_snapshot 0037 + activité 0040) quand la densité existe — M
 - [ ] DÉCISION FONDATEUR : couche PvE étiquetée (forteresses « système ») vs objectifs solo purs — attendre les 1res données de rétention — S (décision)

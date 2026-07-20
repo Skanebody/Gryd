@@ -53,7 +53,8 @@ import {
   spacing,
   type IconName,
 } from '@klaim/shared';
-import { flags } from '../../src/lib/flags';
+import { flags, isShowcasePlatform } from '../../src/lib/flags';
+import { RealCrewScreen } from '../../src/features/crew/RealCrewScreen';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { useSession } from '../../src/lib/session';
@@ -1131,6 +1132,14 @@ function SectionHead({
 }
 
 export default function CrewScreen() {
+  // NATIF (device installé) : crew RÉEL ou VIDE, jamais la démo Supercell
+  // ci-dessous (doctrine flags — cf. MapScreen / useRealMission). `isShowcasePlatform`
+  // est un constant de module (Platform.OS === 'web') : la branche est figée pour la
+  // durée du mount → aucun hook de la démo n'est monté sur device, aucun ici non plus,
+  // l'ordre des hooks reste déterministe (Rules of Hooks respectées). La vitrine web
+  // garde l'intégralité du HQ démo intact.
+  if (!isShowcasePlatform) return <RealCrewScreen />;
+
   useEffect(() => {
     screen('crew_hq');
   }, []);
