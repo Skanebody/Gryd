@@ -857,6 +857,15 @@ function ConquestResultScreen({
               {t(C.queuedNote)}
             </Text>
           ) : null}
+
+          {/* A-41 (LE RELAIS) : zones co-courues payées 1/rang — le co-coureur
+              voit POURQUOI il n'a pas « pris » la zone mais n'est pas reparti
+              à zéro. Discret, même gabarit que la note hors-ligne. */}
+          {serverResult?.hexes.coCaptured !== undefined && serverResult.hexes.coCaptured > 0 ? (
+            <Text style={styles.heroQueued} numberOfLines={2}>
+              {t(C.coCapturedNote, { n: serverResult.hexes.coCaptured })}
+            </Text>
+          ) : null}
         </ResultReveal>
 
         {/* CTA — [Partager] IMMÉDIAT (façon Strava), « Voir mon territoire » en

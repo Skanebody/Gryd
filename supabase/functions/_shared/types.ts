@@ -144,6 +144,8 @@ export interface IngestRunResponse {
     defended: number;
     pioneer: number;
     blocked: number;
+    /** A-41 (LE RELAIS) : zones co-courues payées 1/rang. Absent = 0. */
+    coCaptured?: number;
   };
   pointsAwarded: number;
   fouleesAwarded: number;

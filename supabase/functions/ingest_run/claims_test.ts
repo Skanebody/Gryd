@@ -630,3 +630,14 @@ Deno.test('A-41 invariant horloges : les sorties lockedUntil/decayAt d’un run 
   assertEquals(relay.lockedUntil.getTime(), blockedRun.lockedUntil.getTime());
   assertEquals(relay.decayAt.getTime(), blockedRun.decayAt.getTime());
 });
+
+Deno.test('A-41 budget quotidien : le cap tronque les points de relais SANS changer l’outcome', () => {
+  const hexes = [HEX, HEX2, '8a1fb46622e8fff'];
+  const states = new Map(hexes.map((h) => [h, foeHex({ lastCapturedAt: hoursAgo(0.1) })]));
+  const ranks = new Map(hexes.map((h) => [h, 2])); // 5 pts exacts par hex
+  const r = one(hexes, states, ctx({ coCaptureRankByHex: ranks, coCapturePointsBudget: 7 }));
+  // 5 + 2 (budget épuisé) + 0 — totals.points = exactement ce qui sera payé.
+  assertEquals(r.results.map((x) => x.points), [5, 2, 0]);
+  assert(r.results.every((x) => x.outcome === 'co_captured'));
+  assertEquals(r.totals.points, 7);
+});

@@ -124,6 +124,13 @@ export interface DecideClaimsContext {
    */
   coCaptureCooldownHexes?: ReadonlySet<string>;
   /**
+   * AMENDEMENT-41 : budget de points de relais RESTANT aujourd'hui pour ce
+   * coureur (CO_CAPTURE_DAILY_POINTS_CAP − déjà crédité, calculé par l'appelant).
+   * Appliqué ICI (pas après coup) pour que totals.points — donc le score — reste
+   * cohérent avec ce qui sera réellement payé. Absent = illimité (tests/simu).
+   */
+  coCapturePointsBudget?: number;
+  /**
    * Contexte de jeu par hex (doc §23) : contested / crew_mission / zone_bonus.
    * Le PLUS FORT contexte applicable majore les points (contextCoeff). Hex
    * absent = aucun contexte (×1,0). `zone_bonus` = hotspot de carte (gagné par
@@ -219,6 +226,9 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
   // à tous les rangs ≥ 21 — anti-shame cassé. On accumule l'EXACT et chaque hex
   // verse l'entier dû : sur 200 hexes, le rang 30 touche bien ~67 pts.
   let coCaptureCarry = 0;
+  // A-41 : budget quotidien restant (cap appliqué AU FIL DES HEXES pour que
+  // totals.points = ce qui sera payé). Infini si l'appelant ne le fournit pas.
+  let coCaptureBudget = context.coCapturePointsBudget ?? Number.POSITIVE_INFINITY;
   const seen = new Set<string>();
 
   for (const hex of input.hexes) {
@@ -336,8 +346,12 @@ export function decideClaims(input: DecideClaimsInput): DecideClaimsResult {
         // Reste courant (voir déclaration de coCaptureCarry) : par-hex entier,
         // total exact à ±1 près — aucun rang ne finit à zéro sur une boucle.
         const exact = zoneBasePoints(action, ctxFor(hex)) * coCaptureShare(coRank);
-        const points = Math.floor(exact + coCaptureCarry + 1e-9);
-        coCaptureCarry = exact + coCaptureCarry - points;
+        const raw = Math.floor(exact + coCaptureCarry + 1e-9);
+        coCaptureCarry = exact + coCaptureCarry - raw;
+        // Cap quotidien (CO_CAPTURE_DAILY_POINTS_CAP) : on paie ce qui reste de
+        // budget, l'outcome reste co_captured (le coureur voit sa co-présence).
+        const points = Math.min(raw, Math.max(0, Math.floor(coCaptureBudget)));
+        coCaptureBudget -= points;
         push({ h3: hex, outcome: 'co_captured', points, pioneer: false });
         continue;
       }

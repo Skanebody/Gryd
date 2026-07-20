@@ -23,8 +23,11 @@ import {
   BONUS_RETURN_ABSENCE_MAX_DAYS,
   BONUS_RETURN_ABSENCE_MIN_DAYS,
   CITIES,
+  CO_CAPTURE_DAILY_POINTS_CAP,
   type ContextCoeffKey,
   CREW_XP_TABLE,
+  DEFEND_COOLDOWN_HOURS,
+  FRESH_CAPTURE_PROTECT_HOURS,
   GROUP_RUN_HEX_SHARE_MIN,
   GROUP_RUN_START_TOLERANCE_MIN,
   H3_RESOLUTION,
@@ -111,6 +114,7 @@ import {
   type CrewChestInput,
 } from '../_shared/engine/crew.ts';
 import {
+  coCaptureShare,
   collusionPenalty,
   resolveContestedHex,
   sameCrewRunnerCount,
@@ -1242,6 +1246,98 @@ async function loadOwnerCrews(
  * acheté : anti pay-to-win intact, cf. game-rules CONTEXT_COEFF). Sans crew et
  * hors zone rivale, la map est vide → coeff_contexte = 1,0 (comportement neutre).
  */
+/**
+ * AMENDEMENT-41 (LE RELAIS) — contexte de co-capture pour decideClaims.
+ * Pour chaque hex du couloir possédé par un AUTRE et FRAÎCHEMENT capturé
+ * (< FRESH_CAPTURE_PROTECT_HOURS, la fenêtre exacte du moteur), on calcule :
+ *  - le RANG de ce coureur : 2 + nb de coureurs DISTINCTS déjà crédités d'un
+ *    relais sur cet hex DEPUIS la capture observée (le propriétaire = rang 1) ;
+ *  - le COOLDOWN : ce coureur a déjà été crédité sur cet hex < 24 h ;
+ *  - le BUDGET quotidien restant (CO_CAPTURE_DAILY_POINTS_CAP − points du jour).
+ * Fail-safe : toute erreur de lecture → maps vides (comportement historique
+ * blocked_fresh_protection, jamais un paiement non fiable).
+ */
+async function loadCoCaptureContext(
+  userId: string,
+  hexes: readonly string[],
+  states: ReadonlyMap<string, HexState>,
+  now: Date,
+): Promise<{
+  rankByHex: ReadonlyMap<string, number>;
+  cooldownHexes: ReadonlySet<string>;
+  budget: number;
+}> {
+  const empty = { rankByHex: new Map<string, number>(), cooldownHexes: new Set<string>(), budget: 0 };
+  const nowMs = now.getTime();
+  // Hexes candidats au relais : possédés par un autre, capture fraîche, non decayés.
+  const fresh = hexes.filter((h) => {
+    const st = states.get(h);
+    if (!st || !st.ownerUserId || st.ownerUserId === userId) return false;
+    if (st.decayAt !== null && st.decayAt.getTime() <= nowMs) return false;
+    const cap = st.lastCapturedAt ?? null;
+    return cap !== null && nowMs - cap.getTime() < FRESH_CAPTURE_PROTECT_HOURS * 3_600_000;
+  });
+  if (fresh.length === 0) return empty;
+
+  try {
+    const dbIds = fresh.map((h) => h3ToDb(h));
+    const dbToH3 = new Map(fresh.map((h) => [h3ToDb(h), h]));
+    const [{ data: rows, error: rowsErr }, { data: todayRows, error: todayErr }] =
+      await Promise.all([
+        supabase
+          .from('hex_co_captures')
+          .select('h3index, user_id, credited_at')
+          .in('h3index', dbIds),
+        supabase
+          .from('hex_co_captures')
+          .select('points')
+          .eq('user_id', userId)
+          .gte('credited_at', new Date(nowMs - 24 * 3_600_000).toISOString()),
+      ]);
+    if (rowsErr) throw new Error(rowsErr.message);
+    if (todayErr) throw new Error(todayErr.message);
+
+    const rankByHex = new Map<string, number>();
+    const cooldownHexes = new Set<string>();
+    const othersByHex = new Map<string, Set<string>>();
+    for (const row of rows ?? []) {
+      const h3 = dbToH3.get(String(row.h3index as number | string));
+      if (h3 === undefined) continue;
+      const st = states.get(h3);
+      const windowStart = st?.lastCapturedAt?.getTime() ?? 0;
+      const creditedMs = new Date(row.credited_at as string).getTime();
+      const rowUser = row.user_id as string;
+      // Cooldown : MON crédit < DEFEND_COOLDOWN_HOURS (au-delà même de la fenêtre).
+      if (rowUser === userId && nowMs - creditedMs < DEFEND_COOLDOWN_HOURS * 3_600_000) {
+        cooldownHexes.add(h3);
+      }
+      // Rang : coureurs DISTINCTS (autres que moi) crédités depuis CETTE capture.
+      if (rowUser !== userId && creditedMs >= windowStart) {
+        let set = othersByHex.get(h3);
+        if (set === undefined) {
+          set = new Set<string>();
+          othersByHex.set(h3, set);
+        }
+        set.add(rowUser);
+      }
+    }
+    for (const h3 of fresh) rankByHex.set(h3, 2 + (othersByHex.get(h3)?.size ?? 0));
+
+    const spentToday = (todayRows ?? []).reduce(
+      (sum, r) => sum + ((r.points as number) ?? 0),
+      0,
+    );
+    return {
+      rankByHex,
+      cooldownHexes,
+      budget: Math.max(0, CO_CAPTURE_DAILY_POINTS_CAP - spentToday),
+    };
+  } catch (e) {
+    console.error('[A-41] loadCoCaptureContext fail-safe (relais désactivé ce run):', e);
+    return empty;
+  }
+}
+
 async function loadContextByHex(
   userId: string,
   crewId: string | null,
@@ -2236,6 +2332,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // formule §23 restait inerte (finding). Non pay-to-win : le contexte se gagne
       // par la situation (rival présent / mission crew), jamais par un achat.
       const contextByHex = await loadContextByHex(userId, crew.crewId, allHexes, states, now);
+      // A-41 LE RELAIS : rang/cooldown/budget de co-capture — le rang est
+      // conservé hors du callback (coCaptureRanks) pour l'insertion du
+      // registre hex_co_captures après la RPC.
+      const coCap = await loadCoCaptureContext(userId, allHexes, states, now);
+      coCaptureRanks = coCap.rankByHex;
 
       return {
         states,
@@ -2248,9 +2349,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // ICI avec les états chargés → allonge le LOCK côté decideClaims (capé +40 %).
         runners: sameCrewRunnerCount(allHexes, states, userId, crew.memberIds, now.getTime()),
         ...(contextByHex.size > 0 ? { contextByHex } : {}),
+        ...(coCap.rankByHex.size > 0
+          ? {
+              coCaptureRankByHex: coCap.rankByHex,
+              coCapturePointsBudget: coCap.budget,
+              ...(coCap.cooldownHexes.size > 0
+                ? { coCaptureCooldownHexes: coCap.cooldownHexes }
+                : {}),
+            }
+          : {}),
       };
     };
 
+    // A-41 : rangs de co-capture observés par resolveOwnership (pour le registre).
+    let coCaptureRanks: ReadonlyMap<string, number> = new Map();
     const territory = await runTerritoryEngine({
       claimable: validation.claimable,
       gpsTrust: validation.gpsTrust,
@@ -2317,7 +2429,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ── Application atomique via la RPC claim_hexes ──────────────────────────
     const actionable = decision.results.filter((r) =>
       r.outcome === 'claimed_neutral' || r.outcome === 'stolen' ||
-      r.outcome === 'defended' || r.outcome === 'already_owned_cooldown'
+      r.outcome === 'defended' || r.outcome === 'already_owned_cooldown' ||
+      // A-41 : les relais sont PAYÉS par la même RPC (outcome 'support' —
+      // points sans aucune écriture hex_claims) et participent à la même
+      // répartition des points finaux (verify × streak × perf).
+      r.outcome === 'co_captured'
     );
     if (actionable.length > 0) {
       // La RPC crédite season_scores/Foulées depuis la somme des points par hex :
@@ -2328,20 +2444,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
       const rpcClaims = actionable.map((r, i) => {
         const isCapture = r.outcome === 'claimed_neutral' || r.outcome === 'stolen';
+        // A-41 : un relais ('support') ne porte AUCUNE horloge ni garde — la
+        // RPC ne touche pas hex_claims pour lui (invariant structurel 0041).
+        const isSupport = r.outcome === 'co_captured';
         return {
           h3index: h3ToDb(r.h3),
           outcome: rpcOutcome(r),
           points: finalPerHex[i],
           // Garde TOCTOU (0031) : owner OBSERVÉ par le moteur → claim_hexes n'applique
           // que si l'état DB n'a pas changé depuis (sinon conflit de concurrence → skip).
-          expected_owner: states.get(r.h3)?.ownerUserId ?? null,
+          expected_owner: isSupport ? null : states.get(r.h3)?.ownerUserId ?? null,
           locked_until: isCapture ? decision.lockedUntil.toISOString() : null,
           // Capture : now + 14 j (ou null si nouveau joueur, §3.3). Défense :
           // échéance ÉTENDUE de +24/48/72 h (défense graduée). already_owned_
           // cooldown : traité comme défense (decay repoussé, cf. rpcOutcome).
-          decay_at: isCapture
-            ? (decision.decayExempt ? null : decision.decayAt.toISOString())
-            : defenseDecayIso(r.h3),
+          decay_at: isSupport
+            ? null
+            : isCapture
+              ? (decision.decayExempt ? null : decision.decayAt.toISOString())
+              : defenseDecayIso(r.h3),
         };
       });
       const { error: rpcError } = await supabase.rpc('claim_hexes', {
@@ -2354,6 +2475,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_xp: score.xp,
       });
       if (rpcError) throw new Error(`claim_hexes rpc: ${rpcError.message}`);
+
+      // ── A-41 : registre des relais (rang, part, points FINAUX crédités) ────
+      // Après la RPC (les points sont réellement payés). Il nourrit le rang du
+      // prochain relayeur, le cooldown 24 h et le cap quotidien. Best-effort
+      // assumé : un échec ici ne doit pas invalider la course déjà créditée —
+      // il rend juste le prochain rang trop généreux d'un cran (bénin).
+      const coCapturedRows = actionable
+        .map((r, i) => ({ r, points: finalPerHex[i] ?? 0 }))
+        .filter(({ r }) => r.outcome === 'co_captured')
+        .map(({ r, points }) => {
+          const st = states.get(r.h3);
+          const rank = coCaptureRanks.get(r.h3) ?? 2;
+          return {
+            h3index: h3ToDb(r.h3),
+            user_id: userId,
+            run_id: runId,
+            crew_id: crew.crewId,
+            owner_user_id: st?.ownerUserId ?? userId,
+            capture_claimed_at: (st?.lastCapturedAt ?? now).toISOString(),
+            share: coCaptureShare(rank),
+            points,
+          };
+        });
+      if (coCapturedRows.length > 0) {
+        const { error: coErr } = await supabase.from('hex_co_captures').insert(coCapturedRows);
+        if (coErr) console.error('[A-41] hex_co_captures insert (best-effort):', coErr.message);
+      }
     }
 
     // ── Mécaniques nourrissant les badges (décision fondateur 03/07/2026 :
@@ -2608,6 +2756,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         defended: decision.totals.defended,
         pioneer: decision.totals.pioneer,
         blocked: decision.totals.blocked,
+        // A-41 : zones co-courues payées en relais (jamais dans blocked).
+        ...(decision.totals.coCaptured > 0 ? { coCaptured: decision.totals.coCaptured } : {}),
       },
       pointsAwarded: score.points,
       fouleesAwarded: score.foulees,
@@ -2707,12 +2857,15 @@ function validateOrStatus(
 }
 
 /** Vocabulaire d'outcome attendu par la RPC claim_hexes (0005). */
-function rpcOutcome(r: HexClaimResult): 'neutral' | 'steal' | 'defend' | 'pioneer' {
+function rpcOutcome(r: HexClaimResult): 'neutral' | 'steal' | 'defend' | 'pioneer' | 'support' {
   switch (r.outcome) {
     case 'claimed_neutral':
       return r.pioneer ? 'pioneer' : 'neutral';
     case 'stolen':
       return 'steal';
+    // A-41 : relais → points par la RPC SANS écriture hex_claims (0041).
+    case 'co_captured':
+      return 'support';
     default: // defended | already_owned_cooldown → même application (decay repoussé)
       return 'defend';
   }

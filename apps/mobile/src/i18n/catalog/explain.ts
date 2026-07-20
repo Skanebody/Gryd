@@ -20,6 +20,21 @@
 import { defineCatalog } from '../types';
 
 export const C = defineCatalog({
+  // ── AMENDEMENT-41 : LE RELAIS (sorties de groupe) ─────────────────────────
+  qRelayQ: {
+    fr: 'On a couru à plusieurs — qui prend la zone ?',
+    en: 'We ran together — who takes the zone?',
+    es: 'Corrimos juntos — ¿quién toma la zona?',
+    de: 'Wir sind zusammen gelaufen — wer bekommt die Zone?',
+    pt: 'Corremos juntos — quem fica com a zona?',
+  },
+  qRelayA: {
+    fr: 'Une zone ne se prend qu’une fois : le premier arrivé la possède. Mais personne ne court pour rien — chaque co-coureur est payé selon son rang : le 2ᵉ touche la moitié des points, le 3ᵉ le tiers, le 30ᵉ le trentième. La zone du propriétaire n’est jamais affaiblie par un relais.',
+    en: 'A zone is only taken once: the first to finish owns it. But nobody runs for nothing — every co-runner is paid by rank: 2nd gets half the points, 3rd a third, 30th a thirtieth. The owner’s zone is never weakened by a relay.',
+    es: 'Una zona solo se toma una vez: el primero en llegar la posee. Pero nadie corre en vano — cada corredor cobra según su puesto: el 2.º la mitad, el 3.º un tercio, el 30.º una trigésima parte. La zona del dueño nunca se debilita por un relevo.',
+    de: 'Eine Zone wird nur einmal erobert: Wer zuerst fertig ist, besitzt sie. Aber niemand läuft umsonst — jeder Mitläufer wird nach Rang bezahlt: der 2. bekommt die Hälfte, der 3. ein Drittel, der 30. ein Dreißigstel. Die Zone des Besitzers wird durch ein Relais nie geschwächt.',
+    pt: 'Uma zona só é tomada uma vez: o primeiro a chegar fica com ela. Mas ninguém corre à toa — cada corredor recebe pelo seu lugar: o 2.º ganha metade, o 3.º um terço, o 30.º um trigésimo. A zona do dono nunca é enfraquecida por um revezamento.',
+  },
   // ─── Fragments partagés (labels.ts les remplit avec les constantes) ────────
   /** « 14 jours » — durées en jours. */
   nDays: {

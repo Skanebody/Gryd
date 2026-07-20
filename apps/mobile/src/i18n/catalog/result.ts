@@ -16,6 +16,14 @@
 import { defineCatalog } from '../types';
 
 export const C = defineCatalog({
+  // ── AMENDEMENT-41 : LE RELAIS ─────────────────────────────────────────────
+  coCapturedNote: {
+    fr: '{n} zones courues à plusieurs — payées selon ton rang d’arrivée',
+    en: '{n} zones run together — paid by your finishing rank',
+    es: '{n} zonas corridas en grupo — pagadas según tu puesto',
+    de: '{n} Zonen gemeinsam gelaufen — bezahlt nach deinem Rang',
+    pt: '{n} zonas corridas em grupo — pagas pelo seu lugar',
+  },
   // ── Résultat — barre + titres héros ──
   barKicker: {
     fr: 'RÉSULTAT DE COURSE',

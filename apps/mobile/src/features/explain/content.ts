@@ -160,7 +160,7 @@ export const FAQ_CATEGORY_LABELS: Record<FaqCategory, Entry> = {
   economie: C.catEconomie,
 };
 
-/** Les 20 Q/R du §33, dans l'ordre du doc. Réponses courtes, moteur réel. */
+/** Les Q/R du §33 (+ A-41 relais), dans l'ordre du doc. Réponses courtes, moteur réel. */
 export const FAQ_ITEMS: readonly FaqItem[] = [
   {
     id: 'q1',
@@ -169,6 +169,14 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     q: C.q1Q,
     a: C.q1A,
     schemaId: 'ligne_vs_boucle',
+  },
+  {
+    // AMENDEMENT-41 (LE RELAIS) : la question n°1 d'une sortie de run club.
+    id: 'q-relay',
+    category: 'zones',
+    icon: 'crew',
+    q: C.qRelayQ,
+    a: C.qRelayA,
   },
   {
     id: 'q2',
