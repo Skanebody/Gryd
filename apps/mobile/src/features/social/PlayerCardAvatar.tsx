@@ -1,39 +1,47 @@
 /**
  * GRYD — avatar hexagonal de la Player Card qui REFLÈTE l'équipement
  * (AMENDEMENT-16 §16 : équiper un cosmétique = effet tangible). Comme
- * PlayerAvatarFrame (ui/game), mais piloté par le PROFIL ÉDITABLE (couleur de
- * fond + initiales choisies) ET par le FRAME cosmétique ÉQUIPÉ (anneau extérieur
- * dérivé de la rareté du frame, recette BADGE_TIER_STYLE — jamais une couleur
- * décorative). Sans frame équipé → anneau par défaut du tier joueur.
+ * PlayerAvatarFrame (ui/game), mais piloté par le PROFIL ÉDITABLE (photo OU
+ * couleur de fond + initiales choisies) ET par le FRAME cosmétique ÉQUIPÉ
+ * (anneau extérieur dérivé de la rareté du frame, recette BADGE_TIER_STYLE —
+ * jamais une couleur décorative). Sans frame équipé → anneau du tier joueur.
  *
- * Ce composant vit dans social/** car ui/game/PlayerAvatarFrame n'accepte pas de
- * couleur/initiales custom ; on ne duplique QUE la géométrie hexagonale figée.
+ * GÉOMÉTRIE : plus une copie locale de la recette hexagonale. Tout vient de
+ * `ui/game/hexAvatar` — c'est là qu'est documenté ce qui était désaligné
+ * (boîte carrée pour une encre anisotrope, empreinte variable selon le tier,
+ * contour plus épais pour « moi »). Ce composant ne décide QUE des couleurs et
+ * du contenu du corps.
+ *
+ * PHOTO ou INITIALES — les DEUX sont des chemins de première classe : une photo
+ * si le joueur veut un visage, l'avatar généré (initiales + couleur de la
+ * charte) s'il veut rester derrière son pseudo. Aucun des deux n'est un pis-aller.
  */
-import Svg, { Polygon, Text as SvgText } from 'react-native-svg';
+import { useId } from 'react';
+import Svg, {
+  ClipPath,
+  Defs,
+  Image as SvgImage,
+  Polygon,
+  Text as SvgText,
+} from 'react-native-svg';
 import {
   BADGE_TIER_STYLE,
   colors,
   gameColors,
   type BadgeTier,
 } from '@klaim/shared';
+import {
+  BODY_R,
+  BODY_STROKE,
+  INITIALS_BASELINE,
+  INITIALS_FONT,
+  RING2_R,
+  RING2_W,
+  hexAvatarBox,
+  hexPoints,
+  ringRadiusFor,
+} from '../../ui/game/hexAvatar';
 import { itemByKey, isFrameItem } from '../arsenal';
-
-const VIEWBOX = 100;
-const CENTER = VIEWBOX / 2;
-const HEX_RADIUS = 38;
-
-function hexPoints(cx: number, cy: number, r: number): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
-  }
-  return pts.join(' ');
-}
-
-const HEX = hexPoints(CENTER, CENTER, HEX_RADIUS);
-const HEX_FRAME = hexPoints(CENTER, CENTER, HEX_RADIUS + 6);
-const HEX_FRAME2 = hexPoints(CENTER, CENTER, HEX_RADIUS + 2.5);
 
 /** Choisit un texte lisible (blanc/noir) sur un fond donné — contraste charte. */
 function textOn(fill: string): string {
@@ -42,18 +50,23 @@ function textOn(fill: string): string {
 }
 
 export interface PlayerCardAvatarProps {
-  /** Initiales déjà résolues (1-2 lettres). */
+  /** Initiales déjà résolues (1-2 lettres) — affichées si aucune photo. */
   initials: string;
-  /** Couleur de fond de l'hexagone (token charte). */
+  /** Couleur de fond de l'hexagone (token charte) — visible si aucune photo. */
   fillColor: string;
   /** Tier joueur (anneau par défaut si aucun frame équipé). */
   tier: BadgeTier;
   /** Clé de l'item FRAME équipé (portée profile) — override l'anneau si présent. */
   equippedFrameKey?: string;
-  /** Côté en px (défaut 72, la Player Card). */
+  /** Hauteur en px (défaut 72, la Player Card). La largeur en découle. */
   size?: number;
-  /** true = c'est MOI (contour chartreuse du corps). */
+  /** true = c'est MOI (contour chartreuse — COULEUR seule, jamais l'épaisseur). */
   isMe?: boolean;
+  /**
+   * Photo de profil (URI locale ou distante). Absente = avatar généré. Le choix
+   * « pas de photo » est délibéré et pleinement valable, pas un état dégradé.
+   */
+  imageUri?: string;
 }
 
 /**
@@ -74,17 +87,30 @@ export function PlayerCardAvatar({
   equippedFrameKey,
   size = 72,
   isMe = true,
+  imageUri,
 }: PlayerCardAvatarProps) {
   const ringTier = ringTierFor(equippedFrameKey, tier);
   const frame = BADGE_TIER_STYLE[ringTier];
   const bodyStroke = isMe ? gameColors.crew : colors.grisLigne;
+  const box = hexAvatarBox(size);
+  const body = hexPoints(box.cx, box.cy, BODY_R);
+  // Identifiant de clip UNIQUE par instance : les anciens ids étaient dérivés de
+  // la taille, donc DUPLIQUÉS dès que deux avatars de même taille coexistaient.
+  const clipId = `pca-${useId()}`;
 
   return (
-    <Svg width={size} height={size} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
-      {/* Anneau extérieur — dérivé de la rareté du frame équipé (effet tangible) */}
+    <Svg width={box.width} height={box.height} viewBox={box.viewBox}>
+      <Defs>
+        <ClipPath id={clipId}>
+          <Polygon points={body} />
+        </ClipPath>
+      </Defs>
+
+      {/* Anneau extérieur — posé par son BORD EXTÉRIEUR : empreinte identique
+          pour les 6 tiers (cf. hexAvatar, défaut n°2). */}
       {frame ? (
         <Polygon
-          points={HEX_FRAME}
+          points={hexPoints(box.cx, box.cy, ringRadiusFor(frame.strokeWidth))}
           fill="none"
           stroke={frame.ring}
           strokeWidth={frame.strokeWidth}
@@ -93,31 +119,43 @@ export function PlayerCardAvatar({
       ) : null}
       {frame?.ring2 ? (
         <Polygon
-          points={HEX_FRAME2}
+          points={hexPoints(box.cx, box.cy, RING2_R)}
           fill="none"
           stroke={frame.ring2}
-          strokeWidth={1.1}
+          strokeWidth={RING2_W}
           strokeLinejoin="round"
         />
       ) : null}
 
-      {/* Corps : fond choisi + initiales choisies */}
-      <Polygon points={HEX} fill={fillColor} />
-      <SvgText
-        x={CENTER}
-        y={CENTER + 12}
-        textAnchor="middle"
-        fontSize={34}
-        fontWeight="600"
-        fill={textOn(fillColor)}
-      >
-        {initials}
-      </SvgText>
+      {/* Corps : la photo si le joueur en a choisi une, sinon l'avatar généré. */}
+      <Polygon points={body} fill={fillColor} />
+      {imageUri ? (
+        <SvgImage
+          x={box.cx - BODY_R}
+          y={box.cy - BODY_R}
+          width={BODY_R * 2}
+          height={BODY_R * 2}
+          preserveAspectRatio="xMidYMid slice"
+          href={{ uri: imageUri }}
+          clipPath={`url(#${clipId})`}
+        />
+      ) : (
+        <SvgText
+          x={box.cx}
+          y={INITIALS_BASELINE}
+          textAnchor="middle"
+          fontSize={INITIALS_FONT}
+          fontWeight="600"
+          fill={textOn(fillColor)}
+        >
+          {initials}
+        </SvgText>
+      )}
       <Polygon
-        points={HEX}
+        points={body}
         fill="none"
         stroke={bodyStroke}
-        strokeWidth={isMe ? 2 : 1.5}
+        strokeWidth={BODY_STROKE}
         strokeLinejoin="round"
       />
     </Svg>

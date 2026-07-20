@@ -15,9 +15,17 @@
  * SCÉNARIOS démo, portés par le catalogue, pas des règles.
  */
 import {
+  DEFEND_COOLDOWN_HOURS,
   DEFENSE_HOURS_TRAVERSE,
   DEFENSE_HOURS_LONGE,
   DEFENSE_HOURS_COVER,
+  FRESH_CAPTURE_PROTECT_HOURS,
+  GROUP_CAPTURE_BONUS_MAX_PCT,
+  HEX_LOCK_HOURS,
+  MAX_CLAIMS_PER_DAY,
+  NEW_PLAYER_PROTECTION_DAYS,
+  POINTS_BASE_PER_ZONE,
+  POINTS_PIONEER_BONUS_BY_DENSITY,
   ZONE_DECAY_DAYS,
   ZONE_STABLE_MAX_DAYS,
   ZONE_FRAGILE_MAX_DAYS,
@@ -210,6 +218,89 @@ export function finisherMinEntry(): Entry {
   return fillEntry(C.finisherMin, {
     m: metersLabel(FINISHER_MIN_SEGMENT_M),
     pct: Math.round(FINISHER_MIN_SHARE * 100),
+  });
+}
+
+// ─── Valeur d'une zone (§23 : base × coeff d'action) ─────────────────────────
+
+/** Groupe les milliers avec une espace fine insécable : 1200 → « 1 200 ». */
+function groupThousands(n: number): string {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+/**
+ * Ce que rapporte UNE zone selon l'action, en Entry 5 langues : conquête neutre
+ * (base), défense (×1,2), vol (×1,3). Dérivé de POINTS_BASE_PER_ZONE ×
+ * ACTION_COEFF — les mêmes nombres que ceux que le moteur paie réellement.
+ */
+export function zonePointsEntries(): {
+  neutral: Entry;
+  defense: Entry;
+  steal: Entry;
+} {
+  const pts = (key: ActionCoeffKey): Entry =>
+    fillEntry(C.nPoints, {
+      n: Math.round(POINTS_BASE_PER_ZONE * ACTION_COEFF[key]),
+    });
+  return { neutral: pts('conquest'), defense: pts('defense'), steal: pts('steal') };
+}
+
+/** Bonus pionnier MAXIMAL (zone jamais possédée, densité la plus généreuse). */
+export function pioneerBonusMaxEntry(): Entry {
+  const max = Math.max(...Object.values(POINTS_PIONEER_BONUS_BY_DENSITY));
+  return fillEntry(C.nPoints, { n: max });
+}
+
+/**
+ * Longueurs RELATIVES des 3 barres du schéma « ce que vaut une zone » — les
+ * coefficients d'action eux-mêmes, pour que le dessin suive game-rules.
+ */
+export function zoneActionRatios(): readonly [number, number, number] {
+  return [ACTION_COEFF.conquest, ACTION_COEFF.defense, ACTION_COEFF.steal];
+}
+
+/**
+ * Proportions de la ligne de vie d'une zone (schéma « une zone s'use ») :
+ * part solide et fenêtre finale « à défendre », dérivées des vraies durées.
+ */
+export function zoneLifecycleShares(): { stable: number; defend: number } {
+  return {
+    stable: ZONE_STABLE_MAX_DAYS / ZONE_DECAY_DAYS,
+    defend: ZONE_DEFEND_WINDOW_HOURS / (ZONE_DECAY_DAYS * 24),
+  };
+}
+
+// ─── Protections du moteur (les 4 refus explicables) ─────────────────────────
+
+/** Fenêtre anti-harcèlement après une capture : « 6 h ». */
+export function freshProtectLabel(): string {
+  return `${FRESH_CAPTURE_PROTECT_HOURS} h`;
+}
+
+/** Verrou posé sur une zone fraîchement prise : « 24 h ». */
+export function lockHoursLabel(): string {
+  return `${HEX_LOCK_HOURS} h`;
+}
+
+/** Protection d'un nouveau joueur : « 14 jours » (Entry). */
+export function newPlayerDaysEntry(): Entry {
+  return fillEntry(C.nDays, { n: NEW_PLAYER_PROTECTION_DAYS });
+}
+
+/** Plafond quotidien de zones : « 1 200 zones » (Entry). */
+export function dailyCapEntry(): Entry {
+  return fillEntry(C.nZones, { n: groupThousands(MAX_CLAIMS_PER_DAY) });
+}
+
+/** Délai avant qu'une même zone repaie : « 24 h ». */
+export function defendCooldownLabel(): string {
+  return `${DEFEND_COOLDOWN_HOURS} h`;
+}
+
+/** Allongement max du verrou en sortie de groupe : « +40 % » (Entry). */
+export function groupLockBonusEntry(): Entry {
+  return fillEntry(C.bonusCap, {
+    pct: Math.round(GROUP_CAPTURE_BONUS_MAX_PCT * 100),
   });
 }
 

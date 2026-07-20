@@ -17,6 +17,7 @@ import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
+import { SectionLabel } from '../src/features/privacy/ui';
 
 /**
  * Lignes d'explicabilité (AMENDEMENT-23 §B), ajoutées côté écran plutôt que
@@ -82,7 +83,7 @@ export default function ParametresScreen() {
     <StackScreen title={t(C.paramsTitle)} icon="reglages" kicker={t(C.paramsKicker)}>
       {SETTINGS_GROUPS.map((group) => (
         <View key={group.label}>
-          <Text style={styles.groupLabel}>{group.label}</Text>
+          <SectionLabel>{group.label}</SectionLabel>
           {group.rows.map((row) => (
             <Row key={row.label} row={row} />
           ))}
@@ -91,7 +92,7 @@ export default function ParametresScreen() {
       {/* Explicabilité (AMENDEMENT-23 §B) : accès direct aux règles depuis les
           Paramètres, en plus de l'Aide. Détails au tap dans la page dédiée. */}
       <View>
-        <Text style={styles.groupLabel}>{t(C.paramsSecExplicabilite)}</Text>
+        <SectionLabel>{t(C.paramsSecExplicabilite)}</SectionLabel>
         {EXPLAIN_ROWS.map((row) => (
           <Row
             key={row.href}
@@ -103,7 +104,7 @@ export default function ParametresScreen() {
       {/* Langue (20/07) : une ligne dédiée, pas noyée dans « Course » — c'est le
           réglage qui conditionne la lecture de TOUT le reste. */}
       <View>
-        <Text style={styles.groupLabel}>{t(C.langueTitle).toUpperCase()}</Text>
+        <SectionLabel>{t(C.langueTitle).toUpperCase()}</SectionLabel>
         <Row
           row={{
             href: '/langue',
@@ -119,24 +120,20 @@ export default function ParametresScreen() {
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
-  groupLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    marginTop: 24,
-    marginBottom: 12,
-  },
+  // Géométrie de card ALIGNÉE sur Confidentialité (21/07) : même respiration
+  // verticale, même retrait horizontal, même écart entre lignes — les écrans de
+  // réglages se lisent comme un seul écran, pas comme trois maquettes voisines.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 12,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.cardPadding,
-    marginBottom: spacing.sm,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding - 2,
+    marginBottom: 10,
   },
   iconWrap: {
     width: 36,
@@ -149,5 +146,10 @@ const styles = StyleSheet.create({
   },
   info: { flex: 1 },
   label: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  detail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs },
+  detail: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: spacing.xxs,
+  },
 });

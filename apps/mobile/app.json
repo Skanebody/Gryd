@@ -61,6 +61,7 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
         "NSMotionUsageDescription": "GRYD lit tes pas/mouvement pour vérifier que ta course est bien une course à pied (anti-triche GRYD Verify).",
         "NSHealthShareUsageDescription": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire — tu choisis quoi partager.",
+        "NSPhotoLibraryUsageDescription": "GRYD ouvre ta photothèque uniquement au moment où tu choisis toi-même une photo de profil. Aucune photo n'est parcourue ni lue automatiquement, et la photo que tu sélectionnes reste sur ton téléphone. Mettre une photo n'est jamais obligatoire : tu peux rester derrière ton pseudo.",
         "UIBackgroundModes": [
           "location"
         ]
@@ -105,6 +106,13 @@
         "expo-sensors",
         {
           "motionPermission": "GRYD compte tes pas pendant tes courses pour vérifier que l'effort est réel. Jamais en dehors d'une course."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GRYD ouvre ta photothèque uniquement au moment où tu choisis toi-même une photo de profil. Aucune photo n'est parcourue ni lue automatiquement, et la photo que tu sélectionnes reste sur ton téléphone. Mettre une photo n'est jamais obligatoire : tu peux rester derrière ton pseudo.",
+          "cameraPermission": false
         }
       ],
       "expo-apple-authentication",

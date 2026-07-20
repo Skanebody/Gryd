@@ -59,6 +59,20 @@ export interface EditableProfile {
   /** Couleur de l'avatar hexagonal (token charte, cf. AVATAR_COLORS). */
   avatarColor: string;
   /**
+   * PHOTO DE PROFIL — URI de l'image choisie par le joueur. Vide = avatar généré
+   * (initiales + couleur). Les DEUX sont des choix de première classe : un
+   * visage pour ceux qui veulent l'être, le pseudo pour ceux qui veulent rester
+   * anonymes. Rien ne pousse vers l'un ou l'autre.
+   *
+   * PORTÉE ACTUELLE — LOCALE. L'URI pointe vers une copie de l'image dans le
+   * sandbox de l'app (documentDirectory) : elle n'est envoyée NULLE PART, donc
+   * elle n'est visible que par le propriétaire du téléphone. L'UI doit le dire
+   * (« l'app ne ment jamais ») et ne jamais laisser croire que les autres
+   * joueurs la voient. Ce qui reste à câbler pour la rendre publique est
+   * documenté dans `avatarPhoto.ts`.
+   */
+  avatarUri: string;
+  /**
    * Initiales forcées (1-2 lettres). Vide = dérivées du displayName (défaut).
    * Utile quand le nom affiché ne donne pas l'initiale voulue.
    */
@@ -124,6 +138,7 @@ export function defaultEditable(): EditableProfile {
     bio: '',
     avatarColor: DEFAULT_AVATAR_COLOR,
     avatarInitials: '',
+    avatarUri: '',
     featuredBadgeIds: [],
   };
 }

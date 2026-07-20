@@ -268,6 +268,19 @@ export const PRIVACY_ZONE_DEFAULT_RADIUS_M = 300;
 export const PRIVACY_ZONE_H3_RESOLUTION = 8; // centre stocké grossier, jamais en lat/lng exact
 export const RAW_POLYLINE_RETENTION_DAYS = 90;
 export const MIN_AGE_YEARS = 16;
+/**
+ * Suppression de compte DIFFÉRÉE (RGPD art. 17 + Apple 5.1.1(v)) — politique
+ * « Snapchat » : la demande rend le compte INVISIBLE immédiatement (profil,
+ * classements, roster crew), puis la purge RÉELLE et irréversible a lieu à
+ * l'échéance. Toute reconnexion pendant le délai ANNULE la suppression.
+ *
+ * 30 jours = standard du secteur (Snapchat, Instagram, X) et borne haute
+ * défendable : au-delà, un « soft delete » éternel violerait le droit à
+ * l'effacement. La purge est exécutée par le cron `gryd_purge_accounts`
+ * (migration 0045) qui appelle public.purge_due_accounts() — sans lui, le
+ * compte ne serait jamais supprimé et l'app mentirait.
+ */
+export const ACCOUNT_DELETION_GRACE_DAYS = 30;
 
 // ─── §5.1 Monétisation (SKUs RevenueCat) — étendus AMENDEMENT-16 §4 ─────────
 export const SKUS = {

@@ -358,6 +358,77 @@ export const C = defineCatalog({
     de: '3-20 Zeichen: Kleinbuchstaben, Ziffern, „_“.',
     pt: 'De 3 a 20 caracteres: minúsculas, números e "_".',
   },
+  // ─── @handle : disponibilité vérifiée en direct (RPC check_handle_available,
+  //     migration 0047). Le serveur reste juge à la sauvegarde : ces libellés
+  //     décrivent un CONSTAT à l'instant T, jamais une réservation. ───────────
+  /** État neutre pendant la requête — jamais un verdict prématuré. */
+  handleChecking: {
+    fr: 'Vérification…',
+    en: 'Checking…',
+    es: 'Comprobando…',
+    de: 'Wird geprüft…',
+    pt: 'A verificar…',
+  },
+  /** Libre À CET INSTANT. Volontairement pas « réservé » : rien n'est réservé. */
+  handleFree: {
+    fr: 'Disponible',
+    en: 'Available',
+    es: 'Disponible',
+    de: 'Verfügbar',
+    pt: 'Disponível',
+  },
+  handleTaken: {
+    fr: 'Déjà pris par un autre coureur.',
+    en: 'Already taken by another runner.',
+    es: 'Ya lo usa otro corredor.',
+    de: 'Schon von einer anderen Läuferin vergeben.',
+    pt: 'Já usado por outro corredor.',
+  },
+  /** Marque, terme officiel ou trompeur (table reserved_handles). */
+  handleReserved: {
+    fr: 'Ce nom est réservé.',
+    en: 'This name is reserved.',
+    es: 'Este nombre está reservado.',
+    de: 'Dieser Name ist reserviert.',
+    pt: 'Este nome está reservado.',
+  },
+  handleTooShort: {
+    fr: '3 caractères minimum.',
+    en: '3 characters minimum.',
+    es: 'Mínimo 3 caracteres.',
+    de: 'Mindestens 3 Zeichen.',
+    pt: 'Mínimo de 3 caracteres.',
+  },
+  handleTooLong: {
+    fr: '20 caractères maximum.',
+    en: '20 characters maximum.',
+    es: 'Máximo 20 caracteres.',
+    de: 'Höchstens 20 Zeichen.',
+    pt: 'Máximo de 20 caracteres.',
+  },
+  handleBadChars: {
+    fr: 'Minuscules, chiffres et « _ » seulement.',
+    en: 'Lowercase, digits and "_" only.',
+    es: 'Solo minúsculas, números y «_».',
+    de: 'Nur Kleinbuchstaben, Ziffern und „_“.',
+    pt: 'Apenas minúsculas, números e "_".',
+  },
+  /** Hors ligne / sans compte : on ne SAIT pas, donc on le dit. */
+  handleUnknown: {
+    fr: 'Disponibilité vérifiée à l’enregistrement.',
+    en: 'Availability checked when you save.',
+    es: 'La disponibilidad se comprueba al guardar.',
+    de: 'Verfügbarkeit wird beim Speichern geprüft.',
+    pt: 'A disponibilidade é verificada ao guardar.',
+  },
+  /** a11y du badge vérifié. Il n'apparaît que si le SERVEUR le dit (0047). */
+  a11yVerified: {
+    fr: 'Compte vérifié',
+    en: 'Verified account',
+    es: 'Cuenta verificada',
+    de: 'Verifiziertes Konto',
+    pt: 'Conta verificada',
+  },
   sectionTitleCity: {
     fr: 'TITRE & VILLE',
     en: 'TITLE & CITY',
@@ -386,6 +457,22 @@ export const C = defineCatalog({
     de: 'Stadt',
     pt: 'Cidade',
   },
+  /** Le champ libre est supprimé : on choisit une ville qui EXISTE (city_zones). */
+  cityHint: {
+    fr: 'Choisis une ville jouable.',
+    en: 'Pick a playable city.',
+    es: 'Elige una ciudad jugable.',
+    de: 'Wähle eine spielbare Stadt.',
+    pt: 'Escolhe uma cidade jogável.',
+  },
+  /** a11y du sélecteur de ville. */
+  a11yPickCity: {
+    fr: 'Choisir {city}',
+    en: 'Pick {city}',
+    es: 'Elegir {city}',
+    de: '{city} wählen',
+    pt: 'Escolher {city}',
+  },
   sectionBio: {
     fr: 'BIO COURTE',
     en: 'SHORT BIO',
@@ -406,6 +493,74 @@ export const C = defineCatalog({
     es: 'AVATAR',
     de: 'AVATAR',
     pt: 'AVATAR',
+  },
+  // ── Avatar : PHOTO ou INITIALES, deux chemins de première classe ──────────
+  /** Onglet « photo » du sélecteur d'avatar. */
+  avatarModePhoto: {
+    fr: 'Photo',
+    en: 'Photo',
+    es: 'Foto',
+    de: 'Foto',
+    pt: 'Foto',
+  },
+  /** Onglet « avatar généré » — nommé pour ce qu'il EST, pas « aucune photo ». */
+  avatarModeInitials: {
+    fr: 'Initiales',
+    en: 'Initials',
+    es: 'Iniciales',
+    de: 'Initialen',
+    pt: 'Iniciais',
+  },
+  /** Dit explicitement qu'aucune des deux options n'est le bon choix par défaut. */
+  avatarChoiceHint: {
+    fr: 'Les deux se valent : montre ton visage, ou reste derrière ton pseudo.',
+    en: 'Both work: show your face, or stay behind your handle.',
+    es: 'Las dos valen: muestra tu cara o quédate detrás de tu alias.',
+    de: 'Beides ist in Ordnung: Zeig dein Gesicht oder bleib hinter deinem Handle.',
+    pt: 'As duas valem: mostre seu rosto ou fique atrás do seu apelido.',
+  },
+  a11yAvatarMode: {
+    fr: 'Avatar : {mode}',
+    en: 'Avatar: {mode}',
+    es: 'Avatar: {mode}',
+    de: 'Avatar: {mode}',
+    pt: 'Avatar: {mode}',
+  },
+  photoChoose: {
+    fr: 'Choisir une photo',
+    en: 'Choose a photo',
+    es: 'Elegir una foto',
+    de: 'Foto auswählen',
+    pt: 'Escolher uma foto',
+  },
+  photoReplace: {
+    fr: 'Changer de photo',
+    en: 'Change photo',
+    es: 'Cambiar de foto',
+    de: 'Foto ändern',
+    pt: 'Trocar de foto',
+  },
+  photoRemove: {
+    fr: 'Retirer la photo',
+    en: 'Remove photo',
+    es: 'Quitar la foto',
+    de: 'Foto entfernen',
+    pt: 'Remover a foto',
+  },
+  /** ZÉRO MENSONGE : le stockage distant n'est pas câblé — on ne dit pas « publiée ». */
+  photoLocalOnly: {
+    fr: 'Ta photo reste sur ton téléphone : elle n’est envoyée à personne pour l’instant.',
+    en: 'Your photo stays on your phone: it is not sent to anyone yet.',
+    es: 'Tu foto se queda en tu teléfono: por ahora no se envía a nadie.',
+    de: 'Dein Foto bleibt auf deinem Telefon: Es wird vorerst an niemanden gesendet.',
+    pt: 'Sua foto fica no seu telefone: por enquanto não é enviada a ninguém.',
+  },
+  photoDenied: {
+    fr: 'GRYD n’a pas accès à tes photos. Autorise-le dans les réglages du téléphone, ou garde tes initiales.',
+    en: 'GRYD cannot access your photos. Allow it in your phone settings, or keep your initials.',
+    es: 'GRYD no tiene acceso a tus fotos. Autorízalo en los ajustes del teléfono o quédate con tus iniciales.',
+    de: 'GRYD hat keinen Zugriff auf deine Fotos. Erlaube es in den Telefon-Einstellungen oder behalte deine Initialen.',
+    pt: 'O GRYD não tem acesso às suas fotos. Autorize nas configurações do telefone ou fique com suas iniciais.',
   },
   fieldColor: {
     fr: 'Couleur',

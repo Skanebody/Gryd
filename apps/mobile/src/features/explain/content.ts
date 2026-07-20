@@ -29,18 +29,25 @@ import {
   closeToleranceLabel,
   coverageBufferLabel,
   crewLoopWindowLabel,
-  decayDaysEntry,
+  dailyCapEntry,
+  defendCooldownLabel,
   defenseHoursLabels,
   fillEntry,
   finisherMinEntry,
+  freshProtectLabel,
   bonusCapEntry,
   gpsGateLabel,
+  groupLockBonusEntry,
+  lockHoursLabel,
+  newPlayerDaysEntry,
+  pioneerBonusMaxEntry,
   runMinDistanceLabel,
   runMinDurationLabel,
   verifyTiersLabel,
   verifyTiersSentenceEntry,
   widthMinLabel,
   zoneLifecycleEntries,
+  zonePointsEntries,
 } from './labels';
 
 /** Identifiants des 6 schémas SVG pédagogiques (§31). Un agent Écrans les rend. */
@@ -50,12 +57,16 @@ export type SchemaId =
   | 'defense_frontiere' // 3 · traverser / longer / fermer
   | 'boucle_collective' // 4 · deux traits crew + contributions
   | 'bonus_cible' // 5 · segment manquant en pointillé + éclair
-  | 'verify'; // 6 · check bleu / segment grisé
+  | 'verify' // 6 · check bleu / segment grisé
+  | 'valeur_zone' // 7 · 3 barres : libre < défendue < volée (§23)
+  | 'le_relais' // 8 · la zone au 1ᵉʳ, les points en 1/rang (A-41)
+  | 'vie_de_la_zone'; // 9 · ligne de vie : solide → fragile → libre
 
 // Valeurs de règles injectées dans les textes (dérivées de game-rules.ts).
 const HOURS = defenseHoursLabels();
 const TIERS = verifyTiersLabel();
 const LIFECYCLE = zoneLifecycleEntries();
+const POINTS = zonePointsEntries();
 
 // ─── Page « Comment GRYD calcule tes zones » (§32) ───────────────────────────
 
@@ -74,7 +85,14 @@ export interface ExplainSection {
   schemaId: SchemaId;
 }
 
-/** Les 6 sections, dans l'ordre du doc §32. */
+/**
+ * Les 8 scènes de la visite guidée, dans l'ordre où on se pose les questions :
+ * comment une course devient une zone (1-2) → ce qu'on y gagne (3) → ce qui se
+ * passe quand on est plusieurs dessus (4-5) → comment on la garde (6-7) → ce
+ * qui peut l'invalider (8).
+ * La scène « bonus ciblés » a QUITTÉ la visite (ce n'est pas une mécanique de
+ * capture, c'est de l'économie) : elle reste en FAQ, avec son schéma.
+ */
 export const EXPLAIN_SECTIONS: readonly ExplainSection[] = [
   {
     id: 'ligne_vs_boucle',
@@ -93,6 +111,32 @@ export const EXPLAIN_SECTIONS: readonly ExplainSection[] = [
     schemaId: 'boucle_fait_zone',
   },
   {
+    // Ce qu'on gagne — la question restée sans réponse jusqu'ici (doc §23).
+    id: 'valeur_zone',
+    icon: 'conquete',
+    title: C.secValeurTitle,
+    line: C.secValeurLine,
+    example: fillEntry(C.secValeurExample, { bonus: pioneerBonusMaxEntry() }),
+    schemaId: 'valeur_zone',
+  },
+  {
+    // AMENDEMENT-41 (LE RELAIS) : la sortie de run club, absente de la visite.
+    id: 'le_relais',
+    icon: 'crew',
+    title: C.secRelaisTitle,
+    line: C.secRelaisLine,
+    example: fillEntry(C.secRelaisExample, { bonus: groupLockBonusEntry() }),
+    schemaId: 'le_relais',
+  },
+  {
+    id: 'boucle_collective',
+    icon: 'crew',
+    title: C.secCrewTitle,
+    line: C.secCrewLine,
+    example: C.secCrewExample,
+    schemaId: 'boucle_collective',
+  },
+  {
     id: 'defense_frontiere',
     icon: 'bouclier',
     title: C.secDefenseTitle,
@@ -105,20 +149,18 @@ export const EXPLAIN_SECTIONS: readonly ExplainSection[] = [
     schemaId: 'defense_frontiere',
   },
   {
-    id: 'boucle_collective',
-    icon: 'crew',
-    title: C.secCrewTitle,
-    line: C.secCrewLine,
-    example: C.secCrewExample,
-    schemaId: 'boucle_collective',
-  },
-  {
-    id: 'bonus_cible',
-    icon: 'performance',
-    title: C.secBonusTitle,
-    line: C.secBonusLine,
-    example: C.secBonusExample,
-    schemaId: 'bonus_cible',
+    // Pourquoi une zone se perd avec le temps (decay + statuts §24-§25).
+    id: 'vie_de_la_zone',
+    icon: 'sablier',
+    title: C.secVieTitle,
+    // {decay} = la LOCUTION complète (« après 14 jours » / « nach 14 Tagen ») :
+    // la déclinaison allemande interdit d'injecter « 14 Tage » nu dans « nach ».
+    line: fillEntry(C.secVieLine, {
+      stable: LIFECYCLE.stable,
+      decay: LIFECYCLE.decay,
+    }),
+    example: C.secVieExample,
+    schemaId: 'vie_de_la_zone',
   },
   {
     id: 'verify',
@@ -177,6 +219,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     icon: 'crew',
     q: C.qRelayQ,
     a: C.qRelayA,
+    schemaId: 'le_relais',
   },
   {
     id: 'q2',
@@ -228,11 +271,36 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     a: C.q6A,
   },
   {
+    // « Ensemble ça tient » (A-41 §4) : le vrai bénéfice de la sortie de groupe.
+    id: 'q-group-lock',
+    category: 'crew',
+    icon: 'crew',
+    q: C.qGroupLockQ,
+    a: fillEntry(C.qGroupLockA, { bonus: groupLockBonusEntry() }),
+    schemaId: 'le_relais',
+  },
+  {
     id: 'q7',
     category: 'zones',
     icon: 'conquete',
     q: C.q7Q,
-    a: C.q7A,
+    a: fillEntry(C.q7A, { steal: POINTS.steal, base: POINTS.neutral }),
+    schemaId: 'valeur_zone',
+  },
+  {
+    // Les 4 REFUS du moteur (fresh / lock / nouveau joueur / plafond du jour) :
+    // aucune page ne les expliquait, alors que la promesse d'écran est « chaque
+    // zone refusée s'explique ».
+    id: 'q-blocked',
+    category: 'zones',
+    icon: 'bouclier',
+    q: C.qBlockedQ,
+    a: fillEntry(C.qBlockedA, {
+      fresh: freshProtectLabel(),
+      lock: lockHoursLabel(),
+      newbie: newPlayerDaysEntry(),
+      cap: dailyCapEntry(),
+    }),
   },
   {
     id: 'q8',
@@ -270,18 +338,42 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     schemaId: 'defense_frontiere',
   },
   {
+    // Le piège du double run : une même zone ne repaie qu'après le cooldown.
+    id: 'q-cooldown',
+    category: 'defense',
+    icon: 'sablier',
+    q: C.qCooldownQ,
+    a: fillEntry(C.qCooldownA, { cooldown: defendCooldownLabel() }),
+  },
+  {
     id: 'q12',
     category: 'defense',
     icon: 'sablier',
     q: C.q12Q,
     a: fillEntry(C.q12A, LIFECYCLE),
+    schemaId: 'vie_de_la_zone',
   },
   {
     id: 'q13',
     category: 'defense',
     icon: 'sablier',
     q: C.q13Q,
-    a: fillEntry(C.q13A, { days: decayDaysEntry() }),
+    a: fillEntry(C.q13A, { days: LIFECYCLE.decay }),
+    schemaId: 'vie_de_la_zone',
+  },
+  {
+    // « Ce qu'on gagne » : la formule §23 en clair, valeurs réelles du moteur.
+    id: 'q-points',
+    category: 'economie',
+    icon: 'conquete',
+    q: C.qPointsQ,
+    a: fillEntry(C.qPointsA, {
+      base: POINTS.neutral,
+      defense: POINTS.defense,
+      steal: POINTS.steal,
+      pioneer: pioneerBonusMaxEntry(),
+    }),
+    schemaId: 'valeur_zone',
   },
   {
     id: 'q14',

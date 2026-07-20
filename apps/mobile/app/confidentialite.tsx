@@ -32,6 +32,7 @@ import {
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  ACCOUNT_DELETION_GRACE_DAYS,
   colors,
   fontSizes,
   gameColors,
@@ -46,6 +47,12 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { supabase } from '../src/lib/supabase';
 import { useSession } from '../src/lib/session';
+import {
+  cancelAccountDeletion,
+  fetchDeletionStatus,
+  requestAccountDeletion,
+  type DeletionStatus,
+} from '../src/features/account/deletion';
 import { signOut } from '../src/lib/auth';
 import { StackScreen } from '../src/ui/StackScreen';
 import { GhostButton } from '../src/ui/GhostButton';
@@ -144,6 +151,9 @@ export default function ConfidentialiteScreen() {
   // Garde de ré-entrée de la suppression (action DESTRUCTIVE réseau) : sans elle,
   // un double-tap déclenche deux invoke('delete_account').
   const [deleting, setDeleting] = useState(false);
+  // Suppression DIFFÉRÉE en cours (0046) : `null` = état encore inconnu (on
+  // n'affirme rien tant que le serveur n'a pas répondu — l'app ne ment jamais).
+  const [deletionStatus, setDeletionStatus] = useState<DeletionStatus | null>(null);
   // Signalement/blocage ACTIONNABLE depuis la card « Blocage & signalement » :
   // pseudo saisi + motif choisi → reportContent / blockMember (store partagé
   // avec le Crew Chat — mêmes données, même traitement sous 24 h).
@@ -153,6 +163,18 @@ export default function ConfidentialiteScreen() {
   useEffect(() => {
     screen('privacy_settings');
   }, []);
+
+  // État RÉEL de suppression différée, lu au serveur (jamais déduit localement).
+  useEffect(() => {
+    if (!(configured && session && supabase)) return;
+    let alive = true;
+    void fetchDeletionStatus().then((st) => {
+      if (alive && st) setDeletionStatus(st);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [configured, session]);
 
   const toggle = (k: SectionKey) => setOpenKey((cur) => (cur === k ? null : k));
 
@@ -185,35 +207,84 @@ export default function ConfidentialiteScreen() {
     Alert.alert(t(C.playerBlockedTitle), t(C.playerBlockedBody, { pseudo }));
   };
 
-  // Suppression de compte (Guideline 5.1.1v). RÉEL : si session, on appelle
-  // l'Edge Function `delete_account` (service-role) qui supprime auth.users → le
-  // CASCADE FK efface compte + runs + hex_claims + season_scores + badges +
-  // crew_members côté serveur. PUIS déconnexion + purge locale + retour
-  // onboarding. Sur ÉCHEC serveur : on n'efface RIEN localement et on informe —
-  // jamais de faux « compte supprimé ». Sans session (dev/web) : purge locale
-  // seule. Distinct de l'export RGPD.
+  // Format de date localisé pour les échéances (jour + mois + année, sans heure :
+  // la purge est un job quotidien, annoncer une heure précise serait faux).
+  const formatDate = (iso: string | null): string =>
+    iso
+      ? new Date(iso).toLocaleDateString(undefined, {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      : '—';
+
+  // DEMANDE de suppression différée (0046 + Guideline 5.1.1v). Ce n'est PLUS un
+  // effacement immédiat : le serveur marque le compte, le rend invisible tout de
+  // suite, et la purge réelle a lieu à l'échéance (cron gryd_purge_accounts).
+  //
+  // On NE déconnecte QUE si le serveur a confirmé. Sur échec : on n'efface rien,
+  // on ne déconnecte pas, et on le dit — jamais de faux « compte supprimé ».
+  //
+  // La déconnexion est VOULUE, pas cosmétique : « toute reconnexion annule la
+  // suppression » n'a de sens que si l'utilisateur est effectivement déconnecté,
+  // sinon la session restaurée laisserait un compte « supprimé » utilisable.
   const runAccountDeletion = async () => {
-    if (deleting) return; // anti double-tap sur une action irréversible
+    if (deleting) return; // anti double-tap
     setDeleting(true);
     haptics.medium();
-    if (configured && session && supabase) {
-      const { error } = await supabase.functions.invoke('delete_account');
-      if (error) {
-        setDeleting(false); // échec : on rend la main pour réessayer
-        Alert.alert(t(C.deleteFailTitle), t(C.deleteFailBody));
-        return;
-      }
-      // Session serveur invalidée : on réinitialise l'auth locale (best-effort).
-      await signOut().catch(() => {});
+
+    if (!(configured && session && supabase)) {
+      // Sans backend (dev/web) : aucune suppression serveur n'est possible. On
+      // ne purge PAS le local en prétendant avoir supprimé le compte.
+      setDeleting(false);
+      Alert.alert(t(C.exportUnavailableTitle), t(C.exportUnavailableBody));
+      return;
     }
+
+    const status = await requestAccountDeletion();
+    if (!status) {
+      setDeleting(false); // échec : on rend la main pour réessayer
+      Alert.alert(t(C.deleteFailTitle), t(C.deleteFailBody));
+      return;
+    }
+
+    setDeletionStatus(status);
+    setConfirmDelete(false);
+    setDeleting(false);
+    Alert.alert(
+      t(C.deletionScheduledTitle),
+      t(C.deletionScheduledBody, { date: formatDate(status.purgeAt) }),
+    );
+
+    // Déconnexion + purge des prefs locales : le compte doit être hors d'usage
+    // pendant le délai. Les données SERVEUR, elles, sont conservées jusqu'à
+    // l'échéance — c'est exactement ce qui rend l'annulation possible.
+    await signOut().catch(() => {});
     try {
-      // Efface toutes les prefs/état locaux (privacy, motivation, onboarding,
-      // haptics, session persistée…). Best-effort — un stockage indispo ne bloque rien.
       await AsyncStorage.clear();
     } catch {
       // no-op : on route quand même vers l'onboarding.
     }
     router.replace('/onboarding');
+  };
+
+  // ANNULATION explicite depuis l'écran (l'autre chemin est la reconnexion,
+  // câblée dans SessionProvider). Ne prétend une restauration que si le serveur
+  // a bien annulé quelque chose (`restored`).
+  const runCancelDeletion = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    haptics.medium();
+    const { ok, restored } = await cancelAccountDeletion();
+    setDeleting(false);
+    if (!ok) {
+      Alert.alert(t(C.deleteFailTitle), t(C.deleteFailBody));
+      return;
+    }
+    setDeletionStatus({ pending: false, graceDays: null, requestedAt: null, purgeAt: null });
+    if (restored) {
+      Alert.alert(t(C.deletionRestoredTitle), t(C.deletionRestoredBody));
+    }
   };
 
   // Export RGPD (art. 15/20) — RÉEL : si session, appelle l'Edge Function
@@ -244,6 +315,7 @@ export default function ConfidentialiteScreen() {
   if (confirmDelete) {
     return (
       <DeleteAccountConfirm
+        graceDays={deletionStatus?.graceDays ?? ACCOUNT_DELETION_GRACE_DAYS}
         busy={deleting}
         onCancel={() => {
           haptics.light();
@@ -545,22 +617,47 @@ export default function ConfidentialiteScreen() {
           card dédiée, action unique, vers un écran de confirmation plein écran. */}
       <SectionLabel>{t(C.secSuppressionCompte)}</SectionLabel>
       <View style={styles.deleteCard}>
-        <Text style={styles.deleteCardText}>{t(C.deleteCardText)}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.supprimerMonCompte)}
-          onPress={() => {
-            haptics.medium();
-            setConfirmDelete(true);
-          }}
-          style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
-        >
-          <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
-          <Text style={styles.deleteRowLabel}>{t(C.supprimerMonCompte)}</Text>
-          <View style={styles.deleteChevron}>
-            <Icon name="chevron" size={16} color={gameColors.danger} />
-          </View>
-        </Pressable>
+        {deletionStatus?.pending ? (
+          /* Suppression DÉJÀ demandée : on ne repropose pas de supprimer (ce
+             serait absurde et laisserait croire que rien n'est en cours). On
+             affiche l'échéance RÉELLE et le seul geste utile : annuler. */
+          <>
+            <Text style={styles.deleteCardTitle}>{t(C.deletionPendingTitle)}</Text>
+            <Text style={styles.deleteCardText}>
+              {t(C.deletionPendingBody, { date: formatDate(deletionStatus.purgeAt) })}
+            </Text>
+            <View style={styles.actionGap}>
+              <GhostButton
+                label={t(C.deletionCancelCta)}
+                onPress={() => void runCancelDeletion()}
+                disabled={deleting}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.deleteCardText}>
+              {t(C.deleteCardText, {
+                d: deletionStatus?.graceDays ?? ACCOUNT_DELETION_GRACE_DAYS,
+              })}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.supprimerMonCompte)}
+              onPress={() => {
+                haptics.medium();
+                setConfirmDelete(true);
+              }}
+              style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
+            >
+              <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
+              <Text style={styles.deleteRowLabel}>{t(C.supprimerMonCompte)}</Text>
+              <View style={styles.deleteChevron}>
+                <Icon name="chevron" size={16} color={gameColors.danger} />
+              </View>
+            </Pressable>
+          </>
+        )}
       </View>
     </StackScreen>
   );
@@ -577,10 +674,14 @@ function DeleteAccountConfirm({
   onCancel,
   onConfirm,
   busy,
+  graceDays,
 }: {
   onCancel: () => void;
   onConfirm: () => void;
   busy: boolean;
+  /** Délai de grâce annoncé — vient du SERVEUR quand il a répondu, sinon de la
+   *  constante partagée. Jamais un nombre écrit en dur dans la copie. */
+  graceDays: number;
 }) {
   const t = useT();
   useEffect(() => {
@@ -594,8 +695,8 @@ function DeleteAccountConfirm({
     >
       <View style={styles.confirmBox}>
         <Icon name="alerte" size={28} color={gameColors.danger} />
-        <Text style={styles.confirmTitle}>{t(C.deleteConfirmTitle)}</Text>
-        <Text style={styles.confirmBody}>{t(C.deleteConfirmBody)}</Text>
+        <Text style={styles.confirmTitle}>{t(C.deleteConfirmTitle, { d: graceDays })}</Text>
+        <Text style={styles.confirmBody}>{t(C.deleteConfirmBody, { d: graceDays })}</Text>
       </View>
 
       <View style={styles.confirmActions}>
@@ -849,6 +950,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   deleteChevron: { transform: [{ rotate: '90deg' }] },
+  // Titre de l'état « suppression programmée » : même famille que deleteCardText,
+  // en blanc (jamais de chartreuse sur cette card d'alerte).
+  deleteCardTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
 
   // Écran de confirmation plein écran.
   confirmBox: {

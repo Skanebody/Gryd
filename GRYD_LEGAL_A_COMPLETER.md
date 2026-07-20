@@ -38,6 +38,50 @@ Ces valeurs ont été reprises des données publiques du RCS et intégrées dans
 > À vérifier par toi : que ces valeurs sont toujours à jour, et que le nom du
 > directeur de la publication est bien celui que tu veux afficher publiquement.
 
+## ✅ CONFIRMÉ PAR LE FONDATEUR le 21/07/2026
+
+Identité vérifiée sur l'export du portail data Nexus 1993 — **elle correspond
+exactement** aux valeurs ci-dessus (SASU, 500 €, 66 av. des Champs-Élysées 75008
+Paris, RCS Paris 982 786 154, président Benjamin Bel).
+
+**Protection des données personnelles du fondateur : déjà optimale.** Le siège
+est une adresse de **domiciliation**, pas le domicile. L'adresse du siège est
+publique par nature au RCS : la seule parade est justement la domiciliation, et
+elle est en place. Ne JAMAIS remplacer par une adresse personnelle.
+
+### Correctif du 21/07 : les mentions légales étaient un CUL-DE-SAC
+
+L'app renvoyait vers « gryd.run/mentions-legales » — **un domaine qui n'existe
+pas** (arbitrage `gryd.app` vs `gryd.run` toujours ouvert, O10) et des pages web
+non déployées publiquement. Or la LCEN impose que les mentions légales soient
+accessibles.
+
+→ Elles sont désormais **embarquées dans l'app** : `apps/mobile/app/a-propos.tsx`
++ `src/i18n/catalog/legal.ts` (source unique `LEGAL_ENTITY`, 5 langues). Elles ne
+dépendent plus d'aucun domaine, d'aucun hébergement, d'aucun réseau.
+
+### Reste à faire quand le domaine sera tranché
+
+- Déployer publiquement les pages web `/mentions-legales`, `/cgv`, `/conditions`,
+  `/confidentialite` (elles existent dans `apps/web`, non déployées).
+- Remplacer les mentions « gryd.run/… » restantes des textes de Réglages
+  (`catalog/reglages.ts` : `mentionsFallbackBody`, `licencesBody`) — elles
+  pointent vers un domaine inexistant.
+
+### À jour vs la réalité produit — à revoir avant mise en vente
+
+- **Prix affichés dans le doc (8 €/mois, 69 €/an, 149 €)** : le modèle de
+  monétisation n'est PAS tranché (abonnement + Éclats existant vs 4 packs
+  permanents de la doctrine A-43). Ne pas publier de CGV tant que ce choix n'est
+  pas fait — des CGV qui décrivent une offre inexistante sont pires qu'absentes.
+- **Confidentialité par défaut ouverte** (décision fondateur 20/07 : profil et
+  courses publics) : la politique de confidentialité doit le refléter, avec les
+  trois planchers non ouverts (domicile flouté, position live jamais partagée,
+  données de santé privées — RGPD art. 9).
+- **Retargeting** : tout usage marketing des e-mails/téléphones exige un opt-in
+  explicite ET le prompt Apple (ATT). Ne rien collecter à cette fin avant que le
+  consentement soit câblé.
+
 ## Ce qui reste à fournir (les 2 derniers `[à compléter]`)
 
 1. **Hébergeur du site web gryd.run** (Mentions légales — obligatoire LCEN) : nom /

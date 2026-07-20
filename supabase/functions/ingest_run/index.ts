@@ -180,7 +180,7 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
   if (typeof body !== 'object' || body === null) return false;
   const b = body as Record<string, unknown>;
   return typeof b.clientRunId === 'string' && b.clientRunId.length > 0 &&
-    (b.source === 'gps' || b.source === 'healthkit') &&
+    (b.source === 'gps' || b.source === 'healthkit' || b.source === 'gpx') &&
     typeof b.startedAt === 'string' &&
     Array.isArray(b.points) &&
     // Borne AVANT le .every()/parsing (audit sécurité) : un tableau géant (millions
@@ -2168,7 +2168,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (dupOf) {
       await supabase.from('imported_activities').insert({
         user_id: userId,
-        source: request.source === 'healthkit' ? 'healthkit' : 'gryd_live',
+        // Provenance HONNÊTE dans l'Activity Hub : un import GPX n'est pas une
+        // capture GRYD Live et n'est pas non plus un import santé OS.
+        source: request.source === 'healthkit'
+          ? 'healthkit'
+          : request.source === 'gpx'
+            ? 'gpx'
+            : 'gryd_live',
         external_id: request.clientRunId,
         started_at: request.startedAt,
         duration_s: durationS,

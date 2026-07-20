@@ -47,6 +47,11 @@ const PERSONAL_TABLES: readonly {
   { key: 'missionProgress', table: 'mission_progress', column: 'user_id' },
   { key: 'notifications', table: 'notifications', column: 'user_id' },
   { key: 'importedActivities', table: 'imported_activities', column: 'user_id' },
+  // Droit d'accès : l'utilisateur doit aussi récupérer ses actions de MODÉRATION
+  // (signalements émis, pseudos bloqués) — ce sont ses données personnelles au
+  // même titre que ses courses. Cf. 0029_moderation.sql.
+  { key: 'contentReports', table: 'content_reports', column: 'reporter_id' },
+  { key: 'blockedPseudos', table: 'user_blocks', column: 'blocker_id' },
 ];
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -77,11 +82,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
+  // État de suppression différée (0046) : l'export doit DIRE si une suppression
+  // est en cours et quand la purge aura lieu — sinon l'utilisateur exporte ses
+  // données sans savoir qu'elles sont sur le point de disparaître.
+  let deletion: unknown = null;
+  const { data: pending } = await supabase
+    .from('users')
+    .select('deletion_requested_at')
+    .eq('id', userId)
+    .maybeSingle();
+  const requestedAt = (pending as { deletion_requested_at?: string } | null)?.deletion_requested_at;
+  if (requestedAt) {
+    const { data: graceDays } = await supabase.rpc('account_deletion_grace_days');
+    const days = typeof graceDays === 'number' ? graceDays : null;
+    deletion = {
+      pending: true,
+      requestedAt,
+      graceDays: days,
+      purgeAt:
+        days === null
+          ? null
+          : new Date(new Date(requestedAt).getTime() + days * 86_400_000).toISOString(),
+    };
+  } else {
+    deletion = { pending: false };
+  }
+
   return json({
     export: {
       format: 'gryd.account-export.v1',
       generatedAt: new Date().toISOString(),
       account: { id: userId, email: userData.user.email ?? null },
+      deletion,
       data,
       ...(partialErrors.length > 0 ? { partialErrors } : {}),
     },

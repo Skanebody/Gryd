@@ -1,6 +1,6 @@
 /**
  * GRYD — Schémas pédagogiques d'explicabilité (AMENDEMENT-23 §B.3 / doc §31).
- * 6 composants SVG propriétaires, PURS (aucun état, aucune dépendance runtime),
+ * 9 composants SVG propriétaires, PURS (aucun état, aucune dépendance runtime),
  * responsive (`size` = largeur px, hauteur suit le viewBox), charte dark/chartreuse.
  * Réutilisables par la page « Comment GRYD calcule tes zones », la FAQ et le post-run.
  * RÈGLE D'OR : les valeurs chiffrées affichées sont des SCÉNARIOS DÉMO passés en
@@ -27,3 +27,12 @@ export type { BonusCibleProps } from './BonusCible';
 
 export { VerifySchema } from './VerifySchema';
 export type { VerifySchemaProps } from './VerifySchema';
+
+export { LeRelais } from './LeRelais';
+export type { LeRelaisProps } from './LeRelais';
+
+export { VieDeLaZone } from './VieDeLaZone';
+export type { VieDeLaZoneProps } from './VieDeLaZone';
+
+export { ValeurZone } from './ValeurZone';
+export type { ValeurZoneProps } from './ValeurZone';

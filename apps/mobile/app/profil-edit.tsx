@@ -24,6 +24,7 @@ import {
   gameColors,
   iconSizes,
   radii,
+  sizes,
   spacing,
 } from '@klaim/shared';
 import { useT } from '../src/i18n/store';
@@ -38,6 +39,7 @@ import { BadgeHex } from '../src/features/badges/BadgeHex';
 import { badgeById, badgeColor } from '../src/features/badges/catalog';
 import { useMyBadges } from '../src/features/badges/myBadges';
 import { PlayerCardAvatar } from '../src/features/social/PlayerCardAvatar';
+import { clearAvatarPhoto, pickAvatarPhoto } from '../src/features/social/avatarPhoto';
 import {
   AVATAR_COLORS,
   BIO_MAX,
@@ -93,6 +95,21 @@ export default function ProfilEditScreen() {
   const [bio, setBio] = useState(editable.bio);
   const [avatarColor, setAvatarColor] = useState(editable.avatarColor);
   const [avatarInitials, setAvatarInitials] = useState(editable.avatarInitials);
+  /**
+   * PHOTO DE PROFIL (demande fondateur). `avatarUri` vide = avatar généré.
+   * `photoDenied` porte le refus de permission — jamais un échec silencieux.
+   */
+  const [avatarUri, setAvatarUri] = useState(editable.avatarUri);
+  const [photoDenied, setPhotoDenied] = useState(false);
+  /**
+   * Onglet AFFICHÉ du sélecteur d'avatar. Il suit d'abord ce que le joueur a
+   * déjà choisi, mais reste INDÉPENDANT de `avatarUri` : consulter l'onglet
+   * « Initiales » ne supprime pas une photo, et inversement. Aucun des deux
+   * n'est « le défaut » — c'est tout le point de la demande.
+   */
+  const [avatarMode, setAvatarMode] = useState<'photo' | 'initials'>(
+    editable.avatarUri ? 'photo' : 'initials',
+  );
   const [featuredBadgeIds, setFeaturedBadgeIds] = useState<readonly string[]>(
     editable.featuredBadgeIds,
   );
@@ -119,10 +136,53 @@ export default function ProfilEditScreen() {
       bio !== editable.bio ||
       avatarColor !== editable.avatarColor ||
       avatarInitials !== editable.avatarInitials ||
+      avatarUri !== editable.avatarUri ||
       featuredBadgeIds.length !== editable.featuredBadgeIds.length ||
       featuredBadgeIds.some((id) => !editable.featuredBadgeIds.includes(id)),
-    [displayName, handle, title, city, bio, avatarColor, avatarInitials, featuredBadgeIds, editable],
+    [
+      displayName,
+      handle,
+      title,
+      city,
+      bio,
+      avatarColor,
+      avatarInitials,
+      avatarUri,
+      featuredBadgeIds,
+      editable,
+    ],
   );
+
+  /**
+   * Ouvrir la photothèque. Le refus de permission n'est PAS un échec silencieux :
+   * il s'affiche, et il rappelle que l'avatar d'initiales reste parfaitement
+   * valable — personne ne doit se retrouver coincé sans identité.
+   */
+  const onPickPhoto = () => {
+    haptics.light();
+    void (async () => {
+      const result = await pickAvatarPhoto();
+      if (result.kind === 'denied') {
+        setPhotoDenied(true);
+        return;
+      }
+      if (result.kind === 'canceled') return;
+      setPhotoDenied(false);
+      setAvatarUri(result.uri);
+      setAvatarMode('photo');
+      touched();
+    })();
+  };
+
+  /** Retirer la photo = revenir à l'avatar généré. Choix assumé, pas une perte. */
+  const onRemovePhoto = () => {
+    haptics.light();
+    setAvatarUri('');
+    setAvatarMode('initials');
+    setPhotoDenied(false);
+    touched();
+    void clearAvatarPhoto();
+  };
 
   const toggleBadge = (id: string) => {
     haptics.light();
@@ -153,6 +213,9 @@ export default function ProfilEditScreen() {
     setBio(editable.bio);
     setAvatarColor(editable.avatarColor);
     setAvatarInitials(editable.avatarInitials);
+    setAvatarUri(editable.avatarUri);
+    setAvatarMode(editable.avatarUri ? 'photo' : 'initials');
+    setPhotoDenied(false);
     setFeaturedBadgeIds(editable.featuredBadgeIds);
     Keyboard.dismiss();
   };
@@ -168,6 +231,7 @@ export default function ProfilEditScreen() {
       bio: bio.trim(),
       avatarColor,
       avatarInitials: avatarInitials.trim(),
+      avatarUri,
       featuredBadgeIds,
     });
     setSavedNotice(true);
@@ -203,6 +267,7 @@ export default function ProfilEditScreen() {
           equippedFrameKey={equippedFrameKey}
           size={72}
           isMe
+          imageUri={avatarUri || undefined}
         />
         <View style={styles.previewInfo}>
           <Text style={styles.previewName} numberOfLines={1}>
@@ -330,9 +395,73 @@ export default function ProfilEditScreen() {
         </Text>
       </View>
 
-      {/* ── AVATAR : couleur + initiales ── */}
+      {/* ── AVATAR : PHOTO ou INITIALES ──────────────────────────────────────
+          Deux chemins de PREMIÈRE CLASSE (demande fondateur). Le sélecteur ne
+          désigne aucun « bon » choix : pas de coche par défaut sur la photo, pas
+          de libellé « aucune photo », et l'aide sous les onglets dit les deux
+          options équivalentes. On ne pousse jamais quelqu'un à se montrer. ── */}
       <Text style={styles.sectionLabel}>{t(C.sectionAvatar)}</Text>
       <View style={styles.card}>
+        <View style={styles.modeRow}>
+          {(['photo', 'initials'] as const).map((mode) => {
+            const on = mode === avatarMode;
+            const label = t(mode === 'photo' ? C.avatarModePhoto : C.avatarModeInitials);
+            return (
+              <Pressable
+                key={mode}
+                accessibilityRole="button"
+                accessibilityLabel={t(C.a11yAvatarMode, { mode: label })}
+                accessibilityState={{ selected: on }}
+                onPress={() => {
+                  haptics.light();
+                  setAvatarMode(mode);
+                }}
+                style={[styles.modeTab, on && styles.modeTabOn]}
+              >
+                <Text style={[styles.modeTabText, on && styles.modeTabTextOn]} numberOfLines={1}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.modeHint}>{t(C.avatarChoiceHint)}</Text>
+
+        <View style={styles.divider} />
+
+        {avatarMode === 'photo' ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(avatarUri ? C.photoReplace : C.photoChoose)}
+              onPress={onPickPhoto}
+              style={({ pressed }) => [styles.photoBtn, pressed && styles.dim]}
+            >
+              <Icon name="profil" size={iconSizes.md} color={colors.blanc} />
+              <Text style={styles.photoBtnText} numberOfLines={1}>
+                {t(avatarUri ? C.photoReplace : C.photoChoose)}
+              </Text>
+            </Pressable>
+            {avatarUri ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(C.photoRemove)}
+                onPress={onRemovePhoto}
+                style={({ pressed }) => [styles.photoRemoveBtn, pressed && styles.dim]}
+              >
+                <Text style={styles.photoRemoveText} numberOfLines={1}>
+                  {t(C.photoRemove)}
+                </Text>
+              </Pressable>
+            ) : null}
+            {/* ZÉRO MENSONGE : le stockage distant n'est pas câblé (cf.
+                features/social/avatarPhoto.ts) — on ne laisse pas croire que la
+                photo est publiée ni visible par les autres joueurs. */}
+            <Text style={styles.photoNote}>{t(C.photoLocalOnly)}</Text>
+            {photoDenied ? <Text style={styles.photoDenied}>{t(C.photoDenied)}</Text> : null}
+          </>
+        ) : (
+          <>
         <Text style={styles.fieldLabel}>{t(C.fieldColor)}</Text>
         <View style={styles.swatchRow}>
           {AVATAR_COLORS.map((c) => {
@@ -374,6 +503,8 @@ export default function ProfilEditScreen() {
           />
           <Text style={styles.counter}>{avatarInitials.length}/2</Text>
         </View>
+          </>
+        )}
       </View>
 
       {/* ── FRAME cosmétique équipé — effet TANGIBLE sur la Player Card ── */}
@@ -397,6 +528,7 @@ export default function ProfilEditScreen() {
                 equippedFrameKey={f.key}
                 size={44}
                 isMe={false}
+                imageUri={avatarUri || undefined}
               />
               <Text style={[styles.frameChipText, on && styles.frameChipTextOn]} numberOfLines={1}>
                 {f.name.replace(/^Frame\s*/, '')}
@@ -566,11 +698,72 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
 
+  // ── Avatar : PHOTO ou INITIALES ──
+  // Deux onglets de LARGEUR ÉGALE : aucun des deux n'a l'air d'être « le »
+  // choix. L'état sélectionné est une SURFACE N2 + un texte ivoire — pas un
+  // aplat chartreuse : le seul accent plein de l'écran reste le CTA d'enregistrement.
+  modeRow: { flexDirection: 'row', gap: spacing.xs },
+  modeTab: {
+    flex: 1,
+    minHeight: sizes.touchTarget,
+    borderRadius: radii.control,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  modeTabOn: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
+  modeTabText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
+  modeTabTextOn: { color: colors.blanc },
+  modeHint: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.45,
+    marginTop: spacing.sm,
+  },
+  // Choisir/changer la photo : action SECONDAIRE (surface N2 + icône), jamais
+  // un bouton chartreuse — mettre une photo n'est pas l'action forte de l'écran.
+  photoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    minHeight: sizes.buttonMd,
+    borderRadius: radii.control,
+    backgroundColor: colors.carbone2,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: spacing.md,
+  },
+  photoBtnText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  photoRemoveBtn: {
+    minHeight: sizes.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+  },
+  photoRemoveText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
+  photoNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.45,
+    marginTop: spacing.sm,
+  },
+  photoDenied: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.45,
+    marginTop: spacing.xs,
+  },
   // ── Avatar : swatches ──
   swatchRow: { flexDirection: 'row', gap: 12 },
   swatch: {
-    width: 44,
-    height: 44,
+    // Token, pas le littéral 44 : même valeur aujourd'hui, mais solidaire du
+    // plancher tactile — sinon relever sizes.touchTarget laisserait ce contrôle
+    // derrière (le reste du fichier l'utilise déjà).
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
     borderRadius: radii.pill,
     borderWidth: 2,
     borderColor: colors.grisLigne,

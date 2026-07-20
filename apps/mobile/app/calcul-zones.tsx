@@ -1,12 +1,17 @@
 /**
  * GRYD — « Comment GRYD calcule tes zones » (AMENDEMENT-23 §B.1 / doc §32, C2).
- * Route d'explicabilité : 6 SCÈNES posées sur le fond (AMENDEMENT-22, pas de
+ * Route d'explicabilité : des SCÈNES posées sur le fond (AMENDEMENT-22, pas de
  * card-dans-card), chacune = icône propriétaire + phrase simple + mini-schéma
- * SVG + exemple concret. Les schémas DÉCRIVENT LE MOTEUR RÉEL post-C1 ; les
- * valeurs injectées (défense +24/48/72 h, verify 80/60) viennent des CONSTANTES
- * game-rules.ts via les helpers de labels.ts — AUCUN nombre magique ici. Les
- * chiffres en prose (+247/+214/+33, 79/21 %, 620 m) sont des SCÉNARIOS démo
- * signalés « Exemple : » dans le catalogue.
+ * SVG + exemple concret. Les schémas DÉCRIVENT LE MOTEUR RÉEL ; les valeurs
+ * injectées (défense +24/48/72 h, verify 80/60, valeur d'une zone, durée de vie)
+ * viennent des CONSTANTES game-rules.ts via ExplainSchema + labels.ts — AUCUN
+ * nombre magique ici. Les chiffres en prose (+247/+214/+33, 79/21 %, 620 m) sont
+ * des SCÉNARIOS démo signalés « Exemple : » dans le catalogue.
+ *
+ * L'ordre des scènes suit l'ordre des questions qu'on se pose : comment une
+ * course devient une zone → ce qu'elle rapporte → ce qui se passe à plusieurs
+ * dessus (LE RELAIS) → comment on la garde → pourquoi on la perd → ce qui peut
+ * l'invalider.
  *
  * Accès : Support (« Pourquoi ma course n'a pas compté ? »), Paramètres, et le
  * lien post-run « Comment est calculé ce résultat ? ».
@@ -25,65 +30,13 @@ import { colors, fontSizes, iconSizes, spacing } from '@klaim/shared';
 import {
   EXPLAIN_SECTIONS,
   type ExplainSection,
-  type SchemaId,
 } from '../src/features/explain/content';
-import {
-  defenseHoursLabels,
-  verifyTiersLabel,
-} from '../src/features/explain/labels';
-import {
-  BonusCible,
-  BoucleCollective,
-  BoucleFaitLaZone,
-  DefenseFrontiere,
-  LigneVsBoucle,
-  VerifySchema,
-} from '../src/features/explain/schemas';
+import { ExplainSchema } from '../src/features/explain/ExplainSchema';
 import { C } from '../src/i18n/catalog/explain';
 import { useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
-
-/**
- * Rend le schéma d'une section. Les 2 schémas paramétrés (défense, verify)
- * reçoivent leurs libellés depuis les VRAIES constantes (labels.ts), jamais des
- * littéraux — les autres portent déjà les scénarios démo en défaut de props.
- */
-function Schema({ id, width }: { id: SchemaId; width: number }) {
-  const t = useT();
-  switch (id) {
-    case 'ligne_vs_boucle':
-      return <LigneVsBoucle size={width} />;
-    case 'boucle_fait_zone':
-      return <BoucleFaitLaZone size={width} />;
-    case 'defense_frontiere': {
-      const h = defenseHoursLabels();
-      return (
-        <DefenseFrontiere
-          size={width}
-          traverseLabel={h.traverse}
-          longeLabel={h.longe}
-          coverLabel={h.cover}
-        />
-      );
-    }
-    case 'boucle_collective':
-      return <BoucleCollective size={width} />;
-    case 'bonus_cible':
-      return <BonusCible size={width} />;
-    case 'verify': {
-      const tiers = verifyTiersLabel();
-      return (
-        <VerifySchema
-          size={width}
-          validLabel={t(C.verifyValidWithTier, { n: tiers.full })}
-          excludedLabel={t(C.verifyExcludedWithTier, { n: tiers.partial })}
-        />
-      );
-    }
-  }
-}
 
 /** Une scène : numéro + icône + titre, phrase, schéma centré, exemple discret. */
 function SceneBlock({ section, index }: { section: ExplainSection; index: number }) {
@@ -101,7 +54,7 @@ function SceneBlock({ section, index }: { section: ExplainSection; index: number
       </View>
       <Text style={styles.line}>{t(section.line)}</Text>
       <View style={styles.schemaWrap}>
-        <Schema id={section.schemaId} width={schemaWidth} />
+        <ExplainSchema id={section.schemaId} width={schemaWidth} />
       </View>
       <Text style={styles.example}>{t(section.example)}</Text>
     </View>

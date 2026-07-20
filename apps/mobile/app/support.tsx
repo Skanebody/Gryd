@@ -6,18 +6,27 @@
  * reste celui du design system. Les 6 cas doc §22 : Course non comptée,
  * Segment exclu, Signaler triche, Zone dangereuse, Exporter mes données,
  * Supprimer mes données. Rien de câblé : stubs TODO(O2/backend).
+ *
+ * ESTHÉTIQUE (21/07/2026, demande fondateur) : alignée sur Confidentialité, la
+ * référence visuelle des écrans de réglages — MÊME sur-titre de section
+ * (features/privacy/ui SectionLabel, une seule source), MÊME géométrie de card
+ * (`carbone` cadré `grisLigne`, 14/cardPadding-2, 10 d'écart), et l'icône de
+ * tête passe en CHARTREUSE : elle porte le SUJET de la ligne. Fond `carbone`
+ * (sombre) → jamais de chartreuse sur clair. Le chevron reste gris (affordance
+ * de navigation, pas une identité). Sobriété du support préservée : l'accent
+ * est sur l'icône, pas sur le texte ni sur un aplat.
  */
 import { useEffect } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, radii, spacing, type IconName } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { C } from '../src/i18n/catalog/reglages';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
-import { IconPlate } from '../src/ui/Card';
 import { StackScreen } from '../src/ui/StackScreen';
+import { SectionLabel } from '../src/features/privacy/ui';
 
 interface SupportTopic {
   key: string;
@@ -112,6 +121,19 @@ const DATA_TOPICS: readonly SupportTopic[] = [
   },
 ];
 
+/**
+ * Carré d'icône de tête — gabarit COMMUN aux écrans de réglages (36 px cadré
+ * `grisLigne`, icône chartreuse). Remplace l'IconPlate générique pour que
+ * Support, Paramètres et Confidentialité se lisent comme une seule famille.
+ */
+function TopicIcon({ icon }: { icon: IconName }) {
+  return (
+    <View style={styles.iconWrap}>
+      <Icon name={icon} size={iconSizes.md} color={colors.chartreuse} />
+    </View>
+  );
+}
+
 function TopicCard({ topic }: { topic: SupportTopic }) {
   const t = useT();
   return (
@@ -134,7 +156,7 @@ function TopicCard({ topic }: { topic: SupportTopic }) {
       }}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <IconPlate icon={topic.icon} />
+      <TopicIcon icon={topic.icon} />
       <View style={styles.info}>
         <Text style={styles.title}>{t(topic.title)}</Text>
         <Text style={styles.body}>{t(topic.body)}</Text>
@@ -154,7 +176,7 @@ function NavCard({ topic }: { topic: NavTopic }) {
       onPress={() => router.push(topic.href)}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <IconPlate icon={topic.icon} />
+      <TopicIcon icon={topic.icon} />
       <View style={styles.info}>
         <Text style={styles.title}>{t(topic.title)}</Text>
         <Text style={styles.body}>{t(topic.body)}</Text>
@@ -167,7 +189,7 @@ function NavCard({ topic }: { topic: NavTopic }) {
 function Section({ label, topics }: { label: string; topics: readonly SupportTopic[] }) {
   return (
     <>
-      <Text style={styles.sectionLabel}>{label}</Text>
+      <SectionLabel>{label}</SectionLabel>
       {topics.map((topic) => (
         <TopicCard key={topic.key} topic={topic} />
       ))}
@@ -189,7 +211,7 @@ export default function SupportScreen() {
       subtitle={t(C.supportSubtitle)}
     >
       <View style={styles.list}>
-        <Text style={styles.sectionLabel}>{t(C.secComprendreCalculs)}</Text>
+        <SectionLabel>{t(C.secComprendreCalculs)}</SectionLabel>
         {EXPLAIN_TOPICS.map((topic) => (
           <NavCard key={topic.key} topic={topic} />
         ))}
@@ -204,24 +226,26 @@ export default function SupportScreen() {
 
 const styles = StyleSheet.create({
   list: { marginTop: 8 },
-  sectionLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    marginTop: 24,
-    marginBottom: 12,
-  },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding,
+    paddingHorizontal: spacing.cardPadding - 2,
     marginBottom: 10,
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pressed: { opacity: 0.7 },
   info: { flex: 1 },

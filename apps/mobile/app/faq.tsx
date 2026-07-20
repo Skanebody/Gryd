@@ -32,18 +32,7 @@ import {
   type PostRunFaqItem,
   type SchemaId,
 } from '../src/features/explain/content';
-import {
-  defenseHoursLabels,
-  verifyTiersLabel,
-} from '../src/features/explain/labels';
-import {
-  BonusCible,
-  BoucleCollective,
-  BoucleFaitLaZone,
-  DefenseFrontiere,
-  LigneVsBoucle,
-  VerifySchema,
-} from '../src/features/explain/schemas';
+import { ExplainSchema } from '../src/features/explain/ExplainSchema';
 import { C } from '../src/i18n/catalog/explain';
 import { useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
@@ -67,42 +56,8 @@ const CATEGORY_ORDER: readonly FaqCategory[] = [
   'economie',
 ];
 
-/** Schéma associé à une Q/R (mêmes labels game-rules que la page calcul). */
-function Schema({ id }: { id: SchemaId }) {
-  const t = useT();
-  const width = 260;
-  switch (id) {
-    case 'ligne_vs_boucle':
-      return <LigneVsBoucle size={width} />;
-    case 'boucle_fait_zone':
-      return <BoucleFaitLaZone size={width} />;
-    case 'defense_frontiere': {
-      const h = defenseHoursLabels();
-      return (
-        <DefenseFrontiere
-          size={width}
-          traverseLabel={h.traverse}
-          longeLabel={h.longe}
-          coverLabel={h.cover}
-        />
-      );
-    }
-    case 'boucle_collective':
-      return <BoucleCollective size={width} />;
-    case 'bonus_cible':
-      return <BonusCible size={width} />;
-    case 'verify': {
-      const tiers = verifyTiersLabel();
-      return (
-        <VerifySchema
-          size={width}
-          validLabel={t(C.verifyValidWithTier, { n: tiers.full })}
-          excludedLabel={t(C.verifyExcludedWithTier, { n: tiers.partial })}
-        />
-      );
-    }
-  }
-}
+/** Largeur des schémas dans un accordéon (indentés sous la question). */
+const FAQ_SCHEMA_WIDTH = 260;
 
 /** Une ligne d'accordéon : question au repos, réponse + schéma au tap. */
 function AccordionRow({
@@ -142,7 +97,7 @@ function AccordionRow({
           <Text style={styles.a}>{a}</Text>
           {schemaId ? (
             <View style={styles.schemaWrap}>
-              <Schema id={schemaId} />
+              <ExplainSchema id={schemaId} width={FAQ_SCHEMA_WIDTH} />
             </View>
           ) : null}
         </View>

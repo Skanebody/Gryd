@@ -1,57 +1,173 @@
 /**
- * GRYD — adaptateur « Import GPX » (AMENDEMENT-15 §3). L'alternative GRATUITE à
- * Strava (dont l'API est passée payante, O7) : n'importe quelle montre / app de
- * course exporte un fichier .gpx, et ce fichier EST la source directe de la
- * trace → trust ÉLEVÉ (catalog.ts). On le parse LOCALEMENT (gpx-parse.ts, pur)
- * en RunPoint[] — le même contrat que le tracker GPS et l'import HealthKit —
- * puis le pipeline serveur existant (ingest_run) reste SEUL juge du claim (§3.2).
+ * GRYD — adaptateur « Import GPX » (AMENDEMENT-15 §3), RÉEL depuis le
+ * PÉRIMÈTRE 5 (21/07/2026). L'alternative GRATUITE aux intégrations qui exigent
+ * des clés ou un programme partenaire : n'importe quelle montre / app de course
+ * exporte un fichier .gpx, et ce fichier EST la trace → trust ÉLEVÉ (catalog.ts).
  *
- * Statut HONNÊTE : la sélection d'un vrai fichier exige un sélecteur natif
- * (expo-document-picker) hors stack imposée et un dev build (O8). Plutôt que de
- * mentir avec un faux « Connecté », connect() lance une DÉMO honnête : il parse
- * l'échantillon GPX embarqué (gpx-demo.ts) pour prouver le pipeline de bout en
- * bout, et l'expose comme tel dans le Hub. Aucune exception ne remonte à l'UI.
+ * Chaîne complète, sans aucune donnée fabriquée :
+ *   expo-document-picker (choix du fichier par l'utilisateur)
+ *     → expo-file-system (lecture locale, le fichier ne transite nulle part)
+ *     → parseGpx (gpx-parse.ts, PUR et testé) → RunPoint[]
+ *     → ingest_run (Edge Function, service-role) → SEUL JUGE du claim (§3.2).
+ * Le client n'attribue JAMAIS un hex et n'annonce jamais une capture : il
+ * rapporte le nombre de points envoyés et le verdict RENVOYÉ par le serveur.
  *
- * Chemin d'intégration réel (à câbler dès O8, PAS de lib hors stack sans besoin) :
- *  1. deps : expo-document-picker (pickAsync type 'application/gpx+xml,.gpx').
- *  2. lire le fichier (expo-file-system readAsStringAsync) → parseGpx(xml).
- *  3. RunPoint[] → IngestRunRequest (clientRunId, source, startedAt = 1er point)
- *     → ingest_run : le serveur valide (§3.2), déduplique (Activity Hub §4) et
- *     décide capture/stats. Le client n'attribue JAMAIS un hex.
+ * AVANT (à ne pas réintroduire) : `connect()` rejouait un échantillon GPX
+ * embarqué et affichait « Connecté · Démo ». C'était une démonstration de
+ * parseur présentée dans un écran d'état — retiré.
+ *
+ * Sémantique d'ÉTAT : un import est une action PONCTUELLE et répétable, pas une
+ * liaison. L'adaptateur reste donc toujours `disconnected` (= « action possible
+ * maintenant », CTA « Importer » actif) et porte le résultat du dernier import
+ * dans `detailEntry`. Il ne prétend jamais être « connecté ».
+ *
+ * Robustesse : les modules natifs sont chargés PARESSEUSEMENT sous try/catch
+ * (même précaution que registerBackgroundTask.ts). Un build antérieur à l'ajout
+ * de expo-document-picker doit dégrader proprement, jamais crasher. Aucune
+ * exception ne remonte à l'UI (garantie AMENDEMENT-15 §3).
  */
-import type { SourceAdapter, SourceAdapterSnapshot } from './types';
+import type { IngestRunRequest, IngestRunResponse, RunPoint } from '@klaim/shared';
+import * as Crypto from 'expo-crypto';
+import { C } from '../../../i18n/catalog/auth';
+import type { Entry } from '../../../i18n/types';
+import { supabase } from '../../../lib/supabase';
 import { parseGpx } from './gpx-parse';
-import { DEMO_GPX } from './gpx-demo';
+import type { SourceAdapter, SourceAdapterSnapshot } from './types';
 
-/** Faisable maintenant : le CTA « Connecter » lance la démo d'import (honnête). */
+/** Extensions/MIME acceptés par le sélecteur — un .gpx est du XML. */
+const GPX_MIME = ['application/gpx+xml', 'application/xml', 'text/xml', 'application/octet-stream'];
+
+/** Un import demande au moins 2 points horodatés (une trace, pas un point). */
+const MIN_POINTS = 2;
+
+/** État de repos : l'action est faisable maintenant (CTA « Importer » actif). */
 const READY: SourceAdapterSnapshot = {
   status: 'disconnected',
   lastSync: null,
-  detail: 'Importe un fichier .gpx exporté par ta montre',
+  detailEntry: C.gpxReady,
 };
 
-/**
- * Résultat de la démo d'import : on parse l'échantillon embarqué et on rapporte
- * honnêtement combien de points la trace produit — la preuve visible que le
- * parseur pur fonctionne, sans prétendre à une capture (décision serveur).
- */
-function demoImport(): SourceAdapterSnapshot {
-  const { points, trackpointCount } = parseGpx(DEMO_GPX);
-  if (points.length === 0) {
-    // Ne devrait pas arriver avec l'échantillon ; filet honnête si l'entrée casse.
-    return { ...READY, detail: 'Aucun point exploitable — fichier .gpx invalide' };
-  }
+/** État de repos + une phrase de résultat (rien n'a été enregistré). */
+function ready(detailEntry: Entry, detailVars?: Record<string, string | number>): SourceAdapterSnapshot {
   return {
-    status: 'connected',
-    lastSync: new Date().toISOString(),
-    detail: `Démo : ${points.length}/${trackpointCount} points lus (sélecteur natif — O8)`,
+    status: 'disconnected',
+    lastSync: null,
+    detailEntry,
+    ...(detailVars ? { detailVars } : {}),
   };
+}
+
+/** Import ABOUTI : on horodate, et la phrase dit ce que le SERVEUR a répondu. */
+function done(detailEntry: Entry, detailVars?: Record<string, string | number>): SourceAdapterSnapshot {
+  return {
+    status: 'disconnected',
+    lastSync: new Date().toISOString(),
+    detailEntry,
+    ...(detailVars ? { detailVars } : {}),
+  };
+}
+
+// ─── Modules natifs (chargement paresseux et défensif) ───────────────────────
+
+type DocumentPickerModule = typeof import('expo-document-picker');
+type FileSystemModule = typeof import('expo-file-system');
+
+/** null = module absent du build (dégradation propre, jamais un crash). */
+function loadNativeModules(): { picker: DocumentPickerModule; fs: FileSystemModule } | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const picker = require('expo-document-picker') as DocumentPickerModule;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('expo-file-system') as FileSystemModule;
+    return { picker, fs };
+  } catch (e) {
+    console.warn('[GRYD] import GPX indisponible (module natif absent)', e);
+    return null;
+  }
+}
+
+// ─── Envoi vers ingest_run (le serveur est seul juge) ────────────────────────
+
+/**
+ * Envoie les points parsés à ingest_run et traduit le VERDICT du serveur.
+ * `source: 'gpx'` : la provenance est déclarée telle quelle et persistée telle
+ * quelle (migration 0045) — jamais ré-étiquetée en capture directe.
+ *
+ * Aucun `gpsTrust` client n'est envoyé : un GPX ne porte pas d'accuracy
+ * horizontale, donc le client n'a rien de fiable à avancer. Le serveur calcule
+ * le sien (le champ est optionnel, son absence est neutre).
+ */
+async function sendToServer(points: RunPoint[]): Promise<SourceAdapterSnapshot> {
+  if (supabase === null) return ready(C.gpxNeedsAccount);
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return ready(C.gpxNeedsAccount);
+
+  const first = points[0];
+  if (first === undefined) return ready(C.gpxNoPoints);
+
+  const payload: IngestRunRequest = {
+    // UUID neuf : l'idempotence FORTE de ce flux est assurée côté serveur par le
+    // polylineHash (§4) — ré-importer le même fichier renvoie « duplicate »
+    // plutôt que de créer une seconde course.
+    clientRunId: Crypto.randomUUID(),
+    source: 'gpx',
+    startedAt: new Date(first.t).toISOString(),
+    points,
+    runMode: 'conquete',
+  };
+
+  const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
+  if (error) return ready(C.gpxSendFailed);
+
+  // `status` est élargi à string : ingest_run répond aussi 'duplicate' sur la
+  // branche de dédup (§4), une valeur HORS de RunStatus (elle ne décrit pas une
+  // course enregistrée mais un envoi absorbé). On lit donc la réponse brute.
+  const result = (data ?? null) as (Omit<Partial<IngestRunResponse>, 'status'> & {
+    status?: string;
+  }) | null;
+  if (result === null) return ready(C.gpxSendFailed);
+  if (result.status === 'duplicate') return done(C.gpxDuplicate);
+  if (result.status === 'rejected') return done(C.gpxRejected);
+  return done(C.gpxSent, { n: points.length });
+}
+
+// ─── Action d'import ─────────────────────────────────────────────────────────
+
+async function runImport(): Promise<SourceAdapterSnapshot> {
+  const native = loadNativeModules();
+  if (native === null) return ready(C.gpxPickerUnavailable);
+
+  const picked = await native.picker.getDocumentAsync({
+    type: GPX_MIME,
+    copyToCacheDirectory: true, // lecture locale garantie, hors du fournisseur
+    multiple: false,
+  });
+  // Annulation = choix de l'utilisateur, jamais un échec : retour au repos sans
+  // message d'erreur (anti-shame, GO-first).
+  if (picked.canceled) return READY;
+
+  const file = picked.assets[0];
+  if (file === undefined) return READY;
+
+  const xml = await native.fs.readAsStringAsync(file.uri);
+  const { points } = parseGpx(xml);
+  if (points.length < MIN_POINTS) return ready(C.gpxNoPoints);
+
+  return sendToServer(points);
 }
 
 export const gpxAdapter: SourceAdapter = {
   id: 'gpx',
   trustLevel: 'high', // le fichier .gpx est la source directe (catalog §6)
   status: () => Promise.resolve(READY),
-  connect: () => Promise.resolve(demoImport()),
+  connect: () =>
+    // Filet ultime : fichier illisible, URI expirée, réseau coupé net… → état
+    // honnête et action re-tentable, jamais d'exception vers l'UI.
+    runImport().catch((e: unknown) => {
+      console.warn('[GRYD] import GPX échoué', e);
+      return ready(C.gpxUnreadable);
+    }),
+  // Rien à délier : un import ne crée aucune liaison persistante.
   disconnect: () => Promise.resolve(READY),
 };

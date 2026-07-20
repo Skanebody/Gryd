@@ -9,6 +9,7 @@ const ITEMS = [
   { href: '/admin/courses', label: 'Courses suspectes' },
   { href: '/admin/claims', label: 'Claims gelés' },
   { href: '/admin/joueurs', label: 'Joueurs à risque' },
+  { href: '/admin/signalements', label: 'Signalements' },
   { href: '/admin/simulateur', label: 'Simulateur' },
 ] as const;
 

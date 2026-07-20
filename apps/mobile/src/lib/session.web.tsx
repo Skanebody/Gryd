@@ -16,12 +16,18 @@ export interface SessionState {
   loading: boolean;
   /** Toujours false sur web → mode aperçu, pas d'écran d'auth. */
   configured: boolean;
+  /** Parité d'interface avec session.tsx (0046). Jamais vrai en aperçu web :
+   *  sans auth réelle, aucune suppression ne peut être annulée. */
+  deletionCancelled: boolean;
+  acknowledgeDeletionCancelled: () => void;
 }
 
 const WEB_PREVIEW_STATE: SessionState = {
   session: null,
   loading: false,
   configured: false,
+  deletionCancelled: false,
+  acknowledgeDeletionCancelled: () => {},
 };
 
 const SessionContext = createContext<SessionState>(WEB_PREVIEW_STATE);

@@ -28,12 +28,13 @@ export const C = defineCatalog({
     de: 'Wir sind zusammen gelaufen — wer bekommt die Zone?',
     pt: 'Corremos juntos — quem fica com a zona?',
   },
+  /** §A : 4 phrases courtes, une règle par phrase. */
   qRelayA: {
-    fr: 'Une zone ne se prend qu’une fois : le premier arrivé la possède. Mais personne ne court pour rien — chaque co-coureur est payé selon son rang : le 2ᵉ touche la moitié des points, le 3ᵉ le tiers, le 30ᵉ le trentième. La zone du propriétaire n’est jamais affaiblie par un relais.',
-    en: 'A zone is only taken once: the first to finish owns it. But nobody runs for nothing — every co-runner is paid by rank: 2nd gets half the points, 3rd a third, 30th a thirtieth. The owner’s zone is never weakened by a relay.',
-    es: 'Una zona solo se toma una vez: el primero en llegar la posee. Pero nadie corre en vano — cada corredor cobra según su puesto: el 2.º la mitad, el 3.º un tercio, el 30.º una trigésima parte. La zona del dueño nunca se debilita por un relevo.',
-    de: 'Eine Zone wird nur einmal erobert: Wer zuerst fertig ist, besitzt sie. Aber niemand läuft umsonst — jeder Mitläufer wird nach Rang bezahlt: der 2. bekommt die Hälfte, der 3. ein Drittel, der 30. ein Dreißigstel. Die Zone des Besitzers wird durch ein Relais nie geschwächt.',
-    pt: 'Uma zona só é tomada uma vez: o primeiro a chegar fica com ela. Mas ninguém corre à toa — cada corredor recebe pelo seu lugar: o 2.º ganha metade, o 3.º um terço, o 30.º um trigésimo. A zona do dono nunca é enfraquecida por um revezamento.',
+    fr: 'La zone va au premier arrivé. Les autres sont payés quand même. Ta part : 1 divisé par ton rang. Le 2ᵉ touche la moitié des points, le 3ᵉ le tiers, le 30ᵉ le trentième.',
+    en: 'The zone goes to whoever finishes first. The others still get paid. Your share: 1 divided by your rank. 2nd gets half the points, 3rd a third, 30th a thirtieth.',
+    es: 'La zona es del primero en llegar. Los demás cobran igual. Tu parte: 1 dividido por tu puesto. El 2.º recibe la mitad de los puntos, el 3.º un tercio, el 30.º una trigésima parte.',
+    de: 'Die Zone geht an den, der zuerst fertig ist. Die anderen werden trotzdem bezahlt. Dein Anteil: 1 geteilt durch deinen Rang. Der 2. bekommt die Hälfte der Punkte, der 3. ein Drittel, der 30. ein Dreißigstel.',
+    pt: 'A zona vai para quem chega primeiro. Os outros recebem mesmo assim. Sua parte: 1 dividido pelo seu lugar. O 2.º recebe metade dos pontos, o 3.º um terço, o 30.º um trigésimo.',
   },
   // ─── Fragments partagés (labels.ts les remplit avec les constantes) ────────
   /** « 14 jours » — durées en jours. */
@@ -44,7 +45,23 @@ export const C = defineCatalog({
     de: '{n} Tage',
     pt: '{n} dias',
   },
-  /** Fenêtre « fragile » du cycle de vie : « jours 36 à 42 ». */
+  /** « 10 pts » — valeur d'une zone (dérivée de POINTS_BASE_PER_ZONE × coeff). */
+  nPoints: {
+    fr: '{n} pts',
+    en: '{n} pts',
+    es: '{n} pts',
+    de: '{n} Pkt',
+    pt: '{n} pts',
+  },
+  /** « 1 200 zones » — plafond quotidien. */
+  nZones: {
+    fr: '{n} zones',
+    en: '{n} zones',
+    es: '{n} zonas',
+    de: '{n} Zonen',
+    pt: '{n} zonas',
+  },
+  /** Fenêtre « fragile » du cycle de vie : « jours 8 à 14 ». */
   lifecycleFragile: {
     fr: 'jours {a} à {b}',
     en: 'days {a} to {b}',
@@ -193,6 +210,79 @@ export const C = defineCatalog({
     de: 'Beispiel: Spur allein +214 Zonen · Loop geschlossen +33 = 247 Zonen.',
     pt: 'Exemplo: só o traçado +214 zonas · fechar o loop +33 = 247 zonas.',
   },
+  // ── Scène « Ce que vaut une zone » (formule §23, valeurs game-rules) ───────
+  secValeurTitle: {
+    fr: 'Une zone vaut des points',
+    en: 'A zone is worth points',
+    es: 'Una zona vale puntos',
+    de: 'Eine Zone bringt Punkte',
+    pt: 'Uma zona vale pontos',
+  },
+  secValeurLine: {
+    fr: 'Chaque zone rapporte. Une zone libre vaut sa valeur de base. Défendre la tienne rapporte un peu plus. La prendre à un rival rapporte le plus.',
+    en: 'Every zone pays. A free zone is worth the base value. Defending yours pays a little more. Taking one from a rival pays the most.',
+    es: 'Cada zona da puntos. Una zona libre vale el valor base. Defender la tuya da un poco más. Quitársela a un rival da lo máximo.',
+    de: 'Jede Zone bringt Punkte. Eine freie Zone bringt den Grundwert. Deine eigene zu verteidigen bringt etwas mehr. Einem Rivalen eine abzunehmen bringt am meisten.',
+    pt: 'Cada zona rende. Uma zona livre vale o valor base. Defender a sua rende um pouco mais. Tirar de um rival rende o máximo.',
+  },
+  /** {bonus} = bonus pionnier max (dérivé de POINTS_PIONEER_BONUS_BY_DENSITY). */
+  secValeurExample: {
+    fr: 'Personne n’était jamais passé là ? Tu es pionnier : jusqu’à {bonus} en plus sur la zone.',
+    en: 'Nobody ever ran there? You’re the pioneer: up to {bonus} extra on that zone.',
+    es: '¿Nadie había pasado nunca por ahí? Eres pionero: hasta {bonus} extra en la zona.',
+    de: 'Da war noch nie jemand? Du bist Pionier: bis zu {bonus} extra auf die Zone.',
+    pt: 'Ninguém nunca passou por ali? Você é pioneiro: até {bonus} a mais na zona.',
+  },
+
+  // ── Scène « Plusieurs sur la même zone » (LE RELAIS, A-41) ────────────────
+  secRelaisTitle: {
+    fr: 'Plusieurs sur la zone',
+    en: 'Several on one zone',
+    es: 'Varios en la misma zona',
+    de: 'Mehrere auf einer Zone',
+    pt: 'Vários na mesma zona',
+  },
+  secRelaisLine: {
+    fr: 'Vous courez la même boucle à plusieurs ? La zone va au premier arrivé. Tous les autres touchent des points : 1 divisé par leur rang.',
+    en: 'Running the same loop together? The zone goes to whoever finishes first. Everyone else earns points: 1 divided by their rank.',
+    es: '¿Corréis el mismo bucle varios? La zona es del primero en llegar. Todos los demás ganan puntos: 1 dividido por su puesto.',
+    de: 'Ihr lauft denselben Loop zu mehreren? Die Zone geht an den Ersten. Alle anderen bekommen Punkte: 1 geteilt durch ihren Rang.',
+    pt: 'Correram o mesmo loop juntos? A zona vai para o primeiro. Todos os outros ganham pontos: 1 dividido pelo lugar deles.',
+  },
+  /** {bonus} = allongement max du verrou en groupe (GROUP_CAPTURE_BONUS_MAX_PCT). */
+  secRelaisExample: {
+    fr: 'Personne ne court pour rien. Et à plusieurs, la zone tient jusqu’à {bonus} plus longtemps.',
+    en: 'Nobody runs for nothing. And together, the zone holds up to {bonus} longer.',
+    es: 'Nadie corre en vano. Y juntos, la zona aguanta hasta {bonus} más.',
+    de: 'Niemand läuft umsonst. Und gemeinsam hält die Zone bis zu {bonus} länger.',
+    pt: 'Ninguém corre à toa. E juntos, a zona dura até {bonus} mais.',
+  },
+
+  // ── Scène « Une zone s'use » (decay + statuts) ─────────────────────────────
+  secVieTitle: {
+    fr: 'Une zone s’use',
+    en: 'A zone wears out',
+    es: 'Una zona se desgasta',
+    de: 'Eine Zone nutzt sich ab',
+    pt: 'Uma zona se desgasta',
+  },
+  /** {stable} = « 7 jours », {decay} = « 14 jours » (game-rules). */
+  secVieLine: {
+    fr: 'Une zone que tu ne recours pas s’affaiblit. Elle reste solide {stable}. Ensuite elle devient fragile. Elle redevient libre {decay}.',
+    en: 'A zone you don’t run again gets weaker. It stays solid for {stable}. Then it turns fragile. It goes free again {decay}.',
+    es: 'Una zona que no vuelves a correr se debilita. Aguanta firme {stable}. Después se vuelve frágil. Vuelve a estar libre {decay}.',
+    de: 'Eine Zone, die du nicht erneut läufst, wird schwächer. Sie bleibt {stable} stabil. Dann wird sie fragil. {decay} ist sie wieder frei.',
+    pt: 'Uma zona que você não corre de novo enfraquece. Ela fica firme {stable}. Depois fica frágil. Volta a ficar livre {decay}.',
+  },
+  /** N'AJOUTE rien au schema en le repetant : dit ce que le schema ne dit pas. */
+  secVieExample: {
+    fr: 'Tu ne perds jamais une zone par surprise : GRYD te prévient avant qu’elle tombe.',
+    en: 'You never lose a zone by surprise: GRYD warns you before it falls.',
+    es: 'Nunca pierdes una zona por sorpresa: GRYD te avisa antes de que caiga.',
+    de: 'Du verlierst nie überraschend eine Zone: GRYD warnt dich, bevor sie fällt.',
+    pt: 'Você nunca perde uma zona de surpresa: o GRYD te avisa antes de ela cair.',
+  },
+
   secDefenseTitle: {
     fr: 'La défense protège',
     en: 'Defense protects',
@@ -222,19 +312,20 @@ export const C = defineCatalog({
     de: 'Die Crew schließt gemeinsam',
     pt: 'O crew fecha junto',
   },
+  /** Vérité moteur : une zone appartient TOUJOURS à un joueur, jamais au crew. */
   secCrewLine: {
-    fr: 'Tu ouvres une frontière, un membre du crew la referme : la zone est au crew.',
-    en: 'You open a border, a crew member closes it: the zone belongs to the crew.',
-    es: 'Tú abres una frontera y otro miembro del crew la cierra: la zona es del crew.',
-    de: 'Du öffnest eine Grenze, ein Crew-Mitglied schließt sie: Die Zone gehört der Crew.',
-    pt: 'Você abre uma fronteira, alguém do crew fecha: a zona é do crew.',
+    fr: 'Tu ouvres une frontière, un membre du crew la referme. La zone revient à celui qui a fermé. Elle agrandit le territoire du crew.',
+    en: 'You open a border, a crew member closes it. The zone goes to whoever closed it. It grows your crew’s territory.',
+    es: 'Tú abres una frontera y otro del crew la cierra. La zona es de quien la cerró. Y agranda el territorio del crew.',
+    de: 'Du öffnest eine Grenze, ein Crew-Mitglied schließt sie. Die Zone gehört dem, der geschlossen hat. Sie vergrößert das Gebiet der Crew.',
+    pt: 'Você abre uma fronteira, alguém do crew fecha. A zona fica com quem fechou. E aumenta o território do crew.',
   },
   secCrewExample: {
-    fr: 'Exemple : KORO ouvre 79 %, LENA ferme 21 % : zone crew capturée.',
-    en: 'Example: KORO opens 79%, LENA closes 21%: crew zone captured.',
-    es: 'Ejemplo: KORO abre el 79 %, LENA cierra el 21 %: zona del crew capturada.',
-    de: 'Beispiel: KORO öffnet 79 %, LENA schließt 21 %: Crew-Zone erobert.',
-    pt: 'Exemplo: KORO abre 79%, LENA fecha 21%: zona do crew capturada.',
+    fr: 'Exemple : KORO ouvre 79 %, LENA ferme 21 % : la zone est à LENA, le crew grandit.',
+    en: 'Example: KORO opens 79%, LENA closes 21%: the zone is LENA’s, the crew grows.',
+    es: 'Ejemplo: KORO abre el 79 %, LENA cierra el 21 %: la zona es de LENA, el crew crece.',
+    de: 'Beispiel: KORO öffnet 79 %, LENA schließt 21 %: Die Zone gehört LENA, die Crew wächst.',
+    pt: 'Exemplo: KORO abre 79%, LENA fecha 21%: a zona é da LENA, o crew cresce.',
   },
   secBonusTitle: {
     fr: 'Les bonus sont ciblés',
@@ -456,11 +547,11 @@ export const C = defineCatalog({
     pt: 'Um rival pode terminar meu loop?',
   },
   q6A: {
-    fr: 'Non. Un rival peut contester la zone, mais jamais compléter une boucle pour ton crew.',
-    en: 'No. A rival can contest the zone, but never complete a loop for your crew.',
-    es: 'No. Un rival puede disputar la zona, pero nunca completar un bucle para tu crew.',
-    de: 'Nein. Ein Rivale kann die Zone umkämpfen, aber nie einen Loop für deine Crew schließen.',
-    pt: 'Não. Um rival pode disputar a zona, mas nunca completar um loop para o seu crew.',
+    fr: 'Non. Un rival peut contester la zone, jamais fermer ta boucle. En revanche, s’il a couru la même boucle que toi, il touche sa part comme tout le monde.',
+    en: 'No. A rival can contest the zone, never close your loop. But if they ran the same loop as you, they get their share like everyone else.',
+    es: 'No. Un rival puede disputar la zona, nunca cerrar tu bucle. Eso sí, si corrió el mismo bucle que tú, cobra su parte como todos.',
+    de: 'Nein. Ein Rivale kann die Zone umkämpfen, aber nie deinen Loop schließen. Ist er denselben Loop gelaufen, bekommt er aber seinen Anteil wie alle.',
+    pt: 'Não. Um rival pode disputar a zona, nunca fechar seu loop. Mas se ele correu o mesmo loop que você, recebe a parte dele como todo mundo.',
   },
   q7Q: {
     fr: 'Comment GRYD calcule les zones reprises à un rival ?',
@@ -469,12 +560,13 @@ export const C = defineCatalog({
     de: 'Wie berechnet GRYD von Rivalen eroberte Zonen?',
     pt: 'Como o GRYD calcula zonas tomadas de um rival?',
   },
+  /** {steal} = valeur d'une zone volée (game-rules), {n} = valeur de base. */
   q7A: {
-    fr: 'Si ta boucle recouvre un territoire rival, GRYD recalcule les cellules à l’intérieur et met à jour le contrôle du secteur.',
-    en: 'If your loop covers rival territory, GRYD recalculates the cells inside and updates control of the sector.',
-    es: 'Si tu bucle cubre territorio rival, GRYD recalcula las celdas del interior y actualiza el control del sector.',
-    de: 'Überdeckt dein Loop gegnerisches Gebiet, berechnet GRYD die Zellen im Inneren neu und aktualisiert die Sektor-Kontrolle.',
-    pt: 'Se o seu loop cobre território rival, o GRYD recalcula as células do interior e atualiza o controle do setor.',
+    fr: 'Ta boucle passe sur son territoire, tu le prends. Une zone reprise rapporte plus qu’une zone libre : {steal} au lieu de {base}. Sauf si elle est protégée — voir « Pourquoi je n’ai pas pu prendre cette zone ? ».',
+    en: 'Your loop runs over their territory, you take it. A retaken zone pays more than a free one: {steal} instead of {base}. Unless it’s protected — see “Why couldn’t I take that zone?”.',
+    es: 'Tu bucle pasa por su territorio y se lo quitas. Una zona recuperada da más que una libre: {steal} en vez de {base}. Salvo que esté protegida — mira «¿Por qué no pude tomar esa zona?».',
+    de: 'Dein Loop läuft über sein Gebiet, du nimmst es. Eine zurückeroberte Zone bringt mehr als eine freie: {steal} statt {base}. Außer sie ist geschützt — siehe „Warum konnte ich diese Zone nicht nehmen?“.',
+    pt: 'Seu loop passa pelo território dele, você toma. Uma zona retomada rende mais que uma livre: {steal} em vez de {base}. A não ser que esteja protegida — veja “Por que não consegui pegar essa zona?”.',
   },
   q8Q: {
     fr: 'Pourquoi une partie de ma course est « segment exclu » ?',
@@ -542,11 +634,11 @@ export const C = defineCatalog({
   },
   /** {stable}/{fragile}/{defend}/{decay} = fenêtres du cycle de vie (fragments). */
   q12A: {
-    fr: 'Stable {stable}, fragile {fragile}, à défendre les {defend}, expirée {decay}.',
-    en: 'Stable {stable}, fragile {fragile}, defend in the {defend}, expired {decay}.',
-    es: 'Estable {stable}, frágil {fragile}, a defender en las {defend}, expirada {decay}.',
-    de: 'Stabil {stable}, fragil {fragile}, zu verteidigen in den {defend}, abgelaufen {decay}.',
-    pt: 'Estável {stable}, frágil {fragile}, a defender nas {defend}, expirada {decay}.',
+    fr: 'Une zone tient {stable}. Après, elle devient fragile ({fragile}). Les {defend} avant la fin, GRYD te prévient. Sans y repasser, elle est libre {decay}.',
+    en: 'A zone holds for {stable}. After that it turns fragile ({fragile}). In the {defend} before the end, GRYD warns you. Without running it again, it goes free {decay}.',
+    es: 'Una zona aguanta {stable}. Después se vuelve frágil ({fragile}). En las {defend} antes del final, GRYD te avisa. Sin volver a pasar, queda libre {decay}.',
+    de: 'Eine Zone hält {stable}. Danach wird sie fragil ({fragile}). In den {defend} vor Schluss warnt GRYD dich. Ohne erneuten Lauf ist sie {decay} frei.',
+    pt: 'Uma zona dura {stable}. Depois fica frágil ({fragile}). Nas {defend} antes do fim, o GRYD te avisa. Sem passar de novo, ela fica livre {decay}.',
   },
   q13Q: {
     fr: 'Les zones expirent-elles ?',
@@ -555,12 +647,13 @@ export const C = defineCatalog({
     de: 'Laufen Zonen ab?',
     pt: 'As zonas expiram?',
   },
+  /** {days} = ZONE_DECAY_DAYS. L'ordre compte : fragile AVANT la fin, libre APRÈS. */
   q13A: {
-    fr: 'Oui. Sans défense pendant {days}, une zone devient fragile puis repasse neutre — plus facile à reprendre.',
-    en: 'Yes. Without defense for {days}, a zone turns fragile then goes neutral again — easier to retake.',
-    es: 'Sí. Sin defensa durante {days}, una zona se vuelve frágil y luego vuelve a ser neutral: más fácil de recuperar.',
-    de: 'Ja. Ohne Verteidigung über {days} wird eine Zone fragil und dann wieder neutral — leichter zurückzuerobern.',
-    pt: 'Sim. Sem defesa por {days}, uma zona fica frágil e depois volta a ser neutra — mais fácil de retomar.',
+    fr: 'Oui. Une zone s’affaiblit d’abord, puis redevient libre {days} sans que tu y repasses. Un seul passage remet le compte à zéro.',
+    en: 'Yes. A zone weakens first, then goes free {days} without you running it again. A single pass resets the count to zero.',
+    es: 'Sí. Una zona se debilita primero y luego queda libre {days} sin que vuelvas a pasar. Un solo paso pone la cuenta a cero.',
+    de: 'Ja. Eine Zone wird erst schwächer und ist {days} ohne erneuten Lauf wieder frei. Ein einziger Durchlauf setzt die Uhr zurück.',
+    pt: 'Sim. Uma zona enfraquece primeiro e depois fica livre {days} sem você passar de novo. Uma única passagem zera a contagem.',
   },
   q14Q: {
     fr: 'Les bonus sont-ils aléatoires ?',
@@ -640,11 +733,11 @@ export const C = defineCatalog({
     pt: 'Como funciona uma rota aberta?',
   },
   q19A: {
-    fr: 'Une course sans boucle prend déjà les rues courues, et ouvre une route : relier deux secteurs, préparer une conquête ou une défense, proposer un itinéraire crew.',
-    en: 'A run without a loop already takes the streets you ran, and opens a route: link two sectors, set up a conquest or a defense, suggest a crew route.',
-    es: 'Una carrera sin bucle ya toma las calles corridas y abre una ruta: unir dos sectores, preparar una conquista o una defensa, proponer un itinerario para el crew.',
-    de: 'Ein Lauf ohne Loop nimmt schon die gelaufenen Straßen und öffnet eine Route: zwei Sektoren verbinden, eine Eroberung oder Verteidigung vorbereiten, eine Crew-Route vorschlagen.',
-    pt: 'Uma corrida sem loop já toma as ruas corridas e abre uma rota: ligar dois setores, preparar uma conquista ou defesa, propor um trajeto para o crew.',
+    fr: 'Une course sans boucle prend déjà les rues courues. Elle ouvre aussi une route : de quoi relier deux secteurs, préparer une conquête, ou proposer un itinéraire à ton crew.',
+    en: 'A run without a loop already takes the streets you ran. It also opens a route: a way to link two sectors, prepare a conquest, or suggest a course to your crew.',
+    es: 'Una carrera sin bucle ya toma las calles corridas. También abre una ruta: sirve para unir dos sectores, preparar una conquista o proponer un itinerario a tu crew.',
+    de: 'Ein Lauf ohne Loop nimmt schon die gelaufenen Straßen. Er öffnet außerdem eine Route: um zwei Sektoren zu verbinden, eine Eroberung vorzubereiten oder deiner Crew eine Strecke vorzuschlagen.',
+    pt: 'Uma corrida sem loop já toma as ruas corridas. Ela também abre uma rota: serve para ligar dois setores, preparar uma conquista ou propor um trajeto ao seu crew.',
   },
   q20Q: {
     fr: 'Comment sont calculées les contributions dans une boucle collective ?',
@@ -653,12 +746,79 @@ export const C = defineCatalog({
     de: 'Wie werden Beiträge in einem Gemeinschafts-Loop berechnet?',
     pt: 'Como são calculadas as contribuições em um loop coletivo?',
   },
+  /** Vérité moteur : le hex va au FINISHER ; le crew grandit par l'union. */
   q20A: {
-    fr: 'Chaque membre est crédité selon la longueur de frontière qu’il a validée. Exemple : KORO 79 %, LENA 21 %. La zone appartient au crew.',
-    en: 'Each member is credited for the border length they validated. Example: KORO 79%, LENA 21%. The zone belongs to the crew.',
-    es: 'Cada miembro recibe crédito según la longitud de frontera que validó. Ejemplo: KORO 79 %, LENA 21 %. La zona pertenece al crew.',
-    de: 'Jedes Mitglied wird nach der validierten Grenzlänge gutgeschrieben. Beispiel: KORO 79 %, LENA 21 %. Die Zone gehört der Crew.',
-    pt: 'Cada membro recebe crédito pela extensão de fronteira que validou. Exemplo: KORO 79%, LENA 21%. A zona pertence ao crew.',
+    fr: 'Chacun est crédité de la longueur de frontière qu’il a courue. Exemple : KORO 79 %, LENA 21 %. La zone revient à celui qui a fermé, et le territoire du crew grandit d’autant.',
+    en: 'Each runner is credited for the border length they ran. Example: KORO 79%, LENA 21%. The zone goes to whoever closed it, and the crew’s territory grows by the same amount.',
+    es: 'Cada uno recibe crédito por la longitud de frontera que corrió. Ejemplo: KORO 79 %, LENA 21 %. La zona es de quien la cerró, y el territorio del crew crece otro tanto.',
+    de: 'Jede Person wird für die gelaufene Grenzlänge gutgeschrieben. Beispiel: KORO 79 %, LENA 21 %. Die Zone gehört dem, der geschlossen hat, und das Crew-Gebiet wächst genauso.',
+    pt: 'Cada um recebe crédito pela extensão de fronteira que correu. Exemplo: KORO 79%, LENA 21%. A zona fica com quem fechou, e o território do crew cresce na mesma medida.',
+  },
+
+  // ─── Q/R AJOUTÉES : les refus du moteur, le cooldown, la valeur, le groupe ──
+  /** Couvre blocked_fresh_protection / blocked_lock / blocked_new_player / cap. */
+  qBlockedQ: {
+    fr: 'Pourquoi je n’ai pas pu prendre cette zone ?',
+    en: 'Why couldn’t I take that zone?',
+    es: '¿Por qué no pude tomar esa zona?',
+    de: 'Warum konnte ich diese Zone nicht nehmen?',
+    pt: 'Por que não consegui pegar essa zona?',
+  },
+  /** UNE protection par ligne. {fresh}/{lock}/{newbie}/{cap} = game-rules. */
+  qBlockedA: {
+    fr: '· Elle vient d’être prise : on laisse {fresh} à son propriétaire.\n· Elle est encore verrouillée : {lock} après une capture.\n· Elle est à un nouveau joueur : ses zones sont intouchables pendant {newbie}.\n· Tu as atteint le maximum du jour : {cap}.\nDans tous les cas, ta course compte quand même en stats.',
+    en: '· It was just taken: the owner gets {fresh}.\n· It’s still locked: {lock} after a capture.\n· It belongs to a new player: their zones are untouchable for {newbie}.\n· You hit today’s maximum: {cap}.\nEither way, your run still counts in your stats.',
+    es: '· Acaba de ser tomada: se le dejan {fresh} a su dueño.\n· Sigue bloqueada: {lock} tras una captura.\n· Es de un jugador nuevo: sus zonas son intocables durante {newbie}.\n· Llegaste al máximo del día: {cap}.\nEn todos los casos, tu carrera cuenta igual en stats.',
+    de: '· Sie wurde gerade erobert: Der Besitzer bekommt {fresh}.\n· Sie ist noch gesperrt: {lock} nach einer Eroberung.\n· Sie gehört einem neuen Spieler: Seine Zonen sind {newbie} lang unantastbar.\n· Du hast das Tagesmaximum erreicht: {cap}.\nIn jedem Fall zählt dein Lauf weiter in den Stats.',
+    pt: '· Ela acabou de ser tomada: deixamos {fresh} para o dono.\n· Ainda está trancada: {lock} depois de uma captura.\n· É de um jogador novo: as zonas dele ficam intocáveis por {newbie}.\n· Você chegou ao máximo do dia: {cap}.\nEm todos os casos, sua corrida conta em stats assim mesmo.',
+  },
+  /** already_owned_cooldown / co_captured_cooldown — le piège du double run. */
+  qCooldownQ: {
+    fr: 'J’ai couru deux fois la même boucle aujourd’hui, pourquoi 0 point ?',
+    en: 'I ran the same loop twice today — why 0 points?',
+    es: 'Corrí el mismo bucle dos veces hoy, ¿por qué 0 puntos?',
+    de: 'Ich bin denselben Loop heute zweimal gelaufen — warum 0 Punkte?',
+    pt: 'Corri o mesmo loop duas vezes hoje, por que 0 ponto?',
+  },
+  /** {cooldown} = DEFEND_COOLDOWN_HOURS. */
+  qCooldownA: {
+    fr: 'Une même zone ne te paie qu’une fois toutes les {cooldown}. Le deuxième passage la garde bien à toi, mais ne rapporte plus de points. Cours ailleurs : le territoire neuf paie toujours.',
+    en: 'The same zone only pays you once every {cooldown}. The second pass still keeps it yours, but earns no more points. Run elsewhere: new territory always pays.',
+    es: 'Una misma zona solo te paga una vez cada {cooldown}. El segundo paso la mantiene tuya, pero ya no da puntos. Corre en otro sitio: el territorio nuevo siempre paga.',
+    de: 'Dieselbe Zone zahlt dir nur einmal alle {cooldown}. Der zweite Durchlauf hält sie weiter bei dir, bringt aber keine Punkte mehr. Lauf woanders: Neues Gebiet zahlt immer.',
+    pt: 'Uma mesma zona só te paga uma vez a cada {cooldown}. A segunda passagem mantém ela sua, mas não rende mais pontos. Corra em outro lugar: território novo sempre rende.',
+  },
+  /** La formule §23 en clair — la question « ce qu'on gagne ». */
+  qPointsQ: {
+    fr: 'Combien rapporte une zone ?',
+    en: 'How much is a zone worth?',
+    es: '¿Cuánto da una zona?',
+    de: 'Wie viel bringt eine Zone?',
+    pt: 'Quanto rende uma zona?',
+  },
+  /** {base}/{defense}/{steal}/{pioneer} = POINTS_BASE_PER_ZONE × ACTION_COEFF. */
+  qPointsA: {
+    fr: 'Une zone libre : {base}. Une zone à toi que tu défends : {defense}. Une zone prise à un rival : {steal}. Si personne n’était jamais passé là, tu es pionnier : jusqu’à {pioneer} en plus. Une zone disputée rapporte davantage.',
+    en: 'A free zone: {base}. One of yours that you defend: {defense}. One taken from a rival: {steal}. If nobody had ever run there, you’re the pioneer: up to {pioneer} extra. A contested zone pays more.',
+    es: 'Una zona libre: {base}. Una tuya que defiendes: {defense}. Una quitada a un rival: {steal}. Si nadie había pasado nunca, eres pionero: hasta {pioneer} extra. Una zona disputada da más.',
+    de: 'Eine freie Zone: {base}. Eine eigene, die du verteidigst: {defense}. Eine einem Rivalen abgenommene: {steal}. War da noch nie jemand, bist du Pionier: bis zu {pioneer} extra. Eine umkämpfte Zone bringt mehr.',
+    pt: 'Uma zona livre: {base}. Uma sua que você defende: {defense}. Uma tomada de um rival: {steal}. Se ninguém nunca passou ali, você é pioneiro: até {pioneer} a mais. Uma zona disputada rende mais.',
+  },
+  /** « Ensemble ça tient » — groupCaptureBonusPct, absent des pages jusqu'ici. */
+  qGroupLockQ: {
+    fr: 'Courir à plusieurs, ça sert à quoi ?',
+    en: 'What’s the point of running together?',
+    es: 'Correr en grupo, ¿para qué sirve?',
+    de: 'Was bringt es, zusammen zu laufen?',
+    pt: 'Correr em grupo serve para quê?',
+  },
+  /** {bonus} = GROUP_CAPTURE_BONUS_MAX_PCT. */
+  qGroupLockA: {
+    fr: 'La zone tient plus longtemps. Plus vous êtes nombreux à l’avoir courue, plus elle reste verrouillée : jusqu’à {bonus} de durée. Et chacun touche sa part de points.',
+    en: 'The zone holds longer. The more of you ran it, the longer it stays locked: up to {bonus} more time. And everyone gets their share of points.',
+    es: 'La zona aguanta más. Cuantos más la hayáis corrido, más tiempo sigue bloqueada: hasta {bonus} más. Y cada uno cobra su parte de puntos.',
+    de: 'Die Zone hält länger. Je mehr ihr sie gelaufen seid, desto länger bleibt sie gesperrt: bis zu {bonus} mehr Zeit. Und jede Person bekommt ihren Punkteanteil.',
+    pt: 'A zona dura mais. Quanto mais gente correu, mais tempo ela fica trancada: até {bonus} a mais. E cada um recebe sua parte dos pontos.',
   },
 
   // ─── FAQ courte post-run (§34) ─────────────────────────────────────────────
@@ -802,19 +962,20 @@ export const C = defineCatalog({
     de: 'Je mehr deine Spur die Grenze abdeckt, desto länger hält die Verteidigung.',
     pt: 'Quanto mais seu traçado cobre a fronteira, mais longa é a defesa.',
   },
+  /** Le hex va au FINISHER (celui qui referme), pas au crew (A-41 §1). */
   schemaZoneToCrew: {
-    fr: 'Zone au crew',
-    en: 'Crew zone',
-    es: 'Zona del crew',
-    de: 'Zone der Crew',
-    pt: 'Zona do crew',
+    fr: 'Zone au Finisher',
+    en: 'Zone to Finisher',
+    es: 'Zona al Finisher',
+    de: 'Zone an Finisher',
+    pt: 'Zona ao Finisher',
   },
   schemaCollectiveA11y: {
-    fr: 'Deux membres du crew ferment une boucle ; la zone est au crew, contributions au prorata.',
-    en: 'Two crew members close one loop; the zone goes to the crew, contributions pro rata.',
-    es: 'Dos miembros del crew cierran un bucle; la zona es del crew, contribuciones a prorrata.',
-    de: 'Zwei Crew-Mitglieder schließen einen Loop; die Zone gehört der Crew, Beiträge anteilig.',
-    pt: 'Dois membros do crew fecham um loop; a zona é do crew, contribuições proporcionais.',
+    fr: 'Deux membres du crew ferment une boucle ; la zone va à celui qui referme, contributions au prorata.',
+    en: 'Two crew members close one loop; the zone goes to whoever closes it, contributions pro rata.',
+    es: 'Dos miembros del crew cierran un bucle; la zona es de quien la cierra, contribuciones a prorrata.',
+    de: 'Zwei Crew-Mitglieder schließen einen Loop; die Zone gehört dem, der schließt, Beiträge anteilig.',
+    pt: 'Dois membros do crew fecham um loop; a zona vai para quem fecha, contribuições proporcionais.',
   },
   /** Pourcentage de contribution ({n} entier) — typo % par langue. */
   pctShare: {
@@ -860,6 +1021,121 @@ export const C = defineCatalog({
     de: 'Segment gestrichen',
     pt: 'Segmento excluído',
   },
+  // ── Schéma « LE RELAIS » : la zone à un seul, les points à tous ────────────
+  schemaTheZone: {
+    fr: 'LA ZONE',
+    en: 'THE ZONE',
+    es: 'LA ZONA',
+    de: 'DIE ZONE',
+    pt: 'A ZONA',
+  },
+  schemaThePoints: {
+    fr: 'LES POINTS',
+    en: 'THE POINTS',
+    es: 'LOS PUNTOS',
+    de: 'DIE PUNKTE',
+    pt: 'OS PONTOS',
+  },
+  schemaRank1: { fr: '1ᵉʳ', en: '1st', es: '1.º', de: '1.', pt: '1.º' },
+  schemaRank2: { fr: '2ᵉ', en: '2nd', es: '2.º', de: '2.', pt: '2.º' },
+  schemaRank3: { fr: '3ᵉ', en: '3rd', es: '3.º', de: '3.', pt: '3.º' },
+  /** Qui possède la zone, dans le schéma relais (zone étroite : très court). */
+  schemaOwnerOnly: {
+    fr: 'au 1ᵉʳ',
+    en: 'to 1st',
+    es: 'al 1.º',
+    de: 'an den 1.',
+    pt: 'ao 1.º',
+  },
+  schemaRelaisA11y: {
+    fr: 'La zone va au premier arrivé ; les points se partagent, 1 divisé par le rang.',
+    en: 'The zone goes to whoever finishes first; points are shared, 1 divided by rank.',
+    es: 'La zona es del primero en llegar; los puntos se reparten, 1 dividido por el puesto.',
+    de: 'Die Zone geht an den Ersten; die Punkte werden geteilt, 1 geteilt durch den Rang.',
+    pt: 'A zona vai para o primeiro; os pontos são divididos, 1 dividido pelo lugar.',
+  },
+
+  // ── Schéma « Une zone s'use » : la ligne de vie d'une zone ─────────────────
+  schemaZoneCapture: {
+    fr: 'Capture',
+    en: 'Capture',
+    es: 'Captura',
+    de: 'Eroberung',
+    pt: 'Captura',
+  },
+  schemaZoneFree: {
+    fr: 'Libre',
+    en: 'Free',
+    es: 'Libre',
+    de: 'Frei',
+    pt: 'Livre',
+  },
+  schemaZoneSolid: {
+    fr: 'Solide',
+    en: 'Solid',
+    es: 'Firme',
+    de: 'Stabil',
+    pt: 'Firme',
+  },
+  schemaZoneFragile: {
+    fr: 'Fragile',
+    en: 'Fragile',
+    es: 'Frágil',
+    de: 'Fragil',
+    pt: 'Frágil',
+  },
+  schemaZoneDefendWindow: {
+    fr: 'à défendre',
+    en: 'defend now',
+    es: 'a defender',
+    de: 'verteidigen',
+    pt: 'a defender',
+  },
+  schemaZoneReset: {
+    fr: 'Tu y repasses : le compte repart à zéro',
+    en: 'Run it again: the count restarts',
+    es: 'Vuelves a pasar: la cuenta se reinicia',
+    de: 'Nochmal laufen: Die Uhr startet neu',
+    pt: 'Passa de novo: a contagem reinicia',
+  },
+  schemaVieZoneA11y: {
+    fr: 'Une zone reste solide, devient fragile, puis redevient libre ; y repasser remet le compte à zéro.',
+    en: 'A zone stays solid, turns fragile, then goes free again; running it resets the count.',
+    es: 'Una zona sigue firme, se vuelve frágil y luego queda libre; volver a pasar reinicia la cuenta.',
+    de: 'Eine Zone bleibt stabil, wird fragil und dann wieder frei; erneut laufen setzt die Uhr zurück.',
+    pt: 'Uma zona fica firme, torna-se frágil e depois volta a livre; passar de novo zera a contagem.',
+  },
+
+  // ── Schéma « Ce que vaut une zone » : 3 barres comparables ─────────────────
+  schemaValueFree: {
+    fr: 'Zone libre',
+    en: 'Free zone',
+    es: 'Zona libre',
+    de: 'Freie Zone',
+    pt: 'Zona livre',
+  },
+  schemaValueDefend: {
+    fr: 'Ta zone, défendue',
+    en: 'Your zone, defended',
+    es: 'Tu zona, defendida',
+    de: 'Deine Zone, verteidigt',
+    pt: 'Sua zona, defendida',
+  },
+  schemaValueSteal: {
+    fr: 'Zone prise à un rival',
+    en: 'Zone taken from a rival',
+    es: 'Zona quitada a un rival',
+    de: 'Zone vom Rivalen',
+    pt: 'Zona tomada de um rival',
+  },
+  schemaValueA11y: {
+    fr: 'Une zone libre rapporte la valeur de base, la défendre un peu plus, la prendre à un rival le plus.',
+    en: 'A free zone pays the base value, defending pays a bit more, taking one from a rival pays most.',
+    es: 'Una zona libre da el valor base, defenderla un poco más, quitársela a un rival lo máximo.',
+    de: 'Eine freie Zone bringt den Grundwert, Verteidigen etwas mehr, einem Rivalen abnehmen am meisten.',
+    pt: 'Uma zona livre rende o valor base, defender rende um pouco mais, tomar de um rival rende o máximo.',
+  },
+
   schemaVerifyA11y: {
     fr: 'Un GPS propre valide la capture ; un segment faible est exclu.',
     en: 'Clean GPS validates the capture; a weak segment is excluded.',

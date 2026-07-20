@@ -7,6 +7,7 @@
  */
 import Svg, { Circle, G, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { BADGE_TIER_STYLE, colors, gameColors, type BadgeTier } from '@klaim/shared';
+import { hexAvatarWidth } from './hexAvatar';
 
 export type CrewCrestSize = 's' | 'm' | 'l' | 'xl';
 
@@ -16,6 +17,32 @@ const SIZES: Record<CrewCrestSize, number> = { s: 32, m: 48, l: 72, xl: 112 };
 const VIEWBOX = 100;
 const CENTER = VIEWBOX / 2;
 const HEX_RADIUS = 40;
+
+/**
+ * BOÎTE TANGENTE À L'ENCRE (même défaut que l'avatar, cf. `./hexAvatar`) : le
+ * blason était rendu dans un <Svg> CARRÉ alors qu'un hexagone régulier
+ * pointe-en-haut fait √3/2 de large pour 1 de haut. À `size="s"` (32 px), l'encre
+ * mesurait 27,7 px de large : ~2 px de vide fantôme de chaque côté, si bien que
+ * le blason crew de la player card était rentré par rapport à l'avatar au-dessus
+ * et au bandeau de chiffres en dessous — qui s'alignent, eux, sur le padding de
+ * la card. Ici la viewBox est recadrée sur l'encre RÉELLE (anneau de ligue
+ * compris, qu'il soit affiché ou non : l'empreinte ne doit pas dépendre de la
+ * présence d'une ligue) et la largeur px suit exactement le même rapport.
+ */
+const CREST_INK_HALF_H =
+  HEX_RADIUS + 6 + Math.max(...Object.values(BADGE_TIER_STYLE).map((s) => s.strokeWidth)) / 2;
+
+function crestBox(px: number): { width: number; height: number; viewBox: string } {
+  const width = hexAvatarWidth(px);
+  // Demi-largeur exprimée dans le MÊME rapport que la boîte px arrondie : aucun
+  // letterboxing, le jeu d'arrondi (< 1 px) est réparti symétriquement.
+  const halfW = (CREST_INK_HALF_H * width) / px;
+  return {
+    width,
+    height: px,
+    viewBox: `${CENTER - halfW} ${CENTER - CREST_INK_HALF_H} ${halfW * 2} ${CREST_INK_HALF_H * 2}`,
+  };
+}
 
 /** Hash FNV-1a 32 bits d'un seed texte → graine numérique. */
 function hashSeed(seed: string): number {
@@ -92,13 +119,13 @@ export function CrewCrest({
   leagueTier,
   tint = gameColors.crew,
 }: CrewCrestProps) {
-  const px = SIZES[size];
+  const box = crestBox(SIZES[size]);
   const shapes = motifShapes(seed);
   const frame = leagueTier ? BADGE_TIER_STYLE[leagueTier] : null;
   const showInitials = size !== 's'; // en 32 px les initiales deviennent illisibles
 
   return (
-    <Svg width={px} height={px} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
+    <Svg width={box.width} height={box.height} viewBox={box.viewBox}>
       {/* Frame de ligue (anneau extérieur, teinté tier) */}
       {frame ? (
         <Polygon

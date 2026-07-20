@@ -15,7 +15,10 @@ export default function AdminDashboardPage() {
     { label: 'Claims gelés', value: stats.frozenClaims },
     { label: 'Joueurs actifs', value: stats.activePlayers },
     { label: 'Nouveaux crews', value: stats.newCrews },
-    { label: 'Signalements', value: stats.reports },
+    // « Signalements » RETIRÉ d'ici : c'était `stats.reports` = 5, une valeur de
+    // démo codée en dur, affichée comme un vrai compteur de modération. Le seul
+    // chiffre honnête vient de la base — il est sur /admin/signalements, qui lit
+    // content_reports en service-role (RPC admin_reports_counts, 0046).
   ];
 
   return (

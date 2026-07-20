@@ -4,7 +4,19 @@
  */
 import type { CityId } from './game-rules';
 
-export type RunSource = 'gps' | 'healthkit';
+/**
+ * Provenance DÉCLARÉE de la trace envoyée à ingest_run. Elle est PERSISTÉE telle
+ * quelle sur `runs.source` : jamais de re-étiquetage confortable (« l'app ne
+ * ment jamais »). Le serveur reste seul juge du claim quelle que soit la source.
+ *  - `gps`       : capture directe GRYD Live (tracker natif) ;
+ *  - `healthkit` : import santé OS (Apple Health / Health Connect) ;
+ *  - `gpx`       : fichier .gpx choisi par l'utilisateur et parsé sur l'appareil
+ *                  (features/sources/adapters/gpx.ts) — comme `healthkit`, les
+ *                  points n'ont PAS d'accuracy horizontale (le GPX n'en porte
+ *                  pas), donc aucun gpsTrust client n'est envoyé et le serveur
+ *                  calcule le sien.
+ */
+export type RunSource = 'gps' | 'healthkit' | 'gpx';
 
 /**
  * Mode de course choisi au départ (AMENDEMENT-07 §2, social §10). `race_mode`

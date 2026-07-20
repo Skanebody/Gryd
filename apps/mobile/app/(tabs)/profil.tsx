@@ -103,8 +103,56 @@ import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
 import { CrewCrest, IconAction, ShareCard } from '../../src/ui/game';
+import {
+  BODY_R,
+  BODY_STROKE,
+  HEX_ASPECT,
+  hexAvatarWidth,
+} from '../../src/ui/game/hexAvatar';
 
 const STREAK_WEEKS = 3;
+
+/**
+ * ── GRILLE EXPLICITE DE L'EN-TÊTE (2ᵉ passe, retour fondateur : « le bloc du
+ *    haut n'est toujours pas aligné ») ─────────────────────────────────────────
+ *
+ * La 1ʳᵉ passe avait unifié le bord GAUCHE de la colonne texte. Ce qui restait
+ * cassé, mesuré à 375 pt :
+ *
+ *  A. L'AVATAR FLOTTAIT VERTICALEMENT. `headerTop` était en `alignItems:'center'`
+ *     et la colonne texte est PLUS HAUTE que l'avatar : 23 (nom) + 4 + 17
+ *     (@handle) + 4 + 15 (titre) + 4 + 16 (niveau·ville) ≈ 83 px contre 72.
+ *     L'avatar était donc redescendu de (83−72)/2 ≈ 5,5 px — et, dès que
+ *     « Niveau 12 · Paris » passait sur DEUX lignes (allemand, portugais), la
+ *     colonne montait à ~98 px et l'avatar redescendait à ~13 px. Autrement dit
+ *     la position verticale de l'avatar dépendait de la LANGUE. Aucun repère
+ *     commun ne pouvait tenir.
+ *     → `flex-start` : l'avatar et la 1ʳᵉ ligne de texte partagent UNE ligne
+ *       haute, invariante par langue et par nombre de lignes.
+ *
+ *  B. L'AVATAR PARAISSAIT RENTRÉ. Sa boîte était carrée (72×72) pour une encre
+ *     hexagonale de 56,6 px de large : ~7,7 px de vide fantôme à gauche, donc un
+ *     hexagone décalé vers la droite par rapport au blason crew et au bandeau de
+ *     chiffres, qui s'alignent eux sur le padding de la card. Corrigé à la
+ *     source dans `ui/game/hexAvatar` ; ici on réserve la largeur RÉELLE.
+ *
+ *  C. LE CRAYON D'ÉDITION FLOTTAIT. Posé en `right:-4 / bottom:-4` de la boîte
+ *     CARRÉE, il atterrissait à ~12 px de l'arête de l'hexagone, dans le vide.
+ *     → Il est maintenant posé sur le MILIEU de l'arête inférieure droite,
+ *       calculé depuis la géométrie (apothème), donc toujours au contact.
+ */
+const AVATAR_PX = 72;
+/** Largeur réelle de l'hexagone (√3/2 × hauteur) — la boîte n'est pas carrée. */
+const AVATAR_W = hexAvatarWidth(AVATAR_PX);
+/** Côté de la pastille crayon. */
+const PENCIL_PX = 24;
+/** Rayon du bord extérieur du corps hexagonal, en px. */
+const AVATAR_BODY_R_PX = ((BODY_R + BODY_STROKE / 2) / 50) * (AVATAR_PX / 2);
+/** Apothème = distance centre → milieu d'arête. */
+const AVATAR_APOTHEM_PX = AVATAR_BODY_R_PX * HEX_ASPECT;
+/** Coin haut-gauche du crayon, centré sur le milieu de l'arête inférieure droite. */
+const PENCIL_LEFT = AVATAR_W / 2 + AVATAR_APOTHEM_PX * Math.cos(Math.PI / 3) - PENCIL_PX / 2;
+const PENCIL_TOP = AVATAR_PX / 2 + AVATAR_APOTHEM_PX * Math.sin(Math.PI / 3) - PENCIL_PX / 2;
 
 /** Bornes XP par niveau (courbe §43.1) — table pure. Le niveau/tier/jauge sont
  *  DÉRIVÉS de l'XP RÉELLE dans le composant (O1 : useMyEconomy), plus au module. */
@@ -420,22 +468,31 @@ export default function ProfilScreen() {
                 fillColor={profile.avatarColor}
                 tier={runnerTier}
                 equippedFrameKey={equipped.profile}
-                size={72}
+                size={AVATAR_PX}
                 isMe
+                /* Photo si le joueur en a choisi une ; sinon l'avatar généré,
+                   qui reste un choix pleinement valable (anonymat assumé). */
+                imageUri={profile.avatarUri || undefined}
               />
               <View style={styles.editPencil}>
                 <Icon name="profil" size={iconSizes.xs} color={colors.chartreuse} />
               </View>
             </Pressable>
             <View style={styles.headerInfo}>
-              <Text style={styles.name} numberOfLines={1}>
-                {profile.displayName}
-              </Text>
-              {/* @handle — invariant technique, jamais traduit. Directement sous
-                  le nom, même bord gauche : le couple nom/@ se lit d'un bloc. */}
-              <Text style={styles.handle} numberOfLines={1}>
-                @{profile.handle}
-              </Text>
+              {/* Groupe 1 — IDENTITÉ : nom + @handle serrés (ils se lisent comme
+                  UNE unité). Même bord gauche, interligne interne minimal. */}
+              <View style={styles.headerIdentity}>
+                <Text style={styles.name} numberOfLines={1}>
+                  {profile.displayName}
+                </Text>
+                {/* @handle — invariant technique, jamais traduit. */}
+                <Text style={styles.handle} numberOfLines={1}>
+                  @{profile.handle}
+                </Text>
+              </View>
+              {/* Groupe 2 — QUALIFICATIFS : titre équipé + niveau/ville. Séparé du
+                  groupe 1 par UN espace plus grand : deux groupes lisibles valent
+                  mieux que quatre lignes équidistantes qui se disputent l'œil. */}
               {/* Titre affiché (cosmétique équipé prioritaire). Chartreuse sur
                   surface N1 SOMBRE (elevation.surface = carbone) — jamais clair. */}
               <Text style={styles.title} numberOfLines={1}>
@@ -907,22 +964,31 @@ const styles = StyleSheet.create({
     backgroundColor: elevation.surface,
     borderRadius: radii.card,
     padding: spacing.cardPadding,
-    gap: 14,
+    gap: spacing.md,
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  // Colonne texte : UN seul bord gauche, UN interligne régulier (gap) — plus de
-  // marginTop au cas par cas (3 px ici, spacing.xxs là) qui désalignait tout.
-  headerInfo: { flex: 1, gap: spacing.xxs },
+  // UNE ligne haute partagée par l'avatar et la 1ʳᵉ ligne de texte (`flex-start`).
+  // `center` faisait dépendre la position verticale de l'avatar de la hauteur de
+  // la colonne texte — donc de la LANGUE (cf. diagnostic A en tête de fichier).
+  headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  // Colonne texte : UN seul bord gauche, deux GROUPES (identité / qualificatifs)
+  // séparés par un espace franc — plus de marginTop au cas par cas.
+  headerInfo: { flex: 1, gap: spacing.xs },
+  // Nom + @handle : une unité, donc l'espace le plus serré de la colonne.
+  headerIdentity: { gap: 2 },
   // Avatar pressable + pastille crayon (édition évidente sur la card). Variante
   //  SURFACE/contour chartreuse (pas un disque plein) : le SEUL chartreuse plein
   //  de la scène reste le gros CTA territoire (charte : un seul accent plein).
-  avatarPress: { width: 72, height: 72 },
+  //  LARGEUR RÉELLE de l'hexagone (√3/2 × hauteur) : une boîte carrée réservait
+  //  ~8 px de vide de chaque côté et poussait l'avatar hors de l'axe de la card.
+  avatarPress: { width: AVATAR_W, height: AVATAR_PX },
   editPencil: {
     position: 'absolute',
-    right: -4,
-    bottom: -4,
-    width: 24,
-    height: 24,
+    // Centré sur le MILIEU de l'arête inférieure droite (calculé, pas au jugé) :
+    // la pastille touche l'hexagone au lieu de flotter dans un coin vide.
+    left: PENCIL_LEFT,
+    top: PENCIL_TOP,
+    width: PENCIL_PX,
+    height: PENCIL_PX,
     borderRadius: radii.pill,
     backgroundColor: colors.carbone,
     borderWidth: 1.5,
@@ -979,17 +1045,30 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   statCell: { flex: 1, gap: 2 },
+  // `lineHeight` EXPLICITE des deux étages : sans lui, la hauteur de ligne
+  // dépend de la police système et les trois colonnes du bandeau ne partagent
+  // aucune ligne de base commune. `tabular-nums` fige en plus la largeur des
+  // chiffres, donc « 12 » et « #7 » s'empilent sur la même grille.
   statValue: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    lineHeight: fontSizes.lg * 1.2,
     fontWeight: '800',
     letterSpacing: -0.3,
     fontVariant: ['tabular-nums'],
   },
-  statLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
+  // `adjustsFontSizeToFit` (§A.9 : rétrécir plutôt que couper) rend les corps
+  // INÉGAUX d'une colonne à l'autre ; une hauteur de ligne fixe garantit malgré
+  // tout un même bord haut et un même bord bas pour les trois libellés.
+  statLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.35,
+    letterSpacing: 0.2,
+  },
   // Actions légères (IconAction) — rangée répartie, sans gros rectangle.
-  headerActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: 28 },
-  shareCardWrap: { marginTop: 14 },
+  headerActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: spacing.xl },
+  shareCardWrap: { marginTop: spacing.md },
 
   // ── En-têtes de section ──
   sectionRow: {

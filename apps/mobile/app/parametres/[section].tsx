@@ -10,10 +10,10 @@
  * — MÊME source que l'onglet Profil, jamais la constante démo. Style dark GRYD,
  * texte court, honnête sur ce qui est « bientôt ».
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, fontSizes, gameColors, iconSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
 import {
   NOTIF_CHANNEL_LABELS,
   PLAY_STYLE_LABELS,
@@ -23,7 +23,8 @@ import {
   useMotivationPrefs,
   type NotifChannel,
 } from '../../src/features/motivation/store';
-import { Section, SwitchRow, TogglePill } from '../../src/features/motivation/ui';
+import { SwitchRow, TogglePill } from '../../src/features/motivation/ui';
+import { SectionLabel } from '../../src/features/privacy/ui';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import { C } from '../../src/i18n/catalog/reglages';
 import { t as tStatic, useT } from '../../src/i18n/store';
@@ -71,6 +72,22 @@ function isSection(x: string | undefined): x is SettingsSectionId {
   return x !== undefined && (SECTION_IDS as readonly string[]).includes(x);
 }
 
+/**
+ * Section titrée — sur-titre COMMUN aux écrans de réglages (features/privacy/ui,
+ * la même source que Confidentialité et Support). Remplace le `Section` du
+ * module motivation, dont l'espacement différait de quelques pixels : trois
+ * rythmes verticaux pour un même type d'écran, c'est ce qui donnait
+ * l'impression de trois maquettes distinctes.
+ */
+function Section({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <View>
+      <SectionLabel>{label}</SectionLabel>
+      {children}
+    </View>
+  );
+}
+
 /** Ligne d'action neutre (ouvre un flux à venir / une route). Icône + label + chevron. */
 function ActionRow({
   icon,
@@ -96,11 +113,13 @@ function ActionRow({
           RÔLE de la ligne. Chartreuse par défaut sur fond `carbone` (sombre) ;
           une action DESTRUCTIVE garde le rouge sémantique — l'accent ne doit
           jamais banaliser « supprimer mon compte » / « quitter le crew ». */}
-      <Icon
-        name={icon}
-        size={iconSizes.md}
-        color={danger === true ? gameColors.danger : colors.chartreuse}
-      />
+      <View style={styles.iconWrap}>
+        <Icon
+          name={icon}
+          size={iconSizes.md}
+          color={danger === true ? gameColors.danger : colors.chartreuse}
+        />
+      </View>
       <View style={styles.rowInfo}>
         <Text style={[styles.rowLabel, danger === true && styles.rowLabelDanger]}>{label}</Text>
         {detail !== undefined ? <Text style={styles.rowDetail}>{detail}</Text> : null}
@@ -378,34 +397,52 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.xxs },
+  // Géométrie de card ALIGNÉE sur Confidentialité (21/07) — voir parametres.tsx.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.cardPadding,
-    marginBottom: spacing.sm,
-  },
-  rowInfo: { flex: 1 },
-  rowLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  rowLabelDanger: { color: gameColors.danger },
-  rowDetail: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs },
-  valueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 12,
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.grisLigne,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.cardPadding,
-    marginBottom: spacing.sm,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding - 2,
+    marginBottom: 10,
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowInfo: { flex: 1 },
+  rowLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  rowLabelDanger: { color: gameColors.danger },
+  rowDetail: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: spacing.xxs,
+  },
+  // Ligne « valeur en lecture » : même card que ActionRow, sans carré d'icône —
+  // l'écho du couple titre/valeur des cards repliées de Confidentialité.
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: sizes.touchTarget,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding - 2,
+    marginBottom: 10,
   },
   valueLabel: { color: colors.gris, fontSize: fontSizes.sm },
   valueVal: {
