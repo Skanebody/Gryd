@@ -671,12 +671,18 @@ export const C = defineCatalog({
     de: 'Anfrage an @{handle} gesendet',
     pt: 'Pedido enviado a @{handle}',
   },
+  /**
+   * Le QR n'est PAS encore généré (audit doctrine Crew 20/07 : l'écran affichait
+   * l'ICÔNE décorative `qr` en 120 px comme s'il s'agissait d'un code scannable —
+   * personne n'aurait jamais pu le scanner). Tant qu'aucun générateur n'existe,
+   * on annonce la fonction au lieu de simuler un code : l'app ne ment jamais.
+   */
   qrHint: {
-    fr: 'Fais scanner ce code pour t’ajouter en un tap — ou scanne celui d’un autre coureur.',
-    en: 'Get this code scanned to be added in one tap — or scan another runner’s.',
-    es: 'Haz escanear este código para añadirte en un toque — o escanea el de otro corredor.',
-    de: 'Lass diesen Code scannen, um dich mit einem Tipp hinzuzufügen — oder scanne den eines anderen Läufers.',
-    pt: 'Peça para escanearem este código para te adicionar num toque — ou escaneie o de outro corredor.',
+    fr: 'Ton QR d’ajout arrive bientôt. En attendant, partage ton @ ou cherche un coureur.',
+    en: 'Your add-me QR is coming soon. Until then, share your @ or search for a runner.',
+    es: 'Tu QR para añadirte llega pronto. Mientras tanto, comparte tu @ o busca a un corredor.',
+    de: 'Dein Hinzufügen-QR kommt bald. Bis dahin: teile dein @ oder suche einen Läufer.',
+    pt: 'Seu QR para te adicionar chega em breve. Até lá, compartilhe seu @ ou busque um corredor.',
   },
   scanQr: {
     fr: 'Scanner un QR',

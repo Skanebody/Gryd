@@ -11,7 +11,7 @@
 import { useEffect } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import {
   CREW_MAX_MEMBERS,
   CREW_TAGS,
@@ -23,6 +23,7 @@ import {
   spacing,
   type IconName,
 } from '@klaim/shared';
+import { isShowcasePlatform } from '../src/lib/flags';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { GhostButton } from '../src/ui/GhostButton';
@@ -69,6 +70,10 @@ function roleMeta(role: string): { label: string; icon: IconName } {
 }
 
 export default function CrewPublicScreen() {
+  // VITRINE WEB UNIQUEMENT — même raison que /crew-discovery : fiche d'un crew
+  // INVENTÉ (publicDemo). La vraie fiche publique est un chantier du LOT 2.
+  if (!isShowcasePlatform) return <Redirect href="/crew" />;
+
   const params = useLocalSearchParams<{ crew?: string }>();
   const toast = useToast();
   // Guard §0 : param absent/inconnu → première fiche démo, jamais d'écran cassé.

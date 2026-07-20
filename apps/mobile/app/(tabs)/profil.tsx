@@ -90,7 +90,7 @@ import {
   type NextActionIntent,
   type TerritoryDemoFlag,
 } from '../../src/features/territory/territoryStatus';
-import { flags } from '../../src/lib/flags';
+import { flags, isShowcasePlatform } from '../../src/lib/flags';
 import type { Entry } from '../../src/i18n/types';
 import { useT } from '../../src/i18n/store';
 import { C } from '../../src/i18n/catalog/profil';
@@ -634,8 +634,14 @@ export default function ProfilScreen() {
           </View>
         )}
 
-        {/* ── SOLO (A.5) : l'app ne semble jamais vide — crews près de toi ── */}
-        {territory.soloCrewHint ? (
+        {/* ── SOLO (A.5) : l'app ne semble jamais vide — crews près de toi ──
+            VITRINE WEB UNIQUEMENT (audit doctrine Crew 20/07) : « 3 crews actifs
+            près de toi » est un chiffre INVENTÉ (territoryStatus démo) et menait
+            à /crew-discovery, une liste de crews fabriqués. Sur natif on ne
+            promet pas une densité qu'aucun vrai utilisateur ne peuple encore —
+            CLAUDE.md, zéro donnée factice. Reviendra quand la recherche réelle
+            existera (LOT 2) et qu'il y aura de vrais crews à trouver. */}
+        {isShowcasePlatform && territory.soloCrewHint ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={territory.soloCrewHint.headline}

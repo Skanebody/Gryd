@@ -11,8 +11,9 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { CREW_MAX_MEMBERS, CREW_TAGS, colors, fontSizes, radii, sizes, spacing } from '@klaim/shared';
+import { isShowcasePlatform } from '../src/lib/flags';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -61,6 +62,14 @@ function matchesFilter(crew: PublicCrewDemo, key: FilterKey): boolean {
 }
 
 export default function CrewDiscoveryScreen() {
+  // VITRINE WEB UNIQUEMENT (audit doctrine Crew 20/07). Cet écran liste des
+  // crews INVENTÉS (publicDemo) et son CTA « Demander à rejoindre » est un stub.
+  // Il n'était gardé par RIEN : un vrai joueur y atterrissait depuis l'onboarding
+  // et depuis la Carte — exactement le grief du retour terrain (« il m'avait
+  // déjà rempli des zones de prises, c'est encore le mode démo »). CLAUDE.md est
+  // catégorique : jamais de données fabriquées présentées à un vrai utilisateur.
+  if (!isShowcasePlatform) return <Redirect href="/crew" />;
+
   const [filter, setFilter] = useState<FilterKey>('all');
   const toast = useToast();
 

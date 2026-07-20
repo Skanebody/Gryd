@@ -180,16 +180,16 @@ function QrPanel({ toast }: { toast: ToastController }) {
   const { profile } = useMyProfile();
   return (
     <View style={styles.qrWrap}>
+      {/* Aucun QR n'est généré ici (audit doctrine Crew 20/07) : c'était l'ICÔNE
+          décorative `qr` en 120 px, présentée comme un code scannable. Personne
+          n'aurait pu la scanner — un mensonge d'écran. On montre le @handle,
+          qui lui est RÉEL et partageable ; le vrai QR (avec attribution
+          crew/inviteur/campagne) est un chantier à part entière. */}
       <View style={styles.qrCard}>
-        <Icon name="qr" size={120} color={colors.blanc} />
+        <Icon name="profil" size={64} color={colors.blanc} />
         <Text style={styles.qrHandle}>@{profile.handle}</Text>
       </View>
       <Text style={styles.qrHint}>{t(C.qrHint)}</Text>
-      <GhostButton
-        label={t(C.scanQr)}
-        icon="qr"
-        onPress={() => toast.show(t(C.toastScannerSoon))}
-      />
     </View>
   );
 }

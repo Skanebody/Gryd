@@ -187,7 +187,10 @@ export default function OnboardingScreen() {
       {step === 'account' ? <AccountStep onNext={() => go('crew')} /> : null}
       {step === 'crew' ? (
         <CrewStep
-          onJoin={() => void finish('/crew-discovery')}
+          // « Rejoindre » menait à /crew-discovery = des crews INVENTÉS, avec un
+          // CTA d'adhésion qui ne faisait rien. Il mène à l'onglet Crew réel, où
+          // rejoindre par code fonctionne vraiment (RPC serveur 0042).
+          onJoin={() => void finish('/crew')}
           onCreate={() => void finish('/crew')}
           onSkip={() => void finish('/')}
         />
