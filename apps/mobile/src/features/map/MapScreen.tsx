@@ -45,6 +45,7 @@ import { BattleMapOverlays } from './BattleMapOverlays';
 import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
 import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
 import { useRealTerritories } from './hexClaims';
+import { useRealCrew } from '../crew/real';
 import { getLastRunResult } from '../run/runResult';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
@@ -307,7 +308,20 @@ export function MapScreen() {
    * peint `hex_claims`, la démo n'est plus consultée. Y compris quand c'est VIDE :
    * un joueur qui n'a rien capturé voit une carte vide, pas un faux Paris conquis.
    */
-  const { territories, isReal, failed, reload } = useRealTerritories();
+  // Crew réel 2/3 : le roster actif teinte les zones des membres en chartreuse
+  // (§C « moi/mon crew » — l'union visuelle du territoire crew). Set mémoïsé sur
+  // le CONTENU (join trié) : useRealCrew retourne un nouveau tableau par fetch,
+  // un Set par référence relancerait la lecture hex_claims à chaque focus.
+  const { members: crewMembers } = useRealCrew();
+  const crewIdsKey = crewMembers
+    .map((m) => m.userId)
+    .sort()
+    .join(',');
+  const crewIds = useMemo(
+    () => (crewIdsKey.length === 0 ? null : new Set(crewIdsKey.split(','))),
+    [crewIdsKey],
+  );
+  const { territories, isReal, failed, reload } = useRealTerritories(crewIds);
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch

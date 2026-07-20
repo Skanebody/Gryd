@@ -59,11 +59,25 @@ export function dbToH3(value: string | number): string {
 
 /**
  * État de rendu d'une capture, du point de vue du joueur courant.
- * MVP volontairement minimal : 'crew' (à moi) / 'rival' (à un autre). Le decay et le
- * contesté viendront quand la donnée existera vraiment — on n'invente pas un statut.
+ * MVP volontairement minimal : 'crew' (à moi OU à un membre de MON crew — §C :
+ * « moi/mon crew = chartreuse », la couleur suit le RÔLE, pas l'identité) /
+ * 'rival' (à un autre). Le decay et le contesté viendront quand la donnée
+ * existera vraiment — on n'invente pas un statut.
+ *
+ * `crewIds` = ids des membres ACTIFS de mon crew (crew réel 2/3, A-41/backlog).
+ * Absent ou vide = joueur sans crew : comportement inchangé. Le regroupement de
+ * buildTerritories reste PAR PROPRIÉTAIRE : les zones de deux membres adjacents
+ * restent deux territoires (le tap dit QUI tient quoi), seule la COULEUR est
+ * partagée — l'union visuelle sans souder les frontières vraies.
  */
-export function stateFor(row: HexClaimRow, meId: string | null): TerritoryState {
-  return row.owner_user_id !== null && row.owner_user_id === meId ? 'crew' : 'rival';
+export function stateFor(
+  row: HexClaimRow,
+  meId: string | null,
+  crewIds?: ReadonlySet<string> | null,
+): TerritoryState {
+  if (row.owner_user_id === null) return 'rival';
+  if (row.owner_user_id === meId) return 'crew';
+  return crewIds?.has(row.owner_user_id) ? 'crew' : 'rival';
 }
 
 /**
@@ -94,6 +108,7 @@ export function buildTerritories(
   rows: readonly HexClaimRow[],
   meId: string | null,
   now: () => string = () => new Date().toISOString(),
+  crewIds?: ReadonlySet<string> | null,
 ): RealTerritory[] {
   interface Group {
     ownerId: string | null;
@@ -104,7 +119,7 @@ export function buildTerritories(
   const groups = new Map<string, Group>();
 
   for (const row of rows) {
-    const state = stateFor(row, meId);
+    const state = stateFor(row, meId, crewIds);
     // Le propriétaire fait PARTIE de l'identité : deux rivaux distincts = deux territoires.
     const key = `${row.owner_user_id ?? 'neutral'}:${state}`;
     let g = groups.get(key);

@@ -68,8 +68,15 @@ export interface UseRealTerritoriesResult {
  * et exige une colonne de zone indexée — un chantier à part, pas une rustine ici.
  *
  * Sans session (ou sans backend) → `isReal:false` : l'appelant garde la démo ÉTIQUETÉE.
+ *
+ * `crewIds` (crew réel 2/3) : ids des membres actifs de MON crew — leurs zones
+ * prennent le rôle chartreuse (§C « moi/mon crew ») au lieu de rival. L'appelant
+ * DOIT mémoïser le Set (sinon l'effet recharge à chaque rendu). null/undefined =
+ * sans crew (ou roster pas encore chargé) : classification inchangée.
  */
-export function useRealTerritories(): UseRealTerritoriesResult {
+export function useRealTerritories(
+  crewIds?: ReadonlySet<string> | null,
+): UseRealTerritoriesResult {
   const { session } = useSession();
   const [territories, setTerritories] = useState<RealTerritory[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -102,12 +109,19 @@ export function useRealTerritories(): UseRealTerritoriesResult {
         setFailed(true);
         return;
       }
-        setTerritories(buildTerritories((data ?? []) as HexClaimRow[], session.user.id));
+        setTerritories(
+          buildTerritories(
+            (data ?? []) as HexClaimRow[],
+            session.user.id,
+            undefined,
+            crewIds,
+          ),
+        );
     })();
     return () => {
       cancelled = true;
     };
-  }, [session, tick]);
+  }, [session, tick, crewIds]);
 
   return {
     territories,

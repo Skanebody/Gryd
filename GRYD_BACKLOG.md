@@ -9,7 +9,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 
 - [x] Mission dynamique RÉELLE v1 (defend/expand/first_capture depuis hex_claims + GPS) — la feature-réflexe « où courir maintenant » — M (ce commit)
 - [x] Crew réel 1/3 : créer/rejoindre/quitter RÉEL — RPC serveur (0042, SECURITY DEFINER, code généré serveur, cooldown 7 j, plafond 50 verrouillé FOR UPDATE) + écran natif honnête + règle pure testée — M (ce commit)
-- [ ] Crew réel 2/3 : union réelle sur la carte — mes zones + celles des membres en couche crew (hex_claims des membres actifs) — M
+- [x] Crew réel 2/3 : union réelle sur la carte — les zones des membres actifs prennent le rôle chartreuse (§C « moi/mon crew »), frontières par propriétaire préservées (tap = qui tient quoi) — M (ce commit)
 - [ ] Crew réel 3/3 : conséquence collective au résultat — « ton run a aidé N membres » (brancher coCaptured/RELAIS + roster réel) — S
 - [ ] Boucle de retour asynchrone — notification « ta zone expire dans 48 h / a été prise » (decay serveur déjà réel, notifs à câbler) — M
 - [ ] Mission v2 : secteurs réels + rival réel (sector_snapshot 0037 + activité 0040) quand la densité existe — M

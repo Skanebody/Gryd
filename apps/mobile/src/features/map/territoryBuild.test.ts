@@ -173,3 +173,51 @@ Deno.test('dataNote : i18n — 3 messages distincts dans CHAQUE langue, null res
   // Le défaut (sans locale) reste le français — les appelants non migrés ne changent pas.
   assertEquals(dataNote(false, false), dataNote(false, false, 0, 'fr'));
 });
+
+// ─── Crew réel 2/3 : l'union du territoire crew (§C « moi/mon crew = chartreuse ») ───
+
+Deno.test('stateFor + crewIds : membre de mon crew = crew, étranger = rival, moi inchangé', () => {
+  const MATE = 'mate-uuid';
+  const crewIds = new Set([ME, MATE]);
+  const cell = '8a1fb4662b17fff';
+  assertEquals(stateFor(row(cell, ME), ME, crewIds), 'crew');
+  assertEquals(stateFor(row(cell, MATE), ME, crewIds), 'crew');
+  assertEquals(stateFor(row(cell, RIVAL_A), ME, crewIds), 'rival');
+  // Non-possédé : jamais chartreuse, même si le Set contenait n'importe quoi.
+  assertEquals(stateFor(row(cell, null), ME, crewIds), 'rival');
+  // Sans roster (null / absent / vide) : comportement historique intact.
+  assertEquals(stateFor(row(cell, MATE), ME, null), 'rival');
+  assertEquals(stateFor(row(cell, MATE), ME), 'rival');
+  assertEquals(stateFor(row(cell, MATE), ME, new Set<string>()), 'rival');
+});
+
+Deno.test('buildTerritories + crewIds : même COULEUR, frontières VRAIES — deux membres = deux territoires', () => {
+  const MATE = 'mate-uuid';
+  const crewIds = new Set([ME, MATE]);
+  const mine = republique.slice(0, 6);
+  const mates = republique.slice(6, 12);
+  const built = buildTerritories(
+    [...mine.map((c) => row(c, ME)), ...mates.map((c) => row(c, MATE))],
+    ME,
+    undefined,
+    crewIds,
+  );
+  // §C : le rôle (couleur) est partagé…
+  assertEquals(built.length, 2, 'deux propriétaires = deux territoires, jamais soudés');
+  assert(built.every((t) => t.props.status === 'crew'), 'les zones du membre sont chartreuse');
+  // …mais le TAP sait toujours QUI tient quoi (ownerId préservé par territoire).
+  const owners = new Set(built.map((t) => t.props.ownerId));
+  assertEquals(owners, new Set([ME, MATE]));
+});
+
+Deno.test('buildTerritories + crewIds : un ANCIEN membre (hors roster actif) redevient rival', () => {
+  const EX_MATE = 'ex-mate-uuid';
+  const built = buildTerritories(
+    republique.slice(0, 4).map((c) => row(c, EX_MATE)),
+    ME,
+    undefined,
+    new Set([ME]), // roster actif sans lui
+  );
+  assertEquals(built.length, 1);
+  assertEquals(built[0].props.status, 'rival');
+});
