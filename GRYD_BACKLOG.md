@@ -17,6 +17,20 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] « Ensemble ça tient » : lock-extension rétroactive par les relais (retroactiveLockUntil pur + ingest service-role, gardes owner + claimed_at en plage 1 ms) — DÉPLOYÉ prod — M — `a482d63`
 - [ ] Séparation plausible des traces (anti multi-téléphone A-41 §6) — L
 
+## Doctrine Crew MVP (AMENDEMENT-43, document fondateur du 20/07)
+> Audit fait : les 18 exclusions sont DÉJÀ toutes inaccessibles en natif (0/18) — pas d'arbitrage à prendre. Le serveur calcule déjà territoire + contribution ; personne ne les lit. Les trous sont en LECTURE et en VIRALITÉ.
+
+- [x] LOT 0 — arrêter de mentir : `/crew-discovery` + `/crew-public` (crews INVENTÉS, atteints depuis l'onboarding) sous flag vitrine, « 3 crews près de toi » retiré, faux QR remplacé — S — `51a6dce`
+- [x] Bug serveur : le créateur d'un crew n'était pas chef (0043, backfill idempotent) — DÉPLOYÉ prod — S — `51a6dce`
+- [ ] LOT 1 — territoire du crew + contribution par membre, lus FRAIS (jamais `crew_leaderboard`, vue morte jamais rafraîchie) — M — *en cours*
+- [ ] LOT 2 — viralité qui boucle : route `/c/[code]`, réception du deep link (`Linking`), `associatedDomains`/`intentFilters` — **BLOQUÉ : décision domaine gryd.app vs gryd.run** — M
+- [ ] LOT 3 — mission crew prioritaire (`defense_missions`/`offensives` existent en base, jamais insérées) — M
+- [ ] LOT 4 — funnel d'attribution réel (events jamais émis, `referrals` sans colonnes, badge Recruiter inatteignable) — M
+- [ ] Modération serveur du nom de crew (insultes/usurpation) — exigée §1, absente — risque App Store — M
+- [ ] DÉCISION FONDATEUR : bouclier + scout_ping payants touchent la capture (contredit §4 + constitution) — S (décision)
+- [ ] DÉCISION FONDATEUR : modèle de monétisation (abonnement+monnaie existant vs 4 packs permanents de la doctrine) — S (décision)
+- [ ] Prix EUR en dur dans l'Arsenal (`arsenal.tsx`, `ArsenalItemCard.tsx`) → `product.displayPrice` — viole §23 + règle Apple — S
+
 ## « La fiabilité est le produit » (analyse INTVL n°2, 21/07 — leurs reviews négatives = runs perdus)
 > L'infra existe déjà : autosave trace 30 s (runStore), reprise après kill (double clé), file d'upload idempotente (D14), RestoreRunCard, états de signal honnêtes. Ce qui manque n'est pas du code : c'est la PREUVE terrain.
 

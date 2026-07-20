@@ -29,9 +29,17 @@ monnaie virtuelle · marché · chat mondial · messages privés · vocal · év
 payants · raid multizone · alliances de crews · clans secondaires · arbres
 technologiques · achat d'avantage territorial.
 
-**Point de tension connu** : GRYD a déjà construit plusieurs de ces systèmes
-(War Room, arsenal, coffres, clans, raids, chat crew). L'audit chiffre lesquels
-sont atteignables aujourd'hui. C'est LA décision fondateur du document.
+**RÉSOLU par l'audit du 20/07 — il n'y a PAS d'arbitrage à prendre.**
+12 des 18 systèmes existent dans le repo, mais **0 sur 18 n'est atteignable en
+natif** : `crew.tsx:1141` renvoie `RealCrewScreen` dès que `!isShowcasePlatform`
+(≈3 000 lignes de HQ démo jamais exécutées sur iPhone), et
+`flags.warRoom/arsenal/season` (= `EXPO_PUBLIC_FULL_SURFACE`, à `0`) gardent les
+points d'ENTRÉE en amont, pas seulement les écrans. Les 6 restants (marché, chat
+mondial, messages privés, vocal, alliances, clans secondaires) n'existent pas du
+tout — `0013_crew_clans.sql` ne crée aucune table, « clan » y est du vocabulaire.
+
+Corollaire inconfortable : **la doctrine n'a presque rien à supprimer, elle a
+presque tout à construire.**
 
 Le §9 déconseille aussi le **chat libre** au MVP (modération, sécurité mineurs,
 signalements, charge juridique) et propose à la place : fil d'activité
@@ -75,9 +83,18 @@ de devise mentirait). À corriger avant tout branchement d'achat réel.
 
 ## §6 — À TRANCHER par le fondateur (rien n'est appliqué sans réponse)
 
-1. **Les systèmes déjà construits** (War Room, arsenal, coffres, clans, raids,
-   chat) : on les masque derrière un flag pour la Saison 0, ou on les garde ?
-   L'audit chiffre le coût des deux options.
+1. ~~Les systèmes déjà construits : masquer ou garder ?~~ **SANS OBJET** — voir §2 :
+   déjà tous inaccessibles en natif. Restait 4 fuites de données fabriquées,
+   corrigées le 20/07 (LOT 0, commit `51a6dce`) : `/crew-discovery` et
+   `/crew-public` (crews INVENTÉS, atteints depuis l'onboarding « Rejoindre » et
+   depuis la Carte), « 3 crews actifs près de toi » (chiffre inventé), et le faux
+   QR d'`amis.tsx` (icône décorative 120 px présentée comme scannable).
+1-bis. **Bouclier (90 Éclats) et scout_ping (120 Éclats)** — un achat en argent
+   réel BLOQUE une capture (`claims.ts` → `blocked_shield`) et RÉVÈLE une
+   information tactique. Contredit frontalement le §4 de cette doctrine ET
+   `GRYD_REGLES_NON_NEGOCIABLES.md`. Masqué aujourd'hui par `flags.arsenal` —
+   la contradiction devient publique au premier flip. On les retire du catalogue
+   payant, ou on assume ?
 2. **Prix et périmètre des 4 packs** : les montants du document sont des
    hypothèses de test, pas une décision — ils dépendent aussi du contrat Apple
    « paid apps » (non signé à ce jour, bloquant O-item).
@@ -86,6 +103,28 @@ de devise mentirait). À corriger avant tout branchement d'achat réel.
 4. Rappel bloquants indépendants : clearance **INPI** avant usage commercial du
    nom, statut **DSA merchant** Apple (bloque la sortie publique UE), carte
    bancaire du compte développeur expirée.
+
+### Autres découvertes de l'audit (factuelles, pas des arbitrages)
+
+- **`crew_leaderboard` est une vue matérialisée MORTE** : créée, indexée et
+  autorisée en lecture (`0002_schema.sql:297`), mais **rafraîchie par aucun job**
+  malgré son commentaire. Figée depuis sa création, donc vide. Toute surface qui
+  la lirait afficherait « 0 zone » à vie. (`sector_control`, elle, EST rafraîchie
+  par `decay_job` + `recompute_sectors` + crons 0038/0039.)
+- **Le serveur calcule déjà la contribution** : `ingest_run` résout le crew du
+  coureur, écrit `hex_claims.winner_crew_id` et l'XP quotidienne par membre.
+  Aucune ligne d'app native ne les lit. Le maillon 4 de la boucle est un trou de
+  **lecture**, pas de moteur — d'où un LOT 1 court.
+- **Le deep link entrant n'est pas reçu** : zéro `Linking.getInitialURL`, zéro
+  listener `'url'`, aucune route `/c/[code]`, aucun `associatedDomains`. On
+  génère un lien d'invite parfait qui, cliqué, ne fait rien. La viralité est
+  coupée au dernier mètre (dépend de la décision « domaine »).
+- **Aucun event de funnel n'est émis** : `inviteSent`/`inviteAccepted` sont
+  définis dans `events.ts` et jamais `track()`és. Le badge « Recruiter » est
+  donc inatteignable alors qu'il est affiché comme atteignable.
+- **Aucun filtre d'insultes/usurpation sur le nom de crew** côté serveur (le
+  seul filtre existant est local, démo, et réservé au chat). Risque App Store
+  (UGC non modéré) — §1 de la doctrine l'exige.
 
 ## §7 — Ordre d'implémentation retenu par le document
 
