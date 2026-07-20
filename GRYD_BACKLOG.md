@@ -17,6 +17,19 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] « Ensemble ça tient » : lock-extension rétroactive par les relais (retroactiveLockUntil pur + ingest service-role, gardes owner + claimed_at en plage 1 ms) — DÉPLOYÉ prod — M — `a482d63`
 - [ ] Séparation plausible des traces (anti multi-téléphone A-41 §6) — L
 
+## Boucle A-45 — les 7 actions propres (arbitrage marge + compromis, 21/07)
+> Réf : [AMENDEMENT-45](AMENDEMENT-45-MARGE-ET-COMPROMIS.md). Un chantier = un lot committé, gate complet. Les 5 contradictions sont TRANCHÉES (Pass sans notifs prioritaires ni Cristaux, pas de fatigue territoriale, Zone Légendaire hors carte des autres, pas de selfie, bouclier/scout gagnables et non achetables).
+> RAPPEL MARGE : les achats intégrés plafonnent à 85 %. Les 90 % viennent du sponsoring territorial (~99 %) et de l'événement réel (~95 %), qui exigent d'abord de la DENSITÉ — d'où la priorité maintenue sur la boucle virale.
+
+- [ ] L1 — Série VISIBLE (le moteur streak existe, rien ne l'affiche) — meilleur ratio valeur/effort — S
+- [ ] L2 — Messages crew CONTEXTUELS (10-15 selon défense/attaque/rassemblement) — S
+- [ ] L3 — Zone du Jour dérivée du RÉEL (état honnête si aucune ne convient) — M
+- [ ] L4 — Défi 7 jours d'accueil (réutilise challenge_progress, 0012) — M
+- [ ] L5 — Ping de zone (coordination sans chat libre) — M
+- [ ] L6 — Programme ambassadeur : le DOCUMENT (critères, contreparties, budget) — S
+- [ ] L7 — Widget compte à rebours « Canal tombe dans 2 h » — M — BLOQUÉ O8 (extension native)
+- [ ] L8 — Sponsoring territorial : le produit à 99 % (défi financé, étiqueté, zéro avantage vendu) — L — attend la densité
+
 ## Doctrine Crew MVP (AMENDEMENT-43, document fondateur du 20/07)
 > Audit fait : les 18 exclusions sont DÉJÀ toutes inaccessibles en natif (0/18) — pas d'arbitrage à prendre. Le serveur calcule déjà territoire + contribution ; personne ne les lit. Les trous sont en LECTURE et en VIRALITÉ.
 
