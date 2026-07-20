@@ -34,7 +34,6 @@ import {
   View,
   type KeyboardEvent,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii } from '@klaim/shared';
 import { Button } from './Button';
 import { GhostButton } from './GhostButton';
@@ -81,7 +80,6 @@ export function KeyboardSaveBar({
   saveLabel,
 }: KeyboardSaveBarProps) {
   const t = useT();
-  const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardHeight();
   // Apparition douce : la barre surgit sous les doigts, un saut sec ferait
   // rater le premier tap.
@@ -94,14 +92,19 @@ export function KeyboardSaveBar({
     }).start();
   }, [visible, fade]);
 
-  if (!visible) return null;
-
-  // Clavier fermé : on garde la marge de sécurité système (encoche/barre
-  // gestuelle). Clavier ouvert : il porte déjà le bas de l'écran.
-  const bottom = keyboardHeight > 0 ? keyboardHeight : insets.bottom + 12;
+  // La barre n'existe QUE clavier ouvert. C'est le seul moment où le CTA de
+  // pied de page est inatteignable — et donc le seul où un second bouton se
+  // justifie. Clavier fermé, le CTA de pied reprend son rôle : à tout instant
+  // il y a EXACTEMENT UN bouton chartreuse à l'écran (§A : 1 CTA max). Sans
+  // cette condition, formulaire modifié + scroll en bas affichait deux boutons
+  // pleins faisant la même chose (relevé par la vérification adversariale).
+  if (!visible || keyboardHeight === 0) return null;
 
   return (
-    <Animated.View style={[styles.wrap, { bottom, opacity: fade }]} pointerEvents="box-none">
+    <Animated.View
+      style={[styles.wrap, { bottom: keyboardHeight, opacity: fade }]}
+      pointerEvents="box-none"
+    >
       <View style={styles.bar}>
         {/* La barre DIT ce qu'elle propose (demande fondateur) — deux boutons
             nus laisseraient deviner ce qu'on est en train de valider. */}

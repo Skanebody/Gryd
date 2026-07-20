@@ -436,6 +436,31 @@ export const C = defineCatalog({
     pt: 'Corra para tomar sua primeira zona',
   },
 
+  /**
+   * Natif sans compte : on ne peint AUCUNE démo, donc « démonstration » serait
+   * faux — le vrai état est « pas connecté ». Était une string FRANÇAISE EN DUR
+   * dans le JSX (relevé par la vérification adversariale) : un joueur en
+   * de/es/pt/en lisait du français.
+   */
+  dataNoteSignedOut: {
+    fr: 'Connecte-toi pour capturer',
+    en: 'Sign in to capture',
+    es: 'Inicia sesión para capturar',
+    de: 'Melde dich an zum Erobern',
+    pt: 'Entre para capturar',
+  },
+  /**
+   * Localisation refusée : la carte le DIT. Sans ce message elle restait sur le
+   * globe entier, sans point « moi » et sans explication — un cul-de-sac muet.
+   */
+  dataNoteLocationDenied: {
+    fr: 'Active la localisation pour te voir',
+    en: 'Turn on location to see yourself',
+    es: 'Activa la ubicación para verte',
+    de: 'Standort aktivieren, um dich zu sehen',
+    pt: 'Ative a localização para se ver',
+  },
+
   // ── Widget « Mon territoire » (8 états — territoryWidget.ts) ──
   /** Nom de zone neutre quand aucun secteur réel n'est câblé (jamais inventé). */
   zoneFallback: {

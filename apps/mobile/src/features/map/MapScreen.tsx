@@ -49,6 +49,9 @@ import { useRealCrew } from '../crew/real';
 import { getLastRunResult } from '../run/runResult';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
+import { C } from '../../i18n/catalog/map';
+import { useLocale } from '../../i18n/store';
+import { resolve } from '../../i18n/types';
 import {
   basemapAttribution,
   basemapSpecRevision,
@@ -60,7 +63,11 @@ import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
 import { isShowcasePlatform } from '../../lib/flags';
-import { getCurrentPositionOnce } from '../run/gps/provider';
+import {
+  checkForegroundPermission,
+  getCurrentPositionOnce,
+  requestForegroundPermission,
+} from '../run/gps/provider';
 
 // ─── Constantes de rendu (UI uniquement — mêmes valeurs que la variante web) ─
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -253,20 +260,43 @@ export function MapScreen() {
    * Nouveau contrat, natif : `null` tant qu'aucun VRAI fix n'est arrivé. Aucune
    * position par défaut, donc AUCUN point « moi » et AUCUNE caméra Paris — la
    * carte ouvre sur la vue neutre monde de RealMap (camera undefined) et se
-   * cadre sur le joueur DÈS le premier fix. Permission absente (GO-first : on ne
-   * la demande pas ici) ou lecture en échec ⇒ on reste sur la vue neutre, jamais
-   * un faux Paris. Web : vitrine assumée, ego = République.
+   * cadre sur le joueur DÈS le premier fix. Web : vitrine assumée, ego =
+   * République.
+   *
+   * PERMISSION : la carte la DEMANDE au premier affichage (correctif de la
+   * vérification adversariale). Sans ça, une install fraîche restait bloquée
+   * sur le globe entier, sans point « moi » et sans explication : on avait
+   * remplacé un mensonge (Paris) par un cul-de-sac muet. `getCurrentPositionOnce`
+   * ne fait que LIRE l'autorisation — elle n'était demandée qu'au départ d'une
+   * course. Refus ⇒ `denied` alimente un message lisible (jamais un faux lieu).
    */
   const [egoPos, setEgoPos] = useState<LatLngPoint | null>(
     isShowcasePlatform ? { lat: EGO_CAMERA.lat, lng: EGO_CAMERA.lng } : null,
   );
+  /** Localisation refusée : la carte le DIT au lieu de rester muette. */
+  const [locationDenied, setLocationDenied] = useState(false);
+  /** Langue courante — la carte doit parler comme le reste de l'app. */
+  const locale = useLocale();
   useEffect(() => {
     if (isShowcasePlatform) return;
     let cancelled = false;
-    void getCurrentPositionOnce().then((fix) => {
+    void (async () => {
+      // Déjà accordée → lecture directe ; sinon on demande (une seule fois,
+      // le système ne re-présente pas la feuille après un refus).
+      const state = await checkForegroundPermission();
+      const granted =
+        state.status === 'granted' ||
+        (state.canAskAgain && (await requestForegroundPermission()).status === 'granted');
+      if (cancelled) return;
+      if (!granted) {
+        setLocationDenied(true);
+        return;
+      }
+      const fix = await getCurrentPositionOnce();
       if (cancelled || !fix) return;
+      setLocationDenied(false);
       setEgoPos({ lat: fix.lat, lng: fix.lng });
-    });
+    })();
     return () => {
       cancelled = true;
     };
@@ -451,6 +481,19 @@ export function MapScreen() {
 
   // Recentrer : retour ego fluide (flyTo — saut direct si reduce motion). Sur
   // natif on RAFRAÎCHIT d'abord la position (l'utilisateur a pu se déplacer).
+  /**
+   * La PHRASE d'état de la carte, dans la langue du joueur. `dataNote` reçoit
+   * enfin `locale` : sans elle il renvoyait du français à tout le monde (son
+   * défaut) — l'i18n 5 langues s'arrêtait à la porte de la carte.
+   * Priorité : localisation refusée (on ne sait pas où tu es et on le DIT) >
+   * pas de compte > les 3 cas historiques de dataNote.
+   */
+  const mapNote = locationDenied
+    ? resolve(C.dataNoteLocationDenied, locale)
+    : !isShowcasePlatform && !isReal && !failed
+      ? resolve(C.dataNoteSignedOut, locale)
+      : dataNote(isReal, failed, territories?.length ?? 0, locale);
+
   const recenter = () => {
     if (isShowcasePlatform) {
       mapRef.current?.flyTo(EGO_CAMERA);
@@ -459,11 +502,24 @@ export function MapScreen() {
     // Natif : on vole vers la DERNIÈRE position connue si elle existe (jamais
     // vers République), puis on rafraîchit — l'utilisateur a pu se déplacer.
     if (egoPos) mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
-    void getCurrentPositionOnce().then((fix) => {
+    void (async () => {
+      // Le bouton DEMANDE la permission s'il ne l'a pas (correctif adversarial :
+      // promu au 1er niveau, il ne devait plus jamais être un bouton mort —
+      // sans position ET sans demande, un tap ne produisait STRICTEMENT rien).
+      const state = await checkForegroundPermission();
+      const granted =
+        state.status === 'granted' ||
+        (state.canAskAgain && (await requestForegroundPermission()).status === 'granted');
+      if (!granted) {
+        setLocationDenied(true);
+        return;
+      }
+      const fix = await getCurrentPositionOnce();
       if (!fix) return;
+      setLocationDenied(false);
       setEgoPos({ lat: fix.lat, lng: fix.lng });
       mapRef.current?.flyTo({ ...EGO_CAMERA, lat: fix.lat, lng: fix.lng });
-    });
+    })();
   };
 
   return (
@@ -496,7 +552,7 @@ export function MapScreen() {
             pour un bug.
           Aucun CTA (§A — 1 écran = 1 décision, le bouton GO est déjà l'action) : la
           pill est une PHRASE, pas un bouton (pointerEvents none, aucun tap). ── */}
-      {(failed || !isReal || territories?.length === 0) && (
+      {mapNote !== null && (
         <View
           style={[
             styles.dataNote,
@@ -510,12 +566,7 @@ export function MapScreen() {
             adjustsFontSizeToFit
             accessibilityRole="text"
           >
-            {/* Natif sans session : on ne peint AUCUNE démo (paintedTerritories=[]),
-                donc la note « démonstration » serait fausse — le vrai état est
-                « pas de compte connecté ». Les autres cas gardent dataNote. */}
-            {!isShowcasePlatform && !isReal && !failed
-              ? 'Connecte-toi pour capturer'
-              : dataNote(isReal, failed, territories?.length ?? 0)}
+            {mapNote}
           </Text>
         </View>
       )}

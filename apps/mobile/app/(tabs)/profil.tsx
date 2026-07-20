@@ -465,7 +465,17 @@ export default function ProfilScreen() {
                 <Text style={styles.statValue} numberOfLines={1}>
                   {s.value}
                 </Text>
-                <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="clip">
+                {/* §A.9 — jamais de texte tranché en plein mot. `clip` coupait
+                    net les libellés longs (pt « Rank temporada », de « Zonen
+                    gehalten ») sur un écran 320 pt, SANS signal que du texte
+                    manquait. `adjustsFontSizeToFit` rétrécit plutôt que couper —
+                    le libellé reste entier dans les 5 langues. */}
+                <Text
+                  style={styles.statLabel}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   {s.label}
                 </Text>
               </View>
@@ -982,6 +992,11 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
+    // Plancher tactile : les en-têtes REPLIABLES (Spécialisations) sont des
+    // Pressable. Sans minHeight, leur cible utile valait la hauteur du texte
+    // (~20 px) — les marges ne sont PAS tactiles. Le seul moyen d'ouvrir la
+    // section était une bande de 20 px.
+    minHeight: sizes.touchTarget,
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
   // Chevron d'accordéon : « > » au repos, « v » ouvert (l'icône `chevron` du set
