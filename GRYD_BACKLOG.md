@@ -22,7 +22,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 
 - [x] LOT 0 — arrêter de mentir : `/crew-discovery` + `/crew-public` (crews INVENTÉS, atteints depuis l'onboarding) sous flag vitrine, « 3 crews près de toi » retiré, faux QR remplacé — S — `51a6dce`
 - [x] Bug serveur : le créateur d'un crew n'était pas chef (0043, backfill idempotent) — DÉPLOYÉ prod — S — `51a6dce`
-- [ ] LOT 1 — territoire du crew + contribution par membre, lus FRAIS (jamais `crew_leaderboard`, vue morte jamais rafraîchie) — M — *en cours*
+- [x] LOT 1 — territoire du crew + contribution par membre, lus FRAIS via `crew_overview()` (0044) ; `crew_leaderboard` (vue morte) annotée, jamais lue ; agrégat opt-in — DÉPLOYÉ prod — M — `0dd9421`
 - [ ] LOT 2 — viralité qui boucle : route `/c/[code]`, réception du deep link (`Linking`), `associatedDomains`/`intentFilters` — **BLOQUÉ : décision domaine gryd.app vs gryd.run** — M
 - [ ] LOT 3 — mission crew prioritaire (`defense_missions`/`offensives` existent en base, jamais insérées) — M
 - [ ] LOT 4 — funnel d'attribution réel (events jamais émis, `referrals` sans colonnes, badge Recruiter inatteignable) — M
