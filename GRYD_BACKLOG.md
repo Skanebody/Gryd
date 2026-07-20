@@ -14,7 +14,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] Boucle de retour asynchrone — notification « ta zone expire dans 48 h / a été prise » (decay serveur déjà réel, notifs à câbler) — M
 - [ ] Mission v2 : secteurs réels + rival réel (sector_snapshot 0037 + activité 0040) quand la densité existe — M
 - [ ] DÉCISION FONDATEUR : couche PvE étiquetée (forteresses « système ») vs objectifs solo purs — attendre les 1res données de rétention — S (décision)
-- [ ] « Ensemble ça tient » : lock-extension rétroactive par les relais A-41 (écrite par le système au nom du propriétaire, jamais par le relayeur) — M
+- [x] « Ensemble ça tient » : lock-extension rétroactive par les relais (retroactiveLockUntil pur + ingest service-role, gardes owner + claimed_at en plage 1 ms) — DÉPLOYÉ prod — M — `a482d63`
 - [ ] Séparation plausible des traces (anti multi-téléphone A-41 §6) — L
 
 ## « La fiabilité est le produit » (analyse INTVL n°2, 21/07 — leurs reviews négatives = runs perdus)
