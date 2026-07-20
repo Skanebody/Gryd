@@ -82,6 +82,21 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     screen('course_live', { mode, gps: 'real' });
   }, [mode]);
 
+  // « Aucun run perdu » (analyse stratégique 21/07 — la fiabilité EST le
+  // produit) : le signal GPS perdu n'était que VISUEL (pill), or un coureur
+  // regarde la route, pas son écran. Transition →'lost' pendant le tracking =
+  // haptique FORTE (avertissement immédiat, sans son — on ne coupe pas la
+  // musique) ; récupération 'lost'→ok = haptique légère (rassure sans regarder).
+  // La trace, elle, est déjà protégée (autosave 30 s + reprise après kill).
+  const prevSignalRef = useRef(s.signal);
+  useEffect(() => {
+    const prev = prevSignalRef.current;
+    prevSignalRef.current = s.signal;
+    if (s.phase !== 'tracking') return; // en pause volontaire : pas d'alarme
+    if (prev !== 'lost' && s.signal === 'lost') haptics.error();
+    else if (prev === 'lost' && s.signal !== 'lost') haptics.light();
+  }, [s.signal, s.phase]);
+
   const finish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;

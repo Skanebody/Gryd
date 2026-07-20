@@ -5,7 +5,8 @@
  *   light  : bouton, capture simple, check, réaction ;
  *   medium : badge Race/Carbon, rank up, achat, zone contrôlée ;
  *   heavy  : Legend unlock, victoire crew, #1 classement, fin de saison ;
- *   success: confirmation (course validée, coffre ouvert).
+ *   success: confirmation (course validée, coffre ouvert) ;
+ *   error  : alerte fiabilité (signal GPS PERDU en course — « aucun run perdu »).
  * Toujours fire-and-forget : un échec haptique ne casse jamais l'UI.
  * Désactivable (AMENDEMENT-08 §12 « haptics optionnels ») : setHapticsEnabled
  * persiste le choix (AsyncStorage, clé 'gryd.haptics', défaut activé) — la
@@ -18,7 +19,7 @@ interface HapticsModule {
   impactAsync(style: unknown): Promise<unknown>;
   notificationAsync(type: unknown): Promise<unknown>;
   ImpactFeedbackStyle: { Light: unknown; Medium: unknown; Heavy: unknown };
-  NotificationFeedbackType: { Success: unknown };
+  NotificationFeedbackType: { Success: unknown; Error: unknown };
 }
 
 let mod: HapticsModule | null = null;
@@ -84,6 +85,7 @@ export const haptics = {
   medium: () => fire((m) => m.impactAsync(m.ImpactFeedbackStyle.Medium)),
   heavy: () => fire((m) => m.impactAsync(m.ImpactFeedbackStyle.Heavy)),
   success: () => fire((m) => m.notificationAsync(m.NotificationFeedbackType.Success)),
+  error: () => fire((m) => m.notificationAsync(m.NotificationFeedbackType.Error)),
 } as const;
 
 export type Haptics = typeof haptics;
