@@ -15,6 +15,13 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] « Ensemble ça tient » : lock-extension rétroactive par les relais A-41 (écrite par le système au nom du propriétaire, jamais par le relayeur) — M
 - [ ] Séparation plausible des traces (anti multi-téléphone A-41 §6) — L
 
+## « La fiabilité est le produit » (analyse INTVL n°2, 21/07 — leurs reviews négatives = runs perdus)
+> L'infra existe déjà : autosave trace 30 s (runStore), reprise après kill (double clé), file d'upload idempotente (D14), RestoreRunCard, états de signal honnêtes. Ce qui manque n'est pas du code : c'est la PREUVE terrain.
+
+- [x] Alerte haptique GPS perdu en course (fort à la perte, léger à la récup, muet en pause) — le coureur regarde la route, pas l'écran — S — `9716943`
+- [ ] TORTURE TEST TERRAIN (fondateur, aucune ligne de code) : run réel avec kill volontaire de l'app à mi-course → reprise → upload ; run en mode avion → file → sync au retour ; tunnel/bâtiment → signal lost → récup. Chaque échec devient un chantier P0 — S
+- [ ] Écran « où est mon run » post-crash : si un run est en file (pendingUpload), le dire explicitement sur Aujourd'hui (« 1 course en attente de sync ») au lieu du silence — S
+
 ## PRIORITÉ ABSOLUE — MVP_CHANGESET (validé fondateur 17/07, verdict NO-GO à lever)
 > Réf. opérations exactes : [MVP_CHANGESET.md](MVP_CHANGESET.md). Pas de push/deploy sans « pousse ».
 
