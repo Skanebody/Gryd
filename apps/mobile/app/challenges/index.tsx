@@ -21,7 +21,7 @@ import { GhostButton } from '../../src/ui/GhostButton';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { StackScreen } from '../../src/ui/StackScreen';
-import { formatChallengeValue, type ChallengeCard } from '../../src/features/motivation/demo';
+import { formatChallengeValue, type ChallengeCard } from '../../src/features/motivation/catalog';
 import {
   useChallenges,
   type ChallengesEmptyReason,

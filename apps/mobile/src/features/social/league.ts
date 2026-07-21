@@ -1,14 +1,19 @@
 /**
- * GRYD — données démo DÉTERMINISTES de la League (AMENDEMENT-08 §7, doc §17).
- * Six tableaux (Joueurs / Crews / Ville / France / Pionniers / Performance),
- * cohérents avec les demos existantes : KORO #8 Paris à 4 210 pts (342 pts du
- * #7 — social/demo), crews de crew/demo (CREW NORD·XI, LES PAVÉS 12, BPM
- * BASTILLE), pioneerHexes 210 et formeScore 78 (badges/demo). DATA d'affichage
- * uniquement : l'écart en hexes neutres est DÉRIVÉ côté écran via
- * POINTS_NEUTRAL_HEX — aucun barème ici. TODO(O1) brancher les leaderboards
- * Supabase et supprimer ce fichier.
+ * GRYD — GABARITS des tableaux de la League (Joueurs / Crews / Ville / France /
+ * Pionniers / Performance) : titre, unité, type de classement. RIEN D'AUTRE.
  *
- * CADRE EUROPE (AMENDEMENT-35 + constitution CLAUDE.md) : l'élargissement Europe
+ * Les LIGNES ont été vidées le 21/07/2026. Ce fichier portait six podiums de
+ * joueurs entièrement inventés — « KORO #8 Paris à 4 210 pts », LENA_RUN,
+ * TOUTDROIT, BPM_BASTILLE, avec leurs crews. Ils n'étaient plus RENDUS
+ * (`leagueBoard.ts` ne lit que le gabarit et remplit les lignes depuis le
+ * serveur), mais ils restaient un piège : un seul `LEAGUE_BOARDS[0].rows`
+ * ailleurs dans le code aurait suffi à publier un classement fictif.
+ *
+ * La règle qui s'applique ici est la plus catégorique du projet : ne jamais
+ * fabriquer de classement. Un tableau sans joueur réel sort VIDE, et l'écran dit
+ * « personne n'a encore couru cette saison, sois le premier ».
+ *
+  * CADRE EUROPE (AMENDEMENT-35 + constitution CLAUDE.md) : l'élargissement Europe
  * est une VISION. La règle est CATÉGORIQUE — « ne jamais fabriquer de données
  * européennes factices (villes/classements/rivaux) tant qu'aucun vrai utilisateur
  * ne les peuple ; la vision se surface en COPIE + docs, pas en inventant des
@@ -66,101 +71,42 @@ export const LEAGUE_BOARDS: readonly LeagueBoard[] = [
     label: 'Joueurs',
     kind: 'player',
     valueLabel: 'pts',
-    rows: [
-      { rank: 1, name: 'SPRINT·88', sub: 'CREW NORD·XI', value: 9480 },
-      { rank: 2, name: 'K.RUNNER', sub: 'LES PAVÉS 12', value: 8102 },
-      { rank: 3, name: 'MOLOKAÏ', sub: 'LES FOULÉES 9³', value: 7645 },
-      { rank: 4, name: 'INES.11', sub: 'CREW NORD·XI', value: 6890 },
-      { rank: 5, name: 'BPM_BASTILLE', sub: 'BPM BASTILLE', value: 5120 },
-      { rank: 6, name: 'JOG.PARMENTIER', sub: 'LES FOULÉES 9³', value: 4780 },
-      { rank: 7, name: 'LENA_RUN', sub: 'LES FOULÉES 9³', value: 4552 },
-      { rank: 8, name: 'KORO', sub: 'LES FOULÉES 9³', value: 4210, me: true },
-      { rank: 9, name: 'PACER·20E', sub: 'LES FOULÉES 9³', value: 4188 },
-      { rank: 10, name: 'TOUTDROIT', sub: 'LES FOULÉES 9³', value: 3901 },
-    ],
+    rows: [],
   },
   {
     id: 'crews',
     label: 'Crews',
     kind: 'crew',
     valueLabel: 'pts',
-    rows: [
-      { rank: 1, name: 'CREW NORD·XI', sub: 'Paris', value: 38_410, crewSeed: 'crew-nord-xi' },
-      { rank: 2, name: 'LES PAVÉS 12', sub: 'Paris', value: 31_200, crewSeed: 'les-paves-12' },
-      { rank: 3, name: 'BPM BASTILLE', sub: 'Paris', value: 27_840, crewSeed: 'bpm-bastille' },
-      { rank: 4, name: 'CANAL RUNNERS', sub: 'Paris', value: 21_050, crewSeed: 'canal-runners' },
-      { rank: 5, name: 'PANAME PACERS', sub: 'Paris', value: 19_730, crewSeed: 'paname-pacers' },
-      { rank: 6, name: 'LES PUCES RC', sub: 'Paris', value: 17_410, crewSeed: 'les-puces-rc' },
-      { rank: 7, name: 'RIVE DROITE 16', sub: 'Paris', value: 15_980, crewSeed: 'rive-droite-16' },
-      { rank: 8, name: 'LES FOULÉES 9³', sub: 'Paris', value: 15_240, me: true, crewSeed: 'les-foulees-93' },
-      { rank: 9, name: 'MONTMARTRE HILLS', sub: 'Paris', value: 14_100, crewSeed: 'montmartre-hills' },
-      { rank: 10, name: 'BERCY BEARS', sub: 'Paris', value: 12_760, crewSeed: 'bercy-bears' },
-    ],
+    rows: [],
   },
   {
     id: 'ville',
     label: 'Ville',
     kind: 'city',
     valueLabel: 'zones',
-    rows: [
-      // Board DÉMO cantonné à la FRANCE (Saison 0 : Paris + Lille ; Lyon en démo).
-      // L'élargissement Europe (AMENDEMENT-35) est une VISION : la constitution
-      // CLAUDE.md interdit de fabriquer des données européennes (villes/classements/
-      // rivaux) tant qu'aucun vrai runner ne les peuple — la vision se surface en
-      // COPIE (demoNote « l'Europe suit »), JAMAIS en rangs chiffrés inventés. On a
-      // donc RETIRÉ Berlin/Barcelone/Milan/Amsterdam/Bruxelles (rankings factices).
-      { rank: 1, name: 'Paris', sub: 'France', value: 48_210, me: true },
-      { rank: 2, name: 'Lille', sub: 'France', value: 22_480 },
-      { rank: 3, name: 'Lyon', sub: 'France', value: 9310 },
-    ],
+    rows: [],
   },
   {
     id: 'france',
     label: 'France',
     kind: 'player',
     valueLabel: 'pts',
-    rows: [
-      { rank: 1, name: 'TRAILMAN·13', sub: 'Marseille', value: 12_480 },
-      { rank: 2, name: 'SPRINT·88', sub: 'Paris', value: 9480 },
-      { rank: 3, name: 'NORDISTE.59', sub: 'Lille', value: 9120 },
-      { rank: 4, name: 'K.RUNNER', sub: 'Paris', value: 8102 },
-      { rank: 5, name: 'MOLOKAÏ', sub: 'Paris', value: 7645 },
-      { rank: 6, name: 'SOFIA.TRAIL', sub: 'Lille', value: 7420 },
-      { rank: 7, name: 'LYON.PACER', sub: 'Lyon', value: 6980 },
-      { rank: 8, name: 'INES.11', sub: 'Paris', value: 6890 },
-      { rank: 23, name: 'KORO', sub: 'Paris', value: 4210, me: true, gapBefore: true },
-    ],
+    rows: [],
   },
   {
     id: 'pionniers',
     label: 'Pionniers',
     kind: 'player',
     valueLabel: 'zones pionnières',
-    rows: [
-      { rank: 1, name: 'SOFIA.TRAIL', sub: 'Lille', value: 1840 },
-      { rank: 2, name: 'NADIA.K', sub: 'Lille', value: 1120 },
-      { rank: 3, name: 'NORD.SCOUT', sub: 'Lille', value: 940 },
-      { rank: 4, name: 'TRAILMAN·13', sub: 'Marseille', value: 720 },
-      { rank: 5, name: 'KORO', sub: 'Paris', value: 210, me: true },
-      { rank: 6, name: 'MAYA.59', sub: 'Lille', value: 184 },
-      { rank: 7, name: 'YANIS_EP', sub: 'Paris', value: 96 },
-    ],
+    rows: [],
   },
   {
     id: 'performance',
     label: 'Performance',
     kind: 'player',
     valueLabel: 'Score Forme',
-    rows: [
-      { rank: 1, name: 'K.RUNNER', sub: 'Paris', value: 94 },
-      { rank: 2, name: 'INES.11', sub: 'Paris', value: 91 },
-      { rank: 3, name: 'MOLOKAÏ', sub: 'Paris', value: 88 },
-      { rank: 4, name: 'SPRINT·88', sub: 'Paris', value: 86 },
-      { rank: 5, name: 'LENA_RUN', sub: 'Paris', value: 82 },
-      { rank: 6, name: 'KORO', sub: 'Paris', value: 78, me: true },
-      { rank: 7, name: 'JOG.PARMENTIER', sub: 'Paris', value: 74 },
-      { rank: 8, name: 'PACER·20E', sub: 'Paris', value: 71 },
-    ],
+    rows: [],
   },
 ] as const;
 

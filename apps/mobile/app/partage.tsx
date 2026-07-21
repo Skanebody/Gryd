@@ -263,7 +263,7 @@ function SharePreview({ run }: { run: ShareRunData }) {
               style={styles.previewMapSquare}
               animated={view.animated}
               replayKey={view.replayKey}
-              trace={view.trace}
+              trace={view.trace ?? []}
               captured={view.captured}
             />
           </View>

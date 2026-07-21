@@ -149,7 +149,7 @@ function BeforeAfter({
           mode="defense"
           accent={gameColors.rival}
           captured={false}
-          trace={trace}
+          trace={trace ?? []}
         />
         {beforeState ? <Text style={styles.baState}>{beforeState}</Text> : null}
       </View>
@@ -161,7 +161,7 @@ function BeforeAfter({
           accent={colors.chartreuse}
           animated={view?.animated}
           replayKey={view?.replayKey}
-          trace={trace}
+          trace={trace ?? []}
         />
         <Text style={[styles.baState, styles.baStateAfter]}>{tt(C.heldState)}</Text>
       </View>
@@ -201,7 +201,7 @@ function mapHero(d: ShareDemoData, view?: ShareView): ReactNode {
       style={styles.mapHero}
       animated={view?.animated}
       replayKey={view?.replayKey}
-      trace={view?.trace ?? d.trace}
+      trace={view?.trace ?? d.trace ?? []}
       captured={view?.captured}
     />
   );
@@ -214,7 +214,7 @@ function map(d: ShareDemoData, view: ShareView | undefined, mode: 'loop' | 'defe
       mode={mode}
       animated={view?.animated}
       replayKey={view?.replayKey}
-      trace={view?.trace ?? d.trace}
+      trace={view?.trace ?? d.trace ?? []}
       // social_run → captured=false : la zone ne se remplit pas (aucune capture).
       captured={view?.captured}
     />
@@ -373,7 +373,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
             style={styles.map3d}
             animated={view?.animated}
             replayKey={view?.replayKey}
-            trace={view?.trace}
+            trace={view?.trace ?? []}
             captured={view?.captured}
           />
         ),

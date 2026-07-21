@@ -9,8 +9,12 @@
  * 1. LA VITRINE. `if (isShowcasePlatform) return { challenges: CHALLENGES }`
  *    servait le jeu de démo complet — « Night Pacers vs Canal Runners 128-121 »
  *    et un commerçant sponsor imaginaire. Le mode vitrine est abandonné : cette
- *    branche n'existe plus, et `CHALLENGES` n'est plus qu'un catalogue de
- *    définitions dont les `current` de démo sont ignorés.
+ *    branche n'existe plus.
+ * 3. LES `current` DE DÉMO (21/07/2026). Ils étaient devenus inertes — ce hook
+ *    les écrasait — mais ils vivaient toujours dans le catalogue, prêts à être
+ *    réaffichés par le premier écran qui rendrait `CHALLENGES` sans passer par
+ *    ici. `catalog.ts` a été scindé en deux types : une DÉFINITION ne peut plus
+ *    porter de progression, une CARTE en porte une et n'est fabricable qu'ici.
  * 2. LE « 0 » EN DUR. La version précédente renvoyait `map(zeroProgress)` pour
  *    tout joueur connecté, en commentant « la progression sera lue plus tard ».
  *    Un 0 affiché en face d'un objectif n'est pas neutre : c'est la phrase
@@ -39,7 +43,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
-import { CHALLENGES, type ChallengeCard } from './demo';
+import { CHALLENGES, type ChallengeCard, type ChallengeDefinition } from './catalog';
 
 /**
  * Pourquoi la liste est vide — pilote la copie de l'état vide. Les cas n'ont PAS
@@ -65,13 +69,22 @@ export interface ChallengesView {
 }
 
 /**
- * Une carte est-elle affichable ? Uniquement si sa progression est LISIBLE pour
- * ce joueur et si elle ne nomme personne d'inventé :
- *   · `solo` → il existe une ligne `challenge_progress` kind='user' pour lui ;
- *   · pas de `partnerName` (crew rival) ni de `sponsor` (commerçant fictif).
+ * Une définition est-elle affichable ? Uniquement si sa progression est LISIBLE
+ * pour CE joueur, c'est-à-dire `solo` : il existe alors une ligne
+ * `challenge_progress` kind='user' à son nom.
+ *
+ * Les définitions `crew` et `rivalry` restent au catalogue mais ne sont pas
+ * servies : leur progression est stockée par CREW, et la contribution
+ * personnelle n'est ventilée par membre nulle part (voir l'en-tête). Les
+ * afficher exigerait de l'inventer.
+ *
+ * Le garde sur `partnerName`/`sponsor` a disparu avec le lot du 21/07/2026 : ces
+ * champs n'existent plus sur `ChallengeDefinition`, donc le catalogue ne peut
+ * plus nommer un tiers inventé. La règle est passée du garde d'exécution au
+ * TYPE — ce qui la rend non contournable.
  */
-function readable(c: ChallengeCard): boolean {
-  return c.type === 'solo' && c.partnerName === undefined && c.sponsor === undefined;
+function readable(c: ChallengeDefinition): boolean {
+  return c.type === 'solo';
 }
 
 /** Ligne serveur d'un challenge actif. `primary_goal` = {metric, target}. */

@@ -163,14 +163,47 @@ du fondateur, sur localhost.**
   (données PRNG derrière un login — à trancher) et des seuils codés en dur dans
   `dictionary.ts` (règles annoncées, pas mesures inventées, mais nombres magiques
   au sens de CLAUDE.md).
-- **`DemoCourseLive` (`app/course-live.tsx`) est encore dans le fichier.** Il n'a
-  plus aucun appelant — `useRealRun` renvoie `RunUnavailable` quand le GPS manque,
-  donc aucune course fabriquée n'est atteignable — mais le code reste présent,
-  ainsi que la chaîne qu'il alimentait (`run/liveNav.ts` → `route/demo.ts`, avec
-  ses checkpoints nommés « Passerelle Alibert »). Le lot propriétaire a
-  délibérément différé son retrait : ces vues partagent des sous-composants avec
-  le live réel et les démêler est un chantier à part. **Tant qu'il est là, la
-  garantie tient par un seul point de contrôle (`gate.kind`), pas par le typage.**
+- ~~**`DemoCourseLive` est encore dans le fichier.**~~ **FERMÉ le 21/07/2026.**
+  `app/course-live.tsx` : 1 969 → 245 lignes, réduit à un aiguillage sur
+  `useRealRun`. Supprimés avec lui, sans importateur restant : `run/liveNav.ts`,
+  `run/LiveNavMap.tsx`, `run/loop.ts`, `run/livemates.ts`, `run/indications.ts`,
+  `route/demo.ts`, `route/popularRoutes.ts`, et le générateur PRNG de
+  `run/simulation.ts` (617 → 82 lignes). **−5 114 lignes nettes.**
+  Le lot précédent avait différé ce travail en jugeant ces vues « partagées avec
+  le live réel ». Elles ne l'étaient pas : `RealCourseLive` redéclare ses propres
+  composants — le partage était supposé, pas vérifié. Le vrai couplage était
+  ailleurs : `RealCourseLive` rapportait la distance RÉELLE aux 8 200 m du
+  scénario démo pour en tirer un paramètre. Un nombre inventé dérivé de
+  constantes inventées ; il n'est plus calculé.
+- ~~**Fichiers démo encore appelés.**~~ **TRANCHÉS le 21/07/2026**, un par un.
+  Supprimés (fabriqués et devenus orphelins) : `crew/demo.ts`, `crew/eventsDemo.ts`,
+  `crew/crewEdit.ts`, `social/demo.ts`, `map/demo.ts`. Renommés parce que leur nom
+  mentait sur leur contenu : `motivation/demo.ts` → **`catalog.ts`** (catalogue de
+  contenu), `performance/demo.ts` → **`types.ts`** (types seuls),
+  `share/demo3d.ts` → **`camera3d.ts`** (angles de caméra). Vidés de leurs données
+  fabriquées : `history/demo.ts`, `history/demoRuns.ts`.
+  La cause était unique : `motivation/demo.ts` servait de pivot, ses imports ne
+  servant qu'à un `TODAY_HERO` sans appelant. Les couper a rendu ~1 100 lignes
+  orphelines d'un coup, au lieu de les nettoyer une par une.
+- ~~**Quatre fuites trouvées par la vérification** et corrigées le 21/07/2026 :~~
+  · `intention.ts` — `PARTIAL_BOUNDARIES_DEMO` (frontières « République » et
+    « Canal » ouvertes par un « KORO » inexistant, contributions Benjamin 79 % /
+    Lena 21 %, 420 points crew) et `partialBoundaryById()` qui ne renvoyait
+    JAMAIS null : un identifiant inconnu retombait sur République. **Le repli
+    ÉTAIT le mensonge.** Supprimés, avec les deux écrans de `course-result` qui
+    les affichaient — aucune réponse serveur ne produit ces états.
+  · `ShareMap.tsx` — la prop `trace` était OPTIONNELLE et son absence valait
+    « dessine la boucle République ». **Rendue obligatoire** : l'oubli ne compile
+    plus, et le typage a immédiatement révélé **trois autres sites** où le tracé
+    pouvait manquer. Qui n'a pas de tracé passe `[]` et obtient l'état vide.
+  · `runResult.ts` — le verdict serveur était armé sur succès et **jamais purgé**.
+    La course N+1 finie en file d'attente ou rejetée réaffichait les points et
+    les zones de la N. Purge ajoutée au DÉPART de chaque course.
+  · `social/league.ts` — six podiums de joueurs inventés (« KORO #8 Paris à
+    4 210 pts », LENA_RUN, TOUTDROIT, BPM_BASTILLE). Ils n'étaient plus rendus,
+    mais un seul accès aux `rows` ailleurs aurait suffi à publier un classement
+    fictif. Lignes vidées ; seuls les gabarits restent. Idem pour le mur des
+    supporters de l'Arsenal.
 - **Le redéploiement du lien public n'est pas fait** : c'est une action
   d'hébergement (côté fondateur), pas un changement de code. Tant qu'elle n'est
   pas faite, `skanebody.github.io/Gryd` sert encore l'ancien bundle mobile-web.

@@ -107,7 +107,14 @@ export interface ShareMapProps {
    * la zone conquise, elle, reste entière : c'est le territoire public, pas la
    * position du coureur.
    */
-  trace?: readonly LatLngPoint[];
+  /**
+   * OBLIGATOIRE, et c'est le garde-fou. Tant que la prop était optionnelle, son
+   * absence valait « dessine la boucle République » : un appelant qui oubliait
+   * de la passer publiait le parcours d'un autre sous le nom du coureur, en
+   * silence. Rendue requise, l'oubli ne compile plus — celui qui n'a pas de
+   * tracé passe `[]` et obtient l'état vide honnête ci-dessous.
+   */
+  trace: readonly LatLngPoint[];
   /** Anime le dessin de la trace puis le remplissage de la zone. */
   animated?: boolean;
   /** Incrémenter pour REJOUER l'animation (bouton Replay du partage). */
@@ -179,14 +186,14 @@ export function ShareMap({
   // sortait de la viewBox. Et la ZONE dessinée est la boucle réellement courue
   // (« la boucle fait la zone ») — plus jamais la forme démo sous un vrai run.
   // Le couloir rival est une géométrie DÉMO : jamais dessiné sous une vraie trace.
-  const hasRealTrace = trace !== undefined && trace.length >= 3;
+  const hasRealTrace = trace.length >= 3;
   // ─── FUITE COLMATÉE (21/07/2026) — trois cas, pas deux ────────────────────
   // `trace` absent (undefined) = aucune course armée → EXEMPLE assumé, la boucle
   // République est légitime. Mais `trace` FOURNI et dégénéré (< 3 points) veut
   // dire « cette course-là n'a pas de tracé connu » : replier sur République
   // dessinait alors le parcours d'un autre sous le nom du coureur — la carte
   // partagée montrait Paris à quelqu'un qui avait couru ailleurs.
-  const noKnownRoute = trace !== undefined && trace.length < 3;
+  const noKnownRoute = trace.length < 3;
 
   // ÉTAT VIDE ≠ CARRÉ VIDE (retour fondateur 21/07/2026) : ne rien dessiner
   // était honnête mais MUET — la card montrait un carré entièrement vide, que le
@@ -204,17 +211,19 @@ export function ShareMap({
     );
   }
 
-  const loop = hasRealTrace ? loopRing(trace) : loopRing(BOUCLE_REPUBLIQUE);
+  // `noKnownRoute` a déjà rendu l'état vide : au-delà, le tracé est RÉEL.
+  const loop = loopRing(trace);
   const rival = ribbonRing(RUE_FAUBOURG_DU_TEMPLE, CORRIDOR_HALF_WIDTH_M);
-  const showRival = mode === 'defense' && !hasRealTrace;
+  // Le couloir rival est une géométrie parisienne d'AUTHORING : il ne peut plus
+  // apparaître, puisqu'on ne dessine plus que de vraies courses.
+  const showRival = false;
   const { project } = fit(showRival ? [loop, rival] : [loop]);
   const loopPath = ringPath(loop, project);
   const rivalPath = showRival ? ringPath(rival, project) : '';
 
   // Trace du run : par défaut la boucle fermée ; une trace fournie (privacy)
   // reste OUVERTE — le trou départ/arrivée EST le masquage, on ne le referme pas.
-  const runTrace: readonly LatLngPoint[] =
-    trace ?? [...BOUCLE_REPUBLIQUE, BOUCLE_REPUBLIQUE[0] ?? { lat: 0, lng: 0 }];
+  const runTrace: readonly LatLngPoint[] = trace;
 
   // Dessin progressif : sous-polyligne (slice) selon la phase trace.
   const traceP = Math.min(1, progress / TRACE_PHASE);

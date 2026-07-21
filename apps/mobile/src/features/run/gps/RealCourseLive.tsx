@@ -9,15 +9,21 @@
  * y sont les limites RÉELLES de la plateforme (pas d'arrière-plan, pas de
  * réglages système), annoncées au lieu d'être masquées.
  *
- * Différences assumées avec la démo (honnêteté AMENDEMENT-15 §0) :
- *  - pas de mode Carte ici : la navigation LiveNavMap est construite sur la
- *    route DÉMO — brancher la carte réelle = AMENDEMENT-13 (autre chantier).
+ * C'est désormais le SEUL écran de course qui existe : la course de
+ * démonstration et toute sa chaîne (`DemoCourseLive`, `liveNav`, `route/demo`,
+ * `loop`, `livemates`, `indications`, `LiveNavMap`) ont été supprimées le
+ * 21/07/2026 (A-47). Cet écran ne dépend plus d'aucune donnée de scénario.
+ *
+ * Ce qu'il ne fait PAS, et le dit plutôt que de le simuler :
+ *  - pas de mode Carte : la seule carte de course qui ait existé était bâtie
+ *    sur les polylignes d'authoring du planner (Paris), pas sur le tracé
+ *    mesuré. La rebrancher sur `gps/tracker.ts` est un chantier à part ; en
+ *    attendant, aucune carte vaut mieux qu'une carte qui montre ailleurs.
  *    À la place : bouton AIDE GPS (« Courir écran éteint » par constructeur) ;
  *  - Motion Trust (podomètre) en phase suivante : seule la jauge GPS TRUST
  *    est affichée, jamais une fausse jauge ;
- *  - à la fin : le VRAI IngestRunRequest part (si session réelle) et la
- *    célébration course-result est rejouée à l'échelle de la distance réelle
- *    (résultat réel branché en phase suivante — O8).
+ *  - à la fin : le VRAI IngestRunRequest part (si session réelle) et seules les
+ *    mesures (distance, durée) accompagnent la navigation vers le Résultat.
  * Textes FR courts, vocabulaire zones, anti-shame. Tokens uniquement.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -44,15 +50,7 @@ import { haptics } from '../../../lib/haptics';
 import { Icon } from '../../../ui/Icon';
 import { ProgressBar } from '../../../ui/ProgressBar';
 import { formatInt } from '../../../ui/format';
-import {
-  DEMO_TOTAL_DISTANCE_M,
-  RUN_MODE_LABEL,
-  SIM_LAST_TICK,
-  formatClock,
-  formatKm,
-  formatPace,
-  type LiveRunMode,
-} from '../simulation';
+import { RUN_MODE_LABEL, formatClock, formatKm, formatPace, type LiveRunMode } from '../simulation';
 import type { RealRunApi } from './gateTypes';
 import { loopHint, roundLoopM } from './engine/loopHint';
 import {
@@ -131,20 +129,20 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     finishedRef.current = true;
     haptics.success();
     void run.finish().then(({ distanceM, durationS, uploadQueued }) => {
-      // `t` ne rythme plus que l'ANIMATION de célébration (rejouée depuis la
-      // démo) — plus jamais les chiffres : P0 C1, les KPI du résultat viennent
-      // du serveur (serverResult) ou des mesures réelles dist/dur ci-dessous.
-      // Le clamp 8,2 km ne borne donc plus aucune donnée affichée.
-      const t = Math.max(
-        1,
-        Math.min(SIM_LAST_TICK, Math.round((distanceM / DEMO_TOTAL_DISTANCE_M) * SIM_LAST_TICK)),
-      );
+      // DERNIER LIEN AVEC LA SIMULATION, COUPÉ LE 21/07/2026. On passait ici un
+      // paramètre `t` : un index de tick de la course fabriquée, obtenu en
+      // rapportant la distance réelle aux 8,2 km du scénario démo puis en la
+      // bornant à ses 96 ticks. Le Résultat ne le lit plus depuis qu'il a cessé
+      // de rejouer la démo — c'était donc un nombre inventé, dérivé de
+      // constantes inventées, transporté pour rien. Il n'est plus envoyé, et la
+      // course réelle ne dépend plus d'aucune valeur de scénario.
       router.replace({
         pathname: '/course-result',
-        // Fin hors-ligne : ligne discrète « envoi dès que possible » (anti-shame).
+        // Ce qui part maintenant est exclusivement MESURÉ : la distance et la
+        // durée du tracker. Fin hors-ligne : ligne discrète « envoi dès que
+        // possible » (anti-shame).
         params: {
           mode,
-          t: String(t),
           dist: String(Math.round(distanceM)),
           dur: String(Math.round(durationS)),
           ...(uploadQueued ? { queued: '1' } : {}),

@@ -64,7 +64,6 @@ import {
   boundaryExpiryLabel,
   contributionPct,
   intentionFromParam,
-  partialBoundaryById,
   summaryHeader,
   tracedKmLabel,
   type PartialBoundaryDemo,
@@ -166,20 +165,6 @@ interface ResultView {
 /** État de frontière crew à afficher au résultat (chantier 2, param démo). */
 type BoundaryState = 'open' | 'completed';
 
-/** Parse le param `boundary_state` — sinon null (séquence dopamine normale). */
-function boundaryStateFromParam(
-  param: string | string[] | undefined,
-): BoundaryState | null {
-  const value = Array.isArray(param) ? param[0] : param;
-  if (value === 'open' || value === 'completed') return value;
-  return null;
-}
-
-/**
- * AUCUN RÉSULTAT À MONTRER — état vide honnête (jamais un écran blanc, jamais
- * une célébration empruntée). Une phrase qui dit pourquoi, un seul CTA de
- * sortie : cet écran n'a rien à réparer, seulement à ne pas mentir (§A).
- */
 function NoResultScreen() {
   const t = useT();
   const insets = useSafeAreaInsets();
@@ -250,16 +235,14 @@ export default function CourseResultScreen() {
   // un seul écran = une seule action (ouvrir/terminer). Piloté par `boundary` +
   // `boundary_state` (démo) — en prod ces états viennent d'IngestRunResponse
   // (openBoundary / boundaryCompleted). Le serveur reste seul décideur.
-  const boundaryState = boundaryStateFromParam(params.boundary_state);
-  if (boundaryState !== null) {
-    const boundary = partialBoundaryById(params.boundary);
-    return boundaryState === 'open' ? (
-      <OpenBoundaryResult boundary={boundary} />
-    ) : (
-      <CompletedBoundaryResult boundary={boundary} />
-    );
-  }
-
+  // FRONTIÈRE CREW RETIRÉE (21/07/2026). Ces deux écrans étaient pilotés par les
+  // paramètres d'URL `boundary` + `boundary_state` et lisaient une frontière
+  // FABRIQUÉE (« République », ouverte par « KORO », contributions Benjamin 79 %
+  // / Lena 21 %, 420 points crew). Aucune réponse serveur ne produit ces états :
+  // `IngestRunResponse` ne porte NI `openBoundary` NI `boundaryCompleted`. Un
+  // joueur atteignant l'URL se voyait donc proposer de refermer la frontière
+  // d'un coéquipier qui n'existe pas. Ils reviendront le jour où le serveur les
+  // décide vraiment — le client n'invente pas un état de jeu.
   return <ConquestResultScreen params={params} />;
 }
 
@@ -975,236 +958,6 @@ function MiniStat({ label, value, note }: { label: string; value: string; note?:
 // 620 m. Expire dans 23 h. » Un écran = une action (les deux CTA cadrent la
 // même décision : refermer la boucle).
 
-function OpenBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
-  const insets = useSafeAreaInsets();
-  const t = useT();
-  const [askedToast, setAskedToast] = useState(false);
-
-  useEffect(() => {
-    screen('course_result', { mode: 'conquete', boundary: 'open' });
-    track(EVENTS.celebrationViewed, { mode: 'conquete' });
-    // Haptic d'ouverture : une frontière est née — success léger, jamais de shame.
-    haptics.success();
-  }, []);
-
-  // « Demander au crew » (démo) : la mission part dans la War Room. Toast
-  // éphémère (auto-dismiss) — pas de vraie notif ici (V1 : notif crew serveur).
-  useEffect(() => {
-    if (!askedToast) return;
-    const id = setTimeout(() => setAskedToast(false), 2_600);
-    return () => clearTimeout(id);
-  }, [askedToast]);
-
-  const finishNow = () => {
-    haptics.medium();
-    // Reprend la course en mode « terminer » : le live couvre le segment manquant.
-    router.replace({
-      pathname: '/course-live',
-      params: { mode: 'conquete', intention: 'complete', boundary: boundary.id },
-    });
-  };
-  const askCrew = () => {
-    haptics.light();
-    track(EVENTS.shareCardGenerated);
-    setAskedToast(true);
-  };
-  const goMap = () => router.replace('/(tabs)');
-
-  return (
-    <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
-      <View style={styles.bar}>
-        <Text style={styles.barKicker}>{t(C.barKicker)}</Text>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Course validée + GRYD VERIFIED (le run compte — anti-shame). */}
-        <ResultReveal visible haptic="none" style={styles.block}>
-          <View style={styles.validated}>
-            <Text style={styles.validatedTitle}>{t(C.runValidated)}</Text>
-            <StatePill state="verified" label="GRYD VERIFIED" />
-          </View>
-        </ResultReveal>
-
-        {/* FRONTIÈRE OUVERTE : le KPI = mètres manquants, pas un % de géométrie. */}
-        <ResultReveal visible haptic="none" style={styles.block}>
-          <View style={styles.boundaryCard}>
-            <View style={styles.boundaryHead}>
-              <Icon name="route" size={16} color={colors.chartreuse} />
-              <Text style={styles.boundaryKicker}>{t(C.openBoundaryKicker)}</Text>
-            </View>
-            <Text style={styles.boundaryLead}>
-              {t(C.tracedPrefix)}{' '}
-              <Text style={styles.boundaryLeadAccent}>{tracedKmLabel(boundary)}</Text>{' '}
-              {t(C.tracedSuffix, { zone: boundary.zone })}
-            </Text>
-            <Text style={styles.boundaryMissing}>
-              {t(C.missingPrefix)}{' '}
-              <Text style={styles.boundaryMissingAccent}>{formatInt(boundary.missingM)} m</Text>{' '}
-              {t(C.missingSuffix)}
-            </Text>
-            <View style={styles.boundaryMetaRow}>
-              <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
-              <Text style={styles.boundaryMeta}>{boundaryExpiryLabel(boundary)}</Text>
-            </View>
-          </View>
-        </ResultReveal>
-      </ScrollView>
-
-      {/* Actions : Terminer maintenant (principal) · Demander au crew (secondaire). */}
-      <View style={[styles.boundaryActions, { paddingBottom: insets.bottom + 14 }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={finishNow}
-          style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
-        >
-          <Icon name="route" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.shareLabel}>{t(C.finishNow)}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={askCrew}
-          style={({ pressed }) => [styles.boundarySecondary, pressed && styles.pressed]}
-        >
-          <Icon name="crew" size={iconSizes.sm} color={colors.blanc} />
-          <Text style={styles.boundarySecondaryLabel}>{t(C.askCrew)}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.seeTerritory)}
-          onPress={goMap}
-          hitSlop={8}
-          style={({ pressed }) => [styles.mapLink, pressed && styles.pressed]}
-        >
-          <Text style={styles.mapLinkLabel}>{t(C.seeTerritory)}</Text>
-        </Pressable>
-      </View>
-
-      {/* Toast « Mission envoyée dans la War Room. » (démo — auto-dismiss). */}
-      {askedToast ? (
-        <BoundaryToast bottom={insets.bottom + 96} text={t(C.missionSentToast)} />
-      ) : null}
-    </View>
-  );
-}
-
-// ─── AMENDEMENT-17 §CH2 — Résultat BOUCLE CREW FERMÉE (complétion) ───────────
-// Un membre a couru le segment manquant : la boucle se referme, la zone est
-// CREW, les contributions se répartissent au prorata de la longueur validée.
-// Copy gelée : « Boucle crew fermée · République capturée · Benjamin 79 % ·
-// Lena 21 % · Crew +420 pts. » Simple, jamais de détail technique.
-
-function CompletedBoundaryResult({ boundary }: { boundary: PartialBoundaryDemo }) {
-  const insets = useSafeAreaInsets();
-  const t = useT();
-
-  useEffect(() => {
-    screen('course_result', { mode: 'conquete', boundary: 'completed' });
-    track(EVENTS.celebrationViewed, { mode: 'conquete' });
-    // La zone crew tombe : célébration franche (heavy) — le geste signature.
-    haptics.heavy();
-  }, []);
-
-  const share = () => {
-    haptics.medium();
-    track(EVENTS.shareCardGenerated);
-    // Partage VRAI : la card montre CETTE zone crew (nom + points), pas la démo.
-    setShareRun({
-      mode: 'conquete',
-      intention: 'conquest',
-      card: shareCardFromResult({
-        zoneName: boundary.zone,
-        crewPoints: boundary.crewPoints,
-      }),
-    });
-    router.push({
-      pathname: '/partage',
-      params: { mode: 'conquete', intention: 'conquest', template: 'crew' },
-    });
-  };
-  const goMap = () => router.replace('/(tabs)');
-
-  return (
-    <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
-      <View style={styles.bar}>
-        <Text style={styles.barKicker}>{t(C.barKicker)}</Text>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Le titre = le geste : la boucle crew est fermée, la zone capturée. */}
-        <ResultReveal visible haptic="success" style={styles.block}>
-          <View style={styles.validated}>
-            <Text style={styles.validatedTitle}>{t(C.crewLoopClosed)}</Text>
-            <StatePill state="verified" label="GRYD VERIFIED" />
-          </View>
-        </ResultReveal>
-
-        {/* KPI géant : la zone capturée (chartreuse). */}
-        <ResultReveal visible style={styles.block}>
-          <View style={styles.zonesBlock}>
-            <Text style={styles.boundaryZoneHero} numberOfLines={1}>
-              {boundary.zone}
-            </Text>
-            <Text style={styles.zonesLabel}>{t(C.zoneCapturedLabel)}</Text>
-          </View>
-        </ResultReveal>
-
-        {/* Contributions crew au prorata (moteur) — simple, sans géométrie. */}
-        <ResultReveal visible style={styles.block}>
-          <Text style={styles.stepKicker}>{t(C.crewContribKicker)}</Text>
-          <View style={styles.contribCard}>
-            {boundary.contributions.map((c) => (
-              <View key={c.name} style={styles.contribRow}>
-                <View style={styles.contribAvatar}>
-                  <Text style={styles.contribAvatarText}>{c.name.charAt(0).toUpperCase()}</Text>
-                </View>
-                <Text style={styles.contribName} numberOfLines={1}>
-                  {c.name}
-                </Text>
-                <Text style={styles.contribPct}>{contributionPct(c.share)} %</Text>
-              </View>
-            ))}
-            <View style={styles.contribDivider} />
-            <View style={styles.contribRow}>
-              <Icon name="coffre" size={iconSizes.sm} color={gameColors.gold} />
-              <Text style={styles.contribName}>Crew</Text>
-              <Text style={[styles.contribPct, styles.contribCrewPts]}>
-                {t(C.crewPts, { n: formatInt(boundary.crewPoints) })}
-              </Text>
-            </View>
-          </View>
-        </ResultReveal>
-      </ScrollView>
-
-      <View style={[styles.boundaryActions, { paddingBottom: insets.bottom + 14 }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={share}
-          style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
-        >
-          <Icon name="partage" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.shareLabel}>{t(C.shareConquest)}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.seeTerritory)}
-          onPress={goMap}
-          hitSlop={8}
-          style={({ pressed }) => [styles.mapLink, pressed && styles.pressed]}
-        >
-          <Text style={styles.mapLinkLabel}>{t(C.seeTerritory)}</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-/** Toast bas éphémère (démo « Demander au crew ») — fondu simple, anti-bruit. */
 function BoundaryToast({ bottom, text }: { bottom: number; text: string }) {
   const { opacity, scale } = useReveal(true);
   return (

@@ -2,12 +2,22 @@
  * Dictionnaire FR/EN de la landing (copy du brouillon fondateur, STRUCTURE.md).
  * FR par défaut. Les CONSTANTES DE JEU ne vivent pas ici : elles viennent de
  * @klaim/shared et sont composées dans les sections (aucun chiffre de jeu en
- * dur — le seuil de zone active ci-dessous est interpolé, cohérent avec la FAQ).
+ * dur — les seuils de densité des zones ci-dessous sont interpolés depuis
+ * ZONE_DENSITY_THRESHOLDS, cohérents avec la FAQ).
  * Les clés V1 orphelines (concept.*, map.title, reward.*…) ont été purgées :
  * les sections V2 portent leurs strings en local.
  */
 
-import { WAR_MODE_MIN_ACTIVE_RUNNERS } from '@klaim/shared';
+import { ZONE_DENSITY_THRESHOLDS } from '@klaim/shared';
+
+/**
+ * Seuils de classement d'une zone, lus dans @klaim/shared (jamais en dur ici) :
+ * si la règle change dans game-rules.ts, cette page change avec elle. Ce sont
+ * des RÈGLES annoncées (« ce qu'il faut pour »), pas des mesures locales.
+ */
+const ACTIVE = ZONE_DENSITY_THRESHOLDS.active;
+const EMERGING = ZONE_DENSITY_THRESHOLDS.emerging;
+const PIONEER = ZONE_DENSITY_THRESHOLDS.pioneer;
 
 export type Lang = 'fr' | 'en';
 
@@ -53,8 +63,8 @@ const fr = {
       desc: 'PvP complet, offensives, classements locaux, secteurs contestés et rivalités crew.',
       metrics: [
         // Seuil réel du mode Guerre (@klaim/shared) — cohérent avec la FAQ.
-        { value: `${WAR_MODE_MIN_ACTIVE_RUNNERS}+`, label: 'coureurs actifs' },
-        { value: '5+', label: 'crews rivaux' },
+        { value: `${ACTIVE.minActiveRunners}+`, label: 'coureurs actifs' },
+        { value: `${ACTIVE.minCrews}+`, label: 'crews rivaux' },
         { value: 'PvP', label: 'mode' },
       ],
     },
@@ -62,8 +72,8 @@ const fr = {
       name: 'Zone émergente',
       desc: 'Capture, crews locaux, avant-postes, missions hebdomadaires et classements régionaux.',
       metrics: [
-        { value: '10+', label: 'coureurs actifs' },
-        { value: '2+', label: 'crews locaux' },
+        { value: `${EMERGING.minActiveRunners}+`, label: 'coureurs actifs' },
+        { value: `${EMERGING.minCrews}+`, label: 'crews locaux' },
         { value: 'Crew', label: 'mode' },
       ],
     },
@@ -71,7 +81,7 @@ const fr = {
       name: 'Zone pionnière',
       desc: 'Exploration, routes, avant-postes, bonus pionnier et invitation de nouveaux coureurs.',
       metrics: [
-        { value: '1+', label: 'coureur suffit' },
+        { value: `${PIONEER.minActiveRunners}+`, label: 'coureur suffit' },
         { value: 'Route', label: 'objectif' },
         { value: 'XP+', label: 'bonus' },
       ],
@@ -249,8 +259,8 @@ const en: Dict = {
       desc: 'Full PvP, offensives, local leaderboards, contested sectors and crew rivalries.',
       metrics: [
         // Real War-mode threshold (@klaim/shared) — consistent with the FAQ.
-        { value: `${WAR_MODE_MIN_ACTIVE_RUNNERS}+`, label: 'active runners' },
-        { value: '5+', label: 'rival crews' },
+        { value: `${ACTIVE.minActiveRunners}+`, label: 'active runners' },
+        { value: `${ACTIVE.minCrews}+`, label: 'rival crews' },
         { value: 'PvP', label: 'mode' },
       ],
     },
@@ -258,8 +268,8 @@ const en: Dict = {
       name: 'Emerging zone',
       desc: 'Capture, local crews, outposts, weekly missions and regional leaderboards.',
       metrics: [
-        { value: '10+', label: 'active runners' },
-        { value: '2+', label: 'local crews' },
+        { value: `${EMERGING.minActiveRunners}+`, label: 'active runners' },
+        { value: `${EMERGING.minCrews}+`, label: 'local crews' },
         { value: 'Crew', label: 'mode' },
       ],
     },
@@ -267,7 +277,7 @@ const en: Dict = {
       name: 'Pioneer zone',
       desc: 'Exploration, routes, outposts, pioneer bonus and inviting new runners.',
       metrics: [
-        { value: '1+', label: 'runner is enough' },
+        { value: `${PIONEER.minActiveRunners}+`, label: 'runner is enough' },
         { value: 'Route', label: 'objective' },
         { value: 'XP+', label: 'bonus' },
       ],

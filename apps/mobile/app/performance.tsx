@@ -38,7 +38,7 @@ import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
 import { useSession } from '../src/lib/session';
 import { useMyPerformance } from '../src/features/performance/real';
-import type { PerfRecord } from '../src/features/performance/demo';
+import type { PerfRecord } from '../src/features/performance/types';
 import type { RealPerformance } from '../src/features/performance/derive';
 import {
   ProgressionCard,

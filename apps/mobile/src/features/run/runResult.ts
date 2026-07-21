@@ -6,9 +6,16 @@
  * { error }` ignorait `data`). On la CAPTURE ici, singleton module (même pattern
  * que route/plannedRoute.ts) : useRealRun l'ARME juste avant de naviguer vers le
  * Résultat (l'upload est attendu — le statut queued/sent est déjà propagé), et
- * course-result la LIT pour afficher ce que le serveur a RÉELLEMENT décidé, avec
- * fallback sur la simulation démo quand elle est absente (course web / hors
- * session — aucun envoi). Le client n'écrit jamais rien : lecture seule d'affichage.
+ * course-result la LIT pour afficher ce que le serveur a RÉELLEMENT décidé. Absent
+ * (hors session, envoi en file, rejet) → l'écran le dit, il n'invente rien.
+ * Le client n'écrit jamais rien : lecture seule d'affichage.
+ *
+ * ⚠ CE SINGLETON DOIT ÊTRE PURGÉ AU DÉPART DE CHAQUE COURSE. Il n'était armé
+ * que sur succès et jamais remis à null : le verdict de la course N restait donc
+ * en mémoire, et la course N+1 terminée en 'queued' / 'rejected' / 'lost'
+ * affichait les points et les zones de la PRÉCÉDENTE. Un joueur se voyait
+ * attribuer une capture qu'il venait de ne pas faire — le mensonge exact que ce
+ * projet traque. D'où `clearLastRunResult()`, appelé au démarrage des capteurs.
  */
 import type { IngestRunResponse } from '@klaim/shared';
 
@@ -19,7 +26,15 @@ export function setLastRunResult(result: IngestRunResponse | null): void {
   lastResult = result;
 }
 
-/** Résultat serveur de la dernière course, ou null (démo / hors session). */
+/**
+ * Purge le verdict précédent. À appeler AU DÉPART d'une course, jamais à
+ * l'arrivée : entre les deux, l'écran de résultat doit encore pouvoir le lire.
+ */
+export function clearLastRunResult(): void {
+  lastResult = null;
+}
+
+/** Résultat serveur de la dernière course, ou null (hors session / non jugée). */
 export function getLastRunResult(): IngestRunResponse | null {
   return lastResult;
 }

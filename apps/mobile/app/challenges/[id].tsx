@@ -19,7 +19,7 @@ import { screen } from '../../src/lib/analytics';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { StackScreen } from '../../src/ui/StackScreen';
-import { formatChallengeValue } from '../../src/features/motivation/demo';
+import { formatChallengeValue } from '../../src/features/motivation/catalog';
 import { useChallenge } from '../../src/features/motivation/challengeState';
 import {
   CHALLENGE_DIFFICULTY_LABELS,

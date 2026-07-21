@@ -25,7 +25,7 @@ import { ProgressBar } from '../../ui/ProgressBar';
 import { useCountUp } from '../../ui/game';
 import { useT } from '../../i18n/store';
 import { C } from '../../i18n/catalog/performance';
-import type { GrydImpactStat, PerfRecord, TrendPoint } from './demo';
+import type { GrydImpactStat, PerfRecord, TrendPoint } from './types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HÉROS — Score Forme géant /100 + delta + interprétation (anti-shame)

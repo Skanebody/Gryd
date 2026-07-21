@@ -6,15 +6,28 @@
  *
  * Ce store PERSISTE (AsyncStorage, calque requests.ts / reactions.ts : lecture
  * lazy, écriture fire-and-forget best-effort, useSyncExternalStore natif React)
- * DEUX choses, par-dessus les sorties démo statiques (eventsDemo.ts) :
+ * DEUX choses :
  *   1. Les sorties que J'AI créées (form « Créer une sortie »).
- *   2. Mon RSVP par sortie (démo comme réelle) : « Je viens » / « Peut-être » /
- *      « Indispo ». Mon RSVP se SOUVIENT (reload → mon choix reste).
+ *   2. Mon RSVP par sortie : « Je viens » / « Peut-être » / « Indispo ». Mon
+ *      RSVP se SOUVIENT (reload → mon choix reste).
+ *
+ * ─── CE QUI A ÉTÉ RETIRÉ LE 21/07/2026 (AMENDEMENT-47) ──────────────────────
+ * `eventsDemo.ts` et ses trois SORTIES FABRIQUÉES (« Défense République · Ce
+ * soir 19:00 », hébergées par « LENA_RUN » et « MEHDI93 », avec un compteur de
+ * participants de départ : 6, 4 et 9 personnes). Elles étaient présentées comme
+ * l'agenda du crew : des inconnus donnaient rendez-vous à une heure et un lieu
+ * précis — « Métro République, sortie Magenta » — où personne ne serait venu.
+ * C'est la donnée fabriquée la plus coûteuse du lot : celle qui fait SORTIR
+ * quelqu'un de chez lui.
+ *
+ * `useCrewOutings` ne renvoie donc plus que MES sorties. Aucun écran ne le
+ * consomme aujourd'hui (le Crew HQ réel ne montre pas encore les sorties) : la
+ * liste vide est le seul état honnête tant que `crew_events` n'est pas lu.
  *
  * §A.19 : SOCIAL, PAS DE MONÉTISATION. Une sortie ne donne JAMAIS de territoire,
  * de point ni de rang — courir ensemble = coordination + densité (le moat). Le
  * compteur « X viennent » est un signal de densité, pas un classement. Le claim
- * reste décidé serveur (§3). Tout est LOCAL (démo). TODO(O1) : brancher
+ * reste décidé serveur (§3). Tout est LOCAL. TODO(O1) : brancher
  * crew_events / crew_event_rsvps (0011) via Edge Function — écriture client
  * interdite côté DB (RLS).
  */
@@ -23,7 +36,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Entry } from '../../i18n/types';
 import { C } from '../../i18n/catalog/crew';
 import { CHAT_ME } from './chatStore';
-import { DEMO_OUTINGS } from './eventsDemo';
 
 /** Clés de persistance (versionnées, isolées comme chatStore / requests). */
 const OUTINGS_STORAGE_KEY = 'gryd.crew.outings.v1';
@@ -43,22 +55,6 @@ export const OUTING_RSVP_OPTIONS = ['Je viens', 'Peut-être', 'Indispo'] as cons
 export type OutingRsvp = (typeof OUTING_RSVP_OPTIONS)[number];
 
 /**
- * Une sortie démo (eventsDemo.ts). `when`/`place` sont des LIBELLÉS figés (pas de
- * date calculée) pour rester déterministe. `goingSeed` = nombre de « Je viens »
- * de départ (densité, jamais un classement).
- */
-export interface DemoCrewOuting {
-  id: string;
-  title: string;
-  when: string;
-  place: string;
-  zone: string;
-  objective: CrewOutingObjective;
-  host: string;
-  goingSeed: number;
-}
-
-/**
  * Une sortie que J'AI créée (form court). Même forme d'affichage qu'une sortie
  * démo, mais sans seed (elle démarre à 0 « Je viens » — ma propre voix s'ajoute
  * si je réponds « Je viens »). `createdAt` sert l'ordre + un id stable.
@@ -75,8 +71,8 @@ export interface SentCrewOuting {
 }
 
 /**
- * Vue unifiée d'une sortie affichable (démo OU créée), résolue avec MON RSVP et
- * le total « viennent » (seed + ma voix). C'est ce que l'écran consomme.
+ * Vue d'une sortie affichable, résolue avec MON RSVP et le total « viennent ».
+ * C'est ce que l'écran consomme.
  */
 export interface OutingView {
   id: string;
@@ -86,11 +82,15 @@ export interface OutingView {
   zone: string;
   objective: CrewOutingObjective;
   host: string;
-  /** Est-ce une sortie que j'ai créée moi-même (démo) ? */
+  /** Est-ce une sortie que j'ai créée moi-même ? */
   mine: boolean;
   /** Mon RSVP courant, ou null si je n'ai pas encore répondu. */
   myRsvp: OutingRsvp | null;
-  /** Total « Je viens » (seed démo + 1 si je viens). Signal de densité. */
+  /**
+   * Total « Je viens » — aujourd'hui MA seule voix (1 si je viens, sinon 0).
+   * Les RSVP des autres membres sont dans `crew_event_rsvps`, que le client ne
+   * lit pas encore : on compte ce qu'on sait, jamais un total supposé.
+   */
   going: number;
 }
 
@@ -223,23 +223,6 @@ export function resetOutings(): void {
 
 // ─── Résolution des vues (démo + créées, avec mon RSVP + densité) ─────────────
 
-/** Résout une sortie démo en vue affichable (seed + ma voix). PURE-ish (lit rsvp). */
-function resolveDemo(o: DemoCrewOuting): OutingView {
-  const myRsvp = rsvp[o.id] ?? null;
-  return {
-    id: o.id,
-    title: o.title,
-    when: o.when,
-    place: o.place,
-    zone: o.zone,
-    objective: o.objective,
-    host: o.host,
-    mine: false,
-    myRsvp,
-    going: o.goingSeed + (myRsvp === 'Je viens' ? 1 : 0),
-  };
-}
-
 /** Résout une sortie que j'ai créée en vue affichable. */
 function resolveSent(o: SentCrewOuting): OutingView {
   const myRsvp = rsvp[o.id] ?? null;
@@ -253,8 +236,8 @@ function resolveSent(o: SentCrewOuting): OutingView {
     host: o.host,
     mine: true,
     myRsvp,
-    // Une sortie que j'ai créée démarre à 0 (pas de seed) — ma voix « Je viens »
-    // compte comme pour les autres.
+    // Une sortie démarre à 0 — ma voix « Je viens » est la seule que le client
+    // connaisse tant que les RSVP des autres ne sont pas lus au serveur.
     going: myRsvp === 'Je viens' ? 1 : 0,
   };
 }
@@ -272,18 +255,21 @@ function getSnapshot(): number {
 }
 
 export interface CrewOutingsStore {
-  /** Sorties à venir résolues : les MIENNES d'abord (plus récentes), puis démo. */
+  /** MES sorties à venir, les plus récentes d'abord. Vide tant que je n'en crée pas. */
   outings: readonly OutingView[];
+  /**
+   * La lecture AsyncStorage est terminée. Un écran doit attendre `loaded` avant
+   * de conclure « aucune sortie » : sinon il affirme le vide pendant le
+   * chargement, ce qui est faux pour qui vient d'en créer une.
+   */
   loaded: boolean;
 }
 
 /**
  * Hook des sorties de crew. Abonne l'écran au store (re-render à chaque création
- * / RSVP) et expose la liste résolue à afficher (démo + créées, mon RSVP fusionné).
+ * / RSVP) et expose MES sorties résolues avec mon RSVP.
  */
 export function useCrewOutings(): CrewOutingsStore {
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const mine = outings.map(resolveSent);
-  const demo = DEMO_OUTINGS.map(resolveDemo);
-  return { outings: [...mine, ...demo], loaded };
+  return { outings: outings.map(resolveSent), loaded };
 }

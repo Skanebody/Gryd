@@ -50,7 +50,7 @@ import {
   type StoredRun,
 } from '../../../lib/runStore';
 import type { LiveRunMode } from '../simulation';
-import { setLastRunResult } from '../runResult';
+import { clearLastRunResult, setLastRunResult } from '../runResult';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import type { RealRunGate } from './gateTypes';
 import type { RunLocationAdapter, RunUnavailableReason, RunWatchHandle } from './locationAdapter';
@@ -186,6 +186,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
 
   /** Branche la source de fixes : tâche background si « Toujours », sinon watch. */
   const startSensors = useCallback(async () => {
+    // Le verdict de la course PRÉCÉDENTE meurt ici. Sans ça, une course qui
+    // finit en file d'attente ou rejetée réaffiche les points de la dernière
+    // course réussie — le joueur croit avoir capturé ce qu'il n'a pas capturé.
+    clearLastRunResult();
     const onFixes = (fixes: Parameters<RunTracker['addFixes']>[0]) =>
       trackerRef.current?.addFixes(fixes);
     const bg = adapter.background;

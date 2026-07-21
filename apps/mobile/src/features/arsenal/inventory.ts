@@ -501,12 +501,15 @@ export interface CrewWallEntry {
   contribution: string;
 }
 
-/** Supporters de la saison démo (aucun montant, aucun classement par dépense). */
-export const INITIAL_CREW_WALL: readonly CrewWallEntry[] = [
-  { supporter: 'LENA_RUN', contribution: 'Crew Boost Weekend' },
-  { supporter: null, contribution: 'Template recrutement' },
-  { supporter: 'KORO', contribution: 'Coffre cosmétique crew' },
-];
+/**
+ * Mur des supporters du crew. VIDE au départ (21/07/2026) : il portait trois
+ * contributions de membres inventés (« LENA_RUN », « KORO »). Un mur de
+ * supporters est par nature une liste de PERSONNES — en fabriquer, c'est
+ * attribuer un geste à quelqu'un qui ne l'a pas fait, et faire croire à un
+ * nouveau crew qu'il a déjà une histoire. Il se remplit des vraies
+ * contributions, ou il reste vide et l'écran le dit.
+ */
+export const INITIAL_CREW_WALL: readonly CrewWallEntry[] = [];
 
 /** Nom affiché d'un supporter (anonymat respecté). */
 export function supporterLabel(entry: CrewWallEntry): string {

@@ -408,6 +408,41 @@ export type SectorControlStatus = keyof typeof SECTOR_CONTROL_THRESHOLDS;
 export const WAR_MODE_MIN_ACTIVE_RUNNERS = 20;
 export const WAR_MODE_WINDOW_DAYS = 30;
 export const WAR_MODE_RADIUS_KM = 5;
+
+/**
+ * ─── Seuils de densité ANNONCÉS PUBLIQUEMENT ────────────────────────────────
+ * Ce que la page publique présente comme la règle de classement d'une zone :
+ * combien de coureurs actifs (fenêtre WAR_MODE_WINDOW_DAYS, rayon
+ * WAR_MODE_RADIUS_KM) et combien de crews il faut pour qu'une zone soit dite
+ * active / émergente / pionnière. Ces valeurs étaient codées EN DUR dans
+ * `apps/web/app/components/landing/dictionary.ts` ; elles vivent ici pour
+ * qu'un changement de règle change la page du même coup — sinon la landing
+ * continue d'annoncer l'ancienne règle, ce qui finit par être un mensonge.
+ *
+ * HONNÊTETÉ SUR LEUR STATUT (ne pas l'effacer d'une relecture) : seul le palier
+ * `active` est aujourd'hui APPLIQUÉ par du code, via WAR_MODE_MIN_ACTIVE_RUNNERS
+ * (activation du mode Guerre). `minCrews` et les paliers `emerging` / `pioneer`
+ * sont des seuils DÉCLARÉS, pas encore évalués : `city_zones.status` est posé à
+ * l'exploitation (Paris + Lille seedées `active` en Saison 0). Tant que c'est le
+ * cas, ces nombres s'annoncent comme une RÈGLE (« ce qu'il faut pour »), jamais
+ * comme une MESURE (« ce qu'il y a ici »).
+ * `active.minCrews` = les « 5 crews actifs » de la version complète du seuil de
+ * mode Guerre (docs/product/GRYD_map_zones_sectors_rules.md §4).
+ *
+ * Publié par : apps/web/app/components/landing/dictionary.ts (section `zones`).
+ */
+export const ZONE_DENSITY_THRESHOLDS: Record<
+  ZoneDensity,
+  { readonly minActiveRunners: number; readonly minCrews: number }
+> = {
+  active: { minActiveRunners: WAR_MODE_MIN_ACTIVE_RUNNERS, minCrews: 5 },
+  emerging: { minActiveRunners: 10, minCrews: 2 },
+  /** Un seul coureur suffit à ouvrir une zone pionnière — aucun crew requis. */
+  pioneer: { minActiveRunners: 1, minCrews: 0 },
+  /** Zone sauvage = ABSENCE de densité : aucun seuil à franchir, rien à publier. */
+  wild: { minActiveRunners: 0, minCrews: 0 },
+};
+
 /** Avant-poste basique (V0) : présence construite en zone peu dense. */
 export const OUTPOST_MIN_HEXES = 100;
 export const OUTPOST_RADIUS_KM = 2;

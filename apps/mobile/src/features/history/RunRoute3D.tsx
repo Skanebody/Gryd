@@ -5,23 +5,25 @@
  * extrudée si boucle fermée), en réutilisant RealMap (pitch/bearing/extrudeZones)
  * et ShareMap3D d'AMENDEMENT-24. »
  *
- * C'est l'analogue de `ShareMap3D` (même stack : MapLibre, PAS Mapbox ; ZÉRO
- * clé ; tuiles CARTO dark) mais PARAMÉTRÉ PAR LE TRACÉ de la course (via
- * demoRuns) au lieu de la boucle République figée du partage :
+ * `ShareMap3D` n'existe plus (supprimé le 21/07/2026, AMENDEMENT-47 : il montait
+ * une conquête inventée sur la boucle République). RunRoute3D en garde la stack
+ * — MapLibre, PAS Mapbox ; ZÉRO clé ; tuiles CARTO dark — mais avec la
+ * différence qui l'a fait survivre : il est PARAMÉTRÉ PAR LE TRACÉ de la course
+ * reçu en prop, jamais par une scène pré-écrite.
  *   - `closed` → la boucle enferme une aire : elle est EXTRUDÉE en volume
  *     chartreuse translucide (fill-extrusion) + empreinte au sol + liseré net ;
  *   - ouverte (route/aller-retour) → PAS de volume (rien à enfermer) : seule la
  *     trace chartreuse épaisse court sur la carte (honnête — pas de fausse zone).
  * Dans les deux cas : trace chartreuse ÉPAISSE + fil blanc discret, sur le fond
  * dark. La caméra CADRE le tracé (traceCamera) ; le pitch/bearing signature
- * (~55° / -18°) sont RÉUTILISÉS de demo3d (CARTE_3D_PITCH/BEARING) — le look 3D
+ * (~55° / -18°) sont RÉUTILISÉS de camera3d (CARTE_3D_PITCH/BEARING) — le look 3D
  * du partage et de l'historique est strictement le même. Les constantes de
  * VOLUME/trace (hauteur, opacité, épaisseur — UI de rendu, pas des règles de
- * jeu) sont posées localement, alignées sur celles de demo3d.
+ * jeu) sont posées localement, alignées sur celles de camera3d.
  *
  * Non-régression : RealMap reçoit pitch/bearing/extrudeZones — props
  * OPTIONNELLES dont le défaut est la 2D actuelle ; ici on les active (comme
- * ShareMap3D, le seul autre endroit qui monte une carte 3D). Reduce motion :
+ * la carte 3D de partage le faisait avant sa suppression). Reduce motion :
  * porté par RealMap (pitch FIXE, aucune animation caméra imposée). Attribution
  * masquée (le bloc porte sa chrome), carte silencieuse (labels de quartiers
  * éteints — le tracé prime). Le conteneur clippe (overflow) pour épouser le coin
@@ -33,12 +35,12 @@ import { colors } from '@klaim/shared';
 import { RealMap, type RealMapGeoJSONLayer } from '../../ui/game';
 import { loopRing } from '../map/allTerritories';
 import { withAlpha } from '../map/mapStyle';
-import { CARTE_3D_BEARING, CARTE_3D_PITCH } from '../share/demo3d';
+import { CARTE_3D_BEARING, CARTE_3D_PITCH } from '../share/camera3d';
 import type { LatLngPoint } from '../map/realAnchors';
 import { traceCamera, type RunTrace } from './demoRuns';
 
 // ─── Constantes de RENDU 3D (UI uniquement — jamais des règles de jeu) ───────
-// Mêmes valeurs de rendu que la carte 3D de partage (demo3d) — le look est UN
+// Mêmes valeurs de rendu que la carte 3D de partage (camera3d) — le look est UN
 // (le partage et l'historique montrent la MÊME 3D signature GRYD).
 
 /** Hauteur DOUCE du volume de la zone (m MapLibre) — le territoire « monte ». */
@@ -54,7 +56,7 @@ const ZONE_STROKE_ALPHA = 0.55;
 const ZONE_STROKE_WIDTH = 2;
 /** Trace du run : chartreuse ÉPAISSE (le tracé prime sur la carte). */
 const TRACE_WIDTH = 4.5;
-/** Fil blanc DISCRET par-dessus la trace (lisibilité, comme ShareMap/demo3d). */
+/** Fil blanc DISCRET par-dessus la trace (lisibilité, comme ShareMap/camera3d). */
 const TRACE_HAIRLINE_WIDTH = 1;
 const TRACE_HAIRLINE_ALPHA = 0.75;
 
@@ -101,7 +103,7 @@ function runRoute3dLayers(trace: RunTrace): readonly RealMapGeoJSONLayer[] {
     closed && first ? [...points, first] : points;
 
   const traceLayers: RealMapGeoJSONLayer[] = [
-    // TRACE du run : chartreuse ÉPAISSE + fil blanc discret (comme demo3d).
+    // TRACE du run : chartreuse ÉPAISSE + fil blanc discret (comme camera3d).
     {
       id: 'rr3d-trace',
       data: lineCollection(traceClosed),
@@ -163,7 +165,7 @@ export interface RunRoute3DProps {
 
 /**
  * Vue 3D du parcours d'une course (détail Historique). Aspect géré par le parent
- * via `style` (comme ShareMap3D). La caméra cadre le tracé de CETTE course. La
+ * via `style`. La caméra cadre le tracé de CETTE course. La
  * 3D d'un parcours d'historique n'affiche que MON tracé/ma zone (chartreuse),
  * jamais un rival (un historique montre mon effort, pas la guerre en cours).
  */
