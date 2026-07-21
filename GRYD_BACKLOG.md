@@ -118,6 +118,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] PostHog : clés projet (events §8 déjà nommés, câblage à finir)
 
 ## Fait (récent)
+- [x] **A-46 — Parcours personnalisés par les habitudes réelles** : moteur pur `habits.ts` (médiane+MAD, seuil d'honnêteté, zéro géographie), RPC 0054/0055 bornées à `auth.uid()`, écran `mes-parcours` (déduit / cible / apprentissage / oublier). Corrige au passage une RPC fantôme (`run_habit_profile`) et deux stores homonymes qui rendaient les réglages inertes — `f786bbd`, 743 tests + 42 contrôles PGlite, migrations appliquées en prod
 - [x] Carte = interface de décision (retour fondateur) : alerte tactique forte en haut + card DÉFENDRE contextuelle en bas au-dessus du bouton + suppression des mini-pills au centre — `a4acca9`
 - [x] Carte : coach « opportunités proches » (module pur + tests + bandeau OpportunityPill, informatif sans CTA) — `e55cddc`, 508 tests
 - [x] Bonus de groupe ACTIF en live : ingest_run compte les coéquipiers same-crew (rivaux exclus) → lock étendu — `442d631`
