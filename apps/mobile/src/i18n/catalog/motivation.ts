@@ -38,6 +38,63 @@ export const C = defineCatalog({
     de: 'Dein nächster Lauf wartet.',
     pt: 'Sua próxima corrida te espera.',
   },
+
+  // ─── Aujourd'hui — ÉTATS VIDES HONNÊTES (« l'app ne ment jamais ») ─────────
+  // Hors vitrine, l'écran n'a le droit d'afficher NI un prénom inventé, NI un
+  // quartier inventé, NI une route de démo. Les trois situations ont chacune
+  // leur copie : pas de compte · compte mais rien à montrer · serveur injoignable.
+  // Aucune ne laisse un trou : la décision du jour (partir courir) reste offerte.
+  todayGreetingAnon: {
+    fr: 'BONJOUR',
+    en: 'HELLO',
+    es: 'HOLA',
+    de: 'HALLO',
+    pt: 'OLÁ',
+  },
+  todaySignedOutSituation: {
+    fr: 'Connecte-toi pour retrouver ton territoire et ta série.',
+    en: 'Sign in to get your territory and your streak back.',
+    es: 'Inicia sesión para recuperar tu territorio y tu racha.',
+    de: 'Melde dich an, um dein Revier und deine Serie wiederzufinden.',
+    pt: 'Entre para recuperar seu território e sua sequência.',
+  },
+  todayOfflineSituation: {
+    fr: 'GRYD n’arrive pas à joindre son serveur. Tes courses ne seront pas enregistrées tant que la connexion n’est pas rétablie.',
+    en: 'GRYD can’t reach its server. Your runs won’t be saved until the connection is back.',
+    es: 'GRYD no consigue contactar con su servidor. Tus carreras no se guardarán hasta que vuelva la conexión.',
+    de: 'GRYD erreicht seinen Server nicht. Deine Läufe werden erst gespeichert, wenn die Verbindung wieder steht.',
+    pt: 'O GRYD não consegue alcançar seu servidor. Suas corridas não serão salvas enquanto a conexão não voltar.',
+  },
+  todaySignIn: {
+    fr: 'Se connecter',
+    en: 'Sign in',
+    es: 'Iniciar sesión',
+    de: 'Anmelden',
+    pt: 'Entrar',
+  },
+  // Card héros quand AUCUNE route réelle n'existe : on le dit, on explique
+  // pourquoi, et le départ reste le seul CTA de l'écran (§A : 1 décision).
+  todayNoRouteKicker: {
+    fr: 'PAS ENCORE DE ROUTE',
+    en: 'NO ROUTE YET',
+    es: 'AÚN SIN RUTA',
+    de: 'NOCH KEINE ROUTE',
+    pt: 'AINDA SEM ROTA',
+  },
+  todayNoRouteTitle: {
+    fr: 'GRYD ne connaît pas encore ton terrain.',
+    en: 'GRYD doesn’t know your ground yet.',
+    es: 'GRYD todavía no conoce tu terreno.',
+    de: 'GRYD kennt dein Terrain noch nicht.',
+    pt: 'O GRYD ainda não conhece o seu terreno.',
+  },
+  todayNoRouteBody: {
+    fr: 'Les routes recommandées arrivent après tes premières sorties. En attendant, pars courir : tout ce que tu traverses devient à toi.',
+    en: 'Recommended routes show up after your first runs. In the meantime, just go: everything you cross becomes yours.',
+    es: 'Las rutas recomendadas llegan después de tus primeras salidas. Mientras tanto, sal a correr: todo lo que atraviesas pasa a ser tuyo.',
+    de: 'Empfohlene Routen kommen nach deinen ersten Läufen. Lauf bis dahin einfach los: Alles, was du durchquerst, gehört dir.',
+    pt: 'As rotas recomendadas aparecem depois das suas primeiras saídas. Enquanto isso, vá correr: tudo o que você atravessa passa a ser seu.',
+  },
   // Les 2 verbes joueur (AMENDEMENT-12 §A) — CTA + kicker : COURTS (§A).
   // de : « HALTEN » plutôt que « VERTEIDIGEN » (§A, reformulation concise).
   objectiveConquer: {
@@ -162,6 +219,65 @@ export const C = defineCatalog({
     es: 'Objetivos elegidos, a tu ritmo. La constancia cuenta tanto como el rendimiento.',
     de: 'Ziele nach deiner Wahl, in deinem Tempo. Konstanz zählt so viel wie Leistung.',
     pt: 'Objetivos escolhidos, no seu ritmo. A regularidade conta tanto quanto o desempenho.',
+  },
+
+  // ─── Choix avancés de course — panneau « Défendre » ───────────────────────
+  // La liste des zones à défendre n'est PAS câblée au réel : hors vitrine on ne
+  // peut donc nommer aucun quartier. On le dit, et on propose l'action qui, elle,
+  // marche vraiment : partir avec l'intention Défendre (le tracé réel décide).
+  defenseNoZonesKicker: {
+    fr: 'PAS ENCORE DE ZONE À DÉFENDRE',
+    en: 'NO ZONE TO DEFEND YET',
+    es: 'AÚN SIN ZONA QUE DEFENDER',
+    de: 'NOCH KEINE ZONE ZU HALTEN',
+    pt: 'AINDA SEM ZONA PARA DEFENDER',
+  },
+  defenseNoZonesBody: {
+    fr: 'GRYD ne connaît pas encore les zones que tu tiens. Cours : ton tracé réel décide de ce que tu défends.',
+    en: 'GRYD doesn’t know which zones you hold yet. Just run: your actual track decides what you defend.',
+    es: 'GRYD todavía no sabe qué zonas mantienes. Sal a correr: tu trazado real decide lo que defiendes.',
+    de: 'GRYD weiß noch nicht, welche Zonen du hältst. Lauf los: Deine echte Strecke entscheidet, was du verteidigst.',
+    pt: 'O GRYD ainda não sabe quais zonas você mantém. Corra: seu traçado real decide o que você defende.',
+  },
+  defenseRunFreely: {
+    fr: 'Courir librement',
+    en: 'Run freely',
+    es: 'Correr libremente',
+    de: 'Frei laufen',
+    pt: 'Correr livremente',
+  },
+
+  // ─── Challenges — ÉTATS VIDES HONNÊTES ────────────────────────────────────
+  // Hors vitrine, la liste ne montre QUE le catalogue légitime (objectifs issus
+  // des seeds), progression à 0. Aucun crew rival ni sponsor inventé. Quand il
+  // ne reste rien à montrer, on dit POURQUOI — jamais une liste vide muette.
+  challengesEmptySignedOutTitle: {
+    fr: 'Tes défis arrivent avec ton compte.',
+    en: 'Your challenges come with your account.',
+    es: 'Tus desafíos llegan con tu cuenta.',
+    de: 'Deine Challenges kommen mit deinem Konto.',
+    pt: 'Seus desafios vêm com sua conta.',
+  },
+  challengesEmptySignedOutBody: {
+    fr: 'Connecte-toi pour suivre ta progression sur les défis GRYD, sortie après sortie.',
+    en: 'Sign in to track your progress on GRYD challenges, run after run.',
+    es: 'Inicia sesión para seguir tu progreso en los desafíos GRYD, salida tras salida.',
+    de: 'Melde dich an, um deinen Fortschritt bei den GRYD-Challenges Lauf für Lauf zu verfolgen.',
+    pt: 'Entre para acompanhar seu progresso nos desafios GRYD, corrida após corrida.',
+  },
+  challengesEmptyOfflineTitle: {
+    fr: 'Défis indisponibles.',
+    en: 'Challenges unavailable.',
+    es: 'Desafíos no disponibles.',
+    de: 'Challenges nicht verfügbar.',
+    pt: 'Desafios indisponíveis.',
+  },
+  challengesEmptyOfflineBody: {
+    fr: 'GRYD n’arrive pas à joindre son serveur. Tes défis réapparaîtront dès que la connexion sera rétablie.',
+    en: 'GRYD can’t reach its server. Your challenges will be back as soon as the connection is.',
+    es: 'GRYD no consigue contactar con su servidor. Tus desafíos volverán en cuanto se restablezca la conexión.',
+    de: 'GRYD erreicht seinen Server nicht. Deine Challenges sind zurück, sobald die Verbindung wieder steht.',
+    pt: 'O GRYD não consegue alcançar seu servidor. Seus desafios voltam assim que a conexão voltar.',
   },
   yourCrew: {
     fr: 'Ton crew',

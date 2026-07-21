@@ -1,6 +1,7 @@
 /*
- * Compte à rebours Saison 0 (AMENDEMENT-05 §3.1) — strip carbone du hero.
- * Chartreuse limité au chip « Saison 0 » (état en direct, doctrine C.3).
+ * Bandeau Saison 0 du hero — strip carbone.
+ * Chartreuse limité au chip « Saison 0 ». Aucun chiffre de preuve sociale :
+ * le point ne clignote plus (il ne signale plus un « direct » qui n'existe pas).
  */
 
 .strip {
@@ -38,39 +39,13 @@
   background: var(--ch);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .chipDot {
-    animation: countdownBlink 1.6s ease-in-out infinite;
-  }
-}
-
-@keyframes countdownBlink {
-  50% {
-    opacity: 0.25;
-  }
-}
-
-.timer {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-/* Chiffre héros : graisse 400, tabulaire (AMENDEMENT-03). */
-.days {
+/* État de la saison — texte, pas chiffre. */
+.state {
   font-family: var(--disp);
   font-weight: 400;
-  font-size: 26px;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
+  font-size: 19px;
+  letter-spacing: -0.01em;
   color: var(--blanc);
-}
-
-.clock {
-  font-family: var(--mono);
-  font-size: 15px;
-  color: var(--blanc);
-  font-variant-numeric: tabular-nums;
 }
 
 .sep {
@@ -87,11 +62,12 @@
   color: var(--gris);
 }
 
-.meta strong {
-  color: var(--blanc);
-  font-weight: 500;
-  margin-right: 4px;
-  font-variant-numeric: tabular-nums;
+.note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--gris);
 }
 
 @media (max-width: 640px) {
@@ -102,5 +78,9 @@
 
   .sep {
     display: none;
+  }
+
+  .state {
+    font-size: 17px;
   }
 }

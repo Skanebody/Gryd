@@ -324,20 +324,11 @@ export const C = defineCatalog({
     de: 'Dein Tresor-Beitrag geht verloren',
     pt: 'Você perde sua contribuição ao cofre',
   },
-  leaveCrewSoonBody: {
-    fr: 'Quitter un crew depuis l’app arrive très bientôt. Ta contribution au coffre reste comptée jusque-là.',
-    en: 'Leaving a crew from the app is coming very soon. Your vault contribution keeps counting until then.',
-    es: 'Salir de un crew desde la app llegará muy pronto. Tu aporte al cofre sigue contando hasta entonces.',
-    de: 'Eine Crew in der App zu verlassen kommt sehr bald. Dein Tresor-Beitrag zählt bis dahin weiter.',
-    pt: 'Sair de um crew pelo app chega muito em breve. Sua contribuição ao cofre continua contando até lá.',
-  },
-  leaveCrewSoonNote: {
-    fr: "Quitter le crew sera possible depuis l'app bientôt.",
-    en: 'Leaving the crew from the app is coming soon.',
-    es: 'Pronto podrás salir del crew desde la app.',
-    de: 'Die Crew verlassen geht bald direkt in der App.',
-    pt: 'Sair do crew pelo app estará disponível em breve.',
-  },
+  // `leaveCrewSoonBody` / `leaveCrewSoonNote` SUPPRIMÉS (21/07/2026) : ils
+  // annonçaient « quitter un crew arrive bientôt » alors que la RPC `leave_crew`
+  // est câblée et que le flux complet vit dans l'écran Crew. Une promesse de
+  // fonctionnalité déjà livrée est un mensonge comme un autre — et laisser les
+  // clés en place aurait invité à les réutiliser.
 
   // ── Sous-page Course ──
   secStyleJeu: {
@@ -710,13 +701,11 @@ export const C = defineCatalog({
     de: 'Min. Finisher-Beitrag',
     pt: 'Contribuição mín. do finisher',
   },
-  contributionMinValue: {
-    fr: '400 m ou 15 %',
-    en: '400 m or 15%',
-    es: '400 m o 15 %',
-    de: '400 m oder 15 %',
-    pt: '400 m ou 15 %',
-  },
+  // `contributionMinValue` SUPPRIMÉ : il figeait « 400 m ou 15 % » dans les cinq
+  // langues, en doublon des constantes du moteur. Remplacé par
+  // `contributionMinBoth`, interpolé depuis FINISHER_MIN_SEGMENT_M /
+  // FINISHER_MIN_SHARE — la ligne « pour transparence » dit désormais la vérité
+  // même si le moteur change.
   secDiagnostics: {
     fr: 'DIAGNOSTICS',
     en: 'DIAGNOSTICS',
@@ -1749,5 +1738,137 @@ export const C = defineCatalog({
     es: 'Al jugar a GRYD aceptas este código de conducta. El contenido de odio o acoso no tiene cabida aquí — una persona lee cada reporte.',
     de: 'Wenn du GRYD spielst, akzeptierst du diesen Verhaltenskodex. Hass oder Belästigung haben hier keinen Platz — ein Mensch liest jede Meldung.',
     pt: 'Ao jogar GRYD, você aceita este código de conduta. Conteúdo de ódio ou assédio não tem lugar aqui — uma pessoa lê cada denúncia.',
+  },
+
+  // ══════════════════ ÉTATS VIDES HONNÊTES (21/07/2026) ══════════════════
+  //
+  // Le mode vitrine est ABANDONNÉ (EXPO_PUBLIC_SHOWCASE supprimé), donc le
+  // natif ET localhost affichent le VRAI produit. Les Paramètres montraient
+  // jusqu'ici l'identité et le crew du persona démo (« KORO », « LES FOULÉES
+  // 9³ ») à un utilisateur qui n'a ni compte ni crew. Ces textes remplacent
+  // ces affirmations par la vérité — et, quand il y a une action, UNE seule.
+  //
+  // Trois situations DISTINCTES, trois copies : pas connecté ≠ connecté sans
+  // rien à montrer ≠ lecture ratée. Les confondre, c'est mentir à deux tiers
+  // des joueurs.
+
+  /** Valeur d'une ligne d'identité quand aucune session réelle n'existe. */
+  identityNone: {
+    fr: 'Non connecté',
+    en: 'Not signed in',
+    es: 'Sin conectar',
+    de: 'Nicht angemeldet',
+    pt: 'Não conectado',
+  },
+  identitySignInLabel: {
+    fr: 'Se connecter',
+    en: 'Sign in',
+    es: 'Conectarse',
+    de: 'Anmelden',
+    pt: 'Entrar',
+  },
+  identitySignInDetail: {
+    fr: 'Ton profil et ton crew te suivront partout',
+    en: 'Your profile and crew follow you everywhere',
+    es: 'Tu perfil y tu crew te siguen a todas partes',
+    de: 'Profil und Crew begleiten dich überall',
+    pt: 'Seu perfil e seu crew acompanham você',
+  },
+  /** Build sans backend configuré : se connecter est IMPOSSIBLE, on le dit. */
+  identityNoBackend: {
+    fr: 'Ce build tourne sans compte : rien n’est envoyé ni enregistré ailleurs que sur ce téléphone.',
+    en: 'This build runs without an account: nothing is sent or stored anywhere but on this phone.',
+    es: 'Esta versión funciona sin cuenta: nada se envía ni se guarda fuera de este teléfono.',
+    de: 'Dieser Build läuft ohne Konto: Nichts verlässt dieses Telefon.',
+    pt: 'Esta versão funciona sem conta: nada é enviado nem guardado fora deste telefone.',
+  },
+
+  // ── Sous-page Crew : les 4 états réels (chargement / hors ligne / sans crew / échec) ──
+  crewLoading: {
+    fr: 'Lecture de ton crew…',
+    en: 'Loading your crew…',
+    es: 'Cargando tu crew…',
+    de: 'Crew wird geladen…',
+    pt: 'Carregando seu crew…',
+  },
+  crewSignedOutBody: {
+    fr: 'Connecte-toi pour retrouver ton crew et ses réglages.',
+    en: 'Sign in to find your crew and its settings.',
+    es: 'Conéctate para recuperar tu crew y sus ajustes.',
+    de: 'Melde dich an, um Crew und Einstellungen zu sehen.',
+    pt: 'Entre para ver seu crew e suas configurações.',
+  },
+  crewNoneTitle: {
+    fr: 'Tu n’es dans aucun crew',
+    en: 'You’re not in a crew yet',
+    es: 'Aún no estás en ningún crew',
+    de: 'Du bist noch in keiner Crew',
+    pt: 'Você ainda não está em um crew',
+  },
+  crewNoneBody: {
+    fr: 'Fonde le tien ou rejoins-en un avec un code. Les réglages ci-dessous s’activeront à ce moment-là.',
+    en: 'Start yours or join one with a code. The settings below unlock then.',
+    es: 'Funda el tuyo o únete con un código. Los ajustes de abajo se activan entonces.',
+    de: 'Gründe eine oder tritt mit einem Code bei. Danach greifen die Einstellungen unten.',
+    pt: 'Crie o seu ou entre com um código. As configurações abaixo abrem então.',
+  },
+  crewNoneCta: {
+    fr: 'Trouver un crew',
+    en: 'Find a crew',
+    es: 'Buscar un crew',
+    de: 'Crew finden',
+    pt: 'Encontrar um crew',
+  },
+  crewLoadFailedTitle: {
+    fr: 'Impossible de lire ton crew',
+    en: 'Couldn’t load your crew',
+    es: 'No se pudo cargar tu crew',
+    de: 'Crew konnte nicht geladen werden',
+    pt: 'Não deu para carregar seu crew',
+  },
+  crewLoadFailedBody: {
+    fr: 'On ne sait pas si tu en as un — on préfère le dire plutôt que d’inventer.',
+    en: 'We don’t know whether you have one — better to say so than to guess.',
+    es: 'No sabemos si tienes uno — preferimos decirlo a inventarlo.',
+    de: 'Wir wissen nicht, ob du eine hast — lieber ehrlich als geraten.',
+    pt: 'Não sabemos se você tem um — melhor dizer do que inventar.',
+  },
+  crewRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  /** Le vrai flux « quitter » vit dans l'écran Crew (RPC leave_crew, déjà câblée). */
+  leaveCrewDetailReal: {
+    fr: 'Depuis l’écran Crew',
+    en: 'From the Crew screen',
+    es: 'Desde la pantalla Crew',
+    de: 'Über den Crew-Screen',
+    pt: 'Pela tela Crew',
+  },
+
+  // ── Sous-page Avancé : valeurs génériques (les nombres viennent de game-rules) ──
+  valueHours: {
+    fr: '{n} h',
+    en: '{n} h',
+    es: '{n} h',
+    de: '{n} Std.',
+    pt: '{n} h',
+  },
+  valueMeters: {
+    fr: '{n} m',
+    en: '{n} m',
+    es: '{n} m',
+    de: '{n} m',
+    pt: '{n} m',
+  },
+  contributionMinBoth: {
+    fr: '{m} m ou {pct} %',
+    en: '{m} m or {pct}%',
+    es: '{m} m o {pct} %',
+    de: '{m} m oder {pct} %',
+    pt: '{m} m ou {pct} %',
   },
 });

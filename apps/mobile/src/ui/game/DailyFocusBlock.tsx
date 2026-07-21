@@ -18,6 +18,15 @@
  * Une zone qu'il reste à prendre est en blanc/gris : on n'agite pas un accent
  * d'urgence sur une invitation.
  *
+ * A-46 × A-45 — L'EFFORT PROPOSÉ TIENT DANS LA LIGNE QUI EXISTAIT DÉJÀ. La
+ * distance issue des habitudes réelles remplace le contenu de la 3ᵉ ligne (celle
+ * qui portait la récompense), et le verdict de terrain (`fit`) remplace le
+ * contenu de la 2ᵉ (celle qui porte le rôle). Aucune ligne n'est ajoutée : §A
+ * plafonne ce bloc à 3 lignes, et « on rajoute juste une petite ligne » est
+ * exactement comment un écran clair devient une liste de devoirs. Chaque phrase
+ * de remplacement redit « une distinction, aucun point » — l'anti pay-to-win ne
+ * quitte jamais l'écran.
+ *
  * L'APP NE MENT JAMAIS : quand le moteur renvoie `none`, ce composant AFFICHE
  * l'état honnête (« Pas de zone du jour aujourd'hui ») au lieu de disparaître.
  * Disparaître serait ambigu — le joueur ne saurait pas si la mécanique existe.
@@ -33,9 +42,10 @@ import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import type { WelcomeStepKey } from '@klaim/shared';
 import { Icon } from '../Icon';
 import { C } from '../../i18n/catalog/daily';
-import { useT } from '../../i18n/store';
+import { useLocale, useT } from '../../i18n/store';
 import type { DailyFocus } from '../../features/daily/useDailyFocus';
-import type { Entry } from '../../i18n/types';
+import type { DailyZoneEffort } from '../../features/daily/zoneFit';
+import type { Entry, Locale } from '../../i18n/types';
 
 export interface DailyFocusBlockProps {
   /** État RÉEL (useDailyFocus). `null` → le composant ne rend rien. */
@@ -55,8 +65,55 @@ const STEP_LABELS: Readonly<Record<WelcomeStepKey, Entry>> = {
   share: C.welcomeStepShare,
 };
 
+/**
+ * « 5,5 km » — virgule décimale partout sauf en anglais. Même règle que
+ * `formatKm2` (features/widget/territoryWidget.ts) : pas d'`Intl`, dont le
+ * support diffère entre Hermes iOS, Hermes Android et Deno.
+ */
+function formatKm(km: number, locale: Locale): string {
+  const fixed = km.toFixed(1);
+  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km`;
+}
+
+/**
+ * L'effort → SA phrase. Le `switch` est exhaustif sur `DailyZoneEffort['kind']`
+ * (le type de retour l'impose : un variant non traité ferait sortir `undefined`,
+ * refusé par TypeScript).
+ *
+ * C'EST ICI QUE L'HONNÊTETÉ EST STRUCTURELLE : `C.dailyZoneEffortLearned` — la
+ * seule copie qui dise « adapté à tes habitudes » — n'est atteignable que depuis
+ * `kind === 'learned'`, et `resolveDailyZoneEffort` ne produit ce variant que
+ * pour une distance de `source === 'learned'`. Aucune autre branche ne peut y
+ * accéder, quel que soit l'oubli de test.
+ *
+ * `unknown` retombe sur `dailyZoneReward` : on ne sait rien de la distance de
+ * cette personne, donc on ne dit rien d'elle.
+ */
+function effortLine(
+  effort: DailyZoneEffort,
+  t: (entry: Entry, vars?: Record<string, string | number>) => string,
+  locale: Locale,
+): string {
+  switch (effort.kind) {
+    case 'learned':
+      return t(C.dailyZoneEffortLearned, { km: formatKm(effort.km, locale) });
+    case 'manual':
+      return t(C.dailyZoneEffortManual, { km: formatKm(effort.km, locale) });
+    case 'learning':
+      // Reste inconnu ⇒ phrase sans nombre, jamais un « encore 0 courses ».
+      return effort.runsLeft === null
+        ? t(C.dailyZoneEffortLearningSoon)
+        : t(C.dailyZoneEffortLearning, { runs: effort.runsLeft });
+    case 'off':
+      return t(C.dailyZoneEffortOff);
+    case 'unknown':
+      return t(C.dailyZoneReward);
+  }
+}
+
 export function DailyFocusBlock({ focus }: DailyFocusBlockProps) {
   const t = useT();
+  const locale = useLocale();
   if (focus === null) return null;
 
   // ── Parcours d'accueil ─────────────────────────────────────────────────────
@@ -111,7 +168,7 @@ export function DailyFocusBlock({ focus }: DailyFocusBlockProps) {
   }
 
   // ── Zone du Jour ───────────────────────────────────────────────────────────
-  const { zone, distinctionActive } = focus;
+  const { zone, distinctionActive, effort } = focus;
 
   // État HONNÊTE : aucune zone réelle ne convient. On le dit, on ne le cache pas.
   if (zone.kind === 'none') {
@@ -136,10 +193,20 @@ export function DailyFocusBlock({ focus }: DailyFocusBlockProps) {
 
   // Nom RÉEL du secteur, ou la formule neutre — jamais un quartier inventé.
   const zoneName = zone.sectorName ?? t(C.dailyZoneUnnamed);
-  const role = zone.role === 'neutral' ? t(C.dailyZoneFree) : t(C.dailyZoneFragile);
+  // Le rôle dit ce qu'il y a à y faire. `tight` (moins de terrain libre que ce
+  // qu'une sortie habituelle traverserait) est un FAIT sur ce secteur-ci : il
+  // change la phrase, il ne change PAS le secteur proposé.
+  const tight = (effort.kind === 'learned' || effort.kind === 'manual') && effort.fit === 'tight';
+  const role =
+    zone.role !== 'neutral'
+      ? t(C.dailyZoneFragile)
+      : tight
+        ? t(C.dailyZoneFreeTight)
+        : t(C.dailyZoneFree);
   // Une fois la distinction acquise, on félicite : relancer sur une zone déjà
-  // capturée transformerait une récompense en corvée.
-  const detail = distinctionActive ? t(C.dailyZoneDone) : t(C.dailyZoneReward);
+  // capturée transformerait une récompense en corvée — et annoncer une distance
+  // à courir pour une conquête DÉJÀ faite serait faux.
+  const detail = distinctionActive ? t(C.dailyZoneDone) : effortLine(effort, t, locale);
 
   return (
     <View

@@ -1,33 +1,36 @@
 'use client';
 
 /**
- * Victoire (AMENDEMENT-05 §3.6) — la result-card devient une carte de VICTOIRE :
- * séquence rejouable « +hexes (compteur) → la zone bascule (jauge qui franchit
- * le seuil réel SECTOR_CONTROL_THRESHOLDS.controlled) → rank-up crew → badge
- * qui pop → médaille de secteur (halo --or : contexte victoire, §1)
- * → bonus performance », stamp « ZONE CAPTURÉE » et aperçu story 9:16 statique.
- * Données de DÉMO déterministes (DEMO + constantes locales de mise en scène) :
- * la séquence ne démarre qu'au reveal côté client — SSR stable.
+ * Victoire — ce qui se passe QUAND une course se termine : la zone bascule si
+ * elle franchit le seuil réel, le crew monte, un badge tombe, la médaille de
+ * secteur arrive, le bonus performance s'applique. Séquence rejouable.
+ *
+ * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026). La carte affichait
+ * « +214 ZONES », « Paris Est bascule à 62 % », « Ton crew passe #3 (#4 → #3) »
+ * et « +7 % de bonus » : le relevé d'un coureur qui n'existe pas, lisible comme
+ * une capture d'écran. Les nombres inventés sont partis ; les DEUX nombres qui
+ * restent sont des règles réelles de @klaim/shared — le seuil de bascule d'un
+ * secteur et le plafond du bonus performance.
+ *
+ * La séquence est maintenant écrite au FUTUR : elle promet ce que tu verras,
+ * elle ne raconte pas ce que quelqu'un aurait fait.
  * prefers-reduced-motion : tout s'affiche d'un bloc, sans mise en scène.
  */
 
 import { useEffect, useState } from 'react';
-import { SECTOR_CONTROL_THRESHOLDS } from '@klaim/shared';
-import { DEMO } from '../../../lib/landing';
+import { PERFORMANCE_BONUS_CAP, SECTOR_CONTROL_THRESHOLDS } from '@klaim/shared';
 import { useLang } from './LangProvider';
-import { useCountUp } from './useCountUp';
 import { useReveal } from './useReveal';
 import { Reveal } from './Reveal';
 import { useToast } from './Toast';
 import ui from './ui.module.css';
 import styles from './RewardSection.module.css';
 
-// ─── Mise en scène (chiffres de SHOWCASE, pas des règles de jeu) ─────────────
-const ZONE_START_PCT = 41; // la jauge démarre sous le seuil…
-/** …et franchit le VRAI seuil « controlled » (@klaim/shared — jamais en dur). */
+// ─── Mise en scène ───────────────────────────────────────────────────────────
+/** Seuil RÉEL de bascule d'un secteur (@klaim/shared — jamais en dur). */
 const ZONE_MAJORITY_PCT = Math.round(SECTOR_CONTROL_THRESHOLDS.controlled * 100);
-const RANK_FROM = 4;
-const RANK_TO = 3;
+/** Plafond RÉEL du bonus performance, en % (+15 avec PERFORMANCE_BONUS_CAP = 1.15). */
+const BONUS_CAP_PCT = Math.round((PERFORMANCE_BONUS_CAP - 1) * 100);
 const STEPS_TOTAL = 6;
 const STEP_MS = 650;
 
@@ -60,23 +63,25 @@ const STRINGS = {
     title: 'Quand ta course se termine, la carte a changé.',
     sub: 'Pas un rapport de stats : une carte de victoire. Les zones tombent, le secteur bascule, ton crew monte, le badge claque.',
     stamp: 'ZONE CAPTURÉE',
-    zoneLine: (pct: string) => `Paris Est bascule à ${pct} %`,
-    zoneAria: 'Contrôle de Paris Est',
-    threshold: (pct: string) => `seuil ${pct} %`,
-    rankLine: (rank: string) => `Ton crew passe #${rank}`,
-    rankSub: (from: string, to: string) => `#${from} → #${to} au classement de secteur`,
-    badgeLine: 'Badge Route Opened débloqué',
-    badgeSub: 'ROUTE OPENED · liaison inédite',
-    medalLine: 'Médaille de secteur décrochée',
+    cardTitle: 'Ce que tu verras à la fin d’une course',
+    zoneLine: (pct: string) => `Au-delà de ${pct} %, le secteur bascule de ton côté`,
+    zoneAria: 'Seuil de bascule d’un secteur',
+    threshold: (pct: string) => `seuil réel : ${pct} %`,
+    rankLine: 'Ton crew monte au classement de secteur',
+    rankSub: 'Le rang se gagne — il ne s’affiche pas avant.',
+    badgeLine: 'Un badge peut tomber',
+    badgeSub: 'ROUTE OPENED · pour une liaison encore jamais courue',
+    medalLine: 'Et une médaille de secteur, si tu le tiens',
+    medalSub: 'La médaille appartient au secteur, pas à la démo.',
     bonusValue: (pct: string) => `+${pct} %`,
-    bonusLine: 'Bonus performance sur tes prochaines captures',
-    sequenceAria: 'Séquence de victoire',
+    bonusLine: 'Bonus performance sur tes prochaines captures, plafonné',
+    sequenceAria: 'Ce qui se passe à la fin d’une course',
     share: 'Partager en story',
-    shareHint: 'Aperçu 9:16 — chaque story sort aux couleurs exactes de la carte.',
+    shareHint: 'Aperçu du FORMAT 9:16 — les chiffres seront les tiens, pas les nôtres.',
     shareToast: 'La carte de story arrive avec l’app — Saison 0.',
     previewAria:
-      'Aperçu statique de la carte de partage 9:16 : fond noir, secteur chartreuse, chiffre héros',
-    previewZone: 'PARIS EST',
+      'Aperçu du format de carte de partage 9:16 : fond noir, secteur chartreuse, emplacement du chiffre héros',
+    previewPlaceholder: 'ta capture',
     previewSeason: 'SAISON 0',
   },
   en: {
@@ -84,23 +89,25 @@ const STRINGS = {
     title: 'When your run ends, the map has changed.',
     sub: 'Not a stats report: a victory card. Zones drop, the sector flips, your crew climbs, the badge lands.',
     stamp: 'ZONE CAPTURED',
-    zoneLine: (pct: string) => `Paris Est flips to ${pct}%`,
-    zoneAria: 'Paris Est control',
-    threshold: (pct: string) => `${pct}% threshold`,
-    rankLine: (rank: string) => `Your crew climbs to #${rank}`,
-    rankSub: (from: string, to: string) => `#${from} → #${to} on the sector leaderboard`,
-    badgeLine: 'Route Opened badge unlocked',
-    badgeSub: 'ROUTE OPENED · brand-new link',
-    medalLine: 'Sector medal earned',
+    cardTitle: 'What you will see when a run ends',
+    zoneLine: (pct: string) => `Past ${pct}%, the sector flips to your side`,
+    zoneAria: 'Sector flip threshold',
+    threshold: (pct: string) => `real threshold: ${pct}%`,
+    rankLine: 'Your crew climbs the sector leaderboard',
+    rankSub: 'A rank is earned — it is not displayed beforehand.',
+    badgeLine: 'A badge may drop',
+    badgeSub: 'ROUTE OPENED · for a link nobody has run yet',
+    medalLine: 'And a sector medal, if you hold it',
+    medalSub: 'The medal belongs to the sector, not to a demo.',
     bonusValue: (pct: string) => `+${pct}%`,
-    bonusLine: 'Performance bonus on your next captures',
-    sequenceAria: 'Victory sequence',
+    bonusLine: 'Performance bonus on your next captures, capped',
+    sequenceAria: 'What happens when a run ends',
     share: 'Share to story',
-    shareHint: '9:16 preview — every story ships in the exact map colours.',
+    shareHint: '9:16 FORMAT preview — the numbers will be yours, not ours.',
     shareToast: 'Story cards ship with the app — Season 0.',
     previewAria:
-      'Static 9:16 share-card preview: black background, chartreuse cluster, hero number',
-    previewZone: 'PARIS EST',
+      '9:16 share-card format preview: black background, chartreuse cluster, hero-number slot',
+    previewPlaceholder: 'your capture',
     previewSeason: 'SEASON 0',
   },
 } as const;
@@ -129,8 +136,8 @@ export function RewardSection() {
     return () => window.clearInterval(id);
   }, [card.shown, seq]);
 
-  const shownHexes = useCountUp(DEMO.hexesGained, card.shown && step >= 1);
-  const zonePct = step >= 2 ? DEMO.zoneControlPct : ZONE_START_PCT;
+  /* La jauge illustre le SEUIL, pas un score : elle s'arrête pile dessus. */
+  const zonePct = step >= 2 ? ZONE_MAJORITY_PCT : 0;
   const seqClass = (n: number) => `${styles.seqItem} ${step >= n ? styles.seqShown : ''}`;
 
   return (
@@ -150,7 +157,7 @@ export function RewardSection() {
             className={`${ui.card} ${styles.resultCard} ${card.shown ? styles.cardShown : ''}`}
           >
             <div className={styles.cardHead}>
-              <span className={ui.monoLabel}>{copy.phone.runValidated}</span>
+              <span className={ui.monoLabel}>{t.cardTitle}</span>
               <span className={styles.verified}>
                 <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
                   <path
@@ -173,20 +180,14 @@ export function RewardSection() {
               {t.stamp}
             </span>
 
-            {/* Chiffre héros : graisse 400, chartreuse = gain. */}
-            <p className={styles.heroNumber}>
-              +{formatInt(shownHexes)}
-              <span className={styles.heroUnit}>{copy.phone.hexesUnit}</span>
-            </p>
-
             <ol className={styles.sequence} aria-label={t.sequenceAria}>
               {/* 2 — la zone bascule : la jauge franchit le seuil. */}
               <li className={seqClass(2)}>
                 <span className={`${styles.aside} ${styles.asideGain}`} aria-hidden="true">
-                  {formatInt(DEMO.zoneControlPct)} %
+                  {formatInt(ZONE_MAJORITY_PCT)} %
                 </span>
                 <div className={styles.seqBody}>
-                  <p className={styles.seqText}>{t.zoneLine(formatInt(DEMO.zoneControlPct))}</p>
+                  <p className={styles.seqText}>{t.zoneLine(formatInt(ZONE_MAJORITY_PCT))}</p>
                   <div
                     className={styles.zoneTrack}
                     role="progressbar"
@@ -208,6 +209,7 @@ export function RewardSection() {
 
               {/* 3 — rank-up crew : flèche + nouveau rang qui pop. */}
               <li className={seqClass(3)}>
+                {/* Plus de « #4 → #3 » : aucun rang n'a été calculé pour personne. */}
                 <span className={styles.aside} aria-hidden="true">
                   <svg className={styles.rankArrow} viewBox="0 0 24 24" width="14" height="14">
                     <path
@@ -219,11 +221,10 @@ export function RewardSection() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  <span className={styles.rankNew}>#{formatInt(RANK_TO)}</span>
                 </span>
                 <div className={styles.seqBody}>
-                  <p className={styles.seqText}>{t.rankLine(formatInt(RANK_TO))}</p>
-                  <p className={styles.seqSub}>{t.rankSub(formatInt(RANK_FROM), formatInt(RANK_TO))}</p>
+                  <p className={styles.seqText}>{t.rankLine}</p>
+                  <p className={styles.seqSub}>{t.rankSub}</p>
                 </div>
               </li>
 
@@ -274,16 +275,14 @@ export function RewardSection() {
                 </span>
                 <div className={styles.seqBody}>
                   <p className={styles.seqText}>{t.medalLine}</p>
-                  <p className={styles.seqSub}>
-                    {t.previewZone} · {t.previewSeason}
-                  </p>
+                  <p className={styles.seqSub}>{t.medalSub}</p>
                 </div>
               </li>
 
               {/* 6 — bonus performance (gain → chartreuse). */}
               <li className={seqClass(6)}>
                 <span className={`${styles.aside} ${styles.asideGain}`} aria-hidden="true">
-                  {t.bonusValue(formatInt(DEMO.weekDeltaPct))}
+                  {t.bonusValue(formatInt(BONUS_CAP_PCT))}
                 </span>
                 <div className={styles.seqBody}>
                   <p className={styles.seqText}>{t.bonusLine}</p>
@@ -320,12 +319,12 @@ export function RewardSection() {
                 ))}
                 <polyline points="38,16 51,33 60,41 60,56" className={styles.storyRoute} />
               </svg>
+              {/* Emplacement du chiffre héros — VIDE. L'ancien aperçu affichait
+                  « +214 ZONES · PARIS EST · 62 % », soit une story fabriquée. */}
               <div>
-                <p className={styles.storyNumber}>+{formatInt(DEMO.hexesGained)}</p>
+                <p className={styles.storyNumber}>+—</p>
                 <p className={styles.storyUnit}>{copy.phone.hexesUnit}</p>
-                <p className={styles.storyFooter}>
-                  {t.previewZone} · {formatInt(DEMO.zoneControlPct)} %
-                </p>
+                <p className={styles.storyFooter}>{t.previewPlaceholder}</p>
               </div>
             </div>
             <button

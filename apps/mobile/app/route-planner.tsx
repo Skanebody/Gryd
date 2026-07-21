@@ -1,12 +1,23 @@
 /**
- * GRYD — `/route-planner` : planificateur d'itinéraire LIVE, partout en France.
+ * GRYD — `/route-planner` : planificateur d'itinéraire LIVE, partout en Europe.
+ *
+ * ─── LE BUG D'ORIGINE, RETIRÉ (21/07/2026) ─────────────────────────────────
+ * Cet écran portait mot pour mot le retour terrain n°1 du fondateur : « je suis
+ * à Ouville-la-Rivière et l'app me met à République ». Quand `currentPosition()`
+ * échouait, un repli gardé par `Platform.OS === 'web'` posait `EGO_REPUBLIQUE`
+ * comme origine et calculait un VRAI itinéraire depuis la place de la
+ * République, étiqueté « Démo · Paris ». L'étiquette ne rachetait rien : c'était
+ * un plan de course fabriqué à la place du sien, et la garde plateforme faisait
+ * en plus diverger localhost de l'iPhone — or localhost est le seul instrument
+ * de contrôle du fondateur.
+ * Un échec de géolocalisation n'a qu'une réponse honnête : le DIRE et proposer
+ * de réessayer. C'est désormais le SEUL comportement, sur les deux surfaces.
+ *
  * HONNÊTETÉ GPS (audit zéro-friction P0) :
  *   • DÉPART = la position réelle (GPS) uniquement — tant qu'elle n'est pas
  *     confirmée, le CTA de départ est DÉSACTIVÉ ; états explicites
  *     « Localisation… » puis « Position introuvable » + « Réessayer la
- *     localisation » sur échec ;
- *   • le point démo Paris n'est JAMAIS étiqueté « Ma position » : sur web sans
- *     géoloc, fallback EXPLICITE « Démo · Paris » (CTA actif, contexte assumé) ;
+ *     localisation » sur échec ; AUCUNE position de repli, nulle part ;
  *   • header épuré (3 blocs) : verbe · lieu / KPI km / résumé ≤ 3 infos
  *     (~min · zones · pts) — les minutes sont TOUJOURS une estimation (~) ;
  *   • PLANS = 3 formats (Recommandée / Rapide / Max points) — changer de plan
@@ -21,7 +32,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -54,7 +64,6 @@ import { routeLoop } from '../src/features/route/liveRouting';
 import { setPlannedRoute } from '../src/features/route/plannedRoute';
 import { currentPosition, type OriginPoint } from '../src/features/route/origin';
 import { resolveSectorName } from '../src/features/map/sectorNaming';
-import { EGO_REPUBLIQUE } from '../src/features/map/realAnchors';
 import type { PlannedRouteDemo } from '../src/features/route/types';
 // `tNow` = résolution hors composant (helpers module) ; le composant utilise
 // useT() (réactif — re-rend à la bascule de langue, ce qui rafraîchit aussi
@@ -65,13 +74,13 @@ import { t as tNow, useT } from '../src/i18n/store';
 /** Hauteur de la carte. */
 const MAP_HEIGHT = 250;
 
-/** État de la géolocalisation — pilote labels, carte et CTA (jamais de mensonge). */
-type GpsState = 'locating' | 'ok' | 'demo' | 'error';
-
-/** Fallback web SANS géoloc : point démo EXPLICITE (jamais « Ma position »). */
-function demoOrigin(): OriginPoint {
-  return { point: EGO_REPUBLIQUE, label: tNow(C.demoOriginLabel) };
-}
+/**
+ * État de la géolocalisation — pilote labels, carte et CTA (jamais de mensonge).
+ * Il n'existe VOLONTAIREMENT que trois états : on cherche, on a trouvé, on a
+ * échoué. Aucun quatrième état « démo » n'est possible — c'est ce qu'il aurait
+ * fallu pour inventer une origine, et l'app ne le fait plus.
+ */
+type GpsState = 'locating' | 'ok' | 'error';
 
 /**
  * 3 formats (distance) routés autour de l'origine — l'objectif courant est conservé.
@@ -228,23 +237,20 @@ export default function RoutePlannerScreen() {
   };
 
   /**
-   * Localise (GPS) + nomme + route. Échec :
-   *   web    → fallback démo EXPLICITE (« Démo · Paris »), CTA actif ;
-   *   natif  → état `error` (CTA désactivé + « Réessayer la localisation »).
+   * Localise (GPS) + nomme + route.
+   *
+   * Échec (refus, capteur muet, hors couverture, timeout) → état `error`, sur
+   * TOUTES les plateformes : origine `null`, aucun tracé, CTA désactivé,
+   * « Position introuvable » + « Réessayer la localisation ». Un plan de course
+   * ne peut pas être calculé depuis un endroit où le joueur n'est pas ; ne rien
+   * afficher et le dire est la seule réponse vraie.
    */
   const locateAndRoute = (km: number, intent: PlannerIntention, sd: number) => {
     setGps('locating');
     void currentPosition().then(async (pos) => {
       if (!pos) {
-        if (Platform.OS === 'web') {
-          const demo = demoOrigin();
-          setGps('demo');
-          setOrigin(demo);
-          applyRoute(demo, km, intent, sd);
-        } else {
-          setGps('error');
-          toast.show(tNow(C.toastPositionNotFound));
-        }
+        setGps('error');
+        toast.show(tNow(C.toastPositionNotFound));
         return;
       }
       // Position CONFIRMÉE → nom RÉEL du secteur (quartier/village, PARTOUT en
@@ -257,6 +263,12 @@ export default function RoutePlannerScreen() {
       setGps('ok');
       setOrigin(o);
       applyRoute(o, km, intent, sd);
+    }).catch(() => {
+      // Rejet inattendu (permission qui throw, reverse-geocode qui rejette) :
+      // sans ce filet l'écran resterait sur « Localisation… » indéfiniment —
+      // un spinner infini est le troisième mensonge (on n'avoue pas l'échec).
+      setGps('error');
+      toast.show(tNow(C.toastPositionNotFound));
     });
   };
 
@@ -378,8 +390,8 @@ export default function RoutePlannerScreen() {
     screen('route_planner_share', { route: route.id });
   };
 
-  // Départ possible UNIQUEMENT position confirmée OU mode démo explicite.
-  const startDisabled = !route || gps === 'locating' || gps === 'error';
+  // Départ possible UNIQUEMENT sur position confirmée (`gps === 'ok'`).
+  const startDisabled = !route || gps !== 'ok';
 
   const startRun = () => {
     if (!route || startDisabled) return;
@@ -414,20 +426,12 @@ export default function RoutePlannerScreen() {
   const originLabel =
     gps === 'locating' ? t(C.locating) : gps === 'error' ? t(C.positionNotFound) : (origin?.label ?? '—');
   const originHint =
-    gps === 'ok'
-      ? t(C.hintGpsOk)
-      : gps === 'demo'
-        ? t(C.hintGpsDemo)
-        : gps === 'error'
-          ? t(C.hintGpsError)
-          : t(C.hintGpsLocating);
+    gps === 'ok' ? t(C.hintGpsOk) : gps === 'error' ? t(C.hintGpsError) : t(C.hintGpsLocating);
   const summaryText = route
     ? routeSummary(route)
     : gps === 'error'
       ? t(C.summaryGpsError)
-      : gps === 'demo'
-        ? t(C.summaryDemoComputing)
-        : t(C.summaryWaitingPosition);
+      : t(C.summaryWaitingPosition);
 
   return (
     <View style={styles.root}>

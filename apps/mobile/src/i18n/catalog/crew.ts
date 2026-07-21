@@ -775,6 +775,33 @@ export const C = defineCatalog({
     pt: 'Não deu certo — tente de novo.',
   },
 
+  // ── ÉCHEC DE CHARGEMENT (≠ « pas de crew ») ────────────────────────────────
+  // Le troisième état, et le plus facile à rater : on n'a PAS PU lire. Le dire
+  // franchement, ne rien affirmer sur le crew, ne proposer QUE de réessayer.
+  // Surtout pas « Créer mon crew » : ce serait pousser un doublon à quelqu'un
+  // qui a déjà un crew et se trouve juste dans un tunnel de métro.
+  rlLoadFailedTitle: {
+    fr: 'Impossible de charger ton crew',
+    en: 'Couldn’t load your crew',
+    es: 'No se pudo cargar tu crew',
+    de: 'Dein Crew konnte nicht geladen werden',
+    pt: 'Não foi possível carregar seu crew',
+  },
+  rlLoadFailedBody: {
+    fr: 'On n’a pas pu joindre le serveur. Ton crew et ton territoire sont intacts — c’est l’affichage qui manque.',
+    en: 'We couldn’t reach the server. Your crew and territory are intact — only the display is missing.',
+    es: 'No pudimos contactar el servidor. Tu crew y tu territorio están intactos — solo falta mostrarlos.',
+    de: 'Der Server war nicht erreichbar. Dein Crew und dein Revier sind unversehrt — nur die Anzeige fehlt.',
+    pt: 'Não conseguimos falar com o servidor. Seu crew e seu território estão intactos — falta só a exibição.',
+  },
+  rlRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+
   // ── Onglets internes du HQ ─────────────────────────────────────────────────
   tabBase: { fr: 'Base', en: 'Base', es: 'Base', de: 'Basis', pt: 'Base' },
   tabChat: { fr: 'Chat', en: 'Chat', es: 'Chat', de: 'Chat', pt: 'Chat' },

@@ -15,11 +15,23 @@
  * directs, pas des rangs anonymes) + « Voir tout » ; récompenses de fin de
  * saison datées sur l'horloge unique de l'écran (la semaine de saison).
  * L'écart en zones neutres est DÉRIVÉ via POINTS_NEUTRAL_HEX — aucun barème
- * local. Honnêteté : la SEMAINE de saison est TOUJOURS une valeur démo (jamais
- * lue du serveur) → marquée « (DÉMO) » dans le kicker, quelle que soit la source
- * des lignes ; note « démonstration » sur tout board dont les lignes ne viennent
- * pas encore du serveur (Joueurs·Paris réel seulement quand source==='server').
+ * local.
  * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5).
+ *
+ * ─── UN CLASSEMENT EST RÉEL, OU IL N'EST PAS (21/07/2026) ───────────────────
+ * Le mode vitrine est ABANDONNÉ : plus aucune surface n'affiche de données
+ * fabriquées. Cet écran retombait sur `LEAGUE_BOARDS` — un podium de joueurs
+ * qui n'existent pas — dès que la lecture serveur ne résolvait pas, et TOUJOURS
+ * pour Crews/Ville. Une note « démonstration » sous un podium ne rachète pas le
+ * podium : on lit les visages et les rangs, pas la note de bas de page.
+ *
+ * Désormais, sans exception :
+ *  · Joueurs — affiché UNIQUEMENT si `source === 'server'`. Sinon, l'un des trois
+ *    états honnêtes (en cours de lecture · pas connecté · rien reçu).
+ *  · Crews / Ville — AUCUNE source serveur n'existe. On ne fait pas patienter
+ *    devant un faux podium : on dit que ces classements ne sont pas ouverts.
+ *  · Kicker — plus de « SEMAINE 3/8 (DÉMO) » : aucune fenêtre de saison n'est
+ *    lue du serveur, donc aucune semaine n'est annoncée.
  */
 import { flags } from '../../src/lib/flags';
 import { useEffect, useMemo, useState } from 'react';
@@ -44,14 +56,14 @@ import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
 import { useSeasonLeaderboard } from '../../src/features/social/leagueBoard';
 import {
-  LEAGUE_BOARDS,
-  LEAGUE_SEASON_WEEK,
   TOP10_REWARDS,
   type LeagueBoard,
   type LeagueRow,
 } from '../../src/features/social/league';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { screen } from '../../src/lib/analytics';
+import { useSession } from '../../src/lib/session';
+import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { formatInt } from '../../src/ui/format';
 import {
@@ -82,16 +94,11 @@ const PRIMARY_TABS: readonly { id: PrimaryTab; label: Entry }[] = [
 // il y aura des données multi-villes réelles (jamais de scope qui ne montre que
 // de la démo — règle §A + honnêteté).
 
-/** Boards indexés (Crews / Ville — démo au MVP ; Joueurs vient du hook). */
-const BOARD = (id: string): LeagueBoard =>
-  LEAGUE_BOARDS.find((b) => b.id === id) ?? LEAGUE_BOARDS[0]!;
-
 /**
- * Board Joueurs·Paris = saison active RÉELLE (season_scores via la vue
- * player_leaderboard) quand une session existe, sinon démo — voir
- * useSeasonLeaderboard. La ligne « TOI » et l'écart en sont DÉRIVÉS dans le
- * composant (useMemo), car ils dépendent du board dynamique du hook.
- * Joueurs·France / Crews / Ville restent démo (aucune source serveur au MVP).
+ * Board Joueurs = saison active RÉELLE (season_scores via la vue
+ * player_leaderboard). La ligne « TOI » et l'écart en sont DÉRIVÉS dans le
+ * composant (useMemo), et seulement quand la lecture serveur a résolu.
+ * Crews / Ville n'ont aucune source : ils ne sont pas affichés du tout.
  */
 
 /** Lignes hors podium en compact quand JE n'y figure pas (compact §1.3). */
@@ -206,10 +213,49 @@ function BoardRow({ row, board }: { row: LeagueRow; board: LeagueBoard }) {
   );
 }
 
-export default function LeagueScreen() {
+/**
+ * ÉTAT VIDE d'un board : ce qui manque, puis AU PLUS une action (§A : 1 CTA
+ * chartreuse max — et ici c'est le SEUL de la scène, le bloc TOI étant masqué
+ * quand il n'y a pas de ligne réelle). Sans action possible, on explique et on
+ * s'arrête : un bouton qui ne change rien vaut moins que la phrase honnête.
+ */
+function BoardEmpty({
+  title,
+  body,
+  cta,
+}: {
+  title: string;
+  body: string;
+  cta?: { label: string; onPress: () => void };
+}) {
+  return (
+    <View style={styles.emptyCard}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyBody}>{body}</Text>
+      {cta ? (
+        <View style={styles.emptyCta}>
+          <Button label={cta.label} onPress={cta.onPress} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * ROUTE = LE GARDE, et rien d'autre. Ce composant n'appelle AUCUN hook : sa
+ * sortie anticipée est donc inoffensive. Auparavant le `Redirect` était posé
+ * DEVANT les ~15 hooks de l'écran, dans le même composant — la règle des hooks
+ * violée (React exige le même nombre d'appels à chaque rendu). `flags.season`
+ * étant une constante de module, ça ne cassait pas ; le jour où la surface
+ * deviendrait pilotable à chaud, l'écran crasherait à la bascule.
+ */
+export default function LeagueRoute() {
   // D8 — surface hors MVP : route masquée (les scores s'accumulent quand même).
   if (!flags.season) return <Redirect href="/" />;
+  return <LeagueScreen />;
+}
 
+function LeagueScreen() {
   const insets = useSafeAreaInsets();
   const t = useT();
   const toast = useToast();
@@ -227,18 +273,36 @@ export default function LeagueScreen() {
   }, []);
 
   // Board Joueurs·Paris réel (saison active) si session, sinon démo (`source`).
-  const { joueursBoard, source } = useSeasonLeaderboard();
+  const { joueursBoard, source, loading: boardLoading } = useSeasonLeaderboard();
+  const { session, configured } = useSession();
+  const signedIn = configured && session !== null;
+
+  /**
+   * Le board affiché est-il ADOSSÉ à quelque chose de réel ? Seul Joueurs a une
+   * source serveur, et seulement quand la lecture a résolu (`source === 'server'`).
+   * Crews / Ville n'en ont AUCUNE : ils ne seront jamais « réels » tant que rien
+   * ne les alimente — ils n'affichent donc pas de podium, ils disent pourquoi.
+   */
+  const joueursIsReal = source === 'server';
 
   const discreet = prefs.discreetMode;
-  // Joueurs = board réel du hook (ta ville de saison) ; Crews / Ville démo au MVP.
-  const board = useMemo<LeagueBoard>(() => {
-    if (tab === 'joueurs') return joueursBoard;
-    if (tab === 'crews') return BOARD('crews');
-    return BOARD('ville');
-  }, [tab, joueursBoard]);
+  /**
+   * LE SEUL BOARD DE L'ÉCRAN est celui du hook (ma saison, lu du serveur).
+   * Les boards démo `LEAGUE_BOARDS` (podiums de joueurs, crews et villes qui
+   * n'existent pas) ne sont plus consultés du tout : ils étaient l'alimentation
+   * de Crews/Ville et le repli de Joueurs. Un classement est réel, ou il n'est
+   * pas — une note « démonstration » sous un podium ne rachète pas le podium :
+   * on lit les visages et les rangs, pas la note de bas de page.
+   */
+  const board = joueursBoard;
 
-  // Ma ligne + écart, DÉRIVÉS du board Joueurs dynamique (§17).
-  const meRow = useMemo(() => joueursBoard.rows.find((r) => r.me === true), [joueursBoard]);
+  // Ma ligne + écart, DÉRIVÉS du board Joueurs dynamique (§17) — et SEULEMENT
+  // s'il est réel : « #8 · 342 pts du #7 » calculé sur des voisins inventés
+  // serait le mensonge le plus précis de l'écran.
+  const meRow = useMemo(
+    () => (joueursIsReal ? joueursBoard.rows.find((r) => r.me === true) : undefined),
+    [joueursBoard, joueursIsReal],
+  );
   const aboveRow = useMemo(
     () => (meRow ? joueursBoard.rows.find((r) => r.rank === meRow.rank - 1) : undefined),
     [joueursBoard, meRow],
@@ -269,10 +333,12 @@ export default function LeagueScreen() {
   // « ··· » si la fenêtre compacte saute des rangs après le podium (sauf si la
   // ligne porte déjà sa propre rupture gapBefore).
   const showLeadEllipsis = !showAll && windowStart > 0 && visibleRows[0]?.gapBefore !== true;
-  // Honnêteté : un board est une démo tant que ses LIGNES ne viennent pas du
-  // serveur. Joueurs·Paris est réel UNIQUEMENT quand la lecture serveur a résolu
-  // (source==='server') ; Joueurs·France / Crews / Ville restent démo au MVP.
-  const boardIsDemo = board.id === 'joueurs' ? source === 'local' : true;
+  /**
+   * On n'affiche des rangs QUE sur l'onglet dont ils viennent, et QUE s'ils
+   * viennent du serveur. Crews / Ville tombent donc toujours dans l'état
+   * « pas ouvert » ci-dessous — ce n'est pas « vide en attendant ».
+   */
+  const showBoardRows = onJoueurs && joueursIsReal;
 
   return (
     <View style={styles.root}>
@@ -295,9 +361,7 @@ export default function LeagueScreen() {
             figé — le jeu vise l'Europe, l'onglet dit déjà ce qu'on regarde ;
             afficher « EUROPE » sur des lignes démo Paris/Lille serait un mensonge
             (la vision Europe est portée par la note démo + les docs). */}
-        <Text style={styles.kicker}>
-          {t(C.saisonKicker, { week: LEAGUE_SEASON_WEEK, total: SEASON_DURATION_WEEKS })}
-        </Text>
+        <Text style={styles.kicker}>{t(C.saisonKickerReal)}</Text>
         <View style={styles.titleRow}>
           <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
           <Text style={styles.title}>{t(C.saisonTitle)}</Text>
@@ -376,35 +440,64 @@ export default function LeagueScreen() {
             l'en-tête du fichier) — plus léger, plus honnête, et l'onglet « Ville »
             porte déjà la géographie. */}
 
-        {/* Honnêteté : boards dont les lignes ne viennent pas du serveur =
-            démonstration, on le dit — et on situe la vision (Europe) sans mentir
-            sur les données (Saison 0 ouvre Paris + Lille, le reste suit). */}
-        {boardIsDemo ? <Text style={styles.demoNote}>{t(C.demoNote)}</Text> : null}
+        {showBoardRows ? (
+          <>
+            {/* PODIUM top 3 — remonté à chaque changement de board (key). Reçoit les
+                lignes FILTRÉES (`rows`) : en mode discret je n'apparais pas non plus
+                sur le podium (§10.3) — le podium gère déjà un rang manquant (case vide). */}
+            <Podium key={board.id} board={{ ...board, rows }} />
 
-        {/* PODIUM top 3 — remonté à chaque changement de board (key). Reçoit les
-            lignes FILTRÉES (`rows`) : en mode discret je n'apparais pas non plus
-            sur le podium (§10.3) — le podium gère déjà un rang manquant (case vide). */}
-        <Podium key={board.id} board={{ ...board, rows }} />
-
-        {/* Rangs 4+ — COMPACT : fenêtre autour de MA ligne + « Voir tout » */}
-        <View style={styles.list}>
-          {showLeadEllipsis ? <Text style={styles.ellipsis}>···</Text> : null}
-          {visibleRows.map((row) => (
-            <BoardRow key={`${board.id}-${row.rank}`} row={row} board={board} />
-          ))}
-        </View>
-        {hiddenCount > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(C.seeAllBoardA11y)}
-            onPress={() => setShowAll(true)}
-            style={({ pressed }) => [styles.seeAll, pressed && styles.pressed]}
-          >
-            <Text style={styles.seeAllLabel}>{t(C.seeAll)}</Text>
-            <Text style={styles.seeAllCount}>+{hiddenCount}</Text>
-            <Icon name="chevron" size={16} color={colors.gris} />
-          </Pressable>
-        ) : null}
+            {/* Rangs 4+ — COMPACT : fenêtre autour de MA ligne + « Voir tout » */}
+            <View style={styles.list}>
+              {showLeadEllipsis ? <Text style={styles.ellipsis}>···</Text> : null}
+              {visibleRows.map((row) => (
+                <BoardRow key={`${board.id}-${row.rank}`} row={row} board={board} />
+              ))}
+            </View>
+            {hiddenCount > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(C.seeAllBoardA11y)}
+                onPress={() => setShowAll(true)}
+                style={({ pressed }) => [styles.seeAll, pressed && styles.pressed]}
+              >
+                <Text style={styles.seeAllLabel}>{t(C.seeAll)}</Text>
+                <Text style={styles.seeAllCount}>+{hiddenCount}</Text>
+                <Icon name="chevron" size={16} color={colors.gris} />
+              </Pressable>
+            ) : null}
+          </>
+        ) : !onJoueurs ? (
+          /* Crews / Ville : aucune source serveur n'existe encore. Ce n'est pas
+             « vide en attendant », c'est « pas ouvert » — et le dire évite de
+             faire revenir le joueur tous les jours pour rien. */
+          <BoardEmpty
+            title={t(C.boardNoSourceTitle)}
+            body={t(tab === 'crews' ? C.boardNoSourceCrews : C.boardNoSourceVille)}
+          />
+        ) : boardLoading ? (
+          <Text style={styles.demoNote}>{t(C.boardLoading)}</Text>
+        ) : !signedIn ? (
+          /* Pas de compte = pas de saison rattachée. L'action est la connexion,
+             et elle n'existe que si un backend est configuré. */
+          <BoardEmpty
+            title={t(C.boardSignedOutTitle)}
+            body={t(C.boardSignedOutBody)}
+            {...(configured
+              ? { cta: { label: t(C.boardSignIn), onPress: () => router.push('/sign-in') } }
+              : {})}
+          />
+        ) : (
+          /* Connecté, lecture terminée, rien reçu. La lecture ne distingue pas
+             « classement encore vide » d'un échec réseau : on énonce donc le
+             FAIT observable (« aucun score reçu ») plutôt qu'une cause devinée,
+             et on propose le geste qui aide dans les deux cas. */
+          <BoardEmpty
+            title={t(C.boardEmptyTitle)}
+            body={t(C.boardEmptyBody)}
+            cta={{ label: t(C.boardEmptyCta), onPress: () => router.push('/route-planner') }}
+          />
+        )}
 
         {/* Récompenses Top 10 (doc §17) — sous le fold, datées sur l'horloge
             unique de l'écran (semaine de saison, pas de « fin de saison »
@@ -527,6 +620,24 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.xs * 1.5,
     marginTop: spacing.sm,
   },
+
+  // ── État vide d'un board : prend la place du podium, même rythme vertical ──
+  emptyCard: {
+    marginTop: 22,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+  },
+  emptyTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  emptyBody: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.6,
+    marginTop: spacing.xs,
+  },
+  emptyCta: { marginTop: spacing.md },
 
   // ── Podium en marches ──
   podium: {

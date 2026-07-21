@@ -18,8 +18,6 @@ export {
   BOOST_CHEST_BONUS_LABEL,
   EQUIP_SCOPE_LABEL,
   INITIAL_CREW_WALL,
-  INITIAL_EQUIPPED,
-  INITIAL_OWNED,
   boostDurationH,
   boostRemainingMs,
   equipScopeOf,

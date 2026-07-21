@@ -1,25 +1,25 @@
 'use client';
 
 /**
- * Téléphone HUD « RAID LIVE » du hero (AMENDEMENT-05 §3.2 + AMENDEMENT-11) :
- * Battle Map ORGANIQUE 3 factions (mon territoire chartreuse, territoire
- * ennemi --ennemi, ville neutre — aucune grille), trace de course active dont
- * le corridor capturé PROGRESSE le long de la route et mord le territoire
- * ennemi (la frontière recule), alerte raid, panneau « RAID LIVE · Paris Est ·
- * 62 % GRYD Crew · 31 % Rival · 7 % Neutre · +18 zones prises · 4 membres
- * actifs · 22 min restantes » et badge (--or) qui pop en fin de séquence. La
- * séquence se joue une fois à l'apparition du téléphone, et « Simuler une
- * course » (Hero → PhoneContext.simTick) la rejoue. SSR stable (aucun aléa au
- * rendu) ; prefers-reduced-motion : capture posée d'un bloc, badge statique.
- * Strings V2 locales fr/en.
+ * Illustration téléphone du hero (AMENDEMENT-11) : Battle Map ORGANIQUE à trois
+ * rôles (mon territoire chartreuse, territoire ennemi --ennemi, ville neutre —
+ * aucune grille), trace de course dont le corridor capturé PROGRESSE le long de
+ * la route et mord le territoire ennemi (la frontière recule). C'est un SCHÉMA
+ * de la mécanique, pas une capture d'écran d'un compte réel.
+ *
+ * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026). Le panneau
+ * « RAID LIVE · 62 % GRYD Crew · 31 % Rival · 7 % Neutre · +18 zones prises ·
+ * 4 membres actifs · 22 min restantes » a été SUPPRIMÉ : chacun de ces nombres
+ * était inventé, et le mot « LIVE » les présentait comme une partie en cours.
+ * À la place : une LÉGENDE des trois rôles de couleur — elle explique le code
+ * visuel, elle n'affirme rien sur l'état du monde. Le geste (la course qui
+ * conquiert un corridor) reste : lui, il est vrai.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { colors, mapTokens } from '@klaim/shared';
-import { RAID } from '../../../lib/landing';
 import { useLang } from './LangProvider';
 import { usePhone } from './PhoneContext';
-import { useToast } from './Toast';
 import { useReveal } from './useReveal';
 import styles from './PhoneMockup.module.css';
 
@@ -79,53 +79,45 @@ const TAKEN_BITE_D =
 /** La « bite » apparaît quand la course a pénétré le territoire ennemi. */
 const BITE_AT = SEQUENCE.length - 3;
 
-// Chiffres de showcase du raid : RAID (lib/landing, fictifs assumés,
-// DÉTERMINISTES — AMENDEMENT-05 §3.2/§4, centralisés).
-
 const STRINGS = {
   fr: {
-    raidLive: 'RAID LIVE',
+    previewChip: 'SCHÉMA',
+    legendTitle: 'Le code couleur de la carte',
     contested: '⚠ Contesté',
-    crew: 'GRYD Crew',
-    /* Libellé aligné AMENDEMENT-05 §1 : la faction adverse du HUD est rendue
-       en --ennemi (zone ennemie/attaque) — « Rival » (violet) serait faux. */
+    crew: 'Ton crew',
+    /* Libellé aligné AMENDEMENT-05 §1 : la faction adverse est rendue en
+       --ennemi (zone ennemie/attaque) — « Rival » (violet) serait faux. */
     rival: 'Ennemi',
     neutral: 'Neutre',
-    hexesTaken: (n: string) => `+${n} zones prises`,
-    members: (n: string) => `${n} membres actifs`,
-    minutes: (n: string) => `${n} min restantes`,
     badgeName: 'Route Opened',
-    badgeLabel: 'Badge débloqué',
-    sharesAria: 'Parts de contrôle de la zone',
+    badgeLabel: 'Un badge existe pour ça',
+    legendAria: 'Légende des rôles de couleur de la carte',
     frameAria:
-      'Aperçu de l’app GRYD : raid en direct — carte à trois factions, trace de course et HUD de progression',
+      'Schéma de la mécanique GRYD : une course trace un corridor qui devient ton territoire et fait reculer la frontière ennemie',
   },
   en: {
-    raidLive: 'LIVE RAID',
+    previewChip: 'DIAGRAM',
+    legendTitle: 'The map colour code',
     contested: '⚠ Contested',
-    crew: 'GRYD Crew',
-    /* Label aligned with AMENDEMENT-05 §1: the HUD foe faction renders in
+    crew: 'Your crew',
+    /* Label aligned with AMENDEMENT-05 §1: the foe faction renders in
        --ennemi (enemy zone/attack) — "Rival" (purple) would contradict it. */
     rival: 'Enemy',
     neutral: 'Neutral',
-    hexesTaken: (n: string) => `+${n} zones taken`,
-    members: (n: string) => `${n} members active`,
-    minutes: (n: string) => `${n} min left`,
     badgeName: 'Route Opened',
-    badgeLabel: 'Badge unlocked',
-    sharesAria: 'Zone control shares',
+    badgeLabel: 'There is a badge for that',
+    legendAria: 'Legend of the map colour roles',
     frameAria:
-      'GRYD app preview: live raid — three-faction map, run trace and progress HUD',
+      'GRYD mechanic diagram: a run draws a corridor that becomes your territory and pushes the enemy border back',
   },
 } as const;
 
 /* ── Composant ─────────────────────────────────────────────────────────────── */
 
 export function PhoneMockup() {
-  const { lang, copy, formatInt } = useLang();
+  const { lang, copy } = useLang();
   const S = STRINGS[lang];
   const { zone, simTick } = usePhone();
-  const { showToast } = useToast();
   const reveal = useReveal<HTMLDivElement>(0.35);
 
   const [capturedCount, setCapturedCount] = useState(0);
@@ -134,62 +126,51 @@ export function PhoneMockup() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const playedRef = useRef(false);
 
-  // Copie stable pour le timeout de fin (évite de re-armer l'effet au changement de langue).
-  const toastCopyRef = useRef({ validated: copy.phone.runValidated, unit: copy.phone.hexesUnit });
-  toastCopyRef.current = { validated: copy.phone.runValidated, unit: copy.phone.hexesUnit };
+  // Rejouer le schéma ne déclenche PLUS de toast « Course validée · +18 zones » :
+  // aucune course n'a eu lieu, rien n'a été validé, il n'y a rien à annoncer.
+  const play = useCallback(() => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    setBadge(false);
 
-  const play = useCallback(
-    (announce: boolean) => {
-      timersRef.current.forEach(clearTimeout);
-      timersRef.current = [];
-      setBadge(false);
+    const finish = () => {
+      setRunning(false);
+      setBadge(true);
+      timersRef.current.push(setTimeout(() => setBadge(false), BADGE_HIDE_MS));
+    };
 
-      const finish = () => {
-        setRunning(false);
-        setBadge(true);
-        timersRef.current.push(setTimeout(() => setBadge(false), BADGE_HIDE_MS));
-        if (announce) {
-          const { validated, unit } = toastCopyRef.current;
-          showToast(`${validated} · +${RAID.hexesTaken} ${unit.toLowerCase()}`);
-        }
-      };
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // Schéma posé d'un bloc, badge sans pop (charte §G).
+      setCapturedCount(SEQUENCE.length);
+      finish();
+      return;
+    }
 
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        // Capture posée d'un bloc, badge sans pop (charte §G).
-        setCapturedCount(SEQUENCE.length);
-        finish();
-        return;
-      }
-
-      setCapturedCount(0);
-      setRunning(true);
-      SEQUENCE.forEach((_, i) => {
-        timersRef.current.push(setTimeout(() => setCapturedCount(i + 1), 200 + i * SIM_STEP_MS));
-      });
-      timersRef.current.push(setTimeout(finish, 200 + SEQUENCE.length * SIM_STEP_MS + 350));
-    },
-    [showToast],
-  );
+    setCapturedCount(0);
+    setRunning(true);
+    SEQUENCE.forEach((_, i) => {
+      timersRef.current.push(setTimeout(() => setCapturedCount(i + 1), 200 + i * SIM_STEP_MS));
+    });
+    timersRef.current.push(setTimeout(finish, 200 + SEQUENCE.length * SIM_STEP_MS + 350));
+  }, []);
 
   // Séquence jouée une fois à l'apparition du téléphone (démarrage client, valeurs fixes).
   useEffect(() => {
     if (!reveal.shown || playedRef.current) return;
     playedRef.current = true;
-    play(false);
+    play();
   }, [reveal.shown, play]);
 
-  // « Simuler une course » rejoue la séquence.
+  // « Simuler une course » rejoue le schéma.
   useEffect(() => {
     if (simTick === 0) return;
-    play(true);
+    play();
   }, [simTick, play]);
 
   useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
 
   // Progression du corridor capturé le long de la route (0 → 1).
   const progress = capturedCount / SEQUENCE.length;
-  // « +18 zones prises » suit la progression du corridor (0 → 18).
-  const taken = Math.round(RAID.hexesTaken * progress);
   const zoneName = zone?.name ?? copy.phone.defaultZoneName;
 
   return (
@@ -199,11 +180,8 @@ export function PhoneMockup() {
         <div className={styles.screen}>
           <div className={styles.statusBar}>
             <span className={styles.time}>19:42</span>
-            {/* Chip « live » — emploi doctrine C.3 (état en direct). */}
-            <span className={styles.liveChip}>
-              <span className={styles.liveDot} />
-              {copy.phone.live}
-            </span>
+            {/* Plus de chip « LIVE » : rien n'est en direct, c'est un schéma. */}
+            <span className={styles.previewChip}>{S.previewChip}</span>
           </div>
 
           <div className={styles.mapWrap}>
@@ -308,41 +286,27 @@ export function PhoneMockup() {
             ) : null}
           </div>
 
-          {/* Panneau HUD RAID LIVE. */}
+          {/* Légende du code couleur — ce qui remplace l'ancien HUD « RAID LIVE ».
+              Une légende explique un dessin ; elle ne prétend pas mesurer une partie. */}
           <div className={styles.raidPanel}>
             <div className={styles.raidHead}>
-              <span className={styles.raidChip}>
-                <span className={styles.raidDot} aria-hidden="true" />
-                {S.raidLive}
-              </span>
+              <span className={styles.raidChip}>{S.legendTitle}</span>
               <strong className={styles.raidZone}>{zoneName}</strong>
             </div>
 
-            <div className={styles.factionBar} role="img" aria-label={S.sharesAria}>
-              <span className={styles.segCrew} style={{ width: `${RAID.crewPct}%` }} />
-              <span className={styles.segRival} style={{ width: `${RAID.rivalPct}%` }} />
-              <span className={styles.segNeutral} style={{ width: `${RAID.neutralPct}%` }} />
-            </div>
-
-            <div className={styles.legend}>
+            <div className={styles.legend} role="img" aria-label={S.legendAria}>
               <span className={styles.legendItem}>
                 <span className={`${styles.legendDot} ${styles.dotCrew}`} aria-hidden="true" />
-                <strong>{formatInt(RAID.crewPct)} %</strong> {S.crew}
+                {S.crew}
               </span>
               <span className={styles.legendItem}>
                 <span className={`${styles.legendDot} ${styles.dotRival}`} aria-hidden="true" />
-                <strong>{formatInt(RAID.rivalPct)} %</strong> {S.rival}
+                {S.rival}
               </span>
               <span className={styles.legendItem}>
                 <span className={`${styles.legendDot} ${styles.dotNeutral}`} aria-hidden="true" />
-                <strong>{formatInt(RAID.neutralPct)} %</strong> {S.neutral}
+                {S.neutral}
               </span>
-            </div>
-
-            <div className={styles.raidStats}>
-              <span className={styles.statTaken}>{S.hexesTaken(formatInt(taken))}</span>
-              <span className={styles.statItem}>{S.members(formatInt(RAID.membersActive))}</span>
-              <span className={styles.statItem}>{S.minutes(formatInt(RAID.minutesLeft))}</span>
             </div>
           </div>
         </div>

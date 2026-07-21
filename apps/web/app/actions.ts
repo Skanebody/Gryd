@@ -36,22 +36,26 @@ export async function joinWaitlist(
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // Honnêteté (charte §1) : ne JAMAIS renvoyer un faux « succès » sans insert —
-    // le visiteur croirait être inscrit et son e-mail serait perdu en silence.
-    // En PROD, l'env absente est une mauvaise config → erreur honnête. En DEV
-    // seulement, on tolère un succès simulé pour ne pas bloquer le travail local.
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[waitlist] env Supabase absente en production — inscription NON enregistrée');
+    // Honnêteté (charte §1) : ne JAMAIS renvoyer un « succès » sans insert — le
+    // visiteur croirait être inscrit et son e-mail serait perdu en silence.
+    //
+    // La branche DEV renvoyait auparavant `success` pour ne pas gêner le travail
+    // local : c'était le même mensonge, juste sur localhost. La décision
+    // fondateur du 21/07/2026 ne fait pas d'exception pour localhost. En dev, on
+    // renvoie donc une erreur qui NOMME la cause, pour que le fondateur voie
+    // immédiatement que rien n'a été enregistré.
+    console.error('[waitlist] env Supabase absente — inscription NON enregistrée');
+    if (process.env.NODE_ENV !== 'production') {
       return {
         status: 'error',
-        message: 'L’inscription est momentanément indisponible. Réessaie dans quelques minutes.',
+        message:
+          'Waitlist non connectée en local (NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY absentes) — rien n’a été enregistré.',
       };
     }
-    console.log('[waitlist] DEV — env Supabase absente, inscription simulée (non enregistrée) :', {
-      email,
-      postalCode,
-    });
-    return { status: 'success' };
+    return {
+      status: 'error',
+      message: 'L’inscription est momentanément indisponible. Réessaie dans quelques minutes.',
+    };
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);

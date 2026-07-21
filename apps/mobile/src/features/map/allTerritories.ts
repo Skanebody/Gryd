@@ -43,7 +43,6 @@ import {
   LILLE_BOUCLE,
   LYON_BERGES_RHONE,
 } from '../territory/franceTerritories';
-import { PARIS_DEMO_SECTOR_VIEWS } from './sectorsDemo';
 import {
   AVENUE_DE_LA_REPUBLIQUE,
   BOUCLE_BASTILLE,
@@ -285,8 +284,6 @@ function collection(features: GameFeature[]): GameCollection {
 
 // ─── Possessions par état (une seule source pour les deux cartes) ───────────
 
-let geoByStateCache: ReadonlyMap<TerritoryState, GameCollection> | null = null;
-
 /**
  * Territoires RÉELS (hex_claims fusionnés) → GeoJSON par état.
  *
@@ -323,149 +320,21 @@ export function realTerritoriesToGeo(
 /**
  * GeoJSON par état de territoire — LA source des deux cartes.
  *
- * P0.2 (AMENDEMENT-39) : `real` non-null ⇒ on rend les VRAIES captures et la démo
- * n'est jamais consultée — y compris `real: []`, qui rend une carte VIDE. C'est
- * volontaire : un joueur qui n'a rien capturé doit voir qu'il n'a rien capturé.
- * `real: null` ⇒ pas de session/backend ⇒ démo ÉTIQUETÉE (l'appelant l'annonce).
+ * FIN DU MODE VITRINE (21/07/2026) : `real` est REQUIS et NON-NULLABLE. Il n'y a
+ * plus de branche démo. `real: []` rend une carte VIDE — c'est volontaire : un
+ * joueur qui n'a rien capturé doit voir qu'il n'a rien capturé, y compris pendant
+ * que la lecture est en vol (l'appelant passe `[]`, jamais un faux Paris conquis).
  *
- * Le cache ne couvre QUE la démo (déterministe, calculée une fois). Le réel n'est
- * pas caché ici : il change à chaque capture, et un cache de module survivrait au
- * changement de joueur — la carte afficherait le territoire du compte précédent.
- *
- * Démo : les DEUX cartes rendent aussi les possessions hors Paris (boucle Lille
- * crew + couloir rival Lyon). Géométries TRACÉ-BASED (§4ter).
+ * Aucun cache ici : le réel change à chaque capture, et un cache de module
+ * survivrait au changement de joueur — la carte afficherait le territoire du
+ * compte précédent.
  */
 export function territoryGeoByState(
-  real: readonly RealTerritory[] | null = null,
+  real: readonly RealTerritory[],
 ): ReadonlyMap<TerritoryState, GameCollection> {
-  if (real) return realTerritoriesToGeo(real);
-  if (geoByStateCache) return geoByStateCache;
-  const rivalTraceParis = RUE_FAUBOURG_DU_TEMPLE.slice(
-    0,
-    RUE_FAUBOURG_DU_TEMPLE.length - CONTESTED_TRACE_WAYPOINTS + 1,
-  );
-  const contestedTrace = RUE_FAUBOURG_DU_TEMPLE.slice(-CONTESTED_TRACE_WAYPOINTS);
-  // AMENDEMENT-16 §0 (retour fondateur) : « je veux JUSTE le tracé ». Un couloir
-  // de course (run non bouclé) = LE TRACÉ, une simple ligne le long de la rue —
-  // plus de ruban rempli de 60 m qui se lit comme un halo. Seules les BOUCLES
-  // fermées gardent un aplat (l'aire enfermée = la zone). ribbonRing n'est donc
-  // plus utilisé pour l'affichage des couloirs.
-  const Z = TERRITORY_ZONE_IDS;
-  const byState = new Map<TerritoryState, GameCollection>([
-    [
-      'crew',
-      collection([
-        polygonFeature('crew', Z.republique, loopRing(BOUCLE_REPUBLIQUE)),
-        lineFeature('crew', Z.quaiValmy, QUAI_VALMY),
-        polygonFeature('crew', Z.lilleCentre, loopRing(LILLE_BOUCLE)),
-      ]),
-    ],
-    [
-      'protected',
-      collection([polygonFeature('protected', Z.placeRepublique, loopRing(BOUCLE_PLACE_REPUBLIQUE))]),
-    ],
-    [
-      'decay',
-      collection([
-        lineFeature('decay', Z.avenueRepublique, AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_FROM_WAYPOINT)),
-      ]),
-    ],
-    [
-      'decayUrgent',
-      collection([
-        lineFeature(
-          'decayUrgent',
-          Z.avenueRepubliqueFin,
-          AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_URGENT_FROM_WAYPOINT),
-        ),
-      ]),
-    ],
-    [
-      'rival',
-      collection([
-        lineFeature('rival', Z.faubourgTemple, rivalTraceParis),
-        lineFeature('rival', Z.lyonRhone, LYON_BERGES_RHONE),
-      ]),
-    ],
-    ['contested', collection([lineFeature('contested', Z.canalEst, contestedTrace)])],
-    [
-      'objective',
-      collection([polygonFeature('objective', Z.squareVillemin, loopRing(BOUCLE_SQUARE_VILLEMIN))]),
-    ],
-    ['outpost', collection([polygonFeature('outpost', Z.bastille, loopRing(BOUCLE_BASTILLE))])],
-  ]);
-  geoByStateCache = byState;
-  return byState;
+  return realTerritoriesToGeo(real);
 }
 
-/**
- * Ancre du SABLIER du secteur en decay (une icône PAR SECTEUR) : milieu de la
- * portion URGENTE du tracé — remplace l'ancre du pipeline Chaikin (§4ter).
- */
-export function decaySablierAnchor(): LatLngPoint {
-  const trace = AVENUE_DE_LA_REPUBLIQUE.slice(DECAY_URGENT_FROM_WAYPOINT);
-  let lat = 0;
-  let lng = 0;
-  for (const p of trace) {
-    lat += p.lat;
-    lng += p.lng;
-  }
-  const count = Math.max(1, trace.length);
-  return { lat: lat / count, lng: lng / count };
-}
-
-// ─── Marqueurs-points villes (lisibilité au dézoom, §4bis) ──────────────────
-
-let dotLayersCache: readonly RealMapPointLayer[] | null = null;
-
-/**
- * Calque partagé des possessions au niveau monde/pays : un point coloré
- * (tokens — chartreuse possession / orange rival) + label ville par
- * territoire, borné par TERRITORY_DOT_MAX_ZOOM via minzoom/maxzoom MapLibre.
- * Branché tel quel sur les DEUX cartes (`pointLayers` de RealMap).
- */
-export function territoryDotLayers(): readonly RealMapPointLayer[] {
-  if (dotLayersCache) return dotLayersCache;
-  const data: GameCollection = {
-    type: 'FeatureCollection',
-    features: FRANCE_CITIES_DEMO.map((city) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [city.center.lng, city.center.lat] },
-      properties: {
-        label: city.rival ? `${city.label.toUpperCase()} · RIVAL` : city.label.toUpperCase(),
-        color: city.rival ? gameColors.rival : colors.chartreuse,
-      },
-    })),
-  };
-  dotLayersCache = [
-    {
-      id: 'territory-dots',
-      data,
-      maxZoom: TERRITORY_DOT_MAX_ZOOM,
-      circleRadius: TERRITORY_DOT_RADIUS_PX,
-      circleStrokeColor: colors.noir,
-      circleStrokeWidth: TERRITORY_DOT_STROKE_PX,
-      textSize: TERRITORY_LABEL_SIZE_PX,
-      textOffsetEm: TERRITORY_LABEL_OFFSET_EM,
-      textHaloColor: colors.noir,
-      textLetterSpacing: TERRITORY_LABEL_LETTER_SPACING_EM,
-    },
-    // §C — BADGE de statut par SECTEUR (relais des marqueurs-points villes au
-    // zoom quartier/rue) : le libellé COURT de SECTOR_STATUS_SPEC (« Zone
-    // contestée » / « Attaque en cours » / « À sauver » — jamais tronqué §A9)
-    // sur un point de la teinte de statut. Borné en minZoom (SECTOR_MIN_ZOOM) →
-    // n'apparaît QUE là où les disques de secteur sont lisibles (les villes ont
-    // pris le relais en dessous). Même calque `pointLayers` que les villes, donc
-    // servi aux DEUX cartes sans toucher MapScreen.
-    sectorStatusBadgeLayer(),
-    // §11 z10-12 — % de CONTRÔLE dominant par secteur : répond « qui contrôle
-    // quoi » dès le dézoom métropole (le badge de statut, lui, ne dit QUE le
-    // statut). Posé AU-DESSUS du point (le badge de statut est en dessous) → pas
-    // de collision, ≤ 1 label court en plus. Borné [métropole, quartier[.
-    sectorControlPctLayer(),
-  ];
-  return dotLayersCache;
-}
 
 /**
  * §C — Zoom SEUIL d'apparition des SECTEURS agrégés (disques de statut) + de
@@ -588,60 +457,6 @@ const SECTOR_BADGE_LABEL_OFFSET_EM = 1;
 const SECTOR_BADGE_LABEL_LETTER_SPACING_EM = 0.02;
 
 /**
- * §C — Calque des BADGES de statut de secteur (niveau ≥ contesté). La PRESSION
- * (niveau 1) reste un simple halo orange sur la carte (pas de bandeau
- * permanent, §C) : seuls les secteurs contesté / attaque / urgence portent une
- * étiquette courte. Couleur du point = teinte de statut (roleColor : contesté →
- * violet ; attaque → rival orange ; urgence → decay), jamais une couleur par
- * crew. Borné en minZoom pour relayer les marqueurs-points villes au zoom
- * quartier. Un seul point + libellé par secteur (1 badge / secteur — §C).
- */
-export function sectorStatusBadgeLayer(): RealMapPointLayer {
-  const data: GameCollection = {
-    type: 'FeatureCollection',
-    features: PARIS_DEMO_SECTOR_VIEWS.filter(
-      (v) =>
-        v.status.level >= SECTOR_STATUS_LEVELS.contestee &&
-        // Le secteur FOYER de l'ego n'a PAS de badge : son statut est déjà porté
-        // par le header (« République attaquée ») — pas de doublon, pas de texte
-        // masqué par le bandeau (§A20 / §A9).
-        v.id !== EGO_HOME_SECTOR_ID,
-    ).map((v) => {
-      // Teinte de statut par rôle : contesté = violet ; attaque = rival ;
-      // urgence = decay. La couleur ne fait que DOUBLER la forme + le libellé.
-      const roleKey =
-        v.status.level >= SECTOR_STATUS_LEVELS.urgence
-          ? 'decay'
-          : v.status.level >= SECTOR_STATUS_LEVELS.attaque
-            ? 'rival'
-            : 'contested';
-      return {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
-        properties: {
-          label: SECTOR_BADGE_LABELS[v.status.key] ?? '',
-          // §7.1 — opacité = force : la teinte de statut est atténuée si je tiens
-          // ce secteur faiblement, pleine si je le tiens fort (le halo reste plein).
-          color: withForceAlpha(roleColor(roleKey), v.minePercent),
-        },
-      };
-    }),
-  };
-  return {
-    id: 'sector-status-badges',
-    data,
-    minZoom: SECTOR_MIN_ZOOM,
-    circleRadius: SECTOR_BADGE_DOT_RADIUS_PX,
-    circleStrokeColor: colors.noir,
-    circleStrokeWidth: SECTOR_BADGE_DOT_STROKE_PX,
-    textSize: SECTOR_BADGE_LABEL_SIZE_PX,
-    textOffsetEm: SECTOR_BADGE_LABEL_OFFSET_EM,
-    textHaloColor: colors.noir,
-    textLetterSpacing: SECTOR_BADGE_LABEL_LETTER_SPACING_EM,
-  };
-}
-
-/**
  * Label % de contrôle : posé AU-DESSUS du point (offset NÉGATIF) pour ne pas
  * entrer en collision avec le badge de statut du même secteur (posé EN DESSOUS,
  * SECTOR_BADGE_LABEL_OFFSET_EM). Le point réutilise la taille du badge de statut
@@ -651,109 +466,5 @@ const SECTOR_PCT_LABEL_SIZE_PX = 12;
 const SECTOR_PCT_LABEL_OFFSET_EM = -1;
 const SECTOR_PCT_LABEL_LETTER_SPACING_EM = 0.02;
 
-/**
- * Format % de contrôle DÉTERMINISTE (pas d'Intl — parité Hermes) : une fraction
- * 0-1 → un entier borné suivi de « % » (ex. 0.64 → « 64% »). Court, jamais
- * tronqué (§A9).
- */
-function formatControlPercent(fraction: number): string {
-  const pct = Math.round(fraction * 100);
-  const bounded = pct < 0 ? 0 : pct > 100 ? 100 : pct;
-  return `${bounded}%`;
-}
-
-/**
- * §11 z10-12 (bande MÉTROPOLE) — Calque du % de CONTRÔLE dominant par secteur.
- * Répond à la question « qui contrôle quoi » DÈS le dézoom, là où le badge de
- * statut ne dit QUE le statut (« Zone contestée »…). Le nombre est MON emprise
- * (view.minePercent) ; on n'affiche JAMAIS le nom/blason du crew au dézoom (§9 —
- * ils restent au tap, zéro nom de crew fabriqué). Teinte de RÔLE : chartreuse si
- * JE domine (minePercent ≥ rivalPercent), sinon gris neutre (mon emprise
- * faiblit) — jamais l'orange rival, qui laisserait croire que le NOMBRE est
- * celui de l'adversaire. Halo noir → contraste garanti sur les DEUX fonds
- * (jamais de chartreuse « nue » sur fond clair, §C — même parade que les dots
- * villes). Le secteur FOYER de l'ego est EXCLU, comme pour le badge de statut
- * (§A20/§A9 : le header porte déjà son état et son label tomberait sous le
- * bandeau). Borné [SECTOR_PCT_MIN_ZOOM, SECTOR_PCT_MAX_ZOOM] : n'apparaît qu'à la
- * métropole et s'efface au quartier (les tracés prennent le relais). Même
- * `pointLayers` que les villes/badges → servi aux DEUX cartes sans toucher MapScreen.
- */
-export function sectorControlPctLayer(): RealMapPointLayer {
-  const data: GameCollection = {
-    type: 'FeatureCollection',
-    features: PARIS_DEMO_SECTOR_VIEWS.filter((v) => v.id !== EGO_HOME_SECTOR_ID).map((v) => {
-      // Rôle de teinte dérivé de la DOMINANCE (pas d'une couleur par crew) :
-      // mien dominant → chartreuse ; sinon neutre (le nombre reste le mien).
-      const mineDominant = v.minePercent >= v.rivalPercent;
-      return {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
-        properties: {
-          label: formatControlPercent(v.minePercent),
-          // §7.1 — opacité = force : plus mon emprise est forte, plus la teinte du
-          // % est pleine ; faible emprise → légèrement atténuée (halo noir plein).
-          color: withForceAlpha(roleColor(mineDominant ? 'mine' : 'neutral'), v.minePercent),
-        },
-      };
-    }),
-  };
-  return {
-    id: 'sector-control-pct',
-    data,
-    minZoom: SECTOR_PCT_MIN_ZOOM,
-    maxZoom: SECTOR_PCT_MAX_ZOOM,
-    circleRadius: SECTOR_BADGE_DOT_RADIUS_PX,
-    circleStrokeColor: colors.noir,
-    circleStrokeWidth: SECTOR_BADGE_DOT_STROKE_PX,
-    textSize: SECTOR_PCT_LABEL_SIZE_PX,
-    textOffsetEm: SECTOR_PCT_LABEL_OFFSET_EM,
-    textHaloColor: colors.noir,
-    textLetterSpacing: SECTOR_PCT_LABEL_LETTER_SPACING_EM,
-  };
-}
-
 // ─── Bounds de l'ensemble des possessions (caméra d'ouverture, §4bis) ───────
 
-let extentCache: { sw: [number, number]; ne: [number, number] } | null = null;
-
-/** Étend l'enveloppe courante avec une liste de positions [lng, lat]. */
-function extendExtent(
-  extent: { minLng: number; minLat: number; maxLng: number; maxLat: number },
-  positions: readonly (readonly number[])[],
-): void {
-  for (const pos of positions) {
-    const lng = pos[0];
-    const lat = pos[1];
-    if (lng === undefined || lat === undefined) continue;
-    if (lng < extent.minLng) extent.minLng = lng;
-    if (lng > extent.maxLng) extent.maxLng = lng;
-    if (lat < extent.minLat) extent.minLat = lat;
-    if (lat > extent.maxLat) extent.maxLat = lat;
-  }
-}
-
-/**
- * Enveloppe [sw, ne] de TOUTES les possessions (tous états, toutes villes) —
- * « Mon territoire » s'ouvre en fitBounds dessus, jamais sur un cadrage
- * France figé (les lieux démo sont des DONNÉES, pas une limite du produit).
- */
-export function possessionsBounds(paddingPx: number): RealMapBounds {
-  if (!extentCache) {
-    const extent = { minLng: Infinity, minLat: Infinity, maxLng: -Infinity, maxLat: -Infinity };
-    for (const geo of territoryGeoByState().values()) {
-      for (const feature of geo.features) {
-        const { geometry } = feature;
-        if (geometry.type === 'Polygon') {
-          for (const ring of geometry.coordinates) extendExtent(extent, ring);
-        } else if (geometry.type === 'LineString') {
-          extendExtent(extent, geometry.coordinates);
-        }
-      }
-    }
-    extentCache = {
-      sw: [extent.minLng, extent.minLat],
-      ne: [extent.maxLng, extent.maxLat],
-    };
-  }
-  return { sw: [...extentCache.sw], ne: [...extentCache.ne], paddingPx };
-}

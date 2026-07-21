@@ -1,19 +1,22 @@
 /**
  * GRYD — onglet Carte (home) : la carte EST le produit (SPEC §4.2.1).
- * Le bouton d'action (DÉFENDRE) et la nav vivent dans le layout (tabs).
+ * Le bouton d'action (GO) et la nav vivent dans le layout (tabs).
  *
- * Zéro-friction (audit P1) : la MISSION est lisible SANS AUCUN TAP — une
- * LIGNE MISSION fixe en haut de la carte (« République attaquée · 3 zones ·
- * 8 h restantes »), dérivée des MÊMES sources démo que le panneau Info
- * (MAP_MISSION / MAP_MISSION_SUMMARY). UNE SEULE horloge à l'écran par défaut :
- * le temps restant de la mission (MAP_MISSION_SUMMARY.timeLeftLabel). L'état
- * « attaquée » est porté par le TEXTE (l'accent orange rival ne fait que le
- * renforcer — jamais la couleur seule), et le FAB « i » ne porte plus la
- * mission à lui seul. Tap sur la ligne = détail compact (« Défendre
- * République » + distance + gain en pts crew) + entrée VISIBLE vers le Route
- * Planner (« Planifier un parcours » — l'appui long caché du bouton RUN n'est
- * plus le seul accès). Aucun CTA chartreuse plein ici : le SEUL CTA de
- * l'écran reste le bouton flottant DÉFENDRE de la nav (anti double-CTA §A.4).
+ * Zéro-friction : la MISSION est lisible SANS AUCUN TAP — une LIGNE MISSION
+ * fixe en haut de la carte, dérivée de `useRealMission`, c'est-à-dire de MES
+ * VRAIES captures. Tap sur la ligne = détail compact + entrée VISIBLE vers le
+ * Route Planner. Aucun CTA chartreuse plein ici : le SEUL CTA de l'écran reste
+ * le bouton flottant GO de la nav (anti double-CTA §A.4).
+ *
+ * ─── FIN DU MODE VITRINE (21/07/2026) ───────────────────────────────────────
+ * La ligne mission avait DEUX implémentations : la réelle, et une démo
+ * (« République attaquée · 3 zones · 8 h », tête de secteur « ●  il y a 2 h »,
+ * pill « Canal Crew 38 % ») tirée de `map/demo.ts`. La seconde a disparu : elle
+ * fabriquait une mission ET un rival. Il ne reste qu'un seul chemin — donc plus
+ * aucun risque que localhost raconte une autre histoire que l'iPhone.
+ * Conséquence directe : les returns conditionnels placés AVANT les hooks
+ * (`if (!isShowcasePlatform) …`, `if (configured && session) return null`) ont
+ * disparu avec la branche, et l'ordre des hooks est redevenu inconditionnel.
  */
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -24,13 +27,6 @@ import { MapScreen } from '../../src/features/map/MapScreen';
 import { SlideToStart } from '../../src/features/nav/SlideToStart';
 import { deriveContextualAction } from '../../src/features/nav/contextualAction';
 import { NAV_BAR_HEIGHT, SLIDE_START_GAP } from '../../src/features/nav/metrics';
-import {
-  MAP_FRESHNESS,
-  MAP_HUD,
-  MAP_MISSION,
-  MAP_MISSION_SUMMARY,
-  MAP_RIVAL_HEAD,
-} from '../../src/features/map/demo';
 import { C } from '../../src/i18n/catalog/nav';
 import { C as M } from '../../src/i18n/catalog/mission';
 import { useRealMission } from '../../src/features/mission/useRealMission';
@@ -39,8 +35,6 @@ import type { Locale } from '../../src/i18n/types';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { hasPendingUpload, retryPendingUpload } from '../../src/lib/pendingUpload';
-import { isShowcasePlatform } from '../../src/lib/flags';
-import { useSession } from '../../src/lib/session';
 import { useMapHudHidden } from '../../src/features/map/mapUiStore';
 import { Icon } from '../../src/ui/Icon';
 
@@ -65,25 +59,16 @@ function formatKm(km: number, locale: Locale): string {
   return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km`;
 }
 
-/**
- * SOURCE UNIQUE d'horloge de l'écran : le temps restant de la mission
- * (MAP_MISSION_SUMMARY.timeLeftLabel — « 8 h restantes »). La ligne mission et
- * son détail lisent CETTE valeur ; aucun autre compteur n'est affiché ici.
+/*
+ * Ont disparu avec la ligne mission de démo (21/07/2026) :
+ *   • TIME_LEFT_LABEL / TIME_COMPACT — l'« horloge unique » de l'écran lisait
+ *     MAP_MISSION_SUMMARY.timeLeftLabel (« 8 h restantes »), une échéance
+ *     fabriquée. La mission RÉELLE porte sa propre échéance (`hoursLeft`).
+ *   • SECTOR_NAME / la tête de carte (MAP_HUD.zoneName « PARIS EST », fraîcheur
+ *     « ● À jour », rival « Canal Crew · 38 % ») — un secteur, une fraîcheur et
+ *     un rival inventés, affichés au-dessus de la carte de n'importe qui.
+ * Elles reviendront quand une agrégation serveur les portera.
  */
-const TIME_LEFT_LABEL = MAP_MISSION_SUMMARY.timeLeftLabel;
-/** Temps COMPACT pour la ligne (« 8 h ») : la ligne tient sur 375 px au plancher
- *  a11y 12 px sans être coupée (§A « textes jamais tronqués »). Le détail au tap
- *  et le lecteur d'écran gardent la forme longue. */
-const TIME_COMPACT = TIME_LEFT_LABEL.replace(/\s*restantes?\.?$/i, '').trim();
-
-/**
- * TÊTE DE CARTE (AMENDEMENT-37 §4 + §26.2) : le secteur (« PARIS EST »), la
- * FRAÎCHEUR fusionnée sur la même ligne (« ● À jour », jamais un 2ᵉ bloc), et le
- * RIVAL principal agrégé sous elle (« Canal Crew · 38 % », teinte orange). Compris
- * sans tap, en < 3 s ; textes courts jamais tronqués. Réutilise le nom de secteur
- * existant (MAP_HUD.zoneName) et les parts démo (MAP_RIVAL_HEAD).
- */
-const SECTOR_NAME = MAP_HUD.zoneName.toUpperCase(); // « PARIS EST » — nom propre, invariant.
 
 export default function CarteTab() {
   return (
@@ -164,18 +149,17 @@ function PendingRunNote() {
 function MissionLine() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { session, configured } = useSession();
   const hudHidden = useMapHudHidden();
   const t = useT();
   const locale = useLocale();
   const [detailOpen, setDetailOpen] = useState(false);
-  // NATIF : la mission RÉELLE dérivée de MES vraies captures + ma position.
-  // null en showcase / sans session / échec (voir hook) — appelé inconditionnellement.
+  // La mission RÉELLE dérivée de MES vraies captures + ma position.
+  // null sans session / pendant la lecture / en cas d'échec (voir hook).
   const { mission: realMission } = useRealMission();
 
   // Retour sur la Carte = détail refermé (même règle « carte nue » que le HUD).
   // TOUS les hooks AVANT les retours conditionnels ci-dessous (Rules of Hooks) :
-  // le HUD masqué / un vrai user sortent tôt, mais jamais en sautant un hook.
+  // carte nue et « pas de mission réelle » sortent tôt, jamais en sautant un hook.
   useFocusEffect(
     useCallback(() => {
       setDetailOpen(false);
@@ -185,135 +169,31 @@ function MissionLine() {
   // « Carte nue » : l'utilisateur a masqué tout le HUD → plus de ligne mission.
   if (hudHidden) return null;
 
-  // ── NATIF (device installé) : mission RÉELLE ou RIEN — jamais la démo. ──
-  // CLAUDE.md / retour terrain 20/07 : sur l'app native, « République attaquée ·
-  // Canal Crew 38 % » n'a pas le droit d'exister (fabriquer une mission ET un
-  // rival). isShowcasePlatform est toujours false ici → on prend cette branche,
-  // qui ne lit QUE la mission dérivée de MES vraies captures (useRealMission),
-  // sans tête de secteur ni rival (aucune donnée fabriquée). Deux cas :
-  //  • null / loading / first_capture → RIEN : le widget « Prends ta première
-  //    zone » (BattleMapOverlays) porte déjà ce cas — pas de doublon §A ;
-  //  • defend_expiring / expand → LA ligne mission réelle (gabarit démo §A).
-  if (!isShowcasePlatform) {
-    if (!realMission || realMission.kind === 'first_capture') return null;
+  // Mission RÉELLE ou RIEN. Deux cas :
+  //  • null / lecture en cours / first_capture → RIEN : le widget « Prends ta
+  //    première zone » (BattleMapOverlays) porte déjà ce cas — pas de doublon §A ;
+  //  • defend_expiring / expand → LA ligne mission réelle.
+  if (!realMission || realMission.kind === 'first_capture') return null;
 
-    // Narrow UNE fois : `defend` non-null ⟺ mission de défense — accès `hoursLeft`
-    // sûr (un booléen isDefend séparé ne rétrécirait pas l'union → erreur TS).
-    const defend = realMission.kind === 'defend_expiring' ? realMission : null;
-    const kmLabel =
-      realMission.distanceM != null ? formatKm(realMission.distanceM / 1000, locale) : null;
-    // Titre COURT (détail au tap) : sans distance — la distance vit sur la ligne.
-    const nearText = defend ? t(M.missionDefend, { h: defend.hoursLeft }) : t(M.missionExpand);
-    // Ligne compacte : ajoute la distance dès qu'un fix GPS existe (variante Far).
-    const lineText =
-      kmLabel != null
-        ? defend
-          ? t(M.missionDefendFar, { km: kmLabel, h: defend.hoursLeft })
-          : t(M.missionExpandFar, { km: kmLabel })
-        : nearText;
-    // Accent par RÔLE (§C — renforce le texte, jamais seul porteur de sens) :
-    // decay urgent = danger (rouge) ; croissance de MON territoire = chartreuse.
-    const accent = defend ? gameColors.danger : colors.chartreuse;
+  // Narrow UNE fois : `defend` non-null ⟺ mission de défense — accès `hoursLeft`
+  // sûr (un booléen isDefend séparé ne rétrécirait pas l'union → erreur TS).
+  const defend = realMission.kind === 'defend_expiring' ? realMission : null;
+  const kmLabel =
+    realMission.distanceM != null ? formatKm(realMission.distanceM / 1000, locale) : null;
+  // Titre COURT (détail au tap) : sans distance — la distance vit sur la ligne.
+  const nearText = defend ? t(M.missionDefend, { h: defend.hoursLeft }) : t(M.missionExpand);
+  // Ligne compacte : ajoute la distance dès qu'un fix GPS existe (variante Far).
+  const lineText =
+    kmLabel != null
+      ? defend
+        ? t(M.missionDefendFar, { km: kmLabel, h: defend.hoursLeft })
+        : t(M.missionExpandFar, { km: kmLabel })
+      : nearText;
+  // Accent par RÔLE (§C — renforce le texte, jamais seul porteur de sens) :
+  // decay urgent = danger (rouge) ; croissance de MON territoire = chartreuse.
+  const accent = defend ? gameColors.danger : colors.chartreuse;
 
-    const toggleRealDetail = () => {
-      haptics.light();
-      setDetailOpen((open) => {
-        const next = !open;
-        if (next) screen('map_mission_line_open');
-        return next;
-      });
-    };
-    const openRealPlanner = () => {
-      haptics.light();
-      // Le planner lit `type` (defense → défendre, sinon conquérir) et prend son
-      // origine du GPS LIVE — il ne consomme pas l'anchor de la mission (cf. risks).
-      router.push(defend ? '/route-planner?type=defense' : '/route-planner');
-    };
-
-    return (
-      <View
-        style={[styles.missionWrap, { top: insets.top + MISSION_LINE_TOP_GAP }]}
-        pointerEvents="box-none"
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: detailOpen }}
-          accessibilityLabel={`${lineText} — ${t(
-            detailOpen ? C.missionDetailCloseA11y : C.missionDetailOpenA11y,
-          )}`}
-          onPress={toggleRealDetail}
-          style={({ pressed }) => [styles.missionLine, pressed && styles.pressed]}
-          testID="battle-map-mission-line-real"
-        >
-          {/* Accent de RÔLE — renforce le texte, ne le remplace jamais (§C). */}
-          <View style={[styles.missionBar, { backgroundColor: accent }]} />
-          <Text
-            style={styles.missionText}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={MISSION_TEXT_MIN_SCALE}
-          >
-            {lineText}
-          </Text>
-          <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
-        </Pressable>
-
-        {detailOpen ? (
-          <View style={styles.missionDetail}>
-            {/* Détail au tap (jamais imposé) : rappel court + entrée Route Planner. */}
-            <Text
-              style={styles.detailTitle}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={MISSION_TEXT_MIN_SCALE}
-            >
-              {nearText}
-            </Text>
-            <View style={styles.detailDivider} />
-            {/* Entrée VISIBLE vers le Route Planner — action inline, jamais un
-                2ᵉ CTA chartreuse plein (§A.4 : le seul CTA reste GO). */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(M.missionPlanA11y)}
-              onPress={openRealPlanner}
-              style={({ pressed }) => [styles.detailAction, pressed && styles.pressed]}
-              testID="battle-map-plan-route-real"
-            >
-              <Text style={styles.detailActionLabel} numberOfLines={1}>
-                {t(M.missionPlan)}
-              </Text>
-              <Icon name="chevron" size={iconSizes.sm} color={colors.blanc} />
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-    );
-  }
-
-  // ── SHOWCASE (vitrine web) : mission DÉMO ci-dessous, INCHANGÉE. ──
-  // La démo (MAP_MISSION, MAP_HUD, MAP_RIVAL_HEAD) est réservée à la vitrine, où
-  // aucune géoloc réelle n'existe. Un vrai user connecté sur la vitrine (session)
-  // ne voit pas la démo non plus : la carte reste honnête via son `dataNote`.
-  if (configured && session) return null;
-
-  // ── Textes de la ligne mission — résolus à l'affichage (catalogue nav) ──
-  // Les libellés DÉMO (headerTitle, cardTitle, freshness…) viennent de map/demo
-  // et restent tels quels ; seuls les gabarits appartiennent au catalogue.
-  const zonesCount: number = MAP_MISSION.zones; // élargit le littéral démo (3) pour l'accord.
-  const zonesLabel = t(zonesCount === 1 ? C.zonesOne : C.zonesMany, { n: zonesCount });
-  /** « République attaquée · 3 zones · 8 h » — la mission en 1 ligne (compacte). */
-  const missionLineText = `${MAP_MISSION.headerTitle} · ${zonesLabel} · ${TIME_COMPACT}`;
-  /** Détail au tap : distance + gain — unité unique « pts » (jamais XP ici). */
-  const missionDetailMeta = t(C.missionDetailMeta, {
-    km: formatKm(MAP_MISSION.distanceKm, locale),
-    pts: MAP_MISSION.bonusPoints,
-  });
-  const rivalHeadText = t(C.rivalShare, {
-    name: MAP_RIVAL_HEAD.name,
-    pct: MAP_RIVAL_HEAD.pct,
-  });
-
-  const toggleDetail = () => {
+  const toggleRealDetail = () => {
     haptics.light();
     setDetailOpen((open) => {
       const next = !open;
@@ -321,10 +201,11 @@ function MissionLine() {
       return next;
     });
   };
-
-  const openPlanner = () => {
+  const openRealPlanner = () => {
     haptics.light();
-    router.push('/route-planner');
+    // Le planner lit `type` (defense → défendre, sinon conquérir) et prend son
+    // origine du GPS LIVE — il ne consomme pas l'anchor de la mission (cf. risks).
+    router.push(defend ? '/route-planner?type=defense' : '/route-planner');
   };
 
   return (
@@ -332,76 +213,52 @@ function MissionLine() {
       style={[styles.missionWrap, { top: insets.top + MISSION_LINE_TOP_GAP }]}
       pointerEvents="box-none"
     >
-      {/* Tête de carte : secteur · fraîcheur (fusionnée) + rival agrégé — lu sans
-          tap, compact, jamais un pavé. La fraîcheur ne fait JAMAIS un 2ᵉ bloc. */}
-      <View
-        style={styles.sectorHead}
-        pointerEvents="none"
-        accessibilityRole="text"
-        accessibilityLabel={t(C.sectorHeadA11y, {
-          sector: SECTOR_NAME,
-          freshness: MAP_FRESHNESS.label,
-          rival: MAP_RIVAL_HEAD.name,
-          pct: MAP_RIVAL_HEAD.pct,
-        })}
-      >
-        <Text style={styles.sectorLine} numberOfLines={1}>
-          <Text style={styles.sectorName}>{SECTOR_NAME}</Text>
-          <Text style={styles.sectorSep}>{'   ·   '}</Text>
-          {/* Point de fraîcheur : teinte de RÔLE par état (jamais couleur seule —
-              le libellé porte le sens ; le ● ne fait que le renforcer). */}
-          <Text style={{ color: MAP_FRESHNESS.dotTint }}>{'●'}</Text>
-          <Text style={styles.sectorFresh}>{` ${MAP_FRESHNESS.label}`}</Text>
-        </Text>
-        <Text style={styles.rivalLine} numberOfLines={1}>
-          {rivalHeadText}
-        </Text>
-      </View>
-
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: detailOpen }}
-        accessibilityLabel={`${missionLineText} — ${t(
+        accessibilityLabel={`${lineText} — ${t(
           detailOpen ? C.missionDetailCloseA11y : C.missionDetailOpenA11y,
         )}`}
-        onPress={toggleDetail}
+        onPress={toggleRealDetail}
         style={({ pressed }) => [styles.missionLine, pressed && styles.pressed]}
-        testID="battle-map-mission-line"
+        testID="battle-map-mission-line-real"
       >
-        {/* Accent rival (urgence) — RENFORCE le texte, ne le remplace jamais. */}
-        <View style={styles.missionBar} />
+        {/* Accent de RÔLE — renforce le texte, ne le remplace jamais (§C). */}
+        <View style={[styles.missionBar, { backgroundColor: accent }]} />
         <Text
           style={styles.missionText}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={MISSION_TEXT_MIN_SCALE}
         >
-          {missionLineText}
+          {lineText}
         </Text>
         <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
       </Pressable>
 
       {detailOpen ? (
         <View style={styles.missionDetail}>
-          {/* L'ACTION avec son OBJET (le verbe nu est interdit) + le gain. */}
-          <Text style={styles.detailTitle} numberOfLines={1}>
-            {MAP_MISSION.cardTitle}
-          </Text>
-          <Text style={styles.detailMeta} numberOfLines={1}>
-            {missionDetailMeta}
+          {/* Détail au tap (jamais imposé) : rappel court + entrée Route Planner. */}
+          <Text
+            style={styles.detailTitle}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={MISSION_TEXT_MIN_SCALE}
+          >
+            {nearText}
           </Text>
           <View style={styles.detailDivider} />
-          {/* Entrée VISIBLE vers le Route Planner — action inline légère
-              (texte + chevron), jamais un 2ᵉ CTA chartreuse. */}
+          {/* Entrée VISIBLE vers le Route Planner — action inline, jamais un
+              2ᵉ CTA chartreuse plein (§A.4 : le seul CTA reste GO). */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t(C.planRouteA11y)}
-            onPress={openPlanner}
+            accessibilityLabel={t(M.missionPlanA11y)}
+            onPress={openRealPlanner}
             style={({ pressed }) => [styles.detailAction, pressed && styles.pressed]}
-            testID="battle-map-plan-route"
+            testID="battle-map-plan-route-real"
           >
             <Text style={styles.detailActionLabel} numberOfLines={1}>
-              {t(C.planRoute)}
+              {t(M.missionPlan)}
             </Text>
             <Icon name="chevron" size={iconSizes.sm} color={colors.blanc} />
           </Pressable>
@@ -441,22 +298,6 @@ const styles = StyleSheet.create({
     right: MISSION_LINE_SIDE,
     gap: 8,
   },
-  // ── Tête de carte : secteur · fraîcheur + rival (compacte, non intrusive) ──
-  sectorHead: {
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
-    backgroundColor: colors.carbone,
-    borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 2,
-  },
-  sectorLine: { fontSize: fontSizes.xs, fontWeight: '700' },
-  sectorName: { color: colors.blanc, letterSpacing: 0.4 },
-  sectorSep: { color: colors.gris },
-  sectorFresh: { color: colors.gris, fontWeight: '600' },
-  rivalLine: { fontSize: fontSizes.xs, fontWeight: '700', color: gameColors.rival },
-
   missionLine: {
     minHeight: MIN_TAP_TARGET,
     flexDirection: 'row',
@@ -492,13 +333,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: '800',
     letterSpacing: 0.2,
-  },
-  detailMeta: {
-    color: colors.gris,
-    fontSize: 13,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
   },
   detailDivider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: 10 },
   detailAction: {

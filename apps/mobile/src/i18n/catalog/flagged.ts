@@ -1141,160 +1141,155 @@ export const C = defineCatalog({
     pt: 'Presentear · {price}',
   },
 
-  // ═══════════════════ BADGES (badges.tsx — labels UI seulement) ═══════════
-  // Les noms de badges/familles/tiers viennent du catalogue shared (invariants).
+  // ── BADGES : catalogue déménagé (21/07/2026) ──
+  //
+  // Les ~26 Entry du châssis de /badges (titre, filtres, états, a11y, sheet de
+  // détail) vivaient ICI, orphelines : l'écran Collection était en français en
+  // dur et n'en lisait aucune. Le chantier i18n leur a donné un catalogue dédié,
+  // `src/i18n/catalog/badges.ts`, que l'écran consomme réellement — mais la
+  // première copie était restée, si bien que DEUX catalogues définissaient les
+  // mêmes libellés d'un même écran et que le prochain à éditer flagged.ts aurait
+  // cru agir sur /badges. Cette copie a donc été supprimée : une seule source.
+  //
+  // ═══════════ ÉTATS VIDES DES SURFACES FLAGGÉES (21/07/2026) ═══════════
+  //
+  // Le mode vitrine est ABANDONNÉ (EXPO_PUBLIC_SHOWCASE supprimé).
+  // Ces trois écrans (Saison · Missions · Arsenal) étaient PEUPLÉS de démo :
+  // classements de joueurs inexistants, missions de crew fabriquées, solde de
+  // 820 Éclats que personne n'a gagnés. Hors vitrine, ils affichent désormais ce
+  // qui est vrai — c'est-à-dire souvent rien — et ces textes disent ce « rien »
+  // sans laisser de trou : ce qui manque, et l'unique geste qui fait avancer.
 
-  badgesBackProfil: {
-    fr: 'Profil',
-    en: 'Profile',
-    es: 'Perfil',
-    de: 'Profil',
-    pt: 'Perfil',
+  // ── Saison (classement.tsx) ──
+  /** Kicker hors vitrine : aucune fenêtre de saison n'est lue du serveur, donc
+   *  aucune semaine n'est annoncée (« SEMAINE 3/8 » était une valeur démo). */
+  saisonKickerReal: {
+    fr: 'SAISON 0',
+    en: 'SEASON 0',
+    es: 'TEMPORADA 0',
+    de: 'SAISON 0',
+    pt: 'TEMPORADA 0',
   },
-  badgesBackA11y: {
-    fr: 'Revenir au profil',
-    en: 'Back to profile',
-    es: 'Volver al perfil',
-    de: 'Zurück zum Profil',
-    pt: 'Voltar ao perfil',
+  boardSignedOutTitle: {
+    fr: 'Classement réservé aux comptes',
+    en: 'Leaderboard needs an account',
+    es: 'La clasificación necesita una cuenta',
+    de: 'Rangliste braucht ein Konto',
+    pt: 'O ranking precisa de uma conta',
   },
-  badgesKicker: {
-    fr: 'PROFIL · BADGES',
-    en: 'PROFILE · BADGES',
-    es: 'PERFIL · INSIGNIAS',
-    de: 'PROFIL · ABZEICHEN',
-    pt: 'PERFIL · INSÍGNIAS',
+  boardSignedOutBody: {
+    fr: 'Connecte-toi pour voir où tu te situes cette saison.',
+    en: 'Sign in to see where you stand this season.',
+    es: 'Conéctate para ver tu posición esta temporada.',
+    de: 'Melde dich an und sieh, wo du diese Saison stehst.',
+    pt: 'Entre para ver sua posição nesta temporada.',
   },
-  badgesTitle: {
-    fr: 'Collection',
-    en: 'Collection',
-    es: 'Colección',
-    de: 'Sammlung',
-    pt: 'Coleção',
+  boardSignIn: {
+    fr: 'Se connecter',
+    en: 'Sign in',
+    es: 'Conectarse',
+    de: 'Anmelden',
+    pt: 'Entrar',
   },
-  badgesUnlocked: {
-    fr: 'badges débloqués',
-    en: 'badges unlocked',
-    es: 'insignias desbloqueadas',
-    de: 'Abzeichen freigeschaltet',
-    pt: 'insígnias desbloqueadas',
+  /** Lu, et rien reçu — sans distinguer « personne n'a encore couru » d'un échec
+   *  réseau, parce que la lecture ne le dit pas. On énonce le FAIT observable. */
+  boardEmptyTitle: {
+    fr: 'Rien à classer pour l’instant',
+    en: 'Nothing to rank yet',
+    es: 'Nada que clasificar aún',
+    de: 'Noch nichts zu werten',
+    pt: 'Nada para classificar ainda',
   },
-  tierMaxSuffix: {
-    fr: ' · Tier max : {tier}',
-    en: ' · Top tier: {tier}',
-    es: ' · Nivel máx.: {tier}',
-    de: ' · Max. Stufe: {tier}',
-    pt: ' · Nível máx.: {tier}',
+  boardEmptyBody: {
+    fr: 'Aucun score reçu pour cette saison. Un run compté, et ta ligne apparaît ici.',
+    en: 'No scores received for this season. One counted run and your row shows up here.',
+    es: 'No hay puntajes de esta temporada. Con una carrera contada, tu línea aparece aquí.',
+    de: 'Keine Punkte für diese Saison empfangen. Ein gewerteter Lauf, und deine Zeile erscheint hier.',
+    pt: 'Nenhuma pontuação recebida nesta temporada. Uma corrida contada e sua linha aparece aqui.',
   },
-
-  // ── Filtres ──
-  filterTous: {
-    fr: 'Tous',
-    en: 'All',
-    es: 'Todos',
-    de: 'Alle',
-    pt: 'Todos',
+  boardEmptyCta: {
+    fr: 'Trouver une route',
+    en: 'Find a route',
+    es: 'Buscar una ruta',
+    de: 'Route finden',
+    pt: 'Encontrar uma rota',
   },
-  filterSecrets: {
-    fr: 'Secrets',
-    en: 'Secrets',
-    es: 'Secretos',
-    de: 'Geheim',
-    pt: 'Secretos',
+  /** Crews et Villes n'ont AUCUNE source serveur : ce n'est pas « vide », c'est
+   *  « pas encore construit ». Le dire évite de faire attendre pour rien. */
+  boardNoSourceTitle: {
+    fr: 'Pas encore ouvert',
+    en: 'Not open yet',
+    es: 'Aún no está abierto',
+    de: 'Noch nicht offen',
+    pt: 'Ainda não aberto',
   },
-  filterA11y: {
-    fr: 'Filtre {label}',
-    en: 'Filter {label}',
-    es: 'Filtro {label}',
-    de: 'Filter {label}',
-    pt: 'Filtro {label}',
+  boardNoSourceCrews: {
+    fr: 'Le classement des crews ouvrira quand assez de crews joueront. Rien à afficher d’ici là — on préfère le vide au faux.',
+    en: 'The crew leaderboard opens once enough crews are playing. Nothing to show until then — empty beats fake.',
+    es: 'La clasificación de crews abrirá cuando haya suficientes crews jugando. Nada que mostrar hasta entonces — mejor vacío que falso.',
+    de: 'Die Crew-Rangliste öffnet, sobald genug Crews spielen. Bis dahin nichts — lieber leer als erfunden.',
+    pt: 'O ranking de crews abre quando houver crews suficientes jogando. Nada até lá — melhor vazio que falso.',
   },
-  familySecretFallback: {
-    fr: 'Secret',
-    en: 'Secret',
-    es: 'Secreto',
-    de: 'Geheim',
-    pt: 'Secreto',
+  boardNoSourceVille: {
+    fr: 'Le classement des villes ouvrira quand plusieurs villes seront jouées. Rien à afficher d’ici là — on préfère le vide au faux.',
+    en: 'The city leaderboard opens once several cities are being played. Nothing to show until then — empty beats fake.',
+    es: 'La clasificación de ciudades abrirá cuando se jueguen varias ciudades. Nada que mostrar hasta entonces — mejor vacío que falso.',
+    de: 'Die Städte-Rangliste öffnet, sobald mehrere Städte gespielt werden. Bis dahin nichts — lieber leer als erfunden.',
+    pt: 'O ranking de cidades abre quando várias cidades estiverem em jogo. Nada até lá — melhor vazio que falso.',
   },
-
-  // ── Proches du déblocage ──
-  nearlyTitle: {
-    fr: 'Proches du déblocage',
-    en: 'Close to unlocking',
-    es: 'A punto de desbloquear',
-    de: 'Fast freigeschaltet',
-    pt: 'Quase desbloqueadas',
-  },
-  nearlyA11y: {
-    fr: 'Badge {name}, {value} sur {threshold}',
-    en: 'Badge {name}, {value} of {threshold}',
-    es: 'Insignia {name}, {value} de {threshold}',
-    de: 'Abzeichen {name}, {value} von {threshold}',
-    pt: 'Insígnia {name}, {value} de {threshold}',
+  boardLoading: {
+    fr: 'Lecture du classement…',
+    en: 'Loading the leaderboard…',
+    es: 'Cargando la clasificación…',
+    de: 'Rangliste wird geladen…',
+    pt: 'Carregando o ranking…',
   },
 
-  // ── Sheet détail badge ──
-  sheetCloseA11y: {
-    fr: 'Fermer le détail du badge',
-    en: 'Close badge detail',
-    es: 'Cerrar el detalle de la insignia',
-    de: 'Abzeichen-Detail schließen',
-    pt: 'Fechar o detalhe da insígnia',
+  // ── Missions / War Room (warroom.tsx) ──
+  warNoDataTitle: {
+    fr: 'Pas encore de missions',
+    en: 'No missions yet',
+    es: 'Aún no hay misiones',
+    de: 'Noch keine Missionen',
+    pt: 'Ainda sem missões',
   },
-  stateLocked: {
-    fr: 'Verrouillé',
-    en: 'Locked',
-    es: 'Bloqueada',
-    de: 'Gesperrt',
-    pt: 'Bloqueada',
+  warNoDataBody: {
+    fr: 'Les missions naissent de zones réellement tenues et de frontières réellement ouvertes. Tant que rien n’a été couru près de toi, il n’y a rien à donner.',
+    en: 'Missions come from ground actually held and borders actually open. Until something has been run near you, there is nothing to hand out.',
+    es: 'Las misiones nacen de zonas realmente tomadas y fronteras realmente abiertas. Hasta que se corra algo cerca de ti, no hay nada que dar.',
+    de: 'Missionen entstehen aus wirklich gehaltenem Gebiet und wirklich offenen Grenzen. Solange bei dir nichts gelaufen wurde, gibt es nichts zu vergeben.',
+    pt: 'As missões nascem de zonas realmente tomadas e fronteiras realmente abertas. Enquanto nada for corrido perto de você, não há o que dar.',
   },
-  stateUnlockedAt: {
-    fr: 'Débloqué le {date}',
-    en: 'Unlocked on {date}',
-    es: 'Desbloqueada el {date}',
-    de: 'Freigeschaltet am {date}',
-    pt: 'Desbloqueada em {date}',
+  warNoDataCta: {
+    fr: 'Voir la carte',
+    en: 'Open the map',
+    es: 'Ver el mapa',
+    de: 'Karte öffnen',
+    pt: 'Ver o mapa',
   },
-  stateUnlocked: {
-    fr: 'Débloqué',
-    en: 'Unlocked',
-    es: 'Desbloqueada',
-    de: 'Freigeschaltet',
-    pt: 'Desbloqueada',
+
+  // ── Arsenal (arsenal.tsx) ──
+  /** Solde non lu : « 0 » nu laisserait croire à un compte vide plutôt qu'à une
+   *  absence de lecture. Le tiret dit « inconnu », la note dit pourquoi. */
+  walletUnknown: {
+    fr: '—',
+    en: '—',
+    es: '—',
+    de: '—',
+    pt: '—',
   },
-  stateSecret: {
-    fr: 'Badge secret',
-    en: 'Secret badge',
-    es: 'Insignia secreta',
-    de: 'Geheimes Abzeichen',
-    pt: 'Insígnia secreta',
+  walletSignedOutNote: {
+    fr: 'Connecte-toi pour voir ton solde et ton inventaire. Rien n’est affiché tant qu’on ne l’a pas lu.',
+    en: 'Sign in to see your balance and inventory. Nothing is shown until it has been read.',
+    es: 'Conéctate para ver tu saldo y tu inventario. No se muestra nada hasta haberlo leído.',
+    de: 'Melde dich an, um Guthaben und Inventar zu sehen. Nichts wird gezeigt, bevor es gelesen wurde.',
+    pt: 'Entre para ver seu saldo e inventário. Nada aparece antes de ser lido.',
   },
-  secretCondition: {
-    fr: 'Condition secrète — continue à courir pour la découvrir.',
-    en: 'Secret condition — keep running to uncover it.',
-    es: 'Condición secreta — sigue corriendo para descubrirla.',
-    de: 'Geheime Bedingung — lauf weiter, um sie zu entdecken.',
-    pt: 'Condição secreta — continue correndo para descobri-la.',
-  },
-  recompense: {
-    fr: 'Récompense : {reward}',
-    en: 'Reward: {reward}',
-    es: 'Recompensa: {reward}',
-    de: 'Belohnung: {reward}',
-    pt: 'Recompensa: {reward}',
-  },
-  prochainNiveau: {
-    fr: 'Prochain niveau : {name}',
-    en: 'Next level: {name}',
-    es: 'Siguiente nivel: {name}',
-    de: 'Nächste Stufe: {name}',
-    pt: 'Próximo nível: {name}',
-  },
-  tiersTitle: {
-    fr: 'TIERS',
-    en: 'TIERS',
-    es: 'NIVELES',
-    de: 'STUFEN',
-    pt: 'NÍVEIS',
+  walletUnreadNote: {
+    fr: 'Solde et inventaire non lus pour l’instant — on ne devine pas un compte.',
+    en: 'Balance and inventory not loaded — we don’t guess an account.',
+    es: 'Saldo e inventario sin cargar — no adivinamos una cuenta.',
+    de: 'Guthaben und Inventar nicht geladen — wir raten kein Konto.',
+    pt: 'Saldo e inventário não carregados — não adivinhamos uma conta.',
   },
 });

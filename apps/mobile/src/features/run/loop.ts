@@ -10,6 +10,22 @@
  * lieu d'importer @klaim/engine (imports Deno `.ts` non résolus par Metro) —
  * toute divergence de règle serait un bug. Le client n'attribue JAMAIS une
  * zone : tout ce qui sort d'ici est « estimé », le serveur reste seul décideur.
+ *
+ * ─── AVERTISSEMENT DE PÉRIMÈTRE (21/07/2026) ────────────────────────────────
+ * TOUTE la géométrie produite ici est SIMULÉE. `buildRunLoop` ne reçoit que la
+ * simulation déterministe et sa scène de nav : ses lat/lng sortent de
+ * `worldToGeo`, ancré sur le départ d'un parcours DÉMO (place de la République
+ * par défaut). Ce module sert la Course Live de DÉMONSTRATION, et rien d'autre.
+ *
+ * INTERDIT : rendre `traceGeo` (ou quoi que ce soit qui en dérive : ruban,
+ * polygone de boucle, polyline) sur une surface qui parle d'une VRAIE course —
+ * Résultat, Partage, Historique, carte du joueur. Le Résultat de course l'a
+ * fait jusqu'au 21/07/2026 : il dessinait l'« analyse de boucle » d'un coureur
+ * lillois sur la place de la République. Le champ `source: 'simulation'` est là
+ * pour que ce contrat se lise dans le type, pas seulement dans ce commentaire.
+ *
+ * Le tracé RÉEL d'une course ne passe jamais par ici : il vit dans
+ * `features/run/gps/tracker.ts` (`smoothTrace(cleanTrace(fixes))`).
  */
 import { cellToLatLng, getHexagonAreaAvg, polygonToCells, UNITS } from 'h3-js';
 import {
@@ -117,6 +133,14 @@ function enclosedCellsDemo(
 // ─── État boucle de la démo ──────────────────────────────────────────────────
 
 export interface RunLoop {
+  /**
+   * PROVENANCE DE LA GÉOMÉTRIE — toujours `'simulation'` aujourd'hui. Marqueur
+   * explicite (et non un commentaire) pour qu'un appelant qui affiche une VRAIE
+   * course voie, au type, qu'il tient une boucle FABRIQUÉE. Le jour où un vrai
+   * tracé remontera du tracker, il portera une autre valeur — et les surfaces
+   * réelles pourront exiger celle-là.
+   */
+  source: 'simulation';
   /** Premier tick où la boucle est fermée au sens moteur — -1 si jamais. */
   closeTick: number;
   /** Zones intérieures estimées (couloir EXCLU), distance croissante au tracé. */
@@ -127,7 +151,11 @@ export interface RunLoop {
   startXY: RoutePoint;
   /** Distance à vol d'oiseau au départ (m), par tick. */
   distToStartM: readonly number[];
-  /** Trace géo (ticks capturants) — polyline des mini-cartes du résultat. */
+  /**
+   * Trace géo SIMULÉE (ticks capturants) — géométrie de la Course Live de
+   * démonstration. Ce N'EST PAS le parcours du joueur : ne jamais la rendre sur
+   * une surface qui parle d'une vraie course (voir l'avertissement en tête).
+   */
   traceGeo: readonly GeoPoint[];
 }
 
@@ -160,6 +188,8 @@ export function buildRunLoop(sim: RunSimulation, nav: LiveNav): RunLoop | null {
 
   const interiorCells = closeTick >= 0 ? enclosedCellsDemo(trace, nav.litCells) : [];
   return {
+    // Géométrie fabriquée, et le type le dit (voir l'avertissement en tête).
+    source: 'simulation',
     closeTick,
     interiorCells,
     enclosedZones: interiorCells.length,

@@ -9,8 +9,9 @@
  * l'accès réseau et l'état React. Les types y sont ré-exportés pour ne rien casser chez
  * les consommateurs.
  *
- * Pattern de câblage (identique à economy.ts / leagueBoard.ts) : session → serveur,
- * sinon démo ÉTIQUETÉE. Aucune donnée fabriquée n'est jamais présentée comme réelle.
+ * Pattern de câblage : session → serveur, sinon RIEN. Depuis la fin du mode
+ * vitrine (21/07/2026) il n'y a plus de repli « démo étiquetée » : les appelants
+ * peignent `territories ?? []`, c'est-à-dire une carte réellement vide.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -37,6 +38,33 @@ export interface UseRealTerritoriesResult {
    * par omission, exactement le genre que la charte interdit.
    */
   failed: boolean;
+  /**
+   * true = AUCUNE session (ou backend non configuré). Distinct de `!isReal` :
+   * `isReal` est faux AUSSI pendant le chargement, y compris à la toute première
+   * frame (l'effet n'a pas encore tourné, `loading` est encore false). Les écrans
+   * qui déduisaient « pas connecté » de `!isReal` affichaient donc « Pas encore
+   * connecté » à un joueur connecté, le temps de la requête — un mensonge bref
+   * mais un mensonge. Le hook sait, lui : il le dit au lieu de le faire deviner.
+   *
+   * ⚠️ CORRECTIF 21/07/2026 — la RESTAURATION de session comptait pour un
+   * « déconnecté ». `useSession()` expose `loading`, vrai tant que
+   * `supabase.auth.getSession()` n'a pas répondu (lecture AsyncStorage /
+   * localStorage) ; pendant cette fenêtre `session` est null. `signedOut` valait
+   * donc true et les trois consommateurs (les deux MapScreen + /territoire)
+   * affichaient « Pas encore connecté » — CTA « Se connecter » compris — à un
+   * joueur parfaitement connecté qui vient de relancer l'app à froid. C'est
+   * exactement le mensonge que le paragraphe ci-dessus déclare corriger, déplacé
+   * d'une couche : retiré de `!isReal`, réintroduit par `!session`.
+   * Un état de CHARGEMENT n'est pas un état DÉCONNECTÉ : tant que
+   * `sessionLoading` est vrai, on n'affirme RIEN — `loading` porte la vérité.
+   */
+  signedOut: boolean;
+  /**
+   * true tant qu'on ne sait pas quoi afficher : restauration de session EN COURS
+   * ou lecture `hex_claims` en vol. Les écrans doivent se TAIRE dans cet état
+   * (ni « pas connecté », ni « aucune zone ») — c'est le contrat « un état de
+   * chargement n'est pas un état vide ».
+   */
   loading: boolean;
   reload: () => void;
 }
@@ -67,7 +95,8 @@ export interface UseRealTerritoriesResult {
  * Le filtrage par VIEWPORT + LOD est la vraie réponse à l'échelle (audit 200 joueurs)
  * et exige une colonne de zone indexée — un chantier à part, pas une rustine ici.
  *
- * Sans session (ou sans backend) → `isReal:false` : l'appelant garde la démo ÉTIQUETÉE.
+ * Sans session (ou sans backend) → `isReal:false` + `signedOut:true` : l'appelant
+ * peint une carte VIDE et écrit « pas connecté ». Jamais une démo.
  *
  * `crewIds` (crew réel 2/3) : ids des membres actifs de MON crew — leurs zones
  * prennent le rôle chartreuse (§C « moi/mon crew ») au lieu de rival. L'appelant
@@ -77,29 +106,29 @@ export interface UseRealTerritoriesResult {
 export function useRealTerritories(
   crewIds?: ReadonlySet<string> | null,
 ): UseRealTerritoriesResult {
-  const { session } = useSession();
+  const { session, loading: sessionLoading } = useSession();
   const [territories, setTerritories] = useState<RealTerritory[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
+    // Session en cours de RESTAURATION : on ne lit rien et surtout on n'affirme
+    // rien. `sessionLoading` retombera, l'effet rejouera avec la vraie réponse.
+    if (sessionLoading) return;
     if (!supabase || !session) {
       setTerritories(null);
       setFailed(false);
       return;
     }
     let cancelled = false;
-    setLoading(true);
     setFailed(false);
     void (async () => {
       const { data, error } = await supabase
         .from('hex_claims')
         .select('h3index, owner_user_id, claim_type, decay_at, claimed_at');
       if (cancelled) return;
-      setLoading(false);
       if (error) {
         // Échec réseau → on NE bascule PAS sur la démo en la faisant passer pour du réel,
         // et on ne prétend PAS non plus que le joueur n'a rien capturé : `failed` permet
@@ -109,25 +138,45 @@ export function useRealTerritories(
         setFailed(true);
         return;
       }
-        setTerritories(
-          buildTerritories(
-            (data ?? []) as HexClaimRow[],
-            session.user.id,
-            undefined,
-            crewIds,
-          ),
-        );
-    })();
+      setTerritories(
+        buildTerritories(
+          (data ?? []) as HexClaimRow[],
+          session.user.id,
+          undefined,
+          crewIds,
+        ),
+      );
+    })().catch((e: unknown) => {
+      // Symétrie avec features/performance/real.ts. supabase-js convertit
+      // normalement les erreurs de fetch en `{ error }` plutôt qu'en rejet ; si
+      // un throw synchrone du client passait quand même, SANS ce catch le hook
+      // resterait à jamais sur `loading:true, failed:false` — donc une carte
+      // muette, ni « échec » ni « vide », exactement le cul-de-sac interdit.
+      if (cancelled) return;
+      console.error('[hexClaims] lecture hex_claims rejetée :', e);
+      setTerritories(null);
+      setFailed(true);
+    });
     return () => {
       cancelled = true;
     };
-  }, [session, tick, crewIds]);
+  }, [session, sessionLoading, tick, crewIds]);
+
+  // Pendant `sessionLoading`, on ne SAIT pas encore s'il y a une session :
+  // répondre `true` reviendrait à traiter « je vérifie » comme « pas de compte ».
+  const signedOutNow = !sessionLoading && (!supabase || !session);
 
   return {
     territories,
     isReal: territories !== null,
     failed,
-    loading,
+    signedOut: signedOutNow,
+    // « On ne sait pas ENCORE quoi afficher ». Trois fenêtres, une seule
+    // sémantique : restauration de session, frame entre la fin de celle-ci et le
+    // départ de l'effet (`loading` est encore false), requête en vol. Un écran
+    // qui lit `loading` ne peut donc jamais affirmer « pas connecté » ni
+    // « aucune zone » avant que la réponse existe.
+    loading: !(signedOutNow || failed || territories !== null),
     reload,
   };
 }

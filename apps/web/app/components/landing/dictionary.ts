@@ -38,9 +38,7 @@ const fr = {
     statCrew: 'coureurs par crew',
   },
   phone: {
-    live: 'LIVE',
     defaultZoneName: 'Paris Est',
-    runValidated: 'Course validée',
     hexesUnit: 'ZONES',
   },
   map: {
@@ -103,12 +101,6 @@ const fr = {
     styleLabel: 'Style de l’emblème',
     previewFallbackName: 'Ton crew',
     previewFallbackCity: 'France',
-    statHexes: 'zones',
-    statPoints: 'points',
-    statMembers: 'membres',
-    copyInvite: 'Copier le lien d’invitation',
-    copied: 'Lien d’invitation copié.',
-    copyFailed: 'Copie impossible — sélectionne le lien à la main.',
     previewAria: 'Prévisualisation en direct de ta carte de crew',
   },
   performance: {
@@ -242,9 +234,7 @@ const en: Dict = {
     statCrew: 'runners per crew',
   },
   phone: {
-    live: 'LIVE',
     defaultZoneName: 'East Paris',
-    runValidated: 'Run validated',
     hexesUnit: 'ZONES',
   },
   map: {
@@ -307,12 +297,6 @@ const en: Dict = {
     styleLabel: 'Emblem style',
     previewFallbackName: 'Your crew',
     previewFallbackCity: 'France',
-    statHexes: 'zones',
-    statPoints: 'points',
-    statMembers: 'members',
-    copyInvite: 'Copy invite link',
-    copied: 'Invite link copied.',
-    copyFailed: 'Copy failed — select the link manually.',
     previewAria: 'Live preview of your crew card',
   },
   performance: {

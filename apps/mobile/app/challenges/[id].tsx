@@ -3,10 +3,16 @@
  * crew (coffre + minimum perso souple §8.3) et rivalry (deux camps, respect).
  * Écran POUSSÉ, id via useLocalSearchParams. Anti-shame (§11) : le crew montre
  * « tu as contribué à X » (jamais un rang), la rivalry compare les deux scores
- * sans « perdant ». Objectifs = seed 0012 ; « où en est le joueur » = démo bornée.
+ * sans « perdant ».
+ *
+ * DONNÉES (21/07/2026) : objectif ET progression viennent du serveur
+ * (`challengeState` → `challenges` + `challenge_progress`). Conséquence sur les
+ * états : tant que la lecture est en cours on affiche un chargement, JAMAIS
+ * « ce challenge n'est plus disponible » — cette phrase est une conclusion, et
+ * on ne conclut pas avant d'avoir la réponse.
  */
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
@@ -27,11 +33,19 @@ import { useT } from '../../src/i18n/store';
 export default function ChallengeDetailScreen() {
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const c = useChallenge(typeof id === 'string' ? id : undefined);
+  const { challenge: c, loading } = useChallenge(typeof id === 'string' ? id : undefined);
 
   useEffect(() => {
     screen('challenge_detail', { id: id ?? '' });
   }, [id]);
+
+  if (loading) {
+    return (
+      <StackScreen title={t(C.challengeTitle)} icon="mission">
+        <ActivityIndicator color={colors.gris} style={styles.loader} />
+      </StackScreen>
+    );
+  }
 
   if (!c) {
     return (
@@ -131,6 +145,7 @@ export default function ChallengeDetailScreen() {
 
 const styles = StyleSheet.create({
   empty: { color: colors.gris, fontSize: fontSizes.md, marginTop: 20 },
+  loader: { marginTop: 32 },
   blurb: {
     color: colors.gris,
     fontSize: fontSizes.md,

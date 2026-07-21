@@ -1,11 +1,12 @@
 /**
  * GRYD — CREW RÉEL (variante NATIVE). Câblage React des RPC crew arbitrées
  * SERVEUR (create_crew / join_crew_by_code / leave_crew / my_crew_code), même
- * doctrine que `useRealMission` : sur l'app native, un crew est RÉEL ou VIDE,
- * JAMAIS la démo (« l'app ne ment jamais »). La démo Supercell (crew.tsx, 1600+
- * lignes) reste intacte pour la vitrine web (isShowcasePlatform).
+ * doctrine que `useRealMission` : un crew est RÉEL ou VIDE, JAMAIS fabriqué
+ * (« l'app ne ment jamais »). Le HQ démo Supercell qui vivait dans crew.tsx a
+ * été SUPPRIMÉ avec le mode vitrine (21/07/2026) : ce hook est désormais la
+ * seule source de crew de l'app.
  *
- * Règle zéro-crash : tout échec — pas de session, showcase, lecture ratée,
+ * Règle zéro-crash : tout échec — pas de session, lecture ratée,
  * rejet réseau — retombe SILENCIEUSEMENT sur `crew: null` (l'écran affiche
  * alors l'état « fonde ou rejoins », honnête). AUCUNE écriture client directe :
  * chaque mutation passe par une RPC service-role (le client n'attribue jamais
@@ -28,7 +29,6 @@ import {
 } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
-import { isShowcasePlatform } from '../../lib/flags';
 import {
   chooseCrewMission,
   CREW_MISSION_WINDOWS,
@@ -307,10 +307,26 @@ export function randomCrewColor(): number {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface UseRealCrewResult {
-  /** false = déconnecté / showcase / sans backend : l'écran invite à se connecter. */
+  /** false = déconnecté / sans backend : l'écran invite à se connecter. */
   ready: boolean;
   /** true tant que la 1re lecture réelle n'a pas abouti. */
   loading: boolean;
+  /**
+   * La lecture d'adhésion a ÉCHOUÉ (réseau, RLS, contrat) — on ne SAIT PAS si
+   * l'utilisateur a un crew.
+   *
+   * Distinction vitale (doctrine « l'app ne ment jamais ») : `crew === null`
+   * est ambigu à lui seul. Avant ce drapeau, un échec réseau était rendu
+   * exactement comme une absence de crew, et l'écran affirmait « Tu n'as pas
+   * encore de crew » puis invitait à en FONDER un — à un utilisateur qui en a
+   * un. Affirmer un fait qu'on n'a pas pu lire est un mensonge, et proposer de
+   * créer un doublon en est la conséquence coûteuse.
+   *
+   *  · `false` + `crew === null` → lu, et il n'y a réellement pas de crew.
+   *  · `true`                    → pas pu lire : l'écran dit l'échec et propose
+   *                                de réessayer. Il ne propose RIEN d'autre.
+   */
+  loadFailed: boolean;
   /** Mon crew actif, ou null (fonde ou rejoins). */
   crew: RealCrew | null;
   /** Membres actifs (moi inclus), triés par ancienneté. */
@@ -403,13 +419,14 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
   const [mission, setMission] = useState<CrewMission | null>(null);
   const [missionSectors, setMissionSectors] = useState<CrewSectorState[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [tick, setTick] = useState(0);
 
-  const ready = !isShowcasePlatform && !!supabase && !!session;
+  const ready = !!supabase && !!session;
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
-    // Showcase / pas de session / pas de backend → aucun crew réel (état vide).
+    // Pas de session / pas de backend → aucun crew réel (état vide).
     if (!ready || !supabase || !session) {
       setCrew(null);
       setMembers([]);
@@ -418,6 +435,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setMissionSectors([]);
       setOverviewLoading(false);
       setLoading(false);
+      setLoadFailed(false);
       return;
     }
     const client = supabase;
@@ -425,8 +443,19 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
     let cancelled = false;
     setLoading(true);
     setOverviewLoading(true);
-    /** Sortie « pas de crew » : aucune donnée fabriquée, aucun bloc territoire. */
-    const clearAll = () => {
+    // `loadFailed` n'est VOLONTAIREMENT pas remis à false ici. Toutes les
+    // sorties ci-dessous le fixent explicitement, donc l'état reste exact ; le
+    // garder pendant le vol évite qu'un « Réessayer » fasse clignoter l'écran
+    // « pas de crew » (une affirmation fausse) entre deux tentatives. On garde
+    // l'écran d'échec, avec le bouton en cours de chargement, jusqu'à ce qu'on
+    // sache vraiment.
+    /**
+     * Sortie « pas de crew » : aucune donnée fabriquée, aucun bloc territoire.
+     * `failed` sépare les DEUX raisons de n'avoir aucun crew à montrer — savoir
+     * qu'il n'y en a pas, ou ne pas avoir pu regarder. L'écran ne les rend pas
+     * de la même façon, et c'est tout l'enjeu.
+     */
+    const clearAll = (failed = false) => {
       setCrew(null);
       setMembers([]);
       setOverview(null);
@@ -434,6 +463,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setMissionSectors([]);
       setOverviewLoading(false);
       setLoading(false);
+      setLoadFailed(failed);
     };
     void (async () => {
       try {
@@ -445,15 +475,26 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
           .is('left_at', null)
           .maybeSingle();
         if (cancelled) return;
-        if (mine.error || !mine.data) {
-          // Pas de crew (ou lecture ratée) : état vide, jamais une démo.
+        // ÉCHEC de lecture ≠ absence de crew. `maybeSingle()` renvoie
+        // `data: null` SANS erreur quand il n'y a réellement aucune adhésion ;
+        // une `error` signifie qu'on n'a pas pu savoir. Les deux menaient au
+        // même écran « fonde ton crew » — le premier est vrai, le second
+        // ment à quelqu'un qui a déjà un crew et l'invite à en créer un second.
+        if (mine.error) {
+          clearAll(true);
+          return;
+        }
+        if (!mine.data) {
+          // Lu, et il n'y a réellement pas de crew : état vide honnête.
           clearAll();
           return;
         }
         const row = mine.data as unknown as MyMembershipRow;
         const c = Array.isArray(row.crews) ? (row.crews[0] ?? null) : row.crews;
         if (!c) {
-          clearAll();
+          // Adhésion lue mais crew introuvable derrière la FK : contrat
+          // inattendu, pas une absence d'adhésion. On ne dit pas « pas de crew ».
+          clearAll(true);
           return;
         }
         const myCrew: RealCrew = { id: c.id, name: c.name, color: c.color, cityId: c.city_id };
@@ -467,6 +508,13 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
           .is('left_at', null)
           .order('joined_at', { ascending: true });
         if (cancelled) return;
+        // Roster illisible ⇒ échec, pas un crew vide. Je suis forcément membre
+        // de mon propre crew : afficher « 0 sur {max} » et un roster vide serait
+        // faux dans les deux sens (l'effectif ET ma propre présence).
+        if (roster.error) {
+          clearAll(true);
+          return;
+        }
         const rosterRows = (roster.data ?? []) as { user_id: string; joined_at: string }[];
         const ids = rosterRows.map((r) => r.user_id);
         const profiles = ids.length
@@ -487,6 +535,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
         setCrew(myCrew);
         setMembers(list);
         setLoading(false);
+        setLoadFailed(false);
 
         // ── Territoire + contributions (0044) ────────────────────────────────
         // Lecture SÉPARÉE et POSTÉRIEURE : le roster s'affiche sans attendre
@@ -532,7 +581,8 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
         setOverviewLoading(false);
       } catch {
         if (cancelled) return;
-        clearAll();
+        // Exception (réseau coupé, JSON illisible) : on n'a rien pu établir.
+        clearAll(true);
       }
     })();
     return () => {
@@ -639,6 +689,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
   return {
     ready,
     loading,
+    loadFailed,
     crew,
     members,
     overview,

@@ -1,6 +1,32 @@
 /**
- * GRYD — BATTLE MAP, variante WEB (aperçu navigateur — cible visuelle
- * prioritaire). AMENDEMENT-13 §2/§4bis/§4ter : l'onglet Carte est posé sur de
+ * GRYD — BATTLE MAP, variante WEB. Depuis la décision fondateur du 21/07/2026,
+ * `npx expo start --web` sur localhost N'EST PLUS UNE VITRINE : c'est
+ * l'INSTRUMENT DE PREVIEW du vrai produit, et il doit montrer exactement ce que
+ * l'iPhone montrera. Ce fichier est donc tenu à la PARITÉ STRICTE avec
+ * MapScreen.tsx, pas à une ressemblance.
+ *
+ * ─── DIVERGENCES WEB ⇄ NATIF CORRIGÉES LE 21/07/2026 ────────────────────────
+ * • Le roster crew n'était PAS passé à `useRealTerritories()` : les zones de MON
+ *   crew ressortaient en ORANGE RIVAL sur localhost et en chartreuse alliée sur
+ *   iPhone. Deux cartes racontant des camps opposés (violation §C). Corrigé :
+ *   `useRealCrew()` + Set mémoïsé, à l'identique du natif.
+ * • Les LABELS LOCAUX (name_en → name : München, pas Munich) n'existaient que
+ *   sur natif — `prefetchLocalizedBasemaps` / `subscribeBasemapSpecs` n'étaient
+ *   jamais appelés ici. Corrigé : même préchargement, même remontage par
+ *   `key={basemap}-${specRev}`.
+ *
+ * ─── DIVERGENCES QUI RESTENT, ET QU'ON NE PEUT PAS SUPPRIMER ────────────────
+ * • Le RENDU : maplibre-gl (WebGL navigateur) ici, @maplibre/maplibre-react-native
+ *   (natif) là-bas. Mêmes styles, mêmes couches, mais l'antialiasing, les polices
+ *   et la 3D ne seront jamais pixel-identiques.
+ * • La GÉOLOCALISATION : `navigator.geolocation` (précision poste fixe,
+ *   permission par ORIGINE, Safari sans Permissions API) contre expo-location
+ *   (GPS). La LOGIQUE de décision est partagée (locationState.ts), les CAPTEURS
+ *   ne le sont pas : un fix web peut être à 2 km, ou absent en intérieur.
+ * • La barre d'ÉCHELLE + attribution est rendue ici en overlay React (le natif
+ *   n'affiche que l'attribution) — différence assumée, propre au navigateur.
+ *
+ * AMENDEMENT-13 §2/§4bis/§4ter : l'onglet Carte est posé sur de
  * VRAIES tuiles vectorielles MONDE ENTIER (RealMap — maplibre-gl, style
  * sombre type Uber-night surchargé aux tokens), librement navigable du niveau
  * rue au niveau planète : les rues RÉELLES (canal Saint-Martin, bd Voltaire,
@@ -14,13 +40,13 @@
  * pointillé + sablier/secteur, protégé trait verify + UN shield/secteur,
  * objectif aplat + pin, avant-poste, or de la zone
  * bonus), route ouverte, aperçu du parcours sélectionné en source ligne
- * GeoJSON réelle. Au DÉZOOM (§4bis), sous TERRITORY_DOT_MAX_ZOOM, chaque
- * possession devient un marqueur-point + label ville (layers MapLibre bornés
- * par zoom — territoryDotLayers) et les icônes de secteur s'effacent. La
- * situation live (AMENDEMENT-09 §2) passe en MARKERS RealMap (natifs
- * maplibre-gl côté web — §5 perf) : moi (point chartreuse + halo respirant,
- * position FICTIVE République — jamais de vraie géoloc), 2 MateMarker
- * opt-in, ≤ 4 POI, 1 défi. Les labels secteurs custom ont disparu : les
+ * GeoJSON réelle. (Les marqueurs-points villes du dézoom — territoryDotLayers,
+ * alimentés par FRANCE_CITIES_DEMO — ont été retirés : aucune agrégation réelle
+ * par ville n'existe encore.) La
+ * situation live passe en MARKERS RealMap (natifs maplibre-gl côté web — §5
+ * perf) : uniquement « moi », et seulement quand un VRAI fix existe (les
+ * MateMarker, POI et défis de scénario sont partis avec le mode vitrine).
+ * Les labels secteurs custom ont disparu : les
  * tuiles réelles portent les noms de quartiers (République, Belleville…).
  * 5 CALQUES de lecture (AMENDEMENT-11 §3) : MODE_EMPHASIS module l'opacité
  * des couches GeoJSON (fills + alpha des frontières) — MapLibre fond les
@@ -33,17 +59,14 @@
  * HUD (BattleMapOverlays), recentrer = flyTo ego, CTA COURIR au layout :
  * INCHANGÉS. Track EVENTS.mapLoadMs au montage (parité native).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { colors, gameColors } from '@klaim/shared';
+import { colors } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
-import { Icon } from '../../ui/Icon';
 import {
-  MateMarker,
-  PoiMarker,
   RealMap,
   usePulse,
   type RealMapMarker,
@@ -52,26 +75,40 @@ import {
 } from '../../ui/game';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import {
-  TERRITORY_DOT_MAX_ZOOM,
-  decaySablierAnchor,
-  territoryDotLayers,
-} from './allTerritories';
-import { BattleMapOverlays } from './BattleMapOverlays';
-import { MAP_CHALLENGE, MATES_OPT_IN, POIS_ON_MAP } from './demo';
-import { battleMapData, battleMapSummary, type BattleMapPoints } from './fakeHexes';
+  BattleMapOverlays,
+  type MapEmptyState,
+  type MapZoneView,
+} from './BattleMapOverlays';
 import { useRealTerritories } from './hexClaims';
+import { useRealCrew } from '../crew/real';
 import { getLastRunResult } from '../run/runResult';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
 import {
   basemapAttribution,
+  basemapSpecRevision,
   battleGameLayers,
   battleMapStyle as ms,
+  prefetchLocalizedBasemaps,
+  subscribeBasemapSpecs,
   type BasemapKey,
 } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
 import { EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
-import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode, type ModeEmphasis } from './territory';
+import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
+import { type MapLocationState, resolveLocation } from './locationState';
+import { C } from '../../i18n/catalog/map';
+import { useLocale } from '../../i18n/store';
+import { resolve } from '../../i18n/types';
+// Position réelle côté WEB : `../run/gps/provider` est marqué « fichier natif
+// uniquement » (il tire expo-task-manager, sans support web) — l'importer ici
+// mettait dans le bundle navigateur un module qui n'y a pas sa place. Même
+// surface, même honnêteté (aucune position de repli) : voir webGeolocation.ts.
+import {
+  checkForegroundPermission,
+  getCurrentPositionOnce,
+  requestForegroundPermission,
+} from './webGeolocation';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -96,141 +133,24 @@ const SCALE_STEPS_M: readonly number[] = [
   500_000, 1_000_000, 2_000_000,
 ];
 
-// ─── Bandes de zoom sémantiques (AMENDEMENT-37 §6/§11, étude §11/§15) ────────
-// Les marqueurs s'ÉTAGENT par bande au lieu de s'allumer d'un bloc au seul seuil
-// worldView. Seuils de RENDU nommés (jamais de littéral baladé), dérivés du VRAI
-// zoom caméra (onZoomChange) — worldView (dots villes) reste géré côté MapLibre.
-/** Missions/objectifs (bouclier, sablier, pin) + POI/défi : QUARTIER (z13-15). */
-const MISSION_MARKER_MIN_ZOOM = 13;
-/** Alliés opt-in (mates) : RUE (z16-18) seulement — jamais au quartier. */
-const ALLY_MARKER_MIN_ZOOM = 16;
-/** §15 : au plus 3 LABELS visibles au zoom QUARTIER (avant la bande RUE). */
-const QUARTIER_MAX_LABELS = 3;
-
-/**
- * Bande sémantique dérivée du zoom réel (couture LOD, §11) :
- *   `world`    z<10  — dots villes (MapLibre), ego seul en marker
- *   `metro`    10-12 — secteurs + contrôle % (couches), ego seul
- *   `district` 13-15 — territoires + missions/objectifs + POI/défi
- *   `street`   z16+  — + alliés opt-in
- * On ne stocke PAS le zoom brut (re-render par frame) : l'état ne change qu'au
- * franchissement d'un seuil de bande.
- */
-type ZoomBand = 'world' | 'metro' | 'district' | 'street';
-function zoomBand(zoom: number): ZoomBand {
-  if (zoom < TERRITORY_DOT_MAX_ZOOM) return 'world';
-  if (zoom < MISSION_MARKER_MIN_ZOOM) return 'metro';
-  if (zoom < ALLY_MARKER_MIN_ZOOM) return 'district';
-  return 'street';
-}
-
 // AMENDEMENT-21 : la Carte est un ÉCRAN MISSION. Les contrôles flottants (fond
 // dark/couleur + calques de lecture) vivent DANS le menu « Calques » du HUD
 // (BattleMapOverlays) — plus aucun FAB de bascule de fond ici (2 FABs max :
 // Recentrer + Calques). Le fond persisté (useBasemapStyle) est simplement passé
 // au HUD, qui porte le menu.
 
-/** Teintes des markers — tokens uniquement (états de jeu). */
-const markerColors = {
-  crew: colors.chartreuse,
-  danger: gameColors.danger,
-  neutral: colors.blanc,
-} as const;
-
 /**
- * Markers RealMap de la scène (UNE icône par SECTEUR — jamais par cellule),
- * ÉTAGÉS par bande de zoom (AMENDEMENT-37 §6/§11) — identiques à la variante
- * native. `showMissions` (quartier z13+) allume missions/objectifs (avant-poste,
- * shield, sablier, pin, défi) + POI ; `showAllies` (rue z16+) allume les mates
- * OPT-IN. EGO est TOUJOURS peint au-dessus. L'emphase du mode module l'opacité de
- * chaque famille (AMENDEMENT-11 §3).
+ * Markers RealMap de la scène — parité stricte avec la variante native : il n'en
+ * reste qu'UN, « moi », peint UNIQUEMENT si un VRAI fix existe. `ego` null =
+ * aucun point (jamais un dot posé sur République « pour meubler »).
+ *
+ * Les marqueurs de scénario (POI, défi, avant-poste, bouclier, sablier,
+ * objectif, alliés opt-in) et leur étagement par bande de zoom sont partis avec
+ * le mode vitrine : ils ne dosaient QUE de la démo.
  */
-function buildMarkers(
-  points: BattleMapPoints,
-  decayAnchor: LatLngPoint | null,
-  emph: ModeEmphasis,
-  showMissions: boolean,
-  showAllies: boolean,
-): RealMapMarker[] {
-  const markers: RealMapMarker[] = [];
-
-  // ── Missions / objectifs + POI / défi — QUARTIER (z13-15) ──────────────────
-  if (showMissions) {
-    // POI running : §15 borne les LABELS à QUARTIER_MAX_LABELS au quartier (les
-    // POI sont la famille la moins prioritaire à porter du texte, §14) ; à la
-    // rue (showAllies) la contrainte quartier ne s'applique plus.
-    let labelBudget = showAllies ? Number.POSITIVE_INFINITY : QUARTIER_MAX_LABELS;
-    for (const p of POIS_ON_MAP) {
-      const keepLabel = p.label !== undefined && labelBudget > 0;
-      if (keepLabel) labelBudget -= 1;
-      markers.push({
-        id: `poi-${p.kind}`,
-        lng: p.position.lng,
-        lat: p.position.lat,
-        children: <PoiMarker kind={p.kind} label={keepLabel ? p.label : undefined} />,
-      });
-    }
-    markers.push({
-      id: 'outpost',
-      lng: points.outpost.lng,
-      lat: points.outpost.lat,
-      children: <StateIcon icon="avantposte" tint={markerColors.neutral} opacity={emph.crew} />,
-    });
-    markers.push({
-      id: 'shield',
-      lng: points.protectedCenter.lng,
-      lat: points.protectedCenter.lat,
-      children: (
-        <StateIcon
-          icon="bouclier"
-          tint={markerColors.neutral}
-          opacity={emph.defense}
-          liftPx={SHIELD_ABOVE_EGO_PX}
-        />
-      ),
-    });
-    if (decayAnchor) {
-      markers.push({
-        id: 'sablier',
-        lng: decayAnchor.lng,
-        lat: decayAnchor.lat,
-        children: <StateIcon icon="sablier" tint={markerColors.danger} opacity={emph.defense} />,
-      });
-    }
-    markers.push({
-      id: 'objective-pin',
-      lng: points.objectiveCenter.lng,
-      lat: points.objectiveCenter.lat,
-      children: <StateIcon icon="pin" tint={markerColors.crew} opacity={emph.objective} />,
-    });
-    markers.push({
-      id: 'challenge',
-      lng: MAP_CHALLENGE.position.lng,
-      lat: MAP_CHALLENGE.position.lat,
-      children: <StateIcon icon="cible" tint={markerColors.neutral} opacity={emph.objective} />,
-    });
-  }
-
-  // ── Alliés opt-in — RUE (z16-18) seulement ─────────────────────────────────
-  if (showAllies) {
-    for (const m of MATES_OPT_IN) {
-      markers.push({
-        id: `mate-${m.name}`,
-        lng: m.position.lng,
-        lat: m.position.lat,
-        children: <MateMarker name={m.name} distanceKm={m.distanceKm} isLeader={m.isLeader} />,
-      });
-    }
-  }
-
-  // ── Moi — TOUJOURS présent, peint en dernier (au-dessus de tout) ───────────
-  markers.push({
-    id: 'ego',
-    lng: EGO_CAMERA.lng,
-    lat: EGO_CAMERA.lat,
-    children: <EgoMarker />,
-  });
-  return markers;
+function buildMarkers(ego: LatLngPoint | null): RealMapMarker[] {
+  if (!ego) return [];
+  return [{ id: 'ego', lng: ego.lng, lat: ego.lat, children: <EgoMarker /> }];
 }
 
 export function MapScreen() {
@@ -239,7 +159,13 @@ export function MapScreen() {
   // comprendre→décider→courir). autoMapMode reste disponible pour une bascule
   // ULTÉRIEURE (menace réellement live), mais n'est plus l'état INITIAL.
   const [mode, setMode] = useState<MapMode>(DEFAULT_MAP_MODE);
-  const [selectedParcours, setSelectedParcours] = useState<string | null>(null);
+  /**
+   * Aperçu de parcours peint sur la carte. Le SÉLECTEUR a disparu avec la démo
+   * (c'était une liste de parcours fabriqués dans la sheet) : cet état reste
+   * donc `null` tant que le Route Planner — qui produit de VRAIS itinéraires —
+   * ne l'alimente pas. On garde le câblage plutôt qu'un faux choix.
+   */
+  const [selectedParcours] = useState<string | null>(null);
   // AMENDEMENT-37 §3 : zone tapée (null = carte nue). Un tap carte la pose
   // (tap sur le vide → null = désélection) ; elle pilote la sheet de zone (HUD)
   // ET l'accent « l'actif domine » via le 4ᵉ arg de battleGameLayers (contrat C3).
@@ -247,15 +173,72 @@ export function MapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
 
-  const { points, summary } = useMemo(() => {
-    const data = battleMapData();
-    return { points: data.points, summary: battleMapSummary(data.collection) };
+  /**
+   * POSITION RÉELLE — parité stricte avec la variante native : `null` tant
+   * qu'aucun VRAI fix n'est arrivé. Aucune caméra République, aucun point
+   * « moi » ; la carte ouvre sur la vue neutre monde et se cadre sur le joueur
+   * dès le 1er fix.
+   */
+  const [egoPos, setEgoPos] = useState<LatLngPoint | null>(null);
+  /**
+   * Ce que la carte SAIT de la localisation (locationState.ts) — quatre états
+   * distincts au lieu d'un booléen. « Recherche en cours » n'est pas « refusé »,
+   * et « introuvable » (localisation macOS coupée, timeout de 10 s) n'est pas
+   * « refusé » non plus : c'est cette confusion qui, sur Safari — dépourvu de
+   * `navigator.permissions.query({name:'geolocation'})` — affichait « Active la
+   * localisation » à quelqu'un qui venait de l'autoriser.
+   */
+  const [locationState, setLocationState] = useState<MapLocationState>('locating');
+  const locale = useLocale();
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const outcome = await resolveLocation({
+        checkForegroundPermission,
+        requestForegroundPermission,
+        getCurrentPositionOnce,
+      });
+      if (cancelled) return;
+      // Chacune des trois issues pose un état : plus AUCUNE sortie silencieuse.
+      setLocationState(outcome.state);
+      if (outcome.point) setEgoPos(outcome.point);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  /**
+   * Caméra d'OUVERTURE déclarative : `undefined` = vue neutre monde côté RealMap,
+   * honnête tant qu'on ne sait pas où est le joueur.
+   */
+  const openCamera = useMemo(
+    () => (egoPos ? { ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng } : undefined),
+    [egoPos],
+  );
+
   /** Emphase des familles de couches selon le mode actif (AMENDEMENT-11 §3). */
   const emph = MODE_EMPHASIS[mode];
 
   /** Fond de carte persisté (défaut sombre) — dark-first, bascule opt-in. */
   const { basemap, toggle } = useBasemapStyle();
+
+  /**
+   * Labels en langue LOCALE — PARITÉ NATIVE (le correctif « la map est en
+   * anglais » n'existait que sur iPhone : localhost affichait Munich/Vienna là
+   * où le device affiche München/Wien, et le fondateur en concluait que le
+   * correctif n'avait pas été livré). Même mécanique : on précharge les styles
+   * CARTO patchés (name_en → name), et on REMONTE la carte via sa `key` quand la
+   * spec localisée est prête — un swap à chaud perdrait les couches de jeu.
+   */
+  const specRev = useSyncExternalStore(
+    subscribeBasemapSpecs,
+    basemapSpecRevision,
+    basemapSpecRevision,
+  );
+  useEffect(() => {
+    prefetchLocalizedBasemaps();
+  }, []);
 
   /**
    * Vue 2D/3D persistée (AMENDEMENT-26, défaut false = 2D) — partagée par toutes
@@ -275,7 +258,22 @@ export function MapScreen() {
    * native : `territories` non-null ⇒ on peint `hex_claims` (même vide : la carte
    * dit le vide au lieu d'inventer un Paris conquis) ; null ⇒ démo ÉTIQUETÉE.
    */
-  const { territories, isReal, failed, reload } = useRealTerritories();
+  // Crew réel — PARITÉ NATIVE (§C). Sans ce roster, `buildTerritories` classait
+  // les zones de MES COÉQUIPIERS en 'rival' : localhost peignait en ORANGE ce
+  // que l'iPhone peint en CHARTREUSE. Set mémoïsé sur le CONTENU (join trié) :
+  // useRealCrew renvoie un nouveau tableau à chaque fetch, et un Set par
+  // référence relancerait la lecture hex_claims à chaque rendu.
+  const { members: crewMembers } = useRealCrew();
+  const crewIdsKey = crewMembers
+    .map((m) => m.userId)
+    .sort()
+    .join(',');
+  const crewIds = useMemo(
+    () => (crewIdsKey.length === 0 ? null : new Set(crewIdsKey.split(','))),
+    [crewIdsKey],
+  );
+  const { territories, isReal, failed, signedOut, loading, reload } =
+    useRealTerritories(crewIds);
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
@@ -311,8 +309,11 @@ export function MapScreen() {
       capturedInLastRun: lastResult
         ? lastResult.hexes.claimed + lastResult.hexes.stolen + lastResult.hexes.pioneer > 0
         : false,
-    });
-  }, [isReal, territories]);
+    },
+    // Parité native : sans `locale`, le peek du HUD parlait français à tout le
+    // monde (défaut de buildRealWidgetView).
+    locale);
+  }, [isReal, territories, locale]);
 
   /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
   const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
@@ -321,12 +322,21 @@ export function MapScreen() {
       return;
     }
     // go / view_map / complete… : la carte EST l'écran d'action (GO flottant).
-    mapRef.current?.flyTo(EGO_CAMERA);
-  }, []);
+    // Sans position connue on ne vole nulle part (jamais un retour vers Paris).
+    if (!egoPos) return;
+    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
+  }, [egoPos]);
 
+  /**
+   * `territories` null (pas de session, lecture en vol) ne doit PAS retomber sur
+   * la démo : `[]` force battleGameLayers à peindre le RÉEL — donc rien. Ce
+   * `?? []` est le dernier verrou entre la carte et le faux Paris conquis de
+   * `fakeHexes` : ne pas le retirer. Parité stricte avec la variante native.
+   */
+  const paintedTerritories = territories ?? [];
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, territories),
-    [emph, selectedParcours, basemap, selectedZoneId, territories],
+    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, paintedTerritories),
+    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories],
   );
 
   /** Tap carte → zone tapée (null sur le vide = désélection). */
@@ -336,26 +346,50 @@ export function MapScreen() {
   /** Fermer la sheet de zone → carte nue (retour au peek mission). */
   const closeZone = useCallback(() => setSelectedZoneId(null), []);
 
-  /** UN sablier PAR SECTEUR en decay (milieu du tracé urgent — §4ter). */
-  const decayAnchor = useMemo(() => decaySablierAnchor(), []);
+  // Les dots de villes conquises (territoryDotLayers) sortaient de la démo :
+  // retirés. Aucune agrégation RÉELLE par ville n'existe (`city_id` est NULL sur
+  // toute capture — cf. hexClaims.ts), donc rien à peindre au dézoom.
+
+  const markers = useMemo(() => buildMarkers(egoPos), [egoPos]);
 
   /**
-   * Bande de zoom sémantique (§6/§11) dérivée du VRAI zoom caméra. Elle étage les
-   * marqueurs (missions au quartier, alliés à la rue, ego toujours) au lieu de
-   * les allumer d'un bloc ; la vue monde/pays (dots villes, §4bis) est la bande
-   * `world`, gérée côté MapLibre par le maxzoom de territoryDotLayers. L'état ne
-   * change qu'au franchissement d'un seuil (pas de re-render par frame).
+   * O1 — ÉTAT VIDE du HUD (mêmes trois cas que `dataNote`, même ordre de priorité
+   * pour que la note du bas et le peek ne se contredisent jamais). `null` = on ne
+   * sait pas encore : le peek se tait plutôt que d'affirmer quoi que ce soit.
    */
-  const [band, setBand] = useState<ZoomBand>(() => zoomBand(EGO_CAMERA.zoom));
-  const onZoomChange = useCallback((zoom: number) => {
-    setBand(zoomBand(zoom));
-  }, []);
+  // `signedOut` et non `!isReal` : `isReal` est faux AUSSI pendant le chargement,
+  // donc un joueur connecté lisait « Pas encore connecté » le temps de la requête.
+  // `loading` passe AVANT tout le reste : restauration de session ou lecture en
+  // vol ⇒ on n'affirme RIEN (un état de chargement n'est pas un état vide).
+  const emptyState: MapEmptyState | null = loading
+    ? null
+    : failed
+      ? 'failed'
+      : signedOut
+        ? 'signed-out'
+        : territories !== null && territories.length === 0
+          ? 'empty'
+          : null;
 
-  const markers = useMemo(() => {
-    const showMissions = band === 'district' || band === 'street';
-    const showAllies = band === 'street';
-    return buildMarkers(points, decayAnchor, emph, showMissions, showAllies);
-  }, [points, decayAnchor, emph, band]);
+  const onEmptyAction = useCallback(() => {
+    if (failed) {
+      reload();
+      return;
+    }
+    router.push('/(auth)/sign-in');
+  }, [failed, reload]);
+
+  /** Zone tapée → VRAIE zone (hex_claims), jamais les étiquettes de ZONE_DETAILS. */
+  const selectedZone: MapZoneView | null = useMemo(() => {
+    if (selectedZoneId === null || territories === null) return null;
+    const found = territories.find((t) => t.props.territoryId === selectedZoneId);
+    if (!found) return null;
+    return {
+      role: found.props.status === 'crew' ? 'mine' : 'rival',
+      zones: found.zoneCount,
+      areaKm2: found.props.areaM2 / 1_000_000,
+    };
+  }, [selectedZoneId, territories]);
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
@@ -369,8 +403,55 @@ export function MapScreen() {
     track(EVENTS.mapLoadMs, { ms: Date.now() - mountedAtRef.current });
   }, []);
 
-  // Recentrer : retour ego fluide (flyTo — saut direct si reduce motion).
-  const recenter = () => mapRef.current?.flyTo(EGO_CAMERA);
+  /**
+   * La PHRASE d'état de la carte, dans la langue du joueur (parité native).
+   * Priorité : localisation refusée > pas de compte > les 3 cas de `dataNote`.
+   */
+  /** §A — la pill se tait quand le peek du HUD porte déjà l'état vide (et son
+   *  action) : deux fois le même message pour une seule situation, c'est un de
+   *  trop. Elle ne parle plus que de l'état de la LOCALISATION. */
+  const hudCarriesEmptyState = widget === null && emptyState !== null;
+  /** Parité native : les quatre états de localisation ont chacun leur phrase. */
+  const locationNote =
+    locationState === 'denied'
+      ? resolve(C.dataNoteLocationDenied, locale)
+      : locationState === 'unavailable'
+        ? resolve(
+            egoPos ? C.dataNoteLocationStale : C.dataNoteLocationUnavailable,
+            locale,
+          )
+        : locationState === 'locating'
+          ? resolve(C.dataNoteLocating, locale)
+          : null;
+  const mapNote =
+    locationNote ??
+    (loading || hudCarriesEmptyState
+      ? null
+      : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
+        // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
+        dataNote(isReal, failed, territories?.length ?? 0, locale));
+
+  /**
+   * Recentrer — et JAMAIS un bouton mort (parité native). On vole vers la
+   * dernière position connue si elle existe, puis on relance une acquisition
+   * complète. Chacune des trois issues pose un état VISIBLE : c'est ce qui
+   * manquait (`if (!fix) return` rendait l'appui strictement invisible).
+   */
+  const recenter = () => {
+    if (egoPos) mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
+    setLocationState('locating');
+    void (async () => {
+      const outcome = await resolveLocation({
+        checkForegroundPermission,
+        requestForegroundPermission,
+        getCurrentPositionOnce,
+      });
+      setLocationState(outcome.state);
+      if (!outcome.point) return;
+      setEgoPos(outcome.point);
+      mapRef.current?.flyTo({ ...EGO_CAMERA, lat: outcome.point.lat, lng: outcome.point.lng });
+    })();
+  };
 
   return (
     <View style={styles.root}>
@@ -378,14 +459,16 @@ export function MapScreen() {
           `key={basemap}` : setStyle() MapLibre EFFACE les sources/couches
           custom ; on remonte donc la carte à chaque bascule → l'effet `load`
           réajoute les couches de jeu sur le nouveau style (robuste). */}
+      {/* `key` : setStyle() MapLibre EFFACE les sources/couches custom — on
+          remonte donc la carte à chaque bascule de fond ET à chaque arrivée
+          d'une spec localisée (specRev), pour que l'effet `load` réajoute les
+          couches de jeu sur le nouveau style. Parité stricte avec le natif. */}
       <RealMap
-        key={basemap}
+        key={`${basemap}-${specRev}`}
         ref={mapRef}
-        camera={EGO_CAMERA}
+        camera={openCamera}
         geojsonLayers={layers}
-        pointLayers={territoryDotLayers()}
         markers={markers}
-        onZoomChange={onZoomChange}
         onPress={onMapPress}
         onMapReady={setGlMap}
         attributionCompact={false}
@@ -402,7 +485,7 @@ export function MapScreen() {
           • démo (pas de session/backend) → étiquetée, jamais de faux réel ;
           • réel et vide → on nomme le vide au lieu de le laisser passer pour un bug.
           Aucun CTA (§A — 1 écran = 1 décision, le bouton GO est déjà l'action). ── */}
-      {(failed || !isReal || territories?.length === 0) && (
+      {mapNote !== null && (
         <Text
           style={[
             styles.dataNote,
@@ -410,7 +493,7 @@ export function MapScreen() {
           ]}
           accessibilityRole="text"
         >
-          {dataNote(isReal, failed, territories?.length ?? 0)}
+          {mapNote}
         </Text>
       )}
 
@@ -426,12 +509,13 @@ export function MapScreen() {
       <BattleMapOverlays
         widget={widget}
         onWidgetAction={onWidgetAction}
+        emptyState={emptyState}
+        onEmptyAction={onEmptyAction}
+        zone={selectedZone}
         mode={mode}
         onSelectMode={setMode}
-        summary={summary}
         onRecenter={recenter}
         selectedParcoursId={selectedParcours}
-        onSelectParcours={setSelectedParcours}
         selectedZoneId={selectedZoneId}
         onCloseZone={closeZone}
         basemap={basemap}
@@ -455,29 +539,6 @@ function EgoMarker() {
         style={[styles.egoHalo, { opacity: haloOpacity, transform: [{ scale: halo }] }]}
       />
       <View style={styles.egoDot} />
-    </View>
-  );
-}
-
-/** Icône d'état posée sur la carte (shield/sablier/pin/avant-poste/cible). */
-function StateIcon({
-  icon,
-  tint,
-  opacity,
-  liftPx = 0,
-}: {
-  icon: 'bouclier' | 'sablier' | 'pin' | 'avantposte' | 'cible';
-  tint: string;
-  opacity: number;
-  /** Écart vertical (px) au-dessus du point d'ancrage (shield vs « moi »). */
-  liftPx?: number;
-}) {
-  return (
-    <View
-      pointerEvents="none"
-      style={[{ opacity }, liftPx ? { transform: [{ translateY: -liftPx }] } : null]}
-    >
-      <Icon name={icon} size={MARKER_SIZE} color={tint} />
     </View>
   );
 }

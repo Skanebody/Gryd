@@ -7,9 +7,13 @@
  */
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import type { ZoneDensity } from '@klaim/shared';
 
-export type PhoneZone = { name: string; density: ZoneDensity };
+/**
+ * Le hover d'une ville ne transporte plus que son NOM. La `density` a été
+ * retirée : attribuer un type de zone (active/émergente/pionnière/sauvage) à
+ * une ville, c'est affirmer une densité de coureurs que personne n'a mesurée.
+ */
+export type PhoneZone = { name: string };
 
 type PhoneContextValue = {
   zone: PhoneZone | null;

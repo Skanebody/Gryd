@@ -134,3 +134,35 @@ export function encouragement(done: boolean, remaining: string): string {
   if (done) return t(C.goalReached);
   return t(C.almostThere, { remaining });
 }
+
+/**
+ * ÉTAT VIDE « aucun défi en cours » (21/07/2026) — le 4e cas de
+ * `ChallengesEmptyReason`, apparu avec la lecture réelle de `challenges`.
+ *
+ * Il ne pouvait pas exister tant que la liste était le catalogue en dur : le
+ * serveur peut parfaitement n'avoir AUCUN challenge dans sa fenêtre d'activité
+ * (les seeds 0012 sont hebdomadaires et expirent). Ce n'est ni une panne
+ * (`backendOff` mentirait) ni un manque du joueur : c'est un fait sur le jeu, et
+ * il se dit sans reproche — anti-shame §11, aucune allusion à ce qu'il n'a pas
+ * fait.
+ *
+ * Ces deux `Entry` vivent ici plutôt que dans `i18n/catalog/motivation.ts` parce
+ * que le catalogue est édité en parallèle par d'autres chantiers ; la parité
+ * 5 langues reste imposée par le type `Entry`, qui est la seule garantie qui
+ * compte.
+ */
+export const CHALLENGES_NONE_ACTIVE_TITLE: Entry = {
+  fr: 'Aucun défi en cours.',
+  en: 'No challenge running right now.',
+  es: 'Ningún desafío en curso.',
+  de: 'Gerade läuft keine Challenge.',
+  pt: 'Nenhum desafio em andamento.',
+};
+
+export const CHALLENGES_NONE_ACTIVE_BODY: Entry = {
+  fr: 'GRYD n’en propose pas cette semaine. Tes courses comptent quand même : elles alimentent ton territoire et ta série.',
+  en: 'GRYD isn’t running one this week. Your runs still count: they feed your territory and your streak.',
+  es: 'GRYD no propone ninguno esta semana. Tus carreras cuentan igual: alimentan tu territorio y tu racha.',
+  de: 'GRYD bietet diese Woche keine an. Deine Läufe zählen trotzdem: für dein Revier und deine Serie.',
+  pt: 'O GRYD não propõe nenhum esta semana. Suas corridas contam mesmo assim: elas alimentam seu território e sua sequência.',
+};

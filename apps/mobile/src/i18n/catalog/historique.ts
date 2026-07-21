@@ -98,6 +98,39 @@ export const C = defineCatalog({
     de: 'Noch keine Läufe in diesem Filter.',
     pt: 'Ainda não há corridas neste filtro.',
   },
+  /**
+   * Pas connecté : l'historique vit sur le compte. On n'affiche NI courses
+   * fabriquées ni écran blanc — on nomme ce qui manque + 1 CTA (§A).
+   */
+  emptySignedOut: {
+    fr: 'Tes courses sont liées à ton compte. Connecte-toi pour les retrouver ici.',
+    en: 'Your runs live on your account. Sign in to find them here.',
+    es: 'Tus carreras están vinculadas a tu cuenta. Inicia sesión para verlas aquí.',
+    de: 'Deine Läufe hängen an deinem Konto. Melde dich an, um sie hier zu sehen.',
+    pt: 'Suas corridas estão ligadas à sua conta. Entre para encontrá-las aqui.',
+  },
+  emptySignedOutCta: {
+    fr: 'Se connecter',
+    en: 'Sign in',
+    es: 'Iniciar sesión',
+    de: 'Anmelden',
+    pt: 'Entrar',
+  },
+  a11ySignIn: {
+    fr: 'Se connecter pour retrouver ses courses',
+    en: 'Sign in to find your runs',
+    es: 'Iniciar sesión para ver tus carreras',
+    de: 'Anmelden, um deine Läufe zu sehen',
+    pt: 'Entrar para ver suas corridas',
+  },
+  /** Course ouverte par un lien alors qu'aucune course réelle n'existe encore. */
+  runNotYours: {
+    fr: 'Cette course n’est pas dans ton historique. Tes courses apparaîtront ici après ta première sortie enregistrée.',
+    en: 'This run isn’t in your history. Your runs will appear here after your first recorded outing.',
+    es: 'Esta carrera no está en tu historial. Tus carreras aparecerán aquí tras tu primera salida registrada.',
+    de: 'Dieser Lauf ist nicht in deinem Verlauf. Deine Läufe erscheinen hier nach deinem ersten aufgezeichneten Lauf.',
+    pt: 'Esta corrida não está no seu histórico. Suas corridas aparecerão aqui após a primeira saída registrada.',
+  },
 
   // ─── /course/[id] : introuvable ────────────────────────────────────────────
   runFallbackTitle: { fr: 'Course', en: 'Run', es: 'Carrera', de: 'Lauf', pt: 'Corrida' },

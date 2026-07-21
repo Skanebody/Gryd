@@ -30,6 +30,29 @@ export default function AdminDashboardPage() {
         (spec admin §10).
       </p>
 
+      {/* AVERTISSEMENT INCONDITIONNEL. Ce dashboard sert un jeu de données
+          généré (PRNG seedé), pas la production : aucune requête Supabase n'est
+          branchée (TODO O1). Un exploitant qui prend ces chiffres pour la réalité
+          peut sanctionner un joueur sur des faits inventés — d'où un bandeau qui
+          ne dépend d'AUCUNE condition. Il ne disparaîtra qu'avec le câblage réel,
+          pas avant. Seul /admin/signalements lit la vraie base. */}
+      <p
+        style={{
+          border: '1px solid #B4FF0D',
+          borderRadius: 8,
+          padding: '10px 14px',
+          margin: '0 0 20px',
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>Données générées, pas la production.</strong> Courses, joueurs,
+        scores de risque et claims gelés de cet écran sont fabriqués : le câblage
+        Supabase n&rsquo;est pas fait. Ne sanctionne personne d&rsquo;après ces
+        chiffres. Seul <Link href="/admin/signalements">Signalements</Link> lit la
+        vraie base.
+      </p>
+
       <div className={ui.kpiGrid}>
         {kpis.map((k) => (
           <div key={k.label} className={ui.kpi}>

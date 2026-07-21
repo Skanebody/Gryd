@@ -41,6 +41,7 @@ import {
   type LatLngPoint,
 } from '../map/realAnchors';
 import { MODE_EMPHASIS } from '../map/territory';
+import { useRealTerritories } from '../map/hexClaims';
 import { C } from '../../i18n/catalog/route';
 import { useT } from '../../i18n/store';
 import type { PlannedRouteDemo } from './types';
@@ -154,6 +155,17 @@ export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlanner
   const t = useT();
   /** Opacités du mode ROUTE : l'itinéraire domine, le reste en transparence. */
   const emph = MODE_EMPHASIS.route;
+  /**
+   * FIN DU MODE VITRINE (21/07/2026) — cet écran peignait le faux Paris conquis.
+   * `territoryStateLayers(emph)` était appelé SANS son 4ᵉ argument : le défaut
+   * `real = null` déclenchait la branche démo, donc la boucle République, Lille et
+   * le couloir rival de Lyon s'affichaient en transparence sous l'itinéraire de
+   * n'importe quel joueur, où qu'il soit. Les autres cartes avaient déjà leur
+   * verrou `?? []` ; celle-ci était passée à travers. On lit désormais les VRAIES
+   * captures, et `?? []` (pas de session / lecture en vol) peint une carte vide.
+   */
+  const { territories } = useRealTerritories();
+  const paintedTerritories = territories ?? [];
 
   /** Cadrage d'ouverture figé au montage (RealMap), puis fitBounds au tap. */
   const openBoundsRef = useRef<RealMapBounds>(routeBounds(route.line));
@@ -173,7 +185,7 @@ export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlanner
     return [
       // 5. Territoires en transparence — MÊME builder §4ter que la Battle Map
       //    (traits nets, contesté double trait, decay pointillé — zéro glow).
-      ...territoryStateLayers(emph),
+      ...territoryStateLayers(emph, 'dark', null, paintedTerritories),
       // 1. LA ROUTE : liseré sombre + trait épais chartreuse (route-first).
       //    AMENDEMENT-16 §0 (retour fondateur) : « juste le tracé » — plus de
       //    ruban de capture rempli sous la route ; la route dominante EST le
@@ -191,7 +203,7 @@ export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlanner
         lineWidth: ROUTE_WIDTH,
       },
     ];
-  }, [route.line, emph]);
+  }, [route.line, emph, paintedTerritories]);
 
   // ── Markers : flèches de direction, départ/arrivée, « moi » ───────────────
   const markers = useMemo<RealMapMarker[]>(() => {

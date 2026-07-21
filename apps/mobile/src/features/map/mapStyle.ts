@@ -22,11 +22,8 @@ import {
   TERRITORY_TRACE_MIN_ZOOM,
   territoryGeoByState,
 } from './allTerritories';
-import { MAP_BONUS_ZONE, PARCOURS_DEMO } from './demo';
-import { battleMapData } from './fakeHexes';
 import type { RealTerritory } from './hexClaims';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
-import { PARIS_DEMO_SECTOR_VIEWS, type SectorView } from './sectorsDemo';
 import { type ModeEmphasis, type TerritoryState } from './territory';
 
 /**
@@ -571,121 +568,19 @@ export const ROLE_SHAPE_ICON: Record<
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RENDU DES SECTEURS AGRÉGÉS (§C) — « on ne colore pas 200 000 users »
-// Ce builder est le PONT entre le socle (engine/sectors miroité dans
-// sectorsDemo → PARIS_DEMO_SECTOR_VIEWS) et la carte : chaque secteur agrégé
-// est peint par son STATUT (0-4), en COULEUR PAR RÔLE (roleColor) + FORME +
-// pulse — jamais une couleur par crew, jamais un runner. Les seuils/niveaux
-// viennent d'engine (aucun nombre magique de JEU ici) ; seules les dimensions
-// de RENDU (rayons/segments en mètres/px) sont des constantes UI. Le rival
-// n'apparaît qu'en ACTIVITÉ APPROXIMATIVE (disque/halo orange centré secteur,
-// jamais un GPS ni un nom exact — §C). `sectorStatusLayersAll` est empilé par
-// battleGameLayers (Battle Map) et par TerritoryFranceMap (« Mon territoire ») ;
-// le badge TEXTE court des niveaux ≥ contesté vit dans
-// allTerritories.sectorStatusBadgeLayer (calque symbol borné par minZoom).
+// SECTEURS AGRÉGÉS (§C) — RENDU RETIRÉ LE 21/07/2026 (fin du mode vitrine)
+// Le contrat §C reste vrai et sa spec de STYLE vit toujours ici
+// (SECTOR_STATUS_SPEC : couleur par RÔLE + forme + badge par niveau 0-4). Ce qui
+// a disparu, c'est le RENDU : `sectorStatusLayersAll` / `sectorStatusLayers` ne
+// lisaient pas un socle réel mais `PARIS_DEMO_SECTOR_VIEWS` — des secteurs
+// fabriqués du canal Saint-Martin, peints sur la carte de n'importe quel joueur
+// où qu'il soit. Ils étaient gardés par `real === null`, c'est-à-dire « aucune
+// vraie donnée ⇒ invente » : un état de CHARGEMENT traité comme un feu vert.
+// Le rendu reviendra quand il aura une SOURCE RÉELLE (sector_snapshot 0037 +
+// géométrie sectors.geojson) — et il se branchera sur SECTOR_STATUS_SPEC, qui
+// est resté intact pour ça. Tant que cette source n'existe pas, la carte ne dit
+// rien des secteurs plutôt que d'en inventer.
 // ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Rayon du disque d'un secteur agrégé (m) — échelle quartier, pas une règle.
- * Volontairement MODESTE : les secteurs démo du canal sont proches ; un rayon
- * trop grand les empile en anneaux concentriques illisibles (§A « compris en
- * 3 s »). Le badge texte porte le sens ; le disque n'est qu'un repère de zone.
- */
-/** Rayon de l'anneau de PULSE (secteur le plus urgent) — tight, discret. */
-const SECTOR_PULSE_RADIUS_M = 45;
-/** Largeur de l'anneau de pulse (px) — fin (un signal, pas un contour épais). */
-const SECTOR_PULSE_WIDTH = 1.5;
-/** Segments du cercle géodésique d'un secteur (assez lisse à ce rayon). */
-const SECTOR_CIRCLE_STEPS = 40;
-// LOD des secteurs : SECTOR_MIN_ZOOM vit dans allTerritories (sibling de
-// TERRITORY_DOT_MAX_ZOOM, la LOD des marqueurs-points) et est importé ici —
-// sous ce zoom les disques sont sub-pixel et les points villes portent seuls la
-// lecture ; au-dessus, secteurs + badges prennent le relais (§C LOD).
-
-/** Disque géodésique (secteur agrégé) autour d'un centre — même maths que la zone bonus. */
-function sectorDiscRing(center: LatLngPoint, radiusM: number): number[][] {
-  const ring: number[][] = [];
-  for (let i = 0; i <= SECTOR_CIRCLE_STEPS; i += 1) {
-    const angle = (i / SECTOR_CIRCLE_STEPS) * Math.PI * 2;
-    ring.push([
-      center.lng + (Math.cos(angle) * radiusM) / REAL_M_PER_DEG_LNG,
-      center.lat + (Math.sin(angle) * radiusM) / REAL_M_PER_DEG_LAT,
-    ]);
-  }
-  return ring;
-}
-
-type GeoJSONLineFeature = {
-  type: 'Feature';
-  properties: Record<string, unknown>;
-  geometry: { type: 'LineString'; coordinates: number[][] };
-};
-
-function sectorRingFeature(center: LatLngPoint, radiusM: number): GeoJSONLineFeature {
-  return {
-    type: 'Feature',
-    properties: {},
-    geometry: { type: 'LineString', coordinates: sectorDiscRing(center, radiusM) },
-  };
-}
-
-type SectorViewWithPlace = SectorView & { name: string; center: LatLngPoint };
-
-/**
- * §C — couches de RENDU d'UN secteur agrégé selon son statut (0-4). Ordre de
- * peinture interne : fill de statut → contour (double si contesté : ext orange
- * décalé + PULSE, int chartreuse) → hachures (contesté) → halo d'activité rival
- * approximatif (niveau ≥ pression). Rien au niveau 0 (stable) : la teinte de
- * rôle du territoire (territoryStyle) suffit, aucune alerte (§C). Toutes les
- * teintes viennent de SECTOR_STATUS_SPEC / CONTESTED_STYLE (tokens) — zéro
- * couleur par crew. `emphContested` module l'opacité (mode Raid/Territoire).
- */
-function sectorStatusLayers(
-  view: SectorViewWithPlace,
-  emphContested: number,
-  isPeak: boolean,
-): RealMapGeoJSONLayer[] {
-  const { level, key } = view.status;
-  if (level <= SECTOR_STATUS_LEVELS.stable) return [];
-  // Refonte carte PREMIUM 2026 + AMENDEMENT-36 (« zéro aplat ») : plus de disque
-  // rempli, plus de double anneau, plus de hachures — ce vocabulaire de « zones
-  // qui pulsent » se chevauchait et faisait cartoonesque. Le STATUT est désormais
-  // porté par le BADGE (pastille de rôle + icône de forme + libellé court —
-  // sectorStatusBadgeLayer) + les traces de rôle (contesté/rival/decay). SEUL le
-  // secteur le PLUS urgent (isPeak) reçoit UN anneau FIN pulsé : le seul mouvement
-  // de la carte = un signal, pas du décor. Les autres n'ont que leur badge.
-  if (!isPeak) return [];
-  const spec = SECTOR_STATUS_SPEC[key];
-  return [
-    {
-      id: `sector-${view.id}-pulse`,
-      data: {
-        type: 'FeatureCollection',
-        features: [sectorRingFeature(view.center, SECTOR_PULSE_RADIUS_M)],
-      },
-      lineColor: spec.strokeColor,
-      lineWidth: SECTOR_PULSE_WIDTH,
-      lineOpacity: emphContested,
-      pulse: true,
-    },
-  ];
-}
-
-/**
- * §C — Couches de secteurs de la démo Paris, ÉPURÉES (refonte premium 2026) :
- * les badges (sectorStatusBadgeLayer) marquent tous les secteurs chauds ; ICI on
- * n'ajoute qu'UN anneau fin PULSÉ sur le secteur de plus HAUTE priorité (le plus
- * urgent) — un seul mouvement à l'écran. `emphContested` = emphase du mode actif.
- */
-export function sectorStatusLayersAll(emphContested = 1): RealMapGeoJSONLayer[] {
-  const hot = PARIS_DEMO_SECTOR_VIEWS.filter(
-    (v) => v.status.level > SECTOR_STATUS_LEVELS.stable,
-  );
-  if (hot.length === 0) return [];
-  const peakLevel = Math.max(...hot.map((v) => v.status.level));
-  const peak = hot.find((v) => v.status.level === peakLevel);
-  return hot.flatMap((view) => sectorStatusLayers(view, emphContested, view === peak));
-}
 
 /** Sur-largeur du liseré sombre (px de part et d'autre du trait) — fin. */
 const COLOR_CASING_EXTRA_PX = 2;
@@ -1152,16 +1047,6 @@ const DECAY_WIDTH = 1.8;
 const DECAY_DASH: readonly number[] = [3, 2.5];
 // Lignes de PARCOURS/route DOUBLÉES (décision fondateur : trait plus large).
 const ROUTE_WIDTH = 8;
-const BONUS_RING_WIDTH = 2;
-const BONUS_DASH: readonly number[] = [3, 2];
-/**
- * Route RECOMMANDÉE (bataille) = chartreuse POINTILLÉ — distincte de la trace de
- * COURSE (chartreuse plein épais, §B) et de la route rivale (orange). Retour
- * fondateur (point 6 : différencier les langages de tracé).
- */
-const ROUTE_RECOMMEND_DASH: readonly number[] = [2, 1.6];
-const PARCOURS_CASING_WIDTH = 14;
-const PARCOURS_WIDTH = 8;
 /** Segments de l'anneau de la zone bonus (cercle géodésique approché). */
 const BONUS_CIRCLE_STEPS = 48;
 
@@ -1183,45 +1068,6 @@ type RealMapData = RealMapGeoJSONLayer['data'];
  * désélectionné, état absent de la démo).
  */
 const EMPTY_COLLECTION: RealMapData = { type: 'FeatureCollection', features: [] };
-
-/** Une polyline lat/lng → FeatureCollection LineString (source de ligne réelle). */
-function lineCollection(points: readonly LatLngPoint[]): RealMapData {
-  return {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: points.map((p) => [p.lng, p.lat]),
-        },
-        properties: {},
-      },
-    ],
-  };
-}
-
-/** Disque géodésique approché (zone bonus — rayon en mètres autour du centre). */
-function circleCollection(center: LatLngPoint, radiusM: number): RealMapData {
-  const ring: number[][] = [];
-  for (let i = 0; i <= BONUS_CIRCLE_STEPS; i += 1) {
-    const angle = (i / BONUS_CIRCLE_STEPS) * Math.PI * 2;
-    ring.push([
-      center.lng + (Math.cos(angle) * radiusM) / REAL_M_PER_DEG_LNG,
-      center.lat + (Math.sin(angle) * radiusM) / REAL_M_PER_DEG_LAT,
-    ]);
-  }
-  return {
-    type: 'FeatureCollection',
-    features: [
-      { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} },
-    ],
-  };
-}
-
-let routeCollectionCache: RealMapData | null = null;
-let bonusCollectionCache: RealMapData | null = null;
-const parcoursCollectionCache = new Map<string, RealMapData>();
 
 /**
  * AMENDEMENT-37 §1 — FILLS DE POSSESSION SUBTILS (révise AMENDEMENT-36 « zéro
@@ -1383,13 +1229,19 @@ function applySelectionDim(
  */
 const HIT_LINE_WIDTH = 16;
 
+/**
+ * `real` est REQUIS et NON-NULLABLE (fin du mode vitrine, 21/07/2026). Il n'y a
+ * plus de branche « pas de données ⇒ démo » : un appelant qui n'a rien lu passe
+ * `[]` et obtient une carte VIDE, ce qui est la vérité. Le typage est le verrou :
+ * omettre l'argument ne compile plus, donc aucun futur appelant ne peut
+ * ressusciter le faux Paris conquis par simple oubli.
+ */
 export function territoryStateLayers(
   emph: ModeEmphasis,
   basemap: BasemapKey = 'dark',
   selectedZoneId: string | null = null,
-  real: readonly RealTerritory[] | null = null,
+  real: readonly RealTerritory[],
 ): RealMapGeoJSONLayer[] {
-  // P0.2 : `real` non-null ⇒ vraies captures (même vides) ; null ⇒ démo étiquetée.
   const geo = territoryGeoByState(real);
   const stateData = (state: TerritoryState): RealMapData =>
     geo.get(state) ?? EMPTY_COLLECTION;
@@ -1626,101 +1478,31 @@ function withColorCasing(
  * pulsé), la route ouverte et l'aperçu du parcours sélectionné (source ligne
  * GeoJSON réelle).
  */
+/**
+ * Couches de jeu de la BATTLE MAP : les territoires RÉELS, et rien d'autre.
+ *
+ * FIN DU MODE VITRINE (21/07/2026). Cette fonction portait des couches nées de
+ * la démo — zone bonus (anneau or), route « recommandée », aperçu de parcours,
+ * secteurs agrégés de Paris — toutes gardées par `real === null`. Ce gate
+ * signifiait « pas de vraies données ⇒ peins la démo » : il confondait l'état de
+ * CHARGEMENT avec un feu vert pour inventer. Les couches ont été SUPPRIMÉES (pas
+ * re-gardées) et `real` est devenu requis : tant qu'aucune de ces couches n'a de
+ * source réelle (bonus ciblés, itinéraires, sector_snapshot), elles n'existent
+ * pas. `selectedParcoursId` est conservé dans la signature — les appelants
+ * portent encore l'état de sélection — mais ne peint plus rien.
+ */
 export function battleGameLayers(
   emph: ModeEmphasis,
-  selectedParcoursId: string | null,
+  _selectedParcoursId: string | null,
   basemap: BasemapKey = 'dark',
   selectedZoneId: string | null = null,
-  real: readonly RealTerritory[] | null = null,
+  real: readonly RealTerritory[],
 ): RealMapGeoJSONLayer[] {
-  if (!routeCollectionCache) {
-    routeCollectionCache = lineCollection(battleMapData().points.route);
-  }
-  if (!bonusCollectionCache) {
-    bonusCollectionCache = circleCollection(MAP_BONUS_ZONE.center, MAP_BONUS_ZONE.radiusM);
-  }
-  let parcoursData = EMPTY_COLLECTION;
-  if (selectedParcoursId) {
-    const cached = parcoursCollectionCache.get(selectedParcoursId);
-    if (cached) {
-      parcoursData = cached;
-    } else {
-      const parcours = PARCOURS_DEMO.find((p) => p.id === selectedParcoursId);
-      if (parcours) {
-        parcoursData = lineCollection(parcours.line);
-        parcoursCollectionCache.set(selectedParcoursId, parcoursData);
-      }
-    }
-  }
-
-  const terr = territoryStyle;
   return [
-    // §2 : la sélection dédouble/atténue les territoires (l'actif domine) ; les
-    // secteurs agrégés, la zone bonus et la route ne sont PAS des zones à zoneId
-    // (la route active reste au-dessus, §19 — non dimmée par la sélection).
+    // §2 : la sélection dédouble/atténue les territoires (l'actif domine).
+    //  Il n'y a plus RIEN d'autre à peindre : les couches bonus / route
+    //  recommandée / aperçu de parcours / secteurs agrégés étaient toutes
+    //  alimentées par la démo et ont disparu avec le mode vitrine.
     ...territoryStateLayers(emph, basemap, selectedZoneId, real),
-    // §C — SECTEURS AGRÉGÉS par STATUT (0-4) au-DESSUS des territoires : c'est la
-    // lecture « où est-ce chaud ? » (contesté violet + double contour SANS pulse,
-    // attaque orange, urgence rouge, activité rival approximative). Peints sous
-    // la route/bonus (le trait route-first reste au premier plan). L'emphase
-    // `contested` du mode actif module leur opacité.
-    // O1 (états vides) : ces secteurs viennent de PARIS_DEMO_SECTOR_VIEWS. Comme
-    // les territoires (territoryStateLayers), on ne les montre QU'EN SHOWCASE
-    // (real === null) — un vrai user ne voit plus de faux « secteur contesté » sur
-    // ses vraies captures. Le rendu des VRAIS secteurs (sector_snapshot 0037 +
-    // géométrie sectors.geojson) est le chantier suivant, à vérifier avec données.
-    ...(real === null ? sectorStatusLayersAll(emph.contested) : []),
-    // Zone bonus (1 MAX) + route ouverte : traits or/chartreuse — sur le fond
-    // COULEUR ils reçoivent le liseré sombre porteur (withColorCasing), pas le
-    // fill de la zone bonus (un aplat lit très bien sur Voyager).
-    // Retour terrain 20/07 (2e passe) : bonus/route/parcours sont de la DÉMO
-    // (MAP_BONUS_ZONE, battleMapData, PARCOURS_DEMO) — même règle que les
-    // secteurs : dès que du RÉEL est peint (real ≠ null, y compris vide), ces
-    // couches disparaissent. C'étaient les « marquages » vus sur la vraie carte.
-    ...(real === null
-      ? withColorCasing(basemap, [
-      // Zone bonus (1 MAX) : anneau or pointillé STATIQUE. AMENDEMENT-37 §4 : le
-      // pulse est FIGÉ — une seule animation permanente sur la carte, réservée au
-      // secteur pic/urgent. Le bonus reste lisible par sa forme (anneau or pointillé).
-      {
-        id: 'bonus-zone',
-        data: bonusCollectionCache,
-        fillColor: terr.bonusFill,
-        fillOpacity: 1,
-        lineColor: terr.bonusStroke,
-        lineWidth: BONUS_RING_WIDTH,
-        lineDash: BONUS_DASH,
-      },
-      // Route RECOMMANDÉE : chartreuse POINTILLÉ (suggestion, PAS ta trace en
-      // cours) — se distingue de la course (plein épais) et du rival (orange).
-      {
-        id: 'route-ouverte',
-        data: routeCollectionCache,
-        lineColor: scaleAlpha(terr.routeStroke, emph.route),
-        lineWidth: ROUTE_WIDTH,
-        lineDash: ROUTE_RECOMMEND_DASH,
-      },
-    ])
-      : []),
-    // Parcours sélectionné (sheet) : aperçu gris sur liseré sombre — la
-    // désélection vide la source (les couches restent, l'ordre est stable).
-    // Il porte DÉJÀ son propre casing sombre (parcoursCasing) : pas de double.
-    // Même gate que bonus/route : PARCOURS_DEMO n'existe qu'en showcase.
-    ...(real === null
-      ? [
-          {
-            id: 'parcours-casing',
-            data: parcoursData,
-            lineColor: terr.parcoursCasing,
-            lineWidth: PARCOURS_CASING_WIDTH,
-          },
-          {
-            id: 'parcours-apercu',
-            data: parcoursData,
-            lineColor: terr.parcoursPreview,
-            lineWidth: PARCOURS_WIDTH,
-          },
-        ]
-      : []),
   ];
 }

@@ -165,13 +165,25 @@ export function buildTerritories(
  * Le texte que la carte affiche sur sa SOURCE de données. Pur et partagé par les DEUX
  * cartes (native + web) : une seule vérité, impossible à faire diverger, et testable.
  *
- * Les trois cas sont distincts et ne doivent JAMAIS être confondus :
- *   • `failed`  — connecté mais la lecture a échoué. Dire « démonstration » ou « aucun
- *     territoire » ici serait un mensonge par omission : le territoire existe peut-être,
- *     on n'a pas su le lire. On dit donc que la LECTURE a échoué, pas le joueur.
- *   • `!isReal` — pas de session/backend : c'est la démo, on l'étiquette.
+ * Trois cas distincts, qui ne doivent JAMAIS être confondus :
+ *   • `failed`  — connecté mais la lecture a échoué. Dire « aucun territoire » ici
+ *     serait un mensonge par omission : le territoire existe peut-être, on n'a pas su
+ *     le lire. On dit donc que la LECTURE a échoué, pas que le joueur n'a rien pris.
+ *   • `!isReal` — pas de session (ou backend absent) : la carte est vide de tout.
+ *     Le vrai état est « pas connecté ».
  *   • vide réel — chargé, zéro capture : on donne l'ACTION (« prends ta première
  *     zone »), qui dit le vide sans le nommer et sans laisser croire à une panne.
+ *
+ * ⚠️ IL N'Y A PLUS DE CAS « DÉMONSTRATION ». Le paramètre `demoPainted` et la copie
+ * `dataNoteDemo` (« Territoires de démonstration ») ont disparu avec le mode vitrine
+ * (21/07/2026) : plus AUCUNE surface ne peint de démo, donc l'étiqueter n'a plus
+ * d'objet — et l'écrire au-dessus d'une carte nue serait un mensonge de l'autre bord
+ * (le joueur chercherait des territoires fictifs et conclurait à une panne).
+ * ⚠️ CE QUE CETTE FONCTION NE SAIT PAS : distinguer « pas de session » de « lecture
+ * en cours » — `isReal` est faux dans les deux cas. L'appelant DOIT donc se taire
+ * tant que `useRealTerritories().loading` est vrai, sinon la note affiche
+ * « Connecte-toi pour capturer » à un joueur connecté pendant la restauration de sa
+ * session. Les deux MapScreen le font ; tout nouvel appelant doit le faire aussi.
  *
  * Copie volontairement COURTE (§A, retour terrain « le bloc est trop large ») : une
  * seule proposition, jamais deux — le bandeau tient sur une ligne en 375 px dans les
@@ -189,7 +201,7 @@ export function dataNote(
   locale: Locale = 'fr',
 ): string | null {
   if (failed) return resolve(C.dataNoteFailed, locale);
-  if (!isReal) return resolve(C.dataNoteDemo, locale);
+  if (!isReal) return resolve(C.dataNoteSignedOut, locale);
   if (count === 0) return resolve(C.dataNoteEmpty, locale);
   return null;
 }

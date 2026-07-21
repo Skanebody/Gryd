@@ -5,10 +5,27 @@
  * les items passent en BadgeCard GRANDES (2 colonnes, désirables) : les ~200
  * badges du catalogue réel restent TOUS visibles. Tap → bottom sheet maison :
  * condition + jauge de progression + RÉCOMPENSE (titre à afficher, dérivé du
- * catalogue). Déblocage/stats factices (demo.ts) — TODO(O1) brancher Supabase.
+ * catalogue).
+ *
+ * ─── CORRECTIONS DU 21/07/2026 ───────────────────────────────────────────────
+ * 1. LES DRAPEAUX DU HOOK ÉTAIENT IGNORÉS. `useMyBadges` expose `loading`,
+ *    `failed` et `reload` EXPRÈS (cf. son en-tête : « une collection vide
+ *    affichée après une panne se lit “tu n'as rien gagné” »). L'écran n'en
+ *    lisait aucun : hors réseau, il affichait un serein « 0 / 200 badges
+ *    débloqués » — l'app annonçait au joueur que son travail n'existait pas.
+ *    Les trois absences sont désormais distinctes : pas de compte / rien encore
+ *    débloqué / lecture impossible (+ réessayer).
+ * 2. LE COMPTEUR PERSONNEL NE S'AFFICHE PLUS SANS SOURCE. « 0 / 200 » et les
+ *    « 0/12 » par famille sont des affirmations SUR LE JOUEUR : sans compte, ils
+ *    n'ont personne à décrire. Le catalogue, lui, reste entièrement navigable —
+ *    c'est la liste du jeu, pas ses données.
+ * 3. i18n. Tout le châssis de l'écran était en français en dur. Les NOMS et
+ *    CONDITIONS des badges restent ceux du catalogue de jeu partagé
+ *    (@klaim/shared) : les traduire est un chantier `packages/shared` à part.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, iconSizes, motion, radii, sizes, spacing } from '@klaim/shared';
@@ -34,7 +51,10 @@ import {
 } from '../src/features/badges/catalog';
 import { useMyBadges, type MyBadges } from '../src/features/badges/myBadges';
 import { screen } from '../src/lib/analytics';
+import { useSession } from '../src/lib/session';
 import { BadgeCard, useReduceMotion } from '../src/ui/game';
+import { useT } from '../src/i18n/store';
+import { C } from '../src/i18n/catalog/badges';
 
 /** Filtre actif : une famille, la section secrets, ou tout. */
 type FilterId = BadgeFamilyId | 'all';
@@ -49,14 +69,17 @@ function badgeState(def: BadgeDef, unlockedIds: MyBadges['unlockedIds']): BadgeH
  * demi-largeur (2 colonnes). Jauge pour les badges progressifs, récompense
  * dérivée du catalogue, secrets masqués gérés par la carte (state secretLocked).
  */
-function BadgeCardCell({ def, onSelect, unlockedIds, stat }: {
+function BadgeCardCell({ def, onSelect, unlockedIds, stat, personal }: {
   def: BadgeDef;
   onSelect: (def: BadgeDef) => void;
   unlockedIds: MyBadges['unlockedIds'];
   stat: MyBadges['stat'];
+  /** false = aucune source personnelle : on montre le catalogue, pas de jauge. */
+  personal: boolean;
 }) {
+  const t = useT();
   const state = badgeState(def, unlockedIds);
-  const prog = def.familySlug && !def.secret
+  const prog = personal && def.familySlug && !def.secret
     ? badgeProgress(def.id, stat(def.metric))
     : null;
   return (
@@ -64,7 +87,9 @@ function BadgeCardCell({ def, onSelect, unlockedIds, stat }: {
       <BadgeCard
         name={def.name}
         family={def.family}
-        familyLabel={BADGE_FAMILIES.find((f) => f.id === def.family)?.name ?? 'Secret'}
+        familyLabel={
+          BADGE_FAMILIES.find((f) => f.id === def.family)?.name ?? t(C.secretFamily)
+        }
         familyColor={badgeColor(def)}
         tier={def.tier}
         state={state}
@@ -78,11 +103,16 @@ function BadgeCardCell({ def, onSelect, unlockedIds, stat }: {
   );
 }
 
-/** Bandeau de famille : nom + trait teinté famille + compteur x/n (§1). */
+/**
+ * Bandeau de famille : nom + trait teinté famille + compteur x/n (§1).
+ * `unlocked` est NULL quand aucune source personnelle n'existe : « 0/12 » est
+ * une affirmation sur le joueur, et sans compte elle ne décrit personne. On
+ * affiche alors le total seul — le catalogue reste informatif.
+ */
 function FamilyHeader({ name, color, unlocked, total }: {
   name: string;
   color: string;
-  unlocked: number;
+  unlocked: number | null;
   total: number;
 }) {
   return (
@@ -90,14 +120,14 @@ function FamilyHeader({ name, color, unlocked, total }: {
       <Text style={styles.familyName}>{name}</Text>
       <View style={[styles.familyTrait, { backgroundColor: color }]} />
       <Text style={styles.familyCount}>
-        {unlocked}/{total}
+        {unlocked === null ? total : `${unlocked}/${total}`}
       </Text>
     </View>
   );
 }
 
 /** Une section famille complète (bandeau + grille). */
-function FamilySection({ id, name, color, defs, onSelect, unlockedIds, stat }: {
+function FamilySection({ id, name, color, defs, onSelect, unlockedIds, stat, personal }: {
   id: string;
   name: string;
   color: string;
@@ -105,14 +135,22 @@ function FamilySection({ id, name, color, defs, onSelect, unlockedIds, stat }: {
   onSelect: (def: BadgeDef) => void;
   unlockedIds: MyBadges['unlockedIds'];
   stat: MyBadges['stat'];
+  personal: boolean;
 }) {
-  const unlocked = defs.filter((b) => unlockedIds.has(b.id)).length;
+  const unlocked = personal ? defs.filter((b) => unlockedIds.has(b.id)).length : null;
   return (
     <View key={id} style={styles.section}>
       <FamilyHeader name={name} color={color} unlocked={unlocked} total={defs.length} />
       <View style={styles.grid}>
         {defs.map((def) => (
-          <BadgeCardCell key={def.id} def={def} onSelect={onSelect} unlockedIds={unlockedIds} stat={stat} />
+          <BadgeCardCell
+            key={def.id}
+            def={def}
+            onSelect={onSelect}
+            unlockedIds={unlockedIds}
+            stat={stat}
+            personal={personal}
+          />
         ))}
       </View>
     </View>
@@ -126,6 +164,7 @@ function ProgressGauge({ value, threshold, accent, nextLabel }: {
   accent: string;
   nextLabel: string | null;
 }) {
+  const t = useT();
   const ratio = threshold > 0 ? Math.min(1, value / threshold) : 0;
   return (
     <View style={styles.gaugeWrap}>
@@ -138,7 +177,9 @@ function ProgressGauge({ value, threshold, accent, nextLabel }: {
       <View style={styles.gaugeTrack}>
         <View style={[styles.gaugeFill, { width: `${ratio * 100}%`, backgroundColor: accent }]} />
       </View>
-      {nextLabel ? <Text style={styles.gaugeNext}>Prochain niveau : {nextLabel}</Text> : null}
+      {nextLabel ? (
+        <Text style={styles.gaugeNext}>{t(C.nextLevel, { name: nextLabel })}</Text>
+      ) : null}
     </View>
   );
 }
@@ -151,13 +192,15 @@ const SHEET_REDUCED_FADE_MS = 120;
  * Reduce motion (useReduceMotion, même règle que useSlideIn/useReveal) :
  * fondu court SANS translation — le mouvement disparaît, jamais la lisibilité.
  */
-function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat }: {
+function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal }: {
   def: BadgeDef;
   onDismiss: () => void;
   unlockedIds: MyBadges['unlockedIds'];
   unlockedDates: MyBadges['unlockedDates'];
   stat: MyBadges['stat'];
+  personal: boolean;
 }) {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
@@ -188,20 +231,27 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat }: {
   const accent = badgeColor(def);
   const unlockedAt = unlockedDates.get(def.id);
 
-  // Progression : uniquement pour les badges progressifs non secrets non pleins.
-  const prog = def.familySlug ? badgeProgress(def.id, stat(def.metric)) : null;
+  // Progression : uniquement pour les badges progressifs non secrets non pleins,
+  // et SEULEMENT quand une source personnelle existe (sinon la jauge « 0 / 500 »
+  // décrirait un joueur qu'on ne connaît pas).
+  const prog = personal && def.familySlug ? badgeProgress(def.id, stat(def.metric)) : null;
   const next = nextLevelOf(def.id);
   const showGauge = prog !== null && !hidden && !prog.unlocked;
   // Récompense (titre à afficher) — dérivée du catalogue, jamais inventée.
   const reward = badgeRewardLabel(def);
 
-  let stateLine = 'Verrouillé';
-  if (unlocked) stateLine = unlockedAt !== undefined ? `Débloqué le ${unlockedAt}` : 'Débloqué';
-  else if (hidden) stateLine = 'Badge secret';
+  // Sans source personnelle, « Verrouillé » serait un verdict sur le joueur :
+  // on ne dit alors rien de son état, seul le catalogue parle.
+  let stateLine: string | null = personal ? t(C.stateLocked) : null;
+  if (unlocked) {
+    stateLine = unlockedAt !== undefined
+      ? t(C.stateUnlockedOn, { date: unlockedAt })
+      : t(C.stateUnlocked);
+  } else if (hidden) stateLine = t(C.stateSecret);
 
   // Ligne famille · tier (surface badge, teinte accent).
   const familyName = BADGE_FAMILIES.find((f) => f.id === def.family)?.name
-    ?? (def.secret ? 'Secret' : '');
+    ?? (def.secret ? t(C.secretFamily) : '');
   const tierLine = hidden ? null : `${familyName} · ${BADGE_TIER_LABEL[def.tier]}`;
 
   return (
@@ -215,7 +265,7 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat }: {
       />
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Fermer le détail du badge"
+        accessibilityLabel={t(C.a11yCloseSheet)}
         style={StyleSheet.absoluteFill}
         onPress={close}
       />
@@ -253,11 +303,11 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat }: {
           <Text style={[styles.sheetTier, { color: accent }]}>{tierLine.toUpperCase()}</Text>
         ) : null}
         <Text style={styles.sheetRequirement}>
-          {hidden ? 'Condition secrète — continue à courir pour la découvrir.' : def.requirement}
+          {hidden ? t(C.secretRequirement) : def.requirement}
         </Text>
         {/* Récompense au déblocage (doc §23) : le titre à afficher, dérivé du tier */}
         {!hidden && reward ? (
-          <Text style={styles.sheetReward}>Récompense : {reward}</Text>
+          <Text style={styles.sheetReward}>{t(C.reward, { reward })}</Text>
         ) : null}
         {showGauge && prog ? (
           <ProgressGauge
@@ -268,7 +318,11 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat }: {
           />
         ) : null}
         {/* État teinté famille : surface badge = exception polychrome §1 */}
-        <Text style={[styles.sheetState, unlocked ? { color: accent } : null]}>{stateLine}</Text>
+        {stateLine ? (
+          <Text style={[styles.sheetState, unlocked ? { color: accent } : null]}>
+            {stateLine}
+          </Text>
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -281,10 +335,11 @@ function FilterChip({ label, color, active, onPress }: {
   active: boolean;
   onPress: () => void;
 }) {
+  const t = useT();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Filtre ${label}`}
+      accessibilityLabel={t(C.a11yFilter, { label })}
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={({ pressed }) => [
@@ -301,9 +356,10 @@ function FilterChip({ label, color, active, onPress }: {
 
 /** Rangée de légende des 6 tiers (bas de collection §1.6). */
 function TierRow() {
+  const t = useT();
   return (
     <View style={styles.section}>
-      <Text style={styles.tierRowTitle}>TIERS</Text>
+      <Text style={styles.tierRowTitle}>{t(C.tiersLegend)}</Text>
       <View style={styles.tierRow}>
         {BADGE_TIERS.map((tier) => {
           const ts = BADGE_TIER_STYLE[tier];
@@ -326,7 +382,9 @@ function TierRow() {
 }
 
 export default function BadgesScreen() {
+  const t = useT();
   const insets = useSafeAreaInsets();
+  const { session, configured } = useSession();
   const [selected, setSelected] = useState<BadgeDef | null>(null);
   const [filter, setFilter] = useState<FilterId>('all');
 
@@ -335,23 +393,36 @@ export default function BadgesScreen() {
     screen('badges');
   }, []);
 
-  // Débloqués + progression : réels (user_badges/user_stats) si session, sinon démo.
-  const { unlockedIds, unlockedDates, stat } = useMyBadges();
+  // Débloqués + progression : réels (user_badges/user_stats) si session, VIDES
+  // sinon. Les drapeaux du hook sont désormais TOUS lus — c'est ce qui permet
+  // de ne pas confondre « rien débloqué » et « rien chargé ».
+  const { unlockedIds, unlockedDates, stat, source, loading, failed, reload } = useMyBadges();
+
+  /**
+   * Y a-t-il une source qui parle DE CE JOUEUR ? `source === 'none'` = pas de
+   * compte, ou lecture impossible : le catalogue reste affiché (c'est la liste
+   * du jeu), mais aucun compteur personnel ne l'accompagne.
+   */
+  const personal = source !== 'none';
+  /** Un écran de connexion qui MARCHE existe-t-il vraiment ? (cf. profil) */
+  const canSignIn = configured && !session;
 
   const unlockedTotal = COLLECTION_BADGES.filter((b) => unlockedIds.has(b.id)).length;
   const tierMax = maxTierLabel(unlockedIds);
   const secrets = secretBadges();
-  const secretsUnlocked = secrets.filter((b) => unlockedIds.has(b.id)).length;
 
   // « Proches du déblocage » : top 3 badges verrouillés, non secrets, par ratio.
+  // Sans source personnelle, toutes les stats valent 0 → la liste est vide et la
+  // section disparaît d'elle-même ; le garde `personal` le rend explicite.
   const nearlyUnlocked = useMemo(() => {
+    if (!personal) return [];
     return COLLECTION_BADGES
       .filter((b) => !unlockedIds.has(b.id) && !b.secret)
       .map((b) => ({ def: b, prog: badgeProgress(b.id, stat(b.metric)) }))
       .filter((x) => x.prog !== null && x.prog.ratio > 0 && !x.prog.unlocked)
       .sort((a, b) => (b.prog!.ratio - a.prog!.ratio))
       .slice(0, 3);
-  }, [unlockedIds, stat]);
+  }, [personal, unlockedIds, stat]);
 
   // Familles à afficher selon le filtre. « Secrets » ne montre QUE les secrets
   // (aucune famille normale) — sinon le chip filtrait comme « Tous ».
@@ -375,7 +446,7 @@ export default function BadgesScreen() {
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Revenir au profil"
+          accessibilityLabel={t(C.a11yBackToProfile)}
           onPress={() => goBack('/profil')}
           hitSlop={12}
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
@@ -384,20 +455,73 @@ export default function BadgesScreen() {
           <View style={styles.backChevron}>
             <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
           </View>
-          <Text style={styles.backText}>Profil</Text>
+          <Text style={styles.backText}>{t(C.backToProfile)}</Text>
         </Pressable>
 
-        <Text style={styles.kicker}>PROFIL · BADGES</Text>
-        <Text style={styles.title}>Collection</Text>
+        <Text style={styles.kicker}>{t(C.kicker)}</Text>
+        <Text style={styles.title}>{t(C.title)}</Text>
 
-        {/* Chiffre héros (addendum §E) — graisse 400 imposée par l'amendement */}
-        <Text style={styles.heroCount}>
-          {unlockedTotal}
-          <Text style={styles.heroTotal}> / {BADGE_TOTAL}</Text>
-        </Text>
-        <Text style={styles.heroLabel}>
-          badges débloqués{tierMax ? ` · Tier max : ${tierMax}` : ''}
-        </Text>
+        {/* ═══ LES TROIS ABSENCES, JAMAIS CONFONDUES ═══════════════════════════
+            Ce bloc REMPLACE le chiffre héros tant qu'on ne peut pas l'affirmer.
+            Un « 0 / 200 » affiché hors réseau dirait à un joueur décoré qu'il
+            n'a rien gagné : c'est précisément ce que `failed` sert à éviter. */}
+        {failed ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateTitle}>{t(C.failedTitle)}</Text>
+            <Text style={styles.stateBody}>{t(C.failedBody)}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.retry)}
+              onPress={reload}
+              style={({ pressed }) => [styles.stateCta, pressed && styles.cellPressed]}
+            >
+              <Text style={styles.stateCtaLabel} numberOfLines={1}>
+                {t(C.retry)}
+              </Text>
+            </Pressable>
+          </View>
+        ) : loading ? (
+          // Borné : la lecture aboutit ou lève `failed`. Jamais un spinner sans fin.
+          <Text style={styles.stateInline}>{t(C.loading)}</Text>
+        ) : !personal ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateTitle}>
+              {canSignIn ? t(C.signedOutTitle) : t(C.noBackendTitle)}
+            </Text>
+            <Text style={styles.stateBody}>
+              {canSignIn ? t(C.signedOutBody) : t(C.noBackendBody)}
+            </Text>
+            {canSignIn ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(C.signIn)}
+                onPress={() => router.push('/sign-in')}
+                style={({ pressed }) => [styles.stateCta, pressed && styles.cellPressed]}
+              >
+                <Text style={styles.stateCtaLabel} numberOfLines={1}>
+                  {t(C.signIn)}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <>
+            {/* Chiffre héros (addendum §E) — graisse 400 imposée par l'amendement */}
+            <Text style={styles.heroCount}>
+              {unlockedTotal}
+              <Text style={styles.heroTotal}> / {BADGE_TOTAL}</Text>
+            </Text>
+            <Text style={styles.heroLabel}>
+              {t(C.unlockedLabel)}
+              {tierMax ? ` · ${t(C.maxTier, { tier: tierMax })}` : ''}
+            </Text>
+            {/* Collection réellement vide : un compte neuf. On dit comment
+                l'ouvrir — jamais « 0 » nu, jamais culpabilisant. */}
+            {unlockedTotal === 0 ? (
+              <Text style={styles.stateInline}>{t(C.emptyLine)}</Text>
+            ) : null}
+          </>
+        )}
 
         {/* Filtres horizontaux — Tous + 12 familles + Secrets (§1.6) */}
         <ScrollView
@@ -406,7 +530,12 @@ export default function BadgesScreen() {
           style={styles.filters}
           contentContainerStyle={styles.filtersContent}
         >
-          <FilterChip label="Tous" color={null} active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterChip
+            label={t(C.filterAll)}
+            color={null}
+            active={filter === 'all'}
+            onPress={() => setFilter('all')}
+          />
           {BADGE_FAMILIES.map((f) => (
             <FilterChip
               key={f.id}
@@ -417,7 +546,7 @@ export default function BadgesScreen() {
             />
           ))}
           <FilterChip
-            label="Secrets"
+            label={t(C.filterSecrets)}
             color={SECRET_BADGE_COLOR}
             active={filter === 'secret'}
             onPress={() => setFilter('secret')}
@@ -427,12 +556,16 @@ export default function BadgesScreen() {
         {/* Proches du déblocage — top 3 par % (uniquement en vue « Tous ») */}
         {showNearly ? (
           <View style={styles.section}>
-            <Text style={styles.nearlyTitle}>Proches du déblocage</Text>
+            <Text style={styles.nearlyTitle}>{t(C.nearlyTitle)}</Text>
             {nearlyUnlocked.map(({ def, prog }) => (
               <Pressable
                 key={def.id}
                 accessibilityRole="button"
-                accessibilityLabel={`Badge ${def.name}, ${prog!.value} sur ${prog!.threshold}`}
+                accessibilityLabel={t(C.a11yNearlyBadge, {
+                  name: def.name,
+                  value: prog!.value,
+                  threshold: prog!.threshold,
+                })}
                 onPress={() => setSelected(def)}
                 style={({ pressed }) => [styles.nearlyRow, pressed && styles.cellPressed]}
               >
@@ -476,6 +609,7 @@ export default function BadgesScreen() {
               onSelect={setSelected}
               unlockedIds={unlockedIds}
               stat={stat}
+              personal={personal}
             />
           );
         })}
@@ -484,12 +618,13 @@ export default function BadgesScreen() {
         {showSecrets ? (
           <FamilySection
             id="secret"
-            name="Secrets"
+            name={t(C.filterSecrets)}
             color={SECRET_BADGE_COLOR}
             defs={secrets}
             onSelect={setSelected}
             unlockedIds={unlockedIds}
             stat={stat}
+            personal={personal}
           />
         ) : null}
 
@@ -504,6 +639,7 @@ export default function BadgesScreen() {
           unlockedIds={unlockedIds}
           unlockedDates={unlockedDates}
           stat={stat}
+          personal={personal}
         />
       ) : null}
     </View>
@@ -536,6 +672,35 @@ const styles = StyleSheet.create({
   },
   heroTotal: { color: colors.gris, fontSize: fontSizes.xxl, fontWeight: '400' },
   heroLabel: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 2 },
+
+  // ── États vides (même grammaire que le profil et /performance) ──
+  stateCard: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    padding: spacing.cardPadding,
+    gap: spacing.xs,
+    marginTop: 14,
+  },
+  stateTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  stateBody: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.5,
+  },
+  // CTA chartreuse sur fond SOMBRE, libellé noir dessus (jamais l'inverse).
+  stateCta: {
+    marginTop: spacing.xs,
+    minHeight: sizes.touchTarget,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  stateCtaLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
+  stateInline: { color: colors.gris, fontSize: fontSizes.sm, marginTop: 14 },
 
   // ── Filtres horizontaux ──
   filters: { marginTop: 20, marginHorizontal: -spacing.cardPadding },

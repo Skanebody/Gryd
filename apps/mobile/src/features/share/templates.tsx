@@ -8,17 +8,20 @@
  *
  *   Carte · Conquête · Défense · Boucle · Crew · Classement · Avant/Après · Carte 3D
  *
- * La carte de chaque template dessine un VRAI tracé de rues (BOUCLE_REPUBLIQUE
- * via `ShareMap`) ; en partage le tracé passé (`view.trace`) est DÉJÀ masqué
- * (départ/arrivée retirés — `applySharePrivacy`). Le 6e « Carte 3D » (`carte3d`)
- * monte une VRAIE carte MapLibre pitchée avec la zone extrudée (`ShareMap3D`).
+ * La carte de chaque template dessine le VRAI tracé de la course (`view.trace`,
+ * DÉJÀ masqué — départ/arrivée retirés par `applySharePrivacy`) via `ShareMap`,
+ * jamais une ellipse ni une géométrie de démo. Tracé inconnu → `ShareMap` le DIT
+ * à la place de la carte.
  *
  * ANIMATION : `view.animated` fait se DESSINER la trace puis se REMPLIR la zone
  * (payoff de conquête), `view.replayKey` rejoue (bouton Replay). Reduce motion →
  * état final direct (jamais d'info portée par l'animation seule).
  *
- * Données de DÉMO déterministes (scénario République). En prod, `ShareDemoData`
- * vient du run validé (IngestRunResponse) — le serveur reste seul juge.
+ * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026) : ces templates ne
+ * portent plus aucun scénario de démo. `ShareDemoData` (nom historique) décrit
+ * les données d'un run RÉEL, armées par le Résultat ; ce qui n'est pas connu est
+ * VIDE et les templates le taisent (nom, blason, stat, rang, état « avant »)
+ * plutôt que d'emprunter la valeur de quelqu'un d'autre.
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -27,9 +30,8 @@ import { CrewCrest, type ShareCardProps, type ShareStat } from '../../ui/game';
 import { Icon } from '../../ui/Icon';
 import { C } from '../../i18n/catalog/result';
 import { t, useT } from '../../i18n/store';
-import { BOUCLE_REPUBLIQUE, type LatLngPoint } from '../map/realAnchors';
+import { type LatLngPoint } from '../map/realAnchors';
 import { ShareMap } from './ShareMap';
-import { ShareMap3D } from './ShareMap3D';
 
 /** Un template = id, libellé de chip, et une fabrique de props ShareCard. */
 export interface ShareTemplate {
@@ -53,12 +55,11 @@ export type ShareTemplateId =
 /**
  * État de RENDU (pas de la donnée) injecté par l'écran /partage dans chaque
  * carte : anime la trace, la rejoue, et fournit le tracé DÉJÀ masqué (privacy).
- * Absent → carte statique sur le tracé démo entier (aperçu/course-result).
  */
 export interface ShareView {
   animated?: boolean;
   replayKey?: number;
-  /** Tracé du run masqué (départ/arrivée retirés) — remplace le tracé démo. */
+  /** Tracé du run, déjà masqué (départ/arrivée retirés). Vide = tracé inconnu. */
   trace?: readonly LatLngPoint[];
   /**
    * `false` = la course n'a RIEN capturé (social_run) : la zone ne se remplit
@@ -67,7 +68,7 @@ export interface ShareView {
   captured?: boolean;
 }
 
-/** Données du run validé projetées dans les cards (démo — scénario République). */
+/** Données du run VALIDÉ projetées dans les cards (plus aucun scénario de démo). */
 export interface ShareDemoData {
   playerName: string;
   crewName: string;
@@ -80,7 +81,7 @@ export interface ShareDemoData {
   distanceKm: string;
   paceLabel: string;
   clockLabel: string;
-  /** VRAI tracé GPS du run (défaut : boucle République). Jamais une ellipse. */
+  /** VRAI tracé GPS du run. Vide = inconnu (jamais une ellipse, jamais un emprunt). */
   trace: readonly LatLngPoint[];
   /** GRYD Verified de CE run (serveur seul juge) — plus jamais un `true` en dur. */
   verified: boolean;
@@ -97,36 +98,18 @@ export interface ShareDemoData {
 }
 
 /**
- * Scénario de démo (cohérent course-result : boucle République, +47 zones).
- * Les noms propres/valeurs restent invariants ; seuls rankDelta et beforeState
- * sont de la copy traduisible → résolus à l'appel via `shareDemo()`.
+ * ─── LE SCÉNARIO DE DÉMO A ÉTÉ SUPPRIMÉ (décision fondateur 21/07/2026) ──────
+ * `SHARE_DEMO_BASE` / `shareDemo()` portaient KORO · LES FOULÉES 9³ ·
+ * République · 4,4 km · 5'12 · 22:54 · #8 Paris Est · boucle République ·
+ * verified: true. Deux chemins les faisaient sortir de l'app :
+ *   · /partage sans course armée (`shareRun?.card ?? demoCard`) rendait une
+ *     card complète, exportable en PNG ;
+ *   · `shareCardFromResult()` s'en servait de SOCLE, donc tout champ oublié par
+ *     un appelant était rempli par ce personnage — sur une VRAIE course.
+ * Le socle est désormais neutre (share/shareRun.ts) et l'écran sans course
+ * n'affiche plus aucune card. Le type garde son nom `ShareDemoData` (utilisé
+ * partout) : il décrit désormais les données d'un run RÉEL.
  */
-const SHARE_DEMO_BASE: Omit<ShareDemoData, 'rankDelta' | 'beforeState'> = {
-  playerName: 'KORO',
-  crewName: 'LES FOULÉES 9³',
-  zoneName: 'République',
-  zonesGained: 47,
-  loopBonusZones: 33,
-  zonesDefended: 2,
-  holdHours: 48,
-  crewPoints: 420,
-  distanceKm: '4,4',
-  paceLabel: "5'12",
-  clockLabel: '22:54',
-  trace: BOUCLE_REPUBLIQUE,
-  verified: true,
-  rankLabel: '#8',
-  rankZone: 'Paris Est',
-};
-
-/** Démo résolue dans la langue COURANTE (appelée au rendu/au partage, jamais figée). */
-export function shareDemo(): ShareDemoData {
-  return {
-    ...SHARE_DEMO_BASE,
-    rankDelta: t(C.demoRankDelta),
-    beforeState: t(C.demoContested),
-  };
-}
 
 /**
  * Bouclier « défense tenue » — emblème en GLOW (AMENDEMENT-22), pas une boîte
@@ -186,13 +169,28 @@ function BeforeAfter({
   );
 }
 
-/** Les 3 stats « façon Strava » communes (distance · allure · durée). */
+/**
+ * Les 3 stats « façon Strava » (distance · allure · durée). Une valeur VIDE =
+ * inconnue (l'appelant ne l'a pas fournie — voir NEUTRAL_SHARE_CARD) : on retire
+ * la stat au lieu d'imprimer « km » tout seul. Mieux vaut 2 stats vraies que 3
+ * dont une bancale — et surtout jamais une valeur de démo en bouche-trou.
+ */
 function stravaStats(d: ShareDemoData): readonly ShareStat[] {
   return [
-    { value: `${d.distanceKm} km`, label: t(C.distanceStat) },
-    { value: `${d.paceLabel}`, label: t(C.paceStat) },
-    { value: d.clockLabel, label: t(C.durationStat) },
-  ];
+    d.distanceKm ? { value: `${d.distanceKm} km`, label: t(C.distanceStat) } : null,
+    d.paceLabel ? { value: d.paceLabel, label: t(C.paceStat) } : null,
+    d.clockLabel ? { value: d.clockLabel, label: t(C.durationStat) } : null,
+  ].filter((s): s is ShareStat => s !== null);
+}
+
+/**
+ * Blason du crew — seulement si le crew est CONNU. Un `seed` vide produirait un
+ * blason déterministe… d'un crew qui n'existe pas, signant la card d'une
+ * identité inventée.
+ */
+function crest(d: ShareDemoData, size: 's' | 'xl'): ReactNode {
+  if (!d.crewName) return undefined;
+  return <CrewCrest seed={d.crewName} name={d.crewName} size={size} />;
 }
 
 /** Mini-carte partage réutilisée par les 5 templates SVG (VRAI tracé animé). */
@@ -235,11 +233,12 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     chip: 'Carte simple',
     build: (d, view) => ({
       title: who(d),
-      stat: `${d.distanceKm} km`,
+      // Distance inconnue → on n'imprime pas « km » tout seul en KPI géant.
+      stat: d.distanceKm ? `${d.distanceKm} km` : '—',
       statLabel: t(C.runValidatedLabel),
       stats: stravaStats(d),
       verified: d.verified,
-      crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
+      crest: crest(d, 's'),
       children: map(d, view),
     }),
   },
@@ -273,7 +272,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
       statLabel: t(C.zonesHeldLabel, { n: d.zonesDefended }),
       subtitle: t(C.borderGuarded, { zone: d.zoneName }),
       verified: d.verified,
-      crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
+      crest: crest(d, 's'),
       children: <ShieldBadge accent={gameColors.crew} />,
     }),
   },
@@ -288,22 +287,28 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
       statLabel: t(C.bonusZonesLabel),
       subtitle: t(C.loopMakesZoneSub),
       verified: d.verified,
-      crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
+      crest: crest(d, 's'),
       children: map(d, view),
     }),
   },
-  // 5. CREW — blason + « LES FOULÉES 9³ · Crew +420 pts ».
+  // 5. CREW — blason + « LES FOULÉES 9³ · Crew +420 pts ». Crew inconnu (jamais
+  //    fourni par l'appelant) : ni titre vide, ni blason d'un crew inventé — on
+  //    retombe sur la signature `who()` et l'emblème disparaît. Le KPI (les
+  //    points gagnés), lui, reste vrai.
   {
     id: 'crew',
     chip: 'Crew',
     build: (d) => ({
       kicker: t(C.forCrewKicker),
-      title: d.crewName,
+      title: d.crewName || who(d),
       stat: `+${d.crewPoints}`,
       statLabel: t(C.crewPointsLabel),
-      subtitle: t(C.liftedCrew, { player: d.playerName, crew: d.crewName }),
+      subtitle:
+        d.playerName && d.crewName
+          ? t(C.liftedCrew, { player: d.playerName, crew: d.crewName })
+          : undefined,
       verified: d.verified,
-      children: <CrewCrest seed={d.crewName} name={d.crewName} size="xl" />,
+      children: crest(d, 'xl'),
     }),
   },
   // 6. CLASSEMENT (doc §4.7) — « TOP 10 PARIS EST · #8 · +3 places ». Format
@@ -322,7 +327,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
         ? t(C.climbsTo, { who: who(d), rank: d.rankLabel, zone: d.rankZone })
         : t(C.rankingOpensSeason),
       verified: d.verified,
-      crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
+      crest: crest(d, 's'),
       children: map(d, view),
     }),
   },
@@ -337,7 +342,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
       stat: `+${d.zonesGained}`,
       statLabel: t(C.zoneRetaken, { zone: d.zoneName }),
       verified: d.verified,
-      crest: <CrewCrest seed={d.crewName} name={d.crewName} size="s" />,
+      crest: crest(d, 's'),
       children: <BeforeAfter view={view} beforeState={d.beforeState} />,
     }),
   },
@@ -348,14 +353,32 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
   {
     id: 'carte3d',
     chip: 'Carte 3D',
-    build: (d) => ({
-      kicker: t(C.sectorTakenKicker),
-      title: who(d),
-      stat: `+${d.zonesGained}`,
-      statLabel: t(C.zonesOfZone, { zone: d.zoneName }),
-      verified: d.verified,
-      mapBackground: <ShareMap3D style={styles.map3d} />,
-    }),
+    build: (d, view) => {
+      // ─── CAUSE, pas symptôme (21/07/2026) ────────────────────────────────
+      // `ShareMap3D` montait une géométrie de DÉMO FIGÉE (République, demo3d) :
+      // elle n'accepte aucun tracé, donc elle dessinait TOUJOURS la même
+      // conquête — le volume d'un autre quartier signé du nom du coureur. Son
+      // seul refuge restant était l'aperçu d'EXEMPLE de /partage, qui n'existe
+      // plus. Ce style rend donc la carte SVG du VRAI tracé, la seule capable
+      // de suivre la course (et de dire « tracé indisponible » sinon) ; /partage
+      // ne le propose d'ailleurs que si un tracé est connu.
+      return {
+        kicker: t(C.sectorTakenKicker),
+        title: who(d),
+        stat: `+${d.zonesGained}`,
+        statLabel: t(C.zonesOfZone, { zone: d.zoneName }),
+        verified: d.verified,
+        mapBackground: (
+          <ShareMap
+            style={styles.map3d}
+            animated={view?.animated}
+            replayKey={view?.replayKey}
+            trace={view?.trace}
+            captured={view?.captured}
+          />
+        ),
+      };
+    },
   },
 ];
 

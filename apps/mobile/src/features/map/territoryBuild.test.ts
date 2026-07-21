@@ -145,21 +145,41 @@ Deno.test('dataNote : les 3 cas de source ne sont JAMAIS confondus', () => {
   // `failed` : un joueur connecté hors réseau lisait « pas encore tes vraies captures »,
   // sous-entendu qu'il n'avait rien pris — alors que son territoire existe.
   const echec = dataNote(false, true);
-  const demo = dataNote(false, false);
+  const sansSession = dataNote(false, false);
   const vide = dataNote(true, false, 0);
   assert(echec !== null && /non chargés/.test(echec));
-  assert(demo !== null && /démonstration/.test(demo));
+  assert(sansSession !== null && /[Cc]onnecte/.test(sansSession));
   assert(vide !== null && /première zone/.test(vide));
-  assert(new Set([echec, demo, vide]).size === 3, 'trois états = trois messages distincts');
+  assert(new Set([echec, sansSession, vide]).size === 3, 'trois états = trois messages distincts');
 
-  // L'échec ne doit JAMAIS se lire comme « tu n'as rien pris » ni comme de la démo.
-  assert(!/démonstration|aucun/i.test(echec), 'échec de lecture ≠ vide ≠ démo');
+  // L'échec ne doit JAMAIS se lire comme « tu n'as rien pris ».
+  assert(!/aucun/i.test(echec), 'échec de lecture ≠ vide');
 
-  // `failed` prime : connecté + échec ne doit jamais afficher « démonstration ».
+  // `failed` prime : connecté + échec reste un échec.
   assertEquals(dataNote(true, true), echec);
 
   // Du vrai territoire affiché : rien à dire, on n'ajoute pas de bruit à l'écran.
   assertEquals(dataNote(true, false, 3), null);
+});
+
+Deno.test('dataNote : plus AUCUN message ne parle de « démonstration »', () => {
+  // 21/07/2026 — fin du mode vitrine. Le paramètre `demoPainted` et la copie
+  // « Territoires de démonstration » ont disparu : aucune surface ne peint plus de
+  // démo, donc l'étiqueter n'a plus d'objet. Ce test est le garde-fou : si un jour
+  // quelqu'un réintroduit une note « démo », il échoue.
+  for (const locale of LOCALES) {
+    for (const note of [
+      dataNote(false, true, 0, locale),
+      dataNote(false, false, 0, locale),
+      dataNote(true, false, 0, locale),
+    ]) {
+      assert(note !== null);
+      assert(
+        !/démonstration|demo|demostraci|Demo-|demonstra/i.test(note),
+        `${locale} : « ${note} » parle encore de démonstration`,
+      );
+    }
+  }
 });
 
 Deno.test('dataNote : i18n — 3 messages distincts dans CHAQUE langue, null reste null', () => {
@@ -173,7 +193,7 @@ Deno.test('dataNote : i18n — 3 messages distincts dans CHAQUE langue, null res
     assert(new Set(notes).size === 3, `${locale} : trois états = trois messages distincts`);
     assertEquals(dataNote(true, false, 3, locale), null);
   }
-  // Le défaut (sans locale) reste le français — les appelants non migrés ne changent pas.
+  // Le défaut (sans locale) reste le français.
   assertEquals(dataNote(false, false), dataNote(false, false, 0, 'fr'));
 });
 

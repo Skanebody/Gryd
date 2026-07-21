@@ -53,6 +53,7 @@ import {
   MAP_BASEMAP_STYLES,
   basemapAttribution,
   buildings3dStyle,
+  localizedBasemapSpec,
   satelliteStyleSpec,
   type BasemapKey,
 } from '../../features/map/mapStyle';
@@ -69,10 +70,22 @@ export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
  * RASTER construit à la volée (photos Esri, keyless) — MapLibre accepte les deux.
  * Les fonds CLAIRS (Voyager ET satellite) reçoivent un liseré sombre porteur sous
  * les traits chartreuse (withColorCasing, mapStyle) pour rester lisibles.
+ *
+ * ─── LABELS LOCAUX (correctif 21/07/2026) ───────────────────────────────────
+ * `localizedBasemapSpec` renvoie la spec CARTO déjà patchée (name_en → name :
+ * München, pas Munich) quand le préchargement a abouti. La variante NATIVE
+ * l'utilisait depuis le commit 678f636, PAS celle-ci : localhost affichait donc
+ * des noms de villes anglicisés là où l'iPhone affiche les noms locaux — le
+ * fondateur qui vérifiait le correctif sur localhost concluait qu'il n'avait
+ * pas été livré. `undefined` (préchargement pas encore fini, ou hors ligne) ⇒
+ * URL brute : le fond s'affiche quand même, en anglais, plutôt que rien.
  */
 function basemapStyleUrl(basemap: BasemapKey | undefined): string | StyleSpecification {
   if (basemap === 'satellite') return satelliteStyleSpec() as unknown as StyleSpecification;
-  return MAP_BASEMAP_STYLES[basemap ?? 'dark'];
+  const key = basemap ?? 'dark';
+  const localized = localizedBasemapSpec(key);
+  if (localized !== undefined) return JSON.parse(localized) as StyleSpecification;
+  return MAP_BASEMAP_STYLES[key];
 }
 
 export interface RealMapCamera {

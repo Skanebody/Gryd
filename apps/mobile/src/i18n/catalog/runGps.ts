@@ -32,6 +32,18 @@ export const C = defineCatalog({
     de: 'LAUF BEENDET',
     pt: 'CORRIDA CONCLUÍDA',
   },
+  /**
+   * Aucune position n'est JAMAIS arrivée depuis le départ, et l'attente dure.
+   * Distinct de « signal perdu » (qui suppose qu'on en avait un) : on ne
+   * transforme pas une lecture en cours en échec, ni un échec en attente muette.
+   */
+  signalNeverReceived: {
+    fr: 'Aucune position reçue pour l’instant',
+    en: 'No position received yet',
+    es: 'Ninguna posición recibida por ahora',
+    de: 'Noch keine Position empfangen',
+    pt: 'Nenhuma posição recebida até agora',
+  },
   statusSearchingGps: {
     fr: 'RECHERCHE GPS…',
     en: 'SEARCHING GPS…',
@@ -61,6 +73,19 @@ export const C = defineCatalog({
     es: 'Carrera registrada con la app abierta.',
     de: 'Lauf wird nur bei geöffneter App erfasst.',
     pt: 'Corrida registrada com o app aberto.',
+  },
+  /**
+   * Navigateur : la position est RÉELLE, mais un onglet caché est suspendu ou
+   * étranglé par le navigateur — les positions s'arrêtent. Ce n'est pas un
+   * refus de l'utilisateur, c'est une limite de la plateforme : on l'annonce
+   * d'emblée plutôt que de laisser croire à un enregistrement continu.
+   */
+  browserForegroundOnly: {
+    fr: 'Garde cet onglet au premier plan : sinon le navigateur coupe la position.',
+    en: 'Keep this tab in front: otherwise the browser stops location updates.',
+    es: 'Mantén esta pestaña al frente: si no, el navegador corta la ubicación.',
+    de: 'Lass diesen Tab im Vordergrund: sonst stoppt der Browser den Standort.',
+    pt: 'Mantenha esta aba em primeiro plano: senão o navegador corta a localização.',
   },
   restoreKmFound: {
     fr: '{km} km retrouvés',
@@ -210,6 +235,19 @@ export const C = defineCatalog({
     es: 'Activa la ubicación exacta para capturar tus zonas.',
     de: 'Aktiviere den genauen Standort, um Zonen zu erobern.',
     pt: 'Ative a localização exata para capturar suas zonas.',
+  },
+  /**
+   * Même bandeau, plateforme sans réglages de position (navigateur). Sur un
+   * ordinateur la position vient souvent du wifi (> 100 m) : au-delà du seuil
+   * moteur les points sont REJETÉS et la distance reste à 0. On le dit — mieux
+   * vaut zéro mètre honnête que des mètres inventés par triangulation.
+   */
+  preciseBannerBrowser: {
+    fr: 'Position trop imprécise ici : rien n’est mesuré. Un téléphone avec GPS le fera.',
+    en: 'Location too imprecise here: nothing is measured. A phone with GPS will do it.',
+    es: 'Ubicación demasiado imprecisa aquí: no se mide nada. Un teléfono con GPS sí podrá.',
+    de: 'Standort hier zu ungenau: nichts wird gemessen. Ein Handy mit GPS schafft das.',
+    pt: 'Localização imprecisa demais aqui: nada é medido. Um telefone com GPS consegue.',
   },
   a11yOpenLocationSettings: {
     fr: 'Ouvrir les réglages de position',

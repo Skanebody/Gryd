@@ -11,10 +11,30 @@
  *
  * PARTAGE VRAI : la preview est alimentée par les stats de LA course affichée
  * au Résultat (share/shareRun.ts, armé avant router.push) — zones, zone, boucle,
- * distance/allure/durée, points. La démo SHARE_DEMO ne sert QUE si /partage
- * s'ouvre sans course (deep link/dev) : l'écran s'annonce alors comme EXEMPLE,
- * jamais comme « ta course ». En social_run (aucune capture), seul le style
+ * distance/allure/durée, points. En social_run (aucune capture), seul le style
  * « Carte » (stats) est proposé — aucun visuel qui prétendrait un secteur pris.
+ *
+ * ─── AUCUNE COURSE ARMÉE = AUCUNE CARTE (décision fondateur 21/07/2026) ──────
+ * Cet écran faisait `shareRun?.card ?? demoCard` : ouvert sans course (deep
+ * link, ou simplement le widget territoire et la Carte, qui poussent /partage
+ * SANS `setShareRun`), il fabriquait une carte de partage COMPLÈTE — distance,
+ * allure, zones, tracé, rang — et l'affichait prête à exporter. Une ligne de
+ * texte « Exemple » était la seule protection ; elle ne rachète rien : « le
+ * bandeau n'y change rien, c'est un run fabriqué à la place du sien ». Et ce
+ * mensonge SORTAIT de l'app : la card est la cible exacte de l'export PNG.
+ *
+ * Il n'y a donc plus de mode exemple. Sans course armée, l'écran ne rend AUCUNE
+ * card et affiche l'un des trois états vides (`SHARE_COPY.empty*`) :
+ *   · pas connecté      → invite à se connecter ;
+ *   · connecté, rien    → invite à courir (le partage part du Résultat) ;
+ *   · session en cours de restauration → « Chargement… », aucune affirmation.
+ *
+ * Le RANG GRIP de la mascotte suivait la même pente : il était dérivé de
+ * `MY_SOCIAL_PROFILE.xp` (persona de démo), en constante de module, sans la
+ * moindre garde — donc gravé dans le PNG partagé de n'importe quel joueur, y
+ * compris un compte neuf. Il vient désormais de l'XP RÉELLE (`useMyEconomy`) et
+ * la mascotte DISPARAÎT quand cette XP est inconnue (pas de session, ou lecture
+ * serveur impossible) : un rang inconnu ne s'invente pas.
  *
  * Profondeur : N0 fond (colors.noir) · N1 la preview (unique surface) · N2
  * segments/actifs · N3 rare (chartreuse). Jamais de card-dans-card. Actions
@@ -23,21 +43,22 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, elevation, fontSizes, motion, radii } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { goBack } from '../src/lib/nav';
+import { useSession } from '../src/lib/session';
 import { Icon } from '../src/ui/Icon';
 import { IconAction, Segmented, ShareCard, type ShareCardRatio } from '../src/ui/game';
 import { C } from '../src/i18n/catalog/result';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
-import { ShareMap3D } from '../src/features/share/ShareMap3D';
-import { getShareRun } from '../src/features/share/shareRun';
+import { ShareMap } from '../src/features/share/ShareMap';
+import { SHARE_COPY } from '../src/features/share/copy';
+import { getShareRun, type ShareRunData } from '../src/features/share/shareRun';
 import {
-  shareDemo,
   SHARE_TEMPLATES,
   SHARE_TEMPLATES_BY_ID,
   type ShareDemoData,
@@ -54,13 +75,10 @@ import {
   type ShareActionResult,
 } from '../src/features/share/shareActions';
 import { usePrivacyPrefs } from '../src/features/privacy/store';
-import { intentionFromParam, type RunIntention } from '../src/features/run/intention';
+import { type RunIntention } from '../src/features/run/intention';
 import { GripMascot } from '../src/features/social/GripMascot';
+import { useMyEconomy } from '../src/features/social/economy';
 import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
-import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
-
-/** Rang GRIP du joueur (dérivé de l'XP permanent) — signature du partage. */
-const SHARE_GRIP_RANK = gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
 
 /**
  * Formats d'export (Story / Carré / Carte seule) — options du segmented
@@ -115,27 +133,47 @@ const PREVIEW_WIDTH: Record<ShareCardRatio, number> = {
   mapOnly: 264,
 };
 
+/**
+ * Aiguillage : une course est armée → l'aperçu réel ; sinon → l'état vide qui
+ * correspond à la situation. Aucune donnée fabriquée d'un côté ni de l'autre.
+ * Les hooks de l'aperçu vivent dans `SharePreview` : ce composant-ci n'appelle
+ * QUE des hooks inconditionnels avant son unique branchement de rendu.
+ */
 export default function PartageScreen() {
+  const { session, loading: sessionLoading, configured } = useSession();
+  // Singleton module armé par le Résultat (shareRun.ts). Lu au rendu : /partage
+  // n'est jamais monté avant `setShareRun` sur le chemin légitime.
+  const run = getShareRun();
+
+  useEffect(() => {
+    screen('partage', { armed: run !== null });
+  }, []);
+
+  if (run) return <SharePreview run={run} />;
+  return (
+    <ShareEmptyState
+      // Tant que la session se restaure, on ne sait pas qui est là : on n'affirme
+      // ni « connecte-toi » ni « tu n'as rien couru ».
+      loading={sessionLoading}
+      needsAccount={configured && !session}
+    />
+  );
+}
+
+function SharePreview({ run }: { run: ShareRunData }) {
   const insets = useSafeAreaInsets();
   const toast = useShareToast();
   const t = useT();
-  const params = useLocalSearchParams<{
-    template?: string;
-    mode?: string;
-    intention?: string;
-  }>();
+  // Seul `template` est encore lu : le mode et l'intention viennent de la course
+  // ARMÉE (autoritaire), plus d'un paramètre d'URL qu'un deep link peut inventer.
+  const params = useLocalSearchParams<{ template?: string }>();
 
   // PARTAGE VRAI : les stats de la course affichée au Résultat (shareRun.ts).
-  // null = /partage ouvert sans course → EXEMPLE annoncé comme tel. La démo est
-  // résolue dans la langue courante (t stable par langue → recalcul à la bascule).
-  const shareRun = getShareRun();
-  const isExample = shareRun === null;
-  const demoCard = useMemo(() => shareDemo(), [t]);
-  const runCard = shareRun?.card ?? demoCard;
-  const intention = shareRun ? shareRun.intention : intentionFromParam(params.intention);
+  const runCard = run.card;
+  const intention = run.intention;
   // Social Run = stats seules, aucune capture : on ne propose JAMAIS un visuel
   // « secteur pris » pour une course qui n'a rien capturé.
-  const statsOnlyShare = !isExample && shareRun.mode === 'social_run';
+  const statsOnlyShare = run.mode === 'social_run';
 
   // Style par défaut : l'intention de la course (défense → card Défense),
   // stats seules → Carte ; sinon Conquête. Le param `template` reste prioritaire.
@@ -144,10 +182,10 @@ export default function PartageScreen() {
     : intention === 'defense'
       ? 'defense'
       : 'conquete';
-  const [selected, setSelected] = useState<ShareTemplateId>(
+  const [selectedRaw, setSelected] = useState<ShareTemplateId>(
     !statsOnlyShare && isTemplateId(params.template) ? params.template : defaultTemplate,
   );
-  const [ratio, setRatio] = useState<ShareCardRatio>('story');
+  const [ratioRaw, setRatio] = useState<ShareCardRatio>('story');
   /** Cible de l'export PNG (D6) : le conteneur EXACT de la ShareCard. */
   const cardShotRef = useRef<View | null>(null);
   // « +3 styles » ouvre le choix complet (déplié aussi si on arrive sur un extra).
@@ -166,12 +204,25 @@ export default function PartageScreen() {
     () => (maskEndpoints ? applySharePrivacy(runCard.trace) : runCard.trace),
     [maskEndpoints, runCard.trace],
   );
+  // Le tracé de CETTE course est-il connu ? (le Résultat arme `trace: []` pour
+  // une vraie course : ingest_run ne renvoie pas encore la géométrie). Tout ce
+  // qui est CARTOGRAPHIQUE en dépend — on ne PROPOSE pas ce qu'on ne peut pas
+  // tenir : ni le format « Carte seule », ni le style « Carte 3D », ni le badge
+  // « départ/arrivée masqués » (rien n'est masqué s'il n'y a rien à montrer).
+  const hasKnownRoute = safeTrace.length >= 3;
   const privacyNote = maskEndpoints ? t(C.privacyMasked) : undefined;
 
+  // Normalisation : un choix CARTOGRAPHIQUE qui ne peut pas être tenu (deep link
+  // `?template=carte3d`, ou masquage qui vient de raboter la trace) retombe sur
+  // un rendu honnête au lieu d'emprunter la carte d'un autre quartier.
+  const selected: ShareTemplateId =
+    !hasKnownRoute && selectedRaw === 'carte3d' ? defaultTemplate : selectedRaw;
+  const ratio: ShareCardRatio = !hasKnownRoute && ratioRaw === 'mapOnly' ? 'story' : ratioRaw;
+
   useEffect(() => {
-    screen('partage', { template: selected });
-    // Preview auto-générée (doc §12 : share_preview_generated).
-    track(EVENTS.shareCardGenerated);
+    // Preview auto-générée (doc §12 : share_preview_generated). Émis ICI et pas
+    // dans l'aiguilleur : sans course armée, aucune card n'est générée.
+    track(EVENTS.shareCardGenerated, { template: selected });
   }, []);
 
   const template = useMemo(
@@ -190,19 +241,34 @@ export default function PartageScreen() {
   // rend RÉELLEMENT la trace tronquée (les templates SVG animables, hors « Carte
   // seule »). La Carte 3D / mapOnly rend une boucle FERMÉE (départ = arrivée) et
   // ne peut pas refléter le masquage → pas de badge menteur là-dessus.
-  const traceShown = ANIMATABLE_STYLES.includes(selected) && ratio !== 'mapOnly';
+  const traceShown = hasKnownRoute && ANIMATABLE_STYLES.includes(selected) && ratio !== 'mapOnly';
 
   const cardProps = useMemo(() => {
-    // La card projette les VRAIES valeurs du run (runCard) — SHARE_DEMO ne
-    // passe ici que dans le mode exemple. `privacyNote` = badge de confiance §9,
-    // seulement là où la trace tronquée est réellement visible.
+    // La card projette les VRAIES valeurs du run (runCard). `privacyNote` =
+    // badge de confiance §9, seulement là où la trace tronquée est visible.
     const built = { ...template.build(runCard, view), privacyNote: traceShown ? privacyNote : undefined };
-    // « Carte seule » (AMENDEMENT-24) : la carte 3D EN GRAND quel que soit le
+    // « Carte seule » (AMENDEMENT-24) : la carte EN GRAND quel que soit le
     // style — si le template n'a pas déjà son propre fond carte (les 5 SVG),
-    // on injecte la GRYD 3D Conquest Map plein cadre. Le style choisi ne règle
-    // alors QUE le KPI/la ligne (chrome minimale).
+    // on injecte une carte plein cadre. Le style choisi ne règle alors QUE le
+    // KPI/la ligne (chrome minimale). Toujours la carte SVG du tracé réellement
+    // couru : la 3D (`ShareMap3D`) est une géométrie de démo FIGÉE (République)
+    // et n'a plus d'aperçu d'exemple où s'afficher. « Carte seule » n'est de
+    // toute façon pas proposé quand le tracé est inconnu (voir `formatOptions`).
     if (ratio === 'mapOnly' && built.mapBackground === undefined) {
-      return { ...built, mapBackground: <ShareMap3D style={styles.previewMap} /> };
+      return {
+        ...built,
+        mapBackground: (
+          <View style={styles.previewMapFill}>
+            <ShareMap
+              style={styles.previewMapSquare}
+              animated={view.animated}
+              replayKey={view.replayKey}
+              trace={view.trace}
+              captured={view.captured}
+            />
+          </View>
+        ),
+      };
     }
     return built;
     // `t` (stable par langue) force la re-construction des cards à la bascule.
@@ -225,15 +291,31 @@ export default function PartageScreen() {
 
   // Segments « Style » : 3 principaux, ou tous une fois « +3 styles » déplié.
   // « Boucle » n'est proposé que si la course a réellement fermé une boucle.
+  // « Carte 3D » ne l'est que si un tracé est connu : ce style monte une carte
+  // MapLibre de géométrie DÉMO FIGÉE (République) — sans tracé réel, le proposer
+  // revenait à étiqueter « Carte 3D » un repli silencieux vers un autre rendu.
   const styleOptions = useMemo(() => {
     const extras = STYLE_EXTRA.filter(
-      (id) => id !== 'boucle' || isExample || runCard.loopBonusZones > 0,
+      (id) =>
+        (id !== 'boucle' || runCard.loopBonusZones > 0) && (id !== 'carte3d' || hasKnownRoute),
     );
     return (stylesExpanded ? [...STYLE_MAIN, ...extras] : STYLE_MAIN).map((id) => ({
       id,
       label: t(STYLE_LABEL[id]),
     }));
-  }, [stylesExpanded, isExample, runCard.loopBonusZones, t]);
+  }, [stylesExpanded, hasKnownRoute, runCard.loopBonusZones, t]);
+
+  // Formats : « Carte seule » (la carte EN GRAND) n'a aucun sens — et serait un
+  // cadre vide — quand le tracé de cette course est inconnu. On ne le propose pas.
+  const formatOptions = useMemo(
+    () =>
+      FORMATS.filter((f) => f.id !== 'mapOnly' || hasKnownRoute).map((f) => ({
+        id: f.id,
+        label: t(f.label),
+        icon: f.icon,
+      })),
+    [hasKnownRoute, t],
+  );
 
   const pickStyle = (id: ShareTemplateId) => {
     setSelected(id);
@@ -299,15 +381,20 @@ export default function PartageScreen() {
     setReplayKey((k) => k + 1);
   };
 
-  // Titre = ce que la course a fait (jamais « conquête » pour une défense) ;
-  // sans course armée, l'écran s'annonce comme aperçu d'exemple.
-  const title = isExample
-    ? t(C.sharePreviewTitle)
-    : intention === 'defense'
+  // Titre = ce que la course a fait (jamais « conquête » pour une défense).
+  const title =
+    intention === 'defense'
       ? t(C.shareDefenseTitle)
       : intention === 'conquest'
         ? t(C.shareConquestTitle)
         : t(C.shareRunTitle);
+
+  // SIGNATURE GRIP : rang dérivé de l'XP RÉELLE du joueur. `source === 'none'`
+  // = on ne sait pas (pas de session, ou lecture serveur impossible) → aucune
+  // mascotte plutôt qu'un rang emprunté, y compris dans le PNG exporté.
+  const economy = useMyEconomy();
+  const gripRank =
+    economy.source === 'server' ? gripRankForLevel(playerLevelForXp(economy.xp)) : null;
 
   // CTA primaire aligné sur le format choisi — toujours un verbe précis.
   const primaryCta =
@@ -341,10 +428,6 @@ export default function PartageScreen() {
         </Pressable>
 
         <Text style={styles.title}>{title}</Text>
-        {/* Honnêteté : sans course, les chiffres sont un exemple — dit tel quel. */}
-        {isExample ? (
-          <Text style={styles.exampleNote}>{t(C.exampleNote)}</Text>
-        ) : null}
 
         {/* PREVIEW qui FLOTTE : la story EST le container (pas de card noire autour).
             `cardShotRef` + collapsable=false : la cible EXACTE de l'export PNG (D6). */}
@@ -353,7 +436,7 @@ export default function PartageScreen() {
             {...cardProps}
             ratio={ratio}
             width={PREVIEW_WIDTH[ratio]}
-            mascot={<GripMascot rank={SHARE_GRIP_RANK} size={36} />}
+            mascot={gripRank ? <GripMascot rank={gripRank} size={36} /> : undefined}
           />
         </View>
         {/* Le signal privacy vit dans l'APERÇU (retour fondateur : il rassure le
@@ -364,13 +447,19 @@ export default function PartageScreen() {
             🔒 {cardProps.privacyNote}
           </Text>
         ) : null}
+        {/* Tracé inconnu : la card le dit déjà à la place de la carte ; ici on
+            explique POURQUOI, et que les chiffres, eux, sont bien ceux de cette
+            course (état vide qui parle, jamais un carré nu). */}
+        {!hasKnownRoute ? (
+          <Text style={styles.noRouteNote}>{t(SHARE_COPY.traceUnavailableNote)}</Text>
+        ) : null}
 
         {/* Format — UN segmented (accent chartreuse). */}
         <View style={styles.controlRow}>
           <Text style={[styles.controlLabel, styles.controlLabelSolo]}>{t(C.formatLabel)}</Text>
           <Segmented
             accessibilityLabel={t(C.formatA11y)}
-            options={FORMATS.map((f) => ({ id: f.id, label: t(f.label), icon: f.icon }))}
+            options={formatOptions}
             value={ratio}
             onChange={(id) => setRatio(id)}
             // surface (pas accent) : un seul focus chartreuse fort par scène est
@@ -466,6 +555,83 @@ export default function PartageScreen() {
 }
 
 /**
+ * ÉTAT VIDE de /partage — aucune course armée. Trois situations, trois copies
+ * DISTINCTES (jamais un écran blanc, jamais un « 0 » nu, jamais une carte
+ * fabriquée en repli) :
+ *   · `loading`      → la session se restaure : on n'affirme RIEN sur le joueur ;
+ *   · `needsAccount` → pas connecté : on invite à se connecter ;
+ *   · sinon          → connecté mais rien à montrer : on invite à l'action.
+ * Un seul CTA chartreuse (§A), et jamais deux (le cas « chargement » n'en a
+ * aucun : proposer une action serait déjà affirmer quelque chose).
+ */
+function ShareEmptyState({
+  loading,
+  needsAccount,
+}: {
+  loading: boolean;
+  needsAccount: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const t = useT();
+
+  const body = loading
+    ? t(SHARE_COPY.emptyLoading)
+    : needsAccount
+      ? t(SHARE_COPY.emptySignedOutBody)
+      : t(SHARE_COPY.emptySignedInBody);
+
+  return (
+    <View style={styles.root}>
+      <View
+        style={[
+          styles.content,
+          styles.emptyContent,
+          { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 28 },
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(SHARE_COPY.emptyBackA11y)}
+          onPress={() => goBack()}
+          hitSlop={12}
+          style={({ pressed }) => [styles.back, styles.emptyBack, pressed && styles.pressed]}
+        >
+          <View style={styles.backChevron}>
+            <Icon name="chevron" size={14} color={colors.gris} />
+          </View>
+          <Text style={styles.backText}>{t(SHARE_COPY.emptyBack)}</Text>
+        </Pressable>
+
+        <View style={styles.emptyBody}>
+          <Text style={styles.title}>{t(SHARE_COPY.emptyTitle)}</Text>
+          <Text style={styles.emptyText}>{body}</Text>
+        </View>
+
+        {loading ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              needsAccount ? t(SHARE_COPY.emptySignedOutCta) : t(SHARE_COPY.emptySignedInCta)
+            }
+            onPress={() => {
+              haptics.light();
+              // `replace` : /partage n'a rien à garder dans la pile — et sur un
+              // deep link il n'y a de toute façon aucun écran derrière.
+              router.replace(needsAccount ? '/sign-in' : '/');
+            }}
+            style={({ pressed }) => [styles.cta, styles.emptyCta, pressed && styles.pressed]}
+          >
+            <Text style={styles.ctaLabel}>
+              {needsAccount ? t(SHARE_COPY.emptySignedOutCta) : t(SHARE_COPY.emptySignedInCta)}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
  * Toast local (démo) : bandeau flottant, fondu + auto-dismiss (motion.toastDismissMs).
  * Piloté par un compteur pour re-jouer même si le message est identique. Aucune couleur hors
  * tokens. Volontairement minimal — les confirms de partage ne s'empilent pas.
@@ -543,6 +709,15 @@ function buildShareHeadline(
   statsOnly: boolean,
 ): string {
   if (statsOnly) return t(C.headlineStats, { km: d.distanceKm });
+  /* LE SERVEUR N'A PAS ENCORE JUGÉ. `zoneName` vide + `zonesGained` à 0, c'est
+     l'état normal juste après une course : les claims sont décidés serveur, pas
+     ici. Sans ce garde, le gabarit se lisait « I TOOK ZONE » — le mot ZONE passe
+     pour un nom de lieu — sous un héros « +0 ZONES ». On annonçait une conquête
+     vide sur une VRAIE course, et ça partait sur Instagram. Tant qu'il n'y a
+     rien de jugé, on partage la course (la distance est un fait mesuré), jamais
+     un territoire. */
+  const juged = d.zoneName.trim().length > 0 && (d.zonesGained > 0 || d.zonesDefended > 0);
+  if (!juged) return t(C.headlineStats, { km: d.distanceKm });
   if (intention === 'defense') {
     return t(C.headlineDefense, { zone: d.zoneName, n: d.zonesDefended });
   }
@@ -567,23 +742,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
   },
-  // Note exemple (mode sans course) — honnête, discrète, jamais < 12 px.
   privacyCaption: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     textAlign: 'center',
     marginTop: 8,
   },
-  exampleNote: {
+
+  // ── État vide (aucune course armée) : une phrase, un CTA, beaucoup d'air ──
+  emptyContent: { flex: 1 },
+  emptyBack: { marginBottom: 0 },
+  emptyBody: { flex: 1, justifyContent: 'center' },
+  emptyText: {
+    color: colors.gris,
+    fontSize: fontSizes.md,
+    lineHeight: fontSizes.md * 1.5,
+    marginTop: 12,
+  },
+  emptyCta: { marginTop: 0 },
+  // Explication du tracé manquant : sous l'aperçu, jamais dans l'image exportée.
+  noRouteNote: {
     color: colors.gris,
     fontSize: fontSizes.sm,
-    marginTop: 6,
+    lineHeight: fontSizes.sm * 1.45,
+    textAlign: 'center',
+    marginTop: 4,
   },
 
   // La preview flotte librement dans l'espace (pas de container autour).
   previewWrap: { alignItems: 'center', marginTop: 22, marginBottom: 26 },
   // Carte 3D injectée en « Carte seule » : remplit le slot plein cadre.
   previewMap: { flex: 1 },
+  // Carte SVG en « Carte seule » (vraie course) : centrée dans le slot 3:4 —
+  // elle reste carrée (aspect du tracé conservé, jamais étirée).
+  previewMapFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  previewMapSquare: { width: '100%' },
 
   // Un bloc « label + segmented » séparé du suivant par l'ESPACE, pas par une boîte.
   controlRow: { marginTop: 18 },

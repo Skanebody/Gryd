@@ -21,9 +21,9 @@
  *   SyncProgressBar   — barre de progression sobre du déroulé d'import (3a).
  */
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Polyline, G } from 'react-native-svg';
-import { colors, gameColors, radii } from '@klaim/shared';
+import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game';
 import { territoryStyle, traceStyle, withAlpha } from '../map/mapStyle';
 import { fitTracesToBox, tracePrefix } from '../map/projectTrace';
@@ -122,6 +122,22 @@ const CONTESTED_PATH = BOARD_PROJ.path(BOUCLE_SQUARE_VILLEMIN, true);
 const RIVAL_PATH = BOARD_PROJ.path(BOUCLE_BASTILLE, true);
 const EGO_PT = BOARD_PROJ.project(EGO_REPUBLIQUE);
 
+/**
+ * Chip « Exemple » posée SUR le visuel (décision fondateur 21/07/2026 : un
+ * exemple a le droit d'enseigner, à condition d'être ÉTIQUETÉ comme exemple et
+ * jamais présenté comme les données du joueur). Discrète, neutre (gris — pas
+ * chartreuse : ce n'est pas un gain), toujours au même endroit : coin haut-droit.
+ * Le libellé vient de l'écran (copy i18n) — le visuel ne porte aucun texte propre.
+ */
+function ExampleTag({ label }: { label?: string }) {
+  if (!label) return null;
+  return (
+    <View style={styles.exampleTag} pointerEvents="none">
+      <Text style={styles.exampleTagLabel}>{label}</Text>
+    </View>
+  );
+}
+
 /** Rues réelles projetées (décor commun ville/hook). */
 function RealStreets({ proj = BOARD_PROJ, opacity = 0.08 }: { proj?: typeof BOARD_PROJ; opacity?: number }) {
   return (
@@ -200,7 +216,7 @@ export function HookMapBackground() {
  * Les trois se révèlent en cascade ; position du joueur = flèche chartreuse à
  * l'ego réel (place de la République), DANS sa zone — comme sur la vraie carte.
  */
-export function CityBoard() {
+export function CityBoard({ exampleLabel }: { exampleLabel?: string }) {
   const reveal = useProgress(1400, 0, false);
   const mineOp = ramp(reveal, 0, 0.5);
   const contestedOp = ramp(reveal, 0.25, 0.75);
@@ -255,6 +271,7 @@ export function CityBoard() {
           />
         </G>
       </Svg>
+      <ExampleTag label={exampleLabel} />
     </View>
   );
 }
@@ -276,7 +293,7 @@ const CAP_START = CAP_PROJ.project(BOUCLE_REPUBLIQUE[0] ?? EGO_REPUBLIQUE);
  * dessine le long des vraies rues, ferme la boucle, l'intérieur se remplit en
  * chartreuse. Reduce motion : le parent passe p=1 → état final.
  */
-export function CaptureFillVisual({ p }: { p: number }) {
+export function CaptureFillVisual({ p, exampleLabel }: { p: number; exampleLabel?: string }) {
   const drawP = ramp(p, 0, 0.62);
   const closed = p >= 0.66;
   const fillOp = ramp(p, 0.66, 1);
@@ -316,6 +333,7 @@ export function CaptureFillVisual({ p }: { p: number }) {
         <Circle cx={CAP_START.x} cy={CAP_START.y} r={5} fill={colors.noir} stroke={traceStyle.core} strokeWidth={2.5} />
         {closed ? <Circle cx={CAP_START.x} cy={CAP_START.y} r={6.5} fill={traceStyle.core} /> : null}
       </Svg>
+      <ExampleTag label={exampleLabel} />
     </View>
   );
 }
@@ -355,6 +373,25 @@ const styles = StyleSheet.create({
     borderColor: withAlpha(colors.chartreuse, 0.3),
     backgroundColor: gameColors.carbon,
     overflow: 'hidden',
+  },
+  // Chip « Exemple » : posée SUR le visuel, coin haut-droit, neutre et lisible
+  // (fond noir opaque + contour gris — jamais chartreuse, ce n'est pas un gain).
+  exampleTag: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.pill,
+    backgroundColor: colors.noir,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+  },
+  exampleTagLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   syncTrack: {
     height: 8,

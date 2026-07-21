@@ -71,37 +71,18 @@
   color: var(--gris);
 }
 
-/* État « en direct » — chartreuse légitime (doctrine C.3). */
-.liveChip {
+/* Chip « SCHÉMA » — remplace l'ancien chip « LIVE » : rien n'est en direct.
+   Gris neutre, aucun clignotement : le chartreuse était un signal de direct. */
+.previewChip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.16em;
-  color: var(--ch);
+  color: var(--gris);
   border: 1px solid var(--ligne);
   border-radius: var(--radius-pill);
   padding: 3px 9px;
-}
-
-.liveDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ch);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .liveDot {
-    animation: liveBlink 1.6s ease-in-out infinite;
-  }
-}
-
-@keyframes liveBlink {
-  50% {
-    opacity: 0.25;
-  }
 }
 
 .mapWrap {
@@ -302,36 +283,25 @@
   background: var(--carbone2);
 }
 
+/* Empilé, pas côte à côte : le titre de légende est long, et un nom de zone
+   comme « Métropole de Lille » était coupé par l'ellipse (§A : aucun texte
+   d'action ou d'information coupé). */
 .raidHead {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-/* Raid en cours = alerte : --ennemi exclusif états de jeu. */
+/* Titre de la légende — neutre. L'ancien chip « RAID LIVE » clignotait en
+   --ennemi pour signaler une attaque en cours qui n'existait pas. */
 .raidChip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ennemi);
-}
-
-.raidDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ennemi);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .raidDot {
-    animation: liveBlink 1.2s ease-in-out infinite;
-  }
+  color: var(--gris);
 }
 
 .raidZone {
@@ -341,30 +311,7 @@
   letter-spacing: -0.01em;
   color: var(--blanc);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Barre de factions : chartreuse (mon crew) / --ennemi (rival) / neutre. */
-.factionBar {
-  display: flex;
-  height: 7px;
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  background: var(--carbone);
-}
-
-.segCrew {
-  background: var(--ch);
-}
-
-.segRival {
-  background: var(--ennemi);
-}
-
-.segNeutral {
-  background: var(--ligne);
+  overflow-wrap: anywhere; /* il passe à la ligne, il ne se fait plus couper */
 }
 
 .legend {
@@ -382,12 +329,6 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--gris);
-}
-
-.legendItem strong {
-  color: var(--blanc);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
 }
 
 .legendDot {
@@ -409,28 +350,3 @@
   background: var(--ligne);
 }
 
-.raidStats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 12px;
-  border-top: 1px solid var(--ligne);
-  padding-top: 10px;
-}
-
-/* Zones prises = gain → chartreuse légitime (doctrine C.3). */
-.statTaken {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--ch);
-  font-variant-numeric: tabular-nums;
-}
-
-.statItem {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: var(--gris);
-  font-variant-numeric: tabular-nums;
-}

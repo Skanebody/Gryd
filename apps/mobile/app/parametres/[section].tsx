@@ -5,19 +5,42 @@
  * Notifications, Carte, À propos, Avancé. Course & Notifications pilotent le
  * store motivation (filtrage d'affichage/notifs, JAMAIS le gameplay §1). Les
  * réglages purement techniques (tolérance boucle…) vivent sous « Avancé » et
- * restent en lecture (moteur serveur, jamais un curseur client). L'identité
- * affichée (nom, titre, crew) vient du profil ÉDITABLE persisté (useMyProfile)
- * — MÊME source que l'onglet Profil, jamais la constante démo. Style dark GRYD,
+ * restent en lecture (moteur serveur, jamais un curseur client). Style dark GRYD,
  * texte court, honnête sur ce qui est « bientôt ».
+ *
+ * ─── IDENTITÉ ET CREW : RÉELS OU VIDES (21/07/2026) ───────────────────────────
+ * L'identité affichée venait de `useMyProfile()`, dont la BASE est le persona
+ * démo (`MY_SOCIAL_PROFILE` : « KORO », crew « LES FOULÉES 9³ »). Sans session,
+ * cet écran — atteignable AUJOURD'HUI sur l'iPhone, il n'est derrière aucun flag
+ * — affirmait donc à l'utilisateur qu'il s'appelait KORO et qu'il appartenait à
+ * un crew qui n'existe pas. C'était la fuite la plus visible du périmètre.
+ *
+ * Désormais :
+ *  · Identité — affichée UNIQUEMENT quand une session réelle existe. Sinon on dit
+ *    « Non connecté », et l'action proposée dépend de ce qui est possible :
+ *    se connecter (backend configuré) ou rien du tout (build sans backend, où
+ *    proposer une connexion impossible serait un deuxième mensonge).
+ *  · Crew — lu par `useRealCrew()` (RPC serveur), jamais la constante démo. Ses
+ *    QUATRE états sont distingués, parce qu'ils n'appellent pas la même phrase :
+ *    chargement · pas connecté · connecté sans crew · lecture ratée. Confondre
+ *    les deux derniers, c'est dire « tu n'as pas de crew » à quelqu'un qui en a
+ *    peut-être un — et l'inviter à en créer un doublon.
+ *  · Avancé — les valeurs du moteur (24 h, 80 m, 400 m / 15 %) étaient écrites en
+ *    dur ici et dans le catalogue i18n. Elles viennent maintenant de game-rules :
+ *    un réglage de moteur qui bouge ne peut plus laisser l'écran mentir.
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
+  FINISHER_MIN_SEGMENT_M,
+  FINISHER_MIN_SHARE,
   fontSizes,
   gameColors,
   iconSizes,
+  PARTIAL_BOUNDARY_TTL_H,
+  PARTIAL_JOIN_TOLERANCE_M,
   PUSH_MAX_PER_DAY,
   PUSH_QUIET_HOURS_END,
   PUSH_QUIET_HOURS_START,
@@ -38,16 +61,19 @@ import { SwitchRow, TogglePill } from '../../src/features/motivation/ui';
 import { useDeviceNotifications } from '../../src/features/notifications/useDeviceNotifications';
 import type { PushStatus } from '../../src/features/notifications/push';
 import { SectionLabel } from '../../src/features/privacy/ui';
+import { useRealCrew } from '../../src/features/crew/real';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import { C } from '../../src/i18n/catalog/reglages';
 import { t as tStatic, useT } from '../../src/i18n/store';
 import { flags } from '../../src/lib/flags';
+import { useSession } from '../../src/lib/session';
 import { screen } from '../../src/lib/analytics';
 import { getHapticsEnabled, setHapticsEnabled } from '../../src/lib/haptics';
 import {
   settingsRowBySection,
   type SettingsSectionId,
 } from '../../src/features/settings/sections';
+import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { StackScreen } from '../../src/ui/StackScreen';
 
@@ -174,6 +200,37 @@ function Soon({ children }: { children: string }) {
   return <Text style={styles.soon}>{children}</Text>;
 }
 
+/**
+ * ÉTAT VIDE — ce qu'il n'y a pas encore, et AU PLUS une action pour avancer
+ * (§A : 1 CTA chartreuse max). Sans `cta`, c'est une simple explication : il y a
+ * des vides sur lesquels le joueur ne peut rien, et lui donner un faux bouton
+ * serait aussi malhonnête que d'inventer la donnée manquante.
+ *
+ * Une seule card, jamais imbriquée dans une autre (§A « pas de card-in-card ») :
+ * elle REMPLACE la ligne qu'elle explique, elle ne s'ajoute pas autour.
+ */
+function EmptyState({
+  title,
+  body,
+  cta,
+}: {
+  title: string;
+  body: string;
+  cta?: { label: string; onPress: () => void; loading?: boolean };
+}) {
+  return (
+    <View style={styles.empty}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyBody}>{body}</Text>
+      {cta ? (
+        <View style={styles.emptyCta}>
+          <Button label={cta.label} onPress={cta.onPress} loading={cta.loading === true} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function SettingsSectionScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
   const raw = Array.isArray(params.section) ? params.section[0] : params.section;
@@ -184,7 +241,69 @@ export default function SettingsSectionScreen() {
   const { prefs, update } = useMotivationPrefs();
   // Identité ÉDITABLE persistée (même source que Profil / profil-edit) : une
   // édition du nom/titre se reflète ici immédiatement — une seule vérité.
-  const { profile } = useMyProfile();
+  // `profile` est le rendu FINAL (replis compris) ; `editable` est ce que le
+  // joueur a RÉELLEMENT saisi. La distinction est le cœur du correctif ci-dessous.
+  const { profile, editable } = useMyProfile();
+  // Une session RÉELLE, ou rien.
+  const { session, configured, loading: sessionLoading } = useSession();
+  const signedIn = configured && session !== null;
+  /**
+   * UN CHARGEMENT N'EST PAS UN ÉTAT VIDE. Au démarrage, `useSession()` met un
+   * instant à restaurer la session : pendant cette fenêtre `session === null`
+   * SANS que cela signifie « pas de compte ». Les deux blocs ci-dessous
+   * affirmaient donc « Non connecté » + « Se connecter » à quelqu'un qui EST
+   * connecté, avant de se corriger tout seuls — un mensonge bref, mais un
+   * mensonge, et le genre qui pousse à taper sur un bouton inutile.
+   *
+   * Tant qu'on ne sait pas, on n'affirme rien : on le dit.
+   */
+  const identityUnknown = sessionLoading;
+  /**
+   * ─── LE GARDE-FOU D'IDENTITÉ ────────────────────────────────────────────────
+   *
+   * Il s'écrivait `identityValue(stored, base, shown)` avec
+   * `own = isShowcasePlatform || stored !== base` puis `if (own || signedIn)`.
+   * C'était un NO-OP : la branche « rien de vrai à montrer » était pratiquement
+   * inatteignable, et quand elle l'était elle disait la mauvaise chose.
+   *
+   *  · `shown` (= `profile.*`) n'est JAMAIS le brut : `useMyProfile()` refuse
+   *    de laisser un nom blanc à l'écran et retombe sur l'identité de session,
+   *    sinon sur un neutre traduit (« Coureur »). Le garde recevait donc une
+   *    valeur déjà remplie et n'avait plus rien à garder.
+   *  · `signedIn ||` court-circuitait le reste dès qu'une session existait —
+   *    alors qu'une session ne rend pas un TITRE vrai : RIEN ne dérive le titre
+   *    du compte.
+   *  · Symétriquement, la sortie `identityNone` (« Non connecté ») s'appliquait
+   *    aussi au titre. Elle y ment sur la CAUSE : un titre vide n'a rien à voir
+   *    avec la connexion, et laisser croire que se connecter le remplirait
+   *    envoie le joueur dans un couloir sans porte.
+   *
+   * Les deux champs n'ont pas la même nature, ils ne peuvent pas partager un
+   * garde unique :
+   *  · NOM — peut venir de trois endroits, dans cet ordre : ce que le joueur a
+   *    saisi ; à défaut le compte (nom du profil OAuth, préfixe e-mail) ; sinon
+   *    RIEN. Le repli neutre « Coureur » n'est pas une identité : il ne doit
+   *    jamais être présenté comme la sienne, la ligne l'annonce alors comme
+   *    manquante (et le bloc Identifiants, lui, propose de se connecter).
+   *  · TITRE — purement local, dérivé de rien. Saisi, ou la ligne n'existe pas.
+   *
+   * On lit `editable` (ce qui est PERSISTÉ, avant tout repli) et non `profile`
+   * (le rendu final) : c'est la seule façon de distinguer « saisi » de « rempli
+   * pour l'affichage ».
+   */
+  const storedName = editable.displayName.trim();
+  const sessionName = signedIn ? profile.displayName.trim() : '';
+  const displayNameShown = storedName.length > 0 ? storedName : sessionName.length > 0 ? sessionName : null;
+  const storedTitle = editable.title.trim();
+  const titleShown = storedTitle.length > 0 ? storedTitle : null;
+  // Crew RÉEL (RPC serveur), jamais `profile.crewName` (constante démo).
+  const {
+    crew: realCrew,
+    ready: crewReady,
+    loading: crewLoading,
+    loadFailed: crewLoadFailed,
+    reload: reloadCrew,
+  } = useRealCrew();
   const [hapticsOn, setHapticsOn] = useState(true);
   // État RÉEL du push sur ce téléphone + propagation des canaux au serveur
   // (un job serveur ne peut respecter que les préférences qu'il connaît).
@@ -214,7 +333,32 @@ export default function SettingsSectionScreen() {
       {id === 'compte' ? (
         <>
           <Section label={t(C.secIdentifiants)}>
-            <ValueRow label={t(C.connectedAs)} value={profile.displayName} />
+            {/* Le nom n'est affirmé que s'il vient d'une session réelle. Les
+                deux « non connecté » ne se valent pas : avec un backend, se
+                connecter est une action ; sans backend, c'est impossible — on
+                l'explique au lieu d'offrir un bouton qui ne mène nulle part. */}
+            {identityUnknown ? (
+              /* Session en cours de restauration : on ne sait pas encore. Aucune
+                 ligne plutôt qu'une affirmation — la section garde ses autres
+                 rangées, donc jamais d'écran blanc, et la ligne apparaît dès
+                 qu'on sait. (Pas de « Chargement… » ici : ajouter une copie
+                 traduite dans le catalogue partagé sort de ce lot.) */
+              null
+            ) : signedIn ? (
+              <ValueRow label={t(C.connectedAs)} value={profile.displayName} />
+            ) : configured ? (
+              <ActionRow
+                icon="ami"
+                label={t(C.identitySignInLabel)}
+                detail={t(C.identitySignInDetail)}
+                onPress={() => router.push('/sign-in')}
+              />
+            ) : (
+              <>
+                <ValueRow label={t(C.connectedAs)} value={t(C.identityNone)} />
+                <Text style={styles.note}>{t(C.identityNoBackend)}</Text>
+              </>
+            )}
             <ActionRow
               icon="lien"
               label={t(C.emailLabel)}
@@ -249,8 +393,17 @@ export default function SettingsSectionScreen() {
 
       {id === 'profil' ? (
         <Section label={t(C.secApparence)}>
-          <ValueRow label={t(C.displayName)} value={profile.displayName} />
-          <ValueRow label={t(C.titleLabel)} value={profile.title} />
+          {/* Chaque ligne n'apparaît que si elle a quelque chose de VRAI à dire
+              (cf. `identityValue`). Le nom survit toujours — session ou « Non
+              connecté » ; le titre, lui, s'efface tant que personne ne l'a
+              écrit : « Modifier le profil » juste en dessous est le chemin pour
+              le renseigner, et il ne disparaît jamais. */}
+          {displayNameShown !== null ? (
+            <ValueRow label={t(C.displayName)} value={displayNameShown} />
+          ) : null}
+          {titleShown !== null ? (
+            <ValueRow label={t(C.titleLabel)} value={titleShown} />
+          ) : null}
           <ActionRow
             icon="ami"
             label={t(C.editProfile)}
@@ -268,30 +421,100 @@ export default function SettingsSectionScreen() {
 
       {id === 'crew' ? (
         <Section label={t(C.secMonCrew)}>
-          <ValueRow label="Crew" value={profile.crewName} />
-          {/* D8 : War Room masquée hors MVP. */}
-          {flags.warRoom ? (
-            <ActionRow
-              icon="guerre"
-              label={t(C.crewMissions)}
-              detail={t(C.crewMissionsDetail)}
-              onPress={() => router.push('/warroom')}
+          {/* ── Le crew est LU, jamais supposé. Quatre états, quatre phrases. ──
+              L'ORDRE EST LA LOGIQUE, et il avait été inversé : « chargement »
+              passait AVANT « échec ». Or `useRealCrew` garde volontairement
+              `loadFailed` à true pendant une nouvelle tentative (cf. son
+              commentaire : « on garde l'écran d'échec, avec le bouton en cours
+              de chargement, jusqu'à ce qu'on sache vraiment »). En testant
+              `crewLoading` d'abord, chaque tap sur « Réessayer » effaçait donc
+              la carte d'échec ET son bouton, les remplaçait par un « Lecture de
+              ton crew… » gris, puis les faisait réapparaître à l'échec suivant :
+              exactement le clignotement que le hook avait été modifié pour
+              empêcher — et plus aucun moyen de réessayer une 2ᵉ fois sans
+              attendre.
+
+              Le bon ordre va du fait le plus établi au plus incertain — et il
+              lui manquait sa première marche : la SESSION elle-même. Au
+              démarrage, `useSession()` n'a pas fini de restaurer le compte, donc
+              `crewReady` (qui exige une session) vaut false ; l'écran affirmait
+              alors « Non connecté · connecte-toi pour voir ton crew » à un
+              joueur connecté. Pire, cette branche captait le rendu AVANT
+              `crewLoadFailed` : au retour d'arrière-plan, l'état d'échec — et
+              son bouton « Réessayer », la seule action utile — était remplacé
+              par une invitation à se connecter le temps de l'hydratation.
+
+                0. session pas encore restaurée → on ne sait RIEN, on le dit ;
+                1. pas de session / pas de backend → rien à lire, on invite ;
+                2. on a déjà échoué             → on le dit, on propose de relire
+                                                  (le bouton porte le chargement) ;
+                3. 1re lecture en vol           → on le dit une seule fois ;
+                4. lu, aucun crew               → on l'affirme, enfin ;
+                5. lu, un crew                  → son vrai nom. */}
+          {identityUnknown ? (
+            <Text style={styles.note}>{t(C.crewLoading)}</Text>
+          ) : !crewReady ? (
+            <EmptyState
+              title={t(C.identityNone)}
+              body={t(C.crewSignedOutBody)}
+              {...(configured
+                ? { cta: { label: t(C.identitySignInLabel), onPress: () => router.push('/sign-in') } }
+                : {})}
             />
+          ) : crewLoadFailed ? (
+            /* On NE SAIT PAS s'il a un crew : ni « tu n'en as pas » (faux s'il
+               en a un), ni un nom inventé. On le dit, et on propose de relire —
+               la seule action qui ne présume rien. Pendant la relecture, la
+               carte RESTE : seul le bouton passe en chargement. */
+            <EmptyState
+              title={t(C.crewLoadFailedTitle)}
+              body={t(C.crewLoadFailedBody)}
+              cta={{ label: t(C.crewRetry), onPress: reloadCrew, loading: crewLoading }}
+            />
+          ) : crewLoading && realCrew === null ? (
+            <Text style={styles.note}>{t(C.crewLoading)}</Text>
+          ) : realCrew === null ? (
+            <EmptyState
+              title={t(C.crewNoneTitle)}
+              body={t(C.crewNoneBody)}
+              cta={{ label: t(C.crewNoneCta), onPress: () => router.push('/crew') }}
+            />
+          ) : (
+            <ValueRow label="Crew" value={realCrew.name} />
+          )}
+
+          {/* Les réglages de crew ne s'affichent QUE s'il y a un crew : proposer
+              « notifications crew » ou « quitter le crew » à quelqu'un qui n'en a
+              pas, c'est lui laisser croire qu'il en a un. */}
+          {realCrew !== null ? (
+            <>
+              {/* D8 : War Room masquée hors MVP. */}
+              {flags.warRoom ? (
+                <ActionRow
+                  icon="guerre"
+                  label={t(C.crewMissions)}
+                  detail={t(C.crewMissionsDetail)}
+                  onPress={() => router.push('/warroom')}
+                />
+              ) : null}
+              <ActionRow
+                icon="cloche"
+                label={t(C.crewNotifs)}
+                detail={t(C.crewNotifsDetail)}
+                onPress={() => router.push('/parametres/notifications')}
+              />
+              {/* « Bientôt » était FAUX : `leave_crew` est câblée et le flux
+                  complet (confirmation incluse) vit dans l'écran Crew. On y
+                  emmène au lieu d'annoncer une indisponibilité inexistante. */}
+              <ActionRow
+                icon="fermer"
+                label={t(C.leaveCrew)}
+                detail={t(C.leaveCrewDetailReal)}
+                danger
+                onPress={() => router.push('/crew')}
+              />
+            </>
           ) : null}
-          <ActionRow
-            icon="cloche"
-            label={t(C.crewNotifs)}
-            detail={t(C.crewNotifsDetail)}
-            onPress={() => router.push('/parametres/notifications')}
-          />
-          <ActionRow
-            icon="fermer"
-            label={t(C.leaveCrew)}
-            detail={t(C.leaveCrewDetail)}
-            danger
-            onPress={() => soonAlert(t(C.leaveCrew), t(C.leaveCrewSoonBody))}
-          />
-          <Soon>{t(C.leaveCrewSoonNote)}</Soon>
         </Section>
       ) : null}
 
@@ -428,9 +651,25 @@ export default function SettingsSectionScreen() {
         <>
           <Section label={t(C.secReglesJeu)}>
             <Text style={styles.note}>{t(C.reglesNote)}</Text>
-            <ValueRow label={t(C.fermetureFrontiere)} value="24 h" />
-            <ValueRow label={t(C.toleranceJonction)} value="80 m" />
-            <ValueRow label={t(C.contributionMin)} value={t(C.contributionMinValue)} />
+            {/* « Affichées ici pour transparence » n'a de valeur que si ce sont
+                les VRAIES constantes : ces trois lignes étaient écrites en dur
+                (ici et dans le catalogue i18n), donc un changement de moteur les
+                aurait laissées mentir en silence. Elles viennent de game-rules. */}
+            <ValueRow
+              label={t(C.fermetureFrontiere)}
+              value={t(C.valueHours, { n: PARTIAL_BOUNDARY_TTL_H })}
+            />
+            <ValueRow
+              label={t(C.toleranceJonction)}
+              value={t(C.valueMeters, { n: PARTIAL_JOIN_TOLERANCE_M })}
+            />
+            <ValueRow
+              label={t(C.contributionMin)}
+              value={t(C.contributionMinBoth, {
+                m: FINISHER_MIN_SEGMENT_M,
+                pct: Math.round(FINISHER_MIN_SHARE * 100),
+              })}
+            />
           </Section>
           <Section label={t(C.secDiagnostics)}>
             <ActionRow
@@ -463,6 +702,25 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.xxs },
+  // ── État vide : MÊME géométrie de card que ValueRow/ActionRow (un vide n'est
+  // pas un écran à part, c'est la ligne qui manque — elle garde sa place). ──
+  empty: {
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 16,
+    paddingHorizontal: spacing.cardPadding - 2,
+    marginBottom: 10,
+  },
+  emptyTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  emptyBody: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.6,
+    marginTop: spacing.xxs,
+  },
+  emptyCta: { marginTop: spacing.sm },
   // Géométrie de card ALIGNÉE sur Confidentialité (21/07) — voir parametres.tsx.
   row: {
     flexDirection: 'row',

@@ -48,9 +48,11 @@
  *     faits qui l'ont produite (`sampleRuns`) : l'utilisateur peut lire ce qui a
  *     été déduit de lui, et le réglage manuel PRIME toujours sur l'apprentissage
  *     (cf. ordre de priorité ci-dessous) — corriger, c'est régler.
- *  4. DÉSACTIVABLE. `learningEnabled: false` court-circuite tout : l'appelant ne
- *     doit alors même pas interroger la RPC. L'écran ne prétend pas pour autant
- *     être personnalisé — il bascule sur `source: 'default'`, cause `'off'`.
+ *  4. DÉSACTIVABLE. `learning: 'off'` court-circuite tout : l'appelant ne doit
+ *     alors même pas interroger la RPC. L'écran ne prétend pas pour autant être
+ *     personnalisé — il bascule sur `source: 'default'`, cause `'off'`. Et
+ *     `'off'` n'est atteignable que si le SERVEUR l'a dit : tant que les
+ *     réglages ne sont pas lus, l'état est `'unknown'` (cf. `LearningState`).
  *
  * ═══ ORDRE DE PRIORITÉ (les 3 états visibles) ═══════════════════════════════
  *   1. `manual`  — un réglage explicite existe. Il gagne TOUJOURS, et l'écran le
@@ -90,18 +92,90 @@ export type HabitProfile =
   | { kind: 'learning'; sampleRuns: number; requiredRuns: number }
   /** L'utilisateur a désactivé l'apprentissage (droit inconditionnel). */
   | { kind: 'off' }
-  /** Hors session, vitrine web, lecture ratée : on ne sait pas, et on le dit. */
+  /** Hors session, pas de backend, lecture ratée : on ne sait pas, et on le dit. */
   | { kind: 'unavailable' };
+
+/**
+ * L'apprentissage est-il autorisé ? TROIS valeurs, pas deux.
+ *
+ * ═══ LE MENSONGE SYMÉTRIQUE QUE CE TYPE SUPPRIME ════════════════════════════
+ * L'appelant écrivait `prefs?.learningEnabled ?? false`. Or `prefs` vaut `null`
+ * dans TROIS situations que ce `??` écrasait en une seule :
+ *   · la lecture est en cours ;
+ *   · la lecture a ÉCHOUÉ (réseau, refus, hors session) ;
+ *   · … et jamais « l'utilisateur a coupé », qui est la seule chose que `false`
+ *     avait le droit de vouloir dire.
+ * Conséquence exacte : un échec de `route_prefs_get` faisait afficher
+ * « Apprentissage des habitudes désactivé » à quelqu'un qui n'avait rien
+ * désactivé. C'est le miroir du mensonge que ce module a été écrit pour
+ * supprimer — on affirmait un RÉGLAGE du joueur qu'on n'avait pas lu.
+ *
+ * `'unknown'` n'est donc pas un état de repli commode : c'est le seul état
+ * honnête tant que le serveur n'a pas dit ce que le joueur a choisi.
+ */
+export type LearningState =
+  /** Le serveur a répondu : l'apprentissage est autorisé. */
+  | 'on'
+  /** Le serveur a répondu : le joueur l'a coupé. Fait affirmable. */
+  | 'off'
+  /** Lecture en cours ou ratée. On n'affirme RIEN sur les réglages du joueur. */
+  | 'unknown';
 
 /**
  * Réglages de distance, convertis depuis le store SERVEUR (features/routePrefs/store.ts). Écrits par l'écran
  * de réglages, lus ici. `manualKm: null` = aucun réglage explicite.
  */
 export interface RouteDistancePrefs {
-  /** Distance choisie à la main. `null` = laisser l'app décider. */
+  /** Distance choisie à la main. `null` = aucun réglage explicite OU non lu. */
   manualKm: number | null;
-  /** L'apprentissage des habitudes est-il autorisé ? Désactivable à tout moment. */
-  learningEnabled: boolean;
+  /** L'apprentissage est-il autorisé, coupé, ou pas encore su ? */
+  learning: LearningState;
+}
+
+/**
+ * L'issue de la lecture des réglages, telle que le store la connaît. C'est
+ * l'ENTRÉE de `routeDistancePrefsFrom` — et l'endroit unique où « on ne sait
+ * pas » cesse de pouvoir se faire passer pour « il a coupé ».
+ *
+ * `unavailable` (hors session, pas de backend) et `error` (lecture
+ * ratée) restent DISTINCTS bien qu'ils produisent aujourd'hui la même
+ * suggestion : ils n'appellent pas la même phrase ailleurs dans l'app (l'écran
+ * de réglages dit « connecte-toi » dans un cas, « lecture impossible » dans
+ * l'autre), et les fusionner ici rendrait cette distinction irrécupérable.
+ */
+export type RoutePrefsRead =
+  /** Le store n'a pas encore de réponse. */
+  | { status: 'loading' }
+  /** Rien à lire : pas de session, pas de backend. */
+  | { status: 'unavailable' }
+  /** La lecture a échoué. Ce n'est PAS un choix de l'utilisateur. */
+  | { status: 'error' }
+  /** Le serveur a répondu — et lui seul peut dire `on`/`off`. */
+  | { status: 'ready'; learningEnabled: boolean; targetDistanceM: number | null };
+
+/**
+ * Lecture du store → réglages consommables. PURE, et volontairement extraite du
+ * hook : c'est précisément cette conversion qui portait le bug, elle doit donc
+ * être testable seule.
+ *
+ * Deux règles, et elles tiennent tout :
+ *   1. Hors de `ready`, `learning` vaut `'unknown'` — jamais `'off'`. On
+ *      n'attribue aucun réglage à quelqu'un dont on n'a pas lu les réglages.
+ *   2. Hors de `ready`, `manualKm` vaut `null` — une distance non lue n'est pas
+ *      une distance choisie, et la présenter comme « ta distance réglée » serait
+ *      le même mensonge dans l'autre sens.
+ *
+ * La conversion mètres → kilomètres vit ici aussi : le store parle mètres
+ * (contrat SQL), le résolveur parle kilomètres, et un seul endroit doit
+ * connaître les deux vocabulaires.
+ */
+export function routeDistancePrefsFrom(read: RoutePrefsRead): RouteDistancePrefs {
+  if (read.status !== 'ready') return { manualKm: null, learning: 'unknown' };
+  const m = read.targetDistanceM;
+  return {
+    manualKm: m !== null && Number.isFinite(m) ? m / 1000 : null,
+    learning: read.learningEnabled ? 'on' : 'off',
+  };
 }
 
 /** Bornes du planificateur, injectées (jamais dupliquées ici). */
@@ -168,7 +242,9 @@ export function resolveRouteSuggestion(
   }
 
   // 2. Apprentissage coupé : on n'utilise RIEN, même si un profil traînait.
-  if (!prefs.learningEnabled) {
+  //    `'off'` est une AFFIRMATION sur le joueur (« tu l'as désactivé ») : elle
+  //    n'est atteignable que depuis un `read.status === 'ready'`.
+  if (prefs.learning === 'off') {
     return {
       km: snap(bounds.fallbackKm, bounds),
       source: 'default',
@@ -178,7 +254,22 @@ export function resolveRouteSuggestion(
     };
   }
 
-  // 3. Profil réellement appris.
+  // 3. Réglages pas encore lus, ou illisibles. On ne sait pas ce que le joueur
+  //    a choisi, donc on ne dit rien de lui : distance par défaut, cause
+  //    `unavailable` (« on ne sait pas »), jamais `off` (« tu as coupé »). Un
+  //    profil qui traînerait n'est pas utilisé non plus — l'utiliser reviendrait
+  //    à apprendre sans avoir vérifié qu'on en a le droit.
+  if (prefs.learning === 'unknown') {
+    return {
+      km: snap(bounds.fallbackKm, bounds),
+      source: 'default',
+      sampleRuns: null,
+      requiredRuns: null,
+      cause: 'unavailable',
+    };
+  }
+
+  // 4. Profil réellement appris.
   if (profile.kind === 'known' && Number.isFinite(profile.typicalKm) && profile.typicalKm > 0) {
     return {
       km: snap(profile.typicalKm, bounds),
@@ -189,7 +280,7 @@ export function resolveRouteSuggestion(
     };
   }
 
-  // 4. Défaut assumé — avec sa cause exacte.
+  // 5. Défaut assumé — avec sa cause exacte.
   if (profile.kind === 'learning') {
     return {
       km: snap(bounds.fallbackKm, bounds),

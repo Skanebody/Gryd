@@ -1,8 +1,8 @@
 /**
  * GRYD — profil éditable PERSISTÉ (AMENDEMENT-07 §8, retour fondateur : « pas
- * trouvé les boutons pour modifier le profil »). `MY_SOCIAL_PROFILE` (demo.ts)
- * reste la DATA de base immuable ; ici on superpose les CHAMPS ÉDITÉS par le
- * joueur (nom affiché, @handle, titre, ville, bio, avatar, 3 badges affichés).
+ * trouvé les boutons pour modifier le profil »). La base est NEUTRE (aucune
+ * identité pré-remplie) ; on superpose les CHAMPS ÉDITÉS par le joueur (nom
+ * affiché, @handle, titre, ville, bio, avatar, 3 badges affichés).
  *
  * Persistance locale (AsyncStorage, même pattern que src/features/crew/chatStore.ts)
  * tant que `user_profiles` n'est pas branché (TODO O1 : PATCH rôle-gated). La
@@ -22,7 +22,6 @@ import { HANDLE_REGEX } from '@klaim/shared';
 import type { Entry } from '../../i18n/types';
 import { t } from '../../i18n/store';
 import { C } from '../../i18n/catalog/profil';
-import { MY_SOCIAL_PROFILE } from './demo';
 import { useSession } from '../../lib/session';
 
 /**
@@ -109,18 +108,19 @@ export const BIO_MAX = 90;
 
 /**
  * Overrides = sous-ensemble éditable + éventuellement partiel (on ne stocke que
- * ce qui a été touché ; le reste retombe sur `MY_SOCIAL_PROFILE`).
+ * ce qui a été touché ; le reste retombe sur la base NEUTRE).
  */
 export type ProfileOverrides = Partial<EditableProfile>;
 
 const STORAGE_KEY = 'gryd.social.profile.v1';
 
-/** Profil FUSIONNÉ : base demo + champs dérivés + overrides du joueur. */
+/** Profil FUSIONNÉ : base + champs dérivés + overrides du joueur. */
 export interface MergedProfile extends EditableProfile {
-  /** Tag du crew (non éditable ici — géré côté crew). */
+  /** Nom du crew — chaîne VIDE quand le joueur n'en a pas (jamais un crew inventé). */
   crewName: string;
   crewTag: string;
-  seasonRank: number;
+  /** Rang de saison, ou `null` tant que le serveur n'en a pas renvoyé un. */
+  seasonRank: number | null;
   seasonScope: string;
   formeScore: number;
   crewChestContribPct: number;
@@ -128,13 +128,46 @@ export interface MergedProfile extends EditableProfile {
   xp: number;
 }
 
-/** Valeurs éditables par défaut, dérivées de la DATA de base immuable. */
+/**
+ * ─── POURQUOI LA BASE EST NEUTRE (21/07/2026) ───────────────────────────────
+ * `MY_SOCIAL_PROFILE` (social/demo.ts) est le persona de démonstration KORO :
+ * titre « Tenace du 19ᵉ », ville « Paris », crew « LES FOULÉES 9³ », rang #8,
+ * 14 amis.
+ *
+ * AVANT, il servait de base à TOUT LE MONDE. Un vrai joueur qui n'avait pas
+ * encore édité son profil se voyait donc attribuer le titre, la ville et le crew
+ * de quelqu'un d'autre — et l'écran Profil affichait « Niveau 3 · Paris » à un
+ * coureur de Ouville-la-Rivière, exactement le bug remonté du terrain.
+ * (Le nom et le @handle avaient déjà été corrigés ; le reste du persona non.)
+ *
+ * MAINTENANT (mode vitrine ABANDONNÉ, 21/07/2026) : il n'y a plus qu'UNE base, et
+ * elle est NEUTRE — champs vides, aucun crew, aucun rang. L'écran affiche ce qui
+ * est vrai, ou invite à le renseigner.
+ */
+const NEUTRAL_BASE = {
+  title: '',
+  city: '',
+  crewName: '',
+  crewTag: '',
+  seasonRank: null,
+  seasonScope: '',
+  formeScore: 0,
+  crewChestContribPct: 0,
+  friendsCount: 0,
+  xp: 0,
+} as const;
+
+/**
+ * Valeurs éditables par défaut : les champs d'identité sont VIDES. Le formulaire
+ * /profil-edit préremplit donc avec du blanc à compléter, jamais avec l'identité
+ * d'un persona (le joueur croirait avoir déjà un profil).
+ */
 export function defaultEditable(): EditableProfile {
   return {
-    displayName: MY_SOCIAL_PROFILE.displayName,
-    handle: MY_SOCIAL_PROFILE.handle,
-    title: MY_SOCIAL_PROFILE.title,
-    city: MY_SOCIAL_PROFILE.city,
+    displayName: '',
+    handle: '',
+    title: NEUTRAL_BASE.title,
+    city: NEUTRAL_BASE.city,
     bio: '',
     avatarColor: DEFAULT_AVATAR_COLOR,
     avatarInitials: '',
@@ -143,20 +176,26 @@ export function defaultEditable(): EditableProfile {
   };
 }
 
-/** Fusionne overrides stockés + base immuable → profil complet affiché. PURE. */
+/**
+ * Fusionne overrides stockés + base neutre → profil complet affiché. PURE.
+ *
+ * Les champs NON éditables (crew, rang, score forme, XP) ne viennent PAS d'ici :
+ * ce store ne connaît que ce que le joueur a tapé. Ils restent donc à leur valeur
+ * neutre, et les écrans lisent les vrais (useMyEconomy, useRealCrew) — un profil
+ * n'invente jamais un crew ni un rang.
+ */
 export function mergeProfile(overrides: ProfileOverrides): MergedProfile {
-  const base = defaultEditable();
   return {
-    ...base,
+    ...defaultEditable(),
     ...overrides,
-    crewName: MY_SOCIAL_PROFILE.crewName,
-    crewTag: MY_SOCIAL_PROFILE.crewTag,
-    seasonRank: MY_SOCIAL_PROFILE.seasonRank,
-    seasonScope: MY_SOCIAL_PROFILE.seasonScope,
-    formeScore: MY_SOCIAL_PROFILE.formeScore,
-    crewChestContribPct: MY_SOCIAL_PROFILE.crewChestContribPct,
-    friendsCount: MY_SOCIAL_PROFILE.friendsCount,
-    xp: MY_SOCIAL_PROFILE.xp,
+    crewName: NEUTRAL_BASE.crewName,
+    crewTag: NEUTRAL_BASE.crewTag,
+    seasonRank: NEUTRAL_BASE.seasonRank,
+    seasonScope: NEUTRAL_BASE.seasonScope,
+    formeScore: NEUTRAL_BASE.formeScore,
+    crewChestContribPct: NEUTRAL_BASE.crewChestContribPct,
+    friendsCount: NEUTRAL_BASE.friendsCount,
+    xp: NEUTRAL_BASE.xp,
   };
 }
 
@@ -282,23 +321,18 @@ export async function resetProfile(): Promise<void> {
  */
 export function useMyProfile(): ProfileStore {
   const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const { session, configured } = useSession();
+  const { session } = useSession();
   const save = useCallback(saveProfile, []);
   const merged = mergeProfile(current);
-  // O1 : pour un vrai user (session) qui n'a pas encore édité son nom / @handle,
-  // on n'affiche PAS le persona démo « KORO »/@koro — on dérive son identité de la
-  // session (nom du compte / e-mail). Showcase (sans session) : démo inchangée.
-  const profile =
-    configured && session
-      ? (() => {
-          const id = sessionIdentity(session);
-          return {
-            ...merged,
-            ...(current.displayName === undefined ? { displayName: id.displayName } : {}),
-            ...(current.handle === undefined ? { handle: id.handle } : {}),
-          };
-        })()
-      : merged;
+  // La base d'identité est VIDE : on ne laisse jamais un nom ou un @handle blanc
+  // à l'écran. On dérive de la session quand elle existe (nom du compte / préfixe
+  // e-mail), sinon un neutre traduit (« Coureur »/@coureur) — jamais un persona.
+  const id = sessionIdentity(session);
+  const profile = {
+    ...merged,
+    ...(current.displayName ? {} : { displayName: id.displayName }),
+    ...(current.handle ? {} : { handle: id.handle }),
+  };
   return {
     profile,
     editable: { ...defaultEditable(), ...current },

@@ -5,18 +5,23 @@
  * 5 étapes « Cours → Capture → Défends → Attaque → Domine » qui pilotent UNE
  * mini-map ORGANIQUE partagée (plus aucune grille hexagonale visible) :
  * trace seule → territoire chartreuse → decay → secteur repris sur l'ennemi
- * (--ennemi, état de jeu §1) → zoom-out + classement. Les états sont des
+ * (--ennemi, état de jeu §1) → zoom-out sur la carte. Les états sont des
  * territoires lissés + frontières en crossfade (opacité CSS 250 ms).
  * Interaction : hover desktop / tap mobile / auto-advance doux (coupé sous
  * prefers-reduced-motion, en pause au survol, stoppé après un clic).
  * Chiffres de JEU réels : HEX_LOCK_HOURS, ZONE_DECAY_DAYS, SEASON_DURATION_WEEKS
- * (@klaim/shared). Leaderboard de démo fictif assumé, déterministe (SSR stable).
+ * (@klaim/shared) — ce sont les SEULS nombres de la section.
+ *
+ * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026) : le mini-classement
+ * « Bastille Runners / Canal Crew / Night Pacers » de l'étape 5 a été supprimé
+ * (crews inventés, points jamais calculés), et les chips « +6 zones capturées »
+ * / « +2 zones reprises » ne portent plus de compte inventé — elles nomment le
+ * geste, elles ne le chiffrent pas.
  * Export principal : GameplayLoop — alias `Concept` conservé pour page.tsx.
  */
 
 import { useEffect, useState, type PointerEvent } from 'react';
 import { ZONE_DECAY_DAYS, HEX_LOCK_HOURS, SEASON_DURATION_WEEKS } from '@klaim/shared';
-import { DEMO_LEADERBOARD } from '../../../lib/landing';
 import { useLang } from './LangProvider';
 import { Reveal } from './Reveal';
 import { useReveal } from './useReveal';
@@ -129,10 +134,6 @@ type LoopStrings = {
   stepAria: string;
   steps: { name: string; body: string }[];
   chips: string[];
-  boardTitle: string;
-  yourCrew: string;
-  rivalTag: string;
-  pointsUnit: string;
   beforeLabel: string;
   beforeText: string;
   afterLabel: string;
@@ -162,16 +163,12 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
       },
     ],
     chips: [
-      'Run live · route en cours',
-      '+6 zones capturées',
+      'Ta route en cours',
+      'Les zones traversées basculent',
       `Decay · ${ZONE_DECAY_DAYS} jours sans défense`,
-      '+2 zones reprises',
+      'Le secteur adverse recule',
       `Saison · ${SEASON_DURATION_WEEKS} semaines`,
     ],
-    boardTitle: 'Classement · France',
-    yourCrew: 'Ton crew',
-    rivalTag: 'Rival',
-    pointsUnit: 'pts',
     beforeLabel: 'Avant GRYD',
     beforeText: 'Tu cours, c’est enregistré.',
     afterLabel: 'Avec GRYD',
@@ -199,16 +196,12 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
       },
     ],
     chips: [
-      'Run live · tracing route',
-      '+6 zones captured',
+      'Your route in progress',
+      'The zones you cross flip',
       `Decay · ${ZONE_DECAY_DAYS} days undefended`,
-      '+2 zones retaken',
+      'The enemy sector falls back',
       `Season · ${SEASON_DURATION_WEEKS} weeks`,
     ],
-    boardTitle: 'Rankings · France',
-    yourCrew: 'Your crew',
-    rivalTag: 'Rival',
-    pointsUnit: 'pts',
     beforeLabel: 'Before GRYD',
     beforeText: 'You run, it gets logged.',
     afterLabel: 'With GRYD',
@@ -219,13 +212,10 @@ const STRINGS: Record<'fr' | 'en', LoopStrings> = {
 /** Chip d'état : neutre / gain (chartreuse) / alerte (--ennemi, état de jeu §1). */
 const CHIP_TONE: Array<'neutral' | 'gain' | 'danger'> = ['neutral', 'gain', 'danger', 'gain', 'neutral'];
 
-// Mini-classement de démo : DEMO_LEADERBOARD (lib/landing, source unique
-// AMENDEMENT-05 §4) — même trio et même rival (Canal Crew, violet) que le hero.
-
 /* ------------------------------------------------------------------------- */
 
 export function GameplayLoop() {
-  const { lang, formatInt } = useLang();
+  const { lang } = useLang();
   const t = STRINGS[lang];
   const area = useReveal<HTMLDivElement>();
 
@@ -375,31 +365,6 @@ export function GameplayLoop() {
             >
               {t.chips[step]}
             </span>
-
-            {/* Étape 5 : zoom-out + mini-classement (démo fictive, rival en violet). */}
-            {step === 4 && (
-              <div className={styles.board}>
-                <span className={styles.boardTitle}>{t.boardTitle}</span>
-                {DEMO_LEADERBOARD.map((row) => (
-                  <span
-                    key={row.name}
-                    className={`${styles.boardRow} ${
-                      row.kind === 'mine' ? styles.rowMine : row.kind === 'rival' ? styles.rowRival : ''
-                    }`}
-                  >
-                    <span className={styles.boardRank}>#{row.rank}</span>
-                    <span className={styles.boardName}>{row.name}</span>
-                    <span className={styles.boardPts}>
-                      {formatInt(row.points)} {t.pointsUnit}
-                    </span>
-                    {row.kind === 'mine' && <span className={styles.boardTag}>{t.yourCrew}</span>}
-                    {row.kind === 'rival' && (
-                      <span className={`${styles.boardTag} ${styles.boardTagRival}`}>{t.rivalTag}</span>
-                    )}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 

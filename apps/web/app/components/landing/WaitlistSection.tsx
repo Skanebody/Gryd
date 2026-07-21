@@ -1,11 +1,19 @@
 'use client';
 
 /**
- * Section Waitlist (#waitlist) — AMENDEMENT-05 §3.11 : la waitlist devient la
- * PORTE DE LA SAISON 0 (« Saison 0 — Fondateurs · accès par vagues · crews
- * fondateurs · France ouverte en premier »), avec compteur de places restantes
- * (fictif assumé : 173/500 vague 1), bénéfices fondateur en chips et barres
- * de remplissage par ville.
+ * Section Waitlist (#waitlist) — la PORTE DE LA SAISON 0.
+ *
+ * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026). Ont été retirés :
+ * - « 173 places restantes · Vague 1 · 173 / 500 » et sa jauge remplie à 65 % :
+ *   une rareté inventée, c'est-à-dire une pression à l'inscription fondée sur
+ *   rien. C'est le pire cas de la page : ça pousse à agir avec un faux motif ;
+ * - les barres « les villes se remplissent » (Paris 327/500, Lille 141/500),
+ *   affichées AVANT et APRÈS inscription, alimentées par FAKE_WAITLIST_COUNTS.
+ *
+ * Ce qui reste est vrai : le SEUIL annoncé (un quartier ouvre à
+ * WAITLIST_UNLOCK_THRESHOLD inscrits) est une règle publiée, pas une mesure ;
+ * et ce que gardent les fondateurs est une promesse produit, pas un chiffre.
+ * Aucun compteur ne reviendra tant que le compte réel ne sera pas lisible.
  *
  * Le FORMULAIRE est INCHANGÉ côté backend : même server action joinWaitlist,
  * mêmes champs requis email + code postal (SPEC §6.2). Pays/ville/profil
@@ -13,51 +21,47 @@
  */
 
 import { useActionState, type FormEvent } from 'react';
-import { CITIES } from '@klaim/shared';
+import { CITIES, SEASON_DURATION_WEEKS } from '@klaim/shared';
 import { joinWaitlist, type WaitlistFormState } from '../../actions';
-import { WAVE } from '../../../lib/landing';
-import { FAKE_WAITLIST_COUNTS, WAITLIST_UNLOCK_THRESHOLD } from '../../../lib/waitlist';
+import { WAITLIST_UNLOCK_THRESHOLD } from '../../../lib/waitlist';
 import { useLang } from './LangProvider';
 import { Reveal } from './Reveal';
-import { useReveal } from './useReveal';
-import { useCountUp } from './useCountUp';
 import ui from './ui.module.css';
 import formStyles from '../WaitlistForm.module.css';
 import styles from './WaitlistSection.module.css';
 
 const initialState: WaitlistFormState = { status: 'idle' };
 
-// Données de démo de la porte de saison : WAVE (lib/landing — fictives
-// assumées, déterministes ; size = WAITLIST_UNLOCK_THRESHOLD, founderCrews =
-// SEASON0.crews : sources uniques AMENDEMENT-05 §4).
+/** Villes seedées de la Saison 0 — décision produit, pas mesure d'audience. */
+const SEASON0_CITY_NAMES = Object.values(CITIES).map((city) => city.name);
 
 /** i18n locale au composant (AMENDEMENT-05 §4) — l'intégrateur peut consolider dans dictionary.ts. */
 const STRINGS = {
   fr: {
     seasonTitle: 'Saison 0 — Fondateurs',
-    perWave: 'accès par vague',
-    founderCrews: 'crews fondateurs',
+    perWave: 'inscrits et ton quartier ouvre',
+    seasonWeeks: 'semaines de saison',
     franceFirst: 'France ouverte en premier',
     sub: 'Débloque le badge Saison 0. Crée ton crew avant l’ouverture officielle.',
-    spotsLeft: 'places restantes',
-    wave: 'Vague',
-    waveBarAria: 'Remplissage de la vague',
+    ruleLabel: 'La règle d’ouverture',
+    ruleText: (n: string) =>
+      `Un quartier ouvre quand ${n} personnes s’y sont inscrites. On n’affiche pas où en est le compteur tant qu’on ne peut pas l’afficher pour de vrai — pas de fausse file d’attente, pas de fausses places restantes.`,
+    citiesLabel: 'Villes ouvertes en premier',
     benefitsLabel: 'Ce que les fondateurs gardent à vie',
     benefits: ['Badge Saison 0 permanent', 'Crew avant l’ouverture', 'Skin jamais réédité'],
-    citiesLabel: 'Les villes se remplissent',
   },
   en: {
     seasonTitle: 'Season 0 — Founders',
-    perWave: 'access spots per wave',
-    founderCrews: 'founder crews',
+    perWave: 'sign-ups and your neighbourhood opens',
+    seasonWeeks: 'week season',
     franceFirst: 'France opens first',
     sub: 'Unlock the Season 0 badge. Build your crew before the official opening.',
-    spotsLeft: 'spots left',
-    wave: 'Wave',
-    waveBarAria: 'Wave fill',
+    ruleLabel: 'The opening rule',
+    ruleText: (n: string) =>
+      `A neighbourhood opens once ${n} people have signed up there. We do not show where that counter stands until we can show it for real — no fake queue, no fake remaining seats.`,
+    citiesLabel: 'Cities opening first',
     benefitsLabel: 'What founders keep for life',
     benefits: ['Permanent Season 0 badge', 'Crew before the opening', 'Never-reissued skin'],
-    citiesLabel: 'Cities are filling up',
   },
 } as const;
 
@@ -65,12 +69,6 @@ export function WaitlistSection() {
   const { lang, copy, formatInt } = useLang();
   const s = STRINGS[lang];
   const [state, formAction, pending] = useActionState(joinWaitlist, initialState);
-
-  // Compteur de places : décompte animé démarré côté client à l'apparition
-  // (useCountUp gère prefers-reduced-motion → valeur affichée directement).
-  const counter = useReveal<HTMLDivElement>();
-  const spotsShown = useCountUp(WAVE.spotsLeft, counter.shown);
-  const takenPct = Math.round(((WAVE.size - WAVE.spotsLeft) / WAVE.size) * 100);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     // Ne bloque pas la server action : on logge seulement les champs UI
@@ -89,9 +87,11 @@ export function WaitlistSection() {
     }
   };
 
+  /* Trois faits, trois sources vérifiables : un seuil produit publié, une règle
+     de jeu de @klaim/shared, une décision de périmètre. Aucun décompte. */
   const seasonFacts = [
-    `${formatInt(WAVE.size)} ${s.perWave}`,
-    `${formatInt(WAVE.founderCrews)} ${s.founderCrews}`,
+    `${formatInt(WAITLIST_UNLOCK_THRESHOLD)} ${s.perWave}`,
+    `${formatInt(SEASON_DURATION_WEEKS)} ${s.seasonWeeks}`,
     s.franceFirst,
   ];
 
@@ -120,35 +120,10 @@ export function WaitlistSection() {
             </h2>
             <p className={styles.sub}>{s.sub}</p>
 
-            {/* Compteur de places restantes (fictif assumé : 173/500 vague 1). */}
-            <div ref={counter.ref} className={styles.counterRow}>
-              <div className={styles.spots}>
-                <span className={styles.spotsNum}>{formatInt(spotsShown)}</span>
-                <span className={styles.spotsLabel}>{s.spotsLeft}</span>
-              </div>
-              <div className={styles.waveMeta}>
-                <div className={styles.waveHead}>
-                  <span className={styles.waveName}>
-                    {s.wave} {formatInt(WAVE.number)}
-                  </span>
-                  <span className={styles.waveCount}>
-                    {formatInt(WAVE.spotsLeft)} / {formatInt(WAVE.size)}
-                  </span>
-                </div>
-                <div
-                  className={styles.waveTrack}
-                  role="progressbar"
-                  aria-label={s.waveBarAria}
-                  aria-valuenow={takenPct}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div
-                    className={styles.waveFill}
-                    style={{ width: counter.shown ? `${takenPct}%` : '0%' }}
-                  />
-                </div>
-              </div>
+            {/* La RÈGLE d'ouverture remplace le faux décompte de places. */}
+            <div className={styles.ruleBox}>
+              <p className={ui.monoLabel}>{s.ruleLabel}</p>
+              <p className={styles.ruleText}>{s.ruleText(formatInt(WAITLIST_UNLOCK_THRESHOLD))}</p>
             </div>
 
             {/* Bénéfices fondateur — 3 chips (cohérent SPEC §3.6 : reset saisonnier,
@@ -171,67 +146,22 @@ export function WaitlistSection() {
               <div className={formStyles.confirm} role="status">
                 <p className={formStyles.confirmTitle}>{copy.waitlist.successTitle}</p>
                 <p className={formStyles.confirmSub}>{copy.waitlist.successSub}</p>
-                <ul className={formStyles.counters}>
-                  {Object.values(CITIES).map((cityInfo) => {
-                    const count = FAKE_WAITLIST_COUNTS[cityInfo.id];
-                    const pct = Math.min(100, Math.round((count / WAITLIST_UNLOCK_THRESHOLD) * 100));
-                    return (
-                      <li key={cityInfo.id} className={formStyles.counter}>
-                        <div className={formStyles.counterHead}>
-                          <span className={formStyles.cityName}>{cityInfo.name}</span>
-                          <span className={formStyles.cityCount}>
-                            {formatInt(count)} / {formatInt(WAITLIST_UNLOCK_THRESHOLD)}
-                          </span>
-                        </div>
-                        <div
-                          className={formStyles.track}
-                          role="progressbar"
-                          aria-label={cityInfo.name}
-                          aria-valuenow={count}
-                          aria-valuemin={0}
-                          aria-valuemax={WAITLIST_UNLOCK_THRESHOLD}
-                        >
-                          <div className={formStyles.fill} style={{ width: `${pct}%` }} />
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+                {/* Confirmation NUE : tu es inscrit, on t'écrira. Aucune jauge de
+                    ville : on ne connaît pas encore le compte, on ne l'invente pas. */}
               </div>
             ) : (
               <>
-                {/* Barres villes conservées : visibles AVANT inscription (villes
-                    qui se remplissent), mêmes styles que l'état succès. */}
+                {/* Les villes de la Saison 0, NOMMÉES — sans jauge de remplissage :
+                    dire lesquelles ouvrent est vrai, dire combien s'y sont
+                    inscrits ne l'était pas. */}
                 <div className={styles.cities}>
                   <p className={ui.monoLabel}>{s.citiesLabel}</p>
-                  <ul className={`${formStyles.counters} ${styles.cityList}`}>
-                    {Object.values(CITIES).map((cityInfo) => {
-                      const count = FAKE_WAITLIST_COUNTS[cityInfo.id];
-                      const pct = Math.min(
-                        100,
-                        Math.round((count / WAITLIST_UNLOCK_THRESHOLD) * 100),
-                      );
-                      return (
-                        <li key={cityInfo.id} className={formStyles.counter}>
-                          <div className={formStyles.counterHead}>
-                            <span className={formStyles.cityName}>{cityInfo.name}</span>
-                            <span className={formStyles.cityCount}>
-                              {formatInt(count)} / {formatInt(WAITLIST_UNLOCK_THRESHOLD)}
-                            </span>
-                          </div>
-                          <div
-                            className={formStyles.track}
-                            role="progressbar"
-                            aria-label={cityInfo.name}
-                            aria-valuenow={count}
-                            aria-valuemin={0}
-                            aria-valuemax={WAITLIST_UNLOCK_THRESHOLD}
-                          >
-                            <div className={formStyles.fill} style={{ width: `${pct}%` }} />
-                          </div>
-                        </li>
-                      );
-                    })}
+                  <ul className={styles.cityList}>
+                    {SEASON0_CITY_NAMES.map((cityName) => (
+                      <li key={cityName} className={styles.cityChip}>
+                        {cityName}
+                      </li>
+                    ))}
                   </ul>
                 </div>
 

@@ -1,212 +1,23 @@
 /**
- * GRYD — Crew Discovery premium (AMENDEMENT-08 §10, doc §16). Écran POUSSÉ
- * depuis Crew HQ. Chaque crew = CrewDiscoveryCard du design system jeu :
- * blason CrewCrest + frame de ligue, Niv · ville · ligue, tags de style de jeu
- * en chips d'état (War/Defense/Competitive), places restantes, rôles
- * recherchés, CTA fort « Demander à rejoindre » + « Voir la base » →
- * /crew-public?crew=TAG. Niveau/tier DÉRIVÉS de l'XP réelle (features/crew/
- * rules), rôles recherchés depuis les fiches publiques (publicDemo) — mêmes
- * données que la page publique. Rejoindre = stub toast TODO(O1). Aucun nombre
- * magique. Zéro position live (§37.3).
+ * GRYD — /crew-discovery : ROUTE ARCHIVÉE (fin du mode vitrine, 21/07/2026).
+ *
+ * Cette page listait des crews INVENTÉS (`features/crew/publicDemo`) avec des
+ * filtres « War Active / Defense Active / Pionniers » calculés sur ces mêmes
+ * données fabriquées, et un CTA « Demander à rejoindre » qui n'écrivait nulle
+ * part. Elle n'était atteignable que sous `isShowcasePlatform` ; sinon elle
+ * redirigeait déjà vers l'écran Crew réel. La vitrine étant abandonnée, il ne
+ * reste que la redirection.
+ *
+ * Pourquoi GARDER le fichier : la route est déclarée dans `_layout.tsx`, donc
+ * atteignable par deep link, et l'onboarding comme la carte ont pu y pousser.
+ * Une redirection vaut mieux qu'un « unmatched route ».
+ *
+ * Rejoindre un crew se fait aujourd'hui par CODE, dans l'écran Crew réel — c'est
+ * le seul chemin qui touche vraiment `crew_members`. Un annuaire de crews est un
+ * chantier serveur à part entière (recherche, recrutement, modération).
  */
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Redirect, router } from 'expo-router';
-import { CREW_MAX_MEMBERS, CREW_TAGS, colors, fontSizes, radii, sizes, spacing } from '@klaim/shared';
-import { isShowcasePlatform } from '../src/lib/flags';
-import { screen } from '../src/lib/analytics';
-import { haptics } from '../src/lib/haptics';
-import { StackScreen } from '../src/ui/StackScreen';
-import { CrewDiscoveryCard } from '../src/ui/game';
-import {
-  CREW_ROLE_LABELS,
-  RECRUITMENT_STATUS_LABELS,
-  crewFrameTierForLevel,
-  crewLevelForXp,
-  FRAME_TIER_LABELS,
-} from '../src/features/crew/rules';
-import {
-  canApplyTo,
-  playTagsFor,
-  PUBLIC_CREWS,
-  type PublicCrewDemo,
-} from '../src/features/crew/publicDemo';
-import { ToastHost, useToast } from '../src/features/social/Toast';
+import { Redirect } from 'expo-router';
 
-/** Filtres rapides §27 — chaque clé teste un signal d'activité du crew. */
-type FilterKey = 'all' | 'open' | 'beginner' | 'war' | 'defense' | 'pioneer';
-const FILTERS: readonly { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'Tous' },
-  { key: 'open', label: 'Ouverts' },
-  { key: 'beginner', label: 'Débutant OK' },
-  { key: 'war', label: 'War Active' },
-  { key: 'defense', label: 'Defense Active' },
-  { key: 'pioneer', label: 'Pionniers' },
-];
-
-function matchesFilter(crew: PublicCrewDemo, key: FilterKey): boolean {
-  switch (key) {
-    case 'all':
-      return true;
-    case 'open':
-      return crew.recruitment === 'open';
-    case 'beginner':
-      return crew.beginnerFriendly;
-    case 'war':
-      return crew.warActive;
-    case 'defense':
-      return crew.defenseActive;
-    case 'pioneer':
-      return crew.pioneer;
-  }
+export default function CrewDiscoveryRoute() {
+  return <Redirect href="/crew" />;
 }
-
-export default function CrewDiscoveryScreen() {
-  // VITRINE WEB UNIQUEMENT (audit doctrine Crew 20/07). Cet écran liste des
-  // crews INVENTÉS (publicDemo) et son CTA « Demander à rejoindre » est un stub.
-  // Il n'était gardé par RIEN : un vrai joueur y atterrissait depuis l'onboarding
-  // et depuis la Carte — exactement le grief du retour terrain (« il m'avait
-  // déjà rempli des zones de prises, c'est encore le mode démo »). CLAUDE.md est
-  // catégorique : jamais de données fabriquées présentées à un vrai utilisateur.
-  if (!isShowcasePlatform) return <Redirect href="/crew" />;
-
-  const [filter, setFilter] = useState<FilterKey>('all');
-  const toast = useToast();
-
-  useEffect(() => {
-    screen('crew_discovery');
-  }, []);
-
-  const filtered = useMemo(
-    () => PUBLIC_CREWS.filter((c) => matchesFilter(c, filter)),
-    [filter],
-  );
-
-  return (
-    <>
-      <StackScreen
-        title="Explorer les crews"
-        icon="crew"
-        kicker="SAISON 0 · PARIS"
-        subtitle="Rejoins un crew vivant — les tags te disent lesquels attaquent et défendent vraiment."
-      >
-        {/* Filtres rapides §27 */}
-        <View style={styles.filters}>
-          {FILTERS.map((f) => (
-            <Pressable
-              key={f.key}
-              accessibilityRole="button"
-              accessibilityLabel={`Filtrer : ${f.label}`}
-              onPress={() => setFilter(f.key)}
-              style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-            >
-              <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.list}>
-          {filtered.length > 0 ? (
-            filtered.map((crew) => {
-              const level = crewLevelForXp(crew.xp);
-              const tier = crewFrameTierForLevel(level);
-              return (
-                <View key={crew.tag}>
-                  <CrewDiscoveryCard
-                    name={crew.name}
-                    seed={`${crew.tag}·${crew.name}`}
-                    level={level}
-                    city={crew.city}
-                    leagueTier={tier}
-                    leagueLabel={`${FRAME_TIER_LABELS[tier] ?? tier} League`}
-                    tags={playTagsFor(crew)}
-                    members={{ current: crew.members, max: CREW_MAX_MEMBERS }}
-                    runsPerWeek={crew.weeklyRuns}
-                    seeking={crew.rolesWanted.map((r) => CREW_ROLE_LABELS[r] ?? r)}
-                    onJoin={() => {
-                      // TODO(O1) : crew_joined / demande d'adhésion (§9, 4 statuts 0013).
-                      haptics.medium();
-                      toast.show(
-                        crew.recruitment === 'open'
-                          ? `Bienvenue chez ${crew.name} (démo)`
-                          : canApplyTo(crew.recruitment)
-                            ? `Demande envoyée à ${crew.name} (démo)`
-                            : `${crew.name} recrute sur invitation uniquement`,
-                      );
-                    }}
-                    onViewBase={() =>
-                      router.push({ pathname: '/crew-public', params: { crew: crew.tag } })
-                    }
-                  />
-                  {/* Statut de recrutement (§9) + tags de style (§10, crews.tags 0013) —
-                      chips neutres sous la card (couleur réservée aux états de jeu). */}
-                  <View style={styles.metaRow}>
-                    <View style={[styles.metaChip, styles.metaChipRecruit]}>
-                      <Text style={styles.metaChipRecruitText}>
-                        {RECRUITMENT_STATUS_LABELS[crew.recruitment]}
-                      </Text>
-                    </View>
-                    {crew.tags.map((t) => (
-                      <View key={t} style={styles.metaChip}>
-                        <Text style={styles.metaChipText}>{CREW_TAGS[t]}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              );
-            })
-          ) : (
-            <Text style={styles.empty}>Aucun crew ne correspond à ce filtre pour l'instant.</Text>
-          )}
-        </View>
-        <Text style={styles.footnote}>
-          Aucun signal ne montre de position live. Les tags viennent de l'activité agrégée du
-          crew (§37.3).
-        </Text>
-      </StackScreen>
-      <ToastHost state={toast} />
-    </>
-  );
-}
-
-const styles = StyleSheet.create({
-  list: { marginTop: spacing.md, gap: spacing.sm },
-  // Chips recrutement/tags sous chaque card — neutres (identité, pas état de jeu).
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
-  metaChip: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xxs,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-  },
-  metaChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0.3 },
-  metaChipRecruit: { borderColor: colors.blanc },
-  metaChipRecruitText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.3 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.md },
-  filterChip: {
-    minHeight: sizes.touchTarget,
-    justifyContent: 'center',
-    backgroundColor: colors.carbone,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  // Actif = bordure blanche (motif classement/badges) — chartreuse réservée
-  // à moi/crew, CTA primaire, gains, live.
-  filterChipActive: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
-  filterText: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
-  filterTextActive: { color: colors.blanc, fontWeight: '600' },
-  empty: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center', paddingVertical: spacing.xl },
-  footnote: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.6,
-    marginTop: spacing.md,
-  },
-});

@@ -1,35 +1,72 @@
 /**
  * GRYD — page détaillée « Mon territoire » (/territoire), AMENDEMENT-18 PARTIE
- * B. Ouverte au tap depuis la card du Profil. Ce n'est PAS une carte
- * décorative : c'est un RÉSUMÉ STRATÉGIQUE personnel — voici ce que je contrôle
- * (VILLES) · ce qui est menacé (À DÉFENDRE) · mes prochaines actions (ROUTES
- * OUVERTES) · ma fierté (RECORDS TERRITOIRE).
+ * B. Ouverte au tap depuis la card du Profil.
  *
- * En-tête stratégique (« TERRITOIRE DE KORO · 55 zones tenues · Paris + Lille ·
- * 3 frontières contestées »), puis la VRAIE carte (TerritoryFranceMap, ~40 %
- * hauteur ≤ 260 px), puis 4 sections compactes (≤ 2 items visibles + « Voir
- * tout »). CTA bas contextuel : [Voir sur la carte] [Défendre] [Partager] —
- * jamais « Explorer la carte » vague. Vocabulaire zones/secteurs/frontières/
- * rues, libellés courts NON tronqués (Partie D), anti-shame, zéro position
- * live/tracé public. screen('territoire') au montage (§8, écran sans event
- * dédié). Données démo : franceKpi() (titre) + pageDemo (sections).
+ * ─── CE QUI A ÉTÉ CORRIGÉ ICI (21/07/2026) ──────────────────────────────────
+ * Cette page rendait `TERRITORY_PAGE_DEMO` SANS AUCUNE GARDE. Sur un iPhone
+ * neuf, sans compte, elle affichait donc : « Territoire de KORO » (une identité
+ * qui n'est pas celle du joueur), « 55 zones tenues · Paris + Lille · 3
+ * frontières contestées » (des chiffres qu'il n'a pas gagnés, dans des villes où
+ * il n'a jamais couru), trois menaces datées (« République — expire dans 18 h »),
+ * trois routes, trois records, et un palmarès de coureurs inexistants. La seule
+ * réserve était une ligne de bas de titre « Territoires de démonstration ».
+ * Décision fondateur du 21/07 : le bandeau n'y change rien — c'est un
+ * territoire fabriqué affiché à la place du sien. Bug bloquant.
+ *
+ * PREMIÈRE CORRECTION (matin du 21/07) : la démo était mise derrière
+ * `isShowcasePlatform`. CORRECTION DÉFINITIVE (celle-ci) : la vitrine elle-même
+ * est abandonnée — plus AUCUNE branche ne peut afficher KORO, où que ce soit.
+ *
+ * ─── CE QUE LA PAGE MONTRE MAINTENANT ───────────────────────────────────────
+ * Elle lit `hex_claims` via `useRealTerritories`, exactement comme la Battle
+ * Map, et n'affiche QUE ce qui en sort. Quatre états, jamais confondus :
+ *   • pas connecté  → la carte le dit, l'unique CTA est « Se connecter » ;
+ *   • chargement    → on n'affirme RIEN (pas de « 0 » nu, pas de spinner infini,
+ *                     et surtout pas « pas connecté » pendant la restauration de
+ *                     session — c'était le bug de `signedOut`, corrigé dans le
+ *                     hook lui-même) ;
+ *   • échec         → la carte le dit, l'unique CTA est « Réessayer » ;
+ *   • zéro capture  → la carte invite à courir, le CTA mène à la carte (le GO) ;
+ *   • du territoire → les VRAIS chiffres : zones tenues + surface réelle.
+ *
+ * Les quatre sections démo (VILLES / À DÉFENDRE / ROUTES OUVERTES / RECORDS) ne
+ * sont PAS remplacées par des sections vides : elles n'ont aucune source de
+ * données. `hex_claims` porte le propriétaire, la géométrie et la date de
+ * capture — pas de ville (`city_id` est NULL sur toute capture réelle, cf.
+ * hexClaims.ts), pas d'expiration exploitée, pas de pression rivale, pas de
+ * record. Une section « À défendre » vide serait un aveu, quatre en série un
+ * champ de ruines (§A : compris en < 3 s). Elles reviendront le jour où une vue
+ * serveur les alimente — et pas avant. Le bouton « Défendre » disparaît avec
+ * elles : il ciblait `d.threats.find(urgent)`, une menace fabriquée.
+ *
+ * Inchangé : screen('territoire') au montage (§8), vocabulaire zones/secteurs,
+ * libellés courts NON tronqués (Partie D), anti-shame, zéro position live.
  */
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
+import {
+  colors,
+  fontSizes,
+  gameColors,
+  iconSizes,
+  radii,
+  sizes,
+  spacing,
+  type IconName,
+} from '@klaim/shared';
 import { TerritoryFranceMap } from '../src/features/territory/TerritoryFranceMap';
-import { dataNote } from '../src/features/map/territoryBuild';
-import { TERRITORY_PAGE_DEMO } from '../src/features/territory/pageDemo';
+import { useRealTerritories } from '../src/features/map/hexClaims';
+import { formatKm2 } from '../src/features/widget/territoryWidget';
 import { ZoneLeaderboard } from '../src/features/territory/ZoneLeaderboard';
-import { DEFAULT_ZONE_LEADERBOARD } from '../src/features/territory/leaderboardDemo';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
 import { formatInt } from '../src/ui/format';
-import { useT } from '../src/i18n/store';
+import { useLocale, useT } from '../src/i18n/store';
 import { C } from '../src/i18n/catalog/historique';
+import { C as Cmap } from '../src/i18n/catalog/map';
 
 /** Section compacte : titre + ≤ 2 items visibles + « Voir tout » (anti-scroll). */
 function Section({
@@ -64,17 +101,75 @@ function Section({
   );
 }
 
+/**
+ * Ce que la page est en train de dire. UN état à la fois — c'est ce qui garantit
+ * qu'on ne mélange jamais « pas connecté » et « rien capturé ».
+ * `loading` existe pour lui-même : sans lui, l'absence de territoires pendant la
+ * requête se lit comme « tu n'as rien pris », et la page dément sa propre phrase
+ * une seconde plus tard.
+ */
+type PageState = 'failed' | 'signed-out' | 'loading' | 'empty' | 'held';
+
 export default function TerritoireScreen() {
   const t = useT();
+  const locale = useLocale();
   const insets = useSafeAreaInsets();
-  const d = TERRITORY_PAGE_DEMO;
 
   useEffect(() => {
     screen('territoire');
   }, []);
 
-  /** Prochaine menace urgente = cible du CTA « Défendre » (contextuel). */
-  const urgent = d.threats.find((t) => t.urgent) ?? d.threats[0];
+  /**
+   * Les VRAIES captures — même source et même hook que la Battle Map, pour que
+   * les deux écrans ne puissent pas se contredire. Appelé SANS `crewIds` :
+   * `stateFor` ne classe alors 'crew' que ce qui m'appartient (territoryBuild.ts),
+   * ce qui est exactement le périmètre d'une page intitulée « Mon territoire ».
+   */
+  const { territories, failed, signedOut, loading, reload } = useRealTerritories();
+
+  /** Mes possessions réelles : total de zones + surface réellement couverte. */
+  const mine = useMemo(
+    () => (territories ?? []).filter((ter) => ter.props.status === 'crew'),
+    [territories],
+  );
+  const myZones = useMemo(() => mine.reduce((sum, ter) => sum + ter.zoneCount, 0), [mine]);
+  const myAreaM2 = useMemo(
+    () => mine.reduce((sum, ter) => sum + ter.props.areaM2, 0),
+    [mine],
+  );
+
+  // Ordre de priorité IDENTIQUE à celui de la carte et du HUD : chargement >
+  // échec > pas de session > vide > tenu. Toute divergence rouvrirait la porte à
+  // « la page dit une chose, la carte juste en dessous en dit une autre ».
+  // `loading` EN PREMIER (et fourni par le hook, pas déduit de `territories`) :
+  // pendant la restauration de session, `signedOut` était vrai et cette page
+  // affichait « Se connecter » à un joueur connecté.
+  const pageState: PageState = loading
+    ? 'loading'
+    : failed
+      ? 'failed'
+      : signedOut
+        ? 'signed-out'
+        : myZones === 0
+          ? 'empty'
+          : 'held';
+
+  /**
+   * L'UNIQUE CTA chartreuse de l'écran (§A.4), et il change de NATURE avec
+   * l'état : se connecter quand il n'y a pas de compte, réessayer quand la
+   * lecture a échoué, aller à la carte (où vit le GO) dans tous les autres cas.
+   * Jamais un bouton qui promet une action sans objet.
+   */
+  const cta: { label: string; icon: IconName; onPress: () => void } =
+    pageState === 'signed-out'
+      ? {
+          label: t(Cmap.emptySignedOutCta),
+          icon: 'profil',
+          onPress: () => router.push('/(auth)/sign-in'),
+        }
+      : pageState === 'failed'
+        ? { label: t(Cmap.emptyFailedCta), icon: 'alerte', onPress: () => reload() }
+        : { label: t(C.seeOnMap), icon: 'carte', onPress: () => router.push('/(tabs)') };
 
   return (
     <View style={styles.root}>
@@ -101,24 +196,26 @@ export default function TerritoireScreen() {
             <View style={styles.back} />
           </View>
 
-          <Text style={styles.title}>{t(C.territoryOf, { name: d.runner })}</Text>
-          {/* P0 B4 (MVP_CHANGESET) — cet écran rend TERRITORY_PAGE_DEMO : depuis que la
-              Battle Map lit les vraies captures, le présenter comme le joueur était un
-              mensonge silencieux. Même formulation canonique que la carte (dataNote). */}
-          <Text style={styles.demoNote}>
-            {dataNote(false, false)}
-          </Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryStrong}>
-              {t(C.zonesHeld, { n: formatInt(d.totalZones) })}
-            </Text>
-            <Text style={styles.summaryDot}> · </Text>
-            <Text style={styles.summaryMuted}>{d.citiesLabel}</Text>
-            <Text style={styles.summaryDot}> · </Text>
-            <Text style={styles.summaryContested}>
-              {t(C.contestedBorders, { n: d.contestedBorders })}
-            </Text>
-          </View>
+          {/* Aucune source ne donne le nom du joueur (la session ne porte pas de
+              pseudo aujourd'hui) : la page parle à la 1ʳᵉ personne plutôt que
+              d'inventer un KORO. `territoryOf` reprendra sa place le jour où un
+              profil réel existe. */}
+          <Text style={styles.title}>{t(Cmap.territoryPageTitle)}</Text>
+
+          {/* Résumé chiffré : QUE ce qui a été mesuré (zones tenues + surface).
+              La page se TAIT tant qu'il n'y a rien — un « 0 zone » nu sous un
+              titre « Mon territoire » n'est pas une information, c'est un
+              reproche (anti-shame). Ni villes ni frontières contestées : aucune
+              donnée ne les porte. */}
+          {pageState === 'held' ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryStrong}>
+                {t(C.zonesHeld, { n: formatInt(myZones) })}
+              </Text>
+              <Text style={styles.summaryDot}> · </Text>
+              <Text style={styles.summaryMuted}>{formatKm2(myAreaM2, locale)}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* ── La carte (résumé, ~40 % — hauteur ≤ 260 px) ────────────────── */}
@@ -126,116 +223,50 @@ export default function TerritoireScreen() {
           <TerritoryFranceMap style={styles.map} testID="territoire-france-map" />
         </View>
 
-        {/* ── VILLES ──────────────────────────────────────────────────────── */}
-        <Section
-          title={t(C.sectionCities)}
-          count={d.cities.length}
-          onSeeAll={() => router.push('/(tabs)')}
-        >
-          {d.cities.slice(0, 2).map((c) => (
-            <View key={c.city} style={styles.cityRow}>
-              <View style={styles.cityLeft}>
-                <Text style={styles.cityName}>{c.city}</Text>
-                <Text style={styles.cityStatus}>{c.status}</Text>
-              </View>
-              <Text style={styles.cityZones}>{t(C.zonesCount, { n: formatInt(c.zones) })}</Text>
-            </View>
-          ))}
-        </Section>
+        {/* ── SECTIONS SUPPRIMÉES LE 21/07/2026 ───────────────────────────────
+            VILLES · À DÉFENDRE · ROUTES OUVERTES · RECORDS sortaient tous de
+            `pageDemo.ts` : aucune requête ne les alimentait. Elles ne sont PAS
+            remplacées par des versions « vides » — quatre sections qui répètent
+            qu'elles n'ont rien, c'est un écran de trous, et §A demande de
+            comprendre l'écran en moins de 3 s. L'état réel est déjà dit, une
+            seule fois, par la carte au-dessus. Elles reviendront quand une vue
+            serveur les portera (ville, expiration, pression rivale, records). */}
 
-        {/* ── CLASSEMENT DE LA ZONE (AMENDEMENT-31 §3) ────────────────────────
-            Emprunt Strava (segment/KOM) rendu GRYD : sur la zone la plus
-            disputée (Canal), top conquérants/défenseurs + hook « raison de
-            revenir ». Section légère, pas de card-dans-card (§A3). */}
-        <ZoneLeaderboard data={DEFAULT_ZONE_LEADERBOARD} />
-
-        {/* ── À DÉFENDRE ──────────────────────────────────────────────────── */}
-        <Section
-          title={t(C.sectionDefend)}
-          count={d.threats.length}
-          onSeeAll={() => router.push('/(tabs)')}
-        >
-          {d.threats.slice(0, 2).map((t) => (
-            <View key={t.name} style={styles.itemRow}>
-              <View
-                style={[styles.itemIcon, t.urgent && styles.itemIconUrgent]}
-                accessible={false}
-              >
-                <Icon
-                  name={t.icon}
-                  size={16}
-                  color={t.urgent ? gameColors.danger : colors.gris}
-                />
-              </View>
-              <Text style={styles.itemName}>{t.name}</Text>
-              <Text style={[styles.itemDetail, t.urgent && styles.itemDetailUrgent]}>
-                {t.detail}
-              </Text>
-            </View>
-          ))}
-        </Section>
-
-        {/* ── ROUTES OUVERTES ─────────────────────────────────────────────── */}
-        <Section
-          title={t(C.sectionOpenRoutes)}
-          count={d.routes.length}
-          onSeeAll={() => router.push('/(tabs)')}
-        >
-          {d.routes.slice(0, 2).map((r) => (
-            <View key={r.label} style={styles.itemRow}>
-              <View style={styles.itemIcon} accessible={false}>
-                <Icon name="route" size={16} color={colors.chartreuse} />
-              </View>
-              <Text style={styles.itemName}>{r.label}</Text>
-              <Text style={styles.itemDetail}>{r.distance}</Text>
-            </View>
-          ))}
-        </Section>
-
-        {/* ── RECORDS TERRITOIRE (anti-shame : que du positif) ────────────── */}
-        <Section title={t(C.sectionRecords)} count={d.records.length}>
-          {d.records.slice(0, 2).map((rec) => (
-            <View key={rec.label} style={styles.itemRow}>
-              <View style={styles.itemIcon} accessible={false}>
-                <Icon name={rec.icon} size={16} color={gameColors.gold} />
-              </View>
-              <Text style={styles.itemName}>{rec.label}</Text>
-              <Text style={styles.itemRecord}>{rec.value}</Text>
-            </View>
-          ))}
-        </Section>
+        {/* ── CLASSEMENT DE ZONE ─────────────────────────────────────────────
+            Le composant garde son titre et explique en une ligne qu'aucun
+            palmarès n'existe encore, au lieu d'afficher MIRA/ELIO/SAKO — des
+            coureurs qui n'existent pas. On ne le montre qu'à un joueur qui TIENT
+            du territoire : sur une page déjà vide, une section de plus qui dit
+            « rien » n'apprend rien. */}
+        {pageState === 'held' ? <ZoneLeaderboard /> : null}
       </ScrollView>
 
-      {/* ── CTA bas contextuel (jamais « Explorer la carte » vague) ──────── */}
+      {/* ── CTA bas contextuel (jamais « Explorer la carte » vague) ──────────
+          UN seul bouton chartreuse (§A.4), dont le LIBELLÉ et la DESTINATION
+          suivent l'état : « Se connecter » / « Réessayer » / « Voir sur la
+          carte ». Le bouton « Défendre » a disparu : il ciblait une menace
+          fabriquée (`d.threats`). « Partager » ne survit que là où il a un
+          objet — un territoire réellement tenu. */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.sm }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t(C.seeOnMap)}
-          onPress={() => router.push('/(tabs)')}
+          accessibilityLabel={cta.label}
+          onPress={cta.onPress}
           style={({ pressed }) => [styles.ctaPrimary, pressed && styles.pressed]}
         >
-          <Icon name="carte" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.ctaPrimaryLabel}>{t(C.seeOnMap)}</Text>
+          <Icon name={cta.icon} size={iconSizes.md} color={colors.noir} />
+          <Text style={styles.ctaPrimaryLabel}>{cta.label}</Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.a11yDefend, { name: urgent?.name ?? '' })}
-          onPress={() => router.push('/route-planner?type=defense')}
-          style={({ pressed }) => [styles.ctaGhost, pressed && styles.pressed]}
-        >
-          <Icon name="bouclier" size={iconSizes.md} color={colors.blanc} />
-          {/* Zéro-lie : le bouton MÈNE à la planification de défense — il ne
-              « met pas en défense » (aucun état réel derrière). Label stable. */}
-          <Text style={styles.ctaGhostLabel}>{t(C.defend)}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.a11yShareTerritory)}
-          onPress={() => router.push('/partage?template=conquete')}
-          style={({ pressed }) => [styles.ctaIcon, pressed && styles.pressed]}
-        >
-          <Icon name="partage" size={iconSizes.md} color={colors.blanc} />
-        </Pressable>
+        {pageState === 'held' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.a11yShareTerritory)}
+            onPress={() => router.push('/partage?template=conquete')}
+            style={({ pressed }) => [styles.ctaIcon, pressed && styles.pressed]}
+          >
+            <Icon name="partage" size={iconSizes.md} color={colors.blanc} />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

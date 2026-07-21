@@ -1,84 +1,85 @@
 'use client';
 
 /**
- * Section Salle de guerre (#warroom, AMENDEMENT-05 §3.5) — SECTION NOUVELLE.
- * - WarRoom : carte d'offensive crew (objectif, décompte, jauge, mini-carte
- *   du secteur avec hexes contestés --ennemi vs --ch).
- * - WarRoomSection : parent qui assemble WarRoom + LiveTerritoryFeed +
- *   CrewLeaderboard — l'intégrateur ne branche QUE lui dans page.tsx.
- * Données de démo fictives assumées et déterministes : lib/landing.ts (AMENDEMENT-05 §4).
- * Chiffres de règles réels : @klaim/shared (jamais en dur).
+ * Section « Salle de guerre » (#warroom) — LES RÈGLES DU CONFLIT.
+ *
+ * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026). Cette section
+ * affichait auparavant :
+ * - une « OFFENSIVE CREW · EN COURS » sur Canal Saint-Martin, avec un compte à
+ *   rebours qui tournait (04:21:08), une jauge à 62 %, « 496 / 800 zones
+ *   prises » et « 7 membres actifs » — aucune de ces offensives n'a existé ;
+ * - un « FLUX TERRITOIRE · EN DIRECT » de captures inventées (République,
+ *   Croix-Rousse, Wazemmes…) attribuées à des crews qui n'existent pas ;
+ * - cinq onglets de classements France / Paris / Lille / Pionniers / Crews,
+ *   dont un podium de personnes nommées (« Léa M. », « Marco V. »…).
+ * Tout cela a été supprimé, composants compris (LiveTerritoryFeed,
+ * CrewLeaderboard). Un classement se gagne, il ne se maquette pas.
+ *
+ * Ce qui reste dit ce QU'EST le conflit, sans prétendre qu'il a déjà lieu :
+ * les quatre états qu'une zone peut prendre (schéma-légende) et les trois
+ * horloges du jeu — lock, decay, durée de saison — qui sont des RÈGLES RÉELLES
+ * lues dans @klaim/shared, pas des mesures.
  */
 
-import { useEffect, useState } from 'react';
-import { CREW_MAX_MEMBERS, ZONE_DECAY_DAYS, HEX_LOCK_HOURS, SEASON_DURATION_WEEKS } from '@klaim/shared';
+import { ZONE_DECAY_DAYS, HEX_LOCK_HOURS, SEASON_DURATION_WEEKS } from '@klaim/shared';
 import { useLang } from './LangProvider';
 import type { Lang } from './dictionary';
 import { Icon } from '../ui/Icon';
 import { Reveal } from './Reveal';
-import { useReveal } from './useReveal';
-import { OFFENSIVE, OFFENSIVE_HEXES_TAKEN, SECTOR_HEXES, SECTOR_VIEW_H, SECTOR_VIEW_W } from '../../../lib/landing';
-import { LiveTerritoryFeed } from './LiveTerritoryFeed';
-import { CrewLeaderboard } from './CrewLeaderboard';
+import { LEGEND_HEXES, LEGEND_VIEW_H, LEGEND_VIEW_W } from '../../../lib/landing';
 import ui from './ui.module.css';
 import styles from './WarRoom.module.css';
 
 const STRINGS = {
   fr: {
-    kicker: 'Saison 0 · en direct',
+    kicker: 'Les règles du conflit',
     title: 'SALLE DE GUERRE',
-    sub: 'Offensives coordonnées, zones qui basculent, classements en direct. La carte ne dort jamais — ton crew non plus.',
-    offensiveLabel: 'OFFENSIVE CREW',
-    liveChip: 'EN COURS',
-    objectiveLabel: 'Objectif',
-    objectiveUnit: 'zones',
-    takenLabel: 'zones prises',
-    timeLabel: 'Temps restant',
-    progressLabel: 'Progression',
-    membersLabel: 'Membres actifs',
-    rewardLabel: 'Récompense',
-    rewardValue: 'Coffre Crew',
-    mapAria: 'Mini-carte du secteur : zones de ton crew en chartreuse, zones rivales en orange, zones contestées hachurées',
+    sub: 'Une zone se prend, se garde, se perd. Voilà les quatre états d’un terrain et les trois horloges qui décident de tout.',
+    legendLabel: 'ÉTATS D’UNE ZONE',
+    mapAria:
+      'Schéma des états d’une zone : zones de ton crew en chartreuse, zones ennemies en orange, zones contestées hachurées, zones neutres en gris',
     legendCrew: 'Mon crew',
     legendEnemy: 'Ennemi',
     legendContested: 'Contesté',
     legendNeutral: 'Neutre',
-    rules: `Lock ${HEX_LOCK_HOURS} h · Decay ${ZONE_DECAY_DAYS} j · Saison ${SEASON_DURATION_WEEKS} semaines`,
-    progressAria: 'Progression de l’offensive',
-    timerAria: 'Temps restant de l’offensive',
+    clocksLabel: 'LES TROIS HORLOGES',
+    lockLabel: 'Lock',
+    lockValue: `${HEX_LOCK_HOURS} h`,
+    lockNote: 'Une zone prise ne peut pas être reprise tout de suite.',
+    decayLabel: 'Decay',
+    decayValue: `${ZONE_DECAY_DAYS} j`,
+    decayNote: 'Une zone que personne ne défend finit par retomber.',
+    seasonLabel: 'Saison',
+    seasonValue: `${SEASON_DURATION_WEEKS} sem.`,
+    seasonNote: 'À la fin, la carte est remise à zéro et tout recommence.',
+    honest:
+      'Aucun classement n’est affiché ici : la Saison 0 n’a pas commencé. Les premiers noms sur cette page seront ceux qui les auront courus.',
   },
   en: {
-    kicker: 'Season 0 · live',
+    kicker: 'The rules of conflict',
     title: 'WAR ROOM',
-    sub: 'Coordinated offensives, flipping zones, live rankings. The map never sleeps — neither does your crew.',
-    offensiveLabel: 'CREW OFFENSIVE',
-    liveChip: 'LIVE',
-    objectiveLabel: 'Objective',
-    objectiveUnit: 'zones',
-    takenLabel: 'zones taken',
-    timeLabel: 'Time left',
-    progressLabel: 'Progress',
-    membersLabel: 'Active members',
-    rewardLabel: 'Reward',
-    rewardValue: 'Crew Chest',
-    mapAria: 'Sector mini-map: your crew’s zones in chartreuse, enemy zones in orange, contested zones hatched',
+    sub: 'A zone is taken, held, lost. Here are the four states of a piece of ground, and the three clocks that decide everything.',
+    legendLabel: 'STATES OF A ZONE',
+    mapAria:
+      'Diagram of zone states: your crew’s zones in chartreuse, enemy zones in orange, contested zones hatched, neutral zones in grey',
     legendCrew: 'My crew',
     legendEnemy: 'Enemy',
     legendContested: 'Contested',
     legendNeutral: 'Neutral',
-    rules: `${HEX_LOCK_HOURS} h lock · ${ZONE_DECAY_DAYS}-day decay · ${SEASON_DURATION_WEEKS}-week season`,
-    progressAria: 'Offensive progress',
-    timerAria: 'Offensive time remaining',
+    clocksLabel: 'THE THREE CLOCKS',
+    lockLabel: 'Lock',
+    lockValue: `${HEX_LOCK_HOURS} h`,
+    lockNote: 'A zone just taken cannot be taken straight back.',
+    decayLabel: 'Decay',
+    decayValue: `${ZONE_DECAY_DAYS} d`,
+    decayNote: 'A zone nobody defends eventually falls away.',
+    seasonLabel: 'Season',
+    seasonValue: `${SEASON_DURATION_WEEKS} wk`,
+    seasonNote: 'At the end, the map resets and it all starts again.',
+    honest:
+      'No leaderboard is shown here: Season 0 has not started. The first names on this page will be the ones who ran for them.',
   },
 } satisfies Record<Lang, Record<string, string>>;
-
-function formatCountdown(totalSeconds: number): string {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
-}
 
 const HEX_CLASS: Record<string, string> = {
   crew: 'hexCrew',
@@ -87,97 +88,40 @@ const HEX_CLASS: Record<string, string> = {
   contested: 'hexContested',
 };
 
-/** Carte d'offensive — HUD tactique nocturne (bordures fines, chips mono). */
+/** Schéma-légende des états d'une zone + les trois horloges réelles du jeu. */
 export function WarRoom() {
-  const { lang, formatInt } = useLang();
+  const { lang } = useLang();
   const s = STRINGS[lang];
 
-  // Décompte animé : démarre de la valeur fixe (SSR stable), tick côté client.
-  // prefers-reduced-motion → valeur statique, aucun tick.
-  const [secondsLeft, setSecondsLeft] = useState<number>(OFFENSIVE.timeLeftSeconds);
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const id = window.setInterval(() => {
-      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  // Jauge : se remplit au reveal (transition 250 ms ease-out en CSS).
-  const gauge = useReveal<HTMLDivElement>();
+  const clocks = [
+    { icon: 'bouclier', label: s.lockLabel, value: s.lockValue, note: s.lockNote },
+    { icon: 'historique', label: s.decayLabel, value: s.decayValue, note: s.decayNote },
+    { icon: 'badge', label: s.seasonLabel, value: s.seasonValue, note: s.seasonNote },
+  ] as const;
 
   return (
-    <article className={`${ui.card} ${styles.warCard}`} aria-label={s.offensiveLabel}>
-      <header className={styles.warHead}>
-        <p className={styles.offensiveLabel}>
-          <span className={styles.liveDot} aria-hidden="true" />
-          {s.offensiveLabel}
-        </p>
-        <span className={styles.liveChip}>{s.liveChip}</span>
-      </header>
-
-      <h3 className={styles.zoneName}>{OFFENSIVE.zoneName}</h3>
-
+    <article className={`${ui.card} ${styles.warCard}`}>
       <div className={styles.warGrid}>
         <div className={styles.warInfo}>
-          <div className={styles.countdownBlock}>
-            <span className={ui.monoLabel}>{s.timeLabel}</span>
-            <span className={styles.countdown} role="timer" aria-label={s.timerAria}>
-              {formatCountdown(secondsLeft)}
-            </span>
-          </div>
-
-          <div className={styles.progressBlock}>
-            <div className={styles.progressHead}>
-              <span className={ui.monoLabel}>{s.progressLabel}</span>
-              <span className={styles.progressValue}>{OFFENSIVE.progressPct} %</span>
-            </div>
-            <div
-              ref={gauge.ref}
-              className={styles.gauge}
-              role="progressbar"
-              aria-label={s.progressAria}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={OFFENSIVE.progressPct}
-            >
-              <span
-                className={styles.gaugeFill}
-                style={{ width: gauge.shown ? `${OFFENSIVE.progressPct}%` : '0%' }}
-              />
-            </div>
-            <p className={styles.progressSub}>
-              {formatInt(OFFENSIVE_HEXES_TAKEN)} / {formatInt(OFFENSIVE.objectiveHexes)} {s.takenLabel}
-            </p>
-          </div>
-
-          {/* Chips avec icônes de renfort : objectif = pin · membres = crew · récompense = badge. */}
-          <dl className={styles.chips}>
-            <div className={styles.chip}>
-              <Icon name="pin" size={13} className={styles.chipIcon} />
-              <dt>{s.objectiveLabel}</dt>
-              <dd>
-                {formatInt(OFFENSIVE.objectiveHexes)} {s.objectiveUnit}
-              </dd>
-            </div>
-            <div className={styles.chip}>
-              <Icon name="crew" size={13} className={styles.chipIcon} />
-              <dt>{s.membersLabel}</dt>
-              <dd>
-                {OFFENSIVE.activeMembers} / {CREW_MAX_MEMBERS}
-              </dd>
-            </div>
-            <div className={styles.chip}>
-              <Icon name="badge" size={13} className={styles.chipIcon} />
-              <dt>{s.rewardLabel}</dt>
-              <dd>{s.rewardValue}</dd>
-            </div>
+          <p className={ui.monoLabel}>{s.clocksLabel}</p>
+          <dl className={styles.clocks}>
+            {clocks.map((clock) => (
+              <div key={clock.label} className={styles.clock}>
+                <Icon name={clock.icon} size={15} className={styles.clockIcon} />
+                <dt className={styles.clockHead}>
+                  <span className={styles.clockLabel}>{clock.label}</span>
+                  <span className={styles.clockValue}>{clock.value}</span>
+                </dt>
+                <dd className={styles.clockNote}>{clock.note}</dd>
+              </div>
+            ))}
           </dl>
         </div>
 
         <div className={styles.warMap}>
+          <p className={ui.monoLabel}>{s.legendLabel}</p>
           <svg
-            viewBox={`0 0 ${SECTOR_VIEW_W} ${SECTOR_VIEW_H}`}
+            viewBox={`0 0 ${LEGEND_VIEW_W} ${LEGEND_VIEW_H}`}
             className={styles.sectorSvg}
             role="img"
             aria-label={s.mapAria}
@@ -195,7 +139,7 @@ export function WarRoom() {
                 <rect x="3" width="3" height="6" className={styles.patCrew} />
               </pattern>
             </defs>
-            {SECTOR_HEXES.map((hex, i) => (
+            {LEGEND_HEXES.map((hex, i) => (
               <polygon
                 key={i}
                 points={hex.points}
@@ -224,8 +168,6 @@ export function WarRoom() {
           </ul>
         </div>
       </div>
-
-      <footer className={styles.rulesStrip}>{s.rules}</footer>
     </article>
   );
 }
@@ -246,17 +188,13 @@ export function WarRoomSection() {
           <p className={ui.sectionSub}>{s.sub}</p>
         </Reveal>
 
-        <div className={styles.layout}>
-          <Reveal className={styles.mainCol}>
-            <WarRoom />
-          </Reveal>
-          <Reveal delayMs={100} className={styles.sideCol}>
-            <LiveTerritoryFeed />
-          </Reveal>
-        </div>
+        <Reveal>
+          <WarRoom />
+        </Reveal>
 
-        <Reveal delayMs={150}>
-          <CrewLeaderboard />
+        {/* Dire pourquoi il n'y a pas de classement vaut mieux qu'en inventer un. */}
+        <Reveal delayMs={100}>
+          <p className={styles.honestNote}>{s.honest}</p>
         </Reveal>
       </div>
     </section>

@@ -30,7 +30,6 @@ import {
 } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
-import { isShowcasePlatform } from '../../lib/flags';
 import {
   visibleCrewPings,
   CREW_SIGNAL_BY_KEY,
@@ -157,7 +156,7 @@ export function useCrewPings(): UseCrewPingsResult {
   const [mine, setMine] = useState<MyPingState | null>(null);
   const [tick, setTick] = useState(0);
 
-  const ready = !isShowcasePlatform && !!supabase && !!session;
+  const ready = !!supabase && !!session;
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {

@@ -126,7 +126,7 @@
   }
 }
 
-/* ─── Statuts par ville (liste de chips) ──────────────────────────────────── */
+/* ─── Repères géographiques (liste de chips) ──────────────────────────────── */
 
 .cityListTitle {
   display: block;
@@ -165,12 +165,18 @@
   color: var(--blanc);
 }
 
-.chipStatus {
-  font-size: 12px;
+/* Note d'honnêteté sous la liste et sous la légende du plateau. */
+.citiesNote {
+  margin-top: 12px;
+  max-width: 56ch;
+  font-size: 13px;
+  line-height: 1.55;
   color: var(--gris);
 }
 
-/* Badges de statut (mono, petites capsules) — ACTIVE/ÉMERGENTE/PIONNIÈRE/SAUVAGE/CONTESTÉE/DOMINÉE. */
+/* Badge Saison 0 — le SEUL badge restant : une décision produit, pas un statut
+   de guerre inventé. Les capsules ACTIVE/CONTESTÉE/DOMINÉE ont été supprimées
+   en même temps que les statuts par ville qu'elles coloraient. */
 .badge {
   font-family: var(--mono);
   font-size: 9.5px;
@@ -183,23 +189,10 @@
   white-space: nowrap;
 }
 
-/* États de jeu (§1) : mon crew / contesté / dominé par un rival. */
-.badgeActive {
+.badgeSeason0 {
   background: var(--ch14);
   border-color: var(--ch40);
   color: var(--ch);
-}
-
-.badgeContested {
-  background: var(--ennemi-14);
-  border-color: var(--ennemi-40);
-  color: var(--ennemi);
-}
-
-.badgeDominated {
-  background: var(--rival-14);
-  border-color: var(--rival-40);
-  color: var(--rival);
 }
 
 /* ─── Plateau ─────────────────────────────────────────────────────────────── */
@@ -360,37 +353,16 @@
   transform: scale(1.35);
 }
 
-/* Zones actives = « live » → chartreuse ; les autres se différencient par opacité. */
-.active .dotCore {
+/* Villes de la Saison 0 (Paris, Lille) → chartreuse. Les autres restent des
+   repères blancs neutres : leur type de zone dépendra de la densité RÉELLE de
+   coureurs, qui n'existe pas encore. L'ancien dégradé d'opacité
+   active/emerging/pioneer/wild classait les villes sans rien mesurer. */
+.dotSeason0 .dotCore {
   background: var(--ch);
   box-shadow: 0 0 0 4px var(--ch14);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .active .dotCore {
-    animation: dotPulse 2s ease-in-out infinite;
-  }
-}
-
-@keyframes dotPulse {
-  50% {
-    box-shadow: 0 0 0 8px var(--ch14);
-  }
-}
-
-.emerging .dotCore {
-  opacity: 0.9;
-}
-
-.pioneer .dotCore {
-  opacity: 0.6;
-}
-
-.wild .dotCore {
-  opacity: 0.4;
-}
-
-/* Chip au hover (tooltip) : nom · statut + badge capsule. */
+/* Chip au hover (tooltip) : nom (+ badge Saison 0 pour les villes seedées). */
 .tooltip {
   position: absolute;
   transform: translate(-50%, calc(-100% - 16px));

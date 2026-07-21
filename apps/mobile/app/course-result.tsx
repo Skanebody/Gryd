@@ -11,8 +11,18 @@
  * bonus, badge) se déplie au tap « Comment j'ai gagné ces zones ».
  * Hors conquête (AMENDEMENT-07) : social_run = stats + partage sans capture ;
  * course_privee = stats seules, aucun partage.
- * Les stats sont REJOUÉES depuis la simulation déterministe (params mode + t) ;
- * si ingest_run a répondu (runResult.ts), le serveur reste seul juge.
+ *
+ * ─── ZÉRO SIMULATION (21/07/2026) ──────────────────────────────────────────
+ * Cet écran ne construit PLUS aucune course de démonstration. Il n'affiche que
+ * ce que deux sources réelles lui donnent :
+ *   1. `getLastRunResult()` — le verdict d'ingest_run (SEUL juge des zones,
+ *      points, boucle, badges, série, verified) ;
+ *   2. les params `dist`/`dur` — les mètres et secondes MESURÉS par le tracker
+ *      GPS, quand la course n'a pas encore pu être jugée (hors-ligne).
+ * Ce que ni l'un ni l'autre ne dit n'existe pas ici : `stats.zones` vaut `null`
+ * tant que le serveur n'a pas jugé, et tout ce qui parle de conquête (KPI,
+ * IMPACT, décomposition du calcul) disparaît alors — plutôt un bloc absent
+ * qu'un « 0 » qui se lit comme un verdict.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -35,8 +45,6 @@ import { Icon } from '../src/ui/Icon';
 import { formatInt } from '../src/ui/format';
 import {
   BadgeCard,
-  CrewCrest,
-  RankUpCard,
   StatePill,
   StreakBlock,
   type StreakView,
@@ -50,45 +58,28 @@ import {
 } from '../src/features/badges/catalog';
 import { GripMascot } from '../src/features/social/GripMascot';
 import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
-import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
-import Svg, { Path, Polyline } from 'react-native-svg';
-import {
-  CORRIDOR_HALF_WIDTH_M,
-  loopRing,
-  ribbonRing,
-} from '../src/features/map/allTerritories';
-import {
-  BOUCLE_REPUBLIQUE,
-  REAL_M_PER_DEG_LAT,
-  REAL_M_PER_DEG_LNG,
-  RUE_FAUBOURG_DU_TEMPLE,
-  type LatLngPoint,
-} from '../src/features/map/realAnchors';
-import { territoryStyle } from '../src/features/map/mapStyle';
+import { useMyEconomy } from '../src/features/social/economy';
 import { ResultReveal } from '../src/features/run/ResultReveal';
 import {
   boundaryExpiryLabel,
   contributionPct,
   intentionFromParam,
   partialBoundaryById,
-  resultSummaryLines,
   summaryHeader,
   tracedKmLabel,
   type PartialBoundaryDemo,
   type ResultSummaryLine,
 } from '../src/features/run/intention';
-import { buildLiveNav } from '../src/features/run/liveNav';
-import { getPlannedRoute } from '../src/features/route/plannedRoute';
 import { getLastRunResult } from '../src/features/run/runResult';
 import { useRealCrew } from '../src/features/crew/real';
 import { setShareRun, shareCardFromResult } from '../src/features/share/shareRun';
-import { buildRunLoop, loopSummaryAt, type RunLoop } from '../src/features/run/loop';
+// NOTE (21/07/2026) : `buildRunSimulation` / `buildLiveNav` / `buildRunLoop` ne
+// sont PLUS importés ici. Seuls les formateurs purs et le parsing de mode
+// survivent de simulation.ts — aucune course fabriquée n'entre dans cet écran.
 import {
-  buildRunSimulation,
   formatClock,
   formatKm,
   formatPace,
-  resultStats,
   runModeFromParam,
   type LiveRunMode,
 } from '../src/features/run/simulation';
@@ -97,40 +88,6 @@ import {
 // dérivé des constantes gelées (jamais de nombre magique).
 import { BoucleFaitLaZone } from '../src/features/explain/schemas';
 import { verifyTiersLabel } from '../src/features/explain/labels';
-
-/**
- * Badge débloqué du SCÉNARIO démo (doc §10 : « Badge Route Opened débloqué »).
- * Mise en scène : cette course ouvre la 10ᵉ route → Route Opened III (tier race).
- * TODO(O1) : brancher la réponse `newBadges` d'ingest_run.
- */
-const DEMO_UNLOCKED_BADGE_ID = 'route_opened_3';
-
-/**
- * AMENDEMENT-19 §4/§7 — bonus ciblé APPLIQUÉ par cette course (démo). En prod,
- * cet objet vient d'IngestRunResponse.bonusApplied (le serveur reste seul juge :
- * active_bonus éligible, cap +35 %, un seul multiplicateur). `effect` est un
- * libellé COURT prêt à afficher — jamais points/territoire/rang. Ici la course
- * de conquête ferme la frontière crew République → Bonus Finisher, +25 % coffre.
- * name/effect sont de la copy → résolus à l'affichage (t) dans la langue courante.
- * TODO(O1) : remplacer par la vraie réponse d'ingest_run.
- */
-const DEMO_BONUS_ID = 'finisher';
-
-/**
- * AMENDEMENT-23 §B.4 — décomposition du calcul de CE run (démo). Les 3 nombres
- * de zones (trace seule / boucle / gain) sont DÉRIVÉS des vrais totaux du run
- * (stats.hexes / stats.enclosedZones) ; ceux-ci sont des SCÉNARIOS démo comme
- * le reste des fichiers demo.ts — en prod = IngestRunResponse. `zonesDefended` /
- * `routesOpened` / `segmentsExcluded` ne sont pas simulés côté moteur d'affichage :
- * scénario démo « une conquête propre, une frontière défendue, aucun segment jeté ».
- * TODO(O1) : remplacer par la réponse d'ingest_run (breakdown du serveur, seul juge).
- */
-const DEMO_CALC_BREAKDOWN = {
-  zonesDefended: 12,
-  routesOpened: 1,
-  segmentsExcluded: 0,
-} as const;
-
 type StepId =
   | 'validated'
   | 'zones'
@@ -148,303 +105,23 @@ const STEPS_BY_MODE: Record<LiveRunMode, readonly StepId[]> = {
   course_privee: ['validated', 'stats'],
 };
 
-// ─── Mini-cartes du secteur en TRAITS NETS (AMENDEMENT-13 §4ter) ─────────────
-// « La frontière EST le tracé du coureur » : plus aucun disque H3 lissé —
-// AVANT montre la frontière RIVALE (ruban net rue du Faubourg-du-Temple),
-// APRÈS y ajoute TA BOUCLE ROUTÉE (grande boucle République, trait continu +
-// remplissage faible) qui a repoussé cette frontière. Géométries d'authoring
-// d'allTerritories/realAnchors (une seule source pour toutes les surfaces).
-// Pur rendu — les % affichés viennent des stats, le serveur reste décideur.
-
-/** ViewBox carrée des mini-cartes. */
-const SECTOR_VB = 100;
-const SECTOR_PAD = 8;
-/** Frontières §4ter (trait continu 2-2,5 px — proportions Battle Map). */
-const SECTOR_BORDER_W = 2;
-const SECTOR_RIVAL_BORDER_W = 2.4;
-const SECTOR_ROUTE_W = 2.6;
-
-interface SectorSide {
-  crewPath: string;
-  rivalPath: string;
-}
-
-interface SectorGeometry {
-  before: SectorSide;
-  after: SectorSide;
-  /** Polyline (points SVG) de la course qui a repoussé la frontière. */
-  routePoints: string;
-}
-
-/** Projection écran locale (lng/lat → px de viewBox). */
-type Project = (lng: number, lat: number) => { x: number; y: number };
-
-/** Projection à aspect conservé d'une bbox géo vers une viewBox paddée. */
-function fitProjection(
-  rings: readonly (readonly [number, number][])[],
-  vbMax: number,
-  pad: number,
-): { project: Project; vbW: number; vbH: number } {
-  let minLng = Number.POSITIVE_INFINITY;
-  let maxLng = Number.NEGATIVE_INFINITY;
-  let minLat = Number.POSITIVE_INFINITY;
-  let maxLat = Number.NEGATIVE_INFINITY;
-  for (const ring of rings) {
-    for (const [lng, lat] of ring) {
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-    }
-  }
-  const spanX = Math.max(1, (maxLng - minLng) * REAL_M_PER_DEG_LNG);
-  const spanY = Math.max(1, (maxLat - minLat) * REAL_M_PER_DEG_LAT);
-  const k = (vbMax - pad * 2) / Math.max(spanX, spanY);
-  return {
-    vbW: spanX * k + pad * 2,
-    vbH: spanY * k + pad * 2,
-    project: (lng, lat) => ({
-      x: pad + (lng - minLng) * REAL_M_PER_DEG_LNG * k,
-      y: pad + (maxLat - lat) * REAL_M_PER_DEG_LAT * k,
-    }),
-  };
-}
-
-/** Anneau [lng, lat] → path SVG fermé. */
-function ringPath(ring: readonly [number, number][], project: Project): string {
-  let d = '';
-  ring.forEach(([lng, lat], i) => {
-    const { x, y } = project(lng, lat);
-    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-  });
-  return `${d} Z`;
-}
-
-/** Tracé lat/lng → points de Polyline SVG. */
-function tracePoints(trace: readonly LatLngPoint[], project: Project): string {
-  return trace
-    .map((p) => {
-      const { x, y } = project(p.lng, p.lat);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-}
-
-/** AVANT (frontière rivale) / APRÈS (ta boucle routée) — traits nets §4ter. */
-function buildSectorGeometry(): SectorGeometry {
-  const rivalRing = ribbonRing(RUE_FAUBOURG_DU_TEMPLE, CORRIDOR_HALF_WIDTH_M);
-  const crewRing = loopRing(BOUCLE_REPUBLIQUE);
-  // Projection COMMUNE aux deux côtés (la frontière ne « saute » pas).
-  const { project } = fitProjection([rivalRing, crewRing], SECTOR_VB, SECTOR_PAD);
-  const rivalPath = ringPath(rivalRing, project);
-  return {
-    before: { crewPath: '', rivalPath },
-    after: { crewPath: ringPath(crewRing, project), rivalPath },
-    // La route brillante EST le tracé de la boucle (refermée sur le départ).
-    routePoints: tracePoints(
-      [...BOUCLE_REPUBLIQUE, BOUCLE_REPUBLIQUE[0] ?? { lat: 0, lng: 0 }],
-      project,
-    ),
-  };
-}
-
-// ─── Mini-cartes AVANT/APRÈS de la boucle (AMENDEMENT-12 §C, §4ter) ─────────
-// Le remplissage RÉEL de la course, en TRAITS NETS : ruban net le long de la
-// trace parcourue (AVANT — le trait/couloir) → polygone de la boucle rempli
-// (APRÈS — le tracé EST la frontière), avec la trace par-dessus. Rendu
-// uniquement — les zones affichées sont les estimations dérivées du moteur.
-
-/** Padding de la viewBox des mini-cartes boucle. */
-const LOOP_VB_PAD = 6;
-/** Grand côté de la viewBox — le petit suit l'aspect réel de la course. */
-const LOOP_VB_MAX = 100;
-/** Largeur de la trace de course sur la mini-carte. */
-const LOOP_ROUTE_W = 2.2;
-
-interface LoopGeometry {
-  vbW: number;
-  vbH: number;
-  /** Ruban NET le long de la trace (AVANT — le couloir §4ter). */
-  beforePath: string;
-  /** Polygone de la boucle — le tracé refermé (APRÈS — le remplissage). */
-  afterPath: string;
-  /** Polyline de la trace (la boucle elle-même). */
-  routePoints: string;
-}
-
-/** Projette couloir/boucle §4ter dans une viewBox à l'aspect de la course. */
-function buildLoopGeometry(loop: RunLoop): LoopGeometry | null {
-  if (loop.traceGeo.length < 3) return null;
-  const corridorRing = ribbonRing(loop.traceGeo, CORRIDOR_HALF_WIDTH_M);
-  const loopPolyRing = loopRing(loop.traceGeo);
-  if (corridorRing.length === 0) return null;
-  // Cadrage sur le RUBAN (léger débord du trait — l'après tient dedans).
-  const { project, vbW, vbH } = fitProjection([corridorRing], LOOP_VB_MAX, LOOP_VB_PAD);
-  return {
-    vbW,
-    vbH,
-    beforePath: ringPath(corridorRing, project),
-    afterPath: ringPath(loopPolyRing, project),
-    routePoints: tracePoints(loop.traceGeo, project),
-  };
-}
-
-/** Un côté AVANT/APRÈS de la boucle (trait net §4ter + trace — fill nonzero :
-    le ruban d'une course refermée se recouvre au départ sans se trouer). */
-function LoopMiniMap({ d, route, vbW, vbH }: { d: string; route?: string; vbW: number; vbH: number }) {
-  return (
-    <Svg width="100%" height="100%" viewBox={`0 0 ${vbW.toFixed(0)} ${vbH.toFixed(0)}`}>
-      <Path d={d} fill={colors.noir} />
-      <Path
-        d={d}
-        fill={territoryStyle.crewFill}
-        stroke={territoryStyle.crewStroke}
-        strokeWidth={SECTOR_BORDER_W}
-        strokeLinejoin="round"
-      />
-      {route ? (
-        <Polyline
-          points={route}
-          fill="none"
-          stroke={territoryStyle.routeStroke}
-          strokeWidth={LOOP_ROUTE_W}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ) : null}
-    </Svg>
-  );
-}
-
-/** AVANT/APRÈS organique du remplissage (« Ferme la boucle, tu prends la zone »). */
-function LoopBeforeAfter({
-  geometry,
-  corridorZones,
-  totalZones,
-}: {
-  geometry: LoopGeometry;
-  corridorZones: number;
-  totalZones: number;
-}) {
-  const t = useT();
-  const aspect = geometry.vbW / geometry.vbH;
-  return (
-    <View style={styles.sectorCard}>
-      <Text style={styles.sectorTitle} numberOfLines={1}>
-        {t(C.loopMakesZoneTitle)}
-      </Text>
-      <View style={styles.sectorRow}>
-        <View style={styles.sectorSide}>
-          <View style={[styles.loopMap, { aspectRatio: aspect }]}>
-            <LoopMiniMap d={geometry.beforePath} route={geometry.routePoints} vbW={geometry.vbW} vbH={geometry.vbH} />
-          </View>
-          <Text style={styles.sectorSideLabel}>{t(C.loopSideTrace)}</Text>
-          <Text style={styles.sectorPct}>+{formatInt(corridorZones)}</Text>
-        </View>
-        <Icon name="chevron" size={20} color={colors.gris} />
-        <View style={styles.sectorSide}>
-          <View style={[styles.loopMap, { aspectRatio: aspect }]}>
-            <LoopMiniMap d={geometry.afterPath} route={geometry.routePoints} vbW={geometry.vbW} vbH={geometry.vbH} />
-          </View>
-          <Text style={styles.sectorSideLabel}>{t(C.loopSideLoop)}</Text>
-          <Text style={[styles.sectorPct, styles.sectorPctAfter]}>+{formatInt(totalZones)}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-/** Rendu SVG d'un côté (§4ter : ruban frontière rivale dessous, boucle crew
-    nette dessus — traits continus, remplissages faibles, route optionnelle). */
-function SectorMiniMap({ side, route }: { side: SectorSide; route?: string }) {
-  return (
-    <Svg width="100%" height="100%" viewBox={`0 0 ${SECTOR_VB} ${SECTOR_VB}`}>
-      {side.rivalPath ? (
-        <Path
-          d={side.rivalPath}
-          fill={territoryStyle.rivalFill}
-          stroke={territoryStyle.rivalStroke}
-          strokeWidth={SECTOR_RIVAL_BORDER_W}
-          strokeLinejoin="round"
-        />
-      ) : null}
-      {side.crewPath ? (
-        <>
-          {/* Sous-couche opaque : la chartreuse RECOUVRE l'orange à la
-              frontière (la zone de recouvrement ne devient jamais boueuse). */}
-          <Path d={side.crewPath} fill={colors.noir} />
-          <Path
-            d={side.crewPath}
-            fill={territoryStyle.crewFill}
-            stroke={territoryStyle.crewStroke}
-            strokeWidth={SECTOR_BORDER_W}
-            strokeLinejoin="round"
-          />
-        </>
-      ) : null}
-      {route ? (
-        <>
-          <Polyline
-            points={route}
-            fill="none"
-            stroke={territoryStyle.routeStroke}
-            strokeWidth={SECTOR_ROUTE_W}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <Polyline
-            points={route}
-            fill="none"
-            stroke={colors.blanc}
-            strokeWidth={0.9}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.8}
-          />
-        </>
-      ) : null}
-    </Svg>
-  );
-}
-
-/** Avant/après §4ter du secteur — la frontière EST le tracé, pas des cellules. */
-function SectorBeforeAfter({
-  zoneName,
-  pctBefore,
-  pctAfter,
-  geometry,
-}: {
-  zoneName: string;
-  pctBefore: number;
-  pctAfter: number;
-  geometry: SectorGeometry;
-}) {
-  const t = useT();
-  return (
-    <View style={styles.sectorCard}>
-      <Text style={styles.sectorTitle} numberOfLines={1}>
-        {t(C.sectorPushedTitle, { zone: zoneName.toUpperCase() })}
-      </Text>
-      <View style={styles.sectorRow}>
-        <View style={styles.sectorSide}>
-          <View style={styles.sectorMap}>
-            <SectorMiniMap side={geometry.before} />
-          </View>
-          <Text style={styles.sectorSideLabel}>{t(C.beforeLabel)}</Text>
-          <Text style={styles.sectorPct}>{pctBefore} %</Text>
-        </View>
-        <Icon name="chevron" size={20} color={colors.gris} />
-        <View style={styles.sectorSide}>
-          <View style={styles.sectorMap}>
-            <SectorMiniMap side={geometry.after} route={geometry.routePoints} />
-          </View>
-          <Text style={styles.sectorSideLabel}>{t(C.afterLabel)}</Text>
-          <Text style={[styles.sectorPct, styles.sectorPctAfter]}>{pctAfter} %</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
+// ─── AUCUNE GÉOMÉTRIE FABRIQUÉE (21/07/2026) ────────────────────────────────
+// Ici vivaient les mini-cartes AVANT/APRÈS du secteur et de la boucle. Elles
+// dessinaient la boucle de la place de la République et le ruban de la rue du
+// Faubourg-du-Temple — géométries d'AUTHORING, identiques pour tout le monde —
+// au-dessus du titre « ANALYSE · LA BOUCLE FAIT LA ZONE ». Comme cet écran ne
+// s'ouvre plus que sur une VRAIE course, un coureur lillois voyait donc l'
+// analyse de SA boucle tracée à Paris, sous son nom. Même faute que le
+// route-planner qui recentrait sur République.
+//
+// Le tracé réel de la course n'est PAS disponible dans cet écran : il vit dans
+// le RunTracker (features/run/gps/tracker.ts, `smoothTrace(cleanTrace(fixes))`)
+// et meurt à la fin de la course — `RealCourseLive.finish()` ne transmet que
+// `dist` et `dur`, et `IngestRunResponse` ne renvoie aucune trace. Le rebrancher
+// demande un store de trace (comme route/plannedRoute.ts) armé par useRealRun :
+// un chantier qui sort de ce lot. En attendant, le bloc est RETIRÉ — un bloc
+// absent vaut infiniment mieux qu'un bloc qui dessine Paris sous les pieds d'un
+// Lillois. Voir le rapport de lot pour le câblage restant.
 
 /** Param numérique optionnel (dist/dur réels) — null si absent/invalide. */
 function numParam(param: string | string[] | undefined): number | null {
@@ -453,10 +130,37 @@ function numParam(param: string | string[] | undefined): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
-function tickParam(param: string | string[] | undefined, fallback: number): number {
-  const raw = Array.isArray(param) ? param[0] : param;
-  const n = raw !== undefined ? Number.parseInt(raw, 10) : Number.NaN;
-  return Number.isFinite(n) && n >= 0 ? n : fallback;
+/**
+ * Verdict de CONQUÊTE de la course — n'existe QUE si ingest_run a jugé. Il n'y
+ * a délibérément pas de valeur par défaut : sans verdict, l'objet est `null` et
+ * tout ce qui parle de zones disparaît de l'écran. Un `0` par défaut se serait
+ * lu « ta course n'a rien pris », ce que personne n'a mesuré.
+ */
+interface ZonesVerdict {
+  /** Zones capturées (claimed + stolen + pioneer) — décidé serveur. */
+  total: number;
+  /** Zones intérieures, DÉJÀ comptées dans `total` (« dont N »). */
+  enclosed: number;
+  loopClosed: boolean;
+  pointsAwarded: number;
+}
+
+/**
+ * Ce que l'écran sait VRAIMENT de la course. Aucun socle de simulation : chaque
+ * champ vient du serveur (seul juge) ou des mesures du tracker GPS.
+ */
+interface ResultView {
+  /** Mètres MESURÉS (serveur, sinon tracker). */
+  distanceM: number;
+  /** Secondes MESURÉES (serveur, sinon tracker). */
+  durationS: number;
+  paceSPerKm: number;
+  /** Affirmation du SERVEUR — jamais un défaut de rendu. */
+  verified: boolean;
+  /** Nom de zone neutre : aucun secteur réel n'est câblé (jamais un faux nom). */
+  zoneName: string;
+  /** `null` = le serveur n'a pas (encore) jugé la conquête. */
+  zones: ZonesVerdict | null;
 }
 
 /** État de frontière crew à afficher au résultat (chantier 2, param démo). */
@@ -471,23 +175,76 @@ function boundaryStateFromParam(
   return null;
 }
 
+/**
+ * AUCUN RÉSULTAT À MONTRER — état vide honnête (jamais un écran blanc, jamais
+ * une célébration empruntée). Une phrase qui dit pourquoi, un seul CTA de
+ * sortie : cet écran n'a rien à réparer, seulement à ne pas mentir (§A).
+ */
+function NoResultScreen() {
+  const t = useT();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    screen('course_result_empty');
+  }, []);
+
+  const back = () => {
+    haptics.light();
+    router.replace('/(tabs)');
+  };
+
+  return (
+    <View
+      style={[
+        styles.noResultRoot,
+        { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+      ]}
+    >
+      <View style={styles.noResultBlock}>
+        <Icon name="historique" size={28} color={colors.gris} />
+        <Text style={styles.noResultTitle}>{t(C.noResultTitle)}</Text>
+        <Text style={styles.noResultBody}>{t(C.noResultBody)}</Text>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(C.noResultCta)}
+        onPress={back}
+        style={({ pressed }) => [styles.noResultCta, pressed && { opacity: 0.8 }]}
+      >
+        <Text style={styles.noResultCtaLabel}>{t(C.noResultCta)}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function CourseResultScreen() {
   const params = useLocalSearchParams<{
     mode?: string;
-    t?: string;
     queued?: string;
     /** P0 C1 — distance (m) et durée (s) RÉELLES mesurées par le tracker (chemin GPS). */
     dist?: string;
     dur?: string;
-    route?: string;
     intention?: string;
     /** AMENDEMENT-17 §CH2 — id de la frontière crew rejouée (démo). */
     boundary?: string;
     /** AMENDEMENT-17 §CH2 — `open` (fermable) ou `completed` (boucle crew fermée). */
     boundary_state?: string;
-    /** Parcours PLANIFIÉ (Route Planner) → rejoue SA géométrie (store). */
-    planned?: string;
   }>();
+  // NOTE (21/07/2026) : `t`, `route` et `planned` ne sont plus lus. Ils
+  // pilotaient la simulation (tick rejoué, itinéraire démo, parcours planifié)
+  // qui n'entre plus dans cet écran. RealCourseLive continue de passer `t` —
+  // c'est sans effet, et volontairement : aucun paramètre d'URL ne doit pouvoir
+  // (re)fabriquer un résultat.
+
+  // ─── FUITE COLMATÉE (21/07/2026) : plus de résultat sans course ────────────
+  // Cet écran retombait sur `demoStats` (scénario République : +47 zones, badge
+  // « Route Opened III », bonus Finisher) dès que ni ingest_run ni le tracker
+  // n'avaient parlé. Ouvert par un lien, un retour arrière ou une course non
+  // mesurée, il célébrait donc une conquête qui n'a jamais eu lieu — au nom du
+  // coureur. Le vrai produit ne fabrique pas un résultat : il dit qu'il n'en a
+  // pas. Plus aucune exception, sur aucune plateforme.
+  const hasRealRun = getLastRunResult() !== null || numParam(params.dist) !== null;
+  if (!hasRealRun) return <NoResultScreen />;
 
   // AMENDEMENT-17 §CH2 — la frontière crew court-circuite la séquence dopamine :
   // un seul écran = une seule action (ouvrir/terminer). Piloté par `boundary` +
@@ -511,47 +268,41 @@ function ConquestResultScreen({
 }: {
   params: {
     mode?: string;
-    t?: string;
     queued?: string;
     /** P0 C1 — distance (m) / durée (s) RÉELLES du tracker (chemin GPS). */
     dist?: string;
     dur?: string;
-    route?: string;
     intention?: string;
-    /** Parcours PLANIFIÉ (Route Planner) → rejoue SA géométrie (store). */
-    planned?: string;
   };
 }) {
   const insets = useSafeAreaInsets();
   const t = useT();
-  // Signature du joueur au moment dopamine : GRIP à son rang (dérivé de l'XP permanent).
-  const gripRank = gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
+  // ─── LE RANG AFFICHÉ ÉTAIT CELUI D'UN AUTRE (21/07/2026) ──────────────────
+  // `gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp))` : l'XP du persona
+  // de démo KORO (4 210 → niveau 12 → « Éclaireur »), sans aucune garde, rendu à
+  // l'intérieur du ResultReveal héros — donc AUSSI sur la branche vraie course.
+  // Un joueur qui finissait sa toute PREMIÈRE course voyait la mascotte au rang
+  // Éclaireur au moment dopamine, pendant que l'onglet Profil lui affichait
+  // « Rookie » calculé sur son XP réelle : deux rangs contradictoires pour le
+  // même joueur, au même instant.
+  // Même source que le Profil désormais (useMyEconomy → users.xp). Sans session,
+  // lecture vide ou lecture en échec : 0 XP → niveau 1 → `rookie`, le rang de
+  // départ, qui est vrai.
+  const economy = useMyEconomy();
+  const gripRank = gripRankForLevel(playerLevelForXp(economy.xp));
   const mode = runModeFromParam(params.mode);
   // Intention (AMENDEMENT-16 §1) : teinte la SYNTHÈSE multi-résultats + la copy
   // §28 (Conquête/Défense/Run libre) — jamais l'attribution (le serveur décide).
   const intention = intentionFromParam(params.intention);
-  const sim = useMemo(() => buildRunSimulation(mode), [mode]);
-  const tickIndex = tickParam(params.t, sim.ticks.length - 1);
-  // Boucle (AMENDEMENT-12) : rejouée depuis la même démo déterministe — même
-  // itinéraire routé que la course si `route=<id>` (AMENDEMENT-13 §4ter) ; les
-  // zones intérieures entrent dans les totaux AVANT points/bonus.
-  // Parcours planifié : rejoue EXACTEMENT le tracé couru (store), sinon `route=`.
-  const plannedLine = params.planned ? getPlannedRoute()?.line : undefined;
-  const nav = useMemo(
-    () => buildLiveNav(sim, params.route, plannedLine),
-    [sim, params.route, plannedLine],
-  );
-  const loop = useMemo(() => buildRunLoop(sim, nav), [sim, nav]);
-  const demoStats = useMemo(
-    () => resultStats(sim, tickIndex, loopSummaryAt(loop, tickIndex)),
-    [sim, tickIndex, loop],
-  );
-  // P0 C1 (MVP_CHANGESET) — l'écran ne MENT plus : quand une vraie course a été
-  // jugée par ingest_run, TOUS les KPI viennent de sa réponse (distance, durée,
-  // allure, zones, boucle, verified) — plus jamais de la simulation démo. Le
-  // clamp 8,2 km disparaît de fait : rien de réel ne passe plus par la démo.
-  // Hors-ligne (payload en file) : distance/durée RÉELLES via params dist/dur,
-  // zones inconnues tant que le serveur n'a pas jugé — on ne les invente pas.
+  // ─── SOURCES RÉELLES UNIQUEMENT (21/07/2026) ──────────────────────────────
+  // Ici vivaient `buildRunSimulation` → `buildLiveNav` → `buildRunLoop` →
+  // `resultStats`. Cette chaîne produisait la course de démonstration ancrée
+  // place de la République (NAV_DEFAULT_ANCHOR = ROUTES_DEMO[0].line[0]) et
+  // servait de SOCLE à `stats` : le `...demoStats` répandait, sur une vraie
+  // course, tout ce que les branches réelles n'écrasaient pas — le tracé de la
+  // boucle, mais aussi les scores GPS/mouvement, le rang de crew, et jusqu'aux
+  // identités KORO / LES FOULÉES 9³. Plus de socle : chaque champ est construit,
+  // et ce qui n'a pas de source RESTE ABSENT.
   const serverResult = getLastRunResult();
   // Crew réel 3/3 : roster RÉEL (hook silencieux — vide sans session/crew).
   // Compte des coéquipiers (moi exclu) pour la ligne de conséquence collective.
@@ -559,51 +310,41 @@ function ConquestResultScreen({
   const crewTeammates = crewMembers.filter((m) => !m.isMe).length;
   const realDistM = numParam(params.dist);
   const realDurS = numParam(params.dur);
-  /** Course réelle (GPS) — même si le verdict serveur n'est pas encore arrivé. */
-  const isRealRun = serverResult !== null || realDistM !== null;
-  const stats = useMemo(() => {
+  const stats: ResultView = useMemo(() => {
+    // 1. Le serveur a jugé : il est SEUL juge, tout vient de lui.
     if (serverResult) {
-      const hexes =
-        serverResult.hexes.claimed + serverResult.hexes.stolen + serverResult.hexes.pioneer;
       return {
-        ...demoStats,
         distanceM: serverResult.distanceM,
         durationS: serverResult.durationS,
         paceSPerKm: serverResult.avgPaceSKm,
-        hexes,
-        loopClosed: serverResult.loopClosed === true,
-        enclosedZones: serverResult.enclosedZones ?? 0,
-        basePoints: serverResult.pointsAwarded,
-        bonusPct: 0,
-        totalPoints: serverResult.pointsAwarded,
         verified: serverResult.status === 'valid' || serverResult.status === 'partial',
         // Aucun secteur réel câblé : « Zone », jamais un faux nom (charte).
         zoneName: t(C.zoneFallback),
-        zonePctBefore: 0,
-        zonePctAfter: 0,
-        rankGained: false,
+        zones: {
+          total:
+            serverResult.hexes.claimed + serverResult.hexes.stolen + serverResult.hexes.pioneer,
+          enclosed: serverResult.enclosedZones ?? 0,
+          loopClosed: serverResult.loopClosed === true,
+          pointsAwarded: serverResult.pointsAwarded,
+        },
       };
     }
-    if (realDistM !== null) {
-      // Réel mais pas encore jugé (hors-ligne) : vraies mesures, zéro invention.
-      return {
-        ...demoStats,
-        distanceM: realDistM,
-        durationS: realDurS ?? 0,
-        paceSPerKm: realDistM > 0 && realDurS ? realDurS / (realDistM / 1000) : 0,
-        hexes: 0,
-        loopClosed: false,
-        enclosedZones: 0,
-        verified: false,
-        zoneName: t(C.zoneFallback),
-        zonePctBefore: 0,
-        zonePctAfter: 0,
-        rankGained: false,
-      };
-    }
-    return demoStats;
+    // 2. Mesuré par le tracker, PAS ENCORE jugé (hors-ligne, payload en file) :
+    //    les mètres et les secondes sont vrais, la conquête est INCONNUE.
+    //    `zones: null` — surtout pas 0, que le joueur lirait « tu n'as rien pris ».
+    const distanceM = realDistM ?? 0;
+    return {
+      distanceM,
+      durationS: realDurS ?? 0,
+      paceSPerKm: distanceM > 0 && realDurS ? realDurS / (distanceM / 1000) : 0,
+      verified: false,
+      zoneName: t(C.zoneFallback),
+      zones: null,
+    };
     // `t` (stable par langue) : le nom de zone neutre suit la bascule de langue.
-  }, [demoStats, serverResult, realDistM, realDurS, t]);
+  }, [serverResult, realDistM, realDurS, t]);
+  /** Raccourci de lecture — `null` tant que le serveur n'a pas jugé. */
+  const zones = stats.zones;
 
   const conquest = mode === 'conquete';
   const isPrivate = mode === 'course_privee';
@@ -634,37 +375,17 @@ function ConquestResultScreen({
   // (dans « Comment j'ai gagné ces zones », replié par défaut — détail au tap).
   const [showCalc, setShowCalc] = useState(false);
 
-  // O1 Pass 3 : quand une VRAIE course a été envoyée à ingest_run (seul juge), on
-  // affiche EXACTEMENT ce que le serveur a décidé (badge/bonus, ou aucun) ; sinon
-  // (course web / hors session) fallback sur le scénario démo. serverResult=null
-  // ⇒ comportement démo strictement inchangé.
-  const badgeId = serverResult
-    ? serverResult.newBadges[0]
-    : mode === 'conquete' && !isRealRun
-      ? DEMO_UNLOCKED_BADGE_ID
-      : undefined;
+  // Un badge n'est décerné QUE par ingest_run (service_role). Sans verdict
+  // serveur, il n'y a pas de badge à annoncer — un badge « débloqué » que le
+  // serveur n'a jamais accordé est une récompense inventée.
+  const badgeId = serverResult ? serverResult.newBadges[0] : undefined;
   const badge = badgeId ? badgeById(badgeId) : undefined;
   const badgeFamily = badge ? BADGE_FAMILIES.find((f) => f.id === badge.family) : undefined;
 
-  // AMENDEMENT-19 §4/§7 — bonus ciblé appliqué (conquête, démo). En prod =
-  // IngestRunResponse.bonusApplied. UN seul bonus principal, libellé court —
-  // la copy démo (name/effect) est résolue ici dans la langue courante.
-  const bonusApplied: IngestRunResponse['bonusApplied'] | undefined = serverResult
-    ? serverResult.bonusApplied
-    : mode === 'conquete' && !isRealRun
-      ? { bonusId: DEMO_BONUS_ID, name: t(C.demoBonusName), effect: t(C.demoBonusEffect) }
-      : undefined;
-
-  // Mini-cartes en traits nets §4ter (avant/après + share card) — conquête.
-  const sectorGeo = useMemo(
-    () => (mode === 'conquete' ? buildSectorGeometry() : null),
-    [mode],
-  );
-  // AVANT/APRÈS du remplissage de boucle — seulement si la boucle est fermée.
-  const loopGeo = useMemo(
-    () => (stats.loopClosed && loop ? buildLoopGeometry(loop) : null),
-    [stats.loopClosed, loop],
-  );
+  // AMENDEMENT-19 §4/§7 — bonus ciblé appliqué. Vient EXCLUSIVEMENT de
+  // IngestRunResponse.bonusApplied : le serveur seul décide d'un bonus.
+  const bonusApplied: IngestRunResponse['bonusApplied'] | undefined =
+    serverResult?.bonusApplied;
 
   useEffect(() => {
     screen('course_result', { mode });
@@ -681,44 +402,51 @@ function ConquestResultScreen({
       mode,
       intention,
       card: shareCardFromResult({
-        playerName: stats.playerName,
-        crewName: stats.crewName,
+        // playerName / crewName sont posés PLUS BAS à la chaîne vide : aucune
+        // identité de démo (KORO / LES FOULÉES 9³) ne signe jamais un vrai run.
         zoneName: stats.zoneName,
-        zonesGained: stats.hexes,
-        loopBonusZones: stats.enclosedZones,
-        crewPoints: stats.totalPoints,
+        // Zones/points : le verdict serveur, ou les valeurs NEUTRES de
+        // NEUTRAL_SHARE_CARD (0) quand personne n'a jugé. Ce 0-là n'est pas un
+        // résultat affiché au joueur : c'est l'absence de chiffre sur la card,
+        // que les templates lisent comme « rien à annoncer ».
+        zonesGained: zones?.total ?? 0,
+        loopBonusZones: zones?.enclosed ?? 0,
+        crewPoints: zones?.pointsAwarded ?? 0,
         // Style DÉFENSE : ne JAMAIS laisser passer les valeurs démo (+48 h /
         // 2 zones tenues) comme si c'était CE run. Les zones tenues = zones
         // réellement couvertes par ce run (dérivé) ; la durée de tenue est
-        // décidée serveur (indispo côté client démo) → valeur neutre honnête 0,
+        // décidée serveur (indispo côté client) → valeur neutre honnête 0,
         // jamais une défense inventée. TODO(O1) : holdHours réel via ingest_run.
-        zonesDefended: stats.hexes,
+        zonesDefended: zones?.total ?? 0,
         holdHours: 0,
         distanceKm: formatKm(stats.distanceM),
         paceLabel: formatPace(stats.paceSPerKm),
         clockLabel: formatClock(stats.durationS),
-        // VRAI tracé de CETTE course (même géométrie que les mini-cartes du
-        // Résultat) — le partage anime le parcours réellement couru, pas la démo.
-        // Fallback démo seulement si le tracé est absent/dégénéré (< 3 points).
-        ...(loop && loop.traceGeo.length >= 3 ? { trace: loop.traceGeo } : {}),
+        // ─── FUITE COLMATÉE (21/07/2026) ────────────────────────────────────
+        // Ce `trace` était annoncé comme « le parcours réellement couru ». Il
+        // ne l'était pas : il venait de la simulation déterministe — donc de la
+        // boucle République, TOUJOURS, course réelle comprise. Un coureur
+        // d'Ouville partageait ainsi une carte de Paris signée de son nom. Le
+        // Résultat n'a AUCUNE géométrie réelle à sa disposition (ingest_run ne
+        // renvoie pas la trace, et le tracé du tracker meurt à la fin de la
+        // course) : tableau vide, que ShareMap lit comme « aucun tracé connu »
+        // → il ne dessine aucune géographie. Même raison que le bloc d'analyse
+        // de boucle retiré plus haut.
+        trace: [],
         // P1 C8/B3 — course RÉELLE : zéro invention résiduelle sur la card.
         // verified vient du serveur (stats l'est déjà), le rang n'existe pas
         // encore (season_scores) → styles Classement neutralisés plutôt que
         // « #8 Paris Est », l'état AVANT est inconnu → ligne masquée, et les
         // identités démo (KORO / LES FOULÉES 9³) ne signent jamais un vrai run.
-        ...(isRealRun
-          ? {
-              verified: stats.verified,
-              rankLabel: null,
-              rankZone: null,
-              rankDelta: null,
-              beforeState: null,
-              // Pas d'identité de remplissage : sans pseudo chargé, la card
-              // signe par la ZONE (helper who() des templates), jamais par KORO.
-              playerName: '',
-              crewName: '',
-            }
-          : {}),
+        verified: stats.verified,
+        rankLabel: null,
+        rankZone: null,
+        rankDelta: null,
+        beforeState: null,
+        // Pas d'identité de remplissage : sans pseudo chargé, la card signe par
+        // la ZONE (helper who() des templates), jamais par KORO.
+        playerName: '',
+        crewName: '',
       }),
     });
     router.push({ pathname: '/partage', params: { mode, intention: params.intention ?? '' } });
@@ -738,12 +466,16 @@ function ConquestResultScreen({
   };
 
   // AMENDEMENT-23 §B.4 — décomposition zones de CE run : le trait capture le
-  // passage, la boucle ajoute l'intérieur (mêmes totaux que l'IMPACT). Les
-  // valeurs viennent des stats du run (démo) — le schéma les affiche.
-  const traceZones = Math.max(0, stats.hexes - stats.enclosedZones);
-  const loopGain = stats.enclosedZones;
-  const totalZones = stats.hexes;
+  // passage, la boucle ajoute l'intérieur (mêmes totaux que l'IMPACT). Chiffres
+  // du VERDICT SERVEUR uniquement — `zones === null` ⇒ le bloc entier ne rend
+  // rien (voir plus bas), plutôt qu'un « +0 / +0 / +0 » qui se lit comme un
+  // résultat mesuré alors que rien n'a été jugé.
+  const traceZones = zones ? Math.max(0, zones.total - zones.enclosed) : 0;
+  const loopGain = zones?.enclosed ?? 0;
+  const totalZones = zones?.total ?? 0;
   const verifyTiers = verifyTiersLabel();
+  /** Promesse du panneau de détails — jamais plus que ce qu'il contient. */
+  const detailsLabel = conquest && zones ? t(C.howIWon) : t(C.seeMyStats);
 
   // AMENDEMENT-23 §B.4 / honnêteté §A — décomposition technique du calcul.
   // `defended` est RÉEL dès qu'une vraie course a été jugée par ingest_run
@@ -752,10 +484,10 @@ function ConquestResultScreen({
   // étiqueté « démo » pour ne jamais se confondre avec les vraies valeurs
   // GPS/MOUVEMENT/VALIDÉ (dérivées du run) dans la même grille.
   // TODO(O1) : exposer routesOpened/segmentsExcluded côté ingest_run.
-  const zonesDefended = serverResult
-    ? serverResult.hexes.defended
-    : DEMO_CALC_BREAKDOWN.zonesDefended;
-  const defendedNote = serverResult ? undefined : t(C.demoNote);
+  // `null` = le serveur n'a pas (encore) jugé : la case DISPARAÎT plutôt que
+  // d'afficher un chiffre de scénario. Une valeur étiquetée « démo » reste une
+  // valeur inventée dans la grille d'un vrai run.
+  const zonesDefended: number | null = serverResult ? serverResult.hexes.defended : null;
 
   // Synthèse multi-résultats (doc §2/§3.1) — conquête seulement (les modes
   // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
@@ -765,26 +497,23 @@ function ConquestResultScreen({
   // (« {zone} +X % ») est déjà portée par la section CONTRIBUTION CREW plus bas
   // ET par la heroLine de l'écran 1. On la retire ici pour tenir la card à 3
   // idées (conquête · défense · route) et supprimer la redondance.
-  // Réel : pas de % de secteur (aucun secteur câblé) — on ne fabrique rien.
-  const summaryLines = conquest && !isRealRun
-    ? resultSummaryLines(intention, stats.zoneName, stats.zonePctAfter - stats.zonePctBefore).filter(
-        (line) => line.icon !== 'crew',
-      )
-    : [];
+  // Aucun % de secteur n'est câblé côté serveur : la synthèse ne fabrique rien.
+  const summaryLines: readonly ResultSummaryLine[] = [];
   // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
   // « République défendue · Paris Est +5 % ».
   const heroLine = conquest
-    ? isRealRun
-      ? `${summary.kicker} · ${formatKm(stats.distanceM)} km`
-      : `${summary.kicker} · ${stats.zoneName} +${stats.zonePctAfter - stats.zonePctBefore} %`
+    ? `${summary.kicker} · ${formatKm(stats.distanceM)} km`
     : isPrivate
       ? t(C.privateLine)
       : t(C.socialRunLine, { km: formatKm(stats.distanceM) });
   // Titre du moment dopamine : le RÉSULTAT (territoire/zone), jamais un tampon
   // administratif — la validation vit dans la pill GRYD VERIFIED, séparée.
+  // « TERRITOIRE ÉTENDU » / « ZONE DÉFENDUE » sont des AFFIRMATIONS de conquête :
+  // elles exigent le verdict serveur. Sans lui (hors-ligne), le titre retombe sur
+  // « COURSE TERMINÉE » — vrai, lui, et déjà traduit dans les 5 langues.
   const heroTitle = isPrivate
     ? t(C.heroPrivate)
-    : !conquest
+    : !conquest || !zones
       ? t(C.heroDone)
       : intention === 'defense'
         ? t(C.heroDefended)
@@ -812,7 +541,7 @@ function ConquestResultScreen({
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           {/* La VALIDATION vit dans sa pill (séparée du titre — jamais « validée »
               en guise de victoire). Jargon banni : « stats only » → français. */}
-          {!isPrivate && !(isRealRun && !serverResult) ? (
+          {!isPrivate && serverResult ? (
             stats.verified ? (
               <StatePill state="verified" label="GRYD VERIFIED" />
             ) : (
@@ -820,10 +549,13 @@ function ConquestResultScreen({
             )
           ) : null}
 
-          {/* KPI géant — le chiffre qui se comprend en 2 s. */}
-          {conquest && !(isRealRun && !serverResult) ? (
+          {/* KPI géant — le chiffre qui se comprend en 2 s. Les ZONES ne
+              s'affichent que si le serveur les a jugées ; sinon le KPI retombe
+              sur les KM, qui eux ont bien été MESURÉS (hors-ligne, verdict en
+              attente). Jamais un « +0 zones » à la place d'un inconnu. */}
+          {conquest && zones ? (
             <View style={styles.heroKpi}>
-              <ZoneCountUp value={stats.hexes} />
+              <ZoneCountUp value={zones.total} />
               <Text style={styles.heroKpiLabel}>{t(C.zonesCaptured)}</Text>
             </View>
           ) : (
@@ -833,10 +565,10 @@ function ConquestResultScreen({
             </View>
           )}
 
-          {/* Le POURQUOI du chiffre, au niveau 1 (données déjà calculées). */}
-          {conquest && stats.loopClosed ? (
+          {/* Le POURQUOI du chiffre, au niveau 1 (verdict serveur uniquement). */}
+          {conquest && zones?.loopClosed ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
-              {t(C.loopClosedBurst, { n: formatInt(stats.enclosedZones) })}
+              {t(C.loopClosedBurst, { n: formatInt(zones.enclosed) })}
             </Text>
           ) : null}
 
@@ -846,7 +578,7 @@ function ConquestResultScreen({
               {t(C.almostClosed, { m: formatInt(serverResult.openBoundary.missingM) })}
             </Text>
           ) : null}
-          {conquest && serverResult && stats.hexes === 0 && !serverResult.openBoundary ? (
+          {conquest && zones?.total === 0 && !serverResult?.openBoundary ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
               {t(C.noZones)}
             </Text>
@@ -893,7 +625,7 @@ function ConquestResultScreen({
           {/* Crew réel 3/3 : la conséquence COLLECTIVE — vraie (union carte 2/3),
               jamais fabriquée : uniquement si le SERVEUR a jugé des captures ET
               que le roster réel a d'autres membres. Même gabarit discret. */}
-          {serverResult && stats.hexes > 0 && crewTeammates > 0 ? (
+          {zones !== null && zones.total > 0 && crewTeammates > 0 ? (
             <Text style={styles.heroQueued} numberOfLines={2}>
               {crewTeammates === 1
                 ? t(C.crewImpactOne)
@@ -935,16 +667,20 @@ function ConquestResultScreen({
             <Icon name="carte" size={iconSizes.sm} color={colors.blanc} />
             <Text style={styles.boundarySecondaryLabel}>{t(C.seeTerritory)}</Text>
           </Pressable>
+          {/* Le libellé suit `zones`, pas `conquest` : sans verdict serveur,
+              « Comment j'ai gagné ces zones » promettrait l'explication de zones
+              que personne n'a encore comptées. Dans ce cas le panneau ne contient
+              que des mesures — il s'annonce donc « Voir mes stats ». */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              showDetails ? t(C.hideDetails) : conquest ? t(C.howIWon) : t(C.seeMyStats)
+              showDetails ? t(C.hideDetails) : detailsLabel
             }
             onPress={toggleDetails}
             style={({ pressed }) => [styles.detailsToggle, pressed && styles.pressed]}
           >
             <Text style={styles.detailsToggleLabel}>
-              {showDetails ? t(C.hideDetails) : conquest ? t(C.howIWon) : t(C.seeMyStats)}
+              {showDetails ? t(C.hideDetails) : detailsLabel}
             </Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
@@ -956,8 +692,11 @@ function ConquestResultScreen({
              reste lisible en 2 s. */}
         {showDetails ? (
           <View style={styles.detailsWrap}>
-            {/* IMPACT — synthèse multi-résultats + total. */}
-            {conquest ? (
+            {/* IMPACT — total de conquête. Conditionné à `zones` : hors-ligne
+                (verdict en attente), ce bloc affichait « TOTAL +0 », un zéro nu
+                que le joueur lisait comme « ta course n'a rien pris ». Il
+                disparaît maintenant jusqu'à ce que le serveur ait jugé. */}
+            {conquest && zones ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>{t(C.impactKicker)}</Text>
                 <View style={styles.summaryCard}>
@@ -969,11 +708,11 @@ function ConquestResultScreen({
                   <View style={styles.impactTotalRow}>
                     <Text style={styles.impactTotalLabel}>{t(C.totalLabel)}</Text>
                     <Text style={styles.impactTotalValue}>
-                      +{formatInt(stats.hexes)}
-                      {stats.loopClosed ? (
+                      +{formatInt(zones.total)}
+                      {zones.loopClosed ? (
                         <Text style={styles.impactTotalSub}>
                           {'  '}
-                          {t(C.ofWhichLoop, { n: formatInt(stats.enclosedZones) })}
+                          {t(C.ofWhichLoop, { n: formatInt(zones.enclosed) })}
                         </Text>
                       ) : null}
                     </Text>
@@ -982,8 +721,13 @@ function ConquestResultScreen({
               </View>
             ) : null}
 
-            {/* Stats (social / privé) — la distance domine. */}
-            {!conquest ? (
+            {/* Stats MESURÉES — social / privé, mais AUSSI conquête sans verdict
+                serveur : le temps et l'allure ont bien été mesurés par le
+                tracker, eux. Sans ce cas, un coureur hors-ligne ouvrait
+                « Voir mes stats » sur un panneau quasi vide (l'IMPACT et le
+                calcul étant à juste titre masqués). La NOTE de mode ne suit pas :
+                sa copy décrit social/privé, elle serait fausse en conquête. */}
+            {!conquest || !zones ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>{t(C.detailsKicker)}</Text>
                 <View style={styles.statsCard}>
@@ -991,9 +735,11 @@ function ConquestResultScreen({
                     <MiniStat label={t(C.timeLabel)} value={formatClock(stats.durationS)} />
                     <MiniStat label={t(C.paceLabel)} value={`${formatPace(stats.paceSPerKm)}/km`} />
                   </View>
-                  <Text style={styles.statsNote}>
-                    {isPrivate ? t(C.privateNote) : t(C.socialNote)}
-                  </Text>
+                  {!conquest ? (
+                    <Text style={styles.statsNote}>
+                      {isPrivate ? t(C.privateNote) : t(C.socialNote)}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             ) : null}
@@ -1008,43 +754,39 @@ function ConquestResultScreen({
                   ) : (
                     <StatePill state="statsonly" label={t(C.statsSavedPill)} />
                   )}
-                  {/* Scores GPS/mouvement : DÉMO (resultStats) — le serveur ne les
-                      renvoie pas encore (O1). On ne les montre donc PAS pour une vraie
-                      course (sinon on affiche une qualité GPS fabriquée). Le statut
-                      « GRYD VERIFIED » lui vient bien du serveur (stats.verified). */}
-                  {!isRealRun ? (
-                    <View style={styles.verifiedTrust}>
-                      <MiniStat label="GPS" value={String(stats.gpsTrust)} />
-                      <MiniStat label={t(C.movementLabel)} value={String(stats.motionTrust)} />
-                    </View>
-                  ) : null}
+                  {/* Scores GPS/mouvement RETIRÉS (21/07/2026) : ils venaient de
+                      `resultStats`, c'est-à-dire de la SIMULATION, et le serveur ne
+                      les renvoie pas encore (O1). Cet écran ne s'ouvre plus que sur
+                      une vraie course : les afficher aurait collé une qualité de
+                      signal fabriquée sur le run du joueur. Le statut
+                      « GRYD VERIFIED », lui, vient bien du serveur (stats.verified). */}
                 </View>
               </View>
             ) : null}
 
-            {/* ANALYSE « La boucle fait la zone » — pédagogie + anim avant/après
-                EXISTANTE, déplacée ICI (pas sur l'écran 1). */}
-            {conquest && loopGeo ? (
-              <View style={styles.block}>
-                <Text style={styles.stepKicker}>{t(C.analysisKicker)}</Text>
-                <LoopBeforeAfter
-                  geometry={loopGeo}
-                  corridorZones={stats.hexes - stats.enclosedZones}
-                  totalZones={stats.hexes}
-                />
-                <Text style={styles.analyseSub}>
-                  {t(C.loopGainNote, { n: formatInt(stats.enclosedZones) })}
-                </Text>
-              </View>
-            ) : null}
+            {/* ─── BLOC « ANALYSE · LA BOUCLE FAIT LA ZONE » RETIRÉ ───────────
+                Il montrait deux mini-cartes AVANT/APRÈS construites sur
+                `loop.traceGeo`, c'est-à-dire sur les ticks de la SIMULATION
+                ancrée place de la République — jamais sur la course du joueur.
+                Un Lillois voyait l'analyse de SA boucle dessinée à Paris.
+                La pédagogie « la boucle fait la zone » survit sans géométrie
+                fabriquée : le schéma abstrait de l'accordéon « Comment est
+                calculé ce résultat ? » (BoucleFaitLaZone, juste en dessous)
+                explique la règle avec les VRAIS totaux du run, sans prétendre
+                dessiner un territoire. Le bloc reviendra le jour où le tracé
+                réel remontera jusqu'ici (voir la note en tête de fichier). */}
 
             {/* COMMENT EST CALCULÉ CE RÉSULTAT ? — explicabilité post-run
                 (AMENDEMENT-23 §B.4). Un accordéon replié : au tap, le schéma
                 « la boucle fait la zone » (trace / boucle / gain) + la
                 décomposition (défense · routes · segments exclus · GPS · Motion
                 · verify). Décrit le moteur réel ; seuils verify dérivés des
-                constantes gelées (jamais de littéral). */}
-            {conquest ? (
+                constantes gelées (jamais de littéral).
+                Conditionné à `zones` : sans verdict serveur, le schéma et la
+                décomposition n'auraient que des zéros à montrer, et la ligne
+                « validé » affirmerait un échec de vérification que personne n'a
+                prononcé. Rien à expliquer tant que rien n'est calculé. */}
+            {conquest && zones ? (
               <View style={styles.block}>
                 <Pressable
                   accessibilityRole="button"
@@ -1081,33 +823,25 @@ function ConquestResultScreen({
 
                     {/* Grille technique : le reste du calcul, valeurs brutes. */}
                     <View style={styles.calcGrid}>
-                      <View style={styles.calcCell}>
-                        <MiniStat
-                          label={t(C.defendedLabel)}
-                          value={`+${formatInt(zonesDefended)}`}
-                          note={defendedNote}
-                        />
-                      </View>
-                      <View style={styles.calcCell}>
-                        <MiniStat
-                          label={t(C.routesOpenedLabel)}
-                          value={formatInt(DEMO_CALC_BREAKDOWN.routesOpened)}
-                          note={t(C.demoNote)}
-                        />
-                      </View>
-                      <View style={styles.calcCell}>
-                        <MiniStat
-                          label={t(C.segmentsExcludedLabel)}
-                          value={formatInt(DEMO_CALC_BREAKDOWN.segmentsExcluded)}
-                          note={t(C.demoNote)}
-                        />
-                      </View>
-                      <View style={styles.calcCell}>
-                        <MiniStat label="GPS" value={String(stats.gpsTrust)} />
-                      </View>
-                      <View style={styles.calcCell}>
-                        <MiniStat label={t(C.movementLabel)} value={String(stats.motionTrust)} />
-                      </View>
+                      {/* Zones défendues : uniquement le verdict serveur. */}
+                      {zonesDefended !== null ? (
+                        <View style={styles.calcCell}>
+                          <MiniStat
+                            label={t(C.defendedLabel)}
+                            value={`+${formatInt(zonesDefended)}`}
+                          />
+                        </View>
+                      ) : null}
+                      {/* Routes ouvertes / segments exclus : ingest_run ne les
+                          renvoie pas encore (TODO O1). Tant qu'aucune source ne
+                          les mesure, la grille ne les affiche pas du tout —
+                          plutôt une case en moins qu'un chiffre inventé.
+                          MÊME RAISON POUR GPS / MOUVEMENT (21/07/2026) : ces deux
+                          scores sont produits par `resultStats` (la SIMULATION),
+                          pas par le serveur. Cette grille ne s'ouvre plus que sur
+                          une vraie course — les y laisser aurait collé une qualité
+                          de signal fabriquée sur le run que le joueur vient de
+                          faire. Ils reviendront avec le breakdown d'ingest_run. */}
                       <View style={styles.calcCell}>
                         <MiniStat
                           label={t(C.validLabel)}
@@ -1127,44 +861,13 @@ function ConquestResultScreen({
               </View>
             ) : null}
 
-            {/* SECTEUR — frontière repoussée (avant/après §4ter). */}
-            {conquest && !isRealRun && sectorGeo ? (
-              <View style={styles.block}>
-                <Text style={styles.stepKicker}>{t(C.borderKicker)}</Text>
-                <SectorBeforeAfter
-                  zoneName={stats.zoneName}
-                  pctBefore={stats.zonePctBefore}
-                  pctAfter={stats.zonePctAfter}
-                  geometry={sectorGeo}
-                />
-              </View>
-            ) : null}
-
-            {/* CONTRIBUTION CREW — la zone monte (démo : % de secteur fabriqués). */}
-            {conquest && !isRealRun ? (
-              <View style={styles.block}>
-                <Text style={styles.stepKicker}>{t(C.crewContribKicker)}</Text>
-                <View style={styles.crewLine}>
-                  <CrewCrest seed={stats.crewName} name={stats.crewName} size="s" />
-                  <Text style={styles.crewText}>
-                    {t(C.crewRiseTo, { zone: stats.zoneName })}{' '}
-                    <Text style={styles.crewPct}>{stats.zonePctAfter} %</Text>
-                    {stats.rankGained
-                      ? ` — ${t(C.crewGainsRank, { crew: stats.crewName })}`
-                      : ` — ${t(C.everyZoneCounts, { crew: stats.crewName })}`}
-                  </Text>
-                </View>
-                {stats.rankGained ? (
-                  <RankUpCard
-                    fromRank={stats.crewRankBefore}
-                    toRank={stats.crewRankAfter}
-                    leagueLabel="PARIS LEAGUE · CREWS"
-                    points={stats.totalPoints}
-                    celebrate={false}
-                  />
-                ) : null}
-              </View>
-            ) : null}
+            {/* SECTEUR + CONTRIBUTION CREW — RETIRÉS (21/07/2026).
+                Les deux blocs affichaient un « % de secteur » (avant/après) et une
+                montée de crew tirés de `resultStats`, donc de la simulation : aucun
+                secteur réel n'est câblé côté serveur. Ils n'étaient rendus que sur
+                une course NON réelle — un cas qui n'existe plus depuis que l'écran
+                exige une vraie course. Ils reviendront quand ingest_run renverra un
+                vrai découpage par secteur. */}
 
             {/* BONUS APPLIQUÉ (AMENDEMENT-19 §4) — ligne sobre. */}
             {conquest && bonusApplied ? (
@@ -1521,6 +1224,36 @@ function BoundaryToast({ bottom, text }: { bottom: number; text: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
+
+  // ── Aucun résultat à montrer (état vide honnête) ──
+  noResultRoot: {
+    flex: 1,
+    backgroundColor: colors.noir,
+    paddingHorizontal: spacing.xl,
+    justifyContent: 'space-between',
+  },
+  noResultBlock: { flex: 1, justifyContent: 'center', gap: spacing.sm },
+  noResultTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.xl,
+    fontWeight: '700',
+    marginTop: spacing.md,
+  },
+  noResultBody: {
+    color: colors.gris,
+    fontSize: fontSizes.md,
+    lineHeight: fontSizes.md * 1.5,
+  },
+  noResultCta: {
+    minHeight: 52,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  // Chartreuse = fond, texte NOIR (jamais de chartreuse sur clair — charte).
+  noResultCtaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '700' },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1629,8 +1362,6 @@ const styles = StyleSheet.create({
   },
   verifiedTrust: { flexDirection: 'row', gap: spacing.xl, alignSelf: 'stretch' },
 
-  // Analyse boucle — sous-titre pédagogique court.
-  analyseSub: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
 
   // ── Explicabilité post-run « Comment est calculé ce résultat ? » (§B.4) ──
   // Accordéon replié : en-tête tappable + corps (schéma + décomposition). Pas
@@ -1740,46 +1471,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     fontVariant: ['tabular-nums'],
   },
-  /** Mini-carte boucle : hauteur bornée, largeur à l'aspect réel de la course. */
-  loopMap: { maxHeight: 150, maxWidth: '84%', height: 150 },
-
-  // ── Secteur modifié : avant/après organique (AMENDEMENT-11 §5) ──
-  sectorCard: {
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  sectorTitle: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    letterSpacing: 2,
-  },
-  sectorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    alignSelf: 'stretch',
-  },
-  sectorSide: { flex: 1, alignItems: 'center', gap: 4 },
-  sectorMap: { width: '84%', aspectRatio: 1 },
-  sectorSideLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-    letterSpacing: 1.5,
-  },
-  sectorPct: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  sectorPctAfter: { color: colors.chartreuse },
-
   // ── Contribution crew : KPI géant ──
   crewKpiBlock: { alignItems: 'center', gap: 2, paddingVertical: 4 },
   crewKpi: {

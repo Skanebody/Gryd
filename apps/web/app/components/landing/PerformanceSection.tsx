@@ -1,20 +1,23 @@
 'use client';
 
 /**
- * Section Performance (#performance) : Score Forme en anneau SVG
- * (stroke-dashoffset animé au reveal) + 4 perf-cards, désormais reliées au
- * territoire (AMENDEMENT-05 §3.9) : bandeau « performance = arme » (+bonus
- * conquête plafonné par PERFORMANCE_BONUS_CAP réel, données fiables GRYD
- * Verified, records, hexes) + mini-hexes chartreuse dans les cards. Valeurs de
- * démonstration (lib/landing DEMO + TERRITORY_DEMO locales, fictives assumées,
- * déterministes), formatées via Intl selon la langue.
+ * Section Performance (#performance) : « ta forme est une arme ».
+ *
+ * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026). Cette section montrait
+ * le tableau de bord d'un coureur qui n'existe pas : Score Forme 82 dans un
+ * anneau rempli aux deux tiers, 24,8 km cette semaine, 4 courses, 5:42/km,
+ * +7 % vs la semaine dernière — puis un bandeau « 88 % données fiables ·
+ * 3 records cette saison · 412 zones cette semaine » qui ressemblait à des
+ * chiffres de traction. Rien de tout ça n'a été mesuré.
+ *
+ * Ce qui reste : ce que GRYD SUIVRA (les quatre indicateurs, nommés, sans
+ * valeur) et la seule vraie règle du lien perf → territoire, le plafond
+ * PERFORMANCE_BONUS_CAP lu dans @klaim/shared. Un anneau vide qui annonce ce
+ * qu'il affichera est honnête ; un anneau rempli d'un score inventé ne l'est pas.
  */
 
 import { PERFORMANCE_BONUS_CAP } from '@klaim/shared';
-import { DEMO, TERRITORY_DEMO } from '../../../lib/landing';
 import { useLang } from './LangProvider';
-import { useCountUp } from './useCountUp';
-import { useReveal } from './useReveal';
 import { Reveal } from './Reveal';
 import ui from './ui.module.css';
 import styles from './PerformanceSection.module.css';
@@ -25,30 +28,22 @@ const RING_C = 2 * Math.PI * RING_R;
 /** Plafond réel du bonus performance, en % (+15 avec PERFORMANCE_BONUS_CAP = 1.15). */
 const CAP_PCT = Math.round((PERFORMANCE_BONUS_CAP - 1) * 100);
 
-// Chiffres de SHOWCASE du lien performance → territoire : TERRITORY_DEMO
-// (lib/landing — fictifs assumés, déterministes, centralisés §4).
-
-/** Strings locales §3.9 (AMENDEMENT-05 §4 : nouvelles strings hors dictionary.ts). */
 const STRINGS = {
   fr: {
-    stripAria: 'Ce que ta forme change sur la carte',
-    bonusLabel: 'bonus conquête',
-    bonusNote: (cap: string) => `plafonné à +${cap} %`,
-    verifiedLabel: 'données fiables',
-    verifiedNote: 'GRYD Verified',
-    recordsLabel: 'records cette saison',
-    hexesLabel: 'zones cette semaine',
-    message: 'Plus tu progresses comme coureur, plus tes runs deviennent dangereux sur la carte.',
+    ringEmpty: 'Ton score apparaîtra ici, après tes premières courses.',
+    tracksLabel: 'Ce que GRYD suit',
+    bonusLabel: 'bonus conquête maximum',
+    bonusNote: 'Le plafond est une règle du jeu, pas une promesse marketing.',
+    message:
+      'Plus tu progresses comme coureur, plus tes runs deviennent dangereux sur la carte — dans la limite de ce plafond, jamais au-delà.',
   },
   en: {
-    stripAria: 'What your form changes on the map',
-    bonusLabel: 'conquest bonus',
-    bonusNote: (cap: string) => `capped at +${cap}%`,
-    verifiedLabel: 'verified data',
-    verifiedNote: 'GRYD Verified',
-    recordsLabel: 'records this season',
-    hexesLabel: 'zones this week',
-    message: 'The stronger you get as a runner, the more dangerous your runs become on the map.',
+    ringEmpty: 'Your score will appear here, after your first runs.',
+    tracksLabel: 'What GRYD tracks',
+    bonusLabel: 'maximum conquest bonus',
+    bonusNote: 'The cap is a game rule, not a marketing promise.',
+    message:
+      'The stronger you get as a runner, the more dangerous your runs become on the map — up to that cap, never beyond it.',
   },
 };
 
@@ -64,40 +59,16 @@ function HexCluster() {
 }
 
 export function PerformanceSection() {
-  const { copy, lang, formatInt, formatDecimal } = useLang();
+  const { copy, lang, formatInt } = useLang();
   const t = STRINGS[lang];
-  const ring = useReveal<HTMLDivElement>();
-  const strip = useReveal<HTMLUListElement>();
 
-  const score = useCountUp(DEMO.formScore, ring.shown);
-  const km = useCountUp(DEMO.weekKm, ring.shown, { decimals: 1 });
-  const runs = useCountUp(DEMO.weekRuns, ring.shown);
-  const delta = useCountUp(DEMO.weekDeltaPct, ring.shown);
-
-  const bonus = useCountUp(DEMO.weekDeltaPct, strip.shown);
-  const verified = useCountUp(TERRITORY_DEMO.verifiedPct, strip.shown);
-  const records = useCountUp(TERRITORY_DEMO.seasonRecords, strip.shown);
-  const weekHexes = useCountUp(TERRITORY_DEMO.weekHexes, strip.shown);
-
-  const cards = [
-    { value: formatDecimal(km, 1), unit: 'km', label: copy.performance.cardKm, gain: false },
-    { value: formatInt(runs), unit: '', label: copy.performance.cardRuns, gain: false },
-    { value: DEMO.weekPace, unit: '/km', label: copy.performance.cardPace, gain: false, mono: true },
-    { value: `+${formatInt(delta)}`, unit: '%', label: copy.performance.cardDelta, gain: true },
-  ];
-
-  /* Lien performance → territoire (§3.9) : +bonus (gain → chartreuse), fiabilité, records, hexes. */
-  const territory: { value: string; unit: string; label: string; note?: string; gain?: boolean }[] = [
-    {
-      value: `+${formatInt(bonus)}`,
-      unit: '%',
-      label: t.bonusLabel,
-      note: t.bonusNote(formatInt(CAP_PCT)),
-      gain: true,
-    },
-    { value: formatInt(verified), unit: '%', label: t.verifiedLabel, note: t.verifiedNote },
-    { value: formatInt(records), unit: '', label: t.recordsLabel },
-    { value: formatInt(weekHexes), unit: '', label: t.hexesLabel },
+  /* Les quatre indicateurs sont NOMMÉS, pas chiffrés : la landing dit ce que
+     l'app mesurera, elle ne prétend pas l'avoir déjà mesuré. */
+  const tracked = [
+    copy.performance.cardKm,
+    copy.performance.cardRuns,
+    copy.performance.cardPace,
+    copy.performance.cardDelta,
   ];
 
   return (
@@ -112,8 +83,10 @@ export function PerformanceSection() {
         </Reveal>
 
         <div className={styles.grid}>
-          <div ref={ring.ref} className={`${ui.card} ${styles.ringCard}`}>
+          <div className={`${ui.card} ${styles.ringCard}`}>
             <div className={styles.ringWrap}>
+              {/* Anneau VIDE : la piste seule. L'ancien arc chartreuse dessinait
+                  un score de 82 qui n'appartenait à personne. */}
               <svg viewBox="0 0 140 140" className={styles.ringSvg} aria-hidden="true">
                 <circle cx="70" cy="70" r={RING_R} className={styles.ringTrack} />
                 <circle
@@ -122,49 +95,41 @@ export function PerformanceSection() {
                   r={RING_R}
                   className={styles.ringFill}
                   strokeDasharray={RING_C}
-                  strokeDashoffset={ring.shown ? RING_C * (1 - DEMO.formScore / 100) : RING_C}
+                  strokeDashoffset={RING_C}
                 />
               </svg>
               <div className={styles.ringCenter}>
-                {/* Chiffre héros 400. */}
-                <span className={styles.ringValue}>{formatInt(score)}</span>
                 <span className={ui.monoLabel}>{copy.performance.ringLabel}</span>
               </div>
             </div>
+            <p className={styles.ringEmpty}>{t.ringEmpty}</p>
           </div>
 
           <div className={styles.cards}>
-            {cards.map((card, i) => (
-              <Reveal key={card.label} delayMs={i * 70}>
-                <div className={`${ui.card} ${styles.perfCard}`}>
-                  <HexCluster />
-                  <span
-                    className={`${styles.perfValue} ${card.mono ? styles.perfMono : ''} ${card.gain ? styles.perfGain : ''}`}
-                  >
-                    {card.value}
-                    {card.unit ? <small className={styles.perfUnit}>{card.unit}</small> : null}
-                  </span>
-                  <span className={styles.perfLabel}>{card.label}</span>
-                </div>
-              </Reveal>
-            ))}
+            <p className={`${ui.monoLabel} ${styles.tracksLabel}`}>{t.tracksLabel}</p>
+            <ul className={styles.trackedList}>
+              {tracked.map((label, i) => (
+                <Reveal key={label} delayMs={i * 70}>
+                  <li className={`${ui.card} ${styles.perfCard}`}>
+                    <HexCluster />
+                    <span className={styles.perfLabel}>{label}</span>
+                  </li>
+                </Reveal>
+              ))}
+            </ul>
           </div>
         </div>
 
-        {/* Performance = arme (AMENDEMENT-05 §3.9) : la forme se convertit en territoire. */}
+        {/* Le seul chiffre de la section : le plafond RÉEL du bonus performance. */}
         <Reveal delayMs={80}>
-          <ul ref={strip.ref} className={styles.territoryStats} aria-label={t.stripAria}>
-            {territory.map((stat) => (
-              <li key={stat.label} className={`${ui.card} ${styles.tStat}`}>
-                <span className={`${styles.tValue} ${stat.gain ? styles.tGain : ''}`}>
-                  {stat.value}
-                  {stat.unit ? <small className={styles.tUnit}>{stat.unit}</small> : null}
-                </span>
-                <span className={styles.tLabel}>{stat.label}</span>
-                {stat.note ? <span className={styles.tNote}>{stat.note}</span> : null}
-              </li>
-            ))}
-          </ul>
+          <div className={`${ui.card} ${styles.capCard}`}>
+            <span className={styles.capValue}>
+              +{formatInt(CAP_PCT)}
+              <small className={styles.capUnit}>%</small>
+            </span>
+            <span className={styles.capLabel}>{t.bonusLabel}</span>
+            <span className={styles.capNote}>{t.bonusNote}</span>
+          </div>
           <p className={styles.territoryMessage}>{t.message}</p>
         </Reveal>
       </div>

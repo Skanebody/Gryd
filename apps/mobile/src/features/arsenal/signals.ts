@@ -13,19 +13,15 @@ import {
   BONUS_RETURN_ABSENCE_MIN_DAYS,
   CREW_CHEST_WEEKLY_TARGET,
   SECTOR_PRESSURE_BANDS,
-  SECTOR_PRESSURE_MAX,
-  SECTOR_PRESSURE_WEIGHTS,
   type ActivitySharing,
   type MapSharing,
   type PlayStyle,
 } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
-import { MY_CREW } from '../crew/demo';
-import { battleMapData, battleMapSummary, type BattleMapSummary } from '../map/fakeHexes';
 import { useMotivationPrefs, type MotivationPrefs } from '../motivation/store';
 import { useMyProfile, type MergedProfile } from '../social/profileStore';
-import { DEMO_ARSENAL_SIGNALS, type ArsenalPlayerSignals } from './recommendations';
+import { type ArsenalPlayerSignals } from './recommendations';
 
 export type ArsenalSignalsSource = 'local' | 'server';
 
@@ -103,21 +99,6 @@ function crewChestRemainingPct(progress: number): number {
   return Math.round((remaining / CREW_CHEST_WEEKLY_TARGET) * PERCENT_MAX);
 }
 
-function pressureFromLocalMap(summary: BattleMapSummary): number {
-  const totalReadableCells = Math.max(summary.held + summary.contested + summary.objectiveHexes, 1);
-  const decayFraction = clamp((summary.decay + summary.decayUrgent) / totalReadableCells, 0, 1);
-  const decayPressure = Math.round(decayFraction * SECTOR_PRESSURE_WEIGHTS.decay);
-  const basePressure =
-    summary.decayUrgent > 0
-      ? SECTOR_PRESSURE_BANDS.urgence
-      : summary.contested > 0
-        ? SECTOR_PRESSURE_BANDS.contestee
-        : summary.objectiveHexes > 0
-          ? SECTOR_PRESSURE_BANDS.pression
-          : SECTOR_PRESSURE_BANDS.stable;
-  return clamp(basePressure + decayPressure, SECTOR_PRESSURE_BANDS.stable, SECTOR_PRESSURE_MAX);
-}
-
 function shareIntentFromPrefs(
   activitySharing: ActivitySharing,
   mapSharing: MapSharing,
@@ -142,23 +123,36 @@ function nextCrewWindow(playStyle: PlayStyle, now = new Date()): ArsenalPlayerSi
 }
 
 function isWeeklyStreakAtRisk(lastRunStartedAt: string | null | undefined, now = new Date()): boolean {
-  if (!lastRunStartedAt) return DEMO_ARSENAL_SIGNALS.weeklyStreakAtRisk;
+  // Sans date de dernière course lue, on n'affirme AUCUN risque de série : le
+  // défaut de démonstration disait « oui » et poussait un objet en conséquence.
+  if (!lastRunStartedAt) return false;
   const startedAt = new Date(lastRunStartedAt).getTime();
-  if (!Number.isFinite(startedAt)) return DEMO_ARSENAL_SIGNALS.weeklyStreakAtRisk;
+  if (!Number.isFinite(startedAt)) return false;
   const daysSinceRun = (now.getTime() - startedAt) / MS_PER_DAY;
   return daysSinceRun >= BONUS_RETURN_ABSENCE_MIN_DAYS && daysSinceRun <= BONUS_RETURN_ABSENCE_MAX_DAYS;
 }
 
+/**
+ * Signaux connus SANS le serveur (21/07/2026).
+ *
+ * AVANT, cette base tirait la pression de secteur de `map/fakeHexes` (la carte
+ * de démonstration de Paris) et l'avancement du coffre de `MY_CREW` (le crew
+ * fictif LES FOULÉES 9³). L'advisor de l'Arsenal recommandait donc « l'objet
+ * utile MAINTENANT » à partir de la situation tactique d'un autre joueur —
+ * invisible à l'œil, mais c'est la même faute : une donnée fabriquée présentée
+ * comme la sienne.
+ *
+ * Ne restent ici que des signaux VRAIS parce qu'ils viennent du téléphone lui-
+ * même : les préférences de jeu et le profil éditable. Tout ce qui dépend du
+ * monde (pression, coffre, série) est NEUTRE tant que le serveur n'a pas parlé —
+ * `mergeRemoteSignals` les remplace dès qu'une lecture réussit.
+ */
 function buildLocalSignals(profile: MergedProfile, prefs: MotivationPrefs): ArsenalPlayerSignals {
-  const mapSummary = battleMapSummary(battleMapData().collection);
-  const hasCrew = profile.crewTag.trim().length > 0;
   return {
-    pressureScore: pressureFromLocalMap(mapSummary),
-    hasCrew,
-    crewChestRemainingPct: hasCrew
-      ? crewChestRemainingPct(MY_CREW.chestProgress)
-      : DEMO_ARSENAL_SIGNALS.crewChestRemainingPct,
-    weeklyStreakAtRisk: DEMO_ARSENAL_SIGNALS.weeklyStreakAtRisk,
+    pressureScore: SECTOR_PRESSURE_BANDS.stable,
+    hasCrew: false,
+    crewChestRemainingPct: 100,
+    weeklyStreakAtRisk: false,
     shareIntent: shareIntentFromPrefs(prefs.activitySharing, prefs.mapSharing, prefs.discreetMode),
     wantsMapIdentity: wantsMapIdentityFromPrefs(prefs.playStyle, prefs.mapSharing, profile),
     nextCrewWindow: nextCrewWindow(prefs.playStyle),

@@ -8,8 +8,9 @@ Jeu de conquête de territoire par la course à pied. Nom public : **GRYD** (« 
 3. `SPEC-MVP-territoire-running-v0.md` — règles de jeu gelées §3, architecture, périmètre (là où l'amendement ne dit rien).
 4. `ADDENDUM-DESIGN-v0.1.md` — charte noir/blanc/chartreuse #B4FF0D, AMENDEMENT-01 (carte égocentrée). Toute couleur hors tokens = bug.
 5. `GRYD_REGLES_NON_NEGOCIABLES.md` — **constitution UI + carte (CONTRAIGNANT)** : §A 20 règles de simplification (1 écran = 1 action, pas de card-in-card, 1 CTA, textes jamais coupés, filtres dans Couches, live minimal, post-run 2 niveaux…), §B trace GPS héros façon Strava (casing+core, round caps, largeur par zoom, types de segments), §C couleurs par RÔLE (pas par identité) + scalabilité 200k (LOD par zoom, contesté 5 niveaux + pressure_score, jamais 200k runners, rival approximatif). Toute revue d'écran passe la checklist §A.
-6. `.claude/orchestration-klaim/` — PRD, DISCOVERY (décisions D1-D18), PHASES, PROGRESS.
-7. `maquette-ui-klaim.html` — référence visuelle des 4 écrans clés.
+6. `AMENDEMENT-47-FIN-DU-MODE-DEMO.md` — **fin du mode vitrine (CONTRAIGNANT, 21/07/2026)** : `isShowcasePlatform` / `EXPO_PUBLIC_SHOWCASE` n'existent plus, une étiquette « démonstration » ne rend PAS une donnée honnête, le lien public sert `apps/web` et le bundle mobile-web redevient l'instrument de preview du fondateur sur localhost. Sa section **« Ce qui reste EN SUSPENS »** est la seule liste qui fasse foi sur ce qui n'est pas fait — la lire avant d'affirmer qu'une surface est propre.
+7. `.claude/orchestration-klaim/` — PRD, DISCOVERY (décisions D1-D18), PHASES, PROGRESS.
+8. `maquette-ui-klaim.html` — référence visuelle des 4 écrans clés.
 
 ## Structure
 ```
@@ -23,6 +24,9 @@ scripts/         sync-game-rules.mjs (copie shared → functions/_shared, drift 
 ## Règles non négociables
 - **Aucun nombre magique** : toute constante de jeu vient de `packages/shared/src/game-rules.ts`. Les Edge Functions consomment la copie générée `supabase/functions/_shared/game-rules.ts` — regénérer avec `node scripts/sync-game-rules.mjs`, ne jamais l'éditer à la main.
 - **Tout claim est décidé serveur** — le client n'attribue jamais un hex.
+- **L'app ne ment jamais** (AMENDEMENT-47) : données RÉELLES ou VIDES, jamais fabriquées — sur l'app installée, sur le web ET sur localhost. Une étiquette « démonstration » ne suffit pas. Quatre états DISTINCTS, jamais confondus : pas connecté / connecté mais vide / échec de chargement / lecture EN COURS — un chargement n'affirme rien sur le joueur. Jamais d'écran blanc, de spinner infini, de « 0 » nu, ni de repli inventé.
+- **Aucun bouton mort** : ne pas peindre une action qui échoue toujours sur la plateforme courante (Apple hors iOS, Google sur web tant qu'O2 est ouvert…). L'affichage se dérive de la capacité RÉELLE, pas de l'apparence ; l'absence d'un bouton n'est pas un mensonge, un bouton qui échoue toujours en est un. A fortiori pour l'unique CTA chartreuse d'un écran (§A4).
+- **Une doc ne promet jamais au-delà du code** : décrire l'état réel et daté, et inscrire le reste en « suspens ». Une garantie écrite avant que le code la tienne est la même faute qu'une donnée fabriquée.
 - Chaque écran logge ses events PostHog du §8 (noms exacts, définis dans `packages/shared/src/events.ts`).
 - Pas de lib hors stack imposée sans justification en une ligne.
 - RLS activé sur toutes les tables ; écriture client interdite sur `runs`/`hex_claims` (service-role via Edge Functions).

@@ -73,8 +73,6 @@ export interface ArsenalCatalogItem {
   consumable?: boolean;
   /** Exclusif d'un pack — non achetable seul (Founder / Starter). */
   packOnly?: boolean;
-  /** Offert au démarrage / possédé Saison 0 en démo. */
-  ownedDemo?: boolean;
   /** Catalogué mais NON vendu (GRYD Pass §23 tant que 30 niveaux absents). */
   draft?: boolean;
   /** Offrable au crew (gifting §14 — items de portée crew). */
@@ -215,7 +213,6 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     priceShards: STREAK_GEL_ECLATS,
     consumable: true,
     limit: '2/mois max',
-    ownedDemo: true,
     description: 'Protège ta série hebdo une semaine. Aucun effet territoire.',
   },
   {
@@ -244,7 +241,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
   // ══ Skins trace (8, §16.3) ══════════════════════════════════════════════════
   { key: 'skin_trace_electric', name: 'Electric Route', slug: 'skin_trace', rarity: 'race', section: 'skins_trace', scope: 'route', priceShards: 220, description: 'Ta trace en courant électrique continu.' },
   { key: 'skin_trace_chartreuse_pulse', name: 'Chartreuse Pulse', slug: 'skin_trace', rarity: 'tempo', section: 'skins_trace', scope: 'route', priceShards: 150, description: 'Pulsation chartreuse le long du tracé.' },
-  { key: 'skin_trace_neon_ivory', name: 'Neon Ivory', slug: 'skin_trace', rarity: 'tempo', section: 'skins_trace', scope: 'route', priceShards: 180, ownedDemo: true, description: 'Trace ivoire lumineuse, sobre et nette.' },
+  { key: 'skin_trace_neon_ivory', name: 'Neon Ivory', slug: 'skin_trace', rarity: 'tempo', section: 'skins_trace', scope: 'route', priceShards: 180, description: 'Trace ivoire lumineuse, sobre et nette.' },
   { key: 'skin_trace_ghost_line', name: 'Ghost Line', slug: 'skin_ghost', rarity: 'tempo', section: 'skins_trace', scope: 'route', priceShards: 200, description: 'Trace semi-transparente, style furtif.' },
   { key: 'skin_trace_carbon_dash', name: 'Carbon Dash', slug: 'skin_carbon_grid', rarity: 'carbon', section: 'skins_trace', scope: 'route', priceShards: 260, description: 'Pointillés carbone haute densité.' },
   { key: 'skin_trace_midnight', name: 'Midnight Runner', slug: 'skin_trace', rarity: 'tempo', section: 'skins_trace', scope: 'route', priceShards: 180, description: 'Trace bleu nuit pour les sorties tardives.' },
@@ -252,7 +249,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
   { key: 'skin_trace_founder_line', name: 'Founder Line', slug: 'skin_founder_glow', rarity: 'legend', section: 'skins_trace', scope: 'route', packOnly: true, description: 'Exclusif Founder Pack. La ligne des premiers coureurs.' },
 
   // ══ Frames profil (6, §16.1) ════════════════════════════════════════════════
-  { key: 'frame_road', name: 'Frame Road', slug: 'frame_gold', rarity: 'road', section: 'frames', scope: 'profile', packOnly: true, ownedDemo: true, description: 'Cadre Road. Offert avec le Starter Pack.' },
+  { key: 'frame_road', name: 'Frame Road', slug: 'frame_gold', rarity: 'road', section: 'frames', scope: 'profile', packOnly: true, description: 'Cadre Road. Offert avec le Starter Pack.' },
   { key: 'frame_tempo', name: 'Frame Tempo', slug: 'frame_gold', rarity: 'tempo', section: 'frames', scope: 'profile', priceShards: 150, description: 'Cadre Tempo pour ta Player Card.' },
   { key: 'frame_race', name: 'Frame Race', slug: 'frame_gold', rarity: 'race', section: 'frames', scope: 'profile', priceShards: 200, description: 'Cadre Race, liséré affûté.' },
   { key: 'frame_carbon', name: 'Frame Carbon', slug: 'frame_gold', rarity: 'carbon', section: 'frames', scope: 'profile', priceShards: 250, description: 'Cadre Carbon, la référence des réguliers.' },
@@ -260,7 +257,7 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
   { key: 'frame_founder', name: 'Frame Founder', slug: 'frame_gold', rarity: 'legend', section: 'frames', scope: 'profile', packOnly: true, description: 'Exclusif Founder Pack.' },
 
   // ══ Templates share (6, §16.1) ══════════════════════════════════════════════
-  { key: 'template_first_zone', name: 'Template Première Zone', slug: 'share_template', rarity: 'road', section: 'templates', scope: 'share', priceShards: 100, ownedDemo: true, description: 'Share card « Première zone » — offert avec le Starter Pack.' },
+  { key: 'template_first_zone', name: 'Template Première Zone', slug: 'share_template', rarity: 'road', section: 'templates', scope: 'share', priceShards: 100, description: 'Share card « Première zone » — offert avec le Starter Pack.' },
   { key: 'template_zone_taken', name: 'Template Zone Prise', slug: 'share_template', rarity: 'tempo', section: 'templates', scope: 'share', priceShards: 120, description: 'Share card de capture : la zone, la boucle, ton crew.' },
   { key: 'template_night_run', name: 'Template Night Run', slug: 'share_template', rarity: 'tempo', section: 'templates', scope: 'share', priceShards: 150, description: 'Share card nocturne, fond noir, trace chartreuse.' },
   { key: 'template_before_after', name: 'Template Before/After', slug: 'share_template', rarity: 'race', section: 'templates', scope: 'share', priceShards: 150, description: 'Avant/après de ton territoire sur la semaine.' },

@@ -54,10 +54,7 @@ import {
 import { itemsInSection } from '../src/features/arsenal/catalog';
 import { isFrameItem, useEquippedCosmetics } from '../src/features/arsenal';
 import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
-import { MY_SOCIAL_PROFILE } from '../src/features/social/demo';
-
-/** Tier joueur dérivé (anneau d'avatar par défaut) — jamais un nombre magique. */
-const RUNNER_TIER = playerTierForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp));
+import { useMyEconomy } from '../src/features/social/economy';
 
 /** Badges choisissables = débloqués, non-legacy, du plus rare au moins rare.
  *  DÉRIVÉS dans le composant (O1 : useMyBadges) — plus au niveau module. */
@@ -76,7 +73,25 @@ export default function ProfilEditScreen() {
   const { editable, save } = useMyProfile();
   const { equipped, equip } = useEquippedCosmetics();
 
-  // Badges choisissables : réels (user_badges) si session, sinon démo.
+  /**
+   * ─── LE TIER DE L'AVATAR ÉTAIT CELUI D'UN AUTRE (21/07/2026) ──────────────
+   * Il valait `playerTierForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp))`, une
+   * constante de MODULE calculée sur les 4 210 XP du persona de démo KORO — soit
+   * le tier `tempo`, quel que soit le joueur et quel que soit son état de
+   * session. L'anneau de l'avatar est PRÉCISÉMENT le signal de progression que
+   * l'app affiche partout : il annonçait donc un palier jamais atteint, et il
+   * contredisait l'onglet Profil qui, lui, dérive le tier de l'XP RÉELLE.
+   *
+   * Il est maintenant dérivé de la MÊME source que l'onglet Profil (`useMyEconomy`
+   * → `users.xp`). Un compte neuf, une lecture vide ou une lecture en échec
+   * donnent 0 XP → niveau 1 → tier `road` : le palier de départ, qui est vrai.
+   */
+  const economy = useMyEconomy();
+  const runnerTier = playerTierForLevel(playerLevelForXp(economy.xp));
+
+  // Badges choisissables : ceux que le SERVEUR a décernés (user_badges). Sans
+  // session, ou si la lecture échoue, la liste est VIDE — on ne propose jamais
+  // de mettre en avant un badge que le joueur n'a pas gagné.
   const { unlockedIds } = useMyBadges();
   const choosableBadges = useMemo<readonly BadgeDefT[]>(
     () =>
@@ -263,7 +278,7 @@ export default function ProfilEditScreen() {
         <PlayerCardAvatar
           initials={previewInitials}
           fillColor={avatarColor}
-          tier={RUNNER_TIER}
+          tier={runnerTier}
           equippedFrameKey={equippedFrameKey}
           size={72}
           isMe
@@ -524,7 +539,7 @@ export default function ProfilEditScreen() {
               <PlayerCardAvatar
                 initials={previewInitials}
                 fillColor={avatarColor}
-                tier={RUNNER_TIER}
+                tier={runnerTier}
                 equippedFrameKey={f.key}
                 size={44}
                 isMe={false}

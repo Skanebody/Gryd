@@ -27,13 +27,29 @@ import { IOS_HELP_STEPS, VENDOR_HELP, currentVendorId } from './deviceHelp';
 export function GpsSignalPill({
   signal,
   permissionRevoked,
+  awaitingFirstFix = false,
+  firstFixOverdue = false,
 }: {
   signal: GpsSignalState;
   permissionRevoked: boolean;
+  /** Aucune position n'est encore JAMAIS arrivée depuis le départ. */
+  awaitingFirstFix?: boolean;
+  /** …et l'attente dépasse le délai au-delà duquel le moteur parle de perte. */
+  firstFixOverdue?: boolean;
 }) {
   const t = useT();
   if (permissionRevoked) {
     return <StatePill state="rejected" label={t(C.signalRevoked)} />;
+  }
+  // ── Ne JAMAIS confondre « je cherche » et « j'ai perdu » ──────────────────
+  // `signalState` renvoie 'lost' quand il n'y a aucun fix — y compris à la
+  // seconde 0, avant toute position. L'écran affichait donc « RECHERCHE GPS… »
+  // ET « Signal perdu » en même temps : un chargement présenté comme un échec.
+  // Tant que l'attente est jeune, la pill principale (« RECHERCHE GPS… ») dit
+  // déjà tout ; passé le délai, on nomme le VRAI état — rien n'est arrivé, ce
+  // qui n'est pas la même chose qu'un signal perdu en route.
+  if (awaitingFirstFix) {
+    return firstFixOverdue ? <StatePill state="decay" label={t(C.signalNeverReceived)} /> : null;
   }
   if (signal === 'lost') {
     return <StatePill state="decay" label={t(C.signalLost)} />;
@@ -46,22 +62,35 @@ export function GpsSignalPill({
 
 // ─── Bandeau précision approximative (iOS 14+ / Android coarse) ──────────────
 
-export function PreciseLocationBanner({ onOpenSettings }: { onOpenSettings: () => void }) {
+/**
+ * `onOpenSettings === null` : la plateforme n'a pas de réglages de position à
+ * ouvrir (navigateur). On change alors la PHRASE — dire « active la position
+ * exacte » à quelqu'un dont l'ordinateur se localise par wifi lui demande un
+ * geste qui n'existe pas — et on retire le bouton plutôt que d'en afficher un
+ * qui ne mène nulle part.
+ */
+export function PreciseLocationBanner({
+  onOpenSettings,
+}: {
+  onOpenSettings: (() => void) | null;
+}) {
   const t = useT();
   return (
     <View style={styles.banner}>
       <Icon name="gps" size={16} color={colors.chartreuse} />
       <Text style={styles.bannerText} numberOfLines={2}>
-        {t(C.preciseBanner)}
+        {t(onOpenSettings === null ? C.preciseBannerBrowser : C.preciseBanner)}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t(C.a11yOpenLocationSettings)}
-        onPress={onOpenSettings}
-        style={({ pressed }) => [styles.bannerBtn, pressed && styles.pressed]}
-      >
-        <Text style={styles.bannerBtnText}>{t(C.btnSettings)}</Text>
-      </Pressable>
+      {onOpenSettings === null ? null : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.a11yOpenLocationSettings)}
+          onPress={onOpenSettings}
+          style={({ pressed }) => [styles.bannerBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.bannerBtnText}>{t(C.btnSettings)}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

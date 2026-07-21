@@ -393,26 +393,12 @@ export function countByFilter(filter: HistoryFilter): number {
   return runsByFilter(filter).length;
 }
 
-// ─── Formatage effort (fr, sans Intl — cohérent avec run/simulation) ─────────
-
-/** Distance : 4.8 → « 4,8 km ». */
-export function fmtKm(km: number): string {
-  return `${km.toFixed(1).replace('.', ',')} km`;
-}
-
-/** Durée : 1692 s → « 28:12 ». */
-export function fmtDuration(totalS: number): string {
-  const m = Math.floor(totalS / 60);
-  const s = Math.round(totalS % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-/** Allure : 352 s/km → « 5’52/km ». */
-export function fmtPace(sPerKm: number): string {
-  const m = Math.floor(sPerKm / 60);
-  const s = Math.round(sPerKm % 60);
-  return `${m}’${s.toString().padStart(2, '0')}/km`;
-}
+// ─── Formatage effort ────────────────────────────────────────────────────────
+// DÉPLACÉ dans `./format` : ces fonctions servent désormais aussi à l'historique
+// RÉEL (lecture de `runs`), et du code réel ne doit pas dépendre d'un module de
+// démo — le nettoyage de la démo casserait l'app. Ré-export pour ne rien changer
+// chez les consommateurs existants (course/[id], RunHistoryCard).
+export { fmtDuration, fmtKm, fmtPace } from './format';
 
 /** Libellé Verify court (pastille card). */
 export const VERIFY_LABELS: Record<VerifyStatus, string> = {

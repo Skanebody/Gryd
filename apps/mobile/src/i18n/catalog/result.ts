@@ -1121,4 +1121,29 @@ export const C = defineCatalog({
     de: 'Umkämpft',
     pt: 'Disputada',
   },
+
+  // ─── AUCUN RÉSULTAT À MONTRER (état honnête, §A) ───────────────────────────
+  // L'écran Résultat ouvert sans course mesurée (lien direct, retour arrière) :
+  // plutôt que rejouer le scénario démo comme si c'était TA course, on le dit.
+  noResultTitle: {
+    fr: 'Aucune course à afficher',
+    en: 'No run to show',
+    es: 'Ninguna carrera que mostrar',
+    de: 'Kein Lauf zum Anzeigen',
+    pt: 'Nenhuma corrida para exibir',
+  },
+  noResultBody: {
+    fr: 'Cet écran montre le résultat d’une course enregistrée. Aucune n’est arrivée jusqu’ici — on ne va pas t’en inventer une.',
+    en: 'This screen shows the result of a recorded run. None made it here — and we won’t invent one for you.',
+    es: 'Esta pantalla muestra el resultado de una carrera registrada. Ninguna llegó hasta aquí, y no vamos a inventarte una.',
+    de: 'Dieser Bildschirm zeigt das Ergebnis eines aufgezeichneten Laufs. Hier ist keiner angekommen — und wir erfinden dir keinen.',
+    pt: 'Esta tela mostra o resultado de uma corrida registrada. Nenhuma chegou aqui — e não vamos inventar uma para você.',
+  },
+  noResultCta: {
+    fr: 'Retour à la carte',
+    en: 'Back to map',
+    es: 'Volver al mapa',
+    de: 'Zurück zur Karte',
+    pt: 'Voltar ao mapa',
+  },
 });

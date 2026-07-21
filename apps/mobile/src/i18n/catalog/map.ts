@@ -417,13 +417,10 @@ export const C = defineCatalog({
     de: 'Gebiete nicht geladen',
     pt: 'Territórios não carregados',
   },
-  dataNoteDemo: {
-    fr: 'Territoires de démonstration',
-    en: 'Demo territories',
-    es: 'Territorios de demostración',
-    de: 'Demo-Gebiete',
-    pt: 'Territórios de demonstração',
-  },
+  // `dataNoteDemo` (« Territoires de démonstration ») a été SUPPRIMÉ le
+  // 21/07/2026 : aucune surface ne peint plus de démo, donc plus rien à
+  // étiqueter. Décision fondateur : « le bandeau n'y change rien, c'est un run
+  // fabriqué à la place du sien » — l'étiquette ne rachetait pas la donnée.
   dataNoteEmpty: {
     fr: 'Cours pour prendre ta première zone',
     en: 'Run to take your first zone',
@@ -455,6 +452,170 @@ export const C = defineCatalog({
     es: 'Activa la ubicación para verte',
     de: 'Standort aktivieren, um dich zu sehen',
     pt: 'Ative a localização para se ver',
+  },
+  /**
+   * RECHERCHE EN COURS. Un état de CHARGEMENT n'est pas un état vide : tant que
+   * le fix n'est pas arrivé (jusqu'à 10 s), la carte dit qu'elle CHERCHE — elle
+   * n'affirme ni « refusé », ni « introuvable ». Sans ça, l'ouverture à froid
+   * montrait le globe entier sans un mot pendant toute l'acquisition GPS.
+   */
+  dataNoteLocating: {
+    fr: 'Recherche de ta position…',
+    en: 'Finding your position…',
+    es: 'Buscando tu posición…',
+    de: 'Standort wird gesucht…',
+    pt: 'Procurando sua posição…',
+  },
+  /**
+   * PERMISSION ACCORDÉE mais AUCUN FIX (localisation OS coupée, capteur muet,
+   * timeout). C'était le cul-de-sac MUET n°1 de la carte : `if (!fix) return`
+   * sortait sans rien poser — pas de point « moi », pas de note, et un bouton
+   * Recentrer qui ne produisait STRICTEMENT rien à l'écran. On nomme donc l'état
+   * ET l'issue : « réessaie » renvoie au bouton Recentrer, qui relance
+   * l'acquisition — et qui n'est plus un bouton mort.
+   * Budget §A : ≤ 38 caractères dans les 5 langues (même plafond que dataNote,
+   * la pill fait ~86 % de 375 px) — verrouillé par locationState.test.ts.
+   */
+  dataNoteLocationUnavailable: {
+    fr: 'Position introuvable, réessaie',
+    en: 'Position not found, try again',
+    es: 'Ubicación no encontrada',
+    de: 'Standort nicht gefunden',
+    pt: 'Posição não encontrada',
+  },
+  /**
+   * Recentrer a échoué ALORS QU'on connaît déjà une position : on a volé vers la
+   * dernière connue. Le dire évite de laisser croire que le point affiché est
+   * frais — et évite l'autre extrême (« introuvable ») qui serait faux.
+   */
+  dataNoteLocationStale: {
+    fr: 'Dernière position connue',
+    en: 'Last known position',
+    es: 'Última posición conocida',
+    de: 'Letzter bekannter Standort',
+    pt: 'Última posição conhecida',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ÉTATS VIDES DES SURFACES CARTE (décision fondateur 21/07/2026 — la vitrine
+  // devient un flag ENV explicite, défaut OFF : tout ce que la démo remplissait
+  // disparaît de l'app installée ET de localhost). « Retirer la démo ne veut PAS
+  // dire laisser un trou » : chaque surface vidée dit ce qu'il n'y a pas encore
+  // et propose LA seule action qui fait avancer.
+  //
+  // TROIS cas, jamais confondus (même discipline que dataNote*) :
+  //   • pas connecté   → invite à se connecter ;
+  //   • connecté, vide → invite à l'action (courir) — SANS CTA : le bouton GO
+  //     flottant EST déjà l'unique CTA chartreuse de l'écran (§A.4) ;
+  //   • échec réseau   → le dit, et propose de réessayer.
+  // Titres courts (≤ ~28 car. dans les 5 langues) : ils vivent dans un peek de
+  // carte sur 375 px, jamais tronqués.
+  // ═══════════════════════════════════════════════════════════════════════════
+  /**
+   * Titre de la page /territoire HORS VITRINE. La page s'intitulait « Territoire
+   * de KORO » — un pseudo FABRIQUÉ, affiché à un joueur qui n'a pas de compte et
+   * ne s'appelle pas KORO. Rien dans la session ne porte de pseudo aujourd'hui :
+   * plutôt qu'en inventer un, la page parle à la 1ʳᵉ personne. Le jour où un
+   * profil réel existe, `territoryOf` (catalogue historique) reprend sa place.
+   */
+  territoryPageTitle: {
+    fr: 'Mon territoire',
+    en: 'My territory',
+    es: 'Mi territorio',
+    de: 'Mein Gebiet',
+    pt: 'Meu território',
+  },
+  emptySignedOutTitle: {
+    fr: 'Pas encore connecté',
+    en: 'Not signed in',
+    es: 'Sin sesión iniciada',
+    de: 'Nicht angemeldet',
+    pt: 'Não conectado',
+  },
+  emptySignedOutLine: {
+    fr: 'Connecte-toi pour capturer des zones.',
+    en: 'Sign in to start capturing zones.',
+    es: 'Inicia sesión para capturar zonas.',
+    de: 'Melde dich an, um Zonen zu erobern.',
+    pt: 'Entre para capturar zonas.',
+  },
+  emptySignedOutCta: {
+    fr: 'Se connecter',
+    en: 'Sign in',
+    es: 'Iniciar sesión',
+    de: 'Anmelden',
+    pt: 'Entrar',
+  },
+  emptyNoneTitle: {
+    fr: 'Aucune zone capturée',
+    en: 'No zone captured yet',
+    es: 'Ninguna zona capturada',
+    de: 'Noch keine Zone erobert',
+    pt: 'Nenhuma zona capturada',
+  },
+  emptyNoneLine: {
+    fr: 'Ferme une boucle en courant : elle devient ta zone.',
+    en: 'Close a loop while running: it becomes your zone.',
+    es: 'Cierra un bucle corriendo: será tu zona.',
+    de: 'Schließe beim Laufen eine Schleife – sie wird deine Zone.',
+    pt: 'Feche um circuito correndo: ele vira sua zona.',
+  },
+  emptyFailedTitle: {
+    fr: 'Territoire non chargé',
+    en: 'Territory didn’t load',
+    es: 'Territorio no cargado',
+    de: 'Gebiet nicht geladen',
+    pt: 'Território não carregado',
+  },
+  emptyFailedLine: {
+    fr: 'On n’a pas pu lire tes zones.',
+    en: 'We couldn’t read your zones.',
+    es: 'No pudimos leer tus zonas.',
+    de: 'Wir konnten deine Zonen nicht lesen.',
+    pt: 'Não conseguimos ler suas zonas.',
+  },
+  emptyFailedCta: {
+    fr: 'Réessayer',
+    en: 'Retry',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+
+  // ── Sheet d'une VRAIE zone tapée (hex_claims) — couleur par RÔLE, jamais par
+  //    crew. Aucun nom de crew n'est affiché ici : la table ne le porte pas, et
+  //    inventer « Canal Crew » serait exactement le mensonge qu'on retire. ──
+  zoneOwnerMine: {
+    fr: 'À toi',
+    en: 'Yours',
+    es: 'Tuya',
+    de: 'Deine',
+    pt: 'Sua',
+  },
+  zoneOwnerRival: {
+    fr: 'À un rival',
+    en: 'A rival’s',
+    es: 'De un rival',
+    de: 'Von einem Rivalen',
+    pt: 'De um rival',
+  },
+
+  // ── Classement de zone (ZoneLeaderboard) : aucun palmarès réel n'existe tant
+  //    que personne n'a couru la zone — on le DIT au lieu d'afficher des noms
+  //    de coureurs fabriqués. ──
+  zoneBoardTitle: {
+    fr: 'CLASSEMENT DE ZONE',
+    en: 'ZONE LEADERBOARD',
+    es: 'RANKING DE ZONA',
+    de: 'ZONEN-RANGLISTE',
+    pt: 'RANKING DA ZONA',
+  },
+  zoneBoardEmpty: {
+    fr: 'Aucun classement tant que personne n’a couru ici.',
+    en: 'No leaderboard until someone runs here.',
+    es: 'Sin ranking hasta que alguien corra aquí.',
+    de: 'Keine Rangliste, bis hier jemand läuft.',
+    pt: 'Sem ranking até alguém correr aqui.',
   },
 
   // ── Widget « Mon territoire » (8 états — territoryWidget.ts) ──

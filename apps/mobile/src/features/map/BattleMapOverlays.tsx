@@ -26,7 +26,7 @@
  * Events : screen('map_sheet_open') (options mission) / screen('map_zone_open')
  * (sheet de zone) / screen('map_zone_details') (« Plus ») / screen('map_zone_act').
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { setZoneSheetOpen, setMapHudHidden, useMapHudHidden } from './mapUiStore';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -35,7 +35,6 @@ import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@kla
 import { C } from '../../i18n/catalog/map';
 import { useLocale, useT } from '../../i18n/store';
 import type { Entry, Locale } from '../../i18n/types';
-import { flags } from '../../lib/flags';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
@@ -46,23 +45,9 @@ import {
   type MapSheetState,
 } from '../../ui/game';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
-import { MISSIONS } from '../warroom/demo';
-import {
-  MAP_MISSION,
-  MAP_MISSION_SUMMARY,
-  MAP_RIVAL_PILL,
-  MATES_OPT_IN,
-  PARCOURS_DEMO,
-  ZONE_DETAILS,
-  parcoursMeta,
-  type ZoneDetail,
-  type ZoneOwnerRole,
-} from './demo';
-import type { BattleMapSummary } from './fakeHexes';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
-import { mapOpportunities } from './opportunities';
 
 /** Signature du hook useT — pour typer les helpers purs qui reçoivent t. */
 type Translate = (entry: Entry, vars?: Record<string, string | number>) => string;
@@ -114,16 +99,6 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
   satellite: 'calques',
 };
 
-/**
- * AMENDEMENT-37 §10 — pastille de RÔLE du propriétaire d'une zone (jamais par
- * crew) : chartreuse = moi, orange = rival, gris = autre/contesté. Tokens only.
- */
-const ZONE_ROLE_TINT: Record<ZoneOwnerRole, string> = {
-  mine: gameColors.crew,
-  rival: gameColors.rival,
-  other: colors.gris,
-};
-
 /** Dégagement du peek au-dessus de la barre de nav. */
 const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Pile de FABs : dégagement au-dessus de la sheet visible. */
@@ -142,16 +117,36 @@ const TOP_HUD_CLEARANCE = 112;
  *  — réserve l'espace sous le menu Calques pour qu'il ne recouvre pas la pile. */
 const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
 /**
- * Hauteur du PEEK ZONE (§3/§10) : en-tête + propriétaire + contrôle + action
- * recommandée + 1 CTA + « Plus » — sans troncature. Le détail (surface, tenue,
- * pression, activité 24 H) vit dans l'état OUVERT (« Plus »), hors 1er niveau.
+ * Hauteur du peek d'une VRAIE zone (hex_claims) : en-tête + rôle + surface.
+ * Courte, et c'est le point : on n'a ni « action recommandée » ni pression
+ * réelles, et on n'en invente pas pour remplir la hauteur.
  */
-const ZONE_SHEET_COMPACT_HEIGHT = 224;
+const REAL_ZONE_SHEET_COMPACT_HEIGHT = 132;
+/**
+ * Hauteur de l'ÉTAT VIDE (titre + phrase, + lien d'action quand il y en a un).
+ * Deux valeurs : sans CTA le peek se resserre au lieu de laisser un vide qui se
+ * lirait comme un écran cassé.
+ */
+const EMPTY_PEEK_HEIGHT = 104;
+const EMPTY_PEEK_WITH_CTA_HEIGHT = 140;
 
-/** « 4,4 km » — virgule décimale sauf en anglais (point), pas d'Intl (parité Hermes). */
-function formatKm(km: number, locale: Locale): string {
-  const fixed = km.toFixed(1);
-  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km`;
+/**
+ * ÉTAT VIDE de la carte (O1 — vitrine OFF par défaut). Trois cas qui n'ont PAS
+ * la même copie ni la même action ; les confondre serait remplacer un mensonge
+ * par un autre (cf. `dataNote`, même discipline).
+ */
+export type MapEmptyState = 'signed-out' | 'empty' | 'failed';
+
+/**
+ * Une VRAIE zone tapée, réduite à ce que `hex_claims` sait réellement dire :
+ * un RÔLE (moi/mon crew vs rival — §C, jamais une couleur par crew), un nombre
+ * de zones et une surface. Pas de nom de crew, pas de « contrôle % », pas de
+ * pression : la table ne les porte pas et on ne les fabrique pas.
+ */
+export interface MapZoneView {
+  role: 'mine' | 'rival';
+  zones: number;
+  areaKm2: number;
 }
 
 /** « 3 zones » / « 1 zone » — accord singulier/pluriel via catalogue (jamais tronqué). */
@@ -166,22 +161,33 @@ function formatArea(km2: number, locale: Locale): string {
   return `${locale === 'en' ? s : s.replace('.', ',')} km²`;
 }
 
-/** Ligne d'ACTION RECOMMANDÉE §10 : « {type} · {km} · {min} min · +{n} zones ». */
-function actionLine(detail: ZoneDetail, t: Translate, locale: Locale): string {
-  const a = detail.action;
-  return `${a.type} · ${formatKm(a.km, locale)} · ${a.minutes} min · +${zonesLabel(t, a.zones)}`;
-}
-
+/*
+ * SUPPRIMÉS LE 21/07/2026 AVEC LE MODE VITRINE — et volontairement listés ici,
+ * pour que personne ne les « restaure » en croyant réparer un trou :
+ *   • MissionPeek      — « République sous pression · Canal Crew reprend du
+ *                         terrain » : une mission ET un rival fabriqués.
+ *   • SituationBlock   — parts de contrôle, directive bonus, horloge : aucune
+ *                         donnée serveur ne les porte.
+ *   • ZonePeek / ZoneDetailBlock / actionLine / ZONE_ROLE_TINT — la sheet de
+ *                         zone alimentée par ZONE_DETAILS (propriétaire, %
+ *                         rival, « 24 runs en 24 h »). La VRAIE sheet de zone
+ *                         (RealZonePeek, dérivée de hex_claims) la remplace.
+ * Leur retour passera par une source RÉELLE, pas par un fichier `*Demo`.
+ */
 export interface BattleMapOverlaysProps {
   /** Calque de carte actif (un seul à la fois) — AUTO par défaut (MapScreen). */
   mode: MapMode;
   onSelectMode: (mode: MapMode) => void;
-  summary: BattleMapSummary;
   /** Retour ego fluide (anim caméra/scène côté écran) — bouton Recentrer. */
   onRecenter?: () => void;
   /** Parcours affiché en aperçu sur la carte (RouteProgress, progress 0). */
+  /**
+   * Aperçu de PARCOURS sur la carte. Plus aucune surface ne le SÉLECTIONNE
+   * depuis la suppression de PARCOURS_DEMO (le seul sélecteur était une liste de
+   * parcours fabriqués) ; la prop reste le point d'entrée du Route Planner, qui
+   * porte de vrais itinéraires. Non alimentée aujourd'hui : c'est dit, pas caché.
+   */
   selectedParcoursId?: string | null;
-  onSelectParcours?: (id: string | null) => void;
   /**
    * AMENDEMENT-37 §3 (contrat C2/C3) — zone tapée (RealMap onPress). `null` =
    * carte nue → le peek mission persistant est affiché ; non-null → la sheet de
@@ -205,29 +211,47 @@ export interface BattleMapOverlaysProps {
   onSetMap3d?: (value: boolean) => void;
   /**
    * WIDGET « Mon territoire » (spec 17/07) — fourni par MapScreen quand les
-   * DONNÉES RÉELLES existent (session + hex_claims lus). Il REMPLACE alors le
-   * peek mission démo. Absent/null ⇒ MissionPeek démo inchangé (étiqueté par la
-   * note de source de la carte). L'action du widget est un LIEN (anti
-   * double-CTA §A.4 / AMENDEMENT-29 : le gros CTA reste le bouton flottant).
+   * DONNÉES RÉELLES existent (session + hex_claims lus). Absent/null ⇒ c'est
+   * `emptyState` qui parle (le peek mission de démo n'existe plus). L'action du
+   * widget est un LIEN (anti double-CTA §A.4 / AMENDEMENT-29 : le gros CTA reste
+   * le bouton flottant).
    */
   widget?: TerritoryWidgetView | null;
   /** Tap sur l'action du widget (routage côté écran : partage, options…). */
   onWidgetAction?: (view: TerritoryWidgetView) => void;
+  /**
+   * ÉTAT VIDE HONNÊTE. Il n'existe AUCUNE mission, aucun rival, aucun parcours
+   * réel : le peek de démo (« République sous pression · Canal Crew reprend du
+   * terrain ») a été supprimé avec le mode vitrine. Quand `widget` est absent,
+   * c'est cet état qui parle — jamais un trou, jamais la démo.
+   * `null` = on ne sait pas ENCORE (lecture en cours) : la sheet se tait, elle
+   * n'affirme pas « pas connecté » avant d'avoir la réponse.
+   */
+  emptyState?: MapEmptyState | null;
+  /** Action de l'état vide : se connecter ('signed-out') / réessayer ('failed'). */
+  onEmptyAction?: () => void;
+  /**
+   * VRAIE zone tapée (dérivée de `hex_claims` côté écran) : la SEULE source de
+   * la sheet de zone depuis la suppression de `ZONE_DETAILS` (République, Quai
+   * de Valmy, Lille Centre… — des étiquettes de scénario).
+   */
+  zone?: MapZoneView | null;
 }
 
 export function BattleMapOverlays({
   mode,
   onSelectMode,
-  summary,
   onRecenter,
-  selectedParcoursId = null,
-  onSelectParcours,
+  selectedParcoursId: _selectedParcoursId = null,
   selectedZoneId = null,
   onCloseZone,
   basemap = 'dark',
   onToggleBasemap,
   widget = null,
   onWidgetAction,
+  emptyState = null,
+  onEmptyAction,
+  zone = null,
   map3d,
   onSetMap3d,
 }: BattleMapOverlaysProps) {
@@ -253,17 +277,15 @@ export function BattleMapOverlays({
    * déclencheur EST Calques.
    */
   const [layersOpen, setLayersOpen] = useState(false);
-  /** Sheet de zone dépliée sur son détail (§10 « Plus ») — reset à chaque zone. */
-  const [zoneExpanded, setZoneExpanded] = useState(false);
-
-  // Détail de la zone tapée (repli sûr : une zone sans entrée n'ouvre rien →
-  // on retombe sur le peek mission). Index par `string` toléré (le zoneId vient
-  // du tap) → ZoneDetail | undefined.
-  const zoneDetail: ZoneDetail | undefined =
-    selectedZoneId != null
-      ? (ZONE_DETAILS as Record<string, ZoneDetail | undefined>)[selectedZoneId]
-      : undefined;
-  const zoneOpen = selectedZoneId != null && zoneDetail !== undefined;
+  /**
+   * Sheet de zone : ouverte dès qu'on connaît la VRAIE zone tapée. `ZONE_DETAILS`
+   * (République tenue par MY_CREW, « Canal Crew à 31 % », « 24 runs en 24 h ») a
+   * disparu avec le mode vitrine — une collision d'identifiant suffisait sinon à
+   * peindre un propriétaire inventé sur une zone réellement possédée.
+   * Une zone tapée sans donnée (`zone` null) n'ouvre RIEN : on ne remplit pas le
+   * vide avec un scénario.
+   */
+  const zoneOpen = selectedZoneId != null && zone != null;
 
   // Chaque entrée sur la Carte repart de la CARTE + peek mission : on referme le
   // menu Calques, ramène le peek en compact ET désélectionne la zone (retour au
@@ -278,12 +300,6 @@ export function BattleMapOverlays({
       setMapHudHidden(false);
     }, [onCloseZone]),
   );
-
-  // Nouvelle zone tapée → sa sheet repart en compact (le détail « Plus » se
-  // rouvre à la demande, jamais imposé — §A détail au tap).
-  useEffect(() => {
-    setZoneExpanded(false);
-  }, [selectedZoneId]);
 
   // AMENDEMENT-37 §8 (§A.4) : signale à la nav qu'une sheet de zone est ouverte
   // → son bouton d'action central passe en CONTOUR (un seul CTA chartreuse PLEIN
@@ -304,9 +320,25 @@ export function BattleMapOverlays({
   // Les 2 FABs permanents (Recentrer + Calques) RESTENT visibles même en carte nue :
   // le FAB Calques rouvre le menu, dont la rangée « Carte nue » (active) ramène tout.
   // Un tap sur une ZONE reste explicite → sa sheet s'affiche même en carte nue.
-  const sheetVisible = zoneOpen || !hudHidden;
-  /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav. */
-  const activeCompactHeight = zoneOpen ? ZONE_SHEET_COMPACT_HEIGHT : MISSION_PEEK_COMPACT_HEIGHT;
+  /**
+   * QUE MONTRE LE PEEK quand aucune donnée réelle n'existe ? L'ÉTAT VIDE — et
+   * RIEN DU TOUT tant qu'on ne sait pas encore (`emptyState` null = lecture en
+   * cours) : une phrase démentie une seconde plus tard reste une phrase fausse.
+   * La sheet elle-même se retire alors, plutôt que de laisser un cadre vide.
+   */
+  const showEmptyPeek = widget === null && emptyState !== null;
+  const missionSheetVisible = widget !== null || showEmptyPeek;
+  const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
+  /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav.
+   *  Chaque état a SA hauteur : le peek épouse son contenu au lieu de laisser un
+   *  vide sous le texte (un blanc se lit comme un écran cassé — §A). */
+  const activeCompactHeight = zoneOpen
+    ? REAL_ZONE_SHEET_COMPACT_HEIGHT
+    : showEmptyPeek
+      ? emptyState === 'empty'
+        ? EMPTY_PEEK_HEIGHT
+        : EMPTY_PEEK_WITH_CTA_HEIGHT
+      : MISSION_PEEK_COMPACT_HEIGHT;
   const fabBottom = sheetVisible ? sheetBottom + activeCompactHeight + FAB_ABOVE_SHEET : sheetBottom;
 
   // Le menu Calques s'ouvre AU-DESSUS de la pile de FABs. On PLAFONNE sa hauteur à
@@ -317,12 +349,6 @@ export function BattleMapOverlays({
     120,
     winH - insets.top - TOP_HUD_CLEARANCE - fabBottom - FAB_STACK_HEIGHT,
   );
-
-  /** « Voir les options » : déplie le peek mission sur les options (open). */
-  const openOptions = () => {
-    haptics.light();
-    setSheet((s) => ({ key: s.key + 1, initial: 'open' }));
-  };
 
   /** FAB Calques : ouvre/ferme le menu Calques EN 1 TAP (haptic géré par le FAB). */
   const toggleLayers = () => {
@@ -360,46 +386,11 @@ export function BattleMapOverlays({
     screen('map_mode_select', { mode: key });
   };
 
-  const selectParcours = (id: string) => {
-    haptics.light();
-    const next = selectedParcoursId === id ? null : id;
-    onSelectParcours?.(next);
-    if (next) screen('map_parcours_select', { id });
-  };
-
   /** Fermer la sheet de zone → carte nue + retour au peek mission. */
   const closeZone = () => {
     haptics.light();
     onCloseZone?.();
   };
-
-  /** « Plus » : déplie la sheet de zone sur son détail (§10, hors 1er niveau). */
-  const openZoneDetail = () => {
-    if (!selectedZoneId) return;
-    haptics.light();
-    setZoneExpanded(true);
-    screen('map_zone_details', { zone: selectedZoneId });
-  };
-
-  /** CTA d'action recommandée sur la zone (le CLAIM reste tranché serveur).
-   *  D8 : hors MVP la War Room est masquée — l'action honnête est la COURSE
-   *  (défendre/conquérir = courir), pas un écran de missions. */
-  const actOnZone = () => {
-    if (!selectedZoneId) return;
-    haptics.light();
-    screen('map_zone_act', { zone: selectedZoneId });
-    router.push(flags.warRoom ? '/warroom' : '/course-live?mode=conquete');
-  };
-
-  const mission = MISSIONS[0];
-
-  /** Allié opt-in le PLUS proche (bloc ÉQUIPE — libellé court non tronqué). */
-  const nearestMate = MATES_OPT_IN.reduce<(typeof MATES_OPT_IN)[number] | null>(
-    (best, m) => (best === null || m.distanceKm < best.distanceKm ? m : best),
-    null,
-  );
-  const nearestMateName = nearestMate?.name ?? '';
-  const nearestMateKm = nearestMate?.distanceKm ?? 0;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -466,24 +457,21 @@ export function BattleMapOverlays({
           (§3) ; sinon le peek MISSION persistant (§8). Une seule sheet à la
           fois = 1 seul gros CTA à la fois (anti double-CTA §A.4). ── */}
       <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
-        {zoneOpen && zoneDetail ? (
+        {zoneOpen && zone ? (
+          /* VRAIE zone tapée : ce que hex_claims sait dire, rien de plus. Aucun
+             CTA ici — le bouton GO flottant reste l'unique CTA chartreuse (§A.4),
+             et « défendre » sans mission réelle serait un verbe creux. */
           <MapBottomSheet
-            key={`zone-${selectedZoneId}-${zoneExpanded ? 'open' : 'compact'}`}
-            initialState={zoneExpanded ? 'open' : 'compact'}
-            compactHeight={ZONE_SHEET_COMPACT_HEIGHT}
-            onStateChange={(state) => {
-              if (state !== 'compact') screen('map_zone_details', { zone: selectedZoneId });
-            }}
-            compactSlot={
-              <ZonePeek detail={zoneDetail} onClose={closeZone} onAct={actOnZone} onMore={openZoneDetail} />
-            }
-            openSlot={<ZoneDetailBlock detail={zoneDetail} onHistory={() => router.push('/historique')} />}
+            key={`realzone-${selectedZoneId}`}
+            initialState="compact"
+            compactHeight={REAL_ZONE_SHEET_COMPACT_HEIGHT}
+            compactSlot={<RealZonePeek zone={zone} onClose={closeZone} />}
           />
-        ) : hudHidden ? null : (
+        ) : hudHidden || !missionSheetVisible ? null : (
           <MapBottomSheet
             key={`mission-${sheet.key}`}
             initialState={sheet.initial}
-            compactHeight={MISSION_PEEK_COMPACT_HEIGHT}
+            compactHeight={activeCompactHeight}
             onStateChange={(state) => {
               if (state !== 'compact') screen('map_sheet_open', { state });
             }}
@@ -494,110 +482,26 @@ export function BattleMapOverlays({
                   onAction={() => onWidgetAction?.(widget)}
                 />
               ) : (
-                <MissionPeek onOptions={openOptions} />
+                /* `missionSheetVisible` garantit qu'on n'arrive ici qu'avec un
+                   emptyState non-null : plus aucun repli sur le peek de démo. */
+                <EmptyPeek state={emptyState ?? 'signed-out'} onAction={onEmptyAction} />
               )
             }
             openSlot={
               <View style={styles.openBlock}>
-                {/* SITUATION (état · parts de contrôle · directive bonus + temps
-                    restant = l'HORLOGE UNIQUE) — au-dessus des options. */}
-                <SituationBlock />
-
-                {/* BLOC — PARCOURS (2-3 max : km + gain). */}
-                <Text style={styles.sectionTitle}>{t(C.sectionRoutes)}</Text>
-                {PARCOURS_DEMO.map((p) => {
-                  const meta = parcoursMeta(p);
-                  const selected = selectedParcoursId === p.id;
-                  return (
-                    <Pressable
-                      key={p.id}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={t(C.routeA11y, {
-                        name: p.name,
-                        km: formatKm(meta.distanceKm, locale),
-                      })}
-                      onPress={() => selectParcours(p.id)}
-                      style={({ pressed }) => [
-                        styles.rowCard,
-                        selected && styles.rowCardSelected,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <View style={styles.rowBody}>
-                        <Text style={styles.rowTitle} numberOfLines={1} adjustsFontSizeToFit>
-                          {p.name}
-                        </Text>
-                        <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
-                          {formatKm(meta.distanceKm, locale)} · {zonesLabel(t, meta.hexes)} ·{' '}
-                          {t(C.plusPts, { n: meta.points })}
-                        </Text>
-                      </View>
-                      {selected ? (
-                        <Text style={styles.onMapTag}>{t(C.onMapTag)}</Text>
-                      ) : (
-                        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
-                      )}
-                    </Pressable>
-                  );
-                })}
-
-                {/* BLOC — ÉQUIPE (nombre d'alliés + le plus proche, non tronqué). */}
-                <Text style={styles.sectionTitle}>{t(C.sectionTeam)}</Text>
-                <View style={styles.rowCard}>
-                  <View style={styles.rowIcon}>
-                    <Icon name="ami" size={iconSizes.sm} color={gameColors.crew} />
-                  </View>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
-                      {t(C.alliesNearby, { n: MATES_OPT_IN.length })}
-                    </Text>
-                    <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
-                      {nearestMateName} · {formatKm(nearestMateKm, locale)}
-                    </Text>
-                  </View>
-                  {/* L'app NE MENT JAMAIS : le run groupé réel n'existe pas
-                      encore — badge « Bientôt » non actionnable, texte gris. */}
-                  <View
-                    accessibilityRole="text"
-                    accessibilityLabel={t(C.soonA11y)}
-                    style={styles.joinSoon}
-                  >
-                    <Text style={styles.joinSoonLabel} numberOfLines={1} ellipsizeMode="clip">
-                      {t(C.soonBadge)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* BLOC — DÉTAILS (missions liées + historique local). */}
+                {/* SITUATION / PARCOURS / ÉQUIPE ont été RETIRÉS (21/07/2026) :
+                    tous trois sortaient de `demo.ts` (MAP_MISSION_SUMMARY,
+                    PARCOURS_DEMO, MATES_OPT_IN). Il n'existe ni parcours proposé,
+                    ni allié partageant sa position, ni part de contrôle réelle —
+                    les afficher, c'était fabriquer une situation de jeu. Ne
+                    restent que des entrées VRAIES : l'historique local, et la War
+                    Room quand son flag est levé. */}
+                {/* BLOC — DÉTAILS. La rangée « mission du jour » (MISSIONS[0],
+                    warroom/demo.ts) est partie avec le reste de la démo : elle
+                    n'était masquée que par le flag warRoom, donc un `FULL_SURFACE=1`
+                    suffisait à afficher une mission fabriquée. Ne reste que ce qui
+                    est vrai — l'historique local du joueur. */}
                 <Text style={styles.sectionTitle}>{t(C.sectionDetails)}</Text>
-                {mission && flags.warRoom ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t(C.missionA11y, { label: mission.label })}
-                    onPress={() => {
-                      haptics.light();
-                      router.push('/warroom');
-                    }}
-                    style={({ pressed }) => [styles.rowCard, pressed && styles.pressed]}
-                  >
-                    <View style={styles.rowIcon}>
-                      <Icon name="cible" size={iconSizes.sm} color={colors.blanc} />
-                    </View>
-                    <View style={styles.rowBody}>
-                      <Text style={styles.rowTitle} numberOfLines={1} adjustsFontSizeToFit>
-                        {mission.label}
-                      </Text>
-                      <Text style={styles.rowMeta} numberOfLines={1} adjustsFontSizeToFit>
-                        {t(C.missionOfDay, {
-                          progress: mission.progress,
-                          target: mission.target,
-                        })}
-                      </Text>
-                    </View>
-                    <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
-                  </Pressable>
-                ) : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t(C.historyA11y)}
@@ -687,114 +591,83 @@ function TerritoryWidgetPeek({
 }
 
 /**
- * PEEK MISSION persistant (§8/§6.3) : la mission formulée UNE fois — « {zone}
- * sous pression », méta « 3 zones · 4,4 km », rival nommé (surface le rival sans
- * tap, §26.2) + lien discret « Voir les options ». Le gros CTA vit sur le bouton
- * d'action FLOTTANT (AMENDEMENT-29, anti double-CTA §A.4) — pas ici. Émet
- * opportunity_shown. Barre chartreuse = ma mission.
+ * ÉTAT VIDE du peek (O1) — ce que voit un téléphone neuf, sans compte, quand
+ * plus aucune démo ne remplit l'écran. Il DIT ce qu'il n'y a pas encore, sans
+ * culpabiliser, et propose au plus UNE action :
+ *   • 'signed-out' → « Se connecter » (lien : le CTA chartreuse reste GO) ;
+ *   • 'empty'      → aucune action ici — courir EST l'action, et le bouton GO
+ *                    flottant la porte déjà (§A.4 : un seul CTA à l'écran) ;
+ *   • 'failed'     → « Réessayer » : un échec réseau se dit et se rejoue, il ne
+ *                    se déguise jamais en « tu n'as rien capturé ».
  */
-function MissionPeek({ onOptions }: { onOptions: () => void }) {
+function EmptyPeek({
+  state,
+  onAction,
+}: {
+  state: MapEmptyState;
+  onAction?: () => void;
+}) {
   const t = useT();
-  const locale = useLocale();
-  const top = useMemo(() => mapOpportunities()[0], []);
-  useEffect(() => {
-    if (top) track(EVENTS.opportunityShown, { kind: top.kind, distance_m: top.distanceM });
-  }, [top]);
-  const s = MAP_MISSION_SUMMARY;
+  const copy =
+    state === 'signed-out'
+      ? { title: C.emptySignedOutTitle, line: C.emptySignedOutLine, cta: C.emptySignedOutCta }
+      : state === 'failed'
+        ? { title: C.emptyFailedTitle, line: C.emptyFailedLine, cta: C.emptyFailedCta }
+        : { title: C.emptyNoneTitle, line: C.emptyNoneLine, cta: null };
   return (
     <View style={styles.info}>
       <View style={styles.peekHead}>
-        <View style={styles.missionBar} />
+        {/* Barre GRISE (pas chartreuse) : rien n'est à moi ici, la couleur suit
+            le RÔLE et il n'y a pas encore de territoire à revendiquer. */}
+        <View style={styles.emptyBar} />
         <View style={styles.rowBody}>
           <Text style={styles.peekTitle} numberOfLines={1} adjustsFontSizeToFit>
-            {t(C.underPressure, { zone: s.zone })}
-          </Text>
-          <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
-            {zonesLabel(t, MAP_MISSION.zones)} · {formatKm(MAP_MISSION.distanceKm, locale)}
+            {t(copy.title)}
           </Text>
         </View>
       </View>
-      {/* Rival nommé (§26.2) — teinte rival (orange), informatif, sans CTA. */}
-      <Text style={styles.peekRival} numberOfLines={1} adjustsFontSizeToFit>
-        {MAP_RIVAL_PILL.message}
+      {/* 2 lignes autorisées : la phrase explique, elle n'est jamais coupée (§A9). */}
+      <Text style={styles.peekMeta} numberOfLines={2}>
+        {t(copy.line)}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t(C.optionsA11y)}
-        hitSlop={8}
-        onPress={onOptions}
-        style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
-      >
-        <Text style={styles.optionsLink} numberOfLines={1}>
-          {MAP_MISSION.optionsLabel}
-        </Text>
-      </Pressable>
+      {copy.cta && onAction ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(copy.cta)}
+          hitSlop={8}
+          onPress={() => {
+            haptics.light();
+            onAction();
+          }}
+          style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
+        >
+          <Text style={styles.optionsLink} numberOfLines={1}>
+            {t(copy.cta)}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 /**
- * SITUATION (état · parts de contrôle · directive bonus + temps restant =
- * l'HORLOGE UNIQUE) — posée sur le fond du panneau, pas de sous-card
- * (séparation par l'espace). Vit dans l'état OUVERT du peek mission.
+ * PEEK d'une VRAIE zone tapée (hex_claims). Volontairement pauvre : la table ne
+ * porte ni nom de quartier, ni crew, ni part de contrôle, ni pression rivale —
+ * on affiche donc UNIQUEMENT ce qu'on sait (rôle, nombre de zones, surface) et
+ * on se tait sur le reste. Pastille de RÔLE (chartreuse = moi/mon crew, orange =
+ * rival), jamais une couleur par crew (§C). Aucun CTA : le bouton GO flottant
+ * reste l'unique CTA chartreuse de l'écran (§A.4).
  */
-function SituationBlock() {
-  const t = useT();
-  const s = MAP_MISSION_SUMMARY;
-  return (
-    <View style={styles.situation}>
-      <Text style={styles.situationTitle} numberOfLines={1}>
-        {s.zone} · {s.stateLabel}
-      </Text>
-      <Text style={styles.situationShares} numberOfLines={1}>
-        <Text style={styles.situationCrew}>{t(C.yourCrewPct, { pct: s.crewPct })}</Text>
-        {`  ·  ${s.rivalName} ${s.rivalPct} %`}
-      </Text>
-      <View style={styles.situationFoot}>
-        <View style={styles.situationChip}>
-          <Icon name="eclats" size={12} color={gameColors.crew} />
-          <Text style={styles.situationChipText} numberOfLines={1}>
-            {MAP_MISSION.bonusMicroLabel} · {t(C.plusPts, { n: MAP_MISSION.bonusPoints })}
-          </Text>
-        </View>
-        <View style={styles.situationChip}>
-          <Icon name="sablier" size={12} color={gameColors.danger} />
-          <Text style={styles.situationChipText} numberOfLines={1}>
-            {s.timeLeftLabel}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-/**
- * PEEK ZONE (§3/§10) : la zone TAPÉE au 1er niveau — en-tête (pastille de RÔLE +
- * nom + Fermer), propriétaire (VRAI crew, peut être rival) + contrôle %, ACTION
- * RECOMMANDÉE + 1 CTA (chartreuse), et « Plus » pour le détail (hors 1er niveau).
- * Compris en < 3 s (§A). Le CLAIM reste tranché serveur : ici, que des étiquettes.
- */
-function ZonePeek({
-  detail,
-  onClose,
-  onAct,
-  onMore,
-}: {
-  detail: ZoneDetail;
-  onClose: () => void;
-  onAct: () => void;
-  onMore: () => void;
-}) {
+function RealZonePeek({ zone, onClose }: { zone: MapZoneView; onClose: () => void }) {
   const t = useT();
   const locale = useLocale();
-  const ownerLine =
-    detail.ownerRole === 'other' ? detail.ownerName : t(C.heldBy, { name: detail.ownerName });
+  const tint = zone.role === 'mine' ? gameColors.crew : gameColors.rival;
   return (
     <View style={styles.info}>
       <View style={styles.zoneHead}>
-        <View style={[styles.zonePastille, { backgroundColor: ZONE_ROLE_TINT[detail.ownerRole] }]} />
+        <View style={[styles.zonePastille, { backgroundColor: tint }]} />
         <Text style={styles.zoneName} numberOfLines={1} adjustsFontSizeToFit>
-          {detail.name}
+          {t(C.zoneFallback)}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -806,109 +679,12 @@ function ZonePeek({
           <Text style={styles.zoneCloseText}>{t(C.closeLabel)}</Text>
         </Pressable>
       </View>
-
       <Text style={styles.zoneOwner} numberOfLines={1} adjustsFontSizeToFit>
-        {ownerLine}
+        {t(zone.role === 'mine' ? C.zoneOwnerMine : C.zoneOwnerRival)}
       </Text>
       <Text style={styles.zoneControl} numberOfLines={1}>
-        {t(C.controlPct, { pct: detail.controlPct })}
+        {zonesLabel(t, zone.zones)} · {formatArea(zone.areaKm2, locale)}
       </Text>
-
-      {/* ACTION RECOMMANDÉE §10 : ligne informative + 1 CTA chartreuse. */}
-      <Text style={styles.zoneActionLine} numberOfLines={1} adjustsFontSizeToFit>
-        {actionLine(detail, t, locale)}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={detail.action.ctaLabel}
-        onPress={onAct}
-        style={({ pressed }) => [styles.zoneCta, pressed && styles.pressed]}
-      >
-        <Text style={styles.zoneCtaText} numberOfLines={1}>
-          {detail.action.ctaLabel}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t(C.moreA11y)}
-        hitSlop={8}
-        onPress={onMore}
-        style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
-      >
-        <Text style={styles.optionsLink} numberOfLines={1}>
-          {t(C.moreLabel)}
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
-/**
- * DÉTAIL ZONE (§10, état OUVERT / « Plus ») — hors 1er niveau (§4.3/§15) : tenue
- * depuis · surface, défendue il y a X, PRESSION (top rival % + neutre %),
- * ACTIVITÉ 24 H AGRÉGÉE (« 12 runs · 7 alliés · 5 rivaux » — jamais localisée),
- * puis lien vers l'historique. Textes sur le fond du panneau (pas de card-in-card).
- */
-function ZoneDetailBlock({
-  detail,
-  onHistory,
-}: {
-  detail: ZoneDetail;
-  onHistory: () => void;
-}) {
-  const t = useT();
-  const locale = useLocale();
-  const p = detail.pressure;
-  const a = detail.activity24h;
-  return (
-    <View style={styles.openBlock}>
-      <Text style={styles.zoneDetailLine} numberOfLines={1}>
-        {t(C.heldSinceArea, {
-          held: detail.heldSinceLabel,
-          area: formatArea(detail.areaKm2, locale),
-        })}
-      </Text>
-      <Text style={styles.zoneDetailLine} numberOfLines={1}>
-        {t(C.defendedAgo, { ago: detail.defendedAgoLabel })}
-      </Text>
-
-      <Text style={styles.sectionTitle}>{t(C.sectionPressure)}</Text>
-      <Text style={styles.zoneDetailLine} numberOfLines={1} adjustsFontSizeToFit>
-        {t(C.pressureLine, {
-          rival: p.topRivalName,
-          rivalPct: p.topRivalPct,
-          neutralPct: p.neutralPct,
-        })}
-      </Text>
-
-      <Text style={styles.sectionTitle}>{t(C.sectionActivity)}</Text>
-      <Text style={styles.zoneDetailLine} numberOfLines={1}>
-        {t(C.activityLine, { runs: a.runs, allies: a.allies, rivals: a.rivals })}
-      </Text>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t(C.historyLinkA11y)}
-        onPress={() => {
-          haptics.light();
-          onHistory();
-        }}
-        style={({ pressed }) => [styles.rowCard, pressed && styles.pressed]}
-      >
-        <View style={styles.rowIcon}>
-          <Icon name="historique" size={iconSizes.sm} color={colors.blanc} />
-        </View>
-        <View style={styles.rowBody}>
-          <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="clip">
-            {t(C.zoneHistoryTitle)}
-          </Text>
-          <Text style={styles.rowMeta} numberOfLines={1} ellipsizeMode="clip">
-            {t(C.zoneHistoryMeta)}
-          </Text>
-        </View>
-        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
-      </Pressable>
     </View>
   );
 }
@@ -1101,6 +877,8 @@ const styles = StyleSheet.create({
   // ── PEEK MISSION ──
   peekHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   missionBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: gameColors.crew },
+  // État vide : barre GRISE — la chartreuse dit « à moi », et rien ne l'est encore.
+  emptyBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: colors.grisLigne },
   peekTitle: {
     color: colors.blanc,
     fontSize: fontSizes.md, // 16 px

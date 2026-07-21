@@ -10,39 +10,41 @@
  * TERRITORY_DOT_MAX_ZOOM chaque territoire est un MARQUEUR-POINT + label
  * ville, rendu en LAYERS MapLibre bornés par zoom (territoryDotLayers — le
  * seuil suit le zoom RÉEL : dézoom manuel → les points réapparaissent).
- * Navigation : tap sur un point (vue dézoomée) → flyTo la ville (Paris à
- * l'échelle coureur — on retrouve la Battle Map démo) ; chips « Mes
- * territoires » (Paris · Lille · Rival Lyon) → flyTo ; bouton retour →
- * fitBounds des possessions. `preview` = aperçu statique du Profil (aucune
- * interaction, pas d'overlays — carte NON-interactive, §7). Offline/WebGL
- * perdu : gérés par RealMap (fond noir + message — jamais d'écran blanc).
- * Couleurs : tokens uniquement. Reduce motion : géré par RealMap (flyTo →
- * saut sec, pulse coupé).
+ * ─── FIN DU MODE VITRINE (21/07/2026) ───────────────────────────────────────
+ * Cet écran (bloc « Mon territoire » du Profil + page /territoire) peignait les
+ * possessions DÉMO d'allTerritories : boucles République et Lille en chartreuse,
+ * berges du Rhône en rival, secteurs contestés, plus des chips de navigation
+ * « Paris · Lille · Rival Lyon ». Un joueur qui n'a jamais couru y voyait un
+ * empire — le « des zones déjà prises alors que je n'ai rien fait » du retour
+ * terrain. La branche vitrine a disparu ; avec elle :
+ *   • les marqueurs-points villes (FRANCE_CITIES_DEMO) et le tap-vers-ville,
+ *   • les chips de navigation et le bouton « Mes territoires » (qui ne pouvaient
+ *     mener qu'à des villes fabriquées — et dont les libellés étaient de surcroît
+ *     du français codé en dur, hors i18n),
+ *   • les secteurs agrégés de démonstration (PARIS_DEMO_SECTOR_VIEWS).
+ * Ne reste que ce que `hex_claims` sait dire, cadré sur MES possessions réelles.
+ *
+ * `preview` = aperçu statique du Profil (aucune interaction, pas d'overlays —
+ * carte NON-interactive, §7). Offline/WebGL perdu : gérés par RealMap (fond noir
+ * + message — jamais d'écran blanc). Couleurs : tokens uniquement. Reduce
+ * motion : géré par RealMap (flyTo → saut sec, pulse coupé).
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
-import { Icon } from '../../ui/Icon';
-import { Map3DToggle, RealMap, type RealMapPressEvent, type RealMapRef } from '../../ui/game';
+import { useMemo, useRef } from 'react';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { colors, fontSizes } from '@klaim/shared';
+import { Map3DToggle, RealMap, type RealMapBounds, type RealMapRef } from '../../ui/game';
 import { useMap3d } from '../map/mapPref';
-import {
-  TERRITORY_DOT_MAX_ZOOM,
-  possessionsBounds,
-  territoryDotLayers,
-} from '../map/allTerritories';
-import { FULL_EMPHASIS, sectorStatusLayersAll, territoryStateLayers } from '../map/mapStyle';
-import { FRANCE_CITIES_DEMO, type FranceCity, type FranceCityId } from './franceTerritories';
+import { FULL_EMPHASIS, territoryStateLayers } from '../map/mapStyle';
+import { useRealTerritories } from '../map/hexClaims';
+import type { RealTerritory } from '../map/territoryBuild';
+import { C } from '../../i18n/catalog/map';
+import { useT } from '../../i18n/store';
 
 // ─── Constantes de rendu (UI uniquement) ────────────────────────────────────
 /** Marge intérieure du fitBounds plein écran (l'ensemble des possessions). */
 const OVERVIEW_FIT_PADDING_PX = 56;
 /** Marge du fitBounds de l'APERÇU Profil (cadre mini ~190 px de haut). */
 const PREVIEW_FIT_PADDING_PX = 28;
-/** Rayon (en degrés ~ lat/lng) du hit-test « tap sur un territoire » dézoomé. */
-const CITY_TAP_RADIUS_DEG = 1.1;
-
-/** Vue courante (chips/bouton retour) : l'ensemble des possessions ou une ville. */
-type FranceView = 'france' | FranceCityId;
 
 export interface TerritoryFranceMapProps {
   /** Aperçu statique (bloc Profil) : aucune interaction, pas d'overlays. */
@@ -51,25 +53,47 @@ export interface TerritoryFranceMapProps {
   testID?: string;
 }
 
+/**
+ * Cadrage réel : boîte englobante des VRAIES possessions. `null` quand il n'y a
+ * rien à cadrer — RealMap ouvre alors sur sa vue neutre monde, ce qui est la
+ * vérité (« je ne sais pas encore où tu joues »), pas un cadrage France inventé.
+ */
+function realBounds(
+  territories: readonly RealTerritory[] | null,
+  paddingPx: number,
+): RealMapBounds | undefined {
+  if (territories === null || territories.length === 0) return undefined;
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  for (const t of territories) {
+    for (const polygon of t.polygons) {
+      for (const ring of polygon) {
+        for (const [lng, lat] of ring) {
+          if (lng < minLng) minLng = lng;
+          if (lat < minLat) minLat = lat;
+          if (lng > maxLng) maxLng = lng;
+          if (lat > maxLat) maxLat = lat;
+        }
+      }
+    }
+  }
+  if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return undefined;
+  return { sw: [minLng, minLat], ne: [maxLng, maxLat], paddingPx };
+}
+
 export function TerritoryFranceMap({ preview = false, style, testID }: TerritoryFranceMapProps) {
   const mapRef = useRef<RealMapRef>(null);
-  const [view, setView] = useState<FranceView>('france');
+  const t = useT();
+  /** Cette carte lit `hex_claims` comme la Battle Map — même source, même vérité. */
+  const { territories, isReal, failed, signedOut, loading } = useRealTerritories();
   /**
    * AMENDEMENT-26 — vue 3D (pref `gryd.map3d`, défaut 2D) partagée entre toutes
    * les cartes. En 3D : carte pitchée + mes possessions en volume extrudé
    * chartreuse (RealMap `mode3d`). CONFORT visuel pur — zéro impact gameplay.
    */
   const { map3d, setMap3d } = useMap3d();
-  /**
-   * Le tap-vers-ville n'est actif que sous le zoom seuil (là où les points
-   * villes sont visibles) — piloté par le zoom RÉEL de la caméra (§4bis),
-   * pas par l'état de vue : après un flyTo puis un dézoom manuel, ça remarche.
-   */
-  const [dotsVisible, setDotsVisible] = useState(true);
-  const onZoomChange = useCallback((zoom: number) => {
-    setDotsVisible(zoom < TERRITORY_DOT_MAX_ZOOM);
-  }, []);
-
   /**
    * Couches TRACÉ-BASED partagées avec la Battle Map (§4bis/§4ter) + les
    * SECTEURS agrégés par statut (§C) au-dessus : au zoom quartier/rue « Mon
@@ -78,43 +102,61 @@ export function TerritoryFranceMap({ preview = false, style, testID }: Territory
    * territoryDotLayers, bornés en minZoom). Au dézoom, disques sub-pixel +
    * badges masqués → seuls les marqueurs-points villes/fronts restent (LOD §C).
    */
+  // `territories ?? []` : territoryStateLayers ne consulte JAMAIS la démo (même
+  // contrat que battleGameLayers, P0.2). Passer `null` la ferait ressurgir.
+  const paintedTerritories = territories ?? [];
   const layers = useMemo(
-    () => [...territoryStateLayers(FULL_EMPHASIS), ...sectorStatusLayersAll(FULL_EMPHASIS.contested)],
-    [],
+    () => territoryStateLayers(FULL_EMPHASIS, 'dark', null, paintedTerritories),
+    [paintedTerritories],
   );
-  /** Cadrage d'ouverture : fitBounds de TOUTES les possessions (§4bis). */
+  /**
+   * Cadrage d'ouverture : fitBounds de MES possessions réellement capturées — et
+   * rien du tout tant qu'il n'y en a aucune (RealMap ouvre sur sa vue neutre
+   * monde, ce qui dit la vérité au lieu d'inventer un cadrage France).
+   */
+  const padding = preview ? PREVIEW_FIT_PADDING_PX : OVERVIEW_FIT_PADDING_PX;
+  /**
+   * MES possessions. Le composant s'appelle « Mon territoire » partout où il est
+   * monté (aperçu du Profil, page /territoire) : c'est sur ELLES qu'il se cadre et
+   * c'est leur absence qui déclenche l'état vide. `territories` contient aussi les
+   * captures RIVALES (la requête ne filtre pas par propriétaire, à dessein) —
+   * s'en servir pour cadrer envoyait la carte de « mon » territoire sur le
+   * territoire de quelqu'un d'autre, et taisait « aucune zone capturée » à un
+   * joueur qui n'a effectivement rien pris. Les rivaux restent PEINTS (c'est du
+   * réel, la carte doit le montrer) : seuls le cadrage et la phrase changent.
+   */
+  const mine = useMemo(
+    () => (territories === null ? null : territories.filter((ter) => ter.props.status === 'crew')),
+    [territories],
+  );
   const bounds = useMemo(
-    () => possessionsBounds(preview ? PREVIEW_FIT_PADDING_PX : OVERVIEW_FIT_PADDING_PX),
-    [preview],
+    () =>
+      // Rien à moi mais du rival visible : on cadre sur ce qu'il y a plutôt que
+      // d'ouvrir sur le globe — la carte reste lisible et honnête.
+      realBounds(mine, padding) ?? realBounds(territories, padding),
+    [padding, mine, territories],
   );
 
-  const goCity = useCallback((city: FranceCity) => {
-    setView(city.id);
-    mapRef.current?.flyTo({ lng: city.center.lng, lat: city.center.lat, zoom: city.zoom });
-  }, []);
-
-  const backToOverview = useCallback(() => {
-    setView('france');
-    mapRef.current?.fitBounds(possessionsBounds(OVERVIEW_FIT_PADDING_PX));
-  }, []);
-
-  /** Tap sur un point ville (vue dézoomée) : flyTo la ville la plus proche. */
-  const onMapPress = useCallback(
-    (e: RealMapPressEvent) => {
-      if (!dotsVisible) return;
-      let best: FranceCity | null = null;
-      let bestDist = CITY_TAP_RADIUS_DEG;
-      for (const city of FRANCE_CITIES_DEMO) {
-        const d = Math.hypot(city.center.lng - e.lng, city.center.lat - e.lat);
-        if (d < bestDist) {
-          best = city;
-          bestDist = d;
-        }
-      }
-      if (best) goCity(best);
-    },
-    [dotsVisible, goCity],
-  );
+  /**
+   * ÉTAT VIDE (O1) — « retirer la démo ne veut pas dire laisser un trou ». Trois
+   * cas distincts, jamais confondus, exactement comme sur la Battle Map :
+   * pas connecté / connecté mais rien capturé / échec de lecture. `null` = on ne
+   * sait pas encore : on n'écrit rien plutôt qu'une phrase démentie ensuite.
+   *
+   * On teste `signedOut` (le hook SAIT s'il y a une session) et non `!isReal` :
+   * `isReal` est faux AUSSI tant que la requête tourne, donc un joueur connecté
+   * voyait « Pas encore connecté » s'afficher puis se démentir. Le cas
+   * « chargement » retombe désormais sur `null` — l'écran se tait.
+   */
+  const emptyCopy = loading
+    ? null
+    : failed
+      ? { title: C.emptyFailedTitle, line: C.emptyFailedLine }
+      : signedOut
+        ? { title: C.emptySignedOutTitle, line: C.emptySignedOutLine }
+        : isReal && mine !== null && mine.length === 0
+          ? { title: C.emptyNoneTitle, line: C.emptyNoneLine }
+          : null;
 
   return (
     <View style={[styles.root, style]} pointerEvents={preview ? 'none' : 'auto'} testID={testID}>
@@ -122,12 +164,26 @@ export function TerritoryFranceMap({ preview = false, style, testID }: Territory
         ref={mapRef}
         bounds={bounds}
         geojsonLayers={layers}
-        pointLayers={territoryDotLayers()}
         mode3d={map3d}
-        onPress={preview ? undefined : onMapPress}
-        onZoomChange={preview ? undefined : onZoomChange}
         style={styles.map}
       />
+
+      {/* ── ÉTAT VIDE : une phrase POSÉE SUR la carte (jamais un rectangle noir
+          muet, jamais un spinner). Elle dit ce qu'il n'y a pas encore ; l'action
+          vit ailleurs — le bouton GO de la nav — donc AUCUN CTA ici (§A : 1 écran
+          = 1 décision). En aperçu Profil, seul le titre : le bloc fait ~190 px. ── */}
+      {emptyCopy ? (
+        <View style={styles.emptyWrap} pointerEvents="none">
+          <Text style={styles.emptyTitle} numberOfLines={2}>
+            {t(emptyCopy.title)}
+          </Text>
+          {!preview ? (
+            <Text style={styles.emptyLine} numberOfLines={3}>
+              {t(emptyCopy.line)}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       {/* ── Contrôle d'apparence 2D/3D (AMENDEMENT-26/22) — discret, jamais en aperçu ── */}
       {!preview ? (
@@ -139,50 +195,6 @@ export function TerritoryFranceMap({ preview = false, style, testID }: Territory
         />
       ) : null}
 
-      {/* ── Retour à l'ensemble des possessions (vue ville) — jamais en aperçu ── */}
-      {!preview && view !== 'france' ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Revenir à la vue de toutes mes possessions"
-          onPress={backToOverview}
-          hitSlop={8}
-          style={({ pressed }) => [styles.backFrance, pressed && styles.pressed]}
-        >
-          <View style={styles.backChevron}>
-            <Icon name="chevron" size={13} color={colors.blanc} />
-          </View>
-          <Text style={styles.backFranceText}>Mes territoires</Text>
-        </Pressable>
-      ) : null}
-
-      {/* ── Chips « Mes territoires » (§4bis — navigation rapide, flyTo) ── */}
-      {!preview ? (
-        <View style={styles.chipsRow} pointerEvents="box-none">
-          {FRANCE_CITIES_DEMO.map((city) => {
-            const active = view === city.id;
-            return (
-              <Pressable
-                key={city.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Aller à ${city.label}`}
-                onPress={() => goCity(city)}
-                style={({ pressed }) => [
-                  styles.chip,
-                  active && styles.chipActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View
-                  style={[styles.chipDot, city.rival ? styles.chipDotRival : styles.chipDotCrew]}
-                />
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {city.rival ? `Rival ${city.label}` : city.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -192,52 +204,29 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   pressed: { opacity: 0.7 },
 
-  // ── Bouton retour (vue ville → fitBounds des possessions) ──
-  backFrance: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  backChevron: { transform: [{ scaleX: -1 }] },
-  backFranceText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-
-  // ── Contrôle d'apparence 2D/3D (haut droite, ne heurte pas le retour à gauche) ──
+  // ── Contrôle d'apparence 2D/3D (haut droite) ──
   map3dToggle: { position: 'absolute', top: 12, right: 12 },
 
-  // ── Chips navigation rapide ──
-  chipsRow: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  chip: {
-    flexDirection: 'row',
+  // ── État vide : centré, blanc sur la carte sombre (jamais chartreuse — elle
+  //    est réservée à l'action, et illisible sur fond clair, charte). ──
+  emptyWrap: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
     gap: 6,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
   },
-  chipActive: { borderColor: colors.chartreuse40 },
-  chipDot: { width: 7, height: 7, borderRadius: 4 },
-  chipDotCrew: { backgroundColor: colors.chartreuse },
-  chipDotRival: { backgroundColor: gameColors.rival },
-  chipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
-  chipTextActive: { color: colors.blanc },
+  emptyTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyLine: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
 });

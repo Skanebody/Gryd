@@ -12,23 +12,39 @@
  * n'a pas vérifié) : elle devient `unavailable`, donc une distance par défaut
  * annoncée comme telle, sans explication inventée.
  *
- * DÉSACTIVATION = ARRÊT DE LA LECTURE. Si `learningEnabled` est faux, la RPC
- * n'est pas appelée du tout. Désactiver l'apprentissage doit signifier que rien
- * n'est lu, pas seulement que le résultat est jeté.
+ * DÉSACTIVATION = ARRÊT DE LA LECTURE. Si l'apprentissage n'est pas
+ * explicitement autorisé, la RPC n'est pas appelée du tout. Désactiver
+ * l'apprentissage doit signifier que rien n'est lu, pas seulement que le
+ * résultat est jeté — et tant qu'on ne SAIT pas ce que le joueur a choisi, on
+ * ne lit pas davantage.
+ *
+ * FRAÎCHEUR. La garde « adapté à tes habitudes » était structurelle dans le TYPE
+ * mais pas dans le TEMPS : ce hook lisait les réglages une fois, au montage.
+ * Couper l'apprentissage depuis l'écran de réglages (ou depuis un AUTRE
+ * appareil) laissait donc un écran déjà monté afficher la phrase indéfiniment —
+ * le type n'était jamais violé, c'est l'ENTRÉE qui était périmée. Deux relectures
+ * ferment le trou : `revision` (le store a lu des réglages différents, y compris
+ * après une écriture faite ailleurs dans l'app) et le retour sur l'écran.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
-import { isShowcasePlatform } from '../../lib/flags';
 // Store SERVEUR (features/routePrefs/store.ts), pas le doublon local :
 // deux magasins homonymes coexistaient, le planificateur lisait l'AsyncStorage
 // pendant que l'écran de réglages écrivait en base — les réglages ne
 // pilotaient donc RIEN. Le serveur gagne : le fondateur veut que les
 // réglages survivent à un changement de téléphone.
-import { useRoutePrefs } from '../routePrefs/store';
+import {
+  useRoutePrefs,
+  type RoutePrefs,
+  type RoutePrefsStatus,
+} from '../routePrefs/store';
 import {
   resolveRouteSuggestion,
+  routeDistancePrefsFrom,
   type HabitProfile,
+  type RoutePrefsRead,
   type RouteSuggestion,
   type SuggestionBounds,
 } from './suggestion';
@@ -138,21 +154,55 @@ function profileFromInputs(raw: unknown): HabitProfile {
   };
 }
 
+/**
+ * Sortie du store → entrée du résolveur pur. `status === 'ready'` garantit un
+ * `prefs` non nul (le store ne pose ce statut qu'avec une réponse parsée) ; si
+ * la garantie tombait un jour, un `prefs` manquant est traité comme un ÉCHEC de
+ * lecture — jamais comme un réglage par défaut, jamais comme « désactivé ».
+ */
+function prefsRead(status: RoutePrefsStatus, prefs: RoutePrefs | null): RoutePrefsRead {
+  if (status === 'ready') {
+    return prefs
+      ? {
+          status: 'ready',
+          learningEnabled: prefs.learningEnabled,
+          targetDistanceM: prefs.targetDistanceM,
+        }
+      : { status: 'error' };
+  }
+  return { status };
+}
+
 export function useRouteSuggestion(): UseRouteSuggestionResult {
   const { session } = useSession();
-  const { prefs, loading: prefsLoading } = useRoutePrefs();
+  const { prefs, status, revision } = useRoutePrefs();
   const [profile, setProfile] = useState<HabitProfile>({ kind: 'unavailable' });
   const [profileLoading, setProfileLoading] = useState(true);
+  /** Retour sur l'écran ⇒ relecture du profil (une course a pu être ajoutée). */
+  const [focusTick, setFocusTick] = useState(0);
 
-  // `prefs` est null tant que le store serveur n'a pas répondu : on ne
-  // présume PAS que l'apprentissage est actif (ce serait lire les courses
-  // de quelqu'un qui l'a peut-être coupé). Chargement → aucune lecture.
-  const learningEnabled = prefs?.learningEnabled ?? false;
+  /**
+   * LA CONVERSION QUI PORTAIT LE BUG, désormais pure et testée.
+   *
+   * L'ancien `prefs?.learningEnabled ?? false` faisait dire à un `null` — donc
+   * à une lecture EN COURS ou RATÉE — « l'utilisateur a coupé l'apprentissage ».
+   * Un échec de `route_prefs_get` s'affichait alors comme un choix du joueur.
+   * `routeDistancePrefsFrom` refuse cette confusion : hors de `ready`,
+   * l'apprentissage est `'unknown'`, et rien n'est affirmé sur ses réglages.
+   */
+  const read: RoutePrefsRead = prefsRead(status, prefs);
+  const distancePrefs = routeDistancePrefsFrom(read);
+  const learning = distancePrefs.learning;
 
   useEffect(() => {
-    // Apprentissage coupé, vitrine web, hors session : aucune lecture.
-    if (!learningEnabled || isShowcasePlatform || !supabase || !session) {
-      setProfile(learningEnabled ? { kind: 'unavailable' } : { kind: 'off' });
+    // Apprentissage coupé OU réglages non lus OU hors session : aucune
+    // lecture. `'unknown'` ne donne PAS le droit de lire les courses — on ne
+    // sait pas encore si on en a la permission.
+    if (learning !== 'on' || !supabase || !session) {
+      // Le profil n'est plus utilisé du tout dans ces cas (le résolveur tranche
+      // sur `learning`) : on le remet à « on ne sait pas » plutôt que de
+      // laisser traîner un profil appris sous un réglage qui a changé.
+      setProfile({ kind: 'unavailable' });
       setProfileLoading(false);
       return;
     }
@@ -183,24 +233,37 @@ export function useRouteSuggestion(): UseRouteSuggestionResult {
     return () => {
       cancelled = true;
     };
-  }, [session, learningEnabled]);
+    // `revision` : le store a lu des réglages DIFFÉRENTS (autre écran, autre
+    // appareil, « oublier »). Sans lui, couper l'apprentissage ailleurs laissait
+    // ce profil-ci intact — le type n'était jamais violé, c'est l'ENTRÉE qui
+    // était périmée, et l'écran continuait de dire « adapté à tes habitudes ».
+  }, [session, learning, revision, focusTick]);
+
+  /**
+   * Relecture au retour sur l'écran. Deux raisons, toutes deux réelles :
+   *   · une course vient d'être enregistrée — le profil a pu passer de
+   *     « pas encore assez de courses » à « appris » ;
+   *   · les réglages ont pu changer AILLEURS (autre appareil). Le store relit
+   *     lui aussi au focus ; si sa lecture diffère, `revision` avance et ce
+   *     profil est refait sur la bonne autorisation.
+   * Le premier focus est sauté : la lecture au montage suffit.
+   */
+  const firstFocusRef = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocusRef.current) {
+        firstFocusRef.current = false;
+        return;
+      }
+      setFocusTick((t) => t + 1);
+    }, []),
+  );
 
   return {
-    // Adaptation du contrat SERVEUR (`targetDistanceM`, mètres, null = auto)
-    // vers celui du résolveur (`manualKm`, kilomètres). Le store serveur est la
-    // source unique depuis l'unification des deux magasins homonymes ; cette
-    // conversion est le seul endroit où les deux vocabulaires se croisent.
-    suggestion: resolveRouteSuggestion(
-      profile,
-      {
-        manualKm:
-          prefs?.targetDistanceM != null && Number.isFinite(prefs.targetDistanceM)
-            ? prefs.targetDistanceM / 1000
-            : null,
-        learningEnabled,
-      },
-      BOUNDS,
-    ),
-    loading: prefsLoading || profileLoading,
+    suggestion: resolveRouteSuggestion(profile, distancePrefs, BOUNDS),
+    // `status === 'loading'` couvre la lecture des réglages : tant qu'on ne
+    // sait pas si on a le droit d'apprendre, l'écran n'a rien de définitif à
+    // dire. Une lecture RATÉE, elle, est une réponse : on ne charge plus.
+    loading: status === 'loading' || profileLoading,
   };
 }

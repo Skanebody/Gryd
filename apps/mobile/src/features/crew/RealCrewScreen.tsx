@@ -1,6 +1,6 @@
 /**
- * GRYD — CREW RÉEL (écran natif). Remplace la démo Supercell sur device : un
- * crew est RÉEL ou VIDE, jamais fabriqué (doctrine `flags.isShowcasePlatform`).
+ * GRYD — ÉCRAN CREW. Il a remplacé la démo Supercell, aujourd'hui supprimée : un
+ * crew est RÉEL ou VIDE, jamais fabriqué (« l'app ne ment jamais »).
  *
  * §A épuration : 1 écran = 1 décision, 1 SEUL CTA chartreuse, pas de card-dans-
  * card, textes jamais coupés. Machine à états minimale :
@@ -224,6 +224,7 @@ export function RealCrewScreen() {
   const {
     ready,
     loading,
+    loadFailed,
     crew,
     members,
     overview,
@@ -844,7 +845,45 @@ export function RealCrewScreen() {
     );
   }
 
-  // ── SANS CREW (home) : pitch 1 ligne + créer (CTA) + « J’ai un code » ────────
+  /*
+    ── ÉCHEC DE CHARGEMENT ───────────────────────────────────────────────────
+    Le troisième état, distinct des deux autres, et celui qu'on rendait faux :
+    la lecture d'adhésion a échoué, donc on NE SAIT PAS si l'utilisateur a un
+    crew. Avant, ce cas retombait sur l'écran « sans crew » ci-dessous et
+    affirmait « Personne ne tient un quartier seul · Fonde le tien » à quelqu'un
+    qui a peut-être un crew de 8 personnes et du territoire — en l'invitant à en
+    créer un DOUBLON.
+
+    Ici : on dit l'échec, on ne prétend rien sur le crew, et la seule action
+    proposée est de réessayer (1 CTA chartreuse, §A). Ni « Créer », ni
+    « J'ai un code » : les deux agiraient sur un état inconnu.
+  */
+  if (loadFailed) {
+    return (
+      <TabScreen title="Crew" kicker={kicker}>
+        <View style={styles.block}>
+          <Text style={styles.title}>{t(C.rlLoadFailedTitle)}</Text>
+          <Text style={styles.body}>{t(C.rlLoadFailedBody)}</Text>
+          <View style={styles.cta}>
+            <Button label={t(C.rlRetry)} onPress={reload} loading={loading} />
+          </View>
+        </View>
+      </TabScreen>
+    );
+  }
+
+  /*
+    ── SANS CREW (home) : pitch 1 ligne + créer (CTA) + « J’ai un code » ────────
+    Le pitch (« Personne ne tient un quartier seul ») est une vérité générale,
+    pas une affirmation sur l'utilisateur : il peut rester pendant la 1ʳᵉ
+    lecture sans mentir, et évite l'écran blanc.
+
+    Les ACTIONS, elles, présupposent qu'on n'a pas de crew. Tant que la lecture
+    est en vol, on ne le sait pas encore : elles restent visibles (la page ne
+    saute pas) mais INERTES. Sans ça, un tap rapide au lancement pouvait ouvrir
+    « Fonde ton crew » à un membre d'un crew existant — le serveur refusait
+    ensuite (`already_in_crew`), après lui avoir fait saisir un nom pour rien.
+  */
   return (
     <TabScreen title="Crew" kicker={kicker} subtitle={loading ? undefined : t(C.emptySubtitle)}>
       {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
@@ -854,6 +893,7 @@ export function RealCrewScreen() {
         <View style={styles.cta}>
           <Button
             label={t(C.createMyCrew)}
+            disabled={loading}
             onPress={() => {
               resetForms();
               setMode('create');
@@ -863,6 +903,7 @@ export function RealCrewScreen() {
         <View style={styles.leaveRow}>
           <GhostButton
             label={t(C.rlHaveCode)}
+            disabled={loading}
             onPress={() => {
               resetForms();
               setMode('join');

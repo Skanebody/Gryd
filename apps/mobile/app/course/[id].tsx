@@ -35,7 +35,6 @@ import {
   fmtDuration,
   fmtKm,
   fmtPace,
-  findRun,
   type RefusalReason,
   type RunHistoryEntry,
   type SegmentState,
@@ -326,10 +325,30 @@ function RunRouteScene({ runId }: { runId: string }) {
   );
 }
 
+/**
+ * SEAM de la lecture RÉELLE — TODO(O1) : lire `runs` filtrée par id (policy
+ * `runs_select_own`, jamais un autre coureur) et bâtir un `RunHistoryEntry`.
+ *
+ * Tant que cette lecture n'existe pas, la fonction renvoie `undefined` et
+ * l'écran affiche son état vide. Elle est une FONCTION, pas une constante, pour
+ * que la mise en page du détail (ci-dessous) reste typée et compilée : elle sera
+ * réutilisée telle quelle le jour où la requête sera branchée.
+ */
+function findRealRun(_id: string | undefined): RunHistoryEntry | undefined {
+  return undefined;
+}
+
 export default function CourseDetailScreen() {
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const entry = typeof id === 'string' ? findRun(id) : undefined;
+  // FUITE COLMATÉE (21/07/2026) : `findRun` lit le catalogue de DÉMO. L'écran
+  // n'avait aucun gate — un lien /course/republique ouvert sur un téléphone
+  // neuf affichait une course inventée, tracé et zones compris, comme si elle
+  // était au coureur. Le mode vitrine ayant été abandonné, ce catalogue n'est
+  // plus lu du tout : tant que le détail d'une course RÉELLE n'est pas câblé
+  // (lecture de `runs` par id, O1), l'écran répond honnêtement qu'il n'a pas
+  // cette course. Mieux vaut ne rien montrer que montrer celle d'un autre.
+  const entry = findRealRun(typeof id === 'string' ? id : undefined);
 
   useEffect(() => {
     screen('course_detail', { id: id ?? '' });
@@ -338,7 +357,7 @@ export default function CourseDetailScreen() {
   if (!entry) {
     return (
       <StackScreen title={t(C.runFallbackTitle)} icon="historique">
-        <Text style={styles.empty}>{t(C.runGone)}</Text>
+        <Text style={styles.empty}>{t(C.runNotYours)}</Text>
       </StackScreen>
     );
   }

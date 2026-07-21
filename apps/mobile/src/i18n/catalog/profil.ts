@@ -945,4 +945,206 @@ export const C = defineCatalog({
     de: 'Es wird keine Live-Position geteilt. Dein Profil folgt deinen Sichtbarkeits-Einstellungen.',
     pt: 'Nenhuma posição ao vivo é compartilhada. Seu perfil segue seus ajustes de visibilidade.',
   },
+
+  // ═══ ÉTATS VIDES DU PROFIL (21/07/2026) ════════════════════════════════════
+  //
+  // La démo ayant quitté l'app installée, des surfaces se vident. Un trou n'est
+  // pas plus honnête qu'un mensonge : chaque état ci-dessous DIT ce qui manque
+  // et propose UNE suite. Trois situations, trois copies distinctes — les
+  // confondre serait mentir à nouveau :
+  //   · pas connecté      → l'invitation à se connecter ;
+  //   · connecté, vide    → l'invitation à jouer (la donnée viendra du jeu) ;
+  //   · échec de lecture  → l'aveu de la panne + un réessai (JAMAIS un « 0 »,
+  //     qui se lirait « tu n'as rien fait » alors que ses données existent).
+
+  /** Player card sans ville renseignée — « Niveau 3 · » serait un trou visible. */
+  identityLevelOnly: {
+    fr: 'Niveau {n}',
+    en: 'Level {n}',
+    es: 'Nivel {n}',
+    de: 'Level {n}',
+    pt: 'Nível {n}',
+  },
+  signedOutTitle: {
+    fr: 'Connecte-toi pour voir tes chiffres.',
+    en: 'Sign in to see your numbers.',
+    es: 'Inicia sesión para ver tus cifras.',
+    de: 'Melde dich an, um deine Zahlen zu sehen.',
+    pt: 'Entre para ver seus números.',
+  },
+  signedOutBody: {
+    fr: 'Territoire, progression et badges sont rattachés à ton compte.',
+    en: 'Territory, progress and badges are tied to your account.',
+    es: 'Territorio, progreso e insignias están vinculados a tu cuenta.',
+    de: 'Territorium, Fortschritt und Abzeichen hängen an deinem Konto.',
+    pt: 'Território, progresso e insígnias ficam na sua conta.',
+  },
+  signIn: {
+    fr: 'Se connecter',
+    en: 'Sign in',
+    es: 'Iniciar sesión',
+    de: 'Anmelden',
+    pt: 'Entrar',
+  },
+  /**
+   * Quatrième situation, découverte en câblant les trois autres : le build n'a
+   * PAS de backend (Supabase non configuré — aperçu web, build de dev). Proposer
+   * « Se connecter » y serait un cul-de-sac : l'écran d'auth redirige aussitôt
+   * vers la carte, sans rien connecter. On explique donc en une phrase, et on
+   * n'offre AUCUNE action — il n'y en a aucune à offrir.
+   */
+  noBackendTitle: {
+    fr: 'Cette version n’est pas reliée au serveur.',
+    en: 'This build isn’t connected to the server.',
+    es: 'Esta versión no está conectada al servidor.',
+    de: 'Diese Version ist nicht mit dem Server verbunden.',
+    pt: 'Esta versão não está conectada ao servidor.',
+  },
+  noBackendBody: {
+    fr: 'Ni territoire, ni progression, ni badges tant qu’aucun compte n’est relié. Rien à régler de ton côté.',
+    en: 'No territory, progress or badges until an account is linked. Nothing to fix on your side.',
+    es: 'Sin territorio, progreso ni insignias hasta que se vincule una cuenta. No hay nada que arreglar por tu parte.',
+    de: 'Kein Territorium, kein Fortschritt, keine Abzeichen, solange kein Konto verbunden ist. Du musst nichts tun.',
+    pt: 'Sem território, progresso ou insígnias enquanto nenhuma conta estiver vinculada. Nada a resolver do seu lado.',
+  },
+  loadFailedTitle: {
+    fr: 'On n’a pas pu charger tes données.',
+    en: 'We couldn’t load your data.',
+    es: 'No pudimos cargar tus datos.',
+    de: 'Wir konnten deine Daten nicht laden.',
+    pt: 'Não conseguimos carregar seus dados.',
+  },
+  loadFailedBody: {
+    fr: 'Rien n’est perdu. Vérifie ta connexion, puis réessaie.',
+    en: 'Nothing is lost. Check your connection, then try again.',
+    es: 'No se pierde nada. Revisa tu conexión y vuelve a intentarlo.',
+    de: 'Nichts ist verloren. Prüfe deine Verbindung und versuch es erneut.',
+    pt: 'Nada se perdeu. Verifique sua conexão e tente de novo.',
+  },
+  retry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  territoryEmptyTitle: {
+    fr: 'Aucune zone à toi pour l’instant.',
+    en: 'No zone of yours yet.',
+    es: 'Aún no tienes ninguna zona.',
+    de: 'Noch keine eigene Zone.',
+    pt: 'Nenhuma zona sua por enquanto.',
+  },
+  territoryEmptyBody: {
+    fr: 'Une course suffit : le terrain que tu boucles devient le tien.',
+    en: 'One run is enough: the ground you loop becomes yours.',
+    es: 'Basta una carrera: el terreno que cierras pasa a ser tuyo.',
+    de: 'Ein Lauf genügt: Was du umrundest, gehört dir.',
+    pt: 'Uma corrida basta: o terreno que você fecha vira seu.',
+  },
+  territoryEmptyCta: {
+    fr: 'Prendre ma première zone',
+    en: 'Take my first zone',
+    es: 'Tomar mi primera zona',
+    de: 'Erste Zone holen',
+    pt: 'Pegar minha primeira zona',
+  },
+  /**
+   * Le premier rendu d'un joueur connecté a lieu AVANT que Supabase ait répondu :
+   * l'économie vaut alors zéro. Afficher « Niveau 1 · 0 badges » puis basculer
+   * sur « Niveau 14 · 12 badges » ferait clignoter un mensonge d'une demi-seconde.
+   * On dit qu'on charge, et on n'écrit aucun chiffre tant qu'on n'en a pas.
+   */
+  loadingNumbers: {
+    fr: 'Chargement de tes chiffres…',
+    en: 'Loading your numbers…',
+    es: 'Cargando tus cifras…',
+    de: 'Deine Zahlen werden geladen …',
+    pt: 'Carregando seus números…',
+  },
+  territoryLoading: {
+    fr: 'Chargement de ton territoire…',
+    en: 'Loading your territory…',
+    es: 'Cargando tu territorio…',
+    de: 'Dein Territorium wird geladen …',
+    pt: 'Carregando seu território…',
+  },
+  badgesEmptyLine: {
+    fr: 'Aucun badge débloqué. Ta première course en ouvre un.',
+    en: 'No badge unlocked yet. Your first run opens one.',
+    es: 'Ninguna insignia desbloqueada. Tu primera carrera abre una.',
+    de: 'Noch kein Abzeichen. Dein erster Lauf schaltet eines frei.',
+    pt: 'Nenhuma insígnia desbloqueada. Sua primeira corrida abre uma.',
+  },
+  badgesFailedLine: {
+    fr: 'Tes badges n’ont pas pu être chargés.',
+    en: 'Your badges couldn’t be loaded.',
+    es: 'No se pudieron cargar tus insignias.',
+    de: 'Deine Abzeichen konnten nicht geladen werden.',
+    pt: 'Não foi possível carregar suas insígnias.',
+  },
+
+  // ─── Page Amis : états vides (aucun annuaire d'amis n'est encore câblé) ────
+  friendsKickerHandle: {
+    fr: '@{handle}',
+    en: '@{handle}',
+    es: '@{handle}',
+    de: '@{handle}',
+    pt: '@{handle}',
+  },
+  tabMyHandle: {
+    fr: 'Mon @',
+    en: 'My @',
+    es: 'Mi @',
+    de: 'Mein @',
+    pt: 'Meu @',
+  },
+  friendsSignedOutTitle: {
+    fr: 'Connecte-toi pour retrouver tes amis.',
+    en: 'Sign in to find your friends.',
+    es: 'Inicia sesión para encontrar a tus amigos.',
+    de: 'Melde dich an, um deine Freunde zu finden.',
+    pt: 'Entre para encontrar seus amigos.',
+  },
+  friendsSignedOutBody: {
+    fr: 'Ta liste suit ton compte, pas ce téléphone.',
+    en: 'Your list follows your account, not this phone.',
+    es: 'Tu lista sigue a tu cuenta, no a este teléfono.',
+    de: 'Deine Liste hängt an deinem Konto, nicht an diesem Handy.',
+    pt: 'Sua lista segue sua conta, não este telefone.',
+  },
+  /** Vérité de l'état actuel : aucun annuaire ni demande d'ami n'existe côté serveur. */
+  friendsNotOpenTitle: {
+    fr: 'L’ajout d’amis n’est pas encore ouvert.',
+    en: 'Adding friends isn’t open yet.',
+    es: 'Añadir amigos aún no está disponible.',
+    de: 'Freunde hinzufügen ist noch nicht möglich.',
+    pt: 'Adicionar amigos ainda não está aberto.',
+  },
+  friendsNotOpenBody: {
+    fr: 'En attendant, ton @ est ton identité GRYD : c’est avec ça qu’on te retrouvera.',
+    en: 'Meanwhile, your @ is your GRYD identity — that’s how people will find you.',
+    es: 'Mientras tanto, tu @ es tu identidad GRYD: así te encontrarán.',
+    de: 'Bis dahin ist dein @ deine GRYD-Identität – so findet man dich.',
+    pt: 'Até lá, seu @ é sua identidade GRYD: é assim que vão te encontrar.',
+  },
+  /**
+   * `qrHint` renvoie vers l'onglet Recherche — qui n'existe que sur la vitrine.
+   * Sur l'app, cette phrase pointerait vers un onglet absent : elle est
+   * remplacée par ce qui est vrai ici et maintenant.
+   */
+  qrHintReal: {
+    fr: 'Ton @ est ton identité GRYD. Le QR à scanner et la recherche de coureurs arriveront ensemble.',
+    en: 'Your @ is your GRYD identity. The scannable QR and runner search will arrive together.',
+    es: 'Tu @ es tu identidad GRYD. El QR escaneable y la búsqueda de corredores llegarán juntos.',
+    de: 'Dein @ ist deine GRYD-Identität. Der scanbare QR und die Läufersuche kommen zusammen.',
+    pt: 'Seu @ é sua identidade GRYD. O QR para escanear e a busca de corredores chegarão juntos.',
+  },
+  friendsCtaMyHandle: {
+    fr: 'Voir mon @',
+    en: 'See my @',
+    es: 'Ver mi @',
+    de: 'Mein @ ansehen',
+    pt: 'Ver meu @',
+  },
 });

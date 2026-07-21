@@ -1,11 +1,26 @@
 /**
- * GRYD — Inventaire & gifting DÉMO (AMENDEMENT-16 §4, doc §14/§16/§26).
+ * GRYD — Inventaire & gifting (AMENDEMENT-16 §4, doc §14/§16/§26).
  *
- * État local (offline-first) : possession, équipement par PORTÉE (un seul skin
- * territoire équipé, un seul skin trace, une frame…), Crew Boost actif + timer,
- * et Crew Wall (supporters opt-in). O3 : ces états viendront de `user_inventory`
- * / `crew_inventory` / `crew_boosts` (0014, écriture service_role only —
- * jamais le client). Ici tout est DÉMO déterministe.
+ * État de possession et d'équipement par PORTÉE (un seul skin territoire équipé,
+ * un seul skin trace, une frame…), Crew Boost actif + timer. O3 : ces états
+ * viendront de `user_inventory` / `crew_inventory` / `crew_boosts` (0014,
+ * écriture service_role only — jamais le client).
+ *
+ * ─── LA FUITE COLMATÉE (21/07/2026) ──────────────────────────────────────────
+ * AVANT, ce module DONNAIT des cosmétiques : `INITIAL_OWNED` (dérivé du drapeau
+ * `ownedDemo` du catalogue) et surtout `INITIAL_EQUIPPED`, commenté « (démo) »,
+ * qui ÉQUIPAIT d'office un skin de trace, un cadre d'avatar et un template de
+ * partage. Sur un iPhone neuf, AsyncStorage vide, `equippedState` valait donc ces
+ * trois clés : l'onglet Profil peignait l'anneau « Frame Road » et /profil-edit
+ * l'affichait comme équipé. L'app affirmait que le joueur possédait des objets
+ * qu'il n'avait jamais gagnés — et `DEMO_WALLET` (820 Éclats / 2 140 Foulées)
+ * faisait la même chose avec son solde dès que la lecture serveur ne résolvait
+ * pas.
+ *
+ * MAINTENANT : on ne possède que ce que le SERVEUR a écrit. Sans lecture
+ * réussie, l'inventaire est VIDE, le solde est à zéro et `source` reste
+ * `'local'` — c'est ce drapeau, pas une valeur de repli, qui dit à l'écran
+ * qu'il ne sait rien (l'Arsenal affiche « — », jamais un 0 affirmatif).
  *
  * ANTI PAY-TO-WIN : équiper un skin = personnalisation (§16), jamais un
  * avantage. Un boost n'ajoute QUE de la progression coffre (cosmétique/orga).
@@ -20,31 +35,25 @@ import {
 } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
-import {
-  ARSENAL_CATALOG,
-  itemByKey,
-  type ArsenalCatalogItem,
-  type ArsenalScope,
-} from './catalog';
+import { itemByKey, type ArsenalCatalogItem, type ArsenalScope } from './catalog';
 
 /** Portées équipables (un seul item actif par portée). */
 export type EquipScope = Extract<ArsenalScope, 'zone' | 'route' | 'profile' | 'crew' | 'share'>;
 
-/** Item démarré comme possédé (offert Saison 0 / débloqué en courant). */
-export const INITIAL_OWNED: readonly string[] = ARSENAL_CATALOG.filter((i) => i.ownedDemo).map(
-  (i) => i.key,
-);
-const INITIAL_OWNED_SET: ReadonlySet<string> = new Set(INITIAL_OWNED);
+/**
+ * Possession de départ : RIEN. Un cosmétique se gagne ou s'achète, et c'est le
+ * serveur qui l'inscrit dans `user_inventory` — le client ne s'en offre aucun.
+ */
+const NO_ITEMS: ReadonlySet<string> = new Set<string>();
 
-/** Équipement initial : les skins offerts sont équipés par défaut (démo). */
-export const INITIAL_EQUIPPED: Readonly<Partial<Record<EquipScope, string>>> = {
-  route: 'skin_trace_neon_ivory',
-  profile: 'frame_road',
-  share: 'template_first_zone',
-};
+/**
+ * Équipement de départ : RIEN d'équipé. L'anneau de l'avatar et le skin de trace
+ * ne montrent donc un cadre que si le joueur en possède un et l'a choisi.
+ */
+const NOTHING_EQUIPPED: Readonly<Partial<Record<EquipScope, string>>> = {};
 
-/** Soldes offline-first pour tester l'Arsenal sans backend configuré. */
-export const DEMO_WALLET = { eclats: 820, foulees: 2140, isClub: false } as const;
+/** Solde inconnu = zéro, jamais un crédit offert. L'écran dit « — » via `source`. */
+const EMPTY_WALLET = { eclats: 0, foulees: 0, isClub: false } as const;
 
 export interface ArsenalWallet {
   eclats: number;
@@ -79,9 +88,10 @@ export const EQUIP_SCOPE_LABEL: Record<EquipScope, string> = {
 // ─── Équipement PERSISTÉ (source unique lue par la Player Card) ───────────────
 //
 // AMENDEMENT-16 §16 : équiper un cosmétique doit avoir un EFFET TANGIBLE. Tant
-// que `user_inventory` n'est pas branché (O3), on persiste l'équipement démo en
-// local (AsyncStorage, même pattern que src/features/crew/chatStore.ts) pour que
-// la Player Card reflète RÉELLEMENT le frame / titre équipé.
+// que l'ÉCRITURE de `user_inventory` n'est pas branchée (O3), le CHOIX du joueur
+// est persisté en local (AsyncStorage, même pattern que features/crew/chatStore)
+// pour que la Player Card reflète RÉELLEMENT le frame / titre équipé. Ce store ne
+// contient donc que des choix faits par le joueur — jamais un défaut offert.
 //
 // STORE EXTERNE PARTAGÉ (useSyncExternalStore, natif React) : l'équipement vit au
 // niveau MODULE, un seul état pour tous les abonnés. equip()/unequip() depuis
@@ -110,12 +120,12 @@ export function isFrameItem(item: ArsenalCatalogItem): boolean {
 
 /** Fusionne l'équipement stocké avec les défauts (tolérant aux clés absentes). */
 function hydrateEquip(raw: string | null): EquipMap {
-  if (!raw) return { ...INITIAL_EQUIPPED };
+  if (!raw) return { ...NOTHING_EQUIPPED };
   try {
     const parsed = JSON.parse(raw) as EquipMap;
-    return { ...INITIAL_EQUIPPED, ...parsed };
+    return { ...NOTHING_EQUIPPED, ...parsed };
   } catch {
-    return { ...INITIAL_EQUIPPED };
+    return { ...NOTHING_EQUIPPED };
   }
 }
 
@@ -123,7 +133,7 @@ async function readEquip(): Promise<EquipMap> {
   try {
     return hydrateEquip(await AsyncStorage.getItem(EQUIP_STORAGE_KEY));
   } catch {
-    return { ...INITIAL_EQUIPPED };
+    return { ...NOTHING_EQUIPPED };
   }
 }
 
@@ -160,7 +170,7 @@ export interface EquipStore {
 // /profil. equip()/unequip() mutent `equippedState` puis emit() → tous les
 // abonnés re-render (l'anneau de l'avatar change immédiatement au retour).
 
-let equippedState: EquipMap = { ...INITIAL_EQUIPPED };
+let equippedState: EquipMap = { ...NOTHING_EQUIPPED };
 let equipLoaded = false;
 let equipLoadPromise: Promise<void> | null = null;
 const equipListeners = new Set<() => void>();
@@ -374,7 +384,7 @@ export function useArsenalInventory(): ArsenalInventoryStore {
   }, [configured, userId]);
 
   const source: ArsenalInventorySource = remote ? 'server' : 'local';
-  const baseWallet = remote?.wallet ?? DEMO_WALLET;
+  const baseWallet = remote?.wallet ?? EMPTY_WALLET;
   const wallet = useMemo<ArsenalWallet>(
     () => ({
       eclats: Math.max(0, baseWallet.eclats + walletDelta.eclats),
@@ -384,7 +394,7 @@ export function useArsenalInventory(): ArsenalInventoryStore {
     [baseWallet.eclats, baseWallet.foulees, baseWallet.isClub, walletDelta.eclats, walletDelta.foulees],
   );
 
-  const baseOwned = remote?.ownedKeys ?? INITIAL_OWNED_SET;
+  const baseOwned = remote?.ownedKeys ?? NO_ITEMS;
   const ownedKeys = useMemo(() => unionOwned(baseOwned, ownedOverlay), [baseOwned, ownedOverlay]);
   const baseEquipped = remote?.equipped ?? localEquipped;
   const equipped = useMemo(() => ({ ...baseEquipped, ...equippedOverlay }), [baseEquipped, equippedOverlay]);

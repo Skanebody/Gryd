@@ -19,10 +19,13 @@
  *                (Défense — « la ligne que tu as gardée »).
  */
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Polyline } from 'react-native-svg';
-import { colors } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game';
+import { Icon } from '../../ui/Icon';
+import { useT } from '../../i18n/store';
+import { SHARE_COPY } from './copy';
 import {
   CORRIDOR_HALF_WIDTH_M,
   loopRing,
@@ -138,6 +141,7 @@ export function ShareMap({
   captured = true,
 }: ShareMapProps) {
   const reduce = useReduceMotion();
+  const tt = useT();
   const play = animated && !reduce;
 
   // 0→1 : dessin de la trace (0→TRACE_PHASE) puis remplissage (→1). Pattern
@@ -176,6 +180,30 @@ export function ShareMap({
   // (« la boucle fait la zone ») — plus jamais la forme démo sous un vrai run.
   // Le couloir rival est une géométrie DÉMO : jamais dessiné sous une vraie trace.
   const hasRealTrace = trace !== undefined && trace.length >= 3;
+  // ─── FUITE COLMATÉE (21/07/2026) — trois cas, pas deux ────────────────────
+  // `trace` absent (undefined) = aucune course armée → EXEMPLE assumé, la boucle
+  // République est légitime. Mais `trace` FOURNI et dégénéré (< 3 points) veut
+  // dire « cette course-là n'a pas de tracé connu » : replier sur République
+  // dessinait alors le parcours d'un autre sous le nom du coureur — la carte
+  // partagée montrait Paris à quelqu'un qui avait couru ailleurs.
+  const noKnownRoute = trace !== undefined && trace.length < 3;
+
+  // ÉTAT VIDE ≠ CARRÉ VIDE (retour fondateur 21/07/2026) : ne rien dessiner
+  // était honnête mais MUET — la card montrait un carré entièrement vide, que le
+  // coureur lit comme un bug de l'app, pas comme « on ne connaît pas ton tracé ».
+  // On le DIT, à la place de la carte, et la card garde ses chiffres réels.
+  // (Aucun hook au-delà de ce point : le retour anticipé est sûr.)
+  if (noKnownRoute) {
+    return (
+      <View style={[styles.wrap, style, styles.noRoute]}>
+        <Icon name="route" size={iconSizes.md} color={colors.gris} />
+        <Text style={styles.noRouteLabel} numberOfLines={2}>
+          {tt(SHARE_COPY.traceUnavailable)}
+        </Text>
+      </View>
+    );
+  }
+
   const loop = hasRealTrace ? loopRing(trace) : loopRing(BOUCLE_REPUBLIQUE);
   const rival = ribbonRing(RUE_FAUBOURG_DU_TEMPLE, CORRIDOR_HALF_WIDTH_M);
   const showRival = mode === 'defense' && !hasRealTrace;
@@ -185,10 +213,8 @@ export function ShareMap({
 
   // Trace du run : par défaut la boucle fermée ; une trace fournie (privacy)
   // reste OUVERTE — le trou départ/arrivée EST le masquage, on ne le referme pas.
-  const runTrace: readonly LatLngPoint[] = trace ?? [
-    ...BOUCLE_REPUBLIQUE,
-    BOUCLE_REPUBLIQUE[0] ?? { lat: 0, lng: 0 },
-  ];
+  const runTrace: readonly LatLngPoint[] =
+    trace ?? [...BOUCLE_REPUBLIQUE, BOUCLE_REPUBLIQUE[0] ?? { lat: 0, lng: 0 }];
 
   // Dessin progressif : sous-polyligne (slice) selon la phase trace.
   const traceP = Math.min(1, progress / TRACE_PHASE);
@@ -278,5 +304,23 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     overflow: 'hidden',
     backgroundColor: 'transparent',
+  },
+  // Tracé inconnu : un cadre pointillé NEUTRE (jamais chartreuse — ce n'est pas
+  // un gain) qui dit l'absence. Pas une card : un simple contour dans le slot.
+  noRoute: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.grisLigne,
+    borderRadius: radii.card,
+  },
+  noRouteLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

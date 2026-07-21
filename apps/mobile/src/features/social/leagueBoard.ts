@@ -2,9 +2,8 @@
  * GRYD — classement Joueurs de la saison active (O1 Pass A « lecture », 11/07/2026).
  *
  * Lecture SEULE du board « Joueurs·Paris » réel depuis Supabase quand une session
- * existe, sinon fallback DÉMO (LEAGUE_BOARDS). Même pattern que features/social/
- * economy.ts (session → remote, sinon local ; démo affichée immédiatement, bascule
- * serveur quand la lecture résout, retour démo sur erreur).
+ * existe. Même pattern que features/social/economy.ts : session → remote, et
+ * AUCUNE ligne inventée quand la lecture ne donne rien.
  *
  * Source réelle = la VUE `public.player_leaderboard` (season_scores ⋈ seasons ⋈
  * users), explicitement `grant select to authenticated` (0003_rls.sql) — elle
@@ -12,11 +11,22 @@
  * saison `status='active'` de la ville du joueur, triée par points desc. Le client
  * n'écrit jamais un score (season_scores = service_role via season_close/ingest).
  *
- * Périmètre : SEUL le board Joueurs·Paris devient réel. Joueurs·France / Crews /
- * Ville restent démo (aucune source serveur au MVP). Le rang est dérivé de l'ordre
- * (index+1) — robuste que `rank_cache` soit calculé ou non. Si le classement réel
- * est vide (aucun run encore), on garde la démo (source 'local') plutôt qu'un
- * podium vide.
+ * Périmètre : SEUL le board Joueurs·Paris est câblé au serveur. Joueurs·France /
+ * Crews / Ville n'ont aucune source réelle au MVP — c'est à l'écran Saison de
+ * dire ce qui n'est pas encore mesuré, pas à ce hook d'inventer des lignes. Le rang est dérivé de l'ordre
+ * (index+1) — robuste que `rank_cache` soit calculé ou non.
+ *
+ * ─── LA FUITE COLMATÉE (21/07/2026) ──────────────────────────────────────────
+ * AVANT : sans session, classement réel vide, ou lecture en échec, on servait le
+ * podium de démonstration — des joueurs qui n'existent pas, présentés comme le
+ * classement de la saison en cours, avec « TOI » quelque part dedans. Un
+ * classement inventé est un mensonge sur la communauté ET sur le rang du joueur.
+ *
+ * MAINTENANT (mode vitrine ABANDONNÉ, 21/07/2026) : le podium de démonstration
+ * n'est plus servi nulle part. Un board sans lignes réelles ressort VIDE
+ * (`rows: []`) — à l'écran de dire « personne n'a encore couru cette saison, sois
+ * le premier ». Seul le GABARIT du board (titre, unité) vient encore de
+ * `LEAGUE_BOARDS` : ce sont des libellés de jeu, pas des données de joueur.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '../../lib/session';
@@ -26,14 +36,14 @@ import { LEAGUE_BOARDS, type LeagueBoard, type LeagueRow } from './league';
 /** Nombre max de lignes lues (podium + liste + « Voir tout »). */
 const LEADERBOARD_LIMIT = 50;
 
-/** Board démo « Joueurs » — fallback + gabarit (id/label/kind/valueLabel réutilisés). */
-const DEMO_JOUEURS_BOARD: LeagueBoard =
+/** GABARIT du board « Joueurs » : id/label/kind/valueLabel seulement, jamais ses lignes. */
+const JOUEURS_BOARD_TEMPLATE: LeagueBoard =
   LEAGUE_BOARDS.find((b) => b.id === 'joueurs') ?? LEAGUE_BOARDS[0]!;
 
 export type LeagueSource = 'local' | 'server';
 
 export interface SeasonLeaderboard {
-  /** Board Joueurs·Paris : réel (saison active) si session, sinon démo. */
+  /** Board Joueurs·Paris : lignes réelles (saison active) si session, sinon vide. */
   joueursBoard: LeagueBoard;
   source: LeagueSource;
   loading: boolean;
@@ -48,7 +58,7 @@ type ActiveSeasonRow = { id?: unknown; city_id?: unknown };
 type BoardRow = { user_id?: unknown; pseudo?: unknown; points?: unknown };
 
 /**
- * Lignes réelles du board Joueurs de la saison active du joueur, ou null (démo).
+ * Lignes réelles du board Joueurs de la saison active du joueur, ou null.
  * null = pas de session configurée, erreur, aucune saison active, ou classement
  * encore vide.
  */
@@ -91,7 +101,8 @@ async function fetchRemoteJoueurs(userId: string): Promise<LeagueRow[] | null> {
 }
 
 /**
- * Board Joueurs de la saison : réel (Supabase) si session configurée, sinon démo.
+ * Board Joueurs de la saison : lignes réelles (Supabase) si session configurée,
+ * sinon board VIDE — jamais un podium fabriqué.
  * La ligne « TOI », l'écart et le rank-up sont dérivés du board par l'écran.
  */
 export function useSeasonLeaderboard(): SeasonLeaderboard {
@@ -127,8 +138,9 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
   return useMemo<SeasonLeaderboard>(() => {
     const loading = sessionLoading || remoteLoading;
     if (!remote) {
-      return { joueursBoard: DEMO_JOUEURS_BOARD, source: 'local', loading };
+      // Aucune ligne inventée : le gabarit du board (titre/unité) sans ses lignes.
+      return { joueursBoard: { ...JOUEURS_BOARD_TEMPLATE, rows: [] }, source: 'local', loading };
     }
-    return { joueursBoard: { ...DEMO_JOUEURS_BOARD, rows: remote }, source: 'server', loading };
+    return { joueursBoard: { ...JOUEURS_BOARD_TEMPLATE, rows: remote }, source: 'server', loading };
   }, [remote, sessionLoading, remoteLoading]);
 }

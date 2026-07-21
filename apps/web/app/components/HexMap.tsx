@@ -136,7 +136,10 @@ export function HexMap() {
         strokeLinejoin="round"
       />
 
-      {/* Étiquettes crews en mono (différenciation motif + label, jamais teinte) */}
+      {/* Étiquettes par RÔLE, jamais par identité (GRYD_REGLES_NON_NEGOCIABLES §C).
+          Elles disaient « CREW NORD·XI » et « LES FOULÉES 9³ » : deux crews
+          inventés, écrits sur la carte du hero comme s'ils tenaient du terrain.
+          Un rôle décrit le code couleur ; un nom prétend qu'il existe. */}
       <text
         x="292"
         y="46"
@@ -145,7 +148,7 @@ export function HexMap() {
         fill={colors.gris}
         letterSpacing="1.5"
       >
-        CREW NORD·XI
+        CREW ADVERSE
       </text>
       <text
         x="86"
@@ -155,7 +158,7 @@ export function HexMap() {
         fill={colors.chartreuse}
         letterSpacing="1.5"
       >
-        LES FOULÉES 9³
+        TON CREW
       </text>
     </svg>
   );

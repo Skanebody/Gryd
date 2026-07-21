@@ -3,7 +3,11 @@
  * branché sur le VRAI tracker GPS (distance/allure/temps/zones estimées réels,
  * jauge GPS Trust réelle, états faible/perdu/autorisation coupée depuis
  * signalState). Composant PUR côté imports natifs : tout passe par RealRunApi
- * (useRealRun) — il peut vivre dans le bundle web sans jamais y être rendu.
+ * (useRealRun) — il vit donc AUSSI dans le bundle web, où il est bel et bien
+ * rendu depuis le 21/07/2026 : le navigateur enregistre de VRAIES courses via
+ * `navigator.geolocation` (useRealRun.web.ts). Les seules différences visibles
+ * y sont les limites RÉELLES de la plateforme (pas d'arrière-plan, pas de
+ * réglages système), annoncées au lieu d'être masquées.
  *
  * Différences assumées avec la démo (honnêteté AMENDEMENT-15 §0) :
  *  - pas de mode Carte ici : la navigation LiveNavMap est construite sur la
@@ -21,7 +25,17 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { VERIFIED_MIN_TRUST, colors, fontSizes, gameColors, iconSizes, motion, radii, spacing } from '@klaim/shared';
+import {
+  GPS_SIGNAL_LOST_AFTER_S,
+  VERIFIED_MIN_TRUST,
+  colors,
+  fontSizes,
+  gameColors,
+  iconSizes,
+  motion,
+  radii,
+  spacing,
+} from '@klaim/shared';
 import { C } from '../../../i18n/catalog/runGps';
 import { useT } from '../../../i18n/store';
 import type { Entry } from '../../../i18n/types';
@@ -71,9 +85,24 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const finishedRef = useRef(false);
   const s = run.snapshot;
   const mode = run.effectiveMode;
+  /**
+   * `null` = la plateforme n'a pas de réglages système à ouvrir (navigateur).
+   * On ne rend alors NI le bouton Aide GPS NI la feuille d'aide : les deux
+   * finissent sur « ouvrir les réglages de GRYD », qui n'existe pas dans un
+   * onglet. Un bouton qui ne mène nulle part est un mensonge d'interface.
+   */
+  const openSettings = run.openSettings;
   const conquest = mode === 'conquete';
   const paused = s.phase === 'paused-user';
   const verified = s.gpsTrust >= VERIFIED_MIN_TRUST && s.keptPoints > 0;
+  /**
+   * LECTURE EN COURS ≠ ÉCHEC. Aucune position n'est encore arrivée : « signal
+   * perdu » serait faux (on n'a rien perdu — on n'a jamais rien eu). Passé le
+   * délai moteur (GPS_SIGNAL_LOST_AFTER_S, jamais un nombre en dur), on cesse
+   * d'attendre en silence et on dit que rien n'arrive.
+   */
+  const awaitingFirstFix = s.totalFixes === 0;
+  const firstFixOverdue = awaitingFirstFix && s.activeS > GPS_SIGNAL_LOST_AFTER_S;
   // D4 — guidage de boucle (pur) : rien avant le périmètre minimal, « prête »
   // sous la tolérance serveur, sinon l'écart au départ à vol d'oiseau.
   const hint = loopHint({ conquest, distanceM: s.distanceM, gapM: s.loopGapM });
@@ -142,7 +171,12 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         {/* En pause MANUELLE les fixes sont volontairement ignorés : ne jamais
              afficher un faux « Signal perdu » (états honnêtes, anti-shame). */}
         {s.phase !== 'paused-user' ? (
-          <GpsSignalPill signal={s.signal} permissionRevoked={run.permissionRevoked} />
+          <GpsSignalPill
+            signal={s.signal}
+            permissionRevoked={run.permissionRevoked}
+            awaitingFirstFix={awaitingFirstFix}
+            firstFixOverdue={firstFixOverdue}
+          />
         ) : null}
         {!conquest ? (
           <View style={styles.statsOnlyPill}>
@@ -151,10 +185,16 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           </View>
         ) : null}
         {run.approxLocation ? <PreciseLocationBanner onOpenSettings={run.openSettings} /> : null}
-        {run.bgPrompt === 'denied' ? (
+        {/* Deux « premier plan seulement » très différents, jamais confondus :
+             la plateforme ne SAIT PAS enregistrer en fond (navigateur — on
+             annonce la limite d'emblée), ou l'utilisateur a refusé la
+             permission « Toujours » (appareil). Anti-shame dans les deux cas. */}
+        {run.foregroundOnlyPlatform || run.bgPrompt === 'denied' ? (
           <View style={styles.statsOnlyPill}>
             <Icon name="gps" size={iconSizes.xs} color={colors.gris} />
-            <Text style={styles.statsOnlyText}>{t(C.foregroundOnly)}</Text>
+            <Text style={styles.statsOnlyText}>
+              {t(run.foregroundOnlyPlatform ? C.browserForegroundOnly : C.foregroundOnly)}
+            </Text>
           </View>
         ) : null}
         {run.bgPrompt === 'offer' ? (
@@ -252,13 +292,19 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         >
           <PausePlayGlyph paused={paused} size={24} />
         </BigControl>
-        <BigControl
-          label={t(C.ctrlGpsHelp)}
-          accessibilityLabel={t(C.a11yGpsHelp)}
-          onPress={() => setHelpVisible(true)}
-        >
-          <Icon name="gps" size={24} color={colors.blanc} />
-        </BigControl>
+        {/* AIDE GPS = « courir écran éteint » par constructeur, et son bouton
+             final ouvre les réglages de l'app. Rien de tout ça n'existe dans un
+             navigateur : on n'affiche pas une aide qui ne mène nulle part
+             (§A — jamais d'affordance sans destination). */}
+        {openSettings === null ? null : (
+          <BigControl
+            label={t(C.ctrlGpsHelp)}
+            accessibilityLabel={t(C.a11yGpsHelp)}
+            onPress={() => setHelpVisible(true)}
+          >
+            <Icon name="gps" size={24} color={colors.blanc} />
+          </BigControl>
+        )}
         <View style={styles.bigControlWrap}>
           <Pressable
             accessibilityRole="button"
@@ -277,11 +323,13 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         </View>
       </View>
 
-      <BackgroundHelpSheet
-        visible={helpVisible}
-        onClose={() => setHelpVisible(false)}
-        onOpenSettings={run.openSettings}
-      />
+      {openSettings === null ? null : (
+        <BackgroundHelpSheet
+          visible={helpVisible}
+          onClose={() => setHelpVisible(false)}
+          onOpenSettings={openSettings}
+        />
+      )}
     </View>
   );
 }

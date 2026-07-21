@@ -112,29 +112,6 @@
   }
 }
 
-/* Chiffre héros : 400, tabulaire, chartreuse = gain (signature typographique). */
-.heroNumber {
-  font-family: var(--disp);
-  font-weight: 400;
-  font-size: clamp(56px, 7vw, 84px);
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: var(--ch);
-  font-variant-numeric: tabular-nums;
-  margin: 22px 0 4px;
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.heroUnit {
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.22em;
-  color: var(--gris);
-}
-
 /* ─── Séquence de victoire ──────────────────────────────────────────────── */
 
 .sequence {

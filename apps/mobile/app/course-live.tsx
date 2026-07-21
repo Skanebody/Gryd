@@ -23,13 +23,16 @@
  * stop protégé §G) → /course-result. Le client n'attribue jamais une zone :
  * tout est « estimé », le serveur (ingest_run) reste seul décideur.
  *
- * AMENDEMENT-15 §2 — sélecteur réel/simulation : sur NATIF avec permission,
- * useRealRun branche le vrai tracker GPS (RealCourseLive) ; sur web ou sans
- * permission, la simulation démo ci-dessous reste INCHANGÉE (une phrase de
- * mode dégradé s'empile en haut si le GPS a été refusé — jamais bloquant).
+ * AMENDEMENT-15 §2 + décision fondateur 21/07/2026 — il n'y a PLUS de
+ * sélecteur réel/simulation : il n'existe qu'UNE course, la vraie. `useRealRun`
+ * branche le tracker sur la position RÉELLE de la plateforme — expo-location
+ * sur l'appareil, `navigator.geolocation` dans le navigateur (variante
+ * `.web.ts`, même cœur, autre capteur). Sans position réelle, il n'y a pas de
+ * course : l'écran nomme laquelle des quatre raisons s'applique et
+ * n'enregistre rien.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -84,6 +87,7 @@ import {
   type LiveRunMode,
 } from '../src/features/run/simulation';
 import { useRealRun } from '../src/features/run/gps/useRealRun';
+import type { RunUnavailableReason } from '../src/features/run/gps/locationAdapter';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
 import { getPlannedRoute } from '../src/features/route/plannedRoute';
 import type { LatLngPoint } from '../src/features/map/realAnchors';
@@ -94,9 +98,7 @@ import {
   defenseCoveragePct,
   defenseZoneForRoute,
   freeRunMissionLabel,
-  intentionFromParam,
   isCompleteParam,
-  partialBoundaryById,
   type PartialBoundaryDemo,
   type RunIntention,
 } from '../src/features/run/intention';
@@ -170,7 +172,20 @@ function useZoneJump(active: boolean): Animated.Value {
   return scale;
 }
 
+/**
+ * Point d'entrée de la route. Il ne porte QU'UNE chose : la possibilité de
+ * RÉESSAYER. Une position peut manquer pour une raison réversible (autorisation
+ * qu'on vient de changer dans le navigateur, capteur qui n'avait pas encore
+ * répondu) ; sans remontage, le seul recours était de quitter l'écran. Le `key`
+ * relance le gate — donc une VRAIE nouvelle tentative de lecture du capteur,
+ * jamais un simple rafraîchissement d'affichage.
+ */
 export default function CourseLiveScreen() {
+  const [attempt, setAttempt] = useState(0);
+  return <CourseLiveGate key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
+}
+
+function CourseLiveGate({ onRetry }: { onRetry: () => void }) {
   const params = useLocalSearchParams<{
     mode?: string;
     route?: string;
@@ -188,40 +203,157 @@ export default function CourseLiveScreen() {
   // `complete` ne teinte QUE le bandeau (le serveur reste seul décideur).
   const completing = isCompleteParam(params.intention);
   const mode = completing ? 'conquete' : runModeFromParam(params.mode);
-  const completeBoundary = completing ? partialBoundaryById(params.boundary) : null;
-  // Intention (AMENDEMENT-16 §1) : Conquérir/Défendre teintent les bandeaux
-  // live — 100 % CLIENT, jamais lue par le serveur (le tracé décide).
-  const intention = intentionFromParam(params.intention);
-  // GPS réel (AMENDEMENT-15 §2) : natif + permission → vrai tracker ; web ou
-  // refus → simulation démo INCHANGÉE (variante useRealRun.web.ts = stub).
-  // AMENDEMENT-18 §C.4 — mission crew rejointe : les alliés opt-in ne s'affichent
-  // QUE dans ce cadre. Le mode « terminer » est toujours une mission (on referme
-  // une frontière crew ensemble) ; sinon `?mission=1` le déclare explicitement.
-  const missionParam = Array.isArray(params.mission) ? params.mission[0] : params.mission;
-  const mission = missionParam === '1' || missionParam === 'true';
+  // UNE seule course, la vraie (décision fondateur 21/07/2026). `useRealRun`
+  // lit la position RÉELLE de la plateforme : expo-location sur l'appareil,
+  // `navigator.geolocation` dans le navigateur. Sans position utilisable →
+  // aucune course, et l'écran DIT laquelle des quatre raisons s'applique.
   const gate = useRealRun(mode);
-  if (gate.kind === 'starting') {
-    // Permission en cours de résolution (natif, quelques instants) : fond noir
-    // plein sous la boîte de dialogue système — jamais de démo fantôme derrière.
-    return <View style={styles.root} />;
-  }
+  // ── LECTURE EN COURS : on cherche la position, on n'affirme RIEN ──────────
+  // (Avant : `<View style={styles.root} />` — un rectangle noir muet. Derrière
+  //  la boîte de dialogue système ça passait ; dans un navigateur, où l'invite
+  //  est une barre discrète en haut de la fenêtre, c'était un écran mort.)
+  if (gate.kind === 'starting') return <RunStarting />;
   if (gate.kind === 'real') return <RealCourseLive run={gate.run} />;
-  // Parcours PLANIFIÉ (Route Planner) : la course suit SA géométrie (store).
-  const plannedLine = params.planned ? getPlannedRoute()?.line : undefined;
+  // ─── « L'APP NE MENT JAMAIS » (décision fondateur 21/07/2026) ──────────────
+  // Sans position réelle, la course simulée était autrefois affichée COMME une
+  // course : distance qui monte, allure, zones estimées, puis un Résultat de
+  // conquête. Un bandeau « démo » n'y changeait rien — c'est un run fabriqué à
+  // la place du sien. Il n'existe plus AUCUN chemin vers une course fabriquée :
+  // l'écran nomme la raison exacte + l'action qui débloque, et n'enregistre rien.
+  //
+  // (`DemoCourseLive`, plus bas, n'a plus d'appelant depuis cette date. Laissé
+  //  au balayage de code mort dédié plutôt que supprimé ici — chantier à part.)
+  return <RunUnavailable reason={gate.reason} onRetry={onRetry} />;
+}
+
+/**
+ * LECTURE EN COURS — le quatrième état, distinct des trois autres. Un
+ * chargement n'affirme RIEN sur le joueur : ni qu'il n'a pas de position, ni
+ * qu'il en a une. On dit ce qu'on est en train de faire et ce qu'on attend de
+ * lui (répondre à l'invite), sans compteur qui tourne dans le vide.
+ */
+function RunStarting() {
+  const t = useT();
+  const insets = useSafeAreaInsets();
   return (
-    <DemoCourseLive
-      mode={mode}
-      routeParam={params.route}
-      intention={intention}
-      completeBoundary={completeBoundary}
-      mission={mission}
-      notice={gate.notice}
-      plannedLine={plannedLine}
-    />
+    <View style={[styles.root, styles.blockedRoot, { paddingTop: insets.top + spacing.xl }]}>
+      <View style={styles.blockedIcon}>
+        <Icon name="gps" size={28} color={colors.chartreuse} />
+      </View>
+      <Text style={styles.blockedTitle}>{t(C.startingTitle)}</Text>
+      <Text style={styles.blockedBody}>{t(C.startingBody)}</Text>
+    </View>
   );
 }
 
-/** Simulation démo (flux historique, INCHANGÉ hors pill de mode dégradé). */
+/**
+ * COURSE IMPOSSIBLE — état vide HONNÊTE (jamais un écran blanc, jamais une
+ * course fabriquée). On nomme LA raison exacte (elles ne se règlent pas au même
+ * endroit), puis UNE action qui débloque : les Réglages sur l'appareil, une
+ * nouvelle tentative dans le navigateur (l'autorisation d'un site se change
+ * dans le navigateur, puis on réessaie). Quand rien ne peut débloquer
+ * (`no-sensor`), on ne propose PAS de faux bouton — seulement le retour.
+ * §A : 1 écran = 1 décision, 1 CTA chartreuse max, texte jamais tronqué.
+ */
+function RunUnavailable({
+  reason,
+  onRetry,
+}: {
+  reason: RunUnavailableReason;
+  onRetry: () => void;
+}) {
+  const t = useT();
+  const insets = useSafeAreaInsets();
+  const web = Platform.OS === 'web';
+
+  useEffect(() => {
+    // Mesure du mur : combien de GO meurent faute de position, et POURQUOI
+    // (le funnel pilote distinguait « pas de GPS » sans jamais savoir laquelle).
+    screen('course_live_no_gps', { platform: Platform.OS, reason });
+  }, [reason]);
+
+  /** Une raison = une phrase. Elles ne se règlent pas au même endroit. */
+  const body =
+    reason === 'no-sensor'
+      ? C.noGpsNoSensorBody
+      : reason === 'services-off'
+        ? C.noGpsServicesOffBody
+        : reason === 'denied'
+          ? web
+            ? C.noGpsDeniedWebBody
+            : C.noGpsNativeBody
+          : C.noGpsUnavailableBody;
+
+  /**
+   * L'UNIQUE action chartreuse (§A). Les Réglages système n'existent que sur
+   * l'appareil ; dans un navigateur, ce qui débloque est de changer
+   * l'autorisation du site puis de RÉESSAYER (le retry relance vraiment la
+   * lecture du capteur). `no-sensor` : rien ne débloque ici — pas de bouton.
+   */
+  const action: 'settings' | 'retry' | null =
+    reason === 'no-sensor'
+      ? null
+      : // Le capteur n'a rien rendu : le texte dit « ressaie dehors » — le CTA
+        // doit dire la même chose, sur appareil comme dans un navigateur.
+        reason === 'position-unavailable'
+        ? 'retry'
+        : web
+          ? 'retry'
+          : 'settings';
+
+  const openSettings = () => {
+    haptics.light();
+    void Linking.openSettings();
+  };
+  const retry = () => {
+    haptics.light();
+    onRetry();
+  };
+  const back = () => {
+    haptics.light();
+    router.replace('/(tabs)');
+  };
+
+  return (
+    <View style={[styles.root, styles.blockedRoot, { paddingTop: insets.top + spacing.xl }]}>
+      <View style={styles.blockedIcon}>
+        <Icon name="gps" size={28} color={colors.gris} />
+      </View>
+      <Text style={styles.blockedTitle}>{t(C.noGpsTitle)}</Text>
+      <Text style={styles.blockedBody}>{t(body)}</Text>
+
+      <View style={[styles.blockedActions, { paddingBottom: insets.bottom + spacing.lg }]}>
+        {action === null ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(action === 'settings' ? C.a11yNoGpsSettings : C.a11yNoGpsRetry)}
+            onPress={action === 'settings' ? openSettings : retry}
+            style={({ pressed }) => [styles.blockedCta, pressed && styles.pressed]}
+          >
+            <Text style={styles.blockedCtaLabel}>
+              {t(action === 'settings' ? C.noGpsSettingsCta : C.noGpsRetryCta)}
+            </Text>
+          </Pressable>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.noGpsBack)}
+          onPress={back}
+          style={({ pressed }) => [styles.blockedGhost, pressed && styles.pressed]}
+        >
+          <Text style={styles.blockedGhostLabel}>{t(C.noGpsBack)}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Simulation démo — PLUS AUCUN APPELANT depuis le 21/07/2026 (fin du mode
+ * vitrine). Conservée le temps d'un balayage de code mort dédié : elle partage
+ * des sous-vues (GuidedBottomStack, LiveCardView, PingsMenu, Stat…) avec le live
+ * RÉEL, et les démêler proprement est un chantier à part. Ne pas la rebrancher.
+ */
 function DemoCourseLive({
   mode,
   routeParam,
@@ -1309,6 +1441,58 @@ function PausePlayButton({ paused, onPress }: { paused: boolean; onPress: () => 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
+
+  // ── Course impossible (pas de GPS) : état vide honnête, plein écran ──
+  blockedRoot: { paddingHorizontal: spacing.xl, justifyContent: 'center' },
+  blockedIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  blockedTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.xl,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
+  },
+  blockedBody: {
+    color: colors.gris,
+    fontSize: fontSizes.md,
+    lineHeight: fontSizes.md * 1.5,
+  },
+  blockedActions: {
+    position: 'absolute',
+    left: spacing.xl,
+    right: spacing.xl,
+    bottom: 0,
+    gap: spacing.sm,
+  },
+  blockedCta: {
+    minHeight: 52,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  // Chartreuse = fond, texte NOIR (jamais de chartreuse sur clair — charte).
+  blockedCtaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '700' },
+  blockedGhost: {
+    minHeight: 52,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  blockedGhostLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
 
   // ✕ Quitter (haut gauche, cible ≥ 44 px) + overlay de confirmation.
   quitButton: {

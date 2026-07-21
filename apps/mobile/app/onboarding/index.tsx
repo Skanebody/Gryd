@@ -1,18 +1,33 @@
 /**
  * GRYD — ONBOARDING SANS FRICTION (AMENDEMENT-30, stratégie §6/§7). Un stepper
- * qui déplace TOUTE la friction hors de la course et active (1re capture) le
- * plus vite. Règle cardinale : « aucun écran ne demande avant d'avoir donné » —
- * la permission GPS ne vit QUE dans la branche « run » (juste avant Lancer le
- * run ; la branche « sync » ne la voit jamais), compte et crew viennent après
- * la 1re capture, et les notifications sont HORS onboarding (opt-in au 1er
- * contexte utile, copy NOTIFICATIONS conservée dans content.ts).
+ * qui déplace TOUTE la friction hors de la course. Règle cardinale : « aucun
+ * écran ne demande avant d'avoir donné » — on montre le terrain de jeu et on
+ * explique la règle AVANT de demander quoi que ce soit ; la permission GPS
+ * arrive juste avant d'aller courir, le compte et le crew ensuite, et les
+ * notifications sont HORS onboarding (opt-in au 1er contexte utile, copy
+ * NOTIFICATIONS conservée dans content.ts).
  *
- * Flow : 1 hook → 1b âge (16+) → 2 le terrain de jeu (plateau démo AVANT tout
- * compte) → 3 choix du chemin → 3a sync (démo import, pas de GPS) OU
- * 3b permission GPS → premier run (1 tap) → 4 1re capture MOMENT SIGNATURE
- * (remplissage + haptique success+heavy + « +X zones » + Partager, CTA
- * « Défendre ma zone ») → 5 compte APRÈS la valeur → 6 crew → sortie.
- * Max 7 écrans jusqu'à la capture (6 sur la branche sync).
+ * ─── L'APP NE MENT JAMAIS (décision fondateur 21/07/2026) ───────────────────
+ * L'onboarding est la PREMIÈRE expérience du produit : il n'a pas le droit d'y
+ * fabriquer une course. L'ancien flow « importer une course » DÉTECTAIT un run
+ * de 6,4 km « ce matin » depuis Apple Health (import non branché — O7/O8), puis
+ * le CÉLÉBRAIT : compteur héros « +47 zones », haptique de succès + heavy, event
+ * de célébration. Le joueur croyait avoir capturé 47 zones.
+ *
+ * Un exemple a le droit d'ENSEIGNER ; il n'a pas le droit d'être présenté comme
+ * les données du joueur, ni d'être CÉLÉBRÉ comme son accomplissement. D'où un
+ * flow UNIQUE — le mode vitrine est ABANDONNÉ (plus de `isShowcasePlatform`) :
+ *
+ *     1 hook → 1b âge (16+) → 2 le terrain de jeu (plateau ÉTIQUETÉ « Exemple »)
+ *     → 2b LA RÈGLE sur un exemple (`learn` : la boucle se ferme, la zone
+ *     bascule — aucun chiffre attribué au joueur, aucune haptique de succès,
+ *     aucun event de célébration) → 3b permission GPS (pédagogique) → 5 compte
+ *     → 6 crew → sortie.
+ *     La première capture du joueur est sa VRAIE première capture.
+ *
+ * Les étapes `choose` / `sync` / `run` / `capture` (import mis en scène, course
+ * de 3 s, moment signature « +47 zones ») ont été SUPPRIMÉES, pas masquées :
+ * elles n'existaient que pour la vitrine, et la vitrine n'existe plus.
  *
  * Discipline (§A) : 1 écran = 1 décision, 1 CTA chartreuse contextuel (VERBES,
  * jamais « GO »/« Continuer »), texte court non tronqué, pas de card-dans-card,
@@ -20,14 +35,31 @@
  * Copy 100 % centralisée dans content.ts, honnête (aucun nom de lieu tant
  * qu'aucun GPS). Une flèche retour DISCRÈTE (gris, coin haut-gauche, ≥ 44 px,
  * jamais un 2e CTA) rattrape un mistap sans quitter le flow — absente sur le
- * hook (STEP_PREV). Web preview (`configured=false`) : la permission GPS est
- * SIMULÉE (bouton démo), l'auth est no-op « ok » (auth.web) — le flow tourne
- * de bout en bout.
+ * hook (STEP_PREV).
+ *
+ * ─── LE « PLUS TARD » DU COMPTE N'EST PLUS UN CUL-DE-SAC (21/07/2026) ────────
+ * Le commentaire de `AccountStep` promettait « ce n'est pas un mur : Plus tard
+ * laisse toujours passer sans compte ». C'était FAUX quand Supabase est
+ * configuré (iPhone ET localhost) : `(tabs)/_layout` redirige alors tout
+ * visiteur sans session vers `(auth)/sign-in`, écran qui n'a aucune sortie — et
+ * comme `onboardingDone` est persisté, relancer l'app n'y ramenait même plus.
+ * Le joueur était enfermé À VIE sur /sign-in.
+ *
+ * On RETIRE donc la promesse là où elle est fausse, plutôt que de la répéter :
+ *   · Supabase configuré → le compte est REQUIS, l'écran le dit, et il offre
+ *     une 3e voie qui MARCHE (e-mail → `(auth)/sign-in`, code OTP) pour le cas
+ *     où Apple et Google sont indisponibles (O2). Aucun « Plus tard » menteur.
+ *   · Supabase non configuré (dev sans backend) → aucune garde d'auth en aval :
+ *     « Plus tard » passe réellement, donc il reste proposé.
+ *   · Session déjà ouverte (retour dans l'onboarding après un sign-in) →
+ *     l'étape s'efface : on ne redemande pas un compte qui existe.
+ * Rendre la promesse VRAIE dans les deux cas demanderait de lever la garde de
+ * `(tabs)/_layout` (hors de ce lot) — c'est signalé, pas fait en douce.
  *
  * Gating : à la sortie, on marque l'état PRÉ-COMPTE persistant (onboarding/store)
  * pour que (tabs)/_layout ne re-pousse plus l'onboarding. Un utilisateur DÉJÀ
  * authentifié (session réelle native) ne voit jamais cet écran (garde du layout).
- * CÂBLÉ DÉMO : la capture est simulée (import réel = O7/O8).
+ * `firstCaptureDone` n'est JAMAIS posé ici : aucune capture n'a eu lieu (store).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -38,66 +70,46 @@ import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { useT } from '../../src/i18n/store';
 import { signInWithApple, signInWithGoogle, type AuthResult } from '../../src/lib/auth';
+import { useSession } from '../../src/lib/session';
 import { Icon } from '../../src/ui/Icon';
-import { useCountUp, useReduceMotion } from '../../src/ui/game';
+import { useReduceMotion } from '../../src/ui/game';
 import { withAlpha } from '../../src/features/map/mapStyle';
 import { OnboardingAppleButton } from '../../src/features/onboarding/AppleButton';
 import { useOnboardingState } from '../../src/features/onboarding/store';
 import {
   ACCOUNT,
   AGE,
-  CAPTURE,
-  CHOOSE,
   CITY,
   CREW,
   HOOK,
+  LEARN,
   NAV,
   PERMISSION,
-  RUN,
   STEP_EVENT_N,
-  SYNC,
   type OnboardingStep,
 } from '../../src/features/onboarding/content';
-import {
-  SYNC_DEMO_RUN,
-  SYNC_PHASES,
-  SYNC_SOURCES,
-  syncPhaseIndex,
-  syncSource,
-  useSyncDemo,
-  type SyncSourceKey,
-} from '../../src/features/onboarding/syncDemo';
 import {
   CaptureFillVisual,
   CityBoard,
   HookMapBackground,
-  SyncProgressBar,
 } from '../../src/features/onboarding/visuals';
 
 // ─── Durées de scénario (présentation, pas des règles) ───────────────────────
 
-/** Déroulé de l'import sync (§4a — « 1re zone en secondes »). */
-const SYNC_DURATION_MS = 3600;
-/** Déroulé du premier run démo (§4b — plus court : un objectif simple). */
-const RUN_DURATION_MS = 3000;
-/** Montée du remplissage + compteur au moment signature (§5). */
+/** Montée du remplissage de l'exemple pédagogique (§5). */
 const CAPTURE_FILL_MS = 1100;
 
 /**
  * Étape précédente pour la flèche retour discrète (§A : rattraper un mistap sans
- * quitter le flow). `hook` n'a pas de précédent → aucune flèche. La branche sync
- * et la capture reviennent au CHOIX du chemin (re-choisir sync ou run) ; la
- * branche run remonte sa propre séquence (run → permission → choose).
+ * quitter le flow). `hook` n'a pas de précédent → aucune flèche. Chaîne UNIQUE
+ * (la vitrine et ses branches sync/run/capture n'existent plus).
  */
 const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
   age: 'hook',
   city: 'age',
-  choose: 'city',
-  sync: 'choose',
-  permission: 'choose',
-  run: 'permission',
-  capture: 'choose',
-  account: 'capture',
+  learn: 'city',
+  permission: 'learn',
+  account: 'permission',
   crew: 'account',
 };
 
@@ -130,10 +142,18 @@ export default function OnboardingScreen() {
     setStep(prev);
   }, [step]);
 
-  /** Sortie du flow : marque l'onboarding fait (pré-compte) + route vers `href`. */
+  /**
+   * Sortie du flow : marque l'onboarding fait (pré-compte) + route vers `href`.
+   * `firstCaptureDone` n'est PAS posé ici : aucune capture n'a eu lieu — le
+   * poser était l'app qui se ment à elle-même (voir store.ts).
+   *
+   * `/sign-in` est une sortie LÉGITIME : marquer l'onboarding fait AVANT d'y
+   * aller évite le rebond (`(tabs)/_layout` renverrait vers /onboarding une fois
+   * connecté, faisant refaire tout le stepper à un joueur qui a un compte).
+   */
   const finish = useCallback(
-    async (href: '/' | '/crew-discovery' | '/crew') => {
-      await update({ onboardingDone: true, firstCaptureDone: true });
+    async (href: '/' | '/crew-discovery' | '/crew' | '/sign-in') => {
+      await update({ onboardingDone: true });
       router.replace(href);
     },
     [update],
@@ -150,41 +170,18 @@ export default function OnboardingScreen() {
           }}
         />
       ) : null}
-      {step === 'city' ? <CityStep onNext={() => go('choose')} /> : null}
-      {step === 'choose' ? (
-        <ChooseStep
-          onSync={() => {
-            void update({ path: 'sync' });
-            go('sync');
-          }}
-          onRun={() => {
-            void update({ path: 'run' });
-            // La permission GPS n'existe QUE sur ce chemin (juste avant le run).
-            go('permission');
-          }}
-        />
+      {step === 'city' ? <CityStep onNext={() => go('learn')} /> : null}
+      {/* On ENSEIGNE la règle sur un exemple étiqueté, puis on va la vérifier en
+          courant pour de vrai (permission GPS juste après). */}
+      {step === 'learn' ? (
+        <LearnStep reduce={reduce} onNext={() => go('permission')} />
       ) : null}
-      {step === 'permission' ? <PermissionStep onNext={() => go('run')} /> : null}
-      {step === 'sync' ? (
-        <SyncStep
-          onDone={() => {
-            void update({ firstCaptureDone: true });
-            go('capture');
-          }}
-        />
+      {/* Le GPS reste pédagogique ; aucun run n'est mis en scène derrière — le
+          joueur enchaîne sur son compte, puis va courir POUR DE VRAI. */}
+      {step === 'permission' ? <PermissionStep onNext={() => go('account')} /> : null}
+      {step === 'account' ? (
+        <AccountStep onNext={() => go('crew')} onEmail={() => void finish('/sign-in')} />
       ) : null}
-      {step === 'run' ? (
-        <RunStep
-          onDone={() => {
-            void update({ firstCaptureDone: true });
-            go('capture');
-          }}
-        />
-      ) : null}
-      {step === 'capture' ? (
-        <CaptureStep reduce={reduce} onNext={() => go('account')} />
-      ) : null}
-      {step === 'account' ? <AccountStep onNext={() => go('crew')} /> : null}
       {step === 'crew' ? (
         <CrewStep
           // « Rejoindre » menait à /crew-discovery = des crews INVENTÉS, avec un
@@ -360,12 +357,71 @@ function CityStep({ onNext }: { onNext: () => void }) {
         <Kicker>{t(CITY.kicker)}</Kicker>
         <Text style={styles.title}>{t(CITY.title)}</Text>
         <View style={styles.boardWrap}>
-          <CityBoard />
+          {/* Le plateau est un EXEMPLE (aucune géoloc obtenue à ce stade) : la
+              chip le dit SUR le visuel, pas seulement dans la copy. */}
+          <CityBoard exampleLabel={t(LEARN.exampleTag)} />
         </View>
         <Text style={styles.tagline}>{t(CITY.tagline)}</Text>
       </View>
       <View style={styles.footer}>
         <PrimaryCta label={t(CITY.cta)} icon="cible" onPress={onNext} />
+      </View>
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2b — LA RÈGLE, SUR UN EXEMPLE (produit installé) : enseigner, pas célébrer
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * L'exemple qui ENSEIGNE. La vraie boucle se dessine et la zone se remplit —
+ * exactement ce que le joueur verra après SA course. Ce qui a été retiré par
+ * rapport à l'ancien « moment signature » (et pourquoi) :
+ *   · le compteur héros « +47 zones » — un chiffre attribué au joueur alors
+ *     qu'il n'a rien couru ;
+ *   · l'haptique success + heavy — le corps du joueur reçoit « tu as réussi » ;
+ *   · l'event `celebrationViewed` — une célébration comptée dans le funnel ;
+ *   · la sous-ligne « dont N en boucle · autour de toi » — des zones à lui.
+ * Restent : le geste, la chip « Exemple » sur le visuel, une note qui dit que
+ * ses zones à lui arrivent après sa première course, et un CTA qui l'y emmène.
+ */
+function LearnStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }) {
+  const t = useT();
+  const [p, setP] = useState(reduce ? 1 : 0);
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduce) {
+      setP(1);
+      return;
+    }
+    const id = anim.addListener(({ value }) => setP(value));
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: CAPTURE_FILL_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    return () => {
+      anim.removeListener(id);
+      anim.stopAnimation();
+    };
+  }, [reduce, anim]);
+
+  return (
+    <View style={styles.step}>
+      <View style={styles.body}>
+        <Kicker>{t(LEARN.kicker)}</Kicker>
+        <Text style={styles.title}>{t(LEARN.title)}</Text>
+        <View style={styles.boardWrap}>
+          <CaptureFillVisual p={p} exampleLabel={t(LEARN.exampleTag)} />
+        </View>
+        <Text style={styles.tagline}>{t(LEARN.tagline)}</Text>
+        <Text style={styles.learnNote}>{t(LEARN.note)}</Text>
+      </View>
+      <View style={styles.footer}>
+        <PrimaryCta label={t(LEARN.cta)} icon="conquete" onPress={onNext} />
       </View>
     </View>
   );
@@ -409,294 +465,85 @@ function PermissionStep({ onNext }: { onNext: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3 — CHOIX DU CHEMIN (§4) : 2 options claires (sync / run), verbes pas « GO »
+// 5 — COMPTE APRÈS LA VALEUR (§6) : Apple / Google / e-mail, 1 tap.
+//
+// « Plus tard » n'est proposé QUE s'il passe réellement (voir l'en-tête du
+// fichier) : sans backend configuré, il n'y a aucune garde d'auth en aval, donc
+// il tient sa promesse ; avec backend, il n'en tenait aucune — il disparaît, et
+// l'écran DIT que le compte est nécessaire au lieu de faire semblant.
+//
+// ─── ON NE PEINT PLUS DE BOUTON MORT (21/07/2026) ───────────────────────────
+// L'écran affichait « Continuer avec Apple » ET « Continuer avec Google » sur
+// TOUTES les plateformes : le seul fork était `Platform.OS === 'ios'`, qui
+// choisissait l'APPARENCE du bouton Apple (bouton système vs CTA générique),
+// jamais s'il fallait l'afficher. Deux boutons échouaient donc à coup sûr :
+//   · sur WEB, `auth.web.ts` retourne `{ ok: false, reason: 'web_unsupported' }`
+//     pour Apple ET Google (O2 + URL de redirection non allowlistée) — et le CTA
+//     chartreuse de l'écran, l'UNIQUE de §A4, était précisément ce bouton mort ;
+//   · sur ANDROID, ce même CTA chartreuse appelait `AppleAuthentication`, module
+//     iOS-only (`AppleButton.tsx` renvoie d'ailleurs déjà `null` hors iOS — le
+//     CTA générique était son repli, donc un bouton sans moteur derrière).
+// Le tap ne menait nulle part : `run()` posait `failed`, l'écran affichait
+// « Connexion impossible » et le joueur restait planté. Un CTA qui échoue
+// TOUJOURS n'est pas une erreur d'exécution, c'est un mensonge d'interface.
+//
+// On dérive donc l'affichage de la CAPACITÉ RÉELLE de chaque fournisseur
+// (CAN_APPLE / CAN_GOOGLE), au lieu de forker sur l'apparence :
+//   · iOS      → bouton système Apple + Google en secondaire + lien e-mail ;
+//   · Android  → Google DEVIENT le CTA chartreuse (seul fournisseur qui marche)
+//                + lien e-mail ; plus aucun bouton Apple ;
+//   · Web      → aucun fournisseur ; l'e-mail (OTP, HTTP pur) monte en CTA
+//                chartreuse : c'est la seule porte d'entrée, elle doit être LA
+//                décision de l'écran, pas un lien gris sous deux boutons morts.
+// Même parti pris que `(auth)/sign-in.web.tsx` : leur ABSENCE n'est pas un
+// mensonge ; un bouton qui échoue toujours en serait un. Le jour où O2 est
+// fermé côté web, c'est `CAN_GOOGLE` qui bascule — pas le JSX.
+//
+// Reste un cas SANS AUCUNE porte : web + Supabase non configuré (dev sans
+// backend). L'e-mail y échouerait aussi (`supabase_not_configured`), donc il
+// n'est pas proposé : il ne reste que « Plus tard », qui lui passe vraiment
+// (aucune garde d'auth en aval). L'écran n'a alors PAS de CTA chartreuse —
+// §A4 en autorise un au plus, pas au moins — plutôt qu'un CTA décoratif.
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ChooseStep({ onSync, onRun }: { onSync: () => void; onRun: () => void }) {
+/**
+ * Fournisseurs réellement utilisables sur la plateforme courante — la SEULE
+ * source de vérité de ce que l'écran peint. Constantes de module (`Platform.OS`
+ * est figé au runtime) : aucun hook, aucun re-rendu, aucune branche à oublier.
+ *
+ * La voie e-mail, elle, ne dépend pas de la plateforme mais du BACKEND
+ * (`requestEmailOtp` renvoie `supabase_not_configured` sans client Supabase) :
+ * elle se décide dans le composant, où `configured` est connu.
+ */
+const CAN_APPLE = Platform.OS === 'ios'; // expo-apple-authentication : iOS only
+const CAN_GOOGLE = Platform.OS !== 'web'; // expo-auth-session : natif only (web = O2)
+
+function AccountStep({ onNext, onEmail }: { onNext: () => void; onEmail: () => void }) {
   const t = useT();
-  return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{t(CHOOSE.kicker)}</Kicker>
-        <Text style={styles.title}>{t(CHOOSE.title)}</Text>
-        <Text style={styles.tagline}>{t(CHOOSE.tagline)}</Text>
-        <View style={styles.pathList}>
-          <PathCard
-            icon="lien"
-            title={t(CHOOSE.syncTitle)}
-            subtitle={t(CHOOSE.syncSubtitle)}
-            onPress={onSync}
-          />
-          <PathCard
-            icon="conquete"
-            title={t(CHOOSE.runTitle)}
-            subtitle={t(CHOOSE.runSubtitle)}
-            onPress={onRun}
-          />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-/** Grande carte-choix pleine largeur (une décision par tap — pas de card-in-card). */
-function PathCard({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Icon>['name'];
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      onPress={onPress}
-      style={({ pressed }) => [styles.pathCard, pressed && styles.pathCardPressed]}
-    >
-      <View style={styles.pathIcon}>
-        <Icon name={icon} size={iconSizes.lg} color={colors.chartreuse} />
-      </View>
-      <View style={styles.pathText}>
-        <Text style={styles.pathTitle}>{title}</Text>
-        <Text style={styles.pathSubtitle}>{subtitle}</Text>
-      </View>
-      {/* Chevron par défaut → pointe déjà vers la droite (affordance « entrer »). */}
-      <Icon name="chevron" size={18} color={colors.gris} />
-    </Pressable>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 3a — SYNC (démo) (§4a) : import d'un run récent → 1re zone en secondes.
-// Le tap sur une source LANCE l'import (pas de CTA séparé — une décision, un tap).
-// ═══════════════════════════════════════════════════════════════════════════
-
-function SyncStep({ onDone }: { onDone: () => void }) {
-  const t = useT();
-  const [source, setSource] = useState<SyncSourceKey | null>(null);
-  const [running, setRunning] = useState(false);
-  const p = useSyncDemo(running, SYNC_DURATION_MS, onDone);
-  const activeIndex = syncPhaseIndex(p);
-  const chosen = source ? syncSource(source) : null;
-
-  const start = (key: SyncSourceKey) => {
-    haptics.medium();
-    setSource(key);
-    setRunning(true);
-  };
-
-  return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{t(SYNC.kicker)}</Kicker>
-        <Text style={styles.title}>{t(SYNC.title)}</Text>
-        <Text style={styles.tagline}>{t(SYNC.tagline)}</Text>
-
-        {!running ? (
-          // Choix de la source (Apple Health / Strava — libellés sources/catalog).
-          <View style={styles.sourceList}>
-            {SYNC_SOURCES.map((s) => (
-              <Pressable
-                key={s.key}
-                accessibilityRole="button"
-                accessibilityLabel={`${s.name} — ${s.trust}`}
-                onPress={() => start(s.key)}
-                style={({ pressed }) => [styles.sourceCard, pressed && styles.pathCardPressed]}
-              >
-                <View style={styles.pathIcon}>
-                  <Icon name={s.icon} size={24} color={colors.chartreuse} />
-                </View>
-                <View style={styles.pathText}>
-                  <Text style={styles.pathTitle}>{s.name}</Text>
-                  <Text style={styles.pathSubtitle}>{s.trust}</Text>
-                </View>
-                <Icon name="chevron" size={iconSizes.md} color={colors.gris} />
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          // Déroulé de l'import : source + run détecté + étapes cochées + barre.
-          <View style={styles.syncRunning}>
-            <View style={styles.syncSourceRow}>
-              {chosen ? <Icon name={chosen.icon} size={20} color={colors.chartreuse} /> : null}
-              <Text style={styles.syncSourceName} numberOfLines={1} adjustsFontSizeToFit>
-                {chosen?.name} · {SYNC_DEMO_RUN.whenLabel}
-              </Text>
-              {/* Honnêteté (§ charte n°1) : l'import réel n'est pas branché (O7/O8) —
-                  ce run détecté est un EXEMPLE, jamais présenté comme une vraie sync. */}
-              <View style={styles.demoTag}>
-                <Text style={styles.demoTagLabel}>{t(SYNC.demoTag)}</Text>
-              </View>
-            </View>
-            <Text style={styles.syncRunMeta}>
-              {(SYNC_DEMO_RUN.distanceM / 1000).toFixed(1).replace('.', ',')} km ·{' '}
-              {t(SYNC.loopMeta)}
-            </Text>
-            <View style={styles.syncSteps}>
-              {SYNC_PHASES.map((ph, i) => {
-                const done = i < activeIndex || p >= 1;
-                const active = i === activeIndex && p < 1;
-                return (
-                  <View key={ph.key} style={styles.syncStepRow}>
-                    <View
-                      style={[
-                        styles.syncDot,
-                        done && styles.syncDotDone,
-                        active && styles.syncDotActive,
-                      ]}
-                    >
-                      {/* L'état ne repose jamais sur la seule couleur : fait =
-                          badge coché (cue « TERMINÉ », pas « verrouillé »), en
-                          cours = point plein (forme). */}
-                      {done ? <Icon name="badge" size={12} color={colors.noir} /> : null}
-                      {active ? <View style={styles.syncDotInner} /> : null}
-                    </View>
-                    <Text style={[styles.syncStepLabel, (done || active) && styles.syncStepLabelOn]}>
-                      {ph.label}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-            <View style={styles.syncBarWrap}>
-              <SyncProgressBar p={p} />
-            </View>
-            <Text style={styles.syncHint}>{t(SYNC.running)}…</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 3b — PREMIER RUN (§4b) : 1 tap RUN, objectif ultra-simple, zéro config
-// ═══════════════════════════════════════════════════════════════════════════
-
-function RunStep({ onDone }: { onDone: () => void }) {
-  const t = useT();
-  const [running, setRunning] = useState(false);
-  const p = useSyncDemo(running, RUN_DURATION_MS, onDone);
-  const start = () => {
-    haptics.medium();
-    track(EVENTS.runStart, { context: 'onboarding' });
-    setRunning(true);
-  };
-  return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{t(RUN.kicker)}</Kicker>
-        <Text style={styles.title}>{t(RUN.title)}</Text>
-        <Text style={styles.tagline}>{t(RUN.tagline)}</Text>
-        {running ? (
-          <View style={styles.runningWrap}>
-            <CaptureFillVisual p={p} />
-            <Text style={styles.syncHint}>{t(RUN.running)}…</Text>
-          </View>
-        ) : (
-          <View style={styles.runHeroWrap}>
-            <View style={styles.runHeroRing}>
-              <Icon name="conquete" size={44} color={colors.chartreuse} />
-            </View>
-            <Text style={styles.runHeroObjective}>{t(RUN.objective)}</Text>
-          </View>
-        )}
-      </View>
-      {!running ? (
-        <View style={styles.footer}>
-          <PrimaryCta label={t(RUN.cta)} icon="conquete" onPress={start} />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 4 — 1re CAPTURE : MOMENT SIGNATURE (§5) — remplissage + haptique + « +X ».
-// Copy honnête : « autour de toi » (aucun nom de lieu tant qu'aucun GPS).
-// ═══════════════════════════════════════════════════════════════════════════
-
-function CaptureStep({ reduce, onNext }: { reduce: boolean; onNext: () => void }) {
-  const t = useT();
-  // Progression 0..1 du remplissage + compteur (montent ensemble). Reduce
-  // motion → état final direct (la valeur reste lisible, jamais dépend de l'anim).
-  const [p, setP] = useState(reduce ? 1 : 0);
-  const anim = useRef(new Animated.Value(0)).current;
-  // Haptique signature (§5.3) : success + heavy, tirée UNE fois à l'arrivée.
-  const fired = useRef(false);
-  const zones = useCountUp(SYNC_DEMO_RUN.zones, CAPTURE_FILL_MS);
-
-  useEffect(() => {
-    const fireHaptic = () => {
-      if (fired.current) return;
-      fired.current = true;
-      haptics.success();
-      haptics.heavy();
-      track(EVENTS.celebrationViewed, { mode: 'conquete' });
-    };
-    if (reduce) {
-      setP(1);
-      fireHaptic();
-      return;
-    }
-    const id = anim.addListener(({ value }) => {
-      setP(value);
-      if (value >= 0.66) fireHaptic();
-    });
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: CAPTURE_FILL_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-    return () => {
-      anim.removeListener(id);
-      anim.stopAnimation();
-    };
-  }, [reduce, anim]);
-
-  // Honnêteté (§ charte n°1) : PAS d'affordance « Partager » ici — rien n'est
-  // partagé en pré-compte et aucune card n'est générée. Le vrai partage (carte
-  // de replay) vit dans /partage, APRÈS le compte ; on n'émet donc jamais
-  // shareCardGenerated sans partage réel. Un seul CTA : « Défendre ma zone ».
-
-  return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{t(CAPTURE.kicker)}</Kicker>
-        <Text style={styles.captureTitle}>{t(CAPTURE.title)}</Text>
-        <View style={styles.boardWrap}>
-          <CaptureFillVisual p={p} />
-        </View>
-        {/* Le gros chiffre héros (+X zones) — signature typographique. */}
-        <View style={styles.captureStat}>
-          <Text style={styles.captureNumber}>+{zones}</Text>
-          <Text style={styles.captureUnit}>{t(CAPTURE.zonesLabel)}</Text>
-        </View>
-        <Text style={styles.captureSub}>
-          {t(CAPTURE.sub, { n: SYNC_DEMO_RUN.enclosedZones })}
-        </Text>
-      </View>
-      <View style={styles.footer}>
-        <PrimaryCta label={t(CAPTURE.cta)} icon="conquete" onPress={onNext} />
-      </View>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 5 — COMPTE APRÈS LA VALEUR (§6) : Apple / passkey, 1 tap. Jamais un mur.
-// ═══════════════════════════════════════════════════════════════════════════
-
-function AccountStep({ onNext }: { onNext: () => void }) {
-  const t = useT();
+  // `configured` = un backend existe → (tabs)/_layout exigera une session.
+  // `session` = le joueur est DÉJÀ connecté (retour dans l'onboarding après un
+  // sign-in) : lui redemander un compte serait une friction absurde.
+  const { configured, session } = useSession();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const accountRequired = configured;
+
+  // Session déjà ouverte → l'étape n'a plus d'objet, on enchaîne. Effet (jamais
+  // un return avant les hooks) : l'ordre des hooks reste inconditionnel.
+  // `advanced` évite le double passage quand `run()` avance DÉJÀ à la main et
+  // que l'événement Supabase SIGNED_IN arrive juste après (2 haptiques).
+  const advanced = useRef(false);
+  const advance = () => {
+    if (advanced.current) return;
+    advanced.current = true;
+    onNext();
+  };
+  useEffect(() => {
+    // `onNext`/`advance` sont recréés à chaque rendu du parent : les suivre
+    // relancerait l'effet. La session est la seule condition qui compte ici.
+    if (session) advance();
+  }, [session]);
+
   const run = async (fn: () => Promise<AuthResult>) => {
     // Garde de réentrance : le bouton Apple (natif) n'a pas de prop `disabled`,
     // donc un double-tap — ou Apple puis Google pendant l'attente — pourrait
@@ -707,10 +554,10 @@ function AccountStep({ onNext }: { onNext: () => void }) {
     const result = await fn();
     setBusy(false);
     // Honnêteté (§ charte n°1) : un refus/échec n'est PAS un succès — on n'avance
-    // que si l'auth réussit. On reste sur l'écran avec un message court. Ce n'est
-    // pas un mur (§4.1) : « Plus tard » laisse toujours passer sans compte.
+    // que si l'auth réussit. On reste sur l'écran avec un message court, et la
+    // voie e-mail reste offerte (Apple/Google peuvent être indisponibles — O2).
     if (result.ok) {
-      onNext();
+      advance();
     } else {
       setFailed(true);
     }
@@ -718,14 +565,20 @@ function AccountStep({ onNext }: { onNext: () => void }) {
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        <Kicker>{t(ACCOUNT.kicker)}</Kicker>
+        {/* Rien n'a encore été conquis : la copy parle au FUTUR (« les zones que
+            tu prendras »), jamais d'une conquête à sauvegarder. */}
+        <Kicker>{t(ACCOUNT.kickerFirstRun)}</Kicker>
         <View style={styles.iconHero}>
           <View style={styles.iconHeroRing}>
             <Icon name="bouclier" size={40} color={colors.chartreuse} />
           </View>
         </View>
-        <Text style={styles.title}>{t(ACCOUNT.title)}</Text>
-        <Text style={styles.tagline}>{t(ACCOUNT.tagline)}</Text>
+        <Text style={styles.title}>{t(ACCOUNT.titleFirstRun)}</Text>
+        <Text style={styles.tagline}>
+          {/* Le compte est requis : on le dit AVANT que le joueur tape « Plus
+              tard » et se retrouve devant une porte fermée. */}
+          {t(accountRequired ? ACCOUNT.taglineRequired : ACCOUNT.taglineFirstRun)}
+        </Text>
       </View>
       <View style={styles.footer}>
         {failed ? (
@@ -733,27 +586,47 @@ function AccountStep({ onNext }: { onNext: () => void }) {
             {t(ACCOUNT.error)}
           </Text>
         ) : null}
-        {Platform.OS === 'ios' ? (
-          // Vrai bouton système Apple (fork natif — jamais bundlé sur web).
-          <OnboardingAppleButton onPress={() => void run(signInWithApple)} />
+        {/* Apple : UNIQUEMENT sur iOS, où le module natif existe (CAN_APPLE).
+            Ailleurs, rien — pas de CTA générique en repli : il n'avait aucun
+            moteur derrière. */}
+        {CAN_APPLE ? <OnboardingAppleButton onPress={() => void run(signInWithApple)} /> : null}
+        {/* Google : natif seulement. Il devient le CTA chartreuse quand c'est le
+            SEUL fournisseur disponible (Android) — sinon il reste secondaire,
+            sous le bouton système Apple qui prime sur iOS. */}
+        {CAN_GOOGLE ? (
+          CAN_APPLE ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(ACCOUNT.google)}
+              disabled={busy}
+              onPress={() => void run(signInWithGoogle)}
+              style={({ pressed }) => [styles.ghost, (pressed || busy) && styles.pressed]}
+            >
+              <Text style={styles.ghostLabel}>{t(ACCOUNT.google)}</Text>
+            </Pressable>
+          ) : (
+            <PrimaryCta
+              label={t(ACCOUNT.google)}
+              icon="profil"
+              onPress={() => void run(signInWithGoogle)}
+            />
+          )
+        ) : null}
+        {/* UNE seule voie secondaire (§A), et elle mène TOUJOURS quelque part :
+            · backend + au moins un fournisseur → e-mail en LIEN (3e voie réelle,
+              code OTP — la seule qui marche si Apple/Google sont coupés côté
+              serveur, O2) ;
+            · backend SANS fournisseur (web) → l'e-mail est la seule porte : il
+              monte en CTA chartreuse, il n'est plus « secondaire » de rien ;
+            · pas de backend → « Plus tard » passe vraiment (aucune garde en
+              aval). Proposer l'e-mail ici serait un bouton qui ne peut rien. */}
+        {!accountRequired ? (
+          <SkipLink label={t(ACCOUNT.skip)} onPress={onNext} />
+        ) : CAN_APPLE || CAN_GOOGLE ? (
+          <SkipLink label={t(ACCOUNT.email)} onPress={onEmail} />
         ) : (
-          // Web/Android : CTA Apple générique (auth.web = no-op « ok » en preview).
-          <PrimaryCta
-            label={t(ACCOUNT.apple)}
-            icon="profil"
-            onPress={() => void run(signInWithApple)}
-          />
+          <PrimaryCta label={t(ACCOUNT.email)} icon="profil" onPress={onEmail} />
         )}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(ACCOUNT.google)}
-          disabled={busy}
-          onPress={() => void run(signInWithGoogle)}
-          style={({ pressed }) => [styles.ghost, (pressed || busy) && styles.pressed]}
-        >
-          <Text style={styles.ghostLabel}>{t(ACCOUNT.google)}</Text>
-        </Pressable>
-        <SkipLink label={t(ACCOUNT.skip)} onPress={onNext} />
       </View>
     </View>
   );
@@ -900,8 +773,15 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
 
-  // ── 2 CITY / 4 CAPTURE : le plateau ──
+  // ── 2 CITY / 2b LEARN / 4 CAPTURE : le plateau ──
   boardWrap: { marginTop: spacing.lg, marginBottom: spacing.xxs },
+  // Note d'honnêteté sous l'exemple (2b) : discrète, jamais < 12 px, gris.
+  learnNote: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.45,
+    marginTop: spacing.sm,
+  },
 
   // ── 1b / 3b / 5 / 6 : hero icône ──
   iconHero: { alignItems: 'center', marginBottom: 26 },
@@ -915,139 +795,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // ── 3 CHOOSE : cartes-chemin ──
-  pathList: { marginTop: 26, gap: spacing.sm },
-  pathCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-  },
-  pathCardPressed: { opacity: 0.85, borderColor: withAlpha(colors.chartreuse, 0.5) },
-  pathIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.card - 6,
-    backgroundColor: withAlpha(colors.chartreuse, 0.08),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pathText: { flex: 1 },
-  pathTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
-  pathSubtitle: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.4,
-    marginTop: 3,
-  },
-
-  // ── 3a SYNC ──
-  sourceList: { marginTop: 22, gap: spacing.sm },
-  sourceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding - 2,
-  },
-  syncRunning: { marginTop: spacing.xl },
-  syncSourceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  syncSourceName: { flexShrink: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
-  // Tag « Exemple » discret : dit la vérité (import démo) sans casser la scène.
-  demoTag: {
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-  },
-  demoTagLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  syncRunMeta: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.xxs },
-  syncSteps: { marginTop: 22, gap: 14 },
-  syncStepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  syncDot: {
-    width: 22,
-    height: 22,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  syncDotActive: { borderColor: colors.chartreuse },
-  /** Point plein de l'étape EN COURS (cue de forme, pas seulement de couleur). */
-  syncDotInner: {
-    width: 8,
-    height: 8,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-  },
-  syncDotDone: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse },
-  syncStepLabel: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
-  syncStepLabelOn: { color: colors.blanc },
-  syncBarWrap: { marginTop: spacing.xl },
-  syncHint: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginTop: spacing.md,
-  },
-
-  // ── 3b RUN ──
-  runHeroWrap: { alignItems: 'center', marginTop: 30 },
-  runHeroRing: {
-    width: 108,
-    height: 108,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: withAlpha(colors.chartreuse, 0.4),
-    backgroundColor: withAlpha(colors.chartreuse, 0.08),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  runHeroObjective: {
-    color: colors.gris,
-    fontSize: fontSizes.md,
-    textAlign: 'center',
-    marginTop: 22,
-    maxWidth: 260,
-    lineHeight: fontSizes.md * 1.45,
-  },
-  runningWrap: { marginTop: 18, alignItems: 'center' },
-
-  // ── 4 CAPTURE ──
-  captureTitle: {
-    color: colors.blanc,
-    fontSize: fontSizes.xl,
-    fontWeight: '700',
-    letterSpacing: -0.6,
-  },
-  captureStat: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: spacing.lg },
-  captureNumber: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.heroMax,
-    fontWeight: '700',
-    letterSpacing: -2,
-    fontVariant: ['tabular-nums'],
-    lineHeight: fontSizes.heroMax,
-  },
-  captureUnit: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '500' },
-  captureSub: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.xs },
 
   // Message d'échec d'auth (honnête) : centré, lisible (≥ 12 px), non chartreuse.
   authError: {

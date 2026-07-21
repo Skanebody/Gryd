@@ -43,7 +43,6 @@ import {
 } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
-import { isShowcasePlatform } from '../../lib/flags';
 
 /**
  * Ce que l'écran a le droit d'affirmer. Quatre états DISTINCTS parce qu'ils
@@ -51,7 +50,7 @@ import { isShowcasePlatform } from '../../lib/flags';
  *  · `loading`     : on ne sait pas encore, on n'affirme rien ;
  *  · `off`         : l'apprentissage est coupé (dit par le serveur) ;
  *  · `unknown`     : le serveur a répondu, il n'y a pas assez de courses ;
- *  · `unavailable` : on n'a pas pu lire (réseau, hors session, vitrine).
+ *  · `unavailable` : on n'a pas pu lire (réseau, hors session, pas de backend).
  */
 export type RouteHabits =
   | { state: 'loading' }
@@ -145,7 +144,7 @@ export function useRouteHabits(
 ): RouteHabits {
   const { session } = useSession();
   const [habits, setHabits] = useState<RouteHabits>({ state: 'loading' });
-  const ready = !isShowcasePlatform && !!supabase && !!session;
+  const ready = !!supabase && !!session;
 
   useEffect(() => {
     if (learningEnabled === false) {

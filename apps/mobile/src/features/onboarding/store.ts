@@ -10,10 +10,15 @@
  * affichés immédiatement, comme motivation/store — web privé toléré).
  *
  * On sépare deux jalons (le funnel A-30 : « activation = 1re capture ») :
- *   firstCaptureDone — la valeur a été donnée (le moment signature atteint).
- *                      Débloque la proposition compte/crew SANS jamais l'imposer.
+ *   firstCaptureDone — une VRAIE première capture a eu lieu.
  *   onboardingDone   — le visiteur est ressorti du flow (compte créé, ou « plus
  *                      tard » assumé). Le gating ne re-pousse plus l'onboarding.
+ *
+ * ⚠ `firstCaptureDone` (décision fondateur 21/07/2026 — « l'app ne ment jamais ») :
+ * l'onboarding ne le pose PLUS. Il le posait à la sortie du flow alors que la
+ * capture y était mise en scène : l'app enregistrait comme fait un accomplissement
+ * qui n'avait pas eu lieu. Il reste `false` tant qu'aucune course réelle n'a
+ * capturé de zone — quiconque le lira un jour lira la vérité.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';

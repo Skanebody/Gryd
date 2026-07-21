@@ -24,12 +24,11 @@ import { RULE_PHRASE } from '../nav/runContext';
 import {
   CONQUEST_ADVICE,
   DEFENSE_COPY,
-  DEFENSE_TARGETS_DEMO,
   FREE_RUN_COPY,
-  defenseLoopLabel,
   type DefenseTargetDemo,
   type RunIntention,
 } from '../run/intention';
+import { C } from '../../i18n/catalog/motivation';
 import { useT } from '../../i18n/store';
 import { RUN_MODE_LABELS } from './labels';
 
@@ -43,7 +42,6 @@ export function RunModeSheet({
   visible,
   onSelect,
   onIntention,
-  onDefenseTarget,
   onPlanLoop,
   onChangeRoute,
   onClose,
@@ -53,8 +51,14 @@ export function RunModeSheet({
   onSelect: (mode: RunMode) => void;
   /** Intention optionnelle (Conquérir/Défendre) → live intention=… (client only). */
   onIntention: (intention: RunIntention) => void;
-  /** Zone à défendre choisie → live intention=defense&route=… (doc §3.3). */
-  onDefenseTarget: (target: DefenseTargetDemo) => void;
+  /**
+   * Zone à défendre choisie → live intention=defense&route=… (doc §3.3).
+   * PLUS AUCUN APPEL AUJOURD'HUI : la liste des zones tenues n'est pas câblée au
+   * réel, et la liste de démo qui l'alimentait a été supprimée (21/07/2026). Le
+   * prop reste déclaré pour ne pas casser les appelants et pour porter le
+   * contrat le jour où les vraies zones seront lisibles.
+   */
+  onDefenseTarget?: (target: DefenseTargetDemo) => void;
   /** « Planifier une boucle » (Conquérir) → Route Planner présélectionné capture. */
   onPlanLoop: () => void;
   /** « Changer d'itinéraire » → Route Planner (outil optionnel, A-14 §3). */
@@ -151,28 +155,28 @@ export function RunModeSheet({
             onPress={() => toggle('defense')}
           />
           {expanded === 'defense' ? (
+            // FUITE COLMATÉE (21/07/2026) : ce panneau annonçait « 2 ZONES À
+            // DÉFENDRE — République · expire dans 18 h · Canal · contesté » à
+            // TOUT LE MONDE, y compris sur un iPhone neuf sans compte. Ces zones
+            // étaient des DONNÉES DE DÉMO (`DEFENSE_TARGETS_DEMO`) : la liste
+            // réelle des zones tenues n'est pas câblée. Affirmer qu'un joueur
+            // possède République est exactement le mensonge qu'on retire — et la
+            // branche démo n'est plus gardée derrière la vitrine, elle est
+            // SUPPRIMÉE (le mode vitrine est abandonné).
+            // On dit donc ce qui est vrai, et on garde l'action qui fonctionne
+            // réellement : partir avec l'intention Défendre, sans itinéraire
+            // pré-rempli (le tracé réel décide, le serveur attribue).
             <View style={styles.panel}>
-              <Text style={styles.panelKicker}>
-                {DEFENSE_TARGETS_DEMO.length} ZONES À DÉFENDRE
-              </Text>
-              {DEFENSE_TARGETS_DEMO.map((target) => (
-                <Pressable
-                  key={target.routeId}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Défendre ${target.zone} — ${target.urgency}`}
-                  onPress={() => onDefenseTarget(target)}
-                  style={({ pressed }) => [styles.defenseRow, pressed && styles.rowPressed]}
-                >
-                  <Icon name="cible" size={15} color={colors.chartreuse} />
-                  <View style={styles.rowText}>
-                    <Text style={styles.defenseZone}>{target.zone}</Text>
-                    <Text style={styles.defenseMeta} numberOfLines={1}>
-                      {target.urgency} · {defenseLoopLabel(target)}
-                    </Text>
-                  </View>
-                  <Icon name="chevron" size={16} color={colors.gris} />
-                </Pressable>
-              ))}
+              <Text style={styles.panelKicker}>{t(C.defenseNoZonesKicker)}</Text>
+              <Text style={styles.panelNote}>{t(C.defenseNoZonesBody)}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(C.defenseRunFreely)}
+                onPress={() => onIntention('defense')}
+                style={({ pressed }) => [styles.panelSecondary, pressed && styles.rowPressed]}
+              >
+                <Text style={styles.panelSecondaryLabel}>{t(C.defenseRunFreely)}</Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -366,6 +370,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.4,
     marginBottom: 2,
+  },
+  // Explication de l'état vide « Défendre » — texte complet, jamais tronqué (§A).
+  panelNote: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.5,
+    marginBottom: spacing.xs,
   },
   defenseRow: {
     flexDirection: 'row',

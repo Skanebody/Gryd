@@ -1,15 +1,31 @@
 /**
  * GRYD — HISTORIQUE (AMENDEMENT-17 CHANTIER 3, AMENDEMENT-25 §2) : « l'utilisateur
- * doit retrouver TOUS ses parcours » avec, par course, un APERÇU DU TRACÉ + ses
- * stats clés (temps · distance · allure · zones). Filtres en tête
- * (Tout/Conquêtes/Défenses/Routes/Stats only) puis la LISTE COMPLÈTE des courses
- * du filtre — PAS de troncature de liste (AMENDEMENT-25 §2 : plus de fold « 3
- * dernières / Voir tout »). Le détail d'une course (tracé 2D/3D + calcul) est au
- * tap (route course/[id]). Aucune valeur de jeu calculée ici : la liste est le
- * miroir déterministe des runs/claims déjà décidés serveur
- * (features/history/demo). Analytics : screen('historique').
+ * doit retrouver TOUS ses parcours ». Filtres en tête puis la LISTE COMPLÈTE des
+ * courses du filtre — PAS de troncature de liste. Analytics : screen('historique').
+ *
+ * ─── CE QUI A ÉTÉ RÉPARÉ ICI (21/07/2026) ───────────────────────────────────
+ * L'écran était câblé en dur sur le vide : `const list = showcase ?
+ * runsByFilter(filter) : []`. Hors vitrine — c'est-à-dire sur l'iPhone et sur
+ * localhost, les deux seuls endroits qui comptent — la liste ne pouvait
+ * MATHÉMATIQUEMENT pas contenir une course, et l'écran servait alors
+ * « Tes courses apparaîtront ici après ta première capture. Lance-toi ! ».
+ * C'est une AFFIRMATION SUR LE JOUEUR : tu n'as rien couru.
+ *
+ * Or ses courses existent. `/performance`, atteignable juste au-dessus depuis
+ * Profil, les lisait déjà et affichait « 3 courses · 18,4 km ». Deux écrans
+ * voisins se contredisaient, et deux CTA de la carte menaient ici depuis une
+ * zone que le joueur venait de capturer : il tapait « voir l'historique » sur sa
+ * propre conquête et l'app lui répondait qu'il n'avait jamais couru.
+ *
+ * C'était le TROISIÈME état (fonction non câblée) déguisé en DEUXIÈME (vide
+ * légitime). La lecture réelle est désormais branchée (`features/history/real`,
+ * table `runs`, RLS `runs_select_own`), et les quatre états sont distincts :
+ *   · chargement  → on n'affirme RIEN sur le joueur tant qu'on ne sait pas ;
+ *   · pas connecté→ l'historique vit sur le compte → CTA « Se connecter » ;
+ *   · échec       → on le dit, et on propose de réessayer ;
+ *   · lu, vide    → LÀ, et seulement là, « Lance-toi ! » est vrai.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, gameColors, radii, sizes, spacing, typography } from '@klaim/shared';
@@ -18,52 +34,63 @@ import { haptics } from '../src/lib/haptics';
 import { Card } from '../src/ui/Card';
 import { StackScreen } from '../src/ui/StackScreen';
 import { useSession } from '../src/lib/session';
-import { RunHistoryCard } from '../src/features/history/RunHistoryCard';
+import { RealRunCard } from '../src/features/history/RealRunCard';
 import {
-  countByFilter,
-  HISTORY_FILTERS,
-  runsByFilter,
-  type HistoryFilter,
-} from '../src/features/history/demo';
+  filterRuns,
+  useMyRunHistory,
+  type RealHistoryFilter,
+  type RealRunEntry,
+} from '../src/features/history/real';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
 import { C } from '../src/i18n/catalog/historique';
+import { C as PC } from '../src/i18n/catalog/performance';
 
 /**
- * Libellés traduits des filtres, par clé (la structure HISTORY_FILTERS reste la
- * source de l'ordre/des clés ; la résolution de langue se fait à l'affichage).
+ * Filtres, dans l'ordre d'affichage. Il n'y a QUE les natures que la donnée
+ * serveur sait distinguer : la barre de démo en comptait cinq, dont « Routes »
+ * (boucle ouverte mais fermable), que rien dans `runs` ne permet de reconnaître.
+ * Un onglet qui resterait vide à vie n'est pas un filtre, c'est un piège.
  */
-const FILTER_LABELS: Record<HistoryFilter, Entry> = {
-  all: C.filterAll,
-  conquest: C.filterConquest,
-  defense: C.filterDefense,
-  route: C.filterRoute,
-  stats: C.filterStats,
-};
+const FILTERS: readonly { key: RealHistoryFilter; label: Entry }[] = [
+  { key: 'all', label: C.filterAll },
+  { key: 'conquest', label: C.filterConquest },
+  { key: 'defense', label: C.filterDefense },
+  { key: 'stats', label: C.filterStats },
+];
 
-/** Barre de filtres horizontale (Tout/Conquêtes/Défenses/Routes/Stats only). */
+/**
+ * Barre de filtres horizontale.
+ *
+ * Ne rend QUE les chips qui portent au moins une course (« Tout » excepté) :
+ * une rangée de « Conquêtes 0 · Défenses 0 · Stats seules 0 » répète trois fois
+ * la seule information réelle — il n'y a rien — et donne trois boutons qui ne
+ * mènent nulle part (§A). Les chips réapparaissent d'elles-mêmes dès la
+ * première course de la nature concernée.
+ */
 function FilterBar({
+  counts,
   active,
   onSelect,
-  realUser,
 }: {
-  active: HistoryFilter;
-  onSelect: (f: HistoryFilter) => void;
-  realUser: boolean;
+  counts: Readonly<Record<RealHistoryFilter, number>>;
+  active: RealHistoryFilter;
+  onSelect: (f: RealHistoryFilter) => void;
 }) {
   const t = useT();
+  const shown = FILTERS.filter((f) => f.key === 'all' || counts[f.key] > 0);
+  // Un seul filtre utile (« Tout ») = pas de filtre : on n'affiche pas la barre.
+  if (shown.length < 2) return null;
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.filterBar}
     >
-      {HISTORY_FILTERS.map((f) => {
+      {shown.map((f) => {
         const selected = f.key === active;
-        // Vrai user : aucune source de courses réelle câblée (O1) → compteurs à 0
-        // (jamais de faux total). Démo showcase (web/dev sans session) inchangée.
-        const count = realUser ? 0 : countByFilter(f.key);
-        const label = t(FILTER_LABELS[f.key]);
+        const count = counts[f.key];
+        const label = t(f.label);
         return (
           <Pressable
             key={f.key}
@@ -77,12 +104,8 @@ function FilterBar({
               pressed && styles.pressed,
             ]}
           >
-            <Text style={[styles.filterLabel, selected && styles.filterLabelOn]}>
-              {label}
-            </Text>
-            <Text style={[styles.filterCount, selected && styles.filterCountOn]}>
-              {count}
-            </Text>
+            <Text style={[styles.filterLabel, selected && styles.filterLabelOn]}>{label}</Text>
+            <Text style={[styles.filterCount, selected && styles.filterCountOn]}>{count}</Text>
           </Pressable>
         );
       })}
@@ -90,34 +113,65 @@ function FilterBar({
   );
 }
 
+/**
+ * Card d'état : ce qui se passe, et AU PLUS une action (§A — un seul CTA
+ * chartreuse, et seulement là où il change quelque chose).
+ */
+function StateCard({
+  title,
+  body,
+  cta,
+}: {
+  title?: string;
+  body: string;
+  cta?: { label: string; a11y: string; onPress: () => void };
+}) {
+  return (
+    <Card style={styles.empty}>
+      {title !== undefined ? <Text style={styles.emptyTitle}>{title}</Text> : null}
+      <Text style={styles.emptyText}>{body}</Text>
+      {cta ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={cta.a11y}
+          onPress={cta.onPress}
+          style={({ pressed }) => [styles.emptyCta, pressed && styles.pressed]}
+        >
+          <Text style={styles.emptyCtaLabel}>{cta.label}</Text>
+        </Pressable>
+      ) : null}
+    </Card>
+  );
+}
+
 export default function HistoriqueScreen() {
   const t = useT();
-  const [filter, setFilter] = useState<HistoryFilter>('all');
-  // Activation O1 : aucune source de courses RÉELLE n'est encore câblée. Un vrai
-  // utilisateur (session) ne voit donc PAS de fausses courses passées — liste
-  // vide honnête. La démo ne sert que le showcase (web/dev sans session).
-  const { session, configured } = useSession();
-  const realUser = configured && !!session;
+  const [filter, setFilter] = useState<RealHistoryFilter>('all');
+  const { status, runs, reload } = useMyRunHistory();
+  // `configured` = un backend existe. Sans lui, proposer « Se connecter » serait
+  // un cul-de-sac : il n'y a personne au bout.
+  const { configured } = useSession();
 
   useEffect(() => {
     screen('historique');
   }, []);
 
-  const selectFilter = (f: HistoryFilter) => {
+  const counts = useMemo<Record<RealHistoryFilter, number>>(
+    () => ({
+      all: runs.length,
+      conquest: runs.filter((r) => r.kind === 'conquest').length,
+      defense: runs.filter((r) => r.kind === 'defense').length,
+      stats: runs.filter((r) => r.kind === 'stats').length,
+    }),
+    [runs],
+  );
+  const list: RealRunEntry[] = useMemo(() => filterRuns(runs, filter), [runs, filter]);
+
+  const selectFilter = (f: RealHistoryFilter) => {
     if (f === filter) return;
     haptics.light();
     setFilter(f);
   };
-
-  const openRun = (id: string) => {
-    haptics.light();
-    router.push(`/course/${id}`);
-  };
-
-  // AMENDEMENT-25 §2 : la LISTE COMPLÈTE du filtre — plus de fold « 3 dernières ».
-  // Gate session : vrai user → vide (pas de source réelle) ; showcase → démo.
-  const list = realUser ? [] : runsByFilter(filter);
-  const total = realUser ? 0 : countByFilter(filter);
 
   return (
     <StackScreen
@@ -126,25 +180,69 @@ export default function HistoriqueScreen() {
       kicker={t(C.historiqueKicker)}
       subtitle={t(C.historiqueSubtitle)}
     >
-      <FilterBar active={filter} onSelect={selectFilter} realUser={realUser} />
+      {/* ── 1. On ne sait pas encore : on ne dit rien du joueur. ── */}
+      {status === 'loading' ? <StateCard body={t(PC.loading)} /> : null}
 
-      <Text style={styles.sectionLabel}>
-        {t(total === 1 ? C.countRunsOne : C.countRunsMany, { n: total })}
-      </Text>
+      {/* ── 2. Pas de compte : l'historique vit dessus. Le CTA n'apparaît que
+             s'il mène quelque part. ── */}
+      {status === 'signed-out' ? (
+        <StateCard
+          {...(configured ? {} : { title: t(PC.noBackendTitle) })}
+          body={configured ? t(C.emptySignedOut) : t(PC.noBackendBody)}
+          {...(configured
+            ? {
+                cta: {
+                  label: t(C.emptySignedOutCta),
+                  a11y: t(C.a11ySignIn),
+                  onPress: () => {
+                    haptics.light();
+                    router.push('/sign-in');
+                  },
+                },
+              }
+            : {})}
+        />
+      ) : null}
 
-      {list.length === 0 ? (
-        <Card style={styles.empty}>
-          <Text style={styles.emptyText}>
-            {realUser ? t(C.emptyRealUser) : t(C.emptyFilter)}
+      {/* ── 3. Échec : ses courses existent, on n'a pas su les lire. Dire
+             « tu n'as rien couru » ici serait le mensonge d'origine. ── */}
+      {status === 'failed' ? (
+        <StateCard
+          title={t(PC.failedTitle)}
+          body={t(PC.failedBody)}
+          cta={{
+            label: t(PC.retry),
+            a11y: t(PC.retry),
+            onPress: () => {
+              haptics.light();
+              reload();
+            },
+          }}
+        />
+      ) : null}
+
+      {/* ── 4. Lu. Zéro course est alors un FAIT, pas un trou. ── */}
+      {status === 'ready' && runs.length === 0 ? <StateCard body={t(C.emptyRealUser)} /> : null}
+
+      {status === 'ready' && runs.length > 0 ? (
+        <>
+          <FilterBar counts={counts} active={filter} onSelect={selectFilter} />
+          <Text style={styles.sectionLabel}>
+            {t(list.length === 1 ? C.countRunsOne : C.countRunsMany, { n: list.length })}
           </Text>
-        </Card>
-      ) : (
-        <View style={styles.list}>
-          {list.map((entry) => (
-            <RunHistoryCard key={entry.id} entry={entry} onPress={() => openRun(entry.id)} />
-          ))}
-        </View>
-      )}
+          {list.length === 0 ? (
+            /* Il y a des courses, mais aucune dans CE filtre : une absence
+               locale, pas un jugement sur le joueur. */
+            <StateCard body={t(C.emptyFilter)} />
+          ) : (
+            <View style={styles.list}>
+              {list.map((entry) => (
+                <RealRunCard key={entry.id} entry={entry} />
+              ))}
+            </View>
+          )}
+        </>
+      ) : null}
     </StackScreen>
   );
 }
@@ -155,7 +253,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    minHeight: sizes.touchTarget, // plancher tactile 44 (P1 : chips étaient ~37 px)
+    minHeight: sizes.touchTarget, // plancher tactile 44
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
@@ -181,6 +279,27 @@ const styles = StyleSheet.create({
   list: { gap: spacing.sm },
   pressed: { opacity: 0.75 },
   // Card fournit fond/rayon/padding (sans contour, règle 80/20) : on ne garde que le centrage.
-  empty: { alignItems: 'center' },
-  emptyText: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
+  empty: { alignItems: 'center', gap: spacing.md },
+  emptyTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.5,
+    textAlign: 'center',
+  },
+  // CTA d'état — chartreuse sur fond sombre, texte NOIR.
+  emptyCta: {
+    minHeight: sizes.touchTarget,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  emptyCtaLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '700' },
 });

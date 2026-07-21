@@ -18,10 +18,24 @@
  *     record segment (1×), déviation (1×), checkpoints, arrivée.
  * Le « monde pixels » ne survit qu'en INTERNE (échelle coureur gelée ~4,33
  * m/px, ancrée place de la République) : loop.ts et les ticks continuent de
- * raisonner en px, worldToGeo rend des lat/lng RÉELS (projetables tels quels
- * sur les tuiles). Purement présentation : AUCUNE règle de jeu ici — zones et
- * points « estimés » viennent de la simulation, le serveur (ingest_run) reste
- * seul décideur.
+ * raisonner en px, worldToGeo rend des lat/lng bien formés (projetables tels
+ * quels sur les tuiles). Purement présentation : AUCUNE règle de jeu ici —
+ * zones et points « estimés » viennent de la simulation, le serveur
+ * (ingest_run) reste seul décideur.
+ *
+ * ─── « RÉELS » NE VEUT PAS DIRE « MESURÉS » (21/07/2026) ────────────────────
+ * Les lat/lng qui sortent d'ici sont de vraies coordonnées terrestres, mais
+ * personne ne les a mesurées : elles décrivent un parcours d'AUTHORING (démo)
+ * ou un itinéraire PLANIFIÉ, jamais le chemin qu'un joueur a couru. Sans
+ * `explicitLine` ni `route=<id>`, `navAnchor` retombe sur `NAV_DEFAULT_ANCHOR`
+ * = le départ de ROUTES_DEMO[0], place de la République : la scène entière est
+ * alors parisienne, où que se trouve le joueur.
+ *
+ * Ce module alimente la Course Live de DÉMONSTRATION. Aucune surface qui parle
+ * d'une vraie course (Résultat, Partage, Historique) ne doit afficher sa
+ * géométrie. Le Résultat le faisait jusqu'au 21/07/2026, via buildRunLoop : un
+ * coureur lillois y voyait l'analyse de sa boucle tracée à Paris. Le tracé
+ * mesuré, lui, vit dans `features/run/gps/tracker.ts`.
  */
 import { latLngToCell } from 'h3-js';
 import { H3_RESOLUTION, colors, gameColors, type IconName } from '@klaim/shared';
@@ -102,7 +116,12 @@ function geoToWorld(p: LatLngPoint): RoutePoint {
   };
 }
 
-/** Pixels-monde interne → lat/lng RÉELS (inverse exact de geoToWorld). */
+/**
+ * Pixels-monde interne → lat/lng (inverse exact de geoToWorld). Coordonnées
+ * bien formées, mais issues d'un parcours démo/planifié ancré sur `navAnchor` —
+ * JAMAIS une position mesurée. Ne pas rendre le résultat sur une surface qui
+ * parle d'une vraie course (voir l'avertissement en tête de fichier).
+ */
 export function worldToGeo(x: number, y: number): LatLngPoint {
   return {
     lat:

@@ -40,6 +40,7 @@ import { Redirect } from 'expo-router';
 import { C } from '../src/i18n/catalog/flagged';
 import { useT, t as tGlobal } from '../src/i18n/store';
 import { flags } from '../src/lib/flags';
+import { useSession } from '../src/lib/session';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -120,10 +121,21 @@ function priceFor(
   return undefined;
 }
 
+/**
+ * D8 — surface hors MVP : la route est masquée (les moteurs restent intacts).
+ *
+ * RÈGLE DES HOOKS : ce garde-fou vivait DANS `ArsenalScreen`, en `return`
+ * conditionnel AVANT une trentaine de hooks. `flags.arsenal` est une constante
+ * de bundle, donc rien ne cassait à l'exécution — mais le jour où les flags
+ * deviendraient dynamiques, l'écran crasherait (« Rendered fewer hooks than
+ * expected »). Le garde est donc remonté dans un composant SANS hook.
+ */
 export default function ArsenalScreen() {
-  // D8 — surface hors MVP : route masquée (les moteurs restent intacts).
   if (!flags.arsenal) return <Redirect href="/" />;
+  return <ArsenalBody />;
+}
 
+function ArsenalBody() {
   const insets = useSafeAreaInsets();
   const t = useT();
   useEffect(() => {
@@ -149,7 +161,40 @@ export default function ArsenalScreen() {
   const [selectedNeed, setSelectedNeed] = useState<ArsenalNeedKey>('for_you');
   const { signals: arsenalSignals, loading: arsenalSignalsLoading } = useArsenalSignals();
   const arsenalInventory = useArsenalInventory();
-  const { wallet, ownedKeys: owned, equipped } = arsenalInventory;
+  const { wallet: rawWallet, ownedKeys: rawOwned, equipped } = arsenalInventory;
+
+  /**
+   * SOLDE ET INVENTAIRE : LUS, OU RIEN (21/07/2026).
+   *
+   * `useArsenalInventory` retombait sur `DEMO_WALLET` (820 Éclats, 2 140 Foulées)
+   * et `INITIAL_OWNED` dès que la lecture serveur ne résolvait pas — pas de
+   * session, pas de backend, requête en échec. L'écran affichait donc à un
+   * joueur au compte vide un solde qu'il n'a jamais gagné et des cosmétiques
+   * qu'il ne possède pas, jusqu'à lui proposer d'« Équiper » un skin fictif.
+   * Ces deux replis ont été SUPPRIMÉS à la source (features/arsenal/inventory).
+   *
+   * Il reste ici la seconde moitié de la règle : on n'affiche que ce qui vient du
+   * serveur. Un solde inconnu se dit « — » et PAS « 0 » : zéro serait une
+   * affirmation (un compte à sec), alors que la vérité est qu'on n'a pas lu. La
+   * note en dessous l'explique.
+   */
+  const { session, configured, loading: sessionLoading } = useSession();
+  // `sessionLoading` compte comme « connecté » pour le choix de la NOTE : pendant
+  // l'hydratation de la session, dire « connecte-toi » à quelqu'un qui l'est
+  // déjà est faux. La note « on n'a pas pu lire ton solde » reste juste dans les
+  // deux cas, le temps que la lecture aboutisse.
+  const signedIn = configured && (session !== null || sessionLoading);
+  const inventoryIsReal = arsenalInventory.source === 'server';
+  const wallet = useMemo(
+    () => (inventoryIsReal ? rawWallet : { eclats: 0, foulees: 0, isClub: false }),
+    [inventoryIsReal, rawWallet],
+  );
+  // Rien de « possédé » tant que rien n'a été lu : sinon les cartes proposent
+  // d'équiper un objet fictif, et l'advisor recommande autour d'un faux avoir.
+  const owned = useMemo(
+    () => (inventoryIsReal ? rawOwned : (new Set<string>() as ReadonlySet<string>)),
+    [inventoryIsReal, rawOwned],
+  );
 
   // Timers séparés : le reveal loot, le message de base et le message de sheet
   // ont chacun leur horloge — sinon un flashNotice annule le timer d'un
@@ -203,6 +248,16 @@ export default function ArsenalScreen() {
       const price = priceFor(item, currency);
       if (!price) return;
       if (price.currency === 'eclats') {
+        // Solde jamais lu : débiter reviendrait à retrancher d'un montant
+        // inventé, et à « offrir » un objet que le serveur ne connaîtra pas.
+        // On dit pourquoi c'est indisponible plutôt que de simuler un achat.
+        if (!inventoryIsReal) {
+          haptics.light();
+          const msg = t(signedIn ? C.walletUnreadNote : C.walletSignedOutNote);
+          if (detail !== null) flashSheetNotice(msg);
+          else flashNotice(msg);
+          return;
+        }
         if (!arsenalInventory.spendEclats(price.amount)) {
           haptics.light();
           // Message chiffré, jamais un nudge vers un pack : l'utilisateur sait
@@ -223,7 +278,17 @@ export default function ArsenalScreen() {
       setDetail(null);
       flashLoot(item, 'buy');
     },
-    [arsenalInventory, wallet.eclats, detail, flashLoot, flashNotice, flashSheetNotice, t],
+    [
+      arsenalInventory,
+      wallet.eclats,
+      inventoryIsReal,
+      signedIn,
+      detail,
+      flashLoot,
+      flashNotice,
+      flashSheetNotice,
+      t,
+    ],
   );
 
   /** Équiper un skin/frame/bannière possédé (rendu carte réel = V1). */
@@ -334,7 +399,11 @@ export default function ArsenalScreen() {
         <View style={styles.walletCell}>
           <View style={styles.walletValueRow}>
             <ArsenalIcon slug="eclats" size={16} color={colors.blanc} />
-            <Text style={styles.walletValue}>{formatInt(eclatsDisplay)}</Text>
+            {/* « — » = pas lu. Un « 0 » affirmerait un compte à sec, ce qu'on
+                ne sait pas. Le chiffre animé n'apparaît que s'il est réel. */}
+            <Text style={styles.walletValue}>
+              {inventoryIsReal ? formatInt(eclatsDisplay) : t(C.walletUnknown)}
+            </Text>
           </View>
           <Text style={styles.walletLabel}>Éclats</Text>
         </View>
@@ -342,10 +411,18 @@ export default function ArsenalScreen() {
         <View style={styles.walletCell}>
           <Icon name="couronne" size={iconSizes.md} color={wallet.isClub ? colors.chartreuse : colors.gris} />
           <Text style={wallet.isClub ? styles.walletClubOn : styles.walletClubOff}>
-            {t(wallet.isClub ? C.clubActive : C.clubInactive)}
+            {inventoryIsReal ? t(wallet.isClub ? C.clubActive : C.clubInactive) : t(C.walletUnknown)}
           </Text>
         </View>
       </View>
+      {/* Le solde manquant s'EXPLIQUE, il ne se subit pas : deux causes, deux
+          phrases (pas de compte / lecture non aboutie). Le catalogue en dessous
+          reste consultable — les prix, eux, sont vrais (game-rules). */}
+      {!inventoryIsReal ? (
+        <Text style={styles.walletNote}>
+          {t(signedIn ? C.walletUnreadNote : C.walletSignedOutNote)}
+        </Text>
+      ) : null}
 
       {/* Bannière permanente anti-pay-to-win (copy §28) — posée sur l'espace,
           plus de boîte : un filet supérieur discret la sépare du solde. */}
@@ -871,17 +948,12 @@ function GiftFlow({
           {anonymous ? <Dot color={colors.noir} size={8} /> : null}
         </View>
         <View style={styles.giftAnonText}>
-          <Text style={styles.giftAnonLabel}>Offrir anonymement</Text>
-          <Text style={styles.giftAnonSub}>
-            Le feed dira « Un membre a offert… » — jamais ton nom ni le montant.
-          </Text>
+          <Text style={styles.giftAnonLabel}>{t(C.offrirAnonyme)}</Text>
+          <Text style={styles.giftAnonSub}>{t(C.anonymeSub)}</Text>
         </View>
       </Pressable>
 
-      <Text style={styles.giftCap}>
-        {CREW_BOOST_MAX_ACTIVE} boost actif à la fois · tout le crew en profite · aucun montant
-        affiché.
-      </Text>
+      <Text style={styles.giftCap}>{t(C.giftCap, { n: CREW_BOOST_MAX_ACTIVE })}</Text>
 
       <Pressable
         accessibilityRole="button"
@@ -889,14 +961,16 @@ function GiftFlow({
         style={({ pressed }) => [styles.detailPrimary, pressed && styles.pressed]}
       >
         <Text style={styles.detailPrimaryText}>
-          Offrir ·{' '}
-          {item.priceEur !== undefined
-            ? `${item.priceEur.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
-            : `${item.priceShards?.toLocaleString('fr-FR')} Éclats`}
+          {t(C.offrirPrice, {
+            price:
+              item.priceEur !== undefined
+                ? `${item.priceEur.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+                : `${item.priceShards?.toLocaleString('fr-FR')} Éclats`,
+          })}
         </Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={onCancel} style={styles.detailClose}>
-        <Text style={styles.detailCloseText}>Annuler</Text>
+        <Text style={styles.detailCloseText}>{t(C.annuler)}</Text>
       </Pressable>
     </View>
   );
@@ -927,6 +1001,13 @@ const styles = StyleSheet.create({
   walletClubOn: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
   walletClubOff: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
   walletDivider: { width: 1, height: 34, backgroundColor: colors.grisLigne },
+  // Explication d'un solde non lu — posée sur l'espace, sous le bloc solde.
+  walletNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: spacing.xs,
+  },
   // Bannière doctrine (§28) : plus de boîte — texte posé sur l'ESPACE avec un
   // filet supérieur discret (séparateur, pas un cadre).
   banner: {

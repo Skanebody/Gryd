@@ -1,59 +1,35 @@
 /**
  * GRYD — briques d'affichage de la page Performance (AMENDEMENT-17 CHANTIER 3).
- * Résumé + détail : l'ESSENTIEL (Score Forme géant · Cette semaine · Impact
- * GRYD) tient au-dessus du fold ; le reste (Progression · Records · Verify) est
- * du détail plus bas. Style dark GRYD, accent chartreuse, texte court, cards
- * compactes. Purement présentiel — aucune constante de jeu, aucun réseau.
+ * Résumé + détail : l'ESSENTIEL (Cette semaine) tient au-dessus du fold ; le
+ * reste (Progression · Records · Verify) est du détail plus bas. Style dark
+ * GRYD, accent chartreuse, texte court, cards compactes. Purement présentiel —
+ * aucune constante de jeu, aucun réseau.
+ *
+ * MISE À JOUR 21/07/2026 (fin du mode vitrine) — ces briques ne servent plus
+ * qu'UNE page : l'app réelle, alimentée par `derive.ts` (les courses du joueur).
+ * Les props sont NULLABLES (`distancePct`, `paceGainSKm`, objectif hebdo) : un
+ * signal sans source ne s'affiche pas, il ne s'invente pas.
+ *
+ * `ScoreFormeHero`, `GrydImpactCard` et `ImpactStat` ont été SUPPRIMÉS : ils
+ * n'étaient rendus que par la vitrine et affichaient un « score de forme » et un
+ * « impact GRYD » qu'AUCUNE source réelle n'alimente (cf. l'en-tête de
+ * `derive.ts`). Sans vitrine, ils n'avaient plus d'appelant — et un score
+ * fabriqué sur la page Performance d'un joueur est précisément ce que la règle
+ * « l'app ne ment jamais » interdit. Ils reviendront si un jour un vrai calcul
+ * les alimente.
  */
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { ProgressBar } from '../../ui/ProgressBar';
 import { useCountUp } from '../../ui/game';
+import { useT } from '../../i18n/store';
+import { C } from '../../i18n/catalog/performance';
 import type { GrydImpactStat, PerfRecord, TrendPoint } from './demo';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HÉROS — Score Forme géant /100 + delta + interprétation (anti-shame)
 // ─────────────────────────────────────────────────────────────────────────────
-
-export function ScoreFormeHero({
-  score,
-  delta,
-  reading,
-}: {
-  score: number;
-  delta: number;
-  reading: string;
-}) {
-  // Compteur de montée sobre — useCountUp gère lui-même reduce motion
-  // (valeur finale directe, aucune animation).
-  const shown = useCountUp(score, 700);
-  const positive = delta >= 0;
-  return (
-    <View style={styles.hero}>
-      <Text style={styles.heroKicker}>SCORE FORME</Text>
-      <View style={styles.heroNumberRow}>
-        <Text style={styles.heroNumber}>{Math.round(shown)}</Text>
-        <Text style={styles.heroDenom}>/100</Text>
-      </View>
-      <View style={styles.heroDeltaRow}>
-        <View style={styles.mirrorMaybe}>
-          <Icon
-            name="virage"
-            size={14}
-            color={positive ? colors.chartreuse : colors.gris}
-          />
-        </View>
-        <Text style={[styles.heroDelta, positive && styles.heroDeltaUp]}>
-          {positive ? '+' : ''}
-          {delta} cette semaine
-        </Text>
-      </View>
-      {/* Interprétation humaine : une phrase, jamais culpabilisante. */}
-      <Text style={styles.heroReading}>{reading}</Text>
-    </View>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CETTE SEMAINE — 4 chiffres compacts + jauge objectif hebdo
@@ -70,43 +46,55 @@ function WeekStat({ value, label }: { value: string; label: string }) {
   );
 }
 
+/**
+ * Cette semaine. `goal` est OPTIONNEL et n'existe que sur la vitrine : le joueur
+ * n'a jamais fixé d'objectif hebdomadaire, afficher « 3/4 » le mettait en échec
+ * sur une consigne qu'il n'a pas donnée.
+ *
+ * Une semaine à zéro n'est PAS un vide à masquer : c'est lundi matin, et c'est
+ * vrai. On affiche les quatre compteurs à 0 + une ligne qui le dit sans
+ * culpabiliser (anti-shame) — jamais un « 0 » nu et muet.
+ */
 export function WeekCard({
   runs,
   km,
   duration,
   pace,
-  goalDone,
-  goalTarget,
+  goal,
 }: {
   runs: number;
   km: string;
   duration: string;
   pace: string;
-  goalDone: number;
-  goalTarget: number;
+  goal?: { done: number; target: number };
 }) {
-  const ratio = goalTarget > 0 ? goalDone / goalTarget : 0;
+  const t = useT();
+  const ratio = goal && goal.target > 0 ? goal.done / goal.target : 0;
   return (
     <View style={styles.card}>
-      <SectionTitle icon="foulees" label="Cette semaine" />
+      <SectionTitle icon="foulees" label={t(C.weekTitle)} />
       <View style={styles.weekRow}>
-        <WeekStat value={String(runs)} label="runs" />
+        <WeekStat value={String(runs)} label={t(C.weekRuns)} />
         <View style={styles.weekSep} />
-        <WeekStat value={km} label="km" />
+        <WeekStat value={km} label={t(C.weekKm)} />
         <View style={styles.weekSep} />
-        <WeekStat value={duration} label="durée" />
+        <WeekStat value={duration} label={t(C.weekDuration)} />
         <View style={styles.weekSep} />
-        <WeekStat value={pace} label="allure" />
+        <WeekStat value={pace} label={t(C.weekPace)} />
       </View>
-      <View style={styles.goalWrap}>
-        <View style={styles.goalHead}>
-          <Text style={styles.goalLabel}>Objectif hebdo</Text>
-          <Text style={styles.goalCount}>
-            {goalDone}/{goalTarget}
-          </Text>
+      {goal ? (
+        <View style={styles.goalWrap}>
+          <View style={styles.goalHead}>
+            <Text style={styles.goalLabel}>{t(C.weeklyGoal)}</Text>
+            <Text style={styles.goalCount}>
+              {goal.done}/{goal.target}
+            </Text>
+          </View>
+          <ProgressBar value={ratio} height={8} />
         </View>
-        <ProgressBar value={ratio} height={8} />
-      </View>
+      ) : runs === 0 ? (
+        <Text style={styles.cardNote}>{t(C.weekNoRun)}</Text>
+      ) : null}
     </View>
   );
 }
@@ -114,43 +102,6 @@ export function WeekCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // IMPACT GRYD — le cœur du jeu (au-dessus du fold) : 4 stats + ligne crew
 // ─────────────────────────────────────────────────────────────────────────────
-
-function ImpactStat({ stat }: { stat: GrydImpactStat }) {
-  return (
-    <View style={styles.impactStat}>
-      <View style={styles.impactIcon}>
-        <Icon name={stat.icon} size={18} color={colors.chartreuse} />
-      </View>
-      <Text style={styles.impactValue}>{stat.value}</Text>
-      <Text style={styles.impactLabel} numberOfLines={2}>
-        {stat.label}
-      </Text>
-    </View>
-  );
-}
-
-export function GrydImpactCard({
-  stats,
-  crewLine,
-}: {
-  stats: readonly GrydImpactStat[];
-  crewLine: string;
-}) {
-  return (
-    <View style={[styles.card, styles.impactCard]}>
-      <SectionTitle icon="guerre" label="Impact GRYD" accent />
-      <View style={styles.impactGrid}>
-        {stats.map((s) => (
-          <ImpactStat key={s.key} stat={s} />
-        ))}
-      </View>
-      <View style={styles.crewLine}>
-        <Icon name="crew" size={16} color={colors.chartreuse} />
-        <Text style={styles.crewLineText}>{crewLine}</Text>
-      </View>
-    </View>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROGRESSION — 3 signaux + UN mini-graph (barres, pas 15 courbes)
@@ -204,40 +155,64 @@ function ProgressSignal({
   );
 }
 
+/**
+ * Progression. `distancePct` et `paceGainSKm` sont NULLABLES : sans semaine
+ * précédente à comparer, il n'existe aucune progression à afficher — on retire
+ * le signal plutôt que d'écrire « +0 % », qui se lirait « tu stagnes ».
+ * La régularité, elle, est toujours vraie (0 semaine est une réponse).
+ */
 export function ProgressionCard({
   distancePct,
-  paceGainSec,
+  paceGainSKm,
   regularityWeeks,
   trend,
 }: {
-  distancePct: number;
-  paceGainSec: number;
+  distancePct: number | null;
+  paceGainSKm: number | null;
   regularityWeeks: number;
   trend: readonly TrendPoint[];
 }) {
+  const t = useT();
+  const signals: { key: string; value: string; label: string; good: boolean }[] = [];
+  if (distancePct !== null) {
+    signals.push({
+      key: 'distance',
+      value: `${distancePct > 0 ? '+' : ''}${distancePct} %`,
+      label: t(C.signalDistance),
+      good: distancePct > 0,
+    });
+  }
+  if (paceGainSKm !== null && paceGainSKm !== 0) {
+    // Gain positif = plus rapide → on l'écrit en secondes ÔTÉES (« -8 s/km »).
+    signals.push({
+      key: 'pace',
+      value: `${paceGainSKm > 0 ? '-' : '+'}${Math.abs(paceGainSKm)} s/km`,
+      label: t(C.signalPace),
+      good: paceGainSKm > 0,
+    });
+  }
+  signals.push({
+    key: 'regularity',
+    value: t(C.weeksShort, { n: regularityWeeks }),
+    label: t(C.signalRegularity),
+    good: regularityWeeks >= 3,
+  });
+
   return (
     <View style={styles.card}>
-      <SectionTitle icon="performance" label="Progression" />
+      <SectionTitle icon="performance" label={t(C.progressionTitle)} />
       <View style={styles.signalRow}>
-        <ProgressSignal
-          value={`+${distancePct} %`}
-          label="distance"
-          good={distancePct > 0}
-        />
-        <View style={styles.weekSep} />
-        <ProgressSignal
-          value={`-${paceGainSec} s/km`}
-          label="allure"
-          good={paceGainSec > 0}
-        />
-        <View style={styles.weekSep} />
-        <ProgressSignal
-          value={`${regularityWeeks} sem.`}
-          label="régularité"
-          good={regularityWeeks >= 3}
-        />
+        {signals.map((s, i) => (
+          <View key={s.key} style={styles.signalSlot}>
+            {i > 0 ? <View style={styles.weekSep} /> : null}
+            <ProgressSignal value={s.value} label={s.label} good={s.good} />
+          </View>
+        ))}
       </View>
       <TrendBars points={trend} />
+      {signals.length === 1 ? (
+        <Text style={styles.cardNote}>{t(C.progressionNeedsHistory)}</Text>
+      ) : null}
     </View>
   );
 }
@@ -267,7 +242,14 @@ function RecordCell({ record }: { record: PerfRecord }) {
   );
 }
 
-export function RecordsCard({ records }: { records: readonly PerfRecord[] }) {
+export function RecordsCard({
+  records,
+  title,
+}: {
+  records: readonly PerfRecord[];
+  /** Titre déjà traduit — la card est partagée app réelle / vitrine. */
+  title: string;
+}) {
   // Aplati (AMENDEMENT-22 §A) : les records sont posés sur l'espace de la card,
   // séparés par des filets hairline (colonnes façon WeekCard, rangées façon
   // Skills) — jamais une boîte bordée par cellule. UN seul niveau de boîte.
@@ -279,7 +261,7 @@ export function RecordsCard({ records }: { records: readonly PerfRecord[] }) {
   }
   return (
     <View style={styles.card}>
-      <SectionTitle icon="cible" label="Records" />
+      <SectionTitle icon="cible" label={title} />
       <View style={styles.recordGrid}>
         {rows.map((row, ri) => (
           <View key={row.a.key} style={[styles.recordRow, ri > 0 && styles.recordRowSep]}>
@@ -300,10 +282,16 @@ export function RecordsCard({ records }: { records: readonly PerfRecord[] }) {
 export function VerifyCard({
   reliablePct,
   channels,
+  meta,
 }: {
   reliablePct: number;
+  /** Canaux réellement présents en base — déjà traduits par l'appelant. */
   channels: readonly string[];
+  /** Dénominateur (« sur 12 courses ») quand il est connu. */
+  meta?: string;
 }) {
+  const t = useT();
+  const sub = [meta, channels.join(' · ')].filter(Boolean).join(' · ');
   return (
     <View style={[styles.card, styles.verifyCard]}>
       <View style={styles.verifyHead}>
@@ -312,9 +300,9 @@ export function VerifyCard({
         </View>
         <View style={styles.verifyText}>
           <Text style={styles.verifyStrong}>
-            <Text style={styles.verifyPct}>{reliablePct} %</Text> de tes courses fiables
+            <Text style={styles.verifyPct}>{reliablePct} %</Text> {t(C.verifyReliable)}
           </Text>
-          <Text style={styles.verifyMeta}>{channels.join(' · ')}</Text>
+          {sub ? <Text style={styles.verifyMeta}>{sub}</Text> : null}
         </View>
       </View>
     </View>
@@ -363,6 +351,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   sectionTitleAccent: { color: colors.chartreuse },
+  /** Note de bas de card : dit ce qui manque, sans culpabiliser (anti-shame). */
+  cardNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.4,
+  },
 
   // ── Héros Score Forme ──
   hero: {
@@ -463,6 +457,9 @@ const styles = StyleSheet.create({
 
   // ── Progression ──
   signalRow: { flexDirection: 'row', alignItems: 'stretch' },
+  /** Un signal + son filet de gauche : les colonnes restent de largeur égale
+   *  quel que soit le nombre de signaux réellement disponibles (1 à 3). */
+  signalSlot: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
   signal: { flex: 1, alignItems: 'center', gap: 3 },
   signalValue: {
     color: colors.blanc,

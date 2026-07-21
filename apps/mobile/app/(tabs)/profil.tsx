@@ -34,11 +34,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
-import {
-  TerritoryWidgetCard,
-  useTerritoryWidgetView,
-} from '../../src/features/widget/TerritoryWidgetCard';
+import { router } from 'expo-router';
+import { TerritoryWidgetCard } from '../../src/features/widget/TerritoryWidgetCard';
+import { buildRealWidgetView } from '../../src/features/widget/territoryWidget';
+import { getLastRunResult } from '../../src/features/run/runResult';
 import {
   BADGE_TIER_RANK,
   PLAYER_LEVEL_MAX,
@@ -66,7 +65,6 @@ import {
 } from '../../src/features/badges/catalog';
 import { BadgeHex } from '../../src/features/badges/BadgeHex';
 import { useMyBadges } from '../../src/features/badges/myBadges';
-import { MY_CREW } from '../../src/features/crew/demo';
 import {
   GRIP_RANK_LABELS,
   gripRankForLevel,
@@ -74,23 +72,14 @@ import {
   playerLevelXpTable,
   playerTierForLevel,
 } from '../../src/features/crew/rules';
-import { MY_SOCIAL_PROFILE } from '../../src/features/social/demo';
+import { useRealTerritories } from '../../src/features/map/hexClaims';
 import { GripMascot } from '../../src/features/social/GripMascot';
 import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { useMyEconomy } from '../../src/features/social/economy';
 import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
-import { TerritoryFranceMap } from '../../src/features/territory/TerritoryFranceMap';
-import {
-  TERRITORY_DEMO_FLAGS,
-  TERRITORY_STATUS_META,
-  territorySummary,
-  type StatusTone,
-  type NextActionIntent,
-  type TerritoryDemoFlag,
-} from '../../src/features/territory/territoryStatus';
-import { flags, isShowcasePlatform } from '../../src/lib/flags';
+import { flags } from '../../src/lib/flags';
 import type { Entry } from '../../src/i18n/types';
 import { useT } from '../../src/i18n/store';
 import { C } from '../../src/i18n/catalog/profil';
@@ -102,7 +91,7 @@ import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
 import { formatInt, formatMultiplier } from '../../src/ui/format';
-import { CrewCrest, IconAction, ShareCard } from '../../src/ui/game';
+import { IconAction, ShareCard } from '../../src/ui/game';
 import {
   BODY_R,
   BODY_STROKE,
@@ -110,7 +99,24 @@ import {
   hexAvatarWidth,
 } from '../../src/ui/game/hexAvatar';
 
-const STREAK_WEEKS = 3;
+/**
+ * ─── VITRINE vs VRAI PRODUIT SUR CET ÉCRAN (21/07/2026) ──────────────────────
+ *
+ * Cet écran était gouverné par `realUser = configured && !!session` : « pas de
+ * session ⇒ montre la démo ». Sur un iPhone fraîchement installé, ou dans un
+ * build où Supabase n'est pas configuré, l'utilisateur atterrissait donc sur un
+ * profil ENTIÈREMENT fabriqué — crew « LES FOULÉES 9³», rang #8 de saison,
+ * 168 km parcourus, 20 badges, un territoire « Paris 42 · Lille 13 ». Tout est
+ * faux, et rien ne le disait.
+ *
+ * La règle est maintenant celle du reste de l'app, et le mode vitrine est
+ * ABANDONNÉ (décision fondateur 21/07/2026) : partout — app installée comme
+ * localhost — on affiche du RÉEL, ou un état vide qui DIT ce qui manque et
+ * propose une suite. Il n'existe plus de branche « démo » sur cet écran.
+ *
+ * Les trois absences restent distinctes : pas de compte (invite à se connecter),
+ * compte sans donnée (invite à courir), lecture en échec (le dit + réessayer).
+ */
 
 /**
  * ── GRILLE EXPLICITE DE L'EN-TÊTE (2ᵉ passe, retour fondateur : « le bloc du
@@ -157,40 +163,6 @@ const PENCIL_TOP = AVATAR_PX / 2 + AVATAR_APOTHEM_PX * Math.sin(Math.PI / 3) - P
 /** Bornes XP par niveau (courbe §43.1) — table pure. Le niveau/tier/jauge sont
  *  DÉRIVÉS de l'XP RÉELLE dans le composant (O1 : useMyEconomy), plus au module. */
 const XP_TABLE = playerLevelXpTable();
-
-/**
- * Résout un flag démo territoire depuis le paramètre de route `?territory=…`
- * (itération visuelle des états sans rebuild). Défaut = `crew_multi` (cas
- * nominal Saison 0). Un flag inconnu retombe sur le défaut — jamais de crash.
- */
-function resolveTerritoryFlag(raw: string | string[] | undefined): TerritoryDemoFlag {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return (TERRITORY_DEMO_FLAGS as readonly string[]).includes(value ?? '')
-    ? (value as TerritoryDemoFlag)
-    : 'crew_multi';
-}
-
-/** Couleur d'accent d'un statut (badge STATUT) — tokens de jeu uniquement. */
-const STATUS_TONE_COLOR: Readonly<Record<StatusTone, string>> = {
-  crew: gameColors.crew,
-  contested: gameColors.contested,
-  rival: gameColors.rival,
-  neutral: colors.gris,
-};
-
-/**
- * Un CTA d'urgence (défense sous attaque) doit être ROUGE plein pour crier
- * l'action ; les autres restent chartreuse (l'action forte standard). On passe
- * par la couleur de fond du bouton, texte toujours foncé (charte contraste).
- */
-function ctaTone(intent: NextActionIntent, urgent: boolean): { bg: string; fg: string } {
-  if (urgent || intent === 'defend') {
-    return urgent
-      ? { bg: gameColors.rival, fg: colors.noir }
-      : { bg: gameColors.crew, fg: colors.noir };
-  }
-  return { bg: gameColors.crew, fg: colors.noir };
-}
 
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 
@@ -316,8 +288,7 @@ const LINKS: readonly ProfileLink[] = [
 
 export default function ProfilScreen() {
   const t = useT();
-  const widgetView = useTerritoryWidgetView();
-  const { session, configured } = useSession();
+  const { session, configured, loading: sessionLoading } = useSession();
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [shareOpen, setShareOpen] = useState(false);
@@ -339,35 +310,43 @@ export default function ProfilScreen() {
   const levelCeil =
     runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
   const levelRatio = levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
-  const streakWeeks = economy.source === 'server' ? economy.streakWeeks : STREAK_WEEKS;
+  const streakWeeks = economy.streakWeeks;
   const streakMultiplier = Math.min(
     1 + streakWeeks * STREAK_MULTIPLIER_STEP,
     STREAK_MULTIPLIER_CAP,
   );
-  const seasonRank =
-    economy.source === 'server' ? (economy.seasonRank ?? profile.seasonRank) : profile.seasonRank;
-  // O1 (états vides) : un vrai user (session) n'a pas encore de crew — aucune source
-  // crew réelle n'est peuplée (crew_members vide) et l'onglet Crew montre l'EmptyState.
-  // Le profil ne doit donc PAS afficher le crew démo « LES FOULÉES 9³ » : ce serait une
-  // contradiction directe. De même, pas de faux rang de saison tant que le serveur n'en
-  // renvoie pas. Showcase (web/dev sans session) : identité démo complète inchangée.
-  const realUser = configured && !!session;
-  const showCrew = !realUser;
-  const hasRealSeasonRank = economy.source === 'server' && economy.seasonRank != null;
+
+  // ── LES TROIS ÉTATS DE CET ÉCRAN ───────────────────────────────────────────
+  /** Compte relié → on lit et on affiche du réel (y compris « rien encore »). */
+  const signedIn = configured && !!session;
+  /**
+   * La session n'a pas fini de s'hydrater (lecture AsyncStorage/localStorage au
+   * démarrage à froid) : `session` vaut null SANS que ça veuille dire « pas de
+   * compte ». Traiter cette fenêtre comme un état vide ferait clignoter
+   * « Connecte-toi » sur l'écran d'un joueur connecté — un mensonge court, mais
+   * l'œil l'enregistre. Un CHARGEMENT n'est pas un VIDE.
+   */
+  const sessionPending = configured && sessionLoading && !session;
+  /** Pas de compte : aucune donnée de jeu ne peut être vraie. */
+  const signedOut = !signedIn && !sessionPending;
+  /**
+   * Y a-t-il seulement un écran de connexion qui MARCHE ? Sans backend
+   * (`configured === false` : aperçu web, build de dev), `/sign-in` redirige
+   * immédiatement vers la carte. Proposer « Se connecter » y enverrait le joueur
+   * dans un cul-de-sac — un bouton qui ment sur ce qu'il fait. On ne l'affiche
+   * que quand la connexion est réellement possible.
+   */
+  const canSignIn = configured && !session && !sessionLoading;
+  /**
+   * AUCUNE source crew réelle n'alimente encore le profil (le vrai roster vit
+   * dans l'onglet Crew). La ligne crew de l'en-tête a donc été RETIRÉE plutôt
+   * que rendue conditionnelle : afficher un crew, c'est soit le vrai, soit rien.
+   * Elle reviendra quand `useRealCrew` sera lu ici — pas avant.
+   */
+  const seasonRank = economy.seasonRank ?? profile.seasonRank;
+  const hasSeasonRank = seasonRank != null;
   /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
   const { equipped } = useEquippedCosmetics();
-
-  /**
-   * Résumé stratégique « Mon territoire » (AMENDEMENT-18 Partie B + A.5). Le
-   * scénario démo se bascule via `?territory=<flag>` pour itérer visuellement
-   * (crew_multi · crew_mono · beginner · under_attack · solo).
-   */
-  const { territory: territoryParam } = useLocalSearchParams<{ territory?: string }>();
-  const territoryFlag = resolveTerritoryFlag(territoryParam);
-  const territory = useMemo(() => territorySummary(territoryFlag), [territoryFlag]);
-  const statusMeta = TERRITORY_STATUS_META[territory.status];
-  const statusColor = STATUS_TONE_COLOR[statusMeta.tone];
-  const cta = ctaTone(territory.next.intent, territory.next.urgent ?? false);
 
   /** Titre affiché : un TITRE cosmétique équipé prime sur le titre éditorial. */
   const equippedTitleItem = equipped.profile ? itemByKey(equipped.profile) : undefined;
@@ -379,8 +358,67 @@ export default function ProfilScreen() {
   /** Initiales + couleur d'avatar issues du profil éditable. */
   const initials = effectiveInitials(profile);
 
-  // O1 : débloqués + progression RÉELS (user_badges/user_stats) si session, sinon démo.
-  const { unlockedIds, stat } = useMyBadges();
+  // Débloqués + progression RÉELS (user_badges/user_stats) dès qu'une session
+  // existe ; collection VIDE sinon. La démo n'apparaît que sur la vitrine.
+  const { unlockedIds, stat, failed: badgesFailed, reload: reloadBadges } = useMyBadges();
+  /**
+   * ─── UNE SEULE LECTURE DE `hex_claims` SUR CET ÉCRAN (21/07/2026) ──────────
+   *
+   * Le profil en déclenchait DEUX en parallèle au montage : `useRealTerritories()`
+   * pour les drapeaux, et `useTerritoryWidgetView()` qui appelle le MÊME hook en
+   * interne. Deux `select` complets de la table, sans filtre ni cache, pour
+   * afficher une seule card — et une troisième arrive de la Battle Map, restée
+   * montée dans l'onglet voisin. Chaque hook garde son propre état : la
+   * duplication était invisible à l'écran et ne coûtait que de la batterie et du
+   * réseau, exactement là où le joueur est en déplacement.
+   *
+   * On lit donc UNE fois, et on construit la vue du widget ici avec le même
+   * moteur PUR que le hook (`buildRealWidgetView`, partagé avec la Carte) — la
+   * logique reste unique, seul l'accès réseau cesse d'être dupliqué.
+   *
+   * (La 3ᵉ lecture, celle de la Carte, se règle par un cache partagé dans
+   * `hexClaims.ts` — hors du périmètre de cet écran.)
+   */
+  const {
+    territories,
+    isReal: territoryIsReal,
+    failed: territoryFailed,
+    loading: territoryLoading,
+    reload: reloadTerritory,
+  } = useRealTerritories();
+  /**
+   * Le widget RÉEL, ou null (pas de données) — le fallback est choisi plus bas.
+   * Il couvre DÉJÀ le cas « connecté mais zéro zone » : `buildRealWidgetView`
+   * tombe sur l'état `first_capture` (« prends ta première zone » + GO).
+   */
+  const widgetView = useMemo(() => {
+    if (!territoryIsReal || territories === null) return null;
+    const lastResult = getLastRunResult();
+    const ob = lastResult?.openBoundary;
+    return buildRealWidgetView({
+      mineAreasM2: territories
+        .filter((x) => x.props.status === 'crew')
+        .map((x) => x.props.areaM2),
+      openBoundary: ob ? { name: ob.name, missingM: ob.missingM } : null,
+      capturedInLastRun: lastResult
+        ? lastResult.hexes.claimed + lastResult.hexes.stolen + lastResult.hexes.pioneer > 0
+        : false,
+    });
+  }, [territoryIsReal, territories]);
+  /** Une lecture a échoué → on l'annonce et on propose de réessayer (jamais un 0 nu). */
+  const loadFailed = economy.failed || badgesFailed || territoryFailed;
+  /**
+   * Connecté, mais Supabase n'a pas encore répondu : l'économie vaut zéro par
+   * défaut. Rendre les modules maintenant afficherait « Niveau 1 · 0 badges »
+   * avant de sauter aux vrais chiffres — un mensonge d'une demi-seconde, que
+   * l'œil enregistre quand même. On attend, en le disant.
+   */
+  const loadingReal = sessionPending || (signedIn && !loadFailed && economy.source !== 'server');
+  const retryAll = () => {
+    economy.reload();
+    reloadBadges();
+    reloadTerritory();
+  };
   const displayableBadges = useMemo(() => displayableBadgesFrom(unlockedIds), [unlockedIds]);
   const unlockedCount = unlockedIds.size;
   /** Badges mis en avant : choix du joueur, sinon les 3 plus rares. */
@@ -400,24 +438,26 @@ export default function ProfilScreen() {
    * tenues). Colonnes de largeur ÉGALE, valeurs en tabular-nums → les chiffres
    * s'alignent verticalement quel que soit leur nombre de digits.
    *
-   * ZÉRO MENSONGE : un vrai user ne voit QUE des chiffres réels — les zones
-   * tenues démo (`territory.zonesHeld`, scénario showcase) et le rang de saison
-   * non résolu par le serveur ne s'affichent jamais pour lui ; à la place, le
-   * compteur de badges (user_badges réel) tient la 3ᵉ colonne.
+   * ZÉRO MENSONGE : le bandeau ne porte que du mesuré — niveau (dérivé de l'XP
+   * serveur), rang de saison s'il existe vraiment, badges effectivement
+   * débloqués. Aucun compteur de zones ici : le widget territoire dit déjà la
+   * vérité sur ce point, et il la lit dans `hex_claims`.
+   *
+   * Déconnecté (ou lecture en cours / en échec), le bandeau DISPARAÎT :
+   * « Niveau 1 · 0 badges » n'est pas la vérité de ce joueur, c'est l'absence de
+   * joueur. Le bloc juste dessous dit pourquoi il n'y a rien — un chiffre nu ne
+   * le dirait pas.
    */
-  const headerStats: readonly { value: string; label: string }[] = realUser
-    ? [
-        { value: formatInt(runnerLevel), label: t(C.levelWord) },
-        ...(hasRealSeasonRank
-          ? [{ value: `#${formatInt(seasonRank)}`, label: t(C.statRankShort) }]
-          : []),
-        { value: formatInt(unlockedCount), label: t(C.statBadgesShort) },
-      ]
-    : [
-        { value: formatInt(runnerLevel), label: t(C.levelWord) },
-        { value: `#${formatInt(seasonRank)}`, label: t(C.statRankShort) },
-        { value: formatInt(territory.zonesHeld), label: t(C.statZonesHeld) },
-      ];
+  const headerStats: readonly { value: string; label: string }[] =
+    signedOut || loadFailed || loadingReal
+      ? []
+      : [
+          { value: formatInt(runnerLevel), label: t(C.levelWord) },
+          ...(hasSeasonRank
+            ? [{ value: `#${formatInt(seasonRank)}`, label: t(C.statRankShort) }]
+            : []),
+          { value: formatInt(unlockedCount), label: t(C.statBadgesShort) },
+        ];
 
   useEffect(() => {
     screen('profil');
@@ -495,27 +535,31 @@ export default function ProfilScreen() {
                   mieux que quatre lignes équidistantes qui se disputent l'œil. */}
               {/* Titre affiché (cosmétique équipé prioritaire). Chartreuse sur
                   surface N1 SOMBRE (elevation.surface = carbone) — jamais clair. */}
-              <Text style={styles.title} numberOfLines={1}>
-                {displayedTitle}
-              </Text>
+              {/* Aucun titre par défaut hors vitrine : la ligne disparaît plutôt
+                  que d'afficher le titre d'un persona (« Tenace du 19ᵉ ») ou un
+                  vide qui ouvrirait un trou dans la grille. */}
+              {displayedTitle.length > 0 ? (
+                <Text style={styles.title} numberOfLines={1}>
+                  {displayedTitle}
+                </Text>
+              ) : null}
               {/* Niveau · ville : descripteur d'identité compact (le tier est lu
                   sur l'anneau d'avatar ; le niveau détaillé vit dans Progression).
-                  Wrap sur 2 lignes plutôt que couper au « … » (Règle §A.9). */}
+                  Wrap sur 2 lignes plutôt que couper au « … » (Règle §A.9).
+                  Sans ville renseignée, on écrit « Niveau 3 » tout court — pas
+                  « Niveau 3 · » avec un séparateur pendu dans le vide. */}
               <Text style={styles.identity} numberOfLines={2}>
-                {t(C.identityLine, { n: runnerLevel, city: profile.city })}
+                {profile.city.length > 0
+                  ? t(C.identityLine, { n: runnerLevel, city: profile.city })
+                  : t(C.identityLevelOnly, { n: runnerLevel })}
               </Text>
             </View>
           </View>
-          {showCrew ? (
-            <View style={styles.crewRow}>
-              <CrewCrest seed={MY_CREW.seed} name={MY_CREW.name} size="s" />
-              <Text style={styles.crewName} numberOfLines={1}>
-                {profile.crewName}
-              </Text>
-            </View>
-          ) : null}
           {/* Bandeau de chiffres — colonnes de largeur égale, valeurs alignées
-              sur une même ligne de base, libellés courts sur une seule ligne. */}
+              sur une même ligne de base, libellés courts sur une seule ligne.
+              Vide (déconnecté / lecture en échec) → le bandeau ne s'affiche pas :
+              un « 0 » sans explication vaudrait un mensonge de plus. */}
+          {headerStats.length > 0 ? (
           <View style={styles.statsStrip}>
             {headerStats.map((s) => (
               <View key={s.label} style={styles.statCell}>
@@ -538,6 +582,7 @@ export default function ProfilScreen() {
               </View>
             ))}
           </View>
+          ) : null}
           {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
               de gros rectangle. Le seul gros CTA chartreuse de l'écran est l'action
               CONTEXTUELLE du territoire (Défendre / Conquérir), pas l'édition de profil.
@@ -565,18 +610,25 @@ export default function ProfilScreen() {
         {shareOpen ? (
           <View style={styles.shareCardWrap}>
             <ShareCard
-              stat={realUser && !hasRealSeasonRank ? `${runnerLevel}` : `#${seasonRank}`}
+              stat={hasSeasonRank ? `#${seasonRank}` : `${runnerLevel}`}
               statLabel={
-                realUser && !hasRealSeasonRank
-                  ? t(C.levelWord)
-                  : t(C.statSeasonRank, { scope: profile.seasonScope })
+                hasSeasonRank
+                  ? t(C.statSeasonRank, { scope: profile.seasonScope })
+                  : t(C.levelWord)
               }
-              title={showCrew ? `${profile.displayName} · ${profile.crewName}` : profile.displayName}
-              subtitle={t(C.shareSubtitle, {
-                rank: GRIP_RANK_LABELS[gripRank],
-                n: runnerLevel,
-                title: displayedTitle,
-              })}
+              title={profile.displayName}
+              /* Sans titre équipé, le gabarit « {rank} · niv. {n} · {title} »
+                 laisserait un « · » orphelin en fin de ligne : on tombe alors sur
+                 les deux seules infos vraies (rang GRIP + niveau). */
+              subtitle={
+                displayedTitle.length > 0
+                  ? t(C.shareSubtitle, {
+                      rank: GRIP_RANK_LABELS[gripRank],
+                      n: runnerLevel,
+                      title: displayedTitle,
+                    })
+                  : `${GRIP_RANK_LABELS[gripRank]} · ${t(C.identityLevelOnly, { n: runnerLevel })}`
+              }
             >
               {/* Carte identité character-forward : GRIP porte la signature GRYD. */}
               <GripMascot rank={gripRank} size={72} />
@@ -584,144 +636,100 @@ export default function ProfilScreen() {
           </View>
         ) : null}
 
+        {/* ═══ ÉTAT VIDE N°1 · PAS DE COMPTE ════════════════════════════════════
+            Un profil déconnecté n'a ni territoire, ni progression, ni badges —
+            et aucune de ces trois choses ne peut être devinée. Plutôt que trois
+            cartes vides empilées, UN bloc dit ce qui manque et porte l'unique
+            CTA chartreuse de l'écran (§A : 1 écran = 1 décision).
+            La player card reste au-dessus : le nom, le @ et l'avatar sont réels
+            et modifiables même sans compte (ils vivent sur ce téléphone). */}
+        {signedOut ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateTitle}>
+              {canSignIn ? t(C.signedOutTitle) : t(C.noBackendTitle)}
+            </Text>
+            <Text style={styles.stateBody}>
+              {canSignIn ? t(C.signedOutBody) : t(C.noBackendBody)}
+            </Text>
+            {/* Pas de CTA quand se connecter est impossible : un bouton qui ne
+                mène nulle part vaut moins qu'une phrase qui dit pourquoi. */}
+            {canSignIn ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(C.signIn)}
+                onPress={() => router.push('/sign-in')}
+                style={({ pressed }) => [styles.stateCta, pressed && styles.dim]}
+              >
+                <Text style={styles.stateCtaLabel} numberOfLines={1}>
+                  {t(C.signIn)}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* ═══ ÉTAT VIDE N°2 · LECTURE EN ÉCHEC ═════════════════════════════════
+            Le pire scénario du zéro-mensonge : un joueur RÉEL, hors réseau. Ses
+            zones, son XP et ses badges existent — on ne sait juste pas les lire.
+            Afficher « 0 zone · 0 badge » lui dirait qu'il n'a rien fait. On
+            avoue la panne, et on offre le seul geste utile : réessayer. */}
+        {loadFailed ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateTitle}>{t(C.loadFailedTitle)}</Text>
+            <Text style={styles.stateBody}>{t(C.loadFailedBody)}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.retry)}
+              onPress={retryAll}
+              style={({ pressed }) => [styles.stateCta, pressed && styles.dim]}
+            >
+              <Text style={styles.stateCtaLabel} numberOfLines={1}>
+                {t(C.retry)}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* ═══ ÉTAT TRANSITOIRE · ON CHARGE ═════════════════════════════════════
+            Une ligne, pas un spinner plein écran : le joueur voit déjà sa player
+            card, il lui manque juste ses chiffres. Cet état est BORNÉ (la lecture
+            aboutit ou lève `failed`) — jamais un chargement qui tourne sans fin. */}
+        {loadingReal ? <Text style={styles.stateInline}>{t(C.loadingNumbers)}</Text> : null}
+
         {/* ── MODULE 1 · TERRITOIRE = RÉSUMÉ STRATÉGIQUE (AMENDEMENT-18 Partie B) ──
             Ce que je contrôle · ce qui est menacé · ma PROCHAINE action. Card
-            compacte ≤ 260 px, 60 % stats / 40 % mini-carte, CTA CONTEXTUEL. */}
+            compacte ≤ 260 px, 60 % stats / 40 % mini-carte, CTA CONTEXTUEL.
+            Masqué quand il n'y a ni compte ni lecture réussie : les blocs
+            ci-dessus ont déjà expliqué pourquoi. */}
+        {signedOut || loadFailed || loadingReal ? null : (
+        <>
         <View style={styles.sectionRow}>
           <Icon name="pin" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>{t(C.sectionTerritory)}</Text>
         </View>
-        {/* Card = View (pas Pressable) : la CTA est un bouton propre à part
-            → évite le <button> dans <button>. Le RÉSUMÉ (statut/stats/carte)
-            est lui-même tappable pour ouvrir /territoire, la CTA fait l'action. */}
-        {/* Widget « Mon territoire » (spec 17/07) : quand le RÉEL existe, il
-            REMPLACE le résumé stratégique démo ci-dessous — jamais deux blocs
-            « MON TERRITOIRE », jamais une démo présentée comme le joueur. */}
+        {/* Widget « Mon territoire » — la SEULE source de ce bloc est `hex_claims`.
+            Il couvre DÉJÀ le cas « connecté mais zéro zone » : `buildRealWidgetView`
+            tombe alors sur l'état `first_capture` (« prends ta première zone » + GO),
+            qui est exactement l'état vide attendu — utile, pas culpabilisant. */}
         {widgetView ? (
           <TerritoryWidgetCard view={widgetView} />
-        ) : realUser ? (
-          // O1 : un vrai user dont le widget réel n'est pas (encore) résolu
-          // (chargement / pas de capture) ne doit PAS voir le résumé DÉMO
-          // « Paris 42 · Lille 13 » comme si c'était le sien — rien plutôt qu'un mensonge.
-          null
         ) : (
-        <View style={styles.territoryCard}>
-            {/* Bannière de crise (SOUS ATTAQUE) — ton rival, au-dessus du reste */}
-            {territory.alert ? (
-              <View style={styles.territoryAlert}>
-                <Icon name="alerte" size={iconSizes.xs} color={colors.noir} />
-                <Text style={styles.territoryAlertText} numberOfLines={1}>
-                  {territory.alert}
-                </Text>
-              </View>
-            ) : null}
-  
-            {/* Résumé tappable → détail /territoire */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(C.a11yOpenTerritory)}
-              onPress={() => router.push('/territoire')}
-              style={({ pressed }) => [styles.territoryBody, pressed && styles.dim]}
-            >
-              {/* ── 60 % STATS ── */}
-              <View style={styles.territoryStats}>
-                {/* Ligne statut : badge coloré (Stable / Contesté / Sous attaque…).
-                    Masquée quand la bannière de crise est là : elle porte déjà le
-                    statut → pas de doublon, on gagne la hauteur (≤ 260 px). */}
-                {territory.alert ? null : (
-                  <View style={styles.territoryStatusRow}>
-                    <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                    <Text style={[styles.statusLabel, { color: statusColor }]} numberOfLines={1}>
-                      {statusMeta.label}
-                    </Text>
-                  </View>
-                )}
-  
-                {/* Gros chiffre : zones tenues + unité, puis portée sur toute la
-                    largeur (quartier « Paris Est » ou villes « Paris 42 · Lille 13 »
-                    — jamais tronqué : c'est une donnée, pas un pseudo). */}
-                <View style={styles.territoryHero}>
-                  <Text style={styles.territoryHeroNum}>{formatInt(territory.zonesHeld)}</Text>
-                  <Text style={styles.territoryHeroUnit} numberOfLines={2}>
-                    {territory.zonesUnit}
-                  </Text>
-                </View>
-                <Text style={styles.territoryHeroScope} numberOfLines={1}>
-                  {territory.scopeLabel}
-                </Text>
-                {/* Faits stratégiques (frontières · routes · zone à défendre) déportés
-                    au détail /territoire — le résumé garde statut + héros + action (§A). */}
-              </View>
-  
-              {/* ── 40 % MINI-CARTE (aperçu statique, non-interactif) ── */}
-              <View style={styles.territoryMini}>
-                <TerritoryFranceMap preview />
-              </View>
-            </Pressable>
-  
-            {/* ── PROCHAINE ACTION + CTA CONTEXTUEL (jamais « Explorer » vague) ── */}
-            <View style={styles.territoryNextRow}>
-              <Text
-                style={styles.territoryNext}
-                numberOfLines={territory.next.allowLongHeadline ? 3 : 2}
-              >
-                {territory.next.headline}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={territory.next.cta}
-                onPress={() => router.push(territory.next.route)}
-                style={({ pressed }) => [
-                  styles.territoryCta,
-                  { backgroundColor: cta.bg },
-                  pressed && styles.dim,
-                ]}
-              >
-                <Text
-                  style={[styles.territoryCtaLabel, { color: cta.fg }]}
-                  numberOfLines={1}
-                  ellipsizeMode="clip"
-                >
-                  {territory.next.cta}
-                </Text>
-              </Pressable>
-            </View>
-            {/* Micro-badges territoire déportés au détail /territoire (le résumé
-                reste à ≤ 3 infos : statut · héros zones · prochaine action). */}
-          </View>
+          // Connecté, lecture ni finie ni en échec → on patiente en le disant.
+          // Un écran muet laisserait croire que le joueur n'a rien.
+          <Text style={styles.stateInline}>
+            {territoryLoading ? t(C.territoryLoading) : t(C.territoryEmptyTitle)}
+          </Text>
+        )}
+        </>
         )}
 
-        {/* ── SOLO (A.5) : l'app ne semble jamais vide — crews près de toi ──
-            VITRINE WEB UNIQUEMENT (audit doctrine Crew 20/07) : « 3 crews actifs
-            près de toi » est un chiffre INVENTÉ (territoryStatus démo) et menait
-            à /crew-discovery, une liste de crews fabriqués. Sur natif on ne
-            promet pas une densité qu'aucun vrai utilisateur ne peuple encore —
-            CLAUDE.md, zéro donnée factice. Reviendra quand la recherche réelle
-            existera (LOT 2) et qu'il y aura de vrais crews à trouver. */}
-        {isShowcasePlatform && territory.soloCrewHint ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={territory.soloCrewHint.headline}
-            onPress={() => router.push(territory.soloCrewHint!.route)}
-            style={({ pressed }) => [styles.soloCrewCard, pressed && styles.dim]}
-          >
-            <Icon name="crew" size={iconSizes.md} color={colors.chartreuse} />
-            <View style={styles.soloCrewInfo}>
-              <Text style={styles.soloCrewHeadline} numberOfLines={1}>
-                {territory.soloCrewHint.headline}
-              </Text>
-              <Text style={styles.soloCrewSub} numberOfLines={1}>
-                {t(C.soloCrewSub)}
-              </Text>
-            </View>
-            <Text style={styles.soloCrewCta} numberOfLines={1} ellipsizeMode="clip">
-              {territory.soloCrewHint.cta}
-            </Text>
-            <Icon name="chevron" size={16} color={colors.gris} />
-          </Pressable>
-        ) : null}
-
-        {/* ── MODULE 2 · PROGRESSION : Niveau N → N+1, jauge XP réelle ── */}
+        {/* ── MODULE 2 · PROGRESSION : Niveau N → N+1, jauge XP réelle ──
+            Un compte neuf voit « Niveau 1 · 0 / N XP » : ce n'est pas un trou,
+            c'est son point de départ réel, et la jauge lui montre la marche
+            suivante. Déconnecté ou lecture en panne, en revanche, ces chiffres
+            n'appartiennent à personne → module masqué. */}
+        {signedOut || loadFailed || loadingReal ? null : (
+        <>
         <View style={styles.sectionRow}>
           <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>{t(C.sectionProgress)}</Text>
@@ -747,32 +755,19 @@ export default function ProfilScreen() {
               <ProgressBar value={levelRatio} height={8} />
             </View>
           </View>
-          {/* Zéro-lie : Score Forme et « % du coffre crew » ne sont pas encore
-              câblés au réel (O1) — les présenter à côté de la Série RÉELLE (issue
-              d'une session) ferait passer de la démo pour du vrai. Sur session
-              serveur on n'affiche donc QUE des stats réelles (Série + Niveau +
-              badges débloqués) ; en démo, la rangée démo reste cohérente. */}
+          {/* Zéro-lie : le Score Forme et le « % du coffre crew » ne sont câblés à
+              AUCUNE source réelle. Les afficher à côté de la série RÉELLE ferait
+              passer de l'inventé pour du mesuré, et c'est justement ce qu'un
+              joueur ne peut pas distinguer à l'œil. La rangée ne porte donc que
+              du mesuré : série + badges. */}
           <View style={styles.progressStatsRow}>
-            {(economy.source === 'server'
-              ? [
-                  {
-                    value: formatMultiplier(streakMultiplier),
-                    label: t(C.statStreak, { n: streakWeeks }),
-                  },
-                  { value: formatInt(unlockedCount), label: t(C.statBadgesUnlocked) },
-                ]
-              : [
-                  { value: `${MY_SOCIAL_PROFILE.formeScore}`, label: t(C.statFormScore) },
-                  {
-                    value: formatMultiplier(streakMultiplier),
-                    label: t(C.statStreak, { n: streakWeeks }),
-                  },
-                  {
-                    value: `${MY_SOCIAL_PROFILE.crewChestContribPct} %`,
-                    label: t(C.statCrewChest),
-                  },
-                ]
-            ).map((s) => (
+            {[
+              {
+                value: formatMultiplier(streakMultiplier),
+                label: t(C.statStreak, { n: streakWeeks }),
+              },
+              { value: formatInt(unlockedCount), label: t(C.statBadgesUnlocked) },
+            ].map((s) => (
               <View key={s.label} style={styles.progressStat}>
                 <Text style={styles.progressStatValue}>{s.value}</Text>
                 <Text style={styles.progressStatLabel} numberOfLines={1}>
@@ -782,36 +777,49 @@ export default function ProfilScreen() {
             ))}
           </View>
         </View>
+        </>
+        )}
 
-        {/* ── MODULE 3 · BADGES : 3 équipés + « Voir collection » (pas géant) ── */}
+        {/* ── MODULE 3 · BADGES : 3 équipés + « Voir collection » (pas géant) ──
+            Un badge est une preuve d'effort : on n'en montre aucun qui n'ait été
+            gagné. Collection vide → une ligne qui dit comment en ouvrir un
+            (jamais trois hexagones grisés, qui se liraient « tu as raté ça »). */}
+        {signedOut || loadFailed || loadingReal ? null : (
+        <>
         <View style={styles.sectionRow}>
           <Icon name="badge" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionRowLabel}>{t(C.sectionBadges)}</Text>
         </View>
-        <View style={styles.badgeRow}>
-          {featuredBadges.map((def) => (
-            <Pressable
-              key={def.id}
-              accessibilityRole="button"
-              accessibilityLabel={t(C.a11yBadge, { name: def.name })}
-              onPress={() => router.push('/badges')}
-              style={({ pressed }) => [styles.badgeCell, pressed && styles.dim]}
-            >
-              <BadgeHex
-                family={def.family}
-                familyColor={badgeColor(def)}
-                state="unlocked"
-                tier={def.tier}
-                size="md"
-                secret={def.secret}
-                slug={badgeKeyByName(def.name)}
-              />
-              <Text style={styles.badgeName} numberOfLines={1}>
-                {def.name}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {featuredBadges.length > 0 ? (
+          <View style={styles.badgeRow}>
+            {featuredBadges.map((def) => (
+              <Pressable
+                key={def.id}
+                accessibilityRole="button"
+                accessibilityLabel={t(C.a11yBadge, { name: def.name })}
+                onPress={() => router.push('/badges')}
+                style={({ pressed }) => [styles.badgeCell, pressed && styles.dim]}
+              >
+                <BadgeHex
+                  family={def.family}
+                  familyColor={badgeColor(def)}
+                  state="unlocked"
+                  tier={def.tier}
+                  size="md"
+                  secret={def.secret}
+                  slug={badgeKeyByName(def.name)}
+                />
+                <Text style={styles.badgeName} numberOfLines={1}>
+                  {def.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.stateInline}>
+            {badgesFailed ? t(C.badgesFailedLine) : t(C.badgesEmptyLine)}
+          </Text>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(C.a11ySeeBadgeCollection)}
@@ -823,6 +831,8 @@ export default function ProfilScreen() {
           </Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
+        </>
+        )}
 
         {/* ── MODULE 4 · SKILLS : spécialisations gagnées par comportement ──
             (AMENDEMENT-23 §C, doc §28-§29). DISTINCT des badges : rôle /
@@ -830,7 +840,24 @@ export default function ProfilScreen() {
             par famille posée sur l'espace (pas de card-dans-card AMENDEMENT-22) :
             icône + « <name> <roman> · <value> <unité> » + jauge de progression.
             Verrouillé (niveau 0) → « commence à <seuil I> ». Anti pay-to-win :
-            AUCUN gain de territoire/points affiché (Supporter = entraide only). */}
+            AUCUN gain de territoire/points affiché (Supporter = entraide only).
+
+            GARDE (21/07/2026) : ce module était le SEUL de l'écran à survivre
+            aux trois états non-nominaux — ses quatre voisins (bandeau de
+            chiffres, territoire, progression, badges) sont gardés depuis, lui
+            non. Résultat : un visiteur SANS COMPTE lisait « Spécialisations
+            0/6 » et, en dépliant, six jauges à zéro assorties de « commence à
+            18 routes » — un bilan de comportement pour un joueur qui n'existe
+            pas. Même chose pendant un chargement (les stats valent 0 tant que
+            `user_stats` n'a pas répondu : « 0/6 » puis saut aux vrais niveaux)
+            et après un échec de lecture (« 0/6 » se lisant « tu n'as rien
+            gagné » au lieu de « je n'ai pas pu lire »). Les skills dérivent de
+            `stat()` (useMyBadges), qui vaut 0 dans ces trois cas : la valeur
+            n'est pas fausse, c'est l'AFFIRMATION qu'elle porte qui l'est.
+            Aligné sur les voisins — les blocs d'état au-dessus disent déjà
+            pourquoi il n'y a rien. */}
+        {signedOut || loadFailed || loadingReal ? null : (
+        <>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: skillsOpen }}
@@ -909,6 +936,8 @@ export default function ProfilScreen() {
             );
           })}
         </View>
+        </>
+        )}
 
         {/* RACCOURCIS — listes longues déportées en pages dédiées (« PLUS » était
             un label vague, banni des libellés d'action) */}
@@ -1092,6 +1121,52 @@ const styles = StyleSheet.create({
   // ── MODULE Territoire = résumé stratégique (AMENDEMENT-18 Partie B).
   //    Surface N1 unique, sans contour (80/20) — sa CTA contextuelle porte le
   //    seul gros accent de l'écran. ──
+  // ── États vides / erreurs (§A : dire ce qui manque + UNE suite) ──
+  // Surface N1 comme les autres cards, jamais de card dans card. Le CTA est le
+  // SEUL bouton chartreuse de l'écran dans ces états (les modules de jeu, qui
+  // portent d'habitude cette CTA, sont masqués).
+  stateCard: {
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    padding: spacing.cardPadding,
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  stateTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  stateBody: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.5,
+  },
+  stateCta: {
+    backgroundColor: gameColors.crew,
+    borderRadius: radii.pill,
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  // Texte NOIR sur fond chartreuse (jamais de chartreuse sur clair, charte).
+  stateCtaLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  /** Ligne d'état posée sur l'espace (pas de card) — badges vides, chargement. */
+  stateInline: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.5,
+    marginTop: spacing.xs,
+  },
+
   territoryCard: {
     backgroundColor: elevation.surface,
     borderRadius: radii.card,

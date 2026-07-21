@@ -1912,3 +1912,32 @@ export const ROUTE_TARGET_DISTANCE_MAX_M = 42_195;
  */
 export const ROUTE_SHAPES = ['any', 'loop', 'out_and_back'] as const;
 export type RouteShape = (typeof ROUTE_SHAPES)[number];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// A-46 × A-45 — LA ZONE DU JOUR LUE À LA DISTANCE RÉELLEMENT COURUE
+// (bloc ajouté en fin de fichier, chantier « suggestion de parcours × zone du
+//  jour ». Une seule constante : tout le reste est réutilisé.)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Distance CENTRE À CENTRE (m) entre deux zones voisines de la grille de jeu.
+ *
+ * Ce n'est PAS un réglage de jeu : c'est une propriété géométrique de H3 à
+ * `H3_RESOLUTION` (10). Une cellule res-10 a une arête moyenne de ~65,9 m ;
+ * deux cellules adjacentes ont donc leurs centres à √3 × 65,9 ≈ 114 m. La
+ * valeur est figée ici, et pas recalculée dans l'app, parce que le mobile
+ * n'embarque pas h3-js (Metro ne le résout pas dans ce chemin) : sans source
+ * unique, chaque écran finirait avec son propre « à peu près ».
+ *
+ * SEUL USAGE : borner le nombre de zones qu'une sortie peut traverser
+ * (`zonesWithinReach`, apps/mobile/src/features/daily/zoneFit.ts), pour dire
+ * honnêtement si le terrain libre d'une Zone du Jour tient la comparaison avec
+ * la distance qu'une personne court vraiment. Le calcul suppose une trajectoire
+ * RECTILIGNE — c'est une borne HAUTE assumée, qui rend le verdict « il y a de
+ * quoi faire » plus difficile à obtenir plutôt que plus facile.
+ *
+ * ANTI PAY-TO-WIN : cette constante n'entre dans aucun score, aucun claim,
+ * aucune protection, aucun decay. Elle ne sert qu'à formuler une PROPOSITION,
+ * qui ne donne rien (§22).
+ */
+export const ZONE_CENTER_SPACING_M = 114;
