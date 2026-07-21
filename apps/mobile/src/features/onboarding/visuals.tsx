@@ -28,6 +28,14 @@ import { useReduceMotion } from '../../ui/game';
 import { territoryStyle, traceStyle, withAlpha } from '../map/mapStyle';
 import { fitTracesToBox, tracePrefix } from '../map/projectTrace';
 import {
+  LOGO_LEN,
+  LOGO_POINTS,
+  LOGO_VIEW,
+  logoDrawProgress,
+  logoHeadAt,
+  logoHeadingAt,
+} from './logoRoute';
+import {
   AVENUE_DE_LA_REPUBLIQUE,
   BOUCLE_BASTILLE,
   BOUCLE_REPUBLIQUE,
@@ -441,77 +449,45 @@ const styles = StyleSheet.create({
    chacun avait été relevé à l'œil de son côté — le logo de l'accueil et l'icône
    de l'app n'étaient alors plus tout à fait la même marque. Rapport largeur /
    hauteur de référence : 1,547 (rx/ry). Toucher l'un = toucher l'autre. */
-const LOGO_VIEW = 200;
-const LOGO_CX = 100;
-const LOGO_CY = 100;
-const LOGO_RX = 72;
-const LOGO_RY = 47;
-/** Ouverture du G, à droite : l'arc s'arrête avant de se refermer. */
-const LOGO_START_DEG = -34;
-const LOGO_END_DEG = -356;
-/** Fin de la barre horizontale, légèrement à gauche du centre (comme le logo). */
-const LOGO_BAR_END_X = 110;
-
-type Pt = { x: number; y: number };
-
-/** Le G en points, dans l'ordre où on le court. PURE, déterministe. */
-function buildLogoRoute(): Pt[] {
-  const pts: Pt[] = [];
-  const arcSteps = 132;
-  for (let i = 0; i <= arcSteps; i += 1) {
-    const k = i / arcSteps;
-    const deg = LOGO_START_DEG + (LOGO_END_DEG - LOGO_START_DEG) * k;
-    const rad = (deg * Math.PI) / 180;
-    // Ondulation ~0,7 px : assez pour évoquer le GPS, pas assez pour déformer.
-    const wob = Math.sin(k * 27) * 0.7;
-    pts.push({
-      x: LOGO_CX + (LOGO_RX + wob) * Math.cos(rad),
-      y: LOGO_CY + (LOGO_RY + wob) * Math.sin(rad),
-    });
-  }
-  const last = pts[pts.length - 1] ?? { x: LOGO_CX + LOGO_RX, y: LOGO_CY };
-  const barSteps = 26;
-  for (let i = 1; i <= barSteps; i += 1) {
-    const k = i / barSteps;
-    pts.push({
-      x: last.x + (LOGO_BAR_END_X - last.x) * k,
-      y: last.y + Math.sin(k * 9) * 0.5,
-    });
-  }
-  return pts;
-}
-
-const LOGO_ROUTE = buildLogoRoute();
-const LOGO_POINTS = LOGO_ROUTE.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-
-/** Longueurs cumulées : servent au masque de révélation ET à situer la tête. */
-const LOGO_CUM = (() => {
-  const cum = [0];
-  for (let i = 1; i < LOGO_ROUTE.length; i += 1) {
-    const a = LOGO_ROUTE[i - 1];
-    const b = LOGO_ROUTE[i];
-    const d = a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0;
-    cum.push((cum[i - 1] ?? 0) + d);
-  }
-  return cum;
-})();
-const LOGO_LEN = LOGO_CUM[LOGO_CUM.length - 1] ?? 1;
-
-/** Position du coureur à l'avancement `p` (0→1). PURE. */
-function logoHeadAt(p: number): Pt {
-  const target = Math.max(0, Math.min(1, p)) * LOGO_LEN;
-  for (let i = 1; i < LOGO_CUM.length; i += 1) {
-    const c1 = LOGO_CUM[i] ?? 0;
-    if (c1 >= target) {
-      const c0 = LOGO_CUM[i - 1] ?? 0;
-      const a = LOGO_ROUTE[i - 1];
-      const b = LOGO_ROUTE[i];
-      if (!a || !b) break;
-      const k = c1 === c0 ? 0 : (target - c0) / (c1 - c0);
-      return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+/**
+ * Boucle du tracé : dessine, TIENT le logo affiché, puis repart de zéro.
+ * `Animated.loop` avec une séquence aller-retour rembobinerait le parcours —
+ * un coureur ne défait pas sa course à reculons. On coupe donc net et on
+ * recommence : c'est ce que fait un tracé qu'on rejoue.
+ */
+function useLogoLoop(drawMs: number, holdMs: number, enabled: boolean): number {
+  const reduce = useReduceMotion();
+  const [raw, setRaw] = useState(0);
+  const anim = useRef(new Animated.Value(0)).current;
+  const cycle = drawMs + holdMs;
+  useEffect(() => {
+    if (reduce) {
+      setRaw(1);
+      return;
     }
-  }
-  return LOGO_ROUTE[LOGO_ROUTE.length - 1] ?? { x: LOGO_CX, y: LOGO_CY };
+    const id = anim.addListener(({ value }) => setRaw(value));
+    // UNE SEULE timing linéaire, bouclée. Les versions précédentes enchaînaient
+    // une `Animated.sequence` (tracé → tenue → remise à zéro) : sur
+    // react-native-web, `Animated.loop` d'une séquence ne démarre tout
+    // simplement pas — le tracé restait figé à 0, mesuré sur 6 s. Le chemin
+    // « une timing bouclée » est le seul solide sur les deux cibles ; la tenue
+    // et la courbe d'accélération sont donc calculées au rendu, pas par
+    // l'animation.
+    const timing = Animated.timing(anim, {
+      toValue: 1,
+      duration: cycle,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    });
+    const runner = enabled ? Animated.loop(timing) : timing;
+    runner.start();
+    return () => {
+      runner.stop();
+      anim.removeListener(id);
+    };
+  }, [anim, cycle, enabled, reduce]);
+
+  return reduce ? 1 : logoDrawProgress(raw, drawMs, holdMs);
 }
 
 /**
@@ -520,11 +496,13 @@ function logoHeadAt(p: number): Pt {
  * Mouvement réduit respecté : `useProgress` renvoie 1 d'emblée → le G est
  * simplement affiché complet, sans animation.
  */
-export function LogoRouteMark({ size = 148, loop = false }: { size?: number; loop?: boolean }) {
-  const p = useProgress(2600, 220, loop);
+export function LogoRouteMark({ size = 148, loop = true }: { size?: number; loop?: boolean }) {
+  const p = useLogoLoop(2600, 1500, loop);
   const drawn = p * LOGO_LEN;
   const head = logoHeadAt(p);
-  // La tête ne s'affiche que pendant la course : à l'arrêt, le logo est un logo.
+  const heading = logoHeadingAt(p);
+  // Le repère ne s'affiche que pendant la course : une fois le tour bouclé, il
+  // ne reste que le logo — sinon un point traînerait sur une marque à l'arrêt.
   const running = p > 0.001 && p < 0.999;
   return (
     <View style={{ width: size, height: size }} pointerEvents="none">
@@ -559,10 +537,18 @@ export function LogoRouteMark({ size = 148, loop = false }: { size?: number; loo
           strokeDasharray={`${drawn} ${LOGO_LEN}`}
         />
         {running ? (
-          <>
-            <Circle cx={head.x} cy={head.y} r={13} fill={colors.chartreuse40} />
-            <Circle cx={head.x} cy={head.y} r={6.5} fill={colors.blanc} />
-          </>
+          /* LE REPÈRE DE LOCALISATION — exactement celui de la carte
+             (MapScreen : point chartreuse cerclé de blanc + halo), pour que le
+             joueur reconnaisse SA position, pas un curseur décoratif. Le cône
+             de cap dit le sens de la course : sans lui, le repère se lit comme
+             un point posé au lieu de quelqu'un qui avance. */
+          <G x={head.x} y={head.y}>
+            <G rotation={heading}>
+              <Path d="M 0 0 L 26 -9 L 26 9 Z" fill={colors.chartreuse40} />
+            </G>
+            <Circle r={14} fill={colors.chartreuse14} stroke={colors.chartreuse40} strokeWidth={1.5} />
+            <Circle r={7} fill={colors.chartreuse} stroke={colors.blanc} strokeWidth={2.5} />
+          </G>
         ) : null}
       </Svg>
     </View>
