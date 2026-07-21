@@ -92,6 +92,7 @@ import {
   CaptureFillVisual,
   CityBoard,
   HookMapBackground,
+  LogoRouteMark,
 } from '../../src/features/onboarding/visuals';
 
 // ─── Durées de scénario (présentation, pas des règles) ───────────────────────
@@ -270,6 +271,10 @@ function HookStep({ onNext }: { onNext: () => void }) {
       <HookMapBackground />
       {/* Dégradé sombre implicite : le fond carte est déjà atténué (visuals). */}
       <View style={styles.hookContent} pointerEvents="box-none">
+        {/* La marque n'est pas posée : elle est COURUE. Le tracé dessine le G,
+            puis le mot s'affiche — la promesse du produit avant la première
+            phrase. En mouvement réduit, le logo apparaît complet, sans course. */}
+        <LogoRouteMark size={116} />
         <Text style={styles.brand}>{HOOK.brand}</Text>
         <View style={styles.grow} />
         <Text style={styles.hookTitle}>{t(HOOK.title)}</Text>

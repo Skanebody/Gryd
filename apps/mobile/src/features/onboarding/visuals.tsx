@@ -405,3 +405,160 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chartreuse,
   },
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOGO GRYD TRACÉ EN COURANT — le « G » dessiné par un parcours
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * L'idée : le logo n'est pas posé, il est COURU. C'est la promesse du produit
+ * en une animation — « ton parcours dessine le territoire ».
+ *
+ * Trois choix qui comptent :
+ *
+ * 1. C'est une POLYLIGNE ÉCHANTILLONNÉE, pas un `<Path>` vectoriel. Une trace
+ *    GPS est par nature une suite de points ; dessiner le G avec la même
+ *    structure que les vrais tracés (§B) le fait lire comme un parcours et pas
+ *    comme un logo animé. Une micro-ondulation déterministe (sinus, jamais
+ *    Math.random — même rendu à chaque lancement) suggère le capteur sans
+ *    rendre la lettre illisible.
+ *
+ * 2. LE PARCOURS À FAIRE EST VISIBLE D'ABORD, en gris très faible, puis se
+ *    remplit en chartreuse. On voit donc l'itinéraire, puis la conquête —
+ *    exactement la boucle du jeu. Sans le fantôme, l'animation ne serait qu'un
+ *    trait qui pousse ; avec lui, elle raconte quelque chose.
+ *
+ * 3. UN SEUL TRAIT, comme on dessine un G à la main : on démarre en haut à
+ *    droite, on fait le tour dans le sens antihoraire, on remonte à droite, et
+ *    on termine par la barre horizontale vers l'intérieur. Un coureur ne se
+ *    téléporte pas : le tracé ne doit jamais sauter.
+ *
+ * Chartreuse sur fond NOIR uniquement (charte : jamais sur fond clair).
+ */
+const LOGO_VIEW = 200;
+const LOGO_CX = 100;
+const LOGO_CY = 100;
+const LOGO_RX = 72;
+const LOGO_RY = 55;
+/** Ouverture du G, à droite : l'arc s'arrête avant de se refermer. */
+const LOGO_START_DEG = -34;
+const LOGO_END_DEG = -356;
+/** Fin de la barre horizontale, légèrement à gauche du centre (comme le logo). */
+const LOGO_BAR_END_X = 110;
+
+type Pt = { x: number; y: number };
+
+/** Le G en points, dans l'ordre où on le court. PURE, déterministe. */
+function buildLogoRoute(): Pt[] {
+  const pts: Pt[] = [];
+  const arcSteps = 132;
+  for (let i = 0; i <= arcSteps; i += 1) {
+    const k = i / arcSteps;
+    const deg = LOGO_START_DEG + (LOGO_END_DEG - LOGO_START_DEG) * k;
+    const rad = (deg * Math.PI) / 180;
+    // Ondulation ~0,7 px : assez pour évoquer le GPS, pas assez pour déformer.
+    const wob = Math.sin(k * 27) * 0.7;
+    pts.push({
+      x: LOGO_CX + (LOGO_RX + wob) * Math.cos(rad),
+      y: LOGO_CY + (LOGO_RY + wob) * Math.sin(rad),
+    });
+  }
+  const last = pts[pts.length - 1] ?? { x: LOGO_CX + LOGO_RX, y: LOGO_CY };
+  const barSteps = 26;
+  for (let i = 1; i <= barSteps; i += 1) {
+    const k = i / barSteps;
+    pts.push({
+      x: last.x + (LOGO_BAR_END_X - last.x) * k,
+      y: last.y + Math.sin(k * 9) * 0.5,
+    });
+  }
+  return pts;
+}
+
+const LOGO_ROUTE = buildLogoRoute();
+const LOGO_POINTS = LOGO_ROUTE.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+
+/** Longueurs cumulées : servent au masque de révélation ET à situer la tête. */
+const LOGO_CUM = (() => {
+  const cum = [0];
+  for (let i = 1; i < LOGO_ROUTE.length; i += 1) {
+    const a = LOGO_ROUTE[i - 1];
+    const b = LOGO_ROUTE[i];
+    const d = a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0;
+    cum.push((cum[i - 1] ?? 0) + d);
+  }
+  return cum;
+})();
+const LOGO_LEN = LOGO_CUM[LOGO_CUM.length - 1] ?? 1;
+
+/** Position du coureur à l'avancement `p` (0→1). PURE. */
+function logoHeadAt(p: number): Pt {
+  const target = Math.max(0, Math.min(1, p)) * LOGO_LEN;
+  for (let i = 1; i < LOGO_CUM.length; i += 1) {
+    const c1 = LOGO_CUM[i] ?? 0;
+    if (c1 >= target) {
+      const c0 = LOGO_CUM[i - 1] ?? 0;
+      const a = LOGO_ROUTE[i - 1];
+      const b = LOGO_ROUTE[i];
+      if (!a || !b) break;
+      const k = c1 === c0 ? 0 : (target - c0) / (c1 - c0);
+      return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+    }
+  }
+  return LOGO_ROUTE[LOGO_ROUTE.length - 1] ?? { x: LOGO_CX, y: LOGO_CY };
+}
+
+/**
+ * Le logo GRYD dessiné par un parcours qui se court.
+ * `size` en points ; `loop` relance le tracé en boucle (accueil/splash).
+ * Mouvement réduit respecté : `useProgress` renvoie 1 d'emblée → le G est
+ * simplement affiché complet, sans animation.
+ */
+export function LogoRouteMark({ size = 148, loop = false }: { size?: number; loop?: boolean }) {
+  const p = useProgress(2600, 220, loop);
+  const drawn = p * LOGO_LEN;
+  const head = logoHeadAt(p);
+  // La tête ne s'affiche que pendant la course : à l'arrêt, le logo est un logo.
+  const running = p > 0.001 && p < 0.999;
+  return (
+    <View style={{ width: size, height: size }} pointerEvents="none">
+      <Svg width="100%" height="100%" viewBox={`0 0 ${LOGO_VIEW} ${LOGO_VIEW}`}>
+        {/* Le parcours À FAIRE : visible avant d'être couru. */}
+        <Polyline
+          points={LOGO_POINTS}
+          fill="none"
+          stroke={colors.blanc12}
+          strokeWidth={19}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Halo du tracé conquis (casing §B : le trait ne flotte pas). */}
+        <Polyline
+          points={LOGO_POINTS}
+          fill="none"
+          stroke={colors.chartreuse40}
+          strokeWidth={27}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={`${drawn} ${LOGO_LEN}`}
+        />
+        {/* Le tracé conquis. */}
+        <Polyline
+          points={LOGO_POINTS}
+          fill="none"
+          stroke={colors.chartreuse}
+          strokeWidth={19}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={`${drawn} ${LOGO_LEN}`}
+        />
+        {running ? (
+          <>
+            <Circle cx={head.x} cy={head.y} r={13} fill={colors.chartreuse40} />
+            <Circle cx={head.x} cy={head.y} r={6.5} fill={colors.blanc} />
+          </>
+        ) : null}
+      </Svg>
+    </View>
+  );
+}
