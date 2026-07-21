@@ -37,6 +37,7 @@ import {
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
   RUN_MAX_POINTS,
+  STREAK_HISTORY_WEEKS,
   VERIFY_PARTIAL_MIN,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
@@ -80,6 +81,7 @@ import {
   distributePointsAdjustment,
   streakMultiplier,
 } from '../_shared/engine/scoring.ts';
+import { computeStreak, weekKey, type StreakState } from '../_shared/streak.ts';
 import { defenseHoursForCoverage, frontierCoverage } from '../_shared/engine/coverage.ts';
 import { extendDecay } from '../_shared/engine/zone.ts';
 import {
@@ -239,6 +241,93 @@ function fallbackResponse(run: {
 }
 
 // ─── Lectures d'état ─────────────────────────────────────────────────────────
+
+/**
+ * LOT 1 « LA SÉRIE VISIBLE » — faits bruts de la série, DÉRIVÉS du réel.
+ *
+ * Avant ce lot, `users.streak_weeks` n'était JAMAIS écrit par personne : la
+ * colonne restait à 0 à vie, donc le multiplicateur de série valait ×1,0 pour
+ * tout le monde. On ne lit plus la colonne pour scorer — on recalcule la série
+ * depuis les courses réellement enregistrées (statuts 'valid'/'partial' : un run
+ * rejeté ne construit pas de série) et depuis les gels réellement activés
+ * (streak_gels, migration 0024). Le moteur PUR (engine/streak) fait le reste :
+ * une seule règle, une seule implémentation, zéro drift SQL.
+ */
+async function loadStreakFacts(
+  userId: string,
+  now: Date,
+): Promise<{ runStartedAt: Date[]; frozenWeekKeys: string[] }> {
+  const since = new Date(now.getTime() - STREAK_HISTORY_WEEKS * 7 * 86_400_000);
+  const [runsRes, gelsRes] = await Promise.all([
+    supabase
+      .from('runs')
+      .select('started_at')
+      .eq('user_id', userId)
+      .in('status', ['valid', 'partial'])
+      .gte('started_at', since.toISOString()),
+    supabase
+      .from('streak_gels')
+      .select('activated_at, expires_at')
+      .eq('user_id', userId)
+      .gte('expires_at', since.toISOString()),
+  ]);
+  if (runsRes.error) throw new Error(`streak runs read: ${runsRes.error.message}`);
+  // Les gels sont un CONFORT : si leur lecture échoue, la série reste calculable
+  // sans eux (aucune semaine protégée) — jamais un 500 sur une course valide.
+  if (gelsRes.error) console.error('[ingest_run] streak_gels:', gelsRes.error.message);
+
+  const runStartedAt = (runsRes.data ?? [])
+    .map((r) => new Date(r.started_at as string))
+    .filter((d) => Number.isFinite(d.getTime()));
+
+  // Un gel couvre TOUTES les semaines entre son activation et son expiration.
+  const frozen = new Set<string>();
+  for (const g of gelsRes.data ?? []) {
+    const from = new Date(g.activated_at as string).getTime();
+    const to = new Date(g.expires_at as string).getTime();
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) continue;
+    for (let t = from; t <= to; t += 86_400_000) frozen.add(weekKey(new Date(t)));
+    frozen.add(weekKey(new Date(to)));
+  }
+  return { runStartedAt, frozenWeekKeys: [...frozen] };
+}
+
+/**
+ * Met en cache la série courante dans `users.streak_weeks` (lue par le digest et
+ * les écrans serveur). Non bloquant : une erreur d'écriture ne doit jamais faire
+ * échouer l'ingestion d'une course déjà validée. Le CLIENT, lui, ne fait pas
+ * confiance à ce cache — il recalcule depuis ses propres courses, sinon un
+ * joueur qui s'arrête de courir verrait un chiffre périmé (= un mensonge).
+ */
+async function cacheStreakWeeks(userId: string, weeks: number): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .update({ streak_weeks: weeks })
+    .eq('id', userId);
+  if (error) console.error('[ingest_run] cache streak_weeks:', error.message);
+}
+
+/**
+ * Payload `streakAfter` de la réponse — ce que l'écran de résultat affichera.
+ * `status: 'none'` (aucune course connue) n'est PAS renvoyé : l'app n'a alors
+ * rien de vrai à dire et doit ne rien montrer plutôt qu'un « 0 ».
+ */
+function streakAfterPayload(
+  after: StreakState,
+  weeksBefore: number,
+): IngestRunResponse['streakAfter'] {
+  if (after.status === 'none') return undefined;
+  return {
+    status: after.status,
+    weeks: after.weeks,
+    multiplier: after.multiplier,
+    weeksBefore,
+    runsThisWeek: after.runsThisWeek,
+    runsToValidate: after.runsToValidate,
+    best: after.best,
+    frozen: after.frozen,
+  };
+}
 
 async function loadHexStates(
   hexes: readonly string[],
@@ -984,6 +1073,15 @@ interface NoClaimRunArgs {
   durationS: number;
   avgPaceSKm: number;
   streak: { weeks: number; multiplier: number };
+  /**
+   * LOT 1 — série APRÈS cette course. Un social_run / une course privée est une
+   * course VALIDE : elle compte pour la régularité (elle ne capture simplement
+   * pas de territoire). On ne prive pas le joueur de sa série parce qu'il a
+   * couru sans conquérir.
+   */
+  streakAfter: IngestRunResponse['streakAfter'];
+  /** Série mise en cache côté serveur si elle a changé. */
+  streakWeeksAfter: number;
   now: Date;
 }
 
@@ -1058,11 +1156,15 @@ async function handleNoClaimRun(args: NoClaimRunArgs): Promise<IngestRunResponse
     fouleesAwarded: 0,
     xpAwarded: 0,
     streak: args.streak,
+    ...(args.streakAfter !== undefined ? { streakAfter: args.streakAfter } : {}),
     results: [], // aucun claim : les hexes traversés restent stats_only
     newBadges,
     ...(challengeUpdates.length > 0 ? { challengeUpdates } : {}),
   };
   await persistCelebration(runId, response, 0);
+  if (args.streakWeeksAfter !== args.streak.weeks) {
+    await cacheStreakWeeks(userId, args.streakWeeksAfter);
+  }
   return response;
 }
 
@@ -2185,9 +2287,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
       return json({ status: 'duplicate', runId: dupOf, replayed: false }, 200);
     }
+    // ── Série (LOT 1) : DÉRIVÉE des courses réelles, plus jamais d'une colonne
+    // que personne n'écrivait. `streakBefore` = les semaines DÉJÀ validées avant
+    // cette course (la course en cours n'est pas encore en base) — c'est bien
+    // elle qui multiplie les points, conformément à §3.4. `streakAfter` inclut
+    // la course : c'est l'état que le joueur verra sur son écran de résultat.
+    const streakFacts = await loadStreakFacts(userId, now);
+    const streakBefore = computeStreak({
+      runStartedAt: streakFacts.runStartedAt,
+      now,
+      frozenWeekKeys: streakFacts.frozenWeekKeys,
+    });
+    const streakAfterRun = (counted: boolean): StreakState =>
+      computeStreak({
+        runStartedAt: counted
+          ? [...streakFacts.runStartedAt, new Date(request.startedAt)]
+          : streakFacts.runStartedAt,
+        now,
+        frozenWeekKeys: streakFacts.frozenWeekKeys,
+      });
+    // ⚠ `scoringWeeks`, PAS `weeks` (correctif anti-pay-to-win 21/07). Un gel de
+    // série s'achète avec des Éclats, eux-mêmes achetables en argent réel. La
+    // série AFFICHÉE (`weeks`) laisse le gel enjamber une semaine ratée — c'est
+    // son rôle, anti-shame. Mais si cette chaîne-là multipliait les POINTS,
+    // payer 60 Éclats transformerait un ×1,0 en ×1,4 : des points de classement
+    // achetés, interdits par la constitution. Le multiplicateur ne compte donc
+    // que les semaines RÉELLEMENT COURUES.
     const streak = {
-      weeks: profile.streak_weeks,
-      multiplier: streakMultiplier(profile.streak_weeks),
+      weeks: streakBefore.scoringWeeks,
+      multiplier: streakMultiplier(streakBefore.scoringWeeks),
     };
 
     const baseRow = {
@@ -2220,6 +2348,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         fouleesAwarded: 0,
         xpAwarded: 0,
         streak,
+        // Course non comptabilisée : la série est INCHANGÉE. On l'affiche quand
+        // même (anti-shame : « ta série tient », pas « tu as perdu »).
+        ...(streakAfterPayload(streakAfterRun(false), streakBefore.weeks) !== undefined
+          ? { streakAfter: streakAfterPayload(streakAfterRun(false), streakBefore.weeks) }
+          : {}),
         results: [],
         newBadges: [], // course non valide : aucune stat, aucun badge (§3)
       };
@@ -2248,6 +2381,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // hex, aucune XP crew de capture. social_run garde stats + badges + XP PERSO.
     // course_privee = stats perso uniquement, aucun partage, aucune entrée feed.
     if (runMode !== 'conquete') {
+      const noClaimStreak = streakAfterRun(true);
       return json(await handleNoClaimRun({
         request,
         runMode,
@@ -2259,6 +2393,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         durationS,
         avgPaceSKm,
         streak,
+        streakAfter: streakAfterPayload(noClaimStreak, streakBefore.weeks),
+        streakWeeksAfter: noClaimStreak.weeks,
         now,
       }));
     }
@@ -2378,7 +2514,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       now,
       userId,
       userCreatedAt: new Date(profile.created_at),
-      streakWeeks: profile.streak_weeks,
+      // Série DÉRIVÉE du réel (LOT 1) — plus la colonne jamais écrite.
+      streakWeeks: streakBefore.weeks,
       isClub: profile.is_club,
       resolveOwnership,
     });
@@ -2402,6 +2539,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }, userId, request.clientRunId, profile.streak_weeks);
     if (inserted.replayed) return json(inserted.payload);
     const runId = inserted.runId;
+
+    // ── Série APRÈS cette course (LOT 1) : ce que le joueur verra sur son écran
+    // de résultat, et le cache serveur `users.streak_weeks` remis à jour.
+    const streakState = streakAfterRun(true);
+    const streakAfter = streakAfterPayload(streakState, streakBefore.weeks);
+    if (streakState.weeks !== streakBefore.weeks) {
+      await cacheStreakWeeks(userId, streakState.weeks);
+    }
 
     // ── DÉFENSE GRADUÉE (AMENDEMENT-23 §D, doc §16/§17) ──────────────────────
     // La défense d'une zone déjà à soi ÉTEND sa stabilité de +24/48/72 h selon la
@@ -2828,6 +2973,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       fouleesAwarded: score.foulees,
       xpAwarded: score.xp,
       streak,
+      ...(streakAfter !== undefined ? { streakAfter } : {}),
       results: decision.results,
       newBadges,
       ...(crewOutcome.crewXp !== undefined ? { crewXp: crewOutcome.crewXp } : {}),
@@ -2845,6 +2991,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
     await persistCelebration(runId, response, score.points);
     return json(response);
+
   } catch (err) {
     // Le détail reste dans les logs serveur ; la réponse est GÉNÉRIQUE (audit sécurité) :
     // `${err}` exposait des internals (noms de tables/colonnes, messages Postgres, chemins)

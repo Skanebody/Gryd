@@ -457,12 +457,26 @@ export const C = defineCatalog({
     de: 'Im Browser nicht verfügbar — nur in der installierten App',
     pt: 'Indisponível no navegador — só pelo app instalado',
   },
+  /** `module_missing` UNIQUEMENT : build antérieur à expo-notifications. */
   pushUnavailable: {
     fr: 'Pas encore disponibles sur cette version de l’app',
     en: 'Not available yet in this version of the app',
     es: 'Todavía no disponibles en esta versión de la app',
     de: 'In dieser App-Version noch nicht verfügbar',
     pt: 'Ainda não disponíveis nesta versão do app',
+  },
+  /**
+   * `unavailable` : aucun jeton délivré — les identifiants d'envoi ne sont pas
+   * configurés côté serveur (ou on est sur simulateur). Texte DÉDIÉ : partager
+   * celui de `module_missing` imputait la cause à la version de l'app, ce qui
+   * est faux et enverrait le joueur mettre à jour pour rien.
+   */
+  pushNoCredentials: {
+    fr: 'Pas encore configurées de notre côté — rien à faire de ton côté',
+    en: 'Not set up on our side yet — nothing for you to do',
+    es: 'Aún no configuradas de nuestro lado — no tienes que hacer nada',
+    de: 'Bei uns noch nicht eingerichtet — du musst nichts tun',
+    pt: 'Ainda não configuradas do nosso lado — nada a fazer da sua parte',
   },
   pushNotConfigured: {
     fr: 'Connecte-toi pour recevoir les alertes de tes zones',

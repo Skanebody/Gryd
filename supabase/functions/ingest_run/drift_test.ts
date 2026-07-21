@@ -40,19 +40,26 @@ const transformSharedDataLine = (line: string): string =>
     .replace(/(['"])\.\/game-rules\1/g, '$1./game-rules.ts$1')
     .replace(/(['"])\.\/types\1/g, '$1./types.ts$1');
 
-Deno.test('drift : _shared/bonuses.ts = transformation de packages/shared/src/bonuses.ts', async () => {
-  const source = await Deno.readTextFile(
-    new URL('../../../packages/shared/src/bonuses.ts', import.meta.url),
-  );
-  const expected = source.split('\n').map(transformSharedDataLine).join('\n');
-  const copy = await Deno.readTextFile(new URL('../_shared/bonuses.ts', import.meta.url));
-  assertEquals(
-    copy,
-    expected,
-    'supabase/functions/_shared/bonuses.ts a dérivé de packages/shared/src/bonuses.ts — ' +
-      'lancer node scripts/sync-game-rules.mjs',
-  );
-});
+// `streak.ts` (LOT 1) suit le même chemin : moteur PUR de la série hébergé dans
+// `shared` pour rester importable par le mobile sans tirer h3-js.
+// ⚠ MIROIR EXACT de scripts/sync-game-rules.mjs (SHARED_DATA_FILES).
+const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts'] as const;
+
+for (const f of SHARED_DATA_FILES) {
+  Deno.test(`drift : _shared/${f} = transformation de packages/shared/src/${f}`, async () => {
+    const source = await Deno.readTextFile(
+      new URL(`../../../packages/shared/src/${f}`, import.meta.url),
+    );
+    const expected = source.split('\n').map(transformSharedDataLine).join('\n');
+    const copy = await Deno.readTextFile(new URL(`../_shared/${f}`, import.meta.url));
+    assertEquals(
+      copy,
+      expected,
+      `supabase/functions/_shared/${f} a dérivé de packages/shared/src/${f} — ` +
+        'lancer node scripts/sync-game-rules.mjs',
+    );
+  });
+}
 
 // ─── Moteur : _shared/engine/*.ts = transformation de packages/engine/src ────
 // ⚠ MIROIR EXACT de scripts/sync-game-rules.mjs (engineHeader +
@@ -67,6 +74,7 @@ const transformEngineLine = (line: string): string =>
     .replace(/(['"])@klaim\/shared\/badges\1/g, '$1../badges.ts$1')
     .replace(/(['"])@klaim\/shared\/bonuses\1/g, '$1../bonuses.ts$1')
     .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1../game-rules.ts$1')
+    .replace(/(['"])@klaim\/shared\/streak\1/g, '$1../streak.ts$1')
     .replace(/(['"])@klaim\/shared\/types\1/g, '$1../types.ts$1')
     .replace(/(['"])h3-js\1/g, '$1npm:h3-js@^4.1$1');
 

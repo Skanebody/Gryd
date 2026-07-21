@@ -19,17 +19,29 @@
  * phrase explicite, pas un zéro décoré ni une aire inventée ; crew avec hexes ⇒
  * compte + rang. Le bloc reste de l'INFO : le seul CTA chartreuse est « Inviter ».
  * Erreurs du contrat RPC → messages i18n honnêtes (cooldown {days}, full, bad_code…).
+ *
+ * AMENDEMENT-44 A4/A5 — SIGNAUX + PING DE ZONE. Un 5ᵉ état, `signal`, ajoute au
+ * plus DEUX pas (quel signal → quelle zone, le 2ᵉ seulement si le signal désigne
+ * un lieu). Le chat LIBRE reste refusé (A-43 §9) : le vocabulaire est un
+ * catalogue FERMÉ (engine/crewSignals.ts) dont le sous-ensemble proposé DÉPEND
+ * de la situation réelle du crew — elle-même dérivée de LA mission prioritaire,
+ * donc de faits serveur. Un signal hors contexte n'est ni proposé ni accepté.
+ * Les pings viennent du serveur (0051) et JAMAIS d'un repli local : afficher un
+ * ping que le crew ne voit pas serait exactement le mensonge que la doctrine
+ * interdit. Aucun CTA chartreuse n'est ajouté — le seul reste « Inviter ».
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   CREW_CODE_LENGTH,
+  CREW_PING_MAX_ACTIVE_PER_MEMBER,
   CREW_SWITCH_COOLDOWN_DAYS,
   colors,
   elevation,
   fontSizes,
   radii,
+  sizes,
   spacing,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
@@ -39,8 +51,17 @@ import { GhostButton } from '../../ui/GhostButton';
 import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
 import type { Entry } from '../../i18n/types';
-import { C, CREW_ROLE_E } from '../../i18n/catalog/crew';
+import { C, CREW_ROLE_E, CREW_SIGNAL_E } from '../../i18n/catalog/crew';
 import { CrewInviteQRScreen } from './CrewInviteQRScreen';
+import { useCrewPings, type PingSendRefusal } from './pings';
+import {
+  crewPingDecision,
+  crewSignalsFor,
+  crewSituationOf,
+  pingableSectors,
+  type CrewSignalDef,
+  type CrewSignalKey,
+} from './engine/crewSignals';
 import {
   crewCreateDecision,
   normalizeCrewCode,
@@ -49,6 +70,7 @@ import {
   type CityOption,
   type CrewRefusal,
 } from './real';
+import type { CrewMission } from './engine/crewMission';
 
 /**
  * Rôle serveur (texte) → libellé localisé, ou null si la valeur est inconnue du
@@ -59,7 +81,7 @@ function roleLabelEntry(role: string): Entry | null {
   return (CREW_ROLE_E as Readonly<Record<string, Entry | undefined>>)[role] ?? null;
 }
 
-type Mode = 'home' | 'create' | 'join' | 'invite';
+type Mode = 'home' | 'create' | 'join' | 'invite' | 'signal';
 
 interface ErrView {
   entry: Entry;
@@ -85,6 +107,34 @@ function refusalError(reason: CrewRefusal, daysLeft?: number): ErrView {
       return { entry: C.rlErrBadCity };
     default:
       return { entry: C.rlErrGeneric };
+  }
+}
+
+/**
+ * Refus de ping → message honnête. Chaque motif que l'on SAIT expliquer l'est ;
+ * seul l'inconnu tombe sur le message générique. Un « réessaie » opaque là où la
+ * cause est connue est une petite malhonnêteté (et donne l'air d'un bug).
+ *
+ * `bad_bounds` / `bad_signal` / `signed_out` / `no_crew` sont des bugs d'appel ou
+ * des états que l'écran ne devrait jamais atteindre : ils ne méritent pas une
+ * explication sur mesure, mais ils ne doivent pas non plus rester silencieux.
+ */
+function pingRefusalMessage(
+  reason: PingSendRefusal | 'out_of_context' | 'sector_required' | 'sector_unexpected' | 'unknown_signal',
+  retryInS?: number,
+): ErrView {
+  switch (reason) {
+    case 'cooldown':
+      return { entry: C.pingErrCooldown, vars: { s: retryInS ?? 0 } };
+    case 'sector_not_allowed':
+    case 'sector_unnamed':
+    case 'sector_required':
+    case 'sector_unexpected':
+      return { entry: C.pingErrSector };
+    case 'out_of_context':
+      return { entry: C.pingErrContext };
+    default:
+      return { entry: C.pingErrGeneric };
   }
 }
 
@@ -154,7 +204,9 @@ function missionCopy(
         title: m.sectorName
           ? { entry: C.cmCaptureNamed, vars: { sector: m.sectorName } }
           : { entry: C.cmCapture },
-        gap: { entry: C.cmCaptureGap, vars: { n: m.freeZones } },
+        // Plus de {n} : freeZones est une borne supérieure (eau, bâti, privé
+        // inclus), l'annoncer comme un compte serait une promesse fausse.
+        gap: { entry: C.cmCaptureGap },
       };
     case 'none':
       return { note: m.reason === 'no_data' ? C.cmNoneNoData : C.cmNoneStable };
@@ -176,6 +228,7 @@ export function RealCrewScreen() {
     members,
     overview,
     mission,
+    missionSectors,
     memberCount,
     maxMembers,
     reload,
@@ -194,6 +247,16 @@ export function RealCrewScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ErrView | null>(null);
   const [flash, setFlash] = useState<ErrView | null>(null);
+  // Signal choisi en attente de sa zone (2ᵉ pas du ping). null = 1ᵉʳ pas.
+  const [pendingSignal, setPendingSignal] = useState<CrewSignalKey | null>(null);
+
+  // ── PINGS (A-44 A5) : lecture serveur, jamais de repli local ──────────────
+  const {
+    pings,
+    mine: myPingState,
+    reload: reloadPings,
+    send: sendPing,
+  } = useCrewPings();
 
   useEffect(() => {
     screen('crew_real');
@@ -301,6 +364,67 @@ export function RealCrewScreen() {
 
   const kicker = useMemo(() => t(C.kickerSeason), [t]);
 
+  // ── SIGNAUX CONTEXTUELS (A-44 A4) ──────────────────────────────────────────
+  // La SITUATION vient de LA mission prioritaire, qui vient elle-même de faits
+  // serveur. Elle n'est jamais choisie par l'écran, jamais devinée : mission
+  // inconnue ⇒ situation null ⇒ AUCUN signal proposé. Proposer « Je défends ce
+  // soir » sans savoir s'il y a quelque chose à défendre serait un mensonge poli.
+  const situation = useMemo(() => crewSituationOf(mission), [mission]);
+
+  // Zones RÉELLEMENT épinglables : celles où le crew tient ou vient de perdre,
+  // ET qui portent un nom géocodé. Aucune zone n'est fabriquée ni nommée ici.
+  const sectors = useMemo(() => pingableSectors(missionSectors), [missionSectors]);
+  const sectorIds = useMemo(() => sectors.map((s) => s.id), [sectors]);
+
+  // Le vocabulaire du moment. Sans zone épinglable, seuls les signaux SANS lieu
+  // (« sortie ce soir ? ») restent — organiser une sortie ne demande pas de
+  // territoire.
+  const signals = useMemo(
+    () => crewSignalsFor(situation, sectors.length > 0),
+    [situation, sectors.length],
+  );
+
+  const onSendPing = useCallback(
+    async (signal: CrewSignalKey, sectorId: string | null) => {
+      if (busy) return;
+      // Pré-vol PUR : évite un aller-retour perdu et, surtout, évite de proposer
+      // une action qui sera refusée. Le serveur reste seul juge à l'écriture.
+      const pre = crewPingDecision({
+        nowMs: Date.now(),
+        signal,
+        situation,
+        sectorId,
+        pingableSectorIds: sectorIds,
+        myActivePings: myPingState?.activeCount ?? 0,
+        myLastPingAt: myPingState?.lastPingAt ?? null,
+      });
+      if (!pre.ok) {
+        setFlash(pingRefusalMessage(pre.reason, pre.retryInS));
+        setMode('home');
+        setPendingSignal(null);
+        return;
+      }
+      setBusy(true);
+      const res = await sendPing(signal, sectorId);
+      setBusy(false);
+      setPendingSignal(null);
+      setMode('home');
+      if (res.ok) {
+        // Clés de catalogue seulement — aucun nom de zone ni pseudo en analytics.
+        track(EVENTS.crewSignalSent, {
+          situation: situation ?? 'unknown',
+          signal,
+          has_sector: sectorId !== null,
+        });
+        setFlash({ entry: C.pingSent });
+        reloadPings();
+      } else {
+        setFlash(pingRefusalMessage(res.reason, res.retryInS));
+      }
+    },
+    [busy, situation, sectorIds, myPingState, sendPing, reloadPings],
+  );
+
   // Rôle + contribution par membre (crew_overview, 0044). Le roster garde son
   // ORDRE D'ANCIENNETÉ (pas de reclassement quand la donnée arrive : l'écran ne
   // saute pas sous le doigt) ; l'overview ne fait qu'enrichir chaque ligne.
@@ -349,10 +473,193 @@ export function RealCrewScreen() {
         />
       );
     }
+
+    /*
+      ENVOYER UN SIGNAL — une couche plus loin, DEUX pas au maximum, un seul par
+      écran (§A : 1 écran = 1 décision).
+        pas 1 : QUEL signal (le vocabulaire de la situation, rien d'autre) ;
+        pas 2 : SUR QUELLE ZONE — et seulement pour un signal qui en désigne une.
+      Un signal de crew part au 1ᵉʳ tap : lui demander un lieu qu'il n'utilise
+      pas serait une question sans objet.
+
+      Aucun CTA chartreuse ici non plus : chaque choix EST l'action. Les lignes
+      font sizes.touchTarget de haut, les libellés ne sont jamais tronqués
+      (`numberOfLines` volontairement absent — un signal à moitié lu est un
+      signal mal envoyé).
+    */
+    if (mode === 'signal') {
+      const pendingDef: CrewSignalDef | null = pendingSignal
+        ? signals.find((s) => s.key === pendingSignal) ?? null
+        : null;
+      const step2 = pendingDef !== null && pendingDef.scope === 'sector';
+      return (
+        <TabScreen title={t(step2 ? C.pingChooseSector : C.pingChooseSignal)} kicker={kicker}>
+          {/* Prévenu AVANT d'envoyer : sans ça, on croirait avoir posté deux
+              signaux alors que le premier vient de disparaître. */}
+          {(myPingState?.activeCount ?? 0) >= CREW_PING_MAX_ACTIVE_PER_MEMBER ? (
+            <Text style={styles.signalNotice}>{t(C.pingReplaceNotice)}</Text>
+          ) : null}
+
+          {/* Aucune zone épinglable : on le DIT (et les signaux sans lieu, eux,
+              restent proposés au pas 1). Jamais un secteur par défaut. */}
+          {!step2 && sectors.length === 0 ? (
+            <Text style={styles.signalEmpty}>{t(C.pingNoSector)}</Text>
+          ) : null}
+
+          <View style={styles.signalList}>
+            {step2
+              ? sectors.map((s) => (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => void onSendPing(pendingSignal as CrewSignalKey, s.id)}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    style={styles.signalRow}
+                  >
+                    <Text style={styles.signalRowText}>{s.name}</Text>
+                  </Pressable>
+                ))
+              : signals.map((sig) => (
+                  <Pressable
+                    key={sig.key}
+                    onPress={() => {
+                      if (sig.scope === 'crew') {
+                        void onSendPing(sig.key, null);
+                      } else {
+                        setPendingSignal(sig.key);
+                      }
+                    }}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    style={styles.signalRow}
+                  >
+                    <Text style={styles.signalRowText}>{t(CREW_SIGNAL_E[sig.key])}</Text>
+                  </Pressable>
+                ))}
+          </View>
+
+          <View style={styles.leaveRow}>
+            <GhostButton
+              label={t(C.pingCancel)}
+              onPress={() => {
+                // Retour d'un pas : au pas 2 on revient au choix du signal, sinon
+                // on quitte. Annuler ne doit jamais faire perdre deux décisions.
+                if (step2) setPendingSignal(null);
+                else setMode('home');
+              }}
+            />
+          </View>
+        </TabScreen>
+      );
+    }
+
     return (
       <TabScreen title={crew.name} kicker={kicker}>
         {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
         <Text style={styles.count}>{t(C.rlMembersOf, { count: memberCount, max: maxMembers })}</Text>
+
+        {/*
+          NOTRE PRIORITÉ — maillon 3 de la boucle A-43 §0 (« je cours pour
+          l'AIDER »). EN TÊTE : sans elle, le crew n'est qu'un compteur partagé.
+
+          Format doctrine : UNE phrase (ce qu'on fait) + le manque CONCRET
+          (combien, dans combien de temps) + UNE action. Tout vient du moteur PUR
+          `chooseCrewMission` nourri par des faits serveur (0049) — aucun
+          secteur, rival, distance ni délai n'est inventé.
+
+          §A : ce bloc n'ajoute AUCUN CTA chartreuse. Le seul de l'écran reste
+          « Inviter » ; l'action de mission est un lien discret. Pas de card dans
+          card non plus : un label + deux lignes de texte + un lien.
+
+          TROIS états, et la nuance est le cœur du zéro-mensonge :
+           · mission === null  → on n'a PAS PU lire (chargement/échec) : AUCUN
+             bloc. On ne dit pas « aucune priorité » quand on ne sait pas.
+           · kind === 'none'   → on a lu, il n'y a réellement rien : on le DIT.
+           · une mission       → la phrase + le manque chiffré.
+        */}
+        {mission ? (() => {
+          const copy = missionCopy(mission, Date.now());
+          if (!copy) return null;
+          return (
+            <View style={styles.priority}>
+              <Text style={styles.sectionLabel}>{t(C.cmLabel)}</Text>
+              {'note' in copy ? (
+                <Text style={styles.priorityNote}>{t(copy.note)}</Text>
+              ) : (
+                <>
+                  <Text style={styles.priorityTitle}>{t(copy.title.entry, copy.title.vars)}</Text>
+                  <Text style={styles.priorityGap}>{t(copy.gap.entry, copy.gap.vars)}</Text>
+                  {/* Action INLINE (§A) : la carte est l'endroit où l'on agit.
+                      Elle n'est proposée QUE quand il y a quelque chose à y voir. */}
+                  <Pressable
+                    onPress={() => router.push('/')}
+                    accessibilityRole="link"
+                    hitSlop={8}
+                  >
+                    <Text style={styles.priorityAction}>{t(C.cmSeeOnMap)}</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          );
+        })() : null}
+
+        {/*
+          SIGNAUX DU CREW — A-44 A4/A5. Le chat LIBRE reste refusé (A-43 §9) :
+          ce bloc affiche des pings, c'est-à-dire des couples
+          (signal du catalogue fermé) × (secteur RÉEL). La phrase est composée
+          ICI, dans la langue du lecteur, à partir de deux références serveur —
+          aucun caractère saisi par un humain n'y entre.
+
+          §A : aucun CTA chartreuse ajouté (le seul de l'écran reste « Inviter »),
+          pas de card, pas de compteur décoratif. Un label, des lignes, un lien.
+
+          TROIS états, même nuance que la mission :
+           · pings === null → on n'a PAS PU lire : AUCUN bloc (on ne dit surtout
+             pas « aucun signal » quand on ne sait pas) ;
+           · []             → le serveur a répondu « rien » : on le DIT ;
+           · des pings      → les lignes, les plus récentes d'abord.
+
+          Le lien d'envoi n'apparaît que si un vocabulaire a du SENS maintenant
+          (`signals.length > 0`, donc situation connue) : sans mission lisible,
+          proposer « Envoyer un signal » ouvrirait une liste vide.
+        */}
+        {pings ? (
+          <View style={styles.signals}>
+            <Text style={styles.sectionLabel}>{t(C.pingLabel)}</Text>
+            {pings.length === 0 ? (
+              <Text style={styles.signalEmpty}>{t(C.pingEmpty)}</Text>
+            ) : (
+              pings.map((p) => (
+                <Text key={p.id} style={styles.signalLine}>
+                  {p.sectorName
+                    ? t(C.pingLine, {
+                        author: p.authorPseudo,
+                        sector: p.sectorName,
+                        signal: t(CREW_SIGNAL_E[p.signal]),
+                      })
+                    : t(C.pingLineNoSector, {
+                        author: p.authorPseudo,
+                        signal: t(CREW_SIGNAL_E[p.signal]),
+                      })}
+                </Text>
+              ))
+            )}
+            {signals.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  setPendingSignal(null);
+                  setMode('signal');
+                }}
+                accessibilityRole="button"
+                hitSlop={8}
+                style={styles.signalLink}
+              >
+                <Text style={styles.priorityAction}>{t(C.pingOpen)}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {/*
           BLOC TERRITOIRE — maillon 2 de la boucle A-43 « je vois ce que mon
@@ -579,6 +886,40 @@ const styles = StyleSheet.create({
 
   // Territoire : bloc à plat (surtout PAS une card — le roster n'en est pas une
   // non plus, deux cards imbriquées ou juxtaposées casseraient §A).
+  // NOTRE PRIORITÉ : pas de fond ni de bordure (pas de card dans card, §A) —
+  // la hiérarchie vient de la taille et de la position, pas d'un conteneur.
+  priority: { marginTop: spacing.lg, gap: spacing.xs },
+  priorityTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700' },
+  priorityGap: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
+  priorityNote: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
+  // Lien discret, jamais un CTA : le seul bouton chartreuse de l'écran reste
+  // « Inviter ». Chartreuse sur fond SOMBRE uniquement (contraste OK).
+  priorityAction: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.md,
+    fontWeight: '600',
+    marginTop: spacing.xs,
+  },
+  // SIGNAUX : bloc à plat (pas de card, §A). La hiérarchie vient de la taille
+  // et de la position, comme pour NOTRE PRIORITÉ juste au-dessus.
+  signals: { marginTop: spacing.lg, gap: spacing.xs },
+  // Pas de numberOfLines : un signal tronqué est un signal mal lu (§A).
+  signalLine: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: 22 },
+  signalEmpty: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
+  signalNotice: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.lg, lineHeight: 20 },
+  signalLink: { marginTop: spacing.xs },
+  signalList: { marginTop: spacing.lg },
+  // Plancher tactile : chaque choix EST l'action, il doit être atteignable au
+  // pouce. sizes.touchTarget vient des tokens — aucun 44 en dur.
+  signalRow: {
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grisLigne,
+  },
+  signalRowText: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: 22 },
+
   territory: { marginTop: spacing.lg, gap: spacing.xs },
   sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.5 },
   territoryValue: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '700' },

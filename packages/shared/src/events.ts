@@ -32,6 +32,11 @@ export const EVENTS = {
   // Social / viralité
   crewCreated: 'crew_created',
   crewJoined: 'crew_joined', // props: { via }
+  // AMENDEMENT-44 A4/A5 — un signal FIGÉ posé au crew. `situation` et `signal`
+  // sont des clés du catalogue fermé (engine/crewSignals.ts), `has_sector` un
+  // booléen : AUCUN nom de zone, AUCUN pseudo, aucun texte ne part en analytics.
+  // Le KPI visé : le vocabulaire situé est-il réellement utilisé, et lequel ?
+  crewSignalSent: 'crew_signal_sent', // props: { situation, signal, has_sector }
   inviteSent: 'invite_sent',
   inviteAccepted: 'invite_accepted', // H3
   shareCardGenerated: 'share_card_generated',

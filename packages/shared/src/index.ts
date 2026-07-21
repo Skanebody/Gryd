@@ -10,3 +10,4 @@ export * from './arsenal-icons';
 export * from './france-geo';
 export * from './icons';
 export * from './sectorName';
+export * from './streak';

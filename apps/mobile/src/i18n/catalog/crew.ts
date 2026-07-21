@@ -15,6 +15,7 @@ import type {
   CrewRole,
 } from '@klaim/shared';
 import { defineCatalog, type Entry } from '../types';
+import type { CrewSignalKey } from '../../features/crew/engine/crewSignals';
 
 export const C = defineCatalog({
   // ── EmptyState (pas de crew) ────────────────────────────────────────────────
@@ -368,12 +369,19 @@ export const C = defineCatalog({
     de: 'Gelände erobern, wo wir laufen',
     pt: 'Ganhar terreno onde corremos',
   },
+  /**
+   * `freeHexes` = cellules du secteur SANS capture vivante. C'est une BORNE
+   * SUPÉRIEURE, pas un inventaire : elle inclut l'eau, le bâti et le privé,
+   * physiquement incapturables. Annoncer « 340 zones libres » se lirait comme
+   * une promesse. La copie dit donc « à prendre » (ce qui reste ouvert), sans
+   * jamais quantifier ce qui est réellement atteignable.
+   */
   cmCaptureGap: {
-    fr: '{n} zones libres là où votre crew tient déjà du terrain.',
-    en: '{n} free zones where your crew already holds ground.',
-    es: '{n} zonas libres donde tu crew ya tiene terreno.',
-    de: '{n} freie Zonen dort, wo euer Crew schon Gelände hält.',
-    pt: '{n} zonas livres onde seu crew já tem terreno.',
+    fr: 'Du terrain reste à prendre là où votre crew court déjà.',
+    en: 'There is still ground to take where your crew already runs.',
+    es: 'Queda terreno por tomar donde tu crew ya corre.',
+    de: 'Dort, wo euer Crew schon läuft, ist noch Gelände zu holen.',
+    pt: 'Ainda há terreno a tomar onde seu crew já corre.',
   },
   /** Aucune mission — crew sans aucun fait exploitable. Honnête, pas un échec. */
   cmNoneNoData: {
@@ -398,6 +406,241 @@ export const C = defineCatalog({
     es: 'Ver en el mapa',
     de: 'Auf der Karte ansehen',
     pt: 'Ver no mapa',
+  },
+  // ── AMENDEMENT-44 A4/A5 — SIGNAUX CREW + PING DE ZONE ──────────────────────
+  // Vocabulaire FIGÉ (le chat libre reste refusé, A-43 §9). Chaque libellé est
+  // une INTENTION DE COURSE à la première personne : jamais un commentaire sur
+  // quelqu'un, jamais un reproche — c'est ce qui rend ce vocabulaire utile sans
+  // rien à modérer. §A : phrases COURTES, non tronquées dans les 5 langues.
+  /** DÉFENSE — le crew tient du terrain qui expire bientôt. */
+  sigDefendNow: {
+    fr: 'J’y vais maintenant',
+    en: 'Heading there now',
+    es: 'Voy ahora',
+    de: 'Ich gehe jetzt hin',
+    pt: 'Vou agora',
+  },
+  sigDefendTonight: {
+    fr: 'Je défends ce soir',
+    en: 'I’ll defend tonight',
+    es: 'Defiendo esta noche',
+    de: 'Ich verteidige heute Abend',
+    pt: 'Defendo hoje à noite',
+  },
+  sigDefendBackup: {
+    fr: 'Il me faut du renfort',
+    en: 'I need backup',
+    es: 'Necesito refuerzos',
+    de: 'Ich brauche Verstärkung',
+    pt: 'Preciso de reforço',
+  },
+  /** Évite le gâchis le plus commun : trois personnes sur la même zone. */
+  sigDefendCovered: {
+    fr: 'C’est couvert, ne doublez pas',
+    en: 'Covered — don’t double up',
+    es: 'Está cubierto, no dupliquen',
+    de: 'Ist abgedeckt, nicht doppeln',
+    pt: 'Está coberto, não dupliquem',
+  },
+  /** ATTAQUE — reprendre ce qu’on a perdu, ou prendre du libre. */
+  sigAttackNow: {
+    fr: 'J’y vais maintenant',
+    en: 'Heading there now',
+    es: 'Voy ahora',
+    de: 'Ich gehe jetzt hin',
+    pt: 'Vou agora',
+  },
+  sigAttackTonight: {
+    fr: 'J’y vais ce soir',
+    en: 'I’ll go tonight',
+    es: 'Voy esta noche',
+    de: 'Ich gehe heute Abend',
+    pt: 'Vou hoje à noite',
+  },
+  sigAttackBackup: {
+    fr: 'Trop grand pour moi seul',
+    en: 'Too big for me alone',
+    es: 'Demasiado para mí solo',
+    de: 'Allein zu groß für mich',
+    pt: 'Grande demais sozinho',
+  },
+  sigAttackSplit: {
+    fr: 'Je prends un côté, prenez l’autre',
+    en: 'I take one side, take the other',
+    es: 'Yo tomo un lado, tomen el otro',
+    de: 'Ich nehme eine Seite, nehmt die andere',
+    pt: 'Eu pego um lado, peguem o outro',
+  },
+  /** BOUCLE — une frontière ouverte, il manque des mètres. */
+  sigLoopClosing: {
+    fr: 'Je ferme la boucle',
+    en: 'I’m closing the loop',
+    es: 'Cierro el bucle',
+    de: 'Ich schließe die Schleife',
+    pt: 'Vou fechar o circuito',
+  },
+  sigLoopOpen: {
+    fr: 'La boucle est ouverte — qui la ferme ?',
+    en: 'The loop is open — who closes it?',
+    es: 'El bucle está abierto — ¿quién lo cierra?',
+    de: 'Die Schleife ist offen — wer schließt sie?',
+    pt: 'O circuito está aberto — quem fecha?',
+  },
+  /** UNIVERSEL, situé. */
+  sigWatch: {
+    fr: 'Gardez un œil ici',
+    en: 'Keep an eye here',
+    es: 'Vigilen esta zona',
+    de: 'Behaltet das hier im Auge',
+    pt: 'Fiquem de olho aqui',
+  },
+  /** RASSEMBLEMENT — pertinent dans TOUTES les situations. */
+  sigGatherTonight: {
+    fr: 'Sortie ce soir ?',
+    en: 'Group run tonight?',
+    es: '¿Salida esta noche?',
+    de: 'Lauf heute Abend?',
+    pt: 'Treino hoje à noite?',
+  },
+  sigGatherTomorrow: {
+    fr: 'Sortie demain matin ?',
+    en: 'Group run tomorrow morning?',
+    es: '¿Salida mañana por la mañana?',
+    de: 'Lauf morgen früh?',
+    pt: 'Treino amanhã de manhã?',
+  },
+  sigGatherWeekend: {
+    fr: 'Sortie ce week-end ?',
+    en: 'Group run this weekend?',
+    es: '¿Salida este fin de semana?',
+    de: 'Lauf am Wochenende?',
+    pt: 'Treino neste fim de semana?',
+  },
+  /**
+   * ANTI-SHAME : déclaratif et à propos de SOI. Sans lui, un membre indisponible
+   * n'aurait aucun moyen de le dire — et le silence se lit comme un abandon.
+   */
+  sigGatherOut: {
+    fr: 'Pas dispo aujourd’hui',
+    en: 'Not available today',
+    es: 'Hoy no puedo',
+    de: 'Heute nicht dabei',
+    pt: 'Hoje não posso',
+  },
+  /**
+   * PHRASE DU PING, assemblée à l'écran (jamais en SQL) : pseudo RÉEL + nom de
+   * secteur RÉEL + libellé de signal. « KORO · République — Je défends ce soir ».
+   */
+  pingLine: {
+    fr: '{author} · {sector} — {signal}',
+    en: '{author} · {sector} — {signal}',
+    es: '{author} · {sector} — {signal}',
+    de: '{author} · {sector} — {signal}',
+    pt: '{author} · {sector} — {signal}',
+  },
+  /** Même phrase, pour un signal SANS lieu (« sortie ce soir ? »). */
+  pingLineNoSector: {
+    fr: '{author} — {signal}',
+    en: '{author} — {signal}',
+    es: '{author} — {signal}',
+    de: '{author} — {signal}',
+    pt: '{author} — {signal}',
+  },
+  pingLabel: {
+    fr: 'SIGNAUX DU CREW',
+    en: 'CREW SIGNALS',
+    es: 'SEÑALES DEL CREW',
+    de: 'CREW-SIGNALE',
+    pt: 'SINAIS DO CREW',
+  },
+  /** Ouvre le choix du signal — action discrète, jamais un 2ᵉ CTA chartreuse. */
+  pingOpen: {
+    fr: 'Envoyer un signal',
+    en: 'Send a signal',
+    es: 'Enviar una señal',
+    de: 'Signal senden',
+    pt: 'Enviar um sinal',
+  },
+  pingChooseSignal: {
+    fr: 'Choisis ton signal',
+    en: 'Choose your signal',
+    es: 'Elige tu señal',
+    de: 'Wähle dein Signal',
+    pt: 'Escolha seu sinal',
+  },
+  pingChooseSector: {
+    fr: 'Sur quelle zone ?',
+    en: 'Which zone?',
+    es: '¿En qué zona?',
+    de: 'Welche Zone?',
+    pt: 'Em qual zona?',
+  },
+  pingCancel: {
+    fr: 'Annuler',
+    en: 'Cancel',
+    es: 'Cancelar',
+    de: 'Abbrechen',
+    pt: 'Cancelar',
+  },
+  /** Le crew ne tient rien de nommé : on le DIT au lieu de proposer un lieu vide. */
+  pingNoSector: {
+    fr: 'Aucune zone à épingler pour l’instant — les signaux sans lieu restent possibles.',
+    en: 'No zone to pin yet — signals without a place are still available.',
+    es: 'Aún no hay zona que marcar — las señales sin lugar siguen disponibles.',
+    de: 'Noch keine Zone zum Markieren — Signale ohne Ort bleiben möglich.',
+    pt: 'Nenhuma zona para marcar ainda — sinais sem lugar continuam possíveis.',
+  },
+  /** Aucun ping vivant : état honnête, pas un fil vide décoré. */
+  pingEmpty: {
+    fr: 'Aucun signal en ce moment.',
+    en: 'No signals right now.',
+    es: 'Ninguna señal por ahora.',
+    de: 'Gerade keine Signale.',
+    pt: 'Nenhum sinal no momento.',
+  },
+  /** Prévenu AVANT l'envoi : sinon on croirait avoir posté deux signaux. */
+  pingReplaceNotice: {
+    fr: 'Ton signal précédent sera remplacé.',
+    en: 'Your previous signal will be replaced.',
+    es: 'Tu señal anterior será reemplazada.',
+    de: 'Dein vorheriges Signal wird ersetzt.',
+    pt: 'Seu sinal anterior será substituído.',
+  },
+  pingSent: {
+    fr: 'Signal envoyé au crew.',
+    en: 'Signal sent to the crew.',
+    es: 'Señal enviada al crew.',
+    de: 'Signal an den Crew gesendet.',
+    pt: 'Sinal enviado ao crew.',
+  },
+  /** Refus nommés — jamais un « réessaie » opaque quand on sait pourquoi. */
+  pingErrCooldown: {
+    fr: 'Encore {s} s avant ton prochain signal.',
+    en: '{s} s before your next signal.',
+    es: 'Faltan {s} s para tu próxima señal.',
+    de: 'Noch {s} s bis zum nächsten Signal.',
+    pt: 'Faltam {s} s para o próximo sinal.',
+  },
+  pingErrSector: {
+    fr: 'Cette zone n’est pas à ton crew.',
+    en: 'That zone isn’t your crew’s.',
+    es: 'Esa zona no es de tu crew.',
+    de: 'Diese Zone gehört nicht deinem Crew.',
+    pt: 'Essa zona não é do seu crew.',
+  },
+  pingErrContext: {
+    fr: 'Ce signal ne correspond plus à la situation.',
+    en: 'That signal no longer matches the situation.',
+    es: 'Esa señal ya no corresponde a la situación.',
+    de: 'Dieses Signal passt nicht mehr zur Lage.',
+    pt: 'Esse sinal já não corresponde à situação.',
+  },
+  pingErrGeneric: {
+    fr: 'Signal non envoyé. Réessaie.',
+    en: 'Signal not sent. Try again.',
+    es: 'Señal no enviada. Inténtalo de nuevo.',
+    de: 'Signal nicht gesendet. Versuch es erneut.',
+    pt: 'Sinal não enviado. Tente de novo.',
   },
   /** Crew sans aucun hex : on le DIT, on ne décore pas un zéro. */
   rlNoTerritory: {
@@ -2862,6 +3105,32 @@ export const OUTING_RSVP_E: Readonly<Record<string, Entry>> = {
   'Je viens': C.rsvpComing,
   'Peut-être': C.rsvpMaybe,
   Indispo: C.rsvpNo,
+};
+
+/**
+ * Signal crew (AMENDEMENT-44 A4) → libellé localisé.
+ *
+ * Le `Record<CrewSignalKey, Entry>` est le VERROU du lot : ajouter une clé au
+ * catalogue moteur (`CREW_SIGNALS`) sans ses 5 traductions ne compile plus. Un
+ * signal ne peut donc jamais s'afficher en clé technique, ni dans une seule
+ * langue — le vocabulaire figé reste figé dans les 5.
+ */
+export const CREW_SIGNAL_E: Readonly<Record<CrewSignalKey, Entry>> = {
+  defend_now: C.sigDefendNow,
+  defend_tonight: C.sigDefendTonight,
+  defend_backup: C.sigDefendBackup,
+  defend_covered: C.sigDefendCovered,
+  attack_now: C.sigAttackNow,
+  attack_tonight: C.sigAttackTonight,
+  attack_backup: C.sigAttackBackup,
+  attack_split: C.sigAttackSplit,
+  loop_closing: C.sigLoopClosing,
+  loop_open: C.sigLoopOpen,
+  watch: C.sigWatch,
+  gather_tonight: C.sigGatherTonight,
+  gather_tomorrow: C.sigGatherTomorrow,
+  gather_weekend: C.sigGatherWeekend,
+  gather_out: C.sigGatherOut,
 };
 
 /** Motifs de signalement (moderation.ts, clés inchangées hors périmètre). */

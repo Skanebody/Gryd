@@ -162,7 +162,26 @@ export interface IngestRunResponse {
   pointsAwarded: number;
   fouleesAwarded: number;
   xpAwarded: number;
+  /** Série APPLIQUÉE au score : semaines validées AVANT cette course (§3.4). */
   streak: { weeks: number; multiplier: number };
+  /**
+   * LOT 1 « LA SÉRIE VISIBLE » — état de la série APRÈS cette course, pour
+   * l'écran de résultat. Absent quand le serveur n'a rien de fiable à dire
+   * (l'app n'affiche alors rien, jamais un « 0 »). `status` suit
+   * `engine/streak.StreakStatus` ; `weeksBefore` permet de détecter la semaine
+   * qui vient d'être validée par CETTE course.
+   */
+  streakAfter?: {
+    status: 'none' | 'building' | 'active' | 'atRisk' | 'frozen' | 'broken';
+    weeks: number;
+    /** Multiplicateur correspondant — calculé SERVEUR, jamais recalculé côté app. */
+    multiplier: number;
+    weeksBefore: number;
+    runsThisWeek: number;
+    runsToValidate: number;
+    best: number;
+    frozen: boolean;
+  };
   results: HexClaimResult[];
   /** Badges débloqués par cette course (keys du catalogue badges.ts, AMENDEMENT-04 §5). */
   newBadges: string[];

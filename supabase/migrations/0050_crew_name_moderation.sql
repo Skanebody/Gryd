@@ -553,3 +553,14 @@ comment on function public.crews_enforce_name_moderation() is
   'Function service_role, update direct) passe par crew_name_refusal. Ne se '
   'déclenche qu''au changement du nom : les lignes existantes ne sont jamais '
   'gelées par un enrichissement ultérieur de la liste.';
+
+-- Uniformité du resserrage (relevé par la vérification adversariale) : ces trois
+-- helpers restaient EXECUTE pour PUBLIC alors que leurs voisines étaient
+-- révoquées. Elles ne divulguent aucun terme de la liste (elles répondent
+-- seulement « cette chaîne contient-elle un invisible / mélange-t-elle les
+-- alphabets »), donc aucun oracle mot-à-mot n'était ouvert — mais la règle
+-- « on ne regrante à personne » doit s'appliquer partout, sans exception à
+-- expliquer au prochain lecteur.
+revoke all on function public.moderation_invisible_class() from public, anon, authenticated;
+revoke all on function public.moderation_has_invisible(text)  from public, anon, authenticated;
+revoke all on function public.moderation_mixed_scripts(text)  from public, anon, authenticated;

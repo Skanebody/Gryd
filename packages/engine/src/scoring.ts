@@ -112,10 +112,13 @@ export function zoneBasePoints(
  * semaine consécutive (streakWeeks = semaines consécutives déjà validées,
  * 0 → ×1), plafonné à STREAK_MULTIPLIER_CAP (×1,5, atteint à 5 semaines).
  */
-export function streakMultiplier(streakWeeks: number): number {
-  const raw = 1 + Math.max(0, streakWeeks) * STREAK_MULTIPLIER_STEP;
-  return Math.min(raw, STREAK_MULTIPLIER_CAP);
-}
+// `streakMultiplier` a déménagé dans `@klaim/shared/streak` (même famille que
+// computeStreak, dépend des mêmes constantes, et le mobile doit l'utiliser sans
+// tirer h3-js). Ré-exporté ici pour ne casser aucun appelant du moteur.
+// Import + ré-export : `computeScore` (plus bas) l'APPELLE — un simple
+// `export { … } from` ne lie pas le nom dans ce module (TS2552 côté Deno).
+import { streakMultiplier } from '@klaim/shared/streak';
+export { streakMultiplier };
 
 export interface PerformanceInput {
   /**

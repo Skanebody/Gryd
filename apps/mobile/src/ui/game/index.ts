@@ -43,6 +43,8 @@ export {
   type CrewPlayTag,
 } from './CrewDiscoveryCard';
 export { RankUpCard, type RankUpCardProps } from './RankUpCard';
+export { StreakBlock, type StreakBlockProps, type StreakView } from './StreakBlock';
+export { DailyFocusBlock, type DailyFocusBlockProps } from './DailyFocusBlock';
 export {
   ShareCard,
   SHARE_CARD_ASPECT,

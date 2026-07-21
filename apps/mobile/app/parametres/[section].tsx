@@ -74,7 +74,9 @@ const PUSH_STATUS_TEXT: Readonly<Record<PushStatus, (typeof C)['pushIdle']>> = {
   registered: C.pushRegistered,
   unsupported: C.pushUnsupported,
   module_missing: C.pushUnavailable,
-  unavailable: C.pushUnavailable,
+  // Deux causes distinctes, deux textes : « version de l'app » serait FAUX ici
+  // (c'est la configuration serveur qui manque, pas le build du joueur).
+  unavailable: C.pushNoCredentials,
   permission_denied: C.pushDenied,
   not_configured: C.pushNotConfigured,
   error: C.pushError,

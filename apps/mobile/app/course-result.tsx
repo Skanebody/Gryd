@@ -38,6 +38,8 @@ import {
   CrewCrest,
   RankUpCard,
   StatePill,
+  StreakBlock,
+  type StreakView,
   useCountUp,
   useReveal,
 } from '../src/ui/game';
@@ -606,6 +608,22 @@ function ConquestResultScreen({
   const conquest = mode === 'conquete';
   const isPrivate = mode === 'course_privee';
 
+  // LOT 1 — la série APRÈS cette course, telle que le SERVEUR l'a calculée à
+  // partir des courses réelles du joueur (jamais reconstruite ici, jamais
+  // simulée en démo). `undefined` (course démo, hors-ligne, serveur muet) ⇒
+  // aucun bloc : l'app préfère se taire que d'afficher une série inventée.
+  const streakView: StreakView | null = useMemo(() => {
+    const s = serverResult?.streakAfter;
+    if (!s || s.status === 'none') return null;
+    return {
+      status: s.status,
+      weeks: s.weeks,
+      multiplier: s.multiplier,
+      runsToValidate: s.runsToValidate,
+      best: s.best,
+    };
+  }, [serverResult]);
+
   // AMENDEMENT-20 §2 — l'écran 1 est ULTRA simple ET actionnable dès l'affichage
   // (aucun temps mort : titre + KPI géant + pourquoi + [Partager]). Le compteur
   // du KPI anime la dopamine, les contrôles ne sont jamais bloqués. Tous les
@@ -883,6 +901,16 @@ function ConquestResultScreen({
             </Text>
           ) : null}
         </ResultReveal>
+
+        {/* LA SÉRIE (LOT 1 « LA SÉRIE VISIBLE ») — niveau 1 du post-run, juste
+            sous le KPI : c'est la raison de revenir courir, elle n'a rien à
+            faire dans un accordéon. Vient EXCLUSIVEMENT du serveur
+            (`streakAfter`, dérivé des courses réelles) — absent ⇒ rien affiché,
+            jamais un « 0 » ni une série de démo. Aucun bouton : le CTA unique
+            de l'écran reste [Partager]. */}
+        {streakView ? (
+          <StreakBlock state={streakView} weeksBefore={serverResult?.streakAfter?.weeksBefore} />
+        ) : null}
 
         {/* CTA — [Partager] IMMÉDIAT (façon Strava), « Voir mon territoire » en
              vraie action secondaire (la récompense), puis le toggle détails.

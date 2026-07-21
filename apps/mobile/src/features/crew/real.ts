@@ -336,6 +336,17 @@ export interface UseRealCrewResult {
    *  · une mission        → un fait mesuré, avec son manque chiffré.
    */
   mission: CrewMission | null;
+  /**
+   * Les FAITS par secteur derrière la mission (crew_mission_inputs, 0049), tels
+   * quels. Exposés — et non re-fetchés — parce que le PING DE ZONE (A-44 A5) a
+   * besoin exactement de cette liste pour savoir quelles zones sont RÉELLEMENT
+   * celles du crew (`pingableSectors`). Une 2ᵉ lecture serveur dirait la même
+   * chose, avec le risque qu'elle dise autre chose entre-temps.
+   *
+   * `[]` signifie « lu, et il n'y a rien » ; `mission === null` signale, lui,
+   * qu'on n'a pas pu lire. Les deux ne se confondent pas.
+   */
+  missionSectors: CrewSectorState[];
   /** Effectif actif (X de X/CREW_MAX_MEMBERS). */
   memberCount: number;
   /** Plafond d'affichage (CREW_MAX_MEMBERS). */
@@ -390,6 +401,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
   const [overview, setOverview] = useState<CrewOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [mission, setMission] = useState<CrewMission | null>(null);
+  const [missionSectors, setMissionSectors] = useState<CrewSectorState[]>([]);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -403,6 +415,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setMembers([]);
       setOverview(null);
       setMission(null);
+      setMissionSectors([]);
       setOverviewLoading(false);
       setLoading(false);
       return;
@@ -418,6 +431,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setMembers([]);
       setOverview(null);
       setMission(null);
+      setMissionSectors([]);
       setOverviewLoading(false);
       setLoading(false);
     };
@@ -504,6 +518,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
           });
           if (cancelled) return;
           const facts = error ? null : parseCrewMissionInputs(data);
+          setMissionSectors(facts?.sectors ?? []);
           setMission(
             facts === null
               ? null
@@ -512,6 +527,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
         } catch {
           if (cancelled) return;
           setMission(null);
+          setMissionSectors([]);
         }
         setOverviewLoading(false);
       } catch {
@@ -628,6 +644,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
     overview,
     overviewLoading,
     mission,
+    missionSectors,
     memberCount: members.length,
     maxMembers: CREW_MAX_MEMBERS,
     reload,

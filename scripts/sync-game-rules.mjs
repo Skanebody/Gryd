@@ -34,11 +34,16 @@ const transformSharedDataLine = (line) =>
     .replace(/(['"])\.\/game-rules\1/g, '$1./game-rules.ts$1')
     .replace(/(['"])\.\/types\1/g, '$1./types.ts$1');
 
-{
-  const source = readFileSync(join(root, 'packages', 'shared', 'src', 'bonuses.ts'), 'utf8');
+// Même traitement pour streak.ts (LOT 1 « LA SÉRIE VISIBLE ») : moteur PUR de la
+// série, hébergé dans `shared` (et non `engine`) pour que le mobile l'importe
+// sans tirer h3-js dans le bundle Metro — il n'importe que des constantes.
+// ⚠ MIROIR EXACT dans drift_test.ts (SHARED_DATA_FILES).
+const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts'];
+for (const f of SHARED_DATA_FILES) {
+  const source = readFileSync(join(root, 'packages', 'shared', 'src', f), 'utf8');
   const out = source.split('\n').map(transformSharedDataLine).join('\n');
-  writeFileSync(join(dest, 'bonuses.ts'), out);
-  console.log('sync: bonuses.ts → supabase/functions/_shared/ (imports .ts-ifiés)');
+  writeFileSync(join(dest, f), out);
+  console.log(`sync: ${f} → supabase/functions/_shared/ (imports .ts-ifiés)`);
 }
 
 // ─── Moteur de jeu : packages/engine/src → _shared/engine (imports Deno-ifiés) ─
@@ -57,6 +62,7 @@ const transformEngineLine = (line) =>
     .replace(/(['"])@klaim\/shared\/badges\1/g, '$1../badges.ts$1')
     .replace(/(['"])@klaim\/shared\/bonuses\1/g, '$1../bonuses.ts$1')
     .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1../game-rules.ts$1')
+    .replace(/(['"])@klaim\/shared\/streak\1/g, '$1../streak.ts$1')
     .replace(/(['"])@klaim\/shared\/types\1/g, '$1../types.ts$1')
     .replace(/(['"])h3-js\1/g, '$1npm:h3-js@^4.1$1');
 
@@ -85,7 +91,16 @@ for (const f of readdirSync(engineSrc).filter((n) => n.endsWith('.ts')).sort()) 
 
 const MOBILE_ENGINE_TARGETS = [
   { files: ['gps.ts', 'validation.ts'], dir: ['apps', 'mobile', 'src', 'features', 'run', 'gps', 'engine'] },
-  { files: ['crewMission.ts'], dir: ['apps', 'mobile', 'src', 'features', 'crew', 'engine'] },
+  {
+    files: ['crewMission.ts', 'crewSignals.ts'],
+    dir: ['apps', 'mobile', 'src', 'features', 'crew', 'engine'],
+  },
+  // LOT 3 (A-45 §3) : Zone du Jour + défi 7 jours d'accueil. Ni dailyZone.ts ni
+  // welcomeChallenge.ts n'importent h3-js — seulement game-rules.
+  {
+    files: ['dailyZone.ts', 'welcomeChallenge.ts'],
+    dir: ['apps', 'mobile', 'src', 'features', 'daily', 'engine'],
+  },
 ];
 
 const mobileHeader = (name) =>
@@ -96,7 +111,12 @@ const transformMobileLine = (line) =>
   line
     .replace(/(['"])@klaim\/shared\/game-rules\1/g, '$1@klaim/shared$1')
     .replace(/(['"])@klaim\/shared\/types\1/g, '$1@klaim/shared$1')
-    .replace(/(['"])\.\/validation\.ts\1/g, '$1./validation$1');
+    // Imports relatifs ENTRE fichiers engine : Deno exige l'extension `.ts`,
+    // Metro/tsconfig Expo la refusent. Règle GÉNÉRIQUE (et non fichier par
+    // fichier) : sinon chaque nouveau fichier engine tiré côté mobile
+    // demanderait d'éditer deux regex miroirs — et l'oubli ne casserait qu'au
+    // bundling, pas au typecheck.
+    .replace(/(['"])(\.\/[A-Za-z0-9_-]+)\.ts\1/g, '$1$2$1');
 
 for (const target of MOBILE_ENGINE_TARGETS) {
   const mobileDest = join(root, ...target.dir);

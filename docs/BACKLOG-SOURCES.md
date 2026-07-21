@@ -127,3 +127,99 @@ courte :
 
 Aucun code n'a été supprimé : re-lister une source retirée est une ligne dans
 `catalog.ts` et une ligne dans `registry.ts`.
+
+---
+
+# Notifications push (decay) — PÉRIMÈTRE 3, 21/07/2026
+
+Même règle que les sources : ce qui dépend du fondateur est **écrit ici**, pas
+caché derrière un bouton qui ne fait rien.
+
+## Le problème que ça règle
+
+Le decay serveur est réel depuis longtemps : `decay_job` (cron 0038/0039)
+neutralise les hexes échus et, **trois jours avant** (`DECAY_WARNING_DAYS_BEFORE`),
+insère un avertissement groupé — **une alerte par joueur**, jamais une par hex.
+Mais cet avertissement n'existait que dans la table `notifications`, que rien
+ne lit encore. Concrètement : **un joueur perdait son quartier sans jamais
+avoir su qu'il pouvait le défendre.** C'est la mécanique de retour la plus
+rentable du jeu, et il n'y manquait que le destinataire.
+
+## Ce qui est réel aujourd'hui (aucune action requise)
+
+| Chaînon | Où | État |
+| --- | --- | --- |
+| Détection J-3, groupée par joueur | `supabase/functions/decay_job/logic.ts` | déjà là |
+| Table des appareils + RLS + RPC | `supabase/migrations/0048_push_devices.sql` | vérifiée PGlite, 30/30 |
+| Préférences, quiet hours, cap | `supabase/functions/_shared/push.ts` | pur, 16 tests Deno |
+| Envoi réel Expo | `supabase/functions/_shared/expo-push.ts` | POST `exp.host` |
+| Orchestration + `push_log` | `supabase/functions/decay_job/index.ts` | branché |
+| Enregistrement de l'appareil | `apps/mobile/src/features/notifications/push.ts` | branché |
+| Écran Réglages > Notifications | `apps/mobile/app/parametres/[section].tsx` | branché |
+
+Garanties déjà tenues, sans intervention :
+
+- **actionnable ou rien** : un push de decay dit ce qui se passe (« {n} zones
+  redeviennent neutres dans {d} j ») **et** ce qui le règle (« une course dessus
+  les garde »). Aucun reproche, aucun compte à rebours anxiogène ;
+- **jamais une notification par course** : le groupage est fait en amont ;
+- **quiet hours** `PUSH_QUIET_HOURS_START`→`PUSH_QUIET_HOURS_END` calculées dans
+  le **fuseau réel de l'appareil**, plus dans un Europe/Paris supposé ;
+- **plafond** `PUSH_MAX_PER_DAY` par joueur, tous types confondus — deux
+  téléphones ne comptent pas double ;
+- **préférences respectées côté serveur** : les canaux choisis dans Réglages
+  sont poussés dans `push_devices` à chaque changement. Couper tous les canaux
+  (`off`) **supprime réellement** l'appareil de la base ;
+- **cinq langues** : le texte du push est rédigé dans la langue de l'appareil.
+
+## Ce qui attend le fondateur (et pourquoi le code ne peut pas le faire)
+
+Un ExpoPushToken n'existe que si le **build** porte les credentials du service
+de push. Ce sont des secrets liés à des comptes Apple/Google/Expo : aucun code
+ne peut les fabriquer.
+
+1. **Clé APNs (iOS)** — `eas credentials` → iOS → *Push Notifications: Manage
+   your Apple Push Notifications Key* → générer (ou uploader) la clé `.p8` sur
+   le projet EAS `4c80219c-3a84-445a-9add-5e5afade6d14`.
+2. **FCM (Android)** — `eas credentials` → Android → uploader le
+   `google-services.json` / la clé FCM v1 du projet Firebase.
+3. **Rebuilder l'app.** `expo-notifications` vient d'être ajouté
+   (`apps/mobile/package.json` + `expo.plugins` dans `app.json`, qui pose
+   l'entitlement `aps-environment`). Comme pour l'import GPX : c'est un module
+   natif, il n'entre dans l'app qu'au prochain build EAS.
+4. **Optionnel** — uniquement si *Enhanced Security for Push Notifications* est
+   activé sur le compte Expo :
+   `npx supabase secrets set EXPO_ACCESS_TOKEN=<token>`. Sans cette option,
+   l'envoi fonctionne sans jeton.
+
+**Tant que 1–3 ne sont pas faits :** `getExpoPushTokenAsync` échoue,
+`registerPushDevice` renvoie `unavailable`, et l'écran affiche « Pas encore
+disponibles sur cette version de l'app ». Aucun appareil n'est enregistré, donc
+`decay_job` n'appelle même pas Expo — il continue d'écrire l'inbox, comme
+avant. **Rien ne ment, rien ne casse.**
+
+## Un mensonge corrigé au passage
+
+`digest_job` écrivait une ligne dans `push_log` alors qu'aucun push n'était
+envoyé (l'envoi Expo y était un `TODO`). Deux conséquences réelles : les
+statistiques d'envoi étaient fausses, et surtout le plafond `PUSH_MAX_PER_DAY`
+était consommé par des envois fantômes — l'avertissement de decay, lui bien
+réel, aurait pu être supprimé pour « cap atteint » à cause d'un digest jamais
+parti. Le job ne journalise plus rien.
+
+Le digest **n'est toujours pas poussé**, et c'est délibéré : `buildDigest`
+compose son texte en français en dur, alors que `push_devices.locale` sait dans
+quelle langue écrire au joueur. Le pousser en l'état enverrait du français à un
+joueur allemand. C'est un chantier d'i18n serveur, pas une case à cocher.
+
+## Encore à faire côté produit (aucune dépendance externe)
+
+- **Écran Inbox** : la table `notifications` se remplit (decay, digest, saison,
+  vol) et rien ne la lit. Le push est un raccourci vers l'inbox — l'inbox
+  elle-même reste à construire.
+- **Ouverture profonde** : le payload porte `{ type: 'decay_warning',
+  cta: 'defend' }` ; reste à router le tap vers la carte centrée sur les zones
+  menacées.
+- **Analytics** : `push_sent` / `push_suppressed` (`packages/shared/src/events.ts`)
+  ne sont pas encore émis par les jobs — `decay_job` renvoie déjà les compteurs
+  dans sa réponse HTTP.

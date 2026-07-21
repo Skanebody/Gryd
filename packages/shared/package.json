@@ -13,7 +13,8 @@
     "./types": "./src/types.ts",
     "./badges": "./src/badges.ts",
     "./skills": "./src/skills.ts",
-    "./bonuses": "./src/bonuses.ts"
+    "./bonuses": "./src/bonuses.ts",
+    "./streak": "./src/streak.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

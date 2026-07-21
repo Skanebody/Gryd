@@ -206,6 +206,13 @@ export const STREAK_MULTIPLIER_STEP = 0.1;
 export const STREAK_MULTIPLIER_CAP = 1.5;
 export const STREAK_FREEZE_FREE_PER_MONTH = 1;
 export const STREAK_FREEZE_CLUB_PER_MONTH = 2;
+/**
+ * Profondeur d'historique lue pour DÉRIVER la série (LOT 1 « série visible ») :
+ * la série et le « meilleur » sont recalculés à partir des courses réelles des
+ * 52 dernières semaines. Au-delà, l'app ne prétend rien connaître — elle ne
+ * conserve pas un chiffre qu'elle ne peut plus vérifier.
+ */
+export const STREAK_HISTORY_WEEKS = 52;
 /** Foulées (monnaie douce) : 10 % des points gagnés. */
 export const FOULEES_RATE_OF_POINTS = 0.1;
 export const CLUB_FOULEES_MULTIPLIER = 1.5;
@@ -267,6 +274,49 @@ export const CREW_MISSION_RECLAIM_WINDOW_H = 168; // 7 jours
  * (sectors.total_hexes − claims vivants du secteur), jamais estimées.
  */
 export const CREW_MISSION_CAPTURE_MIN_FREE = 3;
+
+/**
+ * ─── AMENDEMENT-44 A4/A5 — SIGNAUX CREW + PING DE ZONE ──────────────────────
+ * Le chat LIBRE reste REFUSÉ (A-43 §9 : modération, sécurité des mineurs, charge
+ * juridique). On enrichit donc le VOCABULAIRE FIGÉ : un ping = un secteur RÉEL du
+ * crew + un signal choisi dans un catalogue fermé. Zéro caractère saisi par
+ * l'utilisateur ne transite : rien à modérer par construction.
+ *
+ * Les bornes ci-dessous sont des RÈGLES DE JEU (elles décident ce qui s'affiche
+ * et ce qui est refusé), donc elles vivent ici et nulle part ailleurs — la RPC
+ * les reçoit en paramètres, exactement comme les fenêtres de `crew_mission_inputs`.
+ */
+
+/**
+ * Pings ACTIFS simultanés par membre. À 1, un nouveau ping REMPLACE le précédent
+ * (il ne le refuse pas : refuser obligerait à comprendre une règle invisible pour
+ * corriger une erreur de tap). Conséquence directe : un crew de 50 ne peut pas
+ * afficher plus de 50 pings, et un membre ne peut pas noyer le mur à lui seul.
+ */
+export const CREW_PING_MAX_ACTIVE_PER_MEMBER = 1;
+
+/**
+ * Durée de vie d'un ping (heures). Un ping est une intention de COURSE, pas un
+ * message : au-delà, « je défends ce soir » parle d'un soir qui est passé.
+ * L'expiration est portée par le SERVEUR (colonne `expires_at`, filtrée en
+ * lecture) — jamais par un timer client qui mentirait après un vol long-courrier.
+ */
+export const CREW_PING_TTL_H = 12;
+
+/**
+ * Délai minimal (minutes) entre deux pings d'un même membre. Le remplacement
+ * est légitime (« je m'étais trompé de secteur »), le martèlement ne l'est pas.
+ * Anti-spam sans jamais culpabiliser : un ping trop rapproché est REFUSÉ avec le
+ * temps restant, pas commenté.
+ */
+export const CREW_PING_COOLDOWN_MIN = 5;
+
+/**
+ * Pings affichés simultanément sur l'écran Crew. Au-delà, un mur de pings n'est
+ * plus une coordination, c'est un fil — et un fil demande de la modération. Les
+ * plus RÉCENTS gagnent ; le reste n'est pas « caché », il n'existe plus à l'écran.
+ */
+export const CREW_PING_FEED_MAX = 8;
 
 // ─── §3.6 Saison ─────────────────────────────────────────────────────────────
 export const SEASON_DURATION_WEEKS = 8;
@@ -1631,3 +1681,111 @@ export const ROUTE_MAX_STEP_M = 1_500;
 
 /** Nombre MINIMAL de points d'un itinéraire exploitable (départ + arrivée). */
 export const ROUTE_MIN_POINTS = 2;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOT 3 — ZONE DU JOUR + DÉFI 7 JOURS D'ACCUEIL (A-45 §3, actions 3 et 4).
+//
+// DÉCISION FONDATEUR 21/07/2026 : l'app est GRATUITE, monétisée UNIQUEMENT par
+// achats intégrés. Les deux mécaniques ci-dessous sont des mécaniques de
+// RÉTENTION GRATUITES : elles ne sont ni vendues, ni accélérables contre de
+// l'argent, et leur récompense est STRICTEMENT COSMÉTIQUE (anti pay-to-win §22).
+//
+// « L'APP NE MENT JAMAIS » s'applique intégralement ici : ces constantes sont
+// des SEUILS DE LECTURE de données réelles (hex_claims, sectors, user_stats),
+// jamais des paramètres de fabrication. Aucune zone, aucun rival, aucune ville
+// n'est inventé — quand le réel ne porte rien, l'état honnête est « aucune ».
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── A. Zone du Jour ─────────────────────────────────────────────────────────
+
+/**
+ * Fenêtre (heures) en deçà de laquelle une zone détenue est dite FRAGILE, donc
+ * éligible comme Zone du Jour. C'est un seuil de LECTURE de `hex_claims.decay_at`
+ * (échéance réellement posée en base à la capture), pas une urgence dramatisée :
+ * en dehors de cette fenêtre, la zone n'est simplement pas comptée fragile.
+ * Volontairement plus court que ZONE_DEFEND_WINDOW_HOURS (48 h) : la Zone du
+ * Jour vit UNE journée, elle ne doit pas désigner une échéance de surlendemain.
+ * TUNABLE.
+ */
+export const DAILY_ZONE_FRAGILE_WINDOW_H = 24;
+
+/**
+ * Nombre MINIMAL de zones réellement libres pour qu'un secteur soit éligible en
+ * tant que candidat NEUTRE. `sectors.total_hexes − claims vivants` est un compte
+ * exact (discover_sectors pose total_hexes depuis la propriété H3 des enfants
+ * res-10 d'un res-7), jamais une estimation. À 0, le secteur est plein : le
+ * proposer enverrait courir pour rien.
+ */
+export const DAILY_ZONE_MIN_FREE_HEXES = 1;
+
+/**
+ * Durée (heures) de la DISTINCTION VISUELLE obtenue en capturant la Zone du Jour.
+ * Purement COSMÉTIQUE et TEMPORAIRE : zéro point, zéro XP, zéro Foulée, zéro
+ * avantage de jeu, aucune influence sur le classement ni sur le decay
+ * (anti pay-to-win STRICT §22 — et anti « pay-to-progress » tout court, puisque
+ * la mécanique est gratuite). 24 h = la distinction couvre exactement la journée
+ * où elle a du sens, puis s'éteint sans rien retirer au joueur.
+ */
+export const DAILY_ZONE_DISTINCTION_H = 24;
+
+// ─── B. Défi 7 jours d'accueil ───────────────────────────────────────────────
+
+/**
+ * Horizon SUGGÉRÉ (jours) du défi d'accueil. C'est un RYTHME AFFICHÉ, jamais une
+ * échéance couperet : passé le 7ᵉ jour, le défi reste ouvert et la progression
+ * acquise reste acquise (règle ANTI-SHAME — cf. WELCOME_STEPS ci-dessous, et
+ * l'absence totale de remise à zéro dans engine/welcomeChallenge.ts).
+ */
+export const WELCOME_CHALLENGE_DAYS = 7;
+
+/**
+ * Métrique RÉELLE derrière chaque étape d'accueil. Chacune est une colonne
+ * `user_stats` DÉJÀ alimentée par ingest_run — aucune nouvelle instrumentation,
+ * aucun compteur fabriqué :
+ *   · `bestRunDistanceM` → user_stats.best_run_distance_m ;
+ *   · `loopRuns`         → user_stats.loop_runs ;
+ *   · `hexesCaptured`    → user_stats.hexes_captured ;
+ *   · `shares`           → user_stats.first_shares.
+ */
+export const WELCOME_METRICS = [
+  'bestRunDistanceM',
+  'loopRuns',
+  'hexesCaptured',
+  'shares',
+] as const;
+export type WelcomeMetric = (typeof WELCOME_METRICS)[number];
+
+/**
+ * Les 5 étapes du défi d'accueil, DANS L'ORDRE (A-45 §3 action 4 :
+ * « 3 km → 5 km → boucle → capture → partage »). DATA : le moteur pur
+ * `deriveWelcomeChallenge` les consomme, la migration les seede, aucune valeur
+ * n'est réécrite ailleurs.
+ *
+ * Pourquoi cet ordre : il monte en engagement sans jamais exiger l'étape
+ * suivante avant que la précédente ait un sens — courir, courir un peu plus,
+ * boucler (la mécanique propre à GRYD), capturer (la récompense), partager
+ * (l'ouverture aux autres). Une étape est un PALIER, jamais un quota
+ * hebdomadaire : elle se franchit une fois et ne se re-perd JAMAIS.
+ *
+ * ANTI-SHAME (contrainte non négociable) : rater un jour ne remet rien à zéro,
+ * ne fait expirer aucune étape et ne produit aucun message de reproche. Le
+ * `day` ci-dessous est une SUGGESTION de rythme affichée, pas une date limite.
+ */
+export const WELCOME_STEPS = [
+  { key: 'run_3k', day: 1, metric: 'bestRunDistanceM', target: 3_000 },
+  { key: 'run_5k', day: 3, metric: 'bestRunDistanceM', target: 5_000 },
+  { key: 'loop', day: 4, metric: 'loopRuns', target: 1 },
+  { key: 'capture', day: 5, metric: 'hexesCaptured', target: 1 },
+  { key: 'share', day: 7, metric: 'shares', target: 1 },
+] as const satisfies readonly {
+  key: string;
+  day: number;
+  metric: WelcomeMetric;
+  target: number;
+}[];
+
+/** Clé d'une étape d'accueil (dérivée de la DATA — jamais réécrite à la main). */
+export type WelcomeStepKey = (typeof WELCOME_STEPS)[number]['key'];
+
+/** Slug du challenge d'accueil seedé dans `challenges` (migration 0051). */
+export const WELCOME_CHALLENGE_SLUG = 'welcome_7d';

@@ -24,7 +24,9 @@ import { Button } from '../src/ui/Button';
 import { Icon } from '../src/ui/Icon';
 import { ProgressBar } from '../src/ui/ProgressBar';
 import { StackScreen } from '../src/ui/StackScreen';
-import { BadgeCard } from '../src/ui/game';
+import { BadgeCard, DailyFocusBlock, StreakBlock } from '../src/ui/game';
+import { useMyStreak } from '../src/features/social/streak';
+import { useDailyFocus } from '../src/features/daily/useDailyFocus';
 import {
   COLLECTION_BADGES,
   BADGE_FAMILIES,
@@ -84,6 +86,16 @@ export default function AujourdhuiScreen() {
   const { session, configured } = useSession();
   const { profile } = useMyProfile();
   const realUser = configured && !!session;
+
+  // LOT 1 « LA SÉRIE VISIBLE » : la SEULE donnée réelle du bandeau motivation.
+  // Dérivée des vraies courses du joueur (features/social/streak) — `null` tant
+  // qu'on ne sait rien (pas de session, lecture en cours, aucune course) : dans
+  // ce cas le bloc ne s'affiche PAS, plutôt qu'un « 0 » qui ne veut rien dire.
+  const { state: streak } = useMyStreak();
+
+  // LOT 3 : Zone du Jour / défi d'accueil. `null` tant qu'on ne sait rien —
+  // aucune zone de démonstration ne remplace une zone réelle absente.
+  const { focus: dailyFocus } = useDailyFocus();
   const greetingName = realUser ? profile.displayName : TODAY_HERO.greetingName;
   const situation = realUser ? t(C.todayNextRunAwaits) : TODAY_HERO.situation;
 
@@ -156,6 +168,18 @@ export default function AujourdhuiScreen() {
           accessibilityLabel={t(C.todayCtaA11y, { objective: objectiveTag })}
         />
       </View>
+
+      {/* LA SÉRIE (LOT 1) — sous le CTA : elle motive la décision sans la
+          concurrencer (aucun bouton, une seule ligne de détail). Elle ne
+          s'affiche que si elle est RÉELLE ; sinon rien du tout. */}
+      <StreakBlock state={streak} />
+
+      {/* LOT 3 (A-45 §3) — LA raison de revenir aujourd'hui : le parcours
+          d'accueil tant qu'il n'est pas fini, puis la Zone du Jour. UN SEUL des
+          deux (§A « 1 écran = 1 décision ») — l'arbitrage est dans le hook.
+          Aucun CTA ici : le seul CTA chartreuse de l'écran reste le départ.
+          Rien n'est affiché sans donnée réelle (showcase / hors session). */}
+      <DailyFocusBlock focus={dailyFocus} />
 
       {/* Bandeau semaine : 3 indicateurs, pas un feed. Aucun n'est câblé au réel
           (O1) — masqué pour un vrai user (comme la stats-row du Profil) plutôt que
