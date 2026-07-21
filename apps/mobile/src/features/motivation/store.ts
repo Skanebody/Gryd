@@ -65,7 +65,14 @@ export const DEFAULT_PREFS: MotivationPrefs = {
   profileVisibility: 'public',
   activitySharing: 'friends',
   mapSharing: 'simplified',
-  notifChannels: ['solo', 'crew'],
+  /* `competition` INCLUS par défaut (21/07/2026). Sans lui, la notification
+     « quelqu'un a pris ton territoire » ne partait JAMAIS : `planStealPushes`
+     exige ce canal, absent des trois défauts du repo (ici, la colonne
+     `push_devices.notif_channels` et le paramètre de `register_push_device`).
+     Trois migrations et 835 tests pour un mécanisme inatteignable dans la
+     configuration livrée. Se perdre son territoire sans le savoir n'est pas un
+     réglage par défaut défendable — et le joueur peut couper le canal. */
+  notifChannels: ['solo', 'crew', 'competition'],
   discreetMode: false,
   onboardingSeen: false,
 };

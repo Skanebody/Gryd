@@ -336,6 +336,138 @@ export const RUN_AUTOSAVE_INTERVAL_S = 15;
 export const FREE_DROP_MIN_RUNS = 3;
 export const FREE_DROP_MAX_RUNS = 5;
 
+/**
+ * VOL SUBI (doc §4 « Vol subi » : « perte significative », « pas chaque hex »).
+ * Perte minimale, en zones DISTINCTES, sous laquelle on ne pousse PAS. Un
+ * coureur qui rogne le coin d'un territoire en passant n'est pas un événement ;
+ * une incursion l'est.
+ *
+ * CE QUE COUPER LE PUSH CACHE, ET CE QUE ÇA NE CACHE PAS — état au 21/07/2026.
+ * Cette phrase disait « l'inbox ET le marqueur de revanche restent ». La moitié
+ * était fausse, et une garantie à moitié fausse est un mensonge de doc entier :
+ *   · L'INBOX RESTE — c'est VRAI et c'est du code : `steal_push_job` écrit dans
+ *     `public.notifications` (table 0006) pour toute victime dont les lignes
+ *     sont consommées ET qui portent au moins un vol RÉEL — `no_device`,
+ *     `channel_off` et `expired` compris (depuis la migration 0058 ; avant elle,
+ *     un vol périmé ne laissait RIEN, ni push ni inbox). Vérifiable.
+ *     Les seules lignes consommées sans inbox sont les `invalid` (vol de
+ *     soi-même, identifiant vide) : il n'y a pas de perte à raconter.
+ *   · LE MARQUEUR DE REVANCHE NE RESTE PAS — il n'existe pas côté serveur.
+ *     `apps/mobile/src/features/crew/revanche.ts` le tient en AsyncStorage
+ *     LOCAL, et son propre en-tête le dit : « Tout est LOCAL (démo).
+ *     TODO(O1) : brancher un vrai `revanche_windows` ». Aucune table
+ *     `revanche_windows` n'existe dans `supabase/migrations/`. Un joueur qui
+ *     réinstalle, ou qui change de téléphone, n'a AUCUNE revanche persistée.
+ * SUSPENS (à porter dans AMENDEMENT-47 §« Ce qui reste EN SUSPENS ») :
+ * `revanche_windows` — table + alimentation par `steal_push_job` (l'agrégat par
+ * victime y est déjà, c'est le seul endroit qui connaît le secteur volé) +
+ * lecture mobile en remplacement du store local. Tant que ce n'est pas fait,
+ * AUCUN fichier ne doit promettre que la revanche survit au push coupé.
+ */
+export const STEAL_PUSH_MIN_HEXES = 5;
+/**
+ * Fenêtre d'agrégation du vol subi : délai minimal entre DEUX pushs de vol pour
+ * un même joueur. C'est la garde anti-spam PRINCIPALE — elle rend le cas « dix
+ * rivaux différents dans la même heure » impossible par construction, sans
+ * dépendre du cap journalier (qui reste le dernier filet, pas le design).
+ *
+ * CE QUI ARME CE COOLDOWN (migration 0058). La DÉCISION d'envoyer, pas la preuve
+ * de livraison. L'horloge est lue sur `steal_push_queue` : la plus récente ligne
+ * de la victime consommée avec `outcome = 'pushed'`, écrite dans la MÊME
+ * transaction que la finalisation du lot, donc avant tout appel réseau.
+ * Auparavant elle était lue sur `push_log`, écrit uniquement pour les issues
+ * `delivered` et en best-effort : une panne Expo ou un échec d'écriture du
+ * journal DÉSARMAIT la seule garde entre deux drains. Une panne de transport ne
+ * doit jamais élargir le droit de déranger quelqu'un.
+ * `push_log` continue d'alimenter le cap journalier tous types confondus
+ * (`canPush`), qui lui doit rester adossé à un envoi réellement accepté.
+ */
+export const STEAL_PUSH_COOLDOWN_MINUTES = 180;
+/**
+ * Âge maximal d'un vol EN ATTENTE d'annonce (file `steal_push_queue`).
+ *
+ * Un vol non encore annoncé reste en file — c'est ce qui permet d'AGRÉGER
+ * plusieurs courses adverses en un seul message, et de reporter proprement un
+ * vol tombé pendant les quiet hours (21h-8h) au réveil du joueur. Il faut donc
+ * que cette fenêtre dépasse largement la plus longue nuit silencieuse (11 h) et
+ * le cooldown (3 h).
+ *
+ * Passé ce délai, le vol est PÉRIMÉ et purgé sans push : annoncer une perte
+ * vieille d'un jour n'est plus de la rétention, c'est du bruit — et le terrain
+ * a de bonnes chances d'avoir déjà rechangé de mains. Rien n'est caché pour
+ * autant : la perte reste lisible sur la carte et dans le territoire du joueur,
+ * ET une entrée d'INBOX datée est écrite au moment où la ligne est consommée
+ * `expired` (0058). Ce qui est refusé au vol périmé, c'est le PUSH — le droit de
+ * déranger quelqu'un pour une nouvelle qui n'en est plus une —, pas le droit du
+ * joueur de savoir ce qu'il a perdu.
+ *
+ * DEUXIÈME RÔLE (0058) : ce délai borne aussi la rétention des lignes consommées
+ * (purge de `steal_push_job`), or ces lignes portent l'horloge du cooldown de vol
+ * (`outcome = 'pushed'`). INVARIANT, testé dans steal_push_job/logic_test.ts :
+ * STEAL_QUEUE_MAX_AGE_HOURS × 60 ≥ STEAL_PUSH_COOLDOWN_MINUTES. Le descendre
+ * sous 3 h effacerait le cooldown en même temps que les lignes.
+ */
+export const STEAL_QUEUE_MAX_AGE_HOURS = 24;
+/**
+ * Victimes traitées par drain de `steal_push_queue`. C'est un plafond de
+ * VICTIMES, pas de lignes — et c'est la différence qui compte.
+ *
+ * POURQUOI PAS UN PLAFOND DE LIGNES. Le message de vol est agrégé PAR VICTIME :
+ * son total (« 12 zones reprises ») n'est vrai que si le drain voit TOUTES les
+ * lignes en attente de cette victime. Un plafond de lignes coupe un agrégat au
+ * milieu et fait annoncer un nombre FAUX — l'app ne ment jamais, y compris par
+ * troncature. En bornant les victimes, chaque victime retenue est traitée
+ * ENTIÈRE ; celles qui débordent attendent le drain suivant (5 min).
+ *
+ * COÛT ASSUMÉ : le nombre de lignes lues n'est pas borné dur. Il l'est en
+ * pratique par STEAL_QUEUE_MAX_AGE_HOURS (au-delà tout est périmé) et par
+ * MAX_CLAIMS_PER_DAY côté voleurs. Le pire cas reste très en deçà de la mémoire
+ * d'un isolate ; on préfère cette borne molle à un chiffre faux.
+ */
+export const STEAL_QUEUE_MAX_VICTIMS_PER_DRAIN = 500;
+/**
+ * Report d'une ligne écartée pour une raison de TIMING (seuil non atteint,
+ * cooldown, quiet hours, cap journalier) : délai avant qu'elle redevienne
+ * LISIBLE par un drain.
+ *
+ * POURQUOI CE DÉLAI EXISTE. Sans lui, une ligne bloquée par le cooldown (3 h)
+ * est relue 36 fois pour rien et, surtout, occupe une place dans le lot : à
+ * l'échelle, les plus vieilles lignes jamais consommées monopolisent le drain
+ * et les vols RÉCENTS ne sont plus jamais lus. C'est une FAMINE, et elle frappe
+ * exactement les joueurs actifs.
+ *
+ * POURQUOI REPORTER NE CASSE PAS L'AGRÉGATION. La lecture se fait par VICTIME :
+ * dès qu'UNE ligne de la victime redevient due (un nouveau vol, par exemple),
+ * le drain reprend TOUTES ses lignes en attente, y compris celles encore
+ * reportées. Une perte sous le seuil ne se perd donc pas — elle attend d'être
+ * complétée, ce qui est précisément le comportement voulu au §4 (« pas chaque
+ * hex »). C'est ce couplage report ↔ lecture-par-victime qui rend le report sûr.
+ *
+ * 15 min : assez long pour vider le lot des lignes qui ne peuvent rien produire,
+ * assez court pour qu'une sortie de quiet hours ou de cap soit vue vite.
+ */
+export const STEAL_QUEUE_DEFER_MINUTES = 15;
+/**
+ * Délai au bout duquel une RÉSERVATION restée ouverte est déclarée abandonnée.
+ *
+ * Le drain réserve les lignes AVANT d'appeler Expo (cf. `steal_push_job`). Si
+ * l'isolate meurt entre les deux, ces lignes restent réservées sans jamais être
+ * finalisées. On ne les remet PAS en file : les renvoyer, c'est risquer un
+ * doublon pour un message peut-être déjà parti, et « au plus une fois » prime.
+ * Elles sont donc consommées avec l'issue `abandoned` — et COMPTÉES, pour que
+ * la perte soit visible dans les métriques au lieu d'être silencieuse.
+ *
+ * 30 min = 6 fois la période du cron : un drain lent n'est jamais pris pour un
+ * drain mort.
+ *
+ * SECOND RÔLE (0058) : ce délai borne aussi l'ATTENTE d'une victime. Tant qu'une
+ * de ses lignes reste réservée, la victime entière est écartée du lot — sinon le
+ * drain agrégerait uniquement ses lignes libres et annoncerait « 5 zones » quand
+ * 17 ont été prises. Un compte tronqué est un chiffre FAUX ; attendre, non. Le
+ * réapeur ferme cette attente au bout de ces 30 minutes, dans le pire cas.
+ */
+export const STEAL_QUEUE_RESERVATION_GRACE_MINUTES = 30;
+
 // ─── §6.4 Anti-triche ────────────────────────────────────────────────────────
 export const MAX_CLAIMS_PER_DAY = 1_200; // hexes/jour/compte
 

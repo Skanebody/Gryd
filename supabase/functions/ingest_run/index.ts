@@ -2712,6 +2712,54 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }
         }
       }
+
+      // ── VOL SUBI : mise en file de « quelqu'un a pris ton territoire » ─────
+      // C'est la boucle de rétention du jeu : on te prend ta zone, tu reviens
+      // la reprendre. Le vol est déjà appliqué et payé ci-dessus ; il ne reste
+      // qu'à prévenir le DÉPOSSÉDÉ — et il ne le sera jamais depuis ici.
+      //
+      // POURQUOI UNE FILE, ET PAS L'ENVOI. ingest_run est sur le chemin
+      // critique de la fin de course : le coureur attend son résultat. Envoyer
+      // demanderait 3 lectures (appareils, journal de push, dernier push de
+      // vol) + un aller-retour vers exp.host — ~200-600 ms qui ne servent EN
+      // RIEN à celui qui attend. Ici : UN insert local, quelques millisecondes.
+      // Et une file agrège plusieurs courses adverses en un seul message avec
+      // le VRAI total, ce qu'un envoi par course ne peut pas faire (voir
+      // migration 0056 et supabase/functions/steal_push_job/).
+      //
+      // BEST-EFFORT STRICT. La course est déjà créditée : un échec ici loggue
+      // et ne change NI la réponse NI le verdict. Le coureur ne doit jamais
+      // perdre son résultat parce qu'une notification destinée à quelqu'un
+      // d'autre n'est pas partie.
+      //
+      // HONNÊTETÉ SUR CE QU'ON MET EN FILE : ce sont les vols DÉCIDÉS par le
+      // moteur sur l'état lu avant la RPC. Dans le cas rare où la garde TOCTOU
+      // de claim_hexes a écarté un claim, l'hex a changé de mains entre-temps —
+      // au profit de quelqu'un d'autre : la victime l'a bel et bien perdu, et
+      // comme le message ne nomme JAMAIS l'attaquant, il reste vrai.
+      try {
+        const stealRows = decision.results
+          .filter((r) => r.outcome === 'stolen')
+          .map((r) => ({ h3: r.h3, victim: states.get(r.h3)?.ownerUserId ?? null }))
+          // Un vol sans propriétaire observé n'a pas de dépossédé ; se voler
+          // soi-même n'existe pas (le moteur route ce cas en `defended`).
+          .filter((x): x is { h3: string; victim: string } =>
+            x.victim !== null && x.victim !== userId
+          )
+          .map((x) => ({
+            victim_user_id: x.victim,
+            thief_user_id: userId,
+            h3index: h3ToDb(x.h3),
+          }));
+        if (stealRows.length > 0) {
+          const { error: stealErr } = await supabase.from('steal_push_queue').insert(stealRows);
+          if (stealErr) {
+            console.error('[ingest_run] steal_push_queue insert (best-effort):', stealErr.message);
+          }
+        }
+      } catch (e) {
+        console.error('[ingest_run] steal_push_queue fail-safe (course créditée):', e);
+      }
     }
 
     // ── Mécaniques nourrissant les badges (décision fondateur 03/07/2026 :
