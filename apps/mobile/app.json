@@ -72,7 +72,8 @@
       "package": "fr.nexus1993.gryd",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0B09"
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#B4FF0D"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -84,7 +85,8 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
@@ -117,7 +119,13 @@
         }
       ],
       "expo-apple-authentication",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#B4FF0D"
+        }
+      ],
       "@maplibre/maplibre-react-native",
       "expo-localization"
     ],

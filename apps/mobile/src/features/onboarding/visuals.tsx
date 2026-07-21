@@ -435,11 +435,17 @@ const styles = StyleSheet.create({
  *
  * Chartreuse sur fond NOIR uniquement (charte : jamais sur fond clair).
  */
+/* ⚠ MÊME MARQUE, DEUX OBJETS. Ces nombres doivent rester proportionnels à ceux
+   de `scripts/build-brand-icons.mjs` (const G) : l'icône est la LETTRE, ceci est
+   le PARCOURS qui la dessine. Ils ont divergé de 15 % le 21/07/2026 parce que
+   chacun avait été relevé à l'œil de son côté — le logo de l'accueil et l'icône
+   de l'app n'étaient alors plus tout à fait la même marque. Rapport largeur /
+   hauteur de référence : 1,547 (rx/ry). Toucher l'un = toucher l'autre. */
 const LOGO_VIEW = 200;
 const LOGO_CX = 100;
 const LOGO_CY = 100;
 const LOGO_RX = 72;
-const LOGO_RY = 55;
+const LOGO_RY = 47;
 /** Ouverture du G, à droite : l'arc s'arrête avant de se refermer. */
 const LOGO_START_DEG = -34;
 const LOGO_END_DEG = -356;
