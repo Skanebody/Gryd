@@ -111,8 +111,13 @@ export function projectedLength(
 
 /**
  * Sous-tracé « dessiné jusqu'à p∈[0,1] » — même logique que la trace qui se
- * dessine dans ShareMap/CaptureFillVisual (sous-polyligne fiable natif ET
- * react-native-web, contrairement à strokeDashoffset). Renvoie au moins 2 points.
+ * dessine dans ShareMap (sous-polyligne fiable natif ET react-native-web,
+ * contrairement à strokeDashoffset). Renvoie au moins 2 points.
+ *
+ * Seul consommateur aujourd'hui : `onboarding/visuals` (TerrainVisual et
+ * LogoRouteMark). `CaptureFillVisual`, cité ici jusqu'au 21/07/2026, a été
+ * SUPPRIMÉ avec le mode vitrine — le nommer laissait croire à une surface qui
+ * n'existe plus.
  */
 export function tracePrefix(
   trace: readonly LatLngPoint[],

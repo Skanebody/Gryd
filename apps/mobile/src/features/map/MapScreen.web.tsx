@@ -107,8 +107,21 @@ import { resolve } from '../../i18n/types';
 import {
   checkForegroundPermission,
   getCurrentPositionOnce,
+  hasProvenGrant,
+  isPermissionStateReadable,
   requestForegroundPermission,
 } from './webGeolocation';
+
+/**
+ * Parité stricte avec la variante native : les états de `locationState.ts` PLUS
+ * `unasked` — la permission n'a jamais été DEMANDÉE, parce que l'ouverture de la
+ * carte ne la demande plus (voir l'effet de montage). Ni `denied` (personne n'a
+ * refusé), ni `unavailable` (aucun capteur interrogé), ni `locating` (rien en
+ * cours). Sur Safari — où l'état de permission n'est pas lisible — c'est l'état
+ * d'ouverture TANT QUE cette origine n'a pas déjà rendu un fix : le navigateur
+ * n'y est interrogé qu'au geste du joueur, jamais par surprise au chargement.
+ */
+type MapScreenLocationState = MapLocationState | 'unasked';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
 /** Pulse du halo « moi » (position live, respiration lente). */
@@ -188,18 +201,64 @@ export function MapScreen() {
    * `navigator.permissions.query({name:'geolocation'})` — affichait « Active la
    * localisation » à quelqu'un qui venait de l'autoriser.
    */
-  const [locationState, setLocationState] = useState<MapLocationState>('locating');
+  const [locationState, setLocationState] = useState<MapScreenLocationState>('locating');
   const locale = useLocale();
+  /**
+   * OUVERTURE DE LA CARTE — ON NE DEMANDE RIEN (corrigé le 21/07/2026, parité
+   * stricte avec MapScreen.tsx, où l'entête détaille le raisonnement).
+   *
+   * En deux mots : `resolveLocation` DEMANDE la permission dès qu'elle n'est pas
+   * accordée, donc l'invite du navigateur tombait au CHARGEMENT de la page,
+   * alors que le produit annonce au joueur « le GPS s'allume au départ » et que
+   * l'onboarding justifie la suppression de son écran `permission` par « la
+   * vraie demande vit au premier GO ». Le code se range derrière ce qui a été
+   * annoncé. Bénéfice web spécifique : une invite de géolocalisation non liée à
+   * un geste est de toute façon ce que les navigateurs pénalisent le plus.
+   *
+   * ─── LE TROU SAFARI, ET COMMENT IL EST BOUCHÉ (même jour, 2e passe) ────────
+   * Première version de ce correctif : « permission.status !== 'granted' ⇒ on
+   * renonce ». Sur tout navigateur SANS Permissions API pour la géoloc — Safari
+   * — `checkForegroundPermission` répond TOUJOURS `undetermined`, même après un
+   * accord. La position n'était donc PLUS JAMAIS tentée à l'ouverture et le
+   * joueur Safari ne se voyait JAMAIS sur sa carte, alors qu'il avait autorisé.
+   *
+   * On ne rétablit PAS la demande automatique pour autant. On distingue deux
+   * `undetermined` qui n'ont rien à voir :
+   *   • état LISIBLE et `undetermined` → on ne t'a vraiment rien demandé
+   *     (`unasked`), et on ne demande pas ;
+   *   • état ILLISIBLE (Safari) → « je ne sais pas ». Là, et là seulement, on
+   *     consulte la mémoire d'accord de l'origine (`hasProvenGrant` : cette
+   *     origine a DÉJÀ rendu un fix, donc le navigateur a déjà accordé, donc la
+   *     lecture n'ouvrira pas d'invite). Sans cette preuve : `unasked`.
+   * Une première visite Safari reste donc muette et sans invite ; c'est le geste
+   * (Recentrer, ou le premier GO) qui déclenche la demande, comme annoncé.
+   */
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const permission = await checkForegroundPermission();
+      if (cancelled) return;
+      // « Je peux lire une position sans ouvrir d'invite » — accord lisible, OU
+      // état illisible mais accord DÉJÀ prouvé sur cette origine.
+      const safeToRead =
+        permission.status === 'granted' ||
+        (permission.status === 'undetermined' &&
+          !isPermissionStateReadable() &&
+          hasProvenGrant());
+      if (!safeToRead) {
+        setLocationState(permission.status === 'denied' ? 'denied' : 'unasked');
+        return;
+      }
+      // `resolveLocation` ne demandera rien quand la permission est accordée, et
+      // rien non plus quand l'origine l'a déjà obtenue — on réutilise la séquence
+      // testée plutôt que d'en réécrire une deuxième à la main.
       const outcome = await resolveLocation({
         checkForegroundPermission,
         requestForegroundPermission,
         getCurrentPositionOnce,
       });
       if (cancelled) return;
-      // Chacune des trois issues pose un état : plus AUCUNE sortie silencieuse.
+      // Chacune des issues pose un état : plus AUCUNE sortie silencieuse.
       setLocationState(outcome.state);
       if (outcome.point) setEgoPos(outcome.point);
     })();
@@ -413,16 +472,23 @@ export function MapScreen() {
   const hudCarriesEmptyState = widget === null && emptyState !== null;
   /** Parité native : les quatre états de localisation ont chacun leur phrase. */
   const locationNote =
-    locationState === 'denied'
-      ? resolve(C.dataNoteLocationDenied, locale)
-      : locationState === 'unavailable'
-        ? resolve(
-            egoPos ? C.dataNoteLocationStale : C.dataNoteLocationUnavailable,
-            locale,
-          )
-        : locationState === 'locating'
-          ? resolve(C.dataNoteLocating, locale)
-          : null;
+    // CINQ états, CINQ phrases — parité stricte avec la variante native.
+    // `unasked` empruntait celle de `denied` : « Active la localisation pour te
+    // voir » imputait un refus à un joueur à qui on n'avait rien demandé, et
+    // désignait en prime la mauvaise issue (les réglages du navigateur, alors
+    // qu'un simple tap sur Recentrer suffit ici).
+    locationState === 'unasked'
+      ? resolve(C.dataNoteLocationUnasked, locale)
+      : locationState === 'denied'
+        ? resolve(C.dataNoteLocationDenied, locale)
+        : locationState === 'unavailable'
+          ? resolve(
+              egoPos ? C.dataNoteLocationStale : C.dataNoteLocationUnavailable,
+              locale,
+            )
+          : locationState === 'locating'
+            ? resolve(C.dataNoteLocating, locale)
+            : null;
   const mapNote =
     locationNote ??
     (loading || hudCarriesEmptyState

@@ -33,7 +33,10 @@
  * retour par fragment d'URL.
  *
  * ⚠️ PARITÉ : `requestEmailOtp` / `verifyEmailOtp` / `signOut` doivent rester
- * strictement équivalents à ceux de `auth.ts`. La duplication est subie —
+ * strictement équivalents à ceux de `auth.ts`, et la SURFACE de capacité
+ * (`isSilentFailure`, `isAppleAuthAvailable`, `googleClientId`,
+ * `GOOGLE_CAPABLE`) doit exister des deux côtés : un écran qui l'importe ne doit
+ * jamais avoir à savoir sur quelle cible il tourne. La duplication est subie —
  * `auth.ts` importe expo-apple-authentication au niveau module, donc ce fichier
  * ne peut pas le réutiliser. Toute évolution de l'un se reporte sur l'autre.
  */
@@ -45,6 +48,7 @@ export type SignInMethod = 'apple' | 'google' | 'email_otp';
 export type AuthFailureReason =
   | 'supabase_not_configured'
   | 'google_not_configured'
+  | 'apple_not_available'
   | 'cancelled'
   | 'no_identity_token'
   | 'auth_error'
@@ -54,6 +58,36 @@ export type AuthFailureReason =
 export type AuthResult =
   | { ok: true }
   | { ok: false; reason: AuthFailureReason; message?: string };
+
+/**
+ * UNE ANNULATION N'EST PAS UN ÉCHEC — parité stricte avec auth.ts (voir sa
+ * docstring pour le raisonnement). `web_unsupported` s'y ajoute ICI : il ne
+ * décrit pas une panne mais l'absence d'un chemin, et l'écran ne peint de toute
+ * façon pas le bouton correspondant — s'il l'appelait quand même, accuser une
+ * « connexion impossible » serait faux.
+ */
+export function isSilentFailure(result: AuthResult): boolean {
+  return !result.ok && (result.reason === 'cancelled' || result.reason === 'web_unsupported');
+}
+
+/** Aucun Sign in with Apple dans un navigateur — capacité NULLE (parité auth.ts). */
+export async function isAppleAuthAvailable(): Promise<boolean> {
+  return false;
+}
+
+/**
+ * Aucun client id Google utilisable sur web : le flux navigateur passerait par
+ * `supabase.auth.signInWithOAuth` (redirection), qui n'a rien à voir avec les
+ * identifiants natifs iOS/Android — et qui exige une config serveur inexistante
+ * (O2 + redirection allowlistée, cf. entête). Prétendre le contraire peindrait
+ * exactement le bouton mort qu'on retire.
+ */
+export function googleClientId(): string | undefined {
+  return undefined;
+}
+
+/** Parité auth.ts : Google n'est PAS peignable ici tant que O2 est ouvert. */
+export const GOOGLE_CAPABLE = false;
 
 /**
  * Apple dans un navigateur : indisponible. On ne track RIEN — ni

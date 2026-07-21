@@ -13,27 +13,58 @@
 import { defineCatalog } from '../types';
 
 export const C = defineCatalog({
-  // ─── Sign-in : promesse (hero) ─────────────────────────────────────────────
+  // ─── Sign-in : entête ──────────────────────────────────────────────────────
+  /**
+   * ⚠️ CET ÉCRAN A CHANGÉ DE MÉTIER (21/07/2026). Il était l'écran PROMESSE,
+   * première chose vue du produit : kicker « SAISON 0 · PARIS & LILLE », titre
+   * d'accroche « Cours pour ton crew. Conquiers ta ville. », sous-titre qui
+   * vendait la mécanique. Depuis que l'onboarding porte la promesse (hook) et
+   * que « J'ai déjà un compte » mène ICI, /sign-in est la DESTINATION de celui
+   * qui revient : il connaît le jeu, il veut sa session. Lui revendre le produit
+   * est du bruit entre lui et son compte. La copy dit donc ce qu'on attend de
+   * lui et ce que ça lui rend — rien de plus.
+   *
+   * Elle doit rester juste pour les DEUX arrivants, car la voie e-mail crée
+   * aussi un compte (`shouldCreateUser: true`) : aucune phrase n'affirme qu'il a
+   * déjà des zones, un crew ou un historique — `subtitle` décrit ce que fait un
+   * compte, jamais ce que ce joueur-là possède (« l'app ne ment jamais »).
+   */
   kicker: {
-    fr: 'SAISON 0 · PARIS & LILLE',
-    en: 'SEASON 0 · PARIS & LILLE',
-    es: 'TEMPORADA 0 · PARIS & LILLE',
-    de: 'SAISON 0 · PARIS & LILLE',
-    pt: 'TEMPORADA 0 · PARIS & LILLE',
+    fr: 'CONNEXION',
+    en: 'SIGN IN',
+    es: 'INICIAR SESIÓN',
+    de: 'ANMELDEN',
+    pt: 'ENTRAR',
   },
   title: {
-    fr: 'Cours pour ton crew.\nConquiers ta ville.',
-    en: 'Run for your crew.\nConquer your city.',
-    es: 'Corre por tu crew.\nConquista tu ciudad.',
-    de: 'Lauf für deine Crew.\nErobere deine Stadt.',
-    pt: 'Corra pelo seu crew.\nConquiste sua cidade.',
+    fr: 'Connecte-toi.',
+    en: 'Sign in.',
+    es: 'Inicia sesión.',
+    de: 'Melde dich an.',
+    pt: 'Entre.',
   },
   subtitle: {
-    fr: 'Chaque course capture des zones sur la carte réelle de ta ville. Ton crew tient le quartier — ou le perd.',
-    en: 'Every run captures zones on the real map of your city. Your crew holds the neighborhood — or loses it.',
-    es: 'Cada carrera captura zonas en el mapa real de tu ciudad. Tu crew domina el barrio, o lo pierde.',
-    de: 'Jeder Lauf erobert Zonen auf der echten Karte deiner Stadt. Deine Crew hält das Viertel — oder verliert es.',
-    pt: 'Cada corrida captura zonas no mapa real da sua cidade. Seu crew segura o bairro — ou o perde.',
+    fr: 'Ton compte relie tes courses, tes zones et ton crew à tous tes appareils.',
+    en: 'Your account links your runs, your zones and your crew across all your devices.',
+    es: 'Tu cuenta conecta tus carreras, tus zonas y tu crew en todos tus dispositivos.',
+    de: 'Dein Konto verbindet deine Läufe, deine Zonen und deine Crew auf allen Geräten.',
+    pt: 'Sua conta conecta suas corridas, suas zonas e seu crew em todos os seus aparelhos.',
+  },
+  /**
+   * LA SORTIE (21/07/2026). « J'ai déjà un compte » marque l'onboarding fait
+   * AVANT de router ici — il le faut, sinon (tabs)/_layout renvoie le joueur
+   * fraîchement connecté vers /onboarding (rebond déjà payé une fois). Sans
+   * retour, cette porte devenait donc à SENS UNIQUE : qui abandonne la connexion
+   * ne revoit JAMAIS l'onboarding et reste coincé sur cet écran, relance après
+   * relance. La flèche discrète le ramène à la découverte — accessibilityLabel
+   * uniquement, elle n'affiche aucun texte.
+   */
+  backToOnboarding: {
+    fr: 'Revenir à la découverte de GRYD',
+    en: 'Back to discovering GRYD',
+    es: 'Volver al descubrimiento de GRYD',
+    de: 'Zurück zur GRYD-Entdeckung',
+    pt: 'Voltar à descoberta do GRYD',
   },
 
   // ─── Sign-in : boutons d'accès ─────────────────────────────────────────────
@@ -75,6 +106,20 @@ export const C = defineCatalog({
     es: 'Recibir un código',
     de: 'Code erhalten',
     pt: 'Receber um código',
+  },
+  /**
+   * Ce que le code FAIT vraiment (ajouté le 21/07/2026 avec la porte « J'ai déjà
+   * un compte »). `requestEmailOtp` envoie `shouldCreateUser: true` : la même
+   * adresse connecte un compte existant et en crée un sinon. Le taire laissait
+   * le joueur deviner s'il était sur la bonne porte — on l'écrit, une fois,
+   * juste au-dessus du champ. Même phrase que l'étape compte de l'onboarding.
+   */
+  otpCreatesOrSignsIn: {
+    fr: 'Un code à 6 chiffres : il te connecte si ton compte existe, il le crée sinon.',
+    en: 'A 6-digit code: it signs you in if your account exists, and creates it if not.',
+    es: 'Un código de 6 dígitos: te conecta si tu cuenta existe, y la crea si no.',
+    de: 'Ein 6-stelliger Code: Er meldet dich an, wenn dein Konto existiert — sonst legt er es an.',
+    pt: 'Um código de 6 dígitos: ele conecta você se a conta existir, e a cria se não.',
   },
   otpSent: {
     fr: 'Code envoyé à {email}',

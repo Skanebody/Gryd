@@ -443,8 +443,10 @@ export const C = defineCatalog({
     pt: 'Entre para capturar',
   },
   /**
-   * Localisation refusée : la carte le DIT. Sans ce message elle restait sur le
-   * globe entier, sans point « moi » et sans explication — un cul-de-sac muet.
+   * REFUS EXPLICITE. Le joueur a dit non — la porte se rouvre par les RÉGLAGES
+   * système, pas par un tap dans l'app : d'où « Active la localisation », qui
+   * désigne le bon endroit. Sans ce message la carte restait sur le globe
+   * entier, sans point « moi » et sans explication — un cul-de-sac muet.
    */
   dataNoteLocationDenied: {
     fr: 'Active la localisation pour te voir',
@@ -452,6 +454,27 @@ export const C = defineCatalog({
     es: 'Activa la ubicación para verte',
     de: 'Standort aktivieren, um dich zu sehen',
     pt: 'Ative a localização para se ver',
+  },
+  /**
+   * ON NE T'A RIEN DEMANDÉ (état `unasked` des deux MapScreen) : depuis que
+   * l'ouverture de la carte ne DEMANDE plus la permission (elle se contente de
+   * la lire), il existe un état où personne n'a rien refusé et où rien n'est en
+   * cours. Il partageait la phrase de `denied` — « Active la localisation pour
+   * te voir » — ce qui imputait au joueur un refus qu'il n'a jamais prononcé :
+   * exactement la confusion d'états que CLAUDE.md interdit (« pas connecté » ≠
+   * « vide » ≠ « échec » ≠ « en cours », et ici « jamais demandé » ≠ « refusé »).
+   *
+   * Différence de FOND, pas de formulation : `denied` renvoie aux réglages
+   * système, `unasked` se règle par UN geste dans l'app (le bouton Recentrer, ou
+   * le premier GO). La phrase est donc une demande adressée au joueur.
+   * Budget §A : ≤ 38 caractères dans les 5 langues, comme les 4 autres.
+   */
+  dataNoteLocationUnasked: {
+    fr: 'Demande ta position pour te voir',
+    en: 'Get your position to see yourself',
+    es: 'Pide tu posición para verte',
+    de: 'Standort abrufen, um dich zu sehen',
+    pt: 'Peça sua posição para se ver',
   },
   /**
    * RECHERCHE EN COURS. Un état de CHARGEMENT n'est pas un état vide : tant que

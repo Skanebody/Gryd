@@ -28,9 +28,32 @@
  * (sign-in.tsx) garde Apple + Google + le même filet e-mail : l'écran web est
  * donc identique à ce que voit un Android sans Google configuré.
  *
- * ⚠️ PARITÉ avec sign-in.tsx : hero, copie (même catalogue i18n) et styles sont
- * dupliqués à la main. Toute évolution de l'un se reporte sur l'autre. Le fork
- * n'existe QUE pour tenir expo-apple-authentication hors du bundle web.
+ * ─── LA SORTIE VERS L'ONBOARDING (21/07/2026, parité avec sign-in.tsx) ──────
+ * Le lien « J'ai déjà un compte » du premier écran marque l'onboarding FAIT
+ * avant de router ici (obligatoire, sinon (tabs)/_layout renvoie le joueur
+ * fraîchement connecté vers /onboarding — rebond déjà payé une fois). Sans
+ * retour, cette porte était à SENS UNIQUE : qui renonce à se connecter ne
+ * revoyait jamais l'onboarding et retombait ici à chaque lancement. La flèche
+ * discrète du haut l'y ramène.
+ *
+ * ═══ LE GATE D'ÂGE VIT ICI AUSSI (21/07/2026) ═══════════════════════════════
+ * Raisonnement complet en tête de `sign-in.tsx` — en deux lignes : le gate 16+
+ * a d'abord été posé sur l'ACCÈS à cet écran (un `(auth)/_layout` qui
+ * redirigeait tant qu'`ageConfirmed` n'était pas relu du stockage). Sur WEB
+ * c'était le pire endroit possible : navigation privée, localStorage bloqué ou
+ * données de site purgées → l'écriture échouait en silence, la relecture ne
+ * rendait jamais `true`, et /sign-in devenait DÉFINITIVEMENT inatteignable.
+ *
+ * L'obligation (Apple 5.1.1, RGPD mineurs) est de ne pas CRÉER de compte pour un
+ * mineur. Le gate est donc posé devant la création — ici, avant `requestEmailOtp`
+ * qui envoie `shouldCreateUser: true`. Il est posé EN PLACE, sans navigation :
+ * un stockage défaillant coûte un tap de plus par lancement (et on le DIT), il
+ * ne peut plus fermer la porte.
+ *
+ * ⚠️ PARITÉ avec sign-in.tsx : hero, copie (même catalogue i18n), gate d'âge et
+ * styles sont dupliqués à la main. Toute évolution de l'un se reporte sur
+ * l'autre. Le fork n'existe QUE pour tenir expo-apple-authentication hors du
+ * bundle web.
  */
 import { useEffect, useState } from 'react';
 import {
@@ -42,13 +65,19 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
-import { colors, fontSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/auth';
 import { useT } from '../../src/i18n/store';
+import { Icon } from '../../src/ui/Icon';
 import type { Entry } from '../../src/i18n/types';
+import { AGE } from '../../src/features/onboarding/content';
+import {
+  STORAGE_UNAVAILABLE_NOTICE,
+  useOnboardingState,
+} from '../../src/features/onboarding/store';
 import { EVENTS, track } from '../../src/lib/analytics';
 import { requestEmailOtp, verifyEmailOtp, type AuthResult } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -171,6 +200,17 @@ export default function SignInScreenWeb() {
      et le style, sinon les deux divergent — c'est exactement ce qui rendait le
      bouton inerte sans le montrer. */
   const canSendEmail = !busy && email.includes('@');
+  // Gate légal (voir l'entête) : mémoire de la déclaration + statut de lecture.
+  const {
+    state: onboarding,
+    status: storageStatus,
+    persistenceFailed,
+    update: updateOnboarding,
+  } = useOnboardingState();
+  // « Moins de 16 » : état LOCAL, terminal pour cette vue. Rien n'est persisté,
+  // et la flèche retour reste ouverte — une auto-déclaration est par nature
+  // contournable ; c'est le gate attendu, pas une preuve d'âge.
+  const [ageDeclined, setAgeDeclined] = useState(false);
 
   useEffect(() => {
     track(EVENTS.onboardingStep, { n: ONBOARDING_STEP_PROMISE });
@@ -192,6 +232,16 @@ export default function SignInScreenWeb() {
     return result;
   };
 
+  /**
+   * LES TROIS ÉTATS DU GATE, jamais confondus (parité stricte avec sign-in.tsx).
+   * `ageDeclared` est le SEUL laissez-passer ; lecture en cours, lecture
+   * impossible et réponse absente ne sont pas des réponses — on attend ou on
+   * redemande, et aucune branche ne ferme l'écran.
+   */
+  const ageDeclared = onboarding.ageConfirmed;
+  const ageUnknown = storageStatus === 'reading' && !ageDeclared;
+  const askAge = !ageDeclared && !ageUnknown;
+
   return (
     // Le flux e-mail OTP saisit du texte : sans esquive du clavier, le champ et
     // le CTA (bas de l'écran) sont masqués sur petit écran → connexion
@@ -208,15 +258,77 @@ export default function SignInScreenWeb() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.hero}>
-          <Text style={styles.kicker}>{t(C.kicker)}</Text>
-          <Text style={styles.title}>{t(C.title)}</Text>
-          <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
+        {/* Un seul enfant pour garder le `space-between` à DEUX blocs (haut/bas) :
+            la flèche vit avec le hero, elle ne devient pas un 3e bloc réparti.
+            (Parité stricte avec sign-in.tsx.) */}
+        <View>
+          {/* LA SORTIE : sans elle, « J'ai déjà un compte » enfermait le joueur
+              ici pour toujours (l'onboarding est marqué fait avant d'arriver). */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.backToOnboarding)}
+            hitSlop={12}
+            onPress={() => router.replace('/onboarding')}
+            style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+          >
+            {/* Chevron pointé à gauche (le tracé pointe à droite → miroir). */}
+            <View style={styles.backMirror}>
+              <Icon name="chevron" size={iconSizes.lg} color={colors.gris} />
+            </View>
+          </Pressable>
+          <View style={styles.hero}>
+            {/* Le kicker dit à quelle étape on est : la vérification légale
+                d'abord, la connexion ensuite. Il bascule avec le bloc du bas. */}
+            <Text style={styles.kicker}>{t(askAge ? AGE.kickerSignIn : C.kicker)}</Text>
+            <Text style={styles.title}>{t(C.title)}</Text>
+            <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
+          </View>
         </View>
 
         <View style={styles.actions}>
-          {step === 'email' ? (
+          {/* ── LE GATE, EN PLACE (parité sign-in.tsx) ── */}
+          {ageDeclined ? (
+            /* Moins de 16 : terminal ICI, mais l'écran reste quittable par la
+               flèche. Aucune voie d'auth n'est peinte — il n'y a rien à créer. */
             <>
+              <Text style={styles.gateTitle}>{t(AGE.blockedTitle)}</Text>
+              <Text style={styles.gateNote}>{t(AGE.blockedTagline)}</Text>
+            </>
+          ) : ageUnknown ? (
+            /* Lecture EN COURS : on n'affirme rien. Ni le champ e-mail (ce serait
+               ouvrir la création sans gate), ni la question (ce serait la poser à
+               quelqu'un qui y a déjà répondu). Le hero porte l'écran, et c'est
+               borné (3 s → `unavailable`, donc question reposée). */
+            null
+          ) : askAge ? (
+            <>
+              <Text style={styles.gateTitle}>{t(AGE.title)}</Text>
+              <Text style={styles.gateNote}>{t(AGE.tagline)}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(AGE.confirmA11y)}
+                onPress={() => void updateOnboarding({ ageConfirmed: true })}
+                style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+              >
+                <Icon name="bouclier" size={20} color={colors.noir} />
+                <Text style={styles.ctaLabel}>{t(AGE.confirm)}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(AGE.under)}
+                onPress={() => setAgeDeclined(true)}
+                style={({ pressed }) => [styles.gateLink, pressed && styles.backPressed]}
+              >
+                <Text style={styles.gateLinkLabel}>{t(AGE.under)}</Text>
+              </Pressable>
+            </>
+          ) : step === 'email' ? (
+            <>
+              {/* Dit AVANT la saisie ce que le code va faire : connecter un
+                  compte existant, ou en créer un. C'est la porte d'entrée de
+                  celui qui réinstalle — il doit savoir qu'il est au bon endroit.
+                  (Parité stricte avec sign-in.tsx.) */}
+              <Text style={styles.otpHint}>{t(C.otpCreatesOrSignsIn)}</Text>
               <TextInput
                 accessibilityLabel={t(C.emailFieldA11y)}
                 style={styles.input}
@@ -294,6 +406,13 @@ export default function SignInScreenWeb() {
               {t(error)}
             </Text>
           ) : null}
+          {/* L'ÉTAT QU'ON NE PEUT PAS RETENIR SE DIT (toutes branches confondues).
+              C'est le cas COURANT sur web : navigation privée, cookies/données de
+              site bloqués. Sans cette ligne, le joueur redonnait sa réponse à
+              chaque lancement sans jamais comprendre pourquoi. */}
+          {persistenceFailed ? (
+            <Text style={styles.gateNote}>{t(STORAGE_UNAVAILABLE_NOTICE)}</Text>
+          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -310,7 +429,20 @@ const styles = StyleSheet.create({
   // Champ d'hexagones décoratif : occupe le haut de l'écran, derrière hero +
   // actions. pointerEvents none → n'intercepte rien.
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: '64%' },
-  hero: { marginTop: 48 },
+  // Flèche de retour vers l'onboarding : cible ≥ 44×44 (+hitSlop), gris discret,
+  // jamais un 2e CTA (§A). `marginLeft` négatif : le glyphe est centré dans sa
+  // boîte de 44, on le recale optiquement sur la marge du texte.
+  back: {
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
+    marginLeft: -10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backPressed: { opacity: 0.7 },
+  backMirror: { transform: [{ scaleX: -1 }] },
+  // 48 → 20 : la flèche occupe désormais le haut du bloc, le hero se recale sous elle.
+  hero: { marginTop: spacing.lg },
   kicker: {
     color: colors.chartreuse, // emploi §C.3 : accent unique, jamais sur fond clair
     fontSize: fontSizes.xs,
@@ -370,4 +502,34 @@ const styles = StyleSheet.create({
   },
   ghostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500' },
   error: { color: colors.blanc, fontSize: fontSizes.sm, textAlign: 'center', marginTop: 6 },
+
+  // ── GATE D'ÂGE, POSÉ AU POINT DE CRÉATION (parité stricte avec sign-in.tsx) ──
+  gateTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '600',
+    lineHeight: fontSizes.md * 1.3,
+  },
+  /** Sert aussi à l'avis de non-persistance : gris, jamais chartreuse (≠ action). */
+  gateNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.45,
+    marginBottom: 4,
+  },
+  // L'UNIQUE CTA chartreuse de l'écran, et seulement tant que la question est
+  // posée (§A4 : au plus un). Une fois l'âge déclaré, l'écran repasse à zéro.
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    height: 56,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+  },
+  ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
+  ctaPressed: { opacity: 0.85 },
+  gateLink: { minHeight: sizes.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  gateLinkLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
 });

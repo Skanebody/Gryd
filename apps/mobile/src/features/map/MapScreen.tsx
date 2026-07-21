@@ -66,6 +66,17 @@ import {
   requestForegroundPermission,
 } from '../run/gps/provider';
 
+/**
+ * Les états de `locationState.ts`, PLUS celui que seul l'écran connaît :
+ * `unasked` — la permission n'a jamais été DEMANDÉE, parce que l'ouverture de la
+ * carte ne la demande plus (voir l'effet de montage). `resolveLocation`, elle,
+ * ne peut pas produire cet état : elle décrit l'issue d'une tentative COMPLÈTE.
+ * Ce n'est ni `denied` (personne n'a refusé), ni `unavailable` (aucun capteur
+ * n'a été interrogé), ni `locating` (rien n'est en cours) — les confondre serait
+ * précisément le mensonge que locationState.ts a supprimé.
+ */
+type MapScreenLocationState = MapLocationState | 'unasked';
+
 // ─── Constantes de rendu (UI uniquement — mêmes valeurs que la variante web) ─
 /** Pulse du halo « moi » (position live, respiration lente). */
 const EGO_PULSE_MS = 2_000;
@@ -143,19 +154,55 @@ export function MapScreen() {
    * muet : permission accordée + fix absent ⇒ `if (!fix) return` ⇒ aucun point,
    * aucun message, et un bouton Recentrer sans effet visible.
    */
-  const [locationState, setLocationState] = useState<MapLocationState>('locating');
+  const [locationState, setLocationState] = useState<MapScreenLocationState>('locating');
   /** Langue courante — la carte doit parler comme le reste de l'app. */
   const locale = useLocale();
+  /**
+   * OUVERTURE DE LA CARTE — ON NE DEMANDE RIEN (corrigé le 21/07/2026).
+   *
+   * Cet effet appelait `resolveLocation({ …, requestForegroundPermission })` AU
+   * MONTAGE. Or `resolveLocation` DEMANDE la permission dès qu'elle n'est pas
+   * accordée et que `canAskAgain` : la boîte système d'iOS tombait donc à
+   * l'ouverture de l'onglet Carte — c'est-à-dire dans la seconde qui suit la
+   * sortie de l'onboarding, sans contexte et sans que rien ne l'ait annoncée.
+   *
+   * Deux textes du produit disaient pourtant l'inverse, et ce sont eux qui font
+   * foi puisque le joueur les lit : `learnNote` (« …quand le GPS s'allume au
+   * départ ») et l'entête de `onboarding/content.ts`, qui justifie la
+   * SUPPRESSION de l'écran `permission` par « la vraie demande vit au premier GO
+   * (useRealRun.acquireNative) ». C'était faux : la carte gagnait la course.
+   * Plutôt que de corriger la doc pour acter un comportement que personne n'a
+   * choisi, on corrige le CODE — la demande retourne au moment annoncé.
+   *
+   * Au montage, la carte se contente donc de LIRE la permission :
+   *   • déjà accordée   → on cherche un fix (aucune boîte, l'OS ne redemande pas) ;
+   *   • refus explicite → `denied`, la carte le dit ;
+   *   • jamais demandée → `unasked` : on n'affirme ni refus ni recherche.
+   *
+   * Les deux moments qui DEMANDENT vraiment restent, et sont tous deux des
+   * gestes du joueur : le bouton Recentrer (plus bas) et le premier GO
+   * (`useRealRun.acquireNative`). Aucun bouton mort : Recentrer déclenche bien
+   * la boîte quand la permission n'a jamais été demandée.
+   */
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const permission = await checkForegroundPermission();
+      if (cancelled) return;
+      if (permission.status !== 'granted') {
+        setLocationState(permission.status === 'denied' ? 'denied' : 'unasked');
+        return;
+      }
+      // Permission déjà accordée : `resolveLocation` ne demandera rien (elle ne
+      // demande que si le statut n'est pas `granted`) — on réutilise la séquence
+      // testée plutôt que d'en réécrire une deuxième à la main.
       const outcome = await resolveLocation({
         checkForegroundPermission,
         requestForegroundPermission,
         getCurrentPositionOnce,
       });
       if (cancelled) return;
-      // Chacune des trois issues pose un état : plus AUCUNE sortie silencieuse.
+      // Chacune des issues pose un état : plus AUCUNE sortie silencieuse.
       setLocationState(outcome.state);
       if (outcome.point) setEgoPos(outcome.point);
     })();
@@ -391,16 +438,23 @@ export function MapScreen() {
    * l'absence produisait le cul-de-sac muet.
    */
   const locationNote =
-    locationState === 'denied'
-      ? resolve(C.dataNoteLocationDenied, locale)
-      : locationState === 'unavailable'
-        ? resolve(
-            egoPos ? C.dataNoteLocationStale : C.dataNoteLocationUnavailable,
-            locale,
-          )
-        : locationState === 'locating'
-          ? resolve(C.dataNoteLocating, locale)
-          : null;
+    // CINQ états, CINQ phrases (21/07/2026). `unasked` empruntait celle de
+    // `denied` : « Active la localisation pour te voir » imputait un refus à un
+    // joueur à qui on n'avait rien demandé. Les deux états n'ont d'ailleurs pas
+    // la même ISSUE — `denied` se rouvre par les réglages système, `unasked` par
+    // UN geste ici (Recentrer, ou le premier GO) — donc pas la même phrase.
+    locationState === 'unasked'
+      ? resolve(C.dataNoteLocationUnasked, locale)
+      : locationState === 'denied'
+        ? resolve(C.dataNoteLocationDenied, locale)
+        : locationState === 'unavailable'
+          ? resolve(
+              egoPos ? C.dataNoteLocationStale : C.dataNoteLocationUnavailable,
+              locale,
+            )
+          : locationState === 'locating'
+            ? resolve(C.dataNoteLocating, locale)
+            : null;
   const mapNote =
     locationNote ??
     // Lecture en cours : on ne dit RIEN du territoire (ni « pas connecté », ni

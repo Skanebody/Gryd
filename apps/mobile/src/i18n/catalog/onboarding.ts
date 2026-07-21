@@ -1,15 +1,27 @@
 /**
- * GRYD — i18n : catalogue du domaine ONBOARDING (copy AMENDEMENT-30).
+ * GRYD — i18n : catalogue du domaine ONBOARDING.
  *
  * Source de vérité des 5 langues pour le stepper d'onboarding. La STRUCTURE
  * par étape (HOOK, AGE, …) reste dans features/onboarding/content.ts — qui
  * référence ces Entries ; les écrans résolvent via t() (i18n/store).
  *
  * Règles : tutoiement fr / « du » de / « tú » es / « você » pt informel ;
- * invariants jamais traduits (GRYD, Crew, km, noms de produits Apple Health /
- * Strava / Garmin, « Chartreuse » = nom de la couleur signature) ; CTA courts
- * dans TOUTES les langues (§A : jamais tronqué à 375 px) ; kickers en
- * MAJUSCULES ; mêmes {placeholders} partout.
+ * invariants jamais traduits (GRYD, Crew, km, « Chartreuse » = nom de la
+ * couleur signature) ; CTA courts dans TOUTES les langues (§A : jamais tronqué
+ * à 375 px) ; kickers en MAJUSCULES ; mêmes {placeholders} partout.
+ *
+ * ─── NETTOYAGE DU 21/07/2026 (refonte « trop de cliques ») ──────────────────
+ * Ce fichier portait encore la copy de SEPT étapes, dont quatre supprimées avec
+ * le mode vitrine (`choose` / `sync` / `run` / `capture`) et trois supprimées ou
+ * fusionnées par la refonte (`city` fondue dans `learn`, `permission` déplacée
+ * au premier GO, `crew` rendue à son onglet). Une Entry que plus aucun écran ne
+ * lit est une promesse de texte sans écran derrière : elles sont RETIRÉES, pas
+ * commentées. `content.ts` est le seul importeur du catalogue, donc le typage
+ * signale immédiatement toute lecture oubliée.
+ *
+ * Le catalogue LOCAL `L` de content.ts (créé pour éviter les collisions entre
+ * agents parallèles) est également REPLIÉ ICI : les copies d'onboarding vivent
+ * de nouveau à un seul endroit.
  */
 import { defineCatalog } from '../types';
 
@@ -23,13 +35,25 @@ export const C = defineCatalog({
     de: 'Zurück zum vorherigen Schritt',
     pt: 'Voltar à etapa anterior',
   },
-  /** Sortie douce partagée (« Plus tard ») — permission, compte, crew, notifs. */
+  /** Sortie douce partagée (« Plus tard ») — compte sans backend, notifications. */
   later: {
     fr: 'Plus tard',
     en: 'Later',
     es: 'Más tarde',
     de: 'Später',
     pt: 'Mais tarde',
+  },
+  /**
+   * Chip d'honnêteté posée SUR les visuels : ce plateau enseigne, il n'est pas
+   * la carte du joueur. (Anciennement `syncDemoTag`, du temps où l'import de
+   * course était mis en scène — le mot n'a pas changé, son seul lecteur si.)
+   */
+  exampleTag: {
+    fr: 'Exemple',
+    en: 'Sample',
+    es: 'Ejemplo',
+    de: 'Beispiel',
+    pt: 'Exemplo',
   },
 
   // ─── 1 HOOK ────────────────────────────────────────────────────────────────
@@ -54,6 +78,19 @@ export const C = defineCatalog({
     de: 'Meine Stadt entdecken',
     pt: 'Descobrir minha cidade',
   },
+  /**
+   * LA PORTE DE CONNEXION (retour fondateur 21/07/2026). Dite à la 1re personne
+   * et au PASSÉ — « j'ai déjà » — parce que c'est ainsi que la cherche celui qui
+   * réinstalle ou change de téléphone. Volontairement DISCRÈTE (lien gris, pas
+   * un 2e CTA : §A4) mais présente sur le tout premier écran.
+   */
+  hookSignIn: {
+    fr: 'J’ai déjà un compte',
+    en: 'I already have an account',
+    es: 'Ya tengo una cuenta',
+    de: 'Ich habe schon ein Konto',
+    pt: 'Já tenho uma conta',
+  },
 
   // ─── 1b AGE-GATE 16+ ───────────────────────────────────────────────────────
   ageKicker: {
@@ -62,6 +99,19 @@ export const C = defineCatalog({
     es: 'ANTES DE EMPEZAR',
     de: 'BEVOR DU LOSLEGST',
     pt: 'ANTES DE COMEÇAR',
+  },
+  /**
+   * Variante quand le joueur vient de « J'ai déjà un compte » : il n'est pas en
+   * train de découvrir le produit, il va se connecter. Le kicker le DIT, pour
+   * qu'il comprenne que cet écran est une vérification légale sur SON chemin —
+   * pas l'onboarding qui recommence.
+   */
+  ageKickerSignIn: {
+    fr: 'AVANT DE TE CONNECTER',
+    en: 'BEFORE YOU SIGN IN',
+    es: 'ANTES DE INICIAR SESIÓN',
+    de: 'BEVOR DU DICH ANMELDEST',
+    pt: 'ANTES DE ENTRAR',
   },
   ageTitle: {
     fr: 'Tu as 16 ans ou plus ?',
@@ -114,280 +164,109 @@ export const C = defineCatalog({
     pt: 'O GRYD não está disponível antes dos 16. Guardamos sua cidade para você.',
   },
 
-  // ─── 2 LE TERRAIN DE JEU ───────────────────────────────────────────────────
-  cityKicker: {
-    fr: 'LA VILLE · MAINTENANT',
-    en: 'THE CITY · RIGHT NOW',
-    es: 'LA CIUDAD · AHORA',
-    de: 'DIE STADT · JETZT',
-    pt: 'A CIDADE · AGORA',
-  },
-  cityTitle: {
-    fr: 'Voilà le terrain de jeu. À prendre.',
-    en: 'This is the playing field. Up for grabs.',
-    es: 'Este es el terreno de juego. Por conquistar.',
-    de: 'Das ist das Spielfeld. Zu erobern.',
-    pt: 'Este é o campo de jogo. Para tomar.',
-  },
-  cityTagline: {
-    fr: 'Chaque zone se gagne en courant. Chartreuse = à toi, violet = contestée, orange = à un crew rival.',
-    en: 'Every zone is won by running. Chartreuse = yours, purple = contested, orange = a rival crew’s.',
-    es: 'Cada zona se gana corriendo. Chartreuse = tuya, violeta = disputada, naranja = de un crew rival.',
-    de: 'Jede Zone gewinnst du beim Laufen. Chartreuse = deine, Violett = umkämpft, Orange = Rivalen-Crew.',
-    pt: 'Cada zona se ganha correndo. Chartreuse = sua, violeta = disputada, laranja = de um crew rival.',
-  },
-  cityCta: {
-    fr: 'Prendre ce terrain',
-    en: 'Take this ground',
-    es: 'Tomar este terreno',
-    de: 'Terrain erobern',
-    pt: 'Tomar este terreno',
-  },
-
-  // ─── 3b PERMISSION GPS (branche « run » uniquement) ────────────────────────
-  permissionKicker: {
-    fr: 'UNE SEULE CHOSE',
-    en: 'ONE THING ONLY',
-    es: 'UNA SOLA COSA',
-    de: 'NUR EINE SACHE',
-    pt: 'SÓ UMA COISA',
-  },
-  permissionTitle: {
-    fr: 'Le GPS dessine ton territoire.',
-    en: 'GPS draws your territory.',
-    es: 'El GPS dibuja tu territorio.',
-    de: 'GPS zeichnet dein Territorium.',
-    pt: 'O GPS desenha seu território.',
-  },
-  permissionTagline: {
-    fr: 'GRYD suit ta trace pendant la course pour transformer tes rues en zones. Rien n’est partagé en direct.',
-    en: 'GRYD tracks your route while you run to turn your streets into zones. Nothing is shared live.',
-    es: 'GRYD sigue tu recorrido mientras corres para convertir tus calles en zonas. Nada se comparte en directo.',
-    de: 'GRYD folgt deiner Spur beim Laufen und macht aus deinen Straßen Zonen. Nichts wird live geteilt.',
-    pt: 'O GRYD segue seu trajeto durante a corrida para transformar suas ruas em zonas. Nada é compartilhado ao vivo.',
-  },
-  permissionCta: {
-    fr: 'Utiliser le GPS',
-    en: 'Use GPS',
-    es: 'Usar el GPS',
-    de: 'GPS nutzen',
-    pt: 'Usar o GPS',
-  },
-
-  // ─── 3 CHOIX DU CHEMIN ─────────────────────────────────────────────────────
-  chooseKicker: {
-    fr: 'DEUX FAÇONS DE COMMENCER',
-    en: 'TWO WAYS TO START',
-    es: 'DOS FORMAS DE EMPEZAR',
-    de: 'ZWEI WEGE ZUM START',
-    pt: 'DUAS FORMAS DE COMEÇAR',
-  },
-  chooseTitle: {
-    fr: 'On capture ta première zone ?',
-    en: 'Ready to capture your first zone?',
-    es: '¿Capturamos tu primera zona?',
-    de: 'Holen wir deine erste Zone?',
-    pt: 'Vamos capturar sua primeira zona?',
-  },
-  chooseTagline: {
-    fr: 'Choisis ton point de départ — les deux mènent à ta première capture.',
-    en: 'Pick your starting point — both lead to your first capture.',
-    es: 'Elige tu punto de partida: los dos caminos llevan a tu primera captura.',
-    de: 'Wähl deinen Startpunkt — beide führen zu deiner ersten Eroberung.',
-    pt: 'Escolha seu ponto de partida — os dois levam à sua primeira captura.',
-  },
-  chooseSyncTitle: {
-    fr: 'J’ai déjà des runs',
-    en: 'I already have runs',
-    es: 'Ya tengo carreras',
-    de: 'Ich habe schon Läufe',
-    pt: 'Já tenho corridas',
-  },
-  chooseSyncSubtitle: {
-    fr: 'Apple Health, Strava — on transforme ta dernière course.',
-    en: 'Apple Health, Strava — we transform your latest run.',
-    es: 'Apple Health, Strava: transformamos tu última carrera.',
-    de: 'Apple Health, Strava — wir verwandeln deinen letzten Lauf.',
-    pt: 'Apple Health, Strava — transformamos sua última corrida.',
-  },
-  chooseRunTitle: {
-    fr: 'Je vais courir',
-    en: 'I’m going for a run',
-    es: 'Voy a correr',
-    de: 'Ich gehe laufen',
-    pt: 'Vou correr',
-  },
-  chooseRunSubtitle: {
-    fr: 'Un run tout simple, zéro réglage. Ferme une boucle.',
-    en: 'One simple run, zero setup. Close a loop.',
-    es: 'Una carrera sencilla, cero ajustes. Cierra un bucle.',
-    de: 'Ein einfacher Lauf, null Einstellungen. Schließ eine Runde.',
-    pt: 'Uma corrida simples, zero ajustes. Feche um circuito.',
-  },
-
-  // ─── 3a SYNC (démo) ────────────────────────────────────────────────────────
-  syncKicker: {
-    fr: 'CAPTURE DEPUIS TES RUNS',
-    en: 'CAPTURE FROM YOUR RUNS',
-    es: 'CAPTURA DESDE TUS CARRERAS',
-    de: 'ZONEN AUS DEINEN LÄUFEN',
-    pt: 'CAPTURA DAS SUAS CORRIDAS',
-  },
-  syncTitle: {
-    fr: 'Ta course devient une conquête.',
-    en: 'Your run becomes a conquest.',
-    es: 'Tu carrera se vuelve conquista.',
-    de: 'Dein Lauf wird zur Eroberung.',
-    pt: 'Sua corrida vira conquista.',
-  },
-  syncTagline: {
-    fr: 'Cours comme tu veux — Apple Watch, Garmin, Strava. GRYD fait le reste. Choisis une source :',
-    en: 'Run however you like — Apple Watch, Garmin, Strava. GRYD does the rest. Pick a source:',
-    es: 'Corre como quieras: Apple Watch, Garmin, Strava. GRYD hace el resto. Elige una fuente:',
-    de: 'Lauf, wie du willst — Apple Watch, Garmin, Strava. GRYD macht den Rest. Wähl eine Quelle:',
-    pt: 'Corra como quiser — Apple Watch, Garmin, Strava. O GRYD faz o resto. Escolha uma fonte:',
-  },
-  /** Méta du run détecté (« 6,4 km · une boucle »). */
-  syncLoopMeta: {
-    fr: 'une boucle',
-    en: 'one loop',
-    es: 'un bucle',
-    de: 'eine Runde',
-    pt: 'um circuito',
-  },
-  /** Hint pendant le déroulé (l'écran appose « … »). */
-  syncRunning: {
-    fr: 'Import en cours',
-    en: 'Importing',
-    es: 'Importando',
-    de: 'Import läuft',
-    pt: 'Importando',
-  },
-  /** Tag d'honnêteté sur le run détecté (chip courte — jamais tronquée). */
-  syncDemoTag: {
-    fr: 'Exemple',
-    en: 'Sample',
-    es: 'Ejemplo',
-    de: 'Beispiel',
-    pt: 'Exemplo',
-  },
-
-  // ─── 3b PREMIER RUN ────────────────────────────────────────────────────────
-  runKicker: {
-    fr: 'TON PREMIER RUN',
-    en: 'YOUR FIRST RUN',
-    es: 'TU PRIMERA CARRERA',
-    de: 'DEIN ERSTER LAUF',
-    pt: 'SUA PRIMEIRA CORRIDA',
-  },
-  runTitle: {
-    fr: 'Un objectif. Ferme une boucle.',
-    en: 'One goal. Close a loop.',
-    es: 'Un objetivo. Cierra un bucle.',
-    de: 'Ein Ziel. Schließ eine Runde.',
-    pt: 'Um objetivo. Feche um circuito.',
-  },
-  runTagline: {
-    fr: 'Cours tout droit : tu prends les rues. Ferme la boucle : toute la zone est à toi.',
-    en: 'Run straight: you take the streets. Close the loop: the whole zone is yours.',
-    es: 'Corre en línea recta: tomas las calles. Cierra el bucle: toda la zona es tuya.',
-    de: 'Lauf geradeaus: Du nimmst die Straßen. Schließ die Runde: Die ganze Zone gehört dir.',
-    pt: 'Corra em linha reta: você toma as ruas. Feche o circuito: a zona inteira é sua.',
-  },
-  runObjective: {
-    fr: 'Ferme une boucle. La zone est à toi.',
-    en: 'Close a loop. The zone is yours.',
-    es: 'Cierra un bucle. La zona es tuya.',
-    de: 'Schließ eine Runde. Die Zone gehört dir.',
-    pt: 'Feche um circuito. A zona é sua.',
-  },
-  runCta: {
-    fr: 'Lancer le run',
-    en: 'Start the run',
-    es: 'Empezar la carrera',
-    de: 'Lauf starten',
-    pt: 'Iniciar corrida',
-  },
-  /** Hint pendant le run démo (l'écran appose « … »). */
-  runRunning: {
-    fr: 'Run en cours',
-    en: 'Run in progress',
-    es: 'Carrera en curso',
-    de: 'Lauf aktiv',
-    pt: 'Corrida em andamento',
-  },
-
-  // ─── 4 PREMIÈRE CAPTURE (moment signature) ─────────────────────────────────
-  captureKicker: {
-    fr: 'PREMIÈRE CAPTURE',
-    en: 'FIRST CAPTURE',
-    es: 'PRIMERA CAPTURA',
-    de: 'ERSTE EROBERUNG',
-    pt: 'PRIMEIRA CAPTURA',
-  },
-  captureTitle: {
-    fr: 'Première zone prise.',
-    en: 'First zone taken.',
-    es: 'Primera zona tomada.',
-    de: 'Erste Zone erobert.',
-    pt: 'Primeira zona tomada.',
-  },
-  captureZonesLabel: {
-    fr: 'zones capturées',
-    en: 'zones captured',
-    es: 'zonas capturadas',
-    de: 'Zonen erobert',
-    pt: 'zonas capturadas',
+  // ─── 2 LE TERRAIN + LA RÈGLE (un seul écran) ───────────────────────────────
+  // Le plateau EST l'explication : montrer le terrain occupé par d'autres crews
+  // et montrer comment on prend une zone était DEUX écrans qui enseignaient la
+  // même chose. Un seul visuel fait les deux, donc une seule copy.
+  learnKicker: {
+    fr: 'COMMENT ON PREND UNE ZONE',
+    en: 'HOW A ZONE IS TAKEN',
+    es: 'CÓMO SE TOMA UNA ZONA',
+    de: 'SO NIMMST DU EINE ZONE',
+    pt: 'COMO SE TOMA UMA ZONA',
   },
   /**
-   * Sous-ligne du reveal : « dont {n} en boucle · autour de toi ». Une seule
-   * Entry (l'ordre des mots varie par langue) ; localisation HONNÊTE — aucun
-   * GPS encore, jamais un nom de lieu.
+   * ⚠️ COPY RACCOURCIE LE 21/07/2026 — l'écran DÉBORDAIT. La fusion `city` +
+   * `learn` avait additionné les deux copies au lieu de les fondre : sur un
+   * 375×667, kicker + titre 3 lignes + plateau 307 px + légende 3 lignes + note
+   * 3 lignes + CTA dépassaient la hauteur utile d'environ 70 px, et le texte
+   * passait SOUS le CTA (il n'y a pas de ScrollView — §A : un écran
+   * d'onboarding qui se scrolle est un écran de trop). Chaque entrée ci-dessous
+   * tient désormais en 2 lignes dans les 5 langues. Toute rallonge future se
+   * paie en débordement : mesurer avant d'ajouter un mot.
    */
-  captureSub: {
-    fr: 'dont {n} en boucle · autour de toi',
-    en: 'incl. {n} in the loop · around you',
-    es: 'con {n} en el bucle · a tu alrededor',
-    de: 'davon {n} in der Runde · um dich herum',
-    pt: 'sendo {n} no circuito · ao seu redor',
+  learnTitle: {
+    fr: 'Ferme la boucle, la zone bascule.',
+    en: 'Close the loop, the zone flips.',
+    es: 'Cierra el bucle, la zona cambia.',
+    de: 'Runde schließen, Zone kippt.',
+    pt: 'Feche o circuito, a zona vira.',
   },
-  /** Copy conservée (le partage réel vit dans /partage, après le compte). */
-  captureShare: {
-    fr: 'Partager',
-    en: 'Share',
-    es: 'Compartir',
-    de: 'Teilen',
-    pt: 'Compartilhar',
+  /**
+   * La légende des 3 RÔLES de zone (§C) — l'information n'est jamais portée par
+   * la seule couleur, elle est nommée. La 2e règle (« tout droit, tu prends les
+   * rues ») a été RETIRÉE avec la coupe : le titre énonce déjà LA règle, et un
+   * écran qui enseigne deux mécaniques n'en fait comprendre aucune en < 3 s.
+   * Elle reste enseignée là où elle se joue (carte + course).
+   */
+  learnTagline: {
+    fr: 'Chartreuse = à toi. Violet = contestée. Orange = un crew rival.',
+    en: 'Chartreuse = yours. Purple = contested. Orange = a rival crew.',
+    es: 'Chartreuse = tuya. Violeta = disputada. Naranja = un crew rival.',
+    de: 'Chartreuse = deine. Violett = umkämpft. Orange = Rivalen-Crew.',
+    pt: 'Chartreuse = sua. Violeta = disputada. Laranja = um crew rival.',
   },
-  captureCta: {
-    fr: 'Défendre ma zone',
-    en: 'Defend my zone',
-    es: 'Defender mi zona',
-    de: 'Zone verteidigen',
-    pt: 'Defender minha zona',
+  /**
+   * Sous le visuel, deux vérités en une ligne : ce tracé n'est PAS le sien, et
+   * le GPS ne s'allume qu'au départ d'une course. Cette 2e phrase remplace tout
+   * un écran de permission qui ne demandait rien (la vraie demande système vit
+   * au premier GO, dans le flow de course) : elle est courte, pas absente.
+   */
+  learnNote: {
+    fr: 'Exemple. Tes zones arrivent à ta première course — GPS allumé au départ.',
+    en: 'A sample. Your zones come with your first run — GPS on at the start.',
+    es: 'Ejemplo. Tus zonas llegan en tu primera carrera: GPS activo al salir.',
+    de: 'Beispiel. Deine Zonen kommen mit dem ersten Lauf — GPS an beim Start.',
+    pt: 'Exemplo. Suas zonas chegam na primeira corrida — GPS ligado na largada.',
+  },
+  learnCta: {
+    fr: 'Prendre ma première zone',
+    en: 'Take my first zone',
+    es: 'Tomar mi primera zona',
+    de: 'Meine erste Zone holen',
+    pt: 'Tomar minha primeira zona',
   },
 
-  // ─── 5 COMPTE APRÈS LA VALEUR ──────────────────────────────────────────────
+  // ─── 3 COMPTE ──────────────────────────────────────────────────────────────
   accountKicker: {
-    fr: 'GARDE TES ZONES',
-    en: 'KEEP YOUR ZONES',
-    es: 'CONSERVA TUS ZONAS',
-    de: 'SICHERE DEINE ZONEN',
-    pt: 'GUARDE SUAS ZONAS',
+    fr: 'AVANT DE COURIR',
+    en: 'BEFORE YOU RUN',
+    es: 'ANTES DE CORRER',
+    de: 'BEVOR DU LOSLÄUFST',
+    pt: 'ANTES DE CORRER',
   },
+  /**
+   * Le titre dit LES DEUX PORTES (retour fondateur 21/07/2026). « Crée ton
+   * compte. » seul faisait de cet écran une impasse apparente pour qui en a
+   * déjà un : il rebroussait chemin au lieu de taper sur une des voies, qui
+   * toutes savent pourtant le connecter.
+   */
   accountTitle: {
-    fr: 'Sauvegarde ta conquête.',
-    en: 'Save your conquest.',
-    es: 'Guarda tu conquista.',
-    de: 'Speichere deine Eroberung.',
-    pt: 'Salve sua conquista.',
+    fr: 'Crée ton compte, ou connecte-toi.',
+    en: 'Create your account, or sign in.',
+    es: 'Crea tu cuenta, o inicia sesión.',
+    de: 'Erstell dein Konto — oder melde dich an.',
+    pt: 'Crie sua conta, ou entre.',
   },
+  /** Rien n'a encore été conquis : la copy parle au FUTUR, jamais au passé. */
   accountTagline: {
-    fr: 'Un compte, un tap. Tes zones te suivent sur tous tes appareils.',
-    en: 'One account, one tap. Your zones follow you on every device.',
-    es: 'Una cuenta, un toque. Tus zonas te siguen en todos tus dispositivos.',
-    de: 'Ein Konto, ein Tap. Deine Zonen folgen dir auf allen Geräten.',
-    pt: 'Uma conta, um toque. Suas zonas seguem você em todos os aparelhos.',
+    fr: 'Un compte, un tap. Les zones que tu prendras te suivront sur tous tes appareils.',
+    en: 'One account, one tap. The zones you take will follow you on every device.',
+    es: 'Una cuenta, un toque. Las zonas que tomes te seguirán en todos tus dispositivos.',
+    de: 'Ein Konto, ein Tap. Die Zonen, die du holst, folgen dir auf allen Geräten.',
+    pt: 'Uma conta, um toque. As zonas que você tomar seguem você em todos os aparelhos.',
+  },
+  /**
+   * Variante quand un backend est configuré : la carte EXIGE une session. Le
+   * dire ici, c'est éviter que le joueur tape « Plus tard » et se cogne à une
+   * porte fermée deux écrans plus loin (le cul-de-sac corrigé le 21/07/2026).
+   */
+  accountTaglineRequired: {
+    fr: 'Un compte, un tap. Il est nécessaire pour entrer sur la carte et garder tes zones.',
+    en: 'One account, one tap. It’s required to enter the map and keep your zones.',
+    es: 'Una cuenta, un toque. Es necesaria para entrar al mapa y conservar tus zonas.',
+    de: 'Ein Konto, ein Tap. Nötig, um auf die Karte zu kommen und deine Zonen zu behalten.',
+    pt: 'Uma conta, um toque. Ela é necessária para entrar no mapa e manter suas zonas.',
   },
   accountApple: {
     fr: 'Se connecter avec Apple',
@@ -403,50 +282,33 @@ export const C = defineCatalog({
     de: 'Mit Google anmelden',
     pt: 'Entrar com Google',
   },
-  /** Échec d'auth honnête : on reste sur l'écran, « Plus tard » laisse passer. */
+  /**
+   * Voie e-mail (code OTP). « Continuer avec un e-mail » ne disait pas si ça
+   * CRÉAIT ou CONNECTAIT — le libellé reste neutre, et `accountEmailHint`
+   * juste en dessous dit exactement ce que fait le code. On préfère l'écrire
+   * que de laisser le joueur le deviner.
+   */
+  accountEmail: {
+    fr: 'Continuer par e-mail',
+    en: 'Continue with email',
+    es: 'Continuar por correo',
+    de: 'Mit E-Mail fortfahren',
+    pt: 'Continuar por e-mail',
+  },
+  accountEmailHint: {
+    fr: 'Un code à 6 chiffres : il te connecte si ton compte existe, il le crée sinon.',
+    en: 'A 6-digit code: it signs you in if your account exists, and creates it if not.',
+    es: 'Un código de 6 dígitos: te conecta si tu cuenta existe, y la crea si no.',
+    de: 'Ein 6-stelliger Code: Er meldet dich an, wenn dein Konto existiert — sonst legt er es an.',
+    pt: 'Um código de 6 dígitos: ele conecta você se a conta existir, e a cria se não.',
+  },
+  /** Échec honnête : on reste sur l'écran (jamais un faux succès). */
   accountError: {
-    fr: 'Connexion impossible. Réessaie, ou passe cette étape.',
-    en: 'Sign-in failed. Try again, or skip this step.',
-    es: 'No se pudo iniciar sesión. Reintenta o salta este paso.',
-    de: 'Anmeldung fehlgeschlagen. Versuch es nochmal oder überspring diesen Schritt.',
-    pt: 'Não foi possível entrar. Tente de novo ou pule esta etapa.',
-  },
-
-  // ─── 6 CREW ────────────────────────────────────────────────────────────────
-  crewKicker: {
-    fr: 'TU N’ES PAS SEUL',
-    en: 'YOU’RE NOT ALONE',
-    es: 'NO ESTÁS SOLO',
-    de: 'DU BIST NICHT ALLEIN',
-    pt: 'VOCÊ NÃO ESTÁ SOZINHO',
-  },
-  crewTitle: {
-    fr: 'Rejoins un crew. Prends la ville.',
-    en: 'Join a crew. Take the city.',
-    es: 'Únete a un crew. Toma la ciudad.',
-    de: 'Tritt einer Crew bei. Hol dir die Stadt.',
-    pt: 'Entre em um crew. Tome a cidade.',
-  },
-  crewTagline: {
-    fr: 'Seul tu prends des rues. En crew, tu tiens le quartier. Rien n’est bloqué.',
-    en: 'Alone, you take streets. In a crew, you hold the neighborhood. Nothing is locked.',
-    es: 'Solo, tomas calles. En crew, dominas el barrio. Nada está bloqueado.',
-    de: 'Allein nimmst du Straßen. In der Crew hältst du das Viertel. Nichts ist gesperrt.',
-    pt: 'Sozinho você toma ruas. Em crew, você segura o bairro. Nada fica bloqueado.',
-  },
-  crewJoin: {
-    fr: 'Rejoindre un crew proche',
-    en: 'Join a nearby crew',
-    es: 'Unirme a un crew cercano',
-    de: 'Crew in der Nähe beitreten',
-    pt: 'Entrar em um crew próximo',
-  },
-  crewCreate: {
-    fr: 'Créer mon crew',
-    en: 'Create my crew',
-    es: 'Crear mi crew',
-    de: 'Meine Crew gründen',
-    pt: 'Criar meu crew',
+    fr: 'Connexion impossible. Réessaie, ou passe par l’e-mail.',
+    en: 'Sign-in failed. Try again, or use email instead.',
+    es: 'No se pudo iniciar sesión. Reintenta o usa el correo.',
+    de: 'Anmeldung fehlgeschlagen. Versuch es nochmal oder nimm die E-Mail.',
+    pt: 'Não foi possível entrar. Tente de novo ou use o e-mail.',
   },
 
   // ─── NOTIFICATIONS (copy conservée — opt-in HORS onboarding) ───────────────

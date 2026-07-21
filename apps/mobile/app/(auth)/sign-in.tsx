@@ -1,7 +1,58 @@
 /**
- * GRYD — écran promesse + sign-in (SPEC §4.1 étapes 1 et 3).
- * « Cours pour ton crew. Conquiers ta ville. » — 2 taps, zéro formulaire.
+ * GRYD — écran de CONNEXION (SPEC §4.1 étape 3). 2 taps, zéro formulaire.
  * Un refus/échec n'est jamais un mur (§4.1) : message + retry.
+ *
+ * ─── CE N'EST PLUS L'ÉCRAN PROMESSE (21/07/2026) ────────────────────────────
+ * Il ouvrait le produit, d'où sa copy d'accroche (« SAISON 0 · PARIS & LILLE »,
+ * « Cours pour ton crew. Conquiers ta ville. »). La promesse vit désormais dans
+ * l'onboarding (hook), et cet écran est la DESTINATION de celui qui revient :
+ * le lien « J'ai déjà un compte » du premier écran y mène, et (tabs)/_layout y
+ * renvoie tout visiteur sans session. On ne revend pas le jeu à quelqu'un qui
+ * l'a déjà installé — la copy (catalog/auth) dit ce qu'on attend de lui.
+ *
+ * ─── ET CE N'EST PLUS UN CUL-DE-SAC ─────────────────────────────────────────
+ * La porte « J'ai déjà un compte » marque l'onboarding FAIT avant de router ici
+ * (obligatoire : sinon (tabs)/_layout renvoie le joueur fraîchement connecté
+ * vers /onboarding — rebond déjà payé une fois). Sans retour, elle était donc à
+ * SENS UNIQUE : qui renonce à se connecter ne revoyait JAMAIS l'onboarding et
+ * retombait ici à chaque lancement. Une flèche discrète (gris, coin haut-gauche,
+ * ≥ 44 px, jamais un 2e CTA — §A) le ramène à la découverte.
+ *
+ * ═══ LE GATE D'ÂGE VIT ICI, ET NON SUR LA PORTE (21/07/2026) ════════════════
+ *
+ * ─── CE QUI A ÉTÉ ESSAYÉ, ET POURQUOI ÇA BRIQUAIT ───────────────────────────
+ * Le gate 16+ a d'abord été rendu effectif par un `app/(auth)/_layout` qui
+ * redirigeait vers /onboarding tant que `ageConfirmed` (AsyncStorage) n'était
+ * pas lu à `true`. L'ACCÈS À LA CONNEXION dépendait donc d'une écriture locale
+ * best-effort. Or ce stockage peut ne rien retenir — navigation privée,
+ * localStorage bloqué, données de site purgées, quota plein — et l'écriture
+ * échouait EN SILENCE. Résultat : /onboarding → âge → /sign-in → le layout ne
+ * relit rien → /onboarding… en boucle, sans un mot d'explication. Le gate ne
+ * protégeait plus un mineur, il enfermait tout le monde.
+ *
+ * ─── CE QUE LA LOI DEMANDE VRAIMENT ─────────────────────────────────────────
+ * Apple 5.1.1 et le régime RGPD des mineurs interdisent de CRÉER UN COMPTE pour
+ * un mineur. Ils n'exigent pas d'interdire l'accès à un écran. Le gate est donc
+ * posé au POINT DE CRÉATION : ici, devant les trois voies de cet écran — et
+ * elles créent toutes (`requestEmailOtp` envoie `shouldCreateUser: true` ;
+ * Apple/Google provisionnent l'utilisateur à la première identité).
+ *
+ * ─── POURQUOI CETTE FORME NE PEUT PAS DEVENIR UN CUL-DE-SAC ─────────────────
+ * La question est posée EN PLACE, dans le bloc d'actions. Aucune navigation,
+ * donc aucun aller-retour possible : l'écran de connexion est TOUJOURS
+ * atteignable et TOUJOURS quittable (flèche retour). Au pire, le joueur redonne
+ * un tap à chaque lancement — et on le lui DIT (STORAGE_UNAVAILABLE_NOTICE).
+ *
+ * ─── ET ON NE TRANCHE JAMAIS SUR UN DÉFAUT ──────────────────────────────────
+ * `ageConfirmed: false` par défaut ne veut PAS dire « mineur ». Les trois états
+ * du stockage sont donc distingués (store.ts) :
+ *   · `reading`      → on ATTEND. Le hero reste, le bloc d'actions ne peint rien
+ *                      (ni fournisseurs — ce serait créer sans gate, ni question
+ *                      — ce serait la poser pour rien). Borné : la lecture rend
+ *                      la main ou expire (3 s) en `unavailable`.
+ *   · `ready` + true → passé. La question ne se voit jamais.
+ *   · sinon          → on RE-DEMANDE. Un défaut n'est pas une réponse, et
+ *                      re-demander coûte un tap là où sauter coûte la conformité.
  */
 import { useEffect, useState } from 'react';
 import {
@@ -14,16 +65,23 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
-import { colors, fontSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/auth';
 import { useT } from '../../src/i18n/store';
+import { Icon } from '../../src/ui/Icon';
 import type { Entry } from '../../src/i18n/types';
+import { AGE } from '../../src/features/onboarding/content';
+import {
+  STORAGE_UNAVAILABLE_NOTICE,
+  useOnboardingState,
+} from '../../src/features/onboarding/store';
 import { EVENTS, track } from '../../src/lib/analytics';
 import {
+  GOOGLE_CAPABLE,
   requestEmailOtp,
   signInWithApple,
   signInWithGoogle,
@@ -140,23 +198,44 @@ function failureMessage(result: AuthResult): Entry | null {
 }
 
 /** P0 B5 — un bouton Google MORT est un mensonge : caché tant que le client id manque. */
-const GOOGLE_CONFIGURED = Boolean(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
+/* Même source que le moteur (cf. onboarding) : `GOOGLE_CAPABLE` dérive de
+   l'identifiant de LA plateforme courante, pas de celui d'iOS. */
+const GOOGLE_CONFIGURED = GOOGLE_CAPABLE;
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const t = useT();
-  const { session, configured } = useSession();
+  const { session, loading, configured } = useSession();
   const [error, setError] = useState<Entry | null>(null);
   const [busy, setBusy] = useState(false);
   // P0 D1 — filet email OTP (code à 6 chiffres, pas de magic-link : zéro deep link).
   const [emailStep, setEmailStep] = useState<'hidden' | 'email' | 'code'>('hidden');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  // Gate légal (voir l'entête) : mémoire de la déclaration + son statut de lecture.
+  const {
+    state: onboarding,
+    status: storageStatus,
+    persistenceFailed,
+    update: updateOnboarding,
+  } = useOnboardingState();
+  // Auto-déclaration « moins de 16 ans » : état LOCAL, terminal pour cette vue.
+  // Rien n'est persisté (on n'enregistre pas qu'un visiteur s'est dit mineur) et
+  // la flèche retour reste ouverte — un remontage rouvre la question, comme
+  // l'étape `age` de l'onboarding. Une auto-déclaration est par nature
+  // contournable ; c'est le gate attendu par Apple 5.1.1, pas une preuve d'âge.
+  const [ageDeclined, setAgeDeclined] = useState(false);
 
   useEffect(() => {
     track(EVENTS.onboardingStep, { n: ONBOARDING_STEP_PROMISE });
   }, []);
 
+  // ⚠️ Règle des hooks : tous les hooks sont déclarés AVANT ces returns.
+  // Restauration de session en cours → fond noir muet (parité avec la variante
+  // web et avec (tabs)/_layout) : sans ce cas, un joueur DÉJÀ connecté voyait
+  // l'écran de connexion clignoter le temps de la restauration — on lui aurait
+  // demandé de se connecter alors qu'il l'était. Un chargement n'affirme rien.
+  if (loading) return <View style={styles.root} />;
   // Déjà connecté, ou mode dev sans backend → carte directement.
   if (session || !configured) return <Redirect href="/" />;
 
@@ -168,6 +247,16 @@ export default function SignInScreen() {
     setBusy(false);
     return result;
   };
+
+  /**
+   * LES TROIS ÉTATS DU GATE, jamais confondus (voir l'entête).
+   * `ageDeclared` est le SEUL laissez-passer : tout le reste — lecture en cours,
+   * lecture impossible, réponse absente — n'est pas une réponse, donc on attend
+   * ou on redemande. Aucune de ces branches ne ferme l'écran.
+   */
+  const ageDeclared = onboarding.ageConfirmed;
+  const ageUnknown = storageStatus === 'reading' && !ageDeclared;
+  const askAge = !ageDeclared && !ageUnknown;
 
   return (
     // P0 — le flux e-mail OTP saisit du texte : sans esquive du clavier, le champ
@@ -188,14 +277,75 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-      <View style={styles.hero}>
-        <Text style={styles.kicker}>{t(C.kicker)}</Text>
-        {/* TODO fonts : Space Grotesk 700, tracking -2 % (addendum §E) — système en attendant */}
-        <Text style={styles.title}>{t(C.title)}</Text>
-        <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
+      {/* Un seul enfant pour garder le `space-between` à DEUX blocs (haut/bas) :
+          la flèche vit avec le hero, elle ne devient pas un 3e bloc réparti. */}
+      <View>
+        {/* LA SORTIE : sans elle, « J'ai déjà un compte » enfermait le joueur
+            ici pour toujours (l'onboarding est marqué fait avant d'arriver). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.backToOnboarding)}
+          hitSlop={12}
+          onPress={() => router.replace('/onboarding')}
+          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+        >
+          {/* Chevron pointé à gauche (le tracé pointe à droite → miroir). */}
+          <View style={styles.backMirror}>
+            <Icon name="chevron" size={iconSizes.lg} color={colors.gris} />
+          </View>
+        </Pressable>
+        <View style={styles.hero}>
+          {/* Le kicker dit à quelle étape on est : la vérification légale d'abord,
+              la connexion ensuite. Il bascule en même temps que le bloc du bas. */}
+          <Text style={styles.kicker}>{t(askAge ? AGE.kickerSignIn : C.kicker)}</Text>
+          {/* TODO fonts : Space Grotesk 700, tracking -2 % (addendum §E) — système en attendant */}
+          <Text style={styles.title}>{t(C.title)}</Text>
+          <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
+        </View>
       </View>
 
       <View style={styles.actions}>
+      {/* ── LE GATE, EN PLACE ──
+          Trois branches exclusives, dans l'ordre des questions de l'entête. */}
+      {ageDeclined ? (
+        /* Moins de 16 : terminal ICI (aucun chemin vers l'avant, §A 1 CTA), mais
+           l'écran reste quittable par la flèche. On ne peint aucune voie d'auth :
+           il n'y a rien à créer. */
+        <>
+          <Text style={styles.gateTitle}>{t(AGE.blockedTitle)}</Text>
+          <Text style={styles.gateNote}>{t(AGE.blockedTagline)}</Text>
+        </>
+      ) : ageUnknown ? (
+        /* Lecture EN COURS : on n'affirme rien. Ni les fournisseurs (ce serait
+           ouvrir la création sans gate), ni la question (ce serait la poser à
+           quelqu'un qui y a déjà répondu). Le hero porte l'écran pendant ce
+           temps — jamais de page vide, et c'est borné (3 s → `unavailable`). */
+        null
+      ) : askAge ? (
+        <>
+          <Text style={styles.gateTitle}>{t(AGE.title)}</Text>
+          <Text style={styles.gateNote}>{t(AGE.tagline)}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(AGE.confirmA11y)}
+            onPress={() => void updateOnboarding({ ageConfirmed: true })}
+            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+          >
+            <Icon name="bouclier" size={20} color={colors.noir} />
+            <Text style={styles.ctaLabel}>{t(AGE.confirm)}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(AGE.under)}
+            onPress={() => setAgeDeclined(true)}
+            style={({ pressed }) => [styles.gateLink, pressed && styles.backPressed]}
+          >
+            <Text style={styles.gateLinkLabel}>{t(AGE.under)}</Text>
+          </Pressable>
+        </>
+      ) : (
+        /* Âge déclaré : les voies de création/connexion, telles quelles. */
+        <>
         {Platform.OS === 'ios' ? (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -230,6 +380,10 @@ export default function SignInScreen() {
         ) : null}
         {emailStep === 'email' ? (
           <>
+            {/* Dit AVANT la saisie ce que le code va faire : connecter un compte
+                existant, ou en créer un. C'est la porte d'entrée de celui qui
+                réinstalle — il doit savoir qu'il est au bon endroit. */}
+            <Text style={styles.otpHint}>{t(C.otpCreatesOrSignsIn)}</Text>
             <TextInput
               accessibilityLabel={t(C.emailFieldA11y)}
               style={styles.input}
@@ -293,6 +447,14 @@ export default function SignInScreen() {
           </>
         ) : null}
         {error ? <Text style={styles.error}>{t(error)}</Text> : null}
+        </>
+      )}
+      {/* L'ÉTAT QU'ON NE PEUT PAS RETENIR SE DIT (toutes branches confondues).
+          Sans cette ligne, le joueur redonnait sa réponse à chaque lancement sans
+          jamais comprendre pourquoi — l'écriture échouait dans un `catch {}`. */}
+      {persistenceFailed ? (
+        <Text style={styles.gateNote}>{t(STORAGE_UNAVAILABLE_NOTICE)}</Text>
+      ) : null}
       </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -311,7 +473,20 @@ const styles = StyleSheet.create({
   // Champ d'hexagones décoratif : occupe le haut de l'écran, derrière hero + actions
   // (premier enfant + absolu = plan de fond). pointerEvents none → n'intercepte rien.
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: '64%' },
-  hero: { marginTop: 48 },
+  // Flèche de retour vers l'onboarding : cible ≥ 44×44 (+hitSlop), gris discret,
+  // jamais un 2e CTA (§A). `marginLeft` négatif : le glyphe est centré dans sa
+  // boîte de 44, on le recale optiquement sur la marge du texte.
+  back: {
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
+    marginLeft: -10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backPressed: { opacity: 0.7 },
+  backMirror: { transform: [{ scaleX: -1 }] },
+  // 48 → 20 : la flèche occupe désormais le haut du bloc, le hero se recale sous elle.
+  hero: { marginTop: spacing.lg },
   kicker: {
     color: colors.chartreuse, // emploi §C.3 : accent unique, jamais sur fond clair
     fontSize: fontSizes.xs,
@@ -363,4 +538,38 @@ const styles = StyleSheet.create({
   },
   ghostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500' },
   error: { color: colors.blanc, fontSize: fontSizes.sm, textAlign: 'center', marginTop: 6 },
+
+  // ── GATE D'ÂGE, POSÉ AU POINT DE CRÉATION (voir l'entête) ──
+  // La question vit dans le bloc du bas : le hero ne bouge pas, donc rien ne
+  // « saute » quand la lecture du stockage rend la main.
+  gateTitle: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontWeight: '600',
+    lineHeight: fontSizes.md * 1.3,
+  },
+  /** Sert aussi à l'avis de non-persistance : gris, jamais chartreuse (≠ action). */
+  gateNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.45,
+    marginBottom: 4,
+  },
+  // L'UNIQUE CTA chartreuse de l'écran, et seulement tant que la question est
+  // posée (§A4 : au plus un). Une fois l'âge déclaré, l'écran repasse à zéro
+  // chartreuse — les voies d'auth restent des boutons système / ghost.
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    height: 56,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+  },
+  ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
+  ctaPressed: { opacity: 0.85 },
+  // Lien secondaire « moins de 16 » — cible ≥ 44 px, gris, jamais un 2e CTA.
+  gateLink: { minHeight: sizes.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  gateLinkLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
 });

@@ -51,6 +51,89 @@ function geolocation(): Geolocation | null {
   return navigator.geolocation ?? null;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MÉMOIRE D'ACCORD — le seul moyen de savoir, sur Safari, qu'une position peut
+// être lue SANS ouvrir d'invite.
+//
+// LE PROBLÈME. Depuis que la carte ne DEMANDE plus rien au montage (elle LIT),
+// elle renonce dès que la permission n'est pas `granted`. Or sur tout navigateur
+// sans Permissions API pour la géoloc — Safari en tête — `checkForegroundPermission`
+// répond TOUJOURS `undetermined`, même après un accord. Résultat : la position
+// n'était PLUS JAMAIS tentée à l'ouverture, et un joueur Safari qui avait
+// pourtant autorisé la localisation ne se voyait jamais sur sa carte.
+//
+// CE QU'ON NE VEUT PAS. Retomber sur une demande automatique au montage : une
+// invite de géolocalisation non liée à un geste est précisément ce que le
+// produit a promis de ne plus faire (« le GPS s'allume au départ »).
+//
+// LA SORTIE. Un accord de géolocalisation est PERSISTÉ PAR ORIGINE par le
+// navigateur : si cette origine a déjà rendu un fix réel, un nouvel appel à
+// `getCurrentPosition` n'ouvre pas d'invite. On mémorise donc UNIQUEMENT ce
+// fait — « cette origine a déjà rendu une position » — et on s'en sert pour
+// reprendre la lecture là où l'état de permission est illisible. Ce n'est pas
+// une donnée fabriquée : c'est le compte rendu d'un évènement réel, écrit par le
+// code qui l'a observé, et effacé dès qu'un refus le contredit.
+//
+// ⚠️ LIMITE ASSUMÉE, à ne pas cacher : si le joueur accorde puis REMET la
+// permission à « demander » dans les réglages du navigateur, cette mémoire
+// survit à la remise à zéro et la lecture d'ouverture rouvrira une invite. Le
+// cas est étroit (une manipulation explicite dans les réglages du navigateur),
+// et la première réponse — accord ou refus — remet la mémoire d'aplomb.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const GRANT_MEMO_KEY = 'gryd.geo.granted';
+
+/** localStorage peut être absent (SSR) ou interdit (mode privé strict). */
+function memo(): Storage | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Consigne ce qui vient d'être OBSERVÉ (un fix réel, ou un refus explicite). */
+function rememberGrant(granted: boolean): void {
+  const store = memo();
+  if (!store) return;
+  try {
+    if (granted) store.setItem(GRANT_MEMO_KEY, '1');
+    else store.removeItem(GRANT_MEMO_KEY);
+  } catch {
+    // Quota / mode privé : la mémoire est un CONFORT, jamais une dépendance —
+    // sans elle on retombe simplement sur « le joueur touche Recentrer ».
+  }
+}
+
+/**
+ * Cette origine a-t-elle DÉJÀ rendu une position ? Utilisé par la carte pour
+ * décider si une lecture d'ouverture est sûre (aucune invite) là où l'état de
+ * permission est illisible. Ne dit RIEN de l'état courant de la permission :
+ * c'est un fait passé, et il est traité comme tel.
+ */
+export function hasProvenGrant(): boolean {
+  const store = memo();
+  if (!store) return false;
+  try {
+    return store.getItem(GRANT_MEMO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * L'état de permission est-il LISIBLE sur ce navigateur ? `false` sur Safari
+ * (pas de Permissions API pour la géoloc) : `checkForegroundPermission` y répond
+ * `undetermined` par honnêteté, mais cet `undetermined` veut dire « je ne sais
+ * pas », pas « on ne t'a rien demandé ». L'appelant qui doit distinguer les deux
+ * lit ce prédicat plutôt que de deviner.
+ */
+export function isPermissionStateReadable(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return typeof navigator.permissions?.query === 'function';
+}
+
 /**
  * Lecture NON INTRUSIVE de l'état de permission.
  *
@@ -66,8 +149,16 @@ export async function checkForegroundPermission(): Promise<ForegroundPermissionS
   if (!perms?.query) return UNDETERMINED;
   try {
     const status = await perms.query({ name: 'geolocation' as PermissionName });
-    if (status.state === 'granted') return GRANTED;
-    if (status.state === 'denied') return DENIED;
+    // La mémoire d'accord suit l'état RÉEL là où il est lisible : un refus
+    // prononcé dans Chrome efface une mémoire devenue fausse.
+    if (status.state === 'granted') {
+      rememberGrant(true);
+      return GRANTED;
+    }
+    if (status.state === 'denied') {
+      rememberGrant(false);
+      return DENIED;
+    }
     return UNDETERMINED;
   } catch {
     // Nom de permission non supporté : on ne conclut PAS « refusé » (ce serait
@@ -149,6 +240,10 @@ export function getPositionOrFailure(): Promise<PositionAttempt> {
     try {
       api.getCurrentPosition(
         (pos) => {
+          // Un fix RÉEL est arrivé : cette origine a donc l'accord du navigateur.
+          // C'est le seul endroit qui a le droit de l'écrire — on consigne ce
+          // qu'on vient d'observer, jamais une supposition.
+          rememberGrant(true);
           done({
             fix: {
               lat: pos.coords.latitude,
@@ -166,10 +261,11 @@ export function getPositionOrFailure(): Promise<PositionAttempt> {
           });
         },
         (err) => {
-          done({
-            fix: null,
-            reason: err.code === GEOLOCATION_PERMISSION_DENIED ? 'denied' : 'unavailable',
-          });
+          const denied = err.code === GEOLOCATION_PERMISSION_DENIED;
+          // Refus EXPLICITE seulement : un capteur muet ou un timeout ne dit
+          // rien de la permission et ne doit donc pas effacer la mémoire.
+          if (denied) rememberGrant(false);
+          done({ fix: null, reason: denied ? 'denied' : 'unavailable' });
         },
         {
           enableHighAccuracy: true,

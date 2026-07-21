@@ -13,11 +13,30 @@
  * Un échec de géolocalisation n'a qu'une réponse honnête : le DIRE et proposer
  * de réessayer. C'est désormais le SEUL comportement, sur les deux surfaces.
  *
+ * ─── LA PERMISSION VIENT D'UN GESTE (21/07/2026) ───────────────────────────
+ * Cet écran ouvrait la boîte système de localisation AU MONTAGE : un `useEffect`
+ * appelait `locateAndRoute` → `currentPosition()` → `requestForegroundPermissionsAsync()`.
+ * C'est le défaut qui vient d'être corrigé sur la carte, et il contredisait ce
+ * que la copie promet au joueur (« le GPS s'allume au départ ») ainsi que
+ * l'entête de `onboarding/content.ts`, qui justifie la suppression de l'écran
+ * `permission` par « la vraie demande vit au premier GO ». Une invite qui tombe
+ * à l'ouverture d'un écran, sans geste et sans contexte, est un coût qu'on ne
+ * peut pas justifier — et sur web, ce que les navigateurs pénalisent le plus.
+ *
+ * Désormais, à l'ouverture : état `unasked`, RIEN n'est demandé. Le joueur
+ * déclenche la localisation d'un geste (la ligne DÉPART, son bouton cible, ou
+ * un format de plan) — et la course, elle, redemandera de toute façon au GO.
+ * Exception SANS invite possible : si l'app a DÉJÀ obtenu une position dans
+ * cette session (`positionProvenThisSession`), la permission est acquise et
+ * l'OS ne rouvre aucune boîte — on enchaîne alors directement, pour ne pas
+ * imposer un tap à chaque aller-retour carte ⇄ planificateur.
+ *
  * HONNÊTETÉ GPS (audit zéro-friction P0) :
  *   • DÉPART = la position réelle (GPS) uniquement — tant qu'elle n'est pas
  *     confirmée, le CTA de départ est DÉSACTIVÉ ; états explicites
- *     « Localisation… » puis « Position introuvable » + « Réessayer la
- *     localisation » sur échec ; AUCUNE position de repli, nulle part ;
+ *     « Ma position » (rien demandé) / « Localisation… » / « Position
+ *     introuvable » + « Réessayer la localisation » sur échec ; AUCUNE position
+ *     de repli, nulle part ;
  *   • header épuré (3 blocs) : verbe · lieu / KPI km / résumé ≤ 3 infos
  *     (~min · zones · pts) — les minutes sont TOUJOURS une estimation (~) ;
  *   • PLANS = 3 formats (Recommandée / Rapide / Max points) — changer de plan
@@ -76,11 +95,29 @@ const MAP_HEIGHT = 250;
 
 /**
  * État de la géolocalisation — pilote labels, carte et CTA (jamais de mensonge).
- * Il n'existe VOLONTAIREMENT que trois états : on cherche, on a trouvé, on a
- * échoué. Aucun quatrième état « démo » n'est possible — c'est ce qu'il aurait
- * fallu pour inventer une origine, et l'app ne le fait plus.
+ * QUATRE états, distincts et jamais confondus :
+ *   • `unasked`  — on n'a RIEN demandé (état d'ouverture). Ce n'est ni une
+ *                  recherche en cours, ni un échec : afficher « Localisation… »
+ *                  ferait tourner un spinner sur un GPS éteint, et « Position
+ *                  introuvable » accuserait une panne qui n'a pas eu lieu ;
+ *   • `locating` — une tentative est EN COURS (déclenchée par un geste) ;
+ *   • `ok`       — position confirmée ;
+ *   • `error`    — la tentative a échoué (refus, capteur muet, timeout).
+ * Aucun état « démo » n'est possible — c'est ce qu'il aurait fallu pour inventer
+ * une origine, et l'app ne le fait plus.
  */
-type GpsState = 'locating' | 'ok' | 'error';
+type GpsState = 'unasked' | 'locating' | 'ok' | 'error';
+
+/**
+ * L'app a-t-elle DÉJÀ obtenu une position depuis le lancement ? Si oui, la
+ * permission est accordée et une nouvelle lecture n'ouvre AUCUNE boîte système :
+ * on peut enchaîner sans geste. Sinon on ne présume rien.
+ *
+ * Volontairement au niveau MODULE et non persisté : c'est un fait observé dans
+ * CETTE session (le seul dont on soit certain), et il s'oublie au redémarrage —
+ * la permission ayant pu être retirée entre-temps dans les réglages système.
+ */
+let positionProvenThisSession = false;
 
 /**
  * 3 formats (distance) routés autour de l'origine — l'objectif courant est conservé.
@@ -174,7 +211,8 @@ export default function RoutePlannerScreen() {
 
   // Origine : `null` tant que rien n'est confirmé — aucun tracé fantôme Paris.
   const [origin, setOrigin] = useState<OriginPoint | null>(null);
-  const [gps, setGps] = useState<GpsState>('locating');
+  // Ouverture : on n'a rien demandé, et on ne prétend pas chercher.
+  const [gps, setGps] = useState<GpsState>('unasked');
   const [intention, setIntention] = useState<PlannerIntention>(
     params.type === 'defense' ? 'defendre' : 'conquerir',
   );
@@ -257,6 +295,9 @@ export default function RoutePlannerScreen() {
       // Europe) via reverse-geocode + hiérarchie de repli + cache (resolveSectorName).
       // Clé de cache ~ granularité secteur (coords arrondies) ; « Ma position » ne
       // sert que si aucun nom OSM (réseau HS) — jamais un faux lieu.
+      // Une position est arrivée : la permission est donc accordée pour cette
+      // session — les prochaines ouvertures de l'écran n'ouvriront pas de boîte.
+      positionProvenThisSession = true;
       const key = `${pos.lat.toFixed(2)},${pos.lng.toFixed(2)}`;
       const label = await resolveSectorName(pos, key, tNow(C.myPosition));
       const o = { point: pos, label };
@@ -288,9 +329,16 @@ export default function RoutePlannerScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  //
+  // ⚠️ ET SURTOUT : ce démarrage NE DEMANDE PLUS la permission (cf. entête). Il
+  // n'enchaîne que si l'app a déjà obtenu une position dans cette session —
+  // auquel cas aucune boîte système ne s'ouvrira. Sinon on reste en `unasked` :
+  // l'écran est complet et lisible (plans, distance recommandée, sa raison), il
+  // attend juste le geste qui autorise la localisation.
   useEffect(() => {
     if (suggestionLoading || bootedRef.current) return;
     bootedRef.current = true;
+    if (!positionProvenThisSession) return;
     const intent: PlannerIntention = params.type === 'defense' ? 'defendre' : 'conquerir';
     locateAndRoute(suggestion.km, intent, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -420,11 +468,27 @@ export default function RoutePlannerScreen() {
     : { key: '', d: Number.POSITIVE_INFINITY };
   const nearestPlanKeyResolved = nearestPlanKey.d < 0.7 ? nearestPlanKey.key : '';
 
-  // Labels honnêtes par état GPS — jamais « Ma position » sans position confirmée.
+  // Labels honnêtes par état GPS — quatre états, quatre discours. En `unasked`
+  // on n'annonce ni recherche (« Localisation… » ferait tourner un spinner sur
+  // un GPS éteint) ni échec : la ligne DÉPART nomme ce que le geste va donner
+  // (« Ma position »), et c'est le bouton cible qui l'obtient.
+  const gpsPending = gps === 'unasked' || gps === 'error';
   const placeLabel =
-    route?.zone ?? origin?.label ?? (gps === 'error' ? t(C.positionNotFound) : t(C.locating));
+    route?.zone ??
+    origin?.label ??
+    (gps === 'error'
+      ? t(C.positionNotFound)
+      : gps === 'unasked'
+        ? t(C.myPosition)
+        : t(C.locating));
   const originLabel =
-    gps === 'locating' ? t(C.locating) : gps === 'error' ? t(C.positionNotFound) : (origin?.label ?? '—');
+    gps === 'locating'
+      ? t(C.locating)
+      : gps === 'error'
+        ? t(C.positionNotFound)
+        : gps === 'unasked'
+          ? t(C.myPosition)
+          : (origin?.label ?? '—');
   const originHint =
     gps === 'ok' ? t(C.hintGpsOk) : gps === 'error' ? t(C.hintGpsError) : t(C.hintGpsLocating);
   const summaryText = route
@@ -473,13 +537,21 @@ export default function RoutePlannerScreen() {
           <RoutePlannerMap route={route} origin={origin.point} />
         ) : (
           <View style={styles.mapLoading}>
-            {gps === 'error' ? (
+            {/* Un spinner n'a le droit de tourner que si quelque chose tourne :
+                en `unasked` rien n'est en cours, donc une icône, pas une roue. */}
+            {gpsPending ? (
               <Icon name="carte" size={iconSizes.lg} color={colors.gris} />
             ) : (
               <ActivityIndicator color={colors.chartreuse} />
             )}
             <Text style={styles.mapLoadingText}>
-              {gps === 'error' ? t(C.positionNotFound) : gps === 'locating' ? t(C.locating) : t(C.mapComputing)}
+              {gps === 'error'
+                ? t(C.positionNotFound)
+                : gps === 'unasked'
+                  ? t(C.ctaPositionRequired)
+                  : gps === 'locating'
+                    ? t(C.locating)
+                    : t(C.mapComputing)}
             </Text>
           </View>
         )}
@@ -495,7 +567,13 @@ export default function RoutePlannerScreen() {
         <SectionLabel icon="carte" label={t(C.secStart)} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={gps === 'error' ? t(C.retryLocation) : t(C.a11yRecenter)}
+          accessibilityLabel={
+            gps === 'error'
+              ? t(C.retryLocation)
+              : gps === 'unasked'
+                ? t(C.myPosition)
+                : t(C.a11yRecenter)
+          }
           onPress={recentrer}
           style={({ pressed }) => [styles.originRow, pressed && styles.pressed]}
         >
@@ -503,7 +581,7 @@ export default function RoutePlannerScreen() {
             <Icon
               name="carte"
               size={iconSizes.sm}
-              color={gps === 'error' ? colors.gris : colors.chartreuse}
+              color={gpsPending ? colors.gris : colors.chartreuse}
             />
             <Text style={styles.originLabel} numberOfLines={1} adjustsFontSizeToFit>
               {originLabel}
@@ -518,15 +596,23 @@ export default function RoutePlannerScreen() {
           </View>
         </Pressable>
         <Text style={styles.hint}>{originHint}</Text>
-        {gps === 'error' ? (
+        {/* LE GESTE qui autorise la localisation — visible dans les DEUX états où
+            rien n'est acquis, avec le bon verbe pour chacun : « Réessayer » quand
+            une tentative a échoué, la simple demande quand personne n'a rien
+            demandé (réessayer ce qui n'a jamais été tenté n'a pas de sens).
+            Ce n'est PAS le CTA chartreuse de l'écran (§A4 : c'est le bouton de
+            départ, en bas) — une pill sombre secondaire. */}
+        {gpsPending ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t(C.retryLocation)}
+            accessibilityLabel={gps === 'error' ? t(C.retryLocation) : t(C.myPosition)}
             onPress={recentrer}
             style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
           >
             <Icon name="cible" size={16} color={colors.blanc} />
-            <Text style={styles.retryLabel}>{t(C.retryLocation)}</Text>
+            <Text style={styles.retryLabel} numberOfLines={1}>
+              {gps === 'error' ? t(C.retryLocation) : t(C.myPosition)}
+            </Text>
           </Pressable>
         ) : null}
 
@@ -769,7 +855,7 @@ export default function RoutePlannerScreen() {
       {/* ── CTA VERBE contextuel — désactivé tant que la position n'est pas confirmée ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.ctaMicro} numberOfLines={1}>
-          {route ? ctaMicrocopy(route) : gps === 'error' ? t(C.ctaPositionRequired) : '—'}
+          {route ? ctaMicrocopy(route) : gpsPending ? t(C.ctaPositionRequired) : '—'}
         </Text>
         <Pressable
           accessibilityRole="button"

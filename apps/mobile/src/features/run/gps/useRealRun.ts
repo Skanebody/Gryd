@@ -36,6 +36,30 @@ import { useRealRunCore } from './useRealRunCore';
  * distincts, deux phrases distinctes à l'écran : autorisation refusée (elle se
  * redonne dans les Réglages) ou localisation du téléphone coupée (c'est
  * l'interrupteur système qu'il faut rallumer).
+ *
+ * ─── ET C'EST BIEN LE PREMIER MOMENT, DEPUIS LE 21/07/2026 ──────────────────
+ * Ça ne l'était pas : `MapScreen` demandait la permission AU MONTAGE, donc la
+ * boîte système tombait à l'ouverture de l'onglet Carte, avant tout GO. La carte
+ * ne fait plus que LIRE la permission à l'ouverture ; elle ne la DEMANDE que sur
+ * geste (bouton Recentrer). Ce commentaire, l'entête de `onboarding/content.ts`
+ * et la copie `learnNote` (« le GPS s'allume au départ ») disent donc enfin la
+ * même chose que le code.
+ *
+ * ─── CE QUE ÇA CHANGE POUR LE FUNNEL §8 (`permission_location`) ─────────────
+ * L'event n'a plus aucun émetteur « déclaratif ». La valeur
+ * `result: 'onboarding_accept'` a disparu avec l'écran `permission` de
+ * l'onboarding (supprimé le 21/07/2026) : elle comptait des joueurs qui avaient
+ * tapé « OK » sur un écran PÉDAGOGIQUE, sans qu'aucune permission n'ait été
+ * demandée — un consentement affiché, pas obtenu. Vérifié le 21/07/2026 :
+ * `onboarding_accept` n'apparaît plus nulle part dans le dépôt (aucune requête,
+ * aucun tableau de bord versionné, aucune doc). Les seules valeurs émises
+ * aujourd'hui sont de VRAIES réponses de l'OS :
+ *   • foreground (ici + `webRunProvider`) : 'granted' | 'denied' | 'undetermined' ;
+ *   • background (`useRealRunCore`)       : 'background_granted' | 'background_denied'.
+ * Conséquence à assumer côté pilote : la marche « permission » de l'entonnoir
+ * chute mécaniquement (elle était gonflée par l'accord déclaratif) et se décale
+ * dans le temps (au 1er GO, plus à l'onboarding). Une comparaison avant/après le
+ * 21/07/2026 sur cet event n'a PAS de sens — comparer les cohortes postérieures.
  */
 async function acquireNative(): Promise<AcquireResult> {
   let perm = await checkForegroundPermission();

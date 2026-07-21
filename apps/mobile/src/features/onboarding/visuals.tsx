@@ -12,13 +12,19 @@
  * mini-carte HONNÊTE du quartier République (mon territoire au centre, le rival
  * à l'est, l'objectif au nord se lisent à leur vraie place relative).
  *
- * Quatre briques :
+ * Trois briques :
  *   HookMapBackground — carte réelle animée EN FOND du splash (§1).
- *   CityBoard         — le TERRAIN DE JEU (plateau DÉMO — aucune géoloc réelle,
- *                       la copy l'assume) : zones par rôle sur vrais tracés (§2, §C).
- *   CaptureFillVisual — la vraie boucle République qui SE DESSINE puis SE REMPLIT
- *                       à la capture (§5, payoff).
- *   SyncProgressBar   — barre de progression sobre du déroulé d'import (3a).
+ *   TerrainVisual     — LE TERRAIN **ET** LA RÈGLE en un seul plan (§2 + §5).
+ *   LogoRouteMark     — la marque GRYD dessinée par un parcours qui se court.
+ *
+ * ─── POURQUOI UN SEUL PLATEAU (refonte 21/07/2026) ──────────────────────────
+ * Il y en avait deux : `CityBoard` montrait les 3 rôles de zone, puis
+ * `CaptureFillVisual` montrait la boucle qui se remplit — deux écrans pour une
+ * seule idée (« le terrain appartient à quelqu'un, voilà comment on le prend »).
+ * `TerrainVisual` les FUSIONNE dans un plan unique : le quartier apparaît déjà
+ * occupé (violet contesté, orange rival), puis la trace se dessine, ferme la
+ * boucle, et la zone bascule en chartreuse. La règle se voit au lieu de se lire
+ * deux fois. `SyncProgressBar` est parti avec le mode vitrine qu'elle animait.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
@@ -128,7 +134,6 @@ const BOARD_PROJ = fitTracesToBox(
 const MINE_PATH = BOARD_PROJ.path(BOUCLE_REPUBLIQUE, true);
 const CONTESTED_PATH = BOARD_PROJ.path(BOUCLE_SQUARE_VILLEMIN, true);
 const RIVAL_PATH = BOARD_PROJ.path(BOUCLE_BASTILLE, true);
-const EGO_PT = BOARD_PROJ.project(EGO_REPUBLIQUE);
 
 /**
  * Chip « Exemple » posée SUR le visuel (décision fondateur 21/07/2026 : un
@@ -212,152 +217,130 @@ export function HookMapBackground() {
   );
 }
 
-// ─── 2 — Le terrain de jeu en plateau (§2) ───────────────────────────────────
+// ─── LE TERRAIN **ET** LA RÈGLE, en un seul plan (§2 + §5 + §C) ──────────────
+
+/** Point de départ de la boucle héros (= point d'arrivée : elle s'y referme). */
+const MINE_START = BOARD_PROJ.project(BOUCLE_REPUBLIQUE[0] ?? EGO_REPUBLIQUE);
 
 /**
- * Le TERRAIN DE JEU (plateau DÉMO — aucune géoloc réelle, la copy de l'écran
- * l'assume) : la LEÇON DES 3 ÉTATS DE ZONE (§C, retour terrain 20/07) sur trois
- * vraies boucles. Chaque état est une ZONE PLEINE — jamais un trait nu, qui se
- * lisait comme un bug :
- *   chartreuse = à toi · violet = contestée (les deux crews se la disputent,
- *   double contour) · orange = à un crew rival.
- * Les trois se révèlent en cascade ; position du joueur = flèche chartreuse à
- * l'ego réel (place de la République), DANS sa zone — comme sur la vraie carte.
+ * LE PLATEAU DÉMO (aucune géoloc réelle — la chip « Exemple » et la copy de
+ * l'écran l'assument), qui enseigne DEUX choses d'un seul geste :
+ *
+ *   1. les 3 RÔLES DE ZONE (§C, retour terrain 20/07) — chaque rôle est une
+ *      ZONE PLEINE, jamais un trait nu qui se lisait comme un bug : violet =
+ *      contestée (double contour : deux crews se la disputent), orange = à un
+ *      crew rival, chartreuse = à toi ;
+ *   2. LA RÈGLE — la trace se dessine le long des vraies rues, referme la
+ *      boucle, et l'intérieur BASCULE en chartreuse.
+ *
+ * L'ordre de la mise en scène porte le sens : le quartier apparaît d'abord
+ * OCCUPÉ PAR D'AUTRES (violet + orange), et la zone chartreuse n'existe qu'à la
+ * fin, en récompense de la boucle. C'est pour ça que République démarre VIDE
+ * ici alors qu'elle était déjà « à toi » sur l'ancien plateau : rien n'est
+ * donné au joueur avant qu'il ait couru, pas même en exemple.
+ *
+ * Le repère de position suit la TÊTE de la trace pendant qu'elle se dessine
+ * (même repère que la carte réelle : point chartreuse cerclé de blanc) — on
+ * lit « quelqu'un court », pas « un trait pousse ». Reduce motion : `useProgress`
+ * renvoie 1 d'emblée → état final, boucle fermée et zone prise, sans animation.
  */
-export function CityBoard({ exampleLabel }: { exampleLabel?: string }) {
-  const reveal = useProgress(1400, 0, false);
-  const mineOp = ramp(reveal, 0, 0.5);
-  const contestedOp = ramp(reveal, 0.25, 0.75);
-  const rivalOp = ramp(reveal, 0.5, 1);
+export function TerrainVisual({ exampleLabel }: { exampleLabel?: string }) {
+  const p = useProgress(2600, 0, false);
+  // Le terrain occupé se révèle d'abord ; la course part ensuite ; la zone
+  // bascule en dernier. Trois temps qui ne se chevauchent qu'à peine.
+  const boardOp = ramp(p, 0, 0.2);
+  const drawP = ramp(p, 0.18, 0.74);
+  const fillOp = ramp(p, 0.74, 1);
+  const running = drawP > 0 && drawP < 1;
+  const drawn = tracePrefix(BOUCLE_REPUBLIQUE, drawP);
+  const drawnPoints = BOARD_PROJ.points(drawn);
+  const head = BOARD_PROJ.project(drawn[drawn.length - 1] ?? EGO_REPUBLIQUE);
   return (
     <View style={styles.board}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>
         <RealStreets />
-        {/* À TOI — vraie boucle République remplie (aplat + trait net). */}
+        {/* CONTESTÉE — vraie boucle Villemin en violet (§C), double contour
+            (plein + pointillé décalé) : « deux crews se la disputent ». */}
+        <G opacity={boardOp}>
+          <Path
+            d={CONTESTED_PATH}
+            fill={withAlpha(gameColors.contested, 0.24)}
+            stroke={withAlpha(gameColors.contested, 0.9)}
+            strokeWidth={2}
+            strokeLinejoin="round"
+          />
+          <Path
+            d={CONTESTED_PATH}
+            fill="none"
+            stroke={withAlpha(gameColors.contested, 0.5)}
+            strokeWidth={5}
+            strokeDasharray="3 6"
+            strokeLinejoin="round"
+          />
+          {/* AU RIVAL — boucle Bastille en orange PLEIN (une zone, pas un trait). */}
+          <Path
+            d={RIVAL_PATH}
+            fill={territoryStyle.rivalFill}
+            stroke={territoryStyle.rivalStroke}
+            strokeWidth={2}
+            strokeLinejoin="round"
+          />
+        </G>
+        {/* À TOI — la zone qui BASCULE quand la boucle se referme (le payoff). */}
         <Path
           d={MINE_PATH}
           fill={territoryStyle.crewFill}
           stroke={territoryStyle.crewStroke}
           strokeWidth={2}
           strokeLinejoin="round"
-          opacity={mineOp}
-        />
-        {/* CONTESTÉE — vraie boucle Villemin en violet (§C), double contour
-            (plein + pointillé décalé) : « deux crews se la disputent ». */}
-        <Path
-          d={CONTESTED_PATH}
-          fill={withAlpha(gameColors.contested, 0.24)}
-          stroke={withAlpha(gameColors.contested, 0.9)}
-          strokeWidth={2}
-          strokeLinejoin="round"
-          opacity={contestedOp}
-        />
-        <Path
-          d={CONTESTED_PATH}
-          fill="none"
-          stroke={withAlpha(gameColors.contested, 0.5)}
-          strokeWidth={5}
-          strokeDasharray="3 6"
-          strokeLinejoin="round"
-          opacity={contestedOp}
-        />
-        {/* AU RIVAL — vraie boucle Bastille en orange PLEIN (une zone, pas un trait). */}
-        <Path
-          d={RIVAL_PATH}
-          fill={territoryStyle.rivalFill}
-          stroke={territoryStyle.rivalStroke}
-          strokeWidth={2}
-          strokeLinejoin="round"
-          opacity={rivalOp}
-        />
-        {/* Position du joueur : flèche/triangle chartreuse à l'ego réel. */}
-        <G opacity={mineOp}>
-          <Circle cx={EGO_PT.x} cy={EGO_PT.y} r={11} fill={withAlpha(colors.chartreuse, 0.16)} />
-          <Path
-            d={`M${EGO_PT.x},${EGO_PT.y - 8} L${EGO_PT.x + 6},${EGO_PT.y + 6} L${EGO_PT.x},${EGO_PT.y + 2} L${EGO_PT.x - 6},${EGO_PT.y + 6} Z`}
-            fill={colors.chartreuse}
-          />
-        </G>
-      </Svg>
-      <ExampleTag label={exampleLabel} />
-    </View>
-  );
-}
-
-// ─── 5 — La capture : la vraie boucle se dessine et se remplit (§5) ──────────
-
-/**
- * Projection dédiée de la boucle République seule (grande, centrée) — le payoff
- * mérite tout le cadre. Déterministe.
- */
-const CAP_PROJ = fitTracesToBox([BOUCLE_REPUBLIQUE], BOARD_W, BOARD_H, 30);
-const CAP_ZONE_PATH = CAP_PROJ.path(BOUCLE_REPUBLIQUE, true);
-const CAP_START = CAP_PROJ.project(BOUCLE_REPUBLIQUE[0] ?? EGO_REPUBLIQUE);
-
-/**
- * Animation de REMPLISSAGE de zone à la capture (§5) sur la VRAIE boucle
- * République. Progression pilotée par le parent (`p` 0..1 — même déroulé que le
- * compteur « +X »), pour que l'anim et le chiffre montent ensemble. La trace se
- * dessine le long des vraies rues, ferme la boucle, l'intérieur se remplit en
- * chartreuse. Reduce motion : le parent passe p=1 → état final.
- */
-export function CaptureFillVisual({ p, exampleLabel }: { p: number; exampleLabel?: string }) {
-  const drawP = ramp(p, 0, 0.62);
-  const closed = p >= 0.66;
-  const fillOp = ramp(p, 0.66, 1);
-  const drawn = tracePrefix(BOUCLE_REPUBLIQUE, drawP);
-  const drawnPoints = CAP_PROJ.points(drawn);
-  return (
-    <View style={styles.capture}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>
-        <RealStreets proj={CAP_PROJ} opacity={0.07} />
-        {/* La zone capturée qui SE REMPLIT (le payoff). */}
-        <Path
-          d={CAP_ZONE_PATH}
-          fill={withAlpha(colors.chartreuse, 0.22)}
-          stroke={territoryStyle.crewStroke}
-          strokeWidth={2}
-          strokeLinejoin="round"
           opacity={fillOp}
         />
-        {/* Trace héros : casing sombre + core chartreuse qui se dessine et ferme. */}
-        <Polyline
-          points={drawnPoints}
-          stroke={traceStyle.casing}
-          strokeWidth={7}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        <Polyline
-          points={drawnPoints}
-          stroke={traceStyle.core}
-          strokeWidth={4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        {/* Départ = arrivée (la boucle se referme dessus). */}
-        <Circle cx={CAP_START.x} cy={CAP_START.y} r={5} fill={colors.noir} stroke={traceStyle.core} strokeWidth={2.5} />
-        {closed ? <Circle cx={CAP_START.x} cy={CAP_START.y} r={6.5} fill={traceStyle.core} /> : null}
+        {/* Trace héros §B : casing sombre + core chartreuse, bouts arrondis. */}
+        {drawP > 0 ? (
+          <>
+            <Polyline
+              points={drawnPoints}
+              stroke={traceStyle.casing}
+              strokeWidth={6.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            <Polyline
+              points={drawnPoints}
+              stroke={traceStyle.core}
+              strokeWidth={3.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            {/* Départ = arrivée : la boucle se referme dessus. */}
+            <Circle
+              cx={MINE_START.x}
+              cy={MINE_START.y}
+              r={4.5}
+              fill={colors.noir}
+              stroke={traceStyle.core}
+              strokeWidth={2.5}
+            />
+          </>
+        ) : null}
+        {/* Le repère de position, exactement celui de la carte réelle. */}
+        {running ? (
+          <G opacity={boardOp}>
+            <Circle cx={head.x} cy={head.y} r={10} fill={withAlpha(colors.chartreuse, 0.16)} />
+            <Circle
+              cx={head.x}
+              cy={head.y}
+              r={5}
+              fill={colors.chartreuse}
+              stroke={colors.blanc}
+              strokeWidth={2}
+            />
+          </G>
+        ) : null}
       </Svg>
       <ExampleTag label={exampleLabel} />
-    </View>
-  );
-}
-
-// ─── Barre de progression du déroulé d'import (branche 3a) ───────────────────
-
-/**
- * Barre de progression sobre du déroulé d'import (3a) — remplissage chartreuse
- * (état « en cours », emploi §C.3 (4)). `p` 0..1 piloté par le hook useSyncDemo.
- * Piste carbone, jamais de skeleton chartreuse (charte §G : loaders gris).
- */
-export function SyncProgressBar({ p }: { p: number }) {
-  const pct = Math.max(0, Math.min(1, p));
-  return (
-    <View style={styles.syncTrack}>
-      <View style={[styles.syncFill, { width: `${pct * 100}%` }]} />
     </View>
   );
 }
@@ -370,15 +353,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: withAlpha(colors.blanc, 0.12),
-    backgroundColor: gameColors.carbon,
-    overflow: 'hidden',
-  },
-  capture: {
-    width: '100%',
-    aspectRatio: BOARD_W / BOARD_H,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: withAlpha(colors.chartreuse, 0.3),
     backgroundColor: gameColors.carbon,
     overflow: 'hidden',
   },
@@ -400,17 +374,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: '600',
     letterSpacing: 0.5,
-  },
-  syncTrack: {
-    height: 8,
-    borderRadius: radii.pill,
-    backgroundColor: colors.carbone2,
-    overflow: 'hidden',
-  },
-  syncFill: {
-    height: '100%',
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
   },
 });
 
