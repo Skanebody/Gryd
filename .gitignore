@@ -13,3 +13,7 @@ supabase/.branches/
 ios/
 android/
 scratchpad-secrets.local
+
+# Artefacts du banc d'essai moteur (scripts/ + scratchpad), jamais versionnes.
+run.svg
+run-bench.html
