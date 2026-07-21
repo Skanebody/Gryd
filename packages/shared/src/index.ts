@@ -11,3 +11,4 @@ export * from './france-geo';
 export * from './icons';
 export * from './sectorName';
 export * from './streak';
+export * from './habits';

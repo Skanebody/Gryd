@@ -317,20 +317,20 @@ export function planForRoute(routeId: string): RoutePlanDemo | undefined {
   return ROUTE_PLANS.find((p) => p.routeId === routeId);
 }
 
-/**
- * « Pourquoi cette course ? » — 2 à 3 raisons par route (reason_tags du doc,
- * traduits en chips lisibles). Signal de décision, pas une règle de jeu.
- */
-export const ROUTE_REASONS: Record<string, readonly string[]> = {
-  route_a_rapide: ['Adaptée à tes habitudes', 'Forte valeur crew', 'Boucle fermée'],
-  route_eclair: ['Idéale pour ton streak', 'Simple et proche', 'Boucle fermée'],
-  route_b_optimisee: ['Max de points', 'Forte valeur crew', 'Nouvelles rues'],
-  route_c_defense: ['Priorité crew', '12 rues à sauver', 'Boucle fermée'],
-};
-
-export function routeReasons(route: PlannedRouteDemo): readonly string[] {
-  return ROUTE_REASONS[route.id] ?? ['Boucle fermée'];
-}
+// ─── RETIRÉ (21/07) : ROUTE_REASONS / routeReasons ──────────────────────────
+// Ce bloc affichait « Adaptée à tes habitudes » et « Idéale pour ton streak »
+// sur des routes CODÉES EN DUR, alors qu'aucun code du repo n'apprenait quoi que
+// ce soit des habitudes du joueur. Un écran qui affirme un calcul que le produit
+// ne fait pas est un mensonge, même quand la donnée n'est « que » de la démo.
+//
+// La personnalisation existe maintenant POUR DE VRAI et se lit ailleurs :
+// features/route/suggestion.ts (dérivation pure) + useRouteSuggestion (profil
+// serveur borné à auth.uid()). Le libellé « Adapté à tes habitudes » n'y est
+// autorisé que dans l'état `learned` ; les autres états nomment le défaut.
+// Ces exports étaient par ailleurs MORTS (aucun appelant) : la suppression ne
+// casse aucun écran, elle enlève seulement une formulation prête à resservir.
+// Les puces affichées par le planner viennent de `generatedReasons` (generator.ts),
+// qui ne décrit que des faits du tracé (intention, format, « suit les rues »).
 
 /** La priorité (chips) sélectionne une proposition — et réciproquement. */
 export const ROUTE_ID_BY_PRIORITY: Record<RoutePriority, string> = {

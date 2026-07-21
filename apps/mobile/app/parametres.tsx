@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { SETTINGS_GROUPS, type SettingsRow } from '../src/features/settings/sections';
 import { C } from '../src/i18n/catalog/reglages';
+import { C as CParcours } from '../src/i18n/catalog/parcours';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
@@ -89,6 +90,22 @@ export default function ParametresScreen() {
           ))}
         </View>
       ))}
+      {/* Mes parcours (21/07) : personnaliser ce que GRYD PROPOSE. Ligne
+          dédiée et non fondue dans « Course » — c'est le seul endroit où l'on
+          voit ce que GRYD a déduit de ses habitudes, et où l'on coupe
+          l'apprentissage. Une page de transparence ne se cache pas. */}
+      <View>
+        <SectionLabel>{t(CParcours.secParcours)}</SectionLabel>
+        <Row
+          row={{
+            href: '/mes-parcours',
+            icon: 'route',
+            label: t(CParcours.title),
+            detail: t(CParcours.rowDetail),
+          }}
+        />
+      </View>
+
       {/* Explicabilité (AMENDEMENT-23 §B) : accès direct aux règles depuis les
           Paramètres, en plus de l'Aide. Détails au tap dans la page dédiée. */}
       <View>

@@ -520,6 +520,48 @@ export const C = defineCatalog({
     pt: 'Segue as ruas',
   },
 
+  // ── D'OÙ VIENT LA DISTANCE PROPOSÉE (features/route/suggestion.ts) ────────
+  // UNE phrase, sous les puces « Pourquoi cette course » — le coureur doit
+  // toujours pouvoir savoir POURQUOI on lui propose ça. « Adapté à tes
+  // habitudes » n'est autorisé QUE dans l'état `learned` : c'est le mensonge
+  // que ce chantier supprime (l'ex-puce de demo.ts l'affichait sans rien
+  // apprendre). Les trois autres états disent le défaut ET sa cause.
+  whyLearned: {
+    fr: 'Adapté à tes habitudes : ~{km} km · {n} courses analysées',
+    en: 'Matched to your habits: ~{km} km · {n} runs analysed',
+    es: 'Ajustado a tus hábitos: ~{km} km · {n} carreras analizadas',
+    de: 'An deine Gewohnheiten angepasst: ~{km} km · {n} Läufe ausgewertet',
+    pt: 'Ajustado aos seus hábitos: ~{km} km · {n} corridas analisadas',
+  },
+  whyManual: {
+    fr: 'Ta distance réglée : ~{km} km · elle prime sur l’apprentissage',
+    en: 'Your set distance: ~{km} km · it overrides learning',
+    es: 'Tu distancia fijada: ~{km} km · manda sobre el aprendizaje',
+    de: 'Deine eingestellte Distanz: ~{km} km · sie geht vor dem Lernen',
+    pt: 'Sua distância definida: ~{km} km · vem antes do aprendizado',
+  },
+  whyDefaultLearning: {
+    fr: 'Distance par défaut : ~{km} km · encore {n} courses pour personnaliser',
+    en: 'Default distance: ~{km} km · {n} more runs to personalise',
+    es: 'Distancia por defecto: ~{km} km · faltan {n} carreras para personalizar',
+    de: 'Standarddistanz: ~{km} km · noch {n} Läufe zum Personalisieren',
+    pt: 'Distância padrão: ~{km} km · faltam {n} corridas para personalizar',
+  },
+  whyDefaultOff: {
+    fr: 'Distance par défaut : ~{km} km · apprentissage désactivé',
+    en: 'Default distance: ~{km} km · learning turned off',
+    es: 'Distancia por defecto: ~{km} km · aprendizaje desactivado',
+    de: 'Standarddistanz: ~{km} km · Lernen deaktiviert',
+    pt: 'Distância padrão: ~{km} km · aprendizado desativado',
+  },
+  whyDefaultUnknown: {
+    fr: 'Distance par défaut : ~{km} km · rien d’appris pour l’instant',
+    en: 'Default distance: ~{km} km · nothing learned yet',
+    es: 'Distancia por defecto: ~{km} km · nada aprendido aún',
+    de: 'Standarddistanz: ~{km} km · noch nichts gelernt',
+    pt: 'Distância padrão: ~{km} km · nada aprendido ainda',
+  },
+
   // ── Marqueurs de la carte du planner (labels COURTS sur tuiles) ──────────
   mapStart: {
     fr: 'DÉPART',

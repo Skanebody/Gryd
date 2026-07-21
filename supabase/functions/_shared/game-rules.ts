@@ -1789,3 +1789,126 @@ export type WelcomeStepKey = (typeof WELCOME_STEPS)[number]['key'];
 
 /** Slug du challenge d'accueil seedé dans `challenges` (migration 0051). */
 export const WELCOME_CHALLENGE_SLUG = 'welcome_7d';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFIL D'HABITUDES (A-46 §1) — personnalisation des parcours proposés.
+//
+// Demande fondateur (21/07) : « se baser sur les habitudes des utilisateurs,
+// nombre de kilomètres, route utilisée, il faut qu'un algorithme puisse
+// apprendre ». Constat d'audit : le Route Planner AFFICHAIT déjà « Adaptée à
+// tes habitudes » alors que rien n'apprenait. Ces constantes bornent ce que
+// l'app a le droit de PRÉTENDRE savoir.
+//
+// VIE PRIVÉE — apprendre des habitudes de déplacement est du profilage sur des
+// données de localisation. Le profil ne consomme QUE des agrégats non
+// géographiques (distance, durée, allure, horodatage) : aucune coordonnée,
+// aucun point de départ, rien qui puisse ré-exposer le domicile que §7 floute
+// à 500 m. Un créneau horaire ne dit pas OÙ.
+//
+// ANTI PAY-TO-WIN : un profil d'habitudes SUGGÈRE un parcours. Il n'accorde
+// jamais de points, de territoire ni de multiplicateur.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * SEUIL D'HONNÊTETÉ : nombre minimal de courses comptabilisées en dessous
+ * duquel on ne connaît PAS les habitudes de quelqu'un — le profil renvoie
+ * « inconnu » et l'app le dit, au lieu d'inventer une habitude à partir d'un run.
+ *
+ * Pourquoi 5, et pas 3 :
+ *  1. La médiane de n valeurs ne survit qu'à floor((n-1)/2) valeurs aberrantes.
+ *     n = 3 → UNE seule sortie longue exceptionnelle suffit à déplacer le
+ *     profil ; n = 5 → il en faut DEUX. Or « ~2 courses courtes + 1 longue par
+ *     semaine » est le schéma le plus banal chez un coureur : à n = 3 le profil
+ *     serait structurellement faux, à n = 5 il tient.
+ *  2. Coût pour l'utilisateur : à STREAK_MIN_RUNS_PER_WEEK (2/semaine), 5
+ *     courses ≈ 2,5 semaines. Assez court pour que la personnalisation arrive
+ *     vite, assez long pour couvrir plus d'une semaine — donc pour qu'un jour
+ *     ou un créneau RÉCURRENT ait pu se répéter au moins une fois.
+ *  3. Au-dessus (8, 10) on ne gagne pas en robustesse de médiane, on ne fait
+ *     que retarder : la confiance montante est déjà portée par
+ *     HABITS_CONFIDENT_RUNS.
+ */
+export const HABITS_MIN_RUNS = 5;
+
+/**
+ * Fenêtre d'historique retenue. Au-delà, une course ne décrit plus les
+ * habitudes ACTUELLES (blessure, déménagement, changement de rythme). Alignée
+ * sur RAW_POLYLINE_RETENTION_DAYS (90 j) : on n'apprend pas sur des données
+ * plus vieilles que ce que le projet accepte de conserver.
+ */
+export const HABITS_HISTORY_DAYS = 90;
+
+/** Borne de lecture serveur : jamais plus de courses que ça par appel. */
+export const HABITS_MAX_RUNS = 200;
+
+/**
+ * À partir de ce nombre de courses, l'échantillon est assez fourni pour une
+ * confiance HAUTE — à condition que la dispersion soit faible
+ * (HABITS_TIGHT_SPREAD_RATIO). ~6 semaines à 2 courses/semaine.
+ */
+export const HABITS_CONFIDENT_RUNS = 12;
+
+/**
+ * Dispersion robuste (MAD / médiane) en dessous de laquelle on considère
+ * l'habitude RÉGULIÈRE. 0,20 = « la moitié des courses tombent à ±20 % de la
+ * distance habituelle ». Au-delà, la personne varie trop pour qu'on prétende
+ * connaître « sa » distance : confiance basse, l'UI reste prudente.
+ */
+export const HABITS_TIGHT_SPREAD_RATIO = 0.2;
+
+/**
+ * Part minimale des courses qu'un jour (ou un créneau) doit concentrer pour
+ * être qualifié d'habituel. 0,4 : en dessous, c'est du bruit — on ne surface
+ * RIEN plutôt qu'un « tu cours le mardi » tiré de 2 courses sur 9.
+ */
+export const HABITS_PATTERN_MIN_SHARE = 0.4;
+
+/**
+ * Créneaux de la journée (heure LOCALE de l'appareil). Bornes = heure de début,
+ * le créneau court jusqu'au début du suivant ; `night` enjambe minuit.
+ * DATA, jamais réécrite à la main : HabitSlotKey en est dérivé.
+ */
+export const HABITS_SLOTS = [
+  { key: 'dawn', startHour: 5 },
+  { key: 'day', startHour: 10 },
+  { key: 'evening', startHour: 17 },
+  { key: 'night', startHour: 21 },
+] as const satisfies readonly { key: string; startHour: number }[];
+
+/** Clé d'un créneau d'habitude (dérivée de HABITS_SLOTS). */
+export type HabitSlotKey = (typeof HABITS_SLOTS)[number]['key'];
+
+// ─── PRÉFÉRENCES DE PARCOURS (demande fondateur 21/07 — « un endroit dans les
+//     paramètres pour la personnaliser ») ─────────────────────────────────────
+/**
+ * Une PRÉFÉRENCE de parcours n'est PAS une règle de jeu : elle ne donne aucun
+ * point, aucun territoire, aucun avantage. Elle oriente une SUGGESTION. Ces
+ * constantes vivent quand même ici parce que la borne écrite dans la contrainte
+ * SQL (`route_preferences`) et celle affichée par l'écran doivent être la MÊME —
+ * c'est exactement le cas d'usage de « aucun nombre magique ».
+ */
+
+/**
+ * Distances cibles proposées en un tap (m). Échelle de coureur, pas de machine :
+ * du 3 km d'un soir de semaine à la sortie longue de 15 km. Un ultra-traileur
+ * n'a pas de pastille dédiée — il n'a pas besoin d'une SUGGESTION quotidienne.
+ */
+export const ROUTE_TARGET_DISTANCE_CHOICES_M = [3_000, 5_000, 8_000, 10_000, 15_000] as const;
+
+/** Plancher d'une distance cible = plancher d'une course qui compte (§3.2). */
+export const ROUTE_TARGET_DISTANCE_MIN_M = RUN_MIN_DISTANCE_M;
+
+/**
+ * Plafond d'une distance cible : le marathon. Au-delà, GRYD ne « propose » plus
+ * une sortie du jour — RUN_MAX_DISTANCE_M (100 km) reste la borne de ce qui est
+ * INGÉRABLE, jamais de ce qui est SUGGÉRABLE. Deux notions distinctes.
+ */
+export const ROUTE_TARGET_DISTANCE_MAX_M = 42_195;
+
+/**
+ * Forme de parcours souhaitée. `any` = GRYD choisit (défaut assumé) ; `loop` =
+ * boucle fermée (la mécanique GRYD, remplissage d'intérieur) ; `out_and_back` =
+ * aller-retour (rassurant : on rentre par le chemin connu).
+ */
+export const ROUTE_SHAPES = ['any', 'loop', 'out_and_back'] as const;
+export type RouteShape = (typeof ROUTE_SHAPES)[number];

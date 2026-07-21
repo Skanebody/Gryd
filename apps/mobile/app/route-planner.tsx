@@ -48,6 +48,8 @@ import {
   generatedReasons,
   type PlannerIntention,
 } from '../src/features/route/generator';
+import { useRouteSuggestion } from '../src/features/route/useRouteSuggestion';
+import { runsBeforeLearning, type RouteSuggestion } from '../src/features/route/suggestion';
 import { routeLoop } from '../src/features/route/liveRouting';
 import { setPlannedRoute } from '../src/features/route/plannedRoute';
 import { currentPosition, type OriginPoint } from '../src/features/route/origin';
@@ -71,13 +73,23 @@ function demoOrigin(): OriginPoint {
   return { point: EGO_REPUBLIQUE, label: tNow(C.demoOriginLabel) };
 }
 
-/** 3 formats recommandés (distance) routés autour de l'origine — l'objectif courant est conservé.
- *  Labels/status = Entries i18n, résolus à l'affichage. */
-const PLAN_PRESETS = [
-  { key: 'recommandee', label: C.planRecommended, km: GEN_DEFAULT_KM, status: C.planStatusBalance },
-  { key: 'rapide', label: C.planFast, km: 2, status: C.planStatusSimple },
-  { key: 'max', label: C.planMaxPoints, km: 5, status: C.planStatusZones },
-] as const;
+/**
+ * 3 formats (distance) routés autour de l'origine — l'objectif courant est conservé.
+ * Labels/status = Entries i18n, résolus à l'affichage.
+ *
+ * La « Recommandée » n'est PLUS la constante `GEN_DEFAULT_KM` pour tout le
+ * monde : c'est la distance issue de `useRouteSuggestion` (réglage manuel, sinon
+ * habitudes apprises, sinon défaut assumé). Les deux autres formats restent des
+ * FORMATS fixes (court / plus long) — ce sont des alternatives explicites, pas
+ * des recommandations, donc rien à personnaliser.
+ */
+function planPresets(recommendedKm: number) {
+  return [
+    { key: 'recommandee', label: C.planRecommended, km: recommendedKm, status: C.planStatusBalance },
+    { key: 'rapide', label: C.planFast, km: 2, status: C.planStatusSimple },
+    { key: 'max', label: C.planMaxPoints, km: 5, status: C.planStatusZones },
+  ] as const;
+}
 
 /** 2 verbes joueur (AMENDEMENT-12 §A) — « attaquer » n'est plus proposé ici. */
 const INTENTION_CHOICES: readonly PlannerIntention[] = ['conquerir', 'defendre'];
@@ -118,6 +130,22 @@ function ctaMicrocopy(route: PlannedRouteDemo): string {
   });
 }
 
+/**
+ * POURQUOI CETTE DISTANCE — une phrase, dérivée de la MÊME `RouteSuggestion` qui
+ * a fixé la distance. Écran et décision ne peuvent donc pas diverger : c'est ce
+ * découplage qui avait produit « Adaptée à tes habitudes » sur une constante.
+ * Les 3 états (appris / défaut assumé / réglage manuel) sont tous explicites.
+ */
+function suggestionWhy(s: RouteSuggestion): string {
+  const km = formatKm(s.km);
+  if (s.source === 'manual') return tNow(C.whyManual, { km });
+  if (s.source === 'learned') return tNow(C.whyLearned, { km, n: s.sampleRuns ?? 0 });
+  const remaining = runsBeforeLearning(s);
+  if (remaining !== null && remaining > 0) return tNow(C.whyDefaultLearning, { km, n: remaining });
+  if (s.cause === 'off') return tNow(C.whyDefaultOff, { km });
+  return tNow(C.whyDefaultUnknown, { km });
+}
+
 function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
   return (
     <View style={styles.sectionHead}>
@@ -153,8 +181,14 @@ export default function RoutePlannerScreen() {
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
 
+  // Distance PROPOSÉE + sa raison (features/route/suggestion.ts). Une seule
+  // source pour les deux : la phrase affichée ne peut pas contredire le chiffre.
+  const { suggestion, loading: suggestionLoading } = useRouteSuggestion();
+
   const reqIdRef = useRef(0);
   const liveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Le premier routage n'a lieu qu'une fois, quand la suggestion est connue. */
+  const bootedRef = useRef(false);
 
   /** Route en LIVE autour d'une origine explicite (garde le tracé courant pendant le calcul). */
   const applyRoute = (o: OriginPoint, km: number, intent: PlannerIntention, sd: number) => {
@@ -227,15 +261,28 @@ export default function RoutePlannerScreen() {
   };
 
   // Premier rendu : localisation d'abord — aucun tracé tant que l'origine est inconnue.
+  //
+  // On ATTEND la suggestion (réglage manuel / habitudes / défaut) avant de router :
+  // router d'abord sur `GEN_DEFAULT_KM` puis re-router sur la vraie distance
+  // ferait clignoter un tracé que personne n'a demandé, et afficherait pendant une
+  // seconde une proposition « recommandée » qui n'est celle de personne.
+  // `suggestionLoading` retombe TOUJOURS à false (échec inclus → défaut assumé),
+  // donc ce garde-fou ne peut pas bloquer l'écran.
   useEffect(() => {
     screen('route_planner', { type: params.type ?? 'direct' });
-    const intent: PlannerIntention = params.type === 'defense' ? 'defendre' : 'conquerir';
-    locateAndRoute(GEN_DEFAULT_KM, intent, 1);
     return () => {
       if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (suggestionLoading || bootedRef.current) return;
+    bootedRef.current = true;
+    const intent: PlannerIntention = params.type === 'defense' ? 'defendre' : 'conquerir';
+    locateAndRoute(suggestion.km, intent, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestionLoading]);
 
   // Variantes (autres boucles) : 3 boucles routées LIVE autour de l'origine connue.
   useEffect(() => {
@@ -345,6 +392,21 @@ export default function RoutePlannerScreen() {
 
   const intentionLabel = t(PLANNER_INTENTION_LABELS[intention]);
   const reasons = route ? generatedReasons(route, intention) : [];
+
+  // Formats : la « Recommandée » porte la distance PERSONNALISÉE.
+  const presets = planPresets(suggestion.km);
+  // Format effectivement en cours = le plus proche du tracé, et lui seul —
+  // à condition de rester dans la tolérance (sinon aucun format n'est « choisi »).
+  const nearestPlanKey = route
+    ? presets.reduce<{ key: string; d: number }>(
+        (best, p) => {
+          const d = Math.abs(route.distanceKm - p.km);
+          return d < best.d ? { key: p.key, d } : best;
+        },
+        { key: '', d: Number.POSITIVE_INFINITY },
+      )
+    : { key: '', d: Number.POSITIVE_INFINITY };
+  const nearestPlanKeyResolved = nearestPlanKey.d < 0.7 ? nearestPlanKey.key : '';
 
   // Labels honnêtes par état GPS — jamais « Ma position » sans position confirmée.
   const placeLabel =
@@ -464,7 +526,11 @@ export default function RoutePlannerScreen() {
           </Pressable>
         ) : null}
 
-        {/* ── « Pourquoi cette course ? » ── */}
+        {/* ── « Pourquoi cette course ? » — puces + D'OÙ VIENT LA DISTANCE ──
+             Pas de section nouvelle (§A : 1 écran = 1 décision) : la provenance
+             tient en UNE ligne sous les puces existantes. Elle est affichée dès
+             que la suggestion a résolu, même sans tracé — c'est une propriété de
+             la proposition, pas du routage. */}
         {reasons.length > 0 ? (
           <>
             <SectionLabel icon="cible" label={t(C.secWhy)} />
@@ -477,12 +543,19 @@ export default function RoutePlannerScreen() {
             </View>
           </>
         ) : null}
+        {!suggestionLoading ? (
+          <Text style={styles.hint} numberOfLines={2}>
+            {suggestionWhy(suggestion)}
+          </Text>
+        ) : null}
 
         {/* ── PLANS : 3 formats — la distance change, l'objectif reste ── */}
         <SectionLabel icon="cible" label={t(C.secPlans)} />
         <View style={styles.plansRow}>
-          {PLAN_PRESETS.map((plan) => {
-            const selected = !!route && Math.abs(route.distanceKm - plan.km) < 0.7;
+          {presets.map((plan) => {
+            // Un SEUL format sélectionné : si la distance recommandée tombe près
+            // d'un format fixe (2 ou 5 km), le seuil de 0,7 km en marquait deux.
+            const selected = !!route && plan.key === nearestPlanKeyResolved;
             return (
               <Pressable
                 key={plan.key}

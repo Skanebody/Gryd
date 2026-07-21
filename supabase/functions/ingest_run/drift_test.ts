@@ -43,7 +43,7 @@ const transformSharedDataLine = (line: string): string =>
 // `streak.ts` (LOT 1) suit le même chemin : moteur PUR de la série hébergé dans
 // `shared` pour rester importable par le mobile sans tirer h3-js.
 // ⚠ MIROIR EXACT de scripts/sync-game-rules.mjs (SHARED_DATA_FILES).
-const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts'] as const;
+const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts'] as const;
 
 for (const f of SHARED_DATA_FILES) {
   Deno.test(`drift : _shared/${f} = transformation de packages/shared/src/${f}`, async () => {
