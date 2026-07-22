@@ -174,7 +174,9 @@ export function planFinalization(
   const hexesTaken = row.hexes_taken == null ? offensiveHexesTaken(parsed) : num(row.hexes_taken);
   const objectifHexes = num(row.objectif_hexes);
   const result = offensiveResult(hexesTaken, objectifHexes);
-  const award = offensiveAward(result);
+  // L'objectif module la récompense (§38.2b) : une promesse minuscule ne vaut
+  // plus le barème plein. Le résultat décide SI on crédite, l'ambition COMBIEN.
+  const award = offensiveAward(result, objectifHexes);
   const closedAt = row.closed_at ? new Date(row.closed_at) : null;
   const weekRef = closedAt && !Number.isNaN(closedAt.getTime()) ? closedAt : now;
   return {

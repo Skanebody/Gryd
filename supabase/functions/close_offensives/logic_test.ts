@@ -16,6 +16,7 @@ import {
   CREW_CHEST_WEIGHTS,
   CREW_XP_SOURCES,
   OFFENSIVE_JOINED_MIN_HEXES,
+  OFFENSIVE_FULL_AWARD_OBJECTIVE_HEXES,
   OFFENSIVE_RESULT_AWARD_FACTOR,
   OFFENSIVE_RESULT_THRESHOLDS,
 } from '../_shared/game-rules.ts';
@@ -40,12 +41,20 @@ const CREW = 'crew-aaa';
 const U1 = 'user-1';
 const U2 = 'user-2';
 
+/**
+ * Objectif de référence des fixtures : celui qui mérite le barème PLEIN (§38.2b).
+ * Depuis que la récompense suit l'ambition, un objectif de 10 hexes ne vaut plus
+ * le barème complet — les tests « au barème » doivent donc partir d'un objectif
+ * réellement ambitieux, sinon ils testeraient la part plancher sans le dire.
+ */
+const OBJ = OFFENSIVE_FULL_AWARD_OBJECTIVE_HEXES;
+
 function pending(over: Partial<PendingFinalizeRow> = {}): PendingFinalizeRow {
   return {
     id: OFF,
     crew_id: CREW,
-    objectif_hexes: 10,
-    hexes_taken: 10,
+    objectif_hexes: OBJ,
+    hexes_taken: OBJ,
     closed_at: '2026-07-22T08:00:00Z',
     ...over,
   };
@@ -113,15 +122,15 @@ Deno.test('parseClaim : réponse inconnue ne vaut jamais un succès', () => {
 // ─── PASSE C : plan de finalisation (verdict + récompense) ───────────────────
 
 Deno.test('planFinalization : objectif atteint → victory, XP et coffre au barème', () => {
-  const plan = planFinalization(pending({ hexes_taken: 10, objectif_hexes: 10 }), [], NOW);
+  const plan = planFinalization(pending(), [], NOW);
   assertEquals(plan.result, 'victory');
   assertEquals(plan.crewXp, CREW_XP_SOURCES.offensiveCompleted);
   assertEquals(plan.chestDelta, CREW_CHEST_WEIGHTS.offensiveCompleted);
 });
 
 Deno.test('planFinalization : moitié de l’objectif → partial au facteur du barème', () => {
-  const half = Math.ceil(10 * OFFENSIVE_RESULT_THRESHOLDS.partial);
-  const plan = planFinalization(pending({ hexes_taken: half, objectif_hexes: 10 }), [], NOW);
+  const half = Math.ceil(OBJ * OFFENSIVE_RESULT_THRESHOLDS.partial);
+  const plan = planFinalization(pending({ hexes_taken: half }), [], NOW);
   assertEquals(plan.result, 'partial');
   assertEquals(
     plan.crewXp,
@@ -130,7 +139,7 @@ Deno.test('planFinalization : moitié de l’objectif → partial au facteur du 
 });
 
 Deno.test('planFinalization : échec → 0 XP et 0 coffre (aucun lot de consolation)', () => {
-  const plan = planFinalization(pending({ hexes_taken: 0, objectif_hexes: 10 }), [], NOW);
+  const plan = planFinalization(pending({ hexes_taken: 0 }), [], NOW);
   assertEquals(plan.result, 'fail');
   assertEquals(plan.crewXp, 0);
   assertEquals(plan.chestDelta, 0);
@@ -285,8 +294,12 @@ Deno.test('recordFinalize : niveau inchangé → aucune montée comptée', () =>
 Deno.test('recordFinalize ventile les résultats sans en inventer', () => {
   const r = emptyReport();
   const done = { finalized: true, levelFrom: null, levelTo: null, joined: 0 };
-  recordFinalize(r, planFinalization(pending({ hexes_taken: 10 }), [], NOW), done);
-  recordFinalize(r, planFinalization(pending({ hexes_taken: 5 }), [], NOW), done);
+  recordFinalize(r, planFinalization(pending(), [], NOW), done);
+  recordFinalize(
+    r,
+    planFinalization(pending({ hexes_taken: Math.ceil(OBJ * OFFENSIVE_RESULT_THRESHOLDS.partial) }), [], NOW),
+    done,
+  );
   recordFinalize(r, planFinalization(pending({ hexes_taken: 0 }), [], NOW), done);
   assertEquals([r.victories, r.partials, r.fails], [1, 1, 1]);
   assertEquals(r.finalized, 3);

@@ -12,8 +12,10 @@ import {
   CREW_CHEST_WEIGHTS,
   CREW_XP_SOURCES,
   OFFENSIVE_DURATION_H,
+  OFFENSIVE_FULL_AWARD_OBJECTIVE_HEXES,
   OFFENSIVE_JOINED_MIN_HEXES,
   OFFENSIVE_MAX_ACTIVE_PER_CREW,
+  OFFENSIVE_MIN_AWARD_SHARE,
   OFFENSIVE_MAX_DURATION_H,
   OFFENSIVE_MAX_LEAD_TIME_H,
   OFFENSIVE_MIN_DURATION_H,
@@ -28,6 +30,7 @@ import {
 import {
   joinedContributors,
   offensiveAward,
+  offensiveMinObjectiveFor,
   offensiveHexesTaken,
   offensiveStatusAt,
   shouldActivateOffensive,
@@ -131,8 +134,17 @@ Deno.test('validateOffensiveDraft : libellé vide ou trop long refusé (bornes 0
 });
 
 Deno.test('validateOffensiveDraft : rayon hors [MIN, MAX] refusé, bornes incluses', () => {
+  // L'objectif suit le rayon : depuis §38.2b, un grand théâtre exige un grand
+  // objectif, donc on teste la borne de RAYON avec un objectif légitime pour elle.
   for (const r of [OFFENSIVE_RADIUS_KM_MIN, OFFENSIVE_RADIUS_KM_MAX]) {
-    assertEquals(validateOffensiveDraft(draft({ radiusKm: r }), ctx()), { ok: true }, `${r}`);
+    assertEquals(
+      validateOffensiveDraft(
+        draft({ radiusKm: r, objectiveHexes: offensiveMinObjectiveFor(r) }),
+        ctx(),
+      ),
+      { ok: true },
+      `${r}`,
+    );
   }
   for (const r of [0, -1, OFFENSIVE_RADIUS_KM_MIN / 2, OFFENSIVE_RADIUS_KM_MAX + 0.1, NaN]) {
     assertEquals(
@@ -144,8 +156,17 @@ Deno.test('validateOffensiveDraft : rayon hors [MIN, MAX] refusé, bornes inclus
 });
 
 Deno.test('validateOffensiveDraft : objectif hors bornes ou non entier refusé', () => {
+  // Le plancher ABSOLU ne se teste qu'avec un théâtre où il est le plus exigeant
+  // (§38.2b) : dans un grand théâtre, c'est le plancher RELATIF qui prend le relais.
   for (const o of [OFFENSIVE_OBJECTIVE_HEXES_MIN, OFFENSIVE_OBJECTIVE_HEXES_MAX]) {
-    assertEquals(validateOffensiveDraft(draft({ objectiveHexes: o }), ctx()), { ok: true }, `${o}`);
+    assertEquals(
+      validateOffensiveDraft(
+        draft({ radiusKm: OFFENSIVE_RADIUS_KM_MIN, objectiveHexes: o }),
+        ctx(),
+      ),
+      { ok: true },
+      `${o}`,
+    );
   }
   for (
     const o of [
@@ -294,12 +315,15 @@ Deno.test('shouldCloseOffensive : vraie dès ends_at, fausse avant, jamais deux 
 
 // ─── Clôture : récompense ────────────────────────────────────────────────────
 
-Deno.test('offensiveAward : barème = CREW_XP_SOURCES × facteur de résultat', () => {
-  assertEquals(offensiveAward('victory'), {
+/** Objectif qui mérite le barème PLEIN (part d'ambition = 1). */
+const AMBITIEUX = OFFENSIVE_FULL_AWARD_OBJECTIVE_HEXES;
+
+Deno.test('offensiveAward : barème = CREW_XP_SOURCES × facteur de résultat (ambition pleine)', () => {
+  assertEquals(offensiveAward('victory', AMBITIEUX), {
     crewXp: CREW_XP_SOURCES.offensiveCompleted,
     chestDelta: CREW_CHEST_WEIGHTS.offensiveCompleted,
   });
-  assertEquals(offensiveAward('partial'), {
+  assertEquals(offensiveAward('partial', AMBITIEUX), {
     crewXp: Math.floor(
       CREW_XP_SOURCES.offensiveCompleted * OFFENSIVE_RESULT_AWARD_FACTOR.partial,
     ),
@@ -309,13 +333,70 @@ Deno.test('offensiveAward : barème = CREW_XP_SOURCES × facteur de résultat', 
   });
 });
 
-Deno.test('offensiveAward : un ÉCHEC ne crédite RIEN (aucun lot de consolation)', () => {
-  assertEquals(offensiveAward('fail'), { crewXp: 0, chestDelta: 0 });
+Deno.test('offensiveAward : un ÉCHEC ne crédite RIEN, même très ambitieux', () => {
+  assertEquals(offensiveAward('fail', AMBITIEUX), { crewXp: 0, chestDelta: 0 });
+  assertEquals(offensiveAward('fail', OFFENSIVE_OBJECTIVE_HEXES_MAX), { crewXp: 0, chestDelta: 0 });
+});
+
+// ─── §38.2b — se sous-coter ne paie plus ─────────────────────────────────────
+
+Deno.test('offensiveAward : une promesse minuscule ne vaut PAS le barème plein', () => {
+  const petit = offensiveAward('victory', OFFENSIVE_OBJECTIVE_HEXES_MIN);
+  const grand = offensiveAward('victory', AMBITIEUX);
+  assert(petit.crewXp < grand.crewXp, 'un objectif de 5 hexes doit rapporter moins que 300');
+  // …mais elle vaut TOUJOURS quelque chose : des gens ont réellement couru.
+  assert(petit.crewXp > 0, 'une victoire réelle ne crédite jamais 0');
+  assertEquals(
+    petit.crewXp,
+    Math.floor(CREW_XP_SOURCES.offensiveCompleted * OFFENSIVE_MIN_AWARD_SHARE),
+  );
+});
+
+Deno.test('offensiveAward : l’ambition ne dépasse JAMAIS le barème (pas de sur-crédit)', () => {
+  assertEquals(offensiveAward('victory', OFFENSIVE_OBJECTIVE_HEXES_MAX), {
+    crewXp: CREW_XP_SOURCES.offensiveCompleted,
+    chestDelta: CREW_CHEST_WEIGHTS.offensiveCompleted,
+  });
+});
+
+Deno.test('validateOffensiveDraft : grand théâtre + objectif ridicule → refusé (§38.2b)', () => {
+  // LE cas qui rendait n'importe quelle sortie « victorieuse » : 10 km annoncés,
+  // 5 hexes demandés. C'est ce refus qui ferme la victoire fabriquée.
+  assertEquals(
+    validateOffensiveDraft(
+      draft({ radiusKm: OFFENSIVE_RADIUS_KM_MAX, objectiveHexes: OFFENSIVE_OBJECTIVE_HEXES_MIN }),
+      ctx(),
+    ),
+    { ok: false, reason: 'objective_too_easy_for_theatre' },
+  );
+});
+
+Deno.test('validateOffensiveDraft : le plancher relatif suit le rayon revendiqué', () => {
+  for (const radiusKm of [1, 2, 5, OFFENSIVE_RADIUS_KM_MAX]) {
+    const plancher = offensiveMinObjectiveFor(radiusKm);
+    assertEquals(
+      validateOffensiveDraft(draft({ radiusKm, objectiveHexes: plancher }), ctx()),
+      { ok: true },
+      `${radiusKm} km au plancher`,
+    );
+    if (plancher > OFFENSIVE_OBJECTIVE_HEXES_MIN) {
+      assertEquals(
+        validateOffensiveDraft(draft({ radiusKm, objectiveHexes: plancher - 1 }), ctx()),
+        { ok: false, reason: 'objective_too_easy_for_theatre' },
+        `${radiusKm} km sous le plancher`,
+      );
+    }
+  }
+});
+
+Deno.test('offensiveMinObjectiveFor : le plancher ABSOLU reste le plus exigeant en petit théâtre', () => {
+  // Un rayon minimal ne peut pas descendre sous le plancher absolu de 5 hexes.
+  assertEquals(offensiveMinObjectiveFor(OFFENSIVE_RADIUS_KM_MIN), OFFENSIVE_OBJECTIVE_HEXES_MIN);
 });
 
 Deno.test('offensiveAward : toujours des entiers, jamais au-dessus du barème', () => {
   for (const r of ['fail', 'partial', 'victory'] as const) {
-    const a = offensiveAward(r);
+    const a = offensiveAward(r, AMBITIEUX);
     assert(Number.isInteger(a.crewXp), r);
     assert(Number.isInteger(a.chestDelta), r);
     assert(a.crewXp <= CREW_XP_SOURCES.offensiveCompleted, r);

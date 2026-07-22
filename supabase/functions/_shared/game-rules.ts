@@ -1066,6 +1066,55 @@ export const OFFENSIVE_ZONE_LABEL_MAX = 80;
 /** Garde-fou anti-spam : offensives simultanément ACTIVES (ou programmées) par crew. */
 export const OFFENSIVE_MAX_ACTIVE_PER_CREW = 3;
 
+// ─── §38.2b Un objectif LÉGITIME (23/07/2026) ────────────────────────────────
+/**
+ * LE TROU QUE CES TROIS CONSTANTES FERMENT. L'objectif d'une offensive est
+ * AUTO-DÉCLARÉ : le crew choisissait librement son rayon (jusqu'à 10 km) et son
+ * objectif (plancher ABSOLU de 5 hexes), sans aucun lien entre les deux. Un
+ * théâtre de 10 km avec un objectif de 5 hexes rendait donc toute course de
+ * 5 hexes « victorieuse » — une victoire que personne n'avait gagnée, et le
+ * barème plein avec. C'est la même faute qu'une donnée fabriquée, en habit de
+ * règle de jeu.
+ *
+ * ON NE PUNIT PAS, ON RETIRE L'INTÉRÊT. Deux règles complémentaires, dans la
+ * grammaire déjà employée ailleurs (rendements décroissants, plafonds) plutôt
+ * que l'interdiction sèche :
+ *   1. un PLANCHER RELATIF au théâtre revendiqué → l'absurde devient impossible ;
+ *   2. une RÉCOMPENSE PROPORTIONNELLE à l'ambition → se sous-coter ne paie plus.
+ * Aucune pénalité, aucun cooldown d'échec : le projet ne punit pas un crew qui
+ * n'a pas réussi (cf. LE RELAIS, A-41).
+ */
+/**
+ * Aire de référence d'un hex à `H3_RESOLUTION` (km²). Sert UNIQUEMENT d'échelle
+ * pour convertir un rayon en capacité de théâtre, donc à calculer un PLANCHER.
+ * ⚠ Jamais affichée : l'aire réelle d'un hex H3 varie d'environ ±20 % selon la
+ * latitude, et un projet qui ne ment pas ne montre pas une surface « moyenne »
+ * comme si c'était la vraie (le même écueil a déjà été refusé pour la « surface
+ * contrôlée »). Pour un seuil, l'approximation est honnête ; pour un chiffre à
+ * l'écran, elle ne l'est pas.
+ */
+export const OFFENSIVE_HEX_AREA_KM2 = 0.015_047_5;
+/**
+ * Part MINIMALE du théâtre qu'un objectif doit revendiquer. En dessous, le
+ * théâtre est une vitrine : on annonce une ville pour aller prendre une rue.
+ * À 2 %, un rayon de 10 km exige ~418 hexes (un vrai engagement collectif) et un
+ * rayon de 500 m retombe sous le plancher absolu de 5 hexes, qui prend le relais.
+ */
+export const OFFENSIVE_MIN_OBJECTIVE_RATIO = 0.02;
+/**
+ * Objectif à partir duquel la récompense est PLEINE. En dessous, elle est
+ * proportionnelle : promettre peu rapporte peu. Volontairement bien sous le
+ * maximum (1 000) — l'ambition maximale n'est pas exigée pour le barème plein,
+ * seulement un engagement sérieux.
+ */
+export const OFFENSIVE_FULL_AWARD_OBJECTIVE_HEXES = 300;
+/**
+ * Part plancher de la récompense : une offensive modeste mais RÉELLEMENT gagnée
+ * crédite toujours quelque chose. On réduit l'intérêt de se sous-coter, on
+ * n'annule pas l'effort de ceux qui ont couru.
+ */
+export const OFFENSIVE_MIN_AWARD_SHARE = 0.25;
+
 // ─── §38.3 Clôture d'une offensive : ce qui est crédité, et à qui ────────────
 /**
  * Part de CREW_XP_SOURCES.offensiveCompleted / CREW_CHEST_WEIGHTS.offensiveCompleted

@@ -35,8 +35,12 @@
 import {
   CREW_CHEST_WEIGHTS,
   CREW_XP_SOURCES,
+  OFFENSIVE_FULL_AWARD_OBJECTIVE_HEXES,
+  OFFENSIVE_HEX_AREA_KM2,
   OFFENSIVE_JOINED_MIN_HEXES,
   OFFENSIVE_MAX_ACTIVE_PER_CREW,
+  OFFENSIVE_MIN_AWARD_SHARE,
+  OFFENSIVE_MIN_OBJECTIVE_RATIO,
   OFFENSIVE_MAX_DURATION_H,
   OFFENSIVE_MAX_LEAD_TIME_H,
   OFFENSIVE_MIN_DURATION_H,
@@ -62,6 +66,8 @@ export type OffensiveRejectReason =
   | 'label_length'
   | 'radius_out_of_range'
   | 'objective_out_of_range'
+  /** L'objectif ne revendique pas assez du théâtre annoncé (§38.2b). */
+  | 'objective_too_easy_for_theatre'
   | 'duration_out_of_range'
   | 'window_invalid'
   | 'starts_too_far_ahead'
@@ -134,6 +140,15 @@ export function validateOffensiveDraft(
     draft.objectiveHexes > OFFENSIVE_OBJECTIVE_HEXES_MAX
   ) {
     return { ok: false, reason: 'objective_out_of_range' };
+  }
+
+  // §38.2b — LE THÉÂTRE N'EST PAS UNE VITRINE. Le rayon et l'objectif étaient
+  // libres INDÉPENDAMMENT l'un de l'autre : annoncer 10 km pour aller prendre
+  // 5 hexes rendait « victorieuse » n'importe quelle sortie. On exige désormais
+  // que l'objectif revendique une part minimale du terrain revendiqué. Le
+  // plancher relatif ne remplace pas l'absolu : c'est le plus exigeant des deux.
+  if (draft.objectiveHexes < offensiveMinObjectiveFor(draft.radiusKm)) {
+    return { ok: false, reason: 'objective_too_easy_for_theatre' };
   }
 
   if (
@@ -231,11 +246,53 @@ export interface OffensiveAward {
  * crédit est collectif (il n'est imputé à aucun membre), donc il ne peut pas
  * servir à contourner le plafond anti-farm individuel.
  */
-export function offensiveAward(result: OffensiveResult): OffensiveAward {
+/**
+ * Capacité approximative d'un théâtre, en hexes de jeu, pour un rayon donné.
+ *
+ * PURE et déterministe : aire du disque / aire de référence d'un hex. Sert de
+ * base au PLANCHER d'objectif (§38.2b) — jamais à afficher une surface, dont la
+ * valeur réelle varie avec la latitude (cf. OFFENSIVE_HEX_AREA_KM2).
+ */
+export function offensiveTheatreCapacityHexes(radiusKm: number): number {
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0) return 0;
+  return Math.floor((Math.PI * radiusKm * radiusKm) / OFFENSIVE_HEX_AREA_KM2);
+}
+
+/**
+ * Objectif MINIMAL légitime pour un théâtre : le plus exigeant des deux planchers
+ * — l'absolu (§38.2) et le relatif au théâtre revendiqué (§38.2b).
+ */
+export function offensiveMinObjectiveFor(radiusKm: number): number {
+  const relatif = Math.ceil(offensiveTheatreCapacityHexes(radiusKm) * OFFENSIVE_MIN_OBJECTIVE_RATIO);
+  return Math.max(OFFENSIVE_OBJECTIVE_HEXES_MIN, relatif);
+}
+
+/**
+ * Part du barème méritée par l'AMBITION de l'objectif, entre
+ * OFFENSIVE_MIN_AWARD_SHARE et 1. Promettre peu rapporte peu : c'est ce qui
+ * retire l'intérêt de se sous-coter, sans rien interdire ni punir.
+ */
+export function offensiveAmbitionShare(objectiveHexes: number): number {
+  if (!Number.isFinite(objectiveHexes) || objectiveHexes <= 0) return OFFENSIVE_MIN_AWARD_SHARE;
+  const brut = objectiveHexes / OFFENSIVE_FULL_AWARD_OBJECTIVE_HEXES;
+  return Math.min(1, Math.max(OFFENSIVE_MIN_AWARD_SHARE, brut));
+}
+
+/**
+ * Récompense de clôture : barème × résultat × ambition.
+ *
+ * `objectiveHexes` a été AJOUTÉ (23/07/2026) : sans lui, une offensive de 5 hexes
+ * et une de 1 000 créditaient exactement la même chose, ce qui payait plein tarif
+ * une promesse minuscule. Un échec continue de ne RIEN créditer, quelle qu'ait été
+ * l'ambition — l'ambition module ce qu'on gagne, elle n'invente pas un lot de
+ * consolation.
+ */
+export function offensiveAward(result: OffensiveResult, objectiveHexes: number): OffensiveAward {
   const factor = OFFENSIVE_RESULT_AWARD_FACTOR[result];
+  const share = offensiveAmbitionShare(objectiveHexes);
   return {
-    crewXp: Math.floor(CREW_XP_SOURCES.offensiveCompleted * factor),
-    chestDelta: Math.floor(CREW_CHEST_WEIGHTS.offensiveCompleted * factor),
+    crewXp: Math.floor(CREW_XP_SOURCES.offensiveCompleted * factor * share),
+    chestDelta: Math.floor(CREW_CHEST_WEIGHTS.offensiveCompleted * factor * share),
   };
 }
 
