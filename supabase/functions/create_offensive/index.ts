@@ -234,28 +234,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let duplicateKept = false;
 
     if (discardId) {
-      // On ne retire JAMAIS une offensive qui porte déjà une contribution :
-      // ce serait détruire un fait de jeu réel pour faire joli.
-      const { count, error: contribError } = await supabase
-        .from('offensive_contributions')
-        .select('user_id', { count: 'exact', head: true })
-        .eq('offensive_id', discardId);
-      if (contribError) {
-        console.error('offensive_contributions read failed', contribError.message);
+      // On ne retire JAMAIS une offensive qui porte déjà une contribution : ce
+      // serait détruire un fait de jeu réel pour faire joli.
+      //
+      // Cette garantie était un TOCTOU : on COMPTAIT les contributions, puis on
+      // supprimait, en deux requêtes distinctes. `ingest_run` tourne en parallèle,
+      // donc une contribution écrite entre les deux disparaissait en silence — la
+      // promesse tenait dans le commentaire, pas dans le code. La condition et la
+      // suppression sont désormais un seul énoncé SQL (`discard_duplicate_offensive`,
+      // 0064) : soit il n'y a aucune contribution et la ligne part, soit elle reste.
+      const { data: discarded, error: discardError } = await supabase.rpc(
+        'discard_duplicate_offensive',
+        { p_offensive_id: discardId, p_created_by: userId },
+      );
+      if (discardError) {
+        console.error('duplicate offensive discard failed', discardError.message);
         duplicateKept = true;
-      } else if ((count ?? 0) > 0) {
+      } else if (discarded !== true) {
+        // La RPC n'a rien supprimé : la jumelle portait déjà une contribution (ou
+        // était close). On la GARDE, et on le dit — jamais un succès décoratif.
         duplicateKept = true;
-      } else {
-        const { error: deleteError } = await supabase
-          .from('offensives')
-          .delete()
-          .eq('id', discardId)
-          .eq('created_by', userId)
-          .neq('status', 'done');
-        if (deleteError) {
-          console.error('duplicate offensive delete failed', deleteError.message);
-          duplicateKept = true;
-        }
       }
     }
 

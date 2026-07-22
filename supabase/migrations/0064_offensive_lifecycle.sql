@@ -68,6 +68,15 @@ update public.offensives
 update public.offensives
    set status = 'done', closed_at = coalesce(closed_at, ends_at)
  where result is not null and status <> 'done';
+-- ⚠ `finalized_at` AUSSI. La contrainte `offensives_result_consistency` ajoutée
+-- plus bas exige `result is not null ⇒ finalized_at is not null`. Sans ce
+-- rattrapage, `add constraint` ÉCHOUERAIT sur toute base portant déjà une ligne
+-- avec un `result` écrit — et la migration entière ne s'appliquerait pas. On
+-- date la finalisation de la clôture connue, jamais de `now()` : inventer une
+-- date de finalisation d'aujourd'hui pour un fait ancien serait un faux.
+update public.offensives
+   set finalized_at = coalesce(finalized_at, closed_at, ends_at)
+ where result is not null and finalized_at is null;
 
 alter table public.offensives
   drop constraint if exists offensives_closed_consistency;
@@ -217,6 +226,11 @@ $$;
 revoke all on function public.create_offensive(
   uuid, uuid, text, bigint, numeric, int, timestamptz, timestamptz, int, text[]
 ) from public, anon, authenticated;
+-- Le revoke seul laisserait l'exécution dépendre des default privileges : on
+-- NOMME donc le seul appelant légitime, comme partout ailleurs dans le repo.
+grant execute on function public.create_offensive(
+  uuid, uuid, text, bigint, numeric, int, timestamptz, timestamptz, int, text[]
+) to service_role;
 
 -- ═══ 4. activate_due_offensives : preparation → active ══════════════════════
 -- Idempotent par construction (ne touche QUE `status = 'preparation'`).
@@ -243,6 +257,9 @@ as $$
 $$;
 
 revoke all on function public.activate_due_offensives() from public, anon, authenticated;
+-- Le revoke seul laisserait l'exécution dépendre des default privileges : on
+-- NOMME donc le seul appelant légitime, comme partout ailleurs dans le repo.
+grant execute on function public.activate_due_offensives() to service_role;
 
 -- ═══ 5. claim_offensive_close : transition A (fige, ne crédite RIEN) ════════
 -- Passe l'offensive à 'done' et FIGE `hexes_taken` (somme des contributions)
@@ -300,6 +317,9 @@ end;
 $$;
 
 revoke all on function public.claim_offensive_close(uuid) from public, anon, authenticated;
+-- Le revoke seul laisserait l'exécution dépendre des default privileges : on
+-- NOMME donc le seul appelant légitime, comme partout ailleurs dans le repo.
+grant execute on function public.claim_offensive_close(uuid) to service_role;
 
 -- ═══ 6. finalize_offensive : transition B (juge écrit + crédit UNIQUE) ══════
 -- Écrit `result` et crédite, DANS LA MÊME TRANSACTION, sous la garde
@@ -397,6 +417,48 @@ $$;
 revoke all on function public.finalize_offensive(
   uuid, text, int, int, bigint[], date, uuid[]
 ) from public, anon, authenticated;
+-- Le revoke seul laisserait l'exécution dépendre des default privileges : on
+-- NOMME donc le seul appelant légitime, comme partout ailleurs dans le repo.
+grant execute on function public.finalize_offensive(
+  uuid, text, int, int, bigint[], date, uuid[]
+) to service_role;
+
+-- ═══ 6bis. discard_duplicate_offensive : retirer un doublon SANS jamais ══════
+--          détruire un fait de jeu.
+-- `create_offensive` comptait les contributions PUIS supprimait, en DEUX requêtes.
+-- `ingest_run` tourne en parallèle : une contribution écrite entre les deux était
+-- détruite en silence — alors que le commentaire promettait exactement l'inverse
+-- (« on ne retire JAMAIS une offensive qui porte déjà une contribution »). Une
+-- garantie écrite au-delà du code est la même faute qu'une donnée fabriquée.
+-- La condition et la suppression tiennent désormais dans UN SEUL énoncé : soit il
+-- n'existe aucune contribution et la ligne part, soit elle reste. Rien entre.
+create or replace function public.discard_duplicate_offensive(
+  p_offensive_id uuid,
+  p_created_by uuid
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_deleted int;
+begin
+  delete from public.offensives o
+   where o.id = p_offensive_id
+     and o.created_by = p_created_by
+     and o.status <> 'done'
+     and not exists (
+       select 1 from public.offensive_contributions c where c.offensive_id = o.id
+     );
+  get diagnostics v_deleted = row_count;
+  return v_deleted > 0;
+end;
+$$;
+
+revoke all on function public.discard_duplicate_offensive(uuid, uuid) from public, anon, authenticated;
+-- Le revoke seul laisserait l'exécution dépendre des default privileges : on
+-- NOMME donc le seul appelant légitime, comme partout ailleurs dans le repo.
+grant execute on function public.discard_duplicate_offensive(uuid, uuid) to service_role;
 
 -- ═══ 7. CRON : le job de clôture (motif 0038/0039) ══════════════════════════
 -- Edge Function attendue : `close_offensives` (activation + clôture + finalisation).

@@ -1055,7 +1055,14 @@ async function processCrew(
       .from('offensives')
       .select('id, center_h3::text, radius_km')
       .eq('crew_id', crewId)
-      .eq('status', 'active')
+      // C'EST LA FENÊTRE QUI DÉCIDE, PAS LA CADENCE DU CRON. On filtrait sur
+      // `status = 'active'` — or ce statut est POSÉ par le job d'activation, qui
+      // passe toutes les 10 min. Une offensive dont la fenêtre venait de s'ouvrir
+      // restait donc 'preparation' jusqu'au tick suivant, et une course ingérée
+      // dans cet intervalle ne comptait pour RIEN : de l'effort réel perdu parce
+      // qu'un job n'était pas encore passé. Le statut est une MATÉRIALISATION du
+      // temps, pas sa source. On exclut seulement ce qui est déjà clôturé.
+      .neq('status', 'done')
       .lte('starts_at', nowIso)
       .gte('ends_at', nowIso)
       .order('id', { ascending: true });

@@ -515,6 +515,46 @@ await t('CHECK : status done ⇔ closed_at non null', async () => {
   ok(raised, 'la contrainte offensives_closed_consistency doit refuser');
 });
 
+// ─── 5bis. discard_duplicate_offensive : le TOCTOU refermé ───────────────────
+// `create_offensive` comptait les contributions PUIS supprimait, en deux requêtes :
+// une contribution écrite entre les deux disparaissait en silence, alors que le
+// code PROMETTAIT de ne jamais détruire un fait de jeu. La condition et la
+// suppression tiennent désormais dans un seul énoncé — voici les deux issues.
+
+await t('discard : une jumelle SANS contribution est retirée', async () => {
+  await reset();
+  const { offensive_id: id } = await createOffensive();
+  const r = await db.query('select public.discard_duplicate_offensive($1, $2) as ok', [
+    id,
+    FOUNDER,
+  ]);
+  eq(r.rows[0].ok, true, 'la RPC dit avoir supprimé');
+  eq(await rowOf(id), undefined, 'la ligne est bien partie');
+});
+
+await t('discard : une jumelle QUI PORTE une contribution SURVIT', async () => {
+  await reset();
+  const { offensive_id: id } = await createOffensive();
+  await contribute(id, FOUNDER, 3); // quelqu'un a réellement couru
+  const r = await db.query('select public.discard_duplicate_offensive($1, $2) as ok', [
+    id,
+    FOUNDER,
+  ]);
+  eq(r.rows[0].ok, false, 'la RPC refuse de supprimer, et le DIT');
+  ok(await rowOf(id), 'le fait de jeu est intact');
+});
+
+await t('discard : on ne retire jamais l’offensive d’un autre auteur', async () => {
+  await reset();
+  const { offensive_id: id } = await createOffensive();
+  const r = await db.query('select public.discard_duplicate_offensive($1, $2) as ok', [
+    id,
+    CO_CAPTAIN,
+  ]);
+  eq(r.rows[0].ok, false, 'auteur différent → aucune suppression');
+  ok(await rowOf(id), 'la ligne reste');
+});
+
 // ─── 6. Grants (le piège déjà rencontré 2 fois) ──────────────────────────────
 await t('GRANTS : ni public, ni anon, ni authenticated n’a EXECUTE', async () => {
   const signatures = [
@@ -522,6 +562,7 @@ await t('GRANTS : ni public, ni anon, ni authenticated n’a EXECUTE', async () 
     'public.activate_due_offensives()',
     'public.claim_offensive_close(uuid)',
     'public.finalize_offensive(uuid, text, int, int, bigint[], date, uuid[])',
+    'public.discard_duplicate_offensive(uuid, uuid)',
   ];
   for (const sig of signatures) {
     for (const role of ['public', 'anon', 'authenticated']) {
