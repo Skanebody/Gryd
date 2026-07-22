@@ -26,6 +26,7 @@ export * from './badges.ts';
 export * from './skills.ts';
 export * from './crew.ts';
 export * from './crewMission.ts';
+export * from './offensive.ts';
 export * from './crewSignals.ts';
 export * from './dailyZone.ts';
 export * from './welcomeChallenge.ts';

@@ -448,6 +448,40 @@ export function applyRejectedRun(stats: LifetimeStats, dateISO: string): Lifetim
 }
 
 /**
+ * Colonnes que CETTE course a réellement changées (PURE, `before` et `after`
+ * inchangés). Clés absentes = valeur strictement identique.
+ *
+ * ═══ POURQUOI CE FILTRE EXISTE ══════════════════════════════════════════════
+ * `user_stats` a DEUX écrivains, et c'est voulu (cf. l'en-tête de ce fichier) :
+ * la course écrit les métriques run-fed, et les JOBS écrivent en direct les
+ * métriques qu'aucune course ne produit — `offensivesJoined` (clôture
+ * d'offensive, famille Raid Leader + skill Strategist), `sectorsControlled`,
+ * `holdDays`, `seasonRank`… Or `applyRunToStats` renvoie une COPIE COMPLÈTE
+ * des stats : réécrire cette copie entière, c'est réécrire aussi les colonnes
+ * des jobs avec la valeur lue AVANT — donc effacer en silence tout crédit de
+ * job tombé entre la lecture et l'écriture de la course (lost update). Le
+ * compteur d'un badge peut alors REculer, ce qu'aucun joueur ne peut
+ * comprendre et qu'aucun log ne signale.
+ *
+ * N'écrire que le delta rend l'écriture de la course DISJOINTE de celle des
+ * jobs : les colonnes qu'elle ne touche pas ne figurent plus dans l'UPDATE,
+ * donc plus rien à écraser. À l'INSERT (joueur sans ligne), les colonnes
+ * omises prennent le DEFAULT SQL (0 / NULL, migration 0007/0009/0012), qui est
+ * exactement `emptyLifetimeStats()` — aucune valeur inventée.
+ */
+export function statsDelta(
+  before: LifetimeStats,
+  after: LifetimeStats,
+): Partial<LifetimeStats> {
+  const delta: Record<string, unknown> = {};
+  const prev = before as unknown as Record<string, unknown>;
+  for (const [key, value] of Object.entries(after)) {
+    if (prev[key] !== value) delta[key] = value;
+  }
+  return delta as Partial<LifetimeStats>;
+}
+
+/**
  * Badges NOUVELLEMENT décernés : seuil atteint dans `after`, jamais gagné.
  * Le moteur décerne TOUS les niveaux franchis d'un coup. Les franchis PENDANT
  * cette course (before sous le seuil) sortent en premier ; suivent les

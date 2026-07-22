@@ -1037,6 +1037,53 @@ export const OFFENSIVE_RESULT_THRESHOLDS = {
   victory: 1.0,
 } as const;
 export type OffensiveResult = 'fail' | 'partial' | 'victory';
+
+// ─── §38.2 Bornes de CRÉATION d'une offensive (garde-fous serveur) ───────────
+// Une offensive est un OBJECTIF DE TERRITOIRE que le crew se donne — jamais un
+// duel contre un crew nommé (la table n'a aucun opponent_crew_id). Ces bornes
+// existent pour qu'un endpoint de création ne puisse pas fabriquer une cible
+// absurde (rayon d'un continent, objectif de 1 hex, fenêtre de 10 ans) ni
+// noyer le War Room sous 100 objectifs simultanés. Elles sont vérifiées par le
+// moteur PUR (engine/offensive.ts) côté serveur, jamais par le client.
+// ANTI PAY-TO-WIN : aucune de ces bornes n'est modulée par un statut payant.
+/** Durée minimale d'une offensive (h) — sous 6 h, la fenêtre est intenable. */
+export const OFFENSIVE_MIN_DURATION_H = 6;
+/** Durée maximale d'une offensive (h) — 3 jours ; au-delà ce n'est plus un raid. */
+export const OFFENSIVE_MAX_DURATION_H = 72;
+/** Avance maximale de programmation d'une offensive (h avant `starts_at`) : 7 j. */
+export const OFFENSIVE_MAX_LEAD_TIME_H = 168;
+/** Rayon minimal du théâtre d'une offensive (km) — sous 500 m, une seule rue. */
+export const OFFENSIVE_RADIUS_KM_MIN = 0.5;
+/** Rayon maximal du théâtre d'une offensive (km) — l'échelle d'une ville. */
+export const OFFENSIVE_RADIUS_KM_MAX = 10;
+/** Objectif minimal en hexes (res H3_RESOLUTION) d'une offensive. */
+export const OFFENSIVE_OBJECTIVE_HEXES_MIN = 5;
+/** Objectif maximal en hexes (res H3_RESOLUTION) d'une offensive. */
+export const OFFENSIVE_OBJECTIVE_HEXES_MAX = 1_000;
+/** Longueur min/max du libellé de zone d'une offensive (miroir du CHECK 0010). */
+export const OFFENSIVE_ZONE_LABEL_MIN = 1;
+export const OFFENSIVE_ZONE_LABEL_MAX = 80;
+/** Garde-fou anti-spam : offensives simultanément ACTIVES (ou programmées) par crew. */
+export const OFFENSIVE_MAX_ACTIVE_PER_CREW = 3;
+
+// ─── §38.3 Clôture d'une offensive : ce qui est crédité, et à qui ────────────
+/**
+ * Part de CREW_XP_SOURCES.offensiveCompleted / CREW_CHEST_WEIGHTS.offensiveCompleted
+ * effectivement créditée au crew à la clôture, selon le résultat (§38.3).
+ * Un échec ne crédite RIEN — pas de lot de consolation qui mentirait sur l'effort.
+ */
+export const OFFENSIVE_RESULT_AWARD_FACTOR = {
+  fail: 0,
+  partial: 0.5,
+  victory: 1,
+} as const;
+/**
+ * Hexes minimaux apportés à une offensive pour qu'elle compte comme « rejointe »
+ * (métrique badge `offensivesJoined` — famille Raid Leader, skill Strategist).
+ * Rejoindre = avoir RÉELLEMENT pris du terrain dans le théâtre, pas cliquer.
+ */
+export const OFFENSIVE_JOINED_MIN_HEXES = 1;
+
 /** Durée de vie standard d'une mission de défense crew (§38.3). */
 export const DEFENSE_MISSION_DURATION_H = 48;
 

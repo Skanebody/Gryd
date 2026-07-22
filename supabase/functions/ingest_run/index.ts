@@ -99,6 +99,7 @@ import {
   localClock,
   shouldCreateOutpost,
   shouldOpenRoute,
+  statsDelta,
   weatherFlags,
   type BadgeRunInput,
   type DedupActivity,
@@ -709,7 +710,16 @@ function rowToStats(row: Record<string, unknown> | null): LifetimeStats {
   return stats;
 }
 
-function statsToRow(userId: string, stats: LifetimeStats): Record<string, unknown> {
+/**
+ * Ligne d'upsert `user_stats`. On ne passe ici QUE le delta de la course
+ * (statsDelta, pur) : les colonnes absentes ne figurent pas dans l'UPDATE, donc
+ * la course n'écrase JAMAIS une métrique écrite par un job — au premier chef
+ * `offensives_joined`, que `finalize_offensive` (migration 0064) incrémente à
+ * la clôture d'une offensive et qui porte la famille de badges Raid Leader et
+ * la skill Strategist. À l'INSERT, les colonnes omises prennent leur DEFAULT
+ * SQL (0 / NULL), identique à `emptyLifetimeStats()`.
+ */
+function statsToRow(userId: string, stats: Partial<LifetimeStats>): Record<string, unknown> {
   const row: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() };
   for (const [key, value] of Object.entries(stats)) row[camelToSnake(key)] = value;
   return row;
@@ -745,7 +755,7 @@ async function awardBadges(userId: string, run: BadgeRunInput): Promise<string[]
 
   const { error: upsertError } = await supabase
     .from('user_stats')
-    .upsert(statsToRow(userId, after), { onConflict: 'user_id' });
+    .upsert(statsToRow(userId, statsDelta(before, after)), { onConflict: 'user_id' });
   if (upsertError) throw new Error(`user_stats upsert: ${upsertError.message}`);
 
   if (newBadges.length === 0) return newBadges;
@@ -786,10 +796,11 @@ async function awardRejectedRun(userId: string, dateISO: string): Promise<void> 
     .eq('user_id', userId)
     .maybeSingle();
   if (statsError) throw new Error(`user_stats read: ${statsError.message}`);
-  const after = applyRejectedRun(rowToStats(statsRow), dateISO);
+  const before = rowToStats(statsRow);
+  const after = applyRejectedRun(before, dateISO);
   const { error: upsertError } = await supabase
     .from('user_stats')
-    .upsert(statsToRow(userId, after), { onConflict: 'user_id' });
+    .upsert(statsToRow(userId, statsDelta(before, after)), { onConflict: 'user_id' });
   if (upsertError) throw new Error(`user_stats upsert (rejected): ${upsertError.message}`);
 }
 
@@ -944,7 +955,15 @@ async function processCrew(
     routesDuplicated: 0, // détection de doublon de route = V1 (routes uniques MVP)
     outpostsMaintained: outcome.newCrewOutposts,
     missionsCompleted: 0, // missions crew complétées = V1 (endpoint dédié)
-    offensivesCompleted: 0, // clôture d'offensive = job, pas la course
+    // Une course ne CLÔT jamais une offensive : la clôture est un job
+    // (claim_offensive_close → finalize_offensive, migration 0064), déclenché
+    // par l'échéance `ends_at`, et c'est LUI qui crédite les 200 XP crew UNE
+    // fois, collectivement. Mettre ici un compteur d'offensives terminées
+    // rejouerait ce crédit à CHAQUE course du membre, indéfiniment — et
+    // l'imputerait à un membre via crew_xp_daily alors que l'XP de clôture est
+    // collective. 0 est donc la seule valeur honnête. Verrouillé par
+    // offensive_metric_test.ts.
+    offensivesCompleted: 0,
     verified: outcome.verified,
     firstOfWeek: outcome.firstOfWeek,
   });
@@ -1026,20 +1045,40 @@ async function processCrew(
   // ── Offensives actives (§38) : hexes claimés dans la zone cible ──────────
   if (claimedCentroids.length > 0) {
     const nowIso = now.toISOString();
+    // `center_h3` est un BIGINT : lu sans cast, PostgREST le sérialise en NOMBRE
+    // JSON. Un index H3 res 7 dépasse 2^53, donc JSON.parse en perd les chiffres
+    // de poids faible — et `dbToH3` rendait alors une AUTRE cellule, c'est-à-dire
+    // un théâtre décalé. Sur l'UNIQUE chemin par lequel une offensive reçoit de la
+    // donnée réelle, ça revenait à compter les hexes autour du mauvais centre.
+    // Le `::text` est la même parade que celle déjà posée côté client.
     const { data: offs, error: offErr } = await supabase
       .from('offensives')
-      .select('id, center_h3, radius_km')
+      .select('id, center_h3::text, radius_km')
       .eq('crew_id', crewId)
       .eq('status', 'active')
       .lte('starts_at', nowIso)
-      .gte('ends_at', nowIso);
+      .gte('ends_at', nowIso)
+      .order('id', { ascending: true });
     if (offErr) throw new Error(`offensives read: ${offErr.message}`);
+
+    // UN HEX NE COMPTE QUE POUR UNE OFFENSIVE. La boucle créditait `inZone` à
+    // CHACUNE des offensives actives : rien n'interdisant deux théâtres qui se
+    // recouvrent, un crew pouvait en ouvrir trois superposées et faire compter la
+    // MÊME course trois fois — un objectif atteint sans course supplémentaire,
+    // c'est-à-dire une victoire fabriquée. Chaque hex est donc attribué à une
+    // seule offensive, dans un ordre déterministe (par id, cf. `.order` ci-dessus)
+    // pour que deux exécutions donnent le même résultat.
+    const consumed = new Set<number>();
     for (const off of offs ?? []) {
       const [clat, clng] = cellToLatLng(dbToH3(off.center_h3));
-      const inZone = claimedCentroids.filter((c) =>
-        withinOffensiveZone(c, { lat: clat, lng: clng }, Number(off.radius_km))
-      ).length;
+      const matched: number[] = [];
+      claimedCentroids.forEach((c, i) => {
+        if (consumed.has(i)) return;
+        if (withinOffensiveZone(c, { lat: clat, lng: clng }, Number(off.radius_km))) matched.push(i);
+      });
+      const inZone = matched.length;
       if (inZone === 0) continue;
+      for (const i of matched) consumed.add(i);
       const { data: contribRow, error: cReadErr } = await supabase
         .from('offensive_contributions')
         .select('hexes')
