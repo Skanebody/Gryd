@@ -1,125 +1,94 @@
 /**
- * GRYD — génération des icônes de marque depuis LA géométrie du logo.
+ * GRYD — génération des icônes de marque depuis LE VRAI LOGO.
  *
- * Pourquoi un script et pas des PNG posés à la main : l'icône existe en 4
- * déclinaisons (iOS, foreground Android, splash, favicon web) qui doivent rester
- * RIGOUREUSEMENT la même lettre. Un fichier retouché séparément dérive au
- * premier ajustement — ici, une seule source de vérité géométrique, et
- * `node scripts/build-brand-icons.mjs` régénère tout.
+ * SOURCE UNIQUE : `brand/logo-gryd.png` — le master fourni par le fondateur
+ * (2000², G noir sur chartreuse, opaque). Toutes les déclinaisons en sortent.
  *
- * ⚠ Le G est reconstruit GÉOMÉTRIQUEMENT (arêtes nettes, terminaisons coupées),
- * PAS avec le tracé arrondi de `LogoRouteMark`. Ce sont deux objets différents :
- * l'animation est un PARCOURS (extrémités rondes, §B) ; l'icône est la LETTRE.
- * Les confondre donnerait une icône molle, illisible à 40 px.
+ * ─── Pourquoi cette réécriture (22/07/2026) ─────────────────────────────────
+ * Ce script RECONSTRUISAIT le G géométriquement (ellipse + barre + coin retiré),
+ * d'après des proportions relevées à l'œil sur le logo. L'approximation était
+ * FAUSSE et visible : la barre horizontale sortait biseautée, avec une encoche
+ * près du centre. C'était l'icône destinée à l'App Store. On ne redessine plus
+ * la marque : on la DÉCOUPE du master.
+ *
+ * Méthode : le master n'a que deux couleurs, donc un masque d'encre s'en extrait
+ * proprement — chaque pixel est projeté sur le segment chartreuse→noir (LUT sur
+ * la luminance), ce qui conserve l'anticrénelage d'origine au lieu de seuiller
+ * brutalement. Le masque est ensuite recadré sur la lettre, mis à l'échelle
+ * demandée, colorisé, et posé au centre.
  *
  * Contraintes de plateforme respectées :
- * - Android adaptive : le foreground est réduit à ~0,72 pour tenir dans la zone
- *   sûre (le système masque hors d'un cercle de ~66 % — un mark pleine taille
- *   se ferait rogner les flancs).
- * - iOS : pas de transparence, pas de coins arrondis (le système les applique).
+ * - iOS : réduction DIRECTE du master (on garde le cadrage officiel de la marque),
+ *   opaque, sans transparence ni coins arrondis (le système les applique).
+ * - Android adaptive : le système masque hors d'un cercle de ~66 % → la lettre est
+ *   ramenée à ~42 % de la largeur du canevas pour tenir dans la zone sûre.
+ * - Notification Android : l'image est réduite à son ALPHA et teintée par le
+ *   système — toute couleur y est ignorée (un PNG couleur = carré blanc plein).
+ * - Favicon : la marque EXACTE, sans intermédiaire (lu à 16 px).
  *
  * La sortie est du binaire versionné : ne pas l'éditer, regénérer.
+ *   node scripts/build-brand-icons.mjs
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+const MASTER = 'brand/logo-gryd.png';
 const NOIR = '#0A0B09';
 const CHARTREUSE = '#B4FF0D';
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 
 /**
- * Géométrie du G, en fractions du côté du canevas. Relevée sur le logo fourni
- * par le fondateur (21/07/2026). Un seul endroit à toucher si la marque bouge.
- */
-const G = {
-  cx: 0.5,
-  cy: 0.5,
-  rx: 0.29, // demi-largeur extérieure — l'ellipse est LARGE, pas circulaire
-  ry: 0.1875,
-  stroke: 0.078,
-  barLeft: 0.545, // bord gauche de la barre horizontale
-  openFromDeg: -38, // terminaison haute de l'arc (l'ouverture du G)
-};
-
-/**
- * Programme Python (Pillow) : dessiné en SUPER-ÉCHANTILLONNAGE ×4 puis réduit
- * en LANCZOS. Sans ça, les bords de l'ellipse crénellent salement à 1024, et le
- * défaut se voit surtout aux petites tailles où l'icône est réellement regardée.
+ * Programme Python (Pillow). Deux modes :
+ *  - `direct` : simple réduction LANCZOS du master (cadrage officiel conservé) ;
+ *  - `mark`   : extraction du masque d'encre, recadrage sur la lettre, mise à
+ *               l'échelle, colorisation, centrage sur un canevas transparent.
  */
 const PY = `
-import math, sys, json
-from PIL import Image, ImageDraw
+import json, sys
+from PIL import Image
 
 cfg = json.loads(sys.argv[1])
-S = cfg["size"]; SS = 4; N = S * SS
-g = cfg["g"]; scale = cfg["scale"]
-# JSON rend des listes ; Pillow exige des tuples pour les couleurs.
-bg = tuple(cfg["bg"]) if cfg["bg"] else None
+S = cfg["size"]
+src = Image.open(cfg["src"]).convert("RGB")
+
+if cfg["mode"] == "direct":
+    src.resize((S, S), Image.Resampling.LANCZOS).save(cfg["out"], "PNG", optimize=True)
+    print(cfg["out"])
+    sys.exit(0)
+
+# --- Masque d'encre -----------------------------------------------------------
+# Le master est bicolore : la luminance suffit a separer l'encre du fond. On mappe
+# [lum_encre .. lum_fond] -> [255 .. 0] via une LUT (rapide, et surtout PROGRESSIVE :
+# les pixels intermediaires du bord gardent leur valeur -> anticrenelage preserve).
+LO, HI = cfg["inkLum"], cfg["bgLum"]
+lut = []
+for v in range(256):
+    t = (HI - v) / float(HI - LO)
+    lut.append(int(round(min(1.0, max(0.0, t)) * 255)))
+mask = src.convert("L").point(lut)
+
+box = mask.getbbox()  # recadre sur la LETTRE : l'echelle se compte sur elle, pas
+if box:               # sur la marge du master (sinon toutes les tailles derivent)
+    mask = mask.crop(box)
+
+mw, mh = mask.size
+tw = int(round(S * cfg["markWidth"]))
+th = max(1, int(round(tw * mh / float(mw))))
+mask = mask.resize((tw, th), Image.Resampling.LANCZOS)
+
 fg = tuple(cfg["fg"])
-TRANSP = (0, 0, 0, 0)
+canvas = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+ink = Image.new("RGBA", (tw, th), fg + (255,))
+canvas.paste(ink, ((S - tw) // 2, (S - th) // 2), mask)
 
-img = Image.new("RGBA", (N, N), bg if bg else TRANSP)
-d = ImageDraw.Draw(img)
-
-cx, cy = g["cx"] * N, g["cy"] * N
-rx, ry = g["rx"] * N * scale, g["ry"] * N * scale
-st = g["stroke"] * N * scale
-irx, iry = rx - st, ry - st
-
-# Anneau : ellipse pleine, puis on recreuse le contre-forme.
-d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=fg)
-d.ellipse([cx - irx, cy - iry, cx + irx, cy + iry], fill=bg if bg else TRANSP)
-
-# La barre, avant l'ouverture : c'est elle qui borne le bas de l'encoche.
-bar_h = st
-bar_l = g["barLeft"] * N
-if scale != 1.0:
-    bar_l = cx + (bar_l - g["cx"] * N) * scale
-bar_top, bar_bot = cy - bar_h / 2, cy + bar_h / 2
-d.rectangle([bar_l, bar_top, cx + rx, bar_bot], fill=fg)
-
-# L'OUVERTURE du G : un coin radial retiré entre la terminaison haute de l'arc
-# et le dessus de la barre. C'est ce qui distingue un G d'un O barré.
-a0 = math.radians(g["openFromDeg"])
-a1 = -math.asin(min(1.0, (bar_h / 2) / ry))
-far = max(N, rx * 3)
-poly = [(cx, cy)]
-steps = 48
-for i in range(steps + 1):
-    a = a0 + (a1 - a0) * (i / steps)
-    poly.append((cx + far * math.cos(a), cy + far * math.sin(a)))
-d.polygon(poly, fill=bg if bg else TRANSP)
-
-img = img.resize((S, S), Image.LANCZOS)
-
-# Le rééchantillonnage LANCZOS SURTIRE : il produit des pixels plus clairs que
-# la chartreuse et plus foncés que le noir (ringing). Ce sont littéralement des
-# couleurs hors charte. On reprojette chaque pixel sur le SEGMENT entre les deux
-# tokens, en bornant t a [0,1] : l'anticrenelage est conserve, l'overshoot non.
-px = img.load()
-c0 = fg
-c1 = bg if bg else fg
-if bg:
-    dv = [c1[i] - c0[i] for i in range(3)]
-    den = sum(v * v for v in dv) or 1
-    for yy in range(S):
-        for xx in range(S):
-            r, gg, b, a = px[xx, yy]
-            t = sum((v - c0[i]) * dv[i] for i, v in enumerate((r, gg, b))) / den
-            t = 0.0 if t < 0 else (1.0 if t > 1 else t)
-            px[xx, yy] = (
-                int(round(c0[0] + dv[0] * t)),
-                int(round(c0[1] + dv[1] * t)),
-                int(round(c0[2] + dv[2] * t)),
-                a,
-            )
-if cfg["opaque"]:
-    flat = Image.new("RGB", (S, S), bg)
-    flat.paste(img, mask=img.split()[3])
-    flat.save(cfg["out"])
+if cfg["bg"]:
+    flat = Image.new("RGB", (S, S), tuple(cfg["bg"]))
+    flat.paste(canvas, mask=canvas.split()[3])
+    flat.save(cfg["out"], "PNG", optimize=True)
 else:
-    img.save(cfg["out"])
+    canvas.save(cfg["out"], "PNG", optimize=True)
 print(cfg["out"])
 `;
 
@@ -127,75 +96,70 @@ const tmp = mkdtempSync(join(tmpdir(), 'gryd-icons-'));
 const script = join(tmp, 'draw.py');
 writeFileSync(script, PY);
 
-const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+// Luminances des deux tokens (ITU-R 601, comme PIL "L") : bornes du masque.
+const lum = ([r, g, b]) => Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+const INK_LUM = lum(hex(NOIR));
+const BG_LUM = lum(hex(CHARTREUSE));
 
+/**
+ * `markWidth` = largeur de la LETTRE en fraction du canevas. Dans le master, la
+ * lettre occupe ~0,56 du carré ; les variantes qui doivent rentrer dans une zone
+ * sûre partent de là (0,56 × le retrait voulu).
+ */
 const jobs = [
   {
-    label: 'iOS / store — la marque telle quelle',
+    label: 'iOS / store — la marque telle quelle (cadrage officiel)',
+    mode: 'direct',
     out: 'apps/mobile/assets/icon.png',
     size: 1024,
-    scale: 1,
-    bg: hex(CHARTREUSE),
-    fg: hex(NOIR),
-    opaque: true, // iOS refuse l'alpha sur l'icône du store
   },
   {
     label: 'Android adaptive (foreground) — réduit pour la zone sûre',
+    mode: 'mark',
     out: 'apps/mobile/assets/adaptive-icon.png',
     size: 1024,
-    scale: 0.72,
-    bg: null, // transparent : le système pose le backgroundColor
+    markWidth: 0.42,
     fg: hex(NOIR),
-    opaque: false,
+    bg: null, // transparent : le système pose le backgroundColor
   },
   {
     label: 'Splash — chartreuse sur noir (jamais l’inverse : contraste)',
+    mode: 'mark',
     out: 'apps/mobile/assets/splash.png',
     size: 1024,
-    scale: 0.62,
-    bg: null,
+    markWidth: 0.36,
     fg: hex(CHARTREUSE),
-    opaque: false,
+    bg: null,
   },
   {
-    // Android teinte cette image et n'en garde QUE l'alpha : toute couleur y est
-    // ignoree. Un PNG couleur donne un carre blanc plein dans la barre d'etat.
-    label: 'Notification Android — silhouette (alpha seul, le systeme teinte)',
+    label: 'Notification Android — silhouette (alpha seul, le système teinte)',
+    mode: 'mark',
     out: 'apps/mobile/assets/notification-icon.png',
     size: 256,
-    scale: 0.78,
-    bg: null,
+    markWidth: 0.45,
     fg: [255, 255, 255],
-    opaque: false,
+    bg: null,
   },
   {
-    // Android 13+ « icones thematiques » : meme silhouette, le lanceur la teinte
-    // selon le fond d'ecran de l'utilisateur (Material You).
     label: 'Android monochrome (Material You)',
+    mode: 'mark',
     out: 'apps/mobile/assets/adaptive-icon-monochrome.png',
     size: 1024,
-    scale: 0.72,
-    bg: null,
+    markWidth: 0.42,
     fg: [255, 255, 255],
-    opaque: false,
+    bg: null,
   },
-  {
-    // A 16 px, la marque a la taille du logo se delite (contre-forme bouchee,
-    // barre detachee). Le favicon assume donc un G PLUS GRAND que l'icone : ce
-    // n'est pas la meme surface, ce n'est pas la meme distance de lecture.
-    label: 'Favicon web (marque agrandie — lu a 16 px)',
-    out: 'apps/mobile/assets/favicon.png',
-    size: 256,
-    scale: 1.34,
-    bg: hex(CHARTREUSE),
-    fg: hex(NOIR),
-    opaque: true,
-  },
+  // Famille FAVICON : la marque EXACTE, réduite du master. Aucune contrainte de
+  // zone sûre ici — donc aucune raison de passer par une reconstruction.
+  { label: 'Favicon mobile-web (Expo)', mode: 'direct', out: 'apps/mobile/assets/favicon.png', size: 256 },
+  { label: 'Favicon site web (Next.js)', mode: 'direct', out: 'apps/web/app/icon.png', size: 256 },
+  { label: 'Apple touch icon site web', mode: 'direct', out: 'apps/web/app/apple-icon.png', size: 1024 },
 ];
 
 for (const j of jobs) {
-  const cfg = JSON.stringify({ ...j, g: G });
+  const cfg = JSON.stringify({ src: MASTER, inkLum: INK_LUM, bgLum: BG_LUM, ...j });
   execFileSync('python3', [script, cfg], { stdio: 'inherit' });
   console.log(`  ${j.label}`);
 }
-console.log('\nIcônes régénérées depuis la géométrie du logo (G ci-dessus).');
+
+console.log(`\nIcônes régénérées depuis le master ${MASTER} (le vrai logo).`);
