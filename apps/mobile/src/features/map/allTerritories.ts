@@ -35,9 +35,12 @@ import {
   SECTOR_STATUS_LEVELS,
 } from '@klaim/shared';
 import type { RealMapBounds, RealMapPointLayer } from '../../ui/game';
+import { C } from '../../i18n/catalog/map';
+import { resolve, type Entry, type Locale } from '../../i18n/types';
 // Type seul (effacé à la compilation) : allTerritories reste un module UI pur,
 // il n'embarque ni React ni le client Supabase de hexClaims.
 import type { RealTerritory } from './hexClaims';
+import { sectorPaintRole, type RealSectorView } from './sectorView';
 import {
   FRANCE_CITIES_DEMO,
   LILLE_BOUCLE,
@@ -397,16 +400,32 @@ export const SECTOR_BADGE_LABELS: Record<SectorStatusKey, string | null> = {
 } as const;
 
 /**
- * §A (anti-redondance §A20 + §A9 texte-non-masqué) — Secteur du FOYER de l'ego
- * (« République », DEFENSE_SECTOR) dont le badge de statut est SUPPRIMÉ sur la
- * Carte : le header permanent dit déjà « République attaquée » / « 3 zones à
- * sauver ». Un second badge « Zone contestée » posé sur ce même secteur ferait
- * DOUBLON avec le header ET, l'ego étant centré, tomberait sous le bandeau
- * (texte partiellement masqué — interdit §A9). Les badges des AUTRES secteurs
- * (Canal « Attaque en cours », Louis-Blanc « À sauver »…) restent affichés :
- * eux seuls apportent une info que le header ne porte pas.
+ * §C + i18n — Libellé AFFICHÉ d'un badge de statut, dans la langue du joueur.
+ *
+ * `SECTOR_BADGE_LABELS` ci-dessus reste la SPEC (source du wording français,
+ * lue par `SECTOR_STATUS_SPEC.badgeLabel`) ; ce résolveur est ce que la CARTE
+ * peint réellement, et il est traduit dans les 5 langues (parité forcée par le
+ * typage `Entry`). Les deux ne peuvent pas diverger sur ce qui compte : seuls
+ * les niveaux ≥ contesté portent un badge (§C — « pression = simple halo
+ * orange, sans bandeau permanent »), et ce sont exactement les trois entrées
+ * traduites ici.
+ *
+ * `null` = pas de badge. C'est le cas de `stable` (muet) ET de `pression` :
+ * son libellé de spec (« Canal actif ») nomme le crew rival de l'ANCIENNE démo
+ * — une identité fabriquée. Il n'est donc pas traduit, et surtout jamais peint.
  */
-const EGO_HOME_SECTOR_ID = 'paris-villemin';
+function sectorBadgeEntry(key: SectorStatusKey): Entry | null {
+  switch (key) {
+    case 'contestee':
+      return C.sectorBadgeContested;
+    case 'attaque':
+      return C.sectorBadgeAttack;
+    case 'urgence':
+      return C.sectorBadgeUrgent;
+    default:
+      return null;
+  }
+}
 
 /**
  * AMENDEMENT-37 §7.1 (étude carte 2026) — OPACITÉ = FORCE de contrôle, au niveau
@@ -465,6 +484,141 @@ const SECTOR_BADGE_LABEL_LETTER_SPACING_EM = 0.02;
 const SECTOR_PCT_LABEL_SIZE_PX = 12;
 const SECTOR_PCT_LABEL_OFFSET_EM = -1;
 const SECTOR_PCT_LABEL_LETTER_SPACING_EM = 0.02;
+
+/**
+ * Format % de contrôle DÉTERMINISTE (pas d'Intl — parité Hermes) : une fraction
+ * 0-1 → un entier borné suivi de « % » (ex. 0.64 → « 64% »). Court, jamais
+ * tronqué (§A9). Le format est identique dans les 5 langues : c'est un NOMBRE,
+ * pas une phrase — rien à traduire, donc rien à désynchroniser.
+ */
+export function formatControlPercent(fraction: number): string {
+  const pct = Math.round(fraction * 100);
+  const bounded = pct < 0 ? 0 : pct > 100 ? 100 : pct;
+  return `${bounded}%`;
+}
+
+/**
+ * §C — Calque des BADGES de statut de secteur (niveau ≥ contesté), alimenté par
+ * les secteurs RÉELS (`sector_snapshot` → `sectorViewsFor`).
+ *
+ * La PRESSION (niveau 1) reste un simple halo sur la carte, sans bandeau
+ * permanent (§C) : seuls contesté / attaque / urgence portent une étiquette.
+ * Couleur du point = teinte de STATUT par rôle (contesté → violet ; attaque →
+ * rival orange ; urgence → decay), jamais une couleur par crew, et jamais une
+ * teinte propre au propriétaire solo (0061 ajoute une identité, pas une palette).
+ * Un seul point + libellé par secteur (§C). Borné en `minZoom` : les
+ * marqueurs-points villes tiennent en dessous, les badges prennent le relais.
+ *
+ * `views` vide ⇒ calque VIDE (et non « pas de calque ») : l'id de source reste
+ * stable côté MapLibre, la carte ne peint simplement rien.
+ */
+export function sectorStatusBadgeLayer(
+  views: readonly RealSectorView[],
+  locale: Locale = 'fr',
+): RealMapPointLayer {
+  const features: GameFeature[] = [];
+  for (const v of views) {
+    const entry = sectorBadgeEntry(v.status.key);
+    if (!entry) continue;
+    // Teinte de statut par RÔLE : contesté = violet ; attaque = rival ;
+    // urgence = decay. La couleur ne fait que DOUBLER la forme + le libellé.
+    const roleKey =
+      v.status.level >= SECTOR_STATUS_LEVELS.urgence
+        ? 'decay'
+        : v.status.level >= SECTOR_STATUS_LEVELS.attaque
+          ? 'rival'
+          : 'contested';
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
+      properties: {
+        label: resolve(entry, locale),
+        // §7.1 — opacité = force : la teinte est atténuée quand le secteur est
+        // faiblement tenu, pleine quand il l'est fort (le halo reste plein).
+        color: withForceAlpha(roleColor(roleKey), v.ownerPercent),
+      },
+    });
+  }
+  return {
+    id: 'sector-status-badges',
+    data: { type: 'FeatureCollection', features },
+    minZoom: SECTOR_MIN_ZOOM,
+    circleRadius: SECTOR_BADGE_DOT_RADIUS_PX,
+    circleStrokeColor: colors.noir,
+    circleStrokeWidth: SECTOR_BADGE_DOT_STROKE_PX,
+    textSize: SECTOR_BADGE_LABEL_SIZE_PX,
+    textOffsetEm: SECTOR_BADGE_LABEL_OFFSET_EM,
+    textHaloColor: colors.noir,
+    textLetterSpacing: SECTOR_BADGE_LABEL_LETTER_SPACING_EM,
+  };
+}
+
+/**
+ * §11 z10-12 (bande MÉTROPOLE) — Calque du % de CONTRÔLE par secteur. Répond à
+ * « qui contrôle quoi » DÈS le dézoom, là où le badge de statut ne dit QUE le
+ * statut. Le nom/blason du détenteur, lui, ne s'affiche JAMAIS au dézoom (§9) :
+ * un pourcentage dit l'emprise sans nommer personne.
+ *
+ * ⚠️ CE QUI A CHANGÉ AVEC LA SOURCE RÉELLE. La version démo affichait
+ * `minePercent` sur TOUS les secteurs — donc « 0% » sur tous ceux que je ne
+ * tiens pas, ce qui est exactement le « 0 nu » que la doctrine interdit (il se
+ * lit « tu n'as rien » alors que la phrase juste est « ce secteur est à
+ * quelqu'un d'autre, à 62 % »). On peint désormais la part du PROPRIÉTAIRE, et
+ * SEULEMENT sur les secteurs réellement TENUS : un secteur neutre n'a pas de
+ * pourcentage à montrer, il n'en montre aucun.
+ *
+ * Teinte de RÔLE : chartreuse si le détenteur c'est moi/mon crew, violet si le
+ * secteur est contesté, orange sinon. Halo noir → contraste garanti sur les
+ * DEUX fonds (jamais de chartreuse nue sur fond clair, charte). Borné
+ * [SECTOR_PCT_MIN_ZOOM ; SECTOR_PCT_MAX_ZOOM] : apparaît à la métropole,
+ * s'efface au quartier où les tracés prennent le relais.
+ */
+export function sectorControlPctLayer(views: readonly RealSectorView[]): RealMapPointLayer {
+  const features: GameFeature[] = [];
+  for (const v of views) {
+    if (!v.held) continue;
+    const paint = sectorPaintRole(v);
+    const roleKey =
+      paint === 'contested'
+        ? 'contested'
+        : paint === 'mine' || paint === 'ally'
+          ? 'mine'
+          : 'rival';
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [v.center.lng, v.center.lat] },
+      properties: {
+        label: formatControlPercent(v.ownerPercent),
+        color: withForceAlpha(roleColor(roleKey), v.ownerPercent),
+      },
+    });
+  }
+  return {
+    id: 'sector-control-pct',
+    data: { type: 'FeatureCollection', features },
+    minZoom: SECTOR_PCT_MIN_ZOOM,
+    maxZoom: SECTOR_PCT_MAX_ZOOM,
+    circleRadius: SECTOR_BADGE_DOT_RADIUS_PX,
+    circleStrokeColor: colors.noir,
+    circleStrokeWidth: SECTOR_BADGE_DOT_STROKE_PX,
+    textSize: SECTOR_PCT_LABEL_SIZE_PX,
+    textOffsetEm: SECTOR_PCT_LABEL_OFFSET_EM,
+    textHaloColor: colors.noir,
+    textLetterSpacing: SECTOR_PCT_LABEL_LETTER_SPACING_EM,
+  };
+}
+
+/**
+ * Les DEUX calques-points de secteur, dans l'ordre de peinture — un seul point
+ * d'entrée pour les deux forks de carte (native + web), pour qu'ils ne puissent
+ * pas diverger. Aucune vue ⇒ deux calques vides (ids stables, rien de peint).
+ */
+export function sectorPointLayers(
+  views: readonly RealSectorView[],
+  locale: Locale = 'fr',
+): RealMapPointLayer[] {
+  return [sectorControlPctLayer(views), sectorStatusBadgeLayer(views, locale)];
+}
 
 // ─── Bounds de l'ensemble des possessions (caméra d'ouverture, §4bis) ───────
 

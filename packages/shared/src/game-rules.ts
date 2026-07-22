@@ -1152,7 +1152,12 @@ export type ChallengeMetric = (typeof CHALLENGE_METRICS)[number];
 /**
  * Durée standard d'un challenge rivalry (motivation §17.4, exemple 48 h). Les
  * bornes réelles (starts_at/ends_at) sont en base ; cette constante documente
- * le défaut MVP du seed.
+ * le défaut MVP.
+ *
+ * SANS CONSOMMATEUR depuis le 23/07/2026, et c'est VOULU : son seul appelant
+ * était le seed de rivalité fabriquée (`rivalry_night_canal`), retiré ci-dessous.
+ * La RÈGLE de durée, elle, reste valide — ne pas la supprimer comme du code mort :
+ * elle s'appliquera à la première rivalité entre deux crews RÉELS.
  */
 export const RIVALRY_DURATION_H = 48;
 
@@ -1162,8 +1167,16 @@ export const RIVALRY_DURATION_H = 48;
  *  - solo Consistency II : 3 courses/semaine ;
  *  - solo Distance : 10 km cumulés ;
  *  - solo Defense : 30 hexes défendus ;
- *  - crew Defense Week : 300 hexes collectifs, minimum perso 20 (§8.3) ;
- *  - rivalry Night Pacers vs Canal : 48 h, Paris Est.
+ *  - crew Defense Week : 300 hexes collectifs, minimum perso 20 (§8.3).
+ *
+ * RETIRÉ (23/07/2026) : le seed `rivalry_night_canal`. Il décrivait une rivalité
+ * INVENTÉE — « Night Pacers vs Canal », « Paris Est » — c'est-à-dire deux crews
+ * et un terrain qui n'ont jamais existé. AMENDEMENT-47 a purgé le code de démo
+ * mais pas les seeds : la ligne vivait encore en base (`visibility: 'public'`,
+ * `target: 0`, donc « atteinte » d'emblée) et sa recette restait déclarée ICI,
+ * dans la source unique des règles. La migration 0062 supprime la ligne, ceci
+ * supprime la recette. Aucun consommateur (catalog.ts ne lit que les 4 seeds
+ * ci-dessus). Une vraie rivalité se créera entre deux crews RÉELS ou pas du tout.
  */
 export const CHALLENGE_SEEDS = {
   consistency_ii: { type: 'solo', metric: 'runs', target: 3, difficulty: 'standard' },
@@ -1174,12 +1187,6 @@ export const CHALLENGE_SEEDS = {
     metric: 'defends',
     collectiveTarget: 300,
     personalMinimum: 20,
-    difficulty: 'intense',
-  },
-  rivalry_night_canal: {
-    type: 'rivalry',
-    metric: 'hexes',
-    durationH: RIVALRY_DURATION_H,
     difficulty: 'intense',
   },
 } as const;

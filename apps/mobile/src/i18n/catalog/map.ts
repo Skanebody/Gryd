@@ -409,6 +409,50 @@ export const C = defineCatalog({
     pt: 'Conquistas e defesas passadas',
   },
 
+  // ── SECTEURS §C (sector_snapshot) : badges de statut + note d'échec ─────────
+  /**
+   * Badges de statut de secteur, niveaux ≥ contesté (§C). Le français est
+   * IDENTIQUE au wording de spec `SECTOR_BADGE_LABELS` (allTerritories) — ce
+   * sont les mêmes trois étiquettes, ici traduites. Courtes dans les 5 langues :
+   * un badge de carte ne se tronque jamais (§A9).
+   * Les niveaux `stable` et `pression` n'ont PAS de badge (§C) : rien à traduire.
+   */
+  sectorBadgeContested: {
+    fr: 'Zone contestée',
+    en: 'Contested zone',
+    es: 'Zona disputada',
+    de: 'Umkämpfte Zone',
+    pt: 'Zona disputada',
+  },
+  sectorBadgeAttack: {
+    fr: 'Attaque en cours',
+    en: 'Under attack',
+    es: 'Bajo ataque',
+    de: 'Unter Angriff',
+    pt: 'Sob ataque',
+  },
+  sectorBadgeUrgent: {
+    fr: 'À sauver',
+    en: 'Save it',
+    es: 'Por salvar',
+    de: 'Zu retten',
+    pt: 'A salvar',
+  },
+  /**
+   * ÉCHEC de lecture des secteurs — distinct de « aucun secteur ». Un secteur
+   * non chargé n'est pas un secteur neutre : se taire laisserait croire que
+   * personne ne tient rien. Dernière priorité de la pill de bas de carte (§A :
+   * une seule phrase) — elle ne parle que si la localisation et les territoires
+   * n'ont rien à dire.
+   */
+  sectorNoteFailed: {
+    fr: 'Secteurs non chargés',
+    en: 'Sectors didn’t load',
+    es: 'Sectores no cargados',
+    de: 'Sektoren nicht geladen',
+    pt: 'Setores não carregados',
+  },
+
   // ── Note de SOURCE de la carte (territoryBuild.dataNote — 3 cas distincts) ──
   dataNoteFailed: {
     fr: 'Territoires non chargés',

@@ -19,10 +19,13 @@ import {
 import type { RealMapGeoJSONLayer } from '../../ui/game';
 import {
   SECTOR_BADGE_LABELS,
+  SECTOR_MIN_ZOOM,
+  SECTOR_PCT_MAX_ZOOM,
   TERRITORY_TRACE_MIN_ZOOM,
   territoryGeoByState,
 } from './allTerritories';
 import type { RealTerritory } from './hexClaims';
+import { sectorPaintRole, type RealSectorView } from './sectorView';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
 import { type ModeEmphasis, type TerritoryState } from './territory';
 
@@ -568,19 +571,210 @@ export const ROLE_SHAPE_ICON: Record<
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SECTEURS AGRÉGÉS (§C) — RENDU RETIRÉ LE 21/07/2026 (fin du mode vitrine)
-// Le contrat §C reste vrai et sa spec de STYLE vit toujours ici
-// (SECTOR_STATUS_SPEC : couleur par RÔLE + forme + badge par niveau 0-4). Ce qui
-// a disparu, c'est le RENDU : `sectorStatusLayersAll` / `sectorStatusLayers` ne
-// lisaient pas un socle réel mais `PARIS_DEMO_SECTOR_VIEWS` — des secteurs
-// fabriqués du canal Saint-Martin, peints sur la carte de n'importe quel joueur
-// où qu'il soit. Ils étaient gardés par `real === null`, c'est-à-dire « aucune
-// vraie donnée ⇒ invente » : un état de CHARGEMENT traité comme un feu vert.
-// Le rendu reviendra quand il aura une SOURCE RÉELLE (sector_snapshot 0037 +
-// géométrie sectors.geojson) — et il se branchera sur SECTOR_STATUS_SPEC, qui
-// est resté intact pour ça. Tant que cette source n'existe pas, la carte ne dit
-// rien des secteurs plutôt que d'en inventer.
+// SECTEURS AGRÉGÉS (§C) — RENDU REBRANCHÉ SUR LA SOURCE RÉELLE (22/07/2026)
+//
+// Historique, à garder en tête : le rendu avait été RETIRÉ le 21/07/2026 (fin du
+// mode vitrine) parce qu'il ne lisait pas un socle réel mais
+// `PARIS_DEMO_SECTOR_VIEWS` — des secteurs fabriqués du canal Saint-Martin,
+// peints sur la carte de n'importe quel joueur où qu'il soit, sous un garde
+// `real === null` qui signifiait « aucune vraie donnée ⇒ invente ».
+//
+// Il revient ici sous la condition qui avait été posée mot pour mot : une SOURCE
+// RÉELLE. C'est `sector_snapshot` (0037 + 0061), calculé serveur par le job
+// `recompute_sectors`, lu par `useSectorSnapshots` et résolu en rôles par
+// `sectorView.sectorViewsFor`. La géométrie ne vient PAS de `sectors.geojson`
+// (NULL en base) mais du contour EXACT de la cellule H3 res 7 du secteur —
+// dérivé client, donc rien à demander au serveur et rien à inventer.
+//
+// Ce qui n'a pas bougé : SECTOR_STATUS_SPEC (couleur par RÔLE + forme + badge
+// par niveau 0-4), gardé intact pour ce retour. Aucun secteur n'est peint sans
+// détenteur RÉEL ou pression RÉELLE (`sectorViewsFor` les écarte) : à 0 capture,
+// la carte reste nue — l'état vide est la bonne réponse, pas une panne.
 // ═══════════════════════════════════════════════════════════════════════════
+
+/** Rayon de l'anneau de PULSE (secteur le plus urgent) — tight, discret. */
+const SECTOR_PULSE_RADIUS_M = 45;
+/** Largeur de l'anneau de pulse (px) — fin (un signal, pas un contour épais). */
+const SECTOR_PULSE_WIDTH = 1.5;
+/** Segments du cercle géodésique de l'anneau de pulse (assez lisse à ce rayon). */
+const SECTOR_CIRCLE_STEPS = 40;
+/**
+ * Opacité de crête de l'APLAT de secteur. VOLONTAIREMENT très basse : le secteur
+ * est un CONTEXTE (« qui tient ce bout de ville »), jamais le sujet — la trace
+ * héros et les territoires restent dominants (§B/-36). Constante de RENDU.
+ */
+const SECTOR_FILL_PEAK = 0.1;
+/** Largeur du contour de secteur (px) — fin : une délimitation, pas une frontière. */
+const SECTOR_BORDER_WIDTH = 1.2;
+
+/** Disque géodésique autour d'un centre — même maths que l'ex-anneau de secteur. */
+function sectorDiscRing(center: LatLngPoint, radiusM: number): number[][] {
+  const ring: number[][] = [];
+  for (let i = 0; i <= SECTOR_CIRCLE_STEPS; i += 1) {
+    const angle = (i / SECTOR_CIRCLE_STEPS) * Math.PI * 2;
+    ring.push([
+      center.lng + (Math.cos(angle) * radiusM) / REAL_M_PER_DEG_LNG,
+      center.lat + (Math.sin(angle) * radiusM) / REAL_M_PER_DEG_LAT,
+    ]);
+  }
+  return ring;
+}
+
+/**
+ * §C LOD — paliers d'opacité d'un aplat de SECTEUR : rien sous la bande
+ * MÉTROPOLE, plein sur [SECTOR_MIN_ZOOM ; SECTOR_PCT_MAX_ZOOM[, éteint au
+ * QUARTIER où les TRACÉS de territoire prennent le relais. Réactive les deux
+ * constantes de zoom laissées mortes par la fin du mode vitrine — la LOD est une
+ * réponse à un VOLUME (200k joueurs, §C), pas une décoration.
+ */
+function sectorLodStops(peak: number): ReadonlyArray<readonly [number, number]> {
+  return [
+    [SECTOR_MIN_ZOOM - 1, 0],
+    [SECTOR_MIN_ZOOM, peak],
+    [SECTOR_PCT_MAX_ZOOM - 1, peak],
+    [SECTOR_PCT_MAX_ZOOM, 0],
+  ];
+}
+
+/** Idem pour une LARGEUR de trait (même bande de zoom, même handoff). */
+function sectorLodWidth(width: number): WidthStops {
+  return [
+    [SECTOR_MIN_ZOOM - 1, 0],
+    [SECTOR_MIN_ZOOM, width],
+    [SECTOR_PCT_MAX_ZOOM - 1, width],
+    [SECTOR_PCT_MAX_ZOOM, 0],
+  ];
+}
+
+/**
+ * §C — teinte d'un secteur PAR RÔLE, jamais par identité de crew. Un secteur
+ * tenu par un joueur SANS CREW ne crée AUCUNE couleur nouvelle : il est « mine »
+ * s'il s'agit de moi, « rival » sinon — exactement comme un crew (0061 ajoute une
+ * identité, pas une palette).
+ *
+ * ⚠ NEUTRE N'EST PAS RIVAL. Cette fonction retombait sur `rival` par défaut, donc
+ * un secteur SANS PROPRIÉTAIRE — précisément ce que produit le plancher de
+ * domination (0061) — se peignait en orange rival. Le plancher était respecté
+ * dans la donnée et TRAHI dans le pixel : l'écran affirmait un occupant là où le
+ * moteur venait de dire qu'il n'y en a pas. C'est la domination fabriquée qu'on
+ * retire. `neutral` a son propre token (gris), `ally` aussi (chartreuse
+ * atténuée, pour que MON territoire reste le plus lisible, §C).
+ *
+ * Exhaustif par `switch` : un rôle ajouté plus tard ne pourra plus tomber dans un
+ * `return` par défaut qui lui donnerait la couleur de quelqu'un d'autre.
+ */
+function sectorRoleToken(role: ReturnType<typeof sectorPaintRole>): string {
+  switch (role) {
+    case 'contested':
+      return roleColor('contested');
+    case 'mine':
+      return roleColor('mine');
+    case 'ally':
+      return roleColor('ally');
+    case 'rival':
+      return roleColor('rival');
+    default:
+      return roleColor('neutral');
+  }
+}
+
+/** Une vue de secteur → sa feature Polygon (contour H3 res 7 exact). */
+function sectorPolygonFeature(view: RealSectorView): RealMapData['features'][number] {
+  return {
+    type: 'Feature',
+    properties: { sectorId: view.id },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [view.ring.map(([lng, lat]) => [lng, lat])],
+    },
+  };
+}
+
+/**
+ * §C — COUCHES DE SECTEURS, alimentées par les vues RÉELLES.
+ *
+ * Trois choses, et pas une de plus (§A : compris en < 3 s) :
+ *   1. un APLAT très léger par RÔLE, groupé — un seul calque par rôle, pas un
+ *      calque par secteur : le nombre de couches ne grandit pas avec le nombre
+ *      de secteurs (scalabilité §C) ;
+ *   2. un CONTOUR fin de la même teinte ;
+ *   3. sur le SEUL secteur le plus chaud (niveau ≥ attaque), un anneau fin PULSÉ
+ *      — un seul mouvement à l'écran, sinon la carte clignote de partout.
+ * Tout est borné à la bande MÉTROPOLE par la LOD : au quartier, les tracés de
+ * territoire reprennent la main et le secteur s'efface (aucun doublon d'info).
+ *
+ * `views` vide (aucun secteur réel, ou lecture non aboutie) ⇒ AUCUNE couche.
+ */
+export function sectorStatusLayersAll(
+  views: readonly RealSectorView[],
+  emphContested = 1,
+): RealMapGeoJSONLayer[] {
+  if (views.length === 0) return [];
+
+  // Groupement par teinte de RÔLE : 3 calques maximum, quel que soit le volume.
+  const byRole = new Map<string, RealSectorView[]>();
+  for (const view of views) {
+    const key = sectorPaintRole(view);
+    const bucket = byRole.get(key);
+    if (bucket) bucket.push(view);
+    else byRole.set(key, [view]);
+  }
+
+  const layers: RealMapGeoJSONLayer[] = [];
+  // Ordre de peinture STABLE et lisible : mon territoire d'abord, le contesté en
+  // dernier (priorité d'alerte §C — le plus actionnable au-dessus).
+  for (const role of ['mine', 'ally', 'rival', 'neutral', 'contested'] as const) {
+    const bucket = byRole.get(role);
+    if (!bucket || bucket.length === 0) continue;
+    const token = sectorRoleToken(role);
+    const data: RealMapData = {
+      type: 'FeatureCollection',
+      features: bucket.map(sectorPolygonFeature),
+    };
+    layers.push({
+      id: `sector-${role}-fill`,
+      data,
+      fillColor: token,
+      fillOpacity: SECTOR_FILL_PEAK * emphContested,
+      fillOpacityStops: sectorLodStops(SECTOR_FILL_PEAK * emphContested),
+    });
+    layers.push({
+      id: `sector-${role}-line`,
+      data,
+      lineColor: scaleAlpha(withAlpha(token, 0.55), emphContested),
+      lineWidth: SECTOR_BORDER_WIDTH,
+      lineWidthStops: sectorLodWidth(SECTOR_BORDER_WIDTH),
+    });
+  }
+
+  // Le SEUL secteur le plus chaud reçoit l'anneau pulsé (les vues sont triées
+  // par niveau croissant : le dernier est le pic). Rien en dessous de « attaque » :
+  // une carte qui pulse pour une simple pression crie au loup.
+  const peak = views[views.length - 1];
+  if (peak && peak.status.level >= SECTOR_STATUS_LEVELS.attaque) {
+    layers.push({
+      id: 'sector-peak-pulse',
+      data: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: sectorDiscRing(peak.center, SECTOR_PULSE_RADIUS_M),
+            },
+          },
+        ],
+      },
+      lineColor: SECTOR_STATUS_SPEC[peak.status.key].strokeColor,
+      lineWidth: SECTOR_PULSE_WIDTH,
+      lineOpacity: emphContested,
+      pulse: true,
+    });
+  }
+  return layers;
+}
 
 /** Sur-largeur du liseré sombre (px de part et d'autre du trait) — fin. */
 const COLOR_CASING_EXTRA_PX = 2;
@@ -1479,7 +1673,7 @@ function withColorCasing(
  * GeoJSON réelle).
  */
 /**
- * Couches de jeu de la BATTLE MAP : les territoires RÉELS, et rien d'autre.
+ * Couches de jeu de la BATTLE MAP : les territoires RÉELS + les secteurs RÉELS.
  *
  * FIN DU MODE VITRINE (21/07/2026). Cette fonction portait des couches nées de
  * la démo — zone bonus (anneau or), route « recommandée », aperçu de parcours,
@@ -1487,9 +1681,20 @@ function withColorCasing(
  * signifiait « pas de vraies données ⇒ peins la démo » : il confondait l'état de
  * CHARGEMENT avec un feu vert pour inventer. Les couches ont été SUPPRIMÉES (pas
  * re-gardées) et `real` est devenu requis : tant qu'aucune de ces couches n'a de
- * source réelle (bonus ciblés, itinéraires, sector_snapshot), elles n'existent
- * pas. `selectedParcoursId` est conservé dans la signature — les appelants
+ * source réelle, elles n'existent pas. Deux d'entre elles attendent toujours la
+ * leur (bonus ciblés, itinéraires) ; les SECTEURS ont trouvé la leur — voir le
+ * paragraphe suivant. `selectedParcoursId` est conservé dans la signature — les appelants
  * portent encore l'état de sélection — mais ne peint plus rien.
+ *
+ * 22/07/2026 — les SECTEURS repassent au vert : `sectors` porte des vues issues
+ * de `sector_snapshot` (serveur), résolues en RÔLES pour le joueur courant. Même
+ * contrat que `real` : un tableau, jamais un `null` qui autoriserait un repli
+ * inventé. Vide ⇒ aucune couche de secteur (l'état vide, pas une démo).
+ *
+ * ORDRE DE PEINTURE : les secteurs SOUS les territoires. Un secteur est le
+ * CONTEXTE (« qui tient ce bout de ville »), la trace du joueur reste le sujet
+ * (§B) — et leurs bandes de zoom ne se recouvrent quasiment pas (secteurs
+ * z10-13, tracés z13+), donc les deux ne se disputent jamais l'écran.
  */
 export function battleGameLayers(
   emph: ModeEmphasis,
@@ -1497,11 +1702,16 @@ export function battleGameLayers(
   basemap: BasemapKey = 'dark',
   selectedZoneId: string | null = null,
   real: readonly RealTerritory[],
+  sectors: readonly RealSectorView[] = [],
 ): RealMapGeoJSONLayer[] {
   return [
+    // Secteurs agrégés (§C) — au fond, bornés à la bande métropole par la LOD.
+    // `withColorCasing` leur donne le même liseré sombre porteur qu'aux tracés
+    // sur les fonds CLAIRS (color/satellite) : jamais de chartreuse nue sur
+    // fond clair (charte).
+    ...withColorCasing(basemap, sectorStatusLayersAll(sectors, emph.contested)),
     // §2 : la sélection dédouble/atténue les territoires (l'actif domine).
-    //  Il n'y a plus RIEN d'autre à peindre : les couches bonus / route
-    //  recommandée / aperçu de parcours / secteurs agrégés étaient toutes
+    //  Les couches bonus / route recommandée / aperçu de parcours étaient toutes
     //  alimentées par la démo et ont disparu avec le mode vitrine.
     ...territoryStateLayers(emph, basemap, selectedZoneId, real),
   ];

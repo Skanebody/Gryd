@@ -80,6 +80,10 @@ import {
   type MapZoneView,
 } from './BattleMapOverlays';
 import { useRealTerritories } from './hexClaims';
+import { useSectorSnapshots } from './useSectorSnapshots';
+import { sectorViewsFor } from './sectorView';
+import { sectorPointLayers } from './allTerritories';
+import { useSession } from '../../lib/session';
 import { useRealCrew } from '../crew/real';
 import { getLastRunResult } from '../run/runResult';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
@@ -322,7 +326,12 @@ export function MapScreen() {
   // que l'iPhone peint en CHARTREUSE. Set mémoïsé sur le CONTENU (join trié) :
   // useRealCrew renvoie un nouveau tableau à chaque fetch, et un Set par
   // référence relancerait la lecture hex_claims à chaque rendu.
-  const { members: crewMembers } = useRealCrew();
+  const {
+    members: crewMembers,
+    crew: myCrew,
+    loading: crewLoading,
+    loadFailed: crewFailed,
+  } = useRealCrew();
   const crewIdsKey = crewMembers
     .map((m) => m.userId)
     .sort()
@@ -330,6 +339,30 @@ export function MapScreen() {
   const crewIds = useMemo(
     () => (crewIdsKey.length === 0 ? null : new Set(crewIdsKey.split(','))),
     [crewIdsKey],
+  );
+
+  // ─── SECTEURS §C : la carte lit le VRAI `sector_snapshot` (parité native) ──
+  // `viewerResolved` : sait-on QUI regarde ? Le rôle d'un secteur (chartreuse
+  // moi / orange rival / violet contesté) se calcule contre MON identité ; tant
+  // que la lecture du crew est en vol, une couleur peinte serait peut-être la
+  // mauvaise — donc un mensonge. On ne peint alors rien.
+  // Mais un ÉCHEC de cette lecture se transmet SÉPARÉMENT (`crewFailed`) : sans
+  // ça il se confondait avec « en vol », et comme `useRealCrew` ne repasse pas
+  // son `loadFailed` à false tout seul, la carte restait en chargement pour toute
+  // la session de l'écran — un cul-de-sac muet au lieu d'un échec énoncé.
+  const { session: mapSession } = useSession();
+  const viewerResolved = !crewLoading && !crewFailed;
+  const { status: sectorStatus, sectors: sectorRows } = useSectorSnapshots(viewerResolved, crewFailed);
+  const viewerUserId = mapSession?.user.id ?? null;
+  const viewerCrewId = myCrew?.id ?? null;
+  const sectorViews = useMemo(
+    () =>
+      sectorViewsFor(sectorRows ?? [], {
+        userId: viewerUserId,
+        crewId: viewerCrewId,
+        resolved: viewerResolved,
+      }),
+    [sectorRows, viewerUserId, viewerCrewId, viewerResolved],
   );
   const { territories, isReal, failed, signedOut, loading, reload } =
     useRealTerritories(crewIds);
@@ -394,9 +427,23 @@ export function MapScreen() {
    */
   const paintedTerritories = territories ?? [];
   const layers = useMemo(
-    () => battleGameLayers(emph, selectedParcours, basemap, selectedZoneId, paintedTerritories),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories],
+    () =>
+      battleGameLayers(
+        emph,
+        selectedParcours,
+        basemap,
+        selectedZoneId,
+        paintedTerritories,
+        sectorViews,
+      ),
+    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
   );
+  /**
+   * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
+   * zoom. Vides tant qu'il n'y a rien de réel à dire — ce qui est le cas
+   * aujourd'hui en production (0 capture ⇒ 0 secteur snapshoté).
+   */
+  const sectorLayers = useMemo(() => sectorPointLayers(sectorViews, locale), [sectorViews, locale]);
 
   /** Tap carte → zone tapée (null sur le vide = désélection). */
   const onMapPress = useCallback((e: RealMapPressEvent) => {
@@ -495,7 +542,10 @@ export function MapScreen() {
       ? null
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
-        dataNote(isReal, failed, territories?.length ?? 0, locale));
+        dataNote(isReal, failed, territories?.length ?? 0, locale)) ??
+    // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
+    // lecture des SECTEURS, qui n'est PAS « aucun secteur ». Parité native.
+    (sectorStatus === 'error' ? resolve(C.sectorNoteFailed, locale) : null);
 
   /**
    * Recentrer — et JAMAIS un bouton mort (parité native). On vole vers la
@@ -534,6 +584,7 @@ export function MapScreen() {
         ref={mapRef}
         camera={openCamera}
         geojsonLayers={layers}
+        pointLayers={sectorLayers}
         markers={markers}
         onPress={onMapPress}
         onMapReady={setGlMap}

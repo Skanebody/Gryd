@@ -1,0 +1,51 @@
+-- GRYD — 0062 : purge des SEEDS FABRIQUÉS restés en base (AMENDEMENT-47).
+--
+-- POURQUOI : A-47 (« fin du mode démo ») a purgé le CODE de démonstration mais
+-- pas les seeds SQL. Une ligne de démo insérée par une migration n'est pas une
+-- maquette : c'est de la donnée FABRIQUÉE VIVANTE, lue par les mêmes requêtes
+-- que la donnée réelle, sans étiquette possible. La constitution est explicite :
+-- données RÉELLES ou VIDES, jamais fabriquées. Un challenge inventé opposant
+-- deux crews qui n'existent pas est exactement ce qui est interdit.
+--
+-- CE QUI EST PURGÉ (inventaire complet, audit du 23/07/2026) :
+--   1. challenges.slug = 'rivalry_night_canal' (seed 0012 §5) — « Night Pacers
+--      vs Canal », « Rivalité 48 h sur Paris Est », visibility 'public',
+--      target 0. Les deux crews n'existent pas (crew_a_id / crew_b_id NULL :
+--      la rivalité ne désigne personne), la cible est nulle (l'objectif ne peut
+--      pas être atteint), et la fenêtre de 48 h partait de l'application de la
+--      migration. Rivalité inventée, de bout en bout.
+--
+-- CE QUI N'EST PAS PURGÉ (vérifié seed par seed, et pourquoi ça reste honnête) :
+--   • 0012 §5 : consistency_ii, distance_10k, defense_30, crew_defense_week —
+--     objectifs GÉNÉRIQUES (3 courses, 10 km, 30 défenses, 300 défenses de
+--     crew). Ils ne nomment ni crew ni joueur ni classement : ce sont des règles
+--     proposées, pas un état du monde raconté. Cibles issues de CHALLENGE_SEEDS.
+--   • 0052 : welcome_7d (« Premiers pas ») — même nature, parcours d'accueil.
+--   • 0004 : city_zones Paris/Lille (géométries réelles, grossières et
+--     annotées TODO O4), Saison 0 par ville active, badges/missions de
+--     CATALOGUE. Un catalogue décrit ce qui est atteignable, il n'affirme
+--     jamais que quelqu'un l'a atteint.
+--   • 0007/0008/0009/0012 badges, 0014 items, 0022 items, 0047
+--     reserved_handles, 0050 blocked_name_terms : catalogues / configuration.
+--   • 0008 : événement « Grand Départ — Saison 0 » (fenêtre de lancement réelle).
+--   • Aucun seed de crew, de joueur, de course, de claim, de classement ni de
+--     ville européenne n'existe dans les migrations — les `insert into crews /
+--     crew_members / hex_claims / season_scores / users` rencontrés vivent tous
+--     à l'INTÉRIEUR de fonctions plpgsql (actions de vrais utilisateurs), aucun
+--     ne s'exécute au déploiement.
+--
+-- FORME : delete ciblé par clé naturelle (`slug`, unique dans 0012), donc
+-- idempotent — rejouer la migration ne fait rien de plus. Aucune table n'est
+-- droppée, aucune migration appliquée n'est réécrite. `challenge_progress`
+-- référence `challenges (id) on delete cascade` : la progression éventuelle
+-- part avec le challenge, sans ligne orpheline.
+--
+-- LE SEED N'EST PAS REJOUÉ AILLEURS : le catalogue mobile
+-- (apps/mobile/src/features/motivation/catalog.ts) n'expose plus ce challenge,
+-- et aucun job ne réinsère CHALLENGE_SEEDS. La constante
+-- `CHALLENGE_SEEDS.rivalry_night_canal` (packages/shared/src/game-rules.ts) reste
+-- déclarée mais n'est plus consommée par personne : elle est inerte, et son
+-- retrait relève du fichier de constantes, pas d'une migration.
+
+delete from public.challenges
+where slug = 'rivalry_night_canal';
