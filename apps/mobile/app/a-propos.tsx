@@ -18,13 +18,20 @@ import { colors, fontSizes, radii, spacing } from '@klaim/shared';
 import { C, LEGAL_ENTITY } from '../src/i18n/catalog/legal';
 import { useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
+import { SectionLabel } from '../src/features/privacy/ui';
 import { StackScreen } from '../src/ui/StackScreen';
 
-/** Bloc de section : kicker chartreuse + corps. Même grammaire que Confidentialité. */
+/**
+ * Bloc de section : sur-titre + corps. On réutilise le `SectionLabel` PARTAGÉ
+ * (features/privacy/ui) — le MÊME sur-titre que Confidentialité et Réglages,
+ * pour que les trois écrans aient exactement la même grammaire d'en-tête (le
+ * kicker chartreuse local d'ici en divergeait). La card reste une surface N1
+ * carbone sans contour (règle 80/20).
+ */
 function Section({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.kicker}>{heading}</Text>
+    <View>
+      <SectionLabel>{heading}</SectionLabel>
       <View style={styles.card}>{children}</View>
     </View>
   );
@@ -73,15 +80,6 @@ export default function AProposScreen() {
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: spacing.xl },
-  /** Kicker chartreuse — même famille visuelle que la page Confidentialité. */
-  kicker: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    letterSpacing: 2,
-    marginBottom: spacing.sm,
-  },
   card: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,

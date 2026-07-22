@@ -22,7 +22,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, INTERSEASON_DAYS, radii, SEASON_DURATION_WEEKS, spacing } from '@klaim/shared';
 import {
   FAQ_CATEGORY_LABELS,
   FAQ_ITEMS,
@@ -34,6 +34,8 @@ import {
 } from '../src/features/explain/content';
 import { ExplainSchema } from '../src/features/explain/ExplainSchema';
 import { C } from '../src/i18n/catalog/explain';
+// Catalogue SAISON (horodateur + règles) : voir src/i18n/catalog/faq.ts.
+import { C as S } from '../src/i18n/catalog/faq';
 import { useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
 import { Icon } from '../src/ui/Icon';
@@ -185,6 +187,35 @@ export default function FaqScreen() {
           </View>
         );
       })}
+
+      {/* Règles des SAISONS (horodateur expliqué) : mêmes accordéons que §33,
+          chiffres depuis game-rules (SEASON_DURATION_WEEKS / INTERSEASON_DAYS),
+          jamais en dur. « Comment marche une saison » se lit ici ; « où on en
+          est » vit dans les réglages (À propos › GRYD, composant SeasonStatus). */}
+      <View style={styles.group}>
+        <Text style={styles.groupLabel}>{t(S.sGroup)}</Text>
+        <AccordionRow
+          icon="sablier"
+          q={t(S.sQHow)}
+          a={t(S.sAHow, { weeks: SEASON_DURATION_WEEKS })}
+          open={openId === 'season_how'}
+          onToggle={() => toggle('season_how')}
+        />
+        <AccordionRow
+          icon="pass"
+          q={t(S.sQEnd)}
+          a={t(S.sAEnd, { days: INTERSEASON_DAYS })}
+          open={openId === 'season_end'}
+          onToggle={() => toggle('season_end')}
+        />
+        <AccordionRow
+          icon="sablier"
+          q={t(S.sQBetween)}
+          a={t(S.sABetween, { days: INTERSEASON_DAYS })}
+          open={openId === 'season_between'}
+          onToggle={() => toggle('season_between')}
+        />
+      </View>
 
       {/* FAQ courte post-run (§34) : questions express après une course. */}
       <View style={styles.group}>

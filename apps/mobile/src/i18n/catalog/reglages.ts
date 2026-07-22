@@ -580,13 +580,6 @@ export const C = defineCatalog({
     de: 'Nutzungsbedingungen',
     pt: 'Termos de uso',
   },
-  cguFallbackBody: {
-    fr: 'Retrouve les conditions d’utilisation sur gryd.run/conditions.',
-    en: 'Find the terms of use at gryd.run/conditions.',
-    es: 'Consulta las condiciones de uso en gryd.run/conditions.',
-    de: 'Die Nutzungsbedingungen findest du auf gryd.run/conditions.',
-    pt: 'Veja os termos de uso em gryd.run/conditions.',
-  },
   privacyPolicy: {
     fr: 'Politique de confidentialité',
     en: 'Privacy policy',
@@ -608,20 +601,6 @@ export const C = defineCatalog({
     de: 'Abo, Zahlung, Widerruf',
     pt: 'Assinatura, pagamento, cancelamento',
   },
-  cgvFallbackTitle: {
-    fr: 'Conditions Générales de Vente',
-    en: 'Terms of Sale',
-    es: 'Condiciones Generales de Venta',
-    de: 'Allgemeine Verkaufsbedingungen',
-    pt: 'Termos Gerais de Venda',
-  },
-  cgvFallbackBody: {
-    fr: 'Retrouve les CGV sur gryd.run/cgv.',
-    en: 'Find the terms of sale at gryd.run/cgv.',
-    es: 'Consulta las condiciones de venta en gryd.run/cgv.',
-    de: 'Die Verkaufsbedingungen findest du auf gryd.run/cgv.',
-    pt: 'Veja os termos de venda em gryd.run/cgv.',
-  },
   mentions: {
     fr: 'Mentions légales',
     en: 'Legal notice',
@@ -636,26 +615,12 @@ export const C = defineCatalog({
     de: 'Anbieter, Hosting',
     pt: 'Editor, hospedagem',
   },
-  mentionsFallbackBody: {
-    fr: 'Retrouve les mentions légales sur gryd.run/mentions-legales.',
-    en: 'Find the legal notice at gryd.run/mentions-legales.',
-    es: 'Consulta el aviso legal en gryd.run/mentions-legales.',
-    de: 'Das Impressum findest du auf gryd.run/mentions-legales.',
-    pt: 'Veja o aviso legal em gryd.run/mentions-legales.',
-  },
   licences: {
     fr: 'Licences open source',
     en: 'Open source licenses',
     es: 'Licencias open source',
     de: 'Open-Source-Lizenzen',
     pt: 'Licenças open source',
-  },
-  licencesBody: {
-    fr: 'GRYD s’appuie sur des logiciels libres — React Native, Expo, MapLibre, H3, Supabase et d’autres. La liste complète des licences est publiée sur gryd.run/licences.',
-    en: 'GRYD is built on open source software — React Native, Expo, MapLibre, H3, Supabase and others. The full list of licenses is published at gryd.run/licences.',
-    es: 'GRYD se apoya en software libre — React Native, Expo, MapLibre, H3, Supabase y otros. La lista completa de licencias está publicada en gryd.run/licences.',
-    de: 'GRYD baut auf freier Software auf — React Native, Expo, MapLibre, H3, Supabase und mehr. Die vollständige Lizenzliste steht auf gryd.run/licences.',
-    pt: 'O GRYD se apoia em software livre — React Native, Expo, MapLibre, H3, Supabase e outros. A lista completa de licenças está publicada em gryd.run/licences.',
   },
   tagline: {
     fr: 'Cours pour ton crew. Conquiers ta ville.',

@@ -57,6 +57,7 @@ import { signOut } from '../src/lib/auth';
 import { StackScreen } from '../src/ui/StackScreen';
 import { GhostButton } from '../src/ui/GhostButton';
 import { Icon } from '../src/ui/Icon';
+import { ListRow } from '../src/ui/ListRow';
 import {
   PRIVATE_MODE_PATCH,
   usePrivacyPrefs,
@@ -616,49 +617,48 @@ export default function ConfidentialiteScreen() {
       {/* Suppression de compte (Guideline 5.1.1v) — DISTINCTE de l'export : une
           card dédiée, action unique, vers un écran de confirmation plein écran. */}
       <SectionLabel>{t(C.secSuppressionCompte)}</SectionLabel>
-      <View style={styles.deleteCard}>
-        {deletionStatus?.pending ? (
-          /* Suppression DÉJÀ demandée : on ne repropose pas de supprimer (ce
-             serait absurde et laisserait croire que rien n'est en cours). On
-             affiche l'échéance RÉELLE et le seul geste utile : annuler. */
-          <>
-            <Text style={styles.deleteCardTitle}>{t(C.deletionPendingTitle)}</Text>
-            <Text style={styles.deleteCardText}>
-              {t(C.deletionPendingBody, { date: formatDate(deletionStatus.purgeAt) })}
-            </Text>
-            <View style={styles.actionGap}>
-              <GhostButton
-                label={t(C.deletionCancelCta)}
-                onPress={() => void runCancelDeletion()}
-                disabled={deleting}
-              />
-            </View>
-          </>
-        ) : (
-          <>
-            <Text style={styles.deleteCardText}>
-              {t(C.deleteCardText, {
-                d: deletionStatus?.graceDays ?? ACCOUNT_DELETION_GRACE_DAYS,
-              })}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(C.supprimerMonCompte)}
-              onPress={() => {
-                haptics.medium();
-                setConfirmDelete(true);
-              }}
-              style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
-            >
-              <Icon name="fermer" size={iconSizes.md} color={gameColors.danger} />
-              <Text style={styles.deleteRowLabel}>{t(C.supprimerMonCompte)}</Text>
-              <View style={styles.deleteChevron}>
-                <Icon name="chevron" size={16} color={gameColors.danger} />
-              </View>
-            </Pressable>
-          </>
-        )}
-      </View>
+      {deletionStatus?.pending ? (
+        /* Suppression DÉJÀ demandée : on ne repropose pas de supprimer (ce
+           serait absurde et laisserait croire que rien n'est en cours). On
+           affiche l'échéance RÉELLE et le seul geste utile : annuler. */
+        <View style={styles.deleteCard}>
+          <Text style={styles.deleteCardTitle}>{t(C.deletionPendingTitle)}</Text>
+          <Text style={styles.deleteCardText}>
+            {t(C.deletionPendingBody, { date: formatDate(deletionStatus.purgeAt) })}
+          </Text>
+          <View style={styles.actionGap}>
+            <GhostButton
+              label={t(C.deletionCancelCta)}
+              onPress={() => void runCancelDeletion()}
+              disabled={deleting}
+            />
+          </View>
+        </View>
+      ) : (
+        /* L'action passe par la primitive `ListRow` (tone danger) — exactement
+           la même grammaire que « Supprimer mon compte » côté Réglages : même
+           hauteur, même trailing, même cible tactile. L'explication est une note
+           AU-DESSUS, plus une bordure rouge enfermée dans une card carbone
+           (§A « pas de card-in-card »). */
+        <>
+          <Text style={styles.deleteIntro}>
+            {t(C.deleteCardText, {
+              d: deletionStatus?.graceDays ?? ACCOUNT_DELETION_GRACE_DAYS,
+            })}
+          </Text>
+          <ListRow
+            tone="danger"
+            icon="fermer"
+            label={t(C.supprimerMonCompte)}
+            chevron
+            accessibilityLabel={t(C.supprimerMonCompte)}
+            onPress={() => {
+              haptics.medium();
+              setConfirmDelete(true);
+            }}
+          />
+        </>
+      )}
     </StackScreen>
   );
 }
@@ -931,25 +931,16 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.5,
   },
-  deleteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 14,
-    minHeight: 44,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: gameColors.danger,
-  },
-  deleteRowLabel: {
-    color: gameColors.danger,
+  // Explication AU-DESSUS de la ligne d'action (la ligne, elle, est une `ListRow`
+  // tone danger — plus de bouton bordé enfermé dans une card). Aligné sur le
+  // léger retrait des notes de l'écran (paddingHorizontal 2).
+  deleteIntro: {
+    color: colors.gris,
     fontSize: fontSizes.sm,
-    fontWeight: '600',
-    flex: 1,
+    lineHeight: fontSizes.sm * 1.5,
+    paddingHorizontal: 2,
+    marginBottom: 12,
   },
-  deleteChevron: { transform: [{ rotate: '90deg' }] },
   // Titre de l'état « suppression programmée » : même famille que deleteCardText,
   // en blanc (jamais de chartreuse sur cette card d'alerte).
   deleteCardTitle: {

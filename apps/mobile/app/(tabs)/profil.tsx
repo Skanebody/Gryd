@@ -119,22 +119,29 @@ import {
  */
 
 /**
- * ── GRILLE EXPLICITE DE L'EN-TÊTE (2ᵉ passe, retour fondateur : « le bloc du
- *    haut n'est toujours pas aligné ») ─────────────────────────────────────────
+ * ── GRILLE EXPLICITE DE L'EN-TÊTE (3ᵉ passe, retour fondateur : « il y a
+ *    toujours un problème d'alignement dans la partie Moi en haut ») ────────────
  *
- * La 1ʳᵉ passe avait unifié le bord GAUCHE de la colonne texte. Ce qui restait
- * cassé, mesuré à 375 pt :
+ * Mesuré à 375 pt, les passes précédentes avaient réglé le bord GAUCHE (1ʳᵉ) et
+ * la dépendance à la langue par `flex-start` (2ᵉ). Ce qui restait cassé :
  *
- *  A. L'AVATAR FLOTTAIT VERTICALEMENT. `headerTop` était en `alignItems:'center'`
- *     et la colonne texte est PLUS HAUTE que l'avatar : 23 (nom) + 4 + 17
- *     (@handle) + 4 + 15 (titre) + 4 + 16 (niveau·ville) ≈ 83 px contre 72.
- *     L'avatar était donc redescendu de (83−72)/2 ≈ 5,5 px — et, dès que
- *     « Niveau 12 · Paris » passait sur DEUX lignes (allemand, portugais), la
- *     colonne montait à ~98 px et l'avatar redescendait à ~13 px. Autrement dit
- *     la position verticale de l'avatar dépendait de la LANGUE. Aucun repère
- *     commun ne pouvait tenir.
- *     → `flex-start` : l'avatar et la 1ʳᵉ ligne de texte partagent UNE ligne
- *       haute, invariante par langue et par nombre de lignes.
+ *  A. L'AVATAR ET L'IDENTITÉ N'ONT PAS DE REPÈRE DE LIGNE COMMUN. La 2ᵉ passe
+ *     avait posé l'avatar en `flex-start` : son BORD HAUT s'alignait sur le bord
+ *     haut du texte. Mais l'avatar (72 px) est plus HAUT que le bloc identité
+ *     nom+@handle (≈ 42 px) : son centre optique tombait donc 13,6 px SOUS le
+ *     centre du nom+@handle. À l'œil, le nom « flottait » dans le tiers supérieur
+ *     de l'avatar, et la masse de l'hexagone débordait de 6,6 px sous un texte
+ *     court — exactement le « rien n'est aligné » ressenti. `alignItems:'center'`
+ *     ne le corrige pas non plus : son écart passe de +10 px (fr, 1 ligne) à
+ *     +30 px (de, titre + niveau·ville sur 2 lignes) — l'avatar redescend avec la
+ *     longueur du texte, donc avec la LANGUE. Aucun des deux ne pose un repère.
+ *     → On ancre le centre optique de l'avatar sur le bloc identité (nom +
+ *       @handle) via un décalage DÉRIVÉ de la colonne texte (`IDENTITY_TOP_OFFSET`,
+ *       = (72 − 42)/2 ≈ 15 px). Le nom et le @handle encadrent alors la face de
+ *       l'avatar (écart 0), et le titre + niveau·ville descendent SOUS l'identité
+ *       sans jamais déplacer ce repère : invariant par langue et par nb de lignes.
+ *       L'avatar reste en `flex-start` (bord haut = haut de card), c'est le TEXTE
+ *       qui s'aligne sur lui — donc aucun débordement de l'avatar hors du padding.
  *
  *  B. L'AVATAR PARAISSAIT RENTRÉ. Sa boîte était carrée (72×72) pour une encre
  *     hexagonale de 56,6 px de large : ~7,7 px de vide fantôme à gauche, donc un
@@ -159,6 +166,30 @@ const AVATAR_APOTHEM_PX = AVATAR_BODY_R_PX * HEX_ASPECT;
 /** Coin haut-gauche du crayon, centré sur le milieu de l'arête inférieure droite. */
 const PENCIL_LEFT = AVATAR_W / 2 + AVATAR_APOTHEM_PX * Math.cos(Math.PI / 3) - PENCIL_PX / 2;
 const PENCIL_TOP = AVATAR_PX / 2 + AVATAR_APOTHEM_PX * Math.sin(Math.PI / 3) - PENCIL_PX / 2;
+
+// ─── LE REPÈRE DE LIGNE COMMUN AVATAR ↔ IDENTITÉ (3ᵉ passe) ───────────────────
+// Ces trois valeurs sont la GÉOMÉTRIE du bloc identité, dérivée des mêmes
+// hauteurs de ligne que les styles `name`/`handle` ci-dessous (source unique :
+// on ne recopie pas « 23 » et « 16,8 » au jugé, on les calcule). C'est ce qui
+// permet de centrer l'avatar sur le nom+@handle sans nombre magique.
+/** Interligne du nom (= style `name.lineHeight`). */
+const NAME_LH = fontSizes.lg * 1.15; // 23
+/** Interligne du @handle (= style `handle.lineHeight`). */
+const HANDLE_LH = fontSizes.sm * 1.2; // 16,8
+/** Espace nom↔@handle (= style `headerIdentity.gap`) : ils se lisent comme UNE unité. */
+const IDENTITY_GAP = 2;
+/** Hauteur du bloc identité (nom + @handle) — INVARIANTE par langue (2 lignes fixes). */
+const IDENTITY_H = NAME_LH + IDENTITY_GAP + HANDLE_LH; // 41,8
+/**
+ * Décalage vertical de la colonne texte qui centre le bloc identité (nom +
+ * @handle) sur le centre OPTIQUE de l'avatar. `(hauteur avatar − hauteur
+ * identité) / 2` : le nom et le @handle encadrent alors la face de l'avatar, et
+ * les lignes qualificatives (titre, niveau·ville) descendent SOUS l'identité
+ * sans jamais déplacer ce repère — donc invariant par langue et par nombre de
+ * lignes. `max(0, …)` protège le cas (théorique) où l'identité dépasserait
+ * l'avatar. C'est la correction de la 3ᵉ passe (cf. bloc de tête).
+ */
+const IDENTITY_TOP_OFFSET = Math.max(0, (AVATAR_PX - IDENTITY_H) / 2); // ≈ 15,1
 
 /** Bornes XP par niveau (courbe §43.1) — table pure. Le niveau/tier/jauge sont
  *  DÉRIVÉS de l'XP RÉELLE dans le composant (O1 : useMyEconomy), plus au module. */
@@ -951,9 +982,9 @@ export default function ProfilScreen() {
             style={({ pressed }) => [styles.linkRow, pressed && styles.dim]}
           >
             <Icon name={link.icon} size={iconSizes.md} color={colors.blanc} />
-            <Text style={styles.linkLabel} numberOfLines={1}>
-              {t(link.label)}
-            </Text>
+            {/* §A « textes jamais coupés » : pas de numberOfLines → le libellé
+                s'enroule (flex:1) au lieu d'être tronqué par « … ». */}
+            <Text style={styles.linkLabel}>{t(link.label)}</Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
         ))}
@@ -995,15 +1026,19 @@ const styles = StyleSheet.create({
     padding: spacing.cardPadding,
     gap: spacing.md,
   },
-  // UNE ligne haute partagée par l'avatar et la 1ʳᵉ ligne de texte (`flex-start`).
-  // `center` faisait dépendre la position verticale de l'avatar de la hauteur de
-  // la colonne texte — donc de la LANGUE (cf. diagnostic A en tête de fichier).
+  // Avatar en `flex-start` : son bord haut = haut de la card, il ne déborde
+  // jamais du padding. C'est la COLONNE TEXTE qui vient s'aligner sur lui via
+  // `headerInfo.marginTop` (cf. diagnostic A) — pas l'inverse.
   headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   // Colonne texte : UN seul bord gauche, deux GROUPES (identité / qualificatifs)
-  // séparés par un espace franc — plus de marginTop au cas par cas.
-  headerInfo: { flex: 1, gap: spacing.xs },
-  // Nom + @handle : une unité, donc l'espace le plus serré de la colonne.
-  headerIdentity: { gap: 2 },
+  // séparés par un espace franc. `marginTop` = LE REPÈRE COMMUN : il descend le
+  // bloc identité (nom + @handle) pile sur le centre optique de l'avatar
+  // (`IDENTITY_TOP_OFFSET`, dérivé — jamais au jugé). Les qualificatifs suivent
+  // sous l'identité et ne déplacent donc jamais ce repère (invariant par langue).
+  headerInfo: { flex: 1, gap: spacing.xs, marginTop: IDENTITY_TOP_OFFSET },
+  // Nom + @handle : une unité, donc l'espace le plus serré de la colonne. Le gap
+  // est la SOURCE de `IDENTITY_GAP` (qui entre dans le calcul de l'offset).
+  headerIdentity: { gap: IDENTITY_GAP },
   // Avatar pressable + pastille crayon (édition évidente sur la card). Variante
   //  SURFACE/contour chartreuse (pas un disque plein) : le SEUL chartreuse plein
   //  de la scène reste le gros CTA territoire (charte : un seul accent plein).
@@ -1031,7 +1066,10 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.lg,
     fontWeight: '700',
     letterSpacing: 0.3,
-    lineHeight: fontSizes.lg * 1.15,
+    // MÊME source que `NAME_LH` (qui sert à calculer le centrage de l'avatar) :
+    // la hauteur mesurée du nom et celle utilisée par l'offset ne peuvent pas
+    // diverger.
+    lineHeight: NAME_LH,
   },
   // @handle — gris, juste sous le nom, MÊME bord gauche (hiérarchie 2).
   handle: {
@@ -1039,7 +1077,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: '600',
     letterSpacing: 0.2,
-    lineHeight: fontSizes.sm * 1.2,
+    lineHeight: HANDLE_LH, // = source de `HANDLE_LH` (entre dans l'offset avatar)
   },
   // Titre cosmétique — chartreuse sur surface N1 SOMBRE (carbone), jamais clair.
   title: {

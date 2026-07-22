@@ -38,7 +38,7 @@ const transformSharedDataLine = (line) =>
 // série, hébergé dans `shared` (et non `engine`) pour que le mobile l'importe
 // sans tirer h3-js dans le bundle Metro — il n'importe que des constantes.
 // ⚠ MIROIR EXACT dans drift_test.ts (SHARED_DATA_FILES).
-const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts'];
+const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts', 'season.ts'];
 for (const f of SHARED_DATA_FILES) {
   const source = readFileSync(join(root, 'packages', 'shared', 'src', f), 'utf8');
   const out = source.split('\n').map(transformSharedDataLine).join('\n');

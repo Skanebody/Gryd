@@ -30,22 +30,19 @@
  *    un réglage de moteur qui bouge ne peut plus laisser l'écran mentir.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
   FINISHER_MIN_SEGMENT_M,
   FINISHER_MIN_SHARE,
   fontSizes,
-  gameColors,
-  iconSizes,
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
   PUSH_MAX_PER_DAY,
   PUSH_QUIET_HOURS_END,
   PUSH_QUIET_HOURS_START,
   radii,
-  sizes,
   spacing,
 } from '@klaim/shared';
 import {
@@ -62,6 +59,7 @@ import { useDeviceNotifications } from '../../src/features/notifications/useDevi
 import type { PushStatus } from '../../src/features/notifications/push';
 import { SectionLabel } from '../../src/features/privacy/ui';
 import { useRealCrew } from '../../src/features/crew/real';
+import { SeasonStatus } from '../../src/features/season/SeasonStatus';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import { C } from '../../src/i18n/catalog/reglages';
 import { t as tStatic, useT } from '../../src/i18n/store';
@@ -74,7 +72,7 @@ import {
   type SettingsSectionId,
 } from '../../src/features/settings/sections';
 import { Button } from '../../src/ui/Button';
-import { Icon } from '../../src/ui/Icon';
+import { ListRow } from '../../src/ui/ListRow';
 import { StackScreen } from '../../src/ui/StackScreen';
 
 const SECTION_IDS: readonly SettingsSectionId[] = [
@@ -108,16 +106,6 @@ const PUSH_STATUS_TEXT: Readonly<Record<PushStatus, (typeof C)['pushIdle']>> = {
   error: C.pushError,
 };
 
-/** Domaine public GRYD (invites, pages légales). Aligné sur invite.ts / demo.ts. */
-const GRYD_SITE = 'https://gryd.run';
-
-/** Ouvre une page légale publique (Conditions) dans le navigateur — comportement
- *  attendu par l'App Store pour les CGU. Fallback honnête si l'URL est injoignable. */
-function openLegal(path: string, fallbackTitle: string, fallbackBody: string): void {
-  const url = `${GRYD_SITE}/${path}`;
-  void Linking.openURL(url).catch(() => Alert.alert(fallbackTitle, fallbackBody));
-}
-
 /** Accusé de réception honnête pour un flux pas encore câblé (O1) — le bouton
  *  répond au tap au lieu de rester muet, en cohérence avec la note « bientôt ». */
 function soonAlert(title: string, body: string): void {
@@ -144,56 +132,16 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Ligne d'action neutre (ouvre un flux à venir / une route). Icône + label + chevron. */
-function ActionRow({
-  icon,
-  label,
-  detail,
-  danger,
-  onPress,
-}: {
-  icon: Parameters<typeof Icon>[0]['name'];
-  label: string;
-  detail?: string;
-  danger?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      {/* Même règle que la liste Paramètres (21/07) : l'icône de tête porte le
-          RÔLE de la ligne. Chartreuse par défaut sur fond `carbone` (sombre) ;
-          une action DESTRUCTIVE garde le rouge sémantique — l'accent ne doit
-          jamais banaliser « supprimer mon compte » / « quitter le crew ». */}
-      <View style={styles.iconWrap}>
-        <Icon
-          name={icon}
-          size={iconSizes.md}
-          color={danger === true ? gameColors.danger : colors.chartreuse}
-        />
-      </View>
-      <View style={styles.rowInfo}>
-        <Text style={[styles.rowLabel, danger === true && styles.rowLabelDanger]}>{label}</Text>
-        {detail !== undefined ? <Text style={styles.rowDetail}>{detail}</Text> : null}
-      </View>
-      <Icon name="chevron" size={16} color={colors.gris} />
-    </Pressable>
-  );
-}
-
-/** Ligne « valeur en lecture » (info figée, ex. version, tolérance moteur). */
-function ValueRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.valueRow}>
-      <Text style={styles.valueLabel}>{label}</Text>
-      <Text style={styles.valueVal}>{value}</Text>
-    </View>
-  );
-}
+/**
+ * Les lignes de réglage (action neutre, action destructive, valeur en lecture)
+ * ne sont plus réimplémentées ici : elles passent toutes par la primitive
+ * partagée `ListRow` (src/ui/ListRow) — même hauteur, même marge, même trailing,
+ * même cible tactile que Confidentialité et À propos. C'est cette primitive qui
+ * résout le « pourquoi ce n'est pas le même UI ».
+ *   · action / navigation → `icon` + `label` (+ `sublabel`) + `chevron` + `onPress`
+ *   · action destructive  → idem + `tone="danger"`
+ *   · valeur en lecture    → `label` + `value` (ni `icon` ni `onPress`)
+ */
 
 /** Petite note honnête « bientôt » quand un flux n'est pas encore câblé. */
 function Soon({ children }: { children: string }) {
@@ -345,46 +293,51 @@ export default function SettingsSectionScreen() {
                  traduite dans le catalogue partagé sort de ce lot.) */
               null
             ) : signedIn ? (
-              <ValueRow label={t(C.connectedAs)} value={profile.displayName} />
+              <ListRow label={t(C.connectedAs)} value={profile.displayName} />
             ) : configured ? (
-              <ActionRow
+              <ListRow
                 icon="ami"
                 label={t(C.identitySignInLabel)}
-                detail={t(C.identitySignInDetail)}
+                sublabel={t(C.identitySignInDetail)}
+                chevron
                 onPress={() => router.push('/sign-in')}
               />
             ) : (
               <>
-                <ValueRow label={t(C.connectedAs)} value={t(C.identityNone)} />
+                <ListRow label={t(C.connectedAs)} value={t(C.identityNone)} />
                 <Text style={styles.note}>{t(C.identityNoBackend)}</Text>
               </>
             )}
-            <ActionRow
+            <ListRow
               icon="lien"
               label={t(C.emailLabel)}
-              detail={t(C.emailDetail)}
+              sublabel={t(C.emailDetail)}
+              chevron
               onPress={() => soonAlert(t(C.emailLabel), t(C.emailSoonBody))}
             />
-            <ActionRow
+            <ListRow
               icon="verrou"
               label={t(C.securityLabel)}
-              detail={t(C.securityDetail)}
+              sublabel={t(C.securityDetail)}
+              chevron
               onPress={() => soonAlert(t(C.securityLabel), t(C.securitySoonBody))}
             />
             <Soon>{t(C.accountSoonNote)}</Soon>
           </Section>
           <Section label={t(C.secCompte)}>
-            <ActionRow
+            <ListRow
               icon="partage"
               label={t(C.exporterMesDonnees)}
-              detail={t(C.exportDataDetail)}
+              sublabel={t(C.exportDataDetail)}
+              chevron
               onPress={() => router.push('/confidentialite')}
             />
-            <ActionRow
+            <ListRow
               icon="fermer"
               label={t(C.supprimerMonCompte)}
-              detail={t(C.deleteAccountDetail)}
-              danger
+              sublabel={t(C.deleteAccountDetail)}
+              tone="danger"
+              chevron
               onPress={() => router.push('/confidentialite')}
             />
           </Section>
@@ -399,21 +352,23 @@ export default function SettingsSectionScreen() {
               écrit : « Modifier le profil » juste en dessous est le chemin pour
               le renseigner, et il ne disparaît jamais. */}
           {displayNameShown !== null ? (
-            <ValueRow label={t(C.displayName)} value={displayNameShown} />
+            <ListRow label={t(C.displayName)} value={displayNameShown} />
           ) : null}
           {titleShown !== null ? (
-            <ValueRow label={t(C.titleLabel)} value={titleShown} />
+            <ListRow label={t(C.titleLabel)} value={titleShown} />
           ) : null}
-          <ActionRow
+          <ListRow
             icon="ami"
             label={t(C.editProfile)}
-            detail={t(C.editProfileDetail)}
+            sublabel={t(C.editProfileDetail)}
+            chevron
             onPress={() => router.push('/profil-edit')}
           />
-          <ActionRow
+          <ListRow
             icon="verrou"
             label={t(C.whoSeesProfile)}
-            detail={t(C.whoSeesProfileDetail)}
+            sublabel={t(C.whoSeesProfileDetail)}
+            chevron
             onPress={() => router.push('/confidentialite')}
           />
         </Section>
@@ -480,7 +435,7 @@ export default function SettingsSectionScreen() {
               cta={{ label: t(C.crewNoneCta), onPress: () => router.push('/crew') }}
             />
           ) : (
-            <ValueRow label="Crew" value={realCrew.name} />
+            <ListRow label="Crew" value={realCrew.name} />
           )}
 
           {/* Les réglages de crew ne s'affichent QUE s'il y a un crew : proposer
@@ -490,27 +445,30 @@ export default function SettingsSectionScreen() {
             <>
               {/* D8 : War Room masquée hors MVP. */}
               {flags.warRoom ? (
-                <ActionRow
+                <ListRow
                   icon="guerre"
                   label={t(C.crewMissions)}
-                  detail={t(C.crewMissionsDetail)}
+                  sublabel={t(C.crewMissionsDetail)}
+                  chevron
                   onPress={() => router.push('/warroom')}
                 />
               ) : null}
-              <ActionRow
+              <ListRow
                 icon="cloche"
                 label={t(C.crewNotifs)}
-                detail={t(C.crewNotifsDetail)}
+                sublabel={t(C.crewNotifsDetail)}
+                chevron
                 onPress={() => router.push('/parametres/notifications')}
               />
               {/* « Bientôt » était FAUX : `leave_crew` est câblée et le flux
                   complet (confirmation incluse) vit dans l'écran Crew. On y
                   emmène au lieu d'annoncer une indisponibilité inexistante. */}
-              <ActionRow
+              <ListRow
                 icon="fermer"
                 label={t(C.leaveCrew)}
-                detail={t(C.leaveCrewDetailReal)}
-                danger
+                sublabel={t(C.leaveCrewDetailReal)}
+                tone="danger"
+                chevron
                 onPress={() => router.push('/crew')}
               />
             </>
@@ -522,10 +480,11 @@ export default function SettingsSectionScreen() {
         <>
           <Section label={t(C.secStyleJeu)}>
             <Text style={styles.note}>{t(PLAY_STYLE_LABELS[prefs.playStyle].subtitle)}</Text>
-            <ActionRow
+            <ListRow
               icon="cible"
               label={t(C.setStyle)}
-              detail={t(C.setStyleDetail)}
+              sublabel={t(C.setStyleDetail)}
+              chevron
               onPress={() => router.push('/settings-motivation')}
             />
           </Section>
@@ -539,8 +498,8 @@ export default function SettingsSectionScreen() {
                 setHapticsEnabled(v);
               }}
             />
-            <ValueRow label={t(C.unites)} value={t(C.kilometres)} />
-            <ValueRow label={t(C.annoncesAudio)} value={t(C.bientot)} />
+            <ListRow label={t(C.unites)} value={t(C.kilometres)} />
+            <ListRow label={t(C.annoncesAudio)} value={t(C.bientot)} />
           </Section>
         </>
       ) : null}
@@ -568,10 +527,11 @@ export default function SettingsSectionScreen() {
               nulle part : cette ligne dit l'état RÉEL du téléphone, et son
               détail change avec le diagnostic (jamais un « Activer » muet). */}
           {!prefs.notifChannels.includes('off') ? (
-            <ActionRow
+            <ListRow
               icon="cloche"
               label={t(C.pushDeviceLabel)}
-              detail={pushBusy ? t(C.pushBusy) : t(PUSH_STATUS_TEXT[pushStatus])}
+              sublabel={pushBusy ? t(C.pushBusy) : t(PUSH_STATUS_TEXT[pushStatus])}
+              chevron
               onPress={() => {
                 if (pushStatus === 'registered') pushDisable();
                 // Refus système : seul le joueur peut revenir dessus, dans les
@@ -593,12 +553,13 @@ export default function SettingsSectionScreen() {
 
       {id === 'carte' ? (
         <Section label={t(C.secAffichageCarte)}>
-          <ValueRow label={t(C.coucheDefaut)} value={t(C.coucheAuto)} />
+          <ListRow label={t(C.coucheDefaut)} value={t(C.coucheAuto)} />
           <Text style={styles.note}>{t(C.carteNote)}</Text>
-          <ActionRow
+          <ListRow
             icon="verrou"
             label={t(C.maTrace)}
-            detail={t(C.maTraceDetail)}
+            sublabel={t(C.maTraceDetail)}
+            chevron
             onPress={() => router.push('/confidentialite')}
           />
         </Section>
@@ -607,40 +568,52 @@ export default function SettingsSectionScreen() {
       {id === 'apropos' ? (
         <>
           <Section label="GRYD">
-            <ValueRow label={t(C.version)} value={APP_VERSION} />
-            <ValueRow label={t(C.saison)} value={t(C.saisonValue)} />
+            <ListRow label={t(C.version)} value={APP_VERSION} />
+            {/* La ligne figée « Saison 0 · Paris + Lille » (C.saison/C.saisonValue)
+                affirmait une saison sans jamais la lire : remplacée par le vrai
+                statut serveur, qui distingue active / aucune / échec / chargement
+                et n'invente jamais de date de fin. */}
+            <SeasonStatus />
           </Section>
+          {/* Chaque ligne légale ouvre son VRAI document DANS l'app (routes
+              /legal/* + /a-propos), jamais un domaine public inexistant
+              (fini `openLegal` → gryd.run/*, arbitrage O10 non tranché) ni le
+              renvoi de « Politique de confidentialité » vers l'écran de RÉGLAGES
+              (/confidentialite) au lieu du texte de la politique
+              (/legal/confidentialite). LCEN : ces pages sont donc toujours
+              accessibles, sans réseau ni hébergement. */}
           <Section label={t(C.secLegal)}>
-            <ActionRow
+            <ListRow
               icon="pass"
               label={t(C.cgu)}
-              onPress={() => openLegal('conditions', t(C.cgu), t(C.cguFallbackBody))}
+              chevron
+              onPress={() => router.push('/legal/cgu')}
             />
-            <ActionRow icon="verrou" label={t(C.privacyPolicy)} onPress={() => router.push('/confidentialite')} />
-            <ActionRow
+            <ListRow
+              icon="verrou"
+              label={t(C.privacyPolicy)}
+              chevron
+              onPress={() => router.push('/legal/confidentialite')}
+            />
+            <ListRow
               icon="pass"
               label={t(C.cgv)}
-              detail={t(C.cgvDetail)}
-              onPress={() => openLegal('cgv', t(C.cgvFallbackTitle), t(C.cgvFallbackBody))}
+              sublabel={t(C.cgvDetail)}
+              chevron
+              onPress={() => router.push('/legal/cgv')}
             />
-            {/* Les mentions légales ouvraient « gryd.run/mentions-legales » — un
-                domaine INEXISTANT (arbitrage O10 non tranché) vers des pages web
-                non déployées : un cul-de-sac, alors que la LCEN exige qu'elles
-                soient accessibles. Elles vivent désormais DANS l'app
-                (app/a-propos.tsx) : aucun domaine, aucun réseau, toujours
-                affichables. */}
-            <ActionRow
+            <ListRow
               icon="pass"
               label={t(C.mentions)}
-              detail={t(C.mentionsDetail)}
+              sublabel={t(C.mentionsDetail)}
+              chevron
               onPress={() => router.push('/a-propos')}
             />
-            <ActionRow
+            <ListRow
               icon="crest"
               label={t(C.licences)}
-              onPress={() =>
-                Alert.alert(t(C.licences), t(C.licencesBody), [{ text: t(C.fermer) }])
-              }
+              chevron
+              onPress={() => router.push('/legal/licences')}
             />
             <Soon>{t(C.tagline)}</Soon>
           </Section>
@@ -655,15 +628,15 @@ export default function SettingsSectionScreen() {
                 les VRAIES constantes : ces trois lignes étaient écrites en dur
                 (ici et dans le catalogue i18n), donc un changement de moteur les
                 aurait laissées mentir en silence. Elles viennent de game-rules. */}
-            <ValueRow
+            <ListRow
               label={t(C.fermetureFrontiere)}
               value={t(C.valueHours, { n: PARTIAL_BOUNDARY_TTL_H })}
             />
-            <ValueRow
+            <ListRow
               label={t(C.toleranceJonction)}
               value={t(C.valueMeters, { n: PARTIAL_JOIN_TOLERANCE_M })}
             />
-            <ValueRow
+            <ListRow
               label={t(C.contributionMin)}
               value={t(C.contributionMinBoth, {
                 m: FINISHER_MIN_SEGMENT_M,
@@ -672,13 +645,14 @@ export default function SettingsSectionScreen() {
             />
           </Section>
           <Section label={t(C.secDiagnostics)}>
-            <ActionRow
+            <ListRow
               icon="radar"
               label={t(C.fiabiliteVerify)}
-              detail={t(C.fiabiliteVerifyDetail)}
+              sublabel={t(C.fiabiliteVerifyDetail)}
+              chevron
               onPress={() => router.push('/sources')}
             />
-            <ValueRow label="Build" value={APP_VERSION} />
+            <ListRow label="Build" value={APP_VERSION} />
           </Section>
         </>
       ) : null}
@@ -687,7 +661,6 @@ export default function SettingsSectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  pressed: { opacity: 0.7 },
   note: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -702,13 +675,13 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.xxs },
-  // ── État vide : MÊME géométrie de card que ValueRow/ActionRow (un vide n'est
-  // pas un écran à part, c'est la ligne qui manque — elle garde sa place). ──
+  // ── État vide : MÊME surface que `ListRow` (carbone, radii.card, sans contour,
+  // séparée par l'espace — règle 80/20). Un vide n'est pas un écran à part, c'est
+  // la ligne qui manque : elle garde exactement la place et la géométrie d'une
+  // ligne de réglage. ──
   empty: {
     backgroundColor: colors.carbone,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 16,
     paddingHorizontal: spacing.cardPadding - 2,
     marginBottom: 10,
@@ -721,58 +694,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxs,
   },
   emptyCta: { marginTop: spacing.sm },
-  // Géométrie de card ALIGNÉE sur Confidentialité (21/07) — voir parametres.tsx.
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding - 2,
-    marginBottom: 10,
-  },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowInfo: { flex: 1 },
-  rowLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  rowLabelDanger: { color: gameColors.danger },
-  rowDetail: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.5,
-    marginTop: spacing.xxs,
-  },
-  // Ligne « valeur en lecture » : même card que ActionRow, sans carré d'icône —
-  // l'écho du couple titre/valeur des cards repliées de Confidentialité.
-  valueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    minHeight: sizes.touchTarget,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding - 2,
-    marginBottom: 10,
-  },
-  valueLabel: { color: colors.gris, fontSize: fontSizes.sm },
-  valueVal: {
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
 });

@@ -14,7 +14,8 @@
     "./badges": "./src/badges.ts",
     "./skills": "./src/skills.ts",
     "./bonuses": "./src/bonuses.ts",
-    "./streak": "./src/streak.ts"
+    "./streak": "./src/streak.ts",
+    "./season": "./src/season.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
