@@ -443,6 +443,27 @@ export const C = defineCatalog({
     de: 'Angezeigter Titel',
     pt: 'Título exibido',
   },
+  namePlaceholder: {
+    fr: 'Ton nom',
+    en: 'Your name',
+    es: 'Tu nombre',
+    de: 'Dein Name',
+    pt: 'O teu nome',
+  },
+  handlePlaceholder: {
+    fr: 'pseudo',
+    en: 'username',
+    es: 'usuario',
+    de: 'nutzername',
+    pt: 'utilizador',
+  },
+  cityPlaceholder: {
+    fr: 'Ta ville',
+    en: 'Your city',
+    es: 'Tu ciudad',
+    de: 'Deine Stadt',
+    pt: 'A tua cidade',
+  },
   titlePlaceholder: {
     fr: 'Tenace du 19ᵉ',
     en: 'Tenacious of the 19th',

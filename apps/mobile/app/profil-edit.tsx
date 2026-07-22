@@ -310,7 +310,7 @@ export default function ProfilEditScreen() {
               setDisplayName(v.slice(0, DISPLAY_NAME_MAX));
               touched();
             }}
-            placeholder="KORO"
+            placeholder={t(C.namePlaceholder)}
             placeholderTextColor={colors.gris}
             style={styles.input}
             maxLength={DISPLAY_NAME_MAX}
@@ -333,7 +333,7 @@ export default function ProfilEditScreen() {
               setHandle(v.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20));
               touched();
             }}
-            placeholder="koro"
+            placeholder={t(C.handlePlaceholder)}
             placeholderTextColor={colors.gris}
             autoCapitalize="none"
             autoCorrect={false}
@@ -379,7 +379,7 @@ export default function ProfilEditScreen() {
               setCity(v.slice(0, CITY_MAX));
               touched();
             }}
-            placeholder="Paris"
+            placeholder={t(C.cityPlaceholder)}
             placeholderTextColor={colors.gris}
             style={styles.input}
             maxLength={CITY_MAX}

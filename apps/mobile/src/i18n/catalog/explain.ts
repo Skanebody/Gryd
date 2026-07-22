@@ -993,6 +993,20 @@ export const C = defineCatalog({
     de: 'Schließ den Loop',
     pt: 'Feche o loop',
   },
+  schemaRoleOpener: {
+    fr: 'Ouvreur',
+    en: 'Opener',
+    es: 'Iniciador',
+    de: 'Öffner',
+    pt: 'Abridor',
+  },
+  schemaRoleFinisher: {
+    fr: 'Finisher',
+    en: 'Finisher',
+    es: 'Finalizador',
+    de: 'Finisher',
+    pt: 'Finalizador',
+  },
   schemaFinisherBonus: {
     fr: 'Bonus Finisher',
     en: 'Finisher bonus',

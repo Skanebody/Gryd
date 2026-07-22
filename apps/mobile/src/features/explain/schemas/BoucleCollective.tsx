@@ -27,22 +27,24 @@ const LOOP_X = 18;
 const LOOP_Y = 20;
 
 export interface Contributor {
-  name: string;
-  /** Part de frontière validée en % entier (démo). */
+  /** Nom affiché. Absent → le composant met le libellé de RÔLE (i18n). */
+  name?: string;
+  /** Part de frontière validée en % entier. */
   pct: number;
 }
 
 export interface BoucleCollectiveProps extends SchemaBaseProps {
-  /** Ouvreur de la frontière (démo). Défaut { KORO, 79 }. */
+  /** Ouvreur de la frontière. Le nom défaut est le RÔLE (« Ouvreur »), jamais
+   *  une personne inventée : ce schéma enseigne le mécanisme du relais. */
   opener?: Contributor;
-  /** Finisher qui referme (démo). Défaut { LENA, 21 }. */
+  /** Finisher qui referme. Nom défaut = le rôle (« Finisher »). */
   finisher?: Contributor;
 }
 
 export function BoucleCollective({
   size = VB_W,
-  opener = { name: 'KORO', pct: 79 },
-  finisher = { name: 'LENA', pct: 21 },
+  opener = { pct: 79 },
+  finisher = { pct: 21 },
   accessibilityLabel,
 }: BoucleCollectiveProps) {
   const t = useT();
@@ -87,7 +89,7 @@ export function BoucleCollective({
       <G>
         <Circle cx={186} cy={70} r={4} fill={colors.chartreuse} />
         <SvgText x={198} y={74} fill={colors.blanc} fontSize={13} fontFamily={fonts.text}>
-          {opener.name}
+          {opener.name ?? t(C.schemaRoleOpener)}
         </SvgText>
         <SvgText x={VB_W - 10} y={74} fill={colors.chartreuse} fontSize={14} fontFamily={fonts.mono} textAnchor="end">
           {t(C.pctShare, { n: opener.pct })}
@@ -96,7 +98,7 @@ export function BoucleCollective({
       <G>
         <Circle cx={186} cy={100} r={4} fill="none" stroke={colors.chartreuse} strokeWidth={2} strokeDasharray="3 3" />
         <SvgText x={198} y={104} fill={colors.blanc} fontSize={13} fontFamily={fonts.text}>
-          {finisher.name}
+          {finisher.name ?? t(C.schemaRoleFinisher)}
         </SvgText>
         <SvgText x={VB_W - 10} y={104} fill={colors.gris} fontSize={14} fontFamily={fonts.mono} textAnchor="end">
           {t(C.pctShare, { n: finisher.pct })}
