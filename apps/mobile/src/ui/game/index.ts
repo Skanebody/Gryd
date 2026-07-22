@@ -34,7 +34,6 @@ export {
   type InlineRunCTASize,
   type RunButtonMode,
 } from './ContextualRunButton';
-export { BattleMapHUD, type BattleMapHUDProps } from './BattleMapHUD';
 export { WarRoomObjectiveCard, type WarRoomObjectiveCardProps } from './WarRoomObjectiveCard';
 export { FriendCard, type FriendCardProps } from './FriendCard';
 export {

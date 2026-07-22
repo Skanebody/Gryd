@@ -12,8 +12,9 @@
  * au-dessus d'un podium Crews/Ville/France.
  * En exploration : onglets réduits (Joueurs / Crews / Ville) + portée (Paris /
  * France) ; podium ; liste COMPACTE fenêtrée AUTOUR de ma ligne (mes voisins
- * directs, pas des rangs anonymes) + « Voir tout » ; récompenses de fin de
- * saison datées sur l'horloge unique de l'écran (la semaine de saison).
+ * directs, pas des rangs anonymes) + « Voir tout » ; catalogue des récompenses
+ * Top 10 (QUOI se gagne), daté « · J-n » UNIQUEMENT si une saison serveur court
+ * (bornes réelles via seasonProgress) — jamais sur SEASON_DURATION_WEEKS.
  * L'écart en zones neutres est DÉRIVÉ via POINTS_NEUTRAL_HEX — aucun barème
  * local.
  * Anti-shame : jamais « dernier/lent ». Pas de gros CTA « GO » (§A.5).
@@ -40,13 +41,13 @@ import { router, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   POINTS_NEUTRAL_HEX,
-  SEASON_DURATION_WEEKS,
   colors,
   elevation,
   fontSizes,
   gameColors,
   iconSizes,
   radii,
+  seasonProgress,
   spacing,
 } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/flagged';
@@ -55,6 +56,7 @@ import type { Entry } from '../../src/i18n/types';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
 import { useSeasonLeaderboard } from '../../src/features/social/leagueBoard';
+import { useActiveSeason } from '../../src/features/season/useActiveSeason';
 import {
   TOP10_REWARDS,
   type LeagueBoard,
@@ -278,6 +280,19 @@ function LeagueScreen() {
   const signedIn = configured && session !== null;
 
   /**
+   * Saison RÉELLE (RPC `season_current`, jamais une constante). L'horloge des
+   * récompenses n'est HONNÊTE que branchée sur `season.endsAt` — décomptée par
+   * le moteur pur `seasonProgress`, jamais par SEASON_DURATION_WEEKS (une durée
+   * nominale n'est pas une date de fin). Le décompte et l'état « En cours » ne
+   * valent QUE si une saison court MAINTENANT : `seasonStatus === 'active'` ET
+   * phase dérivée du TEMPS === 'active' (une saison en clôture ne montre pas
+   * « J-0 » ; un 'loading' n'affirme rien).
+   */
+  const { status: seasonStatus, season } = useActiveSeason();
+  const prog = season ? seasonProgress(season.startsAt, season.endsAt) : null;
+  const seasonActiveNow = seasonStatus === 'active' && prog?.phase === 'active';
+
+  /**
    * Le board affiché est-il ADOSSÉ à quelque chose de réel ? Seul Joueurs a une
    * source serveur, et seulement quand la lecture a résolu (`source === 'server'`).
    * Crews / Ville n'en ont AUCUNE : ils ne seront jamais « réels » tant que rien
@@ -353,14 +368,14 @@ function LeagueScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header SAISON (AMENDEMENT-29 : ex-« Paris League »). Le TITRE porte le
-            nom de l'écran (« Saison ») ; le kicker situe la saison + la semaine —
-            l'HORLOGE UNIQUE de l'écran est la semaine de saison. Honnêteté : cette
-            semaine n'est JAMAIS lue du serveur (aucune fenêtre de saison n'est
-            fetchée) → marquée « (DÉMO) » quelle que soit la source des lignes.
-            AMENDEMENT-35 (Europe) : plus de suffixe de portée « PARIS/FRANCE »
-            figé — le jeu vise l'Europe, l'onglet dit déjà ce qu'on regarde ;
-            afficher « EUROPE » sur des lignes démo Paris/Lille serait un mensonge
-            (la vision Europe est portée par la note démo + les docs). */}
+            nom de l'écran (« Saison ») ; le kicker NOMME la saison sans échéance
+            fabriquée — `saisonKickerReal` = « SAISON 0 », jamais une « semaine N »
+            devinée. Aucune fenêtre de saison n'est lue ICI : l'échéance réelle vit
+            plus bas (section Récompenses), dérivée de `season.endsAt` via
+            `useActiveSeason` + `seasonProgress`, et n'apparaît que si une saison
+            court vraiment. AMENDEMENT-35 (Europe) : pas de suffixe de portée
+            « PARIS/FRANCE » figé — l'onglet dit déjà ce qu'on regarde ; la vision
+            Europe est portée par les docs, pas par un libellé plaqué sur Paris/Lille. */}
         <Text style={styles.kicker}>{t(C.saisonKickerReal)}</Text>
         <View style={styles.titleRow}>
           <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
@@ -499,16 +514,29 @@ function LeagueScreen() {
           />
         )}
 
-        {/* Récompenses Top 10 (doc §17) — sous le fold, datées sur l'horloge
-            unique de l'écran (semaine de saison, pas de « fin de saison »
-            abstraite). Le rappel « tiens ton rang » vit ICI, lié aux gains —
-            pas dans le bloc TOI où il concurrencerait l'objectif du jour. */}
+        {/* Récompenses Top 10 (doc §17) — sous le fold. L'en-tête est STATIQUE
+            (le catalogue des lots, montrer QUOI se gagne est licite) ; l'échéance
+            réelle « · J-n » n'est suffixée QUE si une saison serveur court, dérivée
+            de `season.endsAt` via seasonProgress — jamais « FIN SEMAINE 8 » (une
+            durée nominale n'est pas une date de fin). Le rappel « tiens ton rang »
+            vit ICI, lié aux gains — pas dans le bloc TOI. */}
         <View style={styles.sectionHead}>
           <Icon name="cadeau" size={iconSizes.sm} color={colors.gris} />
           <Text style={styles.sectionLabel}>
-            {t(C.rewardsLabel, { week: SEASON_DURATION_WEEKS })}
+            {seasonActiveNow && prog
+              ? `${t(C.rewardsLabelStatic)} · ${t(C.jMinus, { n: prog.joursRestants })}`
+              : t(C.rewardsLabelStatic)}
           </Text>
         </View>
+        {/* Aucune saison ne court : les cartes tombent en « Verrouillé ». On lève
+            l'ambiguïté « jamais débloquable » par une ligne d'état honnête —
+            'none' → pas encore ouverte, 'error' → indisponible ('loading'
+            n'affirme rien). */}
+        {!seasonActiveNow && (seasonStatus === 'none' || seasonStatus === 'error') ? (
+          <Text style={styles.rewardHint}>
+            {t(seasonStatus === 'error' ? C.rewardsSeasonError : C.rewardsSeasonClosed)}
+          </Text>
+        ) : null}
         {/* Rang perso = celui du board Joueurs (dont meRow/inTop10 sont dérivés) :
             ne l'affiche QUE sur cet onglet, jamais sur Crews/Ville où « Tu es #8 »
             n'aurait aucun rapport avec la liste visible. */}
@@ -525,7 +553,10 @@ function LeagueScreen() {
               // league.ts hors périmètre) → « fin de saison », cohérent avec
               // la copie de l'écran.
               sublabel={r.sublabel.replace('au reset de saison', 'à la fin de saison')}
-              state="inprogress"
+              // « En cours » UNIQUEMENT quand une saison réelle court ; sinon
+              // « Verrouillé » (gris, neutre) — le catalogue des lots reste
+              // montré à l'identique, sans affirmer aucun timing.
+              state={seasonActiveNow ? 'inprogress' : 'locked'}
             />
           ))}
         </View>

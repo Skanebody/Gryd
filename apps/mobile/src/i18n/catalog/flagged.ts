@@ -172,12 +172,34 @@ export const C = defineCatalog({
   },
 
   // ── Récompenses Top 10 ──
-  rewardsLabel: {
-    fr: 'RÉCOMPENSES TOP 10 · FIN SEMAINE {week}',
-    en: 'TOP 10 REWARDS · END OF WEEK {week}',
-    es: 'RECOMPENSAS TOP 10 · FIN SEMANA {week}',
-    de: 'TOP-10-BELOHNUNGEN · ENDE WOCHE {week}',
-    pt: 'RECOMPENSAS TOP 10 · FIM DA SEMANA {week}',
+  /** En-tête STATIQUE du catalogue des lots : montre CE QU'ON gagne, sans
+   *  affirmer aucun timing. L'échéance réelle (« · J-n ») n'est suffixée à
+   *  l'écran QUE si une saison serveur court (seasonActiveNow), dérivée de
+   *  `season.endsAt` via seasonProgress — jamais de SEASON_DURATION_WEEKS. */
+  rewardsLabelStatic: {
+    fr: 'RÉCOMPENSES TOP 10',
+    en: 'TOP 10 REWARDS',
+    es: 'RECOMPENSAS TOP 10',
+    de: 'TOP-10-BELOHNUNGEN',
+    pt: 'RECOMPENSAS TOP 10',
+  },
+  /** Hint gris quand AUCUNE saison ne court : les lots sont un catalogue à
+   *  débloquer, pas « jamais accessibles ». État 'none' du hook saison. */
+  rewardsSeasonClosed: {
+    fr: 'Saison pas encore ouverte',
+    en: 'Season not open yet',
+    es: 'Temporada aún no abierta',
+    de: 'Saison noch nicht offen',
+    pt: 'Temporada ainda não aberta',
+  },
+  /** …et l'échec de lecture de la saison (état 'error') : on dit l'échec, on
+   *  n'affirme pas « aucune ». */
+  rewardsSeasonError: {
+    fr: 'Saison indisponible',
+    en: 'Season unavailable',
+    es: 'Temporada no disponible',
+    de: 'Saison nicht verfügbar',
+    pt: 'Temporada indisponível',
   },
   rewardHint: {
     fr: 'Tu es #{rank} — reste dans le Top 10 pour les débloquer.',
