@@ -43,7 +43,7 @@ export default function CgvScreen() {
     { heading: t(C.cgvVendeurHeading), body: vendeur },
     {
       heading: t(C.cgvOffresHeading),
-      body: [t(C.cgvOffresBody1), t(C.cgvOffresBody2), t(C.cgvOffresBody3)],
+      body: [t(C.cgvOffresBody1), t(C.cgvOffresBody2), t(C.cgvOffresBody2b), t(C.cgvOffresBody3)],
     },
     { heading: t(C.cgvCommandeHeading), body: [t(C.cgvCommandeBody1), t(C.cgvCommandeBody2)] },
     {

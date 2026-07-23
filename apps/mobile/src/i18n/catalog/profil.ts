@@ -625,6 +625,38 @@ export const C = defineCatalog({
     de: 'Aktiv',
     pt: 'Equipado',
   },
+
+  // ── Sélecteur de frames : QUATRE états distincts, jamais une liste vide muette ──
+  // On ne propose QUE les cadres que le serveur a inscrits dans l'inventaire :
+  // équiper un cadre non possédé, c'est afficher un statut qu'on n'a pas.
+  framesLoading: {
+    fr: 'Lecture de ton inventaire…',
+    en: 'Reading your inventory…',
+    es: 'Leyendo tu inventario…',
+    de: 'Dein Inventar wird gelesen…',
+    pt: 'Lendo o seu inventário…',
+  },
+  framesSignedOut: {
+    fr: 'Connecte-toi pour voir les cadres que tu possèdes.',
+    en: 'Sign in to see the frames you own.',
+    es: 'Conéctate para ver los frames que posees.',
+    de: 'Melde dich an, um deine Frames zu sehen.',
+    pt: 'Entre para ver os frames que você possui.',
+  },
+  framesUnread: {
+    fr: 'Inventaire non lu pour l’instant — on n’affiche pas des cadres qu’on n’a pas pu vérifier.',
+    en: 'Inventory not loaded yet — we don’t show frames we couldn’t verify.',
+    es: 'Inventario sin cargar — no mostramos frames que no hemos podido verificar.',
+    de: 'Inventar noch nicht geladen — wir zeigen keine Frames, die wir nicht prüfen konnten.',
+    pt: 'Inventário ainda não lido — não mostramos frames que não pudemos verificar.',
+  },
+  framesEmpty: {
+    fr: 'Tu n’as pas encore de cadre. En attendant, ta Player Card porte l’anneau de ton palier.',
+    en: 'You don’t have a frame yet. Until then, your Player Card wears your tier ring.',
+    es: 'Todavía no tienes ningún frame. Mientras tanto, tu Player Card lleva el anillo de tu nivel.',
+    de: 'Du hast noch keinen Frame. Solange trägt deine Player Card den Ring deiner Stufe.',
+    pt: 'Você ainda não tem nenhum frame. Até lá, o seu Player Card usa o anel do seu nível.',
+  },
   arsenalLink: {
     fr: 'Débloquer d’autres frames — Arsenal',
     en: 'Unlock more frames — Arsenal',

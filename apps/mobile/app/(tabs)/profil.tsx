@@ -29,7 +29,7 @@
  * profil » + crayon sur l'avatar) vers /profil-edit. L'IDENTITÉ affichée (nom,
  * titre, ville, avatar, badges) vient du profil ÉDITABLE persisté (useMyProfile)
  * → toute édition se reflète immédiatement au retour. Le FRAME cosmétique équipé
- * (useEquippedCosmetics) est rendu autour de l'avatar : équiper a un effet réel.
+ * (possédé, useArsenalInventory) est rendu autour de l'avatar : équiper a un effet réel.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -77,7 +77,7 @@ import { GripMascot } from '../../src/features/social/GripMascot';
 import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { useMyEconomy } from '../../src/features/social/economy';
-import { useEquippedCosmetics, itemByKey, isTitleItem } from '../../src/features/arsenal';
+import { useArsenalInventory, itemByKey, isTitleItem } from '../../src/features/arsenal';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { flags } from '../../src/lib/flags';
 import type { Entry } from '../../src/i18n/types';
@@ -376,11 +376,22 @@ export default function ProfilScreen() {
    */
   const seasonRank = economy.seasonRank ?? profile.seasonRank;
   const hasSeasonRank = seasonRank != null;
-  /** Cosmétiques ÉQUIPÉS persistés — frame autour de l'avatar + titre affiché. */
-  const { equipped } = useEquippedCosmetics();
+  /**
+   * Cosmétiques ÉQUIPÉS — frame autour de l'avatar + titre affiché, MAIS
+   * seulement s'ils sont réellement POSSÉDÉS (23/07/2026). Le store
+   * d'équipement est une persistance locale du CHOIX du joueur : il pouvait
+   * porter une clé choisie quand /profil-edit offrait encore tout le catalogue.
+   * Un anneau « Founder » ou un titre jamais gagné est un statut affiché à tort,
+   * exactement ce que `inventory.ts` a fermé côté possession.
+   */
+  const { equipped, ownedKeys, source: inventorySource } = useArsenalInventory();
+  const equippedProfileKey =
+    inventorySource === 'server' && equipped.profile !== undefined && ownedKeys.has(equipped.profile)
+      ? equipped.profile
+      : undefined;
 
   /** Titre affiché : un TITRE cosmétique équipé prime sur le titre éditorial. */
-  const equippedTitleItem = equipped.profile ? itemByKey(equipped.profile) : undefined;
+  const equippedTitleItem = equippedProfileKey ? itemByKey(equippedProfileKey) : undefined;
   const displayedTitle =
     equippedTitleItem && isTitleItem(equippedTitleItem)
       ? equippedTitleItem.name.replace(/^Titre\s*«\s*/, '').replace(/\s*»$/, '')
@@ -538,7 +549,7 @@ export default function ProfilScreen() {
                 initials={initials}
                 fillColor={profile.avatarColor}
                 tier={runnerTier}
-                equippedFrameKey={equipped.profile}
+                equippedFrameKey={equippedProfileKey}
                 size={AVATAR_PX}
                 isMe
                 /* Photo si le joueur en a choisi une ; sinon l'avatar généré,

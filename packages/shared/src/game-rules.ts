@@ -111,9 +111,11 @@ export const FRONTIER_COVERAGE_BUFFER_M = 30;
 export const SHIELD_MAX_CLUSTER_HEXES = 300;
 export const SHIELD_DURATION_HOURS = 48;
 export const SHIELD_MAX_ACTIVE_PER_WEEK = 2; // cap absolu par joueur
-// ANTI PAY-TO-WIN (décision fondateur) : l'abonnement GRYD Club ne bundle JAMAIS
-// de bouclier ni de protection de zone. Les boucliers restent des ACHATS
-// PONCTUELS capés (à la carte), jamais inclus dans le sub → 0.
+// ANTI PAY-TO-WIN (AMENDEMENT-40 §2, AMENDEMENT-45 §2 « Bonus ») : l'abonnement
+// GRYD Club ne bundle JAMAIS de bouclier ni de protection de zone → 0. Et le
+// bouclier n'est plus un achat non plus : il fait partie des OBJETS
+// FONCTIONNELS, qui ne s'achètent dans AUCUNE monnaie (voir
+// FUNCTIONAL_ITEM_ACQUISITION, §3.4).
 export const SHIELD_CLUB_INCLUDED_PER_WEEK = 0;
 
 // ─── §3.4 Points, streaks, monnaies ──────────────────────────────────────────
@@ -205,7 +207,16 @@ export const STREAK_MIN_RUNS_PER_WEEK = 2;
 export const STREAK_MULTIPLIER_STEP = 0.1;
 export const STREAK_MULTIPLIER_CAP = 1.5;
 export const STREAK_FREEZE_FREE_PER_MONTH = 1;
-export const STREAK_FREEZE_CLUB_PER_MONTH = 2;
+/**
+ * ANTI PAY-TO-WIN — AMENDEMENT-40 §2, correctif imposé mot pour mot :
+ * « STREAK_FREEZE_CLUB_PER_MONTH doit valoir STREAK_FREEZE_FREE_PER_MONTH :
+ *   l'abonnement ne protège pas mieux la série que la gratuité. »
+ * La série multiplie les POINTS de territoire (STREAK_MULTIPLIER_CAP = 1,5,
+ * engine/scoring.ts) : protéger la série mieux que les autres, c'est acheter un
+ * multiplicateur de score. Dérivée de la constante gratuite — pas un 1 en dur,
+ * pour qu'un changement de barème ne puisse pas rouvrir l'écart par oubli.
+ */
+export const STREAK_FREEZE_CLUB_PER_MONTH = STREAK_FREEZE_FREE_PER_MONTH;
 /**
  * Profondeur d'historique lue pour DÉRIVER la série (LOT 1 « série visible ») :
  * la série et le « meilleur » sont recalculés à partir des courses réelles des
@@ -215,14 +226,98 @@ export const STREAK_FREEZE_CLUB_PER_MONTH = 2;
 export const STREAK_HISTORY_WEEKS = 52;
 /** Foulées (monnaie douce) : 10 % des points gagnés. */
 export const FOULEES_RATE_OF_POINTS = 0.1;
+/**
+ * ×1,5 de Foulées pour GRYD Club. CONDITION DE LÉGITIMITÉ, vérifiée le
+ * 23/07/2026 : ce multiplicateur n'est acceptable QUE tant que les Foulées
+ * n'achètent RIEN de fonctionnel. État constaté à cette date :
+ *  - les seuls barèmes en Foulées de la source de vérité sont cosmétiques /
+ *    d'identité (SKIN_EARNABLE_1/2_FOULEES, CREW_RENAME_FOULEES) ;
+ *  - aucune fonction `spend_foulees` n'existe côté serveur — les Foulées sont
+ *    créditées (RPC claim/defense) et ne se dépensent nulle part.
+ *  - les objets FONCTIONNELS n'ont de prix dans AUCUNE monnaie
+ *    (FUNCTIONAL_ITEM_ACQUISITION) — Foulées comprises.
+ * ⚠ SI un jour un objet fonctionnel reçoit un barème en Foulées, ce ×1,5
+ * devient « l'abonnement protège mieux » → il faudra le ramener à 1. Le test
+ * `anti_pay_to_win_test.ts` garde la porte fermée du côté du prix.
+ * ⚠ DUPLIQUÉ EN DUR (`then 1.5`) dans les RPC des migrations APPLIQUÉES 0005
+ * ·0017 ·0018 ·0031 ·0041 : une migration appliquée ne se réécrit jamais, donc
+ * un changement de cette constante exige une NOUVELLE migration qui remplace
+ * les fonctions. Constat documenté, non corrigé ici.
+ */
 export const CLUB_FOULEES_MULTIPLIER = 1.5;
+/** Barèmes en Foulées : COSMÉTIQUES / IDENTITÉ uniquement (voir ci-dessus). */
 export const SKIN_EARNABLE_1_FOULEES = 800;
 export const SKIN_EARNABLE_2_FOULEES = 1_500;
 export const CREW_RENAME_FOULEES = 300;
 /** Éclats (monnaie premium, achetée uniquement — n'achète jamais hexes/points/Foulées/stats). */
-export const SHIELD_EXTRA_ECLATS = 90;
 export const SKIN_PREMIUM_ECLATS_MIN = 180;
 export const SKIN_PREMIUM_ECLATS_MAX = 280;
+
+/**
+ * ─── ANTI PAY-TO-WIN — OBJETS FONCTIONNELS : AUCUN PRIX, DANS AUCUNE MONNAIE ──
+ *
+ * AMENDEMENT-40 §2 (correctifs imposés, 15/07/2026) :
+ *   « Le Bouclier et le Streak Gel ne sont plus achetables contre de l'argent
+ *     (ni directement, ni via une monnaie achetable). »
+ * AMENDEMENT-45 §2 « Bonus » (21/07/2026) :
+ *   « Bouclier et scout_ping deviennent gagnables en jouant, jamais achetables
+ *     en argent réel. L'objet reste, l'avantage n'est plus vendu. »
+ *
+ * Un objet est FONCTIONNEL dès qu'il touche le jeu : protection d'un secteur
+ * (`shield`), protection de la série — donc du multiplicateur ×1,5 sur les
+ * POINTS de territoire — (`streak_gel`), information tactique sur une zone
+ * (`scout_ping`), alerte anticipée d'attaque (`attack_alert` — l'objet qui a
+ * REMPLACÉ le bouclier en migration 0022, à 50 Éclats). CLAUDE.md interdit de
+ * vendre « territoire, points, vitesse NI PROTECTION » ; AMENDEMENT-45 §2 C1
+ * ajoute mot pour mot : « Être prévenu plus tôt d'une attaque, c'est défendre
+ * en premier — un avantage compétitif payant, interdit. » Ces objets n'ont
+ * donc plus de prix Éclats, plus de prix EUR, et ne sont crédités par AUCUN
+ * pack payant (cf. SKU_GRANTED_ITEM_KEYS, d'où `streak_gel` a été retiré).
+ *
+ * Le TYPE lui-même referme la porte : `priceEclats`/`priceEur` sont typés
+ * `null` et `purchasable` est typé `false` — réintroduire un prix ne compile
+ * pas. Un test Deno gèle l'invariant côté runtime
+ * (`supabase/functions/ingest_run/anti_pay_to_win_test.ts`).
+ *
+ * ⚠ EN SUSPENS, et l'app ne le promet nulle part : la voie d'obtention « en
+ * jouant » n'est PAS codée (aucune RPC ne crédite `user_inventory` pour ces
+ * trois clés, aucune fonction `spend_foulees`/`spend_eclats` n'existe). On
+ * n'inscrit donc AUCUN barème en Foulées ici : un prix écrit avant que le code
+ * le tienne serait la même faute qu'une donnée fabriquée. `earnedBy: 'play'`
+ * dit la DIRECTION décidée, pas un tarif.
+ */
+export const FUNCTIONAL_ITEM_KEYS = [
+  'shield',
+  'streak_gel',
+  'scout_ping',
+  'attack_alert',
+] as const;
+export type FunctionalItemKey = (typeof FUNCTIONAL_ITEM_KEYS)[number];
+
+export interface FunctionalItemAcquisition {
+  /** Jamais vendable — typé `false`, pas `boolean` : la porte est fermée à la compilation. */
+  readonly purchasable: false;
+  /** Aucun prix en Éclats (monnaie ACHETABLE → argent réel → protection). */
+  readonly priceEclats: null;
+  /** Aucun prix EUR, ni direct ni via un pack. */
+  readonly priceEur: null;
+  /** Seule voie décidée : le jeu. Barème NON codé à ce jour (voir ci-dessus). */
+  readonly earnedBy: 'play';
+}
+
+export const FUNCTIONAL_ITEM_ACQUISITION: Readonly<
+  Record<FunctionalItemKey, FunctionalItemAcquisition>
+> = {
+  shield: { purchasable: false, priceEclats: null, priceEur: null, earnedBy: 'play' },
+  streak_gel: { purchasable: false, priceEclats: null, priceEur: null, earnedBy: 'play' },
+  scout_ping: { purchasable: false, priceEclats: null, priceEur: null, earnedBy: 'play' },
+  attack_alert: { purchasable: false, priceEclats: null, priceEur: null, earnedBy: 'play' },
+};
+
+/** `true` si la clé d'item est un objet FONCTIONNEL (donc jamais achetable). */
+export function isFunctionalItemKey(key: string): key is FunctionalItemKey {
+  return (FUNCTIONAL_ITEM_KEYS as readonly string[]).includes(key);
+}
 
 // ─── §3.5 Crews ──────────────────────────────────────────────────────────────
 export const CREW_MIN_MEMBERS = 2;
@@ -1545,9 +1640,15 @@ export const SKU_PRICES_EUR = {
 /** Éclats crédités par le Founder Pack (doc §19.2). */
 export const FOUNDER_PACK_ECLATS = 300;
 
-/** Prix Éclats des objets fonctionnels capés (doc §20) + bannière crew (§21.5). */
-export const STREAK_GEL_ECLATS = 60;
-export const SCOUT_PING_ECLATS = 120;
+/**
+ * Bannière crew (§21.5) — cosmétique d'identité, seul prix Éclats qui subsiste
+ * de l'ancien bloc « objets fonctionnels capés » (doc §20).
+ *
+ * SUPPRIMÉS ici par AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : `STREAK_GEL_ECLATS`
+ * (60) et `SCOUT_PING_ECLATS` (120), comme `SHIELD_EXTRA_ECLATS` (90) plus
+ * haut. Les objets fonctionnels n'ont plus de prix — voir
+ * FUNCTIONAL_ITEM_ACQUISITION (§3.4).
+ */
 export const BANNER_CREW_ECLATS = 350;
 
 /**
@@ -1587,13 +1688,18 @@ export const CREW_GIFT_EXPIRY_H = 24;
  * Items crédités à l'inventaire par les SKUs pack/gift (item_key du catalogue
  * 0014). rc_webhook les upsert via les RPC grant_user_items /
  * grant_crew_item ; le seed 0014 DOIT contenir chacune de ces clés.
+ *
+ * ANTI PAY-TO-WIN (AMENDEMENT-40 §2) : AUCUNE clé d'objet FONCTIONNEL ici. Un
+ * pack payant qui crédite un `streak_gel` (c'était le cas du Starter Pack à
+ * 2,99 €) vend une PROTECTION — « ni directement, ni via une monnaie
+ * achetable » vaut a fortiori pour un pack en euros. Invariant gelé par
+ * `supabase/functions/ingest_run/anti_pay_to_win_test.ts`.
  */
 export const SKU_GRANTED_ITEM_KEYS = {
   starter_pack: [
     'skin_trace_neon_ivory',
     'frame_road',
     'template_first_zone',
-    'streak_gel',
   ],
   founder_pack: [
     'founder_badge',

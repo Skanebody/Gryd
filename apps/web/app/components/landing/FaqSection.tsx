@@ -5,7 +5,7 @@
  * role=region + hidden). AMENDEMENT-05 §3.12 : les 4 questions historiques
  * (dictionary.ts) + 6 questions GAMEPLAY dont les réponses sont construites
  * depuis les VRAIES règles @klaim/shared (lock 24 h, decay 21 j, saison
- * 8 semaines, bouclier 2/sem, seuils mode Guerre, pionnier, Verify) —
+ * 8 semaines, seuils mode Guerre, pionnier, Verify) —
  * aucun nombre de règle en dur.
  */
 
@@ -24,8 +24,6 @@ import {
   SEASON_DURATION_WEEKS,
   SEGMENT_PACE_MAX_S_KM,
   SEGMENT_PACE_MIN_S_KM,
-  SHIELD_DURATION_HOURS,
-  SHIELD_MAX_ACTIVE_PER_WEEK,
   WAR_MODE_MIN_ACTIVE_RUNNERS,
   WAR_MODE_RADIUS_KM,
   WAR_MODE_WINDOW_DAYS,
@@ -58,7 +56,7 @@ const STRINGS = {
       },
       {
         q: 'Que se passe-t-il si on me vole une zone ?',
-        a: `Tu reçois une notification et un raccourci revanche : re-cours la zone pour la reprendre — une zone volée rapporte d’ailleurs ${POINTS_STOLEN_HEX} points contre ${POINTS_NEUTRAL_HEX} pour une neutre. Tes captures fraîches restent involables ${HEX_LOCK_HOURS} h, et tu peux poser un bouclier de ${SHIELD_DURATION_HOURS} h sur un secteur — maximum ${SHIELD_MAX_ACTIVE_PER_WEEK} par semaine, pour que défendre reste un choix tactique.`,
+        a: `Tu reçois une notification et un raccourci revanche : re-cours la zone pour la reprendre — une zone volée rapporte d’ailleurs ${POINTS_STOLEN_HEX} points contre ${POINTS_NEUTRAL_HEX} pour une neutre. Tes captures fraîches restent involables ${HEX_LOCK_HOURS} h : défendre, c’est y retourner.`,
       },
       {
         q: 'Comment une ville passe en mode Guerre ?',
@@ -86,7 +84,7 @@ const STRINGS = {
       },
       {
         q: 'What happens if someone steals my zone?',
-        a: `You get a notification and a revenge shortcut: re-run the zone to take it back — a stolen zone is worth ${POINTS_STOLEN_HEX} points versus ${POINTS_NEUTRAL_HEX} for a neutral one. Your fresh captures stay unstealable for ${HEX_LOCK_HOURS} h, and you can drop a ${SHIELD_DURATION_HOURS} h shield on a sector — capped at ${SHIELD_MAX_ACTIVE_PER_WEEK} per week, so defending stays a tactical choice.`,
+        a: `You get a notification and a revenge shortcut: re-run the zone to take it back — a stolen zone is worth ${POINTS_STOLEN_HEX} points versus ${POINTS_NEUTRAL_HEX} for a neutral one. Your fresh captures stay unstealable for ${HEX_LOCK_HOURS} h: defending means going back out.`,
       },
       {
         q: 'How does a city switch to War mode?',

@@ -20,6 +20,18 @@
  *
  * Les noms propres (Nexus 1993, Benjamin Bel, Supabase…), le numéro RCS et
  * l'adresse ne se traduisent pas : ils sont identiques dans les 5 langues.
+ *
+ * ─── 23/07/2026 : LES CGV/CGU NE VENDENT PLUS CE QUI EST INTERDIT ────────────
+ * Elles listaient les « boucliers de quartier » parmi les achats ponctuels, et
+ * le « gel de série » + le « radar des zones contestées » parmi les bonus du
+ * GRYD Club. Ce sont des objets FONCTIONNELS (protection d'une zone, protection
+ * de la série — donc du multiplicateur ×1,5 sur les POINTS de territoire —,
+ * information tactique) : AMENDEMENT-40 §2 et AMENDEMENT-45 §2 les ont rendus
+ * invendables, `FUNCTIONAL_ITEM_ACQUISITION` leur interdit tout prix et la
+ * contrainte SQL `items_functional_never_priced_check` ferme la porte serveur.
+ * Un document CONTRACTUEL est l'endroit où « une doc ne promet jamais au-delà
+ * du code » est le plus strict : ces produits en sont retirés, et la liste dit
+ * désormais explicitement qu'ils ne sont vendus dans aucune monnaie.
  */
 import { defineCatalog, type Entry } from '../types';
 
@@ -42,7 +54,7 @@ export const LEGAL_ENTITY = {
  * traduire. À faire évoluer À LA MAIN à chaque changement de fond (comme la date
  * des pages web) : une date figée qui dérive silencieusement serait un mensonge.
  */
-export const LEGAL_LAST_UPDATED = '22/07/2026';
+export const LEGAL_LAST_UPDATED = '23/07/2026';
 
 /**
  * TEXTE DE RÉFÉRENCE FRANÇAISE, identique dans les cinq langues.
@@ -233,7 +245,7 @@ export const C = defineCatalog({
     'Le jeu est gratuit et complet. Le territoire ne s’achète jamais : tout ce qui compte au classement — zones, points, victoire — se gagne en courant. Aucun paiement ne donne le moindre avantage de jeu.',
   ),
   cguAboBody2: fr5(
-    'GRYD ne propose qu’un seul abonnement, GRYD Club (bonus permanents de confort, d’information en lecture seule, de cosmétique et de statut), aux côtés d’achats ponctuels (Founder Pack, cosmétiques, boucliers de quartier plafonnés). Aucune de ces offres n’apporte de territoire, de points, de victoire ni de protection acquise : les boucliers sont capés et ne sont jamais inclus dans l’abonnement.',
+    'GRYD ne propose qu’un seul abonnement, GRYD Club (bonus permanents de confort, d’information en lecture seule, de cosmétique et de statut), aux côtés d’achats ponctuels purement cosmétiques (Founder Pack, Starter Pack, cosmétiques). Aucune de ces offres n’apporte de territoire, de points, de victoire ni de protection : les objets qui touchent au jeu — bouclier, gel de série, information tactique — ne sont vendus dans aucune monnaie et ne sont inclus dans aucun abonnement.',
   ),
   cguAboBody3: fr5(
     'Les achats dans l’application sont traités par Apple (App Store) ou Google (Google Play) : facturation, renouvellement et remboursements suivent les règles de la plateforme. Les abonnements se renouvellent automatiquement jusqu’à leur annulation, que tu gères depuis les réglages de ton compte Apple ou Google. L’annulation prend effet à la fin de la période en cours ; tu conserves tes cosmétiques acquis, jamais tes zones (elles restent à toi tant que tu cours). Les Conditions Générales de Vente précisent prix, paiement et rétractation.',
@@ -371,7 +383,15 @@ export const C = defineCatalog({
     'GRYD est jouable gratuitement dans son intégralité. Les offres payantes portent uniquement sur des éléments de confort et de statut : elles ne donnent ni territoire, ni points, ni victoire.',
   ),
   cgvOffresBody2: fr5(
-    '· Abonnement (unique) — GRYD Club, mensuel ou annuel : bonus permanents de confort, d’information (en lecture seule), de cosmétique et de statut (skins, radar des zones contestées, stats avancées, templates de partage, gel de série, badge supporter). Il ne comprend ni bouclier, ni protection de zone, ni avantage territorial.\n· Achats ponctuels — Founder Pack (à vie, édition limitée), packs cosmétiques et boucliers de quartier. Les boucliers sont des consommables plafonnés, jamais inclus dans l’abonnement, et ne procurent ni territoire, ni points, ni victoire.',
+    '· Abonnement (unique) — GRYD Club, mensuel ou annuel : bonus permanents de confort, d’information en lecture seule et de statut (stats avancées, historique complet, filtres de classement, templates de partage). Il ne comprend ni bouclier, ni gel de série, ni information tactique, ni protection de zone, ni avantage territorial d’aucune sorte.\n· Achats ponctuels — Founder Pack (à vie, édition limitée), Starter Pack et packs cosmétiques. Ils ne contiennent que du cosmétique, du statut et de la monnaie de style.\n· Ne sont vendus dans AUCUNE monnaie et ne sont inclus dans aucune offre : les objets qui touchent au jeu — bouclier de zone, gel de série, information tactique sur une zone, alerte d’attaque anticipée. Aucun paiement ne les procure, directement ou indirectement.',
+  ),
+  /**
+   * MIROIR EXACT de la clause d'état ajoutée au /cgv du site. Les deux CGV sont
+   * le MÊME document contractuel : les laisser diverger serait pire que la faute
+   * d'origine — un lecteur pourrait opposer la version qui l'arrange.
+   */
+  cgvOffresBody2b: fr5(
+    'À la date d’entrée en vigueur ci-dessus, AUCUNE de ces offres n’est commercialisée. Aucun paiement n’est encaissable, ni sur le site ni dans l’application. Les tarifs annoncés sur les pages d’offres sont indicatifs tant qu’aucune vente n’est ouverte : ils ne constituent ni une offre ferme, ni un engagement de mise en vente à une date donnée.',
   ),
   cgvOffresBody3: fr5(
     'Les tarifs sont indiqués en euros, toutes taxes comprises (TTC), sur les pages d’offres et rappelés avant la validation de la commande : le prix applicable est celui affiché à ce moment-là. Sur l’App Store et Google Play, les prix suivent les paliers tarifaires de la plateforme. Le vendeur se réserve le droit de modifier ses prix, sans effet sur les commandes déjà validées.',

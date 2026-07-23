@@ -14,23 +14,19 @@
  */
 
 import { useState, type ComponentType, type SVGProps } from 'react';
-import type { IconName } from '@klaim/shared';
 import {
   ZONE_DECAY_DAYS,
   SHIELD_DURATION_HOURS,
-  SHIELD_EXTRA_ECLATS,
   SHIELD_MAX_ACTIVE_PER_WEEK,
   SHIELD_MAX_CLUSTER_HEXES,
   SKIN_PREMIUM_ECLATS_MAX,
   SKIN_PREMIUM_ECLATS_MIN,
   SKUS,
   STARTER_PACK_ECLATS,
-  STREAK_FREEZE_CLUB_PER_MONTH,
   STREAK_FREEZE_FREE_PER_MONTH,
 } from '@klaim/shared';
 import { CLUB_ANNUAL_SAVINGS_PCT, PRICES_EUR, SEASON_PASS_PRICE_EUR } from '../../../lib/pricing';
-import { BannerIcon, GelIcon, RadarIcon, ScoutIcon, ShieldIcon, SkinIcon } from './ArsenalItems';
-import { Icon } from '../ui/Icon';
+import { BannerIcon, GelIcon, ScoutIcon, ShieldIcon, SkinIcon } from './ArsenalItems';
 import { useLang } from './LangProvider';
 import { Reveal } from './Reveal';
 import ui from './ui.module.css';
@@ -63,18 +59,15 @@ const STRINGS = {
     rarityAria: 'Rareté',
     gelName: 'Streak Gel',
     gelEffect: 'Gel de série : une semaine sans courir, ta streak tient au lieu de casser.',
-    gelCap: 'Cap {free} offert / mois · {club} avec Club',
-    radarName: 'Radar',
-    radarEffect: 'HUD des zones contestées autour de toi — vois où la frontière bouge.',
-    radarCap: 'Inclus GRYD Club · lecture seule, ne capture rien',
+    gelCap: 'Cap {free} / mois — identique pour tous, Club compris · jamais achetable',
     scoutName: 'Scout',
     scoutEffect:
       'Éclaireur de secteur : repère les territoires proches du decay ({days} j) avant qu’ils tombent.',
-    scoutCap: 'Info uniquement · zéro zone, zéro point',
+    scoutCap: 'Info uniquement · zéro zone, zéro point · jamais achetable',
     shieldName: 'Bouclier de quartier',
     shieldEffect:
       'Coque carbone sur ton secteur : jusqu’à {hexes} zones involables pendant {hours} h.',
-    shieldCap: 'Achat ponctuel · cap {max} / semaine · {eclats} Éclats · jamais dans l’abonnement',
+    shieldCap: 'Cap {max} / semaine · jamais achetable, jamais dans l’abonnement',
     bannerName: 'Bannière crew',
     bannerEffect: 'Ton emblème hissé sur les secteurs de ton crew, visible par toute la ville.',
     bannerCap: 'Cosmétique pur · identité, aucun avantage',
@@ -86,11 +79,14 @@ const STRINGS = {
     neverNote:
       'Tout ce qui compte au classement se gagne en courant. L’Arsenal habille, protège, informe — il ne conquiert jamais à ta place.',
     offersLabel: 'Les offres',
+    // Contenu RÉEL du pack — SKU_GRANTED_ITEM_KEYS.starter_pack + STARTER_PACK_ECLATS.
+    // Ne plus annoncer le « Badge Founder » (exclusif Founder Pack) ni un
+    // bouclier (objet fonctionnel, jamais vendu — A-40 §2 / A-45 §2).
     starterFeatures: [
-      'Skin Neon Territory',
+      'Trace Neon Ivory',
+      'Cadre Road',
+      'Template « Première zone »',
       '{eclats} Éclats',
-      '1 Shield — consommable capé, hors abonnement',
-      'Badge Founder — permanent',
     ],
   },
   en: {
@@ -100,16 +96,13 @@ const STRINGS = {
     rarityAria: 'Rarity',
     gelName: 'Streak Gel',
     gelEffect: 'Series gel: miss a week of running and your streak holds instead of breaking.',
-    gelCap: 'Cap {free} free / month · {club} with Club',
-    radarName: 'Radar',
-    radarEffect: 'Contested-zones HUD around you — see where the border is moving.',
-    radarCap: 'Included with GRYD Club · read-only, captures nothing',
+    gelCap: 'Cap {free} / month — same for everyone, Club included · never purchasable',
     scoutName: 'Scout',
     scoutEffect: 'Sector scout: flags territories close to decay ({days} d) before they fall.',
-    scoutCap: 'Intel only · zero zones, zero points',
+    scoutCap: 'Intel only · zero zones, zero points · never purchasable',
     shieldName: 'District Shield',
     shieldEffect: 'Carbon shell over your sector: up to {hexes} zones unstealable for {hours} h.',
-    shieldCap: 'One-off purchase · cap {max} / week · {eclats} Éclats · never in the subscription',
+    shieldCap: 'Cap {max} / week · never purchasable, never in the subscription',
     bannerName: 'Crew Banner',
     bannerEffect: 'Your emblem raised over your crew’s sectors, visible to the whole city.',
     bannerCap: 'Pure cosmetic · identity, no advantage',
@@ -122,10 +115,10 @@ const STRINGS = {
       'Everything that counts on the leaderboard is earned by running. The Arsenal dresses, protects and informs — it never conquers for you.',
     offersLabel: 'The bundles',
     starterFeatures: [
-      'Neon Territory skin',
+      'Neon Ivory trail',
+      'Road frame',
+      '“First zone” share template',
       '{eclats} Éclats',
-      '1 Shield — capped consumable, outside the subscription',
-      'Founder badge — permanent',
     ],
   },
 } as const;
@@ -158,19 +151,16 @@ export function PricingSection() {
       Icon: GelIcon,
       name: s.gelName,
       effect: s.gelEffect,
-      cap: fill(s.gelCap, {
-        free: n(STREAK_FREEZE_FREE_PER_MONTH),
-        club: n(STREAK_FREEZE_CLUB_PER_MONTH),
-      }),
+      // ANTI PAY-TO-WIN (A-40 §2) : Club et gratuit ont le MÊME cap — on
+      // n'affiche donc plus deux nombres, il n'y a plus qu'un seul plafond.
+      cap: fill(s.gelCap, { free: n(STREAK_FREEZE_FREE_PER_MONTH) }),
     },
-    {
-      id: 'radar',
-      rarity: 'tempo',
-      Icon: RadarIcon,
-      name: s.radarName,
-      effect: s.radarEffect,
-      cap: s.radarCap,
-    },
+    // La carte « Radar » a été SUPPRIMÉE (23/07/2026). Elle annonçait un HUD des
+    // zones contestées « inclus GRYD Club » : (1) aucun objet radar n'existe au
+    // catalogue — le seul objet d'information est le Scout ci-dessous ; (2) le
+    // Club ne distribue plus d'information tactique (AMENDEMENT-45 §2 C1, miroir
+    // exact des CGV embarquées du mobile). Vendre de l'info tactique dans un
+    // abonnement, c'est vendre un avantage compétitif.
     {
       id: 'scout',
       rarity: 'race',
@@ -188,10 +178,9 @@ export function PricingSection() {
         hexes: n(SHIELD_MAX_CLUSTER_HEXES),
         hours: n(SHIELD_DURATION_HOURS),
       }),
-      cap: fill(s.shieldCap, {
-        max: n(SHIELD_MAX_ACTIVE_PER_WEEK),
-        eclats: n(SHIELD_EXTRA_ECLATS),
-      }),
+      // Plus AUCUN prix : le bouclier n'est vendable dans aucune monnaie
+      // (FUNCTIONAL_ITEM_ACQUISITION, A-40 §2 / A-45 §2).
+      cap: fill(s.shieldCap, { max: n(SHIELD_MAX_ACTIVE_PER_WEEK) }),
     },
     {
       id: 'banner',
@@ -221,20 +210,18 @@ export function PricingSection() {
     legend: styles.rarityLegend,
   };
 
-  // Features Club composées avec les constantes @klaim/shared (aucun chiffre en dur).
   // ANTI PAY-TO-WIN (décision fondateur) : le Club ne donne QUE du confort, de
   // l'info en lecture seule, des cosmétiques et du statut — jamais de bouclier,
-  // de protection de zone ni de multiplicateur de points/foulées. Le gel de série
-  // garde son icône « série » (flamme) ; le reste porte la puce hexagonale.
-  const clubFeatures: { text: string; icon?: IconName }[] = [
-    { text: copy.pricing.clubFeatures[0] ?? '' },
-    { text: copy.pricing.clubFeatures[1] ?? '' },
-    { text: copy.pricing.clubFeatures[2] ?? '' },
-    { text: copy.pricing.clubFeatures[3] ?? '' },
-    { text: `${formatInt(STREAK_FREEZE_CLUB_PER_MONTH)} ${copy.pricing.clubFeatures[4]}`, icon: 'serie' },
-  ];
-  // Starter Pack détaillé (AMENDEMENT-05 §3.10) — le dernier item (Badge
-  // Founder) porte le marqueur or, usage autorisé « badge Fondateur » (§1).
+  // de protection de zone ni de multiplicateur de points/foulées.
+  //
+  // La 5e puce « N gels de série / mois » a été SUPPRIMÉE (AMENDEMENT-40 §2) :
+  // STREAK_FREEZE_CLUB_PER_MONTH vaut désormais STREAK_FREEZE_FREE_PER_MONTH,
+  // donc le Club n'apporte AUCUN gel supplémentaire. La vendre comme un
+  // avantage d'abonnement serait un mensonge de copie.
+  const clubFeatures = copy.pricing.clubFeatures;
+  // Starter Pack détaillé (AMENDEMENT-05 §3.10). Le marqueur or a disparu avec
+  // le « Badge Founder » : il est EXCLUSIF au Founder Pack (seed 0014), l'annoncer
+  // dans le Starter Pack était un contenu de pack inventé.
   const starterFeatures = s.starterFeatures.map((feature) =>
     fill(feature, { eclats: n(STARTER_PACK_ECLATS) }),
   );
@@ -304,6 +291,8 @@ export function PricingSection() {
 
         <Reveal delayMs={140}>
           <p className={`${ui.monoLabel} ${styles.offersLabel}`}>{s.offersLabel}</p>
+          {/* État réel : rien n'est encaissable — les 3 cartes mènent à la waitlist. */}
+          <p className={styles.notOnSale}>{copy.pricing.notOnSale}</p>
           <div className={styles.toggleRow}>
             <div className={styles.toggle} role="group" aria-label={copy.pricing.toggleAria}>
               {(['monthly', 'annual'] as Period[]).map((key) => (
@@ -337,13 +326,8 @@ export function PricingSection() {
                 <span className={styles.priceSuffix}>{copy.pricing.oneTime}</span>
               </p>
               <ul className={styles.features}>
-                {starterFeatures.map((feature, index) => (
-                  <li
-                    key={feature}
-                    className={index === starterFeatures.length - 1 ? styles.featureGold : ''}
-                  >
-                    {feature}
-                  </li>
+                {starterFeatures.map((feature) => (
+                  <li key={feature}>{feature}</li>
                 ))}
               </ul>
               <a href="#waitlist" className={`${ui.btnGhost} ${styles.cardCta}`}>
@@ -365,12 +349,7 @@ export function PricingSection() {
               </p>
               <ul className={styles.features}>
                 {clubFeatures.map((feature) => (
-                  <li key={feature.text} className={feature.icon ? styles.featureWithIcon : ''}>
-                    {feature.icon ? (
-                      <Icon name={feature.icon} size={14} className={styles.featureIcon} />
-                    ) : null}
-                    {feature.text}
-                  </li>
+                  <li key={feature}>{feature}</li>
                 ))}
               </ul>
               <p className={styles.clubNote}>{copy.pricing.clubNote}</p>

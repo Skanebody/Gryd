@@ -4,7 +4,12 @@
  * JAMAIS de chartreuse sur fond clair. Tokens de globals.css uniquement.
  * §A : 1 écran = 1 décision · 1 CTA chartreuse par écran · pas de card-dans-card ·
  * textes non tronqués (jamais « … ») · reduce motion respecté.
- * Le seul CTA chartreuse de la page = « Activer GRYD Club » (carte de l'abonnement).
+ * Le seul CTA chartreuse de la page = « Être prévenu à l'ouverture » (→ waitlist).
+ *
+ * AMENDEMENT-47 : les blocs « timeline d'essai », « gérer mon abonnement » et
+ * « toast démo » ont été SUPPRIMÉS avec leur CSS — ils peignaient un statut
+ * d'abonnement simulé et des dates de débit inventées sur un lien public,
+ * alors qu'aucun paiement n'est branché.
  */
 
 /* ── Squelette de page ───────────────────────────────────────────────────── */
@@ -453,7 +458,23 @@
   height: 52px;
 }
 
-/* CTA « déjà inclus » du plan Gratuit : pas un bouton d'achat, juste un état. */
+/* Rangée du CTA unique de la page (« Être prévenu ») : borné, jamais pleine largeur. */
+.ctaRow {
+  display: flex;
+  margin-top: 24px;
+}
+
+.ctaRow .cta {
+  width: auto;
+  min-width: 260px;
+  padding: 0 28px;
+}
+
+/*
+ * État d'une offre, PAS un bouton : « Déjà inclus » (plan gratuit) et « Pas
+ * encore en vente » (Club, Founder Pack). Aucun checkout n'étant branché, un
+ * bouton d'achat serait un bouton mort sur un lien public (AMENDEMENT-47).
+ */
 .ctaState {
   width: 100%;
   height: 52px;
@@ -492,174 +513,6 @@
   font-weight: 500;
 }
 
-/* ── Timeline d'essai transparente (emprunt Strava /subscribe) ───────────── */
-.timeline {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-top: 28px;
-}
-
-@media (max-width: 780px) {
-  .timeline {
-    grid-template-columns: 1fr;
-  }
-}
-
-.step {
-  position: relative;
-  padding: 22px 22px 22px 24px;
-  background: var(--carbone);
-  border: 1px solid var(--ligne);
-  border-radius: var(--radius-card);
-}
-
-/* Étape « aujourd'hui » = état actif (contour chartreuse, §A.3 réservé actif). */
-.stepNow {
-  border-color: var(--ch40);
-}
-
-.stepRail {
-  position: absolute;
-  left: 24px;
-  top: 22px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--gris);
-}
-
-.stepNow .stepRail {
-  background: var(--ch);
-  box-shadow: 0 0 0 4px var(--ch14);
-}
-
-.stepWhen {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--gris);
-  padding-left: 22px;
-}
-
-.stepNow .stepWhen {
-  color: var(--ch);
-}
-
-.stepTitle {
-  font-family: var(--disp);
-  font-weight: 500;
-  font-size: 17px;
-  letter-spacing: -0.01em;
-  margin-top: 10px;
-}
-
-.stepBody {
-  color: var(--gris);
-  font-size: 13.5px;
-  line-height: 1.55;
-  margin-top: 8px;
-}
-
-.timelineNote {
-  color: var(--gris);
-  font-size: 13.5px;
-  line-height: 1.6;
-  margin-top: 18px;
-  font-family: var(--serif);
-  font-style: italic;
-  max-width: 70ch;
-}
-
-/* ── Gérer mon abonnement (stub démo) ────────────────────────────────────── */
-.manage {
-  background: var(--carbone);
-  border: 1px solid var(--ligne);
-  border-radius: var(--radius-card);
-  padding: 26px 24px;
-  margin-top: 28px;
-}
-
-.manageRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.manageStatus {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.statusPill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ch);
-  border: 1px solid var(--ch40);
-  border-radius: var(--radius-pill);
-  padding: 6px 12px;
-  align-self: flex-start;
-}
-
-.statusPillOff {
-  color: var(--gris);
-  border-color: var(--ligne);
-}
-
-.statusDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.manageLine {
-  color: var(--gris);
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.manageLine b {
-  color: var(--blanc);
-  font-weight: 500;
-}
-
-.manageBtn {
-  height: 46px;
-  padding: 0 22px;
-  border: 1px solid var(--ligne);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--blanc);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color 200ms ease-out;
-  white-space: nowrap;
-}
-
-.manageBtn:hover {
-  border-color: color-mix(in srgb, var(--blanc) 26%, transparent);
-}
-
-.manageHint {
-  color: var(--gris);
-  font-size: 12.5px;
-  line-height: 1.55;
-  margin-top: 16px;
-  border-top: 1px solid var(--ligne);
-  padding-top: 14px;
-}
-
 /* ── Note démo / Stripe (câblage) ────────────────────────────────────────── */
 .demoNote {
   display: flex;
@@ -683,49 +536,11 @@
   font-weight: 500;
 }
 
-/* Toast démo (câble paiement = intention ; prod = Stripe, O-item). */
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 28px;
-  transform: translateX(-50%) translateY(12px);
-  z-index: 50;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  max-width: min(92vw, 460px);
-  background: var(--carbone2);
-  border: 1px solid var(--ch40);
-  border-radius: var(--radius-pill);
-  padding: 13px 20px;
-  color: var(--blanc);
-  font-size: 13.5px;
-  line-height: 1.4;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 200ms ease-out,
-    transform 200ms ease-out;
-}
-
-.toastShown {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-.toastIcon {
-  color: var(--ch);
-  flex: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .toggleBtn,
   .saveNote,
   .price,
-  .back,
-  .manageBtn,
-  .toast {
+  .back {
     transition: none;
     animation: none;
   }

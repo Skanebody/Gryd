@@ -235,6 +235,15 @@
   margin-top: 56px;
 }
 
+/* État réel : aucune offre encaissable — dit AVANT les prix, pas en note de bas. */
+.notOnSale {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--gris);
+  max-width: 66ch;
+}
+
 .toggleRow {
   display: flex;
   align-items: center;
@@ -420,26 +429,13 @@
   background: var(--ch40);
 }
 
-/* Badge Founder du Starter Pack : marqueur or (usage « badge Fondateur », §1). */
-.features .featureGold::before {
-  background: var(--or);
-}
-
-/* Bénéfice Club avec icône de renfort (bouclier/série) : l'icône remplace la puce. */
-.features .featureWithIcon::before {
-  display: none;
-}
-
-.featureIcon {
-  position: absolute;
-  left: 0;
-  top: 3px;
-  color: var(--gris);
-}
-
-.highlight .features .featureWithIcon .featureIcon {
-  color: var(--ch);
-}
+/*
+ * SUPPRIMÉS avec leurs usages : `.featureGold` (marqueur or du « Badge Founder »
+ * annoncé à tort dans le Starter Pack — il est exclusif au Founder Pack) et
+ * `.featureWithIcon` / `.featureIcon` (puce « série » de la 5e puce Club « N gels
+ * de série / mois », retirée par AMENDEMENT-40 §2 : le cap du gel est identique
+ * pour le Club et le plan gratuit).
+ */
 
 /* Clarificateur anti pay-to-win sous les bénéfices du Club (confort/info/statut). */
 .clubNote {

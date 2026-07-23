@@ -12,6 +12,8 @@ import {
   SHIELD_DURATION_HOURS,
   SKUS,
 } from '@klaim/shared';
+import { C } from '../../i18n/catalog/flagged';
+import { t as tGlobal } from '../../i18n/store';
 import { ARSENAL_CATALOG, type ArsenalCatalogItem } from './catalog';
 import { equipScopeOf, type EquipMap } from './inventory';
 
@@ -122,7 +124,7 @@ export function explainArsenalItem(
       mechanic: 'Tu l’actives sur une zone tenue : elle passe en protection temporaire.',
       benefit: `Protège un secteur pendant ${SHIELD_DURATION_HOURS} h pour laisser ton crew répondre.`,
       whyNow: defaultWhy(signals, 'defense'),
-      guardrail: 'Ne capture rien, ne donne pas de points et ne rend pas invincible.',
+      guardrail: tGlobal(C.guardrailShield),
     };
   }
 
@@ -135,7 +137,14 @@ export function explainArsenalItem(
       whyNow: signals.weeklyStreakAtRisk
         ? 'Ta série est le signal fragile du moment : GRYD le remonte avant les cosmétiques.'
         : 'Utile quand tu sais déjà qu’une semaine sera compliquée.',
-      guardrail: 'Aucun effet territoire, aucun point, aucune capture.',
+      /**
+       * L'ANCIEN TEXTE MENTAIT (« Aucun effet territoire, aucun point ») : la
+       * série porte un multiplicateur jusqu'à ×1,5 sur les POINTS de territoire
+       * (STREAK_MULTIPLIER_CAP, engine/scoring.ts). Protéger la série, c'est
+       * protéger ce multiplicateur — ce qui rend l'objet FONCTIONNEL, donc
+       * invendable (FUNCTIONAL_ITEM_ACQUISITION).
+       */
+      guardrail: tGlobal(C.guardrailStreakGel),
     };
   }
 
@@ -146,7 +155,7 @@ export function explainArsenalItem(
       mechanic: 'GRYD analyse une zone et te montre une opportunité lisible avant la sortie.',
       benefit: 'Révèle une zone fragile ou rentable pour éviter de choisir au hasard.',
       whyNow: defaultWhy(signals, 'defense'),
-      guardrail: 'Donne une information temporaire, jamais une capture automatique.',
+      guardrail: tGlobal(C.guardrailScoutPing),
     };
   }
 

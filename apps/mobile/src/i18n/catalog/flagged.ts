@@ -913,6 +913,53 @@ export const C = defineCatalog({
     pt: 'Exclusivo do pack',
   },
 
+  // ── OBJETS FONCTIONNELS : JAMAIS VENDUS (anti pay-to-win) ────────────────
+  // AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : Bouclier, Streak Gel, Scout Ping et
+  // alerte d'attaque n'ont de prix dans AUCUNE monnaie (FUNCTIONAL_ITEM_ACQUISITION).
+  // L'écran ne peint donc ni prix, ni CTA d'achat : il DIT que ça ne s'achète pas.
+  neverForSale: {
+    fr: 'Ne s’achète pas',
+    en: 'Not for sale',
+    es: 'No está a la venta',
+    de: 'Nicht käuflich',
+    pt: 'Não está à venda',
+  },
+  /** Note du détail : on ne promet AUCUNE voie d'obtention tant qu'aucune n'est codée. */
+  neverForSaleNote: {
+    fr: 'Ne s’achète dans aucune monnaie, et n’est inclus dans aucun abonnement. Sa distribution en jeu n’est pas encore ouverte.',
+    en: 'Not for sale in any currency, and included in no subscription. In-game distribution isn’t open yet.',
+    es: 'No se compra con ninguna moneda ni se incluye en ninguna suscripción. Su distribución en el juego aún no está abierta.',
+    de: 'In keiner Währung käuflich und in keinem Abo enthalten. Die Vergabe im Spiel ist noch nicht offen.',
+    pt: 'Não é vendido em nenhuma moeda nem incluído em nenhuma assinatura. A distribuição no jogo ainda não está aberta.',
+  },
+  /** « Limite » du Bouclier (recommandations) — dit aussi qu'il ne se vend pas. */
+  guardrailShield: {
+    fr: 'Ne capture rien, ne donne aucun point et ne rend pas invincible. Ne s’achète jamais.',
+    en: 'Captures nothing, grants no points and doesn’t make you invincible. Never for sale.',
+    es: 'No captura nada, no da puntos y no te hace invencible. Nunca está a la venta.',
+    de: 'Erobert nichts, gibt keine Punkte und macht nicht unbesiegbar. Nie käuflich.',
+    pt: 'Não captura nada, não dá pontos e não te torna invencível. Nunca está à venda.',
+  },
+  /**
+   * « Limite » du Streak Gel. L'ANCIEN TEXTE MENTAIT : il disait « aucun effet
+   * territoire » alors que la série porte un multiplicateur ×1,5 sur les POINTS
+   * de territoire (STREAK_MULTIPLIER_CAP, engine/scoring.ts).
+   */
+  guardrailStreakGel: {
+    fr: 'Ne capture aucune zone. Il préserve ta série — donc le multiplicateur de points qu’elle porte. Ne s’achète jamais.',
+    en: 'Captures no zone. It preserves your streak — and the points multiplier that comes with it. Never for sale.',
+    es: 'No captura ninguna zona. Preserva tu racha — y el multiplicador de puntos que conlleva. Nunca está a la venta.',
+    de: 'Erobert keine Zone. Er bewahrt deine Serie — und deren Punkte-Multiplikator. Nie käuflich.',
+    pt: 'Não captura nenhuma zona. Preserva a tua série — e o multiplicador de pontos que ela carrega. Nunca está à venda.',
+  },
+  guardrailScoutPing: {
+    fr: 'Donne une information temporaire, jamais une capture automatique. Ne s’achète jamais.',
+    en: 'Gives temporary information, never an automatic capture. Never for sale.',
+    es: 'Da información temporal, nunca una captura automática. Nunca está a la venta.',
+    de: 'Liefert eine zeitweilige Information, nie eine automatische Eroberung. Nie käuflich.',
+    pt: 'Dá uma informação temporária, nunca uma captura automática. Nunca está à venda.',
+  },
+
   // ── Messages gifting + solde insuffisant (chiffré, jamais de nudge) ──
   giftFeedAnon: {
     fr: 'Un membre a offert {item} au crew. Message posté sans nom.',

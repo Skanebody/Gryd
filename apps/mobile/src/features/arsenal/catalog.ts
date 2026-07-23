@@ -7,11 +7,16 @@
  * fichier deviendra un fetch `items` filtré `status = 'active'`) ; ici une copie
  * DÉMO pour l'écran, offline-first.
  *
- * PRIX : jamais en dur. Les prix EUR viennent de `SKU_PRICES_EUR`, les prix
- * Éclats fonctionnels de leurs constantes dédiées (`SHIELD_EXTRA_ECLATS`,
- * `STREAK_GEL_ECLATS`, `SCOUT_PING_ECLATS`, `BANNER_CREW_ECLATS`). Les prix
- * Éclats purement cosmétiques (skins/frames/templates/blasons) sont des VALEURS
- * D'AFFICHAGE du seed §16 — bornées, jamais fonctionnelles, jamais du jeu.
+ * PRIX : jamais en dur. Les prix EUR viennent de `SKU_PRICES_EUR`, le prix
+ * Éclats de la bannière crew de `BANNER_CREW_ECLATS`. Les prix Éclats purement
+ * cosmétiques (skins/frames/templates/blasons) sont des VALEURS D'AFFICHAGE du
+ * seed §16 — bornées, jamais fonctionnelles, jamais du jeu.
+ *
+ * ANTI PAY-TO-WIN (AMENDEMENT-40 §2, AMENDEMENT-45 §2) : les objets FONCTIONNELS
+ * (`shield`, `streak_gel`, `scout_ping`) n'ont PLUS AUCUN PRIX — ni Éclats ni
+ * EUR — et ne sont crédités par AUCUN pack payant. Source de vérité :
+ * `FUNCTIONAL_ITEM_ACQUISITION` (game-rules), migration 0065, invariant gelé par
+ * `supabase/functions/ingest_run/anti_pay_to_win_test.ts`.
  *
  * ANTI PAY-TO-WIN (doc §12) : aucun item de ce catalogue ne donne territoire,
  * km, zones, points leaderboard ni attaque/défense. Un Crew Boost n'agit QUE
@@ -21,15 +26,12 @@ import {
   BANNER_CREW_ECLATS,
   ECLATS_PACKS,
   FOUNDER_PACK_ECLATS,
-  SCOUT_PING_ECLATS,
-  SHIELD_CLUB_INCLUDED_PER_WEEK,
   SHIELD_DURATION_HOURS,
-  SHIELD_EXTRA_ECLATS,
   SHIELD_MAX_ACTIVE_PER_WEEK,
   SKUS,
   SKU_PRICES_EUR,
   STARTER_PACK_ECLATS,
-  STREAK_GEL_ECLATS,
+  STREAK_FREEZE_FREE_PER_MONTH,
   type BadgeTier,
 } from '@klaim/shared';
 import type { ArsenalCurrency } from '../../ui/game/ArsenalItemCard';
@@ -85,8 +87,8 @@ export interface ArsenalCatalogItem {
 const eur = (n: number): number => n;
 
 // ─── Objets fonctionnels capés (doc §20) ─────────────────────────────────────
-// Boucliers ACHETABLES/semaine = cap absolu − ceux inclus au Club.
-const SHIELD_EXTRA_PER_WEEK = SHIELD_MAX_ACTIVE_PER_WEEK - SHIELD_CLUB_INCLUDED_PER_WEEK;
+// Plus de « boucliers achetables » : le cap est le cap, point.
+// SHIELD_CLUB_INCLUDED_PER_WEEK vaut 0 — l'abonnement n'en inclut aucun.
 
 /**
  * Catalogue complet (miroir seed 0014). `priceShards`/`priceEur` référencent des
@@ -103,13 +105,12 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     scope: 'user',
     priceEur: eur(SKU_PRICES_EUR.starter_pack),
     limit: '1 par compte',
-    description: `${STARTER_PACK_ECLATS} Éclats, 1 skin de trace, 1 frame Road, 1 template share, 1 Streak Gel.`,
+    description: `${STARTER_PACK_ECLATS} Éclats, 1 skin de trace, 1 frame Road, 1 template share.`,
     contents: [
       `${STARTER_PACK_ECLATS} Éclats`,
       'Skin trace — Neon Ivory',
       'Frame Road',
       'Template Première Zone',
-      '1 Streak Gel',
     ],
   },
   {
@@ -198,10 +199,9 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     rarity: 'race',
     section: 'objets',
     scope: 'zone',
-    priceShards: SHIELD_EXTRA_ECLATS,
     consumable: true,
-    limit: `${SHIELD_EXTRA_PER_WEEK}/semaine max — achat ponctuel, jamais dans l'abonnement, sans effet en fin de saison`,
-    description: `Protège un secteur pendant ${SHIELD_DURATION_HOURS} h. Ne rend pas invincible.`,
+    limit: `${SHIELD_MAX_ACTIVE_PER_WEEK}/semaine max — jamais achetable, jamais dans l'abonnement, sans effet en fin de saison`,
+    description: `Protège un secteur pendant ${SHIELD_DURATION_HOURS} h. Ne rend pas invincible. Ne s'achète pas.`,
   },
   {
     key: 'streak_gel',
@@ -210,10 +210,10 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     rarity: 'tempo',
     section: 'objets',
     scope: 'user',
-    priceShards: STREAK_GEL_ECLATS,
     consumable: true,
-    limit: '2/mois max',
-    description: 'Protège ta série hebdo une semaine. Aucun effet territoire.',
+    limit: `${STREAK_FREEZE_FREE_PER_MONTH}/mois max — identique pour tous, Club compris`,
+    description:
+      'Protège ta série hebdo une semaine. La série multiplie tes points de territoire — cet objet ne s\'achète pas.',
   },
   {
     key: 'scout_ping',
@@ -222,9 +222,8 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     rarity: 'race',
     section: 'objets',
     scope: 'zone',
-    priceShards: SCOUT_PING_ECLATS,
     consumable: true,
-    limit: '1/semaine',
+    limit: '1/semaine — jamais achetable',
     description: 'Révèle une zone fragile ou rentable. Info temporaire, aucune capture auto.',
   },
 
@@ -371,12 +370,20 @@ export const ARSENAL_CATALOG: readonly ArsenalCatalogItem[] = [
     section: 'subscriptions',
     scope: 'user',
     priceEur: eur(SKU_PRICES_EUR.club_monthly),
-    description: 'Stats avancées, heatmap, export HD, Radar Route et Streak Gel mensuels. Zéro avantage de jeu, aucun bouclier.',
+    /**
+     * LE CLUB N'INCLUT PLUS AUCUN OBJET FONCTIONNEL (23/07/2026). Il annonçait
+     * « Radar Route et Streak Gel mensuels » : un abonnement qui distribue de
+     * l'information tactique et une PROTECTION de série (donc du multiplicateur
+     * ×1,5 sur les points de territoire) est exactement ce que CLAUDE.md
+     * interdit — « aucun abonnement ne donne […] NI PROTECTION ». Depuis
+     * AMENDEMENT-40 §2, STREAK_FREEZE_CLUB_PER_MONTH vaut la valeur gratuite :
+     * le vendre comme un avantage Club serait doublement faux.
+     */
+    description: 'Stats avancées, heatmap, export HD et templates premium. Zéro avantage de jeu : aucun bouclier, aucun gel de série, aucune info tactique.',
     contents: [
       'Stats avancées + heatmap personnelle',
       'Historique complet + export share HD',
       'Templates premium mensuels',
-      'Radar Route + Streak Gel mensuels',
     ],
   },
   {

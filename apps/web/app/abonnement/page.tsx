@@ -1,43 +1,41 @@
 'use client';
 
 /**
- * GRYD Club — page d'abonnement (AMENDEMENT-31 §4, modèle de monétisation single-sub).
- * Façon Strava /subscribe, mais ANTI PAY-TO-WIN STRICT : l'abonnement ne donne que
- * CONFORT / INFO en lecture seule / COSMÉTIQUE / STATUT — JAMAIS de territoire, de
- * points, de vitesse ni de protection (§A, GRYD_REGLES_NON_NEGOCIABLES, doc stratégie §3.5).
+ * GRYD Club — page d'offres (AMENDEMENT-31 §4, modèle de monétisation single-sub).
+ * ANTI PAY-TO-WIN STRICT : une offre payante ne donne que CONFORT / INFO en
+ * lecture seule / COSMÉTIQUE / STATUT — JAMAIS de territoire, de points, de
+ * vitesse ni de PROTECTION (GRYD_REGLES_NON_NEGOCIABLES §A, AMENDEMENT-40 §2,
+ * AMENDEMENT-45 §2).
  *
- * MODÈLE UNIQUE (décision fondateur) :
+ * MODÈLE (décision fondateur) :
  *   1. FREEMIUM : le jeu (territoire, points, victoire, crew) est 100 % gratuit et complet.
- *   2. UN SEUL abonnement = « GRYD Club » (4,99 €/mois, 34,99 €/an) → bonus PERMANENTS :
- *      cosmétiques (skins de territoire), info en lecture seule (heatmap/radar des zones
- *      contestées), stats avancées, templates de partage premium, gel de série (streak),
- *      badge/statut de soutien. AUCUN bouclier, AUCUNE protection, AUCUN avantage territorial.
- *   3. Founder Pack (149 €, à vie, édition limitée) reste un achat unique à côté du sub.
- *   4. Boosts & boucliers = achats in-app ponctuels, CAPÉS, jamais dans l'abonnement.
+ *   2. UN SEUL abonnement = « GRYD Club » → CONFORT sur SES PROPRES données :
+ *      stats avancées, heatmap personnelle, historique complet, export et
+ *      templates de partage. AUCUN bouclier, AUCUNE protection, AUCUN avantage
+ *      territorial, AUCUNE information tactique, AUCUN gel de série réservé
+ *      (STREAK_FREEZE_CLUB_PER_MONTH = STREAK_FREEZE_FREE_PER_MONTH).
+ *   3. Founder Pack : achat unique à côté du sub, cosmétique + statut.
+ *   4. Objets FONCTIONNELS (bouclier, gel de série, scout, alerte d'attaque) :
+ *      jamais vendus, dans aucune monnaie (FUNCTIONAL_ITEM_ACQUISITION).
  *
- * Le SECOND abonnement « GRYD Premium » (8 €/69 €) a été SUPPRIMÉ : son contenu
- * cosmétique/statut fusionne dans GRYD Club. Il ne doit plus rester deux abonnements.
- *
- * Contenu (§4) :
- *   1. Hero « GRYD Club » + bandeau « Le territoire ne s'achète jamais ».
- *   2. Plans : Gratuit (le JEU COMPLET) · GRYD Club (le seul abonnement) ·
- *      Founder Pack (édition limitée, à vie). Prix ANNUEL par défaut.
- *   3. Timeline d'essai transparente : aujourd'hui (accès) → rappel avant fin → débit.
- *   4. « Gérer mon abonnement » : stub statut + annuler (démo).
+ * ÉTAT RÉEL, 23/07/2026 (AMENDEMENT-47 — l'app ne ment jamais) :
+ *   AUCUNE de ces offres n'est achetable. Aucun checkout Stripe n'est branché
+ *   sur le site, aucun client d'achats intégrés n'existe dans l'application.
+ *   Cette page ANNONCE des prix, elle n'en encaisse aucun — donc AUCUN bouton
+ *   d'achat, AUCUN statut d'abonnement simulé, AUCUNE date de débit inventée.
+ *   Ce qui est réellement possible aujourd'hui : rejoindre la waitlist.
+ *   Les prix affichés sont lus dans @klaim/shared (source unique) via
+ *   lib/pricing — jamais réécrits ici.
  *
  * Charte : dark-first, noir/blanc/chartreuse, JAMAIS de chartreuse sur clair.
- * Un seul CTA chartreuse sur la page = « Activer GRYD Club ».
- *
- * CÂBLE DÉMO : le paiement est une INTENTION câblée (toast + stub de statut).
- * En PROD, le checkout et la gestion passent par Stripe / IAP (compte + clés = O-item
- * côté fondateur, cf. AMENDEMENT-31 §4). Aucun débit réel ici.
+ * Un seul CTA chartreuse sur la page = « Être prévenu à l'ouverture ».
  * Page autonome (hors LangProvider landing) : strings FR locales, réutilise les
  * tokens globals.css + les primitives ui/Reveal/Icon.
  */
 
-import { useRef, useState } from 'react';
-import { SKUS } from '@klaim/shared';
-import { PRICES_EUR, CLUB_ANNUAL_SAVINGS_PCT } from '../../lib/pricing';
+import { useState } from 'react';
+import { FOUNDER_PACK_ECLATS, SKUS } from '@klaim/shared';
+import { CLUB_ANNUAL_SAVINGS_PCT, FOUNDER_PACK_EUR, PRICES_EUR } from '../../lib/pricing';
 import { Icon } from '../components/ui/Icon';
 import { Reveal } from '../components/landing/Reveal';
 import ui from '../components/landing/ui.module.css';
@@ -46,15 +44,12 @@ import styles from './abonnement.module.css';
 type Period = 'monthly' | 'annual';
 
 /**
- * Prix de l'UNIQUE abonnement — GRYD Club. On réutilise les prix PRODUIT de la
- * landing (lib/pricing → SKUs RevenueCat de @klaim/shared) pour ne JAMAIS dériver
- * des tarifs affichés ailleurs (aucun nombre magique). Le Founder Pack reste un
- * achat unique édité localement (édition limitée hors catalogue d'abonnement).
- * En prod = prix Stripe / IAP (O-item). Aucun débit réel.
+ * Prix ANNONCÉS — tous lus dans @klaim/shared (SKU_PRICES_EUR) via lib/pricing.
+ * Aucun nombre en dur ici : le Founder Pack affichait 149 € contre 9,99 € dans
+ * la source de vérité, un facteur 15 d'écart sur le lien public.
  */
 const CLUB_MONTHLY_EUR = PRICES_EUR[SKUS.clubMonthly];
 const CLUB_ANNUAL_EUR = PRICES_EUR[SKUS.clubAnnual];
-const FOUNDER_PACK_EUR = 149;
 
 /** Équivalent mensuel de l'annuel (transparence prix). */
 const CLUB_ANNUAL_PER_MONTH = (CLUB_ANNUAL_EUR / 12).toFixed(2).replace('.', ',');
@@ -66,20 +61,40 @@ function eur(value: number): string {
 
 const CREED_ITEMS = ['Des zones', 'Des points', 'Des kilomètres', 'La victoire'] as const;
 
+/**
+ * Contenu du Club — MIROIR EXACT du catalogue mobile (features/arsenal/catalog.ts,
+ * entrée SKUS.clubMonthly) et des CGV embarquées dans l'app. Deux listes qui
+ * divergeraient seraient pires que la faute d'origine.
+ *
+ * RETIRÉS le 23/07/2026 :
+ *   · « Gel de série » — son plafond est désormais identique pour le Club et le
+ *     plan gratuit (AMENDEMENT-40 §2) : ce n'est plus un avantage ;
+ *   · « Radar des zones contestées » — de l'INFORMATION TACTIQUE ; un abonnement
+ *     qui en distribue vend un avantage compétitif (AMENDEMENT-45 §2 C1) ;
+ *   · « Skins de territoire Neon & Carbon » — les skins s'achètent en Éclats
+ *     (seed 0014), le Club n'en inclut aucun ;
+ *   · « Badge Supporter permanent » — aucun badge « supporter » n'existe au
+ *     catalogue : c'était un avantage inventé.
+ */
 const CLUB_FEATURES = [
-  'Skins de territoire Neon & Carbon sur la carte',
-  'Radar des zones contestées — info en lecture seule',
-  'Stats avancées : progression, allure, zones tenues dans le temps',
+  'Stats avancées + heatmap personnelle',
+  'Historique complet + export de partage HD',
   'Templates de partage premium (stories, poster de saison)',
-  'Gel de série : ta streak protégée un jour off',
-  'Badge Supporter permanent sur ton profil',
 ] as const;
 
+/**
+ * Contenu RÉEL du Founder Pack — SKU_GRANTED_ITEM_KEYS.founder_pack (seed 0014)
+ * + FOUNDER_PACK_ECLATS. La première puce disait « Tout GRYD Club, à vie » :
+ * FAUX. Le webhook d'achat (supabase/functions/rc_webhook) crédite des Éclats
+ * et des cosmétiques pour ce SKU — il ne passe JAMAIS `is_club` à true. Une
+ * offre ne promet pas ce que le code ne donne pas.
+ */
 const FOUNDER_FEATURES = [
-  'Tout GRYD Club, à vie',
-  'Blason Fondateur — édition limitée, jamais réémise',
-  'Skin de territoire Founder exclusif',
-  'Ton nom au générique de la Saison 0',
+  'Badge Founder — édition limitée, jamais réémise',
+  'Cadre de profil Founder + titre « Founder Runner »',
+  'Skins Founder Glow (territoire) et Founder Line (trace)',
+  'Template de partage Founder — raconte la Saison 0',
+  `${FOUNDER_PACK_ECLATS} Éclats`,
 ] as const;
 
 const FREE_FEATURES = [
@@ -90,59 +105,12 @@ const FREE_FEATURES = [
   'Aucune limite de jeu, aucune pub',
 ] as const;
 
-type Step = { when: string; title: string; body: string; now?: boolean };
-
-const TRIAL_STEPS: Step[] = [
-  {
-    when: "Aujourd'hui",
-    title: 'Accès immédiat',
-    body: 'Tu débloques les cosmétiques, le radar, les stats et le gel de série tout de suite. Rien n’est débité maintenant.',
-    now: true,
-  },
-  {
-    when: 'Jour 5',
-    title: 'Rappel avant la fin',
-    body: 'On te prévient 2 jours avant le premier débit — par mail et notification. Zéro surprise.',
-  },
-  {
-    when: 'Jour 7',
-    title: 'Débit du plan annuel',
-    body: `Si tu ne fais rien, l’abonnement démarre à ${eur(CLUB_ANNUAL_EUR)}/an. Annulable à tout moment avant.`,
-  },
-];
-
 export default function AbonnementPage() {
   // Annuel par défaut (doc stratégie : annuel = meilleur ancrage prix).
   const [period, setPeriod] = useState<Period>('annual');
-  // Stub de statut d'abonnement (démo, à remplacer par l'état Stripe/IAP en prod).
-  const [subscribed, setSubscribed] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<number | undefined>(undefined);
-
-  const showToast = (message: string) => {
-    setToast(message);
-    if (toastTimer.current) window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 3200);
-  };
 
   const clubPrice = period === 'annual' ? CLUB_ANNUAL_EUR : CLUB_MONTHLY_EUR;
   const clubSuffix = period === 'annual' ? '/an' : '/mois';
-
-  // Câble DÉMO : le paiement est une intention. Prod = redirection Stripe / IAP.
-  const startCheckout = (plan: 'club' | 'founder') => {
-    setSubscribed(true);
-    showToast(
-      plan === 'founder'
-        ? 'Founder Pack réservé (démo). En vrai : paiement Stripe sécurisé.'
-        : `Essai GRYD Club lancé (démo). Aucun débit avant le jour 7.`,
-    );
-  };
-
-  // Câble DÉMO : gestion d'abonnement. Prod = portail client Stripe.
-  const cancelSub = () => {
-    setSubscribed(false);
-    showToast('Abonnement annulé (démo). Tu gardes l’accès jusqu’à la fin de la période.');
-  };
 
   return (
     <div className={styles.page}>
@@ -172,9 +140,9 @@ export default function AbonnementPage() {
             </p>
             <h1 className={styles.heroTitle}>GRYD Club</h1>
             <p className={styles.heroSub}>
-              Le jeu reste gratuit et complet. Le Club, c&rsquo;est le style, l&rsquo;info, les
-              stats et le statut de supporter — des bonus de confort pour soutenir GRYD et
-              signer ta conquête. Jamais l&rsquo;acheter.
+              Le jeu reste gratuit et complet. Le Club, c&rsquo;est du confort sur{' '}
+              <b>tes propres données</b> — stats, historique, partage — pour soutenir GRYD.
+              Jamais un avantage sur les autres.
             </p>
           </header>
         </Reveal>
@@ -205,13 +173,14 @@ export default function AbonnementPage() {
         <section className={styles.section} aria-labelledby="plans-title">
           <Reveal>
             <div className={styles.sectionHead}>
-              <p className={styles.sectionKicker}>Les offres</p>
+              <p className={styles.sectionKicker}>Les offres annoncées</p>
               <h2 id="plans-title" className={styles.sectionTitle}>
-                Choisis ton niveau de soutien
+                Ce que coûtera le soutien
               </h2>
               <p className={styles.sectionSub}>
-                Le jeu complet est gratuit. Le Club et le Founder Pack ajoutent du style, du
-                partage, de l&rsquo;info et un statut — jamais un avantage de conquête.
+                Le jeu complet est gratuit. Le Club et le Founder Pack ajouteront du style, du
+                partage, de l&rsquo;info et un statut — jamais un avantage de conquête. Rien
+                n&rsquo;est encore en vente : les prix ci-dessous sont annoncés, pas encaissés.
               </p>
             </div>
           </Reveal>
@@ -271,7 +240,8 @@ export default function AbonnementPage() {
               </article>
             </Reveal>
 
-            {/* GRYD Club — l'UNIQUE abonnement, SEUL CTA chartreuse de la page. */}
+            {/* GRYD Club — l'UNIQUE abonnement. Aucun bouton d'achat : rien n'est
+                encaissable, un CTA de checkout serait un bouton mort (A-47). */}
             <Reveal delayMs={60}>
               <article className={`${styles.plan} ${styles.planHighlight}`}>
                 <header className={styles.planHead}>
@@ -279,7 +249,7 @@ export default function AbonnementPage() {
                   <span className={`${styles.badge} ${styles.badgePremium}`}>L’abonnement</span>
                 </header>
                 <p className={styles.tagline}>
-                  Style, info, stats et statut. Tu soutiens GRYD, tu signes ta carte.
+                  Tes stats, ton historique, ton partage. Tu soutiens GRYD, pas ton classement.
                 </p>
                 <p className={styles.priceHint}>
                   {period === 'annual' ? (
@@ -302,15 +272,13 @@ export default function AbonnementPage() {
                   ))}
                 </ul>
                 <p className={styles.planGuard}>
-                  Confort, info, cosmétique et statut — aucune protection, aucun avantage de jeu.
+                  Confort sur tes propres données — aucune protection, aucune info tactique,
+                  aucun avantage de jeu.
                 </p>
-                <button
-                  type="button"
-                  className={`${ui.btnPrimary} ${styles.cta}`}
-                  onClick={() => startCheckout('club')}
-                >
-                  Activer GRYD Club
-                </button>
+                <span className={styles.ctaState}>
+                  <Icon name="info" size={16} />
+                  Pas encore en vente
+                </span>
               </article>
             </Reveal>
 
@@ -341,149 +309,65 @@ export default function AbonnementPage() {
                 <p className={styles.planGuard}>
                   Prestige & cosmétique — le blason n&rsquo;ajoute aucune force de conquête.
                 </p>
-                <button
-                  type="button"
-                  className={`${ui.btnGhost} ${styles.cta}`}
-                  onClick={() => startCheckout('founder')}
-                >
-                  Réserver le Founder Pack
-                </button>
+                <span className={styles.ctaState}>
+                  <Icon name="info" size={16} />
+                  Pas encore en vente
+                </span>
               </article>
             </Reveal>
           </div>
 
-          {/* Mention achats ponctuels : boosts & boucliers HORS abonnement, capés. */}
+          {/* Objets FONCTIONNELS : jamais vendus, dans aucune monnaie (A-40 §2 / A-45 §2). */}
           <Reveal delayMs={160}>
             <p className={styles.upsellNote}>
               <Icon name="info" size={16} />
               <span>
-                Boosts et boucliers de quartier restent des <b>achats in-app ponctuels</b>,
-                <b> plafonnés</b> et <b>jamais inclus dans l&rsquo;abonnement</b> — ils
-                protègent un temps limité, jamais du territoire ni des points.
+                Bouclier de quartier, gel de série, scout et alerte d&rsquo;attaque{' '}
+                <b>ne sont vendus dans aucune monnaie</b> — ni en euros, ni en Éclats, ni dans
+                un pack, ni dans l&rsquo;abonnement. Protéger, être prévenu ou voir venir est un{' '}
+                <b>avantage de jeu</b> : ça ne s&rsquo;achète pas.
               </span>
             </p>
           </Reveal>
         </section>
 
-        {/* ── 3. TIMELINE D'ESSAI TRANSPARENTE ─────────────────────────── */}
-        <section className={styles.section} aria-labelledby="trial-title">
+        {/* ── 3. CE QUI EST POSSIBLE AUJOURD'HUI ───────────────────────── */}
+        <section className={styles.section} aria-labelledby="today-title">
           <Reveal>
             <div className={styles.sectionHead}>
-              <p className={styles.sectionKicker}>Essai transparent</p>
-              <h2 id="trial-title" className={styles.sectionTitle}>
-                7 jours d&rsquo;essai, sans mauvaise surprise
+              <p className={styles.sectionKicker}>État réel</p>
+              <h2 id="today-title" className={styles.sectionTitle}>
+                Rien n&rsquo;est en vente aujourd&rsquo;hui
               </h2>
               <p className={styles.sectionSub}>
-                Tu vois exactement quand tu es débité — et on te prévient avant.
+                Le paiement n&rsquo;est branché nulle part : ni sur ce site, ni dans
+                l&rsquo;application. Aucun abonnement ne peut être souscrit, aucun pack ne peut
+                être acheté, aucun compte n&rsquo;est débité. Plutôt qu&rsquo;un bouton qui
+                échouerait, voilà ce qui existe vraiment : la waitlist.
               </p>
             </div>
           </Reveal>
 
           <Reveal delayMs={60}>
-            <ol className={styles.timeline}>
-              {TRIAL_STEPS.map((step) => (
-                <li
-                  key={step.when}
-                  className={`${styles.step} ${step.now ? styles.stepNow : ''}`}
-                >
-                  <span className={styles.stepRail} aria-hidden="true" />
-                  <p className={styles.stepWhen}>{step.when}</p>
-                  <p className={styles.stepTitle}>{step.title}</p>
-                  <p className={styles.stepBody}>{step.body}</p>
-                </li>
-              ))}
-            </ol>
-          </Reveal>
-
-          <Reveal delayMs={100}>
-            <p className={styles.timelineNote}>
-              Annulable en un tap avant le débit. Aucun engagement — tu gardes tes cosmétiques
-              acquis, jamais tes zones (elles sont à toi tant que tu cours).
+            <p className={styles.ctaRow}>
+              <a href="/#waitlist" className={`${ui.btnPrimary} ${styles.cta}`}>
+                Être prévenu à l&rsquo;ouverture
+              </a>
             </p>
           </Reveal>
-        </section>
 
-        {/* ── 4. GÉRER MON ABONNEMENT (stub démo) ──────────────────────── */}
-        <section className={styles.section} aria-labelledby="manage-title">
-          <Reveal>
-            <div className={styles.sectionHead}>
-              <p className={styles.sectionKicker}>Ton compte</p>
-              <h2 id="manage-title" className={styles.sectionTitle}>
-                Gérer mon abonnement
-              </h2>
-            </div>
-          </Reveal>
-
-          <Reveal delayMs={60}>
-            <div className={styles.manage}>
-              <div className={styles.manageRow}>
-                <div className={styles.manageStatus}>
-                  <span
-                    className={`${styles.statusPill} ${subscribed ? '' : styles.statusPillOff}`}
-                  >
-                    <span className={styles.statusDot} aria-hidden="true" />
-                    {subscribed ? 'Club actif' : 'Plan gratuit'}
-                  </span>
-                  <p className={styles.manageLine}>
-                    {subscribed ? (
-                      <>
-                        Plan <b>GRYD Club {period === 'annual' ? 'annuel' : 'mensuel'}</b> ·
-                        essai en cours · prochain débit au jour 7.
-                      </>
-                    ) : (
-                      <>
-                        Tu joues sur le <b>plan gratuit complet</b>. Aucun paiement en cours.
-                      </>
-                    )}
-                  </p>
-                </div>
-                {subscribed ? (
-                  <button type="button" className={styles.manageBtn} onClick={cancelSub}>
-                    Annuler l&rsquo;abonnement
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.manageBtn}
-                    onClick={() => startCheckout('club')}
-                  >
-                    Rejoindre le Club
-                  </button>
-                )}
-              </div>
-              <p className={styles.manageHint}>
-                Démo : le statut ci-dessus est simulé localement. En production, la gestion
-                (facture, moyen de paiement, annulation) ouvre le portail client Stripe.
-              </p>
-            </div>
-          </Reveal>
-
-          {/* Note câblage Stripe (O-item). */}
           <Reveal delayMs={100}>
             <p className={styles.demoNote}>
               <Icon name="info" size={16} />
               <span>
-                <b>Câble démo.</b> Aucun débit réel sur cette page. Le paiement et la gestion
-                d&rsquo;abonnement passeront par <b>Stripe</b> (compte + clés = point ouvert
-                O-item côté fondateur).
+                Les prix affichés viennent de la <b>source de vérité du jeu</b> (une seule
+                définition, partagée par le site et l&rsquo;application). Ils pourront changer
+                avant l&rsquo;ouverture des ventes — aucune date n&rsquo;est annoncée, et aucun
+                engagement n&rsquo;est pris ici.
               </span>
             </p>
           </Reveal>
         </section>
-      </div>
-
-      {/* Toast démo (intention de paiement câblée). */}
-      <div
-        className={`${styles.toast} ${toast ? styles.toastShown : ''}`}
-        role="status"
-        aria-live="polite"
-      >
-        {toast ? (
-          <>
-            <Icon name="info" size={16} className={styles.toastIcon} />
-            <span>{toast}</span>
-          </>
-        ) : null}
       </div>
     </div>
   );

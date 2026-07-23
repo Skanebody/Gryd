@@ -16,8 +16,20 @@
  * ANTI PAY-TO-WIN (doc §12, bannière permanente) : aucun objet ne vend
  * territoire, km, zones, points ni attaque/défense. Un Crew Boost n'agit QUE
  * sur la progression du coffre crew. Prix : constantes de game-rules
- * (SKU_PRICES_EUR, ECLATS_PACKS, SHIELD/STREAK/SCOUT/BANNER_*) — zéro nombre
- * magique de prix dans cet écran.
+ * (SKU_PRICES_EUR, ECLATS_PACKS, BANNER_CREW_ECLATS) — zéro nombre magique de
+ * prix dans cet écran.
+ *
+ * OBJETS FONCTIONNELS — JAMAIS DE PRIX, JAMAIS DE BOUTON (23/07/2026).
+ * `isFunctionalItemKey` (game-rules) est le SEUL garde : Bouclier, Streak Gel,
+ * Scout Ping et alerte d'attaque n'ont plus aucun prix depuis AMENDEMENT-40 §2.
+ * L'écran en tirait un « Obtenir · undefined Éclats » dont le tap ne faisait
+ * RIEN (`buy()` sortait sur `if (!price) return`) — un bouton mort sur le seul
+ * CTA chartreuse de la sheet, et « Exclusif au pack » en repli de libellé, ce
+ * qui était faux. Ces objets affichent désormais « Ne s'achète pas » (état, pas
+ * bouton) + une note qui dit aussi que la voie d'obtention n'est PAS ouverte —
+ * on ne promet rien que le code ne tienne. Ils ne peuvent pas non plus être la
+ * recommandation « CHOISI POUR TOI » : conseiller ce qu'on ne peut obtenir par
+ * aucun moyen est un cul-de-sac.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -31,6 +43,7 @@ import {
   fontSizes,
   gameColors,
   iconSizes,
+  isFunctionalItemKey,
   motion,
   radii,
   spacing,
@@ -245,6 +258,9 @@ function ArsenalBody() {
   /** Achat DÉMO : Éclats → solde descend ; EUR → reveal (paiement réel = O3). */
   const buy = useCallback(
     (item: ArsenalCatalogItem, currency: ArsenalPriceCurrency) => {
+      // Garde dure : un objet fonctionnel ne s'achète par AUCUN chemin, même si
+      // un futur catalogue lui redonnait un prix par erreur.
+      if (isFunctionalItemKey(item.key)) return;
       const price = priceFor(item, currency);
       if (!price) return;
       if (price.currency === 'eclats') {
@@ -337,7 +353,15 @@ function ArsenalBody() {
     [arsenalSignals, owned, equipped, wallet.eclats],
   );
 
-  const primaryRecommendation = recommendations[0];
+  /**
+   * « CHOISI POUR TOI » = une proposition ACTIONNABLE. Un objet fonctionnel ne
+   * s'achète dans aucune monnaie et sa distribution en jeu n'est pas ouverte :
+   * le mettre en tête reviendrait à pousser une impasse. Il reste consultable
+   * plus bas, avec sa mention « Ne s'achète pas ».
+   */
+  const primaryRecommendation = recommendations.find(
+    (entry) => !isFunctionalItemKey(entry.item.key),
+  );
   const primaryRecommendationKey = primaryRecommendation?.item.key;
 
   const visibleRecommendations = useMemo(
@@ -366,7 +390,8 @@ function ArsenalBody() {
       const ownedNow = isOwned(item.key);
       const equippedNow = isEquipped(item);
       const canEquip = equipScopeOf(item.key) !== null;
-      const price = priceFor(item, 'eclats');
+      const neverForSale = isFunctionalItemKey(item.key);
+      const price = neverForSale ? undefined : priceFor(item, 'eclats');
       const buyable = !ownedNow && !item.packOnly && !item.draft && price !== undefined;
       return (
         <ArsenalItemCard
@@ -377,6 +402,9 @@ function ArsenalBody() {
           rarity={item.rarity}
           usage={advice.headline}
           price={buyable ? price : undefined}
+          /* Sans prix ET sans CTA, le pied de carte restait MUET : la note dit
+             pourquoi il n'y a rien à acheter, au lieu de laisser un vide. */
+          footnote={neverForSale && !ownedNow ? t(C.neverForSale) : undefined}
           state={item.draft ? 'locked' : item.packOnly && !ownedNow ? 'locked' : 'unlocked'}
           owned={ownedNow}
           equipped={equippedNow}
@@ -604,9 +632,11 @@ function AdvisorCard({
 }) {
   const t = useT();
   const { item, advice } = entry;
+  const neverForSale = isFunctionalItemKey(item.key);
   const canEquipNow = owned && !equipped && equipScopeOf(item.key) !== null;
   const oneTapBuy =
     !owned &&
+    !neverForSale &&
     !item.packOnly &&
     !item.draft &&
     price !== undefined &&
@@ -625,9 +655,13 @@ function AdvisorCard({
   // sinon dans la ligne méta (source unique, jamais les deux).
   const meta = owned
     ? `${BADGE_TIER_LABEL[item.rarity]} · ${equipped ? t(C.lootEquipped) : t(C.possede)}`
-    : oneTapBuy
-      ? BADGE_TIER_LABEL[item.rarity]
-      : `${BADGE_TIER_LABEL[item.rarity]} · ${priceLabel(price)}`;
+    : neverForSale
+      ? // Sans ce cas, `priceLabel(undefined)` retombait sur « Exclusif au pack » :
+        // un objet jamais vendu se serait annoncé comme un contenu de pack payant.
+        `${BADGE_TIER_LABEL[item.rarity]} · ${t(C.neverForSale)}`
+      : oneTapBuy
+        ? BADGE_TIER_LABEL[item.rarity]
+        : `${BADGE_TIER_LABEL[item.rarity]} · ${priceLabel(price)}`;
 
   return (
     <View style={styles.advisor}>
@@ -710,9 +744,10 @@ function ItemDetail({
   const { opacity, scale } = useReveal(true);
   const scope = equipScopeOf(item.key);
   const isSkin = item.section === 'skins_territory' || item.section === 'skins_trace';
-  const dual = item.priceShards !== undefined && item.priceEur !== undefined;
+  /** Objet FONCTIONNEL : aucun prix, aucune bascule de devise, aucun CTA d'achat. */
+  const neverForSale = isFunctionalItemKey(item.key);
+  const dual = !neverForSale && item.priceShards !== undefined && item.priceEur !== undefined;
   const hasEclats = item.priceShards !== undefined;
-  const hasEur = item.priceEur !== undefined;
   const advice = explainArsenalItem(item, signals);
 
   return (
@@ -749,6 +784,17 @@ function ItemDetail({
         <View style={styles.detailChip}>
           <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
           <Text style={styles.detailChipText}>{t(C.plafond, { limit: item.limit })}</Text>
+        </View>
+      ) : null}
+
+      {/* Objet fonctionnel : on dit d'un trait qu'il n'est vendu dans AUCUNE
+          monnaie ET que la voie d'obtention n'est pas encore ouverte. Écrire
+          « se gagne en courant » serait promettre au-delà du code : aucune RPC
+          ne crédite ces clés à ce jour. */}
+      {neverForSale ? (
+        <View style={styles.detailChip}>
+          <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
+          <Text style={styles.detailChipText}>{t(C.neverForSaleNote)}</Text>
         </View>
       ) : null}
 
@@ -841,6 +887,14 @@ function ItemDetail({
               </Text>
             </View>
           )
+        ) : neverForSale ? (
+          /* ÉTAT, PAS BOUTON. Avant : un CTA chartreuse « Obtenir · undefined
+             Éclats » dont le tap ne faisait rien — le bouton mort exact que
+             CLAUDE.md interdit, sur le seul accent fort de la scène. */
+          <View style={[styles.detailPrimary, styles.detailLocked]}>
+            <Icon name="verrou" size={15} color={colors.gris} />
+            <Text style={styles.detailLockedText}>{t(C.neverForSale)}</Text>
+          </View>
         ) : (
           <Pressable
             accessibilityRole="button"
@@ -1192,7 +1246,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     alignSelf: 'flex-start',
   },
-  detailChipText: { color: colors.gris, fontSize: fontSizes.xs },
+  // `flexShrink` : sans lui, un texte long dans un chip en ROW déborde au lieu
+  // de passer à la ligne (§A — un texte d'information n'est jamais coupé).
+  detailChipText: { color: colors.gris, fontSize: fontSizes.xs, flexShrink: 1 },
   // VRAIE preview de contenu (contenu du pack) = l'unique nesting autorisé ;
   // surface N2 relevée, sans contour.
   detailContents: {

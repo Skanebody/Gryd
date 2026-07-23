@@ -1,9 +1,27 @@
 /**
  * GRYD — Conditions Générales de Vente (CGV). OBLIGATOIRE dès lors qu'un service
- * payant est vendu à des consommateurs (abonnement GRYD Club, Founder Pack et achats
- * in-app ponctuels) — art. L111-1
- * et s. du Code de la consommation. Distinct des CGU (/conditions) : les CGV
- * régissent la VENTE (prix, paiement, rétractation, reconduction, médiation).
+ * payant est vendu à des consommateurs (abonnement GRYD Club, Founder Pack,
+ * packs cosmétiques) — art. L111-1 et s. du Code de la consommation. Distinct
+ * des CGU (/conditions) : les CGV régissent la VENTE (prix, paiement,
+ * rétractation, reconduction, médiation).
+ *
+ * ⚠️ DOCUMENT CONTRACTUEL, lié depuis le footer public : c'est ici que la règle
+ * « une doc ne promet jamais au-delà du code » est la PLUS stricte.
+ *
+ * AMENDEMENT-40 §2 / AMENDEMENT-45 §2 — RETIRÉS de la liste des produits vendus :
+ *   · les « boucliers de quartier » — une PROTECTION ne se vend dans aucune
+ *     monnaie (invariant gelé côté serveur par la contrainte SQL
+ *     items_functional_never_priced_check, migration 0065) ;
+ *   · les « packs d'Éclats » — la monnaie ne doit pas servir de détour vers un
+ *     objet fonctionnel, et aucun pack n'est achetable aujourd'hui ;
+ *   · le « Season Pass » — catalogué INACTIF (status draft, aucun SKU actif) :
+ *     vendre nommément un produit sans SKU était une promesse contractuelle
+ *     au-delà du code.
+ *
+ * AMENDEMENT-47 — ÉTAT RÉEL (23/07/2026) : AUCUNE offre n'est en vente. Aucun
+ * checkout n'est branché sur le site, aucun client d'achats intégrés n'existe
+ * dans l'application, le contrat de distribution Apple n'est pas signé. Ces CGV
+ * décrivent le cadre qui s'appliquera à la première vente — le §03 le dit.
  *
  * ⚠️ TEMPLATE À COMPLÉTER + À FAIRE RELIRE PAR UN JURISTE. Champs <Todo> = données
  * réelles de la SASU Nexus 1993 + médiateur de la consommation (obligatoire B2C).
@@ -17,13 +35,16 @@ import type { ReactNode } from 'react';
 import { Icon } from '../components/ui/Icon';
 import styles from '../confidentialite/legal.module.css';
 
-const LAST_UPDATED = '6 juillet 2026';
-const EFFECTIVE = '6 juillet 2026';
+// Révision du 23 juillet 2026 — AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : retrait des boucliers, packs d'Éclats et Season Pass de la liste des produits vendus.
+// Aucune vente n'ayant eu lieu, aucune version antérieure ne lie personne :
+// le texte révisé est celui en vigueur.
+const LAST_UPDATED = '23 juillet 2026';
+const EFFECTIVE = '23 juillet 2026';
 
 export const metadata: Metadata = {
   title: 'Conditions Générales de Vente — GRYD',
   description:
-    'CGV de GRYD : abonnement GRYD Club, Founder Pack et achats in-app — prix, paiement, droit de rétractation, reconduction, résiliation, médiation de la consommation.',
+    'CGV de GRYD : abonnement GRYD Club, Founder Pack et packs cosmétiques — prix, paiement, droit de rétractation, reconduction, résiliation, médiation de la consommation.',
 };
 
 function Todo({ children }: { children: ReactNode }) {
@@ -77,7 +98,7 @@ export default function CgvPage() {
           <h1 className={styles.heroTitle}>Conditions Générales de Vente</h1>
           <p className={styles.heroSub}>
             Ces CGV régissent la vente des offres payantes de GRYD (abonnement GRYD Club,
-            Founder Pack et achats in-app ponctuels) aux consommateurs. Elles complètent les{' '}
+            Founder Pack et packs cosmétiques) aux consommateurs. Elles complètent les{' '}
             <a href="/conditions">conditions d&rsquo;utilisation</a> (usage du jeu) et la{' '}
             <a href="/confidentialite">politique de confidentialité</a>. Le jeu, le
             territoire et la progression restent entièrement gratuits&nbsp;: aucune offre
@@ -93,12 +114,14 @@ export default function CgvPage() {
           </div>
 
           <div className={styles.pledge}>
-            <p className={styles.pledgeTitle}>À finaliser avant publication</p>
+            <p className={styles.pledgeTitle}>Aucune offre n&rsquo;est en vente à ce jour</p>
             <p className={styles.pledgeBody}>
-              L&rsquo;identité du vendeur et les prix sont renseignés. Reste à désigner le
-              champ surligné (médiateur de la consommation, dont l&rsquo;adhésion est
-              obligatoire) et à faire relire l&rsquo;ensemble par un juriste avant toute mise
-              en vente.
+              À la date ci-dessus, <b>aucune offre payante de GRYD n&rsquo;est commercialisée</b> :
+              aucun paiement n&rsquo;est encaissable, ni sur ce site, ni dans l&rsquo;application.
+              Ces CGV décrivent le cadre applicable à la première vente. L&rsquo;identité du
+              vendeur est renseignée&nbsp;; reste à désigner le champ surligné (médiateur de la
+              consommation, dont l&rsquo;adhésion est obligatoire) et à faire relire
+              l&rsquo;ensemble par un juriste avant toute mise en vente.
             </p>
           </div>
         </header>
@@ -159,19 +182,36 @@ export default function CgvPage() {
           <ul className={styles.list}>
             <li className={styles.item}>
               <b>Abonnement (unique)</b> — <b>GRYD Club</b>, mensuel ou annuel. Il ouvre des
-              bonus permanents de <b>confort, d&rsquo;information (en lecture seule), de
-              cosmétique et de statut</b> (skins, radar des zones contestées, stats avancées,
-              templates de partage, gel de série, badge supporter). Il ne comprend <b>ni
-              bouclier, ni protection de zone, ni avantage territorial</b>.
+              bonus permanents de <b>confort sur tes propres données</b> (stats avancées,
+              heatmap personnelle, historique complet, export et templates de partage). Il ne
+              comprend <b>ni bouclier, ni gel de série, ni information tactique sur les zones
+              ou les adversaires, ni protection, ni avantage territorial</b>, et
+              n&rsquo;augmente aucun plafond de jeu&nbsp;: les limites d&rsquo;usage sont
+              identiques pour un abonné et un joueur gratuit.
             </li>
             <li className={styles.item}>
-              <b>Achats ponctuels</b> — Founder Pack (à vie, édition limitée), Starter Pack,
-              Season Pass, packs d&rsquo;Éclats (monnaie cosmétique) et boucliers de quartier.
-              Les boucliers sont des consommables <b>plafonnés</b> et ne sont <b>jamais inclus
-              dans l&rsquo;abonnement</b>&nbsp;; comme toutes les offres, ils ne procurent ni
-              territoire, ni points, ni victoire.
+              <b>Achats ponctuels</b> — Founder Pack (à vie, édition limitée) et Starter
+              Pack&nbsp;: des éléments <b>cosmétiques et de statut</b> (skins, cadres, blasons,
+              templates de partage) et une dotation en <b>Éclats</b>, la monnaie du jeu. Les
+              Éclats ne donnent accès qu&rsquo;à des <b>cosmétiques</b>&nbsp;: aucun objet
+              agissant sur la partie ne peut être obtenu contre des Éclats.
             </li>
           </ul>
+          <p className={styles.body}>
+            <b>Ne sont vendus dans aucune monnaie</b> — ni en euros, ni via une monnaie du jeu,
+            ni dans un pack, ni dans l&rsquo;abonnement&nbsp;: les objets qui agissent sur la
+            partie, à savoir le <b>bouclier de quartier</b>, le <b>gel de série</b>, le{' '}
+            <b>scout</b> et l&rsquo;<b>alerte d&rsquo;attaque</b>. Protéger un territoire, tenir
+            une série ou être prévenu plus tôt sont des <b>avantages de jeu</b>&nbsp;: ils ne
+            s&rsquo;achètent pas et ne peuvent faire l&rsquo;objet d&rsquo;aucune offre payante.
+          </p>
+          <p className={styles.body}>
+            <b>À la date d&rsquo;entrée en vigueur ci-dessus, aucune de ces offres n&rsquo;est
+            commercialisée.</b> Aucun paiement n&rsquo;est encaissable sur le site ni dans
+            l&rsquo;application. Les tarifs annoncés sur les pages d&rsquo;offres sont
+            indicatifs tant qu&rsquo;aucune vente n&rsquo;est ouverte&nbsp;; ils ne constituent
+            ni une offre ferme, ni un engagement de mise en vente à une date donnée.
+          </p>
           <p className={styles.body}>
             Le détail des offres et leurs <b>tarifs TTC en vigueur</b> (en euros, toutes taxes
             comprises) sont présentés sur les pages d&rsquo;offres (site gryd.run et

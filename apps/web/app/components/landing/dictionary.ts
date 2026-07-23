@@ -149,22 +149,30 @@ const fr = {
     oneTime: 'paiement unique',
     starterName: 'Starter Pack',
     starterBadge: 'Une seule fois',
-    starterFeatures: ['1 skin de territoire exclusif', 'Éclats inclus', '1 bouclier de quartier (capé)'],
     clubName: 'GRYD Club',
     clubBadge: 'Confort & statut',
+    // Contenu du Club — MIROIR EXACT du catalogue mobile (features/arsenal/catalog.ts,
+    // entrée SKUS.clubMonthly) et des CGV embarquées. Deux listes qui divergeraient
+    // seraient pires que la faute d'origine.
+    // SUPPRIMÉS : « gels de série / mois » (STREAK_FREEZE_CLUB_PER_MONTH vaut
+    // désormais la valeur gratuite — plus un avantage), « Radar des zones
+    // contestées » (information tactique : un abonnement n'en distribue pas,
+    // AMENDEMENT-45 §2 C1) et « Skins de territoire premium » (les skins
+    // s'achètent en Éclats, le Club n'en inclut aucun).
     clubFeatures: [
-      'Skins de territoire premium',
-      'Radar des zones contestées (info)',
-      'Stats avancées',
+      'Stats avancées + heatmap personnelle',
+      'Historique complet + export de partage HD',
       'Templates de partage premium',
-      'gels de série / mois',
     ],
-    clubNote: 'Que du confort, de l’info en lecture seule et du statut. Aucun bouclier, aucune protection de zone, aucun avantage sur la carte.',
+    clubNote: 'Du confort et du style, rien d’autre. Aucun bouclier, aucun gel de série, aucune information tactique, aucun avantage sur la carte.',
     passName: 'GRYD Pass',
     passBadge: 'Saison 1 · à venir',
     passFeatures: ['Double piste de récompenses', 'Achat rétroactif de la piste', 'Arrive avec la Saison 1'],
     cta: 'Rejoindre la waitlist',
-    footnote: 'Les Éclats et le Club n’achètent jamais de zones, de points ou de stats. Boucliers et boosts restent des objets ponctuels capés. Le seul moyen de prendre une rue, c’est de la courir.',
+    // AMENDEMENT-47 : rien n'est encaissable aujourd'hui. Le seul bouton de la
+    // section mène à la waitlist (réelle) — jamais à un checkout inexistant.
+    notOnSale: 'Aucune de ces offres n’est encore en vente : les prix affichés sont annoncés, jamais débités.',
+    footnote: 'Les Éclats et le Club n’achètent jamais de zones, de points ou de stats. Bouclier, gel de série, scout et alerte d’attaque ne se vendent dans aucune monnaie. Le seul moyen de prendre une rue, c’est de la courir.',
     toggleAria: 'Période de facturation',
   },
   waitlist: {
@@ -345,22 +353,20 @@ const en: Dict = {
     oneTime: 'one-time payment',
     starterName: 'Starter Pack',
     starterBadge: 'One time only',
-    starterFeatures: ['1 exclusive territory skin', 'Éclats included', '1 district shield (capped)'],
     clubName: 'GRYD Club',
     clubBadge: 'Comfort & status',
     clubFeatures: [
-      'Premium territory skins',
-      'Contested-zones radar (intel)',
-      'Advanced stats',
+      'Advanced stats + personal heatmap',
+      'Full history + HD share export',
       'Premium share templates',
-      'streak freezes / month',
     ],
-    clubNote: 'Comfort, read-only intel and status only. No shield, no zone protection, no edge on the map.',
+    clubNote: 'Comfort and style, nothing else. No shield, no streak gel, no tactical intel, no edge on the map.',
     passName: 'GRYD Pass',
     passBadge: 'Season 1 · coming',
     passFeatures: ['Dual reward track', 'Retroactive track purchase', 'Ships with Season 1'],
     cta: 'Join the waitlist',
-    footnote: 'Éclats and the Club never buy zones, points or stats. Shields and boosts stay capped one-off items. The only way to take a street is to run it.',
+    notOnSale: 'None of these offers is on sale yet: the prices shown are announced, never charged.',
+    footnote: 'Éclats and the Club never buy zones, points or stats. Shield, streak gel, scout and attack alert are sold in no currency at all. The only way to take a street is to run it.',
     toggleAria: 'Billing period',
   },
   waitlist: {

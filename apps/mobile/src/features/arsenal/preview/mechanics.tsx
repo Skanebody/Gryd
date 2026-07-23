@@ -10,7 +10,8 @@
  * *et sa LIMITE*. Aucun objet n'achète le jeu :
  *  - Bouclier   → protège une zone un temps borné, jamais l'invincibilité, ne capture rien.
  *  - Scout Ping → révèle une INFO, aucune capture automatique.
- *  - Streak Gel → protège la série hebdo, zéro territoire.
+ *  - Streak Gel → protège la série hebdo (donc son multiplicateur de POINTS) ;
+ *                 ne capture aucune zone, et ne se vend dans aucune monnaie.
  *  - Crew Boost → +25 % de progression du COFFRE crew, JAMAIS de points ni de zones.
  *  - Packs/Éclats → du STYLE (cosmétiques), jamais un avantage de jeu.
  *  - Abonnements → features de confort, zéro avantage de jeu, aucun bouclier.
@@ -175,7 +176,12 @@ export function ScoutPingSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
 // 3. STREAK GEL — protège la série hebdo une semaine, zéro territoire.
 // ═══════════════════════════════════════════════════════════════════════════
 export function StreakGelSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
-  const label = `${item.name} : gèle et protège ta série hebdo une semaine, sans toucher au territoire.`;
+  /**
+   * L'ANCIEN LIBELLÉ DISAIT « sans toucher au territoire » : faux. La série
+   * porte un multiplicateur jusqu'à ×1,5 sur les POINTS de territoire — c'est
+   * même la raison pour laquelle cet objet n'est vendu dans aucune monnaie.
+   */
+  const label = `${item.name} : gèle et protège ta série hebdo une semaine — et donc le multiplicateur de points qu'elle porte. Ne capture aucune zone, ne se vend jamais.`;
   const days = 7;
   const x0 = 40;
   const step = 27;
@@ -198,7 +204,7 @@ export function StreakGelSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
         <Line x1={-9.5} y1={5.5} x2={9.5} y2={-5.5} />
       </G>
 
-      <Caption text="Protège ta série · zéro territoire" />
+      <Caption text="Ne capture aucune zone · jamais vendu" />
     </Scene>
   );
 }
@@ -301,9 +307,17 @@ export function SubscriptionPreview({ item, size = DEFAULT_SIZE }: ArsenalPrevie
   return <ClubScene item={item} size={size} />;
 }
 
-/** Club : 4 features en petites tuiles (stats · heatmap · export · radar). */
+/**
+ * Club : 4 features en petites tuiles (stats · heatmap · export · templates).
+ *
+ * LA 4ᵉ TUILE ÉTAIT UN RADAR (23/07/2026). Elle illustrait le « radar des zones
+ * contestées » que le Club annonçait — une INFORMATION TACTIQUE, donc un
+ * avantage de jeu payant qu'AMENDEMENT-45 §2 C1 interdit mot pour mot. Le Club
+ * ne la vend plus (cf. catalog.ts) : le schéma montre désormais les templates
+ * de partage premium, qui sont réellement dans l'offre.
+ */
 function ClubScene({ item, size }: { item: ArsenalCatalogItem; size: number }) {
-  const label = `${item.name} : stats, heatmap, export HD et radar — zéro avantage de jeu, aucun bouclier.`;
+  const label = `${item.name} : stats, heatmap, export HD et templates premium — zéro avantage de jeu, aucun bouclier, aucune info tactique.`;
   const tw = 66;
   const th = 42;
   const gx = 8;
@@ -341,11 +355,11 @@ function ClubScene({ item, size }: { item: ArsenalCatalogItem; size: number }) {
         <Path d="M-6 -10 L0 -16 L6 -10" strokeLinejoin="round" />
         <Path d="M-9 2 L9 2" />
       </G>
-      {/* Tuile 4 — radar (anneaux) */}
+      {/* Tuile 4 — template de partage (carte 9:16 + ligne de titre) */}
       <G transform={`translate(${ox + tw + gx + 33} ${oy + th + gy + 21})`}>
-        <Circle r={12} fill="none" stroke={colors.blanc} strokeWidth={1.5} strokeOpacity={0.5} />
-        <Circle r={6} fill="none" stroke={colors.blanc} strokeWidth={1.5} strokeOpacity={0.7} />
-        <Circle r={2.2} fill={colors.chartreuse} />
+        <Rect x={-8} y={-13} width={16} height={26} rx={3} fill="none" stroke={colors.blanc} strokeWidth={1.5} />
+        <Path d="M-4 6 L4 6" stroke={colors.chartreuse} strokeWidth={2} strokeLinecap="round" />
+        <Path d="M-4 -6 L2 -1 L4 -3" fill="none" stroke={colors.blanc} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
       </G>
 
       <Caption text="Zéro avantage de jeu · aucun bouclier" />

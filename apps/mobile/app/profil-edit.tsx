@@ -52,16 +52,21 @@ import {
   validateHandle,
 } from '../src/features/social/profileStore';
 import { itemsInSection } from '../src/features/arsenal/catalog';
-import { isFrameItem, useEquippedCosmetics } from '../src/features/arsenal';
+import { isFrameItem, useArsenalInventory } from '../src/features/arsenal';
 import { playerLevelForXp, playerTierForLevel } from '../src/features/crew/rules';
+import { useSession } from '../src/lib/session';
 import { useMyEconomy } from '../src/features/social/economy';
 
 /** Badges choisissables = débloqués, non-legacy, du plus rare au moins rare.
  *  DÉRIVÉS dans le composant (O1 : useMyBadges) — plus au niveau module. */
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 
-/** Frames équipables (portée profile, hors titres) — cosmétique visible sur la card. */
-const FRAME_ITEMS = itemsInSection('frames').filter(isFrameItem);
+/**
+ * Catalogue des frames (portée profile, hors titres). C'est un CATALOGUE, pas
+ * une possession : l'écran n'en propose que le sous-ensemble réellement inscrit
+ * dans l'inventaire du joueur (cf. `ownedFrames` plus bas).
+ */
+const FRAME_CATALOG = itemsInSection('frames').filter(isFrameItem);
 
 export default function ProfilEditScreen() {
   const t = useT();
@@ -71,7 +76,36 @@ export default function ProfilEditScreen() {
   }, []);
 
   const { editable, save } = useMyProfile();
-  const { equipped, equip } = useEquippedCosmetics();
+  /**
+   * ─── LE SÉLECTEUR DE CADRES DONNAIT LES CADRES (23/07/2026) ───────────────
+   * Il listait les 6 frames du CATALOGUE sans regarder l'inventaire : n'importe
+   * qui équipait `frame_founder` (« Exclusif Founder Pack ») ou `frame_elite`
+   * en un tap, gratuitement, et la Player Card affichait alors un statut jamais
+   * obtenu. C'est la même faute que les cosmétiques offerts d'office corrigés
+   * dans `inventory.ts` (« on ne possède que ce que le SERVEUR a écrit ») — mais
+   * du côté de l'ÉQUIPEMENT, où elle était encore ouverte.
+   *
+   * On lit donc l'inventaire complet (`useArsenalInventory`) et on ne propose
+   * QUE les clés possédées. À 0 achat possible, cette liste est normalement
+   * vide : l'écran le DIT, avec quatre états distincts (lecture en cours / pas
+   * connecté / lecture non aboutie / réellement aucun cadre).
+   */
+  const {
+    equipped,
+    equipItem,
+    ownedKeys,
+    source: inventorySource,
+    loading: inventoryLoading,
+  } = useArsenalInventory();
+  const { session, configured, loading: sessionLoading } = useSession();
+  /** Pendant l'hydratation de session, dire « connecte-toi » à un connecté serait faux. */
+  const signedIn = configured && (session !== null || sessionLoading);
+  /** Inventaire RÉELLEMENT lu côté serveur — sinon on n'affirme aucune possession. */
+  const inventoryIsReal = inventorySource === 'server';
+  const ownedFrames = useMemo(
+    () => (inventoryIsReal ? FRAME_CATALOG.filter((f) => ownedKeys.has(f.key)) : []),
+    [inventoryIsReal, ownedKeys],
+  );
 
   /**
    * ─── LE TIER DE L'AVATAR ÉTAIT CELUI D'UN AUTRE (21/07/2026) ──────────────
@@ -139,8 +173,19 @@ export default function ProfilEditScreen() {
   /** Initiales aperçu (override manuel sinon 1re lettre du nom édité). */
   const previewInitials = effectiveInitials({ avatarInitials, displayName });
 
-  /** Le frame équipé courant (pour surligner la sélection). */
-  const equippedFrameKey = equipped.profile;
+  /**
+   * Le frame équipé courant (pour surligner la sélection ET peindre l'aperçu).
+   * Filtré sur la possession : un choix persisté avant ce correctif (ou un
+   * TITRE, qui partage la portée `profile`) ne doit plus peindre un anneau que
+   * le joueur n'a pas. Sans cadre possédé, l'avatar garde l'anneau de son palier.
+   */
+  const equippedFrameKey = useMemo(
+    () =>
+      equipped.profile !== undefined && ownedFrames.some((f) => f.key === equipped.profile)
+        ? equipped.profile
+        : undefined,
+    [equipped.profile, ownedFrames],
+  );
 
   const dirty = useMemo(
     () =>
@@ -211,7 +256,7 @@ export default function ProfilEditScreen() {
 
   const onEquipFrame = (key: string) => {
     haptics.light();
-    void equip(key); // persiste + met à jour l'aperçu ET la Player Card
+    void equipItem(key); // persiste + met à jour l'aperçu ET la Player Card
   };
 
   /**
@@ -522,10 +567,22 @@ export default function ProfilEditScreen() {
         )}
       </View>
 
-      {/* ── FRAME cosmétique équipé — effet TANGIBLE sur la Player Card ── */}
+      {/* ── FRAME cosmétique équipé — effet TANGIBLE sur la Player Card ──
+          On ne propose QUE les cadres possédés. Quatre états distincts, jamais
+          une grille vide muette : une liste absente n'explique rien, et un
+          catalogue complet mentirait sur ce que le joueur détient. */}
       <Text style={styles.sectionLabel}>{t(C.sectionFrame)}</Text>
+      {inventoryLoading ? (
+        <Text style={styles.hint}>{t(C.framesLoading)}</Text>
+      ) : !signedIn ? (
+        <Text style={styles.hint}>{t(C.framesSignedOut)}</Text>
+      ) : !inventoryIsReal ? (
+        <Text style={styles.hint}>{t(C.framesUnread)}</Text>
+      ) : ownedFrames.length === 0 ? (
+        <Text style={styles.hint}>{t(C.framesEmpty)}</Text>
+      ) : (
       <View style={styles.frameWrap}>
-        {FRAME_ITEMS.map((f) => {
+        {ownedFrames.map((f) => {
           const on = f.key === equippedFrameKey;
           return (
             <Pressable
@@ -553,6 +610,7 @@ export default function ProfilEditScreen() {
           );
         })}
       </View>
+      )}
       {/* D8 : Arsenal masqué hors MVP. */}
       {flags.arsenal ? (
         <>

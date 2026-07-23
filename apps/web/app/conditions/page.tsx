@@ -17,8 +17,11 @@ import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
 import styles from '../confidentialite/legal.module.css';
 
-const LAST_UPDATED = '6 juillet 2026';
-const EFFECTIVE = '6 juillet 2026';
+// Révision du 23 juillet 2026 — AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : les objets fonctionnels ne sont vendus dans aucune monnaie.
+// Aucune vente n'ayant eu lieu, aucune version antérieure ne lie personne :
+// le texte révisé est celui en vigueur.
+const LAST_UPDATED = '23 juillet 2026';
+const EFFECTIVE = '23 juillet 2026';
 
 export const metadata: Metadata = {
   title: 'Conditions d’utilisation — GRYD',
@@ -220,13 +223,23 @@ export default function ConditionsPage() {
           <h2 className={styles.sectionTitle}>Abonnement & achats — statut uniquement</h2>
           <p className={styles.body}>
             Le jeu est <b>gratuit et complet</b>. GRYD ne propose qu&rsquo;<b>un seul
-            abonnement, GRYD Club</b> (bonus permanents de confort, d&rsquo;information en
-            lecture seule, de cosmétique et de statut&nbsp;: skins, radar des zones contestées,
-            stats avancées, templates de partage, gel de série, badge supporter), aux côtés
-            d&rsquo;<b>achats ponctuels</b> (Founder Pack, cosmétiques, boucliers de quartier
-            plafonnés). Aucune de ces offres n&rsquo;apporte <b>de territoire, de points, de
-            victoire ni de protection acquise&nbsp;: les boucliers sont capés et jamais inclus
-            dans l&rsquo;abonnement</b>.
+            abonnement, GRYD Club</b> (bonus permanents de confort sur tes propres
+            données&nbsp;: stats avancées, heatmap personnelle, historique complet, export et
+            templates de partage), aux côtés
+            d&rsquo;<b>achats ponctuels purement cosmétiques</b> (Founder Pack, Starter Pack).
+            Aucune de ces offres n&rsquo;apporte <b>de territoire, de points, de victoire ni de
+            protection</b>.
+          </p>
+          <p className={styles.body}>
+            Les objets qui agissent sur la partie — <b>bouclier de quartier, gel de série,
+            scout, alerte d&rsquo;attaque</b> — <b>ne sont vendus dans aucune monnaie</b> : ni
+            en euros, ni en Éclats, ni dans un pack, ni dans l&rsquo;abonnement. Leurs plafonds
+            sont <b>identiques</b> pour un abonné et un joueur gratuit.
+          </p>
+          <p className={styles.body}>
+            À ce jour, <b>aucune offre payante n&rsquo;est commercialisée</b> : aucun paiement
+            n&rsquo;est encaissable dans l&rsquo;application ni sur le site. Les clauses
+            ci-dessous décrivent le cadre applicable dès qu&rsquo;une vente sera ouverte.
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>

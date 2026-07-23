@@ -123,6 +123,12 @@ export interface ArsenalItemCardProps {
   limit?: string;
   /** Prix (absent = gratuit/débloqué par le jeu). Devise EUR = pack payant réel. */
   price?: { amount: number; currency: ArsenalPriceCurrency };
+  /**
+   * Note posée À LA PLACE du prix quand l'objet n'en a AUCUN et n'est pas
+   * possédé (objets fonctionnels : « Ne s'achète pas », anti pay-to-win). Sans
+   * elle, le pied de carte restait un vide muet. Ce n'est jamais un bouton.
+   */
+  footnote?: string;
   /** États pertinents : active · locked · expired · statsonly · unlocked. */
   state?: GameVisualState;
   /** Déjà possédé (« Dans ton arsenal », CTA masqué). */
@@ -159,6 +165,7 @@ export function ArsenalItemCard({
   explanation,
   limit,
   price,
+  footnote,
   state = 'unlocked',
   owned = false,
   equipped = false,
@@ -251,7 +258,7 @@ export function ArsenalItemCard({
         ) : (
           <View style={styles.price}>
             <Text style={styles.ownedLabel}>
-              {equipped ? 'Équipé' : owned ? 'Dans ton arsenal' : ''}
+              {equipped ? 'Équipé' : owned ? 'Dans ton arsenal' : (footnote ?? '')}
             </Text>
           </View>
         )}
