@@ -107,6 +107,14 @@ export const C = defineCatalog({
     de: 'Code erhalten',
     pt: 'Receber um código',
   },
+  /** Variante LIEN — ce qui part réellement aujourd'hui (cf. EMAIL_DELIVERY). */
+  otpRequestLinkCta: {
+    fr: 'Recevoir un lien',
+    en: 'Get a link',
+    es: 'Recibir un enlace',
+    de: 'Link erhalten',
+    pt: 'Receber um link',
+  },
   /**
    * Ce que le code FAIT vraiment (ajouté le 21/07/2026 avec la porte « J'ai déjà
    * un compte »). `requestEmailOtp` envoie `shouldCreateUser: true` : la même
@@ -121,12 +129,46 @@ export const C = defineCatalog({
     de: 'Ein 6-stelliger Code: Er meldet dich an, wenn dein Konto existiert — sonst legt er es an.',
     pt: 'Um código de 6 dígitos: ele conecta você se a conta existir, e a cria se não.',
   },
+  /** Variante LIEN — promettre un code non envoyé était la panne d'origine. */
+  otpCreatesOrSignsInLink: {
+    fr: 'Un lien de connexion : il te connecte si ton compte existe, il le crée sinon.',
+    en: 'A sign-in link: it signs you in if your account exists, and creates it if not.',
+    es: 'Un enlace de acceso: te conecta si tu cuenta existe, y la crea si no.',
+    de: 'Ein Anmeldelink: Er meldet dich an, wenn dein Konto existiert — sonst legt er es an.',
+    pt: 'Um link de acesso: ele conecta você se a conta existir, e a cria se não.',
+  },
   otpSent: {
     fr: 'Code envoyé à {email}',
     en: 'Code sent to {email}',
     es: 'Código enviado a {email}',
     de: 'Code gesendet an {email}',
     pt: 'Código enviado para {email}',
+  },
+  /**
+   * Ce que l'e-mail contient VRAIMENT sur le plan actuel : un lien, pas un code
+   * (cf. `EMAIL_DELIVERY` dans lib/auth). Dire « code envoyé » alors qu'aucun
+   * code n'est envoyé était la panne constatée par le fondateur.
+   */
+  otpLinkSent: {
+    fr: 'Lien envoyé à {email}',
+    en: 'Link sent to {email}',
+    es: 'Enlace enviado a {email}',
+    de: 'Link gesendet an {email}',
+    pt: 'Link enviado para {email}',
+  },
+  otpLinkHint: {
+    fr: 'Ouvre-le depuis cet appareil : il te connecte directement. Il expire dans l’heure et ne sert qu’une fois.',
+    en: 'Open it on this device: it signs you in directly. It expires within the hour and works once.',
+    es: 'Ábrelo desde este dispositivo: te conecta directamente. Caduca en una hora y solo sirve una vez.',
+    de: 'Öffne ihn auf diesem Gerät: Er meldet dich direkt an. Er läuft in einer Stunde ab und gilt einmal.',
+    pt: 'Abra-o neste aparelho: ele conecta você diretamente. Expira em uma hora e serve uma vez.',
+  },
+  otpLinkResendCta: {
+    fr: 'Renvoyer le lien',
+    en: 'Resend the link',
+    es: 'Reenviar el enlace',
+    de: 'Link erneut senden',
+    pt: 'Reenviar o link',
   },
   /** accessibilityLabel du champ code (jamais visible à l'écran). */
   otpFieldA11y: {

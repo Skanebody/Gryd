@@ -83,6 +83,7 @@ import { EVENTS, track } from '../../src/lib/analytics';
 import {
   GOOGLE_CAPABLE,
   requestEmailOtp,
+  EMAIL_DELIVERY,
   signInWithApple,
   signInWithGoogle,
   verifyEmailOtp,
@@ -209,7 +210,7 @@ export default function SignInScreen() {
   const [error, setError] = useState<Entry | null>(null);
   const [busy, setBusy] = useState(false);
   // P0 D1 — filet email OTP (code à 6 chiffres, pas de magic-link : zéro deep link).
-  const [emailStep, setEmailStep] = useState<'hidden' | 'email' | 'code'>('hidden');
+  const [emailStep, setEmailStep] = useState<'hidden' | 'email' | 'code' | 'sent'>('hidden');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   // Gate légal (voir l'entête) : mémoire de la déclaration + son statut de lecture.
@@ -383,7 +384,9 @@ export default function SignInScreen() {
             {/* Dit AVANT la saisie ce que le code va faire : connecter un compte
                 existant, ou en créer un. C'est la porte d'entrée de celui qui
                 réinstalle — il doit savoir qu'il est au bon endroit. */}
-            <Text style={styles.otpHint}>{t(C.otpCreatesOrSignsIn)}</Text>
+            <Text style={styles.otpHint}>
+              {t(EMAIL_DELIVERY === 'code' ? C.otpCreatesOrSignsIn : C.otpCreatesOrSignsInLink)}
+            </Text>
             <TextInput
               accessibilityLabel={t(C.emailFieldA11y)}
               style={styles.input}
@@ -402,12 +405,30 @@ export default function SignInScreen() {
               onPress={() => {
                 // N'avance vers la saisie du code QUE si l'envoi a réussi.
                 void run(() => requestEmailOtp(email.trim())).then((r) => {
-                  if (r.ok) setEmailStep('code');
+                  // On n'annonce QUE ce qui part vraiment : un lien sur le plan
+                  // actuel, un code le jour où un SMTP personnalisé le permet.
+                  if (r.ok) setEmailStep(EMAIL_DELIVERY === 'code' ? 'code' : 'sent');
                 });
               }}
               style={({ pressed }) => [styles.ghostButton, (pressed || busy) && styles.ghostPressed]}
             >
-              <Text style={styles.ghostLabel}>{t(C.otpRequestCta)}</Text>
+              <Text style={styles.ghostLabel}>
+                {t(EMAIL_DELIVERY === 'code' ? C.otpRequestCta : C.otpRequestLinkCta)}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
+        {emailStep === 'sent' ? (
+          <>
+            <Text style={styles.otpHint}>{t(C.otpLinkSent, { email: email.trim() })}</Text>
+            <Text style={styles.otpHint}>{t(C.otpLinkHint)}</Text>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={() => void run(() => requestEmailOtp(email.trim()))}
+              style={{ minHeight: sizes.touchTarget, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <Text style={styles.otpResend}>{t(C.otpLinkResendCta)}</Text>
             </Pressable>
           </>
         ) : null}

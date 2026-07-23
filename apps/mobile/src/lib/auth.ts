@@ -238,12 +238,25 @@ export async function signInWithGoogle(): Promise<AuthResult> {
  * ⚠️ Fondateur : le template « Magic Link » du dashboard doit afficher
  * {{ .Token }} pour que le code à 6 chiffres apparaisse dans l'e-mail.
  */
+/**
+ * Le gabarit e-mail est GLOBAL au projet : il porte un LIEN, pas un code (voir
+ * auth.web.ts pour la preuve — l'API de gestion refuse de le modifier sur le
+ * plan gratuit avec l'expéditeur par défaut). Le natif reçoit donc le même
+ * courrier que le web, et l'écran doit le dire au lieu de réclamer six chiffres
+ * que personne ne reçoit. Repassera à `'code'` avec un SMTP personnalisé.
+ */
+export const EMAIL_DELIVERY: 'link' | 'code' = 'link';
+
 export async function requestEmailOtp(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   track(EVENTS.signupStarted, { method: 'email_otp' satisfies SignInMethod });
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true },
+    options: {
+      shouldCreateUser: true,
+      // Retour vers l'app par son scheme (déclaré dans l'`uri_allow_list`).
+      emailRedirectTo: 'gryd://',
+    },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
   return { ok: true };

@@ -113,12 +113,37 @@ export async function signInWithGoogle(): Promise<AuthResult> {
  * ⚠️ Fondateur : le template « Magic Link » du dashboard Supabase doit afficher
  * {{ .Token }} pour que le code à 6 chiffres apparaisse dans l'e-mail.
  */
+/**
+ * CE QUE L'E-MAIL CONTIENT VRAIMENT — et pourquoi l'écran ne demande pas un code.
+ *
+ * Le projet est sur le plan GRATUIT avec l'expéditeur e-mail par défaut de
+ * Supabase, qui REFUSE toute modification de gabarit (vérifié : l'API de gestion
+ * répond « Email template modification is not available for free tier projects
+ * using the default email provider »). Le gabarit livré ne porte donc que
+ * `{{ .ConfirmationURL }}` — un LIEN — et jamais `{{ .Token }}`, le code.
+ *
+ * L'écran réclamait pourtant un code à six chiffres. Personne ne pouvait le
+ * saisir, puisque personne ne le recevait : c'est la panne que le fondateur a
+ * constatée (« aucun bouton ne marche »). On annonce donc ce qui est RÉELLEMENT
+ * envoyé. Le jour où un SMTP personnalisé est configuré, le gabarit peut porter
+ * `{{ .Token }}` et cette constante repasse à `'code'` — l'écran suit tout seul.
+ */
+export const EMAIL_DELIVERY: 'link' | 'code' = 'link';
+
 export async function requestEmailOtp(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   track(EVENTS.signupStarted, { method: 'email_otp' satisfies SignInMethod });
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true },
+    options: {
+      shouldCreateUser: true,
+      // Le lien doit RAMENER SUR L'APP, pas sur le site. `site_url` du projet
+      // pointe sur la vitrine (:3000) ; on passe donc l'origine courante, qui
+      // est la seule que cet écran connaisse avec certitude. Elle est déclarée
+      // dans l'`uri_allow_list` du projet — sans ça, Supabase refuserait la
+      // redirection et le lien retomberait sur le site.
+      emailRedirectTo: typeof window === 'undefined' ? undefined : window.location.origin,
+    },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
   return { ok: true };
