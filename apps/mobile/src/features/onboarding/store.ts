@@ -68,6 +68,30 @@ export interface OnboardingState {
   ageConfirmed: boolean;
   /** Chemin d'activation retenu (analytics/reprise). */
   path: OnboardingPath;
+  /**
+   * DERNIÈRE ÉTAPE ATTEINTE — « quitter et reprendre » (demande fondateur).
+   * L'étape vivait dans un `useState` local : fermer l'app renvoyait à l'écran 1,
+   * quoi qu'on ait déjà vu et compris.
+   *
+   * Typé `string | null` VOLONTAIREMENT, et non `OnboardingStep` : le disque
+   * peut contenir le nom d'une étape d'une version antérieure (`hook`, `learn`…).
+   * C'est l'écran qui valide la valeur contre la liste courante ; une étape
+   * inconnue n'est pas une erreur, c'est un flow qui a changé — on repart du
+   * début plutôt que de rendre un écran qui n'existe plus.
+   */
+  reachedStep: string | null;
+  /**
+   * VILLE CHOISIE À LA MAIN (écran ville, avant tout compte). Elle sert à deux
+   * choses, et à rien d'autre : rappeler son nom sur l'écran profil, et CADRER
+   * la carte d'arrivée. Un cadrage n'est pas un contenu — aucune zone, aucun
+   * propriétaire, aucun classement n'en découle.
+   *
+   * L'id ET le nom sont gardés : l'id est la clé (FK `city_zones` le jour où le
+   * profil serveur sera écrit), le nom est ce que le serveur affichait au moment
+   * du choix — le réinventer depuis l'id demanderait une table locale de noms.
+   */
+  cityId: string | null;
+  cityName: string | null;
 }
 
 /** Défaut : rien vu, rien capturé — un pur nouveau visiteur. */
@@ -76,6 +100,9 @@ export const DEFAULT_ONBOARDING_STATE: OnboardingState = {
   firstCaptureDone: false,
   ageConfirmed: false,
   path: null,
+  reachedStep: null,
+  cityId: null,
+  cityName: null,
 };
 
 /**

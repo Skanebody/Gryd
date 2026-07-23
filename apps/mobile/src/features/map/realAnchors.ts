@@ -31,6 +31,16 @@ export const EGO_REPUBLIQUE: LatLngPoint = { lat: 48.867, lng: 2.3641 };
 /** Zoom « échelle coureur » (AMENDEMENT-08 §4) : hex 130 m ≈ 30 px à Paris. */
 export const RUNNER_SCALE_ZOOM = 14.6;
 
+/**
+ * Zoom « échelle ville » : on voit la ville entière et ses quartiers, pas la
+ * maille des hexes. Sert au SEUL cas où l'on sait dans quelle ville joue le
+ * joueur sans savoir OÙ il est : la ville qu'il a choisie à la main pendant
+ * l'onboarding. Cadrer n'affirme rien sur son monde — c'est un point de vue, pas
+ * un contenu (aucune zone, aucun propriétaire, aucun classement n'en découle).
+ * Constante de RENDU (ce module ne porte aucune règle de jeu).
+ */
+export const CITY_SCALE_ZOOM = 11.2;
+
 /** Caméra par défaut de la Battle Map réelle (onglet Carte). */
 export const EGO_CAMERA = {
   lng: EGO_REPUBLIQUE.lng,

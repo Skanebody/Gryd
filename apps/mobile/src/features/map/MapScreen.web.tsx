@@ -84,6 +84,8 @@ import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
 import { sectorPointLayers } from './allTerritories';
 import { useSession } from '../../lib/session';
+import { cityCenter } from '../social/cities';
+import { useOnboardingState } from '../onboarding/store';
 import { useRealCrew } from '../crew/real';
 import { getLastRunResult } from '../run/runResult';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
@@ -98,7 +100,7 @@ import {
   type BasemapKey,
 } from './mapStyle';
 import { useBasemapStyle, useMap3d } from './mapPref';
-import { EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
+import { CITY_SCALE_ZOOM, EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
 import { C } from '../../i18n/catalog/map';
@@ -272,12 +274,36 @@ export function MapScreen() {
   }, []);
 
   /**
-   * Caméra d'OUVERTURE déclarative : `undefined` = vue neutre monde côté RealMap,
-   * honnête tant qu'on ne sait pas où est le joueur.
+   * La ville CHOISIE à la main pendant l'onboarding — lecture seule ici. C'est
+   * la seule chose que la carte lui emprunte, et elle ne sert qu'à CADRER.
    */
+  const { state: onboarding } = useOnboardingState();
+
+  /**
+   * Caméra d'OUVERTURE, DÉCLARATIVE — trois niveaux, dans cet ordre et jamais un
+   * autre :
+   *   1. la position RÉELLE du joueur, dès qu'un fix existe ;
+   *   2. à défaut, le centre de la ville qu'il a CHOISIE à la main pendant
+   *      l'onboarding (23/07/2026) ;
+   *   3. à défaut, la vue neutre monde de RealMap (`undefined`).
+   *
+   * ⚠️ L'ORDRE EST LE FOND DU SUJET. Une ville DÉCLARÉE ne doit jamais écraser
+   * une position MESURÉE : c'est exactement le bug de terrain corrigé le 20/07
+   * (« quand je démarre il met encore à République » alors qu'il courait en
+   * Normandie). Et ce cadrage n'affirme RIEN : il déplace un point de vue, il ne
+   * peint aucune zone, aucun propriétaire, aucun classement. Sans ville choisie
+   * ni fix, on garde la vue monde — qui dit la vérité (« je ne sais pas encore
+   * où tu es ») plutôt que de poser le joueur quelque part.
+   */
+  const chosenCity = cityCenter(onboarding.cityId);
   const openCamera = useMemo(
-    () => (egoPos ? { ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng } : undefined),
-    [egoPos],
+    () =>
+      egoPos
+        ? { ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng }
+        : chosenCity
+          ? { lat: chosenCity.lat, lng: chosenCity.lng, zoom: CITY_SCALE_ZOOM }
+          : undefined,
+    [egoPos, chosenCity?.lat, chosenCity?.lng],
   );
 
   /** Emphase des familles de couches selon le mode actif (AMENDEMENT-11 §3). */

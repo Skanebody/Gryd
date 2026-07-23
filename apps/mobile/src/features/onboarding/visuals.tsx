@@ -1,139 +1,65 @@
 /**
- * GRYD — visuels des étapes d'onboarding sans friction (AMENDEMENT-30). SVG
- * react-native-svg (cross natif/web preview), TOUTES les couleurs dérivées des
- * tokens (charte : toute couleur hors tokens = bug ; jamais de chartreuse sur
- * fond clair — ici tout est sur noir). Réutilise `territoryStyle`/`traceStyle`
- * (mapStyle) et les hooks d'anim du design system (reduce motion respecté).
+ * GRYD — LES DEUX DÉMONSTRATIONS DE L'ONBOARDING. SVG react-native-svg (cross
+ * natif / web preview), TOUTES les couleurs dérivées des tokens (charte : toute
+ * couleur hors tokens = bug ; jamais de chartreuse sur fond clair — ici tout est
+ * sur noir). Réutilise `territoryStyle` / `traceStyle` (mapStyle) et le hook
+ * `useReduceMotion` du design system.
  *
- * VRAIS TRACÉS (demande fondateur) : plus AUCUN blob/ellipse décoratif — chaque
- * territoire et chaque trace sont projetés depuis les VRAIES géométries de rues
- * (realAnchors : BOUCLE_REPUBLIQUE, RUE_FAUBOURG_DU_TEMPLE, square Villemin,
- * avenues hôtes) via le projecteur pur `fitTracesToBox`. Le plateau devient une
- * mini-carte HONNÊTE du quartier République (mon territoire au centre, le rival
- * à l'est, l'objectif au nord se lisent à leur vraie place relative).
+ *   CaptureDemo — carte 1 « MÉCANIQUE » : la boucle se ferme, la zone bascule.
+ *   RivalryDemo — carte 2 « RIVALITÉ »  : la zone tenue devient contestée.
  *
- * Trois briques :
- *   HookMapBackground — carte réelle animée EN FOND du splash (§1).
- *   TerrainVisual     — LE TERRAIN **ET** LA RÈGLE en un seul plan (§2 + §5).
- *   LogoRouteMark     — la marque GRYD dessinée par un parcours qui se court.
+ * VRAIS TRACÉS (demande fondateur) : plus AUCUN blob ni ellipse décoratif —
+ * chaque territoire et chaque trace sont projetés depuis de VRAIES géométries de
+ * boucles et de rues (`realAnchors`) par le projecteur pur `fitTracesToBox`. Un
+ * tracé qui ne ressemble pas à une course n'enseigne pas une course.
  *
- * ─── POURQUOI UN SEUL PLATEAU (refonte 21/07/2026) ──────────────────────────
- * Il y en avait deux : `CityBoard` montrait les 3 rôles de zone, puis
- * `CaptureFillVisual` montrait la boucle qui se remplit — deux écrans pour une
- * seule idée (« le terrain appartient à quelqu'un, voilà comment on le prend »).
- * `TerrainVisual` les FUSIONNE dans un plan unique : le quartier apparaît déjà
- * occupé (violet contesté, orange rival), puis la trace se dessine, ferme la
- * boucle, et la zone bascule en chartreuse. La règle se voit au lieu de se lire
- * deux fois. `SyncProgressBar` est parti avec le mode vitrine qu'elle animait.
+ * ─── ELLES NE CALCULENT RIEN (23/07/2026) ───────────────────────────────────
+ * Les deux composants ne font que RENDRE l'état renvoyé par le module PUR
+ * `demoPhases.ts` à l'instant t (bornes du storyboard, ordre des temps,
+ * invariants de sens, géométrie projetée). C'est la seule façon de PROUVER une
+ * animation ici : dans l'aperçu headless `document.visibilityState` vaut
+ * "hidden", `requestAnimationFrame` tourne à 0 fps, et toute capture d'écran
+ * montre une image figée qui ne prouve rien.
+ *
+ * ─── CE QUI A ÉTÉ SUPPRIMÉ LE 23/07/2026 (refonte « 3 cartes ») ─────────────
+ * `HookMapBackground` (rues grises décoratives traversant le splash),
+ * `TerrainVisual` (le plateau 3-rôles de l'écran `learn`) et `LogoRouteMark`
+ * (la petite forme G flottante, avec son module `logoRoute`) figuraient mot pour
+ * mot dans la liste « à supprimer » du fondateur. Leurs écrans n'existent plus :
+ * on les RETIRE au lieu de les laisser en dette. Ce qu'ils avaient de vrai est
+ * passé dans les démonstrations ci-dessous — géométrie réelle, chip « Exemple »,
+ * mouvement réduit respecté.
+ *
+ * ─── HONNÊTETÉ ─────────────────────────────────────────────────────────────
+ * Ces plateaux ILLUSTRENT une règle ; ils n'affichent aucun état du monde. Chip
+ * « Exemple » posée sur le visuel, AUCUN lieu nommé, AUCUN nom de crew, AUCUN
+ * chiffre attribué au joueur, AUCUNE célébration (le label du 4e temps est
+ * BLANC : nommer n'est pas célébrer). Et ils ne se recentrent JAMAIS sur la
+ * ville que le joueur vient de choisir : le jour où l'exemple devient « ta
+ * ville », il ment sur l'état de son monde.
  */
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Polyline, G } from 'react-native-svg';
 import { colors, fontSizes, gameColors, radii, spacing } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game';
 import { territoryStyle, traceStyle, withAlpha } from '../map/mapStyle';
 import { fitTracesToBox, tracePrefix } from '../map/projectTrace';
 import {
-  LOGO_LEN,
-  LOGO_POINTS,
-  LOGO_VIEW,
-  logoDrawProgress,
-  logoHeadAt,
-  logoHeadingAt,
-} from './logoRoute';
-import {
-  AVENUE_DE_LA_REPUBLIQUE,
-  BOUCLE_BASTILLE,
-  BOUCLE_REPUBLIQUE,
-  BOUCLE_SQUARE_VILLEMIN,
-  BOULEVARD_VOLTAIRE,
-  EGO_REPUBLIQUE,
-  QUAI_VALMY,
-} from '../map/realAnchors';
-
-// ─── Progression 0..1 pilotée par état (props SVG — driver JS) ───────────────
-
-/** Rampe 0..1 sur durationMs (listener JS). Reduce motion → saute à 1. */
-function useProgress(durationMs: number, delayMs = 0, loop = false): number {
-  const reduce = useReduceMotion();
-  const [p, setP] = useState(0);
-  const anim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (reduce) {
-      setP(1);
-      return;
-    }
-    const id = anim.addListener(({ value }) => setP(value));
-    const timing = Animated.timing(anim, {
-      toValue: 1,
-      duration: durationMs,
-      delay: delayMs,
-      easing: loop ? Easing.inOut(Easing.ease) : Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    });
-    const runner = loop
-      ? Animated.loop(
-          Animated.sequence([
-            timing,
-            Animated.timing(anim, {
-              toValue: 0,
-              duration: durationMs,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: false,
-            }),
-          ]),
-        )
-      : timing;
-    runner.start();
-    return () => {
-      anim.removeListener(id);
-      anim.stopAnimation();
-    };
-  }, [reduce, durationMs, delayMs, loop, anim]);
-  return reduce ? 1 : p;
-}
-
-/** Rampe locale : 0 avant `from`, 1 après `to` (reveals décalés d'un même p). */
-function ramp(p: number, from: number, to: number): number {
-  if (p <= from) return 0;
-  if (p >= to) return 1;
-  return (p - from) / (to - from);
-}
-
-// ─── Décor de plan commun (VRAIES rues + territoires tracé-based) ────────────
-
-const BOARD_W = 320;
-const BOARD_H = 300;
-
-/**
- * Rues hôtes RÉELLES du quartier (traits fins neutres) — décor honnête, jamais
- * un état de jeu. Ce sont les axes qui portent les couloirs de course
- * (avenue de la République, quai de Valmy, bd Voltaire) : le plan est vrai.
- */
-const REAL_STREETS = [AVENUE_DE_LA_REPUBLIQUE, QUAI_VALMY, BOULEVARD_VOLTAIRE] as const;
-
-/**
- * Projection PARTAGÉE du plateau (retour terrain 20/07 : « je dois comprendre
- * quand une zone est prise, partagée, ou à quelqu'un d'autre » — le trait orange
- * nu se lisait comme un bug). L'exemple enseigne les 3 ÉTATS DE ZONE (§C), sur
- * trois VRAIES boucles à leur vraie position relative :
- *   • République (centre) = zone À TOI (chartreuse pleine) ;
- *   • square Villemin (nord) = zone CONTESTÉE (violet — deux crews se la
- *     disputent) ;
- *   • Bastille (sud) = zone À UN CREW RIVAL (orange pleine).
- * Constante de module (déterministe) — calculée une fois.
- */
-const BOARD_PROJ = fitTracesToBox(
-  [BOUCLE_REPUBLIQUE, BOUCLE_SQUARE_VILLEMIN, BOUCLE_BASTILLE],
-  BOARD_W,
-  BOARD_H,
-  18,
-);
-
-/** Chemins projetés (déterministes) réutilisés par les briques du plateau. */
-const MINE_PATH = BOARD_PROJ.path(BOUCLE_REPUBLIQUE, true);
-const CONTESTED_PATH = BOARD_PROJ.path(BOUCLE_SQUARE_VILLEMIN, true);
-const RIVAL_PATH = BOARD_PROJ.path(BOUCLE_BASTILLE, true);
+  CAPTURE_LOOP,
+  CAPTURE_PROJ,
+  DEMO_BOARD_H,
+  DEMO_BOARD_W,
+  DEMO_CYCLE_MS,
+  DEMO_PLAY_MS,
+  DEMO_STREETS,
+  RIVAL_LOOP,
+  RIVALRY_PROJ,
+  capturePhases,
+  demoElapsedMs,
+  rivalryPhases,
+} from './demoPhases';
+import type { LatLngPoint } from '../map/realAnchors';
 
 /**
  * Chip « Exemple » posée SUR le visuel (décision fondateur 21/07/2026 : un
@@ -151,11 +77,24 @@ function ExampleTag({ label }: { label?: string }) {
   );
 }
 
-/** Rues réelles projetées (décor commun ville/hook). */
-function RealStreets({ proj = BOARD_PROJ, opacity = 0.08 }: { proj?: typeof BOARD_PROJ; opacity?: number }) {
+/**
+ * Rues réelles projetées — DÉCOR, jamais un état de jeu, jamais nommé à l'écran.
+ * Ni projection ni liste par défaut : chaque démonstration passe LA SIENNE (les
+ * deux cartes n'ont pas le même cadrage), et un défaut invisible serait le
+ * meilleur moyen de dessiner le mauvais quartier sans s'en apercevoir.
+ */
+function RealStreets({
+  proj,
+  streets,
+  opacity = 0.08,
+}: {
+  proj: ReturnType<typeof fitTracesToBox>;
+  streets: readonly (readonly LatLngPoint[])[];
+  opacity?: number;
+}) {
   return (
     <>
-      {REAL_STREETS.map((street, i) => (
+      {streets.map((street, i) => (
         <Polyline
           key={i}
           points={proj.points(street)}
@@ -169,187 +108,305 @@ function RealStreets({ proj = BOARD_PROJ, opacity = 0.08 }: { proj?: typeof BOAR
   );
 }
 
-// ─── 1 — Fond de carte animé du splash (§1) ──────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// LA MICRO-DÉMONSTRATION (cartes 1 et 2) — elle DÉMONTRE, elle ne décore pas
+// ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Carte RÉELLE EN FOND du hook : les vraies rues + mon territoire apparaissent en
- * douceur, la vraie boucle République se dessine lentement (vie, pas décor
- * gratuit). Volontairement ATTÉNUÉ (opacity globale basse) : c'est un fond, le
- * titre domine. Reduce motion → état final direct.
+ * Horloge des démonstrations : UNE seule `Animated.timing` LINÉAIRE bouclée,
+ * dont la valeur brute est convertie en millisecondes par `demoElapsedMs`
+ * (module pur). Deux raisons, toutes deux déjà payées :
+ *
+ *  · `Animated.loop(Animated.sequence([...]))` — la forme naturelle d'un
+ *    storyboard à 4 temps — NE DÉMARRE PAS sur react-native-web : mesuré sur
+ *    6 s le 21/07/2026, le tracé restait figé à 0. La tenue de fin est donc
+ *    calculée au rendu, pas jouée par l'animation.
+ *  · driver JS obligatoire (`useNativeDriver: false`) : ces valeurs pilotent des
+ *    props SVG, pas des transforms.
+ *
+ * MOUVEMENT RÉDUIT : aucune animation dégradée, aucun écran vide — on affiche
+ * l'ÉTAT FINAL lisible (boucle fermée, zone remplie, label posé), qui est très
+ * exactement `capturePhases(DEMO_PLAY_MS)`.
+ *
+ * `replayKey` relance le cycle depuis zéro (tap sur le visuel).
  */
-export function HookMapBackground() {
-  const p = useProgress(3200, 0, false);
-  const drawP = ramp(p, 0.1, 0.9);
-  const fadeIn = ramp(p, 0, 0.4);
-  const drawn = tracePrefix(BOUCLE_REPUBLIQUE, drawP);
-  return (
-    <View style={styles.hookBg} pointerEvents="none">
-      <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`} preserveAspectRatio="xMidYMid slice">
-        <G opacity={0.5 * fadeIn + 0.001}>
-          <RealStreets />
-          <Path
-            d={MINE_PATH}
-            fill={territoryStyle.crewFill}
-            stroke={territoryStyle.crewStroke}
-            strokeWidth={1.6}
-          />
-        </G>
-        {/* La vraie boucle qui se dessine (casing sombre + core chartreuse). */}
-        <Polyline
-          points={BOARD_PROJ.points(drawn)}
-          stroke={traceStyle.casing}
-          strokeWidth={6}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        <Polyline
-          points={BOARD_PROJ.points(drawn)}
-          stroke={traceStyle.core}
-          strokeWidth={3.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-          opacity={0.85}
-        />
-      </Svg>
-    </View>
-  );
+function useDemoElapsed(replayKey: number): { ms: number; reduce: boolean } {
+  const reduce = useReduceMotion();
+  const [raw, setRaw] = useState(0);
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduce) return;
+    anim.setValue(0);
+    setRaw(0);
+    const id = anim.addListener(({ value }) => setRaw(value));
+    const runner = Animated.loop(
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: DEMO_CYCLE_MS,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }),
+    );
+    runner.start();
+    return () => {
+      runner.stop();
+      anim.removeListener(id);
+    };
+  }, [anim, reduce, replayKey]);
+  return { ms: reduce ? DEMO_PLAY_MS : demoElapsedMs(raw), reduce };
 }
 
-// ─── LE TERRAIN **ET** LA RÈGLE, en un seul plan (§2 + §5 + §C) ──────────────
-
-/** Point de départ de la boucle héros (= point d'arrivée : elle s'y referme). */
-const MINE_START = BOARD_PROJ.project(BOUCLE_REPUBLIQUE[0] ?? EGO_REPUBLIQUE);
-
 /**
- * LE PLATEAU DÉMO (aucune géoloc réelle — la chip « Exemple » et la copy de
- * l'écran l'assument), qui enseigne DEUX choses d'un seul geste :
+ * Cadre commun des deux démonstrations : le plateau, la chip « Exemple », le
+ * label bref du 4e temps, et le tap-pour-rejouer.
  *
- *   1. les 3 RÔLES DE ZONE (§C, retour terrain 20/07) — chaque rôle est une
- *      ZONE PLEINE, jamais un trait nu qui se lisait comme un bug : violet =
- *      contestée (double contour : deux crews se la disputent), orange = à un
- *      crew rival, chartreuse = à toi ;
- *   2. LA RÈGLE — la trace se dessine le long des vraies rues, referme la
- *      boucle, et l'intérieur BASCULE en chartreuse.
- *
- * L'ordre de la mise en scène porte le sens : le quartier apparaît d'abord
- * OCCUPÉ PAR D'AUTRES (violet + orange), et la zone chartreuse n'existe qu'à la
- * fin, en récompense de la boucle. C'est pour ça que République démarre VIDE
- * ici alors qu'elle était déjà « à toi » sur l'ancien plateau : rien n'est
- * donné au joueur avant qu'il ait couru, pas même en exemple.
- *
- * Le repère de position suit la TÊTE de la trace pendant qu'elle se dessine
- * (même repère que la carte réelle : point chartreuse cerclé de blanc) — on
- * lit « quelqu'un court », pas « un trait pousse ». Reduce motion : `useProgress`
- * renvoie 1 d'emblée → état final, boucle fermée et zone prise, sans animation.
+ * Le tap n'est peint comme BOUTON que s'il fait réellement quelque chose : sans
+ * libellé d'accessibilité, ou en mouvement réduit (l'image est déjà à son état
+ * final — la rejouer ne montrerait rien), aucun `Pressable` n'est monté. Un
+ * bouton qui n'aboutit jamais est le bouton mort de §A4 ; son absence, elle,
+ * ne ment pas.
  */
-export function TerrainVisual({ exampleLabel }: { exampleLabel?: string }) {
-  const p = useProgress(2600, 0, false);
-  // Le terrain occupé se révèle d'abord ; la course part ensuite ; la zone
-  // bascule en dernier. Trois temps qui ne se chevauchent qu'à peine.
-  const boardOp = ramp(p, 0, 0.2);
-  const drawP = ramp(p, 0.18, 0.74);
-  const fillOp = ramp(p, 0.74, 1);
-  const running = drawP > 0 && drawP < 1;
-  const drawn = tracePrefix(BOUCLE_REPUBLIQUE, drawP);
-  const drawnPoints = BOARD_PROJ.points(drawn);
-  const head = BOARD_PROJ.project(drawn[drawn.length - 1] ?? EGO_REPUBLIQUE);
-  return (
+function DemoFrame({
+  exampleLabel,
+  label,
+  labelOpacity,
+  replayA11y,
+  onReplay,
+  children,
+}: {
+  exampleLabel?: string;
+  label?: string;
+  labelOpacity: number;
+  replayA11y?: string;
+  onReplay?: () => void;
+  children: ReactNode;
+}) {
+  const board = (
     <View style={styles.board}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>
-        <RealStreets />
-        {/* CONTESTÉE — vraie boucle Villemin en violet (§C), double contour
-            (plein + pointillé décalé) : « deux crews se la disputent ». */}
-        <G opacity={boardOp}>
-          <Path
-            d={CONTESTED_PATH}
-            fill={withAlpha(gameColors.contested, 0.24)}
-            stroke={withAlpha(gameColors.contested, 0.9)}
-            strokeWidth={2}
-            strokeLinejoin="round"
-          />
-          <Path
-            d={CONTESTED_PATH}
-            fill="none"
-            stroke={withAlpha(gameColors.contested, 0.5)}
-            strokeWidth={5}
-            strokeDasharray="3 6"
-            strokeLinejoin="round"
-          />
-          {/* AU RIVAL — boucle Bastille en orange PLEIN (une zone, pas un trait). */}
-          <Path
-            d={RIVAL_PATH}
-            fill={territoryStyle.rivalFill}
-            stroke={territoryStyle.rivalStroke}
-            strokeWidth={2}
-            strokeLinejoin="round"
-          />
-        </G>
-        {/* À TOI — la zone qui BASCULE quand la boucle se referme (le payoff). */}
-        <Path
-          d={MINE_PATH}
-          fill={territoryStyle.crewFill}
-          stroke={territoryStyle.crewStroke}
-          strokeWidth={2}
-          strokeLinejoin="round"
-          opacity={fillOp}
-        />
-        {/* Trace héros §B : casing sombre + core chartreuse, bouts arrondis. */}
-        {drawP > 0 ? (
-          <>
-            <Polyline
-              points={drawnPoints}
-              stroke={traceStyle.casing}
-              strokeWidth={6.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-            <Polyline
-              points={drawnPoints}
-              stroke={traceStyle.core}
-              strokeWidth={3.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-            {/* Départ = arrivée : la boucle se referme dessus. */}
-            <Circle
-              cx={MINE_START.x}
-              cy={MINE_START.y}
-              r={4.5}
-              fill={colors.noir}
-              stroke={traceStyle.core}
-              strokeWidth={2.5}
-            />
-          </>
-        ) : null}
-        {/* Le repère de position, exactement celui de la carte réelle. */}
-        {running ? (
-          <G opacity={boardOp}>
-            <Circle cx={head.x} cy={head.y} r={10} fill={withAlpha(colors.chartreuse, 0.16)} />
-            <Circle
-              cx={head.x}
-              cy={head.y}
-              r={5}
-              fill={colors.chartreuse}
-              stroke={colors.blanc}
-              strokeWidth={2}
-            />
-          </G>
-        ) : null}
+      <Svg width="100%" height="100%" viewBox={`0 0 ${DEMO_BOARD_W} ${DEMO_BOARD_H}`}>
+        {children}
       </Svg>
       <ExampleTag label={exampleLabel} />
+      {/* Le label bref (4e temps). BLANC, jamais chartreuse : nommer ce qui
+          vient de se passer est de la pédagogie ; le peindre en couleur de gain
+          serait célébrer une capture que personne n'a courue. */}
+      {label ? (
+        <View style={[styles.demoLabel, { opacity: labelOpacity }]} pointerEvents="none">
+          <Text style={styles.demoLabelText}>{label}</Text>
+        </View>
+      ) : null}
     </View>
+  );
+  if (!onReplay || !replayA11y) return board;
+  return (
+    <Pressable onPress={onReplay} accessibilityRole="button" accessibilityLabel={replayA11y}>
+      {board}
+    </Pressable>
   );
 }
 
+/** Tap-pour-rejouer : une clé qui remonte l'effet d'animation. */
+function useReplay(): { key: number; replay: () => void } {
+  const [key, setKey] = useState(0);
+  const replay = useCallback(() => setKey((k) => k + 1), []);
+  return { key, replay };
+}
+
+/**
+ * Premier point de la boucle héros (= son point d'arrivée : elle s'y referme).
+ * Le repli n'est pas un lieu : c'est l'ORIGINE du plateau, choisie pour qu'un
+ * tableau vide ne produise ni exception ni point posé au hasard sur une ville.
+ */
+const CAPTURE_START: LatLngPoint = CAPTURE_LOOP[0] ?? { lat: 0, lng: 0 };
+
+/**
+ * CARTE 1 — LA MÉCANIQUE. « Ferme une boucle. Prends la zone. »
+ *
+ * Quatre temps en 3 s, bouclés : la trace se dessine le long de VRAIES rues →
+ * la boucle se referme sur son point de départ → l'intérieur bascule en
+ * chartreuse → un label bref nomme ce qui vient de se passer. Elle doit se
+ * comprendre SANS lire le texte de l'écran ; c'est pour ça qu'elle ne montre
+ * qu'UNE chose (le geste), sans rival ni crew — ceux-là sont la carte 2.
+ *
+ * HONNÊTETÉ : géométrie réelle (un tracé crédible), mais aucun lieu nommé,
+ * aucun chiffre attribué au joueur, aucune célébration, et la chip « Exemple »
+ * posée sur le visuel. L'ordre est verrouillé par `demoPhases` : la zone ne peut
+ * PAS se remplir avant que la boucle soit fermée — sinon l'image enseignerait
+ * une règle fausse.
+ */
+export function CaptureDemo({
+  exampleLabel,
+  label,
+  replayA11y,
+}: {
+  exampleLabel?: string;
+  label?: string;
+  replayA11y?: string;
+}) {
+  const { key, replay } = useReplay();
+  const { ms, reduce } = useDemoElapsed(key);
+  const p = capturePhases(ms);
+  const drawn = tracePrefix(CAPTURE_LOOP, p.draw);
+  const drawnPoints = CAPTURE_PROJ.points(drawn);
+  const start = CAPTURE_PROJ.project(CAPTURE_START);
+  const head = CAPTURE_PROJ.project(drawn[drawn.length - 1] ?? CAPTURE_START);
+  return (
+    <DemoFrame
+      exampleLabel={exampleLabel}
+      label={label}
+      labelOpacity={p.label}
+      replayA11y={reduce ? undefined : replayA11y}
+      onReplay={reduce ? undefined : replay}
+    >
+      <RealStreets proj={CAPTURE_PROJ} streets={DEMO_STREETS} opacity={0.1} />
+      {/* La zone conquise — elle n'apparaît qu'APRÈS la fermeture (invariant). */}
+      <Path
+        d={CAPTURE_PROJ.path(CAPTURE_LOOP, true)}
+        fill={territoryStyle.crewFill}
+        stroke={territoryStyle.crewStroke}
+        strokeWidth={2}
+        strokeLinejoin="round"
+        opacity={p.fill}
+      />
+      {/* Trace héros §B : casing sombre + core chartreuse, bouts arrondis. */}
+      {p.draw > 0 ? (
+        <>
+          <Polyline
+            points={drawnPoints}
+            stroke={traceStyle.casing}
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+          <Polyline
+            points={drawnPoints}
+            stroke={traceStyle.core}
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+          {/* Départ = arrivée. L'anneau se resserre pendant le temps « close » :
+              on VOIT la boucle se refermer sur son point de départ. */}
+          <Circle
+            cx={start.x}
+            cy={start.y}
+            r={9 - 3.5 * p.close}
+            fill="none"
+            stroke={withAlpha(colors.chartreuse, 0.25 + 0.6 * p.close)}
+            strokeWidth={1.5 + p.close}
+          />
+          <Circle
+            cx={start.x}
+            cy={start.y}
+            r={4.5}
+            fill={colors.noir}
+            stroke={traceStyle.core}
+            strokeWidth={2.5}
+          />
+        </>
+      ) : null}
+      {/* Le repère de position, exactement celui de la carte réelle. */}
+      {p.head ? (
+        <G>
+          <Circle cx={head.x} cy={head.y} r={11} fill={withAlpha(colors.chartreuse, 0.16)} />
+          <Circle
+            cx={head.x}
+            cy={head.y}
+            r={5.5}
+            fill={colors.chartreuse}
+            stroke={colors.blanc}
+            strokeWidth={2}
+          />
+        </G>
+      ) : null}
+    </DemoFrame>
+  );
+}
+
+/**
+ * CARTE 2 — LA RIVALITÉ. « Ta zone peut être reprise. »
+ *
+ * Même grammaire, même durée, même cadre que la carte 1 — c'est volontaire :
+ * deux visuels qui se lisent pareil enseignent une suite, deux visuels
+ * différents enseignent deux objets. Ici, ma zone est DÉJÀ tenue (l'acquis de
+ * la carte 1) ; la zone d'à côté monte en pression (orange) ; puis la mienne
+ * bascule en CONTESTÉE — violet + double contour §C (contour extérieur rival,
+ * contour intérieur mon crew : deux crews sur la même zone).
+ *
+ * Couleurs par RÔLE, jamais par identité : aucun crew n'est nommé, aucun rival
+ * n'existe (l'app n'a ni joueur ni classement à montrer). C'est une règle qui
+ * est illustrée, pas un état du monde.
+ */
+export function RivalryDemo({
+  exampleLabel,
+  label,
+  replayA11y,
+}: {
+  exampleLabel?: string;
+  label?: string;
+  replayA11y?: string;
+}) {
+  const { key, replay } = useReplay();
+  const { ms, reduce } = useDemoElapsed(key);
+  const p = rivalryPhases(ms);
+  const minePath = RIVALRY_PROJ.path(CAPTURE_LOOP, true);
+  const rivalPath = RIVALRY_PROJ.path(RIVAL_LOOP, true);
+  return (
+    <DemoFrame
+      exampleLabel={exampleLabel}
+      label={label}
+      labelOpacity={p.label}
+      replayA11y={reduce ? undefined : replayA11y}
+      onReplay={reduce ? undefined : replay}
+    >
+      <RealStreets proj={RIVALRY_PROJ} streets={DEMO_STREETS} opacity={0.1} />
+      {/* MA ZONE — établie, puis cédant la place à l'état contesté. */}
+      <Path
+        d={minePath}
+        fill={territoryStyle.crewFill}
+        stroke={territoryStyle.crewStroke}
+        strokeWidth={2}
+        strokeLinejoin="round"
+        opacity={p.mine * (1 - p.contested)}
+      />
+      {/* LA ZONE D'À CÔTÉ — un rôle « rival », pas une identité. */}
+      <Path
+        d={rivalPath}
+        fill={territoryStyle.rivalFill}
+        stroke={territoryStyle.rivalStroke}
+        strokeWidth={2}
+        strokeLinejoin="round"
+        opacity={p.threat}
+      />
+      {/* CONTESTÉE §C — double contour décalé (jamais un seul trait bicolore),
+          et JAMAIS de pulsation : le contesté ne pulse plus (A-37 §5). */}
+      <G opacity={p.contested}>
+        <Path
+          d={minePath}
+          fill={territoryStyle.contestedFill}
+          stroke={territoryStyle.contestedOuterStroke}
+          strokeWidth={5}
+          strokeLinejoin="round"
+        />
+        <Path
+          d={minePath}
+          fill="none"
+          stroke={territoryStyle.contestedInnerStroke}
+          strokeWidth={2}
+          strokeLinejoin="round"
+        />
+      </G>
+    </DemoFrame>
+  );
+}
+
+
 const styles = StyleSheet.create({
-  hookBg: { ...StyleSheet.absoluteFillObject },
   board: {
     width: '100%',
-    aspectRatio: BOARD_W / BOARD_H,
+    aspectRatio: DEMO_BOARD_W / DEMO_BOARD_H,
     borderRadius: radii.card,
     borderWidth: 1,
     borderColor: withAlpha(colors.blanc, 0.12),
@@ -375,145 +432,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
+  // Label bref du 4e temps (2,1-3 s) : posé en bas à gauche du plateau, sur
+  // fond noir opaque pour rester lisible par-dessus la zone remplie. BLANC —
+  // nommer n'est pas célébrer (la chartreuse dirait « gain »). Jamais < 12 px.
+  demoLabel: {
+    position: 'absolute',
+    left: spacing.xs,
+    bottom: spacing.xs,
+    borderRadius: radii.pill,
+    backgroundColor: withAlpha(colors.noir, 0.82),
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+  },
+  demoLabelText: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// LOGO GRYD TRACÉ EN COURANT — le « G » dessiné par un parcours
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * L'idée : le logo n'est pas posé, il est COURU. C'est la promesse du produit
- * en une animation — « ton parcours dessine le territoire ».
- *
- * Trois choix qui comptent :
- *
- * 1. C'est une POLYLIGNE ÉCHANTILLONNÉE, pas un `<Path>` vectoriel. Une trace
- *    GPS est par nature une suite de points ; dessiner le G avec la même
- *    structure que les vrais tracés (§B) le fait lire comme un parcours et pas
- *    comme un logo animé. Une micro-ondulation déterministe (sinus, jamais
- *    Math.random — même rendu à chaque lancement) suggère le capteur sans
- *    rendre la lettre illisible.
- *
- * 2. LE PARCOURS À FAIRE EST VISIBLE D'ABORD, en gris très faible, puis se
- *    remplit en chartreuse. On voit donc l'itinéraire, puis la conquête —
- *    exactement la boucle du jeu. Sans le fantôme, l'animation ne serait qu'un
- *    trait qui pousse ; avec lui, elle raconte quelque chose.
- *
- * 3. UN SEUL TRAIT, comme on dessine un G à la main : on démarre en haut à
- *    droite, on fait le tour dans le sens antihoraire, on remonte à droite, et
- *    on termine par la barre horizontale vers l'intérieur. Un coureur ne se
- *    téléporte pas : le tracé ne doit jamais sauter.
- *
- * Chartreuse sur fond NOIR uniquement (charte : jamais sur fond clair).
- */
-/* ⚠ MÊME MARQUE, DEUX OBJETS. Ces nombres doivent rester proportionnels à ceux
-   de `scripts/build-brand-icons.mjs` (const G) : l'icône est la LETTRE, ceci est
-   le PARCOURS qui la dessine. Ils ont divergé de 15 % le 21/07/2026 parce que
-   chacun avait été relevé à l'œil de son côté — le logo de l'accueil et l'icône
-   de l'app n'étaient alors plus tout à fait la même marque. Rapport largeur /
-   hauteur de référence : 1,547 (rx/ry). Toucher l'un = toucher l'autre. */
-/**
- * Boucle du tracé : dessine, TIENT le logo affiché, puis repart de zéro.
- * `Animated.loop` avec une séquence aller-retour rembobinerait le parcours —
- * un coureur ne défait pas sa course à reculons. On coupe donc net et on
- * recommence : c'est ce que fait un tracé qu'on rejoue.
- */
-function useLogoLoop(drawMs: number, holdMs: number, enabled: boolean): number {
-  const reduce = useReduceMotion();
-  const [raw, setRaw] = useState(0);
-  const anim = useRef(new Animated.Value(0)).current;
-  const cycle = drawMs + holdMs;
-  useEffect(() => {
-    if (reduce) {
-      setRaw(1);
-      return;
-    }
-    const id = anim.addListener(({ value }) => setRaw(value));
-    // UNE SEULE timing linéaire, bouclée. Les versions précédentes enchaînaient
-    // une `Animated.sequence` (tracé → tenue → remise à zéro) : sur
-    // react-native-web, `Animated.loop` d'une séquence ne démarre tout
-    // simplement pas — le tracé restait figé à 0, mesuré sur 6 s. Le chemin
-    // « une timing bouclée » est le seul solide sur les deux cibles ; la tenue
-    // et la courbe d'accélération sont donc calculées au rendu, pas par
-    // l'animation.
-    const timing = Animated.timing(anim, {
-      toValue: 1,
-      duration: cycle,
-      easing: Easing.linear,
-      useNativeDriver: false,
-    });
-    const runner = enabled ? Animated.loop(timing) : timing;
-    runner.start();
-    return () => {
-      runner.stop();
-      anim.removeListener(id);
-    };
-  }, [anim, cycle, enabled, reduce]);
-
-  return reduce ? 1 : logoDrawProgress(raw, drawMs, holdMs);
-}
-
-/**
- * Le logo GRYD dessiné par un parcours qui se court.
- * `size` en points ; `loop` relance le tracé en boucle (accueil/splash).
- * Mouvement réduit respecté : `useProgress` renvoie 1 d'emblée → le G est
- * simplement affiché complet, sans animation.
- */
-export function LogoRouteMark({ size = 148, loop = true }: { size?: number; loop?: boolean }) {
-  const p = useLogoLoop(2600, 1500, loop);
-  const drawn = p * LOGO_LEN;
-  const head = logoHeadAt(p);
-  const heading = logoHeadingAt(p);
-  // Le repère ne s'affiche que pendant la course : une fois le tour bouclé, il
-  // ne reste que le logo — sinon un point traînerait sur une marque à l'arrêt.
-  const running = p > 0.001 && p < 0.999;
-  return (
-    <View style={{ width: size, height: size }} pointerEvents="none">
-      <Svg width="100%" height="100%" viewBox={`0 0 ${LOGO_VIEW} ${LOGO_VIEW}`}>
-        {/* Le parcours À FAIRE : visible avant d'être couru. */}
-        <Polyline
-          points={LOGO_POINTS}
-          fill="none"
-          stroke={colors.blanc12}
-          strokeWidth={19}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Halo du tracé conquis (casing §B : le trait ne flotte pas). */}
-        <Polyline
-          points={LOGO_POINTS}
-          fill="none"
-          stroke={colors.chartreuse40}
-          strokeWidth={27}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray={`${drawn} ${LOGO_LEN}`}
-        />
-        {/* Le tracé conquis. */}
-        <Polyline
-          points={LOGO_POINTS}
-          fill="none"
-          stroke={colors.chartreuse}
-          strokeWidth={19}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray={`${drawn} ${LOGO_LEN}`}
-        />
-        {running ? (
-          /* LE REPÈRE DE LOCALISATION — exactement celui de la carte
-             (MapScreen : point chartreuse cerclé de blanc + halo), pour que le
-             joueur reconnaisse SA position, pas un curseur décoratif. Le cône
-             de cap dit le sens de la course : sans lui, le repère se lit comme
-             un point posé au lieu de quelqu'un qui avance. */
-          <G x={head.x} y={head.y}>
-            <G rotation={heading}>
-              <Path d="M 0 0 L 26 -9 L 26 9 Z" fill={colors.chartreuse40} />
-            </G>
-            <Circle r={14} fill={colors.chartreuse14} stroke={colors.chartreuse40} strokeWidth={1.5} />
-            <Circle r={7} fill={colors.chartreuse} stroke={colors.blanc} strokeWidth={2.5} />
-          </G>
-        ) : null}
-      </Svg>
-    </View>
-  );
-}

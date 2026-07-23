@@ -24,12 +24,39 @@ import { useSession } from '../../lib/session';
 export interface CityChoice {
   cityId: string;
   name: string;
+  /**
+   * Centre publié de la ville — `undefined` quand on ne le connaît pas.
+   *
+   * ⚠️ IL VIENT DE `game-rules.CITIES`, PAS DU SERVEUR : `city_zones` porte le
+   * contour (geojson, 0033) mais AUCUNE colonne de centre. On ne calcule pas de
+   * centroïde ici (celui d'un polygone concave peut tomber hors zone) et on
+   * n'invente rien : une ville servie par le serveur que game-rules ne connaît
+   * pas encore arrive donc SANS centre, et c'est traité comme tel partout —
+   * elle reste choisissable à la main, elle n'est simplement ni reconnue par le
+   * raccourci « Utiliser ma position » ni utilisable pour cadrer la carte.
+   */
+  center?: { lat: number; lng: number };
 }
 
 /** Repli hors-ligne : villes de Saison 0 déclarées dans game-rules (source du seed). */
 export const FALLBACK_CITIES: readonly CityChoice[] = Object.values(CITIES)
-  .map((c) => ({ cityId: c.id, name: c.name }))
+  .map((c) => ({ cityId: c.id, name: c.name, center: { lat: c.center.lat, lng: c.center.lng } }))
   .sort((a, b) => a.name.localeCompare(b.name));
+
+/**
+ * Centre connu d'une ville, ou `undefined`. Source unique : `game-rules.CITIES`
+ * — celle dont le seed 0004 dérive `city_zones` (les lignes du seed portent le
+ * commentaire `-- game-rules: CITIES.paris`). Utilisée pour cadrer la carte
+ * d'arrivée sur la ville CHOISIE : un cadrage, rien d'autre — aucune zone,
+ * aucun propriétaire, aucun classement n'en découle.
+ */
+export function cityCenter(cityId: string | null): { lat: number; lng: number } | undefined {
+  if (!cityId) return undefined;
+  const known = (CITIES as Record<string, { center: { lat: number; lng: number } } | undefined>)[
+    cityId
+  ];
+  return known ? { lat: known.center.lat, lng: known.center.lng } : undefined;
+}
 
 /**
  * Liste des villes proposables. Toujours non vide (repli game-rules), toujours
@@ -55,7 +82,9 @@ export function useCityChoices(): { cities: readonly CityChoice[]; fromServer: b
         if (cancelled || error || !data) return;
         const rows = (data as { city_id: string; name: string }[])
           .filter((r) => typeof r.name === 'string' && r.name.trim().length > 0)
-          .map((r) => ({ cityId: r.city_id, name: r.name }));
+          // Le centre ne vient JAMAIS du serveur (city_zones n'en a pas) : on le
+          // rapproche de game-rules quand l'id y est connu, sinon il reste absent.
+          .map((r) => ({ cityId: r.city_id, name: r.name, center: cityCenter(r.city_id) }));
         // Une lecture VIDE ne remplace pas le repli : afficher zéro ville
         // rendrait le champ inutilisable pour une panne passagère.
         if (rows.length === 0) return;
