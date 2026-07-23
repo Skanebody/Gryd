@@ -135,3 +135,24 @@ Deno.test('p2w : la migration 0065 dépose bien la contrainte anti-prix', async 
     'la contrainte doit interdire les DEUX monnaies',
   );
 });
+
+Deno.test('p2w : la migration 0067 interdit que l’ABONNEMENT distribue un objet fonctionnel', async () => {
+  // 0065 ferme le chemin d'ACHAT. Il restait le chemin du DON : six expressions
+  // `case when v_is_club … then 'club'` faisaient de l'abonnement la SEULE source
+  // d'objets devenus ni achetables ni gagnables. Une contrainte de DONNÉE tient
+  // quelle que soit la version de fonction déployée — y compris une ancienne
+  // qu'on redéploierait par erreur.
+  const sql = await Deno.readTextFile(
+    new URL('../../migrations/0067_club_never_grants_functional_items.sql', import.meta.url),
+  );
+  for (const table of ['streak_gels', 'scout_pings', 'attack_alerts']) {
+    assert(
+      sql.includes(`${table}_club_never_grants`),
+      `${table} doit porter la contrainte : sans elle, le Club redevient une source`,
+    );
+  }
+  assert(
+    (sql.match(/source is distinct from 'club'/g) ?? []).length >= 3,
+    'les TROIS tables doivent refuser la provenance « club »',
+  );
+});
