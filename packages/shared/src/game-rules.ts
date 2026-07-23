@@ -864,21 +864,25 @@ export function starterCityName(id: string): string | undefined {
  * RAYON du disque servant d'aire de jeu à une ville ouverte depuis le
  * référentiel GeoNames.
  *
- * ⚠️ C'EST UNE APPROXIMATION DÉCLARÉE, PAS UN CONTOUR OFFICIEL. Un référentiel
- * de villes ne fournit qu'un POINT (lat/lng) ; `city_zones.geojson` est NOT NULL
- * et exige un polygone. On pose donc un disque autour du point et on le NOMME
- * comme tel partout où il est rendu — « aire de jeu approximative », jamais
- * « limites de la ville ». Approximer une aire de jeu et l'annoncer n'est pas
- * fabriquer de la donnée ; la présenter comme un contour administratif le serait.
+ * ⚠️ RÉSERVÉ À LA VOIE EUROPE-VISION, JAMAIS À UNE COMMUNE FRANÇAISE (23/07/2026).
+ * En France, une commune ouverte reçoit son CONTOUR ADMINISTRATIF RÉEL
+ * (geo.api.gouv.fr, comme 0033) : les communes PARTITIONNENT le territoire, un
+ * disque de 15 km autour d'un village en avalerait des dizaines et ferait se
+ * chevaucher les pionniers voisins. Ce disque ne subsiste que pour les villes
+ * GeoNames hors France, qui ne fournissent qu'un POINT (lat/lng) sans contour —
+ * il est alors NOMMÉ « aire de jeu approximative », jamais « limites de la ville ».
  *
- * Les villes de DÉMARRAGE (`CITIES` : paris, lille) gardent leur VRAI contour,
- * importé de geo.api.gouv.fr par la migration 0033 — ce disque ne les remplace
- * jamais.
+ * ⚠️ C'EST UNE APPROXIMATION DÉCLARÉE, PAS UN CONTOUR OFFICIEL. `city_zones.geojson`
+ * est NOT NULL et exige un polygone : faute de contour, on pose un disque et on
+ * l'annonce comme tel. Approximer une aire de jeu et le DIRE n'est pas fabriquer
+ * de la donnée ; la présenter comme un contour administratif le serait.
  *
- * 15 km : couvre l'aire urbaine courue d'une métropole européenne sans déborder
- * sur la voisine. Ce n'est PAS une borne de capture — la capture n'est bornée
- * par aucune ville (AMENDEMENT-02 §2, Europe entière) ; le `cityId` ne sert
- * qu'au rattachement pour les classements. TUNABLE.
+ * Les villes de DÉMARRAGE (`CITIES` : paris, lille) gardent leur VRAI contour
+ * (0033) — ce disque ne les remplace jamais.
+ *
+ * 15 km : couvre l'aire urbaine courue d'une métropole sans déborder sur la
+ * voisine. Ce n'est PAS une borne de capture ; le `cityId` ne sert qu'au
+ * rattachement pour les classements. TUNABLE.
  */
 export const CITY_DISC_RADIUS_M = 15_000;
 
@@ -888,6 +892,20 @@ export const CITY_DISC_RADIUS_M = 15_000;
  * l'écran, tout en gardant un GeoJSON léger à stocker et à tester en in/out.
  */
 export const CITY_DISC_POLYGON_VERTICES = 64;
+
+/**
+ * Tolérance de simplification (Douglas-Peucker) du CONTOUR administratif réel
+ * d'une commune, en DEGRÉS, avant de l'écrire dans `city_zones.geojson`.
+ *
+ * POURQUOI. Le contour brut de geo.api.gouv.fr peut porter des milliers de
+ * sommets — trop lourd à stocker et à évaluer en point-in-polygon à chaque
+ * course. On le simplifie, en gardant sa forme reconnaissable. 0,0003° ≈ 33 m au
+ * milieu de la France (miroir des ~30 m retenus pour les contours de 0033) : le
+ * joueur ne verra aucune différence, mais le polygone est allégé d'un ordre de
+ * grandeur. C'est une constante de CODE (précision géométrique), pas une donnée :
+ * la commune (nom, contour) reste réelle, seule sa RÉSOLUTION est bornée. TUNABLE.
+ */
+export const COMMUNE_CONTOUR_SIMPLIFY_DEG = 0.0003;
 
 // ─── Recherche de ville (le sélecteur ne peut pas lister 7 870 villes) ──────
 /**
