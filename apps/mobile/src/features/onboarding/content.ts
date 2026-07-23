@@ -24,8 +24,8 @@ import { C } from '../../i18n/catalog/onboarding';
 /**
  * Ordre du flow. Le stepper (app/onboarding/index) rend l'étape courante.
  *
- * ═══ TROIS CARTES, PUIS UN PROFIL (refonte fondateur 22/07/2026) ════════════
- *     mechanic → rivalry → age → city → profile → account
+ * ═══ TROIS CARTES, PUIS NOM + ENTRÉE (refonte fondateur 22-23/07/2026) ══════
+ *     mechanic → rivalry → city → account
  *
  * Le diagnostic était sans appel : le premier écran ressemblait à une landing
  * page, il parlait de CREW à quelqu'un qui ne sait pas encore ce qu'est un crew,
@@ -34,7 +34,7 @@ import { C } from '../../i18n/catalog/onboarding';
  * personnaliser un peu, entrer dans l'app — et la PREMIÈRE COURSE VIENT APRÈS,
  * jamais pendant.
  *
- * QUATRE ÉCRANS DE PRODUIT, et ce sont exactement les quatre demandés :
+ * QUATRE ÉCRANS, et ce sont exactement les quatre demandés :
  *   1. `mechanic` — le geste : ferme une boucle, prends la zone. Rien d'autre :
  *      ni rival, ni crew, ni ville. La démonstration animée se comprend SANS
  *      lire le texte (`CaptureDemo`).
@@ -42,9 +42,12 @@ import { C } from '../../i18n/catalog/onboarding';
  *      le crew entre, parce qu'il répond enfin à une question posée.
  *   3. `city`     — la première DÉCISION : choisir sa ville, À LA MAIN, sans
  *      GPS. Assis, dans le métro, en vacances : ça doit marcher.
- *   4. `profile`  — pseudo. Rien de plus (ni niveau sportif, ni poids, ni
- *      objectif km, ni photo imposée : ouvrir la photothèque est une permission,
- *      et l'onboarding n'en demande aucune).
+ *   4. `account`  — NOM + ENTRÉE, fondus (23/07/2026). Le pseudo (une
+ *      personnalisation optionnelle : ni niveau sportif, ni poids, ni photo
+ *      imposée — ouvrir la photothèque est une permission, l'onboarding n'en
+ *      demande aucune) et l'entrée (créer/connecter un compte, ou « plus tard »
+ *      quand aucun backend n'exige de session). Deux écrans pour une seule
+ *      arrivée, c'était l'écran de trop que ce chantier retire.
  *
  * DEUX ÉCRANS QUI NE SONT PAS DES ÉCRANS DE PRODUIT, et qu'on ne peut pas
  * supprimer sans mentir :
@@ -79,8 +82,14 @@ export const ONBOARDING_STEPS = [
   'mechanic', // 1 — le geste (démo animée) + porte « J'ai déjà un compte »
   'rivalry', // 2 — la reprise, et le crew qui la défend
   'city', // 3 — choix MANUEL de la ville (sans GPS), CTA qui la nomme
-  'profile', // 4 — profil minimal : pseudo, et rien d'autre
-  'account', // 5 — compte (création OU connexion), puis sortie du flow
+  // 4 — NOM + ENTRÉE, fondus (arbitrage fondateur 23/07/2026). Le pseudo (une
+  //     personnalisation, pas une décision) et le compte (création OU connexion,
+  //     OU « plus tard » sans backend) tenaient DEUX écrans pour la même arrivée.
+  //     Les fondre ramène le parcours configuré de 5 à 4 écrans, la doctrine
+  //     fondateur l'emportant sur le « 1 écran = 1 décision » de §A ici : le nom
+  //     est optionnel (le CTA passe sans lui), la seule VRAIE décision reste
+  //     l'entrée. Voir AccountStep dans app/onboarding.
+  'account',
 ] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
@@ -121,7 +130,11 @@ export const stepBeforeCity = (): OnboardingStep => 'rivalry';
  *   3  `permission`  — écran supprimé (la demande vit au 1er GO) ;
  *   4/5/6/7 `choose`/`sync`/`run`/`capture` — supprimés avec le mode vitrine ;
  *   10 `crew`        — rendue à l'onglet Crew le 21/07/2026 ;
- *   13 `learn`       — remplacé par les cartes `mechanic` + `rivalry`.
+ *   13 `learn`       — remplacé par les cartes `mechanic` + `rivalry` ;
+ *   17 `profile`     — fondu dans `account` le 23/07/2026 (nom + entrée sur un
+ *                      seul écran). Le pseudo se pose désormais SUR l'écran 9 ;
+ *                      recoller sa population à celle de `account` fausserait le
+ *                      pas « a atteint le compte » — on le laisse RÉSERVÉ.
  *
  * ⚠️ LE NOUVEL ÉCRAN VILLE PREND 16, PAS 2. Reprendre le 2 recollerait la
  * population d'un écran de 2026 avec celle d'un écran supprimé qui enseignait
@@ -132,7 +145,6 @@ export const STEP_EVENT_N: Record<OnboardingStep, number> = {
   mechanic: 14,
   rivalry: 15,
   city: 16,
-  profile: 17,
   account: 9,
 };
 
@@ -181,15 +193,18 @@ export const AGE = {
 } as const;
 
 /**
- * 4 — Compte : CRÉER **OU** SE CONNECTER (§6). Le titre nomme les deux portes,
- * et `emailHint` dit ce que fait réellement le code e-mail — il connecte si
+ * 4 — Entrée : CRÉER **OU** SE CONNECTER (§6), en pied de l'écran fusionné.
+ * `emailHint` dit ce que fait réellement le code e-mail — il connecte si
  * l'adresse existe, il crée sinon. Un joueur qui se trompe de porte arrive donc
  * quand même au bon endroit, et il le sait avant de taper.
+ *
+ * ⚠️ Depuis la fusion nom+entrée (23/07/2026), l'écran MÈNE par l'identité
+ * (`PROFILE.kicker`/`title`) : `accountKicker`/`accountTitle`/`accountTagline`
+ * ne sont plus lus par aucun écran et ont été retirés du catalogue — une Entry
+ * sans surface est une promesse sans écran. Seul `taglineRequired` subsiste, en
+ * NOTE de contexte quand un backend exige une session.
  */
 export const ACCOUNT = {
-  kicker: C.accountKicker,
-  title: C.accountTitle,
-  tagline: C.accountTagline,
   /** Backend configuré : la carte exige une session — on le DIT (21/07/2026). */
   taglineRequired: C.accountTaglineRequired,
   apple: C.accountApple,
@@ -296,11 +311,13 @@ export const CITY = {
 } as const;
 
 /**
- * PROFIL MINIMAL : pseudo + ville (déjà choisie, rappelée et non redemandée).
- * Rien d'autre. Ce qui reste EXCLU : photo obligatoire, niveau sportif, poids,
- * taille, objectif kilométrique, fréquence, contacts, notifications, HealthKit,
- * Strava, crew. `privacyNote` ne PROMET rien que le code ne tienne : elle dit ce
- * qui est vrai (rien n'est publié depuis cet écran) et où le réglage vit.
+ * IDENTITÉ MINIMALE, désormais posée SUR l'écran d'arrivée (`account`) et plus
+ * sur un écran à elle : pseudo + rappel de la ville (déjà choisie, non
+ * redemandée). Rien d'autre. Ce qui reste EXCLU : photo obligatoire, niveau
+ * sportif, poids, taille, objectif kilométrique, fréquence, contacts,
+ * notifications, HealthKit, Strava, crew. `privacyNote` ne PROMET rien que le
+ * code ne tienne : elle dit ce qui est vrai (rien n'est publié depuis cet écran)
+ * et où le réglage vit.
  *
  * ⚠️ AUCUN CHOIX D'AVATAR ICI, ET C'EST VOLONTAIRE. Ouvrir la photothèque est
  * une PERMISSION, et l'onboarding n'en demande aucune — « facultatif » ne veut
@@ -309,25 +326,24 @@ export const CITY = {
  * catalogue avec cette décision : une Entry que plus aucun écran ne lit est une
  * promesse de texte sans écran derrière.
  *
- * `gpsNote` est le SEUL héritage de l'écran `permission` supprimé, et il est
- * posé ici — dernier écran avant la carte, donc au plus près du premier GO :
- * la boîte système ne tombera pas de nulle part.
+ * `gpsNote` est le SEUL héritage de l'écran `permission` supprimé, et il reste
+ * sur le dernier écran du flow, donc au plus près du premier GO : la boîte
+ * système ne tombera pas de nulle part.
+ *
+ * L'écran fusionné MÈNE par l'identité (`kicker`/`title` : « ton nom », vrai dans
+ * TOUS les cas), pose les champs, puis présente l'entrée en pied. La nécessité
+ * du compte n'est qu'une NOTE de contexte (côté ACCOUNT, `taglineRequired`),
+ * affichée seulement quand un backend l'exige — jamais un titre qui promettrait
+ * un compte là où l'écran ne propose que « plus tard ». `tagline`/`cta` de
+ * l'ancien écran profil ne sont plus lus (le pied porte la décision).
  */
 export const PROFILE = {
   kicker: C.profileKicker,
   title: C.profileTitle,
-  tagline: C.profileTagline,
   pseudoLabel: C.profilePseudoLabel,
   cityLabel: C.profileCityLabel,
   privacyNote: C.profilePrivacyNote,
   gpsNote: C.firstRunGpsNote,
-  cta: C.profileCta,
-  /**
-   * Quand un écran COMPTE suit encore (backend configuré), le dernier CTA du
-   * flow n'est pas celui qui entre sur la carte : le dire autrement serait
-   * promettre une arrivée qu'un écran de plus dément.
-   */
-  ctaBeforeAccount: C.ctaContinue,
 } as const;
 
 /**

@@ -444,15 +444,10 @@ export const C = defineCatalog({
     de: 'Wähl deinen Namen.',
     pt: 'Escolha seu nome.',
   },
-  /** ⚠️ Tenue en 2 lignes dans les 5 langues (test `copyFit`) — la version
-   *  longue faisait 86 caractères en français, soit 3 lignes et un écran serré. */
-  profileTagline: {
-    fr: 'Il s’affiche sur les zones que tu prends. Modifiable plus tard.',
-    en: 'It shows on the zones you take. You can change it later.',
-    es: 'Aparece en las zonas que tomes. Puedes cambiarlo después.',
-    de: 'Er steht auf den Zonen, die du holst. Später änderbar.',
-    pt: 'Aparece nas zonas que você tomar. Dá para mudar depois.',
-  },
+  // ⚠️ `profileTagline` RETIRÉE le 23/07/2026 avec la fusion nom+entrée : l'écran
+  // d'arrivée mène par `profileTitle` puis pose directement le champ pseudo, sans
+  // sous-titre intermédiaire. Une Entry que plus aucun écran ne lit est une
+  // promesse sans surface.
   profilePseudoLabel: {
     fr: 'Pseudo',
     en: 'Username',
@@ -484,44 +479,20 @@ export const C = defineCatalog({
   // photothèque est une PERMISSION et que l'onboarding n'en demande aucune.
   // « Facultatif » ne veut pas dire « proposé quand même » : l'avatar vit dans
   // l'écran Profil, après. Une Entry sans écran est une promesse sans surface.
-  /** Dernier CTA du flow : il NOMME où l'on arrive. */
-  profileCta: {
-    fr: 'Entrer sur la carte',
-    en: 'Enter the map',
-    es: 'Entrar al mapa',
-    de: 'Auf die Karte',
-    pt: 'Entrar no mapa',
-  },
+  //
+  // ⚠️ `profileCta` (« Entrer sur la carte ») RETIRÉE le 23/07/2026 : la fusion
+  // nom+entrée fait porter la décision de sortie par le PIED de l'écran d'arrivée
+  // (auth ou « plus tard »), plus par un CTA de profil. Même raison — pas d'Entry
+  // sans surface.
 
-  // ─── 3 COMPTE ──────────────────────────────────────────────────────────────
-  accountKicker: {
-    fr: 'AVANT DE COURIR',
-    en: 'BEFORE YOU RUN',
-    es: 'ANTES DE CORRER',
-    de: 'BEVOR DU LOSLÄUFST',
-    pt: 'ANTES DE CORRER',
-  },
-  /**
-   * Le titre dit LES DEUX PORTES (retour fondateur 21/07/2026). « Crée ton
-   * compte. » seul faisait de cet écran une impasse apparente pour qui en a
-   * déjà un : il rebroussait chemin au lieu de taper sur une des voies, qui
-   * toutes savent pourtant le connecter.
-   */
-  accountTitle: {
-    fr: 'Crée ton compte, ou connecte-toi.',
-    en: 'Create your account, or sign in.',
-    es: 'Crea tu cuenta, o inicia sesión.',
-    de: 'Erstell dein Konto — oder melde dich an.',
-    pt: 'Crie sua conta, ou entre.',
-  },
-  /** Rien n'a encore été conquis : la copy parle au FUTUR, jamais au passé. */
-  accountTagline: {
-    fr: 'Un compte, un tap. Les zones que tu prendras te suivront sur tous tes appareils.',
-    en: 'One account, one tap. The zones you take will follow you on every device.',
-    es: 'Una cuenta, un toque. Las zonas que tomes te seguirán en todos tus dispositivos.',
-    de: 'Ein Konto, ein Tap. Die Zonen, die du holst, folgen dir auf allen Geräten.',
-    pt: 'Uma conta, um toque. As zonas que você tomar seguem você em todos os aparelhos.',
-  },
+  // ─── 3 ENTRÉE (pied de l'écran d'arrivée fusionné) ───────────────────────────
+  // ⚠️ `accountKicker` / `accountTitle` / `accountTagline` RETIRÉS le 23/07/2026 :
+  // depuis la fusion nom+entrée, l'écran MÈNE par l'identité (`profileKicker` +
+  // `profileTitle` : « ton nom », vrai dans TOUS les cas), et l'entrée n'est plus
+  // qu'un pied. Un titre « Crée ton compte » sur un écran qui, sans backend, ne
+  // propose que « plus tard » aurait menti ; on ne le rend donc plus. Reste
+  // `accountTaglineRequired`, en NOTE de contexte quand un backend exige une
+  // session. Pas d'Entry sans surface.
   /**
    * Variante quand un backend est configuré : la carte EXIGE une session. Le
    * dire ici, c'est éviter que le joueur tape « Plus tard » et se cogne à une

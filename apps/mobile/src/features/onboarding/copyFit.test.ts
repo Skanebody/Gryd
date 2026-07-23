@@ -35,12 +35,12 @@ const CARD_TAGLINES: Record<string, Entry> = {
   mechanicTagline: C.mechanicTagline,
   rivalryTagline: C.rivalryTagline,
   cityTagline: C.cityTagline,
-  profileTagline: C.profileTagline,
+  // `profileTagline` retiré avec la fusion nom+entrée (23/07/2026).
 };
 const CTAS: Record<string, Entry> = {
   ctaContinue: C.ctaContinue,
   ctaChooseCity: C.ctaChooseCity,
-  profileCta: C.profileCta,
+  // `profileCta` retiré avec la fusion nom+entrée (23/07/2026).
   cityUseLocation: C.cityUseLocation,
   captureDemoLabel: C.captureDemoLabel,
   rivalryDemoLabel: C.rivalryDemoLabel,

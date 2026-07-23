@@ -13,7 +13,6 @@ import {
   CITY,
   MECHANIC,
   ONBOARDING_STEPS,
-  PROFILE,
   RIVALRY,
   STEP_EVENT_N,
   isOnboardingStep,
@@ -26,25 +25,27 @@ import { LOCALES, type Entry } from '../../i18n/types.ts';
 /** Position d'une étape dans le flow (−1 si absente). */
 const at = (step: OnboardingStep): number => ONBOARDING_STEPS.indexOf(step);
 
-Deno.test('le flow enchaîne : comprendre → gate → décider → entrer', () => {
+Deno.test('le flow enchaîne : comprendre → décider → entrer', () => {
   // L'onboarding fait TROIS choses : comprendre, personnaliser un peu, entrer.
   // Les deux cartes pédagogiques passent d'abord — un écran qui demande quelque
   // chose avant d'avoir rien expliqué est la landing page qu'on a retirée.
   assertEquals(at('mechanic'), 0, 'la mécanique n’ouvre plus le flow');
   assert(at('rivalry') > at('mechanic'), 'la rivalité doit suivre la mécanique');
   assert(at('city') > at('rivalry'), 'la ville se choisit après avoir compris');
-  assert(at('profile') > at('city'), 'le profil rappelle une ville déjà choisie');
-  assert(at('account') > at('profile'), 'le compte ferme le flow');
+  // Le pseudo (ex-écran `profile`) est désormais SUR l'écran d'arrivée `account` :
+  // nom + entrée fondus, l'écran de trop retiré. `account` ferme le flow.
+  assert(at('account') > at('city'), 'l’arrivée (nom + compte) ferme le flow');
 });
 
-Deno.test('LE PARCOURS EST LINÉAIRE, ET NE DÉPASSE PAS QUATRE ÉCRANS DE PRODUIT', () => {
-  // La doctrine fixe un maximum de QUATRE écrans obligatoires avant l'app. Les
-  // quatre écrans de PRODUIT sont ceux-ci ; `account` est la création de compte
-  // elle-même, qu'aucune session ne permet d'éviter tant que la carte l'exige.
+Deno.test('LE PARCOURS EST LINÉAIRE, ET NE DÉPASSE PAS QUATRE ÉCRANS', () => {
+  // La doctrine fixe un maximum de QUATRE écrans obligatoires avant l'app. La
+  // fusion nom+entrée (23/07/2026) les ramène EXACTEMENT à quatre — `account`
+  // porte à la fois le pseudo (facultatif) et la création/connexion de compte.
   assertEquals(
-    [...ONBOARDING_STEPS].filter((s) => s !== 'account'),
-    ['mechanic', 'rivalry', 'city', 'profile'],
+    [...ONBOARDING_STEPS],
+    ['mechanic', 'rivalry', 'city', 'account'],
   );
+  assertEquals(ONBOARDING_STEPS.length, 4, 'quatre écrans, pas un de plus');
   // Plus aucune dérivation conditionnelle : deux écrans ne peuvent plus diverger.
   assertEquals(stepAfterRivalry(), 'city');
   assertEquals(stepBeforeCity(), 'rivalry');
@@ -71,7 +72,7 @@ Deno.test('le funnel ne recolle jamais deux populations : aucun n réservé réu
   // Les n sont des IDENTIFIANTS STABLES d'étape, pas des positions. Chacun de
   // ceux-ci a eu sa population sur un écran qui n'existe plus : les réutiliser
   // fausserait l'entonnoir historique sans que personne ne le voie.
-  const RESERVED = [1, 2, 3, 4, 5, 6, 7, 10, 13];
+  const RESERVED = [1, 2, 3, 4, 5, 6, 7, 10, 13, 17];
   for (const [step, n] of Object.entries(STEP_EVENT_N)) {
     assert(!RESERVED.includes(n), `« ${step} » reprend le n réservé ${n}`);
   }
@@ -134,15 +135,7 @@ Deno.test('l’écran ville n’ORDONNE jamais d’autoriser la position', () =>
   }
 });
 
-Deno.test('le dernier CTA ne promet la carte que s’il n’y a plus d’écran devant', () => {
-  // `profileCta` (« Entrer sur la carte ») ne s'emploie que lorsque le flow
-  // s'arrête là ; quand un écran compte suit encore, c'est `ctaBeforeAccount`.
-  // Deux Entries DIFFÉRENTES : si elles se confondaient, l'une des deux
-  // situations mentirait.
-  for (const locale of LOCALES) {
-    assert(
-      PROFILE.cta[locale] !== PROFILE.ctaBeforeAccount[locale],
-      `le CTA profil est identique avec et sans écran compte (${locale})`,
-    );
-  }
-});
+// ⚠️ Le test « le dernier CTA ne promet la carte que s'il n'y a plus d'écran
+// devant » a été RETIRÉ le 23/07/2026 avec la fusion nom+entrée : le profil n'a
+// plus de CTA à lui (le pied de l'écran d'arrivée porte la décision — auth ou
+// « plus tard »), donc `PROFILE.cta` / `ctaBeforeAccount` n'existent plus.

@@ -141,8 +141,7 @@ import { CaptureDemo, RivalryDemo } from '../../src/features/onboarding/visuals'
 const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
   rivalry: 'mechanic',
   city: 'rivalry',
-  profile: 'city',
-  account: 'profile',
+  account: 'city',
 };
 
 
@@ -340,31 +339,25 @@ export default function OnboardingScreen() {
           chosenId={onboarding.cityId}
           chosenName={onboarding.cityName}
           onChoose={chooseCity}
-          onNext={() => go('profile')}
+          onNext={() => go('account')}
           ageConfirmed={onboarding.ageConfirmed}
           onConfirmAge={confirmAge}
         />
       ) : null}
 
-      {step === 'profile' ? (
-        <ProfileStep
-          cityName={onboarding.cityName}
-          // Un écran compte suit encore quand un backend existe : le CTA ne peut
-          // pas promettre la carte tant qu'il reste un écran devant.
-          accountAhead={configured}
-          onNext={() => (configured ? go('account') : finish('/'))}
-        />
-      ) : null}
+      {/* ÉCRAN D'ARRIVÉE FUSIONNÉ : nom (facultatif) + entrée (compte OU « plus
+          tard »). Le pseudo se pose ici, plus sur un écran à lui.
 
-      {/* ⚠️ LE GATE EST STRUCTUREL, PLUS SEULEMENT ORDINAL. L'étape compte crée
-          un compte (Apple/Google) : elle ne s'affiche donc QUE si l'âge a été
-          déclaré, au lieu de faire confiance à l'ordre des écrans. Si un jour un
-          chemin l'atteint sans passer par `age` — une reprise depuis le disque,
-          par exemple — il tombe sur la question, pas sur une porte de création
-          ouverte. Aucune navigation : répondre démasque l'étape sur place. */}
+          ⚠️ LE GATE EST STRUCTUREL, PLUS SEULEMENT ORDINAL. L'entrée peut créer
+          un compte (Apple/Google/e-mail) : l'écran ne s'affiche donc QUE si l'âge
+          a été déclaré, au lieu de faire confiance à l'ordre des écrans. Si un
+          jour un chemin l'atteint sans passer par le gate — une reprise depuis le
+          disque, par exemple — il tombe sur la question, pas sur une porte de
+          création ouverte. Aucune navigation : répondre démasque l'étape. */}
       {step === 'account' ? (
         onboarding.ageConfirmed ? (
           <AccountStep
+            cityName={onboarding.cityName}
             persistenceFailed={persistenceFailed}
             onDone={() => finish('/')}
             onEmail={() => finish('/sign-in')}
@@ -793,96 +786,8 @@ function CityStep({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 5 — PROFIL MINIMAL : un pseudo. Rien d'autre.
-//
-// Ce qui n'est PAS demandé, et ne doit jamais revenir ici : photo obligatoire,
-// niveau sportif, poids, taille, objectif kilométrique, fréquence, contacts,
-// notifications, HealthKit, Strava, crew. Ni même un choix d'avatar : ouvrir la
-// photothèque est une permission, et ce flow n'en demande aucune.
-//
-// La ville est RAPPELÉE, pas redemandée : elle vient d'être choisie à l'écran
-// précédent, et la redemander donnerait deux décisions à un écran (§A1).
-// ═══════════════════════════════════════════════════════════════════════════
-
-function ProfileStep({
-  cityName,
-  accountAhead,
-  onNext,
-}: {
-  cityName: string | null;
-  accountAhead: boolean;
-  onNext: () => void;
-}) {
-  const t = useT();
-  const [pseudo, setPseudo] = useState('');
-
-  /**
-   * Le pseudo n'est PAS un péage : le CTA reste actif si le champ est vide, et
-   * rien n'est alors enregistré — le joueur gardera l'identité neutre de l'app
-   * et pourra la choisir dans Profil. Un onboarding qui bloque sur un champ
-   * texte est exactement la friction que ce chantier retire.
-   *
-   * Ce qu'il fait quand il est rempli est RÉEL et vérifiable tout de suite : il
-   * écrit le nom affiché du profil local (`profileStore`, le même que
-   * /profil-edit), donc l'onglet Profil le montre dès l'arrivée. Ce store est
-   * local tant que `user_profiles` n'est pas branché (O1) — d'où une copy qui
-   * parle de ce qui est vrai (« rien n'est publié ici ») et jamais d'une
-   * diffusion que le code ne tient pas encore.
-   */
-  const submit = useCallback(() => {
-    const name = pseudo.trim();
-    if (name.length > 0) void saveProfile({ displayName: name });
-    onNext();
-  }, [pseudo, onNext]);
-
-  return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{t(PROFILE.kicker)}</Kicker>
-        <Text style={styles.title}>{t(PROFILE.title)}</Text>
-        <Text style={styles.tagline}>{t(PROFILE.tagline)}</Text>
-
-        <Text style={styles.fieldLabel}>{t(PROFILE.pseudoLabel)}</Text>
-        <TextInput
-          style={styles.input}
-          value={pseudo}
-          onChangeText={setPseudo}
-          maxLength={DISPLAY_NAME_MAX}
-          autoCorrect={false}
-          autoCapitalize="none"
-          // Même raison que la recherche ville : « OK » valide depuis le clavier,
-          // sans obliger à le refermer pour atteindre un CTA qu'il recouvre.
-          returnKeyType="done"
-          onSubmitEditing={submit}
-          accessibilityLabel={t(PROFILE.pseudoLabel)}
-        />
-
-        {/* La ville choisie, RAPPELÉE — et seulement si elle existe : sans
-            choix, on n'affiche pas une ligne vide qui laisserait croire à un
-            réglage manquant. */}
-        {cityName ? (
-          <Text style={styles.recap}>
-            {t(PROFILE.cityLabel)} · {cityName}
-          </Text>
-        ) : null}
-
-        <Text style={styles.note}>{t(PROFILE.privacyNote)}</Text>
-        {/* Le seul héritage de l'écran `permission` supprimé, posé au plus près
-            du premier GO : le GPS s'allume au départ d'une course, jamais avant. */}
-        <Text style={styles.note}>{t(PROFILE.gpsNote)}</Text>
-      </View>
-      <View style={styles.footer}>
-        <PrimaryCta
-          label={t(accountAhead ? PROFILE.ctaBeforeAccount : PROFILE.cta)}
-          onPress={submit}
-        />
-      </View>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 6 — COMPTE : CRÉER **OU** SE CONNECTER (§6). Apple / Google / e-mail, 1 tap.
+// 4 — NOM + ENTRÉE (§6), fondus. Pseudo (facultatif) puis compte : créer **OU**
+//     se connecter (Apple / Google / e-mail, 1 tap), ou « plus tard » sans backend.
 //
 // ─── DEUX PORTES, DITES ─────────────────────────────────────────────────────
 // L'écran s'intitulait « Crée ton compte. » et sa 3e voie « Continuer avec un
@@ -928,10 +833,13 @@ const CAN_APPLE = Platform.OS === 'ios'; // expo-apple-authentication : iOS only
 const CAN_GOOGLE = Platform.OS !== 'web' && GOOGLE_CONFIGURED;
 
 function AccountStep({
+  cityName,
   persistenceFailed,
   onDone,
   onEmail,
 }: {
+  /** La ville choisie à l'écran précédent — RAPPELÉE, jamais redemandée. */
+  cityName: string | null;
   /** Le stockage local n'a pas retenu ce qui a été décidé — ça se DIT. */
   persistenceFailed: boolean;
   onDone: () => void;
@@ -942,7 +850,35 @@ function AccountStep({
   const { configured } = useSession();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [pseudo, setPseudo] = useState('');
   const accountRequired = configured;
+
+  /**
+   * Le pseudo n'est PAS un péage : rien ne bloque si le champ est vide, et rien
+   * n'est alors enregistré — le joueur garde l'identité neutre de l'app et
+   * pourra la choisir dans Profil. Rempli, il écrit le nom affiché du profil
+   * LOCAL (`profileStore`, le même que /profil-edit) : l'onglet Profil le montre
+   * dès l'arrivée. Local tant que `user_profiles` n'est pas branché (O1), d'où
+   * `privacyNote` qui dit ce qui est vrai (« rien n'est publié ici »).
+   *
+   * Il est persisté au moment où l'on QUITTE l'onboarding, quelle que soit la
+   * porte — auth réussie, e-mail, ou « plus tard » : le nom saisi ne doit pas se
+   * perdre selon le chemin de sortie choisi.
+   */
+  const persistPseudo = useCallback(() => {
+    const name = pseudo.trim();
+    if (name.length > 0) void saveProfile({ displayName: name });
+  }, [pseudo]);
+
+  const leave = useCallback(() => {
+    persistPseudo();
+    onDone();
+  }, [persistPseudo, onDone]);
+
+  const goEmail = useCallback(() => {
+    persistPseudo();
+    onEmail();
+  }, [persistPseudo, onEmail]);
 
   const run = async (fn: () => Promise<AuthResult>) => {
     // Garde de réentrance : le bouton Apple (natif) n'a pas de prop `disabled`,
@@ -956,8 +892,10 @@ function AccountStep({
     // Honnêteté (§ charte n°1) : un refus/échec n'est PAS un succès — on ne sort
     // que si l'auth réussit. On reste sur l'écran avec un message court, et la
     // voie e-mail reste offerte (Apple/Google peuvent être indisponibles — O2).
-    if (result.ok) onDone();
-    else setFailed(true);
+    if (result.ok) {
+      persistPseudo();
+      onDone();
+    } else setFailed(true);
   };
 
   const canApple = CAN_APPLE && configured;
@@ -968,20 +906,42 @@ function AccountStep({
   return (
     <View style={styles.step}>
       <View style={styles.body}>
-        {/* Rien n'a encore été conquis : la copy parle au FUTUR (« les zones que
-            tu prendras »), jamais d'une conquête à sauvegarder. */}
-        <Kicker>{t(ACCOUNT.kicker)}</Kicker>
-        <View style={styles.iconHero}>
-          <View style={styles.iconHeroRing}>
-            <Icon name="bouclier" size={40} color={colors.chartreuse} />
-          </View>
-        </View>
-        <Text style={styles.title}>{t(ACCOUNT.title)}</Text>
-        <Text style={styles.tagline}>
-          {/* Le compte est requis : on le dit AVANT que le joueur tape « Plus
-              tard » et se retrouve devant une porte fermée. */}
-          {t(accountRequired ? ACCOUNT.taglineRequired : ACCOUNT.tagline)}
-        </Text>
+        {/* L'écran MÈNE par l'identité — vrai dans tous les cas — puis présente
+            l'entrée. Pas d'icône héros ici : la place va au champ pseudo, et le
+            tout doit tenir sans ScrollView. */}
+        <Kicker>{t(PROFILE.kicker)}</Kicker>
+        <Text style={styles.title}>{t(PROFILE.title)}</Text>
+
+        <Text style={styles.fieldLabel}>{t(PROFILE.pseudoLabel)}</Text>
+        <TextInput
+          style={styles.input}
+          value={pseudo}
+          onChangeText={setPseudo}
+          maxLength={DISPLAY_NAME_MAX}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="done"
+          accessibilityLabel={t(PROFILE.pseudoLabel)}
+        />
+
+        {/* La ville choisie, RAPPELÉE — et seulement si elle existe : sans
+            choix, pas de ligne vide qui laisserait croire à un réglage manquant. */}
+        {cityName ? (
+          <Text style={styles.recap}>
+            {t(PROFILE.cityLabel)} · {cityName}
+          </Text>
+        ) : null}
+
+        {/* Le compte est requis : on le dit AVANT que le joueur cherche « Plus
+            tard » et se cogne à une porte fermée. Seulement quand c'est vrai. */}
+        {accountRequired ? (
+          <Text style={styles.tagline}>{t(ACCOUNT.taglineRequired)}</Text>
+        ) : null}
+
+        <Text style={styles.note}>{t(PROFILE.privacyNote)}</Text>
+        {/* Le seul héritage de l'écran `permission` supprimé, au plus près du
+            premier GO : le GPS s'allume au départ d'une course, jamais avant. */}
+        <Text style={styles.note}>{t(PROFILE.gpsNote)}</Text>
       </View>
       <View style={styles.footer}>
         {failed ? (
@@ -1005,13 +965,15 @@ function AccountStep({
             <PrimaryCta label={t(ACCOUNT.google)} onPress={() => void run(signInWithGoogle)} />
           )
         ) : null}
-        {/* UNE seule voie secondaire (§A), et elle mène TOUJOURS quelque part. */}
+        {/* UNE seule voie secondaire (§A), et elle mène TOUJOURS quelque part.
+            Chaque sortie passe par `leave`/`goEmail` : le pseudo saisi est
+            persisté quel que soit le chemin choisi. */}
         {!accountRequired ? (
-          <TextLink label={t(ACCOUNT.skip)} onPress={onDone} />
+          <TextLink label={t(ACCOUNT.skip)} onPress={leave} />
         ) : emailIsOnlyDoor ? (
-          <PrimaryCta label={t(ACCOUNT.email)} onPress={onEmail} />
+          <PrimaryCta label={t(ACCOUNT.email)} onPress={goEmail} />
         ) : (
-          <TextLink label={t(ACCOUNT.email)} onPress={onEmail} underline />
+          <TextLink label={t(ACCOUNT.email)} onPress={goEmail} underline />
         )}
         {accountRequired ? <Text style={styles.hint}>{t(ACCOUNT.emailHint)}</Text> : null}
         {/* CE QU'ON N'A PAS PU RETENIR SE DIT : sans cette ligne, l'échec vivait
