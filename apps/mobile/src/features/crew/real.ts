@@ -96,12 +96,6 @@ export interface CrewOverview {
   contributions: CrewContribution[];
 }
 
-/** Ville sélectionnable à la création (city_zones, colonnes publiques). */
-export interface CityOption {
-  cityId: string;
-  name: string;
-}
-
 /** Motifs de refus renvoyés par les RPC (contrat figé). */
 export type CrewRefusal =
   | 'signed_out'
@@ -373,7 +367,6 @@ export interface UseRealCrewResult {
   joinByCode: (code: string) => Promise<JoinResult>;
   leaveCrew: () => Promise<LeaveResult>;
   fetchMyCode: () => Promise<CodeResult>;
-  listCities: () => Promise<CityOption[]>;
 }
 
 /** Colonnes publiques du crew embarqué. */
@@ -669,22 +662,16 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
     }
   }, [ready]);
 
-  const listCities = useCallback(async (): Promise<CityOption[]> => {
-    if (!ready || !supabase) return [];
-    try {
-      const { data, error } = await supabase
-        .from('city_zones')
-        .select('city_id, name')
-        .order('name', { ascending: true });
-      if (error || !data) return [];
-      return (data as { city_id: string; name: string }[]).map((r) => ({
-        cityId: r.city_id,
-        name: r.name,
-      }));
-    } catch {
-      return [];
-    }
-  }, [ready]);
+  /*
+   * `listCities` A ÉTÉ RETIRÉ (23/07/2026).
+   *
+   * Il faisait un `select('city_id, name')` SANS AUCUNE LIMITE sur `city_zones`,
+   * et son unique appelant en rendait UNE PILL PAR VILLE. Tenable à 2 villes ;
+   * une requête non bornée et un écran illisible dès qu'une dizaine de villes
+   * s'ouvrent, et impossible à l'échelle du référentiel européen. La lecture
+   * vit maintenant dans `features/city/useCityCatalog` : bornée, avec ses
+   * quatre états distincts et un drapeau de troncature.
+   */
 
   return {
     ready,
@@ -703,6 +690,5 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
     joinByCode,
     leaveCrew,
     fetchMyCode,
-    listCities,
   };
 }

@@ -30,7 +30,7 @@ import {
 } from '@klaim/engine';
 import { cellToBoundary } from 'h3-js';
 import { BADGES_BY_KEY, type BadgeDef } from '@klaim/shared/badges';
-import { CITIES, type CityId, VERIFY_PARTIAL_MIN, type ZoneDensity } from '@klaim/shared/game-rules';
+import { CITIES, type StarterCityId, VERIFY_PARTIAL_MIN, type ZoneDensity } from '@klaim/shared/game-rules';
 import type {
   HexClaimResult,
   HexOutcome,
@@ -47,7 +47,7 @@ import type { MapHex, MapHexKind, MapPath } from '../components/TraceMap';
 export type CheatMode = 'none' | 'bike' | 'car' | 'car_city' | 'gps_jump' | 'mixed';
 
 export interface SimParams {
-  city: CityId;
+  city: StarterCityId;
   distanceKm: number; // 1-15
   paceSKm: number; // 180-720 (3:00 → 12:00 /km)
   noiseM: number; // bruit GPS (écart-type, m)

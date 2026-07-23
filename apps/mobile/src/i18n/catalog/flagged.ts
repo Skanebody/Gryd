@@ -1260,8 +1260,9 @@ export const C = defineCatalog({
     de: 'Anmelden',
     pt: 'Entrar',
   },
-  /** Lu, et rien reçu — sans distinguer « personne n'a encore couru » d'un échec
-   *  réseau, parce que la lecture ne le dit pas. On énonce le FAIT observable. */
+  /** La lecture a RÉUSSI et la saison de MA ville n'a aucune ligne. C'est un
+   *  fait mesuré, plus une supposition : l'échec de lecture a son propre état
+   *  (`boardUnavailable*`) depuis que le board cible la ville du joueur. */
   boardEmptyTitle: {
     fr: 'Rien à classer pour l’instant',
     en: 'Nothing to rank yet',
@@ -1270,11 +1271,53 @@ export const C = defineCatalog({
     pt: 'Nada para classificar ainda',
   },
   boardEmptyBody: {
-    fr: 'Aucun score reçu pour cette saison. Un run compté, et ta ligne apparaît ici.',
-    en: 'No scores received for this season. One counted run and your row shows up here.',
-    es: 'No hay puntajes de esta temporada. Con una carrera contada, tu línea aparece aquí.',
-    de: 'Keine Punkte für diese Saison empfangen. Ein gewerteter Lauf, und deine Zeile erscheint hier.',
-    pt: 'Nenhuma pontuação recebida nesta temporada. Uma corrida contada e sua linha aparece aqui.',
+    fr: 'Personne n’a encore de score dans cette saison. Un run compté, et ta ligne apparaît ici.',
+    en: 'Nobody has a score in this season yet. One counted run and your row shows up here.',
+    es: 'Nadie tiene aún puntaje en esta temporada. Con una carrera contada, tu línea aparece aquí.',
+    de: 'Noch niemand hat Punkte in dieser Saison. Ein gewerteter Lauf, und deine Zeile erscheint hier.',
+    pt: 'Ninguém ainda tem pontuação nesta temporada. Uma corrida contada e sua linha aparece aqui.',
+  },
+  /** Connecté, mais aucune ville rattachée (`users.city_id` NULL) : il n'existe
+   *  aucune saison qui soit LA SIENNE. On le DIT — montrer le classement d'une
+   *  autre ville serait un mensonge, même avec des lignes réelles. */
+  boardCityUnknownTitle: {
+    fr: 'Ta ville n’est pas encore rattachée',
+    en: 'Your city isn’t linked yet',
+    es: 'Tu ciudad aún no está vinculada',
+    de: 'Deine Stadt ist noch nicht zugeordnet',
+    pt: 'Sua cidade ainda não está vinculada',
+  },
+  boardCityUnknownBody: {
+    fr: 'Un classement appartient à une ville. La tienne se rattache toute seule au premier run compté — on ne te montrera pas celui d’une autre.',
+    en: 'A leaderboard belongs to a city. Yours gets linked on your first counted run — we won’t show you someone else’s.',
+    es: 'Una clasificación pertenece a una ciudad. La tuya se vincula sola en tu primera carrera contada — no te mostraremos la de otra.',
+    de: 'Eine Rangliste gehört zu einer Stadt. Deine wird beim ersten gewerteten Lauf zugeordnet — die einer anderen zeigen wir dir nicht.',
+    pt: 'Um ranking pertence a uma cidade. A sua é vinculada na primeira corrida contada — não mostraremos o de outra.',
+  },
+  /** La lecture a ÉCHOUÉ. Un échec n'est pas un vide : on ne laisse pas croire
+   *  que la saison est déserte parce que le réseau a lâché. */
+  boardUnavailableTitle: {
+    fr: 'Classement non chargé',
+    en: 'Leaderboard not loaded',
+    es: 'Clasificación no cargada',
+    de: 'Rangliste nicht geladen',
+    pt: 'Ranking não carregado',
+  },
+  boardUnavailableBody: {
+    fr: 'La lecture a échoué. Ce n’est pas un classement vide : on ne sait pas encore ce qu’il contient. Reviens quand la connexion est stable.',
+    en: 'The read failed. This is not an empty leaderboard: we don’t know yet what’s in it. Come back on a stable connection.',
+    es: 'La lectura falló. No es una clasificación vacía: aún no sabemos qué contiene. Vuelve con una conexión estable.',
+    de: 'Das Laden ist fehlgeschlagen. Das ist keine leere Rangliste: Wir wissen noch nicht, was drinsteht. Komm mit stabiler Verbindung zurück.',
+    pt: 'A leitura falhou. Não é um ranking vazio: ainda não sabemos o que há nele. Volte com uma conexão estável.',
+  },
+  /** Nomme la ville du classement affiché — le nom vient de `city_zones`, lu en
+   *  base. Sans lui, un podium ne dit pas de QUI il est le classement. */
+  boardCityCaption: {
+    fr: 'Classement de {ville}',
+    en: '{ville} leaderboard',
+    es: 'Clasificación de {ville}',
+    de: 'Rangliste von {ville}',
+    pt: 'Ranking de {ville}',
   },
   boardEmptyCta: {
     fr: 'Trouver une route',

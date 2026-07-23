@@ -1,7 +1,7 @@
 /**
  * GRYD — classement Joueurs de la saison active (O1 Pass A « lecture », 11/07/2026).
  *
- * Lecture SEULE du board « Joueurs·Paris » réel depuis Supabase quand une session
+ * Lecture SEULE du board « Joueurs » de MA ville depuis Supabase quand une session
  * existe. Même pattern que features/social/economy.ts : session → remote, et
  * AUCUNE ligne inventée quand la lecture ne donne rien.
  *
@@ -11,7 +11,28 @@
  * saison `status='active'` de la ville du joueur, triée par points desc. Le client
  * n'écrit jamais un score (season_scores = service_role via season_close/ingest).
  *
- * Périmètre : SEUL le board Joueurs·Paris est câblé au serveur. Joueurs·France /
+ * ─── LE CLASSEMENT D'UNE AUTRE VILLE (23/07/2026) ────────────────────────────
+ * AVANT : on rapatriait TOUTES les saisons actives (`eq('status','active')`,
+ * sans `order` ni `limit`) puis, si `users.city_id` était NULL, on retombait sur
+ * `active[0]` — la première ligne que Postgres voulait bien rendre. Les lignes
+ * affichées étaient RÉELLES, mais c'était le classement de la ville de quelqu'un
+ * d'autre, présenté comme celui du joueur, sous un gabarit qui ne nomme aucune
+ * ville. Un mensonge d'autant plus grand que la voie d'ouverture de villes
+ * (migration 0066) crée UNE saison active PAR ville ouverte : la requête non
+ * bornée grossissait avec le monde.
+ *
+ * MAINTENANT : la saison est ciblée EN UNE REQUÊTE bornée (`eq('city_id', …)`,
+ * `order('starts_at')`, `limit(1)`), et il n'y a PLUS de repli. Ville inconnue =
+ * état DISTINCT et dit (`status: 'city_unknown'`), jamais le classement d'une
+ * autre ville. Le nom de la ville est LU dans `city_zones` et remonté pour que
+ * l'écran puisse nommer ce qu'il montre.
+ *
+ * QUATRE ÉTATS DISTINCTS, jamais confondus (CLAUDE.md) : `loading` (lecture en
+ * cours — n'affirme rien), `signed_out`, `unavailable` (la lecture a ÉCHOUÉ),
+ * `empty` (la lecture a RÉUSSI et il n'y a personne). `city_unknown` s'ajoute :
+ * c'est ni un vide ni une panne, c'est une ville pas encore rattachée.
+ *
+ * Périmètre : SEUL le board Joueurs (ville du joueur) est câblé au serveur. Joueurs·France /
  * Crews / Ville n'ont aucune source réelle au MVP — c'est à l'écran Saison de
  * dire ce qui n'est pas encore mesuré, pas à ce hook d'inventer des lignes. Le rang est dérivé de l'ordre
  * (index+1) — robuste que `rank_cache` soit calculé ou non.
@@ -42,11 +63,39 @@ const JOUEURS_BOARD_TEMPLATE: LeagueBoard =
 
 export type LeagueSource = 'local' | 'server';
 
+/**
+ * État du board Joueurs — un seul à la fois, jamais confondus.
+ *  · `loading`      la lecture est EN COURS : n'affirme rien sur le joueur ;
+ *  · `signed_out`   aucune session : il n'y a pas de « ma ville », donc pas de saison ;
+ *  · `city_unknown` connecté, mais `users.city_id` est NULL : aucune saison ne
+ *                   peut être ciblée. On ne montre PAS celle d'une autre ville ;
+ *  · `unavailable`  la lecture a ÉCHOUÉ (réseau, RLS, vue absente) — on ne
+ *                   déguise pas une panne en « personne n'a couru » ;
+ *  · `empty`        la lecture a RÉUSSI et il n'y a aucune ligne : c'est vrai ;
+ *  · `ready`        des lignes réelles, celles de la ville du joueur.
+ */
+export type LeagueBoardStatus =
+  | 'loading'
+  | 'signed_out'
+  | 'city_unknown'
+  | 'unavailable'
+  | 'empty'
+  | 'ready';
+
 export interface SeasonLeaderboard {
-  /** Board Joueurs·Paris : lignes réelles (saison active) si session, sinon vide. */
+  /** Board Joueurs de MA ville : lignes réelles (saison active), sinon vide. */
   joueursBoard: LeagueBoard;
   source: LeagueSource;
   loading: boolean;
+  /** L'état exact de la lecture — l'écran ne devine jamais la cause d'un vide. */
+  status: LeagueBoardStatus;
+  /**
+   * Nom de la ville dont ce classement est celui, LU dans `city_zones`. `null`
+   * quand il n'y a pas de ville rattachée, ou que la base n'a pas rendu de nom —
+   * jamais un libellé deviné (« Paris » par défaut serait exactement la faute
+   * que ce fichier vient de corriger).
+   */
+  cityName: string | null;
 }
 
 function asInt(value: unknown): number {
@@ -54,32 +103,61 @@ function asInt(value: unknown): number {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
 }
 
-type ActiveSeasonRow = { id?: unknown; city_id?: unknown };
 type BoardRow = { user_id?: unknown; pseudo?: unknown; points?: unknown };
 
+/** Résultat de lecture — porte l'état ET ce qui a été lu, jamais l'un sans l'autre. */
+type RemoteBoard =
+  | { status: 'city_unknown' }
+  | { status: 'unavailable' }
+  | { status: 'empty'; cityName: string | null }
+  | { status: 'ready'; cityName: string | null; rows: LeagueRow[] };
+
+function asName(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
 /**
- * Lignes réelles du board Joueurs de la saison active du joueur, ou null.
- * null = pas de session configurée, erreur, aucune saison active, ou classement
- * encore vide.
+ * Board Joueurs de la saison active de MA ville. Trois requêtes bornées, aucune
+ * non filtrée : `users` (ma ligne), puis `seasons` + `city_zones` de MA ville en
+ * parallèle, puis la vue du classement.
+ *
+ * Ne lève JAMAIS : chaque échec devient l'état `unavailable`, distinct du vide.
  */
-async function fetchRemoteJoueurs(userId: string): Promise<LeagueRow[] | null> {
-  if (!supabase) return null;
+async function fetchRemoteJoueurs(userId: string): Promise<RemoteBoard> {
+  if (!supabase) return { status: 'unavailable' };
 
-  const [seasonsResult, meResult] = await Promise.all([
-    supabase.from('seasons').select('id, city_id').eq('status', 'active'),
-    supabase.from('users').select('city_id').eq('id', userId).maybeSingle(),
+  const meResult = await supabase.from('users').select('city_id').eq('id', userId).maybeSingle();
+  if (meResult.error) return { status: 'unavailable' };
+
+  const myCity = (meResult.data as { city_id?: unknown } | null)?.city_id;
+  // `users.city_id` est écrit par `ingest_run/ensureHomeCity` au premier run
+  // rattaché à une zone. Tant qu'il est NULL, aucune saison n'est LA sienne.
+  if (typeof myCity !== 'string' || myCity.length === 0) return { status: 'city_unknown' };
+
+  const [seasonResult, cityResult] = await Promise.all([
+    // BORNÉE : une seule ville, un seul statut, un ordre déterministe, une ligne.
+    // (L'index partiel `seasons_one_active_per_city` garantit déjà l'unicité —
+    // l'ordre et la limite rendent la requête stable même si l'index changeait.)
+    supabase
+      .from('seasons')
+      .select('id')
+      .eq('city_id', myCity)
+      .eq('status', 'active')
+      .order('starts_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // Le NOM affiché vient de la base, pas d'une table en dur côté client.
+    supabase.from('city_zones').select('name').eq('city_id', myCity).maybeSingle(),
   ]);
-  if (seasonsResult.error) throw seasonsResult.error;
-  if (meResult.error) throw meResult.error;
+  if (seasonResult.error) return { status: 'unavailable' };
 
-  const active = (seasonsResult.data ?? []) as ActiveSeasonRow[];
-  if (active.length === 0) return null;
+  // Un nom introuvable n'est pas une panne du classement : on classe quand même,
+  // sans nommer. (`cityResult.error` → `null`, jamais un nom inventé.)
+  const cityName = cityResult.error ? null : asName((cityResult.data as { name?: unknown } | null)?.name);
 
-  const myCity = (meResult.data as { city_id?: unknown } | null)?.city_id ?? null;
-  const chosen =
-    active.find((s) => s.city_id != null && s.city_id === myCity) ?? active[0]!;
-  const seasonId = chosen.id;
-  if (typeof seasonId !== 'string') return null;
+  const seasonId = (seasonResult.data as { id?: unknown } | null)?.id;
+  // Ville rattachée mais sans saison active : rien à classer, et c'est vrai.
+  if (typeof seasonId !== 'string') return { status: 'empty', cityName };
 
   const boardResult = await supabase
     .from('player_leaderboard')
@@ -87,17 +165,21 @@ async function fetchRemoteJoueurs(userId: string): Promise<LeagueRow[] | null> {
     .eq('season_id', seasonId)
     .order('points', { ascending: false })
     .limit(LEADERBOARD_LIMIT);
-  if (boardResult.error) throw boardResult.error;
+  if (boardResult.error) return { status: 'unavailable' };
 
   const rows = (boardResult.data ?? []) as BoardRow[];
-  if (rows.length === 0) return null;
+  if (rows.length === 0) return { status: 'empty', cityName };
 
-  return rows.map((r, i) => ({
-    rank: i + 1,
-    name: typeof r.pseudo === 'string' ? r.pseudo : '—',
-    value: asInt(r.points),
-    me: r.user_id === userId,
-  }));
+  return {
+    status: 'ready',
+    cityName,
+    rows: rows.map((r, i) => ({
+      rank: i + 1,
+      name: typeof r.pseudo === 'string' ? r.pseudo : '—',
+      value: asInt(r.points),
+      me: r.user_id === userId,
+    })),
+  };
 }
 
 /**
@@ -107,7 +189,7 @@ async function fetchRemoteJoueurs(userId: string): Promise<LeagueRow[] | null> {
  */
 export function useSeasonLeaderboard(): SeasonLeaderboard {
   const { session, configured, loading: sessionLoading } = useSession();
-  const [remote, setRemote] = useState<LeagueRow[] | null>(null);
+  const [remote, setRemote] = useState<RemoteBoard | null>(null);
   const [remoteLoading, setRemoteLoading] = useState(false);
 
   const userId = session?.user.id ?? null;
@@ -119,13 +201,19 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
       return;
     }
     let alive = true;
+    // On JETTE le résultat précédent avant de relire : sans ça, un changement de
+    // compte laisserait le board du compte sortant à l'écran le temps d'un
+    // aller-retour — une autre variante du classement de quelqu'un d'autre.
+    setRemote(null);
     setRemoteLoading(true);
     void fetchRemoteJoueurs(userId)
-      .then((rows) => {
-        if (alive) setRemote(rows);
+      .then((result) => {
+        if (alive) setRemote(result);
       })
       .catch(() => {
-        if (alive) setRemote(null);
+        // `fetchRemoteJoueurs` ne lève pas ; ce catch couvre l'imprévu (parse,
+        // client cassé) et le nomme pour ce qu'il est : la lecture a échoué.
+        if (alive) setRemote({ status: 'unavailable' });
       })
       .finally(() => {
         if (alive) setRemoteLoading(false);
@@ -137,10 +225,35 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
 
   return useMemo<SeasonLeaderboard>(() => {
     const loading = sessionLoading || remoteLoading;
-    if (!remote) {
-      // Aucune ligne inventée : le gabarit du board (titre/unité) sans ses lignes.
-      return { joueursBoard: { ...JOUEURS_BOARD_TEMPLATE, rows: [] }, source: 'local', loading };
+    const empty = { ...JOUEURS_BOARD_TEMPLATE, rows: [] as readonly LeagueRow[] };
+    // Un chargement n'affirme RIEN : il ne dit ni « vide », ni « pas de ville ».
+    if (loading) {
+      return { joueursBoard: empty, source: 'local', loading, status: 'loading', cityName: null };
     }
-    return { joueursBoard: { ...JOUEURS_BOARD_TEMPLATE, rows: remote }, source: 'server', loading };
-  }, [remote, sessionLoading, remoteLoading]);
+    if (!configured || !userId) {
+      return { joueursBoard: empty, source: 'local', loading, status: 'signed_out', cityName: null };
+    }
+    // Session posée, lecture terminée, mais rien n'est encore revenu de l'effet :
+    // on ne conclut pas — on reste en lecture (jamais un vide affirmé à tort).
+    if (!remote) {
+      return { joueursBoard: empty, source: 'local', loading: true, status: 'loading', cityName: null };
+    }
+    if (remote.status === 'ready') {
+      return {
+        joueursBoard: { ...JOUEURS_BOARD_TEMPLATE, rows: remote.rows },
+        source: 'server',
+        loading,
+        status: 'ready',
+        cityName: remote.cityName,
+      };
+    }
+    // Aucune ligne inventée : le gabarit du board (titre/unité) sans ses lignes.
+    return {
+      joueursBoard: empty,
+      source: 'local',
+      loading,
+      status: remote.status,
+      cityName: remote.status === 'empty' ? remote.cityName : null,
+    };
+  }, [remote, sessionLoading, remoteLoading, configured, userId]);
 }

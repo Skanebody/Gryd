@@ -41,6 +41,7 @@ import {
   VERIFY_PARTIAL_MIN,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
+import { type CityZoneRow, isCityIdShape, pickCityZone } from './city_zone.ts';
 import { ROUTE_ENDPOINT_MATCH_KM, VERIFIED_MIN_TRUST } from '../_shared/badges.ts';
 import type {
   BoundaryEnd,
@@ -197,11 +198,15 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
     ) &&
     (b.stepCount === undefined || typeof b.stepCount === 'number') &&
     (b.gpsTrust === undefined || (typeof b.gpsTrust === 'number' && Number.isFinite(b.gpsTrust))) &&
-    // cityId doit être une ville CONNUE (audit sécurité) : non validé, il permettait (a) de
-    // déclarer une ville arbitraire pour récupérer sa densité — donc majorer les points
-    // (« choix opportuniste de densité ») — et (b) de faire planter le handler en 500 sur
-    // l'accès non gardé CITIES[cityId].name. Inconnu → 400 invalid_payload.
-    (b.cityId === undefined || (typeof b.cityId === 'string' && b.cityId in CITIES)) &&
+    // cityId : ici on ne juge que la FORME. L'EXISTENCE se tranche contre
+    // `city_zones` (autorité serveur, plus bas dans le handler) et non plus
+    // contre `CITIES` — cet `in CITIES` était le plafond dur n°2 : il refusait en
+    // 400 toute ville hors de la liste de DÉMARRAGE, donc toutes celles que la
+    // demande fondateur vient d'ouvrir. Le risque que le test couvrait — déclarer
+    // une ville dense au hasard pour majorer ses points — est traité ailleurs, et
+    // mieux : la ville déclarée doit CONTENIR le départ GPS, sinon le serveur
+    // ré-arbitre (`resolveRunCity`). Une déclaration ne décide plus rien.
+    (b.cityId === undefined || isCityIdShape(b.cityId)) &&
     (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode)));
 }
 
@@ -209,6 +214,8 @@ interface UserProfile {
   created_at: string;
   streak_weeks: number;
   is_club: boolean;
+  /** Ville d'attache (blocage n°5). `null` tant qu'aucune course ne l'a posée. */
+  city_id: string | null;
 }
 
 /** Réponse minimale reconstruite depuis la ligne runs quand celebration manque
@@ -425,44 +432,161 @@ async function loadNoCaptureHexes(hexes: readonly string[]): Promise<ReadonlySet
   return result;
 }
 
+const CITY_ZONE_COLUMNS = 'city_id, name, status, geojson, min_lat, max_lat, min_lng, max_lng';
+
 /**
- * P0 C4 (MVP_CHANGESET) — ville DÉRIVÉE du 1er point GPS quand le client ne la
- * déclare pas. Constat d'audit : buildPayload (tracker.ts) n'émet JAMAIS cityId
- * → p_city_id NULL dans claim_hexes → v_season_id NULL → season_scores jamais
- * incrémenté → le classement LOCAL (objectif nommé du pilote) ne se peuplait
- * jamais. Point-in-polygon (moteur pur, déjà utilisé pour les privacy zones)
- * sur les contours RÉELS de city_zones actives (0033). Hors de toute zone →
- * undefined (capture France/Europe entière inchangée, densité 'wild').
+ * Zones dont la BOÎTE ENGLOBANTE contient le point (pré-filtre SQL, migration
+ * 0066). Le test exact reste le point-in-polygon du moteur pur, appliqué par
+ * `pickCityZone` sur les seules candidates.
+ *
+ * POURQUOI CE PRÉ-FILTRE EXISTE : la version précédente chargeait TOUTES les
+ * zones actives et faisait le point-in-polygon sur chacune. À deux villes c'est
+ * gratuit ; le jour où l'ouverture de villes marche, c'est un scan complet de
+ * `city_zones` — polygones compris — à chaque course. L'ouverture se serait
+ * payée en latence d'ingestion pour tout le monde.
+ *
+ * ⚠️ CE FILTRE NE FILTRE PLUS SUR `status`. C'était un bug latent, pas un
+ * détail : une ville fraîchement ouverte est `status = 'wild'` (la seule mesure
+ * vraie quand personne n'y court encore). Restreindre aux zones `'active'`
+ * aurait rendu tout rattachement impossible pour elles — donc `p_city_id` NULL
+ * dans `claim_hexes`, donc `season_scores` jamais incrémenté, donc le classement
+ * de la ville ouverte VIDE À JAMAIS. Le statut est une densité, pas un
+ * interrupteur d'existence.
  */
-async function deriveCityId(points: readonly RunPoint[]): Promise<string | undefined> {
-  const first = points[0];
-  if (!first) return undefined;
+async function loadCityZonesAt(lat: number, lng: number): Promise<readonly CityZoneRow[]> {
   const { data, error } = await supabase
     .from('city_zones')
-    .select('city_id, geojson')
-    .eq('status', 'active');
-  if (error || !data) {
-    if (error) console.error('[ingest_run] deriveCityId:', error.message);
-    return undefined; // fail-open : la course reste valide, densité 'wild'
+    .select(CITY_ZONE_COLUMNS)
+    .lte('min_lat', lat)
+    .gte('max_lat', lat)
+    .lte('min_lng', lng)
+    .gte('max_lng', lng);
+  if (!error && data) return data as unknown as CityZoneRow[];
+
+  // Repli : couvre la fenêtre de déploiement où cette fonction est en ligne
+  // avant la migration 0066 (colonnes de boîte absentes → erreur PostgREST
+  // 42703). Sans lui, le rattachement s'arrêterait net pour Paris et Lille — un
+  // silence, pas une panne visible.
+  //
+  // ⚠ IL EST BORNÉ AUX VILLES DE DÉMARRAGE, et ce n'est pas un compromis : AVANT
+  // 0066, `provision_city` n'existe pas, donc AUCUNE ville n'a pu être ouverte —
+  // les seules zones en base sont celles seedées par 0004/0033, c'est-à-dire
+  // exactement `CITIES`. Le repli couvre donc 100 % de la fenêtre qu'il vise,
+  // sans jamais redevenir le scan complet de `city_zones` (géométries comprises)
+  // que 0066 a fermé. Aucune borne numérique arbitraire n'est écrite ici : la
+  // liste vient de sa source unique, game-rules.
+  //
+  // Si le pré-filtre échoue APRÈS 0066 (réseau, index absent), ce repli ne voit
+  // pas les villes ouvertes : c'est DIT dans le journal plutôt que silencieux —
+  // la course reste valide, son rattachement peut manquer.
+  console.error('[ingest_run] bbox city_zones indisponible:', error?.message ?? 'no data');
+  const starterIds = Object.keys(CITIES);
+  const fallback = await supabase
+    .from('city_zones')
+    .select('city_id, name, status, geojson')
+    .in('city_id', starterIds)
+    .limit(starterIds.length);
+  if (fallback.error || !fallback.data) {
+    console.error('[ingest_run] city_zones:', fallback.error?.message ?? 'no data');
+    return []; // fail-open : la course reste valide, densité 'wild'
   }
-  for (const zone of data) {
-    if (pointInGeoJson(first.lat, first.lng, zone.geojson as GeoJsonPolygonal)) {
-      return zone.city_id as string;
-    }
-  }
-  return undefined;
+  console.error(
+    '[ingest_run] repli city_zones borné aux villes de démarrage — une ville ouverte via open_city ne sera PAS rattachée sur cet appel',
+  );
+  return (fallback.data as unknown as Omit<CityZoneRow, 'min_lat' | 'max_lat' | 'min_lng' | 'max_lng'>[])
+    .map((z) => ({ ...z, min_lat: lat, max_lat: lat, min_lng: lng, max_lng: lng }));
 }
 
-/** Densité globale de la course : city_zones.status si connue, sinon 'wild'. */
-async function loadDensity(cityId: string | undefined): Promise<'active' | 'emerging' | 'pioneer' | 'wild'> {
-  if (!cityId) return 'wild';
+/**
+ * BLOCAGE N°5 DE L'AUDIT — `users.city_id` n'était JAMAIS écrit par aucun chemin
+ * de code (le grant existe depuis 0003_rls.sql l.39-40, personne ne s'en
+ * servait). Conséquence en chaîne : `season_current()` sans argument résout la
+ * ville du joueur via `users.city_id` (0060) et rendait donc ZÉRO ligne pour
+ * tout le monde ; le board Joueurs se rabattait sur `active[0]`
+ * (features/social/leagueBoard.ts:78-80) — arbitraire à 2 villes, MENSONGE
+ * AFFICHÉ dès qu'il y en a 30.
+ *
+ * POURQUOI ICI, ET PAS AILLEURS. C'est le point d'écriture le plus SÛR du repo :
+ *  · la valeur n'est pas déclarée, elle est DÉRIVÉE d'un fait — un vrai GPS,
+ *    tranché serveur par point-in-polygon. On n'enregistre pas une intention
+ *    (« je dirai que j'habite Paris »), on enregistre où le joueur a couru ;
+ *  · elle passe par le service-role : aucune écriture client n'est ouverte ;
+ *  · elle ne peut pas mentir sur une ville qui n'existe pas : `cityId` sort de
+ *    `city_zones`, la FK `users.city_id → city_zones` est donc satisfaite par
+ *    construction.
+ *
+ * DEUX GARDES, délibérées :
+ *  1. `.is('city_id', null)` — on ne RÉÉCRIT JAMAIS une ville déjà posée. Un
+ *     joueur qui a choisi sa ville (création de crew, profil) reste chez lui
+ *     même s'il court en déplacement. Sa ville d'attache n'est pas déduite de sa
+ *     dernière sortie.
+ *  2. best-effort — un échec est journalisé et n'invalide RIEN. La course est
+ *     déjà écrite et créditée ; la faire échouer pour une préférence
+ *     d'affichage serait exactement le blocage n°1 en miroir.
+ */
+async function ensureHomeCity(userId: string, cityId: string | undefined): Promise<void> {
+  if (!cityId) return;
+  const { error } = await supabase
+    .from('users')
+    .update({ city_id: cityId })
+    .eq('id', userId)
+    .is('city_id', null);
+  if (error) console.error('[ingest_run] ensureHomeCity:', error.message);
+}
+
+/** Ligne `city_zones` d'un id donné, ou `undefined` si la ville n'existe pas. */
+async function loadCityZoneById(cityId: string): Promise<CityZoneRow | undefined> {
   const { data, error } = await supabase
     .from('city_zones')
-    .select('status')
+    .select(CITY_ZONE_COLUMNS)
     .eq('city_id', cityId)
     .maybeSingle();
-  if (error || !data) return 'wild';
-  return ZONE_DENSITIES.has(data.status) ? data.status : 'wild';
+  if (error) {
+    console.error('[ingest_run] loadCityZoneById:', error.message);
+    return undefined;
+  }
+  return (data as unknown as CityZoneRow | null) ?? undefined;
+}
+
+/** Densité d'une zone : son `status` s'il est connu du jeu, sinon 'wild'. */
+function zoneDensity(zone: CityZoneRow | undefined): ZoneDensity {
+  if (!zone || !ZONE_DENSITIES.has(zone.status)) return 'wild';
+  return zone.status as ZoneDensity;
+}
+
+/**
+ * Ville de rattachement de la course — DÉCIDÉE SERVEUR (§ « tout claim est
+ * décidé serveur »), en une lecture, pour tous les usages aval (densité,
+ * `runs.city_id`, `claim_hexes` → `season_scores`, nom de frontière).
+ *
+ * P0 C4 (MVP_CHANGESET) : le client n'émet JAMAIS `cityId` (buildPayload,
+ * tracker.ts) — sans dérivation, `p_city_id` restait NULL et le classement local
+ * ne se peuplait jamais. La dérivation reste donc le chemin normal.
+ *
+ * QUAND LE CLIENT DÉCLARE QUAND MÊME UNE VILLE : elle doit CONTENIR le départ.
+ * L'ancienne garde (`cityId in CITIES`) prétendait empêcher le « choix
+ * opportuniste de densité » ; elle ne l'empêchait pas (Paris et Lille sont
+ * toutes deux `active`), elle ne faisait que plafonner le monde à deux villes.
+ * Ici la déclaration est CONFRONTÉE au GPS : si elle ne tient pas, le serveur
+ * garde la ville dérivée. Une déclaration ne peut donc rien majorer.
+ *
+ * Aucun rattachement est une réponse valide : la capture n'est bornée par
+ * aucune ville (AMENDEMENT-02 §2). Hors zone, la course reste pleinement
+ * valide, densité 'wild'.
+ */
+async function resolveRunCity(
+  declared: string | undefined,
+  points: readonly RunPoint[],
+): Promise<CityZoneRow | undefined> {
+  const first = points[0];
+  if (!first) return declared ? await loadCityZoneById(declared) : undefined;
+  const zones = await loadCityZonesAt(first.lat, first.lng);
+  const derived = pickCityZone(first.lat, first.lng, zones);
+  if (declared === undefined) return derived;
+  // La déclaration n'est honorée que si elle passe le MÊME test exact que la
+  // dérivation (boîte + point-in-polygon), pas seulement la boîte englobante.
+  const honored = pickCityZone(first.lat, first.lng, zones.filter((z) => z.city_id === declared));
+  return honored ?? derived;
 }
 
 /** Hexes déjà pris/défendus aujourd'hui (UTC) — approximation MVP du plafond §6.4
@@ -2245,7 +2369,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }),
       supabase
         .from('users')
-        .select('created_at, streak_weeks, is_club')
+        // `city_id` est lu ICI (et non par une requête dédiée) pour que
+        // `ensureHomeCity` ne coûte un aller-retour QUE la première fois — une
+        // fois la ville d'attache posée, la lecture suffit à s'en abstenir.
+        .select('created_at, streak_weeks, is_club, city_id')
         .eq('id', userId)
         .single<UserProfile>(),
       supabase
@@ -2277,12 +2404,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const now = new Date();
 
-    // P0 C4 — le client ne déclare jamais cityId (buildPayload) : on le dérive du
-    // 1er fix, UNE fois, ici — tous les usages aval (densité, insert runs.city_id,
-    // claim_hexes→season_scores, contested) lisent request.cityId et en héritent.
-    if (request.cityId === undefined) {
-      request.cityId = (await deriveCityId(request.points)) as typeof request.cityId;
+    // ── Ville de rattachement : UNE résolution serveur, ici, pour tout l'aval ──
+    // (densité, insert runs.city_id, claim_hexes→season_scores, contested, nom de
+    // frontière) — tous lisent `request.cityId` / `cityZone` et en héritent.
+    //
+    // Un `cityId` DÉCLARÉ mais inconnu de `city_zones` est refusé NOMMÉMENT :
+    // c'est une ville qui n'a pas été ouverte (voie serveur `open_city` +
+    // migration 0066). Le silence serait pire que le refus — le coureur croirait
+    // courir pour une ville qui ne compte rien.
+    if (request.cityId !== undefined) {
+      const declaredZone = await loadCityZoneById(request.cityId);
+      if (!declaredZone) return json({ error: 'unknown_city' }, 400);
     }
+    const cityZone = await resolveRunCity(request.cityId, request.points);
+    request.cityId = cityZone?.city_id;
 
     // ── Stats §3.2 (pur) — calculées AVANT la dédup pour que la branche
     //    métrique de dedupeActivity (durée±10 % & distance±10 %) puisse jouer :
@@ -2295,6 +2430,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const distanceM = Math.round(stats.distanceM);
     const durationS = Math.round(stats.durationS);
     const avgPaceSKm = Math.round(stats.avgPaceSKm);
+
+    // ── Ville d'attache (blocage n°5) ─────────────────────────────────────────
+    // Posée ICI, une seule fois, avant que le handler ne se ramifie (conquête /
+    // sans claim / doublon) : toutes les branches en héritent. Une course
+    // REFUSÉE (`rejected`) ou SUSPECTE (`flagged`, GRYD Verify) ne pose rien —
+    // on ne domicilie personne sur un fait de jeu qu'on vient d'invalider ou
+    // qu'on n'a pas su créditer.
+    if (profile.city_id === null && validation.kind === 'claimable') {
+      await ensureHomeCity(userId, request.cityId);
+    }
 
     // ── polyline_hash + déduplication Activity Hub (§4) ──────────────────────
     // Le hash sert de clé de dédup forte ET est persisté sur la course. La dédup
@@ -2502,18 +2647,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ownersCreatedAt,
         privacyHexes,
         noCaptureHexes,
-        loadedDensity,
         claimsToday,
       ] = await Promise.all([
         loadCrew(userId),
         loadOwnersCreatedAt(states, userId),
         loadPrivacyHexes(userId, allHexes),
         loadNoCaptureHexes(allHexes),
-        loadDensity(request.cityId),
         loadClaimsToday(userId, now),
       ]);
       crew = loadedCrew;
-      density = loadedDensity;
+      // La densité n'est plus une lecture séparée : `resolveRunCity` a déjà lu la
+      // ligne `city_zones` (statut compris) pour trancher le rattachement — la
+      // relire ici était un aller-retour pour la même donnée.
+      density = zoneDensity(cityZone);
 
       // AMENDEMENT-23 §D / doc §23 : coeff_contexte par hex (contested/crew_mission),
       // décidé SERVEUR depuis l'état pré-run + les offensives crew actives. Sans ce
@@ -2966,7 +3112,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
           // Nom de la frontière : ville déclarée (secteur) ou défaut sobre.
           // MVP : le vrai secteur (« République ») viendra d'un géocodage V1 ;
           // ici on rattache à la ville déclarée pour un libellé lisible.
-          const boundaryName = request.cityId ? CITIES[request.cityId].name : 'Secteur';
+          //
+          // ⚠️ BLOCAGE N°1 DE L'AUDIT, fermé à la source. `CITIES[request.cityId]`
+          // était un accès NON gardé sur un cityId venu de la BASE et non de
+          // `CITIES` : dès qu'une 3e ville existait, il levait un TypeError avalé
+          // par le catch global → 500 sur une course pourtant ÉCRITE. Le coureur
+          // voyait un échec après avoir capturé.
+          // Le nom vient maintenant de la LIGNE `city_zones` déjà lue (donc de la
+          // même source que le rattachement lui-même), et non d'une table compilée
+          // dans le binaire. Hors zone, aucun nom n'est inventé : « Secteur ».
+          const boundaryName = cityZone?.name ?? 'Secteur';
           openBoundaryPayload = await openBoundary(boundaryCtx, open, loopTrace, boundaryName) ??
             undefined;
         }

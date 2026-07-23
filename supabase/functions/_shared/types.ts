@@ -69,6 +69,33 @@ export interface RunPoint {
   acc?: number;
 }
 
+/**
+ * Une ville du RÉFÉRENTIEL EUROPÉEN (GeoNames, licence CC BY 4.0 — données
+ * générées dans `cities-eu.ts` par scripts/generate-eu-cities.mjs).
+ *
+ * ⚠️ DONNÉE GÉOGRAPHIQUE, PAS DE LA DONNÉE DE JEU. Cet objet dit qu'une ville
+ * existe et où elle est. Il ne porte NI classement, NI territoire, NI rival, NI
+ * densité, NI activité — personne ne les a produits, et les inventer est
+ * exactement la faute pour laquelle AMENDEMENT-35 §6 a été rétracté. Une ville
+ * ouverte et vide se DIT vide.
+ *
+ * `population` est une statistique de la source, utilisée UNIQUEMENT pour
+ * ordonner les résultats de recherche (les grandes villes d'abord). Ce n'est en
+ * aucun cas un nombre de joueurs, et elle ne doit jamais être rendue comme tel.
+ */
+export interface EuCity {
+  /** `geonameid` en chaîne — identifiant STABLE, sert de `city_zones.city_id`. */
+  id: string;
+  /** Nom local tel que publié par GeoNames (accents et diacritiques compris). */
+  name: string;
+  /** Code pays ISO 3166-1 alpha-2 — affiché pour départager les 71 homonymes européens. */
+  country: string;
+  lat: number;
+  lng: number;
+  /** Population selon la source. Ordonne la recherche ; JAMAIS un compte de joueurs. */
+  population: number;
+}
+
 /** Requête d'ingestion — idempotente par (user, clientRunId). */
 export interface IngestRunRequest {
   /** UUID généré côté client AVANT la course : clé d'idempotence (retry offline safe). */

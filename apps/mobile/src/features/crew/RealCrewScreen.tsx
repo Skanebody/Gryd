@@ -67,9 +67,10 @@ import {
   normalizeCrewCode,
   randomCrewColor,
   useRealCrew,
-  type CityOption,
   type CrewRefusal,
 } from './real';
+import { CityField, type CityEntry } from '../city/CityPicker';
+import { C as CityC } from '../../i18n/catalog/city';
 import type { CrewMission } from './engine/crewMission';
 
 /**
@@ -237,14 +238,21 @@ export function RealCrewScreen() {
     joinByCode,
     leaveCrew,
     fetchMyCode,
-    listCities,
   } = useRealCrew({ withOverview: true });
 
   const [mode, setMode] = useState<Mode>('home');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const [cities, setCities] = useState<CityOption[]>([]);
-  const [cityId, setCityId] = useState<string | null>(null);
+  /**
+   * LA VILLE DU CREW — l'ENTRÉE complète, pas un simple identifiant.
+   *
+   * On garde `status` parce que c'est lui qui autorise la création : le serveur
+   * refuse une ville absente de `city_zones` (`bad_city`, 0050:466). Avec le
+   * seul identifiant, l'écran aurait peint un CTA chartreuse qui échoue —
+   * exactement le « bouton mort » interdit par CLAUDE.md.
+   */
+  const [city, setCity] = useState<CityEntry | null>(null);
+  const cityId = city?.status === 'open' ? city.cityId : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ErrView | null>(null);
   const [flash, setFlash] = useState<ErrView | null>(null);
@@ -263,20 +271,16 @@ export function RealCrewScreen() {
     screen('crew_real');
   }, []);
 
-  // Charge les villes à l'entrée en création (choix seulement si >1 — §A).
-  useEffect(() => {
-    if (mode !== 'create') return;
-    let cancelled = false;
-    void (async () => {
-      const list = await listCities();
-      if (cancelled) return;
-      setCities(list);
-      setCityId((prev) => prev ?? list[0]?.cityId ?? null);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, listCities]);
+  /*
+   * PLUS DE PRÉ-CHARGEMENT DE LA LISTE DES VILLES ICI.
+   *
+   * L'ancienne version faisait un `select` SANS limite sur `city_zones` à
+   * l'entrée en création, PRÉ-SÉLECTIONNAIT `list[0]` (arbitraire dès qu'il y a
+   * plus d'une ville) et rendait UNE PILL PAR VILLE — tenable à 2 villes,
+   * illisible à 20 et impossible à 7 870. Le sélecteur partagé
+   * (`features/city/CityPicker`) fait la lecture, la borne et la recherche, et
+   * il ne présélectionne RIEN : la ville est une décision du joueur.
+   */
 
   const resetForms = useCallback(() => {
     setName('');
@@ -762,28 +766,17 @@ export function RealCrewScreen() {
             accessibilityLabel={t(C.rlNamePlaceholder)}
           />
 
-          {cities.length > 1 ? (
-            <>
-              <Text style={styles.fieldLabel}>{t(C.rlCityLabel)}</Text>
-              <View style={styles.cityRow}>
-                {cities.map((c) => {
-                  const selected = c.cityId === cityId;
-                  return (
-                    <Pressable
-                      key={c.cityId}
-                      onPress={() => setCityId(c.cityId)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      style={[styles.cityPill, selected && styles.cityPillOn]}
-                    >
-                      <Text style={[styles.cityPillText, selected && styles.cityPillTextOn]}>
-                        {c.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
+          {/* LE SÉLECTEUR PARTAGÉ. `openOnly` : seules les villes réellement
+              ouvertes sont choisissables ici, parce que ce sont les seules que
+              `create_crew` accepte. Les autres ne sont plus un cul-de-sac : le
+              sélecteur sait désormais les OUVRIR (Edge Function `open_city`), et
+              rend alors la ville avec le statut que le serveur vient de
+              confirmer — c'est ce qui débloque « choisir n'importe quelle ville ». */}
+          <CityField selectedId={cityId} onSelect={setCity} openOnly />
+          {/* Le refus est DIT avant le tap, pas après : le CTA est désactivé et
+              l'écran explique ce qui manque. */}
+          {!cityId ? (
+            <Text style={styles.cityNote}>{t(CityC.crewNeedsOpenCity)}</Text>
           ) : null}
 
           {error ? <Text style={styles.error}>{t(error.entry, error.vars)}</Text> : null}
@@ -998,18 +991,8 @@ const styles = StyleSheet.create({
   },
   codeInput: { letterSpacing: 6, textAlign: 'center', fontSize: fontSizes.lg },
   fieldLabel: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 1 },
-  cityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  cityPill: {
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: elevation.raised,
-  },
-  cityPillOn: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14 },
-  cityPillText: { color: colors.blanc, fontSize: fontSizes.sm },
-  cityPillTextOn: { color: colors.blanc, fontWeight: '600' },
+  /** Note de refus sous le sélecteur : gris, jamais tronquée. */
+  cityNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18 },
 
   error: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20 },
   flash: { color: colors.chartreuse, fontSize: fontSizes.sm, marginTop: spacing.lg },

@@ -61,6 +61,7 @@ import { SectionLabel } from '../../src/features/privacy/ui';
 import { useRealCrew } from '../../src/features/crew/real';
 import { SeasonStatus } from '../../src/features/season/SeasonStatus';
 import { useMyProfile } from '../../src/features/social/profileStore';
+import { C as CityC } from '../../src/i18n/catalog/city';
 import { C } from '../../src/i18n/catalog/reglages';
 import { t as tStatic, useT } from '../../src/i18n/store';
 import { flags } from '../../src/lib/flags';
@@ -614,6 +615,19 @@ export default function SettingsSectionScreen() {
               label={t(C.licences)}
               chevron
               onPress={() => router.push('/legal/licences')}
+            />
+            {/* CRÉDITS DE DONNÉES — obligation CC BY de GeoNames (référentiel de
+                7 870 villes) et Licence Ouverte des contours geo.api.gouv.fr
+                (0033). Distinct de « Licences », qui parle des bibliothèques
+                LOGICIELLES : citer React ne crédite pas GeoNames. Tant qu'aucun
+                écran ne portait cette mention, la condition d'usage de la donnée
+                n'était pas tenue. */}
+            <ListRow
+              icon="carte"
+              label={t(CityC.creditsRowLabel)}
+              sublabel={t(CityC.creditsRowHint)}
+              chevron
+              onPress={() => router.push('/credits-donnees')}
             />
             <Soon>{t(C.tagline)}</Soon>
           </Section>

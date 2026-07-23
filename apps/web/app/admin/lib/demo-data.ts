@@ -15,7 +15,7 @@ import {
   RUN_AVG_PACE_MAX_S_KM,
   RUN_AVG_PACE_MIN_S_KM,
   CITIES,
-  type CityId,
+  type StarterCityId,
 } from '@klaim/shared/game-rules';
 import type { RejectReason, RunSource, RunStatus } from '@klaim/shared/types';
 
@@ -54,7 +54,7 @@ export interface DemoPlayer {
   repeatedTraces: number; // traces quasi identiques répétées
   multiAccountSuspect: boolean;
   sanctions: DemoSanction[];
-  cityId: CityId;
+  cityId: StarterCityId;
 }
 
 export interface DemoAdminAction {
@@ -72,7 +72,7 @@ export interface DemoRun {
   userId: string;
   pseudo: string;
   source: RunSource;
-  cityId: CityId;
+  cityId: StarterCityId;
   startedAt: string;
   distanceM: number;
   durationS: number;
@@ -102,7 +102,7 @@ export interface DemoFrozenClaim {
   runId: string;
   userId: string;
   pseudo: string;
-  cityId: CityId;
+  cityId: StarterCityId;
   hexCount: number;
   potentialPoints: number;
   reason: string;
@@ -128,7 +128,7 @@ export interface AdminDemoData {
 
 // ─── Génération ──────────────────────────────────────────────────────────────
 
-const PSEUDOS: { pseudo: string; device: string; cityId: CityId }[] = [
+const PSEUDOS: { pseudo: string; device: string; cityId: StarterCityId }[] = [
   { pseudo: 'ClaraSprint75', device: 'iPhone 15 Pro', cityId: 'paris' },
   { pseudo: 'Maxime_LZ', device: 'Pixel 8', cityId: 'lille' },
   { pseudo: 'chloe.kmh', device: 'iPhone 14', cityId: 'paris' },
@@ -174,7 +174,7 @@ function isoAgo(anchorMs: number, ms: number): string {
 /** Marche aléatoire lissée autour du centre-ville (pour la mini-carte). */
 function makeTrace(
   rng: () => number,
-  cityId: CityId,
+  cityId: StarterCityId,
   distanceM: number,
 ): { lat: number; lng: number }[] {
   const center = CITIES[cityId].center;

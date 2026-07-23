@@ -274,8 +274,19 @@ function LeagueScreen() {
     screen('classement');
   }, []);
 
-  // Board Joueurs·Paris réel (saison active) si session, sinon démo (`source`).
-  const { joueursBoard, source, loading: boardLoading } = useSeasonLeaderboard();
+  /**
+   * Board Joueurs de MA ville (saison active) — jamais celui d'une autre ville.
+   * `boardStatus` porte l'état EXACT de la lecture (chargement / pas de compte /
+   * ville non rattachée / échec / vide / prêt) : l'écran n'a plus à deviner la
+   * cause d'un vide, et un échec ne se déguise plus en « personne n'a couru ».
+   */
+  const {
+    joueursBoard,
+    source,
+    loading: boardLoading,
+    status: boardStatus,
+    cityName: boardCityName,
+  } = useSeasonLeaderboard();
   const { session, configured } = useSession();
   const signedIn = configured && session !== null;
 
@@ -457,6 +468,16 @@ function LeagueScreen() {
 
         {showBoardRows ? (
           <>
+            {/* NOMME la ville du classement (nom LU dans `city_zones`). Sans elle,
+                un podium ne dit pas de QUI il est le classement — c'était le trou
+                qui rendait le repli « première saison venue » invisible. Absente
+                de la base = pas de légende, jamais un nom deviné. */}
+            {boardCityName ? (
+              <Text style={styles.boardCaption}>
+                {t(C.boardCityCaption, { ville: boardCityName })}
+              </Text>
+            ) : null}
+
             {/* PODIUM top 3 — remonté à chaque changement de board (key). Reçoit les
                 lignes FILTRÉES (`rows`) : en mode discret je n'apparais pas non plus
                 sur le podium (§10.3) — le podium gère déjà un rang manquant (case vide). */}
@@ -502,11 +523,26 @@ function LeagueScreen() {
               ? { cta: { label: t(C.boardSignIn), onPress: () => router.push('/sign-in') } }
               : {})}
           />
+        ) : boardStatus === 'city_unknown' ? (
+          /* Connecté, mais `users.city_id` est NULL : aucune saison n'est LA
+             sienne. On le dit — servir le classement d'une autre ville (l'ancien
+             repli `active[0]`) était un mensonge, même avec des lignes réelles.
+             La ville se rattache seule au premier run compté (ingest_run). */
+          <BoardEmpty
+            title={t(C.boardCityUnknownTitle)}
+            body={t(C.boardCityUnknownBody)}
+            cta={{ label: t(C.boardEmptyCta), onPress: () => router.push('/route-planner') }}
+          />
+        ) : boardStatus === 'unavailable' ? (
+          /* La lecture a ÉCHOUÉ. État DISTINCT du vide : un réseau qui lâche ne
+             prouve pas que la saison est déserte, et l'écrire serait mentir. */
+          <BoardEmpty
+            title={t(C.boardUnavailableTitle)}
+            body={t(C.boardUnavailableBody)}
+          />
         ) : (
-          /* Connecté, lecture terminée, rien reçu. La lecture ne distingue pas
-             « classement encore vide » d'un échec réseau : on énonce donc le
-             FAIT observable (« aucun score reçu ») plutôt qu'une cause devinée,
-             et on propose le geste qui aide dans les deux cas. */
+          /* Lecture RÉUSSIE sur la saison de MA ville, et aucune ligne. C'est un
+             fait mesuré — l'échec a désormais son propre état juste au-dessus. */
           <BoardEmpty
             title={t(C.boardEmptyTitle)}
             body={t(C.boardEmptyBody)}
@@ -650,6 +686,15 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
     marginTop: spacing.sm,
+  },
+
+  /** Légende NOMMANT la ville du classement — une ligne, jamais tronquée (§A). */
+  boardCaption: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: spacing.md,
+    letterSpacing: 0.4,
   },
 
   // ── État vide d'un board : prend la place du podium, même rythme vertical ──

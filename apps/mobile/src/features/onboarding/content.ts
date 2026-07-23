@@ -342,3 +342,25 @@ export const NOTIFICATIONS = {
   cta: C.notifCta,
   skip: C.later,
 } as const;
+
+/**
+ * BUDGET DE CARACTÈRES DU CTA « Continuer avec {ville} » (écran VILLE).
+ *
+ * ─── POURQUOI CE PLAFOND EXISTE ────────────────────────────────────────────
+ * Le CTA de l'onboarding est une pill de hauteur FIXE (56 px) dont le libellé
+ * n'a pas de `numberOfLines` : au-delà d'une ligne, le texte passe à la ligne
+ * DANS une boîte qui ne grandit pas — il est rogné. Tant que la liste des villes
+ * se limitait à Paris et Lille, la question ne se posait pas. Depuis le
+ * 23/07/2026, l'écran propose 7 870 villes d'Europe, dont « Villeneuve-d'Ascq »,
+ * « Sankt Pölten » et « Alcalá de Henares ».
+ *
+ * La valeur est celle DÉJÀ mesurée par `copyFit.test.ts` pour ce CTA : 327 px
+ * utiles (375 − 2×24), libellé en 16 px gras, ~34 caractères par ligne, borné à
+ * 26 pour garder de l'air dans les 5 langues.
+ *
+ * ─── CE QUE FAIT L'ÉCRAN QUAND ÇA DÉPASSE ──────────────────────────────────
+ * Il n'abrège PAS la ville en « Villeneuve-d'A… » (§A : aucun texte d'action
+ * coupé). Il repasse au CTA neutre — la ville choisie reste nommée EN ENTIER
+ * juste au-dessus, dans le sélecteur. Une information déplacée, jamais tronquée.
+ */
+export const CITY_CTA_LABEL_MAX = 26;

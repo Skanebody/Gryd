@@ -32,6 +32,9 @@ import { C } from '../src/i18n/catalog/profil';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
+import { CityField } from '../src/features/city/CityPicker';
+import { cityEntryLabel } from '../src/features/city/catalog';
+import { C as CityC } from '../src/i18n/catalog/city';
 import { StackScreen } from '../src/ui/StackScreen';
 import { KeyboardSaveBar } from '../src/ui/KeyboardSaveBar';
 import { InlineRunCTA } from '../src/ui/game';
@@ -43,7 +46,6 @@ import { clearAvatarPhoto, pickAvatarPhoto } from '../src/features/social/avatar
 import {
   AVATAR_COLORS,
   BIO_MAX,
-  CITY_MAX,
   DISPLAY_NAME_MAX,
   FEATURED_BADGE_COUNT,
   TITLE_MAX,
@@ -140,7 +142,23 @@ export default function ProfilEditScreen() {
   const [displayName, setDisplayName] = useState(editable.displayName);
   const [handle, setHandle] = useState(editable.handle);
   const [title, setTitle] = useState(editable.title);
+  /**
+   * LA VILLE DU PROFIL — plus une saisie libre (23/07/2026).
+   *
+   * Le champ acceptait n'importe quel texte : « Pariss », une ville qui n'existe
+   * pas, une ville hors périmètre. C'était l'exact contraire de l'intention
+   * « il faut que la ville existe ». Il pointe désormais sur le MÊME sélecteur
+   * que la création de crew et l'onboarding — un seul sélecteur, une seule
+   * vérité sur ce qu'est une ville.
+   *
+   * Ce qui NE change pas, et que l'écran DIT : ce champ reste local et
+   * cosmétique. Il n'écrit pas `users.city_id`, il ne décide d'aucune capture,
+   * d'aucun classement, d'aucune saison. Le sélecteur y est donc SANS
+   * `openOnly` : on peut s'ancrer à une ville que GRYD n'a pas encore ouverte —
+   * c'est là qu'on habite, pas une promesse de jeu.
+   */
   const [city, setCity] = useState(editable.city);
+  const [cityId, setCityId] = useState(editable.cityId);
   const [bio, setBio] = useState(editable.bio);
   const [avatarColor, setAvatarColor] = useState(editable.avatarColor);
   const [avatarInitials, setAvatarInitials] = useState(editable.avatarInitials);
@@ -193,6 +211,7 @@ export default function ProfilEditScreen() {
       handle !== editable.handle ||
       title !== editable.title ||
       city !== editable.city ||
+      cityId !== editable.cityId ||
       bio !== editable.bio ||
       avatarColor !== editable.avatarColor ||
       avatarInitials !== editable.avatarInitials ||
@@ -204,6 +223,7 @@ export default function ProfilEditScreen() {
       handle,
       title,
       city,
+      cityId,
       bio,
       avatarColor,
       avatarInitials,
@@ -270,6 +290,7 @@ export default function ProfilEditScreen() {
     setHandle(editable.handle);
     setTitle(editable.title);
     setCity(editable.city);
+    setCityId(editable.cityId);
     setBio(editable.bio);
     setAvatarColor(editable.avatarColor);
     setAvatarInitials(editable.avatarInitials);
@@ -288,6 +309,7 @@ export default function ProfilEditScreen() {
       handle: handle.trim(),
       title: title.trim(),
       city: city.trim(),
+      cityId,
       bio: bio.trim(),
       avatarColor,
       avatarInitials: avatarInitials.trim(),
@@ -416,23 +438,23 @@ export default function ProfilEditScreen() {
 
         <View style={styles.divider} />
 
-        <Text style={styles.fieldLabel}>{t(C.fieldCity)}</Text>
-        <View style={styles.inputRow}>
-          <TextInput
-            value={city}
-            onChangeText={(v) => {
-              setCity(v.slice(0, CITY_MAX));
-              touched();
-            }}
-            placeholder={t(C.cityPlaceholder)}
-            placeholderTextColor={colors.gris}
-            style={styles.input}
-            maxLength={CITY_MAX}
-          />
-          <Text style={styles.counter}>
-            {city.length}/{CITY_MAX}
-          </Text>
-        </View>
+        {/* SÉLECTEUR PARTAGÉ — plus de compteur de caractères : on ne tape plus
+            une ville, on en choisit une qui existe. `onClear` parce que le champ
+            reste FACULTATIF : ne pas dire où l'on habite est un choix. */}
+        <CityField
+          selectedId={cityId.length > 0 ? cityId : null}
+          note={t(CityC.profileNote)}
+          onSelect={(entry) => {
+            setCityId(entry.cityId);
+            setCity(cityEntryLabel(entry));
+            touched();
+          }}
+          onClear={() => {
+            setCityId('');
+            setCity('');
+            touched();
+          }}
+        />
       </View>
 
       {/* ── BIO (optionnelle, anti-shame) ── */}

@@ -79,7 +79,7 @@
  * l'override AMENDEMENT-38 (« GO »), qui ne concerne QUE le bouton d'action
  * central de l'app, jamais l'onboarding.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -101,7 +101,13 @@ import { useSession } from '../../src/lib/session';
 import { Icon } from '../../src/ui/Icon';
 import { withAlpha } from '../../src/features/map/mapStyle';
 import { resolveLocation } from '../../src/features/map/locationState';
-import { useCityChoices, type CityChoice } from '../../src/features/social/cities';
+import { CitySearch, type CityEntry } from '../../src/features/city/CityPicker';
+import {
+  cityEntryLabel,
+  findCityEntry,
+  nearestCityEntry,
+} from '../../src/features/city/catalog';
+import { useCityCatalog } from '../../src/features/city/useCityCatalog';
 import { DISPLAY_NAME_MAX, saveProfile } from '../../src/features/social/profileStore';
 import { OnboardingAppleButton } from '../../src/features/onboarding/AppleButton';
 import {
@@ -109,12 +115,12 @@ import {
   useOnboardingState,
 } from '../../src/features/onboarding/store';
 import { LOCATION_CAPABLE, LOCATION_PROVIDER } from '../../src/features/onboarding/locate';
-import { cityAt, filterCities } from '../../src/features/onboarding/cityMatch';
 import {
   ACCOUNT,
   AGE,
   BRAND,
   CITY,
+  CITY_CTA_LABEL_MAX,
   MECHANIC,
   NAV,
   PROFILE,
@@ -156,17 +162,6 @@ const DEMO_HEIGHT_RATIO = 0.38;
 /** Rapport du plateau (viewBox 320×300 de `demoPhases`) : h = w × 0,9375. */
 const DEMO_ASPECT = 300 / 320;
 
-/**
- * Nombre de villes montrées d'emblée. Ce n'est pas un chiffre esthétique : il
- * est MESURÉ. Sur un 375×667 (le plus petit écran visé), l'écran ville tient à
- * ~620 px sur 647 utiles avec trois rangées — au-delà, le CTA sortirait de
- * l'écran, et il n'y a pas de ScrollView pour le rattraper.
- *
- * La Saison 0 compte DEUX villes ouvertes : rien n'est masqué aujourd'hui. Le
- * jour où l'Europe s'ouvre (AMENDEMENT-35), la recherche prend le relais et
- * `CITY.more` le DIT — on ne laisse pas croire que ces trois-là sont toutes.
- */
-const CITY_ROWS_MAX = 3;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Écran
@@ -260,10 +255,16 @@ export default function OnboardingScreen() {
     void update({ ageConfirmed: true });
   }, [step, update, go]);
 
-  /** La ville CHOISIE (jamais devinée, jamais préremplie par un repli). */
+  /**
+   * La ville CHOISIE (jamais devinée, jamais préremplie par un repli).
+   *
+   * On persiste le LIBELLÉ COMPLET, pays inclus (« Brest (FR) ») : sans lui,
+   * l'écran suivant afficherait « Brest » sans dire lequel des deux — et 71 noms
+   * de villes européennes sont ambigus.
+   */
   const chooseCity = useCallback(
-    (city: CityChoice) => {
-      void update({ cityId: city.cityId, cityName: city.name });
+    (city: CityEntry) => {
+      void update({ cityId: city.cityId, cityName: cityEntryLabel(city) });
     },
     [update],
   );
@@ -337,6 +338,7 @@ export default function OnboardingScreen() {
       {step === 'city' ? (
         <CityStep
           chosenId={onboarding.cityId}
+          chosenName={onboarding.cityName}
           onChoose={chooseCity}
           onNext={() => go('profile')}
           ageConfirmed={onboarding.ageConfirmed}
@@ -607,40 +609,76 @@ function AgeStep({ onConfirm }: { onConfirm: () => void }) {
 // RACCOURCI, secondaire, et il n'est même pas peint là où il ne peut rien
 // produire (web sans `navigator.geolocation`).
 //
-// AUCUNE VILLE N'EST INVENTÉE. La liste vient de `city_zones` quand une session
-// existe, sinon du repli `game-rules.CITIES` — qui EST la source du seed, pas
-// une donnée fabriquée. Une recherche sans résultat le DIT (« GRYD ouvre une
-// ville à la fois ») au lieu de proposer un ersatz, et une position hors de
-// toute ville ouverte le dit AUSSI : jamais de repli silencieux sur Paris, qui
-// serait très exactement le mensonge démonté par AMENDEMENT-47.
+// AUCUNE VILLE N'EST INVENTÉE — et depuis le 23/07/2026 elles sont TOUTES là.
+// L'écran ne propose plus les deux villes du seed : il consomme le SÉLECTEUR
+// PARTAGÉ (`features/city/CityPicker`), donc les 7 870 villes réelles d'Europe
+// du référentiel GeoNames, la même liste et la même recherche que la création de
+// crew et le profil. Trois sélecteurs différents, c'était trois vérités
+// différentes sur ce qu'est « ma ville ».
+//
+// Ce que l'écran continue de ne PAS faire : promettre qu'une ville est jouable.
+// Le sélecteur marque « Ouverte » ce que le serveur a confirmé ouvert, ne marque
+// RIEN tant qu'il n'a rien lu (ici, avant le compte, c'est le cas normal), et
+// une position hors de toute ville le dit — jamais de repli silencieux sur
+// Paris, très exactement le mensonge démonté par AMENDEMENT-47.
+//
+// Et il ne propose PAS d'ouvrir une ville ici, alors qu'il sait le faire
+// ailleurs : ouvrir est une écriture, le serveur exige un compte, et cet écran
+// vit AVANT le compte. Peindre le bouton quand même serait un bouton mort — la
+// décision se prend dans le sélecteur, qui lit sa capacité réelle et se tait
+// quand elle est absente.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CityStep({
   chosenId,
+  chosenName,
   onChoose,
   onNext,
   ageConfirmed,
   onConfirmAge,
 }: {
   chosenId: string | null;
-  onChoose: (city: CityChoice) => void;
+  /**
+   * Nom PERSISTÉ de la ville choisie. Il n'est pas redondant avec `chosenId` :
+   * une ville de démarrage (`paris`, `lille`) n'est retrouvable dans l'index
+   * qu'APRÈS une lecture de `city_zones` — impossible ici, l'écran ville vit
+   * avant le compte. Sans ce nom, un joueur revenant sur cet écran avec un
+   * `paris` déjà persisté verrait son CTA désactivé et resterait bloqué.
+   */
+  chosenName: string | null;
+  onChoose: (city: CityEntry) => void;
   onNext: () => void;
   /** L'âge a-t-il déjà été déclaré ? Gouverne le SEUL geste qui lit un capteur. */
   ageConfirmed: boolean;
   onConfirmAge: () => void;
 }) {
   const t = useT();
-  const { cities } = useCityChoices();
-  const [query, setQuery] = useState('');
+  const catalog = useCityCatalog();
   const [locBusy, setLocBusy] = useState(false);
   /** La question d'âge, posée seulement si l'on tente d'utiliser sa position. */
   const [askAge, setAskAge] = useState(false);
   /** Ce que la dernière tentative de position a produit — dit, jamais tu. */
   const [locNotice, setLocNotice] = useState<Entry | null>(null);
 
-  const matches = useMemo(() => filterCities(cities, query), [cities, query]);
-  const shown = matches.slice(0, CITY_ROWS_MAX);
-  const chosen = cities.find((c) => c.cityId === chosenId) ?? null;
+  const chosen = findCityEntry(catalog.index, chosenId);
+  /**
+   * Ce que le CTA affiche. L'index d'abord (le nom y est à jour) ; à défaut le
+   * nom persisté ; à défaut rien — et alors le CTA attend, parce qu'aucune ville
+   * n'a été choisie. On ne se sert JAMAIS de `chosenId` comme libellé : afficher
+   * « Continuer avec 2988507 » serait pire que de ne rien afficher.
+   */
+  const chosenLabel = chosen?.name ?? (chosenName && chosenName.length > 0 ? chosenName : null);
+
+  /**
+   * Le CTA NOMME la ville — tant que ça TIENT. « Continuer avec
+   * Villeneuve-d'Ascq » déborde la pill de hauteur fixe et se ferait rogner ;
+   * dans ce cas on repasse au libellé neutre, et la ville reste nommée en entier
+   * dans le sélecteur juste au-dessus (§A : rien n'est coupé, l'info est
+   * déplacée). Le plafond est mesuré, pas deviné — cf. CITY_CTA_LABEL_MAX.
+   */
+  const namedCta = chosenLabel ? t(CITY.ctaWithCity, { city: chosenLabel }) : null;
+  const ctaLabel =
+    namedCta && namedCta.length <= CITY_CTA_LABEL_MAX ? namedCta : t(CITY.cta);
 
   /**
    * LE RACCOURCI FACULTATIF. Il PRÉSÉLECTIONNE une ville que le joueur confirme
@@ -674,13 +712,16 @@ function CityStep({
       setLocNotice(outcome.state === 'denied' ? CITY.locationDenied : CITY.locationFailed);
       return;
     }
-    const match = cityAt(outcome.point, cities);
+    // `nearestCityEntry` interroge les villes OUVERTES d'abord : sans cette
+    // priorité, quelqu'un dans le 15ᵉ se verrait proposer « Paris 15 Vaugirard »
+    // (le référentiel GeoNames contient les arrondissements) au lieu de Paris.
+    const match = nearestCityEntry(catalog.index, outcome.point);
     if (!match) {
       setLocNotice(CITY.locationOutside);
       return;
     }
     onChoose(match);
-  }, [ageConfirmed, cities, locBusy, onChoose]);
+  }, [ageConfirmed, catalog.index, locBusy, onChoose]);
 
   // La question d'âge prend TOUT l'écran le temps d'être répondue : une question
   // légale ne se glisse pas en encart au milieu d'un choix de ville (§A1, une
@@ -703,59 +744,11 @@ function CityStep({
         <Text style={styles.title}>{t(CITY.title)}</Text>
         <Text style={styles.tagline}>{t(CITY.tagline)}</Text>
 
-        <TextInput
-          style={styles.input}
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t(CITY.searchPlaceholder)}
-          placeholderTextColor={colors.gris}
-          autoCorrect={false}
-          autoCapitalize="words"
-          // Le CTA vit en pied d'écran : clavier ouvert, il passe dessous. Il
-          // n'y a pas de ScrollView pour le remonter (§A) — la touche de retour
-          // referme donc le clavier, et elle DIT ce qu'elle fait.
-          returnKeyType="search"
-          accessibilityLabel={t(CITY.searchPlaceholder)}
-        />
-
-        <Text style={styles.listLabel}>{t(CITY.openList)}</Text>
-        {shown.length > 0 ? (
-          shown.map((city) => {
-            const selected = city.cityId === chosenId;
-            return (
-              <Pressable
-                key={city.cityId}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={city.name}
-                onPress={() => {
-                  haptics.light();
-                  setLocNotice(null);
-                  onChoose(city);
-                }}
-                style={({ pressed }) => [
-                  styles.cityRow,
-                  selected && styles.cityRowSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={[styles.cityName, selected && styles.cityNameSelected]}>
-                  {city.name}
-                </Text>
-              </Pressable>
-            );
-          })
-        ) : (
-          // Zéro résultat n'est pas un écran vide : c'est une réponse, et elle
-          // explique pourquoi (GRYD ouvre une ville à la fois).
-          <Text style={styles.note}>{t(CITY.noMatch)}</Text>
-        )}
-        {/* La liste est bornée par la hauteur d'écran : si elle cache des
-            villes, elle le dit. Sans cette ligne, « VILLES OUVERTES » laisserait
-            croire que ces trois-là sont toutes. */}
-        {matches.length > shown.length ? (
-          <Text style={styles.note}>{t(CITY.more)}</Text>
-        ) : null}
+        {/* LE SÉLECTEUR PARTAGÉ — même champ, même recherche, mêmes états que
+            la création de crew et le profil. Il porte lui-même son placeholder,
+            sa liste bornée, son « aucun résultat » et sa ligne d'état : les
+            réécrire ici, c'était la deuxième vérité qu'on vient de supprimer. */}
+        <CitySearch catalog={catalog} selectedId={chosenId} onSelect={onChoose} />
 
         {/* LE RACCOURCI — action SECONDAIRE (jamais le CTA chartreuse), et pas
             peint du tout là où aucun capteur ne peut répondre. */}
@@ -790,9 +783,9 @@ function CityStep({
         {/* Le CTA NOMME la ville dès qu'elle est choisie. Tant qu'aucune ne
             l'est, il attend la décision de l'écran — qui est juste au-dessus. */}
         <PrimaryCta
-          label={chosen ? t(CITY.ctaWithCity, { city: chosen.name }) : t(CITY.cta)}
+          label={ctaLabel}
           onPress={onNext}
-          disabled={!chosen}
+          disabled={!chosenLabel}
         />
       </View>
     </View>

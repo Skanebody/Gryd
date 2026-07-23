@@ -15,7 +15,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dest = join(root, 'supabase', 'functions', '_shared');
 mkdirSync(dest, { recursive: true });
 
-for (const f of ['badges.ts', 'game-rules.ts', 'types.ts', 'sectorName.ts']) {
+// `cities-eu.ts` est le RÉFÉRENTIEL de villes (généré par
+// scripts/generate-eu-cities.mjs) : aucun import, donc copie byte à byte comme
+// les autres. Le serveur en a besoin pour VALIDER une ville choisie — il ne peut
+// pas se fier au lat/lng envoyé par le client (« tout claim est décidé serveur »).
+// ⚠ MIROIR EXACT dans supabase/functions/ingest_run/drift_test.ts (FILES).
+for (const f of ['badges.ts', 'game-rules.ts', 'types.ts', 'sectorName.ts', 'cities-eu.ts']) {
   copyFileSync(join(root, 'packages', 'shared', 'src', f), join(dest, f));
   console.log(`sync: ${f} → supabase/functions/_shared/`);
 }
@@ -38,7 +43,10 @@ const transformSharedDataLine = (line) =>
 // série, hébergé dans `shared` (et non `engine`) pour que le mobile l'importe
 // sans tirer h3-js dans le bundle Metro — il n'importe que des constantes.
 // ⚠ MIROIR EXACT dans drift_test.ts (SHARED_DATA_FILES).
-const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts', 'season.ts'];
+// `cities.ts` (moteur PUR du référentiel : recherche + disque d'aire de jeu)
+// suit le même chemin — il importe des VALEURS de game-rules (rayon du disque,
+// plafond de recherche), donc ses imports doivent être .ts-ifiés.
+const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts', 'season.ts', 'cities.ts'];
 for (const f of SHARED_DATA_FILES) {
   const source = readFileSync(join(root, 'packages', 'shared', 'src', f), 'utf8');
   const out = source.split('\n').map(transformSharedDataLine).join('\n');

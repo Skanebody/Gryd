@@ -83,13 +83,19 @@ export function distanceKm(a: LatLngPoint, b: LatLngPoint): number {
  *    proche quand même » ;
  *  · à égalité, c'est la PREMIÈRE de la liste (ordre serveur, alphabétique) :
  *    le résultat ne dépend pas de l'ordre d'itération d'un Map.
+ *
+ * GÉNÉRIQUE (23/07/2026) : la fonction rend le TYPE qu'on lui a passé, pas un
+ * `LocatableCity` appauvri. C'est ce qui permet à `features/city/catalog.ts` de
+ * lui donner des `CityEntry` et de récupérer des `CityEntry` — donc de savoir si
+ * la ville reconnue est OUVERTE. Sans ça il aurait fallu une deuxième
+ * implémentation du plus-proche-dans-un-rayon, et deux rayons qui divergent.
  */
-export function cityAt(
+export function cityAt<T extends LocatableCity>(
   point: LatLngPoint,
-  cities: readonly LocatableCity[],
+  cities: readonly T[],
   radiusKm: number = CITY_MATCH_RADIUS_KM,
-): LocatableCity | null {
-  let best: LocatableCity | null = null;
+): T | null {
+  let best: T | null = null;
   let bestKm = Number.POSITIVE_INFINITY;
   for (const city of cities) {
     if (!city.center) continue;

@@ -6,7 +6,7 @@
  * l'état du monde fabriqué dépend de l'horloge, on évite tout mismatch SSR.
  */
 import { useEffect, useState } from 'react';
-import { CITIES, type CityId, type ZoneDensity } from '@klaim/shared/game-rules';
+import { CITIES, type StarterCityId, type ZoneDensity } from '@klaim/shared/game-rules';
 import type { RunSource } from '@klaim/shared/types';
 import {
   CHEAT_LABELS,
@@ -104,7 +104,7 @@ export function Simulator() {
           <select
             className={ui.select}
             value={params.city}
-            onChange={(e) => set('city', e.target.value as CityId)}
+            onChange={(e) => set('city', e.target.value as StarterCityId)}
           >
             {Object.values(CITIES).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>

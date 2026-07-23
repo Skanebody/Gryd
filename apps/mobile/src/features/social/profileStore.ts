@@ -51,8 +51,33 @@ export interface EditableProfile {
   handle: string;
   /** Titre éditorial affiché sous le nom (badge rare mis en avant, pas gameplay). */
   title: string;
-  /** Ville d'ancrage (affichage social). */
+  /**
+   * Ville d'ancrage — LIBELLÉ AFFICHÉ, pays inclus (« Brest (FR) »).
+   *
+   * Depuis le 23/07/2026 ce champ n'est plus une saisie libre : il est produit
+   * par le sélecteur partagé (`features/city/CityPicker`) à partir du
+   * référentiel des villes réelles d'Europe. Avant, on pouvait y taper
+   * « Pariss » — le fondateur demandait précisément « que la ville existe ».
+   */
   city: string;
+  /**
+   * Identifiant de la ville choisie (`paris`/`lille` ou geonameid), ou vide.
+   *
+   * Il existe pour que RÉOUVRIR le sélecteur repositionne le choix, et pour que
+   * la carte puisse cadrer sur cette ville. Il n'écrit RIEN côté serveur, et ce
+   * champ-ci est LOCAL : il ne décide d'aucune capture, d'aucun classement et
+   * d'aucune saison, et l'écran le dit.
+   *
+   * ⚠️ NE PAS LE CONFONDRE AVEC `users.city_id` (23/07/2026). Ce commentaire
+   * affirmait que `users.city_id` « n'est alimenté par aucun chemin de code » :
+   * c'est FAUX depuis que `ingest_run/ensureHomeCity` l'écrit, en service-role,
+   * à partir de la zone RÉELLEMENT courue (point-in-polygon serveur), et
+   * seulement quand la colonne est encore NULL. Autrement dit : la ville
+   * d'attache serveur se DÉDUIT d'un fait GPS, elle ne se DÉCLARE pas ici. Ce
+   * champ local n'y touche toujours pas — c'est délibéré, une préférence
+   * d'affichage n'a pas à décider d'un classement.
+   */
+  cityId: string;
   /** Bio courte (une ligne ou deux, anti-shame — jamais imposée). */
   bio: string;
   /** Couleur de l'avatar hexagonal (token charte, cf. AVATAR_COLORS). */
@@ -168,6 +193,7 @@ export function defaultEditable(): EditableProfile {
     handle: '',
     title: NEUTRAL_BASE.title,
     city: NEUTRAL_BASE.city,
+    cityId: '',
     bio: '',
     avatarColor: DEFAULT_AVATAR_COLOR,
     avatarInitials: '',

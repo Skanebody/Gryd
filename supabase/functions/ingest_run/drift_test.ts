@@ -9,7 +9,17 @@
  */
 import { assert, assertEquals } from 'jsr:@std/assert@^1';
 
-const FILES = ['badges.ts', 'game-rules.ts', 'types.ts'] as const;
+// ⚠ MIROIR EXACT de la boucle `copyFileSync` de scripts/sync-game-rules.mjs.
+// `sectorName.ts` y était copié sans être drift-testé (trou refermé ici) ;
+// `cities-eu.ts` est le référentiel de villes GeoNames (généré par
+// scripts/generate-eu-cities.mjs, licence CC BY 4.0).
+const FILES = [
+  'badges.ts',
+  'game-rules.ts',
+  'types.ts',
+  'sectorName.ts',
+  'cities-eu.ts',
+] as const;
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
@@ -43,7 +53,13 @@ const transformSharedDataLine = (line: string): string =>
 // `streak.ts` (LOT 1) suit le même chemin : moteur PUR de la série hébergé dans
 // `shared` pour rester importable par le mobile sans tirer h3-js.
 // ⚠ MIROIR EXACT de scripts/sync-game-rules.mjs (SHARED_DATA_FILES).
-const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts', 'season.ts'] as const;
+const SHARED_DATA_FILES = [
+  'bonuses.ts',
+  'streak.ts',
+  'habits.ts',
+  'season.ts',
+  'cities.ts',
+] as const;
 
 for (const f of SHARED_DATA_FILES) {
   Deno.test(`drift : _shared/${f} = transformation de packages/shared/src/${f}`, async () => {

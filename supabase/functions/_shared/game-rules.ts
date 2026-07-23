@@ -785,12 +785,147 @@ export const SECTOR_PRESSURE_MAX = 100;
 /** Choix D18 : XP = points territoire bruts de la course (1:1), boosts cosmétiques V1. */
 export const XP_RATE_OF_POINTS = 1;
 
-// ─── Villes seedées 'active' d'office pour la Saison 0 ──────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// VILLES — LISTE DE DÉMARRAGE (et non plus énumération fermée du monde)
+//
+// « Dans la création de crew on doit pouvoir choisir n'importe quelle ville. »
+// L'Europe entière est capturable (AMENDEMENT-35) : une ville ne peut donc plus
+// être un membre d'un enum figé dans le code. `CITIES` ne dit PLUS « voici les
+// villes qui existent » — elle dit « voici les villes DÉJÀ PROVISIONNÉES »,
+// c'est-à-dire celles qui ont une ligne `city_zones` avec un CONTOUR OFFICIEL
+// (migration 0033_real_city_zones.sql, contours geo.api.gouv.fr) et une saison.
+// La liste des villes CHOISISSABLES, elle, est le référentiel GeoNames
+// (packages/shared/src/cities-eu.ts) — 7 870 villes réelles d'Europe (compte
+// MESURÉ dans le fichier livré : `EU_CITIES_COUNT`, 53 pays).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Villes de DÉMARRAGE : seedées 'active' d'office pour la Saison 0, avec un
+ * contour RÉEL en base (0033). Leurs identifiants sont historiques et en toutes
+ * lettres (`paris`, `lille`) ; toute ville ouverte plus tard depuis le
+ * référentiel porte son `geonameid` comme identifiant.
+ *
+ * ⚠️ CE N'EST PAS LA LISTE DES VILLES EXISTANTES. Ne jamais l'utiliser pour
+ * refuser une ville, ni comme source d'un sélecteur de ville : ce serait
+ * réintroduire le plafond que la demande fondateur a fait tomber.
+ */
 export const CITIES = {
   paris: { id: 'paris', name: 'Paris', center: { lat: 48.8566, lng: 2.3522 } },
   lille: { id: 'lille', name: 'Métropole de Lille', center: { lat: 50.6292, lng: 3.0573 } },
 } as const;
-export type CityId = keyof typeof CITIES;
+
+/**
+ * Identifiant d'une ville = `city_zones.city_id`. **Volontairement `string`, et
+ * non plus `keyof typeof CITIES`.**
+ *
+ * L'enum fermé était un PLAFOND DUR : il propageait « il n'existe que deux
+ * villes » dans types.ts, dans ingest_run (`b.cityId in CITIES` → 400) et
+ * jusque dans les écrans. Une ville est désormais une donnée, pas un membre de
+ * type — elle se VALIDE À L'EXÉCUTION contre `city_zones` (autorité serveur),
+ * jamais à la compilation.
+ *
+ * Deux espaces d'identifiants cohabitent, par construction et non par accident :
+ *  · les villes de démarrage : `paris`, `lille` (historiques, contour réel) ;
+ *  · toute autre ville : son `geonameid` GeoNames en chaîne (« 2988507 »),
+ *    identifiant STABLE — c'est lui qui hache le tirage de la Zone du Jour
+ *    (migration 0052), un id instable casserait la reproductibilité du tirage.
+ */
+export type CityId = string;
+
+/** Identifiant d'une ville de DÉMARRAGE — sous-ensemble typé de `CityId`. */
+export type StarterCityId = keyof typeof CITIES;
+
+/** Vrai si `id` désigne une ville de démarrage (donc au contour officiel connu). */
+export function isStarterCityId(id: string): id is StarterCityId {
+  return Object.prototype.hasOwnProperty.call(CITIES, id);
+}
+
+/**
+ * Centre d'une ville de DÉMARRAGE, ou `undefined` si l'id n'en est pas une.
+ * Accès GARDÉ : `CITIES[id]` sur un id venu de la base rendait `undefined`, et
+ * `CITIES[id].name` levait un TypeError avalé par le catch global — une course
+ * écrite en base mais rendue en 500 au coureur (blocage n°1 de l'audit).
+ */
+export function starterCityCenter(id: string): { lat: number; lng: number } | undefined {
+  return isStarterCityId(id) ? CITIES[id].center : undefined;
+}
+
+/**
+ * Nom d'affichage d'une ville de DÉMARRAGE, ou `undefined`. Un appelant qui
+ * n'obtient rien doit nommer la ville autrement (référentiel, base) ou se
+ * taire — jamais inventer un libellé.
+ */
+export function starterCityName(id: string): string | undefined {
+  return isStarterCityId(id) ? CITIES[id].name : undefined;
+}
+
+// ─── Aire de jeu d'une ville ouverte depuis le référentiel ──────────────────
+/**
+ * RAYON du disque servant d'aire de jeu à une ville ouverte depuis le
+ * référentiel GeoNames.
+ *
+ * ⚠️ C'EST UNE APPROXIMATION DÉCLARÉE, PAS UN CONTOUR OFFICIEL. Un référentiel
+ * de villes ne fournit qu'un POINT (lat/lng) ; `city_zones.geojson` est NOT NULL
+ * et exige un polygone. On pose donc un disque autour du point et on le NOMME
+ * comme tel partout où il est rendu — « aire de jeu approximative », jamais
+ * « limites de la ville ». Approximer une aire de jeu et l'annoncer n'est pas
+ * fabriquer de la donnée ; la présenter comme un contour administratif le serait.
+ *
+ * Les villes de DÉMARRAGE (`CITIES` : paris, lille) gardent leur VRAI contour,
+ * importé de geo.api.gouv.fr par la migration 0033 — ce disque ne les remplace
+ * jamais.
+ *
+ * 15 km : couvre l'aire urbaine courue d'une métropole européenne sans déborder
+ * sur la voisine. Ce n'est PAS une borne de capture — la capture n'est bornée
+ * par aucune ville (AMENDEMENT-02 §2, Europe entière) ; le `cityId` ne sert
+ * qu'au rattachement pour les classements. TUNABLE.
+ */
+export const CITY_DISC_RADIUS_M = 15_000;
+
+/**
+ * Nombre de sommets du polygone approximant le disque d'aire de jeu. 64 sommets
+ * → écart au cercle parfait < 0,1 % du rayon (soit < 12 m à 15 km), invisible à
+ * l'écran, tout en gardant un GeoJSON léger à stocker et à tester en in/out.
+ */
+export const CITY_DISC_POLYGON_VERTICES = 64;
+
+// ─── Recherche de ville (le sélecteur ne peut pas lister 7 870 villes) ──────
+/**
+ * Nombre maximal de villes rendues par une recherche. §A : « comprendre l'écran
+ * en moins de 3 s » — une pill par ville tenait à 2 villes, elle est illisible à
+ * 7 870. On cherche, on ne parcourt pas. TUNABLE.
+ */
+export const CITY_SEARCH_RESULT_LIMIT = 25;
+
+/**
+ * Longueur minimale d'une requête avant de filtrer. En deçà, l'écran montre les
+ * villes les plus peuplées (le référentiel est trié par population) plutôt
+ * qu'une liste vide ou 7 870 lignes. TUNABLE.
+ */
+export const CITY_SEARCH_MIN_QUERY_LENGTH = 2;
+
+// ─── Garde-fou d'OUVERTURE de ville (open_city / provision_city) ────────────
+/**
+ * Nombre maximal de villes qu'un MÊME compte peut OUVRIR par fenêtre glissante.
+ *
+ * POURQUOI UN PLAFOND. Ouvrir une ville n'invente aucune donnée de joueur (la
+ * zone naît `wild`, le classement naît vide) et le référentiel borne
+ * structurellement le monde à 7 870 villes réelles. Le risque n'est donc pas le
+ * mensonge, c'est le BRUIT : un compte pouvait provisionner des centaines de
+ * villes où personne ne courra jamais, et les faire figurer partout où l'on
+ * énumère les villes ouvertes.
+ *
+ * POURQUOI CE CHIFFRE. 5 couvre très largement l'usage honnête — on ouvre sa
+ * ville, éventuellement celle d'un déplacement ou d'un ami. Au-delà, ce n'est
+ * plus un joueur qui s'installe. Le plafond REFUSE, il ne dégrade pas
+ * silencieusement : la fonction répond `open_quota_reached`, jamais un faux
+ * succès. Il ne compte QUE les ouvertures RÉELLES : rouvrir une ville déjà
+ * ouverte n'écrit rien, donc ne consomme rien. TUNABLE.
+ */
+export const CITY_OPEN_LIMIT_PER_USER = 5;
+
+/** Fenêtre glissante du plafond ci-dessus, en heures. TUNABLE. */
+export const CITY_OPEN_LIMIT_WINDOW_H = 24;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CREWS SUPERCELL — MVP (AMENDEMENT-06 §2, doc v3 §33-§53)

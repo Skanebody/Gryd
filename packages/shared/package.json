@@ -15,7 +15,9 @@
     "./skills": "./src/skills.ts",
     "./bonuses": "./src/bonuses.ts",
     "./streak": "./src/streak.ts",
-    "./season": "./src/season.ts"
+    "./season": "./src/season.ts",
+    "./cities": "./src/cities.ts",
+    "./cities-eu": "./src/cities-eu.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

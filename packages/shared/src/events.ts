@@ -11,7 +11,13 @@ export const EVENTS = {
   signupStarted: 'signup_started', // props: { method }
   signupCompleted: 'signup_completed', // props: { method }
   permissionLocation: 'permission_location', // props: { result }
-  citySelected: 'city_selected',
+  citySelected: 'city_selected', // props: { was_open } — la ville choisie était-elle déjà un terrain de jeu ?
+  // Ouverture RÉELLE d'une ville depuis le référentiel (« n'importe quelle ville
+  // d'Europe »). Émis depuis la RÉPONSE serveur (`open_city`), jamais depuis
+  // l'UI : `created` distingue une zone provisionnée d'une ville déjà ouverte
+  // qu'on re-sélectionne (idempotence). Le KPI : combien de villes hors Saison 0
+  // deviennent vraiment jouées.
+  cityOpened: 'city_opened', // props: { created }
   privacyZoneSet: 'privacy_zone_set',
   // Boucle cœur
   runStart: 'run_start',
