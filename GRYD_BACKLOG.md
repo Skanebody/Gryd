@@ -16,7 +16,8 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] Row 12 · P1 — Photo de profil publique (§14) — L — PROGRAMME séquencé, modération d'abord
 - [x] Row 6 · P2 — Résultat post-course honnête (§11) : dire refus (rejected + raison) ET signalement (flagged) au lieu de « TERRITOIRE ÉTENDU / +0 zones » ; partage/pill masqués ; temps+allure après une conquête jugée — M — `8b82879`
 - [x] Row 7 · P2 — Live run : une SEULE info temporaire (§10) — selectLiveNotice pur (sûreté GPS d'abord), fin de « BOUCLE PRÊTE » sous « GPS FAIBLE » — M — `4296575`
-- [ ] Rows 8-10, 13-15 · P2 — rang statutaire (§12.1), design-system §22 (GhostButton→Button + focus ring ; Card différé), formatteurs locale-aware, agrégation carte, Bike, humain onboarding — voir matrice
+- [x] Row 9 · P2 — Design-system §22 (tranche a11y+bouton) : anneau de focus clavier sur Button + GhostButton fusionné dans Button (22 usages migrés, composant supprimé) — M — `e17935d` ; Card/StatCard + tokens 40/48/24 DIFFÉRÉS (chantier séparé)
+- [ ] Rows 8, 10, 13-15 · P2 — rang statutaire (§12.1), formatteurs locale-aware (§26), agrégation carte faible zoom, Bike, humain onboarding, Card adoption — voir matrice
 
 ## Repositionnement mission-first (décision fondateur 21/07/2026, analyse stratégique vs INTVL)
 > Réf : AMENDEMENT-41 + analyse stratégique INTVL (shared territories livré par INTVL 2026 — notre réponse = LE RELAIS). Les 4 comportements MVP à mesurer via PostHog : comprendre la capture / dévier son parcours / revenir après attaque / inviter.
