@@ -36,10 +36,11 @@ import {
   radii,
   spacing,
   type IngestRunResponse,
+  type RejectReason,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
-import { C } from '../src/i18n/catalog/result';
+import { C, REJECT_REASON_COPY } from '../src/i18n/catalog/result';
 import { useT } from '../src/i18n/store';
 import { Icon } from '../src/ui/Icon';
 import { formatInt } from '../src/ui/format';
@@ -160,6 +161,13 @@ interface ResultView {
   zoneName: string;
   /** `null` = le serveur n'a pas (encore) jugé la conquête. */
   zones: ZonesVerdict | null;
+  /** §11 — le SERVEUR a REFUSÉ la capture (status 'rejected'), à dire honnêtement. */
+  rejected: boolean;
+  /** §11 — GRYD Verify a SIGNALÉ la course (status 'flagged', trust trop bas) :
+   * elle non plus n'a rien crédité (0 hex, 0 stat) — jamais « territoire étendu ». */
+  flagged: boolean;
+  /** Raison précise du refus (mappée en copy via REJECT_REASON_COPY), sinon null. */
+  rejectReason: RejectReason | null;
 }
 
 /** État de frontière crew à afficher au résultat (chantier 2, param démo). */
@@ -310,6 +318,9 @@ function ConquestResultScreen({
           loopClosed: serverResult.loopClosed === true,
           pointsAwarded: serverResult.pointsAwarded,
         },
+        rejected: serverResult.status === 'rejected',
+        flagged: serverResult.status === 'flagged',
+        rejectReason: serverResult.rejectReason ?? null,
       };
     }
     // 2. Mesuré par le tracker, PAS ENCORE jugé (hors-ligne, payload en file) :
@@ -323,6 +334,12 @@ function ConquestResultScreen({
       verified: false,
       zoneName: t(C.zoneFallback),
       zones: null,
+      // Pas de verdict serveur → ni refus ni signalement ni raison (le rejet 4xx
+      // structurel, lui, n'arme même pas de résultat : chantier séparé). Jamais
+      // un refus inventé.
+      rejected: false,
+      flagged: false,
+      rejectReason: null,
     };
     // `t` (stable par langue) : le nom de zone neutre suit la bascule de langue.
   }, [serverResult, realDistM, realDurS, t]);
@@ -331,6 +348,15 @@ function ConquestResultScreen({
 
   const conquest = mode === 'conquete';
   const isPrivate = mode === 'course_privee';
+  // §11 — le serveur n'a PAS crédité la course : REFUSÉE (gameplay invalide) OU
+  // SIGNALÉE (GRYD Verify, trust trop bas). Dans les deux cas 0 hex + 0 stat →
+  // toute affirmation de conquête de l'écran s'éteint là-dessus (jamais
+  // « territoire étendu / +0 zones » sur une course non créditée).
+  const notCredited = stats.rejected || stats.flagged;
+  // Raison de refus résolue DÉFENSIVEMENT : le serveur se déploie indépendamment
+  // du binaire — s'il émet une raison inconnue de cette version (skew), on
+  // n'affiche rien plutôt que de crasher tout l'écran (index → undefined).
+  const rejectCopy = stats.rejectReason ? REJECT_REASON_COPY[stats.rejectReason] : undefined;
 
   // LOT 1 — la série APRÈS cette course, telle que le SERVEUR l'a calculée à
   // partir des courses réelles du joueur (jamais reconstruite ici, jamais
@@ -458,7 +484,9 @@ function ConquestResultScreen({
   const totalZones = zones?.total ?? 0;
   const verifyTiers = verifyTiersLabel();
   /** Promesse du panneau de détails — jamais plus que ce qu'il contient. */
-  const detailsLabel = conquest && zones ? t(C.howIWon) : t(C.seeMyStats);
+  // Non crédité : « Voir mes stats », jamais « Comment j'ai gagné ces zones »
+  // (rien n'a été gagné) — le détail montre le temps/l'allure, pas un palmarès.
+  const detailsLabel = conquest && zones && !notCredited ? t(C.howIWon) : t(C.seeMyStats);
 
   // AMENDEMENT-23 §B.4 / honnêteté §A — décomposition technique du calcul.
   // `defended` est RÉEL dès qu'une vraie course a été jugée par ingest_run
@@ -484,11 +512,16 @@ function ConquestResultScreen({
   const summaryLines: readonly ResultSummaryLine[] = [];
   // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
   // « République défendue · Paris Est +5 % ».
-  const heroLine = conquest
-    ? `${summary.kicker} · ${formatKm(stats.distanceM)} km`
-    : isPrivate
-      ? t(C.privateLine)
-      : t(C.socialRunLine, { km: formatKm(stats.distanceM) });
+  // Non crédité (refus/signalement) : PAS de ligne de conquête (« kicker · km ») —
+  // le titre + le KPI km + la raison suffisent, un kicker de conquête y serait un
+  // contresens. La ligne disparaît (voir garde au rendu).
+  const heroLine = notCredited
+    ? ''
+    : conquest
+      ? `${summary.kicker} · ${formatKm(stats.distanceM)} km`
+      : isPrivate
+        ? t(C.privateLine)
+        : t(C.socialRunLine, { km: formatKm(stats.distanceM) });
   // Titre du moment dopamine : le RÉSULTAT (territoire/zone), jamais un tampon
   // administratif — la validation vit dans la pill GRYD VERIFIED, séparée.
   // « TERRITOIRE ÉTENDU » / « ZONE DÉFENDUE » sont des AFFIRMATIONS de conquête :
@@ -496,11 +529,15 @@ function ConquestResultScreen({
   // « COURSE TERMINÉE » — vrai, lui, et déjà traduit dans les 5 langues.
   const heroTitle = isPrivate
     ? t(C.heroPrivate)
-    : !conquest || !zones
-      ? t(C.heroDone)
-      : intention === 'defense'
-        ? t(C.heroDefended)
-        : t(C.heroExtended);
+    : stats.rejected
+      ? t(C.heroRejected) // §11 : capture refusée — jamais « TERRITOIRE ÉTENDU »
+      : stats.flagged
+        ? t(C.heroFlagged) // §11 : course signalée par GRYD Verify — non créditée
+        : !conquest || !zones
+          ? t(C.heroDone)
+          : intention === 'defense'
+            ? t(C.heroDefended)
+            : t(C.heroExtended);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
@@ -524,7 +561,10 @@ function ConquestResultScreen({
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           {/* La VALIDATION vit dans sa pill (séparée du titre — jamais « validée »
               en guise de victoire). Jargon banni : « stats only » → français. */}
-          {!isPrivate && serverResult ? (
+          {/* Non crédité : ni « GRYD VERIFIED » ni « Compte en stats » — une course
+              refusée/signalée n'est PAS comptée en stats ; l'affirmer serait faux
+              (le titre + la raison portent déjà l'état). */}
+          {!isPrivate && serverResult && !notCredited ? (
             stats.verified ? (
               <StatePill state="verified" label="GRYD VERIFIED" />
             ) : (
@@ -536,41 +576,63 @@ function ConquestResultScreen({
               s'affichent que si le serveur les a jugées ; sinon le KPI retombe
               sur les KM, qui eux ont bien été MESURÉS (hors-ligne, verdict en
               attente). Jamais un « +0 zones » à la place d'un inconnu. */}
-          {conquest && zones ? (
+          {conquest && zones && !notCredited ? (
             <View style={styles.heroKpi}>
               <ZoneCountUp value={zones.total} />
               <Text style={styles.heroKpiLabel}>{t(C.zonesCaptured)}</Text>
             </View>
           ) : (
+            // Non crédité (refus/signalement) OU pas de verdict : le KPI retombe
+            // sur les KM MESURÉS, jamais un « +0 zones » (qui laisserait croire à
+            // une prise ratée de peu).
             <View style={styles.heroKpi}>
               <Text style={styles.zonesHero}>{formatKm(stats.distanceM)}</Text>
               <Text style={styles.heroKpiLabel}>KM</Text>
             </View>
           )}
 
-          {/* Le POURQUOI du chiffre, au niveau 1 (verdict serveur uniquement). */}
-          {conquest && zones?.loopClosed ? (
+          {/* §11 — REFUS serveur : la RAISON précise, distincte de « aucune zone »
+              (qui, elle, veut dire « boucle non fermée », pas « course invalide »).
+              `rejectCopy` est résolu défensivement (skew serveur → rien, pas de crash). */}
+          {stats.rejected && rejectCopy ? (
+            <Text style={styles.heroWhy} numberOfLines={2}>
+              {t(rejectCopy)}
+            </Text>
+          ) : null}
+          {/* §11 — SIGNALEMENT GRYD Verify : dire honnêtement que la course est en
+              revue et non créditée (aucune raison de gameplay ici — trust trop bas). */}
+          {stats.flagged ? (
+            <Text style={styles.heroWhy} numberOfLines={2}>
+              {t(C.flaggedWhy)}
+            </Text>
+          ) : null}
+
+          {/* Le POURQUOI du chiffre, au niveau 1 (verdict serveur crédité uniquement). */}
+          {conquest && !notCredited && zones?.loopClosed ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
               {t(C.loopClosedBurst, { n: formatInt(zones.enclosed) })}
             </Text>
           ) : null}
 
           {/* P0 C1 — l'échec est EXPLIQUÉ, jamais un simple « 0 » sec (copy gelée §CH2). */}
-          {conquest && serverResult?.openBoundary ? (
+          {conquest && !notCredited && serverResult?.openBoundary ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
               {t(C.almostClosed, { m: formatInt(serverResult.openBoundary.missingM) })}
             </Text>
           ) : null}
-          {conquest && zones?.total === 0 && !serverResult?.openBoundary ? (
+          {conquest && !notCredited && zones?.total === 0 && !serverResult?.openBoundary ? (
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
               {t(C.noZones)}
             </Text>
           ) : null}
 
-          {/* 1 ligne émotionnelle, courte, jamais tronquée. */}
-          <Text style={styles.heroLine} numberOfLines={1} adjustsFontSizeToFit>
-            {heroLine}
-          </Text>
+          {/* 1 ligne émotionnelle, courte, jamais tronquée. Absente sur un refus
+              (heroLine vide) : on n'ajoute pas de ligne de conquête à un refus. */}
+          {heroLine ? (
+            <Text style={styles.heroLine} numberOfLines={1} adjustsFontSizeToFit>
+              {heroLine}
+            </Text>
+          ) : null}
 
           {/* BADGE DÉBLOQUÉ — hook de rétention VISIBLE au niveau 1, tappable
               (ouvre les détails où vit le BadgeCard complet). */}
@@ -631,7 +693,11 @@ function ConquestResultScreen({
              vraie action secondaire (la récompense), puis le toggle détails.
              Actionnable dès l'affichage — aucun temps mort. */}
         <ResultReveal visible haptic="none" style={styles.actions}>
-          {!isPrivate ? (
+          {/* Partage MASQUÉ sur une course non créditée : toutes les cards de
+              partage affirment une conquête (« J'AI PRIS ZONE ») — proposer de
+              partager un refus produirait exactement le mensonge que cet écran
+              retire. Rien à célébrer ⇒ pas de bouton (jamais un CTA menteur, §A). */}
+          {!isPrivate && !notCredited ? (
             <Pressable
               accessibilityRole="button"
               onPress={share}
@@ -679,7 +745,7 @@ function ConquestResultScreen({
                 (verdict en attente), ce bloc affichait « TOTAL +0 », un zéro nu
                 que le joueur lisait comme « ta course n'a rien pris ». Il
                 disparaît maintenant jusqu'à ce que le serveur ait jugé. */}
-            {conquest && zones ? (
+            {conquest && zones && !notCredited ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>{t(C.impactKicker)}</Text>
                 <View style={styles.summaryCard}>
@@ -704,13 +770,15 @@ function ConquestResultScreen({
               </View>
             ) : null}
 
-            {/* Stats MESURÉES — social / privé, mais AUSSI conquête sans verdict
-                serveur : le temps et l'allure ont bien été mesurés par le
-                tracker, eux. Sans ce cas, un coureur hors-ligne ouvrait
-                « Voir mes stats » sur un panneau quasi vide (l'IMPACT et le
-                calcul étant à juste titre masqués). La NOTE de mode ne suit pas :
-                sa copy décrit social/privé, elle serait fausse en conquête. */}
-            {!conquest || !zones ? (
+            {/* §11 — Temps + allure sous « Voir mes stats », dans TOUS les cas où une
+                durée réelle existe (mesurée par le tracker ou renvoyée par le
+                serveur) — Y COMPRIS une conquête JUGÉE. L'ancien gate `!conquest ||
+                !zones` les cachait après une conquête réussie : le temps/l'allure,
+                pourtant calculés, n'étaient alors accessibles NULLE PART. La NOTE de
+                mode reste gatée `!conquest` : sa copy décrit social/privé.
+                `!conquest || durationS>0` : social/privé gardent TOUJOURS ce bloc
+                (donc leur note), même armés hors-ligne sans durée. */}
+            {!conquest || stats.durationS > 0 ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>{t(C.detailsKicker)}</Text>
                 <View style={styles.statsCard}>
@@ -718,7 +786,11 @@ function ConquestResultScreen({
                     <MiniStat label={t(C.timeLabel)} value={formatClock(stats.durationS)} />
                     <MiniStat label={t(C.paceLabel)} value={`${formatPace(stats.paceSPerKm)}/km`} />
                   </View>
-                  {!conquest ? (
+                  {/* privateNote = affirmation de CONFIDENTIALITÉ, vraie quel que
+                      soit le verdict → toujours affichée en privé. socialNote dit
+                      « stats et badges comptent » : FAUX sur une course non créditée
+                      (refus/signalement ignorés par applyRunToStats) → masquée alors. */}
+                  {!conquest && (isPrivate || !notCredited) ? (
                     <Text style={styles.statsNote}>
                       {isPrivate ? t(C.privateNote) : t(C.socialNote)}
                     </Text>
@@ -727,8 +799,10 @@ function ConquestResultScreen({
               </View>
             ) : null}
 
-            {/* GRYD VERIFIED — la confiance de l'effort (technique). */}
-            {!isPrivate ? (
+            {/* GRYD VERIFIED — la confiance de l'effort (technique). Masqué sur une
+                course non créditée : « Stats enregistrées » y serait faux (un refus
+                / signalement n'est pas compté en stats). */}
+            {!isPrivate && !notCredited ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>GRYD VERIFIED</Text>
                 <View style={styles.verifiedCard}>
@@ -769,7 +843,7 @@ function ConquestResultScreen({
                 décomposition n'auraient que des zéros à montrer, et la ligne
                 « validé » affirmerait un échec de vérification que personne n'a
                 prononcé. Rien à expliquer tant que rien n'est calculé. */}
-            {conquest && zones ? (
+            {conquest && zones && !notCredited ? (
               <View style={styles.block}>
                 <Pressable
                   accessibilityRole="button"

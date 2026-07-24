@@ -13,7 +13,9 @@
  * est reformulé concis (Abwehr, Schleife zu, Als Story teilen…), jamais un
  * composé à rallonge qui risquerait la troncature à 375 px.
  */
+import type { RejectReason } from '@klaim/shared';
 import { defineCatalog } from '../types';
+import type { Entry } from '../types';
 
 export const C = defineCatalog({
   // ── AMENDEMENT-41 : LE RELAIS ─────────────────────────────────────────────
@@ -76,6 +78,32 @@ export const C = defineCatalog({
     es: 'TERRITORIO AMPLIADO',
     de: 'GEBIET ERWEITERT',
     pt: 'TERRITÓRIO EXPANDIDO',
+  },
+  // §11 honnêteté : le SERVEUR a jugé la capture invalide (status 'rejected').
+  // Le titre le DIT — jamais « TERRITOIRE ÉTENDU » + « +0 zones » (qui laissait
+  // croire à une prise). La raison précise vit dans REJECT_REASON_COPY (bas).
+  heroRejected: {
+    fr: 'CAPTURE REFUSÉE',
+    en: 'CAPTURE REFUSED',
+    es: 'CAPTURA RECHAZADA',
+    de: 'EROBERUNG ABGELEHNT',
+    pt: 'CAPTURA RECUSADA',
+  },
+  // §11 — course SIGNALÉE par GRYD Verify (trust trop bas) : non créditée, en
+  // revue. Distincte d'un refus gameplay — pas de raison de gameplay ici.
+  heroFlagged: {
+    fr: 'COURSE À VÉRIFIER',
+    en: 'RUN UNDER REVIEW',
+    es: 'CARRERA POR VERIFICAR',
+    de: 'LAUF ZU PRÜFEN',
+    pt: 'CORRIDA A VERIFICAR',
+  },
+  flaggedWhy: {
+    fr: 'GRYD Verify examine cette course — capture non créditée.',
+    en: 'GRYD Verify is reviewing this run — capture not credited.',
+    es: 'GRYD Verify está revisando esta carrera — captura no acreditada.',
+    de: 'GRYD Verify prüft diesen Lauf — Eroberung nicht gutgeschrieben.',
+    pt: 'O GRYD Verify está revisando esta corrida — captura não creditada.',
   },
 
   // ── Pills d'état (hors « GRYD VERIFIED », invariant) ──
@@ -1147,3 +1175,56 @@ export const C = defineCatalog({
     pt: 'Voltar ao mapa',
   },
 });
+
+/**
+ * §11 — la RAISON précise d'un refus serveur (IngestRunResponse.status
+ * 'rejected'). Phrasée SANS seuil chiffré : les seuils vivent dans game-rules,
+ * les répéter ici serait un nombre magique en dur (et se désynchroniserait).
+ * Record EXHAUSTIF typé par RejectReason → toute nouvelle raison force sa
+ * traduction 5 langues (type Entry). Le serveur reste seul juge ; on ne fait
+ * que DIRE honnêtement son verdict.
+ */
+export const REJECT_REASON_COPY: Record<RejectReason, Entry> = {
+  too_short: {
+    fr: 'Distance trop courte pour valider une capture.',
+    en: 'Distance too short to validate a capture.',
+    es: 'Distancia demasiado corta para validar una captura.',
+    de: 'Distanz zu kurz, um eine Eroberung zu bestätigen.',
+    pt: 'Distância curta demais para validar uma captura.',
+  },
+  too_brief: {
+    fr: 'Durée trop brève pour valider une capture.',
+    en: 'Duration too brief to validate a capture.',
+    es: 'Duración demasiado breve para validar una captura.',
+    de: 'Dauer zu kurz, um eine Eroberung zu bestätigen.',
+    pt: 'Duração breve demais para validar uma captura.',
+  },
+  pace_too_fast: {
+    fr: 'Allure trop rapide pour une course à pied.',
+    en: 'Pace too fast for a run.',
+    es: 'Ritmo demasiado rápido para una carrera.',
+    de: 'Tempo zu schnell für einen Lauf.',
+    pt: 'Ritmo rápido demais para uma corrida.',
+  },
+  pace_too_slow: {
+    fr: 'Allure trop lente pour valider une course.',
+    en: 'Pace too slow to validate a run.',
+    es: 'Ritmo demasiado lento para validar una carrera.',
+    de: 'Tempo zu langsam, um einen Lauf zu bestätigen.',
+    pt: 'Ritmo lento demais para validar uma corrida.',
+  },
+  too_far: {
+    fr: 'Points GPS trop éloignés — trace peu fiable.',
+    en: 'GPS points too far apart — unreliable trace.',
+    es: 'Puntos GPS demasiado separados — traza poco fiable.',
+    de: 'GPS-Punkte zu weit auseinander — Spur unzuverlässig.',
+    pt: 'Pontos de GPS distantes demais — traço não confiável.',
+  },
+  no_valid_points: {
+    fr: 'Trop peu de points GPS valides.',
+    en: 'Too few valid GPS points.',
+    es: 'Muy pocos puntos GPS válidos.',
+    de: 'Zu wenige gültige GPS-Punkte.',
+    pt: 'Poucos pontos de GPS válidos.',
+  },
+};
