@@ -53,6 +53,7 @@ import {
 import type { LiveRunMode } from '../simulation';
 import { clearLastRunResult, setLastRunResult } from '../runResult';
 import { clearFinishedTrace, setFinishedTrace } from '../finishedTrace';
+import { recordRun } from '../runJournal';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import type { RealRunGate } from './gateTypes';
 import type { RunLocationAdapter, RunUnavailableReason, RunWatchHandle } from './locationAdapter';
@@ -446,6 +447,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // il mourait ici. Armé avant la navigation ; purgé au départ de la course
     // suivante (clearFinishedTrace dans startSensors), comme le verdict serveur.
     setFinishedTrace(snap.tracePoints);
+    // JOURNAL LOCAL : cette course terminée nourrit la SÉRIE hors-ligne/pré-O1
+    // (computeStreak sur les timestamps de l'appareil). Best effort, jamais fatal.
+    void recordRun(now);
     track(EVENTS.runComplete, {
       distance: Math.round(snap.distanceM),
       duration: Math.round(snap.activeS),

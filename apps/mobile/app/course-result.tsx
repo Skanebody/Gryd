@@ -65,6 +65,7 @@ import { ResultTrace } from '../src/features/run/ResultTrace';
 import { getFinishedTrace } from '../src/features/run/finishedTrace';
 import { pioneerCelebration } from '../src/features/run/pioneerCelebration';
 import { RendezvousOptIn } from '../src/features/notifications/RendezvousOptIn';
+import { useLocalStreak } from '../src/features/social/useLocalStreak';
 import {
   boundaryExpiryLabel,
   contributionPct,
@@ -308,6 +309,9 @@ function ConquestResultScreen({
   // Crew réel 3/3 : roster RÉEL (hook silencieux — vide sans session/crew).
   // Compte des coéquipiers (moi exclu) pour la ligne de conséquence collective.
   const { members: crewMembers } = useRealCrew();
+  // Série LOCALE (filet hors-ligne / pré-O1) : n'est utilisée que si le serveur
+  // n'a rendu AUCUN verdict — sinon la série serveur (autorité) prime.
+  const localStreak = useLocalStreak();
   const crewTeammates = crewMembers.filter((m) => !m.isMe).length;
   const realDistM = numParam(params.dist);
   const realDurS = numParam(params.dur);
@@ -723,6 +727,11 @@ function ConquestResultScreen({
             de l'écran reste [Partager]. */}
         {streakView ? (
           <StreakBlock state={streakView} weeksBefore={serverResult?.streakAfter?.weeksBefore} />
+        ) : !serverResult && localStreak ? (
+          // Aucun verdict serveur (hors-ligne / pré-O1) : la série LOCALE prend le
+          // relais. Dès que le serveur juge, la branche ci-dessus (autorité) gagne.
+          // `null` si aucune série réelle (computeStreak → 'none') : jamais un « 0 ».
+          <StreakBlock state={localStreak} />
         ) : null}
 
         {/* CTA — [Partager] IMMÉDIAT (façon Strava), « Voir mon territoire » en
