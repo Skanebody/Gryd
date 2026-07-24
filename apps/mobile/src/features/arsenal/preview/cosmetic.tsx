@@ -27,7 +27,10 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { colors, fonts, gameColors } from '@klaim/shared';
+import { ARSENAL_PREVIEW_I18N } from '../../../i18n/catalog/arsenalPreview';
+import { useT } from '../../../i18n/store';
 import type { ArsenalCatalogItem } from '../catalog';
+import { arsenalName } from '../copy';
 
 /**
  * Décline un TOKEN hex (#RRGGBB) en rgba() à l'alpha voulu : les teintes
@@ -194,13 +197,14 @@ function TerritoryInner({ kind, color }: { kind: TerritoryStyle['inner']; color:
 }
 
 export function TerritorySkinPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
+  const t = useT();
   const s = TERRITORY_STYLES[item.key] ?? TERRITORY_FALLBACK;
   return (
     <Svg
       width={size}
       height={size}
       viewBox={`0 0 ${VB} ${VB}`}
-      accessibilityLabel={`Aperçu du skin de territoire : ${item.name}. Style visuel uniquement, aucun effet de jeu.`}
+      accessibilityLabel={t(ARSENAL_PREVIEW_I18N['preview.cosmetic.skinTerritory'], { name: arsenalName(item, t) })}
     >
       {/* Remplissage de la zone */}
       <Path d={ZONE_BLOB} fill={s.fill} stroke="none" />
@@ -328,6 +332,7 @@ const TRACE_FALLBACK: TraceStyle = {
 };
 
 export function TraceSkinPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
+  const t = useT();
   const s = TRACE_STYLES[item.key] ?? TRACE_FALLBACK;
   const gradId = `blade-${item.key}`;
   return (
@@ -335,7 +340,7 @@ export function TraceSkinPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewPr
       width={size}
       height={size}
       viewBox={`0 0 ${VB} ${VB}`}
-      accessibilityLabel={`Aperçu du skin de trace : ${item.name}. Style visuel uniquement, aucun effet de jeu.`}
+      accessibilityLabel={t(ARSENAL_PREVIEW_I18N['preview.cosmetic.skinTrace'], { name: arsenalName(item, t) })}
     >
       {s.taper ? (
         <Defs>
@@ -403,6 +408,7 @@ const FRAME_STYLES: Record<string, FrameStyle> = {
 const FRAME_FALLBACK: FrameStyle = { ring: colors.gris, ringWidth: 3, label: 'Cadre' };
 
 export function FramePreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
+  const t = useT();
   const s = FRAME_STYLES[item.key] ?? FRAME_FALLBACK;
   const cx = VB / 2;
   const cy = 92;
@@ -414,7 +420,7 @@ export function FramePreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps)
       width={size}
       height={size}
       viewBox={`0 0 ${VB} ${VB}`}
-      accessibilityLabel={`Aperçu du cadre de profil : ${item.name}. Style visuel uniquement, aucun effet de jeu.`}
+      accessibilityLabel={t(ARSENAL_PREVIEW_I18N['preview.cosmetic.frame'], { name: arsenalName(item, t) })}
     >
       {/* Avatar (silhouette neutre) */}
       <Circle cx={cx} cy={cy} r={rAvatar} fill={colors.carbone} stroke={colors.grisLigne} strokeWidth={1} />
@@ -482,13 +488,14 @@ const BANNER_STYLES: Record<string, BannerStyle> = {
 const BANNER_FALLBACK: BannerStyle = { fill: colors.carbone2, accent: colors.gris, label: 'Bannière' };
 
 export function BannerPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
+  const t = useT();
   const s = BANNER_STYLES[item.key] ?? BANNER_FALLBACK;
   return (
     <Svg
       width={size}
       height={size}
       viewBox={`0 0 ${VB} ${VB}`}
-      accessibilityLabel={`Aperçu de la bannière crew : ${item.name}. Style visuel uniquement, aucun effet de jeu.`}
+      accessibilityLabel={t(ARSENAL_PREVIEW_I18N['preview.cosmetic.banner'], { name: arsenalName(item, t) })}
     >
       {/* Étendard */}
       <Path d={BANNER_SHAPE} fill={s.fill} stroke={colors.grisLigne} strokeWidth={1} strokeLinejoin="round" />
@@ -547,6 +554,7 @@ const CARD_X = (VB - CARD_W) / 2;
 const CARD_Y = (VB - CARD_H) / 2;
 
 export function TemplatePreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
+  const t = useT();
   const s = TEMPLATE_STYLES[item.key] ?? TEMPLATE_FALLBACK;
   const midX = VB / 2;
   return (
@@ -554,7 +562,7 @@ export function TemplatePreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
       width={size}
       height={size}
       viewBox={`0 0 ${VB} ${VB}`}
-      accessibilityLabel={`Aperçu de la share card : ${item.name}. Style visuel uniquement, aucun effet de jeu.`}
+      accessibilityLabel={t(ARSENAL_PREVIEW_I18N['preview.cosmetic.template'], { name: arsenalName(item, t) })}
     >
       {/* Carte 9:16 */}
       <Rect x={CARD_X} y={CARD_Y} width={CARD_W} height={CARD_H} rx={12} fill={s.bg} stroke={colors.grisLigne} strokeWidth={1} />
@@ -656,13 +664,14 @@ const EMBLEM_FALLBACK: EmblemStyle = {
 };
 
 export function EmblemPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
+  const t = useT();
   const s = EMBLEM_STYLES[item.key] ?? EMBLEM_FALLBACK;
   return (
     <Svg
       width={size}
       height={size}
       viewBox={`0 0 ${VB} ${VB}`}
-      accessibilityLabel={`Aperçu du blason crew : ${item.name}. Style visuel uniquement, aucun effet de jeu.`}
+      accessibilityLabel={t(ARSENAL_PREVIEW_I18N['preview.cosmetic.emblem'], { name: arsenalName(item, t) })}
     >
       {/* Écu */}
       <Path

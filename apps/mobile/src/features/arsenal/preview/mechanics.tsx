@@ -30,7 +30,10 @@ import {
   gameColors,
   SHIELD_DURATION_HOURS,
 } from '@klaim/shared';
+import { ARSENAL_PREVIEW_I18N } from '../../../i18n/catalog/arsenalPreview';
+import { useT } from '../../../i18n/store';
 import type { ArsenalCatalogItem } from '../catalog';
+import { arsenalName } from '../copy';
 
 /**
  * Contrat partagé des aperçus Arsenal (ré-exporté par l'orchestrateur). Déclaré à
@@ -101,7 +104,8 @@ function Gem({ cx, cy, r, fill, stroke }: { cx: number; cy: number; r: number; f
 // 1. BOUCLIER — protège une zone un temps borné (48 h), pas d'invincibilité.
 // ═══════════════════════════════════════════════════════════════════════════
 export function ShieldSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
-  const label = `${item.name} : protège une zone pendant ${SHIELD_DURATION_HOURS} h, sans la rendre invincible.`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.shield'], { name: arsenalName(item, t), hours: SHIELD_DURATION_HOURS });
   return (
     <Scene size={size} label={label}>
       {/* « … » : la protection EXPIRE (temporaire) */}
@@ -141,7 +145,8 @@ export function ShieldSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps)
 // 2. SCOUT PING — révèle une info (zone fragile/rentable), aucune capture auto.
 // ═══════════════════════════════════════════════════════════════════════════
 export function ScoutPingSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
-  const label = `${item.name} : un ping révèle une zone fragile ou rentable — une info, aucune capture automatique.`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.scoutPing'], { name: arsenalName(item, t) });
   const cx = 62;
   const cy = 92;
   return (
@@ -181,7 +186,8 @@ export function StreakGelSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
    * porte un multiplicateur jusqu'à ×1,5 sur les POINTS de territoire — c'est
    * même la raison pour laquelle cet objet n'est vendu dans aucune monnaie.
    */
-  const label = `${item.name} : gèle et protège ta série hebdo une semaine — et donc le multiplicateur de points qu'elle porte. Ne capture aucune zone, ne se vend jamais.`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.streakGel'], { name: arsenalName(item, t) });
   const days = 7;
   const x0 = 40;
   const step = 27;
@@ -215,7 +221,8 @@ export function StreakGelSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
 //     PAS la victoire — seule la jauge de coffre accélère.)
 // ═══════════════════════════════════════════════════════════════════════════
 export function CrewBoostSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
-  const label = `${item.name} : +${BOOST_PCT} % de progression du coffre crew — jamais de points ni de zones.`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.crewBoost'], { name: arsenalName(item, t) });
   const barX = 96;
   const barW = 116;
   return (
@@ -257,7 +264,8 @@ export function CrewBoostSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
 export function PackPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
   if (item.slug.startsWith('eclats')) return <EclatsPreview item={item} size={size} />;
   const accent = item.rarity === 'legend' ? gameColors.gold : colors.chartreuse;
-  const label = `${item.name} : un bundle qui livre plusieurs cosmétiques d'un coup — du style, aucun avantage de jeu.`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.pack'], { name: arsenalName(item, t) });
   return (
     <Scene size={size} label={label}>
       {/* Coffre/paquet ouvert */}
@@ -280,7 +288,8 @@ export function PackPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) 
 // 6. ÉCLATS — la monnaie de STYLE. Sert au style, pas au territoire.
 // ═══════════════════════════════════════════════════════════════════════════
 export function EclatsPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) {
-  const label = `${item.name} : des Éclats — la monnaie du style (skins, frames, templates), jamais du territoire.`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.eclats'], { name: arsenalName(item, t) });
   return (
     <Scene size={size} label={label}>
       {/* Pile d'Éclats (losanges) */}
@@ -317,7 +326,8 @@ export function SubscriptionPreview({ item, size = DEFAULT_SIZE }: ArsenalPrevie
  * de partage premium, qui sont réellement dans l'offre.
  */
 function ClubScene({ item, size }: { item: ArsenalCatalogItem; size: number }) {
-  const label = `${item.name} : stats, heatmap, export HD et templates premium — zéro avantage de jeu, aucun bouclier, aucune info tactique.`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.club'], { name: arsenalName(item, t) });
   const tw = 66;
   const th = 42;
   const gx = 8;
@@ -369,7 +379,8 @@ function ClubScene({ item, size }: { item: ArsenalCatalogItem; size: number }) {
 
 /** Pass : 30 niveaux de récompenses (jalons) — teaser « bientôt ». */
 function PassScene({ item, size }: { item: ArsenalCatalogItem; size: number }) {
-  const label = `${item.name} : 30 niveaux de récompenses de saison — pas encore lancé (bientôt).`;
+  const t = useT();
+  const label = t(ARSENAL_PREVIEW_I18N['preview.mechanics.pass'], { name: arsenalName(item, t) });
   const nodes = 6;
   const x0 = 34;
   const step = 34;
