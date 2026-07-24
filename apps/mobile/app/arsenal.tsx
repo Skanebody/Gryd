@@ -406,7 +406,7 @@ function ArsenalBody() {
           slug={item.slug}
           preview={cardThumb(item)}
           rarity={item.rarity}
-          usage={advice.headline}
+          usage={t(advice.headline, advice.vars)}
           price={buyable ? price : undefined}
           /* Sans prix ET sans CTA, le pied de carte restait MUET : la note dit
              pourquoi il n'y a rien à acheter, au lieu de laisser un vide. */
@@ -683,9 +683,9 @@ function AdvisorCard({
       </View>
 
       <View style={styles.advisorLines}>
-        <ExplanationLine label={t(C.labelSertA)} text={advice.benefit} />
-        <ExplanationLine label={t(C.labelLimite)} text={advice.guardrail} />
-        <ExplanationLine label={t(C.labelPourquoi)} text={advice.whyNow} />
+        <ExplanationLine label={t(C.labelSertA)} text={t(advice.benefit, advice.vars)} />
+        <ExplanationLine label={t(C.labelLimite)} text={t(advice.guardrail, advice.vars)} />
+        <ExplanationLine label={t(C.labelPourquoi)} text={t(advice.whyNow, advice.vars)} />
       </View>
 
       <Pressable
@@ -777,13 +777,13 @@ function ItemDetail({
       {/* Description + fonctionnement fusionnés en UN paragraphe, puis 3 lignes
           utiles max (Sert à / Pourquoi / Limite) — jamais un mur de labels. */}
       <Text style={styles.detailDesc}>
-        {arsenalDescription(item, t)} {advice.mechanic}
+        {arsenalDescription(item, t)} {t(advice.mechanic, advice.vars)}
       </Text>
 
       <View style={styles.detailExplain}>
-        <ExplanationLine label={t(C.labelSertA)} text={advice.benefit} />
-        <ExplanationLine label={t(C.labelPourquoi)} text={advice.whyNow} />
-        <ExplanationLine label={t(C.labelLimite)} text={advice.guardrail} />
+        <ExplanationLine label={t(C.labelSertA)} text={t(advice.benefit, advice.vars)} />
+        <ExplanationLine label={t(C.labelPourquoi)} text={t(advice.whyNow, advice.vars)} />
+        <ExplanationLine label={t(C.labelLimite)} text={t(advice.guardrail, advice.vars)} />
       </View>
 
       {item.limit ? (
@@ -988,9 +988,9 @@ function GiftFlow({
       </View>
 
       <View style={styles.giftExplain}>
-        <ExplanationLine label={t(C.labelSertA)} text={advice.benefit} />
-        <ExplanationLine label={t(C.labelComment)} text={advice.mechanic} />
-        <ExplanationLine label={t(C.labelLimite)} text={advice.guardrail} />
+        <ExplanationLine label={t(C.labelSertA)} text={t(advice.benefit, advice.vars)} />
+        <ExplanationLine label={t(C.labelComment)} text={t(advice.mechanic, advice.vars)} />
+        <ExplanationLine label={t(C.labelLimite)} text={t(advice.guardrail, advice.vars)} />
       </View>
 
       {/* Copy contribution gelée §28 */}
