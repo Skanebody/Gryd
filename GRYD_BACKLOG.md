@@ -14,7 +14,8 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] Row 5 · P1 — Classements : échelle §16 navigable (quartier/ville/crew/amis) + spécialités + challenges territoire — L — DÉPEND décision flags.season
 - [ ] Row 11 · P1 — Rail IAP réel (O3, RevenueCat) + purchase_*/subscription_* — L — BLOQUÉ O3
 - [ ] Row 12 · P1 — Photo de profil publique (§14) — L — PROGRAMME séquencé, modération d'abord
-- [ ] Rows 6-10, 13-15 · P2 — résultat post-course honnête, live 1 info, rang statutaire, design-system §22, formatteurs locale-aware, agrégation carte, Bike, humain onboarding — voir matrice
+- [x] Row 6 · P2 — Résultat post-course honnête (§11) : dire refus (rejected + raison) ET signalement (flagged) au lieu de « TERRITOIRE ÉTENDU / +0 zones » ; partage/pill masqués ; temps+allure après une conquête jugée — M — `8b82879`
+- [ ] Rows 7-10, 13-15 · P2 — live 1 info temporaire (§10), rang statutaire (§12.1), design-system §22, formatteurs locale-aware, agrégation carte, Bike, humain onboarding — voir matrice
 
 ## Repositionnement mission-first (décision fondateur 21/07/2026, analyse stratégique vs INTVL)
 > Réf : AMENDEMENT-41 + analyse stratégique INTVL (shared territories livré par INTVL 2026 — notre réponse = LE RELAIS). Les 4 comportements MVP à mesurer via PostHog : comprendre la capture / dévier son parcours / revenir après attaque / inviter.
