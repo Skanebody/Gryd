@@ -1200,4 +1200,40 @@ export const C = defineCatalog({
     de: 'Mein @ ansehen',
     pt: 'Ver meu @',
   },
+  // ── Crew réel + progression locale + prochaine mission (§12.2/§15.3) ────────
+  crewMembers: {
+    fr: '{count}/{max} membres',
+    en: '{count}/{max} members',
+    es: '{count}/{max} miembros',
+    de: '{count}/{max} Mitglieder',
+    pt: '{count}/{max} membros',
+  },
+  nextMissionKicker: {
+    fr: 'Prochaine mission',
+    en: 'Next mission',
+    es: 'Próxima misión',
+    de: 'Nächste Mission',
+    pt: 'Próxima missão',
+  },
+  localRankLine: {
+    fr: '#{rank} à {city}',
+    en: '#{rank} in {city}',
+    es: '#{rank} en {city}',
+    de: '#{rank} in {city}',
+    pt: '#{rank} em {city}',
+  },
+  localRankLeader: {
+    fr: '#{rank} à {city} · en tête',
+    en: '#{rank} in {city} · in the lead',
+    es: '#{rank} en {city} · en cabeza',
+    de: '#{rank} in {city} · in Führung',
+    pt: '#{rank} em {city} · na liderança',
+  },
+  localRankDelta: {
+    fr: '{delta} pts pour passer #{next}',
+    en: '{delta} pts to pass #{next}',
+    es: '{delta} pts para pasar a #{next}',
+    de: '{delta} Pkt., um #{next} zu überholen',
+    pt: '{delta} pts para passar #{next}',
+  },
 });

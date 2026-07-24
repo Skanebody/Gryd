@@ -132,3 +132,24 @@ export const TOP10_REWARDS: readonly LeagueRewardDemo[] = [
   { icon: 'skin', label: 'Frame Tempo', sublabel: 'Cadre de profil · cosmétique' },
   { icon: 'coffre', label: 'Coffre saison', sublabel: "S'ouvre au reset de saison" },
 ];
+
+/**
+ * PROGRESSION LOCALE (§12.2/§19.2) dérivée des lignes RÉELLES du classement de
+ * ma ville : ma place #N + les points qu'il me manque pour passer devant #N-1.
+ * PUR, honnête :
+ *  · `null` si ma ligne n'est pas dans les lignes lues (non classé, ou hors du
+ *    top lu) → l'écran n'affiche RIEN plutôt qu'un rang inventé ;
+ *  · `deltaToNext === null` quand je suis 1er (rien devant), ou quand la ligne
+ *    #N-1 n'a pas été lue (on n'invente pas l'écart) ;
+ *  · sinon le delta réel (≥ 0) de points vers la place au-dessus.
+ */
+export function seasonRankProgress(
+  rows: readonly LeagueRow[],
+): { readonly rank: number; readonly deltaToNext: number | null } | null {
+  const me = rows.find((r) => r.me);
+  if (!me) return null;
+  if (me.rank <= 1) return { rank: me.rank, deltaToNext: null };
+  const above = rows.find((r) => r.rank === me.rank - 1);
+  const deltaToNext = above ? Math.max(0, above.value - me.value) : null;
+  return { rank: me.rank, deltaToNext };
+}

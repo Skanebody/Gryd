@@ -73,16 +73,21 @@ import {
   playerTierForLevel,
 } from '../../src/features/crew/rules';
 import { useRealTerritories } from '../../src/features/map/hexClaims';
+import { useRealCrew } from '../../src/features/crew/real';
+import { useRealMission } from '../../src/features/mission/useRealMission';
 import { GripMascot } from '../../src/features/social/GripMascot';
 import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { useMyEconomy } from '../../src/features/social/economy';
+import { useSeasonLeaderboard } from '../../src/features/social/leagueBoard';
+import { seasonRankProgress } from '../../src/features/social/league';
 import { useArsenalInventory, itemByKey, isTitleItem } from '../../src/features/arsenal';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { flags } from '../../src/lib/flags';
 import type { Entry } from '../../src/i18n/types';
 import { useT } from '../../src/i18n/store';
 import { C } from '../../src/i18n/catalog/profil';
+import { C as M } from '../../src/i18n/catalog/mission';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -347,6 +352,17 @@ export default function ProfilScreen() {
     STREAK_MULTIPLIER_CAP,
   );
 
+  // ── DONNÉES RÉELLES §12.2/§15.3 : crew · prochaine mission · progression locale ─
+  // Chacune porte son propre état vide/échec honnête (le hook le distingue) ; on
+  // n'affiche QUE ce qui est vrai. Le rival principal, lui, n'a AUCUNE source
+  // réelle aujourd'hui (seul un rival de démo existe) → volontairement ABSENT,
+  // plutôt qu'un adversaire inventé (règle zéro-mensonge, cf. crew/revanche.ts).
+  const realCrew = useRealCrew();
+  const { mission: realMission } = useRealMission();
+  const season = useSeasonLeaderboard();
+  const rankProgress =
+    season.status === 'ready' ? seasonRankProgress(season.joueursBoard.rows) : null;
+
   // ── LES TROIS ÉTATS DE CET ÉCRAN ───────────────────────────────────────────
   /** Compte relié → on lit et on affiche du réel (y compris « rien encore »). */
   const signedIn = configured && !!session;
@@ -597,6 +613,21 @@ export default function ProfilScreen() {
               </Text>
             </View>
           </View>
+          {/* Crew RÉEL en pleine largeur (§12.2) — nom + effectif, TEXTE seul :
+              le hook n'expose ni tag ni blason, donc pas de CrewFrame inventé.
+              Masqué s'il n'y a pas de crew ou si la lecture a échoué : afficher un
+              crew, c'est le VRAI ou rien (la ligne revient — cf. useRealCrew). */}
+          {!signedOut && realCrew.crew && !realCrew.loadFailed ? (
+            <View style={styles.crewLine}>
+              <Icon name="crew" size={iconSizes.sm} color={colors.chartreuse} />
+              <Text style={styles.crewLineName} numberOfLines={1}>
+                {realCrew.crew.name}
+              </Text>
+              <Text style={styles.crewMembers} numberOfLines={1}>
+                {t(C.crewMembers, { count: realCrew.memberCount, max: realCrew.maxMembers })}
+              </Text>
+            </View>
+          ) : null}
           {/* Bandeau de chiffres — colonnes de largeur égale, valeurs alignées
               sur une même ligne de base, libellés courts sur une seule ligne.
               Vide (déconnecté / lecture en échec) → le bandeau ne s'affiche pas :
@@ -762,6 +793,63 @@ export default function ProfilScreen() {
             {territoryLoading ? t(C.territoryLoading) : t(C.territoryEmptyTitle)}
           </Text>
         )}
+        {/* Prochaine mission RÉELLE (§15.3) — dérivée de MES captures + position.
+            Ligne de CONTEXTE sous la carte, pas un 2e CTA : le widget porte le seul
+            gros CTA chartreuse (§A). Rien si null/lecture/first_capture (le widget
+            couvre déjà « prends ta première zone »). Accent par RÔLE. */}
+        {realMission && realMission.kind !== 'first_capture' ? (
+          <View style={styles.contextLine}>
+            <View
+              style={[
+                styles.contextAccent,
+                {
+                  backgroundColor:
+                    realMission.kind === 'defend_expiring' ? gameColors.danger : colors.chartreuse,
+                },
+              ]}
+            />
+            <View style={styles.contextBody}>
+              <Text style={styles.contextKicker}>{t(C.nextMissionKicker)}</Text>
+              <Text style={styles.contextText} numberOfLines={2}>
+                {realMission.kind === 'defend_expiring'
+                  ? t(M.missionDefend, { h: realMission.hoursLeft })
+                  : t(M.missionExpand)}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+        {/* Progression LOCALE (§12.2/§19.2) — ma place RÉELLE dans MA ville + les
+            points pour monter d'un rang. Rien si non classé, hors des lignes lues,
+            ou ville inconnue (jamais un rang ni un écart inventé). */}
+        {rankProgress && season.cityName ? (
+          <View style={styles.contextLine}>
+            <View style={[styles.contextAccent, { backgroundColor: colors.grisLigne }]} />
+            <View style={styles.contextBody}>
+              <Text style={styles.contextText}>
+                {/* « en tête » se décide sur le RANG (=1), jamais sur l'absence de
+                    delta : un delta null signifie AUSSI « ligne #N-1 non lue » —
+                    l'y confondre étiquetterait un non-leader « en tête » (mensonge). */}
+                {rankProgress.rank === 1
+                  ? t(C.localRankLeader, {
+                      rank: formatInt(rankProgress.rank),
+                      city: season.cityName,
+                    })
+                  : t(C.localRankLine, {
+                      rank: formatInt(rankProgress.rank),
+                      city: season.cityName,
+                    })}
+              </Text>
+              {rankProgress.deltaToNext !== null && rankProgress.deltaToNext > 0 ? (
+                <Text style={styles.contextSub}>
+                  {t(C.localRankDelta, {
+                    delta: formatInt(rankProgress.deltaToNext),
+                    next: formatInt(rankProgress.rank - 1),
+                  })}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
         </>
         )}
 
@@ -1104,16 +1192,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     lineHeight: fontSizes.xs * 1.3,
   },
-  // Crew : rangée pleine largeur SOUS la grille avatar/texte (plus une 4ᵉ ligne
-  // serrée dans la colonne) — le blason s'aligne sur le bord de la card.
-  crewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  crewName: {
-    flex: 1,
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-  },
   // Bandeau de chiffres — colonnes ÉGALES, filet haut discret, tabular-nums :
   // les valeurs restent alignées quel que soit le nombre de digits.
   statsStrip: {
@@ -1162,6 +1240,26 @@ const styles = StyleSheet.create({
     minHeight: sizes.touchTarget,
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
+
+  // ── Crew réel (en-tête, pleine largeur) + lignes de contexte territoire ──────
+  crewLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    alignSelf: 'stretch',
+  },
+  crewLineName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800', flexShrink: 1 },
+  crewMembers: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', marginLeft: 'auto' },
+  // Ligne de contexte (prochaine mission, progression locale) : barre d'accent
+  // fine par RÔLE + texte, SOUS la carte territoire — jamais un 2e gros CTA (§A).
+  contextLine: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, marginTop: spacing.sm },
+  contextAccent: { width: 3, borderRadius: 2, alignSelf: 'stretch' },
+  contextBody: { flex: 1, gap: 2, justifyContent: 'center' },
+  contextKicker: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.4 },
+  contextText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  contextSub: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+
   // Chevron d'accordéon : « > » au repos, « v » ouvert (l'icône `chevron` du set
   // pointe à droite — on la fait pivoter, pas de second tracé à inventer).
   chevronClosed: { marginLeft: spacing.xs },
