@@ -3,7 +3,9 @@
 Jeu de conquête de territoire par la course à pied. Nom public : **GRYD** (« Cours pour ton crew. Conquiers ta ville. » — le jeu de guerre territoriale entre crews de running, AMENDEMENT-42). **Clearance INPI à faire avant usage public.** **Europe entière capturable** (`AMENDEMENT-35-EUROPE.md` — remplace « France entière »), Saison 0 focalisée Paris + Lille. L'élargissement Europe est une VISION : ne jamais fabriquer de données européennes factices (villes/classements/rivaux) tant qu'aucun vrai utilisateur ne les peuple — la vision se surface en copie + docs, pas en inventant des rankings.
 
 ## Autorité documentaire (ordre strict)
-1. `docs/product/GRYD_MASTER_SPEC.md` + les 17 autres `docs/product/GRYD_*.md` — source de vérité produit.
+0. **`SOURCE_OF_TRUTH_REGISTER.md`** (racine) — arbitre l'autorité entre docs. À lire EN PREMIER en cas de doute. La constitution NON NÉGOCIABLE (l'app ne ment jamais, anti-p2w, claim serveur, game-rules source unique, zéro donnée EU factice, migration jamais réécrite) reste AU-DESSUS de toute spec produit.
+0b. **`docs/product/GRYD_SPEC_MAITRE_UNIFIEE_2026.md`** + **`docs/product/GRYD_ADDENDUM_PSYCHO_COGNITIVE_NEUROMARKETING.md`** — **source de vérité PRODUIT / UI-UX / design / Run+Bike / i18n active (24/07/2026)**. Prime sur les amendements UI antérieurs en cas de conflit (arbitrages dans le registre). Sa Règle Absolue : « l'existant n'est jamais une preuve de conformité » — jamais « déjà fait » sans preuve (fichier:ligne + comportement). Conformité pistée dans `CURRENT_STATE_CONFORMITY_MATRIX.md`.
+1. `docs/product/GRYD_MASTER_SPEC.md` + les 17 autres `docs/product/GRYD_*.md` — source de vérité produit (antérieure ; cède à la Spéc Unifiée sur les points UI/UX qu'elle rouvre).
 2. `AMENDEMENT-02-GRYD.md` — réconciliation GRYD ↔ SPEC v0.1 : deltas actifs (France entière, secteurs, `partial`, 5 onglets, pionnier par densité…) et arbitrages A1-A4.
 3. `SPEC-MVP-territoire-running-v0.md` — règles de jeu gelées §3, architecture, périmètre (là où l'amendement ne dit rien).
 4. `ADDENDUM-DESIGN-v0.1.md` — charte noir/blanc/chartreuse #B4FF0D, AMENDEMENT-01 (carte égocentrée). Toute couleur hors tokens = bug.
