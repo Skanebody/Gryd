@@ -79,6 +79,14 @@ export const C = defineCatalog({
     de: 'GEBIET ERWEITERT',
     pt: 'TERRITÓRIO EXPANDIDO',
   },
+  // Libellé accessible du tracé RÉEL qui se dessine sur le résultat (§25).
+  a11yResultTrace: {
+    fr: 'Le tracé de ta course',
+    en: 'Your run’s route',
+    es: 'El recorrido de tu carrera',
+    de: 'Die Strecke deines Laufs',
+    pt: 'O trajeto da tua corrida',
+  },
   // §11 honnêteté : le SERVEUR a jugé la capture invalide (status 'rejected').
   // Le titre le DIT — jamais « TERRITOIRE ÉTENDU » + « +0 zones » (qui laissait
   // croire à une prise). La raison précise vit dans REJECT_REASON_COPY (bas).

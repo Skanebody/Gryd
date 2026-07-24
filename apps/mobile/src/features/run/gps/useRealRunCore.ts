@@ -52,6 +52,7 @@ import {
 } from '../../../lib/runStore';
 import type { LiveRunMode } from '../simulation';
 import { clearLastRunResult, setLastRunResult } from '../runResult';
+import { clearFinishedTrace, setFinishedTrace } from '../finishedTrace';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import type { RealRunGate } from './gateTypes';
 import type { RunLocationAdapter, RunUnavailableReason, RunWatchHandle } from './locationAdapter';
@@ -201,6 +202,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // finit en file d'attente ou rejetée réaffiche les points de la dernière
     // course réussie — le joueur croit avoir capturé ce qu'il n'a pas capturé.
     clearLastRunResult();
+    // Idem pour le TRACÉ : la course N+1 ne doit jamais dessiner le parcours de
+    // la course N sur son écran de résultat (même mensonge, version géométrie).
+    clearFinishedTrace();
     const onFixes = (fixes: Parameters<RunTracker['addFixes']>[0]) =>
       trackerRef.current?.addFixes(fixes);
     const bg = adapter.background;
@@ -431,6 +435,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     t.finish(now); // stoppe aussi le podomètre
     stopSensors();
     const snap = t.snapshot(now);
+    // Le VRAI tracé mesuré SURVIT jusqu'au Résultat (pic peak-end §25) : sans ça
+    // il mourait ici. Armé avant la navigation ; purgé au départ de la course
+    // suivante (clearFinishedTrace dans startSensors), comme le verdict serveur.
+    setFinishedTrace(snap.tracePoints);
     track(EVENTS.runComplete, {
       distance: Math.round(snap.distanceM),
       duration: Math.round(snap.activeS),

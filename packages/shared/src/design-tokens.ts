@@ -176,6 +176,7 @@ export const motion = {
   transitionMs: 225, // 200-250 ms, ease-out
   celebrationWaveMs: 400,
   celebrationCountMs: 800,
+  traceDrawMs: 1_200, // dessin du VRAI tracé sur le Résultat (§25 peak-end)
   holdToStopMs: 1_200, // stop protégé : maintenir 1,2 s
   runButtonPulseMs: 2_000,
   toastDismissMs: 2_500,

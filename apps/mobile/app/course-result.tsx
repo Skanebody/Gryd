@@ -61,6 +61,8 @@ import { GripMascot } from '../src/features/social/GripMascot';
 import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
 import { useMyEconomy } from '../src/features/social/economy';
 import { ResultReveal } from '../src/features/run/ResultReveal';
+import { ResultTrace } from '../src/features/run/ResultTrace';
+import { getFinishedTrace } from '../src/features/run/finishedTrace';
 import {
   boundaryExpiryLabel,
   contributionPct,
@@ -73,6 +75,7 @@ import {
 import { getLastRunResult } from '../src/features/run/runResult';
 import { useRealCrew } from '../src/features/crew/real';
 import { setShareRun, shareCardFromResult } from '../src/features/share/shareRun';
+import { applySharePrivacy } from '../src/features/share/sharePrivacy';
 // NOTE (21/07/2026) : `buildRunSimulation` / `buildLiveNav` / `buildRunLoop` ne
 // sont PLUS importés ici. Seuls les formateurs purs et le parsing de mode
 // survivent de simulation.ts — aucune course fabriquée n'entre dans cet écran.
@@ -295,6 +298,11 @@ function ConquestResultScreen({
   // identités KORO / LES FOULÉES 9³. Plus de socle : chaque champ est construit,
   // et ce qui n'a pas de source RESTE ABSENT.
   const serverResult = getLastRunResult();
+  // Le VRAI tracé mesuré de CETTE course (armé par useRealRun à finish, purgé au
+  // départ de la suivante). Figé au montage : il ne change pas pendant l'écran.
+  // Vue LOCALE du coureur → tracé complet ici ; tout partage SORTANT le re-trime
+  // via applySharePrivacy (départ/arrivée = domicile). Vide → rien ne se dessine.
+  const [finishedTrace] = useState(getFinishedTrace);
   // Crew réel 3/3 : roster RÉEL (hook silencieux — vide sans session/crew).
   // Compte des coéquipiers (moi exclu) pour la ligne de conséquence collective.
   const { members: crewMembers } = useRealCrew();
@@ -431,17 +439,15 @@ function ConquestResultScreen({
         distanceKm: formatKm(stats.distanceM),
         paceLabel: formatPace(stats.paceSPerKm),
         clockLabel: formatClock(stats.durationS),
-        // ─── FUITE COLMATÉE (21/07/2026) ────────────────────────────────────
-        // Ce `trace` était annoncé comme « le parcours réellement couru ». Il
-        // ne l'était pas : il venait de la simulation déterministe — donc de la
-        // boucle République, TOUJOURS, course réelle comprise. Un coureur
-        // d'Ouville partageait ainsi une carte de Paris signée de son nom. Le
-        // Résultat n'a AUCUNE géométrie réelle à sa disposition (ingest_run ne
-        // renvoie pas la trace, et le tracé du tracker meurt à la fin de la
-        // course) : tableau vide, que ShareMap lit comme « aucun tracé connu »
-        // → il ne dessine aucune géographie. Même raison que le bloc d'analyse
-        // de boucle retiré plus haut.
-        trace: [],
+        // ─── TRACÉ RÉEL, MASQUÉ (24/07/2026) ────────────────────────────────
+        // Historique : ce `trace` valait `[]` car le vrai tracé mourait à la fin
+        // de la course (RealCourseLive ne passait que dist+dur). Il est désormais
+        // ARMÉ par useRealRun (finishedTrace) et on partage LE parcours réellement
+        // couru — jamais une géométrie d'authoring. `applySharePrivacy` retire le
+        // départ/arrivée (domicile potentiel) avant tout rendu sortant ; trop
+        // court pour masquer honnêtement → `[]`, que ShareMap lit « aucun tracé
+        // connu » (aucune géographie fabriquée). Vue LOCALE non trimée : le hero.
+        trace: applySharePrivacy(finishedTrace),
         // P1 C8/B3 — course RÉELLE : zéro invention résiduelle sur la card.
         // verified vient du serveur (stats l'est déjà), le rang n'existe pas
         // encore (season_scores) → styles Classement neutralisés plutôt que
@@ -624,6 +630,24 @@ function ConquestResultScreen({
             <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
               {t(C.noZones)}
             </Text>
+          ) : null}
+
+          {/* §25 pic peak-end — LE parcours réellement couru se dessine (démarre
+              AVEC l'haptique success de ce hero, jamais après). Rien si < 2 points
+              (reprise après kill) : jamais un tracé fabriqué. Le halo d'arrivée ne
+              s'affirme que si le serveur a confirmé la boucle fermée.
+              §11 : sur une course NON CRÉDITÉE (refus/signalement), tout le hero
+              se dé-escalade — la plume animée (seul élément festif) s'efface aussi.
+              Une course simplement sans capture (boucle non fermée) reste, elle,
+              créditée : son tracé se dessine (il montre à quel point c'était près). */}
+          {finishedTrace.length >= 2 && !notCredited ? (
+            <View style={styles.heroTrace}>
+              <ResultTrace
+                points={finishedTrace}
+                loopClosed={zones?.loopClosed === true}
+                accessibilityLabel={t(C.a11yResultTrace)}
+              />
+            </View>
           ) : null}
 
           {/* 1 ligne émotionnelle, courte, jamais tronquée. Absente sur un refus
@@ -1101,6 +1125,7 @@ const styles = StyleSheet.create({
   // ── ÉCRAN 1 — émotionnel d'abord (AMENDEMENT-20 §2) ──
   hero: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xl, paddingBottom: spacing.xs },
   heroGrip: { alignItems: 'center' },
+  heroTrace: { alignItems: 'center', marginTop: spacing.xs },
   heroTitle: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
