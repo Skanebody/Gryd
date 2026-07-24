@@ -318,7 +318,8 @@ export default function ProfilEditScreen() {
     });
     setSavedNotice(true);
     // Petit délai laissé au feedback avant retour (le profil reflète l'édit).
-    setTimeout(() => goBack('/profil'), 450);
+    // silent : auto-retour après SAUVEGARDE, pas un tap « retour » (§26 honnête).
+    setTimeout(() => goBack('/profil', { silent: true }), 450);
   };
 
   return (

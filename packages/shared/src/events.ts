@@ -89,5 +89,29 @@ export const EVENTS = {
   mapLoadMs: 'map_load_ms',
   opportunityShown: 'opportunity_shown', // props: { kind: capture|rival|defense, distance_m }
   crash: 'crash',
+  // ── Friction & activation (§26 — funnel neuromarketing) ────────────────────
+  // La Spéc Unifiée §26 nomme un funnel « friction → activation → conversion ».
+  // On NE RENOMME PAS les events §8 (table de correspondance ci-dessous) : on
+  // AJOUTE les signaux de friction qui manquaient, chacun avec un point
+  // d'émission RÉEL (aucun event défini-jamais-émis — le défaut même que §26
+  // reprochait à purchase_*). Un event sans déclencheur honnête n'est pas ajouté.
+  //
+  //   §26 (concept)              →  event §8 émis (où)
+  //   arrivée / ouverture        →  app_open (_layout), deep_link_opened (_layout)
+  //   friction avant compte      →  signup_started, onboarding_skipped, back_tapped
+  //   compte                     →  signup_completed
+  //   permission                 →  permission_location
+  //   activation (1re capture)   →  claim_result, loop_closed, time_to_first_capture
+  //   activation ratée           →  loop_almost_closed
+  //   intention CTA              →  cta_tapped
+  //   conversion cosmétique      →  paywall_view, skin_equipped (purchase_* : Row 11,
+  //                                 quand le rail IAP réel existera — pas avant, sinon
+  //                                 ce serait un achat fabriqué)
+  ctaTapped: 'cta_tapped', // props: { cta } — un CTA décisif tapé (id non-PII, jamais le libellé i18n)
+  backTapped: 'back_tapped', // props: { had_history, to? } — retour explicite ; `to` SEULEMENT sans historique (sinon la destination réelle est inconnue)
+  onboardingSkipped: 'onboarding_skipped', // « plus tard » assumé — chute AVANT le compte
+  deepLinkOpened: 'deep_link_opened', // props: { kind } — l'app ouverte par un lien (kind FERMÉ, jamais l'URL/le code)
+  // t0 = signup_completed persisté ; émis UNE fois à la 1re capture serveur-jugée.
+  timeToFirstCapture: 'time_to_first_capture', // props: { seconds }
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

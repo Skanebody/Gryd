@@ -31,6 +31,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
@@ -87,7 +88,8 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
   'avance',
 ];
 
-const APP_VERSION = '0.1.0';
+// Version LUE depuis app.json (source unique), jamais un doublon en dur.
+const APP_VERSION: string = Constants.expoConfig?.version ?? '0.0.0';
 const NOTIF_ORDER: NotifChannel[] = ['solo', 'crew', 'competition', 'off'];
 
 /**

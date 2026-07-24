@@ -454,6 +454,8 @@ function OpenCityPanel({
         onPress={onOpen}
         loading={opener.state === 'opening'}
         size="md"
+        analyticsId="city_open" // §26 — ouvrir une ville : décision structurante du funnel
+
         // §A4 : un seul CTA chartreuse par écran. En plein écran, choisir une
         // ville EST la décision — l'ouverture peut le porter. Encastré, l'écran
         // hôte a déjà le sien (« Continuer avec … »).

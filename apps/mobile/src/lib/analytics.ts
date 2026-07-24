@@ -4,12 +4,47 @@
  * les noms d'events viennent de @klaim/shared (noms exacts §8, ne pas renommer).
  * Sans clé (point ouvert O3), track() est un no-op silencieux (log en dev).
  */
+import Constants from 'expo-constants';
 import PostHog from 'posthog-react-native';
 import { EVENTS, type EventName } from '@klaim/shared';
+import { getLocale } from '../i18n/store';
 
 export type EventProps = Record<string, string | number | boolean | null>;
 
 const posthogKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
+
+/**
+ * Version de l'app — LUE depuis app.json (source unique), jamais une constante
+ * en dur (le '0.1.0' de parametres était un doublon dérivable). Évaluée une fois.
+ */
+const APP_VERSION: string = Constants.expoConfig?.version ?? '0.0.0';
+
+/**
+ * CONTEXTE DE NAVIGATION (§26 super-propriétés « previous_screen / time_on_screen »).
+ * Un état module minimal, alimenté par `registerScreen` (le traceur de nav du
+ * layout racine) et LU par commonProps — donc PORTÉ par chaque event, toujours à
+ * jour, sans register() statique ni travail au call-site.
+ *
+ * ⚠ `screen` est un NOM DE ROUTE normalisé (jamais un pathname concret) : aucun
+ * id/code dynamique ne fuite (voir registerScreen côté layout). time_on_screen_ms
+ * = temps passé sur l'écran courant à l'instant de l'event (un long délai avant
+ * un cta_tapped = friction).
+ */
+let navScreen: string | null = null;
+let navPreviousScreen: string | null = null;
+let navEnteredAt: number | null = null;
+
+/**
+ * Déclare l'écran courant (nom de route DÉJÀ normalisé, sans id dynamique). Fait
+ * glisser courant→précédent et réarme l'horloge d'écran. No-op si le nom ne
+ * change pas (re-render). Appelé par le traceur de navigation du layout racine.
+ */
+export function registerScreen(screen: string): void {
+  if (screen === navScreen) return;
+  navPreviousScreen = navScreen;
+  navScreen = screen;
+  navEnteredAt = Date.now();
+}
 
 /**
  * Hébergement : UE par défaut (données FR, SPEC §7 / RGPD). Configurable via
@@ -52,6 +87,12 @@ function commonProps(): EventProps {
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     event_ts: new Date().toISOString(),
+    // Super-propriétés §26 — portées par CHAQUE event, toujours courantes.
+    language: getLocale(), // réactif : la langue peut changer en session
+    app_version: APP_VERSION,
+    screen: navScreen,
+    previous_screen: navPreviousScreen,
+    time_on_screen_ms: navEnteredAt !== null ? Date.now() - navEnteredAt : null,
   };
 }
 

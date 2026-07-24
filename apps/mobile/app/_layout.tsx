@@ -14,11 +14,12 @@ import '../src/lib/bootDiagnostics';
 import '../src/lib/textDecoderUtf16';
 import { useEffect, useRef } from 'react';
 import { Linking } from 'react-native';
-import { router, Stack } from 'expo-router';
+import { router, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
-import { EVENTS, track } from '../src/lib/analytics';
+import { EVENTS, registerScreen, screen, track } from '../src/lib/analytics';
+import { normalizeScreenPath } from '../src/lib/screenName';
 import { retryPendingUpload } from '../src/lib/pendingUpload';
 import { SessionProvider } from '../src/lib/session';
 import {
@@ -31,6 +32,23 @@ import { ErrorBoundary } from '../src/ui/ErrorBoundary';
 // du bundle (relance headless après kill). Variante .web.ts vide — le preview
 // web ne voit aucun module natif.
 import '../src/features/run/gps/registerBackgroundTask';
+
+/**
+ * TRACEUR DE NAVIGATION (§26 super-propriétés). Un composant sans rendu, monté
+ * sous le routeur : à chaque changement de route il déclare l'écran normalisé
+ * (registerScreen → previous_screen/time_on_screen des events suivants) et émet
+ * la vue standard `$screen`. Le NOM est rédigé (normalizeScreenPath) — aucun id
+ * dynamique ne fuit. Silencieux si PostHog n'est pas configuré (O3).
+ */
+function NavAnalytics(): null {
+  const pathname = usePathname();
+  useEffect(() => {
+    const name = normalizeScreenPath(pathname);
+    registerScreen(name);
+    screen(name);
+  }, [pathname]);
+  return null;
+}
 
 export default function RootLayout() {
   useEffect(() => {
@@ -71,6 +89,9 @@ export default function RootLayout() {
       if (!alive || !code) return;
       if (lastHandledCodeRef.current === code) return; // déjà traité
       lastHandledCodeRef.current = code;
+      // §26 — l'app ouverte par un lien. `kind` est FERMÉ (le seul type routé
+      // aujourd'hui) : ni l'URL ni le code d'invitation ne partent en analytics.
+      track(EVENTS.deepLinkOpened, { kind: 'crew_invite' });
       // MÉMORISATION ICI, et INCONDITIONNELLE (correctif du bloquant relevé par
       // la vérification adversariale). Elle vivait dans l'écran /c/[code], gardée
       // par `sessionLoading` : au démarrage à froid ce drapeau est VRAI, donc le
@@ -107,6 +128,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
+        <NavAnalytics />
         <StatusBar style="light" />
         {/* Boundary global brandé (AMENDEMENT-08 §0) : plus jamais d'écran d'erreur brut. */}
         <ErrorBoundary>

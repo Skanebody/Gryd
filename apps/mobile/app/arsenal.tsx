@@ -269,6 +269,9 @@ function ArsenalBody() {
       if (isFunctionalItemKey(item.key)) return;
       const price = priceFor(item, currency);
       if (!price) return;
+      // §26 intention de conversion — le tap « acheter » (quelle que soit l'issue),
+      // pendant du paywall_view. `currency` = clé de prix (non-PII).
+      track(EVENTS.ctaTapped, { cta: 'arsenal_buy', currency: price.currency });
       if (price.currency === 'eclats') {
         // Solde jamais lu : débiter reviendrait à retrancher d'un montant
         // inventé, et à « offrir » un objet que le serveur ne connaîtra pas.
@@ -320,6 +323,9 @@ function ArsenalBody() {
       if (scope === null) return;
       haptics.light();
       void arsenalInventory.equipItem(item.key);
+      // §26 conversion cosmétique — `skin_equipped` était défini (§8) mais jamais
+      // émis. `item`/`scope` sont des clés de catalogue (non-PII), jamais un libellé.
+      track(EVENTS.skinEquipped, { item: item.key, scope });
       setDetail(null);
       flashLoot(item, 'equip');
     },

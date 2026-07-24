@@ -41,6 +41,7 @@
  * ne peut pas le réutiliser. Toute évolution de l'un se reporte sur l'autre.
  */
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
+import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 
 export type SignInMethod = 'apple' | 'google' | 'email_otp';
@@ -160,6 +161,7 @@ export async function verifyEmailOtp(email: string, code: string): Promise<AuthR
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
   if (data.user) identify(data.user.id);
   track(EVENTS.signupCompleted, { method: 'email_otp' satisfies SignInMethod });
+  void markSignupT0(); // t0 du funnel activation (1re inscription gagne)
   return { ok: true };
 }
 

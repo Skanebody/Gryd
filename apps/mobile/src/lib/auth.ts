@@ -43,6 +43,7 @@ import {
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
+import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 
 // Ferme proprement la popup d'auth au retour dans l'app (deep link scheme "gryd", cf. app.json).
@@ -183,6 +184,7 @@ export async function signInWithApple(): Promise<AuthResult> {
 
   if (data.user) identify(data.user.id);
   track(EVENTS.signupCompleted, { method: 'apple' satisfies SignInMethod });
+  void markSignupT0(); // t0 du funnel activation (1re inscription gagne)
   return { ok: true };
 }
 
@@ -226,6 +228,7 @@ export async function signInWithGoogle(): Promise<AuthResult> {
 
   if (data.user) identify(data.user.id);
   track(EVENTS.signupCompleted, { method: 'google' satisfies SignInMethod });
+  void markSignupT0(); // t0 du funnel activation (1re inscription gagne)
   return { ok: true };
 }
 
@@ -269,6 +272,7 @@ export async function verifyEmailOtp(email: string, code: string): Promise<AuthR
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
   if (data.user) identify(data.user.id);
   track(EVENTS.signupCompleted, { method: 'email_otp' satisfies SignInMethod });
+  void markSignupT0(); // t0 du funnel activation (1re inscription gagne)
   return { ok: true };
 }
 

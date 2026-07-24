@@ -871,6 +871,8 @@ function AccountStep({
   }, [pseudo]);
 
   const leave = useCallback(() => {
+    // §26 — « plus tard » assumé : une chute AVANT le compte, mesurée pour elle-même.
+    track(EVENTS.onboardingSkipped);
     persistPseudo();
     onDone();
   }, [persistPseudo, onDone]);

@@ -29,6 +29,7 @@ import {
 import { Icon } from './Icon';
 import { usePressScale } from './game/anim';
 import { haptics } from '../lib/haptics';
+import { EVENTS, track } from '../lib/analytics';
 
 export type ButtonVariant = 'primary' | 'ghost' | 'raised';
 export type ButtonSize = 'lg' | 'md';
@@ -45,6 +46,12 @@ export interface ButtonProps {
   disabled?: boolean;
   /** Nom accessible si différent du libellé. */
   accessibilityLabel?: string;
+  /**
+   * §26 friction — id STABLE et non-PII (jamais le libellé i18n) : quand fourni,
+   * le tap émet `cta_tapped { cta: analyticsId }`. Opt-in : sans lui, aucun event
+   * (pas de bruit, pas de fuite de copie traduite). À poser sur les CTA décisifs.
+   */
+  analyticsId?: string;
 }
 
 /** Hauteur par taille — jamais sous le plancher tactile (sizes.touchTarget). */
@@ -62,6 +69,7 @@ export function Button({
   loading = false,
   disabled = false,
   accessibilityLabel,
+  analyticsId,
 }: ButtonProps) {
   const { scale, onPressIn, onPressOut } = usePressScale(0.97);
   const blocked = disabled || loading;
@@ -77,6 +85,7 @@ export function Button({
         disabled={blocked}
         onPress={() => {
           haptics.light();
+          if (analyticsId) track(EVENTS.ctaTapped, { cta: analyticsId });
           onPress();
         }}
         onPressIn={onPressIn}

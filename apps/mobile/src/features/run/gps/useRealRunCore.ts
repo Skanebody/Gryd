@@ -37,6 +37,7 @@ import { AppState } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
+import { emitTimeToFirstCaptureOnce } from '../../../lib/activation';
 import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
 import { isPermanentRejection, queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
@@ -149,6 +150,16 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
             if (result.openBoundary) {
               // Signal d'activation RATÉE : le « il manquait N m » du funnel.
               track(EVENTS.loopAlmostClosed, { missing_m: result.openBoundary.missingM });
+            }
+            // §26 — ACTIVATION atteinte : une zone RÉELLE prise (le serveur juge),
+            // jamais un run vide/rejeté. `time_to_first_capture` (t0 = signup) part
+            // UNE fois, garde d'unicité côté activation.ts.
+            if (
+              result.hexes.claimed > 0 ||
+              result.hexes.stolen > 0 ||
+              result.hexes.pioneer > 0
+            ) {
+              void emitTimeToFirstCaptureOnce();
             }
           }
           return 'sent';
