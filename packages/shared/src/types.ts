@@ -316,6 +316,20 @@ export interface IngestRunResponse {
     /** Effet appliqué, libellé court prêt à l'affichage (jamais tronqué). */
     effect: string;
   };
+  /**
+   * PIONNIER — cette course a OUVERT une commune vierge (personne n'y avait
+   * encore couru). Décidé SERVEUR : la commune (nom RÉEL, contour administratif)
+   * vient de geo.api.gouv.fr, jamais fabriquée. Présent uniquement quand
+   * l'ouverture par présence a réellement eu lieu (course claimable, GPS Live,
+   * point de départ hors de toute zone). Le client logge `city_opened` d'ici et
+   * peut célébrer le pionnier — jamais une célébration déduite ou inventée.
+   */
+  communeOpened?: {
+    /** Code INSEE de la commune ouverte (« 48137 »). */
+    insee: string;
+    /** Nom réel de la commune (« Saint-Bauzile »). */
+    nom: string;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

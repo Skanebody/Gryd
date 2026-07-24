@@ -37,11 +37,13 @@ import {
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
   RUN_MAX_POINTS,
+  SEASON_DURATION_WEEKS,
   STREAK_HISTORY_WEEKS,
   VERIFY_PARTIAL_MIN,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
 import { type CityZoneRow, isCityIdShape, pickCityZone } from './city_zone.ts';
+import { communeCityId, reverseGeocodeCommune, shouldAutoOpenCommune } from './commune_open.ts';
 import { ROUTE_ENDPOINT_MATCH_KM, VERIFIED_MIN_TRUST } from '../_shared/badges.ts';
 import type {
   BoundaryEnd,
@@ -587,6 +589,48 @@ async function resolveRunCity(
   // dérivation (boîte + point-in-polygon), pas seulement la boîte englobante.
   const honored = pickCityZone(first.lat, first.lng, zones.filter((z) => z.city_id === declared));
   return honored ?? derived;
+}
+
+/**
+ * OUVERTURE PAR PRÉSENCE — le coureur est le PIONNIER de sa commune.
+ *
+ * Résout le point de DÉPART → commune réelle (geo.api.gouv.fr), puis l'ouvre via
+ * `provision_city` avec son CONTOUR administratif réel. `p_open_limit = null`
+ * BYPASSE le plafond d'ouverture (0066 ne l'arme que si non-null) : la présence
+ * remplace le plafond — on ne peut ouvrir que là où on court vraiment.
+ *
+ * BEST-EFFORT STRICT (l'app ne ment jamais) : reverse-geocode qui échoue, RPC en
+ * erreur, ou `ok:false` → renvoie `undefined`, l'appelant laisse la course « hors
+ * zone » (comportement honnête existant). JAMAIS de disque ni de nom fabriqué.
+ */
+async function autoOpenCommuneAt(
+  point: RunPoint,
+  userId: string,
+): Promise<{ insee: string; nom: string; created: boolean } | undefined> {
+  const resolved = await reverseGeocodeCommune(point.lat, point.lng);
+  if (!resolved) return undefined;
+  const { data, error } = await supabase.rpc('provision_city', {
+    p_city_id: communeCityId(resolved.insee),
+    p_name: resolved.nom,
+    p_geojson: resolved.geojson,
+    p_season_weeks: SEASON_DURATION_WEEKS,
+    p_opened_by: userId,
+    // Présence, pas plafond : null désarme le garde-fou de quota de 0066.
+    p_open_limit: null,
+    p_window_hours: null,
+  });
+  if (error) {
+    console.error('[ingest_run] autoOpenCommuneAt provision_city:', error.message);
+    return undefined;
+  }
+  // `provision_city` rend { ok, zoneCreated, ... }. Un refus (géométrie/nom
+  // invalides…) n'est PAS une ouverture. `zoneCreated` distingue le VRAI pionnier
+  // (il a écrit la zone) d'un second coureur quasi simultané dont l'insert est
+  // tombé sur `on conflict do nothing` : ce dernier se rattache bien à la commune,
+  // mais ne s'entend pas dire « tu l'as ouverte » (il ne l'a pas fait).
+  const body = (data ?? {}) as { ok?: unknown; zoneCreated?: unknown };
+  if (body.ok !== true) return undefined;
+  return { insee: resolved.insee, nom: resolved.nom, created: body.zoneCreated === true };
 }
 
 /** Hexes déjà pris/défendus aujourd'hui (UTC) — approximation MVP du plafond §6.4
@@ -2416,8 +2460,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const declaredZone = await loadCityZoneById(request.cityId);
       if (!declaredZone) return json({ error: 'unknown_city' }, 400);
     }
-    const cityZone = await resolveRunCity(request.cityId, request.points);
+    // `let` : l'auto-ouverture par présence (plus bas) peut la RÉ-RÉSOUDRE vers
+    // la commune fraîchement ouverte, pour que tout l'aval en hérite.
+    let cityZone = await resolveRunCity(request.cityId, request.points);
     request.cityId = cityZone?.city_id;
+    let communeOpened: IngestRunResponse['communeOpened'];
 
     // ── Stats §3.2 (pur) — calculées AVANT la dédup pour que la branche
     //    métrique de dedupeActivity (durée±10 % & distance±10 %) puisse jouer :
@@ -2431,16 +2478,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const durationS = Math.round(stats.durationS);
     const avgPaceSKm = Math.round(stats.avgPaceSKm);
 
-    // ── Ville d'attache (blocage n°5) ─────────────────────────────────────────
-    // Posée ICI, une seule fois, avant que le handler ne se ramifie (conquête /
-    // sans claim / doublon) : toutes les branches en héritent. Une course
-    // REFUSÉE (`rejected`) ou SUSPECTE (`flagged`, GRYD Verify) ne pose rien —
-    // on ne domicilie personne sur un fait de jeu qu'on vient d'invalider ou
-    // qu'on n'a pas su créditer.
-    if (profile.city_id === null && validation.kind === 'claimable') {
-      await ensureHomeCity(userId, request.cityId);
-    }
-
     // ── polyline_hash + déduplication Activity Hub (§4) ──────────────────────
     // Le hash sert de clé de dédup forte ET est persisté sur la course. La dédup
     // « OU triple » du §4 est désormais pleinement câblée : hash identique OU
@@ -2451,6 +2488,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // JAMAIS celui fourni par le client — sinon un hash aléatoire à chaque envoi rend
     // la branche « hash identique » de findDuplicateRun morte, et la même course se
     // rejoue à volonté (farming XP/streak/challenges). request.polylineHash est ignoré.
+    //
+    // ⚠️ AVANT l'auto-ouverture : un doublon ne doit produire AUCUN effet de bord.
+    // Sans ce placement, une course GPS Live qui rejoue un import GPX antérieur
+    // ouvrirait une commune (écriture city_zones + saison) puis serait jetée en
+    // 'duplicate' — un provisionnement fantôme sans crédit pionnier.
     const runHash = await polylineHash(request.points);
     const dupOf = await findDuplicateRun(userId, {
       startedAt: request.startedAt,
@@ -2477,6 +2519,54 @@ Deno.serve(async (req: Request): Promise<Response> => {
         matched_run_id: dupOf,
       });
       return json({ status: 'duplicate', runId: dupOf, replayed: false }, 200);
+    }
+
+    // ── Auto-ouverture par PRÉSENCE (23/07/2026) ──────────────────────────────
+    // Si la course est CLAIMABLE, part d'un point HORS de toute city_zone, et
+    // vient du GPS LIVE (jamais un import — vecteur de « zone vide au loin »),
+    // alors le coureur est le PIONNIER de sa commune : elle s'ouvre avec son
+    // CONTOUR RÉEL (geo.api.gouv.fr). On la charge ensuite par son id pour que
+    // domiciliation, densité, claim→season_scores et nom de frontière héritent de
+    // la zone fraîche. Best-effort strict : tout échec laisse la course « hors
+    // zone » (comportement honnête), jamais un disque ni un nom fabriqué. Placé
+    // APRÈS la dédup (aucun effet de bord sur un doublon) et AVANT `ensureHomeCity`
+    // (le pionnier est domicilié dans la commune qu'il vient d'ouvrir).
+    if (
+      shouldAutoOpenCommune({
+        hasCityZone: cityZone !== undefined,
+        validationKind: validation.kind,
+        runMode,
+        source: request.source,
+        pointCount: request.points.length,
+      })
+    ) {
+      const opened = await autoOpenCommuneAt(request.points[0], userId);
+      if (opened) {
+        // Le flag « tu as ouvert » n'est posé que pour le VRAI pionnier (created).
+        if (opened.created) communeOpened = { insee: opened.insee, nom: opened.nom };
+        // RATTACHEMENT PAR ID, pas par re-géométrie. Le géocodeur fait autorité
+        // sur « quelle commune » ; on charge donc SA zone directement. Refaire un
+        // point-in-polygon sur le contour SIMPLIFIÉ (Douglas-Peucker, ~33 m)
+        // pourrait rejeter un départ à quelques mètres du bord — la course dirait
+        // « ouverte » mais ne se rattacherait à rien (0 en classement, non
+        // domiciliée). On se rattache dans TOUS les cas (pionnier comme second
+        // coureur) à la commune désormais ouverte.
+        const reZone = await loadCityZoneById(communeCityId(opened.insee));
+        if (reZone) {
+          cityZone = reZone;
+          request.cityId = reZone.city_id;
+        }
+      }
+    }
+
+    // ── Ville d'attache (blocage n°5) ─────────────────────────────────────────
+    // Posée ICI, une seule fois, avant que le handler ne se ramifie (conquête /
+    // sans claim / doublon) : toutes les branches en héritent. Une course
+    // REFUSÉE (`rejected`) ou SUSPECTE (`flagged`, GRYD Verify) ne pose rien —
+    // on ne domicilie personne sur un fait de jeu qu'on vient d'invalider ou
+    // qu'on n'a pas su créditer.
+    if (profile.city_id === null && validation.kind === 'claimable') {
+      await ensureHomeCity(userId, request.cityId);
     }
     // ── Série (LOT 1) : DÉRIVÉE des courses réelles, plus jamais d'une colonne
     // que personne n'écrivait. `streakBefore` = les semaines DÉJÀ validées avant
@@ -3237,6 +3327,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // AMENDEMENT-19 §7 : UN bonus ciblé appliqué (coffre/XP/badge/protection,
       // capé +35 %). Copy gelée (types.ts) : « effet » court, jamais tronqué.
       ...(bonusApplied !== undefined ? { bonusApplied } : {}),
+      // PIONNIER : cette course a ouvert une commune vierge (nom RÉEL de
+      // geo.api.gouv.fr). Le client logge city_opened et peut célébrer d'ici.
+      ...(communeOpened !== undefined ? { communeOpened } : {}),
     };
     await persistCelebration(runId, response, score.points);
     return json(response);

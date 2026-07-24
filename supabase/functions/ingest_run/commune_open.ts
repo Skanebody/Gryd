@@ -28,6 +28,36 @@ export function communeCityId(insee: string): string {
   return `insee-${insee}`;
 }
 
+/**
+ * LE GARDE de l'auto-ouverture par présence, isolé et PUR (la partie la plus
+ * facile à casser). Une course n'ouvre une commune QUE si les cinq conditions
+ * tiennent ENSEMBLE :
+ *  · `!hasCityZone` — le départ ne tombe dans AUCUNE zone existante (sinon on
+ *    court déjà dans une commune ouverte, rien à ouvrir) ;
+ *  · `validationKind === 'claimable'` — une course refusée/suspecte n'ouvre rien
+ *    (on ne fonde pas le monde sur un fait de jeu invalidé) ;
+ *  · `runMode === 'conquete'` — une course_privee (aucun partage) ou un
+ *    social_run ne DOIT pas ouvrir une commune PUBLIQUE (confidentialité) ;
+ *  · `source === 'gps'` — GPS LIVE uniquement : les imports (gpx/healthkit) sont
+ *    le vecteur de la « zone vide au loin » falsifiée que le fondateur interdit ;
+ *  · `pointCount > 0` — il faut un point de départ à géocoder.
+ */
+export function shouldAutoOpenCommune(ctx: {
+  readonly hasCityZone: boolean;
+  readonly validationKind: string;
+  readonly runMode: string;
+  readonly source: string;
+  readonly pointCount: number;
+}): boolean {
+  return (
+    !ctx.hasCityZone &&
+    ctx.validationKind === 'claimable' &&
+    ctx.runMode === 'conquete' &&
+    ctx.source === 'gps' &&
+    ctx.pointCount > 0
+  );
+}
+
 type Pt = readonly [number, number];
 
 /**
@@ -162,6 +192,20 @@ export interface ResolvedCommune {
 export type FetchLike = (url: string) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
 
 /**
+ * Budget I/O de l'appel geo.api.gouv.fr — TECHNIQUE, pas une règle de jeu (comme
+ * WEATHER_TIMEOUT_MS d'ingest_run). Sans borne, un ralentissement de l'API
+ * gouvernementale sur le chemin CHAUD d'ingestion ferait tuer la fonction edge
+ * par son wall-clock → une course VALIDE échouerait à s'enregistrer. Le timeout
+ * dépassé lève, `reverseGeocodeCommune` l'attrape et rend `undefined` : la course
+ * reste « hors zone » (honnête), jamais un échec d'ingestion.
+ */
+const GEO_API_TIMEOUT_MS = 3_000;
+
+/** `fetch` par défaut, BORNÉ par un timeout — l'injection dans les tests s'en passe. */
+const timedFetch: FetchLike = (url) =>
+  fetch(url, { signal: AbortSignal.timeout(GEO_API_TIMEOUT_MS) });
+
+/**
  * Résout un point GPS → commune RÉELLE (code INSEE + nom + contour) via
  * geo.api.gouv.fr. BEST-EFFORT : toute panne (réseau, 4xx/5xx, corps illisible,
  * contour non simplifiable) rend `undefined`. JAMAIS de throw, JAMAIS de repli
@@ -171,7 +215,7 @@ export type FetchLike = (url: string) => Promise<{ ok: boolean; json: () => Prom
 export async function reverseGeocodeCommune(
   lat: number,
   lng: number,
-  fetchImpl: FetchLike = fetch as unknown as FetchLike,
+  fetchImpl: FetchLike = timedFetch,
 ): Promise<ResolvedCommune | undefined> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
   const url =

@@ -15,10 +15,32 @@ import {
   communeCityId,
   douglasPeucker,
   reverseGeocodeCommune,
+  shouldAutoOpenCommune,
   simplifyGeometry,
   simplifyRing,
   type FetchLike,
 } from './commune_open.ts';
+
+const GOLDEN = {
+  hasCityZone: false,
+  validationKind: 'claimable',
+  runMode: 'conquete',
+  source: 'gps',
+  pointCount: 12,
+} as const;
+
+Deno.test('shouldAutoOpenCommune : le chemin doré ouvre, chaque écart FERME', () => {
+  assert(shouldAutoOpenCommune(GOLDEN), 'course claimable GPS conquête hors zone → ouvre');
+  // Une seule condition qui tombe suffit à ne PAS ouvrir :
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, hasCityZone: true }), 'déjà dans une zone');
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, validationKind: 'rejected' }), 'course refusée');
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, validationKind: 'flagged' }), 'course suspecte');
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, runMode: 'course_privee' }), 'course privée');
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, runMode: 'social_run' }), 'social run');
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, source: 'gpx' }), 'import GPX (falsifiable)');
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, source: 'healthkit' }), 'import santé (falsifiable)');
+  assert(!shouldAutoOpenCommune({ ...GOLDEN, pointCount: 0 }), 'aucun point de départ');
+});
 
 Deno.test('communeCityId : préfixe stable, code INSEE en texte', () => {
   assertEquals(communeCityId('01001'), 'insee-01001');
