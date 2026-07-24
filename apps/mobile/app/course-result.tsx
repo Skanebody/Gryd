@@ -64,6 +64,7 @@ import { ResultReveal } from '../src/features/run/ResultReveal';
 import { ResultTrace } from '../src/features/run/ResultTrace';
 import { getFinishedTrace } from '../src/features/run/finishedTrace';
 import { pioneerCelebration } from '../src/features/run/pioneerCelebration';
+import { RendezvousOptIn } from '../src/features/notifications/RendezvousOptIn';
 import {
   boundaryExpiryLabel,
   contributionPct,
@@ -751,6 +752,10 @@ function ConquestResultScreen({
             <Icon name="carte" size={iconSizes.sm} color={colors.blanc} />
             <Text style={styles.boundarySecondaryLabel}>{t(C.seeTerritory)}</Text>
           </Pressable>
+          {/* RENDEZ-VOUS local (rétention) — surface SECONDAIRE : le seul
+              déclencheur de retour shippable sans backend. S'efface d'elle-même
+              sur web / refus de permission (jamais un bouton mort). */}
+          <RendezvousOptIn />
           {/* Le libellé suit `zones`, pas `conquest` : sans verdict serveur,
               « Comment j'ai gagné ces zones » promettrait l'explication de zones
               que personne n'a encore comptées. Dans ce cas le panneau ne contient

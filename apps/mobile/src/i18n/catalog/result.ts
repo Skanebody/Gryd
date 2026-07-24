@@ -104,6 +104,52 @@ export const C = defineCatalog({
     de: 'Vor dir ist hier niemand gelaufen',
     pt: 'Ninguém tinha corrido aqui antes de ti',
   },
+  // RENDEZ-VOUS local (rétention) — invitation à poser son propre rappel.
+  rendezvousOffer: {
+    fr: 'Me rappeler ma prochaine sortie',
+    en: 'Remind me to run',
+    es: 'Recordarme mi próxima salida',
+    de: 'An meinen nächsten Lauf erinnern',
+    pt: 'Lembrar-me da próxima corrida',
+  },
+  // {time} = heure au format 24 h (« 18:00 »), locale-neutre.
+  rendezvousSet: {
+    fr: 'Rappel quotidien · {time}',
+    en: 'Daily reminder · {time}',
+    es: 'Recordatorio diario · {time}',
+    de: 'Tägliche Erinnerung · {time}',
+    pt: 'Lembrete diário · {time}',
+  },
+  rendezvousCancel: {
+    fr: 'Annuler',
+    en: 'Cancel',
+    es: 'Cancelar',
+    de: 'Abbrechen',
+    pt: 'Cancelar',
+  },
+  rendezvousDenied: {
+    fr: 'Autorise les notifications pour ton rappel',
+    en: 'Allow notifications for your reminder',
+    es: 'Permite las notificaciones para tu recordatorio',
+    de: 'Erlaube Mitteilungen für deine Erinnerung',
+    pt: 'Permite as notificações para o teu lembrete',
+  },
+  // Titre de la notif — marque (identique aux 5 langues).
+  rendezvousNotifTitle: {
+    fr: 'GRYD',
+    en: 'GRYD',
+    es: 'GRYD',
+    de: 'GRYD',
+    pt: 'GRYD',
+  },
+  // Corps — anti-shame, ne promet QUE la course (jamais une conquête/un rival).
+  rendezvousNotifBody: {
+    fr: 'Ta prochaine sortie t’attend',
+    en: 'Your next run is waiting',
+    es: 'Tu próxima salida te espera',
+    de: 'Dein nächster Lauf wartet',
+    pt: 'A tua próxima corrida está à espera',
+  },
   // §11 honnêteté : le SERVEUR a jugé la capture invalide (status 'rejected').
   // Le titre le DIT — jamais « TERRITOIRE ÉTENDU » + « +0 zones » (qui laissait
   // croire à une prise). La raison précise vit dans REJECT_REASON_COPY (bas).
