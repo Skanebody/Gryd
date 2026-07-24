@@ -16,6 +16,7 @@
  * grisLigne/blanc · raised = surface N2 (elevation.raised)/blanc. Un seul gros
  * CTA chartreuse par écran (§A) — c'est à l'écran de n'avoir qu'un `primary`.
  */
+import { useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   colors,
@@ -75,6 +76,11 @@ export function Button({
   const blocked = disabled || loading;
   const onDark = variant === 'primary'; // texte noir sur chartreuse ; blanc sinon
   const fg = onDark ? colors.noir : colors.blanc;
+  // A11y §22 — ANNEAU DE FOCUS clavier (Expo Web) : RN-web efface l'outline par
+  // défaut, donc sans lui le bouton est INVISIBLE au clavier. On rend un anneau
+  // chartreuse en overlay (aucune prop web-only, sûr sur natif où le focus ne se
+  // déclenche pas). Jamais sur un bouton bloqué (il n'est pas actionnable).
+  const [focused, setFocused] = useState(false);
 
   return (
     <Animated.View style={[styles.wrap, { transform: [{ scale }] }]}>
@@ -83,6 +89,8 @@ export function Button({
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityState={{ disabled: blocked, busy: loading }}
         disabled={blocked}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onPress={() => {
           haptics.light();
           if (analyticsId) track(EVENTS.ctaTapped, { cta: analyticsId });
@@ -118,12 +126,25 @@ export function Button({
           {label}
         </Text>
       </Pressable>
+      {/* Anneau de focus clavier — overlay chartreuse 3 px hors du bouton, sur le
+          fond sombre de l'app (fort contraste). pointerEvents none : purement visuel. */}
+      {focused && !blocked ? <View pointerEvents="none" style={styles.focusRing} /> : null}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { alignSelf: 'stretch' },
+  focusRing: {
+    position: 'absolute',
+    top: -3,
+    left: -3,
+    right: -3,
+    bottom: -3,
+    borderRadius: radii.pill,
+    borderWidth: 2,
+    borderColor: colors.chartreuse,
+  },
   base: {
     alignSelf: 'stretch',
     minHeight: sizes.touchTarget,

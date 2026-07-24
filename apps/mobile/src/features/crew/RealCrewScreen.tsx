@@ -47,7 +47,6 @@ import {
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { useSession } from '../../lib/session';
 import { Button } from '../../ui/Button';
-import { GhostButton } from '../../ui/GhostButton';
 import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
 import type { Entry } from '../../i18n/types';
@@ -544,7 +543,7 @@ export function RealCrewScreen() {
           </View>
 
           <View style={styles.leaveRow}>
-            <GhostButton
+            <Button variant="ghost" size="md"
               label={t(C.pingCancel)}
               onPress={() => {
                 // Retour d'un pas : au pas 2 on revient au choix du signal, sinon
@@ -736,7 +735,7 @@ export function RealCrewScreen() {
           <Button label={t(C.rlShareCode)} icon="partage" onPress={() => setMode('invite')} />
         </View>
         <View style={styles.leaveRow}>
-          <GhostButton label={t(C.rlLeave)} onPress={onLeave} />
+          <Button variant="ghost" size="md" label={t(C.rlLeave)} onPress={onLeave} />
         </View>
       </TabScreen>
     );
@@ -790,7 +789,7 @@ export function RealCrewScreen() {
             />
           </View>
           <View style={styles.leaveRow}>
-            <GhostButton label={t(C.rlBack)} onPress={goHome} />
+            <Button variant="ghost" size="md" label={t(C.rlBack)} onPress={goHome} />
           </View>
         </View>
       </TabScreen>
@@ -831,7 +830,7 @@ export function RealCrewScreen() {
             />
           </View>
           <View style={styles.leaveRow}>
-            <GhostButton label={t(C.rlBack)} onPress={goHome} />
+            <Button variant="ghost" size="md" label={t(C.rlBack)} onPress={goHome} />
           </View>
         </View>
       </TabScreen>
@@ -894,7 +893,7 @@ export function RealCrewScreen() {
           />
         </View>
         <View style={styles.leaveRow}>
-          <GhostButton
+          <Button variant="ghost" size="md"
             label={t(C.rlHaveCode)}
             disabled={loading}
             onPress={() => {

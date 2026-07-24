@@ -36,7 +36,6 @@ import {
 } from 'react-native';
 import { colors, radii } from '@klaim/shared';
 import { Button } from './Button';
-import { GhostButton } from './GhostButton';
 import { C } from '../i18n/catalog/nav';
 import { useT } from '../i18n/store';
 
@@ -112,7 +111,7 @@ export function KeyboardSaveBar({
           {t(C.saveBarQuestion)}
         </Text>
         <View style={styles.actions}>
-          <GhostButton label={t(C.saveBarCancel)} onPress={onCancel} />
+          <Button variant="ghost" size="md" label={t(C.saveBarCancel)} onPress={onCancel} />
           <View style={styles.cta}>
             <Button
               label={saveLabel ?? t(C.saveBarSave)}

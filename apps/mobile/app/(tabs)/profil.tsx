@@ -91,7 +91,7 @@ import { C as M } from '../../src/i18n/catalog/mission';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
-import { GhostButton } from '../../src/ui/GhostButton';
+import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
@@ -1090,7 +1090,7 @@ export default function ProfilScreen() {
 
         {configured && session ? (
           <View style={styles.signOutWrap}>
-            <GhostButton label={t(C.signOut)} onPress={() => void signOut()} />
+            <Button variant="ghost" size="md" label={t(C.signOut)} onPress={() => void signOut()} />
           </View>
         ) : null}
       </TabScreen>

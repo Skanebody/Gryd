@@ -45,7 +45,6 @@ import QRCode from 'react-native-qrcode-svg';
 import { colors, fontSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { Button } from '../../ui/Button';
-import { GhostButton } from '../../ui/GhostButton';
 import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
 import type { Entry } from '../../i18n/types';
@@ -155,7 +154,7 @@ export function CrewInviteQRScreen({
             <Button label={t(C.qrRetry)} onPress={() => void load()} />
           </View>
           <View style={styles.backRow}>
-            <GhostButton label={t(C.rlBack)} onPress={onBack} />
+            <Button variant="ghost" size="md" label={t(C.rlBack)} onPress={onBack} />
           </View>
         </View>
       </TabScreen>
@@ -170,7 +169,7 @@ export function CrewInviteQRScreen({
         <View style={styles.block}>
           <Text style={styles.body}>{t(C.qrLoading)}</Text>
           <View style={styles.backRow}>
-            <GhostButton label={t(C.rlBack)} onPress={onBack} />
+            <Button variant="ghost" size="md" label={t(C.rlBack)} onPress={onBack} />
           </View>
         </View>
       </TabScreen>
@@ -219,10 +218,10 @@ export function CrewInviteQRScreen({
         <Button label={t(C.qrShare)} icon="partage" onPress={() => void onShare()} />
       </View>
       <View style={styles.secondaryRow}>
-        <GhostButton label={t(C.qrCopyCode)} onPress={() => void onCopy()} />
+        <Button variant="ghost" size="md" label={t(C.qrCopyCode)} onPress={() => void onCopy()} />
       </View>
       <View style={styles.backRow}>
-        <GhostButton label={t(C.rlBack)} onPress={onBack} />
+        <Button variant="ghost" size="md" label={t(C.rlBack)} onPress={onBack} />
       </View>
     </TabScreen>
   );

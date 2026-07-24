@@ -44,7 +44,6 @@ import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { intentionHref } from '../src/features/nav/runContext';
 import { Button } from '../src/ui/Button';
-import { GhostButton } from '../src/ui/GhostButton';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
 import { BadgeCard, DailyFocusBlock, StreakBlock } from '../src/ui/game';
@@ -173,7 +172,7 @@ export default function AujourdhuiScreen() {
           (§A : 1 seul CTA chartreuse, qui reste le départ de course). */}
       {showSignIn ? (
         <View style={styles.signInWrap}>
-          <GhostButton label={t(C.todaySignIn)} onPress={() => router.push('/sign-in')} />
+          <Button variant="ghost" size="md" label={t(C.todaySignIn)} onPress={() => router.push('/sign-in')} />
         </View>
       ) : null}
 

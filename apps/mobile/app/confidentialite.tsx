@@ -55,7 +55,7 @@ import {
 } from '../src/features/account/deletion';
 import { signOut } from '../src/lib/auth';
 import { StackScreen } from '../src/ui/StackScreen';
-import { GhostButton } from '../src/ui/GhostButton';
+import { Button } from '../src/ui/Button';
 import { Icon } from '../src/ui/Icon';
 import { ListRow } from '../src/ui/ListRow';
 import {
@@ -525,8 +525,8 @@ export default function ConfidentialiteScreen() {
         <SelectPills options={REASON_OPTS} value={reportReason} onChange={setReportReason} />
         <Note>{REPORT_REASONS.find((r) => r.key === reportReason)?.hint ?? ''}</Note>
         <View style={styles.actionGap}>
-          <GhostButton label={t(C.signalerJoueur)} icon="alerte" onPress={submitReport} />
-          <GhostButton label={t(C.bloquerJoueur)} icon="bouclier" onPress={submitBlock} />
+          <Button variant="ghost" size="md" label={t(C.signalerJoueur)} icon="alerte" onPress={submitReport} />
+          <Button variant="ghost" size="md" label={t(C.bloquerJoueur)} icon="bouclier" onPress={submitBlock} />
         </View>
         {blocked.length > 0 ? (
           <>
@@ -555,7 +555,7 @@ export default function ConfidentialiteScreen() {
         <View style={styles.divider} />
         <Note>{t(C.signalerMessageNote)}</Note>
         <View style={styles.actionGap}>
-          <GhostButton
+          <Button variant="ghost" size="md"
             label={t(C.ouvrirChatCrew)}
             icon="crew"
             onPress={() => {
@@ -563,7 +563,7 @@ export default function ConfidentialiteScreen() {
               router.push('/crew');
             }}
           />
-          <GhostButton
+          <Button variant="ghost" size="md"
             label={t(C.lireCodeConduite)}
             icon="bouclier"
             onPress={() => {
@@ -593,7 +593,7 @@ export default function ConfidentialiteScreen() {
         <Text style={styles.miniLabel}>{t(C.exporterRgpdLabel)}</Text>
         <Note>{t(C.exportNote)}</Note>
         <View style={styles.actionGap}>
-          <GhostButton
+          <Button variant="ghost" size="md"
             label={t(C.exporterMesDonnees)}
             icon="partage"
             onPress={() => void runDataExport()}
@@ -627,7 +627,7 @@ export default function ConfidentialiteScreen() {
             {t(C.deletionPendingBody, { date: formatDate(deletionStatus.purgeAt) })}
           </Text>
           <View style={styles.actionGap}>
-            <GhostButton
+            <Button variant="ghost" size="md"
               label={t(C.deletionCancelCta)}
               onPress={() => void runCancelDeletion()}
               disabled={deleting}
@@ -700,7 +700,7 @@ function DeleteAccountConfirm({
       </View>
 
       <View style={styles.confirmActions}>
-        <GhostButton label={t(C.annulerGarder)} onPress={onCancel} disabled={busy} />
+        <Button variant="ghost" size="md" label={t(C.annulerGarder)} onPress={onCancel} disabled={busy} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(C.deleteDefinitifA11y)}

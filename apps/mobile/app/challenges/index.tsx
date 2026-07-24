@@ -17,7 +17,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { router } from 'expo-router';
 import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
-import { GhostButton } from '../../src/ui/GhostButton';
+import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { StackScreen } from '../../src/ui/StackScreen';
@@ -102,7 +102,7 @@ function Row({ c }: { c: ChallengeCard }) {
 /**
  * État vide — une seule carte, une seule raison, une seule action au maximum
  * (§A). Les trois raisons ne se ressemblent pas et ne se remplacent pas :
- *   · pas de compte  → on invite à se connecter (GhostButton : le CTA
+ *   · pas de compte  → on invite à se connecter (Button ghost : le CTA
  *     chartreuse de l'app reste le départ de course) ;
  *   · serveur injoignable → on l'explique, on ne propose rien à tenter ici ;
  *   · aucun défi actif → on le dit comme un fait sur le jeu, sans reprocher au
@@ -128,7 +128,7 @@ function EmptyState({ reason }: { reason: Exclude<ChallengesEmptyReason, 'none'>
       <Text style={styles.emptyBody}>{t(body)}</Text>
       {signedOut ? (
         <View style={styles.emptyAction}>
-          <GhostButton label={t(C.todaySignIn)} onPress={() => router.push('/sign-in')} />
+          <Button variant="ghost" size="md" label={t(C.todaySignIn)} onPress={() => router.push('/sign-in')} />
         </View>
       ) : null}
     </View>

@@ -25,7 +25,7 @@ import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from 
 import { EVENTS, screen, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
-import { GhostButton } from '../../src/ui/GhostButton';
+import { Button } from '../../src/ui/Button';
 import { StackScreen } from '../../src/ui/StackScreen';
 import { Segmented, StatePill, type GameVisualState } from '../../src/ui/game';
 import { RunLoopMap, RunTrace2D } from '../../src/features/history/RunLoopMap';
@@ -509,8 +509,8 @@ export default function CourseDetailScreen() {
           <Icon name="partage" size={iconSizes.md} color={colors.noir} />
           <Text style={styles.primaryLabel}>{t(C.share)}</Text>
         </Pressable>
-        <GhostButton label={t(C.seeOnMap)} icon="carte" onPress={seeOnMap} />
-        <GhostButton label={t(C.reportProblem)} icon="alerte" onPress={report} />
+        <Button variant="ghost" size="md" label={t(C.seeOnMap)} icon="carte" onPress={seeOnMap} />
+        <Button variant="ghost" size="md" label={t(C.reportProblem)} icon="alerte" onPress={report} />
       </View>
     </StackScreen>
   );
