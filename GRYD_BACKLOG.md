@@ -10,7 +10,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [x] Row 1 · P0 — i18n Arsenal complète (catalogue + conseils + aperçus VoiceOver) + dead-code (RunModeSheet supprimé) — L — `65174d7` `9af259b` `638a3af`
 - [x] Row 2 · P1 — Analytics §26 : friction/activation/conversion (5 events + super-props + t0→time_to_first_capture + skin_equipped émis) — M — `c5c0ca1`
 - [x] Row 3 · P1 — Trace live sur l'écran de course (§10) : vraie polyligne GPS mesurée exposée au snapshot + LiveTraceThumb SVG §B, sans fond fabriqué (A-47) — M — `ff97bf6`
-- [ ] Row 4 · P1 — Profil : crew réel (useRealCrew) + rival approximatif + progression locale + prochaine mission (§12.2/§15.3, 4 champs ABSENTS) — M
+- [x] Row 4 · P1 — Profil (§12.2/§15.3) : crew réel (useRealCrew) + progression locale (seasonRankProgress) + prochaine mission (useRealMission) ; rival laissé en vide honnête (aucune source réelle) — M — `58babdf`
 - [ ] Row 5 · P1 — Classements : échelle §16 navigable (quartier/ville/crew/amis) + spécialités + challenges territoire — L — DÉPEND décision flags.season
 - [ ] Row 11 · P1 — Rail IAP réel (O3, RevenueCat) + purchase_*/subscription_* — L — BLOQUÉ O3
 - [ ] Row 12 · P1 — Photo de profil publique (§14) — L — PROGRAMME séquencé, modération d'abord
