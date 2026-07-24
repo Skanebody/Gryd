@@ -4,6 +4,18 @@ Format : `- [ ] <titre> — <valeur> — <S/M/L>`. Fait → `- [x]` + hash de co
 Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
+## Refonte Spéc Maître Unifiée 2026 (priorité ACTIVE — « continue la transformation »)
+> Réf : `docs/product/GRYD_SPEC_MAITRE_UNIFIEE_2026.md` + roadmap priorisée dans `CURRENT_STATE_CONFORMITY_MATRIX.md` (Row 1-15). Un Row = un chantier, gate complet. Décisions fondateur en attente = 6 arbitrages (photo onboarding §13.3, flags.season §16, Bike, grammaire analytics, vocabulaire rang, carte démo §7.2).
+
+- [x] Row 1 · P0 — i18n Arsenal complète (catalogue + conseils + aperçus VoiceOver) + dead-code (RunModeSheet supprimé) — L — `65174d7` `9af259b` `638a3af`
+- [x] Row 2 · P1 — Analytics §26 : friction/activation/conversion (5 events + super-props + t0→time_to_first_capture + skin_equipped émis) — M — `c5c0ca1`
+- [ ] Row 3 · P1 — Trace live sur l'écran de course (§10 'trace' ABSENT) : vraie polyligne GPS mesurée, sans fond fabriqué (A-47) — M
+- [ ] Row 4 · P1 — Profil : crew réel (useRealCrew) + rival approximatif + progression locale + prochaine mission (§12.2/§15.3, 4 champs ABSENTS) — M
+- [ ] Row 5 · P1 — Classements : échelle §16 navigable (quartier/ville/crew/amis) + spécialités + challenges territoire — L — DÉPEND décision flags.season
+- [ ] Row 11 · P1 — Rail IAP réel (O3, RevenueCat) + purchase_*/subscription_* — L — BLOQUÉ O3
+- [ ] Row 12 · P1 — Photo de profil publique (§14) — L — PROGRAMME séquencé, modération d'abord
+- [ ] Rows 6-10, 13-15 · P2 — résultat post-course honnête, live 1 info, rang statutaire, design-system §22, formatteurs locale-aware, agrégation carte, Bike, humain onboarding — voir matrice
+
 ## Repositionnement mission-first (décision fondateur 21/07/2026, analyse stratégique vs INTVL)
 > Réf : AMENDEMENT-41 + analyse stratégique INTVL (shared territories livré par INTVL 2026 — notre réponse = LE RELAIS). Les 4 comportements MVP à mesurer via PostHog : comprendre la capture / dévier son parcours / revenir après attaque / inviter.
 
