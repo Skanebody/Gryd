@@ -83,6 +83,12 @@ import {
   type ArsenalPlayerSignals,
   type ArsenalRecommendation,
 } from '../src/features/arsenal';
+import {
+  arsenalContents,
+  arsenalDescription,
+  arsenalLimit,
+  arsenalName,
+} from '../src/features/arsenal/copy';
 
 /** Largeur (px) de l'illustration d'aperçu dans le détail — prominente, tient sur mobile. */
 const PREVIEW_ILLUS_SIZE = 208;
@@ -329,8 +335,8 @@ function ArsenalBody() {
       flashLoot(item, 'gift');
       flashNotice(
         anonymous
-          ? t(C.giftFeedAnon, { item: item.name })
-          : t(C.giftFeedNamed, { item: item.name }),
+          ? t(C.giftFeedAnon, { item: arsenalName(item, t) })
+          : t(C.giftFeedNamed, { item: arsenalName(item, t) }),
       );
     },
     [flashLoot, flashNotice, t],
@@ -396,7 +402,7 @@ function ArsenalBody() {
       return (
         <ArsenalItemCard
           key={item.key}
-          name={item.name}
+          name={arsenalName(item, t)}
           slug={item.slug}
           preview={cardThumb(item)}
           rarity={item.rarity}
@@ -466,7 +472,7 @@ function ArsenalBody() {
         <View style={styles.loot} key={`${loot.item.key}-${loot.kind}`}>
           <RewardCard
             icon="cadeau"
-            label={loot.item.name}
+            label={arsenalName(loot.item, t)}
             sublabel={
               loot.kind === 'equip'
                 ? t(C.lootEquipped)
@@ -671,7 +677,7 @@ function AdvisorCard({
         </View>
         <View style={styles.advisorTitleWrap}>
           <Text style={styles.advisorKicker}>{t(C.choisiPourToi)}</Text>
-          <Text style={styles.advisorName}>{item.name}</Text>
+          <Text style={styles.advisorName}>{arsenalName(item, t)}</Text>
           <Text style={styles.advisorMeta}>{meta}</Text>
         </View>
       </View>
@@ -761,7 +767,7 @@ function ItemDetail({
         <View style={styles.detailIllus}>
           <ArsenalPreview item={item} size={PREVIEW_ILLUS_SIZE} />
         </View>
-        <Text style={styles.detailName}>{item.name}</Text>
+        <Text style={styles.detailName}>{arsenalName(item, t)}</Text>
         <Text style={styles.detailMeta}>
           {BADGE_TIER_LABEL[item.rarity]}
           {item.draft ? t(C.saison1Suffix) : ''}
@@ -771,7 +777,7 @@ function ItemDetail({
       {/* Description + fonctionnement fusionnés en UN paragraphe, puis 3 lignes
           utiles max (Sert à / Pourquoi / Limite) — jamais un mur de labels. */}
       <Text style={styles.detailDesc}>
-        {item.description} {advice.mechanic}
+        {arsenalDescription(item, t)} {advice.mechanic}
       </Text>
 
       <View style={styles.detailExplain}>
@@ -783,7 +789,9 @@ function ItemDetail({
       {item.limit ? (
         <View style={styles.detailChip}>
           <Icon name="verrou" size={iconSizes.xs} color={colors.gris} />
-          <Text style={styles.detailChipText}>{t(C.plafond, { limit: item.limit })}</Text>
+          <Text style={styles.detailChipText}>
+            {t(C.plafond, { limit: arsenalLimit(item, t) ?? item.limit })}
+          </Text>
         </View>
       ) : null}
 
@@ -807,8 +815,8 @@ function ItemDetail({
 
       {item.contents ? (
         <View style={styles.detailContents}>
-          {item.contents.map((line) => (
-            <View key={line} style={styles.packLine}>
+          {arsenalContents(item, t)!.map((line, i) => (
+            <View key={i} style={styles.packLine}>
               <Dot />
               <Text style={styles.packLineText}>{line}</Text>
             </View>
@@ -965,7 +973,7 @@ function GiftFlow({
     <View>
       <View style={styles.sheetHandle} />
       <Text style={styles.giftTitle}>{t(C.offrirCrew)}</Text>
-      <Text style={styles.giftSubtitle}>{item.name}</Text>
+      <Text style={styles.giftSubtitle}>{arsenalName(item, t)}</Text>
 
       <View style={styles.giftPreview}>
         <View style={styles.detailPreviewBox}>
@@ -975,7 +983,7 @@ function GiftFlow({
           <Text style={styles.giftEffect}>
             {isBoost ? BOOST_CHEST_BONUS_LABEL : t(C.cadeauCosmetique)}
           </Text>
-          <Text style={styles.giftDesc}>{item.description}</Text>
+          <Text style={styles.giftDesc}>{arsenalDescription(item, t)}</Text>
         </View>
       </View>
 
