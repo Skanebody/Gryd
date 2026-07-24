@@ -31,6 +31,7 @@
  * plutôt que fait en douce.
  */
 import type { RunMode } from '@klaim/shared';
+import { decimalSeparator } from '../../ui/format';
 
 // ─── Modes ───────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,7 @@ export function formatPace(sPerKm: number): string {
   return `${Math.floor(s / 60)}'${String(s % 60).padStart(2, '0')}`;
 }
 
-/** Distance « 8,20 » (km, 2 décimales, virgule FR). */
+/** Distance « 8,20 » (km, 2 décimales) — séparateur décimal de la langue (§26). */
 export function formatKm(distanceM: number): string {
-  return (Math.max(0, distanceM) / 1000).toFixed(2).replace('.', ',');
+  return (Math.max(0, distanceM) / 1000).toFixed(2).replace('.', decimalSeparator());
 }
