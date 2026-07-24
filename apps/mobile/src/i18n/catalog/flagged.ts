@@ -57,6 +57,39 @@ export const C = defineCatalog({
     de: 'Stadt',
     pt: 'Cidade',
   },
+  // ── Classements par SPÉCIALITÉ (§16) : compteurs LIFETIME de user_stats ──────
+  tabSpecialites: { fr: 'Spécialités', en: 'Specialties', es: 'Especialidades', de: 'Spezialitäten', pt: 'Especialidades' },
+  specConqueror: { fr: 'Conquérant', en: 'Conqueror', es: 'Conquistador', de: 'Eroberer', pt: 'Conquistador' },
+  specDefender: { fr: 'Défenseur', en: 'Defender', es: 'Defensor', de: 'Verteidiger', pt: 'Defensor' },
+  specThief: { fr: 'Voleur', en: 'Thief', es: 'Ladrón', de: 'Dieb', pt: 'Ladrão' },
+  specPioneer: { fr: 'Pionnier', en: 'Pioneer', es: 'Pionero', de: 'Pionier', pt: 'Pioneiro' },
+  specUnitConqueror: { fr: 'zones', en: 'zones', es: 'zonas', de: 'Zonen', pt: 'zonas' },
+  specUnitDefender: { fr: 'défenses', en: 'defenses', es: 'defensas', de: 'Abwehr', pt: 'defesas' },
+  specUnitThief: { fr: 'vols', en: 'steals', es: 'robos', de: 'Raube', pt: 'roubos' },
+  specUnitPioneer: { fr: 'zones pionnières', en: 'pioneer zones', es: 'zonas pioneras', de: 'Pionierzonen', pt: 'zonas pioneiras' },
+  // Ces classements sont CUMULATIFS (pas la saison) — on le dit, on ne le déguise pas.
+  specAllTime: {
+    fr: 'Classement de tous les temps',
+    en: 'All-time ranking',
+    es: 'Clasificación histórica',
+    de: 'Ewige Rangliste',
+    pt: 'Ranking de todos os tempos',
+  },
+  // Vide d'une spécialité : CUMULATIF, jamais « cette saison » (ce serait faux).
+  specEmptyTitle: {
+    fr: 'Personne ici… pour l’instant',
+    en: 'No one here… yet',
+    es: 'Nadie aquí… todavía',
+    de: 'Noch niemand hier',
+    pt: 'Ninguém aqui… ainda',
+  },
+  specEmptyBody: {
+    fr: 'Personne n’a encore de score sur cette spécialité dans ta ville. Sois le premier.',
+    en: 'No one has a score in this specialty in your city yet. Be the first.',
+    es: 'Nadie tiene aún puntuación en esta especialidad en tu ciudad. Sé el primero.',
+    de: 'Noch niemand in dieser Spezialität in deiner Stadt. Sei die erste Person.',
+    pt: 'Ninguém tem pontuação nesta especialidade na sua cidade. Seja o primeiro.',
+  },
   tabsA11y: {
     fr: 'Nature du classement',
     en: 'Leaderboard type',

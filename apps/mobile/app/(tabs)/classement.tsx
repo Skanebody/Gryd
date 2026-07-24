@@ -55,7 +55,12 @@ import { useT } from '../../src/i18n/store';
 import type { Entry } from '../../src/i18n/types';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
-import { useSeasonLeaderboard } from '../../src/features/social/leagueBoard';
+import {
+  useSeasonLeaderboard,
+  useSpecialtyLeaderboard,
+  type Specialty,
+  type SpecialtyLeaderboard,
+} from '../../src/features/social/leagueBoard';
 import { useActiveSeason } from '../../src/features/season/useActiveSeason';
 import {
   TOP10_REWARDS,
@@ -80,11 +85,20 @@ import {
 
 /** Onglets RÉDUITS (AMENDEMENT-17) : 3 natures au lieu de 6 onglets coupés.
  * Labels = Entries i18n, résolus à l'affichage (le composant appelle t()). */
-type PrimaryTab = 'joueurs' | 'crews' | 'ville';
+type PrimaryTab = 'joueurs' | 'crews' | 'ville' | 'specialites';
 const PRIMARY_TABS: readonly { id: PrimaryTab; label: Entry }[] = [
   { id: 'joueurs', label: C.tabJoueurs },
   { id: 'crews', label: C.tabCrews },
   { id: 'ville', label: C.tabVille },
+  { id: 'specialites', label: C.tabSpecialites },
+];
+
+/** Spécialités §16 (vue specialty_leaderboard) : libellé + unité + colonne. */
+const SPECIALTIES: readonly { id: Specialty; label: Entry; unit: Entry }[] = [
+  { id: 'conqueror', label: C.specConqueror, unit: C.specUnitConqueror },
+  { id: 'defender', label: C.specDefender, unit: C.specUnitDefender },
+  { id: 'thief', label: C.specThief, unit: C.specUnitThief },
+  { id: 'pioneer', label: C.specPioneer, unit: C.specUnitPioneer },
 ];
 
 // AMENDEMENT-35 (Europe) : le filtre de portée « Paris / France » est RETIRÉ.
@@ -244,6 +258,99 @@ function BoardEmpty({
 }
 
 /**
+ * §16 — bloc SPÉCIALITÉS : sous-sélecteur (Conquérant/Défenseur/Voleur/Pionnier) +
+ * le board de la spécialité choisie, MÊMES 6 états honnêtes que Joueurs. Compteurs
+ * LIFETIME → caption « de tous les temps ». Discret §10.3 : je n'apparais pas non
+ * plus ici (filtre `me`). Tant que la vue 0069 n'est pas déployée, la lecture
+ * échoue → « pas encore disponible » (état honnête), jamais un podium fabriqué.
+ */
+function SpecialtyBoards({
+  specialty,
+  onSpecialty,
+  spec,
+  discreet,
+  signedIn,
+  configured,
+}: {
+  specialty: Specialty;
+  onSpecialty: (s: Specialty) => void;
+  spec: SpecialtyLeaderboard;
+  discreet: boolean;
+  signedIn: boolean;
+  configured: boolean;
+}) {
+  const t = useT();
+  const active = SPECIALTIES.find((s) => s.id === specialty) ?? SPECIALTIES[0]!;
+  // Discret §10.3 : je n'apparais jamais dans un classement — y compris spécialité.
+  const rows = discreet ? spec.rows.filter((r) => r.me !== true) : spec.rows;
+  // `id` n'est qu'un champ de type (LeagueTabId) : le board de spécialité est un
+  // véhicule d'affichage (kind 'player' → avatar). La clé React distinctive vient
+  // de `specialty` (re-montage propre du podium à chaque changement de spécialité).
+  const board: LeagueBoard = {
+    id: 'joueurs',
+    kind: 'player',
+    label: t(active.label),
+    valueLabel: t(active.unit),
+    rows,
+  };
+  const listRows = rows.filter((r) => r.rank > 3);
+  return (
+    <>
+      <View style={styles.tabsWrap}>
+        <Segmented
+          options={SPECIALTIES.map((s) => ({ id: s.id, label: t(s.label) }))}
+          value={specialty}
+          tone="surface"
+          accessibilityLabel={t(C.tabSpecialites)}
+          onChange={(id) => {
+            onSpecialty(id as Specialty);
+            screen(`classement_spec_${id}`);
+          }}
+        />
+      </View>
+      {spec.status === 'ready' ? (
+        <>
+          {/* CUMULATIF, pas la saison — on le DIT (compteurs LIFETIME de user_stats). */}
+          <Text style={styles.boardCaption}>{t(C.specAllTime)}</Text>
+          <Podium key={specialty} board={board} />
+          <View style={styles.list}>
+            {listRows.map((row) => (
+              <BoardRow key={`${specialty}-${row.rank}`} row={row} board={board} />
+            ))}
+          </View>
+        </>
+      ) : spec.loading ? (
+        <Text style={styles.demoNote}>{t(C.boardLoading)}</Text>
+      ) : !signedIn ? (
+        <BoardEmpty
+          title={t(C.boardSignedOutTitle)}
+          body={t(C.boardSignedOutBody)}
+          {...(configured
+            ? { cta: { label: t(C.boardSignIn), onPress: () => router.push('/sign-in') } }
+            : {})}
+        />
+      ) : spec.status === 'city_unknown' ? (
+        <BoardEmpty
+          title={t(C.boardCityUnknownTitle)}
+          body={t(C.boardCityUnknownBody)}
+          cta={{ label: t(C.boardEmptyCta), onPress: () => router.push('/route-planner') }}
+        />
+      ) : spec.status === 'unavailable' ? (
+        // Vue 0069 pas encore déployée, ou lecture en échec : état DISTINCT du vide.
+        <BoardEmpty title={t(C.boardUnavailableTitle)} body={t(C.boardUnavailableBody)} />
+      ) : (
+        // Vide d'une spécialité : copy CUMULATIVE (jamais « cette saison » — faux ici).
+        <BoardEmpty
+          title={t(C.specEmptyTitle)}
+          body={t(C.specEmptyBody)}
+          cta={{ label: t(C.boardEmptyCta), onPress: () => router.push('/route-planner') }}
+        />
+      )}
+    </>
+  );
+}
+
+/**
  * ROUTE = LE GARDE, et rien d'autre. Ce composant n'appelle AUCUN hook : sa
  * sortie anticipée est donc inoffensive. Auparavant le `Redirect` était posé
  * DEVANT les ~15 hooks de l'écran, dans le même composant — la règle des hooks
@@ -289,6 +396,12 @@ function LeagueScreen() {
   } = useSeasonLeaderboard();
   const { session, configured } = useSession();
   const signedIn = configured && session !== null;
+
+  // §16 — classements par SPÉCIALITÉ (vue specialty_leaderboard, migration 0069).
+  // Hook appelé INCONDITIONNELLEMENT (règle des hooks) ; ne sert que sous l'onglet
+  // « Spécialités ». Compteurs LIFETIME, ville du joueur, mêmes 6 états honnêtes.
+  const [specialty, setSpecialty] = useState<Specialty>('conqueror');
+  const spec = useSpecialtyLeaderboard(specialty);
 
   /**
    * Saison RÉELLE (RPC `season_current`, jamais une constante). L'horloge des
@@ -466,7 +579,16 @@ function LeagueScreen() {
             l'en-tête du fichier) — plus léger, plus honnête, et l'onglet « Ville »
             porte déjà la géographie. */}
 
-        {showBoardRows ? (
+        {tab === 'specialites' ? (
+          <SpecialtyBoards
+            specialty={specialty}
+            onSpecialty={setSpecialty}
+            spec={spec}
+            discreet={discreet}
+            signedIn={signedIn}
+            configured={configured}
+          />
+        ) : showBoardRows ? (
           <>
             {/* NOMME la ville du classement (nom LU dans `city_zones`). Sans elle,
                 un podium ne dit pas de QUI il est le classement — c'était le trou

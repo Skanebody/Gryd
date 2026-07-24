@@ -257,3 +257,136 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
     };
   }, [remote, sessionLoading, remoteLoading, configured, userId]);
 }
+
+// ─── Classements par SPÉCIALITÉ (§16) — vue specialty_leaderboard (migration 0069) ─
+
+/** Les 4 spécialités §16 dérivées des compteurs LIFETIME de user_stats. */
+export type Specialty = 'conqueror' | 'defender' | 'thief' | 'pioneer';
+
+/** Spécialité → colonne RÉELLE de la vue. Clés fermées : jamais d'entrée client. */
+const SPECIALTY_COLUMN: Record<Specialty, 'hexes_captured' | 'defends' | 'steals' | 'pioneer_hexes'> = {
+  conqueror: 'hexes_captured',
+  defender: 'defends',
+  thief: 'steals',
+  pioneer: 'pioneer_hexes',
+};
+
+export interface SpecialtyLeaderboard {
+  rows: readonly LeagueRow[];
+  source: LeagueSource;
+  loading: boolean;
+  status: LeagueBoardStatus;
+  cityName: string | null;
+}
+
+/**
+ * Board d'une spécialité de MA ville, MÊME contrat honnête que fetchRemoteJoueurs :
+ * users.city_id → nom de ville (city_zones) → vue specialty_leaderboard filtrée sur
+ * MA ville, triée par la colonne de la spécialité. Ne lève jamais ; aucune ligne
+ * inventée. Compteurs LIFETIME (user_stats cumulatif) — l'écran le nomme « de tous
+ * les temps ». Tant que la migration 0069 n'est pas déployée, la lecture échoue →
+ * `unavailable` (état vide honnête), jamais une ligne fabriquée.
+ */
+async function fetchRemoteSpecialty(userId: string, specialty: Specialty): Promise<RemoteBoard> {
+  if (!supabase) return { status: 'unavailable' };
+  const col = SPECIALTY_COLUMN[specialty];
+
+  const meResult = await supabase.from('users').select('city_id').eq('id', userId).maybeSingle();
+  if (meResult.error) return { status: 'unavailable' };
+  const myCity = (meResult.data as { city_id?: unknown } | null)?.city_id;
+  if (typeof myCity !== 'string' || myCity.length === 0) return { status: 'city_unknown' };
+
+  const cityResult = await supabase.from('city_zones').select('name').eq('city_id', myCity).maybeSingle();
+  const cityName = cityResult.error ? null : asName((cityResult.data as { name?: unknown } | null)?.name);
+
+  const boardResult = await supabase
+    .from('specialty_leaderboard')
+    .select(`user_id, pseudo, ${col}`)
+    .eq('city_id', myCity)
+    .order(col, { ascending: false })
+    .limit(LEADERBOARD_LIMIT);
+  if (boardResult.error) return { status: 'unavailable' };
+
+  const rows = (boardResult.data ?? []) as Record<string, unknown>[];
+  if (rows.length === 0) return { status: 'empty', cityName };
+
+  return {
+    status: 'ready',
+    cityName,
+    rows: rows.map((r, i) => ({
+      rank: i + 1,
+      name: typeof r.pseudo === 'string' ? r.pseudo : '—',
+      value: asInt(r[col]),
+      me: r.user_id === userId,
+    })),
+  };
+}
+
+/** Hook d'une spécialité — 6 états honnêtes, jamais un podium fabriqué. */
+export function useSpecialtyLeaderboard(specialty: Specialty): SpecialtyLeaderboard {
+  const { session, configured, loading: sessionLoading } = useSession();
+  const [remote, setRemote] = useState<RemoteBoard | null>(null);
+  // La spécialité à laquelle `remote` APPARTIENT : le setSpecialty re-rend AVANT
+  // que l'effet ne relise, donc sans ça un board Conquérant réel s'afficherait une
+  // frame sous le libellé « défenses ». On ne montre des lignes que quand la
+  // réponse est bien celle de la spécialité courante (jamais des valeurs mal étiquetées).
+  const [remoteSpec, setRemoteSpec] = useState<Specialty | null>(null);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    if (!configured || !userId || !supabase) {
+      setRemote(null);
+      setRemoteSpec(null);
+      setRemoteLoading(false);
+      return;
+    }
+    let alive = true;
+    setRemote(null);
+    setRemoteSpec(null);
+    setRemoteLoading(true);
+    void fetchRemoteSpecialty(userId, specialty)
+      .then((result) => {
+        if (alive) {
+          setRemote(result);
+          setRemoteSpec(specialty);
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setRemote({ status: 'unavailable' });
+          setRemoteSpec(specialty);
+        }
+      })
+      .finally(() => {
+        if (alive) setRemoteLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [configured, userId, specialty]);
+
+  return useMemo<SpecialtyLeaderboard>(() => {
+    const loading = sessionLoading || remoteLoading;
+    const empty: readonly LeagueRow[] = [];
+    if (loading) return { rows: empty, source: 'local', loading, status: 'loading', cityName: null };
+    if (!configured || !userId) {
+      return { rows: empty, source: 'local', loading, status: 'signed_out', cityName: null };
+    }
+    // `remote` d'une AUTRE spécialité (le tap a précédé l'effet) = pas encore la
+    // réponse courante : on reste en lecture, jamais des lignes sous le mauvais libellé.
+    if (!remote || remoteSpec !== specialty) {
+      return { rows: empty, source: 'local', loading: true, status: 'loading', cityName: null };
+    }
+    if (remote.status === 'ready') {
+      return { rows: remote.rows, source: 'server', loading, status: 'ready', cityName: remote.cityName };
+    }
+    return {
+      rows: empty,
+      source: 'local',
+      loading,
+      status: remote.status,
+      cityName: remote.status === 'empty' ? remote.cityName : null,
+    };
+  }, [remote, remoteSpec, specialty, sessionLoading, remoteLoading, configured, userId]);
+}
