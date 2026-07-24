@@ -87,7 +87,14 @@ La Spéc impose : **auditer d'abord, ne pas coder aveuglément.** Ordre :
 2. Arbitrer les contradictions (ce registre + la matrice).
 3. Refonte par chantiers gatés (méthode LOOP + gate GRYD), P0 d'abord.
 
-L'audit de conformité (Étape 1) est en cours de production. Les livrables lourds
-de la Spéc (`GRYD_MARKET_DESIGN_STUDY`, `GRYD_BIKE_MODE_PRODUCT_SPEC`,
-`RONDESIGNLAB_STYLE_AUDIT`, etc.) sont des **programmes** à séquencer, pas des
-prérequis à la mise en place documentaire.
+L'audit de conformité (Étape 1) est **produit** :
+[`CURRENT_STATE_CONFORMITY_MATRIX.md`](CURRENT_STATE_CONFORMITY_MATRIX.md) —
+102 exigences vérifiées (40 conformes, 31 partielles, 23 absentes, 4 bloquantes,
+1 obsolète), chaque ligne avec preuve `fichier:ligne`. Il porte aussi la
+**roadmap priorisée** (10 deltas de conformité rapides + 6 programmes net-new :
+mode Bike, photo profil publique, rail IAP, carte agrégée, humain onboarding,
+design-system premium).
+
+Les livrables lourds de la Spéc (`GRYD_MARKET_DESIGN_STUDY`,
+`GRYD_BIKE_MODE_PRODUCT_SPEC`, `RONDESIGNLAB_STYLE_AUDIT`, etc.) sont des
+**programmes** à séquencer, pas des prérequis à la mise en place documentaire.
