@@ -4,6 +4,15 @@ Format : `- [ ] <titre> — <valeur> — <S/M/L>`. Fait → `- [x]` + hash de co
 Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 (skill `/gryd`), gate de vérif obligatoire avant commit.
 
+## Satisfaction & rétention 2026 (panel d'experts — « le plus optimisé »)
+> Réf : workflow `gryd-most-optimized-move` (24/07) — 4 lecteurs du vrai code + 4 experts (game feel / rétention / cold-start / lancement) + synthèse. Réponse honnête au cold-start (ville vide = privilège, pas manque) SANS jamais fabriquer rivaux/données. Plan séquencé, chaque étape verdict-INDÉPENDANTE d'abord (paie sans backend), le pionnier/récompense en aval d'O1.
+
+- [x] Étape 1 · le VRAI tracé survit au résultat + se dessine (pic peak-end §25) — le seul grand pic qui paie SANS backend ; canevas du pionnier/« À TOI » plus tard ; colmate le stub `trace: []` de la share-card (privacy) — M — `6f8c6fc`
+- [ ] Étape 2 · FONDATEUR : fermer O1 (vrai JWT Supabase dans .env — l'actuel fait 46 car., pas un JWT — + `db push` 0052/0069) et PROUVER une capture réelle bout-en-bout — L — tâche fondateur (débloque zones/badges/série/RELAIS/territoire peint/historique)
+- [ ] Étape 3 · célébrer le PIONNIER de commune (`result.communeOpened` déjà calculé serveur, jeté client : grep communeOpened dans apps/mobile = 0) : hero distinct + city_opened{source:'run'} + statut « Fondateur·rice de {commune} » persistant sur le Profil — S — se branche sur le canevas de l'étape 1, s'allume avec O1
+- [ ] Étape 4 · notif « RENDEZ-VOUS » 100% LOCALE (scheduleNotificationAsync, aucun token/APNs/FCM) sur course-result : le seul déclencheur de retour shippable aujourd'hui, opt-in après la 1re course, copy anti-shame — M
+- [ ] Étape 5 · câbler l'écran Aujourd'hui (orphelin : 0 push('/aujourdhui')) dans la nav + journal de série LOCAL reachable → scaffold 7 jours (run_3k J1) atteignable AVANT la 1re capture — S
+
 ## Refonte Spéc Maître Unifiée 2026 (priorité ACTIVE — « continue la transformation »)
 > Réf : `docs/product/GRYD_SPEC_MAITRE_UNIFIEE_2026.md` + roadmap priorisée dans `CURRENT_STATE_CONFORMITY_MATRIX.md` (Row 1-15). Un Row = un chantier, gate complet. Décisions fondateur en attente = 6 arbitrages (photo onboarding §13.3, flags.season §16, Bike, grammaire analytics, vocabulaire rang, carte démo §7.2).
 
