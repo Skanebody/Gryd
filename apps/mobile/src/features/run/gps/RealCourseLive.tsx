@@ -54,6 +54,7 @@ import { RUN_MODE_LABEL, formatClock, formatKm, formatPace, type LiveRunMode } f
 import type { RealRunApi } from './gateTypes';
 import { LiveTraceThumb } from './LiveTraceThumb';
 import { loopHint, roundLoopM } from './engine/loopHint';
+import { selectLiveNotice } from './liveNotice';
 import {
   BackgroundHelpSheet,
   BackgroundRationaleCard,
@@ -105,6 +106,25 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   // D4 — guidage de boucle (pur) : rien avant le périmètre minimal, « prête »
   // sous la tolérance serveur, sinon l'écart au départ à vol d'oiseau.
   const hint = loopHint({ conquest, distanceM: s.distanceM, gapM: s.loopGapM });
+
+  // §10 — UN SEUL avis temporaire à la fois (sûreté d'abord). La pill d'ÉTAT et la
+  // pill de MODE restent en contexte permanent ; tout le reste (signal, reprise,
+  // permission, précision, guidage de boucle) passe par cette priorité unique.
+  const notice = selectLiveNotice({
+    pausedByUser: s.phase === 'paused-user',
+    permissionRevoked: run.permissionRevoked,
+    awaitingFirstFix,
+    firstFixOverdue,
+    signal: s.signal,
+    hasRestore: run.restore !== null,
+    bgPrompt: run.bgPrompt,
+    approxLocation: run.approxLocation,
+    foregroundOnlyPlatform: run.foregroundOnlyPlatform,
+    // Remap EXPLICITE du kind moteur ('ready' | 'closing') vers le vocabulaire du
+    // sélecteur ('ready' | 'return'). Un futur 3e variant → null (pas d'avis boucle)
+    // plutôt qu'un 'return' silencieux — dégradation sûre.
+    loopHint: hint?.kind === 'ready' ? 'ready' : hint?.kind === 'closing' ? 'return' : null,
+  });
 
   useEffect(() => {
     screen('course_live', { mode, gps: 'real' });
@@ -167,44 +187,43 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           />
           <Text style={styles.topPillText}>{t(statusLabel(run))}</Text>
         </View>
-        {/* En pause MANUELLE les fixes sont volontairement ignorés : ne jamais
-             afficher un faux « Signal perdu » (états honnêtes, anti-shame). */}
-        {s.phase !== 'paused-user' ? (
-          <GpsSignalPill
-            signal={s.signal}
-            permissionRevoked={run.permissionRevoked}
-            awaitingFirstFix={awaitingFirstFix}
-            firstFixOverdue={firstFixOverdue}
-          />
-        ) : null}
+        {/* Mode (social/privé) — CONTEXTE PERMANENT, pas un avis temporaire (§10) :
+             un libellé d'état, toujours affiché. */}
         {!conquest ? (
           <View style={styles.statsOnlyPill}>
             <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={iconSizes.xs} color={colors.gris} />
             <Text style={styles.statsOnlyText}>{t(C.statsOnlyMode, { mode: modeLabel })}</Text>
           </View>
         ) : null}
-        {run.approxLocation ? <PreciseLocationBanner onOpenSettings={run.openSettings} /> : null}
-        {/* Deux « premier plan seulement » très différents, jamais confondus :
-             la plateforme ne SAIT PAS enregistrer en fond (navigateur — on
-             annonce la limite d'emblée), ou l'utilisateur a refusé la
-             permission « Toujours » (appareil). Anti-shame dans les deux cas. */}
-        {run.foregroundOnlyPlatform || run.bgPrompt === 'denied' ? (
+        {/* §10 — L'UNIQUE avis temporaire, choisi par priorité (selectLiveNotice,
+             pur + testé) : sûreté (signal perdu / autorisation coupée) d'abord ;
+             la note « premier plan seulement » cède à tout le reste. En pause
+             manuelle, aucun faux « signal perdu » (le sélecteur l'exclut). */}
+        {notice === 'signal_critical' || notice === 'signal_weak' ? (
+          <GpsSignalPill
+            signal={s.signal}
+            permissionRevoked={run.permissionRevoked}
+            awaitingFirstFix={awaitingFirstFix}
+            firstFixOverdue={firstFixOverdue}
+          />
+        ) : notice === 'restore' && run.restore !== null ? (
+          <RestoreRunCard
+            distanceLabel={t(C.restoreKmFound, { km: formatKm(run.restore.distanceM) })}
+            onResume={run.restore.resume}
+            onDiscard={run.restore.discard}
+          />
+        ) : notice === 'bg_offer' ? (
+          <BackgroundRationaleCard onAllow={run.allowBackground} onLater={run.dismissBackground} />
+        ) : notice === 'precise' ? (
+          <PreciseLocationBanner onOpenSettings={run.openSettings} />
+        ) : notice === 'foreground' ? (
+          // Navigateur, ou permission « Toujours » refusée : « enregistré app ouverte ».
           <View style={styles.statsOnlyPill}>
             <Icon name="gps" size={iconSizes.xs} color={colors.gris} />
             <Text style={styles.statsOnlyText}>
               {t(run.foregroundOnlyPlatform ? C.browserForegroundOnly : C.foregroundOnly)}
             </Text>
           </View>
-        ) : null}
-        {run.bgPrompt === 'offer' ? (
-          <BackgroundRationaleCard onAllow={run.allowBackground} onLater={run.dismissBackground} />
-        ) : null}
-        {run.restore !== null ? (
-          <RestoreRunCard
-            distanceLabel={t(C.restoreKmFound, { km: formatKm(run.restore.distanceM) })}
-            onResume={run.restore.resume}
-            onDiscard={run.restore.discard}
-          />
         ) : null}
       </View>
 
@@ -232,8 +251,9 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
 
         {/* D4 — guidage de boucle honnête : écart au départ à vol d'oiseau
             (« ~ »), seuils = les règles SERVEUR (le serveur reste seul juge).
-            Une seule ligne, jamais de pill de plus (live minimal §A). */}
-        {hint ? (
+            §10 : affiché SEULEMENT quand la boucle a gagné la priorité (un signal
+            perdu, une reprise… le masquent) — jamais « BOUCLE PRÊTE » sous une alerte. */}
+        {(notice === 'loop_ready' || notice === 'loop_return') && hint ? (
           <Text
             style={[styles.loopHint, hint.kind === 'ready' && styles.loopHintReady]}
             numberOfLines={1}
