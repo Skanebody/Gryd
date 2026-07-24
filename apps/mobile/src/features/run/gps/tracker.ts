@@ -47,8 +47,17 @@ import {
   type RawFix,
 } from './engine/gps';
 import { loopGapM } from './engine/loopHint';
+import { sampleEvenly } from './traceSample';
 
 const MS_PER_S = 1_000;
+
+/**
+ * Plafond de points de la TRACE LIVE affichée (rendu SVG ~1×/s). Purement visuel
+ * — pas une constante de jeu (le serveur ne voit jamais cette trace, il reçoit la
+ * trace décimée de buildPayload). Assez pour une forme fidèle, assez peu pour ne
+ * jamais faire ramer une course de plusieurs heures.
+ */
+const TRACE_DISPLAY_MAX_POINTS = 240;
 
 /** États de la course réelle (AMENDEMENT-15 §2). */
 export type TrackerPhase = 'idle' | 'tracking' | 'paused-auto' | 'paused-user' | 'finished';
@@ -84,6 +93,13 @@ export interface TrackerSnapshot {
    * bandeau « Active la position exacte ».
    */
   approxLocationSuspected: boolean;
+  /**
+   * §10 — TRACE LIVE : la vraie polyligne mesurée (trace lissée), pour la dessiner
+   * pendant la course. Coordonnées seules (lat/lng), sous-échantillonnées pour
+   * l'affichage (TRACE_DISPLAY_MAX_POINTS) — le vrai tracé, plus léger, jamais
+   * inventé. Vide tant qu'il y a < 2 points : rien à tracer (l'écran le dit).
+   */
+  tracePoints: readonly { lat: number; lng: number }[];
 }
 
 export interface TrackerInit {
@@ -278,6 +294,12 @@ export class RunTracker {
       zonesEstimated,
       keptPoints,
       totalFixes,
+      // §10 trace live : la vraie polyligne lissée, coordonnées seules,
+      // sous-échantillonnée pour un rendu léger. `smoothed` est déjà calculé.
+      tracePoints: sampleEvenly(smoothed, TRACE_DISPLAY_MAX_POINTS).map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+      })),
       loopGapM: loopGapM(smoothed),
       // Position approximative : le dernier fix est FRAIS mais inutilisable
       // (accuracy > max) — signature de « Précision exacte » désactivée

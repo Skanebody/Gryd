@@ -52,6 +52,7 @@ import { ProgressBar } from '../../../ui/ProgressBar';
 import { formatInt } from '../../../ui/format';
 import { RUN_MODE_LABEL, formatClock, formatKm, formatPace, type LiveRunMode } from '../simulation';
 import type { RealRunApi } from './gateTypes';
+import { LiveTraceThumb } from './LiveTraceThumb';
 import { loopHint, roundLoopM } from './engine/loopHint';
 import {
   BackgroundHelpSheet,
@@ -209,6 +210,14 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
 
       {/* ── Centre Nike : KPI géants RÉELS ── */}
       <View style={styles.center}>
+        {/* §10 TRACE LIVE : la vraie polyligne mesurée, dès qu'il y a de quoi
+            tracer. Sans fond de carte (A-47) — juste le tracé, façon Strava. */}
+        {s.tracePoints.length >= 2 ? (
+          <View style={styles.liveTrace}>
+            <LiveTraceThumb points={s.tracePoints} accessibilityLabel={t(C.a11yLiveTrace)} />
+          </View>
+        ) : null}
+
         <Text style={styles.heroKicker}>{t(C.kickerDistance)}</Text>
         <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>
           {formatKm(s.distanceM)}
@@ -437,6 +446,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.cardPadding,
     gap: spacing.xxs,
   },
+  liveTrace: { marginBottom: spacing.sm },
   heroKicker: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 2.4 },
   heroValue: {
     color: colors.blanc,

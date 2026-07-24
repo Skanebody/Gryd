@@ -197,6 +197,13 @@ export const C = defineCatalog({
     de: 'GPS-Hilfe: mit Bildschirm aus laufen',
     pt: 'Ajuda GPS: correr com a tela desligada',
   },
+  a11yLiveTrace: {
+    fr: 'Ton tracé en cours',
+    en: 'Your route so far',
+    es: 'Tu recorrido hasta ahora',
+    de: 'Deine bisherige Strecke',
+    pt: 'Seu percurso até agora',
+  },
   a11yFinishRun: {
     fr: 'Terminer la course (maintenir)',
     en: 'Finish the run (hold)',
