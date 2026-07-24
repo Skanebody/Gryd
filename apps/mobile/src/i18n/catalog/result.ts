@@ -87,6 +87,23 @@ export const C = defineCatalog({
     de: 'Die Strecke deines Laufs',
     pt: 'O trajeto da tua corrida',
   },
+  // PIONNIER — titre du hero quand cette course a OUVERT une commune vierge
+  // (verdict serveur, nom réel geo.api.gouv.fr). {commune} = le nom réel.
+  heroPioneer: {
+    fr: 'TU AS OUVERT {commune}',
+    en: 'YOU OPENED {commune}',
+    es: 'HAS ABIERTO {commune}',
+    de: 'DU HAST {commune} ERÖFFNET',
+    pt: 'ABRISTE {commune}',
+  },
+  // Sous-titre du pionnier — statut rare, formulé sans genre (jamais « premier·ère »).
+  heroPioneerSub: {
+    fr: 'Personne n’avait couru ici avant toi',
+    en: 'No one had run here before you',
+    es: 'Nadie había corrido aquí antes que tú',
+    de: 'Vor dir ist hier niemand gelaufen',
+    pt: 'Ninguém tinha corrido aqui antes de ti',
+  },
   // §11 honnêteté : le SERVEUR a jugé la capture invalide (status 'rejected').
   // Le titre le DIT — jamais « TERRITOIRE ÉTENDU » + « +0 zones » (qui laissait
   // croire à une prise). La raison précise vit dans REJECT_REASON_COPY (bas).

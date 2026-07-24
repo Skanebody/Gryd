@@ -17,7 +17,7 @@ export const EVENTS = {
   // l'UI : `created` distingue une zone provisionnée d'une ville déjà ouverte
   // qu'on re-sélectionne (idempotence). Le KPI : combien de villes hors Saison 0
   // deviennent vraiment jouées.
-  cityOpened: 'city_opened', // props: { created }
+  cityOpened: 'city_opened', // props: { created, source: 'manual' | 'run' }
   privacyZoneSet: 'privacy_zone_set',
   // Boucle cœur
   runStart: 'run_start',

@@ -162,6 +162,13 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
             ) {
               void emitTimeToFirstCaptureOnce();
             }
+            // PIONNIER — cette course a OUVERT une commune vierge (verdict serveur,
+            // nom réel geo.api.gouv.fr). Le funnel logge l'ouverture PAR LA COURSE
+            // (source distincte de l'ouverture manuelle du CityPicker). La
+            // célébration, elle, vit sur course-result (pioneerCelebration).
+            if (result.communeOpened) {
+              track(EVENTS.cityOpened, { created: true, source: 'run' });
+            }
           }
           return 'sent';
         }

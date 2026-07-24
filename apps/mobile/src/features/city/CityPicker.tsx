@@ -156,7 +156,7 @@ export function CitySearch({
     if (!outcome.ok) return; // l'état `failed` porte la phrase et le réessai
     // Émis depuis le VERDICT serveur, pas depuis le tap : `created` distingue une
     // zone qu'on vient de provisionner d'une ville déjà ouverte re-sélectionnée.
-    track(EVENTS.cityOpened, { created: outcome.value.zoneCreated });
+    track(EVENTS.cityOpened, { created: outcome.value.zoneCreated, source: 'manual' });
     track(EVENTS.citySelected, { was_open: !outcome.value.zoneCreated });
     // La ligne existe : le SERVEUR vient de la relire (`ok: true` ⇒ `city_zones`
     // porte la ville). On relance quand même la lecture du catalogue — la liste

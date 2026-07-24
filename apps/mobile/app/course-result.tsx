@@ -63,6 +63,7 @@ import { useMyEconomy } from '../src/features/social/economy';
 import { ResultReveal } from '../src/features/run/ResultReveal';
 import { ResultTrace } from '../src/features/run/ResultTrace';
 import { getFinishedTrace } from '../src/features/run/finishedTrace';
+import { pioneerCelebration } from '../src/features/run/pioneerCelebration';
 import {
   boundaryExpiryLabel,
   contributionPct,
@@ -533,17 +534,24 @@ function ConquestResultScreen({
   // « TERRITOIRE ÉTENDU » / « ZONE DÉFENDUE » sont des AFFIRMATIONS de conquête :
   // elles exigent le verdict serveur. Sans lui (hors-ligne), le titre retombe sur
   // « COURSE TERMINÉE » — vrai, lui, et déjà traduit dans les 5 langues.
+  // PIONNIER — cette course a OUVERT une commune vierge (verdict serveur, nom
+  // réel). La seule récompense qui vaut PLUS quand la ville est vide. Null sauf
+  // ouverture réelle ET course créditée (jamais festif sur un refus, §11) : elle
+  // n'existe que si le serveur l'a dite. `null` tant qu'O1 n'est pas déployé.
+  const pioneer = pioneerCelebration(serverResult, !notCredited);
   const heroTitle = isPrivate
     ? t(C.heroPrivate)
-    : stats.rejected
-      ? t(C.heroRejected) // §11 : capture refusée — jamais « TERRITOIRE ÉTENDU »
-      : stats.flagged
-        ? t(C.heroFlagged) // §11 : course signalée par GRYD Verify — non créditée
-        : !conquest || !zones
-          ? t(C.heroDone)
-          : intention === 'defense'
-            ? t(C.heroDefended)
-            : t(C.heroExtended);
+    : pioneer
+      ? t(C.heroPioneer, { commune: pioneer.nom }) // REMPLACE « TERRITOIRE ÉTENDU » (§A, une seule affirmation)
+      : stats.rejected
+        ? t(C.heroRejected) // §11 : capture refusée — jamais « TERRITOIRE ÉTENDU »
+        : stats.flagged
+          ? t(C.heroFlagged) // §11 : course signalée par GRYD Verify — non créditée
+          : !conquest || !zones
+            ? t(C.heroDone)
+            : intention === 'defense'
+              ? t(C.heroDefended)
+              : t(C.heroExtended);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
@@ -565,6 +573,9 @@ function ConquestResultScreen({
             <GripMascot rank={gripRank} size={64} />
           </View>
           <Text style={styles.heroTitle}>{heroTitle}</Text>
+          {/* PIONNIER — le sous-titre du statut rare : « Premier runner de GRYD
+              ici ». Un seul par commune, pour toujours (verdict serveur). */}
+          {pioneer ? <Text style={styles.heroPioneerSub}>{t(C.heroPioneerSub)}</Text> : null}
           {/* La VALIDATION vit dans sa pill (séparée du titre — jamais « validée »
               en guise de victoire). Jargon banni : « stats only » → français. */}
           {/* Non crédité : ni « GRYD VERIFIED » ni « Compte en stats » — une course
@@ -1131,6 +1142,14 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.lg,
     fontWeight: '800',
     letterSpacing: 2,
+    textAlign: 'center',
+  },
+  // PIONNIER — le statut rare, en chartreuse (rôle « moi/gain », sur fond sombre).
+  heroPioneerSub: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.sm,
+    fontWeight: '800',
+    letterSpacing: 1,
     textAlign: 'center',
   },
   heroKpi: { alignItems: 'center', gap: 2 },
