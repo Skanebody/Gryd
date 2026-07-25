@@ -76,3 +76,34 @@ function getHudSnapshot(): boolean {
 export function useMapHudHidden(): boolean {
   return useSyncExternalStore(subscribeHud, getHudSnapshot, getHudSnapshot);
 }
+
+// ─── Sheet mission déployée (E02 RUN morph) ──────────────────────────────────
+//
+// Le CTA RUN a deux formes : rond à droite quand la sheet mission/empty est
+// visible ; pill « RUN » au-dessus de la nav quand elle est fermée (carte nue).
+// BattleMapOverlays écrit ; RunCta (index) lit.
+
+let missionSheetDeployed = false;
+const sheetListeners = new Set<() => void>();
+
+export function setMissionSheetDeployed(deployed: boolean): void {
+  if (missionSheetDeployed === deployed) return;
+  missionSheetDeployed = deployed;
+  for (const listener of sheetListeners) listener();
+}
+
+function subscribeSheet(listener: () => void): () => void {
+  sheetListeners.add(listener);
+  return () => {
+    sheetListeners.delete(listener);
+  };
+}
+
+function getSheetSnapshot(): boolean {
+  return missionSheetDeployed;
+}
+
+/** Vrai si la sheet mission / état vide est déployée sur la carte. */
+export function useMissionSheetDeployed(): boolean {
+  return useSyncExternalStore(subscribeSheet, getSheetSnapshot, getSheetSnapshot);
+}

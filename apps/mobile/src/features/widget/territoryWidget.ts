@@ -153,7 +153,8 @@ export function buildWidgetView(
             ? [format(C.wKmEstimated, { km: km(input.estimatedRunDistanceM, locale) }, locale)]
             : []),
         ],
-        ctaLabel: 'GO',
+        // E02 : pas de CTA primaire dans la sheet — lien détail seulement.
+        ctaLabel: resolve(C.wFirstCta, locale),
         action: 'go',
       };
     case 'territory_lost':

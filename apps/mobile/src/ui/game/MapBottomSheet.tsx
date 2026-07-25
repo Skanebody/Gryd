@@ -56,6 +56,12 @@ const OPEN_SLOT_FADE_FRACTION = 0.5;
 /** Ordre des états, du plus fermé au plus ouvert. */
 const STATE_ORDER: readonly MapSheetState[] = ['compact', 'semi', 'open'];
 
+/** API exposée au compactSlot quand il est une fonction (E02 « Voir le détail › »). */
+export interface MapSheetCompactApi {
+  /** Snap vers semi (~52 % / ratio semi) — détail sans CTA primaire. */
+  expand: () => void;
+}
+
 export interface MapBottomSheetProps {
   /** État de départ (défaut compact — la carte reste le cœur de l'écran). */
   initialState?: MapSheetState;
@@ -67,8 +73,11 @@ export interface MapBottomSheetProps {
   compactHeight?: number;
   /** Notifié à chaque snap (l'écran logge ses events PostHog ici). */
   onStateChange?: (state: MapSheetState) => void;
-  /** Slot TOUJOURS visible (ligne d'état + CTA) — zone de grab du geste. */
-  compactSlot?: ReactNode;
+  /**
+   * Slot TOUJOURS visible (ligne d'état) — zone de grab du geste.
+   * Fonction = reçoit `expand` pour monter en semi (E02 lien détail).
+   */
+  compactSlot?: ReactNode | ((api: MapSheetCompactApi) => ReactNode);
   /** Slot révélé en semi et ouvert (contexte : défi proche, crew…). */
   semiSlot?: ReactNode;
   /** Slot révélé en ouvert (détail : parcours, runs d'amis, splits…). */
@@ -231,7 +240,9 @@ export function MapBottomSheet({
               renderContent(state)
             ) : (
               <>
-                {compactSlot}
+                {typeof compactSlot === 'function'
+                  ? compactSlot({ expand: () => snapTo('semi', true) })
+                  : compactSlot}
                 {semiSlot}
                 <Animated.View
                   style={{ opacity: openSlotOpacity }}

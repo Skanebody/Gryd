@@ -53,6 +53,14 @@ export const C = defineCatalog({
     de: '{label} — schieb, um den Lauf zu starten',
     pt: '{label} — deslize para começar a corrida',
   },
+  // ── E02 CTA RUN (sneaker) — VoiceOver complet (icône seule) ──
+  runCtaA11y: {
+    fr: 'Run — commencer la mission',
+    en: 'Run — start the mission',
+    es: 'Run — empezar la misión',
+    de: 'Run — Mission starten',
+    pt: 'Run — começar a missão',
+  },
 
   // ── Verbes du bouton central (contextualAction) — COURTS partout (§A) ──
   actionRun: {

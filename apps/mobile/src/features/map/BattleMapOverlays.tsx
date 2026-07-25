@@ -27,20 +27,18 @@
  * (sheet de zone) / screen('map_zone_details') (« Plus ») / screen('map_zone_act').
  */
 import { useCallback, useEffect, useState } from 'react';
-import { setZoneSheetOpen, setMapHudHidden, useMapHudHidden } from './mapUiStore';
+import { setZoneSheetOpen, setMapHudHidden, setMissionSheetDeployed, useMapHudHidden } from './mapUiStore';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { useLocale, useT } from '../../i18n/store';
 import type { Entry, Locale } from '../../i18n/types';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
-import { ActivityModeToggle } from '../../ui/ActivityModeToggle';
 import { Icon } from '../../ui/Icon';
 import {
-  FloatingMapButton,
   Map3DToggle,
   MapBottomSheet,
   type MapSheetState,
@@ -49,6 +47,7 @@ import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
+import { MapHomeHeader } from './MapHomeHeader';
 
 /** Signature du hook useT — pour typer les helpers purs qui reçoivent t. */
 type Translate = (entry: Entry, vars?: Record<string, string | number>) => string;
@@ -102,8 +101,6 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
 
 /** Dégagement du peek au-dessus de la barre de nav. */
 const SHEET_ABOVE_RUN_BUTTON = 12;
-/** Pile de FABs : dégagement au-dessus de la sheet visible. */
-const FAB_ABOVE_SHEET = 12;
 /**
  * Hauteur du PEEK MISSION persistant (§8) : titre + méta + rival + lien options.
  * Calée AU PLUS JUSTE sur le contenu réel (poignée 18 + bloc info ~118) pour ne
@@ -111,12 +108,9 @@ const FAB_ABOVE_SHEET = 12;
  * carte reste le cœur. (Était 168 → ~30 px de vide sous le lien.)
  */
 const MISSION_PEEK_COMPACT_HEIGHT = 138;
-/** Espace du HUD haut à préserver (secteur + ligne mission) — le menu Calques ne
+/** Espace du HUD haut à préserver (header E02) — le menu Calques ne
  *  descend jamais son bord haut au-dessus de cette limite (anti-chevauchement). */
 const TOP_HUD_CLEARANCE = 112;
-/** Hauteur de la pile de FABs PERMANENTS (2 FABs de 44 + 1 gap de 10 + marge)
- *  — réserve l'espace sous le menu Calques pour qu'il ne recouvre pas la pile. */
-const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
 /**
  * Hauteur du peek d'une VRAIE zone (hex_claims) : en-tête + rôle + surface.
  * Courte, et c'est le point : on n'a ni « action recommandée » ni pression
@@ -124,12 +118,12 @@ const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
  */
 const REAL_ZONE_SHEET_COMPACT_HEIGHT = 132;
 /**
- * Hauteur de l'ÉTAT VIDE (titre + phrase, + lien d'action quand il y en a un).
- * Deux valeurs : sans CTA le peek se resserre au lieu de laisser un vide qui se
- * lirait comme un écran cassé.
+ * Hauteur de l'ÉTAT VIDE / PREMIÈRE MISSION (E02) : eyebrow + titre + ligne +
+ * lien détail. Pas de CTA primaire dans la sheet (anti double-CTA §A.4).
  */
-const EMPTY_PEEK_HEIGHT = 104;
-const EMPTY_PEEK_WITH_CTA_HEIGHT = 140;
+const EMPTY_PEEK_HEIGHT = 152;
+const EMPTY_PEEK_WITH_CTA_HEIGHT = 168;
+const FIRST_MISSION_PEEK_HEIGHT = 168;
 
 /**
  * ÉTAT VIDE de la carte (O1 — vitrine OFF par défaut). Trois cas qui n'ont PAS
@@ -315,12 +309,10 @@ export function BattleMapOverlays({
     if (zoneOpen && selectedZoneId) screen('map_zone_open', { zone: selectedZoneId });
   }, [zoneOpen, selectedZoneId]);
 
-  /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
+  /** Bas de l'écran réservé à la barre de nav (le CTA RUN flotte à part). */
   const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
-  // « Carte nue » masque le HUD : ligne mission (haut, index.tsx) + sheet du bas.
-  // Les 2 FABs permanents (Recentrer + Calques) RESTENT visibles même en carte nue :
-  // le FAB Calques rouvre le menu, dont la rangée « Carte nue » (active) ramène tout.
-  // Un tap sur une ZONE reste explicite → sa sheet s'affiche même en carte nue.
+  // « Carte nue » masque le HUD : header + sheet du bas.
+  // Capsule contrôles (Recentrer + Calques) RESTE visible même en carte nue.
   /**
    * QUE MONTRE LE PEEK quand aucune donnée réelle n'existe ? L'ÉTAT VIDE — et
    * RIEN DU TOUT tant qu'on ne sait pas encore (`emptyState` null = lecture en
@@ -328,27 +320,41 @@ export function BattleMapOverlays({
    * La sheet elle-même se retire alors, plutôt que de laisser un cadre vide.
    */
   const showEmptyPeek = widget === null && emptyState !== null;
+  const isFirstMission =
+    showEmptyPeek && emptyState === 'empty'
+      ? true
+      : widget?.state === 'first_capture';
   const missionSheetVisible = widget !== null || showEmptyPeek;
   const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
+
+  // E02 : morph du CTA RUN (rond vs pill) selon sheet déployée.
+  useEffect(() => {
+    setMissionSheetDeployed(sheetVisible && !zoneOpen);
+    return () => setMissionSheetDeployed(false);
+  }, [sheetVisible, zoneOpen]);
+
   /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav.
    *  Chaque état a SA hauteur : le peek épouse son contenu au lieu de laisser un
    *  vide sous le texte (un blanc se lit comme un écran cassé — §A). */
   const activeCompactHeight = zoneOpen
     ? REAL_ZONE_SHEET_COMPACT_HEIGHT
-    : showEmptyPeek
-      ? emptyState === 'empty'
-        ? EMPTY_PEEK_HEIGHT
-        : EMPTY_PEEK_WITH_CTA_HEIGHT
-      : MISSION_PEEK_COMPACT_HEIGHT;
-  const fabBottom = sheetVisible ? sheetBottom + activeCompactHeight + FAB_ABOVE_SHEET : sheetBottom;
+    : isFirstMission
+      ? FIRST_MISSION_PEEK_HEIGHT
+      : showEmptyPeek
+        ? emptyState === 'signed-out' || emptyState === 'failed'
+          ? EMPTY_PEEK_WITH_CTA_HEIGHT
+          : EMPTY_PEEK_HEIGHT
+        : MISSION_PEEK_COMPACT_HEIGHT;
 
-  // Le menu Calques s'ouvre AU-DESSUS de la pile de FABs. On PLAFONNE sa hauteur à
-  // l'espace libre entre le HUD du haut (secteur + ligne mission) et le sommet des
-  // FABs → il défile au lieu de recouvrir « République attaquée » (retour fondateur).
+  // E02 : capsule contrôles à ~35 % de hauteur (pas collée à la sheet).
   const { height: winH } = useWindowDimensions();
+  const capsuleTop = Math.round(winH * 0.33);
+
+  // Le menu Calques s'ouvre AU-DESSUS de la capsule. On PLAFONNE sa hauteur à
+  // l'espace libre entre le header et le sommet de la capsule.
   const layerMenuMaxHeight = Math.max(
     120,
-    winH - insets.top - TOP_HUD_CLEARANCE - fabBottom - FAB_STACK_HEIGHT,
+    capsuleTop - insets.top - TOP_HUD_CLEARANCE - 8,
   );
 
   /** FAB Calques : ouvre/ferme le menu Calques EN 1 TAP (haptic géré par le FAB). */
@@ -395,32 +401,18 @@ export function BattleMapOverlays({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* Backdrop invisible : un tap « ailleurs » referme le menu Calques (contrat
-          §1). Rendu SOUS la pile de FABs et la sheet (enfants suivants = au-dessus)
-          → seuls les taps hors de ces zones l'atteignent. Absent quand le menu est
-          fermé : la carte reçoit alors ses gestes normalement (pan/zoom). Hors a11y
-          (les lecteurs d'écran referment via le FAB Calques, dont l'état
-          « sélectionné » est lisible). */}
+      {/* Backdrop invisible : un tap « ailleurs » referme le menu Calques. */}
       {layersOpen ? (
         <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={closeLayers} />
       ) : null}
 
-      {/* Commutateur Run/Bike — haut droite (maquette Home Map). */}
-      {!hudHidden ? (
-        <View style={[styles.modeToggle, { top: insets.top + 10 }]} pointerEvents="box-none">
-          <ActivityModeToggle />
-        </View>
-      ) : null}
+      {/* E02 header : avatar + lieu + notifs (Bike absent — feature flag). */}
+      {!hudHidden ? <MapHomeHeader /> : null}
 
-      {/* ── Droite : 2 FABs PERMANENTS (AMENDEMENT-37 §8) — Recentrer + Calques.
-          Le FAB Calques ouvre le menu EN 1 TAP (retour terrain 20/07 : l'ancien
-          détour « Outils → Calques » imposait 3 taps à travers 2 menus imbriqués).
-          Le menu Calques absorbe désormais « Carte nue » (rangée d'affichage) :
-          plus de menu Outils ni d'engrenage. Le déclencheur Calques est le dernier
-          de la pile (en bas, sous le pouce), visible même en carte nue pour tout
-          ramener. ── */}
+      {/* ── Capsule contrôles E02 (≤ 2 actions) : Recentrer + Calques, ~35 % haut.
+          Bike absent. Visible même en carte nue pour tout ramener. ── */}
       <View
-        style={[styles.fabColumn, { bottom: fabBottom }]}
+        style={[styles.controlCapsule, { top: capsuleTop }]}
         pointerEvents="box-none"
       >
         {layersOpen ? (
@@ -444,31 +436,45 @@ export function BattleMapOverlays({
             onToggleHud={toggleHud}
           />
         ) : null}
-        {/* RECENTRER — permanent : « où suis-je ? » se répond en 1 tap, à une main,
-            en courant. Referme le menu Calques s'il est ouvert. */}
-        <FloatingMapButton
-          icon="gps"
-          accessibilityLabel={t(C.recenterA11y)}
-          onPress={recenterAndClose}
-        />
-        {/* CALQUES — permanent, déclencheur DIRECT du menu Calques (1 tap ouvre,
-            re-tap referme). Actif = menu ouvert. Reste visible en carte nue. */}
-        <FloatingMapButton
-          icon="calques"
-          accessibilityLabel={t(C.layersFabA11y)}
-          active={layersOpen}
-          onPress={toggleLayers}
-        />
+        <View style={styles.capsule}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.recenterA11y)}
+            onPress={() => {
+              haptics.light();
+              recenterAndClose();
+            }}
+            style={({ pressed }) => [styles.capsuleBtn, pressed && styles.pressed]}
+          >
+            <Icon name="gps" size={18} color={colors.blanc} />
+          </Pressable>
+          <View style={styles.capsuleDivider} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.layersFabA11y)}
+            accessibilityState={{ selected: layersOpen }}
+            onPress={() => {
+              haptics.light();
+              toggleLayers();
+            }}
+            style={({ pressed }) => [
+              styles.capsuleBtn,
+              layersOpen && styles.capsuleBtnActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Icon
+              name="calques"
+              size={18}
+              color={layersOpen ? colors.chartreuse : colors.blanc}
+            />
+          </Pressable>
+        </View>
       </View>
 
-      {/* ── Sheet du bas : la sheet de ZONE tapée REMPLACE le peek mission
-          (§3) ; sinon le peek MISSION persistant (§8). Une seule sheet à la
-          fois = 1 seul gros CTA à la fois (anti double-CTA §A.4). ── */}
+      {/* ── Sheet du bas : zone tapée REMPLACE le peek mission ; sinon peek. ── */}
       <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
         {zoneOpen && zone ? (
-          /* VRAIE zone tapée : ce que hex_claims sait dire, rien de plus. Aucun
-             CTA ici — le bouton GO flottant reste l'unique CTA chartreuse (§A.4),
-             et « défendre » sans mission réelle serait un verbe creux. */
           <MapBottomSheet
             key={`realzone-${selectedZoneId}`}
             initialState="compact"
@@ -483,32 +489,20 @@ export function BattleMapOverlays({
             onStateChange={(state) => {
               if (state !== 'compact') screen('map_sheet_open', { state });
             }}
-            compactSlot={
-              widget ? (
+            compactSlot={(api) =>
+              isFirstMission ? (
+                <FirstMissionPeek onSeeDetail={api.expand} />
+              ) : widget ? (
                 <TerritoryWidgetPeek
                   view={widget}
                   onAction={() => onWidgetAction?.(widget)}
                 />
               ) : (
-                /* `missionSheetVisible` garantit qu'on n'arrive ici qu'avec un
-                   emptyState non-null : plus aucun repli sur le peek de démo. */
                 <EmptyPeek state={emptyState ?? 'signed-out'} onAction={onEmptyAction} />
               )
             }
             openSlot={
               <View style={styles.openBlock}>
-                {/* SITUATION / PARCOURS / ÉQUIPE ont été RETIRÉS (21/07/2026) :
-                    tous trois sortaient de `demo.ts` (MAP_MISSION_SUMMARY,
-                    PARCOURS_DEMO, MATES_OPT_IN). Il n'existe ni parcours proposé,
-                    ni allié partageant sa position, ni part de contrôle réelle —
-                    les afficher, c'était fabriquer une situation de jeu. Ne
-                    restent que des entrées VRAIES : l'historique local, et la War
-                    Room quand son flag est levé. */}
-                {/* BLOC — DÉTAILS. La rangée « mission du jour » (MISSIONS[0],
-                    warroom/demo.ts) est partie avec le reste de la démo : elle
-                    n'était masquée que par le flag warRoom, donc un `FULL_SURFACE=1`
-                    suffisait à afficher une mission fabriquée. Ne reste que ce qui
-                    est vrai — l'historique local du joueur. */}
                 <Text style={styles.sectionTitle}>{t(C.sectionDetails)}</Text>
                 <Pressable
                   accessibilityRole="button"
@@ -537,6 +531,40 @@ export function BattleMapOverlays({
           />
         )}
       </View>
+    </View>
+  );
+}
+
+/**
+ * E02 — sheet PREMIÈRE MISSION. Pas de CTA primaire (RUN est dehors).
+ * Lien « Voir le détail › » → expand sheet (semi). Zéro métrique inventée
+ * (900 m / 6 min de la planche = exemple design ; on n'affiche que du réel).
+ */
+function FirstMissionPeek({ onSeeDetail }: { onSeeDetail: () => void }) {
+  const t = useT();
+  return (
+    <View style={styles.firstMission}>
+      <Text style={styles.firstEyebrow}>{t(C.firstMissionEyebrow)}</Text>
+      <Text style={styles.firstTitle} numberOfLines={2}>
+        {t(C.firstMissionTitle)}
+      </Text>
+      <Text style={styles.firstLine} numberOfLines={2}>
+        {t(C.firstMissionLine)}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(C.firstMissionSeeDetail)}
+        hitSlop={8}
+        onPress={() => {
+          haptics.light();
+          onSeeDetail();
+        }}
+        style={({ pressed }) => [styles.detailHit, pressed && styles.pressed]}
+      >
+        <Text style={styles.detailLink} numberOfLines={1}>
+          {t(C.firstMissionSeeDetail)}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -835,9 +863,33 @@ const OVERLAY_SURFACE = withAlpha(gameColors.carbon, 0.92);
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 
-  // ── FAB column : 2 MAX (Calques + Recentrer) ──
-  fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
-  modeToggle: { position: 'absolute', right: 14, zIndex: 3 },
+  // ── Capsule contrôles E02 (Recentrer + Calques) à ~35 % hauteur ──
+  controlCapsule: {
+    position: 'absolute',
+    right: 20,
+    gap: 8,
+    alignItems: 'flex-end',
+    zIndex: 3,
+  },
+  capsule: {
+    width: 44,
+    borderRadius: 22,
+    backgroundColor: withAlpha(colors.carbonDeep, 0.82),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.blanc12,
+    overflow: 'hidden',
+  },
+  capsuleBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  capsuleBtnActive: { backgroundColor: colors.chartreuse14 },
+  capsuleDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.blanc12,
+  },
 
   // ── Menu Calques (fond + vue + calques de lecture) — ScrollView plafonné ──
   layerMenu: {
@@ -882,6 +934,38 @@ const styles = StyleSheet.create({
 
   // ── Contenu du peek (mission / zone) : posé directement, pas de sous-card ──
   info: { paddingHorizontal: 16, paddingBottom: 12, gap: 6 },
+
+  // ── E02 PREMIÈRE MISSION ──
+  firstMission: { paddingHorizontal: 20, paddingBottom: 12, gap: 6 },
+  firstEyebrow: {
+    marginTop: 4,
+    color: colors.chartreuse,
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+  },
+  firstTitle: {
+    color: colors.blanc,
+    fontFamily: fonts.displaySemi,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '600',
+  },
+  firstLine: {
+    color: colors.gris,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 220,
+  },
+  detailHit: { minHeight: 36, justifyContent: 'center', marginTop: 4 },
+  detailLink: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    fontWeight: '600',
+  },
 
   // ── PEEK MISSION ──
   peekHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },

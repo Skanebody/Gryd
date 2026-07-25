@@ -56,4 +56,9 @@ export const flags = {
   warRoom: FULL_SURFACE,
   /** Arsenal / boutique (skins, objets capés, GRYD Club). */
   arsenal: FULL_SURFACE,
+  /**
+   * Commutateur Run/Bike (planches E03+). E02 = Run seul, Bike absent
+   * (masqué, pas grisé). Réactiver avec FULL_SURFACE ou quand E03 est conforme.
+   */
+  bike: FULL_SURFACE,
 } as const;
