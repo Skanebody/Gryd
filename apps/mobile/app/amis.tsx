@@ -29,7 +29,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, elevation, fontSizes, gameColors, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fonts, elevation, fontSizes, gameColors, radii, sizes, spacing } from '@klaim/shared';
 import { useT } from '../src/i18n/store';
 import { C } from '../src/i18n/catalog/profil';
 import { screen } from '../src/lib/analytics';
@@ -132,6 +132,7 @@ const styles = StyleSheet.create({
   stateTitle: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
@@ -149,6 +150,7 @@ const styles = StyleSheet.create({
   stateCtaLabel: {
     color: colors.noir,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 0.6,
   },
@@ -170,6 +172,7 @@ const styles = StyleSheet.create({
   handleText: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.5,
   },

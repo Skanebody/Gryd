@@ -68,7 +68,7 @@ import {
 import { Redirect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
-import { colors, fontSizes, iconSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/auth';
 import { useT } from '../../src/i18n/store';
 import { Icon } from '../../src/ui/Icon';
@@ -454,6 +454,7 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontSize: fontSizes.hero,
     lineHeight: fontSizes.hero * 1.02,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: -1.2,
   },
@@ -507,6 +508,7 @@ const styles = StyleSheet.create({
   gateTitle: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     lineHeight: fontSizes.md * 1.3,
   },

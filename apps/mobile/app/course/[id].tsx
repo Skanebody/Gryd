@@ -21,7 +21,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { Icon } from '../../src/ui/Icon';
@@ -533,6 +533,7 @@ const styles = StyleSheet.create({
   effortValue: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -610,6 +611,7 @@ const styles = StyleSheet.create({
   calcRowValue: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -626,6 +628,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     lineHeight: fontSizes.sm * 1.35,
   },

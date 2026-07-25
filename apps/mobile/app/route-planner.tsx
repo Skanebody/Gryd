@@ -61,7 +61,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, iconSizes, radii, spacing, type IconName } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, radii, spacing, type IconName } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -889,6 +889,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.chartreuse,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 1.6,
   },
@@ -896,6 +897,7 @@ const styles = StyleSheet.create({
   kpi: {
     color: colors.blanc,
     fontSize: fontSizes.xxl,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
@@ -1042,6 +1044,7 @@ const styles = StyleSheet.create({
   stepInput: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.display,
     fontWeight: '800',
     textAlign: 'right',
     minWidth: 54,
@@ -1084,6 +1087,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.chartreuse,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -1124,6 +1128,7 @@ const styles = StyleSheet.create({
   ctaMicro: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 8,

@@ -15,7 +15,7 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
 import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
@@ -191,6 +191,7 @@ const styles = StyleSheet.create({
   current: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -200,6 +201,7 @@ const styles = StyleSheet.create({
   rivalScore: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -228,6 +230,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: -0.3,
   },

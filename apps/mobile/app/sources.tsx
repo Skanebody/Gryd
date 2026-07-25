@@ -19,7 +19,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, iconSizes, radii, sizes, spacing } from '@klaim/shared';
 import { C } from '../src/i18n/catalog/auth';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
@@ -283,6 +283,7 @@ const styles = StyleSheet.create({
   heroStrong: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     lineHeight: fontSizes.sm * 1.4,
   },

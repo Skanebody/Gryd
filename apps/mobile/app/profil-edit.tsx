@@ -20,6 +20,7 @@ import {
   BADGE_TIER_RANK,
   badgeKeyByName,
   colors,
+  fonts,
   fontSizes,
   gameColors,
   iconSizes,

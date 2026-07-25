@@ -28,7 +28,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, gameColors, radii, sizes, spacing, typography } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, radii, sizes, spacing, typography } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Card } from '../src/ui/Card';
@@ -266,6 +266,7 @@ const styles = StyleSheet.create({
   filterCount: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -283,6 +284,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     textAlign: 'center',
   },

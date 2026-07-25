@@ -38,7 +38,7 @@
 import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import { flags } from '../src/lib/flags';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
@@ -255,6 +255,7 @@ const styles = StyleSheet.create({
   greeting: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: -0.5,
     marginTop: 6,
@@ -288,6 +289,7 @@ const styles = StyleSheet.create({
   emptyHeroTitle: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: -0.3,
     marginTop: 10,

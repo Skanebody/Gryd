@@ -45,7 +45,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, elevation, fontSizes, motion, radii } from '@klaim/shared';
+import { colors, fonts, elevation, fontSizes, motion, radii } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { goBack } from '../src/lib/nav';
@@ -739,6 +739,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: -0.5,
   },

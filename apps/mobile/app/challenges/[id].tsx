@@ -14,7 +14,7 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -170,6 +170,7 @@ const styles = StyleSheet.create({
   current: {
     color: colors.blanc,
     fontSize: fontSizes.xxl,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: -1,
     fontVariant: ['tabular-nums'],
@@ -188,6 +189,7 @@ const styles = StyleSheet.create({
   rivalScore: {
     color: colors.blanc,
     fontSize: fontSizes.xxl,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: -1,
     fontVariant: ['tabular-nums'],

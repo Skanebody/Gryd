@@ -39,6 +39,7 @@ import {
   CREW_BOOST_MAX_ACTIVE,
   borderState,
   colors,
+  fonts,
   elevation,
   fontSizes,
   gameColors,

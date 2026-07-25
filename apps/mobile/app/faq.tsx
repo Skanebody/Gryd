@@ -22,7 +22,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { colors, fontSizes, INTERSEASON_DAYS, radii, SEASON_DURATION_WEEKS, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, INTERSEASON_DAYS, radii, SEASON_DURATION_WEEKS, spacing } from '@klaim/shared';
 import {
   FAQ_CATEGORY_LABELS,
   FAQ_ITEMS,

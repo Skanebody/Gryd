@@ -34,7 +34,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -221,6 +221,7 @@ const styles = StyleSheet.create({
   blockedTitle: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     marginBottom: spacing.sm,
   },
