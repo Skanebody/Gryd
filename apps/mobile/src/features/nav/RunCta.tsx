@@ -15,7 +15,11 @@ import { useLocale, useT } from '../../i18n/store';
 import { haptics } from '../../lib/haptics';
 import { hasPendingUpload, retryPendingUpload } from '../../lib/pendingUpload';
 import { Icon } from '../../ui/Icon';
-import { useMapHudHidden, useMissionSheetDeployed } from '../map/mapUiStore';
+import {
+  useMapHudHidden,
+  useMissionSheetDeployed,
+  useZoneSheetOpen,
+} from '../map/mapUiStore';
 import { deriveContextualAction } from './contextualAction';
 import { NAV_BAR_HEIGHT, RUN_BUTTON_BOTTOM, RUN_CTA_GAP, RUN_CTA_SIZE } from './metrics';
 
@@ -26,7 +30,11 @@ export function RunCta() {
   const locale = useLocale();
   const hudHidden = useMapHudHidden();
   const sheetDeployed = useMissionSheetDeployed();
+  const zoneSheetOpen = useZoneSheetOpen();
   const action = useMemo(() => deriveContextualAction({ screen: 'map' }, locale), [locale]);
+
+  // E04 : sheet de décision ouverte → RUN disparaît (un seul CTA primaire).
+  if (zoneSheetOpen) return null;
 
   // Sheet visible → rond à droite ; sinon pill au-dessus de la nav.
   const round = sheetDeployed && !hudHidden;

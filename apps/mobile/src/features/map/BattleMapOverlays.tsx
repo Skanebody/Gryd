@@ -44,6 +44,7 @@ import {
   type MapSheetState,
 } from '../../ui/game';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { intentionHref } from '../nav/runContext';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { formatKm2Parts } from '../widget/territoryWidget';
@@ -143,6 +144,8 @@ const FIRST_MISSION_PEEK_HEIGHT = 168;
 const ACTIVE_TERRITORY_PEEK_HEIGHT = 188;
 /** Pill de contexte E03 : disparaît après 5 s (planche). */
 const CONTEXT_PILL_MS = 5_000;
+/** E04 sheet rival : ~52 % de hauteur écran (planche). */
+const RIVAL_SHEET_RATIO = 0.52;
 
 /**
  * ÉTAT VIDE de la carte (O1 — vitrine OFF par défaut). Trois cas qui n'ont PAS
@@ -388,6 +391,7 @@ export function BattleMapOverlays({
   // E02 : capsule contrôles à ~35 % de hauteur (pas collée à la sheet).
   const { height: winH } = useWindowDimensions();
   const capsuleTop = Math.round(winH * 0.33);
+  const rivalSheetHeight = Math.round(winH * RIVAL_SHEET_RATIO);
 
   // Le menu Calques s'ouvre AU-DESSUS de la capsule. On PLAFONNE sa hauteur à
   // l'espace libre entre le header et le sommet de la capsule.
@@ -526,12 +530,24 @@ export function BattleMapOverlays({
       {/* ── Sheet du bas : zone tapée REMPLACE le peek mission ; sinon peek. ── */}
       <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
         {zoneOpen && zone ? (
-          <MapBottomSheet
-            key={`realzone-${selectedZoneId}`}
-            initialState="compact"
-            compactHeight={REAL_ZONE_SHEET_COMPACT_HEIGHT}
-            compactSlot={<RealZonePeek zone={zone} onClose={closeZone} />}
-          />
+          zone.role === 'rival' ? (
+            /* E04 — décision REPRENDRE. Sheet ~52 %. Données réelles seulement. */
+            <MapBottomSheet
+              key={`rival-${selectedZoneId}`}
+              initialState="compact"
+              compactHeight={rivalSheetHeight}
+              compactSlot={
+                <RivalZoneDecision zone={zone} onClose={closeZone} />
+              }
+            />
+          ) : (
+            <MapBottomSheet
+              key={`realzone-${selectedZoneId}`}
+              initialState="compact"
+              compactHeight={REAL_ZONE_SHEET_COMPACT_HEIGHT}
+              compactSlot={<RealZonePeek zone={zone} onClose={closeZone} />}
+            />
+          )
         ) : hudHidden || !missionSheetVisible ? null : (
           <MapBottomSheet
             key={`mission-${sheet.key}`}
@@ -834,6 +850,95 @@ function EmptyPeek({
           </Text>
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * E04 — sheet décision rival. Un CTA primaire REPRENDRE → course conquête.
+ * hex_claims ne porte pas l'identité : owner anonyme, pas de Nina inventée.
+ */
+function RivalZoneDecision({ zone, onClose }: { zone: MapZoneView; onClose: () => void }) {
+  const t = useT();
+  const locale = useLocale();
+  const router = useRouter();
+  const { value, unit } = formatKm2Parts(zone.areaKm2 * 1_000_000, locale);
+
+  const retake = () => {
+    haptics.medium();
+    screen('map_zone_act', { action: 'retake' });
+    router.push(intentionHref('conquest'));
+  };
+  const planLater = () => {
+    haptics.light();
+    router.push('/route-planner?type=conquest');
+  };
+
+  return (
+    <View style={styles.rivalSheet}>
+      <View style={styles.rivalHead}>
+        <Text style={styles.rivalEyebrow}>{t(C.rivalEyebrow)}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.closeZoneA11y)}
+          hitSlop={8}
+          onPress={onClose}
+          style={({ pressed }) => [styles.rivalClose, pressed && styles.pressed]}
+        >
+          <Icon name="fermer" size={16} color={colors.gris} />
+        </Pressable>
+      </View>
+      <Text style={styles.rivalTitle} numberOfLines={2}>
+        {t(C.rivalTitle)}
+      </Text>
+      <View style={styles.rivalOwner}>
+        <View style={styles.rivalAvatar}>
+          <Icon name="profil" size={18} color={colors.gris} />
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rivalOwnerName} numberOfLines={1}>
+            {t(C.rivalOwnerAnon)}
+          </Text>
+          <Text style={styles.rivalOwnerHint} numberOfLines={2}>
+            {t(C.rivalOwnerHint)}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.rivalMetrics}>
+        <View style={styles.rivalMetric}>
+          <Text style={styles.rivalMetricValue} numberOfLines={1}>
+            {value}
+            <Text style={styles.rivalMetricUnit}> {unit}</Text>
+          </Text>
+          <Text style={styles.rivalMetricLabel}>{t(C.rivalMetricSurface)}</Text>
+        </View>
+        <View style={styles.rivalMetricDivider} />
+        <View style={styles.rivalMetric}>
+          <Text style={styles.rivalMetricValue} numberOfLines={1}>
+            {zone.zones}
+          </Text>
+          <Text style={styles.rivalMetricLabel}>{t(C.rivalMetricZones)}</Text>
+        </View>
+      </View>
+      <View style={styles.rivalActions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.rivalCtaA11y)}
+          onPress={retake}
+          style={({ pressed }) => [styles.rivalCta, pressed && styles.pressed]}
+          testID="rival-retake-cta"
+        >
+          <Text style={styles.rivalCtaText}>{t(C.rivalCta)}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.rivalPlanLater)}
+          onPress={planLater}
+          style={({ pressed }) => [styles.rivalPlan, pressed && styles.pressed]}
+        >
+          <Text style={styles.rivalPlanText}>{t(C.rivalPlanLater)}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -1226,6 +1331,129 @@ const styles = StyleSheet.create({
     backgroundColor: gameColors.carbon,
   },
   situationChipText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+
+  // ── E04 sheet rival ──
+  rivalSheet: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  rivalHead: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rivalEyebrow: {
+    color: gameColors.rival,
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+  },
+  rivalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.carbone2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalTitle: {
+    color: colors.blanc,
+    fontFamily: fonts.displayBold,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '700',
+  },
+  rivalOwner: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rivalAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.carbone2,
+    borderWidth: 2,
+    borderColor: gameColors.rival,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalOwnerName: {
+    color: colors.blanc,
+    fontFamily: fonts.textSemi,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rivalOwnerHint: {
+    color: colors.grisFaible,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  rivalMetrics: {
+    marginTop: 10,
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.grisLigne,
+    paddingVertical: 14,
+  },
+  rivalMetric: { flex: 1 },
+  rivalMetricDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.grisLigne,
+    marginHorizontal: 16,
+  },
+  rivalMetricValue: {
+    color: colors.blanc,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  rivalMetricUnit: {
+    color: colors.grisFaible,
+    fontFamily: fonts.textSemi,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  rivalMetricLabel: {
+    marginTop: 2,
+    color: colors.grisFaible,
+    fontFamily: fonts.text,
+    fontSize: 12,
+  },
+  rivalActions: { marginTop: 20, gap: 12 },
+  rivalCta: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalCtaText: {
+    color: colors.noir,
+    fontFamily: fonts.textBold,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  rivalPlan: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalPlanText: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 
   // ── PEEK ZONE (§3/§10) ──
   zoneHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
