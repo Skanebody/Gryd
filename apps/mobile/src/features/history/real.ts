@@ -51,6 +51,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { IngestRunResponse, RunStatus } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
+import type { HistoryFilterKey, RunKindKey } from './historyView';
 
 /**
  * Fenêtre de lecture. L'écran promet « TOUS tes parcours » : une troncature
@@ -80,8 +81,12 @@ interface RunRow {
  * Il n'y a volontairement pas de catégorie « route ouverte » : rien dans
  * `runs`/`celebration` ne dit qu'une boucle est restée ouverte mais fermable.
  * Inventer ce classement serait fabriquer une information.
+ *
+ * L'union vit dans `historyView.ts` (module PUR, sans React ni Supabase) pour
+ * que les décisions d'affichage restent type-checkables par les tests Deno ;
+ * on la réexporte ici, où les consommateurs la cherchent.
  */
-export type RealRunKind = 'conquest' | 'defense' | 'stats';
+export type RealRunKind = RunKindKey;
 
 export interface RealRunEntry {
   id: string;
@@ -163,9 +168,10 @@ export type HistoryStatus = 'signed-out' | 'loading' | 'failed' | 'ready';
 /**
  * Filtres de l'historique RÉEL. Ils ne portent que sur des natures que la
  * donnée serveur sait distinguer — pas une de plus (la démo en avait cinq, dont
- * « Routes », qu'aucune colonne ne permet de reconnaître).
+ * « Routes », qu'aucune colonne ne permet de reconnaître). Même raison que
+ * `RealRunKind` : l'union est déclarée dans le module pur.
  */
-export type RealHistoryFilter = 'all' | RealRunKind;
+export type RealHistoryFilter = HistoryFilterKey;
 
 export function filterRuns(
   runs: readonly RealRunEntry[],

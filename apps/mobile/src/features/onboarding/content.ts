@@ -36,8 +36,8 @@ import { C } from '../../i18n/catalog/onboarding';
  *
  * QUATRE ÉCRANS, et ce sont exactement les quatre demandés :
  *   1. `mechanic` — le geste : ferme une boucle, prends la zone. Rien d'autre :
- *      ni rival, ni crew, ni ville. La démonstration animée se comprend SANS
- *      lire le texte (`CaptureDemo`).
+ *      ni rival, ni crew, ni ville. La boucle animée se comprend SANS lire le
+ *      texte (`E01Route`, posée sur le hero plein cadre `E01Hero`).
  *   2. `rivalry`  — pourquoi revenir : ta zone peut être reprise. C'est ICI que
  *      le crew entre, parce qu'il répond enfin à une question posée.
  *   3. `city`     — la première DÉCISION : choisir sa ville, À LA MAIN, sans
@@ -140,6 +140,17 @@ export const stepBeforeCity = (): OnboardingStep => 'rivalry';
  * population d'un écran de 2026 avec celle d'un écran supprimé qui enseignait
  * autre chose (il MONTRAIT une ville, celui-ci en fait CHOISIR une). Idem pour
  * les cartes : 14/15 neufs, pas le 13 de `learn`.
+ *
+ * ⚠️ LE 1 A ÉTÉ RÉATTRIBUÉ EN SILENCE, ET C'EST CORRIGÉ (25/07/2026). Les deux
+ * écrans de connexion émettaient `onboarding_step { n: 1 }` à leur montage — le n
+ * du splash `hook` supprimé. Deux populations sans rapport (les curieux de 2026
+ * qui voyaient un splash, et ceux qui viennent chercher leur session) se
+ * retrouvaient recollées dans le même pas d'entonnoir, sans que personne ne le
+ * voie. L'event a été RETIRÉ de ces écrans plutôt que renuméroté : /sign-in n'est
+ * pas une étape de l'onboarding — il n'est même pas dans `ONBOARDING_STEPS` — et
+ * son entrée est déjà mesurée par le `screen()` automatique du routeur
+ * (`app/_layout.tsx`). Inventer un n pour un écran hors flow aurait produit un
+ * entonnoir aussi faux, mais plus difficile à démonter.
  */
 export const STEP_EVENT_N: Record<OnboardingStep, number> = {
   mechanic: 14,
@@ -148,11 +159,40 @@ export const STEP_EVENT_N: Record<OnboardingStep, number> = {
   account: 9,
 };
 
+/**
+ * OÙ EN EST LE JOUEUR — la seule source de la frise de points.
+ *
+ * ⚠️ CE QUE CETTE FONCTION RÉPARE. La frise annonçait CINQ étapes (`stepCount={5}`
+ * écrit en dur dans l'écran) pour un parcours qui en compte QUATRE : une promesse
+ * chiffrée fausse, affichée sous le tout premier CTA de l'app, dont le cinquième
+ * point ne s'allumait jamais. Un nombre d'étapes ne se décrète pas dans un JSX :
+ * il se DÉRIVE du flow, sinon les deux divergent au premier écran ajouté ou
+ * retiré — et c'est arrivé deux fois en un mois ici (fusion nom+entrée, sortie de
+ * l'age-gate).
+ *
+ * `index` est 0-indexé (position dans `ONBOARDING_STEPS`), `count` est le total.
+ * Pure et testée (`flow.test.ts`) : la frise ne peut plus mentir sans faire
+ * rougir le filet.
+ */
+export interface StepProgress {
+  readonly index: number;
+  readonly count: number;
+}
+
+export function stepProgress(step: OnboardingStep): StepProgress {
+  return { index: ONBOARDING_STEPS.indexOf(step), count: ONBOARDING_STEPS.length };
+}
+
 // ─── Copy par étape (Entries — l'écran appelle t()) ──────────────────────────
 
-/** Navigation du stepper : flèche retour discrète (a11y uniquement). */
+/**
+ * Navigation du stepper : flèche retour discrète (a11y uniquement) et libellé de
+ * la frise de progression, LUE par les lecteurs d'écran (des points ne s'entendent
+ * pas — « Étape 2 sur 4 », si).
+ */
 export const NAV = {
   back: C.navBack,
+  progressA11y: C.stepProgressA11y,
 } as const;
 
 /**
@@ -163,10 +203,19 @@ export const NAV = {
 export const BRAND = 'GRYD';
 
 /**
- * LA PORTE DE CONNEXION, sur le tout premier écran du flow (la carte 1 depuis la
- * refonte). Lien gris, jamais un 2e CTA chartreuse (§A4) : la majorité des
- * arrivants sont nouveaux, mais celui qui réinstalle doit trouver son chemin du
- * premier coup d'œil au lieu de traverser tout le flow pédagogique.
+ * LA PORTE DE CONNEXION, sur le tout premier écran du flow (le hero E01). Lien
+ * gris, jamais un 2e CTA chartreuse (§A4) : la majorité des arrivants sont
+ * nouveaux, mais celui qui réinstalle doit trouver son chemin du premier coup
+ * d'œil au lieu de traverser tout le flow pédagogique.
+ *
+ * ⚠️ ELLE A ÉTÉ IMPORTÉE SANS ÊTRE RENDUE (jusqu'au 25/07/2026). Trois docblocks
+ * — celui-ci, `(auth)/sign-in.tsx` et `sign-in.web.tsx` — bâtissaient tout leur
+ * raisonnement sur une porte que PLUS AUCUN écran ne peignait depuis le passage à
+ * `E01Hero` : la seule sortie de E01 était « Passer », qui n'annonce pas la
+ * connexion. Trois documents décrivaient une porte, zéro pixel la montrait.
+ * Elle est rebranchée, et les deux sorties de E01 disent désormais deux choses
+ * DIFFÉRENTES : « Passer » entre dans l'app (l'app décide ensuite si une session
+ * lui est nécessaire), la porte va se connecter.
  */
 export const SIGN_IN_DOOR = C.hookSignIn;
 
@@ -190,6 +239,15 @@ export const AGE = {
   /** Écran de blocage si &lt; 16 (pas de chemin vers l'avant). */
   blockedTitle: C.ageBlockedTitle,
   blockedTagline: C.ageBlockedTagline,
+  /**
+   * SORTIE de la question posée EN PLACE devant l'écran ville. Sans elle, répondre
+   * « moins de 16 » depuis le raccourci de position rendait un écran TERMINAL sans
+   * pied : la seule issue était la flèche du header, qui pointe sur la rivalité —
+   * donc le joueur perdait l'écran ville sans jamais avoir décidé d'en sortir.
+   * Une auto-déclaration ne ferme pas le choix MANUEL d'une ville : elle ne ferme
+   * que le geste qui lit un capteur.
+   */
+  backToCity: C.ageBackToCity,
 } as const;
 
 /**
@@ -242,23 +300,29 @@ export const ACCOUNT = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Carte 1 — LA MÉCANIQUE. Un seul objet enseigné : le geste qui prend une zone.
- * Ni crew, ni rival, ni ville : chacun a sa carte. La démonstration animée
- * (`CaptureDemo`) doit se comprendre SANS lire ce texte ; le texte confirme.
+ * Carte 1 — LA MÉCANIQUE, rendue par le hero plein cadre `E01Hero` (planche E01).
+ * Un seul objet enseigné : le geste qui prend une zone. Ni crew, ni rival, ni
+ * ville : chacun a sa carte. La boucle animée (`E01Route`) doit se comprendre
+ * SANS lire ce texte ; le texte confirme.
+ *
+ * ⚠️ `exampleTag` N'EST PAS DÉCORATIVE : la boucle se ferme PUIS SE REMPLIT —
+ * la représentation exacte d'une capture. Sans la chip, le tout premier écran de
+ * l'app montrerait une conquête sans dire que c'est un exemple.
+ *
+ * ─── CE QUI A ÉTÉ RETIRÉ ICI, ET POURQUOI ───────────────────────────────────
+ * `demoLabel` / `demoReplay` / `street` : plus AUCUN écran ne les lisait depuis le
+ * passage de `CaptureDemo` à `E01Hero` (le hero n'a ni 4e temps étiqueté, ni
+ * visuel tapable, et « VOTRE RUE » a été remplacé par la boucle animée). Une Entry
+ * que plus aucune surface ne rend est une promesse de texte sans écran derrière —
+ * elle est RETIRÉE, pas commentée.
  */
 export const MECHANIC = {
   kicker: C.mechanicKicker,
   title: C.mechanicTitle,
   tagline: C.mechanicTagline,
-  /** Chip d'honnêteté posée SUR le visuel. */
+  /** Chip d'honnêteté posée SUR le visuel — cf. l'avertissement ci-dessus. */
   exampleTag: C.exampleTag,
-  /** Label bref du 4e temps de l'animation (jamais une célébration). */
-  demoLabel: C.captureDemoLabel,
-  /** a11y du visuel tapable — absent en mouvement réduit (rien à rejouer). */
-  demoReplay: C.demoReplay,
   cta: C.ctaContinue,
-  /** Label posé sur la photo E01 (« VOTRE RUE ») — planche Claude Design. */
-  street: C.mechanicStreet,
 } as const;
 
 /** « Passer » de l'onboarding (planche E01, haut à droite). */

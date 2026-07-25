@@ -14,6 +14,15 @@
  *   - `RunTraceThumb` : un aperçu compact du tracé pour la card de la liste.
  * Les deux consomment `demoRuns` (source unique du tracé) — jamais de nombre
  * magique de jeu, pur rendu.
+ *
+ * ⚠ AUCUN IMPORTEUR AUJOURD'HUI (25/07/2026). Son unique appelant était le CORPS
+ * de `/course/[id]`, supprimé parce qu'il n'était jamais exécuté (aucune lecture
+ * d'une course par id — O1). Ce fichier est CONSERVÉ, à la différence du corps
+ * d'écran : il ne décrit rien de faux et ne peut afficher aucune donnée par
+ * lui-même (il rend le tracé qu'on lui PASSE). C'est le rendu qui revient tel
+ * quel le jour où `runs.polyline_masked` est décodé — pour le détail de course
+ * ET pour la vignette de la liste d'historique. Il ne doit pas être remonté dans
+ * un écran tant qu'aucune polyligne réelle ne l'alimente.
  */
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Polyline } from 'react-native-svg';

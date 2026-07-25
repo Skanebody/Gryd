@@ -10,13 +10,10 @@
  * à l'affichage via `t()` (useT / t du store i18n).
  */
 import type {
-  ActivitySharing,
   ChallengeDifficulty,
   ChallengeType,
   LeaderboardLevel,
-  MapSharing,
   PlayStyle,
-  ProfileVisibility,
   RunMode,
 } from '@klaim/shared';
 import type { Entry } from '../../i18n/types';
@@ -31,29 +28,15 @@ export const PLAY_STYLE_LABELS: Record<PlayStyle, { title: Entry; subtitle: Entr
   crew_war: { title: C.playStyleCrewWarTitle, subtitle: C.playStyleCrewWarSubtitle },
 };
 
-/** Visibilité du profil (§4). */
-export const PROFILE_VISIBILITY_LABELS: Record<ProfileVisibility, Entry> = {
-  private: C.visPrivate,
-  friends: C.visFriends,
-  crew: C.visCrew,
-  public: C.visPublic,
-};
-
-/** Partage d'activité (§4). */
-export const ACTIVITY_SHARING_LABELS: Record<ActivitySharing, Entry> = {
-  private: C.actPrivate,
-  friends: C.visFriends,
-  crew: C.visCrew,
-  stats_only: C.actStatsOnly,
-};
-
-/** Partage de carte / trace (§4) — jamais de position live, quel que soit le choix. */
-export const MAP_SHARING_LABELS: Record<MapSharing, Entry> = {
-  precise: C.mapPrecise,
-  simplified: C.mapSimplified,
-  territory_only: C.mapTerritoryOnly,
-  none: C.mapNone,
-};
+/**
+ * ─── TROIS TABLES RETIRÉES LE 25/07/2026 ────────────────────────────────────
+ * `PROFILE_VISIBILITY_LABELS`, `ACTIVITY_SHARING_LABELS` et `MAP_SHARING_LABELS`
+ * ne servaient QUE `/settings-motivation`, qui écrivait ces trois réglages dans
+ * `motivation/store` — un magasin que ni le Profil ni l'édition de profil ne
+ * lisent (ils lisent `privacy/store`). Le réglage était donc SANS EFFET, et ces
+ * libellés doublaient ceux du domaine `features/privacy/**`, qui reste la seule
+ * source. La visibilité n'a plus qu'un écran : Confidentialité (E21).
+ */
 
 /** Modes de course au départ (§2/§8). Explication courte de l'effet. */
 export const RUN_MODE_LABELS: Record<

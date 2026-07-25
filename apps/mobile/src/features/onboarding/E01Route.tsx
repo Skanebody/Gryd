@@ -8,13 +8,19 @@
  * Terminaisons/jointures rondes discrètes (§B). Reduce Motion → boucle pleine +
  * remplie d'emblée.
  *
- * PUREMENT DÉCORATIF (onboarding) — pas une donnée GPS/joueur : l'illustration de
- * « ferme une boucle → prends la zone ».
+ * PUREMENT PÉDAGOGIQUE (onboarding) — pas une donnée GPS/joueur : l'illustration
+ * de « ferme une boucle → prends la zone ».
+ *
+ * ⚠️ ELLE NE SE REND JAMAIS SANS SA CHIP « EXEMPLE ». Ce dessin est la
+ * représentation EXACTE d'une capture ; posé nu sur le premier écran de l'app, il
+ * affirme une conquête que personne n'a courue. Le garde-fou est chez son hôte
+ * (`E01Hero`), qui pose la chip sur le visuel — il avait déjà sauté une fois, au
+ * remplacement de `CaptureDemo` (qui, lui, la portait).
  */
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { colors } from '@klaim/shared';
+import { colors, withAlpha } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game/anim';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -29,6 +35,8 @@ const DRAW_MS = 1500;
 const FILL_MS = 600;
 /** Opacité du remplissage intérieur (chartreuse translucide = zone prise). */
 const FILL_OPACITY = 0.18;
+/** Casing §B : le token immersif à 55 %, jamais un `rgba()` écrit à la main. */
+const CASING = withAlpha(colors.carbonImmersive, 0.55);
 /** Départ de la boucle (1er point de LOOP_D). */
 const START = { x: 95, y: 495 };
 
@@ -70,10 +78,12 @@ export function E01Route() {
       <Svg width="100%" height="100%" viewBox="0 0 375 812">
         {/* Remplissage intérieur (zone prise) — sous le tracé. */}
         <AnimatedPath d={LOOP_D} fill={colors.chartreuse} fillOpacity={fill} stroke="none" />
-        {/* Casing sombre — contraste sur la photo. */}
+        {/* Casing sombre — contraste sur le fond (§B casing + core). La teinte
+            DÉRIVE du token immersif : un rgba recodé à la main est une couleur
+            hors charte, même quand elle tombe juste. */}
         <AnimatedPath
           d={LOOP_D}
-          stroke="rgba(6,8,7,0.55)"
+          stroke={CASING}
           strokeWidth={9}
           fill="none"
           strokeLinecap="round"
@@ -93,7 +103,14 @@ export function E01Route() {
           strokeDashoffset={offset}
         />
         {/* Point de départ (= arrivée, la boucle est fermée). */}
-        <Circle cx={START.x} cy={START.y} r={6} fill={colors.chartreuse} stroke="#060807" strokeWidth={2} />
+        <Circle
+          cx={START.x}
+          cy={START.y}
+          r={6}
+          fill={colors.chartreuse}
+          stroke={colors.carbonImmersive}
+          strokeWidth={2}
+        />
       </Svg>
     </View>
   );

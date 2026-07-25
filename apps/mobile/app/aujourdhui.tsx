@@ -1,60 +1,98 @@
 /**
- * GRYD — Page « Aujourd'hui » : PORTE D'ENTRÉE quotidienne (AMENDEMENT-10 §4,
- * AMENDEMENT-11 vocabulaire zones/territoires). Règle stricte « un écran = une
- * décision » : 1 objectif, 1 CTA verbe (AMENDEMENT-29 : « GO » retiré). Pas de
- * feed. Les seuls blocs affichés sous le CTA sont ceux qui ont quelque chose de
- * VRAI à dire : la série réelle et la Zone du Jour, qui disparaissent d'eux-mêmes
- * quand la donnée n'existe pas. Le prochain badge proche (1 carte compacte)
- * reste une invitation douce, jamais une injonction. Fond plein, contraste max.
+ * GRYD — « AUJOURD'HUI » : lanceur quotidien (AMENDEMENT-10 §4).
  *
- * ─── « L'APP NE MENT JAMAIS » (21/07/2026) ─────────────────────────────────
- * Cet écran était le pire menteur de l'app : sur un iPhone neuf, sans compte, il
- * affichait « BONJOUR KORO », « Paris Est est contesté. », une route héros
- * « Route défense République · 4,8 km · +86 zones » et un bandeau semaine
- * (2/3 courses, 78/100 de forme, coffre crew à 66 %) — TOUT inventé. Le retour
- * terrain du fondateur (« je suis à Ouville-la-Rivière, l'app me met à
- * République ») venait en partie d'ici.
+ * ═══ ⚠️ ÉCRAN SANS PORTE — LA DÉCISION, ÉCRITE (25/07/2026) ═══════════════════
+ * CE FICHIER N'EST ATTEIGNABLE PAR AUCUN CHEMIN DE L'APPLICATION. Vérifié le
+ * 25/07/2026 : la seule occurrence de la route est sa DÉCLARATION
+ * (`app/_layout.tsx:172`) ; toutes les autres occurrences du mot « aujourdhui »
+ * dans le repo sont le nom d'une ICÔNE. Aucun `router.push('/aujourdhui')`
+ * n'existe. Conséquence en cascade : `/challenges` (dont l'unique entrée est
+ * ci-dessous) et `/challenges/[id]` sont eux aussi hors d'atteinte, et
+ * `DailyFocusBlock` — donc toute la mécanique « Zone du Jour » (A-45 §3) — n'est
+ * RENDU NULLE PART ailleurs dans l'app.
  *
- * Une première passe avait déplacé ces blocs derrière `isShowcasePlatform`. La
- * décision du 21/07 va au bout : LE MODE VITRINE EST ABANDONNÉ, il n'y a plus
- * de quatrième cas « démo » sur aucune surface. Les branches démo ne sont donc
- * pas gardées, elles sont SUPPRIMÉES :
- *   · `battleContext()` — entièrement dérivé de fakeHexes / warroom / route
- *     demo. Sans lui, le verbe honnête par défaut est CONQUÉRIR : sans
- *     territoire, tout est à prendre. C'est vrai, pas décoratif.
- *   · la card héros ROUTE RECOMMANDÉE — aucune route réelle n'existe encore,
- *     donc l'écran affiche l'état vide qui DIT ce qui manque et quand ça
- *     arrivera, au lieu d'un KPI géant fabriqué.
- *   · le bandeau semaine (courses / Score Forme / coffre crew) — aucun de ces
- *     trois indicateurs n'est câblé au réel. Rien ne le remplace : la série
- *     réelle et la Zone du Jour occupent déjà cette place quand elles ont
- *     quelque chose de vrai à dire.
+ * DÉCISION PRISE : **CÂBLER, PAS ARCHIVER.** L'archiver (redirect, à la manière
+ * de `crew-discovery`) supprimerait le seul rendu de la Zone du Jour et la seule
+ * porte des Challenges — deux mécaniques adossées à de VRAIES tables serveur
+ * (`daily_zone_inputs`, `welcome_challenge_facts`, `challenges`,
+ * `challenge_progress`). On ne supprime pas une fonctionnalité qui marche parce
+ * qu'il manque une ligne de navigation.
  *
- * L'écran dit donc la vérité SANS laisser de trou : pas de compte → il invite à
- * se connecter ; pas de backend → il le dit ; connecté sans rien → il invite à
- * courir. Le départ de course reste toujours offert : c'est la seule action qui
- * fait avancer. Anti-shame (§11) conservé.
+ * CE QUI MANQUE, ET OÙ : UNE entrée depuis le Profil (une `PreviewRow` de plus
+ * dans `app/(tabs)/profil.tsx`) ou depuis la Carte. Ces deux fichiers sont des
+ * écrans RECALÉS, donc intouchables par ce lot ; le câblage est remonté au
+ * chantier qui les possède. TANT QUE CETTE LIGNE N'EXISTE PAS, CET ÉCRAN NE
+ * DOIT PAS ÊTRE EMBELLI davantage : peindre une pièce sans porte n'est pas une
+ * livraison. Ce chantier s'est donc limité à ce qui MENT et à ce qui est MORT.
+ *
+ * ═══ ORDRE DE COMPOSITION ════════════════════════════════════════════════════
+ *  1. Kicker + salutation — DEUX lignes de contexte, pas trois.
+ *  2. (conditionnel) la phrase de situation, UNIQUEMENT quand elle dit quelque
+ *     chose : pas de compte, ou serveur injoignable.
+ *  3. LE CTA unique, chartreuse : partir courir. C'est la seule décision.
+ *  4. (conditionnel) « Se connecter » en ghost — jamais un second chartreuse.
+ *  5. La série RÉELLE, puis la Zone du Jour / le parcours d'accueil : au plus un
+ *     bloc chacun, et rien du tout sans donnée réelle.
+ *  6. Le prochain badge, en LIGNE scannable.
+ *  7. Les accès (Challenges, War Room sous drapeau), en `ListRow`.
+ *
+ * ═══ CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ════════════════════════════════════════
+ * · LA CARD HÉROS « GRYD ne connaît pas encore ton terrain » / « Les routes
+ *   recommandées arrivent après tes premières sorties ». Rendue SANS AUCUNE
+ *   CONDITION — donc affichée aussi à quelqu'un ayant des dizaines de courses
+ *   et une distance apprise. Et surtout FAUSSE dans tous les cas : le
+ *   planificateur (`/route-planner`) calcule une boucle recommandée À LA
+ *   DEMANDE depuis la position GPS, sans aucune course préalable
+ *   (`features/route/suggestion.ts` est TOTAL : il rend toujours une distance).
+ *   Une card qui annonce pour plus tard ce que le produit fait déjà est une
+ *   promesse à l'envers. Supprimée, pas déplacée.
+ * · « Ta prochaine course t'attend. » — la troisième ligne de contexte. Elle
+ *   habillait un LANCEUR en plan personnalisé alors que le CTA est toujours le
+ *   même verbe. La page assume maintenant d'être un lanceur : deux lignes de
+ *   contexte, puis la décision.
+ * · LA `BadgeCard` DU PROCHAIN BADGE → une ligne scannable. Une carte de
+ *   collection au milieu d'un lanceur concurrençait la décision du jour.
+ * · LES `Pressable` D'ACCÈS RECODÉS (`linkRow`, `borderTopWidth` sur
+ *   `colors.grisLigne`, AUCUN plancher tactile déclaré) → `ListRow`, qui apporte
+ *   `minHeight: sizes.touchTarget`, la plaque d'icône unique et un libellé qui
+ *   ne se tronque jamais.
+ * · Le bandeau semaine (courses · Score Forme · coffre crew) avait déjà été
+ *   retiré le 21/07/2026 : aucun des trois indicateurs n'est câblé au réel.
+ *
+ * ═══ ÉCARTS ASSUMÉS ══════════════════════════════════════════════════════════
+ * · LA SÉRIE NE DISTINGUE TOUJOURS PAS L'ÉCHEC DU VIDE. `useMyStreak`
+ *   (`src/features/social/streak.ts`) renvoie `state: null` pour « pas de
+ *   session », « pas de backend », « lecture ratée » ET « aucune course » : le
+ *   bloc disparaît dans les quatre cas. RAISON TECHNIQUE : `features/social/**`
+ *   appartient à un autre périmètre (écrans recalés) et ce lot n'a pas le droit
+ *   d'y écrire. La Zone du Jour, elle, a reçu son état ③ ici même
+ *   (`useDailyFocus.unavailable`) — le même correctif est à faire côté série.
+ * · LE VERBE DU CTA EST FIXE (« CONQUÉRIR »). RAISON TECHNIQUE : « DÉFENDRE »
+ *   suppose de savoir quelles zones le joueur TIENT, ce qu'aucune lecture de cet
+ *   écran ne fournit. « Conquérir » reste vrai dans tous les cas : sans
+ *   territoire, tout est à prendre.
+ * · Les noms et conditions des badges restent non traduits (catalogue de jeu
+ *   partagé). RAISON TECHNIQUE : les traduire est un chantier `packages/shared`,
+ *   hors périmètre — même écart que celui déjà assumé par `app/badges.tsx`.
  */
 import { useEffect, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, spacing, typography } from '@klaim/shared';
 import { flags } from '../src/lib/flags';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { intentionHref } from '../src/features/nav/runContext';
 import { Button } from '../src/ui/Button';
-import { Icon } from '../src/ui/Icon';
+import { ListRow } from '../src/ui/ListRow';
+import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
-import { BadgeCard, DailyFocusBlock, StreakBlock } from '../src/ui/game';
+import { DailyFocusBlock, StreakBlock } from '../src/ui/game';
 import { useMyStreak } from '../src/features/social/streak';
 import { useDailyFocus } from '../src/features/daily/useDailyFocus';
 import {
   COLLECTION_BADGES,
-  BADGE_FAMILIES,
-  badgeColor,
   badgeProgress,
-  badgeRewardLabel,
 } from '../src/features/badges/catalog';
 import { useMyBadges } from '../src/features/badges/myBadges';
 import { useMyProfile } from '../src/features/social/profileStore';
@@ -82,7 +120,7 @@ export default function AujourdhuiScreen() {
   // Les TROIS situations, qui n'ont PAS la même réponse :
   //   backend absent → on le dit, rien ne sera enregistré ;
   //   pas de compte  → on invite à se connecter ;
-  //   compte, rien à montrer → on invite à courir.
+  //   compte, rien à montrer → l'écran garde sa décision, sans phrase de trop.
   const { session, configured } = useSession();
   const { profile } = useMyProfile();
   const signedIn = configured && !!session;
@@ -90,30 +128,35 @@ export default function AujourdhuiScreen() {
 
   // LOT 1 « LA SÉRIE VISIBLE » : la SEULE donnée réelle du bandeau motivation.
   // Dérivée des vraies courses du joueur (features/social/streak) — `null` tant
-  // qu'on ne sait rien (pas de session, lecture en cours, aucune course) : dans
-  // ce cas le bloc ne s'affiche PAS, plutôt qu'un « 0 » qui ne veut rien dire.
+  // qu'on ne sait rien : dans ce cas le bloc ne s'affiche PAS, plutôt qu'un « 0 »
+  // qui ne veut rien dire (cf. « écarts assumés » : ce hook ne sépare pas encore
+  // l'échec du vide).
   const { state: streak } = useMyStreak();
 
-  // LOT 3 : Zone du Jour / défi d'accueil. `null` tant qu'on ne sait rien —
-  // aucune zone de démonstration ne remplace une zone réelle absente.
-  const { focus: dailyFocus } = useDailyFocus();
+  // LOT 3 : Zone du Jour / défi d'accueil. `focus: null` = rien à dire ;
+  // `unavailable` = la lecture est partie et a ÉCHOUÉ. Deux états DISTINCTS.
+  const { focus: dailyFocus, unavailable: dailyUnavailable } = useDailyFocus();
+
   // Un prénom ne s'invente pas : `null` = on salue sans nom plutôt que d'appeler
-  // l'utilisateur « KORO ». Aucun nom de démo n'existe plus nulle part.
-  // Le nom vide est traité comme absent : `profileStore` renvoie
-  // désormais `''` tant que l'identité n'est pas résolue — « BONJOUR » seul est
-  // correct, « BONJOUR  » avec un trou ne l'est pas.
+  // l'utilisateur par un nom de démonstration. Le nom vide est traité comme
+  // absent : `profileStore` renvoie `''` tant que l'identité n'est pas résolue —
+  // « BONJOUR » seul est correct, « BONJOUR  » avec un trou ne l'est pas.
   const greetingName = (signedIn ? profile.displayName.trim() : '') || null;
+
+  // La phrase de situation n'existe QUE quand elle dit quelque chose. Connecté
+  // et en ligne, elle ne faisait que meubler — et trois lignes de contexte avant
+  // la première décision, c'est une de trop (§A « compris en moins de 3 s »).
   const situation = !configured
     ? t(C.todayOfflineSituation)
-    : signedIn
-      ? t(C.todayNextRunAwaits)
-      : t(C.todaySignedOutSituation);
+    : !session
+      ? t(C.todaySignedOutSituation)
+      : null;
 
   // Prochain badge proche : top 1 verrouillé non secret par ratio (même calcul
   // que la section « Proches du déblocage » de la Collection — cohérence).
   // Rien du tout si la progression ne vient pas du serveur : un « plus que 3 km »
   // calculé sur des stats de démo est un mensonge, et un bloc bonus absent ne
-  // laisse pas de trou (l'écran garde son accueil, sa card et son CTA).
+  // laisse pas de trou (l'écran garde son accueil et son CTA).
   const nextBadge = useMemo(() => {
     if (badgeSource !== 'server') return undefined;
     return COLLECTION_BADGES
@@ -137,191 +180,99 @@ export default function AujourdhuiScreen() {
 
   return (
     <StackScreen title={t(C.todayTitle)} icon="aujourdhui" kicker={t(C.todayKicker)}>
-      {/* Bonjour + situation en UNE phrase — le contexte avant la décision. */}
+      {/* 1. Deux lignes de contexte AU PLUS, avant la décision. */}
       <Text style={styles.greeting}>
         {greetingName ? t(C.todayGreeting, { name: greetingName }) : t(C.todayGreetingAnon)}
       </Text>
-      <Text style={styles.situation}>{situation}</Text>
+      {situation !== null ? <Text style={styles.situation}>{situation}</Text> : null}
 
-      {/* L'OBJECTIF. Aucune route recommandée n'existe encore (le Route Planner
-          calcule à la demande, depuis la position RÉELLE) : plutôt qu'un KPI
-          géant fabriqué, l'écran DIT ce qui manque et quand ça arrivera.
-          Non tappable : il n'y a rien à ouvrir tant qu'il n'y a pas de route. */}
-      <View style={styles.hero}>
-        <View style={styles.heroHead}>
-          <Icon name="route" size={18} color={colors.gris} />
-          <Text style={styles.heroKicker}>{t(C.todayNoRouteKicker)}</Text>
-        </View>
-        <Text style={styles.emptyHeroTitle}>{t(C.todayNoRouteTitle)}</Text>
-        <Text style={styles.emptyHeroBody}>{t(C.todayNoRouteBody)}</Text>
-      </View>
-
-      {/* LE CTA unique — VERBE contextuel, départ immédiat (AMENDEMENT-29 :
-          « GO » retiré ; le libellé = l'objectif du plan du jour). Composant
-          Button partagé (audit UI L2) : famille, autoshrink, plancher tactile. */}
+      {/* 2. LE CTA unique — départ immédiat (AMENDEMENT-29 : « GO » retiré ; le
+             libellé = l'objectif). Composant Button partagé : famille, autoshrink
+             sans ellipse, plancher tactile, anneau de focus clavier. */}
       <View style={styles.ctaWrap}>
         <Button
           label={objectiveTag}
           onPress={goNow}
           accessibilityLabel={t(C.todayCtaA11y, { objective: objectiveTag })}
+          analyticsId="today_start_run"
         />
       </View>
 
-      {/* Compte manquant : invitation SECONDAIRE (ghost), sous le CTA — elle
-          répond à la phrase de situation sans concurrencer la décision du jour
-          (§A : 1 seul CTA chartreuse, qui reste le départ de course). */}
+      {/* 3. Compte manquant : invitation SECONDAIRE (ghost), sous le CTA — elle
+             répond à la phrase de situation sans concurrencer la décision du
+             jour (§A : 1 seul CTA chartreuse, qui reste le départ de course). */}
       {showSignIn ? (
         <View style={styles.signInWrap}>
-          <Button variant="ghost" size="md" label={t(C.todaySignIn)} onPress={() => router.push('/sign-in')} />
+          <Button
+            variant="ghost"
+            size="md"
+            label={t(C.todaySignIn)}
+            onPress={() => router.push('/sign-in')}
+            analyticsId="today_sign_in"
+          />
         </View>
       ) : null}
 
-      {/* LA SÉRIE (LOT 1) — sous le CTA : elle motive la décision sans la
-          concurrencer (aucun bouton, une seule ligne de détail). Elle ne
-          s'affiche que si elle est RÉELLE ; sinon rien du tout. */}
+      {/* 4. LA SÉRIE — sous le CTA : elle motive la décision sans la
+             concurrencer. Elle ne s'affiche que si elle est RÉELLE. */}
       <StreakBlock state={streak} />
 
-      {/* LOT 3 (A-45 §3) — LA raison de revenir aujourd'hui : le parcours
-          d'accueil tant qu'il n'est pas fini, puis la Zone du Jour. UN SEUL des
-          deux (§A « 1 écran = 1 décision ») — l'arbitrage est dans le hook.
-          Aucun CTA ici : le seul CTA chartreuse de l'écran reste le départ.
-          Rien n'est affiché sans donnée réelle (hors session / lecture vide). */}
-      <DailyFocusBlock focus={dailyFocus} />
+      {/* 5. LA raison de revenir aujourd'hui : le parcours d'accueil tant qu'il
+             n'est pas fini, puis la Zone du Jour. UN SEUL des deux — l'arbitrage
+             est dans le hook. Aucun CTA ici. Rien n'est affiché sans donnée
+             réelle ; une lecture RATÉE, elle, le dit (état ③). */}
+      <DailyFocusBlock focus={dailyFocus} unavailable={dailyUnavailable} />
 
-      {/* Le bandeau semaine (courses · Score Forme · coffre crew) a été RETIRÉ :
-          aucun des trois indicateurs n'est câblé au réel, et présenter
-          « 2/3 courses · 78/100 · 66 % » à quelqu'un qui n'a jamais couru est
-          exactement le mensonge qu'on supprime. Rien ne le remplace : la série
-          réelle (StreakBlock) et la Zone du Jour occupent déjà cette place
-          quand elles ont quelque chose de vrai à dire. */}
-
-      {/* Prochain badge proche — 1 seule carte, invitation douce. */}
+      {/* 6. Prochain badge — une LIGNE, pas une carte de collection : c'est une
+             invitation douce, pas la décision de l'écran. */}
       {nextBadge ? (
         <View style={styles.badgeBlock}>
-          <Text style={styles.blockKicker}>{t(C.todayNextBadge)}</Text>
-          <BadgeCard
-            name={nextBadge.def.name}
-            family={nextBadge.def.family}
-            familyLabel={
-              BADGE_FAMILIES.find((f) => f.id === nextBadge.def.family)?.name ??
-              t(C.badgeFamilySecret)
-            }
-            familyColor={badgeColor(nextBadge.def)}
-            tier={nextBadge.def.tier}
-            state="locked"
-            requirement={nextBadge.def.requirement}
-            progress={
-              nextBadge.prog
-                ? { value: nextBadge.prog.value, threshold: nextBadge.prog.threshold }
-                : undefined
-            }
-            reward={badgeRewardLabel(nextBadge.def)}
+          <SectionLabel style={styles.kicker}>{t(C.todayNextBadge)}</SectionLabel>
+          <ListRow
+            icon="badge"
+            label={nextBadge.def.name}
+            sublabel={nextBadge.def.requirement}
+            chevron
             onPress={() => router.push('/badges')}
           />
         </View>
       ) : null}
 
-      {/* Accès existants (ghost — l'accent reste au CTA). */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t(C.todayMyChallengesA11y)}
-        onPress={() => router.push('/challenges')}
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Icon name="mission" size={20} color={colors.blanc} />
-        <Text style={styles.linkLabel}>{t(C.todayMyChallenges)}</Text>
-        <Icon name="chevron" size={16} color={colors.gris} />
-      </Pressable>
-      {/* D8 : War Room masquée hors MVP. */}
-      {flags.warRoom ? (
-        <>
-          <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.todayWarRoomA11y)}
-          onPress={() => router.push('/warroom')}
-          style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-        >
-          <Icon name="guerre" size={20} color={colors.blanc} />
-          <Text style={styles.linkLabel}>War Room</Text>
-          <Icon name="chevron" size={16} color={colors.gris} />
-        </Pressable>
-        </>
-      ) : null}
+      {/* 7. Accès — `ListRow` : plancher tactile, libellé jamais tronqué. */}
+      <View style={styles.links}>
+        <ListRow
+          icon="mission"
+          label={t(C.todayMyChallenges)}
+          accessibilityLabel={t(C.todayMyChallengesA11y)}
+          chevron
+          onPress={() => router.push('/challenges')}
+        />
+        {/* D8 : War Room masquée hors MVP — l'entrée est gardée par le même
+            drapeau que la route, donc jamais un bouton mort. */}
+        {flags.warRoom ? (
+          <ListRow
+            icon="guerre"
+            label="War Room"
+            accessibilityLabel={t(C.todayWarRoomA11y)}
+            chevron
+            onPress={() => router.push('/warroom')}
+          />
+        ) : null}
+      </View>
     </StackScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  greeting: {
-    color: colors.blanc,
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    marginTop: 6,
-  },
-  situation: {
-    color: colors.gris,
-    fontSize: fontSizes.md,
-    lineHeight: fontSizes.md * 1.4,
-    marginTop: 4,
-  },
+  // Rôle R2 (titre d'écran) : la salutation EST le titre de la page, la barre
+  // ne portant qu'un rappel de navigation.
+  greeting: { ...typography.title, color: colors.blanc, marginTop: spacing.xxs },
+  situation: { ...typography.body, color: colors.gris, marginTop: spacing.xxs },
 
-  hero: {
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: spacing.cardPadding,
-    marginTop: 16,
-  },
-  heroHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heroKicker: {
-    flex: 1,
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    fontVariant: ['tabular-nums'],
-  },
-
-  // Card héros : même gabarit qu'une card pleine (pas de card-in-card, §A),
-  // sans KPI géant — il n'y a aucun chiffre à montrer, et on n'en invente pas.
-  emptyHeroTitle: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-    marginTop: 10,
-  },
-  emptyHeroBody: {
-    color: colors.gris,
-    fontSize: fontSizes.md,
-    lineHeight: fontSizes.md * 1.5,
-    marginTop: spacing.xs,
-  },
-
-  ctaWrap: { marginTop: spacing.sm },
+  ctaWrap: { marginTop: spacing.md },
   signInWrap: { marginTop: spacing.sm },
 
-  badgeBlock: { marginTop: 18 },
-  blockKicker: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    marginBottom: 10,
-    fontVariant: ['tabular-nums'],
-  },
-
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    marginTop: 4,
-    borderTopWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  linkLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
-  pressed: { opacity: 0.85 },
+  badgeBlock: { marginTop: spacing.lg },
+  kicker: { marginBottom: spacing.sm },
+  links: { marginTop: spacing.lg },
 });

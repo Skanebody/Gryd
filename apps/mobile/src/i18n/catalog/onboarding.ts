@@ -35,6 +35,18 @@ export const C = defineCatalog({
     de: 'Zurück zum vorherigen Schritt',
     pt: 'Voltar à etapa anterior',
   },
+  /**
+   * Frise de progression, lue par les lecteurs d'écran : des points ne s'entendent
+   * pas. Les DEUX nombres viennent du flow (`stepProgress`), jamais d'un littéral —
+   * la frise a déjà annoncé cinq étapes pour un parcours de quatre.
+   */
+  stepProgressA11y: {
+    fr: 'Étape {n} sur {total}',
+    en: 'Step {n} of {total}',
+    es: 'Paso {n} de {total}',
+    de: 'Schritt {n} von {total}',
+    pt: 'Etapa {n} de {total}',
+  },
   /** Sortie douce partagée (« Plus tard ») — compte sans backend, notifications. */
   later: {
     fr: 'Plus tard',
@@ -156,6 +168,21 @@ export const C = defineCatalog({
     de: 'GRYD ist erst ab 16 verfügbar. Wir halten dir deine Stadt warm.',
     pt: 'O GRYD não está disponível antes dos 16. Guardamos sua cidade para você.',
   },
+  /**
+   * SORTIE de la question d'âge posée EN PLACE devant l'écran ville (le raccourci
+   * « utiliser ma position » la déclenche). Sans elle, répondre « moins de 16 »
+   * rendait un écran terminal SANS pied : la seule issue était la flèche du
+   * header, qui ramène à la rivalité — l'écran ville disparaissait sans que le
+   * joueur l'ait décidé. Le choix MANUEL d'une ville n'est pas gaté par l'âge :
+   * la porte se rouvre donc, et elle le DIT.
+   */
+  ageBackToCity: {
+    fr: 'Revenir au choix de ma ville',
+    en: 'Back to choosing my city',
+    es: 'Volver a elegir mi ciudad',
+    de: 'Zurück zur Stadtwahl',
+    pt: 'Voltar à escolha da cidade',
+  },
 
   // ─── ANCIEN ÉCRAN « LE TERRAIN + LA RÈGLE » — SUPPRIMÉ LE 22/07/2026 ───────
   //
@@ -202,14 +229,12 @@ export const C = defineCatalog({
   // ═════════════════════════════════════════════════════════════════════════
 
   // ─── Démonstrations animées (labels du 4e temps + a11y) ────────────────────
-  /** Label bref à la fin de la carte 1 — nomme le geste, ne célèbre RIEN. */
-  captureDemoLabel: {
-    fr: 'Zone prise',
-    en: 'Zone taken',
-    es: 'Zona tomada',
-    de: 'Zone geholt',
-    pt: 'Zona tomada',
-  },
+  //
+  // ⚠️ `captureDemoLabel` (« Zone prise ») RETIRÉE le 25/07/2026 avec le composant
+  // `CaptureDemo`, qui n'avait plus AUCUN importeur depuis que la carte 1 est
+  // rendue par le hero plein cadre `E01Hero` : le hero n'a pas de 4e temps à
+  // étiqueter. Une Entry que plus aucune surface ne rend est une promesse de texte
+  // sans écran derrière — retirée, pas commentée en attente d'un jour meilleur.
   /** Label bref à la fin de la carte 2 — l'état, pas un score. */
   rivalryDemoLabel: {
     fr: 'Zone contestée',
@@ -253,14 +278,9 @@ export const C = defineCatalog({
     de: 'Jede geschlossene Runde kann dein Gebiet werden.',
     pt: 'Cada circuito fechado pode tornar-se o teu território.',
   },
-  // Label posé sur la photo E01 (planche Claude Design) — « votre rue » = le territoire.
-  mechanicStreet: {
-    fr: 'VOTRE RUE',
-    en: 'YOUR STREET',
-    es: 'TU CALLE',
-    de: 'DEINE STRASSE',
-    pt: 'A TUA RUA',
-  },
+  // ⚠️ `mechanicStreet` (« VOTRE RUE ») RETIRÉE le 25/07/2026 : le label posé sur
+  // la photo de la planche E01 a été remplacé par la BOUCLE ANIMÉE (`E01Route`),
+  // qui enseigne la même chose en la montrant. Plus aucun écran ne le lisait.
   // « Passer » (haut à droite, planche E01) — saute l'onboarding.
   onbSkip: {
     fr: 'Passer',

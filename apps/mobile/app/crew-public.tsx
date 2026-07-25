@@ -15,6 +15,13 @@
  *
  * Aucun hook ici : la sortie anticipée est inoffensive par construction.
  * La vraie fiche publique de crew (données serveur) reste à construire.
+ *
+ * ── 25/07/2026 — ET CETTE ROUTE NE POURRAIT PAS LA PORTER ───────────────────
+ * Elle n'a AUCUN segment dynamique (`crew-public.tsx`, pas `crew-public/[tag].tsx`) :
+ * elle est structurellement incapable de recevoir l'identité d'un crew. Une vraie
+ * fiche sera donc une route NEUVE, pas ce fichier. Le manque et sa forme cible
+ * sont inscrits là où ils font foi : `AMENDEMENT-47-FIN-DU-MODE-DEMO.md`
+ * § « Ce qui reste EN SUSPENS ».
  */
 import { Redirect } from 'expo-router';
 

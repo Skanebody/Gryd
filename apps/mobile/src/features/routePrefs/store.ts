@@ -145,6 +145,14 @@ export interface UseRoutePrefsResult {
   save: (patch: Partial<Omit<RoutePrefs, 'learnFrom'>>) => Promise<boolean>;
   /** « Oublier ce que GRYD a appris ». Ne supprime aucune course. */
   forget: () => Promise<boolean>;
+  /**
+   * Relance la lecture. AJOUT (les signatures existantes sont intouchées) :
+   * `status: 'error'` était un cul-de-sac — l'écran disait « GRYD n'a pas pu
+   * charger tes réglages » et n'offrait AUCUNE sortie. Un état d'échec sans
+   * « Réessayer » demande de quitter l'écran pour retenter, ce qui est le
+   * contraire d'un état honnête : il annonce une panne et retire l'action.
+   */
+  reload: () => void;
   /** Numéro de révision : change à chaque écriture réussie (re-lecture des
    *  habitudes déduites, qui dépendent de l'apprentissage). */
   revision: number;
@@ -324,5 +332,16 @@ export function useRoutePrefs(): UseRoutePrefsResult {
     }
   }, [ready, applyPrefs]);
 
-  return { ready, prefs, status, loading: status === 'loading', save, forget, revision };
+  /**
+   * Une relecture EXPLICITE réutilise le même levier que le retour sur l'écran
+   * (`focusTick`) : une seule voie de rafraîchissement, donc aucun risque que
+   * les deux divergent. On repasse volontairement par `loading` en effaçant la
+   * lecture précédente — après un échec, il n'y a rien à conserver à l'écran.
+   */
+  const reload = useCallback(() => {
+    prefsRef.current = null;
+    setFocusTick((n) => n + 1);
+  }, []);
+
+  return { ready, prefs, status, loading: status === 'loading', save, forget, revision, reload };
 }

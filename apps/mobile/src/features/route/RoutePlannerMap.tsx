@@ -44,7 +44,7 @@ import { MODE_EMPHASIS } from '../map/territory';
 import { useRealTerritories } from '../map/hexClaims';
 import { C } from '../../i18n/catalog/route';
 import { useT } from '../../i18n/store';
-import type { PlannedRouteDemo } from './types';
+import type { PlannedLoop } from './types';
 
 // ─── Constantes de rendu (UI uniquement — pas des règles de jeu) ────────────
 
@@ -145,12 +145,20 @@ function directionArrows(
 }
 
 export interface RoutePlannerMapProps {
-  route: PlannedRouteDemo;
-  /** Point de départ affiché (« moi ») — dynamique (position/lieu cherché). */
-  origin?: LatLngPoint;
+  route: PlannedLoop;
+  /**
+   * Point de départ affiché (« moi ») — la position RÉELLE, et rien d'autre.
+   * Le défaut `EGO_REPUBLIQUE` a été retiré le 25/07/2026 : un repli sur la
+   * place de la République est exactement le mensonge que l'écran appelant a
+   * supprimé de son côté (« je suis à Ouville-la-Rivière et l'app me met à
+   * République »). Un défaut de paramètre est un repli comme un autre — il
+   * attendait juste un appelant distrait. La prop est désormais OBLIGATOIRE :
+   * sans position, il n'y a pas de carte à peindre.
+   */
+  origin: LatLngPoint;
 }
 
-export function RoutePlannerMap({ route, origin = EGO_REPUBLIQUE }: RoutePlannerMapProps) {
+export function RoutePlannerMap({ route, origin }: RoutePlannerMapProps) {
   const mapRef = useRef<RealMapRef>(null);
   const t = useT();
   /** Opacités du mode ROUTE : l'itinéraire domine, le reste en transparence. */

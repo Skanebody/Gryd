@@ -17,10 +17,17 @@
  * `daily_zone_inputs` (0052). Aucun claim, aucune distinction n'est décidée ici —
  * la distinction est attribuée serveur, après capture, et relue telle quelle.
  *
- * RÈGLE ZÉRO-CRASH ET ZÉRO-MENSONGE : tout échec — pas de session, pas de backend,
- * lecture ratée, rejet réseau — retombe SILENCIEUSEMENT sur `focus: null`, et le
- * bloc disparaît. Jamais une zone de démonstration : une zone inventée serait un
- * mensonge sur le monde réel, et l'écran a d'autres choses à dire.
+ * RÈGLE ZÉRO-CRASH ET ZÉRO-MENSONGE : aucun échec ne produit jamais une zone.
+ * Jamais une zone de démonstration : une zone inventée serait un mensonge sur le
+ * monde réel, et l'écran a d'autres choses à dire.
+ *
+ * ⚠️ CORRECTIF DU 25/07/2026 — ÉCHEC ≠ VIDE. Cet en-tête disait « tout échec …
+ * retombe SILENCIEUSEMENT sur `focus: null` », et c'était vrai : pas de session,
+ * pas de backend, lecture ratée et rejet réseau produisaient EXACTEMENT le même
+ * rendu — le bloc disparaissait. Sur l'écran Aujourd'hui, échec == vide, ce que
+ * la doctrine des quatre états interdit formellement. Le hook expose désormais
+ * `unavailable`, armé UNIQUEMENT quand une lecture est réellement partie et a
+ * échoué (cf. son commentaire sur `UseDailyFocusResult`).
  *
  * ⚠️ PLUS DE VARIANTE `.web.ts`. Elle renvoyait l'état vide EN DUR sur web, donc
  * `npx expo start --web` ne pouvait pas montrer ce que montre l'iPhone — alors
@@ -83,6 +90,22 @@ type DailyFocusCore =
 export interface UseDailyFocusResult {
   /** `null` = rien d'honnête à afficher (pas de session, pas de backend, échec). */
   focus: DailyFocus | null;
+  /**
+   * ÉTAT ③, SÉPARÉ DU VIDE (25/07/2026). Vrai UNIQUEMENT quand une lecture est
+   * RÉELLEMENT PARTIE et a échoué (erreur RPC, `ok !== true`, rejet réseau).
+   *
+   * POURQUOI CE TÉMOIN. Le hook faisait retomber toutes les causes sur
+   * `focus: null` et l'en-tête l'assumait (« tout échec retombe SILENCIEUSEMENT
+   * sur focus: null »). Conséquence à l'écran : ÉCHEC == VIDE. Un réseau qui
+   * lâche ne prouve pas qu'aucune zone du jour n'a été tirée — c'est exactement
+   * la confusion que la doctrine des quatre états interdit.
+   *
+   * Il reste FAUX sans session et sans backend : on n'annonce pas une panne
+   * qu'on n'a pas constatée (« un échec inventé est un mensonge au même titre
+   * qu'une donnée inventée »). Ces deux cas-là sont dits par l'écran, qui sait
+   * déjà s'il y a un compte.
+   */
+  unavailable: boolean;
   loading: boolean;
 }
 
@@ -164,6 +187,9 @@ export function useDailyFocus(): UseDailyFocusResult {
   // On ne la ré-implémente donc pas ici, on la consomme.
   const { suggestion, loading: suggestionLoading } = useRouteSuggestion();
   const [core, setCore] = useState<DailyFocusCore | null>(null);
+  // ÉTAT ③ — armé UNIQUEMENT après une lecture réellement partie (voir le
+  // commentaire de `unavailable` sur UseDailyFocusResult).
+  const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -171,12 +197,16 @@ export function useDailyFocus(): UseDailyFocusResult {
 
   useEffect(() => {
     if (!supabase || !session) {
+      // Ni panne ni vide : on ne SAIT rien. L'écran dit lui-même « pas de
+      // compte » / « pas de backend » — inventer un échec ici serait un mensonge.
       setCore(null);
+      setFailed(false);
       setLoading(false);
       return;
     }
     const client = supabase;
     let cancelled = false;
+    setFailed(false);
     setLoading(true);
 
     void (async () => {
@@ -200,6 +230,7 @@ export function useDailyFocus(): UseDailyFocusResult {
             const challenge = deriveWelcomeChallenge(payload.facts ?? null);
             if (challenge.kind === 'in_progress') {
               setCore({ kind: 'welcome', challenge });
+              setFailed(false);
               setLoading(false);
               return;
             }
@@ -209,14 +240,18 @@ export function useDailyFocus(): UseDailyFocusResult {
         // ── 2. Sinon, la Zone du Jour ────────────────────────────────────────
         if (zoneRes.error) {
           // Lecture ratée : on n'affiche PAS une zone fausse, et on ne prétend
-          // pas non plus qu'il n'y en a aucune. Le bloc disparaît, point.
+          // pas non plus qu'il n'y en a aucune — l'appelant DIT la panne.
           setCore(null);
+          setFailed(true);
           setLoading(false);
           return;
         }
         const zonePayload = (zoneRes.data ?? {}) as ZoneInputsPayload;
         if (zonePayload.ok !== true) {
+          // La RPC a répondu mais refuse de conclure : c'est un échec de lecture,
+          // pas une journée sans zone.
           setCore(null);
+          setFailed(true);
           setLoading(false);
           return;
         }
@@ -248,10 +283,13 @@ export function useDailyFocus(): UseDailyFocusResult {
           );
 
         setCore({ kind: 'daily_zone', zone, distinctionActive });
+        setFailed(false);
         setLoading(false);
       } catch {
+        // Rejet réseau / client : même filet honnête que l'échec de lecture.
         if (cancelled) return;
         setCore(null);
+        setFailed(true);
         setLoading(false);
       }
     })();
@@ -313,5 +351,7 @@ export function useDailyFocus(): UseDailyFocusResult {
     };
   }, [core, suggestion, suggestionLoading]);
 
-  return { focus, loading: loading || suggestionLoading };
+  // Une panne ne s'annonce pas PENDANT la lecture : tant que `loading` est vrai,
+  // l'écran affiche sa ligne « lecture en cours », pas un échec.
+  return { focus, unavailable: failed && !loading, loading: loading || suggestionLoading };
 }

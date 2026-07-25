@@ -27,6 +27,8 @@
  *                    fichier natif → parse local → ingest_run (seul juge).
  */
 import type { IconName } from '@klaim/shared';
+import { C } from '../../i18n/catalog/sources';
+import type { Entry } from '../../i18n/types';
 
 /** native = toujours active ; connectable = porte un CTA d'action. */
 export type SourceAvailability = 'native' | 'connectable';
@@ -34,10 +36,14 @@ export type SourceAvailability = 'native' | 'connectable';
 /** Niveau de confiance GRYD Verify (élevé = signal direct, moyen = import). */
 export type SourceTrustLevel = 'high' | 'medium';
 
-/** Libellés FR visibles du trust (copy AMENDEMENT-10 §6). */
-export const TRUST_LABELS: Record<SourceTrustLevel, string> = {
-  high: 'Trust élevé',
-  medium: 'Trust moyen',
+/**
+ * Libellés visibles du trust. Ils étaient des `string` FRANÇAISES rendues telles
+ * quelles sur CHAQUE ligne du Hub : « Trust élevé » restait en français en
+ * anglais, en allemand et en portugais. Ce sont des `Entry` (règle 17).
+ */
+export const TRUST_LABELS: Record<SourceTrustLevel, Entry> = {
+  high: C.trustHigh,
+  medium: C.trustMedium,
 };
 
 /**
@@ -57,8 +63,8 @@ export interface VerifySourceDef {
   /** Nature du CTA (sources connectables). Défaut `connect`. */
   action?: SourceActionKind;
   trust: SourceTrustLevel;
-  /** Chemin de vérification visible (« Capture directe », « Import + vérif »). */
-  path: string;
+  /** Chemin de vérification visible — `Entry` (il était en français en dur). */
+  path: Entry;
 }
 
 /** Sources RÉELLEMENT disponibles — natif d'abord, puis import de fichier. */
@@ -69,7 +75,7 @@ export const VERIFY_SOURCES: readonly VerifySourceDef[] = [
     icon: 'gps',
     availability: 'native',
     trust: 'high',
-    path: 'Capture directe',
+    path: C.pathDirect,
   },
   {
     // Le fichier .gpx est la trace elle-même (pas un résumé) → trust élevé. Parse
@@ -81,6 +87,6 @@ export const VERIFY_SOURCES: readonly VerifySourceDef[] = [
     availability: 'connectable',
     action: 'import',
     trust: 'high',
-    path: 'Import + vérif',
+    path: C.pathImport,
   },
 ];

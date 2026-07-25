@@ -137,6 +137,211 @@ export const C = defineCatalog({
     pt: 'A FAQ completa, detalhes ao tocar',
   },
 
+  // ══════════════════ LISTE PARAMÈTRES — GROUPES ET LIGNES ══════════════════
+  //
+  // Ces entrées existent parce que `SETTINGS_GROUPS` portait ses libellés en
+  // FRANÇAIS EN DUR : neuf lignes sur quinze restaient françaises en anglais, en
+  // allemand ou en portugais, dans le même écran où la ligne « Langue » — elle —
+  // se traduisait. Trois groupes seulement (au lieu de sept sur-titres) : c'est
+  // §A « comprendre l'écran en moins de 3 s ».
+  grpCompte: {
+    fr: 'COMPTE',
+    en: 'ACCOUNT',
+    es: 'CUENTA',
+    de: 'KONTO',
+    pt: 'CONTA',
+  },
+  grpJeu: {
+    fr: 'JEU',
+    en: 'GAME',
+    es: 'JUEGO',
+    de: 'SPIEL',
+    pt: 'JOGO',
+  },
+  grpAide: {
+    fr: 'AIDE & APP',
+    en: 'HELP & APP',
+    es: 'AYUDA Y APP',
+    de: 'HILFE & APP',
+    pt: 'AJUDA E APP',
+  },
+  rowCompte: {
+    fr: 'Compte',
+    en: 'Account',
+    es: 'Cuenta',
+    de: 'Konto',
+    pt: 'Conta',
+  },
+  // Le détail ne promet plus « E-mail, connexion, sécurité » : ces deux réglages
+  // n'existent pas (leurs lignes ouvraient une Alert « bientôt »). Il décrit ce
+  // que la sous-page fait VRAIMENT.
+  rowCompteDetail: {
+    fr: 'Connexion, export, suppression',
+    en: 'Sign-in, export, deletion',
+    es: 'Acceso, exportación, eliminación',
+    de: 'Login, Export, Löschung',
+    pt: 'Acesso, exportação, exclusão',
+  },
+  rowProfil: {
+    fr: 'Profil',
+    en: 'Profile',
+    es: 'Perfil',
+    de: 'Profil',
+    pt: 'Perfil',
+  },
+  rowProfilDetail: {
+    fr: 'Nom affiché, titre, visibilité',
+    en: 'Display name, title, visibility',
+    es: 'Nombre, título, visibilidad',
+    de: 'Anzeigename, Titel, Sichtbarkeit',
+    pt: 'Nome exibido, título, visibilidade',
+  },
+  rowCrew: {
+    fr: 'Crew',
+    en: 'Crew',
+    es: 'Crew',
+    de: 'Crew',
+    pt: 'Crew',
+  },
+  rowCrewDetail: {
+    fr: 'Notifications, quitter le crew',
+    en: 'Notifications, leave the crew',
+    es: 'Notificaciones, salir del crew',
+    de: 'Mitteilungen, Crew verlassen',
+    pt: 'Notificações, sair do crew',
+  },
+  rowPrivacy: {
+    fr: 'Confidentialité',
+    en: 'Privacy',
+    es: 'Privacidad',
+    de: 'Privatsphäre',
+    pt: 'Privacidade',
+  },
+  rowPrivacyDetail: {
+    fr: 'Visibilité, blocage, RGPD',
+    en: 'Visibility, blocking, GDPR',
+    es: 'Visibilidad, bloqueo, RGPD',
+    de: 'Sichtbarkeit, Blockieren, DSGVO',
+    pt: 'Visibilidade, bloqueio, LGPD',
+  },
+  rowCourse: {
+    fr: 'Course',
+    en: 'Run',
+    es: 'Carrera',
+    de: 'Lauf',
+    pt: 'Corrida',
+  },
+  rowCourseDetail: {
+    fr: 'Style de jeu, vibrations, unités',
+    en: 'Play style, haptics, units',
+    es: 'Estilo de juego, vibración, unidades',
+    de: 'Spielstil, Haptik, Einheiten',
+    pt: 'Estilo de jogo, vibração, unidades',
+  },
+  rowNotifs: {
+    fr: 'Notifications',
+    en: 'Notifications',
+    es: 'Notificaciones',
+    de: 'Mitteilungen',
+    pt: 'Notificações',
+  },
+  rowNotifsDetail: {
+    fr: 'Frontières, défenses, rivaux',
+    en: 'Borders, defenses, rivals',
+    es: 'Fronteras, defensas, rivales',
+    de: 'Grenzen, Abwehr, Rivalen',
+    pt: 'Fronteiras, defesas, rivais',
+  },
+  rowCarte: {
+    fr: 'Carte',
+    en: 'Map',
+    es: 'Mapa',
+    de: 'Karte',
+    pt: 'Mapa',
+  },
+  // « Couche par défaut, trace » annonçait un réglage : la sous-page n'en a
+  // aucun, elle EXPLIQUE comment la carte choisit seule.
+  rowCarteDetail: {
+    fr: 'Comment la carte choisit, ta trace',
+    en: 'How the map picks, your trail',
+    es: 'Cómo elige el mapa, tu trazado',
+    de: 'Wie die Karte wählt, deine Spur',
+    pt: 'Como o mapa escolhe, seu traçado',
+  },
+  rowSources: {
+    fr: 'Sources connectées',
+    en: 'Connected sources',
+    es: 'Fuentes conectadas',
+    de: 'Verbundene Quellen',
+    pt: 'Fontes conectadas',
+  },
+  // « GPS, Apple Health, Strava, WHOOP… » citait quatre sources dont TROIS ne
+  // sont pas dans le Hub (retirées faute de compte développeur / entitlement).
+  // Le détail ne cite plus que ce que l'écran liste réellement.
+  rowSourcesDetail: {
+    fr: 'GPS GRYD, import de fichier GPX',
+    en: 'GRYD GPS, GPX file import',
+    es: 'GPS GRYD, importar archivo GPX',
+    de: 'GRYD-GPS, GPX-Datei importieren',
+    pt: 'GPS GRYD, importar arquivo GPX',
+  },
+  rowArsenal: {
+    fr: 'Abonnement & achats',
+    en: 'Subscription & purchases',
+    es: 'Suscripción y compras',
+    de: 'Abo & Käufe',
+    pt: 'Assinatura e compras',
+  },
+  rowArsenalDetail: {
+    fr: 'GRYD Club, skins, objets',
+    en: 'GRYD Club, skins, items',
+    es: 'GRYD Club, skins, objetos',
+    de: 'GRYD Club, Skins, Objekte',
+    pt: 'GRYD Club, skins, itens',
+  },
+  rowAide: {
+    fr: 'Aide',
+    en: 'Help',
+    es: 'Ayuda',
+    de: 'Hilfe',
+    pt: 'Ajuda',
+  },
+  rowAideDetail: {
+    fr: 'Course non comptée, signalement',
+    en: 'Run not counted, reporting',
+    es: 'Carrera no contada, reportes',
+    de: 'Lauf nicht gezählt, Meldungen',
+    pt: 'Corrida não contada, denúncias',
+  },
+  rowApropos: {
+    fr: 'À propos',
+    en: 'About',
+    es: 'Acerca de',
+    de: 'Über',
+    pt: 'Sobre',
+  },
+  rowAproposDetail: {
+    fr: 'Version, conditions, licences',
+    en: 'Version, terms, licenses',
+    es: 'Versión, condiciones, licencias',
+    de: 'Version, Bedingungen, Lizenzen',
+    pt: 'Versão, termos, licenças',
+  },
+  rowAvance: {
+    fr: 'Avancé',
+    en: 'Advanced',
+    es: 'Avanzado',
+    de: 'Erweitert',
+    pt: 'Avançado',
+  },
+  rowAvanceDetail: {
+    fr: 'Règles du jeu, diagnostics',
+    en: 'Game rules, diagnostics',
+    es: 'Reglas del juego, diagnósticos',
+    de: 'Spielregeln, Diagnose',
+    pt: 'Regras do jogo, diagnósticos',
+  },
+
   // ── Sous-page Compte ──
   secIdentifiants: {
     fr: 'IDENTIFIANTS',
@@ -152,54 +357,59 @@ export const C = defineCatalog({
     de: 'Angemeldet als',
     pt: 'Conectado como',
   },
-  emailLabel: {
-    fr: 'Adresse e-mail',
-    en: 'Email address',
-    es: 'Correo electrónico',
-    de: 'E-Mail-Adresse',
-    pt: 'Endereço de e-mail',
+  /**
+   * REMPLACE trois copies « bientôt » (`accountSoonNote`, `emailSoonBody`,
+   * `securitySoonBody`) et les DEUX lignes qui les portaient. « E-mail » et
+   * « Sécurité » avaient un chevron et ouvraient une `Alert` : elles échouaient
+   * à 100 % des taps, sur toutes les plateformes — la définition d'un bouton
+   * mort. « Bientôt » sans date ni code n'est pas un état honnête ; l'absence,
+   * elle, se dit et se lit en une phrase.
+   */
+  accountNoEditNote: {
+    fr: 'GRYD ne permet pas encore de changer l’adresse e-mail du compte ni de gérer les connexions Apple / Google depuis l’app. Ces deux réglages n’existent pas : aucune date n’est annoncée tant qu’ils ne sont pas faits.',
+    en: 'GRYD can’t yet change the account email or manage Apple / Google sign-ins from the app. Those two settings don’t exist: no date is announced until they’re done.',
+    es: 'GRYD todavía no permite cambiar el correo de la cuenta ni gestionar los accesos Apple / Google desde la app. Esos dos ajustes no existen: no se anuncia ninguna fecha hasta que estén hechos.',
+    de: 'GRYD kann die Konto-E-Mail noch nicht ändern und Apple-/Google-Logins nicht in der App verwalten. Diese beiden Einstellungen gibt es nicht — ein Datum wird erst genannt, wenn sie fertig sind.',
+    pt: 'O GRYD ainda não permite trocar o e-mail da conta nem gerenciar os logins Apple / Google pelo app. Esses dois ajustes não existem: nenhuma data é anunciada enquanto não estiverem prontos.',
   },
-  emailDetail: {
-    fr: "Modifier l'e-mail du compte",
-    en: 'Change the account email',
-    es: 'Cambiar el correo de la cuenta',
-    de: 'E-Mail des Kontos ändern',
-    pt: 'Alterar o e-mail da conta',
+  // ── Slug de sous-page inconnu (deep link /parametres/xyz) ──
+  // Le repli silencieux `isSection(raw) ? raw : 'compte'` affichait Compte sans
+  // jamais dire que la section demandée n'existait pas.
+  sectionUnknownTitle: {
+    fr: 'Cette page de réglages n’existe pas',
+    en: 'That settings page doesn’t exist',
+    es: 'Esa página de ajustes no existe',
+    de: 'Diese Einstellungsseite gibt es nicht',
+    pt: 'Essa página de ajustes não existe',
   },
-  emailSoonBody: {
-    fr: 'La modification de l’e-mail arrive très bientôt. En attendant, écris-nous depuis Aide & support.',
-    en: 'Changing your email is coming very soon. Meanwhile, write to us from Help & support.',
-    es: 'Cambiar el correo llegará muy pronto. Mientras tanto, escríbenos desde Ayuda y soporte.',
-    de: 'Die E-Mail-Änderung kommt sehr bald. Schreib uns bis dahin über Hilfe & Support.',
-    pt: 'A alteração do e-mail chega muito em breve. Enquanto isso, escreva para a gente em Ajuda e suporte.',
+  sectionUnknownBody: {
+    fr: 'Le lien pointe vers une section que GRYD ne connaît pas. Rien n’a été modifié.',
+    en: 'The link points to a section GRYD doesn’t know. Nothing was changed.',
+    es: 'El enlace apunta a una sección que GRYD no conoce. No se cambió nada.',
+    de: 'Der Link zeigt auf einen Bereich, den GRYD nicht kennt. Es wurde nichts geändert.',
+    pt: 'O link aponta para uma seção que o GRYD não conhece. Nada foi alterado.',
   },
-  securityLabel: {
-    fr: 'Sécurité & connexion',
-    en: 'Security & sign-in',
-    es: 'Seguridad y acceso',
-    de: 'Sicherheit & Login',
-    pt: 'Segurança e acesso',
+  sectionUnknownCta: {
+    fr: 'Voir tous les réglages',
+    en: 'See all settings',
+    es: 'Ver todos los ajustes',
+    de: 'Alle Einstellungen ansehen',
+    pt: 'Ver todos os ajustes',
   },
-  securityDetail: {
-    fr: 'Apple / Google, appareils connectés',
-    en: 'Apple / Google, connected devices',
-    es: 'Apple / Google, dispositivos conectados',
-    de: 'Apple / Google, verbundene Geräte',
-    pt: 'Apple / Google, dispositivos conectados',
+  // ── Notifications : l'appareil ne peut être enregistré que sous session ──
+  notifSignedOutTitle: {
+    fr: 'Pas de compte, pas d’envoi',
+    en: 'No account, no delivery',
+    es: 'Sin cuenta, sin envíos',
+    de: 'Kein Konto, kein Versand',
+    pt: 'Sem conta, sem envio',
   },
-  securitySoonBody: {
-    fr: 'La gestion des connexions Apple / Google et des appareils arrive très bientôt.',
-    en: 'Managing Apple / Google sign-ins and devices is coming very soon.',
-    es: 'La gestión de accesos Apple / Google y de dispositivos llegará muy pronto.',
-    de: 'Die Verwaltung von Apple-/Google-Logins und Geräten kommt sehr bald.',
-    pt: 'O gerenciamento de logins Apple / Google e de dispositivos chega muito em breve.',
-  },
-  accountSoonNote: {
-    fr: 'Édition du compte bientôt disponible.',
-    en: 'Account editing available soon.',
-    es: 'Edición de la cuenta disponible pronto.',
-    de: 'Kontobearbeitung bald verfügbar.',
-    pt: 'Edição da conta disponível em breve.',
+  notifSignedOutBody: {
+    fr: 'Tes canaux sont gardés sur ce téléphone, mais GRYD ne peut enregistrer l’appareil — donc rien ne partira — tant que tu n’as pas de compte.',
+    en: 'Your channels are kept on this phone, but GRYD can’t register the device — so nothing will be sent — until you have an account.',
+    es: 'Tus canales se guardan en este teléfono, pero GRYD no puede registrar el dispositivo — así que no se enviará nada — hasta que tengas una cuenta.',
+    de: 'Deine Kanäle bleiben auf diesem Handy, aber GRYD kann das Gerät nicht registrieren — es wird also nichts gesendet — solange du kein Konto hast.',
+    pt: 'Seus canais ficam neste telefone, mas o GRYD não consegue registrar o aparelho — então nada será enviado — enquanto você não tiver conta.',
   },
   secCompte: {
     fr: 'COMPTE',
@@ -387,13 +597,6 @@ export const C = defineCatalog({
     de: 'Kilometer',
     pt: 'Quilômetros',
   },
-  annoncesAudio: {
-    fr: 'Annonces audio',
-    en: 'Audio cues',
-    es: 'Avisos de voz',
-    de: 'Audio-Ansagen',
-    pt: 'Avisos de áudio',
-  },
 
   // ── Sous-page Notifications ──
   secCeQueTuRecois: {
@@ -507,20 +710,6 @@ export const C = defineCatalog({
     es: 'VISTA DEL MAPA',
     de: 'KARTENANSICHT',
     pt: 'EXIBIÇÃO DO MAPA',
-  },
-  coucheDefaut: {
-    fr: 'Couche par défaut',
-    en: 'Default layer',
-    es: 'Capa por defecto',
-    de: 'Standard-Ebene',
-    pt: 'Camada padrão',
-  },
-  coucheAuto: {
-    fr: 'Auto',
-    en: 'Auto',
-    es: 'Auto',
-    de: 'Auto',
-    pt: 'Auto',
   },
   carteNote: {
     fr: 'La carte choisit seule la bonne couche selon le contexte (défense, route, rival). Tu peux forcer une couche via le bouton Couches sur la carte.',
@@ -701,20 +890,78 @@ export const C = defineCatalog({
     de: 'Datenschutz',
     pt: 'Privacidade',
   },
+  privKicker: {
+    fr: 'RÉGLAGES · TES DONNÉES',
+    en: 'SETTINGS · YOUR DATA',
+    es: 'AJUSTES · TUS DATOS',
+    de: 'EINSTELLUNGEN · DEINE DATEN',
+    pt: 'AJUSTES · SEUS DADOS',
+  },
   /**
-   * Cette phrase promettait « tout est fermé par défaut ». Depuis la décision
-   * fondateur du 20/07 (profil et courses PUBLICS par défaut), elle était
-   * devenue FAUSSE — et sur la page confidentialité, une phrase fausse est la
-   * pire de toutes. Nouvelle promesse : exacte et vérifiable ligne à ligne —
-   * ce qui est ouvert, et les trois choses qui ne le sont jamais sans un geste
-   * explicite (domicile flouté, position live, données de santé).
+   * TROISIÈME version de ce sous-titre, et la première qui soit vérifiable.
+   * La v1 promettait « tout est fermé par défaut » (faux depuis l'ouverture du
+   * 20/07). La v2 promettait trois protections — mais deux d'entre elles
+   * (position en direct, données de santé) décrivaient des INTERRUPTEURS sans
+   * consommateur : elles étaient vraies par accident, pas par construction.
+   * Celle-ci ne décrit que ce que le code fait, aujourd'hui, dans ce build.
    */
   privSubtitle: {
-    fr: "Ton profil et tes courses sont publics par défaut — c'est ce qui fait vivre la carte. Trois choses restent fermées tant que tu ne les ouvres pas toi-même : ton domicile est flouté, ta position en direct n'est jamais partagée, et tes données de santé restent privées.",
-    en: 'Your profile and runs are public by default — that is what keeps the map alive. Three things stay closed until you open them yourself: your home is blurred, your live position is never shared, and your health data stays private.',
-    es: 'Tu perfil y tus carreras son públicos por defecto — es lo que mantiene viva el mapa. Tres cosas siguen cerradas hasta que las abras tú: tu domicilio está difuminado, tu posición en directo nunca se comparte y tus datos de salud siguen siendo privados.',
-    de: 'Dein Profil und deine Läufe sind standardmäßig öffentlich — das hält die Karte lebendig. Drei Dinge bleiben zu, bis du sie selbst öffnest: dein Zuhause ist unscharf, deine Live-Position wird nie geteilt, und deine Gesundheitsdaten bleiben privat.',
-    pt: 'Seu perfil e suas corridas são públicos por padrão — é o que mantém o mapa vivo. Três coisas continuam fechadas até você mesmo abri-las: sua casa fica borrada, sua posição ao vivo nunca é compartilhada e seus dados de saúde permanecem privados.',
+    fr: 'GRYD n’expose ton profil ni tes courses à aucun autre joueur pour l’instant : il n’y a ni profil public, ni fil d’activité. La seule chose que tu peux publier toi-même, c’est un partage — et ses extrémités sont floutées par défaut.',
+    en: 'GRYD does not expose your profile or your runs to any other player yet: there is no public profile and no activity feed. The only thing you can publish yourself is a share — and its endpoints are blurred by default.',
+    es: 'GRYD todavía no expone tu perfil ni tus carreras a ningún otro jugador: no hay perfil público ni feed de actividad. Lo único que puedes publicar tú es un compartido — y sus extremos se difuminan por defecto.',
+    de: 'GRYD zeigt dein Profil und deine Läufe bisher keinem anderen Spieler: Es gibt weder ein öffentliches Profil noch einen Aktivitäts-Feed. Das Einzige, was du selbst veröffentlichen kannst, ist ein geteilter Lauf — und dessen Enden sind standardmäßig unscharf.',
+    pt: 'O GRYD ainda não expõe seu perfil nem suas corridas a nenhum outro jogador: não existe perfil público nem feed de atividade. A única coisa que você mesmo pode publicar é um compartilhamento — e as pontas dele ficam borradas por padrão.',
+  },
+  // ── Libellés de visibilité du profil (ex-`features/privacy/labels.ts`, FR en
+  //    dur : c'était la valeur affichée dans l'en-tête de la card) ──
+  visPublic: {
+    fr: 'Public',
+    en: 'Public',
+    es: 'Público',
+    de: 'Öffentlich',
+    pt: 'Público',
+  },
+  visCrew: {
+    fr: 'Mon crew',
+    en: 'My crew',
+    es: 'Mi crew',
+    de: 'Meine Crew',
+    pt: 'Meu crew',
+  },
+  visFriends: {
+    fr: 'Mes amis',
+    en: 'My friends',
+    es: 'Mis amigos',
+    de: 'Meine Freunde',
+    pt: 'Meus amigos',
+  },
+  visPrivate: {
+    fr: 'Moi seul',
+    en: 'Only me',
+    es: 'Solo yo',
+    de: 'Nur ich',
+    pt: 'Só eu',
+  },
+  /**
+   * L'étendue RÉELLE du réglage de visibilité. Sans cette phrase, la card
+   * laisserait croire que « Moi seul » retire quelque chose à quelqu'un — alors
+   * qu'aucun écran ne montre encore un profil à un autre joueur, et que le choix
+   * n'est enregistré que sur ce téléphone (aucun miroir serveur, O1).
+   */
+  visScopeNote: {
+    fr: 'Ce choix est enregistré sur ce téléphone et repris par ton profil. Il ne cache rien à personne aujourd’hui — GRYD ne montre encore aucun profil à un autre joueur — et il ne suivra pas sur un autre appareil.',
+    en: 'This choice is stored on this phone and mirrored on your profile. It hides nothing from anyone today — GRYD does not show any profile to another player yet — and it will not follow you to another device.',
+    es: 'Esta elección se guarda en este teléfono y se refleja en tu perfil. Hoy no oculta nada a nadie — GRYD todavía no muestra ningún perfil a otro jugador — y no te seguirá a otro dispositivo.',
+    de: 'Diese Wahl wird auf diesem Handy gespeichert und in deinem Profil gespiegelt. Sie verbirgt heute vor niemandem etwas — GRYD zeigt noch keinem anderen Spieler ein Profil — und sie wandert nicht auf ein anderes Gerät mit.',
+    pt: 'Essa escolha fica guardada neste telefone e aparece no seu perfil. Hoje ela não esconde nada de ninguém — o GRYD ainda não mostra nenhum perfil a outro jogador — e não vai junto para outro aparelho.',
+  },
+  /** Ce que « masquer départ & arrivée » fait EXACTEMENT, avec la vraie valeur. */
+  maskScopeNote: {
+    fr: 'Les {m} premiers et {m} derniers mètres sont retirés du tracé quand tu le partages. Le reste de l’app n’affiche ta trace qu’à toi.',
+    en: 'The first {m} and last {m} metres are removed from the trail when you share it. Everywhere else, your trail is shown to you only.',
+    es: 'Se quitan los primeros {m} y los últimos {m} metros del trazado cuando lo compartes. En el resto de la app tu trazado solo lo ves tú.',
+    de: 'Beim Teilen werden die ersten {m} und die letzten {m} Meter der Spur entfernt. Sonst sieht deine Spur nur du.',
+    pt: 'Os primeiros {m} e os últimos {m} metros saem do traçado quando você compartilha. No resto do app, seu traçado só você vê.',
   },
 
   // ── Confidentialité — alerts (signaler / bloquer / export / suppression) ──
@@ -747,11 +994,11 @@ export const C = defineCatalog({
     pt: 'Denúncia enviada',
   },
   reportSentBody: {
-    fr: "Merci. Une personne de l'équipe examine ton signalement sous {h} h.",
-    en: 'Thanks. A team member will review your report within {h} h.',
-    es: 'Gracias. Una persona del equipo revisará tu reporte en un plazo de {h} h.',
-    de: 'Danke. Jemand aus dem Team prüft deine Meldung innerhalb von {h} Std.',
-    pt: 'Obrigado. Uma pessoa da equipe analisa sua denúncia em até {h} h.',
+    fr: 'Ton signalement est enregistré et transmis à la modération GRYD. Une personne l’examine sous {h} h.',
+    en: 'Your report is recorded and sent to GRYD moderation. A person reviews it within {h} h.',
+    es: 'Tu reporte queda registrado y se envía a la moderación de GRYD. Una persona lo revisa en un plazo de {h} h.',
+    de: 'Deine Meldung wird gespeichert und an die GRYD-Moderation übermittelt. Ein Mensch prüft sie innerhalb von {h} Std.',
+    pt: 'Sua denúncia é registrada e enviada à moderação do GRYD. Uma pessoa analisa em até {h} h.',
   },
   playerBlockedTitle: {
     fr: 'Joueur bloqué',
@@ -825,20 +1072,6 @@ export const C = defineCatalog({
     de: 'Profil sichtbar für',
     pt: 'Perfil visível para',
   },
-  visibiliteCourses: {
-    fr: 'Visibilité des courses',
-    en: 'Run visibility',
-    es: 'Visibilidad de carreras',
-    de: 'Sichtbarkeit der Läufe',
-    pt: 'Visibilidade das corridas',
-  },
-  masqueNote: {
-    fr: '« Masqué » cache ta trace et tes stats aux autres. Ton impact pour le crew reste compté — masquer une course ne pénalise jamais ton équipe.',
-    en: '“Hidden” hides your trail and stats from others. Your crew impact still counts — hiding a run never penalizes your team.',
-    es: '«Oculto» esconde tu trazado y tus stats a los demás. Tu impacto para el crew sigue contando — ocultar una carrera nunca penaliza a tu equipo.',
-    de: '„Verborgen“ versteckt deine Spur und Stats vor anderen. Dein Crew-Impact zählt weiter — einen Lauf zu verbergen bestraft nie dein Team.',
-    pt: '“Oculto” esconde seu trajeto e suas stats dos outros. Seu impacto para o crew continua contando — ocultar uma corrida nunca penaliza sua equipe.',
-  },
   departArrivee: {
     fr: 'Départ & arrivée',
     en: 'Start & finish',
@@ -860,180 +1093,17 @@ export const C = defineCatalog({
     de: 'Start und Ziel verbergen',
     pt: 'Ocultar largada e chegada',
   },
+  /**
+   * Décrivait un masquage « autour de tes lieux sensibles » — or aucun écran ne
+   * permet de déclarer une adresse : les lieux sensibles n'existaient pas. Ce
+   * qui existe, c'est le retrait des extrémités du tracé partagé.
+   */
   masquerDepartSub: {
-    fr: 'Le début et la fin de tes courses sont floutés autour de tes lieux sensibles.',
-    en: 'The start and end of your runs are blurred around your sensitive places.',
-    es: 'El inicio y el final de tus carreras se difuminan alrededor de tus lugares sensibles.',
-    de: 'Anfang und Ende deiner Läufe werden rund um sensible Orte unscharf gemacht.',
-    pt: 'O início e o fim das suas corridas ficam borrados perto dos seus lugares sensíveis.',
-  },
-  rayonFlou: {
-    fr: 'RAYON DE FLOU',
-    en: 'BLUR RADIUS',
-    es: 'RADIO DE DIFUMINADO',
-    de: 'UNSCHÄRFERADIUS',
-    pt: 'RAIO DE DESFOQUE',
-  },
-  autourDomicile: {
-    fr: 'Autour du domicile',
-    en: 'Around home',
-    es: 'Alrededor de casa',
-    de: 'Rund ums Zuhause',
-    pt: 'Perto de casa',
-  },
-  autourTravail: {
-    fr: 'Autour du travail',
-    en: 'Around work',
-    es: 'Alrededor del trabajo',
-    de: 'Rund um die Arbeit',
-    pt: 'Perto do trabalho',
-  },
-  positionDirect: {
-    fr: 'Position en direct',
-    en: 'Live position',
-    es: 'Posición en directo',
-    de: 'Live-Position',
-    pt: 'Posição ao vivo',
-  },
-  parDefautJamais: {
-    fr: 'Par défaut : jamais.',
-    en: 'Default: never.',
-    es: 'Por defecto: nunca.',
-    de: 'Standard: nie.',
-    pt: 'Padrão: nunca.',
-  },
-  secDonnees: {
-    fr: 'DONNÉES',
-    en: 'DATA',
-    es: 'DATOS',
-    de: 'DATEN',
-    pt: 'DADOS',
-  },
-  donneesSportives: {
-    fr: 'Données sportives',
-    en: 'Sports data',
-    es: 'Datos deportivos',
-    de: 'Sportdaten',
-    pt: 'Dados esportivos',
-  },
-  fcPrivee: {
-    fr: 'FC privée',
-    en: 'HR private',
-    es: 'FC privada',
-    de: 'HF privat',
-    pt: 'FC privada',
-  },
-  fcVisible: {
-    fr: 'FC visible',
-    en: 'HR visible',
-    es: 'FC visible',
-    de: 'HF sichtbar',
-    pt: 'FC visível',
-  },
-  freqCardiaquePrivee: {
-    fr: 'Fréquence cardiaque privée',
-    en: 'Private heart rate',
-    es: 'Frecuencia cardiaca privada',
-    de: 'Herzfrequenz privat',
-    pt: 'Frequência cardíaca privada',
-  },
-  freqCardiaqueSub: {
-    fr: "Ta FC n'est visible que par toi. Recommandé.",
-    en: 'Your HR is visible only to you. Recommended.',
-    es: 'Tu FC solo la ves tú. Recomendado.',
-    de: 'Deine HF siehst nur du. Empfohlen.',
-    pt: 'Sua FC só é visível para você. Recomendado.',
-  },
-  allureCadencePrivees: {
-    fr: 'Allure & cadence privées',
-    en: 'Private pace & cadence',
-    es: 'Ritmo y cadencia privados',
-    de: 'Tempo & Kadenz privat',
-    pt: 'Ritmo e cadência privados',
-  },
-  allureCadenceSub: {
-    fr: 'Masque le détail de tes performances aux autres.',
-    en: 'Hides your detailed performance from others.',
-    es: 'Oculta el detalle de tu rendimiento a los demás.',
-    de: 'Verbirgt deine Leistungsdetails vor anderen.',
-    pt: 'Esconde os detalhes do seu desempenho dos outros.',
-  },
-  donneesTerritoire: {
-    fr: 'Données territoire',
-    en: 'Territory data',
-    es: 'Datos de territorio',
-    de: 'Gebietsdaten',
-    pt: 'Dados de território',
-  },
-  masquees: {
-    fr: 'Masquées',
-    en: 'Hidden',
-    es: 'Ocultos',
-    de: 'Verborgen',
-    pt: 'Ocultos',
-  },
-  afficherZonesTenues: {
-    fr: 'Afficher mes zones tenues',
-    en: 'Show my held zones',
-    es: 'Mostrar mis zonas dominadas',
-    de: 'Meine Zonen zeigen',
-    pt: 'Mostrar minhas zonas dominadas',
-  },
-  afficherZonesSub: {
-    fr: 'Tes secteurs contrôlés apparaissent sur ton profil et sur la carte publique.',
-    en: 'Your controlled sectors appear on your profile and the public map.',
-    es: 'Tus sectores controlados aparecen en tu perfil y en el mapa público.',
-    de: 'Deine kontrollierten Sektoren erscheinen in deinem Profil und auf der öffentlichen Karte.',
-    pt: 'Seus setores controlados aparecem no seu perfil e no mapa público.',
-  },
-  masquerTerritoiresNote: {
-    fr: "Masquer tes territoires n'enlève rien à ton crew : ils comptent toujours.",
-    en: 'Hiding your territories takes nothing from your crew: they still count.',
-    es: 'Ocultar tus territorios no le quita nada a tu crew: siguen contando.',
-    de: 'Verborgene Gebiete kosten deine Crew nichts: Sie zählen weiter.',
-    pt: 'Ocultar seus territórios não tira nada do seu crew: eles continuam contando.',
-  },
-  secCrewSocial: {
-    fr: 'CREW & SOCIAL',
-    en: 'CREW & SOCIAL',
-    es: 'CREW Y SOCIAL',
-    de: 'CREW & SOZIALES',
-    pt: 'CREW E SOCIAL',
-  },
-  quiPeutInteragir: {
-    fr: 'Qui peut interagir',
-    en: 'Who can interact',
-    es: 'Quién puede interactuar',
-    de: 'Wer interagieren darf',
-    pt: 'Quem pode interagir',
-  },
-  quiPeutAjouter: {
-    fr: "QUI PEUT M'AJOUTER",
-    en: 'WHO CAN ADD ME',
-    es: 'QUIÉN PUEDE AGREGARME',
-    de: 'WER MICH ADDEN KANN',
-    pt: 'QUEM PODE ME ADICIONAR',
-  },
-  quiPeutInviter: {
-    fr: "QUI PEUT M'INVITER DANS UN CREW",
-    en: 'WHO CAN INVITE ME TO A CREW',
-    es: 'QUIÉN PUEDE INVITARME A UN CREW',
-    de: 'WER MICH IN EINE CREW EINLADEN KANN',
-    pt: 'QUEM PODE ME CONVIDAR PARA UM CREW',
-  },
-  quiPeutMessage: {
-    fr: "QUI PEUT M'ENVOYER UN MESSAGE",
-    en: 'WHO CAN MESSAGE ME',
-    es: 'QUIÉN PUEDE ESCRIBIRME',
-    de: 'WER MIR SCHREIBEN KANN',
-    pt: 'QUEM PODE ME MANDAR MENSAGEM',
-  },
-  quiVoitStatut: {
-    fr: 'QUI VOIT MON STATUT',
-    en: 'WHO SEES MY STATUS',
-    es: 'QUIÉN VE MI ESTADO',
-    de: 'WER MEINEN STATUS SIEHT',
-    pt: 'QUEM VÊ MEU STATUS',
+    fr: 'Le début et la fin de ton tracé sont retirés avant tout partage.',
+    en: 'The start and end of your trail are removed before any share.',
+    es: 'El inicio y el final de tu trazado se quitan antes de cualquier compartido.',
+    de: 'Anfang und Ende deiner Spur werden vor jedem Teilen entfernt.',
+    pt: 'O início e o fim do seu traçado são removidos antes de qualquer compartilhamento.',
   },
 
   // ── Confidentialité — blocage & signalement ──
@@ -1058,12 +1128,19 @@ export const C = defineCatalog({
     de: '{n} blockiert',
     pt: '{n} bloqueados',
   },
+  /**
+   * Promettait un examen humain « sous {h} h » à TOUS les signalements, y compris
+   * ceux d'un joueur non connecté — qui ne quittent jamais le téléphone
+   * (`crew/moderation.ts` n'écrit dans `content_reports` que s'il y a une
+   * session). L'écran distingue maintenant les deux cas, et cette note ne parle
+   * que du blocage, qui, lui, agit toujours.
+   */
   blockNote: {
-    fr: 'Un joueur bloqué ne peut plus te voir, te contacter, ni interagir avec toi. Chaque signalement est examiné par une personne sous {h} h.',
-    en: 'A blocked player can no longer see you, contact you or interact with you. Every report is reviewed by a person within {h} h.',
-    es: 'Un jugador bloqueado ya no puede verte, contactarte ni interactuar contigo. Cada reporte lo revisa una persona en un plazo de {h} h.',
-    de: 'Ein blockierter Spieler kann dich nicht mehr sehen, kontaktieren oder mit dir interagieren. Jede Meldung prüft ein Mensch innerhalb von {h} Std.',
-    pt: 'Um jogador bloqueado não pode mais ver você, falar com você nem interagir com você. Cada denúncia é analisada por uma pessoa em até {h} h.',
+    fr: 'Bloquer masque immédiatement ce joueur partout où GRYD l’afficherait, sans jamais le prévenir. Tu peux le débloquer ici quand tu veux.',
+    en: 'Blocking instantly hides that player everywhere GRYD would show them, without ever notifying them. You can unblock here whenever you want.',
+    es: 'Bloquear oculta al instante a ese jugador allí donde GRYD lo mostraría, sin avisarle nunca. Puedes desbloquearlo aquí cuando quieras.',
+    de: 'Blockieren blendet diesen Spieler sofort überall aus, wo GRYD ihn zeigen würde — ohne ihn je zu benachrichtigen. Du kannst hier jederzeit entsperren.',
+    pt: 'Bloquear esconde na hora esse jogador em todo lugar onde o GRYD o mostraria, sem nunca avisá-lo. Você pode desbloquear aqui quando quiser.',
   },
   pseudoJoueurLabel: {
     fr: 'PSEUDO DU JOUEUR',
@@ -1128,19 +1205,18 @@ export const C = defineCatalog({
     de: 'Entsperren',
     pt: 'Desbloquear',
   },
+  /**
+   * Renvoyait vers « le chat du crew (appui long sur le message) ». Il n'y a ni
+   * route, ni onglet, ni écran de chat dans GRYD — le chat libre est refusé
+   * (A-43 §9) et l'écran Crew le dit lui-même. La note décrit maintenant la
+   * seule cible qui existe : un joueur, par son pseudo.
+   */
   signalerMessageNote: {
-    fr: 'Pour signaler un message précis, passe par le chat du crew (appui long sur le message).',
-    en: 'To report a specific message, go through the crew chat (long-press the message).',
-    es: 'Para reportar un mensaje concreto, hazlo desde el chat del crew (mantén pulsado el mensaje).',
-    de: 'Um eine bestimmte Nachricht zu melden, nutz den Crew-Chat (Nachricht lange drücken).',
-    pt: 'Para denunciar uma mensagem específica, use o chat do crew (toque e segure a mensagem).',
-  },
-  ouvrirChatCrew: {
-    fr: 'Ouvrir le chat du crew',
-    en: 'Open the crew chat',
-    es: 'Abrir el chat del crew',
-    de: 'Crew-Chat öffnen',
-    pt: 'Abrir o chat do crew',
+    fr: 'Le signalement porte sur un JOUEUR, par son pseudo : GRYD n’a pas de messagerie, il n’y a donc aucun message à signaler.',
+    en: 'A report targets a PLAYER, by username: GRYD has no messaging, so there is no message to report.',
+    es: 'El reporte apunta a un JUGADOR, por su usuario: GRYD no tiene mensajería, así que no hay ningún mensaje que reportar.',
+    de: 'Eine Meldung betrifft eine SPIELERIN oder einen Spieler, per Nutzername: GRYD hat keine Nachrichten, es gibt also nichts zu melden.',
+    pt: 'A denúncia é sobre um JOGADOR, pelo usuário: o GRYD não tem mensagens, então não há mensagem a denunciar.',
   },
   lireCodeConduite: {
     fr: 'Lire le code de conduite',
@@ -1151,6 +1227,95 @@ export const C = defineCatalog({
   },
 
   // ── Confidentialité — RGPD, export & suppression ──
+  secQuiVoitQuoi: {
+    fr: 'CE QUE LES AUTRES VOIENT',
+    en: 'WHAT OTHERS SEE',
+    es: 'LO QUE VEN LOS DEMÁS',
+    de: 'WAS ANDERE SEHEN',
+    pt: 'O QUE OS OUTROS VEEM',
+  },
+  masquees: {
+    fr: 'Masqués',
+    en: 'Hidden',
+    es: 'Ocultos',
+    de: 'Verborgen',
+    pt: 'Ocultos',
+  },
+  // ── Motifs de signalement (ex-`features/crew/moderation.ts`, FR en dur) ──
+  reasonSpam: {
+    fr: 'Spam',
+    en: 'Spam',
+    es: 'Spam',
+    de: 'Spam',
+    pt: 'Spam',
+  },
+  reasonSpamHint: {
+    fr: 'Pub, arnaque, sollicitation répétée.',
+    en: 'Ads, scams, repeated soliciting.',
+    es: 'Publicidad, estafas, insistencia repetida.',
+    de: 'Werbung, Betrug, wiederholte Anmache.',
+    pt: 'Publicidade, golpe, insistência repetida.',
+  },
+  reasonHate: {
+    fr: 'Haine',
+    en: 'Hate',
+    es: 'Odio',
+    de: 'Hass',
+    pt: 'Ódio',
+  },
+  reasonHateHint: {
+    fr: 'Racisme, insulte, contenu haineux.',
+    en: 'Racism, insults, hateful content.',
+    es: 'Racismo, insultos, contenido de odio.',
+    de: 'Rassismus, Beleidigung, hasserfüllte Inhalte.',
+    pt: 'Racismo, insulto, conteúdo de ódio.',
+  },
+  reasonHarass: {
+    fr: 'Harcèlement',
+    en: 'Harassment',
+    es: 'Acoso',
+    de: 'Belästigung',
+    pt: 'Assédio',
+  },
+  reasonHarassHint: {
+    fr: 'Intimidation, menaces, acharnement.',
+    en: 'Intimidation, threats, relentless pursuit.',
+    es: 'Intimidación, amenazas, ensañamiento.',
+    de: 'Einschüchterung, Drohungen, Nachstellen.',
+    pt: 'Intimidação, ameaças, perseguição.',
+  },
+  reasonOther: {
+    fr: 'Autre',
+    en: 'Other',
+    es: 'Otro',
+    de: 'Anderes',
+    pt: 'Outro',
+  },
+  reasonOtherHint: {
+    fr: 'Un autre problème à examiner.',
+    en: 'Another problem to review.',
+    es: 'Otro problema que revisar.',
+    de: 'Ein anderes Problem zur Prüfung.',
+    pt: 'Outro problema a analisar.',
+  },
+  // ── Signalement : le SEUL cas où il part vraiment est « connecté » ──
+  // `crew/moderation.ts` n'écrit dans `content_reports` que s'il y a une
+  // session ; sinon le signalement reste sur le téléphone et n'atteint
+  // personne. On ne peint donc pas « Signaler » hors session.
+  reportSignedOutTitle: {
+    fr: 'Signaler demande un compte',
+    en: 'Reporting needs an account',
+    es: 'Reportar requiere una cuenta',
+    de: 'Melden braucht ein Konto',
+    pt: 'Denunciar exige uma conta',
+  },
+  reportSignedOutBody: {
+    fr: 'Sans compte, un signalement resterait sur ce téléphone et n’atteindrait personne. Bloquer, en revanche, fonctionne tout de suite.',
+    en: 'Without an account a report would stay on this phone and reach no one. Blocking, on the other hand, works right away.',
+    es: 'Sin cuenta, un reporte se quedaría en este teléfono y no llegaría a nadie. Bloquear, en cambio, funciona de inmediato.',
+    de: 'Ohne Konto bliebe eine Meldung auf diesem Handy und erreichte niemanden. Blockieren funktioniert dagegen sofort.',
+    pt: 'Sem conta, uma denúncia ficaria neste telefone e não chegaria a ninguém. Bloquear, por outro lado, funciona na hora.',
+  },
   secMesDonneesRgpd: {
     fr: 'MES DONNÉES (RGPD)',
     en: 'MY DATA (GDPR)',
@@ -1186,47 +1351,61 @@ export const C = defineCatalog({
     de: 'Hol dir eine Kopie all deiner Daten — Läufe, Zonen, Profil — als JSON über das Teilen-Menü. Es wird nichts gelöscht.',
     pt: 'Receba uma cópia de todos os seus dados — corridas, zonas, perfil — em JSON, pelo compartilhamento. Nada é apagado.',
   },
-  supprimerPartiellement: {
-    fr: 'SUPPRIMER PARTIELLEMENT (BIENTÔT)',
-    en: 'PARTIAL DELETION (SOON)',
-    es: 'BORRADO PARCIAL (PRONTO)',
-    de: 'TEILWEISE LÖSCHEN (BALD)',
-    pt: 'EXCLUSÃO PARCIAL (EM BREVE)',
+  /**
+   * ÉTAT ① « pas connecté » du bloc RGPD. Le CTA « Exporter » était peint quel
+   * que soit l'état de session : l'utilisateur tapait, puis apprenait par une
+   * `Alert` qu'il fallait un compte. Le coût était payé avant le message.
+   */
+  rgpdSignedOutTitle: {
+    fr: 'Rien à exporter sans compte',
+    en: 'Nothing to export without an account',
+    es: 'Nada que exportar sin cuenta',
+    de: 'Ohne Konto nichts zu exportieren',
+    pt: 'Nada a exportar sem conta',
   },
-  suppHistoriqueTitle: {
-    fr: 'Supprimer mon historique de courses',
-    en: 'Delete my run history',
-    es: 'Eliminar mi historial de carreras',
-    de: 'Meinen Laufverlauf löschen',
-    pt: 'Excluir meu histórico de corridas',
+  rgpdSignedOutBody: {
+    fr: 'L’export rassemble ce que le serveur GRYD a enregistré pour toi. Sans compte, il n’a rien enregistré : il n’y a pas de fichier à te rendre.',
+    en: 'The export gathers what the GRYD server has recorded for you. Without an account it has recorded nothing, so there is no file to hand back.',
+    es: 'La exportación reúne lo que el servidor de GRYD ha registrado de ti. Sin cuenta no ha registrado nada: no hay ningún archivo que devolverte.',
+    de: 'Der Export bündelt, was der GRYD-Server über dich gespeichert hat. Ohne Konto hat er nichts gespeichert — es gibt keine Datei zurückzugeben.',
+    pt: 'A exportação reúne o que o servidor do GRYD registrou sobre você. Sem conta ele não registrou nada: não há arquivo para devolver.',
   },
-  suppHistoriqueSub: {
-    fr: "Retirera tes courses de l'affichage. Ton impact déjà gagné pour le crew reste anonymisé, pas effacé. Bientôt depuis l'app.",
-    en: 'Will remove your runs from display. Impact already earned for the crew stays anonymized, not erased. Soon from the app.',
-    es: 'Quitará tus carreras de la vista. El impacto ya ganado para el crew queda anonimizado, no borrado. Pronto desde la app.',
-    de: 'Entfernt deine Läufe aus der Anzeige. Bereits erspielter Crew-Impact bleibt anonymisiert erhalten. Bald direkt in der App.',
-    pt: 'Vai remover suas corridas da exibição. O impacto já ganho para o crew fica anonimizado, não apagado. Em breve pelo app.',
+  /** L'effacement PARTIEL n'existe pas — et il n'a plus deux fausses lignes. */
+  partialDeleteAbsence: {
+    fr: 'GRYD ne sait pas encore effacer une PARTIE de tes données (historique seul, données sportives seules). Les deux gestes qui existent vraiment sont ci-dessus et ci-dessous : exporter, ou supprimer le compte.',
+    en: 'GRYD cannot yet erase PART of your data (history alone, sport data alone). The two gestures that really exist are above and below: export, or delete the account.',
+    es: 'GRYD todavía no sabe borrar una PARTE de tus datos (solo el historial, solo los datos deportivos). Los dos gestos que existen de verdad están arriba y abajo: exportar o eliminar la cuenta.',
+    de: 'GRYD kann noch keinen TEIL deiner Daten löschen (nur Verlauf, nur Sportdaten). Die zwei Aktionen, die es wirklich gibt, stehen darüber und darunter: exportieren oder Konto löschen.',
+    pt: 'O GRYD ainda não sabe apagar uma PARTE dos seus dados (só o histórico, só os dados esportivos). Os dois gestos que existem de verdade estão acima e abaixo: exportar ou excluir a conta.',
   },
-  suppSportivesTitle: {
-    fr: 'Supprimer mes données sportives',
-    en: 'Delete my sports data',
-    es: 'Eliminar mis datos deportivos',
-    de: 'Meine Sportdaten löschen',
-    pt: 'Excluir meus dados esportivos',
+  // ── Suppression différée : les quatre états de la LECTURE serveur ──
+  deletionReading: {
+    fr: 'Lecture de l’état de ton compte…',
+    en: 'Reading your account status…',
+    es: 'Leyendo el estado de tu cuenta…',
+    de: 'Kontostatus wird gelesen…',
+    pt: 'Lendo o status da sua conta…',
   },
-  suppSportivesSub: {
-    fr: "Effacera FC, allure et cadence enregistrées. Sans effet sur le territoire. Bientôt depuis l'app.",
-    en: 'Will erase recorded HR, pace and cadence. No effect on territory. Soon from the app.',
-    es: 'Borrará FC, ritmo y cadencia registrados. Sin efecto en el territorio. Pronto desde la app.',
-    de: 'Löscht gespeicherte HF, Tempo und Kadenz. Ohne Wirkung aufs Gebiet. Bald direkt in der App.',
-    pt: 'Vai apagar FC, ritmo e cadência registrados. Sem efeito no território. Em breve pelo app.',
+  deletionUnknownTitle: {
+    fr: 'État de suppression inconnu',
+    en: 'Deletion status unknown',
+    es: 'Estado de eliminación desconocido',
+    de: 'Löschstatus unbekannt',
+    pt: 'Status de exclusão desconhecido',
   },
-  partialDeleteBody: {
-    fr: "Bientôt disponible depuis l'app. En attendant, demande-la depuis Aide & support — ou exporte / supprime ton compte ci-dessous, ces deux actions sont déjà réelles.",
-    en: 'Available from the app soon. Meanwhile, request it from Help & support — or export / delete your account below, those two actions are already real.',
-    es: 'Pronto disponible desde la app. Mientras tanto, pídelo desde Ayuda y soporte — o exporta / elimina tu cuenta abajo, esas dos acciones ya son reales.',
-    de: 'Bald direkt in der App verfügbar. Bis dahin: über Hilfe & Support anfragen — oder unten dein Konto exportieren / löschen, diese beiden Aktionen sind schon real.',
-    pt: 'Em breve disponível pelo app. Enquanto isso, peça em Ajuda e suporte — ou exporte / exclua sua conta abaixo, essas duas ações já são reais.',
+  deletionUnknownBody: {
+    fr: 'GRYD n’a pas pu lire si une suppression est en cours sur ton compte. Un réseau qui lâche ne prouve pas qu’il n’y en a pas.',
+    en: 'GRYD could not read whether a deletion is under way on your account. A network that drops does not prove there is none.',
+    es: 'GRYD no pudo leer si hay una eliminación en curso en tu cuenta. Una red que falla no prueba que no la haya.',
+    de: 'GRYD konnte nicht lesen, ob für dein Konto eine Löschung läuft. Ein abbrechendes Netz beweist nicht, dass es keine gibt.',
+    pt: 'O GRYD não conseguiu ler se há uma exclusão em andamento na sua conta. Uma rede que cai não prova que não exista.',
+  },
+  deletionRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
   },
   secSuppressionCompte: {
     fr: 'SUPPRESSION DU COMPTE',
@@ -1343,41 +1522,6 @@ export const C = defineCatalog({
   },
 
   // ── Confidentialité — Mode privé (card maître) ──
-  modePrive: {
-    fr: 'Mode privé',
-    en: 'Private mode',
-    es: 'Modo privado',
-    de: 'Privatmodus',
-    pt: 'Modo privado',
-  },
-  modePriveActive: {
-    fr: 'ACTIVÉ',
-    en: 'ON',
-    es: 'ACTIVADO',
-    de: 'AKTIV',
-    pt: 'ATIVADO',
-  },
-  modePriveDesc: {
-    fr: 'Un seul geste pour tout fermer : profil privé, courses non publiques, départ et arrivée masqués, position en direct coupée, données sportives privées.',
-    en: 'One gesture to close everything: private profile, non-public runs, hidden start and finish, live position off, private sports data.',
-    es: 'Un solo gesto para cerrarlo todo: perfil privado, carreras no públicas, salida y llegada ocultas, posición en directo apagada, datos deportivos privados.',
-    de: 'Eine Geste, um alles zu schließen: privates Profil, nicht öffentliche Läufe, verborgener Start und Ziel, Live-Position aus, private Sportdaten.',
-    pt: 'Um só gesto para fechar tudo: perfil privado, corridas não públicas, largada e chegada ocultas, posição ao vivo desligada, dados esportivos privados.',
-  },
-  modePriveConfirm: {
-    fr: 'Tout est verrouillé. Ajuste chaque réglage ci-dessous si besoin.',
-    en: 'Everything is locked. Adjust each setting below if needed.',
-    es: 'Todo está bloqueado. Ajusta cada opción abajo si hace falta.',
-    de: 'Alles ist gesperrt. Passe unten bei Bedarf jede Einstellung an.',
-    pt: 'Tudo está trancado. Ajuste cada opção abaixo se precisar.',
-  },
-  activerModePrive: {
-    fr: 'Activer le mode privé',
-    en: 'Turn on private mode',
-    es: 'Activar el modo privado',
-    de: 'Privatmodus aktivieren',
-    pt: 'Ativar o modo privado',
-  },
 
   // ── Support ──
   supportTitle: {
@@ -1443,13 +1587,6 @@ export const C = defineCatalog({
     de: 'Runde nicht geschlossen, GPS zu schwach, Zone zu schmal oder gesperrt… GRYD berechnet jede Zone nach klaren Regeln. Sieh, wie ein Lauf zur Zone wird — oder nicht.',
     pt: 'Volta não fechada, GPS fraco, zona estreita demais ou proibida… O GRYD calcula cada zona com regras claras. Veja como uma corrida vira uma zona — ou não.',
   },
-  calcZonesBody: {
-    fr: 'Les 6 règles en images : ligne, boucle, défense, crew, bonus et GRYD Verify.',
-    en: 'The 6 rules in pictures: line, loop, defense, crew, bonus and GRYD Verify.',
-    es: 'Las 6 reglas en imágenes: línea, bucle, defensa, crew, bonus y GRYD Verify.',
-    de: 'Die 6 Regeln in Bildern: Linie, Runde, Abwehr, Crew, Bonus und GRYD Verify.',
-    pt: 'As 6 regras em imagens: linha, volta, defesa, crew, bônus e GRYD Verify.',
-  },
   faqRulesBody: {
     fr: 'La FAQ complète, détails au tap : zones, défense, crew, Verify, points et bonus.',
     en: 'The full FAQ, details on tap: zones, defense, crew, Verify, points and bonuses.',
@@ -1457,19 +1594,28 @@ export const C = defineCatalog({
     de: 'Die ganze FAQ, Details per Tipp: Zonen, Abwehr, Crew, Verify, Punkte und Boni.',
     pt: 'A FAQ completa, detalhes ao tocar: zonas, defesa, crew, Verify, pontos e bônus.',
   },
-  notCountedTitle: {
-    fr: 'Course non comptée',
-    en: 'Run not counted',
-    es: 'Carrera no contada',
-    de: 'Lauf nicht gezählt',
-    pt: 'Corrida não contada',
+  /** Titre du bloc d'explication « statut d'une course » (ex-`notCountedTitle`,
+   *  qui reprenait mot pour mot le titre de la ligne de navigation juste
+   *  au-dessus — deux entrées identiques pour deux contenus différents). */
+  runStatusTitle: {
+    fr: 'Le statut d’une course',
+    en: 'A run’s status',
+    es: 'El estado de una carrera',
+    de: 'Der Status eines Laufs',
+    pt: 'O status de uma corrida',
   },
+
+  /**
+   * Finissait par « tu peux le contester ». Il n'existe AUCUN recours : ni
+   * formulaire, ni adresse, ni RPC de contestation. La phrase promettait un
+   * droit que le code ne tient pas.
+   */
   notCountedBody: {
-    fr: "Une course peut être vérifiée, partielle, stats only, doublon ou rejetée. Seules les courses vérifiées capturent du territoire — les autres comptent quand même pour ta performance. On t'explique le statut de chaque course, et tu peux le contester.",
-    en: 'A run can be verified, partial, stats only, duplicate or rejected. Only verified runs capture territory — the others still count toward your performance. We explain each run’s status, and you can contest it.',
-    es: 'Una carrera puede ser verificada, parcial, solo stats, duplicada o rechazada. Solo las carreras verificadas capturan territorio — las demás cuentan igualmente para tu rendimiento. Te explicamos el estado de cada carrera, y puedes impugnarlo.',
-    de: 'Ein Lauf kann verifiziert, partiell, nur Stats, Duplikat oder abgelehnt sein. Nur verifizierte Läufe erobern Gebiet — die anderen zählen trotzdem für deine Leistung. Wir erklären den Status jedes Laufs, und du kannst ihn anfechten.',
-    pt: 'Uma corrida pode ser verificada, parcial, só stats, duplicada ou rejeitada. Só as corridas verificadas capturam território — as outras contam mesmo assim para seu desempenho. A gente explica o status de cada corrida, e você pode contestar.',
+    fr: 'Une course peut être vérifiée, partielle, stats only, doublon ou rejetée. Seules les courses vérifiées capturent du territoire — les autres comptent quand même pour ta performance. GRYD affiche le statut de chaque course et la règle qui l’a produit.',
+    en: 'A run can be verified, partial, stats only, duplicate or rejected. Only verified runs capture territory — the others still count toward your performance. GRYD shows each run’s status and the rule behind it.',
+    es: 'Una carrera puede ser verificada, parcial, solo stats, duplicada o rechazada. Solo las carreras verificadas capturan territorio — las demás cuentan igualmente para tu rendimiento. GRYD muestra el estado de cada carrera y la regla que lo produjo.',
+    de: 'Ein Lauf kann verifiziert, partiell, nur Stats, Duplikat oder abgelehnt sein. Nur verifizierte Läufe erobern Gebiet — die anderen zählen trotzdem für deine Leistung. GRYD zeigt den Status jedes Laufs und die Regel dahinter.',
+    pt: 'Uma corrida pode ser verificada, parcial, só stats, duplicada ou rejeitada. Só as corridas verificadas capturam território — as outras contam mesmo assim para seu desempenho. O GRYD mostra o status de cada corrida e a regra por trás dele.',
   },
   segmentExcludedTitle: {
     fr: 'Segment exclu',
@@ -1484,34 +1630,6 @@ export const C = defineCatalog({
     es: 'Los tramos en zona privada, sin señal GPS fiable o con desplazamiento inverosímil se retiran del cálculo. El resto de la carrera sigue siendo válido, no se pierde nada más.',
     de: 'Abschnitte in Privatzonen, ohne verlässliches GPS oder mit unplausibler Bewegung werden aus der Berechnung entfernt. Der Rest des Laufs bleibt gültig — sonst geht nichts verloren.',
     pt: 'Trechos em área privada, sem sinal de GPS confiável ou com deslocamento implausível são retirados do cálculo. O resto da corrida continua válido, nada mais se perde.',
-  },
-  reportCheatTitle: {
-    fr: 'Signaler une triche',
-    en: 'Report cheating',
-    es: 'Reportar trampas',
-    de: 'Betrug melden',
-    pt: 'Denunciar trapaça',
-  },
-  reportCheatBody: {
-    fr: 'Des captures impossibles, une allure de véhicule ? Signale le profil : GRYD Verify examine les traces. Le signalement reste confidentiel.',
-    en: 'Impossible captures, vehicle-level pace? Report the profile: GRYD Verify examines the traces. The report stays confidential.',
-    es: '¿Capturas imposibles, ritmo de vehículo? Reporta el perfil: GRYD Verify examina los trazados. El reporte es confidencial.',
-    de: 'Unmögliche Captures, Tempo wie ein Fahrzeug? Melde das Profil: GRYD Verify prüft die Spuren. Die Meldung bleibt vertraulich.',
-    pt: 'Capturas impossíveis, ritmo de veículo? Denuncie o perfil: o GRYD Verify examina os trajetos. A denúncia fica confidencial.',
-  },
-  reportDangerTitle: {
-    fr: 'Signaler une zone dangereuse',
-    en: 'Report a dangerous area',
-    es: 'Reportar una zona peligrosa',
-    de: 'Gefährliche Zone melden',
-    pt: 'Denunciar uma zona perigosa',
-  },
-  reportDangerBody: {
-    fr: 'Travaux, trafic, zone mal éclairée ? Signale-la : elle sera retirée des objectifs proposés. La sécurité passe avant le jeu.',
-    en: 'Roadworks, traffic, poor lighting? Report the area: it will be removed from suggested objectives. Safety comes before the game.',
-    es: '¿Obras, tráfico, zona mal iluminada? Repórtala: se retirará de los objetivos propuestos. La seguridad va antes que el juego.',
-    de: 'Baustelle, Verkehr, schlechte Beleuchtung? Melde die Zone: Sie wird aus den vorgeschlagenen Zielen entfernt. Sicherheit geht vor Spiel.',
-    pt: 'Obras, trânsito, zona mal iluminada? Denuncie: ela será retirada dos objetivos propostos. A segurança vem antes do jogo.',
   },
   dataExportBody: {
     fr: 'Reçois une copie complète de tes courses, zones, badges et réglages.',
@@ -1534,19 +1652,61 @@ export const C = defineCatalog({
     de: 'Beantrage die endgültige Löschung deines Kontos und aller deiner Daten. Das ist unumkehrbar — und dein gutes Recht.',
     pt: 'Peça a exclusão definitiva da sua conta e de todos os seus dados. É irreversível, e é seu direito.',
   },
-  reportSoonBody: {
-    fr: 'Le signalement en un tap arrive très bientôt. Pour l’instant cette remontée n’est pas encore transmise — on finalise le canal de modération.',
-    en: 'One-tap reporting is coming very soon. For now this report is not yet transmitted — we’re finalizing the moderation channel.',
-    es: 'El reporte en un toque llegará muy pronto. Por ahora este aviso aún no se transmite — estamos ultimando el canal de moderación.',
-    de: 'Melden mit einem Tipp kommt sehr bald. Aktuell wird diese Meldung noch nicht übermittelt — wir stellen den Moderationskanal fertig.',
-    pt: 'A denúncia em um toque chega muito em breve. Por enquanto este aviso ainda não é transmitido — estamos finalizando o canal de moderação.',
+  reportPlayerTitle: {
+    fr: 'Signaler un joueur',
+    en: 'Report a player',
+    es: 'Reportar a un jugador',
+    de: 'Spieler melden',
+    pt: 'Denunciar um jogador',
   },
+  reportPlayerBody: {
+    fr: 'Captures impossibles, allure de véhicule, comportement déplacé : signale le pseudo depuis Confidentialité, avec un motif. Le signalement est confidentiel.',
+    en: 'Impossible captures, vehicle-level pace, out-of-line behaviour: report the username from Privacy, with a reason. The report stays confidential.',
+    es: 'Capturas imposibles, ritmo de vehículo, comportamiento fuera de lugar: reporta el usuario desde Privacidad, con un motivo. El reporte es confidencial.',
+    de: 'Unmögliche Captures, Tempo wie ein Fahrzeug, daneben benehmen: Melde den Nutzernamen über Privatsphäre, mit Grund. Die Meldung bleibt vertraulich.',
+    pt: 'Capturas impossíveis, ritmo de veículo, comportamento fora de linha: denuncie o usuário em Privacidade, com um motivo. A denúncia é confidencial.',
+  },
+  /**
+   * L'ABSENCE, nommée. Quatre cards de signalement ouvraient toutes la même
+   * `Alert` « cette remontée n'est pas encore transmise » : quatre boutons morts
+   * sur l'écran de recours. Deux d'entre eux (triche) avaient pourtant une VRAIE
+   * destination — le signalement de joueur, réel depuis Confidentialité. Le
+   * quatrième (zone dangereuse) n'en a aucune : on le dit au lieu de le peindre.
+   */
+  supportNoChannelTitle: {
+    fr: 'Ce que GRYD ne sait pas encore recevoir',
+    en: 'What GRYD cannot receive yet',
+    es: 'Lo que GRYD todavía no sabe recibir',
+    de: 'Was GRYD noch nicht entgegennehmen kann',
+    pt: 'O que o GRYD ainda não sabe receber',
+  },
+  supportNoChannelBody: {
+    fr: 'Signaler une zone dangereuse, contester un statut de course ou écrire au support n’est pas possible depuis l’app : ces remontées n’ont pas de destination. Le seul contact publié est l’adresse du siège, dans les Mentions légales.',
+    en: 'Reporting a dangerous area, contesting a run status or writing to support is not possible from the app: those messages have no destination. The only published contact is the registered office address, in the Legal notice.',
+    es: 'Reportar una zona peligrosa, impugnar el estado de una carrera o escribir al soporte no es posible desde la app: esos mensajes no tienen destino. El único contacto publicado es la dirección de la sede, en el Aviso legal.',
+    de: 'Eine gefährliche Zone melden, einen Laufstatus anfechten oder den Support anschreiben geht aus der App nicht: Diese Meldungen haben kein Ziel. Der einzige veröffentlichte Kontakt ist die Anschrift des Sitzes im Impressum.',
+    pt: 'Denunciar uma zona perigosa, contestar o status de uma corrida ou escrever ao suporte não é possível pelo app: essas mensagens não têm destino. O único contato publicado é o endereço da sede, no Aviso legal.',
+  },
+  supportLegalCta: {
+    fr: 'Voir les Mentions légales',
+    en: 'See the Legal notice',
+    es: 'Ver el Aviso legal',
+    de: 'Impressum ansehen',
+    pt: 'Ver o Aviso legal',
+  },
+
+  /**
+   * Affirmait « jamais automatiques sans recours ». Le recours n'existe pas :
+   * `/support` n'a ni adresse e-mail, ni formulaire, ni `mailto:`. La note dit
+   * maintenant ce qui EST vrai — les décisions sont explicables, ligne à ligne —
+   * et nomme le seul canal qui existe vraiment.
+   */
   supportFootnote: {
-    fr: 'Les décisions de vérification sont expliquées, jamais automatiques sans recours.',
-    en: 'Verification decisions are explained — never automatic without a way to appeal.',
-    es: 'Las decisiones de verificación se explican, nunca son automáticas sin recurso.',
-    de: 'Verifizierungsentscheidungen werden erklärt — nie automatisch ohne Einspruch.',
-    pt: 'As decisões de verificação são explicadas, nunca automáticas sem recurso.',
+    fr: 'Chaque décision de vérification est explicable : la règle appliquée est affichée avec la course. GRYD n’a pas encore de canal de contestation dans l’app — le seul point de contact publié est l’adresse postale du siège, dans les Mentions légales.',
+    en: 'Every verification decision is explainable: the rule applied is shown with the run. GRYD has no in-app appeal channel yet — the only published point of contact is the registered office address, in the Legal notice.',
+    es: 'Cada decisión de verificación es explicable: la regla aplicada se muestra junto a la carrera. GRYD todavía no tiene canal de reclamación en la app — el único punto de contacto publicado es la dirección postal de la sede, en el Aviso legal.',
+    de: 'Jede Verifizierungsentscheidung ist erklärbar: Die angewandte Regel steht beim Lauf. GRYD hat noch keinen Einspruchskanal in der App — der einzige veröffentlichte Kontakt ist die Postanschrift des Sitzes im Impressum.',
+    pt: 'Toda decisão de verificação é explicável: a regra aplicada aparece junto da corrida. O GRYD ainda não tem canal de contestação no app — o único ponto de contato publicado é o endereço postal da sede, no Aviso legal.',
   },
 
   // ── Code de conduite ──
@@ -1634,12 +1794,18 @@ export const C = defineCatalog({
     de: 'Kein Spam, kein Betrug',
     pt: 'Sem spam nem golpe',
   },
+  /**
+   * Ouvrait sur « Le chat crew sert à jouer et se coordonner ». Il n'y a ni
+   * route, ni onglet, ni écran de chat dans GRYD (le chat libre est refusé,
+   * A-43 §9). La règle vise ce qui existe : le pseudo et le nom de crew, les
+   * seuls contenus que l'on écrit et que d'autres lisent.
+   */
   noSpamBody: {
-    fr: 'Le chat crew sert à jouer et se coordonner. Pas de publicité, de lien douteux ni de sollicitation d’argent. Les demandes de boost sont toujours facultatives.',
-    en: 'The crew chat is for playing and coordinating. No ads, shady links or requests for money. Boost requests are always optional.',
-    es: 'El chat del crew sirve para jugar y coordinarse. Sin publicidad, enlaces dudosos ni peticiones de dinero. Las solicitudes de boost siempre son opcionales.',
-    de: 'Der Crew-Chat ist zum Spielen und Koordinieren da. Keine Werbung, dubiosen Links oder Geldforderungen. Boost-Anfragen sind immer freiwillig.',
-    pt: 'O chat do crew serve para jogar e se coordenar. Sem publicidade, link duvidoso nem pedido de dinheiro. Pedidos de boost são sempre opcionais.',
+    fr: 'Ton pseudo et le nom de ton crew sont les seuls textes que d’autres joueurs lisent. Pas de publicité, pas de lien, pas de sollicitation d’argent.',
+    en: 'Your username and your crew name are the only texts other players read. No ads, no links, no asking for money.',
+    es: 'Tu usuario y el nombre de tu crew son los únicos textos que leen otros jugadores. Sin publicidad, sin enlaces, sin pedir dinero.',
+    de: 'Dein Nutzername und dein Crew-Name sind die einzigen Texte, die andere lesen. Keine Werbung, keine Links, keine Geldforderungen.',
+    pt: 'Seu usuário e o nome do seu crew são os únicos textos que outros jogadores leem. Sem publicidade, sem links, sem pedir dinheiro.',
   },
   securiteTitle: {
     fr: 'La sécurité passe avant le jeu',
@@ -1662,12 +1828,18 @@ export const C = defineCatalog({
     de: 'Melde, was dich stört',
     pt: 'Denuncie o que te chocar',
   },
+  /**
+   * Décrivait « appui long ou menu "Signaler" » SUR UN MESSAGE — un geste
+   * impossible dans une app sans messagerie. Le signalement réel existe, mais
+   * il porte sur un joueur, depuis Confidentialité, et il exige un compte
+   * (`crew/moderation.ts` n'écrit dans `content_reports` que sous session).
+   */
   reportEnfBody: {
-    fr: 'Sur un message ou un membre : appui long ou menu « Signaler », choisis un motif. Chaque signalement est examiné par une personne, réponse sous quelques jours.',
-    en: 'On a message or a member: long-press or the “Report” menu, pick a reason. Every report is reviewed by a person, with an answer within a few days.',
-    es: 'En un mensaje o un miembro: mantén pulsado o usa el menú «Reportar» y elige un motivo. Cada reporte lo revisa una persona, con respuesta en unos días.',
-    de: 'Bei einer Nachricht oder einem Mitglied: lange drücken oder Menü „Melden“, Grund wählen. Jede Meldung prüft ein Mensch, Antwort in wenigen Tagen.',
-    pt: 'Em uma mensagem ou um membro: toque e segure ou use o menu “Denunciar” e escolha um motivo. Cada denúncia é analisada por uma pessoa, com resposta em poucos dias.',
+    fr: 'Depuis Confidentialité, entre le pseudo du joueur et choisis un motif. Il faut un compte pour que le signalement parte. Une personne examine chaque signalement enregistré.',
+    en: 'From Privacy, enter the player’s username and pick a reason. An account is required for the report to be sent. A person reviews every recorded report.',
+    es: 'Desde Privacidad, escribe el usuario del jugador y elige un motivo. Hace falta una cuenta para que el reporte se envíe. Una persona revisa cada reporte registrado.',
+    de: 'Gib unter Privatsphäre den Nutzernamen ein und wähl einen Grund. Für den Versand ist ein Konto nötig. Ein Mensch prüft jede gespeicherte Meldung.',
+    pt: 'Em Privacidade, digite o usuário do jogador e escolha um motivo. É preciso ter conta para a denúncia sair. Uma pessoa analisa cada denúncia registrada.',
   },
   blockEnfTitle: {
     fr: 'Bloque qui tu ne veux plus voir',
@@ -1676,12 +1848,17 @@ export const C = defineCatalog({
     de: 'Blockiere, wen du nicht sehen willst',
     pt: 'Bloqueie quem você não quer ver',
   },
+  /**
+   * Promettait de « masquer tous ses messages » — il n'y a pas de messages. Ce
+   * que `blockMember` fait réellement : masquer ce joueur partout où GRYD
+   * l'afficherait, immédiatement, sans le prévenir, et sans compte requis.
+   */
   blockEnfBody: {
-    fr: 'Bloquer un membre masque tous ses messages, immédiatement et sans le prévenir. Tu peux le débloquer à tout moment.',
-    en: 'Blocking a member hides all their messages, immediately and without notifying them. You can unblock them at any time.',
-    es: 'Bloquear a un miembro oculta todos sus mensajes, de inmediato y sin avisarle. Puedes desbloquearlo en cualquier momento.',
-    de: 'Ein blockiertes Mitglied wird sofort ausgeblendet — alle Nachrichten verschwinden, ohne Benachrichtigung. Du kannst die Blockierung jederzeit aufheben.',
-    pt: 'Bloquear um membro oculta todas as mensagens dele, na hora e sem avisar. Você pode desbloquear a qualquer momento.',
+    fr: 'Bloquer masque ce joueur partout où GRYD l’afficherait, immédiatement et sans le prévenir. Ça marche même sans compte, et tu peux débloquer quand tu veux.',
+    en: 'Blocking hides that player everywhere GRYD would show them, immediately and without notifying them. It works even without an account, and you can unblock anytime.',
+    es: 'Bloquear oculta a ese jugador allí donde GRYD lo mostraría, de inmediato y sin avisarle. Funciona incluso sin cuenta, y puedes desbloquear cuando quieras.',
+    de: 'Blockieren blendet diesen Spieler überall aus, wo GRYD ihn zeigen würde — sofort und ohne Benachrichtigung. Es geht auch ohne Konto, und du kannst jederzeit entsperren.',
+    pt: 'Bloquear esconde esse jogador em todo lugar onde o GRYD o mostraria, na hora e sem avisá-lo. Funciona até sem conta, e você pode desbloquear quando quiser.',
   },
   sanctionsTitle: {
     fr: 'Ce qu’on fait des abus',
@@ -1697,12 +1874,27 @@ export const C = defineCatalog({
     de: 'Inhalt entfernt, Verwarnung, dann Kontosperre bei Wiederholung oder Schwere. Entscheidungen trifft ein Mensch, nie ein Automat.',
     pt: 'Conteúdo removido, advertência e depois suspensão da conta em caso de reincidência ou gravidade. As decisões são tomadas por uma pessoa, nunca automaticamente.',
   },
+  conduiteActionCta: {
+    fr: 'Signaler ou bloquer un joueur',
+    en: 'Report or block a player',
+    es: 'Reportar o bloquear a un jugador',
+    de: 'Spieler melden oder blockieren',
+    pt: 'Denunciar ou bloquear um jogador',
+  },
+  conduiteActionDetail: {
+    fr: 'Les deux gestes se font depuis Confidentialité',
+    en: 'Both are done from Privacy',
+    es: 'Ambos se hacen desde Privacidad',
+    de: 'Beides geht über Privatsphäre',
+    pt: 'Os dois se fazem em Privacidade',
+  },
+
   conduiteFootnote: {
-    fr: 'En jouant à GRYD, tu acceptes ce code de conduite. Le contenu haineux ou de harcèlement n’a pas sa place ici — une personne lit chaque signalement.',
-    en: 'By playing GRYD, you accept this code of conduct. Hateful or harassing content has no place here — a person reads every report.',
-    es: 'Al jugar a GRYD aceptas este código de conducta. El contenido de odio o acoso no tiene cabida aquí — una persona lee cada reporte.',
-    de: 'Wenn du GRYD spielst, akzeptierst du diesen Verhaltenskodex. Hass oder Belästigung haben hier keinen Platz — ein Mensch liest jede Meldung.',
-    pt: 'Ao jogar GRYD, você aceita este código de conduta. Conteúdo de ódio ou assédio não tem lugar aqui — uma pessoa lê cada denúncia.',
+    fr: 'En jouant à GRYD, tu acceptes ce code de conduite. Le contenu haineux ou de harcèlement n’a pas sa place ici — une personne examine chaque signalement enregistré.',
+    en: 'By playing GRYD, you accept this code of conduct. Hateful or harassing content has no place here — a person reviews every recorded report.',
+    es: 'Al jugar a GRYD aceptas este código de conducta. El contenido de odio o acoso no tiene cabida aquí — una persona revisa cada reporte registrado.',
+    de: 'Wenn du GRYD spielst, akzeptierst du diesen Verhaltenskodex. Hass oder Belästigung haben hier keinen Platz — ein Mensch prüft jede gespeicherte Meldung.',
+    pt: 'Ao jogar GRYD, você aceita este código de conduta. Conteúdo de ódio ou assédio não tem lugar aqui — uma pessoa analisa cada denúncia registrada.',
   },
 
   // ══════════════════ ÉTATS VIDES HONNÊTES (21/07/2026) ══════════════════

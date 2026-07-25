@@ -310,12 +310,46 @@ export const C = defineCatalog({
   },
 
   // ── États d'erreur / hors session ─────────────────────────────────────────
+  /**
+   * ÉCHEC SANS SORTIE. La page affichait cette phrase — et RIEN d'autre : pas de
+   * « Réessayer », pas de retour, un cul-de-sac. Elle devient le CORPS d'un état
+   * d'échec qui, lui, porte une action.
+   */
+  loadFailedTitle: {
+    fr: 'Réglages illisibles',
+    en: 'Settings unreadable',
+    es: 'Ajustes ilegibles',
+    de: 'Einstellungen nicht lesbar',
+    pt: 'Ajustes ilegíveis',
+  },
   prefsUnavailable: {
-    fr: 'GRYD n’a pas pu charger tes réglages. Réessaie plus tard.',
-    en: 'GRYD couldn’t load your settings. Try again later.',
-    es: 'GRYD no pudo cargar tus ajustes. Inténtalo más tarde.',
-    de: 'GRYD konnte deine Einstellungen nicht laden. Später erneut versuchen.',
-    pt: 'O GRYD não conseguiu carregar seus ajustes. Tente mais tarde.',
+    fr: 'GRYD n’a pas pu lire tes réglages de parcours. Rien n’a été modifié — un réseau qui lâche n’efface aucune préférence.',
+    en: 'GRYD could not read your route settings. Nothing was changed — a network that drops erases no preference.',
+    es: 'GRYD no pudo leer tus ajustes de rutas. No se cambió nada — una red que falla no borra ninguna preferencia.',
+    de: 'GRYD konnte deine Routen-Einstellungen nicht lesen. Es wurde nichts geändert — ein abbrechendes Netz löscht keine Präferenz.',
+    pt: 'O GRYD não conseguiu ler seus ajustes de rotas. Nada foi alterado — uma rede que cai não apaga nenhuma preferência.',
+  },
+  retry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  /** Lecture EN COURS — une ligne, jamais un spinner plein écran. */
+  loadingLine: {
+    fr: 'Lecture de tes réglages…',
+    en: 'Reading your settings…',
+    es: 'Leyendo tus ajustes…',
+    de: 'Einstellungen werden gelesen…',
+    pt: 'Lendo seus ajustes…',
+  },
+  habitsLoadingLine: {
+    fr: 'Lecture de tes habitudes…',
+    en: 'Reading your habits…',
+    es: 'Leyendo tus hábitos…',
+    de: 'Gewohnheiten werden gelesen…',
+    pt: 'Lendo seus hábitos…',
   },
   saveError: {
     fr: 'Réglage non enregistré. Réessaie.',

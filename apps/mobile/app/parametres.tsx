@@ -1,77 +1,53 @@
 /**
- * GRYD — Paramètres (AMENDEMENT-17 §CHANTIER 3). Écran POUSSÉ depuis Profil :
- * une LISTE de sous-pages courtes, chaque ligne = icône + label + chevron. La
- * liste tient (presque) sans scroll ; le détail de chaque réglage est au tap
- * dans sa sous-page. Réglages techniques regroupés sous « Avancé ». Réutilise
- * l'existant : Sources, Arsenal, Support, Confidentialité. Aucun réglage câblé
- * ici — c'est de la navigation. Style dark GRYD, texte court.
+ * GRYD — PARAMÈTRES (écran poussé depuis le Profil).
+ *
+ * ─── ORDRE DE COMPOSITION ─────────────────────────────────────────────────────
+ *   1. En-tête `StackScreen` : retour + kicker mono gris + titre display ;
+ *   2. TROIS groupes, chacun ouvert par un `SectionLabel` (kicker canonique) ;
+ *   3. Dans chaque groupe, des `ListRow` — plaque d'icône, libellé, sous-libellé,
+ *      chevron — séparées par l'ESPACE, jamais par un cadre.
+ *
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
+ * · LE COMPOSANT `Row` LOCAL. Il dupliquait `src/ui/ListRow` au pixel près
+ *   (même géométrie, même carré d'icône 36, même chevron gris) avec ses propres
+ *   styles — donc sa propre dérive à la prochaine retouche. La primitive existe :
+ *   on l'utilise.
+ * · LES QUINZE CADRES PERMANENTS. Chaque ligne portait `borderWidth: 1` : quand
+ *   tout est encadré, un cadre ne signale plus rien (règle 80/20, `Card.tsx`).
+ *   `ListRow` pose une surface N1 sans contour, séparée par la marge.
+ * · LES DEUX `numberOfLines={1}` NUS sur le libellé et le détail. En allemand
+ *   comme en portugais, « Verbundene Quellen » et son sous-titre dépassent
+ *   375 px : RN coupait en `tail`, donc « … ». `ListRow` laisse les deux
+ *   s'enrouler (règle 9).
+ * · LES QUATRE BLOCS DE LISTE ÉCRITS À LA MAIN (parcours, explicabilité, langue
+ *   ajoutés hors du catalogue). Ils fabriquaient trois sur-titres de plus pour
+ *   trois lignes. Tout vit maintenant dans `SETTINGS_GROUPS`, seule source.
+ * · LES STYLES TYPO LOCAUX (`fontSize` + `fontWeight` sans `fontFamily`, donc la
+ *   fonte SYSTÈME au lieu d'Inter). `ListRow` et `SectionLabel` portent les rôles.
+ *
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE ──────────────────────────────────────────────
+ * · Pas de photo ni de bloc d'identité en tête : l'identité vit dans le Profil,
+ *   et la relire ici demanderait une seconde lecture de session pour un écran
+ *   qui n'est que de la navigation.
+ * · Aucun des QUATRE états n'est rendu ici, et c'est délibéré : cet écran ne
+ *   fait AUCUNE lecture réseau. Il n'affiche que des routes qui existent —
+ *   il ne peut donc être ni vide, ni en échec, ni en cours de lecture.
  */
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { SETTINGS_GROUPS, type SettingsRow } from '../src/features/settings/sections';
 import { C } from '../src/i18n/catalog/reglages';
-import { C as CParcours } from '../src/i18n/catalog/parcours';
 import { useT } from '../src/i18n/store';
-import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
-import { Icon } from '../src/ui/Icon';
+import { ListRow } from '../src/ui/ListRow';
+import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
-import { SectionLabel } from '../src/features/privacy/ui';
 
-/**
- * Lignes d'explicabilité (AMENDEMENT-23 §B), ajoutées côté écran plutôt que
- * dans le catalogue partagé : elles pointent vers les 2 nouvelles routes
- * (calcul-zones, faq). Icônes propriétaires, détails au tap. Les textes sont
- * des Entries i18n, résolues à l'affichage (structure conservée).
- */
-const EXPLAIN_ROWS = [
-  {
-    href: '/calcul-zones',
-    label: C.explainZonesTitle,
-    detail: C.explainZonesDetail,
-    icon: 'info',
-  },
-  {
-    href: '/faq',
-    label: C.explainFaqTitle,
-    detail: C.explainFaqDetail,
-    icon: 'aide',
-  },
-] satisfies readonly { href: string; label: Entry; detail: Entry; icon: SettingsRow['icon'] }[];
-
-function Row({ row }: { row: SettingsRow }) {
-  const go = () => {
-    if (row.section !== undefined) router.push(`/parametres/${row.section}`);
-    else if (row.href !== undefined) router.push(row.href);
-  };
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={row.label}
-      onPress={go}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      {/* Icône d'identité de la ligne EN CHARTREUSE (21/07) : la liste était
-          entièrement monochrome, donc plate et lente à parcourir. L'accent porte
-          le RÔLE « voici le sujet du réglage » (§C) — fond `carbone` (sombre),
-          donc jamais de chartreuse sur clair. Le chevron, lui, reste gris :
-          c'est une affordance de navigation, pas une identité. */}
-      <View style={styles.iconWrap}>
-        <Icon name={row.icon} size={iconSizes.md} color={colors.chartreuse} />
-      </View>
-      <View style={styles.info}>
-        <Text style={styles.label} numberOfLines={1}>
-          {row.label}
-        </Text>
-        <Text style={styles.detail} numberOfLines={1}>
-          {row.detail}
-        </Text>
-      </View>
-      <Icon name="chevron" size={16} color={colors.gris} />
-    </Pressable>
-  );
+/** Cible d'une ligne : sous-page interne, ou route existante. */
+function pushRow(row: SettingsRow): void {
+  if (row.section !== undefined) router.push(`/parametres/${row.section}`);
+  else if (row.href !== undefined) router.push(row.href);
 }
 
 export default function ParametresScreen() {
@@ -83,90 +59,30 @@ export default function ParametresScreen() {
   return (
     <StackScreen title={t(C.paramsTitle)} icon="reglages" kicker={t(C.paramsKicker)}>
       {SETTINGS_GROUPS.map((group) => (
-        <View key={group.label}>
-          <SectionLabel>{group.label}</SectionLabel>
+        <View key={group.id}>
+          <SectionLabel style={styles.kicker}>{t(group.label)}</SectionLabel>
           {group.rows.map((row) => (
-            <Row key={row.label} row={row} />
+            <ListRow
+              key={row.section ?? row.href}
+              icon={row.icon}
+              label={t(row.label)}
+              sublabel={t(row.detail)}
+              chevron
+              onPress={() => pushRow(row)}
+            />
           ))}
         </View>
       ))}
-      {/* Mes parcours (21/07) : personnaliser ce que GRYD PROPOSE. Ligne
-          dédiée et non fondue dans « Course » — c'est le seul endroit où l'on
-          voit ce que GRYD a déduit de ses habitudes, et où l'on coupe
-          l'apprentissage. Une page de transparence ne se cache pas. */}
-      <View>
-        <SectionLabel>{t(CParcours.secParcours)}</SectionLabel>
-        <Row
-          row={{
-            href: '/mes-parcours',
-            icon: 'route',
-            label: t(CParcours.title),
-            detail: t(CParcours.rowDetail),
-          }}
-        />
-      </View>
-
-      {/* Explicabilité (AMENDEMENT-23 §B) : accès direct aux règles depuis les
-          Paramètres, en plus de l'Aide. Détails au tap dans la page dédiée. */}
-      <View>
-        <SectionLabel>{t(C.paramsSecExplicabilite)}</SectionLabel>
-        {EXPLAIN_ROWS.map((row) => (
-          <Row
-            key={row.href}
-            row={{ href: row.href, icon: row.icon, label: t(row.label), detail: t(row.detail) }}
-          />
-        ))}
-      </View>
-
-      {/* Langue (20/07) : une ligne dédiée, pas noyée dans « Course » — c'est le
-          réglage qui conditionne la lecture de TOUT le reste. */}
-      <View>
-        <SectionLabel>{t(C.langueTitle).toUpperCase()}</SectionLabel>
-        <Row
-          row={{
-            href: '/langue',
-            icon: 'info',
-            label: t(C.langueTitle),
-            detail: t(C.langueDetail),
-          }}
-        />
-      </View>
     </StackScreen>
   );
 }
 
+/** Rythme vertical d'un sur-titre de section : il appartient à la PAGE
+ *  (`SectionLabel` n'impose aucune marge), et il est le MÊME sur tous les écrans
+ *  de réglages pour qu'ils se lisent comme un seul écran. */
+const KICKER_TOP = 24;
+const KICKER_BOTTOM = 10;
+
 const styles = StyleSheet.create({
-  pressed: { opacity: 0.7 },
-  // Géométrie de card ALIGNÉE sur Confidentialité (21/07) : même respiration
-  // verticale, même retrait horizontal, même écart entre lignes — les écrans de
-  // réglages se lisent comme un seul écran, pas comme trois maquettes voisines.
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding - 2,
-    marginBottom: 10,
-  },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  info: { flex: 1 },
-  label: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  detail: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.5,
-    marginTop: spacing.xxs,
-  },
+  kicker: { marginTop: KICKER_TOP, marginBottom: KICKER_BOTTOM },
 });

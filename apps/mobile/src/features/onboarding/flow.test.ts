@@ -18,6 +18,7 @@ import {
   isOnboardingStep,
   stepAfterRivalry,
   stepBeforeCity,
+  stepProgress,
   type OnboardingStep,
 } from './content.ts';
 import { LOCALES, type Entry } from '../../i18n/types.ts';
@@ -86,6 +87,27 @@ Deno.test('chaque étape a UN n, et deux étapes n’en partagent jamais un', ()
   assertEquals(new Set(ns).size, ns.length, 'deux étapes partagent le même n');
 });
 
+Deno.test('LA FRISE NE PEUT PLUS ANNONCER PLUS D’ÉTAPES QU’IL N’EN EXISTE', () => {
+  // Le mensonge d'origine : `stepCount={5}` écrit en dur sous le tout premier CTA
+  // de l'app, pour un parcours de QUATRE écrans. Une promesse chiffrée fausse,
+  // dont le cinquième point ne s'allumait jamais. Le nombre se DÉRIVE désormais.
+  for (const step of ONBOARDING_STEPS) {
+    const { index, count } = stepProgress(step);
+    assertEquals(count, ONBOARDING_STEPS.length, `« ${step} » annonce ${count} étapes`);
+    assertEquals(index, at(step), `« ${step} » n’est pas à sa place dans la frise`);
+  }
+});
+
+Deno.test('aucun point de la frise ne reste éteint pour toujours', () => {
+  // Un point qu'AUCUNE étape n'allume est une étape promise qui n'existe pas.
+  const lit = new Set(ONBOARDING_STEPS.map((s) => stepProgress(s).index));
+  const { count } = stepProgress(ONBOARDING_STEPS[0]!);
+  assertEquals(lit.size, count, 'des points de la frise ne s’allument jamais');
+  for (let i = 0; i < count; i++) assert(lit.has(i), `le point ${i + 1} ne s’allume jamais`);
+  // …et le dernier écran allume bien le DERNIER point (pas d'étape fantôme après).
+  assertEquals(stepProgress(ONBOARDING_STEPS[count - 1]!).index, count - 1);
+});
+
 Deno.test('une étape lue sur le disque est validée contre le flow COURANT', () => {
   // « Quitter et reprendre » relit un nom d'étape écrit par une version
   // antérieure. Un nom disparu n'est pas une erreur : c'est un flow qui a changé.
@@ -101,7 +123,15 @@ Deno.test('LE CREW N’APPARAÎT PAS SUR LE PREMIER ÉCRAN — et il apparaît s
   // il répond à une question que le joueur vient de se poser (« on peut me la
   // reprendre ? »). Le mot est un invariant, jamais traduit — une seule
   // recherche suffit pour les 5 langues.
-  const first: Entry[] = [MECHANIC.kicker, MECHANIC.title, MECHANIC.tagline, MECHANIC.demoLabel];
+  // `MECHANIC.demoLabel` a disparu de cette liste avec `CaptureDemo`
+  // (25/07/2026) : le hero E01 n'étiquette plus de 4e temps. Ce qu'il rend
+  // vraiment — kicker, titre, sous-titre, chip d'honnêteté — est ici au complet.
+  const first: Entry[] = [
+    MECHANIC.kicker,
+    MECHANIC.title,
+    MECHANIC.tagline,
+    MECHANIC.exampleTag,
+  ];
   for (const entry of first) {
     for (const locale of LOCALES) {
       assert(

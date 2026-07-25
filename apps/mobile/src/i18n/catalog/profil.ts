@@ -1340,13 +1340,24 @@ export const C = defineCatalog({
     de: 'Profil-Sichtbarkeit: {value}',
     pt: 'Visibilidade do perfil: {value}',
   },
-  /** Sans crew, le segment crew de la ligne d'identité devient un APPEL. */
+  /**
+   * Sans crew, le segment crew de la ligne d'identité devient un APPEL.
+   *
+   * ⚠ CE LIBELLÉ DISAIT « Trouver un crew » ET NE MENAIT NULLE PART DE TEL.
+   * C'est le SEUL chemin offert à un joueur sans crew, et il aboutissait à
+   * `RealCrewScreen`, qui ne propose que « Créer mon crew » et « J'ai un code ».
+   * Aucun annuaire, aucune recherche, aucune découverte : l'écran d'arrivée ne
+   * tenait pas ce que le lien promettait. Le bouton n'échouait pas — il mentait,
+   * ce qui est pire, parce qu'on n'a rien à corriger au retour.
+   * Il nomme désormais le geste qui existe réellement (O1 : l'annuaire de crews
+   * est un chantier serveur — recherche, recrutement, modération).
+   */
   linkFindCrew: {
-    fr: 'Trouver un crew',
-    en: 'Find a crew',
-    es: 'Buscar un crew',
-    de: 'Crew finden',
-    pt: 'Achar um crew',
+    fr: 'Rejoindre avec un code',
+    en: 'Join with a code',
+    es: 'Unirse con un código',
+    de: 'Mit Code beitreten',
+    pt: 'Entrar com um código',
   },
 
   // ── Rangée de 4 métriques (un seul bloc à séparateurs, jamais 4 cards) ──────

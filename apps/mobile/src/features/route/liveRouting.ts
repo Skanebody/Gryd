@@ -8,27 +8,33 @@
  * Réseau AU RUNTIME (assumé — décision fondateur) : le calcul temps réel se fait
  * via l'internet de l'utilisateur, gratuitement (serveur foot communautaire, sans
  * clé). Échec / hors ligne → renvoie null (l'appelant garde le tracé courant).
+ *
+ * ─── CE MODULE NE DÉCIDE PLUS RIEN DU JEU (25/07/2026) ─────────────────────────
+ * Il renvoyait `zones`, `loopZones`, `points`, `streetsToSave`, `expiresInH` et
+ * `difficulty`, tous FABRIQUÉS ICI à partir de `ZONES_PER_KM = 15.3` et
+ * `LOOP_ZONE_RATIO = 0.6` — deux nombres qui ne venaient pas de `game-rules.ts`
+ * et n'avaient été mesurés nulle part. Une boucle planifiée annonçait donc au
+ * joueur, avant qu'il ait couru un mètre, un gain de territoire et un score que
+ * le serveur seul décide, APRÈS la course, cellule par cellule (ingest_run).
+ *
+ * Ce n'était pas une décoration : c'était une PROMESSE DE RÉCOMPENSE. Elle est
+ * supprimée, pas déplacée. Ce module ne connaît plus que de la géométrie — une
+ * polyligne réellement renvoyée par OSRM et sa longueur mesurée.
  */
-import { POINTS_DEFENDED_HEX, POINTS_NEUTRAL_HEX } from '@klaim/shared';
 import { REAL_M_PER_DEG_LAT, type LatLngPoint } from '../map/realAnchors';
-import type { PlannerIntention } from './generator';
-import type { PlannedRouteDemo, RouteTypeKey } from './types';
+import type { PlannedLoop, PlannerIntention } from './types';
 
 const OSRM_FOOT = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot';
 
-const ZONES_PER_KM = 15.3;
-const LOOP_ZONE_RATIO = 0.6;
-
-/** Cap (deg, 0 = est) par intention — oriente la boucle autour de l'origine. */
+/**
+ * Cap (deg, 0 = est) par intention — oriente la boucle autour de l'origine.
+ * MESURE DE COMPOSITION GÉOMÉTRIQUE, pas une règle de jeu : deux objectifs
+ * doivent proposer deux boucles distinctes plutôt que la même, et ces caps ne
+ * rapportent ni point ni zone.
+ */
 const INTENTION_BEARING: Record<PlannerIntention, number> = {
   conquerir: 25,
-  attaquer: 70,
   defendre: 210,
-};
-const INTENTION_TYPE: Record<PlannerIntention, RouteTypeKey> = {
-  conquerir: 'capture_rapide',
-  attaquer: 'raid',
-  defendre: 'defense',
 };
 
 /** Plus de waypoints pour les grandes boucles (tour plus rond, jusqu'au trail). */
@@ -123,7 +129,7 @@ export async function routeLoop(
   intention: PlannerIntention,
   seed: number,
   signal?: AbortSignal,
-): Promise<PlannedRouteDemo | null> {
+): Promise<PlannedLoop | null> {
   const n = nWpFor(targetKm);
   const rand = rng(seed * 131 + Math.round(targetKm * 10));
   const jitter: number[] = [];
@@ -142,23 +148,14 @@ export async function routeLoop(
   const line = decimate(result.coords, origin.lat, gapFor(result.distanceM));
   if (line.length < 4) return null;
 
+  // La SEULE métrique que ce module a le droit de produire : la longueur que
+  // le routeur a réellement mesurée sur les rues (pas la distance demandée).
   const km = Math.round((result.distanceM / 1000) * 10) / 10;
-  const zones = Math.round(km * ZONES_PER_KM);
-  const loopZones = Math.round(zones * LOOP_ZONE_RATIO);
-  const defend = intention === 'defendre';
   return {
     id: `live_${intention}_${Math.round(targetKm * 10)}_${seed}`,
-    letter: 'A',
-    name: 'Live',
-    typeKey: INTENTION_TYPE[intention],
     zone: zoneLabel,
     distanceKm: km,
-    zones,
-    loopZones,
-    points: zones * (defend ? POINTS_DEFENDED_HEX : POINTS_NEUTRAL_HEX),
-    shape: 'boucle',
-    difficulty: km <= 3 ? 'Facile' : km <= 6 ? 'Modéré' : 'Exigeant',
-    ...(defend ? { streetsToSave: Math.max(6, Math.round(km * 3)), expiresInH: 48 } : {}),
+    intention,
     line,
   };
 }

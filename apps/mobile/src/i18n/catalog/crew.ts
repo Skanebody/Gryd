@@ -3240,12 +3240,24 @@ export const C = defineCatalog({
     de: 'Diesem Crew beitreten',
     pt: 'Entrar neste crew',
   },
+  /**
+   * ⚠ CETTE COPIE PROMETTAIT UNE ENTRÉE AVANT TOUTE VÉRIFICATION.
+   *
+   * Elle disait « Ce code t'ouvre le crew. Tu cours pour lui dès ta prochaine
+   * sortie. » — au FUTUR CERTAIN, et affichée AVANT le moindre appel serveur.
+   * Or aucune RPC publique ne résout un code en crew (la colonne `code` est
+   * secrète depuis 0036) : à cet instant l'app ignore si le code existe, si le
+   * crew est complet, et si le joueur est en cooldown de 7 jours. Trois refus
+   * typés que `join_crew_by_code` peut rendre juste après cette phrase.
+   *
+   * La règle : on décrit ce que le geste DEMANDE, jamais ce qu'il obtiendra.
+   */
   cInviteJoinBody: {
-    fr: 'Ce code t’ouvre le crew. Tu cours pour lui dès ta prochaine sortie.',
-    en: 'This code opens the crew. You run for it from your next outing.',
-    es: 'Este código te abre el crew. Corres por él desde tu próxima salida.',
-    de: 'Dieser Code öffnet den Crew. Ab deinem nächsten Lauf läufst du für ihn.',
-    pt: 'Este código abre o crew. Você corre por ele já na próxima saída.',
+    fr: 'Ce code demande l’entrée dans un crew. C’est le serveur qui répond — et le nom du crew n’apparaît qu’une fois l’entrée accordée.',
+    en: 'This code requests entry into a crew. The server decides — and the crew’s name only appears once entry is granted.',
+    es: 'Este código pide la entrada en un crew. El servidor responde — y el nombre del crew solo aparece cuando se concede la entrada.',
+    de: 'Dieser Code beantragt den Eintritt in einen Crew. Der Server entscheidet — und der Name des Crews erscheint erst nach der Zusage.',
+    pt: 'Este código pede entrada em um crew. Quem responde é o servidor — e o nome do crew só aparece depois que a entrada é concedida.',
   },
   cInviteSignedOutTitle: {
     fr: 'Crée ton compte pour rejoindre',
@@ -3288,6 +3300,78 @@ export const C = defineCatalog({
     es: 'Ver mi crew',
     de: 'Meinen Crew ansehen',
     pt: 'Ver meu crew',
+  },
+
+  /**
+   * ⚠ LE KICKER DE CET ÉCRAN N'EST PLUS « SAISON 0 » (recalage Vague 1, 25/07/2026).
+   *
+   * Il consommait `kickerSeason`, une CONSTANTE en dur — jamais une lecture de
+   * `useActiveSeason`. Deux écrans disaient donc deux vérités dans le même
+   * build : `arsenal.tsx` affiche le VRAI numéro de saison, et `performance.tsx`
+   * REFUSE d'afficher le segment « Saison » précisément parce qu'aucune saison
+   * n'est ouverte. Affirmer « SAISON 0 » à un nouveau recruté, c'est inventer un
+   * fait de jeu sur le premier écran qu'il voit.
+   *
+   * Un sur-titre nomme le CONTEXTE de l'écran ; il n'a jamais eu à porter un
+   * chiffre de saison que cet écran ne lit pas.
+   */
+  cInviteKicker: {
+    fr: 'INVITATION CREW',
+    en: 'CREW INVITATION',
+    es: 'INVITACIÓN CREW',
+    de: 'CREW-EINLADUNG',
+    pt: 'CONVITE CREW',
+  },
+  /** ④ Session en cours de restauration — une LIGNE, jamais un écran noir. */
+  cInviteSessionReading: {
+    fr: 'Reprise de ta session…',
+    en: 'Restoring your session…',
+    es: 'Restaurando tu sesión…',
+    de: 'Deine Sitzung wird wiederhergestellt…',
+    pt: 'Retomando sua sessão…',
+  },
+  /** ④ On lit l'adhésion : on ne propose encore RIEN. */
+  cInviteMemberReading: {
+    fr: 'Vérification de ton adhésion…',
+    en: 'Checking your membership…',
+    es: 'Comprobando tu afiliación…',
+    de: 'Deine Mitgliedschaft wird geprüft…',
+    pt: 'Verificando sua afiliação…',
+  },
+  /** ③ ÉCHEC DE LECTURE — distinct du vide, et jamais rendu comme « rejoins ». */
+  cInviteUnknownTitle: {
+    fr: 'Impossible de vérifier ton adhésion',
+    en: 'Your membership could not be checked',
+    es: 'No se pudo comprobar tu afiliación',
+    de: 'Deine Mitgliedschaft konnte nicht geprüft werden',
+    pt: 'Não foi possível verificar sua afiliação',
+  },
+  cInviteUnknownBody: {
+    fr: 'On n’a pas pu lire si tu es déjà dans un crew. Ce n’est pas une réponse, c’est une lecture qui a échoué : vérifie ta connexion et réessaie.',
+    en: 'We could not read whether you are already in a crew. That is not an answer, it is a failed read: check your connection and try again.',
+    es: 'No pudimos leer si ya estás en un crew. Eso no es una respuesta, es una lectura fallida: revisa tu conexión e inténtalo de nuevo.',
+    de: 'Wir konnten nicht lesen, ob du schon in einem Crew bist. Das ist keine Antwort, sondern ein fehlgeschlagener Lesevorgang: Verbindung prüfen und erneut versuchen.',
+    pt: 'Não conseguimos ler se você já está em um crew. Isso não é uma resposta, é uma leitura que falhou: verifique sua conexão e tente de novo.',
+  },
+  /**
+   * (b′) MEMBRE D'UN AUTRE CREW — le serveur fait un SWITCH, pas une addition.
+   * `join_crew_by_code` (0042 §2, réécrite 0043 §3) clôt l'adhésion active
+   * (`left_at = now()`) avant d'insérer la nouvelle. C'est un effet destructif :
+   * il se dit AVANT le tap, pas après.
+   */
+  cInviteSwitchTitle: {
+    fr: 'Changer de crew',
+    en: 'Switch crew',
+    es: 'Cambiar de crew',
+    de: 'Crew wechseln',
+    pt: 'Trocar de crew',
+  },
+  cInviteSwitchNote: {
+    fr: 'Tu es déjà dans un autre crew : entrer avec ce code t’en fait sortir.',
+    en: 'You are already in another crew: entering with this code takes you out of it.',
+    es: 'Ya estás en otro crew: entrar con este código te saca de él.',
+    de: 'Du bist schon in einem anderen Crew: Mit diesem Code einzutreten führt dich dort hinaus.',
+    pt: 'Você já está em outro crew: entrar com este código faz você sair dele.',
   },
 });
 

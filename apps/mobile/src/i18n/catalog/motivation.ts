@@ -31,13 +31,6 @@ export const C = defineCatalog({
     de: 'HALLO {name}',
     pt: 'OLÁ {name}',
   },
-  todayNextRunAwaits: {
-    fr: 'Ta prochaine course t’attend.',
-    en: 'Your next run is waiting.',
-    es: 'Tu próxima carrera te espera.',
-    de: 'Dein nächster Lauf wartet.',
-    pt: 'Sua próxima corrida te espera.',
-  },
 
   // ─── Aujourd'hui — ÉTATS VIDES HONNÊTES (« l'app ne ment jamais ») ─────────
   // Hors vitrine, l'écran n'a le droit d'afficher NI un prénom inventé, NI un
@@ -72,29 +65,6 @@ export const C = defineCatalog({
     de: 'Anmelden',
     pt: 'Entrar',
   },
-  // Card héros quand AUCUNE route réelle n'existe : on le dit, on explique
-  // pourquoi, et le départ reste le seul CTA de l'écran (§A : 1 décision).
-  todayNoRouteKicker: {
-    fr: 'PAS ENCORE DE ROUTE',
-    en: 'NO ROUTE YET',
-    es: 'AÚN SIN RUTA',
-    de: 'NOCH KEINE ROUTE',
-    pt: 'AINDA SEM ROTA',
-  },
-  todayNoRouteTitle: {
-    fr: 'GRYD ne connaît pas encore ton terrain.',
-    en: 'GRYD doesn’t know your ground yet.',
-    es: 'GRYD todavía no conoce tu terreno.',
-    de: 'GRYD kennt dein Terrain noch nicht.',
-    pt: 'O GRYD ainda não conhece o seu terreno.',
-  },
-  todayNoRouteBody: {
-    fr: 'Les routes recommandées arrivent après tes premières sorties. En attendant, pars courir : tout ce que tu traverses devient à toi.',
-    en: 'Recommended routes show up after your first runs. In the meantime, just go: everything you cross becomes yours.',
-    es: 'Las rutas recomendadas llegan después de tus primeras salidas. Mientras tanto, sal a correr: todo lo que atraviesas pasa a ser tuyo.',
-    de: 'Empfohlene Routen kommen nach deinen ersten Läufen. Lauf bis dahin einfach los: Alles, was du durchquerst, gehört dir.',
-    pt: 'As rotas recomendadas aparecem depois das suas primeiras saídas. Enquanto isso, vá correr: tudo o que você atravessa passa a ser seu.',
-  },
   // Les 2 verbes joueur (AMENDEMENT-12 §A) — CTA + kicker : COURTS (§A).
   // de : « HALTEN » plutôt que « VERTEIDIGEN » (§A, reformulation concise).
   objectiveConquer: {
@@ -111,27 +81,6 @@ export const C = defineCatalog({
     de: 'HALTEN',
     pt: 'DEFENDER',
   },
-  todayRouteKicker: {
-    fr: 'ROUTE RECOMMANDÉE',
-    en: 'RECOMMENDED ROUTE',
-    es: 'RUTA RECOMENDADA',
-    de: 'EMPFOHLENE ROUTE',
-    pt: 'ROTA RECOMENDADA',
-  },
-  todayHeroA11y: {
-    fr: 'Route recommandée — objectif {objective} : {name}, {km} kilomètres',
-    en: 'Recommended route — objective {objective}: {name}, {km} kilometers',
-    es: 'Ruta recomendada — objetivo {objective}: {name}, {km} kilómetros',
-    de: 'Empfohlene Route — Ziel {objective}: {name}, {km} Kilometer',
-    pt: 'Rota recomendada — objetivo {objective}: {name}, {km} quilômetros',
-  },
-  todayZonesPlus: {
-    fr: '+{n} zones',
-    en: '+{n} zones',
-    es: '+{n} zonas',
-    de: '+{n} Zonen',
-    pt: '+{n} zonas',
-  },
   todayCtaA11y: {
     fr: '{objective} — départ immédiat sur le plan du jour',
     en: '{objective} — start now on today’s plan',
@@ -139,49 +88,12 @@ export const C = defineCatalog({
     de: '{objective} — sofort mit dem Tagesplan starten',
     pt: '{objective} — partida imediata no plano do dia',
   },
-  // Bandeau semaine (3 cellules, labels xs — courts partout).
-  todayWeekRuns: {
-    fr: 'COURSES',
-    en: 'RUNS',
-    es: 'CARRERAS',
-    de: 'LÄUFE',
-    pt: 'CORRIDAS',
-  },
-  todayWeekForm: {
-    fr: 'SCORE FORME',
-    en: 'FORM SCORE',
-    es: 'FORMA',
-    de: 'FORM-SCORE',
-    pt: 'FORMA',
-  },
-  todayWeekChest: {
-    fr: 'COFFRE CREW',
-    en: 'CREW CHEST',
-    es: 'COFRE CREW',
-    de: 'CREW-TRUHE',
-    pt: 'BAÚ CREW',
-  },
-  // « 45 % » (espace fine FR/ES/DE) vs « 45% » (EN/PT).
-  pctValue: {
-    fr: '{n} %',
-    en: '{n}%',
-    es: '{n} %',
-    de: '{n} %',
-    pt: '{n}%',
-  },
   todayNextBadge: {
     fr: 'PROCHAIN BADGE',
     en: 'NEXT BADGE',
     es: 'PRÓXIMO BADGE',
     de: 'NÄCHSTES BADGE',
     pt: 'PRÓXIMO BADGE',
-  },
-  badgeFamilySecret: {
-    fr: 'Secret',
-    en: 'Secret',
-    es: 'Secreto',
-    de: 'Geheim',
-    pt: 'Secreto',
   },
   todayMyChallenges: {
     fr: 'Mes challenges',
@@ -213,12 +125,32 @@ export const C = defineCatalog({
     de: 'Challenges',
     pt: 'Desafios',
   },
+  // 25/07/2026 — CETTE PHRASE DISAIT « Des objectifs CHOISIS ». Le joueur ne
+  // choisit rien : la liste est celle des défis ACTIFS du serveur, sans opt-in
+  // ni sélection, et sa progression est écrite par `ingest_run`. Une copie qui
+  // promet un contrôle inexistant est un mensonge, même bienveillant.
   challengesSubtitle: {
-    fr: 'Des objectifs choisis, à ton rythme. La régularité compte autant que la performance.',
-    en: 'Goals you choose, at your own pace. Consistency counts as much as performance.',
-    es: 'Objetivos elegidos, a tu ritmo. La constancia cuenta tanto como el rendimiento.',
-    de: 'Ziele nach deiner Wahl, in deinem Tempo. Konstanz zählt so viel wie Leistung.',
-    pt: 'Objetivos escolhidos, no seu ritmo. A regularidade conta tanto quanto o desempenho.',
+    fr: 'Les défis en cours dans GRYD. Ta progression vient de tes courses, à ton rythme.',
+    en: 'The challenges running in GRYD right now. Your progress comes from your runs, at your own pace.',
+    es: 'Los desafíos en curso en GRYD. Tu progreso viene de tus carreras, a tu ritmo.',
+    de: 'Die Challenges, die gerade in GRYD laufen. Dein Fortschritt kommt aus deinen Läufen, in deinem Tempo.',
+    pt: 'Os desafios em andamento no GRYD. Seu progresso vem das suas corridas, no seu ritmo.',
+  },
+  challengesKicker: {
+    fr: 'CE QUI COURT CETTE SEMAINE',
+    en: 'RUNNING THIS WEEK',
+    es: 'LO QUE ESTÁ EN CURSO',
+    de: 'DIESE WOCHE AKTIV',
+    pt: 'O QUE ESTÁ EM ANDAMENTO',
+  },
+  // ÉTAT ④ « lecture en cours » — une LIGNE grise non tapable remplace le
+  // spinner centré : un chargement n'affirme rien, et il ne prend pas l'écran.
+  challengesReading: {
+    fr: 'Lecture de tes défis…',
+    en: 'Reading your challenges…',
+    es: 'Leyendo tus desafíos…',
+    de: 'Deine Challenges werden gelesen…',
+    pt: 'Lendo seus desafios…',
   },
 
   // ─── Choix avancés de course — panneau « Défendre » ───────────────────────
@@ -279,20 +211,6 @@ export const C = defineCatalog({
     de: 'GRYD erreicht seinen Server nicht. Deine Challenges sind zurück, sobald die Verbindung wieder steht.',
     pt: 'O GRYD não consegue alcançar seu servidor. Seus desafios voltam assim que a conexão voltar.',
   },
-  yourCrew: {
-    fr: 'Ton crew',
-    en: 'Your crew',
-    es: 'Tu crew',
-    de: 'Deine Crew',
-    pt: 'Seu crew',
-  },
-  sponsorLine: {
-    fr: 'Offert par {name} · entrée gratuite',
-    en: 'Offered by {name} · free entry',
-    es: 'Ofrecido por {name} · entrada gratis',
-    de: 'Präsentiert von {name} · Teilnahme gratis',
-    pt: 'Oferecido por {name} · entrada grátis',
-  },
   // Unités d'affichage des challenges (le seed fournit la clé, pas le libellé).
   unitCourses: {
     fr: 'courses',
@@ -309,6 +227,71 @@ export const C = defineCatalog({
     pt: 'zonas',
   },
 
+  // ─── CONTENU DU CATALOGUE DE CHALLENGES (promesse + récompense) ───────────
+  // 25/07/2026 — CES TEXTES ÉTAIENT EN FRANÇAIS EN DUR dans
+  // `features/motivation/catalog.ts`, et rendus BRUTS par les deux écrans : un
+  // joueur en EN/ES/DE/PT lisait « 3 courses cette semaine, à ton rythme. » et
+  // « Coffre crew · palier Or ». La règle 17 vaut pour le contenu produit comme
+  // pour la copie d'interface. Les NOMS des défis (« Consistency II »,
+  // « Distance », « Defense ») restent des INVARIANTS : ce sont des noms propres
+  // GRYD, au même titre que « Focus Solo » — ils ne se traduisent pas.
+  chConsistencyBlurb: {
+    fr: '3 courses cette semaine, à ton rythme. La régularité prime, pas la vitesse.',
+    en: '3 runs this week, at your own pace. Consistency matters, not speed.',
+    es: '3 carreras esta semana, a tu ritmo. Manda la constancia, no la velocidad.',
+    de: '3 Läufe diese Woche, in deinem Tempo. Konstanz zählt, nicht Tempo.',
+    pt: '3 corridas esta semana, no seu ritmo. Vale a regularidade, não a velocidade.',
+  },
+  chConsistencyReward: {
+    fr: 'Badge Consistency',
+    en: 'Consistency badge',
+    es: 'Badge Consistency',
+    de: 'Consistency-Badge',
+    pt: 'Badge Consistency',
+  },
+  chDistanceBlurb: {
+    fr: '10 km cumulés sur la semaine. En une fois ou en plusieurs, comme tu veux.',
+    en: '10 km total over the week. In one go or in several, however you like.',
+    es: '10 km acumulados en la semana. De una vez o en varias, como quieras.',
+    de: '10 km über die Woche. Am Stück oder verteilt, ganz wie du willst.',
+    pt: '10 km acumulados na semana. De uma vez ou em várias, como você quiser.',
+  },
+  chDistanceReward: {
+    fr: 'Badge Distance',
+    en: 'Distance badge',
+    es: 'Badge Distance',
+    de: 'Distance-Badge',
+    pt: 'Badge Distance',
+  },
+  chDefenseBlurb: {
+    fr: '30 zones défendues. Tenir le quartier compte autant que conquérir.',
+    en: '30 zones defended. Holding the neighborhood counts as much as taking it.',
+    es: '30 zonas defendidas. Mantener el barrio cuenta tanto como conquistarlo.',
+    de: '30 verteidigte Zonen. Das Viertel zu halten zählt so viel wie es zu erobern.',
+    pt: '30 zonas defendidas. Segurar o bairro conta tanto quanto conquistar.',
+  },
+  chDefenseReward: {
+    fr: 'Badge Defender',
+    en: 'Defender badge',
+    es: 'Badge Defender',
+    de: 'Defender-Badge',
+    pt: 'Badge Defender',
+  },
+  chCrewDefenseBlurb: {
+    fr: 'Objectif collectif du crew. Chaque zone défendue compte pour le coffre.',
+    en: 'A collective crew goal. Every defended zone counts toward the chest.',
+    es: 'Objetivo colectivo del crew. Cada zona defendida cuenta para el cofre.',
+    de: 'Gemeinsames Crew-Ziel. Jede verteidigte Zone zählt für die Truhe.',
+    pt: 'Objetivo coletivo do crew. Cada zona defendida conta para o baú.',
+  },
+  chCrewDefenseReward: {
+    fr: 'Coffre crew · palier Or',
+    en: 'Crew chest · Gold tier',
+    es: 'Cofre crew · nivel Oro',
+    de: 'Crew-Truhe · Stufe Gold',
+    pt: 'Baú do crew · nível Ouro',
+  },
+
   // ─── Challenge — détail ───────────────────────────────────────────────────
   challengeTitle: {
     fr: 'Challenge',
@@ -317,6 +300,11 @@ export const C = defineCatalog({
     de: 'Challenge',
     pt: 'Desafio',
   },
+  // ⚠️ « Plus disponible » est une CONCLUSION SUR LE JEU. Elle ne vaut que pour
+  // une carte réellement absente d'une liste effectivement LUE — jamais pour un
+  // joueur déconnecté ni pour un serveur injoignable, qui ont chacun leur copie
+  // ci-dessous. C'est le mensonge corrigé le 25/07/2026 : les quatre causes
+  // partageaient cette phrase.
   challengeUnavailable: {
     fr: "Ce challenge n'est plus disponible.",
     en: 'This challenge is no longer available.',
@@ -324,19 +312,26 @@ export const C = defineCatalog({
     de: 'Diese Challenge ist nicht mehr verfügbar.',
     pt: 'Este desafio não está mais disponível.',
   },
-  bothSidesKicker: {
-    fr: 'LES DEUX CAMPS',
-    en: 'BOTH SIDES',
-    es: 'LOS DOS BANDOS',
-    de: 'BEIDE SEITEN',
-    pt: 'OS DOIS LADOS',
+  challengeUnavailableBody: {
+    fr: 'Il a pu se terminer depuis que tu as ouvert la liste. Les défis en cours sont sur la page Challenges.',
+    en: 'It may have ended since you opened the list. The running challenges are on the Challenges page.',
+    es: 'Puede haber terminado desde que abriste la lista. Los desafíos en curso están en la página Desafíos.',
+    de: 'Sie kann geendet haben, seit du die Liste geöffnet hast. Die laufenden Challenges stehen auf der Challenges-Seite.',
+    pt: 'Ele pode ter terminado desde que você abriu a lista. Os desafios em andamento estão na página Desafios.',
   },
-  rivalryFairPlay: {
-    fr: "Objectif : tenir le quartier ensemble, dans le fair-play. Le score final n'enlève rien à personne.",
-    en: 'The goal: hold the neighborhood together, with fair play. The final score takes nothing away from anyone.',
-    es: 'Objetivo: defender el barrio juntos, con fair play. El marcador final no le quita nada a nadie.',
-    de: 'Ziel: das Viertel gemeinsam halten, fair. Der Endstand nimmt niemandem etwas weg.',
-    pt: 'Objetivo: segurar o bairro juntos, com fair play. O placar final não tira nada de ninguém.',
+  challengeReading: {
+    fr: 'Lecture de ce défi…',
+    en: 'Reading this challenge…',
+    es: 'Leyendo este desafío…',
+    de: 'Diese Challenge wird gelesen…',
+    pt: 'Lendo este desafio…',
+  },
+  challengeRewardKicker: {
+    fr: 'RÉCOMPENSE',
+    en: 'REWARD',
+    es: 'RECOMPENSA',
+    de: 'BELOHNUNG',
+    pt: 'RECOMPENSA',
   },
   progressKicker: {
     fr: 'PROGRESSION',
@@ -360,44 +355,15 @@ export const C = defineCatalog({
     de: 'Nur noch {remaining} — fast geschafft.',
     pt: 'Faltam {remaining} — você está quase lá.',
   },
-  contributionKicker: {
-    fr: 'TA CONTRIBUTION',
-    en: 'YOUR CONTRIBUTION',
-    es: 'TU CONTRIBUCIÓN',
-    de: 'DEIN BEITRAG',
-    pt: 'SUA CONTRIBUIÇÃO',
-  },
-  // {n} reste un placeholder au rendu : le composant le remplace par un
-  // <Text> stylé (split sur « {n} ») — même position dans les 5 langues.
-  crewContrib: {
-    fr: 'Tu as déjà défendu {n} zones pour le crew.',
-    en: 'You’ve already defended {n} zones for the crew.',
-    es: 'Ya has defendido {n} zonas para el crew.',
-    de: 'Du hast schon {n} Zonen für die Crew gehalten.',
-    pt: 'Você já defendeu {n} zonas pelo crew.',
-  },
-  teamMinimum: {
-    fr: "Le minimum d'équipe est de {n} — c'est un repère, pas un jugement. Chaque zone aide le coffre.",
-    en: 'The team minimum is {n} — a reference point, not a judgment. Every zone helps the chest.',
-    es: 'El mínimo del equipo es {n}: una referencia, no un juicio. Cada zona ayuda al cofre.',
-    de: 'Das Team-Minimum liegt bei {n} — ein Richtwert, kein Urteil. Jede Zone hilft der Truhe.',
-    pt: 'O mínimo da equipe é {n} — uma referência, não um julgamento. Cada zona ajuda o baú.',
-  },
-  offeredByKicker: {
-    fr: 'OFFERT PAR',
-    en: 'OFFERED BY',
-    es: 'OFRECIDO POR',
-    de: 'PRÄSENTIERT VON',
-    pt: 'OFERECIDO POR',
-  },
-  // Garde-fou anti pay-to-win (§3) — obligatoire sous chaque bloc sponsor.
-  sponsorGuard: {
-    fr: 'Participation libre et gratuite. Le sponsor ne donne ni territoire, ni points, ni victoire — seulement des lots. Le jeu reste le même pour tout le monde.',
-    en: 'Entry is free and optional. The sponsor gives no territory, no points, no wins — only prizes. The game stays the same for everyone.',
-    es: 'Participación libre y gratuita. El patrocinador no da territorio, ni puntos, ni victorias: solo premios. El juego es el mismo para todos.',
-    de: 'Teilnahme frei und gratis. Der Sponsor vergibt weder Gebiet noch Punkte noch Siege — nur Preise. Das Spiel bleibt für alle gleich.',
-    pt: 'Participação livre e gratuita. O patrocinador não dá território, nem pontos, nem vitória — só prêmios. O jogo continua igual para todo mundo.',
-  },
+  // ─── CE QUI A ÉTÉ RETIRÉ ICI LE 25/07/2026 ────────────────────────────────
+  // Sept entrées servaient EXCLUSIVEMENT des blocs que rien ne pouvait rendre :
+  // `bothSidesKicker` / `rivalryFairPlay` / `yourCrew` / `sponsorLine`
+  // (rivalité), `contributionKicker` / `crewContrib` / `teamMinimum` (coffre
+  // crew), `offeredByKicker` / `sponsorGuard` (sponsor). `challengeState`
+  // ne sert que le type `solo` — la contribution personnelle n'est ventilée par
+  // membre NULLE PART côté serveur, et aucun sponsor n'existe. Garder la copie
+  // d'un écran qu'on ne peut pas peindre, c'est laisser croire au prochain
+  // lecteur que ces sections sont vivantes. Elles reviendront AVEC leur source.
 
   // ─── Motivation Settings ──────────────────────────────────────────────────
   motivationTitle: {
@@ -421,82 +387,61 @@ export const C = defineCatalog({
     de: 'SPIELSTIL',
     pt: 'ESTILO DE JOGO',
   },
+  // ─── CE QUE LE STYLE OUVRE — une RÈGLE, jamais un état ────────────────────
+  // Le kicker disait « CLASSEMENTS VISIBLES », ce qui se lit « voilà où tu
+  // apparais ». `LEADERBOARD_DEFAULT_VISIBILITY` est une règle de visibilité par
+  // défaut, et GRYD n'ouvre à ce jour aucun classement région / France / global.
+  // Le titre dit donc maintenant ce que la donnée dit vraiment.
   sectionLeaderboards: {
-    fr: 'CLASSEMENTS VISIBLES',
-    en: 'VISIBLE LEADERBOARDS',
-    es: 'RANKINGS VISIBLES',
-    de: 'SICHTBARE RANKINGS',
-    pt: 'RANKINGS VISÍVEIS',
+    fr: 'CE QUE TON STYLE OUVRE',
+    en: 'WHAT YOUR STYLE OPENS',
+    es: 'LO QUE ABRE TU ESTILO',
+    de: 'WAS DEIN STIL ÖFFNET',
+    pt: 'O QUE SEU ESTILO ABRE',
   },
   leaderboardsNote: {
-    fr: 'Adaptés à ton style. Ceux qui te ressemblent apparaissent ; les autres restent masqués.',
-    en: 'Matched to your style. The ones that fit you appear; the rest stay hidden.',
-    es: 'Adaptados a tu estilo. Aparecen los que van contigo; el resto queda oculto.',
-    de: 'An deinen Stil angepasst. Passende erscheinen, der Rest bleibt verborgen.',
-    pt: 'Adaptados ao seu estilo. Os que combinam com você aparecem; os outros ficam ocultos.',
+    fr: 'Règle de visibilité, pas un état : ton style décide des classements où GRYD peut te faire apparaître.',
+    en: 'A visibility rule, not a status: your style decides which leaderboards GRYD may show you on.',
+    es: 'Una regla de visibilidad, no un estado: tu estilo decide en qué rankings GRYD puede mostrarte.',
+    de: 'Eine Sichtbarkeitsregel, kein Status: Dein Stil entscheidet, auf welchen Rankings GRYD dich zeigen darf.',
+    pt: 'Uma regra de visibilidade, não um estado: seu estilo decide em quais rankings o GRYD pode te mostrar.',
   },
-  sectionNotifs: {
-    fr: 'NOTIFICATIONS',
-    en: 'NOTIFICATIONS',
-    es: 'NOTIFICACIONES',
-    de: 'MITTEILUNGEN',
-    pt: 'NOTIFICAÇÕES',
+  // « Masqué » se dit par le TEXTE. L'ancienne version le disait par une
+  // `opacity: 0.5` sur du gris — sous le plancher de lisibilité, et invisible
+  // pour qui ne distingue pas les nuances.
+  leaderboardsClosed: {
+    fr: 'Fermés par ton style : {levels}.',
+    en: 'Closed by your style: {levels}.',
+    es: 'Cerrados por tu estilo: {levels}.',
+    de: 'Von deinem Stil geschlossen: {levels}.',
+    pt: 'Fechados pelo seu estilo: {levels}.',
   },
-  notifsNote: {
-    fr: 'Tu reçois seulement ce qui compte pour toi. Jamais de rappel culpabilisant.',
-    en: 'You only get what matters to you. Never a guilt-trip reminder.',
-    es: 'Solo recibes lo que te importa. Nunca un recordatorio que te haga sentir culpa.',
-    de: 'Du bekommst nur, was dir wichtig ist. Nie eine Erinnerung, die ein schlechtes Gewissen macht.',
-    pt: 'Você só recebe o que importa para você. Nunca um lembrete que faz sentir culpa.',
+  leaderboardsNotOpenYet: {
+    fr: "Tous ces niveaux n'existent pas encore dans GRYD. L'onglet Classement montre ceux qui sont ouverts aujourd'hui.",
+    en: 'Not all of these levels exist in GRYD yet. The Leaderboard tab shows the ones that are open today.',
+    es: 'Todavía no existen todos estos niveles en GRYD. La pestaña Clasificación muestra los que están abiertos hoy.',
+    de: 'Es gibt noch nicht alle diese Ebenen in GRYD. Der Ranking-Tab zeigt die, die heute offen sind.',
+    pt: 'Nem todos esses níveis existem ainda no GRYD. A aba Classificação mostra os que estão abertos hoje.',
   },
-  sectionProfileVisible: {
-    fr: 'PROFIL VISIBLE PAR',
-    en: 'PROFILE VISIBLE TO',
-    es: 'PERFIL VISIBLE PARA',
-    de: 'PROFIL SICHTBAR FÜR',
-    pt: 'PERFIL VISÍVEL PARA',
+  // ─── LA VISIBILITÉ N'A QU'UN SEUL ENDROIT (E21) ───────────────────────────
+  // Cet écran proposait « Profil visible par », « Partage d'activité » et
+  // « Trace sur la carte » — qui écrivaient dans `motivation/store`, alors que
+  // le Profil et l'édition de profil LISENT `privacy/store`. Régler « Moi seul »
+  // ici ne changeait rien à ce que le Profil affichait. La ligne ci-dessous
+  // renvoie à l'écran qui décide vraiment, au lieu d'un second réglage inerte.
+  visibilityRowLabel: {
+    fr: 'Visibilité et partage',
+    en: 'Visibility & sharing',
+    es: 'Visibilidad y compartir',
+    de: 'Sichtbarkeit & Teilen',
+    pt: 'Visibilidade e compartilhamento',
   },
-  sectionActivitySharing: {
-    fr: "PARTAGE D'ACTIVITÉ",
-    en: 'ACTIVITY SHARING',
-    es: 'COMPARTIR ACTIVIDAD',
-    de: 'AKTIVITÄT TEILEN',
-    pt: 'COMPARTILHAR ATIVIDADE',
-  },
-  sectionMapTrace: {
-    fr: 'TRACE SUR LA CARTE',
-    en: 'TRACE ON THE MAP',
-    es: 'TRAZADO EN EL MAPA',
-    de: 'SPUR AUF DER KARTE',
-    pt: 'TRAÇADO NO MAPA',
-  },
-  mapTraceNote: {
-    fr: "Ta position en direct n'est jamais partagée.",
-    en: 'Your live location is never shared.',
-    es: 'Tu posición en directo nunca se comparte.',
-    de: 'Dein Live-Standort wird nie geteilt.',
-    pt: 'Sua localização ao vivo nunca é compartilhada.',
-  },
-  sectionHaptics: {
-    fr: 'RETOURS HAPTIQUES',
-    en: 'HAPTIC FEEDBACK',
-    es: 'RESPUESTA HÁPTICA',
-    de: 'HAPTIK',
-    pt: 'RESPOSTA TÁTIL',
-  },
-  hapticsTitle: {
-    fr: 'Retours haptiques',
-    en: 'Haptic feedback',
-    es: 'Respuesta háptica',
-    de: 'Haptisches Feedback',
-    pt: 'Resposta tátil',
-  },
-  hapticsSubtitle: {
-    fr: 'Vibrations légères sur les captures, badges et victoires.',
-    en: 'Light vibrations on captures, badges and wins.',
-    es: 'Vibraciones suaves en capturas, badges y victorias.',
-    de: 'Leichte Vibration bei Eroberungen, Badges und Siegen.',
-    pt: 'Vibrações leves em capturas, badges e vitórias.',
+  visibilityRowSublabel: {
+    fr: 'Qui voit ton profil, tes courses et ta trace — dans Confidentialité.',
+    en: 'Who sees your profile, your runs and your trace — in Privacy.',
+    es: 'Quién ve tu perfil, tus carreras y tu trazado — en Privacidad.',
+    de: 'Wer dein Profil, deine Läufe und deine Spur sieht — unter Privatsphäre.',
+    pt: 'Quem vê seu perfil, suas corridas e seu traçado — em Privacidade.',
   },
   sectionDiscreet: {
     fr: 'MODE DISCRET',
@@ -565,81 +510,13 @@ export const C = defineCatalog({
     pt: 'Conquista, defesa, rankings. Você joga pelo seu crew.',
   },
 
-  // ─── Labels — visibilité du profil (§4, pastilles : COURTES) ──────────────
-  visPrivate: {
-    fr: 'Moi seul',
-    en: 'Only me',
-    es: 'Solo yo',
-    de: 'Nur ich',
-    pt: 'Só eu',
-  },
-  visFriends: {
-    fr: 'Mes amis',
-    en: 'My friends',
-    es: 'Mis amigos',
-    de: 'Freunde',
-    pt: 'Meus amigos',
-  },
-  visCrew: {
-    fr: 'Mon crew',
-    en: 'My crew',
-    es: 'Mi crew',
-    de: 'Meine Crew',
-    pt: 'Meu crew',
-  },
-  visPublic: {
-    fr: 'Public',
-    en: 'Public',
-    es: 'Público',
-    de: 'Öffentlich',
-    pt: 'Público',
-  },
-
-  // ─── Labels — partage d'activité (§4) ─────────────────────────────────────
-  actPrivate: {
-    fr: 'Personne',
-    en: 'No one',
-    es: 'Nadie',
-    de: 'Niemand',
-    pt: 'Ninguém',
-  },
-  actStatsOnly: {
-    fr: 'Stats seules (sans trace)',
-    en: 'Stats only (no trace)',
-    es: 'Solo stats (sin trazado)',
-    de: 'Nur Stats (ohne Spur)',
-    pt: 'Só stats (sem traçado)',
-  },
-
-  // ─── Labels — trace sur la carte (§4) ─────────────────────────────────────
-  mapPrecise: {
-    fr: 'Trace précise',
-    en: 'Precise trace',
-    es: 'Trazado preciso',
-    de: 'Genaue Spur',
-    pt: 'Traçado preciso',
-  },
-  mapSimplified: {
-    fr: 'Trace simplifiée',
-    en: 'Simplified trace',
-    es: 'Trazado simplificado',
-    de: 'Vereinfachte Spur',
-    pt: 'Traçado simplificado',
-  },
-  mapTerritoryOnly: {
-    fr: 'Territoire seul',
-    en: 'Territory only',
-    es: 'Solo territorio',
-    de: 'Nur Gebiet',
-    pt: 'Só território',
-  },
-  mapNone: {
-    fr: 'Rien',
-    en: 'Nothing',
-    es: 'Nada',
-    de: 'Nichts',
-    pt: 'Nada',
-  },
+  // ─── CE QUI A ÉTÉ RETIRÉ ICI LE 25/07/2026 ────────────────────────────────
+  // Les dix libellés de visibilité / partage d'activité / trace sur la carte
+  // (`visPrivate`…`mapNone`) ne servaient QUE `settings-motivation`, qui les
+  // écrivait dans `motivation/store` — un magasin que ni le Profil ni l'édition
+  // de profil ne lisent. La visibilité n'a désormais qu'un seul écran
+  // (Confidentialité) et qu'un seul jeu de libellés (domaine `features/privacy`).
+  // Deux vocabulaires pour un même concept, c'était déjà deux vérités.
 
   // ─── Labels — modes de course au départ (§2/§8) ───────────────────────────
   runModeConqueteTitle: {

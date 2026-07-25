@@ -1,19 +1,62 @@
 /**
- * GRYD — CODE DE CONDUITE de la communauté (AMENDEMENT-33 §1, App Store
- * Guideline 1.2). Écran POUSSÉ depuis le Chat crew. Règles COURTES de la
- * communauté + « Tolérance zéro » harcèlement/haine. Volontairement sobre :
- * ton calme, cards courtes iconées, pas de vocabulaire gaming. Rappelle aussi
- * comment SIGNALER / BLOQUER (déjà dans le chat) — Apple veut voir un moyen
- * clair de modérer le contenu généré par les utilisateurs. Contenu légal RÉEL.
+ * GRYD — CODE DE CONDUITE (App Store Guideline 1.2). C'est le texte qu'un
+ * examinateur lit comme un ENGAGEMENT de modération : chacune de ses phrases est
+ * opposable, donc chacune doit être vraie dans CE build.
+ *
+ * ─── ORDRE DE COMPOSITION ─────────────────────────────────────────────────────
+ *   1. `StackScreen` : kicker « COMMUNAUTÉ » + titre + sous-titre ;
+ *   2. LES RÈGLES — cinq blocs courts, un par règle ;
+ *   3. MODÉRATION — ce qui se passe quand une règle est enfreinte ;
+ *   4. LE CHEMIN VERS L'ACTION — une `ListRow` vers Confidentialité, où
+ *      signaler et bloquer existent RÉELLEMENT ;
+ *   5. la note de pied, qui redit l'engagement sans le dépasser.
+ *
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
+ * · QUATRE COPIES DÉCRIVANT UN CHAT QUI N'EXISTE PAS : « appui long ou menu
+ *   "Signaler" » sur un message, « bloquer masque tous ses messages », « le chat
+ *   crew sert à jouer ». Il n'y a ni route, ni onglet, ni écran de chat — le chat
+ *   libre est refusé (A-43 §9) et l'écran Crew le dit lui-même. Les règles
+ *   portent maintenant sur ce qui existe : le pseudo et le nom de crew.
+ * · LA CONTRADICTION AVEC `/support`. Cet écran promettait « une personne lit
+ *   chaque signalement » pendant que l'Aide répondait « cette remontée n'est pas
+ *   encore transmise » dans le même build. Elle est levée du bon côté : l'Aide
+ *   ne prétend plus recevoir ce qu'elle ne reçoit pas, et le signalement de
+ *   joueur — qui, lui, écrit vraiment dans `content_reports` — est nommé avec sa
+ *   condition (un compte).
+ * · L'ABSENCE DE CHEMIN VERS L'ACTION. L'écran expliquait comment signaler et
+ *   bloquer sans un seul lien vers l'endroit où ces deux gestes se font.
+ * · Le carré d'icône CADRÉ enfermé dans une card CADRÉE (un contour dans un
+ *   contour) → `IconPlate`, la seule source du carré d'icône ; et les huit
+ *   cadres permanents des cards → surface N1 séparée par l'espace.
+ * · Le sur-titre recodé à la main → `SectionLabel` (rôle typo R1).
+ *
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE ──────────────────────────────────────────────
+ * · L'écran ne fait aucune lecture réseau : pas d'état vide, d'échec ni de
+ *   chargement — il le déclare ici plutôt que d'en simuler.
+ * · Le filtre de mots reste local et minimal (`features/crew/moderation.ts`) :
+ *   le nom de crew, lui, est filtré côté SERVEUR (migration 0050). Le code de
+ *   conduite ne détaille pas ce partage — il décrit la règle, pas son moteur.
  */
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, gameColors, radii, spacing, type IconName } from '@klaim/shared';
+import { router } from 'expo-router';
+import {
+  colors,
+  elevation,
+  fontSizes,
+  gameColors,
+  radii,
+  spacing,
+  typography,
+  type IconName,
+} from '@klaim/shared';
 import { C } from '../src/i18n/catalog/reglages';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
-import { Icon } from '../src/ui/Icon';
+import { IconPlate } from '../src/ui/Card';
+import { ListRow } from '../src/ui/ListRow';
+import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
 
 interface Rule {
@@ -39,13 +82,13 @@ const ENFORCEMENT: readonly Rule[] = [
   { key: 'sanctions', icon: 'fermer', title: C.sanctionsTitle, body: C.sanctionsBody },
 ];
 
-function RuleCard({ rule, tint = colors.blanc }: { rule: Rule; tint?: string }) {
+function RuleCard({ rule, tint = colors.gris }: { rule: Rule; tint?: string }) {
   const t = useT();
   return (
     <View style={styles.card}>
-      <View style={styles.iconWrap}>
-        <Icon name={rule.icon} size={18} color={tint} />
-      </View>
+      {/* `IconPlate` : la SEULE source du carré d'icône. L'ancien `iconWrap`
+          local était un carré bordé à l'intérieur d'une card bordée. */}
+      <IconPlate icon={rule.icon} size="md" color={tint} />
       <View style={styles.info}>
         <Text style={styles.title}>{t(rule.title)}</Text>
         <Text style={styles.body}>{t(rule.body)}</Text>
@@ -67,68 +110,67 @@ export default function CodeConduiteScreen() {
       kicker={t(C.conduiteKicker)}
       subtitle={t(C.conduiteSubtitle)}
     >
-      <View style={styles.list}>
-        <Text style={styles.sectionLabel}>{t(C.secLesRegles)}</Text>
-        {RULES.map((r) => (
-          <RuleCard
-            key={r.key}
-            rule={r}
-            tint={r.key === 'zero_haine' ? gameColors.danger : colors.blanc}
-          />
-        ))}
+      <SectionLabel style={styles.kicker}>{t(C.secLesRegles)}</SectionLabel>
+      {RULES.map((r) => (
+        <RuleCard
+          key={r.key}
+          rule={r}
+          // La couleur porte un RÔLE (l'urgence de la tolérance zéro), jamais
+          // une identité — et elle est toujours doublée par le TITRE.
+          tint={r.key === 'zero_haine' ? gameColors.danger : colors.gris}
+        />
+      ))}
 
-        <Text style={styles.sectionLabel}>{t(C.secModeration)}</Text>
-        {ENFORCEMENT.map((r) => (
-          <RuleCard key={r.key} rule={r} />
-        ))}
-      </View>
+      <SectionLabel style={styles.kicker}>{t(C.secModeration)}</SectionLabel>
+      {ENFORCEMENT.map((r) => (
+        <RuleCard key={r.key} rule={r} />
+      ))}
+
+      {/* LE CHEMIN QUI MANQUAIT : l'écran expliquait comment signaler et bloquer
+          sans jamais mener là où ces deux gestes existent. */}
+      <ListRow
+        icon="verrou"
+        label={t(C.conduiteActionCta)}
+        sublabel={t(C.conduiteActionDetail)}
+        chevron
+        onPress={() => router.push('/confidentialite')}
+        style={styles.actionRow}
+      />
 
       <Text style={styles.footnote}>{t(C.conduiteFootnote)}</Text>
     </StackScreen>
   );
 }
 
+/** Rythme vertical des sur-titres — commun à tous les écrans de réglages. */
+const KICKER_TOP = 24;
+const KICKER_BOTTOM = 12;
+
 const styles = StyleSheet.create({
-  list: { marginTop: 8 },
-  sectionLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    marginTop: 24,
-    marginBottom: 12,
-  },
+  kicker: { marginTop: KICKER_TOP, marginBottom: KICKER_BOTTOM },
+  // Surface N1 SANS contour : les blocs se séparent par l'espace (règle 80/20).
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 14,
-    backgroundColor: colors.carbone,
+    gap: spacing.sm,
+    backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
     paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding,
+    paddingHorizontal: spacing.cardPadding - 2,
     marginBottom: 10,
   },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   info: { flex: 1 },
-  title: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  title: { ...typography.itemTitle, color: colors.blanc },
   body: {
+    ...typography.meta,
     color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.5,
-    marginTop: 4,
+    lineHeight: fontSizes.xs * 1.6,
+    marginTop: spacing.xxs,
   },
+  actionRow: { marginTop: KICKER_TOP },
   footnote: {
+    ...typography.meta,
     color: colors.gris,
-    fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
     marginTop: 18,
   },

@@ -32,6 +32,33 @@
  * Un document CONTRACTUEL est l'endroit où « une doc ne promet jamais au-delà
  * du code » est le plus strict : ces produits en sont retirés, et la liste dit
  * désormais explicitement qu'ils ne sont vendus dans aucune monnaie.
+ *
+ * ─── 25/07/2026 : LA POLITIQUE NE DÉCLARE PLUS CE QUI N'EXISTE PAS ──────────
+ * Cinq déclarations juridiques étaient FAUSSES dans ce fichier. Un document RGPD
+ * qui déclare une collecte qui n'a pas lieu est un faux au même titre qu'une
+ * donnée fabriquée à l'écran — en pire, puisqu'il engage l'éditeur :
+ *  1. « messages de CHAT de crew » : il n'y a pas de chat dans GRYD, il est
+ *     REFUSÉ (A-43 §9). Le crew échange par SIGNAUX à vocabulaire fermé
+ *     (`features/crew/pings.ts`, migration 0051) ; `chatStore.ts` a été supprimé
+ *     et l'écran crew n'a jamais eu de 4ᵉ onglet.
+ *  2. « Santé importée depuis Apple Santé / HealthKit » : HealthKit n'est PAS
+ *     branché — l'adaptateur est un stub honnête (`sources/adapters/appleHealth.ts`,
+ *     statut `needs_dev_build`), aucun module natif santé n'est en dépendance.
+ *     La politique classait donc en donnée sensible (art. 9) une collecte
+ *     inexistante. Ce qui existe VRAIMENT et n'était nulle part : l'import de
+ *     courses par fichier GPX et par service tiers connecté.
+ *  3. « réactions » collectées : les réactions (dons, conquêtes) sont persistées
+ *     en AsyncStorage et ne quittent jamais l'appareil.
+ *  4. « Paiement : Apple / Google » présenté comme un traitement EN COURS, alors
+ *     que la CGV du même build dit qu'aucune offre n'est commercialisée. Deux
+ *     textes contractuels embarqués qui se contredisaient.
+ *  5. « Écris-nous depuis la page Support » (×6) : `/support` n'a NI adresse, NI
+ *     formulaire, NI `mailto:`. Une politique RGPD dont le canal d'exercice des
+ *     droits n'existe pas est un défaut juridique, pas un défaut d'UI. Le canal
+ *     nommé est désormais le COURRIER au siège — réel, vérifiable, et qui reste
+ *     vrai le jour où un e-mail de contact s'ouvrira.
+ * La région d'hébergement, elle, n'était pas fausse : elle était NON SOURCÉE.
+ * Elle l'est maintenant (cf. `LEGAL_HOSTING`).
  */
 import { defineCatalog, type Entry } from '../types';
 
@@ -45,6 +72,31 @@ export const LEGAL_ENTITY = {
   siren: '982 786 154',
   vat: 'FR18982786154',
   president: 'Benjamin Bel',
+} as const;
+
+/**
+ * HÉBERGEMENT — source unique, et SOURCÉE.
+ *
+ * La région était écrite en dur dans trois textes (mentions légales, politique
+ * §sous-traitants, §transferts) sans s'adosser à rien. Or c'est elle qui fonde
+ * la clause « aucun transfert hors UE » : une phrase qui porte une garantie RGPD
+ * ne peut pas être une supposition recopiée trois fois.
+ *
+ * PROVENANCE (vérifiée le 25/07/2026) : le projet Supabase LIÉ de ce dépôt est
+ * `gryd` (ref `sydwxwwirinjoheeodcg`) et son pooler répond sur
+ * `aws-0-eu-west-1.pooler.supabase.com` — AWS eu-west-1, Irlande, Union
+ * européenne. À RE-VÉRIFIER au tableau de bord Supabase si le projet est migré :
+ * la clause de non-transfert tombe avec lui.
+ *
+ * ⚠️ CE QUI MANQUE ENCORE, ET QUI N'EST PAS INVENTÉ ICI : la LCEN art. 6-III
+ * impose de publier la dénomination, l'ADRESSE et le TÉLÉPHONE de l'hébergeur.
+ * Ces trois éléments ne figurent nulle part dans le dépôt (ils sont dans le
+ * contrat Supabase du fondateur). On ne les fabrique pas : les mentions légales
+ * nomment l'hébergeur et sa région, et le manque est inscrit en suspens.
+ */
+export const LEGAL_HOSTING = {
+  provider: 'Supabase',
+  region: 'eu-west-1',
 } as const;
 
 /**
@@ -129,12 +181,13 @@ export const C = defineCatalog({
     de: 'HOSTING',
     pt: 'HOSPEDAGEM',
   },
+  /** {provider} / {region} viennent de LEGAL_HOSTING — jamais retapés. */
   hostingBody: {
-    fr: 'Les données de GRYD sont hébergées par Supabase, sur des serveurs situés dans l’Union européenne (région eu-west-1, Irlande).',
-    en: 'GRYD data is hosted by Supabase, on servers located in the European Union (eu-west-1 region, Ireland).',
-    es: 'Los datos de GRYD están alojados por Supabase, en servidores situados en la Unión Europea (región eu-west-1, Irlanda).',
-    de: 'Die Daten von GRYD werden von Supabase auf Servern in der Europäischen Union gehostet (Region eu-west-1, Irland).',
-    pt: 'Os dados da GRYD são hospedados pela Supabase, em servidores na União Europeia (região eu-west-1, Irlanda).',
+    fr: 'Les données de GRYD sont hébergées par {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).',
+    en: 'GRYD data is hosted by {provider}, on servers located in the European Union ({region} region, Ireland).',
+    es: 'Los datos de GRYD están alojados por {provider}, en servidores situados en la Unión Europea (región {region}, Irlanda).',
+    de: 'Die Daten von GRYD werden von {provider} auf Servern in der Europäischen Union gehostet (Region {region}, Irland).',
+    pt: 'Os dados da GRYD são hospedados pela {provider}, em servidores na União Europeia (região {region}, Irlanda).',
   },
 
   // ── Tes données (renvoi vers les droits RÉELLEMENT exerçables dans l'app) ──
@@ -149,13 +202,17 @@ export const C = defineCatalog({
    * Ne promet QUE ce que l'app fait vraiment : l'export et la suppression sont
    * exerçables depuis Confidentialité. Si un jour ces boutons disparaissent,
    * ce texte doit disparaître avec eux.
+   *
+   * ⚠️ LA CONDITION MANQUAIT (même correction que `cguCompteBody`) : les deux
+   * actions ne sont armées que si une session existe — sans compte, l'écran
+   * Confidentialité refuse et le dit (`confidentialite.tsx:238` et `:298`).
    */
   dataBody: {
-    fr: 'Tu peux récupérer une copie de tes données et supprimer ton compte à tout moment, depuis Réglages puis Confidentialité. La suppression rend ton profil invisible immédiatement, puis efface définitivement tes données à l’issue d’un délai — te reconnecter avant la fin de ce délai annule la suppression.',
-    en: 'You can download a copy of your data and delete your account at any time, from Settings then Privacy. Deletion hides your profile immediately, then permanently erases your data after a delay — signing back in before the end of that delay cancels the deletion.',
-    es: 'Puedes descargar una copia de tus datos y eliminar tu cuenta cuando quieras, desde Ajustes y luego Privacidad. La eliminación oculta tu perfil de inmediato y borra definitivamente tus datos tras un plazo — volver a iniciar sesión antes del final de ese plazo cancela la eliminación.',
-    de: 'Du kannst jederzeit eine Kopie deiner Daten herunterladen und dein Konto löschen, unter Einstellungen und dann Datenschutz. Die Löschung blendet dein Profil sofort aus und entfernt deine Daten nach einer Frist endgültig — meldest du dich vorher wieder an, wird die Löschung abgebrochen.',
-    pt: 'Você pode baixar uma cópia dos seus dados e excluir sua conta quando quiser, em Configurações e depois Privacidade. A exclusão oculta seu perfil imediatamente e apaga definitivamente seus dados após um prazo — entrar novamente antes do fim desse prazo cancela a exclusão.',
+    fr: 'Si tu as un compte, tu peux récupérer une copie de tes données et le supprimer à tout moment, depuis Réglages puis Confidentialité. La suppression rend ton profil invisible immédiatement, puis efface définitivement tes données à l’issue d’un délai — te reconnecter avant la fin de ce délai annule la suppression.',
+    en: 'If you have an account, you can download a copy of your data and delete it at any time, from Settings then Privacy. Deletion hides your profile immediately, then permanently erases your data after a delay — signing back in before the end of that delay cancels the deletion.',
+    es: 'Si tienes una cuenta, puedes descargar una copia de tus datos y eliminarla cuando quieras, desde Ajustes y luego Privacidad. La eliminación oculta tu perfil de inmediato y borra definitivamente tus datos tras un plazo — volver a iniciar sesión antes del final de ese plazo cancela la eliminación.',
+    de: 'Wenn du ein Konto hast, kannst du jederzeit eine Kopie deiner Daten herunterladen und es löschen, unter Einstellungen und dann Datenschutz. Die Löschung blendet dein Profil sofort aus und entfernt deine Daten nach einer Frist endgültig — meldest du dich vorher wieder an, wird die Löschung abgebrochen.',
+    pt: 'Se você tem uma conta, pode baixar uma cópia dos seus dados e excluí-la quando quiser, em Configurações e depois Privacidade. A exclusão oculta seu perfil imediatamente e apaga definitivamente seus dados após um prazo — entrar novamente antes do fim desse prazo cancela a exclusão.',
   },
 
   // ── Contact ──
@@ -166,12 +223,19 @@ export const C = defineCatalog({
     de: 'KONTAKT',
     pt: 'CONTATO',
   },
+  /**
+   * ⚠️ NE PAS REMETTRE « depuis la page Support ». `/support` n'a ni adresse
+   * e-mail, ni formulaire, ni `mailto:` — ses cartes ouvrent une alerte qui dit
+   * elle-même que la remontée n'est pas transmise. Le canal nommé ici doit être
+   * un canal qui EXISTE : l'adresse du siège, déjà publiée au-dessus.
+   * {address} vient de LEGAL_ENTITY.
+   */
   contactBody: {
-    fr: 'Pour toute question, une réclamation ou l’exercice de tes droits : écris-nous depuis la page Support.',
-    en: 'For any question, complaint or to exercise your rights: contact us from the Support page.',
-    es: 'Para cualquier pregunta, reclamación o para ejercer tus derechos: escríbenos desde la página de Soporte.',
-    de: 'Bei Fragen, Beschwerden oder zur Ausübung deiner Rechte: schreib uns über die Support-Seite.',
-    pt: 'Para qualquer dúvida, reclamação ou para exercer seus direitos: fale conosco pela página de Suporte.',
+    fr: 'Pour toute question, une réclamation ou l’exercice de tes droits, écris-nous par courrier : {name}, {address}.',
+    en: 'For any question, complaint or to exercise your rights, write to us by post: {name}, {address}.',
+    es: 'Para cualquier pregunta, reclamación o para ejercer tus derechos, escríbenos por correo postal: {name}, {address}.',
+    de: 'Bei Fragen, Beschwerden oder zur Ausübung deiner Rechte schreib uns per Post: {name}, {address}.',
+    pt: 'Para qualquer dúvida, reclamação ou para exercer seus direitos, escreva-nos por carta: {name}, {address}.',
   },
 
   // ════════════════════════════════════════════════════════════════════════
@@ -191,7 +255,43 @@ export const C = defineCatalog({
     de: 'Aktualisiert am {date}',
     pt: 'Atualizado em {date}',
   },
-  /** Bandeau (intro) de chaque document — la SEULE ligne réellement traduite. */
+  /**
+   * SUR-TITRES DE DOCUMENT (loi n°2 : aucun écran ne commence sans kicker).
+   * Ils sont RÉELLEMENT traduits : ce sont des repères de navigation, pas du
+   * fond légal. `privacyKicker` fait un second travail — lever l'ambiguïté entre
+   * le DOCUMENT (/legal/confidentialite) et l'écran de RÉGLAGES homonyme
+   * (/confidentialite), qui portent le même titre dans la même app.
+   */
+  cguKicker: {
+    fr: 'CONDITIONS · UTILISATION',
+    en: 'TERMS · USE',
+    es: 'CONDICIONES · USO',
+    de: 'BEDINGUNGEN · NUTZUNG',
+    pt: 'CONDIÇÕES · UTILIZAÇÃO',
+  },
+  privacyKicker: {
+    fr: 'POLITIQUE · RGPD',
+    en: 'POLICY · GDPR',
+    es: 'POLÍTICA · RGPD',
+    de: 'RICHTLINIE · DSGVO',
+    pt: 'POLÍTICA · RGPD',
+  },
+  cgvKicker: {
+    fr: 'CONDITIONS · VENTE',
+    en: 'TERMS · SALE',
+    es: 'CONDICIONES · VENTA',
+    de: 'BEDINGUNGEN · VERKAUF',
+    pt: 'CONDIÇÕES · VENDA',
+  },
+  licencesKicker: {
+    fr: 'OPEN SOURCE · LICENCES',
+    en: 'OPEN SOURCE · LICENSES',
+    es: 'OPEN SOURCE · LICENCIAS',
+    de: 'OPEN SOURCE · LIZENZEN',
+    pt: 'OPEN SOURCE · LICENÇAS',
+  },
+
+  /** Bandeau (note d'état) de chaque document — la SEULE ligne réellement traduite. */
   legalReference: {
     fr: 'Version française de référence — seul le texte français fait foi.',
     en: 'French reference version — only the French text is legally binding.',
@@ -213,8 +313,14 @@ export const C = defineCatalog({
     'GRYD, édité par NEXUS 1993, est un jeu de conquête de territoire par la course à pied : chaque course réelle capture ou défend du territoire sur une carte. Les présentes conditions encadrent l’usage de l’application GRYD. En créant un compte ou en utilisant le service, tu les acceptes, de même que la Politique de confidentialité. Elles sont volontairement courtes et lisibles.',
   ),
   cguCompteHeading: fr5('TON COMPTE'),
+  /**
+   * ⚠️ LA DERNIÈRE PUCE POSAIT UNE CONDITION QU'ELLE NE DISAIT PAS. La
+   * suppression n'est armée QUE si une session existe (`confidentialite.tsx:238`
+   * : sans `configured && session`, l'écran refuse et le dit). L'affirmer sans
+   * réserve promettait au-delà du code ; la phrase porte désormais sa condition.
+   */
   cguCompteBody: fr5(
-    '· Tu dois avoir au moins {age} ans pour utiliser GRYD.\n· Tu es responsable de la confidentialité de ton accès et des activités menées depuis ton compte.\n· Tu fournis des informations exactes (pseudo, e-mail) et t’engages à ne pas usurper l’identité d’un tiers.\n· Tu peux supprimer ton compte à tout moment depuis l’application (Réglages, puis Confidentialité).',
+    '· Tu dois avoir au moins {age} ans pour utiliser GRYD.\n· Tu es responsable de la confidentialité de ton accès et des activités menées depuis ton compte.\n· Tu fournis des informations exactes (pseudo, e-mail) et t’engages à ne pas usurper l’identité d’un tiers.\n· Si tu as créé un compte, tu peux le supprimer à tout moment depuis l’application (Réglages, puis Confidentialité).',
   ),
   cguJeuHeading: fr5('RÈGLES DU JEU'),
   cguJeuBody: fr5(
@@ -231,14 +337,21 @@ export const C = defineCatalog({
     'Une course douteuse peut être rejetée ; un compte qui triche de façon répétée peut être suspendu ou fermé.',
   ),
   cguContenuHeading: fr5('CONTENU & MODÉRATION'),
+  /**
+   * ⚠️ « MESSAGES DE CREW » DÉCRIVAIT UNE MESSAGERIE QUI N'EXISTE PAS. GRYD n'a
+   * pas de chat : le crew échange par SIGNAUX à vocabulaire FERMÉ (catalogue
+   * `engine/crewSignals.ts`, pings serveur 0051). Le contenu réellement publié
+   * par un joueur, c'est son pseudo, le nom de son crew et ces signaux.
+   */
   cguContenuBody1: fr5(
-    'Tu restes propriétaire du contenu que tu publies (messages de crew, pseudo, nom de crew) et tu nous accordes une licence non exclusive et gratuite de l’afficher aux autres joueurs pour faire fonctionner le jeu. Tu t’engages à ne rien publier d’illégal, haineux, harcelant, sexuellement explicite ou trompeur.',
+    'Tu restes propriétaire du contenu que tu publies — ton pseudo, le nom de ton crew, les signaux que tu envoies à ton crew — et tu nous accordes une licence non exclusive et gratuite de l’afficher aux autres joueurs pour faire fonctionner le jeu. GRYD ne comporte pas de messagerie libre : les signaux de crew sont choisis dans un vocabulaire fermé. Tu t’engages à ne rien publier d’illégal, haineux, harcelant, sexuellement explicite ou trompeur.',
   ),
   cguContenuBody2: fr5(
-    'Nous appliquons une tolérance zéro pour les contenus abusifs. Dans l’application, tu peux signaler un message, un membre ou un contenu inapproprié, et bloquer un utilisateur pour ne plus voir ses messages ni interagir avec lui.',
+    'Nous appliquons une tolérance zéro pour les contenus abusifs. Depuis Réglages, puis Confidentialité, tu peux signaler un joueur ou un contenu inapproprié et bloquer un joueur pour ne plus interagir avec lui.',
   ),
+  /** {h} = REPORT_REVIEW_HOURS (features/crew/moderation.ts) — jamais un « 24 » en dur. */
   cguContenuBody3: fr5(
-    'Les signalements sont traités sous 24 heures. Nous pouvons retirer un contenu et suspendre les comptes qui enfreignent ces règles.',
+    'Nous nous engageons à examiner tout signalement sous {h} heures. Nous pouvons retirer un contenu et suspendre les comptes qui enfreignent ces règles.',
   ),
   cguAboHeading: fr5('ABONNEMENT & ACHATS — STATUT UNIQUEMENT'),
   cguAboBody1: fr5(
@@ -270,8 +383,9 @@ export const C = defineCatalog({
     'Ces conditions sont régies par le droit français. En cas de litige, tu peux recourir gratuitement à une médiation de la consommation avant toute action judiciaire (voir les Conditions Générales de Vente). À défaut d’accord amiable, les tribunaux français sont compétents, dans le respect des règles protectrices du consommateur.',
   ),
   cguContactHeading: fr5('CONTACT'),
+  /** {name} / {address} = LEGAL_ENTITY. Voir le commentaire de `contactBody`. */
   cguContactBody: fr5(
-    'Une question sur ces conditions ? Écris-nous depuis la page Support de l’application.',
+    'Une question sur ces conditions ? Écris-nous par courrier : {name}, {address}.',
   ),
 
   // ── Politique de confidentialité (RGPD) — DISTINCTE des réglages ─────────
@@ -287,17 +401,25 @@ export const C = defineCatalog({
     'Le responsable de traitement est NEXUS 1993 (SASU), éditrice de l’application GRYD, dont le siège est situé {address}. Nous traitons tes données conformément au Règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés.',
   ),
   privacyResponsableBody2: fr5(
-    '« GRYD » est le nom du produit ; l’entité juridique reste NEXUS 1993. Pour toute question sur tes données ou pour exercer tes droits, écris-nous depuis la page Support de l’application, ou par courrier à l’adresse du siège.',
+    '« GRYD » est le nom du produit ; l’entité juridique reste NEXUS 1993. Pour toute question sur tes données ou pour exercer tes droits, écris-nous par courrier à l’adresse du siège ci-dessus. L’export et la suppression de tes données, eux, s’exercent directement dans l’application (Réglages, puis Confidentialité).',
   ),
   privacyDonneesHeading: fr5('LES DONNÉES QUE NOUS COLLECTONS'),
   privacyDonneesBody1: fr5(
     'Nous collectons uniquement ce qui fait fonctionner le jeu. Aucune donnée n’est captée « au cas où ».',
   ),
+  /**
+   * ⚠️ TROIS COLLECTES DÉCLARÉES ICI N'AVAIENT PAS LIEU, ET UNE VRAIE MANQUAIT.
+   * Retirées : le CHAT de crew (aucune messagerie dans l'app), la SANTÉ importée
+   * d'Apple Santé (HealthKit non branché — stub `needs_dev_build`), les
+   * RÉACTIONS (persistées en AsyncStorage, elles ne quittent pas l'appareil).
+   * Ajoutée : l'IMPORT DE COURSES (fichier GPX, service tiers connecté), qui
+   * est un vrai envoi de tracé à nos serveurs et n'était déclaré nulle part.
+   */
   privacyDonneesBody2: fr5(
-    '· Compte : ton adresse e-mail et un identifiant (via Sign in with Apple ou un autre fournisseur), ton pseudo et, si tu le choisis, ton crew.\n· Localisation pendant une course : ta position GPS, enregistrée uniquement quand tu as lancé une course, pour tracer ton parcours et déterminer le territoire capturé ou défendu. Le suivi s’arrête dès la fin de la course.\n· Mouvement & podomètre : cadence, pas et cohérence de mouvement, lus pendant la course par « GRYD Verify » pour vérifier qu’il s’agit d’une vraie course à pied.\n· Santé importée (optionnelle) : si tu l’autorises explicitement, des données d’entraînement (fréquence cardiaque, distances) importées depuis Apple Santé / HealthKit. Autorisation facultative et révocable à tout moment.\n· Contenu que tu crées : messages de chat de crew, noms de crew, réactions.\n· Données techniques & de jeu : modèle d’appareil, version de l’app, journaux d’erreur, statistiques de jeu (zones tenues, points, badges).',
+    '· Compte : ton adresse e-mail et un identifiant (via Sign in with Apple ou un autre fournisseur), ton pseudo et, si tu le choisis, ton crew.\n· Localisation pendant une course : ta position GPS, enregistrée uniquement quand tu as lancé une course, pour tracer ton parcours et déterminer le territoire capturé ou défendu. Le suivi s’arrête dès la fin de la course.\n· Mouvement & podomètre : cadence, pas et cohérence de mouvement, lus pendant la course par « GRYD Verify » pour vérifier qu’il s’agit d’une vraie course à pied.\n· Courses importées, à ton initiative : si tu importes un fichier de course (GPX) ou connectes un service de suivi tiers, le tracé et les mesures de l’activité importée sont envoyés à nos serveurs pour être validés comme une course GRYD.\n· Contenu que tu crées : ton pseudo, le nom de ton crew si tu en crées un, les signaux que tu envoies à ton crew (vocabulaire fermé, il n’y a pas de messagerie libre) et les signalements que tu nous adresses.\n· Données techniques & de jeu : modèle d’appareil, version de l’app, journaux d’erreur, statistiques de jeu (zones tenues, points, badges).',
   ),
   privacyDonneesBody3: fr5(
-    'Nous ne collectons ni tes contacts, ni tes photos, ni tes données de navigation publicitaire. GRYD ne diffuse aucune publicité.',
+    'Nous ne collectons ni tes contacts, ni tes photos, ni tes données de navigation publicitaire, et GRYD ne lit aucune donnée d’Apple Santé ni de Google Health Connect : cette connexion n’existe pas dans l’application. GRYD ne diffuse aucune publicité.',
   ),
   privacyPositionHeading: fr5('TA POSITION N’EST JAMAIS PUBLIQUE'),
   privacyPositionBody1: fr5('C’est un principe non négociable de GRYD, pas une option :'),
@@ -307,24 +429,40 @@ export const C = defineCatalog({
   privacyFinalitesHeading: fr5('POURQUOI & BASE LÉGALE'),
   privacyFinalitesBody1: fr5('Chaque traitement a une finalité précise et une base légale RGPD :'),
   privacyFinalitesBody2: fr5(
-    '· Compte & e-mail — créer et sécuriser ton compte, te contacter au sujet du service : exécution du contrat (art. 6.1.b).\n· Localisation en course — tracer ton parcours, décider du territoire capturé ou défendu : exécution du contrat (art. 6.1.b).\n· Mouvement & podomètre — vérifier qu’une course est réelle (anti-triche) : intérêt légitime à l’équité du jeu (art. 6.1.f).\n· Santé importée — enrichir ton résumé de course : consentement explicite (art. 6.1.a et 9.2.a).\n· Contenu de crew — chat et vie de communauté : exécution du contrat (art. 6.1.b).\n· Journaux & technique — faire fonctionner l’app, corriger les bugs, prévenir la fraude : intérêt légitime (art. 6.1.f).',
+    '· Compte & e-mail — créer et sécuriser ton compte, te contacter au sujet du service : exécution du contrat (art. 6.1.b).\n· Localisation en course — tracer ton parcours, décider du territoire capturé ou défendu : exécution du contrat (art. 6.1.b).\n· Mouvement & podomètre — vérifier qu’une course est réelle (anti-triche) : intérêt légitime à l’équité du jeu (art. 6.1.f).\n· Courses importées — faire compter une course enregistrée ailleurs : exécution du contrat (art. 6.1.b), sur ton initiative.\n· Signaux de crew — coordonner une zone avec ton crew : exécution du contrat (art. 6.1.b).\n· Signalements — protéger les joueurs des contenus et comportements abusifs : intérêt légitime à la sécurité des joueurs (art. 6.1.f).\n· Journaux & technique — faire fonctionner l’app, corriger les bugs, prévenir la fraude : intérêt légitime (art. 6.1.f).',
   ),
   privacyFinalitesBody3: fr5(
-    'Quand un traitement repose sur le consentement (santé importée, notifications), tu peux le retirer à tout moment, sans que cela affecte le reste du jeu.',
+    'Quand un traitement repose sur le consentement (notifications), tu peux le retirer à tout moment, sans que cela affecte le reste du jeu.',
   ),
-  privacySanteHeading: fr5('GÉOLOCALISATION & SANTÉ — DONNÉES SENSIBLES'),
+  /**
+   * ⚠️ CETTE SECTION DÉCRIVAIT UN TRAITEMENT DE DONNÉES DE SANTÉ QUI N'A PAS
+   * LIEU. GRYD ne lit ni Apple Santé ni Health Connect (adaptateurs `stub`,
+   * aucun module natif en dépendance). La seule donnée de l'article 9 réellement
+   * en jeu est la géolocalisation précise — la section le dit maintenant, et
+   * énonce l'absence de collecte santé plutôt que de la passer sous silence :
+   * l'iPhone affiche une demande d'autorisation Santé (clé Info.plist déclarée),
+   * un lecteur pourrait légitimement croire que GRYD s'en sert.
+   */
+  privacySanteHeading: fr5('GÉOLOCALISATION — DONNÉE SENSIBLE'),
   privacySanteBody1: fr5(
-    'Les données de santé, et dans certains cas la géolocalisation précise, sont des catégories particulières de données au sens de l’article 9 du RGPD. Nous ne les traitons que sur la base de ton consentement explicite (santé importée) ou pour l’exécution de la course que tu lances toi-même (géolocalisation pendant une course), et jamais à des fins de profilage publicitaire.',
+    'La géolocalisation précise est, dans certains cas, une catégorie particulière de données au sens de l’article 9 du RGPD. Nous ne la traitons que pour l’exécution de la course que tu lances toi-même, jamais en arrière-plan hors course, et jamais à des fins de profilage publicitaire.',
   ),
   privacySanteBody2: fr5(
-    'Si tu autorises GRYD à lire des données depuis Apple Santé (HealthKit) : elles servent uniquement à enrichir ton expérience de course (résumé, historique), jamais à de la publicité ni à du marketing, et ne sont jamais revendues ni partagées avec des tiers à des fins publicitaires ou de courtage de données. Tu peux couper cet accès à tout moment depuis Réglages, Confidentialité, Santé sur ton iPhone — GRYD continue de fonctionner sans. Les données de mouvement / podomètre restent sur l’appareil autant que possible et ne sont transmises que pour valider une course.',
+    'GRYD n’importe AUCUNE donnée de santé : l’application n’est connectée ni à Apple Santé (HealthKit) ni à Google Health Connect, et ne lit donc ni ta fréquence cardiaque, ni ton poids, ni ton historique d’entraînement. Les données de mouvement et de podomètre restent sur l’appareil autant que possible et ne sont transmises que pour valider une course. Si un import santé devait ouvrir un jour, il serait facultatif, soumis à ton consentement explicite, et cette politique serait mise à jour AVANT.',
   ),
   privacyPartageHeading: fr5('PARTAGE & SOUS-TRAITANTS'),
   privacyPartageBody1: fr5(
     'Nous ne vendons aucune donnée personnelle. Nous ne cédons ni ne louons tes données à des courtiers ou à des annonceurs. Nous faisons appel à un nombre restreint de sous-traitants techniques, encadrés par contrat, uniquement pour faire tourner le service :',
   ),
+  /**
+   * ⚠️ LE PAIEMENT ÉTAIT DÉCLARÉ COMME UN TRAITEMENT EN COURS, alors que la CGV
+   * du même build affirme qu'aucune offre n'est commercialisée. Deux textes
+   * contractuels embarqués qui se contredisaient : la ligne dit désormais l'état
+   * RÉEL et ce qui se passera le jour où une offre ouvrira.
+   * {provider} / {region} = LEGAL_HOSTING (sourcé, cf. son commentaire).
+   */
   privacyPartageBody2: fr5(
-    '· Hébergement & base de données : Supabase, sur des serveurs situés dans l’Union européenne (région eu-west-1, Irlande).\n· Authentification : Apple (Sign in with Apple).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Paiement : Apple (In-App Purchase) ou Google (Google Play) pour l’abonnement et les achats ponctuels ; la plateforme gère la transaction, nous ne voyons pas ta carte bancaire.',
+    '· Hébergement & base de données : {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).\n· Authentification : Apple (Sign in with Apple) et, si tu l’utilises, Google (Sign in with Google).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Paiement : aucun. Aucune offre payante n’est commercialisée à ce jour, aucun paiement n’est encaissé. Le jour où des achats intégrés ouvriront, ils seront traités par Apple (App Store) ou Google (Google Play) : la plateforme gérerait la transaction, et nous ne verrions jamais ta carte bancaire.',
   ),
   privacyPartageBody3: fr5(
     'Nous pouvons divulguer des données si la loi l’exige (réquisition judiciaire), ou pour protéger nos droits et la sécurité des joueurs.',
@@ -343,7 +481,7 @@ export const C = defineCatalog({
     '· Accès & portabilité : obtenir une copie de tes données dans un format lisible (export).\n· Rectification : corriger une donnée inexacte (pseudo, e-mail).\n· Effacement : supprimer ton compte et tes données, directement depuis l’application (Réglages, puis Confidentialité), avec confirmation. La suppression rend ton profil invisible immédiatement, puis purge tes données serveur et locales.\n· Opposition & limitation : t’opposer à un traitement fondé sur l’intérêt légitime, ou en demander la limitation.\n· Retrait du consentement : couper à tout moment l’accès santé ou les notifications.',
   ),
   privacyDroitsBody3: fr5(
-    'Pour exercer tes droits, utilise la suppression et l’export in-app, ou écris-nous depuis la page Support. Tu peux aussi introduire une réclamation auprès de la CNIL (Commission nationale de l’informatique et des libertés, cnil.fr).',
+    'Pour exercer tes droits, utilise l’export et la suppression dans l’application (Réglages, puis Confidentialité), ou écris-nous par courrier à l’adresse du siège. Tu peux aussi introduire une réclamation auprès de la CNIL (Commission nationale de l’informatique et des libertés, cnil.fr).',
   ),
   privacySecuriteHeading: fr5('SÉCURITÉ'),
   privacySecuriteBody: fr5(
@@ -351,24 +489,55 @@ export const C = defineCatalog({
   ),
   privacyMineursHeading: fr5('MINEURS'),
   privacyMineursBody: fr5(
-    'GRYD est réservé aux personnes âgées d’au moins {age} ans. Nous ne collectons pas sciemment de données concernant des personnes plus jeunes. Si tu penses qu’un mineur de moins de {age} ans nous a transmis des données, écris-nous depuis la page Support et nous les supprimerons.',
+    'GRYD est réservé aux personnes âgées d’au moins {age} ans. Nous ne collectons pas sciemment de données concernant des personnes plus jeunes. Si tu penses qu’un mineur de moins de {age} ans nous a transmis des données, écris-nous par courrier à l’adresse du siège et nous les supprimerons.',
   ),
   privacyModifsHeading: fr5('MODIFICATIONS'),
   privacyModifsBody: fr5(
     'Nous pouvons faire évoluer cette politique. En cas de changement important, nous t’en informons dans l’application. La date de dernière mise à jour figure en haut de cette page.',
   ),
   privacyContactHeading: fr5('CONTACT'),
+  /** {name} / {address} = LEGAL_ENTITY : le canal est nommé ICI, pas renvoyé ailleurs. */
   privacyContactBody: fr5(
-    'Une question sur tes données ? Écris-nous depuis la page Support de l’application, ou par courrier à l’adresse du siège indiquée dans les Mentions légales. Tu peux aussi saisir la CNIL (cnil.fr).',
+    'Une question sur tes données ? Écris-nous par courrier : {name}, {address}. Tu peux aussi saisir la CNIL (cnil.fr).',
   ),
+  /**
+   * Ligne-lien de PIED de la politique (patron `ListRow` de navigation) : le
+   * document DÉCRIT des droits, l'écran de réglages les EXÉCUTE. Le texte
+   * renvoyait vers « Réglages, puis Confidentialité » sans y mener, alors que la
+   * route existe. Jamais un CTA chartreuse : un document ne porte pas la
+   * décision de l'écran, il y conduit.
+   */
+  privacyExerciseRow: {
+    fr: 'Exercer mes droits',
+    en: 'Exercise my rights',
+    es: 'Ejercer mis derechos',
+    de: 'Meine Rechte ausüben',
+    pt: 'Exercer meus direitos',
+  },
+  privacyExerciseHint: {
+    fr: 'Export et suppression, dans les réglages',
+    en: 'Export and deletion, in settings',
+    es: 'Exportación y eliminación, en los ajustes',
+    de: 'Export und Löschung, in den Einstellungen',
+    pt: 'Exportação e exclusão, nas configurações',
+  },
 
   // ── CGV — Conditions Générales de Vente ─────────────────────────────────
+  /**
+   * TITRE DE BARRE COURT, dans les cinq langues. « Allgemeine
+   * Verkaufsbedingungen » (261 px) débordait de la barre (241 px disponibles) et
+   * finissait en « … » — §A.9, aucun texte n'est coupé par une ellipse. Le
+   * titre de barre est un REPÈRE de navigation : la dénomination complète du
+   * document reste dans le kicker (« CONDITIONS · VENTE ») et dans le corps, qui
+   * dit « les présentes CGV ». Même arbitrage que les CGU, déjà titrées
+   * « Conditions d'utilisation ».
+   */
   cgvTitle: {
-    fr: 'Conditions Générales de Vente',
+    fr: 'Conditions de vente',
     en: 'Terms of Sale',
-    es: 'Condiciones Generales de Venta',
-    de: 'Allgemeine Verkaufsbedingungen',
-    pt: 'Condições Gerais de Venda',
+    es: 'Condiciones de venta',
+    de: 'Verkaufsbedingungen',
+    pt: 'Condições de venda',
   },
   cgvObjetHeading: fr5('OBJET & CHAMP D’APPLICATION'),
   cgvObjetBody: fr5(
@@ -376,22 +545,38 @@ export const C = defineCatalog({
   ),
   cgvVendeurHeading: fr5('VENDEUR'),
   cgvVendeurBody: fr5(
-    'Vendeur : {name} ({form}) au capital de {capital}, siège social {address}, immatriculée au RCS de {rcs} sous le numéro {siren}, TVA intracommunautaire {vat}. Contact : depuis la page Support de l’application. Le détail complet de l’éditeur figure dans les Mentions légales.',
+    'Vendeur : {name} ({form}) au capital de {capital}, siège social {address}, immatriculée au RCS de {rcs} sous le numéro {siren}, TVA intracommunautaire {vat}. Contact : par courrier à l’adresse du siège ci-dessus. Le détail complet de l’éditeur figure dans les Mentions légales.',
   ),
   cgvOffresHeading: fr5('OFFRES & PRIX'),
   cgvOffresBody1: fr5(
     'GRYD est jouable gratuitement dans son intégralité. Les offres payantes portent uniquement sur des éléments de confort et de statut : elles ne donnent ni territoire, ni points, ni victoire.',
   ),
-  cgvOffresBody2: fr5(
-    '· Abonnement (unique) — GRYD Club, mensuel ou annuel : bonus permanents de confort, d’information en lecture seule et de statut (stats avancées, historique complet, filtres de classement, templates de partage). Il ne comprend ni bouclier, ni gel de série, ni information tactique, ni protection de zone, ni avantage territorial d’aucune sorte.\n· Achats ponctuels — Founder Pack (à vie, édition limitée), Starter Pack et packs cosmétiques. Ils ne contiennent que du cosmétique, du statut et de la monnaie de style.\n· Ne sont vendus dans AUCUNE monnaie et ne sont inclus dans aucune offre : les objets qui touchent au jeu — bouclier de zone, gel de série, information tactique sur une zone, alerte d’attaque anticipée. Aucun paiement ne les procure, directement ou indirectement.',
+  /**
+   * TROIS PUCES, TROIS PARAGRAPHES. Elles étaient empilées dans une seule
+   * chaîne : une liste écrite comme un bloc n'est pas une liste, et la troisième
+   * — celle qui dit ce qui n'est JAMAIS vendu, donc la garantie anti-pay-to-win —
+   * était la moins visible des trois.
+   */
+  cgvOffresAbonnement: fr5(
+    '· Abonnement (unique) — GRYD Club, mensuel ou annuel : bonus permanents de confort, d’information en lecture seule et de statut (stats avancées, historique complet, filtres de classement, templates de partage). Il ne comprend ni bouclier, ni gel de série, ni information tactique, ni protection de zone, ni avantage territorial d’aucune sorte.',
+  ),
+  cgvOffresPonctuels: fr5(
+    '· Achats ponctuels — Founder Pack (à vie, édition limitée), Starter Pack et packs cosmétiques. Ils ne contiennent que du cosmétique, du statut et de la monnaie de style.',
+  ),
+  cgvOffresJamaisVendus: fr5(
+    '· Ne sont vendus dans AUCUNE monnaie et ne sont inclus dans aucune offre : les objets qui touchent au jeu — bouclier de zone, gel de série, information tactique sur une zone, alerte d’attaque anticipée. Aucun paiement ne les procure, directement ou indirectement.',
   ),
   /**
-   * MIROIR EXACT de la clause d'état ajoutée au /cgv du site. Les deux CGV sont
-   * le MÊME document contractuel : les laisser diverger serait pire que la faute
+   * LE FAIT QUI PRIME — rendu en CHAPEAU du document, pas en 3ᵉ position d'une
+   * section « Offres & prix ». C'est la vérité la plus importante des CGV : rien
+   * n'est en vente. Un lecteur qui ne lit que la première ligne doit la connaître.
+   *
+   * MIROIR EXACT de la clause d'état du /cgv du site. Les deux CGV sont le MÊME
+   * document contractuel : les laisser diverger serait pire que la faute
    * d'origine — un lecteur pourrait opposer la version qui l'arrange.
    */
-  cgvOffresBody2b: fr5(
-    'À la date d’entrée en vigueur ci-dessus, AUCUNE de ces offres n’est commercialisée. Aucun paiement n’est encaissable, ni sur le site ni dans l’application. Les tarifs annoncés sur les pages d’offres sont indicatifs tant qu’aucune vente n’est ouverte : ils ne constituent ni une offre ferme, ni un engagement de mise en vente à une date donnée.',
+  cgvStatusIntro: fr5(
+    'À la date d’entrée en vigueur indiquée ci-dessus, AUCUNE offre payante n’est commercialisée. Aucun paiement n’est encaissable, ni sur le site ni dans l’application. Les tarifs annoncés sur les pages d’offres sont indicatifs tant qu’aucune vente n’est ouverte : ils ne constituent ni une offre ferme, ni un engagement de mise en vente à une date donnée.',
   ),
   cgvOffresBody3: fr5(
     'Les tarifs sont indiqués en euros, toutes taxes comprises (TTC), sur les pages d’offres et rappelés avant la validation de la commande : le prix applicable est celui affiché à ce moment-là. Sur l’App Store et Google Play, les prix suivent les paliers tarifaires de la plateforme. Le vendeur se réserve le droit de modifier ses prix, sans effet sur les commandes déjà validées.',
@@ -425,11 +610,23 @@ export const C = defineCatalog({
     'Tu bénéficies de la garantie légale de conformité (art. L217-1 et suivants du Code de la consommation) et de la garantie contre les vices cachés (art. 1641 et suivants du Code civil), indépendamment de toute garantie commerciale. Pour un service numérique non conforme, tu peux en exiger la mise en conformité ou, à défaut, une réduction du prix ou la résolution du contrat.',
   ),
   cgvMediationHeading: fr5('RÉCLAMATIONS & MÉDIATION'),
+  /**
+   * ⚠️ DEUX DÉFAUTS CORRIGÉS DANS LA MÊME CLAUSE.
+   * 1. La réclamation PRÉALABLE (art. L612-1 : la médiation n'est ouverte
+   *    qu'après une réclamation écrite au professionnel) désignait un chemin qui
+   *    ne mène nulle part — `/support` n'a ni adresse, ni formulaire, ni
+   *    `mailto:`. Une voie de recours qui n'existe pas est pire qu'une voie
+   *    absente : elle fait perdre le délai. Le canal est maintenant le courrier.
+   * 2. Le renvoi vers la plateforme européenne RLL (`ec.europa.eu/consumers/odr`)
+   *    a été RETIRÉ, pas seulement rendu cliquable : cette plateforme a cessé son
+   *    activité. Peindre un recours fermé, en texte mort de surcroît, cumulait
+   *    les deux fautes — une promesse au-delà du réel, et un lien inatteignable.
+   */
   cgvMediationBody1: fr5(
-    'Toute réclamation peut nous être adressée depuis la page Support de l’application ; nous nous efforçons de la traiter dans les meilleurs délais. La médiation de la consommation prévue par l’article L612-1 du Code de la consommation est ouverte à tout consommateur en cas de litige non résolu. À ce jour, NEXUS 1993 n’a pas encore désigné de médiateur ; ses coordonnées seront publiées dans les présentes conditions dès sa désignation. Tu conserves à tout moment la faculté de saisir les tribunaux compétents.',
+    'Toute réclamation peut nous être adressée par courrier, à l’adresse du siège indiquée à l’article Vendeur ; nous nous efforçons de la traiter dans les meilleurs délais.',
   ),
   cgvMediationBody2: fr5(
-    'Tu peux également utiliser la plateforme européenne de règlement en ligne des litiges : ec.europa.eu/consumers/odr.',
+    'La médiation de la consommation prévue par l’article L612-1 du Code de la consommation est ouverte à tout consommateur en cas de litige non résolu, après une réclamation écrite adressée au vendeur. À ce jour, NEXUS 1993 n’a pas encore désigné de médiateur ; ses coordonnées seront publiées dans les présentes conditions dès sa désignation. Tu conserves à tout moment la faculté de saisir les tribunaux compétents.',
   ),
   cgvDonneesHeading: fr5('DONNÉES PERSONNELLES'),
   cgvDonneesBody: fr5(
@@ -450,11 +647,22 @@ export const C = defineCatalog({
   },
   licencesIntroHeading: fr5('GRYD & L’OPEN SOURCE'),
   licencesIntroBody: fr5(
-    'GRYD est bâti sur des logiciels libres et open source. Nous remercions leurs auteurs et leurs communautés. Chaque bibliothèque est distribuée sous sa propre licence ; le texte complet de chaque licence et les mentions de droits d’auteur sont disponibles auprès de chaque projet et, sur demande, depuis la page Support.',
+    'GRYD est bâti sur des logiciels libres et open source. Nous remercions leurs auteurs et leurs communautés. Chaque bibliothèque est distribuée sous sa propre licence ; le texte complet de chaque licence et les mentions de droits d’auteur sont disponibles auprès de chaque projet et, sur demande écrite adressée au siège, auprès de nous.',
   ),
   licencesMitHeading: fr5('LICENCE MIT'),
-  licencesMitBody: fr5(
-    'React, React DOM, React Native, React Native Web (Meta) ; Expo et ses modules — localisation, navigation, notifications, capteurs, GPS, partage, presse-papiers… (Expo) ; le SDK Supabase (@supabase/supabase-js) ; MapLibre React Native ; PostHog React Native ; react-native-svg ; react-native-safe-area-context ; react-native-screens ; react-native-qrcode-svg ; react-native-view-shot ; @react-native-async-storage/async-storage. Chacun est distribué sous licence MIT par ses auteurs respectifs.',
+  /**
+   * QUATORZE BIBLIOTHÈQUES SÉPARÉES PAR DES « ; » DANS UN SEUL PARAGRAPHE : ce
+   * n'était pas une mention, c'était un mur. Une liste se rend comme une liste
+   * (`LegalDoc` accepte un tableau de paragraphes).
+   */
+  licencesMitReact: fr5('· React, React DOM, React Native, React Native Web — Meta et les contributeurs du projet.'),
+  licencesMitExpo: fr5(
+    '· Expo et ses modules — routeur, localisation, notifications, capteurs, GPS, partage, presse-papiers, fichiers, navigateur intégré, chiffrement — Expo (650 Industries, Inc.).',
+  ),
+  licencesMitSupabase: fr5('· Le SDK Supabase (@supabase/supabase-js) — Supabase et les contributeurs du projet.'),
+  licencesMitMap: fr5('· MapLibre React Native — les contributeurs du projet MapLibre.'),
+  licencesMitRn: fr5(
+    '· react-native-svg, react-native-safe-area-context, react-native-screens, react-native-qrcode-svg, react-native-view-shot, @react-native-async-storage/async-storage — leurs auteurs respectifs.',
   ),
   licencesBsdHeading: fr5('LICENCE BSD 3-CLAUSES'),
   licencesBsdBody: fr5(
@@ -464,8 +672,45 @@ export const C = defineCatalog({
   licencesApacheBody: fr5(
     'H3 (h3-js) — système d’indexation géospatiale hexagonale, distribué sous licence Apache 2.0 par Uber Technologies, Inc.',
   ),
+  /**
+   * ⚠️ SECTION MANQUANTE, ET C'ÉTAIT UNE OBLIGATION NON TENUE. Les trois familles
+   * de caractères de Night Print sont chargées au démarrage (`src/lib/fonts.ts`)
+   * et publiées sous `MIT AND OFL-1.1` : la SIL Open Font License 1.1 EXIGE que
+   * la mention de copyright et de licence accompagne la distribution. L'écran ne
+   * connaissait que MIT / BSD / Apache — la condition d'usage des fontes n'était
+   * pas remplie. Les lignes de copyright sont RECOPIÉES des fichiers
+   * `LICENSE_FONT` des paquets installés, pas reconstituées de mémoire.
+   */
+  licencesOflHeading: fr5('SIL OPEN FONT LICENSE 1.1'),
+  licencesOflBody1: fr5(
+    'Les trois familles de caractères embarquées dans GRYD sont distribuées sous SIL Open Font License, Version 1.1, qui autorise leur usage — y compris commercial — à condition de conserver leurs mentions de droits d’auteur et de licence. Les voici :',
+  ),
+  licencesOflBody2: fr5(
+    '· Inter — Copyright 2020 The Inter Project Authors (github.com/rsms/inter).\n· Inter Tight — Copyright 2022 The Inter Project Authors (github.com/rsms/inter-tight).\n· JetBrains Mono — Copyright 2020 The JetBrains Mono Project Authors (github.com/JetBrains/JetBrainsMono).',
+  ),
+  licencesOflBody3: fr5(
+    'Elles sont installées via les paquets @expo-google-fonts (code sous licence MIT, fontes sous SIL OFL 1.1). Le texte intégral de la licence est publié sur scripts.sil.org/OFL.',
+  ),
+  /**
+   * Un paquet dont le `package.json` publié ne déclare AUCUNE licence. Le dire
+   * vaut mieux que de lui en attribuer une de mémoire : une mention de licence
+   * fausse est une faute au même titre qu'une mention absente.
+   */
+  licencesUndeclaredHeading: fr5('LICENCE NON DÉCLARÉE PAR LE PAQUET'),
+  licencesUndeclaredBody: fr5(
+    'posthog-react-native (PostHog) — le paquet publié ne déclare pas de licence dans ses métadonnées et n’en embarque pas le texte. Sa licence est celle publiée par le projet dont il provient (posthog-js-lite) ; nous ne lui en attribuons pas une autre ici.',
+  ),
   licencesFullHeading: fr5('TEXTES COMPLETS'),
   licencesFullBody: fr5(
-    'Les licences MIT, BSD 3-Clauses et Apache 2.0 autorisent la réutilisation de ces bibliothèques, y compris dans un produit commercial, à condition d’en conserver les mentions de droits d’auteur et de licence. Ces mentions accompagnent le code distribué ; leur texte intégral peut t’être communiqué à tout moment depuis la page Support.',
+    'Les licences MIT, BSD 3-Clauses, Apache 2.0 et SIL OFL 1.1 autorisent la réutilisation de ces bibliothèques et de ces fontes, y compris dans un produit commercial, à condition d’en conserver les mentions de droits d’auteur et de licence. Ces mentions accompagnent le code distribué ; leur texte intégral peut t’être communiqué sur demande écrite adressée au siège.',
+  ),
+  /**
+   * Ce que cette page NE couvre PAS, dit à sa place (en dernier, comme le
+   * scanner absent de `qr.tsx`) : les dépendances TRANSITIVES. Prétendre le
+   * contraire serait une exhaustivité inventée.
+   */
+  licencesScopeHeading: fr5('PÉRIMÈTRE DE CETTE PAGE'),
+  licencesScopeBody: fr5(
+    'Cette page liste les bibliothèques et fontes que GRYD embarque directement. Les composants dont elles dépendent à leur tour portent leurs propres licences, publiées par leurs projets respectifs.',
   ),
 });

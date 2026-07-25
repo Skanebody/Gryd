@@ -613,9 +613,15 @@ export default function ProfilScreen() {
             levelBadge={gameReady ? t(C.levelBadgeShort, { n: formatInt(runnerLevel) }) : null}
             equippedTitle={displayedTitle.length > 0 ? displayedTitle : undefined}
             contextSegments={identitySegments}
+            /* Le lien pointait sur `/crew-discovery`, qui n'est plus qu'une
+               REDIRECTION vers `/crew` (aucun annuaire de crews n'existe : ni
+               recherche, ni recrutement, ni modération serveur — O1). On route
+               donc directement, sans payer une frame de redirection. Le libellé
+               a suivi le même mouvement : il dit le chemin qui existe VRAIMENT
+               (cf. `linkFindCrew`). */
             findCrew={
               noCrewConfirmed
-                ? { label: t(C.linkFindCrew), onPress: () => router.push('/crew-discovery') }
+                ? { label: t(C.linkFindCrew), onPress: () => router.push('/crew') }
                 : undefined
             }
             /* Visibilité : absente tant que le store privacy n'a pas répondu. */

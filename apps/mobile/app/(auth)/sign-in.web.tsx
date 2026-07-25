@@ -3,6 +3,14 @@
  * `.tsx` : les modules natifs-only (expo-apple-authentication) ne sont PAS
  * importés dans le bundle web.
  *
+ * ═══ ORDRE DE COMPOSITION (parité stricte avec sign-in.tsx) ═════════════════
+ *  1. le champ d'hexagones, en plan de fond (`features/onboarding/PromiseHexField`) ;
+ *  2. la flèche de retour vers l'onboarding ;
+ *  3. le hero : kicker gris → titre display → sous-titre ;
+ *  4. le bloc d'actions, en pied — UNE branche à la fois :
+ *       âge refusé · lecture du gate en cours · question d'âge · voie e-mail ;
+ *  5. l'erreur, puis l'avis de non-persistance (gris, toutes branches confondues).
+ *
  * ─── CE QUE CE FICHIER FAISAIT DE FAUX (corrigé le 21/07/2026) ──────────────
  * Il renvoyait `<Redirect href="/" />` INCONDITIONNEL, en s'appuyant sur un
  * commentaire devenu faux (« en aperçu web la session est en mode non
@@ -24,9 +32,10 @@
  * POURQUOI PAS DE BOUTON APPLE / GOOGLE ICI : ils n'ont aucun chemin utilisable
  * dans un navigateur aujourd'hui (cf. entête de src/lib/auth.web.ts — O2 et URL
  * de redirection). Les peindre serait peindre deux boutons morts. Leur ABSENCE
- * n'est pas un mensonge ; un bouton qui échoue toujours en serait un. Le natif
- * (sign-in.tsx) garde Apple + Google + le même filet e-mail : l'écran web est
- * donc identique à ce que voit un Android sans Google configuré.
+ * n'est pas un mensonge ; un bouton qui échoue toujours en serait un. L'e-mail
+ * étant DONC la seule porte, elle est peinte comme telle : CTA chartreuse, champ
+ * ouvert d'emblée. Le natif (sign-in.tsx) applique la même règle dès qu'Apple et
+ * Google sont tous deux hors jeu.
  *
  * ─── LA SORTIE VERS L'ONBOARDING (21/07/2026, parité avec sign-in.tsx) ──────
  * Le lien « J'ai déjà un compte » du premier écran marque l'onboarding FAIT
@@ -50,12 +59,31 @@
  * un stockage défaillant coûte un tap de plus par lancement (et on le DIT), il
  * ne peut plus fermer la porte.
  *
- * ⚠️ PARITÉ avec sign-in.tsx : hero, copie (même catalogue i18n), gate d'âge et
- * styles sont dupliqués à la main. Toute évolution de l'un se reporte sur
- * l'autre. Le fork n'existe QUE pour tenir expo-apple-authentication hors du
- * bundle web.
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI (recalage Vague 1, 25/07/2026) ────────
+ * · L'EVENT `onboarding_step { n: 1 }` ÉMIS AU MONTAGE — le n RÉSERVÉ du splash
+ *   `hook` supprimé le 22/07/2026, que `content.ts` interdit explicitement de
+ *   réattribuer. Cet écran recollait deux populations sans rapport dans le même
+ *   pas d'entonnoir. Supprimé, pas renuméroté : /sign-in n'est pas une étape de
+ *   l'onboarding, et son entrée est déjà mesurée par le `screen()` du routeur.
+ * · ~85 LIGNES DE CHAMP D'HEXAGONES dupliquées verbatim avec le natif → elles
+ *   vivent dans `features/onboarding/PromiseHexField`. Le fork entre les deux
+ *   fichiers n'existe que pour un module natif ; ce visuel n'en dépend pas.
+ * · LE KICKER CHARTREUSE → `ui/SectionLabel` (gris, rôle R1).
+ * · LES BOUTONS RECODÉS (52 px, et leur `ghostDisabled` maison) → `ui/Button`.
+ *
+ * ─── ÉCARTS ASSUMÉS ─────────────────────────────────────────────────────────
+ * · PAS DE PLANCHE Vague 1 pour cet écran — il emprunte sa grammaire aux écrans
+ *   recalés plutôt que d'inventer une forme.
+ * · LE HERO N'EST PAS UN BANDEAU PLEIN CADRE (loi 1) — raison : le bloc
+ *   d'actions doit rester atteignable en fenêtre basse (ScrollView).
+ * · ⚠️ PARITÉ TENUE À LA MAIN avec sign-in.tsx : hero, copie (même catalogue),
+ *   gate d'âge et styles. Raison technique : le fork n'existe QUE pour tenir
+ *   `expo-apple-authentication` hors du bundle web. Tout ce qui pouvait être
+ *   partagé l'est désormais (catalogue, gate, `PromiseHexField`, `Button`,
+ *   `SectionLabel`) ; ce qui reste dupliqué, ce sont les styles. Toute évolution
+ *   de l'un se reporte sur l'autre.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Pressable,
@@ -67,115 +95,21 @@ import {
 } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
-import { colors, fonts, fontSizes, iconSizes, mapTokens, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fontSizes, fonts, iconSizes, radii, sizes, spacing, typography } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/auth';
 import { useT } from '../../src/i18n/store';
+import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
+import { SectionLabel } from '../../src/ui/SectionLabel';
 import type { Entry } from '../../src/i18n/types';
 import { AGE } from '../../src/features/onboarding/content';
+import { PromiseHexField } from '../../src/features/onboarding/PromiseHexField';
 import {
   STORAGE_UNAVAILABLE_NOTICE,
   useOnboardingState,
 } from '../../src/features/onboarding/store';
-import { EVENTS, track } from '../../src/lib/analytics';
 import { requestEmailOtp, verifyEmailOtp, type AuthResult } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
-
-const ONBOARDING_STEP_PROMISE = 1;
-
-/**
- * Visuel promesse — copie conforme de sign-in.tsx (§ PARITÉ ci-dessus) : un champ
- * d'hexagones ÉGOCENTRÉ derrière le hero. Purement décoratif, déterministe,
- * AUCUNE donnée fabriquée (pas de villes, pas de classements, pas de rivaux) et
- * 100 % tokens carte (mapTokens.*).
- */
-const FIELD_VB_W = 160;
-const FIELD_VB_H = 240;
-const HEX_R = 15;
-
-type HexRole = 'neutral' | 'mine' | 'foe';
-interface HexCell {
-  points: string;
-  role: HexRole;
-}
-
-function hexPoints(cx: number, cy: number, r: number): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 30); // pointy-top, comme AvatarHex/CrewFrame
-    pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
-  }
-  return pts.join(' ');
-}
-
-/** Nid d'abeilles déterministe : foyer capturé + frontière rivale + ville neutre. */
-function buildHexField(): HexCell[] {
-  const cells: HexCell[] = [];
-  const w = Math.sqrt(3) * HEX_R; // largeur d'un hex pointy-top
-  const vStep = 1.5 * HEX_R; // pas vertical du nid d'abeilles
-  const focalX = FIELD_VB_W * 0.42;
-  const focalY = FIELD_VB_H * 0.34;
-  let row = 0;
-  for (let cy = 0; cy <= FIELD_VB_H + HEX_R; cy += vStep, row += 1) {
-    const offset = row % 2 ? w / 2 : 0;
-    let col = 0;
-    for (let cx = -w; cx <= FIELD_VB_W + w; cx += w, col += 1) {
-      const x = cx + offset;
-      const d = Math.hypot(x - focalX, cy - focalY);
-      let role: HexRole = 'neutral';
-      if (d < 24) role = 'mine';
-      else if (d < 42 && (row + col) % 3 === 0) role = 'foe'; // quelques tuiles en lisière
-      cells.push({ points: hexPoints(x, cy, HEX_R - 1.2), role });
-    }
-  }
-  return cells;
-}
-
-const HEX_FIELD = buildHexField();
-
-const HEX_FILL: Record<HexRole, string> = {
-  neutral: 'none',
-  mine: mapTokens.mineFill,
-  foe: mapTokens.foeFill,
-};
-const HEX_STROKE: Record<HexRole, string> = {
-  neutral: mapTokens.neutralStroke,
-  mine: mapTokens.mineStroke,
-  foe: mapTokens.foeStroke,
-};
-
-function PromiseHexField() {
-  return (
-    <View style={styles.backdrop} pointerEvents="none" accessible={false}>
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${FIELD_VB_W} ${FIELD_VB_H}`}
-        preserveAspectRatio="xMidYMin slice"
-      >
-        {HEX_FIELD.map((cell, i) => (
-          <Polygon
-            key={i}
-            points={cell.points}
-            fill={HEX_FILL[cell.role]}
-            stroke={HEX_STROKE[cell.role]}
-            strokeWidth={cell.role === 'neutral' ? 0.8 : 1.1}
-          />
-        ))}
-        {/* Fondu vers le noir : le bas de l'écran reste un fond propre pour le texte. */}
-        <Defs>
-          <LinearGradient id="promiseFadeWeb" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={colors.noir} stopOpacity="0" />
-            <Stop offset="0.55" stopColor={colors.noir} stopOpacity="0" />
-            <Stop offset="1" stopColor={colors.noir} stopOpacity="1" />
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width={FIELD_VB_W} height={FIELD_VB_H} fill="url(#promiseFadeWeb)" />
-      </Svg>
-    </View>
-  );
-}
 
 /** Retourne l'Entry i18n (résolue à l'affichage — la bascule de langue suit). */
 function failureMessage(result: AuthResult): Entry | null {
@@ -196,10 +130,6 @@ export default function SignInScreenWeb() {
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  /* Conditions d'envoi, nommées une fois : elles pilotent À LA FOIS `disabled`
-     et le style, sinon les deux divergent — c'est exactement ce qui rendait le
-     bouton inerte sans le montrer. */
-  const canSendEmail = !busy && email.includes('@');
   // Gate légal (voir l'entête) : mémoire de la déclaration + statut de lecture.
   const {
     state: onboarding,
@@ -211,10 +141,6 @@ export default function SignInScreenWeb() {
   // et la flèche retour reste ouverte — une auto-déclaration est par nature
   // contournable ; c'est le gate attendu, pas une preuve d'âge.
   const [ageDeclined, setAgeDeclined] = useState(false);
-
-  useEffect(() => {
-    track(EVENTS.onboardingStep, { n: ONBOARDING_STEP_PROMISE });
-  }, []);
 
   // ⚠️ Règle des hooks : tous les hooks sont déclarés AVANT ces returns.
   // Restauration de session en cours → on n'affirme rien (ni « connecte-toi »,
@@ -248,12 +174,12 @@ export default function SignInScreenWeb() {
     // impossible. Sur web `behavior` est undefined (pas de clavier logiciel qui
     // recouvre le viewport), mais le ScrollView reste nécessaire en fenêtre basse.
     <KeyboardAvoidingView style={styles.root}>
-      {/* Visuel promesse : carte égocentrée de sa ville, montrée derrière le hero. */}
+      {/* Visuel promesse : un champ d'hexagones égocentré, derrière le hero. */}
       <PromiseHexField />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -279,7 +205,9 @@ export default function SignInScreenWeb() {
           <View style={styles.hero}>
             {/* Le kicker dit à quelle étape on est : la vérification légale
                 d'abord, la connexion ensuite. Il bascule avec le bloc du bas. */}
-            <Text style={styles.kicker}>{t(askAge ? AGE.kickerSignIn : C.kicker)}</Text>
+            <SectionLabel style={styles.kicker}>
+              {t(askAge ? AGE.kickerSignIn : C.kicker)}
+            </SectionLabel>
             <Text style={styles.title}>{t(C.title)}</Text>
             <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
           </View>
@@ -304,15 +232,15 @@ export default function SignInScreenWeb() {
             <>
               <Text style={styles.gateTitle}>{t(AGE.title)}</Text>
               <Text style={styles.gateNote}>{t(AGE.tagline)}</Text>
-              <Pressable
-                accessibilityRole="button"
+              {/* L'UNIQUE CTA chartreuse tant que la question est posée (§A4). */}
+              <Button
+                label={t(AGE.confirm)}
                 accessibilityLabel={t(AGE.confirmA11y)}
                 onPress={() => void updateOnboarding({ ageConfirmed: true })}
-                style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
-              >
-                <Icon name="bouclier" size={20} color={colors.noir} />
-                <Text style={styles.ctaLabel}>{t(AGE.confirm)}</Text>
-              </Pressable>
+                variant="primary"
+                size="lg"
+                analyticsId="signin_age_confirm"
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t(AGE.under)}
@@ -329,6 +257,9 @@ export default function SignInScreenWeb() {
                   celui qui réinstalle — il doit savoir qu'il est au bon endroit.
                   (Parité stricte avec sign-in.tsx.) */}
               <Text style={styles.otpHint}>{t(C.otpCreatesOrSignsIn)}</Text>
+              {/* Champ 56 pt à LABEL PERSISTANT (planche E21) : un placeholder
+                  seul disparaît à la première frappe. */}
+              <Text style={styles.fieldLabel}>{t(C.emailFieldA11y)}</Text>
               <TextInput
                 accessibilityLabel={t(C.emailFieldA11y)}
                 style={styles.input}
@@ -341,29 +272,28 @@ export default function SignInScreenWeb() {
                 keyboardType="email-address"
                 autoFocus
               />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t(C.otpRequestCta)}
-                disabled={!canSendEmail}
-                accessibilityState={{ disabled: !canSendEmail }}
+              {/* LA SEULE PORTE DE L'ÉCRAN : elle est donc LE CTA. `Button` porte
+                  l'état désactivé (visible ET annoncé) — un bouton qui ne répond
+                  pas sans l'expliquer fait conclure que l'app est cassée. */}
+              <Button
+                label={t(C.otpRequestCta)}
                 onPress={() => {
                   // N'avance vers la saisie du code QUE si l'envoi a réussi.
                   void run(() => requestEmailOtp(email.trim())).then((r) => {
                     if (r.ok) setStep('code');
                   });
                 }}
-                style={({ pressed }) => [
-                  styles.ghostButton,
-                  (pressed || busy) && styles.ghostPressed,
-                  !canSendEmail && styles.ghostDisabled,
-                ]}
-              >
-                <Text style={styles.ghostLabel}>{t(C.otpRequestCta)}</Text>
-              </Pressable>
+                variant="primary"
+                size="lg"
+                loading={busy}
+                disabled={!email.includes('@')}
+                analyticsId="signin_email_request"
+              />
             </>
           ) : (
             <>
               <Text style={styles.otpHint}>{t(C.otpSent, { email: email.trim() })}</Text>
+              <Text style={styles.fieldLabel}>{t(C.otpFieldA11y)}</Text>
               <TextInput
                 accessibilityLabel={t(C.otpFieldA11y)}
                 style={styles.input}
@@ -375,21 +305,19 @@ export default function SignInScreenWeb() {
                 maxLength={6}
                 autoFocus
               />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t(C.otpVerifyCta)}
-                disabled={busy || code.length < 6}
+              <Button
+                label={t(C.otpVerifyCta)}
                 onPress={() => void run(() => verifyEmailOtp(email.trim(), code.trim()))}
-                style={({ pressed }) => [
-                  styles.ghostButton,
-                  (pressed || busy) && styles.ghostPressed,
-                ]}
-              >
-                <Text style={styles.ghostLabel}>{t(C.otpVerifyCta)}</Text>
-              </Pressable>
+                variant="primary"
+                size="lg"
+                loading={busy}
+                disabled={code.length < 6}
+                analyticsId="signin_email_verify"
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t(C.otpResendCta)}
+                accessibilityState={{ disabled: busy }}
                 disabled={busy}
                 onPress={() => {
                   setCode('');
@@ -419,6 +347,11 @@ export default function SignInScreenWeb() {
   );
 }
 
+/** Interligne du titre hero : 64 px serrés (mesure de composition). */
+const HERO_LINE_RATIO = 1.02;
+/** Largeur de lecture confortable du sous-titre — ~60 caractères. */
+const SUBTITLE_MAX_WIDTH = 320;
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -426,9 +359,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   scrollContent: { flexGrow: 1, justifyContent: 'space-between' },
-  // Champ d'hexagones décoratif : occupe le haut de l'écran, derrière hero +
-  // actions. pointerEvents none → n'intercepte rien.
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: '64%' },
   // Flèche de retour vers l'onboarding : cible ≥ 44×44 (+hitSlop), gris discret,
   // jamais un 2e CTA (§A). `marginLeft` négatif : le glyphe est centré dans sa
   // boîte de 44, on le recale optiquement sur la marge du texte.
@@ -441,54 +371,46 @@ const styles = StyleSheet.create({
   },
   backPressed: { opacity: 0.7 },
   backMirror: { transform: [{ scaleX: -1 }] },
-  // 48 → 20 : la flèche occupe désormais le haut du bloc, le hero se recale sous elle.
   hero: { marginTop: spacing.lg },
-  kicker: {
-    color: colors.chartreuse, // emploi §C.3 : accent unique, jamais sur fond clair
-    fontSize: fontSizes.xs,
-    letterSpacing: 2.5,
-    marginBottom: 18,
-    fontVariant: ['tabular-nums'],
-  },
+  // Le kicker CONSOMME `ui/SectionLabel` (gris, rôle R1) : ne reste ici que la
+  // marge de CETTE page et les chiffres tabulaires. Il était CHARTREUSE.
+  kicker: { marginBottom: spacing.md, fontVariant: ['tabular-nums'] },
   title: {
     color: colors.blanc,
+    fontFamily: fonts.display, // Inter Tight 800 — la famille porte la graisse
     fontSize: fontSizes.hero,
-    lineHeight: fontSizes.hero * 1.02,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
+    lineHeight: fontSizes.hero * HERO_LINE_RATIO,
     letterSpacing: -1.2,
   },
   subtitle: {
     color: colors.gris,
+    fontFamily: fonts.text,
     fontSize: fontSizes.md,
     lineHeight: fontSizes.md * 1.5,
-    marginTop: 22,
-    maxWidth: 320,
+    marginTop: spacing.lg,
+    maxWidth: SUBTITLE_MAX_WIDTH,
   },
   actions: { gap: spacing.sm },
-  ghostButton: {
-    height: 52,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // Champ 56 pt à label persistant (planche E21) — même patron que /profil-edit.
+  fieldLabel: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
   },
-  ghostPressed: { opacity: 0.7 },
-  /* Un CTA désactivé DOIT se voir. Sans cette différence, l'écran de connexion
-     donne un bouton qui ne répond pas et n'explique rien — le lecteur conclut
-     que l'app est cassée, pas qu'il lui manque une saisie. */
-  ghostDisabled: { opacity: 0.4 },
   input: {
-    height: 52,
+    height: sizes.buttonLg,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone2,
     color: colors.blanc,
-    paddingHorizontal: 20,
-    fontSize: fontSizes.sm,
+    fontFamily: fonts.text,
+    paddingHorizontal: spacing.lg,
+    fontSize: fontSizes.md,
   },
-  otpHint: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
+  otpHint: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.xs, textAlign: 'center' },
+  // Le « renvoyer » est un LIEN, pas un bouton : plancher tactile quand même.
   resendHit: {
     minHeight: sizes.touchTarget,
     justifyContent: 'center',
@@ -496,42 +418,32 @@ const styles = StyleSheet.create({
   },
   otpResend: {
     color: colors.gris,
+    fontFamily: fonts.text,
     fontSize: fontSizes.xs,
     textAlign: 'center',
     textDecorationLine: 'underline',
-    paddingVertical: 6,
   },
-  ghostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500' },
-  error: { color: colors.blanc, fontSize: fontSizes.sm, textAlign: 'center', marginTop: 6 },
+  error: {
+    color: colors.blanc,
+    fontFamily: fonts.text,
+    fontSize: fontSizes.sm,
+    textAlign: 'center',
+    marginTop: spacing.xxs,
+  },
 
   // ── GATE D'ÂGE, POSÉ AU POINT DE CRÉATION (parité stricte avec sign-in.tsx) ──
   gateTitle: {
+    ...typography.cardTitle, // R3 — Inter Tight 600
     color: colors.blanc,
-    fontSize: fontSizes.md,
-    fontFamily: fonts.textSemi,
-    fontWeight: '600',
-    lineHeight: fontSizes.md * 1.3,
   },
   /** Sert aussi à l'avis de non-persistance : gris, jamais chartreuse (≠ action). */
   gateNote: {
     color: colors.gris,
+    fontFamily: fonts.text,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.45,
-    marginBottom: 4,
+    marginBottom: spacing.xxs,
   },
-  // L'UNIQUE CTA chartreuse de l'écran, et seulement tant que la question est
-  // posée (§A4 : au plus un). Une fois l'âge déclaré, l'écran repasse à zéro.
-  cta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-    height: 56,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-  },
-  ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
-  ctaPressed: { opacity: 0.85 },
   gateLink: { minHeight: sizes.touchTarget, alignItems: 'center', justifyContent: 'center' },
-  gateLinkLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
+  gateLinkLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },
 });

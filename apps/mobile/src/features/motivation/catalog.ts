@@ -13,25 +13,32 @@
  *     Écrit par nous, vrai pour tout le monde. AUCUN champ de progression : le
  *     type ne PEUT PAS exprimer « où en est le joueur ».
  *   · `ChallengeCard` — une définition + la progression LUE AU SERVEUR
- *     (`challengeState.ts`). Seul ce type porte `current`, la contribution perso
- *     et les tiers (crew rival, sponsor) que seul le serveur peut prouver.
+ *     (`challengeState.ts`). Seul ce type porte `current`.
  * Avant, les deux vivaient dans la même interface et les `current` étaient
  * saisis à la main ici (« 2 courses sur 3 », « 6,4 km »). Ils n'étaient plus
  * lus — `challengeState` les écrasait — mais ils restaient un piège : la
  * première personne à rendre `CHALLENGES` directement affichait la course d'un
  * joueur imaginaire. La séparation des types rend cette faute impossible.
  *
- * ─── CE QUI A ÉTÉ RETIRÉ LE 21/07/2026 ──────────────────────────────────────
- * · `TODAY` / `TODAY_HERO` — l'état « Aujourd'hui » d'un joueur fabriqué
- *   (« BONJOUR KORO », Score Forme 78, 2 courses cette semaine, coffre crew à
- *   66 %, « Route défense République · 4,8 km · +86 zones »). Zéro appelant, et
- *   c'étaient les SEULS imports de `crew/demo`, `map/demo` et `social/demo` :
- *   leur retrait a rendu ces trois fichiers orphelins, donc supprimables.
- * · Les deux entrées qui NOMMAIENT un tiers inventé : le crew rival « Canal
- *   Runners » (score 128-121) et le sponsor « Magasin Pas de Côté ». Un garde
- *   d'exécution (`readable`) les masquait déjà ; un garde n'est pas une
- *   garantie. GRYD n'invente pas de rivaux ni de commerçants (CLAUDE.md).
- *   Le support sponsor reste dans le TYPE — il reviendra par le back-office.
+ * ─── CE QUI A ÉTÉ RETIRÉ LE 25/07/2026 (lot Motivation, Vague 1) ────────────
+ * 1. LES CINQ CHAMPS QUE PERSONNE NE REMPLISSAIT. `ChallengeCard` déclarait
+ *    `myContrib`, `partnerName`, `rivalMine`, `rivalOther` et `sponsor` — tous
+ *    TOUJOURS `undefined`, parce que `challengeState` ne copie que `target` et
+ *    `current` (la contribution personnelle n'est ventilée par membre nulle part
+ *    côté serveur, et aucun sponsor n'existe). Les deux écrans peignaient
+ *    pourtant « Offert par … », deux scores de rivalité et « tu as déjà défendu
+ *    {n} zones » dans des branches INATTEIGNABLES. Un champ optionnel que rien
+ *    ne remplit n'est pas une préparation, c'est un piège : le prochain lecteur
+ *    croit la section vivante. Le support reviendra AVEC sa source serveur, et
+ *    le type le rendra alors possible — pas avant.
+ * 2. LE FRANÇAIS EN DUR. `blurb` et `reward` étaient des `string` écrites en
+ *    français (« 3 courses cette semaine, à ton rythme. », « Coffre crew ·
+ *    palier Or ») et rendues BRUTES par `/challenges` et `/challenges/[id]` :
+ *    un joueur en EN/ES/DE/PT lisait du français. Ce sont maintenant des
+ *    `Entry` du catalogue i18n — parité 5 langues imposée par le type.
+ *    Les NOMS (« Consistency II », « Distance », « Defense », « Defense Week »)
+ *    restent des INVARIANTS : noms propres GRYD, jamais traduits (cf. l'en-tête
+ *    de `i18n/catalog/motivation.ts`).
  *
  * Les cibles viennent TOUJOURS des seeds `@klaim/shared` (CHALLENGE_SEEDS) :
  * aucun nombre magique ici.
@@ -41,22 +48,9 @@ import {
   type ChallengeDifficulty,
   type ChallengeType,
 } from '@klaim/shared';
-
-/**
- * Sponsor local d'un challenge (AMENDEMENT-32 §3). ANTI PAY-TO-WIN STRICT : le
- * sponsor finance des LOTS/COSMÉTIQUES, JAMAIS du territoire, des points ni une
- * victoire ; l'entrée est GRATUITE. Présence DISCRÈTE : un blason filaire +
- * « Offert par … ». Aucun sponsor n'est écrit dans ce catalogue : un vrai
- * sponsor est une entité réelle, il viendra du back-office avec le challenge.
- */
-export interface ChallengeSponsor {
-  /** Nom commercial du sponsor. */
-  name: string;
-  /** Icône blason discrète (token @klaim/shared) — jamais un logo importé. */
-  blason: 'boutique' | 'cadeau' | 'medaille';
-  /** Nature des lots offerts — LOTS/COSMÉTIQUES uniquement, jamais du jeu. */
-  prizeNote: string;
-}
+import type { Entry } from '../../i18n/types';
+import { C } from '../../i18n/catalog/motivation';
+import { formatKm } from '../../ui/format';
 
 /**
  * DÉFINITION d'un challenge : ce que le jeu propose, vrai pour tout le monde.
@@ -70,8 +64,10 @@ export interface ChallengeDefinition {
    */
   id: keyof typeof CHALLENGE_SEEDS | (string & {});
   type: ChallengeType;
+  /** Nom propre GRYD — INVARIANT, jamais traduit (cf. en-tête). */
   name: string;
-  blurb: string;
+  /** Promesse du défi — 5 langues imposées par le type. */
+  blurb: Entry;
   difficulty: ChallengeDifficulty;
   metric: string;
   /** Cible ANNONCÉE (seed). Le serveur reste maître : `primary_goal` l'écrase. */
@@ -81,26 +77,17 @@ export interface ChallengeDefinition {
   /** Crew : minimum perso souple (§8.3) — une RÈGLE annoncée, pas une mesure. */
   personalMinimum?: number;
   /** Récompense annoncée (badge/coffre) — micro-victoire, pas d'échec puni. */
-  reward: string;
+  reward: Entry;
 }
 
 /**
- * Une définition + la progression MESURÉE par le serveur. Tout ce qui affirme
- * quelque chose sur le joueur ou sur un tiers vit ICI, et est rempli par
- * `challengeState.ts` à partir de `challenge_progress` — jamais écrit à la main.
+ * Une définition + la progression MESURÉE par le serveur. `current` est le SEUL
+ * champ qui affirme quelque chose sur le joueur, et il est rempli exclusivement
+ * par `challengeState.ts` à partir de `challenge_progress` — jamais à la main.
  */
 export interface ChallengeCard extends ChallengeDefinition {
   /** MA progression, lue au serveur. Un 0 ici est MESURÉ, jamais supposé. */
   current: number;
-  /** Crew : ma contribution (« tu as contribué à X », §11) — jamais un rang. */
-  myContrib?: number;
-  /** Rivalry : nom de l'autre équipe (respect, pas d'adversaire diabolisé). */
-  partnerName?: string;
-  /** Rivalry : score des deux camps (jamais « en retard/en tête » en dur). */
-  rivalMine?: number;
-  rivalOther?: number;
-  /** Sponsor local, quand le serveur en attache un. Ne change RIEN au gameplay. */
-  sponsor?: ChallengeSponsor;
 }
 
 /**
@@ -112,61 +99,67 @@ export const CHALLENGES: readonly ChallengeDefinition[] = [
     id: 'consistency_ii',
     type: CHALLENGE_SEEDS.consistency_ii.type,
     name: 'Consistency II',
-    blurb: '3 courses cette semaine, à ton rythme. La régularité prime, pas la vitesse.',
+    blurb: C.chConsistencyBlurb,
     difficulty: CHALLENGE_SEEDS.consistency_ii.difficulty,
     metric: CHALLENGE_SEEDS.consistency_ii.metric,
     target: CHALLENGE_SEEDS.consistency_ii.target,
     unit: 'courses',
-    reward: 'Badge Consistency',
+    reward: C.chConsistencyReward,
   },
   {
     id: 'distance_10k',
     type: CHALLENGE_SEEDS.distance_10k.type,
     name: 'Distance',
-    blurb: '10 km cumulés sur la semaine. En une fois ou en plusieurs, comme tu veux.',
+    blurb: C.chDistanceBlurb,
     difficulty: CHALLENGE_SEEDS.distance_10k.difficulty,
     metric: CHALLENGE_SEEDS.distance_10k.metric,
     target: CHALLENGE_SEEDS.distance_10k.target, // 10 000 m
     unit: 'km',
-    reward: 'Badge Distance',
+    reward: C.chDistanceReward,
   },
   {
     id: 'defense_30',
     type: CHALLENGE_SEEDS.defense_30.type,
     name: 'Defense',
-    blurb: '30 zones défendues. Tenir le quartier compte autant que conquérir.',
+    blurb: C.chDefenseBlurb,
     difficulty: CHALLENGE_SEEDS.defense_30.difficulty,
     metric: CHALLENGE_SEEDS.defense_30.metric,
     target: CHALLENGE_SEEDS.defense_30.target,
     unit: 'zones',
-    reward: 'Badge Defender',
+    reward: C.chDefenseReward,
   },
   {
     id: 'crew_defense_week',
     type: CHALLENGE_SEEDS.crew_defense_week.type,
     name: 'Defense Week',
-    blurb: 'Objectif collectif du crew. Chaque zone défendue compte pour le coffre.',
+    blurb: C.chCrewDefenseBlurb,
     difficulty: CHALLENGE_SEEDS.crew_defense_week.difficulty,
     metric: CHALLENGE_SEEDS.crew_defense_week.metric,
     target: CHALLENGE_SEEDS.crew_defense_week.collectiveTarget, // 300
     unit: 'zones',
     personalMinimum: CHALLENGE_SEEDS.crew_defense_week.personalMinimum, // 20
-    reward: 'Coffre crew · palier Or',
+    reward: C.chCrewDefenseReward,
   },
 ];
 
 // ─── Formatage local ─────────────────────────────────────────────────────────
 
-/** Mètres → « 6,4 km » (une décimale, virgule FR). PURE. */
-function formatKm(m: number): string {
-  return `${(m / 1000).toFixed(1).replace('.', ',')} km`;
-}
-
 /**
  * Valeur d'un challenge dans son unité d'affichage : `distanceM` en km, le reste
- * en entier. PURE — pas d'Intl (rendu Hermes stable). `unit` gouverne le rendu.
+ * en entier. `null` quand la valeur n'est PAS affichable (non finie, distance
+ * négative) — l'appelant masque alors la ligne plutôt que d'écrire « NaN » ou un
+ * faux zéro. En pratique `challengeState` écarte déjà ces lignes ; ce `null` est
+ * la ceinture, pas la bretelle.
+ *
+ * Le séparateur décimal suit la LANGUE (`ui/format`, socle partagé) : la version
+ * précédente forçait la virgule française, donc « 6,4 km » à un joueur anglais.
+ * Aucun `Intl` (Hermes n'embarque pas ICU).
  */
-export function formatChallengeValue(value: number, unit: string): string {
-  if (unit === 'km') return formatKm(value);
+export function formatChallengeValue(value: number, unit: string): string | null {
+  if (unit === 'km') {
+    const km = formatKm(value / 1000);
+    return km === null ? null : `${km} km`;
+  }
+  if (!Number.isFinite(value)) return null;
   return `${Math.round(value)}`;
 }

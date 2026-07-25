@@ -1,14 +1,35 @@
 /**
- * GRYD — i18n : catalogue du domaine « route-planner-ui » (planificateur
- * d'itinéraire /route-planner, carte du planner, intentions du générateur)
- * + composants UI partagés à texte propre (ErrorBoundary, StackScreen).
+ * GRYD — i18n : catalogue du domaine « planificateur de boucle » (/route-planner,
+ * carte du planner, objectifs) + composants UI partagés à texte propre
+ * (ErrorBoundary, StackScreen).
  * Parité 5 langues imposée par le type Entry — une langue manquante = erreur TS.
  *
  * INVARIANTS jamais traduits (restent en dur dans les composants) :
- * GRYD, GO, Crew (section « CREW »), km, min, pts (sauf de « Pkt. »), noms
- * propres (Paris, République…), « — » placeholder.
+ * GRYD, GO, Crew, km, min, noms propres (Paris, République…).
  * §A CONTRAIGNANT : chips/CTA/boutons COURTS dans les 5 langues (l'allemand est
  * reformulé concis : EROBERN, SCHÜTZEN, « Neu erzeugen »… — jamais tronqué à 375px).
+ *
+ * ─── LA COPIE SUPPRIMÉE LE 25/07/2026, ET POURQUOI ────────────────────────────
+ * Quatorze entrées sont parties parce qu'elles NOMMAIENT une chose qui n'existe
+ * pas dans le code :
+ *   · `summaryConquest` / `summaryDefense` / `ctaMicro` / `variantStats` /
+ *     `variantMeta` portaient « +{zones} zones » et « +{pts} pts » — un gain
+ *     territorial et un score annoncés AVANT la course, calculés côté client à
+ *     partir de deux constantes inventées. Le serveur seul décide un claim, et
+ *     seulement APRÈS la course ;
+ *   · `shareToCrew` / `a11yShareCrew` / `shareToastText` / `justNow` habillaient
+ *     un bouton qui n'écrivait nulle part — son propre toast avouait « (démo) »,
+ *     et une fausse ligne de feed s'empilait « à l'instant ». Une étiquette
+ *     « démo » ne rachète pas une action qui n'a pas lieu (AMENDEMENT-47) ;
+ *   · `demoOriginLabel` / `hintGpsDemo` / `summaryDemoComputing` nommaient un
+ *     repli « Démo · Paris » supprimé du code depuis le 21/07 — de la copie qui
+ *     survivait à sa fonctionnalité, prête à être rebranchée par mégarde ;
+ *   · `crewsTakenOne` / `crewsTakenMany` / `socialName*` / `sharedToCrewFeed`
+ *     décrivaient un signal social (« 3 crews l'ont prise ») sans aucune source ;
+ *   · `planMaxPoints` (« Max points ») et `planStatusZones` (« Plus de zones »)
+ *     promettaient un rendement de jeu à un simple format de distance ;
+ *   · `reasonRivalBorder` / `reasonHoldSector` affirmaient une frontière rivale
+ *     et un secteur tenu que cet écran ne lit nulle part.
  */
 import { defineCatalog } from '../types';
 
@@ -46,13 +67,6 @@ export const C = defineCatalog({
   },
 
   // ── Origine / états GPS (jamais de mensonge de position) ─────────────────
-  demoOriginLabel: {
-    fr: 'Démo · Paris',
-    en: 'Demo · Paris',
-    es: 'Demo · París',
-    de: 'Demo · Paris',
-    pt: 'Demo · Paris',
-  },
   myPosition: {
     fr: 'Ma position',
     en: 'My location',
@@ -81,13 +95,6 @@ export const C = defineCatalog({
     de: 'Start = dein aktueller Standort (zum Zentrieren tippen).',
     pt: 'Largada = sua posição atual (toque para recentrar).',
   },
-  hintGpsDemo: {
-    fr: 'Géolocalisation indisponible ici — tracé démo autour de Paris.',
-    en: 'Geolocation unavailable here — demo route around Paris.',
-    es: 'Geolocalización no disponible aquí — trazado demo alrededor de París.',
-    de: 'Ortung hier nicht verfügbar — Demo-Strecke um Paris.',
-    pt: 'Geolocalização indisponível aqui — traçado demo ao redor de Paris.',
-  },
   hintGpsError: {
     fr: 'Position introuvable — active la localisation pour partir.',
     en: 'Location not found — turn on location to start.',
@@ -109,13 +116,6 @@ export const C = defineCatalog({
     de: 'Aktiviere die Ortung, um deine Runde zu planen.',
     pt: 'Ative a localização para preparar sua volta.',
   },
-  summaryDemoComputing: {
-    fr: 'Boucle démo en calcul autour de Paris.',
-    en: 'Demo loop being computed around Paris.',
-    es: 'Bucle demo en cálculo alrededor de París.',
-    de: 'Demo-Runde um Paris wird berechnet.',
-    pt: 'Volta demo em cálculo ao redor de Paris.',
-  },
   summaryWaitingPosition: {
     fr: 'Ta boucle arrive dès que ta position est confirmée.',
     en: 'Your loop arrives as soon as your location is confirmed.',
@@ -130,35 +130,52 @@ export const C = defineCatalog({
     de: 'Route wird berechnet…',
     pt: 'Calculando a rota…',
   },
+  // Zone carte, état `unasked` : elle disait « Position requise pour partir »,
+  // mot pour mot la microcopie du bouton, elle-même sous une ligne d'en-tête qui
+  // dit déjà la même chose. Trois fois la même phrase à trois hauteurs d'écran :
+  // §A « compris en moins de 3 s » ne survit pas à la redondance. Cette zone dit
+  // désormais ce qu'ELLE contiendra, et rien d'autre.
+  mapPreviewEmpty: {
+    fr: 'Le tracé s’affichera ici.',
+    en: 'The route will appear here.',
+    es: 'El trazado aparecerá aquí.',
+    de: 'Die Route erscheint hier.',
+    pt: 'O traçado aparecerá aqui.',
+  },
 
-  // ── Résumé header + microcopy CTA (minutes toujours estimées « ~ ») ──────
-  summaryDefense: {
-    fr: '{dur} · +{zones} zones · {streets} rues à défendre',
-    en: '{dur} · +{zones} zones · {streets} streets to defend',
-    es: '{dur} · +{zones} zonas · {streets} calles por defender',
-    de: '{dur} · +{zones} Zonen · {streets} Straßen zu halten',
-    pt: '{dur} · +{zones} zonas · {streets} ruas a defender',
+  // ── Ligne de contexte de l'en-tête ───────────────────────────────────────
+  // Ce qui remplace « ~26 min · +N zones · +N pts ». Il ne reste qu'une chose
+  // vraie — la durée — et elle n'existe que si l'allure du joueur a été MESURÉE.
+  // Sinon on documente l'absence en gris, comme partout ailleurs dans l'app.
+  summaryDuration: {
+    fr: '~{min} min à ton allure habituelle.',
+    en: '~{min} min at your usual pace.',
+    es: '~{min} min a tu ritmo habitual.',
+    de: '~{min} min in deinem üblichen Tempo.',
+    pt: '~{min} min no seu ritmo habitual.',
   },
-  summaryConquest: {
-    fr: '{dur} · +{zones} zones · +{pts} pts',
-    en: '{dur} · +{zones} zones · +{pts} pts',
-    es: '{dur} · +{zones} zonas · +{pts} pts',
-    de: '{dur} · +{zones} Zonen · +{pts} Pkt.',
-    pt: '{dur} · +{zones} zonas · +{pts} pts',
+  summaryNoPace: {
+    fr: 'Durée non estimée — ton allure n’est pas connue.',
+    en: 'No time estimate — your pace isn’t known.',
+    es: 'Sin estimación de tiempo — no se conoce tu ritmo.',
+    de: 'Keine Zeitschätzung — dein Tempo ist nicht bekannt.',
+    pt: 'Sem estimativa de tempo — seu ritmo não é conhecido.',
   },
-  ctaMicro: {
-    fr: '{km} km · ~{min} min · +{pts} pts',
-    en: '{km} km · ~{min} min · +{pts} pts',
-    es: '{km} km · ~{min} min · +{pts} pts',
-    de: '{km} km · ~{min} min · +{pts} Pkt.',
-    pt: '{km} km · ~{min} min · +{pts} pts',
-  },
+
+  // ── Microcopie sous le bouton unique (une phrase par geste, jamais « — ») ─
   ctaPositionRequired: {
     fr: 'Position requise pour partir',
     en: 'Location required to start',
     es: 'Posición necesaria para salir',
     de: 'Standort nötig zum Starten',
     pt: 'Posição necessária para começar',
+  },
+  ctaGpsAfterCountdown: {
+    fr: 'Le GPS démarre après le décompte.',
+    en: 'GPS starts after the countdown.',
+    es: 'El GPS arranca tras la cuenta atrás.',
+    de: 'Das GPS startet nach dem Countdown.',
+    pt: 'O GPS começa após a contagem regressiva.',
   },
 
   // ── Toasts (honnêtes, re-tentables) ──────────────────────────────────────
@@ -176,13 +193,20 @@ export const C = defineCatalog({
     de: 'Standort nicht gefunden — Ortung aktivieren',
     pt: 'Posição não encontrada — ative a localização',
   },
-  /** Bouton + a11y du filet d'échec GPS natif. */
+  /** Bouton + a11y du filet d'échec GPS. */
   retryLocation: {
     fr: 'Réessayer la localisation',
     en: 'Retry location',
     es: 'Reintentar la ubicación',
     de: 'Ortung erneut versuchen',
     pt: 'Tentar a localização de novo',
+  },
+  retryRoute: {
+    fr: 'Recalculer le tracé',
+    en: 'Recompute the route',
+    es: 'Recalcular el trazado',
+    de: 'Route neu berechnen',
+    pt: 'Recalcular o traçado',
   },
   a11yRecenter: {
     fr: 'Recentrer sur ma position',
@@ -192,67 +216,71 @@ export const C = defineCatalog({
     pt: 'Recentrar na minha posição',
   },
 
-  // ── Kickers de section (MAJUSCULES conservées ; « CREW » invariant) ──────
+  // ── Kickers de section (mis en capitales par SectionLabel, pas par l'appelant) ──
   secStart: {
-    fr: 'DÉPART',
-    en: 'START',
-    es: 'SALIDA',
-    de: 'START',
-    pt: 'LARGADA',
+    fr: 'Départ',
+    en: 'Start',
+    es: 'Salida',
+    de: 'Start',
+    pt: 'Largada',
   },
   secWhy: {
-    fr: 'POURQUOI CETTE COURSE',
-    en: 'WHY THIS RUN',
-    es: 'POR QUÉ ESTA CARRERA',
-    de: 'WARUM DIESER LAUF',
-    pt: 'POR QUE ESTA CORRIDA',
+    fr: 'Pourquoi cette course',
+    en: 'Why this run',
+    es: 'Por qué esta carrera',
+    de: 'Warum dieser Lauf',
+    pt: 'Por que esta corrida',
   },
-  secPlans: {
-    fr: 'PLANS',
-    en: 'PLANS',
-    es: 'PLANES',
-    de: 'PLÄNE',
-    pt: 'PLANOS',
+  secFormats: {
+    fr: 'Formats',
+    en: 'Formats',
+    es: 'Formatos',
+    de: 'Formate',
+    pt: 'Formatos',
   },
-  // ── E05 (planche) : bloc à séparateurs des métriques du parcours recommandé.
-  //    Seules distance et durée sont RÉELLES ; gain km²/difficulté = O1 (absents). ──
+  // Bloc à séparateurs des métriques : distance MESURÉE + durée si l'allure est
+  // connue. Le gain en km² et la difficulté de la planche E05 n'ont aucune
+  // source côté client — ils sont ABSENTS, pas remplis d'un chiffre plausible.
   estDistance: {
-    fr: 'DISTANCE',
-    en: 'DISTANCE',
-    es: 'DISTANCIA',
-    de: 'DISTANZ',
-    pt: 'DISTÂNCIA',
+    fr: 'Distance',
+    en: 'Distance',
+    es: 'Distancia',
+    de: 'Distanz',
+    pt: 'Distância',
   },
   estDuration: {
-    fr: 'DURÉE EST.',
-    en: 'EST. TIME',
-    es: 'TIEMPO EST.',
-    de: 'DAUER CA.',
-    pt: 'TEMPO EST.',
+    fr: 'Durée est.',
+    en: 'Est. time',
+    es: 'Tiempo est.',
+    de: 'Dauer ca.',
+    pt: 'Tempo est.',
   },
   secObjective: {
-    fr: 'OBJECTIF',
-    en: 'OBJECTIVE',
-    es: 'OBJETIVO',
-    de: 'ZIEL',
-    pt: 'OBJETIVO',
+    fr: 'Objectif',
+    en: 'Objective',
+    es: 'Objetivo',
+    de: 'Ziel',
+    pt: 'Objetivo',
   },
   secExactDistance: {
-    fr: 'DISTANCE EXACTE',
-    en: 'EXACT DISTANCE',
-    es: 'DISTANCIA EXACTA',
-    de: 'GENAUE DISTANZ',
-    pt: 'DISTÂNCIA EXATA',
+    fr: 'Distance exacte',
+    en: 'Exact distance',
+    es: 'Distancia exacta',
+    de: 'Genaue Distanz',
+    pt: 'Distância exata',
   },
   secOtherLoops: {
-    fr: 'AUTRES BOUCLES',
-    en: 'OTHER LOOPS',
-    es: 'OTROS BUCLES',
-    de: 'ANDERE RUNDEN',
-    pt: 'OUTRAS VOLTAS',
+    fr: 'Autres boucles',
+    en: 'Other loops',
+    es: 'Otros bucles',
+    de: 'Andere Runden',
+    pt: 'Outras voltas',
   },
 
-  // ── Plans (3 chips 1/3 d'écran — COURTS, §A) ─────────────────────────────
+  // ── Formats de distance (segmented défilant — libellés jamais tronqués) ───
+  // « Max points » est parti : un format de distance ne rapporte rien tant que
+  // le serveur n'a pas compté la course. Ces trois-là ne disent plus que ce
+  // qu'ils sont — des longueurs.
   planRecommended: {
     fr: 'Recommandée',
     en: 'Recommended',
@@ -260,57 +288,37 @@ export const C = defineCatalog({
     de: 'Empfohlen',
     pt: 'Recomendada',
   },
-  planFast: {
-    fr: 'Rapide',
-    en: 'Fast',
-    es: 'Rápida',
-    de: 'Schnell',
-    pt: 'Rápida',
+  planShort: {
+    fr: 'Courte',
+    en: 'Short',
+    es: 'Corta',
+    de: 'Kurz',
+    pt: 'Curta',
   },
-  planMaxPoints: {
-    fr: 'Max points',
-    en: 'Max points',
-    es: 'Máx. puntos',
-    de: 'Max. Punkte',
-    pt: 'Máx. pontos',
+  planLong: {
+    fr: 'Longue',
+    en: 'Long',
+    es: 'Larga',
+    de: 'Lang',
+    pt: 'Longa',
   },
-  planStatusBalance: {
-    fr: 'Meilleur équilibre',
-    en: 'Best balance',
-    es: 'Mejor equilibrio',
-    de: 'Beste Balance',
-    pt: 'Melhor equilíbrio',
+  /** Un segment = « libellé · 4,5 km » (le chiffre est déjà formaté). */
+  planOption: {
+    fr: '{label} · {km} km',
+    en: '{label} · {km} km',
+    es: '{label} · {km} km',
+    de: '{label} · {km} km',
+    pt: '{label} · {km} km',
   },
-  planStatusSimple: {
-    fr: 'Simple et proche',
-    en: 'Simple and close',
-    es: 'Simple y cercana',
-    de: 'Einfach und nah',
-    pt: 'Simples e perto',
-  },
-  planStatusZones: {
-    fr: 'Plus de zones',
-    en: 'More zones',
-    es: 'Más zonas',
-    de: 'Mehr Zonen',
-    pt: 'Mais zonas',
-  },
-  planChosen: {
-    fr: 'Choisi',
-    en: 'Chosen',
-    es: 'Elegido',
-    de: 'Gewählt',
-    pt: 'Escolhido',
-  },
-  a11yPlan: {
-    fr: 'Plan {label}, {km} kilomètres',
-    en: 'Plan {label}, {km} kilometers',
-    es: 'Plan {label}, {km} kilómetros',
-    de: 'Plan {label}, {km} Kilometer',
-    pt: 'Plano {label}, {km} quilômetros',
+  a11yFormatsGroup: {
+    fr: 'Format de la boucle',
+    en: 'Loop format',
+    es: 'Formato del bucle',
+    de: 'Format der Runde',
+    pt: 'Formato da volta',
   },
 
-  // ── « Ajuster » : objectif, distance, variantes, partage crew ────────────
+  // ── « Ajuster » : objectif, distance, variantes ──────────────────────────
   adjustRun: {
     fr: 'Ajuster la course',
     en: 'Adjust the run',
@@ -318,12 +326,12 @@ export const C = defineCatalog({
     de: 'Lauf anpassen',
     pt: 'Ajustar a corrida',
   },
-  a11yObjective: {
-    fr: 'Objectif {label}',
-    en: 'Objective {label}',
-    es: 'Objetivo {label}',
-    de: 'Ziel {label}',
-    pt: 'Objetivo {label}',
+  a11yObjectiveGroup: {
+    fr: 'Objectif de la course',
+    en: 'Run objective',
+    es: 'Objetivo de la carrera',
+    de: 'Ziel des Laufs',
+    pt: 'Objetivo da corrida',
   },
   a11yDecreaseDistance: {
     fr: 'Diminuer la distance',
@@ -368,68 +376,34 @@ export const C = defineCatalog({
     de: 'Andere Runden neu erzeugen',
     pt: 'Gerar outras voltas',
   },
+  loopsComputing: {
+    fr: 'Calcul des autres boucles…',
+    en: 'Computing other loops…',
+    es: 'Calculando otros bucles…',
+    de: 'Andere Runden werden berechnet…',
+    pt: 'Calculando outras voltas…',
+  },
   loopsUnavailable: {
-    fr: 'Autres boucles indisponibles',
-    en: 'Other loops unavailable',
-    es: 'Otros bucles no disponibles',
-    de: 'Keine anderen Runden verfügbar',
-    pt: 'Outras voltas indisponíveis',
+    fr: 'Autres boucles indisponibles — touche Régénérer.',
+    en: 'Other loops unavailable — tap Regenerate.',
+    es: 'Otros bucles no disponibles — toca Regenerar.',
+    de: 'Keine anderen Runden verfügbar — auf Neu erzeugen tippen.',
+    pt: 'Outras voltas indisponíveis — toque em Regenerar.',
   },
-  variantN: {
-    fr: 'Variante {n}',
-    en: 'Variant {n}',
-    es: 'Variante {n}',
-    de: 'Variante {n}',
-    pt: 'Variante {n}',
+  /** Un segment de variante = « Variante 2 · 5,2 km ». */
+  variantOption: {
+    fr: 'Variante {n} · {km} km',
+    en: 'Variant {n} · {km} km',
+    es: 'Variante {n} · {km} km',
+    de: 'Variante {n} · {km} km',
+    pt: 'Variante {n} · {km} km',
   },
-  a11yVariant: {
-    fr: 'Variante {n}, {km} km',
-    en: 'Variant {n}, {km} km',
-    es: 'Variante {n}, {km} km',
-    de: 'Variante {n}, {km} km',
-    pt: 'Variante {n}, {km} km',
-  },
-  variantStats: {
-    fr: '{km} km · +{zones} zones',
-    en: '{km} km · +{zones} zones',
-    es: '{km} km · +{zones} zonas',
-    de: '{km} km · +{zones} Zonen',
-    pt: '{km} km · +{zones} zonas',
-  },
-  variantMeta: {
-    fr: '~{min} min · +{pts} pts',
-    en: '~{min} min · +{pts} pts',
-    es: '~{min} min · +{pts} pts',
-    de: '~{min} min · +{pts} Pkt.',
-    pt: '~{min} min · +{pts} pts',
-  },
-  shareToCrew: {
-    fr: 'Partager au crew',
-    en: 'Share with crew',
-    es: 'Compartir con el crew',
-    de: 'Mit Crew teilen',
-    pt: 'Compartilhar com o crew',
-  },
-  a11yShareCrew: {
-    fr: 'Partager cette route au crew',
-    en: 'Share this route with the crew',
-    es: 'Compartir esta ruta con el crew',
-    de: 'Diese Route mit der Crew teilen',
-    pt: 'Compartilhar esta rota com o crew',
-  },
-  shareToastText: {
-    fr: 'Boucle {km} km autour de {place} ajoutée à ton plan de crew (démo)',
-    en: '{km} km loop around {place} added to your crew plan (demo)',
-    es: 'Bucle de {km} km alrededor de {place} añadido a tu plan de crew (demo)',
-    de: '{km}-km-Runde um {place} zu deinem Crew-Plan hinzugefügt (Demo)',
-    pt: 'Volta de {km} km ao redor de {place} adicionada ao seu plano de crew (demo)',
-  },
-  justNow: {
-    fr: "à l'instant",
-    en: 'just now',
-    es: 'ahora mismo',
-    de: 'gerade eben',
-    pt: 'agora mesmo',
+  a11yLoopsGroup: {
+    fr: 'Autres boucles autour de toi',
+    en: 'Other loops around you',
+    es: 'Otros bucles a tu alrededor',
+    de: 'Andere Runden in deiner Nähe',
+    pt: 'Outras voltas perto de você',
   },
   a11yStart: {
     fr: '{verb} — démarrer',
@@ -439,7 +413,7 @@ export const C = defineCatalog({
     pt: '{verb} — começar',
   },
 
-  // ── Intentions du générateur (verbes = chips + CTA, §A COURTS) ───────────
+  // ── Objectifs (verbes = segments + CTA, §A COURTS) ───────────────────────
   // Aligné sur nav.ts (bouton central) : de EROBERN / SCHÜTZEN, jamais de
   // composé à rallonge.
   intentConquer: {
@@ -449,13 +423,6 @@ export const C = defineCatalog({
     de: 'Erobern',
     pt: 'Conquistar',
   },
-  intentAttack: {
-    fr: 'Attaquer',
-    en: 'Attack',
-    es: 'Atacar',
-    de: 'Angreifen',
-    pt: 'Atacar',
-  },
   intentDefend: {
     fr: 'Défendre',
     en: 'Defend',
@@ -463,43 +430,10 @@ export const C = defineCatalog({
     de: 'Schützen',
     pt: 'Defender',
   },
-  intentStatusConquer: {
-    fr: 'Conquête recommandée',
-    en: 'Conquest recommended',
-    es: 'Conquista recomendada',
-    de: 'Eroberung empfohlen',
-    pt: 'Conquista recomendada',
-  },
-  intentStatusAttack: {
-    fr: 'Raid sur la frontière rivale',
-    en: 'Raid on the rival border',
-    es: 'Raid en la frontera rival',
-    de: 'Raid an der Rivalen-Grenze',
-    pt: 'Raid na fronteira rival',
-  },
-  intentStatusDefend: {
-    fr: 'Défends ton secteur',
-    en: 'Defend your sector',
-    es: 'Defiende tu sector',
-    de: 'Schütze deinen Sektor',
-    pt: 'Defenda seu setor',
-  },
 
-  // ── Chips « Pourquoi cette course » (COURTES, §A) ────────────────────────
-  reasonRivalBorder: {
-    fr: 'Frontière rivale',
-    en: 'Rival border',
-    es: 'Frontera rival',
-    de: 'Rivalen-Grenze',
-    pt: 'Fronteira rival',
-  },
-  reasonHoldSector: {
-    fr: 'Secteur à tenir',
-    en: 'Sector to hold',
-    es: 'Sector por defender',
-    de: 'Sektor halten',
-    pt: 'Setor a defender',
-  },
+  // ── Puces « Pourquoi cette course » (COURTES, §A) ────────────────────────
+  // Trois faits VÉRIFIABLES sur la boucle : elle part d'où tu es, elle fait
+  // cette longueur-là, elle emprunte des rues. Rien sur le territoire.
   reasonAtYourDoor: {
     fr: 'À ta porte',
     en: 'At your door',
@@ -539,9 +473,8 @@ export const C = defineCatalog({
   // ── D'OÙ VIENT LA DISTANCE PROPOSÉE (features/route/suggestion.ts) ────────
   // UNE phrase, sous les puces « Pourquoi cette course » — le coureur doit
   // toujours pouvoir savoir POURQUOI on lui propose ça. « Adapté à tes
-  // habitudes » n'est autorisé QUE dans l'état `learned` : c'est le mensonge
-  // que ce chantier supprime (l'ex-puce de demo.ts l'affichait sans rien
-  // apprendre). Les trois autres états disent le défaut ET sa cause.
+  // habitudes » n'est autorisé QUE dans l'état `learned`. Les trois autres
+  // états disent le défaut ET sa cause.
   whyLearned: {
     fr: 'Adapté à tes habitudes : ~{km} km · {n} courses analysées',
     en: 'Matched to your habits: ~{km} km · {n} runs analysed',
@@ -592,44 +525,5 @@ export const C = defineCatalog({
     es: 'SALIDA · VUELTA',
     de: 'START · ZIEL',
     pt: 'LARGADA · VOLTA',
-  },
-
-  // ── Route = objet social (demo.ts, consommé par Aujourd'hui) ─────────────
-  socialNameConquest: {
-    fr: 'Route conquête {zone}',
-    en: 'Conquest route {zone}',
-    es: 'Ruta conquista {zone}',
-    de: 'Eroberungsroute {zone}',
-    pt: 'Rota conquista {zone}',
-  },
-  socialNameDefense: {
-    fr: 'Route défense {zone}',
-    en: 'Defense route {zone}',
-    es: 'Ruta defensa {zone}',
-    de: 'Verteidigungsroute {zone}',
-    pt: 'Rota defesa {zone}',
-  },
-  sharedToCrewFeed: {
-    fr: '{name} partagée au crew',
-    en: '{name} shared with the crew',
-    es: '{name} compartida con el crew',
-    de: '{name} mit der Crew geteilt',
-    pt: '{name} compartilhada com o crew',
-  },
-
-  // ── Itinéraires populaires (signal social, accord sing./plur.) ───────────
-  crewsTakenOne: {
-    fr: "{n} crew l'a prise",
-    en: '{n} crew took it',
-    es: '{n} crew la ha tomado',
-    de: '{n} Crew ist sie gelaufen',
-    pt: '{n} crew fez essa',
-  },
-  crewsTakenMany: {
-    fr: "{n} crews l'ont prise",
-    en: '{n} crews took it',
-    es: '{n} crews la han tomado',
-    de: '{n} Crews sind sie gelaufen',
-    pt: '{n} crews fizeram essa',
   },
 });

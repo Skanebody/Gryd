@@ -45,6 +45,27 @@ export const C = defineCatalog({
     de: 'ZONE DES TAGES',
     pt: 'ZONA DO DIA',
   },
+  /**
+   * ÉTAT ③ — LA LECTURE A ÉCHOUÉ, ce qui n'est PAS « il n'y a rien ».
+   * `useDailyFocus` retombait silencieusement sur `focus: null` pour toutes les
+   * causes, et le bloc disparaissait : sur cet écran, échec == vide, exactement
+   * ce que la doctrine interdit. Une panne de réseau ne prouve pas qu'aucune
+   * zone n'a été tirée aujourd'hui.
+   */
+  dailyZoneUnavailable: {
+    fr: 'GRYD n’a pas pu lire la zone du jour.',
+    en: 'GRYD couldn’t read today’s zone.',
+    es: 'GRYD no ha podido leer la zona del día.',
+    de: 'GRYD konnte die Zone des Tages nicht lesen.',
+    pt: 'O GRYD não conseguiu ler a zona do dia.',
+  },
+  dailyZoneUnavailableDetail: {
+    fr: 'Elle revient dès que la connexion tient. Ta course, elle, compte quand même.',
+    en: 'It comes back as soon as the connection holds. Your run counts either way.',
+    es: 'Vuelve en cuanto la conexión aguante. Tu carrera cuenta igualmente.',
+    de: 'Sie kommt zurück, sobald die Verbindung hält. Dein Lauf zählt trotzdem.',
+    pt: 'Ela volta assim que a conexão firmar. Sua corrida conta do mesmo jeito.',
+  },
   /** Secteur RÉEL sans nom géocodé — on ne fabrique pas de quartier. */
   dailyZoneUnnamed: {
     fr: 'Une zone de ta ville',

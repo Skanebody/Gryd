@@ -50,6 +50,14 @@ import type { Entry, Locale } from '../../i18n/types';
 export interface DailyFocusBlockProps {
   /** État RÉEL (useDailyFocus). `null` → le composant ne rend rien. */
   focus: DailyFocus | null;
+  /**
+   * ÉTAT ③ (25/07/2026) — la lecture est PARTIE et a ÉCHOUÉ. Distinct de
+   * `focus: null`, qui veut dire « rien à dire ». Sans cette distinction, une
+   * panne réseau et une journée sans zone se ressemblaient trait pour trait :
+   * le bloc disparaissait dans les deux cas, et le joueur ne pouvait pas savoir
+   * si la mécanique était muette ou cassée.
+   */
+  unavailable?: boolean;
 }
 
 /**
@@ -111,9 +119,34 @@ function effortLine(
   }
 }
 
-export function DailyFocusBlock({ focus }: DailyFocusBlockProps) {
+export function DailyFocusBlock({ focus, unavailable = false }: DailyFocusBlockProps) {
   const t = useT();
   const locale = useLocale();
+
+  // ── ÉTAT ③ : la lecture a échoué. On le DIT, au lieu de se taire comme si la
+  //    journée n'avait pas de zone. Aucun « Réessayer » : le hook relance sa
+  //    lecture au retour sur l'écran, et peindre un bouton qui ne relancerait
+  //    rien serait un bouton mort.
+  if (unavailable) {
+    return (
+      <View
+        accessibilityRole="summary"
+        accessibilityLabel={t(C.dailyZoneA11y, {
+          zone: t(C.dailyZoneUnavailable),
+          detail: t(C.dailyZoneUnavailableDetail),
+        })}
+        style={styles.block}
+      >
+        <View style={styles.head}>
+          <Icon name="carte" size={iconSizes.sm} color={colors.gris} />
+          <Text style={styles.kicker}>{t(C.dailyZoneKicker)}</Text>
+        </View>
+        <Text style={styles.titleMuted}>{t(C.dailyZoneUnavailable)}</Text>
+        <Text style={styles.detail}>{t(C.dailyZoneUnavailableDetail)}</Text>
+      </View>
+    );
+  }
+
   if (focus === null) return null;
 
   // ── Parcours d'accueil ─────────────────────────────────────────────────────

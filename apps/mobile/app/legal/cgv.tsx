@@ -6,15 +6,34 @@
  * consommation. Distinctes des CGU (usage du jeu) : les CGV régissent la VENTE
  * (prix, paiement, rétractation, reconduction, garanties, médiation).
  *
- * « Protection maximale MAIS légale » : on ne fait renoncer le consommateur à
- * aucun droit impératif. Le droit de rétractation de 14 j est RAPPELÉ, sa
- * renonciation (contenu numérique fourni immédiatement, art. L221-28 13°) n'est
- * qu'une faculté explicite ; les garanties légales sont maintenues. Le corps FAIT
- * FOI en français ; l'identité du vendeur vient de LEGAL_ENTITY (RCS réel).
+ * ─── ORDRE DE COMPOSITION (châssis `LegalDoc`) ─────────────────────────────
+ *  1. kicker « CONDITIONS · VENTE » ; 2. date d'entrée en vigueur ; 3. note
+ *  grise « seul le français fait foi » ; 4. CHAPEAU : rien n'est en vente ;
+ *  5. les 10 articles, NUMÉROTÉS, dont l'identité du VENDEUR sur surface.
  *
- * ⚠ SUSPENS (voir rapport) : le médiateur de la consommation (adhésion B2C
- * obligatoire) n'est pas encore désigné — la clause décrit le droit et renvoie à
- * la plateforme européenne RLL, sans inventer un nom de médiateur.
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ──────────────────────────────────────
+ * · LE FAIT QUI PRIME ÉTAIT EN 3ᵉ POSITION. « Aucune de ces offres n'est
+ *   commercialisée » arrivait après deux paragraphes de catalogue d'offres : un
+ *   lecteur pressé y lisait une boutique. Il devient le chapeau du document.
+ * · « Toute réclamation peut nous être adressée depuis la page Support » : la
+ *   réclamation PRÉALABLE conditionne l'accès à la médiation (art. L612-1), et
+ *   `/support` n'a ni adresse, ni formulaire, ni `mailto:`. Une voie de recours
+ *   inexistante fait perdre un délai — remplacée par le courrier au siège.
+ * · LE RENVOI VERS LA PLATEFORME EUROPÉENNE RLL (ec.europa.eu/consumers/odr),
+ *   supprimé et non « rendu cliquable » : cette plateforme a cessé son activité.
+ *   Peindre un recours fermé, en texte mort de surcroît, cumulait deux fautes.
+ * · LES TROIS PUCES D'OFFRES EMPILÉES DANS UN SEUL PARAGRAPHE : rendues comme
+ *   trois paragraphes, dont celui qui énonce ce qui n'est JAMAIS vendu.
+ * · LA BOÎTE SUR LES 10 SECTIONS : la seule qui gagne à être encadrée est
+ *   l'identité du vendeur (RCS/SIREN/TVA), le seul bloc qu'on vient chercher
+ *   isolément. Les neuf autres se séparent par l'espace.
+ *
+ * ─── ÉCARTS ASSUMÉS ────────────────────────────────────────────────────────
+ * · MÉDIATEUR NON DÉSIGNÉ : l'adhésion à un médiateur de la consommation est
+ *   obligatoire en B2C ; NEXUS 1993 n'en a pas encore. La clause décrit le droit
+ *   et dit l'absence, plutôt que d'inventer un nom de médiateur.
+ * · PAS DE 4 ÉTATS : aucune lecture réseau (texte embarqué). Cf. `LegalDoc`.
+ * · Corps en FRANÇAIS dans les cinq langues (`fr5()`), cf. legal.ts.
  */
 import { useEffect } from 'react';
 import { C, LEGAL_ENTITY, LEGAL_LAST_UPDATED } from '../../src/i18n/catalog/legal';
@@ -40,10 +59,18 @@ export default function CgvScreen() {
 
   const sections: readonly LegalSection[] = [
     { heading: t(C.cgvObjetHeading), body: t(C.cgvObjetBody) },
-    { heading: t(C.cgvVendeurHeading), body: vendeur },
+    // La SEULE section sur surface : c'est le bloc qu'un acheteur, un juriste ou
+    // une plateforme vient chercher isolément dans un document de dix articles.
+    { heading: t(C.cgvVendeurHeading), body: vendeur, surface: true },
     {
       heading: t(C.cgvOffresHeading),
-      body: [t(C.cgvOffresBody1), t(C.cgvOffresBody2), t(C.cgvOffresBody2b), t(C.cgvOffresBody3)],
+      body: [
+        t(C.cgvOffresBody1),
+        t(C.cgvOffresAbonnement),
+        t(C.cgvOffresPonctuels),
+        t(C.cgvOffresJamaisVendus),
+        t(C.cgvOffresBody3),
+      ],
     },
     { heading: t(C.cgvCommandeHeading), body: [t(C.cgvCommandeBody1), t(C.cgvCommandeBody2)] },
     {
@@ -61,8 +88,11 @@ export default function CgvScreen() {
     <LegalDoc
       title={t(C.cgvTitle)}
       icon="boutique"
+      kicker={t(C.cgvKicker)}
       updatedLabel={t(C.legalUpdated, { date: LEGAL_LAST_UPDATED })}
-      intro={t(C.legalReference)}
+      notice={t(C.legalReference)}
+      intro={t(C.cgvStatusIntro)}
+      numbered
       sections={sections}
     />
   );

@@ -1,14 +1,29 @@
 /**
- * GRYD — i18n : catalogue du domaine HISTORIQUE (liste /historique, détail
- * /course/[id], /performance, /territoire). Parité 5 langues imposée par le
+ * GRYD — i18n : catalogue du domaine HISTORIQUE (liste /historique, page
+ * /territoire, page d'état de /course/[id]). Parité 5 langues imposée par le
  * type Entry — une langue manquante = erreur TypeScript.
  *
  * Invariants jamais traduits : GRYD, GO, GRYD Verified/Verify, Crew, @handles,
- * noms propres (République, Bastille…), 2D/3D, km, min. Chips/CTA courts dans
- * TOUTES les langues (§A — troncature interdite à 375px). Les {placeholders}
- * sont identiques dans les 5 langues. Vocabulaire aligné sur les catalogues
- * existants : boucle→Schleife/bucle/loop, trace→Spur/trazo/traço,
- * territoire→Gebiet, ALLURE→PACE (de).
+ * noms propres (République, Bastille…), km, km². Chips/CTA courts dans TOUTES
+ * les langues (§A — troncature interdite à 375 px). Les {placeholders} sont
+ * identiques dans les 5 langues. Vocabulaire aligné sur les catalogues
+ * existants : territoire→Gebiet, zones tenues→Zonen gehalten.
+ *
+ * ─── CE QUI A ÉTÉ RETIRÉ DE CE CATALOGUE (25/07/2026) : 52 ENTRÉES ──────────
+ * Une traduction qu'aucun écran ne rend est du code mort en cinq exemplaires :
+ * elle divergera de la refonte sans que rien ne le signale. Ont disparu —
+ *   · 31 entrées du CORPS de `/course/[id]` (effort héro, segments, motifs de
+ *     refus, détail du calcul, CTA Partager/Signaler), soit ~500 lignes de
+ *     rendu que `findRealRun()` n'a jamais exécutées : aucune lecture d'une
+ *     course par identifiant n'existe (O1) ;
+ *   · 14 entrées des sections VILLES / À DÉFENDRE / ROUTES OUVERTES / RECORDS
+ *     de `/territoire`, supprimées avec leur démo le 21/07 — elles n'avaient
+ *     plus AUCUN appelant depuis ;
+ *   · 5 libellés de `/performance`, qui a son propre catalogue depuis ;
+ *   · `filterRoute` (aucune colonne de `runs` ne reconnaît une boucle « ouverte
+ *     mais fermable ») et `a11yFilter`, remplacé par un libellé de segment qui
+ *     porte lui-même son compte.
+ * Elles reviendront avec leur écran et leur donnée, pas avant.
  */
 import { defineCatalog } from '../types';
 
@@ -28,12 +43,18 @@ export const C = defineCatalog({
     de: 'DEINE LÄUFE',
     pt: 'SUAS CORRIDAS',
   },
+  /**
+   * Le sous-titre promettait « le tracé » — aucune vignette de parcours n'est
+   * rendue, et `RealRunCard` explique pourquoi (`polyline_masked` n'est pas
+   * décodé). Une promesse au-delà du code est la même faute qu'une donnée
+   * fabriquée : le mot est retiré tant que la vignette n'existe pas.
+   */
   historiqueSubtitle: {
-    fr: 'Tous tes parcours : le tracé, l’effort et ce qu’il a changé sur le terrain.',
-    en: 'All your routes: the trace, the effort, and what it changed on the ground.',
-    es: 'Todos tus recorridos: el trazado, el esfuerzo y lo que cambió sobre el terreno.',
-    de: 'Alle deine Läufe: die Spur, der Einsatz und was sie am Boden verändert haben.',
-    pt: 'Todos os seus percursos: o traçado, o esforço e o que mudou no terreno.',
+    fr: 'Tous tes parcours : l’effort et ce qu’il a changé sur le terrain.',
+    en: 'All your runs: the effort, and what it changed on the ground.',
+    es: 'Todas tus carreras: el esfuerzo y lo que cambió sobre el terreno.',
+    de: 'Alle deine Läufe: der Einsatz und was er am Boden verändert hat.',
+    pt: 'Todas as suas corridas: o esforço e o que mudou no terreno.',
   },
 
   // ─── /historique : filtres (chips §A — courts dans TOUTES les langues) ─────
@@ -53,7 +74,6 @@ export const C = defineCatalog({
     de: 'Abwehr',
     pt: 'Defesas',
   },
-  filterRoute: { fr: 'Routes', en: 'Routes', es: 'Rutas', de: 'Routen', pt: 'Rotas' },
   filterStats: {
     fr: 'Stats seules',
     en: 'Stats only',
@@ -61,35 +81,61 @@ export const C = defineCatalog({
     de: 'Nur Stats',
     pt: 'Só stats',
   },
-  a11yFilter: {
-    fr: 'Filtre {label}, {n} courses',
-    en: 'Filter {label}, {n} runs',
-    es: 'Filtro {label}, {n} carreras',
-    de: 'Filter {label}, {n} Läufe',
-    pt: 'Filtro {label}, {n} corridas',
+  /**
+   * Le compte VIT DANS le libellé du segment : `Segmented` ne prend qu'un
+   * label par choix, et son a11y est ce label. Deux Text côte à côte auraient
+   * donné au lecteur d'écran « Conquêtes » puis « 3 » sans lien entre eux.
+   * Format invariant (le chiffre suit le mot dans les cinq langues).
+   */
+  filterWithCount: {
+    fr: '{label} {n}',
+    en: '{label} {n}',
+    es: '{label} {n}',
+    de: '{label} {n}',
+    pt: '{label} {n}',
+  },
+  a11yFilterGroup: {
+    fr: 'Filtrer tes courses',
+    en: 'Filter your runs',
+    es: 'Filtrar tus carreras',
+    de: 'Deine Läufe filtern',
+    pt: 'Filtrar suas corridas',
   },
 
-  // ─── /historique : compteur + états vides ──────────────────────────────────
+  // ─── /historique : compteur + états ────────────────────────────────────────
+  /**
+   * Kicker de comptage, rendu par `SectionLabel` — qui met LUI-MÊME en
+   * capitales. Ces deux entrées restent donc en casse normale : des capitales
+   * écrites en dur seraient ÉPELÉES lettre par lettre par un lecteur d'écran
+   * (c'est la doctrine inscrite en tête de `src/ui/SectionLabel.tsx`). Rendu
+   * visuel identique, énoncé correct.
+   */
   countRunsOne: {
-    fr: '{n} COURSE',
-    en: '{n} RUN',
-    es: '{n} CARRERA',
-    de: '{n} LAUF',
-    pt: '{n} CORRIDA',
+    fr: '{n} course',
+    en: '{n} run',
+    es: '{n} carrera',
+    de: '{n} Lauf',
+    pt: '{n} corrida',
   },
   countRunsMany: {
-    fr: '{n} COURSES',
-    en: '{n} RUNS',
-    es: '{n} CARRERAS',
-    de: '{n} LÄUFE',
-    pt: '{n} CORRIDAS',
+    fr: '{n} courses',
+    en: '{n} runs',
+    es: '{n} carreras',
+    de: '{n} Läufe',
+    pt: '{n} corridas',
   },
+  /**
+   * ÉTAT VIDE — le texte disait « après ta première CAPTURE », alors que la
+   * liste montre TOUTES les courses : le filtre « Stats seules » existe
+   * précisément pour les sorties sans capture. Un joueur qui court sans rien
+   * prendre voyait sa course apparaître après avoir lu qu'elle n'y serait pas.
+   */
   emptyRealUser: {
-    fr: 'Tes courses apparaîtront ici après ta première capture. Lance-toi !',
-    en: 'Your runs will show up here after your first capture. Get out there!',
-    es: 'Tus carreras aparecerán aquí tras tu primera captura. ¡Lánzate!',
-    de: 'Deine Läufe erscheinen hier nach deiner ersten Eroberung. Leg los!',
-    pt: 'Suas corridas vão aparecer aqui depois da sua primeira captura. Bora!',
+    fr: 'Tes courses apparaîtront ici après ta première course enregistrée. Lance-toi !',
+    en: 'Your runs will show up here after your first recorded run. Get out there!',
+    es: 'Tus carreras aparecerán aquí tras tu primera carrera registrada. ¡Lánzate!',
+    de: 'Deine Läufe erscheinen hier nach deinem ersten aufgezeichneten Lauf. Leg los!',
+    pt: 'Suas corridas vão aparecer aqui depois da primeira corrida registrada. Bora!',
   },
   emptyFilter: {
     fr: 'Aucune course dans ce filtre pour l’instant.',
@@ -123,32 +169,20 @@ export const C = defineCatalog({
     de: 'Anmelden, um deine Läufe zu sehen',
     pt: 'Entrar para ver suas corridas',
   },
-  /** Course ouverte par un lien alors qu'aucune course réelle n'existe encore. */
-  runNotYours: {
-    fr: 'Cette course n’est pas dans ton historique. Tes courses apparaîtront ici après ta première sortie enregistrée.',
-    en: 'This run isn’t in your history. Your runs will appear here after your first recorded outing.',
-    es: 'Esta carrera no está en tu historial. Tus carreras aparecerán aquí tras tu primera salida registrada.',
-    de: 'Dieser Lauf ist nicht in deinem Verlauf. Deine Läufe erscheinen hier nach deinem ersten aufgezeichneten Lauf.',
-    pt: 'Esta corrida não está no seu histórico. Suas corridas aparecerão aqui após a primeira saída registrada.',
+  /**
+   * CE QUI N'EXISTE PAS, DIT À SA PLACE (patron /qr) : en bas, en gris, APRÈS
+   * la liste. Aucune card n'est cliquable — le joueur tapait une course et
+   * rien ne se passait, sans que l'écran l'ait jamais annoncé.
+   */
+  detailPendingNote: {
+    fr: 'Le détail d’une course n’est pas encore disponible : ces lignes ne s’ouvrent pas.',
+    en: 'Run details aren’t available yet: these entries don’t open.',
+    es: 'El detalle de una carrera aún no está disponible: estas líneas no se abren.',
+    de: 'Die Detailansicht eines Laufs gibt es noch nicht: Diese Einträge öffnen sich nicht.',
+    pt: 'O detalhe de uma corrida ainda não está disponível: estas linhas não abrem.',
   },
 
-  // ─── /course/[id] : introuvable ────────────────────────────────────────────
-  runFallbackTitle: { fr: 'Course', en: 'Run', es: 'Carrera', de: 'Lauf', pt: 'Corrida' },
-  runGone: {
-    fr: 'Cette course n’est plus disponible.',
-    en: 'This run is no longer available.',
-    es: 'Esta carrera ya no está disponible.',
-    de: 'Dieser Lauf ist nicht mehr verfügbar.',
-    pt: 'Esta corrida não está mais disponível.',
-  },
-
-  // ─── /course/[id] : effort héro (MAJUSCULES conservées) ────────────────────
-  statDistance: { fr: 'DISTANCE', en: 'DISTANCE', es: 'DISTANCIA', de: 'DISTANZ', pt: 'DISTÂNCIA' },
-  statDuration: { fr: 'DURÉE', en: 'TIME', es: 'DURACIÓN', de: 'DAUER', pt: 'DURAÇÃO' },
-  /** « Pace » est le mot des coureurs allemands (cohérent courseLive). */
-  statPace: { fr: 'ALLURE', en: 'PACE', es: 'RITMO', de: 'PACE', pt: 'RITMO' },
-
-  // ─── Statuts GRYD Verify (pastilles) ───────────────────────────────────────
+  // ─── Statuts GRYD Verify (pastilles de RealRunCard) ────────────────────────
   /** « GRYD Verified » = invariant de marque : identique dans les 5 langues. */
   verifyVerified: {
     fr: 'GRYD Verified',
@@ -178,167 +212,95 @@ export const C = defineCatalog({
     de: 'Abgelehnt',
     pt: 'Recusado',
   },
-
-  // ─── États de segment (colonne droite des rangées) ─────────────────────────
-  segValid: { fr: 'Validé', en: 'Valid', es: 'Válido', de: 'Gültig', pt: 'Válido' },
-  segWeakGps: {
-    fr: 'GPS faible · exclu',
-    en: 'Weak GPS · excluded',
-    es: 'GPS débil · excluido',
-    de: 'GPS schwach · raus',
-    pt: 'GPS fraco · excluído',
-  },
-  segPause: { fr: 'Pause', en: 'Pause', es: 'Pausa', de: 'Pause', pt: 'Pausa' },
-
-  // ─── Motifs de refus honnêtes (bloc raison) ────────────────────────────────
-  refusalLoopOpen: {
-    fr: 'Boucle non fermée',
-    en: 'Loop not closed',
-    es: 'Bucle sin cerrar',
-    de: 'Schleife nicht geschlossen',
-    pt: 'Loop não fechado',
-  },
-  refusalZoneThin: {
-    fr: 'Zone trop fine',
-    en: 'Zone too thin',
-    es: 'Zona demasiado fina',
-    de: 'Zone zu schmal',
-    pt: 'Zona fina demais',
-  },
-  refusalGpsUnstable: {
-    fr: 'GPS instable → stats only',
-    en: 'Unstable GPS → stats only',
-    es: 'GPS inestable → solo stats',
-    de: 'GPS instabil → nur Stats',
-    pt: 'GPS instável → só stats',
-  },
-  refusalSpeed: {
-    fr: 'Vitesse incohérente → refusé',
-    en: 'Inconsistent speed → rejected',
-    es: 'Velocidad incoherente → rechazado',
-    de: 'Tempo unplausibel → abgelehnt',
-    pt: 'Velocidade incoerente → recusado',
+  /** Effort d'une course, pour le lecteur d'écran (la ligne est visuelle). */
+  a11yRunEffort: {
+    fr: 'Course du {when} — {effort}',
+    en: 'Run on {when} — {effort}',
+    es: 'Carrera del {when} — {effort}',
+    de: 'Lauf vom {when} — {effort}',
+    pt: 'Corrida de {when} — {effort}',
   },
 
-  // ─── /course/[id] : scène Parcours (toggle 2D/3D invariant) ────────────────
-  routeSection: {
-    fr: 'LE PARCOURS',
-    en: 'THE ROUTE',
-    es: 'EL RECORRIDO',
-    de: 'DIE STRECKE',
-    pt: 'O PERCURSO',
+  // ─── /course/[id] : la page d'état, seule chose que l'écran sait rendre ────
+  runFallbackTitle: { fr: 'Course', en: 'Run', es: 'Carrera', de: 'Lauf', pt: 'Corrida' },
+  /**
+   * ANCIEN TEXTE : « Cette course n'est pas dans ton historique. Tes courses
+   * apparaîtront ici après ta première sortie enregistrée. » Servi tel quel à
+   * un joueur qui a des dizaines de courses, il NIAIT son historique — alors
+   * que la seule chose vraie est que GRYD ne sait pas encore ouvrir le détail
+   * d'une course. On dit ça, et rien d'autre.
+   */
+  runDetailPendingTitle: {
+    fr: 'Détail de course indisponible',
+    en: 'Run details unavailable',
+    es: 'Detalle de carrera no disponible',
+    de: 'Laufdetails nicht verfügbar',
+    pt: 'Detalhe da corrida indisponível',
   },
-  a11yRouteToggle: {
-    fr: 'Voir le parcours en 2D ou en 3D',
-    en: 'View the route in 2D or 3D',
-    es: 'Ver el recorrido en 2D o en 3D',
-    de: 'Strecke in 2D oder 3D ansehen',
-    pt: 'Ver o percurso em 2D ou 3D',
+  runDetailPendingBody: {
+    fr: 'GRYD ne sait pas encore ouvrir une course une par une. Tes courses, elles, sont bien là : retrouve-les dans l’historique.',
+    en: 'GRYD can’t open a single run yet. Your runs are safe: find them in your history.',
+    es: 'GRYD todavía no puede abrir una carrera concreta. Tus carreras siguen ahí: búscalas en el historial.',
+    de: 'GRYD kann einen einzelnen Lauf noch nicht öffnen. Deine Läufe sind da: Du findest sie im Verlauf.',
+    pt: 'A GRYD ainda não abre uma corrida específica. Suas corridas continuam lá: veja no histórico.',
   },
-
-  // ─── /course/[id] : détail du calcul (scène dépliable §B.5) ────────────────
-  a11yCalcDetail: {
-    fr: 'Détail du calcul de cette course',
-    en: 'Calculation detail for this run',
-    es: 'Detalle del cálculo de esta carrera',
-    de: 'Berechnung dieses Laufs im Detail',
-    pt: 'Detalhe do cálculo desta corrida',
-  },
-  calcTitle: {
-    fr: 'Détail du calcul',
-    en: 'Calculation detail',
-    es: 'Detalle del cálculo',
-    de: 'Berechnung im Detail',
-    pt: 'Detalhe do cálculo',
-  },
-  calcSubOpen: {
-    fr: 'Comment cette course a compté',
-    en: 'How this run counted',
-    es: 'Cómo contó esta carrera',
-    de: 'So hat dieser Lauf gezählt',
-    pt: 'Como esta corrida contou',
-  },
-  calcSubClosed: {
-    fr: 'Voir comment cette course a compté',
-    en: 'See how this run counted',
-    es: 'Ver cómo contó esta carrera',
-    de: 'Sehen, wie dieser Lauf gezählt hat',
-    pt: 'Ver como esta corrida contou',
-  },
-  calcZonesTrace: {
-    fr: 'Zones par la trace',
-    en: 'Zones from the trace',
-    es: 'Zonas por el trazo',
-    de: 'Zonen durch die Spur',
-    pt: 'Zonas pelo traço',
-  },
-  calcZonesLoop: {
-    fr: 'Zones par la boucle',
-    en: 'Zones from the loop',
-    es: 'Zonas por el bucle',
-    de: 'Zonen durch die Schleife',
-    pt: 'Zonas pelo loop',
-  },
-  calcClosureGain: {
-    fr: 'Gain de la fermeture',
-    en: 'Gain from closing',
-    es: 'Ganancia del cierre',
-    de: 'Bonus fürs Schließen',
-    pt: 'Ganho do fechamento',
-  },
-  calcExcludedSegments: {
-    fr: 'Segments exclus',
-    en: 'Excluded segments',
-    es: 'Segmentos excluidos',
-    de: 'Ausgeschlossene Segmente',
-    pt: 'Segmentos excluídos',
-  },
-  /** Valeur de la rangée « Segments exclus » quand il n'y en a aucun. */
-  calcNone: { fr: 'aucun', en: 'none', es: 'ninguno', de: 'keine', pt: 'nenhum' },
-  a11ySchemaLoop: {
-    fr: 'La trace seule capture le passage ; la boucle ajoute l’intérieur.',
-    en: 'The trace alone captures your path; the loop adds the inside.',
-    es: 'El trazo solo captura el paso; el bucle añade el interior.',
-    de: 'Die Spur allein erfasst nur den Weg; die Schleife holt das Innere dazu.',
-    pt: 'O traço sozinho captura a passagem; o loop adiciona o interior.',
-  },
-  calcLink: {
-    fr: 'Comment GRYD calcule tes zones',
-    en: 'How GRYD counts your zones',
-    es: 'Cómo GRYD calcula tus zonas',
-    de: 'Wie GRYD deine Zonen zählt',
-    pt: 'Como o GRYD calcula suas zonas',
-  },
-  a11yOpenCalcPage: {
-    fr: 'Ouvrir la page Comment GRYD calcule tes zones',
-    en: 'Open the How GRYD counts your zones page',
-    es: 'Abrir la página Cómo GRYD calcula tus zonas',
-    de: 'Seite „Wie GRYD deine Zonen zählt“ öffnen',
-    pt: 'Abrir a página Como o GRYD calcula suas zonas',
+  runDetailPendingCta: {
+    fr: 'Voir l’historique',
+    en: 'See history',
+    es: 'Ver historial',
+    de: 'Verlauf öffnen',
+    pt: 'Ver histórico',
   },
 
-  // ─── /course/[id] : sections + CTA ─────────────────────────────────────────
-  impactSection: {
-    fr: 'IMPACT SUR LE TERRAIN',
-    en: 'IMPACT ON THE GROUND',
-    es: 'IMPACTO EN EL TERRENO',
-    de: 'IMPACT AM BODEN',
-    pt: 'IMPACTO NO TERRENO',
+  // ─── /territoire (cohérent profil : territoire → Gebiet) ───────────────────
+  territoryKicker: {
+    fr: 'MON TERRITOIRE',
+    en: 'MY TERRITORY',
+    es: 'MI TERRITORIO',
+    de: 'MEIN GEBIET',
+    pt: 'MEU TERRITÓRIO',
   },
-  segmentsSection: {
-    fr: 'SEGMENTS',
-    en: 'SEGMENTS',
-    es: 'SEGMENTOS',
-    de: 'SEGMENTE',
-    pt: 'SEGMENTOS',
+  /** Libellés du bloc de métriques (le chiffre est la valeur, pas la phrase). */
+  metricArea: {
+    fr: 'Surface contrôlée',
+    en: 'Controlled area',
+    es: 'Superficie controlada',
+    de: 'Gehaltene Fläche',
+    pt: 'Área controlada',
   },
-  share: { fr: 'Partager', en: 'Share', es: 'Compartir', de: 'Teilen', pt: 'Compartilhar' },
-  a11yShareRun: {
-    fr: 'Partager cette course',
-    en: 'Share this run',
-    es: 'Compartir esta carrera',
-    de: 'Diesen Lauf teilen',
-    pt: 'Compartilhar esta corrida',
+  metricZones: {
+    fr: 'Zones tenues',
+    en: 'Zones held',
+    es: 'Zonas tomadas',
+    de: 'Zonen gehalten',
+    pt: 'Zonas mantidas',
+  },
+  /**
+   * Forme SINGULIER / PLURIEL — un joueur qui tient une seule zone lisait
+   * « 1 zones tenues ». Le bloc de métriques affiche le chiffre sous un
+   * libellé invariant ; ces deux entrées portent l'énoncé COMPLET du lecteur
+   * d'écran, où la grammaire s'entend.
+   */
+  a11yZonesHeldOne: {
+    fr: '{n} zone tenue',
+    en: '{n} zone held',
+    es: '{n} zona tomada',
+    de: '{n} Zone gehalten',
+    pt: '{n} zona mantida',
+  },
+  a11yZonesHeldMany: {
+    fr: '{n} zones tenues',
+    en: '{n} zones held',
+    es: '{n} zonas tomadas',
+    de: '{n} Zonen gehalten',
+    pt: '{n} zonas mantidas',
+  },
+  a11yAreaHeld: {
+    fr: '{value} de surface contrôlée',
+    en: '{value} of controlled area',
+    es: '{value} de superficie controlada',
+    de: '{value} gehaltene Fläche',
+    pt: '{value} de área controlada',
   },
   /** CTA carte — court partout (§A) : « Zur Karte » plutôt qu'une phrase. */
   seeOnMap: {
@@ -348,144 +310,44 @@ export const C = defineCatalog({
     de: 'Zur Karte',
     pt: 'Ver no mapa',
   },
-  reportProblem: {
-    fr: 'Signaler un problème',
-    en: 'Report a problem',
-    es: 'Informar de un problema',
-    de: 'Problem melden',
-    pt: 'Relatar um problema',
+  /**
+   * SANS BACKEND — état distinct de « pas connecté » : ici, se connecter est
+   * impossible (l'écran d'auth redirige aussitôt vers la carte). On dit la
+   * cause, et l'unique CTA reste celui qui marche : ouvrir la carte.
+   */
+  territoryNoBackendTitle: {
+    fr: 'Aucun serveur relié',
+    en: 'No server connected',
+    es: 'Sin servidor conectado',
+    de: 'Kein Server verbunden',
+    pt: 'Nenhum servidor ligado',
   },
-
-  // ─── /performance ──────────────────────────────────────────────────────────
-  perfTitle: {
-    fr: 'Performance',
-    en: 'Performance',
-    es: 'Rendimiento',
-    de: 'Leistung',
-    pt: 'Desempenho',
+  territoryNoBackendBody: {
+    fr: 'Cet aperçu n’est relié à aucun serveur : personne ne peut encore tenir de zone.',
+    en: 'This preview isn’t connected to a server: no zone can be held yet.',
+    es: 'Esta vista previa no está conectada a ningún servidor: aún no se puede tomar ninguna zona.',
+    de: 'Diese Vorschau ist mit keinem Server verbunden: Noch kann keine Zone gehalten werden.',
+    pt: 'Esta prévia não está ligada a nenhum servidor: ainda não dá para manter zona.',
   },
-  perfKicker: {
-    fr: 'TA FORME · TON IMPACT',
-    en: 'YOUR FORM · YOUR IMPACT',
-    es: 'TU FORMA · TU IMPACTO',
-    de: 'DEINE FORM · DEIN IMPACT',
-    pt: 'SUA FORMA · SEU IMPACTO',
+  /** LECTURE EN COURS — une ligne grise, jamais un spinner plein écran. */
+  territoryLoading: {
+    fr: 'Lecture de tes zones…',
+    en: 'Reading your zones…',
+    es: 'Leyendo tus zonas…',
+    de: 'Deine Zonen werden gelesen …',
+    pt: 'Lendo suas zonas…',
   },
-  perfDemoNote: {
-    fr: 'Données de démonstration — pas encore tes vrais chiffres.',
-    en: 'Demo data — not your real numbers yet.',
-    es: 'Datos de demostración — aún no son tus cifras reales.',
-    de: 'Demo-Daten — noch nicht deine echten Zahlen.',
-    pt: 'Dados de demonstração — ainda não são seus números reais.',
-  },
-  perfVerifyLink: {
-    fr: 'Voir GRYD Verify · sources connectées',
-    en: 'See GRYD Verify · connected sources',
-    es: 'Ver GRYD Verify · fuentes conectadas',
-    de: 'GRYD Verify · verbundene Quellen',
-    pt: 'Ver GRYD Verify · fontes conectadas',
-  },
-  a11yPerfVerifyLink: {
-    fr: 'Voir GRYD Verify et les sources connectées',
-    en: 'See GRYD Verify and connected sources',
-    es: 'Ver GRYD Verify y las fuentes conectadas',
-    de: 'GRYD Verify und verbundene Quellen ansehen',
-    pt: 'Ver GRYD Verify e as fontes conectadas',
-  },
-
-  // ─── /territoire (cohérent profil : territoire → Gebiet) ───────────────────
-  a11yBackProfile: {
-    fr: 'Revenir au profil',
-    en: 'Back to profile',
-    es: 'Volver al perfil',
-    de: 'Zurück zum Profil',
-    pt: 'Voltar ao perfil',
-  },
-  territoryKicker: {
-    fr: 'MON TERRITOIRE',
-    en: 'MY TERRITORY',
-    es: 'MI TERRITORIO',
-    de: 'MEIN GEBIET',
-    pt: 'MEU TERRITÓRIO',
-  },
-  territoryOf: {
-    fr: 'Territoire de {name}',
-    en: '{name}’s territory',
-    es: 'Territorio de {name}',
-    de: 'Gebiet von {name}',
-    pt: 'Território de {name}',
-  },
-  zonesHeld: {
-    fr: '{n} zones tenues',
-    en: '{n} zones held',
-    es: '{n} zonas controladas',
-    de: '{n} Zonen gehalten',
-    pt: '{n} zonas mantidas',
-  },
-  contestedBorders: {
-    fr: '{n} frontières contestées',
-    en: '{n} contested borders',
-    es: '{n} fronteras disputadas',
-    de: '{n} umkämpfte Grenzen',
-    pt: '{n} fronteiras disputadas',
-  },
-  sectionCities: { fr: 'VILLES', en: 'CITIES', es: 'CIUDADES', de: 'STÄDTE', pt: 'CIDADES' },
-  sectionDefend: {
-    fr: 'À DÉFENDRE',
-    en: 'TO DEFEND',
-    es: 'A DEFENDER',
-    de: 'ZU VERTEIDIGEN',
-    pt: 'A DEFENDER',
-  },
-  sectionOpenRoutes: {
-    fr: 'ROUTES OUVERTES',
-    en: 'OPEN ROUTES',
-    es: 'RUTAS ABIERTAS',
-    de: 'OFFENE ROUTEN',
-    pt: 'ROTAS ABERTAS',
-  },
-  sectionRecords: {
-    fr: 'RECORDS TERRITOIRE',
-    en: 'TERRITORY RECORDS',
-    es: 'RÉCORDS DE TERRITORIO',
-    de: 'GEBIETS-REKORDE',
-    pt: 'RECORDES DE TERRITÓRIO',
-  },
-  seeAll: { fr: 'Voir tout', en: 'See all', es: 'Ver todo', de: 'Alle zeigen', pt: 'Ver tudo' },
-  a11ySeeAll: {
-    fr: 'Voir tout — {title}',
-    en: 'See all — {title}',
-    es: 'Ver todo — {title}',
-    de: 'Alle zeigen — {title}',
-    pt: 'Ver tudo — {title}',
-  },
-  zonesCount: {
-    fr: '{n} zones',
-    en: '{n} zones',
-    es: '{n} zonas',
-    de: '{n} Zonen',
-    pt: '{n} zonas',
-  },
-  defend: {
-    fr: 'Défendre',
-    en: 'Defend',
-    es: 'Defender',
-    de: 'Verteidigen',
-    pt: 'Defender',
-  },
-  a11yDefend: {
-    fr: 'Défendre {name}',
-    en: 'Defend {name}',
-    es: 'Defender {name}',
-    de: '{name} verteidigen',
-    pt: 'Defender {name}',
-  },
-  a11yShareTerritory: {
-    fr: 'Partager mon territoire',
-    en: 'Share my territory',
-    es: 'Compartir mi territorio',
-    de: 'Mein Gebiet teilen',
-    pt: 'Compartilhar meu território',
+  /**
+   * CE QUI N'EXISTE PAS, DIT À SA PLACE. Le bouton « Partager » de cette page
+   * poussait vers /partage sans jamais armer de carte : il aboutissait TOUJOURS
+   * à un écran vide. Il est retiré, et son absence est écrite.
+   */
+  territoryShareNote: {
+    fr: 'Partager son territoire n’est pas encore possible : seule une course terminée peut devenir une carte de partage.',
+    en: 'Sharing your territory isn’t possible yet: only a finished run can become a share card.',
+    es: 'Compartir tu territorio aún no es posible: solo una carrera terminada puede convertirse en tarjeta.',
+    de: 'Dein Gebiet lässt sich noch nicht teilen: Nur ein beendeter Lauf wird zur Teilen-Karte.',
+    pt: 'Ainda não dá para compartilhar seu território: só uma corrida concluída vira card de compartilhamento.',
   },
 
   // ─── Commutateur Run / Bike (planche E14) ──────────────────────────────────

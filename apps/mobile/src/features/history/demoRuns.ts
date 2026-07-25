@@ -3,12 +3,13 @@
  * « L'utilisateur doit retrouver TOUS ses parcours … avec le dessin de son
  * parcours (le tracé réel), en 2D ET en 3D. »
  *
- * ⚠ CE FICHIER EST MAL NOMMÉ — et le renommer demande une ligne dans un fichier
- * hors périmètre. Il ne contient plus AUCUNE donnée fabriquée : seulement le
- * type d'un tracé, le seam de lecture, et le calcul de cadrage caméra. Le nom
- * `demoRuns.ts` doit devenir `runTrace.ts` ; cela suppose de changer l'import de
- * `app/course/[id].tsx` (ligne 33), édité par un autre lot. Voir le rapport
- * AMENDEMENT-47.
+ * ⚠ CE FICHIER EST MAL NOMMÉ. Il ne contient plus AUCUNE donnée fabriquée :
+ * seulement le type d'un tracé, le seam de lecture, et le calcul de cadrage
+ * caméra. Le nom `demoRuns.ts` doit devenir `runTrace.ts` — son dernier
+ * importeur d'écran a disparu le 25/07/2026 avec le corps de `/course/[id]`, il
+ * ne reste que `RunRoute3D` (même dossier). Renommage à faire avec le chantier
+ * qui rebranchera la lecture de la polyligne (O1), pour ne pas déplacer deux
+ * fois le même fichier.
  *
  * ─── CE QUI A ÉTÉ RETIRÉ LE 21/07/2026 (AMENDEMENT-47) ──────────────────────
  * `RUN_TRACES` : neuf tracés GPS fabriqués, un par course du catalogue de démo

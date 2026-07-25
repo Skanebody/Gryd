@@ -1,115 +1,110 @@
 /**
- * GRYD — page détaillée « Mon territoire » (/territoire), AMENDEMENT-18 PARTIE
- * B. Ouverte au tap depuis la card du Profil.
+ * GRYD — MON TERRITOIRE (/territoire, AMENDEMENT-18 PARTIE B). Ouverte au tap
+ * depuis la card du Profil recalé (`profil.tsx:774`).
  *
- * ─── CE QUI A ÉTÉ CORRIGÉ ICI (21/07/2026) ──────────────────────────────────
- * Cette page rendait `TERRITORY_PAGE_DEMO` SANS AUCUNE GARDE. Sur un iPhone
- * neuf, sans compte, elle affichait donc : « Territoire de KORO » (une identité
- * qui n'est pas celle du joueur), « 55 zones tenues · Paris + Lille · 3
- * frontières contestées » (des chiffres qu'il n'a pas gagnés, dans des villes où
- * il n'a jamais couru), trois menaces datées (« République — expire dans 18 h »),
- * trois routes, trois records, et un palmarès de coureurs inexistants. La seule
- * réserve était une ligne de bas de titre « Territoires de démonstration ».
- * Décision fondateur du 21/07 : le bandeau n'y change rien — c'est un
- * territoire fabriqué affiché à la place du sien. Bug bloquant.
+ * ─── ORDRE DE COMPOSITION ───────────────────────────────────────────────────
+ *   1. `StackScreen` : retour + titre de barre + kicker mono gris ;
+ *   2. le BLOC DE MÉTRIQUES à séparateurs — 2 cellules, une seule mise en avant
+ *      (la surface contrôlée, en chartreuse sur surface sombre) ;
+ *   3. la CARTE (220 px), uniquement quand la lecture a abouti ;
+ *   4. la CARD D'ÉTAT nommée, quand la page n'a pas de territoire à montrer ;
+ *   5. le classement de zone (titre + une ligne d'absence honnête) ;
+ *   6. en gris, en bas : ce qui n'existe pas encore ;
+ *   7. HORS du scroll, l'unique CTA chartreuse, dont la nature suit l'état.
  *
- * PREMIÈRE CORRECTION (matin du 21/07) : la démo était mise derrière
- * `isShowcasePlatform`. CORRECTION DÉFINITIVE (celle-ci) : la vitrine elle-même
- * est abandonnée — plus AUCUNE branche ne peut afficher KORO, où que ce soit.
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
+ * · LE CHÂSSIS RECODÉ (barre de retour maison, kicker et titre stylés à la
+ *   main, ScrollView + insets) → `StackScreen`, le gabarit des écrans poussés.
+ *   Le kicker y consomme le rôle typo R1 au lieu de le réécrire.
+ * · LE COMPOSANT `Section` et ses seize styles compagnons (villes, menaces,
+ *   routes, records) : défini, jamais monté depuis la suppression des sections
+ *   de démo le 21/07. Du code mort qui décrit un écran qui n'existe pas.
+ * · LE BOUTON « PARTAGER ». Il poussait `/partage?template=conquete` sans
+ *   jamais appeler `setShareRun` : `/partage` lit un singleton armé par le
+ *   Résultat de course et sert son état vide quand il ne l'est pas. Depuis
+ *   cette page, « Partager » aboutissait donc TOUJOURS à un écran vide — un CTA
+ *   qui ne fait pas ce qu'il dit. Aucune carte de partage territoriale
+ *   n'existe : le bouton part, et son absence est ÉCRITE en bas, en gris.
+ * · LE CONTOUR PERMANENT de la carte (`borderWidth: 1`) : un contour signale un
+ *   ÉTAT, pas une frontière de bloc.
+ * · Les sections VILLES / À DÉFENDRE / ROUTES OUVERTES / RECORDS restent
+ *   supprimées (21/07) : `hex_claims` porte le propriétaire, la géométrie et la
+ *   date de capture — pas de ville (`city_id` est NULL sur toute capture
+ *   réelle), pas d'expiration exploitée, pas de pression rivale, pas de record.
+ *   Quatre sections qui répètent qu'elles n'ont rien font un écran de ruines.
  *
- * ─── CE QUE LA PAGE MONTRE MAINTENANT ───────────────────────────────────────
- * Elle lit `hex_claims` via `useRealTerritories`, exactement comme la Battle
- * Map, et n'affiche QUE ce qui en sort. Quatre états, jamais confondus :
- *   • pas connecté  → la carte le dit, l'unique CTA est « Se connecter » ;
- *   • chargement    → on n'affirme RIEN (pas de « 0 » nu, pas de spinner infini,
- *                     et surtout pas « pas connecté » pendant la restauration de
- *                     session — c'était le bug de `signedOut`, corrigé dans le
- *                     hook lui-même) ;
- *   • échec         → la carte le dit, l'unique CTA est « Réessayer » ;
- *   • zéro capture  → la carte invite à courir, le CTA mène à la carte (le GO) ;
- *   • du territoire → les VRAIS chiffres : zones tenues + surface réelle.
+ * ─── LES CINQ ÉTATS, JAMAIS CONFONDUS (fonction pure `pageState.ts`) ────────
+ *   · chargement   → une LIGNE grise non tapable. La page n'affichait RIEN dans
+ *                    cet état : visuellement identique au vide, pendant que le
+ *                    CTA du bas parlait déjà comme si la lecture était finie ;
+ *   · échec        → card nommée, et l'unique CTA devient « Réessayer » ;
+ *   · pas connecté → card nommée + CTA « Se connecter » ;
+ *   · SANS BACKEND → état DISTINCT : `/(auth)/sign-in` redirige immédiatement
+ *                    vers la carte quand `configured` est faux, donc le bouton
+ *                    « Se connecter » renvoyait le joueur d'où il venait. C'est
+ *                    la garde `canSignIn` du Profil, portée ici ;
+ *   · zéro capture → la card invite à courir, le CTA mène à la carte (le GO) ;
+ *   · du territoire→ les VRAIS chiffres : zones tenues + surface réelle.
+ * Chaque état a désormais sa CARD NOMMÉE : ils ne se distinguaient auparavant
+ * que par le libellé du bouton du bas.
  *
- * Les quatre sections démo (VILLES / À DÉFENDRE / ROUTES OUVERTES / RECORDS) ne
- * sont PAS remplacées par des sections vides : elles n'ont aucune source de
- * données. `hex_claims` porte le propriétaire, la géométrie et la date de
- * capture — pas de ville (`city_id` est NULL sur toute capture réelle, cf.
- * hexClaims.ts), pas d'expiration exploitée, pas de pression rivale, pas de
- * record. Une section « À défendre » vide serait un aveu, quatre en série un
- * champ de ruines (§A : compris en < 3 s). Elles reviendront le jour où une vue
- * serveur les alimente — et pas avant. Le bouton « Défendre » disparaît avec
- * elles : il ciblait `d.threats.find(urgent)`, une menace fabriquée.
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE ────────────────────────────────────────────
+ * · PAS DE NOM DE JOUEUR dans le titre (« Territoire de KORO » de la planche).
+ *   Raison technique : la session ne porte pas de pseudo — la page parle à la
+ *   1ʳᵉ personne plutôt que d'inventer une identité.
+ * · PAS DE VILLES, PAS DE FRONTIÈRES CONTESTÉES, PAS DE RECORDS. Raison
+ *   technique : aucune colonne ni vue serveur ne les porte (cf. ci-dessus).
+ * · PAS DE PARTAGE. Raison technique : `features/share/shareRun.ts` n'expose
+ *   qu'un singleton armé par le Résultat de course ; aucune carte territoriale
+ *   n'existe, et ce module appartient à un périmètre gelé.
+ * · CLASSEMENT DE ZONE réduit à son titre + une phrase. Raison technique :
+ *   aucune table, RPC ou vue n'agrège un palmarès de zone.
  *
  * Inchangé : screen('territoire') au montage (§8), vocabulaire zones/secteurs,
- * libellés courts NON tronqués (Partie D), anti-shame, zéro position live.
+ * libellés courts NON tronqués, anti-shame, zéro position live.
  */
 import { useEffect, useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  borderState,
   colors,
+  elevation,
   fonts,
   fontSizes,
-  gameColors,
-  iconSizes,
   radii,
   sizes,
   spacing,
+  typography,
   type IconName,
 } from '@klaim/shared';
 import { TerritoryFranceMap } from '../src/features/territory/TerritoryFranceMap';
+import {
+  territoryCta,
+  territoryMetricKeys,
+  territoryPageState,
+  territoryShowsMap,
+} from '../src/features/territory/pageState';
 import { useRealTerritories } from '../src/features/map/hexClaims';
 import { formatKm2 } from '../src/features/widget/territoryWidget';
 import { ZoneLeaderboard } from '../src/features/territory/ZoneLeaderboard';
 import { screen } from '../src/lib/analytics';
-import { Icon } from '../src/ui/Icon';
+import { Button } from '../src/ui/Button';
+import { Card } from '../src/ui/Card';
+import { StackScreen } from '../src/ui/StackScreen';
 import { formatInt } from '../src/ui/format';
+import { useSession } from '../src/lib/session';
 import { useLocale, useT } from '../src/i18n/store';
 import { C } from '../src/i18n/catalog/historique';
 import { C as Cmap } from '../src/i18n/catalog/map';
 
-/** Section compacte : titre + ≤ 2 items visibles + « Voir tout » (anti-scroll). */
-function Section({
-  title,
-  count,
-  onSeeAll,
-  children,
-}: {
-  title: string;
-  count: number;
-  onSeeAll?: () => void;
-  children: React.ReactNode;
-}) {
-  const t = useT();
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {count > 2 && onSeeAll ? (
-          <Pressable
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t(C.a11ySeeAll, { title })}
-            onPress={onSeeAll}
-          >
-            <Text style={styles.seeAll}>{t(C.seeAll)}</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      {children}
-    </View>
-  );
-}
-
 /**
- * Ce que la page est en train de dire. UN état à la fois — c'est ce qui garantit
- * qu'on ne mélange jamais « pas connecté » et « rien capturé ».
- * `loading` existe pour lui-même : sans lui, l'absence de territoires pendant la
- * requête se lit comme « tu n'as rien pris », et la page dément sa propre phrase
- * une seconde plus tard.
+ * Hauteur de la carte de résumé — MESURE DE COMPOSITION (≈ 40 % du premier
+ * écran), pas une règle de jeu : elle laisse le bloc de métriques et la card
+ * d'état visibles sans scroll.
  */
-type PageState = 'failed' | 'signed-out' | 'loading' | 'empty' | 'held';
+const SUMMARY_MAP_H = 220;
 
 export default function TerritoireScreen() {
   const t = useT();
@@ -123,10 +118,13 @@ export default function TerritoireScreen() {
   /**
    * Les VRAIES captures — même source et même hook que la Battle Map, pour que
    * les deux écrans ne puissent pas se contredire. Appelé SANS `crewIds` :
-   * `stateFor` ne classe alors 'crew' que ce qui m'appartient (territoryBuild.ts),
-   * ce qui est exactement le périmètre d'une page intitulée « Mon territoire ».
+   * `stateFor` ne classe alors 'crew' que ce qui m'appartient (territoryBuild),
+   * ce qui est exactement le périmètre d'une page « Mon territoire ».
    */
   const { territories, failed, signedOut, loading, reload } = useRealTerritories();
+  // Un backend existe-t-il seulement ? Sans lui, « Se connecter » est un
+  // cul-de-sac (l'écran d'auth redirige aussitôt vers la carte).
+  const { configured } = useSession();
 
   /** Mes possessions réelles : total de zones + surface réellement couverte. */
   const mine = useMemo(
@@ -134,287 +132,265 @@ export default function TerritoireScreen() {
     [territories],
   );
   const myZones = useMemo(() => mine.reduce((sum, ter) => sum + ter.zoneCount, 0), [mine]);
-  const myAreaM2 = useMemo(
-    () => mine.reduce((sum, ter) => sum + ter.props.areaM2, 0),
-    [mine],
-  );
+  const myAreaM2 = useMemo(() => mine.reduce((sum, ter) => sum + ter.props.areaM2, 0), [mine]);
 
-  // Ordre de priorité IDENTIQUE à celui de la carte et du HUD : chargement >
-  // échec > pas de session > vide > tenu. Toute divergence rouvrirait la porte à
-  // « la page dit une chose, la carte juste en dessous en dit une autre ».
-  // `loading` EN PREMIER (et fourni par le hook, pas déduit de `territories`) :
-  // pendant la restauration de session, `signedOut` était vrai et cette page
-  // affichait « Se connecter » à un joueur connecté.
-  const pageState: PageState = loading
-    ? 'loading'
-    : failed
-      ? 'failed'
-      : signedOut
-        ? 'signed-out'
-        : myZones === 0
-          ? 'empty'
-          : 'held';
+  const pageState = territoryPageState({
+    loading,
+    failed,
+    signedOut,
+    configured,
+    zonesHeld: myZones,
+  });
+  const metricKeys = territoryMetricKeys({ areaM2: myAreaM2, zonesHeld: myZones });
+  const ctaKind = territoryCta(pageState);
 
   /**
    * L'UNIQUE CTA chartreuse de l'écran (§A.4), et il change de NATURE avec
-   * l'état : se connecter quand il n'y a pas de compte, réessayer quand la
-   * lecture a échoué, aller à la carte (où vit le GO) dans tous les autres cas.
-   * Jamais un bouton qui promet une action sans objet.
+   * l'état. « Voir sur la carte » est vrai quel que soit ce qu'on sait du
+   * territoire : la carte existe et s'ouvre — ce bouton n'affirme donc jamais
+   * une lecture terminée. Jamais un bouton qui promet une action sans objet.
    */
-  const cta: { label: string; icon: IconName; onPress: () => void } =
-    pageState === 'signed-out'
+  const cta: { label: string; icon: IconName; analyticsId: string; onPress: () => void } =
+    ctaKind === 'sign-in'
       ? {
           label: t(Cmap.emptySignedOutCta),
           icon: 'profil',
+          analyticsId: 'territoire_sign_in',
           onPress: () => router.push('/(auth)/sign-in'),
         }
-      : pageState === 'failed'
-        ? { label: t(Cmap.emptyFailedCta), icon: 'alerte', onPress: () => reload() }
-        : { label: t(C.seeOnMap), icon: 'carte', onPress: () => router.push('/(tabs)') };
+      : ctaKind === 'retry'
+        ? {
+            label: t(Cmap.emptyFailedCta),
+            icon: 'alerte',
+            analyticsId: 'territoire_retry',
+            onPress: reload,
+          }
+        : {
+            label: t(C.seeOnMap),
+            icon: 'carte',
+            analyticsId: 'territoire_open_map',
+            onPress: () => router.push('/(tabs)'),
+          };
+
+  /** Copie de l'état — chaque situation a SA card nommée (jamais un trou). */
+  const stateCopy: { title: string; body: string } | null =
+    pageState === 'signed-out'
+      ? { title: t(Cmap.emptySignedOutTitle), body: t(Cmap.emptySignedOutLine) }
+      : pageState === 'no-backend'
+        ? { title: t(C.territoryNoBackendTitle), body: t(C.territoryNoBackendBody) }
+        : pageState === 'failed'
+          ? { title: t(Cmap.emptyFailedTitle), body: t(Cmap.emptyFailedLine) }
+          : pageState === 'empty'
+            ? { title: t(Cmap.emptyNoneTitle), body: t(Cmap.emptyNoneLine) }
+            : null;
 
   return (
-    <View style={styles.root}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 96 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── En-tête stratégique ────────────────────────────────────────── */}
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <View style={styles.topBar}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(C.a11yBackProfile)}
-              onPress={() => goBack('/profil')}
-              hitSlop={12}
-              style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-            >
-              <View style={styles.backChevron}>
-                <Icon name="chevron" size={20} color={colors.blanc} />
-              </View>
-            </Pressable>
-            <Text style={styles.kicker}>{t(C.territoryKicker)}</Text>
-            <View style={styles.back} />
-          </View>
-
-          {/* Aucune source ne donne le nom du joueur (la session ne porte pas de
-              pseudo aujourd'hui) : la page parle à la 1ʳᵉ personne plutôt que
-              d'inventer un KORO. `territoryOf` reprendra sa place le jour où un
-              profil réel existe. */}
-          <Text style={styles.title}>{t(Cmap.territoryPageTitle)}</Text>
-
-          {/* Résumé chiffré : QUE ce qui a été mesuré (zones tenues + surface).
-              La page se TAIT tant qu'il n'y a rien — un « 0 zone » nu sous un
-              titre « Mon territoire » n'est pas une information, c'est un
-              reproche (anti-shame). Ni villes ni frontières contestées : aucune
-              donnée ne les porte. */}
-          {pageState === 'held' ? (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryStrong}>
-                {t(C.zonesHeld, { n: formatInt(myZones) })}
-              </Text>
-              <Text style={styles.summaryDot}> · </Text>
-              <Text style={styles.summaryMuted}>{formatKm2(myAreaM2, locale)}</Text>
-            </View>
-          ) : null}
+    <StackScreen
+      title={t(Cmap.territoryPageTitle)}
+      icon="carte"
+      kicker={t(C.territoryKicker)}
+      backHref="/profil"
+      floating={
+        <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+          <Button
+            label={cta.label}
+            icon={cta.icon}
+            size="md"
+            analyticsId={cta.analyticsId}
+            onPress={cta.onPress}
+          />
         </View>
+      }
+    >
+      {/* ── 1. LE BLOC DE MÉTRIQUES — un seul bloc à séparateurs, 2 cellules
+             MAX, jamais deux cards. Une métrique sans mesure DISPARAÎT : la
+             page se TAIT plutôt que d'aligner un « 0 zone » sous un titre
+             « Mon territoire », qui n'est pas une information mais un reproche
+             (anti-shame). La surface contrôlée est LA mise en avant — c'est la
+             matière du jeu, et la seule cellule chartreuse de l'écran. ── */}
+      {metricKeys.length > 0 ? (
+        <View style={styles.metrics}>
+          {metricKeys.map((key, i) =>
+            key === 'area' ? (
+              <View
+                key={key}
+                accessible
+                accessibilityLabel={t(C.a11yAreaHeld, { value: formatKm2(myAreaM2, locale) })}
+                style={[styles.metricCell, styles.metricLead, i > 0 && styles.metricDivided]}
+              >
+                <Text
+                  style={styles.metricLeadValue}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {formatKm2(myAreaM2, locale)}
+                </Text>
+                <Text style={styles.metricLabel} numberOfLines={2}>
+                  {t(C.metricArea)}
+                </Text>
+              </View>
+            ) : (
+              <View
+                key={key}
+                accessible
+                /* La grammaire vit dans l'énoncé du lecteur d'écran : un joueur
+                   qui tient UNE zone entendait « 1 zones tenues ». */
+                accessibilityLabel={t(myZones === 1 ? C.a11yZonesHeldOne : C.a11yZonesHeldMany, {
+                  n: formatInt(myZones),
+                })}
+                style={[styles.metricCell, i > 0 && styles.metricDivided]}
+              >
+                <Text
+                  style={styles.metricValue}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {formatInt(myZones)}
+                </Text>
+                <Text style={styles.metricLabel} numberOfLines={2}>
+                  {t(C.metricZones)}
+                </Text>
+              </View>
+            ),
+          )}
+        </View>
+      ) : null}
 
-        {/* ── La carte (résumé, ~40 % — hauteur ≤ 260 px) ────────────────── */}
+      {/* ── 2. LECTURE EN COURS — une ligne grise non tapable. Sans elle, la
+             page était VIDE pendant la requête : indistinguable d'un joueur qui
+             n'a rien capturé. Un chargement n'affirme rien. ── */}
+      {pageState === 'loading' ? (
+        <Text style={styles.stateInline}>{t(C.territoryLoading)}</Text>
+      ) : null}
+
+      {/* ── 3. LA CARTE — seulement là où la lecture a ABOUTI (tenu ou vide).
+             Ailleurs, une vue monde sans possession occupait le premier écran
+             en laissant croire qu'on regardait le territoire du joueur. ── */}
+      {territoryShowsMap(pageState) ? (
         <View style={styles.mapWrap}>
           <TerritoryFranceMap style={styles.map} testID="territoire-france-map" />
         </View>
+      ) : null}
 
-        {/* ── SECTIONS SUPPRIMÉES LE 21/07/2026 ───────────────────────────────
-            VILLES · À DÉFENDRE · ROUTES OUVERTES · RECORDS sortaient tous de
-            `pageDemo.ts` : aucune requête ne les alimentait. Elles ne sont PAS
-            remplacées par des versions « vides » — quatre sections qui répètent
-            qu'elles n'ont rien, c'est un écran de trous, et §A demande de
-            comprendre l'écran en moins de 3 s. L'état réel est déjà dit, une
-            seule fois, par la carte au-dessus. Elles reviendront quand une vue
-            serveur les portera (ville, expiration, pression rivale, records). */}
+      {/* ── 4. LA CARD D'ÉTAT NOMMÉE. Elle ne porte AUCUN bouton : l'unique CTA
+             chartreuse de l'écran vit en bas et change déjà de nature. ── */}
+      {stateCopy ? (
+        <Card style={styles.state}>
+          <Text style={styles.stateTitle}>{stateCopy.title}</Text>
+          <Text style={styles.stateBody}>{stateCopy.body}</Text>
+        </Card>
+      ) : null}
 
-        {/* ── CLASSEMENT DE ZONE ─────────────────────────────────────────────
-            Le composant garde son titre et explique en une ligne qu'aucun
-            palmarès n'existe encore, au lieu d'afficher MIRA/ELIO/SAKO — des
-            coureurs qui n'existent pas. On ne le montre qu'à un joueur qui TIENT
-            du territoire : sur une page déjà vide, une section de plus qui dit
-            « rien » n'apprend rien. */}
-        {pageState === 'held' ? <ZoneLeaderboard /> : null}
-      </ScrollView>
+      {/* ── 5. CLASSEMENT DE ZONE — le composant garde son titre et explique en
+             une ligne qu'aucun palmarès n'existe encore, au lieu d'afficher des
+             coureurs qui n'existent pas. On ne le montre qu'à un joueur qui
+             TIENT du territoire : sur une page déjà vide, une section de plus
+             qui dit « rien » n'apprend rien. ── */}
+      {pageState === 'held' ? <ZoneLeaderboard /> : null}
 
-      {/* ── CTA bas contextuel (jamais « Explorer la carte » vague) ──────────
-          UN seul bouton chartreuse (§A.4), dont le LIBELLÉ et la DESTINATION
-          suivent l'état : « Se connecter » / « Réessayer » / « Voir sur la
-          carte ». Le bouton « Défendre » a disparu : il ciblait une menace
-          fabriquée (`d.threats`). « Partager » ne survit que là où il a un
-          objet — un territoire réellement tenu. */}
-      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={cta.label}
-          onPress={cta.onPress}
-          style={({ pressed }) => [styles.ctaPrimary, pressed && styles.pressed]}
-        >
-          <Icon name={cta.icon} size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.ctaPrimaryLabel}>{cta.label}</Text>
-        </Pressable>
-        {pageState === 'held' ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(C.a11yShareTerritory)}
-            onPress={() => router.push('/partage?template=conquete')}
-            style={({ pressed }) => [styles.ctaIcon, pressed && styles.pressed]}
-          >
-            <Icon name="partage" size={iconSizes.md} color={colors.blanc} />
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
+      {/* ── 6. Ce qui n'existe pas encore, dit à sa place : en bas, en gris,
+             après l'action (patron `qr.tsx`). ── */}
+      {pageState === 'held' ? <Text style={styles.footnote}>{t(C.territoryShareNote)}</Text> : null}
+
+      {/* Dégagement du CTA flottant : `StackScreen` réserve la hauteur de la
+          barre d'onglets, pas celle d'une barre d'action. Sans cette cale, la
+          dernière ligne passerait SOUS le bouton. */}
+      <View style={styles.ctaClearance} />
+    </StackScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.noir },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: spacing.cardPadding },
-  pressed: { opacity: 0.7 },
-
-  // En-tête
-  header: { paddingBottom: 14 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { width: 32, alignItems: 'flex-start' },
-  backChevron: { transform: [{ scaleX: -1 }] },
-  demoNote: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 6 },
-  kicker: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
-  title: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    fontWeight: '700',
-    marginTop: 14,
+  // ── Bloc de métriques : UNE surface N1, colonnes séparées par un filet —
+  //    jamais deux cards. La 1ʳᵉ colonne est plus large : c'est LA mise en avant.
+  metrics: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
   },
-  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 6 },
-  summaryStrong: { color: colors.chartreuse, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
-  summaryMuted: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
-  summaryContested: { color: gameColors.contested, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
-  summaryDot: { color: colors.gris, fontSize: fontSizes.sm },
+  metricCell: { flex: 1, gap: 3, paddingHorizontal: spacing.xs, justifyContent: 'center' },
+  metricLead: { flex: 1.45, paddingLeft: spacing.md },
+  metricDivided: { borderLeftWidth: 1, borderLeftColor: borderState.hairline },
+  /**
+   * Rôle R6 « stat » recopié à la main : `typography.stat` porte un
+   * `fontVariant` en LECTURE SEULE que `StyleSheet` refuse à l'étalement
+   * (TextStyle le veut mutable) — même contrainte, même contournement que
+   * `StatBlock`. Mêmes valeurs, chiffres tabulaires compris.
+   * Chartreuse sur surface N1 SOMBRE (carbone) — jamais sur clair (charte).
+   */
+  metricLeadValue: {
+    color: colors.chartreuse,
+    fontFamily: fonts.display,
+    fontWeight: '800',
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'],
+    fontSize: fontSizes.xl,
+    lineHeight: fontSizes.xl * 1.15,
+  },
+  metricValue: {
+    color: colors.blanc,
+    fontFamily: fonts.display,
+    fontWeight: '800',
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'],
+    fontSize: fontSizes.lg,
+    lineHeight: fontSizes.lg * 1.2,
+  },
+  metricLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.3,
+    letterSpacing: 0.2,
+  },
 
-  // Carte (≤ 260 px, ~40 %)
+  // ── Carte de résumé — aucun contour : un contour signale un ÉTAT. ──
   mapWrap: {
-    height: 220,
+    height: SUMMARY_MAP_H,
     borderRadius: radii.card,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
+    marginTop: spacing.md,
   },
   map: { flex: 1 },
 
-  // Sections
-  section: { marginTop: 22 },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+  // ── États ──
+  state: { gap: spacing.xs, marginTop: spacing.md },
+  stateTitle: { ...typography.cardTitle, color: colors.blanc },
+  stateBody: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.5 },
+  stateInline: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.5,
+    marginTop: spacing.md,
   },
-  sectionTitle: {
+  footnote: {
     color: colors.gris,
     fontSize: fontSizes.xs,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  seeAll: { color: colors.chartreuse, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700' },
-
-  // Villes
-  cityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.carbone,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-  },
-  cityLeft: { flexDirection: 'column' },
-  cityName: { color: colors.blanc, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700' },
-  cityStatus: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
-  cityZones: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.sm,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+    lineHeight: fontSizes.xs * 1.6,
+    marginTop: spacing.xl,
   },
 
-  // Items génériques (menaces / routes / records)
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-  },
-  itemIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.carbone2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  itemIconUrgent: { backgroundColor: gameColors.dangerSoft },
-  itemName: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
-  itemDetail: { color: colors.gris, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '600' },
-  itemDetailUrgent: { color: gameColors.danger },
-  itemRecord: { color: colors.blanc, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700' },
+  /**
+   * Cale de dégagement du CTA flottant — MESURE DE COMPOSITION : hauteur du
+   * bouton (`sizes.buttonMd`) + le padding haut de sa barre.
+   */
+  ctaClearance: { height: sizes.buttonMd + spacing.sm },
 
-  // CTA bas
+  // ── Barre du CTA unique, HORS du ScrollView (donc fixe à l'écran). ──
   ctaBar: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
     paddingHorizontal: spacing.cardPadding,
     paddingTop: spacing.sm,
     backgroundColor: colors.noir,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
-  },
-  ctaPrimary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    height: sizes.buttonMd,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-  },
-  ctaPrimaryLabel: { color: colors.noir, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
-  ctaGhost: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    height: sizes.buttonMd,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-  },
-  ctaGhostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
-  ctaIcon: {
-    width: sizes.buttonMd,
-    height: sizes.buttonMd,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    borderTopColor: borderState.hairline,
   },
 });

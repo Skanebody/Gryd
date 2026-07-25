@@ -33,7 +33,12 @@ import {
 const BOUNDS: SuggestionBounds = { minKm: 1, maxKm: 20, stepKm: 0.5, fallbackKm: 5 };
 
 const UNAVAILABLE: HabitProfile = { kind: 'unavailable' };
-const KNOWN: HabitProfile = { kind: 'known', typicalKm: 8.2, sampleRuns: 11 };
+// `paceSKm: null` = allure NON apprise. Le champ est apparu quand le planificateur
+// a cessé d'inventer une durée (une allure de référence était appliquée à tout le
+// monde, si bien qu'un coureur rapide lisait « ~29 min » pour une boucle qu'il fait
+// en 21). Ces tests portent sur la DISTANCE proposée : sans allure connue, la durée
+// ne s'affiche simplement pas, ce qu'ils n'ont pas à vérifier.
+const KNOWN: HabitProfile = { kind: 'known', typicalKm: 8.2, sampleRuns: 11, paceSKm: null };
 
 // ─── 1. Les trois états de la LECTURE des réglages ──────────────────────────
 
@@ -170,14 +175,14 @@ Deno.test('aucune lecture réussie ⇒ aucune source "manual" possible', () => {
 
 Deno.test('distance proposée toujours courable (bornée + alignée)', () => {
   const huge = resolveRouteSuggestion(
-    { kind: 'known', typicalKm: 999, sampleRuns: 30 },
+    { kind: 'known', typicalKm: 999, sampleRuns: 30, paceSKm: null },
     { manualKm: null, learning: 'on' },
     BOUNDS,
   );
   assertEquals(huge.km, BOUNDS.maxKm);
 
   const tiny = resolveRouteSuggestion(
-    { kind: 'known', typicalKm: 0.2, sampleRuns: 30 },
+    { kind: 'known', typicalKm: 0.2, sampleRuns: 30, paceSKm: null },
     { manualKm: null, learning: 'on' },
     BOUNDS,
   );

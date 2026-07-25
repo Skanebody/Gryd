@@ -381,6 +381,20 @@ export const C = defineCatalog({
     de: 'Datenquellen',
     pt: 'Créditos de dados',
   },
+  /**
+   * SUR-TITRE de l'écran (loi n°2). AJOUT : l'écran réutilisait `creditsRowHint`,
+   * qui est le SOUS-LIBELLÉ de la ligne de Réglages — une phrase en casse de
+   * phrase (« Villes, contours et fonds de carte »), pas un kicker. Un kicker
+   * nomme la NATURE de la page en deux mots ; celui-ci dit qu'on est sur une
+   * obligation de licence, pas sur une page « à propos ».
+   */
+  creditsKicker: {
+    fr: 'SOURCES · LICENCES',
+    en: 'SOURCES · LICENSES',
+    es: 'FUENTES · LICENCIAS',
+    de: 'QUELLEN · LIZENZEN',
+    pt: 'FONTES · LICENÇAS',
+  },
   creditsIntro: {
     fr: 'GRYD s’appuie sur des données géographiques ouvertes. Leurs licences imposent de citer leurs auteurs : les voici.',
     en: 'GRYD relies on open geographic data. Their licences require crediting their authors — here they are.',

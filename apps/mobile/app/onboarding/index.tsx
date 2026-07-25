@@ -5,11 +5,20 @@
  * déjà un compte », l'écran compte et son anti-bouton-mort sont REPRIS TELS
  * QUELS, seule la colonne vertébrale du parcours change.
  *
- * ═══ LE PARCOURS ════════════════════════════════════════════════════════════
+ * ═══ ORDRE DE COMPOSITION (le parcours) ═════════════════════════════════════
  *
- *   mechanic → rivalry → age → city → profile → account
- *      │                                                  (l'ordre vit dans
- *      └──── « J'ai déjà un compte » ──────→ (auth)/sign-in     content.ts)
+ *   1. mechanic  (E01, plein cadre — voir E01Hero)
+ *   2. rivalry   (carte pédagogique)
+ *   3. city      (la première décision ; l'âge y est demandé EN PLACE si, et
+ *                 seulement si, le raccourci de position est touché)
+ *   4. account   (nom + entrée ; l'âge y est un gate STRUCTUREL)
+ *
+ *      │
+ *      └──── « J'ai déjà un compte » ──────→ (auth)/sign-in
+ *
+ * Chaque étape se compose pareil : en-tête (marque · retour · FRISE) → corps
+ * (kicker → titre → visuel/champ → phrase) → pied (CTA unique → sorties → notes
+ * d'état). L'ordre du flow, lui, vit dans `content.ts` : un seul endroit le décrit.
  *
  * L'onboarding ne fait que TROIS choses : faire comprendre le concept,
  * personnaliser un peu, entrer dans l'app. LA PREMIÈRE COURSE VIENT APRÈS,
@@ -24,7 +33,7 @@
  * détail du raisonnement est en tête de `content.ts`, à côté de la liste des
  * étapes : un seul endroit décrit le flow.
  *
- * ─── CE QUI A ÉTÉ SUPPRIMÉ ICI, LITTÉRALEMENT SUR DEMANDE ───────────────────
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
  * Le splash `hook` et son décor : rues grises traversant l'écran
  * (`HookMapBackground`), petite forme G flottante (`LogoRouteMark`), point
  * chartreuse isolé, polygone perdu. Les icônes DANS les CTA (l'hexagone du CTA
@@ -32,6 +41,30 @@
  * pictogramme pour être compris, et il en devient plus lisible. Le mot CREW du
  * premier écran : il n'apparaît qu'à la carte 2, quand il répond enfin à une
  * question que le joueur vient de se poser.
+ *
+ * Passe du 25/07/2026 (recalage Vague 1) :
+ * · le CTA chartreuse RECODÉ — il portait `radii.pill` ici et `radii.btn` sur
+ *   E01 : deux rayons pour un même rôle, sur deux écrans qui se suivent. Il
+ *   consomme `ui/Button`, qui apporte aussi le libellé qui rétrécit sans ellipse
+ *   (ce CTA nomme parfois une ville) et l'anneau de focus clavier ;
+ * · le bouton ghost recodé (54 px, hors des gabarits 48/56) — même raison ;
+ * · le kicker local (police mono, interlettrage 2,5) → `ui/SectionLabel` ;
+ * · CINQ styles morts du sélecteur de ville local (`listLabel`, `cityRow`,
+ *   `cityRowSelected`, `cityName`, `cityNameSelected`), reliquats du remplacement
+ *   par `CitySearch` : un style sans JSX est un piège pour le prochain lecteur ;
+ * · l'haptique de `go()` : `Button` la joue déjà — un geste, deux impulsions ;
+ * · `step` et `go` des dépendances de `confirmAge`, qui ne les utilise pas.
+ *
+ * ─── ÉCARTS ASSUMÉS ─────────────────────────────────────────────────────────
+ * · LES ÉTAPES 2 À 4 N'ONT PAS DE PLANCHE — raison : la Vague 1 n'en fournit que
+ *   pour E01. Elles gardent leur gabarit (corps centré + pied), et reçoivent du
+ *   système ce qui est transposable : kicker canonique, `Button`, frise.
+ * · LA FRISE VIT DANS L'EN-TÊTE ici, sous le CTA sur E01 — raison : la planche
+ *   E01 la place sous son CTA, et les pieds des autres étapes portent déjà
+ *   jusqu'à quatre éléments (CTA, sortie, précision, avis de non-persistance).
+ * · PAS DE ScrollView, sur AUCUNE étape — raison : un écran d'onboarding qui se
+ *   scrolle est un écran de trop (§A). La copie est bornée par `copyFit.test.ts`
+ *   plutôt que par une barre de défilement.
  *
  * ─── L'APP NE MENT JAMAIS ───────────────────────────────────────────────────
  * L'onboarding est la PREMIÈRE expérience du produit : il n'a pas le droit d'y
@@ -91,14 +124,16 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { useT } from '../../src/i18n/store';
 import type { Entry } from '../../src/i18n/types';
 import { GOOGLE_CAPABLE, signInWithApple, signInWithGoogle, type AuthResult } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
+import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
+import { SectionLabel } from '../../src/ui/SectionLabel';
 import { withAlpha } from '../../src/features/map/mapStyle';
 import { resolveLocation } from '../../src/features/map/locationState';
 import { CitySearch, type CityEntry } from '../../src/features/city/CityPicker';
@@ -131,10 +166,12 @@ import {
   isOnboardingStep,
   stepAfterRivalry,
   stepBeforeCity,
+  stepProgress,
   type OnboardingStep,
 } from '../../src/features/onboarding/content';
 import { RivalryDemo } from '../../src/features/onboarding/visuals';
 import { E01Hero } from '../../src/features/onboarding/E01Hero';
+import { StepDots } from '../../src/features/onboarding/StepDots';
 
 /**
  * Étape précédente pour la flèche retour discrète (§A : rattraper un mistap sans
@@ -162,6 +199,14 @@ const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
 const DEMO_HEIGHT_RATIO = 0.38;
 /** Rapport du plateau (viewBox 320×300 de `demoPhases`) : h = w × 0,9375. */
 const DEMO_ASPECT = 300 / 320;
+
+/**
+ * Hero d'icône des écrans sans visuel (âge) : anneau de 92 px, glyphe de 40.
+ * Mesures de COMPOSITION — l'échelle `iconSizes` s'arrête à 24 (usage en ligne)
+ * puis saute à 48 (`display`), et 48 dans un anneau de 92 ne respire plus.
+ */
+const AGE_RING = 92;
+const AGE_ICON = 40;
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -232,10 +277,15 @@ export default function OnboardingScreen() {
     if (session) finish('/');
   }, [session, finish]);
 
-  /** Avance/recule d'une étape, et se souvient d'où on en est. */
+  /**
+   * Avance/recule d'une étape, et se souvient d'où on en est.
+   *
+   * L'HAPTIQUE APPARTIENT AU CONTRÔLE, PAS AU DÉPLACEMENT : `Button` la joue déjà
+   * au tap. La poser ici AUSSI produisait deux impulsions pour un seul geste.
+   * La flèche retour, qui n'est pas un `Button`, joue la sienne.
+   */
   const go = useCallback(
     (next: OnboardingStep) => {
-      haptics.light();
       movedRef.current = true;
       setStep(next);
       void update({ reachedStep: next });
@@ -254,7 +304,7 @@ export default function OnboardingScreen() {
    */
   const confirmAge = useCallback(() => {
     void update({ ageConfirmed: true });
-  }, [step, update, go]);
+  }, [update]);
 
   /**
    * La ville CHOISIE (jamais devinée, jamais préremplie par un repli).
@@ -279,8 +329,16 @@ export default function OnboardingScreen() {
     step === 'city' ? stepBeforeCity() : STEP_PREV[step];
   const back = useCallback(() => {
     if (!prevStep) return;
+    haptics.light();
     go(prevStep);
   }, [prevStep, go]);
+
+  /** Où en est le joueur — DÉRIVÉ du flow, jamais compté à la main (cf. content). */
+  const progress = stepProgress(step);
+  const progressA11y = t(NAV.progressA11y, {
+    n: progress.index + 1,
+    total: progress.count,
+  });
 
   // ⚠️ Règle des hooks : tous les hooks sont déclarés AVANT ce return.
   // Restauration de session en cours → fond noir muet, comme (tabs)/_layout : on
@@ -295,15 +353,24 @@ export default function OnboardingScreen() {
   if (step === 'mechanic') {
     return (
       <E01Hero
+        kicker={t(MECHANIC.kicker)}
         title={t(MECHANIC.title)}
         tagline={t(MECHANIC.tagline)}
         cta={t(MECHANIC.cta)}
+        exampleLabel={t(MECHANIC.exampleTag)}
         skipLabel={t(ONB_SKIP)}
+        signInLabel={t(SIGN_IN_DOOR)}
         onNext={() => go('rivalry')}
-        onSkip={() => finish('/sign-in')}
+        // « Passer » ENTRE DANS L'APP : c'est (tabs)/_layout qui sait si une
+        // session est exigée, pas cet écran. Router d'office vers /sign-in
+        // faisait dire « Passer » à une porte de connexion.
+        onSkip={() => finish('/')}
+        // …et la porte, elle, ANNONCE la connexion. Deux sorties, deux phrases.
+        onSignIn={() => finish('/sign-in')}
         insets={insets}
-        stepIndex={0}
-        stepCount={5}
+        stepIndex={progress.index}
+        stepCount={progress.count}
+        stepA11yLabel={progressA11y}
       />
     );
   }
@@ -313,7 +380,13 @@ export default function OnboardingScreen() {
       {/* En-tête commun : marque DISCRÈTE en haut à gauche (elle ne concurrence
           pas le titre) + flèche retour, dans la même rangée — deux éléments
           absolus au même coin se seraient recouverts. */}
-      <StepHeader onBack={prevStep ? back : undefined} backLabel={t(NAV.back)} />
+      <StepHeader
+        onBack={prevStep ? back : undefined}
+        backLabel={t(NAV.back)}
+        stepIndex={progress.index}
+        stepCount={progress.count}
+        stepA11yLabel={progressA11y}
+      />
 
       {/* mechanic (E01) est rendu en PLEIN ÉCRAN par E01Hero (early-return plus
           haut) — il n'apparaît donc jamais dans la grille standard ci-dessous. */}
@@ -377,13 +450,32 @@ export default function OnboardingScreen() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * En-tête de chaque étape : la marque, discrète, et la flèche retour.
+ * En-tête de chaque étape : la marque, discrète, la flèche retour, et la FRISE
+ * DE PROGRESSION.
  *
  * La marque est un MOT, plus un logo couru de 116 px au milieu de l'écran : le
  * fondateur veut qu'elle signe la page sans concurrencer le titre. La flèche est
  * grise, jamais un 2e CTA, et sa cible fait 44 px (+ hitSlop).
+ *
+ * ⚠️ LA FRISE EST REMONTÉE ICI (25/07/2026). Elle ne vivait que sur E01 : la
+ * rivalité, la ville et l'arrivée n'avaient AUCUN repère — le joueur ne savait
+ * plus s'il en avait pour un écran ou pour dix. Elle se pose dans l'en-tête, déjà
+ * rendu hors du contenu, plutôt que dans le pied, qui porte déjà le CTA, une
+ * sortie et jusqu'à deux notes d'état.
  */
-function StepHeader({ onBack, backLabel }: { onBack?: () => void; backLabel: string }) {
+function StepHeader({
+  onBack,
+  backLabel,
+  stepIndex,
+  stepCount,
+  stepA11yLabel,
+}: {
+  onBack?: () => void;
+  backLabel: string;
+  stepIndex: number;
+  stepCount: number;
+  stepA11yLabel: string;
+}) {
   return (
     <View style={styles.header}>
       {onBack ? (
@@ -403,18 +495,37 @@ function StepHeader({ onBack, backLabel }: { onBack?: () => void; backLabel: str
         <View style={styles.back} />
       )}
       <Text style={styles.brand}>{BRAND}</Text>
+      <StepDots
+        index={stepIndex}
+        count={stepCount}
+        a11yLabel={stepA11yLabel}
+        style={styles.headerDots}
+      />
     </View>
   );
 }
 
-/** Sur-titre mono gris (kicker) — jamais chartreuse sur clair (ici fond noir). */
+/**
+ * Sur-titre de section (kicker) — il CONSOMME le composant canonique
+ * (`ui/SectionLabel`, rôle typo R1 + gris + capitales) au lieu de recoder la
+ * règle : l'onboarding en avait sa propre version (police mono, interlettrage
+ * 2,5), donc sa propre dérive possible. Ce qui reste local est ce qui appartient
+ * à CETTE mise en page : la marge sous le kicker.
+ */
 function Kicker({ children }: { children: string }) {
-  return <Text style={styles.kicker}>{children}</Text>;
+  return <SectionLabel style={styles.kicker}>{children}</SectionLabel>;
 }
 
 /**
- * CTA primaire chartreuse plein, pleine largeur, 56 px, texte NOIR, sans icône
- * (§A4 : un par écran ; demande fondateur : « aucune icône inutile »).
+ * CTA primaire chartreuse, pleine largeur (§A4 : un par écran ; demande fondateur :
+ * « aucune icône inutile »).
+ *
+ * ⚠️ IL NE SE RECODE PLUS. Il vivait ici en `radii.pill` et sur E01 en
+ * `radii.btn` : DEUX rayons pour le MÊME rôle, sur deux écrans consécutifs, et
+ * aucun garde-fou de troncature sur le libellé — alors que ce CTA nomme parfois
+ * une ville (« Continuer avec Villeneuve-d'Ascq »). `Button` tranche la forme,
+ * fait rétrécir le libellé sans jamais l'ellipse, et apporte l'anneau de focus
+ * clavier.
  *
  * `disabled` n'est pas un bouton mort : il ne s'emploie que sur l'écran ville,
  * où la décision attendue est à quelques pixels au-dessus (choisir une ville) et
@@ -426,27 +537,24 @@ function PrimaryCta({
   onPress,
   a11yLabel,
   disabled = false,
+  analyticsId,
 }: {
   label: string;
   onPress: () => void;
   a11yLabel?: string;
   disabled?: boolean;
+  analyticsId?: string;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={a11yLabel ?? label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+    <Button
+      label={label}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.cta,
-        disabled && styles.ctaDisabled,
-        pressed && !disabled && styles.pressed,
-      ]}
-    >
-      <Text style={styles.ctaLabel}>{label}</Text>
-    </Pressable>
+      variant="primary"
+      size="lg"
+      disabled={disabled}
+      accessibilityLabel={a11yLabel}
+      analyticsId={analyticsId}
+    />
   );
 }
 
@@ -548,7 +656,7 @@ function DemoCard({
  * §A 1 CTA). Le blocage est un état local (remount = nouvelle tentative — une
  * auto-déclaration reste par nature contournable ; c'est le gate attendu).
  */
-function AgeStep({ onConfirm }: { onConfirm: () => void }) {
+function AgeStep({ onConfirm, onBack }: { onConfirm: () => void; onBack?: () => void }) {
   const t = useT();
   const [blocked, setBlocked] = useState(false);
 
@@ -559,12 +667,22 @@ function AgeStep({ onConfirm }: { onConfirm: () => void }) {
           <Kicker>{t(AGE.kicker)}</Kicker>
           <View style={styles.iconHero}>
             <View style={styles.iconHeroRing}>
-              <Icon name="verrou" size={40} color={colors.chartreuse} />
+              <Icon name="verrou" size={AGE_ICON} color={colors.chartreuse} />
             </View>
           </View>
           <Text style={styles.title}>{t(AGE.blockedTitle)}</Text>
           <Text style={styles.tagline}>{t(AGE.blockedTagline)}</Text>
         </View>
+        {/* PAS UN CUL-DE-SAC. Quand la question est posée en place devant l'écran
+            ville, la flèche du header pointe sur la RIVALITÉ : sans cette sortie,
+            répondre « moins de 16 » faisait disparaître l'écran ville sans que le
+            joueur l'ait décidé. Le choix MANUEL d'une ville n'est pas gaté par
+            l'âge — seul le geste qui lit un capteur l'est. */}
+        {onBack ? (
+          <View style={styles.footer}>
+            <TextLink label={t(AGE.backToCity)} onPress={onBack} />
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -575,14 +693,19 @@ function AgeStep({ onConfirm }: { onConfirm: () => void }) {
         <Kicker>{t(AGE.kicker)}</Kicker>
         <View style={styles.iconHero}>
           <View style={styles.iconHeroRing}>
-            <Icon name="profil" size={40} color={colors.chartreuse} />
+            <Icon name="profil" size={AGE_ICON} color={colors.chartreuse} />
           </View>
         </View>
         <Text style={styles.title}>{t(AGE.title)}</Text>
         <Text style={styles.tagline}>{t(AGE.tagline)}</Text>
       </View>
       <View style={styles.footer}>
-        <PrimaryCta label={t(AGE.confirm)} onPress={onConfirm} a11yLabel={t(AGE.confirmA11y)} />
+        <PrimaryCta
+          label={t(AGE.confirm)}
+          onPress={onConfirm}
+          a11yLabel={t(AGE.confirmA11y)}
+          analyticsId="onboarding_age_confirm"
+        />
         <TextLink
           label={t(AGE.under)}
           onPress={() => {
@@ -590,6 +713,7 @@ function AgeStep({ onConfirm }: { onConfirm: () => void }) {
             setBlocked(true);
           }}
         />
+        {onBack ? <TextLink label={t(AGE.backToCity)} onPress={onBack} /> : null}
       </View>
     </View>
   );
@@ -728,6 +852,10 @@ function CityStep({
           onConfirmAge();
           setAskAge(false);
         }}
+        // La sortie de la question : on revient EXACTEMENT là où on était, y
+        // compris après un « moins de 16 » — la recherche manuelle n'est pas
+        // gatée, seul le geste qui lit un capteur l'est.
+        onBack={() => setAskAge(false)}
       />
     );
   }
@@ -749,16 +877,15 @@ function CityStep({
             peint du tout là où aucun capteur ne peut répondre. */}
         {LOCATION_CAPABLE ? (
           <>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(CITY.useLocation)}
-              accessibilityState={{ disabled: locBusy }}
-              disabled={locBusy}
-              onPress={() => void useMyLocation()}
-              style={({ pressed }) => [styles.ghost, (pressed || locBusy) && styles.pressed]}
-            >
-              <Text style={styles.ghostLabel}>{t(CITY.useLocation)}</Text>
-            </Pressable>
+            <View style={styles.secondary}>
+              <Button
+                label={t(CITY.useLocation)}
+                onPress={() => void useMyLocation()}
+                variant="ghost"
+                size="md"
+                loading={locBusy}
+              />
+            </View>
             {/* LA PRÉ-PERMISSION. Affichée EN PERMANENCE sous le bouton, donc
                 lue AVANT le tap : la boîte système ne tombe jamais de nulle
                 part. Un écran de plus pour dire une phrase aurait été un écran
@@ -781,6 +908,7 @@ function CityStep({
           label={ctaLabel}
           onPress={onNext}
           disabled={!chosenLabel}
+          analyticsId="onboarding_city_continue"
         />
       </View>
     </View>
@@ -956,17 +1084,22 @@ function AccountStep({
         {canApple ? <OnboardingAppleButton onPress={() => void run(signInWithApple)} /> : null}
         {canGoogle ? (
           canApple ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(ACCOUNT.google)}
-              disabled={busy}
-              onPress={() => void run(signInWithGoogle)}
-              style={({ pressed }) => [styles.ghost, (pressed || busy) && styles.pressed]}
-            >
-              <Text style={styles.ghostLabel}>{t(ACCOUNT.google)}</Text>
-            </Pressable>
+            <View style={styles.secondary}>
+              <Button
+                label={t(ACCOUNT.google)}
+                onPress={() => void run(signInWithGoogle)}
+                variant="ghost"
+                size="md"
+                loading={busy}
+                analyticsId="onboarding_account_google"
+              />
+            </View>
           ) : (
-            <PrimaryCta label={t(ACCOUNT.google)} onPress={() => void run(signInWithGoogle)} />
+            <PrimaryCta
+              label={t(ACCOUNT.google)}
+              onPress={() => void run(signInWithGoogle)}
+              analyticsId="onboarding_account_google"
+            />
           )
         ) : null}
         {/* UNE seule voie secondaire (§A), et elle mène TOUJOURS quelque part.
@@ -975,7 +1108,11 @@ function AccountStep({
         {!accountRequired ? (
           <TextLink label={t(ACCOUNT.skip)} onPress={leave} />
         ) : emailIsOnlyDoor ? (
-          <PrimaryCta label={t(ACCOUNT.email)} onPress={goEmail} />
+          <PrimaryCta
+            label={t(ACCOUNT.email)}
+            onPress={goEmail}
+            analyticsId="onboarding_account_email"
+          />
         ) : (
           <TextLink label={t(ACCOUNT.email)} onPress={goEmail} underline />
         )}
@@ -998,22 +1135,29 @@ function AccountStep({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
 
-  // ── En-tête commun : marque discrète + flèche retour, sur une rangée ──
+  // ── En-tête commun : flèche retour + marque discrète + frise, sur une rangée ──
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.cardPadding,
     gap: spacing.xxs,
   },
-  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  // La frise se pousse à droite de la rangée : elle informe, elle ne dispute
+  // rien au titre (qui vit dans le corps).
+  headerDots: { marginLeft: 'auto' },
+  back: {
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   backMirror: { transform: [{ scaleX: -1 }] },
   // La marque SIGNE la page sans la dominer : petite, chartreuse sur fond noir
   // (jamais sur clair), très espacée — elle se lit comme un logo, pas un titre.
   brand: {
     color: colors.chartreuse,
-    fontFamily: fonts.displayBold, // Inter Tight — signe la page
+    fontFamily: fonts.displayBold, // Inter Tight 700 — la famille porte la graisse
     fontSize: fontSizes.sm,
-    fontWeight: '700',
     letterSpacing: 3.5,
   },
 
@@ -1022,19 +1166,13 @@ const styles = StyleSheet.create({
   body: { flex: 1, justifyContent: 'center' },
   footer: { paddingBottom: spacing.md, paddingTop: spacing.sm, gap: 10 },
 
-  kicker: {
-    color: colors.gris,
-    fontFamily: fonts.mono, // JetBrains Mono — étiquette Night Print
-    fontSize: fontSizes.xs,
-    letterSpacing: 2.5,
-    marginBottom: 14,
-    fontVariant: ['tabular-nums'],
-  },
+  // Le kicker CONSOMME `ui/SectionLabel` (rôle R1) : ne reste ici que ce qui
+  // appartient à cette mise en page — la marge sous le sur-titre.
+  kicker: { marginBottom: spacing.sm },
   title: {
     color: colors.blanc,
-    fontFamily: fonts.display, // Inter Tight 800 — Display Night Print
+    fontFamily: fonts.display, // Inter Tight 800 — la famille porte la graisse
     fontSize: fontSizes.xl, // 28 — sûr sur tous les pas de l'onboarding (titres variables)
-    fontWeight: '800',
     letterSpacing: -0.8,
     lineHeight: fontSizes.xl * 1.12,
   },
@@ -1043,12 +1181,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text, // Inter — Body 16/22 secondary
     fontSize: fontSizes.md,
     lineHeight: fontSizes.md * 1.4,
-    marginTop: 16,
+    marginTop: spacing.md,
   },
   // Notes d'honnêteté (confidentialité, GPS, pré-permission) : discrètes, jamais
   // sous 12 px, grises — ce ne sont pas des actions.
   note: {
     color: colors.gris,
+    fontFamily: fonts.text,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.45,
     marginTop: spacing.xs,
@@ -1057,46 +1196,26 @@ const styles = StyleSheet.create({
   // réponse à un geste), blanc, jamais chartreuse — ce n'est pas un gain.
   notice: {
     color: colors.blanc,
+    fontFamily: fonts.textMedium,
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.4,
     marginTop: spacing.sm,
-    fontWeight: '500',
   },
 
-  // CTA primaire chartreuse : pleine largeur, 56 px, texte noir, SANS icône.
-  cta: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 56,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-  },
-  // En attente de la décision de l'écran (ville non choisie) : atténué, et
-  // annoncé comme désactivé aux lecteurs d'écran.
-  ctaDisabled: { opacity: 0.35 },
-  ctaLabel: { color: colors.noir, fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
   pressed: { opacity: 0.85 },
 
-  // Bouton secondaire ghost (bordure gris-ligne, texte blanc).
-  ghost: {
-    height: 54,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.sm,
-  },
-  ghostLabel: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: fontSizes.md, fontWeight: '500' },
+  // Espacement d'une action SECONDAIRE (`Button` ghost) : le bouton porte sa
+  // forme et sa hauteur, la page porte son rythme.
+  secondary: { marginTop: spacing.sm },
 
   // Lien secondaire (porte de connexion, « Plus tard ») — cible ≥ 44 px.
   link: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     paddingVertical: spacing.sm,
   },
-  linkLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm, fontWeight: '500' },
+  linkLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },
   linkUnderline: { textDecorationLine: 'underline' },
 
   // ── Cartes pédagogiques : le plateau de démonstration ──
@@ -1104,46 +1223,28 @@ const styles = StyleSheet.create({
   // largeur utile) : c'est le contenu qui rentre, pas la fenêtre qui s'allonge.
   boardWrap: { alignSelf: 'center', marginTop: spacing.md, marginBottom: spacing.xxs },
 
-  // ── Ville : recherche + liste ──
-    input: {
+  // ── Profil : le champ pseudo ──
+  // ⚠️ CINQ STYLES MORTS ONT ÉTÉ RETIRÉS ICI (25/07/2026) : `listLabel`,
+  // `cityRow`, `cityRowSelected`, `cityName`, `cityNameSelected` — reliquats du
+  // sélecteur de ville local, remplacé par `CitySearch` (le sélecteur PARTAGÉ).
+  // Un style que plus aucun JSX ne consomme est un piège pour le prochain lecteur.
+  //
+  // Champ 56 pt à LABEL PERSISTANT (planche E21, patron déjà appliqué dans
+  // /profil-edit) : 48 px, c'était la hauteur d'un bouton secondaire, pas celle
+  // d'un champ de saisie.
+  input: {
     fontFamily: fonts.text,
-    height: 48,
-    marginTop: spacing.md,
+    height: sizes.buttonLg,
+    marginTop: spacing.xs,
     paddingHorizontal: spacing.md,
-    borderRadius: radii.control,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone2,
     color: colors.blanc,
     fontSize: fontSizes.md,
   },
-    listLabel: {
-    color: colors.gris,
-    fontFamily: fonts.textSemi,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  cityRow: {
-    minHeight: 52,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.xs,
-    borderRadius: radii.control,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-  },
-  // Sélection : bordure chartreuse sur fond sombre (jamais de chartreuse sur
-  // clair), et le nom passe en blanc plein — l'état ne tient pas à la seule
-  // couleur, il est aussi annoncé par `accessibilityState`.
-  cityRowSelected: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14 },
-    cityName: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: fontSizes.md, fontWeight: '500' },
-  cityNameSelected: { fontWeight: '700' },
-
-  // ── Profil ──
-    fieldLabel: {
+  fieldLabel: {
     color: colors.gris,
     fontFamily: fonts.textSemi,
     fontSize: fontSizes.xs,
@@ -1151,13 +1252,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.xs,
   },
-    recap: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.sm, marginTop: spacing.md },
+  recap: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.sm, marginTop: spacing.md },
 
   // ── Age / compte : hero icône ──
-  iconHero: { alignItems: 'center', marginBottom: 26 },
+  iconHero: { alignItems: 'center', marginBottom: spacing.xl },
   iconHeroRing: {
-    width: 92,
-    height: 92,
+    width: AGE_RING,
+    height: AGE_RING,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: withAlpha(colors.chartreuse, 0.4),
@@ -1170,6 +1271,7 @@ const styles = StyleSheet.create({
   // lisible (≥ 12 px), gris — jamais chartreuse : ce n'est pas une action.
   hint: {
     color: colors.gris,
+    fontFamily: fonts.text,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.45,
     textAlign: 'center',
@@ -1178,8 +1280,8 @@ const styles = StyleSheet.create({
   // Message d'échec d'auth (honnête) : centré, lisible (≥ 12 px), non chartreuse.
   authError: {
     color: colors.blanc,
+    fontFamily: fonts.textMedium,
     fontSize: fontSizes.sm,
-    fontWeight: '500',
     textAlign: 'center',
     marginBottom: spacing.xxs,
   },

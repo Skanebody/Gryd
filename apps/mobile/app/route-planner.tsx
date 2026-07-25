@@ -1,104 +1,177 @@
 /**
- * GRYD — `/route-planner` : planificateur d'itinéraire LIVE, partout en Europe.
+ * GRYD — `/route-planner` : LE PLANIFICATEUR DE BOUCLE (planche E05, volet
+ * « Ajuster »). Une seule décision : quelle boucle je cours, et je pars.
  *
- * ─── LE BUG D'ORIGINE, RETIRÉ (21/07/2026) ─────────────────────────────────
- * Cet écran portait mot pour mot le retour terrain n°1 du fondateur : « je suis
- * à Ouville-la-Rivière et l'app me met à République ». Quand `currentPosition()`
- * échouait, un repli gardé par `Platform.OS === 'web'` posait `EGO_REPUBLIQUE`
- * comme origine et calculait un VRAI itinéraire depuis la place de la
- * République, étiqueté « Démo · Paris ». L'étiquette ne rachetait rien : c'était
- * un plan de course fabriqué à la place du sien, et la garde plateforme faisait
- * en plus diverger localhost de l'iPhone — or localhost est le seul instrument
- * de contrôle du fondateur.
- * Un échec de géolocalisation n'a qu'une réponse honnête : le DIRE et proposer
- * de réessayer. C'est désormais le SEUL comportement, sur les deux surfaces.
+ * ─── ORDRE DE COMPOSITION ──────────────────────────────────────────────────────
+ *  1. EN-TÊTE — retour · kicker « OBJECTIF · LIEU » · KPI kilomètres (le seul
+ *     grand chiffre de l'écran) · UNE ligne de contexte grise.
+ *  2. CARTE — le tracé RÉEL, ou l'état qui dit pourquoi il n'y en a pas.
+ *  3. DÉPART — champ d'état (position / recherche / échec) tappable pour relancer.
+ *  4. MÉTRIQUES — UN bloc à séparateurs (`SheetMetrics`), zéro contenant.
+ *  5. POURQUOI CETTE COURSE — puces de faits + la provenance de la distance.
+ *  6. FORMATS — un `Segmented` défilant (3 longueurs), l'objectif ne change pas.
+ *  7. AJUSTER — accordéon REPLIÉ : objectif · distance exacte · autres boucles.
+ *  8. BARRE BASSE — microcopie + LE bouton unique (§A4), qui porte toujours le
+ *     geste utile du moment (localiser / recalculer / partir).
  *
- * ─── LA PERMISSION VIENT D'UN GESTE (21/07/2026) ───────────────────────────
- * Cet écran ouvrait la boîte système de localisation AU MONTAGE : un `useEffect`
- * appelait `locateAndRoute` → `currentPosition()` → `requestForegroundPermissionsAsync()`.
- * C'est le défaut qui vient d'être corrigé sur la carte, et il contredisait ce
- * que la copie promet au joueur (« le GPS s'allume au départ ») ainsi que
- * l'entête de `onboarding/content.ts`, qui justifie la suppression de l'écran
- * `permission` par « la vraie demande vit au premier GO ». Une invite qui tombe
- * à l'ouverture d'un écran, sans geste et sans contexte, est un coût qu'on ne
- * peut pas justifier — et sur web, ce que les navigateurs pénalisent le plus.
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI (25/07/2026) ────────────────────────────
+ * · LE RÉSULTAT DE JEU FABRIQUÉ. « +64 zones », « +1 280 pts », « 12 rues à
+ *   défendre », « expire dans 48 h », « Modéré » : tous calculés côté CLIENT dans
+ *   `liveRouting.ts` à partir de `ZONES_PER_KM = 15.3` et `LOOP_ZONE_RATIO = 0.6`,
+ *   deux constantes qui ne venaient pas de `game-rules.ts`. Ils étaient affichés à
+ *   TROIS endroits (résumé d'en-tête, microcopie du CTA, cartes de variantes)
+ *   pendant que le bloc de métriques du même écran déclarait, en commentaire, que
+ *   le gain restait un point ouvert et n'était donc pas affiché. Double violation :
+ *   « tout claim est décidé serveur » + « aucun nombre magique ». Supprimé, pas
+ *   déplacé — annoncer une récompense avant la course EST une attribution.
+ * · L'ALLURE FORFAITAIRE. `EST_PACE_SEC_PER_KM = 350` appliquait 5'50/km à tout le
+ *   monde et pilotait TOUTES les durées de l'écran, alors que l'allure réelle du
+ *   joueur était déjà mesurée par `computeHabitsProfile`. Les durées viennent
+ *   désormais de cette mesure — et quand elle n'existe pas, il n'y a PAS de
+ *   minutes (`features/route/estimation.ts`).
+ * · « PARTAGER AU CREW » ET SON FEED. Le bouton n'écrivait nulle part : son toast
+ *   avouait « (démo) » et empilait une fausse ligne « à l'instant ». Aucune RPC de
+ *   partage crew n'existe (O1). Une étiquette « démo » ne rachète pas une action
+ *   qui n'a pas lieu (AMENDEMENT-47).
+ * · `setPlannedRoute(route)`, commenté « la course suivra EXACTEMENT ce tracé ».
+ *   `getPlannedRoute()` n'avait AUCUN lecteur, et `course-live.tsx` documente que
+ *   le paramètre `planned` ne pilote plus rien : la capture est décidée sur la
+ *   boucle réellement fermée. Le store et le paramètre d'URL sont partis avec.
+ * · CINQ `screen()` D'INTERACTION (`route_planner_plan_select`, `_objective_select`,
+ *   `_route_select`, `_origin`, `_share`) : des noms d'events inventés hors
+ *   `packages/shared/src/events.ts`, envoyés comme des vues d'écran. Il reste le
+ *   `screen('route_planner')` de l'écran, et `cta_tapped` (event §8 réel) porté
+ *   par le bouton unique.
+ * · LE CTA CHARTREUSE DÉSACTIVÉ À 40 %. Un bouton d'accent qui ne répond jamais se
+ *   lit cassé ; c'était en plus le SEUL bouton de l'écran. Il porte maintenant le
+ *   geste possible du moment (`features/route/plannerCta.ts`, testé).
+ * · LES CONTOURS PERMANENTS (champ d'origine, bouton cible, pastille de reprise,
+ *   pas de distance, chips, cartes de plan et de variantes) : un contour signale
+ *   un ÉTAT, jamais une frontière de bloc. Les groupes de choix passent tous par
+ *   `Segmented tone="surface"`, le seul groupe de choix du système.
+ * · LA PUCE « SECTEUR À TENIR » : elle affirmait que le joueur tient du territoire
+ *   à cet endroit. Cet écran ne lit aucun claim.
  *
- * Désormais, à l'ouverture : état `unasked`, RIEN n'est demandé. Le joueur
- * déclenche la localisation d'un geste (la ligne DÉPART, son bouton cible, ou
- * un format de plan) — et la course, elle, redemandera de toute façon au GO.
- * Exception SANS invite possible : si l'app a DÉJÀ obtenu une position dans
- * cette session (`positionProvenThisSession`), la permission est acquise et
- * l'OS ne rouvre aucune boîte — on enchaîne alors directement, pour ne pas
- * imposer un tap à chaque aller-retour carte ⇄ planificateur.
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE E05 ──────────────────────────────────────────
+ * · « +0,42 km² gain potentiel » (3ᵉ métrique de la planche) — ABSENT : aucune
+ *   simulation serveur n'existe (O1). Le remplissage d'une boucle est décidé
+ *   cellule par cellule par `ingest_run`, APRÈS la course.
+ * · « Modérée difficulté » (4ᵉ métrique) — ABSENT : aucun modèle de difficulté
+ *   dans le dépôt (ni dénivelé, ni revêtement, ni tables de pentes).
+ * · « Cette boucle relie vos deux zones du centre » (phrase de valeur tactique) —
+ *   ABSENTE : elle exigerait de lire les `hex_claims` du joueur autour de
+ *   l'origine ; aucune lecture territoriale n'a lieu sur cet écran.
+ * · La planche décrit une SHEET à 58 % posée sur la carte ; ici l'écran est plein.
+ *   E05 renvoie explicitement « Ajuster » vers le planificateur en sheet 90 %, et
+ *   la sheet de briefing existe déjà, recalée (`map/MissionBriefingSheet.tsx`).
+ * · « Bike absent (feature flag) » — respecté : aucun commutateur ici.
+ * · Le KPI et la ligne de contexte disparaissent tant qu'aucun tracé n'existe :
+ *   la planche montre un écran déjà peuplé, et un « — » en gros chiffre serait la
+ *   valeur nulle que la loi 15 interdit.
  *
- * HONNÊTETÉ GPS (audit zéro-friction P0) :
- *   • DÉPART = la position réelle (GPS) uniquement — tant qu'elle n'est pas
- *     confirmée, le CTA de départ est DÉSACTIVÉ ; états explicites
- *     « Ma position » (rien demandé) / « Localisation… » / « Position
- *     introuvable » + « Réessayer la localisation » sur échec ; AUCUNE position
- *     de repli, nulle part ;
- *   • header épuré (3 blocs) : verbe · lieu / KPI km / résumé ≤ 3 infos
- *     (~min · zones · pts) — les minutes sont TOUJOURS une estimation (~) ;
- *   • PLANS = 3 formats (Recommandée / Rapide / Max points) — changer de plan
- *     ne change JAMAIS l'objectif courant ;
- *   • « Ajuster » (replié, dispo une fois l'origine connue) : OBJECTIF 2 verbes
- *     (Conquérir / Défendre — AMENDEMENT-12 §A) + DISTANCE EXACTE (1,5–50 km)
- *     + AUTRES BOUCLES (variantes) + partage crew ;
- *   • CTA VERBE contextuel, actif seulement position confirmée OU démo explicite.
- * Tous les tracés SUIVENT LES RUES (OSRM foot, sans clé) ; le tracé courant
- * reste affiché pendant un recalcul (spinner discret près du KPI). Events screen().
+ * ─── LES QUATRE ÉTATS, JAMAIS FONDUS ──────────────────────────────────────────
+ * Cet écran ne lit ni compte ni territoire : son 1ᵉʳ état (« pas connecté ») ne
+ * s'applique pas — un plan de course se prépare sans session. Ses quatre états
+ * sont ceux du CAPTEUR, et ils pilotent tout (`GpsState` ci-dessous) : rien
+ * demandé / recherche en cours / position confirmée / échec. La lecture des
+ * habitudes (distance et allure proposées) a ses propres états, tous nommés dans
+ * `features/route/suggestion.ts` et dits en une ligne sous les puces.
+ *
+ * ─── LA PERMISSION VIENT D'UN GESTE (21/07/2026, conservé) ────────────────────
+ * À l'ouverture : état `unasked`, RIEN n'est demandé. Le joueur déclenche la
+ * localisation d'un geste. Exception SANS invite : si l'app a déjà obtenu une
+ * position dans cette session (`positionProvenThisSession`), la permission est
+ * acquise et l'OS ne rouvre aucune boîte — on enchaîne alors directement.
+ *
+ * ─── LE BUG D'ORIGINE, RETIRÉ (21/07/2026, conservé) ──────────────────────────
+ * Quand `currentPosition()` échouait, un repli posait la place de la République
+ * comme origine et calculait un vrai itinéraire parisien étiqueté « Démo · Paris »
+ * — pour un joueur qui était à Ouville-la-Rivière. Un échec de géolocalisation n'a
+ * qu'une réponse honnête : le DIRE et proposer de réessayer. AUCUNE position de
+ * repli, nulle part, sur aucune plateforme.
  */
 import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, iconSizes, radii, spacing, type IconName } from '@klaim/shared';
+import {
+  borderState,
+  colors,
+  elevation,
+  fontSizes,
+  iconSizes,
+  radii,
+  sizes,
+  spacing,
+  typography,
+  type IconName,
+} from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
-import { formatInt } from '../src/ui/format';
+import { Button } from '../src/ui/Button';
+import { SectionLabel } from '../src/ui/SectionLabel';
+import { Segmented } from '../src/ui/game/Segmented';
+import { formatKm } from '../src/ui/format';
+import { SheetMetrics, type SheetMetric } from '../src/features/map/SheetMetrics';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 import { RoutePlannerMap } from '../src/features/route/RoutePlannerMap';
 import {
-  GEN_DEFAULT_KM,
   GEN_MAX_KM,
   GEN_MIN_KM,
   GEN_STEP_KM,
   PLANNER_INTENTION_LABELS,
   generatedReasons,
-  type PlannerIntention,
 } from '../src/features/route/generator';
 import { useRouteSuggestion } from '../src/features/route/useRouteSuggestion';
 import { runsBeforeLearning, type RouteSuggestion } from '../src/features/route/suggestion';
+import { estimatedMinutes, plannerMetricKeys } from '../src/features/route/estimation';
+import { ctaStartsRun, plannerCta, type PlannerCtaKind } from '../src/features/route/plannerCta';
 import { routeLoop } from '../src/features/route/liveRouting';
-import { setPlannedRoute } from '../src/features/route/plannedRoute';
 import { currentPosition, type OriginPoint } from '../src/features/route/origin';
 import { resolveSectorName } from '../src/features/map/sectorNaming';
-import type { PlannedRouteDemo } from '../src/features/route/types';
+import { PLANNER_INTENTIONS, type PlannedLoop, type PlannerIntention } from '../src/features/route/types';
 // `tNow` = résolution hors composant (helpers module) ; le composant utilise
 // useT() (réactif — re-rend à la bascule de langue, ce qui rafraîchit aussi
 // les helpers appelés pendant le rendu).
 import { C } from '../src/i18n/catalog/route';
 import { t as tNow, useT } from '../src/i18n/store';
 
-/** Hauteur de la carte. */
+/** Hauteur de la carte — MESURE DE COMPOSITION, pas une règle de jeu. */
 const MAP_HEIGHT = 250;
 
 /**
- * État de la géolocalisation — pilote labels, carte et CTA (jamais de mensonge).
- * QUATRE états, distincts et jamais confondus :
+ * Le rôle typo R6 (`typography.stat`), rendu ÉTALABLE dans un StyleSheet.
+ * Le token porte `fontVariant` en LECTURE SEULE, et `TextStyle` l'attend mutable :
+ * `{ ...typography.stat }` ne compile pas. On recopie le tableau plutôt que de
+ * réécrire famille, graisse et approche à la main — le rôle reste la source
+ * unique, et une évolution de la charte se propage ici sans intervention.
+ */
+const STAT = { ...typography.stat, fontVariant: [...typography.stat.fontVariant] };
+
+/**
+ * Les deux FORMATS fixes proposés à côté de la distance recommandée (km).
+ * MESURES DE COMPOSITION : ce sont des alternatives de longueur, elles ne
+ * rapportent rien et n'entrent dans aucun calcul de jeu. C'est précisément
+ * pourquoi le troisième ne s'appelle plus « Max points ».
+ */
+const PLAN_SHORT_KM = 2;
+const PLAN_LONG_KM = 5;
+
+/**
+ * Écart (km) en deçà duquel un format est considéré comme « celui en cours ».
+ * MESURE DE COMPOSITION : sans tolérance, aucun format n'apparaîtrait jamais
+ * sélectionné (le routeur ne rend jamais exactement la distance demandée).
+ */
+const PLAN_MATCH_TOLERANCE_KM = 0.7;
+
+/**
+ * État de la géolocalisation — pilote labels, carte et bouton (jamais de
+ * mensonge). QUATRE états, distincts et jamais confondus :
  *   • `unasked`  — on n'a RIEN demandé (état d'ouverture). Ce n'est ni une
  *                  recherche en cours, ni un échec : afficher « Localisation… »
- *                  ferait tourner un spinner sur un GPS éteint, et « Position
+ *                  ferait tourner un compteur sur un GPS éteint, et « Position
  *                  introuvable » accuserait une panne qui n'a pas eu lieu ;
  *   • `locating` — une tentative est EN COURS (déclenchée par un geste) ;
  *   • `ok`       — position confirmée ;
@@ -121,69 +194,38 @@ let positionProvenThisSession = false;
 
 /**
  * 3 formats (distance) routés autour de l'origine — l'objectif courant est conservé.
- * Labels/status = Entries i18n, résolus à l'affichage.
  *
- * La « Recommandée » n'est PLUS la constante `GEN_DEFAULT_KM` pour tout le
- * monde : c'est la distance issue de `useRouteSuggestion` (réglage manuel, sinon
- * habitudes apprises, sinon défaut assumé). Les deux autres formats restent des
- * FORMATS fixes (court / plus long) — ce sont des alternatives explicites, pas
+ * La « Recommandée » n'est PAS la constante de repli pour tout le monde : c'est la
+ * distance issue de `useRouteSuggestion` (réglage manuel, sinon habitudes
+ * apprises, sinon défaut assumé, et la phrase affichée dit toujours laquelle).
+ * Les deux autres restent des FORMATS fixes — des alternatives explicites, pas
  * des recommandations, donc rien à personnaliser.
  */
 function planPresets(recommendedKm: number) {
   return [
-    { key: 'recommandee', label: C.planRecommended, km: recommendedKm, status: C.planStatusBalance },
-    { key: 'rapide', label: C.planFast, km: 2, status: C.planStatusSimple },
-    { key: 'max', label: C.planMaxPoints, km: 5, status: C.planStatusZones },
+    { key: 'recommandee', label: C.planRecommended, km: recommendedKm },
+    { key: 'courte', label: C.planShort, km: PLAN_SHORT_KM },
+    { key: 'longue', label: C.planLong, km: PLAN_LONG_KM },
   ] as const;
 }
 
-/** 2 verbes joueur (AMENDEMENT-12 §A) — « attaquer » n'est plus proposé ici. */
-const INTENTION_CHOICES: readonly PlannerIntention[] = ['conquerir', 'defendre'];
-
-/** Icône par intention. */
+/** Icône par objectif (la couleur dit un RÔLE, l'icône double toujours le sens). */
 const INTENTION_ICON: Record<PlannerIntention, IconName> = {
   conquerir: 'cible',
-  attaquer: 'guerre',
   defendre: 'bouclier',
 };
-
-function formatKm(km: number): string {
-  return km.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-}
-
-/** Allure d'ESTIMATION des durées (~5'50/km) — étiquette UI, pas une règle de jeu. */
-const EST_PACE_SEC_PER_KM = 350;
-
-function estMinutes(km: number): number {
-  return Math.round((km * EST_PACE_SEC_PER_KM) / 60);
-}
-
-/** Résumé header : max 3 infos, minutes toujours estimées (~). Résolu langue courante
- *  (le composant re-rend au changement de langue via useT). */
-function routeSummary(route: PlannedRouteDemo): string {
-  const dur = `~${estMinutes(route.distanceKm)} min`;
-  if (route.typeKey === 'defense' && route.streetsToSave !== undefined) {
-    return tNow(C.summaryDefense, { dur, zones: route.zones, streets: route.streetsToSave });
-  }
-  return tNow(C.summaryConquest, { dur, zones: route.zones, pts: formatInt(route.points) });
-}
-
-function ctaMicrocopy(route: PlannedRouteDemo): string {
-  return tNow(C.ctaMicro, {
-    km: formatKm(route.distanceKm),
-    min: estMinutes(route.distanceKm),
-    pts: formatInt(route.points),
-  });
-}
 
 /**
  * POURQUOI CETTE DISTANCE — une phrase, dérivée de la MÊME `RouteSuggestion` qui
  * a fixé la distance. Écran et décision ne peuvent donc pas diverger : c'est ce
  * découplage qui avait produit « Adaptée à tes habitudes » sur une constante.
- * Les 3 états (appris / défaut assumé / réglage manuel) sont tous explicites.
+ * Les 3 sources (appris / défaut assumé / réglage manuel) sont toutes explicites.
+ * `null` si la distance elle-même n'est pas formatable — on ne rend alors aucune
+ * ligne plutôt qu'une phrase avec un trou.
  */
-function suggestionWhy(s: RouteSuggestion): string {
+function suggestionWhy(s: RouteSuggestion): string | null {
   const km = formatKm(s.km);
+  if (km === null) return null;
   if (s.source === 'manual') return tNow(C.whyManual, { km });
   if (s.source === 'learned') return tNow(C.whyLearned, { km, n: s.sampleRuns ?? 0 });
   const remaining = runsBeforeLearning(s);
@@ -192,11 +234,21 @@ function suggestionWhy(s: RouteSuggestion): string {
   return tNow(C.whyDefaultUnknown, { km });
 }
 
-function SectionLabel({ icon, label }: { icon: IconName; label: string }) {
+/** En-tête de section : icône grise + kicker canonique + (option) lien texte à droite. */
+function SectionHead({
+  icon,
+  label,
+  right,
+}: {
+  icon: IconName;
+  label: string;
+  right?: React.ReactNode;
+}) {
   return (
     <View style={styles.sectionHead}>
-      <Icon name={icon} size={iconSizes.xs} color={colors.gris} />
-      <Text style={styles.sectionLabel}>{label}</Text>
+      <Icon name={icon} size={iconSizes.sm} color={colors.gris} />
+      <SectionLabel>{label}</SectionLabel>
+      {right}
     </View>
   );
 }
@@ -216,21 +268,23 @@ export default function RoutePlannerScreen() {
   const [intention, setIntention] = useState<PlannerIntention>(
     params.type === 'defense' ? 'defendre' : 'conquerir',
   );
-  const [targetKm, setTargetKm] = useState(GEN_DEFAULT_KM);
-  const [distanceDraft, setDistanceDraft] = useState(formatKm(GEN_DEFAULT_KM));
+  const [targetKm, setTargetKm] = useState(GEN_MIN_KM);
+  const [distanceDraft, setDistanceDraft] = useState('');
   const [seed, setSeed] = useState(1);
-  const [route, setRoute] = useState<PlannedRouteDemo | null>(null);
+  const [route, setRoute] = useState<PlannedLoop | null>(null);
   const [routing, setRouting] = useState(false);
-  const [nearby, setNearby] = useState<PlannedRouteDemo[]>([]);
+  const [nearby, setNearby] = useState<PlannedLoop[]>([]);
   // Distingue « en cours de calcul » de « aucune variante » : sans ce flag, une
-  // liste vide (échec réseau) était indistinguable d'un chargement → spinner infini.
+  // liste vide (échec réseau) était indistinguable d'un chargement.
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [sharedFeed, setSharedFeed] = useState<readonly { id: string; text: string }[]>([]);
 
-  // Distance PROPOSÉE + sa raison (features/route/suggestion.ts). Une seule
-  // source pour les deux : la phrase affichée ne peut pas contredire le chiffre.
+  // Distance PROPOSÉE + son allure + leur raison (features/route/suggestion.ts).
+  // Une seule source : la phrase affichée ne peut pas contredire le chiffre.
   const { suggestion, loading: suggestionLoading } = useRouteSuggestion();
+
+  // Formats : la « Recommandée » porte la distance PERSONNALISÉE.
+  const presets = planPresets(suggestion.km);
 
   const reqIdRef = useRef(0);
   const liveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -252,16 +306,16 @@ export default function RoutePlannerScreen() {
         if (r) {
           setRoute(r);
           setTargetKm(r.distanceKm);
-          setDistanceDraft(formatKm(r.distanceKm));
+          setDistanceDraft(formatKm(r.distanceKm) ?? '');
         } else {
-          // Routage indisponible (OSRM null) : jamais de spinner infini — on
+          // Routage indisponible (OSRM null) : jamais de compteur infini — on
           // arrête le chargement, le tracé courant reste, message re-tentable.
           toast.show(tNow(C.toastRouteUnavailable));
         }
       })
       .catch(() => {
         // Rejet réseau/serveur : même filet honnête (sans ce catch, setRouting
-        // resterait à true → spinner infini + unhandled rejection).
+        // resterait à true → attente sans fin + unhandled rejection).
         if (id !== reqIdRef.current) return;
         setRouting(false);
         toast.show(tNow(C.toastRouteUnavailable));
@@ -278,49 +332,43 @@ export default function RoutePlannerScreen() {
    * Localise (GPS) + nomme + route.
    *
    * Échec (refus, capteur muet, hors couverture, timeout) → état `error`, sur
-   * TOUTES les plateformes : origine `null`, aucun tracé, CTA désactivé,
-   * « Position introuvable » + « Réessayer la localisation ». Un plan de course
+   * TOUTES les plateformes : origine `null`, aucun tracé, aucune boucle, et le
+   * bouton unique bascule sur « Réessayer la localisation ». Un plan de course
    * ne peut pas être calculé depuis un endroit où le joueur n'est pas ; ne rien
    * afficher et le dire est la seule réponse vraie.
    */
   const locateAndRoute = (km: number, intent: PlannerIntention, sd: number) => {
     setGps('locating');
-    void currentPosition().then(async (pos) => {
-      if (!pos) {
+    void currentPosition()
+      .then(async (pos) => {
+        if (!pos) {
+          setGps('error');
+          toast.show(tNow(C.toastPositionNotFound));
+          return;
+        }
+        // Position CONFIRMÉE → nom RÉEL du secteur (quartier/village, PARTOUT en
+        // Europe) via reverse-geocode + hiérarchie de repli + cache. Clé de cache
+        // ~ granularité secteur (coords arrondies) ; « Ma position » ne sert que
+        // si aucun nom OSM (réseau HS) — jamais un faux lieu.
+        // Une position est arrivée : la permission est donc accordée pour cette
+        // session — les prochaines ouvertures n'ouvriront pas de boîte.
+        positionProvenThisSession = true;
+        const key = `${pos.lat.toFixed(2)},${pos.lng.toFixed(2)}`;
+        const label = await resolveSectorName(pos, key, tNow(C.myPosition));
+        const o = { point: pos, label };
+        setGps('ok');
+        setOrigin(o);
+        applyRoute(o, km, intent, sd);
+      })
+      .catch(() => {
+        // Rejet inattendu (permission qui throw, reverse-geocode qui rejette) :
+        // sans ce filet l'écran resterait sur « Localisation… » indéfiniment —
+        // une attente sans fin est le troisième mensonge (on n'avoue pas l'échec).
         setGps('error');
         toast.show(tNow(C.toastPositionNotFound));
-        return;
-      }
-      // Position CONFIRMÉE → nom RÉEL du secteur (quartier/village, PARTOUT en
-      // Europe) via reverse-geocode + hiérarchie de repli + cache (resolveSectorName).
-      // Clé de cache ~ granularité secteur (coords arrondies) ; « Ma position » ne
-      // sert que si aucun nom OSM (réseau HS) — jamais un faux lieu.
-      // Une position est arrivée : la permission est donc accordée pour cette
-      // session — les prochaines ouvertures de l'écran n'ouvriront pas de boîte.
-      positionProvenThisSession = true;
-      const key = `${pos.lat.toFixed(2)},${pos.lng.toFixed(2)}`;
-      const label = await resolveSectorName(pos, key, tNow(C.myPosition));
-      const o = { point: pos, label };
-      setGps('ok');
-      setOrigin(o);
-      applyRoute(o, km, intent, sd);
-    }).catch(() => {
-      // Rejet inattendu (permission qui throw, reverse-geocode qui rejette) :
-      // sans ce filet l'écran resterait sur « Localisation… » indéfiniment —
-      // un spinner infini est le troisième mensonge (on n'avoue pas l'échec).
-      setGps('error');
-      toast.show(tNow(C.toastPositionNotFound));
-    });
+      });
   };
 
-  // Premier rendu : localisation d'abord — aucun tracé tant que l'origine est inconnue.
-  //
-  // On ATTEND la suggestion (réglage manuel / habitudes / défaut) avant de router :
-  // router d'abord sur `GEN_DEFAULT_KM` puis re-router sur la vraie distance
-  // ferait clignoter un tracé que personne n'a demandé, et afficherait pendant une
-  // seconde une proposition « recommandée » qui n'est celle de personne.
-  // `suggestionLoading` retombe TOUJOURS à false (échec inclus → défaut assumé),
-  // donc ce garde-fou ne peut pas bloquer l'écran.
   useEffect(() => {
     screen('route_planner', { type: params.type ?? 'direct' });
     return () => {
@@ -329,15 +377,23 @@ export default function RoutePlannerScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Premier rendu : on ATTEND la suggestion (réglage manuel / habitudes /
+  // défaut) avant de router. Router d'abord sur la constante de repli puis
+  // re-router sur la vraie distance ferait clignoter un tracé que personne n'a
+  // demandé, et afficherait une seconde une « recommandation » qui n'est celle
+  // de personne. `suggestionLoading` retombe TOUJOURS à false (échec inclus →
+  // défaut assumé), donc ce garde-fou ne peut pas bloquer l'écran.
   //
-  // ⚠️ ET SURTOUT : ce démarrage NE DEMANDE PLUS la permission (cf. entête). Il
+  // ⚠ ET SURTOUT : ce démarrage NE DEMANDE PAS la permission (cf. entête). Il
   // n'enchaîne que si l'app a déjà obtenu une position dans cette session —
   // auquel cas aucune boîte système ne s'ouvrira. Sinon on reste en `unasked` :
-  // l'écran est complet et lisible (plans, distance recommandée, sa raison), il
-  // attend juste le geste qui autorise la localisation.
+  // l'écran est complet et lisible (formats, distance recommandée, sa raison),
+  // il attend juste le geste qui autorise la localisation.
   useEffect(() => {
     if (suggestionLoading || bootedRef.current) return;
     bootedRef.current = true;
+    setTargetKm(clampKm(suggestion.km));
+    setDistanceDraft(formatKm(clampKm(suggestion.km)) ?? '');
     if (!positionProvenThisSession) return;
     const intent: PlannerIntention = params.type === 'defense' ? 'defendre' : 'conquerir';
     locateAndRoute(suggestion.km, intent, 1);
@@ -357,12 +413,12 @@ export default function RoutePlannerScreen() {
     )
       .then((list) => {
         if (cancelled) return;
-        setNearby(list.filter((r): r is PlannedRouteDemo => r !== null));
+        setNearby(list.filter((r): r is PlannedLoop => r !== null));
         setNearbyLoading(false);
       })
       .catch(() => {
-        // Rejet réseau/serveur : liste vide + fin de chargement (jamais de
-        // spinner infini). L'état vide affiche un message re-tentable.
+        // Rejet réseau/serveur : liste vide + fin de chargement (jamais une
+        // attente sans fin). L'état vide affiche un message re-tentable.
         if (cancelled) return;
         setNearby([]);
         setNearbyLoading(false);
@@ -375,29 +431,33 @@ export default function RoutePlannerScreen() {
   const recentrer = () => {
     haptics.light();
     locateAndRoute(targetKm, intention, seed);
-    screen('route_planner_origin', { source: 'gps' });
   };
 
-  /** Choisir un plan change la DISTANCE, jamais l'objectif courant. */
-  const selectPreset = (km: number, key: string) => {
+  /** Relance le calcul du tracé sur l'origine déjà confirmée (routeur muet). */
+  const recomputeRoute = () => {
+    if (!origin) return;
     haptics.light();
-    if (origin) applyRoute(origin, km, intention, seed);
-    else locateAndRoute(km, intention, seed);
-    screen('route_planner_plan_select', { plan: key });
+    applyRoute(origin, targetKm, intention, seed);
+  };
+
+  /** Choisir un format change la DISTANCE, jamais l'objectif courant. */
+  const selectPreset = (key: string) => {
+    const preset = presets.find((p) => p.key === key);
+    if (!preset) return;
+    if (origin) applyRoute(origin, preset.km, intention, seed);
+    else locateAndRoute(preset.km, intention, seed);
   };
 
   const selectIntention = (intent: PlannerIntention) => {
     if (intent === intention || !origin) return;
-    haptics.light();
     applyRoute(origin, targetKm, intent, seed);
-    screen('route_planner_objective_select', { objective: intent });
   };
 
   const stepDistance = (delta: number) => {
     if (!origin) return;
     haptics.light();
     const nk = clampKm(targetKm + delta);
-    setDistanceDraft(formatKm(nk));
+    setDistanceDraft(formatKm(nk) ?? '');
     applyRoute(origin, nk, intention, seed);
   };
 
@@ -409,55 +469,40 @@ export default function RoutePlannerScreen() {
   };
 
   const onDistanceBlur = () => {
-    if (route) setDistanceDraft(formatKm(route.distanceKm));
+    if (route) setDistanceDraft(formatKm(route.distanceKm) ?? '');
   };
 
-  const adoptNearby = (loop: PlannedRouteDemo) => {
-    haptics.light();
+  const adoptNearby = (id: string) => {
+    const loop = nearby.find((l) => l.id === id);
+    if (!loop) return;
     setRoute(loop);
     setTargetKm(loop.distanceKm);
-    setDistanceDraft(formatKm(loop.distanceKm));
-    screen('route_planner_route_select', { route: loop.id });
+    setDistanceDraft(formatKm(loop.distanceKm) ?? '');
   };
 
   const shuffleNearby = () => {
     haptics.light();
     setNearby([]);
-    setNearbyLoading(true); // feedback immédiat : le spinner remplace la liste pendant le recalcul.
+    setNearbyLoading(true); // feedback immédiat : la ligne d'état remplace la liste.
     setSeed((s) => s + 1);
   };
 
-  const shareRoute = () => {
-    if (!route || !origin) return;
-    haptics.medium();
-    const text = t(C.shareToastText, { km: formatKm(route.distanceKm), place: origin.label });
-    toast.show(text);
-    setSharedFeed((prev) =>
-      prev.some((f) => f.id === route.id) ? prev : [...prev, { id: route.id, text }],
-    );
-    screen('route_planner_share', { route: route.id });
-  };
-
-  // Départ possible UNIQUEMENT sur position confirmée (`gps === 'ok'`).
-  const startDisabled = !route || gps !== 'ok';
-
   const startRun = () => {
-    if (!route || startDisabled) return;
+    if (!route) return;
     haptics.medium();
-    // Arme le parcours PLANIFIÉ : la course suivra EXACTEMENT ce tracé (store).
-    setPlannedRoute(route);
+    // Le tracé n'est PAS transmis à la course : `ingest_run` décide la capture
+    // sur la boucle réellement fermée, jamais sur le respect d'un itinéraire
+    // conseillé (E07). Passer un « parcours armé » l'aurait laissé croire.
     const intent = intention === 'defendre' ? 'defense' : 'conquest';
-    router.push(`/course-live?mode=conquete&intention=${intent}&planned=1`);
+    router.push(`/course-live?mode=conquete&intention=${intent}`);
   };
 
   const intentionLabel = t(PLANNER_INTENTION_LABELS[intention]);
-  const reasons = route ? generatedReasons(route, intention) : [];
+  const reasons = route ? generatedReasons(route.distanceKm) : [];
 
-  // Formats : la « Recommandée » porte la distance PERSONNALISÉE.
-  const presets = planPresets(suggestion.km);
   // Format effectivement en cours = le plus proche du tracé, et lui seul —
   // à condition de rester dans la tolérance (sinon aucun format n'est « choisi »).
-  const nearestPlanKey = route
+  const nearestPlan = route
     ? presets.reduce<{ key: string; d: number }>(
         (best, p) => {
           const d = Math.abs(route.distanceKm - p.km);
@@ -466,21 +511,51 @@ export default function RoutePlannerScreen() {
         { key: '', d: Number.POSITIVE_INFINITY },
       )
     : { key: '', d: Number.POSITIVE_INFINITY };
-  const nearestPlanKeyResolved = nearestPlanKey.d < 0.7 ? nearestPlanKey.key : '';
+  const selectedPlanKey = nearestPlan.d < PLAN_MATCH_TOLERANCE_KM ? nearestPlan.key : '';
+
+  // Un segment par format, libellé « Recommandée · 4,5 km ». Un format dont la
+  // distance ne se formate pas (valeur abîmée) DISPARAÎT plutôt que d'afficher
+  // « Recommandée · ».
+  const planOptions = presets.flatMap((p) => {
+    const km = formatKm(p.km);
+    return km === null ? [] : [{ id: p.key, label: t(C.planOption, { label: t(p.label), km }) }];
+  });
+
+  const objectiveOptions = PLANNER_INTENTIONS.map((it) => ({
+    id: it,
+    label: t(PLANNER_INTENTION_LABELS[it]),
+    icon: INTENTION_ICON[it],
+  }));
+
+  const loopOptions = nearby.flatMap((loop, i) => {
+    const km = formatKm(loop.distanceKm);
+    return km === null ? [] : [{ id: loop.id, label: t(C.variantOption, { n: i + 1, km }) }];
+  });
+
+  // ── DURÉE : l'allure MESURÉE du joueur, ou rien du tout ──────────────────
+  const minutes = route ? estimatedMinutes(route.distanceKm, suggestion.paceSKm) : null;
+  const routeKm = route ? formatKm(route.distanceKm) : null;
+  const metrics: SheetMetric[] = [];
+  for (const key of plannerMetricKeys({ distanceKm: route?.distanceKm ?? null, minutes })) {
+    if (key === 'distance' && routeKm !== null) {
+      metrics.push({ key, value: `${routeKm} km`, label: t(C.estDistance) });
+    }
+    if (key === 'duration' && minutes !== null) {
+      metrics.push({ key, value: `~${minutes} min`, label: t(C.estDuration) });
+    }
+  }
 
   // Labels honnêtes par état GPS — quatre états, quatre discours. En `unasked`
-  // on n'annonce ni recherche (« Localisation… » ferait tourner un spinner sur
-  // un GPS éteint) ni échec : la ligne DÉPART nomme ce que le geste va donner
-  // (« Ma position »), et c'est le bouton cible qui l'obtient.
+  // on n'annonce ni recherche (« Localisation… » ferait tourner un compteur sur
+  // un GPS éteint) ni échec : la ligne DÉPART nomme ce que le geste va donner.
   const gpsPending = gps === 'unasked' || gps === 'error';
-  const placeLabel =
-    route?.zone ??
-    origin?.label ??
-    (gps === 'error'
-      ? t(C.positionNotFound)
-      : gps === 'unasked'
-        ? t(C.myPosition)
-        : t(C.locating));
+  // Loi 15 : un segment SANS SOURCE disparaît. Tant qu'aucune position n'est
+  // confirmée, il n'y a pas de lieu — le kicker se réduit alors à l'objectif au
+  // lieu d'aller chercher un libellé d'état. « CONQUÉRIR · POSITION
+  // INTROUVABLE » répétait en sur-titre ce que la ligne de contexte, le champ
+  // DÉPART, sa note et le toast disaient déjà : quatre fois la même phrase.
+  const placeLabel = route?.zone ?? origin?.label ?? null;
+  const kickerText = [intentionLabel, placeLabel].filter((s): s is string => !!s).join(' · ');
   const originLabel =
     gps === 'locating'
       ? t(C.locating)
@@ -488,19 +563,55 @@ export default function RoutePlannerScreen() {
         ? t(C.positionNotFound)
         : gps === 'unasked'
           ? t(C.myPosition)
-          : (origin?.label ?? '—');
+          : (origin?.label ?? t(C.myPosition));
   const originHint =
     gps === 'ok' ? t(C.hintGpsOk) : gps === 'error' ? t(C.hintGpsError) : t(C.hintGpsLocating);
+  // Ligne de contexte : ce qu'il reste de vrai après la purge des zones/points.
   const summaryText = route
-    ? routeSummary(route)
+    ? minutes !== null
+      ? t(C.summaryDuration, { min: minutes })
+      : t(C.summaryNoPace)
     : gps === 'error'
       ? t(C.summaryGpsError)
       : t(C.summaryWaitingPosition);
+  const whyLine = suggestionLoading ? null : suggestionWhy(suggestion);
+
+  // ── LE BOUTON UNIQUE : toujours un geste possible (jamais un CTA mort) ────
+  const cta: PlannerCtaKind = plannerCta({ gps, hasRoute: route !== null, routing });
+  const ctaLabel =
+    cta === 'start'
+      ? intentionLabel
+      : cta === 'retryLocation'
+        ? t(C.retryLocation)
+        : cta === 'retryRoute'
+          ? t(C.retryRoute)
+          : t(C.myPosition);
+  const ctaMicro =
+    cta === 'start'
+      ? t(C.ctaGpsAfterCountdown)
+      : cta === 'routing'
+        ? t(C.mapComputing)
+        : cta === 'retryRoute'
+          ? t(C.toastRouteUnavailable)
+          : t(C.ctaPositionRequired);
+  const ctaAnalyticsId =
+    cta === 'start'
+      ? 'route_planner_start'
+      : cta === 'retryRoute'
+        ? 'route_planner_route_retry'
+        : 'route_planner_locate';
+  // `ctaStartsRun` plutôt qu'une comparaison littérale : le seul état qui engage
+  // le joueur est défini (et testé) à côté de la décision, pas ici.
+  const onCtaPress = () => {
+    if (ctaStartsRun(cta)) startRun();
+    else if (cta === 'retryRoute') recomputeRoute();
+    else recentrer();
+  };
 
   return (
     <View style={styles.root}>
-      {/* ── Header épuré : verbe · lieu / KPI km / résumé ≤ 3 infos ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      {/* ── 1 · EN-TÊTE : retour · kicker · KPI · une ligne de contexte ── */}
+      <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
         <View style={styles.topBar}>
           <Pressable
             accessibilityRole="button"
@@ -513,45 +624,47 @@ export default function RoutePlannerScreen() {
               <Icon name="chevron" size={iconSizes.lg} color={colors.blanc} />
             </View>
           </Pressable>
-          <Text style={styles.kicker} numberOfLines={1}>
-            {intentionLabel.toUpperCase()} · {placeLabel.toUpperCase()}
-          </Text>
+          {/* Kicker gris (loi 2) — la chartreuse ne se dépense pas sur un
+              sur-titre. `SectionLabel` met en capitales par le style, pas dans la
+              chaîne : les lecteurs d'écran épellent les capitales littérales. */}
+          <SectionLabel style={styles.kicker}>{kickerText}</SectionLabel>
           <View style={styles.back} />
         </View>
-        <View style={styles.kpiRow}>
-          <Text style={styles.kpi}>
-            {route ? formatKm(route.distanceKm) : '—'} <Text style={styles.kpiUnit}>KM</Text>
-          </Text>
-          {routing && route ? (
-            <ActivityIndicator size="small" color={colors.chartreuse} style={styles.kpiSpin} />
-          ) : null}
-        </View>
-        <Text style={styles.summary} numberOfLines={2}>
-          {summaryText}
-        </Text>
+        {/* Le KPI n'existe QUE s'il y a un tracé mesuré. « — » en 40 px serait la
+            valeur nulle interdite : sans boucle, il n'y a pas de distance. */}
+        {route && routeKm !== null ? (
+          <View style={styles.kpiRow}>
+            <Text style={styles.kpi} numberOfLines={1} adjustsFontSizeToFit>
+              {routeKm} <Text style={styles.kpiUnit}>KM</Text>
+            </Text>
+            {routing ? (
+              /* Le SEUL compteur qui tourne encore : un recalcul est réellement
+                 en vol pendant que le tracé courant reste affiché. */
+              <ActivityIndicator size="small" color={colors.chartreuse} style={styles.kpiSpin} />
+            ) : null}
+          </View>
+        ) : null}
+        <Text style={styles.summary}>{summaryText}</Text>
       </View>
 
-      {/* ── Carte : tracé réel uniquement — sinon état localisation/calcul explicite ── */}
+      {/* ── 2 · CARTE : tracé réel uniquement — sinon l'état, en toutes lettres ── */}
       <View style={styles.mapWrap}>
         {route && origin ? (
           <RoutePlannerMap route={route} origin={origin.point} />
         ) : (
-          <View style={styles.mapLoading}>
-            {/* Un spinner n'a le droit de tourner que si quelque chose tourne :
-                en `unasked` rien n'est en cours, donc une icône, pas une roue. */}
-            {gpsPending ? (
-              <Icon name="carte" size={iconSizes.lg} color={colors.gris} />
-            ) : (
-              <ActivityIndicator color={colors.chartreuse} />
-            )}
-            <Text style={styles.mapLoadingText}>
-              {gps === 'error'
-                ? t(C.positionNotFound)
-                : gps === 'unasked'
-                  ? t(C.ctaPositionRequired)
-                  : gps === 'locating'
-                    ? t(C.locating)
-                    : t(C.mapComputing)}
+          <View style={styles.mapEmpty}>
+            <Icon name="carte" size={iconSizes.lg} color={colors.gris} />
+            {/* Trois branches, trois phrases VRAIES : on cherche la position /
+                un calcul est réellement en vol / il n'y a rien à peindre encore.
+                « Calcul de l'itinéraire… » ne s'affiche jamais quand aucun calcul
+                ne tourne, et la RAISON de l'absence est dite juste au-dessus (ligne
+                de contexte) et juste en dessous (note du champ DÉPART). */}
+            <Text style={styles.stateInline}>
+              {gps === 'locating'
+                ? t(C.locating)
+                : routing
+                  ? t(C.mapComputing)
+                  : t(C.mapPreviewEmpty)}
             </Text>
           </View>
         )}
@@ -563,91 +676,52 @@ export default function RoutePlannerScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── DÉPART : label honnête par état (position / démo / introuvable) ── */}
-        <SectionLabel icon="carte" label={t(C.secStart)} />
+        {/* ── 3 · DÉPART : label honnête par état, tappable pour (re)localiser ── */}
+        <SectionHead icon="pin" label={t(C.secStart)} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={
-            gps === 'error'
-              ? t(C.retryLocation)
-              : gps === 'unasked'
-                ? t(C.myPosition)
-                : t(C.a11yRecenter)
-          }
+          accessibilityLabel={gps === 'error' ? t(C.retryLocation) : t(C.a11yRecenter)}
           onPress={recentrer}
           style={({ pressed }) => [styles.originRow, pressed && styles.pressed]}
         >
-          <View style={styles.originField}>
-            <Icon
-              name="carte"
-              size={iconSizes.sm}
-              color={gpsPending ? colors.gris : colors.chartreuse}
-            />
-            <Text style={styles.originLabel} numberOfLines={1} adjustsFontSizeToFit>
-              {originLabel}
-            </Text>
-          </View>
-          <View style={styles.gpsBtn}>
-            {gps === 'locating' ? (
-              <ActivityIndicator color={colors.chartreuse} size="small" />
-            ) : (
-              <Icon name="cible" size={iconSizes.md} color={colors.chartreuse} />
-            )}
-          </View>
+          <Icon
+            name="gps"
+            size={iconSizes.sm}
+            color={gps === 'ok' ? colors.chartreuse : colors.gris}
+          />
+          <Text style={styles.originLabel} numberOfLines={1} adjustsFontSizeToFit>
+            {originLabel}
+          </Text>
+          <Icon
+            name="cible"
+            size={iconSizes.md}
+            color={gpsPending ? colors.gris : colors.chartreuse}
+          />
         </Pressable>
         <Text style={styles.hint}>{originHint}</Text>
-        {/* LE GESTE qui autorise la localisation — visible dans les DEUX états où
-            rien n'est acquis, avec le bon verbe pour chacun : « Réessayer » quand
-            une tentative a échoué, la simple demande quand personne n'a rien
-            demandé (réessayer ce qui n'a jamais été tenté n'a pas de sens).
-            Ce n'est PAS le CTA chartreuse de l'écran (§A4 : c'est le bouton de
-            départ, en bas) — une pill sombre secondaire. */}
-        {gpsPending ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={gps === 'error' ? t(C.retryLocation) : t(C.myPosition)}
-            onPress={recentrer}
-            style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
-          >
-            <Icon name="cible" size={16} color={colors.blanc} />
-            <Text style={styles.retryLabel} numberOfLines={1}>
-              {gps === 'error' ? t(C.retryLocation) : t(C.myPosition)}
-            </Text>
-          </Pressable>
-        ) : null}
 
-        {/* ── E05 (planche) : métriques du parcours recommandé en UN bloc à
-             séparateurs (distance · durée), focal après le départ, jamais 4 cards.
-             Seules ces deux-là sont RÉELLES (longueur de la boucle + estimation
-             ~5'50/km). Le gain potentiel en km² et la difficulté restent O1 (non
-             calculés) : ABSENTS ici plutôt qu'un chiffre inventé. Rendu dès qu'un
-             tracé recommandé existe. ── */}
-        {route ? (
-          <View style={styles.estBlock}>
-            <View style={styles.estItem}>
-              <Text style={styles.estValue} numberOfLines={1} adjustsFontSizeToFit>
-                {formatKm(route.distanceKm)} km
-              </Text>
-              <Text style={styles.estLabel}>{t(C.estDistance)}</Text>
-            </View>
-            <View style={styles.estSep} />
-            <View style={styles.estItem}>
-              <Text style={styles.estValue} numberOfLines={1} adjustsFontSizeToFit>
-                ~{estMinutes(route.distanceKm)} min
-              </Text>
-              <Text style={styles.estLabel}>{t(C.estDuration)}</Text>
-            </View>
+        {/* ── 4 · MÉTRIQUES : UN bloc à séparateurs, aucun contenant (loi 3).
+             Seules les mesures SOURCÉES y entrent — la longueur réellement
+             routée, et la durée si l'allure du joueur a été mesurée. Le gain en
+             km² et la difficulté de la planche restent absents (cf. écarts). ── */}
+        {metrics.length > 0 ? (
+          // Enveloppe de MISE EN PAGE seulement (une marge, aucun fond, aucun
+          // contour) : le rythme vertical appartient à l'écran, et `SheetMetrics`
+          // doit rester sans contenant. Elle n'est posée que s'il y a des
+          // métriques, sinon elle laisserait un blanc là où le bloc a disparu.
+          <View style={styles.metricsWrap}>
+            <SheetMetrics metrics={metrics} testID="planner-metrics" />
           </View>
         ) : null}
 
-        {/* ── « Pourquoi cette course ? » — puces + D'OÙ VIENT LA DISTANCE ──
-             Pas de section nouvelle (§A : 1 écran = 1 décision) : la provenance
-             tient en UNE ligne sous les puces existantes. Elle est affichée dès
-             que la suggestion a résolu, même sans tracé — c'est une propriété de
-             la proposition, pas du routage. */}
+        {/* ── 5 · POURQUOI CETTE COURSE — faits vérifiables + provenance ──
+             Pas de section supplémentaire (§A : 1 écran = 1 décision) : la
+             provenance tient en UNE ligne sous les puces. Elle s'affiche dès que
+             la suggestion a résolu, même sans tracé — c'est une propriété de la
+             proposition, pas du routage. */}
         {reasons.length > 0 ? (
           <>
-            <SectionLabel icon="cible" label={t(C.secWhy)} />
+            <SectionHead icon="info" label={t(C.secWhy)} />
             <View style={styles.reasonRow}>
               {reasons.map((reason) => (
                 <View key={reason.fr} style={styles.reason}>
@@ -657,55 +731,20 @@ export default function RoutePlannerScreen() {
             </View>
           </>
         ) : null}
-        {!suggestionLoading ? (
-          <Text style={styles.hint} numberOfLines={2}>
-            {suggestionWhy(suggestion)}
-          </Text>
-        ) : null}
+        {whyLine !== null ? <Text style={styles.hint}>{whyLine}</Text> : null}
 
-        {/* ── PLANS : 3 formats — la distance change, l'objectif reste ── */}
-        <SectionLabel icon="cible" label={t(C.secPlans)} />
-        <View style={styles.plansRow}>
-          {presets.map((plan) => {
-            // Un SEUL format sélectionné : si la distance recommandée tombe près
-            // d'un format fixe (2 ou 5 km), le seuil de 0,7 km en marquait deux.
-            const selected = !!route && plan.key === nearestPlanKeyResolved;
-            return (
-              <Pressable
-                key={plan.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={t(C.a11yPlan, { label: t(plan.label), km: plan.km })}
-                onPress={() => selectPreset(plan.km, plan.key)}
-                style={({ pressed }) => [
-                  styles.plan,
-                  selected && styles.planSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                {/* §A « aucun texte coupé » : à 3 chips sur 375px et au plancher
-                    a11y 12px, ces lignes débordaient (« ✓ Recommandée », « …~20 mi »).
-                    La coche est retirée (la sélection reste lisible : couleur
-                    chartreuse + fond sélectionné + ligne « Choisi » + a11y state) ;
-                    distance et statut passent sur 2 lignes au lieu d'être rognés. */}
-                <Text
-                  style={[styles.planLabel, selected && styles.planLabelSelected]}
-                  numberOfLines={1}
-                >
-                  {t(plan.label)}
-                </Text>
-                <Text style={styles.planDist} numberOfLines={2}>
-                  {`~${formatKm(plan.km)} km · ~${estMinutes(plan.km)} min`}
-                </Text>
-                <Text style={styles.planReason} numberOfLines={2}>
-                  {selected ? t(C.planChosen) : t(plan.status)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* ── 6 · FORMATS : la distance change, l'objectif reste ── */}
+        <SectionHead icon="route" label={t(C.secFormats)} />
+        <Segmented
+          options={planOptions}
+          value={selectedPlanKey}
+          onChange={selectPreset}
+          tone="surface"
+          scrollable
+          accessibilityLabel={t(C.a11yFormatsGroup)}
+        />
 
-        {/* ── « Ajuster » (dispo une fois l'origine connue) : objectif + distance + variantes ── */}
+        {/* ── 7 · AJUSTER : le détail est AU TAP, replié par défaut (loi 16) ── */}
         {origin ? (
           <Pressable
             accessibilityRole="button"
@@ -717,48 +756,26 @@ export default function RoutePlannerScreen() {
             }}
             style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}
           >
-            <Icon name="reglages" size={16} color={colors.blanc} />
+            <Icon name="reglages" size={iconSizes.sm} color={colors.gris} />
             <Text style={styles.adjustLabel}>{t(C.adjustRun)}</Text>
             <View style={adjustOpen ? styles.chevUp : styles.chevDown}>
-              <Icon name="chevron" size={16} color={colors.gris} />
+              <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
             </View>
           </Pressable>
         ) : null}
 
         {origin && adjustOpen ? (
           <View style={styles.adjustBody}>
-            <SectionLabel icon="cible" label={t(C.secObjective)} />
-            <View style={styles.intentionRow}>
-              {INTENTION_CHOICES.map((it) => {
-                const active = it === intention;
-                const itLabel = t(PLANNER_INTENTION_LABELS[it]);
-                return (
-                  <Pressable
-                    key={it}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={t(C.a11yObjective, { label: itLabel })}
-                    onPress={() => selectIntention(it)}
-                    style={({ pressed }) => [
-                      styles.intentionChip,
-                      active && styles.intentionChipActive,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Icon name={INTENTION_ICON[it]} size={iconSizes.sm} color={active ? colors.chartreuse : colors.gris} />
-                    <Text
-                      style={[styles.intentionLabel, active && styles.intentionLabelActive]}
-                      numberOfLines={1}
-                      ellipsizeMode="clip"
-                    >
-                      {active ? `✓ ${itLabel}` : itLabel}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <SectionHead icon="cible" label={t(C.secObjective)} />
+            <Segmented
+              options={objectiveOptions}
+              value={intention}
+              onChange={selectIntention}
+              tone="surface"
+              accessibilityLabel={t(C.a11yObjectiveGroup)}
+            />
 
-            <SectionLabel icon="reglages" label={t(C.secExactDistance)} />
+            <SectionHead icon="reglages" label={t(C.secExactDistance)} />
             <View style={styles.stepper}>
               <Pressable
                 accessibilityRole="button"
@@ -791,110 +808,57 @@ export default function RoutePlannerScreen() {
               </Pressable>
             </View>
             <Text style={styles.hint}>
-              {t(C.distanceRangeHint, { min: formatKm(GEN_MIN_KM), max: GEN_MAX_KM })}
+              {t(C.distanceRangeHint, { min: formatKm(GEN_MIN_KM) ?? '', max: GEN_MAX_KM })}
             </Text>
 
-            <View style={styles.nearbyHead}>
-              <Icon name="crew" size={iconSizes.xs} color={colors.gris} />
-              <Text style={styles.sectionLabel}>{t(C.secOtherLoops)}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t(C.a11yRegenerate)}
-                hitSlop={8}
-                onPress={shuffleNearby}
-                style={({ pressed }) => [styles.shuffleBtn, pressed && styles.pressed]}
-              >
-                <Icon name="reglages" size={iconSizes.xs} color={colors.chartreuse} />
-                <Text style={styles.shuffleText}>{t(C.regenerate)}</Text>
-              </Pressable>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
-              {nearbyLoading ? (
-                <View style={styles.nearbyLoading}>
-                  <ActivityIndicator color={colors.chartreuse} size="small" />
-                </View>
-              ) : nearby.length === 0 ? (
-                <View style={styles.nearbyLoading}>
-                  <Text style={styles.mapLoadingText}>{t(C.loopsUnavailable)}</Text>
-                </View>
-              ) : (
-                nearby.map((loop, i) => {
-                  const selected = !!route && loop.id === route.id;
-                  const variantLabel = t(C.variantN, { n: i + 1 });
-                  return (
-                    <Pressable
-                      key={`${loop.id}-${i}`}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={t(C.a11yVariant, { n: i + 1, km: formatKm(loop.distanceKm) })}
-                      onPress={() => adoptNearby(loop)}
-                      style={({ pressed }) => [
-                        styles.popularCard,
-                        selected && styles.popularCardSelected,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text style={styles.popularName} numberOfLines={1} ellipsizeMode="clip">
-                        {selected ? `✓ ${variantLabel}` : variantLabel}
-                      </Text>
-                      <Text style={styles.popularStats} numberOfLines={1} ellipsizeMode="clip">
-                        {t(C.variantStats, { km: formatKm(loop.distanceKm), zones: loop.zones })}
-                      </Text>
-                      <View style={styles.popularCrews}>
-                        <Icon name="serie" size={12} color={colors.chartreuse} />
-                        <Text style={styles.popularCrewsText} numberOfLines={1} ellipsizeMode="clip">
-                          {t(C.variantMeta, { min: estMinutes(loop.distanceKm), pts: formatInt(loop.points) })}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
-            </ScrollView>
-
-            {/* « CREW » : invariant produit (concept Crew) — jamais traduit. */}
-            <SectionLabel icon="crew" label="CREW" />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(C.a11yShareCrew)}
-              onPress={shareRoute}
-              style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
-            >
-              <Icon name="partage" size={16} color={colors.blanc} />
-              <Text style={styles.shareLabel}>{t(C.shareToCrew)}</Text>
-            </Pressable>
-            {sharedFeed.map((f) => (
-              <View key={f.id} style={styles.feedRow}>
-                <Icon name="feed" size={iconSizes.sm} color={colors.chartreuse} />
-                <Text style={styles.feedText} numberOfLines={1}>
-                  {f.text}
-                </Text>
-                <Text style={styles.feedTime}>{t(C.justNow)}</Text>
-              </View>
-            ))}
+            {/* En-tête de section + LIEN TEXTE à droite (loi 7) — jamais un
+                bouton plein, jamais un contour permanent. */}
+            <SectionHead
+              icon="boucle_fermee"
+              label={t(C.secOtherLoops)}
+              right={
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t(C.a11yRegenerate)}
+                  hitSlop={12}
+                  onPress={shuffleNearby}
+                  style={({ pressed }) => [styles.sectionLink, pressed && styles.pressed]}
+                >
+                  <Text style={styles.sectionLinkLabel}>{t(C.regenerate)}</Text>
+                </Pressable>
+              }
+            />
+            {nearbyLoading ? (
+              <Text style={styles.stateInline}>{t(C.loopsComputing)}</Text>
+            ) : loopOptions.length === 0 ? (
+              <Text style={styles.stateInline}>{t(C.loopsUnavailable)}</Text>
+            ) : (
+              <Segmented
+                options={loopOptions}
+                value={route?.id ?? ''}
+                onChange={adoptNearby}
+                tone="surface"
+                scrollable
+                accessibilityLabel={t(C.a11yLoopsGroup)}
+              />
+            )}
           </View>
         ) : null}
       </ScrollView>
 
-      {/* ── CTA VERBE contextuel — désactivé tant que la position n'est pas confirmée ── */}
-      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
-        <Text style={styles.ctaMicro} numberOfLines={1}>
-          {route ? ctaMicrocopy(route) : gpsPending ? t(C.ctaPositionRequired) : '—'}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.a11yStart, { verb: intentionLabel })}
-          accessibilityState={{ disabled: startDisabled }}
-          onPress={startRun}
-          disabled={startDisabled}
-          style={({ pressed }) => [
-            styles.startBtn,
-            pressed && !startDisabled && styles.startPressed,
-            startDisabled && styles.startDisabled,
-          ]}
-        >
-          <Text style={styles.startLabel}>{intentionLabel.toUpperCase()}</Text>
-        </Pressable>
+      {/* ── 8 · BARRE BASSE : microcopie + LE bouton unique (§A4).
+           Il n'est JAMAIS grisé : quand partir est impossible, il porte le geste
+           qui débloque (localiser, recalculer). Voir features/route/plannerCta.ts. ── */}
+      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <Text style={styles.ctaMicro}>{ctaMicro}</Text>
+        <Button
+          label={ctaLabel}
+          onPress={onCtaPress}
+          variant="primary"
+          accessibilityLabel={cta === 'start' ? t(C.a11yStart, { verb: intentionLabel }) : ctaLabel}
+          loading={cta === 'routing' || gps === 'locating'}
+          analyticsId={ctaAnalyticsId}
+        />
       </View>
 
       <ToastHost state={toast} />
@@ -904,296 +868,138 @@ export default function RoutePlannerScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
-  header: { paddingHorizontal: spacing.cardPadding, paddingBottom: 10 },
+  header: { paddingHorizontal: spacing.cardPadding, paddingBottom: spacing.sm },
   topBar: { flexDirection: 'row', alignItems: 'center' },
-  back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  back: {
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   mirror: { transform: [{ scaleX: -1 }] },
-  kicker: {
+  kicker: { flex: 1, textAlign: 'center' },
+
+  kpiRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing.xxs },
+  // Loi 10 : un chiffre a une typo de chiffre. Le rôle R6 porte famille, graisse,
+  // approche et chiffres tabulaires — seule la taille reste à l'usage.
+  kpi: { ...STAT, color: colors.blanc, fontSize: fontSizes.xxl },
+  kpiUnit: { ...STAT, color: colors.gris, fontSize: fontSizes.lg },
+  kpiSpin: { marginLeft: spacing.xs, marginBottom: spacing.xs },
+  summary: { ...typography.meta, color: colors.gris, marginTop: spacing.xxs },
+
+  // La carte se sépare du reste par l'ESPACE et par sa propre matière : un
+  // contour permanent en plus n'aurait signalé aucun état (loi 8).
+  mapWrap: { height: MAP_HEIGHT },
+  mapEmpty: {
     flex: 1,
-    textAlign: 'center',
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: 1.6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.noir,
   },
-  kpiRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
-  kpi: {
-    color: colors.blanc,
-    fontSize: fontSizes.xxl,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  kpiUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '700' },
-  kpiSpin: { marginLeft: 10, marginBottom: 8 },
-  summary: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 17 },
-  mapWrap: { height: MAP_HEIGHT, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.grisLigne },
-  mapLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.noir },
-  mapLoadingText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+
   panel: { flex: 1 },
-  panelContent: { paddingHorizontal: spacing.cardPadding, paddingTop: 12, paddingBottom: 16 },
+  panelContent: {
+    paddingHorizontal: spacing.cardPadding,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
 
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, marginBottom: 8 },
-  sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2, fontWeight: '700' },
-
-  // Départ : champ d'état + bouton position.
-  originRow: { flexDirection: 'row', gap: 8 },
-  originField: {
-    flex: 1,
+  sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: 46,
-    paddingHorizontal: 12,
-    borderRadius: radii.card - 8,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
-  originLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  gpsBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: radii.card - 8,
-    borderWidth: 1.5,
-    borderColor: colors.chartreuse,
-    backgroundColor: colors.carbone2,
-    alignItems: 'center',
+  sectionLink: {
+    marginLeft: 'auto',
+    minHeight: sizes.touchTarget,
     justifyContent: 'center',
   },
-  retryBtn: {
+  sectionLinkLabel: { ...typography.meta, color: colors.chartreuse },
+
+  // ── DÉPART : une LIGNE scannable (loi 6), pas une boîte encadrée ──
+  originRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 46,
-    marginTop: 4,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    gap: spacing.sm,
+    minHeight: sizes.touchTarget,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: borderState.hairline,
   },
-  retryLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  originLabel: { ...typography.itemTitle, flex: 1, color: colors.blanc },
 
-  // ── E05 — bloc à séparateurs des métriques recommandées (distance · durée) ──
-  estBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingVertical: 12,
-  },
-  estItem: { flex: 1, alignItems: 'center', gap: 3 },
-  estValue: {
-    color: colors.blanc,
-    fontFamily: fonts.textSemi,
-    fontSize: fontSizes.lg,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  estLabel: {
-    color: colors.gris,
-    fontFamily: fonts.textSemi,
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
-  estSep: { width: 1, alignSelf: 'stretch', backgroundColor: colors.grisLigne, marginVertical: 4 },
+  hint: { ...typography.meta, color: colors.gris, marginTop: spacing.xs },
+  metricsWrap: { marginTop: spacing.md },
+  /** Ligne d'état grise, NON tapable — jamais un compteur qui tourne à vide. */
+  stateInline: { ...typography.meta, color: colors.gris },
 
-  reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  // Pastille de fait : surface N1 SANS contour (le contour est réservé aux états).
   reason: {
-    height: 30,
-    paddingHorizontal: 12,
+    paddingVertical: spacing.xxs,
+    paddingHorizontal: spacing.sm,
     borderRadius: radii.pill,
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: elevation.surface,
   },
-  reasonText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+  reasonText: { ...typography.meta, color: colors.blanc },
 
-  plansRow: { flexDirection: 'row', gap: 7 },
-  plan: {
-    flex: 1,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card - 6,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-    gap: 3,
-  },
-  planSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
-  planLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: -0.2 },
-  planLabelSelected: { color: colors.chartreuse },
-  planDist: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
-  planReason: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
-
+  // ── AJUSTER : ligne d'accordéon, séparée par un filet, jamais une pilule bordée ──
   adjustHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 18,
-    height: 46,
-    paddingHorizontal: 14,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    minHeight: sizes.touchTarget,
+    borderBottomWidth: 1,
+    borderBottomColor: borderState.hairline,
   },
-  adjustLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  chevDown: { transform: [{ rotate: '-90deg' }] },
-  chevUp: { transform: [{ rotate: '90deg' }] },
-  adjustBody: { marginTop: 2 },
+  adjustLabel: { ...typography.itemTitle, flex: 1, color: colors.blanc },
+  chevDown: { transform: [{ rotate: '90deg' }] },
+  chevUp: { transform: [{ rotate: '-90deg' }] },
+  adjustBody: { marginTop: spacing.xxs },
 
-  intentionRow: { flexDirection: 'row', gap: 7 },
-  intentionChip: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    height: 44,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
-  },
-  intentionChipActive: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
-  intentionLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700' },
-  intentionLabelActive: { color: colors.chartreuse },
-
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  // ── Pas de distance : trois contrôles N2, aucun contour permanent ──
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   stepBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: radii.card - 8,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+    width: sizes.buttonMd,
+    height: sizes.buttonMd,
+    borderRadius: radii.control,
+    backgroundColor: elevation.raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepSign: { color: colors.chartreuse, fontSize: 24, fontWeight: '800', lineHeight: 26 },
+  stepSign: { ...STAT, color: colors.chartreuse, fontSize: fontSizes.lg },
   stepValue: {
     flex: 1,
-    height: 46,
+    height: sizes.buttonMd,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderRadius: radii.card - 8,
-    borderWidth: 1.5,
-    borderColor: colors.chartreuse,
-    backgroundColor: colors.carbone2,
+    gap: spacing.xxs,
+    borderRadius: radii.control,
+    backgroundColor: elevation.raised,
   },
   stepInput: {
+    ...STAT,
     color: colors.blanc,
     fontSize: fontSizes.lg,
-    fontFamily: fonts.display,
-    fontWeight: '800',
     textAlign: 'right',
-    minWidth: 54,
+    minWidth: 54, // largeur de « 50,0 » — évite que le champ danse à la frappe
     padding: 0,
-    fontVariant: ['tabular-nums'],
   },
-  stepUnit: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
-
-  hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 17, marginBottom: 6, marginTop: 2 },
-
-  nearbyHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, marginBottom: 8 },
-  shuffleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  shuffleText: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700' },
-  nearbyLoading: { width: 120, height: 74, alignItems: 'center', justifyContent: 'center' },
-
-  popularRow: { gap: 8, paddingRight: 4 },
-  popularCard: {
-    width: 168,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card - 6,
-    borderWidth: 1.5,
-    borderColor: colors.grisLigne,
-    padding: 12,
-    gap: 6,
-  },
-  popularCardSelected: { borderColor: colors.chartreuse, backgroundColor: colors.carbone2 },
-  popularName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  popularStats: { color: colors.gris, fontSize: fontSizes.xs, fontVariant: ['tabular-nums'] },
-  popularCrews: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  popularCrewsText: {
-    flex: 1,
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-
-  shareBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 44,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  shareLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
-  feedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card - 8,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-  },
-  feedText: { flex: 1, color: colors.blanc, fontSize: fontSizes.xs },
-  feedTime: { color: colors.gris, fontSize: fontSizes.xs },
+  stepUnit: { ...typography.itemTitle, color: colors.gris },
 
   ctaBar: {
     paddingHorizontal: spacing.cardPadding,
-    paddingTop: 10,
+    paddingTop: spacing.sm,
+    gap: spacing.xs,
     backgroundColor: colors.noir,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
+    borderTopColor: borderState.hairline,
   },
-  ctaMicro: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.textSemi,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 8,
-    fontVariant: ['tabular-nums'],
-  },
-  startBtn: {
-    height: 56,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  startPressed: { opacity: 0.85 },
-  startDisabled: { opacity: 0.4 },
-  startLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 1.5 },
+  ctaMicro: { ...typography.meta, color: colors.gris, textAlign: 'center' },
   pressed: { opacity: 0.7 },
 });

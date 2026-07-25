@@ -1,93 +1,167 @@
 /**
- * GRYD — E01 Onboarding « promesse » — REPRODUCTION FIDÈLE de la planche Claude
- * Design (GRYD - Vague 1 Planches, hi-fi iOS 390×844). Composition exacte de la
- * planche :
- *   · photo plein cadre (coureur solo, lever du jour, espace négatif bas) ;
- *   · label chartreuse « VOTRE RUE » posé au tiers ~44 % (la rue = le territoire) ;
- *   · voile bas dégradé à partir de 38 % (transparent → carbone) pour la lisibilité ;
- *   · « Passer » discret en haut à droite ;
- *   · bloc bas : titre Inter Tight 40/44, sous-titre 16/22, CTA « CONTINUER »
- *     (56 pt, radius 18, chartreuse/noir), puis 5 points d'étape (actif 16 px).
+ * GRYD — E01 « PROMESSE », le tout premier écran de l'app (planche Vague 1,
+ * hi-fi iOS 390×844). Rendu PLEIN ÉCRAN, hors de l'en-tête commun du stepper
+ * (early-return `step === 'mechanic'` dans app/onboarding/index.tsx).
  *
- * ⚠ L'ASSET PHOTO reste un PLACEHOLDER carbone (`assets/onboarding/e01-crew.png`)
- * tant que le fondateur ne dépose pas la vraie photo (même chemin/nom).
+ * ─── ORDRE DE COMPOSITION (planche E01) ─────────────────────────────────────
+ *  1. le fond plein cadre (photo « coureur solo, lever du jour » — cf. ÉCARTS) ;
+ *  2. la BOUCLE chartreuse animée (`E01Route`), qui remplace le label « VOTRE
+ *     RUE » de la planche : elle enseigne la mécanique au lieu de la nommer ;
+ *  3. la chip « Exemple », posée sur le visuel (coin haut-GAUCHE) ;
+ *  4. le voile bas dégradé (lisibilité du bloc de texte) ;
+ *  5. « Passer », discret, coin haut-droit ;
+ *  6. le bloc bas : kicker → titre display → sous-titre → CTA unique → frise de
+ *     progression → porte « J'ai déjà un compte ».
  *
- * Rendu plein écran (bypass de l'en-tête onboarding) — early-return `step ===
- * 'mechanic'` dans app/onboarding/index.tsx.
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
+ * · `ImageBackground` et le `require` de `assets/onboarding/e01-crew.png` : le
+ *   fichier était un PNG de 2 × 3 PIXELS (74 octets) étiré en `resizeMode="cover"`
+ *   sur tout l'écran. Le premier écran de l'app, décrit dans son propre docblock
+ *   comme une « photo plein cadre », rendait un aplat flou. Un placeholder qui
+ *   PRÉTEND être une photo est un mensonge de plus qu'un fond assumé : le fichier
+ *   a été supprimé et le fond est désormais `colors.carbonImmersive`, plein.
+ * · Le CTA recodé à la main (56 px, `radii.btn`) : deux boutons chartreuse de
+ *   MÊME rôle portaient DEUX rayons différents sur deux écrans consécutifs. Le
+ *   composant `Button` tranche — et apporte au passage l'anneau de focus clavier
+ *   et le libellé qui rétrécit sans jamais l'ellipse (§A).
+ * · Les points d'étape locaux, comptés « 5 » en dur : ils vivent dans `StepDots`,
+ *   alimenté par `stepProgress()`. Cf. ÉCARTS pour ce qui reste à E01.
+ * · Les mesures nues (40/44/16/14, points 5/16, `rgba(6,8,7,…)`) : constantes
+ *   nommées, rôles typo et `withAlpha()` sur un token.
+ *
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE ────────────────────────────────────────────
+ * · PAS DE PHOTO — raison technique : l'asset n'existe pas. Déposer le vrai
+ *   visuel dans `assets/onboarding/`, puis rétablir ici l'`ImageBackground`
+ *   autour du contenu (le voile bas est déjà en place, il n'attend qu'elle).
+ *   Dépendance FONDATEUR, inscrite au plan Vague 1 §5.
+ * · TITRE À 40 px SANS ROLE TYPO — raison technique : l'échelle `typography` ne
+ *   monte pas au-delà de `title` (28) sauf par `stat`, réservé aux CHIFFRES
+ *   (tabular-nums). La taille vient donc de `fontSizes.xxl` et la famille de
+ *   `fonts.display`, comme le ferait le rôle qui manque.
+ * · FRISE SOUS LE CTA sur CET écran seulement — la planche la place là ; les
+ *   étapes suivantes n'ont pas de planche et la portent dans leur en-tête, où
+ *   elle ne dispute rien au pied (qui porte déjà CTA + lien + notes d'état).
+ * · « Passer » n'est PAS un bouton système : c'est un lien gris. §A4 n'autorise
+ *   qu'UN CTA chartreuse par écran, et c'est « Continuer ».
  */
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { EdgeInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radii, spacing } from '@klaim/shared';
+import { colors, fontSizes, fonts, sizes, spacing, withAlpha } from '@klaim/shared';
+import { Button } from '../../ui/Button';
+import { SectionLabel } from '../../ui/SectionLabel';
 import { E01Route } from './E01Route';
+import { ExampleTag } from './ExampleTag';
+import { StepDots } from './StepDots';
 
-// Photo E01. Placeholder carbone jusqu'à ce que le vrai visuel soit déposé ici.
-const E01_PHOTO = require('../../../assets/onboarding/e01-crew.png');
+/**
+ * Mesures de COMPOSITION de la planche (pas des règles de jeu) : le titre display
+ * est en 40 / interligne 44, et le voile bas démarre à 38 % de la hauteur —
+ * mesuré pour que le texte reste lisible sur une photo claire de lever du jour.
+ */
+const TITLE_LINE_HEIGHT = 44;
+const TAGLINE_MAX_WIDTH = 320;
+const SCRIM_TOP_HEIGHT = '62%';
+const SCRIM_MID_HEIGHT = '40%';
+const SCRIM_SOLID_HEIGHT = '22%';
 
 export interface E01HeroProps {
+  kicker: string;
   title: string;
   tagline: string;
   cta: string;
-  /** « Passer » en haut à droite (saute l'onboarding). */
+  /** Chip d'honnêteté posée sur la boucle animée (« Exemple »). */
+  exampleLabel: string;
+  /** « Passer » en haut à droite (entre dans l'app sans le flow pédagogique). */
   skipLabel: string;
+  /** « J'ai déjà un compte » — la porte de celui qui revient. */
+  signInLabel: string;
   onNext: () => void;
   onSkip: () => void;
+  onSignIn: () => void;
   insets: EdgeInsets;
-  /** Étape courante (0-indexée) et total, pour les points d'étape. */
+  /** Étape courante (0-indexée) et total — dérivés du flow, jamais écrits ici. */
   stepIndex: number;
   stepCount: number;
+  /** « Étape 1 sur 4 », déjà traduit : des points ne s'entendent pas. */
+  stepA11yLabel: string;
 }
 
 export function E01Hero({
+  kicker,
   title,
   tagline,
   cta,
+  exampleLabel,
   skipLabel,
+  signInLabel,
   onNext,
   onSkip,
+  onSignIn,
   insets,
   stepIndex,
   stepCount,
+  stepA11yLabel,
 }: E01HeroProps) {
   return (
-    <ImageBackground source={E01_PHOTO} resizeMode="cover" style={styles.root}>
-      {/* Parcours chartreuse ANIMÉ qui se dessine sur la photo (remplace « VOTRE
-          RUE ») — illustre la mécanique « ferme une boucle ». */}
+    <View style={styles.root}>
+      {/* Parcours chartreuse ANIMÉ : il illustre « ferme une boucle, prends la
+          zone ». Il se ferme PUIS SE REMPLIT — d'où la chip juste en dessous. */}
       <E01Route />
 
-      {/* Voile bas dégradé à partir de 38 % — fonctionnel (lisibilité), empilé en
-          paliers (expo-linear-gradient absent) : transparent → carbone plein. */}
+      {/* Voile bas dégradé — fonctionnel (lisibilité), empilé en paliers
+          (expo-linear-gradient absent) : transparent → carbone plein. */}
       <View pointerEvents="none" style={[styles.scrim, styles.scrim1]} />
       <View pointerEvents="none" style={[styles.scrim, styles.scrim2]} />
       <View pointerEvents="none" style={[styles.scrim, styles.scrim3]} />
 
-      {/* « Passer » en haut à droite. */}
+      {/* LA CHIP D'HONNÊTETÉ. Un visuel qui montre une capture doit dire qu'il
+          enseigne : sans elle, le premier écran de l'app affiche une conquête que
+          personne n'a courue. Coin haut-GAUCHE — « Passer » tient la droite. */}
+      <ExampleTag label={exampleLabel} style={[styles.example, { top: insets.top + spacing.sm }]} />
+
+      {/* « Passer » : saute le flow pédagogique et entre dans l'app. Il ne mène
+          PAS à la connexion — c'est la porte du bas qui l'annonce. */}
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={skipLabel}
         onPress={onSkip}
-        hitSlop={8}
-        style={({ pressed }) => [styles.skip, { top: insets.top + spacing.sm }, pressed && styles.pressed]}
+        hitSlop={12}
+        style={({ pressed }) => [
+          styles.skip,
+          { top: insets.top + spacing.sm },
+          pressed && styles.pressed,
+        ]}
       >
         <Text style={styles.skipLabel}>{skipLabel}</Text>
       </Pressable>
 
-      {/* Bloc bas : titre → sous-titre → CTA → points d'étape. */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.lg }]}>
+        {/* Kicker canonique (`ui/SectionLabel`, rôle R1 gris) : le même sur les
+            quatre étapes du flow — un écran sans kicker n'est pas recalé. */}
+        <SectionLabel>{kicker}</SectionLabel>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.tagline}>{tagline}</Text>
+        {/* L'UNIQUE CTA chartreuse de l'écran (§A4). */}
+        <Button label={cta} onPress={onNext} variant="primary" size="lg" analyticsId="onboarding_e01_next" />
+        <StepDots
+          index={stepIndex}
+          count={stepCount}
+          a11yLabel={stepA11yLabel}
+          style={styles.dots}
+        />
+        {/* LA PORTE DE CELUI QUI REVIENT. Lien gris souligné, jamais un 2e CTA :
+            la majorité des arrivants sont nouveaux, mais qui réinstalle doit
+            trouver son chemin sans traverser tout le flow. */}
         <Pressable
           accessibilityRole="button"
-          onPress={onNext}
-          style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+          accessibilityLabel={signInLabel}
+          onPress={onSignIn}
+          style={({ pressed }) => [styles.signIn, pressed && styles.pressed]}
         >
-          <Text style={styles.ctaLabel}>{cta}</Text>
+          <Text style={styles.signInLabel}>{signInLabel}</Text>
         </Pressable>
-        <View style={styles.dots}>
-          {Array.from({ length: stepCount }).map((_, i) => (
-            <View key={i} style={[styles.dot, i === stepIndex && styles.dotActive]} />
-          ))}
-        </View>
       </View>
-    </ImageBackground>
+    </View>
   );
 }
 
@@ -95,45 +169,43 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.carbonImmersive },
 
   // Voile bas : à partir de ~38 % (donc hauteur 62 %), de plus en plus dense.
+  // Les teintes DÉRIVENT du token immersif — jamais un rgba recodé à la main.
   scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  scrim1: { height: '62%', backgroundColor: 'rgba(6,8,7,0.25)' },
-  scrim2: { height: '40%', backgroundColor: 'rgba(6,8,7,0.55)' },
-  scrim3: { height: '22%', backgroundColor: colors.carbonImmersive },
+  scrim1: { height: SCRIM_TOP_HEIGHT, backgroundColor: withAlpha(colors.carbonImmersive, 0.25) },
+  scrim2: { height: SCRIM_MID_HEIGHT, backgroundColor: withAlpha(colors.carbonImmersive, 0.55) },
+  scrim3: { height: SCRIM_SOLID_HEIGHT, backgroundColor: colors.carbonImmersive },
 
-  skip: { position: 'absolute', right: spacing.md, paddingHorizontal: 12, paddingVertical: 8 },
-  skipLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: 14, fontWeight: '500' },
+  example: { position: 'absolute', left: spacing.md },
 
-  bottom: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: 0, gap: 14 },
-  // Titre Inter Tight 40 / interligne 44 / -0,01em (planche).
+  skip: { position: 'absolute', right: spacing.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  skipLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },
+
+  bottom: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: 0, gap: spacing.sm },
+  // Titre display de la planche : 40 / interligne 44 / -0,01em.
   title: {
     color: colors.blanc,
-    fontFamily: fonts.display,
-    fontSize: 40,
-    fontWeight: '800',
+    fontFamily: fonts.display, // Inter Tight 800 — la famille porte la graisse
+    fontSize: fontSizes.xxl,
     letterSpacing: -0.4,
-    lineHeight: 44,
+    lineHeight: TITLE_LINE_HEIGHT,
   },
   tagline: {
     color: colors.gris,
     fontFamily: fonts.text,
-    fontSize: 16,
-    lineHeight: 22,
-    maxWidth: 320,
+    fontSize: fontSizes.md,
+    lineHeight: fontSizes.md * 1.4,
+    maxWidth: TAGLINE_MAX_WIDTH,
   },
-  // CTA plein chartreuse, radius 18 (btn), libellé noir (jamais chartreuse sur clair).
-  cta: {
-    marginTop: 4,
-    height: 56,
-    borderRadius: radii.btn,
-    backgroundColor: colors.chartreuse,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaLabel: { color: colors.noir, fontFamily: fonts.textBold, fontSize: 16, fontWeight: '700', letterSpacing: 0.2 },
-  pressed: { opacity: 0.85 },
+  // Frise SOUS le CTA (planche) — centrée.
+  dots: { alignSelf: 'center' },
 
-  // Points d'étape SOUS le CTA (planche) : actif 16 px chartreuse, inactifs 5 px.
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 2 },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.grisLigne },
-  dotActive: { width: 16, backgroundColor: colors.chartreuse },
+  // Lien de connexion — cible ≥ 44 px (plancher tactile), gris souligné.
+  signIn: { minHeight: sizes.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  signInLabel: {
+    color: colors.gris,
+    fontFamily: fonts.textMedium,
+    fontSize: fontSizes.sm,
+    textDecorationLine: 'underline',
+  },
+  pressed: { opacity: 0.85 },
 });

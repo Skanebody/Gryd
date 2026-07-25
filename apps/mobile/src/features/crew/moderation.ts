@@ -23,22 +23,34 @@
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
+import { C as CMod } from '../../i18n/catalog/reglages';
+import type { Entry } from '../../i18n/types';
 
 /** Motifs de signalement — courts, non tronqués (§A.9), ordre stable. */
 export type ReportReason = 'spam' | 'haine' | 'harcelement' | 'autre';
 
 export interface ReportReasonDef {
   key: ReportReason;
-  label: string;
-  /** Aide courte affichée sous le motif dans la feuille (1 ligne). */
-  hint: string;
+  /** Libellé de la pastille — `Entry` i18n, résolue par l'écran. */
+  label: Entry;
+  /** Aide courte affichée sous le motif choisi (1 ligne). */
+  hint: Entry;
 }
 
+/**
+ * Les motifs étaient des `string` FRANÇAISES rendues telles quelles : « Spam »,
+ * « Harcèlement », « Pub, arnaque, message répété. » restaient en français en
+ * anglais, allemand ou portugais — sur l'écran où l'on demande à quelqu'un de
+ * qualifier ce qui lui est arrivé. Ce sont des `Entry` (règle 17).
+ *
+ * Les hints ne CITENT plus de messagerie : GRYD n'a pas de chat, le signalement
+ * porte sur un joueur.
+ */
 export const REPORT_REASONS: readonly ReportReasonDef[] = [
-  { key: 'spam', label: 'Spam', hint: 'Pub, arnaque, message répété.' },
-  { key: 'haine', label: 'Haine', hint: 'Racisme, insulte, contenu haineux.' },
-  { key: 'harcelement', label: 'Harcèlement', hint: 'Intimidation, menaces, acharnement.' },
-  { key: 'autre', label: 'Autre', hint: 'Un autre problème à examiner.' },
+  { key: 'spam', label: CMod.reasonSpam, hint: CMod.reasonSpamHint },
+  { key: 'haine', label: CMod.reasonHate, hint: CMod.reasonHateHint },
+  { key: 'harcelement', label: CMod.reasonHarass, hint: CMod.reasonHarassHint },
+  { key: 'autre', label: CMod.reasonOther, hint: CMod.reasonOtherHint },
 ];
 
 /** Cible d'un signalement : un message précis, ou un membre entier. */

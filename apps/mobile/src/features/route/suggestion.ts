@@ -86,8 +86,16 @@
  * vérité, donc une occasion de dire « encore 2 courses » quand il en faut 3.
  */
 export type HabitProfile =
-  /** Assez de courses réelles : la personnalisation est VRAIE. */
-  | { kind: 'known'; typicalKm: number; sampleRuns: number }
+  /**
+   * Assez de courses réelles : la personnalisation est VRAIE.
+   * `paceSKm` est la MÉDIANE des allures récentes (s/km), `null` quand le moteur
+   * n'a pas pu la mesurer (courses sans durée exploitable). Elle est portée ici
+   * pour une seule raison : l'écran affichait des durées calculées sur une
+   * allure forfaitaire de 5'50/km, la même pour tout le monde, alors que
+   * `computeHabitsProfile` mesurait déjà la vraie. Il ne manquait pas la donnée,
+   * il manquait le fil qui l'amène jusqu'à l'écran.
+   */
+  | { kind: 'known'; typicalKm: number; sampleRuns: number; paceSKm: number | null }
   /** Pas encore assez de courses — on le dit, on n'invente pas. */
   | { kind: 'learning'; sampleRuns: number; requiredRuns: number }
   /** L'utilisateur a désactivé l'apprentissage (droit inconditionnel). */
@@ -205,6 +213,18 @@ export interface RouteSuggestion {
   requiredRuns: number | null;
   /** Renseigné UNIQUEMENT si `source === 'default'`. */
   cause: DefaultCause | null;
+  /**
+   * Allure MESURÉE du joueur (s/km), ou `null` — l'écran n'affiche alors AUCUNE
+   * durée plutôt qu'une durée calculée sur une allure choisie par le développeur.
+   *
+   * Volontairement INDÉPENDANTE de `source` : une distance réglée à la main
+   * (`manual`) n'efface pas une allure apprise, ce sont deux mesures distinctes.
+   * Mais elle reste soumise à la MÊME autorisation : sans un `learning === 'on'`
+   * dit par le serveur, on n'a pas le droit d'avoir lu les courses, donc on n'a
+   * pas d'allure — apprendre l'allure de quelqu'un qui a coupé l'apprentissage
+   * serait le contourner.
+   */
+  paceSKm: number | null;
 }
 
 /** Aligne sur le pas du planificateur puis borne — une proposition reste courable. */
@@ -229,6 +249,18 @@ export function resolveRouteSuggestion(
   prefs: RouteDistancePrefs,
   bounds: SuggestionBounds,
 ): RouteSuggestion {
+  // L'ALLURE, calculée une fois pour tous les chemins de sortie : elle ne dépend
+  // pas de la provenance de la DISTANCE (un réglage manuel de distance ne dit
+  // rien de l'allure), mais elle dépend de la même AUTORISATION.
+  const paceSKm =
+    prefs.learning === 'on' &&
+    profile.kind === 'known' &&
+    profile.paceSKm !== null &&
+    Number.isFinite(profile.paceSKm) &&
+    profile.paceSKm > 0
+      ? profile.paceSKm
+      : null;
+
   // 1. Le réglage explicite gagne toujours.
   const manual = prefs.manualKm;
   if (manual !== null && Number.isFinite(manual) && manual > 0) {
@@ -238,6 +270,7 @@ export function resolveRouteSuggestion(
       sampleRuns: null,
       requiredRuns: null,
       cause: null,
+      paceSKm,
     };
   }
 
@@ -251,6 +284,7 @@ export function resolveRouteSuggestion(
       sampleRuns: null,
       requiredRuns: null,
       cause: 'off',
+      paceSKm,
     };
   }
 
@@ -266,6 +300,7 @@ export function resolveRouteSuggestion(
       sampleRuns: null,
       requiredRuns: null,
       cause: 'unavailable',
+      paceSKm,
     };
   }
 
@@ -277,6 +312,7 @@ export function resolveRouteSuggestion(
       sampleRuns: profile.sampleRuns,
       requiredRuns: null,
       cause: null,
+      paceSKm,
     };
   }
 
@@ -288,6 +324,7 @@ export function resolveRouteSuggestion(
       sampleRuns: profile.sampleRuns,
       requiredRuns: profile.requiredRuns,
       cause: 'learning',
+      paceSKm,
     };
   }
   return {
@@ -298,6 +335,7 @@ export function resolveRouteSuggestion(
     // `known` invalide (typicalKm absurde) retombe ici plutôt que de proposer un
     // nombre incohérent en le présentant comme appris.
     cause: profile.kind === 'off' ? 'off' : 'unavailable',
+    paceSKm,
   };
 }
 

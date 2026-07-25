@@ -103,6 +103,11 @@ interface ProgressRow {
 /** Le catalogue indexé par slug — le slug SQL et l'id de carte sont la même clé. */
 const BY_SLUG = new Map(CHALLENGES.filter(readable).map((c) => [String(c.id), c]));
 
+/** Une valeur de jauge est-elle LISIBLE ? (finie, non négative). PURE. */
+function isMeasurable(n: number): boolean {
+  return Number.isFinite(n) && n >= 0;
+}
+
 /**
  * Les challenges actifs du serveur, avec MA progression réelle.
  * Aucune valeur n'est dérivée côté client : cible et métrique viennent de
@@ -189,12 +194,14 @@ export function useChallenges(): ChallengesView {
           // qui ne compte pas ce que la phrase dit.
           if (goal.metric !== undefined && goal.metric !== card.metric) continue;
           const target = typeof goal.target === 'number' ? goal.target : card.target;
-          cards.push({
-            ...card,
-            target,
-            // Pas de ligne = le serveur dit « rien d'enregistré » : ce 0 est mesuré.
-            current: progressById.get(row.id) ?? 0,
-          });
+          // Pas de ligne = le serveur dit « rien d'enregistré » : ce 0 est mesuré.
+          const current = progressById.get(row.id) ?? 0;
+          // MÊME DOCTRINE QUE LE GARDE DE MÉTRIQUE : une valeur que GRYD ne sait
+          // pas lire (progression non numérique, cible absurde) ne devient pas
+          // un 0 ni une jauge à moitié pleine — la carte n'est pas montrée. Un
+          // chiffre illisible affiché quand même est une mesure inventée.
+          if (!isMeasurable(target) || !isMeasurable(current)) continue;
+          cards.push({ ...card, target, current });
         }
 
         setChallenges(cards);
@@ -217,11 +224,31 @@ export function useChallenges(): ChallengesView {
   return { challenges, empty, loading };
 }
 
-/** Un challenge par id — introuvable tant que la progression n'est pas lue. */
+/**
+ * Un challenge par id.
+ *
+ * ─── LE MENSONGE CORRIGÉ LE 25/07/2026 ─────────────────────────────────────
+ * Ce hook ne renvoyait que `{ challenge, loading }`. L'écran de détail traduisait
+ * donc `challenge === undefined` par « Ce challenge n'est plus disponible. » —
+ * une conclusion sur LE CONTENU DU JEU — alors que quatre causes très
+ * différentes produisent ce `undefined` : pas de compte, serveur injoignable,
+ * aucun défi actif, ou carte réellement absente de la liste. Un joueur
+ * déconnecté lisait donc une affirmation fausse sur GRYD.
+ *
+ * La RAISON est maintenant remontée telle quelle : c'est l'écran qui choisit sa
+ * copie, et il ne peut plus les confondre puisqu'elles ne sont plus le même
+ * état. `empty === 'none'` + `challenge === undefined` = le seul cas où « plus
+ * disponible » est vrai.
+ */
 export function useChallenge(id: string | undefined): {
   challenge: ChallengeCard | undefined;
+  empty: ChallengesEmptyReason;
   loading: boolean;
 } {
-  const { challenges, loading } = useChallenges();
-  return { challenge: id ? challenges.find((c) => c.id === id) : undefined, loading };
+  const { challenges, empty, loading } = useChallenges();
+  return {
+    challenge: id ? challenges.find((c) => c.id === id) : undefined,
+    empty,
+    loading,
+  };
 }

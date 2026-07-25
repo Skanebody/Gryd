@@ -84,7 +84,13 @@ export const C = defineCatalog({
   },
 
   // ─── Sign-in : filet e-mail OTP (P0 D1) ────────────────────────────────────
-  /** accessibilityLabel du champ e-mail (jamais visible à l'écran). */
+  /**
+   * Nom du champ e-mail. ⚠️ IL EST VISIBLE DEPUIS LE 25/07/2026 : la planche E21
+   * impose des champs 56 pt à LABEL PERSISTANT, et un placeholder seul disparaît
+   * à la première frappe — le champ ne dit alors plus ce qu'il attend. Il sert
+   * donc à la fois de label affiché et de nom accessible (un seul texte, une
+   * seule vérité).
+   */
   emailFieldA11y: {
     fr: 'Adresse e-mail',
     en: 'Email address',
@@ -170,7 +176,7 @@ export const C = defineCatalog({
     de: 'Link erneut senden',
     pt: 'Reenviar o link',
   },
-  /** accessibilityLabel du champ code (jamais visible à l'écran). */
+  /** Nom du champ code — label persistant ET nom accessible (cf. `emailFieldA11y`). */
   otpFieldA11y: {
     fr: 'Code reçu par e-mail',
     en: 'Code received by email',

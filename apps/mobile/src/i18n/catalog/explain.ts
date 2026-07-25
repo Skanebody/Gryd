@@ -1,8 +1,9 @@
 /**
  * GRYD — i18n : catalogue du domaine EXPLAIN (explicabilité, AMENDEMENT-23 §B).
- * Couvre : la page « Calcul des zones » (6 scènes), la FAQ « Calculs & règles »
- * (20 Q/R §33 + FAQ courte post-run §34) et les libellés par défaut des 6
- * schémas SVG pédagogiques (§31).
+ * Couvre : la page « Calcul des zones » (ses scènes — la visite est passée de 6
+ * à 8, `EXPLAIN_SECTIONS` fait foi, ce commentaire ne compte plus à sa place),
+ * la FAQ « Calculs & règles » (les Q/R du §33 + FAQ courte post-run §34) et les
+ * libellés par défaut des schémas SVG pédagogiques (§31).
  *
  * Source de vérité des 5 langues. Les textes FR reprennent la copie AFFICHÉE
  * aujourd'hui (réécritures zéro-friction incluses : « compte en stats », Q3 en
@@ -274,13 +275,24 @@ export const C = defineCatalog({
     de: 'Eine Zone, die du nicht erneut läufst, wird schwächer. Sie bleibt {stable} stabil. Dann wird sie fragil. {decay} ist sie wieder frei.',
     pt: 'Uma zona que você não corre de novo enfraquece. Ela fica firme {stable}. Depois fica frágil. Volta a ficar livre {decay}.',
   },
-  /** N'AJOUTE rien au schema en le repetant : dit ce que le schema ne dit pas. */
+  /**
+   * N'AJOUTE rien au schéma en le répétant : dit ce que le schéma ne dit pas.
+   *
+   * PROMESSE RECONDITIONNÉE (25/07/2026). Elle disait « Tu ne perds JAMAIS une
+   * zone par surprise ». L'alerte existe bien (`decay_job` envoie un push à J-3,
+   * `supabase/functions/decay_job/index.ts:125`), mais elle ne part QUE si le
+   * joueur a accepté les notifications et si le build porte des credentials push
+   * (`features/notifications/push.ts` : statut `unavailable` tant qu'ils
+   * manquent). Un « jamais » que le code ne tient que sous condition est une
+   * garantie écrite d'avance — la même faute qu'une donnée fabriquée. La phrase
+   * dit maintenant sa condition.
+   */
   secVieExample: {
-    fr: 'Tu ne perds jamais une zone par surprise : GRYD te prévient avant qu’elle tombe.',
-    en: 'You never lose a zone by surprise: GRYD warns you before it falls.',
-    es: 'Nunca pierdes una zona por sorpresa: GRYD te avisa antes de que caiga.',
-    de: 'Du verlierst nie überraschend eine Zone: GRYD warnt dich, bevor sie fällt.',
-    pt: 'Você nunca perde uma zona de surpresa: o GRYD te avisa antes de ela cair.',
+    fr: 'Si tu as activé les notifications, GRYD te prévient avant qu’une zone tombe.',
+    en: 'If you’ve turned notifications on, GRYD warns you before a zone falls.',
+    es: 'Si activaste las notificaciones, GRYD te avisa antes de que una zona caiga.',
+    de: 'Wenn du Benachrichtigungen aktiviert hast, warnt dich GRYD, bevor eine Zone fällt.',
+    pt: 'Se você ativou as notificações, o GRYD te avisa antes de uma zona cair.',
   },
 
   secDefenseTitle: {
@@ -422,12 +434,42 @@ export const C = defineCatalog({
     de: 'Nach einem Lauf',
     pt: 'Depois de uma corrida',
   },
+  /**
+   * NOTE DE PIED — état RÉEL du canal de contact (25/07/2026).
+   *
+   * Elle disait « l'aide GRYD reprend chaque cas, et une personne lit chaque
+   * demande ». Les deux moitiés étaient fausses dans le MÊME build : `/support`
+   * ne contient ni adresse e-mail, ni formulaire, ni `mailto:` — ses cartes de
+   * signalement ouvrent une alerte qui dit elle-même « cette remontée n'est pas
+   * encore transmise ». Promettre un lecteur humain derrière un canal qui
+   * n'existe pas est un mensonge de la même famille qu'une donnée fabriquée.
+   *
+   * À REVOIR le jour où le canal ouvre (une adresse de contact suffit) : cette
+   * phrase devra alors dire par où écrire.
+   */
   faqFootnote: {
-    fr: 'Une question sans réponse ici ? L’aide GRYD reprend chaque cas, et une personne lit chaque demande.',
-    en: 'A question without an answer here? GRYD support covers every case, and a human reads every request.',
-    es: '¿Una pregunta sin respuesta aquí? La ayuda de GRYD cubre cada caso, y una persona lee cada solicitud.',
-    de: 'Eine Frage ohne Antwort hier? Der GRYD-Support deckt jeden Fall ab, und ein Mensch liest jede Anfrage.',
-    pt: 'Uma pergunta sem resposta aqui? A ajuda do GRYD cobre cada caso, e uma pessoa lê cada pedido.',
+    fr: 'Une question sans réponse ici ? Le canal de contact n’est pas encore ouvert : rien n’est transmis pour l’instant.',
+    en: 'A question with no answer here? The contact channel isn’t open yet: nothing is sent for now.',
+    es: '¿Una pregunta sin respuesta aquí? El canal de contacto aún no está abierto: por ahora no se envía nada.',
+    de: 'Eine Frage ohne Antwort hier? Der Kontaktkanal ist noch nicht offen: Im Moment wird nichts übermittelt.',
+    pt: 'Uma pergunta sem resposta aqui? O canal de contato ainda não está aberto: por enquanto nada é transmitido.',
+  },
+  /** Compte de questions d'un groupe du sommaire ({n} = lignes RÉELLEMENT
+   *  ouvertes par le tap, filtre Simple/Avancé déjà appliqué). */
+  faqGroupQuestions: {
+    fr: '{n} questions',
+    en: '{n} questions',
+    es: '{n} preguntas',
+    de: '{n} Fragen',
+    pt: '{n} perguntas',
+  },
+  /** Singulier — accord grammatical quand un groupe n'a qu'une question. */
+  faqGroupQuestion: {
+    fr: '{n} question',
+    en: '{n} question',
+    es: '{n} pregunta',
+    de: '{n} Frage',
+    pt: '{n} pergunta',
   },
 
   // ─── Libellés des catégories FAQ ───────────────────────────────────────────
@@ -632,13 +674,15 @@ export const C = defineCatalog({
     de: 'Wie lange gehört uns eine Zone?',
     pt: 'Por quanto tempo uma zona continua nossa?',
   },
-  /** {stable}/{fragile}/{defend}/{decay} = fenêtres du cycle de vie (fragments). */
+  /** {stable}/{fragile}/{defend}/{decay} = fenêtres du cycle de vie (fragments).
+   *  L'alerte de fin de vie est CONDITIONNÉE aux notifications, comme dans
+   *  `secVieExample` — même raison, mêmes preuves. */
   q12A: {
-    fr: 'Une zone tient {stable}. Après, elle devient fragile ({fragile}). Les {defend} avant la fin, GRYD te prévient. Sans y repasser, elle est libre {decay}.',
-    en: 'A zone holds for {stable}. After that it turns fragile ({fragile}). In the {defend} before the end, GRYD warns you. Without running it again, it goes free {decay}.',
-    es: 'Una zona aguanta {stable}. Después se vuelve frágil ({fragile}). En las {defend} antes del final, GRYD te avisa. Sin volver a pasar, queda libre {decay}.',
-    de: 'Eine Zone hält {stable}. Danach wird sie fragil ({fragile}). In den {defend} vor Schluss warnt GRYD dich. Ohne erneuten Lauf ist sie {decay} frei.',
-    pt: 'Uma zona dura {stable}. Depois fica frágil ({fragile}). Nas {defend} antes do fim, o GRYD te avisa. Sem passar de novo, ela fica livre {decay}.',
+    fr: 'Une zone tient {stable}. Après, elle devient fragile ({fragile}). Les {defend} avant la fin, GRYD te prévient si tu as activé les notifications. Sans y repasser, elle est libre {decay}.',
+    en: 'A zone holds for {stable}. After that it turns fragile ({fragile}). In the {defend} before the end, GRYD warns you if you’ve turned notifications on. Without running it again, it goes free {decay}.',
+    es: 'Una zona aguanta {stable}. Después se vuelve frágil ({fragile}). En las {defend} antes del final, GRYD te avisa si activaste las notificaciones. Sin volver a pasar, queda libre {decay}.',
+    de: 'Eine Zone hält {stable}. Danach wird sie fragil ({fragile}). In den {defend} vor Schluss warnt GRYD dich, wenn du Benachrichtigungen aktiviert hast. Ohne erneuten Lauf ist sie {decay} frei.',
+    pt: 'Uma zona dura {stable}. Depois fica frágil ({fragile}). Nas {defend} antes do fim, o GRYD te avisa se você ativou as notificações. Sem passar de novo, ela fica livre {decay}.',
   },
   q13Q: {
     fr: 'Les zones expirent-elles ?',
@@ -676,12 +720,25 @@ export const C = defineCatalog({
     de: 'Kann man eine Zone kaufen?',
     pt: 'Dá para comprar uma zona?',
   },
+  /**
+   * ANTI PAY-TO-WIN — la réponse doit dire EXACTEMENT ce que disent les CGU/CGV.
+   *
+   * Elle promettait que les achats servaient « au coffre crew ». Deux fautes :
+   *  · les CGU et les CGV du même build écrivent noir sur blanc que « les objets
+   *    qui touchent au jeu … ne sont vendus dans aucune monnaie » — vendre un
+   *    objet de JEU dans la FAQ contredisait le contrat affiché deux écrans plus
+   *    loin ;
+   *  · le coffre crew n'est RENDU par aucun écran de l'app (les surfaces qui le
+   *    montraient ont été retirées comme données fabriquées). On ne cite pas une
+   *    contrepartie que le joueur ne verra nulle part.
+   * Reste ce qui est vrai et vérifiable : cosmétique et statut.
+   */
   q15A: {
-    fr: 'Non. Le territoire ne s’achète jamais, il se gagne en courant. Les achats servent au style, au confort et au coffre crew.',
-    en: 'No. Territory is never bought, it’s earned by running. Purchases are for style, comfort and the crew chest.',
-    es: 'No. El territorio nunca se compra, se gana corriendo. Las compras son para estilo, comodidad y el cofre del crew.',
-    de: 'Nein. Territorium kauft man nie, man erläuft es. Käufe sind für Style, Komfort und die Crew-Truhe.',
-    pt: 'Não. Território nunca se compra, se ganha correndo. As compras servem para estilo, conforto e o baú do crew.',
+    fr: 'Non. Le territoire ne s’achète jamais, il se gagne en courant. Les achats ne portent que sur du cosmétique et du statut.',
+    en: 'No. Territory is never bought, it’s earned by running. Purchases cover cosmetics and status only.',
+    es: 'No. El territorio nunca se compra, se gana corriendo. Las compras son solo de cosmética y estatus.',
+    de: 'Nein. Territorium kauft man nie, man erläuft es. Käufe betreffen nur Kosmetik und Status.',
+    pt: 'Não. Território nunca se compra, se ganha correndo. As compras cobrem apenas cosmético e status.',
   },
   q16Q: {
     fr: 'Les bonus payants font-ils gagner ?',
@@ -690,12 +747,14 @@ export const C = defineCatalog({
     de: 'Gewinnt man mit bezahlten Boni?',
     pt: 'Bônus pagos fazem ganhar?',
   },
+  /** Même correction que q15A : le « coffre » n'existe sur AUCUN écran, on ne le
+   *  cite donc pas comme contrepartie. {cap} = BONUS_MAX_TOTAL_PCT (game-rules). */
   q16A: {
-    fr: 'Non : aucun bonus ne donne de territoire ni de victoire. Pas de cumul, total capé à {cap}, impact sur coffre, XP et cosmétiques seulement.',
-    en: 'No: no bonus grants territory or victory. No stacking, total capped at {cap}, impact on chest, XP and cosmetics only.',
-    es: 'No: ningún bonus da territorio ni victoria. Sin acumulación, total limitado a {cap}, impacto solo en cofre, XP y cosméticos.',
-    de: 'Nein: Kein Bonus bringt Territorium oder Sieg. Kein Stapeln, Gesamtlimit {cap}, wirkt nur auf Truhe, XP und Kosmetik.',
-    pt: 'Não: nenhum bônus dá território nem vitória. Sem acúmulo, total limitado a {cap}, impacto só em baú, XP e cosméticos.',
+    fr: 'Non : aucun bonus ne donne de territoire, de points ni de victoire. Pas de cumul, total capé à {cap} : l’effet ne porte que sur l’XP et le cosmétique.',
+    en: 'No: no bonus grants territory, points or victory. No stacking, total capped at {cap}: the effect only touches XP and cosmetics.',
+    es: 'No: ningún bonus da territorio, puntos ni victoria. Sin acumulación, total limitado a {cap}: el efecto solo toca XP y cosmética.',
+    de: 'Nein: Kein Bonus bringt Territorium, Punkte oder Sieg. Kein Stapeln, Gesamtlimit {cap}: Der Effekt betrifft nur XP und Kosmetik.',
+    pt: 'Não: nenhum bônus dá território, pontos nem vitória. Sem acúmulo, total limitado a {cap}: o efeito só toca XP e cosmético.',
   },
   q17Q: {
     fr: 'Pourquoi mes zones ne collent pas exactement à ma trace ?',

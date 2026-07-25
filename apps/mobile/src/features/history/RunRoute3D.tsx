@@ -28,6 +28,13 @@
  * masquée (le bloc porte sa chrome), carte silencieuse (labels de quartiers
  * éteints — le tracé prime). Le conteneur clippe (overflow) pour épouser le coin
  * arrondi, sans double container (AMENDEMENT-22).
+ *
+ * ⚠ AUCUN IMPORTEUR AUJOURD'HUI (25/07/2026), même raison que `RunLoopMap` : son
+ * unique appelant était le corps de `/course/[id]`, supprimé faute de lecture
+ * d'une course par id (O1). Conservé pour la même raison : paramétré par le
+ * tracé reçu en prop, il ne peut rien inventer, et il revient tel quel avec la
+ * donnée. Ne pas le remonter dans un écran tant qu'aucune polyligne réelle ne
+ * l'alimente.
  */
 import { useMemo } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';

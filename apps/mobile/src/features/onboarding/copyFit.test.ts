@@ -41,9 +41,13 @@ const CTAS: Record<string, Entry> = {
   ctaContinue: C.ctaContinue,
   ctaChooseCity: C.ctaChooseCity,
   // `profileCta` retiré avec la fusion nom+entrée (23/07/2026).
+  // `captureDemoLabel` retiré avec `CaptureDemo` (25/07/2026) : la carte 1 est
+  // rendue par le hero plein cadre `E01Hero`, qui n'a pas de 4e temps à étiqueter.
   cityUseLocation: C.cityUseLocation,
-  captureDemoLabel: C.captureDemoLabel,
   rivalryDemoLabel: C.rivalryDemoLabel,
+  /** Le premier écran porte deux sorties : elles doivent tenir, elles aussi. */
+  onbSkip: C.onbSkip,
+  hookSignIn: C.hookSignIn,
 };
 
 Deno.test('les titres des 3 cartes font EXACTEMENT 2 lignes, dans les 5 langues', () => {
@@ -163,7 +167,7 @@ Deno.test('les cartes pédagogiques ne NOMMENT aucun lieu', () => {
     C.mechanicKicker,
     C.mechanicTitle,
     C.mechanicTagline,
-    C.captureDemoLabel,
+    C.exampleTag,
     C.rivalryKicker,
     C.rivalryTitle,
     C.rivalryTagline,

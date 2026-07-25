@@ -82,6 +82,7 @@ function parseProfile(payload: HabitPayload | null): HabitProfile {
       kind: 'known',
       typicalKm: payload.typicalKm,
       sampleRuns: typeof payload.sampleRuns === 'number' ? payload.sampleRuns : 0,
+      paceSKm: null,
     };
   }
   if (payload.kind === 'learning') {
@@ -151,6 +152,11 @@ function profileFromInputs(raw: unknown): HabitProfile {
     kind: 'known',
     typicalKm: profile.distanceM.median / 1000,
     sampleRuns: profile.sampleSize,
+    // L'ALLURE MÉDIANE, mesurée sur les mêmes courses que la distance. Elle est
+    // remontée pour que le planificateur cesse d'estimer ses durées sur une
+    // constante ; `null` (courses sans durée exploitable) signifie « aucune
+    // minute affichable », jamais « prends la valeur par défaut ».
+    paceSKm: profile.paceSKm ? profile.paceSKm.median : null,
   };
 }
 

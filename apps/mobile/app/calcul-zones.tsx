@@ -1,60 +1,111 @@
 /**
- * GRYD — « Comment GRYD calcule tes zones » (AMENDEMENT-23 §B.1 / doc §32, C2).
- * Route d'explicabilité : des SCÈNES posées sur le fond (AMENDEMENT-22, pas de
- * card-dans-card), chacune = icône propriétaire + phrase simple + mini-schéma
- * SVG + exemple concret. Les schémas DÉCRIVENT LE MOTEUR RÉEL ; les valeurs
- * injectées (défense +24/48/72 h, verify 80/60, valeur d'une zone, durée de vie)
- * viennent des CONSTANTES game-rules.ts via ExplainSchema + labels.ts — AUCUN
- * nombre magique ici. Les chiffres en prose (+247/+214/+33, 79/21 %, 620 m) sont
- * des SCÉNARIOS démo signalés « Exemple : » dans le catalogue.
+ * GRYD — « Comment GRYD calcule tes zones » (/calcul-zones). Recalage Night
+ * Print, 25/07/2026.
+ *
+ * L'objet : une VISITE GUIDÉE. On la lit une fois, dans l'ordre, et on comprend
+ * comment une course devient un territoire. Les questions précises, elles, vivent
+ * dans la FAQ — d'où le lien de pied, formulé en verbe + objet pour ne pas être
+ * un quasi-homonyme du titre de cette page.
+ *
+ * ── ORDRE DE COMPOSITION ────────────────────────────────────────────────────
+ *  1. Barre + kicker « VISITE GUIDÉE · N ÉTAPES » + sous-titre (`StackScreen`) ;
+ *     le N est `EXPLAIN_SECTIONS.length`, jamais un nombre recopié ;
+ *  2. les scènes, posées sur le fond et séparées par l'ESPACE (aucun contour) —
+ *     chacune : plaque d'icône → kicker numéroté → titre → phrase → schéma →
+ *     exemple ;
+ *  3. une ligne scannable de sortie vers la FAQ, séparée par un filet.
  *
  * L'ordre des scènes suit l'ordre des questions qu'on se pose : comment une
  * course devient une zone → ce qu'elle rapporte → ce qui se passe à plusieurs
  * dessus (LE RELAIS) → comment on la garde → pourquoi on la perd → ce qui peut
  * l'invalider.
  *
+ * ── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ────────────────────────────────────────
+ *  · LE CARRÉ D'ICÔNE RECODÉ (38 px, rayon 11, contour) → `IconPlate` : c'est la
+ *    seule source du carré d'icône, et son rayon vient des tokens. Un contour de
+ *    plus signalait un état que cette icône n'a pas.
+ *  · LE NUMÉRO DE SCÈNE FABRIQUÉ À LA MAIN (`` `0${index + 1}` ``) : la visite
+ *    est déjà passée de 6 à 8 scènes ; à la dixième, il aurait imprimé « 010 ».
+ *    Il passe par `sceneStepLabel` (pure, testée) et devient un VRAI kicker
+ *    (`SectionLabel`, rôle typo R1) au-dessus du titre, au lieu d'un texte gris
+ *    coincé entre l'icône et le titre.
+ *  · LES TAILLES ET GRAISSES RECODÉES (`fontFamily` + `fontWeight` cumulés sur
+ *    le titre, tailles nues sur la phrase et l'exemple) → rôles `typography`.
+ *  · LES LITTÉRAUX DE MESURE NUS (280, 40, 18, 20) → constantes nommées et
+ *    commentées, ou tokens. Ce sont des mesures de COMPOSITION, pas des règles
+ *    de jeu : les règles, elles, viennent toutes de game-rules.ts.
+ *  · « TU NE PERDS JAMAIS UNE ZONE PAR SURPRISE » (scène « vie de la zone »).
+ *    L'alerte de fin de vie EXISTE (`decay_job` envoie un push à J-3) mais elle
+ *    ne part que si le joueur a accepté les notifications ET si le build porte
+ *    des credentials push — que `features/notifications/push.ts` déclare encore
+ *    manquants. Un « jamais » conditionnel est une garantie écrite avant que le
+ *    code la tienne : la phrase dit désormais sa condition (catalogue explain,
+ *    `secVieExample` ; même correction sur `q12A`, côté FAQ).
+ *
+ * ── ÉCARTS ASSUMÉS ─────────────────────────────────────────────────────────
+ *  · CET ÉCRAN N'A PAS QUATRE ÉTATS, ET C'EST VOLONTAIRE. Il ne fait AUCUNE
+ *    lecture réseau : les textes sont statiques (content.ts) et toutes les
+ *    valeurs affichées sont dérivées des CONSTANTES de game-rules.ts via
+ *    labels.ts / ExplainSchema. Il n'y a donc ni « lecture en cours », ni
+ *    « échec de lecture », ni « Réessayer » — et il ne faut pas en ajouter :
+ *    un spinner ici affirmerait qu'on attend quelque chose qui n'existe pas.
+ *  · LES CHIFFRES DE SCÉNARIO (+247/+214/+33, 79/21 %, 620 m) restent des
+ *    EXEMPLES, préfixés « Exemple : » dans le catalogue et formulés de façon
+ *    IMPERSONNELLE (« une course de 6,2 km », jamais « ta course ») : rattachés
+ *    au joueur, ils redeviendraient une donnée fabriquée sur lui.
+ *  · AUCUN CTA CHARTREUSE : la page n'appelle aucune décision. La sortie vers la
+ *    FAQ est une ligne scannable, pas un bouton plein.
+ *
  * Accès : Support (« Pourquoi ma course n'a pas compté ? »), Paramètres, et le
  * lien post-run « Comment est calculé ce résultat ? ».
  *
- * i18n : titres, phrases et exemples arrivent en `Entry` 5 langues (content.ts
- * + catalogue explain) et sont résolus ICI via t(). Les réécritures
- * zéro-friction historiques (additif 214 + 33 = 247, « compte en stats »,
- * préfixe « Exemple : » systématique) vivent désormais dans le catalogue.
- * Positionnement : cette page = VISITE GUIDÉE ; la FAQ = questions précises —
- * le lien de pied dit « Voir toutes les questions » pour lever l'homonymie.
+ * i18n : titres, phrases et exemples arrivent en `Entry` 5 langues (content.ts +
+ * catalogue explain) et sont résolus ICI via t().
  */
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fonts, fontSizes, iconSizes, spacing } from '@klaim/shared';
+import { borderState, colors, iconSizes, sizes, spacing, typography } from '@klaim/shared';
 import {
   EXPLAIN_SECTIONS,
   type ExplainSection,
 } from '../src/features/explain/content';
 import { ExplainSchema } from '../src/features/explain/ExplainSchema';
+import { sceneStepLabel } from '../src/features/explain/sceneStep';
 import { C } from '../src/i18n/catalog/explain';
 import { useT } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
+import { IconPlate } from '../src/ui/Card';
 import { Icon } from '../src/ui/Icon';
+import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
 
-/** Une scène : numéro + icône + titre, phrase, schéma centré, exemple discret. */
+/** Largeur des schémas : bornée à la scène, gouttière d'écran des deux côtés.
+ *  Mesure de composition, pas une règle de jeu. */
+const SCENE_SCHEMA_WIDTH = 280;
+
+/** Respiration entre deux scènes. Plus large que `spacing.xxl` (32) : c'est ce
+ *  vide — et lui seul — qui sépare les scènes, puisqu'aucune ne porte de cadre. */
+const SCENE_GAP = 40;
+
+/** Une scène : plaque d'icône + kicker numéroté + titre, phrase, schéma, exemple. */
 function SceneBlock({ section, index }: { section: ExplainSection; index: number }) {
   const t = useT();
-  // Largeur du schéma bornée à la scène (padding écran des deux côtés).
-  const schemaWidth = 280;
+  const step = sceneStepLabel(index);
   return (
     <View style={styles.scene}>
       <View style={styles.head}>
-        <View style={styles.iconWrap}>
-          <Icon name={section.icon} size={20} color={colors.blanc} />
+        <IconPlate icon={section.icon} size="md" />
+        <View style={styles.headText}>
+          {/* Un rang sans libellé affichable ne s'imprime pas (jamais « 0NaN »). */}
+          {step === null ? null : <SectionLabel style={styles.step}>{step}</SectionLabel>}
+          {/* Aucun `numberOfLines` : un titre de scène s'enroule, il ne se coupe pas. */}
+          <Text style={styles.title}>{t(section.title)}</Text>
         </View>
-        <Text style={styles.step}>{`0${index + 1}`}</Text>
-        <Text style={styles.title}>{t(section.title)}</Text>
       </View>
       <Text style={styles.line}>{t(section.line)}</Text>
       <View style={styles.schemaWrap}>
-        <ExplainSchema id={section.schemaId} width={schemaWidth} />
+        <ExplainSchema id={section.schemaId} width={SCENE_SCHEMA_WIDTH} />
       </View>
       <Text style={styles.example}>{t(section.example)}</Text>
     </View>
@@ -81,17 +132,18 @@ export default function CalculZonesScreen() {
         ))}
       </View>
 
-      {/* Sortie explicite vers la FAQ : verbe + objet, jamais un quasi-homonyme
-          du titre de cette page. */}
+      {/* Sortie explicite vers la FAQ : ligne scannable (visuel → libellé →
+          chevron), sur le plancher tactile. Le filet est en HAUT : c'est la
+          dernière ligne de la page, un filet dessous flotterait dans le vide. */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t(C.calcSeeAllQuestions)}
         onPress={() => router.push('/faq')}
         style={({ pressed }) => [styles.faqLink, pressed && styles.pressed]}
       >
-        <Icon name="aide" size={iconSizes.md} color={colors.blanc} />
+        <IconPlate icon="aide" size="sm" />
         <Text style={styles.faqLinkText}>{t(C.calcSeeAllQuestions)}</Text>
-        <Icon name="chevron" size={16} color={colors.gris} />
+        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
       </Pressable>
     </StackScreen>
   );
@@ -99,49 +151,29 @@ export default function CalculZonesScreen() {
 
 const styles = StyleSheet.create({
   list: { marginTop: spacing.sm },
-  // Une SCÈNE posée sur le fond : séparée par l'espace, sans contour (AMENDEMENT-22).
-  scene: { marginBottom: 40 },
+  // Une SCÈNE posée sur le fond : séparée par l'espace, sans contour.
+  scene: { marginBottom: SCENE_GAP },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  step: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 1,
-  },
-  title: { flex: 1, color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.textSemi, fontWeight: '600' },
-  line: {
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.5,
-    marginTop: spacing.sm,
-  },
-  schemaWrap: { alignItems: 'center', marginTop: 18 },
-  // Exemple concret = contenu clé (pas un micro-label) : sm, lisible en mouvement.
-  example: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.55,
-    marginTop: spacing.md,
-  },
-  // Action légère de bas de page (pas un gros CTA chartreuse — celui-ci reste rare).
+  headText: { flex: 1 },
+  // Le rang de la scène porte des chiffres : chasse fixe, comme tout kicker
+  // numéroté de l'app (la casse et la couleur viennent de SectionLabel).
+  step: { fontVariant: ['tabular-nums'] },
+  title: { ...typography.cardTitle, color: colors.blanc },
+  line: { ...typography.body, color: colors.blanc, marginTop: spacing.sm },
+  schemaWrap: { alignItems: 'center', marginTop: spacing.md },
+  // Exemple concret = contenu clé (pas un micro-label) : rôle `body`, en gris.
+  example: { ...typography.body, color: colors.gris, marginTop: spacing.md },
+  // Ligne scannable de bas de page (pas un CTA chartreuse — celui-ci reste rare).
   faqLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    minHeight: sizes.touchTarget,
     paddingVertical: spacing.md,
     marginTop: spacing.xxs,
     borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
+    borderTopColor: borderState.hairline,
   },
-  faqLinkText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
+  faqLinkText: { ...typography.itemTitle, flex: 1, color: colors.blanc },
   pressed: { opacity: 0.6 },
 });

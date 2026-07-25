@@ -1,23 +1,69 @@
 /**
- * GRYD — Confidentialité (AMENDEMENT-17 CHANTIER 3). LA page la plus critique :
- * elle gouverne l'exposition de la géolocalisation. Le sous-titre dit le
- * POURQUOI du GPS (courses → territoire, rien de partagé sans accord). Résumé +
- * détail : chaque groupe est une card repliée (valeur courante visible sans
- * scroll), le détail s'ouvre au tap — une seule ouverte à la fois.
+ * GRYD — CONFIDENTIALITÉ. La page la plus critique de l'app : elle gouverne
+ * l'exposition de la géolocalisation, donc elle n'a pas le droit d'exagérer ce
+ * qu'elle contrôle.
  *
- * Au-dessus du fold : MODE PRIVÉ (toggle maître) + Profil + Courses +
- * Départ/arrivée + Position live. Plus bas : données sportives/territoire, crew
- * & social, blocage & signalement ACTIONNABLES ICI (signaler un pseudo avec
- * motif via reportContent, bloquer via blockMember, débloquer, lien vers le
- * chat crew pour un message précis), âge minimum affiché, export RGPD réel et
- * suppression de compte (5.1.1v).
+ * ─── ORDRE DE COMPOSITION ─────────────────────────────────────────────────────
+ *   1. `StackScreen` : kicker « RÉGLAGES · TES DONNÉES » + titre + sous-titre qui
+ *      dit, en une phrase VÉRIFIABLE, ce que GRYD expose aujourd'hui ;
+ *   2. CE QUE LES AUTRES VOIENT — « Profil visible par » et « Départ & arrivée »,
+ *      deux cards repliées (résumé visible, détail au tap), chacune suivie de la
+ *      note qui dit son étendue RÉELLE ;
+ *   3. BLOCAGE & SIGNALEMENT — la seule zone d'action de la page ;
+ *   4. MES DONNÉES (RGPD) — export, puis suppression du compte.
  *
- * Défauts alignés AMENDEMENT-07 (voir store) : position live JAMAIS, FC privée,
- * profil/courses `crew`. Chaque changement est persisté localement (AsyncStorage)
- * et pilote le FILTRAGE d'affichage — jamais le gameplay (l'impact crew reste
- * compté même quand une course est masquée).
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
+ * · DIX RÉGLAGES SANS AUCUN CONSOMMATEUR : position live, territoire visible, FC
+ *   privée, données sportives privées, les quatre audiences sociales, visibilité
+ *   des courses, et le trio rayon de flou / domicile / travail. Zéro occurrence
+ *   hors du store et de cet écran (détail et preuve dans
+ *   `features/privacy/prefs.ts`). Un interrupteur de confidentialité sans effet
+ *   est le pire mensonge de l'app : « Rayon de flou · 1 km » masquait 200 m, et
+ *   « Autour du domicile » était inopérable — aucun écran ne permet de déclarer
+ *   une adresse. Ni câblables ici (le miroir serveur est O1), donc retirés.
+ * · LE TOGGLE MAÎTRE « MODE PRIVÉ ». Sa card affirmait « tout est verrouillé »
+ *   sur un `every()` de valeurs purement LOCALES, alors que rien n'est envoyé au
+ *   serveur — et « tout », c'était en réalité dix inerties et deux réglages.
+ * · LES DEUX LIGNES DESTRUCTIVES « Supprimer l'historique » / « Supprimer les
+ *   données sportives ». Peintes en rouge, avec chevron, leur SEUL comportement
+ *   était une `Alert` renvoyant vers Aide & support — qui n'a aucun canal. Une
+ *   ligne destructive qui ne détruit rien et pointe vers une porte fermée.
+ * · LE BOUTON « OUVRIR LE CHAT DU CREW » et la note qui l'accompagnait. Il n'y a
+ *   ni route, ni onglet, ni écran de chat : le chat libre est refusé (A-43 §9).
+ * · LES DIX CADRES PERMANENTS des cards (voir `features/privacy/ui.tsx`) : le
+ *   contour d'ouverture redevient un état.
+ * · Le `formatDate()` qui renvoyait `'—'` : « supprimé le — » est exactement le
+ *   segment sans source que la règle 15 interdit. Une date absente fait
+ *   disparaître le segment, pas apparaître un tiret.
+ * · Le CTA « Exporter » peint hors session, et le `numberOfLines={1}` sur le
+ *   pseudo d'un joueur bloqué — tronquer un pseudo dans une liste de blocage est
+ *   le pire endroit possible pour une ellipse.
+ *
+ * ─── LES QUATRE ÉTATS, NOMMÉS SÉPARÉMENT ──────────────────────────────────────
+ * ① pas connecté  → l'export et le signalement le disent AVANT le tap, et ne
+ *                   peignent aucun bouton qui échouerait ;
+ * ② connecté, rien → aucun joueur bloqué : la liste disparaît (pas de « 0 ») ;
+ * ③ échec         → `deletionRead === 'failed'` a sa propre copie et son
+ *                   « Réessayer » : un réseau qui lâche ne prouve pas qu'aucune
+ *                   suppression n'est en cours. La ligne « Supprimer mon compte »
+ *                   reste néanmoins accessible : ne pas savoir LIRE l'état d'un
+ *                   compte n'autorise pas à retirer le droit de le supprimer ;
+ * ④ lecture       → `deletionRead === 'reading'` est une LIGNE grise. La branche
+ *                   « aucune suppression en cours » ne s'affiche qu'après une
+ *                   réponse RÉELLE du serveur : elle affirmait auparavant sur un
+ *                   `deletionStatus === null` qui voulait aussi dire « je ne sais
+ *                   pas encore » et « je n'ai pas pu lire ».
+ *
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE ──────────────────────────────────────────────
+ * · « Blocage & signalement » et « Mes données » restent sur CE scroll au lieu de
+ *   deux pages poussées : ouvrir deux routes sort du périmètre de fichiers de ce
+ *   lot. La page passe de neuf cards à trois, ce qui traite la cause.
+ * · Les préférences restent LOCALES (AsyncStorage) : il n'existe aucune colonne
+ *   ni RPC de confidentialité côté serveur (O1). L'écran le DIT plutôt que de
+ *   laisser croire qu'un réglage suit le compte.
+ * · La confirmation de suppression reste un écran plein — 1 écran / 1 décision.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,17 +79,21 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ACCOUNT_DELETION_GRACE_DAYS,
+  borderState,
   colors,
-  fonts,
+  elevation,
   fontSizes,
   gameColors,
   iconSizes,
   radii,
+  sizes,
   spacing,
+  typography,
   type ProfileVisibility,
 } from '@klaim/shared';
 import { C } from '../src/i18n/catalog/reglages';
-import { t as tStatic, useT } from '../src/i18n/store';
+import { useT } from '../src/i18n/store';
+import type { Entry } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { supabase } from '../src/lib/supabase';
@@ -59,29 +109,14 @@ import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
 import { Icon } from '../src/ui/Icon';
 import { ListRow } from '../src/ui/ListRow';
-import {
-  PRIVATE_MODE_PATCH,
-  usePrivacyPrefs,
-  type LivePosition,
-  type MaskRadius,
-  type PrivacyPrefs,
-  type RunVisibility,
-  type SocialAudience,
-} from '../src/features/privacy/store';
-import {
-  DisclosureCard,
-  Note,
-  SectionLabel,
-  SelectPills,
-  SwitchRow,
-} from '../src/features/privacy/ui';
-import {
-  LIVE_POSITION_LABELS,
-  MASK_RADIUS_LABELS,
-  PROFILE_VISIBILITY_LABELS,
-  RUN_VISIBILITY_LABELS,
-  SOCIAL_AUDIENCE_LABELS,
-} from '../src/features/privacy/labels';
+import { SectionLabel } from '../src/ui/SectionLabel';
+import { PROFILE_VISIBILITIES } from '../src/features/privacy/prefs';
+import { usePrivacyPrefs } from '../src/features/privacy/store';
+import { DisclosureCard, Note, SelectPills, SwitchRow } from '../src/features/privacy/ui';
+// Le masquage partagé vient de la MÊME constante que le rendu : la note ne peut
+// donc plus annoncer une distance différente de celle qui est réellement
+// retirée (c'était le cœur du mensonge « rayon de flou »).
+import { SHARE_TRIM_M } from '../src/features/share/sharePrivacy';
 import {
   REPORT_REASONS,
   REPORT_REVIEW_HOURS,
@@ -92,73 +127,40 @@ import {
   type ReportReason,
 } from '../src/features/crew/moderation';
 
-/** Ordres d'options (source des enums = @klaim/shared / store). */
-const PROFILE_OPTS: { value: ProfileVisibility; label: string }[] = (
-  ['public', 'crew', 'friends', 'private'] as ProfileVisibility[]
-).map((v) => ({ value: v, label: PROFILE_VISIBILITY_LABELS[v] }));
-const RUN_OPTS: { value: RunVisibility; label: string }[] = (
-  ['public', 'crew', 'hidden'] as RunVisibility[]
-).map((v) => ({ value: v, label: RUN_VISIBILITY_LABELS[v] }));
-const LIVE_OPTS: { value: LivePosition; label: string }[] = (
-  ['never', 'crew_run', 'crew'] as LivePosition[]
-).map((v) => ({ value: v, label: LIVE_POSITION_LABELS[v].label }));
-const RADIUS_OPTS: { value: MaskRadius; label: string }[] = (
-  ['200', '500', '1000'] as MaskRadius[]
-).map((v) => ({ value: v, label: MASK_RADIUS_LABELS[v] }));
-const AUDIENCE_OPTS: { value: SocialAudience; label: string }[] = (
-  ['everyone', 'friends', 'crew', 'nobody'] as SocialAudience[]
-).map((v) => ({ value: v, label: SOCIAL_AUDIENCE_LABELS[v] }));
-/** Motifs de signalement (source unique : store de modération partagé). */
-const REASON_OPTS: { value: ReportReason; label: string }[] = REPORT_REASONS.map((r) => ({
-  value: r.key,
-  label: r.label,
-}));
+/** Libellés de visibilité — traduits (ils étaient en français en dur). */
+const VISIBILITY_ENTRY: Record<ProfileVisibility, Entry> = {
+  public: C.visPublic,
+  crew: C.visCrew,
+  friends: C.visFriends,
+  private: C.visPrivate,
+};
 
-/** Clés des sections dépliables (une seule ouverte à la fois). */
-type SectionKey =
-  | 'profile'
-  | 'runs'
-  | 'endpoints'
-  | 'live'
-  | 'sport'
-  | 'territory'
-  | 'social'
-  | 'block'
-  | 'export';
+/** Sections dépliables (une seule ouverte à la fois, aucune par défaut). */
+type SectionKey = 'profile' | 'endpoints' | 'block' | 'export';
+
+/**
+ * L'issue de la lecture du statut de suppression. Quatre valeurs, parce qu'il y
+ * a quatre situations qui n'appellent pas la même phrase — et que `null` les
+ * confondait toutes les trois premières.
+ */
+type DeletionRead = 'signedOut' | 'reading' | 'known' | 'failed';
 
 export default function ConfidentialiteScreen() {
   const t = useT();
-  const { prefs, update, enablePrivateMode } = usePrivacyPrefs();
-  // « Mode privé » ACTIF = DÉRIVÉ de l'état RÉEL des réglages, pas du flag figé
-  // `privateMode` : si l'utilisateur ré-ouvre un réglage sensible après avoir tout
-  // verrouillé, la card ne peut plus prétendre « tout est verrouillé » (l'app ne
-  // ment jamais). On compare chaque réglage d'exposition à sa valeur fermée.
-  const privateActive = useMemo(
-    () =>
-      (Object.keys(PRIVATE_MODE_PATCH) as (keyof PrivacyPrefs)[])
-        .filter((k) => k !== 'privateMode')
-        .every((k) => prefs[k] === PRIVATE_MODE_PATCH[k]),
-    [prefs],
-  );
-  // Joueurs bloqués (store de modération partagé avec le Crew Chat) — la carte
-  // « Blocage & signalement » les liste ici avec un « Débloquer » réel.
+  const { prefs, update } = usePrivacyPrefs();
   const { blocked } = useModeration();
-  // Session : la suppression RÉELLE serveur n'a lieu que si une session existe.
-  const { session, configured } = useSession();
-  // Section ouverte (résumé + détail : une seule à la fois, aucune par défaut).
+  const { session, configured, loading: sessionLoading } = useSession();
+  const signedIn = configured && session !== null && supabase !== null;
+
   const [openKey, setOpenKey] = useState<SectionKey | null>(null);
-  // Écran de confirmation de suppression de compte (5.1.1v). Plein écran =
-  // 1 écran / 1 décision (§A) : tant qu'il est ouvert, il remplace la page.
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // Garde de ré-entrée de la suppression (action DESTRUCTIVE réseau) : sans elle,
-  // un double-tap déclenche deux invoke('delete_account').
+  /** Garde de ré-entrée d'une action DESTRUCTIVE réseau (anti double-tap). */
   const [deleting, setDeleting] = useState(false);
-  // Suppression DIFFÉRÉE en cours (0046) : `null` = état encore inconnu (on
-  // n'affirme rien tant que le serveur n'a pas répondu — l'app ne ment jamais).
   const [deletionStatus, setDeletionStatus] = useState<DeletionStatus | null>(null);
-  // Signalement/blocage ACTIONNABLE depuis la card « Blocage & signalement » :
-  // pseudo saisi + motif choisi → reportContent / blockMember (store partagé
-  // avec le Crew Chat — mêmes données, même traitement sous 24 h).
+  const [deletionRead, setDeletionRead] = useState<DeletionRead>('reading');
+  /** Avance à chaque « Réessayer » : relance la lecture du statut. */
+  const [readTick, setReadTick] = useState(0);
+
   const [targetPseudo, setTargetPseudo] = useState('');
   const [reportReason, setReportReason] = useState<ReportReason>('spam');
 
@@ -166,23 +168,45 @@ export default function ConfidentialiteScreen() {
     screen('privacy_settings');
   }, []);
 
-  // État RÉEL de suppression différée, lu au serveur (jamais déduit localement).
+  /**
+   * ÉTAT RÉEL de la suppression différée, lu au serveur. On distingue « pas de
+   * compte » (rien à lire) de « je lis » et de « je n'ai pas pu lire » —
+   * `fetchDeletionStatus()` renvoie `null` sur échec ET sans backend, et c'est
+   * l'appelant qui doit savoir dans lequel des deux cas il est.
+   */
   useEffect(() => {
-    if (!(configured && session && supabase)) return;
+    if (sessionLoading) {
+      setDeletionRead('reading');
+      return;
+    }
+    if (!signedIn) {
+      setDeletionRead('signedOut');
+      setDeletionStatus(null);
+      return;
+    }
     let alive = true;
+    setDeletionRead('reading');
     void fetchDeletionStatus().then((st) => {
-      if (alive && st) setDeletionStatus(st);
+      if (!alive) return;
+      if (st === null) {
+        setDeletionRead('failed');
+        return;
+      }
+      setDeletionStatus(st);
+      setDeletionRead('known');
     });
     return () => {
       alive = false;
     };
-  }, [configured, session]);
+  }, [signedIn, sessionLoading, readTick]);
 
   const toggle = (k: SectionKey) => setOpenKey((cur) => (cur === k ? null : k));
 
-  // Signale le pseudo saisi avec le motif choisi (RÉEL : store de modération —
-  // persistance locale + écriture `content_reports` si session). Feedback
-  // immédiat, jamais de promesse morte.
+  /**
+   * Signale le pseudo saisi. RÉEL uniquement sous session : `reportContent`
+   * n'écrit dans `content_reports` que si un compte existe. Le bouton n'est donc
+   * jamais peint hors session (cf. le rendu plus bas).
+   */
   const submitReport = () => {
     const pseudo = targetPseudo.trim();
     if (pseudo.length === 0) {
@@ -195,8 +219,7 @@ export default function ConfidentialiteScreen() {
     Alert.alert(t(C.reportSentTitle), t(C.reportSentBody, { h: REPORT_REVIEW_HOURS }));
   };
 
-  // Bloque le pseudo saisi (RÉEL : blockMember, silencieux pour l'autre). Le
-  // joueur apparaît aussitôt dans la liste « Joueurs bloqués » ci-dessous.
+  /** Bloque le pseudo saisi. RÉEL même hors session : le filtrage est local. */
   const submitBlock = () => {
     const pseudo = targetPseudo.trim();
     if (pseudo.length === 0) {
@@ -209,58 +232,55 @@ export default function ConfidentialiteScreen() {
     Alert.alert(t(C.playerBlockedTitle), t(C.playerBlockedBody, { pseudo }));
   };
 
-  // Format de date localisé pour les échéances (jour + mois + année, sans heure :
-  // la purge est un job quotidien, annoncer une heure précise serait faux).
-  const formatDate = (iso: string | null): string =>
-    iso
-      ? new Date(iso).toLocaleDateString(undefined, {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })
-      : '—';
+  /**
+   * Date localisée d'une échéance (jour + mois + année, sans heure : la purge
+   * est un job quotidien, annoncer une heure serait faux). Renvoie `null` quand
+   * il n'y a pas de date — l'appelant fait alors DISPARAÎTRE le segment au lieu
+   * d'afficher « le — » (règle 15).
+   */
+  const formatDate = useCallback((iso: string | null): string | null => {
+    if (iso === null) return null;
+    const ms = Date.parse(iso);
+    if (!Number.isFinite(ms)) return null;
+    return new Date(ms).toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }, []);
 
-  // DEMANDE de suppression différée (0046 + Guideline 5.1.1v). Ce n'est PLUS un
-  // effacement immédiat : le serveur marque le compte, le rend invisible tout de
-  // suite, et la purge réelle a lieu à l'échéance (cron gryd_purge_accounts).
-  //
-  // On NE déconnecte QUE si le serveur a confirmé. Sur échec : on n'efface rien,
-  // on ne déconnecte pas, et on le dit — jamais de faux « compte supprimé ».
-  //
-  // La déconnexion est VOULUE, pas cosmétique : « toute reconnexion annule la
-  // suppression » n'a de sens que si l'utilisateur est effectivement déconnecté,
-  // sinon la session restaurée laisserait un compte « supprimé » utilisable.
+  /**
+   * DEMANDE de suppression différée (0046 + Guideline 5.1.1v). Ce n'est PAS un
+   * effacement immédiat : le serveur marque le compte, le rend invisible tout de
+   * suite, et la purge réelle a lieu à l'échéance.
+   *
+   * On NE déconnecte QUE si le serveur a confirmé. Sur échec : on n'efface rien,
+   * on ne déconnecte pas, et on le dit — jamais de faux « compte supprimé ». La
+   * déconnexion est VOULUE : « toute reconnexion annule la suppression » n'a de
+   * sens que si l'utilisateur est effectivement déconnecté.
+   */
   const runAccountDeletion = async () => {
-    if (deleting) return; // anti double-tap
+    if (deleting) return;
     setDeleting(true);
     haptics.medium();
 
-    if (!(configured && session && supabase)) {
-      // Sans backend (dev/web) : aucune suppression serveur n'est possible. On
-      // ne purge PAS le local en prétendant avoir supprimé le compte.
-      setDeleting(false);
-      Alert.alert(t(C.exportUnavailableTitle), t(C.exportUnavailableBody));
-      return;
-    }
-
     const status = await requestAccountDeletion();
     if (!status) {
-      setDeleting(false); // échec : on rend la main pour réessayer
+      setDeleting(false);
       Alert.alert(t(C.deleteFailTitle), t(C.deleteFailBody));
       return;
     }
 
     setDeletionStatus(status);
+    setDeletionRead('known');
     setConfirmDelete(false);
     setDeleting(false);
+    const date = formatDate(status.purgeAt);
     Alert.alert(
       t(C.deletionScheduledTitle),
-      t(C.deletionScheduledBody, { date: formatDate(status.purgeAt) }),
+      date === null ? t(C.deletionPendingTitle) : t(C.deletionScheduledBody, { date }),
     );
 
-    // Déconnexion + purge des prefs locales : le compte doit être hors d'usage
-    // pendant le délai. Les données SERVEUR, elles, sont conservées jusqu'à
-    // l'échéance — c'est exactement ce qui rend l'annulation possible.
     await signOut().catch(() => {});
     try {
       await AsyncStorage.clear();
@@ -270,9 +290,7 @@ export default function ConfidentialiteScreen() {
     router.replace('/onboarding');
   };
 
-  // ANNULATION explicite depuis l'écran (l'autre chemin est la reconnexion,
-  // câblée dans SessionProvider). Ne prétend une restauration que si le serveur
-  // a bien annulé quelque chose (`restored`).
+  /** ANNULATION explicite. N'annonce une restauration que si le serveur l'a dit. */
   const runCancelDeletion = async () => {
     if (deleting) return;
     setDeleting(true);
@@ -284,31 +302,25 @@ export default function ConfidentialiteScreen() {
       return;
     }
     setDeletionStatus({ pending: false, graceDays: null, requestedAt: null, purgeAt: null });
-    if (restored) {
-      Alert.alert(t(C.deletionRestoredTitle), t(C.deletionRestoredBody));
-    }
+    setDeletionRead('known');
+    if (restored) Alert.alert(t(C.deletionRestoredTitle), t(C.deletionRestoredBody));
   };
 
-  // Export RGPD (art. 15/20) — RÉEL : si session, appelle l'Edge Function
-  // `export_account` (service-role) qui agrège les données perso de l'utilisateur,
-  // puis présente le JSON via la feuille de partage native (aucune lib ajoutée).
-  // Sans session (dev/web) : message d'indisponibilité. Ne modifie/efface rien.
+  /**
+   * Export RGPD (art. 15/20) — RÉEL : Edge Function `export_account`, rendue via
+   * la feuille de partage native. N'est atteignable que sous session (le bouton
+   * n'existe pas autrement), donc plus aucune `Alert` « connecte-toi » après tap.
+   */
   const runDataExport = async () => {
     haptics.light();
-    if (!(configured && session && supabase)) {
-      Alert.alert(t(C.exportUnavailableTitle), t(C.exportUnavailableBody));
-      return;
-    }
+    if (supabase === null) return;
     try {
       const { data, error } = await supabase.functions.invoke('export_account');
       if (error || !data) {
         Alert.alert(t(C.exportFailTitle), t(C.exportFailBody));
         return;
       }
-      await Share.share({
-        title: t(C.exportShareTitle),
-        message: JSON.stringify(data, null, 2),
-      });
+      await Share.share({ title: t(C.exportShareTitle), message: JSON.stringify(data, null, 2) });
     } catch {
       Alert.alert(t(C.exportFailTitle), t(C.exportFailBody));
     }
@@ -328,45 +340,36 @@ export default function ConfidentialiteScreen() {
     );
   }
 
-  return (
-    <StackScreen title={t(C.privTitle)} icon="verrou" subtitle={t(C.privSubtitle)}>
-      {/* MODE PRIVÉ — toggle maître, tout en haut. */}
-      <MasterCard active={privateActive} onEnable={enablePrivateMode} />
+  const purgeDate = formatDate(deletionStatus?.purgeAt ?? null);
 
-      {/* Au-dessus du fold : Profil + Courses + Départ/arrivée + Position live. */}
+  return (
+    <StackScreen
+      title={t(C.privTitle)}
+      icon="verrou"
+      kicker={t(C.privKicker)}
+      subtitle={t(C.privSubtitle)}
+    >
+      <SectionLabel style={styles.kicker}>{t(C.secQuiVoitQuoi)}</SectionLabel>
+
       <DisclosureCard
         icon="profil"
         title={t(C.profilVisiblePar)}
-        value={PROFILE_VISIBILITY_LABELS[prefs.profileVisibility]}
+        value={t(VISIBILITY_ENTRY[prefs.profileVisibility])}
         open={openKey === 'profile'}
         onToggle={() => toggle('profile')}
       >
         <SelectPills
-          options={PROFILE_OPTS}
+          options={PROFILE_VISIBILITIES.map((v) => ({ value: v, label: t(VISIBILITY_ENTRY[v]) }))}
           value={prefs.profileVisibility}
           onChange={(v) => void update({ profileVisibility: v })}
         />
-      </DisclosureCard>
-
-      <DisclosureCard
-        icon="route"
-        title={t(C.visibiliteCourses)}
-        value={RUN_VISIBILITY_LABELS[prefs.runVisibility]}
-        open={openKey === 'runs'}
-        onToggle={() => toggle('runs')}
-      >
-        <SelectPills
-          options={RUN_OPTS}
-          value={prefs.runVisibility}
-          onChange={(v) => void update({ runVisibility: v })}
-        />
-        <Note>{t(C.masqueNote)}</Note>
+        <Note>{t(C.visScopeNote)}</Note>
       </DisclosureCard>
 
       <DisclosureCard
         icon="pin"
         title={t(C.departArrivee)}
-        value={prefs.maskEndpoints ? MASK_RADIUS_LABELS[prefs.maskRadius] : t(C.visibles)}
+        value={prefs.maskEndpoints ? t(C.masquees) : t(C.visibles)}
         open={openKey === 'endpoints'}
         onToggle={() => toggle('endpoints')}
       >
@@ -376,124 +379,13 @@ export default function ConfidentialiteScreen() {
           value={prefs.maskEndpoints}
           onValueChange={(v) => void update({ maskEndpoints: v })}
         />
-        {prefs.maskEndpoints ? (
-          <>
-            <Text style={styles.miniLabel}>{t(C.rayonFlou)}</Text>
-            <SelectPills
-              options={RADIUS_OPTS}
-              value={prefs.maskRadius}
-              onChange={(v) => void update({ maskRadius: v })}
-            />
-            <View style={styles.divider} />
-            <SwitchRow
-              title={t(C.autourDomicile)}
-              value={prefs.maskHome}
-              onValueChange={(v) => void update({ maskHome: v })}
-            />
-            <SwitchRow
-              title={t(C.autourTravail)}
-              value={prefs.maskWork}
-              onValueChange={(v) => void update({ maskWork: v })}
-            />
-          </>
-        ) : null}
+        {/* La distance annoncée est la constante RÉELLEMENT appliquée par
+            `applySharePrivacy` — plus un choix de rayon qui ne changeait rien. */}
+        <Note>{t(C.maskScopeNote, { m: SHARE_TRIM_M })}</Note>
       </DisclosureCard>
 
-      <DisclosureCard
-        icon="gps"
-        title={t(C.positionDirect)}
-        value={LIVE_POSITION_LABELS[prefs.livePosition].label}
-        open={openKey === 'live'}
-        onToggle={() => toggle('live')}
-      >
-        <SelectPills
-          options={LIVE_OPTS}
-          value={prefs.livePosition}
-          onChange={(v) => void update({ livePosition: v })}
-        />
-        <Note>{`${LIVE_POSITION_LABELS[prefs.livePosition].hint} ${t(C.parDefautJamais)}`}</Note>
-      </DisclosureCard>
+      <SectionLabel style={styles.kicker}>{t(C.blocageSignalement)}</SectionLabel>
 
-      {/* Sous le fold : données, social, sécurité, RGPD. */}
-      <SectionLabel>{t(C.secDonnees)}</SectionLabel>
-
-      <DisclosureCard
-        icon="performance"
-        title={t(C.donneesSportives)}
-        value={prefs.heartRatePrivate ? t(C.fcPrivee) : t(C.fcVisible)}
-        open={openKey === 'sport'}
-        onToggle={() => toggle('sport')}
-      >
-        <SwitchRow
-          title={t(C.freqCardiaquePrivee)}
-          subtitle={t(C.freqCardiaqueSub)}
-          value={prefs.heartRatePrivate}
-          onValueChange={(v) => void update({ heartRatePrivate: v })}
-        />
-        <SwitchRow
-          title={t(C.allureCadencePrivees)}
-          subtitle={t(C.allureCadenceSub)}
-          value={prefs.sportDataPrivate}
-          onValueChange={(v) => void update({ sportDataPrivate: v })}
-        />
-      </DisclosureCard>
-
-      <DisclosureCard
-        icon="carte"
-        title={t(C.donneesTerritoire)}
-        value={prefs.territoryVisible ? t(C.visibles) : t(C.masquees)}
-        open={openKey === 'territory'}
-        onToggle={() => toggle('territory')}
-      >
-        <SwitchRow
-          title={t(C.afficherZonesTenues)}
-          subtitle={t(C.afficherZonesSub)}
-          value={prefs.territoryVisible}
-          onValueChange={(v) => void update({ territoryVisible: v })}
-        />
-        <Note>{t(C.masquerTerritoiresNote)}</Note>
-      </DisclosureCard>
-
-      <SectionLabel>{t(C.secCrewSocial)}</SectionLabel>
-
-      {/* Titre aligné sur le CONTENU (ajout, invitation, message, statut) —
-          « contacter » était plus étroit que les 4 réglages qu'il couvre. */}
-      <DisclosureCard
-        icon="crew"
-        title={t(C.quiPeutInteragir)}
-        value={SOCIAL_AUDIENCE_LABELS[prefs.whoCanMessage]}
-        open={openKey === 'social'}
-        onToggle={() => toggle('social')}
-      >
-        <Text style={styles.miniLabel}>{t(C.quiPeutAjouter)}</Text>
-        <SelectPills
-          options={AUDIENCE_OPTS}
-          value={prefs.whoCanAdd}
-          onChange={(v) => void update({ whoCanAdd: v })}
-        />
-        <Text style={styles.miniLabel}>{t(C.quiPeutInviter)}</Text>
-        <SelectPills
-          options={AUDIENCE_OPTS}
-          value={prefs.whoCanInvite}
-          onChange={(v) => void update({ whoCanInvite: v })}
-        />
-        <Text style={styles.miniLabel}>{t(C.quiPeutMessage)}</Text>
-        <SelectPills
-          options={AUDIENCE_OPTS}
-          value={prefs.whoCanMessage}
-          onChange={(v) => void update({ whoCanMessage: v })}
-        />
-        <Text style={styles.miniLabel}>{t(C.quiVoitStatut)}</Text>
-        <SelectPills
-          options={AUDIENCE_OPTS}
-          value={prefs.whoSeesStatus}
-          onChange={(v) => void update({ whoSeesStatus: v })}
-        />
-      </DisclosureCard>
-
-      {/* Blocage & signalement ACTIONNABLES ICI (la card tient sa promesse) :
-          pseudo saisi + motif → Signaler / Bloquer, liste des bloqués avec
-          Débloquer, et lien direct vers le chat crew pour un message précis. */}
       <DisclosureCard
         icon="bouclier"
         title={t(C.blocageSignalement)}
@@ -505,7 +397,7 @@ export default function ConfidentialiteScreen() {
         open={openKey === 'block'}
         onToggle={() => toggle('block')}
       >
-        <Note>{t(C.blockNote, { h: REPORT_REVIEW_HOURS })}</Note>
+        <Note>{t(C.blockNote)}</Note>
         <Text style={styles.miniLabel}>{t(C.pseudoJoueurLabel)}</Text>
         <TextInput
           accessibilityLabel={t(C.pseudoInputA11y)}
@@ -516,27 +408,56 @@ export default function ConfidentialiteScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="done"
-          // Les actions (Signaler / Bloquer) sont SOUS le clavier pendant la
-          // saisie (retour terrain 20/07) : « Done » referme le clavier et les
-          // rend atteignables, sans quitter le champ ni perdre la saisie.
+          // Les actions sont SOUS le clavier pendant la saisie : « Done » le
+          // referme et les rend atteignables sans perdre la saisie.
           onSubmitEditing={() => Keyboard.dismiss()}
           style={styles.pseudoInput}
         />
-        <Text style={styles.miniLabel}>{t(C.motifSignalement)}</Text>
-        <SelectPills options={REASON_OPTS} value={reportReason} onChange={setReportReason} />
-        <Note>{REPORT_REASONS.find((r) => r.key === reportReason)?.hint ?? ''}</Note>
+
+        {/* SIGNALER n'existe que si le signalement PART vraiment. Hors session,
+            `reportContent` reste local : le bouton serait un bouton mort, et
+            l'alerte « examiné sous 24 h » un mensonge. BLOQUER, lui, agit
+            toujours (filtrage d'affichage local) — il reste. */}
+        {signedIn ? (
+          <>
+            <Text style={styles.miniLabel}>{t(C.motifSignalement)}</Text>
+            <SelectPills options={REASON_OPTS(t)} value={reportReason} onChange={setReportReason} />
+            <Note>{t(reasonHint(reportReason))}</Note>
+            <View style={styles.actionGap}>
+              <Button
+                variant="ghost"
+                size="md"
+                label={t(C.signalerJoueur)}
+                icon="alerte"
+                onPress={submitReport}
+              />
+            </View>
+          </>
+        ) : (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateTitle}>{t(C.reportSignedOutTitle)}</Text>
+            <Text style={styles.stateBody}>{t(C.reportSignedOutBody)}</Text>
+          </View>
+        )}
+
         <View style={styles.actionGap}>
-          <Button variant="ghost" size="md" label={t(C.signalerJoueur)} icon="alerte" onPress={submitReport} />
-          <Button variant="ghost" size="md" label={t(C.bloquerJoueur)} icon="bouclier" onPress={submitBlock} />
+          <Button
+            variant="ghost"
+            size="md"
+            label={t(C.bloquerJoueur)}
+            icon="bouclier"
+            onPress={submitBlock}
+          />
         </View>
+
         {blocked.length > 0 ? (
           <>
             <Text style={styles.miniLabel}>{t(C.joueursBloques)}</Text>
             {blocked.map((pseudo) => (
               <View key={pseudo} style={styles.blockedRow}>
-                <Text style={styles.blockedName} numberOfLines={1}>
-                  {pseudo}
-                </Text>
+                {/* Aucun `numberOfLines` : un pseudo tronqué dans une liste de
+                    blocage empêche d'identifier qui l'on a bloqué. */}
+                <Text style={styles.blockedName}>{pseudo}</Text>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t(C.debloquerA11y, { pseudo })}
@@ -553,18 +474,13 @@ export default function ConfidentialiteScreen() {
             ))}
           </>
         ) : null}
+
         <View style={styles.divider} />
         <Note>{t(C.signalerMessageNote)}</Note>
         <View style={styles.actionGap}>
-          <Button variant="ghost" size="md"
-            label={t(C.ouvrirChatCrew)}
-            icon="crew"
-            onPress={() => {
-              haptics.light();
-              router.push('/crew');
-            }}
-          />
-          <Button variant="ghost" size="md"
+          <Button
+            variant="ghost"
+            size="md"
             label={t(C.lireCodeConduite)}
             icon="bouclier"
             onPress={() => {
@@ -575,101 +491,159 @@ export default function ConfidentialiteScreen() {
         </View>
       </DisclosureCard>
 
-      <SectionLabel>{t(C.secMesDonneesRgpd)}</SectionLabel>
+      <SectionLabel style={styles.kicker}>{t(C.secMesDonneesRgpd)}</SectionLabel>
 
-      {/* Âge minimum SURFACE ici (protection des mineurs) — même règle que
-          l'age-gate de l'onboarding (features/onboarding/content.ts, 16 ans). */}
+      {/* Âge minimum (protection des mineurs) — même règle que l'age-gate de
+          l'onboarding. Une ligne d'information, jamais une card. */}
       <View style={styles.ageRow}>
-        <Icon name="info" size={16} color={colors.gris} />
+        <Icon name="info" size={iconSizes.sm} color={colors.gris} />
         <Text style={styles.ageText}>{t(C.ageMinimum)}</Text>
       </View>
 
-      <DisclosureCard
-        icon="reglages"
-        title={t(C.exportSuppression)}
-        open={openKey === 'export'}
-        onToggle={() => toggle('export')}
-        danger
-      >
-        <Text style={styles.miniLabel}>{t(C.exporterRgpdLabel)}</Text>
-        <Note>{t(C.exportNote)}</Note>
-        <View style={styles.actionGap}>
-          <Button variant="ghost" size="md"
-            label={t(C.exporterMesDonnees)}
-            icon="partage"
-            onPress={() => void runDataExport()}
-          />
-        </View>
-
-        <Text style={styles.miniLabel}>{t(C.supprimerPartiellement)}</Text>
-        <DangerRow
-          title={t(C.suppHistoriqueTitle)}
-          subtitle={t(C.suppHistoriqueSub)}
-          onPress={() => confirmPartialDelete(t(C.suppHistoriqueTitle))}
-        />
-        <DangerRow
-          title={t(C.suppSportivesTitle)}
-          subtitle={t(C.suppSportivesSub)}
-          last
-          onPress={() => confirmPartialDelete(t(C.suppSportivesTitle))}
-        />
-      </DisclosureCard>
-
-      {/* Suppression de compte (Guideline 5.1.1v) — DISTINCTE de l'export : une
-          card dédiée, action unique, vers un écran de confirmation plein écran. */}
-      <SectionLabel>{t(C.secSuppressionCompte)}</SectionLabel>
-      {deletionStatus?.pending ? (
-        /* Suppression DÉJÀ demandée : on ne repropose pas de supprimer (ce
-           serait absurde et laisserait croire que rien n'est en cours). On
-           affiche l'échéance RÉELLE et le seul geste utile : annuler. */
-        <View style={styles.deleteCard}>
-          <Text style={styles.deleteCardTitle}>{t(C.deletionPendingTitle)}</Text>
-          <Text style={styles.deleteCardText}>
-            {t(C.deletionPendingBody, { date: formatDate(deletionStatus.purgeAt) })}
-          </Text>
-          <View style={styles.actionGap}>
-            <Button variant="ghost" size="md"
-              label={t(C.deletionCancelCta)}
-              onPress={() => void runCancelDeletion()}
-              disabled={deleting}
-            />
-          </View>
+      {sessionLoading ? (
+        <Text style={styles.stateInline}>{t(C.deletionReading)}</Text>
+      ) : !signedIn ? (
+        /* ① PAS CONNECTÉ — on le dit AVANT le tap, et on ne peint aucun bouton
+           qui échouerait. Sans backend, proposer une connexion serait un
+           deuxième mensonge : le CTA n'apparaît que si elle est possible. */
+        <View style={styles.stateCard}>
+          <Text style={styles.stateTitle}>{t(C.rgpdSignedOutTitle)}</Text>
+          <Text style={styles.stateBody}>{t(C.rgpdSignedOutBody)}</Text>
+          {configured ? (
+            <View style={styles.actionGap}>
+              <Button
+                variant="ghost"
+                size="md"
+                label={t(C.identitySignInLabel)}
+                onPress={() => router.push('/sign-in')}
+              />
+            </View>
+          ) : null}
         </View>
       ) : (
-        /* L'action passe par la primitive `ListRow` (tone danger) — exactement
-           la même grammaire que « Supprimer mon compte » côté Réglages : même
-           hauteur, même trailing, même cible tactile. L'explication est une note
-           AU-DESSUS, plus une bordure rouge enfermée dans une card carbone
-           (§A « pas de card-in-card »). */
         <>
-          <Text style={styles.deleteIntro}>
-            {t(C.deleteCardText, {
-              d: deletionStatus?.graceDays ?? ACCOUNT_DELETION_GRACE_DAYS,
-            })}
-          </Text>
-          <ListRow
-            tone="danger"
-            icon="fermer"
-            label={t(C.supprimerMonCompte)}
-            chevron
-            accessibilityLabel={t(C.supprimerMonCompte)}
-            onPress={() => {
-              haptics.medium();
-              setConfirmDelete(true);
-            }}
-          />
+          <DisclosureCard
+            icon="reglages"
+            title={t(C.exportSuppression)}
+            open={openKey === 'export'}
+            onToggle={() => toggle('export')}
+            danger
+          >
+            <Text style={styles.miniLabel}>{t(C.exporterRgpdLabel)}</Text>
+            <Note>{t(C.exportNote)}</Note>
+            <View style={styles.actionGap}>
+              <Button
+                variant="ghost"
+                size="md"
+                label={t(C.exporterMesDonnees)}
+                icon="partage"
+                onPress={() => void runDataExport()}
+              />
+            </View>
+            <View style={styles.divider} />
+            {/* Les deux lignes destructives qui n'ouvraient qu'une `Alert` sont
+                remplacées par ce qu'elles auraient dû dire depuis le début. */}
+            <Note>{t(C.partialDeleteAbsence)}</Note>
+          </DisclosureCard>
+
+          <SectionLabel style={styles.kicker}>{t(C.secSuppressionCompte)}</SectionLabel>
+
+          {deletionRead === 'reading' ? (
+            /* ④ LECTURE EN COURS — une ligne grise non tapable. Un chargement
+               n'affirme RIEN : surtout pas « aucune suppression en cours ». */
+            <Text style={styles.stateInline}>{t(C.deletionReading)}</Text>
+          ) : deletionRead === 'failed' ? (
+            /* ③ ÉCHEC — distinct du vide, avec sa copie et son « Réessayer ».
+               La ligne « Supprimer mon compte » RESTE en dessous : ne pas
+               pouvoir LIRE l'état d'un compte n'est pas une raison de retirer le
+               droit de le supprimer (Guideline 5.1.1v), et la demande est
+               idempotente côté serveur — re-demander ne repousse aucune
+               échéance. On dit ce qu'on ignore, on ne confisque rien. */
+            <>
+              <View style={styles.stateCard}>
+                <Text style={styles.stateTitle}>{t(C.deletionUnknownTitle)}</Text>
+                <Text style={styles.stateBody}>{t(C.deletionUnknownBody)}</Text>
+                <View style={styles.actionGap}>
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    label={t(C.deletionRetry)}
+                    onPress={() => setReadTick((n) => n + 1)}
+                  />
+                </View>
+              </View>
+              <ListRow
+                tone="danger"
+                icon="fermer"
+                label={t(C.supprimerMonCompte)}
+                chevron
+                onPress={() => {
+                  haptics.medium();
+                  setConfirmDelete(true);
+                }}
+              />
+            </>
+          ) : deletionStatus?.pending ? (
+            /* Suppression DÉJÀ demandée : on n'en repropose pas une seconde. La
+               date ne s'affiche que si le serveur en a donné une. */
+            <View style={styles.stateCard}>
+              <Text style={styles.stateTitle}>{t(C.deletionPendingTitle)}</Text>
+              {purgeDate !== null ? (
+                <Text style={styles.stateBody}>
+                  {t(C.deletionPendingBody, { date: purgeDate })}
+                </Text>
+              ) : null}
+              <View style={styles.actionGap}>
+                <Button
+                  variant="ghost"
+                  size="md"
+                  label={t(C.deletionCancelCta)}
+                  onPress={() => void runCancelDeletion()}
+                  disabled={deleting}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.deleteIntro}>
+                {t(C.deleteCardText, {
+                  d: deletionStatus?.graceDays ?? ACCOUNT_DELETION_GRACE_DAYS,
+                })}
+              </Text>
+              <ListRow
+                tone="danger"
+                icon="fermer"
+                label={t(C.supprimerMonCompte)}
+                chevron
+                onPress={() => {
+                  haptics.medium();
+                  setConfirmDelete(true);
+                }}
+              />
+            </>
+          )}
         </>
       )}
     </StackScreen>
   );
 }
 
+/** Motifs de signalement — source unique : le store de modération partagé. */
+function REASON_OPTS(t: (e: Entry) => string): { value: ReportReason; label: string }[] {
+  return REPORT_REASONS.map((r) => ({ value: r.key, label: t(r.label) }));
+}
+
+/** Aide d'une ligne sous le motif choisi. */
+function reasonHint(reason: ReportReason): Entry {
+  const found = REPORT_REASONS.find((r) => r.key === reason);
+  return found ? found.hint : REPORT_REASONS[0]!.hint;
+}
+
 /**
  * Écran de confirmation de suppression de compte (Guideline 5.1.1v). PLEIN ÉCRAN
- * = 1 écran / 1 décision (§A) : une seule action destructive, une seule sortie.
- * Textes non tronqués, palette tri-couleur (danger = orange sobre, jamais de
- * rouge criard ni de chartreuse sur fond clair). Le CTA de confirmation est un
- * ghost destructif explicite — pas de disque chartreuse (réservé à COURIR).
+ * = 1 écran / 1 décision : une seule action destructive, une seule sortie.
+ * Palette d'alerte sobre, jamais de chartreuse (réservée à l'action qui fait
+ * courir).
  */
 function DeleteAccountConfirm({
   onCancel,
@@ -680,8 +654,8 @@ function DeleteAccountConfirm({
   onCancel: () => void;
   onConfirm: () => void;
   busy: boolean;
-  /** Délai de grâce annoncé — vient du SERVEUR quand il a répondu, sinon de la
-   *  constante partagée. Jamais un nombre écrit en dur dans la copie. */
+  /** Délai de grâce annoncé — du SERVEUR quand il a répondu, sinon la constante
+   *  partagée. Jamais un nombre écrit en dur dans la copie. */
   graceDays: number;
 }) {
   const t = useT();
@@ -689,13 +663,9 @@ function DeleteAccountConfirm({
     screen('account_delete_confirm');
   }, []);
   return (
-    <StackScreen
-      title={t(C.supprimerMonCompte)}
-      icon="alerte"
-      subtitle={t(C.deleteConfirmSubtitle)}
-    >
+    <StackScreen title={t(C.supprimerMonCompte)} icon="alerte" subtitle={t(C.deleteConfirmSubtitle)}>
       <View style={styles.confirmBox}>
-        <Icon name="alerte" size={28} color={gameColors.danger} />
+        <Icon name="alerte" size={iconSizes.lg} color={gameColors.danger} />
         <Text style={styles.confirmTitle}>{t(C.deleteConfirmTitle, { d: graceDays })}</Text>
         <Text style={styles.confirmBody}>{t(C.deleteConfirmBody, { d: graceDays })}</Text>
       </View>
@@ -724,165 +694,63 @@ function DeleteAccountConfirm({
   );
 }
 
-/**
- * Card MAÎTRE « Mode privé ». Résume ce que fait le toggle, un seul CTA pour tout
- * verrouiller d'un coup. Actif → état confirmé (bordure chartreuse + check), le
- * détail des réglages reste accessible en dessous pour ajuster.
- */
-function MasterCard({ active, onEnable }: { active: boolean; onEnable: () => Promise<void> }) {
-  const t = useT();
-  return (
-    <View style={[styles.master, active && styles.masterActive]}>
-      <View style={styles.masterHead}>
-        <Icon name="verrou" size={iconSizes.lg} color={active ? colors.chartreuse : colors.blanc} />
-        <Text style={styles.masterTitle}>{t(C.modePrive)}</Text>
-        {active ? <Text style={styles.masterBadge}>{t(C.modePriveActive)}</Text> : null}
-      </View>
-      <Text style={styles.masterDesc}>{t(C.modePriveDesc)}</Text>
-      {active ? (
-        <View style={styles.masterConfirm}>
-          <Icon name="badge" size={16} color={colors.chartreuse} />
-          <Text style={styles.masterConfirmText}>{t(C.modePriveConfirm)}</Text>
-        </View>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            haptics.medium();
-            void onEnable();
-          }}
-          style={({ pressed }) => [styles.masterCta, pressed && styles.pressed]}
-        >
-          <Icon name="verrou" size={iconSizes.md} color={colors.noir} />
-          <Text style={styles.masterCtaText}>{t(C.activerModePrive)}</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-/**
- * Suppression PARTIELLE (RGPD) — l'effacement serveur automatique n'est PAS
- * encore câblé (O1, Edge Function service-role). HONNÊTE : on ne simule jamais
- * une confirmation destructive ni un « c'est appliqué » mensonger ; on annonce
- * la disponibilité à venir et on pointe les vrais chemins (support, export,
- * suppression de compte réelle ci-dessous).
- */
-function confirmPartialDelete(title: string): void {
-  haptics.light();
-  Alert.alert(title, tStatic(C.partialDeleteBody), [{ text: tStatic(C.compris) }]);
-}
-
-function DangerRow({
-  title,
-  subtitle,
-  last = false,
-  onPress,
-}: {
-  title: string;
-  subtitle: string;
-  last?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.dangerRow,
-        !last && styles.dangerRowBorder,
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={styles.dangerText}>
-        <Text style={styles.dangerTitle}>{title}</Text>
-        <Text style={styles.dangerSub}>{subtitle}</Text>
-      </View>
-      <Icon name="chevron" size={16} color={gameColors.danger} />
-    </Pressable>
-  );
-}
+/** Rythme vertical des sur-titres — commun à tous les écrans de réglages. */
+const KICKER_TOP = 24;
+const KICKER_BOTTOM = 10;
+/** Hauteur du bouton destructif : alignée sur `sizes.buttonLg` par le token. */
+const CONFIRM_BTN_H = sizes.buttonLg;
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
-
-  master: {
-    backgroundColor: colors.carbone,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    marginTop: 8,
-    marginBottom: 18,
-  },
-  masterActive: { borderColor: colors.chartreuse },
-  masterHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  masterTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.textSemi, fontWeight: '600' },
-  masterBadge: {
-    marginLeft: 'auto',
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  masterDesc: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.5,
-    marginTop: 10,
-  },
-  masterCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 52,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-    marginTop: 16,
-  },
-  masterCtaText: { color: colors.noir, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700' },
-  masterConfirm: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
-  },
-  masterConfirmText: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    flex: 1,
-    lineHeight: fontSizes.xs * 1.5,
-  },
+  kicker: { marginTop: KICKER_TOP, marginBottom: KICKER_BOTTOM },
 
   miniLabel: {
+    ...typography.kicker,
     color: colors.gris,
-    fontSize: fontSizes.xs,
     letterSpacing: 1.5,
     marginTop: 14,
     marginBottom: 2,
   },
-  divider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: spacing.sm },
+  divider: { height: 1, backgroundColor: borderState.hairline, marginVertical: spacing.sm },
   actionGap: { gap: 10, marginTop: 12 },
+
+  // ── Card d'ÉTAT (pas connecté / échec) : surface N1 sans contour, titre blanc,
+  // corps gris, AU PLUS un CTA — le patron des vingt écrans recalés. ──
+  stateCard: {
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    padding: spacing.cardPadding,
+    gap: spacing.xs,
+    marginBottom: 10,
+  },
+  stateTitle: { ...typography.itemTitle, color: colors.blanc },
+  stateBody: { ...typography.meta, color: colors.gris, lineHeight: fontSizes.xs * 1.6 },
+  // Lecture EN COURS : une ligne grise non tapable, jamais un spinner plein écran.
+  stateInline: {
+    ...typography.meta,
+    color: colors.gris,
+    lineHeight: fontSizes.xs * 1.6,
+    paddingVertical: spacing.sm,
+  },
 
   blockedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minHeight: sizes.touchTarget,
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: colors.grisLigne,
+    borderBottomColor: borderState.hairline,
   },
-  blockedName: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '600' },
-  // Cible de tap ≥ 44 px (bouton réel, pas un simple texte chartreuse).
-  unblockBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 10 },
-  unblock: { color: colors.chartreuse, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
+  blockedName: { ...typography.cardTitle, color: colors.blanc, flex: 1 },
+  unblockBtn: { minHeight: sizes.touchTarget, justifyContent: 'center', paddingHorizontal: 10 },
+  unblock: { ...typography.meta, color: colors.chartreuse, fontSize: fontSizes.sm },
 
-  // Champ pseudo (signaler / bloquer) — 48 px, texte md (pas de zoom iOS).
+  // Champ pseudo — 48 px, texte md (pas de zoom iOS à la saisie).
   pseudoInput: {
-    height: 48,
+    height: sizes.buttonMd,
     borderWidth: 1,
-    borderColor: colors.grisLigne,
+    borderColor: borderState.hairline,
     borderRadius: radii.pill,
     paddingHorizontal: 16,
     color: colors.blanc,
@@ -890,7 +758,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  // Ligne informative « Âge minimum » (protection des mineurs) — pas une card.
   ageRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -898,94 +765,44 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 2,
   },
-  ageText: {
-    flex: 1,
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.5,
-  },
+  ageText: { ...typography.meta, flex: 1, color: colors.gris, lineHeight: fontSizes.xs * 1.5 },
 
-  dangerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 14,
-  },
-  dangerRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.grisLigne },
-  dangerText: { flex: 1 },
-  dangerTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500' },
-  dangerSub: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.5,
-    marginTop: spacing.xxs,
-  },
-
-  // Card dédiée « Supprimer mon compte » (5.1.1v) — distincte de l'export.
-  deleteCard: {
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-  },
-  deleteCardText: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.5,
-  },
-  // Explication AU-DESSUS de la ligne d'action (la ligne, elle, est une `ListRow`
-  // tone danger — plus de bouton bordé enfermé dans une card). Aligné sur le
-  // léger retrait des notes de l'écran (paddingHorizontal 2).
+  // Explication AU-DESSUS de la ligne d'action (la ligne, elle, est une
+  // `ListRow` tone danger) — pas de bouton bordé enfermé dans une card.
   deleteIntro: {
+    ...typography.body,
     color: colors.gris,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.5,
     paddingHorizontal: 2,
     marginBottom: 12,
   },
-  // Titre de l'état « suppression programmée » : même famille que deleteCardText,
-  // en blanc (jamais de chartreuse sur cette card d'alerte).
-  deleteCardTitle: {
-    color: colors.blanc,
-    fontSize: fontSizes.md,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
 
-  // Écran de confirmation plein écran.
+  // ── Écran de confirmation plein écran ──
   confirmBox: {
-    backgroundColor: colors.carbone,
+    backgroundColor: elevation.surface,
     borderWidth: 1,
-    borderColor: gameColors.danger,
+    borderColor: gameColors.danger, // contour d'ÉTAT (alerte) — assumé
     borderRadius: radii.card,
     padding: spacing.cardPadding,
     gap: 12,
     marginTop: 8,
   },
   confirmTitle: {
+    ...typography.cardTitle,
     color: colors.blanc,
     fontSize: fontSizes.lg,
-    fontWeight: '600',
     lineHeight: fontSizes.lg * 1.35,
   },
-  confirmBody: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.55,
-  },
+  confirmBody: { ...typography.body, color: colors.gris, lineHeight: fontSizes.sm * 1.55 },
   confirmActions: { gap: spacing.sm, marginTop: spacing.lg },
   confirmDelete: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 52,
+    height: CONFIRM_BTN_H,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: gameColors.danger,
   },
-  confirmDeleteText: {
-    color: gameColors.danger,
-    fontSize: fontSizes.md,
-    fontWeight: '700',
-  },
+  confirmDeleteText: { ...typography.button, color: gameColors.danger },
 });

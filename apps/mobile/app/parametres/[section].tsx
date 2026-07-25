@@ -28,14 +28,52 @@
  *  · Avancé — les valeurs du moteur (24 h, 80 m, 400 m / 15 %) étaient écrites en
  *    dur ici et dans le catalogue i18n. Elles viennent maintenant de game-rules :
  *    un réglage de moteur qui bouge ne peut plus laisser l'écran mentir.
+ *
+ * ─── ORDRE DE COMPOSITION (Vague 1) ───────────────────────────────────────────
+ *   1. `StackScreen` : retour + KICKER « RÉGLAGES » + titre = libellé de la ligne
+ *      d'origine, TRADUIT (il était rendu tel quel depuis un catalogue français) ;
+ *   2. une à deux sections, chacune ouverte par le `SectionLabel` canonique ;
+ *   3. des `ListRow` (action, navigation, valeur en lecture) et, pour ce qui n'a
+ *      rien à afficher, un `EmptyState` qui REMPLACE la ligne au lieu de s'y
+ *      ajouter.
+ *
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
+ * · « E-mail » et « Sécurité » (Compte). Deux lignes à chevron qui n'ouvraient
+ *   qu'une `Alert` « arrive très bientôt » : elles échouaient à 100 % des taps,
+ *   sur toutes les plateformes. Leur absence est maintenant NOMMÉE en gris —
+ *   et l'une d'elles renvoyait vers Aide & support, qui n'a aucun canal : la
+ *   boucle est fermée par la suppression, pas par un autre renvoi.
+ * · Les TROIS copies « bientôt disponible » sans date ni code. « Bientôt » n'est
+ *   pas un état ; ne pas savoir en est un, et il se dit.
+ * · « Annonces audio · Bientôt » (Course) : un réglage qui n'existe pas.
+ * · « Couche par défaut · Auto » (Carte) : une valeur en lecture qui faisait
+ *   croire à un réglage. Il ne restait qu'à lire la note qui l'explique.
+ * · « Build » (Avancé) : EXACTEMENT la même chaîne que « Version » (À propos),
+ *   sous un autre nom, dans une autre sous-page. Deux noms pour une valeur, ce
+ *   n'est pas de la transparence, c'est une distinction fabriquée.
+ * · Le `Soon` (italique gris, réservé au « pas encore disponible ») autour de la
+ *   baseline produit : la baseline n'est pas une indisponibilité.
+ * · L'`EmptyState` local n'a pas été retiré mais son titre passe par le rôle
+ *   `typography.itemTitle` (il recodait famille + graisse à la main).
+ *
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE ──────────────────────────────────────────────
+ * · Sous-page Compte : aucune action de sécurité (mot de passe, appareils liés)
+ *   — raison technique : il n'existe aucune RPC ni aucun écran pour ça, et
+ *   `supabase.auth` n'est pas exposé au client pour la gestion d'identités.
+ * · Sous-page Notifications : les canaux restent choisissables hors session
+ *   (ils sont locaux) mais l'écran DIT que rien ne partira — l'enregistrement de
+ *   l'appareil exige une session (`features/notifications/push.ts` renvoie
+ *   `not_configured` sans session).
+ * · Sous-page Carte : aucun réglage. Raison technique : le choix de couche est
+ *   dérivé du contexte par la carte elle-même (`features/map`), il n'existe
+ *   aucune préférence persistée à écrire.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
-  fonts,
   FINISHER_MIN_SEGMENT_M,
   FINISHER_MIN_SHARE,
   fontSizes,
@@ -46,6 +84,7 @@ import {
   PUSH_QUIET_HOURS_START,
   radii,
   spacing,
+  typography,
 } from '@klaim/shared';
 import {
   NOTIF_CHANNEL_LABELS,
@@ -59,13 +98,13 @@ import {
 import { SwitchRow, TogglePill } from '../../src/features/motivation/ui';
 import { useDeviceNotifications } from '../../src/features/notifications/useDeviceNotifications';
 import type { PushStatus } from '../../src/features/notifications/push';
-import { SectionLabel } from '../../src/features/privacy/ui';
+import { SectionLabel } from '../../src/ui/SectionLabel';
 import { useRealCrew } from '../../src/features/crew/real';
 import { SeasonStatus } from '../../src/features/season/SeasonStatus';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import { C as CityC } from '../../src/i18n/catalog/city';
 import { C } from '../../src/i18n/catalog/reglages';
-import { t as tStatic, useT } from '../../src/i18n/store';
+import { useT } from '../../src/i18n/store';
 import { flags } from '../../src/lib/flags';
 import { useSession } from '../../src/lib/session';
 import { screen } from '../../src/lib/analytics';
@@ -110,27 +149,20 @@ const PUSH_STATUS_TEXT: Readonly<Record<PushStatus, (typeof C)['pushIdle']>> = {
   error: C.pushError,
 };
 
-/** Accusé de réception honnête pour un flux pas encore câblé (O1) — le bouton
- *  répond au tap au lieu de rester muet, en cohérence avec la note « bientôt ». */
-function soonAlert(title: string, body: string): void {
-  Alert.alert(title, body, [{ text: tStatic(C.compris) }]);
-}
-
 function isSection(x: string | undefined): x is SettingsSectionId {
   return x !== undefined && (SECTION_IDS as readonly string[]).includes(x);
 }
 
 /**
- * Section titrée — sur-titre COMMUN aux écrans de réglages (features/privacy/ui,
- * la même source que Confidentialité et Support). Remplace le `Section` du
- * module motivation, dont l'espacement différait de quelques pixels : trois
- * rythmes verticaux pour un même type d'écran, c'est ce qui donnait
- * l'impression de trois maquettes distinctes.
+ * Section titrée — sur-titre canonique (`src/ui/SectionLabel`, la même source
+ * que les vingt écrans recalés). Le rythme vertical appartient à la PAGE, il est
+ * posé ici une seule fois : trois espacements différents pour un même type
+ * d'écran, c'est ce qui donnait l'impression de trois maquettes distinctes.
  */
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View>
-      <SectionLabel>{label}</SectionLabel>
+      <SectionLabel style={styles.kicker}>{label}</SectionLabel>
       {children}
     </View>
   );
@@ -147,9 +179,14 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
  *   · valeur en lecture    → `label` + `value` (ni `icon` ni `onPress`)
  */
 
-/** Petite note honnête « bientôt » quand un flux n'est pas encore câblé. */
-function Soon({ children }: { children: string }) {
-  return <Text style={styles.soon}>{children}</Text>;
+/**
+ * Note grise d'ABSENCE : « ce que GRYD ne fait pas, et qu'on ne promet pas ».
+ * Elle a remplacé le `Soon` italique, dont la promesse implicite (« ça arrive »)
+ * était portée par un style, donc invérifiable. Une absence se constate ; elle
+ * ne se date pas tant que le code ne la referme pas.
+ */
+function Absence({ children }: { children: string }) {
+  return <Text style={styles.absence}>{children}</Text>;
 }
 
 /**
@@ -168,7 +205,13 @@ function EmptyState({
 }: {
   title: string;
   body: string;
-  cta?: { label: string; onPress: () => void; loading?: boolean };
+  /**
+   * `variant` par défaut `primary` (chartreuse) : c'est le cas d'un vide qu'on
+   * peut REMPLIR (se connecter, rejoindre un crew). Un « Réessayer » d'échec de
+   * lecture descend d'un cran en `ghost` : l'accent ne se dépense pas sur une
+   * reprise après panne, il se garde pour l'action qui fait avancer le joueur.
+   */
+  cta?: { label: string; onPress: () => void; loading?: boolean; variant?: 'primary' | 'ghost' };
 }) {
   return (
     <View style={styles.empty}>
@@ -176,17 +219,48 @@ function EmptyState({
       <Text style={styles.emptyBody}>{body}</Text>
       {cta ? (
         <View style={styles.emptyCta}>
-          <Button label={cta.label} onPress={cta.onPress} loading={cta.loading === true} />
+          <Button
+            label={cta.label}
+            variant={cta.variant ?? 'primary'}
+            onPress={cta.onPress}
+            loading={cta.loading === true}
+          />
         </View>
       ) : null}
     </View>
   );
 }
 
+/**
+ * SLUG INCONNU — un état à part entière, pas un repli silencieux. `/parametres/xyz`
+ * affichait la sous-page Compte sans jamais dire que la section demandée
+ * n'existait pas : le joueur croyait avoir ouvert autre chose. On le dit, et on
+ * donne la seule sortie utile.
+ */
+function UnknownSection() {
+  const t = useT();
+  useEffect(() => {
+    screen('parametres_section', { section: 'unknown' });
+  }, []);
+  return (
+    <StackScreen title={t(C.paramsTitle)} icon="reglages" kicker={t(C.paramsKicker)}>
+      <EmptyState
+        title={t(C.sectionUnknownTitle)}
+        body={t(C.sectionUnknownBody)}
+        cta={{ label: t(C.sectionUnknownCta), onPress: () => router.replace('/parametres') }}
+      />
+    </StackScreen>
+  );
+}
+
 export default function SettingsSectionScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
   const raw = Array.isArray(params.section) ? params.section[0] : params.section;
-  const id: SettingsSectionId = isSection(raw) ? raw : 'compte';
+  if (!isSection(raw)) return <UnknownSection />;
+  return <KnownSection id={raw} />;
+}
+
+function KnownSection({ id }: { id: SettingsSectionId }) {
   const meta = settingsRowBySection(id);
   const t = useT();
 
@@ -281,7 +355,14 @@ export default function SettingsSectionScreen() {
   }, []);
 
   return (
-    <StackScreen title={meta?.label ?? t(C.paramsTitle)} icon={meta?.icon ?? 'reglages'}>
+    <StackScreen
+      /* Le titre était `meta?.label` — une chaîne FRANÇAISE rendue telle quelle :
+         les huit sous-pages gardaient leur titre français dans les cinq langues.
+         `label` est maintenant une `Entry`, donc traduite. Kicker (règle 2). */
+      title={meta ? t(meta.label) : t(C.paramsTitle)}
+      icon={meta?.icon ?? 'reglages'}
+      kicker={t(C.paramsKicker)}
+    >
       {id === 'compte' ? (
         <>
           <Section label={t(C.secIdentifiants)}>
@@ -312,21 +393,12 @@ export default function SettingsSectionScreen() {
                 <Text style={styles.note}>{t(C.identityNoBackend)}</Text>
               </>
             )}
-            <ListRow
-              icon="lien"
-              label={t(C.emailLabel)}
-              sublabel={t(C.emailDetail)}
-              chevron
-              onPress={() => soonAlert(t(C.emailLabel), t(C.emailSoonBody))}
-            />
-            <ListRow
-              icon="verrou"
-              label={t(C.securityLabel)}
-              sublabel={t(C.securityDetail)}
-              chevron
-              onPress={() => soonAlert(t(C.securityLabel), t(C.securitySoonBody))}
-            />
-            <Soon>{t(C.accountSoonNote)}</Soon>
+            {/* « E-mail » et « Sécurité » vivaient ici : deux `ListRow` à
+                chevron dont le seul comportement était une `Alert` « arrive très
+                bientôt » — donc deux boutons morts, sur toutes les plateformes.
+                L'absence d'un contrôle n'est pas un mensonge ; un contrôle qui
+                échoue toujours en est un. On la nomme, sans date. */}
+            <Absence>{t(C.accountNoEditNote)}</Absence>
           </Section>
           <Section label={t(C.secCompte)}>
             <ListRow
@@ -428,7 +500,12 @@ export default function SettingsSectionScreen() {
             <EmptyState
               title={t(C.crewLoadFailedTitle)}
               body={t(C.crewLoadFailedBody)}
-              cta={{ label: t(C.crewRetry), onPress: reloadCrew, loading: crewLoading }}
+              cta={{
+                label: t(C.crewRetry),
+                onPress: reloadCrew,
+                loading: crewLoading,
+                variant: 'ghost',
+              }}
             />
           ) : crewLoading && realCrew === null ? (
             <Text style={styles.note}>{t(C.crewLoading)}</Text>
@@ -439,7 +516,11 @@ export default function SettingsSectionScreen() {
               cta={{ label: t(C.crewNoneCta), onPress: () => router.push('/crew') }}
             />
           ) : (
-            <ListRow label="Crew" value={realCrew.name} />
+            /* Le libellé était la chaîne littérale « Crew » — rendue telle
+               quelle dans les cinq langues. Le concept « Crew » reste un
+               invariant GRYD, mais il passe par le catalogue comme tout le
+               reste : c'est la traduction qui décide, pas un `string` en dur. */
+            <ListRow label={t(C.rowCrew)} value={realCrew.name} />
           )}
 
           {/* Les réglages de crew ne s'affichent QUE s'il y a un crew : proposer
@@ -503,7 +584,10 @@ export default function SettingsSectionScreen() {
               }}
             />
             <ListRow label={t(C.unites)} value={t(C.kilometres)} />
-            <ListRow label={t(C.annoncesAudio)} value={t(C.bientot)} />
+            {/* « Annonces audio · Bientôt » vivait ici : un réglage annoncé, un
+                rendez-vous jamais pris, et une ligne de plus à parcourir pour
+                zéro décision. Une fonction qui n'existe pas ne mérite pas une
+                rangée dans une liste de réglages. */}
           </Section>
         </>
       ) : null}
@@ -529,8 +613,31 @@ export default function SettingsSectionScreen() {
           </Text>
           {/* Choisir SES canaux ne sert à rien si l'appareil n'est enregistré
               nulle part : cette ligne dit l'état RÉEL du téléphone, et son
-              détail change avec le diagnostic (jamais un « Activer » muet). */}
-          {!prefs.notifChannels.includes('off') ? (
+              détail change avec le diagnostic (jamais un « Activer » muet).
+
+              ── L'ÉTAT « PAS CONNECTÉ » MANQUAIT ─────────────────────────────
+              La condition ne testait que `pushStatus`. Hors session,
+              `registerPushDevice` renvoie `not_configured` (push.ts : « aucune
+              session ») : le joueur cochait ses canaux, tapait « Activer »,
+              accordait une permission système — et n'apprenait qu'APRÈS que
+              rien ne serait envoyé. Le coût était payé avant le message. On le
+              dit AVANT, et on ne peint pas le contrôle qui échouera. */}
+          {prefs.notifChannels.includes('off') ? null : identityUnknown ? (
+            <Text style={styles.note}>{t(C.crewLoading)}</Text>
+          ) : !signedIn ? (
+            <EmptyState
+              title={t(C.notifSignedOutTitle)}
+              body={t(C.notifSignedOutBody)}
+              {...(configured
+                ? {
+                    cta: {
+                      label: t(C.identitySignInLabel),
+                      onPress: () => router.push('/sign-in'),
+                    },
+                  }
+                : {})}
+            />
+          ) : (
             <ListRow
               icon="cloche"
               label={t(C.pushDeviceLabel)}
@@ -544,7 +651,7 @@ export default function SettingsSectionScreen() {
                 else pushEnable();
               }}
             />
-          ) : null}
+          )}
           <Text style={styles.note}>
             {t(C.pushQuietNote, {
               start: PUSH_QUIET_HOURS_START,
@@ -557,7 +664,10 @@ export default function SettingsSectionScreen() {
 
       {id === 'carte' ? (
         <Section label={t(C.secAffichageCarte)}>
-          <ListRow label={t(C.coucheDefaut)} value={t(C.coucheAuto)} />
+          {/* « Couche par défaut · Auto » a disparu : une valeur en LECTURE, dans
+              une liste de réglages, se lit comme un réglage — alors qu'aucune
+              préférence de couche n'existe (la carte dérive la sienne du
+              contexte). La note ci-dessous suffit, et elle, elle est vraie. */}
           <Text style={styles.note}>{t(C.carteNote)}</Text>
           <ListRow
             icon="verrou"
@@ -632,7 +742,10 @@ export default function SettingsSectionScreen() {
               chevron
               onPress={() => router.push('/credits-donnees')}
             />
-            <Soon>{t(C.tagline)}</Soon>
+            {/* La baseline produit n'est pas une indisponibilité : elle sortait
+                du style `Soon` (italique gris, réservé au « pas encore
+                disponible ») pour rejoindre la note grise ordinaire. */}
+            <Text style={styles.note}>{t(C.tagline)}</Text>
           </Section>
         </>
       ) : null}
@@ -669,7 +782,10 @@ export default function SettingsSectionScreen() {
               chevron
               onPress={() => router.push('/sources')}
             />
-            <ListRow label="Build" value={APP_VERSION} />
+            {/* « Build » a disparu : c'était EXACTEMENT la même chaîne que
+                « Version » (À propos), sous un autre nom, dans une autre
+                sous-page. Deux noms pour une seule valeur laissent croire à
+                deux informations — une distinction fabriquée. */}
           </Section>
         </>
       ) : null}
@@ -677,19 +793,26 @@ export default function SettingsSectionScreen() {
   );
 }
 
+/** Rythme vertical d'un sur-titre de section — identique sur tous les écrans de
+ *  réglages (mesure de composition, pas une règle de jeu). */
+const KICKER_TOP = 24;
+const KICKER_BOTTOM = 10;
+
 const styles = StyleSheet.create({
+  kicker: { marginTop: KICKER_TOP, marginBottom: KICKER_BOTTOM },
   note: {
+    ...typography.meta,
     color: colors.gris,
-    fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
     marginBottom: 4,
   },
-  soon: {
+  // Note d'ABSENCE : même gris, même taille que les autres notes — elle ne
+  // s'italise plus, parce que rien ici n'est « en attente ».
+  absence: {
+    ...typography.meta,
     color: colors.gris,
-    fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
     marginTop: spacing.xs,
-    fontStyle: 'italic',
   },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.xxs },
   // ── État vide : MÊME surface que `ListRow` (carbone, radii.card, sans contour,
@@ -703,10 +826,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.cardPadding - 2,
     marginBottom: 10,
   },
-  emptyTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
+  // Rôles typo plutôt que famille + graisse recodées à la main : la famille
+  // encode déjà la graisse (design-tokens §fonts), un `fontWeight` par-dessus
+  // n'agit pas et fait croire à un réglage.
+  emptyTitle: { ...typography.itemTitle, color: colors.blanc },
   emptyBody: {
+    ...typography.meta,
     color: colors.gris,
-    fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
     marginTop: spacing.xxs,
   },

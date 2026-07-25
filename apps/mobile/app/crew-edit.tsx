@@ -18,6 +18,12 @@
  * RPC serveur rôle-gatée (CREW_PERMISSIONS reste la matrice de référence, le
  * serveur seul juge). Tant qu'elle n'existe pas, l'app n'offre pas le bouton :
  * mieux vaut une fonction absente qu'une fonction qui fait semblant.
+ *
+ * ── 25/07/2026 — LE PÉRIMÈTRE DU MANQUE EST PLUS LARGE QUE « RENOMMER » ─────
+ * Toute la moitié CREW de la planche E21 en dépend (bannière, emblème modulaire,
+ * palette de couleurs VALIDÉE — jamais une roue libre —, Accès Public / Sur
+ * demande / Privé, redirection 30 j au changement de tag). Inscrit là où c'est
+ * autoritatif : `AMENDEMENT-47-FIN-DU-MODE-DEMO.md` § « Ce qui reste EN SUSPENS ».
  */
 import { Redirect } from 'expo-router';
 

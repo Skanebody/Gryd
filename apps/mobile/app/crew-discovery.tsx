@@ -15,6 +15,14 @@
  * Rejoindre un crew se fait aujourd'hui par CODE, dans l'écran Crew réel — c'est
  * le seul chemin qui touche vraiment `crew_members`. Un annuaire de crews est un
  * chantier serveur à part entière (recherche, recrutement, modération).
+ *
+ * ── 25/07/2026 — PLUS AUCUN APPELANT DANS L'APP ─────────────────────────────
+ * Le dernier lien interne (« Trouver un crew », `ProfileHero` du Profil) pointait
+ * ici et promettait une découverte que l'écran d'arrivée n'offre pas. Il a été
+ * renommé « Rejoindre avec un code » et route désormais DIRECTEMENT sur `/crew`.
+ * Ce fichier ne sert donc plus qu'aux deep links déjà partagés — raison pour
+ * laquelle il n'est toujours pas supprimé. Le manque, lui, est inscrit là où il
+ * fait foi : `AMENDEMENT-47-FIN-DU-MODE-DEMO.md` § « Ce qui reste EN SUSPENS ».
  */
 import { Redirect } from 'expo-router';
 

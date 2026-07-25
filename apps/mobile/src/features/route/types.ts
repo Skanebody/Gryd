@@ -1,142 +1,63 @@
 /**
- * GRYD — types du ROUTE PLANNER (AMENDEMENT-10 §2 + AMENDEMENT-11 §3/§6 +
- * AMENDEMENT-12 §A). « GRYD ne montre plus seulement le territoire, il dit
- * COURS ICI pour le prendre. » Vocabulaire visible : zones / rues / secteurs —
- * jamais « hex ». Le joueur ne voit que 2 OBJECTIFS : Conquérir / Défendre ;
- * les 8 types du catalogue AMENDEMENT-10 deviennent des SOUS-TYPES INTERNES
- * (constantes conservées, plus exposées comme objectifs). Aucune règle de jeu
- * ici — la vraie génération d'itinéraires est V1 (hors scope).
+ * GRYD — LE TYPE DE LA BOUCLE PLANIFIÉE.
+ *
+ * ─── CE QUI A DISPARU LE 25/07/2026, ET POURQUOI ───────────────────────────────
+ * Ce fichier s'appelait `PlannedRouteDemo` et transportait un RÉSULTAT DE JEU :
+ * `zones`, `loopZones`, `points`, `streetsToSave`, `expiresInH`, `difficulty`.
+ * Aucun de ces champs n'était mesuré. `liveRouting.ts` les fabriquait côté client
+ * à partir de deux constantes inventées (`ZONES_PER_KM = 15.3`,
+ * `LOOP_ZONE_RATIO = 0.6`), puis l'écran les affichait à trois endroits — pendant
+ * que le bloc de métriques du même écran déclarait, en commentaire, que le gain
+ * territorial restait un point ouvert et n'était donc PAS affiché.
+ *
+ * Deux règles non négociables étaient violées à la fois :
+ *   · « tout claim est décidé serveur » — le client n'attribue jamais un hex, et
+ *     annoncer « +64 zones » AVANT la course est déjà une attribution ;
+ *   · « aucun nombre magique » — 15,3 et 0,6 ne venaient pas de `game-rules.ts`,
+ *     ils ne venaient de nulle part.
+ *
+ * Ce qui reste ici est exactement ce qu'OSRM a réellement renvoyé : un tracé et
+ * sa longueur. Le nom `…Demo` part avec (AMENDEMENT-47 : plus rien n'est « démo »).
+ *
+ * ─── CE QUI A DISPARU AUSSI : LES CATALOGUES MORTS ─────────────────────────────
+ * `ROUTE_OBJECTIVE_LABELS`, `ROUTE_TYPE_LABELS`, `ROUTE_PRIORITY_LABELS`,
+ * `ROUTE_SHAPE_LABELS`, `OBJECTIVE_BY_ROUTE_TYPE` : cinq tables de libellés EN
+ * FRANÇAIS EN DUR, sans un seul appelant dans tout le dépôt. Elles auraient fui
+ * en français au premier affichage, dans les cinq langues. Le `RouteShape`
+ * réellement utilisé (réglages, « Mes parcours ») vient de `@klaim/shared` —
+ * celui d'ici en était un homonyme fantôme.
  */
 import type { LatLngPoint } from '../map/basemap';
 
-// ─── Les 2 objectifs joueur (AMENDEMENT-12 §A) ──────────────────────────────
+/**
+ * Les DEUX verbes joueur (AMENDEMENT-12 §A). « attaquer » a été retiré : il
+ * n'était proposé nulle part dans l'interface depuis l'amendement, mais restait
+ * dans le type — et donc dans un cap de boussole, une icône « guerre » et une
+ * puce « Frontière rivale » que personne ne pouvait atteindre. Du code mort qui
+ * a l'air vivant est un piège pour le prochain lecteur.
+ */
+export type PlannerIntention = 'conquerir' | 'defendre';
 
-export type RouteObjective = 'conquerir' | 'defendre';
-
-export const ROUTE_OBJECTIVE_ORDER: readonly RouteObjective[] = ['conquerir', 'defendre'];
-
-export const ROUTE_OBJECTIVE_LABELS: Record<RouteObjective, string> = {
-  conquerir: 'Conquérir',
-  defendre: 'Défendre',
-};
-
-/** Nom commun de l'objectif (« Route conquête Canal » / « Route défense République »). */
-export const ROUTE_OBJECTIVE_NOUNS: Record<RouteObjective, string> = {
-  conquerir: 'conquête',
-  defendre: 'défense',
-};
+export const PLANNER_INTENTIONS: readonly PlannerIntention[] = ['conquerir', 'defendre'];
 
 /**
- * Sous-type interne → objectif affiché. CONQUÉRIR absorbe capture (neutre),
- * raid (rival) et exploration (pionnier) ; DÉFENDRE = routes défense.
- * Social Run / Course privée restent des MODES de course (RunModeSheet),
- * jamais des objectifs — mappés « conquerir » par défaut, non exposés ici.
+ * Une boucle piétonne RÉELLEMENT routée (OSRM foot), telle qu'elle revient du
+ * réseau. Chaque champ est une MESURE ou un fait observé — rien n'est dérivé
+ * d'une règle de jeu, rien n'anticipe une décision serveur.
  */
-export const OBJECTIVE_BY_ROUTE_TYPE: Record<RouteTypeKey, RouteObjective> = {
-  capture_rapide: 'conquerir',
-  defense: 'defendre',
-  raid: 'conquerir',
-  exploration: 'conquerir',
-  boucle_facile: 'conquerir',
-  sortie_longue: 'conquerir',
-  social_run: 'conquerir',
-  course_privee: 'conquerir',
-};
-
-/** SOUS-TYPES internes des routes (ex-catalogue AMENDEMENT-10 §2 — plus un objectif). */
-export type RouteTypeKey =
-  | 'capture_rapide'
-  | 'defense'
-  | 'raid'
-  | 'exploration'
-  | 'boucle_facile'
-  | 'sortie_longue'
-  | 'social_run'
-  | 'course_privee';
-
-export const ROUTE_TYPE_ORDER: readonly RouteTypeKey[] = [
-  'capture_rapide',
-  'defense',
-  'raid',
-  'exploration',
-  'boucle_facile',
-  'sortie_longue',
-  'social_run',
-  'course_privee',
-];
-
-export const ROUTE_TYPE_LABELS: Record<RouteTypeKey, string> = {
-  capture_rapide: 'Capture rapide',
-  defense: 'Défense',
-  raid: 'Raid',
-  exploration: 'Exploration',
-  boucle_facile: 'Boucle facile',
-  sortie_longue: 'Sortie longue',
-  social_run: 'Social run',
-  course_privee: 'Course privée',
-};
-
-/** Priorité de génération (chips d'options — un seul choix actif). */
-export type RoutePriority = 'capture' | 'defense' | 'performance' | 'exploration';
-
-export const ROUTE_PRIORITY_ORDER: readonly RoutePriority[] = [
-  'capture',
-  'defense',
-  'performance',
-  'exploration',
-];
-
-export const ROUTE_PRIORITY_LABELS: Record<RoutePriority, string> = {
-  capture: 'Capture',
-  defense: 'Défense',
-  performance: 'Performance',
-  exploration: 'Exploration',
-};
-
-/**
- * AMENDEMENT-12 §A : les chips de priorité s'alignent SOUS les 2 objectifs —
- * capture/performance/exploration sous Conquérir, défense sous Défendre.
- */
-export const PRIORITIES_BY_OBJECTIVE: Record<RouteObjective, readonly RoutePriority[]> = {
-  conquerir: ['capture', 'performance', 'exploration'],
-  defendre: ['defense'],
-};
-
-/** Forme du tracé : boucle (retour départ) ou aller simple. */
-export type RouteShape = 'boucle' | 'aller';
-
-export const ROUTE_SHAPE_LABELS: Record<RouteShape, string> = {
-  boucle: 'Boucle',
-  aller: 'Aller simple',
-};
-
-export interface PlannedRouteDemo {
+export interface PlannedLoop {
+  /** Identité stable de la proposition (clé de rendu + sélection). */
   id: string;
-  /** Lettre de la proposition (Route A / B / C). */
-  letter: 'A' | 'B' | 'C';
-  /** Nom court (« Rapide », « Optimisée », « Défense »). */
-  name: string;
-  typeKey: RouteTypeKey;
-  /** Secteur traversé/visé (label basemap : Bastille, Canal, République…). */
-  zone: string;
-  /** Tracé le long des rues de la basemap (démo scriptée — génération = V1). */
-  line: readonly LatLngPoint[];
-  /** Stats AFFICHÉES (données démo déterministes, pas des constantes de jeu). */
-  distanceKm: number;
-  /** Zones capturables/défendables annoncées sur la carte de proposition. */
-  zones: number;
   /**
-   * AMENDEMENT-12 §C — routes en boucle uniquement : part de `zones` estimée
-   * par la FERMETURE de la boucle (« +86 zones dont 52 en boucle »). Donnée
-   * démo déterministe comme `zones`, pas une règle : le vrai remplissage est
-   * décidé serveur (ingest_run, cellule par cellule).
+   * Nom du secteur de DÉPART, résolu par reverse-geocode (`resolveSectorName`)
+   * à partir de la position réelle. Jamais un toponyme inventé : sans réseau,
+   * l'appelant passe « Ma position ».
    */
-  loopZones?: number;
-  /** Points possibles — dérivés des règles §3 dans demo.ts (jamais en dur). */
-  points: number;
-  shape: RouteShape;
-  difficulty: 'Facile' | 'Modéré' | 'Exigeant';
-  /** Défense uniquement : rues à sauver + fenêtre restante. */
-  streetsToSave?: number;
-  expiresInH?: number;
+  zone: string;
+  /** Le tracé renvoyé par OSRM, décimé — il SUIT LES RUES, il n'est pas dessiné. */
+  line: readonly LatLngPoint[];
+  /** Longueur MESURÉE de la boucle (km, 1 décimale) — la seule métrique sourcée. */
+  distanceKm: number;
+  /** L'objectif demandé par le joueur (oriente la boucle). Un choix, pas un calcul. */
+  intention: PlannerIntention;
 }
