@@ -50,6 +50,8 @@ import { screen } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
 import { Icon } from '../../../ui/Icon';
 import { ProgressBar } from '../../../ui/ProgressBar';
+import { SignalBars } from '../../../ui/SignalBars';
+import { signalLevel } from '../../../ui/signalLevel';
 import { formatInt } from '../../../ui/format';
 import { RUN_MODE_LABEL, formatClock, formatKm, formatPace, type LiveRunMode } from '../simulation';
 import type { RealRunApi } from './gateTypes';
@@ -187,6 +189,11 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
             ]}
           />
           <Text style={styles.topPillText}>{t(statusLabel(run))}</Text>
+          {/* Antenne de signal GPS — subtile, ambiante, façon barres de téléphone.
+              Niveau + tonalité RÉELS (GPS Trust + état du tracker) : ambre si
+              faible (normal en intérieur, jamais rouge/anxiogène), neutre sinon.
+              Remplace le besoin d'un texte « signal faible » criard (E06 → E07). */}
+          <SignalBars {...signalLevel(s.gpsTrust, s.signal, awaitingFirstFix)} />
         </View>
         {/* Mode (social/privé) — CONTEXTE PERMANENT, pas un avis temporaire (§10) :
              un libellé d'état, toujours affiché. */}
