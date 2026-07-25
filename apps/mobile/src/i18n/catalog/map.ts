@@ -954,4 +954,36 @@ export const C = defineCatalog({
     de: 'KARTE ANSEHEN',
     pt: 'VER O MAPA',
   },
+
+  // ── E03 Home Map joueur actif — sheet VOTRE TERRITOIRE ──
+  activeTerritoryEyebrow: {
+    fr: 'VOTRE TERRITOIRE',
+    en: 'YOUR TERRITORY',
+    es: 'TU TERRITORIO',
+    de: 'DEIN GEBIET',
+    pt: 'SEU TERRITÓRIO',
+  },
+  /** {rank} = rang saison réel (season_scores). */
+  activeTerritoryRank: {
+    fr: '#{rank} cette saison',
+    en: '#{rank} this season',
+    es: '#{rank} esta temporada',
+    de: '#{rank} in dieser Saison',
+    pt: '#{rank} nesta temporada',
+  },
+  /** Pill de contexte — zone à défendre (decay réel). */
+  contextPillDefend: {
+    fr: '1 zone à défendre',
+    en: '1 zone to defend',
+    es: '1 zona a defender',
+    de: '1 Zone zu schützen',
+    pt: '1 zona a defender',
+  },
+  contextPillDefendA11y: {
+    fr: 'Zone à défendre — cadrer sur la carte',
+    en: 'Zone to defend — frame on the map',
+    es: 'Zona a defender — encuadrar en el mapa',
+    de: 'Zu schützende Zone — auf der Karte zeigen',
+    pt: 'Zona a defender — enquadrar no mapa',
+  },
 });

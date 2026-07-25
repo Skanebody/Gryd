@@ -6,7 +6,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radii, withAlpha } from '@klaim/shared';
+import { colors, fonts, gameColors, radii, withAlpha } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { useT } from '../../i18n/store';
 import { haptics } from '../../lib/haptics';
@@ -20,7 +20,7 @@ const AVATAR = 40;
 const NOTIF = 44;
 const SIDE = 20;
 
-export function MapHomeHeader() {
+export function MapHomeHeader({ alertDot = false }: { alertDot?: boolean }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const t = useT();
@@ -72,6 +72,8 @@ export function MapHomeHeader() {
         style={({ pressed }) => [styles.notif, pressed && styles.pressed]}
       >
         <Icon name="cloche" size={19} color={colors.blanc} />
+        {/* E03 : badge 6 pt orange = événement territorial réel (jamais décoratif). */}
+        {alertDot ? <View style={styles.alertDot} accessibilityElementsHidden /> : null}
       </Pressable>
     </View>
   );
@@ -138,5 +140,14 @@ const styles = StyleSheet.create({
     borderColor: colors.blanc12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  alertDot: {
+    position: 'absolute',
+    top: 9,
+    right: 10,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: gameColors.rival,
   },
 });

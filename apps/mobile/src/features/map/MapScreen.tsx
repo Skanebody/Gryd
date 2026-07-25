@@ -384,6 +384,22 @@ export function MapScreen() {
     mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
   }, [egoPos]);
 
+  /** E03 — résumé territoire réel pour la sheet VOTRE TERRITOIRE. */
+  const territorySummary = useMemo(() => {
+    if (!isReal || territories === null) return null;
+    const mine = territories.filter((t) => t.props.status === 'crew');
+    if (mine.length === 0) return null;
+    return {
+      areaM2: mine.reduce((sum, t) => sum + t.props.areaM2, 0),
+      zoneCount: mine.length,
+    };
+  }, [isReal, territories]);
+
+  /** E03 — pill de contexte : cadrer la zone (pas ego). */
+  const onFramePoint = useCallback((point: { lat: number; lng: number }) => {
+    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: point.lat, lng: point.lng });
+  }, []);
+
   /**
    * JAMAIS de territoires démo : `null` ferait peindre à battleGameLayers le faux
    * Paris conquis de `fakeHexes`. On passe donc toujours un tableau — `[]` tant
@@ -644,6 +660,8 @@ export function MapScreen() {
         onToggleBasemap={toggle}
         map3d={map3d}
         onSetMap3d={setMap3d}
+        territorySummary={territorySummary}
+        onFramePoint={onFramePoint}
       />
     </View>
   );

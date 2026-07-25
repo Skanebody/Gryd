@@ -8,6 +8,7 @@ import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.t
 import {
   buildWidgetView,
   formatKm2,
+  formatKm2Parts,
   selectWidgetState,
   type TerritoryWidgetInput,
   type UserTerritoryContext,
@@ -143,6 +144,9 @@ Deno.test('formatKm2 : français, jamais de cellules', () => {
   // Décimale par langue : point en anglais, virgule ailleurs (pas d'Intl — parité Hermes).
   assertEquals(formatKm2(740_000, 'en'), '0.74 km²');
   assertEquals(formatKm2(740_000, 'de'), '0,74 km²');
+  // E03 : parties séparées pour la métrique 48 pt.
+  assertEquals(formatKm2Parts(1_840_000, 'fr'), { value: '1,84', unit: 'km²' });
+  assertEquals(formatKm2Parts(1_840_000, 'en'), { value: '1.84', unit: 'km²' });
 });
 
 Deno.test('i18n : les 8 états rendent la MÊME structure dans les 5 langues (parité, pas de fuite)', () => {

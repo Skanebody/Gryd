@@ -98,15 +98,27 @@ export interface TerritoryWidgetView {
   action: WidgetAction;
 }
 
+/** Parties affichables E03 (métrique 48 pt + unité) — même règle que formatKm2. */
+export function formatKm2Parts(
+  areaM2: number,
+  locale: Locale = 'fr',
+): { value: string; unit: string } {
+  const km2 = areaM2 / 1_000_000;
+  const digits = km2 >= 10 ? 1 : 2;
+  const fixed = km2.toFixed(digits);
+  return {
+    value: locale === 'en' ? fixed : fixed.replace('.', ','),
+    unit: 'km²',
+  };
+}
+
 /**
  * 0,74 km² — 2 décimales significatives, jamais de cellules. Virgule décimale
  * partout sauf en anglais (point) — pas d'Intl (parité Hermes/Deno).
  */
 export function formatKm2(areaM2: number, locale: Locale = 'fr'): string {
-  const km2 = areaM2 / 1_000_000;
-  const digits = km2 >= 10 ? 1 : 2;
-  const fixed = km2.toFixed(digits);
-  return `${locale === 'en' ? fixed : fixed.replace('.', ',')} km²`;
+  const { value, unit } = formatKm2Parts(areaM2, locale);
+  return `${value} ${unit}`;
 }
 
 /** 3,2 km — depuis des mètres (même règle décimale que formatKm2). */
