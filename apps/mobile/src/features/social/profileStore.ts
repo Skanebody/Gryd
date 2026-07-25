@@ -112,7 +112,7 @@ export interface EditableProfile {
  * des Entries i18n — résolus à l'affichage (a11y du sélecteur de couleur).
  */
 export const AVATAR_COLORS: readonly { key: string; value: string; label: Entry }[] = [
-  { key: 'chartreuse', value: '#B4FF0D', label: C.avatarChartreuse },
+  { key: 'chartreuse', value: '#C9FF38', label: C.avatarChartreuse },
   { key: 'blanc', value: '#FAFAF7', label: C.avatarIvory },
   { key: 'carbone2', value: '#1D201B', label: C.avatarCarbon },
   { key: 'gris', value: '#8A8F84', label: C.avatarGrey },
@@ -120,7 +120,7 @@ export const AVATAR_COLORS: readonly { key: string; value: string; label: Entry 
 ];
 
 /** Couleur d'avatar par défaut (1re de la palette — accent chartreuse charte). */
-const DEFAULT_AVATAR_COLOR = AVATAR_COLORS[0]?.value ?? '#B4FF0D';
+const DEFAULT_AVATAR_COLOR = AVATAR_COLORS[0]?.value ?? '#C9FF38';
 
 /** Nombre exact de badges mis en avant sur la card (AMENDEMENT-17 : 3, pas plus). */
 export const FEATURED_BADGE_COUNT = 3;

@@ -3,26 +3,34 @@
  * Toute couleur hors tokens = bug. Jamais de chartreuse sur fond clair (contraste 1,2:1).
  */
 
+// ─── DIRECTION NIGHT PRINT (refonte Vague 1, 2026) ──────────────────────────
+// Remplace la charte #B4FF0D / noir plat par l'échelle CARBONE + chartreuse
+// #C9FF38 (« B amendée », GRYD — Fondations.dc.html). Les NOMS de tokens sont
+// conservés → toute l'app se re-skinne sans renommage. Toute couleur hors tokens
+// = bug. Jamais de chartreuse sur fond clair. Chartreuse en QUOTA 8–10 % de l'écran.
 export const colors = {
-  noir: '#0A0B09', // fond global (nuance chaude, pas #000 pur — anti-smearing OLED)
-  carbone: '#141613', // surfaces, cartes
-  carbone2: '#1D201B', // surfaces élevées, inputs
-  blanc: '#FAFAF7', // texte principal, icônes
-  gris: '#8A8F84', // texte secondaire, labels
-  grisLigne: 'rgba(250,250,247,0.10)', // bordures 1 px, séparateurs (blanc 8-12 %)
-  chartreuse: '#B4FF0D', // accent unique — 4 emplois : moi/crew, CTA primaire, gains, live
-  // Remplissage de MON territoire. AMENDEMENT-37 §1 : plancher du FILL de possession
-  // (LOD carte) — porté de 0,14 → 0,16 (subtil, jamais un aplat lourd ; la trace
-  // reste dominante). Source UNIQUE du fill crew (mapTokens.mineFill).
-  chartreuse14: 'rgba(180,255,13,0.16)', // remplissage de MON territoire (fill possession §1)
-  chartreuse40: 'rgba(180,255,13,0.40)', // contours de territoire, glows
-  eau: '#0D1112', // fond de carte : eau
+  noir: '#0A0D0C', // carbon-950 — fond principal (N0). Nuance chaude anti-smearing OLED.
+  carbonImmersive: '#060807', // carbon-1000 — immersif : live, splash, capture
+  carbonDeep: '#101412', // carbon-900 — surfaces profondes (fonds de HUD/coffre)
+  carbone: '#171C19', // surface-800 — cards, sheets (N1)
+  carbone2: '#202622', // surface-700 — surélevé, désactivé (N2)
+  blanc: '#F5F7F4', // texte principal, icônes
+  gris: '#AEB7B0', // texte secondaire, labels
+  grisFaible: '#778079', // texte tertiaire, méta faible, map label
+  grisLigne: '#313934', // line-600 — séparateurs 1 px (solide sur l'échelle carbone)
+  chartreuse: '#C9FF38', // accent unique — 4 emplois : moi/crew, CTA primaire, gains, live
+  chartreusePressed: '#AEEB1F', // état PRESSÉ du CTA chartreuse
+  // Remplissage de MON territoire. Fill de possession (LOD carte) : Night Print
+  // « Moi » = chartreuse 16–17 %, jamais un aplat lourd (la trace reste dominante).
+  chartreuse14: 'rgba(201,255,56,0.16)', // remplissage de MON territoire (fill possession)
+  chartreuse40: 'rgba(201,255,56,0.40)', // contours de territoire, glows
+  eau: '#0D1112', // fond de carte : eau (bleu pétrole désaturé)
   // Déclinaisons ALPHA du blanc + scrims (§ charte : tokens, jamais rgba inliné) —
   // bordures/overlays translucides des HUD (course-live, FAB, scrims de modale).
-  blanc12: 'rgba(250,250,247,0.12)', // bordure hairline renforcée
-  blanc14: 'rgba(250,250,247,0.14)', // bordure de FAB/overlay
-  blanc22: 'rgba(250,250,247,0.22)', // bordure marquée
-  blanc35: 'rgba(250,250,247,0.35)', // bordure forte (état actif discret)
+  blanc12: 'rgba(245,247,244,0.12)', // bordure hairline renforcée
+  blanc14: 'rgba(245,247,244,0.14)', // bordure de FAB/overlay
+  blanc22: 'rgba(245,247,244,0.22)', // bordure marquée
+  blanc35: 'rgba(245,247,244,0.35)', // bordure forte (état actif discret)
   scrim: 'rgba(0,0,0,0.45)', // voile léger sous une couche flottante
   scrimStrong: 'rgba(5,5,5,0.72)', // voile plein d'une modale/sheet
 } as const;
@@ -191,31 +199,33 @@ export const motion = {
 export const gameColors = {
   /** Ton crew / action / gain — la chartreuse unique de la charte. */
   crew: colors.chartreuse,
-  /** Rival / attaque subie ou menée. */
-  rival: '#FF5C33',
-  /** Contesté / rare / événement. */
-  contested: '#8B5CF6',
-  /** Victoire / or / récompense de saison. */
-  gold: '#E7B84C',
-  /** GRYD Verify / info de confiance. */
-  verify: '#6FB7FF',
+  /** Rival / attaque subie ou menée — rival-orange (Night Print). */
+  rival: '#FF7043',
+  /** Contesté / rare / événement — contested-violet (Night Print). */
+  contested: '#8A70FF',
+  /** Victoire / or / récompense de saison — prestige-gold (Night Print). */
+  gold: '#FFC857',
+  /** GRYD Verify / info de confiance — protected-blue (Night Print). */
+  verify: '#4A8DFF',
   /**
    * Territoire PROTÉGÉ — bleu ÉLECTRIQUE (AMENDEMENT-37 §5). DISSOCIÉ de `verify`
    * (#6FB7FF, réservé au GRYD Verify) : le protégé est un ÉTAT de zone (bouclier),
    * pas une info de confiance. Teinte franche, lisible sur fond sombre.
    */
-  electricBlue: '#2E6BFF',
-  /** Danger / decay urgent (rouge éteint, jamais criard). */
-  danger: '#D64545',
-  /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre). */
-  carbon: '#101210',
+  electricBlue: '#4A8DFF', // protected-blue (Night Print) — liseré défense/vérifié
+  /** Danger / decay urgent — danger-red (Night Print). Abandon, erreur critique seule. */
+  danger: '#FF4D57',
+  /** Confirmation HORS capture — success-mint (Night Print). Jamais pour un claim. */
+  successMint: '#5CE6A8',
+  /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre) — carbon-900. */
+  carbon: '#101412',
   /**
    * Déclinaisons ALPHA (§ charte : toute couleur hors tokens = bug — les washes/
    * bordures translucides passent par un TOKEN, jamais un rgba littéral inliné).
    * Dérivées des teintes de rôle ci-dessus.
    */
-  verifySoft: 'rgba(111,183,255,0.28)', // #6FB7FF @ 28 % — bordure/wash d'info de confiance
-  dangerSoft: 'rgba(214,69,69,0.16)', // #D64545 @ 16 % — wash de decay/urgent
+  verifySoft: 'rgba(74,141,255,0.28)', // #4A8DFF @ 28 % — bordure/wash d'info de confiance
+  dangerSoft: 'rgba(255,77,87,0.16)', // #FF4D57 @ 16 % — wash de decay/urgent
 } as const;
 export type GameColorName = keyof typeof gameColors;
 
