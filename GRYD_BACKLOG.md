@@ -66,7 +66,7 @@ Priorité : valeur × faible risque × débloque le reste. Un item = un chantier
 - [ ] LOT 2 — viralité qui boucle : route `/c/[code]`, réception du deep link (`Linking`), `associatedDomains`/`intentFilters` — **BLOQUÉ : décision domaine gryd.app vs gryd.run** — M
 - [ ] LOT 3 — mission crew prioritaire (`defense_missions`/`offensives` existent en base, jamais insérées) — M
 - [ ] LOT 4 — funnel d'attribution réel (events jamais émis, `referrals` sans colonnes, badge Recruiter inatteignable) — M
-- [ ] Modération serveur du nom de crew (insultes/usurpation) — exigée §1, absente — risque App Store — M
+- [x] Modération serveur du nom de crew (insultes/usurpation) — exigée §1, risque App Store — FAITE dans `0050_crew_name_moderation.sql` (audit : le backlog la disait « absente », elle existe) : `crew_name_refusal` (invisibles/mixed-scripts/leet/homoglyphes/accents + `blocked_name_terms` FR/EN + `reserved_handles` marques), enforced dans `create_crew` RPC ET trigger sur `crews` (toute voie d'écriture filtrée). RESTE : test PGlite de `crew_name_refusal` (sous réserve que PGlite supporte `normalize()` NFD/ICU) — hardening non-visuel.
 - [ ] DÉCISION FONDATEUR : bouclier + scout_ping payants touchent la capture (contredit §4 + constitution) — S (décision)
 - [ ] DÉCISION FONDATEUR : modèle de monétisation (abonnement+monnaie existant vs 4 packs permanents de la doctrine) — S (décision)
 - [ ] Prix EUR en dur dans l'Arsenal (`arsenal.tsx`, `ArsenalItemCard.tsx`) → `product.displayPrice` — viole §23 + règle Apple — S
