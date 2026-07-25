@@ -38,6 +38,7 @@ import {
   CREW_PING_MAX_ACTIVE_PER_MEMBER,
   CREW_SWITCH_COOLDOWN_DAYS,
   colors,
+  fonts,
   elevation,
   fontSizes,
   radii,
@@ -930,6 +931,7 @@ const styles = StyleSheet.create({
   priorityAction: {
     color: colors.chartreuse,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     marginTop: spacing.xs,
   },

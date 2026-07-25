@@ -42,6 +42,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   POINTS_NEUTRAL_HEX,
   colors,
+  fonts,
   elevation,
   fontSizes,
   gameColors,
@@ -753,6 +754,7 @@ const styles = StyleSheet.create({
   toiRank: {
     color: colors.chartreuse,
     fontSize: fontSizes.xl,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
@@ -760,6 +762,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.4,
   },
@@ -848,6 +851,7 @@ const styles = StyleSheet.create({
   podiumName: {
     color: colors.blanc,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     letterSpacing: 0.3,
     marginTop: 4,
@@ -897,6 +901,7 @@ const styles = StyleSheet.create({
     width: 30,
     color: colors.gris,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -909,6 +914,7 @@ const styles = StyleSheet.create({
   rowValue: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -928,12 +934,14 @@ const styles = StyleSheet.create({
   seeAllLabel: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
   seeAllCount: {
     color: colors.chartreuse,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },

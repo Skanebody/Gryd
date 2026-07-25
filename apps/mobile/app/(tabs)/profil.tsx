@@ -48,6 +48,7 @@ import {
   badgeKeyByName,
   borderState,
   colors,
+  fonts,
   elevation,
   fontSizes,
   gameColors,
@@ -1163,6 +1164,7 @@ const styles = StyleSheet.create({
   name: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.3,
     // MÊME source que `NAME_LH` (qui sert à calculer le centrage de l'avatar) :
@@ -1174,6 +1176,7 @@ const styles = StyleSheet.create({
   handle: {
     color: colors.gris,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     letterSpacing: 0.2,
     lineHeight: HANDLE_LH, // = source de `HANDLE_LH` (entre dans l'offset avatar)
@@ -1182,6 +1185,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.chartreuse,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.3,
     lineHeight: fontSizes.xs * 1.25,
@@ -1209,6 +1213,7 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontSize: fontSizes.lg,
     lineHeight: fontSizes.lg * 1.2,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: -0.3,
     fontVariant: ['tabular-nums'],
@@ -1282,6 +1287,7 @@ const styles = StyleSheet.create({
   stateTitle: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
@@ -1303,6 +1309,7 @@ const styles = StyleSheet.create({
   stateCtaLabel: {
     color: colors.noir,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 0.6,
   },
@@ -1335,6 +1342,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.noir,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -1349,6 +1357,7 @@ const styles = StyleSheet.create({
   territoryHeroNum: {
     color: colors.chartreuse,
     fontSize: 32,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: -1,
     lineHeight: 34,
@@ -1365,6 +1374,7 @@ const styles = StyleSheet.create({
   territoryHeroScope: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     marginTop: 2,
     letterSpacing: 0.2,
@@ -1391,6 +1401,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     lineHeight: fontSizes.sm * 1.28,
   },
@@ -1436,6 +1447,7 @@ const styles = StyleSheet.create({
   gripRankName: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: -0.3,
   },
@@ -1453,6 +1465,7 @@ const styles = StyleSheet.create({
   progressStatValue: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -1472,6 +1485,7 @@ const styles = StyleSheet.create({
   badgeName: {
     color: colors.blanc,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 0.4,
@@ -1489,6 +1503,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -1499,6 +1514,7 @@ const styles = StyleSheet.create({
   sectionRowCount: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.5,
@@ -1519,6 +1535,7 @@ const styles = StyleSheet.create({
   skillTitle: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
@@ -1529,6 +1546,7 @@ const styles = StyleSheet.create({
   skillMeta: {
     color: colors.gris,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
