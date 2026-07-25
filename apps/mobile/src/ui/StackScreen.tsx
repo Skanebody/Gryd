@@ -33,6 +33,13 @@ interface StackScreenProps {
    * sur le CONTENU scrollable et défile avec lui — il ne serait pas fixe.
    */
   floating?: ReactNode;
+  /**
+   * Action d'en-tête à DROITE (ex. « Enregistrer » de l'édition profil, planche
+   * E21). Rendue à la place de la cale de centrage : comme la barre est fixe
+   * (hors ScrollView), elle reste atteignable clavier ouvert — c'est ce qui
+   * permet à un unique CTA header de remplacer une barre qui suit le clavier.
+   */
+  headerRight?: ReactNode;
 }
 
 export function StackScreen({
@@ -43,6 +50,7 @@ export function StackScreen({
   backHref,
   children,
   floating,
+  headerRight,
 }: StackScreenProps) {
   const insets = useSafeAreaInsets();
   const t = useT();
@@ -70,8 +78,8 @@ export function StackScreen({
             {title}
           </Text>
         </View>
-        {/* Cale symétrique pour centrer visuellement le titre. */}
-        <View style={styles.back} />
+        {/* Action droite (planche E21) — ou cale symétrique pour centrer le titre. */}
+        {headerRight ?? <View style={styles.back} />}
       </View>
       <ScrollView
         contentContainerStyle={[

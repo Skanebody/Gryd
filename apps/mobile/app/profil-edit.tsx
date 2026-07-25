@@ -12,7 +12,7 @@
  * anti-shame (bio jamais imposée). Analytics : screen('profil_edit').
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { flags } from '../src/lib/flags';
 import { goBack } from '../src/lib/nav';
@@ -37,8 +37,8 @@ import { CityField } from '../src/features/city/CityPicker';
 import { cityEntryLabel } from '../src/features/city/catalog';
 import { C as CityC } from '../src/i18n/catalog/city';
 import { StackScreen } from '../src/ui/StackScreen';
-import { KeyboardSaveBar } from '../src/ui/KeyboardSaveBar';
-import { InlineRunCTA } from '../src/ui/game';
+import { useHandleAvailability, type HandleRefusal } from '../src/features/social/handleCheck';
+import { usePrivacyPrefs } from '../src/features/privacy/store';
 import { BadgeHex } from '../src/features/badges/BadgeHex';
 import { badgeById, badgeColor } from '../src/features/badges/catalog';
 import { useMyBadges } from '../src/features/badges/myBadges';
@@ -124,7 +124,8 @@ export default function ProfilEditScreen() {
    * donnent 0 XP → niveau 1 → tier `road` : le palier de départ, qui est vrai.
    */
   const economy = useMyEconomy();
-  const runnerTier = playerTierForLevel(playerLevelForXp(economy.xp));
+  const playerLevel = playerLevelForXp(economy.xp);
+  const runnerTier = playerTierForLevel(playerLevel);
 
   // Badges choisissables : ceux que le SERVEUR a décernés (user_badges). Sans
   // session, ou si la lecture échoue, la liste est VIDE — on ne propose jamais
@@ -184,6 +185,33 @@ export default function ProfilEditScreen() {
   const [savedNotice, setSavedNotice] = useState(false);
 
   const touched = () => setSavedNotice(false);
+
+  /**
+   * DISPONIBILITÉ DU @handle EN DIRECT (planche E21, RPC 0047). Le hook est
+   * HONNÊTE par construction : hors ligne / sans compte → état `unknown`, aucun
+   * verdict affiché (jamais un « disponible » optimiste fabriqué). Le second
+   * argument est `true` quand le handle n'a pas changé (c'est déjà le sien).
+   */
+  const availability = useHandleAvailability(handle, handle === editable.handle);
+
+  /**
+   * VISIBILITÉ — reflet LECTURE SEULE. La source unique vit dans Confidentialité
+   * (`usePrivacyPrefs().profileVisibility`) ; on ne duplique pas le réglage, on
+   * l'affiche et on RENVOIE vers son seul et unique endroit (planche E21).
+   */
+  const { prefs: privacyPrefs } = usePrivacyPrefs();
+  const visLabel = t(
+    { public: C.visPublic, crew: C.visCrew, friends: C.visFriends, private: C.visPrivate }[
+      privacyPrefs.profileVisibility
+    ],
+  );
+
+  /** Méta de l'aperçu (planche E21 : « … · Dieppe · Niv. 12 »). RÉELLE : ville
+   *  éditée + niveau dérivé de l'XP. Crew omis tant qu'aucune appartenance réelle. */
+  const previewMeta =
+    city.trim().length > 0
+      ? t(C.identityLine, { n: playerLevel, city: city.trim() })
+      : t(C.identityLevelOnly, { n: playerLevel });
 
   const handleError = validateHandle(handle);
   const nameValid = displayName.trim().length > 0;
@@ -280,26 +308,13 @@ export default function ProfilEditScreen() {
     void equipItem(key); // persiste + met à jour l'aperçu ET la Player Card
   };
 
-  /**
-   * Annuler (barre clavier) : on RÉTABLIT les valeurs d'origine et on ferme le
-   * clavier — on ne quitte PAS l'écran. Le joueur qui s'est trompé de champ
-   * reprend son édition ; celui qui veut vraiment sortir a la flèche retour.
-   */
-  const onCancelEdits = () => {
-    haptics.light();
-    setDisplayName(editable.displayName);
-    setHandle(editable.handle);
-    setTitle(editable.title);
-    setCity(editable.city);
-    setCityId(editable.cityId);
-    setBio(editable.bio);
-    setAvatarColor(editable.avatarColor);
-    setAvatarInitials(editable.avatarInitials);
-    setAvatarUri(editable.avatarUri);
-    setAvatarMode(editable.avatarUri ? 'photo' : 'initials');
-    setPhotoDenied(false);
-    setFeaturedBadgeIds(editable.featuredBadgeIds);
-    Keyboard.dismiss();
+  /** Motif de refus serveur → libellé honnête (constats, jamais une réservation). */
+  const REFUSAL_LABEL: Record<HandleRefusal, string> = {
+    too_short: t(C.handleTooShort),
+    too_long: t(C.handleTooLong),
+    bad_chars: t(C.handleBadChars),
+    reserved: t(C.handleReserved),
+    taken: t(C.handleTaken),
   };
 
   const onSave = () => {
@@ -323,26 +338,40 @@ export default function ProfilEditScreen() {
     setTimeout(() => goBack('/profil', { silent: true }), 450);
   };
 
+  const saveDisabled = !canSave || !dirty;
+
   return (
     <StackScreen
       title={t(C.editMyProfile)}
       icon="profil"
       kicker={t(C.editKicker)}
-      /* Barre qui SUIT LE CLAVIER (retour terrain 20/07) : dès qu'une valeur
-         change, « Enregistrer les modifications ? » se pose au-dessus du
-         clavier. Le CTA de pied de page devenait inatteignable pendant la
-         saisie — une modification tapée était une modification perdue. Rendue
-         via `floating` : hors du ScrollView, donc fixe à l'écran. */
-      floating={
-        <KeyboardSaveBar
-          visible={dirty}
-          onSave={onSave}
-          onCancel={onCancelEdits}
-          saveDisabled={!canSave}
-        />
+      /* CTA UNIQUE dans l'en-tête (planche E21). La barre du StackScreen est
+         HORS du ScrollView → « Enregistrer » reste atteignable clavier ouvert :
+         c'est ce qui remplace proprement l'ancienne barre qui suivait le clavier
+         (retour terrain 20/07 « une modification tapée était perdue ») tout en
+         respectant « 1 CTA chartreuse max » (§A4). Grisé tant qu'il n'y a rien
+         de valide à sauvegarder — jamais un bouton mort. */
+      headerRight={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.saveCta)}
+          accessibilityState={{ disabled: saveDisabled }}
+          disabled={saveDisabled}
+          onPress={onSave}
+          hitSlop={8}
+          style={({ pressed }) => [styles.headerSave, pressed && styles.dim]}
+        >
+          <Text
+            style={[styles.headerSaveText, saveDisabled && styles.headerSaveOff]}
+            numberOfLines={1}
+          >
+            {t(C.saveCta)}
+          </Text>
+        </Pressable>
       }
     >
-      {/* ── APERÇU vivant : reflète nom, couleur, initiales et frame équipé ── */}
+      {/* ── APERÇU vivant (planche E21 : « on juge le résultat, pas le
+          formulaire ») : reflète nom, @handle, ville · niveau, couleur, cadre. ── */}
       <View style={styles.previewCard}>
         <PlayerCardAvatar
           initials={previewInitials}
@@ -354,11 +383,15 @@ export default function ProfilEditScreen() {
           imageUri={avatarUri || undefined}
         />
         <View style={styles.previewInfo}>
+          <Text style={styles.previewKicker}>{t(C.previewKicker)}</Text>
           <Text style={styles.previewName} numberOfLines={1}>
             {displayName.trim().length > 0 ? displayName : t(C.previewNameFallback)}
           </Text>
           <Text style={styles.previewHandle} numberOfLines={1}>
             @{handle || 'handle'}
+          </Text>
+          <Text style={styles.previewMeta} numberOfLines={1}>
+            {previewMeta}
           </Text>
           {title.trim().length > 0 ? (
             <Text style={styles.previewTitle} numberOfLines={1}>
@@ -410,39 +443,27 @@ export default function ProfilEditScreen() {
             maxLength={20}
           />
         </View>
+        {/* Verdict de disponibilité HONNÊTE (RPC 0047). Le format (regex) prime ;
+            sinon on montre le CONSTAT serveur — et RIEN quand on ne sait pas. */}
         {handleError ? (
           <Text style={styles.invalid}>{handleError}</Text>
+        ) : availability.state === 'free' ? (
+          <Text style={styles.handleOk}>✓ {t(C.handleFree)}</Text>
+        ) : availability.state === 'checking' ? (
+          <Text style={styles.hint}>{t(C.handleChecking)}</Text>
+        ) : availability.state === 'refused' ? (
+          <Text style={styles.invalid}>{REFUSAL_LABEL[availability.reason]}</Text>
+        ) : availability.state === 'unknown' ? (
+          <Text style={styles.hint}>{t(C.handleUnknown)}</Text>
         ) : (
           <Text style={styles.hint}>{t(C.handleHint)}</Text>
         )}
       </View>
 
-      {/* ── TITRE + VILLE ── */}
-      <Text style={styles.sectionLabel}>{t(C.sectionTitleCity)}</Text>
+      {/* ── VILLE DE JEU (cosmétique, facultative — sélecteur partagé : on ne
+          tape plus une ville, on en choisit une qui existe) ── */}
+      <Text style={styles.sectionLabel}>{t(C.fieldCity)}</Text>
       <View style={styles.card}>
-        <Text style={styles.fieldLabel}>{t(C.fieldTitle)}</Text>
-        <View style={styles.inputRow}>
-          <TextInput
-            value={title}
-            onChangeText={(v) => {
-              setTitle(v.slice(0, TITLE_MAX));
-              touched();
-            }}
-            placeholder={t(C.titlePlaceholder)}
-            placeholderTextColor={colors.gris}
-            style={styles.input}
-            maxLength={TITLE_MAX}
-          />
-          <Text style={styles.counter}>
-            {title.length}/{TITLE_MAX}
-          </Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* SÉLECTEUR PARTAGÉ — plus de compteur de caractères : on ne tape plus
-            une ville, on en choisit une qui existe. `onClear` parce que le champ
-            reste FACULTATIF : ne pas dire où l'on habite est un choix. */}
         <CityField
           selectedId={cityId.length > 0 ? cityId : null}
           note={t(CityC.profileNote)}
@@ -477,6 +498,53 @@ export default function ProfilEditScreen() {
         <Text style={styles.counterRight}>
           {bio.length}/{BIO_MAX}
         </Text>
+      </View>
+
+      {/* ── VISIBILITÉ DU PROFIL — UNE seule source de vérité : le réglage vit
+          dans Confidentialité. Ligne LECTURE SEULE qui montre le vrai périmètre
+          courant et NAVIGUE vers son unique endroit (planche E21 : « la
+          visibilité renvoie à Confidentialité au lieu de 5 toggles dupliqués »). ── */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(C.manageInPrivacy)}
+        onPress={() => {
+          haptics.light();
+          router.push('/confidentialite');
+        }}
+        style={({ pressed }) => [styles.visRow, pressed && styles.dim]}
+      >
+        <Icon name="verrou" size={iconSizes.md} color={colors.blanc} />
+        <Text style={styles.visRowLabel} numberOfLines={1}>
+          {t(C.fieldProfileVisibility)}
+        </Text>
+        <Text style={styles.visRowValue} numberOfLines={1}>
+          {visLabel}
+        </Text>
+        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
+      </Pressable>
+      <Text style={styles.hint}>{t(C.visibilityLivesInPrivacy)}</Text>
+
+      {/* ══ PERSONNALISATION (secondaire, sous le cœur d'identité) ══════════ */}
+
+      {/* ── TITRE (cosmétique) ── */}
+      <Text style={styles.sectionLabel}>{t(C.fieldTitle)}</Text>
+      <View style={styles.card}>
+        <View style={styles.inputRow}>
+          <TextInput
+            value={title}
+            onChangeText={(v) => {
+              setTitle(v.slice(0, TITLE_MAX));
+              touched();
+            }}
+            placeholder={t(C.titlePlaceholder)}
+            placeholderTextColor={colors.gris}
+            style={styles.input}
+            maxLength={TITLE_MAX}
+          />
+          <Text style={styles.counter}>
+            {title.length}/{TITLE_MAX}
+          </Text>
+        </View>
       </View>
 
       {/* ── AVATAR : PHOTO ou INITIALES ──────────────────────────────────────
@@ -690,21 +758,16 @@ export default function ProfilEditScreen() {
       </View>
       <Text style={styles.hint}>{t(C.featuredHint)}</Text>
 
-      {/* ── Enregistrer (en pied de contenu — reste le chemin au repos) ── */}
-      <View style={styles.saveBlock}>
-        {savedNotice ? (
+      {/* ── Confirmation d'enregistrement (le CTA vit dans l'en-tête, planche
+          E21). Transitoire : suivi d'un auto-retour au profil. PAS un CTA. ── */}
+      {savedNotice ? (
+        <View style={styles.saveBlock}>
           <View style={styles.savedRow}>
             <Icon name="cible" size={iconSizes.sm} color={gameColors.crew} />
             <Text style={styles.savedText}>{t(C.savedNotice)}</Text>
           </View>
-        ) : null}
-        <InlineRunCTA
-          label={t(C.saveCta)}
-          leading={<Icon name="profil" size={iconSizes.md} color={colors.noir} />}
-          disabled={!canSave || !dirty}
-          onPress={onSave}
-        />
-      </View>
+        </View>
+      ) : null}
     </StackScreen>
   );
 }
@@ -746,7 +809,34 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxs,
     fontVariant: ['tabular-nums'],
   },
+  previewKicker: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2, marginBottom: 4 },
+  previewMeta: { color: colors.gris, fontSize: fontSizes.xs, marginTop: spacing.xxs },
   previewTitle: { color: colors.chartreuse, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700', marginTop: spacing.xxs },
+
+  // ── Enregistrer (unique CTA, en-tête — planche E21) ──
+  headerSave: { minHeight: 40, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
+  headerSaveText: { color: colors.chartreuse, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700', letterSpacing: 0.2 },
+  headerSaveOff: { color: colors.gris },
+
+  // ── Verdict @handle disponible (confirmation mint, jamais un claim, §C) ──
+  handleOk: { color: gameColors.successMint, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700', marginTop: 8 },
+
+  // ── Visibilité : ligne qui NAVIGUE vers Confidentialité (source unique) ──
+  visRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: sizes.touchTarget,
+    marginTop: 24,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 14,
+  },
+  visRowLabel: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
+  visRowValue: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
 
   // ── Champs texte ──
   fieldLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4, marginBottom: 8 },

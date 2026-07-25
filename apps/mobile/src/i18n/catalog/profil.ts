@@ -330,6 +330,70 @@ export const C = defineCatalog({
     de: 'Dein Name',
     pt: 'Seu nome',
   },
+  /** Kicker de la carte APERÇU (planche E21 : « on juge le résultat »). */
+  previewKicker: {
+    fr: 'APERÇU',
+    en: 'PREVIEW',
+    es: 'VISTA',
+    de: 'VORSCHAU',
+    pt: 'PRÉVIA',
+  },
+
+  // ─── VISIBILITÉ (planche E21) — une seule source de vérité : le réglage vit
+  //     dans Confidentialité (usePrivacyPrefs.profileVisibility). Ici on REFLÈTE
+  //     le vrai périmètre courant et on RENVOIE vers Confidentialité — jamais un
+  //     second réglage dupliqué. Les 4 valeurs miroir des labels privacy. ─────
+  fieldProfileVisibility: {
+    fr: 'Visibilité du profil',
+    en: 'Profile visibility',
+    es: 'Visibilidad del perfil',
+    de: 'Profil-Sichtbarkeit',
+    pt: 'Visibilidade do perfil',
+  },
+  visPublic: {
+    fr: 'Public',
+    en: 'Public',
+    es: 'Público',
+    de: 'Öffentlich',
+    pt: 'Público',
+  },
+  visCrew: {
+    fr: 'Mon crew',
+    en: 'My crew',
+    es: 'Mi crew',
+    de: 'Mein Crew',
+    pt: 'Meu crew',
+  },
+  visFriends: {
+    fr: 'Mes amis',
+    en: 'Friends',
+    es: 'Mis amigos',
+    de: 'Freunde',
+    pt: 'Amigos',
+  },
+  visPrivate: {
+    fr: 'Moi seul',
+    en: 'Only me',
+    es: 'Solo yo',
+    de: 'Nur ich',
+    pt: 'Só eu',
+  },
+  /** Note de pied : la visibilité vit à UN seul endroit (anti-toggles dupliqués). */
+  visibilityLivesInPrivacy: {
+    fr: 'Les réglages de visibilité vivent dans Confidentialité — un seul endroit.',
+    en: 'Visibility settings live in Privacy — one single place.',
+    es: 'Los ajustes de visibilidad viven en Privacidad — un solo lugar.',
+    de: 'Sichtbarkeit wird in Privatsphäre verwaltet — an einem Ort.',
+    pt: 'As definições de visibilidade ficam em Privacidade — num só lugar.',
+  },
+  /** a11y de la ligne : elle NAVIGUE (jamais un contrôle mort). */
+  manageInPrivacy: {
+    fr: 'Gérer la visibilité dans Confidentialité',
+    en: 'Manage visibility in Privacy',
+    es: 'Gestionar la visibilidad en Privacidad',
+    de: 'Sichtbarkeit in Privatsphäre verwalten',
+    pt: 'Gerir a visibilidade em Privacidade',
+  },
   sectionIdentity: {
     fr: 'IDENTITÉ',
     en: 'IDENTITY',
