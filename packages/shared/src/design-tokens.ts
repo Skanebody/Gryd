@@ -48,15 +48,23 @@ export const mapTokens = {
 } as const;
 
 /**
- * AMENDEMENT-03 (typo Outcrowd) : ITC Avant Garde Gothic Std (Md = display/UI, Bk = texte) + Lora
- * (accent éditorial). Avant Garde est commerciale — tant que la licence n'est pas acquise, le
- * fallback libre le plus proche est Poppins. Mono conservé (fonctionnel : timers/codes).
+ * NIGHT PRINT (refonte Vague 1) : Inter Tight (titres, chiffres) · Inter
+ * (interface) · JetBrains Mono (labels). Chargées au splash (apps/mobile lib/fonts.ts).
+ * ⚠ @expo-google-fonts nomme CHAQUE GRAISSE comme une FAMILLE distincte, et en
+ * React Native une telle famille IGNORE `fontWeight` : c'est la FAMILLE qui porte
+ * la graisse. On expose donc une famille par graisse utile ; un style choisit la
+ * bonne et n'ajoute JAMAIS de fontWeight par-dessus.
  */
 export const fonts = {
-  display: 'ITCAvantGardeStd-Md', // titres, gros chiffres — fallback: Poppins-Medium
-  text: 'ITCAvantGardeStd-Bk', // UI, paragraphes, labels — fallback: Poppins-Regular
-  serif: 'Lora', // accent éditorial (citations, longform)
-  mono: 'SpaceMono', // timers, codes crew, étiquettes carte (exception fonctionnelle)
+  display: 'InterTight_800ExtraBold', // hero / display / victoire
+  displayBold: 'InterTight_700Bold', // H1 / H2 / titres forts (720/700)
+  displaySemi: 'InterTight_600SemiBold', // titres de sheet / card (650)
+  text: 'Inter_400Regular', // corps
+  textMedium: 'Inter_500Medium', // corps fort / secondaire (500)
+  textSemi: 'Inter_600SemiBold', // labels, boutons, méta (600/650)
+  textBold: 'Inter_700Bold', // emphase de corps
+  mono: 'JetBrainsMono_500Medium', // timers, codes crew, étiquettes carte
+  serif: 'Lora', // accent éditorial (non chargé — fallback système)
   displayFallback: 'Poppins-Medium',
   textFallback: 'Poppins-Regular',
 } as const;
@@ -116,21 +124,25 @@ export const sizes = {
  * (`[typography.kicker, { color: colors.gris }]`). Le rôle `stat` laisse
  * `fontSize`/`lineHeight` à l'usage (rampe lg/xl/xxl/heroMax). Plancher 12.
  */
+// Night Print : chaque rôle porte SA famille (Inter Tight / Inter), qui encode la
+// graisse. `fontWeight` reste posé pour le fallback système si une fonte manquait,
+// mais n'agit pas sur les familles à graisse nommée. La couleur/textTransform
+// s'appliquent à l'usage.
 export const typography = {
   /** R1 — kicker / label de section (uppercase + gris à l'usage). */
-  kicker: { fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 2, lineHeight: 16 },
-  /** R2 — titre d'écran. */
-  title: { fontSize: fontSizes.xl, fontWeight: '700', letterSpacing: -0.5, lineHeight: 31 },
-  /** R3 — titre de card (md) / titre d'item de liste (sm) — MÊME graisse. */
-  cardTitle: { fontSize: fontSizes.md, fontWeight: '700', letterSpacing: 0, lineHeight: 20 },
-  itemTitle: { fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0, lineHeight: 18 },
-  /** R4 — corps (14/400) + méta (12/600 gris). */
-  body: { fontSize: fontSizes.sm, fontWeight: '400', letterSpacing: 0, lineHeight: 21 },
-  meta: { fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0, lineHeight: 17 },
-  /** R5 — label de CTA — IDENTIQUE partout (GO, capsule nav, CTA inline, sheet). */
-  button: { fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 0.5, lineHeight: 20 },
-  /** R6 — valeur / stat (tabular). fontSize choisi à l'usage : lg|xl|xxl|hero|heroMax. */
-  stat: { fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
+  kicker: { fontFamily: fonts.textSemi, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 2, lineHeight: 16 },
+  /** R2 — titre d'écran (Inter Tight 700). */
+  title: { fontFamily: fonts.displayBold, fontSize: fontSizes.xl, fontWeight: '700', letterSpacing: -0.5, lineHeight: 31 },
+  /** R3 — titre de card (md) / titre d'item de liste (sm) — Inter Tight 600. */
+  cardTitle: { fontFamily: fonts.displaySemi, fontSize: fontSizes.md, fontWeight: '700', letterSpacing: 0, lineHeight: 20 },
+  itemTitle: { fontFamily: fonts.displaySemi, fontSize: fontSizes.sm, fontWeight: '700', letterSpacing: 0, lineHeight: 18 },
+  /** R4 — corps (Inter 400) + méta (Inter 600 gris). */
+  body: { fontFamily: fonts.text, fontSize: fontSizes.sm, fontWeight: '400', letterSpacing: 0, lineHeight: 21 },
+  meta: { fontFamily: fonts.textSemi, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0, lineHeight: 17 },
+  /** R5 — label de CTA — IDENTIQUE partout (Inter 600). */
+  button: { fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 0.5, lineHeight: 20 },
+  /** R6 — valeur / stat (Inter Tight 800, tabular). fontSize à l'usage : lg|xl|xxl|hero|heroMax. */
+  stat: { fontFamily: fonts.display, fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
 } as const;
 
 /**

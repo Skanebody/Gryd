@@ -13,8 +13,9 @@ import '../src/lib/bootDiagnostics';
 // un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js.
 import '../src/lib/textDecoderUtf16';
 import { useEffect, useRef } from 'react';
-import { Linking } from 'react-native';
+import { Linking, View } from 'react-native';
 import { router, Stack, usePathname } from 'expo-router';
+import { useAppFonts } from '../src/lib/fonts';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
@@ -51,6 +52,8 @@ function NavAnalytics(): null {
 }
 
 export default function RootLayout() {
+  const fontsReady = useAppFonts();
+
   useEffect(() => {
     track(EVENTS.appOpen);
     // AMENDEMENT-15 §2 : une fin de course restée hors-ligne est renvoyée
@@ -124,6 +127,13 @@ export default function RootLayout() {
       stopWatcher();
     };
   }, []);
+
+  // Fontes NIGHT PRINT prêtes avant tout rendu (jamais de flash de la police
+  // système ensuite remplacée). Fond carbone plein pendant le chargement — bref,
+  // les fichiers sont bundlés. En cas d'échec, useAppFonts rend `true` (fallback).
+  if (!fontsReady) {
+    return <View style={{ flex: 1, backgroundColor: colors.noir }} />;
+  }
 
   return (
     <SafeAreaProvider>
