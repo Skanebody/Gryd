@@ -283,6 +283,26 @@ export interface IngestRunResponse {
     expiresAt: string;
   };
   /**
+   * E09 (planche Vague 1) — un crew RIVAL a REPRIS un secteur qui était à toi :
+   * ouvre la possibilité de le DÉFIER (aller re-courir le secteur) depuis le
+   * résultat. Le serveur (seul juge des vols/reprises) place ce signal
+   * UNIQUEMENT sur une reprise RÉELLE — nom de crew et secteur RÉELS, jamais
+   * fabriqués (§47) — et ne révèle JAMAIS la position exacte du rival, seulement
+   * le SECTEUR (§C anti-traque). `null` tant qu'O1 ne l'émet pas : le CTA
+   * « Défier un rival » reste alors ABSENT (une absence n'est pas un mensonge ;
+   * un bouton qui mène à un rival inventé en serait un, §A « aucun bouton mort »).
+   * Aligné sur la fenêtre de REVANCHE (features/crew/revanche.ts) le jour où
+   * celle-ci sera alimentée serveur.
+   */
+  rivalReprise?: {
+    /** Nom du crew rival qui a repris (signal social, jamais une cible sur carte). */
+    rivalCrew: string;
+    /** Secteur concerné (zone reprise), jamais une position GPS. */
+    sector: string;
+    /** Nombre de zones reprises (ampleur, pas un score). */
+    zonesLost: number;
+  };
+  /**
    * AMENDEMENT-17 §CH2 — Cette course a REFERMÉ une frontière partielle ouverte
    * par un membre du MÊME crew : la boucle est fermée, l'intérieur capturé au
    * nom du CREW (moteur AMENDEMENT-12), les contributions réparties au prorata

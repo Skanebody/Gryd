@@ -363,6 +363,25 @@ export const C = defineCatalog({
     de: 'PACE',
     pt: 'PACE',
   },
+  // E09 (planche) — résumé sportif en UN bloc à séparateurs (distance · temps ·
+  // allure), jamais 4 cards. La distance n'était visible NULLE PART après une
+  // conquête (le KPI héros montre les zones) : ce bloc la ramène honnêtement.
+  distanceLabel: {
+    fr: 'DISTANCE',
+    en: 'DISTANCE',
+    es: 'DISTANCIA',
+    de: 'DISTANZ',
+    pt: 'DISTÂNCIA',
+  },
+  // E09 — CTA « Défier un rival » (dormant : n'apparaît que si le SERVEUR signale
+  // une reprise réelle, cf. rivalChallenge.ts). Nomme le vrai crew rival.
+  defyRival: {
+    fr: 'Défier {crew}',
+    en: 'Challenge {crew}',
+    es: 'Desafiar a {crew}',
+    de: '{crew} herausfordern',
+    pt: 'Desafiar {crew}',
+  },
   privateNote: {
     fr: "Course privée — rien n'apparaît sur la carte ni dans le feed.",
     en: 'Private run — nothing shows on the map or in the feed.',

@@ -65,6 +65,7 @@ import { ResultReveal } from '../src/features/run/ResultReveal';
 import { ResultTrace } from '../src/features/run/ResultTrace';
 import { getFinishedTrace } from '../src/features/run/finishedTrace';
 import { pioneerCelebration } from '../src/features/run/pioneerCelebration';
+import { rivalChallengeFromResult } from '../src/features/run/rivalChallenge';
 import { RendezvousOptIn } from '../src/features/notifications/RendezvousOptIn';
 import { useLocalStreak } from '../src/features/social/useLocalStreak';
 import {
@@ -417,6 +418,14 @@ function ConquestResultScreen({
   }, [mode]);
 
   const goMap = () => router.replace('/(tabs)');
+  // E09 — DÉFIER : aller re-courir le secteur repris. La carte est la seule
+  // surface RÉELLE aujourd'hui ; le CTA lui-même ne s'affiche que si le serveur
+  // a signalé un vrai rival (voir `rival`). TODO(O1) : router vers Missions/
+  // Revanche une fois cette surface alimentée serveur et dé-flaguée.
+  const goDefy = () => {
+    haptics.medium();
+    router.push('/(tabs)');
+  };
   // Partage VRAI : on arme les stats de LA course affichée (shareRun.ts) avant
   // de pousser /partage — l'aperçu partagé montre CE run, jamais la démo figée.
   const share = () => {
@@ -545,6 +554,14 @@ function ConquestResultScreen({
   // ouverture réelle ET course créditée (jamais festif sur un refus, §11) : elle
   // n'existe que si le serveur l'a dite. `null` tant qu'O1 n'est pas déployé.
   const pioneer = pioneerCelebration(serverResult, !notCredited);
+  // E09 (planche) — DÉFIER UN RIVAL, CTA DORMANT : n'apparaît QUE si le serveur
+  // signale une reprise RÉELLE de secteur par un crew rival (rivalReprise), et
+  // sur une course créditée. `null` tant qu'O1 ne l'émet pas → le bouton est
+  // absent (jamais un rival fabriqué, jamais un bouton mort — même patron que
+  // `pioneer`). TODO(O1) : re-cibler vers la vraie surface Missions/Revanche
+  // (features/crew/revanche.ts) une fois qu'elle sera alimentée serveur et
+  // dé-flaguée ; en attendant, défier = aller re-courir le secteur sur la carte.
+  const rival = rivalChallengeFromResult(serverResult, !notCredited);
   const heroTitle = isPrivate
     ? t(C.heroPrivate)
     : pioneer
@@ -753,6 +770,22 @@ function ConquestResultScreen({
               <Text style={styles.shareLabel}>{t(C.share)}</Text>
             </Pressable>
           ) : null}
+          {/* DÉFIER UN RIVAL (E09) — CTA DORMANT : rendu UNIQUEMENT si le serveur
+              a signalé une reprise réelle (`rival`). Absent pré-O1 → ni rival
+              fabriqué ni bouton mort. Icône cible orange = rôle RIVAL (§C). */}
+          {rival ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.defyRival, { crew: rival.rivalCrew })}
+              onPress={goDefy}
+              style={({ pressed }) => [styles.boundarySecondary, pressed && styles.pressed]}
+            >
+              <Icon name="cible" size={iconSizes.sm} color={gameColors.rival} />
+              <Text style={styles.boundarySecondaryLabel} numberOfLines={1}>
+                {t(C.defyRival, { crew: rival.rivalCrew })}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t(C.seeTerritory)}
@@ -832,9 +865,33 @@ function ConquestResultScreen({
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>{t(C.detailsKicker)}</Text>
                 <View style={styles.statsCard}>
-                  <View style={styles.statsRow}>
-                    <MiniStat label={t(C.timeLabel)} value={formatClock(stats.durationS)} />
-                    <MiniStat label={t(C.paceLabel)} value={`${formatPace(stats.paceSPerKm)}/km`} />
+                  {/* E09 (planche) — résumé sportif en UN bloc à séparateurs
+                      (distance · temps · allure), jamais 4 cards. Ramène la
+                      DISTANCE, qui n'était visible NULLE PART après une conquête
+                      (le KPI héros montre les zones). Dénivelé OMIS : aucune
+                      source réelle côté serveur (jamais un chiffre fabriqué).
+                      Les trois sont MESURÉES (tracker/serveur), allure dérivée. */}
+                  <View style={styles.statTriBlock}>
+                    <View style={styles.statTriItem}>
+                      <Text style={styles.statTriValue} numberOfLines={1}>
+                        {formatKm(stats.distanceM)} km
+                      </Text>
+                      <Text style={styles.statTriLabel}>{t(C.distanceLabel)}</Text>
+                    </View>
+                    <View style={styles.statTriSep} />
+                    <View style={styles.statTriItem}>
+                      <Text style={styles.statTriValue} numberOfLines={1}>
+                        {formatClock(stats.durationS)}
+                      </Text>
+                      <Text style={styles.statTriLabel}>{t(C.timeLabel)}</Text>
+                    </View>
+                    <View style={styles.statTriSep} />
+                    <View style={styles.statTriItem}>
+                      <Text style={styles.statTriValue} numberOfLines={1}>
+                        {formatPace(stats.paceSPerKm)}/km
+                      </Text>
+                      <Text style={styles.statTriLabel}>{t(C.paceLabel)}</Text>
+                    </View>
                   </View>
                   {/* privateNote = affirmation de CONFIDENTIALITÉ, vraie quel que
                       soit le verdict → toujours affichée en privé. socialNote dit
@@ -1407,6 +1464,25 @@ const styles = StyleSheet.create({
   },
   statsHeroUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '600' },
   statsRow: { flexDirection: 'row', gap: spacing.sm },
+  // ── E09 — résumé sportif : UN bloc à séparateurs (jamais 4 cards, planche) ──
+  statTriBlock: { flexDirection: 'row', alignItems: 'center' },
+  statTriItem: { flex: 1, alignItems: 'center', gap: 3 },
+  statTriValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  statTriLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  // Fin séparateur vertical entre les stats (grisLigne — jamais une card interne).
+  statTriSep: { width: 1, alignSelf: 'stretch', backgroundColor: colors.grisLigne, marginVertical: 2 },
   miniStat: { flex: 1, gap: 2 },
   miniStatValue: {
     color: colors.blanc,
