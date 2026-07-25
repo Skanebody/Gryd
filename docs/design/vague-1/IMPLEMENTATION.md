@@ -22,7 +22,7 @@ contre la planche. (Cf. transcript.)
 | # | Écran | Statut | Deltas / à faire (fidèle planche) |
 |---|-------|--------|-----------------------------------|
 | E01 | Onboarding promesse | ✅ fidèle (`1d30f55`/`e6c3798`) | Photo à déposer (`assets/onboarding/e01-crew.png`). Boucle anguleuse qui se remplit ✓ |
-| E02 | Home Map — nouveau joueur | 🔄 header ✓, RUN rond ✓, **capsule FABs ✓** (`9be934c`), **nav Profil ✓** (`9f79397`) | RESTE : sheet TIRABLE « PREMIÈRE MISSION » (poignée déjà là ; 900 m·6 min = O1/vraie suggestion de boucle, sinon absents) + boucle 900 m pointillée + pin joueur (O1) |
+| E02 | Home Map — nouveau joueur | 🔄 header ✓, RUN rond ✓, **capsule FABs ✓** (`9be934c`), **nav « Profil » VISIBLE ✓** (`495ff47` — le label vivait EN DUR dans GrydNavBar, `9f79397` ne touchait que la barre Tabs masquée) | RESTE : sheet TIRABLE « PREMIÈRE MISSION » (poignée déjà là ; 900 m·6 min = O1/vraie suggestion de boucle, sinon absents) + boucle 900 m pointillée + pin joueur (O1) |
 | E03 | Home Map — joueur actif | 🔄 recalage | Mon territoire chartreuse 15 % + halo + label ; 1 rival orange (K.RUNNER=démo→réel) ; crews voisins bleu désaturé ; pill contexte « 1 zone à reprendre » (réelle, 5 s) ; sheet « VOTRE TERRITOIRE km² » (réel) |
 | E04 | Zone rivale — REPRENDRE | 🔄 (fait `4b3ca10`, à recaler) | Sheet 52 % : propriétaire (avatar+handle+crew RÉELS), « tenu depuis », 3 métriques séparateurs, historique 1 ligne, REPRENDRE + « Planifier pour plus tard ». Zone cadrée au-dessus |
 | E05 | Briefing mission | 🔄 (bloc métriques `059ac09`) | Sheet 58 %, mini-carte tracé recommandé, 4 métriques 1 bloc (gain km²/difficulté=O1→absents), « Ajuster », COMMENCER LA MISSION + microtexte GPS |
@@ -35,7 +35,7 @@ contre la planche. (Cf. transcript.)
 | E12 | Saison & rang | 🔄 (saison existe) | Carte rang (bouclier) + jalon + frise récompenses cosmétiques ; moment « passage de rang » (anneau). Matériaux acier→chrome→titane→or |
 | E13 | Crew Home | 🔄 (crew existe) | Hero photo+emblème, mission collective, territoire, activité, membres ; onglets Aperçu/Carte/Membres ; état vide « premier territoire crew » |
 | E14 | Commutateur Run/Bike | 🆕 (Bike flag OFF) | Petit switch header droite, visible SEULEMENT si Bike activé. Reste masqué tant que flag OFF |
-| E15 | Profil joueur | 🔄 (profil existe) | Hero photo+identité+statut visibilité, 4 métriques, carte signature, progression, previews (activité/badges/historique) |
+| E15 | Profil joueur | 🔄 titre « Profil » ✓ (`495ff47`) | RESTE : hero photo+identité+statut visibilité, 4 métriques (O1), carte signature (O1), progression (niveau OK), previews (activité/badges/historique). Aujourd'hui : player card + états honnêtes (échec de chargement en preview car session simulée) |
 | E16 | QR codes | 🆕 à construire | Mon code (profil) / code crew (invitation) / Scanner. QR = deep link public, jamais position. `expo-camera` ? |
 | E17 | Boutique & Premium | 🔄 (arsenal existe) | Boutique cosmétique (hero saison + grille) + paywall Premium (heatmap réelle + 3 bénéfices + prix). Anti-p2w STRICT |
 | E18 | Statistiques & data | 🔄 (performance existe) | 3 blocs (volume/territoire/régularité) chiffre→graphe→conclusion ; heatmap = Premium ; commutateur Run/Bike |
