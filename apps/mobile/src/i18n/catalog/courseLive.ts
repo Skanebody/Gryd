@@ -455,42 +455,8 @@ export const C = defineCatalog({
     de: 'Erlaube den Standort, wenn du gefragt wirst. Es wird nichts aufgezeichnet, bis eine echte Position eintrifft.',
     pt: 'Permita a localização quando for solicitado. Nada é registrado até chegar uma posição real.',
   },
-  // ── E06 Préflight → compte à rebours ──
-  preflightReadyTitle: {
-    fr: 'Tout est prêt',
-    en: "You're all set",
-    es: 'Todo listo',
-    de: 'Alles bereit',
-    pt: 'Tudo pronto',
-  },
-  preflightApproxTitle: {
-    fr: 'Presque prêt',
-    en: 'Almost ready',
-    es: 'Casi listo',
-    de: 'Fast bereit',
-    pt: 'Quase pronto',
-  },
-  gpsReady: {
-    fr: 'GPS · Prêt',
-    en: 'GPS · Ready',
-    es: 'GPS · Listo',
-    de: 'GPS · Bereit',
-    pt: 'GPS · Pronto',
-  },
-  gpsApproxLine: {
-    fr: 'Position approximative — active la position exacte',
-    en: 'Approximate location — turn on precise location',
-    es: 'Ubicación aproximada — activa la ubicación exacta',
-    de: 'Ungefährer Standort — genauen Standort aktivieren',
-    pt: 'Localização aproximada — ative a localização exata',
-  },
-  ctaStartAnyway: {
-    fr: 'Commencer quand même',
-    en: 'Start anyway',
-    es: 'Empezar igual',
-    de: 'Trotzdem starten',
-    pt: 'Começar mesmo assim',
-  },
+  // ── E06 Préflight → compte à rebours (sobre : décompte seul, pas de carte
+  //    de statut anxiogène ; la force du signal GPS réelle vit en E07) ──
   countdownCancel: {
     fr: 'Annuler',
     en: 'Cancel',
