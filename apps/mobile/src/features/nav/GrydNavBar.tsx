@@ -11,7 +11,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, spacing, type IconName } from '@klaim/shared';
+import { colors, fonts, fontSizes, spacing, type IconName } from '@klaim/shared';
 import { Icon } from '../../ui/Icon';
 import { NAV_BAR_HEIGHT } from './metrics';
 import { flags } from '../../lib/flags';
@@ -94,6 +94,6 @@ const styles = StyleSheet.create({
   /** Trait actif : présence/absence = canal non-couleur (en plus icône pleine + gras). */
   activeBar: { width: 28, height: 3, borderRadius: 2, backgroundColor: 'transparent' },
   activeBarOn: { backgroundColor: colors.chartreuse },
-  tabLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  tabLabel: { color: colors.gris, fontFamily: fonts.textSemi, fontSize: fontSizes.xs, fontWeight: '600' },
   tabLabelActive: { color: colors.chartreuse, fontWeight: '700' },
 });

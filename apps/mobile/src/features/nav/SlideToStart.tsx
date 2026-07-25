@@ -20,7 +20,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { colors, radii } from '@klaim/shared';
+import { colors, fonts, radii } from '@klaim/shared';
 import { C } from '../../i18n/catalog/nav';
 import { useT } from '../../i18n/store';
 import { haptics } from '../../lib/haptics';
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  label: { color: colors.chartreuse, fontSize: 16, fontWeight: '800', letterSpacing: 2 },
+    label: { color: colors.chartreuse, fontFamily: fonts.display, fontSize: 16, fontWeight: '800', letterSpacing: 2 },
   chevrons: { flexDirection: 'row' },
   chevron: { color: colors.chartreuse, fontSize: 22, fontWeight: '800', marginHorizontal: -1 },
   thumb: {

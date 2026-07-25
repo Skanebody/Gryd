@@ -22,7 +22,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, iconSizes, radii } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, iconSizes, radii } from '@klaim/shared';
 import { MapScreen } from '../../src/features/map/MapScreen';
 import { SlideToStart } from '../../src/features/nav/SlideToStart';
 import { deriveContextualAction } from '../../src/features/nav/contextualAction';
@@ -287,6 +287,7 @@ const styles = StyleSheet.create({
   },
   pendingNoteText: {
     color: colors.blanc,
+    fontFamily: fonts.textSemi,
     fontSize: fontSizes.xs,
     fontWeight: '600',
   },
@@ -314,6 +315,7 @@ const styles = StyleSheet.create({
   missionText: {
     flex: 1,
     color: colors.blanc,
+    fontFamily: fonts.textSemi,
     fontSize: MISSION_TEXT_SIZE,
     fontWeight: '700',
     paddingLeft: 10,
@@ -330,6 +332,7 @@ const styles = StyleSheet.create({
   },
   detailTitle: {
     color: colors.blanc,
+    fontFamily: fonts.displaySemi,
     fontSize: fontSizes.md,
     fontWeight: '800',
     letterSpacing: 0.2,
@@ -342,5 +345,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  detailActionLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+    detailActionLabel: { color: colors.blanc, fontFamily: fonts.textSemi, fontSize: fontSizes.sm, fontWeight: '700' },
 });
