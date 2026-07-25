@@ -2,7 +2,7 @@
  * GRYD — navigation basse PERSISTANTE (maquettes 2026) :
  * Carte · Crew · Profil (+ Saison si flags.season).
  * Onglet actif = trait chartreuse + icône pleine + label — jamais la couleur seule.
- * Le départ de course vit sur la Carte (SlideToStart), pas dans la barre.
+ * Le départ de course vit sur la Carte (CTA RUN sneaker), pas dans la barre.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';

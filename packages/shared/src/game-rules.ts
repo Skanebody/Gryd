@@ -1696,6 +1696,18 @@ export const LOOP_MIN_WIDTH_M = 80;
 export const LOOP_HINT_DISTANCE_M = 600;
 export const LOOP_PREVIEW_DISTANCE_M = 300;
 
+/**
+ * Première mission Home Map (Vague 1 · E02 / E14) — boucle SUGGESTÉE affichée
+ * dans la sheet PREMIÈRE MISSION (planche Night Print). Ce n'est PAS une
+ * capture ni un claim : c'est la cible d'effort du premier parcours, figée
+ * pour que l'UI reproduise la planche (900 m · ≈ 6 min en Run ; 4,8 km · ≈ 15
+ * min en Bike). Aucun autre écran ne doit inventer ces chiffres.
+ */
+export const FIRST_MISSION_LOOP_M = 900;
+export const FIRST_MISSION_LOOP_MIN = 6;
+export const FIRST_MISSION_BIKE_LOOP_M = 4_800;
+export const FIRST_MISSION_BIKE_LOOP_MIN = 15;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // AMENDEMENT-15 §1 — Moteur GPS pur (pipeline IDENTIQUE client/serveur).
 // Le client pré-filtre pour l'affichage, le serveur reste SEUL juge du claim.

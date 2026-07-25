@@ -677,7 +677,23 @@ export const C = defineCatalog({
     de: 'Details ansehen ›',
     pt: 'Ver detalhe ›',
   },
-  /** Fallback lieu header quand la ville profil est vide (honnête). */
+  /** VoiceOver des métriques suggérées E02/E14 (distance + durée planche). */
+  firstMissionMetricsA11y: {
+    fr: 'Boucle suggérée : {dist} {unit}, environ {min} minutes',
+    en: 'Suggested loop: {dist} {unit}, about {min} minutes',
+    es: 'Bucle sugerido: {dist} {unit}, unos {min} minutos',
+    de: 'Vorgeschlagene Runde: {dist} {unit}, etwa {min} Minuten',
+    pt: 'Loop sugerido: {dist} {unit}, cerca de {min} minutos',
+  },
+  /** Quartier par défaut de la pill lieu (planche « Dieppe · Centre »). */
+  mapHeaderDistrictCentre: {
+    fr: 'Centre',
+    en: 'Centre',
+    es: 'Centro',
+    de: 'Zentrum',
+    pt: 'Centro',
+  },
+  /** Fallback lieu header quand la ville profil/onboarding est vide (honnête). */
   mapHeaderPlaceFallback: {
     fr: 'Ma position',
     en: 'My location',

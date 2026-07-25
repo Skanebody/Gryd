@@ -81,14 +81,18 @@ export function useMapHudHidden(): boolean {
 //
 // Le CTA RUN a deux formes : rond à droite quand la sheet mission/empty est
 // visible ; pill « RUN » au-dessus de la nav quand elle est fermée (carte nue).
-// BattleMapOverlays écrit ; RunCta (index) lit.
+// BattleMapOverlays écrit ; RunCta (index) lit. On publie aussi la hauteur
+// compacte pour ancrer le rond à droite du bloc mission (planche E02).
 
 let missionSheetDeployed = false;
+let missionSheetCompactHeight = 0;
 const sheetListeners = new Set<() => void>();
 
-export function setMissionSheetDeployed(deployed: boolean): void {
-  if (missionSheetDeployed === deployed) return;
+export function setMissionSheetDeployed(deployed: boolean, compactHeight = 0): void {
+  const nextH = deployed ? compactHeight : 0;
+  if (missionSheetDeployed === deployed && missionSheetCompactHeight === nextH) return;
   missionSheetDeployed = deployed;
+  missionSheetCompactHeight = nextH;
   for (const listener of sheetListeners) listener();
 }
 
@@ -103,7 +107,16 @@ function getSheetSnapshot(): boolean {
   return missionSheetDeployed;
 }
 
+function getSheetHeightSnapshot(): number {
+  return missionSheetCompactHeight;
+}
+
 /** Vrai si la sheet mission / état vide est déployée sur la carte. */
 export function useMissionSheetDeployed(): boolean {
   return useSyncExternalStore(subscribeSheet, getSheetSnapshot, getSheetSnapshot);
+}
+
+/** Hauteur compacte de la sheet mission (0 si repliée) — pour ancrer le CTA RUN. */
+export function useMissionSheetCompactHeight(): number {
+  return useSyncExternalStore(subscribeSheet, getSheetHeightSnapshot, getSheetHeightSnapshot);
 }

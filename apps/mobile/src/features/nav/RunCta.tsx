@@ -1,7 +1,8 @@
 /**
  * GRYD — CTA RUN Home Map (Vague 1 · E02).
  * Deux formes (morph) :
- *   · sheet déployée → rond 60 pt sneaker seule, ancré à droite du bloc mission ;
+ *   · sheet déployée → rond 60 pt sneaker seule (−20°), ancré à droite du bloc
+ *     mission (PAS sous la sheet — plus de piste GO) ;
  *   · sheet fermée (« carte nue ») → pill sneaker + « RUN » au-dessus de la nav.
  * Label « RUN » invariant FR/EN/ES. VoiceOver : label accessible complet.
  */
@@ -17,12 +18,16 @@ import { hasPendingUpload, retryPendingUpload } from '../../lib/pendingUpload';
 import { Icon } from '../../ui/Icon';
 import {
   useMapHudHidden,
+  useMissionSheetCompactHeight,
   useMissionSheetDeployed,
   useZoneSheetOpen,
 } from '../map/mapUiStore';
 import { usePlayContext } from '../activity/playContext';
 import { deriveContextualAction } from './contextualAction';
-import { NAV_BAR_HEIGHT, RUN_BUTTON_BOTTOM, RUN_CTA_GAP, RUN_CTA_SIZE } from './metrics';
+import { NAV_BAR_HEIGHT, RUN_CTA_GAP, RUN_CTA_SIZE } from './metrics';
+
+/** Planche E02 : sneaker inclinée −20° dans le CTA. */
+const SNEAKER_TILT = '-20deg';
 
 export function RunCta() {
   const router = useRouter();
@@ -31,6 +36,7 @@ export function RunCta() {
   const locale = useLocale();
   const hudHidden = useMapHudHidden();
   const sheetDeployed = useMissionSheetDeployed();
+  const sheetHeight = useMissionSheetCompactHeight();
   const zoneSheetOpen = useZoneSheetOpen();
   const { activity } = usePlayContext();
   const action = useMemo(() => deriveContextualAction({ screen: 'map' }, locale), [locale]);
@@ -40,7 +46,7 @@ export function RunCta() {
   // E04 : sheet de décision ouverte → RUN disparaît (un seul CTA primaire).
   if (zoneSheetOpen) return null;
 
-  // Sheet visible → rond à droite ; sinon pill au-dessus de la nav.
+  // Sheet visible → rond à droite du bloc mission ; sinon pill au-dessus de la nav.
   const round = sheetDeployed && !hudHidden;
 
   const onPress = () => {
@@ -51,11 +57,16 @@ export function RunCta() {
   const a11y = activity === 'bike' ? t(C.bikeCtaA11y) : t(C.runCtaA11y);
 
   if (round) {
+    // Ancré dans la bande sheet : milieu vertical du peek, bord droit (planche).
+    const intoSheet = Math.max(
+      16,
+      Math.round((Math.max(sheetHeight, RUN_CTA_SIZE) - RUN_CTA_SIZE) / 2),
+    );
     return (
       <View
         style={[
           styles.roundWrap,
-          { bottom: insets.bottom + RUN_BUTTON_BOTTOM + 72 },
+          { bottom: insets.bottom + NAV_BAR_HEIGHT + intoSheet },
         ]}
         pointerEvents="box-none"
       >
@@ -67,7 +78,9 @@ export function RunCta() {
           style={({ pressed }) => [styles.round, pressed && styles.pressed]}
           testID="map-run-cta-round"
         >
-          <Icon name={ctaIcon} size={30} color={colors.noir} />
+          <View style={activity === 'bike' ? undefined : styles.sneakerTilt}>
+            <Icon name={ctaIcon} size={30} color={colors.noir} />
+          </View>
         </Pressable>
       </View>
     );
@@ -89,7 +102,9 @@ export function RunCta() {
         style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
         testID="map-run-cta-pill"
       >
-        <Icon name={ctaIcon} size={22} color={colors.noir} />
+        <View style={activity === 'bike' ? undefined : styles.sneakerTilt}>
+          <Icon name={ctaIcon} size={22} color={colors.noir} />
+        </View>
         <Text style={styles.pillLabel}>{ctaLabel}</Text>
       </Pressable>
     </View>
@@ -144,6 +159,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     elevation: 6,
   },
+  sneakerTilt: { transform: [{ rotate: SNEAKER_TILT }] },
   pillWrap: {
     position: 'absolute',
     left: 0,

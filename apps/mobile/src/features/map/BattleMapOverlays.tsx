@@ -26,12 +26,24 @@
  * Events : screen('map_sheet_open') (options mission) / screen('map_zone_open')
  * (sheet de zone) / screen('map_zone_details') (« Plus ») / screen('map_zone_act').
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { setZoneSheetOpen, setMapHudHidden, setMissionSheetDeployed, useMapHudHidden } from './mapUiStore';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
+import {
+  colors,
+  fonts,
+  fontSizes,
+  FIRST_MISSION_BIKE_LOOP_M,
+  FIRST_MISSION_BIKE_LOOP_MIN,
+  FIRST_MISSION_LOOP_M,
+  FIRST_MISSION_LOOP_MIN,
+  gameColors,
+  iconSizes,
+  radii,
+  withAlpha,
+} from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { useLocale, useT } from '../../i18n/store';
 import type { Entry, Locale } from '../../i18n/types';
@@ -43,7 +55,7 @@ import {
   MapBottomSheet,
   type MapSheetState,
 } from '../../ui/game';
-import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { NAV_BAR_HEIGHT } from '../nav/metrics';
 import { intentionHref } from '../nav/runContext';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
@@ -117,8 +129,6 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
   satellite: 'calques',
 };
 
-/** Dégagement du peek au-dessus de la barre de nav. */
-const SHEET_ABOVE_RUN_BUTTON = 12;
 /**
  * Hauteur du PEEK MISSION persistant (§8) : titre + méta + rival + lien options.
  * Calée AU PLUS JUSTE sur le contenu réel (poignée 18 + bloc info ~118) pour ne
@@ -136,12 +146,16 @@ const TOP_HUD_CLEARANCE = 112;
  */
 const REAL_ZONE_SHEET_COMPACT_HEIGHT = 132;
 /**
- * Hauteur de l'ÉTAT VIDE / PREMIÈRE MISSION (E02) : eyebrow + titre + ligne +
- * lien détail. Pas de CTA primaire dans la sheet (anti double-CTA §A.4).
+ * Hauteur de l'ÉTAT VIDE (signed-out / failed hors première mission).
  */
 const EMPTY_PEEK_HEIGHT = 152;
 const EMPTY_PEEK_WITH_CTA_HEIGHT = 168;
-const FIRST_MISSION_PEEK_HEIGHT = 168;
+/**
+ * E02 PREMIÈRE MISSION (planche ~29 % hors nav) : eyebrow + titre + ligne +
+ * métriques 900 m / ≈ 6 min + « Voir le détail › ». Pas de CTA primaire dedans
+ * (RUN est dehors, à droite du bloc — anti double-CTA §A.4).
+ */
+const FIRST_MISSION_PEEK_HEIGHT = 210;
 /** E03 sheet VOTRE TERRITOIRE : eyebrow + métrique 48 pt + ligne + détail. */
 const ACTIVE_TERRITORY_PEEK_HEIGHT = 188;
 /** Pill de contexte E03 : disparaît après 5 s (planche). */
@@ -354,8 +368,12 @@ export function BattleMapOverlays({
     if (zoneOpen && selectedZoneId) screen('map_zone_open', { zone: selectedZoneId });
   }, [zoneOpen, selectedZoneId]);
 
-  /** Bas de l'écran réservé à la barre de nav (le CTA RUN flotte à part). */
-  const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
+  /**
+   * Sheet ancrée AU-DESSUS de la barre d'onglets (planche E02) — plus de piste
+   * « GO / SlideToStart » réservée en dessous. Le CTA RUN flotte à droite du
+   * bloc mission, pas sous la sheet.
+   */
+  const sheetBottom = insets.bottom + NAV_BAR_HEIGHT;
   // « Carte nue » masque le HUD : header + sheet du bas.
   // Capsule contrôles (Recentrer + Calques) RESTE visible même en carte nue.
   /**
@@ -365,18 +383,14 @@ export function BattleMapOverlays({
    * La sheet elle-même se retire alors, plutôt que de laisser un cadre vide.
    */
   const showEmptyPeek = widget === null && emptyState !== null;
+  /** E02 : première mission = planche complète (y compris avant auth / bike). */
   const isFirstMission =
     activity === 'bike' ||
-    (showEmptyPeek && emptyState === 'empty') ||
+    emptyState === 'empty' ||
+    emptyState === 'signed-out' ||
     widget?.state === 'first_capture';
-  const missionSheetVisible = widget !== null || showEmptyPeek;
+  const missionSheetVisible = widget !== null || showEmptyPeek || isFirstMission;
   const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
-
-  // E02 : morph du CTA RUN (rond vs pill) selon sheet déployée.
-  useEffect(() => {
-    setMissionSheetDeployed(sheetVisible && !zoneOpen);
-    return () => setMissionSheetDeployed(false);
-  }, [sheetVisible, zoneOpen]);
 
   /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav.
    *  Chaque état a SA hauteur : le peek épouse son contenu au lieu de laisser un
@@ -388,10 +402,18 @@ export function BattleMapOverlays({
       : isActivePlayer
         ? ACTIVE_TERRITORY_PEEK_HEIGHT
         : showEmptyPeek
-          ? emptyState === 'signed-out' || emptyState === 'failed'
+          ? emptyState === 'failed'
             ? EMPTY_PEEK_WITH_CTA_HEIGHT
             : EMPTY_PEEK_HEIGHT
           : MISSION_PEEK_COMPACT_HEIGHT;
+
+  // E02 : morph du CTA RUN (rond vs pill) + hauteur pour ancrer le rond.
+  // useLayoutEffect : évite un frame où la pill « RUN » apparaît sous la sheet.
+  useLayoutEffect(() => {
+    const deployed = sheetVisible && !zoneOpen;
+    setMissionSheetDeployed(deployed, deployed ? activeCompactHeight : 0);
+    return () => setMissionSheetDeployed(false, 0);
+  }, [sheetVisible, zoneOpen, activeCompactHeight]);
 
   // E02 : capsule contrôles à ~35 % de hauteur (pas collée à la sheet).
   const { height: winH } = useWindowDimensions();
@@ -573,7 +595,12 @@ export function BattleMapOverlays({
             }}
             compactSlot={(api) =>
               isFirstMission ? (
-                <FirstMissionPeek onSeeDetail={api.expand} />
+                <FirstMissionPeek
+                  onSeeDetail={api.expand}
+                  onConnect={
+                    emptyState === 'signed-out' ? onEmptyAction : undefined
+                  }
+                />
               ) : isActivePlayer && territorySummary ? (
                 <ActiveTerritoryPeek
                   summary={territorySummary}
@@ -724,41 +751,84 @@ function ActiveTerritoryPeek({
 }
 
 /**
- * E02 — sheet PREMIÈRE MISSION. Pas de CTA primaire (RUN est dehors).
- * Lien « Voir le détail › » → expand sheet (semi). Zéro métrique inventée
- * (900 m / 6 min de la planche = exemple design ; on n'affiche que du réel).
+ * E02 — sheet PREMIÈRE MISSION (planche Night Print à la lettre).
+ * Contenu : eyebrow · titre · ligne · métriques suggérées (game-rules) ·
+ * « Voir le détail › ». Pas de CTA primaire (RUN sneaker est dehors, à droite).
+ * Si non connecté : le lien devient « Se connecter › » (même slot, 1 action).
  */
-function FirstMissionPeek({ onSeeDetail }: { onSeeDetail: () => void }) {
+function FirstMissionPeek({
+  onSeeDetail,
+  onConnect,
+}: {
+  onSeeDetail: () => void;
+  onConnect?: () => void;
+}) {
   const t = useT();
+  const locale = useLocale();
   const { activity } = usePlayContext();
   const bike = activity === 'bike';
+  const distM = bike ? FIRST_MISSION_BIKE_LOOP_M : FIRST_MISSION_LOOP_M;
+  const mins = bike ? FIRST_MISSION_BIKE_LOOP_MIN : FIRST_MISSION_LOOP_MIN;
+  const distLabel = bike
+    ? formatFirstMissionKm(distM, locale)
+    : String(distM);
+  const distUnit = bike ? 'km' : 'm';
+  const linkLabel = onConnect ? t(C.emptySignedOutCta) + ' ›' : t(C.firstMissionSeeDetail);
+  const onLink = () => {
+    haptics.light();
+    if (onConnect) onConnect();
+    else onSeeDetail();
+  };
   return (
     <View style={styles.firstMission}>
       <Text style={styles.firstEyebrow}>
         {t(bike ? C.firstMissionEyebrowBike : C.firstMissionEyebrow)}
       </Text>
-      <Text style={styles.firstTitle} numberOfLines={2}>
+      <Text style={styles.firstTitle} numberOfLines={1} adjustsFontSizeToFit>
         {t(bike ? C.firstMissionTitleBike : C.firstMissionTitle)}
       </Text>
       <Text style={styles.firstLine} numberOfLines={2}>
         {t(bike ? C.firstMissionLineBike : C.firstMissionLine)}
       </Text>
+      <View
+        style={styles.firstMetrics}
+        accessibilityRole="text"
+        accessibilityLabel={t(C.firstMissionMetricsA11y, {
+          dist: distLabel,
+          unit: distUnit,
+          min: mins,
+        })}
+      >
+        <View style={styles.firstMetric}>
+          <Text style={styles.firstMetricValue}>{distLabel}</Text>
+          <Text style={styles.firstMetricUnit}> {distUnit}</Text>
+        </View>
+        <View style={styles.firstMetricRule} />
+        <View style={styles.firstMetric}>
+          <Text style={styles.firstMetricValue}>≈ {mins}</Text>
+          <Text style={styles.firstMetricUnit}> min</Text>
+        </View>
+      </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t(C.firstMissionSeeDetail)}
+        accessibilityLabel={linkLabel}
         hitSlop={8}
-        onPress={() => {
-          haptics.light();
-          onSeeDetail();
-        }}
+        onPress={onLink}
         style={({ pressed }) => [styles.detailHit, pressed && styles.pressed]}
       >
         <Text style={styles.detailLink} numberOfLines={1}>
-          {t(C.firstMissionSeeDetail)}
+          {linkLabel}
         </Text>
       </Pressable>
     </View>
   );
+}
+
+/** 4,8 km — virgule FR, point EN (parité planche E14 Bike). */
+function formatFirstMissionKm(meters: number, locale: Locale): string {
+  const km = meters / 1_000;
+  const fixed = km.toFixed(1);
+  return locale === 'en' ? fixed : fixed.replace('.', ',');
 }
 
 /**
@@ -1226,7 +1296,7 @@ const styles = StyleSheet.create({
   info: { paddingHorizontal: 16, paddingBottom: 12, gap: 6 },
 
   // ── E02 PREMIÈRE MISSION / E03 VOTRE TERRITOIRE ──
-  firstMission: { paddingHorizontal: 20, paddingBottom: 12, gap: 6 },
+  firstMission: { paddingHorizontal: 20, paddingBottom: 12, gap: 6, paddingRight: 88 },
   activeTerritory: { paddingHorizontal: 20, paddingBottom: 12, gap: 4 },
   firstEyebrow: {
     marginTop: 4,
@@ -1248,7 +1318,34 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,
-    maxWidth: 220,
+    maxWidth: 165,
+  },
+  firstMetrics: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 20,
+    maxWidth: 210,
+  },
+  firstMetric: { flexDirection: 'row', alignItems: 'baseline' },
+  firstMetricValue: {
+    color: colors.blanc,
+    fontFamily: fonts.display,
+    fontSize: 24,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  firstMetricUnit: {
+    color: colors.grisFaible,
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  firstMetricRule: {
+    width: StyleSheet.hairlineWidth,
+    height: 20,
+    backgroundColor: colors.grisLigne,
+    alignSelf: 'center',
   },
   activeMetric: {
     marginTop: 4,

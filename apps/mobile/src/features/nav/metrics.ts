@@ -16,7 +16,7 @@ export const RUN_CTA_SIZE = 60;
 /** Écart entre le haut de la barre d'onglets et le bas du CTA RUN (forme pill). */
 export const RUN_CTA_GAP = 12;
 
-/** @deprecated Alias E02 — conservé pour les imports SlideToStart legacy. */
+/** @deprecated Alias E02 — hauteur CTA (ex-piste SlideToStart). */
 export const SLIDE_START_HEIGHT = RUN_CTA_SIZE;
 /** @deprecated Alias E02. */
 export const SLIDE_START_GAP = RUN_CTA_GAP;

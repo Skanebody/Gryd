@@ -62,18 +62,15 @@ export const ICONS = {
     ],
   },
   /**
-   * Basket de running — l'icône du DÉPART (override fondateur 20/07 : le bouton
-   * GO portait `foulees`, la MONNAIE du jeu : contresens total sur l'action la
-   * plus importante de l'app). Profil de chaussure : semelle épaisse, tige,
-   * languette, lacets — lisible à 26 px.
+   * Basket / sneaker RUN (Vague 1 · E02) — profil planche Night Print :
+   * semelle + tige + lacets, lu à 30 px dans le CTA rond. L'inclinaison −20°
+   * est appliquée au rendu (RunCta), pas dans le path.
    */
   basket: {
     paths: [
-      'M3 17.5h18a1 1 0 0 0 1-1v-.6c0-.9-.6-1.7-1.5-1.9l-5.2-1.3a3 3 0 0 1-1.3-.7l-2.6-2.4a2 2 0 0 0-1.4-.6H8.2a2 2 0 0 0-2 2v5',
-      'M3 17.5v1.3a1 1 0 0 0 1 1h16.5a1.5 1.5 0 0 0 1.5-1.5v-.8',
-      'M6.2 12.6h4',
-      'M11.2 10.2l-1.6 1.6',
-      'M13.6 12.4l-1.7 1.7',
+      'M3.5 16.5 V12.5 Q3.5 11 5 11 L8 11 L12.2 13.5 Q15.6 15.4 19.8 15.8 Q21 15.9 21 17 Q21 18.2 19.8 18.2 H4.7 Q3.5 18.2 3.5 17 Z',
+      'M9.3 12 L10.8 10.4',
+      'M11.8 13.4 L13.3 11.8',
     ],
   },
   /** Partage. */

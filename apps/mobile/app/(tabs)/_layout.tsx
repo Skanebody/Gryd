@@ -3,7 +3,7 @@
  * par-dessus des Tabs expo-router dont la tab bar NATIVE est masquée.
  * 3 destinations visibles en 1 tap : Carte · Crew · Profil (+ Saison si
  * flags.season). Les routes `warroom` (Missions) restent HORS barre, atteintes
- * depuis Profil. Le départ de course vit sur la Carte (SlideToStart).
+ * depuis Profil. Le départ de course vit sur la Carte (CTA RUN sneaker E02).
  *
  * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session →
  * (auth)/sign-in SI l'onboarding a déjà été vu, /onboarding sinon ; non

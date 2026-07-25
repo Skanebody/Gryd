@@ -1,6 +1,7 @@
 /**
  * GRYD — Header Home Map (Vague 1 · E02 / E03).
- * Avatar 40 + pill lieu + notifs 44. Translucide, 3 cibles séparées ≥ 44 pt.
+ * Avatar 40 (profil joueur — planche « LR ») + pill lieu « Ville · Centre » +
+ * notifs 44. Translucide, 3 cibles séparées ≥ 44 pt.
  * Ne concurrence pas la mission (sheet) ni le CTA RUN.
  */
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -10,6 +11,7 @@ import { colors, fonts, gameColors, radii, withAlpha } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { useT } from '../../i18n/store';
 import { haptics } from '../../lib/haptics';
+import { useOnboardingState } from '../onboarding/store';
 import {
   effectiveInitials,
   useMyProfile,
@@ -20,14 +22,26 @@ const AVATAR = 40;
 const NOTIF = 44;
 const SIDE = 20;
 
+/** « Brest (FR) » → « Brest » — le pays n'entre pas dans la pill planche. */
+function cityShortName(raw: string): string {
+  return raw.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
 export function MapHomeHeader({ alertDot = false }: { alertDot?: boolean }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const t = useT();
   const { profile } = useMyProfile();
+  const { state: onboarding } = useOnboardingState();
   const initials = effectiveInitials(profile);
+  const city =
+    cityShortName(profile.city) ||
+    cityShortName(onboarding.cityName ?? '') ||
+    '';
   const place =
-    profile.city.trim().length > 0 ? profile.city.trim() : t(C.mapHeaderPlaceFallback);
+    city.length > 0
+      ? `${city} · ${t(C.mapHeaderDistrictCentre)}`
+      : t(C.mapHeaderPlaceFallback);
 
   return (
     <View
