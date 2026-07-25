@@ -169,21 +169,35 @@ export async function openShareSheet(message: string): Promise<ShareActionResult
 }
 
 /**
- * Contenu TEXTE du sticker transparent (doc §4.2) : résultat territorial + stats
- * courtes + GRYD Verified + lien. Court, collable tel quel sur une story/photo.
- * Le rendu PNG transparent est un TODO natif — ce texte en est l'équivalent
- * fonctionnel (jamais un mensonge : c'est bien ce qui est copié).
+ * Contenu TEXTE du sticker transparent (doc §4.2) : résultat territorial +
+ * mesures courtes + sceau + lien. Court, collable tel quel sur une story/photo.
+ * C'est le FILET du sticker PNG (web, ou échec de capture).
  *
  *   +47 zones · République
  *   4,4 km · 22:54
- *   GRYD Verified
+ *   GRYD Verified          ← seulement si le SERVEUR l'a jugée ainsi
  *   https://gryd.run/zone/republique
+ *
+ * ─── DEUX FABRICATIONS COLMATÉES (25/07/2026) — MÉDIA SORTANT ───────────────
+ * 1. « GRYD Verified » était écrit EN DUR, sans jamais lire `d.verified` : le
+ *    sticker texte se décernait le sceau SERVEUR sur n'importe quelle course, y
+ *    compris non jugée, `flagged` ou `rejected` — alors que `StickerCard` et
+ *    `ShareCard` le gataient correctement. Ce texte part sur tous les canaux web
+ *    et sur tout échec de capture native : le mensonge SORTAIT de l'app.
+ * 2. La ligne de mesures était interpolée sans filtre : distance ou durée vide
+ *    produisait « km · » ou « · 22:54 ». La version PNG filtrait déjà
+ *    (partage.tsx) — deux chemins, une seule vérité attendue.
  */
-export function stickerText(d: ShareDemoData, headline: string, link: string): string {
-  return [
-    headline,
-    `${d.distanceKm} km · ${d.clockLabel}`,
-    'GRYD Verified',
-    link,
-  ].join('\n');
+export function stickerText(
+  d: ShareDemoData,
+  headline: string,
+  link: string,
+  verifiedLabel = 'GRYD Verified',
+): string {
+  const metrics = [d.distanceKm ? `${d.distanceKm} km` : '', d.clockLabel]
+    .filter(Boolean)
+    .join(' · ');
+  return [headline, metrics, d.verified ? verifiedLabel : '', link]
+    .filter(Boolean)
+    .join('\n');
 }

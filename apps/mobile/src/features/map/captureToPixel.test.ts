@@ -204,12 +204,23 @@ Deno.test('P0.3 — deux courses sur la MÊME zone : un seul territoire qui S’
   assertEquals(territories[0].props.capturedAt, '2026-07-15T10:00:00Z');
 });
 
-Deno.test('INVARIANT — h3index est PRIMARY KEY : buildTerritories ne voit jamais de doublon', () => {
-  // Documenté par un test parce que la violation est BRUTALE : h3.cellsToMultiPolygon LÈVE
-  // sur des cellules dupliquées, et buildTerritories n'attrape rien → écran blanc. Cet
-  // invariant tient tant que la source est `hex_claims` (h3index bigint primary key,
-  // 0002_schema.sql:128). Toute nouvelle source (jointure, fusion realtime, cache) DOIT
-  // dédupliquer avant d'appeler buildTerritories.
+Deno.test('INVARIANT — buildTerritories déduplique lui-même : un doublon ne casse rien', () => {
+  // ─── CET INVARIANT A CHANGÉ DE NATURE (dimension DISCIPLINE) ────────────────
+  // Il disait : « h3index est PRIMARY KEY, buildTerritories ne voit jamais de
+  // doublon — toute nouvelle source DOIT dédupliquer avant de l'appeler ». Cette
+  // prémisse est MORTE : la migration 0070 fait passer la clé primaire de
+  // `hex_claims` à `(h3index, activity)`, pour que les mondes Run et Bike ne se
+  // volent pas leurs zones. La source elle-même produit désormais des doublons —
+  // un joueur qui tient la même cellule à pied ET à vélo donne deux lignes.
+  //
+  // Compter sur la discipline de chaque appelant aurait été un piège à retardement
+  // (la violation est BRUTALE : `cellsToMultiPolygon` LÈVE, personne n'attrape, la
+  // couche territoire disparaît des sept écrans qui la consomment). La
+  // déduplication vit donc maintenant DANS buildTerritories, au seul endroit qui
+  // agrège. Ce test garde son rôle de sentinelle : il vérifie qu'une source SANS
+  // doublon donne bien un territoire unique ; son pendant avec doublons est
+  // « DISCIPLINE — le même hexagone tenu à pied ET à vélo » dans
+  // territoryBuild.test.ts.
   const cells = new Set(courseVersCarte(traceCanal(1_600)).cells);
   const rows: HexClaimRow[] = [...cells].map((c) => ({
     h3index: h3ToDb(c),

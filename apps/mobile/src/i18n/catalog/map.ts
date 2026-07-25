@@ -754,6 +754,78 @@ export const C = defineCatalog({
     de: 'Zurückholen',
     pt: 'Retomar',
   },
+  /**
+   * Kicker CONTESTÉE (violet §C) — dérivé de `sector_snapshot.contested`, un
+   * booléen RÉEL déjà chargé par la carte. Pas de CTA « Voir la mission » en
+   * face : aucun objet mission de secteur n'existe, et un bouton sans cible
+   * serait un bouton mort.
+   */
+  zoneKickerContested: {
+    fr: 'ZONE CONTESTÉE',
+    en: 'CONTESTED ZONE',
+    es: 'ZONA EN DISPUTA',
+    de: 'UMKÄMPFTE ZONE',
+    pt: 'ZONA DISPUTADA',
+  },
+  // ── E04 : les 3 métriques à séparateurs. Libellés COURTS (une rangée de 3
+  //    cellules sur 375 px, plancher a11y 11 px, jamais tronqué §A9). ──
+  /** Surface = somme EXACTE des aires H3 des cellules possédées. */
+  zoneMetricArea: {
+    fr: 'Surface',
+    en: 'Area',
+    es: 'Superficie',
+    de: 'Fläche',
+    pt: 'Área',
+  },
+  zoneMetricZones: {
+    fr: 'Zones',
+    en: 'Zones',
+    es: 'Zonas',
+    de: 'Zonen',
+    pt: 'Zonas',
+  },
+  /**
+   * « Dernière prise » et NON « tenu depuis » : `capturedAt` est le claim le
+   * plus RÉCENT du territoire, pas le début de la possession. « Tenu depuis
+   * 6 jours » serait faux dès qu'un seul hex a changé de main entre-temps.
+   */
+  zoneMetricLastCapture: {
+    fr: 'Dernière prise',
+    en: 'Last taken',
+    es: 'Última toma',
+    de: 'Zuletzt geholt',
+    pt: 'Última tomada',
+  },
+  /** Valeur compacte de la métrique temporelle (« 6 j »), le libellé dit le reste. */
+  zoneAgoDays: {
+    fr: '{n} j',
+    en: '{n} d',
+    es: '{n} d',
+    de: '{n} T',
+    pt: '{n} d',
+  },
+  zoneAgoToday: {
+    fr: 'Aujourd’hui',
+    en: 'Today',
+    es: 'Hoy',
+    de: 'Heute',
+    pt: 'Hoje',
+  },
+  /** Action TERTIAIRE de E04 : un LIEN, jamais un 2ᵉ bouton plein (§A.4). */
+  zonePlanLater: {
+    fr: 'Planifier pour plus tard',
+    en: 'Plan it for later',
+    es: 'Planificar para después',
+    de: 'Später planen',
+    pt: 'Planejar para depois',
+  },
+  zonePlanLaterA11y: {
+    fr: 'Planifier pour plus tard — ouvrir le planificateur d’itinéraire',
+    en: 'Plan it for later — open the route planner',
+    es: 'Planificar para después — abrir el planificador de rutas',
+    de: 'Später planen — den Routenplaner öffnen',
+    pt: 'Planejar para depois — abrir o planejador de rotas',
+  },
 
   // ── Classement de zone (ZoneLeaderboard) : aucun palmarès réel n'existe tant
   //    que personne n'a couru la zone — on le DIT au lieu d'afficher des noms

@@ -63,9 +63,25 @@ import type { MapActivity } from './mapPref';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
+import { SheetMetrics, type SheetMetric } from './SheetMetrics';
+import { MissionBriefingSheet } from './MissionBriefingSheet';
+import { resolveSectorName } from './sectorNaming';
+import type { LatLngPoint } from './realAnchors';
+import {
+  briefMetricKeys,
+  briefSheetHeight,
+  daysSinceCapture,
+  zoneMetricKeys,
+  zoneSheetHeight,
+  type BriefRouteState,
+  type ZoneMetricKey,
+} from './zoneDecision';
 
-/** Signature du hook useT — pour typer les helpers purs qui reçoivent t. */
-type Translate = (entry: Entry, vars?: Record<string, string | number>) => string;
+/*
+ * `Translate` (la signature de useT passée aux helpers) est partie avec
+ * `zonesLabel`, son dernier consommateur : plus aucun helper de ce fichier ne
+ * reçoit `t` en paramètre, les composants l'appellent directement.
+ */
 
 /**
  * Libellés AFFICHÉS des calques : « Raid » devient « Rival » à l'écran
@@ -129,18 +145,14 @@ const TOP_HUD_CLEARANCE = 112;
 /** Hauteur de la pile de FABs PERMANENTS (2 FABs de 44 + 1 gap de 10 + marge)
  *  — réserve l'espace sous le menu Calques pour qu'il ne recouvre pas la pile. */
 const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
-/**
- * Hauteur du peek d'une VRAIE zone (hex_claims) : en-tête + rôle + surface.
- * Courte, et c'est le point : on n'a ni « action recommandée » ni pression
- * réelles, et on n'en invente pas pour remplir la hauteur.
+/*
+ * Les deux hauteurs DEVINÉES de la sheet de zone (132 / 132+62) ont disparu :
+ * E04 ajoute des lignes qui APPARAISSENT ou DISPARAISSENT selon la disponibilité
+ * réelle de leur source, et une constante en dur produisait alors soit du texte
+ * sous la ligne de flottaison (§A9), soit une bande carbone vide (§A). La
+ * hauteur se DÉDUIT désormais de ce qui est rendu — `zoneSheetHeight` /
+ * `briefSheetHeight` (zoneDecision.ts, pures et testées).
  */
-const REAL_ZONE_SHEET_COMPACT_HEIGHT = 132;
-/**
- * E04 (planche) : une zone RIVALE porte en plus le CTA REPRENDRE (décision =
- * planifier un parcours pour la reprendre). Le peek épouse ce contenu — 62 px de
- * plus pour le bouton, pas un vide. MA zone n'a pas de CTA → hauteur compacte.
- */
-const REAL_ZONE_SHEET_RIVAL_HEIGHT = REAL_ZONE_SHEET_COMPACT_HEIGHT + 62;
 /**
  * Hauteur de l'ÉTAT VIDE (titre + phrase, + lien d'action quand il y en a un).
  * Deux valeurs : sans CTA le peek se resserre au lieu de laisser un vide qui se
@@ -163,27 +175,69 @@ const BIKE_PEEK_HEIGHT = 128;
 export type MapEmptyState = 'signed-out' | 'empty' | 'failed';
 
 /**
- * Une VRAIE zone tapée, réduite à ce que `hex_claims` sait réellement dire :
- * un RÔLE (moi/mon crew vs rival — §C, jamais une couleur par crew), un nombre
- * de zones et une surface. Pas de nom de crew, pas de « contrôle % », pas de
- * pression : la table ne les porte pas et on ne les fabrique pas.
+ * La vue d'une VRAIE zone tapée vit dans `zoneSelection.ts` (module PUR), avec
+ * la fonction qui la dérive : les DEUX MapScreen (natif et web) la partagent, ce
+ * qui rend leur divergence structurellement impossible. Ré-exportée ici pour les
+ * importeurs historiques.
  */
-export interface MapZoneView {
-  role: 'mine' | 'rival';
-  zones: number;
-  areaKm2: number;
-}
+export type { MapZoneView } from './zoneSelection';
+import type { MapZoneView } from './zoneSelection';
 
-/** « 3 zones » / « 1 zone » — accord singulier/pluriel via catalogue (jamais tronqué). */
-function zonesLabel(t: Translate, n: number): string {
-  const v = Math.max(1, n);
-  return t(v > 1 ? C.zonesMany : C.zonesOne, { n: v });
-}
+/*
+ * `zonesLabel` (« 3 zones ») a disparu avec la ligne concaténée
+ * « À un rival · 3 zones · 0,42 km² » : E04 rend désormais un BLOC DE MÉTRIQUES
+ * à séparateurs, où la valeur (« 3 ») et son libellé (« Zones ») sont deux
+ * niveaux typographiques distincts. Les entrées zonesOne/zonesMany restent au
+ * catalogue — d'autres surfaces les utilisent.
+ */
 
 /** « 0,8 km² » — même règle décimale, zéros de fin retirés (jamais tronqué). */
 function formatArea(km2: number, locale: Locale): string {
   const s = km2.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
   return `${locale === 'en' ? s : s.replace('.', ',')} km²`;
+}
+
+/**
+ * NOM RÉEL du quartier d'une zone (planche E04 : « Quartier Saint-Rémy »).
+ * Reverse-geocode OSM caché par secteur — le MÊME résolveur que le
+ * planificateur, donc les deux écrans nomment un lieu de la même façon.
+ *
+ * DEUX GARDE-FOUS D'HONNÊTETÉ :
+ *  · on passe NOTRE repli (le « Zone » traduit) : sans lui, `resolveSectorName`
+ *    retomberait sur `gridFallbackLabel`, qui rend « Secteur 49,7N · 1,0E » en
+ *    FRANÇAIS EN DUR (packages/shared) — du français affiché aux cinq langues ;
+ *  · si le résolveur rend ce repli, on renvoie `null` : l'UI affiche alors son
+ *    propre libellé neutre. Jamais un faux lieu, jamais une étiquette technique.
+ */
+function useResolvedZoneName(
+  center: LatLngPoint | null,
+  cacheKey: string | null,
+  fallback: string,
+): string | null {
+  const [name, setName] = useState<string | null>(null);
+  const lat = center?.lat ?? null;
+  const lng = center?.lng ?? null;
+  useEffect(() => {
+    if (lat === null || lng === null || cacheKey === null) {
+      setName(null);
+      return;
+    }
+    let cancelled = false;
+    // Remise à null AVANT la lecture : pendant la résolution la sheet affiche
+    // son libellé neutre, jamais le nom du quartier PRÉCÉDEMMENT tapé.
+    setName(null);
+    void resolveSectorName({ lat, lng }, cacheKey, fallback)
+      .then((resolved) => {
+        if (!cancelled) setName(resolved === fallback ? null : resolved);
+      })
+      .catch(() => {
+        // `resolveSectorName` ne lève pas ; ce catch est une ceinture de plus.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng, cacheKey, fallback]);
+  return name;
 }
 
 /*
@@ -262,6 +316,13 @@ export interface BattleMapOverlaysProps {
    */
   zone?: MapZoneView | null;
   /**
+   * Position du joueur telle que la CARTE la connaît déjà (acquise par un
+   * geste : Recentrer ou le premier GO). Consommée par le briefing E05 pour
+   * router un VRAI tracé. `null` = inconnue : le briefing le DIT, et n'ouvre
+   * surtout pas l'invite système de localisation à l'ouverture d'une sheet.
+   */
+  egoPos?: LatLngPoint | null;
+  /**
    * LENTILLE de la carte (planche E14) — 'run' par défaut. En 'bike', l'écran
    * n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement : le vélo
    * n'existe pas encore sous l'écran, et rejouer les données Run sous une
@@ -285,6 +346,7 @@ export function BattleMapOverlays({
   emptyState = null,
   onEmptyAction,
   zone = null,
+  egoPos = null,
   map3d,
   onSetMap3d,
   activity = 'run',
@@ -333,6 +395,35 @@ export function BattleMapOverlays({
    * vide avec un scénario.
    */
   const zoneOpen = !bike && selectedZoneId != null && zone != null;
+  /**
+   * Nom du quartier de la zone tapée — résolu ici (et non par MapScreen) pour
+   * que les deux surfaces qui l'affichent (E04 et son briefing E05) parlent du
+   * même lieu, sans double appel.
+   */
+  const zoneName = useResolvedZoneName(
+    zone?.center ?? null,
+    zone?.sectorId ?? null,
+    t(C.zoneFallback),
+  );
+  /**
+   * E05 — BRIEFING ouvert par le CTA « Reprendre » de E04. Il REMPLACE la sheet
+   * de zone dans le même emplacement : un sheet = une décision, jamais deux
+   * empilés. `✕` du briefing recule d'un cran (retour à E04), pas jusqu'à la
+   * carte nue : le briefing est une étape DANS la décision de zone.
+   */
+  const [briefingOpen, setBriefingOpen] = useState(false);
+  /**
+   * État du tracé REMONTÉ par le briefing : la sheet épouse son contenu, et ce
+   * contenu dépend de ce que le routage a réellement produit. Le parent ne peut
+   * pas le déduire — il l'apprend.
+   */
+  const [briefState, setBriefState] = useState<BriefRouteState>('loading');
+
+  // Un changement de zone (ou sa fermeture) referme le briefing : il porte le
+  // nom et le tracé d'UNE zone, le laisser ouvert sur une autre le ferait mentir.
+  useEffect(() => {
+    setBriefingOpen(false);
+  }, [selectedZoneId]);
 
   // Chaque entrée sur la Carte repart de la CARTE + peek mission : on referme le
   // menu Calques, ramène le peek en compact ET désélectionne la zone (retour au
@@ -340,6 +431,7 @@ export function BattleMapOverlays({
   useFocusEffect(
     useCallback(() => {
       setLayersOpen(false);
+      setBriefingOpen(false);
       // Remount de la sheet = retour au palier compact (la géométrie repart de
       // zéro, sans animation « collante » entre deux entrées sur l'onglet).
       setSheet((s) => ({ key: s.key + 1 }));
@@ -394,14 +486,44 @@ export function BattleMapOverlays({
   const showEmptyPeek = !bike && widget === null && emptyState !== null;
   const missionSheetVisible = bike || widget !== null || showEmptyPeek;
   const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
+  /**
+   * MÉTRIQUES RÉELLEMENT AFFICHABLES de la zone tapée (E04). C'est la même liste
+   * qui pilote le rendu ET la hauteur : impossible de peindre une ligne que la
+   * hauteur ignore, ou l'inverse.
+   */
+  const zoneMetrics: readonly ZoneMetricKey[] = useMemo(
+    () =>
+      zone === null
+        ? []
+        : zoneMetricKeys({
+            areaKm2: zone.areaKm2,
+            zones: zone.zones,
+            capturedDaysAgo: daysSinceCapture(zone.capturedAt, new Date()),
+          }),
+    [zone],
+  );
+
   /** Hauteur du CONTENU compact : le peek épouse son contenu, jamais tronqué (§A9). */
-  // Hauteur de la sheet de zone selon le rôle (rival = + CTA REPRENDRE).
-  const zoneSheetHeight =
-    zone?.role === 'rival' ? REAL_ZONE_SHEET_RIVAL_HEIGHT : REAL_ZONE_SHEET_COMPACT_HEIGHT;
+  // E04/E05 : la hauteur se DÉDUIT de ce qui est rendu (fonctions pures testées),
+  // elle n'est plus une constante devinée. Une zone rivale porte le CTA REPRENDRE
+  // et le lien tertiaire ; MA zone n'a pas de décision à prendre, donc ni l'un ni
+  // l'autre — et sa sheet se resserre d'autant au lieu de laisser un vide.
+  const zoneHeight = zoneSheetHeight({
+    metrics: zoneMetrics.length,
+    hasCta: zone?.role === 'rival',
+    hasTertiary: zone?.role === 'rival',
+  });
+  const briefingHeight = briefSheetHeight({
+    state: briefState,
+    metrics: briefMetricKeys(briefState).length,
+    hasStateAction: briefState !== 'loading',
+  });
   const peekContentHeight = bike
     ? BIKE_PEEK_HEIGHT
     : zoneOpen
-      ? zoneSheetHeight
+      ? briefingOpen
+        ? briefingHeight
+        : zoneHeight
       : showEmptyPeek
         ? emptyState === 'empty'
           ? EMPTY_PEEK_HEIGHT
@@ -513,6 +635,39 @@ export function BattleMapOverlays({
     onCloseZone?.();
   };
 
+  /**
+   * E04 → E05 : « Reprendre » n'envoie plus directement au planificateur, il
+   * ouvre le BRIEFING, où l'intention devient un objectif concret. Le
+   * planificateur reste accessible en un tap depuis le briefing (« Ajuster »)
+   * et depuis le lien tertiaire « Planifier pour plus tard ».
+   */
+  const openBriefing = () => {
+    haptics.medium();
+    screen('map_zone_act', { zone: selectedZoneId ?? '', action: 'reprendre' });
+    // On repart de « calcul en cours » : ne pas réutiliser l'état d'un briefing
+    // précédent, qui ferait clignoter la sheet à la mauvaise hauteur.
+    setBriefState('loading');
+    setBriefingOpen(true);
+  };
+
+  /** « Planifier pour plus tard » / « Ajuster » → le planificateur RÉEL. */
+  const openPlanner = () => {
+    haptics.light();
+    onCloseZone?.();
+    router.push('/route-planner');
+  };
+
+  /**
+   * CTA du briefing. La course qui démarre est une course de CONQUÊTE réelle —
+   * exactement celle du bouton GO. Le tracé affiché reste indicatif et le
+   * briefing le DIT : `/course-live` ignore volontairement tout paramètre
+   * d'objectif, et le serveur classe la capture APRÈS coup.
+   */
+  const startMission = () => {
+    onCloseZone?.();
+    router.push('/course-live?mode=conquete');
+  };
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* Backdrop invisible : un tap « ailleurs » referme le menu Calques (contrat
@@ -589,13 +744,35 @@ export function BattleMapOverlays({
           fois = 1 seul gros CTA à la fois (anti double-CTA §A.4). ── */}
       <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
         {zoneOpen && zone ? (
-          /* VRAIE zone tapée : ce que hex_claims sait dire, rien de plus. Panneau
-             FIXE (rien à déployer) ; son CTA REPRENDRE est alors l'unique CTA
-             chartreuse de l'écran — GO se retire (useZoneSheetOpen, §A.4). */
+          /* VRAIE zone tapée : ce que le serveur sait dire, rien de plus. Panneau
+             FIXE (rien à déployer) ; son CTA REPRENDRE — puis, une fois le
+             briefing ouvert, COMMENCER LA MISSION — est l'unique CTA chartreuse
+             de l'écran : GO se retire (useZoneSheetOpen, §A.4). */
           <MapAnchoredSheet
-            key={`realzone-${selectedZoneId}`}
+            key={`realzone-${selectedZoneId}-${briefingOpen ? 'brief' : 'zone'}`}
             geometry={sheetGeometry}
-            peek={<RealZonePeek zone={zone} onClose={closeZone} />}
+            peek={
+              briefingOpen ? (
+                <MissionBriefingSheet
+                  zoneId={selectedZoneId ?? ''}
+                  zoneName={zoneName}
+                  egoPos={egoPos}
+                  onStateChange={setBriefState}
+                  onClose={() => setBriefingOpen(false)}
+                  onOpenPlanner={openPlanner}
+                  onStart={startMission}
+                />
+              ) : (
+                <ZoneDecisionPeek
+                  zone={zone}
+                  zoneName={zoneName}
+                  metrics={zoneMetrics}
+                  onClose={closeZone}
+                  onReprendre={openBriefing}
+                  onPlanLater={openPlanner}
+                />
+              )
+            }
             testID="map-zone-sheet"
           />
         ) : hudHidden || !missionSheetVisible ? null : bike ? (
@@ -835,45 +1012,93 @@ function BikeStartPeek() {
 }
 
 /**
- * PEEK d'une VRAIE zone tapée (hex_claims). Volontairement pauvre : la table ne
- * porte ni nom de quartier, ni crew, ni part de contrôle, ni pression rivale —
- * on affiche donc UNIQUEMENT ce qu'on sait (rôle, nombre de zones, surface) et
- * on se tait sur le reste. Pastille de RÔLE (chartreuse = moi/mon crew, orange =
- * rival), jamais une couleur par crew (§C). Aucun CTA : le bouton GO flottant
- * reste l'unique CTA chartreuse de l'écran (§A.4).
- */
-/**
- * E04 (planche) — sheet de DÉCISION d'une zone tapée : un sheet = une décision.
- * Focal zone → propriétaire → REPRENDRE. Kicker de rôle (couleur §C) + nom +
- * ligne propriétaire·zones·surface (tout RÉEL, dérivé de hex_claims), puis, sur
- * une zone RIVALE seulement, le CTA REPRENDRE (planifier un parcours pour aller
- * la prendre — le route-planner est réel, la reprise reste décidée serveur ; le
- * client n'attribue jamais). GO se retire tant que ce sheet est ouvert
- * (useZoneSheetOpen, planche + §A.4) : REPRENDRE est alors l'UNIQUE CTA.
+ * E04 (planche) — sheet de DÉCISION d'une zone tapée : un sheet = UNE décision.
+ * Kicker de RÔLE (couleur §C) + nom de quartier + ✕ · propriétaire en fait
+ * NEUTRE · bloc de 3 MÉTRIQUES À SÉPARATEURS (jamais 6, jamais des cards) ·
+ * CTA REPRENDRE + action tertiaire « Planifier pour plus tard ». GO se retire
+ * tant que ce sheet est ouvert (useZoneSheetOpen, planche + §A.4) : REPRENDRE
+ * est alors l'UNIQUE CTA chartreuse de l'écran.
  *
- * DORMANTS (planche, mais O1 — jamais fabriqués) : identité du propriétaire
- * (avatar·handle·crew), « tenu depuis N jours », effort estimé, dernière
- * activité, « reprise N fois ce mois », et les variantes protégée (bleu, CTA
- * indispo) / contestée (violet, VOIR LA MISSION) / propriétaire privé. Ils
- * reviendront quand hex_claims les servira — ici la sheet ne dit que le réel.
+ * ─── CE QUE LA PLANCHE MONTRE ET QU'ON N'AFFICHE PAS ───────────────────────
+ * · IDENTITÉ du propriétaire (avatar · pseudo · crew) et sa variante « privé » :
+ *   sourçable (public_profiles + crew_members), mais c'est du câblage réseau
+ *   neuf assorti d'une décision de vie privée. La ligne reste « À un rival »,
+ *   qui est strictement VRAI. On ne synthétise jamais un pseudo depuis un UUID,
+ *   et surtout pas un avatar « générique » qui laisserait croire à une identité.
+ * · « ≈ 3,1 km effort estimé » : aucune source. Ce n'est ni une distance à vol
+ *   d'oiseau ni une distance de route (aucun routage n'est lancé au tap), et
+ *   « effort » n'est pas « distance ».
+ * · « 2 h dernière activité » : DOUBLEMENT interdit — la RLS `runs_select_own`
+ *   empêche le client de lire l'activité d'autrui, et une fraîcheur d'activité
+ *   rivale à l'heure près est un pas vers la position live, que la planche
+ *   proscrit explicitement.
+ * · « Zone reprise 2 fois ce mois · la défense a expiré » : `hex_claims` ne
+ *   porte que l'état COURANT, aucune table d'historique n'est exposée.
+ * · Variante PROTÉGÉE (liseré bleu + échéance) : elle suppose les `shields`,
+ *   qu'aucun code mobile ne lit.
+ * · CTA « VOIR LA MISSION » de la variante contestée : aucun objet mission de
+ *   secteur n'existe — un bouton sans cible serait un bouton mort. L'état
+ *   contesté, lui, se dit : il vient d'un booléen serveur RÉEL.
+ * Aucune de ces lignes ne devient un tiret ou un zéro : elles ne sont PAS là.
  */
-function RealZonePeek({ zone, onClose }: { zone: MapZoneView; onClose: () => void }) {
+function ZoneDecisionPeek({
+  zone,
+  zoneName,
+  metrics,
+  onClose,
+  onReprendre,
+  onPlanLater,
+}: {
+  zone: MapZoneView;
+  /** Nom RÉEL du quartier, ou null → le libellé neutre traduit. */
+  zoneName: string | null;
+  /** Métriques sourcées, déjà filtrées par `zoneMetricKeys` (0 à 3). */
+  metrics: readonly ZoneMetricKey[];
+  onClose: () => void;
+  onReprendre: () => void;
+  onPlanLater: () => void;
+}) {
   const t = useT();
   const locale = useLocale();
-  const router = useRouter();
   const isRival = zone.role === 'rival';
-  const tint = isRival ? gameColors.rival : gameColors.crew;
-  const reprendre = () => {
-    haptics.medium();
-    onClose();
-    router.push('/route-planner');
-  };
+  /**
+   * Couleur par RÔLE, jamais par identité (§C). Le CONTESTÉ prime : c'est l'état
+   * le plus chaud de la zone, et il vaut aussi pour une zone à moi (un secteur
+   * disputé l'est pour tout le monde). L'appartenance, elle, est portée par le
+   * TEXTE juste en dessous — la couleur ne reste jamais seule porteuse de sens.
+   */
+  const tint = zone.contested
+    ? gameColors.contested
+    : isRival
+      ? gameColors.rival
+      : gameColors.crew;
+  const kicker = zone.contested
+    ? C.zoneKickerContested
+    : isRival
+      ? C.zoneKickerRival
+      : C.zoneKickerMine;
+
+  const days = daysSinceCapture(zone.capturedAt, new Date());
+  const cells: readonly SheetMetric[] = metrics.map((key) => {
+    if (key === 'area') {
+      return { key, value: formatArea(zone.areaKm2, locale), label: t(C.zoneMetricArea) };
+    }
+    if (key === 'zones') {
+      return { key, value: String(zone.zones), label: t(C.zoneMetricZones) };
+    }
+    return {
+      key,
+      value: days === 0 ? t(C.zoneAgoToday) : t(C.zoneAgoDays, { n: days ?? 0 }),
+      label: t(C.zoneMetricLastCapture),
+    };
+  });
+
   return (
     <View style={styles.info}>
       <View style={styles.zoneHead}>
         <View style={[styles.zonePastille, { backgroundColor: tint }]} />
         <Text style={[styles.zoneKicker, { color: tint }]} numberOfLines={1}>
-          {t(isRival ? C.zoneKickerRival : C.zoneKickerMine)}
+          {t(kicker)}
         </Text>
         <View style={styles.zoneHeadSpacer} />
         <Pressable
@@ -886,23 +1111,45 @@ function RealZonePeek({ zone, onClose }: { zone: MapZoneView; onClose: () => voi
           <Text style={styles.zoneCloseText}>{t(C.closeLabel)}</Text>
         </Pressable>
       </View>
+      {/* Nom RÉEL du quartier quand le géocodage inverse en a rendu un ; sinon le
+          libellé neutre traduit — jamais un lieu inventé. */}
       <Text style={styles.zoneName} numberOfLines={1} adjustsFontSizeToFit>
-        {t(C.zoneFallback)}
+        {zoneName ?? t(C.zoneFallback)}
       </Text>
+      {/* PROPRIÉTAIRE — un fait neutre, ton compétitif jamais humiliant. */}
       <Text style={styles.zoneControl} numberOfLines={1} adjustsFontSizeToFit>
-        {t(isRival ? C.zoneOwnerRival : C.zoneOwnerMine)} · {zonesLabel(t, zone.zones)} ·{' '}
-        {formatArea(zone.areaKm2, locale)}
+        {t(isRival ? C.zoneOwnerRival : C.zoneOwnerMine)}
       </Text>
+      {/* 3 MÉTRIQUES MAX à séparateurs — et moins dès qu'une source manque. */}
+      <SheetMetrics metrics={cells} testID="zone-metrics" />
       {isRival ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.zoneReprendre)}
-          onPress={reprendre}
-          style={({ pressed }) => [styles.zoneReprendreBtn, pressed && styles.pressed]}
-          testID="zone-reprendre"
-        >
-          <Text style={styles.zoneReprendreLabel}>{t(C.zoneReprendre)}</Text>
-        </Pressable>
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.zoneReprendre)}
+            onPress={onReprendre}
+            style={({ pressed }) => [styles.zoneReprendreBtn, pressed && styles.pressed]}
+            testID="zone-reprendre"
+          >
+            <Text style={styles.zoneReprendreLabel} numberOfLines={1} adjustsFontSizeToFit>
+              {t(C.zoneReprendre)}
+            </Text>
+          </Pressable>
+          {/* Action TERTIAIRE : un LIEN, jamais un 2ᵉ bouton plein (§A.4) — et
+              elle mène quelque part de RÉEL (le planificateur d'itinéraire). */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.zonePlanLaterA11y)}
+            hitSlop={8}
+            onPress={onPlanLater}
+            style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
+            testID="zone-plan-later"
+          >
+            <Text style={styles.optionsLink} numberOfLines={1}>
+              {t(C.zonePlanLater)}
+            </Text>
+          </Pressable>
+        </>
       ) : null}
     </View>
   );

@@ -45,6 +45,8 @@ import { useMapSheetLayout } from './mapUiStore';
 import { useRealTerritories } from './hexClaims';
 import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
+import { selectZoneView } from './zoneSelection';
+import { zoneFocusLat } from './zoneFocus';
 import { sectorPointLayers } from './allTerritories';
 import { useSession } from '../../lib/session';
 import { cityCenter } from '../social/cities';
@@ -509,21 +511,17 @@ export function MapScreen() {
   }, [failed, reload]);
 
   /**
-   * Zone tapée → VRAIE zone (hex_claims). `territoryId` est la clé de territoire
-   * produite par buildTerritories, donc la même que celle portée par les couches :
-   * un tap retrouve exactement la forme peinte. Introuvable ⇒ null ⇒ pas de sheet
-   * (jamais un repli sur les étiquettes de scénario de ZONE_DETAILS).
+   * Zone tapée → VRAIE zone (hex_claims + sector_snapshot). `territoryId` est la
+   * clé produite par buildTerritories, donc la même que celle portée par les
+   * couches : un tap retrouve exactement la forme peinte. Introuvable ⇒ null ⇒
+   * pas de sheet (jamais un repli sur des étiquettes de scénario).
+   * La dérivation vit dans `selectZoneView` (module pur, testé), PARTAGÉE avec
+   * la variante web — parité structurelle plutôt que deux copies à surveiller.
    */
-  const selectedZone: MapZoneView | null = useMemo(() => {
-    if (bike || selectedZoneId === null || territories === null) return null;
-    const found = territories.find((t) => t.props.territoryId === selectedZoneId);
-    if (!found) return null;
-    return {
-      role: found.props.status === 'crew' ? 'mine' : 'rival',
-      zones: found.zoneCount,
-      areaKm2: found.props.areaM2 / 1_000_000,
-    };
-  }, [bike, selectedZoneId, territories]);
+  const selectedZone: MapZoneView | null = useMemo(
+    () => (bike ? null : selectZoneView(territories, sectorViews, selectedZoneId)),
+    [bike, selectedZoneId, territories, sectorViews],
+  );
 
   /**
    * §A — 1 écran = 1 décision : quand le peek du HUD porte DÉJÀ l'état vide (sa
@@ -614,6 +612,42 @@ export function MapScreen() {
    * d'une sheet, et il se défait d'un geste.
    */
   const sheetLayout = useMapSheetLayout();
+
+  /**
+   * E04 — CADRAGE de la zone tapée AU-DESSUS de la sheet (« la caméra la cadre
+   * au-dessus du sheet »). C'était LE delta visuel manquant : jusqu'ici le tap
+   * allumait la zone et atténuait le reste, mais la caméra ne bougeait pas, si
+   * bien qu'une zone tapée en bas d'écran finissait derrière la sheet.
+   *
+   * Le décalage est un CALCUL, pas un réglage : `flyTo` n'accepte ni padding ni
+   * offset, donc on déplace la latitude du centre de la moitié de la bande
+   * occupée par la sheet (fonction pure `zoneFocusLat`, testée en Deno).
+   *
+   * La clé de garde inclut la hauteur de bande : au tap, la sheet de zone n'est
+   * pas encore montée et le HUD publie encore la hauteur du peek mission — le
+   * cadrage se corrige tout seul dès qu'elle a publié la sienne, puis ne rejoue
+   * plus (on ne vole pas le geste du joueur qui déplace ensuite la carte).
+   */
+  const zoneFramedRef = useRef<string | null>(null);
+  const zoneBand = sheetLayout.visible ? Math.round(sheetLayout.peekTopPx) : 0;
+  useEffect(() => {
+    if (selectedZoneId === null) {
+      zoneFramedRef.current = null;
+      return;
+    }
+    const center = selectedZone?.center;
+    // Sans centre réel on ne vole NULLE PART (jamais un retour vers Paris).
+    if (!center) return;
+    const key = `${selectedZoneId}:${zoneBand}`;
+    if (zoneFramedRef.current === key) return;
+    zoneFramedRef.current = key;
+    const zoom = EGO_CAMERA.zoom;
+    mapRef.current?.flyTo({
+      lng: center.lng,
+      lat: zoneFocusLat({ lat: center.lat, zoom, sheetHeightPx: zoneBand }),
+      zoom,
+    });
+  }, [selectedZoneId, selectedZone, zoneBand]);
   const noteAnchor = sheetLayout.visible
     ? sheetLayout.peekTopPx
     : insets.bottom + NAV_BAR_HEIGHT;
@@ -681,6 +715,7 @@ export function MapScreen() {
         emptyState={emptyState}
         onEmptyAction={onEmptyAction}
         zone={selectedZone}
+        egoPos={egoPos}
         mode={mode}
         onSelectMode={setMode}
         onRecenter={recenter}

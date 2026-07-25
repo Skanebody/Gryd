@@ -1,43 +1,71 @@
 /**
- * GRYD — templates de partage « Partager ta conquête » (AMENDEMENT-20 §3, carte
- * 3D AMENDEMENT-24, doc « partage social viral » §4-§5). « Strava partage une
- * activité. GRYD partage une conquête. » Chaque template est un ShareCard variant
- * PROPRE : fond carte sombre, VRAI tracé chartreuse (jamais une ellipse), zone en
- * glow, blason discret, ≤ 3 stats + 1 KPI, textes COURTS jamais tronqués, badge
- * GRYD Verified.
+ * GRYD — LES CARTES DE PARTAGE (planche E10, recalage du 25/07/2026).
  *
- *   Carte · Conquête · Défense · Boucle · Crew · Classement · Avant/Après · Carte 3D
+ * ─── LE RETOUR FONDATEUR QUE CE FICHIER SOLDE ───────────────────────────────
+ * « Le partage de conquête n'a rien de ressemblant à ce qu'on a mis en place
+ * sur les nouveaux visuels. » C'était exact : l'ÉCRAN compositeur avait été
+ * recalé, pas les CARTES qu'il produit. Cet en-tête revendiquait encore la
+ * grammaire d'AMENDEMENT-20 (« ≤ 3 stats + 1 KPI, badge GRYD Verified ») et sur
+ * huit templates, UN SEUL suivait la planche : les sept autres empilaient
+ * kicker + titre + KPI + rangée de 3 stats + hashtag. Deux grammaires
+ * cohabitaient dans le même écran.
  *
- * La carte de chaque template dessine le VRAI tracé de la course (`view.trace`,
- * DÉJÀ masqué — départ/arrivée retirés par `applySharePrivacy`) via `ShareMap`,
- * jamais une ellipse ni une géométrie de démo. Tracé inconnu → `ShareMap` le DIT
- * à la place de la carte.
+ * ─── LA GRAMMAIRE DE LA PLANCHE, UNE SEULE, POUR TOUS LES MODES ─────────────
+ * La planche décrit un SYSTÈME, pas sept mises en page :
  *
- * ANIMATION : `view.animated` fait se DESSINER la trace puis se REMPLIR la zone
- * (payoff de conquête), `view.replayKey` rejoue (bouton Replay). Reduce motion →
- * état final direct (jamais d'info portée par l'animation seule).
+ *   1. bandeau de LIEU discret (ville · secteur)
+ *   2. TITRE de l'événement, display, deux lignes
+ *   3. LA CARTE, zone REMPLIE — c'est la preuve, elle tient le centre optique
+ *   4. le GAIN en chiffre héros
+ *   5. une ligne de CONTEXTE courte (crew · classement · distance · durée)
+ *   6. un CTA de DÉFI discret
+ *   7. la SIGNATURE GRYD en pied
  *
- * ZÉRO DONNÉE FABRIQUÉE (décision fondateur 21/07/2026) : ces templates ne
- * portent plus aucun scénario de démo. `ShareDemoData` (nom historique) décrit
- * les données d'un run RÉEL, armées par le Résultat ; ce qui n'est pas connu est
- * VIDE et les templates le taisent (nom, blason, stat, rang, état « avant »)
- * plutôt que d'emprunter la valeur de quelqu'un d'autre.
+ * Chaque template passe désormais par `shareCard()` : il ne choisit QUE son
+ * titre, sa grandeur héros, son défi et son visuel. Le reste est identique
+ * partout — c'est ça, « le même système ».
+ *
+ * ─── CE QUE CE FICHIER NE PEUT PAS TENIR, ET POURQUOI (écarts assumés) ───────
+ * Quatre des sept emplacements sont décidés par `src/ui/game/ShareCard.tsx`,
+ * hors du périmètre de ce lot. `ShareTemplate.build` ne peut renvoyer que des
+ * `ShareCardProps` ; en mode héros, ShareCard place le wordmark GRYD en HAUT et
+ * supprime tout le pied. Restent donc :
+ *   · #1 BANDEAU DE LIEU : aucun slot au-dessus du titre → NON RENDU. Il n'a de
+ *     toute façon aucune source (voir `knownPlaceName`), donc le peindre vide
+ *     aurait été un emplacement mort ;
+ *   · #7 SIGNATURE EN PIED : le wordmark existe, mais en haut à gauche ;
+ *   · #6 DÉFI « DISCRET » : la capsule est pleine largeur et chartreuse. Ce lot
+ *     la réserve aux trois récits qui l'ont MÉRITÉE (une zone a changé de main,
+ *     ou une frontière a tenu) au lieu de la peindre partout ; son poids
+ *     visuel, lui, se règle dans ShareCard.
+ * Ces trois écarts sont listés dans le retour de lot, pas cachés ici.
+ *
+ * ─── ZÉRO DONNÉE FABRIQUÉE ──────────────────────────────────────────────────
+ * Aucun scénario de démo (supprimé le 21/07/2026). `ShareDemoData` (nom
+ * historique) décrit les données d'un run RÉEL ; ce qui n'est pas connu est VIDE
+ * et la carte le TAIT (crew, rang) ou le DIT (chiffre héros indisponible, tracé
+ * indisponible) — jamais un emprunt, jamais un « +0 » exporté.
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, gameColors } from '@klaim/shared';
-import { CrewCrest, type ShareCardProps, type ShareStat } from '../../ui/game';
-import { Icon } from '../../ui/Icon';
+import type { ShareCardProps } from '../../ui/game';
 import { C } from '../../i18n/catalog/result';
 import { t, useT } from '../../i18n/store';
 import { type LatLngPoint } from '../map/realAnchors';
 import { ShareMap } from './ShareMap';
+import {
+  contextParts,
+  heroMetricFor,
+  heroValueFor,
+  knownPlaceName,
+  type HeroMetricId,
+  type ShareCardFacts,
+} from './cardModel';
 
-/** Un template = id, libellé de chip, et une fabrique de props ShareCard. */
+/** Un template = un id et une fabrique de props ShareCard (la grammaire est commune). */
 export interface ShareTemplate {
   id: ShareTemplateId;
-  /** Libellé COURT du chip sélecteur. */
-  chip: string;
   /** Construit les props visuelles de la card (hors ratio/width, gérés à part). */
   build: (d: ShareDemoData, view?: ShareView) => Omit<ShareCardProps, 'ratio' | 'width' | 'style'>;
 }
@@ -91,50 +119,157 @@ export interface ShareDemoData {
   /** GRYD Verified de CE run (serveur seul juge) — plus jamais un `true` en dur. */
   verified: boolean;
   /**
-   * Rang atteint (« #8 ») — template Classement (§4.7). NULL = pas de classement
-   * réel disponible (season_scores vide) → le style Classement est RETIRÉ de la
-   * liste plutôt que d'inventer un rang (charte : zéro donnée fabriquée).
+   * Rang atteint (« #8 ») — récit Classement. NULL = pas de classement réel
+   * disponible (season_scores vide) → le style Classement est RETIRÉ de la liste
+   * plutôt que d'inventer un rang (charte : zéro donnée fabriquée).
    */
   rankLabel: string | null;
   rankZone: string | null;
   rankDelta: string | null;
-  /** État de la zone AVANT la course (Avant/Après). NULL = inconnu → ligne masquée. */
+  /**
+   * État de la zone AVANT la course (Avant/Après). NULL = inconnu → ligne masquée.
+   *
+   * CONFIDENTIALITÉ (contrainte non négociable) : ce champ est un TEXTE LIBRE
+   * rendu au-dessus de la carte « avant ». C'est exactement l'endroit où le
+   * handle d'un crew rival atterrirait le jour où une source l'alimentera. Il ne
+   * doit JAMAIS porter l'identité d'un rival sans consentement explicite — la
+   * planche est catégorique et le pipeline actuel ne recueille aucun consentement.
+   */
   beforeState: string | null;
 }
 
 /**
- * ─── LE SCÉNARIO DE DÉMO A ÉTÉ SUPPRIMÉ (décision fondateur 21/07/2026) ──────
- * `SHARE_DEMO_BASE` / `shareDemo()` portaient KORO · LES FOULÉES 9³ ·
- * République · 4,4 km · 5'12 · 22:54 · #8 Paris Est · boucle République ·
- * verified: true. Deux chemins les faisaient sortir de l'app :
- *   · /partage sans course armée (`shareRun?.card ?? demoCard`) rendait une
- *     card complète, exportable en PNG ;
- *   · `shareCardFromResult()` s'en servait de SOCLE, donc tout champ oublié par
- *     un appelant était rempli par ce personnage — sur une VRAIE course.
- * Le socle est désormais neutre (share/shareRun.ts) et l'écran sans course
- * n'affiche plus aucune card. Le type garde son nom `ShareDemoData` (utilisé
- * partout) : il décrit désormais les données d'un run RÉEL.
+ * Unité de distance : invariant du catalogue (jamais traduite, cf. l'en-tête de
+ * i18n/catalog/result.ts). Elle est passée aux fonctions pures plutôt que
+ * codée dedans — un modèle ne décide pas d'un libellé.
  */
+const UNIT_KM = 'km';
 
 /**
- * Bouclier « défense tenue » — emblème en GLOW (AMENDEMENT-22), pas une boîte
- * cadrée : disque de halo chartreuse translucide, aucun contour dur. Il flotte
- * sur la card comme la zone dessinée (jamais de container-dans-container).
+ * Les replis de nom de zone, dans les CINQ langues. Ce ne sont pas des noms de
+ * lieu : ce sont les mots que le Résultat écrit quand il n'en a aucun. Les
+ * comparer est la seule façon de ne pas publier « J'AI PRIS ZONE ».
  */
-function ShieldBadge({ accent }: { accent: string }): ReactNode {
+const ZONE_FALLBACKS: readonly string[] = Object.values(C.zoneFallback);
+
+/**
+ * Libellé du chiffre héros — un par grandeur AUTORISÉE (jamais une aire).
+ *
+ * Deux cas ne prennent pas de MOT, et c'est délibéré :
+ *   · `distance` porte son UNITÉ (« 4,2 » + « KM ») : la valeur complète
+ *     « 4,2 km » composée en 64 pt déborde une story de 232 pt, et §A.9 interdit
+ *     un texte coupé. L'unité en libellé dit la même chose en deux caractères ;
+ *   · `duration` n'en porte AUCUN : « 26:10 » se lit comme une durée, et cette
+ *     valeur occupe déjà toute la ligne. Une chaîne vide n'est pas un texte
+ *     manquant — c'est un libellé qui n'ajouterait rien.
+ */
+function heroLabel(m: HeroMetricId): string {
+  switch (m) {
+    case 'zones':
+      return t(C.zonesStatLabel);
+    case 'defended':
+      return t(C.heroLabelHeld);
+    case 'loop':
+      return t(C.heroLabelBonus);
+    case 'crew':
+      return t(C.heroLabelCrew);
+    case 'rank':
+      return t(C.heroLabelRank);
+    case 'distance':
+      return UNIT_KM;
+    case 'duration':
+      return '';
+  }
+}
+
+/** Projection vers le modèle PUR (cardModel.ts) — aucune décision ici. */
+function factsOf(d: ShareDemoData): ShareCardFacts {
+  return {
+    zonesGained: d.zonesGained,
+    zonesDefended: d.zonesDefended,
+    loopBonusZones: d.loopBonusZones,
+    crewPoints: d.crewPoints,
+    rankLabel: d.rankLabel,
+    distanceKm: d.distanceKm,
+    clockLabel: d.clockLabel,
+    crewName: d.crewName,
+  };
+}
+
+/** Nom de LIEU réel, ou '' quand le Résultat n'en connaît aucun. */
+function placeOf(d: ShareDemoData): string {
+  return knownPlaceName(d.zoneName, ZONE_FALLBACKS);
+}
+
+/** Ce qu'un template a le droit de décider : son titre, sa grandeur, son défi, son visuel. */
+interface CardGrammar {
+  /** #2 — titre de l'événement, deux lignes display (le \n vient du catalogue). */
+  event: string;
+  /** #3 — la preuve visuelle. */
+  visual: ReactNode;
+  /** `true` = le visuel passe en FOND plein cadre au lieu du slot central. */
+  fullBleed?: boolean;
+  /** #4 — grandeur MISE EN AVANT. Le modèle décide si elle est disponible. */
+  hero: HeroMetricId;
+  /** #6 — défi, seulement là où un territoire a réellement changé de main/tenu. */
+  challenge?: string;
+}
+
+/**
+ * LA grammaire commune. Tous les modes passent ici : c'est ce qui fait « un
+ * système » et non « sept mises en page ».
+ *
+ * Le chiffre héros n'est JAMAIS une aire (contrainte (a) : aucune source
+ * serveur, ±20 % de variation d'un hexagone H3 selon la latitude) — voir
+ * cardModel.ts, où l'interdiction est structurelle. Quand rien n'est
+ * disponible, on affiche « — » et on DIT que la mesure manque, plutôt qu'un
+ * « +0 » géant dans une image publiée.
+ */
+function shareCard(
+  d: ShareDemoData,
+  g: CardGrammar,
+): Omit<ShareCardProps, 'ratio' | 'width' | 'style'> {
+  const f = factsOf(d);
+  const metric = heroMetricFor(g.hero, f);
+  const value = heroValueFor(metric, f);
+  const context = contextParts(f, metric, UNIT_KM).join(' · ');
+  const base = {
+    heroTitle: g.event,
+    stat: value ?? '—',
+    statLabel: metric !== null && value !== null ? heroLabel(metric) : t(C.heroMetricUnavailable),
+    // Ligne de contexte (#5). Vide → aucun texte, jamais un « · » orphelin.
+    title: context === '' ? undefined : context,
+    challenge: g.challenge,
+    verified: d.verified,
+  };
+  return g.fullBleed ? { ...base, mapBackground: g.visual } : { ...base, children: g.visual };
+}
+
+/**
+ * LA CARTE (#3) — la preuve. `fill` : elle prend TOUTE la place que le slot lui
+ * laisse, donc sa forme suit le ratio de la card, et son cadrage est recalculé
+ * en conséquence (mapFrame.ts). C'est la lecture littérale de la planche : « la
+ * carte est recalculée par ratio, le territoire n'est jamais coupé ».
+ */
+function proofMap(d: ShareDemoData, view?: ShareView): ReactNode {
   return (
-    <View style={styles.shieldGlow}>
-      <Icon name="bouclier" size={48} color={accent} />
-    </View>
+    <ShareMap
+      fill
+      style={styles.mapProof}
+      animated={view?.animated}
+      replayKey={view?.replayKey}
+      trace={view?.trace ?? d.trace ?? []}
+      // social_run → captured=false : la zone ne se remplit pas (aucune capture).
+      captured={view?.captured}
+      fullReplay={view?.fullReplay}
+    />
   );
 }
 
 /**
- * AVANT / APRÈS (doc §4.3) — split de deux VRAIES cartes de la même zone :
- * « avant » = zone contestée (tracé faible + frontière rivale, non capturée) ;
- * « après » = zone tenue (chartreuse, remplie, animée). « Strava montre ce que
- * tu as fait. GRYD montre ce que tu as changé. » Reduce motion : la carte
- * « après » est simplement remplie (l'anim ne porte aucune info).
+ * AVANT / APRÈS — même grammaire, visuel dédoublé : « avant » = zone contestée
+ * (tracé rival, non remplie), « après » = zone tenue (chartreuse, remplie).
+ * « Strava montre ce que tu as fait. GRYD montre ce que tu as changé. »
  */
 function BeforeAfter({
   view,
@@ -149,20 +284,23 @@ function BeforeAfter({
     <View style={styles.beforeAfter}>
       <View style={styles.baCol}>
         <Text style={styles.baLabel}>{tt(C.beforeLabel)}</Text>
+        {/* Zone NON capturée : le tracé apparaît en teinte RIVALE et la zone ne
+            se remplit jamais — c'est l'état « avant », pas une conquête. */}
         <ShareMap
           style={styles.baMap}
-          mode="defense"
           accent={gameColors.rival}
           captured={false}
           trace={trace ?? []}
         />
+        {/* CONFIDENTIALITÉ : `beforeState` ne doit jamais porter le handle d'un
+            rival sans consentement (voir ShareDemoData.beforeState). Null
+            aujourd'hui — la ligne n'est simplement pas rendue. */}
         {beforeState ? <Text style={styles.baState}>{beforeState}</Text> : null}
       </View>
       <View style={styles.baCol}>
         <Text style={[styles.baLabel, styles.baLabelAfter]}>{tt(C.afterLabel)}</Text>
         <ShareMap
           style={styles.baMap}
-          mode="loop"
           accent={colors.chartreuse}
           animated={view?.animated}
           replayKey={view?.replayKey}
@@ -174,218 +312,134 @@ function BeforeAfter({
   );
 }
 
-/**
- * Les 3 stats « façon Strava » (distance · allure · durée). Une valeur VIDE =
- * inconnue (l'appelant ne l'a pas fournie — voir NEUTRAL_SHARE_CARD) : on retire
- * la stat au lieu d'imprimer « km » tout seul. Mieux vaut 2 stats vraies que 3
- * dont une bancale — et surtout jamais une valeur de démo en bouche-trou.
- */
-function stravaStats(d: ShareDemoData): readonly ShareStat[] {
-  return [
-    d.distanceKm ? { value: `${d.distanceKm} km`, label: t(C.distanceStat) } : null,
-    d.paceLabel ? { value: d.paceLabel, label: t(C.paceStat) } : null,
-    d.clockLabel ? { value: d.clockLabel, label: t(C.durationStat) } : null,
-  ].filter((s): s is ShareStat => s !== null);
-}
-
-/**
- * Blason du crew — seulement si le crew est CONNU. Un `seed` vide produirait un
- * blason déterministe… d'un crew qui n'existe pas, signant la card d'une
- * identité inventée.
- */
-function crest(d: ShareDemoData, size: 's' | 'xl'): ReactNode {
-  if (!d.crewName) return undefined;
-  return <CrewCrest seed={d.crewName} name={d.crewName} size={size} />;
-}
-
-/** Mini-carte partage réutilisée par les 5 templates SVG (VRAI tracé animé). */
-/** Trace en GRAND pour le template héros (preuve visuelle, ~40 % de la card). */
-function mapHero(d: ShareDemoData, view?: ShareView): ReactNode {
-  return (
-    <ShareMap
-      style={styles.mapHero}
-      animated={view?.animated}
-      replayKey={view?.replayKey}
-      trace={view?.trace ?? d.trace ?? []}
-      captured={view?.captured}
-      fullReplay={view?.fullReplay}
-    />
-  );
-}
-
-function map(d: ShareDemoData, view: ShareView | undefined, mode: 'loop' | 'defense' = 'loop'): ReactNode {
-  return (
-    <ShareMap
-      style={styles.map}
-      mode={mode}
-      animated={view?.animated}
-      replayKey={view?.replayKey}
-      trace={view?.trace ?? d.trace ?? []}
-      // social_run → captured=false : la zone ne se remplit pas (aucune capture).
-      captured={view?.captured}
-      fullReplay={view?.fullReplay}
-    />
-  );
-}
-
-/** Signature de card sans champ vide (« KORO · CREW », « KORO », ou la zone). */
-function who(d: ShareDemoData): string {
-  return [d.playerName, d.crewName].filter(Boolean).join(' · ') || d.zoneName;
-}
-
 export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
-  // 1. CARTE SIMPLE — façon Strava : trace chartreuse + 3 stats, sobre.
+  // 1. CARTE — le repli honnête : son chiffre héros est la DISTANCE MESURÉE,
+  //    qui existe dès qu'une course existe. Aucun défi : rien n'a changé de main.
   {
     id: 'simple',
-    chip: 'Carte simple',
-    build: (d, view) => ({
-      title: who(d),
-      // Distance inconnue → on n'imprime pas « km » tout seul en KPI géant.
-      stat: d.distanceKm ? `${d.distanceKm} km` : '—',
-      statLabel: t(C.runValidatedLabel),
-      stats: stravaStats(d),
-      verified: d.verified,
-      crest: crest(d, 's'),
-      children: map(d, view),
-    }),
+    build: (d, view) =>
+      shareCard(d, {
+        event: t(C.heroRunLogged),
+        hero: 'distance',
+        visual: proofMap(d, view),
+      }),
   },
-  // 2. CONQUÊTE — TEMPLATE PRINCIPAL, mode HÉROS (retour fondateur 17/07) :
-  //    « une information principale, une preuve visuelle, un défi ». 5 éléments :
-  //    J'AI PRIS {ZONE} · grande trace · +47 ZONES · identité · PRENDS-LA-MOI.
-  //    Supprimés du visuel : kicker, phrase narrative, note privacy (déplacée
-  //    dans l'aperçu), badge hexagonal, mascotte, hashtag. Verified = « ✓ »
-  //    discret. Beaucoup d'émotion, une seule capsule.
+  // 2. CONQUÊTE — le récit dominant de la planche. Titre SANS lieu tant qu'aucun
+  //    secteur réel n'est câblé : « J'AI PRIS ZONE » se lit comme un nom de lieu.
   {
     id: 'conquete',
-    chip: 'Conquête',
-    build: (d, view) => ({
-      heroTitle: t(C.heroTook, { zone: d.zoneName.toUpperCase() }),
-      challenge: t(C.challengeTakeIt),
-      title: who(d),
-      stat: `+${d.zonesGained}`,
-      statLabel: t(C.zonesStatLabel),
-      verified: d.verified,
-      children: mapHero(d, view),
-    }),
+    build: (d, view) => {
+      const place = placeOf(d);
+      return shareCard(d, {
+        event: place
+          ? t(C.heroTook, { zone: place.toUpperCase() })
+          : t(C.heroTookNoPlace),
+        hero: 'zones',
+        challenge: t(C.challengeTakeIt),
+        visual: proofMap(d, view),
+      });
+    },
   },
-  // 3. DÉFENSE — « RÉPUBLIQUE DÉFENDUE · 2 zones · +48 h » + bouclier.
+  // 3. DÉFENSE — la frontière tenue. Le chiffre héros est le nombre de zones
+  //    DÉFENDUES (verdict serveur) et non `holdHours`, qui vaut 0 en dur côté
+  //    Résultat (TODO O1) : un « +0 h » géant serait un chiffre inventé.
   {
     id: 'defense',
-    chip: 'Défense',
-    build: (d) => ({
-      kicker: t(C.heroDefended),
-      title: who(d),
-      stat: `+${d.holdHours} h`,
-      statLabel: t(C.zonesHeldLabel, { n: d.zonesDefended }),
-      subtitle: t(C.borderGuarded, { zone: d.zoneName }),
-      verified: d.verified,
-      crest: crest(d, 's'),
-      children: <ShieldBadge accent={gameColors.crew} />,
-    }),
+    build: (d, view) => {
+      const place = placeOf(d);
+      return shareCard(d, {
+        event: place
+          ? t(C.heroDefendedPlace, { zone: place.toUpperCase() })
+          : t(C.heroDefendedNoPlace),
+        hero: 'defended',
+        challenge: t(C.challengeHoldTheLine),
+        visual: proofMap(d, view),
+      });
+    },
   },
-  // 4. BOUCLE — « BOUCLE FERMÉE · +33 zones bonus » (le geste malin).
+  // 4. BOUCLE — le geste malin : la boucle fait la zone.
   {
     id: 'boucle',
-    chip: 'Boucle',
-    build: (d, view) => ({
-      kicker: t(C.loopClosedKicker),
-      title: who(d),
-      stat: `+${d.loopBonusZones}`,
-      statLabel: t(C.bonusZonesLabel),
-      subtitle: t(C.loopMakesZoneSub),
-      verified: d.verified,
-      crest: crest(d, 's'),
-      children: map(d, view),
-    }),
+    build: (d, view) =>
+      shareCard(d, {
+        event: t(C.heroLoopClosed),
+        hero: 'loop',
+        visual: proofMap(d, view),
+      }),
   },
-  // 5. CREW — blason + « LES FOULÉES 9³ · Crew +420 pts ». Crew inconnu (jamais
-  //    fourni par l'appelant) : ni titre vide, ni blason d'un crew inventé — on
-  //    retombe sur la signature `who()` et l'emblème disparaît. Le KPI (les
-  //    points gagnés), lui, reste vrai.
+  // 5. CREW — crew inconnu : le titre ne le nomme pas et la ligne de contexte
+  //    l'omet. Ni titre vide, ni identité empruntée.
   {
     id: 'crew',
-    chip: 'Crew',
-    build: (d) => ({
-      kicker: t(C.forCrewKicker),
-      title: d.crewName || who(d),
-      stat: `+${d.crewPoints}`,
-      statLabel: t(C.crewPointsLabel),
-      subtitle:
-        d.playerName && d.crewName
-          ? t(C.liftedCrew, { player: d.playerName, crew: d.crewName })
-          : undefined,
-      verified: d.verified,
-      children: crest(d, 'xl'),
-    }),
+    build: (d, view) =>
+      shareCard(d, {
+        event: d.crewName
+          ? t(C.heroForCrewNamed, { crew: d.crewName.toUpperCase() })
+          : t(C.heroForCrewNoName),
+        hero: 'crew',
+        visual: proofMap(d, view),
+      }),
   },
-  // 6. CLASSEMENT (doc §4.7) — « TOP 10 PARIS EST · #8 · +3 places ». Format
-  //    statutaire : le ranking est un moteur viral de base (jamais bloqué premium).
+  // 6. CLASSEMENT — moteur viral de base (jamais bloqué premium). Le rang vient
+  //    du serveur ; sans rang, ce style n'est même pas proposé par /partage.
   {
     id: 'classement',
-    chip: 'Classement',
-    build: (d, view) => ({
-      kicker: d.rankZone ? t(C.top10Kicker, { zone: d.rankZone.toUpperCase() }) : t(C.rankingKicker),
-      title: who(d),
-      stat: d.rankLabel ?? '—',
-      statLabel: d.rankDelta
-        ? t(C.rankDeltaWeek, { delta: d.rankDelta })
-        : t(C.rankingSoonLabel),
-      subtitle: d.rankLabel && d.rankZone
-        ? t(C.climbsTo, { who: who(d), rank: d.rankLabel, zone: d.rankZone })
-        : t(C.rankingOpensSeason),
-      verified: d.verified,
-      crest: crest(d, 's'),
-      children: map(d, view),
-    }),
+    build: (d, view) =>
+      shareCard(d, {
+        event: d.rankLabel ? t(C.heroRankLine, { rank: d.rankLabel }) : t(C.heroRunLogged),
+        hero: 'rank',
+        visual: proofMap(d, view),
+      }),
   },
-  // 7. AVANT / APRÈS (doc §4.3) — le format qui montre ce que tu as CHANGÉ :
-  //    zone contestée → zone tenue, split de deux vraies cartes.
+  // 7. AVANT / APRÈS — ce que tu as CHANGÉ : zone contestée → zone tenue.
   {
     id: 'avantApres',
-    chip: 'Avant/Après',
-    build: (d, view) => ({
-      kicker: t(C.beforeAfterKicker),
-      title: who(d),
-      stat: `+${d.zonesGained}`,
-      statLabel: t(C.zoneRetaken, { zone: d.zoneName }),
-      verified: d.verified,
-      crest: crest(d, 's'),
-      children: <BeforeAfter view={view} beforeState={d.beforeState} />,
-    }),
+    build: (d, view) => {
+      const place = placeOf(d);
+      return shareCard(d, {
+        event: place
+          ? t(C.heroRetookPlace, { zone: place.toUpperCase() })
+          : t(C.heroRetookNoPlace),
+        hero: 'zones',
+        challenge: t(C.challengeTakeIt),
+        visual: <BeforeAfter view={view} beforeState={d.beforeState} />,
+      });
+    },
   },
-  // 8. CARTE 3D (AMENDEMENT-24) — GRYD 3D Conquest Map : fond carte MapLibre
-  //    PITCHEE, zone conquise EXTRUDEE en volume chartreuse, trace épaisse, zone
-  //    rivale atténuée. Overlay stats : GRYD · +47 · Zones · République. La carte
-  //    est le SLOT PLEIN CADRE (`mapBackground`) — pas de mini-carte `children`.
+  // 8. PLEIN CADRE — MÊME grammaire, la carte passe simplement en FOND : le
+  //    territoire occupe tout le cadre et le texte se pose dessus.
+  //
+  //    ─── UN CONTRÔLE MAL ÉTIQUETÉ, CORRIGÉ (25/07/2026) ────────────────────
+  //    Ce style s'appelait « Carte 3D ». `ShareMap3D` montait une géométrie de
+  //    DÉMO FIGÉE (République) : elle n'acceptait aucun tracé, donc elle
+  //    dessinait TOUJOURS la même conquête. Elle a été supprimée le 21/07, mais
+  //    le LIBELLÉ est resté : l'utilisateur choisissait « Carte 3D » et
+  //    exportait une carte SVG 2D. Un contrôle mal étiqueté ment autant qu'un
+  //    bouton mort. Le libellé (i18n `styleMap3d`) dit désormais ce que ce style
+  //    fait vraiment — la carte en plein cadre.
   {
     id: 'carte3d',
-    chip: 'Carte 3D',
     build: (d, view) => {
-      // ─── CAUSE, pas symptôme (21/07/2026) ────────────────────────────────
-      // `ShareMap3D` montait une géométrie de DÉMO FIGÉE (République, demo3d) :
-      // elle n'accepte aucun tracé, donc elle dessinait TOUJOURS la même
-      // conquête — le volume d'un autre quartier signé du nom du coureur. Son
-      // seul refuge restant était l'aperçu d'EXEMPLE de /partage, qui n'existe
-      // plus. Ce style rend donc la carte SVG du VRAI tracé, la seule capable
-      // de suivre la course (et de dire « tracé indisponible » sinon) ; /partage
-      // ne le propose d'ailleurs que si un tracé est connu.
-      return {
-        kicker: t(C.sectorTakenKicker),
-        title: who(d),
-        stat: `+${d.zonesGained}`,
-        statLabel: t(C.zonesOfZone, { zone: d.zoneName }),
-        verified: d.verified,
-        mapBackground: (
+      const place = placeOf(d);
+      return shareCard(d, {
+        event: place
+          ? t(C.heroTook, { zone: place.toUpperCase() })
+          : t(C.heroTookNoPlace),
+        hero: 'zones',
+        challenge: t(C.challengeTakeIt),
+        fullBleed: true,
+        visual: (
           <ShareMap
-            style={styles.map3d}
+            fill
+            style={styles.mapFullBleed}
             animated={view?.animated}
             replayKey={view?.replayKey}
-            trace={view?.trace ?? []}
+            trace={view?.trace ?? d.trace ?? []}
             captured={view?.captured}
             fullReplay={view?.fullReplay}
           />
         ),
-      };
+      });
     },
   },
 ];
@@ -403,22 +457,13 @@ export const SHARE_TEMPLATES_BY_ID: Record<ShareTemplateId, ShareTemplate> = {
 };
 
 const styles = StyleSheet.create({
-  map: { width: '50%', maxWidth: 170, maxHeight: 150 },
-  // Héros : la preuve visuelle domine — large, carrée, bornée par le slot flex.
-  mapHero: { width: '86%', maxWidth: 300, aspectRatio: 1, maxHeight: 300 },
-  // Carte 3D : remplit le slot plein cadre `mapBackground` de la ShareCard.
-  map3d: { flex: 1 },
-  // Halo doux (glow), disque translucide sans contour dur — un emblème, pas une boîte.
-  shieldGlow: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.chartreuse14,
-  },
+  // La preuve occupe TOUT le slot central : sa forme suit le ratio de la card,
+  // et ShareMap recalcule son cadrage sur la forme mesurée (mapFrame.ts).
+  mapProof: { alignSelf: 'stretch' },
+  // Plein cadre : la carte remplit le calque de fond de la ShareCard.
+  mapFullBleed: { flex: 1 },
   // Avant/Après : deux colonnes égales, séparées par l'espace (pas de card-dans-card).
-  beforeAfter: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  beforeAfter: { flexDirection: 'row', gap: 12, alignItems: 'center', alignSelf: 'stretch' },
   baCol: { flex: 1, alignItems: 'center', gap: 6 },
   baMap: { width: '100%', maxWidth: 120, maxHeight: 120 },
   baLabel: { color: colors.gris, fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },

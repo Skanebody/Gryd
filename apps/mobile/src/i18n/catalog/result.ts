@@ -774,12 +774,22 @@ export const C = defineCatalog({
     de: 'Vorher/Nachher',
     pt: 'Antes/Depois',
   },
+  /**
+   * ─── UN CONTRÔLE MAL ÉTIQUETÉ, CORRIGÉ (25/07/2026) ───────────────────────
+   * Ce style s'appelait « Carte 3D ». `ShareMap3D` a été supprimée le 21/07
+   * (elle montait une géométrie de DÉMO FIGÉE, incapable de suivre un vrai
+   * tracé) et ce style rend depuis une carte SVG 2D en PLEIN CADRE. Le libellé,
+   * lui, était resté : l'utilisateur choisissait une chose et exportait l'autre.
+   * Un contrôle mal étiqueté ment autant qu'un bouton mort — le libellé dit
+   * maintenant ce que le style fait. La CLÉ garde son nom : elle est lue par
+   * app/partage.tsx (gelé ce tour-ci).
+   */
   styleMap3d: {
-    fr: 'Carte 3D',
-    en: '3D Map',
-    es: 'Mapa 3D',
-    de: '3D-Karte',
-    pt: 'Mapa 3D',
+    fr: 'Plein cadre',
+    en: 'Full bleed',
+    es: 'A sangre',
+    de: 'Randlos',
+    pt: 'Tela cheia',
   },
 
   // ── Partage : écran ──
@@ -1015,6 +1025,19 @@ export const C = defineCatalog({
   },
 
   // ── Templates de cards (share/templates.tsx) ──
+  //
+  // VINGT CLÉS ONT DISPARU ICI LE 25/07/2026, et c'est le sujet du recalage E10.
+  // Elles servaient la grammaire d'AMENDEMENT-20 — kicker + titre + KPI + rangée
+  // de 3 stats + sous-titre — que sept des huit cards empilaient encore alors que
+  // la planche n'en décrit qu'UNE (lieu · titre · carte · chiffre · contexte ·
+  // défi · signature). Les cards passent toutes par la même composition : plus
+  // aucun kicker (`sectorTakenKicker`, `loopClosedKicker`, `forCrewKicker`,
+  // `beforeAfterKicker`, `top10Kicker`, `rankingKicker`), plus aucun sous-titre
+  // (`borderGuarded`, `loopMakesZoneSub`, `liftedCrew`, `climbsTo`,
+  // `zoneRetaken`, `zonesOfZone`, `rankingOpensSeason`), plus de rangée de stats
+  // (`paceStat`, `runValidatedLabel`, `zonesHeldLabel`, `rankDeltaWeek`,
+  // `rankingSoonLabel`, `bonusZonesLabel`, `crewPointsLabel`). Les garder aurait
+  // laissé croire que ces mises en page existent encore.
   heldState: {
     fr: 'Tenue',
     en: 'Held',
@@ -1029,26 +1052,12 @@ export const C = defineCatalog({
     de: 'Distanz',
     pt: 'Distância',
   },
-  paceStat: {
-    fr: 'Allure',
-    en: 'Pace',
-    es: 'Ritmo',
-    de: 'Pace',
-    pt: 'Pace',
-  },
   durationStat: {
     fr: 'Durée',
     en: 'Time',
     es: 'Tiempo',
     de: 'Zeit',
     pt: 'Tempo',
-  },
-  runValidatedLabel: {
-    fr: 'Course validée',
-    en: 'Run validated',
-    es: 'Carrera validada',
-    de: 'Lauf bestätigt',
-    pt: 'Corrida validada',
   },
   /** Héros Conquête — {zone} arrive déjà en MAJUSCULES ({'\n'} dans l'entrée). */
   heroTook: {
@@ -1071,132 +1080,6 @@ export const C = defineCatalog({
     es: 'Zonas',
     de: 'Zonen',
     pt: 'Zonas',
-  },
-  zonesHeldLabel: {
-    fr: '{n} zones tenues',
-    en: '{n} zones held',
-    es: '{n} zonas mantenidas',
-    de: '{n} Zonen gehalten',
-    pt: '{n} zonas mantidas',
-  },
-  borderGuarded: {
-    fr: '{zone} · frontière gardée',
-    en: '{zone} · border guarded',
-    es: '{zone} · frontera protegida',
-    de: '{zone} · Grenze bewacht',
-    pt: '{zone} · fronteira protegida',
-  },
-  loopClosedKicker: {
-    fr: 'BOUCLE FERMÉE',
-    en: 'LOOP CLOSED',
-    es: 'BUCLE CERRADO',
-    de: 'SCHLEIFE ZU',
-    pt: 'LOOP FECHADO',
-  },
-  bonusZonesLabel: {
-    fr: 'Zones bonus',
-    en: 'Bonus zones',
-    es: 'Zonas bonus',
-    de: 'Bonus-Zonen',
-    pt: 'Zonas bônus',
-  },
-  loopMakesZoneSub: {
-    fr: 'La boucle fait la zone',
-    en: 'The loop makes the zone',
-    es: 'El bucle hace la zona',
-    de: 'Die Schleife macht die Zone',
-    pt: 'O loop faz a zona',
-  },
-  forCrewKicker: {
-    fr: 'POUR LE CREW',
-    en: 'FOR THE CREW',
-    es: 'PARA EL CREW',
-    de: 'FÜR DIE CREW',
-    pt: 'PELO CREW',
-  },
-  crewPointsLabel: {
-    fr: 'Points crew',
-    en: 'Crew points',
-    es: 'Puntos crew',
-    de: 'Crew-Punkte',
-    pt: 'Pontos do crew',
-  },
-  liftedCrew: {
-    fr: '{player} a fait monter {crew}',
-    en: '{player} lifted {crew}',
-    es: '{player} hizo subir a {crew}',
-    de: '{player} hat {crew} hochgebracht',
-    pt: '{player} fez o {crew} subir',
-  },
-  top10Kicker: {
-    fr: 'TOP 10 {zone}',
-    en: 'TOP 10 {zone}',
-    es: 'TOP 10 {zone}',
-    de: 'TOP 10 {zone}',
-    pt: 'TOP 10 {zone}',
-  },
-  rankingKicker: {
-    fr: 'CLASSEMENT',
-    en: 'RANKING',
-    es: 'RANKING',
-    de: 'RANKING',
-    pt: 'RANKING',
-  },
-  rankDeltaWeek: {
-    fr: '{delta} cette semaine',
-    en: '{delta} this week',
-    es: '{delta} esta semana',
-    de: '{delta} diese Woche',
-    pt: '{delta} esta semana',
-  },
-  rankingSoonLabel: {
-    fr: 'classement à venir',
-    en: 'ranking coming soon',
-    es: 'ranking en camino',
-    de: 'Ranking folgt',
-    pt: 'ranking em breve',
-  },
-  climbsTo: {
-    fr: '{who} grimpe à {rank} sur {zone}',
-    en: '{who} climbs to {rank} in {zone}',
-    es: '{who} sube a {rank} en {zone}',
-    de: '{who} klettert auf {rank} in {zone}',
-    pt: '{who} sobe para {rank} em {zone}',
-  },
-  rankingOpensSeason: {
-    fr: 'Le classement local ouvre avec la saison.',
-    en: 'Local ranking opens with the season.',
-    es: 'El ranking local abre con la temporada.',
-    de: 'Das lokale Ranking startet mit der Saison.',
-    pt: 'O ranking local abre com a temporada.',
-  },
-  beforeAfterKicker: {
-    fr: 'AVANT · APRÈS',
-    en: 'BEFORE · AFTER',
-    es: 'ANTES · DESPUÉS',
-    de: 'VORHER · NACHHER',
-    pt: 'ANTES · DEPOIS',
-  },
-  zoneRetaken: {
-    fr: '{zone} reprise',
-    en: '{zone} retaken',
-    es: '{zone} recuperada',
-    de: '{zone} zurückgeholt',
-    pt: '{zone} retomada',
-  },
-  sectorTakenKicker: {
-    fr: 'SECTEUR PRIS',
-    en: 'SECTOR TAKEN',
-    es: 'SECTOR TOMADO',
-    de: 'SEKTOR EROBERT',
-    pt: 'SETOR TOMADO',
-  },
-  zonesOfZone: {
-    fr: 'Zones · {zone}',
-    en: 'Zones · {zone}',
-    es: 'Zonas · {zone}',
-    de: 'Zonen · {zone}',
-    pt: 'Zonas · {zone}',
   },
 
   // `demoRankDelta` / `demoContested` SUPPRIMÉS (25/07/2026) : derniers restes du
@@ -1475,6 +1358,317 @@ export const C = defineCatalog({
     de: 'Geschützt',
     pt: 'Protegido',
   },
+
+  // ═══ E10 — LA CARTE PARTAGÉE : UNE SEULE GRAMMAIRE (25/07/2026) ════════════
+  // Retour fondateur : « le partage de conquête n'a rien de ressemblant à ce
+  // qu'on a mis en place sur les nouveaux visuels ». L'écran avait été recalé,
+  // pas les CARTES : sept mises en page cohabitaient (kicker + KPI + 3 stats +
+  // #GRYD) avec une seule au format de la planche. Tous les modes passent
+  // désormais par la MÊME composition — lieu · TITRE · CARTE · CHIFFRE ·
+  // contexte · défi · signature — donc par les MÊMES clés de titre.
+  //
+  // Chaque titre tient sur DEUX lignes (display, planche E10) : le \n est dans
+  // l'entrée, et il est le même dans les cinq langues.
+  //
+  // DEUX VARIANTES PAR RÉCIT, et ce n'est pas du confort : `zoneName` vaut
+  // aujourd'hui le littéral `zoneFallback` (« Zone »), donc la carte imprimait
+  // « J'AI PRIS ZONE » — le mot passe pour un nom de lieu. Tant qu'aucun secteur
+  // réel n'est câblé, c'est la variante SANS lieu qui sort.
+
+  /** Capture, lieu CONNU. Voir aussi `heroTook` (identique, conservée). */
+  heroTookNoPlace: {
+    fr: 'TERRITOIRE\nCONQUIS',
+    en: 'TERRITORY\nTAKEN',
+    es: 'TERRITORIO\nCONQUISTADO',
+    de: 'GEBIET\nEROBERT',
+    pt: 'TERRITÓRIO\nCONQUISTADO',
+  },
+  heroRetookPlace: {
+    fr: "J'AI REPRIS\n{zone}",
+    en: 'I TOOK BACK\n{zone}',
+    es: 'RECUPERÉ\n{zone}',
+    de: 'ZURÜCKGEHOLT:\n{zone}',
+    pt: 'RETOMEI\n{zone}',
+  },
+  heroRetookNoPlace: {
+    fr: 'ZONE\nREPRISE',
+    en: 'ZONE\nTAKEN BACK',
+    es: 'ZONA\nRECUPERADA',
+    de: 'ZONE\nZURÜCKGEHOLT',
+    pt: 'ZONA\nRETOMADA',
+  },
+  heroDefendedPlace: {
+    fr: "J'AI TENU\n{zone}",
+    en: 'I HELD\n{zone}',
+    es: 'DEFENDÍ\n{zone}',
+    de: 'GEHALTEN:\n{zone}',
+    pt: 'SEGUREI\n{zone}',
+  },
+  heroDefendedNoPlace: {
+    fr: 'FRONTIÈRE\nTENUE',
+    en: 'BORDER\nHELD',
+    es: 'FRONTERA\nDEFENDIDA',
+    de: 'GRENZE\nGEHALTEN',
+    pt: 'FRONTEIRA\nSEGURA',
+  },
+  heroLoopClosed: {
+    fr: 'BOUCLE\nFERMÉE',
+    en: 'LOOP\nCLOSED',
+    es: 'BUCLE\nCERRADO',
+    de: 'SCHLEIFE\nGESCHLOSSEN',
+    pt: 'LOOP\nFECHADO',
+  },
+  heroForCrewNamed: {
+    fr: 'COURU POUR\n{crew}',
+    en: 'RUN FOR\n{crew}',
+    es: 'CORRÍ POR\n{crew}',
+    de: 'GELAUFEN FÜR\n{crew}',
+    pt: 'CORRI POR\n{crew}',
+  },
+  heroForCrewNoName: {
+    fr: 'COURU POUR\nLE CREW',
+    en: 'RUN FOR\nTHE CREW',
+    es: 'CORRÍ POR\nEL CREW',
+    de: 'GELAUFEN FÜR\nDIE CREW',
+    pt: 'CORRI PELO\nCREW',
+  },
+  /** Rang : « {rank} » arrive déjà formaté (« #8 ») — jamais fabriqué ici. */
+  heroRankLine: {
+    fr: 'JE SUIS\n{rank}',
+    en: "I'M\n{rank}",
+    es: 'ESTOY\n{rank}',
+    de: 'ICH BIN\n{rank}',
+    pt: 'ESTOU EM\n{rank}',
+  },
+  heroRunLogged: {
+    fr: 'COURSE\nENREGISTRÉE',
+    en: 'RUN\nLOGGED',
+    es: 'CARRERA\nREGISTRADA',
+    de: 'LAUF\nGESPEICHERT',
+    pt: 'CORRIDA\nREGISTRADA',
+  },
+
+  /**
+   * Défi de la carte DÉFENSE — le pendant de `challengeTakeIt`.
+   * COURT dans les cinq langues, et c'est une contrainte de rendu, pas un goût :
+   * la capsule fait la largeur d'une story (232 pt, soit ~192 utiles) et son
+   * texte est composé en 16 pt gras + 2 d'approche — au-delà d'une douzaine de
+   * caractères, il se fait couper, ce que §A.9 interdit.
+   */
+  challengeHoldTheLine: {
+    fr: 'FRANCHIS-LA',
+    en: 'CROSS IT',
+    es: 'CRÚZALA',
+    de: 'KOMM DURCH',
+    pt: 'ATRAVESSA',
+  },
+
+  /**
+   * Libellés du chiffre héros — un par grandeur AUTORISÉE (jamais une aire).
+   * MÊME contrainte de longueur, en pire : ce libellé partage sa ligne avec le
+   * chiffre composé en 64 pt. « +47 » mange déjà 110 pt des 192 disponibles, il
+   * reste donc la place d'un mot COURT. C'est aussi pour ça que la distance ne
+   * porte pas de libellé de mot mais son unité (voir templates.tsx).
+   */
+  heroLabelHeld: {
+    fr: 'Tenues',
+    en: 'Held',
+    es: 'Retenidas',
+    de: 'Gehalten',
+    pt: 'Mantidas',
+  },
+  heroLabelBonus: {
+    fr: 'Bonus',
+    en: 'Bonus',
+    es: 'Bonus',
+    de: 'Bonus',
+    pt: 'Bônus',
+  },
+  /** « Crew » est un invariant du projet — même mot dans les cinq langues. */
+  heroLabelCrew: {
+    fr: 'Crew',
+    en: 'Crew',
+    es: 'Crew',
+    de: 'Crew',
+    pt: 'Crew',
+  },
+  heroLabelRank: {
+    fr: 'Rang',
+    en: 'Rank',
+    es: 'Puesto',
+    de: 'Rang',
+    pt: 'Posição',
+  },
+  /**
+   * Rien de mesuré NI de jugé : la carte affiche « — » et le DIT. C'est le seul
+   * substitut acceptable à un chiffre héros — « 0 » nu et « +0 » sont interdits,
+   * a fortiori dans une image destinée à être publiée.
+   */
+  heroMetricUnavailable: {
+    fr: 'Non mesurée',
+    en: 'Not measured',
+    es: 'Sin medir',
+    de: 'Ohne Messung',
+    pt: 'Sem medição',
+  },
+
+  // ═══ E10 — APERÇU DE FORMAT (livrable fondateur, 25/07/2026) ═══════════════
+  // Le compositeur ne s'ouvre qu'avec une course terminée : sur localhost il n'y
+  // en a jamais, donc personne ne peut juger le rendu des cartes. Cet aperçu
+  // montre la MISE EN PAGE — et rien d'autre.
+  //
+  // GARDE-FOU TESTÉ : le bloc délimité ci-dessous ne doit contenir AUCUNE valeur
+  // (chiffre, unité, rang, nom de lieu). `formatPreviewModel.isSlotLabelClean`
+  // l'impose au rendu, et `formatPreviewModel.test.ts` relit CE fichier entre les
+  // deux sentinelles pour le vérifier dans les cinq langues. Ne pas déplacer les
+  // sentinelles sans déplacer le test.
+  // GARDE-FOU:DEBUT apercu-de-format
+  fpTitle: {
+    fr: 'Aperçu de format',
+    en: 'Layout preview',
+    es: 'Vista de formato',
+    de: 'Layout-Vorschau',
+    pt: 'Prévia de formato',
+  },
+  /** Étiquette DANS le cadre — pas seulement autour (garde-fou 4). */
+  fpBadge: {
+    fr: 'APERÇU DE FORMAT',
+    en: 'LAYOUT PREVIEW',
+    es: 'VISTA DE FORMATO',
+    de: 'LAYOUT-VORSCHAU',
+    pt: 'PRÉVIA DE FORMATO',
+  },
+  fpIntro: {
+    fr: 'Voici la mise en page des cartes GRYD : le cadre, la hiérarchie, la place de chaque élément. Chaque emplacement porte son nom — aucune valeur n’est affichée, parce qu’aucune course ne les a produites.',
+    en: 'This is the layout of GRYD cards: the frame, the hierarchy, where each element sits. Every slot is named — no values are shown, because no run produced any.',
+    es: 'Esta es la maquetación de las tarjetas GRYD: el marco, la jerarquía, el lugar de cada elemento. Cada espacio lleva su nombre — no se muestra ningún valor, porque ninguna carrera los ha producido.',
+    de: 'So ist das Layout der GRYD-Karten aufgebaut: Rahmen, Hierarchie, Platz jedes Elements. Jeder Platzhalter trägt seinen Namen — es werden keine Werte gezeigt, denn kein Lauf hat welche erzeugt.',
+    pt: 'Este é o layout dos cards GRYD: o quadro, a hierarquia, o lugar de cada elemento. Cada espaço leva seu nome — nenhum valor aparece, porque nenhuma corrida os produziu.',
+  },
+  fpNotShareable: {
+    fr: 'Cet aperçu ne se partage pas. Une carte partageable naît d’une course réelle, jamais d’ici.',
+    en: 'This preview cannot be shared. A shareable card comes from a real run, never from here.',
+    es: 'Esta vista no se puede compartir. Una tarjeta compartible nace de una carrera real, nunca de aquí.',
+    de: 'Diese Vorschau lässt sich nicht teilen. Eine teilbare Karte entsteht aus einem echten Lauf, nie hier.',
+    pt: 'Esta prévia não pode ser compartilhada. Um card compartilhável nasce de uma corrida real, nunca daqui.',
+  },
+  /** Emplacement #1 — vide dans la vraie carte tant qu’aucun secteur n’est câblé. */
+  fpSlotPlace: {
+    fr: 'Lieu',
+    en: 'Place',
+    es: 'Lugar',
+    de: 'Ort',
+    pt: 'Local',
+  },
+  fpSlotEvent: {
+    fr: 'Titre de l’événement',
+    en: 'Event title',
+    es: 'Título del evento',
+    de: 'Titel des Ereignisses',
+    pt: 'Título do evento',
+  },
+  fpSlotMap: {
+    fr: 'Carte de la zone',
+    en: 'Zone map',
+    es: 'Mapa de la zona',
+    de: 'Karte der Zone',
+    pt: 'Mapa da zona',
+  },
+  fpSlotHero: {
+    fr: 'Chiffre héros',
+    en: 'Hero number',
+    es: 'Cifra principal',
+    de: 'Kernzahl',
+    pt: 'Número principal',
+  },
+  fpSlotContext: {
+    fr: 'Contexte',
+    en: 'Context',
+    es: 'Contexto',
+    de: 'Kontext',
+    pt: 'Contexto',
+  },
+  fpSlotChallenge: {
+    fr: 'Défi',
+    en: 'Challenge',
+    es: 'Reto',
+    de: 'Herausforderung',
+    pt: 'Desafio',
+  },
+  fpSlotSignature: {
+    fr: 'Signature',
+    en: 'Signature',
+    es: 'Firma',
+    de: 'Signatur',
+    pt: 'Assinatura',
+  },
+  /** Dit qu’un emplacement reste VIDE dans la vraie carte, faute de source. */
+  fpSlotUnsourced: {
+    fr: 'sans source aujourd’hui',
+    en: 'no source yet',
+    es: 'sin fuente por ahora',
+    de: 'noch ohne Quelle',
+    pt: 'ainda sem fonte',
+  },
+  /* L’aperçu montre ce que le CODE rend, pas l’idéal de la planche : ces trois
+     états disent l’écart au lieu de le masquer. */
+  fpStatusRendered: {
+    fr: 'à sa place',
+    en: 'in place',
+    es: 'en su sitio',
+    de: 'an seinem Platz',
+    pt: 'no lugar',
+  },
+  fpStatusMissing: {
+    fr: 'pas encore rendu',
+    en: 'not rendered yet',
+    es: 'aún no se muestra',
+    de: 'noch nicht dargestellt',
+    pt: 'ainda não exibido',
+  },
+  fpStatusMisplaced: {
+    fr: 'rendu, mais en haut du cadre',
+    en: 'rendered, but at the top of the frame',
+    es: 'se muestra, pero arriba del marco',
+    de: 'dargestellt, aber oben im Rahmen',
+    pt: 'exibido, mas no topo do quadro',
+  },
+  fpFormatLabel: {
+    fr: 'Format',
+    en: 'Format',
+    es: 'Formato',
+    de: 'Format',
+    pt: 'Formato',
+  },
+  fpSlotsLabel: {
+    fr: 'Emplacements, dans l’ordre',
+    en: 'Slots, in order',
+    es: 'Espacios, en orden',
+    de: 'Platzhalter, der Reihe nach',
+    pt: 'Espaços, em ordem',
+  },
+  fpSticker: {
+    fr: 'Sticker',
+    en: 'Sticker',
+    es: 'Sticker',
+    de: 'Sticker',
+    pt: 'Sticker',
+  },
+  fpBack: {
+    fr: 'Retour',
+    en: 'Back',
+    es: 'Volver',
+    de: 'Zurück',
+    pt: 'Voltar',
+  },
+  fpBackA11y: {
+    fr: 'Revenir en arrière',
+    en: 'Go back',
+    es: 'Volver atrás',
+    de: 'Zurückgehen',
+    pt: 'Voltar atrás',
+  },
+  // GARDE-FOU:FIN apercu-de-format
 
   // ─── AUCUN RÉSULTAT À MONTRER (état honnête, §A) ───────────────────────────
   // L'écran Résultat ouvert sans course mesurée (lien direct, retour arrière) :

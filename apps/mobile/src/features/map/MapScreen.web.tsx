@@ -83,6 +83,8 @@ import { useMapSheetLayout } from './mapUiStore';
 import { useRealTerritories } from './hexClaims';
 import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
+import { selectZoneView } from './zoneSelection';
+import { zoneFocusLat } from './zoneFocus';
 import { sectorPointLayers } from './allTerritories';
 import { useSession } from '../../lib/session';
 import { cityCenter } from '../social/cities';
@@ -544,17 +546,17 @@ export function MapScreen() {
     router.push('/(auth)/sign-in');
   }, [failed, reload]);
 
-  /** Zone tapée → VRAIE zone (hex_claims), jamais les étiquettes de ZONE_DETAILS. */
-  const selectedZone: MapZoneView | null = useMemo(() => {
-    if (bike || selectedZoneId === null || territories === null) return null;
-    const found = territories.find((t) => t.props.territoryId === selectedZoneId);
-    if (!found) return null;
-    return {
-      role: found.props.status === 'crew' ? 'mine' : 'rival',
-      zones: found.zoneCount,
-      areaKm2: found.props.areaM2 / 1_000_000,
-    };
-  }, [bike, selectedZoneId, territories]);
+  /**
+   * Zone tapée → VRAIE zone (hex_claims + sector_snapshot). La dérivation vit
+   * dans `selectZoneView` (module pur, testé), PARTAGÉE avec la variante native :
+   * une sélection recopiée des deux côtés finit toujours par diverger — c'est
+   * exactement ce qui avait fait sortir les zones du crew en orange rival ici et
+   * en chartreuse sur iPhone.
+   */
+  const selectedZone: MapZoneView | null = useMemo(
+    () => (bike ? null : selectZoneView(territories, sectorViews, selectedZoneId)),
+    [bike, selectedZoneId, territories, sectorViews],
+  );
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
@@ -636,6 +638,42 @@ export function MapScreen() {
    * la barre d'onglets quand aucune sheet n'est montée.
    */
   const sheetLayout = useMapSheetLayout();
+
+  /**
+   * E04 — CADRAGE de la zone tapée AU-DESSUS de la sheet (« la caméra la cadre
+   * au-dessus du sheet »). C'était LE delta visuel manquant : jusqu'ici le tap
+   * allumait la zone et atténuait le reste, mais la caméra ne bougeait pas, si
+   * bien qu'une zone tapée en bas d'écran finissait derrière la sheet.
+   *
+   * Le décalage est un CALCUL, pas un réglage : `flyTo` n'accepte ni padding ni
+   * offset, donc on déplace la latitude du centre de la moitié de la bande
+   * occupée par la sheet (fonction pure `zoneFocusLat`, testée en Deno).
+   *
+   * La clé de garde inclut la hauteur de bande : au tap, la sheet de zone n'est
+   * pas encore montée et le HUD publie encore la hauteur du peek mission — le
+   * cadrage se corrige tout seul dès qu'elle a publié la sienne, puis ne rejoue
+   * plus (on ne vole pas le geste du joueur qui déplace ensuite la carte).
+   */
+  const zoneFramedRef = useRef<string | null>(null);
+  const zoneBand = sheetLayout.visible ? Math.round(sheetLayout.peekTopPx) : 0;
+  useEffect(() => {
+    if (selectedZoneId === null) {
+      zoneFramedRef.current = null;
+      return;
+    }
+    const center = selectedZone?.center;
+    // Sans centre réel on ne vole NULLE PART (jamais un retour vers Paris).
+    if (!center) return;
+    const key = `${selectedZoneId}:${zoneBand}`;
+    if (zoneFramedRef.current === key) return;
+    zoneFramedRef.current = key;
+    const zoom = EGO_CAMERA.zoom;
+    mapRef.current?.flyTo({
+      lng: center.lng,
+      lat: zoneFocusLat({ lat: center.lat, zoom, sheetHeightPx: zoneBand }),
+      zoom,
+    });
+  }, [selectedZoneId, selectedZone, zoneBand]);
   const noteAnchor = sheetLayout.visible
     ? sheetLayout.peekTopPx
     : insets.bottom + NAV_BAR_HEIGHT;
@@ -700,6 +738,7 @@ export function MapScreen() {
         emptyState={emptyState}
         onEmptyAction={onEmptyAction}
         zone={selectedZone}
+        egoPos={egoPos}
         mode={mode}
         onSelectMode={setMode}
         onRecenter={recenter}

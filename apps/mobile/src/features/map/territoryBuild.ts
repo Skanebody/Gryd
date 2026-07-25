@@ -7,8 +7,13 @@
  * carte n'avait AUCUN test (1 seul test mobile dans le repo, sur le parsing GPX).
  * Zéro import React/Supabase ici : Deno charge ce module tel quel, sans drift.
  */
-import { cellArea } from 'h3-js';
+import { cellArea, cellToParent } from 'h3-js';
+import { SECTOR_H3_RESOLUTION } from '@klaim/shared';
 import { cellsToTerritory, territoryId, type TerritoryId, type TerritoryState } from './territory';
+// Le centroïde d'un paquet de cellules existe DÉJÀ, pur et testé, du côté
+// mission : on l'importe plutôt que d'en écrire un second (deux centroïdes
+// finiraient par diverger, et la caméra cadrerait ailleurs que la mission).
+import { territoryCentroid, type MissionPoint } from '../mission/deriveMission';
 import { C } from '../../i18n/catalog/map';
 import { resolve, type Locale } from '../../i18n/types';
 
@@ -36,6 +41,12 @@ export interface TerritoryProperties {
   status: TerritoryState;
   capturedAt: string | null;
   updatedAt: string;
+  /**
+   * Centroïde des cellules possédées (planche E04 — la caméra cadre la zone
+   * tapée AU-DESSUS de la sheet). `null` si aucune cellule n'est lisible : on ne
+   * vole alors nulle part plutôt que vers un point inventé.
+   */
+  center: MissionPoint | null;
 }
 
 /** Un territoire réel prêt à rendre : géométrie fusionnée + propriétés du contrat. */
@@ -44,6 +55,13 @@ export interface RealTerritory {
   /** Multi-polygone fusionné/lissé, [lng, lat] (sortie de cellsToTerritory). */
   polygons: [number, number][][][];
   zoneCount: number;
+  /**
+   * SECTEURS (H3 res 7) réellement couverts par ce territoire, triés — un
+   * territoire peut chevaucher plusieurs secteurs, et le rattacher au seul
+   * secteur de son centroïde le placerait parfois dans le mauvais. Sert à lire
+   * l'état RÉEL `sector_snapshot.contested` sans nouvelle requête (E04).
+   */
+  sectorIds: readonly string[];
 }
 
 /**
@@ -81,6 +99,24 @@ export function stateFor(
 }
 
 /**
+ * Secteurs (H3 res 7) couverts par un paquet de cellules — dédoublonnés et
+ * TRIÉS pour que deux rendus des mêmes données donnent exactement la même liste.
+ * Une cellule illisible est ignorée (défensif) : un secteur manquant fait juste
+ * disparaître un état, il n'en invente jamais un.
+ */
+export function sectorsOf(cells: readonly string[]): readonly string[] {
+  const out = new Set<string>();
+  for (const cell of cells) {
+    try {
+      out.add(cellToParent(cell, SECTOR_H3_RESOLUTION));
+    } catch {
+      // Cellule invalide : aucun secteur déduit — jamais un secteur approximé.
+    }
+  }
+  return [...out].sort();
+}
+
+/**
  * Groupe les captures par (PROPRIÉTAIRE × état) puis fusionne CHAQUE groupe en UNE
  * géométrie. Arbitrage fondateur du 15/07 : l'unité de lecture est le TERRITOIRE.
  *
@@ -113,7 +149,28 @@ export function buildTerritories(
   interface Group {
     ownerId: string | null;
     state: TerritoryState;
-    cells: string[];
+    /**
+     * ─── UN SET, ET PAS UN TABLEAU (correctif de la dimension DISCIPLINE) ─────
+     * `h3index` n'est PLUS une clé primaire à lui seul : la migration
+     * 0070_activity_dimension la fait passer à `(h3index, activity)` pour que les
+     * mondes Run et Bike ne se volent pas leurs zones. Conséquence directe ici :
+     * un joueur qui tient le MÊME hexagone dans les deux disciplines produit DEUX
+     * lignes, de même propriétaire et de même état, donc rangées dans le MÊME
+     * groupe — et la cellule était poussée deux fois.
+     *
+     * La suite était brutale et sans filet : `cellsToMultiPolygon` LÈVE sur des
+     * cellules dupliquées (« Duplicate input »), personne n'attrape, et le
+     * `.catch()` de hexClaims.ts basculait la lecture en ÉCHEC. La couche
+     * territoire disparaissait alors des SEPT écrans qui la consomment — les deux
+     * mondes, pas seulement le vélo — remplacée par « on n'a pas pu charger ».
+     *
+     * Le repo avait DÉJÀ nommé et testé cet invariant (captureToPixel.test.ts,
+     * « toute nouvelle source DOIT dédupliquer avant d'appeler buildTerritories ») :
+     * on le tient ici, au seul endroit qui agrège, plutôt que de l'exiger de
+     * chaque appelant. Dédupliquer est de toute façon JUSTE : une cellule tenue
+     * deux fois reste UNE cellule sur la carte.
+     */
+    cells: Set<string>;
     capturedAt: string | null;
   }
   const groups = new Map<string, Group>();
@@ -124,10 +181,10 @@ export function buildTerritories(
     const key = `${row.owner_user_id ?? 'neutral'}:${state}`;
     let g = groups.get(key);
     if (!g) {
-      g = { ownerId: row.owner_user_id, state, cells: [], capturedAt: null };
+      g = { ownerId: row.owner_user_id, state, cells: new Set(), capturedAt: null };
       groups.set(key, g);
     }
-    g.cells.push(dbToH3(row.h3index));
+    g.cells.add(dbToH3(row.h3index));
     // capturedAt = la capture la PLUS RÉCENTE du territoire. Avant, on gardait la ligne
     // du premier hex d'une requête SANS order by : une valeur tirée au sort. Inoffensif
     // tant que personne ne l'affiche, franchement mensonger dès le premier lecteur.
@@ -138,7 +195,10 @@ export function buildTerritories(
 
   const out: RealTerritory[] = [];
   for (const [key, g] of groups) {
-    const territory = cellsToTerritory(g.cells, g.state);
+    // Matérialisé UNE fois : les consommateurs en aval (géométrie, aire, centroïde,
+    // secteurs) travaillent sur une liste, et l'unicité est déjà garantie par le Set.
+    const cells = [...g.cells];
+    const territory = cellsToTerritory(cells, g.state);
     if (!territory) continue;
     out.push({
       props: {
@@ -149,13 +209,15 @@ export function buildTerritories(
         ownerId: g.ownerId,
         ownerType: g.ownerId === null ? 'neutral' : 'user',
         // Vraie aire H3 sommée — plus de 0 en dur (une valeur fausse dès le 1er lecteur).
-        areaM2: g.cells.reduce((sum, cell) => sum + cellArea(cell, 'm2'), 0),
+        areaM2: cells.reduce((sum, cell) => sum + cellArea(cell, 'm2'), 0),
         status: g.state,
         capturedAt: g.capturedAt,
         updatedAt: now(),
+        center: territoryCentroid(cells),
       },
       polygons: territory.polygons as unknown as [number, number][][][],
       zoneCount: territory.zoneCount,
+      sectorIds: sectorsOf(cells),
     });
   }
   return out;

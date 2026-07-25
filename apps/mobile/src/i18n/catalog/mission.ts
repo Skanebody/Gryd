@@ -64,4 +64,148 @@ export const C = defineCatalog({
     de: 'Route planen — den Routenplaner öffnen',
     pt: 'Planejar esta rota — abrir o planejador de rotas',
   },
+
+  // ══ E05 — BRIEFING DE MISSION ══════════════════════════════════════════════
+  // Ouvert par le CTA « Reprendre » de E04. Il transforme une intention en
+  // objectif SANS formulaire — et ne promet RIEN que l'écran suivant ne tienne.
+
+  /** Kicker de la sheet (couleur de rôle §C portée par le composant). */
+  briefKicker: {
+    fr: 'MISSION',
+    en: 'MISSION',
+    es: 'MISIÓN',
+    de: 'MISSION',
+    pt: 'MISSÃO',
+  },
+  /** Titre quand la zone porte un VRAI nom de quartier (géocodage inverse). */
+  briefTitleNamed: {
+    fr: 'Reprendre {zone}',
+    en: 'Take back {zone}',
+    es: 'Recuperar {zone}',
+    de: '{zone} zurückholen',
+    pt: 'Retomar {zone}',
+  },
+  /** Titre sans nom réel : on ne fabrique aucun quartier. */
+  briefTitle: {
+    fr: 'Reprendre cette zone',
+    en: 'Take this zone back',
+    es: 'Recuperar esta zona',
+    de: 'Diese Zone zurückholen',
+    pt: 'Retomar esta zona',
+  },
+  briefCloseA11y: {
+    fr: 'Fermer le briefing et revenir à la zone',
+    en: 'Close the briefing and go back to the zone',
+    es: 'Cerrar el briefing y volver a la zona',
+    de: 'Briefing schließen und zur Zone zurück',
+    pt: 'Fechar o briefing e voltar à zona',
+  },
+
+  // ── Les QUATRE états du tracé recommandé, jamais confondus ──
+  /**
+   * Position inconnue. On ne déclenche AUCUNE invite système ici : la demande
+   * de localisation naît d'un GESTE (le planificateur), jamais de l'ouverture
+   * d'un écran — défaut corrigé le 21/07, qu'on ne réintroduit pas.
+   */
+  briefRouteNoPosition: {
+    fr: 'Position inconnue : aucun itinéraire ne peut être calculé.',
+    en: 'Position unknown: no route can be computed.',
+    es: 'Posición desconocida: no se puede calcular ninguna ruta.',
+    de: 'Position unbekannt: keine Route berechenbar.',
+    pt: 'Posição desconhecida: nenhuma rota pode ser calculada.',
+  },
+  briefRouteLoading: {
+    fr: 'Calcul de l’itinéraire…',
+    en: 'Computing the route…',
+    es: 'Calculando la ruta…',
+    de: 'Route wird berechnet…',
+    pt: 'Calculando a rota…',
+  },
+  briefRouteFailed: {
+    fr: 'Itinéraire non calculé : le service de tracé n’a pas répondu.',
+    en: 'Route not computed: the routing service didn’t answer.',
+    es: 'Ruta no calculada: el servicio de trazado no respondió.',
+    de: 'Route nicht berechnet: der Routing-Dienst antwortete nicht.',
+    pt: 'Rota não calculada: o serviço de traçado não respondeu.',
+  },
+  briefRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  /** Aperçu PRÊT : le tracé dessiné est le VRAI tracé OSRM, rue par rue. */
+  briefRouteA11y: {
+    fr: 'Aperçu du tracé recommandé, {km}',
+    en: 'Preview of the suggested route, {km}',
+    es: 'Vista previa de la ruta sugerida, {km}',
+    de: 'Vorschau der vorgeschlagenen Route, {km}',
+    pt: 'Prévia da rota sugerida, {km}',
+  },
+  /** Ouvre le planificateur (tracé réel, réglage de distance, GPS au geste). */
+  briefAdjust: {
+    fr: 'Ajuster',
+    en: 'Adjust',
+    es: 'Ajustar',
+    de: 'Anpassen',
+    pt: 'Ajustar',
+  },
+  briefAdjustA11y: {
+    fr: 'Ajuster l’itinéraire — ouvrir le planificateur',
+    en: 'Adjust the route — open the planner',
+    es: 'Ajustar la ruta — abrir el planificador',
+    de: 'Route anpassen — den Planer öffnen',
+    pt: 'Ajustar a rota — abrir o planejador',
+  },
+
+  /** Seule métrique sourcée : la distance MESURÉE par OSRM sur le tracé rendu. */
+  briefMetricDistance: {
+    fr: 'Distance',
+    en: 'Distance',
+    es: 'Distancia',
+    de: 'Distanz',
+    pt: 'Distância',
+  },
+
+  /**
+   * Phrase de valeur tactique — neutre, non dramatisée, et surtout VRAIE : la
+   * planche proposait « cette boucle relie vos deux zones », qu'aucune analyse
+   * d'adjacence ne sait produire. Ce qui est vrai, c'est la règle du jeu
+   * elle-même : le serveur tranche sur la boucle réellement fermée.
+   */
+  briefTactical: {
+    fr: 'La capture se calcule sur la boucle que tu fermes vraiment : l’itinéraire reste une suggestion.',
+    en: 'Capture is computed from the loop you actually close: the route stays a suggestion.',
+    es: 'La captura se calcula sobre el bucle que cierras de verdad: la ruta es solo una sugerencia.',
+    de: 'Die Eroberung zählt die Schleife, die du wirklich schließt — die Route bleibt ein Vorschlag.',
+    pt: 'A captura conta o loop que você fecha de verdade: a rota é só uma sugestão.',
+  },
+
+  briefStart: {
+    fr: 'Commencer la mission',
+    en: 'Start the mission',
+    es: 'Empezar la misión',
+    de: 'Mission starten',
+    pt: 'Começar a missão',
+  },
+  briefStartA11y: {
+    fr: 'Commencer la mission — démarrer une course de conquête',
+    en: 'Start the mission — begin a conquest run',
+    es: 'Empezar la misión — iniciar una carrera de conquista',
+    de: 'Mission starten — einen Eroberungslauf beginnen',
+    pt: 'Começar a missão — iniciar uma corrida de conquista',
+  },
+  /**
+   * Microtexte CORRIGÉ. La planche dit « le GPS démarre après le compte à
+   * rebours » : c'est l'inverse du code — la position est acquise AVANT
+   * d'entrer en préflight, et c'est l'ENREGISTREMENT qui part au dernier palier.
+   */
+  briefStartMicro: {
+    fr: 'L’enregistrement démarre après le compte à rebours.',
+    en: 'Recording starts after the countdown.',
+    es: 'La grabación empieza tras la cuenta atrás.',
+    de: 'Die Aufzeichnung startet nach dem Countdown.',
+    pt: 'A gravação começa depois da contagem regressiva.',
+  },
 });

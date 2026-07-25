@@ -11,7 +11,15 @@
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { cellToParent, gridDisk, latLngToCell } from 'h3-js';
-import { buildTerritories, dataNote, dbToH3, stateFor, type HexClaimRow } from './territoryBuild.ts';
+import { SECTOR_H3_RESOLUTION } from '@klaim/shared';
+import {
+  buildTerritories,
+  dataNote,
+  dbToH3,
+  sectorsOf,
+  stateFor,
+  type HexClaimRow,
+} from './territoryBuild.ts';
 import { LOCALES } from '../../i18n/types.ts';
 
 const ME = 'me-uuid';
@@ -116,6 +124,36 @@ Deno.test('areaM2 : vraie aire H3 sommée, cohérente avec le nombre d’hexes',
   // Un hex res 10 ≈ 13 400 m² → 7 hexes ≈ 94 000 m². Jamais 0 (l'ancienne valeur en dur).
   assert(built[0].props.areaM2 > 90_000 && built[0].props.areaM2 < 100_000,
     `aire inattendue : ${built[0].props.areaM2}`);
+});
+
+Deno.test('center : centroïde RÉEL des cellules — la caméra E04 ne vole jamais au hasard', () => {
+  const built = buildTerritories(republique.map((c) => row(c, ME)), ME);
+  const center = built[0].props.center;
+  assert(center !== null, 'un territoire non vide a toujours un centre');
+  // Le centroïde tombe dans le voisinage immédiat de République (48,867 / 2,364).
+  assert(Math.abs(center.lat - 48.8674) < 0.01, `lat inattendue : ${center.lat}`);
+  assert(Math.abs(center.lng - 2.3636) < 0.01, `lng inattendue : ${center.lng}`);
+});
+
+Deno.test('sectorsOf : les VRAIS secteurs res 7 couverts, triés et dédoublonnés', () => {
+  const expected = [...new Set(republique.map((c) => cellToParent(c, SECTOR_H3_RESOLUTION)))].sort();
+  assertEquals([...sectorsOf(republique)], expected);
+  // Une cellule illisible n'invente aucun secteur : elle est simplement ignorée.
+  assertEquals([...sectorsOf(['pas-une-cellule'])], []);
+  assertEquals([...sectorsOf([])], []);
+});
+
+Deno.test('sectorIds : un territoire à cheval déclare TOUS ses secteurs, pas seulement celui du centre', () => {
+  // Paris + Lille : deux secteurs très éloignés. Rattacher le territoire au seul
+  // secteur de son centroïde le placerait quelque part entre les deux — donc
+  // dans un secteur qu'il ne touche pas.
+  const paris = gridDisk(latLngToCell(48.8674, 2.3636, H3_RES), 1);
+  const lille = gridDisk(latLngToCell(50.6292, 3.0573, H3_RES), 1);
+  const built = buildTerritories([...paris, ...lille].map((c) => row(c, ME)), ME);
+  assertEquals(built.length, 1);
+  assert(built[0].sectorIds.length >= 2, 'deux paquets éloignés = au moins deux secteurs');
+  assert(built[0].sectorIds.includes(cellToParent(paris[0], SECTOR_H3_RESOLUTION)));
+  assert(built[0].sectorIds.includes(cellToParent(lille[0], SECTOR_H3_RESOLUTION)));
 });
 
 Deno.test('honnêteté : aucun nom inventé, aucun statut inventé', () => {
@@ -262,4 +300,29 @@ Deno.test('buildTerritories + crewIds : un ANCIEN membre (hors roster actif) red
   );
   assertEquals(built.length, 1);
   assertEquals(built[0].props.status, 'rival');
+});
+
+Deno.test('DISCIPLINE — le même hexagone tenu à pied ET à vélo ne casse plus la carte', () => {
+  // Régression trouvée par revue adversariale sur la fondation VÉLO. La migration
+  // 0070 fait passer la clé primaire de `hex_claims` de `h3index` seul à
+  // `(h3index, activity)` : un joueur qui tient la même cellule dans les DEUX
+  // disciplines produit donc DEUX lignes, même propriétaire, même état.
+  //
+  // Avant le correctif, la cellule était poussée deux fois dans le même groupe et
+  // `cellsToMultiPolygon` levait « Duplicate input » — non attrapé, la lecture du
+  // territoire basculait en ÉCHEC et la couche disparaissait des SEPT écrans qui la
+  // consomment, les deux mondes confondus. Ce test échouerait avec l'ancien code.
+  const cells = republique.slice(0, 6);
+  const aPied = cells.map((c) => row(c, ME, '2026-07-20T08:00:00.000Z'));
+  const aVelo = cells.map((c) => row(c, ME, '2026-07-24T18:00:00.000Z'));
+
+  const built = buildTerritories([...aPied, ...aVelo], ME);
+
+  // Un seul territoire, et surtout : aucune exception.
+  assertEquals(built.length, 1, 'les deux disciplines ne créent pas deux territoires');
+  // Une cellule tenue deux fois reste UNE cellule sur la carte : ni aire ni zones doublées.
+  const memeSansDoublon = buildTerritories(aPied, ME);
+  assertEquals(built[0].props.areaM2, memeSansDoublon[0].props.areaM2, 'aire non doublée');
+  assertEquals(built[0].zoneCount, memeSansDoublon[0].zoneCount, 'zones non doublées');
+  assertEquals(built[0].sectorIds, memeSansDoublon[0].sectorIds, 'secteurs non doublés');
 });
