@@ -17,14 +17,22 @@
  *     Conquest (carte pitchée + zones extrudées, AMENDEMENT-24). Hook :
  *     `useMap3d()`. La 3D est un CONFORT visuel — elle ne change jamais le
  *     calcul ni la décision serveur (anti pay-to-win).
- *   • ACTIVITÉ DE LA CARTE  (`gryd.mapactivity`, planche E14 « commutateur
- *     Run / Bike ») — 'run' (DÉFAUT) | 'bike'. Hook : `useMapActivity()`.
- *     « Choix mémorisé » (planche). Ce réglage n'affirme RIEN sur le joueur : il
- *     choisit la LENTILLE de la carte, et l'univers Bike est aujourd'hui
- *     honnêtement vide (cf. le commentaire de `flags.bike`).
+ *   • ACTIVITÉ, PAR SURFACE  (planche E14 « commutateur Run / Bike », « le choix
+ *     est mémorisé PAR ONGLET ») — 'run' (DÉFAUT) | 'bike', une clé par surface
+ *     (`gryd.mapactivity` pour la Carte, `gryd.activity.<surface>` ailleurs).
+ *     Hooks : `useActivityPref(surface)` et son alias historique
+ *     `useMapActivity()`. Ce réglage n'affirme RIEN sur le joueur : il choisit la
+ *     LENTILLE d'un écran, et l'univers Bike est aujourd'hui honnêtement vide
+ *     (cf. le commentaire de `flags.bike` et `ui/activityLens.ts`).
  */
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
+import {
+  activityStorageKey,
+  parseActivity,
+  type ActivitySurface,
+} from '../../ui/activityLens';
 import { BASEMAP_KEYS, MAP_BASEMAP_STYLES, type BasemapKey } from './mapStyle';
 
 /** Clé de persistance du réglage « Fond de carte ». */
@@ -210,92 +218,143 @@ export function useMap3d(): {
   };
 }
 
-// ─── Activité de la carte : Run / Bike (planche E14) ────────────────────────
+// ─── Activité, PAR SURFACE : Run / Bike (planche E14) ───────────────────────
 // TROISIÈME réglage, MÊME grammaire que les deux précédents (valeur mémoire qui
-// fait foi, lecture LAZY unique, abonnés notifiés, persistance best-effort).
+// fait foi, lecture LAZY unique, abonnés notifiés, persistance best-effort) —
+// à une différence près, exigée par la planche : « le choix est mémorisé PAR
+// ONGLET ». Les deux premiers réglages sont GLOBAUX (un fond de carte, une vue
+// 3D pour toute l'app) ; celui-ci ne l'est pas. Basculer le Classement en Bike
+// ne doit pas téléporter la Carte : ce sont quatre lentilles indépendantes, donc
+// quatre emplacements — un par surface (cf. `ui/activityLens.ts`, qui possède
+// les clés et les prouve distinctes).
 //
-// CE QUE CE RÉGLAGE FAIT, ET CE QU'IL NE FAIT PAS. Il choisit la LENTILLE de la
-// carte, rien d'autre. En 'bike', la Carte n'affiche AUCUN territoire, AUCUNE
-// mission et AUCUN classement : le vélo n'existe pas encore sous l'écran (`runs`
-// n'a pas de colonne d'activité, aucun classement n'est séparé par discipline —
-// cf. `lib/flags.ts`). Rejouer les données Run sous une étiquette vélo serait
-// exactement la donnée fabriquée que la charte interdit ; l'univers Bike est
-// donc honnêtement VIDE, et il le DIT.
+// CE QUE CE RÉGLAGE FAIT, ET CE QU'IL NE FAIT PAS. Il choisit la LENTILLE d'un
+// écran, rien d'autre. En 'bike', la surface concernée n'affiche AUCUN
+// territoire, AUCUNE mission et AUCUN classement : le vélo n'existe pas encore
+// sous l'écran (tous les chemins de départ déclarent 'run', cf.
+// `features/run/gps/runActivity.ts`). Rejouer les données Run sous une étiquette
+// vélo serait exactement la donnée fabriquée que la charte interdit ; l'univers
+// Bike est donc honnêtement VIDE, et chaque écran le DIT.
+//
+// IL NE DÉCIDE AUCUNE DISCIPLINE D'ENREGISTREMENT. Une préférence d'AFFICHAGE
+// ne décide jamais de la nature d'un effort enregistré (arbitrage du 25/07/2026,
+// détaillé dans `runActivity.ts`) : rien dans `features/run/**` ne lit ce module.
 
-/** Les deux lentilles de la carte (planche E14) — jamais mélangées (§ séparation stricte). */
-export type MapActivity = 'run' | 'bike';
+/**
+ * Les deux lentilles (planche E14) — jamais mélangées (§ séparation stricte).
+ * Alias HISTORIQUE du type de jeu `Activity` : la Carte et BattleMapOverlays
+ * l'importent sous ce nom, et les deux mondes n'ont aucune raison de diverger.
+ */
+export type MapActivity = Activity;
 
-/** Clé de persistance du réglage « Activité de la carte ». */
-const ACTIVITY_STORAGE_KEY = 'gryd.mapactivity';
-/** Défaut imposé : la course à pied — la seule discipline que GRYD chronomètre. */
-const DEFAULT_ACTIVITY: MapActivity = 'run';
-
-/** Activité en mémoire — fait foi dès le premier `setMapActivity`. */
-let currentActivity: MapActivity = DEFAULT_ACTIVITY;
-/** Lecture unique et LAZY de l'activité persistée (au premier montage/accès). */
-let activityLoadPromise: Promise<void> | null = null;
-/** Abonnés (hooks montés) notifiés à chaque bascule Run ↔ Bike. */
-const activityListeners = new Set<(value: MapActivity) => void>();
-
-function isMapActivity(raw: string | null): raw is MapActivity {
-  return raw === 'run' || raw === 'bike';
+/** Un emplacement de préférence : sa valeur, sa lecture LAZY, ses abonnés. */
+interface ActivitySlot {
+  value: Activity;
+  load: Promise<void> | null;
+  listeners: Set<(value: Activity) => void>;
 }
 
-function ensureActivityLoaded(): Promise<void> {
-  if (!activityLoadPromise) {
-    activityLoadPromise = AsyncStorage.getItem(ACTIVITY_STORAGE_KEY)
+/** Un emplacement PAR SURFACE — créé à la demande, jamais partagé entre écrans. */
+const activitySlots = new Map<ActivitySurface, ActivitySlot>();
+
+function slotOf(surface: ActivitySurface): ActivitySlot {
+  const existing = activitySlots.get(surface);
+  if (existing) return existing;
+  // Défaut imposé : la course à pied — la seule discipline que GRYD chronomètre.
+  const created: ActivitySlot = { value: DEFAULT_ACTIVITY, load: null, listeners: new Set() };
+  activitySlots.set(surface, created);
+  return created;
+}
+
+function ensureActivityLoaded(surface: ActivitySurface): Promise<void> {
+  const slot = slotOf(surface);
+  if (!slot.load) {
+    slot.load = AsyncStorage.getItem(activityStorageKey(surface))
       .then((raw) => {
-        if (isMapActivity(raw) && raw !== currentActivity) {
-          currentActivity = raw;
-          for (const l of activityListeners) l(currentActivity);
+        const parsed = parseActivity(raw);
+        if (parsed !== null && parsed !== slot.value) {
+          slot.value = parsed;
+          for (const l of slot.listeners) l(parsed);
         }
       })
       .catch(() => {
         // Best effort : stockage indisponible → défaut (Run).
       });
   }
-  return activityLoadPromise;
+  return slot.load;
 }
 
-/** Lit l'activité persistée (résout le défaut Run si absente/illisible). */
-export async function getMapActivity(): Promise<MapActivity> {
-  await ensureActivityLoaded();
-  return currentActivity;
+/** Lit la lentille persistée d'une surface (défaut Run si absente/illisible). */
+export async function getActivityPref(surface: ActivitySurface): Promise<Activity> {
+  await ensureActivityLoaded(surface);
+  return slotOf(surface).value;
 }
 
-/** Fixe l'activité, notifie les abonnés et persiste sous 'gryd.mapactivity'. */
-export function setMapActivity(value: MapActivity): void {
-  if (value === currentActivity) return;
-  currentActivity = value;
+/** Fixe la lentille d'UNE surface, notifie ses abonnés et la persiste. */
+export function setActivityPref(surface: ActivitySurface, value: Activity): void {
+  const slot = slotOf(surface);
+  if (value === slot.value) return;
+  slot.value = value;
   // La valeur en mémoire fait foi désormais — inutile de relire le stockage.
-  activityLoadPromise = Promise.resolve();
-  for (const l of activityListeners) l(currentActivity);
-  void AsyncStorage.setItem(ACTIVITY_STORAGE_KEY, value).catch(() => {});
+  slot.load = Promise.resolve();
+  for (const l of slot.listeners) l(value);
+  void AsyncStorage.setItem(activityStorageKey(surface), value).catch(() => {});
 }
 
 /**
- * Hook : activité courante de la carte + setter. Partagée par TOUTES les
+ * Hook : lentille courante d'UNE surface + setter. Tous les composants d'un même
+ * écran partagent l'emplacement (un seul état, aucune condition locale
+ * réinventée) ; deux écrans différents ne se voient pas.
+ */
+export function useActivityPref(surface: ActivitySurface): {
+  activity: Activity;
+  setActivity: (value: Activity) => void;
+} {
+  const [activity, setLocal] = useState<Activity>(() => slotOf(surface).value);
+
+  useEffect(() => {
+    const slot = slotOf(surface);
+    const listener = (value: Activity) => setLocal(value);
+    slot.listeners.add(listener);
+    // Aligne l'état local si la valeur a bougé entre le rendu et l'effet (ou si
+    // `surface` change : le hook doit alors adopter la valeur du nouvel emplacement).
+    setLocal(slot.value);
+    // Charge la valeur persistée (une seule fois par surface, partagée).
+    void ensureActivityLoaded(surface);
+    return () => {
+      slot.listeners.delete(listener);
+    };
+  }, [surface]);
+
+  return {
+    activity,
+    setActivity: (value: Activity) => setActivityPref(surface, value),
+  };
+}
+
+// ── Alias HISTORIQUES de la Carte (surface 'map', clé `gryd.mapactivity`) ────
+// La Carte n'est pas dans le périmètre de ce chantier : sa signature d'import ne
+// bouge pas d'un caractère, et son choix déjà persisté sur les téléphones du
+// pilote reste lu à la même clé.
+
+/** Lit l'activité persistée de la Carte (résout le défaut Run si absente). */
+export function getMapActivity(): Promise<MapActivity> {
+  return getActivityPref('map');
+}
+
+/** Fixe l'activité de la Carte, notifie les abonnés et persiste. */
+export function setMapActivity(value: MapActivity): void {
+  setActivityPref('map', value);
+}
+
+/**
+ * Hook : activité courante de la CARTE + setter. Partagée par toutes les
  * surfaces de carte (les deux forks MapScreen, le commutateur du header, le
- * bouton GO) — un seul état, aucune condition locale réinventée.
+ * bouton GO) — un seul état pour la carte, distinct des trois autres onglets.
  */
 export function useMapActivity(): {
   activity: MapActivity;
   setActivity: (value: MapActivity) => void;
 } {
-  const [activity, setLocal] = useState<MapActivity>(currentActivity);
-
-  useEffect(() => {
-    const listener = (value: MapActivity) => setLocal(value);
-    activityListeners.add(listener);
-    // Aligne l'état local si la valeur a bougé entre le rendu et l'effet.
-    if (currentActivity !== activity) setLocal(currentActivity);
-    // Charge la valeur persistée (une seule fois, partagée).
-    void ensureActivityLoaded();
-    return () => {
-      activityListeners.delete(listener);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { activity, setActivity: setMapActivity };
+  return useActivityPref('map');
 }

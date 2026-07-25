@@ -36,8 +36,41 @@
  *    générique qui ne serait pas la vraie ville serait une fabrication de plus ;
  *  · le rang nommé « Argent II » + « 2 340/3 000 XP » + le moment « PASSAGE DE
  *    RANG » — il n'existe ni rangs nommés, ni XP, ni snapshot de rang antérieur :
- *    une célébration qui ne se déclenche jamais est un bouton mort animé ;
- *  · la mention « · Run » (rangs Run/Bike séparés) — le vélo n'existe pas.
+ *    une célébration qui ne se déclenche jamais est un bouton mort animé.
+ *
+ * ─── COMMUTATEUR RUN / BIKE (planche E14, propagé le 25/07/2026) ─────────────
+ * Cette liste portait « la mention "· Run" (rangs Run/Bike séparés) — le vélo
+ * n'existe pas ». LA MOITIÉ DE CE CONSTAT A SAUTÉ : les rangs SONT désormais
+ * séparés en base (`season_scores` a une colonne `activity` et une clé
+ * (saison, joueur, discipline) — migration 0070), et la lecture est bornée à UNE
+ * discipline (`useSeasonLeaderboard(activity)`). Le commutateur est donc dans le
+ * titre, à droite : visible seulement si Bike est activé, RETIRÉ (jamais grisé)
+ * pendant une course, lentille mémorisée POUR CET ONGLET (`useActivityLens`,
+ * clé `gryd.activity.classement`) et mise EN VEILLE le temps d'une course —
+ * sinon un joueur resté en Bike se retrouverait devant un état vide qu'aucun
+ * contrôle visible ne pourrait quitter.
+ *
+ * IL BASCULE UNE VRAIE LECTURE, PAS UNE ÉTIQUETTE. En lentille Bike, le board
+ * lu est celui de la discipline `bike` : il revient VIDE, parce qu'aucune sortie
+ * vélo n'existe (tous les chemins de départ déclarent la course à pied,
+ * `features/run/gps/runActivity.ts`). Ce vide-là est servi avec sa PROPRE copie
+ * — « le classement Bike commence ici » — et non avec le vide générique
+ * (« personne n'a encore couru cette saison ») : les deux causes sont
+ * différentes, et les confondre laisserait croire que le vélo est ouvert mais
+ * désert. Le jour où un univers vélo existera, ce même écran affichera ses
+ * lignes sans une ligne de code de plus.
+ *
+ * CE QUI SE RETIRE EN LENTILLE BIKE, ET POURQUOI (§ séparation stricte : jamais
+ * Run + Bike dans une même lecture compétitive, jamais de somme) :
+ *  · la chip « Spécialités » — la vue `specialty_leaderboard` s'appuie sur
+ *    `user_stats`, MONO-POT (0070 « en suspens » §2). Ses compteurs mélangent
+ *    les disciplines ; les servir sous une étiquette vélo serait exactement la
+ *    somme interdite. On retire la chip plutôt que de la griser : l'absence d'un
+ *    contrôle n'est pas un mensonge, un contrôle qui ment en est un ;
+ *  · le CTA « MA ROUTE » — il ouvre le planificateur, qui lance une COURSE À
+ *    PIED. Promettre de combler un écart vélo en courant serait un bouton mort ;
+ *  · le bloc E12 (rang de fin de saison + frise des récompenses) — son statut
+ *    « Obtenu » est lu dans `user_badges`, mono-pot lui aussi (0070 §3).
  *
  * ─── UN CLASSEMENT EST RÉEL, OU IL N'EST PAS (21/07/2026, toujours en vigueur) ─
  *  · Ma ville — affiché UNIQUEMENT si `source === 'server'`. Sinon l'un des états
@@ -99,6 +132,8 @@ import { useSession } from '../../src/lib/session';
 import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { IconPlate } from '../../src/ui/Card';
+import { ActivitySwitch, useActivityLens } from '../../src/ui/ActivitySwitch';
+import { competitiveReadAllowed } from '../../src/ui/activityLens';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { formatInt } from '../../src/ui/format';
 import {
@@ -265,16 +300,20 @@ function BoardRow({ row, board }: { row: RankedLeagueRow; board: LeagueBoard }) 
 function BoardEmpty({
   title,
   body,
+  note,
   cta,
 }: {
   title: string;
   body: string;
+  /** Seconde ligne FACTUELLE (ex. la séparation stricte Run/Bike). */
+  note?: string;
   cta?: { label: string; onPress: () => void };
 }) {
   return (
     <View style={styles.emptyCard}>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyBody}>{body}</Text>
+      {note !== undefined ? <Text style={styles.emptyBody}>{note}</Text> : null}
       {cta ? (
         <View style={styles.emptyCta}>
           <Button label={cta.label} onPress={cta.onPress} />
@@ -529,17 +568,54 @@ function LeagueScreen() {
   const { prefs } = useMotivationPrefs();
   const [tab, setTab] = useState<PrimaryTab>('joueurs');
   const [showAll, setShowAll] = useState(false);
-  const tabOptions = useMemo(
-    () => PRIMARY_TABS.map((o) => ({ id: o.id, label: t(o.label) })),
-    [t],
+  // LENTILLE de CET onglet (planche E14, « mémorisé par onglet ») + éligibilité
+  // du commutateur (flags.bike, retiré pendant une course).
+  const { activity, setActivity, switchVisible } = useActivityLens('classement');
+  const bike = activity === 'bike';
+
+  /**
+   * Chips de proximité RENDUES. « Spécialités » disparaît en lentille Bike : sa
+   * source (`specialty_leaderboard` → `user_stats`) est MONO-POT, donc son
+   * contenu mélange les disciplines. La règle est dérivée, pas écrite à la main
+   * (`competitiveReadAllowed`, testée) : le jour où `user_stats` sera discipliné,
+   * un seul `true` rouvrira la chip.
+   */
+  const shownTabs = useMemo(
+    () =>
+      PRIMARY_TABS.filter((o) => o.id !== 'specialites' || competitiveReadAllowed(activity, false)),
+    [activity],
   );
+  const tabOptions = useMemo(
+    () => shownTabs.map((o) => ({ id: o.id, label: t(o.label) })),
+    [shownTabs, t],
+  );
+
+  /**
+   * Onglet EFFECTIVEMENT rendu. Basculer en Bike alors qu'on regardait
+   * « Spécialités » laisserait sélectionné un onglet qui n'est plus proposé.
+   * On le corrige au RENDU, pas seulement dans l'effet ci-dessous : un effet
+   * s'exécute APRÈS la peinture, et cette frame-là aurait affiché des compteurs
+   * mono-pot sous une étiquette vélo. Une trame de mensonge reste un mensonge.
+   */
+  const activeTab: PrimaryTab = shownTabs.some((o) => o.id === tab) ? tab : 'joueurs';
+
+  // L'effet ne fait que RANGER l'état derrière ce que le rendu montre déjà
+  // (et remet la liste en vue compacte, cohérente avec un board qui change).
+  useEffect(() => {
+    if (activeTab !== tab) {
+      setTab(activeTab);
+      setShowAll(false);
+    }
+  }, [activeTab, tab]);
 
   useEffect(() => {
     screen('classement');
   }, []);
 
   /**
-   * Board de MA ville (saison active) — jamais celui d'une autre ville.
+   * Board de MA ville (saison active) — jamais celui d'une autre ville, et
+   * jamais deux disciplines mélangées : la lecture est bornée à la lentille
+   * courante (`.eq('activity', …)` sur `player_leaderboard`, cf. leagueBoard.ts).
    * `boardStatus` porte l'état EXACT de la lecture (chargement / pas de compte /
    * ville non rattachée / échec / vide / prêt).
    */
@@ -549,7 +625,7 @@ function LeagueScreen() {
     loading: boardLoading,
     status: boardStatus,
     cityName: boardCityName,
-  } = useSeasonLeaderboard();
+  } = useSeasonLeaderboard(activity);
   const { session, configured } = useSession();
   const signedIn = configured && session !== null;
 
@@ -598,7 +674,7 @@ function LeagueScreen() {
   const gapRatio =
     meRow && aboveRow && aboveRow.value > 0 ? Math.min(1, Math.max(0, meRow.value / aboveRow.value)) : 0;
 
-  const onJoueurs = tab === 'joueurs';
+  const onJoueurs = activeTab === 'joueurs';
   // Ma ligne ancrée est DÉRIVÉE du board de ma ville : elle n'apparaît que sur cet
   // onglet (jamais figée au-dessus d'un podium Crew) et jamais en mode discret.
   const showMine = !discreet && onJoueurs && meRow !== undefined;
@@ -658,9 +734,26 @@ function LeagueScreen() {
               </Text>
             ) : null}
           </View>
+          {/* Titre + commutateur Run/Bike « en haut à droite » (planche E14).
+              Une cale ÉLASTIQUE (et non une marge fixe) sépare les deux : le
+              commutateur reste collé au bord droit dans les 5 langues. Si un
+              titre traduit venait à le croiser, c'est le TITRE qui cède, coupé
+              net (jamais « … », §A.9) — le contrôle, lui, reste atteignable. */}
           <View style={styles.titleRow}>
             <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
-            <Text style={styles.title}>{t(C.saisonTitle)}</Text>
+            <Text style={styles.title} numberOfLines={1} ellipsizeMode="clip">
+              {t(C.saisonTitle)}
+            </Text>
+            <View style={styles.titleSpacer} />
+            {switchVisible ? (
+              <ActivitySwitch
+                activity={activity}
+                onChange={setActivity}
+                runLabel={t(S.activityRunA11y)}
+                bikeLabel={t(S.activityBikeA11y)}
+                testID="classement-activity-switch"
+              />
+            ) : null}
           </View>
           {seasonFrozen ? <Text style={styles.frozen}>{t(S.classementGele)}</Text> : null}
         </View>
@@ -722,7 +815,12 @@ function LeagueScreen() {
               <Text style={styles.discreetText}>{t(C.discreetText)}</Text>
             </View>
           </View>
-        ) : showMine && meRow ? (
+        ) : !bike && showMine && meRow ? (
+          /* En lentille BIKE ce bloc DISPARAÎT : « MA ROUTE » ouvre le
+             planificateur, qui lance une course À PIED (la discipline est
+             déclarée au départ). Promettre de combler un écart vélo en courant
+             serait un bouton mort — et la phrase-objectif qui l'accompagne
+             parlerait d'un écart que rien ne permet de réduire. */
           <View style={styles.goalWrap}>
             <Text style={styles.goalText}>
               {isLeader
@@ -748,7 +846,7 @@ function LeagueScreen() {
         <View style={styles.tabsWrap}>
           <Segmented
             options={tabOptions}
-            value={tab}
+            value={activeTab}
             tone="surface"
             scrollable
             accessibilityLabel={t(C.tabsA11y)}
@@ -762,7 +860,7 @@ function LeagueScreen() {
 
         {/* ── 4 · Le classement, puis E12 (rang + récompenses + règles du reset) ── */}
         <View>
-          {tab === 'specialites' ? (
+          {activeTab === 'specialites' ? (
             <SpecialtyBoards
               specialty={specialty}
               onSpecialty={setSpecialty}
@@ -803,7 +901,7 @@ function LeagueScreen() {
                ville ni avancer un seul chiffre. */
             <BoardEmpty
               title={t(C.boardNoSourceTitle)}
-              body={t(tab === 'ville' ? C.boardNoSourceVille : C.boardNoSourceCrews)}
+              body={t(activeTab === 'ville' ? C.boardNoSourceVille : C.boardNoSourceCrews)}
             />
           ) : boardLoading ? (
             <Text style={styles.stateNote}>{t(C.boardLoading)}</Text>
@@ -819,16 +917,35 @@ function LeagueScreen() {
             />
           ) : boardStatus === 'city_unknown' ? (
             /* Connecté, mais `users.city_id` est NULL : aucune saison n'est LA
-               sienne. La ville se rattache seule au premier run compté. */
+               sienne. La ville se rattache seule au premier run compté — d'où le
+               CTA, qui DISPARAÎT en lentille Bike : il lance une course à pied. */
             <BoardEmpty
               title={t(C.boardCityUnknownTitle)}
               body={t(C.boardCityUnknownBody)}
-              cta={{ label: t(C.boardEmptyCta), onPress: () => router.push('/route-planner') }}
+              {...(bike
+                ? {}
+                : {
+                    cta: {
+                      label: t(C.boardEmptyCta),
+                      onPress: () => router.push('/route-planner'),
+                    },
+                  })}
             />
           ) : boardStatus === 'unavailable' ? (
             /* La lecture a ÉCHOUÉ. État DISTINCT du vide : un réseau qui lâche ne
                prouve pas que la saison est déserte. */
             <BoardEmpty title={t(C.boardUnavailableTitle)} body={t(C.boardUnavailableBody)} />
+          ) : bike ? (
+            /* Lecture RÉUSSIE sur la discipline VÉLO, et aucune ligne. La cause
+               n'est PAS « personne n'a encore couru cette saison » : c'est que
+               GRYD ne chronomètre pas encore le vélo, donc que personne ne PEUT
+               avoir de points vélo. On le dit, et on rappelle la séparation
+               stricte plutôt que de proposer une action qui n'y mène pas. */
+            <BoardEmpty
+              title={t(S.bikeBoardTitle)}
+              body={t(S.bikeBoardBody)}
+              note={t(S.bikeBoardSeparate)}
+            />
           ) : (
             /* Lecture RÉUSSIE sur la saison de MA ville, et aucune ligne. */
             <BoardEmpty
@@ -848,8 +965,13 @@ function LeagueScreen() {
               porte déjà en permanence (§A.20 « répète-t-il une info visible ? »).
               Pas de barre non plus : aucun dénominateur honnête n'existe entre deux
               paliers — l'écart se dit en PLACES, qui est un nombre exact.
-              Affichée seulement si le board est réel et hors mode discret. */}
-          {joueursIsReal && !discreet ? (
+              Affichée seulement si le board est réel et hors mode discret — et
+              JAMAIS en lentille Bike : le palier est adossé aux badges Season
+              Rank, lus dans `user_badges`, qui est MONO-POT (0070 « en suspens »
+              §3). Annoncer « Top 10 local » sous une étiquette vélo mélangerait
+              une récompense gagnée en courant avec un monde où l'on n'a rien
+              fait — la somme que la planche interdit. */}
+          {!bike && joueursIsReal && !discreet ? (
             <>
               <View style={styles.sectionHead}>
                 <Icon name="bouclier" size={iconSizes.sm} color={colors.gris} />
@@ -903,31 +1025,47 @@ function LeagueScreen() {
               SUPPRIMÉES : elles promettaient des lots qui n'existent pas. La frise
               liste les paliers RÉELS de season_close, avec leur CONDITION en clair
               et le matériau (acier → chrome → titane → élite → or) du catalogue.
-              Le statut « Obtenu » est LU dans `user_badges`, jamais re-dérivé. */}
-          <View style={styles.sectionHead}>
-            <Icon name="cadeau" size={iconSizes.sm} color={colors.gris} />
-            <Text style={styles.sectionLabel}>{t(S.recompensesSaison)}</Text>
-          </View>
-          {badgeNote ? <Text style={styles.stateNote}>{t(badgeNote)}</Text> : null}
-          <View style={styles.frieze}>
-            {SEASON_REWARD_TIERS.map((tier, i) => (
-              <SeasonTierRow
-                key={tier.badgeKey}
-                tier={tier}
-                last={i === SEASON_REWARD_TIERS.length - 1}
-                status={
-                  badgesKnown ? (badges.unlockedIds.has(tier.badgeKey) ? 'earned' : 'locked') : null
-                }
-              />
-            ))}
-          </View>
+              Le statut « Obtenu » est LU dans `user_badges`, jamais re-dérivé.
 
-          {/* E12-5 · RÈGLES DU RESET, en 2 lignes, sur la page.
-              ⚠ La planche écrit « vos territoires et badges restent acquis ». C'est
-              FAUX pour les territoires : `season_close` phase 2 fait le WIPE des
-              hex_claims et des boucliers. On écrit ce que le moteur fait vraiment. */}
-          <Text style={styles.resetRule}>{t(S.resetLigne1)}</Text>
-          <Text style={styles.resetRule}>{t(S.resetLigne2)}</Text>
+              RETIRÉE EN LENTILLE BIKE, avec les règles du reset : `user_badges`
+              est MONO-POT (0070 § 3). Une frise qui cocherait « Obtenu » sur un
+              écran vélo attribuerait au monde vélo des médailles gagnées en
+              courant, et les 2 lignes de reset qui la concluent parleraient d'une
+              saison vélo qui n'existe pas. L'état vide nommé du board porte alors
+              tout l'écran, comme la sheet Bike porte toute la Carte. */}
+          {bike ? null : (
+            <>
+              <View style={styles.sectionHead}>
+                <Icon name="cadeau" size={iconSizes.sm} color={colors.gris} />
+                <Text style={styles.sectionLabel}>{t(S.recompensesSaison)}</Text>
+              </View>
+              {badgeNote ? <Text style={styles.stateNote}>{t(badgeNote)}</Text> : null}
+              <View style={styles.frieze}>
+                {SEASON_REWARD_TIERS.map((tier, i) => (
+                  <SeasonTierRow
+                    key={tier.badgeKey}
+                    tier={tier}
+                    last={i === SEASON_REWARD_TIERS.length - 1}
+                    status={
+                      badgesKnown
+                        ? badges.unlockedIds.has(tier.badgeKey)
+                          ? 'earned'
+                          : 'locked'
+                        : null
+                    }
+                  />
+                ))}
+              </View>
+
+              {/* E12-5 · RÈGLES DU RESET, en 2 lignes, sur la page.
+                  ⚠ La planche écrit « vos territoires et badges restent acquis ».
+                  C'est FAUX pour les territoires : `season_close` phase 2 fait le
+                  WIPE des hex_claims et des boucliers. On écrit ce que le moteur
+                  fait vraiment. */}
+              <Text style={styles.resetRule}>{t(S.resetLigne1)}</Text>
+              <Text style={styles.resetRule}>{t(S.resetLigne2)}</Text>
+            </>
+          )}
         </View>
       </ScrollView>
 
@@ -964,7 +1102,19 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '700', letterSpacing: -0.5 },
+  // `flexShrink` : si un titre traduit long croisait le commutateur, c'est le
+  // TITRE qui cède (coupé net par `clip`, §A.9) — jamais le contrôle qui sort de
+  // l'écran, ce qui le rendrait inatteignable.
+  title: {
+    color: colors.blanc,
+    fontSize: fontSizes.xl,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    flexShrink: 1,
+  },
+  // Pousse le commutateur Run/Bike au bord droit (planche E14) sans jamais
+  // comprimer le titre : c'est l'ESPACE qui s'étire, pas le texte (§A.9).
+  titleSpacer: { flex: 1, minWidth: spacing.sm },
   frozen: {
     color: colors.gris,
     fontSize: fontSizes.xs,

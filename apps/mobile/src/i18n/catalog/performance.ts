@@ -670,4 +670,50 @@ export const C = defineCatalog({
     de: 'Wochenziel',
     pt: 'Meta semanal',
   },
+
+  // ─── Commutateur Run / Bike (planche E14) ──────────────────────────────────
+  // Segments à picto seul : l'a11y porte tout le sens, et elle nomme ce que la
+  // bascule change ICI — des statistiques, pas une carte.
+  activityRunA11y: {
+    fr: 'Statistiques à pied',
+    en: 'Running stats',
+    es: 'Estadísticas a pie',
+    de: 'Lauf-Statistiken',
+    pt: 'Estatísticas a pé',
+  },
+  activityBikeA11y: {
+    fr: 'Statistiques vélo',
+    en: 'Cycling stats',
+    es: 'Estadísticas en bici',
+    de: 'Rad-Statistiken',
+    pt: 'Estatísticas de bike',
+  },
+  /**
+   * LENTILLE BIKE — l'état vide NOMMÉ. Les trois blocs (volume · territoire ·
+   * régularité) sont RETIRÉS, pas remplis de zéros : un « 0,0 km » sous une
+   * étiquette vélo affirmerait que le joueur n'a pas roulé, alors que GRYD ne
+   * sait tout simplement pas mesurer le vélo.
+   */
+  bikeEmptyTitle: {
+    fr: 'Tes stats Bike commencent ici',
+    en: 'Your Bike stats start here',
+    es: 'Tus estadísticas Bike empiezan aquí',
+    de: 'Deine Bike-Statistiken beginnen hier',
+    pt: 'Suas estatísticas Bike começam aqui',
+  },
+  bikeEmptyBody: {
+    fr: 'GRYD ne chronomètre pas encore le vélo : aucune sortie, aucun territoire, aucune régularité à analyser.',
+    en: 'GRYD doesn’t track cycling yet: no ride, no turf, no consistency to analyse.',
+    es: 'GRYD aún no cronometra la bici: sin salidas, sin territorio, sin regularidad que analizar.',
+    de: 'GRYD misst Radfahren noch nicht: keine Ausfahrt, kein Gebiet, keine Regelmäßigkeit.',
+    pt: 'A GRYD ainda não cronometra bike: sem pedal, sem território, sem regularidade a analisar.',
+  },
+  /** Rassurance FACTUELLE : rien n'est perdu côté course à pied. */
+  bikeEmptyRunSafe: {
+    fr: 'Tes statistiques à pied restent intactes.',
+    en: 'Your running stats stay untouched.',
+    es: 'Tus estadísticas a pie siguen intactas.',
+    de: 'Deine Lauf-Statistiken bleiben unberührt.',
+    pt: 'Suas estatísticas a pé ficam intactas.',
+  },
 });

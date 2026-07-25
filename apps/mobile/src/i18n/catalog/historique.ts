@@ -487,4 +487,49 @@ export const C = defineCatalog({
     de: 'Mein Gebiet teilen',
     pt: 'Compartilhar meu território',
   },
+
+  // ─── Commutateur Run / Bike (planche E14) ──────────────────────────────────
+  // Les deux segments n'ont que des PICTOS : l'a11y porte tout le sens, et elle
+  // nomme ce que la bascule change ICI — un historique, pas une carte.
+  activityRunA11y: {
+    fr: 'Historique à pied',
+    en: 'Running history',
+    es: 'Historial a pie',
+    de: 'Lauf-Verlauf',
+    pt: 'Histórico a pé',
+  },
+  activityBikeA11y: {
+    fr: 'Historique vélo',
+    en: 'Cycling history',
+    es: 'Historial en bici',
+    de: 'Rad-Verlauf',
+    pt: 'Histórico de bike',
+  },
+  /**
+   * LENTILLE BIKE — l'état vide NOMMÉ. On n'affiche jamais les courses à pied
+   * sous une étiquette vélo (ce serait la donnée fabriquée que la charte
+   * interdit) ; on dit ce qu'il n'y a pas, et pourquoi.
+   */
+  bikeEmptyTitle: {
+    fr: 'Ton historique Bike commence ici',
+    en: 'Your Bike history starts here',
+    es: 'Tu historial Bike empieza aquí',
+    de: 'Dein Bike-Verlauf beginnt hier',
+    pt: 'Seu histórico Bike começa aqui',
+  },
+  bikeEmptyBody: {
+    fr: 'GRYD ne chronomètre pas encore le vélo : aucune sortie n’est enregistrée.',
+    en: 'GRYD doesn’t track cycling yet: no ride is recorded.',
+    es: 'GRYD aún no cronometra la bici: no hay ninguna salida registrada.',
+    de: 'GRYD misst Radfahren noch nicht: keine Ausfahrt aufgezeichnet.',
+    pt: 'A GRYD ainda não cronometra bike: nenhum pedal registado.',
+  },
+  /** Rassurance FACTUELLE : rien n'est perdu côté course à pied. */
+  bikeEmptyRunSafe: {
+    fr: 'Tes courses à pied restent intactes.',
+    en: 'Your runs stay untouched.',
+    es: 'Tus carreras a pie siguen intactas.',
+    de: 'Deine Läufe bleiben unberührt.',
+    pt: 'Suas corridas a pé ficam intactas.',
+  },
 });

@@ -232,4 +232,124 @@ export const C = defineCatalog({
     de: 'Deine Sammlung wird geladen …',
     pt: 'Carregando sua coleção…',
   },
+
+  // ─── E19 · Le moment « badge rare débloqué » ───────────────────────────────
+  // Réservé aux badges RARES (cf. isRareBadge) : les courants n'ont jamais droit
+  // à un écran bloquant. Le NOM et la CONDITION du badge viennent du catalogue
+  // de jeu (français) — comme partout ailleurs sur cet écran.
+  unlockKicker: {
+    fr: 'BADGE RARE DÉBLOQUÉ',
+    en: 'RARE BADGE UNLOCKED',
+    es: 'INSIGNIA RARA DESBLOQUEADA',
+    de: 'SELTENES ABZEICHEN FREIGESCHALTET',
+    pt: 'INSÍGNIA RARA DESBLOQUEADA',
+  },
+  unlockObtainedOn: {
+    fr: 'Obtenu le {date}',
+    en: 'Earned on {date}',
+    es: 'Obtenida el {date}',
+    de: 'Erhalten am {date}',
+    pt: 'Obtida em {date}',
+  },
+  /** La date d'obtention n'est pas lisible : on le dit, on n'en invente pas une. */
+  unlockDateUnknown: {
+    fr: 'Date d’obtention indisponible.',
+    en: 'Date earned unavailable.',
+    es: 'Fecha de obtención no disponible.',
+    de: 'Datum der Freischaltung nicht verfügbar.',
+    pt: 'Data de obtenção indisponível.',
+  },
+  /** Ligne de rareté : le matériau et sa place dans l'échelle (fait de catalogue). */
+  unlockMaterial: {
+    fr: '{tier} · matériau {position} sur {total}',
+    en: '{tier} · material {position} of {total}',
+    es: '{tier} · material {position} de {total}',
+    de: '{tier} · Material {position} von {total}',
+    pt: '{tier} · material {position} de {total}',
+  },
+  unlockAddToProfile: {
+    fr: 'AJOUTER AU PROFIL',
+    en: 'ADD TO PROFILE',
+    es: 'AÑADIR AL PERFIL',
+    de: 'ZUM PROFIL HINZUFÜGEN',
+    pt: 'ADICIONAR AO PERFIL',
+  },
+  unlockAdded: {
+    fr: 'Ajouté à ton profil.',
+    en: 'Added to your profile.',
+    es: 'Añadida a tu perfil.',
+    de: 'Zu deinem Profil hinzugefügt.',
+    pt: 'Adicionada ao seu perfil.',
+  },
+  unlockAlready: {
+    fr: 'Déjà mis en avant sur ton profil.',
+    en: 'Already featured on your profile.',
+    es: 'Ya destacada en tu perfil.',
+    de: 'Steht schon auf deinem Profil.',
+    pt: 'Já destacada no seu perfil.',
+  },
+  /** Vitrine pleine : on le DIT, et on propose la seule action qui débloque. */
+  unlockFull: {
+    fr: 'Ton profil affiche déjà {max} badges.',
+    en: 'Your profile already shows {max} badges.',
+    es: 'Tu perfil ya muestra {max} insignias.',
+    de: 'Dein Profil zeigt bereits {max} Abzeichen.',
+    pt: 'Seu perfil já mostra {max} insígnias.',
+  },
+  /**
+   * Libellés COURTS volontairement (§A « aucun texte d'action coupé ») : la
+   * phrase au-dessus porte déjà le pourquoi (« ton profil affiche déjà 3
+   * badges »), le bouton n'a qu'à dire le geste. Un « CHOISIR LEQUEL
+   * REMPLACER » se rétrécissait jusqu'à l'illisible sur un écran étroit.
+   */
+  unlockChooseReplace: {
+    fr: 'REMPLACER UN BADGE',
+    en: 'REPLACE A BADGE',
+    es: 'CAMBIAR UNA INSIGNIA',
+    de: 'ABZEICHEN ERSETZEN',
+    pt: 'TROCAR UMA INSÍGNIA',
+  },
+  unlockShare: {
+    fr: 'Partager',
+    en: 'Share',
+    es: 'Compartir',
+    de: 'Teilen',
+    pt: 'Compartilhar',
+  },
+  unlockContinue: {
+    fr: 'Continuer',
+    en: 'Continue',
+    es: 'Continuar',
+    de: 'Weiter',
+    pt: 'Continuar',
+  },
+  /** Message effectivement partagé — que des faits du badge, aucune stat inventée. */
+  unlockShareText: {
+    fr: '{name} — débloqué sur GRYD. {requirement}',
+    en: '{name} — unlocked on GRYD. {requirement}',
+    es: '{name} — desbloqueada en GRYD. {requirement}',
+    de: '{name} — auf GRYD freigeschaltet. {requirement}',
+    pt: '{name} — desbloqueada no GRYD. {requirement}',
+  },
+  unlockShareUnavailable: {
+    fr: 'Partage indisponible sur cet appareil.',
+    en: 'Sharing isn’t available on this device.',
+    es: 'Compartir no está disponible en este dispositivo.',
+    de: 'Teilen ist auf diesem Gerät nicht verfügbar.',
+    pt: 'Compartilhar não está disponível neste aparelho.',
+  },
+  unlockShareCopied: {
+    fr: 'Copié dans le presse-papier.',
+    en: 'Copied to the clipboard.',
+    es: 'Copiado al portapapeles.',
+    de: 'In die Zwischenablage kopiert.',
+    pt: 'Copiado para a área de transferência.',
+  },
+  a11yUnlockSkip: {
+    fr: 'Afficher tout de suite',
+    en: 'Show everything now',
+    es: 'Mostrar todo ahora',
+    de: 'Sofort alles anzeigen',
+    pt: 'Mostrar tudo agora',
+  },
 });

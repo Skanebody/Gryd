@@ -26,7 +26,7 @@ import {
 } from '@klaim/shared';
 
 export type { BadgeMetric, BadgeTier, BadgeTierStyle };
-export { BADGE_TIERS, BADGE_TIER_STYLE, BADGE_TIER_LABEL };
+export { BADGE_TIERS, BADGE_TIER_STYLE, BADGE_TIER_LABEL, BADGE_TIER_RANK };
 
 export type BadgeFamilyId =
   | 'onboarding'
@@ -170,16 +170,39 @@ export function maxTierLabel(unlockedIds: ReadonlySet<string>): string | null {
 }
 
 /**
+ * ─── CE QUE « RARE » VEUT DIRE DANS GRYD (E19) ───────────────────────────────
+ *
+ * Le seuil n'est PAS inventé pour l'écran « badge rare débloqué » : il existait
+ * déjà, en clair, dans `badgeRewardLabel` (« les badges rares (tier ≥ race) et
+ * les secrets accordent leur nom en TITRE de profil »). Il est simplement
+ * remonté ici pour qu'il n'y ait qu'UNE définition dans le produit, et que la
+ * promesse tienne dans une phrase vérifiable :
+ *
+ *   est RARE le badge qui accorde un TITRE.
+ *
+ * Conséquence directe : le moment dédié (E19) et le titre de profil s'allument
+ * exactement ensemble. Si un jour la rareté doit se resserrer, c'est CETTE
+ * constante qu'on bouge — un seul endroit, et les deux surfaces suivent.
+ *
+ * La rareté est donc une propriété du CATALOGUE (le matériau/tier du badge),
+ * jamais une statistique de population : voir l'en-tête d'`unlockMoment.ts`
+ * pour pourquoi « possédé par 2 % des joueurs de X » n'est pas affiché.
+ */
+export const RARE_BADGE_MIN_TIER: BadgeTier = 'race';
+
+/** Le badge mérite-t-il le traitement « rare » (titre + moment dédié E19) ? */
+export function isRareBadge(def: BadgeDef): boolean {
+  return def.secret || BADGE_TIER_RANK[def.tier] >= BADGE_TIER_RANK[RARE_BADGE_MIN_TIER];
+}
+
+/**
  * Récompense affichable au déblocage (doc §23 : « Récompense : titre “Hex
- * Hunter” »). DÉRIVÉE du catalogue — les badges rares (tier ≥ race) et les
- * secrets accordent leur nom en TITRE de profil ; les autres n'affichent rien.
+ * Hunter” »). DÉRIVÉE du catalogue — les badges RARES (cf. `isRareBadge`)
+ * accordent leur nom en TITRE de profil ; les autres n'affichent rien.
  * Aucune donnée inventée : lecture pure du tier.
  */
 export function badgeRewardLabel(def: BadgeDef): string | undefined {
-  if (def.secret || BADGE_TIER_RANK[def.tier] >= BADGE_TIER_RANK.race) {
-    return `Titre « ${def.name} »`;
-  }
-  return undefined;
+  return isRareBadge(def) ? `Titre « ${def.name} »` : undefined;
 }
 
 /** Progression d'un badge pour une valeur de stat (jauge + « proches »). */

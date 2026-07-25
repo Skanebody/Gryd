@@ -22,6 +22,23 @@
  * 3. i18n. Tout le châssis de l'écran était en français en dur. Les NOMS et
  *    CONDITIONS des badges restent ceux du catalogue de jeu partagé
  *    (@klaim/shared) : les traduire est un chantier `packages/shared` à part.
+ *
+ * ─── E19 · LE MOMENT « BADGE RARE DÉBLOQUÉ » (25/07/2026) ────────────────────
+ * Cet écran est aujourd'hui le SEUL endroit du client où un déverrouillage se
+ * DÉCOUVRE : le serveur décerne les badges à l'ingestion, le client les lit ici
+ * (`useMyBadges` → `user_badges`). Le moment dédié de la planche s'y branche
+ * donc naturellement, en surcouche plein écran (`BadgeUnlockMoment`), et
+ * seulement pour les badges RARES — les courants n'ont jamais droit à un écran
+ * bloquant. Trois gardes tiennent l'honnêteté :
+ *   · il faut une lecture SERVEUR aboutie (ni `loading`, ni `failed`, ni
+ *     `source: 'none'`) — on ne fête pas ce qu'on n'a pas lu ;
+ *   · il faut que la mémoire locale soit résolue (`seenBadges`), sinon un délai
+ *     de disque rejouerait un moment déjà vu ;
+ *   · la toute première lecture d'un compte pose une BASE sans rien célébrer :
+ *     un joueur décoré qui réinstalle ne subit pas trente écrans pour des faits
+ *     anciens.
+ * Le point de déclenchement IDÉAL reste le résultat de course : voir l'en-tête
+ * de `features/badges/BadgeUnlockMoment.tsx`.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -50,6 +67,9 @@ import {
   type BadgeFamilyId,
 } from '../src/features/badges/catalog';
 import { useMyBadges, type MyBadges } from '../src/features/badges/myBadges';
+import { BadgeUnlockMoment } from '../src/features/badges/BadgeUnlockMoment';
+import { useBadgeMemory } from '../src/features/badges/seenBadges';
+import { selectUnlockMoments } from '../src/features/badges/unlockMoment';
 import { screen } from '../src/lib/analytics';
 import { useSession } from '../src/lib/session';
 import { BadgeCard, useReduceMotion } from '../src/ui/game';
@@ -411,6 +431,44 @@ export default function BadgesScreen() {
   const tierMax = maxTierLabel(unlockedIds);
   const secrets = secretBadges();
 
+  // ─── E19 · déclenchement du moment dédié ───────────────────────────────────
+  // La mémoire est PAR COMPTE : sans session, elle reste inerte et rien ne peut
+  // se déclencher (cf. seenBadges.ts).
+  const memory = useBadgeMemory(session?.user.id ?? null);
+  const [celebrating, setCelebrating] = useState<readonly string[]>([]);
+
+  const rememberSeen = useCallback(
+    (key: string) => memory.remember([key]),
+    [memory],
+  );
+  /**
+   * Fin de la file. On réinscrit TOUT ce qui y était — filet anti-boucle : si un
+   * jour la sélection et le contenu divergeaient (une clé jugée célébrable que le
+   * moment ne sait pas peindre), l'écran se refermerait aussitôt et la
+   * sélection la reproposerait, indéfiniment. Un `remember` est idempotent.
+   */
+  const endCelebration = useCallback(() => {
+    if (celebrating.length > 0) memory.remember(celebrating);
+    setCelebrating([]);
+  }, [celebrating, memory]);
+
+  useEffect(() => {
+    // On ne fête que ce qu'on a VRAIMENT lu, pour un compte identifié, une fois
+    // la mémoire résolue — et jamais pendant qu'un moment est déjà à l'écran.
+    if (!personal || loading || failed || !memory.ready) return;
+    if (celebrating.length > 0) return;
+    const { celebrate, remember } = selectUnlockMoments({
+      unlocked: [...unlockedIds],
+      known: [...memory.known],
+      baselineDone: memory.baselineDone,
+    });
+    // Les clés qui n'ont pas droit à l'arrêt (courantes, inconnues, paliers
+    // absorbés) entrent en mémoire tout de suite. Les autres n'y entreront
+    // qu'une fois RÉELLEMENT montrées (`onSeen`).
+    if (remember.length > 0) memory.remember(remember);
+    if (celebrate.length > 0) setCelebrating(celebrate);
+  }, [personal, loading, failed, memory, unlockedIds, celebrating.length]);
+
   // « Proches du déblocage » : top 3 badges verrouillés, non secrets, par ratio.
   // Sans source personnelle, toutes les stats valent 0 → la liste est vide et la
   // section disparaît d'elle-même ; le garde `personal` le rend explicite.
@@ -640,6 +698,17 @@ export default function BadgesScreen() {
           unlockedDates={unlockedDates}
           stat={stat}
           personal={personal}
+        />
+      ) : null}
+
+      {/* E19 — le moment dédié passe AU-DESSUS de tout (y compris le détail) :
+          c'est un arrêt, pas une couche de plus. */}
+      {celebrating.length > 0 ? (
+        <BadgeUnlockMoment
+          keys={celebrating}
+          dates={unlockedDates}
+          onSeen={rememberSeen}
+          onDone={endCelebration}
         />
       ) : null}
     </View>

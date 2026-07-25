@@ -274,4 +274,49 @@ export const C = defineCatalog({
     de: 'Belohnungen sind kosmetisch — nie ein Eroberungsvorteil.',
     pt: 'As recompensas são cosméticas — nunca uma vantagem de captura.',
   },
+
+  // ─── Commutateur Run / Bike (planche E14) ──────────────────────────────────
+  // Segments à picto seul : l'a11y porte tout le sens, et elle nomme ce que la
+  // bascule change ICI — un classement, pas une carte.
+  activityRunA11y: {
+    fr: 'Classement à pied',
+    en: 'Running leaderboard',
+    es: 'Clasificación a pie',
+    de: 'Lauf-Rangliste',
+    pt: 'Classificação a pé',
+  },
+  activityBikeA11y: {
+    fr: 'Classement vélo',
+    en: 'Cycling leaderboard',
+    es: 'Clasificación en bici',
+    de: 'Rad-Rangliste',
+    pt: 'Classificação de bike',
+  },
+  /**
+   * LENTILLE BIKE — l'état vide NOMMÉ, servi À LA PLACE du vide générique
+   * (« personne n'a encore couru cette saison ») : la cause n'est pas la même,
+   * et confondre les deux ferait croire que le vélo est ouvert mais désert.
+   */
+  bikeBoardTitle: {
+    fr: 'Le classement Bike commence ici',
+    en: 'The Bike leaderboard starts here',
+    es: 'La clasificación Bike empieza aquí',
+    de: 'Die Bike-Rangliste beginnt hier',
+    pt: 'A classificação Bike começa aqui',
+  },
+  bikeBoardBody: {
+    fr: 'GRYD ne chronomètre pas encore le vélo : personne n’a de points vélo, ici ni ailleurs.',
+    en: 'GRYD doesn’t track cycling yet: nobody has Bike points, here or anywhere.',
+    es: 'GRYD aún no cronometra la bici: nadie tiene puntos de bici, ni aquí ni en otro sitio.',
+    de: 'GRYD misst Radfahren noch nicht: niemand hat Rad-Punkte, hier oder anderswo.',
+    pt: 'A GRYD ainda não cronometra bike: ninguém tem pontos de bike, aqui nem noutro lugar.',
+  },
+  /** SÉPARATION STRICTE (planche E14) : deux mondes, jamais une somme. */
+  bikeBoardSeparate: {
+    fr: 'Les rangs à pied et vélo sont séparés : jamais mélangés, jamais additionnés.',
+    en: 'Running and Bike ranks stay separate: never mixed, never summed.',
+    es: 'Los rangos a pie y en bici están separados: nunca se mezclan ni se suman.',
+    de: 'Lauf- und Rad-Ränge bleiben getrennt: nie gemischt, nie addiert.',
+    pt: 'Os postos a pé e de bike ficam separados: nunca misturados, nunca somados.',
+  },
 });

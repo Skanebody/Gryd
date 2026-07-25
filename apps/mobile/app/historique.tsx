@@ -24,6 +24,25 @@
  *   · pas connecté→ l'historique vit sur le compte → CTA « Se connecter » ;
  *   · échec       → on le dit, et on propose de réessayer ;
  *   · lu, vide    → LÀ, et seulement là, « Lance-toi ! » est vrai.
+ *
+ * ─── COMMUTATEUR RUN / BIKE (planche E14, 25/07/2026) ───────────────────────
+ * « Un petit commutateur en haut à droite, présent sur toutes les pages utiles :
+ * carte, classements, HISTORIQUE, profil-stats. » Il est ici dans `headerRight`,
+ * visible seulement si Bike est activé et RETIRÉ (jamais grisé) pendant une
+ * course. Sa lentille est mémorisée POUR CET ONGLET (`useActivityLens`, clé
+ * `gryd.activity.historique`) : la basculer ici ne touche ni la Carte ni le
+ * Classement. Pendant une course, elle est mise EN VEILLE et la page montre le
+ * monde de la course en cours — sinon un joueur resté en Bike se retrouverait
+ * devant un état vide qu'aucun contrôle visible ne pourrait quitter.
+ *
+ * CE QU'IL NE FAIT SURTOUT PAS : réétiqueter. La lentille Bike n'affiche AUCUNE
+ * course — pas une seule ligne de `runs` — parce que tous les chemins de départ
+ * déclarent la course à pied (`features/run/gps/runActivity.ts`) : il n'existe
+ * donc littéralement aucune sortie vélo. Rendre la liste à pied sous une
+ * étiquette vélo serait la donnée fabriquée que la charte interdit ; on rend un
+ * CINQUIÈME état, distinct des quatre ci-dessus parce que sa cause est
+ * différente — ce n'est ni un vide du joueur, ni une panne, mais une discipline
+ * que le produit ne mesure pas encore. Et on le NOMME.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -33,6 +52,7 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Card } from '../src/ui/Card';
 import { StackScreen } from '../src/ui/StackScreen';
+import { ActivitySwitch, useActivityLens } from '../src/ui/ActivitySwitch';
 import { useSession } from '../src/lib/session';
 import { RealRunCard } from '../src/features/history/RealRunCard';
 import {
@@ -120,16 +140,20 @@ function FilterBar({
 function StateCard({
   title,
   body,
+  note,
   cta,
 }: {
   title?: string;
   body: string;
+  /** Seconde ligne FACTUELLE (ex. « tes courses à pied restent intactes »). */
+  note?: string;
   cta?: { label: string; a11y: string; onPress: () => void };
 }) {
   return (
     <Card style={styles.empty}>
       {title !== undefined ? <Text style={styles.emptyTitle}>{title}</Text> : null}
       <Text style={styles.emptyText}>{body}</Text>
+      {note !== undefined ? <Text style={styles.emptyText}>{note}</Text> : null}
       {cta ? (
         <Pressable
           accessibilityRole="button"
@@ -151,6 +175,10 @@ export default function HistoriqueScreen() {
   // `configured` = un backend existe. Sans lui, proposer « Se connecter » serait
   // un cul-de-sac : il n'y a personne au bout.
   const { configured } = useSession();
+  // LENTILLE de CET onglet (planche E14, « mémorisé par onglet ») + éligibilité
+  // du commutateur (flags.bike, retiré pendant une course).
+  const { activity, setActivity, switchVisible } = useActivityLens('historique');
+  const bike = activity === 'bike';
 
   useEffect(() => {
     screen('historique');
@@ -179,70 +207,99 @@ export default function HistoriqueScreen() {
       icon="historique"
       kicker={t(C.historiqueKicker)}
       subtitle={t(C.historiqueSubtitle)}
+      {...(switchVisible
+        ? {
+            headerRight: (
+              <ActivitySwitch
+                activity={activity}
+                onChange={setActivity}
+                runLabel={t(C.activityRunA11y)}
+                bikeLabel={t(C.activityBikeA11y)}
+                testID="historique-activity-switch"
+              />
+            ),
+          }
+        : {})}
     >
-      {/* ── 1. On ne sait pas encore : on ne dit rien du joueur. ── */}
-      {status === 'loading' ? <StateCard body={t(PC.loading)} /> : null}
-
-      {/* ── 2. Pas de compte : l'historique vit dessus. Le CTA n'apparaît que
-             s'il mène quelque part. ── */}
-      {status === 'signed-out' ? (
+      {/* ── 0. LENTILLE BIKE — un état vide NOMMÉ, et RIEN d'autre.
+             Aucune ligne de `runs` n'est rendue ici : toutes sont des courses à
+             pied (la discipline est déclarée au départ), donc les afficher sous
+             une étiquette vélo serait une donnée fabriquée. Aucun CTA non plus —
+             « lance-toi » enverrait vers un départ qui enregistre une COURSE,
+             c'est-à-dire un bouton qui ne peut pas tenir sa promesse. ── */}
+      {bike ? (
         <StateCard
-          {...(configured ? {} : { title: t(PC.noBackendTitle) })}
-          body={configured ? t(C.emptySignedOut) : t(PC.noBackendBody)}
-          {...(configured
-            ? {
-                cta: {
-                  label: t(C.emptySignedOutCta),
-                  a11y: t(C.a11ySignIn),
-                  onPress: () => {
-                    haptics.light();
-                    router.push('/sign-in');
-                  },
-                },
-              }
-            : {})}
+          title={t(C.bikeEmptyTitle)}
+          body={t(C.bikeEmptyBody)}
+          note={t(C.bikeEmptyRunSafe)}
         />
-      ) : null}
-
-      {/* ── 3. Échec : ses courses existent, on n'a pas su les lire. Dire
-             « tu n'as rien couru » ici serait le mensonge d'origine. ── */}
-      {status === 'failed' ? (
-        <StateCard
-          title={t(PC.failedTitle)}
-          body={t(PC.failedBody)}
-          cta={{
-            label: t(PC.retry),
-            a11y: t(PC.retry),
-            onPress: () => {
-              haptics.light();
-              reload();
-            },
-          }}
-        />
-      ) : null}
-
-      {/* ── 4. Lu. Zéro course est alors un FAIT, pas un trou. ── */}
-      {status === 'ready' && runs.length === 0 ? <StateCard body={t(C.emptyRealUser)} /> : null}
-
-      {status === 'ready' && runs.length > 0 ? (
+      ) : (
         <>
-          <FilterBar counts={counts} active={filter} onSelect={selectFilter} />
-          <Text style={styles.sectionLabel}>
-            {t(list.length === 1 ? C.countRunsOne : C.countRunsMany, { n: list.length })}
-          </Text>
-          {list.length === 0 ? (
-            /* Il y a des courses, mais aucune dans CE filtre : une absence
-               locale, pas un jugement sur le joueur. */
-            <StateCard body={t(C.emptyFilter)} />
-          ) : (
-            <View style={styles.list}>
-              {list.map((entry) => (
-                <RealRunCard key={entry.id} entry={entry} />
-              ))}
-            </View>
-          )}
+        {/* ── 1. On ne sait pas encore : on ne dit rien du joueur. ── */}
+        {status === 'loading' ? <StateCard body={t(PC.loading)} /> : null}
+
+        {/* ── 2. Pas de compte : l'historique vit dessus. Le CTA n'apparaît que
+               s'il mène quelque part. ── */}
+        {status === 'signed-out' ? (
+          <StateCard
+            {...(configured ? {} : { title: t(PC.noBackendTitle) })}
+            body={configured ? t(C.emptySignedOut) : t(PC.noBackendBody)}
+            {...(configured
+              ? {
+                  cta: {
+                    label: t(C.emptySignedOutCta),
+                    a11y: t(C.a11ySignIn),
+                    onPress: () => {
+                      haptics.light();
+                      router.push('/sign-in');
+                    },
+                  },
+                }
+              : {})}
+          />
+        ) : null}
+
+        {/* ── 3. Échec : ses courses existent, on n'a pas su les lire. Dire
+               « tu n'as rien couru » ici serait le mensonge d'origine. ── */}
+        {status === 'failed' ? (
+          <StateCard
+            title={t(PC.failedTitle)}
+            body={t(PC.failedBody)}
+            cta={{
+              label: t(PC.retry),
+              a11y: t(PC.retry),
+              onPress: () => {
+                haptics.light();
+                reload();
+              },
+            }}
+          />
+        ) : null}
+
+        {/* ── 4. Lu. Zéro course est alors un FAIT, pas un trou. ── */}
+        {status === 'ready' && runs.length === 0 ? <StateCard body={t(C.emptyRealUser)} /> : null}
+
+        {status === 'ready' && runs.length > 0 ? (
+          <>
+            <FilterBar counts={counts} active={filter} onSelect={selectFilter} />
+            <Text style={styles.sectionLabel}>
+              {t(list.length === 1 ? C.countRunsOne : C.countRunsMany, { n: list.length })}
+            </Text>
+            {list.length === 0 ? (
+              /* Il y a des courses, mais aucune dans CE filtre : une absence
+                 locale, pas un jugement sur le joueur. */
+              <StateCard body={t(C.emptyFilter)} />
+            ) : (
+              <View style={styles.list}>
+                {list.map((entry) => (
+                  <RealRunCard key={entry.id} entry={entry} />
+                ))}
+              </View>
+            )}
+          </>
+        ) : null}
         </>
-      ) : null}
+      )}
     </StackScreen>
   );
 }

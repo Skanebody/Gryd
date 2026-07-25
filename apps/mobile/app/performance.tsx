@@ -23,30 +23,48 @@
  * l'ancienne lecture `useMyPerformance` n'est PAS rouverte — deux lectures des
  * mêmes `runs` finissent par se contredire à l'écran.
  *
+ * ─── COMMUTATEUR RUN / BIKE (planche E14, propagé le 25/07/2026) ────────────
+ * L'écart n° 1 de cet en-tête disait « OMIS entièrement — aucun drapeau `bike`,
+ * `runs` sans colonne d'activité ». LES DEUX RAISONS ONT SAUTÉ : `flags.bike`
+ * est ouvert (décision fondateur) et `runs.activity` existe (migration 0070).
+ * Le commutateur est donc ici, dans `headerRight` — visible seulement si Bike
+ * est activé, RETIRÉ (jamais grisé) pendant une course, et sa lentille est
+ * mémorisée POUR CET ONGLET (`useActivityLens('stats')`, clé `gryd.activity.stats`).
+ * Pendant une course, cette lentille est mise EN VEILLE et la page montre le
+ * monde de la course en cours : sans ça, un joueur resté en Bike se retrouverait
+ * devant un état vide qu'aucun contrôle visible ne pourrait quitter.
+ *
+ * CE QU'IL CHANGE, ET SURTOUT CE QU'IL NE RÉÉTIQUETTE PAS : en lentille Bike,
+ * les TROIS BLOCS DISPARAISSENT. Pas remplis de zéros — retirés. Un « 0,0 km »
+ * ou un carré de régularité éteint sous une étiquette vélo affirmerait que le
+ * joueur n'a pas roulé, alors que GRYD ne sait tout simplement pas mesurer le
+ * vélo : tous les chemins de départ déclarent la course à pied
+ * (`features/run/gps/runActivity.ts`), donc aucune sortie vélo n'existe. À la
+ * place, un état vide NOMMÉ, sans CTA (proposer « lance-toi » enverrait vers un
+ * départ qui enregistre une COURSE — un bouton qui ne peut pas tenir sa promesse).
+ * Le PALMARÈS et la ligne Premium tombent avec le reste : les records se
+ * dérivent des mêmes `runs`, et « ton meilleur 5 km » n'est pas un record vélo.
+ *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE (aucun n'est masqué) ───────────────────────
- * 1. COMMUTATEUR RUN/BIKE — OMIS entièrement. Il n'existe aucun drapeau `bike`
- *    dans `lib/flags.ts`, `runs` n'a aucune colonne de type d'activité (`source`
- *    ∈ gps|healthkit|strava|gpx) et le vélo est un chantier non commencé. Le
- *    peindre — même « masqué par un drapeau OFF » — serait un contrôle mort.
- * 2. SEGMENT « SAISON » — rendu UNIQUEMENT quand une saison RÉELLE est ouverte
+ * 1. SEGMENT « SAISON » — rendu UNIQUEMENT quand une saison RÉELLE est ouverte
  *    (`useActiveSeason().status === 'active'`). Sans saison en base, l'onglet
  *    serait vide à vie. L'absence d'un contrôle n'est pas un mensonge ; un
  *    contrôle qui échoue toujours en est un.
- * 3. COURBE DE SURFACE TENUE — INTENABLE. `hex_claims` ne garde que le
+ * 2. COURBE DE SURFACE TENUE — INTENABLE. `hex_claims` ne garde que le
  *    propriétaire COURANT : une zone perdue disparaît sans trace, aucune table
  *    n'historise les pertes. Une courbe reconstruite serait croissante par
  *    construction, donc affirmerait qu'on n'a jamais rien perdu. Remplacée par
  *    l'aire des GAINS par semaine, titrée sans ambiguïté.
- * 4. « Aucune perte de zone depuis 12 jours » — SUPPRIMÉ : strictement
+ * 3. « Aucune perte de zone depuis 12 jours » — SUPPRIMÉ : strictement
  *    indérivable (les pertes ne sont nulle part). Remplacé par la meilleure
  *    semaine de capture, qui, elle, se lit dans les payloads serveur.
- * 5. ÉTAT HORS LIGNE (« dernier calcul + horodatage ») — pas d'infra : rien ne
+ * 4. ÉTAT HORS LIGNE (« dernier calcul + horodatage ») — pas d'infra : rien ne
  *    persiste un dernier calcul côté client. Servi par l'état `failed`, honnête,
  *    plutôt que par un horodatage inventé.
- * 6. LIGNE PREMIUM — rendue seulement si `flags.arsenal` : sur le pilote fermé
+ * 5. LIGNE PREMIUM — rendue seulement si `flags.arsenal` : sur le pilote fermé
  *    `/arsenal` redirige vers la carte, la ligne serait un contrôle mort.
  *
- * ─── PORTÉE DU COMMUTATEUR ─────────────────────────────────────────────────
+ * ─── PORTÉE DU COMMUTATEUR DE PÉRIODE ──────────────────────────────────────
  * Semaine/Mois/Saison pilote le BLOC 1 (et le gain territorial de la période).
  * Les deux lectures HEBDOMADAIRES (aire des gains, carrés de régularité) gardent
  * leur propre horizon : une régularité ne se lit pas sur sept jours, et une aire
@@ -72,6 +90,7 @@ import { flags } from '../src/lib/flags';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
+import { ActivitySwitch, useActivityLens } from '../src/ui/ActivitySwitch';
 import { Segmented, type SegmentedOption } from '../src/ui/game';
 import { useSession } from '../src/lib/session';
 import { useRealTerritories } from '../src/features/map/hexClaims';
@@ -134,11 +153,14 @@ const DAY_FULL: readonly Entry[] = [
 function StateBlock({
   title,
   body,
+  note,
   ctaLabel,
   onPress,
 }: {
   title: string;
   body: string;
+  /** Seconde ligne FACTUELLE (ex. « tes statistiques à pied restent intactes »). */
+  note?: string;
   ctaLabel?: string;
   onPress?: () => void;
 }) {
@@ -146,6 +168,7 @@ function StateBlock({
     <View style={styles.stateCard}>
       <Text style={styles.stateTitle}>{title}</Text>
       <Text style={styles.stateBody}>{body}</Text>
+      {note !== undefined ? <Text style={styles.stateBody}>{note}</Text> : null}
       {ctaLabel && onPress ? (
         <Pressable
           accessibilityRole="button"
@@ -421,6 +444,10 @@ export default function PerformanceScreen() {
   const territories = useRealTerritories();
   const [period, setPeriod] = useState<StatsPeriod>('week');
   const firstRender = useRef(true);
+  // LENTILLE de CET onglet (planche E14, « mémorisé par onglet ») + éligibilité
+  // du commutateur (flags.bike, retiré pendant une course).
+  const { activity, setActivity, switchVisible } = useActivityLens('stats');
+  const bike = activity === 'bike';
 
   const rawSeasonStart = seasonState.season ? Date.parse(seasonState.season.startsAt) : Number.NaN;
   const seasonStartMs =
@@ -473,76 +500,118 @@ export default function PerformanceScreen() {
     { id: 'week', label: t(C.periodWeek) },
     { id: 'month', label: t(C.periodMonth) },
   ];
-  // « Saison » n'apparaît QUE si une saison réelle est ouverte (cf. écart n° 2).
+  // « Saison » n'apparaît QUE si une saison réelle est ouverte (cf. écart n° 1).
   if (seasonStartMs !== null) periodOptions.push({ id: 'season', label: t(C.periodSeason) });
 
   let body: React.ReactNode;
-  switch (stats.status) {
-    case 'signed-out':
-      body = canSignIn ? (
-        <StateBlock
-          title={t(C.signedOutTitle)}
-          body={t(C.signedOutBody)}
-          ctaLabel={t(C.signIn)}
-          onPress={() => router.push('/sign-in')}
-        />
-      ) : (
-        <StateBlock title={t(C.noBackendTitle)} body={t(C.noBackendBody)} />
-      );
-      break;
-    case 'loading':
-      // Une ligne, pas un spinner plein écran. État BORNÉ : la lecture aboutit
-      // ou bascule sur `failed`. Un chargement n'affirme RIEN sur le joueur.
-      body = <Text style={styles.stateInline}>{t(C.loading)}</Text>;
-      break;
-    case 'failed':
-      body = (
-        <StateBlock
-          title={t(C.failedTitle)}
-          body={t(C.failedBody)}
-          ctaLabel={t(C.retry)}
-          onPress={stats.reload}
-        />
-      );
-      break;
-    case 'ready':
-      body =
-        derived && records && derived.countedRuns > 0 ? (
-          <>
-            {/* Le seul groupe de choix de l'écran. `tone="surface"` : la
-                chartreuse est ici une couleur de DONNÉE (rôle « moi »), elle ne
-                doit pas être dépensée sur un filtre. */}
-            <Segmented
-              options={periodOptions}
-              value={period}
-              onChange={setPeriod}
-              tone="surface"
-              accessibilityLabel={t(C.periodA11y)}
-              style={styles.periods}
-            />
-            <StatsBody
-              data={derived}
-              period={period}
-              territory={territory}
-              records={records}
-            />
-          </>
-        ) : (
-          // Compte relié, zéro course ingérée : ce n'est pas une panne, c'est
-          // son point de départ. On dit ce que la page contiendra, et le seul
-          // geste qui la remplit.
+  if (bike) {
+    /**
+     * LENTILLE BIKE — l'état vide NOMMÉ, servi À LA PLACE de tout le reste.
+     *
+     * On ne consulte MÊME PAS `stats.status` ici, et c'est le point : les trois
+     * blocs, le palmarès et le commutateur de période se dérivent tous des
+     * mêmes lignes de `runs`, qui sont TOUTES des courses à pied (la discipline
+     * est déclarée au départ, `runActivity.ts`). Les rendre sous une étiquette
+     * vélo — même à zéro — affirmerait quelque chose sur un joueur cycliste que
+     * GRYD n'a jamais mesuré. On dit ce qu'il n'y a pas, et pourquoi.
+     *
+     * AUCUN CTA : le seul geste qui remplirait cette page est un départ de
+     * course, qui enregistre une COURSE À PIED. Le peindre ici serait un bouton
+     * qui ne peut pas tenir sa promesse (§A.4 / « aucun bouton mort »).
+     */
+    body = (
+      <StateBlock
+        title={t(C.bikeEmptyTitle)}
+        body={t(C.bikeEmptyBody)}
+        note={t(C.bikeEmptyRunSafe)}
+      />
+    );
+  } else {
+    switch (stats.status) {
+      case 'signed-out':
+        body = canSignIn ? (
           <StateBlock
-            title={t(C.emptyTitle)}
-            body={t(C.emptyBody)}
-            ctaLabel={t(C.emptyCta)}
-            onPress={() => router.push('/')}
+            title={t(C.signedOutTitle)}
+            body={t(C.signedOutBody)}
+            ctaLabel={t(C.signIn)}
+            onPress={() => router.push('/sign-in')}
+          />
+        ) : (
+          <StateBlock title={t(C.noBackendTitle)} body={t(C.noBackendBody)} />
+        );
+        break;
+      case 'loading':
+        // Une ligne, pas un spinner plein écran. État BORNÉ : la lecture aboutit
+        // ou bascule sur `failed`. Un chargement n'affirme RIEN sur le joueur.
+        body = <Text style={styles.stateInline}>{t(C.loading)}</Text>;
+        break;
+      case 'failed':
+        body = (
+          <StateBlock
+            title={t(C.failedTitle)}
+            body={t(C.failedBody)}
+            ctaLabel={t(C.retry)}
+            onPress={stats.reload}
           />
         );
-      break;
+        break;
+      case 'ready':
+        body =
+          derived && records && derived.countedRuns > 0 ? (
+            <>
+              {/* Le seul groupe de choix DU CONTENU (le commutateur Run/Bike
+                  vit dans la barre, pas dans la page : il change de MONDE, pas
+                  de fenêtre temporelle). `tone="surface"` : la chartreuse est
+                  ici une couleur de DONNÉE (rôle « moi »), elle ne doit pas être
+                  dépensée sur un filtre. */}
+              <Segmented
+                options={periodOptions}
+                value={period}
+                onChange={setPeriod}
+                tone="surface"
+                accessibilityLabel={t(C.periodA11y)}
+                style={styles.periods}
+              />
+              <StatsBody
+                data={derived}
+                period={period}
+                territory={territory}
+                records={records}
+              />
+            </>
+          ) : (
+            // Compte relié, zéro course ingérée : ce n'est pas une panne, c'est
+            // son point de départ. On dit ce que la page contiendra, et le seul
+            // geste qui la remplit.
+            <StateBlock
+              title={t(C.emptyTitle)}
+              body={t(C.emptyBody)}
+              ctaLabel={t(C.emptyCta)}
+              onPress={() => router.push('/')}
+            />
+          );
+        break;
+    }
   }
 
   return (
-    <StackScreen title={t(C.title)} icon="performance">
+    <StackScreen
+      title={t(C.title)}
+      icon="performance"
+      {...(switchVisible
+        ? {
+            headerRight: (
+              <ActivitySwitch
+                activity={activity}
+                onChange={setActivity}
+                runLabel={t(C.activityRunA11y)}
+                bikeLabel={t(C.activityBikeA11y)}
+                testID="performance-activity-switch"
+              />
+            ),
+          }
+        : {})}
+    >
       {body}
     </StackScreen>
   );
