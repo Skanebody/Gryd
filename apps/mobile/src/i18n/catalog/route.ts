@@ -214,6 +214,22 @@ export const C = defineCatalog({
     de: 'PLÄNE',
     pt: 'PLANOS',
   },
+  // ── E05 (planche) : bloc à séparateurs des métriques du parcours recommandé.
+  //    Seules distance et durée sont RÉELLES ; gain km²/difficulté = O1 (absents). ──
+  estDistance: {
+    fr: 'DISTANCE',
+    en: 'DISTANCE',
+    es: 'DISTANCIA',
+    de: 'DISTANZ',
+    pt: 'DISTÂNCIA',
+  },
+  estDuration: {
+    fr: 'DURÉE EST.',
+    en: 'EST. TIME',
+    es: 'TIEMPO EST.',
+    de: 'DAUER CA.',
+    pt: 'TEMPO EST.',
+  },
   secObjective: {
     fr: 'OBJECTIF',
     en: 'OBJECTIVE',

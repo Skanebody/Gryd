@@ -616,6 +616,30 @@ export default function RoutePlannerScreen() {
           </Pressable>
         ) : null}
 
+        {/* ── E05 (planche) : métriques du parcours recommandé en UN bloc à
+             séparateurs (distance · durée), focal après le départ, jamais 4 cards.
+             Seules ces deux-là sont RÉELLES (longueur de la boucle + estimation
+             ~5'50/km). Le gain potentiel en km² et la difficulté restent O1 (non
+             calculés) : ABSENTS ici plutôt qu'un chiffre inventé. Rendu dès qu'un
+             tracé recommandé existe. ── */}
+        {route ? (
+          <View style={styles.estBlock}>
+            <View style={styles.estItem}>
+              <Text style={styles.estValue} numberOfLines={1} adjustsFontSizeToFit>
+                {formatKm(route.distanceKm)} km
+              </Text>
+              <Text style={styles.estLabel}>{t(C.estDistance)}</Text>
+            </View>
+            <View style={styles.estSep} />
+            <View style={styles.estItem}>
+              <Text style={styles.estValue} numberOfLines={1} adjustsFontSizeToFit>
+                ~{estMinutes(route.distanceKm)} min
+              </Text>
+              <Text style={styles.estLabel}>{t(C.estDuration)}</Text>
+            </View>
+          </View>
+        ) : null}
+
         {/* ── « Pourquoi cette course ? » — puces + D'OÙ VIENT LA DISTANCE ──
              Pas de section nouvelle (§A : 1 écran = 1 décision) : la provenance
              tient en UNE ligne sous les puces existantes. Elle est affichée dès
@@ -952,6 +976,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.carbone,
   },
   retryLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+
+  // ── E05 — bloc à séparateurs des métriques recommandées (distance · durée) ──
+  estBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.carbone,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingVertical: 12,
+  },
+  estItem: { flex: 1, alignItems: 'center', gap: 3 },
+  estValue: {
+    color: colors.blanc,
+    fontFamily: fonts.textSemi,
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  estLabel: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  estSep: { width: 1, alignSelf: 'stretch', backgroundColor: colors.grisLigne, marginVertical: 4 },
 
   reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reason: {
