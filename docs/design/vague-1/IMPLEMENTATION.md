@@ -39,7 +39,8 @@ contre la planche. (Cf. transcript.)
 | E16 | QR codes | 🆕 à construire | Mon code (profil) / code crew (invitation) / Scanner. QR = deep link public, jamais position. `expo-camera` ? |
 | E17 | Boutique & Premium | 🔄 (arsenal existe) | Boutique cosmétique (hero saison + grille) + paywall Premium (heatmap réelle + 3 bénéfices + prix). Anti-p2w STRICT |
 | E18 | Statistiques & data | 🔄 (performance existe) | 3 blocs (volume/territoire/régularité) chiffre→graphe→conclusion ; heatmap = Premium ; commutateur Run/Bike |
-| E19 | Collection badges | 🔄 (badges existe) | Grille 3 col, familles par silhouette, rareté par matériau, verrouillés en pointillé ; déverrouillage rare (écran 49) |
+| E19 | Collection badges | ✅ grille 3 col (`0a67cd6`) | Familles par silhouette, rareté par matériau, verrouillés en pointillé (existant conservé) |
+| E21 | Édition profil & identité crew | 🔄 profil ✅ (`00ced61`) | **Modifier le profil** recalé fidèle : aperçu-first, CTA header UNIQUE, @handle check live honnête (RPC 0047), ligne Visibilité→Confidentialité (valeur réelle), avatar/cadre/badges/titre relégués (rien orphelin), « Afficher mon crew » omis (pas de champ backing). RESTE : **Identité du crew** (moitié Android : nom/tag/emblème/couleur/accès) = crew-edit.tsx est un stub redirect ; nécessite une RPC serveur rôle-gated (O1) |
 
 ## Modèle d'exécution
 Écran par écran (décision fondateur), fidèle au markup, VÉRIFIÉ en preview (session
