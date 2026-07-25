@@ -37,6 +37,7 @@ import { useLocale, useT } from '../../i18n/store';
 import type { Entry, Locale } from '../../i18n/types';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
+import { ActivityModeToggle } from '../../ui/ActivityModeToggle';
 import { Icon } from '../../ui/Icon';
 import {
   FloatingMapButton,
@@ -402,6 +403,13 @@ export function BattleMapOverlays({
           « sélectionné » est lisible). */}
       {layersOpen ? (
         <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={closeLayers} />
+      ) : null}
+
+      {/* Commutateur Run/Bike — haut droite (maquette Home Map). */}
+      {!hudHidden ? (
+        <View style={[styles.modeToggle, { top: insets.top + 10 }]} pointerEvents="box-none">
+          <ActivityModeToggle />
+        </View>
       ) : null}
 
       {/* ── Droite : 2 FABs PERMANENTS (AMENDEMENT-37 §8) — Recentrer + Calques.
@@ -829,6 +837,7 @@ const styles = StyleSheet.create({
 
   // ── FAB column : 2 MAX (Calques + Recentrer) ──
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
+  modeToggle: { position: 'absolute', right: 14, zIndex: 3 },
 
   // ── Menu Calques (fond + vue + calques de lecture) — ScrollView plafonné ──
   layerMenu: {

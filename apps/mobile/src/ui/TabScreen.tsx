@@ -1,7 +1,6 @@
 /**
- * GRYD — gabarit d'onglet (placeholders MVP) : fond noir, kicker mono gris,
- * titre display, scroll avec dégagement bas pour la nav flottante + bouton
- * COURIR permanents (rendus par le layout (tabs)).
+ * GRYD — gabarit d'onglet : fond noir, kicker mono, titre display Md,
+ * trailing optionnel (ex. ActivityModeToggle), scroll avec dégagement nav.
  */
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -17,10 +16,12 @@ interface TabScreenProps {
   /** Sur-titre mono gris (ex. « SAISON 0 · PARIS »). */
   kicker?: string;
   subtitle?: string;
+  /** Coin droit du header (toggle Run/Bike, action…). */
+  trailing?: ReactNode;
   children: ReactNode;
 }
 
-export function TabScreen({ title, icon, kicker, subtitle, children }: TabScreenProps) {
+export function TabScreen({ title, icon, kicker, subtitle, trailing, children }: TabScreenProps) {
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
@@ -35,10 +36,12 @@ export function TabScreen({ title, icon, kicker, subtitle, children }: TabScreen
         showsVerticalScrollIndicator={false}
       >
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
-        {/* TODO fonts : Space Grotesk 700, tracking -2 % (addendum §E) */}
         <View style={styles.titleRow}>
-          {icon ? <Icon name={icon} size={24} color={colors.blanc} /> : null}
-          <Text style={styles.title}>{title}</Text>
+          <View style={styles.titleLeft}>
+            {icon ? <Icon name={icon} size={24} color={colors.blanc} /> : null}
+            <Text style={styles.title}>{title}</Text>
+          </View>
+          {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
         </View>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         {children}
@@ -57,11 +60,18 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontVariant: ['tabular-nums'],
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  titleLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  trailing: { flexShrink: 0 },
   title: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
-    fontWeight: '700',
+    fontWeight: '500',
     letterSpacing: -0.5,
   },
   subtitle: {

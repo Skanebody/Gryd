@@ -47,6 +47,7 @@ import {
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { useSession } from '../../lib/session';
+import { ActivityModeToggle } from '../../ui/ActivityModeToggle';
 import { Button } from '../../ui/Button';
 import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
@@ -559,7 +560,7 @@ export function RealCrewScreen() {
     }
 
     return (
-      <TabScreen title={crew.name} kicker={kicker}>
+      <TabScreen title={crew.name} kicker={kicker} trailing={<ActivityModeToggle />}>
         {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
         <Text style={styles.count}>{t(C.rlMembersOf, { count: memberCount, max: maxMembers })}</Text>
 
@@ -878,7 +879,12 @@ export function RealCrewScreen() {
     ensuite (`already_in_crew`), après lui avoir fait saisir un nom pour rien.
   */
   return (
-    <TabScreen title="Crew" kicker={kicker} subtitle={loading ? undefined : t(C.emptySubtitle)}>
+    <TabScreen
+      title="Crew"
+      kicker={kicker}
+      subtitle={loading ? undefined : t(C.emptySubtitle)}
+      trailing={<ActivityModeToggle />}
+    >
       {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
       <View style={styles.block}>
         <Text style={styles.title}>{t(C.emptyTitle)}</Text>

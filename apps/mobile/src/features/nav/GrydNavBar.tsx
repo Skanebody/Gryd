@@ -1,12 +1,8 @@
 /**
- * GRYD — navigation basse PERSISTANTE : une BARRE D'ONGLETS toujours visible,
- * destinations en 1 tap : Carte · Crew · Moi (Saison hors MVP ; Missions/War Room
- * atteintes depuis « Moi »). Onglet actif = trait chartreuse + icône PLEINE + label
- * gras + accessibilityState selected — jamais la couleur seule.
- *
- * Le DÉPART de course n'est PLUS dans la nav (override fondateur) : c'est un GESTE
- * « glisser pour courir » (SlideToStart) rendu UNIQUEMENT sur la Carte. La barre
- * reste donc un simple rang d'onglets, régulièrement espacés.
+ * GRYD — navigation basse PERSISTANTE (maquettes 2026) :
+ * Carte · Crew · Profil (+ Saison si flags.season).
+ * Onglet actif = trait chartreuse + icône pleine + label — jamais la couleur seule.
+ * Le départ de course vit sur la Carte (SlideToStart), pas dans la barre.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
@@ -22,14 +18,11 @@ interface NavItem {
   icon: IconName;
 }
 
-/** Les destinations de la barre.
- *  D8 : « Saison » n'existe que hors MVP (flags.season) — la surface pilote
- *  est Carte · Crew · Moi ; les scores de saison s'accumulent quand même. */
 const TABS: readonly NavItem[] = [
   { label: 'Carte', href: '/', icon: 'carte' },
   { label: 'Crew', href: '/crew', icon: 'crew' },
   ...(flags.season ? [{ label: 'Saison', href: '/classement', icon: 'classement' } as const] : []),
-  { label: 'Moi', href: '/profil', icon: 'profil' },
+  { label: 'Profil', href: '/profil', icon: 'profil' },
 ];
 
 export function GrydNavBar() {
@@ -66,7 +59,6 @@ export function GrydNavBar() {
     );
   };
 
-  // Barre d'onglets persistante — ancrée au bord bas, pleine largeur, onglets réguliers.
   return (
     <View style={[styles.bar, { paddingBottom: insets.bottom }]}>{TABS.map(renderTab)}</View>
   );
@@ -91,9 +83,13 @@ const styles = StyleSheet.create({
     gap: spacing.xxs,
   },
   pressed: { opacity: 0.7 },
-  /** Trait actif : présence/absence = canal non-couleur (en plus icône pleine + gras). */
   activeBar: { width: 28, height: 3, borderRadius: 2, backgroundColor: 'transparent' },
   activeBarOn: { backgroundColor: colors.chartreuse },
-  tabLabel: { color: colors.gris, fontFamily: fonts.textSemi, fontSize: fontSizes.xs, fontWeight: '600' },
+  tabLabel: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+  },
   tabLabelActive: { color: colors.chartreuse, fontWeight: '700' },
 });

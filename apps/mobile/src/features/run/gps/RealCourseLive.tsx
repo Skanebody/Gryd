@@ -50,6 +50,7 @@ import { screen } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
 import { Icon } from '../../../ui/Icon';
 import { ProgressBar } from '../../../ui/ProgressBar';
+import { StatusPill } from '../../../ui/StatusPill';
 import { formatInt } from '../../../ui/format';
 import { RUN_MODE_LABEL, formatClock, formatKm, formatPace, type LiveRunMode } from '../simulation';
 import type { RealRunApi } from './gateTypes';
@@ -175,31 +176,47 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
 
   const modeLabel = RUN_MODE_LABEL[mode as LiveRunMode] ?? t(C.modeConquete);
 
+  const loopPillLabel =
+    hint?.kind === 'ready'
+      ? t(C.loopReady)
+      : hint?.kind === 'closing'
+        ? t(C.loopReturn, { m: formatInt(roundLoopM(hint.gapM)) })
+        : null;
+  const loopPillTone = hint?.kind === 'ready' ? 'accent' : 'neutral';
+
   return (
     <View style={styles.root}>
-      {/* ── Pile du haut : état (TOUJOURS) → signal GPS → bandeaux (empilés) ── */}
-      <View style={[styles.topArea, { top: insets.top + 10 }]}>
-        <View style={styles.topPill}>
-          <View
-            style={[
-              styles.liveDot,
-              (paused || s.phase === 'paused-auto' || s.totalFixes === 0) && styles.liveDotPaused,
-            ]}
-          />
-          <Text style={styles.topPillText}>{t(statusLabel(run))}</Text>
+      {/* ── Métriques héros (maquette Live Run) : TEMPS · DISTANCE · ALLURE ── */}
+      <View style={[styles.metricsBar, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricValue}>{formatClock(s.activeS)}</Text>
+          <Text style={styles.metricLabel}>{t(C.timeLabel)}</Text>
         </View>
-        {/* Mode (social/privé) — CONTEXTE PERMANENT, pas un avis temporaire (§10) :
-             un libellé d'état, toujours affiché. */}
+        <View style={styles.metricCell}>
+          <Text style={[styles.metricValue, styles.metricHero]}>{formatKm(s.distanceM)}</Text>
+          <Text style={styles.metricLabel}>{t(C.kickerDistance)}</Text>
+        </View>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricValue}>{formatPace(s.paceSPerKm)}</Text>
+          <Text style={styles.metricLabel}>{t(C.paceLabel)}</Text>
+        </View>
+      </View>
+
+      {/* ── Pile d'état : statut live → boucle → alertes GPS ── */}
+      <View style={styles.topArea}>
+        <StatusPill
+          label={t(statusLabel(run))}
+          tone={paused || s.phase === 'paused-auto' || s.totalFixes === 0 ? 'warn' : 'neutral'}
+        />
         {!conquest ? (
           <View style={styles.statsOnlyPill}>
             <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={iconSizes.xs} color={colors.gris} />
             <Text style={styles.statsOnlyText}>{t(C.statsOnlyMode, { mode: modeLabel })}</Text>
           </View>
         ) : null}
-        {/* §10 — L'UNIQUE avis temporaire, choisi par priorité (selectLiveNotice,
-             pur + testé) : sûreté (signal perdu / autorisation coupée) d'abord ;
-             la note « premier plan seulement » cède à tout le reste. En pause
-             manuelle, aucun faux « signal perdu » (le sélecteur l'exclut). */}
+        {(notice === 'loop_ready' || notice === 'loop_return') && loopPillLabel ? (
+          <StatusPill label={loopPillLabel} tone={loopPillTone} />
+        ) : null}
         {notice === 'signal_critical' || notice === 'signal_weak' ? (
           <GpsSignalPill
             signal={s.signal}
@@ -218,7 +235,6 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         ) : notice === 'precise' ? (
           <PreciseLocationBanner onOpenSettings={run.openSettings} />
         ) : notice === 'foreground' ? (
-          // Navigateur, ou permission « Toujours » refusée : « enregistré app ouverte ».
           <View style={styles.statsOnlyPill}>
             <Icon name="gps" size={iconSizes.xs} color={colors.gris} />
             <Text style={styles.statsOnlyText}>
@@ -228,54 +244,19 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         ) : null}
       </View>
 
-      {/* ── Centre Nike : KPI géants RÉELS ── */}
+      {/* ── Centre : trace + zones + trust ── */}
       <View style={styles.center}>
-        {/* §10 TRACE LIVE : la vraie polyligne mesurée, dès qu'il y a de quoi
-            tracer. Sans fond de carte (A-47) — juste le tracé, façon Strava. */}
         {s.tracePoints.length >= 2 ? (
           <View style={styles.liveTrace}>
             <LiveTraceThumb points={s.tracePoints} accessibilityLabel={t(C.a11yLiveTrace)} />
           </View>
         ) : null}
 
-        <Text style={styles.heroKicker}>{t(C.kickerDistance)}</Text>
-        <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>
-          {formatKm(s.distanceM)}
-          <Text style={styles.heroUnit}> KM</Text>
-        </Text>
-
         {conquest ? (
           <Text style={styles.zonesValue} numberOfLines={1} adjustsFontSizeToFit>
             {t(C.zonesEstimated, { n: formatInt(s.zonesEstimated) })}
           </Text>
         ) : null}
-
-        {/* D4 — guidage de boucle honnête : écart au départ à vol d'oiseau
-            (« ~ »), seuils = les règles SERVEUR (le serveur reste seul juge).
-            §10 : affiché SEULEMENT quand la boucle a gagné la priorité (un signal
-            perdu, une reprise… le masquent) — jamais « BOUCLE PRÊTE » sous une alerte. */}
-        {(notice === 'loop_ready' || notice === 'loop_return') && hint ? (
-          <Text
-            style={[styles.loopHint, hint.kind === 'ready' && styles.loopHintReady]}
-            numberOfLines={1}
-          >
-            {hint.kind === 'ready'
-              ? t(C.loopReady)
-              : t(C.loopReturn, { m: formatInt(roundLoopM(hint.gapM)) })}
-          </Text>
-        ) : null}
-
-        <View style={styles.secondaryRow}>
-          <View style={styles.secondaryStat}>
-            <Text style={styles.secondaryValue}>{formatPace(s.paceSPerKm)}</Text>
-            <Text style={styles.secondaryLabel}>{t(C.paceLabel)}</Text>
-          </View>
-          <View style={styles.secondaryDivider} />
-          <View style={styles.secondaryStat}>
-            <Text style={styles.secondaryValue}>{formatClock(s.activeS)}</Text>
-            <Text style={styles.secondaryLabel}>{t(C.timeLabel)}</Text>
-          </View>
-        </View>
 
         {verified ? (
           <View style={styles.verifiedPill}>
@@ -284,7 +265,6 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           </View>
         ) : null}
 
-        {/* Jauge GPS Trust réelle (Motion Trust : phase suivante — jamais de fausse jauge). */}
         <View style={styles.trustGauge}>
           <View style={styles.trustHead}>
             <Icon
@@ -310,21 +290,11 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         </View>
       </View>
 
-      {/* ── Contrôles bas GROS, une main : [Pause] [Aide GPS] [Terminer] ── */}
+      {/* ── Contrôles : [Aide] [Pause chartreuse] [Terminer] ── */}
       <View style={[styles.controls, { paddingBottom: insets.bottom + 18 }]}>
-        <BigControl
-          label={paused ? t(C.ctrlResume) : t(C.ctrlPause)}
-          accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
-          active={paused}
-          onPress={run.togglePause}
-        >
-          <PausePlayGlyph paused={paused} size={24} />
-        </BigControl>
-        {/* AIDE GPS = « courir écran éteint » par constructeur, et son bouton
-             final ouvre les réglages de l'app. Rien de tout ça n'existe dans un
-             navigateur : on n'affiche pas une aide qui ne mène nulle part
-             (§A — jamais d'affordance sans destination). */}
-        {openSettings === null ? null : (
+        {openSettings === null ? (
+          <View style={styles.bigControlWrap} />
+        ) : (
           <BigControl
             label={t(C.ctrlGpsHelp)}
             accessibilityLabel={t(C.a11yGpsHelp)}
@@ -333,6 +303,15 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
             <Icon name="gps" size={24} color={colors.blanc} />
           </BigControl>
         )}
+        <BigControl
+          label={paused ? t(C.ctrlResume) : t(C.ctrlPause)}
+          accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
+          active={!paused}
+          primary
+          onPress={run.togglePause}
+        >
+          <PausePlayGlyph paused={paused} size={26} onPrimary={!paused} />
+        </BigControl>
         <View style={styles.bigControlWrap}>
           <Pressable
             accessibilityRole="button"
@@ -340,7 +319,6 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
             onLongPress={finish}
             delayLongPress={motion.holdToStopMs}
             onPress={() => {
-              // Stop protégé §G : un appui court ne termine jamais — on guide.
               haptics.light();
             }}
             style={({ pressed }) => [styles.bigDisc, styles.bigStopDisc, pressed && styles.pressed]}
@@ -362,33 +340,44 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   );
 }
 
-/** Glyphe pause/lecture local (même dessin que la démo). */
-function PausePlayGlyph({ paused, size }: { paused: boolean; size: number }) {
+/** Glyphe pause/lecture — noir sur chartreuse quand primary. */
+function PausePlayGlyph({
+  paused,
+  size,
+  onPrimary = false,
+}: {
+  paused: boolean;
+  size: number;
+  onPrimary?: boolean;
+}) {
+  const ink = onPrimary ? colors.noir : colors.blanc;
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20">
       {paused ? (
-        <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={colors.chartreuse} />
+        <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={onPrimary ? colors.noir : colors.chartreuse} />
       ) : (
         <>
-          <Path d="M7 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
-          <Path d="M13 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M7 4.5v11" stroke={ink} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M13 4.5v11" stroke={ink} strokeWidth={3} strokeLinecap="round" />
         </>
       )}
     </Svg>
   );
 }
 
-/** GROS contrôle une-main (disque 68 px + label court — gabarit démo). */
+/** GROS contrôle une-main (disque 68 px + label court). primary = chartreuse. */
 function BigControl({
   label,
   accessibilityLabel,
   active = false,
+  primary = false,
   onPress,
   children,
 }: {
   label: string;
   accessibilityLabel: string;
   active?: boolean;
+  primary?: boolean;
   onPress: () => void;
   children: React.ReactNode;
 }) {
@@ -404,7 +393,8 @@ function BigControl({
         }}
         style={({ pressed }) => [
           styles.bigDisc,
-          active && styles.bigDiscActive,
+          primary && styles.bigDiscPrimary,
+          active && !primary && styles.bigDiscActive,
           pressed && styles.pressed,
         ]}
       >
@@ -419,35 +409,38 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   pressed: { opacity: 0.7 },
 
-  topArea: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    alignItems: 'center',
-    gap: 6,
-    zIndex: 2,
-  },
-  topPill: {
+  metricsBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingHorizontal: 14,
-    paddingVertical: spacing.xs,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.cardPadding,
+    paddingBottom: 10,
+    gap: 8,
   },
-  topPillText: {
+  metricCell: { flex: 1, alignItems: 'center', gap: 4 },
+  metricValue: {
     color: colors.blanc,
-    fontSize: fontSizes.xs,
+    fontSize: fontSizes.xl,
     fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: 1.2,
+    fontWeight: '500',
     fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
   },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.chartreuse },
-  liveDotPaused: { backgroundColor: colors.gris },
+  metricHero: { fontSize: fontSizes.xxl, color: colors.chartreuse },
+  metricLabel: {
+    color: colors.gris,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+
+  topArea: {
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
   statsOnlyPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -469,48 +462,15 @@ const styles = StyleSheet.create({
     gap: spacing.xxs,
   },
   liveTrace: { marginBottom: spacing.sm },
-  heroKicker: { color: colors.gris, fontFamily: fonts.mono, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 2.4 },
-  heroValue: {
-    color: colors.blanc,
-    fontSize: fontSizes.heroMax,
-    fontFamily: fonts.display,
-    fontWeight: '900',
-    letterSpacing: -2,
-    fontVariant: ['tabular-nums'],
-  },
-  heroUnit: { color: colors.gris, fontFamily: fonts.display, fontSize: fontSizes.xl, fontWeight: '800', letterSpacing: 0 },
   zonesValue: {
     color: colors.chartreuse,
     fontSize: fontSizes.xxl,
     fontFamily: fonts.display,
-    fontWeight: '900',
+    fontWeight: '500',
     letterSpacing: 0.5,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
-  // D4 — ligne de guidage boucle : discrète (gris) tant qu'on est loin,
-  // chartreuse quand la boucle est prête (le SEUL moment qui appelle une action).
-  loopHint: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    fontVariant: ['tabular-nums'],
-    marginTop: spacing.xxs,
-  },
-  loopHintReady: { color: colors.chartreuse },
-  secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 22, marginTop: 18 },
-  secondaryStat: { alignItems: 'center', gap: 2 },
-  secondaryValue: {
-    color: colors.blanc,
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  secondaryLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1.4 },
-  secondaryDivider: { width: 1, height: 30, backgroundColor: colors.grisLigne },
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -546,6 +506,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bigDiscActive: { backgroundColor: colors.chartreuse14, borderColor: colors.chartreuse40 },
+  bigDiscPrimary: {
+    backgroundColor: colors.chartreuse,
+    borderColor: colors.chartreuse,
+    width: BIG_CONTROL_SIZE + 8,
+    height: BIG_CONTROL_SIZE + 8,
+    borderRadius: (BIG_CONTROL_SIZE + 8) / 2,
+  },
   bigStopDisc: {
     backgroundColor: colors.carbone2,
     borderWidth: 1.5,

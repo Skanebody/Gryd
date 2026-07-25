@@ -330,6 +330,16 @@ export const ICONS = {
       'M10.7 12.6l1.6-1.1', 'M12.7 14.2l1.6-1.1',
     ],
   },
+  /** Vélo — commutateur Run/Bike (univers séparé du Run). */
+  bike: {
+    paths: [
+      'M5.5 17.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+      'M18.5 17.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+      'M8.5 14.5 12 8h3.5l2 4.5',
+      'M12 8V6',
+      'M10 11.5h5',
+    ],
+  },
   /** Pass — ticket perforé (Pass Saison). */
   pass: {
     paths: [
