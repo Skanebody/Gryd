@@ -37,10 +37,7 @@ import { haptics } from '../../src/lib/haptics';
 import { hasPendingUpload, retryPendingUpload } from '../../src/lib/pendingUpload';
 import { useMapHudHidden, useZoneSheetOpen } from '../../src/features/map/mapUiStore';
 import { Icon } from '../../src/ui/Icon';
-import { AvatarHex } from '../../src/features/social/AvatarHex';
-import { useMyProfile } from '../../src/features/social/profileStore';
-import { useMyEconomy } from '../../src/features/social/economy';
-import { playerLevelForXp, playerTierForLevel } from '../../src/features/crew/rules';
+import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { cityLabel } from '../../src/features/social/cities';
 import { useOnboardingState } from '../../src/features/onboarding/store';
 
@@ -111,12 +108,11 @@ function HomeHeader() {
   const router = useRouter();
   const t = useT();
   const { profile } = useMyProfile();
-  const economy = useMyEconomy();
   const { state: onboarding } = useOnboardingState();
   const hudHidden = useMapHudHidden();
   if (hudHidden) return null;
 
-  const tier = playerTierForLevel(playerLevelForXp(economy.xp));
+  const initials = effectiveInitials(profile);
   // Le NOM RÉEL que le joueur a vu au choix de ville (le plus honnête), sinon
   // résolu depuis l'id (états d'une version antérieure), sinon rien (pill tue).
   const city = onboarding.cityName ?? cityLabel(onboarding.cityId);
@@ -138,10 +134,13 @@ function HomeHeader() {
         style={({ pressed }) => [styles.headerAvatar, pressed && styles.pressed]}
         testID="home-header-avatar"
       >
-        <AvatarHex handle={profile.displayName} tier={tier} size={HEADER_HEIGHT} />
+        {/* Avatar CERCLE à liseré chartreuse + initiales réelles (planche E02). */}
+        <Text style={styles.headerAvatarInitials}>{initials}</Text>
       </Pressable>
       {city ? (
         <View style={styles.headerPill} pointerEvents="none">
+          {/* Pastille « lieu » chartreuse (façon pin de la planche). */}
+          <View style={styles.headerPillPin} />
           {/* Nom de ville jamais tronqué par « … » (§A) : il rétrécit au besoin. */}
           <Text
             style={styles.headerPillText}
@@ -363,20 +362,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  headerAvatar: { width: HEADER_HEIGHT, height: HEADER_HEIGHT, alignItems: 'center', justifyContent: 'center' },
-  // Pill de contexte « lieu » : fond carbone, texte blanc (jamais chartreuse sur
-  // clair). Se rétrécit au besoin (maxWidth) — jamais tronquée par « … » (§A).
-  headerPill: {
-    maxWidth: '64%',
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone,
+  // Avatar CERCLE à liseré chartreuse (planche E02) — pas l'hexagone.
+  headerAvatar: {
+    width: HEADER_HEIGHT,
+    height: HEADER_HEIGHT,
+    borderRadius: HEADER_HEIGHT / 2,
+    backgroundColor: colors.carbone2,
+    borderWidth: 2,
+    borderColor: colors.chartreuse,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerAvatarInitials: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  // Pill de contexte « lieu » : pastille + ville, radius 18 (planche). Fond
+  // carbone, texte blanc (jamais chartreuse sur clair). Rétrécit — jamais coupé (§A).
+  headerPill: {
+    maxWidth: '64%',
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: radii.btn,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  headerPillPin: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.chartreuse },
   headerPillText: {
     color: colors.blanc,
     fontFamily: fonts.textSemi,
