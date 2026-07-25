@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     rowGap: 10,
   },
-  gridCell: { width: '48.5%' },
+  gridCell: { width: '31.5%' },
   cellPressed: { opacity: 0.7 },
 
   // ── Rangée des tiers ──
