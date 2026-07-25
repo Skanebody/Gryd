@@ -33,6 +33,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Icon } from '../components/ui/Icon';
+import { POSTAL_CONTACT } from '../../lib/legal';
 import styles from '../confidentialite/legal.module.css';
 
 // Révision du 23 juillet 2026 — AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : retrait des boucliers, packs d'Éclats et Season Pass de la liste des produits vendus.
@@ -160,8 +161,10 @@ export default function CgvPage() {
               66 avenue des Champs-Élysées, 75008 Paris, immatriculée au RCS de Paris sous le
               n°&nbsp;982&nbsp;786&nbsp;154, TVA intracommunautaire FR18982786154.
             </li>
+            {/* Le canal publié doit EXISTER : `support@gryd.run` était un mailto vers
+                un domaine non acquis (O10). Voir lib/legal.ts. */}
             <li className={styles.item}>
-              <b>Contact&nbsp;:</b> <a href="mailto:support@gryd.run">support@gryd.run</a>
+              <b>Contact&nbsp;:</b> par courrier, {POSTAL_CONTACT}
             </li>
           </ul>
           <p className={styles.note}>
@@ -309,8 +312,8 @@ export default function CgvPage() {
           <p className={styles.sectionNum}>08</p>
           <h2 className={styles.sectionTitle}>Réclamations &amp; médiation de la consommation</h2>
           <p className={styles.body}>
-            Toute réclamation peut être adressée à{' '}
-            <a href="mailto:support@gryd.run">support@gryd.run</a>. En cas de litige non résolu,
+            Toute réclamation peut être adressée par courrier à{' '}
+            <b>{POSTAL_CONTACT}</b>. En cas de litige non résolu,
             tu peux recourir gratuitement à un médiateur de la consommation (art. L612-1 du Code
             de la consommation)&nbsp;:
           </p>

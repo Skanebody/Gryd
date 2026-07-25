@@ -667,8 +667,12 @@ export const C = defineCatalog({
     pt: 'Painel de território — arraste ou toque para fechar',
   },
 
-  // ── Commutateur Run / Bike (planche E14) : deux segments à picto seul, donc
-  //    l'a11y porte TOUT le sens. « Bike » reste le mot de la planche. ──
+  // ── Commutateur Run / Bike (planche E14, révisé 26/07/2026) ───────────────
+  //    Les segments portent désormais un LIBELLÉ VISIBLE (« RUN » / « BIKE »,
+  //    invariants, cf. `ui/activityLens.ts`). Ces deux entrées restent l'a11y :
+  //    elles nomment ce que la bascule change CHEZ CETTE SURFACE — « Carte
+  //    vélo » n'a rien à dire sur l'écran Historique, et le libellé visible, lui,
+  //    ne le dit nulle part. ──
   activityRunA11y: {
     fr: 'Carte à pied',
     en: 'Running map',
@@ -683,33 +687,88 @@ export const C = defineCatalog({
     de: 'Radkarte',
     pt: 'Mapa de bike',
   },
-  /** Première bascule (planche E14) : la carte vierge ASSUME, jamais un écran vide. */
-  bikeStartTitle: {
-    fr: 'Ta carte Bike commence ici',
-    en: 'Your Bike map starts here',
-    es: 'Tu mapa Bike empieza aquí',
-    de: 'Deine Bike-Karte beginnt hier',
-    pt: 'Seu mapa Bike começa aqui',
+  /**
+   * MARQUE D'ÉTAT du segment Bike (retour fondateur du 26/07/2026) — affichée
+   * SOUS le libellé « BIKE », donc AVANT le tap.
+   *
+   * ─── POURQUOI CE MOT-LÀ, ET PAS « BÊTA » ───────────────────────────────────
+   * L'arbitrage proposait « BÊTA ou équivalent ». « Bêta » dit « ça marche, avec
+   * des bugs » — et ce serait faux : ici RIEN n'est enregistré. « Aperçu » dit
+   * « une version réduite existe » : faux aussi, il n'y a pas de version réduite,
+   * il n'y a rien. « Bientôt » serait la faute inverse — une promesse de date
+   * qu'aucun code ne tient (CLAUDE.md : « une doc ne promet jamais au-delà du
+   * code », et la même règle vaut pour un badge de 10 px).
+   * « PAS ENCORE » ne dit qu'une chose, et elle est vraie sans réserve : ce n'est
+   * pas là. Aucune promesse de délai, aucune suggestion que ça fonctionne à
+   * moitié. Le jour où le vélo s'enregistrera, la marque disparaîtra toute seule
+   * (`activitySegments` la dérive de `RECORDED_ACTIVITIES`).
+   */
+  activityBikeMark: {
+    fr: 'PAS ENCORE',
+    en: 'NOT YET',
+    es: 'AÚN NO',
+    de: 'NOCH NICHT',
+    pt: 'AINDA NÃO',
   },
   /**
-   * LA PHRASE D'HONNÊTETÉ. Le vélo n'existe pas encore sous l'écran : aucune
-   * sortie n'est enregistrée, aucun territoire ni classement vélo n'existe. On
-   * le dit au lieu de rejouer les données Run sous une étiquette vélo.
+   * La même marque, ÉNONCÉE pour le lecteur d'écran : « PAS ENCORE » seul ne
+   * dit pas de quoi. Concaténée au libellé de surface (« Carte vélo — pas
+   * encore chronométré ») par `ui/ActivitySwitch.tsx`.
    */
-  bikeStartLine: {
-    fr: 'GRYD ne chronomètre pas encore le vélo : aucune sortie, aucun territoire, aucun classement.',
-    en: 'GRYD doesn’t track cycling yet: no ride, no turf, no ranking.',
-    es: 'GRYD aún no cronometra la bici: sin salidas, sin territorio, sin ranking.',
-    de: 'GRYD misst Radfahren noch nicht: keine Ausfahrt, kein Gebiet, kein Ranking.',
-    pt: 'A GRYD ainda não cronometra bike: sem pedal, sem território, sem ranking.',
+  activityBikeMarkA11y: {
+    fr: 'pas encore chronométré',
+    en: 'not tracked yet',
+    es: 'aún no se cronometra',
+    de: 'noch nicht aufgezeichnet',
+    pt: 'ainda não é cronometrado',
   },
-  /** Rassurance FACTUELLE : rien n'est perdu côté course à pied. */
+
+  // ── ÉTAT VIDE de la lentille Bike sur la Carte (planche E14, réécrit le
+  //    26/07/2026). Il énumérait ce qui n'existe pas — « aucune sortie, aucun
+  //    territoire, aucun classement » — donc il était DÉFENSIF : il se
+  //    justifiait au lieu d'orienter. Les trois lignes répondent désormais aux
+  //    quatre questions d'un bon état vide : où suis-je · à quoi ça sert ·
+  //    qu'est-ce que je fais MAINTENANT · qu'est-ce que j'y gagne.
+  //
+  //    CE QU'ELLES NE FONT PAS, ET C'EST LE CŒUR DU SUJET : elles ne posent
+  //    aucun CTA « Commencer ma première sortie vélo » (aucun moteur vélo
+  //    n'existe — la sortie serait enregistrée comme une course À PIED, donc un
+  //    bouton mort doublé d'un mensonge) et elles ne dessinent aucune mission
+  //    vélo (ni distance, ni durée, ni zone n'ont de source). L'action vers
+  //    l'avant est RÉELLE et déjà à l'écran : le segment « RUN » du commutateur,
+  //    en haut. On la dit positivement, avec ce qu'elle rapporte.
+  //
+  //    Les clés gardent leur nom historique : les renommer demanderait de
+  //    toucher `features/map/BattleMapOverlays.tsx`, hors du périmètre de ce
+  //    chantier. ──
+
+  /** 1. OÙ SUIS-JE + état, énoncé UNE fois, sans énumérer les absences. */
+  bikeStartTitle: {
+    fr: 'Le vélo n’est pas encore chronométré',
+    en: 'Cycling isn’t tracked yet',
+    es: 'La bici aún no se cronometra',
+    de: 'Radfahren wird noch nicht erfasst',
+    pt: 'A bike ainda não é cronometrada',
+  },
+  /** 2. À QUOI ÇA SERT : ce que GRYD compte vraiment, dit positivement. */
+  bikeStartLine: {
+    fr: 'GRYD compte les boucles fermées à pied : ce sont elles qui prennent du territoire.',
+    en: 'GRYD counts closed loops on foot: those are what take territory.',
+    es: 'GRYD cuenta los bucles cerrados a pie: son ellos los que toman territorio.',
+    de: 'GRYD zählt geschlossene Schleifen zu Fuß: nur sie erobern Gebiet.',
+    pt: 'A GRYD conta voltas fechadas a pé: são elas que tomam território.',
+  },
+  /**
+   * 3. QUOI MAINTENANT + QU'EST-CE QUE J'Y GAGNE. Elle désigne un contrôle
+   * RÉEL et visible (le segment « RUN », en haut de l'écran) — jamais un bouton
+   * qu'on aurait peint ici et qui échouerait toujours.
+   */
   bikeStartRunSafe: {
-    fr: 'Tes zones à pied restent intactes.',
-    en: 'Your running turf stays untouched.',
-    es: 'Tu territorio a pie sigue intacto.',
-    de: 'Dein erlaufenes Gebiet bleibt unberührt.',
-    pt: 'Seu território a pé fica intacto.',
+    fr: 'Touche RUN, en haut : ta boucle devient ta zone.',
+    en: 'Tap RUN, above: your loop becomes your turf.',
+    es: 'Toca RUN, arriba: tu bucle se vuelve tu zona.',
+    de: 'Oben auf RUN tippen: Schleife wird Gebiet.',
+    pt: 'Toque em RUN, acima: sua volta vira sua zona.',
   },
 
   // ── Sheet d'une VRAIE zone tapée (hex_claims) — couleur par RÔLE, jamais par

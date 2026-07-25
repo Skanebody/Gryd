@@ -1,6 +1,16 @@
 {
   "_note_gps_amendement15": "GPS réel (AMENDEMENT-15 §2) : permissions FINE/BACKGROUND_LOCATION + foregroundService Android, UIBackgroundModes location iOS. Test sur appareil = point ouvert O8 (dev build EAS/Xcode) — le GPS réel ne tourne PAS dans Expo Go web.",
-  "_note_appstore_amendement33": "App Store readiness (AMENDEMENT-33 §2, Guideline 5.1.1) : chaque permission déclare son POURQUOI. NSMotionUsageDescription = anti-triche GRYD Verify (podomètre). NSHealthShareUsageDescription = import optionnel des courses Apple Santé (activable à O8). Le vrai HealthKit (entitlement com.apple.developer.healthkit + plugin natif) est DOCUMENTÉ ci-dessous dans `_healthkit_o8` et volontairement NON branché : l'ajouter maintenant casserait le bundle web (module natif absent en Expo Web). À O8 (dev build EAS/Xcode) : installer `react-native-health` ou `expo-health-connect`, décommenter la config, régénérer le build.",
+  "_note_appstore_amendement33": "App Store readiness (AMENDEMENT-33 §2, Guideline 5.1.1) : chaque permission déclare son POURQUOI. NSMotionUsageDescription = anti-triche GRYD Verify (podomètre). Le vrai HealthKit (entitlement com.apple.developer.healthkit + plugin natif) est DOCUMENTÉ ci-dessous dans `_healthkit_o8` et volontairement NON branché : l'ajouter maintenant casserait le bundle web (module natif absent en Expo Web). À O8 (dev build EAS/Xcode) : installer `react-native-health` ou `expo-health-connect`, décommenter la config, régénérer le build. NSHealthShareUsageDescription a été RETIRÉE le 26/07/2026 — voir `_note_permissions_purpose_strings`.",
+  "_note_permissions_purpose_strings": {
+    "_pourquoi": "26/07/2026 — les purpose strings iOS sont désormais déclarées à UN SEUL endroit : les options de plugin de `expo.plugins`. POURQUOI le plugin et pas `ios.infoPlist` : à la génération, `IOSConfig.Permissions.applyPermissions` (node_modules/@expo/config-plugins/build/ios/Permissions.js) écrit `infoPlist[clé] = valeurDuPlugin || infoPlist[clé] || défautAnglais`. La valeur du plugin GAGNE donc toujours quand elle existe. Tant que la même clé vivait aux DEUX endroits, corriger `ios.infoPlist` ne changeait rien au binaire et faisait auditer un texte que l'utilisateur ne verrait jamais (c'était le cas de NSMotionUsageDescription, qui avait deux formulations divergentes). Une seule source = ce qui est relu est ce qui est installé.",
+    "_5_1_1_ii": "Guideline 5.1.1(ii) « Ensure your purpose strings clearly and completely describe your use of the data ». CLEARLY et COMPLETELY, donc : (a) aucune chaîne ne décrit un usage que le code ne fait pas, (b) aucune chaîne n'omet un usage que le code fait, (c) aucune chaîne ne promet une garantie que le code ne tient pas.",
+    "_retire_NSHealthShareUsageDescription": "B5. Aucun code ne peut lire HealthKit : `expo.ios` ne porte pas l'entitlement `com.apple.developer.healthkit` (il n'existe qu'en gabarit `_healthkit_o8`), `src/features/sources/adapters/registry.ts` n'enregistre que `gpx`, et `adapters/appleHealth.ts` est un stub `needs_dev_build`. La politique embarquée dans le MÊME binaire affirme d'ailleurs le contraire mot pour mot (`src/i18n/catalog/legal.ts:451` : « GRYD n'importe AUCUNE donnée de santé »). La chaîne est conservée dans `_healthkit_o8.plugin_a_activer.healthSharePermission` : elle revient le jour où HealthKit est réellement branché, rien n'est perdu.",
+    "_retire_zones_privees": "B6. La phrase « et jamais dans tes zones privées » promettait une notion qui n'existe nulle part : `src/features/privacy/prefs.ts` ne porte plus que `profileVisibility` et `maskEndpoints`, aucun écran ne permet de déclarer un lieu, et `src/features/run/gps/tracker.ts` n'écarte AUCUN point sur un critère géographique. Elle était dupliquée dans `ios.infoPlist` ET dans le plugin — modifier un seul des deux n'aurait rien changé au binaire.",
+    "_pourquoi_pas_jamais_suivie_hors_course": "La première moitié de l'ancienne chaîne (« ta position n'est jamais suivie en dehors d'une course ») était une GARANTIE, et le code ne la tient pas dans un cas : si l'OS tue le process pendant une course, `stopLocationUpdatesAsync` n'est jamais appelé (son unique appelant est `stopBackgroundUpdates`, lui-même appelé par `stopSensors()` en fin de course ou au démontage) et la tâche headless continue d'échantillonner. Tant que ce comportement n'est pas corrigé — hors périmètre de ce chantier, signalé en openItems — la chaîne décrit ce qui est VRAI : quand le suivi arrière-plan démarre, et le témoin système qui reste allumé tant qu'il tourne (`showsBackgroundLocationIndicator: true`, provider.ts). On ne remplace pas une promesse fausse par une promesse plus fine : on arrête de promettre.",
+    "_ajout_locationAlwaysPermission": "Défaut manqué par l'audit. Le plugin expo-location déclare TROIS clés (withLocation.js) : NSLocationAlwaysAndWhenInUseUsageDescription, NSLocationWhenInUseUsageDescription et NSLocationAlwaysUsageDescription (clé « Always » historique). Cette troisième n'était renseignée nulle part : `applyPermissions` retombait donc sur le défaut du paquet, « Allow $(PRODUCT_NAME) to access your location » — un texte générique, en anglais, dans une app en 5 langues. C'est du placeholder au sens de 2.1(a) (« placeholder text… should be scrubbed before submission ») et l'inverse de « clearly and completely » (5.1.1(ii)).",
+    "_ajout_microphonePermission_false": "Défaut manqué par l'audit (qui affirmait en §4 « pas d'audio/micro »). Le plugin expo-image-picker déclare NSMicrophoneUsageDescription parmi ses défauts et ajoute `android.permission.RECORD_AUDIO` dès que `microphonePermission` n'est pas explicitement `false` (withImagePicker.js). Non renseigné, il posait donc dans le binaire une purpose string micro en anglais générique ET une permission Android d'enregistrement audio, pour une capacité que GRYD n'utilise nulle part. `false` fait exactement l'inverse : `applyPermissions` SUPPRIME la clé de l'Info.plist et `withBlockedPermissions` bloque RECORD_AUDIO — même mécanique que `cameraPermission: false`, déjà en place.",
+    "_UIBackgroundModes_reste_ici": "`UIBackgroundModes: [location]` est laissé dans `ios.infoPlist` bien que le plugin l'ajoute aussi (isIosBackgroundLocationEnabled → withBackgroundLocation). Ce n'est PAS une purpose string, l'ajout du plugin est idempotent (`if (!includes('location')) push`), et l'écrire ici garde le mode d'arrière-plan lisible à l'endroit où un reviewer le cherche."
+  },
   "_healthkit_o8": {
     "_comment": "GABARIT À ACTIVER À O8 UNIQUEMENT — ne pas ajouter à `expo.plugins` tel quel (casse le build web). Copier ce bloc dans `expo.plugins` après avoir installé le module natif HealthKit et testé sur dev build.",
     "plugin_a_activer": [
@@ -58,11 +68,6 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "GRYD utilise ta position pendant tes courses pour capturer les zones que tu traverses sur la carte de ta ville. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
-        "NSMotionUsageDescription": "GRYD lit tes pas/mouvement pour vérifier que ta course est bien une course à pied (anti-triche GRYD Verify).",
-        "NSHealthShareUsageDescription": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire — tu choisis quoi partager.",
-        "NSPhotoLibraryUsageDescription": "GRYD ouvre ta photothèque uniquement au moment où tu choisis toi-même une photo de profil. Aucune photo n'est parcourue ni lue automatiquement, et la photo que tu sélectionnes reste sur ton téléphone. Mettre une photo n'est jamais obligatoire : tu peux rester derrière ton pseudo.",
         "UIBackgroundModes": [
           "location"
         ]
@@ -98,8 +103,9 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "GRYD utilise ta position pendant tes courses pour capturer les zones que tu traverses sur la carte de ta ville. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
-          "locationAlwaysAndWhenInUsePermission": "L'accès « Toujours » permet de continuer à capturer du territoire quand ton écran est verrouillé ou que l'app passe en arrière-plan pendant ta course. Ta position n'est jamais suivie en dehors d'une course, et jamais dans tes zones privées.",
+          "locationWhenInUsePermission": "GRYD utilise ta position pendant tes courses pour capturer les zones que tu traverses sur la carte de ta ville. Hors course, elle n'est lue que ponctuellement, à l'ouverture d'un écran qui a besoin de te situer (la carte, la mission du jour) — jamais en continu. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
+          "locationAlwaysAndWhenInUsePermission": "L'accès « Toujours » sert à continuer de capturer du territoire quand ton écran est verrouillé ou que GRYD passe en arrière-plan PENDANT ta course. Le suivi en arrière-plan n'est lancé qu'au départ d'une course, et l'indicateur de localisation de l'iPhone reste allumé tant qu'il tourne.",
+          "locationAlwaysPermission": "L'accès « Toujours » sert à continuer de capturer du territoire quand ton écran est verrouillé ou que GRYD passe en arrière-plan PENDANT ta course. Le suivi en arrière-plan n'est lancé qu'au départ d'une course, et l'indicateur de localisation de l'iPhone reste allumé tant qu'il tourne.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
@@ -108,14 +114,15 @@
       [
         "expo-sensors",
         {
-          "motionPermission": "GRYD compte tes pas pendant tes courses pour vérifier que l'effort est réel. Jamais en dehors d'une course."
+          "motionPermission": "GRYD compte tes pas pendant ta course pour vérifier que l'effort est bien celui d'une course à pied — c'est l'anti-triche GRYD Verify. Le podomètre n'est lu qu'entre le départ et l'arrivée d'une course."
         }
       ],
       [
         "expo-image-picker",
         {
           "photosPermission": "GRYD ouvre ta photothèque uniquement au moment où tu choisis toi-même une photo de profil. Aucune photo n'est parcourue ni lue automatiquement, et la photo que tu sélectionnes reste sur ton téléphone. Mettre une photo n'est jamais obligatoire : tu peux rester derrière ton pseudo.",
-          "cameraPermission": false
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "expo-apple-authentication",

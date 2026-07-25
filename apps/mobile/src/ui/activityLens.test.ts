@@ -14,13 +14,24 @@
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { ACTIVITIES, DEFAULT_ACTIVITY } from '@klaim/shared';
+import { LOCALES } from '../i18n/types.ts';
+import { C } from '../i18n/catalog/map.ts';
 import {
+  ACTIVITY_LABELS,
+  ACTIVITY_MARK_TEXT_BUDGET,
+  ACTIVITY_SEGMENT_HEIGHT,
   ACTIVITY_SURFACES,
+  ACTIVITY_SWITCH_GEOMETRY,
+  ACTIVITY_SWITCH_HEIGHT,
+  ACTIVITY_SWITCH_WIDTH,
   activityIsRecorded,
+  activityMarkFits,
+  activitySegments,
   activityStorageKey,
   activitySwitchVisible,
   competitiveReadAllowed,
   effectiveActivity,
+  estimateUppercaseWidth,
   parseActivity,
   RECORDED_ACTIVITIES,
 } from './activityLens.ts';
@@ -159,4 +170,131 @@ Deno.test('sous la lentille Bike, chaque surface rend un ÉTAT VIDE NOMMÉ (jama
         'un écran qui se contente de masquer laisse croire à une panne',
     );
   }
+});
+
+// ─── 7. LES DEUX SEGMENTS NE SONT PAS DES PAIRS (retour fondateur 26/07/2026) ─
+//
+// « Tu crées une fausse affordance : l'UI lui fait croire que la fonctionnalité
+// est disponible ; le contenu lui dit ENSUITE qu'elle ne l'est pas. » Ces tests
+// verrouillent la correction là où elle se joue : la marque est portée par la
+// DISCIPLINE (donc lisible avant le tap), et elle tient dans la capsule dans
+// les cinq langues (sinon elle serait tronquée, ce que §A9 interdit).
+
+Deno.test('la marque d’état suit la DISCIPLINE, jamais la sélection : elle se lit AVANT le tap', () => {
+  for (const selected of ACTIVITIES) {
+    const segments = activitySegments(selected);
+    assertEquals(segments.length, ACTIVITIES.length);
+    assertEquals(segments.filter((s) => s.selected).length, 1, 'exactement un segment actif');
+    for (const seg of segments) {
+      assertEquals(
+        seg.marked,
+        !activityIsRecorded(seg.activity),
+        `« ${seg.activity} » : la marque doit refléter RECORDED_ACTIVITIES, rien d’autre`,
+      );
+    }
+  }
+  // Le cœur du sujet : Bike est marqué MÊME quand Run est actif — sinon la
+  // marque n'apparaîtrait qu'après la bascule, donc trop tard pour servir.
+  const fromRun = activitySegments('run');
+  assertEquals(fromRun.find((s) => s.activity === 'bike')?.marked, true);
+  assertEquals(fromRun.find((s) => s.activity === 'run')?.marked, false);
+});
+
+Deno.test('l’ordre des segments est stable (Run à gauche) et chaque segment a son libellé visible', () => {
+  const segments = activitySegments(DEFAULT_ACTIVITY);
+  assertEquals(
+    segments.map((s) => s.activity),
+    [...ACTIVITIES],
+  );
+  for (const seg of segments) {
+    assertEquals(seg.label, ACTIVITY_LABELS[seg.activity]);
+    assert(seg.label.length > 0, 'demande fondateur : TOUJOURS texte + icône, jamais l’icône seule');
+  }
+});
+
+Deno.test('la marque n’est ni « BÊTA » ni une promesse de date, dans aucune des 5 langues', () => {
+  // « Bêta » suggère « ça marche, avec des bugs » — or rien n'est enregistré.
+  // « Bientôt / soon / bald / em breve » serait une promesse qu'aucun code ne
+  // tient, c'est-à-dire la même faute qu'une donnée fabriquée (CLAUDE.md).
+  const interdits = [
+    'beta',
+    'bêta',
+    'bientot',
+    'bientôt',
+    'soon',
+    'bald',
+    'pronto',
+    'breve',
+    'a venir',
+    'à venir',
+  ];
+  for (const locale of LOCALES) {
+    const mark = C.activityBikeMark[locale].toLowerCase();
+    for (const mot of interdits) {
+      assert(
+        !mark.includes(mot),
+        `marque « ${C.activityBikeMark[locale]} » (${locale}) : « ${mot} » promet ou rassure au-delà du code`,
+      );
+    }
+  }
+});
+
+Deno.test('§A9 — la marque d’état tient dans le segment Bike dans les CINQ langues', () => {
+  for (const locale of LOCALES) {
+    const mark = C.activityBikeMark[locale];
+    const largeur = estimateUppercaseWidth(
+      mark,
+      ACTIVITY_SWITCH_GEOMETRY.markSize,
+      ACTIVITY_SWITCH_GEOMETRY.markTracking,
+    );
+    assert(
+      activityMarkFits(mark),
+      `« ${mark} » (${locale}) : ${largeur.toFixed(1)} pt pour ${ACTIVITY_MARK_TEXT_BUDGET} pt ` +
+        'disponibles — un texte trop long serait coupé, et §A9 l’interdit',
+    );
+  }
+});
+
+Deno.test('§A9 — les libellés visibles tiennent dans leur segment', () => {
+  const g = ACTIVITY_SWITCH_GEOMETRY;
+  const budgets: Readonly<Record<string, number>> = {
+    run: g.runSegmentWidth - 2 * g.segmentPadH,
+    bike: g.bikeSegmentWidth - 2 * g.segmentPadH,
+  };
+  for (const [activity, label] of Object.entries(ACTIVITY_LABELS)) {
+    const largeur = estimateUppercaseWidth(label, g.labelSize, g.labelTracking);
+    assert(
+      largeur <= (budgets[activity] ?? 0),
+      `« ${label} » : ${largeur.toFixed(1)} pt pour ${budgets[activity]} pt disponibles`,
+    );
+  }
+});
+
+Deno.test('le commutateur tient dans un en-tête de 375 pt à côté du retour et du titre', () => {
+  // Gabarit réel de `ui/StackScreen.tsx` : marges 14 + 14, bouton retour 40.
+  const ECRAN_ETROIT = 375;
+  const resteAuTitre = ECRAN_ETROIT - 14 * 2 - 40 - ACTIVITY_SWITCH_WIDTH;
+  // « Statistiques » (le plus long des titres qui portent le commutateur) pèse
+  // ~102 pt en 16 px. Sous ce plancher, le titre serait rogné — `StackScreen`
+  // le coupe en `ellipsizeMode="clip"`, donc sans même un « … » pour prévenir.
+  assert(
+    resteAuTitre >= 120,
+    `il ne reste que ${resteAuTitre} pt au titre : la capsule est trop large pour un 375 pt`,
+  );
+});
+
+Deno.test('la cible tactile est ATTEINTE, pas simulée par un hitSlop', () => {
+  const g = ACTIVITY_SWITCH_GEOMETRY;
+  assert(ACTIVITY_SWITCH_HEIGHT >= 44, 'plancher a11y : 44 pt');
+  assert(ACTIVITY_SEGMENT_HEIGHT >= 44, `segment de ${ACTIVITY_SEGMENT_HEIGHT} pt — plancher 44`);
+  assert(g.runSegmentWidth >= 44 && g.bikeSegmentWidth >= 44, 'chaque segment ≥ 44 pt de large');
+  // Le segment Bike est DÉLIBÉRÉMENT plus large : il porte sa marque. Deux
+  // segments de largeur égale seraient l'égalité visuelle qu'on vient de retirer.
+  assert(g.bikeSegmentWidth > g.runSegmentWidth, 'les deux segments ne sont pas des pairs');
+});
+
+Deno.test('les planchers de lisibilité tiennent (rien sous 10 px, libellé à 12)', () => {
+  const g = ACTIVITY_SWITCH_GEOMETRY;
+  assertEquals(g.labelSize, 12, 'le libellé reste au plancher a11y du projet');
+  assert(g.markSize >= 10, 'une marque sous 10 px ne serait pas lue, donc ne servirait à rien');
 });

@@ -3,11 +3,23 @@
  * Thème dark-first (fond = token noir, jamais #000 pur), provider de session
  * Supabase minimal, track app_open (§8) à l'ouverture.
  */
-// DIAGNOSTIC CRASH iOS (temporaire) : DOIT être le tout premier import — les
-// imports s'évaluent dans l'ordre, et ce module pose le handler d'erreur global
-// AVANT que le reste de l'app ne charge. Une erreur fatale s'affiche à l'écran
-// au lieu de tuer l'app en silence.
-import '../src/lib/bootDiagnostics';
+// FILET FATAL : DOIT rester le tout premier import — les imports s'évaluent
+// dans l'ordre, et le handler global doit être posé AVANT que le reste de l'app
+// ne se charge (une erreur d'ÉVALUATION de module se produit à l'import).
+//
+// Il remplace `src/lib/bootDiagnostics`, qui n'est donc plus chargé. Ce module
+// de diagnostic affichait `error.name: error.message` + 900 caractères de PILE
+// D'APPEL dans une Alert, SANS garde `__DEV__` : c'était un chemin garanti vers
+// un message technique brut sous les yeux d'un joueur en production — la faute
+// même que ce chantier corrige. Il avait été posé pour élucider le crash de
+// démarrage iOS des builds 1-3 ; ce crash est élucidé (TextDecoder utf-16le,
+// correctif importé juste en dessous) et son en-tête le déclarait « TEMPORAIRE ».
+// On conserve sa seule vertu — ne PAS propager l'erreur fatale, car propager
+// vaut RCTFatal, donc un crash muet — et on remplace l'affichage brut par une
+// alerte GRYD honnête (`src/ui/fatalErrorGuard`).
+import { installFatalErrorGuard } from '../src/ui/fatalErrorGuard';
+
+installFatalErrorGuard();
 // CAUSE RÉELLE du crash de démarrage iOS (builds 1-3) : le TextDecoder du
 // runtime Expo/Hermes ne connaît pas utf-16le, or h3-js (Emscripten) en crée
 // un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js.
@@ -28,7 +40,24 @@ import {
   rememberPendingInvite,
   startPendingInviteWatcher,
 } from '../src/features/crew/pendingInvite';
-import { ErrorBoundary } from '../src/ui/ErrorBoundary';
+/**
+ * FRONTIÈRE D'ERREUR DE L'APP — mécanisme d'expo-router, rendu GRYD.
+ *
+ * Exporter `ErrorBoundary` depuis un fichier de route fait envelopper CE
+ * composant de route dans `<Try>` (expo-router `useScreens.fromImport`). Pour
+ * le layout racine, cela couvre le corps même de `RootLayout` — donc l'appel à
+ * `useAppFonts`, qui est exactement là où la panne observée par le fondateur
+ * (« fonts is not defined ») se déclarait. Un `<ErrorBoundary>` posé PLUS BAS
+ * dans le JSX ne pouvait pas l'attraper : un boundary React n'attrape jamais ce
+ * qui casse chez son parent. `Try` masque en plus le splash, sans quoi l'écran
+ * d'erreur resterait caché derrière.
+ *
+ * C'est pourquoi il n'y a plus de `<ErrorBoundary>` autour du `<Stack>` :
+ * l'envelopper deux fois n'aurait rien attrapé de plus (`Try` est déjà au-dessus)
+ * et aurait fait deux couches à maintenir pour un seul écran d'erreur.
+ * `src/ui/ErrorBoundary.tsx` n'est donc plus utilisé par personne.
+ */
+export { AppErrorBoundary as ErrorBoundary } from '../src/ui/AppErrorBoundary';
 // AMENDEMENT-15 §2 : la tâche GPS background doit être définie AU CHARGEMENT
 // du bundle (relance headless après kill). Variante .web.ts vide — le preview
 // web ne voit aucun module natif.
@@ -140,9 +169,10 @@ export default function RootLayout() {
       <SessionProvider>
         <NavAnalytics />
         <StatusBar style="light" />
-        {/* Boundary global brandé (AMENDEMENT-08 §0) : plus jamais d'écran d'erreur brut. */}
-        <ErrorBoundary>
-          <Stack
+        {/* La frontière d'erreur n'est PAS ici : elle enveloppe ce layout entier
+            (export `ErrorBoundary` en tête de fichier), donc plus haut que ce
+            JSX. Voir le commentaire de l'export. */}
+        <Stack
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: colors.noir },
@@ -176,8 +206,7 @@ export default function RootLayout() {
           {/* Historique (AMENDEMENT-17 §CH3) : liste + détail d'une course. */}
           <Stack.Screen name="historique" />
           <Stack.Screen name="course/[id]" />
-          </Stack>
-        </ErrorBoundary>
+        </Stack>
       </SessionProvider>
     </SafeAreaProvider>
   );

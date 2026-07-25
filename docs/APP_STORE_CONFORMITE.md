@@ -14,6 +14,27 @@ Les formulations Apple citées ont été re-vérifiées le 26/07/2026 sur `devel
 
 ---
 
+## 0. État d'exécution (ajouté après coup — le constat ci-dessous n'est pas réécrit)
+
+> **Ce document reste le CONSTAT du 26/07/2026 et ne se réécrit pas.** Cette
+> section n'ajoute qu'un état d'avancement, pour qu'un lecteur ne re-livre pas un
+> correctif déjà appliqué. Chaque « levé » porte sa preuve exécutable.
+
+| Bloquant | État | Preuve |
+|---|---|---|
+| **B7** — la politique WEB déclare une collecte HealthKit | **LEVÉ** (26/07) | `apps/web/app/confidentialite/page.tsx` : section 05 réécrite en « Géolocalisation, mouvement — et aucune donnée de santé », ligne de tableau et entrée de sommaire supprimées. Le fichier ne déclare plus aucune collecte santé — il énonce son absence. |
+| **B8** — la politique WEB déclare un chat de crew | **LEVÉ** (26/07) | Même fichier : « messages de chat de crew… réactions » → pseudo, nom de crew, **signaux à vocabulaire fermé**, signalements. Ligne de tableau « Contenu de crew — chat » remplacée par « Signaux de crew » + « Signalements ». |
+| **B9** — le dossier prescrit un label déclarant HealthKit | **LEVÉ** (26/07) | `GRYD_APPSTORE_CHECKLIST.md` §3 : label réécrit, une preuve de code par ligne, « Fitness » (pas) distingué de « Health » (jamais déclaré) ; §4 passe 5.1.2/5.1.3 en « SANS OBJET tant qu'O8 est ouvert ». |
+| **B10** — les notes de review décrivent une app qui n'existe plus | **LEVÉ** (26/07) | `GRYD_APPSTORE_CHECKLIST.md` §2 : bloc réécrit sur le binaire réel (aucun IAP, aucun mode démo, **compte requis**), avec le tableau de ce qui a été retiré et pourquoi. §2.1 traite le compte de démonstration **sans inventer d'identifiants**. |
+| **B1 / B2** — URL et contact publiés | **NON LEVÉS — impossibles par du code** | Dépendent de l'achat du domaine (O10). Préparés en une passe : `GRYD_APPSTORE_CHECKLIST.md` §7. Ce qui pouvait l'être l'a été : **les sept `mailto:` morts d'`apps/web` sont remplacés** par le courrier au siège, canal réel et identique à celui de la politique embarquée (`apps/web/lib/legal.ts`). |
+
+**Correction mineure au constat.** B1 cite « quatre `mailto:privacy@gryd.run` »
+en `page.tsx:124,405,434,456` : il y avait **trois** `mailto:` (`:124`, `:434`,
+`:456`) et une quatrième occurrence de l'adresse en gras (`:405`), sans lien. Le
+fond est inchangé — les quatre sont traitées.
+
+---
+
 ## 1. Verdict
 
 1. **L'app n'est pas soumettable aujourd'hui** — mais l'obstacle principal n'est pas le code : sur 10 bloquants, **6 sont des textes à corriger** (purpose strings, politique web, notes de review), **2 sont du code court** (blocage et signalement, guideline 1.2), et **2 dépendent d'un achat de domaine** (O10, hors code).

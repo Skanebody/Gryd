@@ -1,15 +1,36 @@
 /**
  * GRYD — Politique de confidentialité (AMENDEMENT-33 §6).
  *
- * URL publique requise par App Store Connect (App Privacy) + entitlement
- * HealthKit (Apple exige une politique accessible qui décrit l'usage santé).
- * Contenu RÉEL et spécifique à GRYD (RGPD français) — jamais de lorem :
- *   · données collectées (localisation pendant les courses, mouvement/podomètre,
- *     santé importée optionnelle, compte/email, contenu crew) ;
- *   · finalités (jeu de conquête de territoire) + base légale ;
- *   · conservation, droits (accès / suppression / export / opposition) ;
- *   · promesse « ta position n'est jamais publique, jamais suivie hors course » ;
- *   · partage (aucune vente), sous-traitants, contact, mineurs.
+ * URL publique requise par App Store Connect (champ « Privacy Policy URL »,
+ * Guideline 5.1.1(i) : « identify what data, if any, the app/service collects »).
+ *
+ * ⚠️ RECALAGE DU 26/07/2026 — TROIS DÉCLARATIONS PORTAIENT SUR DES TRAITEMENTS
+ * QUI N'ONT PAS LIEU. Une politique qui SUR-déclare est inexacte au même titre
+ * qu'une politique qui dissimule, et celle-ci disait le CONTRAIRE de la
+ * politique embarquée dans le binaire (`apps/mobile/src/i18n/catalog/legal.ts`,
+ * recalée le 25/07/2026) : deux documents contractuels du même produit qui se
+ * contredisent sont un défaut en soi. Ont été retirés :
+ *   · la SANTÉ IMPORTÉE (Apple Santé / HealthKit) — section 05 entière, ligne de
+ *     tableau, entrée de sommaire, base légale art. 9.2.a. Aucun code ne peut
+ *     lire HealthKit : registre d'adaptateurs limité à `gpx`
+ *     (`apps/mobile/src/features/sources/adapters/registry.ts:20-23`), adaptateur
+ *     Apple Santé = stub `needs_dev_build` (`.../adapters/appleHealth.ts:22-26`),
+ *     entitlement `com.apple.developer.healthkit` jamais sous `expo.ios`
+ *     (gabarit commenté `_healthkit_o8`, `apps/mobile/app.json:4-16`) ;
+ *   · le CHAT DE CREW et les RÉACTIONS — il n'y a aucune messagerie : `grep -rn
+ *     crew_messages apps/ packages/ supabase/functions/` ne renvoie RIEN (la
+ *     table ne survit qu'en migration 0019/0020, sans aucun code applicatif).
+ *     Déclarer de l'UGC de type chat ouvrait en plus les obligations 1.2 sur une
+ *     surface inexistante ;
+ *   · le PAIEMENT présenté comme un traitement EN COURS — aucune offre n'est
+ *     commercialisée, aucune lib d'achat n'est en dépendance.
+ * Ont été AJOUTÉS, parce qu'ils existent et n'étaient déclarés nulle part :
+ * l'import de courses à l'initiative du joueur (GPX), la section TRANSFERTS HORS
+ * UE, le délai de grâce de 30 jours de la suppression de compte, et Google comme
+ * fournisseur d'authentification.
+ *
+ * RÈGLE DE MAINTENANCE : ce document ne promet jamais au-delà du code. Avant de
+ * réintroduire une ligne, vérifier le code, pas la rédaction précédente.
  *
  * Charte ADDENDUM-DESIGN §C : dark-first, noir/blanc/chartreuse #B4FF0D,
  * JAMAIS de chartreuse sur fond clair. §A : lecture linéaire, textes non
@@ -20,16 +41,17 @@
 import type { Metadata } from 'next';
 import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
+import { POSTAL_CONTACT } from '../../lib/legal';
 import styles from './legal.module.css';
 
 /** Dernière mise à jour — à faire évoluer à chaque changement de fond. */
-const LAST_UPDATED = '6 juillet 2026';
-const EFFECTIVE = '6 juillet 2026';
+const LAST_UPDATED = '26 juillet 2026';
+const EFFECTIVE = '26 juillet 2026';
 
 export const metadata: Metadata = {
   title: 'Politique de confidentialité — GRYD',
   description:
-    'Comment GRYD collecte, utilise et protège tes données : localisation pendant les courses, mouvement, santé importée, compte. Ta position n’est jamais publique.',
+    'Comment GRYD collecte, utilise et protège tes données : localisation pendant les courses, mouvement, compte. Ta position n’est jamais publique, et GRYD ne lit aucune donnée de santé.',
 };
 
 /** Sommaire ↔ ancres des sections (ordre de lecture). */
@@ -38,8 +60,9 @@ const TOC = [
   { id: 'donnees', label: 'Données que nous collectons' },
   { id: 'position', label: 'Ta position n’est jamais publique' },
   { id: 'finalites', label: 'Pourquoi & base légale' },
-  { id: 'sante', label: 'Santé, mouvement & HealthKit' },
+  { id: 'sante', label: 'Géolocalisation & absence de données de santé' },
   { id: 'partage', label: 'Partage & sous-traitants' },
+  { id: 'transferts', label: 'Transferts hors Union européenne' },
   { id: 'conservation', label: 'Durées de conservation' },
   { id: 'droits', label: 'Tes droits & suppression' },
   { id: 'securite', label: 'Sécurité' },
@@ -77,7 +100,7 @@ export default function ConfidentialitePage() {
             GRYD est un jeu de conquête de territoire par la course à pied. Cette page
             explique, sans détour, quelles données nous traitons, pourquoi, combien de
             temps, et comment tu gardes la main dessus. Elle s&rsquo;applique à
-            l&rsquo;application mobile GRYD et au site gryd.run.
+            l&rsquo;application mobile GRYD et au site officiel GRYD.
           </p>
           <div className={styles.dateRow}>
             <span>
@@ -120,11 +143,15 @@ export default function ConfidentialitePage() {
           <p className={styles.body}>
             Le responsable de traitement est <b>SASU Nexus 1993</b>, éditrice de
             l&rsquo;application GRYD, immatriculée en France. Pour toute question relative à
-            tes données personnelles, écris-nous à{' '}
-            <a href="mailto:privacy@gryd.run">privacy@gryd.run</a>.
+            tes données personnelles, écris-nous par courrier à l&rsquo;adresse du
+            siège&nbsp;: <b>{POSTAL_CONTACT}</b>. L&rsquo;export et la suppression de tes
+            données, eux, s&rsquo;exercent directement dans l&rsquo;application (Réglages,
+            puis Confidentialité).
           </p>
           <p className={styles.body}>
-            «&nbsp;GRYD&nbsp;» est le nom de code du produit&nbsp;; l&rsquo;entité juridique
+            {/* « nom de CODE » contredisait la marque : GRYD est le nom PUBLIC du
+                produit (CLAUDE.md), pas un nom de code interne. */}
+            «&nbsp;GRYD&nbsp;» est le nom du produit&nbsp;; l&rsquo;entité juridique
             reste SASU Nexus 1993. Nous traitons tes données conformément au Règlement
             général sur la protection des données (RGPD) et à la loi Informatique et
             Libertés.
@@ -156,15 +183,24 @@ export default function ConfidentialitePage() {
               lus pendant la course par «&nbsp;GRYD Verify&nbsp;» pour vérifier qu&rsquo;il
               s&rsquo;agit d&rsquo;une vraie course à pied (anti-triche).
             </li>
+            {/* Remplace « Santé importée (Apple Santé / HealthKit) » : ce traitement
+                n'existe pas (cf. l'en-tête). Ce qui existe RÉELLEMENT, et qui
+                n'était déclaré nulle part, c'est l'import d'un fichier de course
+                à ton initiative — un vrai envoi de tracé à nos serveurs. */}
             <li className={styles.item}>
-              <b>Santé importée (optionnelle)&nbsp;:</b> si tu l&rsquo;autorises
-              explicitement, des données d&rsquo;entraînement (fréquence cardiaque,
-              distances) importées depuis Apple Santé / HealthKit. Cette autorisation est
-              facultative et révocable à tout moment.
+              <b>Courses importées, à ton initiative&nbsp;:</b> si tu importes un fichier
+              de course (GPX) ou connectes un service de suivi tiers, le tracé et les
+              mesures de l&rsquo;activité importée sont envoyés à nos serveurs pour être
+              validés comme une course GRYD.
             </li>
+            {/* Remplace « messages de chat de crew … réactions » : il n'y a AUCUNE
+                messagerie dans GRYD (aucun code ne lit ni n'écrit `crew_messages`).
+                Le contenu réellement publié est un vocabulaire FERMÉ. */}
             <li className={styles.item}>
-              <b>Contenu que tu crées&nbsp;:</b> messages de chat de crew, noms de crew,
-              réactions, et tout contenu que tu publies auprès des autres joueurs.
+              <b>Contenu que tu crées&nbsp;:</b> ton pseudo, le nom de ton crew si tu en
+              crées un, les signaux que tu envoies à ton crew (vocabulaire fermé&nbsp;: il
+              n&rsquo;y a pas de messagerie libre dans GRYD) et les signalements que tu
+              nous adresses.
             </li>
             <li className={styles.item}>
               <b>Données techniques & de jeu&nbsp;:</b> modèle d&rsquo;appareil, version de
@@ -176,7 +212,10 @@ export default function ConfidentialitePage() {
             <Icon name="info" size={16} />
             <span>
               Nous ne collectons ni tes contacts, ni tes photos, ni tes données de
-              navigation publicitaire. GRYD ne diffuse aucune publicité.
+              navigation publicitaire, et <b>GRYD ne lit aucune donnée d&rsquo;Apple Santé
+              (HealthKit) ni de Google Health Connect</b>&nbsp;: cette connexion
+              n&rsquo;existe pas dans l&rsquo;application. GRYD ne diffuse aucune
+              publicité.
             </span>
           </div>
         </section>
@@ -248,19 +287,29 @@ export default function ConfidentialitePage() {
                   <td>Vérifier qu&rsquo;une course est réelle (anti-triche, GRYD Verify).</td>
                   <td>Intérêt légitime — équité du jeu (art. 6.1.f)</td>
                 </tr>
+                {/* La ligne « Santé importée — consentement explicite (art. 9.2.a) »
+                    fondait une base légale sur un traitement qui n'a jamais lieu.
+                    Remplacée par le traitement RÉEL du même endroit du parcours. */}
                 <tr>
                   <td>
-                    <b>Santé importée</b>
+                    <b>Courses importées</b>
                   </td>
-                  <td>Enrichir ton résumé de course (optionnel).</td>
-                  <td>Consentement explicite (art. 6.1.a & 9.2.a)</td>
+                  <td>Faire compter une course enregistrée ailleurs (GPX, service tiers).</td>
+                  <td>Exécution du contrat (art. 6.1.b), sur ton initiative</td>
                 </tr>
                 <tr>
                   <td>
-                    <b>Contenu de crew</b>
+                    <b>Signaux de crew</b>
                   </td>
-                  <td>Chat, coordination et vie de communauté entre joueurs.</td>
+                  <td>Coordonner une zone avec ton crew (vocabulaire fermé, pas de chat).</td>
                   <td>Exécution du contrat (art. 6.1.b)</td>
+                </tr>
+                <tr>
+                  <td>
+                    <b>Signalements</b>
+                  </td>
+                  <td>Protéger les joueurs des contenus et comportements abusifs.</td>
+                  <td>Intérêt légitime — sécurité des joueurs (art. 6.1.f)</td>
                 </tr>
                 <tr>
                   <td>
@@ -273,37 +322,43 @@ export default function ConfidentialitePage() {
             </table>
           </div>
           <p className={styles.body}>
-            Quand un traitement repose sur le consentement (santé importée, notifications),
-            tu peux le retirer à tout moment sans que cela affecte le reste du jeu.
+            Quand un traitement repose sur le consentement (notifications), tu peux le
+            retirer à tout moment sans que cela affecte le reste du jeu.
           </p>
         </section>
 
-        {/* ── 5. Santé, mouvement & HealthKit ────────────────────────── */}
+        {/* ── 5. Géolocalisation & absence de données de santé ────────────
+            ⚠️ Cette section décrivait un traitement de données de santé qui N'A
+            PAS LIEU (cf. l'en-tête du fichier). La seule donnée de l'article 9
+            réellement en jeu est la géolocalisation précise : la section la nomme
+            désormais, et ÉNONCE l'absence de collecte santé plutôt que de la
+            passer sous silence — l'iPhone affichait une demande d'autorisation
+            Santé, un lecteur pouvait légitimement croire que GRYD s'en sert. */}
         <section id="sante" className={styles.section}>
           <p className={styles.sectionNum}>05</p>
-          <h2 className={styles.sectionTitle}>Santé, mouvement & Apple HealthKit</h2>
+          <h2 className={styles.sectionTitle}>
+            Géolocalisation, mouvement — et aucune donnée de santé
+          </h2>
           <p className={styles.body}>
-            Si tu autorises GRYD à lire des données depuis Apple Santé (HealthKit), nous
-            respectons les règles Apple qui s&rsquo;y appliquent&nbsp;:
+            La géolocalisation précise est, dans certains cas, une catégorie particulière
+            de données au sens de l&rsquo;article 9 du RGPD. Nous ne la traitons que pour
+            l&rsquo;exécution de la course que tu lances toi-même, jamais en arrière-plan
+            hors course, et jamais à des fins de profilage publicitaire.
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
-              Les données de santé lues via HealthKit servent <b>uniquement</b> à enrichir
-              ton expérience de course dans GRYD (résumé, historique). Jamais à de la
-              publicité, jamais à du marketing, jamais revendues.
-            </li>
-            <li className={styles.item}>
-              Nous ne partageons <b>aucune</b> donnée HealthKit avec des tiers à des fins
-              publicitaires ou de data-broker.
-            </li>
-            <li className={styles.item}>
-              Tu peux couper l&rsquo;accès à tout moment depuis Réglages &rsaquo;
-              Confidentialité &rsaquo; Santé sur ton iPhone — GRYD continue de fonctionner
-              sans.
+              <b>GRYD n&rsquo;importe aucune donnée de santé&nbsp;:</b> l&rsquo;application
+              n&rsquo;est connectée ni à Apple Santé (HealthKit) ni à Google Health
+              Connect, et ne lit donc ni ta fréquence cardiaque, ni ton poids, ni ton
+              historique d&rsquo;entraînement.
             </li>
             <li className={styles.item}>
               Les données de mouvement / podomètre restent sur l&rsquo;appareil autant que
-              possible et ne sont transmises que pour valider une course.
+              possible et ne sont transmises que pour valider une course (anti-triche).
+            </li>
+            <li className={styles.item}>
+              Si un import santé devait ouvrir un jour, il serait facultatif, soumis à ton
+              consentement explicite, et <b>cette politique serait mise à jour avant</b>.
             </li>
           </ul>
         </section>
@@ -320,21 +375,31 @@ export default function ConfidentialitePage() {
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
-              <b>Hébergement & base de données</b> (Supabase / infrastructure cloud) —
-              stockage sécurisé de ton compte et de tes données de jeu.
+              <b>Hébergement & base de données</b> (Supabase) — sur des serveurs situés
+              dans l&rsquo;Union européenne (région AWS eu-west-1, Irlande)&nbsp;: stockage
+              sécurisé de ton compte et de tes données de jeu.
             </li>
             <li className={styles.item}>
-              <b>Authentification</b> (Apple) — connexion via Sign in with Apple.
+              <b>Authentification</b> — Apple (Sign in with Apple) et, si tu
+              l&rsquo;utilises, Google (Sign in with Google).
             </li>
             <li className={styles.item}>
               <b>Mesure d&rsquo;audience produit</b> (PostHog, hébergé dans l&rsquo;Union
               européenne) — statistiques d&rsquo;usage agrégées pour améliorer le jeu, sans
               revente ni publicité.
             </li>
+            {/* ⚠️ Le paiement était déclaré comme un traitement EN COURS alors que les
+                CGV du même produit affirment qu'aucune offre n'est commercialisée, et
+                qu'aucune bibliothèque d'achat n'est en dépendance du binaire. La ligne
+                dit l'état RÉEL, et ce qui se passera le jour où une offre ouvrira. */}
             <li className={styles.item}>
-              <b>Paiement</b> (Apple In-App Purchase) — pour l&rsquo;abonnement GRYD Club et
-              les achats ponctuels&nbsp;; Apple gère la transaction, nous ne voyons pas ta
-              carte bancaire.
+              <b>Paiement&nbsp;: aucun.</b> Aucune offre payante n&rsquo;est commercialisée
+              à ce jour, aucun paiement n&rsquo;est encaissé — ni sur ce site, ni dans
+              l&rsquo;application. Le jour où une vente ouvrira, elle serait traitée par la
+              plateforme dans l&rsquo;application (Apple App Store, Google Play) ou par un
+              prestataire de paiement sécurisé sur le site&nbsp;: dans les deux cas, nous
+              ne verrions jamais ta carte bancaire, et cette politique nommerait le
+              prestataire avant la première vente.
             </li>
           </ul>
           <p className={styles.body}>
@@ -343,9 +408,25 @@ export default function ConfidentialitePage() {
           </p>
         </section>
 
-        {/* ── 7. Conservation ────────────────────────────────────────── */}
-        <section id="conservation" className={styles.section}>
+        {/* ── 7. Transferts hors UE ───────────────────────────────────────
+            Section ABSENTE du web alors que la politique embarquée la porte : une
+            garantie RGPD qui n'existe que dans un des deux documents du même
+            produit n'est pas une garantie. */}
+        <section id="transferts" className={styles.section}>
           <p className={styles.sectionNum}>07</p>
+          <h2 className={styles.sectionTitle}>Transferts hors Union européenne</h2>
+          <p className={styles.body}>
+            Tes données sont hébergées et traitées dans l&rsquo;Union européenne. Nous ne
+            procédons à <b>aucun transfert hors UE</b> dans le cadre du fonctionnement
+            normal du jeu. Si un sous-traitant venait à impliquer un tel transfert, il
+            serait encadré par les garanties prévues par le RGPD (clauses contractuelles
+            types de la Commission européenne) et signalé dans la présente politique.
+          </p>
+        </section>
+
+        {/* ── 8. Conservation ────────────────────────────────────────── */}
+        <section id="conservation" className={styles.section}>
+          <p className={styles.sectionNum}>08</p>
           <h2 className={styles.sectionTitle}>Combien de temps nous conservons tes données</h2>
           <ul className={styles.list}>
             <li className={styles.item}>
@@ -367,9 +448,9 @@ export default function ConfidentialitePage() {
           </ul>
         </section>
 
-        {/* ── 8. Droits & suppression ────────────────────────────────── */}
+        {/* ── 9. Droits & suppression ────────────────────────────────── */}
         <section id="droits" className={styles.section}>
-          <p className={styles.sectionNum}>08</p>
+          <p className={styles.sectionNum}>09</p>
           <h2 className={styles.sectionTitle}>Tes droits — dont la suppression du compte</h2>
           <p className={styles.body}>
             Conformément au RGPD, tu disposes des droits suivants sur tes données&nbsp;:
@@ -382,35 +463,47 @@ export default function ConfidentialitePage() {
             <li className={styles.item}>
               <b>Rectification&nbsp;:</b> corriger une donnée inexacte (pseudo, e-mail).
             </li>
+            {/* Le texte décrivait la suppression SANS le délai de grâce ni le fait
+                qu'une reconnexion l'annule, alors que c'est le comportement réel
+                (migration 0046 : `request_account_deletion` pose l'échéance,
+                `cancel_account_deletion` est appelée à chaque ouverture de session).
+                Taire un délai de 30 jours pendant lequel les données subsistent,
+                c'est décrire une suppression qui n'a pas lieu ce jour-là. */}
             <li className={styles.item}>
               <b>Suppression&nbsp;:</b> effacer ton compte et tes données. Tu peux{' '}
               <b>supprimer ton compte directement depuis l&rsquo;application</b> (Réglages
-              &rsaquo; Compte &rsaquo; Supprimer mon compte), avec confirmation. La
-              suppression purge tes données serveur et locales et te ramène à
-              l&rsquo;onboarding.
+              &rsaquo; Confidentialité &rsaquo; Supprimer mon compte), avec confirmation.
+              Ton profil devient <b>invisible immédiatement</b>&nbsp;; tes données sont
+              ensuite purgées de nos serveurs et de ton téléphone au terme d&rsquo;un délai
+              de <b>30 jours</b>. Pendant ce délai, <b>toute reconnexion annule la
+              suppression</b> — et te le dit.
             </li>
             <li className={styles.item}>
               <b>Opposition & limitation&nbsp;:</b> t&rsquo;opposer à un traitement fondé
               sur l&rsquo;intérêt légitime, ou en demander la limitation.
             </li>
+            {/* « couper l'accès santé » nommait un retrait de consentement qui n'existe
+                pas (aucun accès santé) et omettait celui qui existe : la position,
+                seule donnée sensible réellement collectée. */}
             <li className={styles.item}>
-              <b>Retrait du consentement&nbsp;:</b> couper à tout moment l&rsquo;accès
-              santé ou les notifications.
+              <b>Retrait du consentement&nbsp;:</b> couper à tout moment l&rsquo;accès à
+              ta position, ou les notifications, dans les réglages de ton téléphone.
             </li>
           </ul>
           <div className={styles.note}>
             <Icon name="info" size={16} />
             <span>
-              Pour exercer tes droits, utilise la suppression in-app ou écris à{' '}
-              <b>privacy@gryd.run</b>. Tu peux aussi introduire une réclamation auprès de la{' '}
-              <b>CNIL</b> (cnil.fr).
+              Pour exercer tes droits, utilise l&rsquo;export et la suppression dans
+              l&rsquo;application (Réglages, puis Confidentialité), ou écris-nous par
+              courrier&nbsp;: <b>{POSTAL_CONTACT}</b>. Tu peux aussi introduire une
+              réclamation auprès de la <b>CNIL</b> (cnil.fr).
             </span>
           </div>
         </section>
 
-        {/* ── 9. Sécurité ────────────────────────────────────────────── */}
+        {/* ── 10. Sécurité ───────────────────────────────────────────── */}
         <section id="securite" className={styles.section}>
-          <p className={styles.sectionNum}>09</p>
+          <p className={styles.sectionNum}>10</p>
           <h2 className={styles.sectionTitle}>Comment nous protégeons tes données</h2>
           <p className={styles.body}>
             Les échanges sont chiffrés en transit (HTTPS). L&rsquo;accès à la base de
@@ -422,23 +515,23 @@ export default function ConfidentialitePage() {
           </p>
         </section>
 
-        {/* ── 10. Mineurs ────────────────────────────────────────────── */}
+        {/* ── 11. Mineurs ────────────────────────────────────────────── */}
         <section id="mineurs" className={styles.section}>
-          <p className={styles.sectionNum}>10</p>
+          <p className={styles.sectionNum}>11</p>
           <h2 className={styles.sectionTitle}>Mineurs</h2>
           <p className={styles.body}>
             GRYD est réservé aux personnes âgées d&rsquo;au moins{' '}
             <b>{MIN_AGE_YEARS} ans</b>. Nous ne collectons pas sciemment de données
             concernant des personnes plus jeunes. Si tu penses qu&rsquo;un mineur de moins
-            de {MIN_AGE_YEARS} ans nous a transmis des données, écris à{' '}
-            <a href="mailto:privacy@gryd.run">privacy@gryd.run</a> et nous les
+            de {MIN_AGE_YEARS} ans nous a transmis des données, écris-nous par courrier
+            à l&rsquo;adresse du siège (<b>{POSTAL_CONTACT}</b>) et nous les
             supprimerons.
           </p>
         </section>
 
-        {/* ── 11. Modifications ──────────────────────────────────────── */}
+        {/* ── 12. Modifications ──────────────────────────────────────── */}
         <section id="modifs" className={styles.section}>
-          <p className={styles.sectionNum}>11</p>
+          <p className={styles.sectionNum}>12</p>
           <h2 className={styles.sectionTitle}>Modifications de cette politique</h2>
           <p className={styles.body}>
             Nous pouvons faire évoluer cette politique. En cas de changement important, nous
@@ -447,14 +540,15 @@ export default function ConfidentialitePage() {
           </p>
         </section>
 
-        {/* ── 12. Contact ────────────────────────────────────────────── */}
+        {/* ── 13. Contact ────────────────────────────────────────────── */}
         <section id="contact" className={styles.section}>
-          <p className={styles.sectionNum}>12</p>
+          <p className={styles.sectionNum}>13</p>
           <h2 className={styles.sectionTitle}>Nous contacter</h2>
           <p className={styles.body}>
-            Une question sur tes données&nbsp;? Écris à{' '}
-            <a href="mailto:privacy@gryd.run">privacy@gryd.run</a>. Nous répondons dans les
-            meilleurs délais et, en tout état de cause, dans les délais prévus par le RGPD.
+            Une question sur tes données&nbsp;? Écris-nous par courrier&nbsp;:{' '}
+            <b>{POSTAL_CONTACT}</b>. Nous répondons dans les meilleurs délais et, en tout
+            état de cause, dans les délais prévus par le RGPD. Tu peux aussi saisir la CNIL
+            (cnil.fr).
           </p>
         </section>
 

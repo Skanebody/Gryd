@@ -239,6 +239,15 @@ export function useMap3d(): {
 // IL NE DÉCIDE AUCUNE DISCIPLINE D'ENREGISTREMENT. Une préférence d'AFFICHAGE
 // ne décide jamais de la nature d'un effort enregistré (arbitrage du 25/07/2026,
 // détaillé dans `runActivity.ts`) : rien dans `features/run/**` ne lit ce module.
+//
+// ET LE CONTRÔLE LE DIT AVANT LE TAP (retour fondateur du 26/07/2026). Ce
+// module mémorise une lentille dont l'une des deux valeurs ne contient rien ;
+// tant que le commutateur affichait deux segments identiques, la déception
+// arrivait APRÈS la bascule — « fausse affordance ». Le segment Bike porte
+// désormais sa marque d'état (`ui/activityLens.ts` → `activitySegments`,
+// dérivée de `RECORDED_ACTIVITIES`). La valeur persistée ici, elle, ne change
+// pas d'un iota : une préférence reste une préférence, y compris vers un monde
+// vide — l'utilisateur a le droit d'y aller, il a juste le droit de le SAVOIR.
 
 /**
  * Les deux lentilles (planche E14) — jamais mélangées (§ séparation stricte).

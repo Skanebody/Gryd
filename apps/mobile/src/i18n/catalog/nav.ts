@@ -260,4 +260,162 @@ export const C = defineCatalog({
     de: '1 Lauf zu synchronisieren — tippen zum Senden',
     pt: '1 corrida para sincronizar — toque para enviar',
   },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // ÉTATS DE POSITION AGISSANTS (retour fondateur 25/07/2026)
+  //
+  // « Active la localisation pour te voir » est un CONSTAT. Le fondateur :
+  // « l'utilisateur n'a pas besoin d'une phrase, il a besoin d'une action
+  // dirigée ». Ces entrées portent donc les trois états DISTINCTS de la matrice
+  // (`map/locationState.ts`) avec, chacun, sa VRAIE issue :
+  //   · jamais demandé → un geste dans l'app suffit (resolveLocation) ;
+  //   · refusé         → les réglages système… ou, sur web, l'explication seule,
+  //                      parce qu'aucune API n'y mène aux réglages du navigateur
+  //                      (un bouton qui échoue à coup sûr est un bouton mort) ;
+  //   · introuvable    → réessayer, le capteur peut répondre cette fois.
+  // Les phrases de la PILL de carte (`catalog/map.ts`, dataNoteLocation*) restent
+  // ce qu'elles sont : un état lu à distance. Ici on écrit ce qui se TOUCHE.
+  // ═════════════════════════════════════════════════════════════════════════
+  locGrantTitle: {
+    fr: 'Vois-toi sur la carte',
+    en: 'See yourself on the map',
+    es: 'Verte en el mapa',
+    de: 'Sieh dich auf der Karte',
+    pt: 'Veja-se no mapa',
+  },
+  /** Le POURQUOI, et la limite de vie privée dite dans la même phrase. */
+  locGrantLine: {
+    fr: 'GRYD centre la carte sur toi. Ta position n’est jamais partagée en direct.',
+    en: 'GRYD centres the map on you. Your position is never shared live.',
+    es: 'GRYD centra el mapa en ti. Tu ubicación nunca se comparte en directo.',
+    de: 'GRYD zentriert die Karte auf dich. Dein Standort wird nie live geteilt.',
+    pt: 'A GRYD centra o mapa em você. Sua posição nunca é compartilhada ao vivo.',
+  },
+  locGrantCta: {
+    fr: 'Activer ma position',
+    en: 'Turn on my location',
+    es: 'Activar mi ubicación',
+    de: 'Standort aktivieren',
+    pt: 'Ativar minha localização',
+  },
+  locDeniedTitle: {
+    fr: 'Localisation bloquée',
+    en: 'Location blocked',
+    es: 'Ubicación bloqueada',
+    de: 'Standort blockiert',
+    pt: 'Localização bloqueada',
+  },
+  /** Variante NATIVE : il existe un écran de réglages, et un bouton y mène. */
+  locDeniedLineSettings: {
+    fr: 'L’accès à ta position est refusé. Il se réactive dans les réglages de ton téléphone.',
+    en: 'Location access is denied. You can switch it back on in your phone settings.',
+    es: 'El acceso a tu ubicación está denegado. Se reactiva en los ajustes del teléfono.',
+    de: 'Der Standortzugriff ist verweigert. In den Telefoneinstellungen lässt er sich wieder aktivieren.',
+    pt: 'O acesso à sua localização está negado. Ele se reativa nos ajustes do telefone.',
+  },
+  /** Variante WEB : aucune API ne mène aux réglages — on dit OÙ, sans bouton. */
+  locDeniedLineBrowser: {
+    fr: 'Ton navigateur bloque la position pour ce site. Autorise-la dans ses réglages.',
+    en: 'Your browser blocks location for this site. Allow it in its settings.',
+    es: 'Tu navegador bloquea la ubicación para este sitio. Permítela en sus ajustes.',
+    de: 'Dein Browser blockiert den Standort für diese Seite. Erlaube ihn in seinen Einstellungen.',
+    pt: 'Seu navegador bloqueia a localização deste site. Permita nas configurações dele.',
+  },
+  locSettingsCta: {
+    fr: 'Ouvrir les réglages',
+    en: 'Open settings',
+    es: 'Abrir ajustes',
+    de: 'Einstellungen öffnen',
+    pt: 'Abrir ajustes',
+  },
+  locRetryTitle: {
+    fr: 'Position introuvable',
+    en: 'Position not found',
+    es: 'Ubicación no encontrada',
+    de: 'Standort nicht gefunden',
+    pt: 'Posição não encontrada',
+  },
+  locRetryLine: {
+    fr: 'Le capteur n’a rien renvoyé. Vérifie que la localisation du téléphone est allumée.',
+    en: 'The sensor returned nothing. Check that your phone location is switched on.',
+    es: 'El sensor no devolvió nada. Comprueba que la ubicación del teléfono esté activada.',
+    de: 'Der Sensor lieferte nichts. Prüfe, ob die Ortung des Telefons an ist.',
+    pt: 'O sensor não retornou nada. Verifique se a localização do telefone está ligada.',
+  },
+  locRetryCta: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+
+  // ── BARRE HAUTE non bloquante (planche E02) : l'état ET son verbe sur une
+  //    seule ligne. Elle n'apparaît QUE si elle porte une action réelle (la
+  //    matrice le garantit) — sinon ce serait une phrase de plus. Courte :
+  //    elle partage sa rangée avec le commutateur Run/Bike. ──
+  locBarGrant: {
+    fr: 'Position inconnue · Activer',
+    en: 'Position unknown · Turn on',
+    es: 'Ubicación desconocida · Activar',
+    de: 'Standort unbekannt · Aktivieren',
+    pt: 'Posição desconhecida · Ativar',
+  },
+  locBarDenied: {
+    fr: 'Localisation bloquée · Réglages',
+    en: 'Location blocked · Settings',
+    es: 'Ubicación bloqueada · Ajustes',
+    de: 'Standort blockiert · Einstellungen',
+    pt: 'Localização bloqueada · Ajustes',
+  },
+  locBarRetry: {
+    fr: 'Position introuvable · Réessayer',
+    en: 'Position not found · Retry',
+    es: 'Ubicación no hallada · Reintentar',
+    de: 'Standort nicht gefunden · Erneut',
+    pt: 'Posição não encontrada · Repetir',
+  },
+  /** Tentative EN COURS : un état, pas une promesse — et l'action est verrouillée. */
+  locSearching: {
+    fr: 'Recherche de ta position…',
+    en: 'Finding your position…',
+    es: 'Buscando tu ubicación…',
+    de: 'Standort wird gesucht…',
+    pt: 'Procurando sua posição…',
+  },
+
+  /**
+   * SKELETON de la sheet (planche E02 : « chargement : fond de carte d'abord,
+   * skeleton dans la sheet, AUCUN spinner plein écran »). Le lecteur d'écran doit
+   * entendre « ça charge » — pas le silence d'un bloc décoratif.
+   */
+  sheetLoadingA11y: {
+    fr: 'Chargement de ton territoire',
+    en: 'Loading your turf',
+    es: 'Cargando tu territorio',
+    de: 'Dein Gebiet wird geladen',
+    pt: 'Carregando seu território',
+  },
+
+  // ── LENTILLE BIKE (planche E14) — la sheet cesse d'être défensive. Elle
+  //    répond aux quatre questions (où suis-je · à quoi ça sert · quoi
+  //    maintenant · ce que j'y gagne) au lieu d'énumérer trois absences.
+  //    INTERDITS TENUS ICI : aucun CTA « première sortie vélo » (il serait
+  //    enregistré comme une course À PIED — bouton mort ou mensonge), aucune
+  //    mission vélo dessinée (ni distance ni zone n'ont de source). ──
+  bikeLensLine: {
+    fr: 'Carte nue pour rouler : GRYD n’enregistre pas encore les sorties vélo.',
+    en: 'A bare map to ride with: GRYD doesn’t record rides yet.',
+    es: 'Un mapa limpio para rodar: GRYD aún no registra salidas en bici.',
+    de: 'Eine nackte Karte zum Fahren: GRYD zeichnet Ausfahrten noch nicht auf.',
+    pt: 'Um mapa limpo para pedalar: a GRYD ainda não registra pedais.',
+  },
+  /** LA seule action vraie de cette lentille — dite positivement. */
+  bikeBackToRun: {
+    fr: 'Revenir à la carte Run',
+    en: 'Back to the Run map',
+    es: 'Volver al mapa Run',
+    de: 'Zurück zur Run-Karte',
+    pt: 'Voltar ao mapa Run',
+  },
 });

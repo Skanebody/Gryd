@@ -86,7 +86,9 @@ export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
   'expo-linking': 'MIT',
   'expo-localization': 'MIT',
   'expo-location': 'MIT',
-  'expo-media-library': 'MIT',
+  // `expo-media-library` retiré des dépendances le 26/07/2026 (aucun appelant ;
+  // il liait les frameworks Photos/PhotosUI au binaire iOS sans usage). Son
+  // crédit part avec lui : `staleInSnapshot` refuse un crédit fantôme.
   'expo-notifications': 'MIT',
   'expo-router': 'MIT',
   'expo-sensors': 'MIT',

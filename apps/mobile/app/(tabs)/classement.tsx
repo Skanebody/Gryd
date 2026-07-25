@@ -106,6 +106,18 @@ import { useT } from '../../src/i18n/store';
 import type { Entry } from '../../src/i18n/types';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
+// ── Guideline 1.2 : le classement est la 2ᵉ surface qui affiche le pseudo d'un
+// tiers. Bloquer y agit (le pseudo devient « Joueur bloqué », la ligne garde son
+// rang) et signaler part d'ici, pré-rempli. La copie de modération vit dans le
+// catalogue `crew` avec le code qui la sert — une seule source pour les deux
+// surfaces, sinon elles se contrediraient au premier correctif.
+import { C as CMod } from '../../src/i18n/catalog/crew';
+import {
+  PlayerActionsButton,
+  PlayerModerationSheet,
+  useBlockedPseudos,
+} from '../../src/features/crew/PlayerModerationSheet';
+import { canModeratePlayer, displayedPseudo } from '../../src/features/crew/blocklist';
 import {
   useSeasonLeaderboard,
   useSpecialtyLeaderboard,
@@ -187,11 +199,30 @@ const COMPACT_ROWS = 2;
  * dessous — la liste parle de moi, pas de rangs anonymes (audit P2). */
 const COMPACT_WINDOW = 3;
 
+/**
+ * MODÉRATION D'UNE LIGNE — ce que les lignes de classement doivent savoir de
+ * mes blocages, passé en UN objet plutôt qu'en trois props à chaque étage.
+ */
+interface RowModeration {
+  /** Pseudos bloqués, forme de comparaison (mémoïsée une fois par écran). */
+  blocked: ReadonlySet<string>;
+  /** Le signalement part-il vraiment ? (session requise, cf. moderation.ts) */
+  canReport: boolean;
+  /** Ouvre la feuille { Signaler · Bloquer } pré-remplie sur ce pseudo. */
+  onModerate: (pseudo: string) => void;
+}
+
 /** Visuel de rang : avatar joueur (défaut) ou blason crew. */
-function RowVisual({ row, board, big = false }: {
+function RowVisual({ row, board, big = false, name }: {
   row: RankedLeagueRow;
   board: LeagueBoard;
   big?: boolean;
+  /**
+   * Nom AFFICHÉ (déjà masqué si le joueur est bloqué) : les initiales en
+   * dérivent, sinon un joueur bloqué reviendrait par sa pastille — « K.R »
+   * suffit à le reconnaître dans un classement de sa propre ville.
+   */
+  name: string;
 }) {
   if (board.kind === 'crew') {
     return (
@@ -207,7 +238,7 @@ function RowVisual({ row, board, big = false }: {
   // renvoie que user_id/pseudo/points, et une photo de profil reste dans le
   // sandbox du téléphone (avatarPhoto.ts), jamais uploadée. Initiales pour tous ;
   // seule MA ligne ancrée peut porter MA photo (donnée réelle de ce device).
-  return <PlayerAvatarFrame name={row.name} size={big ? 'l' : 's'} isMe={row.me === true} />;
+  return <PlayerAvatarFrame name={name} size={big ? 'l' : 's'} isMe={row.me === true} />;
 }
 
 /** Suffixe « toi » adapté à la nature du board (jamais de honte, juste l'ancre). */
@@ -222,7 +253,15 @@ function meSuffix(board: LeagueBoard): Entry {
  * æquo, un rang peut manquer (1, 1, 3) — personne ne doit disparaître du podium.
  * L'ANNEAU OR discret n'entoure QUE le rang 1 (or = #1 seul, chartreuse = moi seul).
  */
-function Podium({ rows, board }: { rows: readonly RankedLeagueRow[]; board: LeagueBoard }) {
+function Podium({
+  rows,
+  board,
+  mod,
+}: {
+  rows: readonly RankedLeagueRow[];
+  board: LeagueBoard;
+  mod: RowModeration;
+}) {
   const t = useT();
   const slide = useSlideIn(14);
   const steps = [56, 84, 42];
@@ -232,45 +271,93 @@ function Podium({ rows, board }: { rows: readonly RankedLeagueRow[]; board: Leag
     <Animated.View
       style={[styles.podium, { opacity: slide.opacity, transform: [{ translateY: slide.translateY }] }]}
     >
-      {cols.map((row, i) =>
-        row ? (
+      {cols.map((row, i) => {
+        if (!row) {
+          return <View key={`podium-vide-${i}`} style={styles.podiumCol} />;
+        }
+        const shown = displayedPseudo(mod.blocked, row.name, t(CMod.blockedPlayerRow));
+        // Le podium PORTE aussi l'affordance : c'est là que se trouvent les
+        // joueurs les plus exposés, et les laisser hors d'atteinte rendrait le
+        // mécanisme de signalement partiel — donc absent aux yeux de la 1.2.
+        const canModerate = canModeratePlayer({
+          pseudo: row.name,
+          isMe: row.me === true,
+          canReport: mod.canReport,
+          blocked: mod.blocked,
+        });
+        return (
           <View key={`podium-${i}`} style={styles.podiumCol}>
             <View style={[styles.podiumRing, row.rank === 1 && styles.podiumRingGold]}>
-              <RowVisual row={row} board={board} big={row.rank === 1} />
+              <RowVisual row={row} board={board} big={row.rank === 1} name={shown} />
             </View>
-            <Text style={styles.podiumName} numberOfLines={1} ellipsizeMode="clip">
-              {row.name}
+            <Text
+              style={[styles.podiumName, shown !== row.name && styles.nameBlocked]}
+              numberOfLines={1}
+              ellipsizeMode="clip"
+            >
+              {shown}
               {row.me === true ? t(meSuffix(board)) : ''}
             </Text>
             <Text style={styles.podiumValue}>{formatInt(row.value)}</Text>
+            {/* Hauteur RÉSERVÉE, occupée ou non : sans elle, la colonne qui ne
+                porte pas l'action (la mienne) ferait remonter sa marche, et le
+                podium ne serait plus aligné. */}
+            <View style={styles.podiumActions}>
+              {canModerate ? (
+                <PlayerActionsButton name={shown} onPress={() => mod.onModerate(row.name)} />
+              ) : null}
+            </View>
             <View style={[styles.podiumStep, { height: steps[i] ?? 42 }]}>
               <LeagueMedal rank={row.rank} size={40} />
             </View>
           </View>
-        ) : (
-          <View key={`podium-vide-${i}`} style={styles.podiumCol} />
-        ),
-      )}
+        );
+      })}
     </Animated.View>
   );
 }
 
 /** Ligne de classement standard (hors podium), MA ligne ancrée chartreuse. */
-function BoardRow({ row, board }: { row: RankedLeagueRow; board: LeagueBoard }) {
+function BoardRow({
+  row,
+  board,
+  mod,
+}: {
+  row: RankedLeagueRow;
+  board: LeagueBoard;
+  mod: RowModeration;
+}) {
   const t = useT();
+  /**
+   * B3 — LA LIGNE RESTE, L'IDENTITÉ PART. Retirer la ligne d'un joueur bloqué
+   * décalerait d'un cran tout le monde en dessous (le rang est dérivé de
+   * l'ordre serveur) : le classement affiché ne serait plus celui de la saison,
+   * et le joueur croirait à un bug plutôt qu'à sa propre décision.
+   */
+  const shown = displayedPseudo(mod.blocked, row.name, t(CMod.blockedPlayerRow));
+  const canModerate = canModeratePlayer({
+    pseudo: row.name,
+    isMe: row.me === true,
+    canReport: mod.canReport,
+    blocked: mod.blocked,
+  });
   return (
     <>
       {row.gapBefore === true ? <Text style={styles.ellipsis}>···</Text> : null}
       <View style={[styles.row, row.me === true && styles.rowMe]}>
         <Text style={[styles.rank, row.me === true && styles.rankMe]}>{row.rank}</Text>
-        <RowVisual row={row} board={board} />
+        <RowVisual row={row} board={board} name={shown} />
         <View style={styles.rowInfo}>
           <Text
-            style={[styles.rowName, row.me === true && styles.rowNameMe]}
+            style={[
+              styles.rowName,
+              row.me === true && styles.rowNameMe,
+              shown !== row.name && styles.nameBlocked,
+            ]}
             numberOfLines={1}
             ellipsizeMode="clip"
           >
-            {row.name}
+            {shown}
             {row.me === true ? t(meSuffix(board)) : ''}
           </Text>
           {/* ÉGALITÉ dite en TEXTE (jamais une nuance de couleur) : deux joueurs à
@@ -287,6 +374,11 @@ function BoardRow({ row, board }: { row: RankedLeagueRow; board: LeagueBoard }) 
           <Text style={styles.rowValue}>{formatInt(row.value)}</Text>
           <Text style={styles.rowValueLabel}>{board.valueLabel}</Text>
         </View>
+        {/* B4 — l'affordance qui manquait : « … » gris, jamais chartreuse (le
+            seul CTA chartreuse de l'écran reste « MA ROUTE », §A4). */}
+        {canModerate ? (
+          <PlayerActionsButton name={shown} onPress={() => mod.onModerate(row.name)} />
+        ) : null}
       </View>
     </>
   );
@@ -338,6 +430,7 @@ function BoardBody({
   showPodium,
   showAll,
   onSeeAll,
+  mod,
 }: {
   rows: readonly RankedLeagueRow[];
   board: LeagueBoard;
@@ -345,6 +438,7 @@ function BoardBody({
   showPodium: boolean;
   showAll: boolean;
   onSeeAll: () => void;
+  mod: RowModeration;
 }) {
   const t = useT();
   const podiumRows = showPodium ? rows.filter((r) => r.rank <= 3).slice(0, 3) : [];
@@ -361,11 +455,11 @@ function BoardBody({
 
   return (
     <>
-      {podiumRows.length > 0 ? <Podium rows={podiumRows} board={board} /> : null}
+      {podiumRows.length > 0 ? <Podium rows={podiumRows} board={board} mod={mod} /> : null}
       <View style={styles.list}>
         {showLeadEllipsis ? <Text style={styles.ellipsis}>···</Text> : null}
         {visibleRows.map((row, i) => (
-          <BoardRow key={`${keyPrefix}-${row.rank}-${i}`} row={row} board={board} />
+          <BoardRow key={`${keyPrefix}-${row.rank}-${i}`} row={row} board={board} mod={mod} />
         ))}
       </View>
       {hiddenCount > 0 ? (
@@ -397,6 +491,7 @@ function SpecialtyBoards({
   discreet,
   signedIn,
   configured,
+  mod,
 }: {
   specialty: Specialty;
   onSpecialty: (s: Specialty) => void;
@@ -404,6 +499,7 @@ function SpecialtyBoards({
   discreet: boolean;
   signedIn: boolean;
   configured: boolean;
+  mod: RowModeration;
 }) {
   const t = useT();
   const [showAll, setShowAll] = useState(false);
@@ -452,6 +548,7 @@ function SpecialtyBoards({
             showPodium={discreet || iAmInBoard}
             showAll={showAll}
             onSeeAll={() => setShowAll(true)}
+            mod={mod}
           />
         </>
       ) : spec.loading ? (
@@ -628,6 +725,24 @@ function LeagueScreen() {
   } = useSeasonLeaderboard(activity);
   const { session, configured } = useSession();
   const signedIn = configured && session !== null;
+
+  /**
+   * MODÉRATION (Guideline 1.2 — audit B3/B4). Un seul objet descendu dans les
+   * lignes : la liste des bloqués (le classement les MASQUE sans les retirer),
+   * la capacité RÉELLE de signaler (session requise : `reportContent` n'écrit
+   * dans `content_reports` que sous session), et l'ouverture de la feuille
+   * pré-remplie.
+   */
+  const blockedPseudos = useBlockedPseudos();
+  const [moderationTarget, setModerationTarget] = useState<string | null>(null);
+  const mod = useMemo<RowModeration>(
+    () => ({
+      blocked: blockedPseudos,
+      canReport: signedIn,
+      onModerate: (pseudo: string) => setModerationTarget(pseudo),
+    }),
+    [blockedPseudos, signedIn],
+  );
 
   // §16 — classements par SPÉCIALITÉ. Hook appelé INCONDITIONNELLEMENT (règle des
   // hooks) ; ne sert que sous l'onglet « Spécialités ».
@@ -868,6 +983,7 @@ function LeagueScreen() {
               discreet={discreet}
               signedIn={signedIn}
               configured={configured}
+              mod={mod}
             />
           ) : showBoardRows ? (
             <>
@@ -891,6 +1007,7 @@ function LeagueScreen() {
                 showPodium={discreet || meRow !== undefined}
                 showAll={showAll}
                 onSeeAll={() => setShowAll(true)}
+                mod={mod}
               />
             </>
           ) : !onJoueurs ? (
@@ -1069,6 +1186,12 @@ function LeagueScreen() {
         </View>
       </ScrollView>
 
+      {/* La feuille { Signaler · Bloquer }, PRÉ-REMPLIE avec le joueur de la
+          ligne tapée — montée une seule fois pour tout l'écran. */}
+      <PlayerModerationSheet
+        pseudo={moderationTarget}
+        onClose={() => setModerationTarget(null)}
+      />
       <ToastHost state={toast} />
     </View>
   );
@@ -1268,6 +1391,10 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.4,
   },
+  // Emplacement de l'affordance « … » : hauteur CONSTANTE, occupée ou non (la
+  // colonne « moi » n'en porte pas). Mesure de composition, pas de règle de jeu
+  // — comme `steps` juste au-dessus. Vaut la cible tactile du glyphe (22 pt).
+  podiumActions: { height: 22, alignItems: 'center', justifyContent: 'center' },
   // Marche : riser DISCRET posé sur l'espace, sans contour ni card. Le fond carto
   // à 35 % de la planche est OMIS : aucune carte n'est rendue sur cet écran, et un
   // fond générique qui ne serait pas la vraie ville serait une fabrication.
@@ -1314,6 +1441,9 @@ const styles = StyleSheet.create({
   rowInfo: { flex: 1 },
   rowName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '500', letterSpacing: 0.4 },
   rowNameMe: { fontWeight: '700' },
+  // « Joueur bloqué » n'est pas un pseudo : gris + italique, pour qu'on ne le
+  // confonde jamais avec le nom de quelqu'un (podium ET liste).
+  nameBlocked: { color: colors.gris, fontStyle: 'italic' },
   rowSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2, letterSpacing: 0.4 },
   rowValueWrap: { alignItems: 'flex-end' },
   rowValue: {

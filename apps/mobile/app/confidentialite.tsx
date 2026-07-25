@@ -398,6 +398,11 @@ export default function ConfidentialiteScreen() {
         onToggle={() => toggle('block')}
       >
         <Note>{t(C.blockNote)}</Note>
+        {/* Guideline 1.2 — ce formulaire n'est plus la SEULE porte : depuis
+            l'audit App Store (B4), la ligne d'un joueur (roster de crew,
+            classement) porte un « … » qui ouvre la même action, pré-remplie.
+            On le DIT ici, sinon personne ne trouverait le chemin court. */}
+        <Note>{t(C.blockShortcutNote)}</Note>
         <Text style={styles.miniLabel}>{t(C.pseudoJoueurLabel)}</Text>
         <TextInput
           accessibilityLabel={t(C.pseudoInputA11y)}

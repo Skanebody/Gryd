@@ -227,6 +227,38 @@ du fondateur, sur localhost.**
   Plusieurs sont inoffensifs (types, constantes de rendu, catalogue de contenu) —
   la liste est un point de contrôle, pas une liste de fautes.
 
+### Ajout du 25/07/2026 — le CREW public n'existe pas, et trois écrans le supposaient
+
+> Ces trois lignes viennent du recalage Vague 1 (Lot D, `docs/design/vague-1/
+> RESTE-A-RECALER.md`). Elles étaient jusqu'ici enterrées dans les docblocks de
+> trois stubs de 23 lignes que personne ne lit. Un manque documenté à l'endroit
+> où il ne sera pas relu n'est pas documenté. **Rien n'a été peint pour les
+> combler** : peindre un écran mort le rendrait crédible.
+
+- **La fiche PUBLIQUE d'un crew n'existe nulle part**, alors que DEUX planches la
+  supposent : E15 (profil public vu par un rival) et E16 (variante crew du QR,
+  URL `gryd.app/c/NIGHTOWLS`). Aujourd'hui le QR crew encode `/c/CODE`, qui mène
+  à l'**ADHÉSION** — jamais à une fiche consultable. Et `app/crew-public.tsx`
+  n'a **aucun segment dynamique** : la route est structurellement incapable de
+  recevoir l'identité d'un crew. La forme cible est une route NEUVE
+  (`app/crew/[tag].tsx`) adossée à une RPC publique qui n'expose **ni le code
+  secret** (colonne `crews.code`, migration 0036) **ni la moindre position**.
+  Bloqué par **O1**.
+- **Il n'existe aucun ANNUAIRE de crews** — ni recherche, ni recrutement, ni
+  modération serveur. Conséquence directe corrigée le 25/07/2026 : le lien
+  « Trouver un crew » du Profil (seul chemin offert à un joueur sans crew)
+  promettait une découverte que son écran d'arrivée n'offre pas ; il dit
+  désormais « Rejoindre avec un code » et route sur `/crew`. Le libellé ne ment
+  plus, **le manque, lui, est entier**. Bloqué par **O1**.
+- **Toute la moitié CREW de la planche E21 reste à construire** (`docs/design/
+  vague-1/PLANCHES.md:296-302`) : bannière · emblème en bibliothèque modulaire
+  (12 silhouettes × 24 symboles, lisible à 24 pt) · couleur limitée à une
+  **PALETTE VALIDÉE** — jamais une roue libre, qui dégraderait la lisibilité de
+  la carte · Accès Public / Sur demande / Privé · prévisualisations · confirmation
+  au changement de tag avec redirection 30 j. Bloqué par **O1** : l'édition
+  d'identité de crew exige une RPC rôle-gatée (`CREW_PERMISSIONS`, le serveur
+  seul juge). `app/crew-edit.tsx` reste une redirection, volontairement.
+
 ## §5 — Ce qui reste vrai après ce chantier
 
 - Les fichiers `demo.ts` ne sont pas supprimés par principe : ce qui compte est

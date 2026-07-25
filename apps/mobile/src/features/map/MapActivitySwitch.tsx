@@ -10,18 +10,24 @@
  *   · la Carte (`app/(tabs)/index.tsx`) n'est PAS dans le périmètre de ce
  *     chantier — son import ne bouge donc pas d'un caractère ;
  *   · les libellés a11y sont ceux de la CARTE (« Carte à pied » / « Carte
- *     vélo »). Les segments n'ont que des pictos : l'a11y porte tout le sens, et
- *     chaque surface doit nommer ce que la bascule change CHEZ ELLE.
+ *     vélo »). Les segments portent bien un texte visible depuis le 26/07/2026,
+ *     mais ce texte nomme la DISCIPLINE (« RUN » / « BIKE »), pas ce que la
+ *     bascule change ici : chaque surface doit le nommer CHEZ ELLE.
  *
- * ─── LE POINT D'HONNÊTETÉ (inchangé) ────────────────────────────────────────
+ * ─── LE POINT D'HONNÊTETÉ, RENFORCÉ LE 26/07/2026 ───────────────────────────
  * Le commutateur bascule VRAIMENT, et c'est tout ce qu'il prétend faire. En
  * mode Bike, la Carte n'affiche AUCUN territoire, AUCUNE mission, AUCUN
  * classement : le vélo n'existe pas encore sous l'écran (tous les chemins de
  * départ déclarent 'run', cf. `features/run/gps/runActivity.ts`). Montrer les
  * données Run sous une étiquette vélo serait la donnée fabriquée que la charte
- * interdit. L'univers Bike est donc honnêtement VIDE — et la sheet le DIT
- * (planche E14 : « la carte vierge assume "Votre carte Bike commence ici",
- * jamais un écran vide »).
+ * interdit.
+ *
+ * Ce que le retour fondateur a ajouté : dire le vide APRÈS le tap ne suffisait
+ * pas. « L'UI lui fait croire que la fonctionnalité est disponible ; le contenu
+ * lui dit ensuite qu'elle ne l'est pas. » Le segment Bike porte donc maintenant
+ * sa marque d'état AVANT le tap (`ui/ActivitySwitch.tsx`), et l'état vide de la
+ * sheet a cessé d'énumérer les absences pour désigner l'action réelle qui reste
+ * — le segment RUN, juste au-dessus (copie dans `i18n/catalog/map.ts`).
  *
  * VERROUILLAGE PENDANT UNE COURSE (planche E14) : sur la CARTE il est
  * STRUCTUREL, pas peint. La course vit sur `/course-live`, une route poussée

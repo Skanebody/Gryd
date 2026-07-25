@@ -15,6 +15,7 @@
 import type { Metadata } from 'next';
 import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
+import { POSTAL_CONTACT } from '../../lib/legal';
 import styles from '../confidentialite/legal.module.css';
 
 // Révision du 23 juillet 2026 — AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : les objets fonctionnels ne sont vendus dans aucune monnaie.
@@ -309,8 +310,10 @@ export default function ConditionsPage() {
           <p className={styles.sectionNum}>10</p>
           <h2 className={styles.sectionTitle}>Nous contacter</h2>
           <p className={styles.body}>
-            Une question sur ces conditions&nbsp;? Écris à{' '}
-            <a href="mailto:support@gryd.run">support@gryd.run</a>.
+            {/* Le canal publié doit EXISTER : `support@gryd.run` était un mailto vers
+                un domaine non acquis (O10). Voir lib/legal.ts. */}
+            Une question sur ces conditions&nbsp;? Écris-nous par courrier&nbsp;:{' '}
+            <b>{POSTAL_CONTACT}</b>.
           </p>
         </section>
 

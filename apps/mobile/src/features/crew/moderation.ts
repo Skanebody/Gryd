@@ -318,10 +318,21 @@ export function unblockMember(pseudo: string): void {
   });
 }
 
-/** true si ce pseudo est actuellement bloqué (filtre d'affichage du chat). */
-export function isBlocked(pseudo: string): boolean {
-  return snapshot.blocked.includes(pseudo);
-}
+/*
+ * `isBlocked(pseudo)` A ÉTÉ RETIRÉ (audit App Store B3, 26/07/2026).
+ *
+ * Il lisait `snapshot` SANS abonner l'appelant : un écran qui l'aurait appelé
+ * pendant son rendu n'aurait pas été re-rendu au blocage suivant — la ligne
+ * serait restée visible jusqu'à un re-render venu d'ailleurs. C'est un piège,
+ * et c'est probablement pourquoi il n'a jamais eu d'appelant pendant que la
+ * copie promettait, elle, que bloquer masquait le joueur « partout ».
+ *
+ * Le prédicat vit désormais dans `blocklist.ts` (PUR, testé sous Deno) et se
+ * consomme via `useBlockedPseudos()` (PlayerModerationSheet.tsx), qui S'ABONNE
+ * au store par `useModeration`. Les deux surfaces concernées — roster de crew et
+ * classement de saison — passent par là, et un garde-fou de source
+ * (`blocklist.test.ts`) échoue si l'une d'elles cesse de filtrer.
+ */
 
 /** true si ce message précis a été signalé par moi (masquage local optionnel). */
 export function isReportedMessage(messageId: string): boolean {
@@ -354,8 +365,10 @@ export interface Moderation {
 
 /**
  * Hook de modération. ABONNE le composant au store (re-render à chaque
- * signalement / blocage) et expose l'état courant. L'écran lit ensuite via
- * `isBlocked` / `isReportedMessage` ou directement `blocked`.
+ * signalement / blocage) et expose l'état courant. C'est la SEULE porte
+ * d'entrée honnête pour un rendu : l'écran dérive ensuite ce qu'il affiche des
+ * fonctions pures de `blocklist.ts` (`blockedPseudoSet`, `isPseudoBlocked`),
+ * jamais d'une lecture non abonnée du snapshot.
  */
 export function useModeration(): Moderation {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

@@ -57,6 +57,105 @@ export const C = defineCatalog({
     pt: 'Recarregar',
   },
 
+  // ── UI partagée : FRONTIÈRE D'ERREUR DE L'APP (AppErrorBoundary) ──────────
+  // Le fondateur a vu « fonts is not defined » écrit en toutes lettres sur
+  // l'app. Ces textes sont ce qui s'affiche à la place. Trois contraintes les
+  // gouvernent, et elles sont vérifiées par `appErrorPolicy.test.ts` :
+  //
+  //  1. AUCUN TERME TECHNIQUE. Pas de nom de symbole, pas de fichier, pas de
+  //     pile d'appel — et pas même le mot « erreur », qui ne dit rien à faire.
+  //     On nomme le FAIT (« cet écran n'a pas pu s'afficher ») et la SUITE.
+  //  2. RIEN SUR LES DONNÉES DU JOUEUR, sinon pour le rassurer avec ce qui est
+  //     VRAI : un plantage de rendu côté client ne déplace pas ce que le
+  //     serveur détient. On ne parle donc que des courses ENVOYÉES et des
+  //     territoires — jamais d'une course en cours pas encore remontée, qui a
+  //     son propre filet (`pendingUpload`) et qu'on n'a pas le droit de
+  //     promettre ici.
+  //  3. UNE SORTIE RÉELLE, pas un cul-de-sac : réessayer (l'écran se
+  //     reconstruit) ou revenir à la carte (on repart de la racine du jeu).
+  //
+  // Deux familles seulement, parce que le joueur n'a que deux situations : sur
+  // `network` il a une action à lui (son réseau), sur `display` il n'en a
+  // aucune — et lui laisser croire le contraire serait lui faire porter un
+  // défaut qui n'est pas le sien.
+  crashTitleDisplay: {
+    fr: "Cet écran n'a pas pu s'afficher.",
+    en: 'This screen could not be displayed.',
+    es: 'Esta pantalla no ha podido mostrarse.',
+    de: 'Dieser Bildschirm konnte nicht angezeigt werden.',
+    pt: 'Esta tela não pôde ser exibida.',
+  },
+  crashBodyDisplay: {
+    fr: "C'est l'affichage qui a lâché, pas ton compte : tes courses envoyées et tes territoires sont côté serveur, ils n'ont pas bougé.",
+    en: 'The display gave out, not your account: your uploaded runs and your territories are on the server, and they have not moved.',
+    es: 'Ha fallado la pantalla, no tu cuenta: tus carreras enviadas y tus territorios están en el servidor y no se han movido.',
+    de: 'Die Anzeige hat ausgesetzt, nicht dein Konto: deine übertragenen Läufe und deine Gebiete liegen auf dem Server und sind unverändert.',
+    pt: 'Foi a exibição que falhou, não a sua conta: suas corridas enviadas e seus territórios estão no servidor e não se moveram.',
+  },
+  crashTitleNetwork: {
+    fr: "GRYD n'a pas pu joindre le serveur.",
+    en: 'GRYD could not reach the server.',
+    es: 'GRYD no ha podido conectar con el servidor.',
+    de: 'GRYD konnte den Server nicht erreichen.',
+    pt: 'O GRYD não conseguiu acessar o servidor.',
+  },
+  crashBodyNetwork: {
+    fr: "La connexion s'est coupée pendant le chargement. Rien n'est perdu : tes courses envoyées et tes territoires restent côté serveur. Vérifie ton réseau, puis réessaie.",
+    en: 'The connection dropped while loading. Nothing is lost: your uploaded runs and your territories stay on the server. Check your network, then try again.',
+    es: 'La conexión se cortó durante la carga. No se pierde nada: tus carreras enviadas y tus territorios siguen en el servidor. Revisa tu red y reinténtalo.',
+    de: 'Die Verbindung ist beim Laden abgebrochen. Nichts geht verloren: deine übertragenen Läufe und deine Gebiete bleiben auf dem Server. Prüfe dein Netz und versuche es erneut.',
+    pt: 'A conexão caiu durante o carregamento. Nada se perde: suas corridas enviadas e seus territórios continuam no servidor. Verifique sua rede e tente de novo.',
+  },
+  // §A — libellés COURTS, jamais tronqués à 375 px.
+  crashRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  crashBackToMap: {
+    fr: 'Revenir à la carte',
+    en: 'Back to the map',
+    es: 'Volver al mapa',
+    de: 'Zurück zur Karte',
+    pt: 'Voltar ao mapa',
+  },
+  /** Intitulé du bloc de détail — visible en DÉVELOPPEMENT uniquement. */
+  crashDevKicker: {
+    fr: 'Détail technique · dev',
+    en: 'Technical detail · dev',
+    es: 'Detalle técnico · dev',
+    de: 'Technisches Detail · dev',
+    pt: 'Detalhe técnico · dev',
+  },
+
+  // ── Filet FATAL : l'erreur précède tout arbre React (alerte native) ───────
+  // Aucun écran ne peut être monté (module qui casse à l'évaluation, tâche
+  // native). On garde la même honnêteté, avec la seule reprise qui existe
+  // alors : relancer l'app.
+  crashAlertTitle: {
+    fr: "GRYD s'est interrompu",
+    en: 'GRYD stopped',
+    es: 'GRYD se ha interrumpido',
+    de: 'GRYD wurde unterbrochen',
+    pt: 'O GRYD foi interrompido',
+  },
+  crashAlertBody: {
+    fr: "L'app s'est arrêtée avant d'avoir pu dessiner l'écran. Tes courses envoyées et tes territoires sont côté serveur, intacts. Relance GRYD pour reprendre.",
+    en: 'The app stopped before it could draw the screen. Your uploaded runs and your territories are on the server, untouched. Relaunch GRYD to pick up where you left off.',
+    es: 'La app se detuvo antes de poder dibujar la pantalla. Tus carreras enviadas y tus territorios están en el servidor, intactos. Reinicia GRYD para continuar.',
+    de: 'Die App hat gestoppt, bevor der Bildschirm gezeichnet werden konnte. Deine übertragenen Läufe und deine Gebiete liegen unverändert auf dem Server. Starte GRYD neu, um weiterzumachen.',
+    pt: 'O app parou antes de conseguir desenhar a tela. Suas corridas enviadas e seus territórios estão no servidor, intactos. Reinicie o GRYD para continuar.',
+  },
+  crashAlertOk: {
+    fr: 'Compris',
+    en: 'Got it',
+    es: 'Entendido',
+    de: 'Verstanden',
+    pt: 'Entendi',
+  },
+
   // ── UI partagée : retour (StackScreen + header du planner) ───────────────
   back: {
     fr: 'Retour',

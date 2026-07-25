@@ -176,6 +176,9 @@
       "apps/mobile": {
         "packageJson": {
           "dependencies": [
+            "npm:@expo-google-fonts/inter-tight@~0.4.2",
+            "npm:@expo-google-fonts/inter@~0.4.2",
+            "npm:@expo-google-fonts/jetbrains-mono@~0.4.1",
             "npm:@expo/metro-runtime@~4.0.1",
             "npm:@klaim/shared@*",
             "npm:@maplibre/maplibre-react-native@10",
@@ -195,7 +198,6 @@
             "npm:expo-linking@~7.0.5",
             "npm:expo-localization@~16.0.1",
             "npm:expo-location@~18.0.10",
-            "npm:expo-media-library@~17.0.6",
             "npm:expo-notifications@~0.29.14",
             "npm:expo-router@4.0",
             "npm:expo-sensors@~14.0.2",

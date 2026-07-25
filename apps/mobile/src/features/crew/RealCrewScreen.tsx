@@ -107,6 +107,13 @@ import {
 import { CityField, type CityEntry } from '../city/CityPicker';
 import { C as CityC } from '../../i18n/catalog/city';
 import type { CrewMission } from './engine/crewMission';
+// ── Guideline 1.2 : bloquer AGIT ici, et signaler part d'ici ────────────────
+import {
+  PlayerActionsButton,
+  PlayerModerationSheet,
+  useBlockedPseudos,
+} from './PlayerModerationSheet';
+import { canModeratePlayer, displayedPseudo, isPseudoBlocked } from './blocklist';
 
 /**
  * Rôle serveur (texte) → libellé localisé, ou null si la valeur est inconnue du
@@ -354,6 +361,14 @@ export function RealCrewScreen() {
   const [flash, setFlash] = useState<ErrView | null>(null);
   // Signal choisi en attente de sa zone (2ᵉ pas du ping). null = 1ᵉʳ pas.
   const [pendingSignal, setPendingSignal] = useState<CrewSignalKey | null>(null);
+  /**
+   * MODÉRATION (Guideline 1.2) — joueur visé par la feuille { Signaler ·
+   * Bloquer }, ou `null` si elle est fermée. Le roster est la PREMIÈRE des deux
+   * surfaces qui affichent le pseudo d'un tiers ; elle n'avait aucune
+   * affordance, et le blocage n'y avait aucun effet (audit App Store B3/B4).
+   */
+  const [moderationTarget, setModerationTarget] = useState<string | null>(null);
+  const blockedPseudos = useBlockedPseudos();
 
   // ── PINGS (A-44 A5) : lecture serveur, jamais de repli local ──────────────
   const {
@@ -540,6 +555,36 @@ export function RealCrewScreen() {
     }
     return map;
   }, [overview]);
+
+  /**
+   * LE ROSTER TEL QU'IL S'AFFICHE (Guideline 1.2, 3ᵉ puce — audit B3).
+   *
+   * Un membre bloqué GARDE sa ligne : l'effectif du crew (« 4/6 ») est un fait
+   * serveur, et le faire varier selon mes blocages ferait mentir le compteur.
+   * C'est son IDENTITÉ qui disparaît — le seul élément que bloquer doit
+   * masquer. MA ligne n'est jamais masquée : le formulaire de Confidentialité
+   * accepte n'importe quelle saisie, y compris mon propre pseudo, et me voir
+   * remplacé par « Joueur bloqué » dans mon crew serait absurde.
+   *
+   * `displayName` sert AUSSI la rangée d'aperçu (initiales) : sans elle, le
+   * pseudo bloqué reviendrait deux blocs plus haut sous forme d'initiales.
+   */
+  const rosterRows = useMemo(
+    () =>
+      members.map((m) => {
+        const blocked = !m.isMe && isPseudoBlocked(blockedPseudos, m.pseudo);
+        return {
+          ...m,
+          blocked,
+          displayName: blocked ? t(C.blockedPlayerRow) : m.pseudo,
+        };
+      }),
+    [members, blockedPseudos, t],
+  );
+  const stripMembers = useMemo(
+    () => rosterRows.map((r) => ({ userId: r.userId, pseudo: r.displayName, isMe: r.isMe })),
+    [rosterRows],
+  );
 
   // Le crew ne tient RIEN ⇒ aucune contribution affichée : « 0 % » sur toutes
   // les lignes n'apprend rien et encombre (§A). Le bloc territoire dit déjà,
@@ -924,7 +969,13 @@ export function RealCrewScreen() {
                 ) : null}
 
                 {/* Rangée de membres + accès à la vue Membres (planche). */}
-                <CrewMembersStrip members={members} onOpenMembers={() => setView('members')} />
+                {/* `stripMembers` et non `members` : les initiales sont dérivées
+                    du pseudo, donc un membre bloqué serait revenu ici sous ses
+                    vraies initiales alors que le roster le masque (B3). */}
+                <CrewMembersStrip
+                  members={stripMembers}
+                  onOpenMembers={() => setView('members')}
+                />
               </>
             )
           ) : null}
@@ -1013,18 +1064,36 @@ export function RealCrewScreen() {
           {/* ── VUE MEMBRES ─────────────────────────────────────────────── */}
           {view === 'members' ? (
             <View style={styles.roster}>
-              {members.map((m, i) => {
+              {rosterRows.map((m, i) => {
                 const detail = detailByUser.get(m.userId);
                 const roleEntry = detail ? roleLabelEntry(detail.role) : null;
+                // Guideline 1.2 — l'affordance « … » n'est peinte que si un
+                // geste est réellement possible : jamais sur MA ligne, jamais
+                // sur une ligne sans identité lisible (repli « — »).
+                const canModerate = canModeratePlayer({
+                  // `ready` = client Supabase + session (real.ts:418) : c'est
+                  // exactement la condition sous laquelle `reportContent` écrit
+                  // vraiment dans `content_reports`.
+                  pseudo: m.pseudo,
+                  isMe: m.isMe,
+                  canReport: ready,
+                  blocked: blockedPseudos,
+                });
                 return (
                   <View
                     key={m.userId}
-                    style={[styles.memberRow, i < members.length - 1 && styles.memberDivider]}
+                    style={[styles.memberRow, i < rosterRows.length - 1 && styles.memberDivider]}
                   >
                     <View style={styles.memberIdentity}>
                       <View style={styles.memberNameRow}>
-                        <Text style={styles.memberName} numberOfLines={1}>
-                          {m.pseudo}
+                        {/* `clip` et non « … » (§A.9) — et un membre bloqué est
+                            rendu en GRIS : c'est un état, pas un pseudo. */}
+                        <Text
+                          style={[styles.memberName, m.blocked && styles.memberNameBlocked]}
+                          numberOfLines={1}
+                          ellipsizeMode="clip"
+                        >
+                          {m.displayName}
                         </Text>
                         {m.isMe ? <Text style={styles.youTag}>{t(C.rlYouTag)}</Text> : null}
                       </View>
@@ -1043,6 +1112,17 @@ export function RealCrewScreen() {
                       <Text style={styles.memberPct}>
                         {t(C.rlContributionPct, { pct: detail.contributionPct })}
                       </Text>
+                    ) : null}
+                    {/* SIGNALER / BLOQUER AU CONTACT DU JOUEUR (audit B4) : la
+                        ligne était une `View` sans le moindre `onPress`, et le
+                        seul chemin de signalement exigeait de retaper à la main
+                        un identifiant machine. Le « … » reste GRIS — le CTA
+                        chartreuse de l'écran demeure « Inviter » (§A4). */}
+                    {canModerate ? (
+                      <PlayerActionsButton
+                        name={m.displayName}
+                        onPress={() => setModerationTarget(m.pseudo)}
+                      />
                     ) : null}
                   </View>
                 );
@@ -1071,6 +1151,13 @@ export function RealCrewScreen() {
             <Button variant="ghost" size="md" label={t(C.rlLeave)} onPress={onLeave} />
           </View>
         </ScrollView>
+        {/* La feuille { Signaler · Bloquer }, PRÉ-REMPLIE avec le joueur de la
+            ligne tapée. Montée une seule fois : c'est `moderationTarget` qui
+            l'ouvre, jamais un composant par ligne. */}
+        <PlayerModerationSheet
+          pseudo={moderationTarget}
+          onClose={() => setModerationTarget(null)}
+        />
       </View>
     );
   }
@@ -1349,6 +1436,9 @@ const styles = StyleSheet.create({
   memberIdentity: { flexShrink: 1, gap: 2 },
   memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   memberName: { color: colors.blanc, fontSize: fontSizes.md, flexShrink: 1 },
+  // « Joueur bloqué » n'est pas un pseudo : il est rendu comme un ÉTAT (gris,
+  // italique), pour qu'on ne le confonde jamais avec le nom de quelqu'un.
+  memberNameBlocked: { color: colors.gris, fontStyle: 'italic' },
   memberRole: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1 },
   memberPct: { color: colors.blanc, fontSize: fontSizes.sm, flexShrink: 0 },
   youTag: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1 },

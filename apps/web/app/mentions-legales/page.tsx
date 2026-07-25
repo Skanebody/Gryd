@@ -12,9 +12,10 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Icon } from '../components/ui/Icon';
+import { POSTAL_CONTACT } from '../../lib/legal';
 import styles from '../confidentialite/legal.module.css';
 
-const LAST_UPDATED = '6 juillet 2026';
+const LAST_UPDATED = '26 juillet 2026';
 
 export const metadata: Metadata = {
   title: 'Mentions légales — GRYD',
@@ -131,8 +132,11 @@ export default function MentionsLegalesPage() {
             <li className={styles.item}>
               <b>N° TVA intracommunautaire&nbsp;:</b> FR18982786154
             </li>
+            {/* Guideline 1.2 (« published contact information ») : le canal publié
+                doit EXISTER. `support@gryd.run` pointait sur un domaine non acquis
+                (O10) — un mailto mort n'est pas un contact. Voir lib/legal.ts. */}
             <li className={styles.item}>
-              <b>Contact&nbsp;:</b> <a href="mailto:support@gryd.run">support@gryd.run</a>
+              <b>Contact&nbsp;:</b> par courrier, {POSTAL_CONTACT}
             </li>
           </ul>
         </section>
@@ -185,7 +189,8 @@ export default function MentionsLegalesPage() {
             Le traitement de tes données personnelles est décrit dans notre{' '}
             <a href="/confidentialite">politique de confidentialité</a>, conforme au RGPD et à
             la loi Informatique et Libertés. Le responsable de traitement est la SASU
-            Nexus&nbsp;1993 (<a href="mailto:privacy@gryd.run">privacy@gryd.run</a>).
+            Nexus&nbsp;1993, joignable par courrier à l&rsquo;adresse du siège
+            ci-dessus.
           </p>
         </section>
 
@@ -205,9 +210,10 @@ export default function MentionsLegalesPage() {
           <p className={styles.sectionNum}>07</p>
           <h2 className={styles.sectionTitle}>Contact</h2>
           <p className={styles.body}>
-            Pour toute question, écris à <a href="mailto:support@gryd.run">support@gryd.run</a>{' '}
-            (questions générales) ou <a href="mailto:privacy@gryd.run">privacy@gryd.run</a>{' '}
-            (données personnelles).
+            Pour toute question, une réclamation ou l&rsquo;exercice de tes droits,
+            écris-nous par courrier&nbsp;: <b>{POSTAL_CONTACT}</b>. L&rsquo;export et la
+            suppression de tes données, eux, s&rsquo;exercent directement dans
+            l&rsquo;application (Réglages, puis Confidentialité).
           </p>
         </section>
 

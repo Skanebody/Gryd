@@ -1007,12 +1007,21 @@ export const C = defineCatalog({
     de: 'Spieler blockiert',
     pt: 'Jogador bloqueado',
   },
+  /**
+   * PROMETTAIT CE QUE LE CODE NE TIENT PAS (audit App Store, B3) : « ne peut
+   * plus te voir, te contacter, ni interagir avec toi » — GRYD n'a aucune
+   * messagerie, aucune interaction directe, et rien côté serveur n'empêche
+   * l'autre de voir mon pseudo. Ce que `blockMember` fait RÉELLEMENT, depuis
+   * que `isBlocked` est consommé : son pseudo devient « Joueur bloqué » sur les
+   * deux surfaces qui l'affichaient (roster de crew, classement). On l'écrit,
+   * exactement.
+   */
   playerBlockedBody: {
-    fr: '{pseudo} ne peut plus te voir, te contacter, ni interagir avec toi. Tu peux le débloquer ici à tout moment.',
-    en: '{pseudo} can no longer see you, contact you or interact with you. You can unblock them here anytime.',
-    es: '{pseudo} ya no puede verte, contactarte ni interactuar contigo. Puedes desbloquearlo aquí cuando quieras.',
-    de: '{pseudo} kann dich nicht mehr sehen, kontaktieren oder mit dir interagieren. Du kannst die Blockierung hier jederzeit aufheben.',
-    pt: '{pseudo} não pode mais ver você, falar com você nem interagir com você. Você pode desbloquear aqui a qualquer momento.',
+    fr: '{pseudo} apparaît désormais comme « Joueur bloqué » dans ton crew et au classement. Il n’est jamais prévenu, et tu peux le débloquer ici.',
+    en: '{pseudo} now shows as “Blocked player” in your crew and the leaderboard. They are never notified, and you can unblock here.',
+    es: '{pseudo} aparece ahora como «Jugador bloqueado» en tu crew y en la clasificación. Nunca se le avisa, y puedes desbloquearlo aquí.',
+    de: '{pseudo} erscheint ab jetzt als „Blockierter Spieler“ in deinem Crew und der Rangliste. Er wird nie benachrichtigt, und du kannst hier entsperren.',
+    pt: '{pseudo} agora aparece como “Jogador bloqueado” no seu crew e no ranking. Ele nunca é avisado, e você pode desbloquear aqui.',
   },
   deleteFailTitle: {
     fr: 'Suppression impossible',
@@ -1135,12 +1144,33 @@ export const C = defineCatalog({
    * session). L'écran distingue maintenant les deux cas, et cette note ne parle
    * que du blocage, qui, lui, agit toujours.
    */
+  /**
+   * « masque immédiatement ce joueur PARTOUT où GRYD l'afficherait » promettait
+   * une disparition que le code ne faisait pas (aucun appelant d'`isBlocked`) —
+   * et qu'il ne DOIT pas faire au classement : retirer une ligne décalerait
+   * tous les rangs en dessous. La copie décrit maintenant le geste exact, et
+   * nomme les deux surfaces où il agit.
+   */
   blockNote: {
-    fr: 'Bloquer masque immédiatement ce joueur partout où GRYD l’afficherait, sans jamais le prévenir. Tu peux le débloquer ici quand tu veux.',
-    en: 'Blocking instantly hides that player everywhere GRYD would show them, without ever notifying them. You can unblock here whenever you want.',
-    es: 'Bloquear oculta al instante a ese jugador allí donde GRYD lo mostraría, sin avisarle nunca. Puedes desbloquearlo aquí cuando quieras.',
-    de: 'Blockieren blendet diesen Spieler sofort überall aus, wo GRYD ihn zeigen würde — ohne ihn je zu benachrichtigen. Du kannst hier jederzeit entsperren.',
-    pt: 'Bloquear esconde na hora esse jogador em todo lugar onde o GRYD o mostraria, sem nunca avisá-lo. Você pode desbloquear aqui quando quiser.',
+    fr: 'Bloquer remplace son pseudo par « Joueur bloqué » dans ton crew et au classement, sans jamais le prévenir. Sa place au classement reste, pour que les rangs restent justes. Tu peux débloquer ici quand tu veux.',
+    en: 'Blocking replaces their name with “Blocked player” in your crew and the leaderboard, without ever notifying them. Their leaderboard place stays, so ranks stay true. You can unblock here whenever you want.',
+    es: 'Bloquear sustituye su usuario por «Jugador bloqueado» en tu crew y en la clasificación, sin avisarle nunca. Su puesto se mantiene, para que los rangos sigan siendo correctos. Puedes desbloquear aquí cuando quieras.',
+    de: 'Blockieren ersetzt seinen Namen in deinem Crew und der Rangliste durch „Blockierter Spieler“ — ohne ihn je zu benachrichtigen. Sein Platz bleibt, damit die Ränge stimmen. Du kannst hier jederzeit entsperren.',
+    pt: 'Bloquear troca o nome dele por “Jogador bloqueado” no seu crew e no ranking, sem nunca avisá-lo. A posição dele continua, para os rankings seguirem certos. Você pode desbloquear aqui quando quiser.',
+  },
+  /**
+   * LE CHEMIN COURT, dit AVANT le formulaire. Le pseudo GRYD par défaut est un
+   * identifiant machine (`runner_` + 12 hexadécimaux) affiché tronqué : le
+   * retaper à la main était la seule voie, et c'est ce qui faisait échouer la
+   * Guideline 1.2. Le formulaire reste — pour signaler quelqu'un qu'on ne
+   * croise plus nulle part — mais il n'est plus la porte principale.
+   */
+  blockShortcutNote: {
+    fr: 'Plus simple : touche « … » sur la ligne du joueur, dans ton crew ou au classement — le pseudo y est déjà rempli.',
+    en: 'Simpler: tap “…” on the player’s row, in your crew or the leaderboard — the name is already filled in.',
+    es: 'Más simple: toca «…» en la fila del jugador, en tu crew o en la clasificación — el usuario ya viene puesto.',
+    de: 'Einfacher: Tippe auf „…“ in der Zeile des Spielers, im Crew oder in der Rangliste — der Name ist schon eingetragen.',
+    pt: 'Mais simples: toque em “…” na linha do jogador, no seu crew ou no ranking — o nome já vem preenchido.',
   },
   pseudoJoueurLabel: {
     fr: 'PSEUDO DU JOUEUR',
@@ -1834,12 +1864,18 @@ export const C = defineCatalog({
    * il porte sur un joueur, depuis Confidentialité, et il exige un compte
    * (`crew/moderation.ts` n'écrit dans `content_reports` que sous session).
    */
+  /**
+   * Décrivait le SEUL chemin qui existait alors : retaper à la main, dans
+   * Confidentialité, un pseudo qui est un identifiant machine. Le geste au
+   * contact du joueur existe désormais (« … » sur sa ligne), et c'est lui qu'on
+   * nomme en premier — la copie suit le code, jamais l'inverse.
+   */
   reportEnfBody: {
-    fr: 'Depuis Confidentialité, entre le pseudo du joueur et choisis un motif. Il faut un compte pour que le signalement parte. Une personne examine chaque signalement enregistré.',
-    en: 'From Privacy, enter the player’s username and pick a reason. An account is required for the report to be sent. A person reviews every recorded report.',
-    es: 'Desde Privacidad, escribe el usuario del jugador y elige un motivo. Hace falta una cuenta para que el reporte se envíe. Una persona revisa cada reporte registrado.',
-    de: 'Gib unter Privatsphäre den Nutzernamen ein und wähl einen Grund. Für den Versand ist ein Konto nötig. Ein Mensch prüft jede gespeicherte Meldung.',
-    pt: 'Em Privacidade, digite o usuário do jogador e escolha um motivo. É preciso ter conta para a denúncia sair. Uma pessoa analisa cada denúncia registrada.',
+    fr: 'Sur la ligne d’un joueur — dans ton crew ou au classement — touche « … », puis Signaler et choisis un motif. Il faut un compte pour que le signalement parte. Une personne examine chaque signalement enregistré.',
+    en: 'On a player’s row — in your crew or the leaderboard — tap “…”, then Report and pick a reason. An account is required for the report to be sent. A person reviews every recorded report.',
+    es: 'En la fila de un jugador — en tu crew o en la clasificación — toca «…», luego Denunciar y elige un motivo. Hace falta una cuenta para que el reporte se envíe. Una persona revisa cada reporte registrado.',
+    de: 'Tippe in der Zeile eines Spielers — im Crew oder in der Rangliste — auf „…“, dann Melden und wähl einen Grund. Für den Versand ist ein Konto nötig. Ein Mensch prüft jede gespeicherte Meldung.',
+    pt: 'Na linha de um jogador — no seu crew ou no ranking — toque em “…”, depois Denunciar e escolha um motivo. É preciso ter conta para a denúncia sair. Uma pessoa analisa cada denúncia registrada.',
   },
   blockEnfTitle: {
     fr: 'Bloque qui tu ne veux plus voir',
@@ -1849,16 +1885,18 @@ export const C = defineCatalog({
     pt: 'Bloqueie quem você não quer ver',
   },
   /**
-   * Promettait de « masquer tous ses messages » — il n'y a pas de messages. Ce
-   * que `blockMember` fait réellement : masquer ce joueur partout où GRYD
-   * l'afficherait, immédiatement, sans le prévenir, et sans compte requis.
+   * Promettait de « masquer tous ses messages » — il n'y a pas de messages —
+   * puis « partout où GRYD l'afficherait », ce qui restait plus large que le
+   * geste réel. Ce que `blockMember` fait, depuis que le prédicat est consommé
+   * par les deux surfaces : le pseudo devient « Joueur bloqué » sur le roster
+   * de crew et au classement, sans compte requis (le filtrage est local).
    */
   blockEnfBody: {
-    fr: 'Bloquer masque ce joueur partout où GRYD l’afficherait, immédiatement et sans le prévenir. Ça marche même sans compte, et tu peux débloquer quand tu veux.',
-    en: 'Blocking hides that player everywhere GRYD would show them, immediately and without notifying them. It works even without an account, and you can unblock anytime.',
-    es: 'Bloquear oculta a ese jugador allí donde GRYD lo mostraría, de inmediato y sin avisarle. Funciona incluso sin cuenta, y puedes desbloquear cuando quieras.',
-    de: 'Blockieren blendet diesen Spieler überall aus, wo GRYD ihn zeigen würde — sofort und ohne Benachrichtigung. Es geht auch ohne Konto, und du kannst jederzeit entsperren.',
-    pt: 'Bloquear esconde esse jogador em todo lugar onde o GRYD o mostraria, na hora e sem avisá-lo. Funciona até sem conta, e você pode desbloquear quando quiser.',
+    fr: 'Bloquer remplace son pseudo par « Joueur bloqué » dans ton crew et au classement, tout de suite et sans le prévenir. Ça marche même sans compte, et tu peux débloquer quand tu veux.',
+    en: 'Blocking replaces their name with “Blocked player” in your crew and the leaderboard, right away and without notifying them. It works even without an account, and you can unblock anytime.',
+    es: 'Bloquear sustituye su usuario por «Jugador bloqueado» en tu crew y en la clasificación, al instante y sin avisarle. Funciona incluso sin cuenta, y puedes desbloquear cuando quieras.',
+    de: 'Blockieren ersetzt seinen Namen in deinem Crew und der Rangliste sofort durch „Blockierter Spieler“, ohne Benachrichtigung. Es geht auch ohne Konto, und du kannst jederzeit entsperren.',
+    pt: 'Bloquear troca o nome dele por “Jogador bloqueado” no seu crew e no ranking, na hora e sem avisá-lo. Funciona até sem conta, e você pode desbloquear quando quiser.',
   },
   sanctionsTitle: {
     fr: 'Ce qu’on fait des abus',
@@ -1881,12 +1919,13 @@ export const C = defineCatalog({
     de: 'Spieler melden oder blockieren',
     pt: 'Denunciar ou bloquear um jogador',
   },
+  /** Le chemin le plus court d'abord : « … » sur la ligne du joueur. */
   conduiteActionDetail: {
-    fr: 'Les deux gestes se font depuis Confidentialité',
-    en: 'Both are done from Privacy',
-    es: 'Ambos se hacen desde Privacidad',
-    de: 'Beides geht über Privatsphäre',
-    pt: 'Os dois se fazem em Privacidade',
+    fr: '« … » sur sa ligne, ou depuis Confidentialité',
+    en: '“…” on their row, or from Privacy',
+    es: '«…» en su fila, o desde Privacidad',
+    de: '„…“ in seiner Zeile, oder über Privatsphäre',
+    pt: '“…” na linha dele, ou em Privacidade',
   },
 
   conduiteFootnote: {

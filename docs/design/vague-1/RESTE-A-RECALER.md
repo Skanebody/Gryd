@@ -11,6 +11,30 @@ ce qu'il faut y corriger, et **dans quel ordre / par quels lots parallèles**.
 
 ---
 
+## ⚠️ MISE À JOUR D'ÉTAT — 26/07/2026 (lire avant d'exécuter un lot « légal »)
+
+**Ce document reste exact sur la forme et l'ordre des lots. Il est PÉRIMÉ sur les
+« mensonges par document » de la politique de confidentialité** — ceux-ci ont été
+corrigés depuis sa rédaction. Ne pas re-livrer un travail déjà fait ; ne pas non
+plus se fier à ce paragraphe sans re-vérifier le code (« l'existant n'est jamais
+une preuve de conformité », mais un plan périmé n'est pas non plus une preuve de
+travail restant).
+
+| Point signalé plus bas | État au 26/07/2026 | Preuve |
+|---|---|---|
+| Politique **embarquée** : chat de crew, santé HealthKit, paiement en cours | **CORRIGÉ** (25/07/2026) | `apps/mobile/src/i18n/catalog/legal.ts` — vocabulaire fermé, énoncé d'absence de collecte santé, « Paiement : aucun » |
+| Politique **WEB** : section HealthKit, chat de crew, paiement Apple IAP « en cours », pas de section transferts hors UE, suppression sans délai de grâce | **CORRIGÉ** (26/07/2026) | `apps/web/app/confidentialite/page.tsx` — l'en-tête du fichier détaille chaque retrait et sa preuve |
+| `NSHealthShareUsageDescription` sans entitlement (remontée en §5 comme décision) | **RETIRÉE** (26/07/2026) | `apps/mobile/app.json` → `_note_permissions_purpose_strings._retire_NSHealthShareUsageDescription` |
+| `/legal/licences` : trois polices SIL OFL non mentionnées | **CORRIGÉ** | `apps/mobile/src/features/legal/licenses.ts` — les trois `@expo-google-fonts/*` sont déclarées `MIT AND OFL-1.1`, section OFL-1.1 rendue |
+| Contacts `privacy@gryd.run` / `support@gryd.run` sur les pages web | **REMPLACÉS** par le courrier au siège (domaine non acquis, O10) | `apps/web/lib/legal.ts` |
+
+**Reste vrai, et non couvert ici** : l'URL publique de la politique et une boîte
+de support qui reçoit dépendent de l'achat du domaine (**O10**) — voir
+`GRYD_APPSTORE_CHECKLIST.md` §7, et `docs/APP_STORE_CONFORMITE.md` pour l'audit
+complet (10 bloquants).
+
+---
+
 ## 0. Comment exécuter ce document
 
 **Tu es un agent affecté à UN lot.** Lis, dans cet ordre :

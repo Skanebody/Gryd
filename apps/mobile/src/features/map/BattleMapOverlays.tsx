@@ -30,6 +30,24 @@
  * En Bike, l'écran n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement
  * (le vélo n'existe pas encore sous l'écran) — le peek Bike le DIT.
  *
+ * ─── UN SEUL RÉCIT DOMINANT (retour fondateur 25/07/2026) ────────────────────
+ * « Pas de next best action clair », « jamais plusieurs récits concurrents »,
+ * « Active la localisation pour te voir n'est pas assez : l'utilisateur a besoin
+ * d'une action dirigée ». Le choix du contenu de la sheet n'est donc plus une
+ * cascade de ternaires écrite ici : il vient de `mapPlan` (locationState.ts),
+ * fonction PURE et testée qui tranche pour CHAQUE combinaison
+ * (permission × lentille × données) quel est LE récit et quelle est SON action.
+ * Ce fichier ne fait plus que rendre la décision — et la même décision alimente
+ * la barre haute de `app/(tabs)/index.tsx`, ce qui rend structurellement
+ * impossible que les deux surfaces racontent deux histoires différentes.
+ *
+ * Trois états de position deviennent AGISSANTS (E02 « position indisponible /
+ * permission refusée ») : « jamais demandé » → Activer ma position (geste →
+ * `resolveLocation`), « refusé » → réglages système (natif ; sur web on explique
+ * sans peindre de bouton, aucune API n'y mène), « introuvable » → Réessayer.
+ * Le chargement, lui, ne dit RIEN : skeleton dans la sheet, aucun spinner plein
+ * écran, aucune phrase démentie une seconde plus tard.
+ *
  * Vocabulaire TERRITOIRES ORGANIQUES (zones/frontières/rues — jamais hexagone).
  * Anti pay-to-win : le serveur tranche territoire et récompenses ; km/pts/% sont
  * des labels de scénario (demo.ts). Reduce motion respecté (snap direct de la
@@ -37,7 +55,7 @@
  * Events : screen('map_sheet_open') (options mission) / screen('map_zone_open')
  * (sheet de zone) / screen('map_zone_details') (« Plus ») / screen('map_zone_act').
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   clearMapSheetLayout,
   setMapHudHidden,
@@ -45,21 +63,45 @@ import {
   setZoneSheetOpen,
   useMapHudHidden,
 } from './mapUiStore';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  AppState,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
+import { C as N } from '../../i18n/catalog/nav';
 import { useLocale, useT } from '../../i18n/store';
 import type { Entry, Locale } from '../../i18n/types';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
+import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
 import { Map3DToggle } from '../../ui/game';
 import { NAV_BAR_HEIGHT } from '../nav/metrics';
 import { MapAnchoredSheet } from './MapAnchoredSheet';
 import { mapSheetStops, type MapSheetStop } from './sheetSnap';
-import type { MapActivity } from './mapPref';
+import { useMapActivity, type MapActivity } from './mapPref';
+// Provider de position RÉSOLU PAR PLATEFORME (Metro sert `locate.web.ts` sur
+// web). On l'emprunte à l'onboarding plutôt que d'importer `run/gps/provider`
+// ici : ce module tire `expo-task-manager`, sans support web, et cet écran-ci est
+// partagé natif ⇄ web (cf. l'en-tête de `webGeolocation.ts`).
+import { LOCATION_CAPABLE, LOCATION_PROVIDER } from '../onboarding/locate';
+import {
+  mapPlan,
+  resolveLocation,
+  type MapAccessState,
+  type MapDataState,
+  type MapPlan,
+} from './locationState';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
@@ -161,11 +203,38 @@ const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
 const EMPTY_PEEK_HEIGHT = 104;
 const EMPTY_PEEK_WITH_CTA_HEIGHT = 140;
 /**
- * Hauteur du peek BIKE (planche E14) : titre + la phrase d'honnêteté (2 lignes)
- * + la ligne de rassurance. Aucun CTA — GRYD ne chronomètre pas encore le vélo,
- * un bouton ici serait un bouton mort.
+ * Hauteur du peek BIKE (planche E14) : titre + la phrase « à quoi ça sert / ce
+ * que GRYD ne fait pas encore » (2 lignes) + la rassurance + l'unique action
+ * VRAIE de la lentille (revenir en Run). Panneau FIXE : il épouse ce chiffre,
+ * qui doit donc couvrir ce qui est rendu — sinon le bouton passe sous la ligne
+ * de flottaison (§A9).
  */
-const BIKE_PEEK_HEIGHT = 128;
+const BIKE_PEEK_HEIGHT = 190;
+/**
+ * Hauteurs du peek de POSITION. Trois formes, parce que trois contenus :
+ * sans action (refus sur web : on explique, on ne peint pas de bouton mort),
+ * avec le bouton, et avec le bouton + le lien « Ouvrir les réglages ».
+ * La phrase peut tenir sur 3 lignes en allemand : le budget les prévoit.
+ */
+const LOCATION_PEEK_HEIGHT = 180;
+const LOCATION_PEEK_NO_ACTION_HEIGHT = 126;
+const LOCATION_PEEK_WITH_LINK_HEIGHT = 230;
+/** Skeleton de chargement (E02) : deux barres neutres, aucune affirmation. */
+const SKELETON_PEEK_HEIGHT = 100;
+
+/**
+ * La plateforme sait-elle ouvrir des RÉGLAGES SYSTÈME ? Sur web, non : aucune
+ * API ne mène aux réglages du navigateur, et `Linking.openSettings` n'y existe
+ * pas. On dérive donc l'affichage de la capacité RÉELLE — l'absence d'un bouton
+ * n'est pas un mensonge, un bouton qui échoue à coup sûr en est un (§A4).
+ *
+ * `openLocationSettings` (features/run/gps/provider.ts) fait exactement ça, mais
+ * son module tire `expo-task-manager` et ne doit JAMAIS entrer dans le bundle
+ * web (cf. l'en-tête de `webGeolocation.ts`) — or cet écran est partagé. On
+ * appelle donc `Linking.openSettings` directement, comme le font déjà
+ * `app/course-live.tsx` et `app/parametres/[section].tsx`.
+ */
+const CAN_OPEN_SETTINGS = Platform.OS === 'ios' || Platform.OS === 'android';
 
 /**
  * ÉTAT VIDE de la carte (O1 — vitrine OFF par défaut). Trois cas qui n'ont PAS
@@ -173,6 +242,105 @@ const BIKE_PEEK_HEIGHT = 128;
  * par un autre (cf. `dataNote`, même discipline).
  */
 export type MapEmptyState = 'signed-out' | 'empty' | 'failed';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CE QUE L'ÉCRAN SAIT DE LA POSITION — un état, DEUX surfaces disjointes.
+//
+// La sheet (ici) et la barre haute (app/(tabs)/index.tsx, frère de <MapScreen/>)
+// doivent parler de la MÊME position. Un micro-store, comme les trois autres de
+// `mapUiStore` et pour la même raison : deux sous-arbres qui ne se voient pas.
+// UN SEUL ÉCRIVAIN — ce fichier — pour qu'aucune divergence ne soit possible.
+//
+// ⚠️ CE STORE NE DEMANDE JAMAIS RIEN TOUT SEUL. Au montage il LIT la permission
+// (`checkForegroundPermission` : aucune boîte système, ni sur iOS ni dans le
+// navigateur). La DEMANDE ne part que d'un geste — le bouton « Activer ma
+// position » de la sheet, la barre haute, ou Recentrer. C'est la promesse tenue
+// depuis le 21/07 (« la vraie demande vit au premier geste »), et l'ouverture de
+// la Carte ne doit pas la reprendre.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ce que les deux surfaces lisent : l'état, et si une tentative est en vol. */
+export interface MapAccessView {
+  access: MapAccessState;
+  /** Tentative EXPLICITE en cours (geste du joueur) — verrouille son bouton. */
+  pending: boolean;
+}
+
+let accessView: MapAccessView = { access: 'unknown', pending: false };
+const accessListeners = new Set<() => void>();
+
+function publishAccess(next: MapAccessView): void {
+  if (accessView.access === next.access && accessView.pending === next.pending) return;
+  accessView = next;
+  for (const listener of accessListeners) listener();
+}
+
+function subscribeAccess(listener: () => void): () => void {
+  accessListeners.add(listener);
+  return () => {
+    accessListeners.delete(listener);
+  };
+}
+
+function getAccessSnapshot(): MapAccessView {
+  return accessView;
+}
+
+/** État de position partagé par la sheet et la barre haute (lecture seule). */
+export function useMapAccess(): MapAccessView {
+  return useSyncExternalStore(subscribeAccess, getAccessSnapshot, getAccessSnapshot);
+}
+
+/**
+ * LECTURE non intrusive de la permission. Trois issues, et la troisième est le
+ * point délicat :
+ *  • refus explicite   → `denied` (fait dur : il gagne toujours, même après un
+ *                        fix réussi — le joueur a pu couper la permission dans
+ *                        les réglages puis revenir dans l'app) ;
+ *  • jamais demandée   → `unasked` (un geste ici suffit) ;
+ *  • ACCORDÉE          → `locating`, PAS `unavailable`. On ne sait pas d'ici si
+ *                        un fix est arrivé — MapScreen mène sa propre acquisition
+ *                        — et affirmer « introuvable » pendant qu'elle cherche
+ *                        serait un chargement déguisé en échec. `unavailable`
+ *                        n'est écrit QUE lorsqu'on a vu NOTRE tentative échouer.
+ */
+async function probeAccess(): Promise<void> {
+  // Aucun capteur derrière le bouton (navigateur sans géolocalisation, rendu
+  // serveur) : on ne peint AUCUN état de position. L'absence d'un bouton n'est
+  // pas un mensonge, un bouton qui échoue à coup sûr en est un (§A4).
+  if (!LOCATION_CAPABLE) return;
+  if (accessView.pending) return;
+  const permission = await LOCATION_PROVIDER.checkForegroundPermission();
+  const next: MapAccessState =
+    permission.status === 'denied'
+      ? 'denied'
+      : permission.status === 'granted'
+        ? 'locating'
+        : 'unasked';
+  // Ne JAMAIS défaire un fix réel : sur Safari, `checkForegroundPermission`
+  // répond `undetermined` même après un accord (pas de Permissions API pour la
+  // géoloc). Sans cette garde, un joueur qui SE VOIT sur la carte lirait
+  // « Position inconnue · Activer » — le mislabel Safari, revenu par la fenêtre.
+  if (next !== 'denied' && accessView.access === 'ok') return;
+  publishAccess({ access: next, pending: false });
+}
+
+/**
+ * LA TENTATIVE, déclenchée par un GESTE. Elle demande la permission si besoin
+ * (c'est le moment annoncé), cherche un fix, et POSE l'issue — c'est ce qui rend
+ * `unavailable` affirmable : on l'a observé, on ne l'a pas déduit.
+ *
+ * `onFix` n'est appelé QUE sur succès : il rend la main à la carte (vol vers le
+ * joueur + acquisition côté MapScreen). Sur échec on ne l'appelle pas — relancer
+ * une seconde séquence qui vient d'échouer ne ferait qu'attendre pour rien.
+ */
+async function attemptLocation(onFix?: () => void): Promise<void> {
+  if (!LOCATION_CAPABLE || accessView.pending) return;
+  publishAccess({ access: accessView.access, pending: true });
+  const outcome = await resolveLocation(LOCATION_PROVIDER);
+  publishAccess({ access: outcome.state, pending: false });
+  if (outcome.state === 'ok') onFix?.();
+}
 
 /**
  * La vue d'une VRAIE zone tapée vit dans `zoneSelection.ts` (module PUR), avec
@@ -357,6 +525,34 @@ export function BattleMapOverlays({
   const locale = useLocale();
   /** « Carte nue » : l'utilisateur a masqué tout le HUD (rangée du menu Calques). */
   const hudHidden = useMapHudHidden();
+  /** Lentille courante — la sheet Bike sait comment revenir en Run (action VRAIE). */
+  const { setActivity } = useMapActivity();
+  /** Ce que l'écran sait de la position (store partagé avec la barre haute). */
+  const { access, pending: locating } = useMapAccess();
+
+  /**
+   * LECTURE de la permission au montage, puis à CHAQUE retour en avant-plan :
+   * c'est le seul moment où un refus peut avoir été levé (l'utilisateur revient
+   * des réglages système). Sans ce second temps, le bouton « Ouvrir les
+   * réglages » enverrait quelque part sans jamais constater le résultat.
+   */
+  useEffect(() => {
+    void probeAccess();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void probeAccess();
+    });
+    return () => sub.remove();
+  }, []);
+
+  /**
+   * Un fix RÉEL est arrivé (par n'importe quel chemin : premier GO, Recentrer,
+   * acquisition d'ouverture de MapScreen) ⇒ l'état de position est `ok`, et plus
+   * aucune surface ne réclame quoi que ce soit. C'est la seule écriture qui vient
+   * d'une observation extérieure, d'où sa place ici plutôt que dans le store.
+   */
+  useEffect(() => {
+    if (egoPos) publishAccess({ access: 'ok', pending: false });
+  }, [egoPos]);
   /**
    * LENTILLE BIKE (planche E14) : aucun territoire, aucune mission, aucun
    * classement de course à pied n'est affiché — on ne rejoue pas les données Run
@@ -472,20 +668,53 @@ export function BattleMapOverlays({
   // le FAB Calques rouvre le menu, dont la rangée « Carte nue » (active) ramène tout.
   // Un tap sur une ZONE reste explicite → sa sheet s'affiche même en carte nue.
   /**
-   * QUE MONTRE LE PEEK quand aucune donnée réelle n'existe ? L'ÉTAT VIDE — et
-   * RIEN DU TOUT tant qu'on ne sait pas encore (`emptyState` null = lecture en
-   * cours) : une phrase démentie une seconde plus tard reste une phrase fausse.
-   * La sheet elle-même se retire alors, plutôt que de laisser un cadre vide.
+   * CE QUE LA LECTURE DU TERRITOIRE A RENDU, dans le vocabulaire de la matrice.
+   * `emptyState` porte déjà les trois états distincts ; `null` veut dire soit
+   * « on lit encore », soit « il y a du territoire » — c'est le widget qui
+   * tranche entre les deux. Ordre CONSERVÉ du rendu précédent : un état vide
+   * explicite prime sur le widget (il ne peut pas y avoir les deux).
    */
+  const data: MapDataState =
+    emptyState === 'signed-out'
+      ? 'signed-out'
+      : emptyState === 'failed'
+        ? 'failed'
+        : emptyState === 'empty'
+          ? 'empty'
+          : widget !== null
+            ? 'territory'
+            : 'loading';
+
   /**
-   * MODE BIKE (planche E14) : le peek Bike REMPLACE tout le reste. Il ne
-   * cohabite avec aucun état Run — ni widget, ni état vide, ni sheet de zone :
-   * MapScreen n'envoie déjà plus rien de tout ça en Bike (aucun territoire n'est
-   * peint), et ce garde-fou local rend l'invariant lisible ici aussi.
+   * L'ARBITRAGE, en un appel : quel récit, quelle action, faut-il une barre
+   * haute, GO est-il légitime. Fonction PURE et testée (locationState.ts) —
+   * c'est elle qui garantit qu'il n'y a jamais deux récits concurrents, ici
+   * comme dans la barre haute de l'onglet.
    */
-  const showEmptyPeek = !bike && widget === null && emptyState !== null;
-  const missionSheetVisible = bike || widget !== null || showEmptyPeek;
-  const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
+  const plan: MapPlan = useMemo(
+    () =>
+      mapPlan({
+        access,
+        lens: bike ? 'bike' : 'run',
+        data,
+        canOpenSettings: CAN_OPEN_SETTINGS,
+      }),
+    [access, bike, data],
+  );
+  /** Les trois récits qui parlent de POSITION (rendu commun, copie distincte). */
+  const locationNarrative =
+    plan.narrative === 'grant-location' ||
+    plan.narrative === 'denied-location' ||
+    plan.narrative === 'retry-location';
+
+  /**
+   * La sheet a TOUJOURS quelque chose d'honnête à montrer — y compris pendant la
+   * lecture, où elle porte un SKELETON (planche E02 : « fond de carte d'abord,
+   * skeleton dans la sheet, AUCUN spinner plein écran »). Avant, elle se retirait
+   * dans ce cas : l'écran sautait, et le bouton GO changeait de place au moment
+   * précis où la donnée arrivait.
+   */
+  const sheetVisible = zoneOpen || !hudHidden;
   /**
    * MÉTRIQUES RÉELLEMENT AFFICHABLES de la zone tapée (E04). C'est la même liste
    * qui pilote le rendu ET la hauteur : impossible de peindre une ligne que la
@@ -518,17 +747,28 @@ export function BattleMapOverlays({
     metrics: briefMetricKeys(briefState).length,
     hasStateAction: briefState !== 'loading',
   });
-  const peekContentHeight = bike
-    ? BIKE_PEEK_HEIGHT
-    : zoneOpen
-      ? briefingOpen
-        ? briefingHeight
-        : zoneHeight
-      : showEmptyPeek
-        ? emptyState === 'empty'
-          ? EMPTY_PEEK_HEIGHT
-          : EMPTY_PEEK_WITH_CTA_HEIGHT
-        : MISSION_PEEK_COMPACT_HEIGHT;
+  /** Le peek de position se resserre quand il n'a rien de plus à porter. */
+  const locationPeekHeight =
+    plan.action === 'none'
+      ? LOCATION_PEEK_NO_ACTION_HEIGHT
+      : plan.secondary === 'none'
+        ? LOCATION_PEEK_HEIGHT
+        : LOCATION_PEEK_WITH_LINK_HEIGHT;
+  const peekContentHeight = zoneOpen
+    ? briefingOpen
+      ? briefingHeight
+      : zoneHeight
+    : plan.narrative === 'bike'
+      ? BIKE_PEEK_HEIGHT
+      : plan.narrative === 'skeleton'
+        ? SKELETON_PEEK_HEIGHT
+        : locationNarrative
+          ? locationPeekHeight
+          : plan.narrative === 'sign-in' || plan.narrative === 'retry-data'
+            ? EMPTY_PEEK_WITH_CTA_HEIGHT
+            : widget !== null
+              ? MISSION_PEEK_COMPACT_HEIGHT
+              : EMPTY_PEEK_HEIGHT;
 
   const { height: winH } = useWindowDimensions();
   /**
@@ -603,10 +843,40 @@ export function BattleMapOverlays({
     setLayersOpen(false);
   };
 
-  /** Recentrer = action one-shot → referme le menu Calques (« ferme en l'utilisant »). */
+  /**
+   * Recentrer = action one-shot → referme le menu Calques (« ferme en
+   * l'utilisant »). DEUX chemins, et la distinction compte :
+   *  • position déjà connue → on rend la main à la carte (vol immédiat vers la
+   *    dernière position + réacquisition côté MapScreen) : comportement inchangé ;
+   *  • position INCONNUE → on MÈNE la tentative pour en apprendre l'issue. C'est
+   *    ce qui rend « Position introuvable · Réessayer » affirmable : on l'a
+   *    observé. Avant, un appui sans fix ne produisait STRICTEMENT rien à
+   *    l'écran ici — la carte le disait ailleurs, ce bouton restait muet.
+   */
   const recenterAndClose = () => {
-    onRecenter?.();
     setLayersOpen(false);
+    if (egoPos) {
+      onRecenter?.();
+      return;
+    }
+    void attemptLocation(() => onRecenter?.());
+  };
+
+  /** « Activer ma position » / « Réessayer » — le MÊME appel, deux libellés. */
+  const locateFromSheet = () => {
+    void attemptLocation(() => onRecenter?.());
+  };
+
+  /** « Ouvrir les réglages » — natif uniquement (cf. CAN_OPEN_SETTINGS). */
+  const openSystemSettings = () => {
+    haptics.light();
+    void Linking.openSettings();
+  };
+
+  /** Lentille Bike → Run : la seule action VRAIE de cette lentille (E14). */
+  const backToRunLens = () => {
+    haptics.light();
+    setActivity('run');
   };
 
   /**
@@ -667,6 +937,33 @@ export function BattleMapOverlays({
     onCloseZone?.();
     router.push('/course-live?mode=conquete');
   };
+
+  /**
+   * LE CONTENU DE LA SHEET — un `switch` sur LE récit décidé par la matrice,
+   * plus une cascade de conditions locales. Aucun cas n'est « le repli » d'un
+   * autre : chaque récit a son composant, et l'ordre n'a plus de sens caché.
+   */
+  const missionPeek =
+    plan.narrative === 'skeleton' ? (
+      <SkeletonPeek />
+    ) : plan.narrative === 'sign-in' ? (
+      <EmptyPeek state="signed-out" onAction={onEmptyAction} />
+    ) : plan.narrative === 'retry-data' ? (
+      <EmptyPeek state="failed" onAction={onEmptyAction} />
+    ) : locationNarrative ? (
+      <LocationPeek
+        plan={plan}
+        busy={locating}
+        onLocate={locateFromSheet}
+        onOpenSettings={openSystemSettings}
+      />
+    ) : widget ? (
+      <TerritoryWidgetPeek view={widget} onAction={() => onWidgetAction?.(widget)} />
+    ) : (
+      // `first-capture` sans widget : le joueur n'a rien capturé et la lecture
+      // n'a rien produit d'autre à dire. Courir EST l'action — GO la porte (§A4).
+      <EmptyPeek state="empty" onAction={onEmptyAction} />
+    );
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -775,15 +1072,15 @@ export function BattleMapOverlays({
             }
             testID="map-zone-sheet"
           />
-        ) : hudHidden || !missionSheetVisible ? null : bike ? (
-          /* MODE BIKE (planche E14) : la carte vierge ASSUME. Panneau fixe, aucun
-             CTA — GRYD ne chronomètre pas encore le vélo, et un bouton ici serait
-             un bouton mort. Zéro territoire, zéro mission, zéro classement Run
-             sous étiquette vélo. */
+        ) : hudHidden ? null : plan.narrative === 'bike' ? (
+          /* MODE BIKE (planche E14) : la carte vierge ASSUME — et depuis le
+             retour du 25/07 elle cesse d'être DÉFENSIVE : au lieu d'énumérer ce
+             qui n'existe pas, elle répond aux quatre questions d'un bon état vide
+             et propose la seule action VRAIE de cette lentille. Panneau fixe. */
           <MapAnchoredSheet
             key="bike-start"
             geometry={sheetGeometry}
-            peek={<BikeStartPeek />}
+            peek={<BikeStartPeek onBackToRun={backToRunLens} />}
             testID="map-bike-sheet"
           />
         ) : (
@@ -797,18 +1094,7 @@ export function BattleMapOverlays({
               // 'compact' et ne doit pas compter pour une ouverture).
               if (stop !== 'compact') screen('map_sheet_open', { state: stop });
             }}
-            peek={
-              widget ? (
-                <TerritoryWidgetPeek
-                  view={widget}
-                  onAction={() => onWidgetAction?.(widget)}
-                />
-              ) : (
-                /* `missionSheetVisible` garantit qu'on n'arrive ici qu'avec un
-                   emptyState non-null : plus aucun repli sur le peek de démo. */
-                <EmptyPeek state={emptyState ?? 'signed-out'} onAction={onEmptyAction} />
-              )
-            }
+            peek={missionPeek}
             expanded={
               <View style={styles.openBlock}>
                 {/* SITUATION / PARCOURS / ÉQUIPE ont été RETIRÉS (21/07/2026) :
@@ -973,21 +1259,160 @@ function EmptyPeek({
 }
 
 /**
- * PEEK BIKE (planche E14) — « Première bascule vers Bike : la carte vierge
- * assume "Votre carte Bike commence ici", jamais un écran vide. »
+ * SKELETON de la sheet (planche E02 : « chargement : fond de carte d'abord,
+ * territoires ensuite, skeleton dans la sheet — AUCUN spinner plein écran »).
  *
- * C'est le point d'honnêteté de tout le commutateur. Le vélo n'existe pas encore
- * sous l'écran : `runs` n'a aucune colonne de type d'activité, le profil de
- * routage bike est refusé par game-rules, et aucun territoire ni classement
- * n'est séparé par discipline. On n'affiche donc NI territoire, NI mission, NI
- * classement — et surtout pas ceux du Run sous une étiquette vélo. On DIT ce
- * qu'il n'y a pas, et on rassure sur ce qui reste (les zones à pied, intactes).
- *
- * AUCUNE ACTION ici : lancer une « course vélo » qui serait enregistrée comme
- * une course à pied serait un mensonge, et un bouton qui échoue toujours est
- * interdit. Le bouton GO se retire dans cette lentille (cf. app/(tabs)/index.tsx).
+ * POURQUOI DEUX BARRES ET PAS UNE PHRASE. Un chargement n'affirme RIEN sur le
+ * joueur : ni « pas connecté », ni « aucune zone ». Une phrase démentie une
+ * seconde plus tard reste une phrase fausse. Avant, la sheet se RETIRAIT
+ * pendant la lecture — l'écran sautait, et le bouton GO changeait de place au
+ * moment exact où la donnée arrivait. Le skeleton tient la place, sans mentir.
+ * Le lecteur d'écran, lui, entend « chargement » : le silence visuel ne doit
+ * pas devenir un silence tout court.
  */
-function BikeStartPeek() {
+function SkeletonPeek() {
+  const t = useT();
+  return (
+    <View
+      style={styles.info}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={t(N.sheetLoadingA11y)}
+    >
+      <View style={styles.peekHead}>
+        <View style={styles.emptyBar} />
+        <View style={styles.rowBody}>
+          <View style={[styles.skeletonBar, styles.skeletonTitle]} />
+          <View style={[styles.skeletonBar, styles.skeletonLine]} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * PEEK DE POSITION (planche E02 « états critiques ») — LA correction du retour
+ * fondateur : « Active la localisation pour te voir n'est pas assez :
+ * l'utilisateur n'a pas besoin d'une phrase, il a besoin d'une action dirigée ».
+ *
+ * TROIS récits, jamais confondus, chacun avec SON issue réelle :
+ *  • jamais demandé → « Activer ma position » : un geste, et `resolveLocation`
+ *    ouvre l'invite système — c'est le moment annoncé par le produit ;
+ *  • refusé → « Ouvrir les réglages » sur natif. Sur WEB, aucune API n'y mène :
+ *    on explique OÙ régler ça et on ne peint AUCUN bouton (§A4) ;
+ *  • introuvable → « Réessayer » (+ les réglages en LIEN : la localisation
+ *    système peut être coupée, et c'est l'autre issue vraie).
+ *
+ * LE BOUTON N'EST PAS CHARTREUSE, et c'est un arbitrage assumé : GO reste le
+ * seul CTA plein de l'écran (§A4) et il n'est pas mort ici — le préflight de
+ * course redemande la permission et explique un refus. Un bouton CONTOUR reste
+ * une action dirigée (44 pt, libellé explicite), sans peindre deux CTA pleins.
+ * Aucun message technique brut : ni code d'erreur, ni nom d'API.
+ */
+function LocationPeek({
+  plan,
+  busy,
+  onLocate,
+  onOpenSettings,
+}: {
+  plan: MapPlan;
+  /** Tentative en vol : le bouton reste, verrouillé, avec son spinner interne. */
+  busy: boolean;
+  onLocate: () => void;
+  onOpenSettings: () => void;
+}) {
+  const t = useT();
+  const copy =
+    plan.narrative === 'grant-location'
+      ? { title: N.locGrantTitle, line: N.locGrantLine, cta: N.locGrantCta }
+      : plan.narrative === 'retry-location'
+        ? { title: N.locRetryTitle, line: N.locRetryLine, cta: N.locRetryCta }
+        : {
+            title: N.locDeniedTitle,
+            // La phrase dit où se règle la chose SUR CETTE plateforme : renvoyer
+            // aux « réglages du téléphone » dans un navigateur serait une piste
+            // fausse, aussi inutile qu'un bouton mort.
+            line: plan.action === 'open-settings' ? N.locDeniedLineSettings : N.locDeniedLineBrowser,
+            cta: N.locSettingsCta,
+          };
+  return (
+    <View style={styles.info}>
+      <View style={styles.peekHead}>
+        {/* Barre AMBRE : un état qui appelle une action, jamais une alarme rouge
+            (rien n'est cassé) ni la chartreuse (elle dit « à moi »). §C. */}
+        <View style={styles.warnBar} />
+        <View style={styles.rowBody}>
+          <Text style={styles.peekTitle} numberOfLines={1} adjustsFontSizeToFit>
+            {t(copy.title)}
+          </Text>
+        </View>
+      </View>
+      {/* 3 lignes autorisées (l'allemand est long) — jamais coupée par « … » (§A9). */}
+      <Text style={styles.peekMeta} numberOfLines={3}>
+        {t(copy.line)}
+      </Text>
+      {plan.action === 'none' ? null : (
+        // ALIGNÉ À GAUCHE et borné en largeur : le bouton GO flotte au-dessus du
+        // coin bas-DROIT du peek, un bouton pleine largeur lui glisserait sa zone
+        // de tap sous le pouce (même raison que le lien « Voir les options »).
+        <View style={styles.peekActionWrap}>
+          <Button
+            label={t(busy ? N.locSearching : copy.cta)}
+            onPress={plan.action === 'open-settings' ? onOpenSettings : onLocate}
+            variant="ghost"
+            size="md"
+            loading={busy}
+            analyticsId={`map_location_${plan.narrative}`}
+          />
+        </View>
+      )}
+      {plan.secondary === 'open-settings' ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(N.locSettingsCta)}
+          hitSlop={8}
+          onPress={onOpenSettings}
+          style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
+          testID="map-location-settings"
+        >
+          <Text style={styles.optionsLink} numberOfLines={1}>
+            {t(N.locSettingsCta)}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * PEEK BIKE (planche E14) — « la carte vierge assume "Votre carte Bike commence
+ * ici", jamais un écran vide. »
+ *
+ * ─── IL CESSE D'ÊTRE DÉFENSIF (retour fondateur 25/07/2026) ─────────────────
+ * Il ÉNUMÉRAIT ce qui n'existe pas (« aucune sortie, aucun territoire, aucun
+ * classement ») : une triple négation qui laissait le joueur sans rien à faire.
+ * Il répond désormais aux quatre questions d'un bon état vide :
+ *   · où suis-je      → le titre ;
+ *   · à quoi ça sert  → « carte nue pour rouler » — c'est ce que cette lentille
+ *                       offre RÉELLEMENT aujourd'hui : la carte sans la guerre
+ *                       de territoire peinte dessus ;
+ *   · quoi maintenant → revenir à la carte Run, dit POSITIVEMENT ;
+ *   · ce que j'y gagne→ tes zones à pied restent intactes.
+ * La même phrase porte la limite (« GRYD n'enregistre pas encore les sorties
+ * vélo ») : l'honnêteté reste, elle n'est simplement plus le sujet principal.
+ *
+ * DEUX INTERDITS TENUS ICI, et ils sont le cœur du chantier :
+ *  (a) AUCUN CTA « commencer ma première sortie vélo » — aucun moteur vélo
+ *      n'existe (`runs` n'a pas de colonne d'activité, tous les départs
+ *      déclarent 'run') : la sortie serait enregistrée comme une course À PIED.
+ *      Bouton mort d'un côté, mensonge de l'autre ;
+ *  (b) AUCUNE mission vélo dessinée — ni distance, ni durée, ni zone n'ont de
+ *      source. Ce serait de la donnée fabriquée.
+ * Le seul bouton présent fait EXACTEMENT ce qu'il dit : il rebascule la lentille
+ * (préférence `gryd.mapactivity`). CONTOUR et non chartreuse : GRYD ne pousse
+ * pas le joueur hors d'un mode qu'il vient de choisir.
+ */
+function BikeStartPeek({ onBackToRun }: { onBackToRun: () => void }) {
   const t = useT();
   return (
     <View style={styles.info}>
@@ -1000,13 +1425,23 @@ function BikeStartPeek() {
           </Text>
         </View>
       </View>
-      {/* La phrase d'honnêteté : 2 lignes autorisées, jamais coupée (§A9). */}
+      {/* À quoi sert cette lentille + la limite, dans UNE phrase (§A : 1 idée). */}
       <Text style={styles.peekMeta} numberOfLines={2}>
-        {t(C.bikeStartLine)}
+        {t(N.bikeLensLine)}
       </Text>
+      {/* Ce que le joueur y gagne : un fait vérifiable, pas une consolation. */}
       <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
         {t(C.bikeStartRunSafe)}
       </Text>
+      <View style={styles.peekActionWrap}>
+        <Button
+          label={t(N.bikeBackToRun)}
+          onPress={onBackToRun}
+          variant="ghost"
+          size="md"
+          analyticsId="map_bike_back_to_run"
+        />
+      </View>
     </View>
   );
 }
@@ -1373,6 +1808,21 @@ const styles = StyleSheet.create({
   missionBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: gameColors.crew },
   // État vide : barre GRISE — la chartreuse dit « à moi », et rien ne l'est encore.
   emptyBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: colors.grisLigne },
+  // Position à régler : barre AMBRE (planche E02 « barre ambre non bloquante ») —
+  // un état qui appelle une action, jamais une alarme rouge : rien n'est cassé.
+  warnBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: gameColors.warn },
+  // Skeleton de chargement : des BARRES, pas du texte — un chargement n'affirme
+  // rien. Même gris de ligne que les séparateurs (aucune couleur de rôle).
+  skeletonBar: { backgroundColor: colors.grisLigne, borderRadius: 3, opacity: 0.6 },
+  skeletonTitle: { width: '58%', height: 13 },
+  skeletonLine: { width: '38%', height: 10, marginTop: 8 },
+  /**
+   * Zone d'action du peek : ALIGNÉE À GAUCHE et bornée en largeur. Le bouton GO
+   * flotte au-dessus du coin bas-DROIT du peek compact ; une action pleine
+   * largeur lui glisserait sa zone de tap sous le pouce — invisible à l'œil,
+   * mais un tap volé (même raison que le lien « Voir les options »).
+   */
+  peekActionWrap: { alignSelf: 'flex-start', maxWidth: '62%', marginTop: 4 },
   peekTitle: {
     color: colors.blanc,
     fontSize: fontSizes.md, // 16 px

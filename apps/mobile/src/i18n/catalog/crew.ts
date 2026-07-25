@@ -2044,6 +2044,85 @@ export const C = defineCatalog({
     pt: '{action} · {name} — enviado ao crew (demo)',
   },
 
+  // ══════════ MODÉRATION D'UN JOUEUR (Guideline 1.2) ══════════════════════════
+  // Ces clés vivent dans le catalogue « crew » parce que la modération vit dans
+  // `features/crew/` (moderation.ts, blocklist.ts, PlayerModerationSheet.tsx) —
+  // et elles sont partagées par les DEUX surfaces qui affichent le pseudo d'un
+  // tiers : le roster de crew ET le classement de saison. Une seule source de
+  // copie pour un seul comportement (dupliquer dans `saison.ts` aurait laissé
+  // les deux écrans se contredire au premier correctif).
+
+  /**
+   * Ce qui REMPLACE le pseudo d'un joueur bloqué. La ligne, elle, garde sa
+   * place et sa valeur : la retirer d'un classement décalerait tous les rangs
+   * en dessous et ferait passer une décision du joueur pour un bug.
+   */
+  blockedPlayerRow: {
+    fr: 'Joueur bloqué',
+    en: 'Blocked player',
+    es: 'Jugador bloqueado',
+    de: 'Blockierter Spieler',
+    pt: 'Jogador bloqueado',
+  },
+  /** L'affordance « … » de la ligne — discrète, grise, jamais un 2ᵉ CTA (§A4). */
+  playerActionsA11y: {
+    fr: 'Actions pour {name}',
+    en: 'Actions for {name}',
+    es: 'Acciones para {name}',
+    de: 'Aktionen für {name}',
+    pt: 'Ações para {name}',
+  },
+  /** Titre de la feuille : elle est PRÉ-REMPLIE avec le joueur de la ligne. */
+  playerSheetTitle: {
+    fr: 'Ce joueur',
+    en: 'This player',
+    es: 'Este jugador',
+    de: 'Dieser Spieler',
+    pt: 'Este jogador',
+  },
+  /** Étape 2 : le motif. Le geste reste à 2 pas maximum. */
+  reportReasonStep: {
+    fr: 'Pourquoi ce signalement ?',
+    en: 'Why are you reporting?',
+    es: '¿Por qué lo denuncias?',
+    de: 'Warum meldest du?',
+    pt: 'Por que a denúncia?',
+  },
+  /** Confirmation du signalement (l'action, pas une promesse de sanction). */
+  reportSendCta: {
+    fr: 'Envoyer le signalement',
+    en: 'Send report',
+    es: 'Enviar la denuncia',
+    de: 'Meldung senden',
+    pt: 'Enviar denúncia',
+  },
+  sheetCancel: {
+    fr: 'Annuler',
+    en: 'Cancel',
+    es: 'Cancelar',
+    de: 'Abbrechen',
+    pt: 'Cancelar',
+  },
+  sheetCloseA11y: {
+    fr: 'Fermer',
+    en: 'Close',
+    es: 'Cerrar',
+    de: 'Schließen',
+    pt: 'Fechar',
+  },
+  /**
+   * Ce que bloquer fait EXACTEMENT sur ces deux surfaces — écrit ici parce que
+   * la feuille est le dernier endroit où l'on peut encore renoncer. Aucune
+   * promesse au-delà du code : le pseudo est remplacé, la ligne reste.
+   */
+  blockSheetNote: {
+    fr: 'Son pseudo devient « Joueur bloqué » dans ton crew et au classement. Il n’est jamais prévenu.',
+    en: 'Their name becomes “Blocked player” in your crew and the leaderboard. They are never notified.',
+    es: 'Su nombre pasa a ser «Jugador bloqueado» en tu crew y en la clasificación. Nunca se le avisa.',
+    de: 'Sein Name wird in deinem Crew und der Rangliste zu „Blockierter Spieler“. Er erfährt nie davon.',
+    pt: 'O nome dele vira “Jogador bloqueado” no seu crew e no ranking. Ele nunca é avisado.',
+  },
+
   // ── Rôles crew ─────────────────────────────────────────────────────────────
   roleFounder: {
     fr: 'Fondateur',

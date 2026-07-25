@@ -1,10 +1,10 @@
 /**
  * GRYD — COMMUTATEUR RUN / BIKE (planche E14), composant GLOBAL.
  *
- * « Pas d'écran de choix » : un petit commutateur à 2 segments, discret, en haut
- * à droite, « présent sur toutes les pages utiles : carte, classements,
- * historique, profil-stats ». Un tap = bascule immédiate de la LENTILLE de la
- * surface (180 ms, haptique légère, aucune confirmation).
+ * « Pas d'écran de choix » : un petit commutateur, discret, en haut à droite,
+ * « présent sur toutes les pages utiles : carte, classements, historique,
+ * profil-stats ». Un tap = bascule immédiate de la LENTILLE de la surface
+ * (180 ms, haptique légère, aucune confirmation).
  *
  * ─── POURQUOI IL VIT ICI ET NON DANS `features/map` ─────────────────────────
  * Il y est né avec la Carte, seule surface câblée jusqu'au 25/07/2026. Quatre
@@ -14,44 +14,75 @@
  * survit en enveloppe (libellés a11y de la Carte) — la Carte n'est pas dans le
  * périmètre de ce chantier et son import ne bouge pas.
  *
+ * ─── LES DEUX SEGMENTS NE SONT PAS DES PAIRS (retour fondateur, 26/07/2026) ──
+ * Le constat : « l'utilisateur peut entrer dans Bike, mais l'interface lui dit
+ * ensuite que le vélo n'est pas encore vraiment utilisable […] tu crées une
+ * fausse affordance ». L'arbitrage garde le commutateur VISIBLE — la fausse
+ * affordance ne venait pas de la présence du bouton, mais de l'ÉGALITÉ VISUELLE
+ * entre les deux. Trois changements la retirent, et un seul mot les résume :
+ *   1. chaque segment porte TEXTE + ICÔNE (demande fondateur), donc le contrôle
+ *      s'explique sans être touché ;
+ *   2. l'actif est franc (fond surélevé + liseré + couleur), l'inactif est
+ *      nettement secondaire (gris, sans fond) ;
+ *   3. Bike porte sa MARQUE D'ÉTAT (« PAS ENCORE »), lisible AVANT le tap, et
+ *      DÉRIVÉE de `activityIsRecorded` — pas peinte à la main. Le jour où le
+ *      vélo s'enregistrera, elle disparaîtra d'elle-même.
+ * La chartreuse reste réservée au segment RUN, y compris quand Bike est actif :
+ * elle dit « à moi / réel / gagné » (§C, couleurs par RÔLE), et une lentille
+ * qui ne contient rien ne doit pas la porter. Bike actif est BLANC : clairement
+ * sélectionné, jamais victorieux.
+ *
  * ─── CE QUE CE COMPOSANT NE FAIT PAS ────────────────────────────────────────
  * Il est PRÉSENTATIONNEL. Il ne lit aucune préférence, ne décide pas de sa
  * propre visibilité et n'affirme RIEN sur les données : c'est l'écran qui
  * possède sa lentille (mémoire par onglet, `useActivityPref`), qui décide de
- * l'afficher (`useActivitySwitchVisible`) et qui rend l'état vide nommé quand
- * la lentille choisie n'a rien à montrer. Un contrôle qui déciderait lui-même
- * du contenu de quatre écrans serait la porte d'entrée du prochain mensonge.
+ * l'afficher (`switchVisible`) et qui rend l'état vide nommé quand la lentille
+ * choisie n'a rien à montrer. Un contrôle qui déciderait lui-même du contenu de
+ * quatre écrans serait la porte d'entrée du prochain mensonge.
  *
- * §A — il n'est PAS un CTA : fond carbone, filet gris, la chartreuse ne sert
- * qu'à marquer le segment ACTIF (couleur par rôle, jamais par identité). Le seul
- * accent chartreuse fort d'un écran reste son unique CTA.
+ * Il ne décide AUCUNE discipline d'enregistrement non plus : la bascule est une
+ * LENTILLE D'AFFICHAGE, point. La discipline d'une sortie est DÉCLARÉE par le
+ * chemin qui la lance (`features/run/gps/runActivity.ts`), et rien dans
+ * `features/run/**` ne lit ce module.
+ *
+ * §A — il n'est PAS un CTA : fond carbone, filet gris. Le seul accent
+ * chartreuse fort d'un écran reste son unique CTA.
  */
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, gameColors, radii, DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import { flags } from '../lib/flags';
 import { haptics } from '../lib/haptics';
 import { useRunInProgress } from '../features/arsenal/useRunInProgress';
 import { useActivityPref } from '../features/map/mapPref';
+// Le catalogue `map` héberge déjà l'a11y du commutateur (`activityRunA11y`…) :
+// c'est de fait SON catalogue, même si le contrôle a quitté le domaine carte.
+// La marque d'état ne peut pas venir des props — elle doit s'afficher sur les
+// QUATRE surfaces, y compris celles dont ce chantier ne possède pas le fichier.
+import { C } from '../i18n/catalog/map';
+import { useT } from '../i18n/store';
 import { Icon } from './Icon';
 import { useReduceMotion } from './game/anim';
 import {
+  ACTIVITY_SEGMENT_HEIGHT,
+  ACTIVITY_SWITCH_GEOMETRY as G,
+  ACTIVITY_SWITCH_WIDTH as CAPSULE_WIDTH,
+  activitySegments,
   activitySwitchVisible,
   effectiveActivity,
   RECORDED_ACTIVITIES,
   type ActivitySurface,
 } from './activityLens';
 
-/** Côté du commutateur (planche E14 : « un petit commutateur (40 pt) »). */
-export const ACTIVITY_SWITCH_HEIGHT = 40;
-/** Deux segments de 42 pt : zone tactile totale 84 × 40 (planche). */
-const SEGMENT_WIDTH = 42;
-export const ACTIVITY_SWITCH_WIDTH = SEGMENT_WIDTH * 2;
+// Métriques de la capsule : dérivées en PUR (cf. `activityLens.ts`, qui prouve
+// par test qu'aucune des cinq langues n'y est tronquée). Réexportées ici parce
+// que la Carte les lit sous ce nom pour caler sa ligne mission et le plafond du
+// bouton GO — un seul chiffre, une seule source.
+export { ACTIVITY_SWITCH_HEIGHT, ACTIVITY_SWITCH_WIDTH } from './activityLens';
+
 /** Bascule 180 ms (planche E14) — durée d'INTERFACE, aucune règle de jeu ici. */
 const SWITCH_MS = 180;
-/** Taille des pictos dans les segments (lisibles à 40 pt de haut). */
-const GLYPH_SIZE = 20;
 
 /**
  * LA LENTILLE D'UNE SURFACE, en un seul appel : ce qu'elle doit montrer, comment
@@ -131,9 +162,10 @@ interface ActivitySwitchProps {
   onChange: (next: Activity) => void;
   /**
    * Libellés a11y des DEUX segments. Ils sont passés par l'écran, et c'est
-   * volontaire : les segments n'ont que des pictos, donc l'a11y porte TOUT le
-   * sens — et « Carte vélo » n'a rien à dire sur l'écran Historique. Chaque
-   * surface nomme ce que la bascule change CHEZ ELLE.
+   * volontaire : le libellé VISIBLE (« RUN » / « BIKE ») nomme la discipline,
+   * pas ce que la bascule change ICI — et « Carte vélo » n'a rien à dire sur
+   * l'écran Historique. Chaque surface nomme donc ce que la bascule change CHEZ
+   * ELLE. Le segment marqué y ajoute sa marque d'état, ce composant s'en charge.
    */
   runLabel: string;
   bikeLabel: string;
@@ -151,6 +183,7 @@ export function ActivitySwitch({
   runTestID,
   bikeTestID,
 }: ActivitySwitchProps) {
+  const t = useT();
   const reduce = useReduceMotion();
   /** Position du surligneur : 0 = Run (gauche), 1 = Bike (droite). */
   const slide = useRef(new Animated.Value(activity === 'bike' ? 1 : 0)).current;
@@ -163,8 +196,8 @@ export function ActivitySwitch({
   /**
    * Le choix persisté est chargé de façon LAZY (AsyncStorage) : au premier rendu
    * `activity` peut encore valoir le défaut, puis basculer. Sans cette synchro,
-   * le surligneur resterait à gauche sur une lentille Bike — la couleur du picto
-   * dirait « Bike » et le surligneur « Run ». On le recale SANS animation :
+   * le fond actif resterait à gauche sur une lentille Bike — la couleur du
+   * libellé dirait « Bike » et le fond « Run ». On le recale SANS animation :
    * personne n'a touché le commutateur, ce n'est pas une bascule.
    */
   useEffect(() => {
@@ -192,76 +225,151 @@ export function ActivitySwitch({
     onChange(next);
   };
 
-  const highlightX = slide.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, SEGMENT_WIDTH],
-  });
+  /**
+   * Le fond actif ne GLISSE plus : les deux segments n'ont plus la même largeur
+   * (Bike est plus large parce qu'il porte sa marque), et animer une largeur
+   * interdirait le pilote natif. Deux fonds superposés se croisent en opacité —
+   * même 180 ms, même lecture, zéro saccade.
+   */
+  const runFillOpacity = slide.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+
+  const segments = activitySegments(activity);
 
   return (
     <View style={styles.capsule} testID={testID}>
-      {/* Surligneur qui GLISSE (180 ms) — l'état actif se lit d'un coup d'œil ;
-          le picto le redouble en couleur, jamais la couleur seule (§C). */}
-      <Animated.View
-        style={[styles.highlight, { transform: [{ translateX: highlightX }] }]}
-        pointerEvents="none"
-      />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: activity === 'run' }}
-        accessibilityLabel={runLabel}
-        onPress={() => select('run')}
-        // Segment 42 × 40 (planche E14) — hitSlop pour tenir le plancher a11y 44.
-        hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
-        style={({ pressed }) => [styles.segment, pressed && styles.pressed]}
-        testID={runTestID}
-      >
-        <Icon
-          name="basket"
-          size={GLYPH_SIZE}
-          color={activity === 'run' ? gameColors.crew : colors.gris}
-        />
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: activity === 'bike' }}
-        accessibilityLabel={bikeLabel}
-        onPress={() => select('bike')}
-        hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
-        style={({ pressed }) => [styles.segment, pressed && styles.pressed]}
-        testID={bikeTestID}
-      >
-        <BikeGlyph
-          size={GLYPH_SIZE}
-          color={activity === 'bike' ? gameColors.crew : colors.gris}
-        />
-      </Pressable>
+      {segments.map((seg) => {
+        const isBike = seg.activity === 'bike';
+        // La chartreuse ne quitte JAMAIS le segment RUN (§C) : elle dit « à moi,
+        // réel, gagné ». Bike sélectionné est blanc — franc, mais pas victorieux.
+        const activeColor = isBike ? colors.blanc : gameColors.crew;
+        const tint = seg.selected ? activeColor : colors.gris;
+        // Ce que la bascule change SUR CETTE SURFACE (« Carte vélo »,
+        // « Historique vélo »…) — le libellé visible, lui, nomme la discipline.
+        const surfaceLabel = isBike ? bikeLabel : runLabel;
+        return (
+          <Pressable
+            key={seg.activity}
+            accessibilityRole="button"
+            accessibilityState={{ selected: seg.selected }}
+            // Le lecteur d'écran entend la marque, exactement comme l'œil la voit.
+            accessibilityLabel={
+              seg.marked ? `${surfaceLabel} — ${t(C.activityBikeMarkA11y)}` : surfaceLabel
+            }
+            onPress={() => select(seg.activity)}
+            style={({ pressed }) => [
+              styles.segment,
+              isBike ? styles.segmentBike : styles.segmentRun,
+              pressed && styles.pressed,
+            ]}
+            testID={isBike ? bikeTestID : runTestID}
+          >
+            {/* Fond de l'état ACTIF : surface surélevée + liseré. La couleur du
+                texte le redouble — jamais la couleur seule (§C, daltonisme). */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.fill,
+                isBike ? styles.fillBike : styles.fillRun,
+                { opacity: isBike ? slide : runFillOpacity },
+              ]}
+            />
+            {isBike ? (
+              <BikeGlyph size={G.iconSize} color={tint} />
+            ) : (
+              <Icon name="basket" size={G.iconSize} color={tint} />
+            )}
+            {/* §A9 : jamais tronqué. La largeur est budgétée et prouvée par test ;
+                `adjustsFontSizeToFit` ne sert qu'aux tailles système agrandies —
+                un texte qui rétrécit vaut mieux qu'un texte coupé. */}
+            <Text
+              style={[styles.label, { color: tint }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              {seg.label}
+            </Text>
+            {seg.marked ? (
+              // Ambre = mise en garde NON bloquante (le rôle qu'E02 donne déjà à
+              // la barre « position indisponible »). Ni rival (orange), ni erreur
+              // (rouge), ni gain (chartreuse) : un fait, pas une alarme.
+              <Text
+                style={styles.mark}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
+                {t(C.activityBikeMark)}
+              </Text>
+            ) : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
+
+/** Rayon du fond actif : la capsule moins sa marge, arrondi côté extérieur. */
+const FILL_RADIUS = radii.btn - G.capsulePad;
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   // Même grammaire que la capsule de FABs (planche) : un seul contenant arrondi,
   // fond carbone, filet gris — discret, jamais un bloc chartreuse.
   capsule: {
-    width: ACTIVITY_SWITCH_WIDTH,
-    height: ACTIVITY_SWITCH_HEIGHT,
+    width: CAPSULE_WIDTH,
+    height: G.height,
     borderRadius: radii.btn,
     backgroundColor: colors.carbone,
-    borderWidth: 1,
+    borderWidth: G.borderWidth,
     borderColor: colors.grisLigne,
     flexDirection: 'row',
-    overflow: 'hidden',
+    padding: G.capsulePad,
   },
-  highlight: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: SEGMENT_WIDTH,
-    backgroundColor: gameColors.carbon,
-    borderRightWidth: 1,
-    borderLeftWidth: 1,
+  segment: {
+    height: ACTIVITY_SEGMENT_HEIGHT,
+    paddingHorizontal: G.segmentPadH,
+    alignItems: 'center',
+    // Les contenus n'ont pas la même hauteur (Bike porte une ligne de plus) :
+    // on ancre en HAUT pour que les deux pictos restent sur la même ligne — deux
+    // icônes désalignées se lisent comme un défaut de rendu.
+    justifyContent: 'flex-start',
+    paddingTop: 4,
+  },
+  segmentRun: { width: G.runSegmentWidth },
+  segmentBike: { width: G.bikeSegmentWidth },
+  fill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.carbone2,
+    borderWidth: 1,
+  },
+  fillRun: {
     borderColor: colors.chartreuse40,
+    borderTopLeftRadius: FILL_RADIUS,
+    borderBottomLeftRadius: FILL_RADIUS,
+    borderTopRightRadius: radii.sm,
+    borderBottomRightRadius: radii.sm,
   },
-  segment: { width: SEGMENT_WIDTH, alignItems: 'center', justifyContent: 'center' },
+  fillBike: {
+    borderColor: colors.blanc22,
+    borderTopRightRadius: FILL_RADIUS,
+    borderBottomRightRadius: FILL_RADIUS,
+    borderTopLeftRadius: radii.sm,
+    borderBottomLeftRadius: radii.sm,
+  },
+  label: {
+    marginTop: 2,
+    fontSize: G.labelSize,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: G.labelTracking,
+  },
+  mark: {
+    marginTop: 1,
+    color: gameColors.warn,
+    fontSize: G.markSize,
+    lineHeight: 12,
+    fontWeight: '700',
+    letterSpacing: G.markTracking,
+  },
 });
