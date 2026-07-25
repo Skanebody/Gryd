@@ -31,7 +31,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     minHeight: sizes.touchTarget, // P1 : le lien était ~41 px de haut
     paddingVertical: spacing.sm,
   },
-  verifyLinkText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
+  verifyLinkText: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
   pressed: { opacity: 0.6 },
 
   // ── États vides (mêmes formes que le profil : une seule grammaire) ──
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginTop: spacing.xxs,
   },
-  stateTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  stateTitle: { color: colors.blanc, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700' },
   stateBody: {
     color: colors.gris,
     fontSize: fontSizes.sm,
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
-  stateCtaLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
+  stateCtaLabel: { color: colors.noir, fontSize: fontSizes.sm, fontFamily: fonts.display, fontWeight: '800' },
   stateInline: {
     color: colors.gris,
     fontSize: fontSizes.sm,

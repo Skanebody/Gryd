@@ -34,6 +34,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ACCOUNT_DELETION_GRACE_DAYS,
   colors,
+  fonts,
   fontSizes,
   gameColors,
   iconSizes,
@@ -816,7 +817,7 @@ const styles = StyleSheet.create({
   },
   masterActive: { borderColor: colors.chartreuse },
   masterHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  masterTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '600' },
+  masterTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.textSemi, fontWeight: '600' },
   masterBadge: {
     marginLeft: 'auto',
     color: colors.chartreuse,
@@ -840,7 +841,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chartreuse,
     marginTop: 16,
   },
-  masterCtaText: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '700' },
+  masterCtaText: { color: colors.noir, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700' },
   masterConfirm: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -872,10 +873,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.grisLigne,
   },
-  blockedName: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600' },
+  blockedName: { flex: 1, color: colors.blanc, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '600' },
   // Cible de tap ≥ 44 px (bouton réel, pas un simple texte chartreuse).
   unblockBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 10 },
-  unblock: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '700' },
+  unblock: { color: colors.chartreuse, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
 
   // Champ pseudo (signaler / bloquer) — 48 px, texte md (pas de zoom iOS).
   pseudoInput: {

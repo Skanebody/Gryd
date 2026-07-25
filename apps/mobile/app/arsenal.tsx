@@ -39,6 +39,7 @@ import {
   CREW_BOOST_MAX_ACTIVE,
   borderState,
   colors,
+  fonts,
   elevation,
   fontSizes,
   gameColors,
@@ -1066,8 +1067,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   walletLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.3 },
-  walletClubOn: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
-  walletClubOff: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  walletClubOn: { color: colors.blanc, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700' },
+  walletClubOff: { color: colors.gris, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '600' },
   walletDivider: { width: 1, height: 34, backgroundColor: colors.grisLigne },
   // Explication d'un solde non lu — posée sur l'espace, sous le bloc solde.
   walletNote: {
@@ -1086,7 +1087,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   bannerTextWrap: { flex: 1 },
-  bannerStrong: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  bannerStrong: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   bannerSoft: { color: colors.gris, fontSize: fontSizes.sm },
   loot: { marginTop: 10 },
   notice: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 10, textAlign: 'center' },
@@ -1115,8 +1116,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.4,
   },
-  advisorName: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800' },
-  advisorMeta: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  advisorName: { color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.display, fontWeight: '800' },
+  advisorMeta: { color: colors.gris, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '600' },
   advisorLines: {
     gap: 9,
     borderTopWidth: 1,
@@ -1142,7 +1143,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  advisorCtaText: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
+  advisorCtaText: { color: colors.noir, fontSize: fontSizes.sm, fontFamily: fonts.display, fontWeight: '800' },
   // Action secondaire de l'advisor (« Voir détails ») : texte simple, cible 44px.
   advisorGhost: {
     minHeight: 44,
@@ -1150,7 +1151,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: -6,
   },
-  advisorGhostText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  advisorGhostText: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -1231,7 +1232,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: elevation.raised,
   },
-  detailName: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800', textAlign: 'center' },
+  detailName: { color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.display, fontWeight: '800', textAlign: 'center' },
   detailMeta: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -1278,7 +1279,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
-  detailOwnedText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', flex: 1 },
+  detailOwnedText: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600', flex: 1 },
   currencySegmented: { marginBottom: 14 },
   // Échec d'achat dans la sheet : surface N2 relevée (visible sur le fond noir du
   // sheet), texte blanc lisible — un message d'erreur qui ne se cache pas.
@@ -1292,7 +1293,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 12,
   },
-  sheetNoticeText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', lineHeight: 18 },
+  sheetNoticeText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600', lineHeight: 18 },
   detailActions: { gap: 10, marginTop: 4 },
   detailPrimary: {
     height: 50,
@@ -1303,11 +1304,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  detailPrimaryText: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '800' },
+  detailPrimaryText: { color: colors.noir, fontSize: fontSizes.sm, fontFamily: fonts.display, fontWeight: '800' },
   // État verrouillé : surface N2 relevée, sans contour (pas d'action = pas de
   // chartreuse ; le gris dit « indisponible »).
   detailLocked: { backgroundColor: elevation.raised },
-  detailLockedText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
+  detailLockedText: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   // Action secondaire (Offrir) : surface N2 relevée, sans contour — un seul gros
   // CTA chartreuse (Obtenir/Équiper) domine la scène.
   detailGhost: {
@@ -1319,12 +1320,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  detailGhostText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  detailGhostText: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   detailClose: { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
-  detailCloseText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
+  detailCloseText: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
 
   // Gifting
-  giftTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '800', textAlign: 'center' },
+  giftTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.display, fontWeight: '800', textAlign: 'center' },
   giftSubtitle: {
     color: colors.gris,
     fontSize: fontSizes.sm,
@@ -1343,7 +1344,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   giftPreviewText: { flex: 1 },
-  giftEffect: { color: gameColors.crew, fontSize: fontSizes.sm, fontWeight: '800' },
+  giftEffect: { color: gameColors.crew, fontSize: fontSizes.sm, fontFamily: fonts.display, fontWeight: '800' },
   giftDesc: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 4, lineHeight: 16 },
   giftExplain: {
     gap: 9,
@@ -1374,7 +1375,7 @@ const styles = StyleSheet.create({
   },
   checkboxOn: { backgroundColor: gameColors.crew, borderColor: gameColors.crew },
   giftAnonText: { flex: 1 },
-  giftAnonLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  giftAnonLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   giftAnonSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2, lineHeight: 16 },
   giftCap: {
     color: colors.gris,

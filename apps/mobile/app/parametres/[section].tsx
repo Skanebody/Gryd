@@ -35,6 +35,7 @@ import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
+  fonts,
   FINISHER_MIN_SEGMENT_M,
   FINISHER_MIN_SHARE,
   fontSizes,
@@ -702,7 +703,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.cardPadding - 2,
     marginBottom: 10,
   },
-  emptyTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  emptyTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   emptyBody: {
     color: colors.gris,
     fontSize: fontSizes.xs,

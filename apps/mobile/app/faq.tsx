@@ -22,7 +22,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { colors, fontSizes, INTERSEASON_DAYS, radii, SEASON_DURATION_WEEKS, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, INTERSEASON_DAYS, radii, SEASON_DURATION_WEEKS, spacing } from '@klaim/shared';
 import {
   FAQ_CATEGORY_LABELS,
   FAQ_ITEMS,
@@ -257,8 +257,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   segmentOn: { backgroundColor: colors.carbone2 },
-  segmentText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
-  segmentTextOn: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  segmentText: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
+  segmentTextOn: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
 
   group: { marginTop: spacing.xl },
   groupLabel: {
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  q: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600', lineHeight: fontSizes.sm * 1.35 },
+  q: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600', lineHeight: fontSizes.sm * 1.35 },
   chevronOpen: { transform: [{ rotate: '90deg' }] },
 
   answer: { paddingBottom: spacing.md, paddingLeft: 42 },

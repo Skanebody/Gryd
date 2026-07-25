@@ -20,6 +20,7 @@ import {
   BADGE_TIER_RANK,
   badgeKeyByName,
   colors,
+  fonts,
   fontSizes,
   gameColors,
   iconSizes,
@@ -738,19 +739,19 @@ const styles = StyleSheet.create({
     padding: spacing.cardPadding,
   },
   previewInfo: { flex: 1 },
-  previewName: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', letterSpacing: 0.3 },
+  previewName: { color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.textSemi, fontWeight: '700', letterSpacing: 0.3 },
   previewHandle: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     marginTop: spacing.xxs,
     fontVariant: ['tabular-nums'],
   },
-  previewTitle: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700', marginTop: spacing.xxs },
+  previewTitle: { color: colors.chartreuse, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700', marginTop: spacing.xxs },
 
   // ── Champs texte ──
   fieldLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.4, marginBottom: 8 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  at: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '700' },
+  at: { color: colors.gris, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700' },
   input: {
     flex: 1,
     color: colors.blanc,
@@ -810,7 +811,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   modeTabOn: { backgroundColor: colors.carbone2, borderColor: colors.blanc },
-  modeTabText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
+  modeTabText: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   modeTabTextOn: { color: colors.blanc },
   modeHint: {
     color: colors.gris,
@@ -832,14 +833,14 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     paddingHorizontal: spacing.md,
   },
-  photoBtnText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  photoBtnText: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   photoRemoveBtn: {
     minHeight: sizes.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.xs,
   },
-  photoRemoveText: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
+  photoRemoveText: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
   photoNote: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -883,11 +884,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   frameChipOn: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14 },
-  frameChipText: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', textAlign: 'center' },
+  frameChipText: { color: colors.gris, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '600', textAlign: 'center' },
   frameChipTextOn: { color: colors.blanc },
-  frameChipTag: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.5 },
+  frameChipTag: { color: colors.chartreuse, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700', letterSpacing: 0.5 },
   arsenalLink: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
-  arsenalLinkText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  arsenalLinkText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
 
   // ── Badges affichés (3 max) ──
   badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -903,11 +904,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   badgeCellOn: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14 },
-  badgeCellName: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600', textAlign: 'center' },
+  badgeCellName: { color: colors.gris, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '600', textAlign: 'center' },
   badgeCellNameOn: { color: colors.blanc },
 
   // ── Enregistrer ──
   saveBlock: { marginTop: spacing.xl, gap: 12 },
   savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  savedText: { color: gameColors.crew, fontSize: fontSizes.xs, fontWeight: '600' },
+  savedText: { color: gameColors.crew, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '600' },
 });

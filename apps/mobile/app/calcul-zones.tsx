@@ -26,7 +26,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, iconSizes, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, spacing } from '@klaim/shared';
 import {
   EXPLAIN_SECTIONS,
   type ExplainSection,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 1,
   },
-  title: { flex: 1, color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '600' },
+  title: { flex: 1, color: colors.blanc, fontSize: fontSizes.lg, fontFamily: fonts.textSemi, fontWeight: '600' },
   line: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
@@ -142,6 +142,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.grisLigne,
   },
-  faqLinkText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  faqLinkText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
   pressed: { opacity: 0.6 },
 });

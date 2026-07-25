@@ -49,6 +49,7 @@ import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
+  fonts,
   fontSizes,
   gameColors,
   iconSizes,
@@ -292,9 +293,9 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 6 },
-  summaryStrong: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '700' },
-  summaryMuted: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  summaryContested: { color: gameColors.contested, fontSize: fontSizes.sm, fontWeight: '600' },
+  summaryStrong: { color: colors.chartreuse, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
+  summaryMuted: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
+  summaryContested: { color: gameColors.contested, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
   summaryDot: { color: colors.gris, fontSize: fontSizes.sm },
 
   // Carte (≤ 260 px, ~40 %)
@@ -322,7 +323,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
   },
-  seeAll: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '700' },
+  seeAll: { color: colors.chartreuse, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700' },
 
   // Villes
   cityRow: {
@@ -336,7 +337,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cityLeft: { flexDirection: 'column' },
-  cityName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  cityName: { color: colors.blanc, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700' },
   cityStatus: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
   cityZones: {
     color: colors.chartreuse,
@@ -362,10 +363,10 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   itemIconUrgent: { backgroundColor: gameColors.dangerSoft },
-  itemName: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  itemDetail: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  itemName: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '600' },
+  itemDetail: { color: colors.gris, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '600' },
   itemDetailUrgent: { color: gameColors.danger },
-  itemRecord: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '700' },
+  itemRecord: { color: colors.blanc, fontSize: fontSizes.xs, fontFamily: fonts.textSemi, fontWeight: '700' },
 
   // CTA bas
   ctaBar: {
@@ -392,7 +393,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,
   },
-  ctaPrimaryLabel: { color: colors.noir, fontSize: fontSizes.sm, fontWeight: '700' },
+  ctaPrimaryLabel: { color: colors.noir, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   ctaGhost: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -405,7 +406,7 @@ const styles = StyleSheet.create({
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone,
   },
-  ctaGhostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
+  ctaGhostLabel: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
   ctaIcon: {
     width: sizes.buttonMd,
     height: sizes.buttonMd,
