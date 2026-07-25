@@ -24,7 +24,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, fontSizes, gameColors, iconSizes, radii } from '@klaim/shared';
 import { MapScreen } from '../../src/features/map/MapScreen';
-import { SlideToStart } from '../../src/features/nav/SlideToStart';
 import { deriveContextualAction } from '../../src/features/nav/contextualAction';
 import { NAV_BAR_HEIGHT, SLIDE_START_GAP } from '../../src/features/nav/metrics';
 import { C } from '../../src/i18n/catalog/nav';
@@ -172,17 +171,27 @@ function MapStartSlider() {
   // deux CTA à la fois. Il revient dès la fermeture du sheet.
   const zoneOpen = useZoneSheetOpen();
   if (zoneOpen) return null;
+  const go = () => {
+    haptics.medium();
+    router.push(action.targetHref);
+  };
+  // RUN = rond chartreuse à DROITE (planche E02) — posé au-dessus de la nav, il
+  // ne recouvre plus la sheet mission (qu'on peut tirer). Un seul geste : tap.
   return (
     <View
       style={[styles.startWrap, { bottom: insets.bottom + NAV_BAR_HEIGHT + SLIDE_START_GAP }]}
       pointerEvents="box-none"
     >
       <PendingRunNote />
-      <SlideToStart
-        label="GO"
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel={`GO — ${action.a11yLabel}`}
-        onComplete={() => router.push(action.targetHref)}
-      />
+        onPress={go}
+        style={({ pressed }) => [styles.runBtn, pressed && styles.pressed]}
+        testID="map-run-button"
+      >
+        <Text style={styles.runLabel}>GO</Text>
+      </Pressable>
     </View>
   );
 }
@@ -402,8 +411,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // ── Départ de course « glisser pour courir » (au-dessus de la barre d'onglets) ──
-  startWrap: { position: 'absolute', left: 16, right: 16, gap: 8 },
+  // ── RUN : rond chartreuse à droite (au-dessus de la barre d'onglets) ──
+  startWrap: { position: 'absolute', right: 16, alignItems: 'flex-end', gap: 8 },
+  runBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.chartreuse,
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  runLabel: { color: colors.noir, fontFamily: fonts.display, fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 1 },
   // « Où est mon run » : état discret (fond sombre, texte blanc) — jamais un
   // 2ᵉ CTA chartreuse (§A), disparaît sitôt la course envoyée.
   pendingNote: {
