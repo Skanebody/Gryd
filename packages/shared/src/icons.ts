@@ -17,8 +17,24 @@ export interface IconDef {
 }
 
 export const ICONS = {
-  /** Carte / territoire — l'hexagone, motif de marque. */
-  carte: { paths: ['M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z'], fillable: true },
+  /**
+   * Carte / territoire — la CARTE PLIÉE (trois panneaux + plis).
+   *
+   * C'était l'hexagone du motif de marque. Les planches Vague 1 (barre du bas de
+   * E02/E03/E13/E15) montrent une carte pliée, et le retour fondateur est net :
+   * « l'icône de carte n'est pas la bonne ». L'hexagone dit le TERRITOIRE (la
+   * maille H3), pas la DESTINATION « Carte » — et il entrait en concurrence avec
+   * les hexagones de badges et l'avatar hexagonal. Le motif de marque reste
+   * partout ailleurs ; l'onglet, lui, nomme un lieu.
+   *
+   * Volontairement NON `fillable` : une carte pliée remplie devient une tache et
+   * ses plis disparaissent. L'état actif garde donc deux canaux non-colorés (le
+   * trait chartreuse au-dessus de l'onglet + le libellé en gras), conformément à
+   * la règle « jamais la couleur seule ».
+   */
+  carte: {
+    paths: ['M9 3 L3 5.5 L3 20.5 L9 18 L15 21 L21 18.5 L21 3.5 L15 6 Z', 'M9 3 L9 18', 'M15 6 L15 21'],
+  },
   /** Crew — deux coureurs. */
   crew: {
     paths: [

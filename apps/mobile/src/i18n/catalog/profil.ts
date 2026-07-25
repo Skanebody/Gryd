@@ -1460,6 +1460,39 @@ export const C = defineCatalog({
     de: 'Meine letzten Läufe ansehen',
     pt: 'Ver minhas corridas recentes',
   },
+
+  // ── Preview « PROCHAINE MISSION » (remise 25/07/2026, décision fondateur) ───
+  //
+  // Le TEXTE de la mission elle-même n'est PAS dupliqué ici : il vient du
+  // catalogue `mission` (missionDefend/-Far, missionExpand/-Far), le MÊME que la
+  // Carte — une même mission ne peut donc pas se lire différemment selon
+  // l'écran. Ne vivent ici que les deux états DÉGRADÉS (qui doivent, eux, nommer
+  // leur sujet : « lecture en cours » tout seul ne veut rien dire) et l'a11y.
+  /** Lecture en vol — état BORNÉ (le hook aboutit ou retombe sur « indisponible »). */
+  previewMissionLoading: {
+    fr: 'Prochaine mission — lecture en cours',
+    en: 'Next mission — loading',
+    es: 'Próxima misión — cargando',
+    de: 'Nächste Mission — wird geladen',
+    pt: 'Próxima missão — carregando',
+  },
+  /** Lecture TENTÉE et revenue vide : on le dit, on n'invente pas de mission. */
+  previewMissionUnavailable: {
+    fr: 'Prochaine mission — lecture impossible',
+    en: 'Next mission — could not be read',
+    es: 'Próxima misión — no se pudo leer',
+    de: 'Nächste Mission — nicht lesbar',
+    pt: 'Próxima missão — leitura impossível',
+  },
+  /** La ligne ne dit pas « Prochaine mission » à l'écran (l'impératif suffit, et
+   *  un préfixe rallongerait sur 3 lignes en allemand) : l'a11y le nomme. */
+  a11yNextMission: {
+    fr: 'Prochaine mission : {mission}. Ouvrir la carte.',
+    en: 'Next mission: {mission}. Open the map.',
+    es: 'Próxima misión: {mission}. Abrir el mapa.',
+    de: 'Nächste Mission: {mission}. Karte öffnen.',
+    pt: 'Próxima missão: {mission}. Abrir o mapa.',
+  },
   timeAgoToday: {
     fr: 'Aujourd’hui',
     en: 'Today',

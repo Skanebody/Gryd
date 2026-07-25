@@ -10,7 +10,18 @@
  * ─── CE QUI A REMPLACÉ QUOI ─────────────────────────────────────────────────
  * L'écran s'appelait « Performance » et empilait quatre cards (Cette semaine ·
  * Progression · Records · GRYD Verify). La planche demande trois blocs et un
- * commutateur de période : Records et GRYD Verify SORTENT (voir « écarts »).
+ * commutateur de période : GRYD Verify SORT (voir « écarts »).
+ *
+ * ─── RETOUR DES RECORDS PERSONNELS (25/07/2026, décision fondateur) ─────────
+ * Le recalage les avait sortis de l'app ENTIÈRE — plus aucune surface ne portait
+ * le palmarès. Ils reviennent SOUS les trois blocs, et sous une autre forme :
+ * une liste factuelle, sans graphique ni conclusion (cf. l'en-tête de
+ * `stats/RecordsSection.tsx`). La règle des trois blocs vise la grammaire
+ * d'ANALYSE ; un palmarès constate, il n'analyse pas — l'habiller en quatrième
+ * bloc lui promettrait une tendance et une interprétation qu'il n'a pas.
+ * Ils se dérivent de la lecture DÉJÀ FAITE par `useStats` (`stats/records.ts`) :
+ * l'ancienne lecture `useMyPerformance` n'est PAS rouverte — deux lectures des
+ * mêmes `runs` finissent par se contredire à l'écran.
  *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE (aucun n'est masqué) ───────────────────────
  * 1. COMMUTATEUR RUN/BIKE — OMIS entièrement. Il n'existe aucun drapeau `bike`
@@ -74,6 +85,11 @@ import {
 } from '../src/features/performance/stats/derive';
 import { AreaMini, Bars7, WeekSquares } from '../src/features/performance/stats/charts';
 import { StatBlock } from '../src/features/performance/stats/StatBlock';
+import { RecordsSection } from '../src/features/performance/stats/RecordsSection';
+import {
+  deriveRecords,
+  type PersonalRecords,
+} from '../src/features/performance/stats/records';
 import { decimalSeparator } from '../src/ui/format';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
@@ -163,10 +179,13 @@ function StatsBody({
   data,
   period,
   territory,
+  records,
 }: {
   data: DerivedStats;
   period: StatsPeriod;
   territory: TerritoryRead;
+  /** Palmarès dérivé des MÊMES lignes que les blocs (jamais d'une 2e lecture). */
+  records: PersonalRecords;
 }) {
   const t = useT();
   const { volume, weekly } = data;
@@ -361,6 +380,13 @@ function StatsBody({
         note={enoughWeeks ? null : t(C.notEnoughData, { n: MIN_RUNS_FOR_TRENDS })}
       />
 
+      {/* LE PALMARÈS — sous les trois blocs, jamais à leur niveau : liste de
+          faits, sans graphique ni conclusion (cf. `RecordsSection`). Il ne suit
+          PAS le commutateur de période : un record est « de tous les temps »
+          par définition — le filtrer sur la semaine en ferait un simple
+          maximum hebdomadaire déguisé en record. */}
+      <RecordsSection records={records} />
+
       {/* Entrée Premium : une LIGNE légère en bas du gratuit, sans pression et
           sans jamais laisser croire que la heatmap existe déjà. Rendue seulement
           si la surface Arsenal existe — sinon `/arsenal` redirige vers la carte
@@ -421,6 +447,11 @@ export default function PerformanceScreen() {
     [stats.rows, period, seasonStartMs],
   );
 
+  // MÊMES lignes que les trois blocs — aucune seconde lecture de `runs`. Le
+  // palmarès ne dépend ni de la période ni de l'horloge : il ne se recalcule
+  // qu'au changement de données.
+  const records = useMemo(() => (stats.rows ? deriveRecords(stats.rows) : null), [stats.rows]);
+
   const territory = useMemo<TerritoryRead>(() => {
     const mine = (territories.territories ?? []).filter((x) => x.props.status === 'crew');
     return {
@@ -476,7 +507,7 @@ export default function PerformanceScreen() {
       break;
     case 'ready':
       body =
-        derived && derived.countedRuns > 0 ? (
+        derived && records && derived.countedRuns > 0 ? (
           <>
             {/* Le seul groupe de choix de l'écran. `tone="surface"` : la
                 chartreuse est ici une couleur de DONNÉE (rôle « moi »), elle ne
@@ -489,7 +520,12 @@ export default function PerformanceScreen() {
               accessibilityLabel={t(C.periodA11y)}
               style={styles.periods}
             />
-            <StatsBody data={derived} period={period} territory={territory} />
+            <StatsBody
+              data={derived}
+              period={period}
+              territory={territory}
+              records={records}
+            />
           </>
         ) : (
           // Compte relié, zéro course ingérée : ce n'est pas une panne, c'est

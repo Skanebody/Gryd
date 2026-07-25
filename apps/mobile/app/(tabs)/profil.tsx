@@ -13,8 +13,8 @@
  *      seule mise en avant : la surface contrôlée ;
  *   4. card CARTE SIGNATURE 164 pt — la preuve territoriale personnelle ;
  *   5. progression en UNE ligne (GRIP · niveau · rang · XP · jauge) ;
- *   6. previews en LIGNES (activité récente · badges · historique) — les
- *      collections complètes vivent dans leurs pages.
+ *   6. previews en LIGNES (activité récente · PROCHAINE MISSION · badges ·
+ *      historique) — les collections complètes vivent dans leurs pages.
  *
  * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
  *  · La player card compacte (avatar 72 + grille d'alignement optique) : le
@@ -22,17 +22,28 @@
  *    portaient sur une composition qui n'existe plus.
  *  · Le bandeau « Niveau · #Rang · Badges » : remplacé par les 4 métriques de la
  *    planche, qui disent le TERRITOIRE (la matière du jeu) au lieu du méta.
- *  · TerritoryWidgetCard + la ligne « Prochaine mission » : le widget portait le
- *    seul gros CTA chartreuse de l'écran. La planche E15 n'en a AUCUN — un
- *    profil ne se joue pas, il se lit. L'action contextuelle et la prochaine
- *    mission vivent sur la Carte, où elles sont utiles. SEULE exception : le
- *    compte NEUF, dont les métriques sont remplacées par la PREMIÈRE MISSION
+ *  · TerritoryWidgetCard : le widget portait le seul gros CTA chartreuse de
+ *    l'écran. La planche E15 n'en a AUCUN — un profil ne se joue pas, il se lit.
+ *    L'action contextuelle vit sur la Carte, où elle est utile. SEULE exception :
+ *    le compte NEUF, dont les métriques sont remplacées par la PREMIÈRE MISSION
  *    (jamais quatre zéros alignés), qui porte alors l'unique CTA de l'écran.
  *  · La ligne « #N à {ville} · {delta} pts » : le rang local remonte dans la
  *    ligne d'identité (planche), il n'est plus répété plus bas.
  *  · La rangée « série ×mult · badges débloqués » de la card Progression : la
  *    série RÉELLE reste rendue par StreakBlock sur /aujourdhui et au post-run,
  *    les badges par la preview dédiée. Rien n'est perdu, rien n'est dupliqué.
+ *
+ * ─── CE QUI EST REVENU (décision fondateur, 25/07/2026) ─────────────────────
+ * « PROCHAINE MISSION ». Le recalage l'avait retirée avec le widget, au motif
+ * qu'elle est absente de la planche — mais c'était le SEUL rappel de mission
+ * hors de la Carte : le Profil est l'écran qu'on ouvre pour se regarder, et il
+ * ne disait plus jamais quoi faire ensuite. Elle revient en PREVIEW SCANNABLE
+ * (une ligne, un chevron, le tap mène à la Carte où l'action existe), PAS en
+ * CTA : l'unique CTA chartreuse de l'écran reste la PREMIÈRE MISSION du compte
+ * neuf (§A.4 — et GO est déjà chartreuse en permanence dans la nav). Ses états
+ * honnêtes sont ceux de `useRealMission`, dépliés par une fonction PURE testée
+ * (features/social/nextMissionRow.ts) : aucune mission n'est fabriquée, et un
+ * échec n'est annoncé qu'après une lecture réellement partie.
  *
  * ─── CE QUI N'A PAS ÉTÉ CONSTRUIT (déclaré, pas maquillé) ───────────────────
  *  · VARIANTE « PROFIL PUBLIC » : inconstructible aujourd'hui. Aucune route de
@@ -92,6 +103,8 @@ import {
   playerTierForLevel,
 } from '../../src/features/crew/rules';
 import { useRealTerritories } from '../../src/features/map/hexClaims';
+import { useRealMission } from '../../src/features/mission/useRealMission';
+import { nextMissionRow } from '../../src/features/social/nextMissionRow';
 import { useRealCrew } from '../../src/features/crew/real';
 import { GripMascot } from '../../src/features/social/GripMascot';
 import { ProfileHero } from '../../src/features/social/ProfileHero';
@@ -108,6 +121,7 @@ import { flags } from '../../src/lib/flags';
 import type { Entry } from '../../src/i18n/types';
 import { useLocale, useT } from '../../src/i18n/store';
 import { C } from '../../src/i18n/catalog/profil';
+import { C as M } from '../../src/i18n/catalog/mission';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -375,12 +389,18 @@ export default function ProfilScreen() {
   // existe ; collection VIDE sinon.
   const { unlockedIds, stat, failed: badgesFailed, reload: reloadBadges } = useMyBadges();
   /**
-   * ─── UNE SEULE LECTURE DE `hex_claims` SUR CET ÉCRAN ───────────────────────
-   * Le profil en déclenchait DEUX au montage (drapeaux + widget). On lit UNE
-   * fois ici, et la CARTE SIGNATURE reçoit les territoires DÉJÀ LUS en prop
-   * plutôt que de monter un composant qui relirait la table (c'est la raison
-   * pour laquelle `SignatureMapCard` dessine la silhouette au lieu de monter
-   * `TerritoryFranceMap preview`, cf. son bloc de tête).
+   * ─── LA LECTURE D'AFFICHAGE DE `hex_claims`, FAITE UNE SEULE FOIS ──────────
+   * Le profil en déclenchait DEUX au montage pour AFFICHER (drapeaux + widget).
+   * On lit UNE fois ici, et la CARTE SIGNATURE reçoit les territoires DÉJÀ LUS
+   * en prop plutôt que de monter un composant qui relirait la table (c'est la
+   * raison pour laquelle `SignatureMapCard` dessine la silhouette au lieu de
+   * monter `TerritoryFranceMap preview`, cf. son bloc de tête).
+   *
+   * EXCEPTION ASSUMÉE (25/07/2026) : `useRealMission` porte SA propre lecture de
+   * `hex_claims` (colonnes h3index + decay_at seulement, et un fix GPS), parce
+   * que c'est la MÊME requête que la Carte — la partager depuis ici forcerait
+   * l'un des deux écrans à dépendre de l'autre. Deux lectures étroites plutôt
+   * qu'un couplage : on paie une requête, pas une divergence de vérité.
    */
   const {
     territories,
@@ -445,6 +465,56 @@ export default function ProfilScreen() {
 
   /** Dernière course RÉELLE (1 ligne de `runs`) — la preview « activité récente ». */
   const lastActivity = useMyLastActivity();
+
+  // ── PROCHAINE MISSION (remise le 25/07/2026, décision fondateur) ────────────
+  /**
+   * La planche E15 n'a pas de ligne mission, et le recalage l'avait donc retirée
+   * — mais c'était le SEUL rappel de mission hors de la Carte. Elle revient en
+   * PREVIEW (même famille que « Badges · N › »), jamais en CTA : le Profil n'en
+   * porte qu'un, la PREMIÈRE MISSION du compte neuf (§A.4), et GO est déjà
+   * chartreuse en permanence dans la barre de nav.
+   */
+  const { mission: realMission, loading: missionLoading } = useRealMission();
+  /**
+   * Témoin « une lecture est réellement partie ». `useRealMission` démarre à
+   * `{ mission: null, loading: false }` et ne passe à `loading` qu'à son premier
+   * effet : sans ce témoin, le tout premier rendu annoncerait « lecture
+   * impossible » alors que RIEN n'a encore été tenté — un échec inventé est un
+   * mensonge au même titre qu'une donnée inventée.
+   */
+  const [missionReadStarted, setMissionReadStarted] = useState(false);
+  useEffect(() => {
+    if (missionLoading) setMissionReadStarted(true);
+  }, [missionLoading]);
+  /** Décision d'affichage PURE et testée (features/social/nextMissionRow.ts). */
+  const missionRow = nextMissionRow({
+    gameReady,
+    firstMissionShown: isNewPlayer,
+    loading: missionLoading,
+    readStarted: missionReadStarted,
+    mission: realMission,
+  });
+  /**
+   * Libellé : EXACTEMENT les textes du catalogue `mission`, ceux de la Carte —
+   * une même mission ne peut donc pas se lire différemment selon l'écran. La
+   * distance n'apparaît QUE s'il y a un fix GPS (variantes « Far ») ; sans fix,
+   * la phrase courte, jamais une distance approchée.
+   */
+  let missionLabel: string | null = null;
+  if (missionRow.kind === 'loading') {
+    missionLabel = t(C.previewMissionLoading);
+  } else if (missionRow.kind === 'unavailable') {
+    missionLabel = t(C.previewMissionUnavailable);
+  } else if (missionRow.kind === 'defend') {
+    const km = missionRow.distanceM === null ? null : `${formatKm(missionRow.distanceM)} km`;
+    missionLabel =
+      km === null
+        ? t(M.missionDefend, { h: missionRow.hoursLeft })
+        : t(M.missionDefendFar, { km, h: missionRow.hoursLeft });
+  } else if (missionRow.kind === 'expand') {
+    const km = missionRow.distanceM === null ? null : `${formatKm(missionRow.distanceM)} km`;
+    missionLabel = km === null ? t(M.missionExpand) : t(M.missionExpandFar, { km });
+  }
 
   // ── LIGNE D'IDENTITÉ « CREW · ville · #rang » ──────────────────────────────
   /**
@@ -755,8 +825,9 @@ export default function ProfilScreen() {
         ) : null}
 
         {/* ══ 6 · PREVIEWS SCANNABLES ══════════════════════════════════════════
-            Trois lignes, pas trois murs : les collections COMPLÈTES vivent dans
-            leurs pages. Chaque ligne n'existe que si son chiffre est vrai. */}
+            Des lignes, pas des murs : les collections COMPLÈTES vivent dans leurs
+            pages. Chaque ligne n'existe que si son chiffre est vrai. L'ordre suit
+            le temps — ce que j'ai fait, ce qui vient, ce que j'ai accumulé. */}
         {gameReady ? (
           <>
             {/* Activité récente — rendue seulement quand la dernière course est
@@ -770,6 +841,34 @@ export default function ProfilScreen() {
                 onPress={() => router.push('/historique')}
               />
             ) : null}
+
+            {/* PROCHAINE MISSION — remise ici le 25/07/2026 (décision fondateur) :
+                c'était le SEUL rappel de mission hors de la Carte. Placée juste
+                après l'activité récente, la colonne se lit dans le temps : ce que
+                j'ai fait (hier) → ce qui vient (maintenant) → mes collections.
+                Une LIGNE, un chevron, et le tap va LÀ OÙ L'ACTION EXISTE (la
+                Carte, qui porte GO et le Route Planner) — jamais un 2ᵉ CTA
+                chartreuse (§A.4). Couleur par RÔLE (§C) sur l'icône, qui ne porte
+                jamais le sens seule : le texte dit déjà défendre vs agrandir.
+                Les deux états dégradés (lecture / échec) sont des LIGNES D'ÉTAT
+                grises, non tapables : il n'y a alors rien de vrai à ouvrir. */}
+            {missionLabel === null ? null : missionRow.kind === 'defend' ||
+              missionRow.kind === 'expand' ? (
+              <PreviewRow
+                visual={
+                  <Icon
+                    name={missionRow.kind === 'defend' ? 'bouclier' : 'cible'}
+                    size={iconSizes.md}
+                    color={missionRow.kind === 'defend' ? gameColors.danger : colors.chartreuse}
+                  />
+                }
+                label={missionLabel}
+                a11yLabel={t(C.a11yNextMission, { mission: missionLabel })}
+                onPress={() => router.push('/')}
+              />
+            ) : (
+              <Text style={styles.stateInline}>{missionLabel}</Text>
+            )}
 
             {/* Badges — les 3 équipés en miniature + le compteur. Collection vide
                 → une ligne qui dit comment en ouvrir un (jamais trois hexagones

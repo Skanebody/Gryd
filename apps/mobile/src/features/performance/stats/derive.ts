@@ -35,6 +35,14 @@ export interface StatsRunRow {
   started_at: string;
   distance_m: number;
   status: string;
+  /**
+   * Durée de la course (s). Lue pour le RECORD « plus longtemps » (`records.ts`),
+   * pas pour les trois blocs : ajoutée ici plutôt que d'ouvrir une SECONDE
+   * lecture de `runs` — deux lectures du même joueur peuvent se contredire.
+   */
+  duration_s: number;
+  /** Allure moyenne (s/km). NULLABLE en base : une course sans allure existe. */
+  avg_pace_s_km: number | null;
   /** Payload serveur `IngestRunResponse` figé à l'ingestion — forme non garantie. */
   celebration: unknown;
 }
@@ -217,6 +225,30 @@ export interface DerivedStats {
   capturedInPeriod: number | null;
 }
 
+/** Une course retenue, avec son horodatage déjà parsé (jamais NaN). */
+export interface CountedRun {
+  row: StatsRunRow;
+  /** Départ en ms epoch. */
+  atMs: number;
+}
+
+/**
+ * Le filtre d'entrée de TOUT le module : statuts qui comptent + horodatage
+ * lisible. Exporté pour que `records.ts` retienne EXACTEMENT les mêmes courses
+ * que les trois blocs — deux filtres jumeaux finissent toujours par diverger, et
+ * un palmarès qui compterait une course rejetée contredirait le bloc du dessus.
+ */
+export function countedRuns(rows: readonly StatsRunRow[]): CountedRun[] {
+  const out: CountedRun[] = [];
+  for (const row of rows) {
+    if (!COUNTED.has(row.status)) continue;
+    const atMs = Date.parse(row.started_at);
+    if (!Number.isFinite(atMs)) continue;
+    out.push({ row, atMs });
+  }
+  return out;
+}
+
 /** Index d'affichage lundi=0 à partir d'une date. */
 function displayDayIndex(at: Date): number {
   // Jour LOCAL (et non UTC) : « samedi est ton meilleur jour » parle du samedi
@@ -250,13 +282,7 @@ export function deriveStats(
   period: StatsPeriod,
   seasonStartMs: number | null,
 ): DerivedStats {
-  const counted: { row: StatsRunRow; atMs: number }[] = [];
-  for (const row of rows) {
-    if (!COUNTED.has(row.status)) continue;
-    const atMs = Date.parse(row.started_at);
-    if (!Number.isFinite(atMs)) continue;
-    counted.push({ row, atMs });
-  }
+  const counted = countedRuns(rows);
 
   // ── Bloc 1 : la fenêtre choisie ────────────────────────────────────────────
   const win = periodWindow(now, period, seasonStartMs);

@@ -13,6 +13,14 @@
  * aurait été plus propre — il est hors périmètre de ce chantier. Dette assumée
  * et signalée : une seule lecture de `runs` devra survivre à la fusion.
  *
+ * MISE À JOUR 25/07/2026 (retour des RECORDS PERSONNELS) — c'est désormais la
+ * SEULE lecture de `runs` de /performance : le palmarès se dérive de CES lignes
+ * (`records.ts`), il ne rouvre pas `useMyPerformance`. Deux lectures du même
+ * joueur aboutissent à deux instants différents : le jour où elles se
+ * désynchronisent, l'écran se contredit lui-même. `performance/real.ts` et
+ * `performance/derive.ts` n'ont plus aucun appelant — leur retrait est un
+ * nettoyage à part (hors périmètre de ce chantier).
+ *
  * LES QUATRE ÉTATS, JAMAIS CONFONDUS :
  *  · 'signed-out' — pas de compte (ou pas de backend) : aucune course ne peut
  *    être la sienne.
@@ -68,9 +76,13 @@ export function useStats(): UseStatsResult {
       // à l'ingestion). On ne compte pas les lignes de `hex_claims` par `run_id` :
       // ce compte rétrécit quand un rival reprend un hex — la course d'il y a un
       // mois afficherait « +3 zones » là où elle en avait pris 18.
+      // `duration_s` et `avg_pace_s_km` servent au PALMARÈS (`records.ts`), pas
+      // aux trois blocs : deux colonnes de plus sur la MÊME requête plutôt
+      // qu'une seconde lecture de `runs`. Deux lectures du même joueur peuvent
+      // aboutir à deux instants différents et se contredire à l'écran.
       const { data, error } = await client
         .from('runs')
-        .select('started_at, distance_m, status, celebration')
+        .select('started_at, distance_m, duration_s, avg_pace_s_km, status, celebration')
         .eq('user_id', userId)
         .order('started_at', { ascending: false })
         .limit(RUN_HISTORY_LIMIT);

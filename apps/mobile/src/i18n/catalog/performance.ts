@@ -167,13 +167,20 @@ export const C = defineCatalog({
   },
 
   // ─── Records ───────────────────────────────────────────────────────────────
+  /** Ancien titre de card. Le palmarès E18 a son propre titre (`recordsPersonalTitle`). */
   recordsTitle: { fr: 'Records', en: 'Records', es: 'Récords', de: 'Rekorde', pt: 'Recordes' },
+  /**
+   * COMPLÉTÉ le 25/07/2026 : le libellé vivait dans une grille titrée
+   * « Records » où le nom de l'objet était implicite. Isolé sur sa ligne de
+   * palmarès, il devait porter son nom — « Längster » seul n'est pas de
+   * l'allemand, et « Plus longue » seule ne dit pas longue de quoi.
+   */
   recordLongest: {
-    fr: 'Plus longue',
-    en: 'Longest',
-    es: 'Más larga',
-    de: 'Längster',
-    pt: 'Mais longa',
+    fr: 'Plus longue course',
+    en: 'Longest run',
+    es: 'Carrera más larga',
+    de: 'Längster Lauf',
+    pt: 'Corrida mais longa',
   },
   recordDuration: {
     fr: 'Plus longtemps',
@@ -584,6 +591,50 @@ export const C = defineCatalog({
     es: 'Analítica territorial detallada — Premium',
     de: 'Detaillierte Gebiets-Analytics – Premium',
     pt: 'Analytics territorial detalhada — Premium',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RECORDS PERSONNELS — retour du palmarès sous les trois blocs (25/07/2026).
+  // Le recalage E18 avait sorti les records de l'app entière ; décision
+  // fondateur : ils reviennent, en LISTE FACTUELLE (pas en 4e bloc d'analyse).
+  // Les libellés `recordLongest` · `recordDuration` · `recordBestPace` ·
+  // `recordOverKm` et `weeksShort` sont REPRIS tels quels : ils étaient
+  // orphelins depuis le recalage. Seules les trois entrées ci-dessous
+  // manquaient.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Titre de la section (kicker mis en majuscules par le style). */
+  recordsPersonalTitle: {
+    fr: 'Records personnels',
+    en: 'Personal records',
+    es: 'Récords personales',
+    de: 'Persönliche Rekorde',
+    pt: 'Recordes pessoais',
+  },
+  /**
+   * Le RECORD de série, à distinguer de la série EN COURS que conclut le bloc
+   * « Régularité » : deux nombres différents portant le même mot (« Série ») se
+   * liraient comme une contradiction de l'écran avec lui-même. C'est pourquoi
+   * `recordStreak` (« Série ») reste orphelin plutôt que réemployé ici.
+   */
+  recordBestStreak: {
+    fr: 'Plus longue série',
+    en: 'Longest streak',
+    es: 'Racha más larga',
+    de: 'Längste Serie',
+    pt: 'Maior sequência',
+  },
+  /**
+   * Aucun record établi (compte relié, courses lues, mais rien à consacrer). On
+   * le DIT : jamais un tableau de tirets ni un « 0 km » qui affirmerait qu'il a
+   * couru zéro kilomètre.
+   */
+  recordsNoneYet: {
+    fr: 'Pas encore de record. Ta prochaine course peut en poser un.',
+    en: 'No record yet. Your next run can set one.',
+    es: 'Aún no hay récords. Tu próxima carrera puede marcar uno.',
+    de: 'Noch kein Rekord. Dein nächster Lauf kann einen aufstellen.',
+    pt: 'Ainda nenhum recorde. Sua próxima corrida pode marcar um.',
   },
 
   // ─── ORPHELINES depuis le 21/07/2026 (fin du mode vitrine) ────────────────

@@ -13,7 +13,8 @@
  *      au-dessus, jamais le #1 inatteignable.
  *   3. UNE phrase-objectif + UN SEUL CTA chartreuse (§A.4) → route-planner.
  *   4. CHIPS DE PROXIMITÉ (strip défilant, jamais tronqué) : Ma ville → Spécialités
- *      → Crew. Le MONDE n'existe pas sur cet écran (règle « monde caché » tenue).
+ *      → Villes → Crew. Le MONDE n'existe pas sur cet écran (règle « monde caché »
+ *      tenue) : la plus large portée nommée ici reste la ville.
  *   5. PODIUM 3 marches (#2 gauche · #1 centre plus grand + anneau OR · #3 droite)
  *      puis la liste FENÊTRÉE autour de ma ligne.
  *   6. E12 — card RANG (palier de fin de saison RÉEL), frise VERTICALE des paliers,
@@ -41,9 +42,12 @@
  * ─── UN CLASSEMENT EST RÉEL, OU IL N'EST PAS (21/07/2026, toujours en vigueur) ─
  *  · Ma ville — affiché UNIQUEMENT si `source === 'server'`. Sinon l'un des états
  *    honnêtes (lecture en cours · pas connecté · ville non rattachée · échec · vide).
- *  · Crew — AUCUNE source serveur (la matview `crew_leaderboard` n'est jamais
- *    rafraîchie) : on dit « pas encore ouvert », on ne fait pas patienter devant
- *    un faux podium.
+ *  · Villes et Crew — AUCUNE source serveur (la matview `crew_leaderboard` n'est
+ *    jamais rafraîchie ; aucun agrégat inter-villes n'existe) : on dit « pas encore
+ *    ouvert », on ne fait pas patienter devant un faux podium. Nommer une dimension
+ *    du jeu et DIRE qu'elle n'est pas ouverte est un constat vrai — c'est fabriquer
+ *    des villes, des rangs ou des rivaux qui serait le mensonge (CLAUDE.md, zéro
+ *    donnée européenne factice).
  */
 import { flags } from '../../src/lib/flags';
 import { useEffect, useMemo, useState } from 'react';
@@ -108,21 +112,25 @@ import {
 
 /**
  * CHIPS ORDONNÉES PAR PROXIMITÉ (planche E11 : autour de moi → quartier → ville →
- * amis → crew). Ce que le serveur sait réellement rendre aujourd'hui :
+ * amis → crew). Ce que l'écran nomme aujourd'hui :
  *  · « Ma ville »   = le classement de MA saison locale (l'ancien onglet
  *                     « Joueurs », dont le libellé ne disait pas la proximité) ;
  *  · « Spécialités » = même ville, autre métrique (compteurs de tous les temps) ;
- *  · « Crew »       = dernier de la proximité, et seul onglet sans source.
+ *  · « Villes »     = les villes qui s'affrontent — dimension du jeu, sans source ;
+ *  · « Crew »       = dernier de la proximité, sans source lui aussi.
  * « Autour de moi », « Quartier » et « Amis » sont OMIS : aucune vue de secteur,
  * de quartier ni d'amitié n'alimente un classement — trois chips mortes.
- * L'onglet « Ville » (villes qui s'affrontent) est SUPPRIMÉ : il rendait le même
- * « pas encore ouvert » que Crew — deux chips inertes pour une seule information.
+ * « Villes » est REMIS (décision fondateur, 25/07/2026) : contrairement aux trois
+ * précédentes, c'est une dimension ANNONCÉE du jeu, et « pas encore ouvert » est
+ * un CONSTAT vrai — exactement le traitement déjà retenu pour Crew, pas un
+ * troisième style d'état. Aucune ville, aucun rang, aucun rival n'est fabriqué.
  * Les `id` sont CONSERVÉS (les events PostHog `classement_{id}` restent stables).
  */
-type PrimaryTab = 'joueurs' | 'specialites' | 'crews';
+type PrimaryTab = 'joueurs' | 'specialites' | 'ville' | 'crews';
 const PRIMARY_TABS: readonly { id: PrimaryTab; label: Entry }[] = [
   { id: 'joueurs', label: S.tabMaVille },
   { id: 'specialites', label: C.tabSpecialites },
+  { id: 'ville', label: C.tabVille },
   { id: 'crews', label: C.tabCrews },
 ];
 
@@ -788,9 +796,15 @@ function LeagueScreen() {
               />
             </>
           ) : !onJoueurs ? (
-            /* Crew : la matview `crew_leaderboard` n'est JAMAIS rafraîchie — aucune
-               source. Ce n'est pas « vide en attendant », c'est « pas ouvert ». */
-            <BoardEmpty title={t(C.boardNoSourceTitle)} body={t(C.boardNoSourceCrews)} />
+            /* Villes et Crew : aucune source serveur. La matview `crew_leaderboard`
+               n'est JAMAIS rafraîchie, et aucun agrégat inter-villes n'existe. Ce
+               n'est pas « vide en attendant », c'est « pas ouvert » — et on dit
+               laquelle des deux dimensions attend quoi, sans nommer une seule
+               ville ni avancer un seul chiffre. */
+            <BoardEmpty
+              title={t(C.boardNoSourceTitle)}
+              body={t(tab === 'ville' ? C.boardNoSourceVille : C.boardNoSourceCrews)}
+            />
           ) : boardLoading ? (
             <Text style={styles.stateNote}>{t(C.boardLoading)}</Text>
           ) : !signedIn ? (

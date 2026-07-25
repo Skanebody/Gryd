@@ -50,12 +50,16 @@ export const C = defineCatalog({
     de: 'Crews',
     pt: 'Crews',
   },
+  /** PLURIEL assumé : cette chip voisine « Ma ville » (les joueurs de MA ville).
+   *  Au singulier, les deux libellés se confondaient ; au pluriel, la chip dit ce
+   *  qu'elle classe — les villes qui s'affrontent entre elles. L'allemand reste
+   *  court (« Städte ») pour ne jamais tronquer à 375 px (§A.9). */
   tabVille: {
-    fr: 'Ville',
-    en: 'City',
-    es: 'Ciudad',
-    de: 'Stadt',
-    pt: 'Cidade',
+    fr: 'Villes',
+    en: 'Cities',
+    es: 'Ciudades',
+    de: 'Städte',
+    pt: 'Cidades',
   },
   // ── Classements par SPÉCIALITÉ (§16) : compteurs LIFETIME de user_stats ──────
   tabSpecialites: { fr: 'Spécialités', en: 'Specialties', es: 'Especialidades', de: 'Spezialitäten', pt: 'Especialidades' },
