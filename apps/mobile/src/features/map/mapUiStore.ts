@@ -76,3 +76,81 @@ function getHudSnapshot(): boolean {
 export function useMapHudHidden(): boolean {
   return useSyncExternalStore(subscribeHud, getHudSnapshot, getHudSnapshot);
 }
+
+// ─── Géométrie de la sheet ancrée (planche E02) ──────────────────────────────
+//
+// TROISIÈME drapeau, et pour la même raison que les deux premiers : la sheet et
+// les surfaces qui doivent l'éviter vivent dans des SOUS-ARBRES DISJOINTS.
+//   • le bouton GO (app/(tabs)/index.tsx) est un frère de <MapScreen/> : il doit
+//     savoir si la sheet est déployée pour passer de la PILL au ROND (E02) ;
+//   • l'attribution légale (© OpenStreetMap / © Esri) et la note d'état de la
+//     carte vivent dans MapScreen : depuis que la sheet est COLLÉE au bas, leur
+//     ancrage historique (RUN_BUTTON_BOTTOM) tombe DERRIÈRE elle. Elles se
+//     recalent donc au-dessus du peek — l'attribution est une obligation légale,
+//     elle ne doit jamais finir masquée.
+//
+// PIÈGE ÉVITÉ (caméra MapLibre) : on publie UNIQUEMENT au SNAP, jamais la
+// position du doigt image par image. Publier une hauteur par frame re-rendrait
+// MapScreen 60 fois par seconde → le binding de caméra se ré-appliquerait
+// par-dessus le geste (« le zoom revient en arrière », retour terrain 20/07).
+
+export interface MapSheetLayout {
+  /** Une sheet du bas est-elle montée ? (false ⇒ les px décrivent le bord de nav) */
+  visible: boolean;
+  /** La sheet est-elle au-delà du palier compact ? (pilote le morph de GO) */
+  expanded: boolean;
+  /** Distance px entre le BAS DE L'ÉCRAN et le HAUT de la sheet, palier COURANT. */
+  topPx: number;
+  /** Idem au palier COMPACT — ancre STABLE (attribution, note d'état). */
+  peekTopPx: number;
+}
+
+const EMPTY_SHEET_LAYOUT: MapSheetLayout = {
+  visible: false,
+  expanded: false,
+  topPx: 0,
+  peekTopPx: 0,
+};
+
+/** Instantané STABLE par référence : useSyncExternalStore l'exige (sinon boucle). */
+let sheetLayout: MapSheetLayout = EMPTY_SHEET_LAYOUT;
+const sheetLayoutListeners = new Set<() => void>();
+
+/** Publie la géométrie de la sheet ; n'émet QUE sur changement réel de valeur. */
+export function setMapSheetLayout(next: MapSheetLayout): void {
+  if (
+    sheetLayout.visible === next.visible &&
+    sheetLayout.expanded === next.expanded &&
+    sheetLayout.topPx === next.topPx &&
+    sheetLayout.peekTopPx === next.peekTopPx
+  ) {
+    return;
+  }
+  sheetLayout = next;
+  for (const listener of sheetLayoutListeners) listener();
+}
+
+/** Remet la géométrie à zéro (démontage de la carte / bascule d'onglet). */
+export function clearMapSheetLayout(): void {
+  setMapSheetLayout(EMPTY_SHEET_LAYOUT);
+}
+
+function subscribeSheetLayout(listener: () => void): () => void {
+  sheetLayoutListeners.add(listener);
+  return () => {
+    sheetLayoutListeners.delete(listener);
+  };
+}
+
+function getSheetLayoutSnapshot(): MapSheetLayout {
+  return sheetLayout;
+}
+
+/** Géométrie courante de la sheet ancrée de la Carte. */
+export function useMapSheetLayout(): MapSheetLayout {
+  return useSyncExternalStore(
+    subscribeSheetLayout,
+    getSheetLayoutSnapshot,
+    getSheetLayoutSnapshot,
+  );
+}

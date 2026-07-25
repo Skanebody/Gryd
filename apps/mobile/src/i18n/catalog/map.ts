@@ -649,6 +649,69 @@ export const C = defineCatalog({
     pt: 'Tentar de novo',
   },
 
+  // ── Sheet ANCRÉE de la Carte (planche E02) : poignée tirable. Le libellé dit
+  //    LA SHEET (territoire), pas « panneau de course », et il annonce les DEUX
+  //    chemins — glisser OU toucher : le geste n'est jamais le seul moyen. ──
+  sheetHandleOpenA11y: {
+    fr: 'Panneau territoire — glisse ou touche pour déployer',
+    en: 'Territory panel — drag or tap to expand',
+    es: 'Panel de territorio — desliza o toca para desplegar',
+    de: 'Gebietsleiste – ziehen oder tippen zum Öffnen',
+    pt: 'Painel de território — arraste ou toque para abrir',
+  },
+  sheetHandleCloseA11y: {
+    fr: 'Panneau territoire — glisse ou touche pour replier',
+    en: 'Territory panel — drag or tap to collapse',
+    es: 'Panel de territorio — desliza o toca para plegar',
+    de: 'Gebietsleiste – ziehen oder tippen zum Schließen',
+    pt: 'Painel de território — arraste ou toque para fechar',
+  },
+
+  // ── Commutateur Run / Bike (planche E14) : deux segments à picto seul, donc
+  //    l'a11y porte TOUT le sens. « Bike » reste le mot de la planche. ──
+  activityRunA11y: {
+    fr: 'Carte à pied',
+    en: 'Running map',
+    es: 'Mapa a pie',
+    de: 'Laufkarte',
+    pt: 'Mapa a pé',
+  },
+  activityBikeA11y: {
+    fr: 'Carte vélo',
+    en: 'Cycling map',
+    es: 'Mapa en bici',
+    de: 'Radkarte',
+    pt: 'Mapa de bike',
+  },
+  /** Première bascule (planche E14) : la carte vierge ASSUME, jamais un écran vide. */
+  bikeStartTitle: {
+    fr: 'Ta carte Bike commence ici',
+    en: 'Your Bike map starts here',
+    es: 'Tu mapa Bike empieza aquí',
+    de: 'Deine Bike-Karte beginnt hier',
+    pt: 'Seu mapa Bike começa aqui',
+  },
+  /**
+   * LA PHRASE D'HONNÊTETÉ. Le vélo n'existe pas encore sous l'écran : aucune
+   * sortie n'est enregistrée, aucun territoire ni classement vélo n'existe. On
+   * le dit au lieu de rejouer les données Run sous une étiquette vélo.
+   */
+  bikeStartLine: {
+    fr: 'GRYD ne chronomètre pas encore le vélo : aucune sortie, aucun territoire, aucun classement.',
+    en: 'GRYD doesn’t track cycling yet: no ride, no turf, no ranking.',
+    es: 'GRYD aún no cronometra la bici: sin salidas, sin territorio, sin ranking.',
+    de: 'GRYD misst Radfahren noch nicht: keine Ausfahrt, kein Gebiet, kein Ranking.',
+    pt: 'A GRYD ainda não cronometra bike: sem pedal, sem território, sem ranking.',
+  },
+  /** Rassurance FACTUELLE : rien n'est perdu côté course à pied. */
+  bikeStartRunSafe: {
+    fr: 'Tes zones à pied restent intactes.',
+    en: 'Your running turf stays untouched.',
+    es: 'Tu territorio a pie sigue intacto.',
+    de: 'Dein erlaufenes Gebiet bleibt unberührt.',
+    pt: 'Seu território a pé fica intacto.',
+  },
+
   // ── Sheet d'une VRAIE zone tapée (hex_claims) — couleur par RÔLE, jamais par
   //    crew. Aucun nom de crew n'est affiché ici : la table ne le porte pas, et
   //    inventer « Canal Crew » serait exactement le mensonge qu'on retire. ──

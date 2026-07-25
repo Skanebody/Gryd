@@ -1,12 +1,15 @@
 /**
  * GRYD — onglet Carte (home) : la carte EST le produit (SPEC §4.2.1).
- * Le bouton d'action (GO) et la nav vivent dans le layout (tabs).
+ * Cet écran empile, au-dessus de <MapScreen/>, les quatre surfaces du HUD :
+ * le HEADER (avatar + pill de lieu), le COMMUTATEUR Run/Bike (planche E14), la
+ * LIGNE MISSION, et le bouton GO à DEUX ÉTATS (planche E02).
  *
  * Zéro-friction : la MISSION est lisible SANS AUCUN TAP — une LIGNE MISSION
  * fixe en haut de la carte, dérivée de `useRealMission`, c'est-à-dire de MES
  * VRAIES captures. Tap sur la ligne = détail compact + entrée VISIBLE vers le
  * Route Planner. Aucun CTA chartreuse plein ici : le SEUL CTA de l'écran reste
- * le bouton flottant GO de la nav (anti double-CTA §A.4).
+ * le bouton GO (anti double-CTA §A.4), rendu ICI et nulle part ailleurs — la
+ * barre d'onglets est un simple rang de destinations.
  *
  * ─── FIN DU MODE VITRINE (21/07/2026) ───────────────────────────────────────
  * La ligne mission avait DEUX implémentations : la réelle, et une démo
@@ -18,23 +21,43 @@
  * (`if (!isShowcasePlatform) …`, `if (configured && session) return null`) ont
  * disparu avec la branche, et l'ordre des hooks est redevenu inconditionnel.
  */
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, fontSizes, gameColors, iconSizes, radii } from '@klaim/shared';
 import { MapScreen } from '../../src/features/map/MapScreen';
 import { deriveContextualAction } from '../../src/features/nav/contextualAction';
-import { NAV_BAR_HEIGHT, SLIDE_START_GAP } from '../../src/features/nav/metrics';
+import { GO_BUTTON_GAP, NAV_BAR_HEIGHT } from '../../src/features/nav/metrics';
 import { C } from '../../src/i18n/catalog/nav';
 import { C as M } from '../../src/i18n/catalog/mission';
 import { useRealMission } from '../../src/features/mission/useRealMission';
 import { useLocale, useT } from '../../src/i18n/store';
 import type { Locale } from '../../src/i18n/types';
 import { screen } from '../../src/lib/analytics';
+import { flags } from '../../src/lib/flags';
 import { haptics } from '../../src/lib/haptics';
 import { hasPendingUpload, retryPendingUpload } from '../../src/lib/pendingUpload';
-import { useMapHudHidden, useZoneSheetOpen } from '../../src/features/map/mapUiStore';
+import {
+  useMapHudHidden,
+  useMapSheetLayout,
+  useZoneSheetOpen,
+} from '../../src/features/map/mapUiStore';
+import { useMapActivity } from '../../src/features/map/mapPref';
+import { goButtonBottom } from '../../src/features/map/sheetSnap';
+import {
+  MapActivitySwitch,
+  ACTIVITY_SWITCH_HEIGHT,
+  ACTIVITY_SWITCH_WIDTH,
+} from '../../src/features/map/MapActivitySwitch';
+import { useReduceMotion } from '../../src/ui/game/anim';
 import { Icon } from '../../src/ui/Icon';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { cityLabel } from '../../src/features/social/cities';
@@ -59,6 +82,26 @@ const MIN_TAP_TARGET = 44;
  */
 const MISSION_TEXT_SIZE = 13;
 const MISSION_TEXT_MIN_SCALE = fontSizes.xs / MISSION_TEXT_SIZE;
+/**
+ * CTA RUN À DEUX ÉTATS (planche E02) : « pill 60 pt au-dessus de la nav quand la
+ * sheet est FERMÉE ; repliée en bouton ROND 60 pt ancré à droite du bloc mission
+ * quand la sheet est DÉPLOYÉE (le pouce retrouve toujours le rond à droite) ».
+ * Le libellé reste « GO » (override fondateur AMENDEMENT-38) dans les DEUX
+ * états — c'est le picto basket qui entre et sort, jamais le mot.
+ */
+const GO_SIZE = 60;
+const GO_PILL_WIDTH = 112;
+/** Morph ~180 ms (planche) — durée d'INTERFACE, aucune règle de jeu ici. */
+const GO_MORPH_MS = 180;
+/**
+ * Bande HAUTE que le rond GO ne franchit jamais : safe area + header (avatar +
+ * pill de lieu) + rangée du commutateur Run/Bike. Sans ce plafond, au palier
+ * 90 % le rond recouvrirait l'avatar et le commutateur.
+ */
+const GO_TOP_CLEARANCE =
+  HEADER_TOP_GAP + HEADER_HEIGHT + MISSION_LINE_TOP_GAP + ACTIVITY_SWITCH_HEIGHT + 8;
+/** Écart entre la ligne mission et le commutateur (jamais de chevauchement). */
+const MISSION_LINE_SWITCH_GAP = 10;
 
 /** « 4,4 km » — décimale selon la langue, pas d'Intl (parité Hermes) ;
  *  « km » invariant. Seul l'anglais prend le point. */
@@ -83,8 +126,32 @@ export default function CarteTab() {
     <View style={styles.root}>
       <MapScreen />
       <HomeHeader />
+      <ActivitySwitchRow />
       <MissionLine />
-      <MapStartSlider />
+      <MapGoButton />
+    </View>
+  );
+}
+
+/**
+ * COMMUTATEUR RUN / BIKE (planche E14) : « en haut à droite », sous la pill de
+ * lieu, donc sur la rangée qui suit le header — la ligne mission lui laisse la
+ * place à sa droite (cf. `MissionLine`).
+ *
+ * Il suit la même règle que le reste du HUD : « carte nue » (HUD masqué) le
+ * retire aussi. Et il n'apparaît que si `flags.bike` est levé — la planche E14
+ * dit « visible seulement si Bike est activé ; masqué sinon, jamais grisé ».
+ */
+function ActivitySwitchRow() {
+  const insets = useSafeAreaInsets();
+  const hudHidden = useMapHudHidden();
+  if (!flags.bike || hudHidden) return null;
+  return (
+    <View
+      style={[styles.switchWrap, { top: insets.top + MISSION_LINE_BELOW_HEADER }]}
+      pointerEvents="box-none"
+    >
+      <MapActivitySwitch testID="map-activity-switch" />
     </View>
   );
 }
@@ -156,43 +223,137 @@ function HomeHeader() {
 }
 
 /**
- * Départ de course sur la Carte (override fondateur) : « glisser pour courir »
- * (SlideToStart), UNIQUEMENT ici — pas dans la nav. Ancré au-dessus de la barre
- * d'onglets. Toujours présent (même en carte nue) : c'est L'ACTION, pas de l'info.
- * Le routing reste contextuel (deriveContextualAction → cible du live).
+ * DÉPART DE COURSE sur la Carte (override fondateur) : UNIQUEMENT ici, pas dans
+ * la nav. Le routing reste contextuel (deriveContextualAction → cible du live).
+ *
+ * DEUX ÉTATS (planche E02) — c'est la réponse de la planche à « placer GO
+ * intelligemment » :
+ *   • sheet compacte / absente → PILL (picto basket + « GO ») au-dessus de la
+ *     barre d'onglets ;
+ *   • sheet DÉPLOYÉE → ROND ancré en haut à DROITE de la sheet, chevauchant son
+ *     bord supérieur : il ne recouvre jamais le contenu, et le pouce le retrouve
+ *     toujours au même endroit à droite.
+ * Le passage est un MORPH de 180 ms (largeur + montée), jamais un saut ;
+ * reduce motion → position finale posée directement.
+ *
+ * POURQUOI GO VIT ICI ET PAS DANS LA SHEET : `sheetWrap` (BattleMapOverlays)
+ * porte `overflow:'hidden'` — un rond qui chevauche le bord haut de la sheet y
+ * serait tronqué. Il reste donc un frère de <MapScreen/>, et lit la géométrie
+ * publiée au SNAP via `useMapSheetLayout`.
+ *
+ * DEUX RETRAITS, tous deux volontaires :
+ *   • sheet de DÉCISION de zone ouverte (E04) → son CTA REPRENDRE devient
+ *     l'unique CTA primaire, GO se retire (§A.4, invariant préexistant) ;
+ *   • lentille BIKE → voir le commentaire de `bike` plus bas.
  */
-function MapStartSlider() {
+function MapGoButton() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: screenH } = useWindowDimensions();
   const locale = useLocale();
   const action = useMemo(() => deriveContextualAction({ screen: 'map' }, locale), [locale]);
   // E04 (planche + §A.4) : quand un sheet de DÉCISION de zone est ouvert, son CTA
   // (REPRENDRE) devient l'unique CTA primaire — GO se retire pour ne pas peindre
   // deux CTA à la fois. Il revient dès la fermeture du sheet.
   const zoneOpen = useZoneSheetOpen();
+  const sheet = useMapSheetLayout();
+  const { activity } = useMapActivity();
+  const reduce = useReduceMotion();
+  /** 0 = pill, 1 = rond (largeur + opacité du picto). */
+  const morph = useRef(new Animated.Value(0)).current;
+  /** Montée du bouton vers le bord haut de la sheet (px, négatif = vers le haut). */
+  const lift = useRef(new Animated.Value(0)).current;
+
+  /** Position de repos : la PILL, juste au-dessus de la barre d'onglets. */
+  const pillBottom = insets.bottom + NAV_BAR_HEIGHT + GO_BUTTON_GAP;
+  /** Cible du rond quand la sheet est déployée (fonction PURE, testée en Deno). */
+  const targetBottom = goButtonBottom({
+    pillBottom,
+    sheetTop: sheet.topPx,
+    expanded: sheet.expanded,
+    size: GO_SIZE,
+    screenH,
+    topClearance: insets.top + GO_TOP_CLEARANCE,
+  });
+  const shift = targetBottom - pillBottom;
+
+  useEffect(() => {
+    const toMorph = sheet.expanded ? 1 : 0;
+    if (reduce) {
+      morph.setValue(toMorph);
+      lift.setValue(-shift);
+      return;
+    }
+    Animated.parallel([
+      // Largeur + opacité du picto : driver JS (la largeur n'est pas native).
+      Animated.timing(morph, {
+        toValue: toMorph,
+        duration: GO_MORPH_MS,
+        useNativeDriver: false,
+      }),
+      Animated.timing(lift, {
+        toValue: -shift,
+        duration: GO_MORPH_MS,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [sheet.expanded, shift, reduce, morph, lift]);
+
+  /**
+   * LENTILLE BIKE — GO est MASQUÉ, et c'est un choix argumenté.
+   * Le départ de course écrit une course À PIED (`runs` n'a aucune colonne de
+   * type d'activité) : un GO en mode vélo enregistrerait une sortie vélo comme
+   * une course à pied — un mensonge — ou échouerait toujours — un bouton mort.
+   * Restaient deux options : le peindre indisponible avec son motif, ou le
+   * retirer. On retire, pour deux raisons : « l'absence d'un bouton n'est pas un
+   * mensonge, un bouton qui échoue toujours en est un » (CLAUDE.md), et le MOTIF
+   * est déjà écrit à l'endroit où l'œil va — le peek Bike, juste en dessous
+   * (« GRYD ne chronomètre pas encore le vélo »). Le répéter sur un bouton grisé
+   * ferait deux messages pour une seule situation (§A : 1 écran = 1 décision).
+   * La note « où est mon run », elle, RESTE : elle parle de fiabilité d'envoi,
+   * pas de territoire, et la taire cacherait un vrai problème.
+   */
+  const bike = activity === 'bike';
   if (zoneOpen) return null;
+
   const go = () => {
     haptics.medium();
     router.push(action.targetHref);
   };
-  // RUN = rond chartreuse à DROITE (planche E02) — posé au-dessus de la nav, il
-  // ne recouvre plus la sheet mission (qu'on peut tirer). Un seul geste : tap.
+  const btnWidth = morph.interpolate({
+    inputRange: [0, 1],
+    outputRange: [GO_PILL_WIDTH, GO_SIZE],
+  });
+  const glyphOpacity = morph.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+
   return (
-    <View
-      style={[styles.startWrap, { bottom: insets.bottom + NAV_BAR_HEIGHT + SLIDE_START_GAP }]}
+    <Animated.View
+      style={[styles.startWrap, { bottom: pillBottom, transform: [{ translateY: lift }] }]}
       pointerEvents="box-none"
     >
       <PendingRunNote />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`GO — ${action.a11yLabel}`}
-        onPress={go}
-        style={({ pressed }) => [styles.runBtn, pressed && styles.pressed]}
-        testID="map-run-button"
-      >
-        <Text style={styles.runLabel}>GO</Text>
-      </Pressable>
-    </View>
+      {bike ? null : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`GO — ${action.a11yLabel}`}
+          onPress={go}
+          style={({ pressed }) => [pressed && styles.pressed]}
+          testID="map-run-button"
+        >
+          <Animated.View style={[styles.runBtn, { width: btnWidth }]}>
+            {/* Picto basket (planche) — il s'efface quand la pill devient rond ;
+                le mot « GO » reste dans les deux états (AMENDEMENT-38). */}
+            <Animated.View
+              style={[styles.runGlyph, { opacity: glyphOpacity }]}
+              pointerEvents="none"
+            >
+              <Icon name="basket" size={iconSizes.md} color={colors.noir} />
+            </Animated.View>
+            <Text style={styles.runLabel}>GO</Text>
+          </Animated.View>
+        </Pressable>
+      )}
+    </Animated.View>
   );
 }
 
@@ -240,6 +401,7 @@ function MissionLine() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const hudHidden = useMapHudHidden();
+  const { activity } = useMapActivity();
   const t = useT();
   const locale = useLocale();
   const [detailOpen, setDetailOpen] = useState(false);
@@ -258,6 +420,11 @@ function MissionLine() {
 
   // « Carte nue » : l'utilisateur a masqué tout le HUD → plus de ligne mission.
   if (hudHidden) return null;
+
+  // Lentille BIKE (planche E14) : la mission est dérivée de MES captures À PIED
+  // (useRealMission → hex_claims). L'afficher sous étiquette vélo serait une
+  // mission de course à pied déguisée en mission vélo — donnée fabriquée.
+  if (activity === 'bike') return null;
 
   // Mission RÉELLE ou RIEN. Deux cas :
   //  • null / lecture en cours / first_capture → RIEN : le widget « Prends ta
@@ -310,7 +477,15 @@ function MissionLine() {
           detailOpen ? C.missionDetailCloseA11y : C.missionDetailOpenA11y,
         )}`}
         onPress={toggleRealDetail}
-        style={({ pressed }) => [styles.missionLine, pressed && styles.pressed]}
+        style={({ pressed }) => [
+          styles.missionLine,
+          // Le commutateur Run/Bike occupe le coin droit de CETTE rangée : la
+          // LIGNE lui cède la place (le détail, plus bas, garde toute la largeur).
+          flags.bike
+            ? { marginRight: ACTIVITY_SWITCH_WIDTH + MISSION_LINE_SWITCH_GAP }
+            : null,
+          pressed && styles.pressed,
+        ]}
         testID="battle-map-mission-line-real"
       >
         {/* Accent de RÔLE — renforce le texte, ne le remplace jamais (§C). */}
@@ -411,12 +586,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // ── RUN : rond chartreuse à droite (au-dessus de la barre d'onglets) ──
+  // ── Commutateur Run/Bike (planche E14) : rangée sous le header, à droite ──
+  switchWrap: { position: 'absolute', right: MISSION_LINE_SIDE, alignItems: 'flex-end' },
+
+  // ── GO : pill (sheet compacte) ⇄ rond (sheet déployée), toujours à DROITE ──
   startWrap: { position: 'absolute', right: 16, alignItems: 'flex-end', gap: 8 },
   runBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    // `width` est ANIMÉE (pill ⇄ rond) : seule la hauteur est figée ici. Le
+    // radius vaut la demi-hauteur → pill quand c'est large, cercle à 60 px.
+    height: GO_SIZE,
+    borderRadius: GO_SIZE / 2,
     backgroundColor: colors.chartreuse,
     alignItems: 'center',
     justifyContent: 'center',
@@ -426,6 +605,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
+  // Picto ABSOLU : il s'efface au morph sans jamais pousser le mot « GO », qui
+  // reste centré dans les deux états.
+  runGlyph: { position: 'absolute', left: 16 },
   runLabel: { color: colors.noir, fontFamily: fonts.display, fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 1 },
   // « Où est mon run » : état discret (fond sombre, texte blanc) — jamais un
   // 2ᵉ CTA chartreuse (§A), disparaît sitôt la course envoyée.

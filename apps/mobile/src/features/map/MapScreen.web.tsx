@@ -73,12 +73,13 @@ import {
   type RealMapPressEvent,
   type RealMapRef,
 } from '../../ui/game';
-import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { NAV_BAR_HEIGHT } from '../nav/metrics';
 import {
   BattleMapOverlays,
   type MapEmptyState,
   type MapZoneView,
 } from './BattleMapOverlays';
+import { useMapSheetLayout } from './mapUiStore';
 import { useRealTerritories } from './hexClaims';
 import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
@@ -99,7 +100,7 @@ import {
   subscribeBasemapSpecs,
   type BasemapKey,
 } from './mapStyle';
-import { useBasemapStyle, useMap3d } from './mapPref';
+import { useBasemapStyle, useMap3d, useMapActivity } from './mapPref';
 import { CITY_SCALE_ZOOM, EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
@@ -139,10 +140,15 @@ const EGO_HALO_SIZE = 40;
 const SHIELD_ABOVE_EGO_PX = 26;
 /** Taille des markers d'état posés sur la carte. */
 const MARKER_SIZE = 18;
-/** La barre d'échelle flotte à gauche du bouton COURIR, au-dessus de la nav. */
-const SCALE_ABOVE_RUN_BOTTOM = 6;
+/**
+ * La barre d'échelle + l'attribution flottent au-dessus du PEEK de la sheet
+ * (obligation légale : l'attribution ne doit jamais finir masquée). Depuis que
+ * la sheet est COLLÉE au bas (planche E02), l'ancre n'est plus
+ * `RUN_BUTTON_BOTTOM` mais le haut du peek, publié par BattleMapOverlays.
+ */
+const SCALE_ABOVE_SHEET = 6;
 /** La note d'honnêteté (P0.2) se pose juste au-dessus de l'échelle/attribution. */
-const DATA_NOTE_ABOVE_RUN_BOTTOM = 34;
+const DATA_NOTE_ABOVE_SHEET = 34;
 /** Largeur max de la barre d'échelle + segment de mesure (comme ScaleControl). */
 const SCALE_MAX_PX = 130;
 const SCALE_PROBE_PX = 100;
@@ -313,6 +319,17 @@ export function MapScreen() {
   const { basemap, toggle } = useBasemapStyle();
 
   /**
+   * LENTILLE Run / Bike (planche E14), persistée — PARITÉ STRICTE avec la
+   * variante native. En Bike, cet écran ne peint AUCUN territoire, AUCUN
+   * secteur, AUCUN widget, AUCUN état vide de course à pied : tout cela dérive
+   * de `hex_claims`, une table qui ne sait parler que de course à pied. Restent
+   * peints le FOND, le point « moi » et l'attribution — neutres vis-à-vis de
+   * l'activité.
+   */
+  const { activity } = useMapActivity();
+  const bike = activity === 'bike';
+
+  /**
    * Labels en langue LOCALE — PARITÉ NATIVE (le correctif « la map est en
    * anglais » n'existait que sur iPhone : localhost affichait Munich/Vienna là
    * où le device affiche München/Wien, et le fondateur en concluait que le
@@ -416,7 +433,8 @@ export function MapScreen() {
    * le peek mission démo actuel, étiqueté par la note de source.
    */
   const widget = useMemo(() => {
-    if (!isReal || territories === null) return null;
+    // Lentille Bike : le widget lit MES captures à pied — muet ici (E14).
+    if (bike || !isReal || territories === null) return null;
     const lastResult = getLastRunResult();
     const ob = lastResult?.openBoundary;
     return buildRealWidgetView({
@@ -431,7 +449,7 @@ export function MapScreen() {
     // Parité native : sans `locale`, le peek du HUD parlait français à tout le
     // monde (défaut de buildRealWidgetView).
     locale);
-  }, [isReal, territories, locale]);
+  }, [bike, isReal, territories, locale]);
 
   /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
   const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
@@ -454,27 +472,39 @@ export function MapScreen() {
   const paintedTerritories = territories ?? [];
   const layers = useMemo(
     () =>
-      battleGameLayers(
-        emph,
-        selectedParcours,
-        basemap,
-        selectedZoneId,
-        paintedTerritories,
-        sectorViews,
-      ),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      // Lentille Bike (E14) : AUCUNE couche de jeu. `[]` — et non « des couches
+      // vides » — pour qu'aucune frontière, aucun secteur, aucun accent de zone
+      // ne puisse apparaître sous une étiquette vélo. Parité stricte natif ↔ web.
+      bike
+        ? []
+        : battleGameLayers(
+            emph,
+            selectedParcours,
+            basemap,
+            selectedZoneId,
+            paintedTerritories,
+            sectorViews,
+          ),
+    [bike, emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
    * zoom. Vides tant qu'il n'y a rien de réel à dire — ce qui est le cas
    * aujourd'hui en production (0 capture ⇒ 0 secteur snapshoté).
    */
-  const sectorLayers = useMemo(() => sectorPointLayers(sectorViews, locale), [sectorViews, locale]);
+  const sectorLayers = useMemo(
+    () => (bike ? [] : sectorPointLayers(sectorViews, locale)),
+    [bike, sectorViews, locale],
+  );
 
-  /** Tap carte → zone tapée (null sur le vide = désélection). */
-  const onMapPress = useCallback((e: RealMapPressEvent) => {
-    setSelectedZoneId(e.zoneId ?? null);
-  }, []);
+  /** Tap carte → zone tapée (null sur le vide = désélection). En Bike aucune
+   *  zone n'est peinte, donc rien à sélectionner : le tap ne fait rien. */
+  const onMapPress = useCallback(
+    (e: RealMapPressEvent) => {
+      setSelectedZoneId(bike ? null : (e.zoneId ?? null));
+    },
+    [bike],
+  );
   /** Fermer la sheet de zone → carte nue (retour au peek mission). */
   const closeZone = useCallback(() => setSelectedZoneId(null), []);
 
@@ -493,15 +523,18 @@ export function MapScreen() {
   // donc un joueur connecté lisait « Pas encore connecté » le temps de la requête.
   // `loading` passe AVANT tout le reste : restauration de session ou lecture en
   // vol ⇒ on n'affirme RIEN (un état de chargement n'est pas un état vide).
-  const emptyState: MapEmptyState | null = loading
-    ? null
-    : failed
-      ? 'failed'
-      : signedOut
-        ? 'signed-out'
-        : territories !== null && territories.length === 0
-          ? 'empty'
-          : null;
+  // En Bike, aucun de ces trois états ne s'applique : ils décrivent la lecture
+  // des zones de COURSE À PIED. Le peek Bike parle à leur place (E14).
+  const emptyState: MapEmptyState | null =
+    bike || loading
+      ? null
+      : failed
+        ? 'failed'
+        : signedOut
+          ? 'signed-out'
+          : territories !== null && territories.length === 0
+            ? 'empty'
+            : null;
 
   const onEmptyAction = useCallback(() => {
     if (failed) {
@@ -513,7 +546,7 @@ export function MapScreen() {
 
   /** Zone tapée → VRAIE zone (hex_claims), jamais les étiquettes de ZONE_DETAILS. */
   const selectedZone: MapZoneView | null = useMemo(() => {
-    if (selectedZoneId === null || territories === null) return null;
+    if (bike || selectedZoneId === null || territories === null) return null;
     const found = territories.find((t) => t.props.territoryId === selectedZoneId);
     if (!found) return null;
     return {
@@ -521,7 +554,7 @@ export function MapScreen() {
       zones: found.zoneCount,
       areaKm2: found.props.areaM2 / 1_000_000,
     };
-  }, [selectedZoneId, territories]);
+  }, [bike, selectedZoneId, territories]);
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
@@ -564,7 +597,9 @@ export function MapScreen() {
             : null;
   const mapNote =
     locationNote ??
-    (loading || hudCarriesEmptyState
+    // En Bike non plus : la note parle des zones de COURSE À PIED, seule la
+    // localisation reste pertinente (parité stricte avec la variante native).
+    (bike || loading || hudCarriesEmptyState
       ? null
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
@@ -594,6 +629,16 @@ export function MapScreen() {
       mapRef.current?.flyTo({ ...EGO_CAMERA, lat: outcome.point.lat, lng: outcome.point.lng });
     })();
   };
+
+  /**
+   * ANCRE BASSE des mentions flottantes — parité stricte avec la variante
+   * native : haut du PEEK de la sheet ancrée (publié au snap), sinon le ras de
+   * la barre d'onglets quand aucune sheet n'est montée.
+   */
+  const sheetLayout = useMapSheetLayout();
+  const noteAnchor = sheetLayout.visible
+    ? sheetLayout.peekTopPx
+    : insets.bottom + NAV_BAR_HEIGHT;
 
   return (
     <View style={styles.root}>
@@ -632,7 +677,7 @@ export function MapScreen() {
         <Text
           style={[
             styles.dataNote,
-            { bottom: insets.bottom + RUN_BUTTON_BOTTOM + DATA_NOTE_ABOVE_RUN_BOTTOM },
+            { bottom: noteAnchor + DATA_NOTE_ABOVE_SHEET },
           ]}
           accessibilityRole="text"
         >
@@ -644,7 +689,7 @@ export function MapScreen() {
       <ScaleAttribution
         map={glMap}
         basemap={basemap}
-        bottom={insets.bottom + RUN_BUTTON_BOTTOM + SCALE_ABOVE_RUN_BOTTOM}
+        bottom={noteAnchor + SCALE_ABOVE_SHEET}
       />
 
       {/* ── HUD ÉCRAN MISSION (header 1 ligne, pill rival, card sticky + [Défendre],
@@ -665,6 +710,7 @@ export function MapScreen() {
         onToggleBasemap={toggle}
         map3d={map3d}
         onSetMap3d={setMap3d}
+        activity={activity}
       />
     </View>
   );

@@ -60,21 +60,35 @@ export const flags = {
    * Univers VÉLO (planche E14 : commutateur Run/Bike dans les en-têtes de Carte,
    * Classement, Historique et Statistiques).
    *
-   * FERMÉ EN DUR, et pas seulement masqué par FULL_SURFACE : contrairement à
-   * Saison/War Room/Arsenal — dont les moteurs TOURNENT et n'attendent qu'un flip
-   * de surface — le vélo n'existe NULLE PART sous l'écran. `runs` n'a aucune
-   * colonne de type d'activité (`source` ne vaut que gps|healthkit|strava|gpx),
-   * le profil de routage bike est refusé par game-rules, et aucun territoire ni
-   * classement n'est séparé par discipline. Ouvrir ce drapeau ne montrerait donc
-   * pas « le monde Bike » : il montrerait le monde Run sous une étiquette vélo —
-   * exactement la donnée fabriquée que la charte interdit.
+   * ─── OUVERT LE 25/07/2026, ET VOICI EXACTEMENT CE QUE ÇA VEUT DIRE ─────────
+   * Décision fondateur : « il n'y a pas le bouton pour choisir si c'est la map
+   * vélo ou la map running ». Le commutateur est donc VISIBLE sur la Carte, et
+   * il bascule RÉELLEMENT (préférence `gryd.mapactivity`, cf. map/mapPref.ts).
    *
-   * Il existe pour que le commutateur ait UNE source de vérité le jour où le
-   * chantier vélo (Spéc Unifiée §5.1-5.2) livrera vraiment les deux univers, et
-   * pour que d'ici là chaque écran puisse écrire `flags.bike` au lieu de
-   * réinventer une condition locale. Tant qu'il est faux, AUCUN commutateur
-   * n'est peint : la planche E14 le dit elle-même (« visible seulement quand
-   * Bike est activé » — masqué, jamais grisé).
+   * Ce drapeau n'affirme PAS que le vélo est implémenté. Il dit une seule chose :
+   * « la lentille Bike de la carte est offerte à l'utilisateur ». En mode Bike,
+   * la Carte n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement, et le
+   * bouton GO se retire — parce que le vélo n'existe toujours pas sous l'écran.
+   * L'univers Bike est HONNÊTEMENT VIDE et il le DIT (« Ta carte Bike commence
+   * ici · GRYD ne chronomètre pas encore le vélo »), au lieu de rejouer les
+   * données Run sous une étiquette vélo, ce qui serait la donnée fabriquée que
+   * la charte interdit.
+   *
+   * CE QUI RESTE À LIVRER avant que « Bike » veuille dire un vrai univers
+   * (Spéc Unifiée §5.1-5.2) — rien de tout ça n'existe aujourd'hui :
+   *   1. une COLONNE D'ACTIVITÉ sur `runs` (aujourd'hui `source` ne vaut que
+   *      gps|healthkit|strava|gpx : impossible de distinguer une sortie vélo) ;
+   *   2. un MOTEUR vélo : profil de routage (refusé par game-rules à ce jour),
+   *      seuils de vitesse/anti-abus propres au vélo, règles de capture ;
+   *   3. des TERRITOIRES et des CLASSEMENTS SÉPARÉS par discipline (§ séparation
+   *      stricte de la planche E14 : jamais Run + Bike dans une même lecture
+   *      compétitive, jamais sommés) ;
+   *   4. la propagation du commutateur aux autres surfaces de la planche
+   *      (Classement E11, Historique, Statistiques E18) — la Carte est seule
+   *      câblée pour l'instant.
+   * Tant que ces quatre points ne sont pas livrés, tout écran qui lit
+   * `flags.bike` doit rester dans la même discipline : montrer le VIDE et le
+   * NOMMER, jamais un contenu de remplacement.
    */
-  bike: false,
+  bike: true,
 } as const;

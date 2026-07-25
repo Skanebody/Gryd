@@ -35,12 +35,13 @@ import {
   type RealMapPressEvent,
   type RealMapRef,
 } from '../../ui/game';
-import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { NAV_BAR_HEIGHT } from '../nav/metrics';
 import {
   BattleMapOverlays,
   type MapEmptyState,
   type MapZoneView,
 } from './BattleMapOverlays';
+import { useMapSheetLayout } from './mapUiStore';
 import { useRealTerritories } from './hexClaims';
 import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
@@ -62,7 +63,7 @@ import {
   prefetchLocalizedBasemaps,
   subscribeBasemapSpecs,
 } from './mapStyle';
-import { useBasemapStyle, useMap3d } from './mapPref';
+import { useBasemapStyle, useMap3d, useMapActivity } from './mapPref';
 import { CITY_SCALE_ZOOM, EGO_CAMERA, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
@@ -89,10 +90,16 @@ const EGO_PULSE_MS = 2_000;
 /** Point « moi » (dot chartreuse cerclé) + halo. */
 const EGO_DOT_SIZE = 14;
 const EGO_HALO_SIZE = 40;
-/** L'attribution flotte au-dessus de la nav (le bas de carte est couvert). */
-const ATTRIBUTION_ABOVE_RUN_BOTTOM = 6;
+/**
+ * L'attribution flotte au-dessus du PEEK de la sheet (obligation légale : elle
+ * ne doit jamais finir masquée). Depuis que la sheet est COLLÉE au bas (planche
+ * E02), son ancre n'est plus `RUN_BUTTON_BOTTOM` mais le haut du peek, publié
+ * par BattleMapOverlays (`useMapSheetLayout`). Sans sheet visible, elle retombe
+ * au ras de la barre d'onglets.
+ */
+const ATTRIBUTION_ABOVE_SHEET = 6;
 /** La note d'honnêteté (P0.2) se pose juste au-dessus de l'attribution. */
-const DATA_NOTE_ABOVE_RUN_BOTTOM = 22;
+const DATA_NOTE_ABOVE_SHEET = 22;
 
 // AMENDEMENT-21 : la Carte est un ÉCRAN MISSION. Les contrôles flottants (fond
 // dark/couleur + calques de lecture) vivent DANS le menu « Calques » du HUD
@@ -257,6 +264,17 @@ export function MapScreen() {
   const { basemap, toggle } = useBasemapStyle();
 
   /**
+   * LENTILLE Run / Bike (planche E14), persistée. En Bike, cet écran ne peint
+   * AUCUN territoire, AUCUN secteur, AUCUN widget, AUCUN état vide de course à
+   * pied : tout cela dérive de `hex_claims`, une table qui ne sait parler que de
+   * course à pied. Le montrer sous étiquette vélo serait exactement la donnée
+   * fabriquée que la charte interdit. Restent peints le FOND de carte, le point
+   * « moi » et l'attribution — neutres vis-à-vis de l'activité.
+   */
+  const { activity } = useMapActivity();
+  const bike = activity === 'bike';
+
+  /**
    * Labels en langue LOCALE (retour terrain : « la map est en anglais ») : on
    * précharge les styles CARTO patchés (name_en→name) et on REMONTE la carte
    * (via sa key) quand la spec localisée est prête — un swap à chaud perdrait
@@ -354,7 +372,8 @@ export function MapScreen() {
    * le peek mission démo actuel, étiqueté par la note de source.
    */
   const widget = useMemo(() => {
-    if (!isReal || territories === null) return null;
+    // Lentille Bike : le widget lit MES captures à pied — muet ici (E14).
+    if (bike || !isReal || territories === null) return null;
     const lastResult = getLastRunResult();
     const ob = lastResult?.openBoundary;
     return buildRealWidgetView({
@@ -370,7 +389,7 @@ export function MapScreen() {
     // le peek du HUD parlait français à un joueur en de/es/pt/en, alors même que
     // la note d'honnêteté juste en dessous, elle, était traduite.
     locale);
-  }, [isReal, territories, locale]);
+  }, [bike, isReal, territories, locale]);
 
   /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
   const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
@@ -394,27 +413,39 @@ export function MapScreen() {
   const paintedTerritories = territories ?? [];
   const layers = useMemo(
     () =>
-      battleGameLayers(
-        emph,
-        selectedParcours,
-        basemap,
-        selectedZoneId,
-        paintedTerritories,
-        sectorViews,
-      ),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      // Lentille Bike (E14) : AUCUNE couche de jeu. `[]` — et non « des couches
+      // vides » — pour qu'aucune frontière, aucun secteur, aucun accent de zone
+      // ne puisse apparaître sous une étiquette vélo.
+      bike
+        ? []
+        : battleGameLayers(
+            emph,
+            selectedParcours,
+            basemap,
+            selectedZoneId,
+            paintedTerritories,
+            sectorViews,
+          ),
+    [bike, emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
    * zoom. Vides tant qu'il n'y a rien de réel à dire — ce qui est le cas
    * aujourd'hui en production (0 capture ⇒ 0 secteur snapshoté).
    */
-  const sectorLayers = useMemo(() => sectorPointLayers(sectorViews, locale), [sectorViews, locale]);
+  const sectorLayers = useMemo(
+    () => (bike ? [] : sectorPointLayers(sectorViews, locale)),
+    [bike, sectorViews, locale],
+  );
 
-  /** Tap carte → zone tapée (null sur le vide = désélection). */
-  const onMapPress = useCallback((e: RealMapPressEvent) => {
-    setSelectedZoneId(e.zoneId ?? null);
-  }, []);
+  /** Tap carte → zone tapée (null sur le vide = désélection). En Bike aucune
+   *  zone n'est peinte, donc rien à sélectionner : le tap ne fait rien. */
+  const onMapPress = useCallback(
+    (e: RealMapPressEvent) => {
+      setSelectedZoneId(bike ? null : (e.zoneId ?? null));
+    },
+    [bike],
+  );
   /** Fermer la sheet de zone → carte nue (retour au peek mission). */
   const closeZone = useCallback(() => setSelectedZoneId(null), []);
 
@@ -455,15 +486,18 @@ export function MapScreen() {
   // donc un joueur connecté lisait « Pas encore connecté » le temps de la requête.
   // `loading` passe AVANT tout le reste : restauration de session ou lecture en
   // vol ⇒ on n'affirme RIEN (un état de chargement n'est pas un état vide).
-  const emptyState: MapEmptyState | null = loading
-    ? null
-    : failed
-      ? 'failed'
-      : signedOut
-        ? 'signed-out'
-        : territories !== null && territories.length === 0
-          ? 'empty'
-          : null;
+  // En Bike, aucun de ces trois états ne s'applique : ils décrivent la lecture
+  // des zones de COURSE À PIED. Le peek Bike parle à leur place (E14).
+  const emptyState: MapEmptyState | null =
+    bike || loading
+      ? null
+      : failed
+        ? 'failed'
+        : signedOut
+          ? 'signed-out'
+          : territories !== null && territories.length === 0
+            ? 'empty'
+            : null;
 
   /** « Se connecter » / « Réessayer » — la seule action de l'état vide. */
   const onEmptyAction = useCallback(() => {
@@ -481,7 +515,7 @@ export function MapScreen() {
    * (jamais un repli sur les étiquettes de scénario de ZONE_DETAILS).
    */
   const selectedZone: MapZoneView | null = useMemo(() => {
-    if (selectedZoneId === null || territories === null) return null;
+    if (bike || selectedZoneId === null || territories === null) return null;
     const found = territories.find((t) => t.props.territoryId === selectedZoneId);
     if (!found) return null;
     return {
@@ -489,7 +523,7 @@ export function MapScreen() {
       zones: found.zoneCount,
       areaKm2: found.props.areaM2 / 1_000_000,
     };
-  }, [selectedZoneId, territories]);
+  }, [bike, selectedZoneId, territories]);
 
   /**
    * §A — 1 écran = 1 décision : quand le peek du HUD porte DÉJÀ l'état vide (sa
@@ -527,8 +561,9 @@ export function MapScreen() {
   const mapNote =
     locationNote ??
     // Lecture en cours : on ne dit RIEN du territoire (ni « pas connecté », ni
-    // « aucune zone ») tant qu'on n'a pas la réponse.
-    (loading || hudCarriesEmptyState
+    // « aucune zone ») tant qu'on n'a pas la réponse. En Bike non plus : la note
+    // parle des zones de COURSE À PIED, la localisation seule reste pertinente.
+    (bike || loading || hudCarriesEmptyState
       ? null
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
@@ -565,6 +600,24 @@ export function MapScreen() {
     })();
   };
 
+  /**
+   * ANCRE BASSE des mentions flottantes. La sheet est désormais COLLÉE au bas
+   * (planche E02) : s'accrocher à `RUN_BUTTON_BOTTOM` les enverrait DERRIÈRE
+   * elle. On lit donc le haut de son PEEK (ancre stable, publiée au snap) et on
+   * retombe au ras de la barre d'onglets quand aucune sheet n'est montée.
+   *
+   * Pourquoi le PEEK et pas le palier COURANT : l'attribution doit être LISIBLE
+   * au repos, et c'est ce que garantit une ancre fixe. La suivre jusqu'au palier
+   * 90 % la pousserait sous la barre d'état — et de toute façon la sheet, rendue
+   * après elle, la recouvrirait. Un panneau que l'utilisateur DÉPLOIE lui-même
+   * masque temporairement le bas de la carte : c'est le comportement attendu
+   * d'une sheet, et il se défait d'un geste.
+   */
+  const sheetLayout = useMapSheetLayout();
+  const noteAnchor = sheetLayout.visible
+    ? sheetLayout.peekTopPx
+    : insets.bottom + NAV_BAR_HEIGHT;
+
   return (
     <View style={styles.root}>
       {/* ── Vraies tuiles MONDE + couches de jeu + markers (RealMap) ──
@@ -596,10 +649,7 @@ export function MapScreen() {
           pill est une PHRASE, pas un bouton (pointerEvents none, aucun tap). ── */}
       {mapNote !== null && (
         <View
-          style={[
-            styles.dataNote,
-            { bottom: insets.bottom + RUN_BUTTON_BOTTOM + DATA_NOTE_ABOVE_RUN_BOTTOM },
-          ]}
+          style={[styles.dataNote, { bottom: noteAnchor + DATA_NOTE_ABOVE_SHEET }]}
           pointerEvents="none"
         >
           <Text
@@ -617,10 +667,7 @@ export function MapScreen() {
           dérivée du fond actif : © OpenStreetMap © CARTO sur dark/color, ©
           Esri, Maxar, Earthstar Geographics sur satellite (AMENDEMENT-28). ── */}
       <Text
-        style={[
-          styles.attribution,
-          { bottom: insets.bottom + RUN_BUTTON_BOTTOM + ATTRIBUTION_ABOVE_RUN_BOTTOM },
-        ]}
+        style={[styles.attribution, { bottom: noteAnchor + ATTRIBUTION_ABOVE_SHEET }]}
         accessibilityRole="text"
       >
         {basemapAttribution(basemap)}
@@ -644,6 +691,7 @@ export function MapScreen() {
         onToggleBasemap={toggle}
         map3d={map3d}
         onSetMap3d={setMap3d}
+        activity={activity}
       />
     </View>
   );

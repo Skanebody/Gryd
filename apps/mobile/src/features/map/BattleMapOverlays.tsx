@@ -19,6 +19,17 @@
  * étiquettes Paris/Lille/Lyon, ZÉRO ranking européen fabriqué ; le CLAIM reste
  * tranché SERVEUR (on n'AFFICHE que des étiquettes).
  *
+ * PLANCHE E02 (retour fondateur 25/07/2026) — la sheet est désormais ANCRÉE :
+ * collée juste au-dessus de la barre d'onglets (plus de trou de 91 px), pleine
+ * largeur, poignée visible, TIRABLE au geste vers 52 % puis 90 % de l'ÉCRAN avec
+ * accrochage (`MapAnchoredSheet` + géométrie pure `sheetSnap.ts`). Le CONTENANT
+ * change ; la VÉRITÉ du contenu (territoire non chargé / vide / lecture en cours
+ * / pas connecté) est strictement conservée.
+ *
+ * PLANCHE E14 — commutateur Run/Bike : la prop `activity` choisit la LENTILLE.
+ * En Bike, l'écran n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement
+ * (le vélo n'existe pas encore sous l'écran) — le peek Bike le DIT.
+ *
  * Vocabulaire TERRITOIRES ORGANIQUES (zones/frontières/rues — jamais hexagone).
  * Anti pay-to-win : le serveur tranche territoire et récompenses ; km/pts/% sont
  * des labels de scénario (demo.ts). Reduce motion respecté (snap direct de la
@@ -26,8 +37,14 @@
  * Events : screen('map_sheet_open') (options mission) / screen('map_zone_open')
  * (sheet de zone) / screen('map_zone_details') (« Plus ») / screen('map_zone_act').
  */
-import { useCallback, useEffect, useState } from 'react';
-import { setZoneSheetOpen, setMapHudHidden, useMapHudHidden } from './mapUiStore';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  clearMapSheetLayout,
+  setMapHudHidden,
+  setMapSheetLayout,
+  setZoneSheetOpen,
+  useMapHudHidden,
+} from './mapUiStore';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,8 +55,11 @@ import type { Entry, Locale } from '../../i18n/types';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
-import { Map3DToggle, MapBottomSheet, type MapSheetState } from '../../ui/game';
-import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { Map3DToggle } from '../../ui/game';
+import { NAV_BAR_HEIGHT } from '../nav/metrics';
+import { MapAnchoredSheet } from './MapAnchoredSheet';
+import { mapSheetStops, type MapSheetStop } from './sheetSnap';
+import type { MapActivity } from './mapPref';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
@@ -94,8 +114,6 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
   satellite: 'calques',
 };
 
-/** Dégagement du peek au-dessus de la barre de nav. */
-const SHEET_ABOVE_RUN_BUTTON = 12;
 /** Pile de FABs : dégagement au-dessus de la sheet visible. */
 const FAB_ABOVE_SHEET = 12;
 /**
@@ -130,6 +148,12 @@ const REAL_ZONE_SHEET_RIVAL_HEIGHT = REAL_ZONE_SHEET_COMPACT_HEIGHT + 62;
  */
 const EMPTY_PEEK_HEIGHT = 104;
 const EMPTY_PEEK_WITH_CTA_HEIGHT = 140;
+/**
+ * Hauteur du peek BIKE (planche E14) : titre + la phrase d'honnêteté (2 lignes)
+ * + la ligne de rassurance. Aucun CTA — GRYD ne chronomètre pas encore le vélo,
+ * un bouton ici serait un bouton mort.
+ */
+const BIKE_PEEK_HEIGHT = 128;
 
 /**
  * ÉTAT VIDE de la carte (O1 — vitrine OFF par défaut). Trois cas qui n'ont PAS
@@ -237,6 +261,14 @@ export interface BattleMapOverlaysProps {
    * de Valmy, Lille Centre… — des étiquettes de scénario).
    */
   zone?: MapZoneView | null;
+  /**
+   * LENTILLE de la carte (planche E14) — 'run' par défaut. En 'bike', l'écran
+   * n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement : le vélo
+   * n'existe pas encore sous l'écran, et rejouer les données Run sous une
+   * étiquette vélo serait la donnée fabriquée que la charte interdit. La sheet
+   * porte alors le peek Bike, qui le DIT.
+   */
+  activity?: MapActivity;
 }
 
 export function BattleMapOverlays({
@@ -255,6 +287,7 @@ export function BattleMapOverlays({
   zone = null,
   map3d,
   onSetMap3d,
+  activity = 'run',
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -262,12 +295,25 @@ export function BattleMapOverlays({
   const locale = useLocale();
   /** « Carte nue » : l'utilisateur a masqué tout le HUD (rangée du menu Calques). */
   const hudHidden = useMapHudHidden();
+  /**
+   * LENTILLE BIKE (planche E14) : aucun territoire, aucune mission, aucun
+   * classement de course à pied n'est affiché — on ne rejoue pas les données Run
+   * sous une étiquette vélo. Le peek Bike prend toute la place et DIT le vide.
+   */
+  const bike = activity === 'bike';
   // Peek MISSION persistant (§8) : `sheet.initial` distingue le PEEK (compact)
   // de l'état OUVERT (les options), remonté par « Voir les options » (remount
   // key + initialState — snap, façon reduce motion).
-  const [sheet, setSheet] = useState<{ key: number; initial: MapSheetState }>({
-    key: 0,
-    initial: 'compact',
+  const [sheet, setSheet] = useState<{ key: number }>({ key: 0 });
+  /**
+   * Palier ATTEINT par la sheet ancrée. Écrit au SNAP uniquement (jamais par
+   * frame) : c'est lui qui pilote le morph du bouton GO — pill au-dessus de la
+   * nav quand la sheet est compacte, rond ancré au bord haut de la sheet quand
+   * elle est déployée (planche E02).
+   */
+  const [sheetStop, setSheetStop] = useState<{ stop: MapSheetStop; heightPx: number }>({
+    stop: 'compact',
+    heightPx: 0,
   });
   /**
    * Menu « Calques » (fond + vue + carte nue + calques de lecture) — fermé par
@@ -286,7 +332,7 @@ export function BattleMapOverlays({
    * Une zone tapée sans donnée (`zone` null) n'ouvre RIEN : on ne remplit pas le
    * vide avec un scénario.
    */
-  const zoneOpen = selectedZoneId != null && zone != null;
+  const zoneOpen = !bike && selectedZoneId != null && zone != null;
 
   // Chaque entrée sur la Carte repart de la CARTE + peek mission : on referme le
   // menu Calques, ramène le peek en compact ET désélectionne la zone (retour au
@@ -294,7 +340,10 @@ export function BattleMapOverlays({
   useFocusEffect(
     useCallback(() => {
       setLayersOpen(false);
-      setSheet((s) => ({ key: s.key + 1, initial: 'compact' }));
+      // Remount de la sheet = retour au palier compact (la géométrie repart de
+      // zéro, sans animation « collante » entre deux entrées sur l'onglet).
+      setSheet((s) => ({ key: s.key + 1 }));
+      setSheetStop({ stop: 'compact', heightPx: 0 });
       onCloseZone?.();
       // « Repart de la carte » inclut le HUD : chaque entrée sur l'onglet réaffiche
       // les infos (pas de carte nue « collante » qui semblerait un écran cassé).
@@ -315,8 +364,17 @@ export function BattleMapOverlays({
     if (zoneOpen && selectedZoneId) screen('map_zone_open', { zone: selectedZoneId });
   }, [zoneOpen, selectedZoneId]);
 
-  /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
-  const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
+  /**
+   * ANCRAGE DE LA SHEET (planche E02, retour fondateur 25/07 : « l'onglet
+   * territoire non chargé doit se déployer en swipe et être collé au menu en
+   * bas »). Elle se pose JUSTE au-dessus de la barre d'onglets — plus de trou de
+   * 91 px entre elle et la nav. Elle ne passe jamais SOUS la barre : le
+   * dégagement est exactement `insets.bottom + NAV_BAR_HEIGHT`.
+   *
+   * (Avant : `insets.bottom + RUN_BUTTON_BOTTOM + 12`, soit 152 px de vide — le
+   * bouton GO occupait ce trou, et la sheet flottait au milieu de la carte.)
+   */
+  const sheetBottom = insets.bottom + NAV_BAR_HEIGHT;
   // « Carte nue » masque le HUD : ligne mission (haut, index.tsx) + sheet du bas.
   // Les 2 FABs permanents (Recentrer + Calques) RESTENT visibles même en carte nue :
   // le FAB Calques rouvre le menu, dont la rangée « Carte nue » (active) ramène tout.
@@ -327,28 +385,87 @@ export function BattleMapOverlays({
    * cours) : une phrase démentie une seconde plus tard reste une phrase fausse.
    * La sheet elle-même se retire alors, plutôt que de laisser un cadre vide.
    */
-  const showEmptyPeek = widget === null && emptyState !== null;
-  const missionSheetVisible = widget !== null || showEmptyPeek;
+  /**
+   * MODE BIKE (planche E14) : le peek Bike REMPLACE tout le reste. Il ne
+   * cohabite avec aucun état Run — ni widget, ni état vide, ni sheet de zone :
+   * MapScreen n'envoie déjà plus rien de tout ça en Bike (aucun territoire n'est
+   * peint), et ce garde-fou local rend l'invariant lisible ici aussi.
+   */
+  const showEmptyPeek = !bike && widget === null && emptyState !== null;
+  const missionSheetVisible = bike || widget !== null || showEmptyPeek;
   const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
-  /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav.
-   *  Chaque état a SA hauteur : le peek épouse son contenu au lieu de laisser un
-   *  vide sous le texte (un blanc se lit comme un écran cassé — §A). */
+  /** Hauteur du CONTENU compact : le peek épouse son contenu, jamais tronqué (§A9). */
   // Hauteur de la sheet de zone selon le rôle (rival = + CTA REPRENDRE).
   const zoneSheetHeight =
     zone?.role === 'rival' ? REAL_ZONE_SHEET_RIVAL_HEIGHT : REAL_ZONE_SHEET_COMPACT_HEIGHT;
-  const activeCompactHeight = zoneOpen
-    ? zoneSheetHeight
-    : showEmptyPeek
-      ? emptyState === 'empty'
-        ? EMPTY_PEEK_HEIGHT
-        : EMPTY_PEEK_WITH_CTA_HEIGHT
-      : MISSION_PEEK_COMPACT_HEIGHT;
-  const fabBottom = sheetVisible ? sheetBottom + activeCompactHeight + FAB_ABOVE_SHEET : sheetBottom;
+  const peekContentHeight = bike
+    ? BIKE_PEEK_HEIGHT
+    : zoneOpen
+      ? zoneSheetHeight
+      : showEmptyPeek
+        ? emptyState === 'empty'
+          ? EMPTY_PEEK_HEIGHT
+          : EMPTY_PEEK_WITH_CTA_HEIGHT
+        : MISSION_PEEK_COMPACT_HEIGHT;
+
+  const { height: winH } = useWindowDimensions();
+  /**
+   * La sheet de ZONE et le peek BIKE n'ont pas de contenu déployé : ce sont des
+   * panneaux FIXES (`['compact']`) — une poignée qui n'ouvrirait sur rien serait
+   * un contrôle mort. Le peek mission, lui, porte le bloc « Détails » : il est
+   * TIRABLE aux trois paliers de la planche (29 % / 52 % / 90 % de l'écran).
+   */
+  const sheetDraggable = !bike && !zoneOpen;
+  const sheetGeometry = useMemo(
+    () =>
+      mapSheetStops({
+        screenH: winH,
+        bottomInset: insets.bottom,
+        navBarH: NAV_BAR_HEIGHT,
+        peekMinHeight: peekContentHeight,
+        stops: sheetDraggable ? undefined : ['compact'],
+        // Un panneau FIXE épouse son contenu : sans geste pour le déployer, une
+        // bande carbone vide sous le texte se lirait comme un écran cassé (§A).
+        hugContent: !sheetDraggable,
+      }),
+    [winH, insets.bottom, peekContentHeight, sheetDraggable],
+  );
+
+  /**
+   * Publie la géométrie aux DEUX surfaces qui vivent hors de cet arbre : le
+   * bouton GO (morph pill ⇄ rond) et, dans MapScreen, l'attribution légale + la
+   * note d'état — qui doivent se recaler AU-DESSUS d'une sheet désormais collée
+   * au bas. Écrit au SNAP uniquement : publier une hauteur par frame re-rendrait
+   * MapScreen 60 fois par seconde et la caméra MapLibre se ré-appliquerait
+   * par-dessus le geste (retour terrain « le zoom revient en arrière »).
+   */
+  useEffect(() => {
+    // `heightPx` vient de la sheet elle-même : elle peut avoir PLAFONNÉ ses
+    // paliers à son contenu réel, une hauteur que le parent ne sait pas déduire.
+    // Tant qu'elle n'a rien reporté (0), on retombe sur le palier compact calculé.
+    const height = sheetStop.heightPx > 0 ? sheetStop.heightPx : sheetGeometry.heights.compact;
+    setMapSheetLayout({
+      visible: sheetVisible,
+      expanded: sheetVisible && sheetStop.stop !== 'compact',
+      topPx: sheetBottom + (sheetVisible ? height : 0),
+      peekTopPx: sheetBottom + (sheetVisible ? sheetGeometry.heights.compact : 0),
+    });
+  }, [sheetVisible, sheetStop, sheetGeometry, sheetBottom]);
+
+  // Remise à zéro au DÉMONTAGE seulement (bascule d'onglet). La mettre en
+  // nettoyage de l'effet ci-dessus la ferait passer par « aucune sheet » à chaque
+  // changement de palier — le bouton GO clignoterait en pill entre deux états.
+  useEffect(() => clearMapSheetLayout, []);
+
+  /** Bas de la pile de FABs : au-dessus du PEEK (ancre stable — ils ne dansent
+   *  pas au rythme du geste), sinon au ras de la barre d'onglets. */
+  const fabBottom = sheetVisible
+    ? sheetBottom + sheetGeometry.heights.compact + FAB_ABOVE_SHEET
+    : sheetBottom;
 
   // Le menu Calques s'ouvre AU-DESSUS de la pile de FABs. On PLAFONNE sa hauteur à
   // l'espace libre entre le HUD du haut (secteur + ligne mission) et le sommet des
   // FABs → il défile au lieu de recouvrir « République attaquée » (retour fondateur).
-  const { height: winH } = useWindowDimensions();
   const layerMenuMaxHeight = Math.max(
     120,
     winH - insets.top - TOP_HUD_CLEARANCE - fabBottom - FAB_STACK_HEIGHT,
@@ -438,6 +555,7 @@ export function BattleMapOverlays({
             onSetMap3d={onSetMap3d}
             hudHidden={hudHidden}
             onToggleHud={toggleHud}
+            showReadingLayers={!bike}
           />
         ) : null}
         {/* CAPSULE (planche E02/E03) : les 2 FABs permanents groupés dans une
@@ -465,29 +583,44 @@ export function BattleMapOverlays({
         </View>
       </View>
 
-      {/* ── Sheet du bas : la sheet de ZONE tapée REMPLACE le peek mission
-          (§3) ; sinon le peek MISSION persistant (§8). Une seule sheet à la
+      {/* ── Sheet du bas, COLLÉE au-dessus de la barre d'onglets (planche E02) :
+          la sheet de ZONE tapée REMPLACE le peek mission (§3) ; sinon le peek
+          MISSION persistant (§8), tirable aux 3 paliers. Une seule sheet à la
           fois = 1 seul gros CTA à la fois (anti double-CTA §A.4). ── */}
       <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
         {zoneOpen && zone ? (
-          /* VRAIE zone tapée : ce que hex_claims sait dire, rien de plus. Aucun
-             CTA ici — le bouton GO flottant reste l'unique CTA chartreuse (§A.4),
-             et « défendre » sans mission réelle serait un verbe creux. */
-          <MapBottomSheet
+          /* VRAIE zone tapée : ce que hex_claims sait dire, rien de plus. Panneau
+             FIXE (rien à déployer) ; son CTA REPRENDRE est alors l'unique CTA
+             chartreuse de l'écran — GO se retire (useZoneSheetOpen, §A.4). */
+          <MapAnchoredSheet
             key={`realzone-${selectedZoneId}`}
-            initialState="compact"
-            compactHeight={zoneSheetHeight}
-            compactSlot={<RealZonePeek zone={zone} onClose={closeZone} />}
+            geometry={sheetGeometry}
+            peek={<RealZonePeek zone={zone} onClose={closeZone} />}
+            testID="map-zone-sheet"
           />
-        ) : hudHidden || !missionSheetVisible ? null : (
-          <MapBottomSheet
+        ) : hudHidden || !missionSheetVisible ? null : bike ? (
+          /* MODE BIKE (planche E14) : la carte vierge ASSUME. Panneau fixe, aucun
+             CTA — GRYD ne chronomètre pas encore le vélo, et un bouton ici serait
+             un bouton mort. Zéro territoire, zéro mission, zéro classement Run
+             sous étiquette vélo. */
+          <MapAnchoredSheet
+            key="bike-start"
+            geometry={sheetGeometry}
+            peek={<BikeStartPeek />}
+            testID="map-bike-sheet"
+          />
+        ) : (
+          <MapAnchoredSheet
             key={`mission-${sheet.key}`}
-            initialState={sheet.initial}
-            compactHeight={activeCompactHeight}
-            onStateChange={(state) => {
-              if (state !== 'compact') screen('map_sheet_open', { state });
+            geometry={sheetGeometry}
+            testID="map-mission-sheet"
+            onStopChange={(stop, heightPx) => {
+              setSheetStop({ stop, heightPx });
+              // Event §8 : uniquement un DÉPLOIEMENT (le report de montage vaut
+              // 'compact' et ne doit pas compter pour une ouverture).
+              if (stop !== 'compact') screen('map_sheet_open', { state: stop });
             }}
-            compactSlot={
+            peek={
               widget ? (
                 <TerritoryWidgetPeek
                   view={widget}
@@ -499,7 +632,7 @@ export function BattleMapOverlays({
                 <EmptyPeek state={emptyState ?? 'signed-out'} onAction={onEmptyAction} />
               )
             }
-            openSlot={
+            expanded={
               <View style={styles.openBlock}>
                 {/* SITUATION / PARCOURS / ÉQUIPE ont été RETIRÉS (21/07/2026) :
                     tous trois sortaient de `demo.ts` (MAP_MISSION_SUMMARY,
@@ -663,6 +796,45 @@ function EmptyPeek({
 }
 
 /**
+ * PEEK BIKE (planche E14) — « Première bascule vers Bike : la carte vierge
+ * assume "Votre carte Bike commence ici", jamais un écran vide. »
+ *
+ * C'est le point d'honnêteté de tout le commutateur. Le vélo n'existe pas encore
+ * sous l'écran : `runs` n'a aucune colonne de type d'activité, le profil de
+ * routage bike est refusé par game-rules, et aucun territoire ni classement
+ * n'est séparé par discipline. On n'affiche donc NI territoire, NI mission, NI
+ * classement — et surtout pas ceux du Run sous une étiquette vélo. On DIT ce
+ * qu'il n'y a pas, et on rassure sur ce qui reste (les zones à pied, intactes).
+ *
+ * AUCUNE ACTION ici : lancer une « course vélo » qui serait enregistrée comme
+ * une course à pied serait un mensonge, et un bouton qui échoue toujours est
+ * interdit. Le bouton GO se retire dans cette lentille (cf. app/(tabs)/index.tsx).
+ */
+function BikeStartPeek() {
+  const t = useT();
+  return (
+    <View style={styles.info}>
+      <View style={styles.peekHead}>
+        {/* Barre GRISE : rien n'est à moi ici — la chartreuse dit « à moi » (§C). */}
+        <View style={styles.emptyBar} />
+        <View style={styles.rowBody}>
+          <Text style={styles.peekTitle} numberOfLines={1} adjustsFontSizeToFit>
+            {t(C.bikeStartTitle)}
+          </Text>
+        </View>
+      </View>
+      {/* La phrase d'honnêteté : 2 lignes autorisées, jamais coupée (§A9). */}
+      <Text style={styles.peekMeta} numberOfLines={2}>
+        {t(C.bikeStartLine)}
+      </Text>
+      <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
+        {t(C.bikeStartRunSafe)}
+      </Text>
+    </View>
+  );
+}
+
+/**
  * PEEK d'une VRAIE zone tapée (hex_claims). Volontairement pauvre : la table ne
  * porte ni nom de quartier, ni crew, ni part de contrôle, ni pression rivale —
  * on affiche donc UNIQUEMENT ce qu'on sait (rôle, nombre de zones, surface) et
@@ -753,6 +925,7 @@ function LayerMenu({
   onSetMap3d,
   hudHidden,
   onToggleHud,
+  showReadingLayers = true,
 }: {
   /** Plafond de hauteur : au-delà, le menu défile (ne recouvre pas le HUD haut). */
   maxHeight?: number;
@@ -766,6 +939,14 @@ function LayerMenu({
   hudHidden: boolean;
   /** Bascule « Carte nue » (masque/affiche le HUD) — referme le menu pour la voir. */
   onToggleHud: () => void;
+  /**
+   * Section « CALQUES » (territoire, défense, rival…) — masquée en mode Bike :
+   * ces calques lisent des territoires de COURSE À PIED, qui ne sont pas peints
+   * dans cette lentille. Les proposer là serait offrir six bascules sans effet,
+   * c'est-à-dire six boutons morts. Le FOND et la VUE, eux, sont neutres vis-à-vis
+   * de l'activité : ils restent.
+   */
+  showReadingLayers?: boolean;
 }) {
   const t = useT();
   return (
@@ -840,30 +1021,34 @@ function LayerMenu({
           {t(C.hudRowLabel)}
         </Text>
       </Pressable>
-      <View style={styles.layerDivider} />
-      <Text style={styles.layerHeading}>{t(C.headingLayers)}</Text>
-      {MAP_MODE_ORDER.map((key) => {
-        const on = active === key;
-        return (
-          <Pressable
-            key={key}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={t(C.layerA11y, { label: t(MODE_CHIP_ENTRIES[key]) })}
-            onPress={() => onSelect(key)}
-            style={({ pressed }) => [
-              styles.layerItem,
-              on && styles.layerItemActive,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Icon name={MAP_MODE_ICON[key]} size={15} color={MODE_COLOR[key]} active={on} />
-            <Text style={[styles.layerLabel, on && styles.layerLabelActive]} numberOfLines={1}>
-              {t(MODE_CHIP_ENTRIES[key])}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {showReadingLayers ? (
+        <>
+          <View style={styles.layerDivider} />
+          <Text style={styles.layerHeading}>{t(C.headingLayers)}</Text>
+          {MAP_MODE_ORDER.map((key) => {
+            const on = active === key;
+            return (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={t(C.layerA11y, { label: t(MODE_CHIP_ENTRIES[key]) })}
+                onPress={() => onSelect(key)}
+                style={({ pressed }) => [
+                  styles.layerItem,
+                  on && styles.layerItemActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Icon name={MAP_MODE_ICON[key]} size={15} color={MODE_COLOR[key]} active={on} />
+                <Text style={[styles.layerLabel, on && styles.layerLabelActive]} numberOfLines={1}>
+                  {t(MODE_CHIP_ENTRIES[key])}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </>
+      ) : null}
     </ScrollView>
   );
 }
@@ -926,7 +1111,11 @@ const styles = StyleSheet.create({
   layerLabel: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
   layerLabelActive: { color: gameColors.crew },
 
-  // Le wrapper CLIPPE la sheet (elle glisse vers le bas à la fermeture).
+  // Le wrapper CLIPPE la sheet : sa hauteur totale vaut le palier le plus ouvert,
+  // et la part qui dépasse sous le palier courant est masquée ici. Son bord bas
+  // est collé AU-DESSUS de la barre d'onglets (`bottom: sheetBottom`) — le
+  // bouton GO, lui, vit HORS de ce wrapper (app/(tabs)/index.tsx) : c'est ce qui
+  // lui permet de chevaucher le bord haut de la sheet sans être tronqué.
   sheetWrap: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' },
 
   // ── Contenu du peek (mission / zone) : posé directement, pas de sous-card ──
@@ -1037,12 +1226,16 @@ const styles = StyleSheet.create({
   },
 
   // « Voir les options » / « Plus » — lien discret (jamais un 2ᵉ CTA).
-  optionsHit: { minHeight: 44, justifyContent: 'center', marginTop: 2 },
+  // ALIGNÉ À GAUCHE et à la largeur de son texte (planche E02) : le bouton GO
+  // flotte au-dessus du coin bas-DROIT du peek compact ; un lien pleine largeur
+  // lui aurait glissé sa zone de tap sous le pouce — invisible à l'œil, mais un
+  // tap volé. Le lien s'aligne d'ailleurs désormais sur le reste du peek.
+  optionsHit: { minHeight: 44, justifyContent: 'center', marginTop: 2, alignSelf: 'flex-start' },
   optionsLink: {
     color: colors.gris,
     fontSize: 13,
     textDecorationLine: 'underline',
-    textAlign: 'center',
+    textAlign: 'left',
   },
 
   // ── État OUVERT : les options (Situation / Parcours / Équipe / Détails) ──

@@ -8,9 +8,10 @@
  * E02/E03/E15 et se traduit dans les 5 langues. « Crew » reste invariant (jamais
  * traduit). Ils vivaient auparavant en dur (« Moi »), donc jamais traduits.
  *
- * Le DÉPART de course n'est PLUS dans la nav (override fondateur) : c'est un GESTE
- * « glisser pour courir » (SlideToStart) rendu UNIQUEMENT sur la Carte. La barre
- * reste donc un simple rang d'onglets, régulièrement espacés.
+ * Le DÉPART de course n'est PAS dans la nav (override fondateur) : c'est le
+ * bouton GO, rendu UNIQUEMENT sur la Carte — pill au-dessus de cette barre quand
+ * la sheet est compacte, rond ancré au bord haut de la sheet quand elle est
+ * déployée (planche E02). La barre reste un simple rang d'onglets espacés.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';

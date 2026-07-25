@@ -46,7 +46,11 @@ export const C = defineCatalog({
     pt: 'Perfil',
   },
 
-  // ── SlideToStart — libellé lecteur d'écran du départ glissé ──
+  // ── Départ de course : libellé lecteur d'écran. Le composant « glisser
+  //    pour courir » (SlideToStart) a été SUPPRIMÉ le 25/07/2026 — il n'était
+  //    plus importé nulle part depuis que le départ est un simple tap sur GO.
+  //    L'entrée reste : elle décrit encore le départ, et le typage impose ses
+  //    5 langues le jour où une surface la reprend. ──
   slideToStartA11y: {
     fr: '{label} — glisse pour lancer la course',
     en: '{label} — slide to start the run',
