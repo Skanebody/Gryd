@@ -1,12 +1,11 @@
 /**
- * GRYD — pill Run / Bike (40 pt, cible 44+).
+ * GRYD — pill Run / Bike (40 pt, cible 44+). Planche E14.
  * Chartreuse = mode actif. Verrouillé pendant une course live (prop locked).
- * Masqué tant que `flags.bike` est off (E02 : Bike absent).
+ * Couple avec SocialScopeToggle (Solo/Crew) via playContext.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors, elevation, radii } from '@klaim/shared';
 import { useActivityMode, type ActivityMode } from '../features/activity/activityMode';
-import { flags } from '../lib/flags';
 import { haptics } from '../lib/haptics';
 import { Icon } from './Icon';
 
@@ -21,9 +20,6 @@ interface ActivityModeToggleProps {
 export function ActivityModeToggle({ locked = false, value, onChange }: ActivityModeToggleProps) {
   const store = useActivityMode();
   const mode = value ?? store.mode;
-
-  // E02 : Bike absent (feature flag) — ne pas griser, ne pas montrer.
-  if (!flags.bike) return null;
 
   const pick = (next: ActivityMode) => {
     if (locked || next === mode) return;

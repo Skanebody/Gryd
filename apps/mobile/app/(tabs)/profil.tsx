@@ -92,7 +92,7 @@ import { C as M } from '../../src/i18n/catalog/mission';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
-import { ActivityModeToggle } from '../../src/ui/ActivityModeToggle';
+import { PlayContextToggles } from '../../src/ui/PlayContextToggles';
 import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -548,7 +548,7 @@ export default function ProfilScreen() {
       <TabScreen
         title={t(C.tabMe)}
         kicker={t(C.kickerPlayerCard)}
-        trailing={<ActivityModeToggle />}
+        trailing={<PlayContextToggles />}
       >
         {/* ── PLAYER CARD (§A r.17) — UNE grille, trois rangées :
             1. avatar 72 │ colonne texte (pseudo · @handle · titre · niveau/ville)

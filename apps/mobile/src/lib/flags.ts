@@ -57,8 +57,8 @@ export const flags = {
   /** Arsenal / boutique (skins, objets capés, GRYD Club). */
   arsenal: FULL_SURFACE,
   /**
-   * Commutateur Run/Bike (planches E03+). E02 = Run seul, Bike absent
-   * (masqué, pas grisé). Réactiver avec FULL_SURFACE ou quand E03 est conforme.
+   * Commutateur Run/Bike (planche E14). Activé : univers séparés + lien Solo/Crew.
+   * Toujours on — la distinction fait partie du produit (demande fondateur).
    */
-  bike: FULL_SURFACE,
+  bike: true,
 } as const;

@@ -20,6 +20,7 @@ import {
   useMissionSheetDeployed,
   useZoneSheetOpen,
 } from '../map/mapUiStore';
+import { usePlayContext } from '../activity/playContext';
 import { deriveContextualAction } from './contextualAction';
 import { NAV_BAR_HEIGHT, RUN_BUTTON_BOTTOM, RUN_CTA_GAP, RUN_CTA_SIZE } from './metrics';
 
@@ -31,7 +32,10 @@ export function RunCta() {
   const hudHidden = useMapHudHidden();
   const sheetDeployed = useMissionSheetDeployed();
   const zoneSheetOpen = useZoneSheetOpen();
+  const { activity } = usePlayContext();
   const action = useMemo(() => deriveContextualAction({ screen: 'map' }, locale), [locale]);
+  const ctaIcon = activity === 'bike' ? 'bike' : 'basket';
+  const ctaLabel = activity === 'bike' ? 'BIKE' : t(C.actionRun);
 
   // E04 : sheet de décision ouverte → RUN disparaît (un seul CTA primaire).
   if (zoneSheetOpen) return null;
@@ -44,7 +48,7 @@ export function RunCta() {
     router.push(action.targetHref);
   };
 
-  const a11y = t(C.runCtaA11y);
+  const a11y = activity === 'bike' ? t(C.bikeCtaA11y) : t(C.runCtaA11y);
 
   if (round) {
     return (
@@ -63,7 +67,7 @@ export function RunCta() {
           style={({ pressed }) => [styles.round, pressed && styles.pressed]}
           testID="map-run-cta-round"
         >
-          <Icon name="basket" size={30} color={colors.noir} />
+          <Icon name={ctaIcon} size={30} color={colors.noir} />
         </Pressable>
       </View>
     );
@@ -85,8 +89,8 @@ export function RunCta() {
         style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
         testID="map-run-cta-pill"
       >
-        <Icon name="basket" size={22} color={colors.noir} />
-        <Text style={styles.pillLabel}>{t(C.actionRun)}</Text>
+        <Icon name={ctaIcon} size={22} color={colors.noir} />
+        <Text style={styles.pillLabel}>{ctaLabel}</Text>
       </Pressable>
     </View>
   );

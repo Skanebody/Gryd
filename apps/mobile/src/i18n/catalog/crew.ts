@@ -33,6 +33,21 @@ export const C = defineCatalog({
     de: 'Das Revier-Eroberungsspiel für Run Clubs.',
     pt: 'O jogo de conquista de território para run clubs.',
   },
+  /** Bandeau quand le joueur est en portée Solo sur l'onglet Crew. */
+  soloScopeBanner: {
+    fr: 'Tu joues en Solo — bascule en Crew pour les missions collectives.',
+    en: 'You’re on Solo — switch to Crew for collective missions.',
+    es: 'Juegas en Solo — cambia a Crew para misiones colectivas.',
+    de: 'Du spielst Solo — wechsle zu Crew für Team-Missionen.',
+    pt: 'Você joga Solo — mude para Crew para missões coletivas.',
+  },
+  soloScopeSwitch: {
+    fr: 'Passer en Crew',
+    en: 'Switch to Crew',
+    es: 'Pasar a Crew',
+    de: 'Zu Crew wechseln',
+    pt: 'Mudar para Crew',
+  },
   emptyTitle: {
     fr: 'Personne ne tient un quartier seul.',
     en: 'No one holds a neighborhood alone.',

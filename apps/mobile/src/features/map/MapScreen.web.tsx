@@ -88,6 +88,7 @@ import { cityCenter } from '../social/cities';
 import { useOnboardingState } from '../onboarding/store';
 import { useRealCrew } from '../crew/real';
 import { getLastRunResult } from '../run/runResult';
+import { usePlayContext } from '../activity/playContext';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
 import {
@@ -189,6 +190,8 @@ export function MapScreen() {
   // (tap sur le vide → null = désélection) ; elle pilote la sheet de zone (HUD)
   // ET l'accent « l'actif domine » via le 4ᵉ arg de battleGameLayers (contrat C3).
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  /** E14 — univers Run/Bike séparés : Bike n'a pas encore de hex_claims → carte vide. */
+  const { activity } = usePlayContext();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
 
@@ -417,6 +420,12 @@ export function MapScreen() {
    */
   const widget = useMemo(() => {
     if (!isReal || territories === null) return null;
+    if (activity === 'bike') {
+      return buildRealWidgetView(
+        { mineAreasM2: [], openBoundary: null, capturedInLastRun: false },
+        locale,
+      );
+    }
     const lastResult = getLastRunResult();
     const ob = lastResult?.openBoundary;
     return buildRealWidgetView({
@@ -431,7 +440,7 @@ export function MapScreen() {
     // Parité native : sans `locale`, le peek du HUD parlait français à tout le
     // monde (défaut de buildRealWidgetView).
     locale);
-  }, [isReal, territories, locale]);
+  }, [isReal, territories, locale, activity]);
 
   /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
   const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
@@ -447,6 +456,7 @@ export function MapScreen() {
 
   /** E03 — résumé territoire réel pour la sheet VOTRE TERRITOIRE. */
   const territorySummary = useMemo(() => {
+    if (activity === 'bike') return null;
     if (!isReal || territories === null) return null;
     const mine = territories.filter((t) => t.props.status === 'crew');
     if (mine.length === 0) return null;
@@ -454,7 +464,7 @@ export function MapScreen() {
       areaM2: mine.reduce((sum, t) => sum + t.props.areaM2, 0),
       zoneCount: mine.length,
     };
-  }, [isReal, territories]);
+  }, [isReal, territories, activity]);
 
   /** E03 — pill de contexte : cadrer la zone (pas ego). */
   const onFramePoint = useCallback((point: { lat: number; lng: number }) => {
@@ -467,7 +477,7 @@ export function MapScreen() {
    * `?? []` est le dernier verrou entre la carte et le faux Paris conquis de
    * `fakeHexes` : ne pas le retirer. Parité stricte avec la variante native.
    */
-  const paintedTerritories = territories ?? [];
+  const paintedTerritories = activity === 'bike' ? [] : (territories ?? []);
   const layers = useMemo(
     () =>
       battleGameLayers(

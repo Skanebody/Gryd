@@ -53,13 +53,20 @@ export const C = defineCatalog({
     de: '{label} — schieb, um den Lauf zu starten',
     pt: '{label} — deslize para começar a corrida',
   },
-  // ── E02 CTA RUN (sneaker) — VoiceOver complet (icône seule) ──
+  // ── E02/E14 CTA RUN / BIKE — VoiceOver complet (icône seule) ──
   runCtaA11y: {
     fr: 'Run — commencer la mission',
     en: 'Run — start the mission',
     es: 'Run — empezar la misión',
     de: 'Run — Mission starten',
     pt: 'Run — começar a missão',
+  },
+  bikeCtaA11y: {
+    fr: 'Bike — commencer la mission vélo',
+    en: 'Bike — start the bike mission',
+    es: 'Bike — empezar la misión en bici',
+    de: 'Bike — Bike-Mission starten',
+    pt: 'Bike — começar a missão de bike',
   },
 
   // ── Verbes du bouton central (contextualAction) — COURTS partout (§A) ──

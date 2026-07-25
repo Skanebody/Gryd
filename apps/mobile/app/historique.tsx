@@ -31,7 +31,7 @@ import { router } from 'expo-router';
 import { colors, fonts, fontSizes, gameColors, radii, sizes, spacing, typography } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
-import { ActivityModeToggle } from '../src/ui/ActivityModeToggle';
+import { PlayContextToggles } from '../src/ui/PlayContextToggles';
 import { Card } from '../src/ui/Card';
 import { StackScreen } from '../src/ui/StackScreen';
 import { useSession } from '../src/lib/session';
@@ -180,7 +180,7 @@ export default function HistoriqueScreen() {
       icon="historique"
       kicker={t(C.historiqueKicker)}
       subtitle={t(C.historiqueSubtitle)}
-      trailing={<ActivityModeToggle />}
+      trailing={<PlayContextToggles />}
     >
       {/* ── 1. On ne sait pas encore : on ne dit rien du joueur. ── */}
       {status === 'loading' ? <StateCard body={t(PC.loading)} /> : null}

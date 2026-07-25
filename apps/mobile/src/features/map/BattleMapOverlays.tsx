@@ -50,8 +50,10 @@ import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { formatKm2Parts } from '../widget/territoryWidget';
 import { useMyEconomy } from '../social/economy';
 import { useRealMission } from '../mission/useRealMission';
+import { usePlayContext } from '../activity/playContext';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
 import { MapHomeHeader } from './MapHomeHeader';
+import { PlayContextToggles } from '../../ui/PlayContextToggles';
 
 /** Résumé territoire réel pour la sheet E03 (jamais inventé). */
 export interface TerritorySummary {
@@ -289,13 +291,16 @@ export function BattleMapOverlays({
   const hudHidden = useMapHudHidden();
   const { mission: realMission } = useRealMission();
   const economy = useMyEconomy();
+  const { activity, social } = usePlayContext();
+  // Bike = univers séparé : pas de territoires Run peints → première mission Bike.
   const isActivePlayer =
+    activity === 'run' &&
     territorySummary != null &&
     territorySummary.zoneCount > 0 &&
     widget?.state !== 'first_capture';
-  // Pill E03 : uniquement une vraie zone en decay (pas de « reprise » inventée).
+  // Pill E03 : decay réel, uniquement en univers Run (Bike n'a pas encore de decay).
   const defendMission =
-    realMission?.kind === 'defend_expiring' ? realMission : null;
+    activity === 'run' && realMission?.kind === 'defend_expiring' ? realMission : null;
   // Peek MISSION persistant (§8) : `sheet.initial` distingue le PEEK (compact)
   // de l'état OUVERT (les options), remonté par « Voir les options » (remount
   // key + initialState — snap, façon reduce motion).
@@ -361,9 +366,9 @@ export function BattleMapOverlays({
    */
   const showEmptyPeek = widget === null && emptyState !== null;
   const isFirstMission =
-    showEmptyPeek && emptyState === 'empty'
-      ? true
-      : widget?.state === 'first_capture';
+    activity === 'bike' ||
+    (showEmptyPeek && emptyState === 'empty') ||
+    widget?.state === 'first_capture';
   const missionSheetVisible = widget !== null || showEmptyPeek;
   const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
 
@@ -449,8 +454,18 @@ export function BattleMapOverlays({
         <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={closeLayers} />
       ) : null}
 
-      {/* E02/E03 header : avatar + lieu + notifs (Bike absent — feature flag). */}
+      {/* E02/E03 header : avatar + lieu + notifs. */}
       {!hudHidden ? <MapHomeHeader alertDot={defendMission != null} /> : null}
+
+      {/* E14 : Run/Bike + Solo/Crew — sous le header à droite (planche). */}
+      {!hudHidden ? (
+        <View
+          style={[styles.playToggles, { top: insets.top + 62 }]}
+          pointerEvents="box-none"
+        >
+          <PlayContextToggles />
+        </View>
+      ) : null}
 
       {/* E03 pill de contexte — 1 max, disparaît après 5 s, contenu repris sheet. */}
       {!hudHidden && defendMission ? (
@@ -565,6 +580,7 @@ export function BattleMapOverlays({
                   seasonRank={
                     economy.failed || economy.loading ? null : economy.seasonRank
                   }
+                  social={social}
                   onSeeDetail={api.expand}
                 />
               ) : widget ? (
@@ -632,7 +648,7 @@ function ContextPill({
   if (!visible) return null;
   return (
     <View
-      style={[styles.contextWrap, { top: insets.top + 62 }]}
+      style={[styles.contextWrap, { top: insets.top + 110 }]}
       pointerEvents="box-none"
     >
       <Pressable
@@ -658,10 +674,12 @@ function ContextPill({
 function ActiveTerritoryPeek({
   summary,
   seasonRank,
+  social,
   onSeeDetail,
 }: {
   summary: TerritorySummary;
   seasonRank: number | null;
+  social: 'solo' | 'crew';
   onSeeDetail: () => void;
 }) {
   const t = useT();
@@ -675,7 +693,9 @@ function ActiveTerritoryPeek({
   }, []);
   return (
     <View style={styles.activeTerritory}>
-      <Text style={styles.firstEyebrow}>{t(C.activeTerritoryEyebrow)}</Text>
+      <Text style={styles.firstEyebrow}>
+        {t(social === 'crew' ? C.activeTerritoryEyebrowCrew : C.activeTerritoryEyebrowSolo)}
+      </Text>
       <View style={styles.activeMetric}>
         <Text style={styles.activeMetricValue} numberOfLines={1} adjustsFontSizeToFit>
           {value}
@@ -710,14 +730,18 @@ function ActiveTerritoryPeek({
  */
 function FirstMissionPeek({ onSeeDetail }: { onSeeDetail: () => void }) {
   const t = useT();
+  const { activity } = usePlayContext();
+  const bike = activity === 'bike';
   return (
     <View style={styles.firstMission}>
-      <Text style={styles.firstEyebrow}>{t(C.firstMissionEyebrow)}</Text>
+      <Text style={styles.firstEyebrow}>
+        {t(bike ? C.firstMissionEyebrowBike : C.firstMissionEyebrow)}
+      </Text>
       <Text style={styles.firstTitle} numberOfLines={2}>
-        {t(C.firstMissionTitle)}
+        {t(bike ? C.firstMissionTitleBike : C.firstMissionTitle)}
       </Text>
       <Text style={styles.firstLine} numberOfLines={2}>
-        {t(C.firstMissionLine)}
+        {t(bike ? C.firstMissionLineBike : C.firstMissionLine)}
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -1119,6 +1143,15 @@ const OVERLAY_SURFACE = withAlpha(gameColors.carbon, 0.92);
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
+
+  // ── E14 Play toggles (Run/Bike + Solo/Crew) sous le header ──
+  playToggles: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 3,
+  },
 
   // ── Capsule contrôles E02 (Recentrer + Calques) à ~35 % hauteur ──
   controlCapsule: {

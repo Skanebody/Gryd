@@ -71,7 +71,7 @@ import {
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { screen } from '../../src/lib/analytics';
 import { useSession } from '../../src/lib/session';
-import { ActivityModeToggle } from '../../src/ui/ActivityModeToggle';
+import { PlayContextToggles } from '../../src/ui/PlayContextToggles';
 import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { MeHighlightRow } from '../../src/ui/MeHighlightRow';
@@ -509,7 +509,7 @@ function LeagueScreen() {
             <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
             <Text style={styles.title}>{t(C.saisonTitle)}</Text>
           </View>
-          <ActivityModeToggle />
+          <PlayContextToggles />
         </View>
 
         {/* ── BLOC TOI EN HAUT (sans scroll) : rang + UNE phrase-objectif + CTA.

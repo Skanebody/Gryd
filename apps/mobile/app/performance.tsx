@@ -34,7 +34,7 @@ import { router } from 'expo-router';
 import { colors, fonts, fontSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
-import { ActivityModeToggle } from '../src/ui/ActivityModeToggle';
+import { PlayContextToggles } from '../src/ui/PlayContextToggles';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
 import { useSession } from '../src/lib/session';
@@ -288,7 +288,7 @@ export default function PerformanceScreen() {
       title={t(CH.perfTitle)}
       icon="performance"
       kicker={t(CH.perfKicker)}
-      trailing={<ActivityModeToggle />}
+      trailing={<PlayContextToggles />}
     >
       {body}
     </StackScreen>

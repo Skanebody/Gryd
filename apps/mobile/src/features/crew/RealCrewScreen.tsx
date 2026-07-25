@@ -47,10 +47,12 @@ import {
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { useSession } from '../../lib/session';
-import { ActivityModeToggle } from '../../ui/ActivityModeToggle';
+import { PlayContextToggles } from '../../ui/PlayContextToggles';
+import { usePlayContext } from '../activity/playContext';
 import { Button } from '../../ui/Button';
 import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
+import { haptics } from '../../lib/haptics';
 import type { Entry } from '../../i18n/types';
 import { C, CREW_ROLE_E, CREW_SIGNAL_E } from '../../i18n/catalog/crew';
 import { CrewInviteQRScreen } from './CrewInviteQRScreen';
@@ -240,6 +242,7 @@ export function RealCrewScreen() {
     leaveCrew,
     fetchMyCode,
   } = useRealCrew({ withOverview: true });
+  const { social, setSocial } = usePlayContext();
 
   const [mode, setMode] = useState<Mode>('home');
   const [name, setName] = useState('');
@@ -560,8 +563,22 @@ export function RealCrewScreen() {
     }
 
     return (
-      <TabScreen title={crew.name} kicker={kicker} trailing={<ActivityModeToggle />}>
+      <TabScreen title={crew.name} kicker={kicker} trailing={<PlayContextToggles />}>
         {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
+        {social === 'solo' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.soloScopeSwitch)}
+            onPress={() => {
+              haptics.light();
+              setSocial('crew');
+            }}
+            style={({ pressed }) => [styles.soloBanner, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.soloBannerText}>{t(C.soloScopeBanner)}</Text>
+            <Text style={styles.soloBannerCta}>{t(C.soloScopeSwitch)}</Text>
+          </Pressable>
+        ) : null}
         <Text style={styles.count}>{t(C.rlMembersOf, { count: memberCount, max: maxMembers })}</Text>
 
         {/*
@@ -883,9 +900,23 @@ export function RealCrewScreen() {
       title="Crew"
       kicker={kicker}
       subtitle={loading ? undefined : t(C.emptySubtitle)}
-      trailing={<ActivityModeToggle />}
+      trailing={<PlayContextToggles />}
     >
       {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
+      {social === 'solo' ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.soloScopeSwitch)}
+          onPress={() => {
+            haptics.light();
+            setSocial('crew');
+          }}
+          style={({ pressed }) => [styles.soloBanner, pressed && { opacity: 0.7 }]}
+        >
+          <Text style={styles.soloBannerText}>{t(C.soloScopeBanner)}</Text>
+          <Text style={styles.soloBannerCta}>{t(C.soloScopeSwitch)}</Text>
+        </Pressable>
+      ) : null}
       <View style={styles.block}>
         <Text style={styles.title}>{t(C.emptyTitle)}</Text>
         <Text style={styles.body}>{t(C.emptyBody)}</Text>
@@ -1003,4 +1034,21 @@ const styles = StyleSheet.create({
 
   error: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20 },
   flash: { color: colors.chartreuse, fontSize: fontSizes.sm, marginTop: spacing.lg },
+  soloBanner: {
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.grisLigne,
+    backgroundColor: elevation.surface,
+    gap: 4,
+  },
+  soloBannerText: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20 },
+  soloBannerCta: {
+    color: colors.chartreuse,
+    fontFamily: fonts.textSemi,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+  },
 });
