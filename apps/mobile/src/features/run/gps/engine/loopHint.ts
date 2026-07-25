@@ -30,6 +30,22 @@ export function loopGapM(
   return haversineM(first, last);
 }
 
+/**
+ * Écart MAXIMAL atteint depuis le départ (m) — le point le plus éloigné de la
+ * course, mesuré, jamais estimé. C'est la seule référence honnête pour dire
+ * « où en est le retour » (E07 : progression de fermeture) : sans elle, un
+ * pourcentage serait une invention. null tant que la trace a < 2 points.
+ */
+export function farthestGapM(
+  points: readonly { lat: number; lng: number }[],
+): number | null {
+  const first = points[0];
+  if (first === undefined || points.length < 2) return null;
+  let max = 0;
+  for (const p of points) max = Math.max(max, haversineM(first, p));
+  return max;
+}
+
 /** L'indication de boucle affichable — null = rien à dire (pas de ligne morte). */
 export type LoopHint =
   /** Retour au départ possible : « BOUCLE · retour ~N m » (vol d'oiseau). */

@@ -27,10 +27,13 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { colors, fonts, gameColors } from '@klaim/shared';
-import { ARSENAL_PREVIEW_I18N } from '../../../i18n/catalog/arsenalPreview';
+import {
+  ARSENAL_PREVIEW_I18N,
+  ARSENAL_PREVIEW_LABEL_I18N,
+} from '../../../i18n/catalog/arsenalPreview';
 import { useT } from '../../../i18n/store';
 import type { ArsenalCatalogItem } from '../catalog';
-import { arsenalName } from '../copy';
+import { arsenalName, type Translate } from '../copy';
 
 /**
  * Décline un TOKEN hex (#RRGGBB) en rgba() à l'alpha voulu : les teintes
@@ -44,6 +47,17 @@ function withAlpha(tokenHex: string, alpha: number): string {
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Mini-label TRADUIT d'un aperçu. Ces mots (« Frontière or », « Trame nuit »,
+ * « Première zone »…) étaient du français en dur rendu dans le SVG — visible en
+ * grille comme en détail. Le catalogue est indexé par `item_key` ; une clé
+ * absente retombe sur le libellé du composant (jamais sur du vide).
+ */
+function previewLabel(itemKey: string, fallback: string, t: Translate): string {
+  const entry = ARSENAL_PREVIEW_LABEL_I18N[itemKey];
+  return entry ? t(entry) : fallback;
 }
 
 /**
@@ -219,7 +233,7 @@ export function TerritorySkinPreview({ item, size = DEFAULT_SIZE }: ArsenalPrevi
         strokeDasharray={s.dash}
         strokeLinejoin="round"
       />
-      <PreviewLabel text={s.label} />
+      <PreviewLabel text={previewLabel(item.key, s.label, t)} />
     </Svg>
   );
 }
@@ -376,7 +390,7 @@ export function TraceSkinPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewPr
       {/* Points de départ / arrivée (repère de course, neutres) */}
       <Circle cx={28} cy={150} r={4} fill={s.stroke} opacity={s.opacity ?? 1} />
       <Circle cx={172} cy={34} r={4} fill={s.stroke} opacity={s.opacity ?? 1} />
-      <PreviewLabel text={s.label} />
+      <PreviewLabel text={previewLabel(item.key, s.label, t)} />
     </Svg>
   );
 }
@@ -459,7 +473,7 @@ export function FramePreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps)
           </SvgText>
         </G>
       ) : (
-        <PreviewLabel text={s.label} />
+        <PreviewLabel text={previewLabel(item.key, s.label, t)} />
       )}
     </Svg>
   );
@@ -519,7 +533,7 @@ export function BannerPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps
       ) : null}
       {/* Sceau crew (petit disque neutre) */}
       <Circle cx={100} cy={92} r={13} fill={colors.noir} stroke={s.accent} strokeWidth={2} opacity={s.motif === 'storm' ? 0 : 0.9} />
-      <PreviewLabel text={s.label} onLight={false} />
+      <PreviewLabel text={previewLabel(item.key, s.label, t)} onLight={false} />
     </Svg>
   );
 }
@@ -600,7 +614,7 @@ export function TemplatePreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
       {/* Bandeau de label court en bas de la card */}
       <Rect x={CARD_X + 10} y={CARD_Y + CARD_H - 30} width={CARD_W - 20} height={7} rx={3.5} fill={s.accent} opacity={0.8} />
       <Rect x={CARD_X + 10} y={CARD_Y + CARD_H - 18} width={(CARD_W - 20) * 0.6} height={5} rx={2.5} fill={colors.gris} opacity={0.7} />
-      <PreviewLabel text={s.label} />
+      <PreviewLabel text={previewLabel(item.key, s.label, t)} />
     </Svg>
   );
 }
@@ -698,7 +712,7 @@ export function EmblemPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps
         fill={s.charge}
         opacity={s.opacity ?? 1}
       />
-      <PreviewLabel text={s.label} />
+      <PreviewLabel text={previewLabel(item.key, s.label, t)} />
     </Svg>
   );
 }

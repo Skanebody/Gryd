@@ -21,9 +21,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Polyline } from 'react-native-svg';
-import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
+import { colors, radii, spacing } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game';
-import { Icon } from '../../ui/Icon';
 import { useT } from '../../i18n/store';
 import { SHARE_COPY } from './copy';
 import {
@@ -39,6 +38,7 @@ import {
   type LatLngPoint,
 } from '../map/realAnchors';
 import { territoryStyle } from '../map/mapStyle';
+import { PREVIEW_INTRO_MS, REPLAY_TOTAL_MS, replayPhaseAtProgress } from './replayPhase';
 
 const VB = 100;
 const PAD = 12;
@@ -126,12 +126,24 @@ export interface ShareMapProps {
    * reste visible mais la zone ne se remplit jamais en chartreuse. Défaut `true`.
    */
   captured?: boolean;
+  /**
+   * `true` = REPLAY complet (7,5 s, partition E10 jouée en entier, déclenché par
+   * le bouton « Rejouer »). Défaut : animation d'ENTRÉE comprimée — mêmes
+   * proportions, 2,5× plus rapide, pour ne pas faire attendre le partageur.
+   */
+  fullReplay?: boolean;
 }
 
-/** Durée totale du replay : dessin de trace puis remplissage. */
-const REPLAY_DURATION_MS = 2400;
-/** Part de l'animation consacrée au dessin de la trace (le reste = fill). */
-const TRACE_PHASE = 0.72;
+// ─── MINUTAGE : LA PARTITION DE LA PLANCHE, PAS UNE RAMPE ───────────────────
+// Ici vivaient `REPLAY_DURATION_MS = 2400` et `TRACE_PHASE = 0,72` : UNE rampe
+// coupée en deux (trace / remplissage). La planche E10 en demande CINQ temps —
+// contexte, tracé, fermeture, remplissage, résultat — sur 6-8 s. La partition
+// est désormais une fonction PURE et TESTÉE (`replayPhase.ts`), consommée ici :
+// l'écran ne peut plus dériver du minutage sans que les tests le disent.
+//
+// Deux vitesses, MÊMES proportions : l'aperçu s'anime court à l'ouverture
+// (PREVIEW_INTRO_MS — un compositeur doit être actionnable tout de suite, §A) et
+// le bouton « Rejouer » joue les 7,5 s pleines.
 
 /**
  * Rendu carte partage. Géométrie déterministe (démo République) — en prod la
@@ -146,13 +158,16 @@ export function ShareMap({
   replayKey = 0,
   onAnimationEnd,
   captured = true,
+  fullReplay = false,
 }: ShareMapProps) {
   const reduce = useReduceMotion();
   const tt = useT();
   const play = animated && !reduce;
 
-  // 0→1 : dessin de la trace (0→TRACE_PHASE) puis remplissage (→1). Pattern
+  // 0→1 : progression NORMALISÉE de la partition (replayPhase.ts). Pattern
   // Animated + listener → state (CaptureStep) : fiable natif ET RN-web.
+  // Linéaire volontairement : la partition porte déjà son propre découpage —
+  // un easing par-dessus décalerait les temps de la planche.
   const anim = useRef(new Animated.Value(play ? 0 : 1)).current;
   const [progress, setProgress] = useState(play ? 0 : 1);
 
@@ -166,8 +181,8 @@ export function ShareMap({
     setProgress(0);
     const run = Animated.timing(anim, {
       toValue: 1,
-      duration: REPLAY_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
+      duration: fullReplay ? REPLAY_TOTAL_MS : PREVIEW_INTRO_MS,
+      easing: Easing.linear,
       useNativeDriver: false,
     });
     run.start(({ finished }) => {
@@ -179,7 +194,7 @@ export function ShareMap({
     };
     // replayKey : chaque incrément rejoue l'animation depuis zéro.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [play, replayKey]);
+  }, [play, replayKey, fullReplay]);
 
   // P1 C9 (MVP_CHANGESET) — le cadrage suit la VRAIE trace quand elle existe :
   // fit() ne recevait que la boucle démo République, donc une course ailleurs
@@ -202,9 +217,15 @@ export function ShareMap({
   // (Aucun hook au-delà de ce point : le retour anticipé est sûr.)
   if (noKnownRoute) {
     return (
+      // §A.9 — JAMAIS de texte coupé. Ce slot fait ≈ 50 % de la largeur d'une
+      // card story (soit ~100 pt) et son conteneur CLIPPE : l'icône + 2 lignes à
+      // 12 pt rognaient « Tracé indisponible » en « Tracé / indis ». L'icône
+      // part (le contour pointillé dit déjà l'absence, elle était redondante),
+      // la typo passe à 10 pt avec un interligne EXPLICITE — RN-web n'applique
+      // pas le même interligne par défaut que le natif, et c'est ce delta qui
+      // débordait. Le mot entier tient, dans les 5 langues.
       <View style={[styles.wrap, style, styles.noRoute]}>
-        <Icon name="route" size={iconSizes.md} color={colors.gris} />
-        <Text style={styles.noRouteLabel} numberOfLines={2}>
+        <Text style={styles.noRouteLabel} numberOfLines={3} ellipsizeMode="clip">
           {tt(SHARE_COPY.traceUnavailable)}
         </Text>
       </View>
@@ -225,10 +246,17 @@ export function ShareMap({
   // reste OUVERTE — le trou départ/arrivée EST le masquage, on ne le referme pas.
   const runTrace: readonly LatLngPoint[] = trace;
 
-  // Dessin progressif : sous-polyligne (slice) selon la phase trace.
-  const traceP = Math.min(1, progress / TRACE_PHASE);
+  // Partition E10 (pure, testée) : contexte → tracé → fermeture → remplissage
+  // → résultat. Reduce motion / animation coupée : `progress` vaut 1 dès le
+  // départ, donc l'état FINAL — aucune information n'est portée par la seule
+  // animation.
+  const phase = replayPhaseAtProgress(progress);
+  const traceP = phase.traceP;
   // Zone : ne se remplit QUE si capturée (l'« avant » du before/after = 0).
-  const fillP = captured ? Math.max(0, (progress - TRACE_PHASE) / (1 - TRACE_PHASE)) : 0;
+  const fillP = captured ? phase.fillP : 0;
+  // Temps « fermeture » : la jonction départ/arrivée s'affirme AVANT que la zone
+  // se remplisse — c'est la boucle qui fait la zone, et l'ordre le montre.
+  const closeP = captured ? phase.closeP : 0;
   const visibleCount = Math.max(2, Math.ceil(traceP * runTrace.length));
   const visibleTrace = runTrace.slice(0, visibleCount);
   const route = tracePoints(visibleTrace, project);
@@ -292,7 +320,11 @@ export function ShareMap({
           opacity={0.75}
         />
 
-        {/* Point de départ + tête de course pendant le dessin. */}
+        {/* Point de départ. Pendant le temps « fermeture », un halo le désigne :
+            c'est là que la boucle se referme, et c'est ce geste qui crée la zone. */}
+        {startPt && closeP > 0 && closeP < 1 ? (
+          <Circle cx={startPt.x} cy={startPt.y} r={2.2 + 4 * closeP} fill={accent} opacity={0.3} />
+        ) : null}
         {startPt ? <Circle cx={startPt.x} cy={startPt.y} r={2.2} fill={colors.blanc} /> : null}
         {headPt && traceP < 1 ? (
           <>
@@ -319,8 +351,8 @@ const styles = StyleSheet.create({
   noRoute: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    padding: spacing.sm,
+    gap: spacing.xxs,
+    padding: spacing.xs,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: colors.grisLigne,
@@ -328,7 +360,11 @@ const styles = StyleSheet.create({
   },
   noRouteLabel: {
     color: colors.gris,
-    fontSize: fontSizes.xs,
+    // 10 pt : sous l'échelle de tokens, assumé — c'est un libellé de PLACEHOLDER
+    // dans un slot de ~100 pt, pas un texte de lecture. À 12 pt il se faisait
+    // rogner, et un mot amputé coûte plus cher que deux points de corps (§A.9).
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: '600',
     textAlign: 'center',
   },

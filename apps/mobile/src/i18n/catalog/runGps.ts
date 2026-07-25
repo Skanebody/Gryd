@@ -118,19 +118,46 @@ export const C = defineCatalog({
     de: '+{n} ZONEN GESCHÄTZT',
     pt: '+{n} ZONAS ESTIMADAS',
   },
-  loopReady: {
-    fr: 'BOUCLE PRÊTE — termine quand tu veux',
-    en: 'LOOP READY — finish whenever you want',
-    es: 'BUCLE LISTO — termina cuando quieras',
-    de: 'RUNDE BEREIT — beende, wann du willst',
-    pt: 'VOLTA PRONTA — termine quando quiser',
+  // ── E07 : pill de FERMETURE (état permanent, jamais un avis temporaire) ──
+  // Les mètres annoncés sont ceux qu'il reste à COUVRIR pour que la boucle
+  // compte (écart au départ MOINS la tolérance serveur) — pas une promesse de
+  // capture : le serveur reste seul juge. Le « ~ » dit l'estimation.
+  loopOpenPill: {
+    fr: 'Boucle ouverte · ~{m} m à fermer',
+    en: 'Loop open · ~{m} m to close',
+    es: 'Bucle abierto · ~{m} m para cerrar',
+    de: 'Runde offen · noch ~{m} m',
+    pt: 'Circuito aberto · ~{m} m para fechar',
   },
-  loopReturn: {
-    fr: 'BOUCLE · retour ~{m} m',
-    en: 'LOOP · back ~{m} m',
-    es: 'BUCLE · retorno ~{m} m',
-    de: 'RUNDE · zurück ~{m} m',
-    pt: 'VOLTA · retorno ~{m} m',
+  /** Revenu à portée SANS passer sous la tolérance : factuel, ambre, jamais rouge. */
+  loopNotClosedPill: {
+    fr: 'Boucle non fermée · {m} m manquants',
+    en: 'Loop not closed · {m} m missing',
+    es: 'Bucle no cerrado · faltan {m} m',
+    de: 'Runde nicht geschlossen · {m} m fehlen',
+    pt: 'Circuito não fechado · faltam {m} m',
+  },
+  loopClosedPill: {
+    fr: 'Boucle fermée · termine quand tu veux',
+    en: 'Loop closed · finish whenever you want',
+    es: 'Bucle cerrado · termina cuando quieras',
+    de: 'Runde geschlossen · beende jederzeit',
+    pt: 'Circuito fechado · termine quando quiser',
+  },
+  /** Progression de fermeture — approximative par construction (« ~ »). */
+  loopProgress: {
+    fr: '~{n} %',
+    en: '~{n}%',
+    es: '~{n} %',
+    de: '~{n} %',
+    pt: '~{n} %',
+  },
+  a11yLoopProgress: {
+    fr: 'Fermeture de la boucle : environ {n} %',
+    en: 'Loop closing: about {n}%',
+    es: 'Cierre del bucle: cerca del {n} %',
+    de: 'Rundenschluss: etwa {n} %',
+    pt: 'Fechamento do circuito: cerca de {n} %',
   },
   paceLabel: {
     fr: 'ALLURE /KM',
@@ -197,12 +224,75 @@ export const C = defineCatalog({
     de: 'GPS-Hilfe: mit Bildschirm aus laufen',
     pt: 'Ajuda GPS: correr com a tela desligada',
   },
-  a11yLiveTrace: {
-    fr: 'Ton tracé en cours',
-    en: 'Your route so far',
-    es: 'Tu recorrido hasta ahora',
-    de: 'Deine bisherige Strecke',
-    pt: 'Seu percurso até agora',
+  a11yLiveMap: {
+    fr: 'Carte de ta course, centrée sur toi',
+    en: 'Map of your run, centred on you',
+    es: 'Mapa de tu carrera, centrado en ti',
+    de: 'Karte deines Laufs, auf dich zentriert',
+    pt: 'Mapa da sua corrida, centrado em você',
+  },
+
+  // ── E07 : verrou des contrôles (effet RÉEL — sinon il ne serait pas peint) ──
+  ctrlLock: {
+    fr: 'VERROU',
+    en: 'LOCK',
+    es: 'BLOQUEO',
+    de: 'SPERRE',
+    pt: 'TRAVA',
+  },
+  a11yLockControls: {
+    fr: 'Verrouiller les contrôles',
+    en: 'Lock the controls',
+    es: 'Bloquear los controles',
+    de: 'Bedienelemente sperren',
+    pt: 'Bloquear os controles',
+  },
+  lockedTitle: {
+    fr: 'CONTRÔLES VERROUILLÉS',
+    en: 'CONTROLS LOCKED',
+    es: 'CONTROLES BLOQUEADOS',
+    de: 'BEDIENUNG GESPERRT',
+    pt: 'CONTROLES BLOQUEADOS',
+  },
+  lockedHint: {
+    fr: 'Maintiens pour déverrouiller',
+    en: 'Hold to unlock',
+    es: 'Mantén para desbloquear',
+    de: 'Halten zum Entsperren',
+    pt: 'Segure para desbloquear',
+  },
+  a11yUnlockControls: {
+    fr: 'Déverrouiller les contrôles (maintenir)',
+    en: 'Unlock the controls (hold)',
+    es: 'Desbloquear los controles (mantén pulsado)',
+    de: 'Bedienelemente entsperren (gedrückt halten)',
+    pt: 'Desbloquear os controles (segure)',
+  },
+
+  // ── E08 : séquence de fermeture (fait GÉOMÉTRIQUE, jamais une capture) ──
+  // Ce qui s'affiche ici n'a qu'une source : la trace mesurée. Aucun nom de
+  // zone, aucune aire en km², aucune attribution — le serveur ne s'est pas
+  // encore prononcé (il ne le fera qu'à l'envoi, en fin de course).
+  loopClosedTitle: {
+    fr: 'BOUCLE FERMÉE',
+    en: 'LOOP CLOSED',
+    es: 'BUCLE CERRADO',
+    de: 'RUNDE GESCHLOSSEN',
+    pt: 'CIRCUITO FECHADO',
+  },
+  a11ySkipClosure: {
+    fr: 'Appuie pour passer',
+    en: 'Tap to skip',
+    es: 'Toca para saltar',
+    de: 'Tippen zum Überspringen',
+    pt: 'Toque para pular',
+  },
+  a11yClosureBadge: {
+    fr: 'Boucle fermée pendant cette course',
+    en: 'Loop closed during this run',
+    es: 'Bucle cerrado en esta carrera',
+    de: 'Runde in diesem Lauf geschlossen',
+    pt: 'Circuito fechado nesta corrida',
   },
   a11yFinishRun: {
     fr: 'Terminer la course (maintenir)',

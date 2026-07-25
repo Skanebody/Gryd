@@ -6,7 +6,7 @@
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { LOOP_CLOSE_TOLERANCE_M, LOOP_MIN_PERIMETER_M } from '@klaim/shared';
-import { loopGapM, loopHint, roundLoopM } from './loopHint.ts';
+import { farthestGapM, loopGapM, loopHint, roundLoopM } from './loopHint.ts';
 
 // République (départ) et un point ~500 m à l'est le long du même parallèle.
 const START = { lat: 48.8674, lng: 2.3636 };
@@ -36,6 +36,17 @@ Deno.test('loopHint : « prête » EXACTEMENT sous la tolérance serveur, « ret
     kind: 'closing',
     gapM: LOOP_CLOSE_TOLERANCE_M + 1,
   });
+});
+
+Deno.test('farthestGapM : le point le PLUS ÉLOIGNÉ atteint, pas le dernier', () => {
+  // Aller à 500 m puis retour au départ : l'éloignement maximal reste 500 m.
+  const trace = [START, AWAY_500M, START];
+  const far = farthestGapM(trace);
+  assert(far !== null && Math.abs(far - 500) < 15, `far ${far} ≉ 500 m`);
+  // Alors que l'écart COURANT, lui, est retombé à 0.
+  assertEquals(loopGapM(trace), 0);
+  assertEquals(farthestGapM([]), null);
+  assertEquals(farthestGapM([START]), null);
 });
 
 Deno.test('roundLoopM : arrondi lisible 10 m, plancher 10 (jamais « retour 0 m »)', () => {

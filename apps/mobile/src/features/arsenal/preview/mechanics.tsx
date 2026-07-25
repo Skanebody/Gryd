@@ -30,7 +30,10 @@ import {
   gameColors,
   SHIELD_DURATION_HOURS,
 } from '@klaim/shared';
-import { ARSENAL_PREVIEW_I18N } from '../../../i18n/catalog/arsenalPreview';
+import {
+  ARSENAL_PREVIEW_I18N,
+  PREVIEW_CAPTION_C,
+} from '../../../i18n/catalog/arsenalPreview';
 import { useT } from '../../../i18n/store';
 import type { ArsenalCatalogItem } from '../catalog';
 import { arsenalName } from '../copy';
@@ -136,7 +139,7 @@ export function ShieldSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps)
         {`${SHIELD_DURATION_HOURS} h`}
       </SvgText>
 
-      <Caption text="Protège une zone · pas invincible" />
+      <Caption text={t(PREVIEW_CAPTION_C.shield)} />
     </Scene>
   );
 }
@@ -172,7 +175,7 @@ export function ScoutPingSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
         <Rect x={-1.6} y={-1} width={3.2} height={9} rx={1.6} fill={colors.noir} />
       </G>
 
-      <Caption text="Révèle une info · aucune capture" />
+      <Caption text={t(PREVIEW_CAPTION_C.scoutPing)} />
     </Scene>
   );
 }
@@ -210,7 +213,7 @@ export function StreakGelSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
         <Line x1={-9.5} y1={5.5} x2={9.5} y2={-5.5} />
       </G>
 
-      <Caption text="Ne capture aucune zone · jamais vendu" />
+      <Caption text={t(PREVIEW_CAPTION_C.streakGel)} />
     </Scene>
   );
 }
@@ -252,7 +255,7 @@ export function CrewBoostSchema({ item, size = DEFAULT_SIZE }: ArsenalPreviewPro
         <Line x1={-5.5} y1={-5.5} x2={5.5} y2={5.5} stroke={colors.gris} strokeWidth={2} strokeLinecap="round" />
       </G>
 
-      <Caption text={`+${BOOST_PCT}% coffre · jamais points ni zones`} fill={colors.blanc} />
+      <Caption text={t(PREVIEW_CAPTION_C.crewBoost, { pct: BOOST_PCT })} fill={colors.blanc} />
     </Scene>
   );
 }
@@ -279,7 +282,7 @@ export function PackPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps) 
       <Path d="M144 58 q 8 -10 16 0 q 8 10 16 0" fill="none" stroke={colors.chartreuse} strokeWidth={3} strokeLinecap="round" />
       <Rect x={100} y={72} width={26} height={20} rx={5} fill={colors.chartreuse14} stroke={colors.chartreuse40} strokeWidth={2} />
 
-      <Caption text="Plusieurs cosmétiques · pas un avantage" />
+      <Caption text={t(PREVIEW_CAPTION_C.pack)} />
     </Scene>
   );
 }
@@ -302,7 +305,7 @@ export function EclatsPreview({ item, size = DEFAULT_SIZE }: ArsenalPreviewProps
       <Path d="M52 60 l0 -8 M48 56 l8 0" stroke={colors.blanc} strokeWidth={2} strokeLinecap="round" />
       <Path d="M192 64 l0 -6 M189 61 l6 0" stroke={colors.blanc} strokeWidth={2} strokeLinecap="round" />
 
-      <Caption text="Pour le style · pas le territoire" />
+      <Caption text={t(PREVIEW_CAPTION_C.eclats)} />
     </Scene>
   );
 }
@@ -372,7 +375,7 @@ function ClubScene({ item, size }: { item: ArsenalCatalogItem; size: number }) {
         <Path d="M-4 -6 L2 -1 L4 -3" fill="none" stroke={colors.blanc} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
       </G>
 
-      <Caption text="Zéro avantage de jeu · aucun bouclier" />
+      <Caption text={t(PREVIEW_CAPTION_C.club)} />
     </Scene>
   );
 }
@@ -414,7 +417,7 @@ function PassScene({ item, size }: { item: ArsenalCatalogItem; size: number }) {
         <SvgText x={0} y={5} fill={colors.gris} fontSize={12} fontFamily={fonts.text} textAnchor="middle">bientôt</SvgText>
       </G>
 
-      <Caption text="Récompenses de saison · à venir" />
+      <Caption text={t(PREVIEW_CAPTION_C.pass)} />
     </Scene>
   );
 }

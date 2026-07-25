@@ -34,7 +34,18 @@ import {
   STREAK_FREEZE_FREE_PER_MONTH,
   type BadgeTier,
 } from '@klaim/shared';
-import type { ArsenalCurrency } from '../../ui/game/ArsenalItemCard';
+
+/**
+ * Devises d'affichage. DÉCLARÉES ICI (25/07/2026) et non plus importées de
+ * `ui/game/ArsenalItemCard` : un module de DONNÉES ne doit pas dépendre d'un
+ * composant React. Conséquence concrète — cet import faisait entrer
+ * react-native dans le graphe de `catalog.ts`, ce qui rendait le catalogue
+ * INTESTABLE en Deno (39 erreurs de type sur des .tsx). Le filet de tests de
+ * `shop.ts` (propriété, catégories, équivalent mensuel) en dépend.
+ * Formes identiques à celles du composant : compatibilité structurelle.
+ */
+export type ArsenalCurrency = 'eclats' | 'foulees';
+export type ArsenalPriceCurrency = ArsenalCurrency | 'eur';
 
 /** Section de l'Arsenal §25 (ordre = ordre d'affichage). */
 export type ArsenalSectionKey =

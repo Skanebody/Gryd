@@ -5,7 +5,7 @@
  * décrivaient l'objet à VoiceOver en français dur. Ici les mêmes phrases, 5 langues,
  * résolues au rendu. {name} = le nom de l'item (arsenalName), {hours} = durée bouclier.
  */
-import type { Entry } from '../types';
+import { defineCatalog, type Entry } from '../types';
 
 export const ARSENAL_PREVIEW_I18N = {
   'preview.cosmetic.banner': { fr: 'Aperçu de la bannière crew : {name}. Style visuel uniquement, aucun effet de jeu.', en: 'Preview of the Crew banner: {name}. Visual style only, no gameplay effect.', es: 'Vista previa de la bandera del Crew: {name}. Solo estilo visual, sin ningún efecto de juego.', de: 'Vorschau des Crew-Banners: {name}. Nur visueller Stil, keine Spielwirkung.', pt: 'Pré-visualização da bandeira do Crew: {name}. Apenas estilo visual, sem nenhum efeito de jogo.' },
@@ -23,3 +23,138 @@ export const ARSENAL_PREVIEW_I18N = {
   'preview.mechanics.shield': { fr: '{name} : protège une zone pendant {hours} h, sans la rendre invincible.', en: '{name}: protects a zone for {hours} h without making it invincible.', es: '{name}: protege una zona durante {hours} h, sin volverla invencible.', de: '{name}: schützt eine Zone für {hours} h, ohne sie unverwundbar zu machen.', pt: '{name}: protege uma zona durante {hours} h, sem torná-la invencível.' },
   'preview.mechanics.streakGel': { fr: '{name} : gèle et protège ta série hebdo une semaine — et donc le multiplicateur de points qu\'elle porte. Ne capture aucune zone, ne se vend jamais.', en: '{name}: freezes and protects your weekly streak for one week — and with it the points multiplier it carries. Captures no zone, never for sale.', es: '{name}: congela y protege tu racha semanal durante una semana — y con ella el multiplicador de puntos que conlleva. No captura ninguna zona, nunca se vende.', de: '{name}: friert deine Wochen-Serie eine Woche lang ein und schützt sie — und damit den Punktemultiplikator, den sie trägt. Nimmt keine Zone ein, wird nie verkauft.', pt: '{name}: congela e protege a tua sequência semanal durante uma semana — e com ela o multiplicador de pontos que carrega. Não captura nenhuma zona, nunca é vendida.' },
 } satisfies Record<string, Entry>;
+
+/**
+ * ═══ MINI-LABELS DES APERÇUS (25/07/2026) ══════════════════════════════════
+ *
+ * Chaque aperçu SVG porte un mot sous l'illustration (`PreviewLabel`). Ces mots
+ * étaient du FRANÇAIS EN DUR dans `preview/cosmetic.tsx` — « Frontière or »,
+ * « Trame nuit », « Hachures », « Braise », « Givre », « Première zone »… — et
+ * ils sont VISIBLES en grille comme dans la sheet de détail. Un joueur
+ * en/es/de/pt les lisait en français.
+ *
+ * Clé = `item_key` du catalogue. Un item sans entrée retombe sur le libellé du
+ * composant (repli du resolver), jamais sur du vide.
+ *
+ * NOMS PROPRES DE MARQUE identiques dans les 5 langues (« Blackout »,
+ * « Neon Ivory », « Carbon Dash », « War Ready »…) : un nom de produit ne se
+ * traduit pas — même règle que le catalogue produit.
+ */
+export const ARSENAL_PREVIEW_LABEL_I18N: Record<string, Entry> = {
+  // ── Skins territoire ──
+  skin_territory_gold_border: { fr: 'Frontière or', en: 'Gold border', es: 'Frontera dorada', de: 'Goldene Grenze', pt: 'Fronteira dourada' },
+  skin_territory_ghost: { fr: 'Fantôme', en: 'Ghost', es: 'Fantasma', de: 'Geist', pt: 'Fantasma' },
+  skin_territory_night_grid: { fr: 'Trame nuit', en: 'Night grid', es: 'Trama nocturna', de: 'Nachtraster', pt: 'Trama noturna' },
+  skin_territory_blackout: { fr: 'Blackout', en: 'Blackout', es: 'Blackout', de: 'Blackout', pt: 'Blackout' },
+  skin_territory_ivory_lines: { fr: 'Hachures', en: 'Hatching', es: 'Rayado', de: 'Schraffur', pt: 'Hachura' },
+  skin_territory_ember: { fr: 'Braise', en: 'Ember', es: 'Brasa', de: 'Glut', pt: 'Brasa' },
+  skin_territory_frost: { fr: 'Givre', en: 'Frost', es: 'Escarcha', de: 'Frost', pt: 'Geada' },
+  skin_territory_founder_glow: { fr: 'Founder', en: 'Founder', es: 'Founder', de: 'Founder', pt: 'Founder' },
+  // ── Skins trace ──
+  skin_trace_electric: { fr: 'Électrique', en: 'Electric', es: 'Eléctrico', de: 'Elektrisch', pt: 'Elétrico' },
+  skin_trace_chartreuse_pulse: { fr: 'Pulse', en: 'Pulse', es: 'Pulse', de: 'Pulse', pt: 'Pulse' },
+  skin_trace_neon_ivory: { fr: 'Neon Ivory', en: 'Neon Ivory', es: 'Neon Ivory', de: 'Neon Ivory', pt: 'Neon Ivory' },
+  skin_trace_ghost_line: { fr: 'Ghost', en: 'Ghost', es: 'Ghost', de: 'Ghost', pt: 'Ghost' },
+  skin_trace_carbon_dash: { fr: 'Carbon Dash', en: 'Carbon Dash', es: 'Carbon Dash', de: 'Carbon Dash', pt: 'Carbon Dash' },
+  skin_trace_midnight: { fr: 'Midnight', en: 'Midnight', es: 'Midnight', de: 'Midnight', pt: 'Midnight' },
+  skin_trace_blade: { fr: 'Blade', en: 'Blade', es: 'Blade', de: 'Blade', pt: 'Blade' },
+  skin_trace_founder_line: { fr: 'Founder Line', en: 'Founder Line', es: 'Founder Line', de: 'Founder Line', pt: 'Founder Line' },
+  // ── Cadres, badge et titre de profil ──
+  frame_road: { fr: 'Road', en: 'Road', es: 'Road', de: 'Road', pt: 'Road' },
+  frame_tempo: { fr: 'Tempo', en: 'Tempo', es: 'Tempo', de: 'Tempo', pt: 'Tempo' },
+  frame_race: { fr: 'Race', en: 'Race', es: 'Race', de: 'Race', pt: 'Race' },
+  frame_carbon: { fr: 'Carbon', en: 'Carbon', es: 'Carbon', de: 'Carbon', pt: 'Carbon' },
+  frame_elite: { fr: 'Elite', en: 'Elite', es: 'Elite', de: 'Elite', pt: 'Elite' },
+  frame_founder: { fr: 'Founder', en: 'Founder', es: 'Founder', de: 'Founder', pt: 'Founder' },
+  founder_badge: { fr: 'Badge Founder', en: 'Founder Badge', es: 'Badge Founder', de: 'Founder-Badge', pt: 'Badge Founder' },
+  title_founder_runner: { fr: 'Founder Runner', en: 'Founder Runner', es: 'Founder Runner', de: 'Founder Runner', pt: 'Founder Runner' },
+  // ── Bannières crew ──
+  crew_banner_impact: { fr: 'Impact', en: 'Impact', es: 'Impact', de: 'Impact', pt: 'Impact' },
+  crew_banner_war_ready: { fr: 'War Ready', en: 'War Ready', es: 'War Ready', de: 'War Ready', pt: 'War Ready' },
+  crew_banner_blackline: { fr: 'Black Line', en: 'Black Line', es: 'Black Line', de: 'Black Line', pt: 'Black Line' },
+  crew_banner_chartreuse: { fr: 'Chartreuse Storm', en: 'Chartreuse Storm', es: 'Chartreuse Storm', de: 'Chartreuse Storm', pt: 'Chartreuse Storm' },
+  crew_banner_district: { fr: 'District', en: 'District', es: 'District', de: 'District', pt: 'District' },
+  crew_banner_legend: { fr: 'Legend Row', en: 'Legend Row', es: 'Legend Row', de: 'Legend Row', pt: 'Legend Row' },
+  // ── Blasons crew ──
+  crew_emblem_ghost: { fr: 'Ghost', en: 'Ghost', es: 'Ghost', de: 'Ghost', pt: 'Ghost' },
+  crew_emblem_carbon: { fr: 'Carbon', en: 'Carbon', es: 'Carbon', de: 'Carbon', pt: 'Carbon' },
+  crew_emblem_gold: { fr: 'Or', en: 'Gold', es: 'Oro', de: 'Gold', pt: 'Ouro' },
+  crew_emblem_founder: { fr: 'Founder', en: 'Founder', es: 'Founder', de: 'Founder', pt: 'Founder' },
+  // ── Templates de partage ──
+  template_first_zone: { fr: 'Première zone', en: 'First zone', es: 'Primera zona', de: 'Erste Zone', pt: 'Primeira zona' },
+  template_zone_taken: { fr: 'Zone prise', en: 'Zone taken', es: 'Zona tomada', de: 'Zone erobert', pt: 'Zona tomada' },
+  template_night_run: { fr: 'Night Run', en: 'Night Run', es: 'Night Run', de: 'Night Run', pt: 'Night Run' },
+  template_before_after: { fr: 'Before / After', en: 'Before / After', es: 'Before / After', de: 'Before / After', pt: 'Before / After' },
+  template_route_opened: { fr: 'Route ouverte', en: 'Route opened', es: 'Ruta abierta', de: 'Route eröffnet', pt: 'Rota aberta' },
+  template_founder: { fr: 'Founder', en: 'Founder', es: 'Founder', de: 'Founder', pt: 'Founder' },
+  crew_recruit_template: { fr: 'Recrutement', en: 'Recruiting', es: 'Reclutamiento', de: 'Rekrutierung', pt: 'Recrutamento' },
+};
+
+/**
+ * LÉGENDES des schémas de mécanique (`preview/mechanics.tsx`). Elles étaient en
+ * français dur, et ce sont les phrases les plus IMPORTANTES des aperçus : ce
+ * sont elles qui disent la LIMITE anti-pay-to-win (« ne capture rien », « jamais
+ * points ni zones »). Les afficher en français à un joueur allemand, c'est lui
+ * cacher la garantie.
+ *
+ * `{pct}` = bonus de coffre dérivé de `CREW_BOOST_CHEST_MULTIPLIER`, interpolé
+ * au rendu — jamais un nombre écrit dans la copie.
+ */
+export const PREVIEW_CAPTION_C = defineCatalog({
+  shield: {
+    fr: 'Protège une zone · pas invincible',
+    en: 'Protects a zone · not invincible',
+    es: 'Protege una zona · no invencible',
+    de: 'Schützt eine Zone · nicht unbesiegbar',
+    pt: 'Protege uma zona · não invencível',
+  },
+  scoutPing: {
+    fr: 'Révèle une info · aucune capture',
+    en: 'Reveals intel · no capture',
+    es: 'Revela información · ninguna captura',
+    de: 'Zeigt eine Info · keine Eroberung',
+    pt: 'Revela uma info · nenhuma captura',
+  },
+  streakGel: {
+    fr: 'Ne capture aucune zone · jamais vendu',
+    en: 'Captures no zone · never sold',
+    es: 'No captura ninguna zona · nunca a la venta',
+    de: 'Erobert keine Zone · nie verkauft',
+    pt: 'Não captura nenhuma zona · nunca vendido',
+  },
+  crewBoost: {
+    fr: '+{pct}% coffre · jamais points ni zones',
+    en: '+{pct}% chest · never points or zones',
+    es: '+{pct}% cofre · nunca puntos ni zonas',
+    de: '+{pct}% Kiste · nie Punkte oder Zonen',
+    pt: '+{pct}% baú · nunca pontos nem zonas',
+  },
+  pack: {
+    fr: 'Plusieurs cosmétiques · pas un avantage',
+    en: 'Several cosmetics · not an advantage',
+    es: 'Varios cosméticos · no una ventaja',
+    de: 'Mehrere Kosmetika · kein Vorteil',
+    pt: 'Vários cosméticos · não uma vantagem',
+  },
+  eclats: {
+    fr: 'Pour le style · pas le territoire',
+    en: 'For style · not territory',
+    es: 'Para el estilo · no el territorio',
+    de: 'Für den Style · nicht das Gebiet',
+    pt: 'Para o estilo · não o território',
+  },
+  club: {
+    fr: 'Zéro avantage de jeu · aucun bouclier',
+    en: 'Zero gameplay advantage · no shield',
+    es: 'Cero ventaja de juego · ningún escudo',
+    de: 'Null Spielvorteil · kein Schild',
+    pt: 'Zero vantagem de jogo · nenhum escudo',
+  },
+  pass: {
+    fr: 'Récompenses de saison · à venir',
+    en: 'Season rewards · coming',
+    es: 'Recompensas de temporada · próximamente',
+    de: 'Saisonbelohnungen · demnächst',
+    pt: 'Recompensas de temporada · em breve',
+  },
+});

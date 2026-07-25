@@ -11,11 +11,22 @@
  *     que le resolver n'ait jamais à retomber sur la chaîne FR de repli.
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import type { Entry } from '../types.ts';
 import { LOCALES } from '../types.ts';
-import { ARSENAL_I18N } from './arsenal.ts';
+import { ARSENAL_I18N, SHOP_C } from './arsenal.ts';
+
+/**
+ * Les DEUX exports du fichier passent les mêmes contrôles : le catalogue produit
+ * (ARSENAL_I18N) et la copie d'écran E17 (SHOP_C). Séparer les deux exports ne
+ * doit pas créer une zone où la parité n'est plus vérifiée.
+ */
+const ALL_ENTRIES: [string, Entry][] = [
+  ...Object.entries(ARSENAL_I18N),
+  ...Object.entries(SHOP_C).map(([k, v]) => [`SHOP_C.${k}`, v] as [string, Entry]),
+];
 
 Deno.test('parité 5 langues : chaque entrée du catalogue est traduite partout', () => {
-  for (const [key, entry] of Object.entries(ARSENAL_I18N)) {
+  for (const [key, entry] of ALL_ENTRIES) {
     for (const locale of LOCALES) {
       assert(
         typeof entry[locale] === 'string' && entry[locale].trim().length > 0,
@@ -27,7 +38,7 @@ Deno.test('parité 5 langues : chaque entrée du catalogue est traduite partout'
 
 Deno.test('les placeholders {…} sont IDENTIQUES dans les 5 langues', () => {
   const ph = (s: string): Set<string> => new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]));
-  for (const [key, entry] of Object.entries(ARSENAL_I18N)) {
+  for (const [key, entry] of ALL_ENTRIES) {
     const ref = ph(entry.fr);
     for (const locale of LOCALES) {
       const here = ph(entry[locale]);
@@ -75,5 +86,49 @@ Deno.test('les nombres RESTENT des placeholders, jamais écrits en dur dans la c
   for (const key of ['starter_pack.description', 'founder_pack.description', 'eclats_s.description']) {
     assert(ARSENAL_I18N[key].fr.includes('{n}'), `${key} devrait porter {n}`);
     assert(!/\d{2,}/.test(ARSENAL_I18N[key].fr.replace(/\{\w+\}/g, '')), `${key} : nombre en dur`);
+  }
+});
+
+// ─── E17 « Boutique & Premium » : ce que la COPIE n'a pas le droit de dire ───
+
+Deno.test('E17 : aucun chiffre n’est écrit en dur dans la copie d’écran', () => {
+  // La planche affichait « SAISON 3 », « 18 j », « 39,99 € », « 3,33 €/mois » :
+  // quatre placeholders de maquette. Prix, numéro de saison et jours restants
+  // sont interpolés depuis game-rules et la RPC season_current — jamais écrits.
+  for (const [key, entry] of Object.entries(SHOP_C)) {
+    for (const locale of LOCALES) {
+      const withoutPlaceholders = entry[locale].replace(/\{\w+\}/g, '');
+      assert(!/\d/.test(withoutPlaceholders), `SHOP_C.${key} (${locale}) : chiffre en dur`);
+    }
+  }
+});
+
+Deno.test('E17 : les libellés porteurs de valeur exposent bien leur placeholder', () => {
+  assert(SHOP_C.kickerSeason.fr.includes('{season}'));
+  assert(SHOP_C.seasonHeroTitle.fr.includes('{season}'));
+  assert(SHOP_C.seasonHeroDays.fr.includes('{days}'));
+  assert(SHOP_C.premiumMonthlyPrice.fr.includes('{price}'));
+  assert(SHOP_C.premiumAnnualPrice.fr.includes('{price}'));
+  assert(SHOP_C.premiumAnnualPerMonth.fr.includes('{price}'));
+  assert(SHOP_C.priceDual.fr.includes('{eclats}') && SHOP_C.priceDual.fr.includes('{eur}'));
+});
+
+Deno.test('E17 : la note permanente porte le libellé exact de la planche', () => {
+  const note = SHOP_C.cosmeticOnlyNote.fr;
+  assert(note.startsWith('Cosmétique uniquement.'), 'la note a dérivé du libellé de planche');
+  for (const word of ['capture', 'défense', 'classement']) {
+    assert(note.includes(word), `la note ne nomme plus « ${word} »`);
+  }
+});
+
+Deno.test('E17 : la copie ne promet ni essai, ni restauration, ni rabais', () => {
+  // Trois contrôles morts (aucune API derrière) et un interdit absolu de la
+  // planche. Si l'un de ces mots réapparaît dans la copie, c'est qu'un bouton
+  // menteur a été repeint.
+  const FORBIDDEN = /(essai gratuit|jours gratuits|restaurer|réduction|économise|au lieu de|-\s?\d+\s?%)/i;
+  for (const [key, entry] of Object.entries(SHOP_C)) {
+    for (const locale of LOCALES) {
+      assert(!FORBIDDEN.test(entry[locale]), `SHOP_C.${key} (${locale}) : promesse sans code derrière`);
+    }
   }
 });

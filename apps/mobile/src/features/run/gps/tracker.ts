@@ -46,8 +46,9 @@ import {
   type PauseInterval,
   type RawFix,
 } from './engine/gps';
-import { loopGapM } from './engine/loopHint';
-import { sampleEvenly } from './traceSample';
+import { farthestGapM, loopGapM } from './engine/loopHint';
+import { recentSpeedMps } from './engine/liveView';
+import { sampleEvenly, splitAndSampleAtGaps } from './traceSample';
 
 const MS_PER_S = 1_000;
 
@@ -58,6 +59,14 @@ const MS_PER_S = 1_000;
  * jamais faire ramer une course de plusieurs heures.
  */
 const TRACE_DISPLAY_MAX_POINTS = 240;
+
+/**
+ * Fenêtre de MESURE de la vitesse récente (ms) — présentation, pas une règle de
+ * jeu : elle ne décide d'aucun claim, elle sert seulement à savoir si le
+ * coureur va assez vite pour qu'une animation devienne dangereuse (E08). Assez
+ * longue pour lisser un fix isolé, assez courte pour rester « maintenant ».
+ */
+const RECENT_SPEED_WINDOW_MS = 10_000;
 
 /** États de la course réelle (AMENDEMENT-15 §2). */
 export type TrackerPhase = 'idle' | 'tracking' | 'paused-auto' | 'paused-user' | 'finished';
@@ -100,6 +109,25 @@ export interface TrackerSnapshot {
    * inventé. Vide tant qu'il y a < 2 points : rien à tracer (l'écran le dit).
    */
   tracePoints: readonly { lat: number; lng: number }[];
+  /**
+   * E07 — le MÊME tracé, mais coupé aux discontinuités de signal (`gapBefore`).
+   * Chaque tronçon a été RÉELLEMENT parcouru sous mesure et se peint plein ;
+   * ce qui sépare deux tronçons n'a jamais été mesuré et se peint en pointillé
+   * (planche E07 « tracé incertain »). Vide tant qu'aucun tronçon n'a 2 points.
+   */
+  traceSegments: readonly (readonly { lat: number; lng: number }[])[];
+  /**
+   * Écart MAXIMAL au départ atteint depuis le début (m) — le point le plus
+   * loin, mesuré. Sert UNIQUEMENT à situer le retour (progression de fermeture
+   * E07) : sans lui, un pourcentage serait inventé. null si trace < 2 points.
+   */
+  farthestGapM: number | null;
+  /**
+   * Vitesse MESURÉE sur les dernières secondes (m/s), null si indéterminable.
+   * Distincte de `paceSPerKm` (moyenne de toute la course, muette sur
+   * l'instant). Sert la réduction de SÉCURITÉ d'E08 — jamais un affichage.
+   */
+  recentSpeedMps: number | null;
 }
 
 export interface TrackerInit {
@@ -300,7 +328,15 @@ export class RunTracker {
         lat: p.lat,
         lng: p.lng,
       })),
+      // E07 : mêmes points, coupés aux trous de signal — ce qui a été mesuré se
+      // peint plein, ce qui les relie se peint en pointillé (jamais un trait
+      // plein sur un chemin que personne n'a mesuré).
+      traceSegments: splitAndSampleAtGaps(smoothed, TRACE_DISPLAY_MAX_POINTS).map((seg) =>
+        seg.map((p) => ({ lat: p.lat, lng: p.lng })),
+      ),
       loopGapM: loopGapM(smoothed),
+      farthestGapM: farthestGapM(smoothed),
+      recentSpeedMps: recentSpeedMps(smoothed, nowTs, RECENT_SPEED_WINDOW_MS),
       // Position approximative : le dernier fix est FRAIS mais inutilisable
       // (accuracy > max) — signature de « Précision exacte » désactivée
       // (iOS 14+) ou d'une permission Android coarse. accuracyRejects garde le

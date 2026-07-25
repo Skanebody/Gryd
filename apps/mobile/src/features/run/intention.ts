@@ -22,21 +22,19 @@
  *   - `isCompleteParam` / `CompleteIntention` : le mode « terminer » du live.
  * Ce qui reste est soit une règle du jeu en une phrase, soit la lecture d'un
  * paramètre de route, soit la forme UX des frontières crew (encore consommée
- * par le Résultat — voir la note sur PARTIAL_BOUNDARIES_DEMO plus bas).
+ * par `features/nav/contextualAction.ts` — voir la note sur
+ * PARTIAL_BOUNDARIES_DEMO plus bas).
  */
+import { C } from '../../i18n/catalog/result';
+import type { Entry } from '../../i18n/types';
 
-// ─── Copy gelée (doc §28) ────────────────────────────────────────────────────
-
-/** Run libre (§28) — sous-titre de l'entrée RUN du sheet. */
-export const FREE_RUN_COPY =
-  'Cours librement. GRYD calcule ce que tu as pris, défendu ou ouvert.';
-/** Conquête (§28) — aide de la section Conquérir. */
-export const CONQUEST_COPY = 'Trace une boucle. Ferme-la. La zone est à toi.';
-/** Défense (§28) — sous-titre de l'entrée Défendre. */
-export const DEFENSE_COPY = 'Reviens sur tes frontières avant qu’elles tombent.';
-/** Conseil Conquérir (doc §3.2) — sous-titre de l'entrée Conquérir. */
-export const CONQUEST_ADVICE =
-  'Trace une boucle pour créer une zone. Distance conseillée : 2 à 5 km.';
+// ─── Copy gelée §28 — RETIRÉE DE CE FICHIER (25/07/2026) ─────────────────────
+// `FREE_RUN_COPY` / `CONQUEST_COPY` / `DEFENSE_COPY` / `CONQUEST_ADVICE` étaient
+// quatre phrases FRANÇAISES EN DUR, sans aucun appelant depuis la purge du
+// 21/07/2026 (le sheet qui les affichait a disparu avec la course fabriquée).
+// Un texte visible non traduit qui attend un consommateur finit par en trouver
+// un : le jour où ces phrases reviennent à l'écran, elles reviendront par
+// `defineCatalog`, avec leurs 5 langues, comme tout le reste.
 
 // ─── Intention (client only — jamais envoyée au serveur) ─────────────────────
 
@@ -114,23 +112,16 @@ export interface PartialBoundaryDemo {
  * comme CONTRAT de ce que le serveur devra renvoyer.
  */
 
-/** « 2,4 km » — virgule FR, distance tracée (copy « Tu as tracé 2,4 km »). */
-export function tracedKmLabel(boundary: PartialBoundaryDemo): string {
-  return `${boundary.tracedKm.toFixed(1).replace('.', ',')} km`;
-}
-
-/** « Expire dans 23 h » — TTL restant lisible (jamais l'ISO brut). */
-export function boundaryExpiryLabel(boundary: PartialBoundaryDemo): string {
-  return `Expire dans ${boundary.ttlHoursLeft} h`;
-}
-
-/**
- * Part affichée « 79 % » d'une contribution (arrondi entier — jamais un % de
- * géométrie trop précis, juste la répartition lisible du prorata).
- */
-export function contributionPct(share: number): number {
-  return Math.round(Math.max(0, Math.min(1, share)) * 100);
-}
+// ─── HELPERS DE FRONTIÈRE RETIRÉS (25/07/2026, recalage E09) ────────────────
+// `tracedKmLabel`, `boundaryExpiryLabel` et `contributionPct` vivaient encore
+// ici alors que leurs deux écrans (frontière ouverte / boucle crew fermée) ont
+// été supprimés le 21/07/2026 avec PARTIAL_BOUNDARIES_DEMO. Ils n'avaient plus
+// AUCUN appelant — `course-result.tsx` les importait sans jamais les lire.
+// Deux d'entre eux formataient d'ailleurs en FRANÇAIS EN DUR (« Expire dans
+// 23 h », virgule décimale forcée) : les garder, c'était garder un gabarit
+// non traduit prêt à ressortir. L'échéance réelle d'une frontière ouverte se
+// dérive désormais de `openBoundary.expiresAt` (verdict serveur) et passe par
+// le catalogue (`C.boundaryOpenHours`).
 
 
 /**
@@ -158,67 +149,31 @@ export interface DefenseTargetDemo {
   loopKm: number;
 }
 
-// ─── Synthèse multi-résultats (doc §2 / §3.1 — « l'intention guide, le tracé
-//     décide ») ──────────────────────────────────────────────────────────────
-// Le tracé réel produit PLUSIEURS effets, quelle que soit l'intention : la
-// synthèse liste ce que la course a pris/défendu/repris/ouvert. Étiquettes de
-// SCÉNARIO démo (le vrai bilan vient d'ingest_run côté serveur, jamais du
-// client). L'intention ne teinte que l'ordre/l'accent — pas l'attribution.
-
-/** Une ligne de la synthèse : icône + texte, `accent` = mise en avant chartreuse. */
-export interface ResultSummaryLine {
-  icon: 'cible' | 'bouclier' | 'route' | 'crew';
-  text: string;
-  accent?: boolean;
-}
-
-/** Titre + copy §28 selon l'intention (Conquête / Défense / Run libre). */
-export function summaryHeader(intention: RunIntention | null): {
-  kicker: string;
-  copy: string;
-} {
-  if (intention === 'conquest') return { kicker: 'CONQUÊTE', copy: CONQUEST_COPY };
-  if (intention === 'defense') return { kicker: 'DÉFENSE', copy: DEFENSE_COPY };
-  return { kicker: 'RUN LIBRE', copy: FREE_RUN_COPY };
-}
+// ─── Kicker d'intention du Résultat (doc §2 / §3.1) ──────────────────────────
+// « L'intention guide l'expérience, le tracé décide du résultat » : ce kicker
+// nomme l'INTENTION du joueur au-dessus de sa distance mesurée. Il ne dit rien
+// de l'attribution (le serveur seul décide) — c'est de la copy, pas un verdict.
 
 /**
- * Synthèse multi-résultats (doc §2/§3.1). `zoneName`/`zonePctDelta` viennent
- * des stats démo (le serveur reste décideur). Chaque intention met en avant SON
- * effet, mais tous les effets du tracé sont listés (« pas une prison » §2) :
- *  - Conquérir : +1 zone conquise (accent) · 2 défendues · 1 route ouverte
- *  - Défendre  : 2 zones défendues (accent) · 1 petite zone conquise · 1 route
- *  - Run libre : +1 conquise · 2 défendues · 1 route ouverte (analyse auto)
- * La ligne zone crew (« Paris Est +3 % ») clôt toujours la synthèse.
+ * Kicker §28 selon l'intention (Conquête / Défense / Run libre), en `Entry` i18n.
+ *
+ * ─── FUITE DE FRANÇAIS COLMATÉE (25/07/2026) ────────────────────────────────
+ * Cette fonction renvoyait des LITTÉRAUX français ('CONQUÊTE' / 'DÉFENSE' /
+ * 'RUN LIBRE'), rendus tels quels dans la ligne héros du Résultat : un joueur
+ * en EN/ES/DE/PT lisait « CONQUÊTE · 4,30 km » sur son propre écran de fin de
+ * course. Les cinq langues vivent désormais au catalogue, parité forcée par le
+ * type `Entry`.
  */
-export function resultSummaryLines(
-  intention: RunIntention | null,
-  zoneName: string,
-  zonePctDelta: number,
-): ResultSummaryLine[] {
-  const conquered: ResultSummaryLine = {
-    icon: 'cible',
-    text: '+1 zone conquise',
-    accent: intention !== 'defense',
-  };
-  const defended: ResultSummaryLine = {
-    icon: 'bouclier',
-    text: '2 zones défendues',
-    accent: intention === 'defense',
-  };
-  const opened: ResultSummaryLine = { icon: 'route', text: '1 route ouverte' };
-  const crewLine: ResultSummaryLine = {
-    icon: 'crew',
-    text: `${zoneName} +${zonePctDelta} %`,
-  };
-  if (intention === 'defense') {
-    // Défendre : la défense prime, la conquête au passage est « petite ».
-    return [
-      defended,
-      { ...conquered, text: '1 petite zone conquise', accent: false },
-      opened,
-      crewLine,
-    ];
-  }
-  return [conquered, defended, opened, crewLine];
+export function summaryHeader(intention: RunIntention | null): { kicker: Entry } {
+  if (intention === 'conquest') return { kicker: C.kickerConquest };
+  if (intention === 'defense') return { kicker: C.kickerDefense };
+  return { kicker: C.kickerFreeRun };
 }
+
+// ─── `resultSummaryLines` SUPPRIMÉE (25/07/2026) ────────────────────────────
+// Elle fabriquait la synthèse « +1 zone conquise · 2 zones défendues · 1 route
+// ouverte · {zone} +N % » : quatre affirmations de gameplay écrites en dur, en
+// français, qu'aucune mesure ne produisait. Son dernier appelant l'avait déjà
+// neutralisée (`summaryLines = []`) sans retirer la fonction — donc la carcasse
+// d'un mensonge attendait un appelant. Le vrai bilan est celui d'ingest_run, et
+// c'est le bloc IMPACT qui le rend. `ResultSummaryLine` part avec elle.

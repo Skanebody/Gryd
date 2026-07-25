@@ -8,9 +8,12 @@
  *
  * HONNÊTETÉ (charte §A « l'app ne ment pas ») : ces fonctions renvoient un
  * résultat réel — l'UI ne dit « copié » que si quelque chose a VRAIMENT été
- * copié. Le PNG sticker transparent (rendu image) reste un TODO natif
- * (react-native-view-shot, O1) ; ici le sticker est son ÉQUIVALENT TEXTE prêt à
- * coller (résultat territorial + lien), 100 % fonctionnel sans dépendance.
+ * copié, et « PNG » que si une image a VRAIMENT été produite.
+ *
+ * Le sticker existe désormais en DEUX canaux, jamais confondus (planche E10) :
+ *   · natif  → `shareStickerImage` : PNG à fond transparent (captureRef alpha) ;
+ *   · web / échec de capture → `stickerText` : l'équivalent TEXTE prêt à coller.
+ * Le second n'est jamais annoncé comme un PNG.
  */
 import { Platform, Share } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
@@ -100,6 +103,41 @@ export async function shareAsImage(
     console.warn('[share] export image échoué, filet texte :', e);
   }
   return openShareSheet(fallbackMessage);
+}
+
+/**
+ * E10 (planche) — STICKER PNG À FOND TRANSPARENT. Rasterise la vue sticker
+ * (`StickerCard`, montée hors écran par /partage) en PNG avec canal alpha, puis
+ * la remet au share sheet natif.
+ *
+ * `result: 'tmpfile'` : `expo-sharing` partage un FICHIER, pas une data-URI.
+ *
+ * ─── POURQUOI CE N'EST PAS UN `shareAsImage` DE PLUS ────────────────────────
+ * Le canal change ce qu'on a le droit de DIRE. Si la capture aboutit, l'app peut
+ * annoncer « sticker PNG » ; sinon elle retombe sur le sticker TEXTE et doit le
+ * dire autrement (`via: 'clipboard' | 'share'`). D'où un `via: 'image'` distinct
+ * remonté à l'appelant : le toast suit le canal RÉEL, jamais l'intention.
+ * Web : `captureRef` n'existe pas → filet texte, sans jamais l'appeler « PNG ».
+ */
+export async function shareStickerImage(
+  target: unknown,
+  fallbackText: string,
+): Promise<ShareActionResult> {
+  if (Platform.OS === 'web' || target == null) return copyText(fallbackText);
+  try {
+    const uri = await captureRef(target as Parameters<typeof captureRef>[0], {
+      format: 'png', // seul format à canal alpha — le JPEG aplatirait le fond
+      quality: 1,
+      result: 'tmpfile',
+    });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' });
+      return { ok: true, via: 'image' };
+    }
+  } catch (e) {
+    console.warn('[share] sticker PNG échoué, filet texte :', e);
+  }
+  return copyText(fallbackText);
 }
 
 export async function openShareSheet(message: string): Promise<ShareActionResult> {

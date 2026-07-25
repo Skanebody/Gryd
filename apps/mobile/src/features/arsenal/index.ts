@@ -1,6 +1,6 @@
 /**
  * GRYD — barrel Arsenal V2 (AMENDEMENT-16 §4). Les écrans importent d'ici :
- * `import { ARSENAL_CATALOG, startBoost } from '../src/features/arsenal'`.
+ * `import { ARSENAL_CATALOG, shopItems } from '../src/features/arsenal'`.
  */
 export {
   ARSENAL_CATALOG,
@@ -11,12 +11,13 @@ export {
   itemByKey,
   itemsInSection,
   type ArsenalCatalogItem,
+  type ArsenalCurrency,
+  type ArsenalPriceCurrency,
   type ArsenalScope,
   type ArsenalSectionKey,
 } from './catalog';
 export {
   BOOST_CHEST_BONUS_LABEL,
-  EQUIP_SCOPE_LABEL,
   INITIAL_CREW_WALL,
   boostDurationH,
   boostRemainingMs,
@@ -39,7 +40,6 @@ export {
   type EquipStore,
 } from './inventory';
 export {
-  ARSENAL_NEED_OPTIONS,
   DEMO_ARSENAL_SIGNALS,
   explainArsenalItem,
   rankArsenalItems,
@@ -54,3 +54,19 @@ export {
   type ArsenalSignalsSource,
   type ArsenalSignalsState,
 } from './signals';
+// ─── Planche E17 « Boutique & Premium » ──────────────────────────────────────
+export {
+  PREMIUM_MAX_BENEFITS,
+  monthlyEquivalentEur,
+  ownershipKindOf,
+  premiumItem,
+  premiumPrices,
+  shopCategoryKeys,
+  shopItems,
+  shopSectionKeys,
+  type PremiumPrices,
+  type ShopCategoryKey,
+  type ShopOwnership,
+} from './shop';
+export { useRunInProgress, type RunInProgressState } from './useRunInProgress';
+export { ShopGridCard } from './ShopGridCard';

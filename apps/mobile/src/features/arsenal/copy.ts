@@ -26,9 +26,10 @@ import {
   STARTER_PACK_ECLATS,
   STREAK_FREEZE_FREE_PER_MONTH,
 } from '@klaim/shared';
-import { ARSENAL_I18N } from '../../i18n/catalog/arsenal';
+import { ARSENAL_I18N, SHOP_C } from '../../i18n/catalog/arsenal';
 import type { Entry } from '../../i18n/types';
 import type { ArsenalCatalogItem, ArsenalSectionKey } from './catalog';
+import type { EquipScope } from './inventory';
 
 /** Signature du `t` de `useT()` — passé par l'écran appelant (réactif à la langue). */
 export type Translate = (entry: Entry, vars?: Record<string, string | number>) => string;
@@ -88,4 +89,21 @@ export function arsenalSectionLabel(key: ArsenalSectionKey, t: Translate): strin
 export function arsenalSectionNote(key: ArsenalSectionKey, t: Translate): string | undefined {
   const entry = ARSENAL_I18N[`section.${key}.note`];
   return entry ? t(entry) : undefined;
+}
+
+/**
+ * Où se voit un cosmétique une fois équipé (traduit). Remplace la table
+ * `EQUIP_SCOPE_LABEL` en français dur d'`inventory.ts` — et n'annonce plus de
+ * numéro de saison que personne n'avait lu.
+ */
+const EQUIP_SCOPE_ENTRY: Record<EquipScope, Entry> = {
+  zone: SHOP_C.equipScopeZone,
+  route: SHOP_C.equipScopeRoute,
+  profile: SHOP_C.equipScopeProfile,
+  crew: SHOP_C.equipScopeCrew,
+  share: SHOP_C.equipScopeShare,
+};
+
+export function arsenalEquipScopeLabel(scope: EquipScope, t: Translate): string {
+  return t(EQUIP_SCOPE_ENTRY[scope]);
 }

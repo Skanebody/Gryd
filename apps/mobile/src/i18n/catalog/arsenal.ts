@@ -17,7 +17,339 @@
  * ⚠️ FICHIER VOLUMINEUX généré à partir d'un workflow de traduction relu — les
  * corrections de copie se font ici, à la main, entrée par entrée.
  */
-import type { Entry } from '../types';
+import { defineCatalog, type Entry } from '../types';
+
+/**
+ * ═══ E17 « Boutique & Premium » — COPIE D'ÉCRAN (25/07/2026) ═══════════════
+ *
+ * Pourquoi un SECOND export ici plutôt que dans `flagged.ts` (où vit encore la
+ * copie historique de l'Arsenal) : `flagged.ts` n'appartient pas à ce chantier.
+ * Les libellés que la planche E17 exige — hero de saison RÉELLE, chips de
+ * catégories, propriété (Permanent / Saison / Possédé), note permanente
+ * « Cosmétique uniquement… », bloc Premium, et surtout l'aveu « la boutique
+ * n'est pas encore ouverte » — sont donc déclarés dans MON catalogue. Les clés
+ * `flagged.ts` devenues fausses (achat, gifting, kicker « SAISON 0 » écrit en
+ * dur) ne sont simplement PLUS consommées : elles y restent orphelines, à
+ * nettoyer par le propriétaire de ce fichier.
+ *
+ * `defineCatalog` (et non un Record<string, Entry>) : avec
+ * `noUncheckedIndexedAccess`, un Record rendrait chaque lecture `Entry |
+ * undefined` — l'écran devrait inventer un repli pour chaque libellé. Ici les
+ * clés sont statiques : le type les connaît, la parité 5 langues est imposée.
+ *
+ * AUCUN NOMBRE dans la copie : prix, numéro de saison et jours restants sont
+ * des placeholders `{price}` / `{season}` / `{days}` interpolés au rendu depuis
+ * game-rules ou depuis la RPC `season_current` (jamais une valeur de planche).
+ */
+export const SHOP_C = defineCatalog({
+  // ── En-tête ────────────────────────────────────────────────────────────────
+  kicker: {
+    fr: 'BOUTIQUE & PREMIUM',
+    en: 'SHOP & PREMIUM',
+    es: 'TIENDA & PREMIUM',
+    de: 'SHOP & PREMIUM',
+    pt: 'LOJA & PREMIUM',
+  },
+  /** Saison RÉELLE (RPC season_current) — jamais un numéro écrit en dur. */
+  kickerSeason: {
+    fr: 'BOUTIQUE & PREMIUM · SAISON {season}',
+    en: 'SHOP & PREMIUM · SEASON {season}',
+    es: 'TIENDA & PREMIUM · TEMPORADA {season}',
+    de: 'SHOP & PREMIUM · SAISON {season}',
+    pt: 'LOJA & PREMIUM · TEMPORADA {season}',
+  },
+
+  // ── Hero saisonnier : QUATRE états distincts, jamais confondus ─────────────
+  seasonReading: {
+    fr: 'Lecture de la saison en cours…',
+    en: 'Reading the current season…',
+    es: 'Leyendo la temporada en curso…',
+    de: 'Aktuelle Saison wird gelesen…',
+    pt: 'A ler a temporada em curso…',
+  },
+  seasonNone: {
+    fr: 'Aucune saison en cours pour ta ville.',
+    en: 'No season under way for your city.',
+    es: 'Ninguna temporada en curso para tu ciudad.',
+    de: 'Für deine Stadt läuft keine Saison.',
+    pt: 'Nenhuma temporada em curso para a tua cidade.',
+  },
+  seasonError: {
+    fr: 'Saison non lue — on ne sait pas. Réessaie plus tard.',
+    en: 'Season not read — we don’t know. Try again later.',
+    es: 'Temporada no leída — no lo sabemos. Inténtalo más tarde.',
+    de: 'Saison nicht gelesen — wir wissen es nicht. Versuch es später.',
+    pt: 'Temporada não lida — não sabemos. Tenta mais tarde.',
+  },
+  seasonHeroTitle: {
+    fr: 'Saison {season} en cours',
+    en: 'Season {season} under way',
+    es: 'Temporada {season} en curso',
+    de: 'Saison {season} läuft',
+    pt: 'Temporada {season} a decorrer',
+  },
+  seasonHeroDays: {
+    fr: 'Se termine dans {days} j',
+    en: 'Ends in {days} d',
+    es: 'Termina en {days} d',
+    de: 'Endet in {days} T',
+    pt: 'Termina em {days} d',
+  },
+  seasonHeroLastDay: {
+    fr: 'Dernier jour de la saison',
+    en: 'Last day of the season',
+    es: 'Último día de la temporada',
+    de: 'Letzter Tag der Saison',
+    pt: 'Último dia da temporada',
+  },
+
+  // ── LA BOUTIQUE N'EST PAS OUVERTE (le point d'honnêteté n°1) ───────────────
+  notOpenTitle: {
+    fr: 'La boutique n’est pas encore ouverte.',
+    en: 'The shop isn’t open yet.',
+    es: 'La tienda todavía no está abierta.',
+    de: 'Der Shop ist noch nicht geöffnet.',
+    pt: 'A loja ainda não está aberta.',
+  },
+  notOpenBody: {
+    fr: 'Les prix ci-dessous sont ceux du catalogue. Le paiement n’est pas branché : aucun achat n’est possible, rien ne t’est débité et aucun objet ne t’est attribué.',
+    en: 'The prices below are the catalog prices. Payment isn’t wired up: no purchase is possible, nothing is charged to you and no item is granted.',
+    es: 'Los precios de abajo son los del catálogo. El pago no está conectado: ninguna compra es posible, no se te cobra nada y no se te concede ningún objeto.',
+    de: 'Die Preise unten sind die Katalogpreise. Die Zahlung ist nicht angebunden: Kein Kauf ist möglich, dir wird nichts abgebucht und kein Gegenstand gutgeschrieben.',
+    pt: 'Os preços abaixo são os do catálogo. O pagamento não está ligado: nenhuma compra é possível, nada te é debitado e nenhum item te é atribuído.',
+  },
+
+  // ── Note PERMANENTE (libellé exact de la planche E17) ──────────────────────
+  cosmeticOnlyNote: {
+    fr: 'Cosmétique uniquement. Aucun achat ne donne un avantage de capture, de défense ou de classement.',
+    en: 'Cosmetics only. No purchase grants any capture, defense or ranking advantage.',
+    es: 'Solo cosmético. Ninguna compra da ventaja de captura, de defensa ni de clasificación.',
+    de: 'Nur Kosmetik. Kein Kauf verschafft einen Eroberungs-, Verteidigungs- oder Ranglistenvorteil.',
+    pt: 'Apenas cosmético. Nenhuma compra dá vantagem de captura, de defesa ou de classificação.',
+  },
+
+  // ── Chips de catégories + grille ───────────────────────────────────────────
+  categoriesA11y: {
+    fr: 'Catégorie de la boutique',
+    en: 'Shop category',
+    es: 'Categoría de la tienda',
+    de: 'Shop-Kategorie',
+    pt: 'Categoria da loja',
+  },
+  categoryAll: {
+    fr: 'TOUT',
+    en: 'ALL',
+    es: 'TODO',
+    de: 'ALLE',
+    pt: 'TUDO',
+  },
+  emptyCategory: {
+    fr: 'Aucun objet dans cette catégorie.',
+    en: 'No item in this category.',
+    es: 'Ningún objeto en esta categoría.',
+    de: 'Kein Gegenstand in dieser Kategorie.',
+    pt: 'Nenhum item nesta categoria.',
+  },
+  /** Item à double prix : les DEUX montants sont des faits, pas un choix. */
+  priceDual: {
+    fr: '{eclats} ou {eur}',
+    en: '{eclats} or {eur}',
+    es: '{eclats} o {eur}',
+    de: '{eclats} oder {eur}',
+    pt: '{eclats} ou {eur}',
+  },
+
+  // ── Propriété CLAIRE (planche : Permanent / Saison / Possédé) ──────────────
+  ownedLabel: {
+    fr: 'Possédé',
+    en: 'Owned',
+    es: 'Adquirido',
+    de: 'Im Besitz',
+    pt: 'Adquirido',
+  },
+  equippedLabel: {
+    fr: 'Équipé',
+    en: 'Equipped',
+    es: 'Equipado',
+    de: 'Ausgerüstet',
+    pt: 'Equipado',
+  },
+  permanentLabel: {
+    fr: 'Permanent',
+    en: 'Permanent',
+    es: 'Permanente',
+    de: 'Dauerhaft',
+    pt: 'Permanente',
+  },
+  seasonLabel: {
+    fr: 'Saison',
+    en: 'Season',
+    es: 'Temporada',
+    de: 'Saison',
+    pt: 'Temporada',
+  },
+  consumableLabel: {
+    fr: 'Consommable',
+    en: 'Consumable',
+    es: 'Consumible',
+    de: 'Verbrauchbar',
+    pt: 'Consumível',
+  },
+  packOnlyLabel: {
+    fr: 'Exclusif au pack',
+    en: 'Pack exclusive',
+    es: 'Exclusivo del pack',
+    de: 'Nur im Pack',
+    pt: 'Exclusivo do pack',
+  },
+  draftLabel: {
+    fr: 'Pas encore lancé',
+    en: 'Not launched yet',
+    es: 'Aún no lanzado',
+    de: 'Noch nicht gestartet',
+    pt: 'Ainda não lançado',
+  },
+  neverForSaleLabel: {
+    fr: 'Ne s’achète pas',
+    en: 'Not for sale',
+    es: 'No está a la venta',
+    de: 'Nicht käuflich',
+    pt: 'Não está à venda',
+  },
+
+  // ── « Aucun achat pendant une course » (planche E17) ───────────────────────
+  runBlockTitle: {
+    fr: 'Course en cours.',
+    en: 'Run in progress.',
+    es: 'Carrera en curso.',
+    de: 'Lauf läuft.',
+    pt: 'Corrida em curso.',
+  },
+  runBlockBody: {
+    fr: 'La boutique se rouvre à la fin de ta course — on ne te vend rien pendant que tu cours.',
+    en: 'The shop reopens when your run ends — we sell you nothing while you’re running.',
+    es: 'La tienda se reabre al final de tu carrera — no te vendemos nada mientras corres.',
+    de: 'Der Shop öffnet wieder, wenn dein Lauf endet — während du läufst, verkaufen wir dir nichts.',
+    pt: 'A loja reabre no fim da tua corrida — não te vendemos nada enquanto corres.',
+  },
+
+  // ── Paywall Premium ────────────────────────────────────────────────────────
+  premiumTitle: {
+    fr: 'GRYD Premium',
+    en: 'GRYD Premium',
+    es: 'GRYD Premium',
+    de: 'GRYD Premium',
+    pt: 'GRYD Premium',
+  },
+  premiumPromise: {
+    fr: 'Comprends ton territoire. Jamais un avantage de capture.',
+    en: 'Understand your territory. Never a capture advantage.',
+    es: 'Entiende tu territorio. Nunca una ventaja de captura.',
+    de: 'Versteh dein Gebiet. Niemals ein Eroberungsvorteil.',
+    pt: 'Compreende o teu território. Nunca uma vantagem de captura.',
+  },
+  premiumBenefits: {
+    fr: 'CE QUE ÇA APPORTE',
+    en: 'WHAT YOU GET',
+    es: 'LO QUE APORTA',
+    de: 'WAS DU BEKOMMST',
+    pt: 'O QUE TRAZ',
+  },
+  premiumMonthlyLabel: {
+    fr: 'Mensuel',
+    en: 'Monthly',
+    es: 'Mensual',
+    de: 'Monatlich',
+    pt: 'Mensal',
+  },
+  premiumMonthlyPrice: {
+    fr: '{price} / mois',
+    en: '{price} / month',
+    es: '{price} / mes',
+    de: '{price} / Monat',
+    pt: '{price} / mês',
+  },
+  premiumMonthlyNote: {
+    fr: 'Sans engagement',
+    en: 'No commitment',
+    es: 'Sin compromiso',
+    de: 'Ohne Bindung',
+    pt: 'Sem compromisso',
+  },
+  premiumAnnualLabel: {
+    fr: 'Annuel',
+    en: 'Annual',
+    es: 'Anual',
+    de: 'Jährlich',
+    pt: 'Anual',
+  },
+  premiumAnnualPrice: {
+    fr: '{price} / an',
+    en: '{price} / year',
+    es: '{price} / año',
+    de: '{price} / Jahr',
+    pt: '{price} / ano',
+  },
+  /** Équivalent mensuel CALCULÉ (annuel ÷ 12) — jamais un rabais annoncé. */
+  premiumAnnualPerMonth: {
+    fr: 'soit {price} par mois',
+    en: 'that is {price} per month',
+    es: 'es decir {price} al mes',
+    de: 'also {price} pro Monat',
+    pt: 'ou seja {price} por mês',
+  },
+  premiumNotOpen: {
+    fr: 'L’abonnement n’est pas encore ouvert : aucun paiement n’est branché. Ni essai, ni restauration d’achat tant que ce n’est pas le cas.',
+    en: 'The subscription isn’t open yet: no payment is wired up. No trial and no purchase restore until it is.',
+    es: 'La suscripción todavía no está abierta: ningún pago está conectado. Ni prueba ni restauración de compras hasta entonces.',
+    de: 'Das Abo ist noch nicht offen: Es ist keine Zahlung angebunden. Bis dahin weder Testphase noch Kaufwiederherstellung.',
+    pt: 'A assinatura ainda não está aberta: nenhum pagamento está ligado. Nem teste, nem restauro de compras até lá.',
+  },
+  premiumTerms: {
+    fr: 'Conditions',
+    en: 'Terms',
+    es: 'Condiciones',
+    de: 'Bedingungen',
+    pt: 'Condições',
+  },
+
+  // ── Portée d'un cosmétique équipé (migré depuis inventory.ts, FR en dur) ───
+  equipScopeZone: {
+    fr: 'Visible sur ta carte',
+    en: 'Visible on your map',
+    es: 'Visible en tu mapa',
+    de: 'Auf deiner Karte sichtbar',
+    pt: 'Visível no teu mapa',
+  },
+  equipScopeRoute: {
+    fr: 'Visible sur ta trace',
+    en: 'Visible on your trail',
+    es: 'Visible en tu trazado',
+    de: 'Auf deiner Spur sichtbar',
+    pt: 'Visível no teu traçado',
+  },
+  equipScopeProfile: {
+    fr: 'Visible sur ta Player Card',
+    en: 'Visible on your Player Card',
+    es: 'Visible en tu Player Card',
+    de: 'Auf deiner Player Card sichtbar',
+    pt: 'Visível no teu Player Card',
+  },
+  equipScopeCrew: {
+    fr: 'Visible dans le Crew HQ',
+    en: 'Visible in the Crew HQ',
+    es: 'Visible en el Crew HQ',
+    de: 'Im Crew HQ sichtbar',
+    pt: 'Visível no Crew HQ',
+  },
+  equipScopeShare: {
+    fr: 'Appliqué à tes cartes de partage',
+    en: 'Applied to your share cards',
+    es: 'Aplicado a tus tarjetas para compartir',
+    de: 'Auf deine Share Cards angewendet',
+    pt: 'Aplicado às tuas cartas de partilha',
+  },
+});
 
 export const ARSENAL_I18N: Record<string, Entry> = {
   'club_monthly.contents.0': { fr: 'Stats avancées + heatmap personnelle', en: 'Advanced stats + personal heatmap', es: 'Estadísticas avanzadas + heatmap personal', de: 'Erweiterte Statistiken + persönliche Heatmap', pt: 'Estatísticas avançadas + heatmap pessoal' },

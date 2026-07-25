@@ -76,14 +76,13 @@ export function equipScopeOf(key: string): EquipScope | null {
   return null;
 }
 
-/** Libellé humain de la portée (feedback équipement). */
-export const EQUIP_SCOPE_LABEL: Record<EquipScope, string> = {
-  zone: 'Visible sur ta carte à la Saison 0',
-  route: 'Visible sur ta trace à la Saison 0',
-  profile: 'Visible sur ta Player Card',
-  crew: 'Visible dans le Crew HQ',
-  share: 'Appliqué à tes cartes de partage',
-};
+/**
+ * Libellé de la portée : DÉMÉNAGÉ en i18n (25/07/2026, cf. `copy.ts`
+ * → `arsenalEquipScopeLabel`). Cette table était du FRANÇAIS EN DUR rendu tel
+ * quel dans la sheet de détail — un joueur en/es/de/pt lisait « Visible sur ta
+ * carte à la Saison 0 ». Elle mentionnait en plus une SAISON écrite en dur, que
+ * personne n'avait lue : le libellé traduit ne la nomme plus.
+ */
 
 // ─── Équipement PERSISTÉ (source unique lue par la Player Card) ───────────────
 //
@@ -246,17 +245,32 @@ export function useEquippedCosmetics(): EquipStore {
 
 export type ArsenalInventorySource = 'local' | 'server';
 
+/**
+ * ─── L'ACHAT SIMULÉ, SUPPRIMÉ (25/07/2026, planche E17) ──────────────────────
+ *
+ * Cette interface exposait `grantLocalItem(key)` et `spendEclats(amount)`.
+ * L'écran Arsenal les enchaînait sur un tap « Obtenir » : le solde descendait
+ * d'un delta React JAMAIS écrit côté serveur, l'objet entrait dans un overlay
+ * local, et le reveal annonçait « Dans ton arsenal ». Trois mensonges d'affilée :
+ *  · un DÉBIT qui n'a jamais eu lieu (RevenueCat n'est pas branché — O3) ;
+ *  · une POSSESSION que l'app perdait elle-même au remontage ;
+ *  · pire, un objet ainsi « acquis » devenait ÉQUIPABLE, et `equipCosmetic`
+ *    persistait ce choix en AsyncStorage : l'onglet Profil peignait alors un
+ *    cadre et un titre que le joueur n'a jamais payés ni gagnés.
+ *
+ * Les deux méthodes sont donc RETIRÉES à la source, et pas seulement de l'écran :
+ * tant qu'aucune RPC d'achat n'existe, aucun chemin de code ne doit pouvoir
+ * accorder un objet. Ce store est désormais en LECTURE SEULE sur la possession —
+ * seul `equipItem` écrit, et il ne fait qu'enregistrer un CHOIX du joueur parmi
+ * ce que le serveur lui reconnaît déjà.
+ */
 export interface ArsenalInventoryStore {
   wallet: ArsenalWallet;
   ownedKeys: ReadonlySet<string>;
   equipped: EquipMap;
   source: ArsenalInventorySource;
   loading: boolean;
-  /** Débite seulement l'overlay local de démo ; le serveur reste lecture seule. */
-  spendEclats: (amount: number) => boolean;
-  /** Ajoute un item à l'overlay local après un achat démo / reveal. */
-  grantLocalItem: (key: string) => void;
-  /** Équipement optimiste local, sans écriture backend. */
+  /** Équipement optimiste local d'un item DÉJÀ possédé, sans écriture backend. */
   equipItem: (key: string) => Promise<void>;
 }
 
@@ -336,26 +350,20 @@ async function fetchRemoteInventory(userId: string): Promise<RemoteInventorySnap
   };
 }
 
-function unionOwned(base: ReadonlySet<string>, overlay: ReadonlySet<string>): ReadonlySet<string> {
-  if (overlay.size === 0) return base;
-  return new Set([...base, ...overlay]);
-}
-
 export function useArsenalInventory(): ArsenalInventoryStore {
   const { equipped: localEquipped, loading: localEquippedLoading, equip } = useEquippedCosmetics();
   const { session, configured, loading: sessionLoading } = useSession();
   const [remote, setRemote] = useState<RemoteInventorySnapshot | null>(null);
   const [remoteLoading, setRemoteLoading] = useState(false);
-  const [ownedOverlay, setOwnedOverlay] = useState<ReadonlySet<string>>(() => new Set());
+  // Seul overlay local restant : l'ÉQUIPEMENT (un choix du joueur, réversible,
+  // et qui ne porte sur que des items déjà reconnus par le serveur). Il n'y a
+  // plus d'overlay de POSSESSION ni de delta de solde : on ne s'offre rien.
   const [equippedOverlay, setEquippedOverlay] = useState<EquipMap>({});
-  const [walletDelta, setWalletDelta] = useState({ eclats: 0, foulees: 0 });
 
   const userId = session?.user.id ?? null;
 
   useEffect(() => {
-    setOwnedOverlay(new Set());
     setEquippedOverlay({});
-    setWalletDelta({ eclats: 0, foulees: 0 });
   }, [userId]);
 
   useEffect(() => {
@@ -384,34 +392,14 @@ export function useArsenalInventory(): ArsenalInventoryStore {
   }, [configured, userId]);
 
   const source: ArsenalInventorySource = remote ? 'server' : 'local';
-  const baseWallet = remote?.wallet ?? EMPTY_WALLET;
-  const wallet = useMemo<ArsenalWallet>(
-    () => ({
-      eclats: Math.max(0, baseWallet.eclats + walletDelta.eclats),
-      foulees: Math.max(0, baseWallet.foulees + walletDelta.foulees),
-      isClub: baseWallet.isClub,
-    }),
-    [baseWallet.eclats, baseWallet.foulees, baseWallet.isClub, walletDelta.eclats, walletDelta.foulees],
-  );
+  // Le solde est celui du SERVEUR, ou rien. Aucun delta local ne s'y ajoute :
+  // un solde qu'on modifie sans que personne ne l'écrive est un solde inventé.
+  const wallet: ArsenalWallet = remote?.wallet ?? EMPTY_WALLET;
 
-  const baseOwned = remote?.ownedKeys ?? NO_ITEMS;
-  const ownedKeys = useMemo(() => unionOwned(baseOwned, ownedOverlay), [baseOwned, ownedOverlay]);
+  // La possession est celle du SERVEUR, ou rien : plus aucun overlay local.
+  const ownedKeys = remote?.ownedKeys ?? NO_ITEMS;
   const baseEquipped = remote?.equipped ?? localEquipped;
   const equipped = useMemo(() => ({ ...baseEquipped, ...equippedOverlay }), [baseEquipped, equippedOverlay]);
-
-  const spendEclats = useCallback(
-    (amount: number) => {
-      if (amount <= 0) return true;
-      if (wallet.eclats < amount) return false;
-      setWalletDelta((cur) => ({ ...cur, eclats: cur.eclats - amount }));
-      return true;
-    },
-    [wallet.eclats],
-  );
-
-  const grantLocalItem = useCallback((key: string) => {
-    setOwnedOverlay((cur) => new Set(cur).add(key));
-  }, []);
 
   const equipItem = useCallback(
     async (key: string) => {
@@ -429,8 +417,6 @@ export function useArsenalInventory(): ArsenalInventoryStore {
     equipped,
     source,
     loading: localEquippedLoading || sessionLoading || remoteLoading,
-    spendEclats,
-    grantLocalItem,
     equipItem,
   };
 }

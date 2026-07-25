@@ -505,14 +505,10 @@ export const C = defineCatalog({
     de: 'GÜLTIG',
     pt: 'VÁLIDO',
   },
-  /** Repère honnêteté §A : valeur de scénario, jamais une vraie mesure. */
-  demoNote: {
-    fr: 'démo',
-    en: 'demo',
-    es: 'demo',
-    de: 'Demo',
-    pt: 'demo',
-  },
+  // `demoNote` (« démo ») SUPPRIMÉ (25/07/2026) : il étiquetait des valeurs de
+  // scénario dans la grille du calcul. Ces valeurs ont disparu avec le mode
+  // vitrine (A-47) — plus rien à étiqueter, et une clé « démo » qui traîne dans
+  // un catalogue est une invitation à en réafficher une.
   verifyOk: {
     fr: 'GPS et mouvement fiables : capture pleine.',
     en: 'GPS and motion reliable: full capture.',
@@ -604,20 +600,9 @@ export const C = defineCatalog({
     de: 'Bonus aktiv · {effect}',
     pt: 'Bônus aplicado · {effect}',
   },
-  demoBonusName: {
-    fr: 'Bonus Finisher',
-    en: 'Finisher Bonus',
-    es: 'Bonus Finisher',
-    de: 'Finisher-Bonus',
-    pt: 'Bônus Finisher',
-  },
-  demoBonusEffect: {
-    fr: '+25 % coffre crew',
-    en: '+25% crew chest',
-    es: '+25 % cofre crew',
-    de: '+25 % Crew-Truhe',
-    pt: '+25 % baú do crew',
-  },
+  // `demoBonusName` / `demoBonusEffect` SUPPRIMÉS (25/07/2026) : un bonus
+  // « Finisher · +25 % coffre crew » que le serveur n'a jamais accordé. Le bloc
+  // BONUS ne lit plus que `IngestRunResponse.bonusApplied`.
 
   // ── Frontière crew OUVERTE (AMENDEMENT-17 §CH2) ──
   runValidated: {
@@ -854,13 +839,6 @@ export const C = defineCatalog({
     de: '+{n} Zonen · {zone}',
     pt: '+{n} zonas · {zone}',
   },
-  sharePreviewTitle: {
-    fr: 'Aperçu du partage',
-    en: 'Share preview',
-    es: 'Vista previa',
-    de: 'Vorschau',
-    pt: 'Prévia do compartilhamento',
-  },
   shareDefenseTitle: {
     fr: 'Partager ta défense',
     en: 'Share your defense',
@@ -917,13 +895,10 @@ export const C = defineCatalog({
     de: 'Zurück zum Ergebnis',
     pt: 'Voltar ao resultado',
   },
-  exampleNote: {
-    fr: 'Exemple — termine une course pour partager la tienne.',
-    en: 'Example — finish a run to share yours.',
-    es: 'Ejemplo: termina una carrera para compartir la tuya.',
-    de: 'Beispiel — beende einen Lauf, um deinen zu teilen.',
-    pt: 'Exemplo — termine uma corrida para compartilhar a sua.',
-  },
+  // `exampleNote` SUPPRIMÉ (25/07/2026) : c'était l'unique protection du « mode
+  // exemple » de /partage — un bandeau posé sur une carte fabriquée. Le mode
+  // exemple n'existe plus (A-47) ; garder sa copy aurait laissé croire qu'un
+  // bandeau suffit à racheter une donnée inventée. Il ne suffit pas.
   formatLabel: {
     fr: 'Format',
     en: 'Format',
@@ -1224,20 +1199,281 @@ export const C = defineCatalog({
     pt: 'Zonas · {zone}',
   },
 
-  // ── Démo SHARE_DEMO — seuls champs de copy traduisible (noms propres exclus) ──
-  demoRankDelta: {
-    fr: '+3 places',
-    en: '+3 spots',
-    es: '+3 puestos',
-    de: '+3 Plätze',
-    pt: '+3 posições',
+  // `demoRankDelta` / `demoContested` SUPPRIMÉS (25/07/2026) : derniers restes du
+  // scénario SHARE_DEMO (« +3 places », « Contestée ») retiré le 21/07/2026. Le
+  // rang vient de `rankDelta`, `null` tant qu'aucune saison ne l'alimente.
+
+  // ═══ E09 — RECALAGE PLANCHE (25/07/2026) ═══════════════════════════════════
+  // Ordre IMMUABLE de la planche : territoire → progression → statistiques →
+  // partage. Ces clés arment ce qui manquait : le hero carte avec sa bascule, la
+  // PROGRESSION (XP + contribution crew), la variante SANS CAPTURE, et la
+  // hiérarchie de CTA (primaire / secondaire / tertiaire).
+
+  /** Kicker de la section PROGRESSION (2ᵉ temps de la planche). */
+  progressKicker: {
+    fr: 'PROGRESSION',
+    en: 'PROGRESS',
+    es: 'PROGRESIÓN',
+    de: 'FORTSCHRITT',
+    pt: 'PROGRESSÃO',
   },
-  demoContested: {
-    fr: 'Contestée',
-    en: 'Contested',
-    es: 'Disputada',
-    de: 'Umkämpft',
-    pt: 'Disputada',
+  /** XP RÉELLE créditée par cette course (IngestRunResponse.xpAwarded). */
+  xpAwarded: {
+    fr: '+{n} XP',
+    en: '+{n} XP',
+    es: '+{n} XP',
+    de: '+{n} XP',
+    pt: '+{n} XP',
+  },
+  /**
+   * Contribution crew : le NOM du crew est réel (`useRealCrew`), l'XP crew est
+   * décidée serveur (`crewXp`). Aucun km² — aucune aire n'existe côté serveur,
+   * en fabriquer une serait un chiffre inventé (cf. crew/real.ts).
+   */
+  crewXpLine: {
+    fr: '{crew} · +{n} XP crew',
+    en: '{crew} · +{n} crew XP',
+    es: '{crew} · +{n} XP de crew',
+    de: '{crew} · +{n} Crew-XP',
+    pt: '{crew} · +{n} XP de crew',
+  },
+
+  // ── E09 · variante SANS CAPTURE (planche : « jamais un ton d'échec ») ──
+  /**
+   * La ligne qui retourne le résultat : l'effort a compté, même sans capture.
+   * Rendue AVEC l'XP réelle quand le serveur en a crédité une, seule sinon.
+   */
+  effortCounts: {
+    fr: 'L’effort compte, même sans capture.',
+    en: 'The effort counts, even without a capture.',
+    es: 'El esfuerzo cuenta, aunque no captures.',
+    de: 'Der Einsatz zählt, auch ohne Eroberung.',
+    pt: 'O esforço conta, mesmo sem captura.',
+  },
+  /**
+   * Échéance RÉELLE de la frontière laissée ouverte (openBoundary.expiresAt,
+   * décidé serveur). Remplace la promesse « la boucle reste disponible dans vos
+   * Missions » de la planche : aucune surface Missions n'accueille aujourd'hui
+   * une frontière ouverte — on dit le fait, pas la destination.
+   */
+  boundaryOpenHours: {
+    fr: 'Encore {h} h pour la refermer.',
+    en: '{h} h left to close it.',
+    es: 'Quedan {h} h para cerrarla.',
+    de: 'Noch {h} h, um sie zu schließen.',
+    pt: 'Faltam {h} h para fechá-la.',
+  },
+  /** Échéance passée / trop proche pour être dite en heures entières. */
+  boundaryOpenSoon: {
+    fr: 'Elle se referme bientôt.',
+    en: 'It closes soon.',
+    es: 'Se cierra pronto.',
+    de: 'Sie schließt bald.',
+    pt: 'Ela fecha em breve.',
+  },
+  /** KPI de la variante effort : les KM sont MESURÉS, eux. */
+  kmLabel: {
+    fr: 'KM',
+    en: 'KM',
+    es: 'KM',
+    de: 'KM',
+    pt: 'KM',
+  },
+
+  // ── E09 · hero carte + bascule « Avant ⇄ Après » ──
+  /**
+   * Caméra et zoom STRICTEMENT identiques entre les deux états (une seule bbox
+   * calculée une fois) : sinon la comparaison ment. « Avant » ne montre QUE les
+   * zones que le serveur dit déjà tenues (outcome `defended`) — jamais un état
+   * antérieur inventé, que le serveur ne renvoie pas.
+   */
+  a11yHeroMapAfter: {
+    fr: 'Territoire après cette course',
+    en: 'Territory after this run',
+    es: 'Territorio después de esta carrera',
+    de: 'Gebiet nach diesem Lauf',
+    pt: 'Território depois desta corrida',
+  },
+  a11yHeroMapBefore: {
+    fr: 'Territoire avant cette course',
+    en: 'Territory before this run',
+    es: 'Territorio antes de esta carrera',
+    de: 'Gebiet vor diesem Lauf',
+    pt: 'Território antes desta corrida',
+  },
+  beforeAfterA11y: {
+    fr: 'Maintenir pour voir l’avant',
+    en: 'Hold to see the before',
+    es: 'Mantén para ver el antes',
+    de: 'Halten, um das Vorher zu sehen',
+    pt: 'Segure para ver o antes',
+  },
+
+  // ── E09 · hiérarchie de CTA (primaire PARTAGER · secondaire DÉFIER · tertiaire) ──
+  finishRun: {
+    fr: 'Terminer',
+    en: 'Finish',
+    es: 'Terminar',
+    de: 'Fertig',
+    pt: 'Concluir',
+  },
+  /** Cible de SKIP de la séquence narrative (< 1,8 s, planche E09). */
+  skipRevealA11y: {
+    fr: 'Passer l’animation',
+    en: 'Skip the animation',
+    es: 'Saltar la animación',
+    de: 'Animation überspringen',
+    pt: 'Pular a animação',
+  },
+
+  // ── E09 · kickers d'intention (étaient en FRANÇAIS EN DUR dans intention.ts) ──
+  kickerConquest: {
+    fr: 'CONQUÊTE',
+    en: 'CONQUEST',
+    es: 'CONQUISTA',
+    de: 'EROBERUNG',
+    pt: 'CONQUISTA',
+  },
+  kickerDefense: {
+    fr: 'DÉFENSE',
+    en: 'DEFENSE',
+    es: 'DEFENSA',
+    de: 'ABWEHR',
+    pt: 'DEFESA',
+  },
+  kickerFreeRun: {
+    fr: 'RUN LIBRE',
+    en: 'FREE RUN',
+    es: 'RUN LIBRE',
+    de: 'FREIER LAUF',
+    pt: 'RUN LIVRE',
+  },
+
+  // ═══ E10 — RECALAGE PLANCHE (25/07/2026) ═══════════════════════════════════
+  // « Le MOTEUR choisit le récit, l'utilisateur change le STYLE. » Auto = le
+  // choix du moteur (features/share/narrative.ts), réversible ; la phrase
+  // d'explication vient du MÊME moteur, pour que les deux ne divergent jamais.
+
+  /** Mode narratif « Auto » — en tête de la rangée de styles. */
+  styleAuto: {
+    fr: 'Auto',
+    en: 'Auto',
+    es: 'Auto',
+    de: 'Auto',
+    pt: 'Auto',
+  },
+  whyThisStyle: {
+    fr: 'Pourquoi ce style ? {reason}',
+    en: 'Why this style? {reason}',
+    es: '¿Por qué este estilo? {reason}',
+    de: 'Warum dieser Stil? {reason}',
+    pt: 'Por que este estilo? {reason}',
+  },
+  reasonCapture: {
+    fr: 'Tu as capturé de nouvelles zones.',
+    en: 'You captured new zones.',
+    es: 'Capturaste zonas nuevas.',
+    de: 'Du hast neue Zonen erobert.',
+    pt: 'Você capturou novas zonas.',
+  },
+  reasonReprise: {
+    fr: 'Tu as repris une zone à un crew rival.',
+    en: 'You took a zone back from a rival crew.',
+    es: 'Le quitaste una zona a un crew rival.',
+    de: 'Du hast einer rivalisierenden Crew eine Zone abgenommen.',
+    pt: 'Você retomou uma zona de um crew rival.',
+  },
+  reasonDefense: {
+    fr: 'Tu as défendu tes zones.',
+    en: 'You defended your zones.',
+    es: 'Defendiste tus zonas.',
+    de: 'Du hast deine Zonen verteidigt.',
+    pt: 'Você defendeu suas zonas.',
+  },
+  reasonLoop: {
+    fr: 'Tu as fermé ta boucle.',
+    en: 'You closed your loop.',
+    es: 'Cerraste tu bucle.',
+    de: 'Du hast deine Schleife geschlossen.',
+    pt: 'Você fechou seu loop.',
+  },
+  reasonCrew: {
+    fr: 'Ta course a fait gagner ton crew.',
+    en: 'Your run earned points for your crew.',
+    es: 'Tu carrera hizo ganar a tu crew.',
+    de: 'Dein Lauf hat deiner Crew gebracht.',
+    pt: 'Sua corrida rendeu para o seu crew.',
+  },
+  reasonRanking: {
+    fr: 'Ta course te fait bouger au classement.',
+    en: 'Your run moves you in the ranking.',
+    es: 'Tu carrera te mueve en la clasificación.',
+    de: 'Dein Lauf bewegt dich im Ranking.',
+    pt: 'Sua corrida te move no ranking.',
+  },
+  /**
+   * Récit « record » : le moteur sait le produire, aucune source ne l'arme
+   * aujourd'hui (aucun record personnel n'est mesuré jusqu'ici). La clé existe
+   * pour que le branchement futur n'ait pas à réécrire la copy.
+   */
+  reasonRecord: {
+    fr: 'Tu as battu ton record.',
+    en: 'You beat your record.',
+    es: 'Batiste tu récord.',
+    de: 'Du hast deinen Rekord geknackt.',
+    pt: 'Você bateu seu recorde.',
+  },
+  reasonEffort: {
+    fr: 'Rien n’a été capturé : on partage la course, pas un territoire.',
+    en: 'Nothing was captured: we share the run, not a territory.',
+    es: 'No se capturó nada: compartimos la carrera, no un territorio.',
+    de: 'Nichts erobert: Wir teilen den Lauf, kein Gebiet.',
+    pt: 'Nada capturado: a gente compartilha a corrida, não um território.',
+  },
+
+  // ── E10 · format 4:5 imposé par la planche (9:16 · 4:5 · 1:1) ──
+  formatFeed: {
+    fr: 'Portrait',
+    en: 'Portrait',
+    es: 'Vertical',
+    de: 'Hochformat',
+    pt: 'Retrato',
+  },
+  shareFeedCta: {
+    fr: 'Partager en portrait',
+    en: 'Share as portrait',
+    es: 'Compartir en vertical',
+    de: 'Im Hochformat teilen',
+    pt: 'Compartilhar em retrato',
+  },
+
+  // ── E10 · sticker PNG transparent (planche) ──
+  /**
+   * Distinct de `stickerCopied` (texte) et de `stickerReady` (feuille de
+   * partage) : ne s'affiche QUE si une IMAGE a réellement été produite. Annoncer
+   * « PNG » sur un partage texte serait mentir sur le canal.
+   */
+  stickerPngReady: {
+    fr: 'Sticker PNG prêt à coller',
+    en: 'PNG sticker ready to paste',
+    es: 'Sticker PNG listo para pegar',
+    de: 'PNG-Sticker bereit zum Einfügen',
+    pt: 'Sticker PNG pronto para colar',
+  },
+
+  // ── E10 · badge « Protégé » PERMANENT sous l'aperçu (planche, non négociable) ──
+  /**
+   * Le mot de la planche. Ce qu'il couvre RÉELLEMENT aujourd'hui est dit juste à
+   * côté par `privacyMasked` (départ/arrivée masqués) : le pipeline tient le trim
+   * des extrémités et l'absence d'heure exacte, PAS l'exclusion des zones privées
+   * ni la simplification. Le badge ne promet donc pas plus que ça.
+   */
+  protectedBadge: {
+    fr: 'Protégé',
+    en: 'Protected',
+    es: 'Protegido',
+    de: 'Geschützt',
+    pt: 'Protegido',
   },
 
   // ─── AUCUN RÉSULTAT À MONTRER (état honnête, §A) ───────────────────────────

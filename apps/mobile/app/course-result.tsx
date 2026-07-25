@@ -1,16 +1,35 @@
 /**
- * GRYD — RÉSULTAT DE COURSE (AMENDEMENT-20 §2, épuré zéro-friction) :
- * LE moment dopamine en UN SEUL état final, actionnable immédiatement (aucun
- * temps mort) : titre selon l'intention (TERRITOIRE ÉTENDU / ZONE DÉFENDUE) +
- * pill GRYD VERIFIED (la validation vit dans le badge, pas dans le titre) +
- * KPI géant (compteur useCountUp) + le POURQUOI au niveau 1 (« Boucle fermée ·
- * +N zones d'un coup ») + mini-bandeau tappable si un badge est débloqué.
- * CTA unique [Partager] (arme les VRAIES stats du run via share/shareRun.ts
- * avant de pousser /partage) ; secondaire « Voir mon territoire » ; le
- * technique (impact, GPS/Motion, analyse boucle, calcul, frontière, crew,
- * bonus, badge) se déplie au tap « Comment j'ai gagné ces zones ».
- * Hors conquête (AMENDEMENT-07) : social_run = stats + partage sans capture ;
- * course_privee = stats seules, aucun partage.
+ * GRYD — RÉSULTAT DE COURSE — recalé sur la planche E09 (25/07/2026).
+ *
+ * ─── L'ORDRE EST IMMUABLE : TERRITOIRE → PROGRESSION → STATISTIQUES → PARTAGE ─
+ * « L'impact territorial AVANT les métriques sportives. » C'est la règle
+ * cardinale de la planche, et l'écran ne la tenait pas : le bloc de stats vivait
+ * DANS l'accordéon « détails », donc APRÈS le CTA de partage, pendant qu'aucune
+ * progression (XP, contribution crew) n'était affichée nulle part alors que les
+ * deux sources existent côté serveur.
+ *
+ *   1. TERRITOIRE   hero carte 44 % + bascule « Avant ⇄ Après » (caméra et zoom
+ *                   STRICTEMENT identiques — une seule bbox partagée) · titre ·
+ *                   pill GRYD VERIFIED · KPI géant (le gain) · le POURQUOI
+ *   2. PROGRESSION  +N XP · contribution crew (nom RÉEL) · la série
+ *   3. STATISTIQUES un SEUL bloc à séparateurs (distance | temps | allure)
+ *   4. PARTAGE      PARTAGER (primaire) · Défier un rival (secondaire) ·
+ *                   Terminer (tertiaire) · puis le technique AU TAP
+ *
+ * Séquence narrative < 1,8 s, SKIPPABLE au tap (features/run/revealSequence.ts,
+ * pure + testée). Reduce motion ⇒ état final direct : aucune information n'est
+ * jamais portée par la seule animation.
+ *
+ * ─── VARIANTE SANS CAPTURE (planche, capitale) ──────────────────────────────
+ * L'écran célébrait « TERRITOIRE ÉTENDU · +0 ZONES CAPTURÉES » dès que le
+ * serveur jugeait une course à zéro zone : l'objet `zones` était TRUTHY, donc
+ * toutes les branches de conquête s'allumaient sur un total nul. C'est
+ * exactement le « 0 nu » que la loi du projet interdit, avec en prime un ton de
+ * victoire sur un non-événement. Quand le récit dominant est `effort` (moteur
+ * partagé avec /partage), le hero bascule sur l'EFFORT : KPI en KM MESURÉS,
+ * raison FACTUELLE (mètres manquants + échéance réelle de la frontière), et
+ * « l'effort compte, même sans capture » adossé à l'XP réellement créditée.
+ * Jamais un hero territorial vide, jamais un ton d'échec.
  *
  * ─── ZÉRO SIMULATION (21/07/2026) ──────────────────────────────────────────
  * Cet écran ne construit PLUS aucune course de démonstration. Il n'affiche que
@@ -24,8 +43,15 @@
  * IMPACT, décomposition du calcul) disparaît alors — plutôt un bloc absent
  * qu'un « 0 » qui se lit comme un verdict.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -34,6 +60,7 @@ import {
   fontSizes,
   gameColors,
   iconSizes,
+  motion,
   radii,
   spacing,
   type IngestRunResponse,
@@ -51,7 +78,7 @@ import {
   StreakBlock,
   type StreakView,
   useCountUp,
-  useReveal,
+  useReduceMotion,
 } from '../src/ui/game';
 import {
   BADGE_FAMILIES,
@@ -62,25 +89,29 @@ import { GripMascot } from '../src/features/social/GripMascot';
 import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
 import { useMyEconomy } from '../src/features/social/economy';
 import { ResultReveal } from '../src/features/run/ResultReveal';
-import { ResultTrace } from '../src/features/run/ResultTrace';
+import { ResultHeroMap, type HeroCells } from '../src/features/run/ResultTrace';
 import { getFinishedTrace } from '../src/features/run/finishedTrace';
 import { pioneerCelebration } from '../src/features/run/pioneerCelebration';
 import { rivalChallengeFromResult } from '../src/features/run/rivalChallenge';
+import {
+  REVEAL_LAST_STEP,
+  revealDelaysMs,
+  revealReached,
+  type RevealStep,
+} from '../src/features/run/revealSequence';
 import { RendezvousOptIn } from '../src/features/notifications/RendezvousOptIn';
 import { useLocalStreak } from '../src/features/social/useLocalStreak';
-import {
-  boundaryExpiryLabel,
-  contributionPct,
-  intentionFromParam,
-  summaryHeader,
-  tracedKmLabel,
-  type PartialBoundaryDemo,
-  type ResultSummaryLine,
-} from '../src/features/run/intention';
+import { intentionFromParam, summaryHeader } from '../src/features/run/intention';
 import { getLastRunResult } from '../src/features/run/runResult';
+import { boundaryClock } from '../src/features/run/openBoundaryClock';
 import { useRealCrew } from '../src/features/crew/real';
 import { setShareRun, shareCardFromResult } from '../src/features/share/shareRun';
 import { applySharePrivacy } from '../src/features/share/sharePrivacy';
+import {
+  UNJUDGED_VERDICT,
+  dominantNarrative,
+  type NarrativeVerdict,
+} from '../src/features/share/narrative';
 // NOTE (21/07/2026) : `buildRunSimulation` / `buildLiveNav` / `buildRunLoop` ne
 // sont PLUS importés ici. Seuls les formateurs purs et le parsing de mode
 // survivent de simulation.ts — aucune course fabriquée n'entre dans cet écran.
@@ -89,29 +120,19 @@ import {
   formatKm,
   formatPace,
   runModeFromParam,
-  type LiveRunMode,
 } from '../src/features/run/simulation';
 // AMENDEMENT-23 §B.4 — explicabilité post-run : schéma « la boucle fait la zone »
 // (réutilisé, DÉMO surchargée par les vrais totaux du run) + verify en libellé
 // dérivé des constantes gelées (jamais de nombre magique).
 import { BoucleFaitLaZone } from '../src/features/explain/schemas';
 import { verifyTiersLabel } from '../src/features/explain/labels';
-type StepId =
-  | 'validated'
-  | 'zones'
-  | 'sector'
-  | 'crew'
-  | 'perf'
-  | 'bonus'
-  | 'badge'
-  | 'share'
-  | 'stats';
 
-const STEPS_BY_MODE: Record<LiveRunMode, readonly StepId[]> = {
-  conquete: ['validated', 'zones', 'sector', 'crew', 'perf', 'bonus', 'badge', 'share'],
-  social_run: ['validated', 'stats', 'share'],
-  course_privee: ['validated', 'stats'],
-};
+// ─── `StepId` + `STEPS_BY_MODE` SUPPRIMÉS (25/07/2026) ──────────────────────
+// Deux constantes MORTES : zéro lecture dans tout le fichier. Elles décrivaient
+// une séquence de révélation retirée depuis longtemps — l'écran se montait d'un
+// bloc tout en gardant la carcasse d'un séquenceur, ce qui laissait croire au
+// lecteur que la planche était tenue. La vraie séquence (< 1,8 s, skippable)
+// vit désormais dans `features/run/revealSequence.ts`, pure et testée.
 
 // ─── AUCUNE GÉOMÉTRIE FABRIQUÉE (21/07/2026) ────────────────────────────────
 // Ici vivaient les mini-cartes AVANT/APRÈS du secteur et de la boucle. Elles
@@ -178,8 +199,10 @@ interface ResultView {
   rejectReason: RejectReason | null;
 }
 
-/** État de frontière crew à afficher au résultat (chantier 2, param démo). */
-type BoundaryState = 'open' | 'completed';
+// `BoundaryState` SUPPRIMÉ (25/07/2026) : type mort depuis le retrait des deux
+// écrans de frontière crew (21/07/2026). Aucun `open`/`completed` n'est plus
+// lu nulle part — la frontière ouverte s'affiche désormais comme une RAISON
+// factuelle dans le hero d'effort, à partir du seul `openBoundary` du serveur.
 
 function NoResultScreen() {
   const t = useT();
@@ -309,8 +332,11 @@ function ConquestResultScreen({
   // via applySharePrivacy (départ/arrivée = domicile). Vide → rien ne se dessine.
   const [finishedTrace] = useState(getFinishedTrace);
   // Crew réel 3/3 : roster RÉEL (hook silencieux — vide sans session/crew).
-  // Compte des coéquipiers (moi exclu) pour la ligne de conséquence collective.
-  const { members: crewMembers } = useRealCrew();
+  // Compte des coéquipiers (moi exclu) pour la ligne de conséquence collective,
+  // et NOM réel du crew pour la ligne de contribution de la PROGRESSION (E09).
+  // `crew` peut être null (sans session, sans crew, ou lecture impossible) :
+  // dans ce cas la ligne disparaît — jamais un nom de crew de remplissage.
+  const { members: crewMembers, crew } = useRealCrew();
   // Série LOCALE (filet hors-ligne / pré-O1) : n'est utilisée que si le serveur
   // n'a rendu AUCUN verdict — sinon la série serveur (autorité) prime.
   const localStreak = useLocalStreak();
@@ -374,6 +400,50 @@ function ConquestResultScreen({
   // n'affiche rien plutôt que de crasher tout l'écran (index → undefined).
   const rejectCopy = stats.rejectReason ? REJECT_REASON_COPY[stats.rejectReason] : undefined;
 
+  // ─── LE VERDICT, PUIS LE RÉCIT (moteur partagé avec /partage) ──────────────
+  // Ce que le SERVEUR a jugé, mis en forme pour le moteur pur `narrative.ts`.
+  // Les deux écrans lisent le MÊME verdict et appellent la MÊME fonction : il
+  // devient impossible que le Résultat célèbre une conquête pendant que le
+  // Partage raconte autre chose (ou l'inverse — c'était le cas).
+  const verdict: NarrativeVerdict = useMemo(() => {
+    if (!serverResult) return UNJUDGED_VERDICT;
+    return {
+      judged: true,
+      credited: !(serverResult.status === 'rejected' || serverResult.status === 'flagged'),
+      // `claimed` = neutre ; `pioneer` est un sous-ensemble déjà compté dans
+      // claimed/stolen côté serveur — on ne l'additionne pas (double compte).
+      zonesClaimed: serverResult.hexes.claimed,
+      zonesStolen: serverResult.hexes.stolen,
+      zonesDefended: serverResult.hexes.defended,
+      loopClosed: serverResult.loopClosed === true,
+      enclosedZones: serverResult.enclosedZones ?? 0,
+      crewXp: serverResult.crewXp ?? 0,
+      // Aucune lecture de `season_scores` n'alimente cet écran : le rang n'est
+      // pas connu, et un rang inconnu ne s'invente pas (planche : la ligne
+      // « Rang local » de la maquette reste donc ABSENTE, pas vide).
+      rankKnown: false,
+      // Aucun record personnel n'est mesuré jusqu'ici.
+      personalRecord: false,
+    };
+  }, [serverResult]);
+  const narrative = dominantNarrative(verdict);
+  /**
+   * VARIANTE SANS CAPTURE (planche E09). `zones.total === 0` produisait
+   * « TERRITOIRE ÉTENDU · +0 ZONES CAPTURÉES » : l'objet `zones` étant truthy,
+   * toutes les branches de conquête s'allumaient sur un total nul. Le hero
+   * bascule maintenant sur l'EFFORT dès que le récit dominant est `effort` et
+   * que la course reste créditée (un refus/signalement garde, lui, sa propre
+   * dé-escalade §11 — ce n'est pas la même histoire).
+   *
+   * `verdict.judged` est INDISPENSABLE : sans verdict serveur (hors-ligne), la
+   * phrase « l'effort compte, même SANS CAPTURE » affirmerait qu'il n'y a pas eu
+   * de capture — alors que personne n'a encore jugé. Un état INCONNU n'est pas un
+   * état vide : le KPI retombe sur les km mesurés, et l'écran se tait sur les
+   * zones (4 états distincts).
+   */
+  const effortHero =
+    conquest && !notCredited && verdict.judged && verdict.credited && narrative === 'effort';
+
   // LOT 1 — la série APRÈS cette course, telle que le SERVEUR l'a calculée à
   // partir des courses réelles du joueur (jamais reconstruite ici, jamais
   // simulée en démo). `undefined` (course démo, hors-ligne, serveur muet) ⇒
@@ -399,6 +469,84 @@ function ConquestResultScreen({
   // AMENDEMENT-23 §B.4 — sous-accordéon « Comment est calculé ce résultat ? »
   // (dans « Comment j'ai gagné ces zones », replié par défaut — détail au tap).
   const [showCalc, setShowCalc] = useState(false);
+
+  // ─── SÉQUENCE NARRATIVE < 1,8 s, SKIPPABLE AU TAP (planche E09) ────────────
+  // Ordre imposé : hero → zone → chiffre → rang/XP → PARTAGER actif. Les délais
+  // viennent du séquenceur PUR (motion.transitionMs comme base — aucun nombre
+  // magique) et le budget de 1,8 s est garanti par ses tests, pas par l'œil.
+  // Reduce motion : on démarre DIRECTEMENT à l'état final — l'animation ne porte
+  // jamais une information à elle seule.
+  const reduceMotion = useReduceMotion();
+  const [step, setStep] = useState(() => (reduceMotion ? REVEAL_LAST_STEP : 0));
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => {
+    if (reduceMotion) {
+      setStep(REVEAL_LAST_STEP);
+      return;
+    }
+    const delays = revealDelaysMs(motion.transitionMs);
+    timers.current = delays.flatMap((d, i) =>
+      i === 0 ? [] : [setTimeout(() => setStep((s) => Math.max(s, i)), d)],
+    );
+    const armed = timers.current;
+    return () => armed.forEach(clearTimeout);
+  }, [reduceMotion]);
+  /** SKIP : saute à l'état FINAL — exactement celui de reduce motion. */
+  const skipReveal = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    setStep(REVEAL_LAST_STEP);
+  };
+  const shown = (s: RevealStep) => revealReached(step, s);
+  const sequenceRunning = step < REVEAL_LAST_STEP;
+
+  // ─── HERO CARTE 44 % + BASCULE « AVANT ⇄ APRÈS » (planche E09) ────────────
+  // Les cellules viennent du VERDICT (`results[].h3` + outcome), le tracé de la
+  // MESURE (`finishedTrace`). Rien d'autre n'est dessinable honnêtement : le
+  // serveur ne renvoie AUCUN état antérieur du territoire (`beforeState: null`),
+  // seul l'outcome `defended` prouve qu'une zone était déjà à moi AVANT.
+  const heroCells: HeroCells = useMemo(() => {
+    const results = serverResult?.results ?? [];
+    const held: string[] = [];
+    const gained: string[] = [];
+    for (const r of results) {
+      if (r.outcome === 'defended') held.push(r.h3);
+      else if (r.outcome === 'claimed_neutral' || r.outcome === 'stolen') gained.push(r.h3);
+      // Tout le reste (blocked_*, co_captured, cooldown) n'a RIEN changé de
+      // possession : le dessiner laisserait croire à une prise qui n'a pas eu lieu.
+    }
+    return { held, gained };
+  }, [serverResult]);
+  /**
+   * La bascule n'existe que s'il y a QUELQUE CHOSE à comparer : un « avant »
+   * n'a de sens que si cette course a réellement changé la possession de zones.
+   * Sinon — hors-ligne, aucune prise — un seul état est rendu, sans bouton.
+   * Jamais un « Avant » inventé pour faire joli.
+   */
+  const canCompare = heroCells.gained.length > 0;
+  const [showBefore, setShowBefore] = useState(false);
+  // Hero à 44 % de la hauteur d'écran (planche). Passé en prop plutôt que mesuré :
+  // la viewBox doit être connue au premier rendu, sinon la carte saute d'un cran
+  // — et un saut de cadrage est exactement ce que la comparaison ne tolère pas.
+  const { width: winW, height: winH } = useWindowDimensions();
+  const heroMapH = Math.round(winH * 0.44);
+  const heroMapW = Math.round(winW - spacing.cardPadding * 2);
+  // Le hero carte n'a de matière que sur une course CRÉDITÉE : sur un refus ou
+  // un signalement (§11), rien n'a été attribué et tout se dé-escalade.
+  const showHeroMap = !notCredited && (finishedTrace.length >= 2 || heroCells.gained.length > 0);
+
+  // ─── PROGRESSION (2ᵉ temps de la planche) : sources RÉELLES seulement ──────
+  // XP joueur et XP crew sont décidées SERVEUR (`xpAwarded` / `crewXp`). Le nom
+  // du crew est RÉEL (`useRealCrew`). Le RANG LOCAL et le km² de la maquette
+  // n'ont AUCUNE source : ils restent absents — pas de barre vide, pas de « — ».
+  const xpAwarded = !notCredited ? (serverResult?.xpAwarded ?? 0) : 0;
+  const crewXp = !notCredited ? (serverResult?.crewXp ?? 0) : 0;
+  const crewName = crew?.name ?? '';
+  // Échéance RÉELLE de la frontière laissée ouverte (verdict serveur). Figée au
+  // montage : l'écran n'a pas à faire tourner une horloge, et un compte à rebours
+  // qui bouge sous les yeux transformerait une info en pression.
+  const [nowMs] = useState(() => Date.now());
+  const boundaryLeft = boundaryClock(serverResult?.openBoundary?.expiresAt, nowMs);
 
   // Un badge n'est décerné QUE par ingest_run (service_role). Sans verdict
   // serveur, il n'y a pas de badge à annoncer — un badge « débloqué » que le
@@ -434,6 +582,11 @@ function ConquestResultScreen({
     setShareRun({
       mode,
       intention,
+      // Le VERDICT part avec la card : c'est lui qui décidera le récit côté
+      // /partage (moteur pur partagé), pas l'intention du joueur. Sans ce champ,
+      // l'écran de partage retombait sur « J'AI PRIS {ZONE} · +0 » dès que la
+      // course était lancée en mode conquête — verdict ou pas.
+      verdict,
       card: shareCardFromResult({
         // playerName / crewName sont posés PLUS BAS à la chaîne vide : aucune
         // identité de démo (KORO / LES FOULÉES 9³) ne signe jamais un vrai run.
@@ -508,7 +661,11 @@ function ConquestResultScreen({
   /** Promesse du panneau de détails — jamais plus que ce qu'il contient. */
   // Non crédité : « Voir mes stats », jamais « Comment j'ai gagné ces zones »
   // (rien n'a été gagné) — le détail montre le temps/l'allure, pas un palmarès.
-  const detailsLabel = conquest && zones && !notCredited ? t(C.howIWon) : t(C.seeMyStats);
+  // `!effortHero` en plus : sur une course JUGÉE qui n'a rien pris, « Comment
+  // j'ai gagné ces zones » promettait l'explication de zones qui n'existent pas.
+  // Le panneau ne contient alors que des mesures — il s'annonce « Voir mes stats ».
+  const detailsLabel =
+    conquest && zones && !notCredited && !effortHero ? t(C.howIWon) : t(C.seeMyStats);
 
   // AMENDEMENT-23 §B.4 / honnêteté §A — décomposition technique du calcul.
   // `defended` est RÉEL dès qu'une vraie course a été jugée par ingest_run
@@ -522,25 +679,26 @@ function ConquestResultScreen({
   // valeur inventée dans la grille d'un vrai run.
   const zonesDefended: number | null = serverResult ? serverResult.hexes.defended : null;
 
-  // Synthèse multi-résultats (doc §2/§3.1) — conquête seulement (les modes
-  // social/privé gardent leur bilan stats). L'intention teinte l'accent + la
-  // copy §28 ; le tracé (démo) produit tous les effets listés.
+  // Kicker d'intention (doc §2/§3.1) — i18n depuis le 25/07/2026 : il rendait
+  // 'CONQUÊTE' / 'DÉFENSE' / 'RUN LIBRE' en français en dur, sur l'écran de fin
+  // de course d'un joueur EN/ES/DE/PT.
   const summary = summaryHeader(intention);
-  // §A r.1/r.20 — l'IMPACT ne répète pas le % de zone : la ligne `crew`
-  // (« {zone} +X % ») est déjà portée par la section CONTRIBUTION CREW plus bas
-  // ET par la heroLine de l'écran 1. On la retire ici pour tenir la card à 3
-  // idées (conquête · défense · route) et supprimer la redondance.
-  // Aucun % de secteur n'est câblé côté serveur : la synthèse ne fabrique rien.
-  const summaryLines: readonly ResultSummaryLine[] = [];
-  // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée) :
-  // « République défendue · Paris Est +5 % ».
+  // Ligne émotionnelle de l'écran 1 (courte, jamais tronquée).
   // Non crédité (refus/signalement) : PAS de ligne de conquête (« kicker · km ») —
   // le titre + le KPI km + la raison suffisent, un kicker de conquête y serait un
   // contresens. La ligne disparaît (voir garde au rendu).
+  // §A r.1 — la distance n'est écrite qu'UNE fois par niveau de lecture : quand
+  // le KPI héros EST déjà les km (variante effort, ou verdict absent), la ligne
+  // se réduit au kicker d'intention. Sinon on lisait « 4,30 » en géant, puis
+  // « RUN LIBRE · 4,30 km », puis « 4,30 km DISTANCE » — trois fois le même
+  // chiffre sur un écran qui tient en un coup d'œil.
+  const kpiShowsZones = conquest && zones !== null && !notCredited && !effortHero;
   const heroLine = notCredited
     ? ''
     : conquest
-      ? `${summary.kicker} · ${formatKm(stats.distanceM)} km`
+      ? kpiShowsZones
+        ? `${t(summary.kicker)} · ${formatKm(stats.distanceM)} km`
+        : t(summary.kicker)
       : isPrivate
         ? t(C.privateLine)
         : t(C.socialRunLine, { km: formatKm(stats.distanceM) });
@@ -570,7 +728,10 @@ function ConquestResultScreen({
         ? t(C.heroRejected) // §11 : capture refusée — jamais « TERRITOIRE ÉTENDU »
         : stats.flagged
           ? t(C.heroFlagged) // §11 : course signalée par GRYD Verify — non créditée
-          : !conquest || !zones
+          : // VARIANTE SANS CAPTURE (planche) : jugé, crédité, mais rien de pris.
+            // « TERRITOIRE ÉTENDU » y était un contresens — le hero parle d'EFFORT,
+            // et « COURSE TERMINÉE » est vrai, sobre, et déjà traduit 5 langues.
+            !conquest || !zones || effortHero
             ? t(C.heroDone)
             : intention === 'defense'
               ? t(C.heroDefended)
@@ -587,13 +748,54 @@ function ConquestResultScreen({
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── ÉCRAN 1 — émotionnel d'abord, lisible en 2 s (AMENDEMENT-20 §2) ───
-             Titre résultat + pill VERIFIED + KPI GÉANT + le POURQUOI + badge.
-             Le technique (GPS/Motion, impact, analyse boucle) reste AU TAP. */}
-        <ResultReveal visible haptic="success" style={styles.hero}>
-          {/* GRIP célèbre — petit, au-dessus du KPI (il personnalise, il ne vole pas la vedette). */}
+        {/* ═══ 1. TERRITOIRE — l'impact AVANT les métriques (planche E09) ═══════
+             Hero carte 44 % + bascule Avant/Après · titre · pill VERIFIED.
+             Le chiffre, la progression et les stats viennent APRÈS, dans cet
+             ordre-là et pas un autre. Le technique reste AU TAP. */}
+        <ResultReveal visible={shown('hero')} haptic="success" style={styles.hero}>
+          {/* HERO CARTE — le territoire que CETTE course a changé. Rendu
+              uniquement s'il y a une géométrie RÉELLE à montrer (tracé mesuré ou
+              cellules jugées) : sinon rien, plutôt qu'un cadre vide. */}
+          {showHeroMap ? (
+            <View style={styles.heroMapWrap}>
+              <ResultHeroMap
+                points={finishedTrace}
+                cells={heroCells}
+                loopClosed={zones?.loopClosed === true}
+                // La séquence fait ATTERRIR les zones : on part de l'« avant »
+                // et le temps « zone » les pose. Même bbox, donc aucun mouvement
+                // de caméra — seul le remplissage change.
+                showBefore={showBefore || !shown('zone')}
+                width={heroMapW}
+                height={heroMapH}
+                animated={!reduceMotion}
+                accessibilityLabel={
+                  showBefore ? t(C.a11yHeroMapBefore) : t(C.a11yHeroMapAfter)
+                }
+              />
+              {/* BASCULE « Avant ⇄ Après » — press-and-hold (planche). Rendue
+                  UNIQUEMENT si cette course a réellement changé la possession de
+                  zones : sans « après » différent de l'« avant », il n'y a rien à
+                  comparer, et un bouton qui ne change rien est un bouton mort. */}
+              {canCompare ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t(C.beforeAfterA11y)}
+                  onPressIn={() => setShowBefore(true)}
+                  onPressOut={() => setShowBefore(false)}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.beforeToggle, pressed && styles.pressed]}
+                >
+                  <Text style={styles.beforeToggleLabel} numberOfLines={1}>
+                    {showBefore ? t(C.beforeLabel) : t(C.afterLabel)}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {/* GRIP — petit, il personnalise, il ne vole pas la vedette au territoire. */}
           <View style={styles.heroGrip}>
-            <GripMascot rank={gripRank} size={64} />
+            <GripMascot rank={gripRank} size={48} />
           </View>
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           {/* PIONNIER — le sous-titre du statut rare : « Premier runner de GRYD
@@ -611,23 +813,27 @@ function ConquestResultScreen({
               <StatePill state="statsonly" label={t(C.statsOnlyPill)} />
             )
           ) : null}
+        </ResultReveal>
 
-          {/* KPI géant — le chiffre qui se comprend en 2 s. Les ZONES ne
-              s'affichent que si le serveur les a jugées ; sinon le KPI retombe
-              sur les KM, qui eux ont bien été MESURÉS (hors-ligne, verdict en
-              attente). Jamais un « +0 zones » à la place d'un inconnu. */}
-          {conquest && zones && !notCredited ? (
+        {/* CHIFFRE HÉROS — le GAIN, pas la performance (planche). Trois cas
+            STRICTEMENT distincts, jamais confondus :
+              · zones jugées > 0     → le nombre de zones (le gain) ;
+              · jugé mais RIEN pris  → variante EFFORT : les KM MESURÉS ;
+              · pas de verdict / non crédité → les KM MESURÉS aussi.
+            Le « +0 ZONES CAPTURÉES » du 2ᵉ cas était le zéro nu que la loi
+            interdit — et il s'affichait sous un titre « TERRITOIRE ÉTENDU ».
+            Aucun km² : `IngestRunResponse` n'en porte aucun, et convertir des
+            hexes en surface côté client serait un chiffre inventé. */}
+        <ResultReveal visible={shown('chiffre')} haptic="none" style={styles.heroSecond}>
+          {kpiShowsZones && zones ? (
             <View style={styles.heroKpi}>
               <ZoneCountUp value={zones.total} />
               <Text style={styles.heroKpiLabel}>{t(C.zonesCaptured)}</Text>
             </View>
           ) : (
-            // Non crédité (refus/signalement) OU pas de verdict : le KPI retombe
-            // sur les KM MESURÉS, jamais un « +0 zones » (qui laisserait croire à
-            // une prise ratée de peu).
             <View style={styles.heroKpi}>
               <Text style={styles.zonesHero}>{formatKm(stats.distanceM)}</Text>
-              <Text style={styles.heroKpiLabel}>KM</Text>
+              <Text style={styles.heroKpiLabel}>{t(C.kmLabel)}</Text>
             </View>
           )}
 
@@ -654,34 +860,44 @@ function ConquestResultScreen({
             </Text>
           ) : null}
 
-          {/* P0 C1 — l'échec est EXPLIQUÉ, jamais un simple « 0 » sec (copy gelée §CH2). */}
+          {/* ─── VARIANTE SANS CAPTURE : la RAISON, factuelle, jamais un échec ──
+               La planche demande « Il manquait 84 m… la boucle reste
+               disponible. » Les mètres viennent du serveur (`missingM`) ;
+               l'échéance aussi (`expiresAt`, convertie en heures PLEINES par un
+               moteur pur qui se tait plutôt que d'arrondir vers le haut). La
+               destination « dans vos Missions » de la maquette n'est PAS reprise :
+               aucune surface Missions n'accueille aujourd'hui une frontière
+               ouverte — on dit le fait, pas une promesse de navigation. */}
           {conquest && !notCredited && serverResult?.openBoundary ? (
-            <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
-              {t(C.almostClosed, { m: formatInt(serverResult.openBoundary.missingM) })}
-            </Text>
+            <>
+              <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
+                {t(C.almostClosed, { m: formatInt(serverResult.openBoundary.missingM) })}
+              </Text>
+              {boundaryLeft ? (
+                <Text style={styles.heroWhySoft} numberOfLines={1} ellipsizeMode="clip">
+                  {boundaryLeft.kind === 'hours'
+                    ? t(C.boundaryOpenHours, { h: boundaryLeft.hours })
+                    : t(C.boundaryOpenSoon)}
+                </Text>
+              ) : null}
+            </>
           ) : null}
           {conquest && !notCredited && zones?.total === 0 && !serverResult?.openBoundary ? (
-            <Text style={styles.heroWhy} numberOfLines={1} ellipsizeMode="clip">
+            <Text style={styles.heroWhy} numberOfLines={2}>
               {t(C.noZones)}
             </Text>
           ) : null}
 
-          {/* §25 pic peak-end — LE parcours réellement couru se dessine (démarre
-              AVEC l'haptique success de ce hero, jamais après). Rien si < 2 points
-              (reprise après kill) : jamais un tracé fabriqué. Le halo d'arrivée ne
-              s'affirme que si le serveur a confirmé la boucle fermée.
-              §11 : sur une course NON CRÉDITÉE (refus/signalement), tout le hero
-              se dé-escalade — la plume animée (seul élément festif) s'efface aussi.
-              Une course simplement sans capture (boucle non fermée) reste, elle,
-              créditée : son tracé se dessine (il montre à quel point c'était près). */}
-          {finishedTrace.length >= 2 && !notCredited ? (
-            <View style={styles.heroTrace}>
-              <ResultTrace
-                points={finishedTrace}
-                loopClosed={zones?.loopClosed === true}
-                accessibilityLabel={t(C.a11yResultTrace)}
-              />
-            </View>
+          {/* « L'effort compte, même sans capture. » — la phrase qui retourne le
+              résultat, et le seul ton admissible ici (planche : jamais un ton
+              d'échec). Adossée à l'XP RÉELLE quand le serveur en a crédité une ;
+              seule sinon — jamais un « +0 XP ». */}
+          {effortHero ? (
+            <Text style={styles.heroEffort} numberOfLines={2}>
+              {xpAwarded > 0
+                ? `${t(C.xpAwarded, { n: formatInt(xpAwarded) })} · ${t(C.effortCounts)}`
+                : t(C.effortCounts)}
+            </Text>
           ) : null}
 
           {/* 1 ligne émotionnelle, courte, jamais tronquée. Absente sur un refus
@@ -737,25 +953,97 @@ function ConquestResultScreen({
           ) : null}
         </ResultReveal>
 
-        {/* LA SÉRIE (LOT 1 « LA SÉRIE VISIBLE ») — niveau 1 du post-run, juste
-            sous le KPI : c'est la raison de revenir courir, elle n'a rien à
-            faire dans un accordéon. Vient EXCLUSIVEMENT du serveur
-            (`streakAfter`, dérivé des courses réelles) — absent ⇒ rien affiché,
-            jamais un « 0 » ni une série de démo. Aucun bouton : le CTA unique
-            de l'écran reste [Partager]. */}
-        {streakView ? (
-          <StreakBlock state={streakView} weeksBefore={serverResult?.streakAfter?.weeksBefore} />
-        ) : !serverResult && localStreak ? (
-          // Aucun verdict serveur (hors-ligne / pré-O1) : la série LOCALE prend le
-          // relais. Dès que le serveur juge, la branche ci-dessus (autorité) gagne.
-          // `null` si aucune série réelle (computeStreak → 'none') : jamais un « 0 ».
-          <StreakBlock state={localStreak} />
-        ) : null}
+        {/* ═══ 2. PROGRESSION (planche : territoire → PROGRESSION → stats) ══════
+             Sources RÉELLES uniquement : `xpAwarded` et `crewXp` sont décidés
+             SERVEUR, le nom du crew vient de `useRealCrew`.
+             ABSENTS FAUTE DE SOURCE, et donc non peints (ni barre vide, ni « — ») :
+             le RANG LOCAL de la maquette (« #3 du quartier » — aucune lecture de
+             season_scores ici) et le km² (« +0,42 km² » — `IngestRunResponse` ne
+             porte aucune aire, et en dériver une depuis les hexes serait un
+             chiffre inventé). */}
+        <ResultReveal visible={shown('progression')} haptic="none" style={styles.progressBlock}>
+          {xpAwarded > 0 || (crewXp > 0 && crewName) ? (
+            <>
+              <Text style={styles.stepKicker}>{t(C.progressKicker)}</Text>
+              <View style={styles.progressRows}>
+                {/* L'XP du joueur — le seul chiffre de progression que le
+                    serveur crédite explicitement à CETTE course. En variante
+                    effort, il est déjà dit dans le hero : pas deux fois (§A r.1). */}
+                {xpAwarded > 0 && !effortHero ? (
+                  <View style={styles.progressRow}>
+                    <Icon name="niveau" size={iconSizes.sm} color={colors.chartreuse} />
+                    <Text style={styles.progressValue}>
+                      {t(C.xpAwarded, { n: formatInt(xpAwarded) })}
+                    </Text>
+                  </View>
+                ) : null}
+                {/* Contribution crew : NOM RÉEL + XP crew RÉELLE. Sans crew
+                    chargé (pas de session, pas de crew, lecture impossible) la
+                    ligne DISPARAÎT — jamais « ton crew » en bouche-trou. */}
+                {crewXp > 0 && crewName ? (
+                  <View style={styles.progressRow}>
+                    <Icon name="crew" size={iconSizes.sm} color={colors.chartreuse} />
+                    <Text style={styles.progressValue} numberOfLines={1}>
+                      {t(C.crewXpLine, { crew: crewName, n: formatInt(crewXp) })}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </>
+          ) : null}
 
-        {/* CTA — [Partager] IMMÉDIAT (façon Strava), « Voir mon territoire » en
-             vraie action secondaire (la récompense), puis le toggle détails.
-             Actionnable dès l'affichage — aucun temps mort. */}
-        <ResultReveal visible haptic="none" style={styles.actions}>
+          {/* LA SÉRIE (LOT 1 « LA SÉRIE VISIBLE ») — c'est de la progression, sa
+              place est ici. Vient EXCLUSIVEMENT du serveur (`streakAfter`,
+              dérivé des courses réelles) — absent ⇒ rien affiché, jamais un
+              « 0 » ni une série de démo. */}
+          {streakView ? (
+            <StreakBlock state={streakView} weeksBefore={serverResult?.streakAfter?.weeksBefore} />
+          ) : !serverResult && localStreak ? (
+            // Aucun verdict serveur (hors-ligne / pré-O1) : la série LOCALE prend
+            // le relais. Dès que le serveur juge, la branche ci-dessus (autorité)
+            // gagne. `null` si aucune série réelle : jamais un « 0 ».
+            <StreakBlock state={localStreak} />
+          ) : null}
+
+          {/* ═══ 3. STATISTIQUES — UN bloc à séparateurs, jamais 4 cards ════════
+               Il vivait DANS l'accordéon « détails », donc APRÈS le partage :
+               l'ordre immuable de la planche était cassé, et la distance d'une
+               course réussie n'était visible nulle part au premier niveau.
+               DÉNIVELÉ (4ᵉ stat de la maquette) OMIS : l'altitude ne remonte pas
+               jusqu'ici — 3 stats mesurées valent mieux qu'une case « — ». */}
+          {stats.durationS > 0 ? (
+            <View style={styles.statTriBlock}>
+              <View style={styles.statTriItem}>
+                <Text style={styles.statTriValue} numberOfLines={1}>
+                  {formatKm(stats.distanceM)} km
+                </Text>
+                <Text style={styles.statTriLabel}>{t(C.distanceLabel)}</Text>
+              </View>
+              <View style={styles.statTriSep} />
+              <View style={styles.statTriItem}>
+                <Text style={styles.statTriValue} numberOfLines={1}>
+                  {formatClock(stats.durationS)}
+                </Text>
+                <Text style={styles.statTriLabel}>{t(C.timeLabel)}</Text>
+              </View>
+              <View style={styles.statTriSep} />
+              <View style={styles.statTriItem}>
+                <Text style={styles.statTriValue} numberOfLines={1}>
+                  {formatPace(stats.paceSPerKm)}/km
+                </Text>
+                <Text style={styles.statTriLabel}>{t(C.paceLabel)}</Text>
+              </View>
+            </View>
+          ) : null}
+        </ResultReveal>
+
+        {/* ═══ 4. PARTAGE — hiérarchie de CTA de la planche ═══════════════════
+             PARTAGER (primaire chartreuse, unique §A4) · DÉFIER UN RIVAL
+             (secondaire, dormant tant que le serveur ne signale pas de reprise)
+             · Terminer (TERTIAIRE texte). « Voir mon territoire » et « Terminer »
+             partageaient le style secondaire : deux secondaires, aucun tertiaire.
+             La sortie descend donc en lien texte — le chartreuse reste unique. */}
+        <ResultReveal visible={shown('partage')} haptic="none" style={styles.actions}>
           {/* Partage MASQUÉ sur une course non créditée : toutes les cards de
               partage affirment une conquête (« J'AI PRIS ZONE ») — proposer de
               partager un refus produirait exactement le mensonge que cet écran
@@ -786,15 +1074,13 @@ function ConquestResultScreen({
               </Text>
             </Pressable>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(C.seeTerritory)}
-            onPress={goMap}
-            style={({ pressed }) => [styles.boundarySecondary, pressed && styles.pressed]}
-          >
-            <Icon name="carte" size={iconSizes.sm} color={colors.blanc} />
-            <Text style={styles.boundarySecondaryLabel}>{t(C.seeTerritory)}</Text>
-          </Pressable>
+          {/* « VOIR MON TERRITOIRE » RETIRÉ (25/07/2026). Il était rendu en
+              SECONDAIRE, à côté de « Défier », et pointait vers `/(tabs)` — donc
+              exactement la même destination que la sortie de l'écran. Deux
+              boutons de poids différent pour le même endroit : une redondance
+              (§A r.1) et une hiérarchie fausse. La planche n'en demande que
+              trois — PARTAGER · DÉFIER UN RIVAL · Terminer — et c'est « Terminer »
+              (tertiaire, ci-dessous) qui ramène à la carte. */}
           {/* RENDEZ-VOUS local (rétention) — surface SECONDAIRE : le seul
               déclencheur de retour shippable sans backend. S'efface d'elle-même
               sur web / refus de permission (jamais un bouton mort). */}
@@ -816,6 +1102,17 @@ function ConquestResultScreen({
             </Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
+          {/* TERTIAIRE — « Terminer » : la sortie, en lien texte. Elle ferme
+              l'écran ; elle ne rivalise pas visuellement avec PARTAGER. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.finishRun)}
+            onPress={goMap}
+            hitSlop={8}
+            style={({ pressed }) => [styles.tertiary, pressed && styles.pressed]}
+          >
+            <Text style={styles.tertiaryLabel}>{t(C.finishRun)}</Text>
+          </Pressable>
         </ResultReveal>
 
         {/* ─── « COMMENT J'AI GAGNÉ CES ZONES » — technique, au tap ────────────
@@ -827,16 +1124,18 @@ function ConquestResultScreen({
             {/* IMPACT — total de conquête. Conditionné à `zones` : hors-ligne
                 (verdict en attente), ce bloc affichait « TOTAL +0 », un zéro nu
                 que le joueur lisait comme « ta course n'a rien pris ». Il
-                disparaît maintenant jusqu'à ce que le serveur ait jugé. */}
-            {conquest && zones && !notCredited ? (
+                disparaît jusqu'à ce que le serveur ait jugé — ET, depuis le
+                recalage E09, aussi quand le verdict est bien tombé mais à ZÉRO
+                zone (`effortHero`) : « TOTAL +0 » y était le même zéro nu, une
+                ligne plus bas dans l'écran. */}
+            {conquest && zones && !notCredited && !effortHero ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>{t(C.impactKicker)}</Text>
                 <View style={styles.summaryCard}>
-                  <View style={styles.summaryLines}>
-                    {summaryLines.map((line) => (
-                      <SummaryLine key={line.icon} line={line} />
-                    ))}
-                  </View>
+                  {/* La boucle de rendu qui vivait ici itérait `summaryLines`,
+                      figé à `[]` : du code mort autour d'une donnée vide, dont le
+                      seul effet était de faire croire que la synthèse existait
+                      encore. Il ne reste que le TOTAL, qui, lui, est le verdict. */}
                   <View style={styles.impactTotalRow}>
                     <Text style={styles.impactTotalLabel}>{t(C.totalLabel)}</Text>
                     <Text style={styles.impactTotalValue}>
@@ -853,55 +1152,22 @@ function ConquestResultScreen({
               </View>
             ) : null}
 
-            {/* §11 — Temps + allure sous « Voir mes stats », dans TOUS les cas où une
-                durée réelle existe (mesurée par le tracker ou renvoyée par le
-                serveur) — Y COMPRIS une conquête JUGÉE. L'ancien gate `!conquest ||
-                !zones` les cachait après une conquête réussie : le temps/l'allure,
-                pourtant calculés, n'étaient alors accessibles NULLE PART. La NOTE de
-                mode reste gatée `!conquest` : sa copy décrit social/privé.
-                `!conquest || durationS>0` : social/privé gardent TOUJOURS ce bloc
-                (donc leur note), même armés hors-ligne sans durée. */}
-            {!conquest || stats.durationS > 0 ? (
+            {/* NOTE DE MODE (social / privé). Le bloc de STATS qui vivait ici est
+                REMONTÉ au niveau 1 (§ « 3. STATISTIQUES ») : la planche impose
+                territoire → progression → statistiques → partage, et l'enterrer
+                sous le CTA cassait cet ordre. Ne reste ici que la note de mode,
+                qui est du contexte, pas une mesure.
+                privateNote = affirmation de CONFIDENTIALITÉ, vraie quel que soit
+                le verdict → toujours affichée en privé. socialNote dit « stats et
+                badges comptent » : FAUX sur une course non créditée (refus /
+                signalement ignorés par applyRunToStats) → masquée alors. */}
+            {!conquest && (isPrivate || !notCredited) ? (
               <View style={styles.block}>
                 <Text style={styles.stepKicker}>{t(C.detailsKicker)}</Text>
                 <View style={styles.statsCard}>
-                  {/* E09 (planche) — résumé sportif en UN bloc à séparateurs
-                      (distance · temps · allure), jamais 4 cards. Ramène la
-                      DISTANCE, qui n'était visible NULLE PART après une conquête
-                      (le KPI héros montre les zones). Dénivelé OMIS : aucune
-                      source réelle côté serveur (jamais un chiffre fabriqué).
-                      Les trois sont MESURÉES (tracker/serveur), allure dérivée. */}
-                  <View style={styles.statTriBlock}>
-                    <View style={styles.statTriItem}>
-                      <Text style={styles.statTriValue} numberOfLines={1}>
-                        {formatKm(stats.distanceM)} km
-                      </Text>
-                      <Text style={styles.statTriLabel}>{t(C.distanceLabel)}</Text>
-                    </View>
-                    <View style={styles.statTriSep} />
-                    <View style={styles.statTriItem}>
-                      <Text style={styles.statTriValue} numberOfLines={1}>
-                        {formatClock(stats.durationS)}
-                      </Text>
-                      <Text style={styles.statTriLabel}>{t(C.timeLabel)}</Text>
-                    </View>
-                    <View style={styles.statTriSep} />
-                    <View style={styles.statTriItem}>
-                      <Text style={styles.statTriValue} numberOfLines={1}>
-                        {formatPace(stats.paceSPerKm)}/km
-                      </Text>
-                      <Text style={styles.statTriLabel}>{t(C.paceLabel)}</Text>
-                    </View>
-                  </View>
-                  {/* privateNote = affirmation de CONFIDENTIALITÉ, vraie quel que
-                      soit le verdict → toujours affichée en privé. socialNote dit
-                      « stats et badges comptent » : FAUX sur une course non créditée
-                      (refus/signalement ignorés par applyRunToStats) → masquée alors. */}
-                  {!conquest && (isPrivate || !notCredited) ? (
-                    <Text style={styles.statsNote}>
-                      {isPrivate ? t(C.privateNote) : t(C.socialNote)}
-                    </Text>
-                  ) : null}
+                  <Text style={styles.statsNote}>
+                    {isPrivate ? t(C.privateNote) : t(C.socialNote)}
+                  </Text>
                 </View>
               </View>
             ) : null}
@@ -949,8 +1215,10 @@ function ConquestResultScreen({
                 Conditionné à `zones` : sans verdict serveur, le schéma et la
                 décomposition n'auraient que des zéros à montrer, et la ligne
                 « validé » affirmerait un échec de vérification que personne n'a
-                prononcé. Rien à expliquer tant que rien n'est calculé. */}
-            {conquest && zones && !notCredited ? (
+                prononcé. Rien à expliquer tant que rien n'est calculé — et rien
+                non plus quand le verdict dit ZÉRO zone (`effortHero`) : la
+                décomposition « +0 / +0 / +0 » n'explique aucun gain. */}
+            {conquest && zones && !notCredited && !effortHero ? (
               <View style={styles.block}>
                 <Pressable
                   accessibilityRole="button"
@@ -1072,6 +1340,21 @@ function ConquestResultScreen({
           </View>
         ) : null}
       </ScrollView>
+
+      {/* ─── SKIP DE LA SÉQUENCE (planche : « skippable au tap ») ──────────────
+           Cible transparente plein écran, présente UNIQUEMENT pendant la séquence
+           (< 1,8 s) : elle disparaît d'elle-même et ne peut donc jamais avaler un
+           tap destiné à un contrôle. Un tap saute à l'état FINAL — exactement
+           celui de reduce motion : la séquence n'est jamais le seul chemin vers
+           l'information. */}
+      {sequenceRunning ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.skipRevealA11y)}
+          onPress={skipReveal}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
     </View>
   );
 }
@@ -1083,17 +1366,10 @@ function ZoneCountUp({ value }: { value: number }) {
   return <Text style={styles.zonesHero}>+{formatInt(display)}</Text>;
 }
 
-/** Une ligne de la synthèse multi-résultats (icône + texte, accent chartreuse). */
-function SummaryLine({ line }: { line: ResultSummaryLine }) {
-  return (
-    <View style={styles.summaryLine}>
-      <Icon name={line.icon} size={16} color={line.accent ? colors.chartreuse : colors.gris} />
-      <Text style={[styles.summaryLineText, line.accent && styles.summaryLineAccent]} numberOfLines={1}>
-        {line.text}
-      </Text>
-    </View>
-  );
-}
+// `SummaryLine` SUPPRIMÉ (25/07/2026) : composant de rendu d'une synthèse
+// (`ResultSummaryLine`) qui n'avait plus aucune donnée à rendre — la liste était
+// figée à `[]` et la fonction qui la produisait fabriquait quatre affirmations
+// de gameplay en français, sans mesure derrière. Le tout est parti ensemble.
 
 /** Une ligne « libellé … valeur » de la décomposition zones post-run (§B.4). */
 function CalcZoneRow({
@@ -1115,46 +1391,29 @@ function CalcZoneRow({
   );
 }
 
-function MiniStat({ label, value, note }: { label: string; value: string; note?: string }) {
+/**
+ * Une valeur brute de la grille du calcul. La prop `note` (repère « démo »
+ * italique) a été RETIRÉE avec elle : plus aucune valeur de scénario n'entre
+ * dans cette grille depuis le 21/07/2026, et un marqueur « démo » disponible
+ * est une invitation à en réafficher une.
+ */
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.miniStat}>
       <Text style={styles.miniStatValue} numberOfLines={1}>
         {value}
       </Text>
       <Text style={styles.miniStatLabel}>{label}</Text>
-      {note ? (
-        <Text style={styles.miniStatNote} numberOfLines={1}>
-          {note}
-        </Text>
-      ) : null}
     </View>
   );
 }
 
-// ─── AMENDEMENT-17 §CH2 — Résultat FRONTIÈRE OUVERTE (fermable non fermée) ───
-// « Ouvre une frontière. Ton crew peut la fermer. » Un run VALIDE, long, NON
-// bouclé mais FERMABLE : au lieu de jeter la course, on propose de la fermer
-// (soi-même maintenant) OU de la confier au crew. UX simple, vocabulaire
-// frontière/zone, jamais de polyline/cellule/% de géométrie : « Il manque
-// 620 m. Expire dans 23 h. » Un écran = une action (les deux CTA cadrent la
-// même décision : refermer la boucle).
-
-function BoundaryToast({ bottom, text }: { bottom: number; text: string }) {
-  const { opacity, scale } = useReveal(true);
-  return (
-    <Animated.View
-      style={[styles.toastWrap, { bottom, opacity, transform: [{ scale }] }]}
-      pointerEvents="none"
-    >
-      <View style={styles.toast}>
-        <Icon name="crew" size={16} color={colors.chartreuse} />
-        <Text style={styles.toastText} numberOfLines={1}>
-          {text}
-        </Text>
-      </View>
-    </Animated.View>
-  );
-}
+// ─── `BoundaryToast` SUPPRIMÉ (25/07/2026) ──────────────────────────────────
+// Composant JAMAIS monté : il datait des deux écrans de frontière crew retirés
+// le 21/07/2026 (« Mission envoyée dans la War Room »). Il restait compilé,
+// stylé et documenté comme s'il faisait partie de l'écran. La frontière ouverte
+// s'affiche désormais comme une RAISON factuelle sous le hero d'effort, dérivée
+// du seul `openBoundary` que le serveur renvoie.
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
@@ -1207,10 +1466,33 @@ const styles = StyleSheet.create({
   block: { gap: 10 },
   pressed: { opacity: 0.75 },
 
-  // ── ÉCRAN 1 — émotionnel d'abord (AMENDEMENT-20 §2) ──
-  hero: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xl, paddingBottom: spacing.xs },
+  // ── 1. TERRITOIRE — hero carte 44 % + titre (planche E09) ──
+  hero: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xs },
+  // 2ᵉ temps : le chiffre héros et ses raisons, détachés du hero par l'espace.
+  heroSecond: { alignItems: 'center', gap: spacing.xs },
   heroGrip: { alignItems: 'center' },
-  heroTrace: { alignItems: 'center', marginTop: spacing.xs },
+  // La carte flotte : aucune card autour (§A — jamais de card-dans-card).
+  heroMapWrap: { alignSelf: 'stretch', alignItems: 'center' },
+  // Bascule Avant/Après : pastille discrète posée SUR la carte, en bas à droite.
+  beforeToggle: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: gameColors.carbon,
+  },
+  beforeToggleLabel: {
+    color: colors.blanc,
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
   heroTitle: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
@@ -1250,6 +1532,30 @@ const styles = StyleSheet.create({
     fontFamily: fonts.textSemi,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  // Complément factuel du POURQUOI (échéance de la frontière) — un cran en
+  // dessous : c'est une précision, pas l'information principale.
+  heroWhySoft: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
+  // « L'effort compte, même sans capture. » — chartreuse sur fond SOMBRE : c'est
+  // un gain (l'XP), pas une consolation grise.
+  heroEffort: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  // ── 2. PROGRESSION + 3. STATISTIQUES (ordre immuable de la planche) ──
+  progressBlock: { gap: spacing.md },
+  progressRows: { gap: spacing.xs },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  progressValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
+    flexShrink: 1,
   },
   // Mini-bandeau badge tappable (hook de rétention visible, ≥ 44 px).
   heroBadge: {
@@ -1312,8 +1618,6 @@ const styles = StyleSheet.create({
     gap: 14,
     alignItems: 'flex-start',
   },
-  verifiedTrust: { flexDirection: 'row', gap: spacing.xl, alignSelf: 'stretch' },
-
 
   // ── Explicabilité post-run « Comment est calculé ce résultat ? » (§B.4) ──
   // Accordéon replié : en-tête tappable + corps (schéma + décomposition). Pas
@@ -1373,39 +1677,13 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // ── Synthèse multi-résultats (AMENDEMENT-16 §1) ──
   summaryCard: {
     backgroundColor: gameColors.carbon,
     borderRadius: radii.card,
     padding: spacing.cardPadding,
     gap: spacing.sm,
   },
-  summaryHead: { gap: 4 },
-  summaryKicker: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  summaryCopy: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 18 },
-  summaryLines: { gap: spacing.xs },
-  summaryLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  summaryLineText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
-  summaryLineAccent: { color: colors.chartreuse, fontWeight: '800' },
 
-  validated: { alignItems: 'center', gap: 10, paddingVertical: spacing.xs },
-  validatedTitle: {
-    color: colors.blanc,
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    textAlign: 'center',
-  },
-  validatedSub: { color: colors.gris, fontSize: fontSizes.sm, textAlign: 'center' },
-
-  zonesBlock: { alignItems: 'center', gap: spacing.xxs, paddingVertical: 6 },
   zonesHero: {
     color: colors.chartreuse,
     fontSize: fontSizes.hero,
@@ -1414,40 +1692,6 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     fontVariant: ['tabular-nums'],
   },
-  zonesLabel: {
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: 2,
-  },
-  zonesSub: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
-  /** « dont N en boucle fermée » — le geste signature, en chartreuse. */
-  zonesLoop: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  // ── Contribution crew : KPI géant ──
-  crewKpiBlock: { alignItems: 'center', gap: 2, paddingVertical: 4 },
-  crewKpi: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xxl,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  crewKpiLabel: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
 
   statsCard: {
     backgroundColor: colors.carbone,
@@ -1455,15 +1699,6 @@ const styles = StyleSheet.create({
     padding: spacing.cardPadding,
     gap: spacing.sm,
   },
-  statsHero: {
-    color: colors.blanc,
-    fontSize: fontSizes.xxl,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  statsHeroUnit: { color: colors.gris, fontSize: fontSizes.lg, fontWeight: '600' },
-  statsRow: { flexDirection: 'row', gap: spacing.sm },
   // ── E09 — résumé sportif : UN bloc à séparateurs (jamais 4 cards, planche) ──
   statTriBlock: { flexDirection: 'row', alignItems: 'center' },
   statTriItem: { flex: 1, alignItems: 'center', gap: 3 },
@@ -1498,35 +1733,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 1,
   },
-  // Repère « démo » discret : distingue une valeur de scénario d'une vraie mesure
-  // (honnêteté §A) — jamais mêlée sans distinction aux vraies stats GPS/MOUVEMENT.
-  miniStatNote: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    fontStyle: 'italic',
-    marginTop: 1,
-  },
   statsNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
-
-  crewLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  crewText: { color: colors.blanc, fontSize: fontSizes.sm, flex: 1, lineHeight: 20 },
-  crewPct: { color: colors.chartreuse, fontWeight: '800' },
-
-  perfCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: 14,
-  },
-  perfTextWrap: { flex: 1, gap: 2 },
-  perfTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  perfSub: { color: colors.gris, fontSize: fontSizes.xs },
 
   // ── Bonus appliqué (AMENDEMENT-19 §4) : ligne sobre, liseré chartreuse ──
   bonusCard: {
@@ -1565,51 +1772,9 @@ const styles = StyleSheet.create({
   },
   // Libellé NOIR sur chartreuse (charte — jamais de chartreuse sur fond clair).
   shareLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
-  // « Voir mon territoire » (écrans frontière) — lien discret sous 2 boutons
-  // (cible ≥ 44 px avec le hitSlop).
-  mapLink: { alignItems: 'center', paddingVertical: 12 },
-  mapLinkLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '600' },
 
-  // ── AMENDEMENT-17 §CH2 — Frontière crew (ouverte / fermée) ──
-  boundaryCard: {
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    padding: spacing.cardPadding,
-    gap: 10,
-  },
-  boundaryHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  boundaryKicker: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  boundaryLead: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600', lineHeight: 24 },
-  boundaryLeadAccent: { color: colors.chartreuse, fontWeight: '800' },
-  boundaryMissing: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', lineHeight: 26 },
-  boundaryMissingAccent: {
-    color: colors.chartreuse,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  boundaryMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  boundaryMeta: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.textSemi,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  // Actions ancrées bas (pas dans le ScrollView — un écran = une action).
-  boundaryActions: {
-    paddingHorizontal: spacing.cardPadding,
-    gap: 10,
-    paddingTop: 6,
-  },
+  // SECONDAIRE — contour discret, jamais de fond chartreuse (§A4 : un seul CTA
+  // chartreuse par écran, et c'est PARTAGER).
   boundarySecondary: {
     height: 50,
     borderRadius: radii.pill,
@@ -1622,58 +1787,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   boundarySecondaryLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
+  // TERTIAIRE (planche) — « Terminer » : lien texte, cible ≥ 44 px avec le
+  // hitSlop. Aucun fond, aucun contour : il ne concurrence pas le chartreuse.
+  tertiary: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  tertiaryLabel: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '700' },
 
-  // Boucle crew fermée : hero de zone + contributions.
-  boundaryZoneHero: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xxl,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    textAlign: 'center',
-  },
-  contribCard: {
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    gap: spacing.sm,
-  },
-  contribRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  contribAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.chartreuse14,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contribAvatarText: { color: colors.chartreuse, fontSize: fontSizes.sm, fontWeight: '800' },
-  contribName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700', flex: 1 },
-  contribPct: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  contribDivider: { height: 1, backgroundColor: colors.grisLigne },
-  contribCrewPts: { color: gameColors.gold },
-
-  // Toast bas éphémère (« Mission envoyée dans la War Room. »).
-  toastWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: gameColors.carbon,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    maxWidth: 340,
-  },
-  toastText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
 });

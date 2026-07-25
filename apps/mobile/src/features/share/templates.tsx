@@ -66,6 +66,11 @@ export interface ShareView {
    * pas (pas de « secteur pris » mensonger). Défaut (undefined) → capturée.
    */
   captured?: boolean;
+  /**
+   * `true` = jouer la partition COMPLÈTE du replay (7,5 s, planche E10) plutôt
+   * que l'entrée comprimée. Armé par le bouton « Rejouer » de /partage.
+   */
+  fullReplay?: boolean;
 }
 
 /** Données du run VALIDÉ projetées dans les cards (plus aucun scénario de démo). */
@@ -203,6 +208,7 @@ function mapHero(d: ShareDemoData, view?: ShareView): ReactNode {
       replayKey={view?.replayKey}
       trace={view?.trace ?? d.trace ?? []}
       captured={view?.captured}
+      fullReplay={view?.fullReplay}
     />
   );
 }
@@ -217,6 +223,7 @@ function map(d: ShareDemoData, view: ShareView | undefined, mode: 'loop' | 'defe
       trace={view?.trace ?? d.trace ?? []}
       // social_run → captured=false : la zone ne se remplit pas (aucune capture).
       captured={view?.captured}
+      fullReplay={view?.fullReplay}
     />
   );
 }
@@ -375,6 +382,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
             replayKey={view?.replayKey}
             trace={view?.trace ?? []}
             captured={view?.captured}
+            fullReplay={view?.fullReplay}
           />
         ),
       };

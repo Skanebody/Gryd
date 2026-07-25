@@ -86,13 +86,18 @@ export const DEMO_ARSENAL_SIGNALS: ArsenalPlayerSignals = {
   nextCrewWindow: 'weekend',
 };
 
-export const ARSENAL_NEED_OPTIONS: readonly { id: ArsenalNeedKey; label: string }[] = [
-  { id: 'for_you', label: 'Pour toi' },
-  { id: 'defense', label: 'Défense' },
-  { id: 'crew', label: 'Crew' },
-  { id: 'identity', label: 'Style' },
-  { id: 'share', label: 'Partage' },
-];
+/**
+ * `ARSENAL_NEED_OPTIONS` SUPPRIMÉ (25/07/2026, planche E17). C'était la seconde
+ * zone morte i18n de l'Arsenal : cinq libellés FRANÇAIS EN DUR (« Pour toi »,
+ * « Défense », « Crew », « Style », « Partage ») passés tels quels au Segmented
+ * — un joueur en/es/de/pt lisait cinq mots de français, VoiceOver compris.
+ *
+ * Ils ne sont pas traduits mais RETIRÉS : la planche E17 demande des chips de
+ * CATÉGORIE D'OBJET (cf. `shop.ts`), et deux rangées de chips concurrentes
+ * seraient deux navigations pour une seule décision (§A). Le moteur de
+ * recommandation (`rankArsenalItems`) et ses `need` restent intacts pour la
+ * suite ; c'est seulement leur SURFACE de filtre qui disparaît.
+ */
 
 const BOOST_BONUS_LABEL = `+${Math.round((CREW_BOOST_CHEST_MULTIPLIER - 1) * 100)} % coffre`;
 

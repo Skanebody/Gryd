@@ -15,7 +15,6 @@ const base: LiveNoticeInput = {
   bgPrompt: 'hidden',
   approxLocation: false,
   foregroundOnlyPlatform: false,
-  loopHint: null,
 };
 
 Deno.test('rien d’actif → aucun avis', () => {
@@ -30,7 +29,6 @@ Deno.test('signal critique (perdu) prime sur TOUT le reste simultané', () => {
     bgPrompt: 'offer',
     approxLocation: true,
     foregroundOnlyPlatform: true,
-    loopHint: 'ready',
   };
   assertEquals(selectLiveNotice(all), 'signal_critical');
 });
@@ -51,34 +49,34 @@ Deno.test('en pause manuelle : aucun faux signal (perdu/faible ignorés)', () =>
 });
 
 Deno.test('ordre de priorité complet (chaque niveau bat les suivants réunis)', () => {
-  // restore > bg_offer > weak > precise > loop_ready > loop_return > foreground
+  // restore > bg_offer > weak > precise > foreground
   assertEquals(
-    selectLiveNotice({ ...base, hasRestore: true, bgPrompt: 'offer', signal: 'weak', approxLocation: true, foregroundOnlyPlatform: true, loopHint: 'ready' }),
+    selectLiveNotice({ ...base, hasRestore: true, bgPrompt: 'offer', signal: 'weak', approxLocation: true, foregroundOnlyPlatform: true }),
     'restore',
   );
   assertEquals(
-    selectLiveNotice({ ...base, bgPrompt: 'offer', signal: 'weak', approxLocation: true, loopHint: 'ready' }),
+    selectLiveNotice({ ...base, bgPrompt: 'offer', signal: 'weak', approxLocation: true }),
     'bg_offer',
   );
   assertEquals(
-    selectLiveNotice({ ...base, signal: 'weak', approxLocation: true, loopHint: 'ready' }),
+    selectLiveNotice({ ...base, signal: 'weak', approxLocation: true }),
     'signal_weak',
   );
-  assertEquals(
-    selectLiveNotice({ ...base, approxLocation: true, loopHint: 'ready' }),
-    'precise',
-  );
-  assertEquals(selectLiveNotice({ ...base, loopHint: 'ready', foregroundOnlyPlatform: true }), 'loop_ready');
-  assertEquals(selectLiveNotice({ ...base, loopHint: 'return', foregroundOnlyPlatform: true }), 'loop_return');
+  assertEquals(selectLiveNotice({ ...base, approxLocation: true }), 'precise');
   // La note plate cède à tout : elle ne s'affiche que seule.
   assertEquals(selectLiveNotice({ ...base, foregroundOnlyPlatform: true }), 'foreground');
   assertEquals(selectLiveNotice({ ...base, bgPrompt: 'denied' }), 'foreground');
 });
 
-Deno.test('foreground ne masque JAMAIS « boucle prête » (régression web)', () => {
-  // Sur navigateur foregroundOnlyPlatform est toujours vrai : la boucle doit primer.
-  assertEquals(
-    selectLiveNotice({ ...base, foregroundOnlyPlatform: true, loopHint: 'ready' }),
-    'loop_ready',
-  );
+Deno.test('planche E07 : la fermeture de boucle n’occupe PLUS le slot d’avis', () => {
+  // Elle est devenue un état PERMANENT (pill d'en-tête + segment sur la carte).
+  // Le sélecteur n'en sait donc plus rien : aucune entrée, aucune sortie « loop_* ».
+  const notices = [
+    selectLiveNotice(base),
+    selectLiveNotice({ ...base, foregroundOnlyPlatform: true }),
+    selectLiveNotice({ ...base, signal: 'weak' }),
+  ];
+  for (const n of notices) {
+    assertEquals(String(n).startsWith('loop'), false, `avis « ${n} » ne doit plus exister`);
+  }
 });

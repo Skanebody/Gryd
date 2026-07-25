@@ -13,15 +13,29 @@
  */
 import type { RunIntention } from '../run/intention';
 import type { LiveRunMode } from '../run/simulation';
+import type { NarrativeVerdict } from './narrative';
 import type { ShareDemoData } from './templates';
 
 export interface ShareRunData {
   /** Valeurs projetées dans les cards — celles de l'écran Résultat. */
   card: ShareDemoData;
-  /** Intention client (teinte titre + style par défaut — jamais l'attribution). */
+  /** Intention client (teinte le TITRE de l'écran — jamais l'histoire ni l'attribution). */
   intention: RunIntention | null;
   /** Mode de la course (social_run = stats seules, aucune capture à montrer). */
   mode: LiveRunMode;
+  /**
+   * VERDICT SERVEUR de la course, tel que le Résultat l'a lu. C'est LUI qui
+   * décide le récit (features/share/narrative.ts), pas l'intention du joueur.
+   *
+   * ─── LE BUG QUE CE CHAMP FERME ────────────────────────────────────────────
+   * /partage choisissait son style sur `intention` : une course lancée en mode
+   * conquête ouvrait donc la card héros « J'AI PRIS {ZONE} · +0 · PRENDS-LA-MOI »
+   * même quand le serveur n'avait rien attribué — et cette card EST la cible
+   * exacte de l'export PNG. Le garde qui existait ne protégeait que le TEXTE du
+   * message, pas l'image. Ici, sans prise jugée, les styles qui affirment une
+   * conquête ne sont même pas proposés.
+   */
+  verdict: NarrativeVerdict;
 }
 
 let current: ShareRunData | null = null;

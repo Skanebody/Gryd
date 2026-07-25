@@ -10,20 +10,23 @@
  * cours/pause/recherche) et la pill de MODE (social/privé) — ce sont des libellés
  * d'état, pas des alertes.
  *
- * Ordre = SÛRETÉ d'abord, puis décisions, puis qualité de signal, puis guidage,
- * puis la note plate de plateforme en DERNIER (sinon, sur navigateur où elle est
- * toujours vraie, elle masquerait à jamais « BOUCLE PRÊTE ») :
+ * Ordre = SÛRETÉ d'abord, puis décisions, puis qualité de signal, puis la note
+ * plate de plateforme en DERNIER :
  *   1 signal_critical  — perdu / autorisation coupée / jamais reçu : la course
  *                        n'enregistre PLUS. Prime toujours (rien ne la masque).
  *   2 restore          — course interrompue retrouvée : décision anti-perte.
  *   3 bg_offer         — permission arrière-plan proposée (décision).
  *   4 signal_weak      — signal faible (avertissement doux).
  *   5 precise          — position approximative (qualité de capture).
- *   6 loop_ready       — boucle prête (le moment ACTIONNABLE).
- *   7 loop_return      — retour ~N m (guidage doux).
- *   8 foreground       — « enregistré seulement app ouverte » (note permanente,
+ *   6 foreground       — « enregistré seulement app ouverte » (note permanente,
  *                        cède à tout le reste).
- *   9 none.
+ *   7 none.
+ *
+ * PLANCHE E07 (25/07/2026) : la FERMETURE DE BOUCLE a QUITTÉ ce sélecteur. Elle
+ * n'est plus un avis temporaire disputant un slot aux alertes : c'est un ÉTAT
+ * PERMANENT de la course, dessiné SUR LA CARTE (segment pointillé + progression)
+ * et résumé par une pill d'en-tête, au même titre que la pill d'état. §10 est
+ * respecté — le slot d'avis reste unique, la boucle n'y entre plus.
  *
  * PUR : aucun import natif, aucun état — testable, sûr dans le bundle web.
  */
@@ -35,8 +38,6 @@ export type LiveNotice =
   | 'bg_offer'
   | 'signal_weak'
   | 'precise'
-  | 'loop_ready'
-  | 'loop_return'
   | 'foreground'
   | 'none';
 
@@ -53,8 +54,6 @@ export interface LiveNoticeInput {
   readonly bgPrompt: 'hidden' | 'offer' | 'denied';
   readonly approxLocation: boolean;
   readonly foregroundOnlyPlatform: boolean;
-  /** Guidage de boucle courant (moteur D4), ou null. */
-  readonly loopHint: 'ready' | 'return' | null;
 }
 
 /** L'UNIQUE avis temporaire à afficher (§10). Miroir fidèle de GpsSignalPill. */
@@ -74,8 +73,6 @@ export function selectLiveNotice(i: LiveNoticeInput): LiveNotice {
   if (i.bgPrompt === 'offer') return 'bg_offer';
   if (signalWeak) return 'signal_weak';
   if (i.approxLocation) return 'precise';
-  if (i.loopHint === 'ready') return 'loop_ready';
-  if (i.loopHint === 'return') return 'loop_return';
   if (foreground) return 'foreground';
   return 'none';
 }

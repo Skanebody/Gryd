@@ -1,39 +1,50 @@
 /**
- * GRYD — COURSE LIVE RÉELLE (AMENDEMENT-15 §2) : l'écran Nike du mode Stats
- * branché sur le VRAI tracker GPS (distance/allure/temps/zones estimées réels,
- * jauge GPS Trust réelle, états faible/perdu/autorisation coupée depuis
- * signalState). Composant PUR côté imports natifs : tout passe par RealRunApi
- * (useRealRun) — il vit donc AUSSI dans le bundle web, où il est bel et bien
- * rendu depuis le 21/07/2026 : le navigateur enregistre de VRAIES courses via
- * `navigator.geolocation` (useRealRun.web.ts). Les seules différences visibles
- * y sont les limites RÉELLES de la plateforme (pas d'arrière-plan, pas de
- * réglages système), annoncées au lieu d'être masquées.
+ * GRYD — E07 « LIVE RUN · CONQUÊTE » (planche Vague 1, recalage du 25/07/2026).
  *
- * C'est désormais le SEUL écran de course qui existe : la course de
- * démonstration et toute sa chaîne (`DemoCourseLive`, `liveNav`, `route/demo`,
- * `loop`, `livemates`, `indications`, `LiveNavMap`) ont été supprimées le
- * 21/07/2026 (A-47). Cet écran ne dépend plus d'aucune donnée de scénario.
+ * OBJECTIF DE L'ÉCRAN : courir SANS MANIPULER LE TÉLÉPHONE. Hiérarchie stricte
+ * de la planche — 1 tracé · 2 fermeture · 3 distance restante · 4 temps/allure ·
+ * 5 pause. La carte est DOMINANTE (plein écran), la position est posée à 62 % de
+ * la hauteur (l'espace devant), les trois métriques tiennent en bandeau haut, la
+ * fermeture est DESSINÉE sur la carte, et la Pause est le seul geste sous le
+ * pouce. Texte court, zéro carrousel, aucune animation complexe en course.
  *
- * Ce qu'il ne fait PAS, et le dit plutôt que de le simuler :
- *  - pas de mode Carte : la seule carte de course qui ait existé était bâtie
- *    sur les polylignes d'authoring du planner (Paris), pas sur le tracé
- *    mesuré. La rebrancher sur `gps/tracker.ts` est un chantier à part ; en
- *    attendant, aucune carte vaut mieux qu'une carte qui montre ailleurs.
- *    À la place : bouton AIDE GPS (« Courir écran éteint » par constructeur) ;
- *  - Motion Trust (podomètre) en phase suivante : seule la jauge GPS TRUST
- *    est affichée, jamais une fausse jauge ;
- *  - à la fin : le VRAI IngestRunRequest part (si session réelle) et seules les
- *    mesures (distance, durée) accompagnent la navigation vers le Résultat.
- * Textes FR courts, vocabulaire zones, anti-shame. Tokens uniquement.
+ * ─── POINT DE VÉRITÉ (planche, mot pour mot) ────────────────────────────────
+ * « L'itinéraire conseillé est purement indicatif : la capture est calculée sur
+ *   la boucle réellement fermée, jamais sur le respect du tracé. En course
+ *   libre, aucun pointillé n'est affiché. »
+ * C'est la raison pour laquelle GRYD n'affiche AUCUN itinéraire conseillé ici,
+ * et donc AUCUNE alerte « hors tracé » : depuis le 21/07/2026 (A-47) il n'existe
+ * plus d'itinéraire dans l'app — sans référent, « hors tracé » n'aurait aucun
+ * sens, et une flèche « rejoignez le tracé » serait un contrôle mort.
+ * Même raisonnement pour l'alerte RIVAL de la planche : GRYD ne publie AUCUNE
+ * position live d'autrui, et le seul rival réel connu arrive dans la réponse
+ * d'`ingest_run`, donc APRÈS la course. La peindre exigerait de fabriquer une
+ * présence — elle est omise, et vit en E09 où elle est vraie.
+ *
+ * ─── LA CARTE EST REVENUE, ET ELLE EST HONNÊTE ──────────────────────────────
+ * L'écran n'avait plus de fond de carte depuis A-47, pour une raison qui a
+ * cessé d'être vraie : la seule carte de course qui ait existé était bâtie sur
+ * les polylignes d'authoring du planner, pas sur le tracé MESURÉ. Ce n'est plus
+ * le cas — `snapshot.traceSegments` EST la trace mesurée, coupée aux trous de
+ * signal. Ce qui a été mesuré se peint plein (§B casing/glow/core) ; ce qui
+ * relie deux tronçons n'a jamais été parcouru sous mesure et se peint en
+ * pointillé (planche : « GPS faible → tracé incertain pointillé »).
+ *
+ * Ce que l'écran ne fait toujours PAS, et le dit :
+ *  - pas de son (aucune dépendance audio dans l'app : un bouton son serait mort) ;
+ *  - pas de Motion Trust (podomètre) — jamais une fausse jauge ;
+ *  - la jauge GPS TRUST et la pill GRYD VERIFIED ont quitté la course : elles
+ *    faisaient doublon avec l'antenne de signal et n'étaient actionnables par
+ *    personne en courant (§A « comprendre l'écran en < 3 s »). Le GPS Trust
+ *    reste MESURÉ et part au serveur — il n'est simplement plus peint ici.
  */
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import {
   GPS_SIGNAL_LOST_AFTER_S,
-  VERIFIED_MIN_TRUST,
   colors,
   fonts,
   fontSizes,
@@ -42,6 +53,7 @@ import {
   motion,
   radii,
   spacing,
+  withAlpha,
 } from '@klaim/shared';
 import { C } from '../../../i18n/catalog/runGps';
 import { useT } from '../../../i18n/store';
@@ -53,10 +65,29 @@ import { ProgressBar } from '../../../ui/ProgressBar';
 import { SignalBars } from '../../../ui/SignalBars';
 import { signalLevel } from '../../../ui/signalLevel';
 import { formatInt } from '../../../ui/format';
+import { RealMap, type RealMapGeoJSONLayer, type RealMapMarker } from '../../../ui/game/RealMap';
+import { TRACE_DASH, runTraceLayers, traceStyle } from '../../map/mapStyle';
 import { RUN_MODE_LABEL, formatClock, formatKm, formatPace, type LiveRunMode } from '../simulation';
 import type { RealRunApi } from './gateTypes';
-import { LiveTraceThumb } from './LiveTraceThumb';
-import { loopHint, roundLoopM } from './engine/loopHint';
+import { LoopClosureSequence } from './LoopClosureSequence';
+import { roundLoopM } from './engine/loopHint';
+import {
+  INITIAL_LOOP_CLOSURE,
+  loopClosurePhase,
+  loopClosureProgress,
+  loopMissingM,
+  progressPercent,
+  stepLoopClosure,
+  type LoopClosureMemory,
+  type LoopClosurePhase,
+} from './engine/loopClosure';
+import {
+  isHighSpeed,
+  liveCameraCenter,
+  type LatLng,
+  type LiveCamera,
+  type ScreenBox,
+} from './engine/liveView';
 import { selectLiveNotice } from './liveNotice';
 import {
   BackgroundHelpSheet,
@@ -66,8 +97,18 @@ import {
   RestoreRunCard,
 } from './GpsStatusUI';
 
-/** Diamètre des GROS contrôles une-main (même gabarit que la démo Nike). */
-const BIG_CONTROL_SIZE = 68;
+/**
+ * Zoom de la carte live (présentation, pas une règle) : niveau RUE — c'est
+ * l'échelle où la trace-héros a sa pleine largeur (§B) et où « l'espace devant »
+ * représente vraiment les prochaines minutes de course.
+ */
+const LIVE_ZOOM = 16.4;
+/** Planche E07 : la position du coureur est posée à 62 % de la hauteur. */
+const LIVE_ANCHOR_RATIO = 0.62;
+/** Diamètre du bouton PAUSE (planche : cercle 60) — l'unique chartreuse d'action. */
+const PAUSE_SIZE = 60;
+/** Diamètre des contrôles secondaires (verrou, aide, terminer). */
+const SMALL_CONTROL_SIZE = 48;
 
 /** Libellé de la pill principale selon la phase réelle (toujours visible). */
 function statusLabel(run: RealRunApi): Entry {
@@ -81,10 +122,59 @@ function statusLabel(run: RealRunApi): Entry {
   return C.statusRunning;
 }
 
+/** FeatureCollection de lignes (les couches de carte n'acceptent que du GeoJSON). */
+function lineCollection(lines: readonly (readonly LatLng[])[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: lines
+      .filter((line) => line.length >= 2)
+      .map((line) => ({
+        type: 'Feature' as const,
+        properties: {},
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: line.map((p) => [p.lng, p.lat]),
+        },
+      })),
+  };
+}
+
+/**
+ * Les segments qui RELIENT deux tronçons mesurés : personne ne les a parcourus
+ * sous mesure (trou de signal). Ils existent visuellement — sinon la trace
+ * paraîtrait interrompue — mais en pointillé, jamais en trait plein.
+ */
+function uncertainLinks(
+  segments: readonly (readonly LatLng[])[],
+): (readonly LatLng[])[] {
+  const links: (readonly LatLng[])[] = [];
+  for (let i = 1; i < segments.length; i += 1) {
+    const prev = segments[i - 1];
+    const next = segments[i];
+    const a = prev?.[prev.length - 1];
+    const b = next?.[0];
+    if (a && b) links.push([a, b]);
+  }
+  return links;
+}
+
+/** Ce que la séquence E08 a besoin de savoir, figé au moment de la fermeture. */
+interface ClosureShow {
+  loop: readonly LatLng[];
+  closurePoint: LatLng;
+  camera: LiveCamera;
+  box: ScreenBox;
+  zonesEstimated: number;
+  reduced: boolean;
+}
+
 export function RealCourseLive({ run }: { run: RealRunApi }) {
   const t = useT();
   const insets = useSafeAreaInsets();
   const [helpVisible, setHelpVisible] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [box, setBox] = useState<ScreenBox | null>(null);
+  const [closure, setClosure] = useState<ClosureShow | null>(null);
   const finishedRef = useRef(false);
   const s = run.snapshot;
   const mode = run.effectiveMode;
@@ -97,7 +187,6 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const openSettings = run.openSettings;
   const conquest = mode === 'conquete';
   const paused = s.phase === 'paused-user';
-  const verified = s.gpsTrust >= VERIFIED_MIN_TRUST && s.keptPoints > 0;
   /**
    * LECTURE EN COURS ≠ ÉCHEC. Aucune position n'est encore arrivée : « signal
    * perdu » serait faux (on n'a rien perdu — on n'a jamais rien eu). Passé le
@@ -106,15 +195,23 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
    */
   const awaitingFirstFix = s.totalFixes === 0;
   const firstFixOverdue = awaitingFirstFix && s.activeS > GPS_SIGNAL_LOST_AFTER_S;
-  // D4 — guidage de boucle (pur) : rien avant le périmètre minimal, « prête »
-  // sous la tolérance serveur, sinon l'écart au départ à vol d'oiseau.
-  const hint = loopHint({ conquest, distanceM: s.distanceM, gapM: s.loopGapM });
 
-  // §10 — UN SEUL avis temporaire à la fois (sûreté d'abord). La pill d'ÉTAT et la
-  // pill de MODE restent en contexte permanent ; tout le reste (signal, reprise,
-  // permission, précision, guidage de boucle) passe par cette priorité unique.
+  const start = s.tracePoints[0] ?? null;
+  const here = s.tracePoints[s.tracePoints.length - 1] ?? null;
+
+  // ── Fermeture de boucle : état PERMANENT (moteur pur, seuils SERVEUR) ──────
+  const phase = loopClosurePhase({ conquest, distanceM: s.distanceM, gapM: s.loopGapM });
+  const progress = loopClosureProgress({
+    distanceM: s.distanceM,
+    gapM: s.loopGapM,
+    farthestGapM: s.farthestGapM,
+  });
+
+  // §10 — UN SEUL avis temporaire à la fois (sûreté d'abord). La pill d'ÉTAT, la
+  // pill de MODE et la pill de FERMETURE restent en contexte permanent ; tout le
+  // reste (signal, reprise, permission, précision) passe par cette priorité unique.
   const notice = selectLiveNotice({
-    pausedByUser: s.phase === 'paused-user',
+    pausedByUser: paused,
     permissionRevoked: run.permissionRevoked,
     awaitingFirstFix,
     firstFixOverdue,
@@ -123,10 +220,6 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     bgPrompt: run.bgPrompt,
     approxLocation: run.approxLocation,
     foregroundOnlyPlatform: run.foregroundOnlyPlatform,
-    // Remap EXPLICITE du kind moteur ('ready' | 'closing') vers le vocabulaire du
-    // sélecteur ('ready' | 'return'). Un futur 3e variant → null (pas d'avis boucle)
-    // plutôt qu'un 'return' silencieux — dégradation sûre.
-    loopHint: hint?.kind === 'ready' ? 'ready' : hint?.kind === 'closing' ? 'return' : null,
   });
 
   useEffect(() => {
@@ -148,23 +241,125 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     else if (prev === 'lost' && s.signal !== 'lost') haptics.light();
   }, [s.signal, s.phase]);
 
+  // ── Caméra : suit le coureur, ancrée à 62 % (espace devant) ────────────────
+  // Elle est GELÉE le temps d'E08 : sans cela l'encre projetée dériverait d'un
+  // tick à l'autre et ne recouvrirait plus la boucle qu'elle prétend remplir.
+  const liveCamera = useMemo<LiveCamera | null>(() => {
+    if (here === null || box === null) return null;
+    const center = liveCameraCenter(here, LIVE_ZOOM, box, LIVE_ANCHOR_RATIO);
+    return { ...center, zoom: LIVE_ZOOM };
+  }, [here?.lat, here?.lng, box?.width, box?.height]);
+  const camera = closure?.camera ?? liveCamera;
+
+  // ── E08 : déclenchement à la TRANSITION, avec anti-rebond (moteur pur) ─────
+  const closureMemory = useRef<LoopClosureMemory>(INITIAL_LOOP_CLOSURE);
+  const closureCtx = useRef<{
+    phase: LoopClosurePhase;
+    camera: LiveCamera | null;
+    box: ScreenBox | null;
+    loop: readonly LatLng[];
+    start: LatLng | null;
+    zones: number;
+    speed: number | null;
+  }>({ phase, camera: liveCamera, box, loop: s.tracePoints, start, zones: s.zonesEstimated, speed: s.recentSpeedMps });
+  closureCtx.current = {
+    phase,
+    camera: liveCamera,
+    box,
+    loop: s.tracePoints,
+    start,
+    zones: s.zonesEstimated,
+    speed: s.recentSpeedMps,
+  };
+  useEffect(() => {
+    const ctx = closureCtx.current;
+    const step = stepLoopClosure(closureMemory.current, ctx.phase);
+    closureMemory.current = step.memory;
+    if (!step.celebrate) return;
+    // Rien à dessiner (carte pas encore mesurée) : on ne joue pas une séquence
+    // sur du vide — la pill d'en-tête dit déjà que la boucle est fermée.
+    if (ctx.camera === null || ctx.box === null || ctx.start === null) return;
+    setClosure({
+      loop: ctx.loop,
+      closurePoint: ctx.start,
+      camera: ctx.camera,
+      box: ctx.box,
+      zonesEstimated: ctx.zones,
+      reduced: isHighSpeed(ctx.speed),
+    });
+  }, [phase]);
+
+  // ── Couches de carte ──────────────────────────────────────────────────────
+  const layers = useMemo<RealMapGeoJSONLayer[]>(() => {
+    const out: RealMapGeoJSONLayer[] = [];
+    const segments = s.traceSegments;
+    if (segments.length > 0) {
+      // §B — trace HÉROS : casing sombre + liseré fin + core chartreuse plein,
+      // largeur interpolée par zoom. Aucune largeur en dur ici.
+      out.push(...runTraceLayers('live-trace', lineCollection(segments)));
+    }
+    const links = uncertainLinks(segments);
+    if (links.length > 0) {
+      out.push({
+        id: 'live-uncertain',
+        data: lineCollection(links),
+        // Toujours MA trace (rôle chartreuse), mais diluée et pointillée : elle
+        // n'a pas été mesurée, elle ne peut pas se donner l'air de l'avoir été.
+        lineColor: withAlpha(traceStyle.core, 0.45),
+        lineWidth: 3,
+        lineDash: TRACE_DASH.excluded,
+      });
+    }
+    // La FERMETURE, dessinée : ce qui sépare encore la position du départ.
+    if (phase !== 'idle' && start !== null && here !== null) {
+      out.push({
+        id: 'live-closure',
+        data: lineCollection([[here, start]]),
+        lineColor:
+          phase === 'nearMiss' ? gameColors.warn : withAlpha(colors.chartreuse, 0.85),
+        lineWidth: 3,
+        lineDash: TRACE_DASH.missing,
+      });
+    }
+    return out;
+  }, [s.traceSegments, phase, start?.lat, start?.lng, here?.lat, here?.lng]);
+
+  const markers = useMemo<RealMapMarker[]>(() => {
+    const out: RealMapMarker[] = [];
+    if (start !== null && phase !== 'idle') {
+      out.push({
+        id: 'loop-start',
+        lng: start.lng,
+        lat: start.lat,
+        children: <View style={styles.startDot} />,
+      });
+    }
+    if (here !== null) {
+      out.push({
+        id: 'me',
+        lng: here.lng,
+        lat: here.lat,
+        children: (
+          <View style={styles.meHalo}>
+            <View style={styles.meDot} />
+          </View>
+        ),
+      });
+    }
+    return out;
+  }, [start?.lat, start?.lng, here?.lat, here?.lng, phase]);
+
   const finish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
     haptics.success();
     void run.finish().then(({ distanceM, durationS, uploadQueued }) => {
-      // DERNIER LIEN AVEC LA SIMULATION, COUPÉ LE 21/07/2026. On passait ici un
-      // paramètre `t` : un index de tick de la course fabriquée, obtenu en
-      // rapportant la distance réelle aux 8,2 km du scénario démo puis en la
-      // bornant à ses 96 ticks. Le Résultat ne le lit plus depuis qu'il a cessé
-      // de rejouer la démo — c'était donc un nombre inventé, dérivé de
-      // constantes inventées, transporté pour rien. Il n'est plus envoyé, et la
-      // course réelle ne dépend plus d'aucune valeur de scénario.
+      // Ce qui part est exclusivement MESURÉ : la distance et la durée du
+      // tracker. AUCUNE valeur estimée mi-course (zones, fermeture, progression)
+      // ne franchit cette frontière — le Résultat lit le verdict SERVEUR.
+      // Fin hors-ligne : ligne discrète « envoi dès que possible » (anti-shame).
       router.replace({
         pathname: '/course-result',
-        // Ce qui part maintenant est exclusivement MESURÉ : la distance et la
-        // durée du tracker. Fin hors-ligne : ligne discrète « envoi dès que
-        // possible » (anti-shame).
         params: {
           mode,
           dist: String(Math.round(distanceM)),
@@ -176,37 +371,78 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   };
 
   const modeLabel = RUN_MODE_LABEL[mode as LiveRunMode] ?? t(C.modeConquete);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setBox((prev) =>
+      prev !== null && prev.width === width && prev.height === height
+        ? prev
+        : { width, height },
+    );
+  };
 
   return (
-    <View style={styles.root}>
-      {/* ── Pile du haut : état (TOUJOURS) → signal GPS → bandeaux (empilés) ── */}
-      <View style={[styles.topArea, { top: insets.top + 10 }]}>
-        <View style={styles.topPill}>
-          <View
-            style={[
-              styles.liveDot,
-              (paused || s.phase === 'paused-auto' || s.totalFixes === 0) && styles.liveDotPaused,
-            ]}
+    <View style={styles.root} onLayout={onLayout}>
+      {/* ── 1. LE TRACÉ : carte dominante, position à 62 %, nav masquée ────── */}
+      {camera !== null ? (
+        <View style={StyleSheet.absoluteFill} accessibilityLabel={t(C.a11yLiveMap)}>
+          <RealMap
+            style={StyleSheet.absoluteFill}
+            camera={camera}
+            geojsonLayers={layers}
+            markers={markers}
+            // Carte SILENCIEUSE : les labels de quartier reculent, la trace domine.
+            silent
+            attributionCompact
           />
-          <Text style={styles.topPillText}>{t(statusLabel(run))}</Text>
-          {/* Antenne de signal GPS — subtile, ambiante, façon barres de téléphone.
-              Niveau + tonalité RÉELS (GPS Trust + état du tracker) : ambre si
-              faible (normal en intérieur, jamais rouge/anxiogène), neutre sinon.
-              Remplace le besoin d'un texte « signal faible » criard (E06 → E07). */}
-          <SignalBars {...signalLevel(s.gpsTrust, s.signal, awaitingFirstFix)} />
         </View>
-        {/* Mode (social/privé) — CONTEXTE PERMANENT, pas un avis temporaire (§10) :
-             un libellé d'état, toujours affiché. */}
-        {!conquest ? (
-          <View style={styles.statsOnlyPill}>
-            <Icon name={mode === 'course_privee' ? 'discret' : 'feed'} size={iconSizes.xs} color={colors.gris} />
-            <Text style={styles.statsOnlyText}>{t(C.statsOnlyMode, { mode: modeLabel })}</Text>
+      ) : null}
+
+      {/* ── 2/3/4. En-tête : état · 3 métriques tabulaires · fermeture ─────── */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+        <View style={styles.statusRow}>
+          <View style={styles.topPill}>
+            <View
+              style={[
+                styles.liveDot,
+                (paused || s.phase === 'paused-auto' || awaitingFirstFix) && styles.liveDotPaused,
+              ]}
+            />
+            <Text style={styles.topPillText}>{t(statusLabel(run))}</Text>
+            {/* Antenne de signal GPS — subtile, ambiante, façon barres de téléphone.
+                Niveau + tonalité RÉELS (GPS Trust + état du tracker) : ambre si
+                faible (normal en intérieur, jamais rouge/anxiogène), neutre sinon. */}
+            <SignalBars {...signalLevel(s.gpsTrust, s.signal, awaitingFirstFix)} />
           </View>
+          {/* Mode (social/privé) — CONTEXTE PERMANENT, pas un avis temporaire (§10). */}
+          {!conquest ? (
+            <View style={styles.modePill}>
+              <Icon
+                name={mode === 'course_privee' ? 'discret' : 'feed'}
+                size={iconSizes.xs}
+                color={colors.gris}
+              />
+              <Text style={styles.modeText} numberOfLines={1}>
+                {t(C.statsOnlyMode, { mode: modeLabel })}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Trois métriques ÉGALES, tabulaires, lisibles d'un coup d'œil. */}
+        <View style={styles.metrics}>
+          <Metric value={formatClock(s.activeS)} label={t(C.timeLabel)} />
+          <View style={styles.metricDivider} />
+          <Metric value={formatKm(s.distanceM)} unit="KM" label={t(C.kickerDistance)} />
+          <View style={styles.metricDivider} />
+          <Metric value={formatPace(s.paceSPerKm)} label={t(C.paceLabel)} />
+        </View>
+
+        {/* La FERMETURE en toutes lettres — le pendant du segment sur la carte. */}
+        {phase !== 'idle' && s.loopGapM !== null ? (
+          <ClosurePill phase={phase} gapM={s.loopGapM} progress={progress} />
         ) : null}
-        {/* §10 — L'UNIQUE avis temporaire, choisi par priorité (selectLiveNotice,
-             pur + testé) : sûreté (signal perdu / autorisation coupée) d'abord ;
-             la note « premier plan seulement » cède à tout le reste. En pause
-             manuelle, aucun faux « signal perdu » (le sélecteur l'exclut). */}
+
+        {/* §10 — L'UNIQUE avis temporaire, choisi par priorité (pur + testé). */}
         {notice === 'signal_critical' || notice === 'signal_weak' ? (
           <GpsSignalPill
             signal={s.signal}
@@ -226,137 +462,117 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           <PreciseLocationBanner onOpenSettings={run.openSettings} />
         ) : notice === 'foreground' ? (
           // Navigateur, ou permission « Toujours » refusée : « enregistré app ouverte ».
-          <View style={styles.statsOnlyPill}>
+          <View style={styles.modePill}>
             <Icon name="gps" size={iconSizes.xs} color={colors.gris} />
-            <Text style={styles.statsOnlyText}>
+            <Text style={styles.modeText}>
               {t(run.foregroundOnlyPlatform ? C.browserForegroundOnly : C.foregroundOnly)}
             </Text>
           </View>
         ) : null}
       </View>
 
-      {/* ── Centre Nike : KPI géants RÉELS ── */}
-      <View style={styles.center}>
-        {/* §10 TRACE LIVE : la vraie polyligne mesurée, dès qu'il y a de quoi
-            tracer. Sans fond de carte (A-47) — juste le tracé, façon Strava. */}
-        {s.tracePoints.length >= 2 ? (
-          <View style={styles.liveTrace}>
-            <LiveTraceThumb points={s.tracePoints} accessibilityLabel={t(C.a11yLiveTrace)} />
-          </View>
-        ) : null}
-
-        <Text style={styles.heroKicker}>{t(C.kickerDistance)}</Text>
-        <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>
-          {formatKm(s.distanceM)}
-          <Text style={styles.heroUnit}> KM</Text>
-        </Text>
-
-        {conquest ? (
-          <Text style={styles.zonesValue} numberOfLines={1} adjustsFontSizeToFit>
-            {t(C.zonesEstimated, { n: formatInt(s.zonesEstimated) })}
-          </Text>
-        ) : null}
-
-        {/* D4 — guidage de boucle honnête : écart au départ à vol d'oiseau
-            (« ~ »), seuils = les règles SERVEUR (le serveur reste seul juge).
-            §10 : affiché SEULEMENT quand la boucle a gagné la priorité (un signal
-            perdu, une reprise… le masquent) — jamais « BOUCLE PRÊTE » sous une alerte. */}
-        {(notice === 'loop_ready' || notice === 'loop_return') && hint ? (
-          <Text
-            style={[styles.loopHint, hint.kind === 'ready' && styles.loopHintReady]}
-            numberOfLines={1}
-          >
-            {hint.kind === 'ready'
-              ? t(C.loopReady)
-              : t(C.loopReturn, { m: formatInt(roundLoopM(hint.gapM)) })}
-          </Text>
-        ) : null}
-
-        <View style={styles.secondaryRow}>
-          <View style={styles.secondaryStat}>
-            <Text style={styles.secondaryValue}>{formatPace(s.paceSPerKm)}</Text>
-            <Text style={styles.secondaryLabel}>{t(C.paceLabel)}</Text>
-          </View>
-          <View style={styles.secondaryDivider} />
-          <View style={styles.secondaryStat}>
-            <Text style={styles.secondaryValue}>{formatClock(s.activeS)}</Text>
-            <Text style={styles.secondaryLabel}>{t(C.timeLabel)}</Text>
-          </View>
-        </View>
-
-        {verified ? (
-          <View style={styles.verifiedPill}>
-            <Icon name="bouclier" size={iconSizes.xs} color={gameColors.verify} />
-            <Text style={styles.verifiedText}>GRYD VERIFIED</Text>
-          </View>
-        ) : null}
-
-        {/* Jauge GPS Trust réelle (Motion Trust : phase suivante — jamais de fausse jauge). */}
-        <View style={styles.trustGauge}>
-          <View style={styles.trustHead}>
-            <Icon
-              name="gps"
-              size={iconSizes.sm}
-              color={s.gpsTrust >= VERIFIED_MIN_TRUST ? gameColors.verify : gameColors.danger}
-            />
-            <Text style={styles.trustLabel}>GPS TRUST</Text>
-            <Text
-              style={[
-                styles.trustValue,
-                { color: s.gpsTrust >= VERIFIED_MIN_TRUST ? gameColors.verify : gameColors.danger },
-              ]}
-            >
-              {s.gpsTrust}
-            </Text>
-          </View>
-          <ProgressBar
-            value={s.gpsTrust / 100}
-            height={4}
-            fill={s.gpsTrust >= VERIFIED_MIN_TRUST ? gameColors.verify : gameColors.danger}
-          />
-        </View>
-      </View>
-
-      {/* ── Contrôles bas GROS, une main : [Pause] [Aide GPS] [Terminer] ── */}
-      <View style={[styles.controls, { paddingBottom: insets.bottom + 18 }]}>
-        <BigControl
-          label={paused ? t(C.ctrlResume) : t(C.ctrlPause)}
-          accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
-          active={paused}
-          onPress={run.togglePause}
-        >
-          <PausePlayGlyph paused={paused} size={24} />
-        </BigControl>
-        {/* AIDE GPS = « courir écran éteint » par constructeur, et son bouton
-             final ouvre les réglages de l'app. Rien de tout ça n'existe dans un
-             navigateur : on n'affiche pas une aide qui ne mène nulle part
-             (§A — jamais d'affordance sans destination). */}
-        {openSettings === null ? null : (
-          <BigControl
-            label={t(C.ctrlGpsHelp)}
-            accessibilityLabel={t(C.a11yGpsHelp)}
-            onPress={() => setHelpVisible(true)}
-          >
-            <Icon name="gps" size={24} color={colors.blanc} />
-          </BigControl>
-        )}
-        <View style={styles.bigControlWrap}>
+      {/* ── 5. PAUSE : le seul geste de la course. « Terminer » vit DEDANS. ── */}
+      <View style={[styles.controls, { paddingBottom: insets.bottom + 18 }]} pointerEvents="box-none">
+        {locked ? (
+          // Verrou RÉEL : plus aucun contrôle n'est atteignable tant qu'on n'a
+          // pas maintenu. Il n'est peint que parce qu'il agit vraiment.
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t(C.a11yFinishRun)}
-            onLongPress={finish}
-            delayLongPress={motion.holdToStopMs}
-            onPress={() => {
-              // Stop protégé §G : un appui court ne termine jamais — on guide.
-              haptics.light();
+            accessibilityLabel={t(C.a11yUnlockControls)}
+            onLongPress={() => {
+              haptics.success();
+              setLocked(false);
             }}
-            style={({ pressed }) => [styles.bigDisc, styles.bigStopDisc, pressed && styles.pressed]}
+            delayLongPress={motion.holdToStopMs}
+            // Appui court : on ne déverrouille pas par accident — on guide.
+            onPress={() => haptics.light()}
+            style={({ pressed }) => [styles.lockedBar, pressed && styles.pressed]}
           >
-            <View style={styles.bigStopSquare} />
+            <Icon name="verrou" size={iconSizes.md} color={colors.blanc} />
+            <View style={styles.lockedTexts}>
+              <Text style={styles.lockedTitle} numberOfLines={1}>
+                {t(C.lockedTitle)}
+              </Text>
+              <Text style={styles.lockedHint} numberOfLines={1}>
+                {t(C.lockedHint)}
+              </Text>
+            </View>
           </Pressable>
-          <Text style={styles.bigLabel}>{t(C.ctrlFinish)}</Text>
-        </View>
+        ) : (
+          <>
+            {/* En PAUSE seulement : les gestes rares. En course, ils ne sont pas
+                sous le pouce — « Terminer » en particulier (planche E07). */}
+            {paused ? (
+              <View style={styles.pausedRow}>
+                <SmallControl
+                  label={t(C.ctrlFinish)}
+                  accessibilityLabel={t(C.a11yFinishRun)}
+                  onLongPress={finish}
+                  danger
+                >
+                  <View style={styles.stopSquare} />
+                </SmallControl>
+                {openSettings === null ? null : (
+                  <SmallControl
+                    label={t(C.ctrlGpsHelp)}
+                    accessibilityLabel={t(C.a11yGpsHelp)}
+                    onPress={() => setHelpVisible(true)}
+                  >
+                    <Icon name="gps" size={20} color={colors.blanc} />
+                  </SmallControl>
+                )}
+              </View>
+            ) : null}
+
+            <View style={styles.controlRow}>
+              <SmallControl
+                label={t(C.ctrlLock)}
+                accessibilityLabel={t(C.a11yLockControls)}
+                onPress={() => setLocked(true)}
+              >
+                <Icon name="verrou" size={20} color={colors.blanc} />
+              </SmallControl>
+
+              {/* L'UNIQUE chartreuse d'action de l'écran (§A4). */}
+              <View style={styles.pauseWrap}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
+                  accessibilityState={{ selected: paused }}
+                  onPress={() => {
+                    haptics.light();
+                    run.togglePause();
+                  }}
+                  style={({ pressed }) => [styles.pauseDisc, pressed && styles.pressed]}
+                >
+                  <PausePlayGlyph paused={paused} size={24} />
+                </Pressable>
+                <Text style={styles.smallLabel} numberOfLines={1}>
+                  {paused ? t(C.ctrlResume) : t(C.ctrlPause)}
+                </Text>
+              </View>
+
+              {/* La planche pose un bouton « son » ici. GRYD n'embarque aucune
+                  dépendance audio : il n'aurait rien à couper. Il est OMIS —
+                  l'espace reste vide plutôt que d'accueillir un bouton mort. */}
+              <View style={styles.controlSpacer} />
+            </View>
+          </>
+        )}
       </View>
+
+      {/* ── E08 : fermeture & capture, par-dessus la carte réelle ──────────── */}
+      {closure !== null ? (
+        <LoopClosureSequence
+          loop={closure.loop}
+          closurePoint={closure.closurePoint}
+          camera={closure.camera}
+          box={closure.box}
+          zonesEstimated={closure.zonesEstimated}
+          reduced={closure.reduced}
+          onDone={() => setClosure(null)}
+        />
+      ) : null}
 
       {openSettings === null ? null : (
         <BackgroundHelpSheet
@@ -369,55 +585,134 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   );
 }
 
-/** Glyphe pause/lecture local (même dessin que la démo). */
+/** Une des trois métriques d'en-tête (≥ 24 pt, chiffres tabulaires). */
+function Metric({ value, unit, label }: { value: string; unit?: string; label: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+        {unit ? <Text style={styles.metricUnit}> {unit}</Text> : null}
+      </Text>
+      <Text style={styles.metricLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Pill de fermeture — la SEULE information qui change de ton pendant la course.
+ * Ambre quand la boucle n'est pas fermée alors qu'on est revenu à portée : c'est
+ * l'instant où le coureur croit avoir bouclé. On dit pourquoi ça ne compte pas,
+ * factuellement, jamais en rouge, et la course continue.
+ */
+function ClosurePill({
+  phase,
+  gapM,
+  progress,
+}: {
+  phase: LoopClosurePhase;
+  gapM: number;
+  progress: number | null;
+}) {
+  const t = useT();
+  const missing = formatInt(roundLoopM(loopMissingM(gapM)));
+  const closed = phase === 'closed';
+  const warn = phase === 'nearMiss';
+  const tone = closed ? colors.chartreuse : warn ? gameColors.warn : colors.blanc;
+  const label = closed
+    ? t(C.loopClosedPill)
+    : warn
+      ? t(C.loopNotClosedPill, { m: missing })
+      : t(C.loopOpenPill, { m: missing });
+  const pct = progress === null ? null : progressPercent(progress);
+
+  return (
+    <View style={styles.closureWrap}>
+      <View style={[styles.closurePill, warn && styles.closurePillWarn]}>
+        <Icon
+          name={closed ? 'boucle_fermee' : 'boucle_ouverte'}
+          size={iconSizes.xs}
+          color={tone}
+        />
+        <Text style={[styles.closureText, { color: tone }]} numberOfLines={1}>
+          {label}
+        </Text>
+        {pct !== null && !closed ? (
+          <Text style={[styles.closurePct, { color: tone }]} numberOfLines={1}>
+            {t(C.loopProgress, { n: String(pct) })}
+          </Text>
+        ) : null}
+      </View>
+      {pct !== null && !closed ? (
+        <View
+          accessibilityLabel={t(C.a11yLoopProgress, { n: String(pct) })}
+          style={styles.closureBar}
+        >
+          <ProgressBar value={progress ?? 0} height={3} fill={tone} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Glyphe pause/lecture local. */
 function PausePlayGlyph({ paused, size }: { paused: boolean; size: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20">
       {paused ? (
-        <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={colors.chartreuse} />
+        <Path d="M7 4.5 L15.5 10 L7 15.5 Z" fill={colors.noir} />
       ) : (
         <>
-          <Path d="M7 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
-          <Path d="M13 4.5v11" stroke={colors.blanc} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M7 4.5v11" stroke={colors.noir} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M13 4.5v11" stroke={colors.noir} strokeWidth={3} strokeLinecap="round" />
         </>
       )}
     </Svg>
   );
 }
 
-/** GROS contrôle une-main (disque 68 px + label court — gabarit démo). */
-function BigControl({
+/**
+ * Contrôle secondaire (48). `onLongPress` seul = geste PROTÉGÉ (§G) : un appui
+ * court ne termine jamais une course, il guide par une haptique.
+ */
+function SmallControl({
   label,
   accessibilityLabel,
-  active = false,
   onPress,
+  onLongPress,
+  danger = false,
   children,
 }: {
   label: string;
   accessibilityLabel: string;
-  active?: boolean;
-  onPress: () => void;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  danger?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <View style={styles.bigControlWrap}>
+    <View style={styles.smallWrap}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        accessibilityState={{ selected: active }}
         onPress={() => {
           haptics.light();
-          onPress();
+          onPress?.();
         }}
+        onLongPress={onLongPress}
+        delayLongPress={motion.holdToStopMs}
         style={({ pressed }) => [
-          styles.bigDisc,
-          active && styles.bigDiscActive,
+          styles.smallDisc,
+          danger && styles.smallDiscStop,
           pressed && styles.pressed,
         ]}
       >
         {children}
       </Pressable>
-      <Text style={styles.bigLabel}>{label}</Text>
+      <Text style={styles.smallLabel} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -426,14 +721,17 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   pressed: { opacity: 0.7 },
 
-  topArea: {
+  // ── En-tête ───────────────────────────────────────────────────────────────
+  header: {
     position: 'absolute',
     left: 12,
     right: 12,
+    top: 0,
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.xs,
     zIndex: 2,
   },
+  statusRow: { alignItems: 'center', gap: spacing.xxs },
   topPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,7 +753,7 @@ const styles = StyleSheet.create({
   },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.chartreuse },
   liveDotPaused: { backgroundColor: colors.gris },
-  statsOnlyPill: {
+  modePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -466,98 +764,163 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: spacing.xxs,
   },
-  statsOnlyText: { color: colors.gris, fontSize: fontSizes.xs },
+  modeText: { color: colors.gris, fontSize: fontSizes.xs },
 
-  center: {
-    flex: 1,
+  // Bandeau des 3 métriques : un VOILE sur la carte, pas une card (§A : jamais
+  // de card dans card — la carte est la scène, le bandeau la survole).
+  metrics: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.cardPadding,
-    gap: spacing.xxs,
+    alignSelf: 'stretch',
+    justifyContent: 'space-between',
+    backgroundColor: colors.scrim,
+    borderRadius: radii.card,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
-  liveTrace: { marginBottom: spacing.sm },
-  heroKicker: { color: colors.gris, fontFamily: fonts.mono, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 2.4 },
-  heroValue: {
+  metric: { flex: 1, alignItems: 'center', gap: 2 },
+  metricValue: {
     color: colors.blanc,
-    fontSize: fontSizes.heroMax,
     fontFamily: fonts.display,
+    fontSize: fontSizes.xl,
     fontWeight: '900',
-    letterSpacing: -2,
+    letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
   },
-  heroUnit: { color: colors.gris, fontFamily: fonts.display, fontSize: fontSizes.xl, fontWeight: '800', letterSpacing: 0 },
-  zonesValue: {
-    color: colors.chartreuse,
-    fontSize: fontSizes.xxl,
-    fontFamily: fonts.display,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
-  },
-  // D4 — ligne de guidage boucle : discrète (gris) tant qu'on est loin,
-  // chartreuse quand la boucle est prête (le SEUL moment qui appelle une action).
-  loopHint: {
+  metricUnit: { color: colors.gris, fontFamily: fonts.display, fontSize: fontSizes.sm, fontWeight: '800' },
+  metricLabel: {
     color: colors.gris,
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
     fontFamily: fonts.textSemi,
     fontWeight: '700',
-    letterSpacing: 0.8,
-    fontVariant: ['tabular-nums'],
-    marginTop: spacing.xxs,
+    letterSpacing: 1.2,
   },
-  loopHintReady: { color: colors.chartreuse },
-  secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 22, marginTop: 18 },
-  secondaryStat: { alignItems: 'center', gap: 2 },
-  secondaryValue: {
-    color: colors.blanc,
-    fontSize: fontSizes.xl,
+  metricDivider: { width: 1, height: 26, backgroundColor: colors.grisLigne },
+
+  // ── Pill de fermeture + progression ───────────────────────────────────────
+  closureWrap: { alignItems: 'center', gap: 5, alignSelf: 'stretch' },
+  closurePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: gameColors.carbon,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: 12,
+    paddingVertical: spacing.xxs,
+    maxWidth: '100%',
+  },
+  closurePillWarn: { borderColor: withAlpha(gameColors.warn, 0.55) },
+  closureText: {
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    flexShrink: 1,
+  },
+  closurePct: {
+    fontSize: fontSizes.xs,
     fontFamily: fonts.display,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
-  secondaryLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1.4 },
-  secondaryDivider: { width: 1, height: 30, backgroundColor: colors.grisLigne },
-  verifiedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: gameColors.verify,
-    paddingHorizontal: 12,
-    paddingVertical: spacing.xxs,
-    marginTop: 16,
-  },
-  verifiedText: { color: gameColors.verify, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.4 },
-  trustGauge: { width: 190, gap: 5, marginTop: 18 },
-  trustHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trustLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.8, flex: 1 },
-  trustValue: { fontSize: fontSizes.sm, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  closureBar: { width: 180 },
 
+  // ── Marqueurs de carte ────────────────────────────────────────────────────
+  meHalo: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.chartreuse14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  meDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.chartreuse,
+    borderWidth: 2,
+    borderColor: colors.noir,
+  },
+  startDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2.5,
+    borderColor: colors.chartreuse,
+    backgroundColor: colors.noir,
+  },
+
+  // ── Contrôles bas ─────────────────────────────────────────────────────────
   controls: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    gap: spacing.md,
+    zIndex: 2,
+  },
+  controlRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: spacing.xl,
+    gap: spacing.xxl,
   },
-  bigControlWrap: { alignItems: 'center', gap: 7 },
-  bigDisc: {
-    width: BIG_CONTROL_SIZE,
-    height: BIG_CONTROL_SIZE,
-    borderRadius: BIG_CONTROL_SIZE / 2,
+  controlSpacer: { width: SMALL_CONTROL_SIZE },
+  pauseWrap: { alignItems: 'center', gap: 6 },
+  pausedRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xxl },
+  pauseDisc: {
+    width: PAUSE_SIZE,
+    height: PAUSE_SIZE,
+    borderRadius: PAUSE_SIZE / 2,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallWrap: { alignItems: 'center', gap: 6, width: SMALL_CONTROL_SIZE },
+  smallDisc: {
+    width: SMALL_CONTROL_SIZE,
+    height: SMALL_CONTROL_SIZE,
+    borderRadius: SMALL_CONTROL_SIZE / 2,
     backgroundColor: colors.carbone,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bigDiscActive: { backgroundColor: colors.chartreuse14, borderColor: colors.chartreuse40 },
-  bigStopDisc: {
-    backgroundColor: colors.carbone2,
-    borderWidth: 1.5,
-    borderColor: colors.blanc35,
+  smallDiscStop: { backgroundColor: colors.carbone2, borderColor: colors.blanc35 },
+  smallLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
-  bigStopSquare: { width: 18, height: 18, borderRadius: 3.5, backgroundColor: colors.blanc },
-  bigLabel: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.2 },
+  stopSquare: { width: 16, height: 16, borderRadius: 3.5, backgroundColor: colors.blanc },
+
+  lockedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    alignSelf: 'stretch',
+    marginHorizontal: spacing.lg,
+    backgroundColor: colors.carbone,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  lockedTexts: { flex: 1, gap: 2 },
+  lockedTitle: {
+    color: colors.blanc,
+    fontFamily: fonts.displaySemi,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  lockedHint: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.xs },
 });
