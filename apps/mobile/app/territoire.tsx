@@ -49,7 +49,6 @@ import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
-  fonts,
   fontSizes,
   gameColors,
   iconSizes,

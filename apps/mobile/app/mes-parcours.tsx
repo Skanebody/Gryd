@@ -34,7 +34,6 @@ import {
   ROUTE_SHAPES,
   ROUTE_TARGET_DISTANCE_CHOICES_M,
   colors,
-  fonts,
   fontSizes,
   gameColors,
   radii,

@@ -34,7 +34,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ACCOUNT_DELETION_GRACE_DAYS,
   colors,
-  fonts,
   fontSizes,
   gameColors,
   iconSizes,

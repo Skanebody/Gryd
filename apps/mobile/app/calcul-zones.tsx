@@ -26,7 +26,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fonts, fontSizes, iconSizes, spacing } from '@klaim/shared';
+import { colors, fontSizes, iconSizes, spacing } from '@klaim/shared';
 import {
   EXPLAIN_SECTIONS,
   type ExplainSection,

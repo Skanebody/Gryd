@@ -31,7 +31,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fonts, fontSizes, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fontSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';

@@ -35,7 +35,6 @@ import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
-  fonts,
   FINISHER_MIN_SEGMENT_M,
   FINISHER_MIN_SHARE,
   fontSizes,

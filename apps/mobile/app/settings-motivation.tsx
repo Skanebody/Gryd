@@ -12,7 +12,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import {
   LEADERBOARD_LEVELS,
   colors,
-  fonts,
   fontSizes,
   radii,
   spacing,
