@@ -18,6 +18,7 @@
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii, spacing } from '@klaim/shared';
+import { E01Route } from './E01Route';
 
 // Photo E01. Placeholder carbone jusqu'à ce que le vrai visuel soit déposé ici.
 const E01_PHOTO = require('../../../assets/onboarding/e01-crew.png');
@@ -26,8 +27,6 @@ export interface E01HeroProps {
   title: string;
   tagline: string;
   cta: string;
-  /** Label posé sur la photo (« VOTRE RUE ») — enseigne le concept. */
-  streetLabel: string;
   /** « Passer » en haut à droite (saute l'onboarding). */
   skipLabel: string;
   onNext: () => void;
@@ -42,7 +41,6 @@ export function E01Hero({
   title,
   tagline,
   cta,
-  streetLabel,
   skipLabel,
   onNext,
   onSkip,
@@ -52,10 +50,9 @@ export function E01Hero({
 }: E01HeroProps) {
   return (
     <ImageBackground source={E01_PHOTO} resizeMode="cover" style={styles.root}>
-      {/* Label « VOTRE RUE » sur la photo (~44 % de hauteur), chartreuse discret. */}
-      <View pointerEvents="none" style={styles.streetWrap}>
-        <Text style={styles.streetLabel}>{streetLabel}</Text>
-      </View>
+      {/* Parcours chartreuse ANIMÉ qui se dessine sur la photo (remplace « VOTRE
+          RUE ») — illustre la mécanique « ferme une boucle ». */}
+      <E01Route />
 
       {/* Voile bas dégradé à partir de 38 % — fonctionnel (lisibilité), empilé en
           paliers (expo-linear-gradient absent) : transparent → carbone plein. */}
@@ -96,16 +93,6 @@ export function E01Hero({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.carbonImmersive },
-
-  // « VOTRE RUE » — au tiers ~44 % (planche : y≈370/844).
-  streetWrap: { position: 'absolute', top: '43%', left: 0, right: 0, alignItems: 'center' },
-  streetLabel: {
-    color: colors.chartreuse,
-    fontFamily: fonts.textSemi,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 2,
-  },
 
   // Voile bas : à partir de ~38 % (donc hauteur 62 %), de plus en plus dense.
   scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
