@@ -240,18 +240,18 @@ export const C = defineCatalog({
     pt: 'COMO FUNCIONA',
   },
   mechanicTitle: {
-    fr: 'Ferme une boucle.\nPrends la zone.',
-    en: 'Close a loop.\nTake the zone.',
-    es: 'Cierra un bucle.\nToma la zona.',
-    de: 'Schließ die Runde.\nNimm die Zone.',
-    pt: 'Feche um circuito.\nTome a zona.',
+    fr: 'COURS.\nPRENDS TA VILLE.',
+    en: 'RUN.\nTAKE YOUR CITY.',
+    es: 'CORRE.\nTOMA TU CIUDAD.',
+    de: 'LAUF.\nNIMM DEINE STADT.',
+    pt: 'CORRE.\nTOMA A TUA CIDADE.',
   },
   mechanicTagline: {
-    fr: 'Chaque run change la carte.',
-    en: 'Every run changes the map.',
-    es: 'Cada carrera cambia el mapa.',
-    de: 'Jeder Lauf verändert die Karte.',
-    pt: 'Cada corrida muda o mapa.',
+    fr: 'Chaque boucle fermée peut devenir votre territoire.',
+    en: 'Every closed loop can become your territory.',
+    es: 'Cada bucle cerrado puede ser tu territorio.',
+    de: 'Jede geschlossene Runde kann dein Gebiet werden.',
+    pt: 'Cada circuito fechado pode tornar-se o teu território.',
   },
 
   // ─── CARTE 2 — RIVALITÉ ────────────────────────────────────────────────────

@@ -132,7 +132,8 @@ import {
   stepBeforeCity,
   type OnboardingStep,
 } from '../../src/features/onboarding/content';
-import { CaptureDemo, RivalryDemo } from '../../src/features/onboarding/visuals';
+import { RivalryDemo } from '../../src/features/onboarding/visuals';
+import { E01Hero } from '../../src/features/onboarding/E01Hero';
 
 /**
  * Étape précédente pour la flèche retour discrète (§A : rattraper un mistap sans
@@ -286,6 +287,27 @@ export default function OnboardingScreen() {
   // surtout on ne montre pas un écran d'accueil à quelqu'un déjà connecté.
   if (sessionLoading) return <View style={styles.root} />;
 
+  // E01 « promesse » (planche Vague 1) : photo plein cadre + promesse + CTA, rendu
+  // en PLEIN ÉCRAN (hors de l'en-tête commun). L'écran suivant (rivalité) reprend
+  // la grille standard. Le contenu reste honnête : la photo est une DA, pas une
+  // donnée de jeu ; aucune course n'est fabriquée.
+  if (step === 'mechanic') {
+    return (
+      <E01Hero
+        brand={BRAND}
+        title={t(MECHANIC.title)}
+        tagline={t(MECHANIC.tagline)}
+        cta={t(MECHANIC.cta)}
+        signInLabel={configured ? t(SIGN_IN_DOOR) : undefined}
+        onNext={() => go('rivalry')}
+        onSignIn={() => finish('/sign-in')}
+        insets={insets}
+        stepIndex={0}
+        stepCount={5}
+      />
+    );
+  }
+
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* En-tête commun : marque DISCRÈTE en haut à gauche (elle ne concurrence
@@ -293,28 +315,8 @@ export default function OnboardingScreen() {
           absolus au même coin se seraient recouverts. */}
       <StepHeader onBack={prevStep ? back : undefined} backLabel={t(NAV.back)} />
 
-      {step === 'mechanic' ? (
-        <DemoCard
-          kicker={t(MECHANIC.kicker)}
-          title={t(MECHANIC.title)}
-          tagline={t(MECHANIC.tagline)}
-          cta={t(MECHANIC.cta)}
-          onNext={() => go('rivalry')}
-          demo={
-            <CaptureDemo
-              exampleLabel={t(MECHANIC.exampleTag)}
-              label={t(MECHANIC.demoLabel)}
-              replayA11y={t(MECHANIC.demoReplay)}
-            />
-          }
-          // Sans backend, /sign-in renvoie aussitôt vers la carte : le lien ne
-          // connecterait personne. On ne le peint donc pas (§ bouton mort).
-          // Il vit sur le PREMIER écran : celui qui réinstalle ne doit pas
-          // traverser tout le produit pour retrouver son compte.
-          signInLabel={configured ? t(SIGN_IN_DOOR) : undefined}
-          onSignIn={() => finish('/sign-in')}
-        />
-      ) : null}
+      {/* mechanic (E01) est rendu en PLEIN ÉCRAN par E01Hero (early-return plus
+          haut) — il n'apparaît donc jamais dans la grille standard ci-dessous. */}
 
       {step === 'rivalry' ? (
         <DemoCard
