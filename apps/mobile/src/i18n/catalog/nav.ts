@@ -37,12 +37,13 @@ export const C = defineCatalog({
     de: 'Saison',
     pt: 'Temporada',
   },
+  // Onglet Profil (planche E02/E03/E15 : « Profil »).
   tabMoi: {
-    fr: 'Moi',
-    en: 'Me',
-    es: 'Yo',
-    de: 'Ich',
-    pt: 'Eu',
+    fr: 'Profil',
+    en: 'Profile',
+    es: 'Perfil',
+    de: 'Profil',
+    pt: 'Perfil',
   },
 
   // ── SlideToStart — libellé lecteur d'écran du départ glissé ──
