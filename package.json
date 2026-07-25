@@ -6,6 +6,7 @@
     "apps/*"
   ],
   "scripts": {
+    "dev:mobile": "npm run start --workspace=@klaim/mobile -- --web --port 8081",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "sync:rules": "node scripts/sync-game-rules.mjs",
     "test:functions": "deno test --allow-read supabase/functions/",
