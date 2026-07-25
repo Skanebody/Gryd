@@ -4,7 +4,7 @@
  */
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { LOCALES } from '../i18n/types.ts';
-import { formatIntFor, formatMultiplierFor } from './numberFormat.ts';
+import { formatIntFor, formatMultiplierFor , formatKmFor } from './numberFormat.ts';
 
 Deno.test('français INCHANGÉ (aucune régression) : espace milliers, virgule décimale', () => {
   assertEquals(formatIntFor(2147, 'fr'), '2 147');
@@ -31,4 +31,41 @@ Deno.test('petits entiers : pas de séparateur', () => {
     assertEquals(formatIntFor(0, locale), '0');
     assertEquals(formatIntFor(999, locale), '999');
   }
+});
+
+Deno.test('formatKmFor : une décimale, séparateur de la langue', () => {
+  assertEquals(formatKmFor(4.2, 'fr'), '4,2');
+  assertEquals(formatKmFor(4.2, 'en'), '4.2');
+  assertEquals(formatKmFor(4.2, 'de'), '4,2');
+  assertEquals(formatKmFor(4.2, 'es'), '4,2');
+  assertEquals(formatKmFor(4.2, 'pt'), '4,2');
+});
+
+Deno.test('formatKmFor : la décimale est TOUJOURS rendue (4 → « 4,0 »)', () => {
+  // Sinon « 4 km » et « 4,2 km » s'alignent mal dans un bloc de métriques, et le
+  // regard doute : est-ce 4 exactement, ou un arrondi qu'on a masqué ?
+  assertEquals(formatKmFor(4, 'fr'), '4,0');
+  assertEquals(formatKmFor(0, 'fr'), '0,0');
+});
+
+Deno.test('formatKmFor : arrondi au dixième, jamais de troncature', () => {
+  assertEquals(formatKmFor(4.26, 'fr'), '4,3');
+  assertEquals(formatKmFor(4.24, 'fr'), '4,2');
+  assertEquals(formatKmFor(0.04, 'fr'), '0,0');
+});
+
+Deno.test('formatKmFor : ce qui N’EST PAS une distance rend null, jamais un faux zéro', () => {
+  // C'est le cœur du contrat : « je ne sais pas » ne doit pas se confondre avec
+  // « zéro », qui est une valeur VRAIE que des écrans affichent légitimement.
+  assertEquals(formatKmFor(Number.NaN, 'fr'), null);
+  assertEquals(formatKmFor(Number.POSITIVE_INFINITY, 'fr'), null);
+  assertEquals(formatKmFor(Number.NEGATIVE_INFINITY, 'fr'), null);
+  assertEquals(formatKmFor(-1, 'fr'), null);
+});
+
+Deno.test('formatKmFor : les grandes distances gardent le séparateur DÉCIMAL, pas de milliers', () => {
+  // Un marathon reste « 42,2 » — on ne mélange pas les deux séparateurs dans un
+  // même nombre (en anglais, « 1,234.5 » viendrait de formatIntFor, pas d'ici).
+  assertEquals(formatKmFor(42.195, 'fr'), '42,2');
+  assertEquals(formatKmFor(42.195, 'en'), '42.2');
 });

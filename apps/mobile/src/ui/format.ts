@@ -4,7 +4,7 @@
  * identique iOS/Android/Deno (Hermes n'embarque pas ICU). Français inchangé.
  */
 import { getLocale } from '../i18n/store';
-import { DECIMAL_SEP, formatIntFor, formatMultiplierFor } from './numberFormat';
+import { DECIMAL_SEP, formatIntFor, formatKmFor, formatMultiplierFor } from './numberFormat';
 
 /** Le séparateur décimal de la langue courante — réutilisable (ex. formatKm). */
 export function decimalSeparator(): string {
@@ -19,4 +19,14 @@ export function formatInt(n: number): string {
 /** Multiplicateur : 1.3000000004 → « ×1,3 » (fr) / « ×1.3 » (en). */
 export function formatMultiplier(x: number): string {
   return formatMultiplierFor(x, getLocale());
+}
+
+/**
+ * Distance en km à une décimale, dans la langue courante : 4.2 → « 4,2 » (fr) /
+ * « 4.2 » (en). `null` si ce n'est pas une distance (non finie ou négative) —
+ * l'appelant montre alors son état vide plutôt qu'un « NaN » ou un faux zéro.
+ * L'unité n'est pas incluse (les blocs de métriques la rendent à part).
+ */
+export function formatKm(km: number): string | null {
+  return formatKmFor(km, getLocale());
 }

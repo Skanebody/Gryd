@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, spacing, type IconName } from '@klaim/shared';
+import { colors, fontSizes, spacing, typography, type IconName } from '@klaim/shared';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../features/nav/metrics';
 import { goBack } from '../lib/nav';
 import { C } from '../i18n/catalog/route';
@@ -111,10 +111,19 @@ const styles = StyleSheet.create({
   barTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   barTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
   content: { paddingHorizontal: spacing.cardPadding, paddingTop: 6 },
+  /**
+   * Le kicker CONSOMME le rôle typo R1 au lieu de le recoder. Il en redéfinissait
+   * la police, la taille et l'interlettrage à la main : trois valeurs qui pouvaient
+   * dériver de `typography.kicker` sans que rien ne le signale. Les SEPT écrans
+   * poussés qui passent par ce gabarit héritent de la correction d'un coup.
+   * Ce qui reste local est ce qui appartient à CET emplacement, pas au rôle :
+   * la couleur, la casse, la marge et les chiffres tabulaires (le kicker porte
+   * souvent un compte — « 8 / 24 », « SAISON 0 »).
+   */
   kicker: {
+    ...typography.kicker,
     color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
+    textTransform: 'uppercase',
     marginBottom: 8,
     fontVariant: ['tabular-nums'],
   },
