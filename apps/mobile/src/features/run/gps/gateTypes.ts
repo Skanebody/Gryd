@@ -61,10 +61,44 @@ export interface RealRunApi {
   finish: () => Promise<{ distanceM: number; durationS: number; uploadQueued: boolean }>;
 }
 
+/**
+ * API du PRÉFLIGHT (E06) exposée à l'écran AVANT le départ réel. Aucune de ces
+ * valeurs n'est fabriquée : `status` vient du résultat d'acquisition RÉEL
+ * (permission accordée + services on, `approximate` = position grossière connue
+ * dès l'acquisition). `confirmStart` est le SEUL point qui construit le tracker
+ * (stampe `startedAt` + ouvre le flux GPS) — appelé par le compte à rebours, à
+ * sa FIN : le décompte ne compte donc AUCUNE seconde de course, et une
+ * annulation ne laisse AUCUNE course fantôme (aucun tracker n'a été construit).
+ */
+export interface PreflightApi {
+  /** 'ready' = permission accordée + services on + position précise ;
+   *  'approximate' = position grossière. Détecté au préflight sur ANDROID
+   *  (permission « coarse »). Sur iOS, la précision réduite n'est PAS lisible
+   *  ici : elle est signalée PENDANT la course (bannière `approxLocation`) — donc
+   *  pré-course, iOS reste 'ready'. On ne prétend jamais détecter ce qu'on ne lit pas. */
+  status: 'ready' | 'approximate';
+  platform: 'device' | 'browser';
+  /** La plateforme ne sait pas enregistrer hors premier plan (navigateur). */
+  foregroundOnlyPlatform: boolean;
+  /** Ouvrir les réglages système — `null` dans un navigateur (il n'y en a pas). */
+  openSettings: (() => void) | null;
+  /** Démarre la course RÉELLE (tracker + capteurs). Appelé À LA FIN du compte à
+   *  rebours uniquement. Idempotent (jamais deux trackers). */
+  confirmStart: () => void;
+  /** Compte à rebours annulé : rien à défaire (tracker jamais construit). */
+  cancel: () => void;
+}
+
 /** Résultat du sélecteur : course réelle, démarrage en cours, ou rien à mesurer. */
 export type RealRunGate =
   /** Permission/position en cours de résolution — l'écran le DIT (jamais de noir muet). */
   | { kind: 'starting' }
+  /**
+   * E06 — acquisition RÉUSSIE, course pas encore démarrée : l'écran de préflight
+   * confirme les conditions puis lance le compte à rebours. Le tracker n'existe
+   * PAS encore (cf. PreflightApi.confirmStart).
+   */
+  | { kind: 'preflight'; preflight: PreflightApi }
   /**
    * Aucune position réelle disponible → AUCUNE course. `reason` porte la
    * phrase exacte à afficher : jamais un état vide opaque, jamais une course

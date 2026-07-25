@@ -79,9 +79,19 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
   const bgAskedRef = useRef(false);
   const wentBackgroundRef = useRef(false);
   const pendingStoredRef = useRef<StoredRun | null>(null);
+  // Monté ? Passe à false au démontage (cleanup du démarrage). confirmStart, qui
+  // est asynchrone, le relit APRÈS chaque await : un back matériel / une
+  // annulation pendant le « GO » ne doit ni ouvrir un watch orphelin ni écrire
+  // une course fantôme (E06).
+  const mountedRef = useRef(true);
 
-  const [kind, setKind] = useState<'starting' | 'unavailable' | 'real'>('starting');
+  const [kind, setKind] = useState<'starting' | 'preflight' | 'unavailable' | 'real'>('starting');
   const [reason, setReason] = useState<RunUnavailableReason>('position-unavailable');
+  // E06 — granularité réelle remontée par l'acquisition, consommée par le
+  // préflight. Vraie source : la permission ANDROID « coarse » (provider.ts).
+  // iOS/navigateur : toujours `false` ici (la précision réduite iOS est signalée
+  // PENDANT la course via approxLocation, jamais prétendue au préflight).
+  const [coarseOnly, setCoarseOnly] = useState(false);
   const [snapshot, setSnapshot] = useState<TrackerSnapshot | null>(null);
   const [bgPrompt, setBgPrompt] = useState<'hidden' | 'offer' | 'denied'>('hidden');
   const [restoreDistanceM, setRestoreDistanceM] = useState<number | null>(null);
@@ -239,31 +249,18 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         setRestoreDistanceM(probe.snapshot(Date.now()).distanceM);
       }
 
-      const tracker = new RunTracker({
-        runId: Crypto.randomUUID(),
-        mode,
-        startedAt: Date.now(),
-      });
-      trackerRef.current = tracker;
-      // Podomètre (AMENDEMENT-15 §2) : stepCount → motionTrust §3.2 côté
-      // serveur. Guardé isAvailableAsync — no-op web/simulateur/sans capteur.
-      void tracker.startPedometer();
-      track(EVENTS.runStart, { source: 'gps', mode, platform: adapter.platform });
-
-      bgGrantedRef.current = (await adapter.background?.checkGranted()) ?? false;
-      if (!alive) return;
-      try {
-        await startSensors();
-      } catch {
-        // Capteur indisponible (rare) : états honnêtes — signal « lost » à l'écran.
-      }
-      if (!alive) return;
-      setSnapshot(tracker.snapshot(Date.now()));
-      setKind('real');
-      void flush();
+      // E06 PRÉFLIGHT — acquisition RÉUSSIE : on S'ARRÊTE ici, le tracker n'est
+      // PAS construit. Le compte à rebours (RunPreflight) appellera confirmStart()
+      // pour stamper `startedAt` et ouvrir le flux GPS — donc le décompte ne
+      // compte AUCUNE seconde de course, et une annulation ne laisse AUCUNE
+      // course fantôme (rien n'a été construit). Une course interrompue chargée
+      // ci-dessus reste proposée en reprise, intacte.
+      setCoarseOnly(acquired.coarseOnly ?? false);
+      setKind('preflight');
     })();
     return () => {
       alive = false;
+      mountedRef.current = false; // confirmStart en vol s'arrêtera après son await
       stopSensors();
       trackerRef.current?.stopPedometer();
       // Pas de clearActiveRun ici : quitter l'écran sans terminer laisse le
@@ -449,8 +446,71 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     };
   }, [stopSensors, uploadOrQueue]);
 
+  /**
+   * E06 — DÉMARRE la course réelle depuis le préflight : construit le tracker
+   * (startedAt = MAINTENANT, c'est-à-dire la FIN du compte à rebours), lance le
+   * podomètre + les capteurs, passe à 'real'. SEUL point qui stampe l'horloge et
+   * ouvre le flux GPS. Idempotent : un double tick final ne construit jamais deux
+   * trackers (garde trackerRef).
+   */
+  const confirmStart = useCallback(async () => {
+    if (trackerRef.current !== null) return;
+    const tracker = new RunTracker({
+      runId: Crypto.randomUUID(),
+      mode,
+      startedAt: Date.now(),
+    });
+    trackerRef.current = tracker;
+    // Podomètre (AMENDEMENT-15 §2) : stepCount → motionTrust §3.2 côté serveur.
+    void tracker.startPedometer();
+    bgGrantedRef.current = (await adapter.background?.checkGranted()) ?? false;
+    // Annulé / démonté pendant l'attente : on N'OUVRE PAS le flux GPS, on n'émet
+    // AUCUN run_start, on n'enregistre RIEN. Le cleanup a déjà arrêté le
+    // podomètre ; le tracker (non flushé) meurt avec l'écran — zéro fantôme.
+    if (!mountedRef.current) return;
+    try {
+      await startSensors();
+    } catch {
+      // Capteur indisponible (rare) : états honnêtes — signal « lost » à l'écran.
+    }
+    if (!mountedRef.current) {
+      // Le watch vient peut-être de s'ouvrir APRÈS le cleanup : on le referme
+      // nous-mêmes (sinon fuite d'un abonnement GPS que personne ne coupe).
+      void stopSensors();
+      return;
+    }
+    // run_start = le VRAI départ (fin du décompte, écran toujours monté) : jamais
+    // émis pour une course annulée avant ce point (funnel §8 honnête).
+    track(EVENTS.runStart, { source: 'gps', mode, platform: adapter.platform });
+    setSnapshot(tracker.snapshot(Date.now()));
+    setKind('real');
+    void flush();
+  }, [mode, adapter, startSensors, stopSensors, flush]);
+
+  /**
+   * E06 — compte à rebours annulé avant le départ : aucun tracker n'a été
+   * construit, rien à défaire. On journalise seulement la tentative annulée
+   * (funnel §8 — aucun run_start n'est émis). L'éventuelle reprise reste intacte.
+   */
+  const cancel = useCallback(() => {
+    track(EVENTS.runCancelAttempt, { phase: 'preflight' });
+  }, []);
+
   if (kind === 'starting') return { kind: 'starting' };
   if (kind === 'unavailable') return { kind: 'unavailable', reason };
+
+  if (kind === 'preflight')
+    return {
+      kind: 'preflight',
+      preflight: {
+        status: coarseOnly ? 'approximate' : 'ready',
+        platform: adapter.platform,
+        foregroundOnlyPlatform: adapter.background === null,
+        openSettings: adapter.openSettings,
+        confirmStart,
+        cancel,
+      },
+    };
 
   const t = trackerRef.current;
   // snapshot/tracker toujours posés quand kind === 'real'

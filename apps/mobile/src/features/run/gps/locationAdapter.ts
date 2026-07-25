@@ -42,8 +42,12 @@ export type RunUnavailableReason =
   /** Autorisation ni accordée ni refusée : le capteur n'a rendu aucune position. */
   | 'position-unavailable';
 
-/** Issue de la demande de position au démarrage de la course. */
-export type AcquireResult = { ok: true } | { ok: false; reason: RunUnavailableReason };
+/** Issue de la demande de position au démarrage de la course. `coarseOnly` (E06)
+ *  = position grossière accordée (iOS approximate / Android coarse) ; optionnel,
+ *  donc l'adaptateur navigateur (sans notion de « coarse ») n'a rien à changer. */
+export type AcquireResult =
+  | { ok: true; coarseOnly?: boolean }
+  | { ok: false; reason: RunUnavailableReason };
 
 /** Abonnement au flux de positions — coupé à la fin de course / au démontage. */
 export interface RunWatchHandle {

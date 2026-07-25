@@ -229,6 +229,13 @@ export const gameColors = {
   danger: '#FF4D57',
   /** Confirmation HORS capture — success-mint (Night Print). Jamais pour un claim. */
   successMint: '#5CE6A8',
+  /**
+   * Dégradé / avertissement NON bloquant (E06 préflight « position approximative »,
+   * signal GPS incertain) — ambre. Distinct de `gold` (victoire/récompense) et de
+   * `danger` (bloquant, rouge) : la triade planche mint→ambre→rouge. Toujours
+   * icône + libellé, jamais couleur seule.
+   */
+  warn: '#FFB020',
   /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre) — carbon-900. */
   carbon: '#101412',
   /**

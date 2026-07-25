@@ -42,6 +42,7 @@ import { runModeFromParam } from '../src/features/run/simulation';
 import { useRealRun } from '../src/features/run/gps/useRealRun';
 import type { RunUnavailableReason } from '../src/features/run/gps/locationAdapter';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
+import { RunPreflight } from '../src/features/run/gps/RunPreflight';
 import { C } from '../src/i18n/catalog/courseLive';
 import { useT } from '../src/i18n/store';
 
@@ -73,6 +74,10 @@ function CourseLiveGate({ onRetry }: { onRetry: () => void }) {
   //  la boîte de dialogue système ça passait ; dans un navigateur, où l'invite
   //  est une barre discrète en haut de la fenêtre, c'était un écran mort.)
   if (gate.kind === 'starting') return <RunStarting />;
+  // E06 — acquisition OK : préflight + compte à rebours avant que la course
+  // (horloge + capteurs) ne démarre vraiment. RunStarting (« lecture en cours »)
+  // et RunUnavailable (bloquant) restent inchangés.
+  if (gate.kind === 'preflight') return <RunPreflight preflight={gate.preflight} />;
   if (gate.kind === 'real') return <RealCourseLive run={gate.run} />;
   // Il n'existe AUCUN troisième chemin : le type `RealRunGate` n'a que ces
   // trois branches, et aucune ne fabrique de course.

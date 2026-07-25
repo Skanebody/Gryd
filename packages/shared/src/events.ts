@@ -20,6 +20,8 @@ export const EVENTS = {
   cityOpened: 'city_opened', // props: { created, source: 'manual' | 'run' }
   privacyZoneSet: 'privacy_zone_set',
   // Boucle cœur
+  // E06 — préflight affiché (conditions vérifiées avant le compte à rebours).
+  runPreflightViewed: 'run_preflight_viewed', // props: { readiness: 'ready'|'approximate', platform }
   runStart: 'run_start',
   runAutosave: 'run_autosave',
   runCancelAttempt: 'run_cancel_attempt',

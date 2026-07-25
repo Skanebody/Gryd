@@ -69,7 +69,9 @@ async function acquireNative(): Promise<AcquireResult> {
   }
   if (perm.status !== 'granted') return { ok: false, reason: 'denied' };
   if (!(await hasLocationServices())) return { ok: false, reason: 'services-off' };
-  return { ok: true };
+  // E06 : on remonte la granularité RÉELLE (approximate/coarse) pour la ligne
+  // d'état du préflight — jamais fabriquée, connue dès l'octroi de la permission.
+  return { ok: true, coarseOnly: perm.coarseOnly };
 }
 
 /** La source de position de l'appareil : le seul capteur qui sait tout faire. */
