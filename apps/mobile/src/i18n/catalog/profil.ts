@@ -15,11 +15,11 @@ export const C = defineCatalog({
    *  DANS la player card, aligné avec l'avatar et le @handle (retour terrain
    *  20/07 : « le bloc du haut, rien n'est aligné »). */
   tabMe: {
-    fr: 'Moi',
-    en: 'Me',
-    es: 'Yo',
-    de: 'Ich',
-    pt: 'Eu',
+    fr: 'Profil',
+    en: 'Profile',
+    es: 'Perfil',
+    de: 'Profil',
+    pt: 'Perfil',
   },
   kickerPlayerCard: {
     fr: 'CARTE DE JOUEUR',

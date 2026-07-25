@@ -33,6 +33,8 @@ interface StackScreenProps {
    * sur le CONTENU scrollable et défile avec lui — il ne serait pas fixe.
    */
   floating?: ReactNode;
+  /** Coin droit de la barre (toggle Run/Bike…). */
+  trailing?: ReactNode;
 }
 
 export function StackScreen({
@@ -43,6 +45,7 @@ export function StackScreen({
   backHref,
   children,
   floating,
+  trailing,
 }: StackScreenProps) {
   const insets = useSafeAreaInsets();
   const t = useT();
@@ -70,8 +73,7 @@ export function StackScreen({
             {title}
           </Text>
         </View>
-        {/* Cale symétrique pour centrer visuellement le titre. */}
-        <View style={styles.back} />
+        {trailing ? <View style={styles.trailingSlot}>{trailing}</View> : <View style={styles.back} />}
       </View>
       <ScrollView
         contentContainerStyle={[
@@ -98,10 +100,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.cardPadding - 6,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  trailingSlot: {
+    minWidth: 40,
+    height: 40,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
   backPressed: { opacity: 0.6 },
   mirror: { transform: [{ scaleX: -1 }] },
   barTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  barTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
+  barTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500', letterSpacing: 0.2 },
   content: { paddingHorizontal: spacing.cardPadding, paddingTop: 6 },
   kicker: {
     color: colors.gris,

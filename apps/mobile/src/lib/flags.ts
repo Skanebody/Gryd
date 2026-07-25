@@ -56,4 +56,9 @@ export const flags = {
   warRoom: FULL_SURFACE,
   /** Arsenal / boutique (skins, objets capés, GRYD Club). */
   arsenal: FULL_SURFACE,
+  /**
+   * Commutateur Run/Bike (planche E14). Activé : univers séparés + lien Solo/Crew.
+   * Toujours on — la distinction fait partie du produit (demande fondateur).
+   */
+  bike: true,
 } as const;

@@ -50,6 +50,7 @@ import { cityCenter } from '../social/cities';
 import { useOnboardingState } from '../onboarding/store';
 import { useRealCrew } from '../crew/real';
 import { getLastRunResult } from '../run/runResult';
+import { usePlayContext } from '../activity/playContext';
 import { buildRealWidgetView, type TerritoryWidgetView } from '../widget/territoryWidget';
 import { dataNote } from './territoryBuild';
 import { C } from '../../i18n/catalog/map';
@@ -136,6 +137,8 @@ export function MapScreen() {
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const mapRef = useRef<RealMapRef>(null);
+  /** E14 — univers Run/Bike séparés : Bike n'a pas encore de hex_claims → carte vide. */
+  const { activity } = usePlayContext();
 
   /**
    * POSITION RÉELLE (retour terrain fondateur 20/07 : « quand je démarre il met
@@ -355,6 +358,13 @@ export function MapScreen() {
    */
   const widget = useMemo(() => {
     if (!isReal || territories === null) return null;
+    // Bike = univers vide (pas de captures bike côté serveur encore).
+    if (activity === 'bike') {
+      return buildRealWidgetView(
+        { mineAreasM2: [], openBoundary: null, capturedInLastRun: false },
+        locale,
+      );
+    }
     const lastResult = getLastRunResult();
     const ob = lastResult?.openBoundary;
     return buildRealWidgetView({
@@ -370,7 +380,7 @@ export function MapScreen() {
     // le peek du HUD parlait français à un joueur en de/es/pt/en, alors même que
     // la note d'honnêteté juste en dessous, elle, était traduite.
     locale);
-  }, [isReal, territories, locale]);
+  }, [isReal, territories, locale, activity]);
 
   /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
   const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
@@ -384,6 +394,23 @@ export function MapScreen() {
     mapRef.current?.flyTo({ ...EGO_CAMERA, lat: egoPos.lat, lng: egoPos.lng });
   }, [egoPos]);
 
+  /** E03 — résumé territoire réel pour la sheet VOTRE TERRITOIRE (univers Run). */
+  const territorySummary = useMemo(() => {
+    if (activity === 'bike') return null;
+    if (!isReal || territories === null) return null;
+    const mine = territories.filter((t) => t.props.status === 'crew');
+    if (mine.length === 0) return null;
+    return {
+      areaM2: mine.reduce((sum, t) => sum + t.props.areaM2, 0),
+      zoneCount: mine.length,
+    };
+  }, [isReal, territories, activity]);
+
+  /** E03 — pill de contexte : cadrer la zone (pas ego). */
+  const onFramePoint = useCallback((point: { lat: number; lng: number }) => {
+    mapRef.current?.flyTo({ ...EGO_CAMERA, lat: point.lat, lng: point.lng });
+  }, []);
+
   /**
    * JAMAIS de territoires démo : `null` ferait peindre à battleGameLayers le faux
    * Paris conquis de `fakeHexes`. On passe donc toujours un tableau — `[]` tant
@@ -391,7 +418,8 @@ export function MapScreen() {
    * rien capturé voit une carte vide »). Ce `?? []` est le dernier verrou entre
    * la carte et la démo : ne pas le retirer.
    */
-  const paintedTerritories = territories ?? [];
+  // E14 : jamais superposer Run + Bike — en Bike, carte vide (honnête).
+  const paintedTerritories = activity === 'bike' ? [] : (territories ?? []);
   const layers = useMemo(
     () =>
       battleGameLayers(
@@ -644,6 +672,8 @@ export function MapScreen() {
         onToggleBasemap={toggle}
         map3d={map3d}
         onSetMap3d={setMap3d}
+        territorySummary={territorySummary}
+        onFramePoint={onFramePoint}
       />
     </View>
   );

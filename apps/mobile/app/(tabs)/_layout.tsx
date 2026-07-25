@@ -1,14 +1,9 @@
 /**
  * GRYD — layout (tabs) : BARRE D'ONGLETS BASSE PERSISTANTE custom (GrydNavBar)
  * par-dessus des Tabs expo-router dont la tab bar NATIVE est masquée.
- * 4 destinations visibles en 1 tap : Carte · Crew · Saison · Moi ; la route
- * `warroom` (Missions) est conservée HORS barre, atteinte depuis « Moi ».
- *
- * Au CENTRE de la barre, soulevé : LE bouton d'action contextuel chartreuse
- * (AMENDEMENT-29), présent sur TOUS les onglets — « le joueur ne doit jamais
- * chercher comment courir ». Sa dérivation (deriveContextualAction : RUN par
- * défaut, DÉFENDRE/CONQUÉRIR/TERMINER selon l'écran) est portée par la barre,
- * avec un lien « Course libre » visible quand le verbe dérivé n'est pas RUN.
+ * 3 destinations visibles en 1 tap : Carte · Crew · Profil (+ Saison si
+ * flags.season). Les routes `warroom` (Missions) restent HORS barre, atteintes
+ * depuis Profil. Le départ de course vit sur la Carte (CTA RUN sneaker E02).
  *
  * Garde d'auth (règle session.tsx) : Supabase configuré + pas de session →
  * (auth)/sign-in SI l'onboarding a déjà été vu, /onboarding sinon ; non
@@ -96,7 +91,7 @@ export default function TabsLayout() {
         />
         <Tabs.Screen name="profil" options={{ title: t(C.tabMoi), tabBarLabel: t(C.tabMoi) }} />
       </Tabs>
-      {/* Barre d'onglets persistante (Carte · Crew · Saison · Moi) + action centrale. */}
+      {/* Barre d'onglets persistante (Carte · Crew · Profil). */}
       <GrydNavBar />
     </View>
   );

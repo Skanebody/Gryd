@@ -26,12 +26,24 @@
  * Events : screen('map_sheet_open') (options mission) / screen('map_zone_open')
  * (sheet de zone) / screen('map_zone_details') (« Plus ») / screen('map_zone_act').
  */
-import { useCallback, useEffect, useState } from 'react';
-import { setZoneSheetOpen, setMapHudHidden, useMapHudHidden } from './mapUiStore';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { setZoneSheetOpen, setMapHudHidden, setMissionSheetDeployed, useMapHudHidden } from './mapUiStore';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
+import {
+  colors,
+  fonts,
+  fontSizes,
+  FIRST_MISSION_BIKE_LOOP_M,
+  FIRST_MISSION_BIKE_LOOP_MIN,
+  FIRST_MISSION_LOOP_M,
+  FIRST_MISSION_LOOP_MIN,
+  gameColors,
+  iconSizes,
+  radii,
+  withAlpha,
+} from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { useLocale, useT } from '../../i18n/store';
 import type { Entry, Locale } from '../../i18n/types';
@@ -39,15 +51,33 @@ import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
 import {
-  FloatingMapButton,
   Map3DToggle,
   MapBottomSheet,
   type MapSheetState,
 } from '../../ui/game';
-import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
+import { NAV_BAR_HEIGHT } from '../nav/metrics';
+import { intentionHref } from '../nav/runContext';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
+import { formatKm2Parts } from '../widget/territoryWidget';
+import { useMyEconomy } from '../social/economy';
+import { useRealMission } from '../mission/useRealMission';
+import { usePlayContext } from '../activity/playContext';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
+import { MapHomeHeader } from './MapHomeHeader';
+import { PlayContextToggles } from '../../ui/PlayContextToggles';
+
+/** Résumé territoire réel pour la sheet E03 (jamais inventé). */
+export interface TerritorySummary {
+  areaM2: number;
+  zoneCount: number;
+}
+
+/** Point à cadrer (pill de contexte → flyTo). */
+export interface MapFramePoint {
+  lat: number;
+  lng: number;
+}
 
 /** Signature du hook useT — pour typer les helpers purs qui reçoivent t. */
 type Translate = (entry: Entry, vars?: Record<string, string | number>) => string;
@@ -99,10 +129,6 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
   satellite: 'calques',
 };
 
-/** Dégagement du peek au-dessus de la barre de nav. */
-const SHEET_ABOVE_RUN_BUTTON = 12;
-/** Pile de FABs : dégagement au-dessus de la sheet visible. */
-const FAB_ABOVE_SHEET = 12;
 /**
  * Hauteur du PEEK MISSION persistant (§8) : titre + méta + rival + lien options.
  * Calée AU PLUS JUSTE sur le contenu réel (poignée 18 + bloc info ~118) pour ne
@@ -110,12 +136,9 @@ const FAB_ABOVE_SHEET = 12;
  * carte reste le cœur. (Était 168 → ~30 px de vide sous le lien.)
  */
 const MISSION_PEEK_COMPACT_HEIGHT = 138;
-/** Espace du HUD haut à préserver (secteur + ligne mission) — le menu Calques ne
+/** Espace du HUD haut à préserver (header E02) — le menu Calques ne
  *  descend jamais son bord haut au-dessus de cette limite (anti-chevauchement). */
 const TOP_HUD_CLEARANCE = 112;
-/** Hauteur de la pile de FABs PERMANENTS (2 FABs de 44 + 1 gap de 10 + marge)
- *  — réserve l'espace sous le menu Calques pour qu'il ne recouvre pas la pile. */
-const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
 /**
  * Hauteur du peek d'une VRAIE zone (hex_claims) : en-tête + rôle + surface.
  * Courte, et c'est le point : on n'a ni « action recommandée » ni pression
@@ -123,12 +146,22 @@ const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
  */
 const REAL_ZONE_SHEET_COMPACT_HEIGHT = 132;
 /**
- * Hauteur de l'ÉTAT VIDE (titre + phrase, + lien d'action quand il y en a un).
- * Deux valeurs : sans CTA le peek se resserre au lieu de laisser un vide qui se
- * lirait comme un écran cassé.
+ * Hauteur de l'ÉTAT VIDE (signed-out / failed hors première mission).
  */
-const EMPTY_PEEK_HEIGHT = 104;
-const EMPTY_PEEK_WITH_CTA_HEIGHT = 140;
+const EMPTY_PEEK_HEIGHT = 152;
+const EMPTY_PEEK_WITH_CTA_HEIGHT = 168;
+/**
+ * E02 PREMIÈRE MISSION (planche ~29 % hors nav) : eyebrow + titre + ligne +
+ * métriques 900 m / ≈ 6 min + « Voir le détail › ». Pas de CTA primaire dedans
+ * (RUN est dehors, à droite du bloc — anti double-CTA §A.4).
+ */
+const FIRST_MISSION_PEEK_HEIGHT = 210;
+/** E03 sheet VOTRE TERRITOIRE : eyebrow + métrique 48 pt + ligne + détail. */
+const ACTIVE_TERRITORY_PEEK_HEIGHT = 188;
+/** Pill de contexte E03 : disparaît après 5 s (planche). */
+const CONTEXT_PILL_MS = 5_000;
+/** E04 sheet rival : ~52 % de hauteur écran (planche). */
+const RIVAL_SHEET_RATIO = 0.52;
 
 /**
  * ÉTAT VIDE de la carte (O1 — vitrine OFF par défaut). Trois cas qui n'ont PAS
@@ -236,6 +269,13 @@ export interface BattleMapOverlaysProps {
    * de Valmy, Lille Centre… — des étiquettes de scénario).
    */
   zone?: MapZoneView | null;
+  /**
+   * E03 — aires/zones RÉELLES (hex_claims). Null = pas encore de territoire
+   * actif (E02 première mission). Jamais de km² inventés.
+   */
+  territorySummary?: TerritorySummary | null;
+  /** E03 — cadrer une zone (pill de contexte). */
+  onFramePoint?: (point: MapFramePoint) => void;
 }
 
 export function BattleMapOverlays({
@@ -254,6 +294,8 @@ export function BattleMapOverlays({
   zone = null,
   map3d,
   onSetMap3d,
+  territorySummary = null,
+  onFramePoint,
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -261,6 +303,18 @@ export function BattleMapOverlays({
   const locale = useLocale();
   /** « Carte nue » : l'utilisateur a masqué tout le HUD (rangée du menu Calques). */
   const hudHidden = useMapHudHidden();
+  const { mission: realMission } = useRealMission();
+  const economy = useMyEconomy();
+  const { activity, social } = usePlayContext();
+  // Bike = univers séparé : pas de territoires Run peints → première mission Bike.
+  const isActivePlayer =
+    activity === 'run' &&
+    territorySummary != null &&
+    territorySummary.zoneCount > 0 &&
+    widget?.state !== 'first_capture';
+  // Pill E03 : decay réel, uniquement en univers Run (Bike n'a pas encore de decay).
+  const defendMission =
+    activity === 'run' && realMission?.kind === 'defend_expiring' ? realMission : null;
   // Peek MISSION persistant (§8) : `sheet.initial` distingue le PEEK (compact)
   // de l'état OUVERT (les options), remonté par « Voir les options » (remount
   // key + initialState — snap, façon reduce motion).
@@ -314,12 +368,14 @@ export function BattleMapOverlays({
     if (zoneOpen && selectedZoneId) screen('map_zone_open', { zone: selectedZoneId });
   }, [zoneOpen, selectedZoneId]);
 
-  /** Bas de l'écran réservé à la barre de nav (le FAB central est supprimé). */
-  const sheetBottom = insets.bottom + RUN_BUTTON_BOTTOM + SHEET_ABOVE_RUN_BUTTON;
-  // « Carte nue » masque le HUD : ligne mission (haut, index.tsx) + sheet du bas.
-  // Les 2 FABs permanents (Recentrer + Calques) RESTENT visibles même en carte nue :
-  // le FAB Calques rouvre le menu, dont la rangée « Carte nue » (active) ramène tout.
-  // Un tap sur une ZONE reste explicite → sa sheet s'affiche même en carte nue.
+  /**
+   * Sheet ancrée AU-DESSUS de la barre d'onglets (planche E02) — plus de piste
+   * « GO / SlideToStart » réservée en dessous. Le CTA RUN flotte à droite du
+   * bloc mission, pas sous la sheet.
+   */
+  const sheetBottom = insets.bottom + NAV_BAR_HEIGHT;
+  // « Carte nue » masque le HUD : header + sheet du bas.
+  // Capsule contrôles (Recentrer + Calques) RESTE visible même en carte nue.
   /**
    * QUE MONTRE LE PEEK quand aucune donnée réelle n'existe ? L'ÉTAT VIDE — et
    * RIEN DU TOUT tant qu'on ne sait pas encore (`emptyState` null = lecture en
@@ -327,27 +383,48 @@ export function BattleMapOverlays({
    * La sheet elle-même se retire alors, plutôt que de laisser un cadre vide.
    */
   const showEmptyPeek = widget === null && emptyState !== null;
-  const missionSheetVisible = widget !== null || showEmptyPeek;
+  /** E02 : première mission = planche complète (y compris avant auth / bike). */
+  const isFirstMission =
+    activity === 'bike' ||
+    emptyState === 'empty' ||
+    emptyState === 'signed-out' ||
+    widget?.state === 'first_capture';
+  const missionSheetVisible = widget !== null || showEmptyPeek || isFirstMission;
   const sheetVisible = zoneOpen || (!hudHidden && missionSheetVisible);
+
   /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav.
    *  Chaque état a SA hauteur : le peek épouse son contenu au lieu de laisser un
    *  vide sous le texte (un blanc se lit comme un écran cassé — §A). */
   const activeCompactHeight = zoneOpen
     ? REAL_ZONE_SHEET_COMPACT_HEIGHT
-    : showEmptyPeek
-      ? emptyState === 'empty'
-        ? EMPTY_PEEK_HEIGHT
-        : EMPTY_PEEK_WITH_CTA_HEIGHT
-      : MISSION_PEEK_COMPACT_HEIGHT;
-  const fabBottom = sheetVisible ? sheetBottom + activeCompactHeight + FAB_ABOVE_SHEET : sheetBottom;
+    : isFirstMission
+      ? FIRST_MISSION_PEEK_HEIGHT
+      : isActivePlayer
+        ? ACTIVE_TERRITORY_PEEK_HEIGHT
+        : showEmptyPeek
+          ? emptyState === 'failed'
+            ? EMPTY_PEEK_WITH_CTA_HEIGHT
+            : EMPTY_PEEK_HEIGHT
+          : MISSION_PEEK_COMPACT_HEIGHT;
 
-  // Le menu Calques s'ouvre AU-DESSUS de la pile de FABs. On PLAFONNE sa hauteur à
-  // l'espace libre entre le HUD du haut (secteur + ligne mission) et le sommet des
-  // FABs → il défile au lieu de recouvrir « République attaquée » (retour fondateur).
+  // E02 : morph du CTA RUN (rond vs pill) + hauteur pour ancrer le rond.
+  // useLayoutEffect : évite un frame où la pill « RUN » apparaît sous la sheet.
+  useLayoutEffect(() => {
+    const deployed = sheetVisible && !zoneOpen;
+    setMissionSheetDeployed(deployed, deployed ? activeCompactHeight : 0);
+    return () => setMissionSheetDeployed(false, 0);
+  }, [sheetVisible, zoneOpen, activeCompactHeight]);
+
+  // E02 : capsule contrôles à ~35 % de hauteur (pas collée à la sheet).
   const { height: winH } = useWindowDimensions();
+  const capsuleTop = Math.round(winH * 0.33);
+  const rivalSheetHeight = Math.round(winH * RIVAL_SHEET_RATIO);
+
+  // Le menu Calques s'ouvre AU-DESSUS de la capsule. On PLAFONNE sa hauteur à
+  // l'espace libre entre le header et le sommet de la capsule.
   const layerMenuMaxHeight = Math.max(
     120,
-    winH - insets.top - TOP_HUD_CLEARANCE - fabBottom - FAB_STACK_HEIGHT,
+    capsuleTop - insets.top - TOP_HUD_CLEARANCE - 8,
   );
 
   /** FAB Calques : ouvre/ferme le menu Calques EN 1 TAP (haptic géré par le FAB). */
@@ -394,25 +471,40 @@ export function BattleMapOverlays({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* Backdrop invisible : un tap « ailleurs » referme le menu Calques (contrat
-          §1). Rendu SOUS la pile de FABs et la sheet (enfants suivants = au-dessus)
-          → seuls les taps hors de ces zones l'atteignent. Absent quand le menu est
-          fermé : la carte reçoit alors ses gestes normalement (pan/zoom). Hors a11y
-          (les lecteurs d'écran referment via le FAB Calques, dont l'état
-          « sélectionné » est lisible). */}
+      {/* Backdrop invisible : un tap « ailleurs » referme le menu Calques. */}
       {layersOpen ? (
         <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={closeLayers} />
       ) : null}
 
-      {/* ── Droite : 2 FABs PERMANENTS (AMENDEMENT-37 §8) — Recentrer + Calques.
-          Le FAB Calques ouvre le menu EN 1 TAP (retour terrain 20/07 : l'ancien
-          détour « Outils → Calques » imposait 3 taps à travers 2 menus imbriqués).
-          Le menu Calques absorbe désormais « Carte nue » (rangée d'affichage) :
-          plus de menu Outils ni d'engrenage. Le déclencheur Calques est le dernier
-          de la pile (en bas, sous le pouce), visible même en carte nue pour tout
-          ramener. ── */}
+      {/* E02/E03 header : avatar + lieu + notifs. */}
+      {!hudHidden ? <MapHomeHeader alertDot={defendMission != null} /> : null}
+
+      {/* E14 : Run/Bike + Solo/Crew — sous le header à droite (planche). */}
+      {!hudHidden ? (
+        <View
+          style={[styles.playToggles, { top: insets.top + 62 }]}
+          pointerEvents="box-none"
+        >
+          <PlayContextToggles />
+        </View>
+      ) : null}
+
+      {/* E03 pill de contexte — 1 max, disparaît après 5 s, contenu repris sheet. */}
+      {!hudHidden && defendMission ? (
+        <ContextPill
+          label={t(C.contextPillDefend)}
+          a11y={t(C.contextPillDefendA11y)}
+          onPress={() => {
+            haptics.light();
+            onFramePoint?.(defendMission.anchor);
+          }}
+        />
+      ) : null}
+
+      {/* ── Capsule contrôles E02 (≤ 2 actions) : Recentrer + Calques, ~35 % haut.
+          Bike absent. Visible même en carte nue pour tout ramener. ── */}
       <View
-        style={[styles.fabColumn, { bottom: fabBottom }]}
+        style={[styles.controlCapsule, { top: capsuleTop }]}
         pointerEvents="box-none"
       >
         {layersOpen ? (
@@ -436,37 +528,63 @@ export function BattleMapOverlays({
             onToggleHud={toggleHud}
           />
         ) : null}
-        {/* RECENTRER — permanent : « où suis-je ? » se répond en 1 tap, à une main,
-            en courant. Referme le menu Calques s'il est ouvert. */}
-        <FloatingMapButton
-          icon="gps"
-          accessibilityLabel={t(C.recenterA11y)}
-          onPress={recenterAndClose}
-        />
-        {/* CALQUES — permanent, déclencheur DIRECT du menu Calques (1 tap ouvre,
-            re-tap referme). Actif = menu ouvert. Reste visible en carte nue. */}
-        <FloatingMapButton
-          icon="calques"
-          accessibilityLabel={t(C.layersFabA11y)}
-          active={layersOpen}
-          onPress={toggleLayers}
-        />
+        <View style={styles.capsule}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.recenterA11y)}
+            onPress={() => {
+              haptics.light();
+              recenterAndClose();
+            }}
+            style={({ pressed }) => [styles.capsuleBtn, pressed && styles.pressed]}
+          >
+            <Icon name="gps" size={18} color={colors.blanc} />
+          </Pressable>
+          <View style={styles.capsuleDivider} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.layersFabA11y)}
+            accessibilityState={{ selected: layersOpen }}
+            onPress={() => {
+              haptics.light();
+              toggleLayers();
+            }}
+            style={({ pressed }) => [
+              styles.capsuleBtn,
+              layersOpen && styles.capsuleBtnActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Icon
+              name="calques"
+              size={18}
+              color={layersOpen ? colors.chartreuse : colors.blanc}
+            />
+          </Pressable>
+        </View>
       </View>
 
-      {/* ── Sheet du bas : la sheet de ZONE tapée REMPLACE le peek mission
-          (§3) ; sinon le peek MISSION persistant (§8). Une seule sheet à la
-          fois = 1 seul gros CTA à la fois (anti double-CTA §A.4). ── */}
+      {/* ── Sheet du bas : zone tapée REMPLACE le peek mission ; sinon peek. ── */}
       <View style={[styles.sheetWrap, { bottom: sheetBottom }]} pointerEvents="box-none">
         {zoneOpen && zone ? (
-          /* VRAIE zone tapée : ce que hex_claims sait dire, rien de plus. Aucun
-             CTA ici — le bouton GO flottant reste l'unique CTA chartreuse (§A.4),
-             et « défendre » sans mission réelle serait un verbe creux. */
-          <MapBottomSheet
-            key={`realzone-${selectedZoneId}`}
-            initialState="compact"
-            compactHeight={REAL_ZONE_SHEET_COMPACT_HEIGHT}
-            compactSlot={<RealZonePeek zone={zone} onClose={closeZone} />}
-          />
+          zone.role === 'rival' ? (
+            /* E04 — décision REPRENDRE. Sheet ~52 %. Données réelles seulement. */
+            <MapBottomSheet
+              key={`rival-${selectedZoneId}`}
+              initialState="compact"
+              compactHeight={rivalSheetHeight}
+              compactSlot={
+                <RivalZoneDecision zone={zone} onClose={closeZone} />
+              }
+            />
+          ) : (
+            <MapBottomSheet
+              key={`realzone-${selectedZoneId}`}
+              initialState="compact"
+              compactHeight={REAL_ZONE_SHEET_COMPACT_HEIGHT}
+              compactSlot={<RealZonePeek zone={zone} onClose={closeZone} />}
+            />
+          )
         ) : hudHidden || !missionSheetVisible ? null : (
           <MapBottomSheet
             key={`mission-${sheet.key}`}
@@ -475,32 +593,34 @@ export function BattleMapOverlays({
             onStateChange={(state) => {
               if (state !== 'compact') screen('map_sheet_open', { state });
             }}
-            compactSlot={
-              widget ? (
+            compactSlot={(api) =>
+              isFirstMission ? (
+                <FirstMissionPeek
+                  onSeeDetail={api.expand}
+                  onConnect={
+                    emptyState === 'signed-out' ? onEmptyAction : undefined
+                  }
+                />
+              ) : isActivePlayer && territorySummary ? (
+                <ActiveTerritoryPeek
+                  summary={territorySummary}
+                  seasonRank={
+                    economy.failed || economy.loading ? null : economy.seasonRank
+                  }
+                  social={social}
+                  onSeeDetail={api.expand}
+                />
+              ) : widget ? (
                 <TerritoryWidgetPeek
                   view={widget}
                   onAction={() => onWidgetAction?.(widget)}
                 />
               ) : (
-                /* `missionSheetVisible` garantit qu'on n'arrive ici qu'avec un
-                   emptyState non-null : plus aucun repli sur le peek de démo. */
                 <EmptyPeek state={emptyState ?? 'signed-out'} onAction={onEmptyAction} />
               )
             }
             openSlot={
               <View style={styles.openBlock}>
-                {/* SITUATION / PARCOURS / ÉQUIPE ont été RETIRÉS (21/07/2026) :
-                    tous trois sortaient de `demo.ts` (MAP_MISSION_SUMMARY,
-                    PARCOURS_DEMO, MATES_OPT_IN). Il n'existe ni parcours proposé,
-                    ni allié partageant sa position, ni part de contrôle réelle —
-                    les afficher, c'était fabriquer une situation de jeu. Ne
-                    restent que des entrées VRAIES : l'historique local, et la War
-                    Room quand son flag est levé. */}
-                {/* BLOC — DÉTAILS. La rangée « mission du jour » (MISSIONS[0],
-                    warroom/demo.ts) est partie avec le reste de la démo : elle
-                    n'était masquée que par le flag warRoom, donc un `FULL_SURFACE=1`
-                    suffisait à afficher une mission fabriquée. Ne reste que ce qui
-                    est vrai — l'historique local du joueur. */}
                 <Text style={styles.sectionTitle}>{t(C.sectionDetails)}</Text>
                 <Pressable
                   accessibilityRole="button"
@@ -531,6 +651,184 @@ export function BattleMapOverlays({
       </View>
     </View>
   );
+}
+
+/**
+ * E03 — pill de contexte (1 max). Auto-hide 5 s. Tap = cadrer la zone.
+ */
+function ContextPill({
+  label,
+  a11y,
+  onPress,
+}: {
+  label: string;
+  a11y: string;
+  onPress: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    setVisible(true);
+    const id = setTimeout(() => setVisible(false), CONTEXT_PILL_MS);
+    return () => clearTimeout(id);
+  }, [label]);
+  if (!visible) return null;
+  return (
+    <View
+      style={[styles.contextWrap, { top: insets.top + 110 }]}
+      pointerEvents="box-none"
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={a11y}
+        onPress={onPress}
+        style={({ pressed }) => [styles.contextPill, pressed && styles.pressed]}
+        testID="map-context-pill"
+      >
+        <View style={styles.contextDot} />
+        <Text style={styles.contextLabel} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * E03 — sheet VOTRE TERRITOIRE. Métrique 48 pt = aire réelle ; rang saison
+ * seulement s'il existe (season_scores). Pas de « +8 % » inventé.
+ */
+function ActiveTerritoryPeek({
+  summary,
+  seasonRank,
+  social,
+  onSeeDetail,
+}: {
+  summary: TerritorySummary;
+  seasonRank: number | null;
+  social: 'solo' | 'crew';
+  onSeeDetail: () => void;
+}) {
+  const t = useT();
+  const locale = useLocale();
+  const { value, unit } = formatKm2Parts(summary.areaM2, locale);
+  const zones = zonesLabel(t, summary.zoneCount);
+  const rankLine =
+    seasonRank != null ? t(C.activeTerritoryRank, { rank: seasonRank }) : null;
+  useEffect(() => {
+    track(EVENTS.territoryWidgetViewed, { widget_state: 'stable' });
+  }, []);
+  return (
+    <View style={styles.activeTerritory}>
+      <Text style={styles.firstEyebrow}>
+        {t(social === 'crew' ? C.activeTerritoryEyebrowCrew : C.activeTerritoryEyebrowSolo)}
+      </Text>
+      <View style={styles.activeMetric}>
+        <Text style={styles.activeMetricValue} numberOfLines={1} adjustsFontSizeToFit>
+          {value}
+        </Text>
+        <Text style={styles.activeMetricUnit}> {unit}</Text>
+      </View>
+      <Text style={styles.activeSub} numberOfLines={2}>
+        {rankLine ? `${zones} · ${rankLine}` : zones}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(C.firstMissionSeeDetail)}
+        hitSlop={8}
+        onPress={() => {
+          haptics.light();
+          onSeeDetail();
+        }}
+        style={({ pressed }) => [styles.detailHit, pressed && styles.pressed]}
+      >
+        <Text style={styles.detailLink} numberOfLines={1}>
+          {t(C.firstMissionSeeDetail)}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * E02 — sheet PREMIÈRE MISSION (planche Night Print à la lettre).
+ * Contenu : eyebrow · titre · ligne · métriques suggérées (game-rules) ·
+ * « Voir le détail › ». Pas de CTA primaire (RUN sneaker est dehors, à droite).
+ * Si non connecté : le lien devient « Se connecter › » (même slot, 1 action).
+ */
+function FirstMissionPeek({
+  onSeeDetail,
+  onConnect,
+}: {
+  onSeeDetail: () => void;
+  onConnect?: () => void;
+}) {
+  const t = useT();
+  const locale = useLocale();
+  const { activity } = usePlayContext();
+  const bike = activity === 'bike';
+  const distM = bike ? FIRST_MISSION_BIKE_LOOP_M : FIRST_MISSION_LOOP_M;
+  const mins = bike ? FIRST_MISSION_BIKE_LOOP_MIN : FIRST_MISSION_LOOP_MIN;
+  const distLabel = bike
+    ? formatFirstMissionKm(distM, locale)
+    : String(distM);
+  const distUnit = bike ? 'km' : 'm';
+  const linkLabel = onConnect ? t(C.emptySignedOutCta) + ' ›' : t(C.firstMissionSeeDetail);
+  const onLink = () => {
+    haptics.light();
+    if (onConnect) onConnect();
+    else onSeeDetail();
+  };
+  return (
+    <View style={styles.firstMission}>
+      <Text style={styles.firstEyebrow}>
+        {t(bike ? C.firstMissionEyebrowBike : C.firstMissionEyebrow)}
+      </Text>
+      <Text style={styles.firstTitle} numberOfLines={1} adjustsFontSizeToFit>
+        {t(bike ? C.firstMissionTitleBike : C.firstMissionTitle)}
+      </Text>
+      <Text style={styles.firstLine} numberOfLines={2}>
+        {t(bike ? C.firstMissionLineBike : C.firstMissionLine)}
+      </Text>
+      <View
+        style={styles.firstMetrics}
+        accessibilityRole="text"
+        accessibilityLabel={t(C.firstMissionMetricsA11y, {
+          dist: distLabel,
+          unit: distUnit,
+          min: mins,
+        })}
+      >
+        <View style={styles.firstMetric}>
+          <Text style={styles.firstMetricValue}>{distLabel}</Text>
+          <Text style={styles.firstMetricUnit}> {distUnit}</Text>
+        </View>
+        <View style={styles.firstMetricRule} />
+        <View style={styles.firstMetric}>
+          <Text style={styles.firstMetricValue}>≈ {mins}</Text>
+          <Text style={styles.firstMetricUnit}> min</Text>
+        </View>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={linkLabel}
+        hitSlop={8}
+        onPress={onLink}
+        style={({ pressed }) => [styles.detailHit, pressed && styles.pressed]}
+      >
+        <Text style={styles.detailLink} numberOfLines={1}>
+          {linkLabel}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 4,8 km — virgule FR, point EN (parité planche E14 Bike). */
+function formatFirstMissionKm(meters: number, locale: Locale): string {
+  const km = meters / 1_000;
+  const fixed = km.toFixed(1);
+  return locale === 'en' ? fixed : fixed.replace('.', ',');
 }
 
 /**
@@ -646,6 +944,95 @@ function EmptyPeek({
           </Text>
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * E04 — sheet décision rival. Un CTA primaire REPRENDRE → course conquête.
+ * hex_claims ne porte pas l'identité : owner anonyme, pas de Nina inventée.
+ */
+function RivalZoneDecision({ zone, onClose }: { zone: MapZoneView; onClose: () => void }) {
+  const t = useT();
+  const locale = useLocale();
+  const router = useRouter();
+  const { value, unit } = formatKm2Parts(zone.areaKm2 * 1_000_000, locale);
+
+  const retake = () => {
+    haptics.medium();
+    screen('map_zone_act', { action: 'retake' });
+    router.push(intentionHref('conquest'));
+  };
+  const planLater = () => {
+    haptics.light();
+    router.push('/route-planner?type=conquest');
+  };
+
+  return (
+    <View style={styles.rivalSheet}>
+      <View style={styles.rivalHead}>
+        <Text style={styles.rivalEyebrow}>{t(C.rivalEyebrow)}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.closeZoneA11y)}
+          hitSlop={8}
+          onPress={onClose}
+          style={({ pressed }) => [styles.rivalClose, pressed && styles.pressed]}
+        >
+          <Icon name="fermer" size={16} color={colors.gris} />
+        </Pressable>
+      </View>
+      <Text style={styles.rivalTitle} numberOfLines={2}>
+        {t(C.rivalTitle)}
+      </Text>
+      <View style={styles.rivalOwner}>
+        <View style={styles.rivalAvatar}>
+          <Icon name="profil" size={18} color={colors.gris} />
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rivalOwnerName} numberOfLines={1}>
+            {t(C.rivalOwnerAnon)}
+          </Text>
+          <Text style={styles.rivalOwnerHint} numberOfLines={2}>
+            {t(C.rivalOwnerHint)}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.rivalMetrics}>
+        <View style={styles.rivalMetric}>
+          <Text style={styles.rivalMetricValue} numberOfLines={1}>
+            {value}
+            <Text style={styles.rivalMetricUnit}> {unit}</Text>
+          </Text>
+          <Text style={styles.rivalMetricLabel}>{t(C.rivalMetricSurface)}</Text>
+        </View>
+        <View style={styles.rivalMetricDivider} />
+        <View style={styles.rivalMetric}>
+          <Text style={styles.rivalMetricValue} numberOfLines={1}>
+            {zone.zones}
+          </Text>
+          <Text style={styles.rivalMetricLabel}>{t(C.rivalMetricZones)}</Text>
+        </View>
+      </View>
+      <View style={styles.rivalActions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.rivalCtaA11y)}
+          onPress={retake}
+          style={({ pressed }) => [styles.rivalCta, pressed && styles.pressed]}
+          testID="rival-retake-cta"
+        >
+          <Text style={styles.rivalCtaText}>{t(C.rivalCta)}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.rivalPlanLater)}
+          onPress={planLater}
+          style={({ pressed }) => [styles.rivalPlan, pressed && styles.pressed]}
+        >
+          <Text style={styles.rivalPlanText}>{t(C.rivalPlanLater)}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -827,8 +1214,42 @@ const OVERLAY_SURFACE = withAlpha(gameColors.carbon, 0.92);
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 
-  // ── FAB column : 2 MAX (Calques + Recentrer) ──
-  fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
+  // ── E14 Play toggles (Run/Bike + Solo/Crew) sous le header ──
+  playToggles: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 3,
+  },
+
+  // ── Capsule contrôles E02 (Recentrer + Calques) à ~35 % hauteur ──
+  controlCapsule: {
+    position: 'absolute',
+    right: 20,
+    gap: 8,
+    alignItems: 'flex-end',
+    zIndex: 3,
+  },
+  capsule: {
+    width: 44,
+    borderRadius: 22,
+    backgroundColor: withAlpha(colors.carbonDeep, 0.82),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.blanc12,
+    overflow: 'hidden',
+  },
+  capsuleBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  capsuleBtnActive: { backgroundColor: colors.chartreuse14 },
+  capsuleDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.blanc12,
+  },
 
   // ── Menu Calques (fond + vue + calques de lecture) — ScrollView plafonné ──
   layerMenu: {
@@ -874,6 +1295,128 @@ const styles = StyleSheet.create({
   // ── Contenu du peek (mission / zone) : posé directement, pas de sous-card ──
   info: { paddingHorizontal: 16, paddingBottom: 12, gap: 6 },
 
+  // ── E02 PREMIÈRE MISSION / E03 VOTRE TERRITOIRE ──
+  firstMission: { paddingHorizontal: 20, paddingBottom: 12, gap: 6, paddingRight: 88 },
+  activeTerritory: { paddingHorizontal: 20, paddingBottom: 12, gap: 4 },
+  firstEyebrow: {
+    marginTop: 4,
+    color: colors.chartreuse,
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+  },
+  firstTitle: {
+    color: colors.blanc,
+    fontFamily: fonts.displaySemi,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '600',
+  },
+  firstLine: {
+    color: colors.gris,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 165,
+  },
+  firstMetrics: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 20,
+    maxWidth: 210,
+  },
+  firstMetric: { flexDirection: 'row', alignItems: 'baseline' },
+  firstMetricValue: {
+    color: colors.blanc,
+    fontFamily: fonts.display,
+    fontSize: 24,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  firstMetricUnit: {
+    color: colors.grisFaible,
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  firstMetricRule: {
+    width: StyleSheet.hairlineWidth,
+    height: 20,
+    backgroundColor: colors.grisLigne,
+    alignSelf: 'center',
+  },
+  activeMetric: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+  },
+  activeMetricValue: {
+    color: colors.blanc,
+    fontFamily: fonts.display,
+    fontSize: 48,
+    lineHeight: 50,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  activeMetricUnit: {
+    color: colors.grisFaible,
+    fontFamily: fonts.textSemi,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  activeSub: {
+    color: colors.gris,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 260,
+  },
+  detailHit: { minHeight: 36, justifyContent: 'center', marginTop: 4 },
+  detailLink: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // ── E03 pill de contexte ──
+  contextWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 3,
+  },
+  contextPill: {
+    minWidth: 160,
+    maxWidth: 240,
+    height: 30,
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    backgroundColor: withAlpha(colors.carbonDeep, 0.82),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: withAlpha(gameColors.rival, 0.35),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  contextDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: gameColors.rival,
+  },
+  contextLabel: {
+    color: colors.blanc,
+    fontFamily: fonts.textSemi,
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+
   // ── PEEK MISSION ──
   peekHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   missionBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: gameColors.crew },
@@ -918,6 +1461,129 @@ const styles = StyleSheet.create({
     backgroundColor: gameColors.carbon,
   },
   situationChipText: { color: colors.blanc, fontSize: fontSizes.xs, fontWeight: '600' },
+
+  // ── E04 sheet rival ──
+  rivalSheet: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  rivalHead: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rivalEyebrow: {
+    color: gameColors.rival,
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+  },
+  rivalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.carbone2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalTitle: {
+    color: colors.blanc,
+    fontFamily: fonts.displayBold,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '700',
+  },
+  rivalOwner: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rivalAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.carbone2,
+    borderWidth: 2,
+    borderColor: gameColors.rival,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalOwnerName: {
+    color: colors.blanc,
+    fontFamily: fonts.textSemi,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rivalOwnerHint: {
+    color: colors.grisFaible,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  rivalMetrics: {
+    marginTop: 10,
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.grisLigne,
+    paddingVertical: 14,
+  },
+  rivalMetric: { flex: 1 },
+  rivalMetricDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.grisLigne,
+    marginHorizontal: 16,
+  },
+  rivalMetricValue: {
+    color: colors.blanc,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  rivalMetricUnit: {
+    color: colors.grisFaible,
+    fontFamily: fonts.textSemi,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  rivalMetricLabel: {
+    marginTop: 2,
+    color: colors.grisFaible,
+    fontFamily: fonts.text,
+    fontSize: 12,
+  },
+  rivalActions: { marginTop: 20, gap: 12 },
+  rivalCta: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalCtaText: {
+    color: colors.noir,
+    fontFamily: fonts.textBold,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  rivalPlan: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalPlanText: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 
   // ── PEEK ZONE (§3/§10) ──
   zoneHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },

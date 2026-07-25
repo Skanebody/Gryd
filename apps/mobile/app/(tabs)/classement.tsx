@@ -71,8 +71,10 @@ import {
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { screen } from '../../src/lib/analytics';
 import { useSession } from '../../src/lib/session';
+import { PlayContextToggles } from '../../src/ui/PlayContextToggles';
 import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
+import { MeHighlightRow } from '../../src/ui/MeHighlightRow';
 import { formatInt } from '../../src/ui/format';
 import {
   CrewCrest,
@@ -503,8 +505,11 @@ function LeagueScreen() {
             Europe est portée par les docs, pas par un libellé plaqué sur Paris/Lille. */}
         <Text style={styles.kicker}>{t(C.saisonKickerReal)}</Text>
         <View style={styles.titleRow}>
-          <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
-          <Text style={styles.title}>{t(C.saisonTitle)}</Text>
+          <View style={styles.titleLeft}>
+            <Icon name="classement" size={iconSizes.lg} color={colors.blanc} />
+            <Text style={styles.title}>{t(C.saisonTitle)}</Text>
+          </View>
+          <PlayContextToggles />
         </View>
 
         {/* ── BLOC TOI EN HAUT (sans scroll) : rang + UNE phrase-objectif + CTA.
@@ -520,32 +525,27 @@ function LeagueScreen() {
           </View>
         ) : showToi ? (
           <View style={styles.toiCard}>
-            {/* 1 · Mon rang + écart nommé (le #1 lit « en tête »), jamais de honte */}
-            <View style={styles.toiTop}>
-              <Text style={styles.toiRank}>#{meRow!.rank}</Text>
-              <Text style={styles.toiName} numberOfLines={1} ellipsizeMode="clip">
-                {meRow!.name}
-                {t(C.suffixMoi)}
-              </Text>
-              <Text style={styles.toiGap}>
-                {isLeader
+            <MeHighlightRow
+              rankLabel={`#${meRow!.rank}`}
+              title={`${meRow!.name}${t(C.suffixMoi)}`}
+              subtitle={
+                isLeader
                   ? t(C.enTete)
-                  : t(C.gapPts, { pts: formatInt(gapPoints), rank: aboveRow!.rank })}
-              </Text>
-            </View>
+                  : t(C.gapPts, { pts: formatInt(gapPoints), rank: aboveRow!.rank })
+              }
+              value={formatInt(meRow!.value)}
+              progress={isLeader ? 1 : Math.min(1, meRow!.value / Math.max(1, aboveRow!.value))}
+              progressLabel={
+                isLeader
+                  ? t(C.toiHintLeader)
+                  : t(C.toiHintChase, {
+                      n: formatInt(Math.max(1, gapHexes)),
+                      name: aboveRow!.name,
+                    })
+              }
+            />
 
-            {/* 2 · UNE phrase-objectif concrète, cible nommée, sans sur-promesse.
-                Le rappel de récompense (Top 10 → badge) vit dans Récompenses. */}
-            <Text style={styles.toiHint}>
-              {isLeader
-                ? t(C.toiHintLeader)
-                : t(C.toiHintChase, {
-                    n: formatInt(Math.max(1, gapHexes)),
-                    name: aboveRow!.name,
-                  })}
-            </Text>
-
-            {/* 3 · CTA contextuel — JAMAIS un GO ; la Saison mène au planner */}
+            {/* CTA contextuel — JAMAIS un GO ; la Saison mène au planner */}
             <View style={styles.toiCta}>
               {/* Libellés COURTS qui tiennent sans jamais tronquer (§A « textes
                   jamais coupés ») — l'icône route porte le contexte « planner ». */}
@@ -737,16 +737,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontVariant: ['tabular-nums'],
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '700', letterSpacing: -0.5 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  titleLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  title: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '500', letterSpacing: -0.5 },
 
-  // ── Bloc TOI en haut (l'essentiel sans scroll) ──
+  // ── Bloc TOI en haut (MeHighlightRow porte la surface — pas de card-in-card) ──
   toiCard: {
     marginTop: 16,
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.chartreuse40,
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: 'transparent',
     padding: spacing.cardPadding,
     gap: 10,
   },
