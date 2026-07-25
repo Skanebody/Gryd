@@ -666,6 +666,31 @@ export const C = defineCatalog({
     de: 'Von einem Rivalen',
     pt: 'De um rival',
   },
+  // ── E04 (planche) : sheet de décision d'une zone tapée ──
+  /** Kicker de rôle en tête de sheet (couleur du rôle §C). */
+  zoneKickerRival: {
+    fr: 'ZONE RIVALE',
+    en: 'RIVAL ZONE',
+    es: 'ZONA RIVAL',
+    de: 'RIVALENZONE',
+    pt: 'ZONA RIVAL',
+  },
+  zoneKickerMine: {
+    fr: 'TON TERRITOIRE',
+    en: 'YOUR TURF',
+    es: 'TU TERRITORIO',
+    de: 'DEIN GEBIET',
+    pt: 'SEU TERRITÓRIO',
+  },
+  /** CTA primaire — planifier un parcours pour reprendre une zone rivale
+   *  (route-planner réel ; la reprise reste décidée serveur). ≤ 10 car. ✓ */
+  zoneReprendre: {
+    fr: 'Reprendre',
+    en: 'Take back',
+    es: 'Recuperar',
+    de: 'Zurückholen',
+    pt: 'Retomar',
+  },
 
   // ── Classement de zone (ZoneLeaderboard) : aucun palmarès réel n'existe tant
   //    que personne n'a couru la zone — on le DIT au lieu d'afficher des noms

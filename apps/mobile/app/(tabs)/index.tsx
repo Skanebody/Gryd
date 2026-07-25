@@ -35,7 +35,7 @@ import type { Locale } from '../../src/i18n/types';
 import { screen } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { hasPendingUpload, retryPendingUpload } from '../../src/lib/pendingUpload';
-import { useMapHudHidden } from '../../src/features/map/mapUiStore';
+import { useMapHudHidden, useZoneSheetOpen } from '../../src/features/map/mapUiStore';
 import { Icon } from '../../src/ui/Icon';
 import { AvatarHex } from '../../src/features/social/AvatarHex';
 import { useMyProfile } from '../../src/features/social/profileStore';
@@ -168,6 +168,11 @@ function MapStartSlider() {
   const insets = useSafeAreaInsets();
   const locale = useLocale();
   const action = useMemo(() => deriveContextualAction({ screen: 'map' }, locale), [locale]);
+  // E04 (planche + §A.4) : quand un sheet de DÉCISION de zone est ouvert, son CTA
+  // (REPRENDRE) devient l'unique CTA primaire — GO se retire pour ne pas peindre
+  // deux CTA à la fois. Il revient dès la fermeture du sheet.
+  const zoneOpen = useZoneSheetOpen();
+  if (zoneOpen) return null;
   return (
     <View
       style={[styles.startWrap, { bottom: insets.bottom + NAV_BAR_HEIGHT + SLIDE_START_GAP }]}

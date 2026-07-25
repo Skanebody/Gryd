@@ -123,6 +123,12 @@ const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
  */
 const REAL_ZONE_SHEET_COMPACT_HEIGHT = 132;
 /**
+ * E04 (planche) : une zone RIVALE porte en plus le CTA REPRENDRE (décision =
+ * planifier un parcours pour la reprendre). Le peek épouse ce contenu — 62 px de
+ * plus pour le bouton, pas un vide. MA zone n'a pas de CTA → hauteur compacte.
+ */
+const REAL_ZONE_SHEET_RIVAL_HEIGHT = REAL_ZONE_SHEET_COMPACT_HEIGHT + 62;
+/**
  * Hauteur de l'ÉTAT VIDE (titre + phrase, + lien d'action quand il y en a un).
  * Deux valeurs : sans CTA le peek se resserre au lieu de laisser un vide qui se
  * lirait comme un écran cassé.
@@ -332,8 +338,11 @@ export function BattleMapOverlays({
   /** Bas de la pile de FABs : au-dessus de la sheet visible (zone OU mission), sinon nav.
    *  Chaque état a SA hauteur : le peek épouse son contenu au lieu de laisser un
    *  vide sous le texte (un blanc se lit comme un écran cassé — §A). */
+  // Hauteur de la sheet de zone selon le rôle (rival = + CTA REPRENDRE).
+  const zoneSheetHeight =
+    zone?.role === 'rival' ? REAL_ZONE_SHEET_RIVAL_HEIGHT : REAL_ZONE_SHEET_COMPACT_HEIGHT;
   const activeCompactHeight = zoneOpen
-    ? REAL_ZONE_SHEET_COMPACT_HEIGHT
+    ? zoneSheetHeight
     : showEmptyPeek
       ? emptyState === 'empty'
         ? EMPTY_PEEK_HEIGHT
@@ -464,7 +473,7 @@ export function BattleMapOverlays({
           <MapBottomSheet
             key={`realzone-${selectedZoneId}`}
             initialState="compact"
-            compactHeight={REAL_ZONE_SHEET_COMPACT_HEIGHT}
+            compactHeight={zoneSheetHeight}
             compactSlot={<RealZonePeek zone={zone} onClose={closeZone} />}
           />
         ) : hudHidden || !missionSheetVisible ? null : (
@@ -658,17 +667,40 @@ function EmptyPeek({
  * rival), jamais une couleur par crew (§C). Aucun CTA : le bouton GO flottant
  * reste l'unique CTA chartreuse de l'écran (§A.4).
  */
+/**
+ * E04 (planche) — sheet de DÉCISION d'une zone tapée : un sheet = une décision.
+ * Focal zone → propriétaire → REPRENDRE. Kicker de rôle (couleur §C) + nom +
+ * ligne propriétaire·zones·surface (tout RÉEL, dérivé de hex_claims), puis, sur
+ * une zone RIVALE seulement, le CTA REPRENDRE (planifier un parcours pour aller
+ * la prendre — le route-planner est réel, la reprise reste décidée serveur ; le
+ * client n'attribue jamais). GO se retire tant que ce sheet est ouvert
+ * (useZoneSheetOpen, planche + §A.4) : REPRENDRE est alors l'UNIQUE CTA.
+ *
+ * DORMANTS (planche, mais O1 — jamais fabriqués) : identité du propriétaire
+ * (avatar·handle·crew), « tenu depuis N jours », effort estimé, dernière
+ * activité, « reprise N fois ce mois », et les variantes protégée (bleu, CTA
+ * indispo) / contestée (violet, VOIR LA MISSION) / propriétaire privé. Ils
+ * reviendront quand hex_claims les servira — ici la sheet ne dit que le réel.
+ */
 function RealZonePeek({ zone, onClose }: { zone: MapZoneView; onClose: () => void }) {
   const t = useT();
   const locale = useLocale();
-  const tint = zone.role === 'mine' ? gameColors.crew : gameColors.rival;
+  const router = useRouter();
+  const isRival = zone.role === 'rival';
+  const tint = isRival ? gameColors.rival : gameColors.crew;
+  const reprendre = () => {
+    haptics.medium();
+    onClose();
+    router.push('/route-planner');
+  };
   return (
     <View style={styles.info}>
       <View style={styles.zoneHead}>
         <View style={[styles.zonePastille, { backgroundColor: tint }]} />
-        <Text style={styles.zoneName} numberOfLines={1} adjustsFontSizeToFit>
-          {t(C.zoneFallback)}
+        <Text style={[styles.zoneKicker, { color: tint }]} numberOfLines={1}>
+          {t(isRival ? C.zoneKickerRival : C.zoneKickerMine)}
         </Text>
+        <View style={styles.zoneHeadSpacer} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(C.closeZoneA11y)}
@@ -679,12 +711,24 @@ function RealZonePeek({ zone, onClose }: { zone: MapZoneView; onClose: () => voi
           <Text style={styles.zoneCloseText}>{t(C.closeLabel)}</Text>
         </Pressable>
       </View>
-      <Text style={styles.zoneOwner} numberOfLines={1} adjustsFontSizeToFit>
-        {t(zone.role === 'mine' ? C.zoneOwnerMine : C.zoneOwnerRival)}
+      <Text style={styles.zoneName} numberOfLines={1} adjustsFontSizeToFit>
+        {t(C.zoneFallback)}
       </Text>
-      <Text style={styles.zoneControl} numberOfLines={1}>
-        {zonesLabel(t, zone.zones)} · {formatArea(zone.areaKm2, locale)}
+      <Text style={styles.zoneControl} numberOfLines={1} adjustsFontSizeToFit>
+        {t(isRival ? C.zoneOwnerRival : C.zoneOwnerMine)} · {zonesLabel(t, zone.zones)} ·{' '}
+        {formatArea(zone.areaKm2, locale)}
       </Text>
+      {isRival ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.zoneReprendre)}
+          onPress={reprendre}
+          style={({ pressed }) => [styles.zoneReprendreBtn, pressed && styles.pressed]}
+          testID="zone-reprendre"
+        >
+          <Text style={styles.zoneReprendreLabel}>{t(C.zoneReprendre)}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -922,22 +966,35 @@ const styles = StyleSheet.create({
   // ── PEEK ZONE (§3/§10) ──
   zoneHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   zonePastille: { width: 10, height: 10, borderRadius: 5 },
+  // Kicker de rôle (couleur inline §C) en tête de sheet (E04).
+  zoneKicker: { fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.5 },
+  zoneHeadSpacer: { flex: 1 },
   zoneName: {
-    flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.md, // 16 px
     fontWeight: '800',
     letterSpacing: 0.1,
+    marginTop: 4,
   },
   zoneCloseHit: { minHeight: 32, paddingHorizontal: 6, justifyContent: 'center' },
   zoneCloseText: { color: colors.gris, fontSize: 13, fontWeight: '600' },
-  zoneOwner: { color: colors.blanc, fontSize: 13, fontWeight: '600' },
   zoneControl: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
+  // E04 — CTA REPRENDRE : chartreuse (unique CTA tant que le sheet est ouvert,
+  // GO retiré via useZoneSheetOpen). Libellé NOIR (jamais chartreuse sur clair).
+  zoneReprendreBtn: {
+    marginTop: 12,
+    height: 48,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoneReprendreLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
   zoneActionLine: {
     color: colors.blanc,
     fontSize: 12.5,
