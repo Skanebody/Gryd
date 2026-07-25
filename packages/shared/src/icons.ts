@@ -1,9 +1,9 @@
 /**
- * GRYD — Jeu d'icônes filaires (charte §F : trait 1,5 px, 24×24, pas cartoon).
+ * GRYD — Jeu d'icônes filaires (charte §F : trait 1,8 px, 24×24, pas cartoon).
  * SOURCE UNIQUE des tracés : le mobile (react-native-svg) et le web (SVG)
  * fournissent chacun un rendu fin de ces paths. « Des icônes plutôt que du
  * texte » (décision fondateur 03/07/2026) — réduire la friction de lecture.
- * stroke: couleur courante · strokeWidth 1.5 · linecap/linejoin round · fill none
+ * stroke: couleur courante · strokeWidth 1.8 · linecap/linejoin round · fill none
  * (sauf `filled: true`, réservé aux états actifs).
  */
 

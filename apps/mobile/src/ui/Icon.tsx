@@ -1,5 +1,5 @@
 /**
- * GRYD — icône filaire (charte §F : trait 1,5 px, linecap/join round, 24×24).
+ * GRYD — icône filaire (charte §F : trait 1,8 px, linecap/join round, 24×24).
  * Rend un `IconName` de @klaim/shared (source unique des tracés) via
  * react-native-svg — universel iOS/Android/Web, aucune variante .web.
  * « Des icônes plutôt que du texte » (décision fondateur 03/07/2026).
@@ -29,7 +29,7 @@ export function Icon({ name, size = 24, color, active = false }: IconProps) {
           key={d}
           d={d}
           stroke={color}
-          strokeWidth={1.5}
+          strokeWidth={1.8} // Night Print : icônes monoline 1,8 px, terminaisons arrondies
           strokeLinecap="round"
           strokeLinejoin="round"
           fill={fill}
