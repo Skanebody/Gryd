@@ -1,8 +1,12 @@
 /**
  * GRYD — navigation basse PERSISTANTE : une BARRE D'ONGLETS toujours visible,
- * destinations en 1 tap : Carte · Crew · Moi (Saison hors MVP ; Missions/War Room
- * atteintes depuis « Moi »). Onglet actif = trait chartreuse + icône PLEINE + label
- * gras + accessibilityState selected — jamais la couleur seule.
+ * destinations en 1 tap : Carte · Crew · Profil (Saison hors MVP ; Missions/War
+ * Room atteintes depuis « Profil »). Onglet actif = trait chartreuse + icône
+ * PLEINE + label gras + accessibilityState selected — jamais la couleur seule.
+ *
+ * Les libellés sont RÉSOLUS via i18n (`t(C.tab…)`) : « Profil » colle aux planches
+ * E02/E03/E15 et se traduit dans les 5 langues. « Crew » reste invariant (jamais
+ * traduit). Ils vivaient auparavant en dur (« Moi »), donc jamais traduits.
  *
  * Le DÉPART de course n'est PLUS dans la nav (override fondateur) : c'est un GESTE
  * « glisser pour courir » (SlideToStart) rendu UNIQUEMENT sur la Carte. La barre
@@ -15,6 +19,8 @@ import { colors, fonts, fontSizes, spacing, type IconName } from '@klaim/shared'
 import { Icon } from '../../ui/Icon';
 import { NAV_BAR_HEIGHT } from './metrics';
 import { flags } from '../../lib/flags';
+import { C } from '../../i18n/catalog/nav';
+import { useT } from '../../i18n/store';
 
 interface NavItem {
   label: string;
@@ -22,20 +28,23 @@ interface NavItem {
   icon: IconName;
 }
 
-/** Les destinations de la barre.
- *  D8 : « Saison » n'existe que hors MVP (flags.season) — la surface pilote
- *  est Carte · Crew · Moi ; les scores de saison s'accumulent quand même. */
-const TABS: readonly NavItem[] = [
-  { label: 'Carte', href: '/', icon: 'carte' },
-  { label: 'Crew', href: '/crew', icon: 'crew' },
-  ...(flags.season ? [{ label: 'Saison', href: '/classement', icon: 'classement' } as const] : []),
-  { label: 'Moi', href: '/profil', icon: 'profil' },
-];
-
 export function GrydNavBar() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const t = useT();
+
+  /** Les destinations de la barre — libellés résolus via i18n (« Crew » invariant).
+   *  D8 : « Saison » n'existe que hors MVP (flags.season) — la surface pilote
+   *  est Carte · Crew · Profil ; les scores de saison s'accumulent quand même. */
+  const tabs: readonly NavItem[] = [
+    { label: t(C.tabCarte), href: '/', icon: 'carte' },
+    { label: 'Crew', href: '/crew', icon: 'crew' },
+    ...(flags.season
+      ? [{ label: t(C.tabSaison), href: '/classement', icon: 'classement' } as const]
+      : []),
+    { label: t(C.tabMoi), href: '/profil', icon: 'profil' },
+  ];
 
   const go = (href: string) => {
     if (pathname !== href) router.navigate(href);
@@ -68,7 +77,7 @@ export function GrydNavBar() {
 
   // Barre d'onglets persistante — ancrée au bord bas, pleine largeur, onglets réguliers.
   return (
-    <View style={[styles.bar, { paddingBottom: insets.bottom }]}>{TABS.map(renderTab)}</View>
+    <View style={[styles.bar, { paddingBottom: insets.bottom }]}>{tabs.map(renderTab)}</View>
   );
 }
 
