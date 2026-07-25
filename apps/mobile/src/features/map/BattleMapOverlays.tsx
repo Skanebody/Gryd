@@ -38,12 +38,7 @@ import type { Entry, Locale } from '../../i18n/types';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Icon } from '../../ui/Icon';
-import {
-  FloatingMapButton,
-  Map3DToggle,
-  MapBottomSheet,
-  type MapSheetState,
-} from '../../ui/game';
+import { Map3DToggle, MapBottomSheet, type MapSheetState } from '../../ui/game';
 import { RUN_BUTTON_BOTTOM } from '../nav/metrics';
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
@@ -445,21 +440,29 @@ export function BattleMapOverlays({
             onToggleHud={toggleHud}
           />
         ) : null}
-        {/* RECENTRER — permanent : « où suis-je ? » se répond en 1 tap, à une main,
-            en courant. Referme le menu Calques s'il est ouvert. */}
-        <FloatingMapButton
-          icon="gps"
-          accessibilityLabel={t(C.recenterA11y)}
-          onPress={recenterAndClose}
-        />
-        {/* CALQUES — permanent, déclencheur DIRECT du menu Calques (1 tap ouvre,
-            re-tap referme). Actif = menu ouvert. Reste visible en carte nue. */}
-        <FloatingMapButton
-          icon="calques"
-          accessibilityLabel={t(C.layersFabA11y)}
-          active={layersOpen}
-          onPress={toggleLayers}
-        />
+        {/* CAPSULE (planche E02/E03) : les 2 FABs permanents groupés dans une
+            capsule arrondie — Recentrer en haut, séparateur, Calques en bas.
+            « Où suis-je ? » et « Calques » en 1 tap, à une main, en courant. */}
+        <View style={styles.fabCapsule}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.recenterA11y)}
+            onPress={recenterAndClose}
+            style={({ pressed }) => [styles.fabCell, pressed && styles.pressed]}
+          >
+            <Icon name="gps" size={iconSizes.md} color={colors.blanc} />
+          </Pressable>
+          <View style={styles.fabDivider} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.layersFabA11y)}
+            accessibilityState={{ selected: layersOpen }}
+            onPress={toggleLayers}
+            style={({ pressed }) => [styles.fabCell, pressed && styles.pressed]}
+          >
+            <Icon name="calques" size={iconSizes.md} color={layersOpen ? colors.chartreuse : colors.blanc} />
+          </Pressable>
+        </View>
       </View>
 
       {/* ── Sheet du bas : la sheet de ZONE tapée REMPLACE le peek mission
@@ -873,6 +876,17 @@ const styles = StyleSheet.create({
 
   // ── FAB column : 2 MAX (Calques + Recentrer) ──
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
+  // Capsule des 2 FABs (planche) : un seul contenant arrondi, 2 cellules + séparateur.
+  fabCapsule: {
+    width: 44,
+    borderRadius: 22,
+    backgroundColor: colors.carbone,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    overflow: 'hidden',
+  },
+  fabCell: { height: 44, alignItems: 'center', justifyContent: 'center' },
+  fabDivider: { height: 1, backgroundColor: colors.grisLigne },
 
   // ── Menu Calques (fond + vue + calques de lecture) — ScrollView plafonné ──
   layerMenu: {
