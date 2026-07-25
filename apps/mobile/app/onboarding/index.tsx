@@ -91,7 +91,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { useT } from '../../src/i18n/store';
@@ -1009,6 +1009,7 @@ const styles = StyleSheet.create({
   // (jamais sur clair), très espacée — elle se lit comme un logo, pas un titre.
   brand: {
     color: colors.chartreuse,
+    fontFamily: fonts.displayBold, // Inter Tight — signe la page
     fontSize: fontSizes.sm,
     fontWeight: '700',
     letterSpacing: 3.5,
@@ -1021,6 +1022,7 @@ const styles = StyleSheet.create({
 
   kicker: {
     color: colors.gris,
+    fontFamily: fonts.mono, // JetBrains Mono — étiquette Night Print
     fontSize: fontSizes.xs,
     letterSpacing: 2.5,
     marginBottom: 14,
@@ -1028,16 +1030,18 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.blanc,
-    fontSize: fontSizes.xl,
-    fontWeight: '700',
-    letterSpacing: -0.6,
-    lineHeight: fontSizes.xl * 1.14,
+    fontFamily: fonts.display, // Inter Tight 800 — Display Night Print
+    fontSize: fontSizes.xl, // 28 — sûr sur tous les pas de l'onboarding (titres variables)
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    lineHeight: fontSizes.xl * 1.12,
   },
   tagline: {
     color: colors.gris,
+    fontFamily: fonts.text, // Inter — Body 16/22 secondary
     fontSize: fontSizes.md,
-    lineHeight: fontSizes.md * 1.5,
-    marginTop: 14,
+    lineHeight: fontSizes.md * 1.4,
+    marginTop: 16,
   },
   // Notes d'honnêteté (confidentialité, GPS, pré-permission) : discrètes, jamais
   // sous 12 px, grises — ce ne sont pas des actions.
@@ -1068,7 +1072,7 @@ const styles = StyleSheet.create({
   // En attente de la décision de l'écran (ville non choisie) : atténué, et
   // annoncé comme désactivé aux lecteurs d'écran.
   ctaDisabled: { opacity: 0.35 },
-  ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
+  ctaLabel: { color: colors.noir, fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
   pressed: { opacity: 0.85 },
 
   // Bouton secondaire ghost (bordure gris-ligne, texte blanc).
@@ -1081,7 +1085,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: spacing.sm,
   },
-  ghostLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
+  ghostLabel: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: fontSizes.md, fontWeight: '500' },
 
   // Lien secondaire (porte de connexion, « Plus tard ») — cible ≥ 44 px.
   link: {
@@ -1090,7 +1094,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingVertical: spacing.sm,
   },
-  linkLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '500' },
+  linkLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm, fontWeight: '500' },
   linkUnderline: { textDecorationLine: 'underline' },
 
   // ── Cartes pédagogiques : le plateau de démonstration ──
@@ -1099,7 +1103,8 @@ const styles = StyleSheet.create({
   boardWrap: { alignSelf: 'center', marginTop: spacing.md, marginBottom: spacing.xxs },
 
   // ── Ville : recherche + liste ──
-  input: {
+    input: {
+    fontFamily: fonts.text,
     height: 48,
     marginTop: spacing.md,
     paddingHorizontal: spacing.md,
@@ -1110,8 +1115,9 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontSize: fontSizes.md,
   },
-  listLabel: {
+    listLabel: {
     color: colors.gris,
+    fontFamily: fonts.textSemi,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
     marginTop: spacing.md,
@@ -1131,18 +1137,19 @@ const styles = StyleSheet.create({
   // clair), et le nom passe en blanc plein — l'état ne tient pas à la seule
   // couleur, il est aussi annoncé par `accessibilityState`.
   cityRowSelected: { borderColor: colors.chartreuse, backgroundColor: colors.chartreuse14 },
-  cityName: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '500' },
+    cityName: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: fontSizes.md, fontWeight: '500' },
   cityNameSelected: { fontWeight: '700' },
 
   // ── Profil ──
-  fieldLabel: {
+    fieldLabel: {
     color: colors.gris,
+    fontFamily: fonts.textSemi,
     fontSize: fontSizes.xs,
     letterSpacing: 2,
     marginTop: spacing.lg,
     marginBottom: spacing.xs,
   },
-  recap: { color: colors.blanc, fontSize: fontSizes.sm, marginTop: spacing.md },
+    recap: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.sm, marginTop: spacing.md },
 
   // ── Age / compte : hero icône ──
   iconHero: { alignItems: 'center', marginBottom: 26 },
