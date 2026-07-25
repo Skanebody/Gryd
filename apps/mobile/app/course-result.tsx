@@ -30,6 +30,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
+  fonts,
   fontSizes,
   gameColors,
   iconSizes,
@@ -1112,6 +1113,7 @@ const styles = StyleSheet.create({
   noResultTitle: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     marginTop: spacing.md,
   },
@@ -1140,6 +1142,7 @@ const styles = StyleSheet.create({
   barKicker: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 2,
   },
@@ -1154,6 +1157,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 2,
     textAlign: 'center',
@@ -1162,6 +1166,7 @@ const styles = StyleSheet.create({
   heroPioneerSub: {
     color: colors.chartreuse,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 1,
     textAlign: 'center',
@@ -1170,12 +1175,14 @@ const styles = StyleSheet.create({
   heroKpiLabel: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 4,
   },
   heroLine: {
     color: colors.chartreuse,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -1183,6 +1190,7 @@ const styles = StyleSheet.create({
   heroWhy: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -1226,12 +1234,14 @@ const styles = StyleSheet.create({
   impactTotalLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 2,
   },
   impactTotalValue: {
     color: colors.chartreuse,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
@@ -1266,6 +1276,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
   },
   calcBody: { gap: spacing.md, paddingTop: spacing.xxs },
@@ -1280,6 +1291,7 @@ const styles = StyleSheet.create({
   calcZoneValue: {
     color: colors.blanc,
     fontSize: fontSizes.md,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
@@ -1299,6 +1311,7 @@ const styles = StyleSheet.create({
   stepKicker: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 2,
   },
@@ -1314,6 +1327,7 @@ const styles = StyleSheet.create({
   summaryKicker: {
     color: colors.chartreuse,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 2,
   },
@@ -1327,6 +1341,7 @@ const styles = StyleSheet.create({
   validatedTitle: {
     color: colors.blanc,
     fontSize: fontSizes.xl,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 1.5,
     textAlign: 'center',
@@ -1337,6 +1352,7 @@ const styles = StyleSheet.create({
   zonesHero: {
     color: colors.chartreuse,
     fontSize: fontSizes.hero,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: -1,
     fontVariant: ['tabular-nums'],
@@ -1344,6 +1360,7 @@ const styles = StyleSheet.create({
   zonesLabel: {
     color: colors.blanc,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 2,
   },
@@ -1352,6 +1369,7 @@ const styles = StyleSheet.create({
   zonesLoop: {
     color: colors.chartreuse,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 0.5,
     fontVariant: ['tabular-nums'],
@@ -1361,6 +1379,7 @@ const styles = StyleSheet.create({
   crewKpi: {
     color: colors.chartreuse,
     fontSize: fontSizes.xxl,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
@@ -1368,6 +1387,7 @@ const styles = StyleSheet.create({
   crewKpiLabel: {
     color: colors.blanc,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 1.5,
   },
@@ -1381,6 +1401,7 @@ const styles = StyleSheet.create({
   statsHero: {
     color: colors.blanc,
     fontSize: fontSizes.xxl,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
@@ -1390,12 +1411,14 @@ const styles = StyleSheet.create({
   miniStatValue: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
   miniStatLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     letterSpacing: 1,
   },
@@ -1404,6 +1427,7 @@ const styles = StyleSheet.create({
   miniStatNote: {
     color: colors.gris,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontStyle: 'italic',
     marginTop: 1,
@@ -1483,6 +1507,7 @@ const styles = StyleSheet.create({
   boundaryKicker: {
     color: colors.chartreuse,
     fontSize: fontSizes.xs,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: 2,
   },
@@ -1491,6 +1516,7 @@ const styles = StyleSheet.create({
   boundaryMissing: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700', lineHeight: 26 },
   boundaryMissingAccent: {
     color: colors.chartreuse,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
@@ -1498,6 +1524,7 @@ const styles = StyleSheet.create({
   boundaryMeta: {
     color: colors.gris,
     fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -1524,6 +1551,7 @@ const styles = StyleSheet.create({
   boundaryZoneHero: {
     color: colors.chartreuse,
     fontSize: fontSizes.xxl,
+    fontFamily: fonts.display,
     fontWeight: '800',
     letterSpacing: -0.5,
     textAlign: 'center',
@@ -1550,6 +1578,7 @@ const styles = StyleSheet.create({
   contribPct: {
     color: colors.chartreuse,
     fontSize: fontSizes.lg,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
