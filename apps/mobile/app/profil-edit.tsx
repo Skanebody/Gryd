@@ -199,7 +199,7 @@ export default function ProfilEditScreen() {
    * (`usePrivacyPrefs().profileVisibility`) ; on ne duplique pas le réglage, on
    * l'affiche et on RENVOIE vers son seul et unique endroit (planche E21).
    */
-  const { prefs: privacyPrefs } = usePrivacyPrefs();
+  const { prefs: privacyPrefs, loading: privacyLoading } = usePrivacyPrefs();
   const visLabel = t(
     { public: C.visPublic, crew: C.visCrew, friends: C.visFriends, private: C.visPrivate }[
       privacyPrefs.profileVisibility
@@ -319,7 +319,7 @@ export default function ProfilEditScreen() {
 
   const onSave = () => {
     if (!canSave) return;
-    // InlineRunCTA déclenche déjà haptics au press.
+    haptics.light();
     void save({
       displayName: displayName.trim(),
       handle: handle.trim(),
@@ -517,9 +517,15 @@ export default function ProfilEditScreen() {
         <Text style={styles.visRowLabel} numberOfLines={1}>
           {t(C.fieldProfileVisibility)}
         </Text>
-        <Text style={styles.visRowValue} numberOfLines={1}>
-          {visLabel}
-        </Text>
+        {/* ANTI-FLASH : tant que la lecture AsyncStorage n'a pas abouti, on
+            n'affirme AUCUN périmètre. Sinon la valeur par DÉFAUT (`public`, la
+            plus permissive) clignoterait à la place du vrai réglage — un mensonge
+            d'une demi-seconde, et dans la mauvaise direction pour la vie privée. */}
+        {privacyLoading ? null : (
+          <Text style={styles.visRowValue} numberOfLines={1}>
+            {visLabel}
+          </Text>
+        )}
         <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
       </Pressable>
       <Text style={styles.hint}>{t(C.visibilityLivesInPrivacy)}</Text>
