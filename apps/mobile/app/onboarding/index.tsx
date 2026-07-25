@@ -123,6 +123,7 @@ import {
   CITY_CTA_LABEL_MAX,
   MECHANIC,
   NAV,
+  ONB_SKIP,
   PROFILE,
   RIVALRY,
   SIGN_IN_DOOR,
@@ -294,13 +295,13 @@ export default function OnboardingScreen() {
   if (step === 'mechanic') {
     return (
       <E01Hero
-        brand={BRAND}
         title={t(MECHANIC.title)}
         tagline={t(MECHANIC.tagline)}
         cta={t(MECHANIC.cta)}
-        signInLabel={configured ? t(SIGN_IN_DOOR) : undefined}
+        streetLabel={t(MECHANIC.street)}
+        skipLabel={t(ONB_SKIP)}
         onNext={() => go('rivalry')}
-        onSignIn={() => finish('/sign-in')}
+        onSkip={() => finish('/sign-in')}
         insets={insets}
         stepIndex={0}
         stepCount={5}

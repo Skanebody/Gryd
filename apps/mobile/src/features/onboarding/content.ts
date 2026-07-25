@@ -257,7 +257,12 @@ export const MECHANIC = {
   /** a11y du visuel tapable — absent en mouvement réduit (rien à rejouer). */
   demoReplay: C.demoReplay,
   cta: C.ctaContinue,
+  /** Label posé sur la photo E01 (« VOTRE RUE ») — planche Claude Design. */
+  street: C.mechanicStreet,
 } as const;
+
+/** « Passer » de l'onboarding (planche E01, haut à droite). */
+export const ONB_SKIP = C.onbSkip;
 
 /**
  * Carte 2 — LA RIVALITÉ : la réponse à « pourquoi revenir ? ». C'est ICI que le

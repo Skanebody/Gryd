@@ -1,70 +1,80 @@
 /**
- * GRYD — E01 Onboarding « promesse » (planche Vague 1, direction Night Print).
- * Photo plein cadre (coureur/crew, lever du jour) + voile carbone bas pour la
- * lisibilité, puis la PROMESSE : titre Display + une phrase + un CTA. Aucune card,
- * pas de téléphone flottant, pas de pavé (interdits §14). Le dégradé est
- * FONCTIONNEL (lisibilité du texte), jamais décoratif.
+ * GRYD — E01 Onboarding « promesse » — REPRODUCTION FIDÈLE de la planche Claude
+ * Design (GRYD - Vague 1 Planches, hi-fi iOS 390×844). Composition exacte de la
+ * planche :
+ *   · photo plein cadre (coureur solo, lever du jour, espace négatif bas) ;
+ *   · label chartreuse « VOTRE RUE » posé au tiers ~44 % (la rue = le territoire) ;
+ *   · voile bas dégradé à partir de 38 % (transparent → carbone) pour la lisibilité ;
+ *   · « Passer » discret en haut à droite ;
+ *   · bloc bas : titre Inter Tight 40/44, sous-titre 16/22, CTA « CONTINUER »
+ *     (56 pt, radius 18, chartreuse/noir), puis 5 points d'étape (actif 16 px).
  *
- * ⚠ L'ASSET PHOTO. `assets/onboarding/e01-crew.png` est un PLACEHOLDER carbone tant
- * que la vraie photo n'est pas déposée (le fondateur remplace ce fichier). Le
- * layout est prêt : dès que la photo est là, elle s'affiche sous le voile.
+ * ⚠ L'ASSET PHOTO reste un PLACEHOLDER carbone (`assets/onboarding/e01-crew.png`)
+ * tant que le fondateur ne dépose pas la vraie photo (même chemin/nom).
  *
- * Rendu plein écran (bypass de l'en-tête commun de l'onboarding) — voir le
- * early-return `step === 'mechanic'` dans app/onboarding/index.tsx.
+ * Rendu plein écran (bypass de l'en-tête onboarding) — early-return `step ===
+ * 'mechanic'` dans app/onboarding/index.tsx.
  */
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { EdgeInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, radii, spacing } from '@klaim/shared';
 
 // Photo E01. Placeholder carbone jusqu'à ce que le vrai visuel soit déposé ici.
 const E01_PHOTO = require('../../../assets/onboarding/e01-crew.png');
 
 export interface E01HeroProps {
-  brand: string;
   title: string;
   tagline: string;
   cta: string;
-  signInLabel?: string;
+  /** Label posé sur la photo (« VOTRE RUE ») — enseigne le concept. */
+  streetLabel: string;
+  /** « Passer » en haut à droite (saute l'onboarding). */
+  skipLabel: string;
   onNext: () => void;
-  onSignIn?: () => void;
+  onSkip: () => void;
   insets: EdgeInsets;
-  /** Étape courante (0-indexée) et total, pour l'indicateur discret. */
+  /** Étape courante (0-indexée) et total, pour les points d'étape. */
   stepIndex: number;
   stepCount: number;
 }
 
 export function E01Hero({
-  brand,
   title,
   tagline,
   cta,
-  signInLabel,
+  streetLabel,
+  skipLabel,
   onNext,
-  onSignIn,
+  onSkip,
   insets,
   stepIndex,
   stepCount,
 }: E01HeroProps) {
   return (
     <ImageBackground source={E01_PHOTO} resizeMode="cover" style={styles.root}>
-      {/* Voile carbone bas — fonctionnel (contraste ≥ 7:1 sur le texte). Empilé
-          en 3 paliers pour un dégradé sans dépendance (expo-linear-gradient absent). */}
+      {/* Label « VOTRE RUE » sur la photo (~44 % de hauteur), chartreuse discret. */}
+      <View pointerEvents="none" style={styles.streetWrap}>
+        <Text style={styles.streetLabel}>{streetLabel}</Text>
+      </View>
+
+      {/* Voile bas dégradé à partir de 38 % — fonctionnel (lisibilité), empilé en
+          paliers (expo-linear-gradient absent) : transparent → carbone plein. */}
       <View pointerEvents="none" style={[styles.scrim, styles.scrim1]} />
       <View pointerEvents="none" style={[styles.scrim, styles.scrim2]} />
       <View pointerEvents="none" style={[styles.scrim, styles.scrim3]} />
 
-      {/* Marque discrète en haut (signe la page, ne domine pas). */}
-      <View style={[styles.top, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={styles.brand}>{brand}</Text>
-      </View>
+      {/* « Passer » en haut à droite. */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={onSkip}
+        hitSlop={8}
+        style={({ pressed }) => [styles.skip, { top: insets.top + spacing.sm }, pressed && styles.pressed]}
+      >
+        <Text style={styles.skipLabel}>{skipLabel}</Text>
+      </Pressable>
 
-      {/* Contenu : indicateur, titre, phrase, CTA — en zone pouce. */}
-      <View style={[styles.content, { paddingBottom: insets.bottom + spacing.md }]}>
-        <View style={styles.dots}>
-          {Array.from({ length: stepCount }).map((_, i) => (
-            <View key={i} style={[styles.dot, i === stepIndex && styles.dotActive]} />
-          ))}
-        </View>
+      {/* Bloc bas : titre → sous-titre → CTA → points d'étape. */}
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.lg }]}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.tagline}>{tagline}</Text>
         <Pressable
@@ -74,69 +84,69 @@ export function E01Hero({
         >
           <Text style={styles.ctaLabel}>{cta}</Text>
         </Pressable>
-        {signInLabel && onSignIn ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onSignIn}
-            style={({ pressed }) => [styles.link, pressed && styles.pressed]}
-          >
-            <Text style={styles.linkLabel}>{signInLabel}</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.dots}>
+          {Array.from({ length: stepCount }).map((_, i) => (
+            <View key={i} style={[styles.dot, i === stepIndex && styles.dotActive]} />
+          ))}
+        </View>
       </View>
     </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.carbonImmersive, justifyContent: 'space-between' },
-  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  // Trois paliers de voile carbone (du plus haut/léger au plus bas/dense).
-  scrim1: { height: '70%', backgroundColor: 'rgba(6,8,7,0.30)' },
-  scrim2: { height: '46%', backgroundColor: 'rgba(6,8,7,0.55)' },
-  scrim3: { height: '26%', backgroundColor: 'rgba(6,8,7,0.82)' },
+  root: { flex: 1, backgroundColor: colors.carbonImmersive },
 
-  top: { paddingHorizontal: spacing.lg },
-  brand: {
+  // « VOTRE RUE » — au tiers ~44 % (planche : y≈370/844).
+  streetWrap: { position: 'absolute', top: '43%', left: 0, right: 0, alignItems: 'center' },
+  streetLabel: {
     color: colors.chartreuse,
-    fontFamily: fonts.displayBold,
-    fontSize: fontSizes.sm,
-    fontWeight: '700',
-    letterSpacing: 3.5,
+    fontFamily: fonts.textSemi,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 2,
   },
 
-  content: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-  dots: { flexDirection: 'row', gap: 6, marginBottom: spacing.xs },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.blanc35 },
-  dotActive: { width: 18, backgroundColor: colors.chartreuse },
+  // Voile bas : à partir de ~38 % (donc hauteur 62 %), de plus en plus dense.
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  scrim1: { height: '62%', backgroundColor: 'rgba(6,8,7,0.25)' },
+  scrim2: { height: '40%', backgroundColor: 'rgba(6,8,7,0.55)' },
+  scrim3: { height: '22%', backgroundColor: colors.carbonImmersive },
 
-  // Display 40 (Night Print) — capitales ≤ 4 mots, 2 lignes.
+  skip: { position: 'absolute', right: spacing.md, paddingHorizontal: 12, paddingVertical: 8 },
+  skipLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: 14, fontWeight: '500' },
+
+  bottom: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: 0, gap: 14 },
+  // Titre Inter Tight 40 / interligne 44 / -0,01em (planche).
   title: {
     color: colors.blanc,
     fontFamily: fonts.display,
-    fontSize: fontSizes.xxl,
+    fontSize: 40,
     fontWeight: '800',
-    letterSpacing: -1,
-    lineHeight: fontSizes.xxl * 1.02,
+    letterSpacing: -0.4,
+    lineHeight: 44,
   },
   tagline: {
     color: colors.gris,
     fontFamily: fonts.text,
-    fontSize: fontSizes.md,
-    lineHeight: fontSizes.md * 1.4,
-    marginBottom: spacing.xs,
+    fontSize: 16,
+    lineHeight: 22,
+    maxWidth: 320,
   },
-
+  // CTA plein chartreuse, radius 18 (btn), libellé noir (jamais chartreuse sur clair).
   cta: {
+    marginTop: 4,
+    height: 56,
+    borderRadius: radii.btn,
+    backgroundColor: colors.chartreuse,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
   },
-  ctaLabel: { color: colors.noir, fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '700', letterSpacing: 0.2 },
+  ctaLabel: { color: colors.noir, fontFamily: fonts.textBold, fontSize: 16, fontWeight: '700', letterSpacing: 0.2 },
   pressed: { opacity: 0.85 },
 
-  link: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingVertical: spacing.xs },
-  linkLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm, fontWeight: '500', textDecorationLine: 'underline' },
+  // Points d'étape SOUS le CTA (planche) : actif 16 px chartreuse, inactifs 5 px.
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 2 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.grisLigne },
+  dotActive: { width: 16, backgroundColor: colors.chartreuse },
 });

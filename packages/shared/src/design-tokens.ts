@@ -78,7 +78,7 @@ export const fontSizes = { xs: 12, sm: 14, md: 16, lg: 20, xl: 28, xxl: 40, hero
  * ferme les 134 littéraux (les paliers 8 et 12 n'avaient pas de nom → 14 rayons
  * de fait). `card`/`pill` inchangés (rétro-compat).
  */
-export const radii = { sm: 8, control: 12, card: 20, pill: 999 } as const;
+export const radii = { sm: 8, control: 12, btn: 18, card: 20, sheet: 28, pill: 999 } as const;
 
 /**
  * Échelle d'espacement sur grille 4 px (audit UI 2026). AVANT : `cardPadding`

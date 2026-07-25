@@ -253,6 +253,22 @@ export const C = defineCatalog({
     de: 'Jede geschlossene Runde kann dein Gebiet werden.',
     pt: 'Cada circuito fechado pode tornar-se o teu território.',
   },
+  // Label posé sur la photo E01 (planche Claude Design) — « votre rue » = le territoire.
+  mechanicStreet: {
+    fr: 'VOTRE RUE',
+    en: 'YOUR STREET',
+    es: 'TU CALLE',
+    de: 'DEINE STRASSE',
+    pt: 'A TUA RUA',
+  },
+  // « Passer » (haut à droite, planche E01) — saute l'onboarding.
+  onbSkip: {
+    fr: 'Passer',
+    en: 'Skip',
+    es: 'Saltar',
+    de: 'Überspringen',
+    pt: 'Pular',
+  },
 
   // ─── CARTE 2 — RIVALITÉ ────────────────────────────────────────────────────
   // Le CREW entre ICI, et pas avant : sur la carte 1, un joueur qui découvre le
