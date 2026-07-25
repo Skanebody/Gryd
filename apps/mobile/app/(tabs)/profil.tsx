@@ -1,50 +1,68 @@
 /**
- * GRYD — onglet Profil COMPACT (AMENDEMENT-17 §1.3). Un écran = une identité :
- * la carte de joueur (nom · titre · niveau · ville · crew — ≤ 3 infos en
- * surface) porte deux actions sobres — [Partager] / [Modifier profil],
- * JAMAIS un GO, jamais « Ajouter » sur SON propre profil. Puis les modules,
- * ordre AMENDEMENT-17 : Territoire (résumé stratégique — il porte le SEUL CTA
- * chartreuse de l'écran, contextuel Défendre/Conquérir) → Progression → Badges
- * (3 équipés + « Voir collection ») → Spécialisations. Les listes longues
- * descendent en liens vers des pages dédiées ; « Confidentialité & géoloc » y
- * est un accès DIRECT à 1 tap (confiance visible, distinct de Paramètres).
- * Niveau/tier/rang DÉRIVÉS des règles réelles (features/crew/rules) — aucun
- * nombre magique local. Zéro position live.
+ * GRYD — onglet Profil, RECALÉ SUR LA PLANCHE E15 « Profil joueur » (25/07/2026).
  *
- * RETOUR TERRAIN 20/07 (« le bloc du haut, rien n'est aligné » · « trop de
- * scroll, pas assez intuitif » · « le raccourci fait doublon avec Paramètres ») :
- *  1. Le pseudo n'est plus affiché DEUX fois (titre d'écran + card) — le titre
- *     d'écran est le nom de la page (« Moi ») et l'identité vit dans UNE grille :
- *     avatar 72 │ colonne (nom · @handle · titre · niveau/ville), crew en pleine
- *     largeur dessous, puis un bandeau de 3 chiffres à colonnes égales en
- *     tabular-nums (§A r.17 : niveau · rang · zones tenues).
- *  2. SPÉCIALISATIONS (8 familles) est un ACCORDÉON replié par défaut — le
- *     compteur « n/8 » reste visible en surface, le détail est au tap (§A).
- *  3. RACCOURCIS perd ses 4 doublons du bouton Paramètres (Arsenal, Sources,
- *     Support, Paramètres — tous dans /parametres) et ses sous-titres : 10 rows
- *     à 2 étages → 4-6 rows à 1 étage.
+ * ─── CE QUE LA PLANCHE CHANGE ───────────────────────────────────────────────
+ * Le Profil n'est plus un TABLEAU DE STATISTIQUES, c'est une CARTE DE VISITE
+ * TERRITORIALE. L'œil descend : identité → preuve → carte → progression, puis
+ * des previews scannables vers les pages de collection. Composition imposée,
+ * de haut en bas :
+ *   1. HÉROS 210 pt (photo ou avatar généré) + pilule « Modifier » en haut-droite ;
+ *   2. identité posée sur le bas du héros : avatar + pastille NIV., nom, @handle,
+ *      ligne « CREW · ville · #rang », pastille de VISIBILITÉ (→ Confidentialité) ;
+ *   3. QUATRE métriques MAX en UN bloc à séparateurs (jamais 4 cards), dont UNE
+ *      seule mise en avant : la surface contrôlée ;
+ *   4. card CARTE SIGNATURE 164 pt — la preuve territoriale personnelle ;
+ *   5. progression en UNE ligne (GRIP · niveau · rang · XP · jauge) ;
+ *   6. previews en LIGNES (activité récente · badges · historique) — les
+ *      collections complètes vivent dans leurs pages.
  *
- * RETOUR FONDATEUR précédent : « pas trouvé les boutons pour modifier le profil » → la
- * card porte DEUX affordances d'édition ÉVIDENTES (bouton plein « Modifier mon
- * profil » + crayon sur l'avatar) vers /profil-edit. L'IDENTITÉ affichée (nom,
- * titre, ville, avatar, badges) vient du profil ÉDITABLE persisté (useMyProfile)
- * → toute édition se reflète immédiatement au retour. Le FRAME cosmétique équipé
- * (possédé, useArsenalInventory) est rendu autour de l'avatar : équiper a un effet réel.
+ * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
+ *  · La player card compacte (avatar 72 + grille d'alignement optique) : le
+ *    héros la remplace. Les trois passes d'alignement qu'elle documentait
+ *    portaient sur une composition qui n'existe plus.
+ *  · Le bandeau « Niveau · #Rang · Badges » : remplacé par les 4 métriques de la
+ *    planche, qui disent le TERRITOIRE (la matière du jeu) au lieu du méta.
+ *  · TerritoryWidgetCard + la ligne « Prochaine mission » : le widget portait le
+ *    seul gros CTA chartreuse de l'écran. La planche E15 n'en a AUCUN — un
+ *    profil ne se joue pas, il se lit. L'action contextuelle et la prochaine
+ *    mission vivent sur la Carte, où elles sont utiles. SEULE exception : le
+ *    compte NEUF, dont les métriques sont remplacées par la PREMIÈRE MISSION
+ *    (jamais quatre zéros alignés), qui porte alors l'unique CTA de l'écran.
+ *  · La ligne « #N à {ville} · {delta} pts » : le rang local remonte dans la
+ *    ligne d'identité (planche), il n'est plus répété plus bas.
+ *  · La rangée « série ×mult · badges débloqués » de la card Progression : la
+ *    série RÉELLE reste rendue par StreakBlock sur /aujourdhui et au post-run,
+ *    les badges par la preview dédiée. Rien n'est perdu, rien n'est dupliqué.
+ *
+ * ─── CE QUI N'A PAS ÉTÉ CONSTRUIT (déclaré, pas maquillé) ───────────────────
+ *  · VARIANTE « PROFIL PUBLIC » : inconstructible aujourd'hui. Aucune route de
+ *    profil d'autrui, aucune lecture du profil d'un tiers (profileStore est un
+ *    AsyncStorage LOCAL), aucun moteur de « confrontations », aucune vue serveur
+ *    de badges publics ; DÉFIER n'existe qu'au post-run et Suivre n'existe pas.
+ *    La bâtir reviendrait à peindre un écran entier de faux + 4 boutons morts.
+ *  · COMMUTATEUR RUN/BIKE : contrôle mort absolu. Le moteur de validation GPS
+ *    REJETTE explicitement le pédalage (features/run/gps/engine/validation.ts) :
+ *    l'onglet « Bike » n'aurait jamais aucune donnée, dans aucun état.
+ *  · « +18 % » / « 24,6 km cette semaine » : aucune source de tendance ni
+ *    d'agrégat hebdomadaire n'existe sur cet écran. Non peints.
+ *
+ * ─── ZÉRO MENSONGE (inchangé, renforcé) ─────────────────────────────────────
+ * Quatre états distincts, jamais confondus : pas de compte / connecté mais vide /
+ * échec de lecture / lecture EN COURS. Un chargement n'affirme rien : le nom,
+ * la pastille de niveau et la pastille de visibilité ne s'affichent QU'UNE FOIS
+ * LUS (leurs stores ont des défauts — « Coureur », « Public » — qui mentiraient
+ * pendant la fenêtre d'hydratation).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { TerritoryWidgetCard } from '../../src/features/widget/TerritoryWidgetCard';
-import { buildRealWidgetView } from '../../src/features/widget/territoryWidget';
-import { getLastRunResult } from '../../src/features/run/runResult';
+import { formatKm2 } from '../../src/features/widget/territoryWidget';
 import {
   BADGE_TIER_RANK,
   PLAYER_LEVEL_MAX,
   SKILLS,
   SKILL_ROMAN,
-  STREAK_MULTIPLIER_CAP,
-  STREAK_MULTIPLIER_STEP,
   badgeKeyByName,
   borderState,
   colors,
@@ -75,20 +93,21 @@ import {
 } from '../../src/features/crew/rules';
 import { useRealTerritories } from '../../src/features/map/hexClaims';
 import { useRealCrew } from '../../src/features/crew/real';
-import { useRealMission } from '../../src/features/mission/useRealMission';
 import { GripMascot } from '../../src/features/social/GripMascot';
-import { PlayerCardAvatar } from '../../src/features/social/PlayerCardAvatar';
+import { ProfileHero } from '../../src/features/social/ProfileHero';
+import { SignatureMapCard } from '../../src/features/social/SignatureMapCard';
+import { useMyLastActivity } from '../../src/features/social/lastActivity';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
 import { useMyEconomy } from '../../src/features/social/economy';
 import { useSeasonLeaderboard } from '../../src/features/social/leagueBoard';
 import { seasonRankProgress } from '../../src/features/social/league';
+import { usePrivacyPrefs } from '../../src/features/privacy/store';
 import { useArsenalInventory, itemByKey, isTitleItem } from '../../src/features/arsenal';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { flags } from '../../src/lib/flags';
 import type { Entry } from '../../src/i18n/types';
-import { useT } from '../../src/i18n/store';
+import { useLocale, useT } from '../../src/i18n/store';
 import { C } from '../../src/i18n/catalog/profil';
-import { C as M } from '../../src/i18n/catalog/mission';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
@@ -96,117 +115,39 @@ import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { TabScreen } from '../../src/ui/TabScreen';
-import { formatInt, formatMultiplier } from '../../src/ui/format';
-import { IconAction, ShareCard } from '../../src/ui/game';
-import {
-  BODY_R,
-  BODY_STROKE,
-  HEX_ASPECT,
-  hexAvatarWidth,
-} from '../../src/ui/game/hexAvatar';
+import { decimalSeparator, formatInt } from '../../src/ui/format';
+import { ShareCard } from '../../src/ui/game';
 
-/**
- * ─── VITRINE vs VRAI PRODUIT SUR CET ÉCRAN (21/07/2026) ──────────────────────
- *
- * Cet écran était gouverné par `realUser = configured && !!session` : « pas de
- * session ⇒ montre la démo ». Sur un iPhone fraîchement installé, ou dans un
- * build où Supabase n'est pas configuré, l'utilisateur atterrissait donc sur un
- * profil ENTIÈREMENT fabriqué — crew « LES FOULÉES 9³», rang #8 de saison,
- * 168 km parcourus, 20 badges, un territoire « Paris 42 · Lille 13 ». Tout est
- * faux, et rien ne le disait.
- *
- * La règle est maintenant celle du reste de l'app, et le mode vitrine est
- * ABANDONNÉ (décision fondateur 21/07/2026) : partout — app installée comme
- * localhost — on affiche du RÉEL, ou un état vide qui DIT ce qui manque et
- * propose une suite. Il n'existe plus de branche « démo » sur cet écran.
- *
- * Les trois absences restent distinctes : pas de compte (invite à se connecter),
- * compte sans donnée (invite à courir), lecture en échec (le dit + réessayer).
- */
-
-/**
- * ── GRILLE EXPLICITE DE L'EN-TÊTE (3ᵉ passe, retour fondateur : « il y a
- *    toujours un problème d'alignement dans la partie Moi en haut ») ────────────
- *
- * Mesuré à 375 pt, les passes précédentes avaient réglé le bord GAUCHE (1ʳᵉ) et
- * la dépendance à la langue par `flex-start` (2ᵉ). Ce qui restait cassé :
- *
- *  A. L'AVATAR ET L'IDENTITÉ N'ONT PAS DE REPÈRE DE LIGNE COMMUN. La 2ᵉ passe
- *     avait posé l'avatar en `flex-start` : son BORD HAUT s'alignait sur le bord
- *     haut du texte. Mais l'avatar (72 px) est plus HAUT que le bloc identité
- *     nom+@handle (≈ 42 px) : son centre optique tombait donc 13,6 px SOUS le
- *     centre du nom+@handle. À l'œil, le nom « flottait » dans le tiers supérieur
- *     de l'avatar, et la masse de l'hexagone débordait de 6,6 px sous un texte
- *     court — exactement le « rien n'est aligné » ressenti. `alignItems:'center'`
- *     ne le corrige pas non plus : son écart passe de +10 px (fr, 1 ligne) à
- *     +30 px (de, titre + niveau·ville sur 2 lignes) — l'avatar redescend avec la
- *     longueur du texte, donc avec la LANGUE. Aucun des deux ne pose un repère.
- *     → On ancre le centre optique de l'avatar sur le bloc identité (nom +
- *       @handle) via un décalage DÉRIVÉ de la colonne texte (`IDENTITY_TOP_OFFSET`,
- *       = (72 − 42)/2 ≈ 15 px). Le nom et le @handle encadrent alors la face de
- *       l'avatar (écart 0), et le titre + niveau·ville descendent SOUS l'identité
- *       sans jamais déplacer ce repère : invariant par langue et par nb de lignes.
- *       L'avatar reste en `flex-start` (bord haut = haut de card), c'est le TEXTE
- *       qui s'aligne sur lui — donc aucun débordement de l'avatar hors du padding.
- *
- *  B. L'AVATAR PARAISSAIT RENTRÉ. Sa boîte était carrée (72×72) pour une encre
- *     hexagonale de 56,6 px de large : ~7,7 px de vide fantôme à gauche, donc un
- *     hexagone décalé vers la droite par rapport au blason crew et au bandeau de
- *     chiffres, qui s'alignent eux sur le padding de la card. Corrigé à la
- *     source dans `ui/game/hexAvatar` ; ici on réserve la largeur RÉELLE.
- *
- *  C. LE CRAYON D'ÉDITION FLOTTAIT. Posé en `right:-4 / bottom:-4` de la boîte
- *     CARRÉE, il atterrissait à ~12 px de l'arête de l'hexagone, dans le vide.
- *     → Il est maintenant posé sur le MILIEU de l'arête inférieure droite,
- *       calculé depuis la géométrie (apothème), donc toujours au contact.
- */
-const AVATAR_PX = 72;
-/** Largeur réelle de l'hexagone (√3/2 × hauteur) — la boîte n'est pas carrée. */
-const AVATAR_W = hexAvatarWidth(AVATAR_PX);
-/** Côté de la pastille crayon. */
-const PENCIL_PX = 24;
-/** Rayon du bord extérieur du corps hexagonal, en px. */
-const AVATAR_BODY_R_PX = ((BODY_R + BODY_STROKE / 2) / 50) * (AVATAR_PX / 2);
-/** Apothème = distance centre → milieu d'arête. */
-const AVATAR_APOTHEM_PX = AVATAR_BODY_R_PX * HEX_ASPECT;
-/** Coin haut-gauche du crayon, centré sur le milieu de l'arête inférieure droite. */
-const PENCIL_LEFT = AVATAR_W / 2 + AVATAR_APOTHEM_PX * Math.cos(Math.PI / 3) - PENCIL_PX / 2;
-const PENCIL_TOP = AVATAR_PX / 2 + AVATAR_APOTHEM_PX * Math.sin(Math.PI / 3) - PENCIL_PX / 2;
-
-// ─── LE REPÈRE DE LIGNE COMMUN AVATAR ↔ IDENTITÉ (3ᵉ passe) ───────────────────
-// Ces trois valeurs sont la GÉOMÉTRIE du bloc identité, dérivée des mêmes
-// hauteurs de ligne que les styles `name`/`handle` ci-dessous (source unique :
-// on ne recopie pas « 23 » et « 16,8 » au jugé, on les calcule). C'est ce qui
-// permet de centrer l'avatar sur le nom+@handle sans nombre magique.
-/** Interligne du nom (= style `name.lineHeight`). */
-const NAME_LH = fontSizes.lg * 1.15; // 23
-/** Interligne du @handle (= style `handle.lineHeight`). */
-const HANDLE_LH = fontSizes.sm * 1.2; // 16,8
-/** Espace nom↔@handle (= style `headerIdentity.gap`) : ils se lisent comme UNE unité. */
-const IDENTITY_GAP = 2;
-/** Hauteur du bloc identité (nom + @handle) — INVARIANTE par langue (2 lignes fixes). */
-const IDENTITY_H = NAME_LH + IDENTITY_GAP + HANDLE_LH; // 41,8
-/**
- * Décalage vertical de la colonne texte qui centre le bloc identité (nom +
- * @handle) sur le centre OPTIQUE de l'avatar. `(hauteur avatar − hauteur
- * identité) / 2` : le nom et le @handle encadrent alors la face de l'avatar, et
- * les lignes qualificatives (titre, niveau·ville) descendent SOUS l'identité
- * sans jamais déplacer ce repère — donc invariant par langue et par nombre de
- * lignes. `max(0, …)` protège le cas (théorique) où l'identité dépasserait
- * l'avatar. C'est la correction de la 3ᵉ passe (cf. bloc de tête).
- */
-const IDENTITY_TOP_OFFSET = Math.max(0, (AVATAR_PX - IDENTITY_H) / 2); // ≈ 15,1
-
-/** Bornes XP par niveau (courbe §43.1) — table pure. Le niveau/tier/jauge sont
- *  DÉRIVÉS de l'XP RÉELLE dans le composant (O1 : useMyEconomy), plus au module. */
+/** Bornes XP par niveau (courbe §43.1) — table pure. Niveau/tier/jauge DÉRIVÉS
+ *  de l'XP RÉELLE dans le composant (O1 : useMyEconomy), jamais au module. */
 const XP_TABLE = playerLevelXpTable();
+
+/** Un jour en ms — unité de calendrier, pas une constante de JEU (game-rules). */
+const MS_PER_DAY = 86_400_000;
+
+/** Distance en km depuis des MÈTRES (la stat serveur est en m). */
+function formatKm(meters: number): string {
+  return (meters / 1000).toFixed(1).replace('.', decimalSeparator());
+}
+
+/**
+ * Écart en JOURS CALENDAIRES (pas en 24 h glissantes) : une course de 23 h hier
+ * soir doit se lire « Hier », pas « Aujourd'hui ». PURE.
+ */
+function calendarDaysAgo(startedAtMs: number, nowMs: number): number {
+  const startOfDay = (ms: number): number => {
+    const d = new Date(ms);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  return Math.max(0, Math.round((startOfDay(nowMs) - startOfDay(startedAtMs)) / MS_PER_DAY));
+}
 
 type BadgeDefT = NonNullable<ReturnType<typeof badgeById>>;
 
 /**
  * Badges affichables = débloqués, non-legacy, triés du plus rare au moins rare
- * (BADGE_TIER_RANK). DÉRIVÉ des débloqués RÉELS (O1 : useMyBadges) dans le
- * composant — plus au niveau module (jamais codé en dur).
+ * (BADGE_TIER_RANK). DÉRIVÉ des débloqués RÉELS (O1 : useMyBadges).
  */
 function displayableBadgesFrom(unlockedIds: ReadonlySet<string>): readonly BadgeDefT[] {
   return [...unlockedIds]
@@ -218,7 +159,7 @@ function displayableBadgesFrom(unlockedIds: ReadonlySet<string>): readonly Badge
 /**
  * Badges mis en avant EFFECTIFS : le choix manuel du joueur (featuredBadgeIds)
  * s'il est renseigné et valide, sinon le défaut (3 plus rares). On ne garde que
- * des badges réellement débloqués → jamais un slot vide/verrouillé sur la card.
+ * des badges réellement débloqués → jamais un slot vide/verrouillé.
  */
 function resolveFeaturedBadges(
   chosenIds: readonly string[],
@@ -232,14 +173,12 @@ function resolveFeaturedBadges(
 
 // ─── SKILLS (AMENDEMENT-23 §C, doc §28-§29) ──────────────────────────────────
 /**
- * État dérivé d'UNE famille de skill pour l'affichage Profil (miroir du contrat
- * `DerivedSkill` de packages/engine/src/skills.ts). La dérivation est PURE et
- * ré-implémentée ICI car Metro ne résout pas les imports Deno `.ts` de
- * `@klaim/engine` (même contrainte que le catalogue de badges client) : le
+ * État dérivé d'UNE famille de skill (miroir du contrat `DerivedSkill` de
+ * packages/engine/src/skills.ts). La dérivation est PURE et ré-implémentée ICI
+ * car Metro ne résout pas les imports Deno `.ts` de `@klaim/engine` : le
  * catalogue + les seuils GELÉS viennent de `@klaim/shared` (`SKILLS`), aucun
  * nombre magique local. Les STATS réutilisent la MÊME source que les badges
- * (O1 : `useMyBadges().stat` — user_stats réel si session, sinon démo) — pas de
- * barème parallèle. `deriveSkill(def, statValue)` reste PURE (reçoit la valeur).
+ * (`useMyBadges().stat` — user_stats réel) — pas de barème parallèle.
  */
 interface DerivedSkill {
   def: SkillDef;
@@ -282,7 +221,7 @@ function deriveSkill(def: SkillDef, statValue: number): DerivedSkill {
   }
   // Unité = requirement d'un niveau sans son nombre (« 50 zones défendues » →
   // « zones défendues »). Dérivée du catalogue, jamais codée en dur.
-  const unit = def.levels[0].requirement.replace(/^[\d\s .,]+/, '').trim();
+  const unit = def.levels[0].requirement.replace(/^[\d\s .,]+/, '').trim();
   return { def, value, level: rank, maxed, nextThreshold, progress, remaining, unit };
 }
 
@@ -293,24 +232,15 @@ interface ProfileLink {
 }
 
 /**
- * RACCOURCIS — destinations de JEU uniquement, une LIGNE chacune.
+ * RACCOURCIS — destinations de JEU uniquement, une LIGNE chacune. Les entrées
+ * qui faisaient doublon avec le bouton Paramètres (Arsenal, Sources, Support,
+ * Paramètres) vivent dans /parametres, toujours à 2 taps.
+ * « Confidentialité & géoloc » RESTE ici : accès DIRECT à 1 tap (audit confiance).
  *
- * RETOUR TERRAIN 20/07 (« le raccourci créer sous forme de menu déroulant ou
- * complètement le retirer et créer juste un bouton paramètre », « trop de
- * scroll ») : les 4 entrées qui FAISAIENT DOUBLON avec le bouton Paramètres
- * (engrenage, haut-droit) sont RETIRÉES de cette liste — Arsenal, Sources
- * connectées, Support/Aide et Paramètres lui-même sont déjà des lignes de
- * `SETTINGS_GROUPS` dans /parametres, donc toujours atteignables à 2 taps.
- * Le sous-titre descriptif de chaque ligne saute aussi : il doublait la hauteur
- * de la liste sans rien apprendre (« Historique de courses » se comprend seul).
- * 10 lignes à 2 étages → 4 à 6 lignes à 1 étage.
- *
- * « Confidentialité & géoloc » RESTE ici : accès DIRECT à 1 tap (audit
- * confiance — la géoloc ne s'enterre pas sous Paramètres), en plus de sa ligne
- * dans /parametres.
+ * « Mon code QR » (planche E16) est une LIGNE discrète, pas un second CTA : le
+ * QR de profil sert à se faire suivre/défier, il n'est pas l'action de l'écran.
  */
 const LINKS: readonly ProfileLink[] = [
-  // Sortis de la barre (nav 4 slots) — accès depuis « Moi » (décision fondateur).
   // D8 : hors MVP fermé, Saison/Missions disparaissent de la SURFACE (flags.ts)
   // — les moteurs continuent d'accumuler, rien n'est perdu au flip.
   ...(flags.season
@@ -318,13 +248,47 @@ const LINKS: readonly ProfileLink[] = [
     : []),
   ...(flags.warRoom ? [{ label: C.linkMissions, icon: 'guerre', href: '/warroom' } as const] : []),
   { label: C.linkFriends, icon: 'ami', href: '/amis' },
+  { label: C.linkMyQr, icon: 'qr', href: '/qr' },
   { label: C.linkPerformance, icon: 'performance', href: '/performance' },
   { label: C.linkHistory, icon: 'historique', href: '/historique' },
   { label: C.linkPrivacy, icon: 'verrou', href: '/confidentialite' },
 ];
 
+/**
+ * PREVIEW — une ligne scannable : visuel à gauche, libellé, chevron. Posée sur
+ * l'espace (pas une card par ligne : card-dans-card interdit). Le libellé n'est
+ * jamais tronqué (§A : pas de « … » sur un texte d'action).
+ */
+function PreviewRow({
+  icon,
+  visual,
+  label,
+  a11yLabel,
+  onPress,
+}: {
+  icon?: IconName;
+  visual?: ReactNode;
+  label: string;
+  a11yLabel: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
+      onPress={onPress}
+      style={({ pressed }) => [styles.previewRow, pressed && styles.dim]}
+    >
+      {visual ?? (icon ? <Icon name={icon} size={iconSizes.md} color={colors.blanc} /> : null)}
+      <Text style={styles.previewLabel}>{label}</Text>
+      <Icon name="chevron" size={16} color={colors.gris} />
+    </Pressable>
+  );
+}
+
 export default function ProfilScreen() {
   const t = useT();
+  const locale = useLocale();
   const { session, configured, loading: sessionLoading } = useSession();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -334,10 +298,23 @@ export default function ProfilScreen() {
   const [skillsOpen, setSkillsOpen] = useState(false);
 
   /** Profil ÉDITABLE persisté — l'édition depuis /profil-edit se reflète ici. */
-  const { profile } = useMyProfile();
-  // O1 Pass 2 : chiffres RÉELS (users.xp/foulées/série + season_scores) quand une
-  // session Supabase existe, sinon fallback démo. Niveau/tier/GRIP/jauge DÉRIVÉS
-  // de l'XP effective via la courbe partagée — jamais un nombre magique.
+  const { profile, loading: profileLoading } = useMyProfile();
+  /**
+   * VISIBILITÉ — source UNIQUE : le réglage vit dans Confidentialité. On le
+   * REFLÈTE (lecture seule) et on y renvoie ; jamais un second interrupteur.
+   * `loading` est OBLIGATOIRE : le défaut du store est 'public' et la lecture
+   * est asynchrone — afficher avant lecture annoncerait « Public » à un joueur
+   * réglé sur « Moi seul » pendant la fenêtre d'hydratation.
+   */
+  const { prefs: privacyPrefs, loading: privacyLoading } = usePrivacyPrefs();
+  const visibilityLabel = t(
+    { public: C.visPublic, crew: C.visCrew, friends: C.visFriends, private: C.visPrivate }[
+      privacyPrefs.profileVisibility
+    ],
+  );
+
+  // O1 : chiffres RÉELS (users.xp/série + season_scores). Niveau/tier/GRIP/jauge
+  // DÉRIVÉS de l'XP effective via la courbe partagée — jamais un nombre magique.
   const economy = useMyEconomy();
   const xp = economy.xp;
   const runnerLevel = playerLevelForXp(xp);
@@ -347,59 +324,36 @@ export default function ProfilScreen() {
   const levelCeil =
     runnerLevel < PLAYER_LEVEL_MAX ? (XP_TABLE[runnerLevel] ?? levelFloor) : levelFloor;
   const levelRatio = levelCeil > levelFloor ? (xp - levelFloor) / (levelCeil - levelFloor) : 1;
-  const streakWeeks = economy.streakWeeks;
-  const streakMultiplier = Math.min(
-    1 + streakWeeks * STREAK_MULTIPLIER_STEP,
-    STREAK_MULTIPLIER_CAP,
-  );
 
-  // ── DONNÉES RÉELLES §12.2/§15.3 : crew · prochaine mission · progression locale ─
-  // Chacune porte son propre état vide/échec honnête (le hook le distingue) ; on
-  // n'affiche QUE ce qui est vrai. Le rival principal, lui, n'a AUCUNE source
-  // réelle aujourd'hui (seul un rival de démo existe) → volontairement ABSENT,
-  // plutôt qu'un adversaire inventé (règle zéro-mensonge, cf. crew/revanche.ts).
+  // ── DONNÉES RÉELLES §12.2/§15.3 : crew · place locale ───────────────────────
   const realCrew = useRealCrew();
-  const { mission: realMission } = useRealMission();
   const season = useSeasonLeaderboard();
   const rankProgress =
     season.status === 'ready' ? seasonRankProgress(season.joueursBoard.rows) : null;
 
-  // ── LES TROIS ÉTATS DE CET ÉCRAN ───────────────────────────────────────────
+  // ── LES QUATRE ÉTATS DE CET ÉCRAN ──────────────────────────────────────────
   /** Compte relié → on lit et on affiche du réel (y compris « rien encore »). */
   const signedIn = configured && !!session;
   /**
    * La session n'a pas fini de s'hydrater (lecture AsyncStorage/localStorage au
    * démarrage à froid) : `session` vaut null SANS que ça veuille dire « pas de
-   * compte ». Traiter cette fenêtre comme un état vide ferait clignoter
-   * « Connecte-toi » sur l'écran d'un joueur connecté — un mensonge court, mais
-   * l'œil l'enregistre. Un CHARGEMENT n'est pas un VIDE.
+   * compte ». Un CHARGEMENT n'est pas un VIDE.
    */
   const sessionPending = configured && sessionLoading && !session;
   /** Pas de compte : aucune donnée de jeu ne peut être vraie. */
   const signedOut = !signedIn && !sessionPending;
   /**
-   * Y a-t-il seulement un écran de connexion qui MARCHE ? Sans backend
-   * (`configured === false` : aperçu web, build de dev), `/sign-in` redirige
-   * immédiatement vers la carte. Proposer « Se connecter » y enverrait le joueur
-   * dans un cul-de-sac — un bouton qui ment sur ce qu'il fait. On ne l'affiche
-   * que quand la connexion est réellement possible.
+   * Y a-t-il seulement un écran de connexion qui MARCHE ? Sans backend,
+   * `/sign-in` redirige immédiatement vers la carte : proposer « Se connecter »
+   * y enverrait le joueur dans un cul-de-sac (bouton mort).
    */
   const canSignIn = configured && !session && !sessionLoading;
-  /**
-   * AUCUNE source crew réelle n'alimente encore le profil (le vrai roster vit
-   * dans l'onglet Crew). La ligne crew de l'en-tête a donc été RETIRÉE plutôt
-   * que rendue conditionnelle : afficher un crew, c'est soit le vrai, soit rien.
-   * Elle reviendra quand `useRealCrew` sera lu ici — pas avant.
-   */
   const seasonRank = economy.seasonRank ?? profile.seasonRank;
   const hasSeasonRank = seasonRank != null;
   /**
    * Cosmétiques ÉQUIPÉS — frame autour de l'avatar + titre affiché, MAIS
-   * seulement s'ils sont réellement POSSÉDÉS (23/07/2026). Le store
-   * d'équipement est une persistance locale du CHOIX du joueur : il pouvait
-   * porter une clé choisie quand /profil-edit offrait encore tout le catalogue.
-   * Un anneau « Founder » ou un titre jamais gagné est un statut affiché à tort,
-   * exactement ce que `inventory.ts` a fermé côté possession.
+   * seulement s'ils sont réellement POSSÉDÉS (23/07/2026) : un anneau « Founder »
+   * ou un titre jamais gagné est un statut affiché à tort.
    */
   const { equipped, ownedKeys, source: inventorySource } = useArsenalInventory();
   const equippedProfileKey =
@@ -418,66 +372,63 @@ export default function ProfilScreen() {
   const initials = effectiveInitials(profile);
 
   // Débloqués + progression RÉELS (user_badges/user_stats) dès qu'une session
-  // existe ; collection VIDE sinon. La démo n'apparaît que sur la vitrine.
+  // existe ; collection VIDE sinon.
   const { unlockedIds, stat, failed: badgesFailed, reload: reloadBadges } = useMyBadges();
   /**
-   * ─── UNE SEULE LECTURE DE `hex_claims` SUR CET ÉCRAN (21/07/2026) ──────────
-   *
-   * Le profil en déclenchait DEUX en parallèle au montage : `useRealTerritories()`
-   * pour les drapeaux, et `useTerritoryWidgetView()` qui appelle le MÊME hook en
-   * interne. Deux `select` complets de la table, sans filtre ni cache, pour
-   * afficher une seule card — et une troisième arrive de la Battle Map, restée
-   * montée dans l'onglet voisin. Chaque hook garde son propre état : la
-   * duplication était invisible à l'écran et ne coûtait que de la batterie et du
-   * réseau, exactement là où le joueur est en déplacement.
-   *
-   * On lit donc UNE fois, et on construit la vue du widget ici avec le même
-   * moteur PUR que le hook (`buildRealWidgetView`, partagé avec la Carte) — la
-   * logique reste unique, seul l'accès réseau cesse d'être dupliqué.
-   *
-   * (La 3ᵉ lecture, celle de la Carte, se règle par un cache partagé dans
-   * `hexClaims.ts` — hors du périmètre de cet écran.)
+   * ─── UNE SEULE LECTURE DE `hex_claims` SUR CET ÉCRAN ───────────────────────
+   * Le profil en déclenchait DEUX au montage (drapeaux + widget). On lit UNE
+   * fois ici, et la CARTE SIGNATURE reçoit les territoires DÉJÀ LUS en prop
+   * plutôt que de monter un composant qui relirait la table (c'est la raison
+   * pour laquelle `SignatureMapCard` dessine la silhouette au lieu de monter
+   * `TerritoryFranceMap preview`, cf. son bloc de tête).
    */
   const {
     territories,
-    isReal: territoryIsReal,
     failed: territoryFailed,
     loading: territoryLoading,
     reload: reloadTerritory,
   } = useRealTerritories();
-  /**
-   * Le widget RÉEL, ou null (pas de données) — le fallback est choisi plus bas.
-   * Il couvre DÉJÀ le cas « connecté mais zéro zone » : `buildRealWidgetView`
-   * tombe sur l'état `first_capture` (« prends ta première zone » + GO).
-   */
-  const widgetView = useMemo(() => {
-    if (!territoryIsReal || territories === null) return null;
-    const lastResult = getLastRunResult();
-    const ob = lastResult?.openBoundary;
-    return buildRealWidgetView({
-      mineAreasM2: territories
-        .filter((x) => x.props.status === 'crew')
-        .map((x) => x.props.areaM2),
-      openBoundary: ob ? { name: ob.name, missingM: ob.missingM } : null,
-      capturedInLastRun: lastResult
-        ? lastResult.hexes.claimed + lastResult.hexes.stolen + lastResult.hexes.pioneer > 0
-        : false,
-    });
-  }, [territoryIsReal, territories]);
+  /** MES zones (status 'crew'). `null` = pas encore lu — jamais « zéro ». */
+  const mine = useMemo(
+    () => (territories === null ? null : territories.filter((x) => x.props.status === 'crew')),
+    [territories],
+  );
+  /** Somme RÉELLE des aires de mes zones (m²) — la métrique mise en avant. */
+  const controlledAreaM2 = useMemo(
+    () => (mine === null ? null : mine.reduce((sum, x) => sum + x.props.areaM2, 0)),
+    [mine],
+  );
+  /** Somme RÉELLE des hexagones tenus. */
+  const zonesHeld = useMemo(
+    () => (mine === null ? null : mine.reduce((sum, x) => sum + x.zoneCount, 0)),
+    [mine],
+  );
+
   /** Une lecture a échoué → on l'annonce et on propose de réessayer (jamais un 0 nu). */
   const loadFailed = economy.failed || badgesFailed || territoryFailed;
   /**
-   * Connecté, mais Supabase n'a pas encore répondu : l'économie vaut zéro par
-   * défaut. Rendre les modules maintenant afficherait « Niveau 1 · 0 badges »
-   * avant de sauter aux vrais chiffres — un mensonge d'une demi-seconde, que
-   * l'œil enregistre quand même. On attend, en le disant.
+   * Connecté, mais le serveur n'a pas encore tout répondu. Rendre les modules
+   * maintenant afficherait « Niveau 1 · 0,00 km² » avant de sauter aux vrais
+   * chiffres — un mensonge d'une demi-seconde, que l'œil enregistre quand même.
+   * La rangée de métriques exige les DEUX lectures (économie ET territoire) :
+   * une moitié de vérité alignée à côté d'un trou n'est pas plus honnête.
    */
-  const loadingReal = sessionPending || (signedIn && !loadFailed && economy.source !== 'server');
+  const loadingReal =
+    sessionPending || (signedIn && !loadFailed && (economy.source !== 'server' || territoryLoading));
   const retryAll = () => {
     economy.reload();
     reloadBadges();
     reloadTerritory();
   };
+  /** Modules de jeu : rendus UNIQUEMENT sur un compte lu avec succès. */
+  const gameReady = !signedOut && !loadFailed && !loadingReal;
+  /**
+   * Compte NEUF : lu, et il ne tient réellement aucune zone. La planche remplace
+   * alors les métriques par la PREMIÈRE MISSION — quatre zéros alignés se
+   * liraient « tu as échoué », alors qu'il n'a simplement pas encore couru.
+   */
+  const isNewPlayer = gameReady && mine !== null && mine.length === 0;
+
   const displayableBadges = useMemo(() => displayableBadgesFrom(unlockedIds), [unlockedIds]);
   const unlockedCount = unlockedIds.size;
   /** Badges mis en avant : choix du joueur, sinon les 3 plus rares. */
@@ -492,31 +443,35 @@ export default function ProfilScreen() {
   );
   const skillsUnlockedCount = derivedSkills.filter((s) => s.level > 0).length;
 
+  /** Dernière course RÉELLE (1 ligne de `runs`) — la preview « activité récente ». */
+  const lastActivity = useMyLastActivity();
+
+  // ── LIGNE D'IDENTITÉ « CREW · ville · #rang » ──────────────────────────────
   /**
-   * Bandeau de 3 chiffres de la player card (§A r.17 : niveau · rang · zones
-   * tenues). Colonnes de largeur ÉGALE, valeurs en tabular-nums → les chiffres
-   * s'alignent verticalement quel que soit leur nombre de digits.
-   *
-   * ZÉRO MENSONGE : le bandeau ne porte que du mesuré — niveau (dérivé de l'XP
-   * serveur), rang de saison s'il existe vraiment, badges effectivement
-   * débloqués. Aucun compteur de zones ici : le widget territoire dit déjà la
-   * vérité sur ce point, et il la lit dans `hex_claims`.
-   *
-   * Déconnecté (ou lecture en cours / en échec), le bandeau DISPARAÎT :
-   * « Niveau 1 · 0 badges » n'est pas la vérité de ce joueur, c'est l'absence de
-   * joueur. Le bloc juste dessous dit pourquoi il n'y a rien — un chiffre nu ne
-   * le dirait pas.
+   * Chaque segment n'est rendu QUE s'il est vrai — jamais un « · » orphelin ni
+   * un « #— ». Et surtout : on ne MÉLANGE PAS les deux sources de ville.
+   *  · `season.cityName` vient du SERVEUR (users.city_id, déduit d'un fait GPS) —
+   *    c'est la ville qui décide du classement : elle accompagne le rang ;
+   *  · `profile.city` est une préférence d'affichage LOCALE, éditée à la main,
+   *    qui ne décide d'aucun classement : elle ne sert QUE d'identité, seule.
+   * Les écrire dans la même phrase laisserait croire qu'une ville tapée au
+   * clavier détermine un rang.
    */
-  const headerStats: readonly { value: string; label: string }[] =
-    signedOut || loadFailed || loadingReal
-      ? []
-      : [
-          { value: formatInt(runnerLevel), label: t(C.levelWord) },
-          ...(hasSeasonRank
-            ? [{ value: `#${formatInt(seasonRank)}`, label: t(C.statRankShort) }]
-            : []),
-          { value: formatInt(unlockedCount), label: t(C.statBadgesShort) },
-        ];
+  const crewName = realCrew.crew && !realCrew.loadFailed ? realCrew.crew.name : null;
+  /** On ne propose « Trouver un crew » qu'une fois SÛR qu'il n'y en a pas. */
+  const noCrewConfirmed =
+    realCrew.ready && !realCrew.loading && !realCrew.loadFailed && realCrew.crew === null;
+  const identitySegments = useMemo(() => {
+    const segments: string[] = [];
+    if (crewName) segments.push(crewName);
+    if (rankProgress && season.cityName) {
+      segments.push(season.cityName);
+      segments.push(`#${formatInt(rankProgress.rank)}`);
+    } else if (profile.city.trim().length > 0) {
+      segments.push(profile.city.trim());
+    }
+    return segments;
+  }, [crewName, rankProgress, season.cityName, profile.city]);
 
   useEffect(() => {
     screen('profil');
@@ -524,9 +479,33 @@ export default function ProfilScreen() {
 
   const openEdit = () => router.push('/profil-edit');
 
+  // ── Libellé de l'activité récente ──────────────────────────────────────────
+  /**
+   * « Hier · +3 zones ». Le NOM de zone de la planche (« Saint-Rémy ») n'a
+   * aucune source (displayName est NULL en base) et « +0,42 km² » non plus (le
+   * serveur renvoie des COMPTES d'hexagones, pas une aire). Impact inconnu →
+   * « dernière course », jamais « +0 zone ».
+   */
+  const activityLabel = useMemo(() => {
+    const a = lastActivity.activity;
+    if (!a) return null;
+    const days = calendarDaysAgo(a.startedAtMs, Date.now());
+    const when =
+      days === 0 ? t(C.timeAgoToday) : days === 1 ? t(C.timeAgoYesterday) : t(C.timeAgoDays, { n: days });
+    if (a.captured !== null && a.captured > 0) {
+      return t(C.previewActivityCaptured, { when, n: formatInt(a.captured) });
+    }
+    if (a.defended !== null && a.defended > 0) {
+      return t(C.previewActivityDefended, { when, n: formatInt(a.defended) });
+    }
+    return t(C.previewActivityPlain, { when });
+  }, [lastActivity.activity, t]);
+
   return (
     <>
-      {/* Accès Paramètres — icône réglages en haut à droite, hors du flux compact */}
+      {/* Accès Paramètres — icône réglages en haut à droite de l'ÉCRAN, hors du
+          flux. La pilule « Modifier » de la planche vit DANS le héros (~90 pt
+          plus bas) : les deux ne se recouvrent jamais. */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t(C.a11yOpenSettings)}
@@ -540,183 +519,59 @@ export default function ProfilScreen() {
       >
         <Icon name="reglages" size={iconSizes.lg} color={colors.blanc} />
       </Pressable>
-      {/* Titre d'écran = le NOM DE LA PAGE, plus le pseudo : le pseudo était
-          affiché DEUX fois (titre 28 px collé à gauche de l'écran, puis dans la
-          card, décalé de la largeur de l'avatar) — d'où le « rien n'est aligné ».
-          L'identité vit maintenant dans UN seul bloc, la player card. */}
-      <TabScreen title={t(C.tabMe)} kicker={t(C.kickerPlayerCard)}>
-        {/* ── PLAYER CARD (§A r.17) — UNE grille, trois rangées :
-            1. avatar 72 │ colonne texte (pseudo · @handle · titre · niveau/ville)
-            2. crew (pleine largeur, sous la grille — plus une 4ᵉ ligne serrée)
-            3. bandeau de 3 chiffres à colonnes égales, tabular-nums
-            puis les 2 actions légères. Toute la colonne texte partage le MÊME
-            bord gauche et un interligne régulier (gap, plus de marginTop
-            au cas par cas) : c'est ça, la baseline commune. ── */}
-        <View style={styles.headerCard}>
-          <View style={styles.headerTop}>
-            {/* Avatar + crayon d'édition ÉVIDENT posé dessus (affordance 1/2) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t(C.editMyProfile)}
-              onPress={openEdit}
-              hitSlop={8}
-              style={({ pressed }) => [styles.avatarPress, pressed && styles.dim]}
-            >
-              <PlayerCardAvatar
-                initials={initials}
-                fillColor={profile.avatarColor}
-                tier={runnerTier}
-                equippedFrameKey={equippedProfileKey}
-                size={AVATAR_PX}
-                isMe
-                /* Photo si le joueur en a choisi une ; sinon l'avatar généré,
-                   qui reste un choix pleinement valable (anonymat assumé). */
-                imageUri={profile.avatarUri || undefined}
-              />
-              <View style={styles.editPencil}>
-                <Icon name="profil" size={iconSizes.xs} color={colors.chartreuse} />
-              </View>
-            </Pressable>
-            <View style={styles.headerInfo}>
-              {/* Groupe 1 — IDENTITÉ : nom + @handle serrés (ils se lisent comme
-                  UNE unité). Même bord gauche, interligne interne minimal. */}
-              <View style={styles.headerIdentity}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {profile.displayName}
-                </Text>
-                {/* @handle — invariant technique, jamais traduit. */}
-                <Text style={styles.handle} numberOfLines={1}>
-                  @{profile.handle}
-                </Text>
-              </View>
-              {/* Groupe 2 — QUALIFICATIFS : titre équipé + niveau/ville. Séparé du
-                  groupe 1 par UN espace plus grand : deux groupes lisibles valent
-                  mieux que quatre lignes équidistantes qui se disputent l'œil. */}
-              {/* Titre affiché (cosmétique équipé prioritaire). Chartreuse sur
-                  surface N1 SOMBRE (elevation.surface = carbone) — jamais clair. */}
-              {/* Aucun titre par défaut hors vitrine : la ligne disparaît plutôt
-                  que d'afficher le titre d'un persona (« Tenace du 19ᵉ ») ou un
-                  vide qui ouvrirait un trou dans la grille. */}
-              {displayedTitle.length > 0 ? (
-                <Text style={styles.title} numberOfLines={1}>
-                  {displayedTitle}
-                </Text>
-              ) : null}
-              {/* Niveau · ville : descripteur d'identité compact (le tier est lu
-                  sur l'anneau d'avatar ; le niveau détaillé vit dans Progression).
-                  Wrap sur 2 lignes plutôt que couper au « … » (Règle §A.9).
-                  Sans ville renseignée, on écrit « Niveau 3 » tout court — pas
-                  « Niveau 3 · » avec un séparateur pendu dans le vide. */}
-              <Text style={styles.identity} numberOfLines={2}>
-                {profile.city.length > 0
-                  ? t(C.identityLine, { n: runnerLevel, city: profile.city })
-                  : t(C.identityLevelOnly, { n: runnerLevel })}
-              </Text>
-            </View>
-          </View>
-          {/* Crew RÉEL en pleine largeur (§12.2) — nom + effectif, TEXTE seul :
-              le hook n'expose ni tag ni blason, donc pas de CrewFrame inventé.
-              Masqué s'il n'y a pas de crew ou si la lecture a échoué : afficher un
-              crew, c'est le VRAI ou rien (la ligne revient — cf. useRealCrew). */}
-          {!signedOut && realCrew.crew && !realCrew.loadFailed ? (
-            <View style={styles.crewLine}>
-              <Icon name="crew" size={iconSizes.sm} color={colors.chartreuse} />
-              <Text style={styles.crewLineName} numberOfLines={1}>
-                {realCrew.crew.name}
-              </Text>
-              <Text style={styles.crewMembers} numberOfLines={1}>
-                {t(C.crewMembers, { count: realCrew.memberCount, max: realCrew.maxMembers })}
-              </Text>
-            </View>
-          ) : null}
-          {/* Bandeau de chiffres — colonnes de largeur égale, valeurs alignées
-              sur une même ligne de base, libellés courts sur une seule ligne.
-              Vide (déconnecté / lecture en échec) → le bandeau ne s'affiche pas :
-              un « 0 » sans explication vaudrait un mensonge de plus. */}
-          {headerStats.length > 0 ? (
-          <View style={styles.statsStrip}>
-            {headerStats.map((s) => (
-              <View key={s.label} style={styles.statCell}>
-                <Text style={styles.statValue} numberOfLines={1}>
-                  {s.value}
-                </Text>
-                {/* §A.9 — jamais de texte tranché en plein mot. `clip` coupait
-                    net les libellés longs (pt « Rank temporada », de « Zonen
-                    gehalten ») sur un écran 320 pt, SANS signal que du texte
-                    manquait. `adjustsFontSizeToFit` rétrécit plutôt que couper —
-                    le libellé reste entier dans les 5 langues. */}
-                <Text
-                  style={styles.statLabel}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                >
-                  {s.label}
-                </Text>
-              </View>
-            ))}
-          </View>
-          ) : null}
-          {/* Actions LÉGÈRES (AMENDEMENT-22 §3) — façon Strava : icône + label, pas
-              de gros rectangle. Le seul gros CTA chartreuse de l'écran est l'action
-              CONTEXTUELLE du territoire (Défendre / Conquérir), pas l'édition de profil.
-              Verbe + objet (« Modifier profil », jamais un verbe seul ni un GO). */}
-          <View style={styles.headerActions}>
-            <IconAction
-              icon="profil"
-              label={t(C.actionEditProfile)}
-              accessibilityLabel={t(C.editMyProfile)}
-              onPress={openEdit}
-            />
-            <IconAction
-              icon="partage"
-              label={t(C.actionShare)}
-              accessibilityLabel={t(C.a11yShareCard)}
-              onPress={() => {
-                setShareOpen((v) => !v);
-                if (!shareOpen) toast.show(t(C.toastShareReady));
-              }}
-            />
-          </View>
-        </View>
 
-        {/* Share card 4:5 (doc §18/§24) — révélée inline au tap sur Partager */}
-        {shareOpen ? (
-          <View style={styles.shareCardWrap}>
-            <ShareCard
-              stat={hasSeasonRank ? `#${seasonRank}` : `${runnerLevel}`}
-              statLabel={
-                hasSeasonRank
-                  ? t(C.statSeasonRank, { scope: profile.seasonScope })
-                  : t(C.levelWord)
-              }
-              title={profile.displayName}
-              /* Sans titre équipé, le gabarit « {rank} · niv. {n} · {title} »
-                 laisserait un « · » orphelin en fin de ligne : on tombe alors sur
-                 les deux seules infos vraies (rang GRIP + niveau). */
-              subtitle={
-                displayedTitle.length > 0
-                  ? t(C.shareSubtitle, {
-                      rank: GRIP_RANK_LABELS[gripRank],
-                      n: runnerLevel,
-                      title: displayedTitle,
-                    })
-                  : `${GRIP_RANK_LABELS[gripRank]} · ${t(C.identityLevelOnly, { n: runnerLevel })}`
-              }
-            >
-              {/* Carte identité character-forward : GRIP porte la signature GRYD. */}
-              <GripMascot rank={gripRank} size={72} />
-            </ShareCard>
-          </View>
-        ) : null}
+      <TabScreen title={t(C.tabMe)} kicker={t(C.kickerPlayerCard)}>
+        {/* ══ 1+2 · HÉROS 210 pt + IDENTITÉ ═══════════════════════════════════
+            Pleine largeur : TabScreen impose `paddingHorizontal` à TOUS les
+            onglets et n'est PAS modifié ici (il est hors périmètre, et il sert
+            les autres écrans) — on compense localement par une marge négative. */}
+        <View style={styles.heroBleed}>
+          <ProfileHero
+            /* Photo si le joueur en a choisi une ; sinon l'avatar généré, qui
+               reste un choix pleinement valable (anonymat assumé). */
+            photoUri={profile.avatarUri || undefined}
+            initials={initials}
+            avatarColor={profile.avatarColor}
+            tier={runnerTier}
+            equippedFrameKey={equippedProfileKey}
+            /* Identité : RIEN tant qu'elle n'est pas lue — le défaut du store
+               est « Coureur », et un joueur nommé Léa ne doit pas le lire. */
+            identity={
+              profileLoading ? null : { displayName: profile.displayName, handle: profile.handle }
+            }
+            /* Pastille NIV. : dérivée de l'XP SERVEUR — absente hors compte lu. */
+            levelBadge={gameReady ? t(C.levelBadgeShort, { n: formatInt(runnerLevel) }) : null}
+            equippedTitle={displayedTitle.length > 0 ? displayedTitle : undefined}
+            contextSegments={identitySegments}
+            findCrew={
+              noCrewConfirmed
+                ? { label: t(C.linkFindCrew), onPress: () => router.push('/crew-discovery') }
+                : undefined
+            }
+            /* Visibilité : absente tant que le store privacy n'a pas répondu. */
+            visibility={
+              privacyLoading
+                ? null
+                : {
+                    label: visibilityLabel,
+                    a11y: t(C.a11yVisibility, { value: visibilityLabel }),
+                    onPress: () => router.push('/confidentialite'),
+                  }
+            }
+            edit={{
+              label: t(C.actionEditProfile),
+              a11y: t(C.editMyProfile),
+              onPress: openEdit,
+            }}
+          />
+        </View>
 
         {/* ═══ ÉTAT VIDE N°1 · PAS DE COMPTE ════════════════════════════════════
             Un profil déconnecté n'a ni territoire, ni progression, ni badges —
-            et aucune de ces trois choses ne peut être devinée. Plutôt que trois
-            cartes vides empilées, UN bloc dit ce qui manque et porte l'unique
-            CTA chartreuse de l'écran (§A : 1 écran = 1 décision).
-            La player card reste au-dessus : le nom, le @ et l'avatar sont réels
-            et modifiables même sans compte (ils vivent sur ce téléphone). */}
+            et aucune de ces trois choses ne peut être devinée. UN bloc dit ce
+            qui manque et porte l'unique CTA de l'écran (§A : 1 décision).
+            Le héros reste au-dessus : le nom, le @ et l'avatar sont réels et
+            modifiables même sans compte (ils vivent sur ce téléphone). */}
         {signedOut ? (
           <View style={styles.stateCard}>
             <Text style={styles.stateTitle}>
@@ -745,8 +600,7 @@ export default function ProfilScreen() {
         {/* ═══ ÉTAT VIDE N°2 · LECTURE EN ÉCHEC ═════════════════════════════════
             Le pire scénario du zéro-mensonge : un joueur RÉEL, hors réseau. Ses
             zones, son XP et ses badges existent — on ne sait juste pas les lire.
-            Afficher « 0 zone · 0 badge » lui dirait qu'il n'a rien fait. On
-            avoue la panne, et on offre le seul geste utile : réessayer. */}
+            « 0 zone · 0 badge » lui dirait qu'il n'a rien fait. */}
         {loadFailed ? (
           <View style={styles.stateCard}>
             <Text style={styles.stateTitle}>{t(C.loadFailedTitle)}</Text>
@@ -765,313 +619,333 @@ export default function ProfilScreen() {
         ) : null}
 
         {/* ═══ ÉTAT TRANSITOIRE · ON CHARGE ═════════════════════════════════════
-            Une ligne, pas un spinner plein écran : le joueur voit déjà sa player
-            card, il lui manque juste ses chiffres. Cet état est BORNÉ (la lecture
-            aboutit ou lève `failed`) — jamais un chargement qui tourne sans fin. */}
+            Une ligne, pas un spinner plein écran : le joueur voit déjà son
+            identité, il lui manque ses chiffres. Cet état est BORNÉ (la lecture
+            aboutit ou lève `failed`) — jamais un chargement sans fin. */}
         {loadingReal ? <Text style={styles.stateInline}>{t(C.loadingNumbers)}</Text> : null}
 
-        {/* ── MODULE 1 · TERRITOIRE = RÉSUMÉ STRATÉGIQUE (AMENDEMENT-18 Partie B) ──
-            Ce que je contrôle · ce qui est menacé · ma PROCHAINE action. Card
-            compacte ≤ 260 px, 60 % stats / 40 % mini-carte, CTA CONTEXTUEL.
-            Masqué quand il n'y a ni compte ni lecture réussie : les blocs
-            ci-dessus ont déjà expliqué pourquoi. */}
-        {signedOut || loadFailed || loadingReal ? null : (
-        <>
-        <View style={styles.sectionRow}>
-          <Icon name="pin" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>{t(C.sectionTerritory)}</Text>
-        </View>
-        {/* Widget « Mon territoire » — la SEULE source de ce bloc est `hex_claims`.
-            Il couvre DÉJÀ le cas « connecté mais zéro zone » : `buildRealWidgetView`
-            tombe alors sur l'état `first_capture` (« prends ta première zone » + GO),
-            qui est exactement l'état vide attendu — utile, pas culpabilisant. */}
-        {widgetView ? (
-          <TerritoryWidgetCard view={widgetView} />
-        ) : (
-          // Connecté, lecture ni finie ni en échec → on patiente en le disant.
-          // Un écran muet laisserait croire que le joueur n'a rien.
-          <Text style={styles.stateInline}>
-            {territoryLoading ? t(C.territoryLoading) : t(C.territoryEmptyTitle)}
-          </Text>
-        )}
-        {/* Prochaine mission RÉELLE (§15.3) — dérivée de MES captures + position.
-            Ligne de CONTEXTE sous la carte, pas un 2e CTA : le widget porte le seul
-            gros CTA chartreuse (§A). Rien si null/lecture/first_capture (le widget
-            couvre déjà « prends ta première zone »). Accent par RÔLE. */}
-        {realMission && realMission.kind !== 'first_capture' ? (
-          <View style={styles.contextLine}>
-            <View
-              style={[
-                styles.contextAccent,
-                {
-                  backgroundColor:
-                    realMission.kind === 'defend_expiring' ? gameColors.danger : colors.chartreuse,
-                },
-              ]}
-            />
-            <View style={styles.contextBody}>
-              <Text style={styles.contextKicker}>{t(C.nextMissionKicker)}</Text>
-              <Text style={styles.contextText} numberOfLines={2}>
-                {realMission.kind === 'defend_expiring'
-                  ? t(M.missionDefend, { h: realMission.hoursLeft })
-                  : t(M.missionExpand)}
+        {/* ══ 3 · QUATRE MÉTRIQUES — UN SEUL BLOC À SÉPARATEURS ════════════════
+            Une seule mise en avant : la surface contrôlée (la matière du jeu).
+            Les quatre valeurs sont MESURÉES : aires et hexagones viennent de
+            `hex_claims`, défenses et km de saison de `user_stats` (déjà lus par
+            useMyBadges — aucune requête de plus). Un « 0 » y est un FAIT pour un
+            compte qui a couru sans rien prendre ; pour un compte qui n'a jamais
+            couru, c'est la PREMIÈRE MISSION qui prend la place (bloc suivant). */}
+        {gameReady && !isNewPlayer && controlledAreaM2 !== null && zonesHeld !== null ? (
+          <View style={styles.metrics}>
+            <View style={[styles.metricCell, styles.metricLead]}>
+              <Text
+                style={styles.metricLeadValue}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {formatKm2(controlledAreaM2, locale)}
+              </Text>
+              {/* §A.9 — on rétrécit/enroule, on ne tranche jamais un libellé. */}
+              <Text style={styles.metricLabel} numberOfLines={2}>
+                {t(C.statSurfaceControlled)}
               </Text>
             </View>
+            {[
+              { value: formatInt(zonesHeld), label: t(C.statZonesHeld) },
+              { value: formatInt(stat('defends')), label: t(C.statDefenses) },
+              { value: formatKm(stat('seasonDistanceM')), label: t(C.statSeasonKm) },
+            ].map((m) => (
+              <View key={m.label} style={[styles.metricCell, styles.metricDivided]}>
+                <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {m.value}
+                </Text>
+                <Text style={styles.metricLabel} numberOfLines={2}>
+                  {m.label}
+                </Text>
+              </View>
+            ))}
           </View>
         ) : null}
-        {/* Progression LOCALE (§12.2/§19.2) — ma place RÉELLE dans MA ville + les
-            points pour monter d'un rang. Rien si non classé, hors des lignes lues,
-            ou ville inconnue (jamais un rang ni un écart inventé). */}
-        {rankProgress && season.cityName ? (
-          <View style={styles.contextLine}>
-            <View style={[styles.contextAccent, { backgroundColor: colors.grisLigne }]} />
-            <View style={styles.contextBody}>
-              <Text style={styles.contextText}>
-                {/* « en tête » se décide sur le RANG (=1), jamais sur l'absence de
-                    delta : un delta null signifie AUSSI « ligne #N-1 non lue » —
-                    l'y confondre étiquetterait un non-leader « en tête » (mensonge). */}
-                {rankProgress.rank === 1
-                  ? t(C.localRankLeader, {
-                      rank: formatInt(rankProgress.rank),
-                      city: season.cityName,
-                    })
-                  : t(C.localRankLine, {
-                      rank: formatInt(rankProgress.rank),
-                      city: season.cityName,
-                    })}
+
+        {/* ══ 3bis · NOUVEAU JOUEUR : LA PREMIÈRE MISSION ══════════════════════
+            Il n'a encore aucune zone : les métriques n'ont rien à dire de vrai
+            sur lui. On lui donne une marche, pas un bilan à zéro. C'est le SEUL
+            état de cet écran qui porte un CTA chartreuse (§A : 1 CTA max), et il
+            mène là où l'action existe vraiment — la Carte, où vit le GO. */}
+        {isNewPlayer ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.sectionKicker}>{t(C.sectionFirstMission)}</Text>
+            <Text style={styles.stateTitle}>{t(C.territoryEmptyTitle)}</Text>
+            <Text style={styles.stateBody}>{t(C.territoryEmptyBody)}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.territoryEmptyCta)}
+              onPress={() => router.push('/')}
+              style={({ pressed }) => [styles.stateCta, pressed && styles.dim]}
+            >
+              <Text style={styles.stateCtaLabel} numberOfLines={1}>
+                {t(C.territoryEmptyCta)}
               </Text>
-              {rankProgress.deltaToNext !== null && rankProgress.deltaToNext > 0 ? (
-                <Text style={styles.contextSub}>
-                  {t(C.localRankDelta, {
-                    delta: formatInt(rankProgress.deltaToNext),
-                    next: formatInt(rankProgress.rank - 1),
-                  })}
-                </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* ══ 4 · CARTE SIGNATURE (la preuve territoriale personnelle) ═════════
+            Rendue UNIQUEMENT s'il y a quelque chose à montrer : une vignette
+            vide ne serait pas une signature, ce serait un trou. Aucun label de
+            zone (aucune source — cf. SignatureMapCard). */}
+        {gameReady && mine !== null && mine.length > 0 ? (
+          <>
+            <View style={styles.sectionRow}>
+              <Icon name="pin" size={iconSizes.sm} color={colors.gris} />
+              <Text style={styles.sectionRowLabel}>{t(C.sectionSignatureMap)}</Text>
+            </View>
+            <SignatureMapCard
+              mine={mine}
+              linkLabel={t(C.seeMyMap)}
+              a11yLabel={t(C.a11yOpenTerritory)}
+              onPress={() => router.push('/territoire')}
+            />
+          </>
+        ) : null}
+
+        {/* ══ 5 · PROGRESSION EN UNE LIGNE ═════════════════════════════════════
+            GRIP (le personnage à son rang — la progression a un visage, pose
+            DÉRIVÉE du niveau, jamais achetée : anti pay-to-win) · niveau · rang
+            GRIP RÉEL · XP · jauge. Un compte neuf y lit « Niveau 1 · 0 / N XP » :
+            ce n'est pas un trou, c'est son point de départ et sa marche suivante.
+            « Saison › » n'apparaît que si la surface Saison est ouverte
+            (flags.season) — sinon ce serait un lien vers une route masquée. */}
+        {gameReady ? (
+          <>
+            <View style={styles.sectionRow}>
+              <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
+              <Text style={styles.sectionRowLabel}>{t(C.sectionProgress)}</Text>
+              {flags.season ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t(C.linkSeason)}
+                  onPress={() => router.push('/classement')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.sectionLink, pressed && styles.dim]}
+                >
+                  <Text style={styles.sectionLinkLabel}>{t(C.linkSeason)}</Text>
+                  <Icon name="chevron" size={16} color={colors.gris} />
+                </Pressable>
               ) : null}
             </View>
-          </View>
-        ) : null}
-        </>
-        )}
-
-        {/* ── MODULE 2 · PROGRESSION : Niveau N → N+1, jauge XP réelle ──
-            Un compte neuf voit « Niveau 1 · 0 / N XP » : ce n'est pas un trou,
-            c'est son point de départ réel, et la jauge lui montre la marche
-            suivante. Déconnecté ou lecture en panne, en revanche, ces chiffres
-            n'appartiennent à personne → module masqué. */}
-        {signedOut || loadFailed || loadingReal ? null : (
-        <>
-        <View style={styles.sectionRow}>
-          <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>{t(C.sectionProgress)}</Text>
-        </View>
-        <View style={styles.progressCard}>
-          {/* GRIP — le personnage à son rang (§43.3) : la progression a un visage,
-              façon Waze. Pose DÉRIVÉE du niveau, jamais achetée (anti pay-to-win). */}
-          <View style={styles.gripRow}>
-            <GripMascot rank={gripRank} size={72} />
-            <View style={styles.gripInfo}>
-              <Text style={styles.gripRankName} numberOfLines={1}>
-                {GRIP_RANK_LABELS[gripRank]}
-              </Text>
-              <View style={styles.levelRow}>
-                <Text style={styles.levelLabel}>
-                  {t(C.levelWord)} {runnerLevel} <Text style={styles.levelArrow}>→</Text>{' '}
-                  {Math.min(runnerLevel + 1, PLAYER_LEVEL_MAX)}
-                </Text>
-                <Text style={styles.levelXp}>
-                  {formatInt(xp)} / {formatInt(levelCeil)} XP
-                </Text>
-              </View>
-              <ProgressBar value={levelRatio} height={8} />
-            </View>
-          </View>
-          {/* Zéro-lie : le Score Forme et le « % du coffre crew » ne sont câblés à
-              AUCUNE source réelle. Les afficher à côté de la série RÉELLE ferait
-              passer de l'inventé pour du mesuré, et c'est justement ce qu'un
-              joueur ne peut pas distinguer à l'œil. La rangée ne porte donc que
-              du mesuré : série + badges. */}
-          <View style={styles.progressStatsRow}>
-            {[
-              {
-                value: formatMultiplier(streakMultiplier),
-                label: t(C.statStreak, { n: streakWeeks }),
-              },
-              { value: formatInt(unlockedCount), label: t(C.statBadgesUnlocked) },
-            ].map((s) => (
-              <View key={s.label} style={styles.progressStat}>
-                <Text style={styles.progressStatValue}>{s.value}</Text>
-                <Text style={styles.progressStatLabel} numberOfLines={1}>
-                  {s.label}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-        </>
-        )}
-
-        {/* ── MODULE 3 · BADGES : 3 équipés + « Voir collection » (pas géant) ──
-            Un badge est une preuve d'effort : on n'en montre aucun qui n'ait été
-            gagné. Collection vide → une ligne qui dit comment en ouvrir un
-            (jamais trois hexagones grisés, qui se liraient « tu as raté ça »). */}
-        {signedOut || loadFailed || loadingReal ? null : (
-        <>
-        <View style={styles.sectionRow}>
-          <Icon name="badge" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>{t(C.sectionBadges)}</Text>
-        </View>
-        {featuredBadges.length > 0 ? (
-          <View style={styles.badgeRow}>
-            {featuredBadges.map((def) => (
-              <Pressable
-                key={def.id}
-                accessibilityRole="button"
-                accessibilityLabel={t(C.a11yBadge, { name: def.name })}
-                onPress={() => router.push('/badges')}
-                style={({ pressed }) => [styles.badgeCell, pressed && styles.dim]}
-              >
-                <BadgeHex
-                  family={def.family}
-                  familyColor={badgeColor(def)}
-                  state="unlocked"
-                  tier={def.tier}
-                  size="md"
-                  secret={def.secret}
-                  slug={badgeKeyByName(def.name)}
-                />
-                <Text style={styles.badgeName} numberOfLines={1}>
-                  {def.name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.stateInline}>
-            {badgesFailed ? t(C.badgesFailedLine) : t(C.badgesEmptyLine)}
-          </Text>
-        )}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.a11ySeeBadgeCollection)}
-          onPress={() => router.push('/badges')}
-          style={({ pressed }) => [styles.collectionLink, pressed && styles.dim]}
-        >
-          <Text style={styles.collectionLinkLabel}>
-            {t(C.seeCollection, { n: unlockedCount, total: BADGE_TOTAL })}
-          </Text>
-          <Icon name="chevron" size={16} color={colors.gris} />
-        </Pressable>
-        </>
-        )}
-
-        {/* ── MODULE 4 · SKILLS : spécialisations gagnées par comportement ──
-            (AMENDEMENT-23 §C, doc §28-§29). DISTINCT des badges : rôle /
-            reco mission, pas une récompense de collection. Une LIGNE légère
-            par famille posée sur l'espace (pas de card-dans-card AMENDEMENT-22) :
-            icône + « <name> <roman> · <value> <unité> » + jauge de progression.
-            Verrouillé (niveau 0) → « commence à <seuil I> ». Anti pay-to-win :
-            AUCUN gain de territoire/points affiché (Supporter = entraide only).
-
-            GARDE (21/07/2026) : ce module était le SEUL de l'écran à survivre
-            aux trois états non-nominaux — ses quatre voisins (bandeau de
-            chiffres, territoire, progression, badges) sont gardés depuis, lui
-            non. Résultat : un visiteur SANS COMPTE lisait « Spécialisations
-            0/6 » et, en dépliant, six jauges à zéro assorties de « commence à
-            18 routes » — un bilan de comportement pour un joueur qui n'existe
-            pas. Même chose pendant un chargement (les stats valent 0 tant que
-            `user_stats` n'a pas répondu : « 0/6 » puis saut aux vrais niveaux)
-            et après un échec de lecture (« 0/6 » se lisant « tu n'as rien
-            gagné » au lieu de « je n'ai pas pu lire »). Les skills dérivent de
-            `stat()` (useMyBadges), qui vaut 0 dans ces trois cas : la valeur
-            n'est pas fausse, c'est l'AFFIRMATION qu'elle porte qui l'est.
-            Aligné sur les voisins — les blocs d'état au-dessus disent déjà
-            pourquoi il n'y a rien. */}
-        {signedOut || loadFailed || loadingReal ? null : (
-        <>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: skillsOpen }}
-          accessibilityLabel={t(C.a11yToggleSection, { section: t(C.sectionSkills) })}
-          onPress={() => setSkillsOpen((v) => !v)}
-          style={({ pressed }) => [styles.sectionRow, pressed && styles.dim]}
-        >
-          <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
-          <Text style={styles.sectionRowLabel}>{t(C.sectionSkills)}</Text>
-          <Text style={styles.sectionRowCount}>
-            {skillsUnlockedCount}/{SKILLS.length}
-          </Text>
-          <View style={skillsOpen ? styles.chevronOpen : styles.chevronClosed}>
-            <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
-          </View>
-        </Pressable>
-        <View style={styles.skillsBlock}>
-          {(skillsOpen ? derivedSkills : []).map((s) => {
-            const locked = s.level === 0;
-            const roman = s.level > 0 ? SKILL_ROMAN[s.level - 1] : null;
-            // Roman du PROCHAIN niveau (défini seulement si non maxé → index ≤ 2).
-            const nextRoman = (SKILL_ROMAN as readonly string[])[s.level] ?? '';
-            return (
-              <View key={s.def.id} style={styles.skillRow}>
-                <Icon
-                  name={s.def.icon as IconName}
-                  size={iconSizes.lg}
-                  color={locked ? colors.gris : colors.chartreuse}
-                />
-                <View style={styles.skillInfo}>
-                  {/* Titre : « Route Maker III · 18 routes ouvertes » (jamais tronqué) */}
-                  <Text style={styles.skillTitle}>
-                    {locked ? (
-                      <Text style={styles.skillLocked}>{s.def.name}</Text>
-                    ) : (
-                      <>
-                        {/* Retour terrain 20/07 : le NOM d'une spécialisation
-                            débloquée passe en chartreuse (comme son icône) —
-                            fond = espace N0 (colors.noir), donc jamais de
-                            chartreuse sur clair. Verrouillé = gris. */}
-                        <Text style={styles.skillNameUnlocked}>{s.def.name}</Text>{' '}
-                        <Text style={styles.skillRoman}>{roman}</Text>
-                      </>
-                    )}
-                    {locked ? null : (
-                      <Text style={styles.skillMeta}>
-                        {'  ·  '}
-                        {formatInt(s.value)} {s.unit}
-                      </Text>
-                    )}
+            <View style={styles.progressRow}>
+              <GripMascot rank={gripRank} size={48} />
+              <View style={styles.progressInfo}>
+                <View style={styles.levelRow}>
+                  {/* Rang GRIP RÉEL (Recrue → Légende). L'échelle « Argent II »
+                      de la planche n'existe pas dans le jeu : la reproduire
+                      afficherait un statut que personne n'a gagné. */}
+                  <Text style={styles.levelLabel} numberOfLines={1}>
+                    {t(C.levelTierLine, {
+                      n: formatInt(runnerLevel),
+                      rank: GRIP_RANK_LABELS[gripRank],
+                    })}
                   </Text>
-                  {/* Jauge = progression dans le niveau courant (ou pleine si maxé) */}
-                  <View style={styles.skillGauge}>
-                    <ProgressBar
-                      value={s.progress}
-                      height={5}
-                      fill={locked ? colors.gris : colors.chartreuse}
-                    />
-                  </View>
-                  {/* Sous-ligne : reste vers le prochain niveau, palier max, ou
-                      amorçage si verrouillé. Toujours une donnée, non tronquée. */}
-                  <Text style={styles.skillSub}>
-                    {locked
-                      ? t(C.skillStartAt, { n: formatInt(s.def.levels[0].threshold), unit: s.unit })
-                      : s.maxed
-                        ? t(C.skillMaxed)
-                        : t(C.skillRemaining, {
-                            n: formatInt(s.remaining),
-                            unit: s.unit,
-                            name: s.def.name,
-                            roman: nextRoman,
-                          })}
+                  <Text style={styles.levelXp} numberOfLines={1}>
+                    {formatInt(xp)} / {formatInt(levelCeil)} XP
                   </Text>
                 </View>
+                <ProgressBar value={levelRatio} height={8} />
               </View>
-            );
-          })}
-        </View>
-        </>
-        )}
+            </View>
+          </>
+        ) : null}
 
-        {/* RACCOURCIS — listes longues déportées en pages dédiées (« PLUS » était
-            un label vague, banni des libellés d'action) */}
+        {/* ══ 6 · PREVIEWS SCANNABLES ══════════════════════════════════════════
+            Trois lignes, pas trois murs : les collections COMPLÈTES vivent dans
+            leurs pages. Chaque ligne n'existe que si son chiffre est vrai. */}
+        {gameReady ? (
+          <>
+            {/* Activité récente — rendue seulement quand la dernière course est
+                LUE (`ready`). En chargement ou en échec, la ligne disparaît : on
+                ne dit rien plutôt que d'affirmer « aucune course ». */}
+            {activityLabel ? (
+              <PreviewRow
+                icon="basket"
+                label={activityLabel}
+                a11yLabel={t(C.a11yRecentActivity)}
+                onPress={() => router.push('/historique')}
+              />
+            ) : null}
+
+            {/* Badges — les 3 équipés en miniature + le compteur. Collection vide
+                → une ligne qui dit comment en ouvrir un (jamais trois hexagones
+                grisés, qui se liraient « tu as raté ça »). */}
+            {featuredBadges.length > 0 ? (
+              <PreviewRow
+                visual={
+                  <View style={styles.badgeMinis}>
+                    {featuredBadges.map((def) => (
+                      <BadgeHex
+                        key={def.id}
+                        family={def.family}
+                        familyColor={badgeColor(def)}
+                        state="unlocked"
+                        tier={def.tier}
+                        size="xs"
+                        secret={def.secret}
+                        slug={badgeKeyByName(def.name)}
+                      />
+                    ))}
+                  </View>
+                }
+                label={t(C.previewBadges, { n: formatInt(unlockedCount) })}
+                a11yLabel={t(C.seeCollection, { n: unlockedCount, total: BADGE_TOTAL })}
+                onPress={() => router.push('/badges')}
+              />
+            ) : (
+              <Text style={styles.stateInline}>
+                {badgesFailed ? t(C.badgesFailedLine) : t(C.badgesEmptyLine)}
+              </Text>
+            )}
+
+            {/* Historique — compteur GRATUIT (`runsValid`, déjà lu par
+                useMyBadges) : pas de lecture de `runs` juste pour un nombre. */}
+            <PreviewRow
+              icon="historique"
+              label={t(C.previewHistory, { n: formatInt(stat('runsValid')) })}
+              a11yLabel={t(C.linkHistory)}
+              onPress={() => router.push('/historique')}
+            />
+
+            {/* Partage — la ShareCard 4:5 se déplie inline. Elle vivait sur une
+                action de la player card, qui n'existe plus : elle devient une
+                ligne, jamais un second bouton plein (§A). */}
+            <PreviewRow
+              icon="partage"
+              label={t(C.previewShare)}
+              a11yLabel={t(C.a11yShareCard)}
+              onPress={() => {
+                setShareOpen((v) => !v);
+                if (!shareOpen) toast.show(t(C.toastShareReady));
+              }}
+            />
+            {shareOpen ? (
+              <View style={styles.shareCardWrap}>
+                <ShareCard
+                  stat={hasSeasonRank ? `#${seasonRank}` : `${runnerLevel}`}
+                  statLabel={
+                    hasSeasonRank
+                      ? t(C.statSeasonRank, { scope: profile.seasonScope })
+                      : t(C.levelWord)
+                  }
+                  title={profile.displayName}
+                  /* Sans titre équipé, le gabarit « {rank} · niv. {n} · {title} »
+                     laisserait un « · » orphelin : on tombe alors sur les deux
+                     seules infos vraies (rang GRIP + niveau). */
+                  subtitle={
+                    displayedTitle.length > 0
+                      ? t(C.shareSubtitle, {
+                          rank: GRIP_RANK_LABELS[gripRank],
+                          n: runnerLevel,
+                          title: displayedTitle,
+                        })
+                      : `${GRIP_RANK_LABELS[gripRank]} · ${t(C.identityLevelOnly, { n: runnerLevel })}`
+                  }
+                >
+                  {/* Carte identité character-forward : GRIP porte la signature GRYD. */}
+                  <GripMascot rank={gripRank} size={72} />
+                </ShareCard>
+              </View>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* ── SPÉCIALISATIONS : gagnées par comportement (AMENDEMENT-23 §C) ──
+            Absentes de la planche E15, CONSERVÉES ici : elles n'ont aucune page
+            de destination, les retirer les rendrait inatteignables. Accordéon
+            REPLIÉ par défaut → un tap, zéro scroll ajouté (§A : détails au tap).
+            Gardé par `gameReady` comme ses voisins : « 0/8 » sans compte serait
+            un bilan de comportement pour un joueur qui n'existe pas. */}
+        {gameReady ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: skillsOpen }}
+              accessibilityLabel={t(C.a11yToggleSection, { section: t(C.sectionSkills) })}
+              onPress={() => setSkillsOpen((v) => !v)}
+              style={({ pressed }) => [styles.sectionRow, pressed && styles.dim]}
+            >
+              <Icon name="niveau" size={iconSizes.sm} color={colors.gris} />
+              <Text style={styles.sectionRowLabel}>{t(C.sectionSkills)}</Text>
+              <Text style={styles.sectionRowCount}>
+                {skillsUnlockedCount}/{SKILLS.length}
+              </Text>
+              <View style={skillsOpen ? styles.chevronOpen : styles.chevronClosed}>
+                <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
+              </View>
+            </Pressable>
+            <View style={styles.skillsBlock}>
+              {(skillsOpen ? derivedSkills : []).map((s) => {
+                const locked = s.level === 0;
+                const roman = s.level > 0 ? SKILL_ROMAN[s.level - 1] : null;
+                // Roman du PROCHAIN niveau (défini seulement si non maxé → index ≤ 2).
+                const nextRoman = (SKILL_ROMAN as readonly string[])[s.level] ?? '';
+                return (
+                  <View key={s.def.id} style={styles.skillRow}>
+                    <Icon
+                      name={s.def.icon as IconName}
+                      size={iconSizes.lg}
+                      color={locked ? colors.gris : colors.chartreuse}
+                    />
+                    <View style={styles.skillInfo}>
+                      {/* Titre : « Route Maker III · 18 routes ouvertes » (jamais tronqué) */}
+                      <Text style={styles.skillTitle}>
+                        {locked ? (
+                          <Text style={styles.skillLocked}>{s.def.name}</Text>
+                        ) : (
+                          <>
+                            {/* Nom d'une spécialisation DÉBLOQUÉE en chartreuse
+                                (comme son icône) — fond = espace N0, donc jamais
+                                de chartreuse sur clair. Verrouillé = gris. */}
+                            <Text style={styles.skillNameUnlocked}>{s.def.name}</Text>{' '}
+                            <Text style={styles.skillRoman}>{roman}</Text>
+                          </>
+                        )}
+                        {locked ? null : (
+                          <Text style={styles.skillMeta}>
+                            {'  ·  '}
+                            {formatInt(s.value)} {s.unit}
+                          </Text>
+                        )}
+                      </Text>
+                      {/* Jauge = progression dans le niveau courant (ou pleine si maxé) */}
+                      <View style={styles.skillGauge}>
+                        <ProgressBar
+                          value={s.progress}
+                          height={5}
+                          fill={locked ? colors.gris : colors.chartreuse}
+                        />
+                      </View>
+                      {/* Sous-ligne : reste vers le prochain niveau, palier max, ou
+                          amorçage si verrouillé. Toujours une donnée, non tronquée. */}
+                      <Text style={styles.skillSub}>
+                        {locked
+                          ? t(C.skillStartAt, {
+                              n: formatInt(s.def.levels[0].threshold),
+                              unit: s.unit,
+                            })
+                          : s.maxed
+                            ? t(C.skillMaxed)
+                            : t(C.skillRemaining, {
+                                n: formatInt(s.remaining),
+                                unit: s.unit,
+                                name: s.def.name,
+                                roman: nextRoman,
+                              })}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        ) : null}
+
+        {/* RACCOURCIS — listes longues déportées en pages dédiées. */}
         <Text style={styles.sectionLabel}>{t(C.sectionShortcuts)}</Text>
         {LINKS.map((link) => (
           <Pressable
@@ -1116,100 +990,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ── Player Card compacte : la SEULE surface N1 de l'identité (AMENDEMENT-22).
-  //    Pas de contour (80/20 : un cadre de card n'est pas un état) — elle se
-  //    détache du fond par sa surface + l'espace, pas par une bordure. ──
-  headerCard: {
+  // ── Héros pleine largeur : TabScreen (hors périmètre) impose son
+  //    paddingHorizontal à tous les onglets, on le compense ici. ──
+  heroBleed: {
+    marginHorizontal: -spacing.cardPadding,
     marginTop: spacing.md,
+    borderBottomLeftRadius: radii.card,
+    borderBottomRightRadius: radii.card,
+    overflow: 'hidden',
+  },
+
+  // ── Rangée de 4 métriques : UN bloc N1, colonnes séparées par un filet —
+  //    jamais quatre cards (card-dans-card interdit, et 4 cadres tuent la
+  //    hiérarchie). La 1ʳᵉ colonne est plus large : c'est LA mise en avant. ──
+  metrics: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
     backgroundColor: elevation.surface,
     borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    gap: spacing.md,
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
   },
-  // Avatar en `flex-start` : son bord haut = haut de la card, il ne déborde
-  // jamais du padding. C'est la COLONNE TEXTE qui vient s'aligner sur lui via
-  // `headerInfo.marginTop` (cf. diagnostic A) — pas l'inverse.
-  headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  // Colonne texte : UN seul bord gauche, deux GROUPES (identité / qualificatifs)
-  // séparés par un espace franc. `marginTop` = LE REPÈRE COMMUN : il descend le
-  // bloc identité (nom + @handle) pile sur le centre optique de l'avatar
-  // (`IDENTITY_TOP_OFFSET`, dérivé — jamais au jugé). Les qualificatifs suivent
-  // sous l'identité et ne déplacent donc jamais ce repère (invariant par langue).
-  headerInfo: { flex: 1, gap: spacing.xs, marginTop: IDENTITY_TOP_OFFSET },
-  // Nom + @handle : une unité, donc l'espace le plus serré de la colonne. Le gap
-  // est la SOURCE de `IDENTITY_GAP` (qui entre dans le calcul de l'offset).
-  headerIdentity: { gap: IDENTITY_GAP },
-  // Avatar pressable + pastille crayon (édition évidente sur la card). Variante
-  //  SURFACE/contour chartreuse (pas un disque plein) : le SEUL chartreuse plein
-  //  de la scène reste le gros CTA territoire (charte : un seul accent plein).
-  //  LARGEUR RÉELLE de l'hexagone (√3/2 × hauteur) : une boîte carrée réservait
-  //  ~8 px de vide de chaque côté et poussait l'avatar hors de l'axe de la card.
-  avatarPress: { width: AVATAR_W, height: AVATAR_PX },
-  editPencil: {
-    position: 'absolute',
-    // Centré sur le MILIEU de l'arête inférieure droite (calculé, pas au jugé) :
-    // la pastille touche l'hexagone au lieu de flotter dans un coin vide.
-    left: PENCIL_LEFT,
-    top: PENCIL_TOP,
-    width: PENCIL_PX,
-    height: PENCIL_PX,
-    borderRadius: radii.pill,
-    backgroundColor: colors.carbone,
-    borderWidth: 1.5,
-    borderColor: colors.chartreuse,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Nom affiché — le seul texte « lourd » de la colonne (hiérarchie 1).
-  name: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    // MÊME source que `NAME_LH` (qui sert à calculer le centrage de l'avatar) :
-    // la hauteur mesurée du nom et celle utilisée par l'offset ne peuvent pas
-    // diverger.
-    lineHeight: NAME_LH,
-  },
-  // @handle — gris, juste sous le nom, MÊME bord gauche (hiérarchie 2).
-  handle: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.textSemi,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    lineHeight: HANDLE_LH, // = source de `HANDLE_LH` (entre dans l'offset avatar)
-  },
-  // Titre cosmétique — chartreuse sur surface N1 SOMBRE (carbone), jamais clair.
-  title: {
+  metricCell: { flex: 1, gap: 3, paddingHorizontal: spacing.xs, justifyContent: 'center' },
+  metricLead: { flex: 1.45, paddingLeft: spacing.md },
+  metricDivided: { borderLeftWidth: 1, borderLeftColor: borderState.hairline },
+  // Chartreuse sur surface N1 SOMBRE (carbone) — jamais sur clair (charte).
+  metricLeadValue: {
     color: colors.chartreuse,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    lineHeight: fontSizes.xs * 1.25,
+    fontSize: fontSizes.xl,
+    lineHeight: fontSizes.xl * 1.15,
+    fontFamily: fonts.display,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    fontVariant: ['tabular-nums'],
   },
-  identity: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 0.3,
-    lineHeight: fontSizes.xs * 1.3,
-  },
-  // Bandeau de chiffres — colonnes ÉGALES, filet haut discret, tabular-nums :
-  // les valeurs restent alignées quel que soit le nombre de digits.
-  statsStrip: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: borderState.hairline,
-    paddingTop: spacing.sm,
-  },
-  statCell: { flex: 1, gap: 2 },
-  // `lineHeight` EXPLICITE des deux étages : sans lui, la hauteur de ligne
-  // dépend de la police système et les trois colonnes du bandeau ne partagent
-  // aucune ligne de base commune. `tabular-nums` fige en plus la largeur des
-  // chiffres, donc « 12 » et « #7 » s'empilent sur la même grille.
-  statValue: {
+  metricValue: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
     lineHeight: fontSizes.lg * 1.2,
@@ -1218,18 +1033,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     fontVariant: ['tabular-nums'],
   },
-  // `adjustsFontSizeToFit` (§A.9 : rétrécir plutôt que couper) rend les corps
-  // INÉGAUX d'une colonne à l'autre ; une hauteur de ligne fixe garantit malgré
-  // tout un même bord haut et un même bord bas pour les trois libellés.
-  statLabel: {
+  metricLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.35,
+    lineHeight: fontSizes.xs * 1.3,
     letterSpacing: 0.2,
   },
-  // Actions légères (IconAction) — rangée répartie, sans gros rectangle.
-  headerActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: spacing.xl },
-  shareCardWrap: { marginTop: spacing.md },
 
   // ── En-têtes de section ──
   sectionRow: {
@@ -1239,44 +1048,33 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
     // Plancher tactile : les en-têtes REPLIABLES (Spécialisations) sont des
-    // Pressable. Sans minHeight, leur cible utile valait la hauteur du texte
-    // (~20 px) — les marges ne sont PAS tactiles. Le seul moyen d'ouvrir la
-    // section était une bande de 20 px.
+    // Pressable, et les marges ne sont PAS tactiles.
     minHeight: sizes.touchTarget,
   },
   sectionRowLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 2 },
-
-  // ── Crew réel (en-tête, pleine largeur) + lignes de contexte territoire ──────
-  crewLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-    alignSelf: 'stretch',
+  sectionKicker: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 2,
+    marginBottom: spacing.xxs,
   },
-  crewLineName: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '800', flexShrink: 1 },
-  crewMembers: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '700', marginLeft: 'auto' },
-  // Ligne de contexte (prochaine mission, progression locale) : barre d'accent
-  // fine par RÔLE + texte, SOUS la carte territoire — jamais un 2e gros CTA (§A).
-  contextLine: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, marginTop: spacing.sm },
-  contextAccent: { width: 3, borderRadius: 2, alignSelf: 'stretch' },
-  contextBody: { flex: 1, gap: 2, justifyContent: 'center' },
-  contextKicker: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.4 },
-  contextText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  contextSub: { color: colors.gris, fontSize: fontSizes.xs, fontWeight: '600' },
+  // Lien de section (« Saison › ») — texte, jamais un bouton plein.
+  sectionLink: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto' },
+  sectionLinkLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
 
   // Chevron d'accordéon : « > » au repos, « v » ouvert (l'icône `chevron` du set
   // pointe à droite — on la fait pivoter, pas de second tracé à inventer).
   chevronClosed: { marginLeft: spacing.xs },
   chevronOpen: { marginLeft: spacing.xs, transform: [{ rotate: '90deg' }] },
 
-  // ── MODULE Territoire = résumé stratégique (AMENDEMENT-18 Partie B).
-  //    Surface N1 unique, sans contour (80/20) — sa CTA contextuelle porte le
-  //    seul gros accent de l'écran. ──
   // ── États vides / erreurs (§A : dire ce qui manque + UNE suite) ──
-  // Surface N1 comme les autres cards, jamais de card dans card. Le CTA est le
-  // SEUL bouton chartreuse de l'écran dans ces états (les modules de jeu, qui
-  // portent d'habitude cette CTA, sont masqués).
+  // Surface N1 comme les autres blocs, jamais de card dans card.
   stateCard: {
     backgroundColor: elevation.surface,
     borderRadius: radii.card,
@@ -1321,185 +1119,43 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 
-  territoryCard: {
-    backgroundColor: elevation.surface,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    gap: spacing.xs,
-    overflow: 'hidden',
-  },
-  // Bannière de crise (SOUS ATTAQUE) — pleine, ton rival, texte foncé (contraste)
-  territoryAlert: {
+  // ── MODULE Progression (UNE ligne) ──
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  progressInfo: { flex: 1, gap: spacing.xs, justifyContent: 'center' },
+  levelRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: gameColors.rival,
-    borderRadius: 10,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
   },
-  territoryAlertText: {
-    flex: 1,
-    color: colors.noir,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  // Corps 60/40 : stats à gauche, mini-carte à droite
-  territoryBody: { flexDirection: 'row', gap: spacing.sm },
-  territoryStats: { flex: 3, justifyContent: 'space-between', gap: 5 },
-  territoryStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusLabel: { fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.8 },
-  // Gros chiffre héros + unité à droite, portée en dessous (pleine largeur)
-  territoryHero: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
-  territoryHeroNum: {
-    color: colors.chartreuse,
-    fontSize: 32,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: -1,
-    lineHeight: 34,
-    fontVariant: ['tabular-nums'],
-  },
-  territoryHeroUnit: {
-    flex: 1,
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.3,
-    letterSpacing: 0.2,
-    paddingBottom: spacing.xxs,
-  },
-  territoryHeroScope: {
+  levelLabel: {
+    flexShrink: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
     fontFamily: fonts.textSemi,
     fontWeight: '700',
-    marginTop: 2,
-    letterSpacing: 0.2,
   },
-  // Mini-carte (aperçu statique, ~40 %) — VRAIE preview de contenu (la carte EST
-  //  le container) : pas de cadre, elle flotte sur la surface, fond = espace N0.
-  territoryMini: {
-    flex: 2,
-    minHeight: 92,
-    borderRadius: radii.control,
-    overflow: 'hidden',
-    backgroundColor: elevation.base,
-  },
-  // Prochaine action : contexte à gauche + CTA plein à droite (jamais tronqué)
-  territoryNextRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: borderState.hairline,
-    paddingTop: spacing.xs,
-  },
-  territoryNext: {
-    flex: 1,
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.textSemi,
-    fontWeight: '600',
-    lineHeight: fontSizes.sm * 1.28,
-  },
-  // CTA contextuel — cible de tap ≥ 44 px.
-  territoryCta: {
-    borderRadius: radii.pill,
-    minHeight: sizes.touchTarget,
-    justifyContent: 'center',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-  },
-  territoryCtaLabel: { fontSize: fontSizes.sm, fontWeight: '800', letterSpacing: 0.6 },
-
-  // ── Bloc SOLO : crews près de toi (A.5 — jamais de vide en solo) ──
-  // Bloc SOLO = invitation (prompt) → l'un des 20 % avec contour : filet chartreuse
-  //  DOUX (borderState.activeSoft) qui signale un état d'appel, pas un cadre décoratif.
-  soloCrewCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: elevation.surface,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: borderState.activeSoft,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.cardPadding,
-    marginTop: spacing.sm,
-  },
-  soloCrewInfo: { flex: 1 },
-  soloCrewHeadline: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
-  soloCrewSub: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
-  soloCrewCta: { color: colors.chartreuse, fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 0.4 },
-
-  // ── MODULE Progression ──
-  progressCard: {
-    backgroundColor: elevation.surface,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    gap: 10,
-  },
-  gripRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  gripInfo: { flex: 1, gap: spacing.xs, justifyContent: 'center' },
-  gripRankName: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  levelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  levelLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  levelArrow: { color: colors.chartreuse },
   levelXp: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.3,
   },
-  progressStatsRow: { flexDirection: 'row', marginTop: spacing.xxs },
-  progressStat: { flex: 1, gap: 2 },
-  progressStatValue: {
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  progressStatLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 0.2 },
 
-  // ── MODULE Badges — les 3 hexes POSÉS sur l'espace (pas de mini-card par badge :
-  //    card-dans-card interdit). Le badge lui-même EST l'objet, il n'a pas besoin
-  //    d'un cadre. ──
-  badgeRow: { flexDirection: 'row', gap: 10 },
-  badgeCell: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.xs,
-  },
-  badgeName: {
-    color: colors.blanc,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.textSemi,
-    fontWeight: '700',
-    textAlign: 'center',
-    letterSpacing: 0.4,
-  },
-  // Lien « Voir la collection » = row LÉGÈRE posée sur l'espace (pas une card) :
-  //  un simple filet haut la sépare des hexes, façon liste Strava.
-  collectionLink: {
+  // ── PREVIEWS : rows LÉGÈRES posées sur l'espace, filet neutre entre elles
+  //    (façon liste Strava) — pas une card par ligne. ──
+  previewRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    gap: 14,
+    minHeight: sizes.touchTarget,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xxs,
     marginTop: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: borderState.hairline,
   },
-  collectionLinkLabel: {
+  previewLabel: {
     flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
@@ -1507,10 +1163,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
+  // Les 3 badges équipés en miniature, serrés : ils se lisent comme UNE
+  // collection, pas comme trois objets distincts à comparer. (Yoga refuse un
+  // `gap` négatif — le chevauchement se ferait à la marge, pas ici.)
+  badgeMinis: { flexDirection: 'row', gap: 2 },
+  shareCardWrap: { marginTop: spacing.md },
 
-  // ── MODULE Skills — lignes LÉGÈRES posées sur l'espace (AMENDEMENT-22 : pas de
-  //    card-dans-card ; le skill n'a pas de cadre propre, il est séparé du suivant
-  //    par un filet neutre). Icône à gauche, texte non tronqué, jauge fine. ──
+  // ── MODULE Skills — lignes LÉGÈRES posées sur l'espace (pas de card-dans-card ;
+  //    le skill n'a pas de cadre propre, il est séparé du suivant par un filet). ──
   sectionRowCount: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -1539,8 +1199,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  // Nom d'une spécialisation DÉBLOQUÉE : chartreuse, comme son icône (retour
-  // terrain 20/07). Fond = espace N0 sombre → contraste conforme.
   skillNameUnlocked: { color: colors.chartreuse, fontWeight: '700' },
   skillRoman: { color: colors.chartreuse, fontWeight: '800' },
   skillMeta: {
@@ -1559,7 +1217,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 
-  // ── PLUS ──
+  // ── RACCOURCIS ──
   sectionLabel: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -1567,10 +1225,8 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: spacing.sm,
   },
-  // RACCOURCIS = liste de navigation LÉGÈRE (façon Strava) : rows posées sur
-  //  l'espace, séparées par un filet neutre, PAS une card par lien. UNE seule
-  //  ligne de texte par row (le sous-titre descriptif est supprimé) → cible de
-  //  tap toujours ≥ 44 px grâce au minHeight, moitié moins de scroll.
+  // Liste de navigation LÉGÈRE : rows posées sur l'espace, séparées par un filet
+  // neutre. UNE seule ligne de texte par row → cible de tap toujours ≥ 44 px.
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',

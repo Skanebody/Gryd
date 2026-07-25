@@ -29,10 +29,35 @@
  * Les pings viennent du serveur (0051) et JAMAIS d'un repli local : afficher un
  * ping que le crew ne voit pas serait exactement le mensonge que la doctrine
  * interdit. Aucun CTA chartreuse n'est ajouté — le seul reste « Inviter ».
+ *
+ * ═══ RECALAGE PLANCHE E13 « CREW HOME » (2026) ══════════════════════════════
+ * L'écran devient un QUARTIER GÉNÉRAL VISUEL, dans l'ordre de la planche :
+ *   1. HERO d'appartenance (blason 72 pt + nom display + ville · rang · effectif) ;
+ *   2. SEGMENTED 3 vues « Aperçu | Carte | Membres » — jamais de 4ᵉ onglet Chat
+ *      (pas de backend, et le chat libre reste refusé, A-43 §9) ;
+ *   3. Aperçu = card NOTRE PRIORITÉ en point focal, puis l'activité (≤ 3 lignes),
+ *      puis la rangée de membres ;
+ *   4. Carte = TERRITOIRE (zones tenues + rang) + bande des secteurs nommés ;
+ *   5. Membres = le roster, inchangé.
+ * Le CREW SANS TERRITOIRE (`hexesHeld === 0`, overview LU) remplace l'aperçu par
+ * un PLAN D'ACTION (`CrewStarterPlan`) — jamais un tableau de bord vide.
+ *
+ * Ce que la planche montre et que le code REFUSE de peindre — chaque absence est
+ * une donnée qui n'existe pas, détaillée dans les composants concernés :
+ * photo de crew, @tag, surface km², delta hebdomadaire, barre de progression de
+ * mission, mini-carte de secteur, avatars, édition d'emblème, compteur « 0/3 »,
+ * actions de gestion officier/chef, bouton Chat.
+ *
+ * Cette branche n'utilise plus `TabScreen` mais son propre ScrollView (patron
+ * `app/(tabs)/classement.tsx`) : `TabScreen` rend son titre AVANT ses enfants,
+ * or le hero PORTE le nom du crew — l'un des deux aurait fait doublon. Aucune
+ * modification de `TabScreen` n'a été faite ; les autres états de l'écran
+ * (déconnecté, création, adhésion, échec, sans crew) le gardent tel quel.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CREW_CODE_LENGTH,
   CREW_PING_MAX_ACTIVE_PER_MEMBER,
@@ -41,17 +66,27 @@ import {
   fonts,
   elevation,
   fontSizes,
+  iconSizes,
   radii,
   sizes,
   spacing,
+  type IconName,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { useSession } from '../../lib/session';
 import { Button } from '../../ui/Button';
+import { Card, IconPlate } from '../../ui/Card';
+import { Icon } from '../../ui/Icon';
+import { Segmented, type SegmentedOption } from '../../ui/game/Segmented';
 import { TabScreen } from '../../ui/TabScreen';
-import { useT } from '../../i18n/store';
-import type { Entry } from '../../i18n/types';
+import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../nav/metrics';
+import { useLocale, useT } from '../../i18n/store';
+import type { Entry, Locale } from '../../i18n/types';
 import { C, CREW_ROLE_E, CREW_SIGNAL_E } from '../../i18n/catalog/crew';
+import { CrewHero } from './CrewHero';
+import { CrewMembersStrip } from './CrewMembersStrip';
+import { CrewStarterPlan } from './CrewStarterPlan';
+import { CrewTerritoryStrip } from './CrewTerritoryStrip';
 import { CrewInviteQRScreen } from './CrewInviteQRScreen';
 import { useCrewPings, type PingSendRefusal } from './pings';
 import {
@@ -216,8 +251,60 @@ function missionCopy(
   }
 }
 
+/**
+ * PASTILLE D'ÉTAT de la card NOTRE PRIORITÉ — elle REMPLACE la mini-carte de la
+ * planche. Aucune géométrie de secteur ne descend jusqu'au client (0015 garde
+ * `segments`/`opener_ring` côté serveur ; `missionSectors` ne porte qu'un nom et
+ * des compteurs) : une vignette carto ne montrerait qu'un fond générique, donc
+ * un décor qui ferait croire à une localisation. Une icône de NATURE de mission
+ * dit la même chose sans rien affirmer sur un lieu.
+ */
+function missionIcon(kind: CrewMission['kind']): IconName {
+  switch (kind) {
+    case 'defend':
+      return 'bouclier';
+    case 'reclaim':
+      return 'cible';
+    case 'close_loop':
+      return 'boucle_fermee';
+    default:
+      return 'conquete';
+  }
+}
+
+/**
+ * Heure locale COURTE d'un événement (« 08:12 »), format de la planche.
+ *
+ * `Intl` n'est pas garanti sur tous les moteurs embarqués (même prudence que
+ * `features/history/RealRunCard`) : en cas d'absence, on retombe sur 24 h
+ * numérique plutôt que sur une chaîne vide. Une heure est un FAIT lu du serveur
+ * (`createdAt`) — elle ne doit jamais disparaître ni être arrondie.
+ */
+function shortTime(ms: number, locale: Locale): string {
+  const d = new Date(ms);
+  try {
+    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    const p2 = (n: number) => n.toString().padStart(2, '0');
+    return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  }
+}
+
+/** Les 3 vues du QG (planche E13). Le chat n'en est PAS une (A-43 §9). */
+type CrewView = 'overview' | 'map' | 'members';
+
+/**
+ * ACTIVITÉ — plafond d'affichage de la planche (« exactement 3 événements MAX »).
+ * Ce n'est pas une règle de jeu : c'est une borne de lisibilité, au même titre
+ * que la largeur d'une rangée. Le plafond de LECTURE, lui, vit dans game-rules
+ * (`CREW_PING_FEED_MAX`, consommé par `useCrewPings`).
+ */
+const ACTIVITY_MAX = 3;
+
 export function RealCrewScreen() {
   const t = useT();
+  const locale = useLocale();
+  const insets = useSafeAreaInsets();
   const { configured } = useSession();
   // Les callbacks du hook sont mémoïsés (stables tant que `ready` ne change pas) :
   // on les destructure pour des deps d'effet/callback saines (l'objet `crewApi`
@@ -229,6 +316,9 @@ export function RealCrewScreen() {
     crew,
     members,
     overview,
+    // `overviewLoading` sépare « je lis le territoire » de « je n'ai pas pu le
+    // lire » : sans lui, la vue Carte rendrait le même vide dans les deux cas.
+    overviewLoading,
     mission,
     missionSectors,
     memberCount,
@@ -241,6 +331,12 @@ export function RealCrewScreen() {
   } = useRealCrew({ withOverview: true });
 
   const [mode, setMode] = useState<Mode>('home');
+  /**
+   * Vue active du QG (planche E13). L'onglet Membres n'ouvre AUCUNE route : il
+   * fait défiler la même page sur un autre contenu — donc aucun écran à peindre
+   * qui n'existe pas.
+   */
+  const [view, setView] = useState<CrewView>('overview');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   /**
@@ -434,9 +530,13 @@ export function RealCrewScreen() {
   // ORDRE D'ANCIENNETÉ (pas de reclassement quand la donnée arrive : l'écran ne
   // saute pas sous le doigt) ; l'overview ne fait qu'enrichir chaque ligne.
   const detailByUser = useMemo(() => {
-    const map = new Map<string, { role: string; contributionPct: number }>();
+    const map = new Map<string, { role: string; contributionPct: number; hexesHeld: number }>();
     for (const c of overview?.contributions ?? []) {
-      map.set(c.userId, { role: c.role, contributionPct: c.contributionPct });
+      map.set(c.userId, {
+        role: c.role,
+        contributionPct: c.contributionPct,
+        hexesHeld: c.hexesHeld,
+      });
     }
     return map;
   }, [overview]);
@@ -445,6 +545,48 @@ export function RealCrewScreen() {
   // les lignes n'apprend rien et encombre (§A). Le bloc territoire dit déjà,
   // en une phrase honnête, qu'il n'y a pas encore de territoire.
   const showContributions = (overview?.territory.hexesHeld ?? 0) > 0;
+
+  /**
+   * MA part du territoire du crew (planche : « Votre part »), ou `null`.
+   *
+   * `null` couvre les trois cas où la valeur n'est pas connue — overview pas lu,
+   * crew sans territoire, ma ligne absente de l'agrégat — et il n'y a alors
+   * AUCUNE ligne à l'écran. Un « 0 % » nu affirmerait une paresse là où on n'a
+   * simplement pas la donnée (les quatre états distincts de CLAUDE.md).
+   */
+  const myShare = useMemo(() => {
+    if (!showContributions) return null;
+    const me = members.find((m) => m.isMe);
+    if (!me) return null;
+    return detailByUser.get(me.userId)?.contributionPct ?? null;
+  }, [showContributions, members, detailByUser]);
+
+  /**
+   * CREW COMPLET — état RÉEL, dérivé du roster serveur et de CREW_MAX_MEMBERS.
+   * Dans cet état, « Inviter » échouerait TOUJOURS (`full`, 0050) : on le retire
+   * et on dit pourquoi, au lieu de peindre un CTA chartreuse mort (§A4).
+   */
+  const crewFull = memberCount >= maxMembers;
+
+  /**
+   * CREW SANS TERRITOIRE — la bascule vers le PLAN D'ACTION.
+   *
+   * ⚠ Elle exige `overview !== null` : `null` signifie « pas lu » (chargement OU
+   * échec), jamais « zéro ». Sans ce garde-fou, un crew qui tient 40 zones
+   * verrait « Votre premier territoire crew » pendant toute la lecture de
+   * l'agrégat — un mensonge de quelques centaines de millisecondes, mais un
+   * mensonge quand même.
+   */
+  const noTerritory = overview !== null && overview.territory.hexesHeld === 0;
+
+  const crewViews: readonly SegmentedOption<CrewView>[] = useMemo(
+    () => [
+      { id: 'overview', label: t(C.segOverview) },
+      { id: 'map', label: t(C.segMap) },
+      { id: 'members', label: t(C.tabMembers) },
+    ],
+    [t],
+  );
 
   // ── DÉCONNECTÉ / sans backend : aucun crew fictif, on invite à se connecter ──
   if (!ready) {
@@ -558,187 +700,378 @@ export function RealCrewScreen() {
       );
     }
 
+    /*
+      ── LE QG (planche E13) ─────────────────────────────────────────────────
+      ScrollView PROPRE et non `TabScreen` : le hero porte le nom du crew, et
+      `TabScreen` rend le sien AVANT ses enfants — les deux auraient fait
+      doublon. Le dégagement bas reste celui de tous les onglets
+      (`TAB_CONTENT_BOTTOM_CLEARANCE` : nav flottante + capsule GO).
+    */
     return (
-      <TabScreen title={crew.name} kicker={kicker}>
-        {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
-        <Text style={styles.count}>{t(C.rlMembersOf, { count: memberCount, max: maxMembers })}</Text>
+      <View style={styles.root}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: insets.bottom + TAB_CONTENT_BOTTOM_CLEARANCE },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 1. APPARTENANCE — blason RÉEL, nom, et seulement les faits lus. */}
+          <CrewHero
+            crewId={crew.id}
+            crewName={crew.name}
+            cityId={crew.cityId}
+            memberCount={memberCount}
+            maxMembers={maxMembers}
+            // `?? null` et non `?? 0` : tant que l'agrégat n'a pas répondu, le
+            // rang n'existe pas — il ne vaut pas « premier ».
+            cityRank={overview?.territory.cityRank ?? null}
+            crewsInCity={overview?.territory.crewsInCity ?? null}
+            topInset={insets.top}
+          />
 
-        {/*
-          NOTRE PRIORITÉ — maillon 3 de la boucle A-43 §0 (« je cours pour
-          l'AIDER »). EN TÊTE : sans elle, le crew n'est qu'un compteur partagé.
+          {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
 
-          Format doctrine : UNE phrase (ce qu'on fait) + le manque CONCRET
-          (combien, dans combien de temps) + UNE action. Tout vient du moteur PUR
-          `chooseCrewMission` nourri par des faits serveur (0049) — aucun
-          secteur, rival, distance ni délai n'est inventé.
+          {/* 2. LES 3 VUES. `tone="surface"` est OBLIGATOIRE ici : un CTA
+              chartreuse existe déjà plus bas, et un seul focus chartreuse fort
+              par scène (§A4). Aucun 4ᵉ segment « Chat » — ni backend, ni
+              doctrine (A-43 §9). */}
+          <Segmented
+            options={crewViews}
+            value={view}
+            onChange={setView}
+            tone="surface"
+            accessibilityLabel={t(C.segA11y)}
+            style={styles.segmented}
+          />
 
-          §A : ce bloc n'ajoute AUCUN CTA chartreuse. Le seul de l'écran reste
-          « Inviter » ; l'action de mission est un lien discret. Pas de card dans
-          card non plus : un label + deux lignes de texte + un lien.
-
-          TROIS états, et la nuance est le cœur du zéro-mensonge :
-           · mission === null  → on n'a PAS PU lire (chargement/échec) : AUCUN
-             bloc. On ne dit pas « aucune priorité » quand on ne sait pas.
-           · kind === 'none'   → on a lu, il n'y a réellement rien : on le DIT.
-           · une mission       → la phrase + le manque chiffré.
-        */}
-        {mission ? (() => {
-          const copy = missionCopy(mission, Date.now());
-          if (!copy) return null;
-          return (
-            <View style={styles.priority}>
-              <Text style={styles.sectionLabel}>{t(C.cmLabel)}</Text>
-              {'note' in copy ? (
-                <Text style={styles.priorityNote}>{t(copy.note)}</Text>
-              ) : (
-                <>
-                  <Text style={styles.priorityTitle}>{t(copy.title.entry, copy.title.vars)}</Text>
-                  <Text style={styles.priorityGap}>{t(copy.gap.entry, copy.gap.vars)}</Text>
-                  {/* Action INLINE (§A) : la carte est l'endroit où l'on agit.
-                      Elle n'est proposée QUE quand il y a quelque chose à y voir. */}
-                  <Pressable
-                    onPress={() => router.push('/')}
-                    accessibilityRole="link"
-                    hitSlop={8}
-                  >
-                    <Text style={styles.priorityAction}>{t(C.cmSeeOnMap)}</Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
-          );
-        })() : null}
-
-        {/*
-          SIGNAUX DU CREW — A-44 A4/A5. Le chat LIBRE reste refusé (A-43 §9) :
-          ce bloc affiche des pings, c'est-à-dire des couples
-          (signal du catalogue fermé) × (secteur RÉEL). La phrase est composée
-          ICI, dans la langue du lecteur, à partir de deux références serveur —
-          aucun caractère saisi par un humain n'y entre.
-
-          §A : aucun CTA chartreuse ajouté (le seul de l'écran reste « Inviter »),
-          pas de card, pas de compteur décoratif. Un label, des lignes, un lien.
-
-          TROIS états, même nuance que la mission :
-           · pings === null → on n'a PAS PU lire : AUCUN bloc (on ne dit surtout
-             pas « aucun signal » quand on ne sait pas) ;
-           · []             → le serveur a répondu « rien » : on le DIT ;
-           · des pings      → les lignes, les plus récentes d'abord.
-
-          Le lien d'envoi n'apparaît que si un vocabulaire a du SENS maintenant
-          (`signals.length > 0`, donc situation connue) : sans mission lisible,
-          proposer « Envoyer un signal » ouvrirait une liste vide.
-        */}
-        {pings ? (
-          <View style={styles.signals}>
-            <Text style={styles.sectionLabel}>{t(C.pingLabel)}</Text>
-            {pings.length === 0 ? (
-              <Text style={styles.signalEmpty}>{t(C.pingEmpty)}</Text>
+          {/* ── VUE APERÇU ──────────────────────────────────────────────── */}
+          {view === 'overview' ? (
+            noTerritory ? (
+              /*
+                CREW SANS TERRITOIRE : un PLAN, pas un tableau de bord à zéro.
+                Le CTA chartreuse du plan devient l'unique de l'écran — c'est
+                pourquoi « Inviter » disparaît du bas de page dans cet état et
+                redevient l'action de l'étape 1.
+              */
+              <CrewStarterPlan
+                memberCount={memberCount}
+                canInvite={!crewFull}
+                onInvite={() => setMode('invite')}
+                onOpenMap={() => router.push('/')}
+              />
             ) : (
-              pings.map((p) => (
-                <Text key={p.id} style={styles.signalLine}>
-                  {p.sectorName
-                    ? t(C.pingLine, {
-                        author: p.authorPseudo,
-                        sector: p.sectorName,
-                        signal: t(CREW_SIGNAL_E[p.signal]),
-                      })
-                    : t(C.pingLineNoSector, {
-                        author: p.authorPseudo,
-                        signal: t(CREW_SIGNAL_E[p.signal]),
-                      })}
-                </Text>
-              ))
-            )}
-            {signals.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  setPendingSignal(null);
-                  setMode('signal');
-                }}
-                accessibilityRole="button"
-                hitSlop={8}
-                style={styles.signalLink}
-              >
-                <Text style={styles.priorityAction}>{t(C.pingOpen)}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/*
-          BLOC TERRITOIRE — maillon 2 de la boucle A-43 « je vois ce que mon
-          crew contrôle ». Bloc d'INFO, pas un bouton : le seul CTA chartreuse
-          de l'écran reste « Inviter » (§A). Absent tant que crew_overview n'a
-          rien renvoyé (chargement OU échec) : ne rien dire vaut mieux que dire
-          « 0 zone » à tort. Aucune aire en m² n'est affichée — le serveur n'en
-          émet pas (0044, choix n°1) et on n'en fabrique pas ici.
-        */}
-        {overview ? (
-          <View style={styles.territory}>
-            <Text style={styles.sectionLabel}>{t(C.rlTerritoryLabel)}</Text>
-            {overview.territory.hexesHeld > 0 ? (
               <>
-                <Text style={styles.territoryValue}>
-                  {overview.territory.hexesHeld === 1
-                    ? t(C.rlZonesHeldOne)
-                    : t(C.rlZonesHeldN, { n: overview.territory.hexesHeld })}
-                </Text>
-                {/* Rang tu si le crew est seul dans sa ville : « 1 sur 1 » n'est
-                    pas un classement, c'est du bruit. */}
-                {overview.territory.cityRank !== null &&
-                overview.territory.crewsInCity !== null &&
-                overview.territory.crewsInCity > 1 ? (
-                  <Text style={styles.territoryHint}>
-                    {t(C.rlCityRank, {
-                      rank: overview.territory.cityRank,
-                      total: overview.territory.crewsInCity,
-                    })}
-                  </Text>
-                ) : null}
-              </>
-            ) : (
-              <Text style={styles.territoryEmpty}>{t(C.rlNoTerritory)}</Text>
-            )}
-          </View>
-        ) : null}
+                {/*
+                  NOTRE PRIORITÉ — maillon 3 de la boucle A-43 §0 (« je cours
+                  pour l'AIDER ») et POINT FOCAL de la planche juste après le
+                  hero : sans elle, le crew n'est qu'un compteur partagé.
 
-        <View style={styles.roster}>
-          {members.map((m, i) => {
-            const detail = detailByUser.get(m.userId);
-            const roleEntry = detail ? roleLabelEntry(detail.role) : null;
-            return (
-              <View
-                key={m.userId}
-                style={[styles.memberRow, i < members.length - 1 && styles.memberDivider]}
-              >
-                <View style={styles.memberIdentity}>
-                  <View style={styles.memberNameRow}>
-                    <Text style={styles.memberName} numberOfLines={1}>
-                      {m.pseudo}
-                    </Text>
-                    {m.isMe ? <Text style={styles.youTag}>{t(C.rlYouTag)}</Text> : null}
+                  Format doctrine : UNE phrase (ce qu'on fait) + le manque
+                  CONCRET (combien, dans combien de temps) + UNE action. Tout
+                  vient du moteur PUR `chooseCrewMission` nourri par des faits
+                  serveur (0049) — aucun secteur, rival, distance ni délai n'est
+                  inventé.
+
+                  ⚠ NI BARRE DE PROGRESSION NI POURCENTAGE, contrairement à la
+                  planche : aucune mission n'a de DÉNOMINATEUR. `defend` a un
+                  compte et une échéance, `reclaim` un compte et une date,
+                  `close_loop` des mètres manquants sans longueur totale,
+                  `capture` une BORNE SUPÉRIEURE de zones libres (le code refuse
+                  déjà d'en afficher le nombre, cf. `cmCaptureGap`). Un « 62 % »
+                  serait un chiffre inventé ; le manque concret rendu ici est la
+                  version vraie du même signal.
+
+                  §A : ce bloc n'ajoute AUCUN CTA chartreuse — l'action de
+                  mission est un lien. UNE seule surface (la card), et rien
+                  d'encapsulé dedans (l'IconPlate est un contrôle N2, pas une
+                  card).
+
+                  TROIS états, et la nuance est le cœur du zéro-mensonge :
+                   · mission === null  → on n'a PAS PU lire (chargement/échec) :
+                     AUCUN bloc. On ne dit pas « aucune priorité » sans savoir.
+                   · kind === 'none'   → on a lu, il n'y a rien : on le DIT.
+                   · une mission       → la phrase + le manque chiffré.
+                */}
+                {mission ? (() => {
+                  const copy = missionCopy(mission, Date.now());
+                  if (!copy) return null;
+                  return (
+                    <Card style={styles.objective}>
+                      <Text style={styles.kickerMono}>{t(C.cmLabel)}</Text>
+                      {'note' in copy ? (
+                        <Text style={styles.priorityNote}>{t(copy.note)}</Text>
+                      ) : (
+                        <>
+                          <View style={styles.objectiveHead}>
+                            <IconPlate
+                              icon={missionIcon(mission.kind)}
+                              size="md"
+                              color={colors.chartreuse}
+                            />
+                            <View style={styles.objectiveBody}>
+                              <Text style={styles.priorityTitle}>
+                                {t(copy.title.entry, copy.title.vars)}
+                              </Text>
+                              <Text style={styles.priorityGap}>
+                                {t(copy.gap.entry, copy.gap.vars)}
+                              </Text>
+                            </View>
+                          </View>
+                          {/* « Votre part » de la planche, nommée pour ce
+                              qu'elle mesure VRAIMENT : ma part du TERRITOIRE
+                              (0044), jamais une part de la mission — qui n'est
+                              mesurée nulle part. Et en %, jamais en km² :
+                              aucune aire n'existe côté serveur. */}
+                          {myShare !== null ? (
+                            <Text style={styles.myShare}>
+                              {t(C.myTerritoryShare, { pct: myShare })}
+                            </Text>
+                          ) : null}
+                          {/* Action INLINE (§A) : la carte est l'endroit où
+                              l'on agit. Le libellé nomme la DESTINATION —
+                              « Voir la mission › » promettrait un écran de
+                              mission dédié, qui n'existe pas. */}
+                          <Pressable
+                            onPress={() => router.push('/')}
+                            accessibilityRole="link"
+                            accessibilityLabel={t(C.cmSeeOnMap)}
+                            hitSlop={8}
+                            style={styles.inlineLink}
+                          >
+                            <Text style={styles.priorityAction}>{t(C.cmSeeOnMap)}</Text>
+                            <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
+                          </Pressable>
+                        </>
+                      )}
+                    </Card>
+                  );
+                })() : null}
+
+                {/*
+                  ACTIVITÉ (planche) = SIGNAUX DU CREW (A-44 A4/A5), plafonnés à
+                  ACTIVITY_MAX lignes et datés « texte · heure ».
+
+                  ⚠ LE LIBELLÉ RESTE « SIGNAUX DU CREW », pas « ACTIVITÉ ». La
+                  planche illustre des captures, des défenses et des arrivées de
+                  membres : rien de tout cela n'est lu ici. Titrer « ACTIVITÉ »
+                  un fil qui ne contient que des signaux ferait conclure, devant
+                  une liste vide, qu'il ne s'est rien passé dans le crew — alors
+                  qu'on n'en sait rien. Le libellé précis est le seul honnête.
+
+                  Le chat LIBRE reste refusé (A-43 §9) : chaque ligne est un
+                  couple (signal du catalogue FERMÉ) × (secteur RÉEL), composé
+                  ici dans la langue du lecteur. Aucun caractère saisi par un
+                  humain n'y entre.
+
+                  TROIS états, même nuance que la mission :
+                   · pings === null → on n'a PAS PU lire : AUCUN bloc ;
+                   · []             → le serveur a dit « rien » : on le DIT ;
+                   · des pings      → les lignes, les plus récentes d'abord.
+
+                  Le lien d'envoi n'apparaît que si un vocabulaire a du SENS
+                  maintenant (`signals.length > 0`, donc situation connue) :
+                  sans mission lisible, il ouvrirait une liste vide.
+                */}
+                {pings ? (
+                  <View style={styles.signals}>
+                    <Text style={styles.sectionLabel}>{t(C.pingLabel)}</Text>
+                    {pings.length === 0 ? (
+                      <Text style={styles.signalEmpty}>{t(C.pingEmpty)}</Text>
+                    ) : (
+                      pings.slice(0, ACTIVITY_MAX).map((p) => (
+                        <View key={p.id} style={styles.activityRow}>
+                          {/* Puce par RÔLE (§C) : tous ces signaux viennent de
+                              MON crew, donc chartreuse — jamais une couleur par
+                              membre ni par crew. */}
+                          <View style={styles.activityDot} />
+                          {/* Pas de numberOfLines : un signal tronqué est un
+                              signal mal lu (§A.9). La ligne enveloppe. */}
+                          <Text style={styles.signalLine}>
+                            {p.sectorName
+                              ? t(C.pingLine, {
+                                  author: p.authorPseudo,
+                                  sector: p.sectorName,
+                                  signal: t(CREW_SIGNAL_E[p.signal]),
+                                })
+                              : t(C.pingLineNoSector, {
+                                  author: p.authorPseudo,
+                                  signal: t(CREW_SIGNAL_E[p.signal]),
+                                })}
+                          </Text>
+                          <Text style={styles.activityTime}>
+                            {shortTime(p.createdAt, locale)}
+                          </Text>
+                        </View>
+                      ))
+                    )}
+                    {signals.length > 0 ? (
+                      <Pressable
+                        onPress={() => {
+                          setPendingSignal(null);
+                          setMode('signal');
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t(C.pingOpen)}
+                        hitSlop={8}
+                        style={styles.inlineLink}
+                      >
+                        <Text style={styles.priorityAction}>{t(C.pingOpen)}</Text>
+                        <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
+                      </Pressable>
+                    ) : null}
                   </View>
-                  {/* Le RÔLE rend le fondateur identifiable (correctif A-43). */}
-                  {roleEntry ? <Text style={styles.memberRole}>{t(roleEntry)}</Text> : null}
-                </View>
-                {showContributions && detail ? (
-                  <Text style={styles.memberPct}>
-                    {t(C.rlContributionPct, { pct: detail.contributionPct })}
-                  </Text>
+                ) : null}
+
+                {/* Rangée de membres + accès à la vue Membres (planche). */}
+                <CrewMembersStrip members={members} onOpenMembers={() => setView('members')} />
+              </>
+            )
+          ) : null}
+
+          {/* ── VUE CARTE ───────────────────────────────────────────────────
+              TERRITOIRE — maillon 2 de la boucle A-43 « je vois ce que mon crew
+              contrôle ». Bloc d'INFO, jamais un bouton. Absent tant que
+              `crew_overview` n'a rien renvoyé (chargement OU échec) : ne rien
+              dire vaut mieux que dire « 0 zone » à tort.
+
+              ⚠ AUCUNE AIRE en km², contrairement à la planche : le serveur n'en
+              émet pas (0044, choix n°1) et `real.ts:58-67` interdit d'en
+              fabriquer une depuis `hexesHeld`. « N zones tenues » est la mesure
+              qui existe. Aucun delta hebdomadaire non plus — aucune table ne
+              conserve les pertes agrégées, donc aucun solde n'est calculable, et
+              une flèche « ▲ » affirmerait précisément ce solde. */}
+          {view === 'map' ? (
+            overview ? (
+              <View style={styles.territory}>
+                <Text style={styles.sectionLabel}>{t(C.rlTerritoryLabel)}</Text>
+                {overview.territory.hexesHeld > 0 ? (
+                  <>
+                    <Text style={styles.territoryValue}>
+                      {overview.territory.hexesHeld === 1
+                        ? t(C.rlZonesHeldOne)
+                        : t(C.rlZonesHeldN, { n: overview.territory.hexesHeld })}
+                    </Text>
+                    {/* Rang tu si le crew est seul dans sa ville : « 1 sur 1 »
+                        n'est pas un classement, c'est du bruit. */}
+                    {overview.territory.cityRank !== null &&
+                    overview.territory.crewsInCity !== null &&
+                    overview.territory.crewsInCity > 1 ? (
+                      <Text style={styles.territoryHint}>
+                        {t(C.rlCityRank, {
+                          rank: overview.territory.cityRank,
+                          total: overview.territory.crewsInCity,
+                        })}
+                      </Text>
+                    ) : null}
+                    {/* Bande des secteurs NOMMÉS, tirée des faits déjà chargés
+                        pour la mission (aucune lecture de plus). */}
+                    <CrewTerritoryStrip sectors={missionSectors} />
+                    <Pressable
+                      onPress={() => router.push('/')}
+                      accessibilityRole="link"
+                      accessibilityLabel={t(C.cmSeeOnMap)}
+                      hitSlop={8}
+                      style={styles.inlineLink}
+                    >
+                      <Text style={styles.priorityAction}>{t(C.cmSeeOnMap)}</Text>
+                      <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
+                    </Pressable>
+                  </>
+                ) : (
+                  <Text style={styles.territoryEmpty}>{t(C.rlNoTerritory)}</Text>
+                )}
+              </View>
+            ) : (
+              /*
+                L'AGRÉGAT N'EST PAS LÀ. Ne rien rendre laisserait une vue VIDE
+                sous le segmented — ça n'affirme rien, mais ça ressemble à un
+                écran cassé (CLAUDE.md : jamais d'écran blanc). On nomme donc
+                l'état, et on distingue les deux : « je lis » n'est pas « je n'ai
+                pas pu lire », et aucun des deux n'est « 0 zone ».
+              */
+              <View style={styles.territory}>
+                <Text style={styles.sectionLabel}>{t(C.rlTerritoryLabel)}</Text>
+                <Text style={styles.territoryEmpty}>
+                  {t(overviewLoading ? C.territoryReading : C.territoryUnavailable)}
+                </Text>
+                {!overviewLoading ? (
+                  <Pressable
+                    onPress={reload}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(C.rlRetry)}
+                    hitSlop={8}
+                    style={styles.inlineLink}
+                  >
+                    <Text style={styles.priorityAction}>{t(C.rlRetry)}</Text>
+                  </Pressable>
                 ) : null}
               </View>
-            );
-          })}
-        </View>
+            )
+          ) : null}
 
-        <View style={styles.cta}>
-          <Button label={t(C.rlShareCode)} icon="partage" onPress={() => setMode('invite')} />
-        </View>
-        <View style={styles.leaveRow}>
-          <Button variant="ghost" size="md" label={t(C.rlLeave)} onPress={onLeave} />
-        </View>
-      </TabScreen>
+          {/* ── VUE MEMBRES ─────────────────────────────────────────────── */}
+          {view === 'members' ? (
+            <View style={styles.roster}>
+              {members.map((m, i) => {
+                const detail = detailByUser.get(m.userId);
+                const roleEntry = detail ? roleLabelEntry(detail.role) : null;
+                return (
+                  <View
+                    key={m.userId}
+                    style={[styles.memberRow, i < members.length - 1 && styles.memberDivider]}
+                  >
+                    <View style={styles.memberIdentity}>
+                      <View style={styles.memberNameRow}>
+                        <Text style={styles.memberName} numberOfLines={1}>
+                          {m.pseudo}
+                        </Text>
+                        {m.isMe ? <Text style={styles.youTag}>{t(C.rlYouTag)}</Text> : null}
+                      </View>
+                      {/* Le RÔLE rend le fondateur identifiable (correctif
+                          A-43). Il reste de l'AFFICHAGE : aucune action de
+                          gestion (promouvoir, exclure, assigner) n'est peinte —
+                          aucune RPC rôle-gatée n'existe (0010 : « endpoints
+                          rôle-gated = TODO V1 »). */}
+                      {roleEntry ? <Text style={styles.memberRole}>{t(roleEntry)}</Text> : null}
+                    </View>
+                    {/* MEMBRE INACTIF JAMAIS HUMILIÉ (planche) : un « 0 % »
+                        collé en face d'un pseudo est un classement de la
+                        paresse. Tant qu'un membre ne tient aucune zone, sa
+                        ligne ne porte simplement pas de chiffre. */}
+                    {showContributions && detail && detail.hexesHeld > 0 ? (
+                      <Text style={styles.memberPct}>
+                        {t(C.rlContributionPct, { pct: detail.contributionPct })}
+                      </Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {/*
+            ACTIONS D'ÉCRAN — sous les trois vues, donc atteignables partout.
+
+            « Inviter » disparaît dans DEUX cas, et pour la même raison (§A4 : ne
+            jamais peindre une action qui échoue toujours, a fortiori en
+            chartreuse) :
+             · crew COMPLET  → `join_crew_by_code` refuserait (`full`, 0050). On
+               le dit au lieu de laisser le joueur partager un code inutile ;
+             · crew SANS TERRITOIRE → le plan d'action porte déjà l'unique CTA
+               chartreuse, et l'invitation y est l'étape 1.
+          */}
+          {crewFull ? <Text style={styles.fullNotice}>{t(C.crewFullNotice)}</Text> : null}
+          {!crewFull && !noTerritory ? (
+            <View style={styles.cta}>
+              <Button label={t(C.rlShareCode)} icon="partage" onPress={() => setMode('invite')} />
+            </View>
+          ) : null}
+          <View style={styles.leaveRow}>
+            <Button variant="ghost" size="md" label={t(C.rlLeave)} onPress={onLeave} />
+          </View>
+        </ScrollView>
+      </View>
     );
   }
 
@@ -909,20 +1242,35 @@ export function RealCrewScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Racine du QG (le ScrollView maison remplace TabScreen sur cette branche).
+  root: { flex: 1, backgroundColor: colors.noir },
+  content: { paddingHorizontal: spacing.cardPadding },
+
   block: { marginTop: spacing.lg, gap: spacing.md },
   title: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '600' },
   body: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
   cta: { marginTop: spacing.sm },
   leaveRow: { marginTop: spacing.xs, alignItems: 'center' },
+  /** Motif du retrait de « Inviter » — dit, jamais laissé deviner. */
+  fullNotice: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20, marginTop: spacing.lg },
 
-  // Effectif + roster
-  count: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.lg, letterSpacing: 1 },
+  segmented: { marginTop: spacing.lg },
+
+  /**
+   * NOTRE PRIORITÉ — la SEULE card de l'écran (point focal de la planche juste
+   * après le hero). Elle ne contient aucune autre surface : l'IconPlate est un
+   * contrôle N2, pas une card, donc pas de card-dans-card (§A).
+   */
+  objective: { marginTop: spacing.lg, gap: spacing.sm },
+  objectiveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  objectiveBody: { flex: 1, gap: spacing.xxs },
+  /** Kicker mono de la card (planche). */
+  kickerMono: { color: colors.gris, fontFamily: fonts.mono, fontSize: fontSizes.xs, letterSpacing: 1.5 },
+  /** MA part du territoire — en %, jamais en km² (aucune aire n'existe). */
+  myShare: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20 },
 
   // Territoire : bloc à plat (surtout PAS une card — le roster n'en est pas une
   // non plus, deux cards imbriquées ou juxtaposées casseraient §A).
-  // NOTRE PRIORITÉ : pas de fond ni de bordure (pas de card dans card, §A) —
-  // la hiérarchie vient de la taille et de la position, pas d'un conteneur.
-  priority: { marginTop: spacing.lg, gap: spacing.xs },
   priorityTitle: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '700' },
   priorityGap: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
   priorityNote: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
@@ -933,16 +1281,42 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontFamily: fonts.textSemi,
     fontWeight: '600',
-    marginTop: spacing.xs,
   },
+  /** Lien inline + chevron (planche : « … › ») — plancher tactile via hitSlop. */
+  inlineLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.xs },
   // SIGNAUX : bloc à plat (pas de card, §A). La hiérarchie vient de la taille
   // et de la position, comme pour NOTRE PRIORITÉ juste au-dessus.
-  signals: { marginTop: spacing.lg, gap: spacing.xs },
+  signals: { marginTop: spacing.xl, gap: spacing.xs },
+  /**
+   * Une ligne d'activité = puce de RÔLE + texte (qui enveloppe, jamais tronqué)
+   * + heure alignée à droite. L'heure ne rétrécit pas (`flexShrink: 0`) : c'est
+   * un fait court, c'est le texte qui doit céder de la place.
+   */
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+    paddingVertical: spacing.xxs,
+  },
+  activityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    marginTop: spacing.xs,
+    flexShrink: 0,
+  },
+  activityTime: {
+    color: colors.grisFaible,
+    fontFamily: fonts.mono,
+    fontSize: fontSizes.xs,
+    lineHeight: 22,
+    flexShrink: 0,
+  },
   // Pas de numberOfLines : un signal tronqué est un signal mal lu (§A).
-  signalLine: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: 22 },
+  signalLine: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: 22, flex: 1 },
   signalEmpty: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
   signalNotice: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.lg, lineHeight: 20 },
-  signalLink: { marginTop: spacing.xs },
   signalList: { marginTop: spacing.lg },
   // Plancher tactile : chaque choix EST l'action, il doit être atteignable au
   // pouce. sizes.touchTarget vient des tokens — aucun 44 en dur.
@@ -955,7 +1329,7 @@ const styles = StyleSheet.create({
   },
   signalRowText: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: 22 },
 
-  territory: { marginTop: spacing.lg, gap: spacing.xs },
+  territory: { marginTop: spacing.xl, gap: spacing.xs },
   sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.5 },
   territoryValue: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '700' },
   territoryHint: { color: colors.gris, fontSize: fontSizes.sm },

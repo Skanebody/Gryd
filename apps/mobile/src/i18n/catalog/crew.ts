@@ -19,12 +19,24 @@ import type { CrewSignalKey } from '../../features/crew/engine/crewSignals';
 
 export const C = defineCatalog({
   // ── EmptyState (pas de crew) ────────────────────────────────────────────────
+  /**
+   * ⚠ LE SUFFIXE « · PARIS » A ÉTÉ RETIRÉ (recalage E13).
+   *
+   * Il était écrit EN DUR et s'affichait donc à un crew de Lille — et, depuis
+   * l'ouverture des communes par présence, à un crew de n'importe quelle
+   * commune ouverte. Un kicker qui nomme une ville que le lecteur n'habite pas
+   * est un petit mensonge permanent, et il devient franchement contradictoire
+   * dès que le hero du crew affiche sa VRAIE ville juste en dessous.
+   *
+   * Même arbitrage que `saisonKickerReal` de l'onglet Saison : on nomme la
+   * saison, jamais une portée géographique plaquée (AMENDEMENT-35 Europe).
+   */
   kickerSeason: {
-    fr: 'SAISON 0 · PARIS',
-    en: 'SEASON 0 · PARIS',
-    es: 'TEMPORADA 0 · PARÍS',
-    de: 'SAISON 0 · PARIS',
-    pt: 'TEMPORADA 0 · PARIS',
+    fr: 'SAISON 0',
+    en: 'SEASON 0',
+    es: 'TEMPORADA 0',
+    de: 'SAISON 0',
+    pt: 'TEMPORADA 0',
   },
   emptySubtitle: {
     fr: 'Le jeu de conquête de territoire pour run clubs.',
@@ -773,6 +785,207 @@ export const C = defineCatalog({
     es: 'No se pudo — inténtalo de nuevo.',
     de: 'Hat nicht geklappt — versuch es erneut.',
     pt: 'Não deu certo — tente de novo.',
+  },
+
+  // ════ E13 CREW HOME — recalage planche « quartier général visuel » ═════════
+  // Hero d'appartenance, segmented 3 vues, territoire, plan de démarrage.
+  //
+  // CE QUI N'EST PAS ICI, ET POURQUOI (chaque absence est une donnée qui
+  // n'existe pas — pas un oubli de traduction) :
+  //  · aucune clé « @tag » : `crews.tag` n'est écrite par aucune RPC (null à
+  //    100 %) — l'afficher supposerait de la fabriquer depuis le nom ;
+  //  · aucune clé « km² » ni « ▲ cette semaine » : `crew_overview` n'émet
+  //    AUCUNE aire (choix n°1 de 0044) et aucune table ne conserve un solde
+  //    hebdomadaire — une flèche affirme un net qu'on ne sait pas calculer ;
+  //  · aucune clé « {n} % » de mission : aucune mission n'a de dénominateur
+  //    (cf. cmCaptureGap), donc ni barre ni pourcentage ;
+  //  · aucune clé « Éditer l'emblème » : `/crew-edit` est un redirect stub et
+  //    aucune RPC d'édition rôle-gatée n'existe (bouton mort) ;
+  //  · aucune clé « {n}/3 boucles » : `3` n'est dans aucune constante de
+  //    game-rules et aucun compteur de boucles par crew n'est lu ;
+  //  · aucune clé « Chat » : pas de backend ET chat libre refusé (A-43 §9).
+
+  /** Segment « Aperçu » du crew (défaut). Court dans les 5 langues (§A). */
+  segOverview: {
+    fr: 'Aperçu',
+    en: 'Overview',
+    es: 'Resumen',
+    de: 'Übersicht',
+    pt: 'Resumo',
+  },
+  segMap: {
+    fr: 'Carte',
+    en: 'Map',
+    es: 'Mapa',
+    de: 'Karte',
+    pt: 'Mapa',
+  },
+  /** Libellé a11y du GROUPE de segments (jamais lu à l'écran). */
+  segA11y: {
+    fr: 'Vue du crew',
+    en: 'Crew view',
+    es: 'Vista del crew',
+    de: 'Crew-Ansicht',
+    pt: 'Visão do crew',
+  },
+  /**
+   * Rang COURT du hero — « Rang 2/7 ». La forme longue (`rlCityRank`) reste la
+   * seule employée hors hero : ici la ligne meta enchaîne 3 segments, une
+   * phrase entière la ferait déborder (§A : jamais de texte coupé).
+   */
+  heroRank: {
+    fr: 'Rang {rank}/{total}',
+    en: 'Rank {rank}/{total}',
+    es: 'Puesto {rank}/{total}',
+    de: 'Platz {rank}/{total}',
+    pt: 'Posição {rank}/{total}',
+  },
+  /**
+   * MA part — nommée « du territoire », pas « de la mission ».
+   * `contributionPct` (0044) mesure ma part des hexes TENUS par le crew ; la
+   * poser sans dire de quoi, dans la card de mission, la ferait lire comme une
+   * part de la mission en cours — qui n'est mesurée nulle part.
+   */
+  myTerritoryShare: {
+    fr: 'Votre part du territoire : {pct} %',
+    en: 'Your share of the territory: {pct}%',
+    es: 'Tu parte del territorio: {pct} %',
+    de: 'Dein Anteil am Revier: {pct} %',
+    pt: 'Sua parte do território: {pct} %',
+  },
+  /** Zones du crew dont l'échéance de decay tombe dans la fenêtre serveur. */
+  vulnerableOne: {
+    fr: '1 zone vulnérable',
+    en: '1 vulnerable zone',
+    es: '1 zona vulnerable',
+    de: '1 gefährdete Zone',
+    pt: '1 zona vulnerável',
+  },
+  vulnerableN: {
+    fr: '{n} zones vulnérables',
+    en: '{n} vulnerable zones',
+    es: '{n} zonas vulnerables',
+    de: '{n} gefährdete Zonen',
+    pt: '{n} zonas vulneráveis',
+  },
+  /**
+   * VUE CARTE, agrégat pas encore là. Deux états DISTINCTS, jamais confondus —
+   * et surtout jamais rendus par une vue vide, qui n'affirme rien mais ressemble
+   * à un écran cassé :
+   *  · lecture EN COURS → on le dit, et on n'affirme rien sur le territoire ;
+   *  · lecture qui n'a pas abouti → on le dit aussi, et on propose de réessayer.
+   * Ni l'un ni l'autre ne devient « 0 zone » (CLAUDE.md, quatre états).
+   */
+  territoryReading: {
+    fr: 'Lecture du territoire en cours…',
+    en: 'Reading the territory…',
+    es: 'Leyendo el territorio…',
+    de: 'Revier wird gelesen…',
+    pt: 'Lendo o território…',
+  },
+  territoryUnavailable: {
+    fr: 'Territoire non lu — la lecture n’a pas abouti.',
+    en: 'Territory not read — the request didn’t complete.',
+    es: 'Territorio no leído — la lectura no se completó.',
+    de: 'Revier nicht gelesen — die Abfrage kam nicht durch.',
+    pt: 'Território não lido — a leitura não foi concluída.',
+  },
+  /** Reste des membres non montrés dans la rangée d'initiales. */
+  membersMore: {
+    fr: '+{n}',
+    en: '+{n}',
+    es: '+{n}',
+    de: '+{n}',
+    pt: '+{n}',
+  },
+  /**
+   * CREW COMPLET — état RÉEL et dérivable (`memberCount >= CREW_MAX_MEMBERS`).
+   * Il retire le CTA « Inviter » au lieu de le laisser échouer côté serveur
+   * (`full`, 0050) : un bouton qui échoue toujours est un bouton mort.
+   */
+  crewFullNotice: {
+    fr: 'Crew complet — plus aucune place pour l’instant.',
+    en: 'Crew full — no spot left for now.',
+    es: 'Crew completo — sin plazas por ahora.',
+    de: 'Crew voll — derzeit kein Platz frei.',
+    pt: 'Crew completo — sem vagas por ora.',
+  },
+
+  // ── ÉTAT « crew sans territoire » : un PLAN, jamais un tableau de bord vide ─
+  firstTerritoryTitle: {
+    fr: 'Votre premier territoire crew',
+    en: 'Your first crew territory',
+    es: 'Vuestro primer territorio de crew',
+    de: 'Euer erstes Crew-Revier',
+    pt: 'Seu primeiro território de crew',
+  },
+  /**
+   * ⚠ LA PLANCHE DISAIT « Trois boucles fermées dans le même quartier créent
+   * votre zone commune. » — reformulé, parce que ce « trois » n'existe dans
+   * AUCUNE constante de game-rules : ce serait une règle de jeu inventée.
+   * La phrase ci-dessous décrit ce que le serveur fait RÉELLEMENT
+   * (`crew_overview` 0044 : le territoire du crew = les hexes vivants tenus par
+   * ses membres actifs).
+   */
+  firstTerritoryBody: {
+    fr: 'Le territoire du crew, c’est la somme des zones tenues par ses membres. Une boucle fermée par l’un compte pour tous.',
+    en: 'A crew’s territory is the sum of the zones its members hold. One closed loop counts for everyone.',
+    es: 'El territorio del crew es la suma de las zonas que mantienen sus miembros. Un bucle cerrado cuenta para todos.',
+    de: 'Das Revier eines Crews ist die Summe der Zonen seiner Mitglieder. Eine geschlossene Schleife zählt für alle.',
+    pt: 'O território do crew é a soma das zonas mantidas por seus membros. Um circuito fechado conta para todos.',
+  },
+  /**
+   * L'UNIQUE CTA chartreuse de cet état (il remplace « Inviter », §A4). Il MÈNE
+   * à la carte — l'écran mission (A-21) — et le libellé le dit : promettre
+   * « lancer une mission » ouvrirait un écran de mission qui n'existe pas.
+   */
+  firstMissionCta: {
+    fr: 'Trouver notre première zone',
+    en: 'Find our first zone',
+    es: 'Encontrar nuestra primera zona',
+    de: 'Erste Zone finden',
+    pt: 'Encontrar nossa primeira zona',
+  },
+  startWellKicker: {
+    fr: 'POUR BIEN DÉMARRER',
+    en: 'TO GET STARTED',
+    es: 'PARA EMPEZAR BIEN',
+    de: 'FÜR DEN START',
+    pt: 'PARA COMEÇAR BEM',
+  },
+  stepInvite: {
+    fr: 'Invitez des coureurs de votre quartier',
+    en: 'Invite runners from your neighborhood',
+    es: 'Invita a corredores de tu barrio',
+    de: 'Lade Läufer aus eurem Viertel ein',
+    pt: 'Convide corredores do seu bairro',
+  },
+  /** Action de l'étape 1 — libellé COURT (allemand concis), jamais tronqué. */
+  stepInviteAction: {
+    fr: 'Inviter',
+    en: 'Invite',
+    es: 'Invitar',
+    de: 'Einladen',
+    pt: 'Convidar',
+  },
+  /** Compteur RÉEL : effectif lu / CREW_MIN_MEMBERS (game-rules). */
+  stepInviteCount: {
+    fr: '{count}/{min}',
+    en: '{count}/{min}',
+    es: '{count}/{min}',
+    de: '{count}/{min}',
+    pt: '{count}/{min}',
+  },
+  /**
+   * Étape 2 — la RÈGLE, sans compteur : aucun compteur de boucles fermées par
+   * crew n'est lu côté client (l'afficher voudrait dire l'inventer).
+   */
+  stepLoops: {
+    fr: 'Fermez une boucle dans le même quartier',
+    en: 'Close a loop in the same neighborhood',
+    es: 'Cierra un bucle en el mismo barrio',
+    de: 'Schließt eine Schleife im selben Viertel',
+    pt: 'Feche um circuito no mesmo bairro',
   },
 
   // ── ÉCHEC DE CHARGEMENT (≠ « pas de crew ») ────────────────────────────────

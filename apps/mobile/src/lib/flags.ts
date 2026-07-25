@@ -56,4 +56,25 @@ export const flags = {
   warRoom: FULL_SURFACE,
   /** Arsenal / boutique (skins, objets capés, GRYD Club). */
   arsenal: FULL_SURFACE,
+  /**
+   * Univers VÉLO (planche E14 : commutateur Run/Bike dans les en-têtes de Carte,
+   * Classement, Historique et Statistiques).
+   *
+   * FERMÉ EN DUR, et pas seulement masqué par FULL_SURFACE : contrairement à
+   * Saison/War Room/Arsenal — dont les moteurs TOURNENT et n'attendent qu'un flip
+   * de surface — le vélo n'existe NULLE PART sous l'écran. `runs` n'a aucune
+   * colonne de type d'activité (`source` ne vaut que gps|healthkit|strava|gpx),
+   * le profil de routage bike est refusé par game-rules, et aucun territoire ni
+   * classement n'est séparé par discipline. Ouvrir ce drapeau ne montrerait donc
+   * pas « le monde Bike » : il montrerait le monde Run sous une étiquette vélo —
+   * exactement la donnée fabriquée que la charte interdit.
+   *
+   * Il existe pour que le commutateur ait UNE source de vérité le jour où le
+   * chantier vélo (Spéc Unifiée §5.1-5.2) livrera vraiment les deux univers, et
+   * pour que d'ici là chaque écran puisse écrire `flags.bike` au lieu de
+   * réinventer une condition locale. Tant qu'il est faux, AUCUN commutateur
+   * n'est peint : la planche E14 le dit elle-même (« visible seulement quand
+   * Bike est activé » — masqué, jamais grisé).
+   */
+  bike: false,
 } as const;

@@ -286,12 +286,14 @@ export const C = defineCatalog({
     de: 'Meine Freunde',
     pt: 'Meus amigos',
   },
+  /** L'écran /performance s'intitule « Statistiques » depuis le recalage E18 :
+   *  le lien et sa page ne doivent pas se contredire. */
   linkPerformance: {
-    fr: 'Performance',
-    en: 'Performance',
-    es: 'Rendimiento',
-    de: 'Leistung',
-    pt: 'Desempenho',
+    fr: 'Statistiques',
+    en: 'Statistics',
+    es: 'Estadísticas',
+    de: 'Statistiken',
+    pt: 'Estatísticas',
   },
   linkHistory: {
     fr: 'Historique de courses',
@@ -1249,13 +1251,26 @@ export const C = defineCatalog({
    * `qrHint` renvoie vers l'onglet Recherche — qui n'existe que sur la vitrine.
    * Sur l'app, cette phrase pointerait vers un onglet absent : elle est
    * remplacée par ce qui est vrai ici et maintenant.
+   *
+   * MISE À JOUR (recalage E16) : le QR EXISTE désormais (route `/qr`, généré
+   * localement). Continuer à dire « le QR arrivera » serait le symétrique exact
+   * du mensonge qu'on corrige partout. La phrase annonce donc le code livré, et
+   * ne promet plus que ce qui manque VRAIMENT : la recherche de coureurs.
    */
   qrHintReal: {
-    fr: 'Ton @ est ton identité GRYD. Le QR à scanner et la recherche de coureurs arriveront ensemble.',
-    en: 'Your @ is your GRYD identity. The scannable QR and runner search will arrive together.',
-    es: 'Tu @ es tu identidad GRYD. El QR escaneable y la búsqueda de corredores llegarán juntos.',
-    de: 'Dein @ ist deine GRYD-Identität. Der scanbare QR und die Läufersuche kommen zusammen.',
-    pt: 'Seu @ é sua identidade GRYD. O QR para escanear e a busca de corredores chegarão juntos.',
+    fr: 'Ton @ est ton identité GRYD. Montre ton code pour qu’on te retrouve — la recherche de coureurs, elle, arrivera plus tard.',
+    en: 'Your @ is your GRYD identity. Show your code so people can find you — runner search will come later.',
+    es: 'Tu @ es tu identidad GRYD. Muestra tu código para que te encuentren; la búsqueda de corredores llegará más tarde.',
+    de: 'Dein @ ist deine GRYD-Identität. Zeig deinen Code, damit man dich findet — die Läufersuche kommt später.',
+    pt: 'Seu @ é sua identidade GRYD. Mostre seu código para te encontrarem — a busca de corredores chega depois.',
+  },
+  /** Action de la carte « mon @ » sur Amis : ouvre le code QR réel (route /qr). */
+  friendsShowMyCode: {
+    fr: 'Montrer mon code',
+    en: 'Show my code',
+    es: 'Mostrar mi código',
+    de: 'Code zeigen',
+    pt: 'Mostrar meu código',
   },
   friendsCtaMyHandle: {
     fr: 'Voir mon @',
@@ -1299,5 +1314,190 @@ export const C = defineCatalog({
     es: '{delta} pts para pasar a #{next}',
     de: '{delta} Pkt., um #{next} zu überholen',
     pt: '{delta} pts para passar #{next}',
+  },
+
+  // ═══ PLANCHE E15 « PROFIL JOUEUR » — CARTE DE VISITE TERRITORIALE ══════════
+  //
+  // Le profil cesse d'être un tableau de statistiques : héros photo, identité,
+  // QUATRE métriques (une seule mise en avant), carte signature, progression en
+  // UNE ligne, puis des previews scannables vers les pages de collection.
+  // Libellés d'action COURTS dans les 5 langues (§A.9 — l'allemand décide de la
+  // largeur : « Crew finden », « Meine Karte », « Mein QR-Code »).
+
+  /** Pastille de palier ancrée sur l'avatar du héros. DÉRIVÉE de l'XP serveur. */
+  levelBadgeShort: {
+    fr: 'NIV. {n}',
+    en: 'LVL {n}',
+    es: 'NV. {n}',
+    de: 'LV. {n}',
+    pt: 'NV. {n}',
+  },
+  /** a11y de la pastille de visibilité : elle NAVIGUE vers Confidentialité. */
+  a11yVisibility: {
+    fr: 'Visibilité du profil : {value}',
+    en: 'Profile visibility: {value}',
+    es: 'Visibilidad del perfil: {value}',
+    de: 'Profil-Sichtbarkeit: {value}',
+    pt: 'Visibilidade do perfil: {value}',
+  },
+  /** Sans crew, le segment crew de la ligne d'identité devient un APPEL. */
+  linkFindCrew: {
+    fr: 'Trouver un crew',
+    en: 'Find a crew',
+    es: 'Buscar un crew',
+    de: 'Crew finden',
+    pt: 'Achar um crew',
+  },
+
+  // ── Rangée de 4 métriques (un seul bloc à séparateurs, jamais 4 cards) ──────
+  /** LA mise en avant : somme réelle des aires de mes zones (formatKm2). */
+  statSurfaceControlled: {
+    fr: 'surface contrôlée',
+    en: 'controlled area',
+    es: 'superficie controlada',
+    de: 'Gehaltene Fläche',
+    pt: 'área controlada',
+  },
+  statDefenses: {
+    fr: 'défenses',
+    en: 'defenses',
+    es: 'defensas',
+    de: 'Verteidigungen',
+    pt: 'defesas',
+  },
+  statSeasonKm: {
+    fr: 'km saison',
+    en: 'km season',
+    es: 'km temporada',
+    de: 'km Saison',
+    pt: 'km temporada',
+  },
+
+  // ── Carte signature (aperçu des contours réels de mes zones) ───────────────
+  sectionSignatureMap: {
+    fr: 'CARTE SIGNATURE',
+    en: 'SIGNATURE MAP',
+    es: 'MAPA FIRMA',
+    de: 'SIGNATUR-KARTE',
+    pt: 'MAPA ASSINATURA',
+  },
+  seeMyMap: {
+    fr: 'Voir ma carte',
+    en: 'See my map',
+    es: 'Ver mi mapa',
+    de: 'Meine Karte',
+    pt: 'Ver meu mapa',
+  },
+
+  // ── Progression en UNE ligne ───────────────────────────────────────────────
+  /**
+   * « Niveau 12 · Recrue ». Le rang est le rang GRIP RÉEL (Recrue → Légende) :
+   * l'échelle « Argent II » de la planche n'existe pas dans le jeu, et fabriquer
+   * une hiérarchie Bronze/Argent/Or afficherait un statut que personne n'a gagné.
+   */
+  levelTierLine: {
+    fr: 'Niveau {n} · {rank}',
+    en: 'Level {n} · {rank}',
+    es: 'Nivel {n} · {rank}',
+    de: 'Level {n} · {rank}',
+    pt: 'Nível {n} · {rank}',
+  },
+
+  // ── Previews scannables (les collections complètes vivent dans leurs pages) ─
+  previewBadges: {
+    fr: 'Badges · {n}',
+    en: 'Badges · {n}',
+    es: 'Insignias · {n}',
+    de: 'Abzeichen · {n}',
+    pt: 'Insígnias · {n}',
+  },
+  previewHistory: {
+    fr: 'Historique des courses · {n}',
+    en: 'Run history · {n}',
+    es: 'Historial de carreras · {n}',
+    de: 'Lauf-Historie · {n}',
+    pt: 'Histórico de corridas · {n}',
+  },
+  previewShare: {
+    fr: 'Partager ma carte',
+    en: 'Share my card',
+    es: 'Compartir mi carta',
+    de: 'Karte teilen',
+    pt: 'Compartilhar meu cartão',
+  },
+  /**
+   * Activité récente. La planche écrit « Hier · reprise de Saint-Rémy +0,42 km² » :
+   * le NOM de zone n'a aucune source (displayName est NULL en base) et le serveur
+   * ne renvoie PAS d'aire pour une course — `celebration.hexes` porte des COMPTES
+   * d'hexagones. On dit donc ce qu'on sait : quand, et combien de zones.
+   */
+  previewActivityCaptured: {
+    fr: '{when} · +{n} zones',
+    en: '{when} · +{n} zones',
+    es: '{when} · +{n} zonas',
+    de: '{when} · +{n} Zonen',
+    pt: '{when} · +{n} zonas',
+  },
+  previewActivityDefended: {
+    fr: '{when} · {n} zones défendues',
+    en: '{when} · {n} zones defended',
+    es: '{when} · {n} zonas defendidas',
+    de: '{when} · {n} Zonen verteidigt',
+    pt: '{when} · {n} zonas defendidas',
+  },
+  /** Impact INCONNU (payload absent) — surtout pas « +0 zone ». */
+  previewActivityPlain: {
+    fr: '{when} · dernière course',
+    en: '{when} · last run',
+    es: '{when} · última carrera',
+    de: '{when} · letzter Lauf',
+    pt: '{when} · última corrida',
+  },
+  a11yRecentActivity: {
+    fr: 'Voir mes courses récentes',
+    en: 'See my recent runs',
+    es: 'Ver mis carreras recientes',
+    de: 'Meine letzten Läufe ansehen',
+    pt: 'Ver minhas corridas recentes',
+  },
+  timeAgoToday: {
+    fr: 'Aujourd’hui',
+    en: 'Today',
+    es: 'Hoy',
+    de: 'Heute',
+    pt: 'Hoje',
+  },
+  timeAgoYesterday: {
+    fr: 'Hier',
+    en: 'Yesterday',
+    es: 'Ayer',
+    de: 'Gestern',
+    pt: 'Ontem',
+  },
+  timeAgoDays: {
+    fr: 'Il y a {n} j',
+    en: '{n} d ago',
+    es: 'Hace {n} d',
+    de: 'vor {n} Tg.',
+    pt: 'Há {n} d',
+  },
+
+  // ── Nouveau joueur : la PREMIÈRE MISSION remplace les métriques (jamais des
+  //    zéros alignés, qui se liraient « tu n'as rien fait »). ─────────────────
+  sectionFirstMission: {
+    fr: 'PREMIÈRE MISSION',
+    en: 'FIRST MISSION',
+    es: 'PRIMERA MISIÓN',
+    de: 'ERSTE MISSION',
+    pt: 'PRIMEIRA MISSÃO',
+  },
+
+  // ── Raccourci vers /qr (« Mon code », planche E16) ─────────────────────────
+  linkMyQr: {
+    fr: 'Mon code QR',
+    en: 'My QR code',
+    es: 'Mi código QR',
+    de: 'Mein QR-Code',
+    pt: 'Meu código QR',
   },
 });

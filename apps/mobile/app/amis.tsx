@@ -103,14 +103,24 @@ export default function AmisScreen() {
 
       {/* MON @ — la seule donnée réelle de cet écran. Absente = rien d'affiché
           (jamais un « @ » orphelin ni le handle démo « koro »).
-          Aucun QR n'est dessiné : l'icône `qr` en 120 px d'avant se présentait
-          comme un code scannable que personne n'aurait pu scanner. */}
+          L'icône `qr` décorative de 120 px avait été retirée parce qu'elle se
+          présentait comme un code scannable que personne n'aurait pu scanner.
+          Le code EXISTE maintenant (route `/qr`, généré localement) : la carte
+          ouvre donc le vrai code au lieu d'en simuler un. */}
       {handle ? (
         <View style={styles.handleWrap}>
-          <View style={styles.handleCard}>
-            <Icon name="profil" size={64} color={colors.blanc} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.friendsShowMyCode)}
+            onPress={() => router.push('/qr')}
+            style={({ pressed }) => [styles.handleCard, pressed && styles.statePressed]}
+          >
+            <Icon name="qr" size={64} color={colors.blanc} />
             <Text style={styles.handleText}>@{handle}</Text>
-          </View>
+            <Text style={styles.handleAction} numberOfLines={1}>
+              {t(C.friendsShowMyCode)}
+            </Text>
+          </Pressable>
           <Text style={styles.handleHint}>{t(C.qrHintReal)}</Text>
         </View>
       ) : null}
@@ -175,6 +185,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.textSemi,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  /** Affordance de la carte : elle OUVRE le code (texte, pas un 2e CTA plein). */
+  handleAction: {
+    color: colors.chartreuse,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
   },
   handleHint: {
     color: colors.gris,
