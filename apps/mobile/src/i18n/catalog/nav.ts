@@ -201,6 +201,14 @@ export const C = defineCatalog({
     de: 'Missionsdetails schließen',
     pt: 'fechar os detalhes da missão',
   },
+  // Header du Home (planche E02/E03 ①) : l'avatar ouvre le profil.
+  headerProfileA11y: {
+    fr: 'Mon profil',
+    en: 'My profile',
+    es: 'Mi perfil',
+    de: 'Mein Profil',
+    pt: 'Meu perfil',
+  },
   planRoute: {
     fr: 'Planifier un parcours',
     en: 'Plan a route',

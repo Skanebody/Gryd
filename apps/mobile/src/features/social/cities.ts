@@ -48,3 +48,18 @@ export function cityCenter(cityId: string | null): { lat: number; lng: number } 
   const city = findCityById(parsePackedCitiesCached(EU_CITIES_PACKED), cityId);
   return city ? { lat: city.lat, lng: city.lng } : undefined;
 }
+
+/**
+ * Nom AFFICHABLE de la ville de jeu (pill de contexte du Home, planche E02/E03 ①)
+ * — JAMAIS fabriqué. Les deux villes de démarrage (Saison 0) portent des
+ * identifiants historiques en toutes lettres (`paris`/`lille`) : leur nom réel
+ * est connu. L'expansion Europe résout par `geonameid` dans le référentiel.
+ * `undefined` si l'identifiant n'est ni un starter ni un geonameid connu (ou
+ * vide) : la pill se TAIT alors, plutôt que d'inventer un lieu (charte, §47).
+ */
+export function cityLabel(cityId: string | null): string | undefined {
+  if (!cityId) return undefined;
+  if (cityId === 'paris') return 'Paris';
+  if (cityId === 'lille') return 'Lille';
+  return findCityById(parsePackedCitiesCached(EU_CITIES_PACKED), cityId)?.name;
+}

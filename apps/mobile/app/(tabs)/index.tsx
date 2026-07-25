@@ -37,12 +37,24 @@ import { haptics } from '../../src/lib/haptics';
 import { hasPendingUpload, retryPendingUpload } from '../../src/lib/pendingUpload';
 import { useMapHudHidden } from '../../src/features/map/mapUiStore';
 import { Icon } from '../../src/ui/Icon';
+import { AvatarHex } from '../../src/features/social/AvatarHex';
+import { useMyProfile } from '../../src/features/social/profileStore';
+import { useMyEconomy } from '../../src/features/social/economy';
+import { playerLevelForXp, playerTierForLevel } from '../../src/features/crew/rules';
+import { cityLabel } from '../../src/features/social/cities';
+import { useOnboardingState } from '../../src/features/onboarding/store';
 
 // ─── Métriques locales (layout uniquement — aucune constante de jeu) ────────
 /** Marges latérales de la ligne mission (alignées sur les flottants : 14 px). */
 const MISSION_LINE_SIDE = 14;
 /** Dégagement sous le safe-area haut. */
 const MISSION_LINE_TOP_GAP = 8;
+/** Header du Home (planche E02/E03 ①) : avatar 40 + pill lieu, ancré tout en haut. */
+const HEADER_HEIGHT = 40;
+const HEADER_TOP_GAP = 6;
+/** La ligne mission descend SOUS le header (jamais de chevauchement) :
+ *  header (gap + hauteur) puis le même dégagement qu'avant sous le header. */
+const MISSION_LINE_BELOW_HEADER = HEADER_TOP_GAP + HEADER_HEIGHT + MISSION_LINE_TOP_GAP;
 /** Cible tactile minimale (accessibilité — jamais sous 44 px). */
 const MIN_TAP_TARGET = 44;
 /**
@@ -74,8 +86,73 @@ export default function CarteTab() {
   return (
     <View style={styles.root}>
       <MapScreen />
+      <HomeHeader />
       <MissionLine />
       <MapStartSlider />
+    </View>
+  );
+}
+
+/**
+ * HEADER du Home (planche E02/E03 ①) : avatar (→ Profil) + pill de contexte
+ * « lieu ». ZÉRO fabrication — l'avatar grave les VRAIES initiales du profil
+ * (défaut neutre « Coureur » hors session, jamais un persona), la pill nomme la
+ * VRAIE ville de jeu (onboarding.cityId → nom réel) et DISPARAÎT si aucune ville
+ * n'est connue (jamais un lieu inventé, §47).
+ *
+ * DORMANTS (planche, mais O1) : la cloche de notifications + son badge orange
+ * (« événement territorial ») et le sous-label secteur (« · Centre ») ne sont
+ * PAS peints — aucun événement territorial réel n'existe avant O1, et une cloche
+ * qui n'ouvre rien / un badge qui ne compte rien seraient des boutons morts (§A).
+ * Ils reviendront alimentés serveur. « Carte nue » (HUD masqué) → header retiré.
+ */
+function HomeHeader() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const t = useT();
+  const { profile } = useMyProfile();
+  const economy = useMyEconomy();
+  const { state: onboarding } = useOnboardingState();
+  const hudHidden = useMapHudHidden();
+  if (hudHidden) return null;
+
+  const tier = playerTierForLevel(playerLevelForXp(economy.xp));
+  // Le NOM RÉEL que le joueur a vu au choix de ville (le plus honnête), sinon
+  // résolu depuis l'id (états d'une version antérieure), sinon rien (pill tue).
+  const city = onboarding.cityName ?? cityLabel(onboarding.cityId);
+  const openProfile = () => {
+    haptics.light();
+    router.push('/(tabs)/profil');
+  };
+
+  return (
+    <View
+      style={[styles.headerWrap, { top: insets.top + HEADER_TOP_GAP }]}
+      pointerEvents="box-none"
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(C.headerProfileA11y)}
+        onPress={openProfile}
+        hitSlop={8}
+        style={({ pressed }) => [styles.headerAvatar, pressed && styles.pressed]}
+        testID="home-header-avatar"
+      >
+        <AvatarHex handle={profile.displayName} tier={tier} size={HEADER_HEIGHT} />
+      </Pressable>
+      {city ? (
+        <View style={styles.headerPill} pointerEvents="none">
+          {/* Nom de ville jamais tronqué par « … » (§A) : il rétrécit au besoin. */}
+          <Text
+            style={styles.headerPillText}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={MISSION_TEXT_MIN_SCALE}
+          >
+            {city}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -210,7 +287,7 @@ function MissionLine() {
 
   return (
     <View
-      style={[styles.missionWrap, { top: insets.top + MISSION_LINE_TOP_GAP }]}
+      style={[styles.missionWrap, { top: insets.top + MISSION_LINE_BELOW_HEADER }]}
       pointerEvents="box-none"
     >
       <Pressable
@@ -271,6 +348,36 @@ function MissionLine() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   pressed: { opacity: 0.7 },
+
+  // ── Header du Home (planche E02/E03 ①) : avatar + pill lieu, tout en haut ──
+  headerWrap: {
+    position: 'absolute',
+    left: MISSION_LINE_SIDE,
+    right: MISSION_LINE_SIDE,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerAvatar: { width: HEADER_HEIGHT, height: HEADER_HEIGHT, alignItems: 'center', justifyContent: 'center' },
+  // Pill de contexte « lieu » : fond carbone, texte blanc (jamais chartreuse sur
+  // clair). Se rétrécit au besoin (maxWidth) — jamais tronquée par « … » (§A).
+  headerPill: {
+    maxWidth: '64%',
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: colors.carbone,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerPillText: {
+    color: colors.blanc,
+    fontFamily: fonts.textSemi,
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+  },
 
   // ── Départ de course « glisser pour courir » (au-dessus de la barre d'onglets) ──
   startWrap: { position: 'absolute', left: 16, right: 16, gap: 8 },
