@@ -13,6 +13,7 @@
  * l'app. Toute erreur est avalée en silence (au pire, un event de moins).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from './analytics';
 
 const T0_KEY = 'gryd.activation.t0.v1';
@@ -54,5 +55,47 @@ export async function emitTimeToFirstCaptureOnce(): Promise<void> {
     track(EVENTS.timeToFirstCapture, { seconds });
   } catch {
     // stockage indisponible : la mesure saute, l'app continue
+  }
+}
+
+/**
+ * Émet les events du VERDICT de course (§8/§26) à partir de la réponse serveur :
+ * claim_result, loop_closed / loop_almost_closed, time_to_first_capture (garde
+ * d'unicité), et city_opened quand la course a ouvert une commune (pionnier).
+ *
+ * SOURCE UNIQUE, partagée par le chemin LIVE (useRealRun.uploadOrQueue) ET le
+ * chemin de RENVOI en file (pendingUpload.retryPendingUpload). Sans ça, une
+ * capture faite HORS-LIGNE — là où précisément les communes sont vierges — resend
+ * plus tard et le serveur la crédite, mais le funnel n'en voyait RIEN. `source`
+ * distingue les deux (live vs pending_retry). Un run part par UN seul chemin
+ * (succès live ⇒ jamais mis en file), donc aucun double-comptage.
+ *
+ * NE REND RIEN : c'est de la mesure. L'affichage du résultat (setLastRunResult)
+ * reste au chemin live — la célébration ne se rejoue pas à un renvoi tardif.
+ */
+export function emitRunResultAnalytics(
+  result: IngestRunResponse,
+  source: 'live' | 'pending_retry',
+): void {
+  track(EVENTS.claimResult, {
+    new: result.hexes.claimed,
+    stolen: result.hexes.stolen,
+    defended: result.hexes.defended,
+    pioneer: result.hexes.pioneer,
+    status: result.status,
+    rejected_reason: result.rejectReason ?? null,
+    source,
+  });
+  if (result.loopClosed === true) {
+    track(EVENTS.loopClosed, { enclosed_zones: result.enclosedZones ?? 0 });
+  }
+  if (result.openBoundary) {
+    track(EVENTS.loopAlmostClosed, { missing_m: result.openBoundary.missingM });
+  }
+  if (result.hexes.claimed > 0 || result.hexes.stolen > 0 || result.hexes.pioneer > 0) {
+    void emitTimeToFirstCaptureOnce();
+  }
+  if (result.communeOpened) {
+    track(EVENTS.cityOpened, { created: true, source: 'run' });
   }
 }

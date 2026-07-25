@@ -37,7 +37,7 @@ import { AppState } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
-import { emitTimeToFirstCaptureOnce } from '../../../lib/activation';
+import { emitRunResultAnalytics } from '../../../lib/activation';
 import { supabase } from '../../../lib/supabase';
 import { useSession } from '../../../lib/session';
 import { isPermanentRejection, queuePendingUpload, retryPendingUpload } from '../../../lib/pendingUpload';
@@ -134,43 +134,11 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
           // est armée pour que course-result affiche les VRAIS points/zones/badges.
           const result = (data ?? null) as IngestRunResponse | null;
           setLastRunResult(result);
-          if (result) {
-            // P0 D2 — l'ACTIVATION se mesure sur la capture PERSISTÉE (la réponse
-            // du seul juge), jamais sur un bouton. claim_result était défini
-            // (§8) mais jamais émis : le funnel du pilote était aveugle.
-            track(EVENTS.claimResult, {
-              new: result.hexes.claimed,
-              stolen: result.hexes.stolen,
-              defended: result.hexes.defended,
-              pioneer: result.hexes.pioneer,
-              status: result.status,
-              rejected_reason: result.rejectReason ?? null,
-            });
-            if (result.loopClosed === true) {
-              track(EVENTS.loopClosed, { enclosed_zones: result.enclosedZones ?? 0 });
-            }
-            if (result.openBoundary) {
-              // Signal d'activation RATÉE : le « il manquait N m » du funnel.
-              track(EVENTS.loopAlmostClosed, { missing_m: result.openBoundary.missingM });
-            }
-            // §26 — ACTIVATION atteinte : une zone RÉELLE prise (le serveur juge),
-            // jamais un run vide/rejeté. `time_to_first_capture` (t0 = signup) part
-            // UNE fois, garde d'unicité côté activation.ts.
-            if (
-              result.hexes.claimed > 0 ||
-              result.hexes.stolen > 0 ||
-              result.hexes.pioneer > 0
-            ) {
-              void emitTimeToFirstCaptureOnce();
-            }
-            // PIONNIER — cette course a OUVERT une commune vierge (verdict serveur,
-            // nom réel geo.api.gouv.fr). Le funnel logge l'ouverture PAR LA COURSE
-            // (source distincte de l'ouverture manuelle du CityPicker). La
-            // célébration, elle, vit sur course-result (pioneerCelebration).
-            if (result.communeOpened) {
-              track(EVENTS.cityOpened, { created: true, source: 'run' });
-            }
-          }
+          // §8/§26 — le funnel du verdict (claim_result, loop_*, ttfc, city_opened
+          // pionnier) part d'une SOURCE UNIQUE partagée avec le renvoi hors-ligne
+          // (pendingUpload), pour qu'une capture faite sans réseau ne soit jamais
+          // invisible au funnel. Ici : chemin LIVE.
+          if (result) emitRunResultAnalytics(result, 'live');
           return 'sent';
         }
         if (isPermanentRejection(error)) {

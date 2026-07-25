@@ -13,7 +13,8 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FunctionsHttpError } from '@supabase/supabase-js';
-import type { IngestRunRequest } from '@klaim/shared';
+import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
+import { emitRunResultAnalytics } from './activation';
 import { EVENTS, track } from './analytics';
 import { supabase } from './supabase';
 
@@ -69,8 +70,29 @@ export async function hasPendingUpload(): Promise<boolean> {
  * le payload RESTE en place (idempotent, on retentera). La clé n'est purgée
  * QUE lorsque le serveur a répondu sans erreur.
  */
+let retryInFlight = false;
+
+/**
+ * Sérialise les renvois. Sans ce verrou, un double-tap sur la note « course en
+ * attente » (tappable) sur réseau lent lance DEUX invokes qui renvoient le MÊME
+ * verdict → claim_result / city_opened émis DEUX fois (le serveur, idempotent,
+ * n'est pas doublement crédité — mais le funnel, si). Bonus : coupe les invokes
+ * réseau redondants. Tous les sites d'appel partagent ce runtime JS. On NE filtre
+ * PAS sur result.replayed : le scénario « crédité mais réponse perdue » ne verra
+ * jamais que replayed:true — le sauter reperdrait le funnel que ce fix restaure.
+ */
 export async function retryPendingUpload(): Promise<void> {
-  if (supabase === null) return;
+  if (supabase === null || retryInFlight) return;
+  retryInFlight = true;
+  try {
+    await retryPendingUploadOnce();
+  } finally {
+    retryInFlight = false;
+  }
+}
+
+async function retryPendingUploadOnce(): Promise<void> {
+  if (supabase === null) return; // garanti par l'appelant ; requis pour le narrowing TS
   let payload: IngestRunRequest | null = null;
   try {
     const raw = await AsyncStorage.getItem(PENDING_UPLOAD_KEY);
@@ -91,7 +113,7 @@ export async function retryPendingUpload(): Promise<void> {
   try {
     const { data } = await supabase.auth.getSession();
     if (data.session === null) return; // pas de session : on retentera connecté
-    const { error } = await supabase.functions.invoke('ingest_run', { body: payload });
+    const { data: runData, error } = await supabase.functions.invoke('ingest_run', { body: payload });
     if (error) {
       if (isPermanentRejection(error)) {
         // Jugé et refusé : sortir de la file (sinon retry infini silencieux) et
@@ -109,6 +131,13 @@ export async function retryPendingUpload(): Promise<void> {
       }
       return; // hors-ligne/5xx/429 : le slot reste, on retentera
     }
+    // Renvoi RÉUSSI : le serveur a jugé. On NE rejoue PAS la célébration (le
+    // moment est passé, pas d'écran de résultat ici), mais on ne PERD pas le
+    // FAIT — le funnel doit voir cette capture / cette ouverture de commune faite
+    // hors-ligne (là où les communes sont vierges), sinon les vraies conquêtes
+    // rurales restent invisibles. Même source-unique que le chemin live.
+    const result = (runData ?? null) as IngestRunResponse | null;
+    if (result) emitRunResultAnalytics(result, 'pending_retry');
     await AsyncStorage.removeItem(PENDING_UPLOAD_KEY);
   } catch {
     // Réseau coupé net : silencieux, le slot reste pour la prochaine tentative.
