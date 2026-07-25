@@ -20,7 +20,7 @@
  * sources n'introduit jamais de faux mètres.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { RunMode } from '@klaim/shared';
+import type { Activity, RunMode } from '@klaim/shared';
 import type { RawFix } from '../features/run/gps/engine/gps';
 
 const ACTIVE_RUN_KEY = 'gryd.activeRun.v1';
@@ -32,6 +32,16 @@ export interface StoredRun {
   /** UUID local généré AVANT la course — clé d'idempotence d'ingest_run. */
   runId: string;
   mode: RunMode;
+  /**
+   * DISCIPLINE de la sortie (E14). Persistée pour qu'une course interrompue par
+   * un kill revienne DANS SON MONDE : sans elle, une sortie vélo restaurée
+   * serait rejugée aux bornes de la course (trace mutilée à la relecture, et un
+   * payload qui mentirait sur ce qui a été fait).
+   *
+   * OPTIONNELLE : une course persistée AVANT l'arrivée du vélo n'a pas ce champ,
+   * et elle se relit en `run` — ce qui est un fait, pas un repli.
+   */
+  activity?: Activity;
   /** Départ epoch ms. */
   startedAt: number;
   /** Trace brute (le moteur nettoie à la relecture — on ne stocke jamais du dérivé). */

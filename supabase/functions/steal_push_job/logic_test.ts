@@ -45,12 +45,21 @@ const NOW = new Date('2026-07-21T12:00:00Z');
 const MS_PER_HOUR = 3_600_000;
 const MS_PER_MINUTE = 60_000;
 
-function row(id: number, victim: string, agoHours = 0): StealQueueRow {
+function row(
+  id: number,
+  victim: string,
+  agoHours = 0,
+  // Discipline de la perte (0070). 'run' par défaut : c'est ce qu'était TOUT
+  // l'existant avant le vélo — un fait, pas un repli. Les tests qui parlent de
+  // monde la passent explicitement (cf. activity_test.ts).
+  activity: StealQueueRow['activity'] = 'run',
+): StealQueueRow {
   return {
     id,
     victimUserId: victim,
     thiefUserId: `thief-${id}`,
     hexId: `8a1fb46622d7ff${id}`,
+    activity,
     stolenAt: new Date(NOW.getTime() - agoHours * MS_PER_HOUR),
   };
 }

@@ -6,21 +6,10 @@
  * Fonctions PURES : aucune I/O, aucune horloge, aucun accès réseau/DB.
  * Toutes les constantes de jeu viennent de @klaim/shared/game-rules.
  */
-import {
-  POINT_MAX_ACCURACY_M,
-  POINT_MAX_JUMP_M,
-  POINT_MAX_SPEED_KMH,
-  RUN_AVG_PACE_MAX_S_KM,
-  RUN_AVG_PACE_MIN_S_KM,
-  RUN_MAX_DISTANCE_M,
-  RUN_MIN_DISTANCE_M,
-  RUN_MIN_DURATION_S,
-  SEGMENT_PACE_MAX_S_KM,
-  SEGMENT_PACE_MIN_S_KM,
-} from '@klaim/shared/game-rules';
+import { type Activity, activityRules, DEFAULT_ACTIVITY } from '@klaim/shared/game-rules';
 import type { RejectReason, RunPoint } from '@klaim/shared/types';
 
-/** Segment continu de points GPS conservés (coupé sur saut > POINT_MAX_JUMP_M). */
+/** Segment continu de points GPS conservés (coupé sur saut > `pointMaxJumpM`). */
 export type Segment = RunPoint[];
 
 // Constantes physiques / d'unités — pas des règles de jeu.
@@ -52,16 +41,26 @@ export interface FilterResult {
 }
 
 /**
- * Filtrage des points GPS (§3.2) :
- *  - précision `acc` > POINT_MAX_ACCURACY_M (si présente) → point rejeté ;
- *  - saut > POINT_MAX_JUMP_M entre points consécutifs → segment COUPÉ (le
+ * Filtrage des points GPS (§3.2), bornes lues dans la DISCIPLINE :
+ *  - précision `acc` > `pointMaxAccuracyM` (si présente) → point rejeté ;
+ *  - saut > `pointMaxJumpM` entre points consécutifs → segment COUPÉ (le
  *    point ouvre un nouveau segment, il n'est pas rejeté) ;
- *  - vitesse instantanée > POINT_MAX_SPEED_KMH → point rejeté ;
+ *  - vitesse instantanée > `pointMaxSpeedKmh` → point rejeté ;
  *  - timestamp dupliqué ou désordonné (dt ≤ 0) → point rejeté.
  * Les points sont triés par timestamp avant traitement. Les segments d'un seul
  * point sont écartés (aucune distance ni durée exploitables).
+ *
+ * `activity` absente ⇒ 'run' : comportement historique STRICTEMENT inchangé
+ * (les bornes `run` d'ACTIVITY_RULES RÉFÉRENCENT les constantes §3.2 d'origine).
+ * À vélo la borne de vitesse monte à 80 km/h : sans elle, chaque point d'un
+ * cycliste à 30 km/h serait jeté un par un et la sortie finirait
+ * `no_valid_points` — le jeu traiterait un pratiquant honnête en tricheur.
  */
-export function filterPoints(points: RunPoint[]): FilterResult {
+export function filterPoints(
+  points: RunPoint[],
+  activity: Activity = DEFAULT_ACTIVITY,
+): FilterResult {
+  const rules = activityRules(activity);
   const sorted = [...points].sort((a, b) => a.t - b.t);
   const segments: Segment[] = [];
   let current: Segment = [];
@@ -72,7 +71,7 @@ export function filterPoints(points: RunPoint[]): FilterResult {
   };
 
   for (const p of sorted) {
-    if (p.acc !== undefined && p.acc > POINT_MAX_ACCURACY_M) continue;
+    if (p.acc !== undefined && p.acc > rules.pointMaxAccuracyM) continue;
     const last = current[current.length - 1];
     if (last === undefined) {
       current.push(p);
@@ -81,14 +80,14 @@ export function filterPoints(points: RunPoint[]): FilterResult {
     const dtS = (p.t - last.t) / MS_PER_S;
     if (dtS <= 0) continue; // dupliqué / désordonné
     const dM = haversineM(last, p);
-    if (dM > POINT_MAX_JUMP_M) {
+    if (dM > rules.pointMaxJumpM) {
       // Saut GPS : on coupe le segment, le point démarre le suivant.
       closeCurrent();
       current.push(p);
       continue;
     }
     const speedKmh = (dM / dtS) * KMH_PER_M_S;
-    if (speedKmh > POINT_MAX_SPEED_KMH) continue; // spike de vitesse → point rejeté
+    if (speedKmh > rules.pointMaxSpeedKmh) continue; // spike de vitesse → point rejeté
     current.push(p);
   }
   closeCurrent();
@@ -126,21 +125,31 @@ export type RunValidation =
   | { status: 'valid' }
   | { status: 'rejected'; reason: RejectReason };
 
-/** Validité globale d'une course (§3.2). L'ordre des raisons est stable. */
-export function validateRun(stats: RunStats): RunValidation {
+/**
+ * Validité globale d'une sortie (§3.2). L'ordre des raisons est stable.
+ * Les bornes sont lues dans la DISCIPLINE déclarée ; `activity` absente ⇒ 'run'
+ * (comportement historique inchangé). Une trace à 30 km/h reste donc
+ * `pace_too_fast` tant que la discipline n'est pas DÉCLARÉE : le vélo se dit,
+ * il ne se devine pas — c'est la seule lecture honnête d'une donnée muette.
+ */
+export function validateRun(
+  stats: RunStats,
+  activity: Activity = DEFAULT_ACTIVITY,
+): RunValidation {
+  const rules = activityRules(activity);
   if (stats.distanceM <= 0) return { status: 'rejected', reason: 'no_valid_points' };
-  if (stats.distanceM < RUN_MIN_DISTANCE_M) return { status: 'rejected', reason: 'too_short' };
-  if (stats.durationS < RUN_MIN_DURATION_S) return { status: 'rejected', reason: 'too_brief' };
-  if (stats.avgPaceSKm < RUN_AVG_PACE_MIN_S_KM) {
+  if (stats.distanceM < rules.minDistanceM) return { status: 'rejected', reason: 'too_short' };
+  if (stats.durationS < rules.minDurationS) return { status: 'rejected', reason: 'too_brief' };
+  if (stats.avgPaceSKm < rules.avgPaceMinSKm) {
     return { status: 'rejected', reason: 'pace_too_fast' };
   }
-  if (stats.avgPaceSKm > RUN_AVG_PACE_MAX_S_KM) {
+  if (stats.avgPaceSKm > rules.avgPaceMaxSKm) {
     return { status: 'rejected', reason: 'pace_too_slow' };
   }
   // Plafond anti-abus (audit sécurité) : au-delà, le payload est implausible pour UNE
   // session → rejet. Coupe les traces forgées géantes et l'amplification DoS. (La durée
   // est déjà bornée par l'allure max : pas de plafond de durée dédié — voir game-rules.)
-  if (stats.distanceM > RUN_MAX_DISTANCE_M) return { status: 'rejected', reason: 'too_far' };
+  if (stats.distanceM > rules.maxDistanceM) return { status: 'rejected', reason: 'too_far' };
   return { status: 'valid' };
 }
 
@@ -158,17 +167,22 @@ export interface ClaimableResult {
 
 /**
  * Segments autorisés à claimer (§3.2) : allure segment ∈
- * [SEGMENT_PACE_MIN_S_KM ; SEGMENT_PACE_MAX_S_KM]. Un segment sans distance
- * mesurable est exclu (allure indéfinie → non claimable).
+ * [`segmentPaceMinSKm` ; `segmentPaceMaxSKm`] de la DISCIPLINE. Un segment sans
+ * distance mesurable est exclu (allure indéfinie → non claimable).
+ * `activity` absente ⇒ 'run' (comportement historique inchangé).
  */
-export function claimableSegments(segments: Segment[]): ClaimableResult {
+export function claimableSegments(
+  segments: Segment[],
+  activity: Activity = DEFAULT_ACTIVITY,
+): ClaimableResult {
+  const rules = activityRules(activity);
   const claimable: Segment[] = [];
   const excluded: Segment[] = [];
   for (const seg of segments) {
     const stats = computeStats([seg]);
     const ok = stats.distanceM > 0 &&
-      stats.avgPaceSKm >= SEGMENT_PACE_MIN_S_KM &&
-      stats.avgPaceSKm <= SEGMENT_PACE_MAX_S_KM;
+      stats.avgPaceSKm >= rules.segmentPaceMinSKm &&
+      stats.avgPaceSKm <= rules.segmentPaceMaxSKm;
     (ok ? claimable : excluded).push(seg);
   }
   return {
@@ -196,17 +210,37 @@ export const MOTION_TRUST_FLAGGED_BELOW = 50;
 export const STEP_COHERENCE_MIN_STEPS_PER_M = 0.5;
 
 /**
- * Signal motionTrust 0-100 :
+ * Signal motionTrust 0-100, LU DANS LE SENS DE LA DISCIPLINE. Dans les deux
+ * cas la règle physiologique est la MÊME et le seuil est le MÊME
+ * (STEP_COHERENCE_MIN_STEPS_PER_M) — seul le sens de lecture s'inverse, parce
+ * que pédaler ne produit pas de pas :
  *  - `stepCount` absent → MOTION_TRUST_NEUTRAL (signal indisponible, neutre) ;
- *  - distance non significative (< RUN_MIN_DISTANCE_M) → neutre aussi (le
- *    signal n'est pas fiable sur une distance trop courte) ;
- *  - sinon trust = clamp(100 × (pas/m) / STEP_COHERENCE_MIN_STEPS_PER_M).
- *    Distance significative + pas quasi nuls → trust ≈ 0 → course 'flagged'.
+ *  - distance non significative (< `minDistanceM` de la discipline) → neutre
+ *    aussi (le signal n'est pas fiable sur une distance trop courte) ;
+ *  - `run`  : trust = clamp(100 × (pas/m) / seuil). Distance significative +
+ *    pas quasi nuls → trust ≈ 0 → sortie 'flagged' (véhicule ou vélo non
+ *    déclaré) ;
+ *  - `bike` : trust = clamp(100 × (1 − (pas/m) / seuil)). Zéro pas → 100 (c'est
+ *    l'attendu d'un cycliste) ; au-dessus du seuil « c'est pédestre » → 0, donc
+ *    'flagged' : une COURSE À PIED déclarée en vélo n'ira pas capturer un
+ *    territoire vélo avec des foulées. Aucun nouveau nombre n'est inventé : la
+ *    frontière « pédestre / non pédestre » est celle qui existait déjà.
+ *
+ * ⚠️ Le signal reste OPTIONNEL des deux côtés : un client qui n'envoie pas de
+ * `stepCount` n'est JAMAIS pénalisé, et 'flagged' ne rejette pas la sortie (les
+ * stats restent, seule la capture est gelée). Le calibrage terrain de la
+ * branche vélo (un podomètre peut-il compter des « pas » sur des pavés ?) reste
+ * à faire — aucune donnée réelle ne l'a encore éprouvé.
  */
-export function stepCoherence(distanceM: number, stepCount?: number): number {
+export function stepCoherence(
+  distanceM: number,
+  stepCount?: number,
+  activity: Activity = DEFAULT_ACTIVITY,
+): number {
   if (stepCount === undefined) return MOTION_TRUST_NEUTRAL;
-  if (distanceM < RUN_MIN_DISTANCE_M) return MOTION_TRUST_NEUTRAL;
+  if (distanceM < activityRules(activity).minDistanceM) return MOTION_TRUST_NEUTRAL;
   const stepsPerM = Math.max(0, stepCount) / distanceM;
-  const trust = Math.floor((stepsPerM / STEP_COHERENCE_MIN_STEPS_PER_M) * 100);
+  const ratio = stepsPerM / STEP_COHERENCE_MIN_STEPS_PER_M;
+  const trust = Math.floor((activity === 'bike' ? 1 - ratio : ratio) * 100);
   return Math.min(100, Math.max(0, trust));
 }

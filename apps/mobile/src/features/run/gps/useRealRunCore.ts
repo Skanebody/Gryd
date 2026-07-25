@@ -35,7 +35,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import * as Crypto from 'expo-crypto';
-import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
+import { type Activity, DEFAULT_ACTIVITY, type IngestRunRequest, type IngestRunResponse } from '@klaim/shared';
 import { EVENTS, track } from '../../../lib/analytics';
 import { emitRunResultAnalytics } from '../../../lib/activation';
 import { supabase } from '../../../lib/supabase';
@@ -66,6 +66,20 @@ const UI_TICK_MS = 1_000;
 const FLUSH_EVERY_TICKS = 30;
 /** Re-vérification de la permission (autorisation coupée en course) tous les N ticks. */
 const PERMISSION_CHECK_EVERY_TICKS = 10;
+
+/**
+ * Discipline d'une course RESTAURÉE (reprise après kill / clôture d'orpheline).
+ *
+ * Ce n'est PAS un repli de confort mais une lecture de DONNÉE ANCIENNE :
+ * `StoredRun.activity` n'existe que depuis E14, et une course écrite avant
+ * cette date a forcément été courue à pied — la course à pied était alors la
+ * seule discipline que GRYD chronométrait. On ne devine donc rien : on constate.
+ * Toute course écrite depuis porte son champ et le garde intact (une sortie ne
+ * change jamais de monde en chemin).
+ */
+function storedActivity(stored: StoredRun): Activity {
+  return stored.activity ?? DEFAULT_ACTIVITY;
+}
 
 export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): RealRunGate {
   const { session } = useSession();
@@ -109,6 +123,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     const run: StoredRun = {
       runId: t.runId,
       mode: t.mode,
+      // E14 : la discipline suit la course dans le stockage — une sortie vélo
+      // reprise après un kill reste une sortie vélo (bornes et payload).
+      activity: t.activity,
       startedAt: t.startedAt,
       fixes: [...t.rawFixes],
       userPausedMs: t.userPausedMs,
@@ -234,7 +251,11 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       if (!alive) return;
       if (orphan !== null && orphan.fixes.length > 1) {
         if (stored !== null && stored.fixes.length > 1 && stored.runId !== orphan.runId) {
-          const closer = new RunTracker({ ...stored, initialFixes: stored.fixes });
+          const closer = new RunTracker({
+            ...stored,
+            activity: storedActivity(stored),
+            initialFixes: stored.fixes,
+          });
           closer.finish(Date.now());
           await uploadOrQueue(closer.buildPayload());
         }
@@ -245,7 +266,11 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       }
       if (stored !== null && stored.fixes.length > 1) {
         pendingStoredRef.current = stored;
-        const probe = new RunTracker({ ...stored, initialFixes: stored.fixes });
+        const probe = new RunTracker({
+          ...stored,
+          activity: storedActivity(stored),
+          initialFixes: stored.fixes,
+        });
         setRestoreDistanceM(probe.snapshot(Date.now()).distanceM);
       }
 
@@ -361,6 +386,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       trackerRef.current = new RunTracker({
         runId: stored.runId, // idempotence : on reste LA même course côté serveur
         mode: stored.mode,
+        // La discipline de la course REPRISE, jamais celle d'un réglage lu à
+        // l'instant T : c'est la même sortie, elle ne change pas de monde en
+        // chemin. Absente (course écrite avant E14) → `run`, cf. storedActivity.
+        activity: storedActivity(stored),
         startedAt: stored.startedAt,
         initialFixes: [...stored.fixes, ...bg, ...current.rawFixes],
         userPausedMs: stored.userPausedMs,
@@ -381,7 +410,11 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     if (stored === null) return;
     void (async () => {
       const bg = await drainBackground();
-      const closer = new RunTracker({ ...stored, initialFixes: [...stored.fixes, ...bg] });
+      const closer = new RunTracker({
+        ...stored,
+        activity: storedActivity(stored),
+        initialFixes: [...stored.fixes, ...bg],
+      });
       closer.finish(Date.now());
       // Hors-ligne : payload en file (idempotent) — la course clôturée
       // n'écrase jamais la course EN COURS et n'est jamais perdue en silence.
@@ -452,12 +485,21 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
    * podomètre + les capteurs, passe à 'real'. SEUL point qui stampe l'horloge et
    * ouvre le flux GPS. Idempotent : un double tick final ne construit jamais deux
    * trackers (garde trackerRef).
+   *
+   * E14 — `activity` est DÉCLARÉE par l'appelant (le préflight, donc le chemin
+   * qui lance la course) et figée pour toute la sortie. Le cœur ne la lit nulle
+   * part : il n'a plus aucun moyen de la deviner, et c'est le point du
+   * correctif du 25/07/2026 (cf. `runActivity.ts`). Elle arrive en paramètre
+   * plutôt que via un ref lu au démarrage, ce qui supprime au passage le `await`
+   * qui précédait le préflight : `confirmStart` reste SYNCHRONE jusqu'à la garde
+   * `trackerRef.current`, donc la fenêtre de double construction reste fermée.
    */
-  const confirmStart = useCallback(async () => {
+  const confirmStart = useCallback(async (activity: Activity) => {
     if (trackerRef.current !== null) return;
     const tracker = new RunTracker({
       runId: Crypto.randomUUID(),
       mode,
+      activity,
       startedAt: Date.now(),
     });
     trackerRef.current = tracker;

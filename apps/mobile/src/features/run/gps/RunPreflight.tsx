@@ -27,6 +27,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import type { PreflightApi } from './gateTypes';
+import { DECLARED_START_ACTIVITY } from './runActivity';
 import { EVENTS, track } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
 import { useReveal } from '../../../ui/game/anim';
@@ -84,7 +85,15 @@ export function RunPreflight({ preflight }: { preflight: PreflightApi }) {
     if (stepIdx >= STEPS.length - 1) {
       if (!startedRef.current) {
         startedRef.current = true;
-        preflightRef.current.confirmStart();
+        // E14 — LE DÉPART DÉCLARE SA DISCIPLINE. Tous les chemins qui lancent
+        // une course (GO de la Carte, planificateur d'itinéraire, ouverture
+        // directe de `/course-live`) traversent ce préflight : c'est ici, et
+        // nulle part ailleurs, que la nature de l'effort enregistré est dite.
+        // Elle vaut `run` pour tout le monde tant que le vélo n'existe pas sous
+        // l'écran — voir `runActivity.ts` pour l'arbitrage, et `lib/flags.ts`
+        // pour les quatre chantiers qui manquent. Le paramètre est OBLIGATOIRE :
+        // aucune course ne peut plus partir sans que quelqu'un l'ait déclarée.
+        preflightRef.current.confirmStart(DECLARED_START_ACTIVITY);
       }
       return;
     }

@@ -2470,3 +2470,404 @@ export type RouteShape = (typeof ROUTE_SHAPES)[number];
  * qui ne donne rien (§22).
  */
 export const ZONE_CENTER_SPACING_M = 114;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E14 — DEUX DISCIPLINES, DEUX UNIVERS (planche docs/design/vague-1/PLANCHES.md
+// §E14, décision fondateur 24/07/2026 : « une version bike et une version
+// running »). ÉTAPE 2 : la FONDATION PURE (constantes + moteur). Le territoire
+// et les classements séparés (colonne `activity` sur hex_claims / season_scores)
+// sont l'étape SUIVANTE — voir « CE QUI RESTE EN SUSPENS » en fin de bloc.
+//
+// POURQUOI CE BLOC EXISTE : toutes les bornes anti-triche de §3.2 ont été
+// calibrées pour la COURSE À PIED (RUN_AVG_PACE_MIN_S_KM porte littéralement le
+// commentaire « borne basse anti-vélo », POINT_MAX_SPEED_KMH = 25 km/h). Un
+// cycliste réel à 28-35 km/h est donc rejeté DEUX fois : chacun de ses points
+// dépasse la vitesse max (→ `no_valid_points`), et son allure moyenne tombe
+// sous la borne basse (→ `pace_too_fast`). Faire exister le vélo commence par
+// des bornes PAR DISCIPLINE — sinon le jeu appelle « tricheur » un cycliste
+// honnête, ce qui est exactement le contraire de « l'app ne ment jamais ».
+//
+// PRINCIPE DE DÉRIVATION : les valeurs `run` ne sont PAS recopiées, elles
+// RÉFÉRENCENT les constantes historiques ci-dessus — l'identité de comportement
+// pour la course est garantie par construction, pas par relecture. Les valeurs
+// `bike` sont DÉRIVÉES (physiologie, records, ou proportion explicite de la
+// course), jamais choisies au doigt mouillé : chaque champ porte son pourquoi.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Disciplines du jeu. `run` est la valeur HISTORIQUE et le DÉFAUT partout :
+ * tout ce qui existe déjà (chaque course, chaque hexagone capturé) est de la
+ * course à pied. Une donnée sans discipline déclarée n'est pas « inconnue »,
+ * elle EST de la course — c'est un fait, pas un repli inventé.
+ */
+export const ACTIVITIES = ['run', 'bike'] as const;
+export type Activity = (typeof ACTIVITIES)[number];
+
+/** Discipline par défaut quand la requête n'en déclare aucune (rétro-compat). */
+export const DEFAULT_ACTIVITY: Activity = 'run';
+
+/**
+ * VITESSE DE RÉFÉRENCE d'une discipline (km/h) — le pivot de TOUTES les
+ * dérivations `bike` ci-dessous. Aucune des deux valeurs n'est choisie :
+ *  · `run` est LUE dans les règles existantes — le « coin » de validité §3.2
+ *    (RUN_MIN_DISTANCE_M 1 000 m atteint en RUN_MIN_DURATION_S 360 s) vaut
+ *    exactement 10 km/h, la vitesse d'un coureur honnête ;
+ *  · `bike` = 2 × `run`, et ce facteur 2 est LU sur la planche E14 elle-même :
+ *    mission course 900 m ≈ 6 min → 9 km/h ; mission vélo 4 800 m ≈ 15 min
+ *    → 19,2 km/h ; rapport 2,13, arrondi PRUDEMMENT à 2.
+ * Le second (et dernier) degré de liberté est l'axe des LONGUEURS de boucle :
+ * 4 800 / 900 = 5,33 → arrondi à 5, prudent lui aussi (une boucle vélo minimale
+ * plus courte n'exclut personne). Tout le reste des constantes vélo découle de
+ * ces deux facteurs — ×2 en vitesse, ×5 en longueur.
+ */
+export const ACTIVITY_REFERENCE_SPEED_KMH = { run: 10, bike: 20 } as const;
+
+/**
+ * Jeu COMPLET des bornes qu'une discipline impose au moteur pur. Une seule
+ * table indexée par discipline : aucune fonction du moteur n'a le droit de lire
+ * une borne §3.2 « en dur » — elle lit `activityRules(activity)`.
+ */
+export interface ActivityRuleSet {
+  /** §3.2 — distance minimale d'une sortie qui compte. */
+  readonly minDistanceM: number;
+  /** §3.2 — durée minimale d'une sortie qui compte. */
+  readonly minDurationS: number;
+  /** §3.2 — allure MOYENNE minimale admise (s/km) : sous cette valeur, moteur. */
+  readonly avgPaceMinSKm: number;
+  /** §3.2 — allure MOYENNE maximale admise (s/km) : au-delà, ce n'est plus la discipline. */
+  readonly avgPaceMaxSKm: number;
+  /** §3.2 — plafond anti-abus/DoS d'UNE session (m). */
+  readonly maxDistanceM: number;
+  /** §3.2 — vitesse instantanée max d'un point GPS (km/h) : au-delà, point rejeté. */
+  readonly pointMaxSpeedKmh: number;
+  /** §3.2 — saut entre deux points consécutifs (m) : au-delà, segment COUPÉ. */
+  readonly pointMaxJumpM: number;
+  /** §3.2 — précision horizontale max d'un point accepté (m). */
+  readonly pointMaxAccuracyM: number;
+  /** §3.2 — allure SEGMENT minimale pour claimer (s/km). */
+  readonly segmentPaceMinSKm: number;
+  /** §3.2 — allure SEGMENT maximale pour claimer (s/km). */
+  readonly segmentPaceMaxSKm: number;
+  /** A-12 §B — tolérance de fermeture départ/arrivée d'une boucle (m). */
+  readonly loopCloseToleranceM: number;
+  /** A-12 §B — périmètre minimal d'une boucle (m) ; en deçà : couloir seul. */
+  readonly loopMinPerimeterM: number;
+  /** A-16 §2 — paliers [distance courue (km), aire capturable max (km²)]. */
+  readonly loopMaxAreaByDistanceKm2: readonly (readonly [number, number])[];
+  /** A-23 §D — cap DUR d'aire capturable d'une boucle (km²). */
+  readonly loopMaxAreaCapKm2: number;
+  /** A-16 §2 — compacité minimale 4πA/P² d'une boucle. */
+  readonly loopMinCompactness: number;
+  /** A-23 §D — largeur moyenne minimale estimée 2A/P (m). */
+  readonly loopMinWidthM: number;
+  /** A-23 §D — GPS trust minimal pour capturer l'INTÉRIEUR d'une boucle. */
+  readonly loopMinGpsTrust: number;
+  /** A-12 §C (présentation) — « boucle ouverte » sous cette distance au départ (m). */
+  readonly loopHintDistanceM: number;
+  /** A-12 §C (présentation) — aperçu de la zone fantôme sous cette distance (m). */
+  readonly loopPreviewDistanceM: number;
+}
+
+/**
+ * COURSE À PIED — l'état historique, INCHANGÉ. Chaque champ RÉFÉRENCE la
+ * constante §3.2 d'origine : il est structurellement impossible qu'une valeur
+ * `run` dérive de ce qu'elle valait avant l'arrivée du vélo.
+ */
+const RUN_RULES: ActivityRuleSet = {
+  minDistanceM: RUN_MIN_DISTANCE_M,
+  minDurationS: RUN_MIN_DURATION_S,
+  avgPaceMinSKm: RUN_AVG_PACE_MIN_S_KM,
+  avgPaceMaxSKm: RUN_AVG_PACE_MAX_S_KM,
+  maxDistanceM: RUN_MAX_DISTANCE_M,
+  pointMaxSpeedKmh: POINT_MAX_SPEED_KMH,
+  pointMaxJumpM: POINT_MAX_JUMP_M,
+  pointMaxAccuracyM: POINT_MAX_ACCURACY_M,
+  segmentPaceMinSKm: SEGMENT_PACE_MIN_S_KM,
+  segmentPaceMaxSKm: SEGMENT_PACE_MAX_S_KM,
+  loopCloseToleranceM: LOOP_CLOSE_TOLERANCE_M,
+  loopMinPerimeterM: LOOP_MIN_PERIMETER_M,
+  loopMaxAreaByDistanceKm2: LOOP_MAX_AREA_BY_DISTANCE_KM2,
+  loopMaxAreaCapKm2: LOOP_MAX_AREA_CAP_KM2,
+  loopMinCompactness: LOOP_MIN_COMPACTNESS,
+  loopMinWidthM: LOOP_MIN_WIDTH_M,
+  loopMinGpsTrust: LOOP_MIN_GPS_TRUST,
+  loopHintDistanceM: LOOP_HINT_DISTANCE_M,
+  loopPreviewDistanceM: LOOP_PREVIEW_DISTANCE_M,
+};
+
+// ─── VÉLO : chaque borne, et son pourquoi ────────────────────────────────────
+
+/**
+ * Distance minimale d'une sortie vélo. DÉRIVÉE : le couple course
+ * (1 000 m ; 360 s) place son « coin » de validité à 10 km/h, soit la vitesse
+ * de croisière HONNÊTE d'un coureur. On reproduit exactement ce coin à la
+ * vitesse de croisière honnête d'un cycliste (2 × la course, ≈ 20 km/h) :
+ * 20 km/h × 360 s = 2 000 m. Ce n'est donc pas une exigence PLUS dure, c'est
+ * la MÊME exigence lue à la bonne vitesse.
+ */
+export const BIKE_MIN_DISTANCE_M = 2_000;
+
+/**
+ * Durée minimale d'une sortie vélo : IDENTIQUE à la course. Le plancher de
+ * durée ne dit rien de la vitesse, il dit « c'était une vraie sortie, pas un
+ * aller au coin de la rue ». Six minutes de vélo restent six minutes d'effort :
+ * inventer un plancher plus long pour les cyclistes serait durcir la règle sans
+ * raison physiologique.
+ */
+export const BIKE_MIN_DURATION_S = RUN_MIN_DURATION_S;
+
+/**
+ * Allure MOYENNE minimale d'une sortie vélo : 60 s/km = 60 km/h de MOYENNE.
+ * RÉFÉRENCE : le record de l'heure UCI est de 56,79 km/h (F. Ganna, 2022) — sur
+ * piste, en position aéro, sans arrêt ni virage. Une sortie sur route publique
+ * dont la moyenne dépasse 60 km/h sur au moins BIKE_MIN_DURATION_S n'est pas
+ * humainement pédalable : c'est un moteur. La marge (60 vs 56,8) est délibérée :
+ * elle absorbe une sortie très descendante et le bruit de mesure, parce qu'un
+ * faux positif (cycliste traité en tricheur) coûte infiniment plus cher qu'un
+ * faux négatif (un scooter passe et sera repris par les signaux §8, en suspens).
+ */
+export const BIKE_AVG_PACE_MIN_S_KM = 60;
+
+/**
+ * Allure MOYENNE maximale d'une sortie vélo : IDENTIQUE à la course
+ * (600 s/km = 6 km/h). Sous 6 km/h de moyenne on ne roule pas, on POUSSE son
+ * vélo — et 6 km/h laisse largement passer une sortie urbaine hachée de feux
+ * rouges (12-18 km/h) comme une ascension de col (8-12 km/h). Aucune raison
+ * d'inventer une seconde valeur.
+ */
+export const BIKE_AVG_PACE_MAX_S_KM = RUN_AVG_PACE_MAX_S_KM;
+
+/**
+ * Plafond anti-abus d'UNE session vélo : 400 km (4 × la course). Même rôle que
+ * RUN_MAX_DISTANCE_M — couper les payloads forgés et l'amplification DoS, jamais
+ * exclure un pratiquant réel. Le vélo longue distance vit à une autre échelle
+ * que la course (un brevet randonneur fait 200, 300 ou 400 km d'une traite), le
+ * plafond doit donc monter au-delà. MÊME arbitrage assumé que pour la course :
+ * au-delà (600 km, Paris-Brest-Paris) la sortie serait refusée — c'est un cas
+ * connu et accepté, pas un oubli.
+ */
+export const BIKE_MAX_DISTANCE_M = 400_000;
+
+/**
+ * Vitesse INSTANTANÉE maximale d'un point vélo : 80 km/h. Un cycliste de route
+ * atteint réellement 70-80 km/h en descente de col ; au-dessus, sur la durée
+ * d'un échantillon, on quitte le domaine du vélo sur route ouverte.
+ * ⚠️ HONNÊTETÉ : cette borne arrête un véhicule LANCÉ (voie rapide, autoroute),
+ * elle ne distingue PAS une voiture en ville (30-50 km/h) d'un cycliste rapide.
+ * Aucune borne de VITESSE ne le peut. Les signaux qui le pourraient
+ * (accélérations, arrêts, altitude, trajectoire) n'existent nulle part dans le
+ * code — voir « CE QUI RESTE EN SUSPENS » ci-dessous. On ne prétend donc pas
+ * que le vélo est « protégé de la voiture » : il est protégé du véhicule rapide.
+ */
+export const BIKE_POINT_MAX_SPEED_KMH = 80;
+
+/**
+ * Saut maximal entre deux points vélo consécutifs : 300 m. DÉRIVÉ du même
+ * rapport que la course : 100 m représente ~7 intervalles d'échantillonnage
+ * (GPS_SAMPLE_INTERVAL_MS = 2 s) parcourus à la vitesse max course (25 km/h).
+ * Le même « 7 intervalles » à 80 km/h vaut 7 × 2 s × 22,2 m/s ≈ 311 m → 300 m.
+ * Sans cette montée, une descente rapide verrait ses segments coupés en
+ * permanence par un filtre pensé pour des foulées.
+ */
+export const BIKE_POINT_MAX_JUMP_M = 300;
+
+/**
+ * Précision horizontale max d'un point vélo : IDENTIQUE à la course (25 m). La
+ * qualité d'un fix GPS dépend du ciel et du récepteur, pas de la discipline.
+ * Champ présent dans la table pour que le moteur n'ait QU'UNE source, mais sa
+ * valeur ne bouge pas — et le dire évite qu'on la « règle » un jour sans raison.
+ */
+export const BIKE_POINT_MAX_ACCURACY_M = POINT_MAX_ACCURACY_M;
+
+/**
+ * Allure SEGMENT minimale pour qu'un tronçon vélo puisse CLAIMER : 50 s/km
+ * = 72 km/h de moyenne sur le tronçon. Un segment de descente peut réellement
+ * tourner à 60-70 km/h de moyenne ; au-delà de 72 km/h SUR TOUT UN TRONÇON, ce
+ * n'est plus une descente, c'est un moteur. Reste sous BIKE_POINT_MAX_SPEED_KMH
+ * (80 km/h) exactement comme la course garde SEGMENT_PACE_MIN_S_KM (24 km/h)
+ * sous POINT_MAX_SPEED_KMH (25 km/h) : les pointes isolées survivent au filtre
+ * point par point, un tronçon entier à vitesse de moteur ne capture rien.
+ */
+export const BIKE_SEGMENT_PACE_MIN_S_KM = 50;
+
+/**
+ * Allure SEGMENT maximale pour claimer à vélo : IDENTIQUE à la course
+ * (720 s/km = 5 km/h). Sous 5 km/h sur tout un tronçon, on marche à côté du
+ * vélo — la sortie reste VALIDE, seul ce tronçon ne capture pas.
+ */
+export const BIKE_SEGMENT_PACE_MAX_S_KM = SEGMENT_PACE_MAX_S_KM;
+
+/**
+ * Périmètre minimal d'une boucle vélo : 5 000 m (5 × la course). C'est
+ * l'ÉCHELLE de la planche E14 (« boucles plus grandes, échelle ville ») lue sur
+ * ses propres chiffres : la boucle course de référence y fait 900 m et
+ * LOOP_MIN_PERIMETER_M vaut 1 000 m ; la boucle vélo de référence fait 4 800 m,
+ * son plancher vaut donc 5 000 m. Conséquence assumée : une sortie vélo entre
+ * BIKE_MIN_DISTANCE_M (2 km) et 5 km reste une course VALIDE qui capture son
+ * couloir, mais ne fait pas de zone — « à vélo, la zone se gagne à l'échelle
+ * du quartier, pas du pâté de maisons ».
+ */
+export const BIKE_LOOP_MIN_PERIMETER_M = 5_000;
+
+/**
+ * Tolérance de fermeture d'une boucle vélo : IDENTIQUE à la course (80 m).
+ * C'est une tolérance GPS (« suis-je revenu à mon point de départ ? »), pas une
+ * mesure d'effort : elle ne dépend pas de la vitesse.
+ */
+export const BIKE_LOOP_CLOSE_TOLERANCE_M = LOOP_CLOSE_TOLERANCE_M;
+
+/**
+ * Aire capturable max d'une boucle vélo, par distance parcourue.
+ * DÉRIVÉE de la table course par la SEULE loi qui ait un sens géométrique :
+ * l'aire varie comme le CARRÉ de la longueur. Les distances sont donc ×5
+ * (3/5/10 km → 15/25/50 km) et les aires ×25 (0,25/0,8/1,8 → 6,25/20/45 km²).
+ * Le rapport aire/distance² est ainsi RIGOUREUSEMENT IDENTIQUE entre les deux
+ * disciplines : un cycliste n'est ni avantagé ni pénalisé, il joue la même
+ * règle à son échelle. (Contrôle : à son périmètre minimal, chaque discipline
+ * se retrouve juste au-dessus de la borne isopérimétrique P²/4π — 0,083 km²
+ * pour 1 km à pied, 2,08 km² pour 5 km à vélo — donc dans les deux cas la
+ * géométrie mord avant la règle, exactement comme aujourd'hui.)
+ */
+export const BIKE_LOOP_MAX_AREA_BY_DISTANCE_KM2 = [
+  [15, 6.25],
+  [25, 20],
+  [50, 45],
+] as const;
+
+/**
+ * Cap DUR d'aire d'une boucle vélo : 75 km² = 25 × LOOP_MAX_AREA_CAP_KM2, par
+ * la même loi du carré. ⚠️ HONNÊTETÉ : ce cap ne mordra probablement JAMAIS en
+ * l'état — MAX_CLAIMS_PER_DAY (1 200 zones/jour/compte, PARTAGÉ entre les
+ * disciplines) plafonne déjà à ~18 km²/jour à la résolution 10. Il est écrit
+ * malgré tout pour rester cohérent le jour où l'arbitrage sur le plafond
+ * quotidien sera tranché (voir « EN SUSPENS » : par compte, ou par compte ET
+ * discipline ?) — décision FONDATEUR, pas d'agent.
+ */
+export const BIKE_LOOP_MAX_AREA_CAP_KM2 = 75.0;
+
+/**
+ * Forme d'une boucle vélo : compacité et largeur IDENTIQUES à la course.
+ * La compacité 4πA/P² est SANS DIMENSION (un carré vaut 0,785 quelle que soit
+ * sa taille) et la largeur minimale de 80 m est dictée par la GRILLE (≈ 3 zones
+ * res 10 de large), pas par la discipline. Les scaler serait un nombre inventé.
+ */
+export const BIKE_LOOP_MIN_COMPACTNESS = LOOP_MIN_COMPACTNESS;
+export const BIKE_LOOP_MIN_WIDTH_M = LOOP_MIN_WIDTH_M;
+
+/**
+ * GPS trust minimal pour capturer l'intérieur d'une boucle vélo : IDENTIQUE
+ * (80). C'est une exigence sur la QUALITÉ DE LA MESURE, pas sur l'effort.
+ */
+export const BIKE_LOOP_MIN_GPS_TRUST = LOOP_MIN_GPS_TRUST;
+
+/**
+ * Mise en scène de la boucle vélo (PRÉSENTATION, comme LOOP_HINT/PREVIEW) :
+ * ×5 comme toutes les longueurs de boucle. Un cycliste couvre 600 m en ~2 min :
+ * lui annoncer « ferme ta boucle » à cette distance arriverait trop tard.
+ */
+export const BIKE_LOOP_HINT_DISTANCE_M = 3_000;
+export const BIKE_LOOP_PREVIEW_DISTANCE_M = 1_500;
+
+const BIKE_RULES: ActivityRuleSet = {
+  minDistanceM: BIKE_MIN_DISTANCE_M,
+  minDurationS: BIKE_MIN_DURATION_S,
+  avgPaceMinSKm: BIKE_AVG_PACE_MIN_S_KM,
+  avgPaceMaxSKm: BIKE_AVG_PACE_MAX_S_KM,
+  maxDistanceM: BIKE_MAX_DISTANCE_M,
+  pointMaxSpeedKmh: BIKE_POINT_MAX_SPEED_KMH,
+  pointMaxJumpM: BIKE_POINT_MAX_JUMP_M,
+  pointMaxAccuracyM: BIKE_POINT_MAX_ACCURACY_M,
+  segmentPaceMinSKm: BIKE_SEGMENT_PACE_MIN_S_KM,
+  segmentPaceMaxSKm: BIKE_SEGMENT_PACE_MAX_S_KM,
+  loopCloseToleranceM: BIKE_LOOP_CLOSE_TOLERANCE_M,
+  loopMinPerimeterM: BIKE_LOOP_MIN_PERIMETER_M,
+  loopMaxAreaByDistanceKm2: BIKE_LOOP_MAX_AREA_BY_DISTANCE_KM2,
+  loopMaxAreaCapKm2: BIKE_LOOP_MAX_AREA_CAP_KM2,
+  loopMinCompactness: BIKE_LOOP_MIN_COMPACTNESS,
+  loopMinWidthM: BIKE_LOOP_MIN_WIDTH_M,
+  loopMinGpsTrust: BIKE_LOOP_MIN_GPS_TRUST,
+  loopHintDistanceM: BIKE_LOOP_HINT_DISTANCE_M,
+  loopPreviewDistanceM: BIKE_LOOP_PREVIEW_DISTANCE_M,
+};
+
+/** Table COMPLÈTE des bornes par discipline — seule porte d'entrée du moteur. */
+export const ACTIVITY_RULES: Readonly<Record<Activity, ActivityRuleSet>> = {
+  run: RUN_RULES,
+  bike: BIKE_RULES,
+};
+
+/**
+ * Bornes d'une discipline. Argument absent ⇒ DEFAULT_ACTIVITY ('run') : tout
+ * appelant qui ignore encore la notion de discipline obtient EXACTEMENT le
+ * comportement historique, sans un seul `if` chez lui.
+ */
+export function activityRules(activity: Activity = DEFAULT_ACTIVITY): ActivityRuleSet {
+  return ACTIVITY_RULES[activity] ?? RUN_RULES;
+}
+
+// ─── CE QUI RESTE EN SUSPENS (à ne pas promettre, à ne pas oublier) ──────────
+// 1. ANTI-TRICHE §8 DE LA SPÉC UNIFIÉE — les signaux « pattern d'accélération »,
+//    « arrêts », « altitude/dénivelé » et « cohérence de trajectoire routière »
+//    n'existent NULLE PART dans le code (aucune borne d'altitude n'a jamais été
+//    définie). Sans eux, aucune borne de vitesse ne sépare un cycliste d'une
+//    voiture EN VILLE. Les bornes ci-dessus arrêtent le véhicule LANCÉ et les
+//    payloads forgés : c'est tout ce qu'elles prétendent faire.
+// 2. TERRITOIRE ET CLASSEMENTS — ÉCRIT AU NIVEAU DU SCHÉMA, PAS ENCORE APPLIQUÉ
+//    (migration 0070, révisée le 25/07/2026). Elle donne à `hex_claims` la clé
+//    primaire COMPOSITE `(h3index, activity)` et à `season_scores` la clé
+//    `(season_id, user_id, activity)` : un claim vélo ne peut plus voler la zone
+//    d'un coureur (deux lignes, deux propriétaires) et les points ne peuvent
+//    plus être sommés (deux lignes de score). `claim_hexes` prend un 6ᵉ argument
+//    `p_activity` (défaut 'run'), et les mêmes colonnes sont portées par `runs`,
+//    `hex_co_captures`, `partial_boundaries`, `steal_push_queue`,
+//    `contested_group_runs`, `outposts`, `routes`, plus les agrégats
+//    `player_leaderboard` / `crew_leaderboard` / `sector_control`.
+//    CE QUE ÇA VAUT AUJOURD'HUI, dit plutôt que promis : la migration n'est ni
+//    committée ni appliquée, donc AUCUNE de ces garanties n'est en base. Et le
+//    test qui les prouve — supabase/tests/activity_dimension.pglite.test.mjs,
+//    Postgres réel en WASM — N'EST PAS REJOUABLE DANS CE DÉPÔT : `@electric-sql/
+//    pglite` n'y est pas installé, le fichier sort 2 en disant « NON EXÉCUTÉ ».
+//    La commande pour le rejouer ailleurs est écrite en toutes lettres dans la
+//    migration ; d'ici là, ces invariants sont raisonnés, pas mesurés.
+//    CE QUI RESTE VRAIMENT OUVERT. Ce n'est PLUS `flags.bike` qui tient la
+//    porte : ce drapeau est OUVERT depuis le 25/07/2026 et n'ouvre qu'une
+//    LENTILLE D'AFFICHAGE. Ce qui garantit qu'aucune ligne `bike` n'entre en
+//    base, c'est que la discipline d'une sortie est DÉCLARÉE par le chemin qui
+//    lance la course (`runActivity.ts` → `DECLARED_START_ACTIVITY = 'run'`) :
+//      · L'ORDRE — la colonne `activity` n'existe pas encore en base : tout
+//        filtre `.eq('activity', …)` casserait la lecture. On applique 0070,
+//        PUIS on déploie les Edge Functions (`ingest_run` en dépend DÉJÀ :
+//        `claim_hexes` à 6 arguments n'existe qu'après la migration), PUIS on
+//        filtre les derniers lecteurs clients.
+//      · UN LECTEUR CLIENT, le dernier — `features/map/hexClaims.ts:129-130` lit
+//        `hex_claims` sans `activity`. Il ne fait plus TOMBER le rendu
+//        (`territoryBuild.ts` dédoublonne les cellules avant
+//        `cellsToMultiPolygon` depuis le commit 2b88711) : il MÉLANGE en
+//        silence, une zone tenue à vélo étant peinte comme une zone de course
+//        sur les 7 surfaces qui affichent le territoire. Son filtre part AVEC
+//        l'application de la migration, pas avant (chantier `features/map/`).
+//      · JOBS — `decay_job` (écrit par `h3index` seul ; un garde-fou SQL empêche
+//        le dégât territorial, pas l'avertissement volé), `digest_job`, et
+//        `recompute_sectors` → `sector_snapshot` dont la clé primaire est
+//        `sector_id` SEUL.
+//      · AGRÉGATS PERSONNELS — `user_stats` et la vue `specialty_leaderboard`
+//        (voir §4).
+//    REFERMÉS LE 25/07/2026, à ne plus compter comme ouverts : `season_close`
+//    (gel de `rank_cache` et départages §13 par discipline), `steal_push_job`
+//    (il lit la discipline rendue par la RPC), `features/mission/
+//    useRealMissionCore.ts`, `features/social/leagueBoard.ts` et
+//    `features/social/economy.ts`.
+//    La liste complète et datée vit dans le bloc « CE QUI RESTE EN SUSPENS » de
+//    supabase/migrations/0070_activity_dimension.sql : c'est elle qui fait foi.
+// 3. PLAFONDS PARTAGÉS — MAX_CLAIMS_PER_DAY (1 200) et INGEST_MAX_RUNS_PER_HOUR
+//    (30) restent PAR COMPTE : un cycliste consomme le quota du coureur.
+//    Arbitrage FONDATEUR (par compte, ou par compte × discipline ?) : non tranché
+//    ici, volontairement.
+// 4. COMPTEURS « RUN-SHAPED » — user_stats (~60 colonnes) et la vue
+//    `specialty_leaderboard` (0069) qui les CLASSE entre joueurs, badges
+//    (badges.ts réutilise RUN_AVG_PACE_MIN/MAX pour la « smart run »), XP,
+//    Foulées, séries : tous mono-pot. Non disciplinés à ce stade — une sortie
+//    vélo y serait comptée comme une course. Pour les badges, le défaut est SÛR
+//    (les bornes d'allure de la course ne se déclenchent jamais à vélo, donc
+//    rien n'est attribué à tort) ; pour `specialty_leaderboard`, non : c'est un
+//    rang comparatif, et il mélangerait les deux mondes.

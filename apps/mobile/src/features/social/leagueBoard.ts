@@ -37,6 +37,26 @@
  * dire ce qui n'est pas encore mesuré, pas à ce hook d'inventer des lignes. Le rang est dérivé de l'ordre
  * (index+1) — robuste que `rank_cache` soit calculé ou non.
  *
+ * ─── UN CLASSEMENT = UNE DISCIPLINE (E14/E12, 25/07/2026) ────────────────────
+ * La migration 0070 change la CARDINALITÉ de `player_leaderboard` : une ligne
+ * par (saison, joueur, DISCIPLINE). Sans filtre, un joueur hybride apparaîtrait
+ * DEUX FOIS, avec deux totaux, et tout le monde en dessous verrait son rang
+ * décalé — puisque le rang est dérivé de l'ordre (index+1). C'est la violation
+ * la plus directe d'E12 « rangs SÉPARÉS », sur la seule surface qui affiche un
+ * classement.
+ *
+ * La lecture est donc BORNÉE à UNE discipline, choisie par l'appelant et
+ * remontée dans `activity` pour que l'écran puisse la NOMMER. Défaut `run` : la
+ * seule discipline que GRYD chronomètre à ce jour (`flags.bike` dit
+ * explicitement que le commutateur E14 n'est PAS encore propagé au Classement).
+ * Un board Bike ne serait pas « vide en attendant » : il serait VIDE, et vrai.
+ *
+ * DÉPENDANCE DE DÉPLOIEMENT, dite plutôt que promise : ce filtre suppose la
+ * colonne `activity` sur la vue (migration 0070). Tant qu'elle n'est pas
+ * appliquée, la lecture ÉCHOUE et l'écran affiche `unavailable` — un état
+ * honnête, distinct du vide (même contrat que `specialty_leaderboard` face à la
+ * migration 0069, plus bas). Client et schéma se déploient ensemble.
+ *
  * ─── LA FUITE COLMATÉE (21/07/2026) ──────────────────────────────────────────
  * AVANT : sans session, classement réel vide, ou lecture en échec, on servait le
  * podium de démonstration — des joueurs qui n'existent pas, présentés comme le
@@ -50,6 +70,7 @@
  * `LEAGUE_BOARDS` : ce sont des libellés de jeu, pas des données de joueur.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { type Activity, DEFAULT_ACTIVITY } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 import { LEAGUE_BOARDS, type LeagueBoard, type LeagueRow } from './league';
@@ -96,6 +117,12 @@ export interface SeasonLeaderboard {
    * que ce fichier vient de corriger).
    */
   cityName: string | null;
+  /**
+   * DISCIPLINE de CE classement (E14) — jamais un mélange. L'écran doit la
+   * nommer : un podium sans monde déclaré laisserait croire qu'il couvre les
+   * deux, ce que la séparation stricte d'E14 interdit.
+   */
+  activity: Activity;
 }
 
 function asInt(value: unknown): number {
@@ -123,7 +150,7 @@ function asName(value: unknown): string | null {
  *
  * Ne lève JAMAIS : chaque échec devient l'état `unavailable`, distinct du vide.
  */
-async function fetchRemoteJoueurs(userId: string): Promise<RemoteBoard> {
+async function fetchRemoteJoueurs(userId: string, activity: Activity): Promise<RemoteBoard> {
   if (!supabase) return { status: 'unavailable' };
 
   const meResult = await supabase.from('users').select('city_id').eq('id', userId).maybeSingle();
@@ -161,8 +188,12 @@ async function fetchRemoteJoueurs(userId: string): Promise<RemoteBoard> {
 
   const boardResult = await supabase
     .from('player_leaderboard')
+    // ── E12/E14 : UNE SEULE DISCIPLINE. La vue rend une ligne par (saison,
+    // joueur, discipline) depuis 0070 ; sans ce filtre, un joueur hybride
+    // occuperait deux places et décalerait le rang de tous les suivants.
     .select('user_id, pseudo, points')
     .eq('season_id', seasonId)
+    .eq('activity', activity)
     .order('points', { ascending: false })
     .limit(LEADERBOARD_LIMIT);
   if (boardResult.error) return { status: 'unavailable' };
@@ -187,7 +218,7 @@ async function fetchRemoteJoueurs(userId: string): Promise<RemoteBoard> {
  * sinon board VIDE — jamais un podium fabriqué.
  * La ligne « TOI », l'écart et le rank-up sont dérivés du board par l'écran.
  */
-export function useSeasonLeaderboard(): SeasonLeaderboard {
+export function useSeasonLeaderboard(activity: Activity = DEFAULT_ACTIVITY): SeasonLeaderboard {
   const { session, configured, loading: sessionLoading } = useSession();
   const [remote, setRemote] = useState<RemoteBoard | null>(null);
   const [remoteLoading, setRemoteLoading] = useState(false);
@@ -206,7 +237,7 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
     // aller-retour — une autre variante du classement de quelqu'un d'autre.
     setRemote(null);
     setRemoteLoading(true);
-    void fetchRemoteJoueurs(userId)
+    void fetchRemoteJoueurs(userId, activity)
       .then((result) => {
         if (alive) setRemote(result);
       })
@@ -221,22 +252,22 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
     return () => {
       alive = false;
     };
-  }, [configured, userId]);
+  }, [configured, userId, activity]);
 
   return useMemo<SeasonLeaderboard>(() => {
     const loading = sessionLoading || remoteLoading;
     const empty = { ...JOUEURS_BOARD_TEMPLATE, rows: [] as readonly LeagueRow[] };
     // Un chargement n'affirme RIEN : il ne dit ni « vide », ni « pas de ville ».
     if (loading) {
-      return { joueursBoard: empty, source: 'local', loading, status: 'loading', cityName: null };
+      return { joueursBoard: empty, source: 'local', loading, status: 'loading', cityName: null, activity };
     }
     if (!configured || !userId) {
-      return { joueursBoard: empty, source: 'local', loading, status: 'signed_out', cityName: null };
+      return { joueursBoard: empty, source: 'local', loading, status: 'signed_out', cityName: null, activity };
     }
     // Session posée, lecture terminée, mais rien n'est encore revenu de l'effet :
     // on ne conclut pas — on reste en lecture (jamais un vide affirmé à tort).
     if (!remote) {
-      return { joueursBoard: empty, source: 'local', loading: true, status: 'loading', cityName: null };
+      return { joueursBoard: empty, source: 'local', loading: true, status: 'loading', cityName: null, activity };
     }
     if (remote.status === 'ready') {
       return {
@@ -245,6 +276,7 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
         loading,
         status: 'ready',
         cityName: remote.cityName,
+        activity,
       };
     }
     // Aucune ligne inventée : le gabarit du board (titre/unité) sans ses lignes.
@@ -254,8 +286,9 @@ export function useSeasonLeaderboard(): SeasonLeaderboard {
       loading,
       status: remote.status,
       cityName: remote.status === 'empty' ? remote.cityName : null,
+      activity,
     };
-  }, [remote, sessionLoading, remoteLoading, configured, userId]);
+  }, [remote, sessionLoading, remoteLoading, configured, userId, activity]);
 }
 
 // ─── Classements par SPÉCIALITÉ (§16) — vue specialty_leaderboard (migration 0069) ─
@@ -286,6 +319,13 @@ export interface SpecialtyLeaderboard {
  * inventée. Compteurs LIFETIME (user_stats cumulatif) — l'écran le nomme « de tous
  * les temps ». Tant que la migration 0069 n'est pas déployée, la lecture échoue →
  * `unavailable` (état vide honnête), jamais une ligne fabriquée.
+ *
+ * PAS DE FILTRE DE DISCIPLINE ICI, ET C'EST DÉLIBÉRÉ. `user_stats` (~60 colonnes)
+ * est MONO-POT : la migration 0070 le dit noir sur blanc dans sa section « ce qui
+ * reste en suspens » (§2). Il n'existe donc AUCUNE colonne `activity` à filtrer,
+ * et en inventer une ferait échouer la lecture. Ces classements sont, à ce jour,
+ * tous disciplines confondues — ce que l'écran ne doit pas laisser croire séparé
+ * tant que le chantier `user_stats` n'a pas eu lieu.
  */
 async function fetchRemoteSpecialty(userId: string, specialty: Specialty): Promise<RemoteBoard> {
   if (!supabase) return { status: 'unavailable' };

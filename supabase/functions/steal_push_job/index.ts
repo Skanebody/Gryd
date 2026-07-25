@@ -71,6 +71,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { cellToParent } from 'npm:h3-js@^4.1';
 import {
+  ACTIVITIES,
+  type Activity,
   SECTOR_H3_RESOLUTION,
   STEAL_PUSH_COOLDOWN_MINUTES,
   STEAL_QUEUE_MAX_AGE_HOURS,
@@ -95,7 +97,9 @@ import {
   deliveryTally,
   partitionStealQueue,
   planDrainOutcome,
+  stealWorldByVictim,
   type StealQueueRow,
+  worldToName,
 } from './logic.ts';
 
 const MS_PER_MINUTE = 60_000;
@@ -137,6 +141,38 @@ const dbToH3 = (v: string | number): string => BigInt(v).toString(16);
 
 const isPushLocale = (v: unknown): v is PushLocale =>
   typeof v === 'string' && (PUSH_LOCALES as readonly string[]).includes(v);
+
+/** Une valeur de base est-elle une discipline que le jeu connaît ? */
+const isActivity = (v: unknown): v is Activity =>
+  typeof v === 'string' && (ACTIVITIES as readonly string[]).includes(v);
+
+/**
+ * Comment on NOMME un monde à quelqu'un qui vient d'y perdre du terrain.
+ * Table exhaustive sur `Activity` : ajouter une discipline sans écrire son
+ * libellé casse le typecheck plutôt que de sortir une phrase tronquée.
+ */
+const WORLD_LABEL: Readonly<Record<Activity, string>> = {
+  run: 'en course à pied',
+  bike: 'à vélo',
+};
+
+/**
+ * IDENTITÉ D'UNE ZONE PERDUE = (hexagone, monde).
+ *
+ * `aggregateStealEvents` (_shared/push.ts) compte des `hexId` DISTINCTS — « un
+ * hex volé deux fois = une perte ». C'était exact tant qu'un hexagone n'avait
+ * qu'un propriétaire. Depuis 0070 il peut être tenu SIMULTANÉMENT par un
+ * coureur et par un cycliste : perdre le même hexagone dans les deux mondes,
+ * c'est perdre DEUX zones, et le joueur devra repasser deux fois dessus.
+ *
+ * On qualifie donc la clé de dédup par le monde. Cette clé ne sert QU'À COMPTER
+ * (le lieu, lui, est résolu en amont via `sectorByHex`, sur le vrai hex) : elle
+ * ne sort jamais du calcul d'agrégat, et le compte reste identique tant qu'un
+ * seul monde existe. Une discipline illisible (`null`) garde sa propre clé —
+ * elle n'est fusionnée avec aucun monde connu.
+ */
+const worldScopedHexKey = (hexId: string, activity: Activity | null): string =>
+  `${hexId}@${activity ?? 'inconnu'}`;
 
 /**
  * Journalise sans jamais faire échouer le drain. Réservé aux écritures qui
@@ -201,6 +237,46 @@ async function resolveSectorNames(
   return byHex;
 }
 
+/**
+ * Les disciplines dans lesquelles chaque joueur a RÉELLEMENT des lignes.
+ *
+ * ═══ POURQUOI `season_scores`, ET PAS `runs` NI `hex_claims` ════════════════
+ * La question posée est booléenne (« ce joueur joue-t-il deux mondes ? ») mais
+ * PostgREST ne sait pas faire de `distinct` : la table lue détermine donc le
+ * volume rapatrié pour apprendre un oui/non. `runs` et `hex_claims` sont
+ * proportionnelles à l'activité (des milliers de lignes par joueur assidu) ;
+ * `season_scores` est bornée PAR CONSTRUCTION — sa clé primaire est
+ * `(season_id, user_id, activity)`, donc au plus deux lignes par saison jouée.
+ *
+ * Et c'est aussi la bonne définition : ce que le message conditionne, c'est
+ * « repasse dessus pour la récupérer ». Un joueur sans aucune ligne de score à
+ * vélo n'a aucun territoire à vélo, donc rien à distinguer — lui nommer le
+ * monde n'aurait rien levé.
+ *
+ * ÉCHEC DE LECTURE : on ne fabrique rien. La map revient vide, `worldToName`
+ * traite un joueur inconnu comme un mono-monde, et le message reste celui
+ * d'avant — muet sur la discipline, mais exact.
+ */
+async function loadPlayerWorlds(userIds: readonly string[]): Promise<Map<string, Set<Activity>>> {
+  const worlds = new Map<string, Set<Activity>>();
+  if (userIds.length === 0) return worlds;
+  for (const batch of chunk([...userIds], DB_CHUNK)) {
+    const { data, error } = await supabase
+      .from('season_scores')
+      .select('user_id, activity')
+      .in('user_id', batch);
+    if (error) throw new Error(`season_scores read: ${error.message}`);
+    for (const row of data ?? []) {
+      if (!isActivity(row.activity)) continue; // valeur illisible : elle n'ajoute rien
+      const uid = String(row.user_id);
+      const set = worlds.get(uid);
+      if (set) set.add(row.activity);
+      else worlds.set(uid, new Set([row.activity]));
+    }
+  }
+  return worlds;
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
@@ -241,6 +317,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       victimUserId: String(r.victim_user_id),
       thiefUserId: String(r.thief_user_id),
       hexId: dbToH3(r.h3index as string | number),
+      // DANS QUEL MONDE la zone a été perdue (0070 a rouvert le `returns table`
+      // de la RPC exprès pour ça). Sans cette lecture, la colonne restait EN
+      // ÉCRITURE SEULE et un coureur recevait « reprends ta zone » pour un
+      // hexagone qu'il tient toujours en courant. Une valeur inconnue devient
+      // `null` — on se tait sur le monde plutôt que d'en inventer un.
+      activity: isActivity(r.activity) ? r.activity : null,
       stolenAt: new Date(r.stolen_at as string),
     }));
 
@@ -297,11 +379,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // comprises : leur entrée d'inbox nomme le lieu comme les autres.
     const sectorByHex = await resolveSectorNames(rows.map((r) => r.hexId));
     const toEvent = (r: StealQueueRow): StealEvent => {
+      // Le LIEU se résout sur le vrai hexagone (un secteur est géographique, il
+      // n'a pas de discipline) ; le COMPTE, lui, distingue les mondes.
       const sector = sectorByHex.get(r.hexId);
       return {
         victimUserId: r.victimUserId,
         thiefUserId: r.thiefUserId,
-        hexId: r.hexId,
+        hexId: worldScopedHexKey(r.hexId, r.activity),
         sectorId: sector?.sectorId ?? null,
         sectorName: sector?.sectorName ?? null,
         at: r.stolenAt,
@@ -309,8 +393,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
     const events: StealEvent[] = fresh.map(toEvent);
     const staleEvents: StealEvent[] = stale.map(toEvent);
+    // DANS QUEL MONDE chaque victime a perdu — quand il n'y en a qu'un à nommer.
+    // Frais et périmés séparément : ce sont deux agrégats et donc deux messages
+    // (cf. « POURQUOI DEUX AGRÉGATS » plus bas), chacun devant nommer SON monde.
+    const lostInWorld = { fresh: stealWorldByVictim(fresh), stale: stealWorldByVictim(stale) };
 
     const victimIds = [...new Set(fresh.map((r) => r.victimUserId))];
+
+    // ── FAUT-IL nommer le monde ? Deux conditions, pas une ───────────────────
+    // `stealWorldByVictim` dit si on PEUT (pertes dans un seul monde) ;
+    // `worldToName` dit s'il FAUT (le joueur en a réellement deux). Nommer la
+    // discipline à quelqu'un qui n'en joue qu'une qualifie une distinction que
+    // le produit n'offre pas encore — au 25/07/2026, 100 % des joueurs sont en
+    // course à pied et aucune ligne `bike` n'existe : ce serait du bruit imposé
+    // à tous pour zéro cas d'usage (§A).
+    //
+    // TOUTES les victimes, périmées comprises : leur inbox est écrite aussi.
+    // Une SEULE lecture — et le résultat sert à l'inbox ET au push, pour que les
+    // deux racontent le même événement de la même façon.
+    const playerWorlds = await loadPlayerWorlds(
+      [...new Set(rows.map((r) => r.victimUserId))],
+    );
+    const namedWorld = (scope: 'fresh' | 'stale', userId: string): Activity | null =>
+      worldToName(lostInWorld[scope].get(userId) ?? null, playerWorlds.get(userId) ?? new Set());
+    const worldMap = (scope: 'fresh' | 'stale', src: readonly StealQueueRow[]) =>
+      new Map(
+        [...new Set(src.map((r) => r.victimUserId))].map((u) => [u, namedWorld(scope, u)]),
+      );
+    const freshWorld = worldMap('fresh', fresh);
+    const staleWorld = worldMap('stale', stale);
 
     // Appareils (les désactivés sont exclus en SQL).
     const devicesByUser = new Map<string, PushDevice[]>();
@@ -364,7 +475,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // ── 4. Décision (pure, aucun effet de bord) ──────────────────────────────
-    const plan = planStealPushes(events, devicesByUser, pushLogByUser, lastStealPushByUser, now);
+    // Le push reçoit LE MÊME monde que l'inbox (`freshWorld`) — il ne le
+    // recalcule pas et n'en décide pas : c'était l'écart que le correctif
+    // referme (l'inbox nommait le monde, le push restait muet).
+    const plan = planStealPushes(
+      events,
+      devicesByUser,
+      pushLogByUser,
+      lastStealPushByUser,
+      now,
+      freshWorld,
+    );
     const decision = planDrainOutcome(fresh, plan, lastStealPushByUser, now);
     // Les périmées rejoignent les consommées : même transaction, même issue.
     const consumed = [
@@ -406,11 +527,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       fresh.filter((r) => consumedIdSet.has(r.id)).map((r) => r.victimUserId),
     );
     const inboxRows = [
-      ...aggregateStealEvents(events).filter((t) => consumedVictims.has(t.userId)),
+      ...aggregateStealEvents(events)
+        .filter((t) => consumedVictims.has(t.userId))
+        .map((t) => inboxRow(t, now, freshWorld.get(t.userId) ?? null)),
       // Toutes les lignes périmées sont consommées par construction : aucune
       // n'a besoin d'être filtrée sur `consumedVictims`.
-      ...aggregateStealEvents(staleEvents),
-    ].map((t) => inboxRow(t, now));
+      ...aggregateStealEvents(staleEvents)
+        .map((t) => inboxRow(t, now, staleWorld.get(t.userId) ?? null)),
+    ];
     let inboxWritten = 0;
     if (inboxRows.length > 0) {
       const { error } = await supabase.from('notifications').insert(inboxRows);
@@ -571,9 +695,31 @@ function asCount(v: unknown): number | null {
  * (horloge incohérente côté ingestion) est ramenée à `now` — `notifications`
  * contraint `read_at >= created_at`, et une entrée datée du futur serait
  * impossible à marquer comme lue.
+ *
+ * ═══ LE MONDE, ET POURQUOI IL EST DANS LE CORPS ET PAS DANS LE TITRE ════════
+ * Depuis 0070, un hexagone peut être tenu à la fois par un coureur et par un
+ * cycliste. « Ton territoire a changé de mains » ne suffit donc plus : le joueur
+ * peut TENIR ENCORE cette zone dans l'autre discipline, et le message
+ * l'enverrait reprendre ce qu'il n'a pas perdu.
+ *
+ * On nomme le monde là où se trouve déjà l'ACTION (« repasse dessus ») — c'est
+ * elle que la discipline conditionne : reprendre à pied ce qu'on a perdu à vélo
+ * ne rend rien. Le titre reste le LIEU, inchangé.
+ *
+ * MAIS seulement pour qui a DEUX mondes à distinguer. Nommer la discipline à un
+ * joueur qui n'en pratique qu'une (au 25/07/2026 : tous) ne lève aucune
+ * ambiguïté — ça impose une précision inutile à 100 % des lecteurs pour 0 % de
+ * cas d'usage (§A). « 2 zones reprises » reste exact ; ce n'est pas une moitié
+ * de vérité, c'est la vérité entière quand il n'y a qu'un monde.
+ *
+ * @param world monde à NOMMER, déjà tranché par `worldToName` — `null` quand
+ *   les pertes couvrent les deux mondes, quand la valeur est illisible, ou
+ *   quand le joueur n'a de lignes que dans une seule discipline. Le push reçoit
+ *   EXACTEMENT la même valeur : les deux surfaces racontent le même événement.
  */
-function inboxRow(t: StealTarget, now: Date): Record<string, unknown> {
+function inboxRow(t: StealTarget, now: Date, world: Activity | null): Record<string, unknown> {
   const createdAt = t.latestAt.getTime() > now.getTime() ? now : t.latestAt;
+  const inWorld = world ? ` ${WORLD_LABEL[world]}` : '';
   return {
     user_id: t.userId,
     type: 'steal',
@@ -586,9 +732,12 @@ function inboxRow(t: StealTarget, now: Date): Record<string, unknown> {
         ? `Ton territoire à ${t.sectorName} a changé de mains`
         : 'Ton territoire a changé de mains',
       body: t.hexCount === 1
-        ? '1 zone reprise. Repasse dessus pour la récupérer.'
-        : `${t.hexCount} zones reprises. Repasse dessus pour les récupérer.`,
+        ? `1 zone reprise${inWorld}. Repasse dessus pour la récupérer.`
+        : `${t.hexCount} zones reprises${inWorld}. Repasse dessus pour les récupérer.`,
       hexCount: t.hexCount,
+      // Le monde, EXPLOITABLE par l'app (ouvrir la carte sur la bonne
+      // discipline). `null` = pas d'affirmation, l'écran n'en tire rien.
+      activity: world,
       // Comptes exposés à l'app (écran revanche), jamais mis en copie.
       sectorCount: t.sectorCount,
       rivalCount: t.rivalCount,

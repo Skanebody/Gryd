@@ -26,10 +26,11 @@
  * applique l'anti-abus complet (segments GRYD Verified, TTL, rival → contested).
  */
 import {
+  type Activity,
+  activityRules,
+  DEFAULT_ACTIVITY,
   FINISHER_MIN_SEGMENT_M,
   FINISHER_MIN_SHARE,
-  LOOP_CLOSE_TOLERANCE_M,
-  LOOP_MIN_PERIMETER_M,
   PARTIAL_JOIN_TOLERANCE_M,
 } from '@klaim/shared/game-rules';
 import type { BoundaryEnd, BoundarySegment } from '@klaim/shared/types';
@@ -90,10 +91,10 @@ export interface OpenBoundary {
  *     zone, il n'y a rien à « ouvrir ») ;
  *  2. FERMABLE — le POLYGONE complété par le segment de fermeture
  *     [dernier → premier point] passe les règles boucle réutilisées : périmètre
- *     complété ≥ LOOP_MIN_PERIMETER_M, aire ≥ ~1 zone (non dégénéré), et forme
+ *     complété ≥ `loopMinPerimeterM` de la discipline, aire ≥ ~1 zone (non dégénéré), et forme
  *     non étroite (loopShapeVerdict.ok — une frontière « couloir » plié en deux
  *     ne devient pas une zone) ;
- *  3. le trou est un VRAI manque : missingM > LOOP_CLOSE_TOLERANCE_M (sinon la
+ *  3. le trou est un VRAI manque : missingM > `loopCloseToleranceM` (sinon la
  *     trace serait déjà fermée par tolérance).
  * L'ouvreur a TOUJOURS couru la majorité du périmètre par construction : le
  * segment manquant est la CORDE départ→arrivée, or une corde est ≤ la longueur
@@ -109,10 +110,14 @@ export interface OpenBoundary {
  * comme il ne peut pas fermer de boucle (l'aire d'un tronçon non couru serait
  * enfermée). Le seuil GRYD Verified est appliqué par l'appelant (anti-abus).
  */
-export function detectOpenBoundary(trace: readonly LatLngPoint[]): OpenBoundary | null {
+export function detectOpenBoundary(
+  trace: readonly LatLngPoint[],
+  activity: Activity = DEFAULT_ACTIVITY,
+): OpenBoundary | null {
+  const rules = activityRules(activity);
   if (trace.length < 3) return null; // pas de polygone possible
   // 1. Déjà une boucle fermée → rien à ouvrir (c'est une zone, pas une frontière).
-  if (detectLoop(trace) !== null) return null;
+  if (detectLoop(trace, activity) !== null) return null;
 
   const start = trace[0]!;
   const end = trace[trace.length - 1]!;
@@ -121,7 +126,7 @@ export function detectOpenBoundary(trace: readonly LatLngPoint[]): OpenBoundary 
   // 3a. Trou trop petit : la trace se refermerait par tolérance (mais detectLoop
   // a dit non → aire dégénérée/périmètre court) — dans tous les cas, pas une
   // frontière ouverte exploitable.
-  if (missingM <= LOOP_CLOSE_TOLERANCE_M) return null;
+  if (missingM <= rules.loopCloseToleranceM) return null;
 
   const tracedLengthM = polylineLengthM(trace);
 
@@ -129,9 +134,9 @@ export function detectOpenBoundary(trace: readonly LatLngPoint[]): OpenBoundary 
   //    passer les règles boucle réutilisées. L'anneau = les points de la trace
   //    (la fermeture est implicite dans ringArea/loopShapeVerdict).
   const completedPerimeterM = tracedLengthM + missingM;
-  if (completedPerimeterM < LOOP_MIN_PERIMETER_M) return null;
+  if (completedPerimeterM < rules.loopMinPerimeterM) return null;
   const areaM2 = ringAreaM2(trace);
-  const shape = loopShapeVerdict({ areaM2, perimeterM: completedPerimeterM });
+  const shape = loopShapeVerdict({ areaM2, perimeterM: completedPerimeterM }, activity);
   if (!shape.ok) return null; // forme trop étroite → pas une vraie zone à fermer
 
   const openEnds: [BoundaryEnd, BoundaryEnd] = [

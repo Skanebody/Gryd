@@ -2,7 +2,14 @@
  * GRYD — Types partagés : contrats client ↔ Edge Functions.
  * Le client n'attribue JAMAIS un hex : il envoie des points, le serveur décide.
  */
-import type { CityId } from './game-rules';
+import type { Activity, CityId } from './game-rules';
+
+/**
+ * Discipline d'une sortie (E14). Ré-exportée ici parce que c'est un élément du
+ * CONTRAT client ↔ Edge Function (`IngestRunRequest.activity`) autant qu'une
+ * règle de jeu ; sa définition reste dans game-rules.ts (source unique).
+ */
+export type { Activity };
 
 /**
  * Provenance DÉCLARÉE de la trace envoyée à ingest_run. Elle est PERSISTÉE telle
@@ -54,9 +61,14 @@ export type RunStatus = 'valid' | 'partial' | 'rejected' | 'flagged';
 export type RejectReason =
   | 'too_short' // < RUN_MIN_DISTANCE_M
   | 'too_brief' // < RUN_MIN_DURATION_S
-  | 'pace_too_fast' // allure moyenne < RUN_AVG_PACE_MIN_S_KM (anti-vélo)
-  | 'pace_too_slow' // allure moyenne > RUN_AVG_PACE_MAX_S_KM
-  | 'too_far' // > RUN_MAX_DISTANCE_M (plafond anti-abus/forge)
+  // Bornes lues DANS LA DISCIPLINE DÉCLARÉE (ACTIVITY_RULES) — pas en dur :
+  // à pied `pace_too_fast` reste la borne anti-vélo (2:50/km), à vélo c'est la
+  // borne anti-véhicule motorisé (60 km/h de moyenne, au-delà du record de
+  // l'heure UCI). Une sortie vélo NON déclarée reste jugée comme une course,
+  // donc rejetée : la discipline se déclare, elle ne se devine pas.
+  | 'pace_too_fast' // allure moyenne < avgPaceMinSKm de la discipline
+  | 'pace_too_slow' // allure moyenne > avgPaceMaxSKm de la discipline
+  | 'too_far' // > maxDistanceM de la discipline (plafond anti-abus/forge)
   | 'no_valid_points'; // tous les points filtrés
 
 /** Un point GPS brut envoyé par le client (ou issu d'une route HealthKit). */
@@ -101,6 +113,15 @@ export interface IngestRunRequest {
   /** UUID généré côté client AVANT la course : clé d'idempotence (retry offline safe). */
   clientRunId: string;
   source: RunSource;
+  /**
+   * Discipline DÉCLARÉE de la sortie (E14). ABSENTE ⇒ `'run'` : toute requête
+   * écrite avant l'arrivée du vélo décrit bien une course à pied — ce n'est pas
+   * un repli, c'est un fait. Elle change les BORNES de validation §3.2
+   * (ACTIVITY_RULES) : une trace à 30 km/h est de la triche en `run` et une
+   * sortie normale en `bike`. Elle ne change RIEN au fait que le serveur reste
+   * seul juge du claim.
+   */
+  activity?: Activity;
   /** Ville de rattachement déclarée (classements) — la capture n'y est PAS bornée (France entière, AMENDEMENT-02 §2). */
   cityId?: CityId;
   startedAt: string; // ISO 8601

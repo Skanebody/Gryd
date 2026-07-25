@@ -18,6 +18,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { cellToLatLng, latLngToCell } from 'npm:h3-js@^4.1';
 import {
+  type Activity,
   BONUS_MIN_MOTION_TRUST,
   BONUS_PRIORITY,
   BONUS_RETURN_ABSENCE_MAX_DAYS,
@@ -26,6 +27,7 @@ import {
   CO_CAPTURE_DAILY_POINTS_CAP,
   type ContextCoeffKey,
   CREW_XP_TABLE,
+  DEFAULT_ACTIVITY,
   DEFEND_COOLDOWN_HOURS,
   FRESH_CAPTURE_PROTECT_HOURS,
   GROUP_RUN_HEX_SHARE_MIN,
@@ -39,9 +41,12 @@ import {
   RUN_MAX_POINTS,
   SEASON_DURATION_WEEKS,
   STREAK_HISTORY_WEEKS,
-  VERIFY_PARTIAL_MIN,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
+import { effectiveActivity, isActivityShape } from './activity.ts';
+// Verdict §3.2 + GRYD Verify : fonction PURE, extraite de ce fichier pour être
+// testable (index.ts n'est pas importable — `Deno.serve` au chargement).
+import { type ValidationOutcome, validateOrStatus } from './validate.ts';
 import { type CityZoneRow, isCityIdShape, pickCityZone } from './city_zone.ts';
 import { communeCityId, reverseGeocodeCommune, shouldAutoOpenCommune } from './commune_open.ts';
 import { ROUTE_ENDPOINT_MATCH_KM, VERIFIED_MIN_TRUST } from '../_shared/badges.ts';
@@ -56,15 +61,7 @@ import type {
   RunPoint,
   RunStatus,
 } from '../_shared/types.ts';
-import {
-  claimableSegments,
-  computeStats,
-  filterPoints,
-  haversineM,
-  MOTION_TRUST_FLAGGED_BELOW,
-  stepCoherence,
-  validateRun,
-} from '../_shared/engine/validation.ts';
+import { computeStats, filterPoints, haversineM } from '../_shared/engine/validation.ts';
 import {
   enclosedCells,
   type GeoJsonPolygonal,
@@ -76,9 +73,14 @@ import {
 import {
   canComplete,
   contributionSplit,
-  detectOpenBoundary,
   type OpenBoundary,
 } from '../_shared/engine/boundary.ts';
+// `detectOpenBoundary` n'est VOLONTAIREMENT pas importé ici : son argument
+// `activity` est optionnel, et c'est cette option qui a produit le défaut
+// « une frontière vélo ouverte aux seuils de la course ». On passe par
+// `decideOpenBoundary`, dont la discipline est REQUISE — et `boundary_open_test.ts`
+// refuse que ce fichier réimporte le moteur en direct.
+import { decideOpenBoundary } from './boundary_open.ts';
 import { decideClaims, deriveContextByHex, type HexState } from '../_shared/engine/claims.ts';
 import {
   distributePointsAdjustment,
@@ -96,7 +98,6 @@ import {
 import {
   applyRejectedRun,
   applyRunToStats,
-  dedupeActivity,
   emptyLifetimeStats,
   evaluateBadges,
   localClock,
@@ -105,9 +106,16 @@ import {
   statsDelta,
   weatherFlags,
   type BadgeRunInput,
-  type DedupActivity,
   type LifetimeStats,
 } from '../_shared/engine/badges.ts';
+// Le VERDICT de doublon reste `dedupeActivity` (moteur pur) : `dedup.ts`
+// l'appelle, `index.ts` ne fournit que les deux lectures.
+import {
+  type DedupCandidate,
+  type DedupReader,
+  findDuplicateRun,
+  traceShape,
+} from './dedup.ts';
 import { BADGES_BY_KEY } from '../_shared/badges.ts';
 import {
   boostChestMultiplier,
@@ -209,6 +217,10 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
     // mieux : la ville déclarée doit CONTENIR le départ GPS, sinon le serveur
     // ré-arbitre (`resolveRunCity`). Une déclaration ne décide plus rien.
     (b.cityId === undefined || isCityIdShape(b.cityId)) &&
+    // Discipline (E14) : ABSENTE = course à pied (fait, pas repli) ; INCONNUE =
+    // 400. On ne replie jamais un « scooter » sur « run » — ce serait décider à
+    // la place du joueur puis lui rendre le résultat comme le sien.
+    (b.activity === undefined || isActivityShape(b.activity)) &&
     (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode)));
 }
 
@@ -339,8 +351,16 @@ function streakAfterPayload(
   };
 }
 
+/**
+ * État des hexes DANS L'UNIVERS DE LA DISCIPLINE (E14, migration 0070). Le
+ * filtre `activity` n'est pas une optimisation : sans lui, le moteur verrait le
+ * propriétaire de l'autre monde, déciderait un « vol » contre quelqu'un qui ne
+ * joue pas au même jeu, et la garde TOCTOU de claim_hexes comparerait des
+ * propriétaires incomparables.
+ */
 async function loadHexStates(
   hexes: readonly string[],
+  activity: Activity = DEFAULT_ACTIVITY,
 ): Promise<ReadonlyMap<string, HexState>> {
   const states = new Map<string, HexState>();
   for (const batch of chunk(hexes.map(h3ToDb), DB_IN_CHUNK)) {
@@ -349,6 +369,7 @@ async function loadHexStates(
       .select(
         'h3index, owner_user_id, claimed_at, locked_until, shielded_until, decay_at, last_defended_at',
       )
+      .eq('activity', activity)
       .in('h3index', batch);
     if (error) throw new Error(`hex_claims read: ${error.message}`);
     for (const row of data ?? []) {
@@ -634,7 +655,14 @@ async function autoOpenCommuneAt(
 }
 
 /** Hexes déjà pris/défendus aujourd'hui (UTC) — approximation MVP du plafond §6.4
- * (les hexes volés au coureur depuis ce matin sortent du compte). */
+ * (les hexes volés au coureur depuis ce matin sortent du compte).
+ *
+ * ⚠ PAS DE FILTRE `activity`, VOLONTAIREMENT (E14). `MAX_CLAIMS_PER_DAY` reste
+ * un plafond PAR COMPTE : un cycliste consomme le quota du coureur. Le passer
+ * par (compte × discipline) doublerait le plafond quotidien d'un hybride — un
+ * arbitrage FONDATEUR, pas une décision d'implémentation. Le statu quo est la
+ * seule position honnête tant que la question n'est pas posée ; il est inscrit
+ * en suspens dans game-rules.ts et dans la migration 0070. */
 async function loadClaimsToday(userId: string, now: Date): Promise<number> {
   const dayStart = new Date(Date.UTC(
     now.getUTCFullYear(),
@@ -735,13 +763,19 @@ async function fetchWeather(
 // ─── Avant-postes V0 (badges Bâtisseur/Stratège) ─────────────────────────────
 
 /** Centres lat/lng de TOUS les hex_claims du user (paginé : PostgREST plafonne à 1000). */
-async function loadUserHexCenters(userId: string): Promise<{ lat: number; lng: number }[]> {
+async function loadUserHexCenters(
+  userId: string,
+  activity: Activity = DEFAULT_ACTIVITY,
+): Promise<{ lat: number; lng: number }[]> {
   const centers: { lat: number; lng: number }[] = [];
   for (let from = 0; ; from += DB_PAGE) {
     const { data, error } = await supabase
       .from('hex_claims')
       .select('h3index')
       .eq('owner_user_id', userId)
+      // E14 : un avant-poste se fonde sur une densité de territoire RÉELLE dans
+      // SON monde. Compter les deux gonflerait la densité d'un hybride.
+      .eq('activity', activity)
       .range(from, from + DB_PAGE - 1);
     if (error) throw new Error(`hex_claims owned read: ${error.message}`);
     for (const row of data ?? []) {
@@ -764,18 +798,20 @@ async function detectOutpost(
   crewId: string | null,
   density: ZoneDensity,
   centroid: { lat: number; lng: number },
+  activity: Activity = DEFAULT_ACTIVITY,
 ): Promise<{ newOutposts: number; newCrewOutposts: number }> {
   const none = { newOutposts: 0, newCrewOutposts: 0 };
   if (density !== 'pioneer' && density !== 'wild' && density !== 'emerging') return none;
 
   const radiusM = OUTPOST_RADIUS_KM * M_PER_KM;
-  const owned = await loadUserHexCenters(userId);
+  const owned = await loadUserHexCenters(userId, activity);
   const ownedNearby = owned.filter((c) => haversineM(c, centroid) <= radiusM).length;
 
   const { data: existing, error } = await supabase
     .from('outposts')
     .select('center_h3')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('activity', activity);
   if (error) throw new Error(`outposts read: ${error.message}`);
   const existingNearby = (existing ?? []).filter((o) => {
     const [lat, lng] = cellToLatLng(dbToH3(o.center_h3));
@@ -787,6 +823,7 @@ async function detectOutpost(
   const { error: insertError } = await supabase.from('outposts').insert({
     user_id: userId,
     crew_id: crewId,
+    activity,
     center_h3: h3ToDb(latLngToCell(centroid.lat, centroid.lng, H3_RESOLUTION)),
     hex_count: ownedNearby,
   });
@@ -811,6 +848,10 @@ async function detectRoute(
   startHex: string | undefined,
   endHex: string | undefined,
   now: Date,
+  // E14 : une route relie deux bouts de SON territoire. Un trajet vélo ne
+  // « connecte » pas deux zones de course, et l'anti-doublon ne doit pas
+  // confondre une route vélo avec une route à pied sur le même itinéraire.
+  activity: Activity = DEFAULT_ACTIVITY,
 ): Promise<{ newRoutes: number; newCrewRoutes: number }> {
   const none = { newRoutes: 0, newCrewRoutes: 0 };
   if (startHex === undefined || endHex === undefined || startHex === endHex) return none;
@@ -838,7 +879,8 @@ async function detectRoute(
     const { data, error } = await supabase
       .from('routes')
       .select('from_h3, to_h3')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('activity', activity);
     if (error) throw new Error(`routes read: ${error.message}`);
     const matchM = ROUTE_ENDPOINT_MATCH_KM * M_PER_KM;
     existing = (data ?? []).some((r) => {
@@ -854,6 +896,7 @@ async function detectRoute(
   const { error: insertError } = await supabase.from('routes').insert({
     user_id: userId,
     crew_id: crewId,
+    activity,
     from_h3: h3ToDb(startHex),
     to_h3: h3ToDb(endHex),
     run_id: runId,
@@ -974,46 +1017,77 @@ async function awardRejectedRun(userId: string, dateISO: string): Promise<void> 
 
 // ─── Déduplication d'activité (AMENDEMENT-06 §4, Activity Hub) ────────────────
 
-/** sha-256 (hex) des points arrondis à ~6 décimales — clé de dédup polyline. */
-async function polylineHash(points: readonly RunPoint[]): Promise<string> {
-  const sorted = [...points].sort((a, b) => a.t - b.t);
-  const canon = sorted
-    .map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`)
-    .join(';');
-  const bytes = new TextEncoder().encode(canon);
+/**
+ * sha-256 (hex) de la FORME CANONIQUE d'une trace — clé de dédup polyline.
+ *
+ * La canonisation elle-même vit dans `dedup.ts` (`traceShape`) : le hash et le
+ * COMPTE de positions distinctes doivent dériver de la MÊME chaîne, sinon une
+ * trace pourrait être jugée « avec forme » alors que son empreinte n'en a pas.
+ * Ici, il ne reste que le digest.
+ */
+async function polylineHash(canonical: string): Promise<string> {
+  const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Colonnes de `runs` nécessaires à la dédup — une seule liste, deux lectures. */
+const DEDUP_COLUMNS = 'id, started_at, duration_s, distance_m, polyline_hash';
+
+/** Ligne `runs` → candidat de dédup. Aucun repli inventé : hash absent = null. */
+const toDedupCandidate = (row: Record<string, unknown>): DedupCandidate => ({
+  runId: row.id as string,
+  startedAt: row.started_at as string,
+  durationS: row.duration_s as number,
+  distanceM: row.distance_m as number,
+  polylineHash: (row.polyline_hash as string | null) ?? null,
+});
+
 /**
- * L'activité entrante est-elle un DOUBLON d'une course déjà ingérée par ce user
- * (AMENDEMENT-06 §4) ? Charge les courses récentes (fenêtre ± jours) et applique
- * dedupeActivity (pur : hash OU départ±3min & durée±10 % & distance±10 %).
- * Retourne l'id de la course matchée, ou null.
+ * Les deux lectures de la dédup, adossées à Supabase (le VERDICT est pur, il
+ * vit dans `dedup.ts` + `dedupeActivity`).
+ *
+ * ⚠️ AUCUNE des deux ne filtre sur `activity`, et c'est le cœur du correctif :
+ * une même trace ne peut pas être à la fois une course et une sortie vélo.
+ * L'étiquette de discipline est DÉCLARÉE par le client ; la géométrie, non.
+ * Filtrer par discipline reviendrait à laisser un GPX déjà ingéré redevenir une
+ * sortie neuve dans le monde vierge d'en face — donc une capture PIONNIÈRE
+ * complète, un second classement de saison, et de l'XP recréditée, sans le
+ * moindre effort supplémentaire.
+ *
+ * `byFingerprint` ne borne pas non plus le TEMPS : `started_at` est déclaré lui
+ * aussi, et borner une recherche par une valeur que l'attaquant choisit revient
+ * à lui donner la clé. Le coût est nul — `runs_user_hash_idx (user_id,
+ * polyline_hash) where polyline_hash is not null` (0009) sert cette égalité.
  */
-async function findDuplicateRun(
-  userId: string,
-  candidate: DedupActivity,
-): Promise<string | null> {
-  const t = Date.parse(candidate.startedAt);
-  const windowMs = 2 * MS_PER_DAY; // large : le filtre fin est dedupeActivity
-  const { data, error } = await supabase
-    .from('runs')
-    .select('id, started_at, duration_s, distance_m, polyline_hash')
-    .eq('user_id', userId)
-    .gte('started_at', new Date(t - windowMs).toISOString())
-    .lte('started_at', new Date(t + windowMs).toISOString());
-  if (error) throw new Error(`runs dedup read: ${error.message}`);
-  for (const row of data ?? []) {
-    const existing: DedupActivity = {
-      startedAt: row.started_at as string,
-      durationS: row.duration_s as number,
-      distanceM: row.distance_m as number,
-      polylineHash: (row.polyline_hash as string | null) ?? null,
-    };
-    if (dedupeActivity(candidate, existing)) return row.id as string;
-  }
-  return null;
+function dedupReader(userId: string): DedupReader {
+  return {
+    byFingerprint: async (polylineHash: string): Promise<DedupCandidate[]> => {
+      const { data, error } = await supabase
+        .from('runs')
+        .select(DEDUP_COLUMNS)
+        .eq('user_id', userId)
+        .eq('polyline_hash', polylineHash)
+        // La PLUS ANCIENNE d'abord : le doublon pointe sur l'originale, pas sur
+        // le rejeu précédent (sinon une chaîne de rejeux se référencerait
+        // elle-même et l'historique perdrait son origine).
+        .order('started_at', { ascending: true });
+      if (error) throw new Error(`runs dedup fingerprint read: ${error.message}`);
+      return (data ?? []).map(toDedupCandidate);
+    },
+    aroundStart: async (startedAt: string): Promise<DedupCandidate[]> => {
+      const t = Date.parse(startedAt);
+      const windowMs = 2 * MS_PER_DAY; // large : le filtre fin est dedupeActivity
+      const { data, error } = await supabase
+        .from('runs')
+        .select(DEDUP_COLUMNS)
+        .eq('user_id', userId)
+        .gte('started_at', new Date(t - windowMs).toISOString())
+        .lte('started_at', new Date(t + windowMs).toISOString());
+      if (error) throw new Error(`runs dedup read: ${error.message}`);
+      return (data ?? []).map(toDedupCandidate);
+    },
+  };
 }
 
 // ─── Crews Supercell (AMENDEMENT-06 §2) : XP crew + coffre + offensive ───────
@@ -1579,6 +1653,11 @@ async function loadCoCaptureContext(
   hexes: readonly string[],
   states: ReadonlyMap<string, HexState>,
   now: Date,
+  // E14 : un relais appartient à UNE fenêtre de capture, et une capture à UN
+  // monde. Sans ce filtre, les relayeurs d'un coureur feraient monter le rang
+  // (donc baisser la part 1/rang) des relayeurs d'un cycliste sur le même
+  // hexagone — un paiement faussé par une simple coïncidence géographique.
+  activity: Activity = DEFAULT_ACTIVITY,
 ): Promise<{
   rankByHex: ReadonlyMap<string, number>;
   cooldownHexes: ReadonlySet<string>;
@@ -1604,7 +1683,11 @@ async function loadCoCaptureContext(
         supabase
           .from('hex_co_captures')
           .select('h3index, user_id, credited_at')
+          .eq('activity', activity)
           .in('h3index', dbIds),
+        // Budget quotidien de relais : PAR COMPTE, toutes disciplines
+        // confondues — statu quo assumé (même arbitrage fondateur en suspens
+        // que MAX_CLAIMS_PER_DAY). Pas de filtre `activity` ici, volontairement.
         supabase
           .from('hex_co_captures')
           .select('points')
@@ -1735,6 +1818,10 @@ async function handleContested(
   results: readonly HexClaimResult[],
   states: ReadonlyMap<string, HexState>,
   now: Date,
+  // E14 : l'anti-collusion compte les ALTERNANCES de crews sur un hexagone.
+  // Deux disciplines sur le même hexagone ne sont pas des alternances : sans
+  // discipline, la pénalité tomberait sur une coïncidence géographique.
+  activity: Activity = DEFAULT_ACTIVITY,
 ): Promise<string[]> {
   if (crewId === null) return [];
   const blocked = results.filter((r) => r.outcome === 'blocked_lock');
@@ -1766,6 +1853,7 @@ async function handleContested(
       .from('contested_group_runs')
       .select('winner_crew_id')
       .eq('h3index', h3db)
+      .eq('activity', activity)
       .order('created_at', { ascending: true });
     if (histErr) throw new Error(`contested history read: ${histErr.message}`);
     const historyCrews = (hist ?? [])
@@ -1778,6 +1866,7 @@ async function handleContested(
 
     const { error: insErr } = await supabase.from('contested_group_runs').insert({
       h3index: h3db,
+      activity,
       city_id: cityId ?? null,
       prev_owner_crew_id: ownerCrewId,
       winner_crew_id: status === 'stats_only' || status === 'neutralized'
@@ -1828,6 +1917,12 @@ interface BoundaryClaimContext {
   cityId: string | undefined;
   density: ZoneDensity;
   crewId: string;
+  /**
+   * E14 : une frontière crew appartient à UN monde. Une frontière ouverte en
+   * courant ne se referme pas à vélo — ce serait mélanger deux lectures
+   * compétitives, et l'intérieur capturé atterrirait dans le mauvais univers.
+   */
+  activity: Activity;
 }
 
 /**
@@ -1871,6 +1966,7 @@ async function completeBoundaries(
     .from('partial_boundaries')
     .select('id, name, segments, opener_ring, total_length_m, missing_m, missing_segment, opener_user_id')
     .eq('crew_id', ctx.crewId)
+    .eq('activity', ctx.activity)
     .eq('status', 'open')
     .gt('expires_at', nowIso)
     .order('created_at', { ascending: true });
@@ -1912,7 +2008,7 @@ async function completeBoundaries(
     const resolveOwnership = async (
       capped: readonly string[],
     ): Promise<CrewOwnershipResolution> => {
-      states = await loadHexStates(capped);
+      states = await loadHexStates(capped, ctx.activity);
       const [ownersCreatedAt, privacyHexes, noCaptureHexes, claimsToday] = await Promise.all([
         loadOwnersCreatedAt(states, ctx.userId),
         loadPrivacyHexes(ctx.userId, capped),
@@ -1939,6 +2035,9 @@ async function completeBoundaries(
     // row.total_length_m), à l'identique.
     const { decision } = await runCrewBoundaryClose({
       openerRing,
+      // E14 : le plafond d'aire de la boucle crew suit la discipline (×25 à
+      // vélo — loi du carré), comme sur le chemin course principal.
+      activity: ctx.activity,
       finisherTrace,
       finisherLengthM: verdict.finisherLengthM,
       accumulatedLengthM: Number(row.total_length_m),
@@ -1966,6 +2065,9 @@ async function completeBoundaries(
         p_user_id: ctx.userId,
         p_city_id: ctx.cityId ?? null,
         p_claims: rpcClaims,
+        // E14 : l'intérieur d'une frontière fermée atterrit dans le monde de la
+        // frontière, jamais dans l'autre.
+        p_activity: ctx.activity,
       });
       if (rpcError) throw new Error(`claim_hexes boundary rpc: ${rpcError.message}`);
     }
@@ -2051,6 +2153,7 @@ async function openBoundary(
     .from('partial_boundaries')
     .select('missing_segment')
     .eq('crew_id', ctx.crewId)
+    .eq('activity', ctx.activity)
     .eq('opener_user_id', ctx.userId)
     .eq('status', 'open')
     .gt('expires_at', nowIso);
@@ -2071,6 +2174,7 @@ async function openBoundary(
   ];
   const { error: insErr } = await supabase.from('partial_boundaries').insert({
     crew_id: ctx.crewId,
+    activity: ctx.activity,
     opener_user_id: ctx.userId,
     city_id: ctx.cityId ?? null,
     name: boundaryName,
@@ -2395,6 +2499,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!isIngestRunRequest(body)) return json({ error: 'invalid_payload' }, 400);
   const request = body;
   const runMode = effectiveRunMode(request.runMode);
+  // ── DISCIPLINE (E14) : décidée UNE fois, ici, pour tout l'aval ─────────────
+  // Elle commande (a) les BORNES §3.2 appliquées à la trace (ACTIVITY_RULES —
+  // un cycliste à 28 km/h est honnête, un coureur à 28 km/h ne l'est pas), et
+  // (b) l'UNIVERS de territoire lu et écrit (colonne `activity`, migration
+  // 0070). Absente ⇒ 'run' : un client qui ignore le vélo se comporte
+  // EXACTEMENT comme avant, sans un seul `if` chez lui.
+  const activity = effectiveActivity(request.activity);
 
   try {
     // Profil (streak, club, ancienneté, requis même au replay) + idempotence
@@ -2470,9 +2581,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     //    métrique de dedupeActivity (durée±10 % & distance±10 %) puisse jouer :
     //    deux imports de la même activité produisent des polylignes arrondies
     //    différentes, seul l'appariement durée/distance/départ les rattrape.
-    const filtered = filterPoints(request.points);
+    // Les bornes sont celles de la DISCIPLINE DÉCLARÉE : sans ça, une sortie
+    // vélo est rejetée deux fois (chaque point au-dessus de 25 km/h, puis
+    // l'allure moyenne sous 2:50/km) — le jeu traiterait un cycliste honnête de
+    // tricheur, exactement l'inverse de « l'app ne ment jamais ».
+    const filtered = filterPoints(request.points, activity);
     const stats = computeStats(filtered.segments);
-    const validation = validateOrStatus(filtered, stats, request.stepCount, request.gpsTrust);
+    const validation = validateOrStatus(
+      filtered,
+      stats,
+      request.stepCount,
+      request.gpsTrust,
+      activity,
+    );
 
     const distanceM = Math.round(stats.distanceM);
     const durationS = Math.round(stats.durationS);
@@ -2493,12 +2614,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Sans ce placement, une course GPS Live qui rejoue un import GPX antérieur
     // ouvrirait une commune (écriture city_zones + saison) puis serait jetée en
     // 'duplicate' — un provisionnement fantôme sans crédit pionnier.
-    const runHash = await polylineHash(request.points);
-    const dupOf = await findDuplicateRun(userId, {
+    //
+    // ⚠️ LA DÉDUP EST TRANS-DISCIPLINE, et depuis le correctif elle l'est aussi
+    // HORS de la fenêtre de ±2 jours : l'empreinte de trace est cherchée sur
+    // TOUT l'historique du joueur. Sans cela, redater le même GPX et le
+    // réétiqueter `bike` en refaisait une sortie neuve — dans un monde vierge,
+    // donc en capture PIONNIÈRE, avec un second classement et de l'XP en prime.
+    // Voir `dedup.ts` pour le raisonnement complet.
+    //
+    // ⚠ UNE EMPREINTE N'EST UNE PREUVE QUE SI LA TRACE A UNE FORME. `runs` porte
+    // `polyline_hash` même sur les courses rejetées, et le payload accepte une
+    // trace d'un seul point : le hash d'un point unique ne dépend alors QUE de
+    // ses coordonnées arrondies, donc deux arrêts au même endroit à six mois
+    // d'écart le partagent. On passe le nombre de positions DISTINCTES à la
+    // dédup, qui n'interroge l'empreinte — et ne la retient dans son verdict —
+    // que si la trace en porte assez (cf. `dedup.ts`, seuil justifié).
+    const shape = traceShape(request.points);
+    const runHash = await polylineHash(shape.canonical);
+    const dupOf = await findDuplicateRun(dedupReader(userId), {
       startedAt: request.startedAt,
       durationS,
       distanceM,
       polylineHash: runHash,
+      distinctPoints: shape.distinctPoints,
     });
     if (dupOf) {
       await supabase.from('imported_activities').insert({
@@ -2603,6 +2741,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       user_id: userId,
       client_run_id: request.clientRunId,
       source: request.source,
+      // `source` dit d'OÙ vient la trace (gps/healthkit/strava/gpx),
+      // `activity` dit CE QU'ON FAISAIT. Orthogonaux : on importe un GPX de
+      // vélo comme on enregistre une course en GPS live (migration 0070).
+      activity,
       started_at: request.startedAt,
       distance_m: distanceM,
       duration_s: durationS,
@@ -2731,7 +2873,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // `crew` est chargé ICI (et non plus après la RPC) : le coeff_contexte de la
       // formule §23 (crew_mission/contested) dépend du crew du coureur ET doit être
       // décidé AVANT le scoring. Réutilisé tel quel par tout le reste du handler.
-      states = await loadHexStates(allHexes);
+      states = await loadHexStates(allHexes, activity);
       const [
         loadedCrew,
         ownersCreatedAt,
@@ -2760,7 +2902,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // A-41 LE RELAIS : rang/cooldown/budget de co-capture — le rang est
       // conservé hors du callback (coCaptureRanks) pour l'insertion du
       // registre hex_co_captures après la RPC.
-      const coCap = await loadCoCaptureContext(userId, allHexes, states, now);
+      const coCap = await loadCoCaptureContext(userId, allHexes, states, now, activity);
       coCaptureRanks = coCap.rankByHex;
 
       return {
@@ -2790,6 +2932,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let coCaptureRanks: ReadonlyMap<string, number> = new Map();
     const territory = await runTerritoryEngine({
       claimable: validation.claimable,
+      // E14 : les plafonds de BOUCLE suivent aussi la discipline (périmètre
+      // minimal ×5, aire ×25 — loi du carré). Une sortie vélo « échelle ville »
+      // ne peut pas fermer une zone avec les seuils d'un tour de quartier.
+      activity,
       gpsTrust: validation.gpsTrust,
       trustScore: validation.trustScore,
       distanceM,
@@ -2907,6 +3053,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // XP D18 (migration 0018) : le CUMUL lifetime users.xp est crédité de
         // score.xp (SANS streak/perf), comme runs.xp_awarded — plus du total points.
         p_xp: score.xp,
+        // E14 (migration 0070) : l'univers dans lequel ces claims s'appliquent.
+        // `on conflict (h3index, activity)` côté RPC — un cycliste ne peut plus
+        // écraser la ligne d'un coureur, et les points ne sont plus sommés.
+        p_activity: activity,
       });
       if (rpcError) throw new Error(`claim_hexes rpc: ${rpcError.message}`);
 
@@ -2923,6 +3073,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
           const rank = coCaptureRanks.get(r.h3) ?? 2;
           return {
             h3index: h3ToDb(r.h3),
+            // E14 : le registre du relais appartient au monde de la capture
+            // relayée — sinon le rang du prochain relayeur mélangerait les deux.
+            activity,
             user_id: userId,
             run_id: runId,
             crew_id: crew.crewId,
@@ -2979,6 +3132,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 .from('hex_claims')
                 .update({ locked_until: newLock.toISOString() })
                 .eq('h3index', h3ToDb(r.h3))
+                // E14 : la clé est (h3index, activity) — sans ce filtre, le lock
+                // rétroactif d'un relais course s'appliquerait AUSSI à la zone
+                // vélo du même hexagone, qui n'a rien demandé.
+                .eq('activity', activity)
                 .eq('owner_user_id', expectedOwner)
                 .gte('claimed_at', msFloor)
                 .lt('claimed_at', msCeil);
@@ -3032,6 +3189,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             victim_user_id: x.victim,
             thief_user_id: userId,
             h3index: h3ToDb(x.h3),
+            // E14 : le dépossédé doit savoir DANS QUEL MONDE il a perdu. Sans
+            // ça, un coureur recevrait « reprends ta zone » pour un hexagone
+            // qu'il tient toujours en courant — un message faux.
+            activity,
           }));
         if (stealRows.length > 0) {
           const { error: stealErr } = await supabase.from('steal_push_queue').insert(stealRows);
@@ -3060,8 +3221,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ? fetchWeather(startPoint.lat, startPoint.lng, request.startedAt)
         : Promise.resolve(null),
       loadDuringEvent(request.startedAt),
-      detectOutpost(userId, crew.crewId, density, centroid),
-      detectRoute(userId, crew.crewId, runId, states, hexes[0], hexes[hexes.length - 1], now),
+      detectOutpost(userId, crew.crewId, density, centroid, activity),
+      detectRoute(
+        userId,
+        crew.crewId,
+        runId,
+        states,
+        hexes[0],
+        hexes[hexes.length - 1],
+        now,
+        activity,
+      ),
     ]);
 
     // ── Badges (AMENDEMENT-04 §5) : stats vie entière + attribution ──────────
@@ -3157,6 +3327,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       decision.results,
       states,
       now,
+      activity,
     );
 
     // ── AMENDEMENT-17 §CH2 : frontières partielles crew ──────────────────────
@@ -3184,6 +3355,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         cityId: request.cityId,
         density,
         crewId: crew.crewId,
+        activity,
       };
       const finisherVerified = (validation.motionTrust ?? 0) >= VERIFIED_MIN_TRUST;
 
@@ -3195,9 +3367,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
       if (completion) {
         boundaryCompleted = completion.payload;
-      } else if (!loopClosed && finisherVerified) {
-        // Pas de complétion + pas une boucle fermée : peut-on OUVRIR ?
-        const open = detectOpenBoundary(loopTrace);
+      } else {
+        // Pas de complétion : peut-on OUVRIR ? La décision (boucle déjà fermée,
+        // run vérifié, géométrie fermable) est PURE et vit dans boundary_open.ts.
+        //
+        // ⚠️ `activity` EST OBLIGATOIRE ICI, et ce n'est pas une précaution de
+        // style : l'appel précédent était `detectOpenBoundary(loopTrace)`, sans
+        // discipline. Un cycliste ouvrait donc une frontière au plancher de la
+        // COURSE (périmètre complété 1 km au lieu de 5 km — facteur 5), puis en
+        // capturait l'intérieur au plafond d'aire VÉLO. Symétriquement, une
+        // sortie vélo qui s'auto-intersecte sur ~2,4 km était lue comme une
+        // BOUCLE sous les règles course et n'ouvrait rien du tout.
+        const open = decideOpenBoundary({
+          trace: loopTrace,
+          activity: boundaryCtx.activity,
+          loopClosed,
+          finisherVerified,
+        });
         if (open) {
           // Nom de la frontière : ville déclarée (secteur) ou défaut sobre.
           // MVP : le vrai secteur (« République ») viendra d'un géocodage V1 ;
@@ -3345,70 +3531,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 });
 
 // ─── Étapes du handler ───────────────────────────────────────────────────────
-
-type ValidationOutcome =
-  | { kind: 'rejected'; reason: NonNullable<IngestRunResponse['rejectReason']>; gpsTrust: number; motionTrust: number; trustScore: number }
-  | { kind: 'flagged'; gpsTrust: number; motionTrust: number; trustScore: number }
-  | {
-    kind: 'claimable';
-    status: Extract<RunStatus, 'valid' | 'partial'>;
-    claimable: ReturnType<typeof claimableSegments>['claimable'];
-    gpsTrust: number;
-    motionTrust: number;
-    trustScore: number;
-  };
-
-/** Enchaîne §3.2 + GRYD Verify : rejected > flagged > partial > valid. */
-function validateOrStatus(
-  filtered: ReturnType<typeof filterPoints>,
-  stats: ReturnType<typeof computeStats>,
-  stepCount: number | undefined,
-  clientGpsTrust: number | undefined,
-): ValidationOutcome {
-  // Ratio de points §3.2 gardés sur le payload reçu — seul calcul possible ici :
-  // la trace arrive DÉCIMÉE, les compteurs de rejets bruts n'existent que côté
-  // client (moteur gps.ts).
-  const serverGpsTrust = filtered.totalPoints > 0
-    ? Math.floor((100 * filtered.keptPoints) / filtered.totalPoints)
-    : 0;
-  // AMENDEMENT-15 §1 : le client envoie son GPS Trust (accuracy moyenne, pertes
-  // de signal, ratio d'outliers sur la trace brute). Signal INDICATIF borné par
-  // min() — il ne peut qu'ABAISSER la confiance, jamais la gonfler ; la décision
-  // de claim reste 100 % serveur (§3.2).
-  const gpsTrust = clientGpsTrust === undefined
-    ? serverGpsTrust
-    : Math.min(serverGpsTrust, Math.max(0, Math.min(100, Math.round(clientGpsTrust))));
-  const motionTrust = stepCoherence(stats.distanceM, stepCount);
-  // Trust MVP : le signal le plus faible domine (doc anti-triche §8, simplifié).
-  const trustScore = Math.min(gpsTrust, motionTrust);
-
-  const validation = validateRun(stats);
-  if (validation.status === 'rejected') {
-    return { kind: 'rejected', reason: validation.reason, gpsTrust, motionTrust, trustScore };
-  }
-  // Cohérence pas/distance insuffisante → claims gelés, course conservée en stats.
-  if (motionTrust < MOTION_TRUST_FLAGGED_BELOW) {
-    return { kind: 'flagged', gpsTrust, motionTrust, trustScore };
-  }
-  // AMENDEMENT-23 §D / doc §23 : palier VERIFY « stats only » — trustScore
-  // (min gpsTrust/motionTrust) < VERIFY_PARTIAL_MIN (60) → verify_factor = 0 :
-  // la course compte SPORTIVEMENT (stats/streak) mais ne capture RIEN. On la
-  // classe `flagged` (même traitement : claims gelés, aucune écriture hex) —
-  // au-dessus de 60, la capture est partielle (×0,5) ou pleine (×1,0), gérée
-  // par verifyFactor dans computeScore. Un seul point de décision « capture ? ».
-  if (trustScore < VERIFY_PARTIAL_MIN) {
-    return { kind: 'flagged', gpsTrust, motionTrust, trustScore };
-  }
-  const claimable = claimableSegments(filtered.segments);
-  return {
-    kind: 'claimable',
-    status: claimable.status,
-    claimable: claimable.claimable,
-    gpsTrust,
-    motionTrust,
-    trustScore,
-  };
-}
 
 /** Vocabulaire d'outcome attendu par la RPC claim_hexes (0005). */
 function rpcOutcome(r: HexClaimResult): 'neutral' | 'steal' | 'defend' | 'pioneer' | 'support' {

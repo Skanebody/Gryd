@@ -27,7 +27,7 @@
  * structuré lisible (palier verify, verdict de boucle, points de base vs
  * multipliés, raison du refus d'intérieur) pour l'explicabilité post-run.
  */
-import { LOOP_MIN_GPS_TRUST } from '@klaim/shared/game-rules';
+import { type Activity, activityRules, DEFAULT_ACTIVITY } from '@klaim/shared/game-rules';
 import type { Segment } from './validation.ts';
 import {
   type DetectedLoop,
@@ -109,6 +109,31 @@ export interface RunTerritoryInput {
   /** Compte Club (×1,5 sur les Foulées). */
   isClub: boolean;
   /**
+   * DISCIPLINE de la sortie (E14). Absente ⇒ 'run' : tout appelant écrit avant
+   * l'arrivée du vélo décrit une course à pied, et son comportement ne bouge
+   * pas d'un iota. Elle ne pilote ici que la GÉOMÉTRIE de la boucle (périmètre
+   * minimal, plafond d'aire, forme) — la validité §3.2 a déjà été tranchée en
+   * amont par filterPoints/validateRun/claimableSegments avec la même valeur.
+   *
+   * LA SÉPARATION DES TERRITOIRES, ELLE, EST DÉCIDÉE PLUS LOIN — par le SCHÉMA.
+   * La migration 0070 donne à `hex_claims` la clé primaire composite
+   * `(h3index, activity)`, à `season_scores` la clé
+   * `(season_id, user_id, activity)`, et à `claim_hexes` un 6ᵉ argument
+   * `p_activity` : un claim vélo n'écrase plus la zone d'un coureur et les
+   * points de saison ne sont plus sommés. ⚠️ ÉCRIT N'EST PAS APPLIQUÉ : au
+   * 25/07/2026 cette migration n'est pas passée en base, donc la séparation
+   * n'est pas encore EN VIGUEUR — c'est aussi pourquoi `flags.bike` reste fermé.
+   * Ce moteur reste volontairement IGNORANT de cette mécanique : il rend des
+   * hexes et des points, c'est l'appelant serveur (ingest_run → claim_hexes) qui
+   * écrit dans le bon univers en lui repassant CETTE valeur. Ne pas confondre
+   * « le moteur ne sépare pas » (vrai, et normal : il est pur) avec « rien ne
+   * séparera » (faux : 0070 le fait, une fois appliquée).
+   * ⚠️ Ce qui reste ouvert est ailleurs — un dernier lecteur client, deux jobs,
+   * `user_stats` : la liste datée qui fait foi est le bloc « CE QUI RESTE EN
+   * SUSPENS » de supabase/migrations/0070_activity_dimension.sql.
+   */
+  activity?: Activity;
+  /**
    * AVANTAGE DE GROUPE : nombre de coéquipiers CO-PRÉSENTS same-crew validés sur
    * la capture (1 = solo). Threadé vers DecideClaimsContext.runners → allonge le
    * LOCK (capé +40 %), jamais les points/attribution/decay. Absent → solo (inchangé).
@@ -149,7 +174,7 @@ export interface RunTerritoryExplanation {
     /**
      * Raison du REFUS d'intérieur, boucle fermée mais intérieur non capturé :
      *  - 'narrow'    → forme trop étroite (compacité/largeur sous seuil) ;
-     *  - 'low_trust' → GPS < LOOP_MIN_GPS_TRUST (loopRejectedReason='narrow' en
+     *  - 'low_trust' → GPS < `loopMinGpsTrust` de la discipline (loopRejectedReason='narrow' en
      *    DB, cause fine distinguée ici pour l'explicabilité) ;
      *  - undefined   → intérieur capturé (ou aucune boucle).
      */
@@ -212,8 +237,9 @@ export async function runTerritoryEngine(
   // (detectLoop : tolérance ≤ 80 m OU auto-intersection). Puis anti-abus :
   // forme trop fine → intérieur refusé ; GPS < 80 → intérieur refusé ; boucle
   // trop grande → intérieur tronqué au plafond d'aire (les plus proches du tracé).
+  const activity = input.activity ?? DEFAULT_ACTIVITY;
   const loopTrace = loopTracePoints(input.claimable);
-  const loop = loopTrace !== null ? detectLoop(loopTrace) : null;
+  const loop = loopTrace !== null ? detectLoop(loopTrace, activity) : null;
   const loopClosed = loop !== null;
   let loopRejectedReason: LoopRejectedReason | undefined;
   let capReached = false;
@@ -225,11 +251,11 @@ export async function runTerritoryEngine(
   let shapeWidthM: number | null = null;
   let shapeOk: boolean | null = null;
 
-  // GATE GPS TRUST (AMENDEMENT-23 §D, doc §5) : gpsTrust < LOOP_MIN_GPS_TRUST →
+  // GATE GPS TRUST (AMENDEMENT-23 §D, doc §5) : gpsTrust < `loopMinGpsTrust` (discipline) →
   // pas d'intérieur plein (course + couloir restent valides, comme 'narrow').
-  const loopGpsOk = input.gpsTrust >= LOOP_MIN_GPS_TRUST;
+  const loopGpsOk = input.gpsTrust >= activityRules(activity).loopMinGpsTrust;
   if (loop !== null) {
-    const shape = loopShapeVerdict(loop);
+    const shape = loopShapeVerdict(loop, activity);
     shapeOk = shape.ok;
     shapeCompactness = shape.compactness;
     shapeWidthM = shape.widthM;
@@ -241,7 +267,7 @@ export async function runTerritoryEngine(
       interiorRejectedCause = 'low_trust';
     } else {
       interiorCells = enclosedCells(loop.polygon, hexes);
-      const cellCap = loopInteriorCellCap(input.distanceM);
+      const cellCap = loopInteriorCellCap(input.distanceM, activity);
       if (interiorCells.length > cellCap) {
         interiorCells = interiorCells.slice(0, cellCap); // les plus proches du tracé
         capReached = true;
@@ -383,6 +409,13 @@ export interface CrewBoundaryCloseInput {
   finisherLengthM: number;
   /** Longueur totale déjà accumulée par la frontière (m) : `total_length_m`, autre moitié du plafond. */
   accumulatedLengthM: number;
+  /**
+   * DISCIPLINE de la fermeture (E14). Absente ⇒ 'run' (comportement historique).
+   * Une frontière crew ne mélange pas les mondes : elle se ferme dans la
+   * discipline où elle a été ouverte — c'est l'appelant qui garantit cette
+   * cohérence tant que la colonne `activity` n'existe pas côté DB.
+   */
+  activity?: Activity;
   /** Coureur finisher. */
   userId: string;
   /** Création du compte du finisher (exemption de decay < 14 j, §3.3). */
@@ -462,7 +495,10 @@ export async function runCrewBoundaryClose(
   // un total nul, la zone crew est la fermeture elle-même (comme ingest_run).
 
   // ── Plafond d'aire par distance courue (finisher + accumulé) ───────────────
-  const cellCap = loopInteriorCellCap(input.finisherLengthM + input.accumulatedLengthM);
+  const cellCap = loopInteriorCellCap(
+    input.finisherLengthM + input.accumulatedLengthM,
+    input.activity ?? DEFAULT_ACTIVITY,
+  );
   let capped = interiorCells;
   let cappedAt = false;
   if (capped.length > cellCap) {

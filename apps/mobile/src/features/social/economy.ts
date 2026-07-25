@@ -27,8 +27,31 @@
  *   · session + lecture vide  → `source: 'server'`, zéros RÉELS (un compte neuf a 0 XP : c'est vrai) ;
  *   · session + échec réseau  → `source: 'none'` + `failed: true` (l'écran DIT l'échec et propose de réessayer).
  * Zéro n'est pas un mensonge ; 4 210 en est un.
+ *
+ * ─── « TES POINTS DE SAISON » : DE QUEL MONDE ? (E14, 25/07/2026) ────────────
+ * `season_scores` a pour clé (season_id, user_id, ACTIVITY) depuis la migration
+ * 0070 : un athlète hybride a DEUX lignes sur la même saison. La lecture
+ * `order('points', desc).limit(1)` en rendait donc UNE — la plus flatteuse —
+ * sans jamais dire laquelle. Le joueur lisait « mes points de saison » alors
+ * qu'il lisait « mon meilleur des deux mondes » : E14 interdit de sommer les
+ * disciplines, mais afficher l'une pour l'autre est la même faute, en plus
+ * discret. Ce n'est même pas stable — une bonne sortie vélo faisait basculer le
+ * chiffre affiché sans qu'aucun écran ne bouge.
+ *
+ * La lecture est donc BORNÉE à une discipline, et `seasonActivity` la remonte
+ * pour que l'écran la nomme. Défaut `run` (seule discipline chronométrée à ce
+ * jour). XP, foulées, éclats et série restent MONO-POT, assumé et documenté par
+ * la migration 0070 (« ce qui reste en suspens », §3) : ce sont des
+ * progressions personnelles, pas des rangs comparatifs.
+ *
+ * DÉPENDANCE DE DÉPLOIEMENT, dite plutôt que promise : le filtre suppose la
+ * colonne `activity` (migration 0070). Tant qu'elle n'est pas appliquée, la
+ * lecture ÉCHOUE → `failed: true`, et l'écran DIT la panne au lieu d'afficher
+ * un 0 qui se lirait « tu n'as rien fait ». Client et schéma se déploient
+ * ensemble.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type Activity, DEFAULT_ACTIVITY } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 
@@ -46,10 +69,15 @@ export interface MyEconomy {
   eclats: number;
   streakWeeks: number;
   isClub: boolean;
-  /** Points de la saison active (season_scores.points), 0 si aucun run. */
+  /** Points de la saison active (season_scores.points) DANS `seasonActivity`, 0 si aucune sortie. */
   seasonPoints: number;
-  /** Rang saison (season_scores.rank_cache), null si non classé / pas de run. */
+  /** Rang saison (season_scores.rank_cache) DANS `seasonActivity`, null si non classé. */
   seasonRank: number | null;
+  /**
+   * DISCIPLINE à laquelle `seasonPoints`/`seasonRank` se rapportent (E14) —
+   * jamais un mélange, jamais « le meilleur des deux ». L'écran doit la nommer.
+   */
+  seasonActivity: Activity;
   source: EconomySource;
   loading: boolean;
   /**
@@ -101,7 +129,7 @@ const UNKNOWN_ECONOMY = {
   seasonRank: null,
 } as const;
 
-async function fetchRemoteEconomy(userId: string): Promise<RemoteEconomy | null> {
+async function fetchRemoteEconomy(userId: string, activity: Activity): Promise<RemoteEconomy | null> {
   if (!supabase) return null;
 
   const [userResult, scoreResult] = await Promise.all([
@@ -115,6 +143,9 @@ async function fetchRemoteEconomy(userId: string): Promise<RemoteEconomy | null>
       .select('points, rank_cache, seasons!inner(status)')
       .eq('user_id', userId)
       .eq('seasons.status', 'active')
+      // E14 : UNE discipline. Sans ce filtre, `limit(1)` sur un tri par points
+      // rendait le MEILLEUR des deux mondes, sans jamais dire lequel.
+      .eq('activity', activity)
       .order('points', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -146,7 +177,7 @@ async function fetchRemoteEconomy(userId: string): Promise<RemoteEconomy | null>
  * lecture RÉUSSIE et VIDE (`source: 'server'`, tout à zéro) : c'est exactement son
  * état de jeu, ce n'est pas une panne.
  */
-export function useMyEconomy(): MyEconomy {
+export function useMyEconomy(activity: Activity = DEFAULT_ACTIVITY): MyEconomy {
   const { session, configured, loading: sessionLoading } = useSession();
   const [remote, setRemote] = useState<RemoteEconomy | null>(null);
   const [failed, setFailed] = useState(false);
@@ -166,7 +197,7 @@ export function useMyEconomy(): MyEconomy {
     let alive = true;
     setRemoteLoading(true);
     setFailed(false);
-    void fetchRemoteEconomy(userId)
+    void fetchRemoteEconomy(userId, activity)
       .then((eco) => {
         // `null` = aucune ligne users : compte neuf, donc zéros RÉELS (pas une panne).
         if (alive) setRemote(eco ?? { ...UNKNOWN_ECONOMY });
@@ -182,13 +213,15 @@ export function useMyEconomy(): MyEconomy {
     return () => {
       alive = false;
     };
-  }, [configured, userId, tick]);
+  }, [configured, userId, tick, activity]);
 
   return useMemo<MyEconomy>(() => {
     const loading = sessionLoading || remoteLoading;
     if (remote) {
-      return { ...remote, source: 'server', loading, failed: false, reload };
+      return { ...remote, seasonActivity: activity, source: 'server', loading, failed: false, reload };
     }
-    return { ...UNKNOWN_ECONOMY, source: 'none', loading, failed, reload };
-  }, [remote, sessionLoading, remoteLoading, failed, reload]);
+    // Rien de connu : les zéros ne prétendent RIEN, mais la discipline demandée
+    // reste dite — sinon l'écran ne saurait pas de quel monde il parle.
+    return { ...UNKNOWN_ECONOMY, seasonActivity: activity, source: 'none', loading, failed, reload };
+  }, [remote, sessionLoading, remoteLoading, failed, reload, activity]);
 }

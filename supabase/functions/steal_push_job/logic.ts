@@ -47,6 +47,7 @@
  * Aucune I/O ici, aucun `Date.now()` : `now` est toujours injecté.
  */
 import {
+  type Activity,
   STEAL_PUSH_COOLDOWN_MINUTES,
   STEAL_QUEUE_DEFER_MINUTES,
   STEAL_QUEUE_MAX_AGE_HOURS,
@@ -63,7 +64,84 @@ export interface StealQueueRow {
   thiefUserId: string;
   /** Hex H3 res 10 (string), déjà décodé depuis le bigint DB. */
   hexId: string;
+  /**
+   * DANS QUEL MONDE la zone a été perdue (0070). `null` = la base a rendu une
+   * valeur que le jeu ne connaît pas — cas rendu impossible par la contrainte
+   * `steal_push_queue_activity_check`, mais qu'on refuse de replier en silence
+   * sur la course : un monde inventé serait un mensonge, une absence n'en est
+   * pas un. Le message se formule alors SANS nommer de discipline.
+   */
+  activity: Activity | null;
   stolenAt: Date;
+}
+
+/**
+ * DANS QUEL MONDE chaque victime a perdu, quand on peut le dire. PURE.
+ *
+ * ═══ POURQUOI CETTE FONCTION, ET PAS UN CHAMP DE PLUS ═══════════════════════
+ * `claim_steal_push_batch` réserve PAR VICTIME, jamais par (victime,
+ * discipline) : un même lot peut mêler les deux mondes pour une même personne,
+ * et c'est un choix assumé de la migration (grouper doublerait les
+ * notifications — décision produit non tranchée). Le message, lui, est unique.
+ * Il ne peut donc nommer un monde QUE s'il n'y en a qu'un à nommer.
+ *
+ * Trois cas, trois réponses honnêtes :
+ *   · toutes les pertes dans le même monde → on le nomme ;
+ *   · les deux mondes touchés            → `null`, on n'en nomme aucun (dire
+ *     « à vélo » quand la moitié est à pied serait faux) ;
+ *   · au moins une discipline illisible  → `null`, même raison.
+ *
+ * Le silence n'est pas une perte d'information pour le joueur : l'inbox porte
+ * le compte et le lieu, et la carte montre le reste. Ce qu'on refuse, c'est de
+ * lui faire ouvrir le mauvais monde pour reprendre une zone qu'il tient déjà.
+ */
+export function stealWorldByVictim(
+  rows: readonly StealQueueRow[],
+): Map<string, Activity | null> {
+  const world = new Map<string, Activity | null>();
+  for (const row of rows) {
+    if (!world.has(row.victimUserId)) {
+      world.set(row.victimUserId, row.activity);
+      continue;
+    }
+    if (world.get(row.victimUserId) !== row.activity) world.set(row.victimUserId, null);
+  }
+  return world;
+}
+
+/**
+ * Le monde à NOMMER dans le message, ou `null` pour n'en nommer aucun. PURE.
+ *
+ * ═══ DEUX CONDITIONS, ET ELLES NE DISENT PAS LA MÊME CHOSE ══════════════════
+ * `stealWorldByVictim` répond à « PEUT-ON nommer un monde ? » — non si les
+ * pertes en mêlent deux. Cette fonction-ci répond à « FAUT-IL le nommer ? ».
+ *
+ * Nommer le monde lève une ambiguïté RÉELLE pour qui joue les deux : reprendre
+ * à pied ce qu'on a perdu à vélo ne rend rien. Pour qui n'en joue qu'un — au
+ * 25/07/2026 c'est 100 % des joueurs, zéro ligne `bike` en base — « 2 zones
+ * reprises EN COURSE À PIED » ne distingue rien : on qualifie une distinction
+ * que le produit n'offre pas encore, et on impose ce bruit à tout le monde pour
+ * zéro cas d'usage (§A : 1 écran = 1 idée). « 2 zones reprises » reste exact.
+ *
+ * Le critère n'est PAS « la discipline par défaut » (ce serait un privilège
+ * arbitraire de la course) mais « ce joueur a-t-il des lignes AILLEURS ? ». Un
+ * joueur qui, un jour, ne roulerait qu'à vélo verrait ses messages redevenir
+ * muets sur le monde — et ce serait juste : il n'a rien à distinguer.
+ *
+ * @param world     monde de toutes les pertes de l'agrégat (`stealWorldByVictim`).
+ * @param playerWorlds disciplines dans lesquelles ce joueur a RÉELLEMENT des
+ *   lignes. Un ensemble VIDE (joueur qu'on n'a pas su lire) se comporte comme
+ *   un mono-monde : dans le doute, on se tait plutôt que d'ajouter du bruit.
+ */
+export function worldToName(
+  world: Activity | null,
+  playerWorlds: ReadonlySet<Activity>,
+): Activity | null {
+  if (world === null) return null;
+  for (const played of playerWorlds) {
+    if (played !== world) return world; // il a des lignes ailleurs : la précision sert
+  }
+  return null;
 }
 
 /**

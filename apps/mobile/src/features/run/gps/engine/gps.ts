@@ -10,9 +10,11 @@
  *
  * Fonctions PURES : aucune I/O, aucune horloge, aucun accès capteur.
  * Toutes les constantes de jeu viennent de @klaim/shared/game-rules ; les
- * bornes de vitesse course RÉUTILISENT §3.2 (POINT_MAX_SPEED_KMH vitesse
- * implicite max, POINT_MAX_JUMP_M téléportation, POINT_MAX_ACCURACY_M seuil
- * « signal faible ») — aucun doublon.
+ * bornes de vitesse RÉUTILISENT §3.2 LU DANS LA DISCIPLINE
+ * (`pointMaxSpeedKmh` vitesse implicite max, `pointMaxJumpM` téléportation) —
+ * aucun doublon. POINT_MAX_ACCURACY_M (seuil « signal faible » de la jauge)
+ * reste NON disciplinée à dessein : la qualité d'un fix dépend du ciel et du
+ * récepteur, pas de ce qu'on pratique.
  *
  * Pipeline nominal côté client :
  *   cleanTrace → smoothTrace → detectPauses → totalDistanceM (affichage live)
@@ -21,6 +23,9 @@
  *   + signalState (états honnêtes : ok / weak / lost).
  */
 import {
+  type Activity,
+  activityRules,
+  DEFAULT_ACTIVITY,
   GPS_ACCURACY_GOOD_M,
   GPS_ACCURACY_MAX_M,
   GPS_DECIMATE_EPSILON_M,
@@ -35,8 +40,6 @@ import {
   GPS_TRUST_OUTLIER_BAD_RATIO,
   GPS_TRUST_WEIGHTS,
   POINT_MAX_ACCURACY_M,
-  POINT_MAX_JUMP_M,
-  POINT_MAX_SPEED_KMH,
 } from '@klaim/shared';
 import type { RunPoint } from '@klaim/shared';
 import { haversineM } from './validation';
@@ -46,8 +49,14 @@ const MS_PER_S = 1_000;
 const KMH_PER_M_S = 3.6;
 /** ~π/180 × rayon terrestre : mètres par degré de latitude (projection locale). */
 const M_PER_DEG = 111_195;
-/** Vitesse implicite maximale (m/s) — RÉUTILISE la borne course §3.2 (25 km/h). */
-const RUN_MAX_SPEED_MS = POINT_MAX_SPEED_KMH / KMH_PER_M_S;
+/**
+ * Vitesse implicite maximale (m/s) de la DISCIPLINE — RÉUTILISE la borne §3.2
+ * (`pointMaxSpeedKmh` : 25 km/h à pied, 80 km/h à vélo). Fonction et non plus
+ * constante de module : le pipeline de nettoyage est le MÊME, seule sa borne
+ * dépend de ce qu'on pratique.
+ */
+const maxSpeedMs = (activity: Activity): number =>
+  activityRules(activity).pointMaxSpeedKmh / KMH_PER_M_S;
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
@@ -79,8 +88,8 @@ export type GpsRejectReason =
   | 'invalid' // champ non fini (NaN/Infinity) — échantillon malformé
   | 'accuracy' // accuracy > GPS_ACCURACY_MAX_M
   | 'timestamp' // dupliqué / désordonné (dt ≤ 0)
-  | 'speed' // vitesse implicite > borne course §3.2 (POINT_MAX_SPEED_KMH)
-  | 'teleport' // saut spatial > POINT_MAX_JUMP_M en un intervalle court
+  | 'speed' // vitesse implicite > borne §3.2 de la discipline (`pointMaxSpeedKmh`)
+  | 'teleport' // saut spatial > `pointMaxJumpM` en un intervalle court
   | 'jitter'; // dérive en immobilité (intérieur d'un cluster stationnaire)
 
 export interface CleanTraceResult {
@@ -109,8 +118,8 @@ export type GpsSignalState = 'ok' | 'weak' | 'lost';
  * Nettoie une trace brute (ordre d'application) :
  *  1. champs non finis → 'invalid' ; accuracy > GPS_ACCURACY_MAX_M → 'accuracy' ;
  *  2. dt ≤ 0 (dupliqué/désordonné après tri) → 'timestamp' ;
- *  3. saut > POINT_MAX_JUMP_M en < GPS_SIGNAL_LOST_AFTER_S → 'teleport' ;
- *     vitesse implicite > POINT_MAX_SPEED_KMH (§3.2) → 'speed'.
+ *  3. saut > `pointMaxJumpM` en < GPS_SIGNAL_LOST_AFTER_S → 'teleport' ;
+ *     vitesse implicite > `pointMaxSpeedKmh` (§3.2, DISCIPLINE) → 'speed'.
  *     Après GPS_REANCHOR_AFTER_REJECTS rejets consécutifs contre la même
  *     ancre (relock GPS permanent, démarrage à froid), le point suivant est
  *     accepté comme NOUVELLE ancre avec gapBefore (distance non comptée) ;
@@ -120,8 +129,17 @@ export type GpsSignalState = 'ok' | 'weak' | 'lost';
  *     pendant ≥ GPS_PAUSE_AFTER_S → seuls l'entrée et la sortie du cluster
  *     sont gardées ('jitter' pour les intérieurs — aucun faux mètre au feu
  *     rouge, detectPauses retrouve la pause sur la paire entrée→sortie).
+ *
+ * `activity` absente ⇒ 'run' (pipeline historique inchangé). À vélo seules les
+ * bornes de l'étape 3 changent : un cycliste en descente cesse d'être lu comme
+ * une téléportation.
  */
-export function cleanTrace(fixes: readonly RawFix[]): CleanTraceResult {
+export function cleanTrace(
+  fixes: readonly RawFix[],
+  activity: Activity = DEFAULT_ACTIVITY,
+): CleanTraceResult {
+  const rules = activityRules(activity);
+  const speedMaxMs = maxSpeedMs(activity);
   const rejected: Record<GpsRejectReason, number> = {
     invalid: 0,
     accuracy: 0,
@@ -162,7 +180,7 @@ export function cleanTrace(fixes: readonly RawFix[]): CleanTraceResult {
     // Téléportation / vitesse implausible (bornes §3.2). À travers un trou de
     // signal, seul le critère vitesse joue (une vraie traversée de tunnel
     // avance de plusieurs centaines de mètres à vitesse de course plausible).
-    const impossible = gap ? vMs > RUN_MAX_SPEED_MS : dM > POINT_MAX_JUMP_M || vMs > RUN_MAX_SPEED_MS;
+    const impossible = gap ? vMs > speedMaxMs : dM > rules.pointMaxJumpM || vMs > speedMaxMs;
     if (impossible) {
       if (consecutiveRejects >= GPS_REANCHOR_AFTER_REJECTS) {
         // Relock permanent : ré-ancrage ici, discontinuité marquée.
@@ -170,7 +188,7 @@ export function cleanTrace(fixes: readonly RawFix[]): CleanTraceResult {
         consecutiveRejects = 0;
       } else {
         consecutiveRejects++;
-        if (dM > POINT_MAX_JUMP_M) rejected.teleport++;
+        if (dM > rules.pointMaxJumpM) rejected.teleport++;
         else rejected.speed++;
       }
       continue;
@@ -389,15 +407,21 @@ function douglasPeucker(seg: readonly CleanFix[], epsilonM: number): number[] {
 }
 
 /** Ré-insère des points d'origine pour qu'aucune corde décimée ne dépasse
- * POINT_MAX_JUMP_M — sinon filterPoints (§3.2, serveur) couperait le segment
- * et perdrait la distance. Toujours possible : la trace nettoyée n'a que des
- * pas ≤ POINT_MAX_JUMP_M hors discontinuités. */
-function subdivideChord(seg: readonly CleanFix[], a: number, b: number, out: number[]): void {
-  if (b - a <= 1 || haversineM(seg[a]!, seg[b]!) <= POINT_MAX_JUMP_M) return;
+ * `maxJumpM` (borne §3.2 de la DISCIPLINE) — sinon filterPoints (serveur)
+ * couperait le segment et perdrait la distance. Toujours possible : la trace
+ * nettoyée n'a que des pas ≤ `maxJumpM` hors discontinuités. */
+function subdivideChord(
+  seg: readonly CleanFix[],
+  a: number,
+  b: number,
+  out: number[],
+  maxJumpM: number,
+): void {
+  if (b - a <= 1 || haversineM(seg[a]!, seg[b]!) <= maxJumpM) return;
   const mid = (a + b) >> 1;
-  subdivideChord(seg, a, mid, out);
+  subdivideChord(seg, a, mid, out, maxJumpM);
   out.push(mid);
-  subdivideChord(seg, mid, b, out);
+  subdivideChord(seg, mid, b, out, maxJumpM);
 }
 
 /** Échantillonnage régulier d'un tronçon en gardant premier et dernier points. */
@@ -419,22 +443,25 @@ function thinSegment(seg: readonly CleanFix[], budget: number): CleanFix[] {
 /**
  * Décimation avant envoi à ingest_run : Douglas-Peucker léger
  * (GPS_DECIMATE_EPSILON_M, sous le bruit GPS — la forme ne bouge pas), corde
- * maximale re-bornée à POINT_MAX_JUMP_M (§3.2), puis plafond dur
+ * maximale re-bornée à `pointMaxJumpM` (§3.2, DISCIPLINE), puis plafond dur
  * GPS_MAX_PAYLOAD_POINTS par échantillonnage régulier proportionnel par
  * tronçon (extrémités et discontinuités toujours conservées).
+ * `activity` absente ⇒ 'run' (comportement historique inchangé).
  */
 export function decimateForPayload(
   points: readonly CleanFix[],
   maxPoints: number = GPS_MAX_PAYLOAD_POINTS,
+  activity: Activity = DEFAULT_ACTIVITY,
 ): CleanFix[] {
   if (points.length === 0) return [];
+  const maxJumpM = activityRules(activity).pointMaxJumpM;
   const segs = splitAtGaps(points).map((seg) => {
     if (seg.length <= 2) return [...seg];
     const keptIdx = douglasPeucker(seg, GPS_DECIMATE_EPSILON_M);
     const bounded: number[] = [];
     for (let k = 0; k < keptIdx.length - 1; k++) {
       bounded.push(keptIdx[k]!);
-      subdivideChord(seg, keptIdx[k]!, keptIdx[k + 1]!, bounded);
+      subdivideChord(seg, keptIdx[k]!, keptIdx[k + 1]!, bounded, maxJumpM);
     }
     bounded.push(keptIdx[keptIdx.length - 1]!);
     return bounded.map((i) => seg[i]!);

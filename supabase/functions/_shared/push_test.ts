@@ -7,6 +7,7 @@
  */
 import { assert, assertEquals } from 'jsr:@std/assert@^1';
 import {
+  type Activity,
   DECAY_WARNING_DAYS_BEFORE,
   PUSH_MAX_PER_DAY,
   STEAL_PUSH_COOLDOWN_MINUTES,
@@ -193,6 +194,9 @@ const planSteal = (
   now = paris('2026-07-03T10:00:00'),
   log: Date[] = [],
   lastSteal?: Date,
+  // Monde à NOMMER. Par défaut AUCUN : c'est l'état de 100 % des joueurs au
+  // 25/07/2026 (mono-monde), donc le cas que ces tests doivent surveiller.
+  worldToNameByUser: ReadonlyMap<string, Activity | null> = new Map(),
 ) =>
   planStealPushes(
     events,
@@ -200,6 +204,7 @@ const planSteal = (
     new Map([[VICTIM, log]]),
     lastSteal ? new Map([[VICTIM, lastSteal]]) : new Map(),
     now,
+    worldToNameByUser,
   );
 
 // ─── L'AGRÉGATION, cœur de l'anti-spam ───────────────────────────────────────
@@ -225,6 +230,7 @@ Deno.test('vol : une course qui frappe 3 victimes → 1 message CHACUNE', () => 
     new Map(),
     new Map(),
     paris('2026-07-03T10:00:00'),
+    new Map(),
   );
   assertEquals(p.sends.length, 3);
   assertEquals(p.sends.map((s) => s.userId), victims); // ordre stable
@@ -323,7 +329,14 @@ Deno.test('vol : « off » coupe aussi le vol', () => {
 });
 
 Deno.test('vol : aucun appareil enregistré → rien, et c\'est tracé', () => {
-  const p = planStealPushes(steals(9), new Map(), new Map(), new Map(), paris('2026-07-03T10:00:00'));
+  const p = planStealPushes(
+    steals(9),
+    new Map(),
+    new Map(),
+    new Map(),
+    paris('2026-07-03T10:00:00'),
+    new Map(),
+  );
   assertEquals(p.suppressed, [{ userId: VICTIM, reason: 'no_device' }]);
 });
 
@@ -368,7 +381,7 @@ Deno.test('vol : singulier vs pluriel', () => {
     sectorCount: 1,
     rivalCount: 1,
     latestAt: paris('2026-07-03T09:30:00'),
-  });
+  }, null);
   assert(one.body.startsWith('1 zone '), one.body);
   assert(!one.body.includes('1 zones'));
 
@@ -380,7 +393,7 @@ Deno.test('vol : singulier vs pluriel', () => {
     sectorCount: 1,
     rivalCount: 1,
     latestAt: paris('2026-07-03T09:30:00'),
-  });
+  }, null);
   assert(many.body.startsWith('18 zones '), many.body);
 });
 
@@ -466,10 +479,85 @@ Deno.test('vol : deux joueurs, même perte, même instant → messages identique
       new Map(),
       new Map(),
       now,
+      new Map(),
     ).sends[0].messages[0];
   const a = mk('joueur-gratuit');
   const b = mk('joueur-pass-saison');
   assertEquals(a.title, b.title);
   assertEquals(a.body, b.body);
   assertEquals(a.priority, b.priority);
+});
+
+// ─── Le MONDE dans le push : même règle et même phrase que l'inbox ──────────
+//
+// L'inbox nommait déjà la discipline, le push restait muet : le même événement
+// se racontait de deux façons sur le même téléphone. Et l'inverse — nommer le
+// monde à TOUT LE MONDE — serait le défaut symétrique : au 25/07/2026, 100 %
+// des joueurs sont mono-monde et zéro ligne `bike` existe. La DÉCISION se prend
+// dans steal_push_job (`worldToName`) ; ce module ne fait que la restituer.
+
+const stealTarget = (over: Record<string, unknown> = {}) => ({
+  userId: VICTIM,
+  hexCount: 4,
+  sectorName: 'République',
+  sectorId: 'sector-1',
+  sectorCount: 1,
+  rivalCount: 1,
+  latestAt: paris('2026-07-03T09:30:00'),
+  ...over,
+});
+
+Deno.test('vol : monde `null` → la phrase est EXACTEMENT celle d’avant (aucun trou, aucun espace en trop)', () => {
+  const msg = buildStealPush(competitionDevice(), stealTarget(), null);
+  assertEquals(msg.body, '4 zones reprises. Repasse dessus pour les récupérer.');
+  assertEquals(
+    buildStealPush(competitionDevice(), stealTarget({ hexCount: 1 }), null).body,
+    '1 zone reprise. Repasse dessus pour la récupérer.',
+  );
+});
+
+Deno.test('vol : le monde se dit là où se trouve l’ACTION, jamais dans le titre (le lieu)', () => {
+  const bike = buildStealPush(competitionDevice(), stealTarget(), 'bike');
+  assertEquals(bike.body, '4 zones reprises à vélo. Repasse dessus pour les récupérer.');
+  assertEquals(
+    bike.title,
+    'Ton territoire à République a changé de mains',
+    'le titre reste le LIEU — la discipline ne s’y invite pas',
+  );
+  assertEquals(
+    buildStealPush(competitionDevice(), stealTarget({ hexCount: 1 }), 'run').body,
+    '1 zone reprise en course à pied. Repasse dessus pour la récupérer.',
+  );
+});
+
+Deno.test('vol : les 5 langues nomment le monde, sans placeholder résiduel ni double espace', () => {
+  for (const locale of PUSH_LOCALES) {
+    for (const world of [null, 'run', 'bike'] as const) {
+      const msg = buildStealPush(competitionDevice({ locale }), stealTarget(), world);
+      const text = `${msg.title} ${msg.body}`;
+      assert(!text.includes('{'), `placeholder résiduel (${locale}, ${world})`);
+      assert(!msg.body.includes('  '), `double espace (${locale}, ${world})`);
+      assert(!msg.body.includes(' .'), `espace avant le point (${locale}, ${world})`);
+      assert(msg.body.includes('4'), `compte perdu (${locale}, ${world})`);
+    }
+    // Et nommer le monde CHANGE réellement la phrase dans chaque langue —
+    // sinon la parité serait un décor (un libellé vide passerait le test).
+    const muet = buildStealPush(competitionDevice({ locale }), stealTarget(), null).body;
+    for (const world of ['run', 'bike'] as const) {
+      const nomme = buildStealPush(competitionDevice({ locale }), stealTarget(), world).body;
+      assert(nomme !== muet, `le monde ne s’entend pas en ${locale} (${world})`);
+      assert(nomme.length > muet.length, `libellé de monde vide en ${locale} (${world})`);
+    }
+  }
+});
+
+Deno.test('vol : planStealPushes restitue le monde DÉCIDÉ par l’appelant, et rien d’autre', () => {
+  const worlds: ReadonlyMap<string, Activity | null> = new Map([[VICTIM, 'bike']]);
+  const p = planSteal(steals(9), [competitionDevice()], paris('2026-07-03T10:00:00'), [], undefined, worlds);
+  assert(p.sends[0].messages[0].body.includes('à vélo'), p.sends[0].messages[0].body);
+
+  // Aucune décision par défaut : un joueur absent de la map n'est pas nommé.
+  const muet = planSteal(steals(9));
+  assert(!muet.sends[0].messages[0].body.includes('à vélo'));
+  assert(!muet.sends[0].messages[0].body.includes('en course à pied'));
 });

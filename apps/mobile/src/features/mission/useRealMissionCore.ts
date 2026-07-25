@@ -27,10 +27,25 @@
  * sur `mission: null`. La carte porte déjà la vérité de l'état des données
  * (hexClaims → dataNote) ; la mission se contente de disparaître quand elle n'a
  * rien d'honnête à proposer.
+ *
+ * ─── UNE MISSION APPARTIENT À UN SEUL MONDE (E14, 25/07/2026) ────────────────
+ * `hex_claims` a désormais pour clé primaire (h3index, ACTIVITY) : le même
+ * hexagone peut être tenu SIMULTANÉMENT par le coureur et par le cycliste que
+ * je suis. Une lecture non filtrée rendait donc DEUX lignes pour une seule
+ * cellule — territoire compté en DOUBLE (aire et nombre de zones), et une
+ * mission capable d'envoyer défendre une zone vélo en affichant l'échéance de
+ * la zone course. Deux chiffres faux et un ordre de mission faux, pour un
+ * `.eq()` manquant.
+ *
+ * La lecture est donc bornée à UNE discipline. Défaut `run` : sous la lentille
+ * Bike, la Carte n'affiche AUCUNE mission (cf. `lib/flags.ts`), donc `run` est
+ * aujourd'hui la seule lentille où une mission est rendue — et le jour où ça
+ * change, le paramètre est déjà là plutôt qu'un `'run'` en dur à retrouver.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cellArea } from 'h3-js';
 import { useFocusEffect } from 'expo-router';
+import { type Activity, DEFAULT_ACTIVITY } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
 import { dbToH3 } from '../map/territoryBuild';
@@ -63,7 +78,10 @@ interface MineClaimRow {
   decay_at: string | null;
 }
 
-export function useRealMissionCore(getFix: MissionFixReader): UseRealMissionResult {
+export function useRealMissionCore(
+  getFix: MissionFixReader,
+  activity: Activity = DEFAULT_ACTIVITY,
+): UseRealMissionResult {
   const { session } = useSession();
   const [mission, setMission] = useState<RealMission | null>(null);
   const [loading, setLoading] = useState(false);
@@ -96,7 +114,10 @@ export function useRealMissionCore(getFix: MissionFixReader): UseRealMissionResu
           client
             .from('hex_claims')
             .select('h3index, decay_at')
-            .eq('owner_user_id', session.user.id),
+            .eq('owner_user_id', session.user.id)
+            // E14 : UNE discipline. Sans ce filtre, un joueur hybride reçoit
+            // deux lignes pour la MÊME cellule → territoire doublé.
+            .eq('activity', activity),
           getFixRef.current(),
         ]);
         if (cancelled) return;
@@ -131,7 +152,7 @@ export function useRealMissionCore(getFix: MissionFixReader): UseRealMissionResu
     return () => {
       cancelled = true;
     };
-  }, [session, tick]);
+  }, [session, tick, activity]);
 
   // Refetch au retour sur l'onglet Carte (patron MapScreen) : on saute le 1er
   // focus (le fetch au montage suffit) ; les suivants rafraîchissent la mission

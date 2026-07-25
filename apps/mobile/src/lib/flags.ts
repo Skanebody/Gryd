@@ -65,14 +65,29 @@ export const flags = {
    * vélo ou la map running ». Le commutateur est donc VISIBLE sur la Carte, et
    * il bascule RÉELLEMENT (préférence `gryd.mapactivity`, cf. map/mapPref.ts).
    *
-   * Ce drapeau n'affirme PAS que le vélo est implémenté. Il dit une seule chose :
-   * « la lentille Bike de la carte est offerte à l'utilisateur ». En mode Bike,
-   * la Carte n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement, et le
-   * bouton GO se retire — parce que le vélo n'existe toujours pas sous l'écran.
-   * L'univers Bike est HONNÊTEMENT VIDE et il le DIT (« Ta carte Bike commence
-   * ici · GRYD ne chronomètre pas encore le vélo »), au lieu de rejouer les
-   * données Run sous une étiquette vélo, ce qui serait la donnée fabriquée que
-   * la charte interdit.
+   * CE DRAPEAU OUVRE UNE LENTILLE D'AFFICHAGE, ET RIEN D'AUTRE. IL NE DÉCIDE
+   * AUCUNE DISCIPLINE D'ENREGISTREMENT. Il n'affirme pas non plus que le vélo
+   * est implémenté. Il dit une seule chose : « la lentille Bike de la carte est
+   * offerte à l'utilisateur ». En mode Bike, la Carte n'affiche AUCUN
+   * territoire, AUCUNE mission, AUCUN classement, et le bouton GO se retire —
+   * parce que le vélo n'existe toujours pas sous l'écran. L'univers Bike est
+   * HONNÊTEMENT VIDE et il le DIT (« Ta carte Bike commence ici · GRYD ne
+   * chronomètre pas encore le vélo »), au lieu de rejouer les données Run sous
+   * une étiquette vélo, ce qui serait la donnée fabriquée que la charte interdit.
+   *
+   * ─── CE QUE CE DRAPEAU A FAILLI COÛTER (correctif du 25/07/2026) ───────────
+   * Il a été ouvert alors que `features/run/gps/runActivity.ts` DÉRIVAIT la
+   * discipline d'une SORTIE de cette même préférence de carte. Un joueur ayant
+   * laissé sa carte en lentille Bike (« choix mémorisé ») et lançant une course
+   * depuis le PLANIFICATEUR — chemin qui ne passe pas par le GO retiré de la
+   * Carte — voyait sa vraie course à pied nettoyée aux bornes du vélo (80 km/h
+   * par point au lieu de 25), déclarée `bike` au serveur, et écrite dans un
+   * univers de territoire que la lentille Run n'affiche jamais : « 0 zone »
+   * après une VRAIE course. La dérivation est SUPPRIMÉE. Une préférence
+   * d'AFFICHAGE ne décide jamais de la NATURE d'un effort enregistré : la
+   * discipline est désormais DÉCLARÉE par le chemin qui lance la course
+   * (`PreflightApi.confirmStart(activity)`, paramètre obligatoire), et tous les
+   * chemins déclarent `run` tant que les quatre chantiers ci-dessous manquent.
    *
    * CE QUI RESTE À LIVRER avant que « Bike » veuille dire un vrai univers
    * (Spéc Unifiée §5.1-5.2) — rien de tout ça n'existe aujourd'hui :

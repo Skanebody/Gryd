@@ -11,7 +11,7 @@
  * remplacée par `unavailable` + une RAISON — le seul cas où GRYD n'enregistre
  * rien est celui où il n'a VRAIMENT pas de position, et il le dit.
  */
-import type { RunMode } from '@klaim/shared';
+import type { Activity, RunMode } from '@klaim/shared';
 import type { RunUnavailableReason } from './locationAdapter';
 import type { TrackerSnapshot } from './tracker';
 
@@ -82,9 +82,21 @@ export interface PreflightApi {
   foregroundOnlyPlatform: boolean;
   /** Ouvrir les réglages système — `null` dans un navigateur (il n'y en a pas). */
   openSettings: (() => void) | null;
-  /** Démarre la course RÉELLE (tracker + capteurs). Appelé À LA FIN du compte à
-   *  rebours uniquement. Idempotent (jamais deux trackers). */
-  confirmStart: () => void;
+  /**
+   * Démarre la course RÉELLE (tracker + capteurs). Appelé À LA FIN du compte à
+   * rebours uniquement. Idempotent (jamais deux trackers).
+   *
+   * E14 (25/07/2026) — `activity` est OBLIGATOIRE, et c'est tout l'intérêt : on
+   * ne peut plus démarrer une sortie sans DIRE ce qu'on est en train de faire.
+   * Le cœur ne devine plus rien ; il lisait auparavant la préférence
+   * d'AFFICHAGE de la carte (`gryd.mapactivity`), si bien qu'une lentille Bike
+   * oubliée transformait une vraie course à pied en sortie vélo — bornes
+   * anti-triche à 80 km/h et univers de territoire que la lentille Run
+   * n'affiche jamais. Le paramètre est typé `Activity` : le jour où le moteur
+   * vélo existera (cf. `lib/flags.ts`), il suffira à un écran de passer
+   * `'bike'` ici. Voir `runActivity.ts` pour l'arbitrage complet.
+   */
+  confirmStart: (activity: Activity) => void;
   /** Compte à rebours annulé : rien à défaire (tracker jamais construit). */
   cancel: () => void;
 }

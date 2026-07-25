@@ -30,13 +30,11 @@ import {
   UNITS,
 } from 'npm:h3-js@^4.1';
 import {
+  type Activity,
+  type ActivityRuleSet,
+  activityRules,
+  DEFAULT_ACTIVITY,
   H3_RESOLUTION,
-  LOOP_CLOSE_TOLERANCE_M,
-  LOOP_MAX_AREA_BY_DISTANCE_KM2,
-  LOOP_MAX_AREA_CAP_KM2,
-  LOOP_MIN_COMPACTNESS,
-  LOOP_MIN_PERIMETER_M,
-  LOOP_MIN_WIDTH_M,
   TRACE_BUFFER_M,
 } from '../game-rules.ts';
 import { haversineM, type Segment } from './validation.ts';
@@ -156,22 +154,27 @@ export function loopTracePoints<P extends LatLngPoint>(
  * Boucle fermée par TOLÉRANCE départ/arrivée (AMENDEMENT-12 §B, mode 1 de
  * detectLoop — le mode 2 auto-intersection est AMENDEMENT-16 §2) ? PURE.
  * Trois conditions, dans l'ordre :
- *  1. la trace revient à ≤ LOOP_CLOSE_TOLERANCE_M (haversine, 80 m durci
- *     AMENDEMENT-16 §2) de son départ ;
- *  2. distance totale de la trace ≥ LOOP_MIN_PERIMETER_M (anti micro-boucle) ;
+ *  1. la trace revient à ≤ `loopCloseToleranceM` (haversine, 80 m durci
+ *     AMENDEMENT-16 §2 — tolérance GPS, IDENTIQUE aux deux disciplines) ;
+ *  2. distance totale de la trace ≥ `loopMinPerimeterM` de la DISCIPLINE
+ *     (anti micro-boucle : 1 km à pied, 5 km à vélo — E14 « échelle ville ») ;
  *  3. le polygone n'est pas dégénéré : son aire doit pouvoir contenir au moins
  *     UNE zone res 10 (aire moyenne getHexagonAreaAvg, dérivée de la grille h3 —
  *     pas une constante de jeu). Un aller-retour (aire ~0) n'est PAS une
  *     boucle : il reste pleinement récompensé en couloir (« trait »).
  */
-export function detectClosedLoop(points: readonly LatLngPoint[]): boolean {
+export function detectClosedLoop(
+  points: readonly LatLngPoint[],
+  activity: Activity = DEFAULT_ACTIVITY,
+): boolean {
+  const rules = activityRules(activity);
   if (points.length < 3) return false; // un polygone exige ≥ 3 sommets
   const first = points[0]!;
   const last = points[points.length - 1]!;
-  if (haversineM(first, last) > LOOP_CLOSE_TOLERANCE_M) return false;
+  if (haversineM(first, last) > rules.loopCloseToleranceM) return false;
   let totalM = 0;
   for (let i = 1; i < points.length; i++) totalM += haversineM(points[i - 1]!, points[i]!);
-  if (totalM < LOOP_MIN_PERIMETER_M) return false;
+  if (totalM < rules.loopMinPerimeterM) return false;
   return traceAreaM2(points) >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2);
 }
 
@@ -255,12 +258,15 @@ function ringPerimeterM(points: readonly LatLngPoint[]): number {
  * uniquement (0 < t < 1 et 0 < u < 1) : un aller-retour colinéaire ou un
  * simple frôlement ne croisent pas. Chaque croisement (i, j) ferme la partie
  * [X, points[i+1..j]] ; le candidat n'est retenu que si son périmètre ≥
- * LOOP_MIN_PERIMETER_M (filtre O(1) par sommes cumulées — élimine les
+ * `loopMinPerimeterM` de la discipline (filtre O(1) par sommes cumulées — élimine les
  * micro-croisements du bruit GPS) et son aire ≥ 1 zone res 10 (dégénéré).
  * O(n²) sur la trace décimée (≤ GPS_MAX_PAYLOAD_POINTS = 2000 pts) — assumé
  * MVP ; l'aire n'est calculée que pour les rares paires réellement croisées.
  */
-function selfIntersectionLoops(points: readonly LatLngPoint[]): DetectedLoop[] {
+function selfIntersectionLoops(
+  points: readonly LatLngPoint[],
+  rules: ActivityRuleSet,
+): DetectedLoop[] {
   const n = points.length;
   if (n < 4) return []; // il faut ≥ 3 segments pour un croisement non adjacent
   const first = points[0]!;
@@ -304,7 +310,7 @@ function selfIntersectionLoops(points: readonly LatLngPoint[]): DetectedLoop[] {
       // Filtre périmètre O(1) AVANT tout calcul d'aire (bruit GPS → dehors).
       const perimeterM = haversineM(crossing, points[i + 1]!) +
         (cum[j]! - cum[i + 1]!) + haversineM(points[j]!, crossing);
-      if (perimeterM < LOOP_MIN_PERIMETER_M) continue;
+      if (perimeterM < rules.loopMinPerimeterM) continue;
 
       const polygon: LatLngPoint[] = [crossing, ...points.slice(i + 1, j + 1)];
       if (polygon.length < 3) continue;
@@ -336,10 +342,14 @@ function selfIntersectionLoops(points: readonly LatLngPoint[]): DetectedLoop[] {
  * loopRejectedReason='narrow' : boucle fermée, intérieur refusé).
  * null = pas de boucle → couloir seul (« trait »), jamais d'intérieur.
  */
-export function detectLoop(points: readonly LatLngPoint[]): DetectedLoop | null {
+export function detectLoop(
+  points: readonly LatLngPoint[],
+  activity: Activity = DEFAULT_ACTIVITY,
+): DetectedLoop | null {
   if (points.length < 3) return null;
-  const candidates: DetectedLoop[] = selfIntersectionLoops(points);
-  if (detectClosedLoop(points)) {
+  const rules = activityRules(activity);
+  const candidates: DetectedLoop[] = selfIntersectionLoops(points, rules);
+  if (detectClosedLoop(points, activity)) {
     candidates.push({
       polygon: [...points],
       closure: 'tolerance',
@@ -351,7 +361,9 @@ export function detectLoop(points: readonly LatLngPoint[]): DetectedLoop | null 
   let bestOk: DetectedLoop | null = null;
   for (const c of candidates) {
     if (best === null || c.areaM2 > best.areaM2) best = c;
-    if (loopShapeVerdict(c).ok && (bestOk === null || c.areaM2 > bestOk.areaM2)) bestOk = c;
+    if (loopShapeVerdict(c, activity).ok && (bestOk === null || c.areaM2 > bestOk.areaM2)) {
+      bestOk = c;
+    }
   }
   return bestOk ?? best;
 }
@@ -361,7 +373,7 @@ export type LoopRejectedReason = 'narrow';
 /** Verdict de forme d'une boucle (AMENDEMENT-16 §2, doc §6 « boucle trop fine »). */
 export interface LoopShapeVerdict {
   ok: boolean;
-  /** 'narrow' si compacité < LOOP_MIN_COMPACTNESS OU largeur < LOOP_MIN_WIDTH_M. */
+  /** 'narrow' si compacité < `loopMinCompactness` OU largeur < `loopMinWidthM`. */
   reason?: LoopRejectedReason;
   /** Compacité 4πA/P² (1 = cercle, 0 = trait). */
   compactness: number;
@@ -374,15 +386,22 @@ export interface LoopShapeVerdict {
  * la forme est trop étroite (aller-retour sur deux rues parallèles proches)
  * garde sa course et son couloir, mais son INTÉRIEUR est refusé. PURE.
  * Copy UI gelée : « Zone non capturée : forme trop étroite. »
+ *
+ * Les deux seuils passent par la DISCIPLINE pour que le moteur n'ait qu'UNE
+ * source, mais leurs valeurs sont volontairement IDENTIQUES entre course et
+ * vélo : la compacité 4πA/P² est sans dimension et la largeur minimale de 80 m
+ * est dictée par la grille H3 (≈ 3 zones), pas par l'allure.
  */
 export function loopShapeVerdict(
   loop: Pick<DetectedLoop, 'areaM2' | 'perimeterM'>,
+  activity: Activity = DEFAULT_ACTIVITY,
 ): LoopShapeVerdict {
+  const rules = activityRules(activity);
   const compactness = loop.perimeterM > 0
     ? (4 * Math.PI * loop.areaM2) / (loop.perimeterM * loop.perimeterM)
     : 0;
   const widthM = loop.perimeterM > 0 ? (2 * loop.areaM2) / loop.perimeterM : 0;
-  return compactness >= LOOP_MIN_COMPACTNESS && widthM >= LOOP_MIN_WIDTH_M
+  return compactness >= rules.loopMinCompactness && widthM >= rules.loopMinWidthM
     ? { ok: true, compactness, widthM }
     : { ok: false, reason: 'narrow', compactness, widthM };
 }
@@ -392,17 +411,24 @@ const M2_PER_KM2 = 1_000_000;
 const M_PER_KM = 1_000;
 
 /**
- * Aire capturable MAXIMALE (m²) d'une boucle pour une course de `distanceM`
+ * Aire capturable MAXIMALE (m²) d'une boucle pour une sortie de `distanceM`
  * (AMENDEMENT-16 §2, doc §6 « boucle trop grande ») : interpolation LINÉAIRE
- * de LOOP_MAX_AREA_BY_DISTANCE_KM2 (3→0,25 ; 5→0,8 ; 10→1,8 km²), extrapolée
- * BORNÉE au ratio du palier le plus proche hors bornes (< 3 km : × 0,25/3 par
- * km ; > 10 km : × 1,8/10 par km), puis CAPÉE DUR à LOOP_MAX_AREA_CAP_KM2
- * (3 km², AMENDEMENT-23 §D / doc §9 « capée à 3 km² ») : un run de 25 km ne
- * capture jamais plus de 3 km² d'intérieur. PURE, monotone croissante.
+ * de `loopMaxAreaByDistanceKm2` (à pied 3→0,25 ; 5→0,8 ; 10→1,8 km²), extrapolée
+ * BORNÉE au ratio du palier le plus proche hors bornes, puis CAPÉE DUR à
+ * `loopMaxAreaCapKm2` (3 km² à pied, AMENDEMENT-23 §D / doc §9) : un run de
+ * 25 km ne capture jamais plus de 3 km² d'intérieur. PURE, monotone croissante.
+ *
+ * À vélo la table entière est l'HOMOTHÉTIE de la table course (distances ×5,
+ * aires ×25) : le rapport aire/distance² est identique, donc la règle est la
+ * MÊME à une autre échelle — jamais un avantage, jamais une punition.
  */
-export function loopMaxAreaM2(distanceM: number): number {
-  const table = LOOP_MAX_AREA_BY_DISTANCE_KM2;
-  const capM2 = LOOP_MAX_AREA_CAP_KM2 * M2_PER_KM2;
+export function loopMaxAreaM2(
+  distanceM: number,
+  activity: Activity = DEFAULT_ACTIVITY,
+): number {
+  const rules = activityRules(activity);
+  const table = rules.loopMaxAreaByDistanceKm2;
+  const capM2 = rules.loopMaxAreaCapKm2 * M2_PER_KM2;
   const dKm = Math.max(0, distanceM) / M_PER_KM;
   const [firstKm, firstKm2] = table[0]!;
   if (dKm <= firstKm) return Math.min(dKm * (firstKm2 / firstKm) * M2_PER_KM2, capM2);
@@ -426,8 +452,13 @@ export function loopMaxAreaM2(distanceM: number): number {
  * tronqué par ce plafond (la rue courue reste prise) ; MAX_CLAIMS_PER_DAY
  * reste la borne dure du total couloir + intérieur (decideClaims).
  */
-export function loopInteriorCellCap(distanceM: number): number {
-  return Math.floor(loopMaxAreaM2(distanceM) / getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2));
+export function loopInteriorCellCap(
+  distanceM: number,
+  activity: Activity = DEFAULT_ACTIVITY,
+): number {
+  return Math.floor(
+    loopMaxAreaM2(distanceM, activity) / getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2),
+  );
 }
 
 // ─── Géométrie GeoJSON (zones no-capture) ────────────────────────────────────

@@ -19,6 +19,7 @@
  * perdre », jamais de compte à rebours anxiogène, jamais de reproche (§5).
  */
 import {
+  type Activity,
   DECAY_WARNING_DAYS_BEFORE,
   PUSH_MAX_PER_DAY,
   PUSH_QUIET_HOURS_END,
@@ -452,46 +453,77 @@ export function aggregateStealEvents(events: readonly StealEvent[]): StealTarget
 
 /**
  * Textes du push « vol subi », 5 langues (parité imposée par le type `Record`).
- * `{n}` = zones perdues, `{s}` = nom du secteur.
+ * `{n}` = zones perdues, `{s}` = nom du secteur, `{w}` = le monde (ou rien).
  *
  * TON (§5, motivation saine) : le titre CONSTATE (« a changé de mains » — un
  * fait, pas une faute), le corps DONNE L'ACTION (« repasse dessus »). Aucune
  * phrase ne dit « tu as perdu », « tu n'as pas défendu », ni ne met la pression
  * par un compte à rebours. Personne n'est nommé — ni coupable, ni victime.
  * `titleNamed` n'est utilisé que si le nom du secteur est RÉELLEMENT connu.
+ *
+ * ═══ LE MONDE : MÊME RÈGLE QUE L'INBOX, MÊME PLACE DANS LA PHRASE ═══════════
+ * L'inbox nommait déjà le monde, le push non : le même événement se racontait
+ * de deux façons sur le même téléphone. `{w}` referme cet écart.
+ *
+ * Il se substitue là où se trouve déjà l'ACTION (« 2 zones reprises À VÉLO »),
+ * parce que c'est elle que la discipline conditionne — reprendre à pied ce
+ * qu'on a perdu à vélo ne rend rien. Le titre reste le LIEU, inchangé.
+ *
+ * `worlds` porte son ESPACE INITIAL : la substitution est alors la même
+ * opération dans les deux cas (avec monde ou sans), et aucune phrase ne peut se
+ * retrouver avec un espace en trop devant son point. La DÉCISION de nommer,
+ * elle, n'est pas prise ici (cf. `worldToName` dans steal_push_job/logic.ts) :
+ * ce module rend un monde qu'on lui donne, il n'en choisit aucun.
  */
 const STEAL_COPY: Readonly<
-  Record<PushLocale, { titleNamed: string; titlePlain: string; one: string; many: string }>
+  Record<PushLocale, {
+    titleNamed: string;
+    titlePlain: string;
+    one: string;
+    many: string;
+    worlds: Readonly<Record<Activity, string>>;
+  }>
 > = {
   fr: {
     titleNamed: 'Ton territoire à {s} a changé de mains',
     titlePlain: 'Ton territoire a changé de mains',
-    one: '1 zone reprise. Repasse dessus pour la récupérer.',
-    many: '{n} zones reprises. Repasse dessus pour les récupérer.',
+    one: '1 zone reprise{w}. Repasse dessus pour la récupérer.',
+    many: '{n} zones reprises{w}. Repasse dessus pour les récupérer.',
+    worlds: { run: ' en course à pied', bike: ' à vélo' },
   },
   en: {
     titleNamed: 'Your turf in {s} changed hands',
     titlePlain: 'Your turf changed hands',
-    one: '1 zone taken. Run it again to win it back.',
-    many: '{n} zones taken. Run them again to win them back.',
+    one: '1 zone taken{w}. Cover it again to win it back.',
+    many: '{n} zones taken{w}. Cover them again to win them back.',
+    worlds: { run: ' on foot', bike: ' on the bike' },
   },
   es: {
     titleNamed: 'Tu territorio en {s} cambió de manos',
     titlePlain: 'Tu territorio cambió de manos',
-    one: '1 zona tomada. Vuelve a correrla para recuperarla.',
-    many: '{n} zonas tomadas. Vuelve a correrlas para recuperarlas.',
+    one: '1 zona tomada{w}. Vuelve a pasar para recuperarla.',
+    many: '{n} zonas tomadas{w}. Vuelve a pasar para recuperarlas.',
+    worlds: { run: ' corriendo', bike: ' en bici' },
   },
   de: {
     titleNamed: 'Dein Gebiet in {s} hat den Besitzer gewechselt',
     titlePlain: 'Dein Gebiet hat den Besitzer gewechselt',
-    one: '1 Zone übernommen. Lauf sie erneut, um sie zurückzuholen.',
-    many: '{n} Zonen übernommen. Lauf sie erneut, um sie zurückzuholen.',
+    // Verbe NEUTRE, comme dans les quatre autres langues (« Repasse dessus »,
+    // « Cover it again »…). Il avait été réécrit en « Fahr oder lauf » — donc le
+    // vélo nommé INCONDITIONNELLEMENT, y compris quand `{w}` est vide. Comme
+    // aucune sortie vélo n'existe en base, 100 % des joueurs germanophones
+    // lisaient une distinction que le produit n'offre pas encore. C'est `{w}` qui
+    // porte le monde, et lui seul, et uniquement pour qui a réellement les deux.
+    one: '1 Zone übernommen{w}. Überquer sie erneut, um sie zurückzuholen.',
+    many: '{n} Zonen übernommen{w}. Überquer sie erneut, um sie zurückzuholen.',
+    worlds: { run: ' beim Laufen', bike: ' auf dem Rad' },
   },
   pt: {
     titleNamed: 'Seu território em {s} mudou de mãos',
     titlePlain: 'Seu território mudou de mãos',
-    one: '1 zona tomada. Corra por cima para recuperá-la.',
-    many: '{n} zonas tomadas. Corra por cima para recuperá-las.',
+    one: '1 zona tomada{w}. Passe por cima de novo para recuperá-la.',
+    many: '{n} zonas tomadas{w}. Passe por cima de novo para recuperá-las.',
+    worlds: { run: ' correndo', bike: ' de bicicleta' },
   },
 };
 
@@ -499,8 +531,17 @@ const STEAL_COPY: Readonly<
  * Construit le message de vol pour UN appareil. PURE.
  * Un nom de secteur absent, vide ou blanc → titre sans lieu : on ne fabrique
  * jamais un endroit pour faire une plus jolie phrase.
+ *
+ * @param world monde à NOMMER, ou `null` pour n'en nommer aucun. Le paramètre
+ *   est REQUIS (et non optionnel) : un appelant qui l'oublie doit casser le
+ *   typecheck, sinon le push retomberait en silence dans l'état d'avant —
+ *   muet sur le monde là où l'inbox le nomme.
  */
-export function buildStealPush(device: PushDevice, target: StealTarget): PushMessage {
+export function buildStealPush(
+  device: PushDevice,
+  target: StealTarget,
+  world: Activity | null,
+): PushMessage {
   const copy = STEAL_COPY[device.locale] ?? STEAL_COPY.fr;
   const sector = target.sectorName?.trim() ?? '';
   const title = sector.length > 0
@@ -510,7 +551,9 @@ export function buildStealPush(device: PushDevice, target: StealTarget): PushMes
   return {
     to: device.expoToken,
     title,
-    body: template.split('{n}').join(String(target.hexCount)),
+    body: template
+      .split('{n}').join(String(target.hexCount))
+      .split('{w}').join(world ? copy.worlds[world] : ''),
     // Payload MINIMAL : de quoi ouvrir la carte au bon endroit, rien de plus.
     // `sectorId` est le secteur de la VICTIME (son territoire), jamais une
     // position de rival ; aucun identifiant d'attaquant ne transite (§7).
@@ -553,6 +596,11 @@ export function stealCooldownElapsed(lastStealPushAt: Date | undefined, now: Dat
  * @param events vols BRUTS de la passe (agrégés ici même, pas par l'appelant).
  * @param lastStealPushByUser dernier push de VOL par joueur (pas tous types :
  *   le cap journalier tous types confondus est déjà couvert par `canPush`).
+ * @param worldToNameByUser monde à NOMMER pour chaque joueur — DÉJÀ décidé par
+ *   l'appelant (`worldToName`, steal_push_job/logic.ts), qui seul connaît les
+ *   disciplines réellement jouées. Absent ⇒ on n'en nomme aucun. Ce module
+ *   RESTITUE un monde, il n'en choisit jamais : la décision de nommer se prend
+ *   au même endroit pour le push et pour l'inbox, sinon les deux divergent.
  *
  * CE QUE COUPER LE PUSH LAISSE INTACT — et ce qu'il n'y a PAS. État au
  * 21/07/2026, à re-vérifier dans `steal_push_job/index.ts` (étape 5) avant de
@@ -582,6 +630,7 @@ export function planStealPushes(
   pushLogByUser: ReadonlyMap<string, readonly Date[]>,
   lastStealPushByUser: ReadonlyMap<string, Date>,
   now: Date,
+  worldToNameByUser: ReadonlyMap<string, Activity | null>,
 ): PushPlan {
   const sends: { userId: string; messages: PushMessage[] }[] = [];
   const suppressed: { userId: string; reason: SuppressReason }[] = [];
@@ -621,9 +670,10 @@ export function planStealPushes(
       continue;
     }
 
+    const world = worldToNameByUser.get(target.userId) ?? null;
     sends.push({
       userId: target.userId,
-      messages: opted.map((d) => buildStealPush(d, target)),
+      messages: opted.map((d) => buildStealPush(d, target, world)),
     });
   }
 
