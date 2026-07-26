@@ -144,7 +144,9 @@ export default function CodeConduiteScreen() {
 
 /** Rythme vertical des sur-titres — commun à tous les écrans de réglages. */
 const KICKER_TOP = 24;
-const KICKER_BOTTOM = 12;
+// Aligné sur les six autres écrans de réglages (10, pas 12) : cet écran était le
+// seul à dériver alors que le commentaire ci-dessus revendique un rythme commun.
+const KICKER_BOTTOM = 10;
 
 const styles = StyleSheet.create({
   kicker: { marginTop: KICKER_TOP, marginBottom: KICKER_BOTTOM },

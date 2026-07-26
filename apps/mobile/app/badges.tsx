@@ -67,6 +67,7 @@ import {
   type BadgeFamilyId,
 } from '../src/features/badges/catalog';
 import { useMyBadges, type MyBadges } from '../src/features/badges/myBadges';
+import { formatInt } from '../src/ui/format';
 import { BadgeUnlockMoment } from '../src/features/badges/BadgeUnlockMoment';
 import { useBadgeMemory } from '../src/features/badges/seenBadges';
 import { selectUnlockMoments } from '../src/features/badges/unlockMoment';
@@ -189,9 +190,13 @@ function ProgressGauge({ value, threshold, accent, nextLabel }: {
   return (
     <View style={styles.gaugeWrap}>
       <View style={styles.gaugeRow}>
+        {/* Locale-aware (§26) : `formatInt` groupe les milliers selon la langue
+            courante (fr « 1 000 », en « 1,000 »). L'ancien `toLocaleString('fr-FR')`
+            EN DUR — l'anti-pattern que `numberFormat.ts` condamne nommément —
+            affichait un séparateur français aux joueurs en/de/es/pt. */}
         <Text style={styles.gaugeValue}>
-          {value.toLocaleString('fr-FR')}
-          <Text style={styles.gaugeThreshold}> / {threshold.toLocaleString('fr-FR')}</Text>
+          {formatInt(value)}
+          <Text style={styles.gaugeThreshold}> / {formatInt(threshold)}</Text>
         </Text>
       </View>
       <View style={styles.gaugeTrack}>
@@ -319,8 +324,12 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
           secret={def.secret}
         />
         <Text style={styles.sheetName}>{hidden ? '???' : def.name}</Text>
+        {/* Casse en STYLE, pas en JS : `.toUpperCase()` sans locale casse le turc
+            et les accents (même correctif que `app/challenges/[id].tsx`), et un
+            lecteur d'écran doit recevoir le texte d'origine — `textTransform`
+            (sheetTier) met en capitales à l'affichage seul. */}
         {tierLine ? (
-          <Text style={[styles.sheetTier, { color: accent }]}>{tierLine.toUpperCase()}</Text>
+          <Text style={[styles.sheetTier, { color: accent }]}>{tierLine}</Text>
         ) : null}
         <Text style={styles.sheetRequirement}>
           {hidden ? t(C.secretRequirement) : def.requirement}
@@ -646,7 +655,7 @@ export default function BadgesScreen() {
                   </View>
                 </View>
                 <Text style={styles.nearlyCount}>
-                  {prog!.value.toLocaleString('fr-FR')} / {prog!.threshold.toLocaleString('fr-FR')}
+                  {formatInt(prog!.value)} / {formatInt(prog!.threshold)}
                 </Text>
               </Pressable>
             ))}
@@ -904,6 +913,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
     marginTop: 6,
     textAlign: 'center',
+    textTransform: 'uppercase', // casse portée par le style (locale-safe + a11y)
     fontVariant: ['tabular-nums'],
   },
   sheetRequirement: {

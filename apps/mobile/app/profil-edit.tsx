@@ -721,7 +721,7 @@ export default function ProfilEditScreen() {
           }}
           style={({ pressed }) => [styles.arsenalLink, pressed && styles.dim]}
         >
-          <Icon name="boutique" size={16} color={colors.blanc} />
+          <Icon name="boutique" size={iconSizes.sm} color={colors.blanc} />
           <Text style={styles.arsenalLinkText}>{t(C.arsenalLink)}</Text>
           <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
         </Pressable>
@@ -850,6 +850,11 @@ const styles = StyleSheet.create({
   at: { color: colors.gris, fontSize: fontSizes.md, fontFamily: fonts.textSemi, fontWeight: '700' },
   input: {
     flex: 1,
+    // E21 « champs 56 pt » : le token du CTA plein (sizes.buttonLg) tient le
+    // gabarit de champ de la planche ET garantit le plancher tactile — un
+    // TextInput sans minHeight retombait à ~44 pt (paddingVertical seul), sous
+    // la cote 56 de l'annotation. Jamais un 56 recopié : le token, solidaire.
+    minHeight: sizes.buttonLg,
     color: colors.blanc,
     fontSize: fontSizes.md,
     fontWeight: '600',
