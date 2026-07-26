@@ -36,8 +36,9 @@ import { C } from '../../i18n/catalog/onboarding';
  *
  * QUATRE ÉCRANS, et ce sont exactement les quatre demandés :
  *   1. `mechanic` — le geste : ferme une boucle, prends la zone. Rien d'autre :
- *      ni rival, ni crew, ni ville. La boucle animée se comprend SANS lire le
- *      texte (`E01Route`, posée sur le hero plein cadre `E01Hero`).
+ *      ni rival, ni crew, ni ville. Rendu par le hero plein cadre `E01Hero` : une
+ *      PHOTO propre + la copie ; la mécanique loop→zone se montre ensuite (carte
+ *      rivalité), pas par une boucle animée sur E01.
  *   2. `rivalry`  — pourquoi revenir : ta zone peut être reprise. C'est ICI que
  *      le crew entre, parce qu'il répond enfin à une question posée.
  *   3. `city`     — la première DÉCISION : choisir sa ville, À LA MAIN, sans
@@ -65,10 +66,11 @@ import { C } from '../../i18n/catalog/onboarding';
  *   · `hook` — le splash. Son fond de carte décoratif (rues grises traversant
  *     l'écran, polygone, point chartreuse isolé) et son logo couru figurent mot
  *     pour mot dans la liste « à supprimer » du fondateur ; son titre parlait de
- *     crew ; son CTA promettait une ville. Ce qu'il portait d'utile — la porte
- *     « J'ai déjà un compte » — a migré sur la carte 1, qui est le nouveau
- *     premier écran : celui qui réinstalle trouve toujours son chemin du premier
- *     coup d'œil.
+ *     crew ; son CTA promettait une ville. Ce qu'il portait d'utile — l'entrée
+ *     « J'ai déjà un compte » — n'est pas perdue : elle vit sur l'écran d'AUTH
+ *     (E06), en fin de séquence, atteint aussi par « Passer ». Elle n'est PAS une
+ *     porte posée sur la carte 1 (retour fondateur 26/07 : E01 reste une photo
+ *     propre, sans lien de connexion).
  *   · `learn` — remplacé par les cartes 1 et 2, qui enseignent SÉPARÉMENT ce
  *     qu'il montrait en bloc (le geste, puis la menace). Sa note honnête sur le
  *     GPS n'a PAS disparu avec lui : c'est tout ce qui restait de l'écran
@@ -79,7 +81,7 @@ import { C } from '../../i18n/catalog/onboarding';
  * capture ; l'app a déjà un onglet Crew permanent).
  */
 export const ONBOARDING_STEPS = [
-  'mechanic', // 1 — le geste (démo animée) + porte « J'ai déjà un compte »
+  'mechanic', // 1 — le geste, sur une PHOTO plein cadre propre (E01Hero)
   'rivalry', // 2 — la reprise, et le crew qui la défend
   'city', // 3 — choix MANUEL de la ville (sans GPS), CTA qui la nomme
   // 4 — NOM + ENTRÉE, fondus (arbitrage fondateur 23/07/2026). Le pseudo (une
@@ -302,8 +304,8 @@ export const ACCOUNT = {
 /**
  * Carte 1 — LA MÉCANIQUE, rendue par le hero plein cadre `E01Hero` (planche E01).
  * Un seul objet enseigné : le geste qui prend une zone. Ni crew, ni rival, ni
- * ville : chacun a sa carte. La boucle animée (`E01Route`) doit se comprendre
- * SANS lire ce texte ; le texte confirme.
+ * ville : chacun a sa carte. E01 est une PHOTO propre (aucune boucle animée
+ * par-dessus) ; la mécanique loop→zone se montre sur la carte rivalité.
  *
  * ⚠️ `exampleTag` N'EST PAS DÉCORATIVE : la boucle se ferme PUIS SE REMPLIT —
  * la représentation exacte d'une capture. Sans la chip, le tout premier écran de
@@ -312,9 +314,9 @@ export const ACCOUNT = {
  * ─── CE QUI A ÉTÉ RETIRÉ ICI, ET POURQUOI ───────────────────────────────────
  * `demoLabel` / `demoReplay` / `street` : plus AUCUN écran ne les lisait depuis le
  * passage de `CaptureDemo` à `E01Hero` (le hero n'a ni 4e temps étiqueté, ni
- * visuel tapable, et « VOTRE RUE » a été remplacé par la boucle animée). Une Entry
- * que plus aucune surface ne rend est une promesse de texte sans écran derrière —
- * elle est RETIRÉE, pas commentée.
+ * visuel tapable, et « VOTRE RUE » a simplement été retiré — E01 est une photo
+ * propre, sans boucle par-dessus). Une Entry que plus aucune surface ne rend est
+ * une promesse de texte sans écran derrière — elle est RETIRÉE, pas commentée.
  */
 export const MECHANIC = {
   kicker: C.mechanicKicker,

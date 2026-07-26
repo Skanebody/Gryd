@@ -5,14 +5,12 @@
  *
  * ─── ORDRE DE COMPOSITION (planche E01) ─────────────────────────────────────
  *  1. la PHOTO plein cadre (`assets/onboarding/e01-crew.jpg` : crew + un cycliste,
- *     rue de jour), cadrée « cover » ;
- *  2. la BOUCLE chartreuse animée (`E01Route`), qui remplace le label « VOTRE
- *     RUE » de la planche : elle enseigne la mécanique au lieu de la nommer ;
- *  3. la chip « Exemple », posée sur le visuel (coin haut-GAUCHE) ;
- *  4. le voile bas dégradé (lisibilité du bloc de texte) ;
- *  5. « Passer », discret, coin haut-droit ;
- *  6. le bloc bas : kicker → titre display → sous-titre → CTA unique → frise de
- *     progression → porte « J'ai déjà un compte ».
+ *     rue de jour), cadrée « cover » — elle reste PROPRE : aucune boucle ni chip
+ *     par-dessus (la mécanique s'enseigne sur les écrans suivants) ;
+ *  2. le voile bas dégradé (lisibilité du bloc de texte) ;
+ *  3. « Passer », discret, coin haut-droit ;
+ *  4. le bloc bas : titre display → sous-titre → CTA unique → frise de
+ *     progression.
  *
  * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
  * · LE FOND PHOTO — RÉTABLI le 26/07/2026 avec le vrai visuel
@@ -27,7 +25,7 @@
  *   peinte en `zIndex:-1` qui s'échappe — passe AU-DESSUS du voile bas, la photo
  *   bavant derrière le titre et le CTA. Un `<Image>` frère à `width`/`height`
  *   forcés (les dimensions de l'écran) + `cover` recadre proprement, et l'ordre du
- *   DOM garantit la peinture : photo → boucle → voile → contenu. (Idem
+ *   DOM garantit la peinture : photo → voile → contenu. (Idem
  *   `SignInPhotoBackdrop` ; sur natif les deux formes sont équivalentes.)
  * · Le CTA recodé à la main (56 px, `radii.btn`) : deux boutons chartreuse de
  *   MÊME rôle portaient DEUX rayons différents sur deux écrans consécutifs. Le
@@ -43,8 +41,8 @@
  *   écart ASSUMÉ vers le « voire mieux » : le fondateur a livré le vrai visuel
  *   crew (26/07/2026) et veut la photo plein cadre que décrivent CE docblock et
  *   `app/onboarding/index.tsx`. La composition de la planche (titre display, CTA
- *   pleine largeur, frise sous le CTA, « Passer ») est, elle, suivie fidèlement ;
- *   la boucle chartreuse (`E01Route`) et la chip « Exemple » restent au-dessus.
+ *   pleine largeur, frise sous le CTA, « Passer ») est, elle, suivie fidèlement,
+ *   et la photo reste PROPRE : aucune boucle ni chip « Exemple » par-dessus.
  * · TITRE À 40 px SANS ROLE TYPO — raison technique : l'échelle `typography` ne
  *   monte pas au-delà de `title` (28) sauf par `stat`, réservé aux CHIFFRES
  *   (tabular-nums). La taille vient donc de `fontSizes.xxl` et la famille de
@@ -114,9 +112,10 @@ export function E01Hero({
   // contraint pas l'image sinon). Elles suivent la rotation / le redimensionnement.
   const { width, height } = useWindowDimensions();
   return (
-    // PHOTO plein cadre (DA) : le voile bas en paliers, la boucle chartreuse et la
-    // chip « Exemple » se peignent PAR-DESSUS. `styles.root` garde son carbone —
-    // fond honnête et sombre si la photo manque ou charge lentement (jamais blanc).
+    // PHOTO plein cadre (DA) : SEUL le voile bas en paliers se peint par-dessus —
+    // la photo reste PROPRE (aucune boucle ni chip « Exemple »). `styles.root` garde
+    // son carbone — fond honnête et sombre si la photo manque ou charge lentement
+    // (jamais blanc).
     <View style={styles.root}>
       {/* Photo EN DESSOUS (1er frère), taille FORCÉE à l'écran, `cover` recadre
           (cf. ÉCARTS : react-native-web ne contraint pas l'image d'ImageBackground).

@@ -6,7 +6,8 @@
  * `useReduceMotion` du design system.
  *
  *   RivalryDemo — carte 2 « RIVALITÉ » : la zone tenue devient contestée. (La
- *   carte 1 est rendue par `E01Hero` + `E01Route` — cf. la note plus bas.)
+ *   carte 1 est rendue par `E01Hero` SEUL — une photo plein cadre propre, sans
+ *   boucle par-dessus ; cf. la note plus bas.)
  *
  * VRAIS TRACÉS (demande fondateur) : plus AUCUN blob ni ellipse décoratif —
  * chaque territoire et chaque trace sont projetés depuis de VRAIES géométries de
@@ -201,11 +202,13 @@ function useReplay(): { key: number; replay: () => void } {
 
 /**
  * ⚠️ `CaptureDemo` (carte 1) A ÉTÉ RETIRÉE LE 25/07/2026. Elle n'avait plus AUCUN
- * importeur depuis que la carte 1 est rendue par le hero plein cadre `E01Hero` et
- * sa boucle `E01Route` : ~90 lignes compilées, jamais montées. Garder du code
- * jamais rendu, c'est garantir qu'il divergera de ce qui est à l'écran — et c'est
- * exactement comme ça que la chip « Exemple » a disparu du premier écran de
- * l'app : le garde-fou vivait dans le composant remplacé.
+ * importeur depuis que la carte 1 est rendue par le hero plein cadre `E01Hero`
+ * SEUL (une photo propre) : ~90 lignes compilées, jamais montées. La boucle
+ * chartreuse un temps prévue par-dessus (`E01Route`) a été SUPPRIMÉE pour la même
+ * raison — du code mort jamais monté. Garder du code jamais rendu, c'est garantir
+ * qu'il divergera de ce qui est à l'écran — et c'est exactement comme ça que la
+ * chip « Exemple » a disparu du premier écran de l'app : le garde-fou vivait dans
+ * le composant remplacé.
  *
  * Ce qui lui servait reste, et pour de bonnes raisons : `capturePhases`
  * (`demoPhases.ts`) est le STORYBOARD PUR de la capture — l'ordre « la zone ne se

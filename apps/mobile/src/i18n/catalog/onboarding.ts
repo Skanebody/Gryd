@@ -291,10 +291,9 @@ export const C = defineCatalog({
    *   3. elle ment de nouveau le jour où une 3ᵉ discipline existe. Un titre qui doit être
    *      réécrit à chaque ajout n'est pas une promesse, c'est un changelog.
    * Le reste de la carte prouve que la neutralité ne coûte pas la force :
-   * `mechanicKicker` (« COMMENT ÇA MARCHE »), `mechanicTagline` (« Chaque boucle
-   * fermée peut devenir ton territoire. ») et la boucle animée `E01Route`
-   * enseignent la mécanique SANS nommer un corps. Le titre était la seule ligne
-   * hors du rang.
+   * `mechanicTagline` (« Chaque boucle fermée peut devenir ton territoire. ») et
+   * la photo plein cadre (propre, sans boucle par-dessus) enseignent la mécanique
+   * SANS nommer un corps. Le titre était la seule ligne hors du rang.
    *
    * Le verbe retenu est celui de la baseline de marque elle-même (AMENDEMENT-42,
    * « Cours pour ton crew. Conquiers ta ville. ») : on garde la moitié qui est
@@ -356,8 +355,8 @@ export const C = defineCatalog({
     pt: 'Cada circuito fechado pode tornar-se o seu território.',
   },
   // ⚠️ `mechanicStreet` (« VOTRE RUE ») RETIRÉE le 25/07/2026 : le label posé sur
-  // la photo de la planche E01 a été remplacé par la BOUCLE ANIMÉE (`E01Route`),
-  // qui enseigne la même chose en la montrant. Plus aucun écran ne le lisait.
+  // la photo de la planche E01 a simplement été RETIRÉ — la photo E01 reste
+  // PROPRE (aucune boucle animée par-dessus). Plus aucun écran ne le lisait.
   // « Passer » (haut à droite, planche E01) — saute l'onboarding.
   onbSkip: {
     fr: 'Passer',
