@@ -33,9 +33,18 @@ const TITLE_LINE_MAX = 24;
  *   « TOMA A TUA CIDADE. » 402,6 px                          (budget 343 px)
  * — trois lignes au lieu des deux annoncées, sur un écran sans ScrollView.
  * Pire cas observé : ~23,2 px par caractère (espagnol en capitales) → 343 / 23,2
- * ≈ 14,8. On borne à 14, EN DESSOUS, pour garder de l'air.
+ * ≈ 14,8.
+ *
+ * ─── OVERRIDE FONDATEUR (26/07/2026) : le titre EST « COURS. / PRENDS TA VILLE. »
+ * Le fondateur a réaffirmé la copie exacte de sa planche. Le débordement décrit
+ * ci-dessus est désormais neutralisé À LA SOURCE : E01Hero rend ce titre en
+ * `adjustsFontSizeToFit numberOfLines={2}` (il RÉTRÉCIT pour tenir dans les 343 px,
+ * jamais 3 lignes). Le compte de caractères n'est donc plus le garde-fou du
+ * débordement (c'est le rétrécissement) ; il reste une garantie de COMPOSITION
+ * (exactement 2 lignes, coupure typographique voulue). On borne à la ligne réelle
+ * la plus longue des 5 langues — pt « TOMA A TUA CIDADE. » = 18 — avec un cran.
  */
-const HERO_TITLE_LINE_MAX = 14;
+const HERO_TITLE_LINE_MAX = 19;
 /** Sous-titre en 16 px : 2 lignes de ~40 caractères. */
 const TAGLINE_MAX = 72;
 /** CTA en 16 px dans une pill pleine largeur : on s'arrête bien avant. */
@@ -230,7 +239,12 @@ Deno.test('l’onboarding ne DÉCLARE aucune discipline, dans les 5 langues', ()
    */
   const PROMISES: Record<string, Entry> = {
     mechanicKicker: C.mechanicKicker,
-    mechanicTitle: C.mechanicTitle,
+    // `mechanicTitle` EXEMPTÉ (override fondateur 26/07/2026) : la planche E01
+    // EST « COURS. / PRENDS TA VILLE. », le fondateur l'a réaffirmé deux fois. Le
+    // titre héros nomme donc la course À DESSEIN — décision assumée, sa planche
+    // prime sur la neutralité. TOUT LE RESTE de l'onboarding reste sous le
+    // garde-fou (le sous-titre, la rivalité, la ville, la position… ne nomment
+    // aucune discipline) : c'est l'unique exception, pas une brèche.
     mechanicTagline: C.mechanicTagline,
     rivalryKicker: C.rivalryKicker,
     rivalryTitle: C.rivalryTitle,

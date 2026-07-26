@@ -60,8 +60,6 @@ import type { EdgeInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, fonts, sizes, spacing, withAlpha } from '@klaim/shared';
 import { Button } from '../../ui/Button';
 import { SectionLabel } from '../../ui/SectionLabel';
-import { E01Route } from './E01Route';
-import { ExampleTag } from './ExampleTag';
 import { StepDots } from './StepDots';
 
 /**
@@ -87,8 +85,6 @@ export interface E01HeroProps {
   title: string;
   tagline: string;
   cta: string;
-  /** Chip d'honnêteté posée sur la boucle animée (« Exemple »). */
-  exampleLabel: string;
   /** « Passer » en haut à droite (entre dans l'app sans le flow pédagogique). */
   skipLabel: string;
   /** « J'ai déjà un compte » — la porte de celui qui revient. */
@@ -109,7 +105,6 @@ export function E01Hero({
   title,
   tagline,
   cta,
-  exampleLabel,
   skipLabel,
   signInLabel,
   onNext,
@@ -129,22 +124,17 @@ export function E01Hero({
     // fond honnête et sombre si la photo manque ou charge lentement (jamais blanc).
     <View style={styles.root}>
       {/* Photo EN DESSOUS (1er frère), taille FORCÉE à l'écran, `cover` recadre
-          (cf. ÉCARTS : react-native-web ne contraint pas l'image d'ImageBackground). */}
+          (cf. ÉCARTS : react-native-web ne contraint pas l'image d'ImageBackground).
+          La photo reste PROPRE (planche E01) : aucune boucle ni chip « Exemple »
+          par-dessus — la boucle chartreuse et « Exemple » enseignent la mécanique
+          sur les écrans SUIVANTS (visuals.tsx), pas sur l'écran-promesse. */}
       <Image source={E01_PHOTO} resizeMode="cover" style={[styles.photo, { width, height }]} />
-      {/* Parcours chartreuse ANIMÉ : il illustre « ferme une boucle, prends la
-          zone ». Il se ferme PUIS SE REMPLIT — d'où la chip juste en dessous. */}
-      <E01Route />
 
       {/* Voile bas dégradé — fonctionnel (lisibilité), empilé en paliers
           (expo-linear-gradient absent) : transparent → carbone plein. */}
       <View pointerEvents="none" style={[styles.scrim, styles.scrim1]} />
       <View pointerEvents="none" style={[styles.scrim, styles.scrim2]} />
       <View pointerEvents="none" style={[styles.scrim, styles.scrim3]} />
-
-      {/* LA CHIP D'HONNÊTETÉ. Un visuel qui montre une capture doit dire qu'il
-          enseigne : sans elle, le premier écran de l'app affiche une conquête que
-          personne n'a courue. Coin haut-GAUCHE — « Passer » tient la droite. */}
-      <ExampleTag label={exampleLabel} style={[styles.example, { top: insets.top + spacing.sm }]} />
 
       {/* « Passer » : saute le flow pédagogique et entre dans l'app. Il ne mène
           PAS à la connexion — c'est la porte du bas qui l'annonce. */}
@@ -166,7 +156,13 @@ export function E01Hero({
         {/* Kicker canonique (`ui/SectionLabel`, rôle R1 gris) : le même sur les
             quatre étapes du flow — un écran sans kicker n'est pas recalé. */}
         <SectionLabel>{kicker}</SectionLabel>
-        <Text style={styles.title}>{title}</Text>
+        {/* Titre planche « COURS. / PRENDS TA VILLE. » : 2 lignes, et
+            `adjustsFontSizeToFit` rétrécit si une langue dépasse la largeur
+            (« PRENDS TA VILLE. » = 16 car. > budget 14) — jamais de 3e ligne ni
+            de débordement sur cet écran sans scroll. */}
+        <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+          {title}
+        </Text>
         <Text style={styles.tagline}>{tagline}</Text>
         {/* L'UNIQUE CTA chartreuse de l'écran (§A4). */}
         <Button label={cta} onPress={onNext} variant="primary" size="lg" analyticsId="onboarding_e01_next" />
@@ -203,8 +199,6 @@ const styles = StyleSheet.create({
   scrim1: { height: SCRIM_TOP_HEIGHT, backgroundColor: withAlpha(colors.carbonImmersive, 0.25) },
   scrim2: { height: SCRIM_MID_HEIGHT, backgroundColor: withAlpha(colors.carbonImmersive, 0.55) },
   scrim3: { height: SCRIM_SOLID_HEIGHT, backgroundColor: colors.carbonImmersive },
-
-  example: { position: 'absolute', left: spacing.md },
 
   skip: { position: 'absolute', right: spacing.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   skipLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },

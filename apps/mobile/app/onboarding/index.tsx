@@ -357,7 +357,6 @@ export default function OnboardingScreen() {
         title={t(MECHANIC.title)}
         tagline={t(MECHANIC.tagline)}
         cta={t(MECHANIC.cta)}
-        exampleLabel={t(MECHANIC.exampleTag)}
         skipLabel={t(ONB_SKIP)}
         signInLabel={t(SIGN_IN_DOOR)}
         onNext={() => go('rivalry')}

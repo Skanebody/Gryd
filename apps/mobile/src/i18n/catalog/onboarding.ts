@@ -313,12 +313,18 @@ export const C = defineCatalog({
    * copyFit.test.ts ne pouvait pas voir. Le budget du titre héros y est
    * désormais dérivé de cette mesure (14 caractères par ligne).
    */
+  // OVERRIDE FONDATEUR (26/07/2026) : le titre EST celui de la planche E01,
+  // « COURS. / PRENDS TA VILLE. ». Le fondateur l'a réaffirmé deux fois face à la
+  // version neutre « CONQUIERS » (choisie au chantier vélo pour ne pas nommer un
+  // corps) : sa planche prime, décision assumée. « PRENDS TA VILLE. » fait 16
+  // caractères — au-dessus du budget de 14 — donc E01Hero rend ce titre en
+  // `adjustsFontSizeToFit` (il rétrécit pour tenir, jamais 3 lignes ni débordement).
   mechanicTitle: {
-    fr: 'CONQUIERS\nTA VILLE.',
-    en: 'CONQUER\nYOUR CITY.',
-    es: 'CONQUISTA\nTU CIUDAD.',
-    de: 'EROBERE\nDEINE STADT.',
-    pt: 'CONQUISTA\nSUA CIDADE.',
+    fr: 'COURS.\nPRENDS TA VILLE.',
+    en: 'RUN.\nTAKE YOUR CITY.',
+    es: 'CORRE.\nTOMA TU CIUDAD.',
+    de: 'LAUF.\nNIMM DEINE STADT.',
+    pt: 'CORRA.\nTOME SUA CIDADE.',
   },
   /**
    * ⚠️ REGISTRE : LE CATALOGUE EN PORTAIT DEUX (tranché le 26/07/2026).
