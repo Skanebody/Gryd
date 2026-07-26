@@ -50,8 +50,26 @@ const FULL_SURFACE = process.env.EXPO_PUBLIC_FULL_SURFACE === '1';
  */
 
 export const flags = {
-  /** Onglet Saison + classements de saison (les scores s'accumulent quand même). */
-  season: FULL_SURFACE,
+  /**
+   * Onglet Saison + classements de saison — planches E11 « Classement local » et
+   * E12 « Saison & rang », qui vivent toutes deux dans app/(tabs)/classement.tsx.
+   *
+   * ─── VISIBLE PAR DÉFAUT DEPUIS LA VAGUE 1 (26/07/2026) ─────────────────────
+   * Tant que ce drapeau valait `false`, l'écran redirigeait vers la carte
+   * (`classement.tsx` : `if (!flags.season) return <Redirect href="/" />`) : E11
+   * ET E12 étaient INVISIBLES, donc irréproductibles. La reproduction fidèle des
+   * planches exige d'abord de les VOIR — c'est le premier verrou, on le lève.
+   *
+   * L'ouverture ne FABRIQUE rien : les scores s'accumulaient déjà côté serveur
+   * (`season_scores`), l'écran montre donc des données RÉELLES ou ses états vides
+   * honnêtes (pas connecté / vide / échec / en cours), jamais un faux podium. La
+   * nav (`GrydNavBar`) et le lien « Saison › » du profil se ré-affichent seuls,
+   * par spread conditionnel — aucun lien mort, rien à recâbler ailleurs.
+   *
+   * `EXPO_PUBLIC_FULL_SURFACE` reste l'échappatoire des DEUX autres surfaces hors
+   * MVP (warRoom, arsenal), qui, elles, ne sont pas rouvertes ici.
+   */
+  season: true,
   /** Missions / War Room (la route (tabs)/warroom et ses liens d'entrée). */
   warRoom: FULL_SURFACE,
   /** Arsenal / boutique (skins, objets capés, GRYD Club). */

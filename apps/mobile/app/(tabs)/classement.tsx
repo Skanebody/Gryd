@@ -143,6 +143,7 @@ import {
 } from '../../src/features/social/leagueBoard';
 import { useActiveSeason } from '../../src/features/season/useActiveSeason';
 import {
+  leagueGap,
   rowAboveMe,
   withTiedRanks,
   type RankedLeagueRow,
@@ -309,6 +310,19 @@ function Podium({
         });
         return (
           <View key={`podium-${i}`} style={styles.podiumCol}>
+            {/* COURONNE DU #1 (planche E11 « couronne sur #1 ») : l'icône `couronne`
+                du catalogue @klaim/shared, remplie OR — or = #1 uniquement, jamais
+                une couleur par identité, exactement la règle de l'anneau doré. Rien
+                à réserver sur les colonnes 2 et 3 : la rangée est alignée par le BAS
+                (`flex-end`), la couronne ne fait que dépasser au-dessus de la marche
+                haute sans déplacer les trois avatars. La même condition `rank === 1`
+                que `podiumRingGold` : couronne et anneau s'accordent toujours, y
+                compris sur un #1 ex æquo (deux #1 → deux couronnes, comme les rangs). */}
+            {row.rank === 1 ? (
+              <View style={styles.podiumCrown}>
+                <Icon name="couronne" size={iconSizes.md} color={gameColors.gold} active />
+              </View>
+            ) : null}
             <View style={[styles.podiumRing, row.rank === 1 && styles.podiumRingGold]}>
               <RowVisual row={row} board={board} big={row.rank === 1} name={shown} />
             </View>
@@ -803,13 +817,12 @@ function LeagueScreen() {
   const meRow = useMemo(() => rankedRows.find((r) => r.me === true), [rankedRows]);
   const aboveRow = useMemo(() => rowAboveMe(rankedRows), [rankedRows]);
 
-  const gapPoints = meRow && aboveRow ? Math.max(0, aboveRow.value - meRow.value) : 0;
-  const gapHexes = Math.ceil(gapPoints / POINTS_NEUTRAL_HEX);
-  const isLeader = meRow !== undefined && aboveRow === undefined;
-  // Barre de progression HONNÊTE : mes points rapportés à ceux de la place au
-  // dessus. Aucune échelle inventée — et rien du tout si personne n'est devant.
-  const gapRatio =
-    meRow && aboveRow && aboveRow.value > 0 ? Math.min(1, Math.max(0, meRow.value / aboveRow.value)) : 0;
+  // ÉCART vers la place au-dessus — dérivation PURE (leagueGap, testée sous Deno) :
+  // points d'écart, conversion en zones pour la phrase-objectif, remplissage 0..1
+  // de la barre (mes points rapportés à ceux du dessus, aucune échelle inventée,
+  // rien du tout si personne n'est devant) et « suis-je en tête ». Un seul contrat
+  // pour l'écran et son test, plus d'arithmétique dispersée dans le rendu.
+  const { gapPoints, gapHexes, gapRatio, isLeader } = leagueGap(meRow, aboveRow, POINTS_NEUTRAL_HEX);
 
   const onJoueurs = activeTab === 'joueurs';
   // Ma ligne ancrée est DÉRIVÉE du board de ma ville : elle n'apparaît que sur cet
@@ -1414,6 +1427,9 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
   podiumCol: { flex: 1, alignItems: 'center', gap: spacing.xxs },
+  // Couronne du #1 : posée au-dessus de l'anneau, léger décollement pour ne pas
+  // toucher l'avatar. N'existe que sur la colonne centrale (#1), ne déplace rien.
+  podiumCrown: { marginBottom: 3 },
   // Anneau du podium : transparent partout, OR sur le #1 uniquement (or = #1,
   // chartreuse = moi — jamais une couleur par identité).
   // Bordure au TOKEN de fond (donc invisible) sur les colonnes 2 et 3 : elle

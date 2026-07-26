@@ -64,3 +64,53 @@ export function rowAboveMe(rows: readonly RankedLeagueRow[]): RankedLeagueRow | 
   }
   return undefined;
 }
+
+/**
+ * ÉCART vers la place au-dessus (planche E11 : barre « 0,12 km²/…pts pour passer
+ * #3 » + phrase-objectif du CTA). Cette dérivation vivait INLINE dans l'écran,
+ * donc hors de portée d'un test ; extraite ici, elle devient PURE et testable —
+ * un seul contrat pour le rendu et sa vérification.
+ *
+ * Honnêteté portée par le calcul :
+ *  · `gapRatio` est un ratio RÉEL (mes points ÷ ceux du dessus), jamais une
+ *    échelle inventée, borné à [0,1] ;
+ *  · tout vaut 0 quand personne n'est devant — la barre disparaît alors côté
+ *    écran, on n'affiche pas une progression fictive ;
+ *  · l'unité de `gapPoints` est le POINT (les km²/joueur de la planche n'existent
+ *    nulle part) ; `gapHexes` n'est qu'une conversion pour la phrase-objectif.
+ */
+export interface LeagueGap {
+  /** Points d'écart avec la place au-dessus. 0 si je suis en tête ou non classé. */
+  gapPoints: number;
+  /** `gapPoints` converti en ZONES pour la phrase-objectif (l'écran plancher à 1
+   *  à l'affichage). 0 seulement quand il n'y a personne devant. */
+  gapHexes: number;
+  /** Remplissage 0..1 de la barre : mes points rapportés à ceux du dessus. */
+  gapRatio: number;
+  /** Une ligne à moi, et personne au-dessus. */
+  isLeader: boolean;
+}
+
+/**
+ * @param me    ma ligne classée, ou `undefined` si je ne figure pas au tableau.
+ * @param above la ligne juste au-dessus (`rowAboveMe`), ou `undefined` si je suis
+ *              en tête ou absent.
+ * @param pointsPerHex points d'une zone neutre (POINTS_NEUTRAL_HEX) — passé en
+ *              paramètre pour rester PUR (aucun import de constante applicative).
+ */
+export function leagueGap(
+  me: RankedLeagueRow | undefined,
+  above: RankedLeagueRow | undefined,
+  pointsPerHex: number,
+): LeagueGap {
+  const isLeader = me !== undefined && above === undefined;
+  if (me === undefined || above === undefined) {
+    return { gapPoints: 0, gapHexes: 0, gapRatio: 0, isLeader };
+  }
+  const gapPoints = Math.max(0, above.value - me.value);
+  // Garde-fou : un `pointsPerHex` non strictement positif ne doit jamais produire
+  // un Infinity/NaN dans la phrase-objectif — dans ce cas l'écart en zones vaut 0.
+  const gapHexes = pointsPerHex > 0 ? Math.ceil(gapPoints / pointsPerHex) : 0;
+  const gapRatio = above.value > 0 ? Math.min(1, Math.max(0, me.value / above.value)) : 0;
+  return { gapPoints, gapHexes, gapRatio, isLeader };
+}
