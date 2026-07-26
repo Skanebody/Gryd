@@ -254,14 +254,14 @@ export default function SignInScreen() {
               <Icon name="chevron" size={iconSizes.lg} color={colors.gris} />
             </View>
           </Pressable>
-          <View style={styles.hero}>
-            {/* Le kicker dit à quelle étape on est : la vérification légale d'abord,
-                la connexion ensuite. Il bascule en même temps que le bloc du bas. */}
-            <SectionLabel style={styles.kicker}>
-              {t(askAge ? AGE.kickerSignIn : C.kicker)}
-            </SectionLabel>
-            <Text style={styles.title}>{t(C.title)}</Text>
-            <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
+          {/* Logo GRYD SEUL en tête (planche E06) : aucun hero « Connecte-toi »,
+              aucun kicker, aucun sous-titre — « logo seul, aucun texte superflu ».
+              La photo plein écran et les boutons du bas portent l'écran. Wordmark
+              chartreuse, fort interlettrage (identité de marque). */}
+          <View style={styles.logoWrap}>
+            <Text style={styles.wordmark} accessibilityRole="header">
+              GRYD
+            </Text>
           </View>
         </View>
 
@@ -312,7 +312,7 @@ export default function SignInScreen() {
                 <AppleAuthentication.AppleAuthenticationButton
                   buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
                   buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-                  cornerRadius={radii.pill}
+                  cornerRadius={radii.btn}
                   style={styles.appleButton}
                   onPress={() => void run(signInWithApple)}
                 />
@@ -445,6 +445,23 @@ export default function SignInScreen() {
                   {t(error)}
                 </Text>
               ) : null}
+              {/* Pied légal (planche E06) : consentement aux Conditions et à la
+                  Politique de confidentialité, les deux termes tappables vers les
+                  vraies pages légales. Discret, gris, centré sous les boutons. */}
+              <Text style={styles.consent}>
+                {t(C.consentLead)}
+                <Text style={styles.consentLink} onPress={() => router.push('/legal/cgu')}>
+                  {t(C.consentTerms)}
+                </Text>
+                {t(C.consentAnd)}
+                <Text
+                  style={styles.consentLink}
+                  onPress={() => router.push('/legal/confidentialite')}
+                >
+                  {t(C.consentPrivacy)}
+                </Text>
+                .
+              </Text>
             </>
           )}
           {/* L'ÉTAT QU'ON NE PEUT PAS RETENIR SE DIT (toutes branches confondues).
@@ -511,6 +528,26 @@ const styles = StyleSheet.create({
     maxWidth: SUBTITLE_MAX_WIDTH,
   },
   actions: { gap: spacing.sm },
+  // Logo GRYD en tête (planche E06) : centré, chartreuse, fort interlettrage.
+  logoWrap: { marginTop: spacing.lg, alignItems: 'center' },
+  wordmark: {
+    color: colors.chartreuse,
+    fontFamily: fonts.display, // Inter Tight 800
+    fontSize: fontSizes.xl,
+    letterSpacing: 12,
+    // le letterSpacing pousse le dernier glyphe : on compense pour recentrer.
+    marginLeft: 12,
+  },
+  // Pied légal (planche E06) : discret, centré, sous les boutons.
+  consent: {
+    color: colors.gris,
+    fontFamily: fonts.text,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  consentLink: { color: colors.blanc, textDecorationLine: 'underline' },
   appleButton: { height: sizes.buttonLg, width: '100%' },
   // Champ 56 pt à label persistant (planche E21) — même patron que /profil-edit.
   fieldLabel: {

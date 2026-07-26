@@ -461,6 +461,38 @@ export const C = defineCatalog({
     de: 'GRYD Verify liest deine Aktivitäten, prüft den echten Aufwand, entfernt Duplikate und entscheidet, ob sie Territorium erobern können.',
     pt: 'O GRYD Verify lê suas atividades, verifica o esforço real, remove duplicatas e decide se elas podem capturar território.',
   },
+  // ─── Pied légal de l'écran de connexion (planche E06) ─────────────────────
+  // « En continuant, tu acceptes les Conditions et la Politique de
+  // confidentialité. » — les deux termes sont des liens (CGU / confidentialité).
+  // Segmenté pour rendre deux liens tappables ; tutoiement (voix de l'app).
+  consentLead: {
+    fr: 'En continuant, tu acceptes les ',
+    en: 'By continuing, you agree to our ',
+    es: 'Al continuar, aceptas las ',
+    de: 'Mit dem Fortfahren akzeptierst du die ',
+    pt: 'Ao continuar, você aceita os ',
+  },
+  consentTerms: {
+    fr: 'Conditions',
+    en: 'Terms',
+    es: 'Condiciones',
+    de: 'Bedingungen',
+    pt: 'Termos',
+  },
+  consentAnd: {
+    fr: ' et la ',
+    en: ' and ',
+    es: ' y la ',
+    de: ' und die ',
+    pt: ' e a ',
+  },
+  consentPrivacy: {
+    fr: 'Politique de confidentialité',
+    en: 'Privacy Policy',
+    es: 'Política de privacidad',
+    de: 'Datenschutzrichtlinie',
+    pt: 'Política de Privacidade',
+  },
   /** Pourquoi la liste est courte : on n'affiche que ce qui marche vraiment. */
   sourcesScopeNote: {
     fr: 'Cette liste ne montre que les sources qui fonctionnent aujourd’hui. Les autres apparaîtront le jour où elles marcheront vraiment — pas avant.',

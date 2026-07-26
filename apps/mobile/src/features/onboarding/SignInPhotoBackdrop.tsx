@@ -54,10 +54,12 @@ const SIGN_IN_PHOTO = require('../../../assets/auth/sign-in-crew.jpg');
  * voile haut qui couvre le hero ENTIER (le sous-titre gris ne doit pas tomber sur
  * un visage clair), et un aplat plein en bas pour les boutons.
  */
-const SCRIM_TOP_H = '40%'; // voile haut : couvre le hero ENTIER (sous-titre inclus)
-const SCRIM_TOP_CAP_H = '15%'; // renfort près de la barre d'état / du kicker
-const SCRIM_BOTTOM_FADE_H = '50%'; // fondu au-dessus de l'aplat (sous les visages)
-const SCRIM_BOTTOM_SOLID_H = '42%'; // aplat carbone PLEIN : porte les boutons
+const SCRIM_TOP_H = '22%'; // léger voile haut : lisibilité du logo GRYD + barre d'état
+// Fondu bas : N bandes fines bottom-ancrées, même faible opacité → dégradé lisse
+// (pas d'expo-linear-gradient dans le projet). Couvre ~60 % de la hauteur.
+const SCRIM_STEPS = 14;
+const SCRIM_STEP_ALPHA = 0.2;
+const SCRIM_BOTTOM_H = 60; // % de hauteur couverts par le fondu bas
 
 export function SignInPhotoBackdrop({ children }: { children: ReactNode }) {
   // Dimensions EXPLICITES : sans elles, react-native-web rend l'image à sa taille
@@ -71,14 +73,27 @@ export function SignInPhotoBackdrop({ children }: { children: ReactNode }) {
         resizeMode="cover"
         style={[styles.photo, { width, height }]}
       />
-      {/* Voile en paliers — pointerEvents none, PAR-DESSUS la photo, SOUS le contenu. */}
+      {/* Voile — pointerEvents none, PAR-DESSUS la photo, SOUS le contenu. */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill} accessible={false}>
-        {/* Voile HAUT — fonce le ciel de dusk pour le hero (blanc/gris lisibles). */}
+        {/* Léger voile HAUT : le logo GRYD (chartreuse) et la barre d'état
+            restent lisibles sur le ciel clair, sans écraser la photo. */}
         <View style={[styles.top, styles.top1]} />
-        <View style={[styles.top, styles.top2]} />
-        {/* Aplat BAS — fondu puis carbone PLEIN sous le bloc d'entrée. */}
-        <View style={[styles.bottom, styles.bottomFade]} />
-        <View style={[styles.bottom, styles.bottomSolid]} />
+        {/* FONDU BAS continu (planche E06 « dégradé bas pour le contraste des
+            boutons ») : N bandes fines bottom-ancrées, hauteur croissante, même
+            faible opacité → transition lisse transparent → carbone plein, PAS des
+            aplats à bord net. Les boutons + le pied légal reposent sur le carbone. */}
+        {Array.from({ length: SCRIM_STEPS }).map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.bottom,
+              {
+                height: `${(SCRIM_BOTTOM_H * (i + 1)) / SCRIM_STEPS}%`,
+                backgroundColor: withAlpha(colors.carbonImmersive, SCRIM_STEP_ALPHA),
+              },
+            ]}
+          />
+        ))}
       </View>
       {children}
     </View>
@@ -90,12 +105,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.carbonImmersive },
   photo: { position: 'absolute', top: 0, left: 0 },
   top: { position: 'absolute', top: 0, left: 0, right: 0 },
-  top1: { height: SCRIM_TOP_H, backgroundColor: withAlpha(colors.carbonImmersive, 0.45) },
-  top2: { height: SCRIM_TOP_CAP_H, backgroundColor: withAlpha(colors.carbonImmersive, 0.4) },
+  top1: { height: SCRIM_TOP_H, backgroundColor: withAlpha(colors.carbonImmersive, 0.35) },
+  // Cadre d'une bande du fondu bas (hauteur/teinte posées inline dans le map).
   bottom: { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  bottomFade: {
-    height: SCRIM_BOTTOM_FADE_H,
-    backgroundColor: withAlpha(colors.carbonImmersive, 0.5),
-  },
-  bottomSolid: { height: SCRIM_BOTTOM_SOLID_H, backgroundColor: colors.carbonImmersive },
 });

@@ -205,14 +205,13 @@ export default function SignInScreenWeb() {
               <Icon name="chevron" size={iconSizes.lg} color={colors.gris} />
             </View>
           </Pressable>
-          <View style={styles.hero}>
-            {/* Le kicker dit à quelle étape on est : la vérification légale
-                d'abord, la connexion ensuite. Il bascule avec le bloc du bas. */}
-            <SectionLabel style={styles.kicker}>
-              {t(askAge ? AGE.kickerSignIn : C.kicker)}
-            </SectionLabel>
-            <Text style={styles.title}>{t(C.title)}</Text>
-            <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
+          {/* Logo GRYD SEUL en tête (planche E06) : pas de hero « Connecte-toi »,
+              pas de kicker, pas de sous-titre. La photo plein écran + les boutons
+              du bas portent l'écran. Wordmark chartreuse, fort interlettrage. */}
+          <View style={styles.logoWrap}>
+            <Text style={styles.wordmark} accessibilityRole="header">
+              GRYD
+            </Text>
           </View>
         </View>
 
@@ -337,6 +336,25 @@ export default function SignInScreenWeb() {
               {t(error)}
             </Text>
           ) : null}
+          {/* Pied légal (planche E06) : consentement Conditions + confidentialité,
+              les deux termes tappables vers les vraies pages. Seulement quand les
+              voies d'auth sont visibles (âge déclaré). */}
+          {ageDeclared && !ageDeclined ? (
+            <Text style={styles.consent}>
+              {t(C.consentLead)}
+              <Text style={styles.consentLink} onPress={() => router.push('/legal/cgu')}>
+                {t(C.consentTerms)}
+              </Text>
+              {t(C.consentAnd)}
+              <Text
+                style={styles.consentLink}
+                onPress={() => router.push('/legal/confidentialite')}
+              >
+                {t(C.consentPrivacy)}
+              </Text>
+              .
+            </Text>
+          ) : null}
           {/* L'ÉTAT QU'ON NE PEUT PAS RETENIR SE DIT (toutes branches confondues).
               C'est le cas COURANT sur web : navigation privée, cookies/données de
               site bloqués. Sans cette ligne, le joueur redonnait sa réponse à
@@ -398,6 +416,23 @@ const styles = StyleSheet.create({
     maxWidth: SUBTITLE_MAX_WIDTH,
   },
   actions: { gap: spacing.sm },
+  logoWrap: { marginTop: spacing.lg, alignItems: 'center' },
+  wordmark: {
+    color: colors.chartreuse,
+    fontFamily: fonts.display,
+    fontSize: fontSizes.xl,
+    letterSpacing: 12,
+    marginLeft: 12,
+  },
+  consent: {
+    color: colors.gris,
+    fontFamily: fonts.text,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  consentLink: { color: colors.blanc, textDecorationLine: 'underline' },
   // Champ 56 pt à label persistant (planche E21) — même patron que /profil-edit.
   fieldLabel: {
     color: colors.gris,
@@ -407,7 +442,7 @@ const styles = StyleSheet.create({
   },
   input: {
     height: sizes.buttonLg,
-    borderRadius: radii.pill,
+    borderRadius: radii.btn,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     backgroundColor: colors.carbone2,
