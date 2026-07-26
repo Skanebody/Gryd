@@ -286,26 +286,48 @@ export const C = defineCatalog({
   },
   // §11 — course SIGNALÉE par GRYD Verify (trust trop bas) : non créditée, en
   // revue. Distincte d'un refus gameplay — pas de raison de gameplay ici.
+  /**
+   * ⚠️ « UNDER REVIEW » / « À VÉRIFIER » ONT ÉTÉ RETIRÉS (audit du 26/07/2026) :
+   * les deux annoncent une revue à venir, et il n'y en a aucune (cf. le bloc
+   * détaillé sur `flaggedWhy` plus bas). Le hero nomme désormais le RÉSULTAT
+   * réel de la course — la capture n'a pas été créditée — au lieu d'une file
+   * d'attente imaginaire. Ne pas réintroduire un vocabulaire d'examen tant que
+   * la revue anti-triche + l'écran d'appel (E28) n'existent pas.
+   */
   heroFlagged: {
-    fr: 'COURSE À VÉRIFIER',
-    en: 'RUN UNDER REVIEW',
-    es: 'CARRERA POR VERIFICAR',
-    de: 'LAUF ZU PRÜFEN',
-    pt: 'CORRIDA A VERIFICAR',
+    fr: 'COURSE SANS CAPTURE',
+    en: 'RUN WITHOUT CAPTURE',
+    es: 'CARRERA SIN CAPTURA',
+    de: 'LAUF OHNE EROBERUNG',
+    pt: 'CORRIDA SEM CAPTURA',
   },
   heroFlaggedBike: {
-    fr: 'SORTIE À VÉRIFIER',
-    en: 'RIDE UNDER REVIEW',
-    es: 'SALIDA POR VERIFICAR',
-    de: 'FAHRT ZU PRÜFEN',
-    pt: 'PEDALADA A VERIFICAR',
+    fr: 'SORTIE SANS CAPTURE',
+    en: 'RIDE WITHOUT CAPTURE',
+    es: 'SALIDA SIN CAPTURA',
+    de: 'FAHRT OHNE EROBERUNG',
+    pt: 'PEDALADA SEM CAPTURA',
   },
+  /**
+   * ⚠️ NE PAS REMETTRE « examine » / « is reviewing » (audit du 26/07/2026).
+   * Cette phrase disait « GRYD Verify examine cette course », donc qu'une revue
+   * était EN COURS. Elle n'existe pas : `runs.status` est contraint à
+   * valid|partial|rejected|flagged (migration 0002_schema.sql:105) et `flagged`
+   * est un état TERMINAL — aucune table de revue, aucune file, aucun opérateur,
+   * aucun endpoint d'appel, aucune notification de décision. Une course signalée
+   * y restait pour toujours pendant que l'écran promettait un examen : c'est
+   * exactement « l'app ne ment jamais » violé, et §11.4 de la spec produit.
+   * La copie DIT donc le fait vérifiable (la capture n'est pas créditée, la
+   * distance compte) sans promettre de suite. La revue réelle + l'écran d'appel
+   * (E28) sont un lot à part ; le jour où ils existent, cette phrase pourra
+   * reparler d'examen — pas avant.
+   */
   flaggedWhy: {
-    fr: 'GRYD Verify examine cette course — capture non créditée.',
-    en: 'GRYD Verify is reviewing this run — capture not credited.',
-    es: 'GRYD Verify está revisando esta carrera — captura no acreditada.',
-    de: 'GRYD Verify prüft diesen Lauf — Eroberung nicht gutgeschrieben.',
-    pt: 'O GRYD Verify está revisando esta corrida — captura não creditada.',
+    fr: 'Capture non créditée sur cette course : cohérence des données insuffisante. La distance compte.',
+    en: 'Capture not credited on this run: data consistency insufficient. Distance still counts.',
+    es: 'Captura no acreditada en esta carrera: coherencia de datos insuficiente. La distancia cuenta.',
+    de: 'Eroberung nicht gutgeschrieben bei diesem Lauf: Datenkohärenz unzureichend. Distanz zählt.',
+    pt: 'Captura não creditada nesta corrida: coerência dos dados insuficiente. A distância conta.',
   },
   /**
    * DIRE « course » sur une sortie vélo signalée serait deux fautes d'un coup :
@@ -314,11 +336,11 @@ export const C = defineCatalog({
    * règle correspondante : déclarer une discipline pour une autre est la triche.
    */
   flaggedWhyBike: {
-    fr: 'GRYD Verify examine cette sortie — capture non créditée.',
-    en: 'GRYD Verify is reviewing this ride — capture not credited.',
-    es: 'GRYD Verify está revisando esta salida — captura no acreditada.',
-    de: 'GRYD Verify prüft diese Fahrt — Eroberung nicht gutgeschrieben.',
-    pt: 'O GRYD Verify está revisando esta pedalada — captura não creditada.',
+    fr: 'Capture non créditée sur cette sortie : cohérence des données insuffisante. La distance compte.',
+    en: 'Capture not credited on this ride: data consistency insufficient. Distance still counts.',
+    es: 'Captura no acreditada en esta salida: coherencia de datos insuficiente. La distancia cuenta.',
+    de: 'Eroberung nicht gutgeschrieben bei dieser Fahrt: Datenkohärenz unzureichend. Distanz zählt.',
+    pt: 'Captura não creditada nesta pedalada: coerência dos dados insuficiente. A distância conta.',
   },
 
   // ── Pills d'état (hors « GRYD VERIFIED », invariant) ──
