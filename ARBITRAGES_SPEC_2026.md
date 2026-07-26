@@ -37,11 +37,49 @@ C'est l'étape de conversion, le stockage et le rendu qui sont hexagonaux — pa
 | **2. Polygone autoritaire + H3 index** — la géométrie PostGIS devient la vérité, H3 reste un index spatial interne jamais exposé | Conforme à la spec, requêtes rapides conservées | **L** | Migration de `hex_claims` + réécriture de l'attribution/intersection ; le decay/lock/bouclier se re-portent sur le polygone. |
 | **3. Tout PostGIS, H3 supprimé** | Le plus pur | **XL** | Perte de l'index rapide, réécriture des 53 fichiers d'un coup, gros risque de régression. |
 
-**TRANCHÉ : voie 2.** Elle satisfait la spec (aucun hexagone visible NI dans la propriété), garde la
-performance, et se déploie progressivement (double écriture puis bascule). PostGIS est **déjà installé**
-(`0001_extensions.sql`). La voie 1 est écartée : elle afficherait un contour lissé sur une propriété
-hexagonale — l'app mentirait sur ce qu'elle montre, faute capitale ici. La voie 3 est écartée : réécrire
-53 fichiers d'un coup sans index spatial maximise le risque pour un gain nul côté utilisateur.
+**TRANCHÉ : voie 2** — polygone autoritaire, H3 rétrogradé en index interne. La voie 1 est écartée : elle
+afficherait un contour lissé sur une propriété hexagonale — l'app mentirait sur ce qu'elle montre, faute
+capitale ici. La voie 3 est écartée : réécrire 53 fichiers d'un coup sans index spatial maximise le risque
+pour un gain nul côté utilisateur.
+
+### ⚠️ A1-bis — RÉVISION du 27/07 : le polygone est en GeoJSON `jsonb`, PAS en PostGIS
+
+**Je m'étais trompé sur le support.** J'avais écrit « PostGIS est déjà installé, donc la migration est une
+reprise ». Deux faits découverts depuis l'invalident :
+
+1. **PostGIS est installé mais n'a AUCUNE colonne** `geometry`/`geography` dans les 73 migrations
+   (`AUDIT_GRYD.md` §3.1). Toute la géo persistée est déjà du **GeoJSON `jsonb`** (`city_zones.geojson`,
+   `no_capture_zones.geojson`, `sectors.geojson`), évaluée en TypeScript (`pointInGeoJson`). L'introduire
+   serait donc un **ajout**, pas une reprise.
+2. **Je ne peux pas l'exécuter.** Docker est indisponible sur cette machine (pas de Supabase local), et
+   **PGlite — le harnais SQL du dépôt — ne supporte pas PostGIS.** Écrire une migration PostGIS ici, ce
+   serait livrer du SQL **jamais exécuté** : exactement la faute que le dépôt s'interdit
+   (« une migration jamais exécutée est une intention, pas un mécanisme »,
+   `supabase/tests/fr_communes.pglite.test.mjs`).
+
+**Donc : le polygone autoritaire est stocké en GeoJSON `jsonb`**, et les opérations géométriques (aire
+géodésique, ratio d'intersection, union, simplification) vivent dans le **moteur PUR** en TypeScript, avec
+tests Deno — là où 997 tests tournent déjà à chaque gate.
+
+**Ce que ce choix gagne, et ce n'est pas un repli :**
+
+| Critère | GeoJSON `jsonb` + moteur pur | PostGIS |
+|---|---|---|
+| **Migration exécutable ici** | **oui** (PGlite) | non (ni Docker ni PGlite) |
+| Cohérence avec l'existant | **c'est déjà le patron du dépôt** | nouveau paradigme |
+| Testabilité de la géométrie | **tests Deno purs, déterministes** | exige une vraie base |
+| Serveur autoritaire (§ spec) | **oui** — le moteur tourne dans l'edge function | oui |
+| Requêtes spatiales rapides | via l'**index H3** conservé | index GiST |
+
+L'exigence de la spec est « polygones issus des traces réelles », **pas** « PostGIS ». Le contrat est tenu.
+
+**Une seule dépendance ajoutée**, et sa justification tient en une ligne (règle CLAUDE.md) :
+`polygon-clipping` pour les opérations booléennes (intersection/union) — écrire un clipping de polygones
+robuste à la main est une source connue de bugs géométriques silencieux, et cette brique est celle qu'utilise
+Turf. Aire, périmètre, simplification et point-dans-polygone restent écrits et testés dans le moteur.
+
+**Si PostGIS devient souhaitable plus tard** (volume, requêtes spatiales complexes), la bascule reste
+ouverte : la géométrie est déjà normalisée en GeoJSON, `ST_GeomFromGeoJSON` la reprend telle quelle.
 
 **Conséquence** : c'est le **lot fondation le plus lourd** du chantier ; il conditionne toute la partie
 territoriale (capture, reprise, contestation, défense, classements) et passe donc en premier, avant tout
