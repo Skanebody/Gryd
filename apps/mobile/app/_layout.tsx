@@ -196,6 +196,10 @@ export default function RootLayout() {
           {/* Social (AMENDEMENT-07 §8) : Amis, fiche crew publique/recrutement. */}
           <Stack.Screen name="amis" />
           <Stack.Screen name="crew-public" />
+          {/* E26 « Profil rival · vue publique » (lien profond / QR). N'affiche
+              qu'un état honnête tant qu'O1 n'expose pas de rival consenti —
+              aucun profil fabriqué, aucune surface de l'app n'y mène. */}
+          <Stack.Screen name="profil-rival/[handle]" />
           {/* Atterrissage d'une invitation crew (QR / lien `gryd://c/CODE`). */}
           <Stack.Screen name="c/[code]" />
           {/* Motivation (AMENDEMENT-07 §8) : Aujourd'hui, Challenges, réglages. */}

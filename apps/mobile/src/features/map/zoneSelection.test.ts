@@ -103,3 +103,53 @@ Deno.test('contesté : un secteur contesté AILLEURS ne contamine pas la zone', 
   );
   assertEquals(view?.contested, false);
 });
+
+// ─── E22 : échéance de decay RÉELLE remontée (jamais dérivée de capturedAt) ──
+
+function rowWithDecay(cell: string, owner: string | null, decayAt: string | null): HexClaimRow {
+  return { h3index: h3ToDb(cell), owner_user_id: owner, claim_type: 'claim', decay_at: decayAt, claimed_at: null };
+}
+
+Deno.test('E22 : decayAt = l’échéance la PLUS PROCHE des hex (min), jamais le max', () => {
+  // Deux hex de MA zone : l'un tombe le 27, l'autre le 30. La défense doit viser
+  // la première fissure (le 27) — le max (le 30) sous-estimerait le danger.
+  const cells = paris.slice(0, 2);
+  const built = buildTerritories(
+    [rowWithDecay(cells[0], ME, '2026-07-30T00:00:00Z'), rowWithDecay(cells[1], ME, '2026-07-27T00:00:00Z')],
+    ME,
+  );
+  const view = selectZoneView(built, [], built[0].props.territoryId);
+  assertEquals(view?.decayAt, '2026-07-27T00:00:00Z');
+});
+
+Deno.test('E22 : aucun hex daté ⇒ decayAt null (pas d’échéance inventée)', () => {
+  const built = buildTerritories(paris.map((c) => row(c, ME)), ME);
+  const view = selectZoneView(built, [], built[0].props.territoryId);
+  assertEquals(view?.decayAt, null);
+});
+
+Deno.test('E22 : rivalPercent = la part rivale MAX des secteurs contestés couverts', () => {
+  // Zone à cheval Paris (rival 0,6) + Lille (rival 0,3), les deux contestés :
+  // on montre la couverture la plus large (0,6). Le secteur du centroïde n'entre
+  // pas en jeu — seuls les secteurs RÉELLEMENT couverts comptent.
+  const built = buildTerritories([...paris, ...lille].map((c) => row(c, ME)), ME);
+  const parisSector = cellToParent(paris[0], SECTOR_H3_RESOLUTION);
+  const lilleSector = cellToParent(lille[0], SECTOR_H3_RESOLUTION);
+  const view = selectZoneView(
+    built,
+    [
+      { id: parisSector, contested: true, rivalPercent: 0.6 },
+      { id: lilleSector, contested: true, rivalPercent: 0.3 },
+    ],
+    built[0].props.territoryId,
+  );
+  assertEquals(view?.rivalPercent, 0.6);
+});
+
+Deno.test('E22 : part rivale absente (source pauvre {id,contested}) ⇒ rivalPercent null', () => {
+  const built = buildTerritories(paris.map((c) => row(c, ME)), ME);
+  const parisSector = cellToParent(paris[0], SECTOR_H3_RESOLUTION);
+  const view = selectZoneView(built, [{ id: parisSector, contested: true }], built[0].props.territoryId);
+  assertEquals(view?.contested, true);
+  assertEquals(view?.rivalPercent, null);
+});

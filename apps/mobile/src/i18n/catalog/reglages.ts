@@ -2124,4 +2124,190 @@ export const C = defineCatalog({
     de: '{m} m oder {pct} %',
     pt: '{m} m ou {pct} %',
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // E25 — CONFIDENTIALITÉ & SÉCURITÉ : recalage planche (26/07/2026).
+  // La planche pose un contrat de confiance en langage humain, en trois sections
+  // (Visibilité · Zones protégées · Sécurité) + un bandeau qui rassure d'abord
+  // sur la position en direct. Chaque réglage DIT sa conséquence de jeu ; aucun
+  // juridique, aucun dark pattern, AUCUNE option payante (interdit E17).
+  //
+  // HONNÊTETÉ : plusieurs réglages de la planche supposent une visibilité
+  // CROISÉE entre joueurs qui n'existe pas encore (miroir serveur O1) — nom sur
+  // les territoires, présence au classement, délai de publication des captures,
+  // zones nommées autour d'une adresse. On en dessine la COQUE fidèle mais on la
+  // marque « Bientôt » et NON interactive : jamais un interrupteur qui prétend
+  // gouverner une exposition qui n'a lieu nulle part (c'était « le pire mensonge
+  // de l'app »). Les deux réglages RÉELLEMENT branchés (visibilité de profil,
+  // masquage départ/arrivée du partage) restent, eux, pleinement actifs.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Bandeau de confiance en tête (protected-blue). Ne dit que le VRAI garanti :
+   *  la position en direct n'est jamais partagée — invariant du jeu, aujourd'hui
+   *  et toujours. On n'affirme PAS que d'autres voient déjà tes territoires (faux
+   *  tant que O1 n'est pas levé) : la seule promesse est celle qui tient. */
+  // Neutre par discipline (l'écran de confidentialité n'a pas de lentille
+  // Run/Bike) : « pendant tes sorties », jamais « pendant que tu cours » — un
+  // cycliste lirait faux, et le garde-fou reglages.test.ts l'interdit.
+  privTrustBanner: {
+    fr: 'Ta position en direct n’est jamais partagée : personne ne peut te suivre pendant tes sorties. GRYD ne calcule tes captures qu’à la fin de ta sortie.',
+    en: 'Your live position is never shared: no one can follow you during your outings. GRYD only works out your captures once your activity is over.',
+    es: 'Tu posición en directo nunca se comparte: nadie puede seguirte durante tus salidas. GRYD solo calcula tus capturas al terminar tu actividad.',
+    de: 'Deine Live-Position wird nie geteilt: Niemand kann dir während deiner Aktivität folgen. GRYD berechnet deine Eroberungen erst nach dem Ende deiner Aktivität.',
+    pt: 'Sua posição ao vivo nunca é compartilhada: ninguém pode te seguir durante suas atividades. O GRYD só calcula suas capturas ao fim da sua atividade.',
+  },
+
+  // ── Titres de section (planche) ────────────────────────────────────────────
+  secVisibilite: {
+    fr: 'VISIBILITÉ',
+    en: 'VISIBILITY',
+    es: 'VISIBILIDAD',
+    de: 'SICHTBARKEIT',
+    pt: 'VISIBILIDADE',
+  },
+  secZonesProtegees: {
+    fr: 'ZONES PROTÉGÉES',
+    en: 'PROTECTED ZONES',
+    es: 'ZONAS PROTEGIDAS',
+    de: 'GESCHÜTZTE ZONEN',
+    pt: 'ZONAS PROTEGIDAS',
+  },
+  secSecurite: {
+    fr: 'SÉCURITÉ',
+    en: 'SAFETY',
+    es: 'SEGURIDAD',
+    de: 'SICHERHEIT',
+    pt: 'SEGURANÇA',
+  },
+
+  /** Étiquette « à venir » posée là où une exposition croisée (O1) manque. */
+  soonPill: {
+    fr: 'Bientôt',
+    en: 'Soon',
+    es: 'Pronto',
+    de: 'Bald',
+    pt: 'Em breve',
+  },
+
+  // ── VISIBILITÉ : deux réglages de la planche, en attente de O1 ──────────────
+  territoryNameTitle: {
+    fr: 'Mes territoires portent mon nom',
+    en: 'My territories carry my name',
+    es: 'Mis territorios llevan mi nombre',
+    de: 'Meine Gebiete tragen meinen Namen',
+    pt: 'Meus territórios levam meu nome',
+  },
+  /** Conséquence AVEC crew (le vrai nom du crew est injecté). « membre »,
+   *  neutre par discipline (l'écran n'a pas de lentille) — pas « coureur ». */
+  territoryNameConseqCrew: {
+    fr: 'Sinon, ils s’afficheraient comme « Un membre de {crew} ».',
+    en: 'Otherwise they’d show as “A member of {crew}”.',
+    es: 'Si no, aparecerían como «Un miembro de {crew}».',
+    de: 'Sonst würden sie als „Ein Mitglied von {crew}“ erscheinen.',
+    pt: 'Caso contrário, apareceriam como “Um membro de {crew}”.',
+  },
+  /** Conséquence SANS crew — on ne fabrique pas un nom de crew. */
+  territoryNameConseqSolo: {
+    fr: 'Sinon, ils s’afficheraient sans ton nom.',
+    en: 'Otherwise they’d show without your name.',
+    es: 'Si no, aparecerían sin tu nombre.',
+    de: 'Sonst würden sie ohne deinen Namen erscheinen.',
+    pt: 'Caso contrário, apareceriam sem o seu nome.',
+  },
+  leaderboardVisibleTitle: {
+    fr: 'Apparaître dans les classements',
+    en: 'Appear in the leaderboards',
+    es: 'Aparecer en las clasificaciones',
+    de: 'In den Ranglisten erscheinen',
+    pt: 'Aparecer nas classificações',
+  },
+  leaderboardVisibleConseq: {
+    fr: 'Sinon, tu es compté anonymement.',
+    en: 'Otherwise you’re counted anonymously.',
+    es: 'Si no, cuentas de forma anónima.',
+    de: 'Sonst zählst du anonym.',
+    pt: 'Caso contrário, você conta de forma anônima.',
+  },
+  /** Pourquoi ces deux réglages sont « Bientôt » : l'exposition croisée n'existe
+   *  pas encore, donc rien à gouverner AUJOURD'HUI (la vérité, sans dark pattern). */
+  visibilitySoonNote: {
+    fr: 'Personne ne voit encore tes territoires ni les classements des autres joueurs : ces deux réglages s’activeront dès que ce sera le cas.',
+    en: 'No one sees your territories or other players’ leaderboards yet: these two settings will switch on as soon as that changes.',
+    es: 'Nadie ve todavía tus territorios ni las clasificaciones de otros jugadores: estos dos ajustes se activarán en cuanto eso cambie.',
+    de: 'Noch sieht niemand deine Gebiete oder die Ranglisten anderer Spieler: Diese beiden Einstellungen greifen, sobald sich das ändert.',
+    pt: 'Ninguém vê ainda seus territórios nem as classificações de outros jogadores: estes dois ajustes serão ativados assim que isso mudar.',
+  },
+
+  // ── ZONES PROTÉGÉES : zones nommées (domicile/travail) — pas encore d'écran
+  //    pour déclarer une adresse, donc « Bientôt ». Le masquage départ/arrivée,
+  //    lui, est RÉEL et vit juste au-dessus (card `departArrivee`). ────────────
+  namedZonesTitle: {
+    fr: 'Zone floutée : domicile, travail…',
+    en: 'Blurred zone: home, work…',
+    es: 'Zona difuminada: casa, trabajo…',
+    de: 'Unschärfezone: Zuhause, Arbeit…',
+    pt: 'Zona borrada: casa, trabalho…',
+  },
+  namedZonesSoonNote: {
+    fr: 'Bientôt : masquer tes tracés autour d’une adresse que tu déclares. En attendant, le départ et l’arrivée de tout partage sont déjà coupés (ci-dessus).',
+    en: 'Soon: blur your trails around an address you set. Meanwhile, the start and end of every share are already trimmed (above).',
+    es: 'Pronto: difuminar tus trazados alrededor de una dirección que tú indiques. Mientras tanto, el inicio y el final de cada compartido ya se recortan (arriba).',
+    de: 'Bald: deine Spuren rund um eine von dir angegebene Adresse verbergen. Bis dahin werden Anfang und Ende jeder geteilten Spur bereits gekürzt (oben).',
+    pt: 'Em breve: borrar seus traçados ao redor de um endereço que você indicar. Enquanto isso, o início e o fim de cada compartilhamento já são cortados (acima).',
+  },
+
+  // ── SÉCURITÉ ───────────────────────────────────────────────────────────────
+  signalerAbusTitle: {
+    fr: 'Signaler un joueur ou un abus',
+    en: 'Report a player or abuse',
+    es: 'Denunciar a un jugador o un abuso',
+    de: 'Spieler oder Missbrauch melden',
+    pt: 'Denunciar um jogador ou abuso',
+  },
+  publishDelayTitle: {
+    fr: 'Délai de publication des captures',
+    en: 'Capture publishing delay',
+    es: 'Retardo de publicación de capturas',
+    de: 'Veröffentlichungsverzögerung der Eroberungen',
+    pt: 'Atraso na publicação das capturas',
+  },
+  /** Valeur illustrative de la planche (1 h) — copie descriptive, aucune logique
+   *  ne la consomme, donc ce n'est pas une constante de jeu. */
+  publishDelayValue: {
+    fr: '1 h',
+    en: '1 h',
+    es: '1 h',
+    de: '1 Std.',
+    pt: '1 h',
+  },
+  publishDelayConseq: {
+    fr: 'Tes captures deviendront visibles par les autres 1 h après ta sortie.',
+    en: 'Your captures will become visible to others 1 hour after your activity.',
+    es: 'Tus capturas serán visibles para los demás 1 h después de tu actividad.',
+    de: 'Deine Eroberungen werden 1 Std. nach deiner Aktivität für andere sichtbar.',
+    pt: 'Suas capturas ficarão visíveis para os outros 1 h após sua atividade.',
+  },
+  publishDelaySoonNote: {
+    fr: 'Aucun autre joueur ne voit encore tes captures : ce délai s’activera quand ce sera le cas.',
+    en: 'No other player sees your captures yet: this delay will switch on when that changes.',
+    es: 'Ningún otro jugador ve aún tus capturas: este retardo se activará cuando eso cambie.',
+    de: 'Noch sieht kein anderer Spieler deine Eroberungen: Diese Verzögerung greift, sobald sich das ändert.',
+    pt: 'Nenhum outro jogador vê ainda suas capturas: este atraso será ativado quando isso mudar.',
+  },
+  notifByCategoryTitle: {
+    fr: 'Notifications par catégorie',
+    en: 'Notifications by category',
+    es: 'Notificaciones por categoría',
+    de: 'Benachrichtigungen nach Kategorie',
+    pt: 'Notificações por categoria',
+  },
+
+  // ── Pied : conditions (l'export/suppression garde ses propres libellés) ─────
+  conditionsRow: {
+    fr: 'Conditions',
+    en: 'Terms',
+    es: 'Condiciones',
+    de: 'Bedingungen',
+    pt: 'Condições',
+  },
 });

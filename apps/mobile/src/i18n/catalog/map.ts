@@ -905,6 +905,171 @@ export const C = defineCatalog({
     pt: 'Planejar para depois — abrir o planejador de rotas',
   },
 
+  // ══ E22 — DÉFENSE · Zone attaquée ══════════════════════════════════════════
+  //  Ma zone (mon crew) est CONTESTÉE : « Se faire reprendre → Revenir ». Urgence
+  //  MAÎTRISÉE — des faits, une échéance, une décision (DÉFENDRE), jamais une
+  //  alarme anxiogène. Ton NEUTRE : « un rival gagne du terrain », JAMAIS « Nina
+  //  t'attaque ! ». Aucune donnée privée du rival (pseudo, heure, tracé) : seule
+  //  la couverture APPROXIMATIVE (part agrégée de secteur) est montrable.
+  /** Kicker VIOLET §C (contesté) en tête de la sheet de défense. Tutoiement app. */
+  defenseKicker: {
+    fr: 'TA ZONE EST CONTESTÉE',
+    en: 'YOUR ZONE IS CONTESTED',
+    es: 'TU ZONA ESTÁ EN DISPUTA',
+    de: 'DEINE ZONE IST UMKÄMPFT',
+    pt: 'SUA ZONA ESTÁ DISPUTADA',
+  },
+  /**
+   * Ligne de couverture APPROXIMATIVE : `rivalPercent`, la part AGRÉGÉE que le
+   * rival tient du secteur (`sector_snapshot`) — jamais son tracé ni « il y a 2 h »
+   * (RLS `runs_select_own`). « ~ » assume l'approximation, sans fausse précision.
+   */
+  defenseCoverageRival: {
+    fr: 'Un rival tient ~{pct} % de ce secteur.',
+    en: 'A rival holds ~{pct}% of this sector.',
+    es: 'Un rival controla ~{pct} % de este sector.',
+    de: 'Ein Rivale hält ~{pct} % dieses Sektors.',
+    pt: 'Um rival controla ~{pct}% deste setor.',
+  },
+  /** Repli NEUTRE quand aucune part rivale n'a de source : le seul fait contesté. */
+  defenseCoverageNeutral: {
+    fr: 'Ce secteur est disputé.',
+    en: 'This sector is being contested.',
+    es: 'Este sector está en disputa.',
+    de: 'Dieser Sektor ist umkämpft.',
+    pt: 'Este setor está em disputa.',
+  },
+  /** Note OR (état imminent, échéance < 2 h) — jamais rouge. Portée par le TEXTE. */
+  defenseUrgencyNote: {
+    fr: 'Échéance imminente.',
+    en: 'Deadline is close.',
+    es: 'Plazo inminente.',
+    de: 'Frist steht kurz bevor.',
+    pt: 'Prazo iminente.',
+  },
+  /** Unité du compte à rebours — en HEURES (planche : « 18 H »), jamais des secondes. */
+  defenseHourUnit: {
+    fr: 'h',
+    en: 'h',
+    es: 'h',
+    de: 'Std',
+    pt: 'h',
+  },
+  /** Libellé de la métrique échéance (sous le gros nombre d'heures). */
+  defenseMetricDeadline: {
+    fr: 'pour défendre',
+    en: 'to defend',
+    es: 'para defender',
+    de: 'zum Verteidigen',
+    pt: 'para defender',
+  },
+  /** Libellé de la métrique surface (sous le « 0,42 km² »). */
+  defenseMetricArea: {
+    fr: 'en jeu',
+    en: 'at stake',
+    es: 'en juego',
+    de: 'im Spiel',
+    pt: 'em jogo',
+  },
+  /** Phrase tactique NEUTRE (vaut Run ET Bike : « boucle », jamais « en courant »). */
+  defenseTactical: {
+    fr: 'Referme une boucle dans ta zone avant l’échéance pour la garder.',
+    en: 'Close a loop inside your zone before the deadline to keep it.',
+    es: 'Cierra un bucle en tu zona antes del plazo para conservarla.',
+    de: 'Schließe vor Ablauf eine Schleife in deiner Zone, um sie zu behalten.',
+    pt: 'Feche um laço na sua zona antes do prazo para mantê-la.',
+  },
+  /** CTA UNIQUE chartreuse de E22 (planche : DÉFENDRE / DEFEND / DEFENDER). */
+  defendCta: {
+    fr: 'Défendre',
+    en: 'Defend',
+    es: 'Defender',
+    de: 'Verteidigen',
+    pt: 'Defender',
+  },
+  defendCtaA11y: {
+    fr: 'Défendre — préparer une boucle de défense sur cette zone',
+    en: 'Defend — set up a defense loop on this zone',
+    es: 'Defender — preparar un bucle de defensa en esta zona',
+    de: 'Verteidigen — eine Verteidigungsschleife für diese Zone vorbereiten',
+    pt: 'Defender — preparar um laço de defesa nesta zona',
+  },
+  /** Action SECONDAIRE (lien tertiaire, §A.4) — un signal de crew RÉEL (crew_ping_zone). */
+  defenseAlertCrew: {
+    fr: 'Alerter le crew',
+    en: 'Alert the crew',
+    es: 'Alertar al crew',
+    de: 'Crew alarmieren',
+    pt: 'Alertar o crew',
+  },
+  defenseAlertCrewA11y: {
+    fr: 'Alerter le crew — envoyer un signal de renfort sur cette zone',
+    en: 'Alert the crew — send a backup signal on this zone',
+    es: 'Alertar al crew — enviar una señal de refuerzo en esta zona',
+    de: 'Crew alarmieren — ein Verstärkungssignal für diese Zone senden',
+    pt: 'Alertar o crew — enviar um sinal de reforço nesta zona',
+  },
+  // ── Toasts d'issue de « Alerter le crew » : chaque verdict serveur a le sien,
+  //    jamais un toast muet ni un faux succès (le ping n'est PAS un repli local). ──
+  defenseAlertSent: {
+    fr: 'Crew alerté',
+    en: 'Crew alerted',
+    es: 'Crew alertado',
+    de: 'Crew alarmiert',
+    pt: 'Crew alertado',
+  },
+  defenseAlertNoCrew: {
+    fr: 'Rejoins un crew pour l’alerter',
+    en: 'Join a crew to alert it',
+    es: 'Únete a un crew para alertarlo',
+    de: 'Tritt einem Crew bei, um es zu alarmieren',
+    pt: 'Entre num crew para alertá-lo',
+  },
+  defenseAlertCooldown: {
+    fr: 'Déjà alerté — patiente un peu',
+    en: 'Already alerted — hold on',
+    es: 'Ya alertado — espera un poco',
+    de: 'Bereits alarmiert — kurz warten',
+    pt: 'Já alertado — aguarde um pouco',
+  },
+  defenseAlertNotSector: {
+    fr: 'Cette zone n’est pas un secteur de crew',
+    en: 'This zone isn’t a crew sector',
+    es: 'Esta zona no es un sector de crew',
+    de: 'Diese Zone ist kein Crew-Sektor',
+    pt: 'Esta zona não é um setor de crew',
+  },
+  defenseAlertSignedOut: {
+    fr: 'Connecte-toi pour alerter ton crew',
+    en: 'Sign in to alert your crew',
+    es: 'Inicia sesión para alertar a tu crew',
+    de: 'Melde dich an, um dein Crew zu alarmieren',
+    pt: 'Entra para alertar o teu crew',
+  },
+  defenseAlertFailed: {
+    fr: 'Impossible d’alerter — réessaie',
+    en: 'Couldn’t alert — try again',
+    es: 'No se pudo alertar — inténtalo de nuevo',
+    de: 'Alarmieren fehlgeschlagen — erneut versuchen',
+    pt: 'Não deu para alertar — tenta de novo',
+  },
+  /** Kicker du briefing E05 quand on y arrive par DÉFENDRE (label DÉFENSE). */
+  defenseBriefKicker: {
+    fr: 'DÉFENSE',
+    en: 'DEFENSE',
+    es: 'DEFENSA',
+    de: 'VERTEIDIGUNG',
+    pt: 'DEFESA',
+  },
+  /** Phrase tactique du briefing DÉFENSE — la course reste libre, le serveur valide après. */
+  defenseBriefTactical: {
+    fr: 'La sortie qui démarre est libre. Referme ta boucle dans la zone ; le serveur valide la défense après.',
+    en: 'The activity that starts is free-form. Close your loop in the zone; the server confirms the defense afterward.',
+    es: 'La actividad que empieza es libre. Cierra tu bucle en la zona; el servidor valida la defensa después.',
+    de: 'Die startende Aktivität ist frei. Schließe deine Schleife in der Zone; der Server bestätigt die Verteidigung danach.',
+    pt: 'A atividade que começa é livre. Feche seu laço na zona; o servidor valida a defesa depois.',
+  },
+
   // ── Classement de zone (ZoneLeaderboard) : aucun palmarès réel n'existe tant
   //    que personne n'a couru la zone — on le DIT au lieu d'afficher des noms
   //    de coureurs fabriqués. ──

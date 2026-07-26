@@ -52,7 +52,6 @@ import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import type { IngestRunResponse, RunStatus } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
-import type { HistoryFilterKey, RunKindKey } from './historyView';
 
 /**
  * Fenêtre de lecture. L'écran promet « TOUS tes parcours » : une troncature
@@ -74,21 +73,6 @@ interface RunRow {
   celebration: unknown;
 }
 
-/**
- * Nature d'une course, DÉRIVÉE de l'impact serveur — pas d'une intention
- * déclarée avant de partir (le joueur peut annoncer « défense » et finir par
- * conquérir : c'est le terrain qui tranche).
- *
- * Il n'y a volontairement pas de catégorie « route ouverte » : rien dans
- * `runs`/`celebration` ne dit qu'une boucle est restée ouverte mais fermable.
- * Inventer ce classement serait fabriquer une information.
- *
- * L'union vit dans `historyView.ts` (module PUR, sans React ni Supabase) pour
- * que les décisions d'affichage restent type-checkables par les tests Deno ;
- * on la réexporte ici, où les consommateurs la cherchent.
- */
-export type RealRunKind = RunKindKey;
-
 export interface RealRunEntry {
   id: string;
   /** Instant de départ (ms epoch) — l'affichage date/heure est local à l'écran. */
@@ -101,13 +85,23 @@ export interface RealRunEntry {
   /** Motif de refus serveur, brut (jamais réécrit ni deviné côté client). */
   rejectReason: string | null;
   /**
-   * Zones prises par cette course (claimed + stolen + pioneer, convention
-   * course-result). `null` = impact INCONNU (pas de payload) — surtout pas 0.
+   * Zones prises par cette course AU TOTAL (claimed + stolen + pioneer,
+   * convention course-result). `null` = impact INCONNU (pas de payload) — surtout
+   * pas 0. Le TYPE d'une ligne (Capture / Reprise / Défense / libre) en est
+   * dérivé par `runStory` (historyView, pur + testé).
    */
   captured: number | null;
+  /**
+   * Zones ARRACHÉES à un adversaire (hexes.stolen). C'est ce qui distingue une
+   * REPRISE (orange, planche E24) d'une capture neuve : sans ce compteur séparé,
+   * on ne pourrait pas les différencier (les deux gonflent `captured`). `null` =
+   * inconnu. Le NOM de l'adversaire repris, lui, n'est PAS porté : il exige une
+   * identité cross-joueur (O1) ; la ligne reste donc neutre (« reprise », pas
+   * « repris à K.Runner »).
+   */
+  retaken: number | null;
   /** Zones défendues. `null` = inconnu, jamais 0 par défaut. */
   defended: number | null;
-  kind: RealRunKind;
 }
 
 /** `runs.status` est contraint en base ; on reste défensif sur la valeur lue. */
@@ -122,12 +116,17 @@ function asRunStatus(raw: string): RunStatus {
  * dont on n'est pas certain : un payload absent, tronqué ou d'une forme
  * inattendue ne doit JAMAIS se lire comme « cette course n'a rien pris ».
  */
-function impactOf(celebration: unknown): { captured: number | null; defended: number | null } {
+function impactOf(celebration: unknown): {
+  captured: number | null;
+  retaken: number | null;
+  defended: number | null;
+} {
   if (typeof celebration !== 'object' || celebration === null) {
-    return { captured: null, defended: null };
+    return { captured: null, retaken: null, defended: null };
   }
   const hexes = (celebration as Partial<IngestRunResponse>).hexes;
-  if (typeof hexes !== 'object' || hexes === null) return { captured: null, defended: null };
+  if (typeof hexes !== 'object' || hexes === null)
+    return { captured: null, retaken: null, defended: null };
   const num = (v: unknown): number | null =>
     typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
   const claimed = num(hexes.claimed);
@@ -138,18 +137,14 @@ function impactOf(celebration: unknown): { captured: number | null; defended: nu
   // en traitant une manquante comme 0 sous-déclarerait la conquête.
   const captured =
     claimed !== null && stolen !== null && pioneer !== null ? claimed + stolen + pioneer : null;
-  return { captured, defended };
+  // `stolen` isolé alimente la REPRISE (orange). Il vaut par lui-même, même si le
+  // total `captured` est inconnu (une composante manquante ailleurs).
+  return { captured, retaken: stolen, defended };
 }
 
 /** PURE : ligne serveur → entrée d'historique. Testable sans réseau. */
 export function toRealRunEntry(row: RunRow): RealRunEntry {
-  const { captured, defended } = impactOf(row.celebration);
-  const kind: RealRunKind =
-    captured !== null && captured > 0
-      ? 'conquest'
-      : defended !== null && defended > 0
-        ? 'defense'
-        : 'stats';
+  const { captured, retaken, defended } = impactOf(row.celebration);
   return {
     id: row.id,
     startedAtMs: Date.parse(row.started_at),
@@ -159,27 +154,12 @@ export function toRealRunEntry(row: RunRow): RealRunEntry {
     status: asRunStatus(row.status),
     rejectReason: row.reject_reason,
     captured,
+    retaken,
     defended,
-    kind,
   };
 }
 
 export type HistoryStatus = 'signed-out' | 'loading' | 'failed' | 'ready';
-
-/**
- * Filtres de l'historique RÉEL. Ils ne portent que sur des natures que la
- * donnée serveur sait distinguer — pas une de plus (la démo en avait cinq, dont
- * « Routes », qu'aucune colonne ne permet de reconnaître). Même raison que
- * `RealRunKind` : l'union est déclarée dans le module pur.
- */
-export type RealHistoryFilter = HistoryFilterKey;
-
-export function filterRuns(
-  runs: readonly RealRunEntry[],
-  filter: RealHistoryFilter,
-): RealRunEntry[] {
-  return filter === 'all' ? [...runs] : runs.filter((r) => r.kind === filter);
-}
 
 export interface MyRunHistory {
   status: HistoryStatus;

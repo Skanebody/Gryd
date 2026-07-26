@@ -757,6 +757,23 @@ export const C = defineCatalog({
     de: 'Detaillierte Gebiets-Analytics – Premium',
     pt: 'Analytics territorial detalhada — Premium',
   },
+  /**
+   * MARQUEUR « BIENTÔT » du pied Premium quand rien ne peut être ouvert. La
+   * planche E18 pose un renvoi Premium (heatmap 90 j, temps de contrôle). Ni la
+   * fonctionnalité ni l'achat n'existent : la heatmap n'est pas construite et
+   * RevenueCat (O3) n'est pas branché. Le seul renvoi HONNÊTE est donc « bientôt »
+   * — la ligne reste PRÉSENTE (fidèle à la planche) mais NON cliquable, jamais un
+   * bouton qui mène à un cul-de-sac ni un faux paywall. Dès que la surface premium
+   * existe, la ligne redevient tappable (branche `flags.arsenal`).
+   */
+  premiumSoon: { fr: 'Bientôt', en: 'Soon', es: 'Pronto', de: 'Bald', pt: 'Em breve' },
+  premiumSoonA11y: {
+    fr: 'Analytics territoriales détaillées — bientôt',
+    en: 'Detailed territory analytics — soon',
+    es: 'Analítica territorial detallada — pronto',
+    de: 'Detaillierte Gebiets-Analytics – bald',
+    pt: 'Analytics territorial detalhada — em breve',
+  },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // RECORDS PERSONNELS — retour du palmarès sous les trois blocs (25/07/2026).

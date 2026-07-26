@@ -575,6 +575,153 @@ export const C = defineCatalog({
     de: 'Radausfahrt starten',
     pt: 'Começar um pedal',
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // E24 — JOURNAL DE CONQUÊTE : bandeau, semaines, TYPES colorés, impact.
+  //
+  // ⚠ TOUTES NEUTRES AUX DEUX MONDES (course ET vélo). Ces libellés sont rendus
+  // par ligne SANS connaître la discipline (RealRunCard n'a pas la lentille) :
+  // ils décrivent l'ACTE DE JEU (capture, reprise, défense, zones), jamais le
+  // sport. Un seul mot de discipline ici exclurait la moitié des joueurs — et
+  // ferait échouer le balayage de `historique.test.ts` (le garde-fou
+  // `disciplineVocabulary`). C'est pourquoi « libre » devient « Sans capture » et
+  // « courses » devient « sorties ».
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Bandeau de synthèse (planche E24 : « 38 · 247 km · 14 captures · 9 défenses ») ──
+  /** Label du compte de sorties — NEUTRE (« sorties », pas « courses »). */
+  summaryRuns: { fr: 'sorties', en: 'activities', es: 'salidas', de: 'Aktivitäten', pt: 'saídas' },
+  summaryDistance: {
+    fr: 'distance',
+    en: 'distance',
+    es: 'distancia',
+    de: 'Distanz',
+    pt: 'distância',
+  },
+  summaryKmUnit: { fr: 'km', en: 'km', es: 'km', de: 'km', pt: 'km' },
+  summaryCaptures: {
+    fr: 'captures',
+    en: 'captures',
+    es: 'capturas',
+    de: 'Eroberungen',
+    pt: 'capturas',
+  },
+  summaryDefenses: {
+    fr: 'défenses',
+    en: 'defenses',
+    es: 'defensas',
+    de: 'Abwehr',
+    pt: 'defesas',
+  },
+
+  // ── Titres de groupe par SEMAINE (rendus par SectionLabel, casse normale) ──
+  weekThis: {
+    fr: 'Cette semaine',
+    en: 'This week',
+    es: 'Esta semana',
+    de: 'Diese Woche',
+    pt: 'Esta semana',
+  },
+  weekLast: {
+    fr: 'Semaine dernière',
+    en: 'Last week',
+    es: 'Semana pasada',
+    de: 'Letzte Woche',
+    pt: 'Semana passada',
+  },
+  /** Semaine plus ancienne, datée de son lundi. {date} formaté par l'écran. */
+  weekOlder: {
+    fr: 'Semaine du {date}',
+    en: 'Week of {date}',
+    es: 'Semana del {date}',
+    de: 'Woche vom {date}',
+    pt: 'Semana de {date}',
+  },
+
+  // ── TYPES colorés d'une ligne (planche E24). Couleurs PAR RÔLE côté composant. ──
+  /** Capture (chartreuse = moi) : zones neuves prises. */
+  typeCapture: { fr: 'Capture', en: 'Capture', es: 'Captura', de: 'Eroberung', pt: 'Captura' },
+  /** Reprise (orange) : zones ARRACHÉES à un adversaire. */
+  typeReprise: {
+    fr: 'Reprise',
+    en: 'Retake',
+    es: 'Reconquista',
+    de: 'Rückeroberung',
+    pt: 'Retomada',
+  },
+  /** Défense (bleu) : zones tenues face à une attaque. */
+  typeDefense: {
+    fr: 'Défense',
+    en: 'Defense',
+    es: 'Defensa',
+    de: 'Verteidigung',
+    pt: 'Defesa',
+  },
+  /** « Sans capture » (neutre) : le serveur a dit 0 pris — un FAIT, pas un trou. */
+  typeFree: {
+    fr: 'Sans capture',
+    en: 'No capture',
+    es: 'Sin captura',
+    de: 'Ohne Eroberung',
+    pt: 'Sem captura',
+  },
+  /** Impact INCONNU (pas de payload serveur) : on ne nomme rien, on n'affirme rien. */
+  typeUnknown: { fr: 'Sortie', en: 'Activity', es: 'Salida', de: 'Aktivität', pt: 'Saída' },
+
+  // ── IMPACT dominant en toutes lettres (singulier / pluriel — un « 1 zones »
+  //    trahit le texte fabriqué). Le chiffre {n} vient TOUJOURS du serveur. ──
+  impactCapturedOne: { fr: '+{n} zone', en: '+{n} zone', es: '+{n} zona', de: '+{n} Zone', pt: '+{n} zona' },
+  impactCapturedMany: {
+    fr: '+{n} zones',
+    en: '+{n} zones',
+    es: '+{n} zonas',
+    de: '+{n} Zonen',
+    pt: '+{n} zonas',
+  },
+  impactRetakenOne: {
+    fr: '{n} zone reprise',
+    en: '{n} zone retaken',
+    es: '{n} zona recuperada',
+    de: '{n} Zone zurückerobert',
+    pt: '{n} zona retomada',
+  },
+  impactRetakenMany: {
+    fr: '{n} zones reprises',
+    en: '{n} zones retaken',
+    es: '{n} zonas recuperadas',
+    de: '{n} Zonen zurückerobert',
+    pt: '{n} zonas retomadas',
+  },
+  impactDefendedOne: {
+    fr: '{n} zone conservée',
+    en: '{n} zone held',
+    es: '{n} zona conservada',
+    de: '{n} Zone gehalten',
+    pt: '{n} zona mantida',
+  },
+  impactDefendedMany: {
+    fr: '{n} zones conservées',
+    en: '{n} zones held',
+    es: '{n} zonas conservadas',
+    de: '{n} Zonen gehalten',
+    pt: '{n} zonas mantidas',
+  },
+  /** a11y : quand une ligne n'a pas d'impact chiffré (free / inconnu). */
+  impactNone: {
+    fr: 'sans impact territorial',
+    en: 'no territorial impact',
+    es: 'sin impacto territorial',
+    de: 'kein Gebietseinfluss',
+    pt: 'sem impacto territorial',
+  },
+  /** VoiceOver d'une ligne complète (type, impact, effort, date) — neutre. */
+  a11yRunLine: {
+    fr: '{type} — {impact} · {effort} · {when}',
+    en: '{type} — {impact} · {effort} · {when}',
+    es: '{type} — {impact} · {effort} · {when}',
+    de: '{type} — {impact} · {effort} · {when}',
+    pt: '{type} — {impact} · {effort} · {when}',
+  },
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

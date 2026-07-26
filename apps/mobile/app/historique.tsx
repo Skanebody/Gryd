@@ -1,99 +1,64 @@
 /**
- * GRYD — HISTORIQUE (/historique, planche E14). « L'utilisateur doit retrouver
- * TOUS ses parcours » : la LISTE COMPLÈTE des courses du filtre, jamais tronquée.
+ * GRYD — HISTORIQUE (/historique, planche E24). Un JOURNAL DE CONQUÊTE, pas un
+ * tableau de séances : chaque ligne raconte d'abord son IMPACT territorial,
+ * colorée par rôle, et les lignes sont groupées PAR SEMAINE.
  *
- * ─── ORDRE DE COMPOSITION ───────────────────────────────────────────────────
- *   1. `StackScreen` : retour + titre + kicker mono gris + sous-titre, et le
- *      commutateur Run / Bike (planche E14) en `headerRight` ;
- *   2. l'ÉTAT de la page — un seul à la fois, chacun avec sa forme propre :
- *      lentille Bike / lecture en cours / pas de compte / sans backend /
- *      échec / lu-et-vide ;
- *   3. le groupe de filtres (`Segmented` `tone="surface"` `scrollable`) ;
- *   4. le kicker de comptage (`SectionLabel`) ;
- *   5. la liste des courses (`RealRunCard`) ;
- *   6. en gris, en bas, APRÈS la liste : ce qui n'existe pas encore.
+ * ─── ORDRE DE COMPOSITION (planche E24) ─────────────────────────────────────
+ *   1. `StackScreen` : retour + titre + kicker + sous-titre, et le commutateur
+ *      Run / Bike en `headerRight` (lentille mémorisée POUR CET ONGLET) ;
+ *   2. l'ÉTAT de la page — un seul à la fois (chargement / pas connecté / sans
+ *      backend / échec / lu-et-vide) ;
+ *   3. le BANDEAU DE SYNTHÈSE (`SheetMetrics`) : sorties · distance · captures ·
+ *      défenses — QUE des faits serveur ;
+ *   4. les GROUPES PAR SEMAINE (« Cette semaine », « Semaine dernière »,
+ *      « Semaine du … ») : un `SectionLabel` puis les lignes (`RealRunCard`) ;
+ *   5. en gris, en bas, APRÈS la liste : ce qui n'existe pas encore.
  *
- * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
- * · LA BARRE DE CHIPS RECODÉE (Pressable bordés 1 px, chartreuse sur le chip
- *   sélectionné). Deux fautes : un groupe de choix se dit avec `Segmented`, et
- *   l'accent chartreuse ne se dépense pas sur un FILTRE — il est réservé à la
- *   décision de l'écran. Le sélectionné passe en surface N2 (`tone="surface"`).
- * · LE CTA RECODÉ de la card d'état (Pressable + fond chartreuse à la main),
- *   remplacé par `<Button>` : il apporte l'anneau de focus clavier, le libellé
- *   qui rétrécit sans ellipse et un `analyticsId` stable non-PII.
- * · LA CARD CENTRÉE de chargement, devenue une LIGNE grise non tapable. Un
- *   chargement n'est pas un message : il n'affirme rien, il occupe le moins de
- *   place possible.
- * · Le tri des filtres visibles, sorti du JSX vers `visibleHistoryFilters`
- *   (fonction pure testée) : « un seul filtre utile n'est pas un filtre ».
+ * ─── CE QUI A CHANGÉ POUR COLLER À LA PLANCHE E24 (26/07/2026) ───────────────
+ * L'écran groupait par FILTRE (Tout / Conquêtes / Défenses / Stats) — une barre
+ * `Segmented` que la planche E24 ne montre pas. E24 groupe par SEMAINE et code le
+ * TYPE par la COULEUR (Capture chartreuse, Reprise orange, Défense bleu, libre
+ * neutre). Trois changements, tous adossés à des fonctions PURES testées
+ * (`historyView`) :
+ *   · la barre de filtres est RETIRÉE ; à sa place, le bandeau de synthèse et le
+ *     découpage par semaine (`groupRunsByWeek`) ;
+ *   · le TYPE d'une ligne est dérivé de l'impact serveur, REPRISE incluse
+ *     (`hexes.stolen` → orange), par `runStory` — c'est `RealRunCard` qui rend ;
+ *   · le bandeau (`summarizeHistory`) ne compte que des faits (captures =
+ *     `captured > 0`, défenses = `defended > 0`, distance = somme réelle).
  *
- * ─── ÉCARTS ASSUMÉS À LA PLANCHE ────────────────────────────────────────────
- * · PAS DE VIGNETTE DE TRACÉ sur les lignes de course, et le sous-titre ne la
- *   promet plus. Raison technique : `runs.polyline_masked` n'est pas décodé
- *   (décodage + projection = chantier à part) — cf. `RealRunCard`.
- * · AUCUNE LIGNE N'EST CLIQUABLE. Raison technique : `/course/[id]` ne sait
- *   résoudre aucun identifiant (`findRealRun()` retourne `undefined`, O1). On
- *   ne peint pas une action qui échouerait ; l'absence est ÉCRITE en pied de
+ * ─── ÉCARTS ASSUMÉS À LA PLANCHE (inchangés — honnêteté au-dessus du pixel) ──
+ * · PAS DE VIGNETTE DE TRACÉ (`runs.polyline_masked` non décodé) : la tuile de
+ *   ligne porte le PICTO DE TYPE coloré, pas une géométrie inventée
+ *   (cf. `RealRunCard`).
+ * · AUCUNE LIGNE N'EST TAPABLE : `/course/[id]` ne résout aucun identifiant (O1).
+ *   On ne peint pas un chevron qui échouerait ; l'absence est ÉCRITE en pied de
  *   page, en gris, après la liste (patron `qr.tsx`).
- * · PAS DE PAGINATION. Raison technique : la lecture est bornée à 200 courses
- *   (`HISTORY_LIMIT`) ; au-delà il faudra un vrai « plus ancien », pas une
- *   troncature silencieuse — l'écran promet « TOUS tes parcours ».
+ * · PAS DE « repris à X » : le nom d'un adversaire exige une identité
+ *   cross-joueur (O1). Une reprise reste neutre (« Reprise · {n} zones »).
+ * · LECTURE bornée à 200 sorties (`HISTORY_LIMIT`) : au-delà, un vrai « plus
+ *   ancien » (pas une troncature silencieuse) — inscrit en suspens.
  *
  * ─── LES CINQ ÉTATS, JAMAIS CONFONDUS ───────────────────────────────────────
- * L'écran était câblé en dur sur le vide hors vitrine : la liste ne pouvait
- * MATHÉMATIQUEMENT pas contenir une course, et il servait alors « Tes courses
- * apparaîtront ici… ». C'était une AFFIRMATION SUR LE JOUEUR — le troisième
- * état (fonction non câblée) déguisé en deuxième (vide légitime). La lecture
- * réelle est branchée (`features/history/real`, table `runs`, RLS
- * `runs_select_own`), et les états sont distincts :
  *   · chargement   → on n'affirme RIEN tant qu'on ne sait pas ;
  *   · pas connecté → l'historique vit sur le compte → CTA « Se connecter » ;
  *   · sans backend → il n'y a personne au bout : une phrase, PAS de bouton ;
  *   · échec        → on le dit, et on propose de réessayer ;
  *   · lu, vide     → LÀ, et seulement là, « Lance-toi ! » est vrai.
  *
- * ─── COMMUTATEUR RUN / BIKE (planche E14) ───────────────────────────────────
- * Sa lentille est mémorisée POUR CET ONGLET (`useActivityLens`, clé
- * `gryd.activity.historique`) : la basculer ici ne touche ni la Carte ni le
- * Classement. Pendant une course, elle est mise EN VEILLE — sinon un joueur
- * resté en Bike se retrouverait devant un état vide qu'aucun contrôle visible
- * ne pourrait quitter.
- *
- * CE QU'IL FAIT DEPUIS LE 26/07/2026 : il BASCULE UNE VRAIE LECTURE. La liste
- * était auparavant remplacée, en lentille Bike, par un état vide expliquant que
- * « GRYD ne chronomètre pas encore le vélo » — pas une ligne de `runs` n'était
- * rendue, parce qu'aucune sortie vélo ne pouvait exister. Le vélo enregistre
- * désormais (décision fondateur ; `runs.activity`, migration 0070 appliquée le
- * 25/07) : `useMyRunHistory(activity)` borne sa lecture par `.eq('activity', …)`
- * et l'écran affiche les VRAIES sorties de la discipline choisie.
- *
- * Il ne réétiquette toujours RIEN : les courses à pied ne sont jamais rendues
- * sous une étiquette vélo — c'est le filtre SQL qui le garantit, pas une
- * branche d'affichage. Et quand la lentille vélo est vide, ce n'est plus une
- * absence de fonctionnalité : c'est le début de CE joueur dans cette
- * discipline, dit comme tel, avec le geste qui le remplit.
- *
- * ─── LA COPIE SUIT LA LECTURE (26/07/2026, seconde passe) ───────────────────
- * La bascule de lecture était juste ; les MOTS ne suivaient pas. La branche
- * `bike` de cet écran était imbriquée dans « lu ET zéro sortie » : elle ne
- * couvrait donc QUE l'état vide. Un cycliste qui a des sorties atteignait la
- * branche PEUPLÉE et y lisait « {n} courses », « Filtrer tes courses » (LU À
- * VOIX HAUTE), « Aucune course dans ce filtre » — et, pire, le kicker
- * « TES COURSES », rendu HORS de toute branche, s'affichait même au-dessus de
- * l'état vide vélo qui explique deux lignes plus bas que les sorties vélo sont
- * comptées à part. L'écran se contredisait sur le même écran.
- *
- * Le correctif ne rajoute PAS de `bike ? … : …` — c'est cette forme qui avait
- * laissé passer la moitié de la page. Les libellés qui NOMMENT l'effort sont
- * indexés par `Activity` dans les catalogues (`historyCopy`, `statsCopy`), et
- * l'écran lit ce jeu-là. Ce qui est déjà NEUTRE (« Historique », les filtres,
- * « Réessayer », « Se connecter ») reste unique : dupliquer à l'identique
- * créerait deux vérités à maintenir.
+ * ─── COMMUTATEUR RUN / BIKE (lentille E14) ──────────────────────────────────
+ * Mémorisé POUR CET ONGLET (`useActivityLens`, clé `gryd.activity.historique`) :
+ * la basculer ici ne touche ni la Carte ni le Classement. La lecture SUIT la
+ * lentille (`useMyRunHistory(activity)`, `.eq('activity', …)`) : deux mondes,
+ * deux listes, jamais une somme. La copie qui NOMME l'effort (kicker, sous-titre,
+ * états) est indexée par `Activity` (`historyCopy`, `statsCopy`) ; les libellés
+ * de TYPE et d'IMPACT, eux, sont NEUTRES aux deux mondes (ils nomment l'acte de
+ * jeu, pas le sport — cf. le bloc E24 de `catalog/historique.ts`).
  *
  * Analytics : screen('historique') au montage (§8). Aucun event inventé pour un
- * changement de filtre — on n'en crée pas hors `packages/shared/src/events.ts`.
+ * changement de lentille — on n'en crée pas hors `packages/shared/src/events.ts`.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSizes, spacing, typography } from '@klaim/shared';
@@ -102,35 +67,18 @@ import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
-import { Segmented } from '../src/ui/game/Segmented';
+import { SheetMetrics, type SheetMetric } from '../src/features/map/SheetMetrics';
 import { ActivitySwitch, useActivityLens } from '../src/ui/ActivitySwitch';
 import { startSortieHref } from '../src/ui/activityLens';
+import { formatKm } from '../src/ui/format';
 import { useSession } from '../src/lib/session';
 import { RealRunCard } from '../src/features/history/RealRunCard';
-import { visibleHistoryFilters } from '../src/features/history/historyView';
-import {
-  filterRuns,
-  useMyRunHistory,
-  type RealHistoryFilter,
-  type RealRunEntry,
-} from '../src/features/history/real';
-import { useT } from '../src/i18n/store';
-import type { Entry } from '../src/i18n/types';
+import { groupRunsByWeek, summarizeHistory, type WeekBucket } from '../src/features/history/historyView';
+import { useMyRunHistory } from '../src/features/history/real';
+import { useLocale, useT } from '../src/i18n/store';
+import type { Locale } from '../src/i18n/types';
 import { C, historyCopy } from '../src/i18n/catalog/historique';
 import { C as PC, statsCopy } from '../src/i18n/catalog/performance';
-
-/**
- * Libellé de chaque filtre. Il n'y a QUE les natures que la donnée serveur sait
- * distinguer : la barre de démo en comptait cinq, dont « Routes » (boucle
- * ouverte mais fermable), que rien dans `runs` ne permet de reconnaître. Un
- * onglet qui resterait vide à vie n'est pas un filtre, c'est un piège.
- */
-const FILTER_LABELS: Readonly<Record<RealHistoryFilter, Entry>> = {
-  all: C.filterAll,
-  conquest: C.filterConquest,
-  defense: C.filterDefense,
-  stats: C.filterStats,
-};
 
 /**
  * Card d'état : ce qui se passe, et AU PLUS une action (§A — un seul CTA
@@ -168,11 +116,21 @@ function StateCard({
   );
 }
 
+/** Lundi d'une semaine plus ancienne, formaté « 7 juil. » dans la langue. */
+function formatWeekDate(ms: number, locale: Locale): string {
+  const d = new Date(ms);
+  try {
+    return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  } catch {
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  }
+}
+
 export default function HistoriqueScreen() {
   const t = useT();
-  const [filter, setFilter] = useState<RealHistoryFilter>('all');
-  // LENTILLE de CET onglet (planche E14, « mémorisé par onglet ») + éligibilité
-  // du commutateur (flags.bike, retiré pendant une course).
+  const locale = useLocale();
+  // LENTILLE de CET onglet (E14, « mémorisé par onglet ») + éligibilité du
+  // commutateur (flags.bike, retiré pendant une course).
   const { activity, setActivity, switchVisible } = useActivityLens('historique');
   // La lecture SUIT la lentille : deux mondes, deux listes, jamais une somme.
   const { status, runs, reload } = useMyRunHistory(activity);
@@ -180,15 +138,8 @@ export default function HistoriqueScreen() {
   // un cul-de-sac : il n'y a personne au bout (le bouton mort de §A).
   const { configured } = useSession();
   const bike = activity === 'bike';
-  /**
-   * LA COPIE SUIT LA LECTURE (26/07/2026). L'écran lisait déjà par discipline
-   * (`useMyRunHistory(activity)`) mais parlait d'une seule : sa branche `bike`
-   * était imbriquée dans « lu ET zéro sortie », donc un cycliste qui A des
-   * sorties lisait « TES COURSES », « {n} courses », « Filtrer tes courses ».
-   * Ces deux jeux de libellés sont indexés par `Activity` dans les catalogues :
-   * pas un `bike ? … : …` de plus dans le JSX — c'est cette forme-là qui avait
-   * laissé passer la moitié de l'écran.
-   */
+  // La copie qui NOMME l'effort suit la lentille (jamais un `bike ? … : …` dans
+  // le JSX — c'est la forme qui avait laissé passer la moitié de l'écran).
   const H = historyCopy(activity);
   const S = statsCopy(activity);
 
@@ -196,37 +147,28 @@ export default function HistoriqueScreen() {
     screen('historique');
   }, []);
 
-  const counts = useMemo<Record<RealHistoryFilter, number>>(
-    () => ({
-      all: runs.length,
-      conquest: runs.filter((r) => r.kind === 'conquest').length,
-      defense: runs.filter((r) => r.kind === 'defense').length,
-      stats: runs.filter((r) => r.kind === 'stats').length,
-    }),
-    [runs],
-  );
-  /** Les filtres qui mènent quelque part (fonction pure testée). */
-  const filterOptions = useMemo(
-    () =>
-      visibleHistoryFilters(counts).map((key) => ({
-        id: key,
-        label: t(C.filterWithCount, { label: t(FILTER_LABELS[key]), n: counts[key] }),
-      })),
-    [counts, t],
-  );
-  /**
-   * Le filtre RÉELLEMENT appliqué. Une nature peut disparaître de la barre
-   * entre deux lectures (dernière course de ce type effacée côté serveur) :
-   * sans ce repli, la liste resterait filtrée par un choix qu'AUCUN contrôle
-   * visible ne permet plus d'annuler — un cul-de-sac silencieux.
-   */
-  const activeFilter: RealHistoryFilter = filterOptions.some((o) => o.id === filter)
-    ? filter
-    : 'all';
-  const list: RealRunEntry[] = useMemo(
-    () => filterRuns(runs, activeFilter),
-    [runs, activeFilter],
-  );
+  const summary = useMemo(() => summarizeHistory(runs), [runs]);
+  // Groupé par semaine civile ; `Date.now()` injecté (jamais en dur dans le pur).
+  const groups = useMemo(() => groupRunsByWeek(runs, Date.now()), [runs]);
+
+  const summaryMetrics: SheetMetric[] = [
+    { key: 'runs', value: String(summary.runs), label: t(C.summaryRuns) },
+    {
+      key: 'dist',
+      value: formatKm(summary.km) ?? '—',
+      unit: t(C.summaryKmUnit),
+      label: t(C.summaryDistance),
+    },
+    { key: 'captures', value: String(summary.captures), label: t(C.summaryCaptures) },
+    { key: 'defenses', value: String(summary.defenses), label: t(C.summaryDefenses) },
+  ];
+
+  const weekLabel = (bucket: WeekBucket, weekStartMs: number): string =>
+    bucket === 'this'
+      ? t(C.weekThis)
+      : bucket === 'last'
+        ? t(C.weekLast)
+        : t(C.weekOlder, { date: formatWeekDate(weekStartMs, locale) });
 
   return (
     <StackScreen
@@ -248,8 +190,7 @@ export default function HistoriqueScreen() {
           }
         : {})}
     >
-      {/* ── 1. On ne sait pas encore : une LIGNE grise, pas une card.
-             Un chargement n'affirme rien et ne mérite pas une surface. ── */}
+      {/* ── 1. On ne sait pas encore : une LIGNE grise, pas une card. ── */}
       {status === 'loading' ? <Text style={styles.stateInline}>{t(S.loading)}</Text> : null}
 
       {/* ── 2. Pas de compte : l'historique vit dessus. Le CTA n'apparaît que
@@ -271,8 +212,7 @@ export default function HistoriqueScreen() {
         />
       ) : null}
 
-      {/* ── 3. Échec : ses courses existent, on n'a pas su les lire. Dire
-             « tu n'as rien couru » ici serait le mensonge d'origine. ── */}
+      {/* ── 3. Échec : ses sorties existent, on n'a pas su les lire. ── */}
       {status === 'failed' ? (
         <StateCard
           title={t(S.failedTitle)}
@@ -286,11 +226,8 @@ export default function HistoriqueScreen() {
         />
       ) : null}
 
-      {/* ── 4. Lu. Zéro sortie est alors un FAIT, pas un trou — et la
-             LENTILLE choisit les mots, parce qu'elle choisit le geste : on
-             ne dit pas « cours » à quelqu'un qui regarde son monde vélo, et
-             le CTA DÉCLARE la discipline qu'il lance (jamais devinée depuis
-             la lentille — cf. `startSortieHref`). ── */}
+      {/* ── 4. Lu. Zéro sortie est alors un FAIT, pas un trou — et la LENTILLE
+             choisit les mots parce qu'elle choisit le geste. ── */}
       {status === 'ready' && runs.length === 0 ? (
         bike ? (
           <StateCard
@@ -309,36 +246,22 @@ export default function HistoriqueScreen() {
         )
       ) : null}
 
+      {/* ── 5. Lu, peuplé : bandeau de synthèse + groupes par semaine. ── */}
       {status === 'ready' && runs.length > 0 ? (
         <>
-          {/* Groupe de choix UNIQUE, `tone="surface"` (l'accent chartreuse
-              ne se dépense pas sur un filtre) et `scrollable` : aucun
-              libellé n'est jamais coupé, on fait défiler. */}
-          {filterOptions.length > 0 ? (
-            <Segmented
-              options={filterOptions}
-              value={activeFilter}
-              onChange={setFilter}
-              tone="surface"
-              scrollable
-              accessibilityLabel={t(H.a11yFilterGroup)}
-              style={styles.filters}
-            />
-          ) : null}
-          <SectionLabel style={styles.count}>
-            {t(list.length === 1 ? H.countOne : H.countMany, { n: list.length })}
-          </SectionLabel>
-          {list.length === 0 ? (
-            /* Il y a des sorties, mais aucune dans CE filtre : une absence
-               locale, pas un jugement sur le joueur. */
-            <StateCard body={t(H.emptyFilter)} />
-          ) : (
-            <View style={styles.list}>
-              {list.map((entry) => (
-                <RealRunCard key={entry.id} entry={entry} />
-              ))}
+          <SheetMetrics metrics={summaryMetrics} testID="historique-summary" />
+          {groups.map((group) => (
+            <View key={group.weekStartMs} style={styles.group}>
+              <SectionLabel style={styles.weekLabel}>
+                {weekLabel(group.bucket, group.weekStartMs)}
+              </SectionLabel>
+              <View style={styles.list}>
+                {group.entries.map((entry) => (
+                  <RealRunCard key={entry.id} entry={entry} />
+                ))}
+              </View>
             </View>
-          )}
+          ))}
           {/* Ce qui n'existe pas encore, dit à sa place : en bas, en gris,
               APRÈS la liste — jamais en travers de l'écran. */}
           <Text style={styles.footnote}>{t(H.detailPendingNote)}</Text>
@@ -349,8 +272,8 @@ export default function HistoriqueScreen() {
 }
 
 const styles = StyleSheet.create({
-  filters: { marginTop: spacing.md },
-  count: { marginTop: spacing.xl, marginBottom: spacing.sm },
+  group: { marginTop: spacing.xl },
+  weekLabel: { marginBottom: spacing.sm },
   list: { gap: spacing.sm },
 
   // Card fournit fond/rayon/padding (sans contour, règle 80/20) : on ne garde

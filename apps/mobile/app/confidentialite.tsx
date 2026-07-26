@@ -89,6 +89,7 @@ import {
   sizes,
   spacing,
   typography,
+  type IconName,
   type ProfileVisibility,
 } from '@klaim/shared';
 import { C } from '../src/i18n/catalog/reglages';
@@ -126,6 +127,10 @@ import {
   useModeration,
   type ReportReason,
 } from '../src/features/crew/moderation';
+// Le nom du crew alimente la CONSÉQUENCE honnête du réglage « Mes territoires
+// portent mon nom » (« sinon Un coureur de … ») : lecture légère (roster seul,
+// pas l'agrégat crew_overview). Absent → variante sans nom, jamais un crew inventé.
+import { useRealCrew } from '../src/features/crew/real';
 
 /** Libellés de visibilité — traduits (ils étaient en français en dur). */
 const VISIBILITY_ENTRY: Record<ProfileVisibility, Entry> = {
@@ -149,8 +154,11 @@ export default function ConfidentialiteScreen() {
   const t = useT();
   const { prefs, update } = usePrivacyPrefs();
   const { blocked } = useModeration();
+  const { crew } = useRealCrew();
   const { session, configured, loading: sessionLoading } = useSession();
   const signedIn = configured && session !== null && supabase !== null;
+  /** Nom RÉEL du crew, ou null : jamais un crew fabriqué pour la conséquence. */
+  const crewName = crew?.name ?? null;
 
   const [openKey, setOpenKey] = useState<SectionKey | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -349,7 +357,12 @@ export default function ConfidentialiteScreen() {
       kicker={t(C.privKicker)}
       subtitle={t(C.privSubtitle)}
     >
-      <SectionLabel style={styles.kicker}>{t(C.secQuiVoitQuoi)}</SectionLabel>
+      {/* Bandeau de confiance (planche E25) — protected-blue. Il n'affirme QUE la
+          garantie qui tient aujourd'hui et pour toujours : la position en direct
+          n'est jamais partagée. Pas de promesse de visibilité croisée (O1). */}
+      <TrustBanner text={t(C.privTrustBanner)} />
+
+      <SectionLabel style={styles.kicker}>{t(C.secVisibilite)}</SectionLabel>
 
       <DisclosureCard
         icon="profil"
@@ -365,6 +378,28 @@ export default function ConfidentialiteScreen() {
         />
         <Note>{t(C.visScopeNote)}</Note>
       </DisclosureCard>
+
+      {/* Deux réglages de la planche dont l'effet suppose une visibilité CROISÉE
+          (O1) : coque fidèle, mais NON interactive et marquée « Bientôt » — jamais
+          un interrupteur qui prétendrait gouverner une exposition inexistante. La
+          conséquence de jeu est écrite en sous-titre (fidèle à la planche). */}
+      <PendingSwitchRow
+        title={t(C.territoryNameTitle)}
+        conseq={
+          crewName !== null
+            ? t(C.territoryNameConseqCrew, { crew: crewName })
+            : t(C.territoryNameConseqSolo)
+        }
+        soonLabel={t(C.soonPill)}
+      />
+      <PendingSwitchRow
+        title={t(C.leaderboardVisibleTitle)}
+        conseq={t(C.leaderboardVisibleConseq)}
+        soonLabel={t(C.soonPill)}
+      />
+      <Note>{t(C.visibilitySoonNote)}</Note>
+
+      <SectionLabel style={styles.kicker}>{t(C.secZonesProtegees)}</SectionLabel>
 
       <DisclosureCard
         icon="pin"
@@ -384,11 +419,18 @@ export default function ConfidentialiteScreen() {
         <Note>{t(C.maskScopeNote, { m: SHARE_TRIM_M })}</Note>
       </DisclosureCard>
 
-      <SectionLabel style={styles.kicker}>{t(C.blocageSignalement)}</SectionLabel>
+      {/* Zones floutées NOMMÉES (domicile, travail) : la planche les montre, mais
+          aucun écran ne permet encore de déclarer une adresse — « Bientôt », non
+          interactive. La protection qui EXISTE (coupe départ/arrivée) est la card
+          juste au-dessus ; la note le rappelle pour ne pas laisser un trou. */}
+      <PendingRow icon="pin" title={t(C.namedZonesTitle)} soonLabel={t(C.soonPill)} />
+      <Note>{t(C.namedZonesSoonNote)}</Note>
+
+      <SectionLabel style={styles.kicker}>{t(C.secSecurite)}</SectionLabel>
 
       <DisclosureCard
         icon="bouclier"
-        title={t(C.blocageSignalement)}
+        title={t(C.signalerAbusTitle)}
         value={
           blocked.length > 0
             ? t(blocked.length > 1 ? C.blockedMany : C.blockedOne, { n: blocked.length })
@@ -495,6 +537,30 @@ export default function ConfidentialiteScreen() {
           />
         </View>
       </DisclosureCard>
+
+      {/* Délai de publication des captures (planche) : suppose que d'autres
+          joueurs VOIENT tes captures (O1) — pas encore le cas. Coque fidèle avec
+          la valeur illustrative « 1 h », mais NON interactive et « Bientôt ». */}
+      <PendingRow
+        icon="reglages"
+        title={t(C.publishDelayTitle)}
+        value={t(C.publishDelayValue)}
+        conseq={t(C.publishDelayConseq)}
+        soonLabel={t(C.soonPill)}
+      />
+      <Note>{t(C.publishDelaySoonNote)}</Note>
+
+      {/* Notifications par catégorie (planche) : réglage RÉEL — route existante,
+          poussée vers la section notifications des paramètres. Pas de bouton mort. */}
+      <ListRow
+        icon="alerte"
+        label={t(C.notifByCategoryTitle)}
+        chevron
+        onPress={() => {
+          haptics.light();
+          router.push('/parametres/notifications');
+        }}
+      />
 
       <SectionLabel style={styles.kicker}>{t(C.secMesDonneesRgpd)}</SectionLabel>
 
@@ -629,7 +695,107 @@ export default function ConfidentialiteScreen() {
           )}
         </>
       )}
+
+      {/* Conditions (planche : « … · Conditions ») — lien légal RÉEL, hors
+          session comprise (aucune donnée requise pour lire les CGU). */}
+      <ListRow
+        icon="info"
+        label={t(C.conditionsRow)}
+        chevron
+        onPress={() => {
+          haptics.light();
+          router.push('/legal/cgu');
+        }}
+      />
     </StackScreen>
+  );
+}
+
+/**
+ * Bandeau de confiance en tête (planche E25) — protected-blue (`gameColors.verify`),
+ * le seul bleu « info de confiance » de la charte, en wash discret + liseré. Texte
+ * blanc lisible sur fond sombre. Purement informatif : aucune action, jamais de
+ * chartreuse (réservée à l'action qui fait courir).
+ */
+function TrustBanner({ text }: { text: string }) {
+  return (
+    <View accessible accessibilityLabel={text} style={styles.banner}>
+      <Icon name="verrou" size={iconSizes.md} color={gameColors.verify} />
+      <Text style={styles.bannerText}>{text}</Text>
+    </View>
+  );
+}
+
+/**
+ * Interrupteur EN ATTENTE : la COQUE fidèle d'un réglage que la planche montre
+ * activable, mais dont l'effet suppose une visibilité croisée qui n'existe pas
+ * encore (O1). On dessine le shell du toggle en position PROTECTRICE, dimmé et
+ * NON interactif (ni `Pressable`, ni `onPress`), doublé d'une puce « Bientôt » :
+ * impossible de le confondre avec un contrôle actif, et rien ne prétend gouverner
+ * une exposition inexistante. La conséquence de jeu est écrite sous le titre.
+ */
+function PendingSwitchRow({
+  title,
+  conseq,
+  soonLabel,
+}: {
+  title: string;
+  conseq: string;
+  soonLabel: string;
+}) {
+  return (
+    <View accessible accessibilityLabel={`${title}. ${conseq} ${soonLabel}.`} style={styles.pendingRow}>
+      <View style={styles.pendingText}>
+        {/* Aucun `numberOfLines` : un réglage s'enroule, jamais coupé (§A.9). */}
+        <Text style={styles.pendingTitle}>{title}</Text>
+        <Text style={styles.pendingConseq}>{conseq}</Text>
+      </View>
+      <View style={styles.pendingRight}>
+        <View style={styles.soonPill}>
+          <Text style={styles.soonPillText}>{soonLabel}</Text>
+        </View>
+        {/* Shell dimmé, en position « on » (défaut protecteur de la planche). */}
+        <View style={styles.switchShellDim}>
+          <View style={styles.switchKnobDim} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Ligne EN ATTENTE avec valeur (planche fidèle) : icône + titre + valeur
+ * illustrative + puce « Bientôt », et une conséquence de jeu optionnelle. NON
+ * interactive — même raison que `PendingSwitchRow`.
+ */
+function PendingRow({
+  icon,
+  title,
+  value,
+  conseq,
+  soonLabel,
+}: {
+  icon: IconName;
+  title: string;
+  value?: string;
+  conseq?: string;
+  soonLabel: string;
+}) {
+  const a11y = `${title}${value ? `, ${value}` : ''}${conseq ? `. ${conseq}` : ''} ${soonLabel}.`;
+  return (
+    <View accessible accessibilityLabel={a11y} style={styles.pendingRow}>
+      <Icon name={icon} size={iconSizes.md} color={colors.gris} />
+      <View style={styles.pendingText}>
+        <Text style={styles.pendingTitle}>{title}</Text>
+        {conseq ? <Text style={styles.pendingConseq}>{conseq}</Text> : null}
+      </View>
+      <View style={styles.pendingRight}>
+        {value ? <Text style={styles.pendingValue}>{value}</Text> : null}
+        <View style={styles.soonPill}>
+          <Text style={styles.soonPillText}>{soonLabel}</Text>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -718,6 +884,89 @@ const styles = StyleSheet.create({
   },
   divider: { height: 1, backgroundColor: borderState.hairline, marginVertical: spacing.sm },
   actionGap: { gap: 10, marginTop: 12 },
+
+  // ── Bandeau de confiance (protected-blue) ─────────────────────────────────
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: gameColors.verifySoft, // wash #4A8DFF @ 28 %
+    borderWidth: 1,
+    borderColor: gameColors.verify,
+    borderRadius: radii.card,
+    padding: spacing.cardPadding,
+    marginBottom: spacing.sm,
+  },
+  bannerText: {
+    ...typography.body,
+    flex: 1,
+    color: colors.blanc,
+    lineHeight: fontSizes.sm * 1.5,
+  },
+
+  // ── Réglages EN ATTENTE (coque fidèle, non interactive, « Bientôt ») ───────
+  // Surface N1 comme les cards, pour lire comme un réglage — mais sans chevron
+  // ni Pressable : rien ne suggère qu'un tap agit.
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: sizes.touchTarget,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.cardPadding - 2,
+    backgroundColor: elevation.surface,
+    borderRadius: radii.card,
+    marginBottom: 10,
+  },
+  pendingText: { flex: 1 },
+  pendingTitle: { ...typography.cardTitle, color: colors.blanc },
+  pendingConseq: {
+    ...typography.meta,
+    color: colors.gris,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 3,
+  },
+  pendingRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pendingValue: {
+    ...typography.meta,
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    fontVariant: ['tabular-nums'],
+  },
+  soonPill: {
+    borderWidth: 1,
+    borderColor: borderState.hairline,
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  soonPillText: {
+    ...typography.meta,
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.5,
+  },
+  // Shell du toggle en attente : géométrie de `features/privacy/ui` (44×26/20),
+  // en position « on », mais fondu à 40 % — il montre l'état protecteur par
+  // défaut sans jamais se donner pour un contrôle qu'on peut basculer.
+  switchShellDim: {
+    width: 44,
+    height: 26,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse40,
+    borderWidth: 1,
+    borderColor: colors.chartreuse,
+    padding: 2,
+    justifyContent: 'center',
+    opacity: 0.4,
+  },
+  switchKnobDim: {
+    width: 20,
+    height: 20,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chartreuse,
+    alignSelf: 'flex-end',
+  },
 
   // ── Card d'ÉTAT (pas connecté / échec) : surface N1 sans contour, titre blanc,
   // corps gris, AU PLUS un CTA — le patron des vingt écrans recalés. ──

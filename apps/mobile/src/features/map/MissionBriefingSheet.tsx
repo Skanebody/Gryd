@@ -113,6 +113,15 @@ export interface MissionBriefingSheetProps {
    * jamais par frame.
    */
   onStateChange?: (state: BriefRouteState) => void;
+  /**
+   * OBJECTIF du briefing (E22, 26/07/2026). `conquest` (défaut) = « Reprendre »
+   * de E04, comportement inchangé. `defense` = arrivé par DÉFENDRE de E22 : il
+   * change trois choses, et TROIS SEULEMENT — le kicker devient « DÉFENSE » (label
+   * planche), la boucle est routée en intention `defendre`, et la phrase tactique
+   * dit la défense. Le CTA et le reste sont identiques : la course qui démarre
+   * reste LIBRE, et le serveur classe la défense APRÈS coup (jamais promise ici).
+   */
+  objective?: 'conquest' | 'defense';
 }
 
 export function MissionBriefingSheet({
@@ -124,9 +133,11 @@ export function MissionBriefingSheet({
   onStart,
   onStateChange,
   activity,
+  objective = 'conquest',
 }: MissionBriefingSheetProps) {
   const t = useT();
   const locale = useLocale();
+  const isDefense = objective === 'defense';
   const { width: winW } = useWindowDimensions();
   /**
    * Distance à proposer + provenance : la MÊME source que le planificateur, et
@@ -171,7 +182,9 @@ export function MissionBriefingSheet({
         { lat: originLat, lng: originLng },
         label,
         targetKm,
-        'conquerir',
+        // DÉFENSE (E22) : la boucle est routée en intention `defendre` — elle vise
+        // à re-couvrir SA zone, pas à sortir en conquérir. Conquête sinon (E04).
+        isDefense ? 'defendre' : 'conquerir',
         seed,
         activity,
         controller.signal,
@@ -221,7 +234,7 @@ export function MissionBriefingSheet({
             dans les cinq langues. `adjustsFontSizeToFit` garantit §A9 aux
             tailles système agrandies : deux mots courts, jamais coupés. */}
         <Text style={styles.kicker} numberOfLines={1} adjustsFontSizeToFit>
-          {`${t(M.briefKicker)} · ${ACTIVITY_LABELS[activity]}`}
+          {`${t(isDefense ? C.defenseBriefKicker : M.briefKicker)} · ${ACTIVITY_LABELS[activity]}`}
         </Text>
         <View style={styles.spacer} />
         {/* ✕ DANS UN DISQUE (planche E05, comme E04) — icône plutôt que texte. */}
@@ -315,9 +328,10 @@ export function MissionBriefingSheet({
       {/* ── UN SEUL bloc de métriques à séparateurs (jamais 4 cards) ── */}
       <SheetMetrics metrics={metrics} testID="brief-metrics" />
 
-      {/* ── Phrase de valeur tactique : neutre, non dramatisée, et VRAIE ── */}
+      {/* ── Phrase de valeur tactique : neutre, non dramatisée, et VRAIE. En
+          DÉFENSE (E22), elle dit la défense (refermer sa boucle, validée après). ── */}
       <Text style={styles.tactical} numberOfLines={3}>
-        {t(M.briefTactical)}
+        {t(isDefense ? C.defenseBriefTactical : M.briefTactical)}
       </Text>
 
       {/* ── CTA unique (GO reste retiré tant que ce sheet est ouvert) ── */}

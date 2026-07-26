@@ -454,9 +454,14 @@ function StatsBody({
       <RecordsSection records={records} activity={activity} />
 
       {/* Entrée Premium : une LIGNE légère en bas du gratuit, sans pression et
-          sans jamais laisser croire que la heatmap existe déjà. Rendue seulement
-          si la surface Arsenal existe — sinon `/arsenal` redirige vers la carte
-          et ce serait un contrôle mort. */}
+          sans jamais laisser croire que la heatmap existe déjà. La planche pose
+          ce renvoi ; on le garde TOUJOURS présent, mais son état suit la RÉALITÉ.
+          · surface premium ouverte (`flags.arsenal`) → ligne tappable vers
+            l'Arsenal, « Premium › » ;
+          · sinon → la heatmap n'est pas construite ET l'achat (RevenueCat, O3)
+            n'est pas branché : le seul renvoi honnête est « Bientôt », une ligne
+            NON cliquable (pas de chevron, pas de `Pressable`) — jamais un contrôle
+            mort ni un faux paywall. */}
       {flags.arsenal ? (
         <Pressable
           accessibilityRole="button"
@@ -468,7 +473,20 @@ function StatsBody({
           <Text style={styles.premiumCta}>{t(C.premiumCta)}</Text>
           <Icon name="chevron" size={16} color={colors.gris} />
         </Pressable>
-      ) : null}
+      ) : (
+        <View
+          accessibilityRole="text"
+          accessibilityLabel={t(C.premiumSoonA11y)}
+          style={styles.premiumRow}
+        >
+          <Text style={styles.premiumText}>{t(C.premiumRow)}</Text>
+          {/* Puce « Bientôt » à la place du « Premium › » : elle DIT que c'est à
+              venir, elle n'invite pas à un achat qui n'existe pas encore. */}
+          <View style={styles.soonPill}>
+            <Text style={styles.soonPillText}>{t(C.premiumSoon)}</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -679,6 +697,21 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontFamily: fonts.textSemi,
     fontSize: fontSizes.sm,
+    fontWeight: '600',
+  },
+  // Puce « Bientôt » — neutre (jamais chartreuse : ce n'est ni l'action de
+  // l'écran ni une donnée « moi »), contour discret, dit « à venir » sans vendre.
+  soonPill: {
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  soonPillText: {
+    color: colors.gris,
+    fontFamily: fonts.textSemi,
+    fontSize: fontSizes.xs,
     fontWeight: '600',
   },
 

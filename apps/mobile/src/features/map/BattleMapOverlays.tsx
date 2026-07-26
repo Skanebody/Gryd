@@ -123,10 +123,20 @@ import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
 import { SheetMetrics, type SheetMetric } from './SheetMetrics';
 import { MissionBriefingSheet } from './MissionBriefingSheet';
-// LES DEUX CIBLES DE DÉPART DE CET ÉCRAN, en PUR et testées (features/route/
+import { DefenseZoneSheet } from './DefenseZoneSheet';
+import { useDefenseCrewAlert } from './useDefenseCrewAlert';
+import { ToastHost, useToast } from '../social/Toast';
+import {
+  defenseSheetHeight,
+  deriveDefenseView,
+  isDefenseZone,
+  type CrewAlertOutcome,
+} from './defenseZone';
+// LES CIBLES DE DÉPART DE CET ÉCRAN, en PUR et testées (features/route/
 // startTargets.ts) : elles portent la déclaration de discipline, exactement
-// comme `withStartActivity` la porte pour le GO.
-import { missionStartHref, plannerHref } from '../route/startTargets';
+// comme `withStartActivity` la porte pour le GO. `plannerStartHref('defendre', …)`
+// est la cible du briefing DÉFENSE (E22) — elle déclare `intention=defense`.
+import { missionStartHref, plannerHref, plannerStartHref } from '../route/startTargets';
 import { resolveSectorName } from './sectorNaming';
 import type { LatLngPoint } from './realAnchors';
 import {
@@ -191,6 +201,20 @@ const BASEMAP_ICON: Record<BasemapKey, 'carte' | 'calques'> = {
   dark: 'carte',
   color: 'carte',
   satellite: 'calques',
+};
+
+/**
+ * Issue de « Alerter le crew » (E22) → toast. Chaque verdict serveur a le sien :
+ * un `Record` exhaustif (le compilateur exige les six issues) plutôt qu'un
+ * `switch` qui laisserait passer un cas muet. Aucune issue n'est un faux succès.
+ */
+const DEFENSE_ALERT_TOAST: Record<CrewAlertOutcome, Entry> = {
+  sent: C.defenseAlertSent,
+  no_crew: C.defenseAlertNoCrew,
+  cooldown: C.defenseAlertCooldown,
+  not_crew_sector: C.defenseAlertNotSector,
+  signed_out: C.defenseAlertSignedOut,
+  failed: C.defenseAlertFailed,
 };
 
 /** Pile de FABs : dégagement au-dessus de la sheet visible. */
@@ -643,6 +667,18 @@ export function BattleMapOverlays({
    * pas le déduire — il l'apprend.
    */
   const [briefState, setBriefState] = useState<BriefRouteState>('loading');
+  /**
+   * OBJECTIF du briefing (E22). `conquest` = « Reprendre » d'une zone rivale
+   * (E04) ; `defense` = « Défendre » ma zone contestée (E22). Il pilote le label
+   * (DÉFENSE), l'intention de routage et la cible de départ déclarée.
+   */
+  const [briefObjective, setBriefObjective] = useState<'conquest' | 'defense'>('conquest');
+
+  // ── E22 : « Alerter le crew » — un signal de renfort RÉEL (crew_ping_zone) et
+  //    son toast d'issue. Le hook n'émet QUE sur un geste (aucune lecture passive
+  //    au montage de la Carte). Le toast n'est jamais un faux succès. ──
+  const crewAlert = useDefenseCrewAlert();
+  const alertToast = useToast();
 
   // Un changement de zone (ou sa fermeture) referme le briefing : il porte le
   // nom et le tracé d'UNE zone, le laisser ouvert sur une autre le ferait mentir.
@@ -760,6 +796,26 @@ export function BattleMapOverlays({
     [zone],
   );
 
+  /**
+   * E22 — MA zone (mon crew) CONTESTÉE : la sheet de DÉCISION devient une sheet de
+   * DÉFENSE. Vue dérivée UNE fois (échéance en heures, urgence, couverture approx,
+   * métriques sourcées) — la MÊME source alimente le rendu ET la hauteur. `now`
+   * est figé sur la sélection : le compte à rebours ne re-rend pas par frame.
+   */
+  const isDefense = zone !== null && isDefenseZone(zone);
+  const defenseView = useMemo(
+    () => (zone !== null && isDefense ? deriveDefenseView(zone, new Date()) : null),
+    [zone, isDefense],
+  );
+  const defenseHeight = defenseView
+    ? defenseSheetHeight({
+        metrics: defenseView.metrics.length,
+        hasCoverageLine: true,
+        hasUrgencyNote: defenseView.urgency === 'imminent' && defenseView.hoursRemaining !== null,
+        hasSecondary: true,
+      })
+    : 0;
+
   /** Hauteur du CONTENU compact : le peek épouse son contenu, jamais tronqué (§A9). */
   // E04/E05 : la hauteur se DÉDUIT de ce qui est rendu (fonctions pures testées),
   // elle n'est plus une constante devinée. Une zone rivale porte le CTA REPRENDRE
@@ -785,7 +841,9 @@ export function BattleMapOverlays({
   const peekContentHeight = zoneOpen
     ? briefingOpen
       ? briefingHeight
-      : zoneHeight
+      : isDefense
+        ? defenseHeight
+        : zoneHeight
     : plan.narrative === 'skeleton'
       ? SKELETON_PEEK_HEIGHT
       : locationNarrative
@@ -927,18 +985,33 @@ export function BattleMapOverlays({
   };
 
   /**
-   * E04 → E05 : « Reprendre » n'envoie plus directement au planificateur, il
-   * ouvre le BRIEFING, où l'intention devient un objectif concret. Le
-   * planificateur reste accessible en un tap depuis le briefing (« Ajuster »)
-   * et depuis le lien tertiaire « Planifier pour plus tard ».
+   * E04/E22 → E05 : « Reprendre » (conquête) comme « Défendre » (défense) n'envoie
+   * plus au planificateur, il ouvre le BRIEFING, où l'intention devient un
+   * objectif concret. L'objectif est PORTÉ jusqu'au briefing : il en change le
+   * label (DÉFENSE), l'intention de routage et la cible de départ.
    */
-  const openBriefing = () => {
+  const openBriefing = (objective: 'conquest' | 'defense') => {
     haptics.medium();
-    screen('map_zone_act', { zone: selectedZoneId ?? '', action: 'reprendre' });
+    screen('map_zone_act', {
+      zone: selectedZoneId ?? '',
+      action: objective === 'defense' ? 'defendre' : 'reprendre',
+    });
+    setBriefObjective(objective);
     // On repart de « calcul en cours » : ne pas réutiliser l'état d'un briefing
     // précédent, qui ferait clignoter la sheet à la mauvaise hauteur.
     setBriefState('loading');
     setBriefingOpen(true);
+  };
+
+  /**
+   * E22 — « Alerter le crew » : un signal de RENFORT réel (`crew_ping_zone`) sur
+   * le secteur contesté. 1 tap, message FIGÉ (vocabulaire fermé), toast d'issue.
+   * Aucun faux succès : le toast dit exactement ce que le serveur a répondu.
+   */
+  const alertCrew = async () => {
+    if (crewAlert.alerting) return;
+    const outcome = await crewAlert.alert(zone?.sectorId ?? null);
+    alertToast.show(t(DEFENSE_ALERT_TOAST[outcome]));
   };
 
   /**
@@ -956,20 +1029,23 @@ export function BattleMapOverlays({
   };
 
   /**
-   * CTA du briefing. La sortie qui démarre est une sortie de CONQUÊTE réelle —
-   * exactement celle du bouton GO. Le tracé affiché reste indicatif et le
-   * briefing le DIT : `/course-live` ignore volontairement tout paramètre
-   * d'objectif, et le serveur classe la capture APRÈS coup.
+   * CTA du briefing. La sortie qui démarre est une sortie RÉELLE — exactement
+   * celle du bouton GO. Le tracé affiché reste indicatif et le briefing le DIT :
+   * `/course-live` ignore tout tracé conseillé, et le serveur classe la capture
+   * (ou la défense) APRÈS coup.
    *
-   * ⚠️ CE BOUTON NE DÉCLARAIT RIEN jusqu'au 26/07/2026 : il poussait
-   * `/course-live?mode=conquete` en dur, donc TOUJOURS une course à pied — y
-   * compris atteint depuis la lentille vélo, où le tap de zone est réarmé. Le
-   * GO d'à côté déclarait déjà correctement ; il n'y avait aucune raison que
-   * deux départs du même écran n'enregistrent pas la même chose.
+   * L'OBJECTIF, lui, voyage jusqu'au départ (E22) : une DÉFENSE déclare
+   * `intention=defense` (`plannerStartHref('defendre', …)`), une conquête part sur
+   * la même base que le GO (`missionStartHref`). Comme le planificateur, l'objectif
+   * oriente la boucle sans jamais décider la capture — le tracé, lui, ne voyage pas.
    */
   const startMission = () => {
     onCloseZone?.();
-    router.push(missionStartHref(activity));
+    router.push(
+      briefObjective === 'defense'
+        ? plannerStartHref('defendre', activity)
+        : missionStartHref(activity),
+    );
   };
 
   /**
@@ -1093,10 +1169,23 @@ export function BattleMapOverlays({
                   zoneName={zoneName}
                   egoPos={egoPos}
                   activity={activity}
+                  objective={briefObjective}
                   onStateChange={setBriefState}
                   onClose={() => setBriefingOpen(false)}
                   onOpenPlanner={openPlanner}
                   onStart={startMission}
+                />
+              ) : isDefense && defenseView ? (
+                /* E22 — MA zone CONTESTÉE : sheet de DÉFENSE (DÉFENDRE = l'unique
+                   CTA chartreuse ; « Alerter le crew » reste un lien tertiaire). */
+                <DefenseZoneSheet
+                  zone={zone}
+                  zoneName={zoneName}
+                  view={defenseView}
+                  onClose={closeZone}
+                  onDefendre={() => openBriefing('defense')}
+                  onAlertCrew={alertCrew}
+                  alerting={crewAlert.alerting}
                 />
               ) : (
                 <ZoneDecisionPeek
@@ -1104,7 +1193,7 @@ export function BattleMapOverlays({
                   zoneName={zoneName}
                   metrics={zoneMetrics}
                   onClose={closeZone}
-                  onReprendre={openBriefing}
+                  onReprendre={() => openBriefing('conquest')}
                   onPlanLater={openPlanner}
                 />
               )
@@ -1174,6 +1263,9 @@ export function BattleMapOverlays({
           />
         )}
       </View>
+      {/* Toast d'issue de « Alerter le crew » (E22) — pointerEvents none, il ne
+          vole aucun tap ; il DIT ce que le serveur a répondu, jamais un faux « OK ». */}
+      <ToastHost state={alertToast} />
     </View>
   );
 }

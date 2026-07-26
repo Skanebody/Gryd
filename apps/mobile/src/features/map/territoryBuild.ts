@@ -40,6 +40,16 @@ export interface TerritoryProperties {
   areaM2: number;
   status: TerritoryState;
   capturedAt: string | null;
+  /**
+   * Échéance de decay la PLUS PROCHE parmi les hex du territoire (`hex_claims.
+   * decay_at`, ISO), `null` si aucun hex n'en porte. Sert le compte à rebours de
+   * la DÉFENSE (E22) : c'est la première fissure de la zone, pas la moyenne — on
+   * défend avant qu'elle ne tombe. Le MINIMUM et non le maximum : sous-estimer le
+   * danger serait le mensonge le plus coûteux ici. `null` (protection
+   * nouveau-joueur, job pas encore passé) ⇒ pas d'échéance affichée, jamais une
+   * inventée.
+   */
+  earliestDecayAt: string | null;
   updatedAt: string;
   /**
    * Centroïde des cellules possédées (planche E04 — la caméra cadre la zone
@@ -172,6 +182,8 @@ export function buildTerritories(
      */
     cells: Set<string>;
     capturedAt: string | null;
+    /** Échéance de decay la plus PROCHE du territoire (min `decay_at`), ou null. */
+    earliestDecayAt: string | null;
   }
   const groups = new Map<string, Group>();
 
@@ -181,7 +193,13 @@ export function buildTerritories(
     const key = `${row.owner_user_id ?? 'neutral'}:${state}`;
     let g = groups.get(key);
     if (!g) {
-      g = { ownerId: row.owner_user_id, state, cells: new Set(), capturedAt: null };
+      g = {
+        ownerId: row.owner_user_id,
+        state,
+        cells: new Set(),
+        capturedAt: null,
+        earliestDecayAt: null,
+      };
       groups.set(key, g);
     }
     g.cells.add(dbToH3(row.h3index));
@@ -190,6 +208,12 @@ export function buildTerritories(
     // tant que personne ne l'affiche, franchement mensonger dès le premier lecteur.
     if (row.claimed_at !== null && (g.capturedAt === null || row.claimed_at > g.capturedAt)) {
       g.capturedAt = row.claimed_at;
+    }
+    // earliestDecayAt = l'échéance de decay la PLUS PROCHE (min), en ignorant les
+    // hex sans échéance (protection nouveau-joueur, ou job pas encore passé). Les
+    // ISO UTC se comparent lexicographiquement — même longueur, même zone.
+    if (row.decay_at !== null && (g.earliestDecayAt === null || row.decay_at < g.earliestDecayAt)) {
+      g.earliestDecayAt = row.decay_at;
     }
   }
 
@@ -212,6 +236,7 @@ export function buildTerritories(
         areaM2: cells.reduce((sum, cell) => sum + cellArea(cell, 'm2'), 0),
         status: g.state,
         capturedAt: g.capturedAt,
+        earliestDecayAt: g.earliestDecayAt,
         updatedAt: now(),
         center: territoryCentroid(cells),
       },
