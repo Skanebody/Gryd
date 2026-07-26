@@ -3,27 +3,36 @@
  * Toute couleur hors tokens = bug. Jamais de chartreuse sur fond clair (contraste 1,2:1).
  */
 
-// ─── DIRECTION NIGHT PRINT (refonte Vague 1, 2026) ──────────────────────────
-// Remplace la charte #B4FF0D / noir plat par l'échelle CARBONE + chartreuse
-// #C9FF38 (« B amendée », GRYD — Fondations.dc.html). Les NOMS de tokens sont
-// conservés → toute l'app se re-skinne sans renommage. Toute couleur hors tokens
-// = bug. Jamais de chartreuse sur fond clair. Chartreuse en QUOTA 8–10 % de l'écran.
+// ─── PALETTE §3.2 de la SPEC PRODUIT v1.0 (26/07/2026, source de vérité, D-19) ──
+// Historique du rôle « chartreuse » : #B4FF0D (charte d'origine) → #C9FF38
+// (« Night Print / B amendée », D-04) → **#C2FF23** (spec §3.2, D-19). Règle du
+// fondateur : « prends le dernier ». Les NOMS de tokens sont CONSERVÉS → toute
+// l'app se re-skinne sans renommage.
+// Toute couleur hors tokens = bug. Jamais de chartreuse sur fond clair (1,19:1).
+// Chartreuse en QUOTA 8–10 % de l'écran.
+//
+// ⚠️ UN SEUL ÉCART À §3.2, ET IL EST MESURÉ : `grisFaible`. La spec donne
+// `--gryd-text-faint: #667068`, qui ne fait que **3,89:1** sur `--gryd-bg`
+// #060907 — donc SOUS le seuil AA 4,5:1 que la spec elle-même impose en §15
+// (« contraste AA minimum pour le texte »). Les deux sections se contredisent ;
+// l'accessibilité tranche. `#707B72` conserve la teinte (+9,4 % de luminance) et
+// passe à **4,54:1**. Ne pas « corriger » vers #667068 sans re-mesurer.
 export const colors = {
-  noir: '#0A0D0C', // carbon-950 — fond principal (N0). Nuance chaude anti-smearing OLED.
-  carbonImmersive: '#060807', // carbon-1000 — immersif : live, splash, capture
-  carbonDeep: '#101412', // carbon-900 — surfaces profondes (fonds de HUD/coffre)
-  carbone: '#171C19', // surface-800 — cards, sheets (N1)
-  carbone2: '#202622', // surface-700 — surélevé, désactivé (N2)
-  blanc: '#F5F7F4', // texte principal, icônes
-  gris: '#AEB7B0', // texte secondaire, labels
-  grisFaible: '#778079', // texte tertiaire, méta faible, map label
-  grisLigne: '#313934', // line-600 — séparateurs 1 px (solide sur l'échelle carbone)
-  chartreuse: '#C9FF38', // accent unique — 4 emplois : moi/crew, CTA primaire, gains, live
-  chartreusePressed: '#AEEB1F', // état PRESSÉ du CTA chartreuse
-  // Remplissage de MON territoire. Fill de possession (LOD carte) : Night Print
-  // « Moi » = chartreuse 16–17 %, jamais un aplat lourd (la trace reste dominante).
-  chartreuse14: 'rgba(201,255,56,0.16)', // remplissage de MON territoire (fill possession)
-  chartreuse40: 'rgba(201,255,56,0.40)', // contours de territoire, glows
+  noir: '#060907', // --gryd-bg — fond principal (N0)
+  carbonImmersive: '#060907', // immersif : live, splash, capture (= bg, spec sans palier dédié)
+  carbonDeep: '#0D120F', // --gryd-surface-1 — surfaces profondes (fonds de HUD/coffre)
+  carbone: '#151C17', // --gryd-surface-2 — cards, sheets (N1)
+  carbone2: '#1D251F', // --gryd-surface-3 — surélevé, désactivé (N2)
+  blanc: '#F5F7F5', // --gryd-text — texte principal, icônes (18,58:1)
+  gris: '#9CA59E', // --gryd-text-muted — texte secondaire, labels (7,90:1)
+  grisFaible: '#707B72', // --gryd-text-faint AJUSTÉ AA (4,54:1) — cf. l'avertissement ci-dessus
+  grisLigne: '#2A342D', // --gryd-border — séparateurs 1 px
+  chartreuse: '#C2FF23', // --gryd-primary / --gryd-run — accent unique (16,78:1)
+  chartreusePressed: '#6F9800', // --gryd-primary-dark — état PRESSÉ du CTA
+  // Remplissage de MON territoire. Fill de possession (LOD carte) : « Moi » à
+  // 16–17 %, jamais un aplat lourd (la trace reste dominante). Spec §3.9 : 18–24 %.
+  chartreuse14: 'rgba(194,255,35,0.16)', // remplissage de MON territoire (fill possession)
+  chartreuse40: 'rgba(194,255,35,0.40)', // contours de territoire, glows
   eau: '#0D1112', // fond de carte : eau (bleu pétrole désaturé)
   // Déclinaisons ALPHA du blanc + scrims (§ charte : tokens, jamais rgba inliné) —
   // bordures/overlays translucides des HUD (course-live, FAB, scrims de modale).
@@ -45,7 +54,10 @@ export const colors = {
  * `territoryPaint()` en est la déclinaison par rôle consommée par la carte.
  */
 export const mapTokens = {
-  mineFill: colors.chartreuse14, // MESURÉ planche -selection8 (PORT OUEST) : #C9FF38 @ ~0,15
+  // Opacité MESURÉE sur la planche V1-selection8 (PORT OUEST) à ~0,15 ; la teinte,
+  // elle, DÉRIVE du token courant (#C2FF23 depuis D-19) — jamais un hex en dur.
+  // Spec §3.9 demande 18-24 % : à re-mesurer au lot carte, pas ici.
+  mineFill: colors.chartreuse14,
   mineStroke: colors.chartreuse40,
   foeFill: 'rgba(250,250,247,0.06)', // + motif par crew (8 motifs), jamais par teinte
   foeStroke: 'rgba(250,250,247,0.22)',
@@ -243,35 +255,41 @@ export const motion = {
  * Réutilise les couleurs de conflit AMENDEMENT-05 + 3 ajouts (verify/danger/carbon).
  */
 export const gameColors = {
-  /** Ton crew / action / gain — la chartreuse unique de la charte. */
+  /** Ton crew / action / gain — la chartreuse unique de la charte (`--gryd-run`). */
   crew: colors.chartreuse,
-  /** Rival / attaque subie ou menée — rival-orange (Night Print). */
-  rival: '#FF7043',
-  /** Contesté / rare / événement — contested-violet (Night Print). */
-  contested: '#8A70FF',
-  /** Victoire / or / récompense de saison — prestige-gold (Night Print). */
-  gold: '#FFC857',
-  /** GRYD Verify / info de confiance — protected-blue (Night Print). */
-  verify: '#4A8DFF',
+  /**
+   * VÉLO — `--gryd-bike` (spec §3.2). Deux univers strictement séparés (§1.2) :
+   * la teinte ne se MÉLANGE jamais à celle du run, elle la remplace quand la
+   * lentille Bike est active. Ne jamais additionner une surface Run et Bike.
+   */
+  bike: '#9DDB24',
+  /** Rival / attaque subie ou menée — `--gryd-rival` (spec §3.2). */
+  rival: '#FF643C',
+  /** Contesté / défense — `--gryd-defense` (spec §3.2). */
+  contested: '#8064FF',
+  /** Victoire / or / récompense de saison — `--gryd-gold` (spec §3.2). */
+  gold: '#F6C34F',
+  /** GRYD Verify / info de confiance — `--gryd-info` (spec §3.2). */
+  verify: '#4A9EFF',
   /**
    * Territoire PROTÉGÉ — bleu ÉLECTRIQUE (AMENDEMENT-37 §5). DISSOCIÉ de `verify`
    * (#6FB7FF, réservé au GRYD Verify) : le protégé est un ÉTAT de zone (bouclier),
    * pas une info de confiance. Teinte franche, lisible sur fond sombre.
    */
-  electricBlue: '#4A8DFF', // protected-blue (Night Print) — liseré défense/vérifié
-  /** Danger / decay urgent — danger-red (Night Print). Abandon, erreur critique seule. */
+  electricBlue: '#4A9EFF', // `--gryd-info` — liseré défense/vérifié
+  /** Danger / decay urgent — abandon, erreur critique seule. Pas de rôle §3.2 dédié. */
   danger: '#FF4D57',
-  /** Confirmation HORS capture — success-mint (Night Print). Jamais pour un claim. */
-  successMint: '#5CE6A8',
+  /** Confirmation HORS capture — `--gryd-success` (spec §3.2). Jamais pour un claim. */
+  successMint: '#48D597',
   /**
    * Dégradé / avertissement NON bloquant (E06 préflight « position approximative »,
    * signal GPS incertain) — ambre. Distinct de `gold` (victoire/récompense) et de
    * `danger` (bloquant, rouge) : la triade planche mint→ambre→rouge. Toujours
    * icône + libellé, jamais couleur seule.
    */
-  warn: '#FFB020',
-  /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre) — carbon-900. */
-  carbon: '#101412',
+  warn: '#F2B744', // `--gryd-warning` (spec §3.2)
+  /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre) — `--gryd-surface-1`. */
+  carbon: '#0D120F',
   /**
    * Déclinaisons ALPHA (§ charte : toute couleur hors tokens = bug — les washes/
    * bordures translucides passent par un TOKEN, jamais un rgba littéral inliné).

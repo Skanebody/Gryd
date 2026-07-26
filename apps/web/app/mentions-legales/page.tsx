@@ -29,8 +29,8 @@ function Todo({ children }: { children: ReactNode }) {
   return (
     <b
       style={{
-        background: 'rgba(180,255,13,.14)',
-        color: '#B4FF0D',
+        background: 'rgba(194,255,35,.14)',
+        color: '#C2FF23',
         padding: '1px 6px',
         borderRadius: '4px',
         fontWeight: 700,

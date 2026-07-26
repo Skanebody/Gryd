@@ -14,7 +14,7 @@
  * Deno, aucun réseau, on importe DIRECTEMENT les modules de prod → zéro drift.
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { colors, gameColors, territoryLisere, territoryPaint } from '@klaim/shared';
+import { colors, gameColors, territoryLisere, territoryPaint, withAlpha } from '@klaim/shared';
 // Géométrie du liseré importée du module PUR (pas d'allTerritories → pas de barrel RN).
 import {
   ringSignedArea,
@@ -26,8 +26,11 @@ import {
 
 Deno.test('territoryPaint(mine) : contour chartreuse + fill chartreuse + LISERÉ (signature)', () => {
   const p = territoryPaint('mine');
-  // Contour = chartreuse (MESURÉ #C9FF38 exact sur PORT OUEST).
-  assert(p.stroke.includes('201, 255, 56') || p.stroke.includes('201,255,56'));
+  // Contour = chartreuse. On vérifie la DÉRIVATION du token, JAMAIS un hex en dur :
+  // ce test verrouillait « 201,255,56 » (#C9FF38) et est devenu faux le 26/07 au
+  // passage à #C2FF23 (spec §3.2 / D-19). Un test de palette ne doit casser que si
+  // la RÈGLE change (le rôle « moi » est chartreuse), pas si la teinte change.
+  assertEquals(p.stroke, withAlpha(colors.chartreuse, 0.9));
   // Fill = le token mesuré chartreuse14 (~0,15).
   assertEquals(p.fill, colors.chartreuse14);
   // Nom écrit dedans = chartreuse plein.
@@ -38,9 +41,10 @@ Deno.test('territoryPaint(mine) : contour chartreuse + fill chartreuse + LISERÉ
 
 Deno.test('territoryPaint(rival) : contour + fill orange, mais AUCUN liseré (planche)', () => {
   const p = territoryPaint('rival');
-  // Contour/fill dérivent de la teinte rival (MESURÉ #FF7043 exact sur K.RUNNER).
-  assert(p.stroke.includes('255, 112, 67') || p.stroke.includes('255,112,67'));
-  assert(p.fill.includes('255, 112, 67') || p.fill.includes('255,112,67'));
+  // Contour/fill DÉRIVENT du token de rôle rival — jamais un hex en dur (même
+  // raison que pour `mine` ci-dessus : #FF7043 → #FF643C le 26/07, spec §3.2).
+  assertEquals(p.stroke, withAlpha(gameColors.rival, 0.85));
+  assertEquals(p.fill, withAlpha(gameColors.rival, 0.1));
   assertEquals(p.label, gameColors.rival);
   // Fidélité planche : le rival n'a PAS de 2ᵉ trait interne (fill uni).
   assertEquals(p.lisere, null);

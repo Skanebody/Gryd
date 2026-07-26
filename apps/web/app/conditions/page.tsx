@@ -6,7 +6,7 @@
  * utilisateur + modération, abonnement « statut uniquement » (anti pay-to-win),
  * responsabilité, résiliation.
  *
- * Charte ADDENDUM-DESIGN §C : dark-first, noir/blanc/chartreuse #B4FF0D, JAMAIS
+ * Charte ADDENDUM-DESIGN §C : dark-first, noir/blanc/chartreuse #C2FF23 (spec §3.2), JAMAIS
  * de chartreuse sur fond clair. §A : lecture linéaire, textes non tronqués, pas
  * de card-dans-card, accent chartreuse unique (bandeau + fil du sommaire).
  * Réutilise le module CSS légal partagé (confidentialite/legal.module.css).

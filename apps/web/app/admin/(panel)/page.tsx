@@ -38,7 +38,7 @@ export default function AdminDashboardPage() {
           pas avant. Seul /admin/signalements lit la vraie base. */}
       <p
         style={{
-          border: '1px solid #B4FF0D',
+          border: '1px solid #C2FF23',
           borderRadius: 8,
           padding: '10px 14px',
           margin: '0 0 20px',

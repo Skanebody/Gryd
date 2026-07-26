@@ -48,7 +48,7 @@
  * RÈGLE DE MAINTENANCE : ce document ne promet jamais au-delà du code. Avant de
  * réintroduire une ligne, vérifier le code, pas la rédaction précédente.
  *
- * Charte ADDENDUM-DESIGN §C : dark-first, noir/blanc/chartreuse #B4FF0D,
+ * Charte ADDENDUM-DESIGN §C : dark-first, noir/blanc/chartreuse #C2FF23 (spec §3.2),
  * JAMAIS de chartreuse sur fond clair. §A : lecture linéaire, textes non
  * tronqués, pas de card-dans-card, un seul accent chartreuse (le bandeau
  * promesse + le fil du sommaire). Page autonome, hors LangProvider landing.
