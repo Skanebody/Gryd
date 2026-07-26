@@ -4,16 +4,39 @@
     {
       "name": "web-waitlist",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace", "@klaim/web"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--workspace",
+        "@klaim/web"
+      ],
       "port": 3000,
       "autoPort": true
     },
     {
       "name": "mobile-web",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
+      "runtimeArgs": [
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "8081"
+      ],
       "port": 8081,
       "cwd": "apps/mobile"
+    },
+    {
+      "name": "web-ghpages-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8090",
+        "--directory",
+        "/private/tmp/claude-501/-Users-benjaminbel-KLAIM-RUN/4a188b45-a53f-408d-ae23-f5c288580f23/scratchpad/ghpages-preview"
+      ],
+      "port": 8090
     }
   ]
 }

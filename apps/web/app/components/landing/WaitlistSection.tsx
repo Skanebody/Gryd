@@ -15,14 +15,18 @@
  * et ce que gardent les fondateurs est une promesse produit, pas un chiffre.
  * Aucun compteur ne reviendra tant que le compte réel ne sera pas lisible.
  *
- * Le FORMULAIRE est INCHANGÉ côté backend : même server action joinWaitlist,
- * mêmes champs requis email + code postal (SPEC §6.2). Pays/ville/profil
- * restent des champs UI loggés en TODO(O1) au submit (cf. DISCOVERY O1).
+ * Le FORMULAIRE appelle la RPC `waitlist_join` DEPUIS LE CLIENT (26/07/2026,
+ * `lib/waitlistJoin.ts`) : l'ancienne server action n'apportait aucun secret
+ * (même clé anon publique), et la frontière de sécurité est la RPC elle-même
+ * (0034 : SECURITY DEFINER, insert direct révoqué). Ce déplacement rend le site
+ * exportable statique (AMENDEMENT-47 : le lien public sert `apps/web`). Mêmes
+ * champs requis email + code postal (SPEC §6.2), mêmes messages. Pays/ville/
+ * profil restent des champs UI loggés en TODO(O1) au submit (cf. DISCOVERY O1).
  */
 
-import { useActionState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { CITIES, SEASON_DURATION_WEEKS } from '@klaim/shared';
-import { joinWaitlist, type WaitlistFormState } from '../../actions';
+import { joinWaitlist, type WaitlistFormState } from '../../../lib/waitlistJoin';
 import { WAITLIST_UNLOCK_THRESHOLD } from '../../../lib/waitlist';
 import { useLang } from './LangProvider';
 import { Reveal } from './Reveal';
@@ -68,12 +72,15 @@ const STRINGS = {
 export function WaitlistSection() {
   const { lang, copy, formatInt } = useLang();
   const s = STRINGS[lang];
-  const [state, formAction, pending] = useActionState(joinWaitlist, initialState);
+  const [state, setState] = useState<WaitlistFormState>(initialState);
+  const [pending, setPending] = useState(false);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    // Ne bloque pas la server action : on logge seulement les champs UI
-    // qui n'ont PAS de colonne en base (TODO O1 — projet Supabase).
+    // Soumission CLIENT → RPC (cf. docblock) ; jamais deux appels en parallèle.
+    event.preventDefault();
+    if (pending) return;
     const data = new FormData(event.currentTarget);
+    // Champs UI sans colonne en base : loggés seulement (TODO O1 — projet Supabase).
     const extras = {
       country: String(data.get('country') ?? ''),
       city: String(data.get('city') ?? ''),
@@ -85,6 +92,11 @@ export function WaitlistSection() {
         extras,
       );
     }
+    setPending(true);
+    void joinWaitlist(data).then((next) => {
+      setState(next);
+      setPending(false);
+    });
   };
 
   /* Trois faits, trois sources vérifiables : un seuil produit publié, une règle
@@ -165,7 +177,7 @@ export function WaitlistSection() {
                   </ul>
                 </div>
 
-                <form action={formAction} onSubmit={onSubmit} className={styles.form}>
+                <form onSubmit={onSubmit} className={styles.form}>
                   <div className={styles.fields}>
                     <label className={formStyles.field}>
                       <span className={formStyles.label}>{copy.waitlist.email}</span>

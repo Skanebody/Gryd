@@ -55,6 +55,7 @@
  */
 
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
 import { POSTAL_CONTACT } from '../../lib/legal';
@@ -93,7 +94,7 @@ export default function ConfidentialitePage() {
       <main className={styles.main}>
         {/* Barre de retour minimale (page autonome). */}
         <div className={styles.topbar}>
-          <a href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
+          <Link href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <polygon
                 points="12,1.5 21,6.75 21,17.25 12,22.5 3,17.25 3,6.75"
@@ -101,11 +102,11 @@ export default function ConfidentialitePage() {
               />
             </svg>
             <span>GRYD</span>
-          </a>
-          <a href="/" className={styles.back}>
+          </Link>
+          <Link href="/" className={styles.back}>
             <Icon name="chevron" size={14} />
             Retour
-          </a>
+          </Link>
         </div>
 
         {/* ── En-tête ─────────────────────────────────────────────────── */}
@@ -585,10 +586,10 @@ export default function ConfidentialitePage() {
 
         {/* ── Pied de page légal ─────────────────────────────────────── */}
         <div className={styles.legalFoot}>
-          <a href="/conditions">Conditions d&rsquo;utilisation</a>
-          <a href="/cgv">CGV</a>
-          <a href="/mentions-legales">Mentions légales</a>
-          <a href="/">Retour à l&rsquo;accueil</a>
+          <Link href="/conditions">Conditions d&rsquo;utilisation</Link>
+          <Link href="/cgv">CGV</Link>
+          <Link href="/mentions-legales">Mentions légales</Link>
+          <Link href="/">Retour à l&rsquo;accueil</Link>
           <span>SASU Nexus 1993</span>
         </div>
       </main>

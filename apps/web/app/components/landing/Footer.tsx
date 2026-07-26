@@ -8,6 +8,7 @@
  */
 
 import { MIN_AGE_YEARS } from '@klaim/shared';
+import Link from 'next/link';
 import { useLang } from './LangProvider';
 import styles from './Footer.module.css';
 
@@ -47,27 +48,27 @@ export function Footer() {
           <li>{copy.footer.age.replace('{age}', formatInt(MIN_AGE_YEARS))}</li>
           <li>
             {/* Politique de confidentialité — URL publique (App Store Connect + HealthKit, AMENDEMENT-33 §6). */}
-            <a className={styles.legalLink} href="/confidentialite">
+            <Link className={styles.legalLink} href="/confidentialite">
               {copy.footer.privacy}
-            </a>
+            </Link>
           </li>
           <li>
             {/* CGU — URL publique (App Store Connect, AMENDEMENT-33 §6). Libellé local :
                 le dictionnaire landing n'a pas de clé « terms ». */}
-            <a className={styles.legalLink} href="/conditions">
+            <Link className={styles.legalLink} href="/conditions">
               {lang === 'fr' ? 'Conditions' : 'Terms'}
-            </a>
+            </Link>
           </li>
           <li>
             {/* CGV — obligatoire (vente d'abonnements) ; Mentions légales — obligatoire (LCEN). */}
-            <a className={styles.legalLink} href="/cgv">
+            <Link className={styles.legalLink} href="/cgv">
               {lang === 'fr' ? 'CGV' : 'Sales terms'}
-            </a>
+            </Link>
           </li>
           <li>
-            <a className={styles.legalLink} href="/mentions-legales">
+            <Link className={styles.legalLink} href="/mentions-legales">
               {lang === 'fr' ? 'Mentions légales' : 'Legal notice'}
-            </a>
+            </Link>
           </li>
           <li>{copy.footer.company}</li>
         </ul>

@@ -10,6 +10,7 @@
  * Charte : dark-first, réutilise le module CSS légal partagé.
  */
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../components/ui/Icon';
 import { POSTAL_CONTACT } from '../../lib/legal';
@@ -56,16 +57,16 @@ export default function MentionsLegalesPage() {
     <div className={styles.page}>
       <main className={styles.main}>
         <div className={styles.topbar}>
-          <a href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
+          <Link href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <polygon points="12,1.5 21,6.75 21,17.25 12,22.5 3,17.25 3,6.75" fill="var(--ch)" />
             </svg>
             <span>GRYD</span>
-          </a>
-          <a href="/" className={styles.back}>
+          </Link>
+          <Link href="/" className={styles.back}>
             <Icon name="chevron" size={14} />
             Retour
-          </a>
+          </Link>
         </div>
 
         <header className={styles.hero}>
@@ -187,7 +188,7 @@ export default function MentionsLegalesPage() {
           <h2 className={styles.sectionTitle}>Données personnelles</h2>
           <p className={styles.body}>
             Le traitement de tes données personnelles est décrit dans notre{' '}
-            <a href="/confidentialite">politique de confidentialité</a>, conforme au RGPD et à
+            <Link href="/confidentialite">politique de confidentialité</Link>, conforme au RGPD et à
             la loi Informatique et Libertés. Le responsable de traitement est la SASU
             Nexus&nbsp;1993, joignable par courrier à l&rsquo;adresse du siège
             ci-dessus.
@@ -202,7 +203,7 @@ export default function MentionsLegalesPage() {
             fonctionnement et, le cas échéant, une mesure d&rsquo;audience. Tout traceur non
             essentiel n&rsquo;est déposé qu&rsquo;après ton consentement, recueilli via le
             bandeau prévu à cet effet, conformément aux recommandations de la CNIL. Le détail
-            figure dans la <a href="/confidentialite">politique de confidentialité</a>.
+            figure dans la <Link href="/confidentialite">politique de confidentialité</Link>.
           </p>
         </section>
 
@@ -218,10 +219,10 @@ export default function MentionsLegalesPage() {
         </section>
 
         <div className={styles.legalFoot}>
-          <a href="/confidentialite">Confidentialité</a>
-          <a href="/conditions">Conditions</a>
-          <a href="/cgv">CGV</a>
-          <a href="/">Retour à l&rsquo;accueil</a>
+          <Link href="/confidentialite">Confidentialité</Link>
+          <Link href="/conditions">Conditions</Link>
+          <Link href="/cgv">CGV</Link>
+          <Link href="/">Retour à l&rsquo;accueil</Link>
           <span>SASU Nexus 1993</span>
         </div>
       </main>

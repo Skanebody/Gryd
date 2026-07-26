@@ -31,6 +31,7 @@
  * Charte : dark-first, réutilise le module CSS légal partagé.
  */
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../components/ui/Icon';
 import { POSTAL_CONTACT } from '../../lib/legal';
@@ -82,16 +83,16 @@ export default function CgvPage() {
     <div className={styles.page}>
       <main className={styles.main}>
         <div className={styles.topbar}>
-          <a href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
+          <Link href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <polygon points="12,1.5 21,6.75 21,17.25 12,22.5 3,17.25 3,6.75" fill="var(--ch)" />
             </svg>
             <span>GRYD</span>
-          </a>
-          <a href="/" className={styles.back}>
+          </Link>
+          <Link href="/" className={styles.back}>
             <Icon name="chevron" size={14} />
             Retour
-          </a>
+          </Link>
         </div>
 
         <header className={styles.hero}>
@@ -100,8 +101,8 @@ export default function CgvPage() {
           <p className={styles.heroSub}>
             Ces CGV régissent la vente des offres payantes de GRYD (abonnement GRYD Club,
             Founder Pack et packs cosmétiques) aux consommateurs. Elles complètent les{' '}
-            <a href="/conditions">conditions d&rsquo;utilisation</a> (usage du jeu) et la{' '}
-            <a href="/confidentialite">politique de confidentialité</a>. Le jeu, le
+            <Link href="/conditions">conditions d&rsquo;utilisation</Link> (usage du jeu) et la{' '}
+            <Link href="/confidentialite">politique de confidentialité</Link>. Le jeu, le
             territoire et la progression restent entièrement gratuits&nbsp;: aucune offre
             payante ne procure d&rsquo;avantage de jeu.
           </p>
@@ -169,7 +170,7 @@ export default function CgvPage() {
           </ul>
           <p className={styles.note}>
             Le détail complet de l&rsquo;éditeur figure dans les{' '}
-            <a href="/mentions-legales">mentions légales</a>.
+            <Link href="/mentions-legales">mentions légales</Link>.
           </p>
         </section>
 
@@ -340,7 +341,7 @@ export default function CgvPage() {
           <h2 className={styles.sectionTitle}>Données personnelles</h2>
           <p className={styles.body}>
             Les données collectées lors d&rsquo;une commande sont traitées conformément à notre{' '}
-            <a href="/confidentialite">politique de confidentialité</a> (RGPD).
+            <Link href="/confidentialite">politique de confidentialité</Link> (RGPD).
           </p>
         </section>
 
@@ -355,10 +356,10 @@ export default function CgvPage() {
         </section>
 
         <div className={styles.legalFoot}>
-          <a href="/confidentialite">Confidentialité</a>
-          <a href="/conditions">Conditions</a>
-          <a href="/mentions-legales">Mentions légales</a>
-          <a href="/">Retour à l&rsquo;accueil</a>
+          <Link href="/confidentialite">Confidentialité</Link>
+          <Link href="/conditions">Conditions</Link>
+          <Link href="/mentions-legales">Mentions légales</Link>
+          <Link href="/">Retour à l&rsquo;accueil</Link>
           <span>SASU Nexus 1993</span>
         </div>
       </main>

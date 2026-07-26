@@ -1,5 +1,22 @@
-'use server';
-
+/**
+ * Inscription waitlist — appel CLIENT de la RPC `waitlist_join` (SPEC §6.2).
+ *
+ * ─── POURQUOI CE N'EST PLUS UNE SERVER ACTION (26/07/2026) ──────────────────
+ * L'ancienne `app/actions.ts` ('use server') n'apportait AUCUN secret : elle
+ * appelait la RPC avec la même clé ANON publique que celle inlinée dans le
+ * bundle client. La vraie frontière de sécurité est la RPC elle-même
+ * (0034_waitlist_lockdown : SECURITY DEFINER, INSERT direct révoqué pour anon,
+ * validation + insert d'UNE ligne côté Postgres, `grant execute … to anon`).
+ * Appeler la RPC depuis le navigateur est donc STRICTEMENT équivalent — et ça
+ * rend le site exportable statique (AMENDEMENT-47 : le lien public sert
+ * `apps/web`, GitHub Pages ne sert que du statique).
+ *
+ * ─── HONNÊTETÉ (charte §1) ──────────────────────────────────────────────────
+ * Ne JAMAIS renvoyer un « succès » sans insert réel : env Supabase absente →
+ * erreur qui NOMME la cause (en dev) ou dit l'indisponibilité (en prod). Les
+ * messages sont ceux de l'ancienne action, relus pour dire quoi faire sans
+ * s'excuser (addendum §F).
+ */
 import { createClient } from '@supabase/supabase-js';
 
 export type WaitlistFormState =
@@ -11,15 +28,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Code postal français : exactement 5 chiffres. */
 const POSTAL_CODE_FR_RE = /^\d{5}$/;
 
-/**
- * Inscription waitlist — insert dans la table `waitlist` (SPEC §6.2 :
- * waitlist(email_or_user, postal_code, created_at)).
- * Les erreurs disent quoi faire, ne s'excusent pas (addendum §F).
- */
-export async function joinWaitlist(
-  _prevState: WaitlistFormState,
-  formData: FormData,
-): Promise<WaitlistFormState> {
+export async function joinWaitlist(formData: FormData): Promise<WaitlistFormState> {
   const email = String(formData.get('email') ?? '')
     .trim()
     .toLowerCase();
@@ -32,18 +41,11 @@ export async function joinWaitlist(
     return { status: 'error', message: 'Entre un code postal français à 5 chiffres.' };
   }
 
+  // Clés PUBLIQUES par design (anon + RLS), inlinées au build par Next.
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // Honnêteté (charte §1) : ne JAMAIS renvoyer un « succès » sans insert — le
-    // visiteur croirait être inscrit et son e-mail serait perdu en silence.
-    //
-    // La branche DEV renvoyait auparavant `success` pour ne pas gêner le travail
-    // local : c'était le même mensonge, juste sur localhost. La décision
-    // fondateur du 21/07/2026 ne fait pas d'exception pour localhost. En dev, on
-    // renvoie donc une erreur qui NOMME la cause, pour que le fondateur voie
-    // immédiatement que rien n'a été enregistré.
     console.error('[waitlist] env Supabase absente — inscription NON enregistrée');
     if (process.env.NODE_ENV !== 'production') {
       return {
@@ -59,9 +61,8 @@ export async function joinWaitlist(
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  // Sécurité (0034) : plus d'insert direct sur `waitlist` (fermé au client pour couper
-  // l'insertion en masse). On passe par la RPC SECURITY DEFINER qui valide et insère UNE
-  // ligne. Elle renvoie 'ok' | 'invalid'.
+  // Sécurité (0034) : pas d'insert direct sur `waitlist` (fermé au client). La RPC
+  // SECURITY DEFINER valide et insère UNE ligne. Elle renvoie 'ok' | 'invalid'.
   const { data, error } = await supabase.rpc('waitlist_join', {
     p_email: email,
     p_postal_code: postalCode,
