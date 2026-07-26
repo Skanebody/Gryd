@@ -40,7 +40,7 @@
  */
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path, Polyline, G } from 'react-native-svg';
+import Svg, { Path, Polyline, G, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { colors, fontSizes, fonts, gameColors, radii, spacing } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game';
 import { territoryStyle, withAlpha } from '../map/mapStyle';
@@ -249,31 +249,61 @@ export function RivalryDemo({
       replayA11y={reduce ? undefined : replayA11y}
       onReplay={reduce ? undefined : replay}
     >
+      {/* FONDU « ink-radial » (workflow design + juge charte, 26/07) — chaque aplat
+          devient une TACHE D'ENCRE dense au centre de sa zone et diffusée vers les
+          bords, comme « la surface se remplit comme une encre cartographique » de la
+          planche E08 : plus d'aplat franc. Couleurs 100 % tokens (stopColor = token,
+          stopOpacity = alpha ; jamais un hex). cx/cy/r en coords du viewBox 320×300,
+          centrés sur chaque zone PROJETÉE (userSpaceOnUse — un objectBoundingBox
+          recalerait mal ces Path allongées). Le fill fond, le CONTOUR reste NET :
+          c'est lui qui tient le rôle là où l'encre s'estompe (§A, lu en < 3 s).
+          ⚠️ Les opacités de calque (p.mine/p.threat/p.contested) restent ANIMÉES :
+          le dégradé est un fill statique, tout le crossfade vit sur ces opacités.
+          ⚠️ r ≥ demi-diagonale de chaque zone → aucun anneau « pad » terne aux coins ;
+          si les anchors/pad de RIVALRY_PROJ changent, recalculer cx/cy/r. */}
+      <Defs>
+        <RadialGradient id="ink-mine" cx={192} cy={168} r={155} gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor={colors.chartreuse} stopOpacity={0.46} />
+          <Stop offset="0.55" stopColor={colors.chartreuse} stopOpacity={0.28} />
+          <Stop offset="1" stopColor={colors.chartreuse} stopOpacity={0.05} />
+        </RadialGradient>
+        <RadialGradient id="ink-rival" cx={51} cy={75} r={58} gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor={gameColors.rival} stopOpacity={0.42} />
+          <Stop offset="0.55" stopColor={gameColors.rival} stopOpacity={0.24} />
+          <Stop offset="1" stopColor={gameColors.rival} stopOpacity={0.05} />
+        </RadialGradient>
+        <RadialGradient id="ink-contested" cx={192} cy={168} r={155} gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor={gameColors.contested} stopOpacity={0.42} />
+          <Stop offset="0.55" stopColor={gameColors.contested} stopOpacity={0.26} />
+          <Stop offset="1" stopColor={gameColors.contested} stopOpacity={0.06} />
+        </RadialGradient>
+      </Defs>
       <RealStreets proj={RIVALRY_PROJ} streets={DEMO_STREETS} opacity={0.1} />
-      {/* MA ZONE — établie, puis cédant la place à l'état contesté. */}
+      {/* MA ZONE — encre chartreuse diffusée ; contour NET (il porte le rôle « moi »). */}
       <Path
         d={minePath}
-        fill={territoryStyle.crewFill}
+        fill="url(#ink-mine)"
         stroke={territoryStyle.crewStroke}
         strokeWidth={2}
         strokeLinejoin="round"
         opacity={p.mine * (1 - p.contested)}
       />
-      {/* LA ZONE D'À CÔTÉ — un rôle « rival », pas une identité. */}
+      {/* LA ZONE D'À CÔTÉ — rôle « rival » : encre orange diffusée, contour orange NET. */}
       <Path
         d={rivalPath}
-        fill={territoryStyle.rivalFill}
+        fill="url(#ink-rival)"
         stroke={territoryStyle.rivalStroke}
         strokeWidth={2}
         strokeLinejoin="round"
         opacity={p.threat}
       />
-      {/* CONTESTÉE §C — double contour décalé (jamais un seul trait bicolore),
-          et JAMAIS de pulsation : le contesté ne pulse plus (A-37 §5). */}
+      {/* CONTESTÉE §C — encre violette diffusée + double contour décalé NET (jamais un
+          trait bicolore), JAMAIS de pulsation (A-37 §5). Les DEUX contours nets
+          garantissent la lecture « contesté » sur toute la frontière. */}
       <G opacity={p.contested}>
         <Path
           d={minePath}
-          fill={territoryStyle.contestedFill}
+          fill="url(#ink-contested)"
           stroke={territoryStyle.contestedOuterStroke}
           strokeWidth={5}
           strokeLinejoin="round"
