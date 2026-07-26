@@ -353,19 +353,17 @@ export default function OnboardingScreen() {
   if (step === 'mechanic') {
     return (
       <E01Hero
-        kicker={t(MECHANIC.kicker)}
         title={t(MECHANIC.title)}
         tagline={t(MECHANIC.tagline)}
         cta={t(MECHANIC.cta)}
         skipLabel={t(ONB_SKIP)}
-        signInLabel={t(SIGN_IN_DOOR)}
         onNext={() => go('rivalry')}
         // « Passer » ENTRE DANS L'APP : c'est (tabs)/_layout qui sait si une
         // session est exigée, pas cet écran. Router d'office vers /sign-in
-        // faisait dire « Passer » à une porte de connexion.
+        // faisait dire « Passer » à une porte de connexion. (La porte du compte
+        // — « J'ai déjà un compte » — a été RETIRÉE de E01 : pas sur la planche,
+        // l'auth E06 la porte en fin de séquence.)
         onSkip={() => finish('/')}
-        // …et la porte, elle, ANNONCE la connexion. Deux sorties, deux phrases.
-        onSignIn={() => finish('/sign-in')}
         insets={insets}
         stepIndex={progress.index}
         stepCount={progress.count}

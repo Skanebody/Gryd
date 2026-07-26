@@ -59,7 +59,6 @@ import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'r
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, fonts, sizes, spacing, withAlpha } from '@klaim/shared';
 import { Button } from '../../ui/Button';
-import { SectionLabel } from '../../ui/SectionLabel';
 import { StepDots } from './StepDots';
 
 /**
@@ -76,22 +75,21 @@ const E01_PHOTO = require('../../../assets/onboarding/e01-crew.jpg');
  */
 const TITLE_LINE_HEIGHT = 44;
 const TAGLINE_MAX_WIDTH = 320;
-const SCRIM_TOP_HEIGHT = '62%';
-const SCRIM_MID_HEIGHT = '40%';
-const SCRIM_SOLID_HEIGHT = '22%';
+const SCRIM_TOP_HEIGHT = 62; // % de hauteur couverts par le fondu bas
+// Fondu SANS expo-linear-gradient (absent du projet) : N bandes fines
+// bottom-ancrées, hauteur croissante, même faible opacité → l'empilement produit
+// une transition CONTINUE (plus les 3 aplats à bord net). 14 pas = imperceptible.
+const SCRIM_STEPS = 14;
+const SCRIM_STEP_ALPHA = 0.2;
 
 export interface E01HeroProps {
-  kicker: string;
   title: string;
   tagline: string;
   cta: string;
   /** « Passer » en haut à droite (entre dans l'app sans le flow pédagogique). */
   skipLabel: string;
-  /** « J'ai déjà un compte » — la porte de celui qui revient. */
-  signInLabel: string;
   onNext: () => void;
   onSkip: () => void;
-  onSignIn: () => void;
   insets: EdgeInsets;
   /** Étape courante (0-indexée) et total — dérivés du flow, jamais écrits ici. */
   stepIndex: number;
@@ -101,15 +99,12 @@ export interface E01HeroProps {
 }
 
 export function E01Hero({
-  kicker,
   title,
   tagline,
   cta,
   skipLabel,
-  signInLabel,
   onNext,
   onSkip,
-  onSignIn,
   insets,
   stepIndex,
   stepCount,
@@ -130,11 +125,24 @@ export function E01Hero({
           sur les écrans SUIVANTS (visuals.tsx), pas sur l'écran-promesse. */}
       <Image source={E01_PHOTO} resizeMode="cover" style={[styles.photo, { width, height }]} />
 
-      {/* Voile bas dégradé — fonctionnel (lisibilité), empilé en paliers
-          (expo-linear-gradient absent) : transparent → carbone plein. */}
-      <View pointerEvents="none" style={[styles.scrim, styles.scrim1]} />
-      <View pointerEvents="none" style={[styles.scrim, styles.scrim2]} />
-      <View pointerEvents="none" style={[styles.scrim, styles.scrim3]} />
+      {/* Voile bas : un FONDU continu transparent → carbone plein. Faute
+          d'expo-linear-gradient (absent du projet), il est composé de N bandes
+          fines bottom-ancrées de hauteur croissante et de même faible opacité :
+          leur empilement fait un dégradé lisse, PAS les 3 barres à bord net
+          d'avant. Teintes dérivées du token immersif (jamais un rgba en dur). */}
+      {Array.from({ length: SCRIM_STEPS }).map((_, i) => (
+        <View
+          key={i}
+          pointerEvents="none"
+          style={[
+            styles.scrim,
+            {
+              height: `${(SCRIM_TOP_HEIGHT * (i + 1)) / SCRIM_STEPS}%`,
+              backgroundColor: withAlpha(colors.carbonImmersive, SCRIM_STEP_ALPHA),
+            },
+          ]}
+        />
+      ))}
 
       {/* « Passer » : saute le flow pédagogique et entre dans l'app. Il ne mène
           PAS à la connexion — c'est la porte du bas qui l'annonce. */}
@@ -153,9 +161,9 @@ export function E01Hero({
       </Pressable>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.lg }]}>
-        {/* Kicker canonique (`ui/SectionLabel`, rôle R1 gris) : le même sur les
-            quatre étapes du flow — un écran sans kicker n'est pas recalé. */}
-        <SectionLabel>{kicker}</SectionLabel>
+        {/* PAS de kicker « COMMENT ÇA MARCHE » : la planche E01 propre ne le
+            montre pas — la photo + le titre suffisent à ouvrir. Il vivait ici par
+            habitude du flow, il est retiré (retour fondateur). */}
         {/* Titre planche « COURS. / PRENDS TA VILLE. » : 2 lignes, et
             `adjustsFontSizeToFit` rétrécit si une langue dépasse la largeur
             (« PRENDS TA VILLE. » = 16 car. > budget 14) — jamais de 3e ligne ni
@@ -166,23 +174,16 @@ export function E01Hero({
         <Text style={styles.tagline}>{tagline}</Text>
         {/* L'UNIQUE CTA chartreuse de l'écran (§A4). */}
         <Button label={cta} onPress={onNext} variant="primary" size="lg" analyticsId="onboarding_e01_next" />
+        {/* Frise de progression sous le CTA (planche E01). Pas de « J'ai déjà un
+            compte » ici : la planche ne le montre pas — la porte du compte est
+            l'écran d'authentification (E06), atteint en fin de séquence ou par
+            « Passer ». Un 2e lien sous le CTA n'y figure pas. */}
         <StepDots
           index={stepIndex}
           count={stepCount}
           a11yLabel={stepA11yLabel}
           style={styles.dots}
         />
-        {/* LA PORTE DE CELUI QUI REVIENT. Lien gris souligné, jamais un 2e CTA :
-            la majorité des arrivants sont nouveaux, mais qui réinstalle doit
-            trouver son chemin sans traverser tout le flow. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={signInLabel}
-          onPress={onSignIn}
-          style={({ pressed }) => [styles.signIn, pressed && styles.pressed]}
-        >
-          <Text style={styles.signInLabel}>{signInLabel}</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -193,12 +194,9 @@ const styles = StyleSheet.create({
   // Photo plein cadre, DERRIÈRE tout le reste (width/height forcés au rendu).
   photo: { position: 'absolute', top: 0, left: 0 },
 
-  // Voile bas : à partir de ~38 % (donc hauteur 62 %), de plus en plus dense.
-  // Les teintes DÉRIVENT du token immersif — jamais un rgba recodé à la main.
-  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  scrim1: { height: SCRIM_TOP_HEIGHT, backgroundColor: withAlpha(colors.carbonImmersive, 0.25) },
-  scrim2: { height: SCRIM_MID_HEIGHT, backgroundColor: withAlpha(colors.carbonImmersive, 0.55) },
-  scrim3: { height: SCRIM_SOLID_HEIGHT, backgroundColor: colors.carbonImmersive },
+  // Cadre du dégradé bas : le tiers inférieur ~62 % de l'écran. Le FONDU (opacité
+  // croissante) est porté par le LinearGradient, pas par des aplats empilés.
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: SCRIM_TOP_HEIGHT },
 
   skip: { position: 'absolute', right: spacing.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   skipLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },
@@ -222,13 +220,5 @@ const styles = StyleSheet.create({
   // Frise SOUS le CTA (planche) — centrée.
   dots: { alignSelf: 'center' },
 
-  // Lien de connexion — cible ≥ 44 px (plancher tactile), gris souligné.
-  signIn: { minHeight: sizes.touchTarget, alignItems: 'center', justifyContent: 'center' },
-  signInLabel: {
-    color: colors.gris,
-    fontFamily: fonts.textMedium,
-    fontSize: fontSizes.sm,
-    textDecorationLine: 'underline',
-  },
   pressed: { opacity: 0.85 },
 });

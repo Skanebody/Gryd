@@ -116,8 +116,11 @@ export function Button({
         ) : null}
         {/* §A « textes jamais coupés » : le libellé rétrécit pour tenir (jamais
             l'ellipse « … »), comme le CTA héros. */}
+        {/* Casse : le CTA PRIMAIRE (chartreuse) est en CAPITALES sur les planches
+            (CONTINUER · DÉFENDRE · PARTAGER LA STORY). Les autres variantes gardent
+            leur casse (boutons d'auth « Continuer avec Apple », liens ghost). */}
         <Text
-          style={[typography.button, { color: fg }]}
+          style={[typography.button, variant === 'primary' && styles.primaryLabel, { color: fg }]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.8}
@@ -145,10 +148,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.chartreuse,
   },
+  // Casse en CAPITALES du seul CTA primaire (planches). Léger interlettrage pour
+  // que les capitales respirent, comme les kickers.
+  primaryLabel: { textTransform: 'uppercase', letterSpacing: 0.5 },
   base: {
     alignSelf: 'stretch',
     minHeight: sizes.touchTarget,
-    borderRadius: radii.pill,
+    // Rayon du bouton = « bouton primaire 18 » (cahier §5.6, `radii.btn`) : un
+    // rectangle arrondi, PAS un stadium `radii.pill` (999) — c'est la forme des
+    // CTA sur les planches. `pill` reste pour les pastilles/chips, pas les CTA.
+    borderRadius: radii.btn,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
