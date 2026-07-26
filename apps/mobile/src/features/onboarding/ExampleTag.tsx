@@ -11,16 +11,17 @@
  * PUIS SE REMPLIT — la représentation exacte d'une capture — sans rien qui dise
  * que c'est un exemple.
  *
- * La chip vit donc dans SON fichier : deux surfaces la posent (le plateau des
- * démonstrations et le hero E01), et un garde-fou qui vit dans le composant qu'il
- * garde disparaît avec lui.
+ * La chip vit donc dans SON fichier : un garde-fou qui vit dans le composant qu'il
+ * garde disparaît avec lui. Aujourd'hui UNE seule surface la pose — le plateau des
+ * démonstrations (`DemoFrame`, carte RIVALITÉ). E01 est redevenu une PHOTO propre
+ * (`E01Hero`) et NE la rend plus : la boucle-capture qui la rendait nécessaire a
+ * quitté E01 avec `CaptureDemo`.
  *
  * ─── CE QUI EST FIXÉ ICI, ET CE QUI RESTE À L'APPELANT ──────────────────────
  * Fixé : la forme (pilule, contour gris-ligne, fond noir opaque) et la couleur
  * (GRIS — jamais chartreuse : ce n'est pas un gain). À l'appelant : le
  * POSITIONNEMENT (`style`), parce qu'il dépend de ce que le visuel occupe déjà —
- * coin haut-DROIT sur le plateau, coin haut-GAUCHE sur E01 où « Passer » tient
- * déjà la droite.
+ * coin haut-DROIT sur le plateau des démonstrations.
  *
  * Le libellé vient de l'écran (copie i18n) : le composant ne porte aucun texte.
  * Sans libellé il ne rend RIEN — une chip vide n'étiquette rien.

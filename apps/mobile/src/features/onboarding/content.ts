@@ -307,9 +307,12 @@ export const ACCOUNT = {
  * ville : chacun a sa carte. E01 est une PHOTO propre (aucune boucle animée
  * par-dessus) ; la mécanique loop→zone se montre sur la carte rivalité.
  *
- * ⚠️ `exampleTag` N'EST PAS DÉCORATIVE : la boucle se ferme PUIS SE REMPLIT —
- * la représentation exacte d'une capture. Sans la chip, le tout premier écran de
- * l'app montrerait une conquête sans dire que c'est un exemple.
+ * ⚠️ `exampleTag` N'EST PAS RENDUE SUR E01 : depuis que la carte 1 est une PHOTO
+ * propre (`E01Hero`, aucune boucle par-dessus), aucune surface d'E01 ne pose la
+ * chip. Le champ est CONSERVÉ ici pour la parité de copie (tests copyFit/flow) et
+ * comme source unique du libellé « Exemple » (= `C.exampleTag`), mais c'est la
+ * carte RIVALITÉ (`RIVALRY.exampleTag`, rendue par `RivalryDemo`) qui l'AFFICHE —
+ * là où une boucle se ferme puis se remplit, et où la chip dit « exemple ».
  *
  * ─── CE QUI A ÉTÉ RETIRÉ ICI, ET POURQUOI ───────────────────────────────────
  * `demoLabel` / `demoReplay` / `street` : plus AUCUN écran ne les lisait depuis le
@@ -322,7 +325,9 @@ export const MECHANIC = {
   kicker: C.mechanicKicker,
   title: C.mechanicTitle,
   tagline: C.mechanicTagline,
-  /** Chip d'honnêteté posée SUR le visuel — cf. l'avertissement ci-dessus. */
+  /** Libellé « Exemple » (source unique = `C.exampleTag`) — NON rendu sur E01
+   *  (photo propre) ; c'est `RivalryDemo` qui l'affiche. Retenu pour la parité de
+   *  copie (tests). Cf. l'avertissement ci-dessus. */
   exampleTag: C.exampleTag,
   cta: C.ctaContinue,
 } as const;
