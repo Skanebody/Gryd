@@ -20,3 +20,7 @@ run-bench.html
 
 # Export statique du site public (scripts/deploy-web-ghpages.sh)
 apps/web/out/
+
+# Playwright (rapports et artefacts de run)
+test-results/
+playwright-report/
